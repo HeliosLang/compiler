@@ -3720,11 +3720,11 @@ class Cast extends BuiltinFunc {
 
 	argType() {
 		let dstType = this.name.toString();
-		if (dstType == "integer") {
+		if (dstType == "Integer") {
 			return new BoolType();
-		} else if (dstType == "bytestring") {
+		} else if (dstType == "ByteArray") {
 			return new StringType();
-		} else if (dstType == "string") {
+		} else if (dstType == "String") {
 			return new ByteArrayType();
 		} else {
 			throw new Error("unhandled cast");
@@ -3733,11 +3733,11 @@ class Cast extends BuiltinFunc {
 
 	returnType() {
 		let dstType = this.name.toString();
-		if (dstType == "integer") {
+		if (dstType == "Integer") {
 			return new IntegerType();
-		} else if (dstType == "bytestring") {
+		} else if (dstType == "ByteArray") {
 			return new ByteArrayType();
-		} else if (dstType == "string") {
+		} else if (dstType == "String") {
 			return new StringType();
 		} else {
 			throw new Error("unhandled cast");
@@ -3763,13 +3763,13 @@ class Cast extends BuiltinFunc {
 		let dstType = this.name.toString();
 		let au = args[0].toUntyped();
 
-		if (dstType == "integer") {
+		if (dstType == "Integer") {
 			assert(BoolType.is(argType));
 			return `ifThenElse(${au}, 1, 0)`; // doesn't need deferred evaluation
-		} else if (dstType == "bytestring") {
+		} else if (dstType == "ByteArray") {
 			assert(StringType.is(argType));
 			return `encodeUtf8(${au})`;
-		} else if (dstType == "string") {
+		} else if (dstType == "String") {
 			assert(ByteArrayType.is(argType));
 			return `decodeUtf8(${au})`;
 		} else {
@@ -4066,7 +4066,7 @@ class Len extends BuiltinFunc {
 		} else if (argType instanceof ListType) {
 			// ok
 		} else {
-			loc.typeError("invalid argument type for len(): expected \'bytestring\' or \'list\', got \'" + argType.toString() + "\'");
+			loc.typeError("invalid argument type for len(): expected \'ByteArray\' or \'[]Any\', got \'" + argType.toString() + "\'");
 		}
 
 		return new IntegerType();
@@ -4516,7 +4516,7 @@ class GetValueComponent extends BuiltinFunc {
 	}
 }
 
-// not exposed to user! returns a list of bytestrings 
+// not exposed to user! returns a list of ByteArray 
 class GetValueMapKeys extends BuiltinFunc {
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
@@ -6179,7 +6179,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS;
 	}
 
 	add(new Cast("Integer"));
-	add(new Cast("ByteAtring"));
+	add(new Cast("ByteArray"));
 	add(new Cast("String"));
 	add(new MakeTime());
 	add(new MakeHash());
