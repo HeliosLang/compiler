@@ -1,5 +1,5 @@
 # How to use Plutus-Light with cardano-cli
-I am assuming here you are running linux.
+You will need a Linux environment with *docker* for this.
 
 ## *cardano-node* setup
 Start a *cardano-node* docker container:
