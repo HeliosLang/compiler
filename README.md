@@ -199,7 +199,7 @@ The branches of `ifThenElse` are deferred by wrapping them in lambda expressions
 Branch deferral is the expected behaviour for C-like languages.
 
 ### Function expressions
-Plutus-Light supports anonymous function expression with the following syntax:
+Plutus-Light supports anonymous function expressions with the following syntax:
 ```go
 myAddIntegers func(Integer, Integer) Integer = func(a Integer, b Integer) Integer {a + b}; ...
 ```
