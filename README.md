@@ -4,12 +4,12 @@ Plutus-Light is a Domain Specific Language that compiles to Plutus-Core (i.e. Ca
 
 This repository contains a reference compiler for Plutus-Light, written in javascript.
 
-The Plutus-Light library also contains a function to deserialize existing Plutus-Core script (see second example below).
+The Plutus-Light library also contains a function to deserialize existing Plutus-Core scripts (see second example below).
 
 ## Examples
 
 ### DSL Example
-The following example is equivalent to the Plutus vesting contract from the Plutus playground:
+The following DSL example is equivalent to the Plutus vesting contract from the Plutus playground:
 ```go
 data VestingTranche {
     time   Time, // amount is available after time
@@ -49,7 +49,10 @@ You can compile this source into Plutus-Core using the `plutus-light.js` library
 ```javascript
 import * as PL from "plutus-light.js"
 
-const src = `data VestingTrance {...`;
+const src = `data VestingTrance {
+...
+...
+`;
 
 let cborHex = PL.compilePlutusLightProgram(src);
 
@@ -75,7 +78,7 @@ console.log(PL.deserializePlutusCoreCborHexString(cborHex));
 ## Details
 
 ### Syntax
-Plutus-Light has a C-like syntax, heavily inspired by Golang. A function body is a single expression. There are no statements, and consequently no `return` statement. 
+Plutus-Light has a C-like syntax, heavily inspired by Golang. A function body is a single expression. There are no statements, and consequently no `return` statements. 
 
 `=` combined with `;` is a ternary operator. `x = upstream; downstream...` is syntactic sugar for `func(x){downstream...}(upstream)`.
 
@@ -104,7 +107,7 @@ Besides primitive types, some other opaque builtin types are defined:
  * `Address`
  * `Credential`
 
-These types require special builtin functions to access their content. Some have builtin constructors.
+These types require special builtin functions to access their content. Some also have builtin constructors.
 
 ### Builtin operators
  * `! Bool -> Bool`
@@ -191,11 +194,11 @@ These types require special builtin functions to access their content. Some have
  * `lovelace(Integer) -> Value`
 
 ### If-Then-Else
-The evaluation branches of builtin ifThenElse function calls are deferred by wrapping them in them in lambda expressions, and calling the returned lambda expression with zero arguments. The `&&` and `||` operators are treated similarly.
+The branches of `ifThenElse` are deferred by wrapping them in lambda expressions, and calling the returned lambda expression with zero arguments. `&&` and `||` operate similarly.
 
-Branch deferral gives behaviour in line with most C-like languages.
+Branch deferral is the expected behaviour for C-like languages.
 
 ### Untyped Plutus-Light
 Plutus-Light is a typed language, and is internally converted into untyped Plutus-Light before final compilation into (untyped) Plutus-Core.
 
-Untyped Plutus-Light is essentially an expansion of all the operators and all the semi-builtin functions. Semi-builtin functions are builtins provided by typed Plutus-Light, but not by Plutus-Core.
+Untyped Plutus-Light is essentially an expansion of all the operators and all the semi-builtin functions (semi-builtin functions are builtins provided by typed Plutus-Light, but not by Plutus-Core).
