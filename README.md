@@ -1,10 +1,13 @@
 # Plutus-Light
 
-Plutus-Light is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts).
+Plutus-Light is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Plutus-Light is a non-Haskell alternative to Plutus.
 
 This repository contains a reference compiler for Plutus-Light, written in javascript.
 
-The Plutus-Light library also contains a function to deserialize existing Plutus-Core scripts (see second example below).
+Use the following how-to guide to jump straight into the action:
+  * [How to use Plutus-Light with cardano-cli](HOW_TO_CARDANO_CLI.md)
+
+Note that the Plutus-Light library also contains a function to deserialize existing Plutus-Core scripts (see second example below).
 
 ## Examples
 

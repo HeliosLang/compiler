@@ -263,9 +263,7 @@ function unwrapPlutusCoreCbor(bytes) {
 function wrapPlutusCoreCbor(bytes) {
 	let n = bytes.length;
 
-	if (n < 64) {
-		bytes.unshift(0x4d);
-	} else if (n < 256) {
+	if (n < 256) {
 		bytes.unshift(n);
 		bytes.unshift(0x58);
 	} else {
