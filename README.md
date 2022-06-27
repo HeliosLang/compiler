@@ -198,11 +198,6 @@ The branches of `ifThenElse` are deferred by wrapping them in lambda expressions
 
 Branch deferral is the expected behaviour for C-like languages.
 
-### Untyped Plutus-Light
-Plutus-Light is a typed language, and is internally converted into untyped Plutus-Light before final compilation into (untyped) Plutus-Core.
-
-Untyped Plutus-Light is essentially an expansion of all the operators and all the semi-builtin functions (semi-builtin functions are builtins provided by typed Plutus-Light, but not by Plutus-Core).
-
 ### Function expressions
 Plutus-Light supports anonymous function expression with the following syntax:
 ```go
@@ -211,4 +206,10 @@ myAddIntegers func(Integer, Integer) Integer = func(a Integer, b Integer) Intege
 
 Note how the type expression for a function resembles the right-hand function value expression itself.
 
-Function values aren't entirely first class: they can't be put in containers (so not in lists and not in any fields of a `data` type).
+Function values aren't entirely first class: they can't be put in containers (so not in lists nor in any fields of a `data` type).
+
+### Untyped Plutus-Light
+Plutus-Light is a typed language, and is internally converted into untyped Plutus-Light before final compilation into (untyped) Plutus-Core.
+
+Untyped Plutus-Light is essentially an expansion of all the operators and all the semi-builtin functions (semi-builtin functions are builtins provided by typed Plutus-Light, but not by Plutus-Core).
+
