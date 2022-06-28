@@ -4,7 +4,7 @@ Plutus-Light is a Domain Specific Language that compiles to Plutus-Core (i.e. Ca
 
 This repository contains a reference compiler for Plutus-Light, written in javascript.
 
-Use the following how-to guide to jump straight into the action:
+Use the following how-to guide to jump straight in:
   * [How to use Plutus-Light with cardano-cli](HOW_TO_CARDANO_CLI.md)
 
 Note that the Plutus-Light library also contains a function to deserialize existing Plutus-Core scripts (see second example below).
@@ -164,6 +164,7 @@ These types require special builtin functions to access their content. Some also
  * `len(ByteArray) -> Integer`
  * `len([]a) -> Integer`
  * `getTx(ScriptContext) -> Tx`
+ * `getSpendingPurposeTxOutputId(ScriptContext) -> TxOutputId`
  * `getTxTimeRange(Tx) -> TimeRange`
  * `getTxInputs(Tx) -> []TxInput`
  * `getTxOutputs(Tx) -> []TxOutput`

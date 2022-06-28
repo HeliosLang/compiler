@@ -1824,7 +1824,8 @@ class PlutusLightProgram {
 		scope.setType(new TxOutputIdType());
 		scope.setType(new TimeType());
 		scope.setType(new TimeRangeType());
-		scope.setType(new HashType());
+		scope.setType(new PubKeyHashType());
+		scope.setType(new ValidatorHashType());
 		scope.setType(new ValueType());
 		scope.setType(new AddressType());
 		scope.setType(new CredentialType());
@@ -1961,7 +1962,7 @@ class PlutusLightProgram {
 class Named extends Token {
 	constructor(loc, name) {
 		super(loc);
-		this.name_ = name; // word token
+		this.name_ = name; // word token or regular string
 		this.useCount_ = 0;
 	}
 
@@ -2084,17 +2085,19 @@ class StructTypeDecl extends Named {
 
 	// result has builtin type `data`
 	memberAccessToUntyped(lhs, name) {
-		let res = `unListData(${lhs})`;
+		let found = -1;
+		let i = 0;
 		for (let f of this.fields_) {
-			if (f == name.toString()) {
-				res = `headList(${res})`;
+			if (f[0] == name.toString()) {
+				found = i;
 				break;
-			} else {
-				res = `tailList(${res})`;
 			}
+			i++;
 		}
+		
+		assert(found != -1);
 
-		return res;
+		return unData(lhs, 0, found);
 	}
 }
 
@@ -2169,7 +2172,7 @@ class StructLiteral extends StructTypeDecl {
 			res = `mkCons(${toData(expr.toUntyped(), type)}, ${res})`;
 		}
 
-		return `listData(${res})`;
+		return `constrData(0, ${res})`;
 	}
 }
 
@@ -2647,6 +2650,13 @@ class UnaryOperator extends Expr {
 
 	registerGlobals(registry) {
 		this.a_.registerGlobals(registry);
+
+		let op = this.symbol_.toString();
+		let a = this.a_.eval();
+
+		if (op == "!" && BoolType.is(a)) {
+			Not.register(registry);
+		}
 	}
 
 	toUntyped() {
@@ -2662,7 +2672,7 @@ class UnaryOperator extends Expr {
 			return `multiplyInteger(${au}, -1)`; // the minus sign should be part of literal parsing in the untyped ast builder
 		} else if (op == "!") {
 			assert(BoolType.is(a));
-			return `ifThenElse(${au}, false, true)`; // doesn't need deferred evaluation of branches
+			return `not(${au})`;
 		} else {
 			throw new Error("unhandled unary operator");
 		}
@@ -2706,7 +2716,9 @@ class BinaryOperator extends Expr {
 				return new BoolType();
 			} else if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
 				return new BoolType();
-			} else if (HashType.is(a) && HashType.is(b)) {
+			} else if (PubKeyHashType.is(a) && PubKeyHashType.is(b)) {
+				return new BoolType();
+			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
 				return new BoolType();
 			} 
 		} else if (op == "<" || op == "<=" || op == ">" || op == ">=") {
@@ -2747,18 +2759,23 @@ class BinaryOperator extends Expr {
 		let a = this.a_.eval();
 		let b = this.b_.eval();
 
+		
 		if (op == "!=") {
 			Not.register(registry);
 
 			if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
 				EqualsTxOutputId.register(registry);
-			} else if (HashType.is(a) && HashType.is(b)) {
+			} else if (PubKeyHashType.is(a) && PubKeyHashType.is(b)) {
+				EqualsHash.register(registry);
+			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
 				EqualsHash.register(registry);
 			}
 		} else if (op == "==") {
 			if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
 				EqualsTxOutputId.register(registry);
-			} else if (HashType.is(a) && HashType.is(b)) {
+			} else if (PubKeyHashType.is(a) && PubKeyHashType.is(b)) {
+				EqualsHash.register(registry);
+			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
 				EqualsHash.register(registry);
 			}
 		} else if (op == "+") {
@@ -2850,7 +2867,7 @@ class BinaryOperator extends Expr {
 			return `ifThenElse(${au}, func(){true}, func(){${bu}})()`; // deferred evaluation of branches
 		} else if (op == "&&") {
 			assert(BoolType.is(a) && BoolType.is(b));
-			return `ifThenElse(${au}, func(){${bu}}, func(){false})()`; // deferred evaluation of branches
+			return And.generateCode(au, bu);
 		} else if (op == "==") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
 				return `equalsInteger(${au}, ${bu})`;
@@ -2862,7 +2879,9 @@ class BinaryOperator extends Expr {
 				return `equalsByteString(unBData(${unData(au, 0, 0)}), unBData(${unData(bu, 0, 0)}))`;
 			} else if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
 				return `equalsTxOutputId(${au}, ${bu})`;
-			} else if (HashType.is(a) && HashType.is(b)) {
+			} else if (PubKeyHashType.is(a) && PubKeyHashType.is(b)) {
+				return `equalsHash(${au}, ${bu})`;
+			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
 				return `equalsHash(${au}, ${bu})`;
 			}
 		} else if (op == "!=") {
@@ -2876,7 +2895,9 @@ class BinaryOperator extends Expr {
 				return `not(equalsByteString(unBData(${unData(au, 0, 0)}), unBData(${unData(bu, 0, 0)})))`;
 			} else if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
 				return `not(equalsTxOutputId(${au}, ${bu}))`;
-			} else if (HashType.is(a) && HashType.is(b)) {
+			} else if (PubKeyHashType.is(a) && PubKeyHashType.is(b)) {
+				return `not(equalsHash(${au}, ${bu}))`;
+			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
 				return `not(equalsHash(${au}, ${bu}))`;
 			}
  		} else if (op == "<") {
@@ -3274,7 +3295,7 @@ class BuiltinCall extends Expr {
 	}
 }
 
-// turn something of `data` type into whatever is needed
+// turn a value from `data` type into whatever is needed
 function fromData(str, type) {
 	// convert to the relevant type
 	if (type instanceof IntegerType) {
@@ -3284,14 +3305,15 @@ function fromData(str, type) {
 	} else if (type instanceof StringType) {
 		return `decodeUtf8(unBData(${str}}))`;
 	} else if (type instanceof BoolType) {
-		return `ifThenElse(equalsInteger(unIData(${str}), 0), false, true)`; // doesn't need deferred evaluation
+		return `ifThenElse(equalsInteger(fstPair(unConstrData(${str})), 0), false, true)`; // doesn't need deferred evaluation
 	} else if (type instanceof ListType) {
 		return `unListData(${str})`; // list always contains only data in the final code
 	} else {
-		return str; // struct is data
+		return str; // remains data
 	}
 }
 
+// turn a value from a primitive type into data
 function toData(str, type) {
 	if (type instanceof IntegerType) {
 		return `iData(${str})`;
@@ -3300,26 +3322,26 @@ function toData(str, type) {
 	} else if (type instanceof StringType) {
 		return `bData(encodeUtf8(${str}))`;
 	} else if (type instanceof BoolType) {
-		return `iData(ifThenElse(${str}, 1, 0))`; // doesn't need deferred evaluation
+		return `constrData(ifThenElse(${str}, 1, 0), mkNilData(()))`; // doesn't need deferred evaluation
 	} else if (type instanceof ListType) {
 		// assuming list is also a list of data
 		return `listData(${str})`;
 	} else {
-		return str; // struct is data
+		return str; // remains data
 	}
 }
 
-function unData(str, typeIdx, member) {
-	let innerStr = "sndPair(pair)";
-	for (let i = 0; i < member; i++) {
-		innerStr = `tailList(${innerStr})`;
+function unData(str, iConstr, iField) {
+	let inner = "sndPair(pair)";
+	for (let i = 0; i < iField-1; i++) {
+		inner = `tailList(${inner})`;
 	}
 
 	// deferred evaluation of ifThenElse branches
 	return `func(pair){
 		ifThenElse(
-			equalsInteger(fstPair(pair), ${typeIdx}), 
-			func(){headList(${innerStr})}, 
+			equalsInteger(fstPair(pair), ${iConstr}), 
+			func(){headList(${inner})}, 
 			func(){error()}
 		)()
 	}(unConstrData(${str}))`;
@@ -3357,10 +3379,10 @@ class MemberExpr extends Expr {
 	toUntyped() {
 		let lhs = this.lhs_.eval();
 
-		// member access is always for structs, which are always `data` -> []data
+		// member access is always for structs, which are always `data` -> (0, []data)
 		let res = lhs.memberAccessToUntyped(this.lhs_.toUntyped(), this.name_);
 
-		return fromData(res, lhs);
+		return fromData(res, this.eval());
 	}
 }
 
@@ -3577,18 +3599,33 @@ class TimeType extends BuiltinType {
 	}
 }
 
-class HashType extends BuiltinType {
+class PubKeyHashType extends BuiltinType {
 	constructor(loc) {
-		super(loc, "Hash");
+		super(loc, "PubKeyHash");
 	}
 
 	eq(other) {
 		other = other.eval();
-		return other instanceof HashType;
+		return other instanceof PubKeyHashType;
 	}
 
 	static is(x) {
-		return (new HashType()).eq(x);
+		return (new PubKeyHashType()).eq(x);
+	}
+}
+
+class ValidatorHashType extends BuiltinType {
+	constructor(loc) {
+		super(loc, "ValidatorHash");
+	}
+
+	eq(other) {
+		other = other.eval();
+		return other instanceof ValidatorHashType;
+	}
+
+	static is(x) {
+		return (new ValidatorHashType()).eq(x);
 	}
 }
 
@@ -3649,6 +3686,10 @@ class BuiltinFunc extends Named {
 		this.deps_ = deps;
 	}
 
+	get name() {
+		return super.name.toString();
+	}
+
 	isBuiltin() {
 		return true;
 	}
@@ -3658,7 +3699,7 @@ class BuiltinFunc extends Named {
 
 	evalCall(loc, args) {
 		if (args.length != this.argTypes_.length) {
-			loc.typeError(this.name.toString() + "() expects " + this.argTypes_.length + " arg(s), got " + arg.length.toString() + " arg(s)");
+			loc.typeError(this.name + "() expects " + this.argTypes_.length + " arg(s), got " + args.length.toString() + " arg(s)");
 		}
 
 		for (let i = 0; i < args.length; i++) {
@@ -3666,7 +3707,7 @@ class BuiltinFunc extends Named {
 			let expected =  this.argTypes_[i];
 
 			if (!expected.eq(argType)) {
-				loc.typeError("invalid argument " + (i+1).toString() + " type for " + this.name.toString() + "(): expected \'" + expected.toString() + "\', got \'" + argType.toString() + "\'");
+				loc.typeError("invalid argument " + (i+1).toString() + " type for " + this.name + "(): expected \'" + expected.toString() + "\', got \'" + argType.toString() + "\'");
 			}
 		}
 
@@ -3704,16 +3745,20 @@ class And extends BuiltinFunc {
 		super("and");
 	}
 
+	static generateCode(a, b) {
+		return `ifThenElse(
+			${a},
+			func(){${b}},
+			func(){false}
+		)()`;
+	}
+
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
 		registry.register("and", `func(a, b){
-			ifThenElse(
-				a, 
-				func(){b}, 
-				func(){false}
-			)()
+			${And.generateCode("a", "b")}
 		}`);
-	}
+	}	
 }
 
 class Cast extends BuiltinFunc {
@@ -3749,13 +3794,13 @@ class Cast extends BuiltinFunc {
 
 	evalCall(loc, args) {
 		if (args.length != 1) {
-			loc.typeError(this.name.toString() + "() expects 1 arg(s), got " + args.length.toString() + " arg(s)");
+			loc.typeError(this.name + "() expects 1 arg(s), got " + args.length.toString() + " arg(s)");
 		}
 
 		let argType = this.argType();
 
 		if (!argType.eq(args[0])) {
-			args[0].typeError("invalid operand type for " + this.name.toString() + "(): expected \'" + argType.toString() + "\', got \'" + args[0].toString() + "\'");
+			args[0].typeError("invalid operand type for " + this.name + "(): expected \'" + argType.toString() + "\', got \'" + args[0].toString() + "\'");
 		}
 
 		return this.returnType();
@@ -3763,7 +3808,7 @@ class Cast extends BuiltinFunc {
 
 	toUntyped(args) {
 		let argType = args[0].eval();
-		let dstType = this.name.toString();
+		let dstType = this.name;
 		let au = args[0].toUntyped();
 
 		if (dstType == "Integer") {
@@ -3787,7 +3832,7 @@ class MakeTime extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("Time", `func(i){listData(mkCons(iData(i), mkNilData(())))}`);
+		registry.register("Time", `func(i){iData(i)}`);
 	}
 
 	registerGlobals(registry) {
@@ -3795,35 +3840,66 @@ class MakeTime extends BuiltinFunc {
 	}
 
 	evalDataCall(loc, args) {
-		return new ListData([args[0]]);
+		return args[0];
 	}
 
 	toUntyped(args) {
-		return `Time(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
-class MakeHash extends BuiltinFunc {
+// Distinct Hash types
+//  * PubKeyHash
+//  * ValidatorHash
+//  * DatumHash (will be implemented later)
+//  * MintingPolicyHash (will be implemented later)
+//  * RedeemerHash (will be implemented later)
+//  * StakeValidatorHash (what is this?)
+//  * ScriptHash (what is this?)
+class MakePubKeyHash extends BuiltinFunc {
 	constructor() {
-		super("Hash", [new ByteArrayType()], new HashType());
+		super("PubKeyHash", [new ByteArrayType()], new PubKeyHashType());
 	}
 
 	static register(registry) {
-		registry.register("Hash", `func(b){listData(mkCons(bData(b), mkNilData(())))}`);
+		registry.register("PubKeyHash", `func(b){bData(b)}`);
 	}
 
 	registerGlobals(registry) {
-		MakeHash.register(registry);
+		MakePubKeyHash.register(registry);
 	}
 
 	evalDataCall(loc, args) {
-		return new ListData([args[0]]);
+		return args[0];
 	}
 
 	toUntyped(args) {
-		return `Hash(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
+
+class MakeValidatorHash extends BuiltinFunc {
+	constructor() {
+		super("ValidatorHash", [new ByteArrayType()], new ValidatorHashType());
+	}
+
+	static register(registry) {
+		registry.register("ValidatorHash", `func(b){bData(b)}`);
+	}
+
+	registerGlobals(registry) {
+		MakeValidatorHash.register(registry);
+	}
+
+	evalDataCall(loc, args) {
+		return args[0];
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
+	}
+}
+
 
 // builtins are always inlined
 class Fold extends BuiltinFunc {
@@ -3833,14 +3909,14 @@ class Fold extends BuiltinFunc {
 
 	evalCall(loc, args) {
 		if (args.length != 3) {
-			loc.typeError(this.name.toString() + "() expects 3 arg(s), got " + args.length.toString() + " arg(s)");
+			loc.typeError(`${this.name}() expects 3 arg(s), got ${args.length.toString()} arg(s)`);
 		}
 
 		let startType = args[1].eval();
 		let lstType = args[2].eval();
 
 		if (!(lstType instanceof ListType)) {
-			loc.typeError("expected list for arg 3, got \'" + lstType.toString() + "\'");
+			loc.typeError(`${this.name} expects list for arg 3, got \'${lstType.toString()}\'`);
 		}
 
 		let itemType = lstType.itemType;
@@ -3872,14 +3948,14 @@ class Fold extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		let au = args[0].toUntyped();
-		let bu = args[1].toUntyped();
-		let cu = args[2].toUntyped();
+		let a = args[0].toUntyped();
+		let b = args[1].toUntyped();
+		let c = args[2].toUntyped();
 
-		let retType = args[1].eval();
 		let itemType = args[2].eval().itemType;
 
-		return `fold(func(a, b) {${au}(a, ${fromData("b", itemType)})}, ${bu}, ${cu})`;
+		// list always contains data values, so every item must be converted into type expected by arg0
+		return `${this.name}(func(prev, item) {${a}(prev, ${fromData("item", itemType)})}, ${b}, ${c})`;
 	}
 }
 
@@ -3890,13 +3966,13 @@ class Filter extends BuiltinFunc {
 
 	evalCall(loc, args) {
 		if (args.length != 2) {
-			loc.typeError(this.name.toString() + "() expects 2 arg(s), got " + args.length.toString() + " arg(s)");
+			loc.typeError(`${this.name}() expects 2 arg(s), got ${args.length.toString()} arg(s)`);
 		}
 
 		let lstType = args[1].eval();
 
 		if  (!lstType instanceof ListType) {
-			loc.typeError("expected list for arg 2, got \'" + lstType.toString() + "\'");
+			loc.typeError(`${this.name} expects list for arg 2, got \'${lstType.toString()}\'`);
 		}
 
 		let itemType = lstType.itemType;
@@ -3933,9 +4009,13 @@ class Filter extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
+		let a = args[0].toUntyped();
+		let b = args[1].toUntyped();
+
 		let itemType = args[1].eval().itemType;
 
-		return `filter(func(data){${args[0].toUntyped()}(${fromData("data", itemType)})}, ${args[1].toUntyped()})`;
+		// list always contains data, so its content must be converted to type expected by arg0
+		return `${this.name}(func(item){${a}(${fromData("item", itemType)})}, ${b})`;
 	}
 }
 
@@ -3947,13 +4027,13 @@ class Find extends BuiltinFunc {
 
 	evalCall(loc, args) {
 		if (args.length != 2) {
-			loc.typeError(this.name.toString() + "() expects 3 arg(s), got " + args.length.toString() + " arg(s)");
+			loc.typeError(`${this.name}() expects 3 arg(s), got ${args.length.toString()} arg(s)`);
 		}
 
 		let lstType = args[1].eval();
 
 		if (!(lstType instanceof ListType)) {
-			loc.typeError("expected list for arg 2, got \'" + lstType.toString() + "\'");
+			loc.typeError(`${this.name} expects list for arg 2, got \'${lstType.toString()}\'`);
 		}
 
 		let itemType = lstType.itemType;
@@ -3989,10 +4069,13 @@ class Find extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		let au = args[0].toUntyped();
-		let bu = args[1].toUntyped();
+		let a = args[0].toUntyped();
+		let b = args[1].toUntyped();
 
-		return `find(${au}, ${bu})`;
+		let itemType = args[1].eval().itemType;
+
+		// list always contains data, so its content must be converted to type expected by arg0
+		return `${this.name}(func(item){${a}(${fromData("item", itemType)})}, ${b})`;
 	}
 }
 
@@ -4003,13 +4086,13 @@ class Contains extends BuiltinFunc {
 
 	evalCall(loc, args) {
 		if (args.length != 2) {
-			loc.typeError(this.name.toString() + "() expects 3 arg(s), got " + args.length.toString() + " arg(s)");
+			loc.typeError(`${this.name}() expects 3 arg(s), got ${args.length.toString()} arg(s)`);
 		}
 
 		let lstType = args[1].eval();
 
 		if (!(lstType instanceof ListType)) {
-			loc.typeError("expected list for arg 2, got \'" + lstType.toString() + "\'");
+			loc.typeError(`${this.name} expects list for arg 2, got \'${lstType.toString()}\'`);
 		}
 
 		let itemType = lstType.itemType;
@@ -4045,10 +4128,13 @@ class Contains extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		let au = args[0].toUntyped();
-		let bu = args[1].toUntyped();
+		let a = args[0].toUntyped();
+		let b = args[1].toUntyped();
 
-		return `contains(${au}, ${bu})`;
+		let itemType = args[1].eval().itemType;
+
+		// list always contains data, so its content must be converted to type expected by arg0
+		return `${this.name}(func(item){${a}(${fromData("item", itemType)})}, ${b})`;
 	}
 }
 
@@ -4059,7 +4145,7 @@ class Len extends BuiltinFunc {
 
 	evalCall(loc, args) {
 		if (args.length != 1) {
-			loc.typeError(this.name.toString() + "() expects 1 arg(s), got " + args.length.toString() + " arg(s)");
+			loc.typeError(`${this.name}() expects 1 arg(s), got ${args.length.toString()} arg(s)`);
 		}
 
 		let argType = args[0].eval();
@@ -4069,28 +4155,68 @@ class Len extends BuiltinFunc {
 		} else if (argType instanceof ListType) {
 			// ok
 		} else {
-			loc.typeError("invalid argument type for len(): expected \'ByteArray\' or \'[]Any\', got \'" + argType.toString() + "\'");
+			loc.typeError(`invalid argument type for ${this.name}(): expected \'ByteArray\' or \'[]Any\', got \'${argType.toString()}\'`);
 		}
 
 		return new IntegerType();
 	}
 
+	static register(registry) {
+		registry.register("len", `func(self, lst){self(self, lst)}(func(self, lst){
+			ifThenElse(
+				nullList(lst), 
+				func(){0}, 
+				func(){addInteger(self(self, tail(lst)), 1)}
+			)()
+		}, lst)`);
+	}
+
+	registerGlobals(registry) {
+		// the list len function is registered even if only len(ByteArray) is used
+		Len.register(registry);
+	}
+
 	toUntyped(args) {
 		let argType = args[0].eval();
-		let au = args[0].toUntyped();
+		let a = args[0].toUntyped();
 
 		if (argType instanceof ByteArrayType) {
-			return `lengthOfByteString(${au})`;
+			return `lengthOfByteString(${a})`;
 		} else if (argType instanceof ListType) {
 			// deferred evaluation of ifThenElse branches
-			return `func(self, lst){self(self, lst)}(func(self, lst){
-				ifThenElse(
-					nullList(lst), 
-					func(){0}, 
-					func(){addInteger(self(self, tail(lst)), 1)}
-				)()
-			}, lst)`;
+			return `${this.name}(${a})`;
+		} else {
+			throw new Error("should've been caught earlier");
 		}
+	}
+}
+
+class Prepend extends BuiltinFunc {
+	constructor() {
+		super("prepend");
+	}
+
+	evalCall(loc, args) {
+		if (args.length != 2) {
+			loc.typeError(`${this.name}() expects 2 arg(s), got ${args.length.toString()} arg(s)`);
+		}
+
+		let itemType = args[0].eval();
+		let lstType = args[1].eval();
+
+		if (! lstType instanceof ListType) {
+			loc.typeError(`${this.name}() expects []Any for arg 2: got \'${lstType.toString()}\'`);
+		}
+
+		if (!itemType.eq(lstType.itemType)) {
+			loc.typeError(`${this.name}() expects []${itemType.toString()}, got ${lstType.toString()}`);
+		}
+
+		return lstType;
+	}
+
+	toUntyped(args) {
+		return `mkCons(${toData(args[0].toUntyped(), args[0].eval())}, ${args[1].toUntyped()})`;
 	}
 }
 
@@ -4108,7 +4234,7 @@ class GetTx extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `getTx(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4118,6 +4244,7 @@ class GetSpendingPurposeTxOutputId extends BuiltinFunc {
 	}
 
 	static register(registry) {
+		// in the PlutusLedgerApi the output type of this would be TxOutputRef, but that seemed like a confusing name
 		registry.register("getSpendingPurposeTxOutputId", `func(ctx){${unData(unData("ctx", 0, 1), 1, 0)}}`);
 	}
 
@@ -4126,7 +4253,7 @@ class GetSpendingPurposeTxOutputId extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `getSpendingPurposeTxOutputId(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4146,6 +4273,9 @@ class GetTimeRangeStart extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
+		// the inner-most unData returns a LowerBound<POSIXTime> type (assuming that data constructor with records is equivalent to data constructor with positional fields)
+		// the next unData returns Extended<POSIXTime>
+		// the outer-most unData returns POSIXTime as data
 		return unData(unData(unData(args[0].toUntyped(), 0, 0), 0, 0), 1, 0);
 	}
 }
@@ -4164,7 +4294,7 @@ class GetTxInputs extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `getTxInputs(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4182,38 +4312,53 @@ class GetTxOutputs extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `getTxOutputs(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
-class GetTxOutputsAt extends BuiltinFunc {
+class GetTxOutputsLockedBy extends BuiltinFunc {
 	constructor() {
-		super("getTxOutputsAt", [new TxType()], new ListType(Location.dummy(), new TxOutputType()));
+		super("getTxOutputsLockedBy", [new TxType(), new ValidatorHashType()], new ListType(Location.dummy(), new TxOutputType()));
 	}
 
 	static register(registry) {
 		GetTxOutputs.register(registry);
 		EqualsHash.register(registry);
-		GetCredentialHash.register(registry);
+		GetCredentialValidatorHash.register(registry);
 		GetAddressCredential.register(registry);
 		GetTxOutputAddress.register(registry);
+		IsValidatorCredential.register(registry);
 		Filter.register(registry);
 
-		registry.register("getTxOutputsAt", "func(tx, h){filter(func(o){equalsHash(h, getCredentialHash(getAddressCredential(getTxOutputAddress(o))))}, getTxOutputs(tx))}");
+		registry.register("getTxOutputsLockedBy", `func(tx, h){
+			filter(func(output){
+				func(cred) {
+					ifThenElse(
+						isValidatorCredential(cred),
+						func(){ifThenElse(
+							equalsHash(h, getCredentialValidatorHash(cred)),
+							true,
+							false
+						)},
+						func(){false}
+					)()
+				}(getAddressCredential(getTxOutputAddress(output)))
+			}, getTxOutputs(tx))
+		}`);
 	}
 
 	registerGlobals(registry) {
-		GetTxOutputsAt.register(registry);
+		GetTxOutputsLockedBy.register(registry);
 	}
 
 	toUntyped(args) {
-		return `getTxOutputsAt(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
 class GetTxSignatories extends BuiltinFunc {
 	constructor() {
-		super("getTxSignatories", [new TxType()], new ListType(Location.dummy(), new HashType()));
+		super("getTxSignatories", [new TxType()], new ListType(Location.dummy(), new PubKeyHashType()));
 	}
 
 	static register(registry) {
@@ -4225,7 +4370,7 @@ class GetTxSignatories extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `getTxSignatories(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4242,7 +4387,7 @@ class GetTxId extends BuiltinFunc {
 class IsTxSignedBy extends BuiltinFunc {
 	constructor() {
 		// second argument is in fact a PubKeyHash
-		super("isTxSignedBy", [new TxType(), new HashType()], new BoolType());
+		super("isTxSignedBy", [new TxType(), new PubKeyHashType()], new BoolType());
 	}
 
 	static register(registry) {
@@ -4250,7 +4395,11 @@ class IsTxSignedBy extends BuiltinFunc {
 		EqualsHash.register(registry);
 		Contains.register(registry);
 
-		registry.register("isTxSignedBy", "func(tx, h){contains(func(s){equalsHash(s, h)}, getTxSignatories(tx))}");
+		registry.register("isTxSignedBy", `func(tx, h){
+			contains(func(s){
+				equalsHash(s, h)
+			}, getTxSignatories(tx))
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4258,7 +4407,7 @@ class IsTxSignedBy extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `isTxSignedBy(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
@@ -4268,7 +4417,7 @@ class GetTxInputOutputId extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTxInputOutputId", `func(i){${unData("i", 0, 0)}}`);
+		registry.register("getTxInputOutputId", `func(input){${unData("input", 0, 0)}}`);
 	}
 
 	registerGlobals(registry) {
@@ -4276,7 +4425,7 @@ class GetTxInputOutputId extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `getTxInputOutputId(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4286,7 +4435,7 @@ class GetTxInputOutput extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTxInputOutput", `func(i){${unData("i", 0, 1)}}`);
+		registry.register("getTxInputOutput", `func(input){${unData("input", 0, 1)}}`);
 	}
 
 	registerGlobals(registry) {
@@ -4294,7 +4443,7 @@ class GetTxInputOutput extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `getTxInputOutput(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4304,7 +4453,7 @@ class GetTxOutputAddress extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTxOutputAddress", `func(o){${unData("o", 0, 0)}}`);
+		registry.register("getTxOutputAddress", `func(output){${unData("output", 0, 0)}}`);
 	}
 
 	registerGlobals(registry) {
@@ -4312,7 +4461,7 @@ class GetTxOutputAddress extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `getTxOutputAddress(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4322,7 +4471,7 @@ class GetTxOutputValue extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTxOutputValue", `func(o){${unData("o", 0, 1)}}`);
+		registry.register("getTxOutputValue", `func(output){${unData("output", 0, 1)}}`);
 	}
 
 	registerGlobals(registry) {
@@ -4330,7 +4479,7 @@ class GetTxOutputValue extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `getTxOutputValue(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4340,7 +4489,7 @@ class GetAddressCredential extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getAddressCredential", `func(a){${unData("a", 0, 0)}}`);
+		registry.register("getAddressCredential", `func(address){${unData("address", 0, 0)}}`);
 	}
 
 	registerGlobals(registry) {
@@ -4348,7 +4497,7 @@ class GetAddressCredential extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `getAddressCredential(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4372,31 +4521,63 @@ class IsPubKeyCredential extends BuiltinFunc {
 	}
 }
 
-class IsScriptCredential extends BuiltinFunc {
+class IsValidatorCredential extends BuiltinFunc {
 	constructor() {
-		super("isScriptCredential", [new CredentialType()], new BoolType());
-	}
-
-	toUntyped(args) {
-		return `equalsInteger(fstPair(unConstrData(${args[0].toUntyped()})), 1)`;
-	}
-}
-
-class GetCredentialHash extends BuiltinFunc {
-	constructor() {
-		super("getCredentialHash", [new CredentialType()], new HashType());
+		super("isValidatorCredential", [new CredentialType()], new BoolType());
 	}
 
 	static register(registry) {
-		registry.register("getCredentialHash", `func(c){headList(sndPair(unConstrData(c)))}`);
+		registry.register("isValidatorCredential", `func(cred) {
+			equalsInteger(fstPair(unConstrData(cred)), 1)
+		}`)
 	}
 
 	registerGlobals(registry) {
-		GetCredentialHash.register(registry);
+		IsValidatorCredential.register(registry);
 	}
 
 	toUntyped(args) {
-		return `getCredentialHash(${args[0]})`
+		return `${this.name}(${args[0].toUntyped()})`;
+	}
+}
+
+class GetCredentialPubKeyHash extends BuiltinFunc {
+	constructor() {
+		super("getCredentialPubKeyHash", [new CredentialType()], new PubKeyHashType());
+	}
+
+	static register(registry) {
+		registry.register("getCredentialPubKeyHash", `func(cred){
+			${unData("cred", 0, 0)}
+		}`);
+	}
+
+	registerGlobals(registry) {
+		GetCredentialPubKeyHash.register(registry);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
+	}
+}
+
+class GetCredentialValidatorHash extends BuiltinFunc {
+	constructor() {
+		super("getCredentialValidatorHash", [new CredentialType()], new ValidatorHashType());
+	}
+
+	static register(registry) {
+		registry.register("getCredentialValidatorHash", `func(cred){
+			${unData("cred", 1, 0)}
+		}`);
+	}
+
+	registerGlobals(registry) {
+		GetCredentialValidatorHash.register(registry);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4418,12 +4599,10 @@ class EqualsTxOutputId extends BuiltinFunc {
 }
 
 class EqualsHash extends BuiltinFunc {
-	constructor() {
-		super("equalsHash", [new HashType(), new HashType()], new BoolType());
-	}
-
 	static register(registry) {
-		registry.register("equalsHash", `func(a, b){equalsByteString(unBData(headList(unListData(a))), unBData(headList(unListData(b))))}`);
+		registry.register("equalsHash", `func(a, b){
+			equalsByteString(unBData(a), unBData(b))
+		}`);
 	}
 }
 
@@ -4440,7 +4619,11 @@ class GetCurrentTxInput extends BuiltinFunc {
 		GetTxInputOutputId.register(registry);
 		EqualsTxOutputId.register(registry);
 
-		registry.register("getCurrentTxInput", `func(ctx){func(id){find(func(input){equalsTxOutputId(getTxInputOutputId(input), id)}, getTxInputs(getTx(ctx)))}(getSpendingPurposeTxOutputId(ctx))}`)
+		registry.register("getCurrentTxInput", `func(ctx){
+			func(id){
+				find(func(input){equalsTxOutputId(getTxInputOutputId(input), id)}, getTxInputs(getTx(ctx)))
+			}(getSpendingPurposeTxOutputId(ctx))
+		}`)
 	}
 
 	registerGlobals(registry) {
@@ -4448,13 +4631,13 @@ class GetCurrentTxInput extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `getCurrentTxInput(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
-class GetOwnHash extends BuiltinFunc {
+class GetCurrentValidatorHash extends BuiltinFunc {
 	constructor() {
-		super("getOwnHash", [new ScriptContextType()], new HashType());
+		super("getCurrentValidatorHash", [new ScriptContextType()], new ValidatorHashType());
 	}
 
 	static register(registry) {
@@ -4462,19 +4645,19 @@ class GetOwnHash extends BuiltinFunc {
 		GetTxInputOutput.register(registry);
 		GetTxOutputAddress.register(registry);
 		GetAddressCredential.register(registry);
-		GetCredentialHash.register(registry);
+		GetCredentialValidatorHash.register(registry);
 
-		registry.register("getOwnHash", `func(ctx){
-			getCredentialHash(getAddressCredential(getTxOutputAddress(getTxInputOutput(getCurrentTxInput(ctx)))))
+		registry.register("getCurrentValidatorHash", `func(ctx){
+			getCredentialValidatorHash(getAddressCredential(getTxOutputAddress(getTxInputOutput(getCurrentTxInput(ctx)))))
 		}`);
 	}
 
 	registerGlobals(registry) {
-		GetOwnHash.register(registry)
+		GetCurrentValidatorHash.register(registry)
 	}
 
 	toUntyped(args) {
-		return `getOwnHash(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4507,7 +4690,7 @@ class GetValueComponent extends BuiltinFunc {
 					)()}
 				)()
 			})
-		}(unMapData(headList(unListData(value))), unBData(headList(unListData(fstPair(headList(unMapData(assetClass)))))), unBData(headList(unListData(sndPair(headList(unMapData(assetClass)))))))}`)
+		}(unMapData(value), ${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})}`)
 	}
 
 	registerGlobals(registry) {
@@ -4515,11 +4698,11 @@ class GetValueComponent extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `getValueComponent(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
-// not exposed to user! returns a list of ByteArray 
+// not exposed to user! returns a list of ByteArrays (CurrenySymbols for outer map, or TokenNames for inner map)
 class GetValueMapKeys extends BuiltinFunc {
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
@@ -4527,7 +4710,7 @@ class GetValueMapKeys extends BuiltinFunc {
 			ifThenElse(
 				nullList(map), 
 				func(){mkNilData(())}, 
-				func(){mkCons(headList(unListData(fstPair(headList(map)))), self(self, tailList(map)))}
+				func(){mkCons(fstPair(headList(map)), self(self, tailList(map)))}
 			)()
 		})}`)
 	}
@@ -4554,19 +4737,23 @@ class IsInByteArrayList extends BuiltinFunc {
 // not exposed to user! currencySymbol is just a byteString
 class GetValueCurrencyComponents extends BuiltinFunc {
 	static register(registry) {
+		// expects currencySymbol as Data.ByteString
+
 		// deferred evaluation of ifThenElse branches
+		
+		// returns a map
 		registry.register("getValueCurrencyComponents", `func(value, currencySymbol) {
 			func(self, map){self(self, map)}(func(self, map){
 				ifThenElse(
 					nullList(map), 
 					func(){mkNilPairData(())},
 					func(){ifThenElse(
-						equalsByteString(unBData(headList(unListData(fstPair(headList(map))))), currencySymbol), 
+						equalsByteString(unBData(fstPair(headList(map))), currencySymbol), 
 						func(){unMapData(sndPair(headList(map)))},
 						func(){self(self, tailList(map))}
 					)()}
 				)()
-			}, unMapData(headList(unListData(value))))
+			}, unMapData(value))
 		}`)
 	}
 }
@@ -4578,6 +4765,8 @@ class MergeValueMapKeys extends BuiltinFunc {
 		GetValueMapKeys.register(registry);
 
 		// deferred evaluation of ifThenElse branches
+		// a and b are map types
+		// returns a list of keys
 		registry.register("mergeValueMapKeys", `func(a, b){
 			func(aKeys) {
 				func(self){self(self, aKeys, b)}(func(self, keys, map){
@@ -4590,7 +4779,7 @@ class MergeValueMapKeys extends BuiltinFunc {
 								func(){self(keys, tailList(map))},
 								func(){mkCons(bData(head), self(keys, tailList(map)))}
 							)()
-						}(unBData(headList(unListData(fstPair(headList(map))))))}
+						}(unBData(fstPair(headList(map))))}
 					)()
 				})
 			}(getValueMapKeys(a))
@@ -4602,18 +4791,19 @@ class MergeValueMapKeys extends BuiltinFunc {
 class GetCurrencyMapInteger extends BuiltinFunc {
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
+		// input is map of tokenName -> Integer
 		registry.register("getCurrencyMapInteger", `func(map, key) {
 			func(self){self(self, map, key)}(func(self, map, key) {
 				ifThenElse(
 					nullList(map), 
 					func(){0}, 
-					func(){func(head) {
+					func(){func(tokenName) {
 						ifThenElse(
-							equalsByteString(head, key), 
+							equalsByteString(tokenName, key), 
 							func(){unIData(sndPair(headList(map)))}, 
 							func(){self(self, tailList(map), key)}
 						)()
-					}(unBData(headList(unListData(fstPair(headList(map))))))}
+					}(unBData(fstPair(headList(map))))}
 				)()
 			})
 		}`)
@@ -4624,6 +4814,8 @@ class GetCurrencyMapInteger extends BuiltinFunc {
 class AddValueCurrencyComponents extends BuiltinFunc {
 	static generateCode(binaryFuncName) {
 		// deferred evaluation of ifThenElse branches
+		// a and b are map types
+		// returns a map ok TokenName -> Integer
 		return `func(a, b) {
 			func(self) {self(self, mergeValueMapKeys(a, b), mkNilPairData(()))} (
 				func(self, keys, result) {
@@ -4663,7 +4855,7 @@ class AddValues extends BuiltinFunc {
 		// deferred evaluation of ifThenElse branches
 		return `func(a, b){
 			func(a, b){
-				func(self) {listData(mkCons(mapData(self(self, mergeValueMapKeys(a, b), mkNilPairData(()))), mkNilData(())))}(
+				func(self) {mapData(self(self, mergeValueMapKeys(a, b), mkNilPairData(())))}(
 					func(self, keys, result) {
 						ifThenElse(
 							nullList(keys), 
@@ -4680,7 +4872,7 @@ class AddValues extends BuiltinFunc {
 						)()
 					}
 				)
-			}(unMapData(headList(unListData(a))), unMapData(headList(unListData(b))))
+			}(unMapData(a), unMapData(b))
 		}`;
 	}
 
@@ -4723,7 +4915,7 @@ class Zero extends BuiltinFunc {
 
 	static register(registry) {
 		registry.register("zero", `func() {
-			listData(mkCons(mapData(mkNilPairData(())), mkNilData(())))
+			mapData(mkNilPairData(()))
 		}`);
 	}
 
@@ -4732,11 +4924,11 @@ class Zero extends BuiltinFunc {
 	}
 
 	evalDataCall(loc, args) {
-		return new ListData([new MapData([])]);
+		return new MapData([]);
 	}
 
 	toUntyped(args) {
-		return`zero()`;
+		return`${this.name}()`;
 	}
 }
 
@@ -4747,7 +4939,7 @@ class IsZero extends BuiltinFunc {
 
 	static register(registry) {
 		registry.register("isZero", `func(v) {
-			nullList(unMapData(headList(unListData(v))))
+			nullList(unMapData(v))
 		}`)
 	}
 
@@ -4756,7 +4948,7 @@ class IsZero extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return`isZero(${args[0].toUntyped()})`;
+		return`${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4819,7 +5011,7 @@ class IsStrictlyGeq extends BuiltinFunc {
 						)()
 					}
 				)
-			}(unMapData(headList(unListData(a))), unMapData(headList(unListData(b))))
+			}(unMapData(a), unMapData(b))
 		}`
 	}
 
@@ -4837,7 +5029,7 @@ class IsStrictlyGeq extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `isStrictlyGeq(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
@@ -4858,13 +5050,17 @@ class IsStrictlyGt extends BuiltinFunc {
 
 	static register(registry) {
 		Not.register(registry);
-		And.register(registry);
 		IsZero.register(registry);
 		MergeValueMapKeys.register(registry);
 		GetValueCurrencyComponents.register(registry);
 		IsStrictlyGtCurrencyComponents.register(registry);
 
-		registry.register("isStrictlyGt", `func(a, b) {and(not(and(isZero(a), isZero(b))), ${IsStrictlyGeq.generateCode("isStrictlyGtCurrencyComponents")})(a, b))}`);
+		registry.register("isStrictlyGt", `func(a, b) {
+			${And.generateCode(
+				"not(" + And.generateCode("isZero(a)", "isZero(b)") + ")", 
+				IsStrictlyGeq.generateCode("isStrictlyGtCurrencyComponents") + "(a, b)"
+			)}
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4872,7 +5068,7 @@ class IsStrictlyGt extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `isStrictlyGt(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
@@ -4893,13 +5089,17 @@ class IsStrictlyLt extends BuiltinFunc {
 
 	static register(registry) {
 		Not.register(registry);
-		And.register(registry);
 		IsZero.register(registry);
 		MergeValueMapKeys.register(registry);
 		GetValueCurrencyComponents.register(registry);
 		IsStrictlyLtCurrencyComponents.register(registry);
 
-		registry.register("isStrictlyLt", `func(a, b) {and(not(and(isZero(a), isZero(b))), ${IsStrictlyGeq.generateCode("isStrictlyLtCurrencyComponents")})(a, b))}`);
+		registry.register("isStrictlyLt", `func(a, b) {
+			${And.generateCode(
+				"not(" + And.generateCode("isZero(a)", "isZero(b)") + ")",
+				IsStrictlyGeq.generateCode("isStrictlyLtCurrencyComponents") + "(a, b)"
+			)}
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4907,7 +5107,7 @@ class IsStrictlyLt extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `isStrictlyLt(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
@@ -4940,7 +5140,7 @@ class IsStrictlyLeq extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `isStrictlyLeq(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
@@ -4973,26 +5173,26 @@ class IsStrictlyEq extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `isStrictlyEq(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
 class ValueLockedBy extends BuiltinFunc {
 	constructor() {
-		super("valueLockedBy", [new TxType(), new HashType()], new ValueType());
+		super("valueLockedBy", [new TxType(), new ValidatorHashType()], new ValueType());
 	}
 
 	static register(registry) {
-		GetTxOutputsAt.register(registry);
+		GetTxOutputsLockedBy.register(registry);
 		GetTxOutputValue.register(registry);
 		AddValues.register(registry);
 		Fold.register(registry);
 		Zero.register(registry);
 
-		registry.register("valueLockedBy", `func(tx, h) {
+		registry.register("valueLockedBy", `func(tx, hash) {
 			func(outputs) {
 				fold(func(prev, txOutput) {addValues(prev, getTxOutputValue(txOutput))}, zero(), outputs)
-			}(getTxOutputsAt(tx, h))
+			}(getTxOutputsLockedBy(tx, hash))
 		}`)
 	}
 
@@ -5001,7 +5201,7 @@ class ValueLockedBy extends BuiltinFunc {
 	}
 
 	toUntyped(args) {
-		return `valueLockedBy(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
@@ -5032,10 +5232,10 @@ class MakeAssetClass extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		MakeList.register(registry, 1);
+		MakeList.register(registry, 2);
 
 		registry.register("AssetClass", `func(bs, s) {
-			listData(list1(mkPairData(listData(list1(bs)), listData(list1(encodeUtf8(s))))))
+			constrData(0, list2(bData(bs), bData(encodeUtf8(s))))
 		}`)
 	}
 
@@ -5045,11 +5245,11 @@ class MakeAssetClass extends BuiltinFunc {
 
 	evalDataCall(loc, args) {
 		// tokenName will already have been converted to ByteArray by StringLiteral
-		return new MapData([new ListData([args[0]]), new ListData([args[1]])]); // 
+		return new ConstrData(0, [args[0], args[1]]); // 
 	}
 
 	toUntyped(args) {
-		return `AssetClass(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
@@ -5059,10 +5259,11 @@ class MakeValue extends BuiltinFunc {
 	}
 
 	static register(registry) {
+		// internally currencySymbol and tokenName stay Data.BS
 		registry.register("Value", `func(ac, i) {
 			func(currencySymbol, tokenName) {
-				listData(mkCons(mapData(mkCons(mkPairData(currencySymbol, mapData(mkCons(mkPairData(tokenName, iData(i)), mkNilPairData(())))), mkNilPairData(()))), mkNilData(())))
-			}(headList(unListData(sndPair(headList(unMapData(ac))))), headList(unListData(sndPair(headList(unMapData(ac))))))
+				mapData(mkCons(mkPairData(currencySymbol, mapData(mkCons(mkPairData(tokenName, iData(i)), mkNilPairData(())))), mkNilPairData(())))
+			}(${unData("ac", 0, 0)}, ${unData("ac", 0, 1)})
 		}`)
 	}
 
@@ -5072,14 +5273,17 @@ class MakeValue extends BuiltinFunc {
 
 	evalDataCall(loc, args) {
 		let assetClassData = args[0];
-		let currencySymbolData = assetClassData.pairs_[0][0];
-		let tokenNameData = assetClassData.pairs_[0][1]
+		assetClassData(assetClassData.index_ == 0);
+		let currencySymbolData = assetClassData.fields_[0];
+		let tokenNameData = assetClassData.fields_[1]
 
-		return new ListData([new MapData([currencySymbolData, new MapData([tokenNameData, new IntegerData(args[1])])])]);
+		return new MapData([
+			[currencySymbolData, new MapData([[tokenNameData, new IntegerData(args[1])]])]
+		]);
 	}
 
 	toUntyped(args) {
-		return `Value(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
@@ -5104,11 +5308,15 @@ class Lovelace extends BuiltinFunc {
 	}
 
 	evalDataCall(loc, args) {
-		return new ListData([new MapData([new ListData([new ByteArrayData([])]), new MapData([new ListData([new ByteArrayData([])]), new IntegerData(args[0])])])]);
+		return new MapData([
+			[new ByteArrayData([]), new MapData([
+				[new ByteArrayData([]), new IntegerData(args[0])]
+			])]
+		]);
 	}
 
 	toUntyped(args) {
-		return `lovelace(${args[0].toUntyped()})`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -5912,7 +6120,11 @@ function buildUntypedFuncExpr(ts) {
 		argNames.push(f[0].assertWord());
 	}
 
-	assert(braces.fields.length == 1, "unexpected comma in function body");
+	if (braces.fields_.length > 1) {
+		braces.typeError("unexpected comma in function body")
+	} else if (braces.fields_.length == 0) {
+		braces.typeError("empty function body")
+	}
 
 	let bodyExpr = buildUntypedExpr(braces.fields[0]);
 
@@ -5981,7 +6193,7 @@ class Deserializer {
 		if (this.pos_%8 != 0) {
 			let n = 8 - this.pos_%8;
 
-			let b = this.readBits(n);
+			void this.readBits(n);
 		} else if (force) {
 			this.readBits(8);
 		}
@@ -6190,7 +6402,7 @@ class Deserializer {
 // Builtin funcs that need to be available during AST building
 //////////////////////////////////////////////////////////////
 
-var PLUTUS_LIGHT_BUILTIN_FUNCS;
+var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 
 // fill the PLUTUS_LIGHT_BUILTIN_FUNCS objects now
 (function() {
@@ -6204,17 +6416,19 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS;
 	add(new Cast("ByteArray"));
 	add(new Cast("String"));
 	add(new MakeTime());
-	add(new MakeHash());
+	add(new MakePubKeyHash());
+	add(new MakeValidatorHash());
 	add(new Fold());
 	add(new Filter());
 	add(new Find());
 	add(new Contains());
 	add(new Len());
+	add(new Prepend());
 	add(new GetTx());
 	add(new GetTxTimeRange());
 	add(new GetTxInputs());
 	add(new GetTxOutputs());
-	add(new GetTxOutputsAt());
+	add(new GetTxOutputsLockedBy());
 	add(new GetTimeRangeStart());
 	add(new GetTxSignatories());
 	add(new GetTxId());
@@ -6226,10 +6440,11 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS;
 	add(new GetAddressCredential());
 	add(new IsStakedAddress());
 	add(new IsPubKeyCredential());
-	add(new IsScriptCredential());
-	add(new GetCredentialHash());
+	add(new IsValidatorCredential());
+	add(new GetCredentialPubKeyHash());
+	add(new GetCredentialValidatorHash());
 	add(new GetCurrentTxInput());
-	add(new GetOwnHash());
+	add(new GetCurrentValidatorHash());
 	add(new GetValueComponent());
 	add(new IsZero());
 	add(new Zero());
@@ -6292,14 +6507,24 @@ export function compilePlutusLightProgram(typedSrc) {
 
 		let untypedSrc = program.toUntyped();
 
-		// at this point there shouldn't be any errors
-		let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
+		try {
+			// at this point there shouldn't be any errors
+			let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
 
-		let untypedProgram = buildUntypedProgram(untypedTokens);
+			let untypedProgram = buildUntypedProgram(untypedTokens);
 
-		let plutusCoreProgram = new PlutusCoreProgram(DEFAULT_VERSION.map(v => new PlutusCoreInteger(v)), untypedProgram.toPlutusCore());
+			let plutusCoreProgram = new PlutusCoreProgram(DEFAULT_VERSION.map(v => new PlutusCoreInteger(v)), untypedProgram.toPlutusCore());
 
-		return serializePlutusCoreProgram(plutusCoreProgram);
+			return serializePlutusCoreProgram(plutusCoreProgram);
+		} catch (error) {
+			if (error instanceof PlutusLightError) {
+				console.log(prettySource(untypedSrc) + "\n");
+
+				console.error(error.message);
+			} else {
+				throw error;
+			}
+		}
 	} catch (error) {
 		if (error instanceof PlutusLightError) {
 			// also pretty print the source

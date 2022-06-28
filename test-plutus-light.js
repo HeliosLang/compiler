@@ -17,7 +17,7 @@ data VestingTranche {
 data VestingParams {
     tranche1 VestingTranche,
     tranche2 VestingTranche,
-    owner    Hash
+    owner    PubKeyHash
 }
 
 func availableFrom(tranche VestingTranche, time Time) Value {
@@ -37,11 +37,11 @@ func main(ctx ScriptContext) Bool {
     vestingParams VestingParams = VestingParams{
 		tranche1: VestingTranche{time: Time(1656285936477), amount: lovelace(1000000)},
 		tranche2: VestingTranche{time: Time(1658877962311), amount: lovelace(2000000)},
-		owner: Hash(#abcdef1234567890),
+		owner: PubKeyHash(#abcdef1234567890)
 	};
     tx Tx = getTx(ctx);
     now Time = getTimeRangeStart(getTxTimeRange(tx));
-    remainingActual Value = valueLockedBy(tx, getOwnHash(ctx));
+    remainingActual Value = valueLockedBy(tx, getCurrentValidatorHash(ctx));
 	remainingExpected Value = remainingFrom(vestingParams.tranche1, now) + remainingFrom(vestingParams.tranche2, now);
     isStrictlyGeq(remainingActual, remainingExpected) && isTxSignedBy(tx, vestingParams.owner) 
 } 
