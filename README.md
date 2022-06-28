@@ -22,7 +22,7 @@ data VestingTranche {
 data VestingParams {
     tranche1 VestingTranche,
     tranche2 VestingTranche,
-    owner    Hash
+    owner    PubKeyHash
 }
 
 func availableFrom(tranche VestingTranche, time Time) Value {
@@ -42,7 +42,7 @@ func main(ctx ScriptContext) Bool {
     vestingParams VestingParams = VestingParams{/*parameters interpolated from surrounding js*/};
     tx Tx = getTx(ctx);
     now Time = getTimeRangeStart(getTxTimeRange(tx));
-    remainingActual Value = valueLockedBy(tx, getOwnHash(ctx));
+    remainingActual Value = valueLockedBy(tx, getCurrentValidatorHash(ctx));
     remainingExpected Value = remainingFrom(vestingParams.tranche1, now) + remainingFrom(vestingParams.tranche2, now);
     isStrictlyGeq(remainingActual, remainingExpected) && isTxSignedBy(tx, vestingParams.owner)
 }
@@ -102,7 +102,8 @@ Besides primitive types, some other opaque builtin types are defined:
  * `TxOutput`
  * `TxId`
  * `TxOutputId`
- * `Hash`
+ * `PubKeyHash`
+ * `ValidatorHash`
  * `Time`
  * `TimeRange`
  * `Value`
@@ -146,8 +147,10 @@ These types require special builtin functions to access their content. Some also
  * `TxId != TxId -> Bool`
  * `TxOutputId == TxOutputId -> Bool`
  * `TxOutputId != TxOutputId -> Bool`
- * `Hash == Hash -> Bool`
- * `Hash != Hash -> Bool`
+ * `PubKeyHash == PubKeyHash -> Bool`
+ * `PubKeyHash != PubKeyHash -> Bool`
+ * `ValidatorHash == ValidatorHash -> Bool`
+ * `ValidatorHash != ValidatorHash -> Bool`
  * `Value + Value -> Value`
  * `Value - Value -> Value`
 
@@ -156,23 +159,25 @@ These types require special builtin functions to access their content. Some also
  * `ByteArray(String) -> ByteArray` (encodes utf8)
  * `String(ByteArray) -> String` (decodes utf8)
  * `Time(Integer) -> Time` (milliseconds since epoch)
- * `Hash(ByteArray) -> Hash`
+ * `PubKeyHash(ByteArray) -> PubKeyHash`
+ * `ValidatorHash(ByteArray) -> ValidatorHash`
  * `fold(func(a, b) a, a, []b) -> a`
  * `filter(func(a) Bool, []a) -> []a`
  * `find(func(a) Bool, []a) -> a` (throws error if not found)
  * `contains(func(a) Bool, []a) -> Bool`
  * `len(ByteArray) -> Integer`
  * `len([]a) -> Integer`
+ * `prepend(a, []a) -> []a`
  * `getTx(ScriptContext) -> Tx`
  * `getSpendingPurposeTxOutputId(ScriptContext) -> TxOutputId`
  * `getTxTimeRange(Tx) -> TimeRange`
  * `getTxInputs(Tx) -> []TxInput`
  * `getTxOutputs(Tx) -> []TxOutput`
- * `getTxOutputsAt(Tx, Hash) -> []TxOutput` (outputs begin sent to `Address` with specified credential hash)
+ * `getTxOutputsLockedBy(Tx, ValidatorHash) -> []TxOutput` (outputs begin sent to script `Address` with specified validator credential hash)
  * `getTimeRangeStart(TimeRange) -> Time` (throws error if time range start is open )
- * `getTxSignatories(Tx) -> []Hash`
+ * `getTxSignatories(Tx) -> []PubKeyHash`
  * `getTxId(Tx) -> TxId`
- * `isTxSignedBy(Tx, Hash) -> Bool`
+ * `isTxSignedBy(Tx, PubKeyHash) -> Bool`
  * `getTxInputOutputId(TxInput) -> TxOutputId`
  * `getTxInputOutput(TxInput) -> TxOutput` (original `TxOutput` that is now being used as `TxInput`)
  * `getTxOutputAddress(TxOutput) -> Address`
@@ -181,9 +186,10 @@ These types require special builtin functions to access their content. Some also
  * `isStakedAddress(Address) -> Bool`
  * `isPubKeyCredential(Credential) -> Bool`
  * `isScriptCredential(Credential) -> Bool`
- * `getCredentialHash(Credential) -> Hash`
+ * `getCredentialValidatorHash(Credential) -> ValidatorHash`
+ * `getCredentialPubKeyHash(Credential) -> PubKeyHash`
  * `getCurrentTxInput(ScriptContext) -> TxInput`
- * `getOwnHash(ScriptContext) -> Hash` (hash of current script)
+ * `getCurrentValidatorHash(ScriptContext) -> ValidatorHash` (hash of current script)
  * `getValueComponent(Value, AssetClass) -> Integer`
  * `isZero(Value) -> Bool`
  * `zero() -> Value`
@@ -192,7 +198,7 @@ These types require special builtin functions to access their content. Some also
  * `isStrictlyLeq(Value, Value) -> Bool`
  * `isStrictlyLt(Value, Value) -> Bool`
  * `isStrictlyEq(Value, Value) -> Bool`
- * `valueLockedBy(Tx, Hash) -> Value` (`Value` sent to `Address` with given credential hash)
+ * `valueLockedBy(Tx, ValidatorHash) -> Value` (`Value` sent to script `Address` with given validator credential hash)
  * `AssetClass(ByteArray, String) -> AssetClass`
  * `Value(AssetClass, Integer) -> Integer`
  * `lovelace(Integer) -> Value`

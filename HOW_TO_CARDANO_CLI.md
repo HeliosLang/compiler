@@ -242,15 +242,14 @@ data Datum {
     nonce     Integer // doesn't actually need be checked here
 }
 
-// it might be a good idea to implement all the different opaque Hash-types found in plutus-ledger-api
-func getSourceHash(ctx ScriptContext) Hash {
-    getCredentialHash(getAddressCredential(getTxOutputAddress(getTxInputOutput(getCurrentTxInput(ctx)))))
+func getInitiatorHash(ctx ScriptContext) PubKeyHash {
+    getCredentialPubKeyHash(getAddressCredential(getTxOutputAddress(getTxInputOutput(getCurrentTxInput(ctx)))))
 }
 
 func main(datum Datum, ctx ScriptContext) Bool {
     tx Tx = getTx(ctx);
     now Time = getTimeRangeStart(getTxTimeRange(tx));
-    now > datum.lockUntil || isTxSignedBy(tx, getSourceHash(ctx))
+    now > datum.lockUntil || isTxSignedBy(tx, getInitiatorHash(ctx))
 }
 ```
 
