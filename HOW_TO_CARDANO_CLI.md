@@ -4,29 +4,34 @@ You will need a Linux environment with *docker* for this.
 ## *cardano-node* setup
 Start a *cardano-node* docker container:
 ```bash
-$ docker run -d -e NETWORK=testnet -e TESTNET_MAGIC_NUM=1097911063 -e CARDANO_NODE_SOCKET_PATH=/ipc/node.socket -v cardano-testnet-data:/data inputoutput/cardano-node:latest
+$ docker run -d \
+  -e NETWORK=testnet \
+  -e TESTNET_MAGIC_NUM=1097911063 \
+  -e CARDANO_NODE_SOCKET_PATH=/ipc/node.socket \
+  -v cardano-testnet-data:/data \
+  inputoutput/cardano-node:latest
 ```
 
-This command will automatically download the latest *cardano-node* image, and create a named docker volume for storing the blockchain synchronization data.
+This command will automatically download the latest *cardano-node* image, and create a named docker volume for storing the blockchain state.
 
 Check that the *cardano-node* container is running using the following command:
 ```bash
 $ docker ps
 ```
-Note the container id.
+Take note of the container id.
 
 You can stop the container any time:
 ```bash
 $ docker stop <container-id>
 ```
-I recommend using `docker stop` and not `docker rm -f` as it allows `cardano-node` processes to receive the more graceful `SIGTERM` signal (instead of just `SIGKILL`).
+I recommend using `docker stop` and not `docker rm -f` as it allows *cardano-node* processes to receive the more graceful `SIGTERM` signal (instead of just `SIGKILL`).
 
 You can clean up stopped containers if you are running low on system resources:
 ```bash
 $ docker system prune
 ```
 
-After about 30 seconds `/ipc/node.socket` should've been created and you can start using `cardano-cli` to query the blockchain.
+About 30 seconds after starting the *cardano-node* container, `/ipc/node.socket` should've been created and you can start using `cardano-cli` to query the blockchain.
 
 Check the blockchain synchronization status using the following command:
 ```bash
@@ -70,9 +75,9 @@ addr_test1vqwj9w0...
   --testnet-magic $TESTNET_MAGIC_NUM
 ```
 
-Note the payment addresses of wallet 1, and go to [testnets.cardano.org/en/testnets/cardano/tools/faucet/](https://testnets.cardano.org/en/testnets/cardano/tools/faucet/) to add some funds.
+Take note of the payment address of wallet 1, and go to [testnets.cardano.org/en/testnets/cardano/tools/faucet/](https://testnets.cardano.org/en/testnets/cardano/tools/faucet/) to add some funds.
 
-Check the balance of the payment address belonging to wallet 1:
+After adding some funds, check the balance of the wallet 1's payment address:
 ```bash
 > cardano-cli query utxo \
   --address $(cat /data/wallets/wallet1.addr) \
@@ -91,7 +96,7 @@ $ nodejs
 > var PL; import("./plutus-light.js").then(m=>{PL=m});
 ```
 
-Compile the Always Succeeds script and note resulting CBOR:
+Compile the Always Succeeds script and take note of the resulting CBOR hex:
 ```javascript
 > console.log(PL.compilePlutusLightProgram("func main() Bool {true}"))
 
@@ -223,12 +228,12 @@ Transaction successfully submitted
 
 If you now check the balance of wallet 1 you should see two UTXOs, and the total value should be your starting value minus the two fees you paid. 
 
-Note that *collateral* is only paid if you submit a bad script, but cardano-cli does some checks when building the transaction and should throw an error before you are able to to so.
+Note that *collateral* is only paid if you submit to a bad script, but cardano-cli does some checks when building the transaction and should throw an error before you are able to to so.
 
 
 ## Time Lock script
 
-A more useful example is a time lock validator script. People send UTXOs into the time-lock address with a datum that contains a *lock-until* time. An optional nonce can be included in the datum to allow only people with that who know the nonce to retrieve the UTXOs. Ideally the wallet from which the locked funds were sent is able to retrieve the funds at any time.
+A more useful example is a time-lock validator script. Actors send UTXOs to the time-lock address with a datum that contains a *lock-until* time. An optional nonce can be included in the datum to allow only the actors who know the nonce value to retrieve the UTXOs. The wallet from which the original UTXOs were sent is also able to retrieve the UTXOs at any time.
 
 The Plutus-Light script:
 ```golang
@@ -244,8 +249,8 @@ func getSourceHash(ctx ScriptContext) Hash {
 
 func main(datum Datum, ctx ScriptContext) Bool {
     tx Tx = getTx(ctx);
-	now Time = getTimeRangeStart(getTxTimeRange(tx));
-	now > datum.lockUntil || isTxSignedBy(tx, getSourceHash(ctx))
+    now Time = getTimeRangeStart(getTxTimeRange(tx));
+    now > datum.lockUntil || isTxSignedBy(tx, getSourceHash(ctx))
 }
 ```
 
