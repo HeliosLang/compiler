@@ -224,3 +224,29 @@ Transaction successfully submitted
 If you now check the balance of wallet 1 you should see two UTXOs, and the total value should be your starting value minus the two fees you paid. 
 
 Note that *collateral* is only paid if you submit a bad script, but cardano-cli does some checks when building the transaction and should throw an error before you are able to to so.
+
+
+## Time Lock script
+
+A more useful example is a time lock validator script. People send UTXOs into the time-lock address with a datum that contains a *lock-until* time. An optional nonce can be included in the datum to allow only people with that who know the nonce to retrieve the UTXOs. Ideally the wallet from which the locked funds were sent is able to retrieve the funds at any time.
+
+The Plutus-Light script:
+```golang
+data Datum {
+    lockUntil Time,
+    nonce     Integer // doesn't actually need be checked here
+}
+
+// it might be a good idea to implement all the different opaque Hash-types found in plutus-ledger-api
+func getSourceHash(ctx ScriptContext) Hash {
+    getCredentialHash(getAddressCredential(getTxOutputAddress(getTxInputOutput(getCurrentTxInput(ctx)))))
+}
+
+func main(datum Datum, ctx ScriptContext) Bool {
+    tx Tx = getTx(ctx);
+	now Time = getTimeRangeStart(getTxTimeRange(tx));
+	now > datum.lockUntil || isTxSignedBy(tx, getSourceHash(ctx))
+}
+```
+
+UTXOs can be sent into the time-lock script arbitrarily as long as the datum has the correct format. UTXOs can be retrieved any time by the wallet that initiated the time-lock. UTXOs can be retrieved after the time-lock by anyone who knows the expiration time and the nonce.
