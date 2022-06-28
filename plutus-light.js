@@ -26,6 +26,11 @@
 //    Please don't use this in production yet, it could be riddled with critical bugs.
 //    There are also no backward compatibility guarantees.
 
+function builtinInfo(name, force) {
+	// builtins that need to be forced accept arguments that are not fully typed
+	return {name: name, force: force};
+} 
+
 const DEFAULT_VERSION = [1n, 0n, 0n];
 
 const VERSIONS = {
@@ -39,31 +44,31 @@ const VERSIONS = {
 			kind:      1,
 		},
 		builtins: [
-			"addInteger",
-			"subtractInteger",
-			"multiplyInteger",
-			"divideInteger",
-			"remainderInteger",
-			"lessThanInteger",
-			"lessThanEqInteger",
-			"greaterThanInteger",
-			"greaterThanEqInteger",
-			"eqInteger",
-			"concatenate",
-			"takeByteString",
-			"dropByteString",
-			"sha2_256",
-			"sha3_256",
-			"verifySignature",
-			"eqByteString",
-			"quotientInteger",
-			"modInteger",
-			"ltByteString",
-			"gtByteString",
-			"ifThenElse",
-			"charToString",
-			"append",
-			"trace",
+			builtinInfo("addInteger", false),
+			builtinInfo("subtractInteger", false),
+			builtinInfo("multiplyInteger", false),
+			builtinInfo("divideInteger", false),
+			builtinInfo("remainderInteger", false),
+			builtinInfo("lessThanInteger", false),
+			builtinInfo("lessThanEqInteger", false),
+			builtinInfo("greaterThanInteger", false),
+			builtinInfo("greaterThanEqInteger", false),
+			builtinInfo("eqInteger", false),
+			builtinInfo("concatenate", false),
+			builtinInfo("takeByteString", false),
+			builtinInfo("dropByteString", false),
+			builtinInfo("sha2_256", false),
+			builtinInfo("sha3_256", false),
+			builtinInfo("verifySignature", false),
+			builtinInfo("eqByteString", false),
+			builtinInfo("quotientInteger", false),
+			builtinInfo("modInteger", false),
+			builtinInfo("ltByteString", false),
+			builtinInfo("gtByteString", false),
+			builtinInfo("ifThenElse", true),
+			builtinInfo("charToString", false),
+			builtinInfo("append", true),
+			builtinInfo("trace", true),
 		],
 	},
 	"1.0.0": { // current real-world version of plutus-core
@@ -76,60 +81,60 @@ const VERSIONS = {
 			kind:      1,
 		},
 		builtins: [
-			"addInteger", // 0
-			"subtractInteger",
-			"multiplyInteger",
-			"divideInteger",
-			"quotientInteger",
-			"remainderInteger",
-			"modInteger",
-			"equalsInteger",
-			"lessThanInteger",
-			"lessThanEqualsInteger",
-			"appendByteString", // 10
-			"consByteString",
-			"sliceByteString",
-			"lengthOfByteString",
-			"indexByteString",
-			"equalsByteString",
-			"lessThanByteString",
-			"lessThanEqualsByteString",
-			"sha2_256",
-			"sha3_256",
-			"blake2b_256", // 20
-			"verifySignature",
-			"appendString",
-			"equalsString",
-			"encodeUtf8",
-			"decodeUtf8",
-			"ifThenElse",
-			"chooseUnit",
-			"trace",
-			"fstPair",
-			"sndPair", // 30
-			"chooseList",
-			"mkCons",
-			"headList",
-			"tailList",
-			"nullList",
-			"chooseData",
-			"constrData",
-			"mapData",
-			"listData",
-			"iData", // 40
-			"bData",
-			"unConstrData",
-			"unMapData",
-			"unListData",
-			"unIData",
-			"unBData",
-			"equalsData",
-			"mkPairData",
-			"mkNilData",
-			"mkNilPairData", // 50
-			"serialiseData",
-			"verifyEcdsaSecp256k1Signature",
-			"verifySchnorrSecp256k1Signature",
+			builtinInfo("addInteger", false), // 0
+			builtinInfo("subtractInteger", false),
+			builtinInfo("multiplyInteger", false),
+			builtinInfo("divideInteger", false),
+			builtinInfo("quotientInteger", false),
+			builtinInfo("remainderInteger", false),
+			builtinInfo("modInteger", false),
+			builtinInfo("equalsInteger", false),
+			builtinInfo("lessThanInteger", false),
+			builtinInfo("lessThanEqualsInteger", false),
+			builtinInfo("appendByteString", false), // 10
+			builtinInfo("consByteString", false),
+			builtinInfo("sliceByteString", false),
+			builtinInfo("lengthOfByteString", false),
+			builtinInfo("indexByteString", false),
+			builtinInfo("equalsByteString", false),
+			builtinInfo("lessThanByteString", false),
+			builtinInfo("lessThanEqualsByteString", false),
+			builtinInfo("sha2_256", false),
+			builtinInfo("sha3_256", false),
+			builtinInfo("blake2b_256", false), // 20
+			builtinInfo("verifySignature", false),
+			builtinInfo("appendString", false),
+			builtinInfo("equalsString", false),
+			builtinInfo("encodeUtf8", false),
+			builtinInfo("decodeUtf8", false),
+			builtinInfo("ifThenElse", true),
+			builtinInfo("chooseUnit", true),
+			builtinInfo("trace", true),
+			builtinInfo("fstPair", true),
+			builtinInfo("sndPair", true), // 30
+			builtinInfo("chooseList", true),
+			builtinInfo("mkCons", true),
+			builtinInfo("headList", true),
+			builtinInfo("tailList", true),
+			builtinInfo("nullList", true),
+			builtinInfo("chooseData", true),
+			builtinInfo("constrData", false),
+			builtinInfo("mapData", false),
+			builtinInfo("listData", false),
+			builtinInfo("iData", false), // 40
+			builtinInfo("bData", false),
+			builtinInfo("unConstrData", false),
+			builtinInfo("unMapData", false),
+			builtinInfo("unListData", false),
+			builtinInfo("unIData", false),
+			builtinInfo("unBData", false),
+			builtinInfo("equalsData", false),
+			builtinInfo("mkPairData", false),
+			builtinInfo("mkNilData", false),
+			builtinInfo("mkNilPairData", false), // 50
+			builtinInfo("serialiseData", false),
+			builtinInfo("verifyEcdsaSecp256k1Signature", false),
+			builtinInfo("verifySchnorrSecp256k1Signature", false),
 		],
 	},
 }
@@ -653,7 +658,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 	toFlat(bitWriter) {
 		bitWriter.write('0111');
 
-		let i = VERSIONS["1.0.0"].builtins.findIndex(n => n == this.name_);
+		let i = VERSIONS["1.0.0"].builtins.findIndex(info => info.name == this.name_);
 
 		let bitString = padZeroes(i.toString(2), 7);
 		
@@ -5748,7 +5753,22 @@ class UntypedCallExpr {
 
 	isBuiltin() {
 		if (this.lhs_ instanceof UntypedVariable) {
-			return VERSIONS["1.0.0"].builtins.findIndex(b => b == this.lhs_.name) != -1;
+			return VERSIONS["1.0.0"].builtins.findIndex(info => info.name == this.lhs_.name) != -1;
+		} else {
+			return false;
+		}
+	}
+
+	isForcedBuiltin() {
+		if (this.lhs_ instanceof UntypedVariable) {
+			let i = VERSIONS["1.0.0"].builtins.findIndex(info => info.name == this.lhs_.name);
+
+			if (i == -1) {
+				return false;
+			} else {
+				let info = VERSIONS["1.0.0"].builtins[i];
+				return info.force;
+			}
 		} else {
 			return false;
 		}
@@ -5768,6 +5788,10 @@ class UntypedCallExpr {
 		let term;
 		if (this.isBuiltin()) {
 			term = new PlutusCoreBuiltin(this.lhs_.name);
+
+			if (this.isForcedBuiltin()) {
+				term = new PlutusCoreForce(term);
+			}
 		} else {
 			term = this.lhs_.toPlutusCore();
 		}
@@ -5918,7 +5942,7 @@ class Deserializer {
 
 		assert(id >= 0 && id < all.length, "builtin id " + id.toString() + " out of range");
 
-		return all[id];
+		return all[id].name;
 	}
 
 	eof() {

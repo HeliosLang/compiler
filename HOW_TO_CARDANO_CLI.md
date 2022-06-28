@@ -36,7 +36,7 @@ $ docker exec <container-id> cardano-cli query tip --testnet-magic 1097911063
 It can take up to 10 hours for your *cardano-node* to fully synchronize.
 
 ## Wallet setup and funding
-Enter an interactive shell on the *cardano-node* container:
+Start an interactive shell in the *cardano-node* container:
 ```bash
 $ docker exec -it <container-id> bash
 ```
@@ -95,17 +95,21 @@ Compile the Always Succeeds script and note resulting CBOR:
 ```javascript
 > console.log(PL.compilePlutusLightProgram("func main() Bool {true}"))
 
-5812581001000022233337346494526249899261
+581358110100002223333573464945262498992601
 ```
 
-Start an interactive shell on the *cardano-node* container and create a JSON file representing the script:
+Start an interactive shell in the *cardano-node* container and create a JSON file representing the script:
 ```bash
 $ docket exec -it <container-id> bash
 
 > mkdir -p /data/scripts
 > cd /data/scripts
 
-> echo '{"type":"PlutusScriptV1", "description": "", "cborHex": "5812581001000022233337346494526249899261"}' > always-succeeds.json
+> echo '{
+  "type": "PlutusScriptV1", 
+  "description": "", 
+  "cborHex": "581358110100002223333573464945262498992601"
+}' > always-succeeds.json
 
 ```
 
@@ -162,7 +166,7 @@ Estimated transaction fee: Lovelace 167217
 
 > cardano-cli transaction submit \
   --tx-file $TX_SIGNED \
-  --tesnet-magic $TESTNET_MAGIC_NUM
+  --testnet-magic $TESTNET_MAGIC_NUM
 
 Transaction successfully submitted
 ```
@@ -201,6 +205,8 @@ We can now try and get our funds back from the script by building, signing and s
   --protocol-params-file $PARAMS \
   --alonzo-era
 
+Estimated transaction fee: Lovelace 178405
+
 > TX_SIGNED=$(mktemp)
 > cardano-cli transaction sign \
   --tx-body-file $TX_BUILD \
@@ -211,4 +217,10 @@ We can now try and get our funds back from the script by building, signing and s
 > cardano-cli transaction submit \
   --tx-file $TX_SIGNED \
   --testnet-magic $TESTNET_MAGIC_NUM
+
+Transaction successfully submitted
 ```
+
+If you now check the balance of wallet 1 you should see two UTXOs, and the total value should be your starting value minus the two fees you paid. 
+
+Note that *collateral* is only paid if you submit a bad script, but cardano-cli does some checks when building the transaction and should throw an error before you are able to to so.
