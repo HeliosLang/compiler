@@ -21,13 +21,13 @@ data Datum {
 func main(datum Datum, ctx ScriptContext) Bool {
     tx Tx = getTx(ctx);
     now Time = getTimeRangeStart(getTxTimeRange(tx));
-    now > datum.lockUntil //|| isTxSignedBy(tx, getInitiatorHash(ctx))
+    trace("now: " + String(now) + ", lock: " + String(datum.lockUntil), now > datum.lockUntil) //|| isTxSignedBy(tx, getInitiatorHash(ctx))
 }
 `
 
 const TIME_LOCK_DATUM = `
 Datum{
-   lockUntil: Time(${(new Date()).getTime() + 1000*60*30}),
+   lockUntil: Time(${(new Date()).getTime() + 1000*60*5}),
    nonce: 42
 }
 `
@@ -83,7 +83,7 @@ const UNTYPED_UNDATA = `func(data){func(pair) {
 function compileScript(name, src) {
     console.log("Compiling", name, "...");
 
-	console.log(PL.compilePlutusLightProgram(TIME_LOCK));
+	console.log(PL.compilePlutusLightProgram(src));
 }
 
 function compileData(name, src, data) {
@@ -95,11 +95,13 @@ function compileData(name, src, data) {
 function main() {
 	compileScript("always-succeeds", ALWAYS_SUCCEEDS);
 
+    //PL.setDebug(true);
+
 	compileScript("time-lock", TIME_LOCK);
 
 	compileData("time-lock", TIME_LOCK, TIME_LOCK_DATUM);
 
-	compileScript("vesting", VESTING);
+	//compileScript("vesting", VESTING);
 
 	//console.log(PL.compileUntypedPlutusLight(UNTYPED_UNDATA));
 }
