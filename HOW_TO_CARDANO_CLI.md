@@ -290,7 +290,7 @@ $ docker exec -it <container-id> bash
 addr_test1wrr0t2vyt56tyheas6m60r7dtmeluh7rm5ss6erceahqt4gqfymmj
 ```
 
-We also need a datum, so lets choose to lock UTXOs until 30 minutes from now:
+We also need a datum, so lets choose to lock UTXOs until 5 minutes from now:
 ```bash
 $ nodejs
 
@@ -298,7 +298,7 @@ $ nodejs
 
 > const src = "data Datum {lockUntil...";
 
-> console.log(PL.compilePlutusLightData(src, `Datum{lockUntil: Time(${(new Date()).getTime() + 1000*60*30}), nonce: 42}`));
+> console.log(PL.compilePlutusLightData(src, `Datum{lockUntil: Time(${(new Date()).getTime() + 1000*60*5}), nonce: 42}`));
 
 {"constructors":0, "fields": [{"int": 16564....}, {"int": 42}]}
 ```
