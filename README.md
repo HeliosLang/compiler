@@ -137,6 +137,7 @@ These types require special builtin functions to access their content. Some also
  * `ByteArray <= ByteArray -> Bool`
  * `ByteArray < ByteArray -> Bool`
  * `ByteArray + ByteArray -> ByteArray` (concatenation)
+ * `String + String -> String` (concatenation)
  * `Time == Time -> Bool`
  * `Time != Time -> Bool`
  * `Time >= Time -> Bool`
@@ -158,6 +159,10 @@ These types require special builtin functions to access their content. Some also
  * `Integer(Bool) -> Integer`
  * `ByteArray(String) -> ByteArray` (encodes utf8)
  * `String(ByteArray) -> String` (decodes utf8)
+ * `String(Integer) -> String` (string representation of integer)
+ * `String(Bool) -> String` ("true" or "false")
+ * `String(Time) -> String` (string representation of milliseconds since epoch)
+ * `showByteArray(ByteArray) -> ByteArray` (hex representation of bytearray)
  * `Time(Integer) -> Time` (milliseconds since epoch)
  * `PubKeyHash(ByteArray) -> PubKeyHash`
  * `ValidatorHash(ByteArray) -> ValidatorHash`
@@ -168,6 +173,7 @@ These types require special builtin functions to access their content. Some also
  * `len(ByteArray) -> Integer`
  * `len([]a) -> Integer`
  * `prepend(a, []a) -> []a`
+ * `trace(String, a) -> a` (print a debug message while returning a value)
  * `getTx(ScriptContext) -> Tx`
  * `getSpendingPurposeTxOutputId(ScriptContext) -> TxOutputId`
  * `getTxTimeRange(Tx) -> TimeRange`
