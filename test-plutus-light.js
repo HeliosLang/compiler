@@ -8,6 +8,30 @@ func main() Bool {
 }
 `
 
+const TIME_LOCK = `
+data Datum {
+    lockUntil Time,
+    nonce     Integer // doesn't actually need be checked here
+}
+
+func getInitiatorHash(ctx ScriptContext) PubKeyHash {
+    getCredentialPubKeyHash(getAddressCredential(getTxOutputAddress(getTxInputOutput(getCurrentTxInput(ctx)))))
+}
+
+func main(datum Datum, ctx ScriptContext) Bool {
+    tx Tx = getTx(ctx);
+    now Time = getTimeRangeStart(getTxTimeRange(tx));
+    now > datum.lockUntil || isTxSignedBy(tx, getInitiatorHash(ctx))
+}
+`
+
+const TIME_LOCK_DATUM = `
+Datum{
+   lockUntil: Time(${(new Date()).getTime() + 1000*60*30}),
+   nonce: 42
+}
+`
+
 const VESTING = `
 data VestingTranche {
     time   Time, // amount is available after time
@@ -47,10 +71,26 @@ func main(ctx ScriptContext) Bool {
 } 
 `
 
-function main() {
-	console.log(PL.compilePlutusLightProgram(ALWAYS_SUCCEEDS));
+function compileScript(name, src) {
+    console.log("Compiling", name, "...");
 
-	console.log(PL.compilePlutusLightProgram(VESTING));
+	console.log(PL.compilePlutusLightProgram(TIME_LOCK));
+}
+
+function compileData(name, src, data) {
+	console.log("Compiling datum for", name, "...");
+
+	console.log(PL.compilePlutusLightData(src, data));
+}
+
+function main() {
+	//compileScript("always-succeeds", ALWAYS_SUCCEEDS);
+
+	compileScript("time-lock", TIME_LOCK);
+
+	//compileData("time-lock", TIME_LOCK, TIME_LOCK_DATUM);
+
+	//compileScript("vesting", VESTING);
 }
 
 main();
