@@ -356,6 +356,7 @@ First thing we should test is returing the UTXO back into wallet 1. So we submit
   --tx-in-redeemer-value <arbitrary redeemer data> \
   --tx-in-script-file /data/scripts/time-lock.json \
   --tx-in-collateral <left-over-utxo-id> \ # used for collateral
+  --invalid-before <current-slot-no> \
   --change-address $(cat /data/wallets/wallet1.addr) \
   --tx-out $(cat /data/wallets/wallet1.addr)+2000000 \
   --out-file $TX_BODY \
@@ -377,3 +378,5 @@ Estimated transaction fee: Lovelace 178405
 
 Transaction successfully submitted
 ```
+
+Note that here the transaction build command differs slightly from that for the *Always succeeds* script. We added the `--invalid-before <current-slot-no>` argument so the transaction is aware of the current time (via the start of the valid time-range). It might seem weird to specify (an approximation of) the current time at this point, as someone might be able to cheat the time-lock by specifying a time far into the future. But the slot-leader checks the time-range as well, and rejects any transaction whose time-range doesn't contain the current slot.
