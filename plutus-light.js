@@ -4217,13 +4217,17 @@ class Len extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("len", `func(self, lst){self(self, lst)}(func(self, lst){
-			ifThenElse(
-				nullList(lst), 
-				func(){0}, 
-				func(){addInteger(self(self, tail(lst)), 1)}
-			)()
-		}, lst)`);
+		registry.register("len", `func(lst){
+			func(self){
+				self(self, lst)
+			}(func(self, lst){
+				ifThenElse(
+					nullList(lst), 
+					func(){0}, 
+					func(){addInteger(self(self, tailList(lst)), 1)}
+				)()
+			})
+		}`);
 	}
 
 	registerGlobals(registry, argTypes) {
@@ -4304,8 +4308,12 @@ class GetSpendingPurposeTxOutputId extends BuiltinFunc {
 	}
 
 	static register(registry) {
+		registerUnDataVerbose(registry);
+
 		// in the PlutusLedgerApi the output type of this would be TxOutputRef, but that seemed like a confusing name
-		registry.register("getSpendingPurposeTxOutputId", `func(ctx){${unData(unData("ctx", 0, 1), 1, 0)}}`);
+		registry.register("getSpendingPurposeTxOutputId", `func(ctx){
+			${unDataVerbose(unDataVerbose("ctx", "ScriptContext.purpose", 0, 1), "ScriptPurpose.Spending", 1, 0)}
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4370,7 +4378,11 @@ class GetTxInputs extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTxInputs", `func(tx){unListData(${unData("tx", 0, 0)})}`);
+		registerUnDataVerbose(registry);
+
+		registry.register("getTxInputs", `func(tx){
+			unListData(${unDataVerbose("tx", "Tx.txInputs", 0, 0)})
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4388,7 +4400,11 @@ class GetTxOutputs extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTxOutputs", `func(tx){unListData(${unData("tx", 0, 1)})}`);
+		registerUnDataVerbose(registry);
+
+		registry.register("getTxOutputs", `func(tx){
+			unListData(${unDataVerbose("tx", "Tx.txOutputs", 0, 1)})
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4446,7 +4462,11 @@ class GetTxSignatories extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTxSignatories", `func(tx){unListData(${unData("tx", 0, 7)})}`);
+		registerUnDataVerbose(registry);
+
+		registry.register("getTxSignatories", `func(tx){
+			unListData(${unDataVerbose("tx", "Tx.txSignatories", 0, 7)})
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4478,11 +4498,14 @@ class IsTxSignedBy extends BuiltinFunc {
 		GetTxSignatories.register(registry);
 		EqualsHash.register(registry);
 		Contains.register(registry);
+		ShowByteArray.register(registry);
+		Len.register(registry);
+		IntegerToString.register(registry);
 
 		registry.register("isTxSignedBy", `func(tx, h){
-			contains(func(s){
-				equalsHash(s, h)
-			}, getTxSignatories(tx))
+			trace(appendString(appendString(showByteArray(unBData(h)), ", nTxSignatories: "), integerToString(len(getTxSignatories(tx)))), contains(func(s){
+				trace(showByteArray(unBData(s)), equalsHash(s, h))
+			}, getTxSignatories(tx)))
 		}`);
 	}
 
@@ -4501,7 +4524,11 @@ class GetTxInputOutputId extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTxInputOutputId", `func(input){${unData("input", 0, 0)}}`);
+		registerUnDataVerbose(registry);
+
+		registry.register("getTxInputOutputId", `func(input){
+			${unDataVerbose("input", "TxInput.TxOutputId", 0, 0)}
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4519,7 +4546,11 @@ class GetTxInputOutput extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTxInputOutput", `func(input){${unData("input", 0, 1)}}`);
+		registerUnDataVerbose(registry);
+
+		registry.register("getTxInputOutput", `func(input){
+			${unDataVerbose("input", "TxInput.TxOutput", 0, 1)}
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4537,7 +4568,11 @@ class GetTxOutputAddress extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTxOutputAddress", `func(output){${unData("output", 0, 0)}}`);
+		registerUnDataVerbose(registry);
+
+		registry.register("getTxOutputAddress", `func(output){
+			${unDataVerbose("output", "TxOutput.Address", 0, 0)}
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4573,7 +4608,11 @@ class GetAddressCredential extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getAddressCredential", `func(address){${unData("address", 0, 0)}}`);
+		registerUnDataVerbose(registry);
+
+		registry.register("getAddressCredential", `func(address){
+			${unDataVerbose("address", "Address.Credential", 0, 0)}
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4631,8 +4670,10 @@ class GetCredentialPubKeyHash extends BuiltinFunc {
 	}
 
 	static register(registry) {
+		registerUnDataVerbose(registry);
+
 		registry.register("getCredentialPubKeyHash", `func(cred){
-			${unData("cred", 0, 0)}
+			${unDataVerbose("cred", "PubKeyCredential", 0, 0)}
 		}`);
 	}
 
@@ -4705,7 +4746,9 @@ class GetCurrentTxInput extends BuiltinFunc {
 
 		registry.register("getCurrentTxInput", `func(ctx){
 			func(id){
-				find(func(input){equalsTxOutputId(getTxInputOutputId(input), id)}, getTxInputs(getTx(ctx)))
+				find(func(input){
+					equalsTxOutputId(getTxInputOutputId(input), id)
+				}, getTxInputs(getTx(ctx)))
 			}(getSpendingPurposeTxOutputId(ctx))
 		}`)
 	}
@@ -5442,6 +5485,7 @@ class VerboseError extends BuiltinFunc {
 	}
 }
 
+// renamed this to showInteger?
 class IntegerToString extends BuiltinFunc {
 	constructor() {
 		super("integerToString", [new IntegerType()], new StringType());
@@ -5464,6 +5508,69 @@ class IntegerToString extends BuiltinFunc {
 							func(){appendByteString(self(self, divideInteger(i, 10)), bs)}
 						)()
 					}(consByteString(addInteger(modInteger(i, 10), 48), #))
+				})
+			)
+		}`)
+	}
+}
+
+// only for unsigned ints!
+class Hex extends BuiltinFunc {
+	constructor() {
+		super("hex", [new IntegerType()], new ByteArrayType());
+	}
+
+	static register(registry) {
+		registry.register("hex", `func(i) {
+			func(self) {
+				self(self, i)
+			}(func(self, i){
+				func(partial) {
+					func(bytes) {
+						ifThenElse(
+							lessThanInteger(i, 16),
+							func(){bytes},
+							func(){appendByteString(self(self, divideInteger(i, 16)), bytes)}
+						)()
+					}(consByteString(
+						ifThenElse(
+							lessThanInteger(partial, 10), 
+							addInteger(partial, 48), 
+							addInteger(partial, 87)
+						), #))
+				}(modInteger(i, 16))
+			})
+		}`)
+	}
+}
+
+class ShowByteArray extends BuiltinFunc {
+	constructor() {
+		super("showByteArray", [new ByteArrayType()], new StringType());
+	}
+
+	static register(registry) {
+		Hex.register(registry);
+		
+		registry.register("showByteArray", `func(bytes) {
+			decodeUtf8(
+				func(self) {
+					self(self, bytes)
+				}(func(self, bytes) {
+					func(n) {
+						ifThenElse(
+							lessThanInteger(0, n),
+							func(){
+								appendByteString(
+									hex(indexByteString(bytes, 0)), 
+									self(self, sliceByteString(1, n, bytes))
+								)
+							},
+							func(){
+								#
+							}
+						)()
+					}(lengthOfByteString(bytes))
 				})
 			)
 		}`)
@@ -5527,7 +5634,7 @@ class ConstrData {
 	}
 
 	toSchemaJSON() {
-		return `{"constructor":${this.index_.toString()}, "fields": [${this.fields_.map(f => f.toSchemaJSON()).join(", ")}]}`;
+		return `{"constructor": ${this.index_.toString()}, "fields": [${this.fields_.map(f => f.toSchemaJSON()).join(", ")}]}`;
 	}
 }
 
@@ -6613,6 +6720,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new MakeValue());
 	add(new Lovelace());
 	add(new Trace());
+	add(new ShowByteArray());
 }())
 
 
