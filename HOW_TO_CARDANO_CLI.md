@@ -300,7 +300,7 @@ $ nodejs
 
 > console.log(PL.compilePlutusLightData(src, `Datum{lockUntil: Time(${(new Date()).getTime() + 1000*60*5}), nonce: 42}`));
 
-{"constructors":0, "fields": [{"int": 16564....}, {"int": 42}]}
+{"constructors":0, "fields": [{"int": 16....}, {"int": 42}]}
 ```
 
 Now let's send 2 tAda to the script address using the datum we just generated:
@@ -315,7 +315,7 @@ $ docker exec -it <container-id> bash
 # take note of a UTXO big enough to cover 2 tAda + fees
 
 > DATUM=$(mktemp)
-> echo '{"constructors":0, "fields": [{"int": 16564....}, {"int": 42}]}' > $DATUM
+> echo '{"constructors":0, "fields": [{"int": 16....}, {"int": 42}]}' > $DATUM
 
 > DATUM_HASH=$(cardano-cli transaction hash-script-data --script-data-file $DATUM)
 
