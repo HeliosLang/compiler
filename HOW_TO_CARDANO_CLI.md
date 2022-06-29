@@ -124,6 +124,10 @@ Generate the script address:
   --payment-script-file /data/scripts/always-succeeds.json \
   --out-file /data/scripts/always-succeeds.addr \
   --testnet-magic $TESTNET_MAGIC_NUM
+
+> cat /data/scripts/always-succeeds.addr
+
+addr_test1wzlmzvrx48rnk9js2z6c0gnul2063hl2ptadw9cdzvvq7vgy4qmsu
 ```
 
 We need a datum, which can be chosen arbitrarily in this case:
@@ -148,12 +152,12 @@ TxHash             TxIx  Amount
 
 We now have everything we need to build a transaction and submit it.
 
-Let's send 10 tAda (10 million lovelace) to the script address:
+Let's send 1 tAda (1 million lovelace) to the script address:
 ```bash
 > TX_BUILD=$(mktemp)
 > cardano-cli transaction build \
   --tx-in <utxo-id> \
-  --tx-out $(cat /data/scripts/always-succeeds.addr)+10000000 \
+  --tx-out $(cat /data/scripts/always-succeeds.addr)+1000000 \
   --tx-out-datum-hash $DATUM_HASH \
   --change-address $(cat /data/wallets/wallet1.addr) \
   --testnet-magic $TESTNET_MAGIC_NUM \
@@ -176,7 +180,7 @@ Estimated transaction fee: Lovelace 167217
 Transaction successfully submitted
 ```
 
-If you check the wallet 1 payment address balance after a few minutes you will noticed that it has decreased by 10 tAda + fee. Note the left-over UTXO id, we will need it to pay fees when retrieving funds.
+If you check the wallet 1 payment address balance after a few minutes you will noticed that it has decreased by 1 tAda + fee. Note the left-over UTXO id, we will need it to pay fees when retrieving funds.
 
 
 You can also try to check the balance of the script address:
@@ -203,10 +207,10 @@ We can now try and get our funds back from the script by building, signing and s
   --tx-in-script-file /data/scripts/always-succeeds.json \
   --tx-in-collateral <left-over-utxo-id> \ # used for collateral
   --change-address $(cat /data/wallets/wallet1.addr) \
-  --tx-out $(cat /data/wallets/wallet1.addr)+10000000 \
+  --tx-out $(cat /data/wallets/wallet1.addr)+1000000 \
   --tx-out-datum-hash $DATUM_HASH \
   --out-file $TX_BUILD \
-  --tesnet-magic $TESTNET_MAGIC_NUM \
+  --testnet-magic $TESTNET_MAGIC_NUM \
   --protocol-params-file $PARAMS \
   --alonzo-era
 
@@ -254,3 +258,124 @@ func main(datum Datum, ctx ScriptContext) Bool {
 ```
 
 UTXOs can be sent into the time-lock script arbitrarily as long as the datum has the correct format. UTXOs can be retrieved any time by the wallet that initiated the time-lock. UTXOs can be retrieved after the time-lock by anyone who knows the expiration time and the nonce.
+
+
+Once we have written the script, we generate the CBOR hex, and then calculate the script address using cardano-cli:
+```bash
+$ nodejs
+
+> var PL; import("./plutus-light.js").then(m=>{PL=m});
+
+> const src = "data Datum {lockUntil...";
+
+> console.log(PL.compilePlutusLightProgram(src))
+
+590329590...
+```
+```bash
+$ docker exec -it <container-id> bash
+
+> echo '{
+  "PlutusScriptV1": "",
+  "description": "",
+  "cborHex": "590329590...",
+}' > /data/scripts/time-lock.json
+
+> cardano-cli address build \
+  --payment-script-file /data/scripts/time-lock.json \
+  --out-file /data/scripts/time-lock.addr \
+  --testnet-magic $TESTNET_MAGIC_NUM
+
+> cat time-lock.addr
+
+addr_test1wq2v9ma6vp8xa3z95f7gxx4vdtvslv26em8vq0h6ydddpzs369rjy
+```
+
+We also need a datum, so lets choose to lock UTXOs until 30 minutes from now:
+```bash
+$ nodejs
+
+> var PL; import("./plutus-light.js").then(m=>{PL=m});
+
+> const src = "data Datum {lockUntil...";
+
+> console.log(PL.compilePlutusLightData(src, `Datum{lockUntil: Time(${(new Date()).getTime() + 1000*60*30}), nonce: 42}`));
+
+{"constructors":0, "fields": [{"int": 16564....}, {"int": 42}]}
+```
+
+Now let's send 2 tAda to the script address using the datum we just generated:
+```bash
+$ docker exec -it <container-id> bash
+
+> cardano-cli query utxo \
+  --address $(cat /data/wallets/wallet1.addr) \
+  --testnet-magic $TESTNET_MAGIC_NUM
+
+...
+# take note of a UTXO big enough to cover 1 tAda + fees
+
+> DATUM=$(mktemp)
+> echo '{"constructors":0, "fields": [{"int": 16564....}, {"int": 42}]}' > $DATUM
+
+> DATUM_HASH=$(cardano-cli transaction hash-script-data --script-data-file $DATUM)
+
+> TX_BUILD=$(mktemp)
+> cardano-cli transaction build \
+  --tx-in <utxo-id> \
+  --tx-out $(cat /data/scripts/time-lock.addr)+1000000 \
+  --tx-out-datum-hash $DATUM_HASH \
+  --change-address $(cat /data/wallets/wallet1.addr) \
+  --testnet-magic $TESTNET_MAGIC_NUM \
+  --out-file $TX_BUILD \
+  --alonzo-era
+
+Estimated transaction fee: Lovelace 167217
+
+> TX_SIGNED=$(mktemp)
+> cardano-cli transaction sign \
+  --tx-body-file $TX_BUILD \
+  --signing-key-file /data/wallets/wallet1.skey \
+  --testnet-magic $TESTNET_MAGIC_NUM \
+  --out-file $TX_SIGNED
+
+> cardano-cli transaction submit \
+  --tx-file $TX_SIGNED \
+  --testnet-magic $TESTNET_MAGIC_NUM
+
+Transaction successfully submitted
+```
+
+Wait for the transaction to propagate through the network, and query the script address to see the locked UTXO(s).
+
+First thing we should test is returing the UTXO back into wallet 1. So we submit another transaction:
+```bash
+> cardano-cli transaction build \
+  --tx-in <left-over-utxo-id> \ # used for fees
+  --tx-in <script-utxo-with-our-datum-hash> \
+  --tx-in-datum-file $DATUM \
+  --tx-in-redeemer-value <arbitrary redeemer data> \
+  --tx-in-script-file /data/scripts/time-lock.json \
+  --tx-in-collateral <left-over-utxo-id> \ # used for collateral
+  --change-address $(cat /data/wallets/wallet1.addr) \
+  --tx-out $(cat /data/wallets/wallet1.addr)+1000000 \
+  --tx-out-datum-hash $DATUM_HASH \
+  --out-file $TX_BUILD \
+  --testnet-magic $TESTNET_MAGIC_NUM \
+  --protocol-params-file $PARAMS \
+  --alonzo-era
+
+Estimated transaction fee: Lovelace 178405
+
+> cardano-cli transaction sign \
+  --tx-body-file $TX_BUILD \
+  --signing-key-file /data/wallets/wallet1.skey \
+  --testnet-magic $TESTNET_MAGIC_NUM \
+  --out-file $TX_SIGNED
+
+> cardano-cli transaction submit \
+  --tx-file $TX_SIGNED \
+  --testnet-magic $TESTNET_MAGIC_NUM
+
+Transaction successfully submitted
+```
