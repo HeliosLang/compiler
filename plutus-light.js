@@ -26,12 +26,15 @@
 //    Please don't use this in production yet, it could be riddled with critical bugs.
 //    There are also no backward compatibility guarantees.
 
+var DEBUG = false; // use the exported setDebug() and unsetDebug() to change DEBUG 
+
 function builtinInfo(name, forceCount) {
 	// builtins might need be wrapped in `force` a number of times if they are not fully typed
 	return {name: name, forceCount: forceCount};
 } 
 
 const DEFAULT_VERSION = [1n, 0n, 0n];
+
 
 const VERSIONS = {
 	"11.22.33": { // dummy version from example in may2022 plutus-core-spec document
@@ -59,7 +62,7 @@ const VERSIONS = {
 			builtinInfo("dropByteString", 0),
 			builtinInfo("sha2_256", 0),
 			builtinInfo("sha3_256", 0),
-			builtinInfo("verifySignature", 0),
+			builtinInfo("verifySignature", 1),
 			builtinInfo("eqByteString", 0),
 			builtinInfo("quotientInteger", 0),
 			builtinInfo("modInteger", 0),
@@ -68,7 +71,7 @@ const VERSIONS = {
 			builtinInfo("ifThenElse", 1),
 			builtinInfo("charToString", 0),
 			builtinInfo("append", 1),
-			builtinInfo("trace", 0),
+			builtinInfo("trace", 1),
 		],
 	},
 	"1.0.0": { // current real-world version of plutus-core
@@ -1204,6 +1207,8 @@ class Tokenizer {
 				this.readMaybeComment(ts, l);
 			} else if (c == '0') {
 				this.readSpecialInteger(ts, l);
+			} else if (c == '-') {
+				this.readMaybeNegativeDecimalInteger(ts, l);
 			} else if (c >= '1' && c <= '9') {
 				this.readDecimalInteger(ts, l, c);
 			} else if (c == '#') {
@@ -1321,7 +1326,18 @@ class Tokenizer {
 			c => ((c >= '0' && c <= '9') || (c >= 'a' || c <= 'f')));
 	}
 
-	readDecimalInteger(ts, start, c) {
+	readMaybeNegativeDecimalInteger(ts, start) {
+		let c = this.readChar();
+
+		if (c >= '1' && c <= '9') {
+			this.readDecimalInteger(ts, start, c, true);
+		} else {
+			ts.push(new Symbol(start, '-'));
+			this.unreadChar();
+		}
+	}
+
+	readDecimalInteger(ts, start, c, negative = false) {
 		let chars = [];
 
 		while (c != '\0') {
@@ -1335,6 +1351,10 @@ class Tokenizer {
 			}
 
 			c = this.readChar();
+		}
+
+		if (negative) {
+			chars.unshift('-');
 		}
 
 		ts.push(new IntegerLiteral(start, BigInt(chars.join(''))));
@@ -1988,6 +2008,21 @@ class StructTypeDecl extends Named {
 		this.cache_ = null;
 	}
 
+	// returns an index
+	findField(name) {
+		let found = -1;
+		let i = 0;
+		for (let f of this.fields_) {
+			if (f[0] == name.toString()) {
+				found = i;
+				break;
+			}
+			i++;
+		}
+
+		return found;
+	}
+
 	toString() {
 		let parts = [];
 
@@ -2082,23 +2117,6 @@ class StructTypeDecl extends Named {
 
 		this.cache_ = this;
 		return this.cache_;
-	}
-
-	// result has builtin type `data`
-	memberAccessToUntyped(lhs, name) {
-		let found = -1;
-		let i = 0;
-		for (let f of this.fields_) {
-			if (f[0] == name.toString()) {
-				found = i;
-				break;
-			}
-			i++;
-		}
-		
-		assert(found != -1);
-
-		return unData(lhs, 0, found);
 	}
 }
 
@@ -2735,6 +2753,8 @@ class BinaryOperator extends Expr {
 				return new IntegerType(this.symbol_.loc);
 			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
 				return new ByteArrayType();
+			} else if (StringType.is(a) && StringType.is(b)) {
+				return new StringType();
 			} else if (ValueType.is(a) && ValueType.is(b)) {
 				return new ValueType();
 			}
@@ -2847,7 +2867,7 @@ class BinaryOperator extends Expr {
 				pairs.push([new ListData([new ByteArrayData(hexToBytes(cs))]), new MapData(innerPairs)]);
 			}
 
-			return new ListData([new MapData(pairs)]);
+			return new new MapData(pairs);
 		} else {
 			this.typeError("can't use this binary op in data eval");
 		}
@@ -2860,8 +2880,6 @@ class BinaryOperator extends Expr {
 
 		let au = this.a_.toUntyped();
 		let bu = this.b_.toUntyped();
-		let aut = `unIData(headList(unListData(${au})))`;
-		let but = `unIData(headList(unListData(${bu})))`;
 
 		if (op == "||") {
 			assert(BoolType.is(a) && BoolType.is(b));
@@ -2875,7 +2893,7 @@ class BinaryOperator extends Expr {
 			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
 				return `equalsByteString(${au}, ${bu})`;
 			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return `equalsInteger(${aut}, ${but})`;
+				return `equalsInteger(unIData(${au}), unIData(${bu}))`;
 			} else if (TxIdType.is(a) && TxIdType.is(b)) {
 				return `equalsByteString(unBData(${unData(au, 0, 0)}), unBData(${unData(bu, 0, 0)}))`;
 			} else if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
@@ -2891,7 +2909,7 @@ class BinaryOperator extends Expr {
 			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
 				return `not(equalsByteString(${au}, ${bu}))`;
 			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return `not(equalsInteger(${aut}, ${but}))`;
+				return `not(equalsInteger(unIData(${au}), unIData(${bu})))`;
 			} else if (TxIdType.is(a) && TxIdType.is(b)) {
 				return `not(equalsByteString(unBData(${unData(au, 0, 0)}), unBData(${unData(bu, 0, 0)})))`;
 			} else if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
@@ -2907,7 +2925,7 @@ class BinaryOperator extends Expr {
 			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
 				return `lessThanByteString(${au}, ${bu})`;
 			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return `lessThanInteger(${aut}, ${but})`;
+				return `lessThanInteger(unIData(${au}), unIData(${bu}))`;
 			}
 		} else if (op == "<=") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
@@ -2915,7 +2933,7 @@ class BinaryOperator extends Expr {
 			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
 				return `lessThanEqualsByteString(${au}, ${bu})`;
 			} else if  (TimeType.is(a) && TimeType.is(b)) {
-				return `lessThanEqualsInteger(${aut}, ${but})`;
+				return `lessThanEqualsInteger(unIData(${au}), unIData(${bu}))`;
 			}
 		} else if (op == ">") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
@@ -2923,7 +2941,7 @@ class BinaryOperator extends Expr {
 			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
 				return `ifThenElse(lessThanEqualsByteString(${au}, ${bu}), false, true)`; // doesn't need deferred evaluation of branches
 			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return `ifThenElse(lessThanEqualsInteger(${aut}, ${but}), false, true)`; // doesn't need deferred evaluation of branches
+				return `ifThenElse(lessThanEqualsInteger(unIData(${au}), unIData(${bu})), false, true)`; // doesn't need deferred evaluation of branches
 			}
 		} else if (op == ">=") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
@@ -2931,13 +2949,15 @@ class BinaryOperator extends Expr {
 			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
 				return `ifThenElse(lessThanByteString(${au}, ${bu}), false, true)`; // doesn't need deferred evaluation of branches
 			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return `ifThenElse(lessThanInteger(${aut}, ${but}), false, true)`; // doesn't need deferred evaluation of branches
+				return `ifThenElse(lessThanInteger(unIData(${au}), unIData(${bu})), false, true)`; // doesn't need deferred evaluation of branches
 			}
 		} else if (op == "+") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
 				return `addInteger(${au}, ${bu})`;
 			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
 				return `appendByteString(${au}, ${bu})`;
+			} else if (StringType.is(a) && StringType.is(b)) {
+				return `appendString(${au},  ${bu})`;
 			} else if (ValueType.is(a) && ValueType.is(b)) {
 				return `addValues(${au}, ${bu})`;
 			}
@@ -3269,7 +3289,7 @@ class BuiltinCall extends Expr {
 		}
 	}
 
-	evalArgs() {
+	evalArgTypes() {
 		let args = [];
 		for (let a of this.args_) {
 			args.push(a.eval());
@@ -3279,7 +3299,7 @@ class BuiltinCall extends Expr {
 	}
 
 	evalInternal() {
-		let args = this.evalArgs();
+		let args = this.evalArgTypes();
 
 		return this.obj_.evalCall(this.loc, args);
 	}
@@ -3291,7 +3311,8 @@ class BuiltinCall extends Expr {
 	}
 
 	registerGlobals(registry) {
-		this.obj_.registerGlobals(registry);
+		this.obj_.registerGlobals(registry, this.evalArgTypes());
+
 		for (let a of this.args_) {
 			a.registerGlobals(registry);
 		}
@@ -3338,7 +3359,8 @@ function toData(str, type) {
 	}
 }
 
-function unData(str, iConstr, iField) {
+// dataExpr is a string
+function unData(dataExpr, iConstr, iField, errorExpr = "error()") {
 	let inner = "sndPair(pair)";
 	for (let i = 0; i < iField; i++) {
 		inner = `tailList(${inner})`;
@@ -3349,9 +3371,25 @@ function unData(str, iConstr, iField) {
 		ifThenElse(
 			equalsInteger(fstPair(pair), ${iConstr}), 
 			func(){headList(${inner})}, 
-			func(){error()}
+			func(){${errorExpr}}
 		)()
-	}(unConstrData(${str}))`;
+	}(unConstrData(${dataExpr}))`;
+}
+
+// dataExpr is a string
+function unDataVerbose(dataExpr, constrName, iConstr, iField) {
+	if (!DEBUG) {
+		return unData(dataExpr, iConstr, iField);
+	} else {
+		return unData(dataExpr, iConstr, iField, `verboseError(appendString("bad constr for ${constrName}, want ${iConstr.toString()} but got ", integerToString(fstPair(pair))))`)
+	}
+}
+
+function registerUnDataVerbose(registry) {
+	if (DEBUG) {
+		VerboseError.register(registry);
+		IntegerToString.register(registry);
+	}
 }
 
 class MemberExpr extends Expr {
@@ -3380,16 +3418,20 @@ class MemberExpr extends Expr {
 	}
 
 	registerGlobals(registry) {
+		registerUnDataVerbose(registry);
+
 		this.lhs_.registerGlobals(registry);
 	}
 
 	toUntyped() {
 		let lhs = this.lhs_.eval();
 
-		// member access is always for structs, which are always `data` -> (0, []data)
-		let res = lhs.memberAccessToUntyped(this.lhs_.toUntyped(), this.name_);
+		let iField = lhs.findField(this.name_);
 
-		return fromData(res, this.eval());
+		assert(iField != -1);
+
+		// member access is always for structs, which are always `data` -> (0, []data)
+		return fromData(unDataVerbose(this.lhs_.toUntyped(), lhs.name.toString(), 0, iField), this.eval());
 	}
 }
 
@@ -3773,44 +3815,41 @@ class Cast extends BuiltinFunc {
 		super(name);
 	}
 
-	argType() {
-		let dstType = this.name.toString();
-		if (dstType == "Integer") {
-			return new BoolType();
-		} else if (dstType == "ByteArray") {
-			return new StringType();
-		} else if (dstType == "String") {
-			return new ByteArrayType();
-		} else {
-			throw new Error("unhandled cast");
-		}
-	}
-
-	returnType() {
-		let dstType = this.name.toString();
-		if (dstType == "Integer") {
-			return new IntegerType();
-		} else if (dstType == "ByteArray") {
-			return new ByteArrayType();
-		} else if (dstType == "String") {
-			return new StringType();
-		} else {
-			throw new Error("unhandled cast");
-		}
-	}
-
 	evalCall(loc, args) {
 		if (args.length != 1) {
 			loc.typeError(this.name + "() expects 1 arg(s), got " + args.length.toString() + " arg(s)");
 		}
 
-		let argType = this.argType();
-
-		if (!argType.eq(args[0])) {
-			args[0].typeError("invalid operand type for " + this.name + "(): expected \'" + argType.toString() + "\', got \'" + args[0].toString() + "\'");
+		let dstType = this.name.toString();
+		if (dstType == "Integer") {
+			if (BoolType.is(args[0])) {
+				return new IntegerType();
+			}
+		} else if (dstType == "ByteArray") {
+			if (StringType.is(args[0])) {
+				return new ByteArrayType();
+			}
+		} else if (dstType == "String") {
+			if (ByteArrayType.is(args[0])) {
+				return new StringType();
+			} else if (IntegerType.is(args[0])) {
+				return new StringType();
+			} else if (BoolType.is(args[0])) {
+				return new StringType();
+			} else if (TimeType.is(args[0])) {
+				return new StringType();
+			}
 		}
 
-		return this.returnType();
+		loc.typeError(`invalid arg type for ${this.name}(): got \'${args[0].toString()}\'`);
+	}
+
+	registerGlobals(registry, argTypes) {
+		if (this.name.toString() == "String") {
+			if (IntegerType.is(argTypes[0]) || TimeType.is(argTypes[0])) {
+				IntegerToString.register(registry);
+			}
+		}
 	}
 
 	toUntyped(args) {
@@ -3825,8 +3864,17 @@ class Cast extends BuiltinFunc {
 			assert(StringType.is(argType));
 			return `encodeUtf8(${au})`;
 		} else if (dstType == "String") {
-			assert(ByteArrayType.is(argType));
-			return `decodeUtf8(${au})`;
+			if (ByteArrayType.is(argType)) {
+				return `decodeUtf8(${au})`;
+			} else if (IntegerType.is(argType)) {
+				return `integerToString(${au})`;
+			} else if (BoolType.is(argType)) {
+				return `ifThenElse(${au}, "true", "false")`;
+			} else if (TimeType.is(argType)) {
+				return `integerToString(unIData(${au}))`;
+			} else {
+				throw new Error("can't cast to String");
+			}
 		} else {
 			throw new Error("unhandled cast");
 		}
@@ -4178,9 +4226,10 @@ class Len extends BuiltinFunc {
 		}, lst)`);
 	}
 
-	registerGlobals(registry) {
-		// the list len function is registered even if only len(ByteArray) is used
-		Len.register(registry);
+	registerGlobals(registry, argTypes) {
+		if (ListType.is(argTypes[0])) {
+			Len.register(registry);
+		}
 	}
 
 	toUntyped(args) {
@@ -4233,7 +4282,11 @@ class GetTx extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTx", `func(ctx){${unData("ctx", 0, 0)}}`);
+		registerUnDataVerbose(registry);
+
+		registry.register("getTx", `func(ctx){
+			${unDataVerbose("ctx", "ScriptContext.Tx", 0, 0)}
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4269,8 +4322,20 @@ class GetTxTimeRange extends BuiltinFunc {
 		super("getTxTimeRange", [new TxType()], new TimeRangeType());
 	}
 
+	static register(registry) {
+		registerUnDataVerbose(registry);
+
+		registry.register("getTxTimeRange", `func(tx) {
+			${unDataVerbose("tx", "Tx.TimeRange", 0, 6)}
+		}`);
+	}
+
+	registerGlobals(registry) {
+		GetTxTimeRange.register(registry);
+	}
+
 	toUntyped(args) {
-		return unData(args[0].toUntyped(), 0, 6);
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -4279,11 +4344,23 @@ class GetTimeRangeStart extends BuiltinFunc {
 		super("getTimeRangeStart", [new TimeRangeType()], new TimeType());
 	}
 
-	toUntyped(args) {
+	static register(registry) {
+		registerUnDataVerbose(registry);
+
 		// the inner-most unData returns a LowerBound<POSIXTime> type (assuming that data constructor with records is equivalent to data constructor with positional fields)
 		// the next unData returns Extended<POSIXTime>
 		// the outer-most unData returns POSIXTime as data
-		return unData(unData(unData(args[0].toUntyped(), 0, 0), 0, 0), 1, 0);
+		registry.register("getTimeRangeStart", `func(timeRange) {
+			${unDataVerbose(unDataVerbose(unDataVerbose("timeRange", "TimeRange.LowerBound", 0, 0), "LowerBound.Extended", 0, 0), "Extended.Finite", 1, 0)}
+		}`)
+	}
+
+	registerGlobals(registry) {
+		GetTimeRangeStart.register(registry);
+	}
+
+	toUntyped(args) {
+		return`${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -5327,6 +5404,71 @@ class Lovelace extends BuiltinFunc {
 	}
 }
 
+class Trace extends BuiltinFunc {
+	constructor() {
+		super("trace");
+	}
+
+	evalCall(loc, args) {
+		if (args.length != 2) {
+			loc.typeError(`${this.name}() expects 2 arg(s), got ${args.length.toString()} arg(s)`);
+		}
+
+		let aType = args[0].eval();
+
+		if (! aType instanceof StringType) {
+			loc.typeError(`${this.name} expects String for arg 1, got \'${aType.toString()}\'`);
+		} 
+
+		return args[1].eval();
+	}
+
+	toUntyped(args) {
+		return `trace(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+	}
+}
+
+class VerboseError extends BuiltinFunc {
+	constructor() {
+		super("verboseError");
+	}
+
+	static register(registry) {
+		registry.register("verboseError", `func(s){
+			trace(s, func(){
+				error()
+			})()
+		}`)
+	}
+}
+
+class IntegerToString extends BuiltinFunc {
+	constructor() {
+		super("integerToString", [new IntegerType()], new StringType());
+	}
+
+	static register(registry) {
+		registry.register("integerToString", `func(i) {
+			decodeUtf8(
+				func(self){
+					ifThenElse(
+						lessThanInteger(i, 0),
+						func(){consByteString(45, self(self, multiplyInteger(i, -1)))},
+						func(){self(self, i)}
+					)()
+				}(func(self, i) {
+					func(bs) {
+						ifThenElse(
+							lessThanInteger(i, 10),
+							func(){bs},
+							func(){appendByteString(self(self, divideInteger(i, 10)), bs)}
+						)()
+					}(consByteString(addInteger(modInteger(i, 10), 48), #))
+				})
+			)
+		}`)
+	}
+}
 
 
 ////////////////////////////////////////
@@ -6470,12 +6612,30 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new MakeAssetClass());
 	add(new MakeValue());
 	add(new Lovelace());
+	add(new Trace());
 }())
 
 
 ////////////////////////////////////////////////
 // Functions for compiling Plutus-Light
 ////////////////////////////////////////////////
+export function setDebug(d) {
+	if (d == undefined) {
+		DEBUG = true;
+	} else {
+		assert(typeof d == 'boolean' || d instanceof Boolean);
+
+		if (d) {
+			DEBUG = true;
+		} else {
+			DEBUG = false;
+		}
+	}
+}
+
+export function unsetDebug() {
+	DEBUG = false;
+}
 
 export function tokenizePlutusLight(src) {
 	let tokenizer = new Tokenizer(src);
@@ -6522,7 +6682,6 @@ export function compilePlutusLightProgram(typedSrc) {
 
 		try {
 			//console.log(prettySource(untypedSrc) + "\n");
-
 			
 			// at this point there shouldn't be any errors
 			let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
