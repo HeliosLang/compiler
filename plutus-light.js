@@ -3340,7 +3340,7 @@ function toData(str, type) {
 
 function unData(str, iConstr, iField) {
 	let inner = "sndPair(pair)";
-	for (let i = 0; i < iField-1; i++) {
+	for (let i = 0; i < iField; i++) {
 		inner = `tailList(${inner})`;
 	}
 
@@ -4369,7 +4369,7 @@ class GetTxSignatories extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTxSignatories", `func(tx){${unData("tx", 0, 7)}}`);
+		registry.register("getTxSignatories", `func(tx){unListData(${unData("tx", 0, 7)})}`);
 	}
 
 	registerGlobals(registry) {
@@ -4697,7 +4697,7 @@ class GetValueComponent extends BuiltinFunc {
 					)()}
 				)()
 			})
-		}(unMapData(value), ${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})}`)
+		}(unMapData(value), unBData(${unData("assetClass", 0, 0)}), unBData(${unData("assetClass", 0, 1)}))}`)
 	}
 
 	registerGlobals(registry) {
@@ -5916,8 +5916,12 @@ class UntypedFuncExpr {
 	}
 
 	link(scope) {
-		for (let argName of this.argNames_) {
-			scope = new UntypedScope(scope, argName);
+		if (this.argNames_.length == 0) {
+			scope = new UntypedScope(scope, "");
+		} else {
+			for (let argName of this.argNames_) {
+				scope = new UntypedScope(scope, argName);
+			}
 		}
 
 		this.body_.link(scope);
@@ -6517,6 +6521,8 @@ export function compilePlutusLightProgram(typedSrc) {
 		let untypedSrc = program.toUntyped();
 
 		try {
+			//console.log(prettySource(untypedSrc) + "\n");
+
 			
 			// at this point there shouldn't be any errors
 			let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
@@ -6525,7 +6531,7 @@ export function compilePlutusLightProgram(typedSrc) {
 
 			let plutusCoreProgram = new PlutusCoreProgram(DEFAULT_VERSION.map(v => new PlutusCoreInteger(v)), untypedProgram.toPlutusCore());
 			
-			console.log(plutusCoreProgram.toString());
+			//console.log(plutusCoreProgram.toString());
 
 			return serializePlutusCoreProgram(plutusCoreProgram);
 		} catch (error) {
@@ -6547,6 +6553,17 @@ export function compilePlutusLightProgram(typedSrc) {
 			throw error;
 		}
 	}
+}
+
+// dumps the Plutus-Core AST
+export function compileUntypedPlutusLight(untypedSrc) {
+	let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
+
+	let untypedProgram = buildUntypedProgram(untypedTokens);
+
+	let plutusCoreProgram = new PlutusCoreProgram(DEFAULT_VERSION.map(v => new PlutusCoreInteger(v)), untypedProgram.toPlutusCore());
+			
+	return plutusCoreProgram.toString();
 }
 
 // output is a string with JSON content
