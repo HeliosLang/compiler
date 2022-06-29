@@ -14,14 +14,14 @@ data Datum {
     nonce     Integer // doesn't actually need be checked here
 }
 
-func getInitiatorHash(ctx ScriptContext) PubKeyHash {
-    getCredentialPubKeyHash(getAddressCredential(getTxOutputAddress(getTxInputOutput(getCurrentTxInput(ctx)))))
-}
+//func getInitiatorHash(ctx ScriptContext) PubKeyHash {
+    //getCredentialPubKeyHash(getAddressCredential(getTxOutputAddress(getTxInputOutput(getCurrentTxInput(ctx)))))
+//}
 
 func main(datum Datum, ctx ScriptContext) Bool {
     tx Tx = getTx(ctx);
     now Time = getTimeRangeStart(getTxTimeRange(tx));
-    now > datum.lockUntil || isTxSignedBy(tx, getInitiatorHash(ctx))
+    now > datum.lockUntil //|| isTxSignedBy(tx, getInitiatorHash(ctx))
 }
 `
 
@@ -71,6 +71,15 @@ func main(ctx ScriptContext) Bool {
 } 
 `
 
+const UNTYPED_UNDATA = `func(data){func(pair) {
+	ifThenElse(
+		equalsInteger(fstPair(pair), 0),
+		func(){headList(sndPair(pair))},
+		func(){error()}
+	)()
+}(unConstrData(data))}`
+
+
 function compileScript(name, src) {
     console.log("Compiling", name, "...");
 
@@ -84,13 +93,15 @@ function compileData(name, src, data) {
 }
 
 function main() {
-	//compileScript("always-succeeds", ALWAYS_SUCCEEDS);
+	compileScript("always-succeeds", ALWAYS_SUCCEEDS);
 
 	compileScript("time-lock", TIME_LOCK);
 
-	//compileData("time-lock", TIME_LOCK, TIME_LOCK_DATUM);
+	compileData("time-lock", TIME_LOCK, TIME_LOCK_DATUM);
 
-	//compileScript("vesting", VESTING);
+	compileScript("vesting", VESTING);
+
+	//console.log(PL.compileUntypedPlutusLight(UNTYPED_UNDATA));
 }
 
 main();
