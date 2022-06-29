@@ -11,23 +11,26 @@ func main() Bool {
 const TIME_LOCK = `
 data Datum {
     lockUntil Time,
+	owner     PubKeyHash, // can't get this info from the ScriptContext
     nonce     Integer // doesn't actually need be checked here
 }
 
-//func getInitiatorHash(ctx ScriptContext) PubKeyHash {
-    //getCredentialPubKeyHash(getAddressCredential(getTxOutputAddress(getTxInputOutput(getCurrentTxInput(ctx)))))
-//}
-
 func main(datum Datum, ctx ScriptContext) Bool {
     tx Tx = getTx(ctx);
+
     now Time = getTimeRangeStart(getTxTimeRange(tx));
-    trace("now: " + String(now) + ", lock: " + String(datum.lockUntil), now > datum.lockUntil) //|| isTxSignedBy(tx, getInitiatorHash(ctx))
+
+    returnToOwner Bool = isTxSignedBy(tx, datum.owner);
+
+    trace("now: " + String(now) + ", lock: " + String(datum.lockUntil), now > datum.lockUntil) || 
+    trace("returning? " + String(returnToOwner), returnToOwner)
 }
 `
 
 const TIME_LOCK_DATUM = `
 Datum{
    lockUntil: Time(${(new Date()).getTime() + 1000*60*5}),
+   owner: PubKeyHash(#1d22b9ff5fc20bae3b84b8f9434e747c1792b0ea2b0af658a8a76d43),
    nonce: 42
 }
 `
@@ -95,7 +98,7 @@ function compileData(name, src, data) {
 function main() {
 	compileScript("always-succeeds", ALWAYS_SUCCEEDS);
 
-    //PL.setDebug(true);
+    PL.setDebug(true);
 
 	compileScript("time-lock", TIME_LOCK);
 
