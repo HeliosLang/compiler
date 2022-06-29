@@ -152,23 +152,23 @@ TxHash             TxIx  Amount
 
 We now have everything we need to build a transaction and submit it.
 
-Let's send 1 tAda (1 million lovelace) to the script address:
+Let's send 2 tAda (2 million lovelace) to the script address:
 ```bash
-> TX_BUILD=$(mktemp)
+> TX_BODY=$(mktemp)
 > cardano-cli transaction build \
   --tx-in <utxo-id> \
-  --tx-out $(cat /data/scripts/always-succeeds.addr)+1000000 \
+  --tx-out $(cat /data/scripts/always-succeeds.addr)+2000000 \
   --tx-out-datum-hash $DATUM_HASH \
   --change-address $(cat /data/wallets/wallet1.addr) \
   --testnet-magic $TESTNET_MAGIC_NUM \
-  --out-file $TX_BUILD \
+  --out-file $TX_BODY \
   --alonzo-era
 
 Estimated transaction fee: Lovelace 167217
 
 > TX_SIGNED=$(mktemp)
 > cardano-cli transaction sign \
-  --tx-body-file $TX_BUILD \
+  --tx-body-file $TX_BODY \
   --signing-key-file /data/wallets/wallet1.skey \
   --testnet-magic $TESTNET_MAGIC_NUM \
   --out-file $TX_SIGNED
@@ -180,7 +180,7 @@ Estimated transaction fee: Lovelace 167217
 Transaction successfully submitted
 ```
 
-If you check the wallet 1 payment address balance after a few minutes you will noticed that it has decreased by 1 tAda + fee. Note the left-over UTXO id, we will need it to pay fees when retrieving funds.
+If you check the wallet 1 payment address balance after a few minutes you will noticed that it has decreased by 2 tAda + fee. Note the left-over UTXO id, we will need it to pay fees when retrieving funds.
 
 
 You can also try to check the balance of the script address:
@@ -198,7 +198,7 @@ We can now try and get our funds back from the script by building, signing and s
 > PARAMS=$(mktemp) # most recent protocol parameters
 > cardano-cli query protocol-parameters --testnet-magic $TESTNET_MAGIC_NUM > $PARAMS
 
-> TX_BUILD=$(mktemp)
+> TX_BODY=$(mktemp)
 > cardano-cli transaction build \
   --tx-in <left-over-utxo-id> \ # used for fees
   --tx-in <script-utxo-with-our-datum-hash> \
@@ -207,9 +207,8 @@ We can now try and get our funds back from the script by building, signing and s
   --tx-in-script-file /data/scripts/always-succeeds.json \
   --tx-in-collateral <left-over-utxo-id> \ # used for collateral
   --change-address $(cat /data/wallets/wallet1.addr) \
-  --tx-out $(cat /data/wallets/wallet1.addr)+1000000 \
-  --tx-out-datum-hash $DATUM_HASH \
-  --out-file $TX_BUILD \
+  --tx-out $(cat /data/wallets/wallet1.addr)+2000000 \
+  --out-file $TX_BODY \
   --testnet-magic $TESTNET_MAGIC_NUM \
   --protocol-params-file $PARAMS \
   --alonzo-era
@@ -218,7 +217,7 @@ Estimated transaction fee: Lovelace 178405
 
 > TX_SIGNED=$(mktemp)
 > cardano-cli transaction sign \
-  --tx-body-file $TX_BUILD \
+  --tx-body-file $TX_BODY \
   --signing-key-file /data/wallets/wallet1.skey \
   --testnet-magic $TESTNET_MAGIC_NUM \
   --out-file $TX_SIGNED
@@ -288,7 +287,7 @@ $ docker exec -it <container-id> bash
 
 > cat time-lock.addr
 
-addr_test1wq2v9ma6vp8xa3z95f7gxx4vdtvslv26em8vq0h6ydddpzs369rjy
+addr_test1wrr0t2vyt56tyheas6m60r7dtmeluh7rm5ss6erceahqt4gqfymmj
 ```
 
 We also need a datum, so lets choose to lock UTXOs until 30 minutes from now:
@@ -313,28 +312,28 @@ $ docker exec -it <container-id> bash
   --testnet-magic $TESTNET_MAGIC_NUM
 
 ...
-# take note of a UTXO big enough to cover 1 tAda + fees
+# take note of a UTXO big enough to cover 2 tAda + fees
 
 > DATUM=$(mktemp)
 > echo '{"constructors":0, "fields": [{"int": 16564....}, {"int": 42}]}' > $DATUM
 
 > DATUM_HASH=$(cardano-cli transaction hash-script-data --script-data-file $DATUM)
 
-> TX_BUILD=$(mktemp)
+> TX_BODY=$(mktemp)
 > cardano-cli transaction build \
   --tx-in <utxo-id> \
-  --tx-out $(cat /data/scripts/time-lock.addr)+1000000 \
+  --tx-out $(cat /data/scripts/time-lock.addr)+2000000 \
   --tx-out-datum-hash $DATUM_HASH \
   --change-address $(cat /data/wallets/wallet1.addr) \
   --testnet-magic $TESTNET_MAGIC_NUM \
-  --out-file $TX_BUILD \
+  --out-file $TX_BODY \
   --alonzo-era
 
 Estimated transaction fee: Lovelace 167217
 
 > TX_SIGNED=$(mktemp)
 > cardano-cli transaction sign \
-  --tx-body-file $TX_BUILD \
+  --tx-body-file $TX_BODY \
   --signing-key-file /data/wallets/wallet1.skey \
   --testnet-magic $TESTNET_MAGIC_NUM \
   --out-file $TX_SIGNED
@@ -358,9 +357,8 @@ First thing we should test is returing the UTXO back into wallet 1. So we submit
   --tx-in-script-file /data/scripts/time-lock.json \
   --tx-in-collateral <left-over-utxo-id> \ # used for collateral
   --change-address $(cat /data/wallets/wallet1.addr) \
-  --tx-out $(cat /data/wallets/wallet1.addr)+1000000 \
-  --tx-out-datum-hash $DATUM_HASH \
-  --out-file $TX_BUILD \
+  --tx-out $(cat /data/wallets/wallet1.addr)+2000000 \
+  --out-file $TX_BODY \
   --testnet-magic $TESTNET_MAGIC_NUM \
   --protocol-params-file $PARAMS \
   --alonzo-era
@@ -368,7 +366,7 @@ First thing we should test is returing the UTXO back into wallet 1. So we submit
 Estimated transaction fee: Lovelace 178405
 
 > cardano-cli transaction sign \
-  --tx-body-file $TX_BUILD \
+  --tx-body-file $TX_BODY \
   --signing-key-file /data/wallets/wallet1.skey \
   --testnet-magic $TESTNET_MAGIC_NUM \
   --out-file $TX_SIGNED
