@@ -26,9 +26,9 @@
 //    Please don't use this in production yet, it could be riddled with critical bugs.
 //    There are also no backward compatibility guarantees.
 
-function builtinInfo(name, force) {
-	// builtins that need to be forced accept arguments that are not fully typed
-	return {name: name, force: force};
+function builtinInfo(name, forceCount) {
+	// builtins might need be wrapped in `force` a number of times if they are not fully typed
+	return {name: name, forceCount: forceCount};
 } 
 
 const DEFAULT_VERSION = [1n, 0n, 0n];
@@ -44,31 +44,31 @@ const VERSIONS = {
 			kind:      1,
 		},
 		builtins: [
-			builtinInfo("addInteger", false),
-			builtinInfo("subtractInteger", false),
-			builtinInfo("multiplyInteger", false),
-			builtinInfo("divideInteger", false),
-			builtinInfo("remainderInteger", false),
-			builtinInfo("lessThanInteger", false),
-			builtinInfo("lessThanEqInteger", false),
-			builtinInfo("greaterThanInteger", false),
-			builtinInfo("greaterThanEqInteger", false),
-			builtinInfo("eqInteger", false),
-			builtinInfo("concatenate", false),
-			builtinInfo("takeByteString", false),
-			builtinInfo("dropByteString", false),
-			builtinInfo("sha2_256", false),
-			builtinInfo("sha3_256", false),
-			builtinInfo("verifySignature", false),
-			builtinInfo("eqByteString", false),
-			builtinInfo("quotientInteger", false),
-			builtinInfo("modInteger", false),
-			builtinInfo("ltByteString", false),
-			builtinInfo("gtByteString", false),
-			builtinInfo("ifThenElse", true),
-			builtinInfo("charToString", false),
-			builtinInfo("append", true),
-			builtinInfo("trace", true),
+			builtinInfo("addInteger", 0),
+			builtinInfo("subtractInteger", 0),
+			builtinInfo("multiplyInteger", 0),
+			builtinInfo("divideInteger", 0),
+			builtinInfo("remainderInteger", 0),
+			builtinInfo("lessThanInteger", 0),
+			builtinInfo("lessThanEqInteger", 0),
+			builtinInfo("greaterThanInteger", 0),
+			builtinInfo("greaterThanEqInteger", 0),
+			builtinInfo("eqInteger", 0),
+			builtinInfo("concatenate", 0),
+			builtinInfo("takeByteString", 0),
+			builtinInfo("dropByteString", 0),
+			builtinInfo("sha2_256", 0),
+			builtinInfo("sha3_256", 0),
+			builtinInfo("verifySignature", 0),
+			builtinInfo("eqByteString", 0),
+			builtinInfo("quotientInteger", 0),
+			builtinInfo("modInteger", 0),
+			builtinInfo("ltByteString", 0),
+			builtinInfo("gtByteString", 0),
+			builtinInfo("ifThenElse", 1),
+			builtinInfo("charToString", 0),
+			builtinInfo("append", 1),
+			builtinInfo("trace", 0),
 		],
 	},
 	"1.0.0": { // current real-world version of plutus-core
@@ -81,60 +81,60 @@ const VERSIONS = {
 			kind:      1,
 		},
 		builtins: [
-			builtinInfo("addInteger", false), // 0
-			builtinInfo("subtractInteger", false),
-			builtinInfo("multiplyInteger", false),
-			builtinInfo("divideInteger", false),
-			builtinInfo("quotientInteger", false),
-			builtinInfo("remainderInteger", false),
-			builtinInfo("modInteger", false),
-			builtinInfo("equalsInteger", false),
-			builtinInfo("lessThanInteger", false),
-			builtinInfo("lessThanEqualsInteger", false),
-			builtinInfo("appendByteString", false), // 10
-			builtinInfo("consByteString", false),
-			builtinInfo("sliceByteString", false),
-			builtinInfo("lengthOfByteString", false),
-			builtinInfo("indexByteString", false),
-			builtinInfo("equalsByteString", false),
-			builtinInfo("lessThanByteString", false),
-			builtinInfo("lessThanEqualsByteString", false),
-			builtinInfo("sha2_256", false),
-			builtinInfo("sha3_256", false),
-			builtinInfo("blake2b_256", false), // 20
-			builtinInfo("verifySignature", false),
-			builtinInfo("appendString", false),
-			builtinInfo("equalsString", false),
-			builtinInfo("encodeUtf8", false),
-			builtinInfo("decodeUtf8", false),
-			builtinInfo("ifThenElse", true),
-			builtinInfo("chooseUnit", true),
-			builtinInfo("trace", true),
-			builtinInfo("fstPair", true),
-			builtinInfo("sndPair", true), // 30
-			builtinInfo("chooseList", true),
-			builtinInfo("mkCons", true),
-			builtinInfo("headList", true),
-			builtinInfo("tailList", true),
-			builtinInfo("nullList", true),
-			builtinInfo("chooseData", true),
-			builtinInfo("constrData", false),
-			builtinInfo("mapData", false),
-			builtinInfo("listData", false),
-			builtinInfo("iData", false), // 40
-			builtinInfo("bData", false),
-			builtinInfo("unConstrData", false),
-			builtinInfo("unMapData", false),
-			builtinInfo("unListData", false),
-			builtinInfo("unIData", false),
-			builtinInfo("unBData", false),
-			builtinInfo("equalsData", false),
-			builtinInfo("mkPairData", false),
-			builtinInfo("mkNilData", false),
-			builtinInfo("mkNilPairData", false), // 50
-			builtinInfo("serialiseData", false),
-			builtinInfo("verifyEcdsaSecp256k1Signature", false),
-			builtinInfo("verifySchnorrSecp256k1Signature", false),
+			builtinInfo("addInteger", 0), // 0
+			builtinInfo("subtractInteger", 0),
+			builtinInfo("multiplyInteger", 0),
+			builtinInfo("divideInteger", 0),
+			builtinInfo("quotientInteger", 0),
+			builtinInfo("remainderInteger", 0),
+			builtinInfo("modInteger", 0),
+			builtinInfo("equalsInteger", 0),
+			builtinInfo("lessThanInteger", 0),
+			builtinInfo("lessThanEqualsInteger", 0),
+			builtinInfo("appendByteString", 0), // 10
+			builtinInfo("consByteString", 0),
+			builtinInfo("sliceByteString", 0),
+			builtinInfo("lengthOfByteString", 0),
+			builtinInfo("indexByteString", 0),
+			builtinInfo("equalsByteString", 0),
+			builtinInfo("lessThanByteString", 0),
+			builtinInfo("lessThanEqualsByteString", 0),
+			builtinInfo("sha2_256", 0),
+			builtinInfo("sha3_256", 0),
+			builtinInfo("blake2b_256", 0), // 20
+			builtinInfo("verifySignature", 1),
+			builtinInfo("appendString", 0),
+			builtinInfo("equalsString", 0),
+			builtinInfo("encodeUtf8", 0),
+			builtinInfo("decodeUtf8", 0),
+			builtinInfo("ifThenElse", 1),
+			builtinInfo("chooseUnit", 1),
+			builtinInfo("trace", 1),
+			builtinInfo("fstPair", 2),
+			builtinInfo("sndPair", 2), // 30
+			builtinInfo("chooseList", 2),
+			builtinInfo("mkCons", 2),
+			builtinInfo("headList", 1),
+			builtinInfo("tailList", 1),
+			builtinInfo("nullList", 1),
+			builtinInfo("chooseData", 0),
+			builtinInfo("constrData", 0),
+			builtinInfo("mapData", 0),
+			builtinInfo("listData", 0),
+			builtinInfo("iData", 0), // 40
+			builtinInfo("bData", 0),
+			builtinInfo("unConstrData", 0),
+			builtinInfo("unMapData", 0),
+			builtinInfo("unListData", 0),
+			builtinInfo("unIData", 0),
+			builtinInfo("unBData", 0),
+			builtinInfo("equalsData", 0),
+			builtinInfo("mkPairData", 0),
+			builtinInfo("mkNilData", 0),
+			builtinInfo("mkNilPairData", 0), // 50
+			builtinInfo("serialiseData", 0),
+			builtinInfo("verifyEcdsaSecp256k1Signature", 1),
+			builtinInfo("verifySchnorrSecp256k1Signature", 2),
 		],
 	},
 }
@@ -811,6 +811,7 @@ class Token {
 	}
 
 	evalData() {
+		console.log(this);
 		this.typeError("can't be used in data eval");
 	}
 
@@ -2145,7 +2146,7 @@ class StructLiteral extends StructTypeDecl {
 			dataFields.push(item.evalData());
 		}
 
-		return new ListData(dataFields);
+		return new ConstrData(0, dataFields);
 	}
 
 	registerGlobals(registry) {
@@ -3281,6 +3282,12 @@ class BuiltinCall extends Expr {
 		let args = this.evalArgs();
 
 		return this.obj_.evalCall(this.loc, args);
+	}
+
+	evalData() {
+		let args = this.args_.map(a => a.evalData());
+		
+		return this.obj_.evalDataCall(this.loc, args);
 	}
 
 	registerGlobals(registry) {
@@ -5378,7 +5385,7 @@ class ConstrData {
 	}
 
 	toSchemaJSON() {
-		return `{"constructors":${this.index_.toString()}, "fields": [${this.fields_.map(f => f.toSchemaJSON()).join(", ")}]}`;
+		return `{"constructor":${this.index_.toString()}, "fields": [${this.fields_.map(f => f.toSchemaJSON()).join(", ")}]}`;
 	}
 }
 
@@ -5967,18 +5974,18 @@ class UntypedCallExpr {
 		}
 	}
 
-	isForcedBuiltin() {
+	builtinForceCount() {
 		if (this.lhs_ instanceof UntypedVariable) {
 			let i = VERSIONS["1.0.0"].builtins.findIndex(info => info.name == this.lhs_.name);
 
 			if (i == -1) {
-				return false;
+				return 0;
 			} else {
 				let info = VERSIONS["1.0.0"].builtins[i];
-				return info.force;
+				return info.forceCount;
 			}
 		} else {
-			return false;
+			return 0;
 		}
 	}
 
@@ -5997,7 +6004,9 @@ class UntypedCallExpr {
 		if (this.isBuiltin()) {
 			term = new PlutusCoreBuiltin(this.lhs_.name);
 
-			if (this.isForcedBuiltin()) {
+			let nForce = this.builtinForceCount();
+
+			for (let i = 0; i < nForce; i++) {
 				term = new PlutusCoreForce(term);
 			}
 		} else {
@@ -6508,12 +6517,15 @@ export function compilePlutusLightProgram(typedSrc) {
 		let untypedSrc = program.toUntyped();
 
 		try {
+			
 			// at this point there shouldn't be any errors
 			let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
 
 			let untypedProgram = buildUntypedProgram(untypedTokens);
 
 			let plutusCoreProgram = new PlutusCoreProgram(DEFAULT_VERSION.map(v => new PlutusCoreInteger(v)), untypedProgram.toPlutusCore());
+			
+			console.log(plutusCoreProgram.toString());
 
 			return serializePlutusCoreProgram(plutusCoreProgram);
 		} catch (error) {
@@ -6537,33 +6549,43 @@ export function compilePlutusLightProgram(typedSrc) {
 	}
 }
 
-// output is object of detailed schema of data (not yet stringified json)
+// output is a string with JSON content
 export function compilePlutusLightData(programSrc, dataExprSrc) {
 	try {
 		let programTokens = tokenizePlutusLight(programSrc);
 
-		program = buildProgram(programTokens);
+		let program = buildProgram(programTokens);
 
 		let scope = program.linkAndEval();
 
 		// program must make sense before data is compiled
 
-		let dataExprTokens = tokenizePlutusLight(dataExprSrc);
+		try {
+			let dataExprTokens = tokenizePlutusLight(dataExprSrc);
 
-		dataExpr = buildValExpr(dataExprTokens);
+			let dataExpr = buildValExpr(dataExprTokens);
 
-		dataExpr.link(scope);
+			dataExpr.link(scope);
 
-		// dataExpr must also make sense
-		dataExpr.eval();
+			// dataExpr must also make sense
+			dataExpr.eval();
 
-		let data = dataExpr.evalData();
+			let data = dataExpr.evalData();
 
-		return data.toSchemaJSON();
+			return data.toSchemaJSON();
+		} catch (error) {
+			if (error instanceof PlutusLightError) {
+				console.log(prettySource(dataExprSrc) + "\n");
+
+				console.error(error.message);
+			} else {
+				throw error;
+			}
+		}
 	} catch (error) {
 		if (error instanceof PlutusLightError) {
 			// also pretty print the source
-			console.log(prettySource(src) + "\n");
+			console.log(prettySource(programSrc) + "\n");
 
 			console.error(error.message);
 		} else {
