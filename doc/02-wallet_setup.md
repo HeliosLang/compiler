@@ -1,4 +1,4 @@
-# Wallet setup and funding
+# Part 2 of Plutus-Light how-to guide: Wallet setup and funding
 Start an interactive shell in the *cardano-node* container:
 ```bash
 $ docker exec -it <container-id> bash
