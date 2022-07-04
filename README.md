@@ -4,14 +4,17 @@ Plutus-Light is a Domain Specific Language that compiles to Plutus-Core (i.e. Ca
 
 This repository contains a reference compiler for Plutus-Light, written in javascript.
 
-Use the following how-to guide to jump straight in:
-  * [How to use Plutus-Light with cardano-cli](HOW_TO_CARDANO_CLI.md)
+Use following step-by-step guide to learn how to use Plutus-Light with cardano-cli:
+  * [Cardano-node setup](doc/01-environment_setup.md)
+  * [Wallet setup and funding](doc/02-wallet_setup.md)
+  * [*Always Succeeds* contract](doc/03-always_succeeds.md)
+  * [*Time Lock* contract](doc/04-time_lock.md)
 
 Note that the Plutus-Light library also contains a function to deserialize existing Plutus-Core scripts (see second example below).
 
-## Examples
+## Quick start examples
 
-### DSL Example
+### 1. Vesting contract example
 The following DSL example is equivalent to the Plutus vesting contract from the Plutus playground:
 ```go
 data VestingTranche {
@@ -68,7 +71,7 @@ let plutusObject = {
 // write JSON.stringify(plutusObject) to a file to be able to use it with cardano-cli
 ```
 
-### Deserialize Plutus-Core
+### 2. Deserialize Plutus-Core
 ```javascript
 import * as PL from "plutus-light.js"
 
@@ -78,7 +81,7 @@ const cborHex = "...";
 console.log(PL.deserializePlutusCoreCborHexString(cborHex));
 ```
 
-## Details
+## Plutus-Light details
 
 ### Syntax
 Plutus-Light has a C-like syntax, heavily inspired by Golang. A function body is a single expression. There are no statements, and consequently no `return` statements. 
