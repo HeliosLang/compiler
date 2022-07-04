@@ -107,6 +107,7 @@ Besides primitive types, some other opaque builtin types are defined:
  * `TxOutputId`
  * `PubKeyHash`
  * `ValidatorHash`
+ * `DatumHash`
  * `Time`
  * `TimeRange`
  * `Value`
@@ -155,6 +156,8 @@ These types require special builtin functions to access their content. Some also
  * `PubKeyHash != PubKeyHash -> Bool`
  * `ValidatorHash == ValidatorHash -> Bool`
  * `ValidatorHash != ValidatorHash -> Bool`
+ * `DatumHash == DatumHash -> Bool`
+ * `DatumHash != DatumHash -> Bool`
  * `Value + Value -> Value`
  * `Value - Value -> Value`
 

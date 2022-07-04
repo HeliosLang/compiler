@@ -1847,6 +1847,7 @@ class PlutusLightProgram {
 		scope.setType(new TimeRangeType());
 		scope.setType(new PubKeyHashType());
 		scope.setType(new ValidatorHashType());
+		scope.setType(new DatumHashType());
 		scope.setType(new ValueType());
 		scope.setType(new AddressType());
 		scope.setType(new CredentialType());
@@ -2739,7 +2740,9 @@ class BinaryOperator extends Expr {
 				return new BoolType();
 			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
 				return new BoolType();
-			} 
+			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
+				return new BoolType();
+			}
 		} else if (op == "<" || op == "<=" || op == ">" || op == ">=") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
 				return new BoolType(this.symbol_.loc);
@@ -2790,6 +2793,8 @@ class BinaryOperator extends Expr {
 				EqualsHash.register(registry);
 			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
 				EqualsHash.register(registry);
+			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
+				EqualsHash.register(registry);
 			}
 		} else if (op == "==") {
 			if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
@@ -2797,6 +2802,8 @@ class BinaryOperator extends Expr {
 			} else if (PubKeyHashType.is(a) && PubKeyHashType.is(b)) {
 				EqualsHash.register(registry);
 			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
+				EqualsHash.register(registry);
+			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
 				EqualsHash.register(registry);
 			}
 		} else if (op == "+") {
@@ -2900,6 +2907,8 @@ class BinaryOperator extends Expr {
 				return `equalsHash(${au}, ${bu})`;
 			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
 				return `equalsHash(${au}, ${bu})`;
+			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
+				return `equalsHash(${au}, ${bu})`;
 			}
 		} else if (op == "!=") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
@@ -2915,6 +2924,8 @@ class BinaryOperator extends Expr {
 			} else if (PubKeyHashType.is(a) && PubKeyHashType.is(b)) {
 				return `not(equalsHash(${au}, ${bu}))`;
 			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
+				return `not(equalsHash(${au}, ${bu}))`;
+			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
 				return `not(equalsHash(${au}, ${bu}))`;
 			}
  		} else if (op == "<") {
@@ -3676,6 +3687,21 @@ class ValidatorHashType extends BuiltinType {
 	}
 }
 
+class DatumHashType extends BuiltinType {
+	constructor(loc) {
+		super(loc, "DatumHash");
+	}
+
+	eq(other) {
+		other = other.eval();
+		return other instanceof DatumHashType;
+	}
+
+	static is(x) {
+		return (new DatumHashType()).eq(x);
+	}
+}
+
 class ValueType extends BuiltinType {
 	constructor(loc) {
 		super(loc, "Value");
@@ -3904,7 +3930,7 @@ class MakeTime extends BuiltinFunc {
 // Distinct Hash types
 //  * PubKeyHash
 //  * ValidatorHash
-//  * DatumHash (will be implemented later)
+//  * DatumHash
 //  * MintingPolicyHash (will be implemented later)
 //  * RedeemerHash (will be implemented later)
 //  * StakeValidatorHash (what is this?)
@@ -3953,6 +3979,27 @@ class MakeValidatorHash extends BuiltinFunc {
 	}
 }
 
+class MakeDatumHash extends BuiltinFunc {
+	constructor() {
+		super("DatumHash", [new ByteArrayType()], new DatumHashType());
+	}
+
+	static register(registry) {
+		registry.register("DatumHash", `func(b){bData(b)}`);
+	}
+
+	registerGlobals(registry) {
+		MakeDatumHash.register(registry);
+	}
+
+	evalDataCall(loc, args) {
+		return args[0];
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
+	}
+}
 
 // builtins are always inlined
 class Fold extends BuiltinFunc {
@@ -6776,6 +6823,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new MakeTime());
 	add(new MakePubKeyHash());
 	add(new MakeValidatorHash());
+	add(new MakeDatumHash());
 	add(new Fold());
 	add(new Filter());
 	add(new Find());
