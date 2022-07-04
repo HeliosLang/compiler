@@ -162,7 +162,7 @@ These types require special builtin functions to access their content. Some also
  * `String(Integer) -> String` (string representation of integer)
  * `String(Bool) -> String` ("true" or "false")
  * `String(Time) -> String` (string representation of milliseconds since epoch)
- * `showByteArray(ByteArray) -> ByteArray` (hex representation of bytearray)
+ * `showByteArray(ByteArray) -> String` (hex representation of bytearray)
  * `Time(Integer) -> Time` (milliseconds since epoch)
  * `PubKeyHash(ByteArray) -> PubKeyHash`
  * `ValidatorHash(ByteArray) -> ValidatorHash`
