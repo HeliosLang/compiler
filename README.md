@@ -7,8 +7,8 @@ This repository contains a reference compiler for Plutus-Light, written in javas
 Use following step-by-step guide to learn how to use Plutus-Light with cardano-cli:
   1. [Cardano-node setup](doc/01-environment_setup.md)
   2. [Wallet setup and funding](doc/02-wallet_setup.md)
-  3. [*Always Succeeds* contract](doc/03-always_succeeds.md)
-  4. [*Time Lock* contract](doc/04-time_lock.md)
+  3. [*Always Succeeds* contract](doc/03-always_succeeds_contract.md)
+  4. [*Time Lock* contract](doc/04-time_lock_contract.md)
 
 Note that the Plutus-Light library also contains a function to deserialize existing Plutus-Core scripts (see second example below).
 
