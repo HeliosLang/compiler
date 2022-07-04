@@ -1844,6 +1844,7 @@ class PlutusLightProgram {
 		scope.setType(new TxIdType());
 		scope.setType(new TxOutputIdType());
 		scope.setType(new TimeType());
+		scope.setType(new DurationType());
 		scope.setType(new TimeRangeType());
 		scope.setType(new PubKeyHashType());
 		scope.setType(new ValidatorHashType());
@@ -2736,6 +2737,8 @@ class BinaryOperator extends Expr {
 				return new BoolType();
 			} else if (TimeType.is(a) && TimeType.is(b)) {
 				return new BoolType();
+			} else if (DurationType.is(a) && DurationType.is(b)) {
+				return new BoolType();
 			} else if (TxIdType.is(a) && TxIdType.is(b)) {
 				return new BoolType();
 			} else if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
@@ -2746,6 +2749,8 @@ class BinaryOperator extends Expr {
 				return new BoolType();
 			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
 				return new BoolType();
+			} else if (ValueType.is(a) && ValueType.is(a)) {
+				return new BoolType();
 			}
 		} else if (op == "<" || op == "<=" || op == ">" || op == ">=") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
@@ -2753,6 +2758,8 @@ class BinaryOperator extends Expr {
 			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
 				return new BoolType();
 			} else if (TimeType.is(a) && TimeType.is(b)) {
+				return new BoolType();
+			} else if (ValueType.is(a) && ValueType.is(b)) {
 				return new BoolType();
 			}
 		} else if (op == "+") {
@@ -2764,12 +2771,20 @@ class BinaryOperator extends Expr {
 				return new StringType();
 			} else if (ValueType.is(a) && ValueType.is(b)) {
 				return new ValueType();
+			} else if (DurationType.is(a) && DurationType.is(b)) {
+				return new DurationType();
+			} else if (TimeType.is(a) && DurationType.is(b)) {
+				return new TimeType();
 			}
 		} else if (op == "-") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
 				return new IntegerType(this.symbol_.loc);
 			} else if (ValueType.is(a) && ValueType.is(b)) {
 				return new ValueType();
+			} else if (DurationType.is(a) && DurationType.is(b)) {
+				return new DurationType();
+			} else if (TimeType.is(a) && DurationType.is(b)) {
+				return new TimeType();
 			}
 		} else if (op == "*" || op == "/" || op == "%") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
@@ -2799,6 +2814,8 @@ class BinaryOperator extends Expr {
 				EqualsHash.register(registry);
 			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
 				EqualsHash.register(registry);
+			} else if (ValueType.is(a) && ValueType.is(b)) {
+				IsStrictlyEq.register(registry);
 			}
 		} else if (op == "==") {
 			if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
@@ -2809,6 +2826,24 @@ class BinaryOperator extends Expr {
 				EqualsHash.register(registry);
 			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
 				EqualsHash.register(registry);
+			} else if (ValueType.is(a) && ValueType.is(b)) {
+				IsStrictlyEq.register(registry);
+			}
+		} else if (op == ">=") {
+			if (ValueType.is(a) && ValueType.is(b)) {
+				IsStrictlyGeq.register(registry);
+			}
+		} else if (op == ">") {
+			if (ValueType.is(a) && ValueType.is(b)) {
+				IsStrictlyGt.register(registry);
+			}
+		} else if (op == "<") {
+			if (ValueType.is(a) && ValueType.is(b)) {
+				IsStrictlyLt.register(registry);
+			}
+		} else if (op == "<=") {
+			if (ValueType.is(a) && ValueType.is(b)) {
+				IsStrictlyLeq.register(registry);
 			}
 		} else if (op == "+") {
 			if (ValueType.is(a) && ValueType.is(b)) {
@@ -2903,6 +2938,8 @@ class BinaryOperator extends Expr {
 				return `equalsByteString(${au}, ${bu})`;
 			} else if (TimeType.is(a) && TimeType.is(b)) {
 				return `equalsInteger(unIData(${au}), unIData(${bu}))`;
+			} else if (DurationType.is(a) && DurationType.is(b)) {
+				return `equalsInteger(unIData(${au}), unIData(${bu}))`;
 			} else if (TxIdType.is(a) && TxIdType.is(b)) {
 				return `equalsByteString(unBData(${unData(au, 0, 0)}), unBData(${unData(bu, 0, 0)}))`;
 			} else if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
@@ -2913,6 +2950,8 @@ class BinaryOperator extends Expr {
 				return `equalsHash(${au}, ${bu})`;
 			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
 				return `equalsHash(${au}, ${bu})`;
+			} else if (ValueType.is(a) && ValueType.is(b)) {
+				return `isStrictlyEq(${au}, ${bu})`;
 			}
 		} else if (op == "!=") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
@@ -2920,6 +2959,8 @@ class BinaryOperator extends Expr {
 			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
 				return `not(equalsByteString(${au}, ${bu}))`;
 			} else if (TimeType.is(a) && TimeType.is(b)) {
+				return `not(equalsInteger(unIData(${au}), unIData(${bu})))`;
+			} else if (DurationType.is(a) && DurationType.is(b)) {
 				return `not(equalsInteger(unIData(${au}), unIData(${bu})))`;
 			} else if (TxIdType.is(a) && TxIdType.is(b)) {
 				return `not(equalsByteString(unBData(${unData(au, 0, 0)}), unBData(${unData(bu, 0, 0)})))`;
@@ -2931,6 +2972,8 @@ class BinaryOperator extends Expr {
 				return `not(equalsHash(${au}, ${bu}))`;
 			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
 				return `not(equalsHash(${au}, ${bu}))`;
+			} else if (ValueType.is(a) && ValueType.is(b)) {
+				return `not(isStrictlyEq(${au}, ${bu}))`;
 			}
  		} else if (op == "<") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
@@ -2939,14 +2982,18 @@ class BinaryOperator extends Expr {
 				return `lessThanByteString(${au}, ${bu})`;
 			} else if (TimeType.is(a) && TimeType.is(b)) {
 				return `lessThanInteger(unIData(${au}), unIData(${bu}))`;
+			} else if (ValueType.is(a) && ValueType.is(b)) {
+				return `isStrictlyLt(${au}, ${bu})`;
 			}
 		} else if (op == "<=") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
 				return `lessThanEqualsInteger(${au}, ${bu})`;
 			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
 				return `lessThanEqualsByteString(${au}, ${bu})`;
-			} else if  (TimeType.is(a) && TimeType.is(b)) {
+			} else if (TimeType.is(a) && TimeType.is(b)) {
 				return `lessThanEqualsInteger(unIData(${au}), unIData(${bu}))`;
+			} else if (ValueType.is(a) && ValueType.is(b)) {
+				return `isStrictlyLeq(${au}, ${bu})`;
 			}
 		} else if (op == ">") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
@@ -2955,6 +3002,8 @@ class BinaryOperator extends Expr {
 				return `ifThenElse(lessThanEqualsByteString(${au}, ${bu}), false, true)`; // doesn't need deferred evaluation of branches
 			} else if (TimeType.is(a) && TimeType.is(b)) {
 				return `ifThenElse(lessThanEqualsInteger(unIData(${au}), unIData(${bu})), false, true)`; // doesn't need deferred evaluation of branches
+			} else if (ValueType.is(a) && ValueType.is(b)) {
+				return `isStrictlyGt(${au}, ${bu})`;
 			}
 		} else if (op == ">=") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
@@ -2963,6 +3012,8 @@ class BinaryOperator extends Expr {
 				return `ifThenElse(lessThanByteString(${au}, ${bu}), false, true)`; // doesn't need deferred evaluation of branches
 			} else if (TimeType.is(a) && TimeType.is(b)) {
 				return `ifThenElse(lessThanInteger(unIData(${au}), unIData(${bu})), false, true)`; // doesn't need deferred evaluation of branches
+			} else if (ValueType.is(a) && ValueType.is(b)) {
+				return `isStrictlyGeq(${au}, ${bu})`;
 			}
 		} else if (op == "+") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
@@ -2973,12 +3024,20 @@ class BinaryOperator extends Expr {
 				return `appendString(${au},  ${bu})`;
 			} else if (ValueType.is(a) && ValueType.is(b)) {
 				return `addValues(${au}, ${bu})`;
+			} else if (DurationType.is(a) && DurationType.is(b)) {
+				return `iData(addInteger(unIData(${au}), unIData(${bu})))`;
+			} else if (TimeType.is(a) && DurationType.is(b)) {
+				return `iData(addInteger(unIData(${au}), unIdata(${bu})))`;
 			}
 		} else if (op == "-") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
 				return `subtractInteger(${au}, ${bu})`;
 			} else if (ValueType.is(a) && ValueType.is(b)) {
 				return `subtractValues(${au}, ${bu})`;
+			} else if (DurationType.is(a) && DurationType.is(b)) {
+				return `iData(subtractInteger(unIData(${au}), unIData(${bu})))`;
+			} else if (TimeType.is(a) && DurationType.is(b)) {
+				return `iData(subtractInteger(unIData(${au}), unIdata(${bu})))`;
 			}
 		} else if (op == "*") {
 			assert(IntegerType.is(a) && IntegerType.is(b));
@@ -3661,6 +3720,21 @@ class TimeType extends BuiltinType {
 	}
 }
 
+class DurationType extends BuiltinType {
+	constructor(loc) {
+		super(loc, "Duration");
+	}
+	
+	eq(other) {
+		other = other.eval();
+		return other instanceof DurationType; 
+	}
+
+	static is(x) {
+		return (new DurationType()).eq(x);
+	}
+}
+
 class PubKeyHashType extends BuiltinType {
 	constructor(loc) {
 		super(loc, "PubKeyHash");
@@ -3947,6 +4021,29 @@ class MakeTime extends BuiltinFunc {
 
 	registerGlobals(registry) {
 		MakeTime.register(registry);
+	}
+
+	evalDataCall(loc, args) {
+		return args[0];
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
+	}
+}
+
+// milliseconds
+class MakeDuration extends BuiltinFunc {
+	constructor() {
+		super("Duration", [new IntegerType()], new DurationType());
+	}
+
+	static register(registry) {
+		registry.register("Duration", `func(i){iData(i)}`);
+	}
+
+	registerGlobals(registry) {
+		MakeDuration.register(registry);
 	}
 
 	evalDataCall(loc, args) {
@@ -4666,11 +4763,65 @@ class GetTxOutputValue extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("getTxOutputValue", `func(output){${unData("output", 0, 1)}}`);
+		registry.register("getTxOutputValue", `
+		func(output){
+			${unData("output", 0, 1)}
+		}`);
 	}
 
 	registerGlobals(registry) {
 		GetTxOutputValue.register(registry);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
+	}
+}
+
+class HasDatumHash extends BuiltinFunc {
+	constructor() {
+		super("hasDatumHash", [new TxOutputType()], new BoolType());
+	}
+
+	static register(registry) {
+		registry.register("hasDatumHash", `
+		func(output) {
+			equalsInteger(fstPair(unConstrData(${unData("output", 0, 2)})), 0)
+		}
+		`)
+	}
+
+	registerGlobals(registry) {
+		HasDatumHash.register(registry);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
+	}
+}
+
+// returns empty hash if TxOutput doesn't have a DatumHash
+class GetTxOutputDatumHash extends BuiltinFunc {
+	constructor() {
+		super("getTxOutputDatumHash", [new TxOutputType()], new DatumHashType());
+	}
+
+	static register(registry) {
+		registry.register("getTxOutputDatumHash", `
+		func(output) {
+			func(pair) {
+				ifThenElse(
+					equalsInteger(fstPair(pair), 0),
+					func(){headList(sndPair(pair))},
+					func(){bData(#)}
+				)()
+			}(unConstrData(${unData("output", 0, 2)}))
+		}
+		`);
+	}
+
+	registerGlobals(registry) {
+		GetTxOutputDatumHash.register(registry);
 	}
 
 	toUntyped(args) {
@@ -5293,14 +5444,6 @@ class IsStrictlyGeq extends BuiltinFunc {
 
 		registry.register("isStrictlyGeq", IsStrictlyGeq.generateCode("isStrictlyGeqCurrencyComponents"));
 	}
-
-	registerGlobals(registry) {
-		IsStrictlyGeq.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
 }
 
 class IsStrictlyGtCurrencyComponents extends BuiltinFunc {
@@ -5332,14 +5475,6 @@ class IsStrictlyGt extends BuiltinFunc {
 				IsStrictlyGeq.generateCode("isStrictlyGtCurrencyComponents") + "(a, b)"
 			)}
 		}`);
-	}
-
-	registerGlobals(registry) {
-		IsStrictlyGt.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
@@ -5373,14 +5508,6 @@ class IsStrictlyLt extends BuiltinFunc {
 			)}
 		}`);
 	}
-
-	registerGlobals(registry) {
-		IsStrictlyLt.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
 }
 
 class IsStrictlyLeqCurrencyComponents extends BuiltinFunc {
@@ -5405,14 +5532,6 @@ class IsStrictlyLeq extends BuiltinFunc {
 		IsStrictlyLeqCurrencyComponents.register(registry);
 
 		registry.register("isStrictlyLeq", IsStrictlyGeq.generateCode("isStrictlyLeqCurrencyComponents"));
-	}
-
-	registerGlobals(registry) {
-		IsStrictlyLeq.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
@@ -5439,14 +5558,6 @@ class IsStrictlyEq extends BuiltinFunc {
 
 		registry.register("isStrictlyEq", IsStrictlyGeq.generateCode("isStrictlyEqCurrencyComponents"));
 	}
-
-	registerGlobals(registry) {
-		IsStrictlyEq.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
 }
 
 class ValueLockedBy extends BuiltinFunc {
@@ -5461,7 +5572,8 @@ class ValueLockedBy extends BuiltinFunc {
 		Fold.register(registry);
 		Zero.register(registry);
 
-		registry.register("valueLockedBy", `func(tx, hash) {
+		registry.register("valueLockedBy", `
+		func(tx, hash) {
 			func(outputs) {
 				fold(
 					func(prev, txOutput) {
@@ -5480,6 +5592,76 @@ class ValueLockedBy extends BuiltinFunc {
 
 	toUntyped(args) {
 		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+	}
+}
+
+// throws error if Datum isn't found
+class ValueLockedByDatum extends BuiltinFunc {
+	constructor() {
+		// not really any type
+		super("valueLockedByDatum", [new TxType(), new ValidatorHashType(), new AnyType()], new ValueType());
+	}
+
+	evalCall(loc, args) {
+		if (args.length != 3) {
+			loc.typeError(`${this.name}() expects 3 arg(s), got ${args.length.toString()} arg(s)`);
+		}
+
+		let txType = args[0].eval();
+
+		if (! txType instanceof TxType) {
+			loc.typeError(`${this.name}() expects Tx for arg 1: got \'${txType.toString()}\'`)
+		}
+
+		let hashType = args[1].eval();
+
+		if (! hashType instanceof ValidatorHashType) {
+			loc.typeError(`${this.name}() expects ValidatorHash for arg 2: got \'${hashType.toString()}\'`)
+		}
+
+		let dataType = args[2].eval();
+
+		if (! dataType instanceof StructTypeDecl) {
+			loc.typeError(`${this.name}() expects user data-type for arg 3: got \'${dataType.toString()}\'`)
+		}
+
+		return new ValueType();
+	}
+
+	static register(registry) {
+		GetTxOutputsLockedBy.register(registry);
+		FindDatumHash.register(registry);
+		GetTxOutputValue.register(registry);
+		GetTxOutputDatumHash.register(registry);
+		EqualsHash.register(registry);
+		AddValues.register(registry);
+		Fold.register(registry);
+		Zero.register(registry);
+
+		registry.register("valueLockedByDatum", `
+		func(tx, hash, datum) {
+			func(outputs, datumHash) {
+				fold(
+					func(prev, txOutput) {
+						ifThenElse(
+							equalsHash(getTxOutputDatumHash(txOutput), datumHash),
+							func(){addValues(prev, getTxOutputValue(txOutput))},
+							func(){prev}
+						)()
+					}, 
+					zero(), 
+					outputs
+				)
+			}(getTxOutputsLockedBy(tx, hash), findDatumHash(tx, datum))
+		}`)
+	}
+
+	registerGlobals(registry) {
+		ValueLockedByDatum.register(registry);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()}, ${args[2].toUntyped()})`;
 	}
 }
 
@@ -5778,6 +5960,56 @@ class FindDatumData extends BuiltinFunc {
 
 	registerGlobals(registry) {
 		FindDatumData.register(registry);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+	}
+}
+
+// throws error if not found
+class FindDatumHash extends BuiltinFunc {
+	constructor() {
+		super("findDatumHash", [new TxType(), new AnyType()], new DatumHashType());
+	}
+
+	evalCall(loc, args) {
+		if (args.length != 2) {
+			loc.typeError(`${this.name}() expects 2 arg(s), got ${args.length.toString()} arg(s)`);
+		}
+
+		let txType = args[0].eval();
+
+		if (! txType instanceof TxType) {
+			loc.typeError(`${this.name}() expects Tx for arg 1: got \'${txType.toString()}\'`)
+		}
+
+		let dataType = args[1].eval();
+
+		if (! dataType instanceof StructTypeDecl) {
+			loc.typeError(`${this.name}() expects user data-type for arg 2: got \'${dataType.toString()}\'`)
+		}
+
+		return new DatumHashType();
+	}
+
+	static register(registry) {
+		registry.register("findDatumHash", `
+		func(tx, data) {
+			${unData(`
+				find(
+					func(tuple) {
+						equalsData(${unData("tuple", 0, 1)}, data)
+					}, 
+					unListData(${unData("tx", 0, 8)})
+				)`, 
+				0, 0
+			)}
+		}`);
+	}
+
+	registerGlobals(registry) {
+		FindDatumHash.register(registry);
 	}
 
 	toUntyped(args) {
@@ -6890,6 +7122,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new Cast("ByteArray"));
 	add(new Cast("String"));
 	add(new MakeTime());
+	add(new MakeDuration());
 	add(new MakePubKeyHash());
 	add(new MakeValidatorHash());
 	add(new MakeDatumHash());
@@ -6912,6 +7145,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new GetTxInputOutput());
 	add(new GetTxOutputAddress());
 	add(new GetTxOutputValue());
+	add(new GetTxOutputDatumHash());
 	add(new GetAddressCredential());
 	add(new IsStakedAddress());
 	add(new IsPubKeyCredential());
@@ -6923,18 +7157,15 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new GetValueComponent());
 	add(new IsZero());
 	add(new Zero());
-	add(new IsStrictlyGeq());
-	add(new IsStrictlyGt());
-	add(new IsStrictlyLeq());
-	add(new IsStrictlyLt());
-	add(new IsStrictlyEq());
 	add(new ValueLockedBy());
+	add(new ValueLockedByDatum());
 	add(new MakeAssetClass());
 	add(new MakeValue());
 	add(new Lovelace());
 	add(new Trace());
 	add(new ShowByteArray());
 	add(new FindDatumData());
+	add(new FindDatumHash());
 }())
 
 

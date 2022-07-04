@@ -110,6 +110,7 @@ Besides primitive types, some other opaque builtin types are defined:
  * `DatumHash`
  * `Time`
  * `TimeRange`
+ * `Duration`
  * `Value`
  * `Data`
  * `AssetClass`
@@ -149,6 +150,12 @@ These types require special builtin functions to access their content. Some also
  * `Time > Time -> Bool`
  * `Time <= Time -> Bool`
  * `Time < Time -> Bool`
+ * `Time + Duration -> Time`
+ * `Time - Duration -> Time`
+ * `Duration == Duration -> Bool`
+ * `Duration != Duration -> Bool`
+ * `Duration + Duration -> Duration`
+ * `Duration - Duration -> Duration` (note that `Duration` can be negative)
  * `TxId == TxId -> Bool`
  * `TxId != TxId -> Bool`
  * `TxOutputId == TxOutputId -> Bool`
@@ -161,6 +168,12 @@ These types require special builtin functions to access their content. Some also
  * `DatumHash != DatumHash -> Bool`
  * `Value + Value -> Value`
  * `Value - Value -> Value`
+ * `Value == Value -> Bool`
+ * `Value != Value -> Bool`
+ * `Value >= Value -> Bool` (strictly greater-or-equals for each component, NOT the same as `!(a < b)`)
+ * `Value > Value -> Bool` (strictly greater-than for each component, NOT the same as `!(a <= b)`)
+ * `Value < Value -> Bool` (strictly less-than for each component, NOT the same as `!(a >= b)`)
+ * `Value <= Value -> Bool` (strictly less-or-equals for each component, NOT the same as `!(a > b)`)
 
 ### Builtin functions
  * `Integer(Bool) -> Integer`
@@ -171,8 +184,10 @@ These types require special builtin functions to access their content. Some also
  * `String(Time) -> String` (string representation of milliseconds since epoch)
  * `showByteArray(ByteArray) -> String` (hex representation of bytearray)
  * `Time(Integer) -> Time` (milliseconds since epoch)
+ * `Duration(Integer) -> Duration` (milliseconds)
  * `PubKeyHash(ByteArray) -> PubKeyHash`
  * `ValidatorHash(ByteArray) -> ValidatorHash`
+ * `DatumHash(ByteArray) -> DatumHash`
  * `fold(func(a, b) a, a, []b) -> a`
  * `filter(func(a) Bool, []a) -> []a`
  * `find(func(a) Bool, []a) -> a` (throws error if not found)
@@ -195,6 +210,8 @@ These types require special builtin functions to access their content. Some also
  * `getTxInputOutput(TxInput) -> TxOutput` (original `TxOutput` that is now being used as `TxInput`)
  * `getTxOutputAddress(TxOutput) -> Address`
  * `getTxOutputValue(TxOutput) -> Value`
+ * `hasDatumHash(TxOutput) -> Bool`
+ * `getTxOutputDatumHash(TxOutput) -> DatumHash` (returns an empty `DatumHash` if the tx output doesn't have one)
  * `getAddressCredential(Address) -> Credential`
  * `isStakedAddress(Address) -> Bool`
  * `isPubKeyCredential(Credential) -> Bool`
@@ -206,16 +223,13 @@ These types require special builtin functions to access their content. Some also
  * `getValueComponent(Value, AssetClass) -> Integer`
  * `isZero(Value) -> Bool`
  * `zero() -> Value`
- * `isStrictlyGeq(Value, Value) -> Bool`
- * `isStrictlyGt(Value, Value) -> Bool`
- * `isStrictlyLeq(Value, Value) -> Bool`
- * `isStrictlyLt(Value, Value) -> Bool`
- * `isStrictlyEq(Value, Value) -> Bool`
  * `valueLockedBy(Tx, ValidatorHash) -> Value` (`Value` sent to script `Address` with given validator credential hash)
+ * `valueLockedByDatum(Tx, ValidatorHash, a) -> Value` (`Value` sent to script with given datum, `a` must be a user-defined data-type)
  * `AssetClass(ByteArray, String) -> AssetClass`
  * `Value(AssetClass, Integer) -> Integer`
  * `lovelace(Integer) -> Value`
  * `findDatumData(Tx, DatumHash) -> Data`
+ * `findDatumHash(Tx, a) -> DatumHash` (`a` must be a user-defined data-type)
 
 ### If-Then-Else
 The branches of `ifThenElse` are deferred by wrapping them in lambda expressions, and calling the returned lambda expression with zero arguments. `&&` and `||` operate similarly.
