@@ -2819,55 +2819,53 @@ class BinaryOperator extends Expr {
 		let aType = this.a_.eval();
 		let bType = this.b_.eval();
 
+		// these should be instances MapData
 		let a = this.a_.evalData();
 		let b = this.b_.evalData();
 
 		if ((op == "+") && ValueType.is(aType) && ValueType.is(bType)) {
 			let total = new Map(); // nested map
 
-			// extract map data
-			let aMap = a.items_[0];
-			let bMap = b.items_[1];
+			for (let outerMap of [a, b]) {
+				for (let outerPair of outerMap.pairs_) {
+					let currencySymbol = outerPair[0].toHex();
 
-			for (let m of [aMap, bMap]) {
-				for (let p of m.pairs_) {
-					let cs = p[0].toHex();
+					let innerMap = outerPair[1];
 
-					let tnMap = p[1];
+					for (let innerPair of innerMap.pairs_) {
+						let tokenName = innerPair[0].toHex();
+						let amount = innerPair[1].value_; // IntegerData
 
-					for (let q of tnMap.pairs_) {
-						let tn = q[0].toHex();
-						let amount = q[1].value_; // IntegerData
+						if (!amount.isZero()) {
+							if (!total.has(currencySymbol)) {
+								total.set(currencySymbol, new Map());
+							} 
 
-						let key = cs + "-" + tn;
-						if (!total.has(cs)) {
-							total.set(cs, new Map());
-						} 
-
-						if (!total.get(cs).has(tn)) {
-							total.get(cs).set(tn, 0);
+							if (!total.get(currencySymbol).has(tokenName)) {
+								total.get(currencySymbol).set(tokenName, 0);
+							}
+							
+							total.get(currencySymbol).set(tokenName, total.get(currencySymbol).get(tokenName) + amount);
 						}
-						
-						total.get(cs).set(tn, total.get(cs).get(tn) + amount);
 					}
 				}
 			}
 
-			let pairs = [];
+			let outerPairs = [];
 			for (let item of total) {
-				let [cs, innerMap] = item;
+				let [currencySymbol, innerMap] = item;
 
 				let innerPairs = [];
 				for (let innerItem of innerMap) {
-					let [tn, amount] = innerItem;
+					let [tokenName, amount] = innerItem;
 
-					innerPairs.push([new ListData([new ByteArrayData(hexToBytes(tn))]), new IntegerData(amount)]);
+					innerPairs.push([new ByteArrayData(hexToBytes(tokenName)), new IntegerData(amount)]);
 				}
 
-				pairs.push([new ListData([new ByteArrayData(hexToBytes(cs))]), new MapData(innerPairs)]);
+				outerPairs.push([new ByteArrayData(hexToBytes(currencySymbol)), new MapData(innerPairs)]);
 			}
 
-			return new new MapData(pairs);
+			return new MapData(outerPairs);
 		} else {
 			this.typeError("can't use this binary op in data eval");
 		}
@@ -4795,29 +4793,40 @@ class GetValueComponent extends BuiltinFunc {
 
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
-		registry.register("getValueComponent", `func(value, assetClass){func(map, currency, tokenName){
-			func(outer, inner){outer(outer, map)}(func(outer, map) {
-				ifThenElse(
-					nullList(map), 
-					func(){0}, 
-					func(){ifThenElse(
-						equalsByteString(unBData(fstPair(headList(map))), currency), 
-						func(){inner(inner, unMapData(sndPair(headList(map))))}, 
-						func(){outer(outer, tailList(map))}
-					)()}
-				)()
-			}, func(inner, map) {
-				ifThenElse(
-					nullList(map), 
-					func(){0}, 
-					func(){ifThenElse(
-						equalsByteString(unBData(fstPair(headList(map))), tokenName),
-						func(){unIData(sndPair(headList(map)))},
-						func(){inner(inner, tailList(map))}
-					)()}
-				)()
-			})
-		}(unMapData(value), unBData(${unData("assetClass", 0, 0)}), unBData(${unData("assetClass", 0, 1)}))}`)
+		registry.register("getValueComponent", `
+		func(value, assetClass){
+			func(map, currencySymbol, tokenName){
+				func(outer, inner){
+					outer(outer, map)
+				}(
+					func(outer, map) {
+						ifThenElse(
+							nullList(map), 
+							func(){0}, 
+							func(){
+								ifThenElse(
+									equalsByteString(unBData(fstPair(headList(map))), currencySymbol), 
+									func(){inner(inner, unMapData(sndPair(headList(map))))}, 
+									func(){outer(outer, tailList(map))}
+								)()
+							}
+						)()
+					}, func(inner, map) {
+						ifThenElse(
+							nullList(map), 
+							func(){0}, 
+							func(){
+								ifThenElse(
+									equalsByteString(unBData(fstPair(headList(map))), tokenName),
+									func(){unIData(sndPair(headList(map)))},
+									func(){inner(inner, tailList(map))}
+								)()
+							}
+						)()
+					}
+				)
+			}(unMapData(value), unBData(${unData("assetClass", 0, 0)}), unBData(${unData("assetClass", 0, 1)}))
+		}`)
 	}
 
 	registerGlobals(registry) {
@@ -4833,13 +4842,20 @@ class GetValueComponent extends BuiltinFunc {
 class GetValueMapKeys extends BuiltinFunc {
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
-		registry.register("getValueMapKeys", `func(map){func(self){self(self)}(func(self, map) {
-			ifThenElse(
-				nullList(map), 
-				func(){mkNilData(())}, 
-				func(){mkCons(fstPair(headList(map)), self(self, tailList(map)))}
-			)()
-		})}`)
+		registry.register("getValueMapKeys", `
+		func(map){
+			func(self){
+				self(self)
+			}(
+				func(self, map) {
+					ifThenElse(
+						nullList(map), 
+						func(){mkNilData(())}, 
+						func(){mkCons(fstPair(headList(map)), self(self, tailList(map)))}
+					)()
+				}
+			)
+		}`)
 	}
 }
 
@@ -4847,17 +4863,26 @@ class GetValueMapKeys extends BuiltinFunc {
 class IsInByteArrayList extends BuiltinFunc {
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
-		registry.register("isInByteArrayList", `func(lst, key){func(self){self(self, lst)}(func(self, lst) {
-			ifThenElse(
-				nullList(lst), 
-				func(){false}, 
-				func(){ifThenElse(
-					equalsByteString(unBData(headList(lst)), key), 
-					func(){true}, 
-					func(){self(self, tailList(lst))}
-				)()}
-			)()
-		})}`)
+
+		// key expected as Data.ByteString type
+		registry.register("isInByteArrayList", `
+		func(lst, key){
+			func(self){
+				self(self, lst)
+			}(
+				func(self, lst) {
+					ifThenElse(
+						nullList(lst), 
+						func(){false}, 
+						func(){ifThenElse(
+							equalsByteString(unBData(headList(lst)), key), 
+							func(){true}, 
+							func(){self(self, tailList(lst))}
+						)()}
+					)()
+				}
+			)
+		}`)
 	}
 }
 
@@ -4868,19 +4893,25 @@ class GetValueCurrencyComponents extends BuiltinFunc {
 
 		// deferred evaluation of ifThenElse branches
 		
-		// returns a map
-		registry.register("getValueCurrencyComponents", `func(value, currencySymbol) {
-			func(self, map){self(self, map)}(func(self, map){
-				ifThenElse(
-					nullList(map), 
-					func(){mkNilPairData(())},
-					func(){ifThenElse(
-						equalsByteString(unBData(fstPair(headList(map))), currencySymbol), 
-						func(){unMapData(sndPair(headList(map)))},
-						func(){self(self, tailList(map))}
-					)()}
-				)()
-			}, unMapData(value))
+		// returns a map of TokenName -> Integer
+		registry.register("getValueCurrencyComponents", `
+		func(value, currencySymbol) {
+			func(self, map){
+				self(self, map)
+			}(
+				func(self, map){
+					ifThenElse(
+						nullList(map), 
+						func(){mkNilPairData(())},
+						func(){ifThenElse(
+							equalsByteString(unBData(fstPair(headList(map))), currencySymbol), 
+							func(){unMapData(sndPair(headList(map)))},
+							func(){self(self, tailList(map))}
+						)()}
+					)()
+				}, 
+				unMapData(value)
+			)
 		}`)
 	}
 }
@@ -4894,21 +4925,28 @@ class MergeValueMapKeys extends BuiltinFunc {
 		// deferred evaluation of ifThenElse branches
 		// a and b are map types
 		// returns a list of keys
-		registry.register("mergeValueMapKeys", `func(a, b){
+		registry.register("mergeValueMapKeys", `
+		func(a, b){
 			func(aKeys) {
-				func(self){self(self, aKeys, b)}(func(self, keys, map){
-					ifThenElse(
-						nullList(map), 
-						func(){keys}, 
-						func(){func(head) {
-							ifThenElse(
-								isInByteArrayList(aKeys, head), 
-								func(){self(keys, tailList(map))},
-								func(){mkCons(bData(head), self(keys, tailList(map)))}
-							)()
-						}(unBData(fstPair(headList(map))))}
-					)()
-				})
+				func(self){
+					self(self, aKeys, b)
+				}(
+					func(self, keys, map){
+						ifThenElse(
+							nullList(map), 
+							func(){keys}, 
+							func(){
+								func(key) {
+									ifThenElse(
+										isInByteArrayList(aKeys, key), 
+										func(){self(self, keys, tailList(map))},
+										func(){mkCons(bData(key), self(self, keys, tailList(map)))}
+									)()
+								}(unBData(fstPair(headList(map))))
+							}
+						)()
+					}
+				)
 			}(getValueMapKeys(a))
 		}`);
 	}
@@ -4919,20 +4957,26 @@ class GetCurrencyMapInteger extends BuiltinFunc {
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
 		// input is map of tokenName -> Integer
-		registry.register("getCurrencyMapInteger", `func(map, key) {
-			func(self){self(self, map, key)}(func(self, map, key) {
-				ifThenElse(
-					nullList(map), 
-					func(){0}, 
-					func(){func(tokenName) {
-						ifThenElse(
-							equalsByteString(tokenName, key), 
-							func(){unIData(sndPair(headList(map)))}, 
-							func(){self(self, tailList(map), key)}
-						)()
-					}(unBData(fstPair(headList(map))))}
-				)()
-			})
+		// key is expected as Data.ByteString type
+		registry.register("getCurrencyMapInteger", `
+		func(map, key) {
+			func(self){
+				self(self, map, key)
+			}(
+				func(self, map, key) {
+					ifThenElse(
+						nullList(map), 
+						func(){0}, 
+						func(){
+							ifThenElse(
+								equalsByteString(unBData(fstPair(headList(map))), key), 
+								func(){unIData(sndPair(headList(map)))}, 
+								func(){self(self, tailList(map), key)}
+							)()
+						}
+					)()
+				}
+			)
 		}`)
 	}
 }
@@ -4941,23 +4985,28 @@ class GetCurrencyMapInteger extends BuiltinFunc {
 class AddValueCurrencyComponents extends BuiltinFunc {
 	static generateCode(binaryFuncName) {
 		// deferred evaluation of ifThenElse branches
-		// a and b are map types
+		// a and b are map types of TokenName -> Integer
 		// returns a map ok TokenName -> Integer
-		return `func(a, b) {
-			func(self) {self(self, mergeValueMapKeys(a, b), mkNilPairData(()))} (
+		return `
+		func(a, b) {
+			func(self) {
+				self(self, mergeValueMapKeys(a, b), mkNilPairData(()))
+			}(
 				func(self, keys, result) {
 					ifThenElse(
 						nullList(keys), 
 						func(){result}, 
-						func(){func(key, tail) {
-							func(sum) {
-								ifThenElse(
-									equalsInteger(sum, 0), 
-									func(){tail}, 
-									func(){mkCons(mkPairData(listData(mkCons(bData(key), mkNilData(()))), iData(sum)), tail)}
-								)()
-							}(${binaryFuncName}(getCurrencyMapInteger(a, key), getCurrencyMapInteger(b, key)))
-						}(unBData(headList(keys)), self(self, tailList(keys), result))}
+						func(){
+							func(key, tail) {
+								func(sum) {
+									ifThenElse(
+										equalsInteger(sum, 0), 
+										func(){tail}, 
+										func(){mkCons(mkPairData(bData(key), iData(sum)), tail)}
+									)()
+								}(${binaryFuncName}(getCurrencyMapInteger(a, key), getCurrencyMapInteger(b, key)))
+							}(unBData(headList(keys)), self(self, tailList(keys), result))
+						}
 					)()
 				}
 			)
@@ -4980,22 +5029,27 @@ class AddValues extends BuiltinFunc {
 
 	static generateCode(subName) {
 		// deferred evaluation of ifThenElse branches
-		return `func(a, b){
+		return `
+		func(a, b){
 			func(a, b){
-				func(self) {mapData(self(self, mergeValueMapKeys(a, b), mkNilPairData(())))}(
+				func(self) {
+					mapData(self(self, mergeValueMapKeys(a, b), mkNilPairData(())))
+				}(
 					func(self, keys, result) {
 						ifThenElse(
 							nullList(keys), 
 							func(){result}, 
-							func(){func(key){
-								func(item, tail){
-									ifThenElse(
-										nullList(item), 
-										func(){tail}, 
-										func(){mkCons(mapData(item), tail)}
-									)()
-								}(${subName}(getValueCurrencyComponents(a, key), getValueCurrencyComponents(b, key)), self(self, tailList(keys), result))
-							}(unBData(headList(keys)))}
+							func(){
+								func(key, tail){
+									func(item){
+										ifThenElse(
+											nullList(item), 
+											func(){tail}, 
+											func(){mkCons(mkPairData(bData(key), mapData(item)), tail)}
+										)()
+									}(${subName}(getValueCurrencyComponents(a, key), getValueCurrencyComponents(b, key)))
+								}(unBData(headList(keys)), self(self, tailList(keys), result))
+							}
 						)()
 					}
 				)
@@ -5041,7 +5095,8 @@ class Zero extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("zero", `func() {
+		registry.register("zero", `
+		func() {
 			mapData(mkNilPairData(()))
 		}`);
 	}
@@ -5065,7 +5120,8 @@ class IsZero extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("isZero", `func(v) {
+		registry.register("isZero", `
+		func(v) {
 			nullList(unMapData(v))
 		}`)
 	}
@@ -5083,21 +5139,26 @@ class IsZero extends BuiltinFunc {
 class IsStrictlyGeqCurrencyComponents extends BuiltinFunc {
 	static generateCode(compOp) {
 		// deferred evaluation of ifThenElse branches
-		return `func(a, b) {
-			func(self) {self(self, mergeValueMapKeys(a, b))} (
+
+		// a and b are map types of TokenName -> Integer
+		return `
+		func(a, b) {
+			func(self) {
+				self(self, mergeValueMapKeys(a, b))
+			}(
 				func(self, keys) {
 					ifThenElse(
 						nullList(keys), 
 						func(){true}, 
-						func(){func(key) {
-							func(i, j) {
+						func(){
+							func(key) {
 								ifThenElse(
-									not(${compOp("i", "j")}), 
+									not(${compOp("getCurrencyMapInteger(a, key)", "getCurrencyMapInteger(b, key)")}), 
 									func(){false}, 
 									func(){self(self, tailList(keys))}
 								)()
-							}(getCurrencyMapInteger(a, key), getCurrencyMapInteger(b, key))
-						}(unBData(headList(keys)))}
+							}(unBData(headList(keys)))
+						}
 					)()
 				}
 			)
@@ -5123,18 +5184,22 @@ class IsStrictlyGeq extends BuiltinFunc {
 		// deferred evaluation of ifThenElse branches
 		return `func(a, b) {
 			func(a, b) {
-				func(self) {self(self, mergeValueMapKeys(a, b))}(
+				func(self) {
+					self(self, mergeValueMapKeys(a, b))
+				}(
 					func(self, keys) {
 						ifThenElse(
 							nullList(keys), 
 							func(){true}, 
-							func(){func(key) {
-								ifThenElse(
-									not(${subName}(getValueCurrencyComponents(a, key), getValueCurrencyComponents(b, key))), 
-									func(){false}, 
-									func(){self(self, tailList(keys))}
-								)()
-							}(unBData(headList(keys)))}
+							func(){
+								func(key) {
+									ifThenElse(
+										not(${subName}(getValueCurrencyComponents(a, key), getValueCurrencyComponents(b, key))), 
+										func(){false}, 
+										func(){self(self, tailList(keys))}
+									)()
+								}(unBData(headList(keys)))
+							}
 						)()
 					}
 				)
@@ -5182,7 +5247,8 @@ class IsStrictlyGt extends BuiltinFunc {
 		GetValueCurrencyComponents.register(registry);
 		IsStrictlyGtCurrencyComponents.register(registry);
 
-		registry.register("isStrictlyGt", `func(a, b) {
+		registry.register("isStrictlyGt", `
+		func(a, b) {
 			${And.generateCode(
 				"not(" + And.generateCode("isZero(a)", "isZero(b)") + ")", 
 				IsStrictlyGeq.generateCode("isStrictlyGtCurrencyComponents") + "(a, b)"
@@ -5221,7 +5287,8 @@ class IsStrictlyLt extends BuiltinFunc {
 		GetValueCurrencyComponents.register(registry);
 		IsStrictlyLtCurrencyComponents.register(registry);
 
-		registry.register("isStrictlyLt", `func(a, b) {
+		registry.register("isStrictlyLt", `
+		func(a, b) {
 			${And.generateCode(
 				"not(" + And.generateCode("isZero(a)", "isZero(b)") + ")",
 				IsStrictlyGeq.generateCode("isStrictlyLtCurrencyComponents") + "(a, b)"
@@ -5318,7 +5385,13 @@ class ValueLockedBy extends BuiltinFunc {
 
 		registry.register("valueLockedBy", `func(tx, hash) {
 			func(outputs) {
-				fold(func(prev, txOutput) {addValues(prev, getTxOutputValue(txOutput))}, zero(), outputs)
+				fold(
+					func(prev, txOutput) {
+						addValues(prev, getTxOutputValue(txOutput))
+					}, 
+					zero(), 
+					outputs
+				)
 			}(getTxOutputsLockedBy(tx, hash))
 		}`)
 	}
@@ -5387,10 +5460,24 @@ class MakeValue extends BuiltinFunc {
 
 	static register(registry) {
 		// internally currencySymbol and tokenName stay Data.BS
-		registry.register("Value", `func(ac, i) {
+		registry.register("Value", `
+		func(assetClass, i) {
 			func(currencySymbol, tokenName) {
-				mapData(mkCons(mkPairData(currencySymbol, mapData(mkCons(mkPairData(tokenName, iData(i)), mkNilPairData(())))), mkNilPairData(())))
-			}(${unData("ac", 0, 0)}, ${unData("ac", 0, 1)})
+				mapData(
+					mkCons(
+						mkPairData(
+							currencySymbol, 
+							mapData(
+								mkCons(
+									mkPairData(tokenName, iData(i)), 
+									mkNilPairData(())
+								)
+							)
+						), 
+						mkNilPairData(())
+					)
+				)
+			}(${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})
 		}`)
 	}
 
@@ -5400,7 +5487,7 @@ class MakeValue extends BuiltinFunc {
 
 	evalDataCall(loc, args) {
 		let assetClassData = args[0];
-		assetClassData(assetClassData.index_ == 0);
+		assert(assetClassData.index_ == 0);
 		let currencySymbolData = assetClassData.fields_[0];
 		let tokenNameData = assetClassData.fields_[1]
 
@@ -5423,7 +5510,8 @@ class Lovelace extends BuiltinFunc {
 		MakeValue.register(registry);
 		MakeAssetClass.register(registry);
 
-		registry.register("lovelace", `func(i) {
+		registry.register("lovelace", `
+		func(i) {
 			func(ac) {
 				Value(ac, i)
 			}(AssetClass(#, ""))
@@ -5492,7 +5580,8 @@ class IntegerToString extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("integerToString", `func(i) {
+		registry.register("integerToString", `
+		func(i) {
 			decodeUtf8(
 				func(self){
 					ifThenElse(
@@ -5521,7 +5610,8 @@ class Hex extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("hex", `func(i) {
+		registry.register("hex", `
+		func(i) {
 			func(self) {
 				self(self, i)
 			}(func(self, i){
@@ -5544,6 +5634,7 @@ class Hex extends BuiltinFunc {
 	}
 }
 
+// TODO: should probably be wrapped by `show` when exposed to user
 class ShowByteArray extends BuiltinFunc {
 	constructor() {
 		super("showByteArray", [new ByteArrayType()], new StringType());
@@ -5552,7 +5643,8 @@ class ShowByteArray extends BuiltinFunc {
 	static register(registry) {
 		Hex.register(registry);
 		
-		registry.register("showByteArray", `func(bytes) {
+		registry.register("showByteArray", `
+		func(bytes) {
 			decodeUtf8(
 				func(self) {
 					self(self, bytes)
@@ -5584,6 +5676,10 @@ class ShowByteArray extends BuiltinFunc {
 class IntegerData {
 	constructor(value) {
 		this.value_ = value;
+	}
+
+	isZero() {
+		return this.value_ == 0;
 	}
 
 	// returns string, not js object, because of unbounded integers 
