@@ -1,6 +1,6 @@
 # Part 5 of Plutus-Light how-to guide: Subscription contract
 A subscription contract allows a beneficiary to withdraw a pre-specified amount from a script address at regular intervals.
-The owner who locks the funds in the contract can cancel the contract by liquidating it at any time.
+The owner can cancel the contract at any time.
 
 This contract can alternatively be called an 'allowance' contract.
 
@@ -41,13 +41,17 @@ func main(datum Datum, ctx ScriptContext) Bool {
 
                 checkRemaining Value = valueLockedByDatum(tx, currentHash, expectedDatum);
 
-                checkRemaining >= expectedRemaining
+                if (checkRemaining >= expectedRemaining) {
+                    true
+                } else {
+                    trace("too much", false)
+                }
              }
         } else {
-            false
+            trace("too early", false)
         }
     } else {
-        false
+        trace("unauthorized", false)
     }
 }
 ```
