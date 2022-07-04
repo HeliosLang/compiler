@@ -1849,6 +1849,7 @@ class PlutusLightProgram {
 		scope.setType(new ValidatorHashType());
 		scope.setType(new DatumHashType());
 		scope.setType(new ValueType());
+		scope.setType(new DataType());
 		scope.setType(new AddressType());
 		scope.setType(new CredentialType());
 
@@ -2049,6 +2050,9 @@ class StructTypeDecl extends Named {
 
 		if (this.name_ != null) {
 			scope.setType(this);
+
+			// also set a special cast
+			scope.setValue(new DataCast(this));
 		}
 	}
 
@@ -3717,6 +3721,21 @@ class ValueType extends BuiltinType {
 	}
 }
 
+class DataType extends BuiltinType {
+	constructor(loc) {
+		super(loc, "Data");
+	}
+
+	eq(other) {
+		other = other.eval();
+		return other instanceof DataType; 
+	}
+
+	static is(x) {
+		return (new DataType()).eq(x);
+	}
+}
+
 class AddressType extends BuiltinType {
 	constructor(loc) {
 		super(loc, "Address");
@@ -3902,6 +3921,18 @@ class Cast extends BuiltinFunc {
 		} else {
 			throw new Error("unhandled cast");
 		}
+	}
+}
+
+class DataCast extends BuiltinFunc {
+	constructor(typeDecl) {
+		super(decl.name, [new DataType()], typeDecl);
+		this.typeDecl_ = typeDecl;
+	}
+
+	// TODO: special checks when in DEBUG mode
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -5714,6 +5745,44 @@ class ShowByteArray extends BuiltinFunc {
 			)
 		}`)
 	}
+
+	registerGlobals(registry) {
+		ShowByteArray.register(registry);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
+	}
+}
+
+// throw error if not found
+class FindDatumData extends BuiltinFunc {
+	constructor() {
+		super("findDatumData", [new TxType(), new DatumHashType()], new DataType())
+	}
+
+	static register(registry) {
+		registry.register("findDatumData", `
+		func(tx, hash) {
+			${unData(`
+				find(
+					func(tuple) {
+						equalsData(${unData("tuple", 0, 0)}, hash)
+					}, 
+					unListData(${unData("tx", 0, 8)})
+				)`, 
+				0, 1
+			)}
+		}`);
+	}
+
+	registerGlobals(registry) {
+		FindDatumData.register(registry);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+	}
 }
 
 
@@ -6865,6 +6934,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new Lovelace());
 	add(new Trace());
 	add(new ShowByteArray());
+	add(new FindDatumData());
 }())
 
 

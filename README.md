@@ -111,11 +111,12 @@ Besides primitive types, some other opaque builtin types are defined:
  * `Time`
  * `TimeRange`
  * `Value`
+ * `Data`
  * `AssetClass`
  * `Address`
  * `Credential`
 
-These types require special builtin functions to access their content. Some also have builtin constructors.
+These types require special builtin functions to access their content. Some also have builtin constructors. User-defined data types automatically generate a *cast* function allowing `Data` to be cast into that particular type.
 
 ### Builtin operators
  * `! Bool -> Bool`
@@ -214,6 +215,7 @@ These types require special builtin functions to access their content. Some also
  * `AssetClass(ByteArray, String) -> AssetClass`
  * `Value(AssetClass, Integer) -> Integer`
  * `lovelace(Integer) -> Value`
+ * `findDatumData(Tx, DatumHash) -> Data`
 
 ### If-Then-Else
 The branches of `ifThenElse` are deferred by wrapping them in lambda expressions, and calling the returned lambda expression with zero arguments. `&&` and `||` operate similarly.
