@@ -95,7 +95,7 @@ Each primitive type has associated literal expressions:
  * `Bool`: `true` or `false`
  * `Integer`: `123` or `0b1111011` or `0o173` or `0x7b`
  * `String`: `"..."` or `'...'`
- * `ByteArray`: `#abcdef0123456789` (i.e. a pound symbol followed by a lower-case hexadecimal sequence)
+ * `ByteArray`: `#abcdef0123456789` (i.e. pound symbol followed by a lower-case hexadecimal sequence)
 
 ### Other builtin types
 Besides primitive types, some other opaque builtin types are defined:
