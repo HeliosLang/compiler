@@ -1396,7 +1396,7 @@ class Tokenizer {
 			c = this.readChar();
 		}
 
-		// empty byteArray is allowed (eg. for Ada currencysymbol)
+		// empty byteArray is allowed (eg. for Ada mintingPolicyHash)
 
 		this.unreadChar(c);
 
@@ -2874,7 +2874,7 @@ class BinaryOperator extends Expr {
 
 			for (let outerMap of [a, b]) {
 				for (let outerPair of outerMap.pairs_) {
-					let currencySymbol = outerPair[0].toHex();
+					let mintingPolicyHash = outerPair[0].toHex();
 
 					let innerMap = outerPair[1];
 
@@ -2883,15 +2883,15 @@ class BinaryOperator extends Expr {
 						let amount = innerPair[1].value_; // IntegerData
 
 						if (!amount.isZero()) {
-							if (!total.has(currencySymbol)) {
-								total.set(currencySymbol, new Map());
+							if (!total.has(mintingPolicyHash)) {
+								total.set(mintingPolicyHash, new Map());
 							} 
 
-							if (!total.get(currencySymbol).has(tokenName)) {
-								total.get(currencySymbol).set(tokenName, 0);
+							if (!total.get(mintingPolicyHash).has(tokenName)) {
+								total.get(mintingPolicyHash).set(tokenName, 0);
 							}
 							
-							total.get(currencySymbol).set(tokenName, total.get(currencySymbol).get(tokenName) + amount);
+							total.get(mintingPolicyHash).set(tokenName, total.get(mintingPolicyHash).get(tokenName) + amount);
 						}
 					}
 				}
@@ -2899,7 +2899,7 @@ class BinaryOperator extends Expr {
 
 			let outerPairs = [];
 			for (let item of total) {
-				let [currencySymbol, innerMap] = item;
+				let [mintingPolicyHash, innerMap] = item;
 
 				let innerPairs = [];
 				for (let innerItem of innerMap) {
@@ -2908,7 +2908,7 @@ class BinaryOperator extends Expr {
 					innerPairs.push([new ByteArrayData(hexToBytes(tokenName)), new IntegerData(amount)]);
 				}
 
-				outerPairs.push([new ByteArrayData(hexToBytes(currencySymbol)), new MapData(innerPairs)]);
+				outerPairs.push([new ByteArrayData(hexToBytes(mintingPolicyHash)), new MapData(innerPairs)]);
 			}
 
 			return new MapData(outerPairs);
@@ -4097,7 +4097,7 @@ class MakeDuration extends BuiltinFunc {
 //  * PubKeyHash
 //  * ValidatorHash
 //  * DatumHash
-//  * MintingPolicyHash (will be implemented later)
+//  * MintingPolicyHash (identical to CurrencySymbol, but probably a less confusing name)
 //  * RedeemerHash (will be implemented later)
 //  * StakeValidatorHash (what is this?)
 //  * ScriptHash (what is this?)
@@ -5101,7 +5101,7 @@ class GetValueComponent extends BuiltinFunc {
 		// first arg is expected to be of type Data.BuiltinData
 		registry.register("getValueComponent", `
 		func(value, assetClass){
-			func(map, currencySymbol, tokenName){
+			func(map, mintingPolicyHash, tokenName){
 				func(outer, inner){
 					outer(outer, inner, map)
 				}(
@@ -5111,7 +5111,7 @@ class GetValueComponent extends BuiltinFunc {
 							func(){0}, 
 							func(){
 								ifThenElse(
-									equalsByteString(unBData(fstPair(headList(map))), currencySymbol), 
+									equalsByteString(unBData(fstPair(headList(map))), mintingPolicyHash), 
 									func(){inner(inner, unMapData(sndPair(headList(map))))}, 
 									func(){outer(outer, inner, tailList(map))}
 								)()
@@ -5192,17 +5192,17 @@ class IsInByteArrayList extends BuiltinFunc {
 	}
 }
 
-// not exposed to user! currencySymbol is just a byteString
-class GetValueCurrencyComponents extends BuiltinFunc {
+// not exposed to user! MintingPolicyHash is just a byteString
+class GetValueInnerMap extends BuiltinFunc {
 	static register(registry) {
-		// expected Value as Map of CurrencySymbol -> Data
-		// expects currencySymbol as Data.ByteString
+		// expected Value as Map of MintingPolicyHash -> Data
+		// expects mintingPolicyHash as Data.ByteString
 
 		// deferred evaluation of ifThenElse branches
 		
 		// returns a map of TokenName -> Integer
-		registry.register("getValueCurrencyComponents", `
-		func(map, currencySymbol) {
+		registry.register("getValueInnerMap", `
+		func(map, mintingPolicyHash) {
 			func(self){
 				self(self, map)
 			}(
@@ -5211,7 +5211,7 @@ class GetValueCurrencyComponents extends BuiltinFunc {
 						nullList(map), 
 						func(){mkNilPairData(())},
 						func(){ifThenElse(
-							equalsByteString(unBData(fstPair(headList(map))), currencySymbol), 
+							equalsByteString(unBData(fstPair(headList(map))), mintingPolicyHash), 
 							func(){unMapData(sndPair(headList(map)))},
 							func(){self(self, tailList(map))}
 						)()}
@@ -5259,12 +5259,12 @@ class MergeValueMapKeys extends BuiltinFunc {
 }
 
 // not exposed to user!
-class GetCurrencyMapInteger extends BuiltinFunc {
+class GetValueInnerMapInteger extends BuiltinFunc {
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
 		// input is map of tokenName -> Integer
 		// key is expected as Data.ByteString type
-		registry.register("getCurrencyMapInteger", `
+		registry.register("getValueInnerMapInteger", `
 		func(map, key) {
 			func(self){
 				self(self, map, key)
@@ -5288,7 +5288,7 @@ class GetCurrencyMapInteger extends BuiltinFunc {
 }
 
 // not exposed to user!
-class AddValueCurrencyComponents extends BuiltinFunc {
+class AddValueInnerMaps extends BuiltinFunc {
 	static generateCode(binaryFuncName) {
 		// deferred evaluation of ifThenElse branches
 		// a and b are map types of TokenName -> Integer
@@ -5310,7 +5310,7 @@ class AddValueCurrencyComponents extends BuiltinFunc {
 										func(){tail}, 
 										func(){mkCons(mkPairData(bData(key), iData(sum)), tail)}
 									)()
-								}(${binaryFuncName}(getCurrencyMapInteger(a, key), getCurrencyMapInteger(b, key)))
+								}(${binaryFuncName}(getValueInnerMapInteger(a, key), getValueInnerMapInteger(b, key)))
 							}(unBData(headList(keys)), self(self, tailList(keys), result))
 						}
 					)()
@@ -5321,9 +5321,9 @@ class AddValueCurrencyComponents extends BuiltinFunc {
 
 	static register(registry) {
 		MergeValueMapKeys.register(registry);
-		GetCurrencyMapInteger.register(registry);
+		GetValueInnerMapInteger.register(registry);
 
-		registry.register("addValueCurrencyComponents", AddValueCurrencyComponents.generateCode("addInteger"));
+		registry.register("addValueInnerMaps", AddValueInnerMaps.generateCode("addInteger"));
 	}
 }
 
@@ -5353,7 +5353,7 @@ class AddValues extends BuiltinFunc {
 											func(){tail}, 
 											func(){mkCons(mkPairData(bData(key), mapData(item)), tail)}
 										)()
-									}(${subName}(getValueCurrencyComponents(a, key), getValueCurrencyComponents(b, key)))
+									}(${subName}(getValueInnerMap(a, key), getValueInnerMap(b, key)))
 								}(unBData(headList(keys)), self(self, tailList(keys), result))
 							}
 						)()
@@ -5365,19 +5365,19 @@ class AddValues extends BuiltinFunc {
 
 	static register(registry) {
 		MergeValueMapKeys.register(registry);
-		GetValueCurrencyComponents.register(registry);
-		AddValueCurrencyComponents.register(registry);
+		GetValueInnerMap.register(registry);
+		AddValueInnerMaps.register(registry);
 
-		registry.register("addValues", AddValues.generateCode("addValueCurrencyComponents"));
+		registry.register("addValues", AddValues.generateCode("addValueInnerMaps"));
 	}
 }
 
-class SubtractValueCurrencyComponents extends BuiltinFunc {
+class SubtractValueInnerMaps extends BuiltinFunc {
 	static register(registry) {
 		MergeValueMapKeys.register(registry);
-		GetCurrencyMapInteger.register(registry);
+		GetValueInnerMapInteger.register(registry);
 
-		registry.register("subtractValueCurrencyComponents", AddValueCurrencyComponents.generateCode("subtractInteger"));
+		registry.register("subtractValueInnerMaps", AddValueInnerMaps.generateCode("subtractInteger"));
 	}
 }
 
@@ -5388,10 +5388,10 @@ class SubtractValues extends BuiltinFunc {
 
 	static register(registry) {
 		MergeValueMapKeys.register(registry);
-		GetValueCurrencyComponents.register(registry);
-		SubtractValueCurrencyComponents.register(registry);
+		GetValueInnerMap.register(registry);
+		SubtractValueInnerMaps.register(registry);
 
-		registry.register("subtractValues", AddValues.generateCode("subtractValueCurrencyComponents"));
+		registry.register("subtractValues", AddValues.generateCode("subtractValueInnerMaps"));
 	}
 }
 
@@ -5442,7 +5442,7 @@ class IsZero extends BuiltinFunc {
 }
 
 // if any false is encountered -> return false immediately
-class IsStrictlyGeqCurrencyComponents extends BuiltinFunc {
+class IsStrictlyGeqInnerMaps extends BuiltinFunc {
 	static generateCode(compOp) {
 		// deferred evaluation of ifThenElse branches
 
@@ -5459,7 +5459,7 @@ class IsStrictlyGeqCurrencyComponents extends BuiltinFunc {
 						func(){
 							func(key) {
 								ifThenElse(
-									not(${compOp("getCurrencyMapInteger(a, key)", "getCurrencyMapInteger(b, key)")}), 
+									not(${compOp("getValueInnerMapInteger(a, key)", "getValueInnerMapInteger(b, key)")}), 
 									func(){false}, 
 									func(){self(self, tailList(keys))}
 								)()
@@ -5474,9 +5474,9 @@ class IsStrictlyGeqCurrencyComponents extends BuiltinFunc {
 	static register(registry) {
 		Not.register(registry);
 		MergeValueMapKeys.register(registry);
-		GetCurrencyMapInteger.register(registry);
+		GetValueInnerMapInteger.register(registry);
 
-		registry.register("isStrictlyGeqCurrencyComponents", IsStrictlyGeqCurrencyComponents.generateCode((a, b)=>`not(lessThanInteger(${a}, ${b}))`));
+		registry.register("isStrictlyGeqInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`not(lessThanInteger(${a}, ${b}))`));
 	}
 }
 
@@ -5500,7 +5500,7 @@ class IsStrictlyGeq extends BuiltinFunc {
 							func(){
 								func(key) {
 									ifThenElse(
-										not(${subName}(getValueCurrencyComponents(a, key), getValueCurrencyComponents(b, key))), 
+										not(${subName}(getValueInnerMap(a, key), getValueInnerMap(b, key))), 
 										func(){false}, 
 										func(){self(self, tailList(keys))}
 									)()
@@ -5516,20 +5516,20 @@ class IsStrictlyGeq extends BuiltinFunc {
 	static register(registry) {
 		Not.register(registry);
 		MergeValueMapKeys.register(registry);
-		GetValueCurrencyComponents.register(registry);
-		IsStrictlyGeqCurrencyComponents.register(registry);
+		GetValueInnerMap.register(registry);
+		IsStrictlyGeqInnerMaps.register(registry);
 
-		registry.register("isStrictlyGeq", IsStrictlyGeq.generateCode("isStrictlyGeqCurrencyComponents"));
+		registry.register("isStrictlyGeq", IsStrictlyGeq.generateCode("isStrictlyGeqInnerMaps"));
 	}
 }
 
-class IsStrictlyGtCurrencyComponents extends BuiltinFunc {
+class IsStrictlyGtInnerMaps extends BuiltinFunc {
 	static register(registry) {
 		Not.register(registry);
 		MergeValueMapKeys.register(registry);
-		GetCurrencyMapInteger.register(registry);
+		GetValueInnerMapInteger.register(registry);
 
-		registry.register("isStrictlyGtCurrencyComponents", IsStrictlyGeqCurrencyComponents.generateCode((a, b)=>`not(lessThanEqualsInteger(${a}, ${b}))`));
+		registry.register("isStrictlyGtInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`not(lessThanEqualsInteger(${a}, ${b}))`));
 	}
 }
 
@@ -5542,26 +5542,26 @@ class IsStrictlyGt extends BuiltinFunc {
 		Not.register(registry);
 		IsZero.register(registry);
 		MergeValueMapKeys.register(registry);
-		GetValueCurrencyComponents.register(registry);
-		IsStrictlyGtCurrencyComponents.register(registry);
+		GetValueInnerMap.register(registry);
+		IsStrictlyGtInnerMaps.register(registry);
 
 		registry.register("isStrictlyGt", `
 		func(a, b) {
 			${And.generateCode(
 				"not(" + And.generateCode("isZero(a)", "isZero(b)") + ")", 
-				IsStrictlyGeq.generateCode("isStrictlyGtCurrencyComponents") + "(a, b)"
+				IsStrictlyGeq.generateCode("isStrictlyGtInnerMaps") + "(a, b)"
 			)}
 		}`);
 	}
 }
 
-class IsStrictlyLtCurrencyComponents extends BuiltinFunc {
+class IsStrictlyLtInnerMaps extends BuiltinFunc {
 	static register(registry) {
 		Not.register(registry);
 		MergeValueMapKeys.register(registry);
-		GetCurrencyMapInteger.register(registry);
+		GetValueInnerMapInteger.register(registry);
 
-		registry.register("isStrictlyLtCurrencyComponents", IsStrictlyGeqCurrencyComponents.generateCode((a, b)=>`lessThanInteger(${a}, ${b}))`));
+		registry.register("isStrictlyLtInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`lessThanInteger(${a}, ${b}))`));
 	}
 }
 
@@ -5574,26 +5574,26 @@ class IsStrictlyLt extends BuiltinFunc {
 		Not.register(registry);
 		IsZero.register(registry);
 		MergeValueMapKeys.register(registry);
-		GetValueCurrencyComponents.register(registry);
-		IsStrictlyLtCurrencyComponents.register(registry);
+		GetValueInnerMap.register(registry);
+		IsStrictlyLtInnerMaps.register(registry);
 
 		registry.register("isStrictlyLt", `
 		func(a, b) {
 			${And.generateCode(
 				"not(" + And.generateCode("isZero(a)", "isZero(b)") + ")",
-				IsStrictlyGeq.generateCode("isStrictlyLtCurrencyComponents") + "(a, b)"
+				IsStrictlyGeq.generateCode("isStrictlyLtInnerMaps") + "(a, b)"
 			)}
 		}`);
 	}
 }
 
-class IsStrictlyLeqCurrencyComponents extends BuiltinFunc {
+class IsStrictlyLeqInnerMaps extends BuiltinFunc {
 	static register(registry) {
 		Not.register(registry);
 		MergeValueMapKeys.register(registry);
-		GetCurrencyMapInteger.register(registry);
+		GetValueInnerMapInteger.register(registry);
 
-		registry.register("isStrictlyLeqCurrencyComponents", IsStrictlyGeqCurrencyComponents.generateCode((a, b)=>`lessThanEqualsInteger(${a}, ${b}))`));
+		registry.register("isStrictlyLeqInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`lessThanEqualsInteger(${a}, ${b}))`));
 	}
 }
 
@@ -5605,20 +5605,20 @@ class IsStrictlyLeq extends BuiltinFunc {
 	static register(registry) {
 		Not.register(registry);
 		MergeValueMapKeys.register(registry);
-		GetValueCurrencyComponents.register(registry);
-		IsStrictlyLeqCurrencyComponents.register(registry);
+		GetValueInnerMap.register(registry);
+		IsStrictlyLeqInnerMaps.register(registry);
 
-		registry.register("isStrictlyLeq", IsStrictlyGeq.generateCode("isStrictlyLeqCurrencyComponents"));
+		registry.register("isStrictlyLeq", IsStrictlyGeq.generateCode("isStrictlyLeqInnerMaps"));
 	}
 }
 
-class IsStrictlyEqCurrencyComponents extends BuiltinFunc {
+class IsStrictlyEqInnerMaps extends BuiltinFunc {
 	static register(registry) {
 		Not.register(registry);
 		MergeValueMapKeys.register(registry);
-		GetCurrencyMapInteger.register(registry);
+		GetValueInnerMapInteger.register(registry);
 
-		registry.register("isStrictlyEqCurrencyComponents", IsStrictlyGeqCurrencyComponents.generateCode((a, b)=>`equalsInteger(${a}, ${b}))`));
+		registry.register("isStrictlyEqInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`equalsInteger(${a}, ${b}))`));
 	}
 }
 
@@ -5630,10 +5630,10 @@ class IsStrictlyEq extends BuiltinFunc {
 	static register(registry) {
 		Not.register(registry);
 		MergeValueMapKeys.register(registry);
-		GetValueCurrencyComponents.register(registry);
-		IsStrictlyEqCurrencyComponents.register(registry);
+		GetValueInnerMap.register(registry);
+		IsStrictlyEqInnerMaps.register(registry);
 
-		registry.register("isStrictlyEq", IsStrictlyGeq.generateCode("isStrictlyEqCurrencyComponents"));
+		registry.register("isStrictlyEq", IsStrictlyGeq.generateCode("isStrictlyEqInnerMaps"));
 	}
 }
 
@@ -5796,14 +5796,14 @@ class MakeValue extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		// internally currencySymbol and tokenName stay Data.BS
+		// internally mintingPolicyHash and tokenName stay Data.BS
 		registry.register("Value", `
 		func(assetClass, i) {
-			func(currencySymbol, tokenName) {
+			func(mintingPolicyHash, tokenName) {
 				mapData(
 					mkCons(
 						mkPairData(
-							currencySymbol, 
+							mintingPolicyHash, 
 							mapData(
 								mkCons(
 									mkPairData(tokenName, iData(i)), 
@@ -5825,11 +5825,11 @@ class MakeValue extends BuiltinFunc {
 	evalDataCall(loc, args) {
 		let assetClassData = args[0];
 		assert(assetClassData.index_ == 0);
-		let currencySymbolData = assetClassData.fields_[0];
+		let mintingPolicyHashData = assetClassData.fields_[0];
 		let tokenNameData = assetClassData.fields_[1]
 
 		return new MapData([
-			[currencySymbolData, new MapData([[tokenNameData, new IntegerData(args[1])]])]
+			[mintingPolicyHashData, new MapData([[tokenNameData, new IntegerData(args[1])]])]
 		]);
 	}
 

@@ -220,7 +220,8 @@ These types require special builtin functions to access their content. Some also
  * `getCredentialValidatorHash(Credential) -> ValidatorHash`
  * `getCredentialPubKeyHash(Credential) -> PubKeyHash`
  * `getCurrentTxInput(ScriptContext) -> TxInput`
- * `getCurrentValidatorHash(ScriptContext) -> ValidatorHash` (hash of current script)
+ * `getCurrentValidatorHash(ScriptContext) -> ValidatorHash` (hash of current validator script)
+ * `getCurrentMintingPolicyHash(ScriptContext) -> MintingPolicyHash` (hash of curreny minting script)
  * `getValueComponent(Value, AssetClass) -> Integer`
  * `isZero(Value) -> Bool`
  * `zero() -> Value`
