@@ -74,7 +74,7 @@ Let's send 2 tAda (2 million lovelace) to the script address:
   --change-address $(cat /data/wallets/wallet1.addr) \
   --testnet-magic $TESTNET_MAGIC_NUM \
   --out-file $TX_BODY \
-  --alonzo-era
+  --babbage-era
 
 Estimated transaction fee: Lovelace 167217
 
@@ -123,7 +123,7 @@ We can now try and get our funds back from the script by building, signing and s
   --out-file $TX_BODY \
   --testnet-magic $TESTNET_MAGIC_NUM \
   --protocol-params-file $PARAMS \
-  --alonzo-era
+  --babbage-era
 
 Estimated transaction fee: Lovelace 178405
 
