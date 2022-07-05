@@ -1857,6 +1857,7 @@ class PlutusLightProgram {
 		scope.setType(new ValidatorHashType());
 		scope.setType(new DatumHashType());
 		scope.setType(new MintingPolicyHashType());
+		scope.setType(new AssetClassType());
 		scope.setType(new ValueType());
 		scope.setType(new DataType());
 		scope.setType(new AddressType());
@@ -4815,7 +4816,8 @@ class GetTxOutputsLockedBy extends BuiltinFunc {
 		IsValidatorCredential.register(registry);
 		Filter.register(registry);
 
-		registry.register("getTxOutputsLockedBy", `func(tx, h){
+		registry.register("getTxOutputsLockedBy", `
+		func(tx, h){
 			filter(func(output){
 				func(cred) {
 					ifThenElse(
@@ -4834,6 +4836,47 @@ class GetTxOutputsLockedBy extends BuiltinFunc {
 
 	registerGlobals(registry) {
 		GetTxOutputsLockedBy.register(registry);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+	}
+}
+
+class GetTxOutputsSentTo extends BuiltinFunc {
+	constructor() {
+		super("getTxOutputsSentTo", [new TxType(), new PubKeyHashType()], new ListType(Location.dummy(), new TxOutputType()));
+	}
+
+	static register(registry) {
+		GetTxOutputs.register(registry);
+		EqualsHash.register(registry);
+		GetCredentialPubKeyHash.register(registry);
+		GetAddressCredential.register(registry);
+		GetTxOutputAddress.register(registry);
+		IsPubKeyCredential.register(registry);
+		Filter.register(registry);
+
+		registry.register("getTxOutputsSentTo", `
+		func(tx, h){
+			filter(func(output){
+				func(cred) {
+					ifThenElse(
+						isPubKeyCredential(cred),
+						func(){ifThenElse(
+							equalsHash(h, getCredentialPubKeyHash(cred)),
+							true,
+							false
+						)},
+						func(){false}
+					)()
+				}(getAddressCredential(getTxOutputAddress(output)))
+			}, getTxOutputs(tx))
+		}`);
+	}
+
+	registerGlobals(registry) {
+		GetTxOutputsSentTo.register(registry);
 	}
 
 	toUntyped(args) {
@@ -5076,8 +5119,19 @@ class IsStakedAddress extends BuiltinFunc {
 		super("isStakedAddress", [new AddressType()], new BoolType());
 	}
 
+	static register(registry) {
+		registry.register("isStakedAddress", `
+		func(addr) {
+			equalsInteger(fstPair(unConstrData(${unData("addr", 0, 1)})), 0)
+		}`);
+	}
+
+	registerGlobals(registry) {
+		IsStakedAddress.register(registry);
+	}
+
 	toUntyped(args) {
-		return `equalsInteger(fstPair(unConstrData(${unData(args[0].toUntyped(), 0, 1)})), 0)`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -5086,8 +5140,18 @@ class IsPubKeyCredential extends BuiltinFunc {
 		super("isPubKeyCredential", [new CredentialType()], new BoolType());
 	}
 
+	static register(registry) {
+		registry.register("isPubKeyCredential", `func(cred) {
+			equalsInteger(fstPair(unConstrData(cred)), 0)
+		}`)
+	}
+
+	registerGlobals(registry) {
+		IsPubKeyCredential.register(registry);
+	}
+
 	toUntyped(args) {
-		return `equalsInteger(fstPair(unConstrData(${args[0].toUntyped()})), 0)`;
+		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -5804,6 +5868,42 @@ class IsStrictlyEq extends BuiltinFunc {
 		IsStrictlyEqInnerMaps.register(registry);
 
 		registry.register("isStrictlyEq", IsStrictlyGeq.generateCode("isStrictlyEqInnerMaps"));
+	}
+}
+
+class ValueSentTo extends BuiltinFunc {
+	constructor() {
+		super("valueSentTo", [new TxType(), new PubKeyHashType()], new ValueType());
+	}
+
+	static register(registry) {
+		GetTxOutputsSentTo.register(registry);
+		GetTxOutputValue.register(registry);
+		AddValues.register(registry);
+		Fold.register(registry);
+		Zero.register(registry);
+
+		registry.register("valueSentTo", `
+		func(tx, hash) {
+			func(outputs) {
+				fold(
+					func(prev, txOutput) {
+						addValues(prev, getTxOutputValue(txOutput))
+					}, 
+					zero(), 
+					outputs
+				)	
+			}(getTxOutputsSentTo(tx, hash))
+		}
+		`);
+	}
+
+	registerGlobals(registry) {
+		ValueSentTo.register(registry);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
 	}
 }
 
@@ -7406,6 +7506,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new GetTxInputs());
 	add(new GetTxOutputs());
 	add(new GetTxOutputsLockedBy());
+	add(new GetTxOutputsSentTo());
 	add(new GetTimeRangeStart());
 	add(new GetTxSignatories());
 	add(new GetTxId());
@@ -7427,6 +7528,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new GetValueComponent());
 	add(new IsZero());
 	add(new Zero());
+	add(new ValueSentTo());
 	add(new ValueLockedBy());
 	add(new ValueLockedByDatum());
 	add(new MakeAssetClass());
