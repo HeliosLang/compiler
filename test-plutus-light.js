@@ -72,8 +72,8 @@ func main(datum Datum, ctx ScriptContext) Bool {
                 // if expectedDatum isn't found, then valueLockedByDatum() immediately throws an error
                 actualRemaining Value = valueLockedByDatum(tx, currentHash, expectedDatum);
   
-                if (trace("actualRemaining: "  + show(getValueComponent(actualRemaining, AssetClass(#, "")))   + " lovelace", actualRemaining) >= 
-                    trace("expectedRemaining " + show(getValueComponent(expectedRemaining, AssetClass(#, ""))) + " lovelace", expectedRemaining))
+                if (trace("actualRemaining: "  + show(getValueComponent(actualRemaining, AssetClass(MintingPolicyHash(#), "")))   + " lovelace", actualRemaining) >= 
+                    trace("expectedRemaining " + show(getValueComponent(expectedRemaining, AssetClass(MintingPolicyHash(#), ""))) + " lovelace", expectedRemaining))
                 {
                     true
                 } else {
@@ -161,10 +161,20 @@ const UNTYPED_UNDATA = `func(data){func(pair) {
 }(unConstrData(data))}`
 
 
-function compileScript(name, src) {
+const MINTING_POLICY = `func main(ctx ScriptContext) Bool {
+    tx Tx = getTx(ctx);
+
+    // assume a single input
+    txInput TxInput = getTxInputs(tx)[0];
+
+    // we also check the total minted
+    getTxInputOutputId(txInput) == TxOutputId(#047311fde3f1281fd08956918e3d37f883930836db4d8f2a75b640bbf76f5827, 0) && getTxMintedValue(tx) == Value(AssetClass(getCurrentMintingPolicyHash(ctx), "MyNFT"), 1)
+}`
+
+function compileScript(name, src, purpose = PL.ScriptPurpose.Spending) {
     console.log("Compiling", name, "...");
 
-	console.log(PL.compilePlutusLightProgram(src));
+	console.log(PL.compilePlutusLightProgram(src, purpose));
 }
 
 function compileData(name, src, data) {
@@ -191,6 +201,8 @@ function main() {
 	//compileScript("vesting", VESTING);
 
 	//console.log(PL.compileUntypedPlutusLight(UNTYPED_UNDATA));
+
+    compileScript("minting", MINTING_POLICY, PL.ScriptPurpose.Minting)
 }
 
 main();
