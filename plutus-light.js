@@ -17,7 +17,7 @@
 //       PL.deserializePlutusCoreCborHexString(hex: string) -> string
 //
 //   * Compile Plutus-Light program:
-//       PL.compilePlutusLightProgram(programSrc: string) -> string
+//       PL.compilePlutusLightProgram(programSrc: string, purpose: ScriptPurpose) -> string
 //
 //   * Compile Plutus-Light data:
 //       PL.compilePlutusLightData(programSrc: string, dataExpressionSrc: string) -> string
@@ -1489,7 +1489,7 @@ class Tokenizer {
 				stack.push(prev);
 
 				if (Group.isCloseSymbol(t)) {
-					throw new Error("unmatched " + t.value + " at pos " + (t.loc_.line_+1).toString() + ", prev: " + (prev.loc_.line_+1).toString());
+					t.syntaxError(`unmatched ${t.value} at pos ${(t.loc_.line_+1).toString()}, prev: ${(prev.loc_.line_+1).toString()}`);
 				} else if (Group.isOpenSymbol(t)) {
 					stack.push(t);
 					curField.push(t);
@@ -1814,10 +1814,17 @@ class Registry {
 // AST elements
 ///////////////
 
+export const ScriptPurpose = {
+	Minting: 0,
+	Spending: 1,
+};
+
 class PlutusLightProgram {
 	// declarations: type, const or func
-	constructor(decls) {
+	constructor(decls, purpose) {
 		this.decls_ = decls;
+		assert(purpose != undefined);
+		this.purpose_ = purpose;
 		this.haveDatum_ = false;
 		this.haveRedeemer_ = false;
 		this.haveScriptContext_ = false;
@@ -1878,9 +1885,11 @@ class PlutusLightProgram {
 			main.typeError("entrypoint is not a function");
 		} else if (!(BoolType.is(mainType.retType_))) {
 			main.retType_.typeError("expected bool as main return type");
-		} else if (mainType.argTypes_.length > 3) {
-			main.typeError("too many arguments for main");
-		} else {
+		} else if (this.purpose_ == ScriptPurpose.Spending) {
+			if (mainType.argTypes_.length > 3) {
+				main.typeError("too many arguments for main");
+			} 
+
 			let haveDatum = false;
 			let haveRedeemer = false;
 			let haveScriptContext = false;
@@ -1919,8 +1928,43 @@ class PlutusLightProgram {
 			this.haveDatum_ = haveDatum;
 			this.haveRedeemer_ = haveRedeemer;
 			this.haveScriptContext_ = haveScriptContext;
-			this.entryPoint_ = main;
+		} else if (this.purpose_ == ScriptPurpose.Minting) {
+			if (mainType.argTypes_.length > 2) {
+				main.typeError("too many arguments for main");
+			} 
+
+			let haveRedeemer = false;
+			let haveScriptContext = false;
+
+			for (let arg of mainType.argTypes_) {
+				let t = arg.toString();
+
+				if (t == "Redeemer") {
+					if (haveRedeemer) {
+						main.typeError(`duplicate "Redeemer" argument`);
+					} else if (haveScriptContext) {
+						main.typeError(`"Redeemer" must come before "ScriptContext"`);
+					} else {
+						haveRedeemer = true;
+					}
+				} else if (t == "ScriptContext") {
+					if (haveScriptContext) {
+						main.typeError(`duplicate "ScriptContext" argument`);
+					} else {
+						haveScriptContext = true;
+					}
+				} else {
+					main.typeError(`illegal argument type, must be "Redeemer" or "ScriptContext"`);
+				}
+			}
+
+			this.haveRedeemer_ = haveRedeemer;
+			this.haveScriptContext_ = haveScriptContext;
+		} else {
+			throw new Error(`unhandled ScriptPurpose ${this.purpose_.toString()}`);
 		}
+
+		this.entryPoint_ = main;
 	}
 
 	linkAndEval() {
@@ -1948,14 +1992,14 @@ class PlutusLightProgram {
 		if (this.haveDatum_) {
 			mainArgs.push("datum");
 			uMainArgs.push("datum");
-		} else {
+		} else if (this.purpose_ == ScriptPurpose.Spending) {
 			mainArgs.push("_");
 		}
 
 		if (this.haveRedeemer_) {
 			mainArgs.push("redeemer");
 			uMainArgs.push("redeemer");
-		} else {
+		} else { // minting script can also have a redeemer
 			mainArgs.push("_");
 		}
 
@@ -3407,6 +3451,10 @@ class BuiltinCall extends Expr {
 	}
 
 	toUntyped() {
+		if (this.obj_.toUntyped == undefined) {
+			console.log(this.obj_);
+		}
+		
 		return this.obj_.toUntyped(this.args_);
 	}
 }
@@ -4195,7 +4243,7 @@ class MakeDatumHash extends BuiltinFunc {
 
 class MakeMintingPolicyHash extends BuiltinFunc {
 	constructor() {
-		super("MintingPolicyHash", [new ByteArrayType()], new MintingPolicyHash());
+		super("MintingPolicyHash", [new ByteArrayType()], new MintingPolicyHashType());
 	}
 
 	static register(registry) {
@@ -4613,6 +4661,54 @@ class GetSpendingPurposeTxOutputId extends BuiltinFunc {
 	}
 }
 
+class GetTxFee extends BuiltinFunc {
+	constructor() {
+		super("getTxFee", [new TxType()], new ValueType());
+	}
+
+	static register(registry) {
+		registerUnDataVerbose(registry);
+
+		registry.register("getTxFee", `
+		func(tx) {
+			${unDataVerbose("tx", "Tx.Fee", 0, 2)}
+		}
+		`);
+	}
+
+	registerGlobals(registry) {
+		GetTxFee.register(registry);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
+	}
+}
+
+class GetTxMintedValue extends BuiltinFunc {
+	constructor() {
+		super("getTxMintedValue", [new TxType()], new ValueType());
+	}
+
+	static register(registry) {
+		registerUnDataVerbose(registry);
+
+		registry.register("getTxMintedValue", `
+		func(tx) {
+			${unDataVerbose("tx", "Tx.Minted", 0, 3)}
+		}
+		`);
+	}
+
+	registerGlobals(registry) {
+		GetTxMintedValue.register(registry);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
+	}
+}
+
 class GetTxTimeRange extends BuiltinFunc {
 	constructor() {
 		super("getTxTimeRange", [new TxType()], new TimeRangeType());
@@ -4621,7 +4717,8 @@ class GetTxTimeRange extends BuiltinFunc {
 	static register(registry) {
 		registerUnDataVerbose(registry);
 
-		registry.register("getTxTimeRange", `func(tx) {
+		registry.register("getTxTimeRange", `
+		func(tx) {
 			${unDataVerbose("tx", "Tx.TimeRange", 0, 6)}
 		}`);
 	}
@@ -5145,6 +5242,8 @@ class GetCurrentMintingPolicyHash extends BuiltinFunc {
 	}
 
 	static register(registry) {
+		registerUnDataVerbose(registry);
+
 		registry.register("getCurrentMintingPolicyHash", `
 		func(ctx) {
 			${unDataVerbose(unData("ctx", 0, 1), "Minting", 0, 0)}
@@ -5632,7 +5731,7 @@ class IsStrictlyLtInnerMaps extends BuiltinFunc {
 		MergeValueMapKeys.register(registry);
 		GetValueInnerMapInteger.register(registry);
 
-		registry.register("isStrictlyLtInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`lessThanInteger(${a}, ${b}))`));
+		registry.register("isStrictlyLtInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`lessThanInteger(${a}, ${b})`));
 	}
 }
 
@@ -5664,7 +5763,7 @@ class IsStrictlyLeqInnerMaps extends BuiltinFunc {
 		MergeValueMapKeys.register(registry);
 		GetValueInnerMapInteger.register(registry);
 
-		registry.register("isStrictlyLeqInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`lessThanEqualsInteger(${a}, ${b}))`));
+		registry.register("isStrictlyLeqInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`lessThanEqualsInteger(${a}, ${b})`));
 	}
 }
 
@@ -5689,7 +5788,7 @@ class IsStrictlyEqInnerMaps extends BuiltinFunc {
 		MergeValueMapKeys.register(registry);
 		GetValueInnerMapInteger.register(registry);
 
-		registry.register("isStrictlyEqInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`equalsInteger(${a}, ${b}))`));
+		registry.register("isStrictlyEqInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`equalsInteger(${a}, ${b})`));
 	}
 }
 
@@ -5834,16 +5933,44 @@ class MakeList extends BuiltinFunc {
 	}
 }
 
+class MakeTxOutputId extends BuiltinFunc {
+	constructor() {
+		super("TxOutputId", [new ByteArrayType(), new IntegerType()], new TxOutputIdType());
+	}
+
+	static register(registry) {
+		MakeList.register(registry, 1);
+		MakeList.register(registry, 2);
+
+		registry.register("TxOutputId", `
+		func(txId, idx) {
+			constrData(0, list2(constrData(0, list1(bData(txId))), iData(idx)))
+		}`)
+	}
+
+	registerGlobals(registry) {
+		MakeTxOutputId.register(registry);
+	}
+
+	evalDataCall(loc, args) {
+		return new ConstrData(0, [new ConstrData(0, [args[0]]), args[1]]);
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
+	}
+}
+
 class MakeAssetClass extends BuiltinFunc {
 	constructor() {
-		super("AssetClass", [new ByteArrayType(), new StringType()], new AssetClassType());
+		super("AssetClass", [new MintingPolicyHashType(), new StringType()], new AssetClassType());
 	}
 
 	static register(registry) {
 		MakeList.register(registry, 2);
 
-		registry.register("AssetClass", `func(bs, s) {
-			constrData(0, list2(bData(bs), bData(encodeUtf8(s))))
+		registry.register("AssetClass", `func(mintingPolicyHash, tokenName) {
+			constrData(0, list2(mintingPolicyHash, bData(encodeUtf8(tokenName))))
 		}`)
 	}
 
@@ -5853,7 +5980,7 @@ class MakeAssetClass extends BuiltinFunc {
 
 	evalDataCall(loc, args) {
 		// tokenName will already have been converted to ByteArray by StringLiteral
-		return new ConstrData(0, [args[0], args[1]]); // 
+		return new ConstrData(0, [args[0], args[1]]);
 	}
 
 	toUntyped(args) {
@@ -6221,7 +6348,9 @@ class ConstrData {
 ////////////////////////
 // AST builder functions
 ////////////////////////
-function buildProgram(ts) {
+function buildProgram(ts, purpose) {
+	assert(purpose != undefined);
+
 	let decls = []; // function, const, and type declarations
 
 	while (ts.length != 0) {
@@ -6238,7 +6367,7 @@ function buildProgram(ts) {
 		}
 	}
 
-	return new PlutusLightProgram(decls);
+	return new PlutusLightProgram(decls, purpose);
 }
 
 
@@ -7271,6 +7400,8 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new Len());
 	add(new Prepend());
 	add(new GetTx());
+	add(new GetTxFee());
+	add(new GetTxMintedValue());
 	add(new GetTxTimeRange());
 	add(new GetTxInputs());
 	add(new GetTxOutputs());
@@ -7300,6 +7431,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new ValueLockedByDatum());
 	add(new MakeAssetClass());
 	add(new MakeValue());
+	add(new MakeTxOutputId());
 	add(new Lovelace());
 	add(new Trace());
 	add(new FindDatumData());
@@ -7341,10 +7473,10 @@ export function tokenizeUntypedPlutusLight(src) {
 	return tokenizer.tokenize();
 }
 
-export function parsePlutusLight(src) {
+export function parsePlutusLight(src, purpose = ScriptPurpose.Spending) {
 	let ts = tokenizePlutusLight(src);
 
-	let program = buildProgram(ts);
+	let program = buildProgram(ts, purpose);
 
 	return program.toString();
 }
@@ -7363,11 +7495,11 @@ export function prettySource(src) {
 	return lines.join("\n");
 }
 
-export function compilePlutusLightProgram(typedSrc) {
+export function compilePlutusLightProgram(typedSrc, purpose = ScriptPurpose.Spending) {
 	try {
 		let typedTokens = tokenizePlutusLight(typedSrc);
 
-		let program = buildProgram(typedTokens);
+		let program = buildProgram(typedTokens, purpose);
 
 		let untypedSrc = program.toUntyped();
 
@@ -7383,7 +7515,9 @@ export function compilePlutusLightProgram(typedSrc) {
 			
 			//console.log(plutusCoreProgram.toString());
 
-			return serializePlutusCoreProgram(plutusCoreProgram);
+			let cborHex = serializePlutusCoreProgram(plutusCoreProgram);
+
+			return `{"type": "PlutusScriptV1", "description": "", "cborHex": "${cborHex}"}`;
 		} catch (error) {
 			if (error instanceof PlutusLightError) {
 				console.log(prettySource(untypedSrc) + "\n");
@@ -7421,7 +7555,7 @@ export function compilePlutusLightData(programSrc, dataExprSrc) {
 	try {
 		let programTokens = tokenizePlutusLight(programSrc);
 
-		let program = buildProgram(programTokens);
+		let program = buildProgram(programTokens, ScriptPurpose.Spending); // compiled data is used for Datum and Redeemer, and thus always in Spending context
 
 		let scope = program.linkAndEval();
 
