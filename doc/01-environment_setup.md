@@ -30,7 +30,7 @@ You can clean up stopped containers if you are running low on system resources:
 $ docker system prune
 ```
 
-About 30 seconds after starting the *cardano-node* container, `/ipc/node.socket` should've been created and you can start using `cardano-cli` to query the blockchain.
+Usually after about 30 seconds after starting the *cardano-node* container, `/ipc/node.socket` should've been created and you can start using `cardano-cli` to query the blockchain. If you are restarting the *cardano-node* after a major upgrade it could take much longer though (up to an hour). If you are impatient you can track the status using the `run` command without the `-d` flag.
 
 Check the blockchain synchronization status using the following command:
 ```bash
