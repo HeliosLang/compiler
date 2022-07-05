@@ -15,8 +15,8 @@ func main(datum Datum, ctx ScriptContext) Bool {
     now Time = getTimeRangeStart(getTxTimeRange(tx));
     returnToOwner Bool = isTxSignedBy(tx, datum.owner);
 
-    trace("now: " + String(now) + ", lock: " + String(datum.lockUntil), now > datum.lockUntil) || 
-    trace("returning? " + String(returnToOwner), returnToOwner)
+    trace("now: " + show(now) + ", lock: " + show(datum.lockUntil), now > datum.lockUntil) || 
+    trace("returning? " + show(returnToOwner), returnToOwner)
 }
 ```
 
@@ -102,7 +102,7 @@ $ docker exec -it <container-id> bash
   --change-address $(cat /data/wallets/wallet1.addr) \
   --testnet-magic $TESTNET_MAGIC_NUM \
   --out-file $TX_BODY \
-  --alonzo-era
+  --babbage-era
 
 Estimated transaction fee: Lovelace 167217
 
@@ -142,7 +142,7 @@ First thing we should test is returning the UTXO(s) back to wallet 1. For that w
   --out-file $TX_BODY \
   --testnet-magic $TESTNET_MAGIC_NUM \
   --protocol-params-file $PARAMS \
-  --alonzo-era
+  --babbage-era
 
 Estimated transaction fee: Lovelace ...
 
@@ -172,7 +172,7 @@ The second thing we must test is claiming the time-locked funds from another wal
 > TX_BODY=$(mktemp)
 > cardano-cli transaction build \
   --tx-in <fee-utxo> \ # used for tx fee
-  --tx-in <script-utxo \
+  --tx-in <script-utxo> \
   --tx-in-datum-file $DATUM \
   --tx-in-redeemer-value <arbitrary-redeemer-data> \
   --tx-in-script-file /data/scripts/time-lock.json \
@@ -183,7 +183,7 @@ The second thing we must test is claiming the time-locked funds from another wal
   --out-file $TX_BODY \
   --testnet-magic $TESTNET_MAGIC_NUM \
   --protocol-params-file $PARAMS \
-  --alonzo-era
+  --babbage-era
 
 Estimated transaction fee: Lovelace ...
 
