@@ -65,7 +65,7 @@ $ docker exec -it <container-id> bash
 > cardano-cli address key-hash --payment-verification-key-file /data/wallets/wallet2.vkey
 ```
 
-Now we can generate the datum similarly to the Time Lock example.
+We can generate the datum similarly to the Time Lock example.
 
 Now let's send 4 tAda to the script address using the datum we just generated:
 ```bash
@@ -163,7 +163,7 @@ Next we need to test a beneficiary withdrawing from the subscription (doing this
   --tx-in <script-utxo> \
   --tx-in-datum-file $DATUM1 \
   --tx-in-redeemer-value <arbitrary-redeemer-data> \
-  --tx-in-script-file /data/scripts/time-lock.json \
+  --tx-in-script-file /data/scripts/subscription.json \
   --tx-in-collateral <fee-utxo> \ # used for script collateral
   --invalid-before <current-slot-no> \
   --required-signer /data/wallets/wallet2.skey \
