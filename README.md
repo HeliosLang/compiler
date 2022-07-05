@@ -48,7 +48,7 @@ func main(ctx ScriptContext) Bool {
     now Time = getTimeRangeStart(getTxTimeRange(tx));
     remainingActual Value = valueLockedBy(tx, getCurrentValidatorHash(ctx));
     remainingExpected Value = remainingFrom(vestingParams.tranche1, now) + remainingFrom(vestingParams.tranche2, now);
-    isStrictlyGeq(remainingActual, remainingExpected) && isTxSignedBy(tx, vestingParams.owner)
+    remainingActual >= remainingExpected && isTxSignedBy(tx, vestingParams.owner)
 }
 ```
 
