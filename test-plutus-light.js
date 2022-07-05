@@ -22,16 +22,93 @@ func main(datum Datum, ctx ScriptContext) Bool {
 
     returnToOwner Bool = isTxSignedBy(tx, datum.owner);
 
-    trace("now: " + String(now) + ", lock: " + String(datum.lockUntil), now > datum.lockUntil) || 
-    trace("returning? " + String(returnToOwner), returnToOwner)
+    trace("now: " + show(now) + ", lock: " + show(datum.lockUntil), now > datum.lockUntil) || 
+    trace("returning? " + show(returnToOwner), returnToOwner)
 }
 `
 
 const TIME_LOCK_DATUM = `
 Datum{
-   lockUntil: Time(${(new Date()).getTime() + 1000*60*5}),
-   owner: PubKeyHash(#1d22b9ff5fc20bae3b84b8f9434e747c1792b0ea2b0af658a8a76d43),
-   nonce: 42
+    lockUntil: Time(${(new Date()).getTime() + 1000*60*5}),
+    owner: PubKeyHash(#1d22b9ff5fc20bae3b84b8f9434e747c1792b0ea2b0af658a8a76d43),
+    nonce: 42
+}
+`
+
+const SUBSCRIPTION = `
+data Datum {
+    owner            PubKeyHash,
+    beneficiary      PubKeyHash,
+    total            Value, // remaining Value locked in script
+    benefit          Value, 
+    after            Time,  // must be incremented by 'interval' every time beneficiary withdraws
+    interval         Duration
+}
+
+func main(datum Datum, ctx ScriptContext) Bool {
+    tx Tx = getTx(ctx);
+
+    if (isTxSignedBy(tx, datum.owner)) {
+        true
+    } else if (isTxSignedBy(tx, datum.beneficiary)) {
+        now Time = getTimeRangeStart(getTxTimeRange(tx));
+        if (now >= datum.after) {
+             if (datum.benefit >= datum.total) {
+                true
+             } else {
+                currentHash ValidatorHash = getCurrentValidatorHash(ctx);
+
+                expectedRemaining Value = datum.total - datum.benefit;
+
+                expectedDatum Datum = Datum{
+                    owner:       datum.owner,
+                    beneficiary: datum.beneficiary,
+                    total:       expectedRemaining,
+                    benefit:     datum.benefit,
+                    after:       datum.after + datum.interval,
+                    interval:    datum.interval
+                };
+
+                actualRemaining Value = valueLockedByDatum(tx, currentHash, expectedDatum);
+  
+                if (trace("actualRemaining: "  + show(getValueComponent(actualRemaining, AssetClass(#, "")))   + " lovelace", actualRemaining) >= 
+                    trace("expectedRemaining " + show(getValueComponent(expectedRemaining, AssetClass(#, ""))) + " lovelace", expectedRemaining))
+                {
+                    true
+                } else {
+                    trace("too much", false)
+                }
+             }
+        } else {
+            trace("too soon", false)
+        }
+    } else {
+        trace("unauthorized", false)
+    }
+}
+`
+
+const SUBSCRIPTION_TIME = (new Date()).getTime() + 1000*60*5;
+const SUBSCRIPTION_INTERVAL = 1000*60*5;
+const SUBSCRIPTION_DATUM1 = `
+Datum{
+    owner:       PubKeyHash(#1d22b9ff5fc20bae3b84b8f9434e747c1792b0ea2b0af658a8a76d43),
+    beneficiary: PubKeyHash(#3a1858b50ae22f5eb40bc8cdab12643b6793e9e14f9c7590402d73de),
+    total:       lovelace(${4000000}),
+    benefit:     lovelace(${2000000}),
+    after:       Time(${SUBSCRIPTION_TIME.toString()}),
+    interval:    Duration(${SUBSCRIPTION_INTERVAL.toString()})
+}
+`
+
+const SUBSCRIPTION_DATUM2 = `
+Datum{
+    owner:       PubKeyHash(#1d22b9ff5fc20bae3b84b8f9434e747c1792b0ea2b0af658a8a76d43),
+    beneficiary: PubKeyHash(#3a1858b50ae22f5eb40bc8cdab12643b6793e9e14f9c7590402d73de),
+    total:       lovelace(${2000000}),
+    benefit:     lovelace(${2000000}),
+    after:       Time(${(SUBSCRIPTION_TIME + SUBSCRIPTION_INTERVAL).toString()}),
+    interval:    Duration(${SUBSCRIPTION_INTERVAL.toString()})
 }
 `
 
@@ -96,13 +173,19 @@ function compileData(name, src, data) {
 }
 
 function main() {
-	compileScript("always-succeeds", ALWAYS_SUCCEEDS);
-
     PL.setDebug(true);
+
+	compileScript("always-succeeds", ALWAYS_SUCCEEDS);
 
 	compileScript("time-lock", TIME_LOCK);
 
 	compileData("time-lock", TIME_LOCK, TIME_LOCK_DATUM);
+
+    compileScript("subscription", SUBSCRIPTION);
+
+    compileData("subscription1", SUBSCRIPTION, SUBSCRIPTION_DATUM1);
+
+    compileData("subscription1", SUBSCRIPTION, SUBSCRIPTION_DATUM2);
 
 	//compileScript("vesting", VESTING);
 
