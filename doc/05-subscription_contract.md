@@ -122,7 +122,7 @@ First we will try to retrieve all the funds using wallet 1:
 > TX_BODY=$(mktemp)
 > cardano-cli transaction build \
   --tx-in <fee-utxo> \ # used for tx fee
-  --tx-in <script-utxo \
+  --tx-in <script-utxo> \
   --tx-in-datum-file $DATUM1 \
   --tx-in-redeemer-value <arbitrary-redeemer-data> \
   --tx-in-script-file /data/scripts/subscription.json \
@@ -157,6 +157,11 @@ Next we need to test a beneficiary withdrawing from the subscription (doing this
 > PARAMS=$(mktemp) # most recent protocol params
 > cardano-cli query protocol-parameters --testnet-magic $TESTNET_MAGIC_NUM > $PARAMS
 
+> DATUM2=$(mktemp)
+> echo '{"constructor": 0, ...}' > $DATUM2 # like DATUM1, but deadline set to further in the future, and smaller total
+
+> DATUM2_HASH=$(cardano-cli transaction hash-script-data --script-data-file $DATUM2)
+
 > TX_BODY=$(mktemp)
 > cardano-cli transaction build \
   --tx-in <fee-utxo> \ # used for tx fee
@@ -190,4 +195,6 @@ Estimated transaction fee: Lovelace ...
   --testnet-magic $TESTNET_MAGIC_NUM
 
 Transaction successfully submitted
-``` 
+```
+
+At a later stage the beneficiary can withdraw the rest of the value locked in the contract. The commands for creating and submitting this second transaction are nearly identical to the commands above, except for other datums. 
