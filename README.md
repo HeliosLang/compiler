@@ -11,6 +11,7 @@ Use following step-by-step guide to learn how to use Plutus-Light with cardano-c
   4. [*Time Lock* contract](doc/04-time_lock_contract.md)
   5. [*Subscription* contract](doc/05-subscription_contract.md)
   6. [Minting policy scripts](doc/06-minting_policy_scripts.md)
+  7. [*English Auction* contract](doc/07-english_auction_contract.md)
 
 Note that the Plutus-Light library also contains a function to deserialize existing Plutus-Core scripts (see second example below).
 
@@ -18,7 +19,7 @@ Note that the Plutus-Light library also contains a function to deserialize exist
 
 ### 1. Vesting contract example
 The following DSL example is equivalent to the Plutus vesting contract from the Plutus playground:
-```go
+```golang
 data VestingTranche {
     time   Time, // amount is available after time
     amount Value
@@ -207,7 +208,8 @@ These types require special builtin functions to access their content. Some also
  * `getTxTimeRange(Tx) -> TimeRange`
  * `getTxInputs(Tx) -> []TxInput`
  * `getTxOutputs(Tx) -> []TxOutput`
- * `getTxOutputsLockedBy(Tx, ValidatorHash) -> []TxOutput` (outputs begin sent to script `Address` with specified validator credential hash)
+ * `getTxOutputsSentTo(Tx, PubKeyHash) -> []TxOutput` (outputs being sent to regular payment address)
+ * `getTxOutputsLockedBy(Tx, ValidatorHash) -> []TxOutput` (outputs being sent to script `Address` with specified validator credential hash)
  * `getTimeRangeStart(TimeRange) -> Time` (throws error if time range start is open )
  * `getTxSignatories(Tx) -> []PubKeyHash`
  * `getTxId(Tx) -> TxId`
@@ -230,6 +232,7 @@ These types require special builtin functions to access their content. Some also
  * `getValueComponent(Value, AssetClass) -> Integer`
  * `isZero(Value) -> Bool`
  * `zero() -> Value`
+ * `valueSentTo(Tx, PubKeyHash) -> Value` (`Value` sent to regular paymant address)
  * `valueLockedBy(Tx, ValidatorHash) -> Value` (`Value` sent to script `Address` with given validator credential hash)
  * `valueLockedByDatum(Tx, ValidatorHash, a) -> Value` (`Value` sent to script with given datum of type `a`, `a` must be a user-defined data-type, throws an error if datum isn't found)
  * `AssetClass(ByteArray, String) -> AssetClass`
