@@ -192,6 +192,7 @@ These types require special builtin functions to access their content. Some also
  * `ValidatorHash(ByteArray) -> ValidatorHash`
  * `DatumHash(ByteArray) -> DatumHash`
  * `MintingPolicyHash(ByteArray) -> MintingPolicyHash`
+ * `TxOutputId(ByteArray, Integer) -> TxOutputId`
  * `fold(func(a, b) a, a, []b) -> a`
  * `filter(func(a) Bool, []a) -> []a`
  * `find(func(a) Bool, []a) -> a` (throws error if not found)
