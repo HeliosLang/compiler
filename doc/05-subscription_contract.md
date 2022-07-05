@@ -41,8 +41,8 @@ func main(datum Datum, ctx ScriptContext) Bool {
 
                 actualRemaining Value = valueLockedByDatum(tx, currentHash, expectedDatum);
 
-                if (trace("actualRemaining: "  + show(getValueComponent(actualRemaining, AssetClass(#, "")))   + " lovelace", actualRemaining) >= 
-                    trace("expectedRemaining " + show(getValueComponent(expectedRemaining, AssetClass(#, ""))) + " lovelace", expectedRemaining))
+                if (trace("actualRemaining: "  + show(getValueComponent(actualRemaining, AssetClass(MintingPolicyHash(#), "")))   + " lovelace", actualRemaining) >= 
+                    trace("expectedRemaining " + show(getValueComponent(expectedRemaining, AssetClass(MintingPolicyHash(#), ""))) + " lovelace", expectedRemaining))
                 {
                     true
                 } else {
