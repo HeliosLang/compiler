@@ -10,6 +10,7 @@ Use following step-by-step guide to learn how to use Plutus-Light with cardano-c
   3. [*Always Succeeds* contract](doc/03-always_succeeds_contract.md)
   4. [*Time Lock* contract](doc/04-time_lock_contract.md)
   5. [*Subscription* contract](doc/05-subscription_contract.md)
+  6. [Minting policy scripts](doc/06-minting_policies.md)
 
 Note that the Plutus-Light library also contains a function to deserialize existing Plutus-Core scripts (see second example below).
 
