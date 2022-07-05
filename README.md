@@ -176,13 +176,13 @@ These types require special builtin functions to access their content. Some also
  * `Value <= Value -> Bool` (strictly less-or-equals for each component, NOT the same as `!(a > b)`)
 
 ### Builtin functions
- * `Integer(Bool) -> Integer`
+ * `Integer(Bool) -> Integer` (`false` -> `0`, `true` -> `1`)
  * `ByteArray(String) -> ByteArray` (encodes utf8)
  * `String(ByteArray) -> String` (decodes utf8)
- * `String(Integer) -> String` (string representation of integer)
- * `String(Bool) -> String` ("true" or "false")
- * `String(Time) -> String` (string representation of milliseconds since epoch)
- * `showByteArray(ByteArray) -> String` (hex representation of bytearray)
+ * `show(Integer) -> String` (string representation of integer)
+ * `show(Bool) -> String` ("true" or "false")
+ * `show(Time) -> String` (string representation of milliseconds since epoch)
+ * `show(ByteArray) -> String` (hex representation of bytearray)
  * `Time(Integer) -> Time` (milliseconds since epoch)
  * `Duration(Integer) -> Duration` (milliseconds)
  * `PubKeyHash(ByteArray) -> PubKeyHash`
