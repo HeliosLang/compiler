@@ -9,7 +9,7 @@ Create the directory where we will store the wallet keys:
 > mkdir -p /data/wallets
 ```
 
-Create two wallets, each with an associated payment address:
+Create three wallets, each with an associated payment address:
 ```bash
 > cd /data/wallets
 
@@ -31,6 +31,14 @@ addr_test1vqwj9w0...
   --payment-verification-key-file wallet2.vkey \
   --out-file wallet2.addr \
   --testnet-magic $TESTNET_MAGIC_NUM
+
+> cardano-cli address key-gen \
+  --verification-key-file wallet3.vkey \
+  --signing-key-file wallet3.skey
+> cardano-cli address build \
+  --payment-verification-key-file wallet3.vkey \
+  --out-file wallet3.addr \
+  --testnet-magic $TESTNET_MAGIC_NUM
 ```
 
 Take note of the payment address of wallet 1, and go to [testnets.cardano.org/en/testnets/cardano/tools/faucet/](https://testnets.cardano.org/en/testnets/cardano/tools/faucet/) to add some funds.
@@ -43,3 +51,5 @@ After adding some funds, check the balance of the wallet 1's payment address:
 
 ...
 ```
+
+The faucet is limited to one usage per day. So try to fund wallets 2 and 3 on other days.
