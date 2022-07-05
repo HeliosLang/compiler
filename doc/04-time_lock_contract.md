@@ -23,7 +23,7 @@ func main(datum Datum, ctx ScriptContext) Bool {
 UTXOs can be sent into the time-lock script arbitrarily as long as the datum has the correct format. UTXOs can be retrieved any time by the wallet that initiated the time-lock. UTXOs can be retrieved after the time-lock by anyone who knows the datum.
 
 
-Once we have written the script, we generate the CBOR hex, and then calculate the script address using cardano-cli:
+Once we have written the script, we generate its JSON representation, and then calculate the script address using cardano-cli:
 ```bash
 $ nodejs
 
@@ -35,13 +35,13 @@ $ nodejs
 
 > console.log(PL.compilePlutusLightProgram(src))
 
-5...
+{"type": "PlutusScriptV1", "description": "", "cborHex": "5..."}
 ```
 ```bash
 $ docker exec -it <container-id> bash
 
 > echo '{
-  "PlutusScriptV1": "",
+  "type": "PlutusScriptV1",
   "description": "",
   "cborHex": "5...",
 }' > /data/scripts/time-lock.json
@@ -66,7 +66,7 @@ $ docker exec -it <container-id> bash
 ```
 
 We also need a `lockUntil` time, for example 5 minutes from now. Now we can build the datum:
-```
+```bash
 $ nodejs
 
 > var PL; import("./plutus-light.js").then(m=>{PL=m});
