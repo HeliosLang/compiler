@@ -2050,9 +2050,9 @@ class Named extends Token {
 }
 
 class StructTypeDecl extends Named {
-	// name is a word token, name == nil is struct literal
 	constructor(loc, name, fields) {
 		super(loc, name);
+		assert(name != null);
 		this.fields_ = fields;
 		this.cache_ = null;
 	}
@@ -2081,13 +2081,7 @@ class StructTypeDecl extends Named {
 			parts.push(key + ": " + obj.toString());
 		}
 
-		let inner = "{" + parts.join("") + "}";
-
-		if (this.name_ == null) {
-			return inner;
-		} else {
-			return "type " + this.name_.toString() + " " + inner;
-		}
+		return `type ${this.name_.toString()} {${parts.join("")}}`;
 	}
 
 	link(scope) {
@@ -2095,12 +2089,10 @@ class StructTypeDecl extends Named {
 			f[1].link(scope);
 		}
 
-		if (this.name_ != null) {
-			scope.setType(this);
+		scope.setType(this);
 
-			// also set a special cast
-			scope.setValue(new DataCast(this), true);
-		}
+		// also set a special cast
+		scope.setValue(new DataCast(this), true);
 	}
 
 	eq(other) {
@@ -2109,36 +2101,8 @@ class StructTypeDecl extends Named {
 			other = other.eval();
 		}
 
-		if (other instanceof StructTypeDecl) {
-			if (this.name != null && other.name != null) {
-				return this.name.toString() == other.name.toString();
-			} else {
-				assert(this.name_ != null);
+		return other.name_.toString() == this.name_.toString();
 
-				if (this.fields_.length != other.fields_.length) {
-					return false;
-				}
-
-				for (let member of this.fields_) {
-					let [key, obj_] = member;
-
-					if (!other.fields_.has(key)) {
-						return false;
-					}
-
-					let obj = obj_.eval();
-					let otherObj = other.fields_.get(key).eval();
-
-					if (!obj.eq(otherObj)) {
-						return false;
-					}
-				}
-
-				return true;
-			}
-		} else {
-			return false;
-		}
 	}
 
 	evalMember(name) {
@@ -2168,42 +2132,65 @@ class StructTypeDecl extends Named {
 		}
 
 		this.cache_ = this;
+
 		return this.cache_;
 	}
 }
 
-class StructLiteral extends StructTypeDecl {
+class StructLiteral extends Expr {
 	constructor(loc, type, fields) {
-		super(loc, null, fields);
+		super(loc);
 		this.type_ = type;
+		this.fields_ = fields;
 	}
 
 	toString() {
-		return this.type_.toString() + super.toString();
+		let parts = [];
+
+		for (let member of this.fields_) {
+			let [key, obj] = member;
+
+			parts.push(key + ": " + obj.toString());
+		}
+
+		return `${this.type_.toString()}{${parts.join("")}}`;
 	}
 
 	link(scope) {
 		this.type_.link(scope);
-		super.link(scope);
+
+		for (let f of this.fields_) {
+			f[1].link(scope);
+		}
 	}
 
-	eval() {
-		if (this.cache_ != null) {
-			return this.cache_;
-		}
-
+	evalInternal() {
 		let structDecl = this.type_.eval();
 
-		if (! structDecl instanceof StructTypeDecl) {
+		if (!structDecl instanceof StructTypeDecl) {
 			this.type_.referenceError("not a struct type");
 		}
 
-		if (!structDecl.eq(this)) {
-			this.type_.referenceError("struct fields don't correspond");
+		if (this.fields_.length != structDecl.fields_.length) {
+			this.typeError(`bad number of ${structDecl.name.toString()} literal fields: expected ${structDecl.fields_.length}, got ${this.fields_.length}`);
 		}
 
-		this.cache_ = structDecl;
-		return this.cache_;
+		let n = this.fields_.length;
+
+		for (let i = 0; i < n; i++) {
+			if (this.fields_.keys()[i] != structDecl.fields_.keys()[i]) {
+				this.typeError(`bad field name ${this.fields_.keys()[i]}`);
+			}
+
+			let expectedFieldType = structDecl.values()[i].eval();
+			let actualFieldType = this.fields_.values()[i].eval();
+
+			if (!expectedFieldType.eq(actualFieldType)) {
+				this.typeError(`bad type for field ${this.fields_.keys()[i]}, expected ${expectedFieldType.toString()}, got ${actualFieldType.toString()}`);
+			}
+		}
+
+		return structDecl;
 	}
 
 	evalData() {
