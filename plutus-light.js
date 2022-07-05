@@ -116,7 +116,7 @@ const VERSIONS = {
 			builtinInfo("fstPair", 2),
 			builtinInfo("sndPair", 2), // 30
 			builtinInfo("chooseList", 2),
-			builtinInfo("mkCons", 2),
+			builtinInfo("mkCons", 1), // got error 'A builtin expected a term argument, but something else was received. Caused by: (force (force (builtin mkCons)))' when forceCount was 2, so set forceCount to 1?
 			builtinInfo("headList", 1),
 			builtinInfo("tailList", 1),
 			builtinInfo("nullList", 1),
@@ -1624,12 +1624,12 @@ class Scope {
 		return this.values_.has(name.toString()) || this.types_.has(name.toString()) || (this.parent_ != null && this.parent_.has(name));
 	}
 
-	setValue(v) {
+	setValue(v, force = false) {
 		let name = v.name;
 
 		assert(name != undefined);
 
-		if (this.has(name)) {
+		if (!force && this.has(name)) {
 			name.syntaxError("\'" + name.toString() + "\' already declared");
 		}
 
@@ -2053,7 +2053,7 @@ class StructTypeDecl extends Named {
 			scope.setType(this);
 
 			// also set a special cast
-			scope.setValue(new DataCast(this));
+			scope.setValue(new DataCast(this), true);
 		}
 	}
 
@@ -3027,7 +3027,7 @@ class BinaryOperator extends Expr {
 			} else if (DurationType.is(a) && DurationType.is(b)) {
 				return `iData(addInteger(unIData(${au}), unIData(${bu})))`;
 			} else if (TimeType.is(a) && DurationType.is(b)) {
-				return `iData(addInteger(unIData(${au}), unIdata(${bu})))`;
+				return `iData(addInteger(unIData(${au}), unIData(${bu})))`;
 			}
 		} else if (op == "-") {
 			if (IntegerType.is(a) && IntegerType.is(b)) {
@@ -3037,7 +3037,7 @@ class BinaryOperator extends Expr {
 			} else if (DurationType.is(a) && DurationType.is(b)) {
 				return `iData(subtractInteger(unIData(${au}), unIData(${bu})))`;
 			} else if (TimeType.is(a) && DurationType.is(b)) {
-				return `iData(subtractInteger(unIData(${au}), unIdata(${bu})))`;
+				return `iData(subtractInteger(unIData(${au}), unIData(${bu})))`;
 			}
 		} else if (op == "*") {
 			assert(IntegerType.is(a) && IntegerType.is(b));
@@ -3259,21 +3259,26 @@ class IndexExpr extends Expr {
 		let index = this.index_.toUntyped();
 
 		// deferred evaluation of each ifThenElse branch
-		return `func(self, lst, i){self(self, lst, i)}(func(self, lst, i) {
-			ifThenElse(
-				nullList(lst), 
-				func(){error()}, 
-				func(){ifThenElse(
-					lessThanInteger(i, 0), 
+		return `
+		func(self, lst, i){
+			self(self, lst, i)
+		}(
+			func(self, lst, i) {
+				ifThenElse(
+					nullList(lst), 
 					func(){error()}, 
 					func(){ifThenElse(
-						equalsInteger(i, 0), 
-						func(){${fromData("headList(lst)", lhs.itemType)}}, 
-						func(){self(self, tailList(lst), subtractInteger(i, 1))}
+						lessThanInteger(i, 0), 
+						func(){error()}, 
+						func(){ifThenElse(
+							equalsInteger(i, 0), 
+							func(){${fromData("headList(lst)", lhs.itemType)}}, 
+							func(){self(self, tailList(lst), subtractInteger(i, 1))}
+						)()}
 					)()}
-				)()}
-			)()
-		}, ${lhs}, ${index})`;
+				)()
+			}, ${lhs}, ${index}
+		)`;
 	}
 }
 
@@ -3453,14 +3458,14 @@ function unDataVerbose(dataExpr, constrName, iConstr, iField) {
 	if (!DEBUG) {
 		return unData(dataExpr, iConstr, iField);
 	} else {
-		return unData(dataExpr, iConstr, iField, `verboseError(appendString("bad constr for ${constrName}, want ${iConstr.toString()} but got ", integerToString(fstPair(pair))))`)
+		return unData(dataExpr, iConstr, iField, `verboseError(appendString("bad constr for ${constrName}, want ${iConstr.toString()} but got ", showInteger(fstPair(pair))))`)
 	}
 }
 
 function registerUnDataVerbose(registry) {
 	if (DEBUG) {
 		VerboseError.register(registry);
-		IntegerToString.register(registry);
+		ShowInteger.register(registry);
 	}
 }
 
@@ -3934,7 +3939,7 @@ class Cast extends BuiltinFunc {
 
 	evalCall(loc, args) {
 		if (args.length != 1) {
-			loc.typeError(this.name + "() expects 1 arg(s), got " + args.length.toString() + " arg(s)");
+			loc.typeError(`${this.name}() expects 1 arg(s), got ${args.length.toString()} arg(s)`);
 		}
 
 		let dstType = this.name.toString();
@@ -3949,12 +3954,6 @@ class Cast extends BuiltinFunc {
 		} else if (dstType == "String") {
 			if (ByteArrayType.is(args[0])) {
 				return new StringType();
-			} else if (IntegerType.is(args[0])) {
-				return new StringType();
-			} else if (BoolType.is(args[0])) {
-				return new StringType();
-			} else if (TimeType.is(args[0])) {
-				return new StringType();
 			}
 		}
 
@@ -3962,16 +3961,11 @@ class Cast extends BuiltinFunc {
 	}
 
 	registerGlobals(registry, argTypes) {
-		if (this.name.toString() == "String") {
-			if (IntegerType.is(argTypes[0]) || TimeType.is(argTypes[0])) {
-				IntegerToString.register(registry);
-			}
-		}
 	}
 
 	toUntyped(args) {
 		let argType = args[0].eval();
-		let dstType = this.name;
+		let dstType = this.name.toString();
 		let au = args[0].toUntyped();
 
 		if (dstType == "Integer") {
@@ -3983,12 +3977,6 @@ class Cast extends BuiltinFunc {
 		} else if (dstType == "String") {
 			if (ByteArrayType.is(argType)) {
 				return `decodeUtf8(${au})`;
-			} else if (IntegerType.is(argType)) {
-				return `integerToString(${au})`;
-			} else if (BoolType.is(argType)) {
-				return `ifThenElse(${au}, "true", "false")`;
-			} else if (TimeType.is(argType)) {
-				return `integerToString(unIData(${au}))`;
 			} else {
 				throw new Error("can't cast to String");
 			}
@@ -3998,9 +3986,59 @@ class Cast extends BuiltinFunc {
 	}
 }
 
+// turn things into their String representation
+class Show extends BuiltinFunc {
+	constructor() {
+		super("show");
+	}
+
+	evalCall(loc, args) {
+		if (args.length != 1) {
+			loc.typeError(`${this.name}() expects 1 arg(s), got ${args.length.toString()} arg(s)`);
+		}
+		
+		if (IntegerType.is(args[0])) {
+			return new StringType();
+		} else if (BoolType.is(args[0])) {
+			return new StringType();
+		} else if (TimeType.is(args[0])) {
+			return new StringType();
+		} else if (ByteArrayType.is(args[0])) {
+			return new StringType();
+		}
+
+		loc.typeError(`invalid arg type for ${this.name}(): got \'${args[0].toString()}\'`);
+	}
+
+	registerGlobals(registry, argTypes) {
+		if (IntegerType.is(argTypes[0]) || TimeType.is(argTypes[0])) {
+			ShowInteger.register(registry);
+		} else if (ByteArrayType.is(argTypes[0])) {
+			ShowByteArray.register(registry);
+		} 
+	}
+
+	toUntyped(args) {
+		let argType = args[0].eval();
+		let au = args[0].toUntyped();
+
+		if (IntegerType.is(argType)) {
+			return `showInteger(${au})`;
+		} else if (BoolType.is(argType)) {
+			return `ifThenElse(${au}, "true", "false")`;
+		} else if (TimeType.is(argType)) {
+			return `showInteger(unIData(${au}))`;
+		} else if (ByteArrayType.is(argType)) {
+			return `showByteArray(${au})`;
+		} else {
+			throw new Error("can't show as String");
+		}
+	}
+}
+
 class DataCast extends BuiltinFunc {
 	constructor(typeDecl) {
-		super(decl.name, [new DataType()], typeDecl);
+		super(typeDecl.name, [new DataType()], typeDecl);
 		this.typeDecl_ = typeDecl;
 	}
 
@@ -4162,13 +4200,20 @@ class Fold extends BuiltinFunc {
 
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
-		registry.register("fold", `func(fn, z, lst){func(self){self(self, fn, z, lst)}(func(self, fn, z, lst){
-			ifThenElse(
-				nullList(lst), 
-				func(){z}, 
-				func(){self(self, fn, fn(z, headList(lst)), tailList(lst))}
-			)()
-		})}`)
+		registry.register("fold", `
+		func(fn, z, lst){
+			func(self){
+				self(self, fn, z, lst)
+			}(
+				func(self, fn, z, lst){
+					ifThenElse(
+						nullList(lst), 
+						func(){z}, 
+						func(){self(self, fn, fn(z, headList(lst)), tailList(lst))}
+					)()
+				}
+			)
+		}`)
 	}
 
 	registerGlobals(registry) {
@@ -4219,17 +4264,24 @@ class Filter extends BuiltinFunc {
 		// cant use the standard fold, because that would reverse the list
 
 		// deferred evaluation of ifThenElse branches
-		registry.register("filter", `func(fn, lst) {func(self){self(self, fn, lst)}(func(self, fn, lst){
-			ifThenElse(
-				nullList(lst), 
-				func(){mkNilData(())}, 
-				func(){ifThenElse(
-					fn(headList(lst)), 
-					func(){mkCons(headList(lst), self(self, fn, tailList(lst)))}, 
-					func(){self(self, fn, tailList(lst))}
-				)()}
-			)()
-		})}`);
+		registry.register("filter", `
+		func(fn, lst) {
+			func(self){
+				self(self, fn, lst)
+			}(
+				func(self, fn, lst){
+					ifThenElse(
+						nullList(lst), 
+						func(){mkNilData(())}, 
+						func(){ifThenElse(
+							fn(headList(lst)), 
+							func(){mkCons(headList(lst), self(self, fn, tailList(lst)))}, 
+							func(){self(self, fn, tailList(lst))}
+						)()}
+					)()
+				}
+			)
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4279,17 +4331,24 @@ class Find extends BuiltinFunc {
 
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
-		registry.register("find", `func(fn, lst){func(self){self(self, fn, lst)}(func(self, fn, lst) {
-			ifThenElse(
-				nullList(lst), 
-				func(){error()}, 
-				func(){ifThenElse(
-					fn(headList(lst)), 
-					func(){headList(lst)}, 
-					func(){self(self, fn, tailList(lst))}
-				)()}
-			)()
-		})}`);
+		registry.register("find", `
+		func(fn, lst){
+			func(self){
+				self(self, fn, lst)
+			}(
+				func(self, fn, lst) {
+					ifThenElse(
+						nullList(lst), 
+						func(){error()}, 
+						func(){ifThenElse(
+							fn(headList(lst)), 
+							func(){headList(lst)}, 
+							func(){self(self, fn, tailList(lst))}
+						)()}
+					)()
+				}
+			)
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4338,17 +4397,24 @@ class Contains extends BuiltinFunc {
 
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
-		registry.register("contains", `func(fn, lst){func(self){self(self, fn, lst)}(func(self, fn, lst) {
-			ifThenElse(
-				nullList(lst), 
-				func(){false}, 
-				func(){ifThenElse(
-					fn(headList(lst)), 
-					func(){true}, 
-					func(){self(self, fn, tailList(lst))}
-				)()}
-			)()
-		})}`);
+		registry.register("contains", `
+		func(fn, lst){
+			func(self){
+				self(self, fn, lst)
+			}(
+				func(self, fn, lst) {
+					ifThenElse(
+						nullList(lst), 
+						func(){false}, 
+						func(){ifThenElse(
+							fn(headList(lst)), 
+							func(){true}, 
+							func(){self(self, fn, tailList(lst))}
+						)()}
+					)()
+				}
+			)
+		}`);
 	}
 
 	registerGlobals(registry) {
@@ -4390,7 +4456,8 @@ class Len extends BuiltinFunc {
 	}
 
 	static register(registry) {
-		registry.register("len", `func(lst){
+		registry.register("len", `
+		func(lst){
 			func(self){
 				self(self, lst)
 			}(func(self, lst){
@@ -4673,13 +4740,21 @@ class IsTxSignedBy extends BuiltinFunc {
 		Contains.register(registry);
 		ShowByteArray.register(registry);
 		Len.register(registry);
-		IntegerToString.register(registry);
+		ShowInteger.register(registry);
 
-		registry.register("isTxSignedBy", `func(tx, h){
-			trace(appendString(appendString(showByteArray(unBData(h)), ", nTxSignatories: "), integerToString(len(getTxSignatories(tx)))), contains(func(s){
-				trace(showByteArray(unBData(s)), equalsHash(s, h))
-			}, getTxSignatories(tx)))
-		}`);
+		if (DEBUG) {
+			registry.register("isTxSignedBy", `func(tx, h){
+				trace(appendString(appendString(showByteArray(unBData(h)), ", nTxSignatories: "), showInteger(len(getTxSignatories(tx)))), contains(func(s){
+					trace(showByteArray(unBData(s)), equalsHash(s, h))
+				}, getTxSignatories(tx)))
+			}`);
+		} else {
+			registry.register("isTxSignedBy", `func(tx, h){
+				contains(func(s){
+					equalsHash(s, h)
+				}, getTxSignatories(tx))
+			}`);
+		}
 	}
 
 	registerGlobals(registry) {
@@ -5022,13 +5097,15 @@ class GetValueComponent extends BuiltinFunc {
 
 	static register(registry) {
 		// deferred evaluation of ifThenElse branches
+
+		// first arg is expected to be of type Data.BuiltinData
 		registry.register("getValueComponent", `
 		func(value, assetClass){
 			func(map, currencySymbol, tokenName){
 				func(outer, inner){
-					outer(outer, map)
+					outer(outer, inner, map)
 				}(
-					func(outer, map) {
+					func(outer, inner, map) {
 						ifThenElse(
 							nullList(map), 
 							func(){0}, 
@@ -5036,7 +5113,7 @@ class GetValueComponent extends BuiltinFunc {
 								ifThenElse(
 									equalsByteString(unBData(fstPair(headList(map))), currencySymbol), 
 									func(){inner(inner, unMapData(sndPair(headList(map))))}, 
-									func(){outer(outer, tailList(map))}
+									func(){outer(outer, inner, tailList(map))}
 								)()
 							}
 						)()
@@ -5074,7 +5151,7 @@ class GetValueMapKeys extends BuiltinFunc {
 		registry.register("getValueMapKeys", `
 		func(map){
 			func(self){
-				self(self)
+				self(self, map)
 			}(
 				func(self, map) {
 					ifThenElse(
@@ -5118,14 +5195,15 @@ class IsInByteArrayList extends BuiltinFunc {
 // not exposed to user! currencySymbol is just a byteString
 class GetValueCurrencyComponents extends BuiltinFunc {
 	static register(registry) {
+		// expected Value as Map of CurrencySymbol -> Data
 		// expects currencySymbol as Data.ByteString
 
 		// deferred evaluation of ifThenElse branches
 		
 		// returns a map of TokenName -> Integer
 		registry.register("getValueCurrencyComponents", `
-		func(value, currencySymbol) {
-			func(self, map){
+		func(map, currencySymbol) {
+			func(self){
 				self(self, map)
 			}(
 				func(self, map){
@@ -5138,8 +5216,7 @@ class GetValueCurrencyComponents extends BuiltinFunc {
 							func(){self(self, tailList(map))}
 						)()}
 					)()
-				}, 
-				unMapData(value)
+				}
 			)
 		}`)
 	}
@@ -5785,7 +5862,7 @@ class Lovelace extends BuiltinFunc {
 	evalDataCall(loc, args) {
 		return new MapData([
 			[new ByteArrayData([]), new MapData([
-				[new ByteArrayData([]), new IntegerData(args[0])]
+				[new ByteArrayData([]), args[0]]
 			])]
 		]);
 	}
@@ -5834,13 +5911,13 @@ class VerboseError extends BuiltinFunc {
 }
 
 // renamed this to showInteger?
-class IntegerToString extends BuiltinFunc {
+class ShowInteger extends BuiltinFunc {
 	constructor() {
-		super("integerToString", [new IntegerType()], new StringType());
+		super("showInteger", [new IntegerType()], new StringType());
 	}
 
 	static register(registry) {
-		registry.register("integerToString", `
+		registry.register("showInteger", `
 		func(i) {
 			decodeUtf8(
 				func(self){
@@ -5894,12 +5971,8 @@ class Hex extends BuiltinFunc {
 	}
 }
 
-// TODO: should probably be wrapped by `show` when exposed to user
+// not exposed to user!
 class ShowByteArray extends BuiltinFunc {
-	constructor() {
-		super("showByteArray", [new ByteArrayType()], new StringType());
-	}
-
 	static register(registry) {
 		Hex.register(registry);
 		
@@ -5926,14 +5999,6 @@ class ShowByteArray extends BuiltinFunc {
 				})
 			)
 		}`)
-	}
-
-	registerGlobals(registry) {
-		ShowByteArray.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
 	}
 }
 
@@ -6067,7 +6132,7 @@ class MapData {
 	}
 
 	toSchemaJSON() {
-		return `{"map": [${this.pairs_.map(pair => {"{\"k\": " + pair[0].toSchemaJSON() + ", \"v\": " + pair[1].toSchemaJSON() + "}"}).join(", ")}]}`;
+		return `{"map": [${this.pairs_.map(pair => {return "{\"k\": " + pair[0].toSchemaJSON() + ", \"v\": " + pair[1].toSchemaJSON() + "}"}).join(", ")}]}`;
 	}
 }
 
@@ -6582,7 +6647,7 @@ class UntypedScope {
 		if (this.name_.toString() == name.toString()) {
 			return index;
 		} else if (this.parent_ == null || this.parent_ == undefined) {
-			throw new Error("variable " + name.toString() + " not found on line " + (name.loc_.line_ + 1).toString());
+			name.referenceError(`variable ${name.toString()} not found on line ${(name.loc_.line_ + 1).toString()}`);
 		} else {
 			return this.parent_.getInternal(name, index+1);
 		}
@@ -7121,6 +7186,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new Cast("Integer"));
 	add(new Cast("ByteArray"));
 	add(new Cast("String"));
+	add(new Show());
 	add(new MakeTime());
 	add(new MakeDuration());
 	add(new MakePubKeyHash());
@@ -7163,7 +7229,6 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new MakeValue());
 	add(new Lovelace());
 	add(new Trace());
-	add(new ShowByteArray());
 	add(new FindDatumData());
 	add(new FindDatumHash());
 }())
