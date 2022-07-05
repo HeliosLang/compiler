@@ -167,6 +167,8 @@ These types require special builtin functions to access their content. Some also
  * `ValidatorHash != ValidatorHash -> Bool`
  * `DatumHash == DatumHash -> Bool`
  * `DatumHash != DatumHash -> Bool`
+ * `MintingPolicyHash == MintingPolicyHash -> Bool`
+ * `MintingPolicyHash != MintingPolicyHash -> Bool`
  * `Value + Value -> Value`
  * `Value - Value -> Value`
  * `Value == Value -> Bool`
@@ -189,6 +191,7 @@ These types require special builtin functions to access their content. Some also
  * `PubKeyHash(ByteArray) -> PubKeyHash`
  * `ValidatorHash(ByteArray) -> ValidatorHash`
  * `DatumHash(ByteArray) -> DatumHash`
+ * `MintingPolicyHash(ByteArray) -> MintingPolicyHash`
  * `fold(func(a, b) a, a, []b) -> a`
  * `filter(func(a) Bool, []a) -> []a`
  * `find(func(a) Bool, []a) -> a` (throws error if not found)

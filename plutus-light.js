@@ -1849,6 +1849,7 @@ class PlutusLightProgram {
 		scope.setType(new PubKeyHashType());
 		scope.setType(new ValidatorHashType());
 		scope.setType(new DatumHashType());
+		scope.setType(new MintingPolicyHashType());
 		scope.setType(new ValueType());
 		scope.setType(new DataType());
 		scope.setType(new AddressType());
@@ -2749,6 +2750,8 @@ class BinaryOperator extends Expr {
 				return new BoolType();
 			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
 				return new BoolType();
+			} else if (MintingPolicyHashType.is(a) && MintingPolicyHashType.is(b)) {
+				return new BoolType();
 			} else if (ValueType.is(a) && ValueType.is(a)) {
 				return new BoolType();
 			}
@@ -2814,6 +2817,8 @@ class BinaryOperator extends Expr {
 				EqualsHash.register(registry);
 			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
 				EqualsHash.register(registry);
+			} else if (MintingPolicyHashType.is(a) && MintingPolicyHashType.is(b)) {
+				EqualsHash.register(registry);
 			} else if (ValueType.is(a) && ValueType.is(b)) {
 				IsStrictlyEq.register(registry);
 			}
@@ -2825,6 +2830,8 @@ class BinaryOperator extends Expr {
 			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
 				EqualsHash.register(registry);
 			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
+				EqualsHash.register(registry);
+			} else if (MintingPolicyHashType.is(a) && MintingPolicyHashType.is(b)) {
 				EqualsHash.register(registry);
 			} else if (ValueType.is(a) && ValueType.is(b)) {
 				IsStrictlyEq.register(registry);
@@ -2950,6 +2957,8 @@ class BinaryOperator extends Expr {
 				return `equalsHash(${au}, ${bu})`;
 			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
 				return `equalsHash(${au}, ${bu})`;
+			} else if (MintingPolicyHashType.is(a) && MintingPolicyHashType.is(b)) {
+				return `equalsHash(${au}, ${bu})`;
 			} else if (ValueType.is(a) && ValueType.is(b)) {
 				return `isStrictlyEq(${au}, ${bu})`;
 			}
@@ -2971,6 +2980,8 @@ class BinaryOperator extends Expr {
 			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
 				return `not(equalsHash(${au}, ${bu}))`;
 			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
+				return `not(equalsHash(${au}, ${bu}))`;
+			} else if (MintingPolicyHashType.is(a) && MintingPolicyHashType.is(b)) {
 				return `not(equalsHash(${au}, ${bu}))`;
 			} else if (ValueType.is(a) && ValueType.is(b)) {
 				return `not(isStrictlyEq(${au}, ${bu}))`;
@@ -3785,6 +3796,21 @@ class DatumHashType extends BuiltinType {
 	}
 }
 
+class MintingPolicyHashType extends BuiltinType {
+	constructor(loc) {
+		super(loc, "MintingPolicyHash");
+	}
+
+	eq(other) {
+		other = other.eval();
+		return other instanceof MintingPolicyHashType;
+	}
+
+	static is(x) {
+		return (new MintingPolicyHashType()).eq(x);
+	}
+}
+
 class ValueType extends BuiltinType {
 	constructor(loc) {
 		super(loc, "Value");
@@ -4156,6 +4182,28 @@ class MakeDatumHash extends BuiltinFunc {
 
 	registerGlobals(registry) {
 		MakeDatumHash.register(registry);
+	}
+
+	evalDataCall(loc, args) {
+		return args[0];
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
+	}
+}
+
+class MakeMintingPolicyHash extends BuiltinFunc {
+	constructor() {
+		super("MintingPolicyHash", [new ByteArrayType()], new MintingPolicyHash());
+	}
+
+	static register(registry) {
+		registry.register("MintingPolicyHash", `func(b){bData(b)}`);
+	}
+
+	registerGlobals(registry) {
+		MakeMintingPolicyHash.register(registry);
 	}
 
 	evalDataCall(loc, args) {
@@ -5083,6 +5131,29 @@ class GetCurrentValidatorHash extends BuiltinFunc {
 
 	registerGlobals(registry) {
 		GetCurrentValidatorHash.register(registry)
+	}
+
+	toUntyped(args) {
+		return `${this.name}(${args[0].toUntyped()})`;
+	}
+}
+
+// throws error if ScriptContextPurpose isn't for minting
+class GetCurrentMintingPolicyHash extends BuiltinFunc {
+	constructor() {
+		super("getCurrentMintingPolicyHash", [new ScriptContextType()], new MintingPolicyHashType());
+	}
+
+	static register(registry) {
+		registry.register("getCurrentMintingPolicyHash", `
+		func(ctx) {
+			${unDataVerbose(unData("ctx", 0, 1), "Minting", 0, 0)}
+		}
+		`)
+	}
+
+	registerGlobals(registry) {
+		GetCurrentMintingPolicyHash.register(registry);
 	}
 
 	toUntyped(args) {
@@ -7192,6 +7263,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new MakePubKeyHash());
 	add(new MakeValidatorHash());
 	add(new MakeDatumHash());
+	add(new MakeMintingPolicyHash());
 	add(new Fold());
 	add(new Filter());
 	add(new Find());
@@ -7220,6 +7292,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new GetCredentialValidatorHash());
 	add(new GetCurrentTxInput());
 	add(new GetCurrentValidatorHash());
+	add(new GetCurrentMintingPolicyHash());
 	add(new GetValueComponent());
 	add(new IsZero());
 	add(new Zero());
