@@ -174,7 +174,7 @@ const MINTING_POLICY = `func main(ctx ScriptContext) Bool {
 const ENGLISH_AUCTION = `
 data Datum {
     seller        PubKeyHash,
-    bidAsset      AssetClass, // allow more than just lovelace, but must be a single AssetClass
+    bidAsset      AssetClass, // allow alternative assets (not just lovelace)
     minBid        Integer,
     deadline      Time,
     forSale       Value,
