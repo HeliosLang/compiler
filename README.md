@@ -225,7 +225,7 @@ These types require special builtin functions to access their content. Some also
  * `isZero(Value) -> Bool`
  * `zero() -> Value`
  * `valueLockedBy(Tx, ValidatorHash) -> Value` (`Value` sent to script `Address` with given validator credential hash)
- * `valueLockedByDatum(Tx, ValidatorHash, a) -> Value` (`Value` sent to script with given datum, `a` must be a user-defined data-type)
+ * `valueLockedByDatum(Tx, ValidatorHash, a) -> Value` (`Value` sent to script with given datum of type `a`, `a` must be a user-defined data-type, throws an error if datum isn't found)
  * `AssetClass(ByteArray, String) -> AssetClass`
  * `Value(AssetClass, Integer) -> Integer`
  * `lovelace(Integer) -> Value`

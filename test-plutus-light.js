@@ -69,6 +69,7 @@ func main(datum Datum, ctx ScriptContext) Bool {
                     interval:    datum.interval
                 };
 
+                // if expectedDatum isn't found, then valueLockedByDatum() immediately throws an error
                 actualRemaining Value = valueLockedByDatum(tx, currentHash, expectedDatum);
   
                 if (trace("actualRemaining: "  + show(getValueComponent(actualRemaining, AssetClass(#, "")))   + " lovelace", actualRemaining) >= 
