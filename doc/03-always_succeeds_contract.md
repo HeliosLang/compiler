@@ -8,14 +8,14 @@ $ nodejs
 > var PL; import("./plutus-light.js").then(m=>{PL=m});
 ```
 
-Compile the Always Succeeds script and take note of the resulting CBOR hex:
+Compile the Always Succeeds script into its JSON representation:
 ```javascript
 > console.log(PL.compilePlutusLightProgram("func main() Bool {true}"))
 
-581358110100002223333573464945262498992601
+{"type": "PlutusScriptV1", "description": "", "cborHex" :" 581358110100002223333573464945262498992601..."}
 ```
 
-Start an interactive shell in the *cardano-node* container and create a JSON file representing the script:
+Start an interactive shell in the *cardano-node* container and copy the content of the JSON representing the script:
 ```bash
 $ docket exec -it <container-id> bash
 
@@ -25,7 +25,7 @@ $ docket exec -it <container-id> bash
 > echo '{
   "type": "PlutusScriptV1", 
   "description": "", 
-  "cborHex": "581358110100002223333573464945262498992601"
+  "cborHex": "581358110100002223333573464945262498992601..."
 }' > always-succeeds.json
 
 ```
