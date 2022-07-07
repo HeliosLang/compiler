@@ -6466,6 +6466,36 @@ class SerializeData extends BuiltinFunc {
 	}
 }
 
+class Sha2 extends BuiltinFunc {
+	constructor() {
+		super("sha2", [new ByteArrayType()], new ByteArrayType());
+	}
+
+	toUntyped(args) {
+		return `sha2_256(${args[0].toUntyped()})`;
+	}
+}
+
+class Sha3 extends BuiltinFunc {
+	constructor() {
+		super("sha3", [new ByteArrayType()], new ByteArrayType());
+	}
+
+	toUntyped(args) {
+		return `sha3_256(${args[0].toUntyped()})`;
+	}
+}
+
+class Blake2b extends BuiltinFunc {
+	constructor() {
+		super("blake2b", [new ByteArrayType()], new ByteArrayType());
+	}
+
+	toUntyped(args) {
+		return `blake2b_256(${args[0].toUntyped()})`;
+	}
+}
+
 ////////////////////////////////////////
 // Data for schema of Datum and Redeemer
 ////////////////////////////////////////
@@ -7626,6 +7656,9 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new Tail());
 	add(new IsEmpty());
 	add(new SerializeData());
+	add(new Sha2());
+	add(new Sha3());
+	add(new Blake2b());
 }())
 
 

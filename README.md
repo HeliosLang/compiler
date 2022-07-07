@@ -245,6 +245,9 @@ These types require special builtin functions to access their content. Some also
  * `findDatumData(Tx, DatumHash) -> Data`
  * `findDatumHash(Tx, a) -> DatumHash` (`a` must be a user-defined data-type)
  * `serialize(a) -> ByteArray` (`a` can be anything except a function type)
+ * `sha2(ByteArray) -> ByteArray` (32 bytes)
+ * `sha3(ByteArray) -> ByteArray` (32 bytes)
+ * `blake2b(ByteArray) -> ByteArray` (32 bytes)
 
 
 ### If-Then-Else
