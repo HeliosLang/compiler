@@ -202,6 +202,7 @@ These types require special builtin functions to access their content. Some also
  * `len(ByteArray) -> Integer`
  * `len([]a) -> Integer`
  * `prepend(a, []a) -> []a`
+ * `getIndex([]a, Integer) -> a` (throws error if out of range)
  * `trace(String, a) -> a` (print a debug message while returning a value)
  * `getTx(ScriptContext) -> Tx`
  * `getSpendingPurposeTxOutputId(ScriptContext) -> TxOutputId`
@@ -240,6 +241,7 @@ These types require special builtin functions to access their content. Some also
  * `lovelace(Integer) -> Value`
  * `findDatumData(Tx, DatumHash) -> Data`
  * `findDatumHash(Tx, a) -> DatumHash` (`a` must be a user-defined data-type)
+
 
 ### If-Then-Else
 The branches of `ifThenElse` are deferred by wrapping them in lambda expressions, and calling the returned lambda expression with zero arguments. `&&` and `||` operate similarly.

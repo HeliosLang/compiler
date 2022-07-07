@@ -3259,72 +3259,6 @@ class BranchExpr extends Expr {
 	}
 }
 
-class IndexExpr extends Expr {
-	constructor(loc, lhs, index) {
-		super(loc);
-		this.lhs_ = lhs;
-		this.index_ = index;
-	}
-
-	toString() {
-		return this.lhs_.toString() + "[" + this.index_.toString() + "]";
-	}
-
-	link(scope) {
-		this.lhs_.link(scope);
-		this.index_.link(scope);
-	}
-
-	evalInternal() {
-		let lhs = this.lhs_.eval();
-		let index = this.index_.eval(); 
-
-		if (!(lhs instanceof ListType && IntegerType.is(index))) {
-			this.lhs_.typeError("invalid operand types for indexing: \'"  + lhs.toString() + "\' and \'" + index.toString() + "\'");
-		}
-
-		if (lhs.itemType == null) {
-			this.lhs_.typeError("can't index empty list");
-		}
-
-		return lhs.itemType;
-	}
-
-	registerGlobals(registry) {
-		this.lhs_.registerGlobals(registry);
-		this.index_.registerGlobals(registry);
-	}
-
-	// list is always `[]data`, so item must be converted to correct type from data
-	toUntyped() {
-		// seems wasteful to fully inline this everytime
-		let lhs = this.lhs_.toUntyped();
-		let index = this.index_.toUntyped();
-
-		// deferred evaluation of each ifThenElse branch
-		return `
-		func(self, lst, i){
-			self(self, lst, i)
-		}(
-			func(self, lst, i) {
-				ifThenElse(
-					nullList(lst), 
-					func(){error()}, 
-					func(){ifThenElse(
-						lessThanInteger(i, 0), 
-						func(){error()}, 
-						func(){ifThenElse(
-							equalsInteger(i, 0), 
-							func(){${fromData("headList(lst)", lhs.itemType)}}, 
-							func(){self(self, tailList(lst), subtractInteger(i, 1))}
-						)()}
-					)()}
-				)()
-			}, ${lhs}, ${index}
-		)`;
-	}
-}
-
 class CallExpr extends Expr {
 	constructor(loc, lhs, args) {
 		super(loc);
@@ -6367,6 +6301,76 @@ class FindDatumHash extends BuiltinFunc {
 	}
 }
 
+class GetIndex extends BuiltinFunc {
+	constructor() {
+		super("getIndex");
+	}
+	
+	evalCall(loc, args) {
+		if (args.length != 2) {
+			loc.typeError(`${this.name}() expects 2 arg(s), got ${args.length.toString()} arg(s)`);
+		}
+
+		let lstType = args[0].eval();
+
+		if (! lstType instanceof ListType) {
+			loc.typeError(`${this.name}() expects []Any for arg 1: got \'${lstType.toString()}\'`)
+		}
+
+		let idxType = args[1].eval();
+
+		if (! idxType instanceof StructTypeDecl) {
+			loc.typeError(`${this.name}() expects Integer for arg 2: got \'${idxType.toString()}\'`)
+		}
+
+		let itemType = lstType.itemType;s
+
+		assert(itemType != null);
+
+		return itemType;
+	}
+
+	static register(registry) {
+		// returns something of Data type, so must be converted by caller 
+		registry.register("getIndex", `
+		func(lst, i) {
+			func(self){
+				self(self, lst, i)
+			}(
+				func(self, lst, i) {
+					ifThenElse(
+						nullList(lst), 
+						func(){error()}, 
+						func(){ifThenElse(
+							lessThanInteger(i, 0), 
+							func(){error()}, 
+							func(){ifThenElse(
+								equalsInteger(i, 0), 
+								func(){headList(lst)}, 
+								func(){self(self, tailList(lst), subtractInteger(i, 1))}
+							)()}
+						)()}
+					)()
+				}
+			)
+		}
+		`)
+	}
+	
+	registerGlobals(registry) {
+		GetIndex.register(registry);
+	}
+
+	// list is always `[]data`, so item must be converted to correct type from data
+	toUntyped(args) {
+		let lst = args[0].toUntyped();
+		let idx = args[1].toUntyped();
+
+		let itemType = args[0].eval().itemType;
+
+		return fromData(`${this.name}(${lst}, ${idx})`, itemType);
+	}
+}
 
 ////////////////////////////////////////
 // Data for schema of Datum and Redeemer
@@ -6892,9 +6896,7 @@ const EXPR_BUILDERS = [
 			if (t.isGroup("(")) {
 				expr = new CallExpr(t.loc, expr, buildCallArgs(t));
 			} else if (t.isGroup("[")) {
-				assert(t.fields.length == 1);
-
-				expr = new IndexExpr(t.loc, expr, buildValExpr(t.fields[0]));
+				t.syntaxError("invalid expression: [...]");
 			} else if (t.isSymbol(".")) {
 				let name = ts.shift().assertWord();
 
@@ -7525,6 +7527,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new Trace());
 	add(new FindDatumData());
 	add(new FindDatumHash());
+	add(new GetIndex());
 }())
 
 
