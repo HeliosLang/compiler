@@ -246,6 +246,43 @@ The branches of `ifThenElse` are deferred by wrapping them in lambda expressions
 
 Branch deferral is the expected behaviour for C-like languages.
 
+### Union types
+Plutus-Light supports tagged unions:
+```
+union Datum {
+    SubmissionDatum,
+    QueueDatum,
+    PostDatum
+}
+```
+
+Right now the contained types must be user-defined data-types (they can't be primitive types). We might lift this restriction in the future though.
+
+The `select` expression is used to handle the content of a union type instance:
+```golang
+select x (expr) {
+    case SubmissionDatum {
+        ...
+    } 
+    case QueueDatum {
+        ...
+    } 
+    default { // must come last (isn't necessary though if all types are handled explicitely)
+        true
+    }
+}
+```
+
+Direct explicit casting is also possible (a runtime error is thrown if the type doesn't match during downcasting).
+```golang
+datum Datum = Datum(SubmissionDatum{...}); // must be explicit
+sDatum SubmissionDatum = SubmissionDatum(datum);
+...
+```
+
+Implicit casting isn't available.
+
+
 ### Function expressions
 Plutus-Light supports anonymous function expressions with the following syntax:
 ```go
@@ -256,8 +293,25 @@ Note how the type expression for a function resembles the right-hand function va
 
 Function values aren't entirely first class: they can't be put in containers (so not in lists nor in any fields of a `data` type).
 
+### Design principles
+* The DSL is a C-like language, so it can be read by almost any programmer.
+* Whitespace is insignificant.
+* For everything there should be one, and only one, obvious way of doing it.
+* Every symbol has only one function.
+* Brackets are only used for types (List-type and perhaps at some point in the future parametric types). Brackets aren't used for indexing.
+* Semi-colons are operators and are part of assignment expressions. They can't be used as separators.
+* Similarly the equals-sign is part of assignment expressions, and can't be used in other syntax.
+* Because expressions can contain assignments all distinct expressions must be clearly separately scoped (inside parentheses or braces). 
+* The colon and comma act as separators, never as operators.
+* No name shadowing, no keyword shadowing.
+* Every variable declaration must be fully typed.
+* No type aliases as some users might expect automatic up-and-down-casting, and others won't expect that.
+* Every local and every global variable/construct (including function arguments) must be used when main() is called. Unused variables must be eliminated from the source-code.
+* All data types inside a union type must also be used.
+* `const` declarations guarantee complete compile-time evaluation. Expressions are otherwise never simplified/optimized during compilation.
+
+
 ### Untyped Plutus-Light
 Plutus-Light is a typed language, and is internally converted into untyped Plutus-Light before final compilation into (untyped) Plutus-Core.
 
 Untyped Plutus-Light is essentially an expansion of all the operators and all the semi-builtin functions (semi-builtin functions are builtins provided by typed Plutus-Light, but not by Plutus-Core).
-
