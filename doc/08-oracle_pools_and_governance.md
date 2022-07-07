@@ -81,34 +81,28 @@ Submission UTXO datum:
 * dataPoint Integer
 * all the governance parameters
 
-The vastly differing datum types probably make it worthwhile to give Plutus-Light algeabraic datatypes:
+The sometimes vastly differing datum types probably made it worthwhile to introduce union types:
 ```golang
-data Datum = 
-    PostDatum {
-        dataPoint Integer,
-        govParams GovernanceParams
-    } | 
-    SubmitDatum {
-        owner     PubKeyHash,
-        salt      Integer,
-        dataPoint Integer,
-        time      Time,
-        govParams GovernanceParams
-    } |
-    QueueDatum {
-        inputs []TxOutputId
-    }
+data PostDatum {
+    dataPoint Integer,
+    govParams GovernanceParams
+}
+
+data SubmitDatum {
+    owner     PubKeyHash,
+    salt      Integer,
+    dataPoint Integer,
+    time      Time,
+    govParams GovernanceParams
+}
+
+data QueueDatum {
+    inputs []TxOutputId
+}
+
+union Datum {
+    PostDatum, 
+    SubmitDatum,
+    QueueDatum
+}
 ```
-
-Or alternatively (probably NOT):
-```golang
-data PostDatum {}
-
-data SubmitDatum {}
-
-data QueueDatum {}
-
-type Datum = PostDatum | SubmitDatum | QueueDatum | Integer | etc...
-```
-
-`type` can be used for any alias, also functions, but then the compiler must check the `Datum` and `Redeemer` don't contain any function types. What about nested algeabraic `type`s?
