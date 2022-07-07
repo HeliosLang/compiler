@@ -244,6 +244,7 @@ These types require special builtin functions to access their content. Some also
  * `lovelace(Integer) -> Value`
  * `findDatumData(Tx, DatumHash) -> Data`
  * `findDatumHash(Tx, a) -> DatumHash` (`a` must be a user-defined data-type)
+ * `serialize(a) -> ByteArray` (`a` can be anything except a function type)
 
 
 ### If-Then-Else

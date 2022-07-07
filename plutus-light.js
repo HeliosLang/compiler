@@ -6440,6 +6440,32 @@ class IsEmpty extends BuiltinFunc {
 	}
 }
 
+class SerializeData extends BuiltinFunc {
+	constructor() {
+		super("serialize");
+	}
+
+	evalCall(loc, args) {
+		if (args.length != 1) {
+			loc.typeError(`${this.name}() expects 1 arg(s), got ${args.length.toString()} arg(s)`);
+		}
+
+		let dataType = args[0].eval();
+
+		if (dataType instanceof FuncType) {
+			loc.typeError(`${this.name}() doesn't work for functions`);
+		}
+
+		return new ByteArrayType();
+	}
+
+	toUntyped(args) {
+		let argType = args[0].eval();
+
+		return `serializeData(${toData(args[0].toUntyped(), argType)})`;
+	}
+}
+
 ////////////////////////////////////////
 // Data for schema of Datum and Redeemer
 ////////////////////////////////////////
@@ -7599,6 +7625,7 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new Head());
 	add(new Tail());
 	add(new IsEmpty());
+	add(new SerializeData());
 }())
 
 
