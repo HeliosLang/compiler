@@ -203,6 +203,9 @@ These types require special builtin functions to access their content. Some also
  * `len([]a) -> Integer`
  * `prepend(a, []a) -> []a`
  * `getIndex([]a, Integer) -> a` (throws error if out of range)
+ * `head([]a) -> a` (first element of list, throws error if list is empty)
+ * `tail([]a) -> []a` (rest of list, without first element, throws error if list is empty)
+ * `isEmpty([]a) -> Bool`
  * `trace(String, a) -> a` (print a debug message while returning a value)
  * `getTx(ScriptContext) -> Tx`
  * `getSpendingPurposeTxOutputId(ScriptContext) -> TxOutputId`

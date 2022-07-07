@@ -6372,6 +6372,74 @@ class GetIndex extends BuiltinFunc {
 	}
 }
 
+class Head extends BuiltinFunc {
+	constructor() {
+		super("head");
+	}
+
+	evalCall(loc, args) {
+		if (args.length != 1) {
+			loc.typeError(`${this.name}() expects 1 arg(s), got ${args.length.toString()} arg(s)`);
+		}
+
+		let lstType = args[0].eval();
+
+		if (! lstType instanceof ListType) {
+			loc.typeError(`${this.name}() expects []Any for arg 1: got \'${lstType.toString()}\'`)
+		}
+
+		let itemType = lstType.itemType;s
+
+		assert(itemType != null);
+
+		return itemType;
+	}
+
+	toUntyped(args) {
+		let lst = args[0].toUntyped();
+
+		let itemType = args[0].eval().itemType;
+
+		return fromData(`headList(${lst})`, itemType);
+	}
+}
+
+class Tail extends BuiltinFunc {
+	constructor() {
+		super("tail");
+	}
+
+	evalCall(loc, args) {
+		if (args.length != 1) {
+			loc.typeError(`${this.name}() expects 1 arg(s), got ${args.length.toString()} arg(s)`);
+		}
+
+		let lstType = args[0].eval();
+
+		if (! lstType instanceof ListType) {
+			loc.typeError(`${this.name}() expects []Any for arg 1: got \'${lstType.toString()}\'`)
+		}
+
+		return lstType;
+	}
+
+	toUntyped(args) {
+		let lst = args[0].toUntyped();
+
+		return `tailList(${lst})`;
+	}
+}
+
+class IsEmpty extends BuiltinFunc {
+	constructor() {
+		super("isEmpty", [new ListType(Location.dummy(), new AnyType())], new BoolType());
+	}
+
+	toUntyped(args) {
+		return `nullList(${args[0].toUntyped()})`;
+	}
+}
+
 ////////////////////////////////////////
 // Data for schema of Datum and Redeemer
 ////////////////////////////////////////
@@ -7528,6 +7596,9 @@ var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
 	add(new FindDatumData());
 	add(new FindDatumHash());
 	add(new GetIndex());
+	add(new Head());
+	add(new Tail());
+	add(new IsEmpty());
 }())
 
 
