@@ -24,7 +24,7 @@ func main(ctx ScriptContext) Bool {
     tx Tx = getTx(ctx);
 
     // assume a single input
-    txInput TxInput = getTxInputs(tx)[0];
+    txInput TxInput = head(getTxInputs(tx));
 
     // we also check the total minted
     getTxInputOutputId(txInput) == TxOutputId(#<utxo-id>, 0) && getTxMintedValue(tx) == Value(AssetClass(getCurrentMintingPolicyHash(ctx), "MyNFT"), 1)

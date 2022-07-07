@@ -165,7 +165,7 @@ const MINTING_POLICY = `func main(ctx ScriptContext) Bool {
     tx Tx = getTx(ctx);
 
     // assume a single input
-    txInput TxInput = getTxInputs(tx)[0];
+    txInput TxInput = head(getTxInputs(tx));
 
     // we also check the total minted
     getTxInputOutputId(txInput) == TxOutputId(#047311fde3f1281fd08956918e3d37f883930836db4d8f2a75b640bbf76f5827, 0) && getTxMintedValue(tx) == Value(AssetClass(getCurrentMintingPolicyHash(ctx), "MyNFT"), 1)
