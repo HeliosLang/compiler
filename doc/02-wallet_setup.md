@@ -1,5 +1,5 @@
 # Part 2 of Plutus-Light how-to guide: Wallet setup and funding
-Start an interactive shell in the *cardano-node* container:
+Start an interactive shell in your *cardano-node* docker container:
 ```bash
 $ docker exec -it <container-id> bash
 ```
@@ -52,4 +52,4 @@ After adding some funds, check the balance of the wallet 1's payment address:
 ...
 ```
 
-The faucet is limited to one usage per day. So try to fund wallets 2 and 3 on other days.
+The funding faucet is limited to one usage per day per user. So try to fund wallets 2 and 3 on other days.

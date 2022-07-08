@@ -312,7 +312,7 @@ Function values aren't entirely first class: they can't be put in containers (so
 
 ### Design principles
 * The DSL is a C-like language, so it can be read by almost any programmer.
-* C-like means that whitespace is insignificant.
+* C-like means whitespace is insignificant.
 * For everything there should be one, and only one, obvious way of doing it.
 * Each symbol/operator has only one kind of functionality. Only standard symbols/operators should be used (so nothing weird like in Haskell).
 * Brackets are only used for types (List-type and perhaps at some point in the future Map, Maybe etc.). Brackets aren't used for indexing (use `getIndex` builtin instead).

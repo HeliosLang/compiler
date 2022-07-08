@@ -12,7 +12,7 @@ Compile the Always Succeeds script into its JSON representation:
 ```javascript
 > console.log(PL.compilePlutusLightProgram("func main() Bool {true}"))
 
-{"type": "PlutusScriptV1", "description": "", "cborHex" :" 581358110100002223333573464945262498992601..."}
+{"type": "PlutusScriptV1", "description": "", "cborHex" :" 581358110100002223333573464945262498992601"}
 ```
 
 Start an interactive shell in the *cardano-node* container and copy the content of the JSON representing the script:
@@ -25,7 +25,7 @@ $ docket exec -it <container-id> bash
 > echo '{
   "type": "PlutusScriptV1", 
   "description": "", 
-  "cborHex": "581358110100002223333573464945262498992601..."
+  "cborHex": "581358110100002223333573464945262498992601"
 }' > always-succeeds.json
 
 ```
@@ -60,7 +60,7 @@ TxHash             TxIx  Amount
 -------------------------------------------------------------
 4f3d0716b07d75...  0     1000000000 lovelace + TxOutDatumNone
 ```
-`4f3d...` is the transaction id. The UTXO id in this case is `<tx-id>#0`.
+`4f3d...` is the transaction id. The UTXO id in this case is `4f3d...#0`.
 
 We now have everything we need to build a transaction and submit it.
 
@@ -143,4 +143,4 @@ Transaction successfully submitted
 
 If you now check the balance of wallet 1 you should see two UTXOs, and the total value should be your starting value minus the two fees you paid. 
 
-Note that *collateral* is only paid if you submit to a bad script, but cardano-cli does some checks when building the transaction and should throw an error before you are able to to so.
+Note that *collateral* is only paid if you submit a bad script. Cardano-cli does extensive checking of your script though, and should prevent you from submitting anything faulty. So *collateral* is only really paid by malicious users.
