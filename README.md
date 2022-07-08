@@ -84,8 +84,6 @@ Plutus-Light has a C-like syntax. A function body is a single expression. There 
 
 `=` combined with `;` is a ternary operator. `x = upstream; downstream...` is syntactic sugar for `func(x){downstream...}(upstream)`.
 
-Branching expressions look like conventional branching statements, but must always have the `else` branch defined.
-
 ### Primitive types
 Each primitive type has associated literal expressions:
  * `Bool`: `true` or `false`
@@ -264,9 +262,22 @@ data Redeemer {
 
 
 ### Branching
-The `if-else` expression is syntactic sugar for nested Plutus-Core `ifThenElse` calls. Internally the branches of the Plutus-Core `ifThenElse` function are deferred by wrapping them in lambda expressions, and then calling the returned lambda expression with zero arguments. `&&` and `||` also defer calculation of their right-hand arguments.
+Branching expressions look like C `if else` branching statements, but must always have the `else` branch defined:
+```golang
+if (code == 0) { // expression to convert an Integer code into a String
+    "Success"
+} else if (code == 1) {
+    "Error"
+} else {
+    "Unhandled code"
+}
+```
+
+The Plutus-Light `if else` expression is syntactic sugar for nested Plutus-Core `ifThenElse` calls. Internally the branches of Plutus-Core's `ifThenElse` are deferred by wrapping them in lambda expressions, and then calling the returned lambda expression with zero arguments. `&&` and `||` also defer calculation of their right-hand arguments.
 
 Branch deferral is the expected behaviour for C-like languages.
+
+Each branch must evaluate to the same type.
 
 ### Union types (WiP)
 We are planning to implement tagged unions. Tagged unions are similar to ADTs in Haskell:
@@ -287,7 +298,7 @@ select (expr) {
     case   Datum::Queue {
         ... // x not used
     } 
-    default { // default must come last if all sub-types aren't handled explicitely
+    default { // default must come last if all sub-types of Datum aren't handled explicitely
         true
     }
 }
