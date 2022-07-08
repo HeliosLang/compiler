@@ -1,6 +1,7 @@
 # Part 7 of Plutus-Light how-to guide: English Auction contract
 
-The script:
+## The script
+
 ```golang
 data Datum {
     seller        PubKeyHash,
@@ -8,10 +9,11 @@ data Datum {
     minBid        Integer,
     deadline      Time,
     forSale       Value,
-    highestBid    Integer, // starts at 0, which is also used to identify a new auction
+    highestBid    Integer, // initialized at 0, which signifies the auction doesn't yet have valid bids
     highestBidder PubKeyHash
 }
 
+// TODO: union-type
 data Redeemer {
     closing Bool,
     bidder  PubKeyHash, // unused if closing
@@ -74,4 +76,4 @@ func main(datum Datum, redeemer Redeemer, ctx ScriptContext) Bool {
 }
 ```
 
-TODO: testing procedure
+## TODO: testing procedure
