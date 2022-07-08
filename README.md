@@ -125,6 +125,16 @@ Besides primitive types, some other opaque builtin types are defined:
 
 These types require special builtin functions to access their content. Some also have builtin constructors. User-defined data types automatically generate a *cast* function allowing `Data` to be cast into that particular type.
 
+### User defined types
+User defined types look like struct definitions in C, but use the `data` keyword instead:
+```golang
+data Redeemer {
+    mode      Integer,
+    message   String,
+    recipient PubKeyHash
+}
+```
+
 ### Builtin operators
  * `! Bool -> Bool`
  * `Bool || Bool -> Bool`
@@ -253,13 +263,13 @@ These types require special builtin functions to access their content. Some also
  * `blake2b(ByteArray) -> ByteArray` (32 bytes)
 
 
-### If-Then-Else
-The branches of the Plutus-Core `ifThenElse` function are deferred by wrapping them in lambda expressions, and calling the returned lambda expression with zero arguments. `&&` and `||` operate similarly.
+### Branching
+The `if-else` expression is syntactic sugar for nested Plutus-Core `ifThenElse` calls. Internally the branches of the Plutus-Core `ifThenElse` function are deferred by wrapping them in lambda expressions, and then calling the returned lambda expression with zero arguments. `&&` and `||` also defer calculation of their right-hand arguments.
 
 Branch deferral is the expected behaviour for C-like languages.
 
-### Union types
-Plutus-Light will soon support tagged unions:
+### Union types (WiP)
+We are planning to implement tagged unions. Tagged unions are similar to ADTs in Haskell:
 ```golang
 union Datum {
     Submission{...}, // content of Submission has the same syntax as a regular data-type
@@ -268,7 +278,7 @@ union Datum {
 }
 ```
 
-We are planning to implement a `select` expression that will be used to handle the content of union-type instances:
+We are also planning to implement a `select` expression that will be used to 'unwrap' union-type instances:
 ```golang
 select (expr) {
     case x Datum::Submission { // double-colon to reference the sub-type
