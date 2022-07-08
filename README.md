@@ -271,12 +271,12 @@ The `select` expression is used to handle the content of a union type instance:
 ```golang
 select (expr) {
     case x Datum::Submission {
-        ...
+        ... // expression must use x
     } 
-    case   Datum::Queue { // x not used
-        ...
+    case   Datum::Queue {
+        ... // x not used
     } 
-    default { // must come last (isn't necessary though if all types are handled explicitely)
+    default { // default must come last if all sub-types aren't handled explicitely)
         true
     }
 }
@@ -288,9 +288,6 @@ datum Datum = Datum::Submission{...}; // implicit upcasting
 sDatum Datum::Submission = Datum::Submission(datum); // explicit downcasting
 ...
 ```
-
-Implicit casting isn't available.
-
 
 ### Function expressions
 Plutus-Light supports anonymous function expressions with the following syntax:
