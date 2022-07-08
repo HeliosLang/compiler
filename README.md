@@ -123,7 +123,7 @@ Besides primitive types, some other opaque builtin types are defined:
  * `Address`
  * `Credential`
 
-These types require special builtin functions to access their content. Some also have builtin constructors. User-defined data types automatically generate a *cast* function allowing `Data` to be cast into that particular type.
+These types require special builtin functions to access their content. Some also have builtin constructors. User defined data-types automatically generate a *cast* function allowing `Data` to be cast into that particular type.
 
 ### User defined data-types
 User defined data-types look like struct definitions in C, but use the `data` keyword instead:
