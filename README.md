@@ -18,7 +18,7 @@ Note that the Plutus-Light library also contains a function to deserialize exist
 ## Quick start examples
 
 ### 1. Vesting contract example
-The following DSL example is equivalent to the Plutus vesting contract from the Plutus playground (it is used to demonstrate syntax only, and shouldn't be used in production!):
+The following DSL example is equivalent to the Plutus vesting contract from the Plutus playground (demonstration of syntax only, shouldn't be used in production!):
 ```golang
 data VestingTranche {
     time   Time, // amount is available after time
@@ -58,7 +58,7 @@ You can compile this source into Plutus-Core using the `plutus-light.js` library
 ```javascript
 import * as PL from "plutus-light.js"
 
-const src = `data VestingTrance {
+const src = `data VestingTranche {
 ...
 ...
 `;
@@ -94,7 +94,7 @@ Each primitive type has associated literal expressions:
  * `ByteArray`: `#abcdef0123456789` (i.e. pound symbol followed by a lower-case hexadecimal sequence)
 
 ### List types
-For now Plutus-Light only offers one builtin container type: lists. (We might offer a builtin map type at some point in the future).
+For now Plutus-Light only offers one builtin container type: lists. (We might implement a Map type at some point in the future).
 
 The syntax for list types and literal list expressions is the same as in Golang:
 ```golang
@@ -287,13 +287,13 @@ select (expr) {
     case   Datum::Queue {
         ... // x not used
     } 
-    default { // default must come last if all sub-types aren't handled explicitely)
+    default { // default must come last if all sub-types aren't handled explicitely
         true
     }
 }
 ```
 
-Direct explicit downcasting will also possible (a runtime error will be thrown if the type doesn't match):
+Direct explicit downcasting will also be possible (a runtime error will be thrown if the type doesn't match):
 ```golang
 datum Datum = Datum::Submission{...}; // implicit upcasting
 sDatum Datum::Submission = Datum::Submission(datum); // explicit downcasting
@@ -308,24 +308,24 @@ myAddIntegers func(Integer, Integer) Integer = func(a Integer, b Integer) Intege
 
 Note how the type expression for a function resembles the right-hand function value expression itself.
 
-Function values aren't entirely first class: they can't be put in containers (so not in lists nor in any fields of a `data` of `union` type).
+Function values aren't entirely first class: they can't be put in containers (so not in lists nor in any fields of a `data` or `union` type).
 
 ### Design principles
 * The DSL is a C-like language, so it can be read by almost any programmer.
 * C-like means that whitespace is insignificant.
 * For everything there should be one, and only one, obvious way of doing it.
-* Every symbol has only one function.
-* Brackets are only used for types (List-type and perhaps at some point in the future Map, Maybe etc.). Brackets aren't used for indexing (see `getIndex` builtin).
+* Each symbol/operator has only one kind of functionality. Only standard symbols/operators should be used (so nothing weird like in Haskell).
+* Brackets are only used for types (List-type and perhaps at some point in the future Map, Maybe etc.). Brackets aren't used for indexing (use `getIndex` builtin instead).
 * Semi-colons are operators and are part of assignment expressions. They can't be used as separators.
 * Similarly the equals-sign is part of assignment expressions, and can't be used as other 'special' syntax.
-* Because expressions can contain assignments all distinct expressions should be visibly separately scoped (inside parentheses or braces). 
+* Because expressions can contain assignments all distinct expressions should be visibly separately scoped (inside parentheses or braces, so no leaving out the parentheses of the `if-else`-conditions like in Golang). 
 * The colon and comma act as separators, never as operators.
 * No name shadowing, no keyword shadowing.
 * Every variable declaration must be fully typed.
 * No type aliases as some users might expect automatic up-and-down-casting, and others won't expect that.
-* Every declared name (local or global) must be used when main() is called. Unused names must be eliminated from the source-code.
-* All data types inside a union type must also be used.
-* (WiP) `const` declarations guarantee complete compile-time evaluation into primitive values. Expressions are otherwise never simplified/optimized.
+* Every declared name (local or global) must be used when `main()` is evaluated. Unused names must be eliminated from the source-code.
+* All data-types inside a union-type must also be used.
+* (WiP) Top-level `const` statements guarantee complete compile-time evaluation into primitive values. Expressions are otherwise never simplified/optimized.
 
 
 ### Untyped Plutus-Light
