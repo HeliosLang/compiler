@@ -1467,6 +1467,8 @@ class Tokenizer {
 			parseSecondChar('&');
 		} else if (c == '!' || (c >= '<' && c <= '>')) { // could be !=, ==, <= or >=
 			parseSecondChar('=');
+		} else if (c == ':') {
+			parseSecondChar(':');
 		}
 
 		ts.push(new Symbol(start, chars.join('')));
@@ -2072,7 +2074,7 @@ class DataTypeDecl extends Named {
 		return found;
 	}
 
-	toString() {
+	toStringInternal() {
 		let parts = [];
 
 		for (let member of this.fields_) {
@@ -2081,13 +2083,21 @@ class DataTypeDecl extends Named {
 			parts.push(key + ": " + obj.toString());
 		}
 
-		return `type ${this.name_.toString()} {${parts.join("")}}`;
+		return `${this.name_.toString()} {${parts.join("")}}`;
 	}
 
-	link(scope) {
+	toString() {
+		return "data " + this.toStringInternal();
+	}
+
+	linkFields(scope) {
 		for (let f of this.fields_) {
 			f[1].link(scope);
 		}
+	}
+
+	link(scope) {
+		this.linkFields(scope);
 
 		scope.setType(this);
 
@@ -2102,16 +2112,11 @@ class DataTypeDecl extends Named {
 		}
 
 		return other.name_.toString() == this.name_.toString();
-
 	}
 
 	evalMember(name) {
 		if (!this.fields_.has(name.toString())) {
-			if (this.name_ != null) {
-				name.referenceError("\'" + this.name_.toString() + "." + name.toString() + "\' undefined");
-			} else {
-				name.referenceError("member \'" + name.toString() + "\' undefined");
-			}
+			name.referenceError("\'" + this.name_.toString() + "." + name.toString() + "\' undefined");
 		} else {
 			let member = this.fields_.get(name.toString());
 
@@ -2137,6 +2142,7 @@ class DataTypeDecl extends Named {
 	}
 }
 
+
 class DataLiteral extends Expr {
 	constructor(loc, type, fields) {
 		super(loc);
@@ -2144,7 +2150,11 @@ class DataLiteral extends Expr {
 		this.fields_ = fields;
 	}
 
-	toString() {
+	get constrIndex() {
+		return 0;
+	}
+
+	toStringInternal() {
 		let parts = [];
 
 		for (let member of this.fields_) {
@@ -2153,7 +2163,11 @@ class DataLiteral extends Expr {
 			parts.push(key + ": " + obj.toString());
 		}
 
-		return `${this.type_.toString()}{${parts.join("")}}`;
+		return `{${parts.join(", ")}}`;
+	}
+
+	toString() {
+		return this.type_.toString() + this.toStringInternal();
 	}
 
 	link(scope) {
@@ -2167,12 +2181,16 @@ class DataLiteral extends Expr {
 	evalInternal() {
 		let dataDecl = this.type_.eval();
 
+		if (dataDecl instanceof UnionTypeDecl) {
+			this.type_.typeError("can't construct a union type directly");
+		}
+
 		if (!dataDecl instanceof DataTypeDecl) {
-			this.type_.referenceError("not a data type");
+			this.type_.typeError("not a data type");
 		}
 
 		if (this.fields_.length != dataDecl.fields_.length) {
-			this.typeError(`bad number of ${dataDecl.name.toString()} literal fields: expected ${dataDecl.fields_.length}, got ${this.fields_.length}`);
+			this.typeError(`unexpected number of ${dataDecl.name.toString()} literal fields: expected ${dataDecl.fields_.length}, got ${this.fields_.length}`);
 		}
 
 		let n = this.fields_.length;
@@ -2230,7 +2248,202 @@ class DataLiteral extends Expr {
 			res = `mkCons(${toData(expr.toUntyped(), type)}, ${res})`;
 		}
 
-		return `constrData(0, ${res})`;
+		return `constrData(${this.constrIndex.toString()}, ${res})`;
+	}
+}
+
+class UnionTypeDecl extends Named {
+	constructor(loc, name, members) {
+		super(loc, name);
+		this.members_ = members;
+		this.cache_ = null;
+
+		for (let member of this.members_) {
+			member.parent_ = this;
+		}
+	}
+
+	// returns an index
+	findMember(name) {
+		let found = -1;
+		let i = 0;
+		for (let member of this.members_) {
+			if (f.name.toString() == name.toString()) {
+				found = i;
+				break;
+			}
+			i++;
+		}
+
+		return found;
+	}
+
+	toString() {
+		let parts = this.members_.map(st => st.toString());
+
+		return `union ${this.name_.toString()} {${parts.join(", ")}}`;
+	}
+
+	link(scope) {
+		for (let member of this.members_) {
+			member.link(scope);
+		}
+
+		scope.setType(this);
+
+		// also set a special cast
+		scope.setValue(new DataCast(this), true);
+	}
+
+	eq(other) {
+		// actually check the fields
+		if (!other instanceof UnionTypeDecl) {
+			other = other.eval();
+		}
+
+		if (other.name_.toString() == this.name_.toString()) {
+			return true;
+		} else if (other instanceof UnionMemberDecl && other.parent_.name.toString() == this.name_.toString()) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	evalMember(name) {
+		let i = this.findMember(name);
+
+		if (i == -1) {
+			name.referenceError("\'" + this.name_.toString() + "::" + name.toString() + "\' undefined");
+		} else {
+			return this.members_[i].eval();
+		}
+	}
+
+	eval() {
+		if (this.cache_ != null) {
+			return this.cache_;
+		}
+
+		for (let member of this.members_) {
+			let memberType = member.eval();
+
+			assertNoFunctions(memberType);
+		}
+
+		this.cache_ = this;
+
+		return this.cache_;
+	}
+}
+
+class UnionMemberDecl extends DataTypeDecl {
+	constructor(name, fields) {
+		super(name.loc, name, fields);
+		this.parent_ = null;
+	}
+
+	get constrIndex() {
+		let i = this.parent_.findMember(this.name);
+
+		assert(i >= 0);
+
+		return i;
+	}
+
+	toString() {
+		return this.toStringInternal();
+	}
+
+	link(scope) {
+		this.linkFields(scope);
+	}
+
+	eq(other) {
+		// actually check the fields
+		if (!other instanceof UnionMemberDecl) {
+			other = other.eval();
+		}
+
+		if (!other instanceof UnionMemberDecl) {
+			return false;
+		}
+
+		if (other.name_.toString() == this.name_.toString() && other.parent_.name.toString() == this.parent_.name.toString()) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+}
+
+class UnionMemberLiteral extends DataLiteral {
+	constructor(loc, type, fields) {
+		super(loc, type, fields);
+	}
+
+	get constrIndex() {
+		return this.type_.eval().constrIndex;
+	}
+
+	evalInternal() {
+		let unionMemberDecl = this.type_.eval();
+
+		if (!unionMemberDecl instanceof UnionMemberDecl) {
+			this.type_.referenceError("not a union member type");
+		}
+
+		void super.evalInternal();
+
+		return unionMemberDecl;
+	}
+
+	evalData() {
+		let tmp = super.evalData();
+
+		return new ConstrData(this.constrIndex, tmp.fields_);
+	}
+}
+
+class UnionMemberCast extends Expr {
+	constructor(loc, type, expr) {
+		super(loc);
+		assert(type instanceof NamedMemberType);
+		this.type_ = type;
+		this.expr_ = expr;
+	}
+
+	toString() {
+		return `${this.type_.toString()}(${this.expr_.toString()})`;
+	}
+
+	link(scope) {
+		this.type_.link(scope);
+		this.expr_.link(scope);
+	}
+
+	evalInternal() {
+		let type = this.type_.eval();
+
+		let rhsType = this.expr_.eval();
+
+		if (rhsType instanceof DataType) { // cast can cast data
+			return type;
+		} else {
+			assertTypeMatch(type, this.expr_.eval());
+		}
+
+		return type;
+	}
+
+	registerGlobals(registry) {
+		AssertConstrIndex.register(registry);
+
+		this.expr_.registerGlobals(registry);
+	}
+
+	toUntyped() {
+		return `assertConstrIndex(${this.expr_.toUntyped()}, ${this.type_.constrIndex.toString()})`;
 	}
 }
 
@@ -2436,6 +2649,50 @@ class NamedType extends Token {
 		let type = scope.getType(this.name_);
 
 		this.ref_ = type;
+	}
+
+	eq(other) {
+		assert(this.ref_ != null);
+
+		return this.ref_.eval().eq(other);
+	}
+
+	eval() {
+		assert(this.ref_ != null);
+
+		return this.ref_.eval();
+	}
+}
+
+class NamedMemberType extends Token {
+	constructor(loc, unionName, memberName) {
+		super(loc);
+		this.unionName_ = unionName;
+		this.memberName_ = memberName;
+		this.ref_ = null; // reference to union type
+	}
+
+	get constrIndex() {
+		return this.ref_.constrIndex;
+	}
+
+	toString() {
+		return this.unionName_.toString() + "::" + this.memberName_.toString();
+	}
+
+	link(scope) {
+		let unionType = scope.getType(this.unionName_);
+
+		if (!unionType instanceof UnionTypeDecl) {
+			this.unionName_.typeError(`in ${this.toString()}: ${this.unionName_.toString()} is not a union type`);
+		}
+
+		let i = unionType.findMember(this.memberName_);
+		if (i == -1) {
+			this.memberName_.referenceError(`in ${this.toString()}: ${this.unionName_.toString()} doesn't have a member named ${this.memberName_.toString()}`);
+		}
+
+		this.ref_ = unionType.members_[i]; // unionType can be retrieved by accessing ref_.parent_
 	}
 
 	eq(other) {
@@ -6496,6 +6753,20 @@ class Blake2b extends BuiltinFunc {
 	}
 }
 
+class AssertConstrIndex extends BuiltinFunc {
+	static register(registry) {
+		registry.register("assertConstrIndex", `
+		func(d, i) {
+			ifThenElse(
+				equalsInteger(fstPair(unConstrData(d)), i),
+				func(){d},
+				func(){error()}
+			)()
+		}
+		`);
+	}
+}
+
 ////////////////////////////////////////
 // Data for schema of Datum and Redeemer
 ////////////////////////////////////////
@@ -6572,7 +6843,9 @@ function buildProgram(ts, purpose) {
 		let t = ts.shift();
 
 		if (t.isWord("data")) {
-			decls.push(buildTypeDecl(t.loc, ts));
+			decls.push(buildDataTypeDecl(t.loc, ts));
+		} else if (t.isWord("union")) {
+			decls.push(buildUnionTypeDecl(t.loc, ts));
 		} else if (t.isWord("const")) {
 			decls.push(buildConstDecl(t.loc, ts));
 		} else if (t.isWord("func")) {
@@ -6585,33 +6858,33 @@ function buildProgram(ts, purpose) {
 	return new PlutusLightProgram(decls, purpose);
 }
 
-
-function buildTypeDecl(start, ts) {
+function buildDataTypeDecl(start, ts) {
 	let name = ts.shift().assertWord();
 
 	assert(ts.length > 0);
 
-	let t = ts[0];
+	let braces = ts.shift();
 
-	if (t.isGroup("{")) {
-		return buildDataTypeDecl(start, name, ts);
-	} else {
-		t.syntaxError("type alias not yet supported");
-		return buildTypeAliasDecl(start, name, ts);
+	if (!braces.isGroup("{")) {
+		t.syntaxError("invalid syntax for data declaration");
 	}
-}
-
-function buildDataTypeDecl(start, name, ts) {
+	
 	let dataFields = new Map();
-
-	buildDataTypeDeclFields(ts.shift().fields, dataFields);
+	
+	buildDataFields(braces, dataFields);
 
 	return new DataTypeDecl(start, name, dataFields);
 }
 
-function buildDataTypeDeclFields(fields, dataFields) {
-	for (let f of fields) {
-		assert(f.length >= 0);
+function buildDataFields(braces, dataFields) {
+	let rawFields = braces.fields;
+
+	for (let f of rawFields) {
+		if (f.length == 0) {
+			braces.syntaxError("empty data field")
+		} else if (f.length < 2) {
+			f[0].syntaxError("invalid data field declaration")
+		}
 
 		let name = f.shift().assertWord();
 
@@ -6627,6 +6900,49 @@ function buildDataTypeDeclFields(fields, dataFields) {
 	}
 }
 
+function buildUnionTypeDecl(start, ts) {
+	let name = ts.shift().assertWord();
+
+	assert(ts.length > 0);
+
+	let t = ts.shift();
+
+	if (!t.isGroup("{")) {
+		t.syntaxError("invalid syntax for union declaration");
+	}
+
+	if (t.fields.length == 0) {
+		t.syntaxError("invalid union declaration: expected at least one member");
+	}
+
+	let members = [];
+	for (let f of t.fields) {
+		if (f.length == 0) {
+			t.syntaxError("empty union member");
+		} else if (f.length != 2) {
+			t.syntaxError("invalid union member");
+		}
+
+		let memberName = f.shift().assertWord();
+		for (let check of members) {
+			if (check.name.toString() == memberName.toString()) {
+				subName.syntaxError(`duplicate union member name \'${memberName.toString()}\'`);
+			}
+		}
+
+		let memberBraces = f.shift().assertGroup("{");
+
+		let memberFields = new Map();
+
+		buildDataFields(memberBraces, memberFields);
+
+		members.push(new UnionMemberDecl(memberName, memberFields));
+	}
+
+	return new UnionTypeDecl(start, name, members);
+}
+
+// Type aliases are seen as a bad idea at this time, but the code is kept in case we decide otherwise in the future
 function buildTypeAliasDecl(start, name, ts) {
 	let stack = []; // keep track of blocks
 
@@ -6760,7 +7076,11 @@ function buildTypeExpr(ts) {
 			ts[0].syntaxError("invalid syntax (hint: are you missing a comma?)");
 		}
 
-		return new NamedType(t);
+		if (ts[0].isSymbol("::")) {
+			return buildUnionMemberTypeExpr(t, ts);
+		} else {
+			return new NamedType(t);
+		}
 	} else {
 		throw new Error("invalid syntax");
 	}
@@ -6791,6 +7111,21 @@ function buildFuncType(start, ts) {
 	start.syntaxError("invalid syntax");
 }
 
+function buildUnionMemberTypeExpr(unionName, ts) {
+	if (ts.length < 2) {
+		unionName.syntaxError("invalid union sub-type expression");
+	}
+
+	let symbol = ts.shift().assertSymbol("::");
+
+	let subName = ts.shift();
+	if (!subName.isWord()) {
+		subName.syntaxError("invalid union sub-type expression");
+	}
+
+	return new NamedMemberType(symbol.loc, unionName, subName);
+}
+
 function buildListLiteral(start, itemTypeTokens, braces) {
 	let itemType = buildTypeExpr(itemTypeTokens);
 
@@ -6803,9 +7138,7 @@ function buildListLiteral(start, itemTypeTokens, braces) {
 	return new ListLiteral(start, itemType, items);
 }
 
-function buildDataLiteral(typeName, braces) {
-	let type = buildTypeExpr([typeName]);
-
+function buildDataLiteralFields(braces) {
 	let fields = new Map();
 
 	for (let f of braces.fields) {
@@ -6821,7 +7154,29 @@ function buildDataLiteral(typeName, braces) {
 		fields.set(name.toString(), val);
 	}
 
+	return fields;
+}
+
+function buildDataLiteral(typeName, braces) {
+	let type = buildTypeExpr([typeName]);
+
+	let fields = buildDataLiteralFields(braces);
+
 	return new DataLiteral(braces.loc, type, fields);
+}
+
+function buildUnionMemberLiteral(type, braces) {
+	let type = buildTypeExpr([unionName, new Symbol(loc, "::"), memberName]);
+
+	let fields = buildDataLiteralFields(braces);
+
+	return new UnionMemberLiteral(braces.loc, type, fields);
+}
+
+function buildUnionMemberCast(type, parens) {
+	assert(parens.fields.length == 1);
+	
+	return new UnionMemberCast(parens.loc, type, buildValExpr(parens.fields[0]));
 }
 
 function buildValExpr(ts, prec) {
@@ -6906,7 +7261,7 @@ const EXPR_BUILDERS = [
 	genBinaryOperatorBuilder(['+', '-']), // 5: addition subtraction
 	genBinaryOperatorBuilder(['*', '/', '%']), // 6: multiplication division remainder
 	genUnaryOperatorBuilder(['!', '+', '-']), // 7: logical not, negate
-	// 8: variables or literal values chained with: member access, indexing and calling
+	// 8: variables or literal values chained with: (union)member access, indexing and calling
 	function(ts, prec) {
 		let t = ts.shift();
 
@@ -7035,8 +7390,25 @@ const EXPR_BUILDERS = [
 				let name = expr.name_;
 	
 				expr = buildDataLiteral(name, t);
+			} else if (t.isSymbol("::")) {
+				if (expr == null) {
+					t.syntaxError("invalid syntax");
+				} else if (! expr instanceof Variable) {
+					t.syntaxError("invalid union member syntax");
+				}
+
+				let type = buildTypeExpr([expr.name_, t, ts.shift().assertWord()]);
+				let group = ts.shift().assertGroup();
+
+				if (group.isGroup("(")) {
+					expr = buildUnionMemberCast(type, group);
+				} else if (group.isGroup("{")) {
+					expr = buildUnionMemberLiteral(type, group);
+				} else {
+					group.syntaxError("invalid syntax");
+				}
 			} else {
-				t.syntaxError("invalid syntax: " + t.toString() + " (" + prec + ")");
+				t.syntaxError(`invalid syntax: ${t.toString()} (${prec})`);
 			}
 		}
 
