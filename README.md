@@ -18,7 +18,7 @@ Note that the Plutus-Light library also contains a function to deserialize exist
 ## Quick start examples
 
 ### 1. Vesting contract example
-The following DSL example is equivalent to the Plutus vesting contract from the Plutus playground:
+The following DSL example is equivalent to the Plutus vesting contract from the Plutus playground (it is used to demonstrate syntax only, and shouldn't be used in production!):
 ```golang
 data VestingTranche {
     time   Time, // amount is available after time
