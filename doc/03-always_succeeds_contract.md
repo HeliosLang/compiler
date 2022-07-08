@@ -65,10 +65,10 @@ TxHash             TxIx  Amount
 We now have everything we need to build a transaction and submit it.
 
 Let's send 2 tAda (2 million lovelace) to the script address:
-```bash
+```
 > TX_BODY=$(mktemp)
 > cardano-cli transaction build \
-  --tx-in <funding-utxo> \
+  --tx-in 4f3d...#0 \
   --tx-out $(cat /data/scripts/always-succeeds.addr)+2000000 \
   --tx-out-datum-hash $DATUM_HASH \
   --change-address $(cat /data/wallets/wallet1.addr) \
