@@ -259,9 +259,9 @@ Branch deferral is the expected behaviour for C-like languages.
 Plutus-Light supports tagged unions:
 ```
 union Datum {
-    SubmissionDatum,
-    QueueDatum,
-    PostDatum
+    Submission{...},
+    Queue{...},
+    Post{...}
 }
 ```
 
@@ -269,11 +269,11 @@ Right now the contained types must be user-defined data-types (they can't be pri
 
 The `select` expression is used to handle the content of a union type instance:
 ```golang
-select x (expr) {
-    case SubmissionDatum {
+select (expr) {
+    case x Datum::Submission {
         ...
     } 
-    case QueueDatum {
+    case   Datum::Queue { // x not used
         ...
     } 
     default { // must come last (isn't necessary though if all types are handled explicitely)
@@ -284,8 +284,8 @@ select x (expr) {
 
 Direct explicit casting is also possible (a runtime error is thrown if the type doesn't match during downcasting).
 ```golang
-datum Datum = Datum(SubmissionDatum{...}); // must be explicit
-sDatum SubmissionDatum = SubmissionDatum(datum);
+datum Datum = Datum::Submission{...}; // implicit upcasting
+sDatum Datum::Submission = Datum::Submission(datum); // explicit downcasting
 ...
 ```
 
