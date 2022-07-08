@@ -293,8 +293,7 @@ select (expr) {
 }
 ```
 
-Direct explicit downcasting will also possible (a runtime error will be thrown if the type doesn't match).
-
+Direct explicit downcasting will also possible (a runtime error will be thrown if the type doesn't match):
 ```golang
 datum Datum = Datum::Submission{...}; // implicit upcasting
 sDatum Datum::Submission = Datum::Submission(datum); // explicit downcasting
