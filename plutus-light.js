@@ -3516,6 +3516,139 @@ class BranchExpr extends Expr {
 	}
 }
 
+class SelectExpr extends Expr {
+	constructor(loc, expr, cases) {
+		super(loc);
+		this.expr_ = expr;
+		this.cases_ = cases;
+	}
+
+	toString() {
+		`select(${this.expr_.toString()}) ${this.cases_.map(c => c.toString())}`;
+	}
+
+	link(scope) {
+		this.expr_.link(scope);
+
+		for (let c of this.cases_) {
+			c.link(scope);
+		}
+	}
+
+	evalInternal() {
+		let expr = this.expr_.eval();
+
+		if (!expr instanceof UnionTypeDecl) {
+			this.expr_.typeError("not a union type");
+		}
+
+		let commonCaseType = null;
+		for (let c of this.cases_) {
+			let caseType = c.eval(expr);
+
+			if (commonCaseType == null) {
+				commonCaseType = caseType;
+			} else {
+				if (!commonCaseType.eq(caseType)) {
+					if (commonCaseType instanceof UnionMemberDecl) {
+						if (commonCaseType.parent_.eq(caseType)) {
+							commonCaseType = commonCaseType.parent_;
+						} else {
+							c.typeError("inconsistent return type");
+						}
+					} else {
+						c.typeError("inconsistent return type");
+					}
+				}
+			}
+		}
+
+		assert(commonCaseType != null);
+
+		if (this.cases_[this.cases_.length-1].type_ != null && expr.members_.length > this.cases_.length) {
+			this.typeError("insufficient coverage in select expression");
+		}
+
+		return commonCaseType;
+	}
+
+	registerGlobals(registry) {
+		this.expr_.registerGlobals(registry);
+
+		for (let c of this.cases_) {
+			c.registerGlobals(registry);
+		}
+	}
+
+	toUntyped() {
+		let n = this.cases_.length;
+
+		let res = this.cases_[n-1].toUntyped();
+
+		for (let i = n-2; i >= 0; i--) {
+			res = `ifThenElse(equalsInteger(i, ${this.cases_[i].type_.constrIndex.toString()}), func(){${this.cases_[i].toUntyped()}}, func(){${res}})()`;
+		}
+
+		return `func(e) {
+			(
+				func(i) {
+					${res}
+				}(fstPair(unConstrData(e)))
+			)(e)
+		}(${this.expr_.toUntyped()})`;
+	}
+}
+
+class SelectCase extends Token {
+	constructor(loc, varName, type, body) {
+		super(loc);
+		this.varName_ = varName;
+		this.type_ = type;
+		this.body_ = body;
+	}
+
+	toString() {
+		if (this.type_ == null) {
+			return ` default {${this.body_.toString()}}`;
+		} else if (this.varName_ == null) {
+			return ` case ${this.type_.toString()} {${this.body_.toString()}}`
+		} else {
+			return `case (${this.varName_.toString()} ${this.type_.toString()}) {${this.body_.toString()}}`;
+		}
+	}
+
+	link(scope) {
+		// TODO: allow recursive calls of self
+		let caseScope = new Scope(scope);
+
+		if (this.type_ != null) {
+			this.type_.link(scope);
+
+			if (this.varName_ != null) {
+				caseScope.setValue(new NamedValue(this.varName_, this.type_));
+			}
+		} 
+
+		this.expr_.link(caseScope);
+
+		caseScope.assertAllUsed();
+	}
+
+	eval(expr) {
+		assert(expr.eq(this.type_.eval()));
+
+		return this.body_.eval();
+	}
+
+	registerGlobals(registry) {
+		this.body_.registerGlobals(registry);
+	}
+
+	toUntyped() {
+		return `func(${this.varName_ != null ? this.varName_.toString() : "_"}){${this.body_.toUntyped()}}`;
+	}
+}
+
 class CallExpr extends Expr {
 	constructor(loc, lhs, args) {
 		super(loc);
@@ -7219,6 +7352,118 @@ function genUnaryOperatorBuilder(symbol) {
 	}
 }
 
+function buildBranchExpr(loc, ts) {
+	let conditions = [];
+	let blocks = [];
+	while (true) {
+		let parens = ts.shift().assertGroup("(");
+		let braces = ts.shift().assertGroup("{");
+
+		if (parens.fields_.length != 1) {
+			parens.syntaxError("expected single condition");
+		}
+
+		if (braces.fields_.length != 1) {
+			braces.syntaxError("expected single expession for branch block");
+		}
+
+		conditions.push(buildValExpr(parens.fields_[0]));
+		blocks.push(buildValExpr(braces.fields_[0]));
+
+		ts.shift().assertWord("else");
+
+		let next = ts.shift();
+		if (next.isGroup("{")) {
+			// last group
+			let braces = next;
+			if (braces.fields_.length != 1) {
+				braces.syntaxError("expected single expession for branch block");
+			}
+			blocks.push(buildValExpr(braces.fields_[0]));
+			break;
+		} else if (next.isWord("if")) {
+			continue;
+		} else {
+			next.syntaxError("unexpected token");
+		}
+	}
+
+	return new BranchExpr(loc, conditions, blocks);
+}
+
+function buildSelectExpr(loc, ts) {
+	let parens = ts.shift().assertGroup("(");
+
+	if (parens.fields_.length != 1) {
+		parens.syntaxError("expected single expression");
+	}
+
+	let expr = buildValExpr(parens.fields[0]);
+
+	let cases = [];
+	let def = null;
+
+	while (true) {
+		let keyword = ts.shift().assertWord();
+		let varName = null;
+		let caseType = null;
+		if (keyword.isWord("case")) {
+			if (def != null) {
+				def.syntaxError("default select must come last");
+			}
+
+			let parens = ts.shift();
+			if (parens.isGroup("(")) {
+				assert(parens.fields.length == 1);
+				assert(parens.fields[0].length > 1);
+
+				varName = next.fields[0][0].assertWord();
+
+				caseType = buildTypeExpr(next.fields[0].slice(1));
+			} else {
+				let iBody = Group.find(ts, "{");
+				caseType = buildTypeExpr(ts.slice(0, iBody));
+				void ts.splice(0, iBody);
+			}
+
+			assert(caseType instanceof NamedMemberType);
+
+			for (let check of cases) {
+				if (check.type_.toString() == caseType.toString()) {
+					caseType.syntaxError("duplicate select case");
+				} else if (check.type_.unionName_.toString() != caseType.type_.unionName_.toString()) {
+					caseType.syntaxError("inconsistent union type");
+				}
+			}
+		} else if (keyword.isWord("default")) {
+			if (cases.length == 0) {
+				keyword.syntaxError("default select block can never be first");
+			} else if (def != null) {
+				keyword.syntaxError("duplicate default block");
+			}
+
+			def = keyword;
+		} else {
+			if (cases.length < 1) {
+				loc.syntaxError("expected at least one case");
+			}
+			
+			break;
+		}
+
+		let braces = ts.shift().assertGroup("{");
+		if (braces.fields.length != 1) {
+			braces.syntaxError("expected one field");
+		}
+
+		let expr = buildValExpr(braces.fields[0]);
+
+		cases.push(new SelectCase(varName, caseType, expr));
+	}
+
+	return new SelectExpr(loc, expr, cases);
+}
+
 // lower index is lower precedence
 const EXPR_BUILDERS = [
 	// 0: lowest precedence is assignment
@@ -7279,42 +7524,9 @@ const EXPR_BUILDERS = [
 
 			expr = new FuncExpr(t.loc, args, retType, body);
 		} else if (t.isWord("if")) {
-			let conditions = [];
-			let blocks = [];
-			while (true) {
-				let parens = ts.shift().assertGroup("(");
-				let braces = ts.shift().assertGroup("{");
-
-				if (parens.fields_.length != 1) {
-					parens.syntaxError("expected single condition");
-				}
-
-				if (braces.fields_.length != 1) {
-					braces.syntaxError("expected single expession for branch block");
-				}
-
-				conditions.push(buildValExpr(parens.fields_[0]));
-				blocks.push(buildValExpr(braces.fields_[0]));
-
-				ts.shift().assertWord("else");
-
-				let next = ts.shift();
-				if (next.isGroup("{")) {
-					// last group
-					let braces = next;
-					if (braces.fields_.length != 1) {
-						braces.syntaxError("expected single expession for branch block");
-					}
-					blocks.push(buildValExpr(braces.fields_[0]));
-					break;
-				} else if (next.isWord("if")) {
-					continue;
-				} else {
-					next.syntaxError("unexpected token");
-				}
-			}
-
-			return new BranchExpr(t.loc, conditions, blocks);		
+			expr = buildBranchExpr(t.loc, ts);
+		} else if (t.isWord("select")) {	
+			expr = buildSelectExpr(t.loc, ts);
 		} else if (t.isWord()) {
 			if (t.toString() in PLUTUS_LIGHT_BUILTIN_FUNCS) {
 				if (ts.length == 0) {
