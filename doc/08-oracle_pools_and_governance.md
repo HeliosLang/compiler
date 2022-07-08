@@ -83,26 +83,22 @@ Submission UTXO datum:
 
 The sometimes vastly differing datum types probably made it worthwhile to introduce union types:
 ```golang
-data PostDatum {
-    dataPoint Integer,
-    govParams GovernanceParams
-}
-
-data SubmitDatum {
-    owner     PubKeyHash,
-    salt      Integer,
-    dataPoint Integer,
-    time      Time,
-    govParams GovernanceParams
-}
-
-data QueueDatum {
-    inputs []TxOutputId
-}
-
 union Datum {
-    PostDatum, 
-    SubmitDatum,
-    QueueDatum
+    Post {
+        dataPoint Integer,
+        govParams GovernanceParams
+    }, 
+    Submit {
+        owner     PubKeyHash,
+        salt      Integer,
+        dataPoint Integer,
+        time      Time,
+        govParams GovernanceParams
+    },
+    Queue {
+        inputs []TxOutputId
+    }
 }
 ```
+
+Data constructors must have a unique order, and can only be used in a single union. The data constructor type can be referenced using the `::` symbol (eg. `Datum::Post`).
