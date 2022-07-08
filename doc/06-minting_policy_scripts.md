@@ -1,6 +1,6 @@
 # Part 6 of Plutus-Light how-to guide: Minting policy scripts
 
-Minting policy scripts are very similar to validator scripts for spending. They don't accept a `Datum` argument though, only `Redeemer` or `ScriptContext`.
+Minting policy scripts are very similar to validator scripts for spending. They don't accept a `Datum` argument though, only `Redeemer` and/or `ScriptContext`.
 
 The most trivial minting policy would allow any number of tokens to be minted (or burned):
 ```golang
@@ -32,7 +32,7 @@ func main(ctx ScriptContext) Bool {
 ```
 Note that this minting policy can't be used for burning.
 
-Choose a good UTXO before compiling the minting policy. The UTXO must be large enough to cover the transaction fee (and collateral), and have enough *lovelace* left-over to send back along with the newly minted asset (each UTXO must contain some *lovelace*).
+Let's use the script above to mint an NFT. Choose a good UTXO before compiling the minting policy. The UTXO must be large enough to cover the transaction fee (and collateral), and have enough *lovelace* left-over to send back along with the newly minted asset (each UTXO must contain some *lovelace*).
 
 Compile the minting policy script:
 ```bash
