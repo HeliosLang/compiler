@@ -63,15 +63,8 @@ const src = `data VestingTrance {
 ...
 `;
 
-let cborHex = PL.compilePlutusLightProgram(src);
-
-let plutusObject = {
-    "type": "PlutusScriptV1",
-    "description": "",
-    "cborHex": cborHex,
-}
-
-// write JSON.stringify(plutusObject) to a file to be able to use it with cardano-cli
+console.log(PL.compilePlutusLightProgram(src));
+// the output can be saved to a file, and that file can be used directly by cardano-cli
 ```
 
 ### 2. Deserialize Plutus-Core
@@ -87,7 +80,7 @@ console.log(PL.deserializePlutusCoreCborHexString(cborHex));
 ## Plutus-Light details
 
 ### Syntax
-Plutus-Light has a C-like syntax, heavily inspired by Golang. A function body is a single expression. There are no statements, and consequently no `return` statements. 
+Plutus-Light has a C-like syntax. A function body is a single expression. There are no statements, and consequently no `return` statements. 
 
 `=` combined with `;` is a ternary operator. `x = upstream; downstream...` is syntactic sugar for `func(x){downstream...}(upstream)`.
 
@@ -100,6 +93,15 @@ Each primitive type has associated literal expressions:
  * `String`: `"..."` or `'...'`
  * `ByteArray`: `#abcdef0123456789` (i.e. pound symbol followed by a lower-case hexadecimal sequence)
 
+### List types
+For now Plutus-Light only offers one builtin container type: lists. (We might offer a builtin map type at some point in the future).
+
+The syntax for list types and literal list expressions is the same as in Golang:
+```golang
+numbers []Integer = []Integer{1, 2, 3};
+...
+```
+
 ### Other builtin types
 Besides primitive types, some other opaque builtin types are defined:
  * `ScriptContext`
@@ -110,6 +112,7 @@ Besides primitive types, some other opaque builtin types are defined:
  * `TxOutputId`
  * `PubKeyHash`
  * `ValidatorHash`
+ * `MintingPolicyHash`
  * `DatumHash`
  * `Time`
  * `TimeRange`
@@ -251,26 +254,24 @@ These types require special builtin functions to access their content. Some also
 
 
 ### If-Then-Else
-The branches of `ifThenElse` are deferred by wrapping them in lambda expressions, and calling the returned lambda expression with zero arguments. `&&` and `||` operate similarly.
+The branches of the Plutus-Core `ifThenElse` function are deferred by wrapping them in lambda expressions, and calling the returned lambda expression with zero arguments. `&&` and `||` operate similarly.
 
 Branch deferral is the expected behaviour for C-like languages.
 
 ### Union types
-Plutus-Light supports tagged unions:
-```
+Plutus-Light will soon support tagged unions:
+```golang
 union Datum {
-    Submission{...},
+    Submission{...}, // content of Submission has the same syntax as a regular data-type
     Queue{...},
     Post{...}
 }
 ```
 
-Right now the contained types must be user-defined data-types (they can't be primitive types). We might lift this restriction in the future though.
-
-The `select` expression is used to handle the content of a union type instance:
+We are planning to implement a `select` expression that will be used to handle the content of union-type instances:
 ```golang
 select (expr) {
-    case x Datum::Submission {
+    case x Datum::Submission { // double-colon to reference the sub-type
         ... // expression must use x
     } 
     case   Datum::Queue {
@@ -282,7 +283,8 @@ select (expr) {
 }
 ```
 
-Direct explicit casting is also possible (a runtime error is thrown if the type doesn't match during downcasting).
+Direct explicit downcasting will also possible (a runtime error will be thrown if the type doesn't match).
+
 ```golang
 datum Datum = Datum::Submission{...}; // implicit upcasting
 sDatum Datum::Submission = Datum::Submission(datum); // explicit downcasting
@@ -297,24 +299,24 @@ myAddIntegers func(Integer, Integer) Integer = func(a Integer, b Integer) Intege
 
 Note how the type expression for a function resembles the right-hand function value expression itself.
 
-Function values aren't entirely first class: they can't be put in containers (so not in lists nor in any fields of a `data` type).
+Function values aren't entirely first class: they can't be put in containers (so not in lists nor in any fields of a `data` of `union` type).
 
 ### Design principles
 * The DSL is a C-like language, so it can be read by almost any programmer.
-* Whitespace is insignificant.
+* C-like means that whitespace is insignificant.
 * For everything there should be one, and only one, obvious way of doing it.
 * Every symbol has only one function.
-* Brackets are only used for types (List-type and perhaps at some point in the future parametric types). Brackets aren't used for indexing.
+* Brackets are only used for types (List-type and perhaps at some point in the future Map, Maybe etc.). Brackets aren't used for indexing (see `getIndex` builtin).
 * Semi-colons are operators and are part of assignment expressions. They can't be used as separators.
-* Similarly the equals-sign is part of assignment expressions, and can't be used in other syntax.
-* Because expressions can contain assignments all distinct expressions must be clearly separately scoped (inside parentheses or braces). 
+* Similarly the equals-sign is part of assignment expressions, and can't be used as other 'special' syntax.
+* Because expressions can contain assignments all distinct expressions should be visibly separately scoped (inside parentheses or braces). 
 * The colon and comma act as separators, never as operators.
 * No name shadowing, no keyword shadowing.
 * Every variable declaration must be fully typed.
 * No type aliases as some users might expect automatic up-and-down-casting, and others won't expect that.
-* Every local and every global variable/construct (including function arguments) must be used when main() is called. Unused variables must be eliminated from the source-code.
+* Every declared name (local or global) must be used when main() is called. Unused names must be eliminated from the source-code.
 * All data types inside a union type must also be used.
-* `const` declarations guarantee complete compile-time evaluation. Expressions are otherwise never simplified/optimized during compilation.
+* (WiP) `const` declarations guarantee complete compile-time evaluation into primitive values. Expressions are otherwise never simplified/optimized.
 
 
 ### Untyped Plutus-Light
