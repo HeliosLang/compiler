@@ -1616,7 +1616,7 @@ class Scope {
 		assert(parent != null);
 
 		this.parent_ = parent;
-		this.types_ = new Map(); // struct types, type aliases
+		this.types_ = new Map(); // data types and union types
 		this.values_ = new Map(); // funcs, consts
 	}
 
@@ -2049,7 +2049,7 @@ class Named extends Token {
 	}
 }
 
-class StructTypeDecl extends Named {
+class DataTypeDecl extends Named {
 	constructor(loc, name, fields) {
 		super(loc, name);
 		assert(name != null);
@@ -2097,7 +2097,7 @@ class StructTypeDecl extends Named {
 
 	eq(other) {
 		// actually check the fields
-		if (!other instanceof StructTypeDecl) {
+		if (!other instanceof DataTypeDecl) {
 			other = other.eval();
 		}
 
@@ -2137,7 +2137,7 @@ class StructTypeDecl extends Named {
 	}
 }
 
-class StructLiteral extends Expr {
+class DataLiteral extends Expr {
 	constructor(loc, type, fields) {
 		super(loc);
 		this.type_ = type;
@@ -2165,24 +2165,24 @@ class StructLiteral extends Expr {
 	}
 
 	evalInternal() {
-		let structDecl = this.type_.eval();
+		let dataDecl = this.type_.eval();
 
-		if (!structDecl instanceof StructTypeDecl) {
-			this.type_.referenceError("not a struct type");
+		if (!dataDecl instanceof DataTypeDecl) {
+			this.type_.referenceError("not a data type");
 		}
 
-		if (this.fields_.length != structDecl.fields_.length) {
-			this.typeError(`bad number of ${structDecl.name.toString()} literal fields: expected ${structDecl.fields_.length}, got ${this.fields_.length}`);
+		if (this.fields_.length != dataDecl.fields_.length) {
+			this.typeError(`bad number of ${dataDecl.name.toString()} literal fields: expected ${dataDecl.fields_.length}, got ${this.fields_.length}`);
 		}
 
 		let n = this.fields_.length;
 
 		for (let i = 0; i < n; i++) {
-			if (this.fields_.keys()[i] != structDecl.fields_.keys()[i]) {
+			if (this.fields_.keys()[i] != dataDecl.fields_.keys()[i]) {
 				this.typeError(`bad field name ${this.fields_.keys()[i]}`);
 			}
 
-			let expectedFieldType = structDecl.values()[i].eval();
+			let expectedFieldType = dataDecl.values()[i].eval();
 			let actualFieldType = this.fields_.values()[i].eval();
 
 			if (!expectedFieldType.eq(actualFieldType)) {
@@ -2190,7 +2190,7 @@ class StructLiteral extends Expr {
 			}
 		}
 
-		return structDecl;
+		return dataDecl;
 	}
 
 	evalData() {
@@ -2599,8 +2599,8 @@ class Variable extends Token {
 function assertNoFunctions(type) {
 	if (type instanceof FuncType) {
 		throw new Error("container can't contain function");
-	} else if (type instanceof StructTypeDecl) {
-		// handled by calling eval on StructTypeDecl itself
+	} else if (type instanceof DataTypeDecl) {
+		// handled by calling eval on DataTypeDecl itself
 		return;
 	} else if (type instanceof BoolType) {
 		return;
@@ -3468,8 +3468,8 @@ class MemberExpr extends Expr {
 	evalInternal() {
 		let lhs = this.lhs_.eval();
 
-		if (!(lhs instanceof StructTypeDecl)) {
-			this.typeError("\'" + this.lhs_ + "\' is not a struct");
+		if (!(lhs instanceof DataTypeDecl)) {
+			this.typeError("\'" + this.lhs_ + "\' is not a data-type");
 		}
 
 		return lhs.evalMember(this.name_);
@@ -5889,7 +5889,7 @@ class ValueLockedByDatum extends BuiltinFunc {
 
 		let dataType = args[2].eval();
 
-		if (! dataType instanceof StructTypeDecl) {
+		if (! dataType instanceof DataTypeDecl) {
 			loc.typeError(`${this.name}() expects user data-type for arg 3: got \'${dataType.toString()}\'`)
 		}
 
@@ -6270,7 +6270,7 @@ class FindDatumHash extends BuiltinFunc {
 
 		let dataType = args[1].eval();
 
-		if (! dataType instanceof StructTypeDecl) {
+		if (! dataType instanceof DataTypeDecl) {
 			loc.typeError(`${this.name}() expects user data-type for arg 2: got \'${dataType.toString()}\'`)
 		}
 
@@ -6319,7 +6319,7 @@ class GetIndex extends BuiltinFunc {
 
 		let idxType = args[1].eval();
 
-		if (! idxType instanceof StructTypeDecl) {
+		if (! idxType instanceof IntegerType) {
 			loc.typeError(`${this.name}() expects Integer for arg 2: got \'${idxType.toString()}\'`)
 		}
 
@@ -6388,7 +6388,7 @@ class Head extends BuiltinFunc {
 			loc.typeError(`${this.name}() expects []Any for arg 1: got \'${lstType.toString()}\'`)
 		}
 
-		let itemType = lstType.itemType;s
+		let itemType = lstType.itemType;
 
 		assert(itemType != null);
 
@@ -6594,36 +6594,36 @@ function buildTypeDecl(start, ts) {
 	let t = ts[0];
 
 	if (t.isGroup("{")) {
-		return buildStructTypeDecl(start, name, ts);
+		return buildDataTypeDecl(start, name, ts);
 	} else {
 		t.syntaxError("type alias not yet supported");
 		return buildTypeAliasDecl(start, name, ts);
 	}
 }
 
-function buildStructTypeDecl(start, name, ts) {
-	let struct = new Map();
+function buildDataTypeDecl(start, name, ts) {
+	let dataFields = new Map();
 
-	buildStructTypeDeclFields(ts.shift().fields, struct);
+	buildDataTypeDeclFields(ts.shift().fields, dataFields);
 
-	return new StructTypeDecl(start, name, struct);
+	return new DataTypeDecl(start, name, dataFields);
 }
 
-function buildStructTypeDeclFields(fields, struct) {
+function buildDataTypeDeclFields(fields, dataFields) {
 	for (let f of fields) {
 		assert(f.length >= 0);
 
 		let name = f.shift().assertWord();
 
-		if (struct.has(name.toString())) {
-			name.typeError("duplicate struct member \'" + name.toString() + "\'");
+		if (dataFields.has(name.toString())) {
+			name.typeError("duplicate data member \'" + name.toString() + "\'");
 		}
 
 		let type = buildTypeExpr(f);
 
-		// no anonymous struct types allowed yet
+		// no anonymous data types allowed yet
 
-		struct.set(name.toString(), type);
+		dataFields.set(name.toString(), type);
 	}
 }
 
@@ -6803,7 +6803,7 @@ function buildListLiteral(start, itemTypeTokens, braces) {
 	return new ListLiteral(start, itemType, items);
 }
 
-function buildStructLiteral(typeName, braces) {
+function buildDataLiteral(typeName, braces) {
 	let type = buildTypeExpr([typeName]);
 
 	let fields = new Map();
@@ -6815,13 +6815,13 @@ function buildStructLiteral(typeName, braces) {
 		let val = buildValExpr(f);
 
 		if (fields.has(name.toString())) {
-			name.typeError("duplicate struct member \'" + name.toString() + "\'");
+			name.typeError("duplicate data member \'" + name.toString() + "\'");
 		}
 
 		fields.set(name.toString(), val);
 	}
 
-	return new StructLiteral(braces.loc, type, fields);
+	return new DataLiteral(braces.loc, type, fields);
 }
 
 function buildValExpr(ts, prec) {
@@ -7027,14 +7027,14 @@ const EXPR_BUILDERS = [
 				expr = new MemberExpr(t.loc, expr, name);
 			} else if (t.isGroup("{")) {
 				if (expr == null) {
-					t.syntaxError("empty literal struct not allowed");
+					t.syntaxError("empty literal data not allowed");
 				} else if (! expr instanceof Variable) {
-					t.syntaxError("invalid struct literal");
+					t.syntaxError("invalid data literal");
 				}
 	
 				let name = expr.name_;
 	
-				expr = buildStructLiteral(name, t);
+				expr = buildDataLiteral(name, t);
 			} else {
 				t.syntaxError("invalid syntax: " + t.toString() + " (" + prec + ")");
 			}
