@@ -23,16 +23,16 @@ You can stop the container any time:
 ```bash
 $ docker stop <container-id>
 ```
-I recommend using `docker stop` and not `docker rm -f` as it allows *cardano-node* processes to receive the more graceful `SIGTERM` signal (instead of just `SIGKILL`).
+We recommend using `docker stop` and not `docker rm -f` as it allows *cardano-node* processes to receive the more graceful `SIGTERM` signal (instead of just `SIGKILL`).
 
 You can clean up stopped containers if you are running low on system resources:
 ```bash
 $ docker system prune
 ```
 
-Usually after about 30 seconds after starting the *cardano-node* container, `/ipc/node.socket` should've been created and you can start using `cardano-cli` to query the blockchain. If you are restarting the *cardano-node* after a major upgrade it could take much longer though (up to an hour). If you are impatient you should launch the container using the docker `run` command without the `-d` flag, so you can follow the sync progress in your terminal.
+About 30 seconds after starting the *cardano-node* container, `/ipc/node.socket` should've been created and you can start using `cardano-cli` to query the blockchain. If you are restarting the *cardano-node* after a major upgrade (eg. an HFC) it could take much longer though (an hour or more). If you are impatient you should launch the *cardano-node* container using the docker `run` command without the `-d` flag. This way you can follow the (re)sync progress in your terminal.
 
-Check the blockchain sync status using the following command:
+Poll for the blockchain sync status using the following command:
 ```bash
 $ docker exec <container-id> cardano-cli query tip --testnet-magic 1097911063
 ```
