@@ -279,8 +279,8 @@ Branch deferral is the expected behaviour for C-like languages.
 
 Each branch must evaluate to the same type.
 
-### Union types (WiP)
-We are planning to implement tagged unions. Tagged unions are similar to ADTs in Haskell:
+### Union types
+Plutus-Light supports tagged unions. These are useful for datums and redeemers with differing content depending on how the script is used. In Haskell tagged unions are called ADTs. Tagged unions are declared as follows:
 ```golang
 union Datum {
     Submission{...}, // content of Submission has the same syntax as a regular data-type
@@ -289,15 +289,16 @@ union Datum {
 }
 ```
 
-We are also planning to implement a `select` expression that will be used to 'unwrap' union-type instances:
+A `select` expression can be used to 'unwrap' union-type instances:
 ```golang
-select (expr) 
-case (x Datum::Submission) { // double-colon to reference the sub-type
-    ... // expression must use x
-} case Datum::Queue {
-    ... // x not used
-} default { // default must come last if all sub-types of Datum aren't handled explicitely
-    true
+select (expr) {
+    case (x Datum::Submission) { // double-colon to reference the sub-type
+        ... // expression must use x
+    } case Datum::Queue {
+        ... // x not used
+    } default { // default must come last if all sub-types of Datum aren't handled explicitely
+        true
+    }
 }
 ```
 

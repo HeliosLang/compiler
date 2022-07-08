@@ -781,8 +781,12 @@ class Token {
 		}
 	}
 
-	assertGroup() {
-		throw new Error("expected group");
+	assertGroup(type) {
+		if (type != undefined) {
+			this.syntaxError(`invalid syntax: expected \'${type}...${Group.matchSymbol(type)}\'`)
+		} else {
+			this.syntaxError(`invalid syntax: expected group`);
+		}
 	}
 
 	isLiteral() {
@@ -1073,7 +1077,7 @@ class Group extends Token {
 
 	assertGroup(type) {
 		if (type != undefined && this.type_ != type) {
-			throw new Error("expected group \"" + type + "\" got \"" + this.type_ + "\"");
+			this.syntaxError(`invalid syntax: expected \'${type}...${Group.matchSymbol(type)}\', got \'${this.type_}...${Group.matchSymbol(this.type_)}\'`);
 		} 
 
 		return this;
@@ -2080,10 +2084,10 @@ class DataTypeDecl extends Named {
 		for (let member of this.fields_) {
 			let [key, obj] = member;
 
-			parts.push(key + ": " + obj.toString());
+			parts.push(key + " " + obj.toString());
 		}
 
-		return `${this.name_.toString()} {${parts.join("")}}`;
+		return `${this.name_.toString()} {${parts.join(", ")}}`;
 	}
 
 	toString() {
@@ -2268,7 +2272,7 @@ class UnionTypeDecl extends Named {
 		let found = -1;
 		let i = 0;
 		for (let member of this.members_) {
-			if (f.name.toString() == name.toString()) {
+			if (member.name.toString() == name.toString()) {
 				found = i;
 				break;
 			}
@@ -2429,8 +2433,8 @@ class UnionMemberCast extends Expr {
 
 		if (rhsType instanceof DataType) { // cast can cast data
 			return type;
-		} else {
-			assertTypeMatch(type, this.expr_.eval());
+		} else if (!(rhsType.eq(type))) {
+			this.typeError(`expected ${type.parent_.name.toString()}, got ${rhsType.toString()}`);
 		}
 
 		return type;
@@ -2526,7 +2530,7 @@ class FuncDecl extends Named {
 			sArgs.push(name.toString() + " " + type.toString());
 		}
 
-		return s + "(" + sArgs.join(",") + ") " + this.retType_.toString() + " {" + this.body_.toString() + "}";
+		return s + "(" + sArgs.join(", ") + ") " + this.retType_.toString() + " {" + this.body_.toString() + "}";
 	}
 
 	link(scope) {
@@ -3397,7 +3401,10 @@ class AssignExpr extends Expr {
 	}
 
 	toString() {
-		return this.name_.toString() + " " + this.type_.toString() + " = " + this.rhs_.toString() + "; " + this.lambda_.toString();
+		let lambdaStr = this.lambda_.toString();
+		assert(lambdaStr != undefined);
+
+		return this.name_.toString() + " " + this.type_.toString() + " = " + this.rhs_.toString() + "; " + lambdaStr;
 	}
 
 	link(scope) {
@@ -3455,6 +3462,8 @@ class BranchExpr extends Expr {
 		}
 
 		s += `{${this.blocks_[this.conditions_.length].toString()}}`;
+
+		return s;
 	}
 
 	link(scope) {
@@ -3524,7 +3533,7 @@ class SelectExpr extends Expr {
 	}
 
 	toString() {
-		`select(${this.expr_.toString()}) ${this.cases_.map(c => c.toString())}`;
+		return `select(${this.expr_.toString()}) ${this.cases_.map(c => c.toString()).join(" ")}`;
 	}
 
 	link(scope) {
@@ -3609,9 +3618,9 @@ class SelectCase extends Token {
 
 	toString() {
 		if (this.type_ == null) {
-			return ` default {${this.body_.toString()}}`;
+			return `default {${this.body_.toString()}}`;
 		} else if (this.varName_ == null) {
-			return ` case ${this.type_.toString()} {${this.body_.toString()}}`
+			return `case ${this.type_.toString()} {${this.body_.toString()}}`
 		} else {
 			return `case (${this.varName_.toString()} ${this.type_.toString()}) {${this.body_.toString()}}`;
 		}
@@ -3629,13 +3638,15 @@ class SelectCase extends Token {
 			}
 		} 
 
-		this.expr_.link(caseScope);
+		this.body_.link(caseScope);
 
 		caseScope.assertAllUsed();
 	}
 
 	eval(expr) {
-		assert(expr.eq(this.type_.eval()));
+		if (this.type_ != null) {
+			assert(expr.eq(this.type_.eval()));
+		}
 
 		return this.body_.eval();
 	}
@@ -3859,7 +3870,7 @@ class MemberExpr extends Expr {
 		let lhs = this.lhs_.eval();
 
 		if (!(lhs instanceof DataTypeDecl)) {
-			this.typeError("\'" + this.lhs_ + "\' is not a data-type");
+			this.typeError(`\'${this.lhs_}\' is not a data-type but a \'${lhs.toString()}\'`);
 		}
 
 		return lhs.evalMember(this.name_);
@@ -6852,7 +6863,8 @@ class SerializeData extends BuiltinFunc {
 	toUntyped(args) {
 		let argType = args[0].eval();
 
-		return `serializeData(${toData(args[0].toUntyped(), argType)})`;
+		// internally serialiseData uses UK spelling
+		return `serialiseData(${toData(args[0].toUntyped(), argType)})`;
 	}
 }
 
@@ -7206,16 +7218,17 @@ function buildTypeExpr(ts) {
 		return buildFuncType(t.loc, ts);
 	} else if (t.isWord()) {
 		if (ts.length != 0) {
-			ts[0].syntaxError("invalid syntax (hint: are you missing a comma?)");
-		}
-
-		if (ts[0].isSymbol("::")) {
-			return buildUnionMemberTypeExpr(t, ts);
+			if (ts[0].isSymbol("::")) {
+				return buildUnionMemberTypeExpr(t, ts);
+			} else {
+				ts[0].syntaxError("invalid syntax (hint: are you missing a comma?)");
+			}
 		} else {
 			return new NamedType(t);
 		}
 	} else {
-		throw new Error("invalid syntax");
+		throw new Error("block");
+		t.syntaxError(`invalid syntax \'${t.toString()}\'`)
 	}
 }
 
@@ -7299,8 +7312,6 @@ function buildDataLiteral(typeName, braces) {
 }
 
 function buildUnionMemberLiteral(type, braces) {
-	let type = buildTypeExpr([unionName, new Symbol(loc, "::"), memberName]);
-
 	let fields = buildDataLiteralFields(braces);
 
 	return new UnionMemberLiteral(braces.loc, type, fields);
@@ -7400,11 +7411,16 @@ function buildSelectExpr(loc, ts) {
 
 	let expr = buildValExpr(parens.fields[0]);
 
+	let braces = ts.shift().assertGroup("{");
+	assert(braces.fields.length == 1);
+
 	let cases = [];
 	let def = null;
 
-	while (true) {
-		let keyword = ts.shift().assertWord();
+	let tsInner = braces.fields[0].slice();
+
+	while (tsInner.length > 0) {
+		let keyword = tsInner.shift().assertWord();
 		let varName = null;
 		let caseType = null;
 		if (keyword.isWord("case")) {
@@ -7412,27 +7428,32 @@ function buildSelectExpr(loc, ts) {
 				def.syntaxError("default select must come last");
 			}
 
-			let parens = ts.shift();
+			let parens = tsInner.shift();
 			if (parens.isGroup("(")) {
 				assert(parens.fields.length == 1);
 				assert(parens.fields[0].length > 1);
 
-				varName = next.fields[0][0].assertWord();
+				varName = parens.fields[0][0].assertWord();
 
-				caseType = buildTypeExpr(next.fields[0].slice(1));
+				caseType = buildTypeExpr(parens.fields[0].slice(1));
 			} else {
-				let iBody = Group.find(ts, "{");
-				caseType = buildTypeExpr(ts.slice(0, iBody));
-				void ts.splice(0, iBody);
+				tsInner.unshift(parens);
+				let iBody = Group.find(tsInner, "{");
+				caseType = buildTypeExpr(tsInner.slice(0, iBody));
+				void tsInner.splice(0, iBody);
 			}
 
-			assert(caseType instanceof NamedMemberType);
+
+			if (!(caseType instanceof NamedMemberType)) {
+				caseType.syntaxError(`invalid select case type, expected a union member type, got \'${caseType.toString()}\'`);
+			}
 
 			for (let check of cases) {
+				console.log(check.type_);
 				if (check.type_.toString() == caseType.toString()) {
-					caseType.syntaxError("duplicate select case");
-				} else if (check.type_.unionName_.toString() != caseType.type_.unionName_.toString()) {
-					caseType.syntaxError("inconsistent union type");
+					caseType.syntaxError(`duplicate select case type ${caseType.toString()}`);
+				} else if (check.type_.unionName_.toString() != caseType.unionName_.toString()) {
+					caseType.syntaxError("inconsistent union type in select statement");
 				}
 			}
 		} else if (keyword.isWord("default")) {
@@ -7444,21 +7465,21 @@ function buildSelectExpr(loc, ts) {
 
 			def = keyword;
 		} else {
-			if (cases.length < 1) {
-				loc.syntaxError("expected at least one case");
-			}
-			
-			break;
+			keyword.syntaxError("invalid syntax in select block");
 		}
 
-		let braces = ts.shift().assertGroup("{");
+		let braces = tsInner.shift().assertGroup("{");
 		if (braces.fields.length != 1) {
 			braces.syntaxError("expected one field");
 		}
 
 		let expr = buildValExpr(braces.fields[0]);
 
-		cases.push(new SelectCase(varName, caseType, expr));
+		cases.push(new SelectCase(keyword.loc, varName, caseType, expr));
+	}
+
+	if (cases.length < 1) {
+		loc.syntaxError("expected at least one case");
 	}
 
 	return new SelectExpr(loc, expr, cases);
@@ -7837,8 +7858,13 @@ function buildUntypedExpr(ts) {
 			expr = buildUntypedFuncExpr(ts);
 		} else if (t.isGroup("(")) {
 			if (expr == null) {
-				assert(t.fields.length == 0);
-				expr = new UnitLiteral();
+				if(t.fields.length == 1) {
+					expr = buildUntypedExpr(t.fields[0])
+				} else if (t.fields.length == 0) {
+					expr = new UnitLiteral();
+				} else {
+					t.synaxError("unexpected parentheses with multiple fields");
+				}
 			} else {
 				let args = [];
 				for (let f of t.fields) {

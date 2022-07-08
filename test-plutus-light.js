@@ -182,10 +182,12 @@ data Datum {
     highestBidder PubKeyHash
 }
 
-data Redeemer {
-    closing Bool,
-    bidder  PubKeyHash, // unused if closing
-    bid     Integer     // unused if closing
+union Redeemer {
+    Close{},
+    Bid{
+        bidder PubKeyHash,
+        bid    Integer
+    }
 }
 
 func updateDatum(old Datum, highestBid Integer, highestBidder PubKeyHash) Datum {
@@ -208,37 +210,41 @@ func main(datum Datum, redeemer Redeemer, ctx ScriptContext) Bool {
     validatorHash ValidatorHash = getCurrentValidatorHash(ctx);
 
     if (now < datum.deadline) {
-        if (redeemer.closing) {
-            false
-        } else {
-            if (redeemer.bid < datum.minBid) {
-                false
-            } else if (datum.highestBid == 0) {
-                // first bid
-                expectedDatum Datum = updateDatum(datum, redeemer.bid, redeemer.bidder);
+        select (redeemer) {
+            case (b Redeemer::Bid) {
+                if (b.bid < datum.minBid) {
+                    false
+                } else if (datum.highestBid == 0) {
+                    // first bid
+                    expectedDatum Datum = updateDatum(datum, b.bid, b.bidder);
 
-                valueLockedByDatum(tx, validatorHash, expectedDatum) >= datum.forSale + Value(datum.bidAsset, redeemer.bid)
-            } else if (redeemer.bid <= datum.highestBid) {
-                false
-            } else {
-                expectedDatum Datum = updateDatum(datum, redeemer.bid, redeemer.bidder);
+                    valueLockedByDatum(tx, validatorHash, expectedDatum) >= datum.forSale + Value(datum.bidAsset, b.bid)
+                } else if (b.bid <= datum.highestBid) {
+                    false
+                } else {
+                    expectedDatum Datum = updateDatum(datum, b.bid, b.bidder);
 
-                valueLockedByDatum(tx, validatorHash, expectedDatum) >= datum.forSale + Value(datum.bidAsset, redeemer.bid) &&
-                valueSentTo(tx, datum.highestBidder) >= Value(datum.bidAsset, datum.highestBid)
+                    valueLockedByDatum(tx, validatorHash, expectedDatum) >= datum.forSale + Value(datum.bidAsset, b.bid) &&
+                    valueSentTo(tx, datum.highestBidder) >= Value(datum.bidAsset, datum.highestBid)
+                }
+            } default {
+                false
             }
         }
     } else {
         // after deadline -> must close
-        if (redeemer.closing) {
-            if (datum.highestBid < datum.minBid) {
-                // the forSale asset must return to the seller, what happens to any erroneous bid value is irrelevant
-                valueSentTo(tx, datum.seller) >= datum.forSale
-            } else {
-                valueSentTo(tx, datum.seller) >= Value(datum.bidAsset, datum.highestBid) &&
-                valueSentTo(tx, datum.highestBidder) >= datum.forSale
+        select (redeemer) {
+            case Redeemer::Close {
+                if (datum.highestBid < datum.minBid) {
+                    // the forSale asset must return to the seller, what happens to any erroneous bid value is irrelevant
+                    valueSentTo(tx, datum.seller) >= datum.forSale
+                } else {
+                    valueSentTo(tx, datum.seller) >= Value(datum.bidAsset, datum.highestBid) &&
+                    valueSentTo(tx, datum.highestBidder) >= datum.forSale
+                }
+            } default {
+                false
             }
-        } else {
-            false
         }
     }
 }`;
