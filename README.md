@@ -208,7 +208,7 @@ data Redeemer {
  * `TxOutputId(ByteArray, Integer) -> TxOutputId`
  * `fold(func(a, b) a, a, []b) -> a`
  * `filter(func(a) Bool, []a) -> []a`
- * `find(func(a) Bool, []a) -> a` (throws error if not found)
+ * `find(func(a) Bool, []a) -> a` (returns first found, throws error if nothing found)
  * `contains(func(a) Bool, []a) -> Bool`
  * `len(ByteArray) -> Integer`
  * `len([]a) -> Integer`
@@ -291,16 +291,13 @@ union Datum {
 
 We are also planning to implement a `select` expression that will be used to 'unwrap' union-type instances:
 ```golang
-select (expr) {
-    case x Datum::Submission { // double-colon to reference the sub-type
-        ... // expression must use x
-    } 
-    case   Datum::Queue {
-        ... // x not used
-    } 
-    default { // default must come last if all sub-types of Datum aren't handled explicitely
-        true
-    }
+select (expr) 
+case (x Datum::Submission) { // double-colon to reference the sub-type
+    ... // expression must use x
+} case Datum::Queue {
+    ... // x not used
+} default { // default must come last if all sub-types of Datum aren't handled explicitely
+    true
 }
 ```
 
