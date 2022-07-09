@@ -2527,7 +2527,6 @@ class FuncDecl extends Named {
 		this.retType_ = retType;
 		this.body_ = body;
 		this.recursive_ = false;
-		this.argRefs_ = [];
 	}
 
 	set recursive(b) {
@@ -2555,14 +2554,12 @@ class FuncDecl extends Named {
 		let subScope = new FuncScope(scope, this);
 
 		let i = 0;
-		assert(this.argRefs_.length == 0);
 		for (let arg of this.args_) {
 			let [name, type] = arg;
 
 			type.link(scope);
 
 			let val = new NamedValue(name, type);
-			this.argRefs_.push(val);
 
 			subScope.setValue(val);
 
@@ -2625,7 +2622,6 @@ class NamedValue extends Named {
 	constructor(name, value) {
 		super(name.loc, name);
 		this.value_ = value;
-		//this.expr_ = null;
 	}
 
 	eval() {
