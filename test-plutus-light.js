@@ -274,8 +274,6 @@ function main() {
 
 	compileScript("always-succeeds", ALWAYS_SUCCEEDS);
 
-    return;
-
 	compileScript("time-lock", TIME_LOCK);
 
 	compileData("time-lock", TIME_LOCK, TIME_LOCK_DATUM);

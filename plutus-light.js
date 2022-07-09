@@ -8446,7 +8446,7 @@ export function compilePlutusLightProgram(typedSrc, purpose = ScriptPurpose.Spen
 		let untypedSrc = program.toUntyped();
 
 		try {
-			console.log(prettySource(untypedSrc) + "\n");
+			//console.log(prettySource(untypedSrc) + "\n");
 			
 			// at this point there shouldn't be any errors
 			let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
