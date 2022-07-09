@@ -2,7 +2,7 @@
 
 Plutus-Light is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Plutus-Light is a non-Haskell alternative to Plutus.
 
-Plutus-Light is purely functional, strongly typed, and uses a conventional curly braces syntax. Plutus-Light supports closures, compile-time const statements, and tagged unions.
+Plutus-Light is purely functional, strongly typed, and uses a conventional curly braces syntax. It notably supports closures, compile-time const statements, and tagged unions.
 
 This repository contains a reference compiler for Plutus-Light, written in Javascript.
 
@@ -20,7 +20,7 @@ Note that the Plutus-Light library also contains a function to deserialize exist
 ## Quick start examples
 
 ### 1. Vesting contract example
-The following DSL example is equivalent to the Plutus vesting contract from the Plutus playground (demonstration of syntax only, shouldn't be used in production!):
+The following Plutus-Light example is equivalent to the Plutus vesting contract from the Plutus playground (demonstration of syntax only, shouldn't be used in production!):
 ```golang
 data VestingTranche {
     time   Time, // 'amount' is available after 'time'
@@ -156,7 +156,7 @@ select (expr) {
     case (x Datum::Submission) { // double-colon to reference the sub-type
         ... // expression must use x
     } case Datum::Queue {
-        ... // x not used
+        ... // x not used, so can't be declared
     } default { // default must come last if all sub-types of Datum aren't handled explicitely
         true
     }
@@ -182,9 +182,9 @@ if (code == 0) { // expression to convert an Integer code into a String
 }
 ```
 
-The Plutus-Light `if else` expression is syntactic sugar for nested Plutus-Core `ifThenElse` calls. Internally the branches of Plutus-Core's `ifThenElse` are deferred by wrapping them in lambda expressions, and then calling the returned lambda expression with zero arguments (in fact a unit argument). `&&` and `||` also defer calculation of their right-hand arguments.
+The Plutus-Light `if else` expression is syntactic sugar for nested Plutus-Core `ifThenElse` calls. Internally the branches of Plutus-Core's `ifThenElse` are deferred by wrapping them in lambda expressions, and then calling the returned lambda expression with zero arguments (actually a 'unit' argument). `&&` and `||` also defer calculation of their right-hand arguments.
 
-Branch deferral is the expected behaviour for C-like languages.
+Branch deferral is the expected behaviour for conventional programming languages.
 
 Each branch must evaluate to the same type.
 
@@ -199,7 +199,7 @@ Note how the type expression for a function resembles the right-hand function va
 Function values aren't entirely first class: they can't be put in containers (so not in lists nor in any fields of a `data` or `union` type).
 
 ### Builtin operators
-Operators that can be used in compile-time `const` statements are marked with a '^'.
+Operators that can be used in compile-time `const` statements are marked with '^'.
 
  * `! Bool -> Bool`
  * `Bool || Bool -> Bool`
