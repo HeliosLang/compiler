@@ -1,4 +1,4 @@
-# Part 4 of Plutus-Light how-to guide: Time Lock contract
+# Part 4 of Plutus-Light tutorial: Time Lock contract
 
 The *always-succeeds* contract in part 3 isn't very useful. Something that is still simple, but has real-world applications, is a *time-lock* contract. Actors send UTXOs to the *time-lock* address with a datum that contains a *lock-until* time. An optional nonce can be included in the datum to allow only the actors who know the nonce value to retrieve the UTXOs. The wallet from which the original UTXOs were sent is also able to retrieve the UTXOs at any time.
 

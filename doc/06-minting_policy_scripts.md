@@ -1,4 +1,4 @@
-# Part 6 of Plutus-Light how-to guide: Minting policy scripts
+# Part 6 of Plutus-Light tutorial: Minting policy scripts
 
 Minting policy scripts are very similar to validator scripts for spending. They don't accept a `Datum` argument though, only `Redeemer` and/or `ScriptContext`.
 

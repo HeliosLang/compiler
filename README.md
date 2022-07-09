@@ -4,7 +4,7 @@ Plutus-Light is a Domain Specific Language that compiles to Plutus-Core (i.e. Ca
 
 This repository contains a reference compiler for Plutus-Light, written in Javascript.
 
-Use the following step-by-step guide to learn how to use Plutus-Light with cardano-cli:
+Use the following tutorial to learn how to use Plutus-Light with cardano-cli:
   1. [Cardano-node setup](doc/01-environment_setup.md)
   2. [Wallet setup and funding](doc/02-wallet_setup.md)
   3. [*Always Succeeds* contract](doc/03-always_succeeds_contract.md)
@@ -334,7 +334,7 @@ Function values aren't entirely first class: they can't be put in containers (so
 * No type aliases as some users might expect automatic up-and-down-casting, and others won't expect that.
 * Every declared name (local or global) must be used when `main()` is evaluated. Unused names must be eliminated from the source-code.
 * All data-types inside a union-type must also be used.
-* (WiP) Top-level `const` statements guarantee complete compile-time evaluation into primitive values. Expressions are otherwise never simplified/optimized.
+* Top-level `const` statements allow compile-time evaluation into primitive values (not available for all builtin function calls yet). Expressions are otherwise never simplified/optimized.
 
 
 ### Untyped Plutus-Light

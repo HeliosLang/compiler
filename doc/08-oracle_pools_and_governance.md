@@ -1,4 +1,4 @@
-# Part 8 of Plutus-Light how-to guide: Oracle Pools and Governance
+# (WiP) Part 8 of Plutus-Light tutorial: Oracle Pools and Governance
 
 Oracles post information on the blockchain periodically (eg. the ADA/USD exchange rate), and thanks to the recent Vasil upgrade it has become easier to use that information in smart contracts (eg. stable-coin contracts).
 

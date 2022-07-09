@@ -1,4 +1,4 @@
-# Part 3 of Plutus-Light how-to guide: Always Succeeds contract
+# Part 3 of Plutus-Light tutorial: Always Succeeds contract
 Start a nodejs repl on your development computer, and import the Plutus-Light library:
 ```bash
 $ cd ./plutus-light

@@ -1,4 +1,4 @@
-# Part 5 of Plutus-Light how-to guide: Subscription contract
+# Part 5 of Plutus-Light tutorial: Subscription contract
 A subscription contract allows a beneficiary to withdraw a pre-specified amount from a script address at regular intervals.
 The owner can cancel the contract at any time.
 

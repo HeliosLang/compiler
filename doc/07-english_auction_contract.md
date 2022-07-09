@@ -1,4 +1,4 @@
-# Part 7 of Plutus-Light how-to guide: English Auction contract
+# Part 7 of Plutus-Light tutorial: English Auction contract
 
 ## The script
 
@@ -13,7 +13,6 @@ data Datum {
     highestBidder PubKeyHash
 }
 
-// TODO: union-type
 union Redeemer {
     Close {},
     Bid {
