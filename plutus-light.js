@@ -229,6 +229,10 @@ function bytesToHex(bytes) {
 	return parts.join('');
 }
 
+function stringToBytes(str) {
+	return (new TextEncoder()).encode(str);
+}
+
 function isString(obj) {
 	return (typeof obj == "string") || (obj instanceof String);
 }
@@ -1211,8 +1215,6 @@ class Tokenizer {
 				this.readMaybeComment(ts, l);
 			} else if (c == '0') {
 				this.readSpecialInteger(ts, l);
-			} else if (c == '-') {
-				this.readMaybeNegativeDecimalInteger(ts, l);
 			} else if (c >= '1' && c <= '9') {
 				this.readDecimalInteger(ts, l, c);
 			} else if (c == '#') {
@@ -1328,17 +1330,6 @@ class Tokenizer {
 	readHexInteger(ts, start) {
 		this.readRadixInteger(ts, start, "0x", 
 			c => ((c >= '0' && c <= '9') || (c >= 'a' || c <= 'f')));
-	}
-
-	readMaybeNegativeDecimalInteger(ts, start) {
-		let c = this.readChar();
-
-		if (c >= '1' && c <= '9') {
-			this.readDecimalInteger(ts, start, c, true);
-		} else {
-			ts.push(new Symbol(start, '-'));
-			this.unreadChar();
-		}
 	}
 
 	readDecimalInteger(ts, start, c, negative = false) {
@@ -2495,7 +2486,7 @@ class ConstDecl extends Named {
 
 		this.expr_.link(scope);
 
-		scope.setValue(new NamedValue(this.name_, this));
+		scope.setValue(this);
 	}
 
 	eval() {
@@ -2515,8 +2506,16 @@ class ConstDecl extends Named {
 		return type;
 	}
 
+	registerGlobals(registry) {
+		// fully expanded during compile-time, so no globals
+	}
+
+	evalData() {
+		return this.cache_;
+	}
+
 	toUntyped() {
-		return this.cache_.toUntyped();
+		return fromData(this.cache_.toUntyped(), this.type_.eval());
 	}
 }
 
@@ -2623,14 +2622,18 @@ class FuncDecl extends Named {
 }
 
 class NamedValue extends Named {
-	constructor(name, type) {
+	constructor(name, value) {
 		super(name.loc, name);
-		this.type_ = type;
-		this.expr_ = null;
+		this.value_ = value;
+		//this.expr_ = null;
 	}
 
 	eval() {
-		return this.type_.eval();
+		return this.value_.eval();
+	}
+
+	evalData() {
+		return this.value_.evalData();
 	}
 
 	toUntyped() {
@@ -2848,6 +2851,10 @@ class Variable extends Token {
 	registerGlobals(registry) {
 	}
 
+	evalData() {
+		return this.ref_.evalData();
+	}
+
 	toUntyped() {
 		return "u_" + this.toString();
 	}
@@ -2971,6 +2978,27 @@ class UnaryOperator extends Expr {
 
 		if (op == "!" && BoolType.is(a)) {
 			Not.register(registry);
+		}
+	}
+
+	evalData() {
+		let op = this.symbol_.toString();
+
+		let aType = this.a_.eval();
+		let a = this.a_.evalData();
+
+		if (op == "-") {
+			if (IntegerType.is(aType)) {
+				return new IntegerData((-1n)*a.value_);
+			}
+		} else if (op == "+") {
+			if (IntegerType.is(aType)) {
+				return a;
+			}
+		} else if (op == "!") {
+			if (BoolType.is(aType)) {
+				return new IntegerData(a.value_ == 0n ? 1n : 0n);
+			}
 		}
 	}
 
@@ -3165,51 +3193,75 @@ class BinaryOperator extends Expr {
 		let a = this.a_.evalData();
 		let b = this.b_.evalData();
 
-		if ((op == "+") && ValueType.is(aType) && ValueType.is(bType)) {
-			let total = new Map(); // nested map
+		if (op == "+") {
+			if (IntegerType.is(aType) && IntegerType.is(bType)) {
+				return new IntegerData(a.value_ + b.value_);
+			} else if (ValueType.is(aType) && ValueType.is(bType)) {
+				let total = new Map(); // nested map
 
-			for (let outerMap of [a, b]) {
-				for (let outerPair of outerMap.pairs_) {
-					let mintingPolicyHash = outerPair[0].toHex();
+				for (let outerMap of [a, b]) {
+					for (let outerPair of outerMap.pairs_) {
+						let mintingPolicyHash = outerPair[0].toHex();
 
-					let innerMap = outerPair[1];
+						let innerMap = outerPair[1];
 
-					for (let innerPair of innerMap.pairs_) {
-						let tokenName = innerPair[0].toHex();
-						let amount = innerPair[1].value_; // IntegerData
+						for (let innerPair of innerMap.pairs_) {
+							let tokenName = innerPair[0].toHex();
+							let amount = innerPair[1].value_; // IntegerData
 
-						if (!amount.isZero()) {
-							if (!total.has(mintingPolicyHash)) {
-								total.set(mintingPolicyHash, new Map());
-							} 
+							if (!amount.isZero()) {
+								if (!total.has(mintingPolicyHash)) {
+									total.set(mintingPolicyHash, new Map());
+								} 
 
-							if (!total.get(mintingPolicyHash).has(tokenName)) {
-								total.get(mintingPolicyHash).set(tokenName, 0);
+								if (!total.get(mintingPolicyHash).has(tokenName)) {
+									total.get(mintingPolicyHash).set(tokenName, 0);
+								}
+								
+								total.get(mintingPolicyHash).set(tokenName, total.get(mintingPolicyHash).get(tokenName) + amount);
 							}
-							
-							total.get(mintingPolicyHash).set(tokenName, total.get(mintingPolicyHash).get(tokenName) + amount);
 						}
 					}
 				}
-			}
 
-			let outerPairs = [];
-			for (let item of total) {
-				let [mintingPolicyHash, innerMap] = item;
+				let outerPairs = [];
+				for (let item of total) {
+					let [mintingPolicyHash, innerMap] = item;
 
-				let innerPairs = [];
-				for (let innerItem of innerMap) {
-					let [tokenName, amount] = innerItem;
+					let innerPairs = [];
+					for (let innerItem of innerMap) {
+						let [tokenName, amount] = innerItem;
 
-					innerPairs.push([new ByteArrayData(hexToBytes(tokenName)), new IntegerData(amount)]);
+						innerPairs.push([new ByteArrayData(hexToBytes(tokenName)), new IntegerData(amount)]);
+					}
+
+					outerPairs.push([new ByteArrayData(hexToBytes(mintingPolicyHash)), new MapData(innerPairs)]);
 				}
 
-				outerPairs.push([new ByteArrayData(hexToBytes(mintingPolicyHash)), new MapData(innerPairs)]);
+				return new MapData(outerPairs);
+			} else{
+				this.typeError("can't use this binary op at compile-time");
 			}
-
-			return new MapData(outerPairs);
+		} else if (op == "-") {
+			if (IntegerType.is(aType) && IntegerType.is(bType)) {
+				return new IntegerData(a.value_ - b.value_);
+			} else {
+				this.typeError("can't use this binary op at compile-time");
+			}
+		} else if (op == "*") {
+			if (IntegerType.is(aType) && IntegerType.is(bType)) {
+				return new IntegerData(a.value_*b.value_);
+			} else {
+				this.typeError("can't use this binary op at compile-time");
+			}
+		} else if (op == "/") {
+			if (IntegerType.is(aType) && IntegerType.is(bType)) {
+				return new IntegerData(a.value_/b.value_);
+			} else {
+				this.typeError("can't use this binary op at compile-time");
+			}
 		} else {
-			this.typeError("can't use this binary op in data eval");
+			this.typeError("can't use this binary op at compile-time");
 		}
 	}
 	
@@ -3754,7 +3806,7 @@ class BuiltinCall extends Expr {
 	evalData() {
 		let args = this.args_.map(a => a.evalData());
 		
-		return this.obj_.evalDataCall(this.loc, args);
+		return this.obj_.evalDataCall(this.loc, args, this.evalArgTypes());
 	}
 
 	registerGlobals(registry) {
@@ -3765,11 +3817,7 @@ class BuiltinCall extends Expr {
 		}
 	}
 
-	toUntyped() {
-		if (this.obj_.toUntyped == undefined) {
-			console.log(this.obj_);
-		}
-		
+	toUntyped() {		
 		return this.obj_.toUntyped(this.args_);
 	}
 }
@@ -3782,7 +3830,7 @@ function fromData(str, type) {
 	} else if (type instanceof ByteArrayType) {
 		return `unBData(${str})`;
 	} else if (type instanceof StringType) {
-		return `decodeUtf8(unBData(${str}}))`;
+		return `decodeUtf8(unBData(${str}))`;
 	} else if (type instanceof BoolType) {
 		return `ifThenElse(equalsInteger(fstPair(unConstrData(${str})), 0), false, true)`; // doesn't need deferred evaluation
 	} else if (type instanceof ListType) {
@@ -4405,6 +4453,25 @@ class Show extends BuiltinFunc {
 		} else if (ByteArrayType.is(argTypes[0])) {
 			ShowByteArray.register(registry);
 		} 
+	}
+
+	evalDataCall(loc, args, argTypes) {
+		let type = argTypes[0];
+		let s;
+
+		if (IntegerType.is(type)) {
+			s = args[0].value_.toString();
+		} else if (BoolType.is(type)) {
+			s = args[0].value_ == 0 ? "false" : "true";
+		} else if (TimeType.is(type)) {
+			s = args[0].value_.toString();
+		} else if (ByteArrayType.is(type)) {
+			s = args[0].toHex();
+		} else {
+			throw new Error("unhandled type for const eval of show");
+		}
+
+		return new ByteArrayData(stringToBytes(s));
 	}
 
 	toUntyped(args) {
@@ -6496,8 +6563,8 @@ class Trace extends BuiltinFunc {
 
 		let aType = args[0].eval();
 
-		if (! aType instanceof StringType) {
-			loc.typeError(`${this.name} expects String for arg 1, got \'${aType.toString()}\'`);
+		if (! (aType instanceof StringType)) {
+			loc.typeError(`${this.name} expects String for arg 1, got ${aType.toString()}`);
 		} 
 
 		return args[1].eval();
@@ -6916,6 +6983,10 @@ class IntegerData {
 		return this.value_ == 0;
 	}
 
+	toUntyped() {
+		return `iData(${this.value_.toString()})`;
+	}
+
 	// returns string, not js object, because of unbounded integers 
 	toSchemaJSON() {
 		return `{"int": ${this.value_.toString()}}`;
@@ -6931,6 +7002,10 @@ class ByteArrayData {
 		return bytesToHex(this.bytes_);
 	}
 
+	toUntyped() {
+		return `bData(#${this.toHex()})`;
+	}
+
 	toSchemaJSON() {
 		return `{"bytes": "${this.toHex()}"}`;
 	}
@@ -6939,6 +7014,15 @@ class ByteArrayData {
 class ListData {
 	constructor(items) {
 		this.items_ = items;
+	}
+
+	toUntyped() {
+		let lst = "mkNilData(())";
+		for (let i = this.items_.length - 1; i >= 0; i--) {
+			lst = `mkCons(${this.items_[i].toUntyped()}, ${lst})`;
+		}
+
+		return `listData(${lst})`;
 	}
 
 	toSchemaJSON() {
@@ -6952,6 +7036,19 @@ class MapData {
 		this.pairs_ = pairs;
 	}
 
+	toUntyped() {
+		let lst = "mkNilPairData(())";
+
+		for (let i = this.pairs_.length - 1; i >= 0; i--) {
+			let a = this.pairs_[i][0].toUntyped();
+			let b = this.pairs_[i][1].toUntyped();
+
+			lst = `mkCons(mkPairData(${a}, ${b}), ${lst})`;
+		}
+
+		return `mapData(${lst})`;
+	}
+
 	toSchemaJSON() {
 		return `{"map": [${this.pairs_.map(pair => {return "{\"k\": " + pair[0].toSchemaJSON() + ", \"v\": " + pair[1].toSchemaJSON() + "}"}).join(", ")}]}`;
 	}
@@ -6961,6 +7058,15 @@ class ConstrData {
 	constructor(index, fields) {
 		this.index_ = index;
 		this.fields_ = fields;
+	}
+
+	toUntyped() {
+		let lst = "mkNilData(())";
+		for (let i = this.fields_.length - 1; i >= 0; i--) {
+			lst = `mkCons(${this.fields_[i].toUntyped()}, ${lst})`
+		}
+
+		return `constrData(${this.index_.toString()}, ${lst})`
 	}
 
 	toSchemaJSON() {
@@ -7108,6 +7214,8 @@ function buildConstDecl(start, ts) {
 	let iBraces = Group.find(ts, "{");
 	if (iBraces == -1) {
 		start.syntaxError("invalid const syntax, expected {...}");
+	} else if (iBraces == 0) {
+		start.syntaxError("invalid const syntax, expected type expression");
 	}
 
 	let type = buildTypeExpr(ts.slice(0, iBraces));
@@ -7333,7 +7441,10 @@ function genBinaryOperatorBuilder(symbol) {
 	return function(ts, prec) {
 		let iOp = Symbol.findLast(ts, symbol);
 
-		if (iOp != -1) {
+		if (iOp == ts.length - 1) {
+			// post-unary operator, which is invalid
+			ts[iOp].syntaxError(`invalid syntax, \'${ts[iOp].toString()}\' can't be used as a post-unary operator`);
+		} else if (iOp > 0) { // iOp == 0 means maybe a (pre)unary op, which is handled by a higher precedence
 			let a = buildValExpr(ts.slice(0, iOp), prec);
 			let b = buildValExpr(ts.slice(iOp+1), prec+1);
 
@@ -7443,7 +7554,6 @@ function buildSelectExpr(loc, ts) {
 			}
 
 			for (let check of cases) {
-				console.log(check.type_);
 				if (check.type_.toString() == caseType.toString()) {
 					caseType.syntaxError(`duplicate select case type ${caseType.toString()}`);
 				} else if (check.type_.unionName_.toString() != caseType.unionName_.toString()) {
@@ -7867,6 +7977,11 @@ function buildUntypedExpr(ts) {
 
 				expr = new UntypedCallExpr(expr, args);
 			}
+		} else if (t.isSymbol("-")) {
+			// only makes sense next to IntegerLiterals
+			let int = ts.shift();
+			assert(int instanceof IntegerLiteral);
+			expr = new IntegerLiteral(int.loc, int.value_*(-1n));
 		} else if (t instanceof BoolLiteral) {
 			assert(expr == null);
 			expr = t;
@@ -8331,7 +8446,7 @@ export function compilePlutusLightProgram(typedSrc, purpose = ScriptPurpose.Spen
 		let untypedSrc = program.toUntyped();
 
 		try {
-			//console.log(prettySource(untypedSrc) + "\n");
+			console.log(prettySource(untypedSrc) + "\n");
 			
 			// at this point there shouldn't be any errors
 			let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);

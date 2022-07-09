@@ -3,8 +3,16 @@
 import * as PL from "./plutus-light.js";
 
 const ALWAYS_SUCCEEDS = `
+const X Integer {
+    -9
+}
+
+const Y String {
+    show(2*X)
+}
+
 func main() Bool {
-	true
+	trace(Y, true)
 }
 `
 
@@ -265,6 +273,8 @@ function main() {
     PL.setDebug(true);
 
 	compileScript("always-succeeds", ALWAYS_SUCCEEDS);
+
+    return;
 
 	compileScript("time-lock", TIME_LOCK);
 
