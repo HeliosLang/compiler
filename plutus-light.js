@@ -1707,19 +1707,23 @@ class Scope {
 	}
 
 	// inner is wrapped recursively
-	usedMoreThanOnceToUntyped(inner) {	
+	wrapWithTopLevel(inner) {	
 		// first collect, so we can optionally reverse
-		let fns = [];
-		for (let fn of this.values_) {
-			fn = fn[1];
-			if  ((fn instanceof FuncDecl) && fn.useCount_ > 1) {
-				fns.push(fn);
+		let decls = [];
+		for (let decl of this.values_) {
+			let d = decl[1];
+
+			if (d instanceof FuncDecl || d instanceof ConstDecl) {
+				assert(d.used);
+				decls.push(d);
 			}
 		}
 
+		decls.reverse();
+
 		let res = inner;
-		for (let fn of fns) {
-			res = `func(u_${fn.name.toString()}){${inner}}(${fn.toUntyped()})`;
+		for (let decl of decls) {
+			res = `func(u_${decl.name.toString()}){${res}}(${decl.toUntyped()})`;
 		}
 
 		return res;
@@ -1834,7 +1838,6 @@ class PlutusLightProgram {
 		this.haveDatum_ = false;
 		this.haveRedeemer_ = false;
 		this.haveScriptContext_ = false;
-		this.entryPoint_ = null;
 	}
 
 	toString() {
@@ -1970,8 +1973,6 @@ class PlutusLightProgram {
 		} else {
 			throw new Error(`unhandled ScriptPurpose ${this.purpose_.toString()}`);
 		}
-
-		this.entryPoint_ = main;
 	}
 
 	linkAndEval() {
@@ -2021,14 +2022,14 @@ class PlutusLightProgram {
 
 		res += "){\n  ifThenElse(";
 
-		res += this.entryPoint_.toUntyped() + "(" + uMainArgs.join(", ") + "), func(){()}, func(){error()})()\n"; // deferred evaluation of branches!
+		res += "u_main(" + uMainArgs.join(", ") + "), func(){()}, func(){error()})()\n"; // deferred evaluation of branches!
 		
 		res += "}";
 
 		// only user function declarations that are called more than once are added to global space, in the order they are encountere
 
 		// wrap main wih global user functions
-		res = userScope.usedMoreThanOnceToUntyped(res);
+		res = userScope.wrapWithTopLevel(res);
 
 		// wrap res with builtin global functions
 		return registry.wrap(res);
@@ -2478,27 +2479,44 @@ class TypeAliasDecl extends Named {
 }
 
 class ConstDecl extends Named {
-	constructor(loc, name, type, rhs) {
+	constructor(loc, name, type, expr) {
 		super(loc, name);
 		this.type_ = type;
-		this.rhs_ = rhs;
+		this.expr_ = expr;
+		this.cache_ = null;
 	}
 
 	toString() {
-		return "const " + this.name_.toString() + " " + this.type_.toString() + " = " + this.rhs_.toString();
+		return `const ${this.name_.toString()} ${this.type_.toString()} {${this.expr_.toString()}}`;
 	}
 
 	link(scope) {
 		this.type_.link(scope);
 
-		this.rhs_.link(scope);
+		this.expr_.link(scope);
 
-		scope.setValue(new NamedValue(this.name_, this.rhs_));
+		scope.setValue(new NamedValue(this.name_, this));
 	}
 
 	eval() {
-		// now assure that rhs is of certain type
-		assertTypeMatch(this.type_.eval(), this.rhs_.eval()); 
+		let type = this.type_.eval();
+		if (type instanceof FuncType) {
+			this.type_.typeError("invalid const type, can't be function type");
+		}
+
+		let rhs = this.expr_.eval();
+
+		if (!type.eq(rhs)) {
+			this.expr_.typeError(`expected ${type.toString()}, got ${rhs.toString()}`);
+		}
+		
+		this.cache_ = this.expr_.evalData();
+
+		return type;
+	}
+
+	toUntyped() {
+		return this.cache_.toUntyped();
 	}
 }
 
@@ -2581,38 +2599,26 @@ class FuncDecl extends Named {
 		this.body_.registerGlobals(registry);
 	}
 
-	// user space functions are prefixed by u_
-	toUntyped(args) { // input args must be expressions, not types!
-		if (args == undefined) {
-			let result = "func";
+	toUntyped() {
+		let result = "func";
 
-			result += "(";
+		result += "(";
 
-			let argParts = [];
+		let argParts = [];
 
-			for (let arg of this.args_) {
-				let argName = arg[0];
+		for (let arg of this.args_) {
+			let argName = arg[0];
 
-				argParts.push(argName);
-			}
-
-			result += argParts.join(", ") + "){";
-
-			result += this.body_.toUntyped();
-
-			result += "}";
-
-			return result;
-		} else {
-			// inline everything
-			assert(args.length == this.argRefs_.length);
-
-			for (let i = 0; i < this.argRefs_.length; i++) {
-				this.argRefs_[i].expr_ = args[i];
-			}
-
-			return this.body_.toUntyped();
+			argParts.push("u_" + argName);
 		}
+
+		result += argParts.join(", ") + "){";
+
+		result += this.body_.toUntyped();
+
+		result += "}";
+
+		return result;
 	}
 }
 
@@ -2628,13 +2634,7 @@ class NamedValue extends Named {
 	}
 
 	toUntyped() {
-		if (this.ref_ instanceof NamedValue && this.ref_.expr_ != null) {
-			return this.ref_.expr_.toUntyped();
-		} else if (this.type_.isLiteral()) {
-			return this.type_.toString();
-		} else {
-			return this.name.toString();
-		}
+		throw new Error("should only be used as reference");
 	}
 }
 
@@ -2849,11 +2849,7 @@ class Variable extends Token {
 	}
 
 	toUntyped() {
-		assert(this.ref_ != null);
-
-		let res = this.ref_.toUntyped();
-
-		return res;
+		return "u_" + this.toString();
 	}
 }
 
@@ -3435,7 +3431,7 @@ class AssignExpr extends Expr {
 	}
 
 	toUntyped() {
-		return `func(${this.name_.toString()}){${this.lambda_.toUntyped()}}(${this.rhs_.toUntyped()})`;
+		return `func(u_${this.name_.toString()}){${this.lambda_.toUntyped()}}(${this.rhs_.toUntyped()})`;
 	}
 }
 
@@ -3656,7 +3652,7 @@ class SelectCase extends Token {
 	}
 
 	toUntyped() {
-		return `func(${this.varName_ != null ? this.varName_.toString() : "_"}){${this.body_.toUntyped()}}`;
+		return `func(u_${this.varName_ != null ? this.varName_.toString() : "_"}){${this.body_.toUntyped()}}`;
 	}
 }
 
@@ -3714,11 +3710,7 @@ class CallExpr extends Expr {
 	toUntyped() {
 		if (this.lhs_ instanceof Variable) {
 			if (this.lhs_.ref_ instanceof FuncDecl) {
-				if (this.lhs_.ref_.useCount_ == 1) {
-					return this.lhs_.ref_.toUntyped(this.args_);
-				} else {
-					return `u_${this.lhs_.ref_.name.toString()}(${this.args_.map(a => a.toUntyped()).join(", ")})`;
-				}
+				return `u_${this.lhs_.ref_.name.toString()}(${this.args_.map(a => a.toUntyped()).join(", ")})`;
 			}
 		}
 
@@ -7113,21 +7105,23 @@ function buildTypeAliasDecl(start, name, ts) {
 function buildConstDecl(start, ts) {
 	let name = ts.shift().assertWord();
 
-	let iEq = Symbol.find(ts, "=");
-
-	assert(iEq != -1);
-
-	let type = buildTypeExpr(ts.slice(0, iEq));
-	let rhs = ts[iEq+1];
-
-	// can only be a literal!
-	if (!rhs.isLiteral()) {
-		rhs.syntaxError("not a literal");
+	let iBraces = Group.find(ts, "{");
+	if (iBraces == -1) {
+		start.syntaxError("invalid const syntax, expected {...}");
 	}
 
-	ts.splice(0, iEq+2);
+	let type = buildTypeExpr(ts.slice(0, iBraces));
+	ts.splice(0, iBraces);
 
-	return new ConstDecl(start, name, type, rhs);
+	let braces = ts.shift().assertGroup("{");
+
+	if (braces.fields.length != 1) {
+		braces.syntaxError("invalid const syntax, expected 1 field");
+	}
+
+	let expr = buildValExpr(braces.fields[0]);
+
+	return new ConstDecl(start, name, type, expr);
 }
 
 function buildFuncArgs(parens) {
