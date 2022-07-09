@@ -3891,6 +3891,7 @@ function registerUnDataVerbose(registry) {
 	}
 }
 
+// also works for UnionMemberDecl
 class MemberExpr extends Expr {
 	constructor(loc, lhs, name) {
 		super(loc);
@@ -3929,8 +3930,14 @@ class MemberExpr extends Expr {
 
 		assert(iField != -1);
 
-		// member access is always for structs, which are always `data` -> (0, []data)
-		return fromData(unDataVerbose(this.lhs_.toUntyped(), lhs.name.toString(), 0, iField), this.eval());
+		let inner = `sndPair(${this.lhs_.toUntyped()})`;
+		for (let i = 0; i < iField; i++) {
+			inner = `tailList(${inner})`;
+		}
+
+		// member access is always for structs, which are always `data` -> (<index>, []data)
+		// constructor index is irrelevant here because we know the exact type
+		return fromData(`headList(${inner})`, this.eval());
 	}
 }
 
@@ -8446,7 +8453,7 @@ export function compilePlutusLightProgram(typedSrc, purpose = ScriptPurpose.Spen
 		let untypedSrc = program.toUntyped();
 
 		try {
-			//console.log(prettySource(untypedSrc) + "\n");
+			// console.log(prettySource(untypedSrc) + "\n");
 			
 			// at this point there shouldn't be any errors
 			let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);

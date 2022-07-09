@@ -31,6 +31,12 @@ data VestingParams {
     owner    PubKeyHash
 }
 
+const PARAMS VestingParams {
+    VestingParams{
+        /*parameters interpolated from surrounding js*/
+    }
+}
+
 func availableFrom(tranche VestingTranche, time Time) Value {
     if (time >= tranche.time) {
         tranche.amount
@@ -45,12 +51,11 @@ func remainingFrom(tranche VestingTranche, time Time) Value {
 
 // the compiler is smart enough to add an empty Datum and empty Redeemer as arguments to the actual main entrypoint function
 func main(ctx ScriptContext) Bool {
-    vestingParams VestingParams = VestingParams{/*parameters interpolated from surrounding js*/};
     tx Tx = getTx(ctx);
     now Time = getTimeRangeStart(getTxTimeRange(tx));
     remainingActual Value = valueLockedBy(tx, getCurrentValidatorHash(ctx));
-    remainingExpected Value = remainingFrom(vestingParams.tranche1, now) + remainingFrom(vestingParams.tranche2, now);
-    remainingActual >= remainingExpected && isTxSignedBy(tx, vestingParams.owner)
+    remainingExpected Value = remainingFrom(PARAMS.tranche1, now) + remainingFrom(PARAMS.tranche2, now);
+    remainingActual >= remainingExpected && isTxSignedBy(tx, PARAMS.owner)
 }
 ```
 
