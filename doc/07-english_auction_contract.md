@@ -3,74 +3,74 @@
 ## The script
 
 ```golang
-data Datum {
-    seller:        PubKeyHash,
-    bidAsset:      AssetClass, // allow alternative assets (not just lovelace)
-    minBid:        Integer,
-    deadline:      Time,
-    forSale:       Value,
-    highestBid:    Integer, // initialized at 0, which signifies the auction doesn't yet have valid bids
-    highestBidder: PubKeyHash
+struct Datum {
+    seller:         PubKeyHash,
+    bid_asset:      AssetClass, // allow alternative assets (not just lovelace)
+    min_bid:        Int,
+    deadline:       Time,
+    for_sale:       Value, // the asset that is being auctioned
+    highest_bid:    Int, // initialized at 0, which signifies the auction doesn't yet have valid bids
+    highest_bidder: PubKeyHash
 }
 
 enum Redeemer {
     Close {},
     Bid {
         bidder: PubKeyHash,
-        bid:    Integer
+        bid:    Int
     }
 }
 
-func updateDatum(old: Datum, highestBid: Integer, highestBidder: PubKeyHash) -> Datum {
+func update_datum(old: Datum, highest_bid: Int, highest_bidder: PubKeyHash) -> Datum {
     Datum{
-        seller:        old.seller,
-        bidAsset:      old.bidAsset,
-        minBid:        old.minBid,
-        deadline:      old.deadline,
-        forSale:       old.forSale,
-        highestBid:    highestBid,
-        highestBidder: highestBidder
+        seller:         old.seller,
+        bid_asset:      old.bid_asset,
+        min_bid:        old.min_bid,
+        deadline:       old.deadline,
+        for_sale:       old.for_sale,
+        highest_bid:    highest_bid,
+        highest_bidder: highest_bidder
     }
 }
 
 func main(datum: Datum, redeemer: Redeemer, ctx: ScriptContext) -> Bool {
-    tx: Tx = getTx(ctx);
+    tx: Tx = ctx.tx;
 
-    now: Time = getTimeRangeStart(getTxTimeRange(tx));
+    now: Time = tx.now();
 
-    validatorHash: ValidatorHash = getCurrentValidatorHash(ctx);
+    validator_hash: ValidatorHash = ctx.current_validator_hash();
 
     if (now < datum.deadline) {
-        select (redeemer) {
+        switch (redeemer) {
             case Redeemer::Close {false}
             case (b: Redeemer::Bid) {
-                if (b.bid < datum.minBid) {
+                if (b.bid < datum.min_bid) {
                     false
-                } else if (datum.highestBid == 0) {
+                } else if (datum.highest_bid == 0) {
                     // first bid
-                    expectedDatum: Datum = updateDatum(datum, b.bid, b.bidder);
+                    expected_datum: Datum = update_datum(datum, b.bid, b.bidder);
 
-                    valueLockedByDatum(tx, validatorHash, expectedDatum) >= datum.forSale + Value(datum.bidAsset, b.bid)
-                } else if (b.bid <= datum.highestBid) {
+                    tx.value_locked_by_datum(validator_hash, expected_datum) >= datum.for_sale + Value::new(datum.bid_asset, b.bid)
+                } else if (b.bid <= datum.highest_bid) {
                     false
                 } else {
-                    expectedDatum: Datum = updateDatum(datum, b.bid, b.bidder);
+                    expected_datum: Datum = update_datum(datum, b.bid, b.bidder);
 
-                    valueLockedByDatum(tx, validatorHash, expectedDatum) >= datum.forSale + Value(datum.bidAsset, b.bid) &&
-                    valueSentTo(tx, datum.highestBidder) >= Value(datum.bidAsset, datum.highestBid)
+                    tx.value_locked_by_datum(validator_hash, expected_datum) >= datum.for_sale + Value::new(datum.bid_asset, b.bid) &&
+                    tx.value_sent_to(datum.highest_bidder) >= Value::new(datum.bid_asset, datum.highest_bid)
                 }
             }
         }
     } else {
         // after deadline -> must close
-        select (redeemer) {
+        switch (redeemer) {
             case Redeemer::Close {
-                if (datum.highestBid < datum.minBid) {
+                if (datum.highest_bid < datum.min_bid) {
                     // the forSale asset must return to the seller, what happens to any erroneous bid value is irrelevant
-                    valueSentTo(tx, datum.seller) >= datum.forSale
+                    tx.value_sent_to(datum.seller) >= datum.for_sale
                 } else {
-                    valueSentTo(tx, datum.seller) >= Value(datum.bidAsset, datum.highestBid) &&
-                    valueSentTo(tx, datum.highestBidder) >= datum.forSale
+                    tx.value_sent_to(datum.seller) >= Value::new(datum.bid_asset, datum.highest_bid) &&
+                    tx.value_sent_to(datum.highest_bidder) >= datum.for_sale
                 }
             }
             default {false}
