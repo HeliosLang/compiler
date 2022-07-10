@@ -23,8 +23,8 @@ Note that the Plutus-Light library also contains a function to deserialize exist
 The following Plutus-Light example is equivalent to the Plutus vesting contract from the Plutus playground (demonstration of syntax only, shouldn't be used in production!):
 ```golang
 data VestingTranche {
-    time   Time, // 'amount' is available after 'time'
-    amount Value
+    time:  Time, // 'amount' is available after 'time'
+    amount: Value
 }
 
 data VestingParams {
