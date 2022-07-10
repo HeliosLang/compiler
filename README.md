@@ -22,12 +22,12 @@ Note that the Plutus-Light library also contains a function to deserialize exist
 ### 1. Vesting contract example
 The following Plutus-Light example is equivalent to the Plutus vesting contract from the Plutus playground (demonstration of syntax only, shouldn't be used in production!):
 ```golang
-data VestingTranche {
+struct VestingTranche {
     time:  Time, // 'amount' is available after 'time'
     amount: Value
 }
 
-data VestingParams {
+struct VestingParams {
     tranche1: VestingTranche,
     tranche2: VestingTranche,
     owner:    PubKeyHash
@@ -38,7 +38,7 @@ const PARAMS: VestingParams = VestingParams{
 };
 
 
-func availableFrom(tranche: VestingTranche, time: Time) -> Value {
+func available_from(tranche: VestingTranche, time: Time) -> Value {
     if (time >= tranche.time) {
         tranche.amount
     } else {
@@ -46,17 +46,17 @@ func availableFrom(tranche: VestingTranche, time: Time) -> Value {
     }
 }
 
-func remainingFrom(tranche: VestingTranche, time: Time) -> Value {
-    tranche.amount - availableFrom(tranche, time)
+func remaining_from(tranche: VestingTranche, time: Time) -> Value {
+    tranche.amount - available_from(tranche, time)
 }
 
 // the compiler is smart enough to add an empty Datum and empty Redeemer as arguments to the actual main entrypoint function
 func main(ctx: ScriptContext) -> Bool {
-    tx: Tx = getTx(ctx);
-    now: Time = getTimeRangeStart(getTxTimeRange(tx));
-    remainingActual: Value = valueLockedBy(tx, getCurrentValidatorHash(ctx));
-    remainingExpected: Value = remainingFrom(PARAMS.tranche1, now) + remainingFrom(PARAMS.tranche2, now);
-    remainingActual >= remainingExpected && isTxSignedBy(tx, PARAMS.owner)
+    tx: Tx = ctx.tx;
+    now: Time = tx.now();
+    remaining_actual: Value = tx.value_locked_by(ctx.current_validator_hash());
+    remaining_expected: Value = remaining_from(PARAMS.tranche1, now) + remaining_from(PARAMS.tranche2, now);
+    remaining_actual >= remaining_expected && tx.is_signed_by(PARAMS.owner)
 }
 ```
 
@@ -93,7 +93,7 @@ Plutus-Light has a C-like syntax. A function body is a single expression. There 
 ### Primitive types
 Each primitive type has associated literal expressions:
  * `Bool`: `true` or `false`
- * `Integer`: `123` or `0b1111011` or `0o173` or `0x7b`
+ * `Int`: `123` or `0b1111011` or `0o173` or `0x7b`
  * `String`: `"..."` or `'...'`
  * `ByteArray`: `#abcdef0123456789` (i.e. pound symbol followed by lower-case hexadecimal sequence)
 
@@ -102,7 +102,7 @@ For now Plutus-Light only offers one builtin container type: lists. (We might im
 
 The syntax for list types and literal list expressions is the same as in Golang:
 ```golang
-numbers: []Integer = []Integer{1, 2, 3};
+numbers: []Int = []Int{1, 2, 3};
 ...
 ```
 
@@ -126,6 +126,8 @@ Besides primitive types, some other opaque builtin types are defined:
  * `AssetClass`
  * `Address`
  * `Credential`
+ * `Credential::PubKey`
+ * `Credential::Validator`
 
 These types require special builtin functions to access their content. Some also have builtin constructors. User defined data-types automatically generate a *cast* function allowing `Data` to be cast into that particular type.
 
@@ -133,7 +135,7 @@ These types require special builtin functions to access their content. Some also
 User defined data-types look like struct definitions in C, but use the `data` keyword instead:
 ```golang
 data Redeemer {
-    mode:      Integer,
+    mode:      Int,
     message:   String,
     recipient: PubKeyHash
 }
@@ -149,9 +151,9 @@ enum Datum {
 }
 ```
 
-A `select` expression can be used to 'unwrap' enum-type instances:
+A `switch` expression can be used to 'unwrap' enum-type instances:
 ```golang
-select (expr) {
+switch (expr) {
     case (x: Datum::Submission) { // double-colon to reference the sub-type
         ... // expression must use x
     } case Datum::Queue {
@@ -165,14 +167,14 @@ select (expr) {
 Direct explicit downcasting is also possible (a runtime error will be thrown if the type doesn't match):
 ```golang
 datum: Datum = Datum::Submission{...}; // implicit upcasting
-sDatum: Datum::Submission = Datum::Submission(datum); // explicit downcasting
+s_datum: Datum::Submission = Datum::Submission::cast(datum); // explicit downcasting (cast associated member is automatically generated)
 ...
 ```
 
 ### Branching
 Branching expressions look like C `if else` branching statements, but must always have the `else` branch defined:
 ```golang
-if (code == 0) { // expression to convert an Integer code into a String
+if (code == 0) { // expression to convert an Int code into a String
     "Success"
 } else if (code == 1) {
     "Error"
@@ -190,7 +192,7 @@ Each branch must evaluate to the same type.
 ### Function expressions
 Plutus-Light supports anonymous function expressions with the following syntax:
 ```go
-myAddIntegers: (Integer, Integer) -> Integer = (a: Integer, b: Integer) -> Integer {a + b}; ...
+my_add_integers: (Int, Int) -> Int = (a: Int, b: Int) -> Int {a + b}; ...
 ```
 
 Note how the type expression for a function resembles the right-hand function value expression itself.
@@ -203,19 +205,19 @@ Operators that can be used in compile-time `const` statements are marked with '^
  * `! Bool -> Bool`
  * `Bool || Bool -> Bool`
  * `Bool && Bool -> Bool`
- * `- Integer -> Integer` ^
- * `+ Integer -> Integer` ^
- * `Integer == Integer -> Bool`
- * `Integer != Integer -> Bool`
- * `Integer >= Integer -> Bool`
- * `Integer > Integer -> Bool`
- * `Integer <= Integer -> Bool`
- * `Integer < Integer -> Bool`
- * `Integer + Integer -> Integer` ^
- * `Integer - Integer -> Integer` ^
- * `Integer * Integer -> Integer` ^
- * `Integer / Integer -> Integer` ^
- * `Integer % Integer -> Integer`
+ * `- Int -> Int` ^
+ * `+ Int -> Int` ^
+ * `Int == Int -> Bool`
+ * `Int != Int -> Bool`
+ * `Int >= Int -> Bool`
+ * `Int > Int -> Bool`
+ * `Int <= Int -> Bool`
+ * `Int < Int -> Bool`
+ * `Int + Int -> Int` ^
+ * `Int - Int -> Int` ^
+ * `Int * Int -> Int` ^
+ * `Int / Int -> Int` ^
+ * `Int % Int -> Int`
  * `ByteArray == ByteArray -> Bool`
  * `ByteArray != ByteArray -> Bool`
  * `ByteArray >= ByteArray -> Bool`
@@ -260,73 +262,73 @@ Operators that can be used in compile-time `const` statements are marked with '^
 ### Builtin functions
 Note that builtin functions can't be referenced, and must be called immediately (wrap them in closures as a work-around). Builtin functions that can be used in compile-time `const` statements are marked with '^'. 
 
- * `Integer(Bool) -> Integer` (`false` -> `0`, `true` -> `1`)
- * `ByteArray(String) -> ByteArray` (encodes utf8)
- * `String(ByteArray) -> String` (decodes utf8)
- * `show(Integer) -> String` (string representation of integer) ^
- * `show(Bool) -> String` (`"true"` or `"false"`) ^
- * `show(Time) -> String` (string representation of milliseconds since epoch) ^
- * `show(ByteArray) -> String` (hex representation of bytearray) ^
- * `Time(Integer) -> Time` (milliseconds since epoch) ^
- * `Duration(Integer) -> Duration` (milliseconds) ^
- * `PubKeyHash(ByteArray) -> PubKeyHash` ^
- * `ValidatorHash(ByteArray) -> ValidatorHash` ^
- * `DatumHash(ByteArray) -> DatumHash` ^
- * `MintingPolicyHash(ByteArray) -> MintingPolicyHash` ^
- * `TxOutputId(ByteArray, Integer) -> TxOutputId` ^
- * `fold(func(a, b) a, a, []b) -> a`
- * `filter(func(a) Bool, []a) -> []a`
- * `find(func(a) Bool, []a) -> a` (returns first found, throws error if nothing found)
- * `contains(func(a) Bool, []a) -> Bool`
- * `len(ByteArray) -> Integer`
- * `len([]a) -> Integer`
- * `prepend(a, []a) -> []a`
- * `getIndex([]a, Integer) -> a` (throws error if out of range)
- * `head([]a) -> a` (first element of list, throws error if list is empty)
- * `tail([]a) -> []a` (rest of list without first element, throws error if list is empty)
- * `isEmpty([]a) -> Bool`
- * `trace(String, a) -> a` (print a debug message while returning a value)
- * `getTx(ScriptContext) -> Tx`
- * `getSpendingPurposeTxOutputId(ScriptContext) -> TxOutputId`
- * `getTxTimeRange(Tx) -> TimeRange`
- * `getTxInputs(Tx) -> []TxInput`
- * `getTxOutputs(Tx) -> []TxOutput`
- * `getTxOutputsSentTo(Tx, PubKeyHash) -> []TxOutput` (outputs being sent to regular payment address)
- * `getTxOutputsLockedBy(Tx, ValidatorHash) -> []TxOutput` (outputs being sent to script `Address` with specified validator credential hash)
- * `getTimeRangeStart(TimeRange) -> Time` (throws error if time range start is open)
- * `getTxSignatories(Tx) -> []PubKeyHash`
- * `getTxId(Tx) -> TxId`
- * `isTxSignedBy(Tx, PubKeyHash) -> Bool`
- * `getTxInputOutputId(TxInput) -> TxOutputId`
- * `getTxInputOutput(TxInput) -> TxOutput` (original `TxOutput` that is now being used as `TxInput`)
- * `getTxOutputAddress(TxOutput) -> Address`
- * `getTxOutputValue(TxOutput) -> Value`
- * `hasDatumHash(TxOutput) -> Bool`
- * `getTxOutputDatumHash(TxOutput) -> DatumHash` (returns an empty `DatumHash` if the tx output doesn't have one)
- * `getAddressCredential(Address) -> Credential`
- * `isStakedAddress(Address) -> Bool`
- * `isPubKeyCredential(Credential) -> Bool`
- * `isScriptCredential(Credential) -> Bool`
- * `getCredentialValidatorHash(Credential) -> ValidatorHash`
- * `getCredentialPubKeyHash(Credential) -> PubKeyHash`
- * `getCurrentTxInput(ScriptContext) -> TxInput`
- * `getCurrentValidatorHash(ScriptContext) -> ValidatorHash` (hash of current validator script)
- * `getCurrentMintingPolicyHash(ScriptContext) -> MintingPolicyHash` (hash of curreny minting script)
- * `getValueComponent(Value, AssetClass) -> Integer`
- * `isZero(Value) -> Bool`
- * `zero() -> Value`
- * `valueSentTo(Tx, PubKeyHash) -> Value` (`Value` sent to regular paymant address)
- * `valueLockedBy(Tx, ValidatorHash) -> Value` (`Value` sent to script `Address` with given validator credential hash)
- * `valueLockedByDatum(Tx, ValidatorHash, a) -> Value` (`Value` sent to script with given datum of type `a`, `a` must be a user-defined data-type, throws an error if datum isn't found)
- * `AssetClass(ByteArray, String) -> AssetClass`
- * `Value(AssetClass, Integer) -> Value` ^
- * `lovelace(Integer) -> Value` ^
- * `findDatumData(Tx, DatumHash) -> Data`
- * `findDatumHash(Tx, a) -> DatumHash` (`a` must be a user-defined data-type)
+ * `to_int(self: Bool) -> Int` (`false` -> `0`, `true` -> `1`)
+ * `encode_utf8(self: String) -> ByteArray` (encodes utf8)
+ * `decode_utf8(self: ByteArray) -> String` (decodes utf8)
+ * `show(self: Int) -> String` (string representation of integer) ^
+ * `show(self: Bool) -> String` (`"true"` or `"false"`) ^
+ * `show(self: Time) -> String` (string representation of milliseconds since epoch) ^
+ * `show(self: ByteArray) -> String` (hex representation of bytearray) ^
+ * `Time::new(Int) -> Time` (milliseconds since epoch) ^
+ * `Duration::new(Int) -> Duration` (milliseconds) ^
+ * `PubKeyHash::new(ByteArray) -> PubKeyHash` ^
+ * `ValidatorHash::new(ByteArray) -> ValidatorHash` ^
+ * `DatumHash::new(ByteArray) -> DatumHash` ^
+ * `MintingPolicyHash::new(ByteArray) -> MintingPolicyHash` ^
+ * `TxOutputId::new(ByteArray, Int) -> TxOutputId` ^
+ * `fold(self: []b, a, (a, b) -> a) -> a`
+ * `filter(self: []a, (a) -> Bool) -> []a`
+ * `find(self: []a, (a) -> Bool) -> a` (returns first found, throws error if nothing found)
+ * `contains(self: []a, (a) -> Bool) -> Bool`
+ * `len(self: ByteArray) -> Int`
+ * `len(self: []a) -> Int`
+ * `prepend(self: []a, a) -> []a`
+ * `get(self: []a, Int) -> a` (throws error if out of range)
+ * `head(self: []a) -> a` (first element of list, throws error if list is empty)
+ * `tail(self: []a) -> []a` (rest of list without first element, throws error if list is empty)
+ * `isEmpty(self: []a) -> Bool`
+ * `trace(a, String) -> a` (print a debug message while returning a value)
+ * `ScriptContext.tx -> Tx`
+ * `spending_purpose_output_id(self: ScriptContext) -> TxOutputId`
+ * `Tx.time_range -> TimeRange`
+ * `Tx.inputs -> []TxInput`
+ * `Tx.outputs -> []TxOutput`
+ * `outputs_sent_to(self: Tx, PubKeyHash) -> []TxOutput` (outputs being sent to regular payment address)
+ * `outputs_locked_by(self: Tx, ValidatorHash) -> []TxOutput` (outputs being sent to script `Address` with specified validator credential hash)
+ * `(TimeRange).start -> Time` (throws error if time range start is open)
+ * `Tx.signatories -> []PubKeyHash`
+ * `Tx.id -> TxId`
+ * `is_signed_by(self: Tx, PubKeyHash) -> Bool`
+ * `TxInput.output_id -> TxOutputId`
+ * `TxInput.output -> TxOutput` (original `TxOutput` that is now being used as `TxInput`)
+ * `TxOutput.address -> Address`
+ * `TxOutput.value -> Value`
+ * `TxOutput.has_datum_hash() -> Bool`
+ * `TxOutput.datum_hash -> Maybe[DatumHash]`
+ * `Address.credential -> Credential`
+ * `is_staked(self: Address) -> Bool`
+ * `is_pub_key(self: Credential) -> Bool`
+ * `is_validator(self: Credential) -> Bool`
+ * `Credential::Validator.hash -> ValidatorHash`
+ * `Credential::PubKey.hash -> PubKeyHash`
+ * `current_input(self: ScriptContext) -> TxInput`
+ * `current_validator_hash(self: ScriptContext) -> ValidatorHash` (hash of current validator script)
+ * `current_minting_policy_hash(self: ScriptContext) -> MintingPolicyHash` (hash of curreny minting script)
+ * `get(self: Value, AssetClass) -> Int`
+ * `isZero(self: Value) -> Bool`
+ * `Value::zero() -> Value`
+ * `value_sent_to(self: Tx, PubKeyHash) -> Value` (`Value` sent to regular paymant address)
+ * `value_locked_by(self: Tx, ValidatorHash) -> Value` (`Value` sent to script `Address` with given validator credential hash)
+ * `value_locked_by_datum(self: Tx, ValidatorHash, a) -> Value` (`Value` sent to script with given datum of type `a`, `a` must be a user-defined data-type, throws an error if datum isn't found)
+ * `AssetClass::new(ByteArray, String) -> AssetClass`
+ * `Value::new(AssetClass, Int) -> Value` ^
+ * `Value::lovelace(Int) -> Value` ^
+ * `find_datum_data(self: Tx, DatumHash) -> Data`
+ * `find_datum_hash(self: Tx, a) -> DatumHash` (`a` must be a user-defined data-type)
  * `serialize(a) -> ByteArray` (`a` can be anything except a function type)
- * `sha2(ByteArray) -> ByteArray` (32 bytes)
- * `sha3(ByteArray) -> ByteArray` (32 bytes)
- * `blake2b(ByteArray) -> ByteArray` (32 bytes)
+ * `sha2(self: ByteArray) -> ByteArray` (32 bytes)
+ * `sha3(self: ByteArray) -> ByteArray` (32 bytes)
+ * `blake2b(self: ByteArray) -> ByteArray` (32 bytes)
 
 
 ## Plutus-Light developer guide
@@ -336,7 +338,7 @@ Note that builtin functions can't be referenced, and must be called immediately 
 * Whitespace is obviously insignificant.
 * For everything there should be one, and only one, obvious way of doing it.
 * Each symbol/operator has only one kind of functionality. Only standard symbols/operators should be used (so nothing weird like in Haskell).
-* Brackets are only used for builtin parametric types (List-type and perhaps at some point in the future Map, Maybe etc.). Brackets aren't used for indexing (use `getIndex` builtin instead).
+* Brackets are only used for builtin parametric types (List-type and perhaps at some point in the future Map, Maybe etc.). Brackets aren't used for indexing (use `.get` builtin instead).
 * Semi-colons are operators and are part of assignment expressions. They can't be used as separators.
 * Similarly the equals-sign is part of assignment expressions, and can't be used as other 'special' syntax.
 * Because expressions can contain assignments all distinct expressions should be visibly scoped (inside parentheses or braces, so no leaving out the parentheses of `if else`-conditions like in Golang). 
