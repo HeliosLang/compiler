@@ -2,7 +2,7 @@
 
 Plutus-Light is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Plutus-Light is a non-Haskell alternative to Plutus.
 
-Plutus-Light is purely functional, strongly typed, and uses a conventional curly braces syntax. It notably supports closures, compile-time const statements, and enums as tagged unions.
+Plutus-Light is purely functional, strongly typed, and has a Rusty curly braces syntax. It notably supports closures, compile-time const statements, and enums as tagged unions.
 
 This repository contains a reference compiler for Plutus-Light, written in Javascript.
 
@@ -42,7 +42,7 @@ func available_from(tranche: VestingTranche, time: Time) -> Value {
     if (time >= tranche.time) {
         tranche.amount
     } else {
-        zero()
+        Value::zero()
     }
 }
 
