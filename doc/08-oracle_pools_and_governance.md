@@ -83,20 +83,20 @@ Submission UTXO datum:
 
 The sometimes vastly differing datum types probably made it worthwhile to introduce union types:
 ```golang
-union Datum {
+enum Datum {
     Post {
-        dataPoint Integer,
-        govParams GovernanceParams
+        dataPoint: Integer,
+        govParams: GovernanceParams
     }, 
     Submit {
-        owner     PubKeyHash,
-        salt      Integer,
-        dataPoint Integer,
-        time      Time,
-        govParams GovernanceParams
+        owner:     PubKeyHash,
+        salt:      Integer,
+        dataPoint: Integer,
+        time:      Time,
+        govParams: GovernanceParams
     },
     Queue {
-        inputs []TxOutputId
+        inputs: []TxOutputId
     }
 }
 ```

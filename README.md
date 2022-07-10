@@ -130,7 +130,7 @@ Besides primitive types, some other opaque builtin types are defined:
 
 These types require special builtin functions to access their content. Some also have builtin constructors. User defined data-types automatically generate a *cast* function allowing `Data` to be cast into that particular type.
 
-### User defined data-types
+### Data-types
 User defined data-types look like struct definitions in C, but use the `data` keyword instead:
 ```golang
 data Redeemer {
@@ -140,8 +140,8 @@ data Redeemer {
 }
 ```
 
-### User defined enum types
-Plutus-Light supports tagged unions. These are useful for datums and redeemers with differing content depending on how the script is used. In Haskell tagged unions are called Algeabraic Data Types. Tagged unions are declared as with the `enum` keyword:
+### Enum-types
+Plutus-Light supports tagged unions. These are useful for datums and redeemers with differing content depending on how the script is used. In Haskell tagged unions are called Algeabraic Data Types. Tagged unions are declared with the `enum` keyword:
 ```golang
 enum Datum {
     Submission{...}, // content of Submission has the same syntax as a regular data-type

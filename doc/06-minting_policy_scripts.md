@@ -11,8 +11,8 @@ func main() Bool { // compiler is smart enough to add dummy Redeemer and ScriptC
 
 A slightly more elaborate minting policy allows a single centralized actor to mint (or burn) any number of tokens:
 ```golang
-func main(ctx ScriptContext) Bool {
-    tx Tx = getTx(ctx);
+func main(ctx: ScriptContext) Bool {
+    tx: Tx = getTx(ctx);
 
     isTxSignedBy(tx, PubKeyHash(#a14f...))
 }
@@ -20,11 +20,11 @@ func main(ctx ScriptContext) Bool {
 
 For NFTs, or public-sale tokens, the minting policy needs to be provably single-use. UTXOs are guaranteed to be unique, and can be used for this purpose:
 ```golang
-func main(ctx ScriptContext) Bool {
-    tx Tx = getTx(ctx);
+func main(ctx: ScriptContext) Bool {
+    tx: Tx = getTx(ctx);
 
     // assume a single input
-    txInput TxInput = head(getTxInputs(tx));
+    txInput: TxInput = head(getTxInputs(tx));
 
     // we also check the total minted
     getTxInputOutputId(txInput) == TxOutputId(#<utxo-id>, 0) && getTxMintedValue(tx) == Value(AssetClass(getCurrentMintingPolicyHash(ctx), "MyNFT"), 1)

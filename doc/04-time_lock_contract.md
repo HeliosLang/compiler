@@ -5,15 +5,15 @@ The *always-succeeds* contract in part 3 isn't very useful. Something that is st
 The Plutus-Light script:
 ```golang
 data Datum {
-    lockUntil Time,
-    owner     PubKeyHash, // can't get this info from the ScriptContext
-    nonce     Integer // doesn't actually need be checked here
+    lockUntil: Time,
+    owner:     PubKeyHash, // can't get this info from the ScriptContext
+    nonce:     Integer // doesn't actually need be checked here
 }
 
-func main(datum Datum, ctx ScriptContext) Bool {
-    tx Tx = getTx(ctx);
-    now Time = getTimeRangeStart(getTxTimeRange(tx));
-    returnToOwner Bool = isTxSignedBy(tx, datum.owner);
+func main(datum: Datum, ctx: ScriptContext) Bool {
+    tx: Tx = getTx(ctx);
+    now: Time = getTimeRangeStart(getTxTimeRange(tx));
+    returnToOwner: Bool = isTxSignedBy(tx, datum.owner);
 
     trace("now: " + show(now) + ", lock: " + show(datum.lockUntil), now > datum.lockUntil) || 
     trace("returning? " + show(returnToOwner), returnToOwner)
@@ -71,7 +71,7 @@ $ nodejs
 
 > var PL; import("./plutus-light.js").then(m=>{PL=m});
 
-> const src = "data Datum {lockUntil...";
+> const src = "data Datum {lockUn...";
 
 > console.log(PL.compilePlutusLightData(src, `Datum{lockUntil: Time(${(new Date()).getTime() + 1000*60*5}), owner: PubKeyHash(#1d22b9ff5fc...), nonce: 42}`));
 
