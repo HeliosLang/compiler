@@ -42,7 +42,7 @@ func available_from(tranche: VestingTranche, time: Time) -> Value {
     if (time >= tranche.time) {
         tranche.amount
     } else {
-        Value::zero()
+        Value::ZERO
     }
 }
 
@@ -106,6 +106,12 @@ numbers: []Int = []Int{1, 2, 3};
 ...
 ```
 
+### (WiP) Option type
+What the `Option` type might look like:
+* `Option[T]`
+* `Option[T]::Some`
+* `Option[T]::None`
+
 ### Other builtin types
 Besides primitive types, some other opaque builtin types are defined:
  * `ScriptContext`
@@ -128,7 +134,7 @@ Besides primitive types, some other opaque builtin types are defined:
  * `Credential`
  * `Credential::PubKey`
  * `Credential::Validator`
-
+ 
 These types require special builtin functions to access their content. Some also have builtin constructors. User defined data-types automatically generate a *cast* function allowing `Data` to be cast into that particular type.
 
 ### Data-types
@@ -191,13 +197,23 @@ Each branch must evaluate to the same type.
 
 ### Function expressions
 Plutus-Light supports anonymous function expressions with the following syntax:
-```go
+```golang
 my_add_integers: (Int, Int) -> Int = (a: Int, b: Int) -> Int {a + b}; ...
 ```
 
 Note how the type expression for a function resembles the right-hand function value expression itself.
 
 Function values aren't entirely first class: they can't be put in containers (so not in lists nor in any fields of a `data` or `enum` type).
+
+### (WiP) Type inference
+If the type of the right-hand-side of an assignment is a literal (constructor or primitive) or a builtin cast, the type can be infered:
+```golang
+my_number = 42;
+
+my_add_integers = (a: Int, b: Int) -> Int {a + b}; ...
+
+my_value = Value::new(AssetClass::ADA, my_number)
+```
 
 ### Builtin operators
 Operators that can be used in compile-time `const` statements are marked with '^'.
@@ -263,8 +279,8 @@ Operators that can be used in compile-time `const` statements are marked with '^
 Note that builtin functions can't be referenced, and must be called immediately (wrap them in closures as a work-around). Builtin functions that can be used in compile-time `const` statements are marked with '^'. 
 
  * `to_int(self: Bool) -> Int` (`false` -> `0`, `true` -> `1`)
- * `encode_utf8(self: String) -> ByteArray` (encodes utf8)
- * `decode_utf8(self: ByteArray) -> String` (decodes utf8)
+ * `encode_utf8(self: String) -> ByteArray`
+ * `decode_utf8(self: ByteArray) -> String`
  * `show(self: Int) -> String` (string representation of integer) ^
  * `show(self: Bool) -> String` (`"true"` or `"false"`) ^
  * `show(self: Time) -> String` (string representation of milliseconds since epoch) ^
@@ -276,18 +292,18 @@ Note that builtin functions can't be referenced, and must be called immediately 
  * `DatumHash::new(ByteArray) -> DatumHash` ^
  * `MintingPolicyHash::new(ByteArray) -> MintingPolicyHash` ^
  * `TxOutputId::new(ByteArray, Int) -> TxOutputId` ^
- * `fold(self: []b, a, (a, b) -> a) -> a`
- * `filter(self: []a, (a) -> Bool) -> []a`
- * `find(self: []a, (a) -> Bool) -> a` (returns first found, throws error if nothing found)
- * `contains(self: []a, (a) -> Bool) -> Bool`
+ * `fold[b, a](self: []b, a, (a, b) -> a) -> a`
+ * `filter[a](self: []a, (a) -> Bool) -> []a`
+ * `find[a](self: []a, (a) -> Bool) -> a` (returns first found, throws error if nothing found)
+ * `contains[a](self: []a, (a) -> Bool) -> Bool`
  * `len(self: ByteArray) -> Int`
- * `len(self: []a) -> Int`
- * `prepend(self: []a, a) -> []a`
- * `get(self: []a, Int) -> a` (throws error if out of range)
- * `head(self: []a) -> a` (first element of list, throws error if list is empty)
- * `tail(self: []a) -> []a` (rest of list without first element, throws error if list is empty)
- * `isEmpty(self: []a) -> Bool`
- * `trace(a, String) -> a` (print a debug message while returning a value)
+ * `len[a](self: []a) -> Int`
+ * `prepend[a](self: []a, a) -> []a`
+ * `get[a](self: []a, Int) -> a` (throws error if out of range)
+ * `head[a](self: []a) -> a` (first element of list, throws error if list is empty)
+ * `tail[a](self: []a) -> []a` (rest of list without first element, throws error if list is empty)
+ * `isEmpty[a](self: []a) -> Bool`
+ * `trace[a](a, String) -> a` (print a debug message while returning a value)
  * `ScriptContext.tx -> Tx`
  * `spending_purpose_output_id(self: ScriptContext) -> TxOutputId`
  * `Tx.time_range -> TimeRange`
@@ -295,7 +311,7 @@ Note that builtin functions can't be referenced, and must be called immediately 
  * `Tx.outputs -> []TxOutput`
  * `outputs_sent_to(self: Tx, PubKeyHash) -> []TxOutput` (outputs being sent to regular payment address)
  * `outputs_locked_by(self: Tx, ValidatorHash) -> []TxOutput` (outputs being sent to script `Address` with specified validator credential hash)
- * `(TimeRange).start -> Time` (throws error if time range start is open)
+ * `TimeRange.start -> Time` (throws error if time range start is open)
  * `Tx.signatories -> []PubKeyHash`
  * `Tx.id -> TxId`
  * `is_signed_by(self: Tx, PubKeyHash) -> Bool`
@@ -304,7 +320,7 @@ Note that builtin functions can't be referenced, and must be called immediately 
  * `TxOutput.address -> Address`
  * `TxOutput.value -> Value`
  * `TxOutput.has_datum_hash() -> Bool`
- * `TxOutput.datum_hash -> Maybe[DatumHash]`
+ * `TxOutput.datum_hash -> Option[DatumHash]`
  * `Address.credential -> Credential`
  * `is_staked(self: Address) -> Bool`
  * `is_pub_key(self: Credential) -> Bool`
@@ -316,11 +332,12 @@ Note that builtin functions can't be referenced, and must be called immediately 
  * `current_minting_policy_hash(self: ScriptContext) -> MintingPolicyHash` (hash of curreny minting script)
  * `get(self: Value, AssetClass) -> Int`
  * `isZero(self: Value) -> Bool`
- * `Value::zero() -> Value`
+ * `Value::ZERO -> Value` (`impl` can have associated `const` members)
  * `value_sent_to(self: Tx, PubKeyHash) -> Value` (`Value` sent to regular paymant address)
  * `value_locked_by(self: Tx, ValidatorHash) -> Value` (`Value` sent to script `Address` with given validator credential hash)
  * `value_locked_by_datum(self: Tx, ValidatorHash, a) -> Value` (`Value` sent to script with given datum of type `a`, `a` must be a user-defined data-type, throws an error if datum isn't found)
  * `AssetClass::new(ByteArray, String) -> AssetClass`
+ * `AssetClass::ADA -> AssetClass`
  * `Value::new(AssetClass, Int) -> Value` ^
  * `Value::lovelace(Int) -> Value` ^
  * `find_datum_data(self: Tx, DatumHash) -> Data`
@@ -338,7 +355,7 @@ Note that builtin functions can't be referenced, and must be called immediately 
 * Whitespace is obviously insignificant.
 * For everything there should be one, and only one, obvious way of doing it.
 * Each symbol/operator has only one kind of functionality. Only standard symbols/operators should be used (so nothing weird like in Haskell).
-* Brackets are only used for builtin parametric types (List-type and perhaps at some point in the future Map, Maybe etc.). Brackets aren't used for indexing (use `.get` builtin instead).
+* Brackets are only used for builtin parametric types (List-type and perhaps at some point in the future Map, Option etc.). Brackets aren't used for indexing (use `.get` builtin instead).
 * Semi-colons are operators and are part of assignment expressions. They can't be used as separators.
 * Similarly the equals-sign is part of assignment expressions, and can't be used as other 'special' syntax.
 * Because expressions can contain assignments all distinct expressions should be visibly scoped (inside parentheses or braces, so no leaving out the parentheses of `if else`-conditions like in Golang). 
