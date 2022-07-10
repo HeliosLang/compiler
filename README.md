@@ -28,18 +28,18 @@ data VestingTranche {
 }
 
 data VestingParams {
-    tranche1 VestingTranche,
-    tranche2 VestingTranche,
-    owner    PubKeyHash
+    tranche1: VestingTranche,
+    tranche2: VestingTranche,
+    owner:    PubKeyHash
 }
 
-const PARAMS VestingParams {
+const PARAMS: VestingParams {
     VestingParams{
         /*parameters interpolated from surrounding js*/
     }
 }
 
-func availableFrom(tranche VestingTranche, time Time) Value {
+func availableFrom(tranche: VestingTranche, time: Time) Value {
     if (time >= tranche.time) {
         tranche.amount
     } else {
@@ -47,16 +47,16 @@ func availableFrom(tranche VestingTranche, time Time) Value {
     }
 }
 
-func remainingFrom(tranche VestingTranche, time Time) Value {
+func remainingFrom(tranche: VestingTranche, time: Time) Value {
     tranche.amount - availableFrom(tranche, time)
 }
 
 // the compiler is smart enough to add an empty Datum and empty Redeemer as arguments to the actual main entrypoint function
-func main(ctx ScriptContext) Bool {
-    tx Tx = getTx(ctx);
-    now Time = getTimeRangeStart(getTxTimeRange(tx));
-    remainingActual Value = valueLockedBy(tx, getCurrentValidatorHash(ctx));
-    remainingExpected Value = remainingFrom(PARAMS.tranche1, now) + remainingFrom(PARAMS.tranche2, now);
+func main(ctx: ScriptContext) Bool {
+    tx: Tx = getTx(ctx);
+    now: Time = getTimeRangeStart(getTxTimeRange(tx));
+    remainingActual: Value = valueLockedBy(tx, getCurrentValidatorHash(ctx));
+    remainingExpected: Value = remainingFrom(PARAMS.tranche1, now) + remainingFrom(PARAMS.tranche2, now);
     remainingActual >= remainingExpected && isTxSignedBy(tx, PARAMS.owner)
 }
 ```
