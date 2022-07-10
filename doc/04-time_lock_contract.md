@@ -10,7 +10,7 @@ data Datum {
     nonce:     Integer // doesn't actually need be checked here
 }
 
-func main(datum: Datum, ctx: ScriptContext) Bool {
+func main(datum: Datum, ctx: ScriptContext) -> Bool {
     tx: Tx = getTx(ctx);
     now: Time = getTimeRangeStart(getTxTimeRange(tx));
     returnToOwner: Bool = isTxSignedBy(tx, datum.owner);

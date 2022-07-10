@@ -33,13 +33,12 @@ data VestingParams {
     owner:    PubKeyHash
 }
 
-const PARAMS: VestingParams {
-    VestingParams{
-        /*parameters interpolated from surrounding js*/
-    }
-}
+const PARAMS: VestingParams = VestingParams{
+    /*parameters interpolated from surrounding js*/
+};
 
-func availableFrom(tranche: VestingTranche, time: Time) Value {
+
+func availableFrom(tranche: VestingTranche, time: Time) -> Value {
     if (time >= tranche.time) {
         tranche.amount
     } else {
@@ -47,12 +46,12 @@ func availableFrom(tranche: VestingTranche, time: Time) Value {
     }
 }
 
-func remainingFrom(tranche: VestingTranche, time: Time) Value {
+func remainingFrom(tranche: VestingTranche, time: Time) -> Value {
     tranche.amount - availableFrom(tranche, time)
 }
 
 // the compiler is smart enough to add an empty Datum and empty Redeemer as arguments to the actual main entrypoint function
-func main(ctx: ScriptContext) Bool {
+func main(ctx: ScriptContext) -> Bool {
     tx: Tx = getTx(ctx);
     now: Time = getTimeRangeStart(getTxTimeRange(tx));
     remainingActual: Value = valueLockedBy(tx, getCurrentValidatorHash(ctx));
@@ -141,7 +140,7 @@ data Redeemer {
 ```
 
 ### Enum-types
-Plutus-Light supports tagged unions. These are useful for datums and redeemers with differing content depending on how the script is used. In Haskell tagged unions are called Algeabraic Data Types. Tagged unions are declared with the `enum` keyword:
+Plutus-Light supports tagged unions through `enum`. These are useful for datums and redeemers with differing content depending on how the script is used. In Haskell tagged unions are called Algeabraic Data Types. Tagged union `enum`s are declared using the following syntax:
 ```golang
 enum Datum {
     Submission{...}, // content of Submission has the same syntax as a regular data-type
@@ -191,7 +190,7 @@ Each branch must evaluate to the same type.
 ### Function expressions
 Plutus-Light supports anonymous function expressions with the following syntax:
 ```go
-myAddIntegers func(Integer, Integer) Integer = func(a: Integer, b: Integer) Integer {a + b}; ...
+myAddIntegers: (Integer, Integer) -> Integer = (a: Integer, b: Integer) -> Integer {a + b}; ...
 ```
 
 Note how the type expression for a function resembles the right-hand function value expression itself.

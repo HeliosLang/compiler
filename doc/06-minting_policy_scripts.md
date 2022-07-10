@@ -20,7 +20,7 @@ func main(ctx: ScriptContext) Bool {
 
 For NFTs, or public-sale tokens, the minting policy needs to be provably single-use. UTXOs are guaranteed to be unique, and can be used for this purpose:
 ```golang
-func main(ctx: ScriptContext) Bool {
+func main(ctx: ScriptContext) -> Bool {
     tx: Tx = getTx(ctx);
 
     // assume a single input

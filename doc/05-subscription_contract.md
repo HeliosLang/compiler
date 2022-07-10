@@ -15,7 +15,7 @@ data Datum {
     interval:         Duration
 }
 
-func main(datum: Datum, ctx: ScriptContext) Bool {
+func main(datum: Datum, ctx: ScriptContext) -> Bool {
     tx: Tx = getTx(ctx);
 
     if (isTxSignedBy(tx, datum.owner)) {

@@ -21,7 +21,7 @@ enum Redeemer {
     }
 }
 
-func updateDatum(old: Datum, highestBid: Integer, highestBidder: PubKeyHash) Datum {
+func updateDatum(old: Datum, highestBid: Integer, highestBidder: PubKeyHash) -> Datum {
     Datum{
         seller:        old.seller,
         bidAsset:      old.bidAsset,
@@ -33,7 +33,7 @@ func updateDatum(old: Datum, highestBid: Integer, highestBidder: PubKeyHash) Dat
     }
 }
 
-func main(datum: Datum, redeemer: Redeemer, ctx: ScriptContext) Bool {
+func main(datum: Datum, redeemer: Redeemer, ctx: ScriptContext) -> Bool {
     tx: Tx = getTx(ctx);
 
     now: Time = getTimeRangeStart(getTxTimeRange(tx));

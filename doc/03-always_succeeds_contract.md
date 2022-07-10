@@ -10,7 +10,7 @@ $ nodejs
 
 Compile the Always Succeeds script into its JSON representation:
 ```javascript
-> console.log(PL.compilePlutusLightProgram("func main() Bool {true}"))
+> console.log(PL.compilePlutusLightProgram("func main() -> Bool {true}"))
 
 {"type": "PlutusScriptV1", "description": "", "cborHex" :" 581358110100002223333573464945262498992601"}
 ```
