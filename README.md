@@ -2,7 +2,7 @@
 
 Plutus-Light is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Plutus-Light is a non-Haskell alternative to Plutus.
 
-Plutus-Light is purely functional, strongly typed, and uses a conventional curly braces syntax. It notably supports closures, compile-time const statements, and tagged unions.
+Plutus-Light is purely functional, strongly typed, and uses a conventional curly braces syntax. It notably supports closures, compile-time const statements, and enums as tagged unions.
 
 This repository contains a reference compiler for Plutus-Light, written in Javascript.
 
@@ -103,7 +103,7 @@ For now Plutus-Light only offers one builtin container type: lists. (We might im
 
 The syntax for list types and literal list expressions is the same as in Golang:
 ```golang
-numbers []Integer = []Integer{1, 2, 3};
+numbers: []Integer = []Integer{1, 2, 3};
 ...
 ```
 
@@ -134,26 +134,26 @@ These types require special builtin functions to access their content. Some also
 User defined data-types look like struct definitions in C, but use the `data` keyword instead:
 ```golang
 data Redeemer {
-    mode      Integer,
-    message   String,
-    recipient PubKeyHash
+    mode:      Integer,
+    message:   String,
+    recipient: PubKeyHash
 }
 ```
 
-### User defined union types
-Plutus-Light supports tagged unions. These are useful for datums and redeemers with differing content depending on how the script is used. In Haskell tagged unions are called Algeabraic Data Types. Tagged unions are declared as follows:
+### User defined enum types
+Plutus-Light supports tagged unions. These are useful for datums and redeemers with differing content depending on how the script is used. In Haskell tagged unions are called Algeabraic Data Types. Tagged unions are declared as with the `enum` keyword:
 ```golang
-union Datum {
+enum Datum {
     Submission{...}, // content of Submission has the same syntax as a regular data-type
     Queue{...},
     Post{...}
 }
 ```
 
-A `select` expression can be used to 'unwrap' union-type instances:
+A `select` expression can be used to 'unwrap' enum-type instances:
 ```golang
 select (expr) {
-    case (x Datum::Submission) { // double-colon to reference the sub-type
+    case (x: Datum::Submission) { // double-colon to reference the sub-type
         ... // expression must use x
     } case Datum::Queue {
         ... // x not used, so can't be declared
@@ -165,8 +165,8 @@ select (expr) {
 
 Direct explicit downcasting is also possible (a runtime error will be thrown if the type doesn't match):
 ```golang
-datum Datum = Datum::Submission{...}; // implicit upcasting
-sDatum Datum::Submission = Datum::Submission(datum); // explicit downcasting
+datum: Datum = Datum::Submission{...}; // implicit upcasting
+sDatum: Datum::Submission = Datum::Submission(datum); // explicit downcasting
 ...
 ```
 
@@ -191,12 +191,12 @@ Each branch must evaluate to the same type.
 ### Function expressions
 Plutus-Light supports anonymous function expressions with the following syntax:
 ```go
-myAddIntegers func(Integer, Integer) Integer = func(a Integer, b Integer) Integer {a + b}; ...
+myAddIntegers func(Integer, Integer) Integer = func(a: Integer, b: Integer) Integer {a + b}; ...
 ```
 
 Note how the type expression for a function resembles the right-hand function value expression itself.
 
-Function values aren't entirely first class: they can't be put in containers (so not in lists nor in any fields of a `data` or `union` type).
+Function values aren't entirely first class: they can't be put in containers (so not in lists nor in any fields of a `data` or `enum` type).
 
 ### Builtin operators
 Operators that can be used in compile-time `const` statements are marked with '^'.
@@ -346,7 +346,7 @@ Note that builtin functions can't be referenced, and must be called immediately 
 * Every variable declaration must be fully typed.
 * No type aliases: some users might expect automatic up-and-down-casting, and others won't expect that.
 * Every declared name (local or global) must be used when `main()` is evaluated. Unused names must be eliminated from the source-code.
-* All data-types inside a union-type must also be used.
+* All data-types inside a enum-type must also be used.
 * Conditions of `if else` expressions can't evaluate to a compile-time constant.
 * Top-level `const` statements allow compile-time evaluation into primitive values (not available for all builtin function calls yet). Expressions are otherwise never simplified/optimized.
 
