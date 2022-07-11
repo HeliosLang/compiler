@@ -26,7 +26,7 @@ ImplStatement ::= `impl` Identifier `{`
 
 ImplMember ::= ConstStatement | FuncStatement;
 
-ConstStatement ::= `const` Identifier [`:` TypeExpr] `=` ValueExpr `;`;
+ConstStatement ::= `const` Identifier [`:` TypeExpr] `=` OtherValueExpr `;`;
 
 FuncStatement ::= `func` Identifier `(` [FuncArg [`,` FuncArg [...]]] `)` `->` TypeExpr `{` ValueExpr `}`;
 
@@ -44,7 +44,9 @@ MapTypeExpr ::= `Map` `[` TypeExpr `]` TypeExpr;
 
 OptionTypeExpr ::= `Option` `[` TypeExpr `]`;
 
-ValueExpr ::= Literal | BinaryExpr | UnaryExpr | AssignExpr | BranchingExpr | SwitchExpr | CallExpr | MemberExpr | ParensExpr | ValuePathExpr | ValueRefExpr;
+ValueExpr ::= AssignExpr | OtherValueExpr;
+
+OtherValueExpr ::= Literal | BinaryExpr | UnaryExpr | BranchingExpr | SwitchExpr | CallExpr | MemberExpr | ParensExpr | ValuePathExpr | ValueRefExpr;
 
 Literal ::= StructLiteral | IntLiteral | BoolLiteral | StringLiteral | ByteArrayLiteral;
 
