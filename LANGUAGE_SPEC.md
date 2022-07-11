@@ -44,7 +44,7 @@ MapTypeExpr ::= `Map` `[` TypeExpr `]` TypeExpr;
 
 OptionTypeExpr ::= `Option` `[` TypeExpr `]`;
 
-ValueExpr ::= Literal | BinaryExpr | UnaryExpr | AssignmentExpr | BranchingExpr | SwitchExpr | CallExpr | MemberExpr | ParensExpr | PathValueExpr | ValueRefExpr;
+ValueExpr ::= Literal | BinaryExpr | UnaryExpr | AssignExpr | BranchingExpr | SwitchExpr | CallExpr | MemberExpr | ParensExpr | PathValueExpr | ValueRefExpr;
 
 Literal ::= StructLiteral | IntLiteral | BoolLiteral | StringLiteral | ByteArrayLiteral;
 
@@ -74,7 +74,7 @@ UnaryExpr ::= UnaryOp ValueExpr;
 
 UnaryOp ::= `-` | `+` | `!`;
 
-AssignmentExpr ::= Identifier [`:` TypeExpr] `=` ValueExpr `;` ValueExpr;
+AssignExpr ::= Identifier [`:` TypeExpr] `=` ValueExpr `;` ValueExpr;
 
 BranchingExpr ::= `if` `(` ValueExpr `)` `{` ValueExpr `}` [`else` `if` `(` ValueExpr `)` `{` ValueExpr `}` [...]] `else` `{` ValueExpr `}`;
 
