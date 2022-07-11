@@ -64,7 +64,7 @@ You can compile this source into Plutus-Core using the `plutus-light.js` library
 ```javascript
 import * as PL from "plutus-light.js"
 
-const src = `data VestingTranche {
+const src = `struct VestingTranche {
 ...
 ...
 `;
@@ -135,12 +135,12 @@ Besides primitive types, some other opaque builtin types are defined:
  * `Credential::PubKey`
  * `Credential::Validator`
  
-These types require special builtin functions to access their content. Some also have builtin constructors. User defined data-types automatically generate a *cast* function allowing `Data` to be cast into that particular type.
+These types require special builtin functions to access their content. Some also have builtin constructors. User defined struct an enum-types automatically generate a *cast* function allowing `Data` to be cast into that particular type.
 
-### Data-types
-User defined data-types look like struct definitions in C, but use the `data` keyword instead:
+### Struct-types
+User defined struct-types are defined as follows:
 ```golang
-data Redeemer {
+struct Redeemer {
     mode:      Int,
     message:   String,
     recipient: PubKeyHash
@@ -151,7 +151,7 @@ data Redeemer {
 Plutus-Light supports tagged unions through `enum`. These are useful for datums and redeemers with differing content depending on how the script is used. In Haskell tagged unions are called Algeabraic Data Types. Tagged union `enum`s are declared using the following syntax:
 ```golang
 enum Datum {
-    Submission{...}, // content of Submission has the same syntax as a regular data-type
+    Submission{...}, // content of Submission has the same syntax as a regular struct-type
     Queue{...},
     Post{...}
 }
@@ -203,7 +203,7 @@ my_add_integers: (Int, Int) -> Int = (a: Int, b: Int) -> Int {a + b}; ...
 
 Note how the type expression for a function resembles the right-hand function value expression itself.
 
-Function values aren't entirely first class: they can't be put in containers (so not in lists nor in any fields of a `data` or `enum` type).
+Function values aren't entirely first class: they can't be put in containers (so not in lists nor in any fields of a `struct` or `enum` type).
 
 ### (WiP) Type inference
 If the type of the right-hand-side of an assignment is a literal (constructor or primitive) or a builtin cast, the type can be infered:
@@ -335,13 +335,13 @@ Note that builtin functions can't be referenced, and must be called immediately 
  * `Value::ZERO -> Value` (`impl` can have associated `const` members)
  * `value_sent_to(self: Tx, PubKeyHash) -> Value` (`Value` sent to regular paymant address)
  * `value_locked_by(self: Tx, ValidatorHash) -> Value` (`Value` sent to script `Address` with given validator credential hash)
- * `value_locked_by_datum(self: Tx, ValidatorHash, a) -> Value` (`Value` sent to script with given datum of type `a`, `a` must be a user-defined data-type, throws an error if datum isn't found)
+ * `value_locked_by_datum(self: Tx, ValidatorHash, a) -> Value` (`Value` sent to script with given datum of type `a`, `a` must be a user-defined type, throws an error if datum isn't found)
  * `AssetClass::new(ByteArray, String) -> AssetClass`
  * `AssetClass::ADA -> AssetClass`
  * `Value::new(AssetClass, Int) -> Value` ^
  * `Value::lovelace(Int) -> Value` ^
  * `find_datum_data(self: Tx, DatumHash) -> Data`
- * `find_datum_hash(self: Tx, a) -> DatumHash` (`a` must be a user-defined data-type)
+ * `find_datum_hash(self: Tx, a) -> DatumHash` (`a` must be a user-defined type)
  * `serialize(a) -> ByteArray` (`a` can be anything except a function type)
  * `sha2(self: ByteArray) -> ByteArray` (32 bytes)
  * `sha3(self: ByteArray) -> ByteArray` (32 bytes)
@@ -364,7 +364,7 @@ Note that builtin functions can't be referenced, and must be called immediately 
 * Every variable declaration must be fully typed.
 * No type aliases: some users might expect automatic up-and-down-casting, and others won't expect that.
 * Every declared name (local or global) must be used when `main()` is evaluated. Unused names must be eliminated from the source-code.
-* All data-types inside a enum-type must also be used.
+* All members of an enum-type must also be used.
 * Conditions of `if else` expressions can't evaluate to a compile-time constant.
 * Top-level `const` statements allow compile-time evaluation into primitive values (not available for all builtin function calls yet). Expressions are otherwise never simplified/optimized.
 
