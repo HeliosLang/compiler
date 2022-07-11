@@ -32,11 +32,11 @@ FuncStatement ::= `func` Identifier `(` [FuncArg [`,` FuncArg [...]]] `)` `->` T
 
 FuncArg ::= Identifier `:` TypeExpr;
 
-TypeExpr ::= TypeRefExpr | PathTypeExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr;
+TypeExpr ::= TypeRefExpr | TypePathExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr;
 
 TypeRefExpr ::= Identifier;
 
-PathTypeExpr ::= TypeRefExpr `::` Word;
+TypePathExpr ::= TypeRefExpr `::` Word;
 
 ListTypeExpr ::= `[` `]` TypeExpr;
 
@@ -44,11 +44,11 @@ MapTypeExpr ::= `Map` `[` TypeExpr `]` TypeExpr;
 
 OptionTypeExpr ::= `Option` `[` TypeExpr `]`;
 
-ValueExpr ::= Literal | BinaryExpr | UnaryExpr | AssignExpr | BranchingExpr | SwitchExpr | CallExpr | MemberExpr | ParensExpr | PathValueExpr | ValueRefExpr;
+ValueExpr ::= Literal | BinaryExpr | UnaryExpr | AssignExpr | BranchingExpr | SwitchExpr | CallExpr | MemberExpr | ParensExpr | ValuePathExpr | ValueRefExpr;
 
 Literal ::= StructLiteral | IntLiteral | BoolLiteral | StringLiteral | ByteArrayLiteral;
 
-StructLiteral ::= (PathTypeExpr | TypeRefExpr) `{`
+StructLiteral ::= (TypePathExpr | TypeRefExpr) `{`
     [StructLiteralField [`,` StructLiteralField [...]]
 `}`;
 
@@ -79,7 +79,7 @@ AssignExpr ::= Identifier [`:` TypeExpr] `=` ValueExpr `;` ValueExpr;
 BranchingExpr ::= `if` `(` ValueExpr `)` `{` ValueExpr `}` [`else` `if` `(` ValueExpr `)` `{` ValueExpr `}` [...]] `else` `{` ValueExpr `}`;
 
 SwitchExpr ::= `switch` `(` ValueExpr `)` `{` 
-  `case` (`(` Identifier `:` PathTypeExpr `)` | PathTypeExpr) `{` ValueExpr `}`
+  `case` (`(` Identifier `:` TypePathExpr `)` | TypePathExpr) `{` ValueExpr `}`
   [`case` ...]
   [`default` `{` ValueExpr `}`]
 `}`;
@@ -90,7 +90,7 @@ MemberExpr ::= ValueExpr `.` Word;
 
 ParensExpr ::= `(` ValueExpr `)`;
 
-PathValueExpr ::= (Identifier | PathValueExpr) `::` Word;
+ValuePathExpr ::= (ValueRefExpr | ValuePathExpr) `::` Word;
 
 ValueRefExpr ::= Identifier;
 
