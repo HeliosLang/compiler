@@ -44,7 +44,7 @@ MapTypeExpr ::= `Map` `[` TypeExpr `]` TypeExpr;
 
 OptionTypeExpr ::= `Option` `[` TypeExpr `]`;
 
-ValueExpr ::= Literal | BinaryExpr | UnaryExpr | AssignmentExpr | BranchingExpr | SwitchExpr | CallExpr | MemberExpr | PathValueExpr | ValueRefExpr;
+ValueExpr ::= Literal | BinaryExpr | UnaryExpr | AssignmentExpr | BranchingExpr | SwitchExpr | CallExpr | MemberExpr | ParensExpr | PathValueExpr | ValueRefExpr;
 
 Literal ::= StructLiteral | IntLiteral | BoolLiteral | StringLiteral | ByteArrayLiteral;
 
@@ -53,6 +53,8 @@ StructLiteral ::= (PathTypeExpr | TypeRefExpr) `{`
 `}`;
 
 StructLiteralField ::= Word `:` ValueExpr;
+
+FuncLiteral ::= `(`[FuncArg [`,` FuncArc [...]]]`)` `->` TypeExpr `{` ValueExpr `}`;
 
 IntLiteral ::= /[0-9]+/ | /0b[0-1]+/ | /0o[0-7]+/ | /0x[0-9a-f]+/;
 
@@ -86,6 +88,8 @@ CallExpr ::= ValueExpr `(` [ValueExpr [`,` ValueExpr [...]]] `)`;
 
 MemberExpr ::= ValueExpr `.` Word;
 
+ParensExpr ::= `(` ValueExpr `)`;
+
 PathValueExpr ::= (Identifier | PathValueExpr) `::` Word;
 
 ValueRefExpr ::= Identifier;
@@ -95,8 +99,20 @@ Identifier ::= Word;
 Word ::= /[a-zA-Z_][0-9a-zA-Z_]*/;
 
 
+# Tokenization
+The tokenizer generates a list of the following terms:
+* Word
+* Symbol
+* Group `(...)` `{...}` `[...]` with fields separated by commas
+* IntLiteral
+* BoolLiteral
+* StringLiteral
+* ByteArrayLiteral
+
+Comments are removed immediately.
+
 # Operator precedence rules
-0. `=`-`;`
+0. ternary assignment expressions `...=...;...`, right-to-left
 1. `||`, left-to-right
 2. `&&`, left-to-right
 3. `==` and `!=`, left-to-right
@@ -104,7 +120,4 @@ Word ::= /[a-zA-Z_][0-9a-zA-Z_]*/;
 5. binary `+` and `-`, left-to-right
 6. `*`, `/` and `%`, left-to-right
 7. unary `+`, `-`, `!`, right-to-left
-8. `(...)`, `.`, `::`, `(...[, ...])`
-
-
-
+8. `(...)`, `.`, `::`, `...(...)`, `...{...}` and `(...) -> ... {...}`, left-to-right
