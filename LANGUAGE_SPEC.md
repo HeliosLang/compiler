@@ -36,7 +36,7 @@ TypeExpr ::= TypeRefExpr | PathTypeExpr | ListTypeExpr | MapTypeExpr | OptionTyp
 
 TypeRefExpr ::= Identifier;
 
-PathTypeExpr ::= NamedTypeExpr `::` Word;
+PathTypeExpr ::= TypeRefExpr `::` Word;
 
 ListTypeExpr ::= `[` `]` TypeExpr;
 
