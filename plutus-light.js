@@ -1,50 +1,128 @@
-////////////////////////////////////////////////
-//////////////    Plutus Light   ///////////////
-////////////////////////////////////////////////
-// Synopsis: Plutus-Light is a smart contract DSL for Cardano. 
-//     This javascript library contains functions to compile Plutus-Light sources into Plutus-Core.
-//     The results can be used by cardano-cli to generate and submit blockchain transactions. 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////    Helios   //////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// Author:  Christian Schmitz
-// Email:   cschmitz398@gmail.com
-// Website: github.com/openengineer/plutus-light
+// Author:      Christian Schmitz
+// Email:       cschmitz398@gmail.com
+// Website:     github.com/openengineer/plutus-light
+// Version:     0.1.0
+// Last update: July 2022
+// License:     Unlicense
 //
-// Usage:
-//   * Import this library:
-//       import * as PL from "plutus-light.js"
-// 
-//   * Dump Plutus-Core AST:
-//       PL.deserializePlutusCoreCborHexString(hex: string) -> string
+// About: Helios is a smart contract DSL for Cardano. 
+//     This library contains functions to compile Helios sources into Plutus-Core.
+//     The results can be used by cardano-cli to generate and submit blockchain transactions.
+//     
+// Dependencies: none
 //
-//   * Compile Plutus-Light program:
-//       PL.compilePlutusLightProgram(programSrc: string, purpose: ScriptPurpose) -> string
+// Disclaimer: I made Helios available as FOSS so that the Cardano community can test 
+//     it extensively. Please don't use this in production yet, it could be riddled with 
+//     critical bugs. There are no backward compatibility guarantees (yet).
 //
-//   * Compile Plutus-Light data:
-//       PL.compilePlutusLightData(programSrc: string, dataExpressionSrc: string) -> string
+// Exported by library: 
+//   * debug(bool) -> void
+//         set whole library to debug mode          
+//   * CompilationStage
+//         enum with six values: Preprocess, Tokenize, BuildAST, Untype, PlutusCore and Final
+//   * compile(src: string, 
+//             config: {verbose: false, templateParameters: {}, stage: CompilationStage}) -> ...
+//         different return types depending on config.stage:
+//             config.stage==CompilationStage.Preprocess -> string
+//             config.stage==CompilationStage.Tokenize   -> list of Tokens
+//             config.stage==CompilationStage.BuildAST   -> Program
+//             config.stage==CompilationStage.Untype     -> string
+//             config.stage==CompilationStage.PlutusCore -> PlutusCoreProgram
+//             config.stage==CompilationStage.Final      -> string
+//         the final string output is a json string that can saved as a file and then used 
+//         to Cardano transactions
 //
-// Disclaimer: I made this available as OpenSource so that the Cardano community can test Plutus-Light extensively.
-//    Please don't use this in production yet, it could be riddled with critical bugs.
-//    There are also no backward compatibility guarantees.
+// Note for developers: this library is a single file, doesn't use TypeScript, and must stay 
+//     unminified (so that unique git commit hash -> unique ipfs address).
 //
-// File structure:
-//    1. Global constants and variables (DEBUG, ...)
-//    2. Utilities (idiv, ...)
-//    3. Plutus-Core AST (PlutusCoreInteger, ...)
-//    4. Plutus-Core serialization (serializePlutusCoreProgram)
-//    5. Plutus-Core data wrappers for Datum and Redeemer (IntData, ...)
-//    6. Plutus-Light tokens (Source, ...)
-//    7. Plutus-Light tokenization (Tokenizer, tokenizePlutusLight, tokenizeUntypedPlutusLight)
-//    8. Plutus-Light values and core types (GeneralizedValue, ...)
-//    9. Plutus-Light scope (GlobalScope, ...)
-//    10. Plutus-Light AST expressions (Expr, ...)
-//    11. Plutus-Light AST statements (Statement, ...)
-//    12. Plutus-Light AST build functions (buildPlutusLightProgram, ...)
-//    13. Plutus-Light builtin types (ListType, MapType, OptionType, ...) 
-//    9. Plutus-Light builtin types
-//    10. Untyped Plutus-Light AST
-//    10. Plutus-Light build functions
-//    11. Untyped Plutus-Core deserialization (PlutusCoreDeserializer, ...)
-
+// Overview of this file:
+//     1. Constants                         VERSION, DEBUG, debug, 
+//                                          PLUTUS_CORE_VERSION_COMPONENTS, PLUTUS_CORE_VERSION, 
+//                                          PLUTUS_CORE_TAG_WIDTHS, PLUTUS_CORE_BUILTINS
+//
+//     2. Utilities                         assert, assertDefined, idiv, ipow2, imask, padZeroes, 
+//                                          byteToBitString, hexToBytes, bytesToHex, stringToBytes, 
+//                                          wrapCborBytes, unwrapCborBytes, BitWriter
+//
+//     3. Plutus-Core AST objects           PlutusCoreInteger, PlutusCoreByteArray, 
+//                                          PlutusCoreString, PlutusCoreBool, PlutusCoreUnit,
+//                                          PlutusCoreTerm, PlutusCoreVariable, PlutusCoreDelay, 
+//                                          PlutusCoreLambda, PlutusCoreCall, PlutusCoreForce, 
+//                                          PlutusCoreError, PlutusCoreBuiltin, PlutusCoreProgram
+//
+//     4. Plutus-Core data objects          IntData, ByteArrayData, ListData, MapData, ConstrData
+//
+//     5. Token objects                     Source, UserError, Site, Token, Word, Symbol, Group, 
+//                                          PrimitiveLiteral, IntLiteral, BoolLiteral, 
+//                                          StringLiteral, ByteArrayLiteral, UnitLiteral
+//
+//     6. Tokenization                      Tokenizer, tokenize, tokenizeUntyped
+//
+//     7. Type evaluation objects           GeneralizedValue, Type, AnyType, DataType, BuiltinType, 
+//                                          UserType, FuncType, Value, DataValue, FuncValue, 
+//                                          TopFuncValue
+//
+//     8. Scopes                            GlobalScope, Scope, TopScope
+//
+//     9. AST expression objects            Expr, TypeExpr, TypeRefExpr, TypePathExpr, 
+//                                          ListTypeExpr, MapTypeExpr, OptionTypeExpr, 
+//                                          FuncTypeExpr, ValueExpr, AssignExpr, PrintExpr, 
+//                                          PrimitiveLiteralExpr, StructLiteralField, 
+//                                          StructLiteralExpr, ListLiteralExpr, NameTypePair, 
+//                                          FuncArg, FuncLiteralExpr, ValueRefExpr, ValuePathExpr, 
+//                                          UnaryExpr, BinaryExpr, ParensExpr, 
+//                                          CallExpr, MemberExpr, IfElseExpr, 
+//                                          SwitchCase, SwitchDefault, SwitchExpr
+//
+//    10. AST statement objects             Statement, NamedStatement, ConstStatement, DataField, 
+//                                          DataDefinition, StructStatement, FuncStatement, 
+//                                          EnumMember, EnumStatement, ImplRegistry, ImplStatement,
+//                                          ScriptPurpose, Program
+//
+//    11. AST build functions               buildProgram, buildScriptPurpose, buildConstStatement, 
+//                                          buildStructStatement, buildDataFields,
+//                                          buildFuncStatement, buildFuncLiteralExpr, buildFuncArgs,
+//                                          buildEnumStatement, buildEnumMember, 
+//                                          buildImplStatement, buildImplMembers, buildTypeExpr, 
+//                                          buildListTypeExpr, buildMapTypeExpr, 
+//                                          buildOptionTypeExpr, buildFuncTypeExpr, 
+//                                          buildTypePathExpr, buildTypeRefExpr, 
+//                                          buildValueExpr, buildMaybeAssignOrPrintExpr, 
+//                                          makeBinaryExprBuilder, makeUnaryExprBuilder, 
+//                                          buildChainedValueExpr, buildChainStartValueExpr, 
+//                                          buildCallArgs, buildIfElseExpr, buildSwitchExpr, 
+//                                          buildSwitchCase, buildSwitchDefault, 
+//                                          buildListLiteralExpr, buildStructLiteralExpr,
+//                                          buildStructLiteralField, buildValuePathExpr
+//
+//    12. Builtin types                     IntType, BoolType, StringType, ByteArrayType, ListType,
+//                                          MapType, OptionType, OptionSomeType, OptionNoneType,
+//                                          HashType, PubKeyHashType, ValidatorHashType, 
+//                                          MintinPolicyHashType, DatumHashType, ScriptContextType,
+//                                          TxType, TxIdType, TxInputType, TxOutputType, 
+//                                          TxOutputIdType, AddressType, CredentialType, 
+//                                          CredentialPubKeyType, CredentialValidatorType, 
+//                                          StakingCredentialType, TimeType, DurationType,
+//                                          TimeRangeType, AssetClassType, MoneyValueType
+//
+//    13. Builtin low-level functions       RawFunc, makeRawFunctions, wrapWithRawFunctions
+//
+//    14. Untyped AST objects               UntypedScope, UntypedFuncExpr, UntypedErrorCallExpr,
+//                                          UntypedCallExpr, UntypedVariable
+//
+//    15. Untyped AST build functions       buildUntypedProgram, buildUntypedExpr, 
+//                                          buildUntypedFuncExpr
+//
+//    16. Compilation                       preprocess, CompilationStage, compile
+//     
+//    17. Plutus-Core deserialization       PlutusCoreDeserializer, deserializePlutusCore
+//
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 ////////////////////////////////////////////
@@ -52,11 +130,11 @@
 ////////////////////////////////////////////
 
 const VERSION = "0.2";
-const PLUTUS_CORE_VERSION_COMPONENTS = [1n, 0n, 0n];
-const PLUTUS_CORE_VERSION = PLUTUS_CORE_VERSION_COMPONENTS.map(c => c.toString()).join(".");
-export var DEBUG = false;
+var DEBUG = false;
 export function debug(b) {DEBUG = b};
 
+const PLUTUS_CORE_VERSION_COMPONENTS = [1n, 0n, 0n];
+const PLUTUS_CORE_VERSION = PLUTUS_CORE_VERSION_COMPONENTS.map(c => c.toString()).join(".");
 const PLUTUS_CORE_TAG_WIDTHS = {
 	term:      4,
 	type:      3,
@@ -65,73 +143,88 @@ const PLUTUS_CORE_TAG_WIDTHS = {
 	constant:  4,
 	kind:      1,
 };
+const PLUTUS_CORE_BUILTINS = (function() {
+	function builtinInfo(name, forceCount) {
+		// builtins might need be wrapped in `force` a number of times if they are not fully typed
+		return {name: name, forceCount: forceCount};
+	}
 
-function builtinInfo(name, forceCount) {
-	// builtins might need be wrapped in `force` a number of times if they are not fully typed
-	return {name: name, forceCount: forceCount};
-}
-
-const PLUTUS_CORE_BUILTINS = [
-	builtinInfo("addInteger", 0), // 0
-	builtinInfo("subtractInteger", 0),
-	builtinInfo("multiplyInteger", 0),
-	builtinInfo("divideInteger", 0),
-	builtinInfo("quotientInteger", 0),
-	builtinInfo("remainderInteger", 0),
-	builtinInfo("modInteger", 0),
-	builtinInfo("equalsInteger", 0),
-	builtinInfo("lessThanInteger", 0),
-	builtinInfo("lessThanEqualsInteger", 0),
-	builtinInfo("appendByteString", 0), // 10
-	builtinInfo("consByteString", 0),
-	builtinInfo("sliceByteString", 0),
-	builtinInfo("lengthOfByteString", 0),
-	builtinInfo("indexByteString", 0),
-	builtinInfo("equalsByteString", 0),
-	builtinInfo("lessThanByteString", 0),
-	builtinInfo("lessThanEqualsByteString", 0),
-	builtinInfo("sha2_256", 0),
-	builtinInfo("sha3_256", 0),
-	builtinInfo("blake2b_256", 0), // 20
-	builtinInfo("verifySignature", 1),
-	builtinInfo("appendString", 0),
-	builtinInfo("equalsString", 0),
-	builtinInfo("encodeUtf8", 0),
-	builtinInfo("decodeUtf8", 0),
-	builtinInfo("ifThenElse", 1),
-	builtinInfo("chooseUnit", 1),
-	builtinInfo("trace", 1),
-	builtinInfo("fstPair", 2),
-	builtinInfo("sndPair", 2), // 30
-	builtinInfo("chooseList", 1),
-	builtinInfo("mkCons", 1), // got error 'A builtin expected a term argument, but something else was received. Caused by: (force (force (builtin mkCons)))' when forceCount was 2, so set forceCount to 1?
-	builtinInfo("headList", 1),
-	builtinInfo("tailList", 1),
-	builtinInfo("nullList", 1),
-	builtinInfo("chooseData", 0),
-	builtinInfo("constrData", 0),
-	builtinInfo("mapData", 0),
-	builtinInfo("listData", 0),
-	builtinInfo("iData", 0), // 40
-	builtinInfo("bData", 0),
-	builtinInfo("unConstrData", 0),
-	builtinInfo("unMapData", 0),
-	builtinInfo("unListData", 0),
-	builtinInfo("unIData", 0),
-	builtinInfo("unBData", 0),
-	builtinInfo("equalsData", 0),
-	builtinInfo("mkPairData", 0),
-	builtinInfo("mkNilData", 0),
-	builtinInfo("mkNilPairData", 0), // 50
-	builtinInfo("serialiseData", 0),
-	builtinInfo("verifyEcdsaSecp256k1Signature", 1),
-	builtinInfo("verifySchnorrSecp256k1Signature", 1),
-];
+	return [
+		builtinInfo("addInteger", 0), // 0
+		builtinInfo("subtractInteger", 0),
+		builtinInfo("multiplyInteger", 0),
+		builtinInfo("divideInteger", 0),
+		builtinInfo("quotientInteger", 0),
+		builtinInfo("remainderInteger", 0),
+		builtinInfo("modInteger", 0),
+		builtinInfo("equalsInteger", 0),
+		builtinInfo("lessThanInteger", 0),
+		builtinInfo("lessThanEqualsInteger", 0),
+		builtinInfo("appendByteString", 0), // 10
+		builtinInfo("consByteString", 0),
+		builtinInfo("sliceByteString", 0),
+		builtinInfo("lengthOfByteString", 0),
+		builtinInfo("indexByteString", 0),
+		builtinInfo("equalsByteString", 0),
+		builtinInfo("lessThanByteString", 0),
+		builtinInfo("lessThanEqualsByteString", 0),
+		builtinInfo("sha2_256", 0),
+		builtinInfo("sha3_256", 0),
+		builtinInfo("blake2b_256", 0), // 20
+		builtinInfo("verifySignature", 1),
+		builtinInfo("appendString", 0),
+		builtinInfo("equalsString", 0),
+		builtinInfo("encodeUtf8", 0),
+		builtinInfo("decodeUtf8", 0),
+		builtinInfo("ifThenElse", 1),
+		builtinInfo("chooseUnit", 1),
+		builtinInfo("trace", 1),
+		builtinInfo("fstPair", 2),
+		builtinInfo("sndPair", 2), // 30
+		builtinInfo("chooseList", 1),
+		builtinInfo("mkCons", 1), // got error 'A builtin expected a term argument, but something else was received. Caused by: (force (force (builtin mkCons)))' when forceCount was 2, so set forceCount to 1?
+		builtinInfo("headList", 1),
+		builtinInfo("tailList", 1),
+		builtinInfo("nullList", 1),
+		builtinInfo("chooseData", 0),
+		builtinInfo("constrData", 0),
+		builtinInfo("mapData", 0),
+		builtinInfo("listData", 0),
+		builtinInfo("iData", 0), // 40
+		builtinInfo("bData", 0),
+		builtinInfo("unConstrData", 0),
+		builtinInfo("unMapData", 0),
+		builtinInfo("unListData", 0),
+		builtinInfo("unIData", 0),
+		builtinInfo("unBData", 0),
+		builtinInfo("equalsData", 0),
+		builtinInfo("mkPairData", 0),
+		builtinInfo("mkNilData", 0),
+		builtinInfo("mkNilPairData", 0), // 50
+		builtinInfo("serialiseData", 0),
+		builtinInfo("verifyEcdsaSecp256k1Signature", 1),
+		builtinInfo("verifySchnorrSecp256k1Signature", 1),
+	];
+})();
 
 
 ///////////////////////
 // Section 2: utilities
 ///////////////////////
+
+function assert(cond, msg = "unexpected") {
+	if (!cond) {
+		throw new Error(msg);
+	}
+}
+
+function assertDefined(val, msg = "unexpected undefined value") {
+	if (val == undefined) {
+		throw new Error(msg);
+	}
+
+	return val;
+}
 
 // integer division
 // assumes a and b are whole numbers
@@ -141,20 +234,27 @@ function idiv(a, b) {
 }
 
 // 2^p for bigints
-function pow2(p) {
+function ipow2(p) {
 	return (p <= 0n) ? 1n : 2n<<(p-1n);
 }
 
-const MASKS = [
-	0b11111111,
-	0b01111111,
-	0b00111111,
-	0b00011111,
-	0b00001111,
-	0b00000111,
-	0b00000011,
-	0b00000001,
-]
+function imask(b, i0, i1) {
+	assert(i0 < i1);
+
+	const mask_bits = [
+		0b11111111,
+		0b01111111,
+		0b00111111,
+		0b00011111,
+		0b00001111,
+		0b00000111,
+		0b00000011,
+		0b00000001,
+	];
+	// mask with 0 from 
+
+	return (b & mask_bits[i0]) >> (8 - i1);
+}
 
 function padZeroes(bits, n) {
 	// padded to multiple of n
@@ -170,30 +270,6 @@ function byteToBitString(b, n = 8) {
 	let s = padZeroes(b.toString(2), n);
 
 	return "0b" + s;
-}
-
-function imask(b, i0, i1) {
-	assert(i0 < i1);
-
-	// mask with 0 from 
-
-	return (b & MASKS[i0]) >> (8 - i1);
-}
-
-// hex: string
-// return value: list of integers
-function assert(cond, msg = "unexpected") {
-	if (!cond) {
-		throw new Error(msg);
-	}
-}
-
-function assertDefined(val, msg = "unexpected undefined value") {
-	if (val == undefined) {
-		throw new Error(msg);
-	}
-
-	return val;
 }
 
 function hexToBytes(hex) {
@@ -219,15 +295,11 @@ function stringToBytes(str) {
 	return (new TextEncoder()).encode(str);
 }
 
-function isString(obj) {
-	return (typeof obj == "string") || (obj instanceof String);
-}
-
 // Very rudimentary cbor parser which unwraps the cbor text envelopes of the example scripts 
 // in github.com/chris-moreton/plutus-scripts and github.com/input-output-hk/plutus-apps
 // This function unwraps one level, so must be called twice 
 //  (for some reason the text envelopes is cbor wrapped in cbor)
-function unwrapPlutusCoreCbor(bytes) { 
+function unwrapCborBytes(bytes) { 
 	if (bytes == null || bytes == undefined || bytes.length == 0) {
 		throw new Error("expected at least one cbor byte");
 	}
@@ -258,7 +330,8 @@ function unwrapPlutusCoreCbor(bytes) {
 	}
 }
 
-function wrapPlutusCoreCbor(bytes) {
+// roughly the inverse of unwrapCborBytes
+function wrapCborBytes(bytes) {
 	let n = bytes.length;
 
 	if (n < 256) {
@@ -279,6 +352,8 @@ function wrapPlutusCoreCbor(bytes) {
 	return bytes;
 }
 
+// turn a string of zeroes and ones into a list of bytes
+// finalization pads the bits using '0*1` if not yet aligned with the byte boundary
 class BitWriter {
 	constructor() {
 		this.parts_ = [];
@@ -363,7 +438,7 @@ class PlutusCoreInteger {
 			let b = bytes[i];
 
 			// 7 (not 8), because leading bit isn't used here
-			value = value + BigInt(b)*pow2(BigInt(i)*7n);
+			value = value + BigInt(b)*ipow2(BigInt(i)*7n);
 		}
 
 		return value;
@@ -490,20 +565,6 @@ class PlutusCoreString {
 	}
 }
 
-class PlutusCoreUnit {
-	constructor() {
-	}
-
-	toString() {
-		return "()";
-	}
-
-	toFlat(bitWriter) {
-		bitWriter.write('0100');
-		bitWriter.write('100110'); // PlutusCore list that contains single '0011' entry
-	}
-}
-
 class PlutusCoreBool {
 	constructor(value) {
 		this.value_ = value;
@@ -521,6 +582,20 @@ class PlutusCoreBool {
 		} else {
 			bitWriter.write('0');
 		}
+	}
+}
+
+class PlutusCoreUnit {
+	constructor() {
+	}
+
+	toString() {
+		return "()";
+	}
+
+	toFlat(bitWriter) {
+		bitWriter.write('0100');
+		bitWriter.write('100110'); // PlutusCore list that contains single '0011' entry
 	}
 }
 
@@ -583,7 +658,8 @@ class PlutusCoreLambda extends PlutusCoreTerm {
 	}
 }
 
-class PlutusCoreApplication extends PlutusCoreTerm {
+// aka function application
+class PlutusCoreCall extends PlutusCoreTerm {
 	constructor(a, b) {
 		super(3);
 		this.a_ = a;
@@ -634,17 +710,30 @@ class PlutusCoreError extends PlutusCoreTerm {
 class PlutusCoreBuiltin extends PlutusCoreTerm {
 	constructor(name) {
 		super(7);
-		this.name_ = name;
+		this.name_ = name; // unknown builtin stays an integer
+	}
+
+	isKnown() {
+		return typeof this.name_ == "string";
 	}
 
 	toString() {
-		return "(builtin " + this.name_ + ")";
+		if (this.isKnown()) {
+			return `(builtin ${this.name_})`;
+		} else {
+			return `(builtin unknown${this.name_.toString()})`;
+		}
 	}
 
 	toFlat(bitWriter) {
 		bitWriter.write('0111');
 
-		let i = PLUTUS_CORE_BUILTINS.findIndex(info => info.name == this.name_);
+		let i;
+		if (this.isKnown()) {
+			i = PLUTUS_CORE_BUILTINS.findIndex(info => info.name == this.name_);
+		} else {
+			i = this.name_;
+		}
 
 		let bitString = padZeroes(i.toString(2), 7);
 		
@@ -653,14 +742,25 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 }
 
 class PlutusCoreProgram {
-	constructor(expr) {
-		this.version_ = PLUTUS_CORE_VERSION_COMPONENTS.map(v => new PlutusCoreInteger(v));
+	constructor(expr, version = PLUTUS_CORE_VERSION_COMPONENTS.map(v => new PlutusCoreInteger(v))) {
+		this.version_ = version;
 		this.expr_    = expr;
+	}
+
+	plutusScriptVersion() {
+		switch (this.version_[0].toSring()) {
+			case 2:
+				return "PlutusScriptV2";
+			case 3:
+				return "PlutusScriptV3";
+			default:
+				return "PlutusScriptV1";
+		}
 	}
 
 	toString() {
 		return "(program " + 
-			this.version_.map(v => v.toString()).join(".") + " " + 
+			this.versionString + " " + 
 			this.expr_.toString() + ")";
 	}
 
@@ -673,53 +773,37 @@ class PlutusCoreProgram {
 
 		// final padding is handled by bitWriter upon finalization
 	}
+
+	// returns plutus-core script in JSON formats (as string, not as object!)
+	serialize() {
+		let bitWriter = new BitWriter();
+
+		this.toFlat(bitWriter);
+
+		let bytes = bitWriter.finalize();
+
+		let cborHex = bytesToHex(wrapCborBytes(wrapCborBytes(bytes)));
+
+		return `{"type": "${this.plutusScriptVersion()}", "description": "", "cborHex": "${cborHex}"}`;
+	}
 }
 
 
-///////////////////////////////////////
-// Section 4: Plutus-Core serialization
-///////////////////////////////////////
-
-// returns hex representation of cbor text envelope
-export function serializePlutusCoreProgram(program) {
-	let bitWriter = new BitWriter();
-
-	program.toFlat(bitWriter);
-
-	let bytes = bitWriter.finalize();
-
-	return bytesToHex(wrapPlutusCoreCbor(wrapPlutusCoreCbor(bytes)));
-}
-
-
-//////////////////////////////////////////////////
-// Sectio 5: data for schema of Datum and Redeemer
-//////////////////////////////////////////////////
+/////////////////////////////////
+// Section 4: Plutus data objects
+/////////////////////////////////
 
 class IntData {
-	constructor(value, isBool = false) {
+	constructor(value) {
 		this.value_ = value;
-		this.isBool_ = isBool; // bool is also encoded using int
-	}
-
-	static fromBool(b) {
-		return new IntData(b ? 1n : 0n, true);
 	}
 
 	get value() {
 		return this.value_;
 	}
 
-	isBool() {
-		return this.isBool_;
-	}
-
-	isZero() {
-		return this.value_ == 0;
-	}
-
 	toUntyped() {
-		return `iData(${this.value_.toString()})`;
+		return `__core__iData(${this.value_.toString()})`;
 	}
 
 	// returns string, not js object, because of unbounded integers 
@@ -729,23 +813,18 @@ class IntData {
 }
 
 class ByteArrayData {
-	constructor(bytes, isString = false) {
+	constructor(bytes) {
 		this.bytes_ = bytes;
-		this.isString_ = isString();
 	}
 
 	static fromString(s) {
 		let bytes = (new TextEncoder()).encode(s);
 
-		return new ByteArrayData(bytes, true);
+		return new ByteArrayData(bytes);
 	}
 
 	get bytes() {
 		return this.bytes_.slice();
-	}
-
-	isString() {
-		return this.isString_;
 	}
 
 	toHex() {
@@ -753,7 +832,7 @@ class ByteArrayData {
 	}
 
 	toUntyped() {
-		return `bData(#${this.toHex()})`;
+		return `__core__bData(#${this.toHex()})`;
 	}
 
 	toSchemaJSON() {
@@ -767,12 +846,12 @@ class ListData {
 	}
 
 	toUntyped() {
-		let lst = "mkNilData(())";
+		let lst = "__core__mkNilData(())";
 		for (let i = this.items_.length - 1; i >= 0; i--) {
-			lst = `mkCons(${this.items_[i].toUntyped()}, ${lst})`;
+			lst = `__core__mkCons(${this.items_[i].toUntyped()}, ${lst})`;
 		}
 
-		return `listData(${lst})`;
+		return `__core__listData(${lst})`;
 	}
 
 	toSchemaJSON() {
@@ -787,16 +866,16 @@ class MapData {
 	}
 
 	toUntyped() {
-		let lst = "mkNilPairData(())";
+		let lst = "__core__mkNilPairData(())";
 
 		for (let i = this.pairs_.length - 1; i >= 0; i--) {
 			let a = this.pairs_[i][0].toUntyped();
 			let b = this.pairs_[i][1].toUntyped();
 
-			lst = `mkCons(mkPairData(${a}, ${b}), ${lst})`;
+			lst = `__core__mkCons(__core__mkPairData(${a}, ${b}), ${lst})`;
 		}
 
-		return `mapData(${lst})`;
+		return `__core__mapData(${lst})`;
 	}
 
 	toSchemaJSON() {
@@ -811,12 +890,12 @@ class ConstrData {
 	}
 
 	toUntyped() {
-		let lst = "mkNilData(())";
+		let lst = "__core__mkNilData(())";
 		for (let i = this.fields_.length - 1; i >= 0; i--) {
-			lst = `mkCons(${this.fields_[i].toUntyped()}, ${lst})`
+			lst = `__core__mkCons(${this.fields_[i].toUntyped()}, ${lst})`
 		}
 
-		return `constrData(${this.index_.toString()}, ${lst})`
+		return `__core__constrData(${this.index_.toString()}, ${lst})`
 	}
 
 	toSchemaJSON() {
@@ -825,13 +904,13 @@ class ConstrData {
 }
 
 
-/////////////////////////////////
-// Section 6: Plutus-light tokens
-/////////////////////////////////
+///////////////////////////
+// Section 5: Token objects
+///////////////////////////
 
 class Source {
 	constructor(raw) {
-		this.raw_ = raw;
+		this.raw_ = assertDefined(raw);
 	}
 
 	// should work for utf-8 runes as well
@@ -853,14 +932,68 @@ class Source {
 
 		return line;
 	}
-}
 
-class PlutusLightError extends Error {
-	// line here is 0-based index
-	constructor(type, line, msg) {
-		super(type + " on line " + (line+1) + ": " + msg);
+	// add line-numbers, returns string
+	pretty() {
+		let lines = this.raw_.split("\n");
+
+		let nLines = lines.length;
+		let nDigits = Math.max(Math.ceil(Math.log10(nLines)), 2);
+
+		for (let i = 0; i < lines.length; i++) {
+			lines[i] = String(i+1).padStart(nDigits, '0') + "  " + lines[i];
+		}
+
+		return lines.join("\n");
 	}
 }
+
+class UserError extends Error {
+	// line arg here is 0-based index
+	constructor(type, src, pos, info = "") {
+		let line = src.posToLine(pos);
+
+		let msg = `${type} on line ${line+1}`;
+		if (info != "") {
+			msg += `: ${info}`;
+		}
+
+		super(msg);
+		this.src_ = src;
+	}
+
+	static syntaxError(src, pos, info = "") {
+		return new UserError("SyntaxError", src, pos, info);
+	}
+
+	static typeError(src, pos, info = "") {
+		return new UserError("TypeError", src, pos, info);
+	}
+
+	static referenceError(src, pos, info = "") {
+		return new UserError("ReferenceError", src, pos, info);
+	}
+
+	dump(verbose = false) {
+		if (verbose) {
+			console.error(this.src_.pretty());
+		}
+
+		console.error("\n" + this.message);
+	}
+
+	static catch(fn, verbose = false) {
+		try {
+			fn();
+		} catch (error) {
+			if (error instanceof UserError) {
+				error.dump(verbose);
+			} else {
+				throw error;
+			}
+		}
+	}
+ }
 
 // each token has a site, which encapsulates a position in a Source
 class Site {
@@ -877,22 +1010,22 @@ class Site {
 		return this.src_.posToLine(this.pos_);
 	}
 
-	syntaxError(msg) {
-		throw new PlutusLightError("SyntaxError", this.line, msg);
+	syntaxError(info = "") {
+		throw UserError.syntaxError(this.src_, this.pos_, msg);
 	}
 
-	typeError(msg) {
-		throw new PlutusLightError("TypeError", this.line, msg);
+	typeError(info = "") {
+		throw UserError.typeError(this.src_, this.pos_, info);
 	}
 
-	referenceError(msg) {
-		throw new PlutusLightError("ReferenceError", this.line, msg);
+	referenceError(info = "") {
+		throw UserError.referenceError(this.src_, this.pos_, info);
 	}
 }
 
 class Token {
 	constructor(site) {
-		this.site_ = site; // position in source of start of token
+		this.site_ = assertDefined(site); // position in source of start of token
 	}
 
 	get site() {
@@ -914,7 +1047,6 @@ class Token {
 	isGroup() {
 		return false;
 	}
-
 
 	syntaxError(msg) {
 		this.site_.syntaxError(msg);
@@ -967,7 +1099,6 @@ class Token {
 	}
 
 	evalData() {
-		console.log(this);
 		this.typeError("can't be used in data eval");
 	}
 }
@@ -1052,6 +1183,12 @@ class Word extends Token {
 
 	toString() {
 		return this.value_;
+	}
+
+	// find the index of the first Word(value) in a list of tokens 
+	// returns -1 if none found
+	static find(ts, value) {
+		return ts.findIndex(item => item.isWord(value));
 	}
 }
 
@@ -1236,24 +1373,6 @@ class IntLiteral extends PrimitiveLiteral {
 	}
 }
 
-class UnitLiteral extends PrimitiveLiteral {
-	constructor(site) {
-		if (site == undefined) {
-			site = Site.dummy();
-		}
-
-		super(site);
-	}
-
-	toString() {
-		return "()";
-	}
-
-	toPlutusCore() {
-		return new PlutusCoreUnit();
-	}
-}
-
 class BoolLiteral extends PrimitiveLiteral {
 	constructor(site, value) {
 		if (value == undefined) {
@@ -1327,10 +1446,29 @@ class StringLiteral extends PrimitiveLiteral {
 	}
 }
 
+// these tokens are used by both typed and untyped Helios, but UnitLiteral is only used by untyped Helios
+class UnitLiteral extends PrimitiveLiteral {
+	constructor(site) {
+		if (site == undefined) {
+			site = Site.dummy();
+		}
 
-///////////////////////////////////////
-// Section 6: Plutus-light tokenization
-///////////////////////////////////////
+		super(site);
+	}
+
+	toString() {
+		return "()";
+	}
+
+	toPlutusCore() {
+		return new PlutusCoreUnit();
+	}
+}
+
+
+//////////////////////////
+// Section 6: Tokenization
+//////////////////////////
 
 class Tokenizer {
 	constructor(src) {
@@ -1704,7 +1842,7 @@ class Tokenizer {
 
 				let fields = Tokenizer.groupFields(ts).map(f => Tokenizer.nestGroups(f));
 
-				res.push(new Group(t.loc, t.value, fields));
+				res.push(new Group(t.site, t.value, fields));
 			} else if (Group.isCloseSymbol(t)) {
 				t.syntaxError(`unmatched \'${t.value}\'`);
 			} else {
@@ -1717,7 +1855,7 @@ class Tokenizer {
 }
 
 // can also be used
-export function tokenizePlutusLight(rawSrc) {
+function tokenize(rawSrc) {
 	let src = new Source(rawSrc);
 
 	let tokenizer = new Tokenizer(src);
@@ -1725,18 +1863,19 @@ export function tokenizePlutusLight(rawSrc) {
 	return tokenizer.tokenize();
 }
 
-// same tokenizer can be used for untyped Plutus-Light
-export function tokenizeUntypedPlutusLight(rawSrc) {
-	return tokenizePlutusLight(rawSrc);
+// same tokenizer can be used for untyped Helios
+function tokenizeUntyped(rawSrc) {
+	return tokenize(rawSrc);
 }
 
 
-////////////////////////////////////////////////
-// Section 8: Plutus-Light values and core types
-////////////////////////////////////////////////
+/////////////////////////////////////
+// Section 7: Type evaluation objects
+/////////////////////////////////////
 
 class GeneralizedValue {
 	constructor() {
+		this.used_ = false;
 	}
 
 	isType() {
@@ -1745,6 +1884,14 @@ class GeneralizedValue {
 
 	isValue() {
 		throw new Error("not implemented");
+	}
+
+	isUsed() {
+		return this.used_;
+	}
+
+	markAsUsed() {
+		this.used_ = true;
 	}
 
 	getType(site) {
@@ -1785,7 +1932,6 @@ class GeneralizedValue {
 class Type extends GeneralizedValue {
 	constructor() {
 		super();
-		this.used = false;
 	}
 
 	static same(site, a, b) {
@@ -1814,34 +1960,14 @@ class Type extends GeneralizedValue {
 	}
 }
 
-class Value extends GeneralizedValue {
+// used by find_datum_hash for example
+class AnyType extends Type {
 	constructor() {
 		super();
-		this.used = false;
 	}
 
-	static new(type) {
-		if (type instanceof FuncType) {
-			return new FuncValue(type);
-		} else {
-			return new DataValue(type);
-		}
-	}
-
-	isType() {
-		return false;
-	}
-	
-	isValue() {
+	isBaseOf(site, other) {
 		return true;
-	}
-
-	isBaseOf(site, type) {
-		site.typeError("not a type");
-	}
-
-	call(site, args) {
-		site.typeError("not callable");
 	}
 }
 
@@ -1855,40 +1981,7 @@ class DataType extends Type {
 	}
 }
 
-class UserType extends DataType {
-	constructor(statement) {
-		super();
-		this.statement_ = statement;
-	}
-
-	isBaseOf(site, type) {
-		if (type instanceof UserType) {
-			this.statement_.isBaseOf(type.statement_);
-		} else {
-			return false;
-		}
-	}
-
-	// for `::`
-	getTypeMember(name) {
-		return this.statement_.getTypeMember(name);
-	}
-
-	// for `.`
-	getInstanceMember(name) {
-		return this.statement_.getInstanceMember(name);
-	}
-
-	nFields(site) {
-		return this.statement_.nFields(site);
-	}
-
-	getConstrIndex(site) {
-		return this.statement_.getConstrIndex(site);
-	}
-}
-
-// any builtin type that inherits from BuiltinType should implement toUntyped() and getInstanceMember() 
+// any builtin type that inherits from BuiltinType must implement toUntyped()
 class BuiltinType extends DataType {
 	constructor() {
 		super();
@@ -1928,41 +2021,36 @@ class BuiltinType extends DataType {
 	}
 }
 
-class DataValue extends Value {
-	constructor(type) {
-		assert(!(type instanceof FuncType));
-
+class UserType extends DataType {
+	constructor(statement) {
 		super();
-		this.type_ = type;
+		this.statement_ = statement;
 	}
 
-	copy() {
-		return new DataValue(this.type_);
-	}
-
-	toString() {
-		return this.type_.toString();
-	}
-
-	getType(site) {
-		return this.type_;
-	}
-
-	// type can be a class, or class instance
-	isInstanceOf(site, type) {
-		if (typeof type == 'function') {
-			return this.type_ instanceof type;
+	isBaseOf(site, type) {
+		if (type instanceof UserType) {
+			this.statement_.isBaseOf(type.statement_);
 		} else {
-			return type.isBaseOf(site, this.type_);
+			return false;
 		}
 	}
 
-	nFields(site) {
-		return this.type_.nFields(site);
+	// for `::`
+	getTypeMember(name) {
+		return this.statement_.getTypeMember(name);
 	}
 
+	// for `.`
 	getInstanceMember(name) {
-		return this.type_.getInstanceMember(name);
+		return this.statement_.getInstanceMember(name);
+	}
+
+	nFields(site) {
+		return this.statement_.nFields(site);
+	}
+
+	getConstrIndex(site) {
+		return this.statement_.getConstrIndex(site);
 	}
 }
 
@@ -2105,6 +2193,74 @@ class FuncType extends Type {
 	}
 }
 
+class Value extends GeneralizedValue {
+	constructor() {
+		super();
+	}
+
+	static new(type) {
+		if (type instanceof FuncType) {
+			return new FuncValue(type);
+		} else {
+			return new DataValue(type);
+		}
+	}
+
+	isType() {
+		return false;
+	}
+	
+	isValue() {
+		return true;
+	}
+
+	isBaseOf(site, type) {
+		site.typeError("not a type");
+	}
+
+	call(site, args) {
+		site.typeError("not callable");
+	}
+}
+
+class DataValue extends Value {
+	constructor(type) {
+		assert(!(type instanceof FuncType));
+
+		super();
+		this.type_ = type;
+	}
+
+	copy() {
+		return new DataValue(this.type_);
+	}
+
+	toString() {
+		return this.type_.toString();
+	}
+
+	getType(site) {
+		return this.type_;
+	}
+
+	// type can be a class, or class instance
+	isInstanceOf(site, type) {
+		if (typeof type == 'function') {
+			return this.type_ instanceof type;
+		} else {
+			return type.isBaseOf(site, this.type_);
+		}
+	}
+
+	nFields(site) {
+		return this.type_.nFields(site);
+	}
+
+	getInstanceMember(name) {
+		return this.type_.getInstanceMember(name);
+	}
+}
+
 class FuncValue extends Value {
 	constructor(type) {
 		assert(type instanceof FuncType);
@@ -2113,6 +2269,10 @@ class FuncValue extends Value {
 		this.type_ = type;
 	}
 	
+	isRecursive() {
+		return false;
+	}
+
 	copy() {
 		return new FuncValue(this.type_);
 	}
@@ -2156,22 +2316,27 @@ class FuncValue extends Value {
 	}
 }
 
-
-// used when empty list are passed into fold
-class AnyType extends Type {
-	constructor() {
-		super();
+// only top functions (i.e. function statements) can be used recursively
+class TopFuncValue extends FuncValue {
+	constructor(type) {
+		super(type);
+		this.recursive_ = false;
 	}
 
-	isBaseOf(site, other) {
-		return true;
+	markAsUsed() {
+		super.markAsUsed();
+		this.recursive_ = true;
+	}
+
+	isRecursive() {
+		return this.recursive_;
 	}
 }
 
 
-/////////////////////////////////
-// Section 9: Plutus-Light scopes
-/////////////////////////////////
+////////////////////
+// Section 8: Scopes
+////////////////////
 
 // GlobalScope is for builtins
 class GlobalScope {
@@ -2205,12 +2370,44 @@ class GlobalScope {
 	get(name) {
 		for (let pair of this.values_) {
 			if (pair[0].toString() == name.toString()) {
-				pair[1].used = true;
+				pair[1].markAsUsed();
 				return pair[1];
 			}
 		}
 
 		name.referenceError(`\'${name.toString()}\' undefined`);
+	}
+
+	static new() {
+		let scope = new GlobalScope();
+
+		// List (aka '[]'), Option, and Map types are accessed through special expressions
+
+		// fill the global scope with builtin types
+		scope.set("Int", new IntType());
+		scope.set("Bool", new BoolType());
+		scope.set("String", new StringType());
+		scope.set("ByteArray", new ByteArrayType());
+		scope.set("PubKeyHash", new PubKeyHashType());
+		scope.set("ValidatorHash", new ValidatorHashType());
+		scope.set("MintingPolicyHash", new MintingPolicyHashType());
+		scope.set("DatumHash", new DatumHashType());
+		scope.set("ScriptContext", new ScriptContextType());
+		scope.set("Tx", new TxType());
+		scope.set("TxId", new TxIdType());
+		scope.set("TxInput", new TxInputType());
+		scope.set("TxOutput", new TxOutputType());
+		scope.set("TxOutputId", new TxOutputIdType());
+		scope.set("Address", new AddressType());
+		scope.set("Credential", new CredentialType());
+		scope.set("StakingCredential", new StakingCredentialType());
+		scope.set("Time", new TimeType());
+		scope.set("Duration", new DurationType());
+		scope.set("TimeRange", new TimeRangeType());
+		scope.set("AssetClass", new AssetClassType());
+		scope.set("Value", new MoneyValueType());
+
+		return scope;
 	}
 }
 
@@ -2251,7 +2448,7 @@ class Scope {
 
 		for (let pair of this.values_) {
 			if (pair[0].toString() == name.toString()) {
-				pair[1].used = true;
+				pair[1].markAsUsed();
 				return pair[1];
 			}
 		}
@@ -2265,23 +2462,13 @@ class Scope {
 
 	assertAllUsed() {
 		for (let pair of this.values_) {
-			if (!pair[1].used) {
+			if (!pair[1].isUsed()) {
 				pair[0].referenceError(`\'${pair[0].toString()}\' unused`);
 			}
 		}
 	}
-}
 
-// map: name -> definition
-function wrapWithDefinitions(inner, map) {
-	let keys = Array.from(map.keys()).reverse();
-
-	let res = inner;
-	for (let key of keys) {
-		res = `(${key}) -> {${res}}(${map.get(key)})`;
-	}
-
-	return res;
+	
 }
 
 class TopScope extends Scope {
@@ -2294,6 +2481,18 @@ class TopScope extends Scope {
 		super.set(name, value);
 	}
 
+	// map: name -> definition
+	static wrapWithDefinitions(inner, map) {
+		let keys = Array.from(map.keys()).reverse();
+
+		let res = inner;
+		for (let key of keys) {
+			res = `(${key}) -> {${res}}(${map.get(key)})`;
+		}
+
+		return res;
+	}
+
 	wrapAround(inner) {	
 		// first collect, so we can optionally reverse
 		let map = new Map(); // string -> string
@@ -2302,20 +2501,14 @@ class TopScope extends Scope {
 			pair[1].toUntyped(map);
 		}
 
-		return wrapWithDefinitions(inner, map);
+		return TopScope.wrapWithDefinitions(inner, map);
 	}
 }
 
 
-//////////////////////////////////
-// Section 10: Plutus-Light AST expressions
-//////////////////////////////////
-
-function assertTypeMatch(a, b) {
-	if (!a.eq(b)) {
-		b.typeError(`expected \'${a.toString()}\', got \'${b.toString()}\'`);
-	}
-}
+////////////////////////////////////
+// Section 9: AST expression objects
+////////////////////////////////////
 
 // caches the evaluated type
 // both TypeExpr and ValueExpr inherit from this
@@ -2505,7 +2698,7 @@ class ValueExpr extends Expr {
 
 class AssignExpr extends ValueExpr {
 	constructor(site, name, typeExpr, upstreamExpr, downstreamExpr) {
-		super(loc);
+		super(site);
 		this.name_ = name;
 		this.typeExpr_ = typeExpr; // is optional
 		this.upstreamExpr_  = upstreamExpr;
@@ -2540,7 +2733,7 @@ class AssignExpr extends ValueExpr {
 			}
 		} else {
 			if (!(this.upstreamExpr_.isLiteral())) {
-				this.typeError("type inference not available");
+				this.typeError("unable to infer type of assignment rhs");
 			}
 		}
 		
@@ -2560,7 +2753,7 @@ class AssignExpr extends ValueExpr {
 
 class PrintExpr extends Expr {
 	constructor(site, msgExpr, downstreamExpr) {
-		super(loc);
+		super(site);
 		this.msgExpr_ = msgExpr;
 		this.downstreamExpr_ = downstreamExpr;
 	}
@@ -2831,10 +3024,14 @@ class FuncLiteralExpr extends Expr {
 		return this.args_.length > 0 && this.args_[0].name.toString() == "self";
 	}
 
-	toUntyped(self = "_") {
+	toUntyped(recursiveName = null) {
 		let args = this.args_.map(a => a.toUntyped());
-		args.unshift(self);
-		return `(${args.join(", ")}) -> {${this.bodyExpr_.toUntyped()}}`;
+		if (recursiveName != null) {
+			args.unshift(recursiveName);
+			return `(${args.join(", ")}) -> {${this.bodyExpr_.toUntyped()}}`;
+		} else {
+			return `(${args.join(", ")}) -> {${this.bodyExpr_.toUntyped()}}`;
+		}
 	}
 }
 
@@ -2999,7 +3196,7 @@ class BinaryExpr extends Expr {
 	}
 
 	toUntyped() {
-		let path = this.aType_.getPath();
+		let path = this.aType_.toUntyped();
 
 		let op = this.translateOp().value;
 
@@ -3043,6 +3240,7 @@ class CallExpr extends Expr {
 		super(site);
 		this.fnExpr_ = fnExpr;
 		this.argExprs_ = argExprs;
+		this.recursive_ = false;
 	}
 
 	toString() {
@@ -3058,13 +3256,21 @@ class CallExpr extends Expr {
 			return argVal; 
 		});
 
+		if (fnVal.isRecursive()) {
+			this.recursive_ = true;
+		}
+
 		return fnVal.call(this.site, argVals);
 	}
 
 	toUntyped() {
-		// all functions need to be recursively callable by default,
-		// optimization of the untyped plutus core happens later
-		return `(((fn) -> {fn(fn, ${this.argExprs_.map(a => a.toUntyped()).join(", ")})})(${this.fnExpr_.toUntyped()}))`;
+		let innerArgs = this.argExprs_.map(a => a.toUntyped());
+		if (this.recursive_) {
+			innerArgs.unshift("fn");
+			return `(fn) -> {fn(${innerArgs.join(", ")})}(${this.fnExpr_.toUntyped()})`;
+		} else {
+			return `${this.fnExpr_.toUntyped()}(${innerArgs.join(", ")})`;
+		}
 	}
 }
 
@@ -3307,9 +3513,9 @@ class SwitchExpr extends Expr {
 }
 
 
-//////////////////////////////////////////
-// Section 11: Plutus-Light AST statements
-//////////////////////////////////////////
+////////////////////////////////////
+// Section 10: AST statement objects
+////////////////////////////////////
 
 // statements don't return a value from eval(scope)
 class Statement extends Token {
@@ -3391,7 +3597,7 @@ class DataDefinition extends NamedStatement {
 		this.fields_ = fields; // list of StructField
 		this.fieldTypes_ = null;
 		this.constrIndex_ = 0;
-		this.implMembers_ = new ImplMembers();
+		this.registry_ = new ImplRegistry();
 		this.fieldsUsed_ = new Set();
 		this.autoMembersUsed_ = new Set();
 
@@ -3456,7 +3662,7 @@ class DataDefinition extends NamedStatement {
 			name.referenceError("name of assoc member can't be same as auto member");
 		}
 
-		this.implMembers_.setAssoc(name, value);
+		this.registry_.setAssoc(name, value);
 	}
 
 	setImplMethod(name, value) {
@@ -3464,7 +3670,7 @@ class DataDefinition extends NamedStatement {
 			name.referenceError("name of method member can't be same as field");
 		}
 
-		this.implMembers_.setMethod(name, value);
+		this.registry_.setMethod(name, value);
 	}
 
 	// otherType has already been unwrapped from UserType
@@ -3477,7 +3683,7 @@ class DataDefinition extends NamedStatement {
 	}
 
 	getTypeMember(name) {
-		return this.implMembers_.getAssoc(name); // this is easy because there is no 'self', path will be __MyStruct__MyMember
+		return this.registry_.getAssoc(name); // this is easy because there is no 'self', path will be __MyStruct__MyMember
 	}
 
 	getInstanceMember(name, dryRun = false) {
@@ -3495,8 +3701,8 @@ class DataDefinition extends NamedStatement {
 			let i = this.findField(name);
 
 			if ( !this.fields_.has(name.toString())) {
-				if (this.implMembers_.has(name)) {
-					return this.implMembers_.getMethod(name, dryRun);
+				if (this.registry_.has(name)) {
+					return this.registry_.getMethod(name, dryRun);
 				} else {
 					name.referenceError(`\'${this.name_.toString()}.${name.toString()}\' undefined`);
 				}
@@ -3605,6 +3811,7 @@ class FuncStatement extends NamedStatement {
 	constructor(site, name, funcExpr) {
 		super(site, name);
 		this.funcExpr_ = funcExpr;
+		this.recursive_ = false;
 	}
 
 	toString() {
@@ -3621,26 +3828,31 @@ class FuncStatement extends NamedStatement {
 
 	eval(scope) {
 		// add to scope before evaluating, to allow recursive calls
-		scope.set(this.name, Value.new(this.evalType(scope)));
+
+		let fnVal = new TopFuncValue(this.evalType(scope));
+		
+		scope.set(this.name, fnVal);
 
 		void this.evalInternal(scope);
+		
+		if (fnVal.isRecursive()) {
+			this.recursive_ = true;
+		}
 	}
 
 	maybeMethod() {
 		return this.funcExpr_.maybeMethod();
 	}
 
-	toUntypedInternal(self = null) {
-		if (self == null) {
-			self = this.name.toString();
+	toUntyped(map) {
+		let def;
+		if (this.recursive_) {
+			def = this.funcExpr_.toUntyped(this.name.toString());
+		} else {
+			def = this.funcExpr_.toUntyped();
 		}
 
-		return this.funcExpr_.toUntyped(self);
-	}
-
-	toUntyped(map) {
-		map.set(this.name.toString(), this.toUntypedInternal());
-		console.log("main func: ", this.toUntypedInternal())
+		map.set(this.name.toString(), def);
 	}
 }
 
@@ -3697,7 +3909,7 @@ class EnumStatement extends NamedStatement {
 		this.members_ = members; // list of EnumMember
 		this.membersUsed_ = new Set();
 		this.memberTypes_ = null;
-		this.implMembers_ = new ImplMembers(); // methods and associated consts/funcs
+		this.registry_ = new ImplRegistry(); // methods and associated consts/funcs
 		this.autoMembers_ = new Map();
 		this.autoMembersUsed_ = new Set();
 
@@ -3725,7 +3937,7 @@ class EnumStatement extends NamedStatement {
 		if (this.findEnumMember(name) != -1) {
 			return true;
 		} else {
-			return this.implMembers_.has(name);
+			return this.registry_.has(name);
 		}
 	}
 
@@ -3744,7 +3956,7 @@ class EnumStatement extends NamedStatement {
 			name.referenceError("assoc member can have same name as enum type member");
 		}
 
-		this.implMembers_.setAssoc(name, value);
+		this.registry_.setAssoc(name, value);
 	}
 
 	setImplMethod(name, value) {
@@ -3816,8 +4028,8 @@ class EnumStatement extends NamedStatement {
 	getTypeMember(name) {
 		let i = this.findEnumMember(name);
 		if (i == -1) {
-			if (this.implMembers_.has(name)) {
-				return this.implMembers_.getAssoc(name);
+			if (this.registry_.has(name)) {
+				return this.registry_.getAssoc(name);
 			} else {
 				name.referenceError(`${this.name.toString()}::${name.toString()} undefined`);
 			}
@@ -3868,7 +4080,7 @@ class EnumStatement extends NamedStatement {
 	}
 }
 
-class ImplMembers {
+class ImplRegistry {
 	constructor() {
 		this.methods_ = [];
 		this.assocs_ = [];
@@ -4015,20 +4227,29 @@ class ImplStatement extends Statement {
 }
 
 const ScriptPurpose = {
+	Testing: -1,
 	Minting: 0,
 	Spending: 1,
 };
 
-class PlutusLightProgram {
+class Program {
 	constructor(purpose, name, statements) {
 		this.purpose_ = purpose;
 		this.name_ = name;
 		this.statements_ = statements;
-		this.topScope_ = null;
+		this.scope_ = null;
 		
 		this.haveDatum_ = false;
 		this.haveRedeemer_ = false;
 		this.haveScriptContext_ = false;
+	}
+
+	get scope() {
+		return this.scope_;
+	}
+
+	isTest() {
+		return this.purpose_ == ScriptPurpose.Testing;
 	}
 
 	toString() {
@@ -4037,15 +4258,15 @@ class PlutusLightProgram {
 
 	// also creates the scope
 	eval(globalScope) {
-		this.topScope_ = new TopScope(globalScope);
+		this.scope_ = new TopScope(globalScope);
 
 		for (let s of this.statements_) {
-			s.eval(this.topScope_);
+			s.eval(this.scope_);
 		}
 
 		this.checkMain();
 
-		this.topScope_.assertAllUsed();
+		this.scope_.assertAllUsed();
 
 		for (let s of this.statements_) {
 			s.assertAllMembersUsed();
@@ -4053,7 +4274,7 @@ class PlutusLightProgram {
 	}
 
 	checkMain() {
-		let mainVal = this.topScope_.get("main");
+		let mainVal = this.scope_.get("main");
 		let mainSite = this.statements_.find(s => s.name.toString() == "main").site;
 		let mainType = mainVal.getType(mainSite);
 
@@ -4084,44 +4305,41 @@ class PlutusLightProgram {
 		if (this.haveRedeemer_) {
 			mainArgs.push("redeemer");
 			uMainArgs.push("redeemer");
-		} else { // minting script can also have a redeemer
+		} else if (this.isTest()) { // minting script can also have a redeemer
 			mainArgs.push("_");
 		}
 
 		if (this.haveScriptContext_) {
 			mainArgs.push("ctx");
 			uMainArgs.push("ctx");
-		} else {
+		} else if (this.isTest()) {
 			mainArgs.push("_");
 		}
 
 		res += mainArgs.join(", ");
 
-		res += ") -> {\n  ifThenElse(";
+		res += ") -> {\n  __core__ifThenElse(";
 
-		res += "main(" + uMainArgs.join(", ") + "), () -> {()}, () -> {error()})()\n"; // deferred evaluation of branches!
+		res += "main(" + uMainArgs.join(", ") + "), () -> {()}, () -> {__core__error()})()\n"; // deferred evaluation of branches!
 		
 		res += "}";
 
 		let map = new Map(); // string -> string
 		for (let statement of this.statements_) {
-			console.log("wrapping with statement:", statement.toString());
 			statement.toUntyped(map);
 		}
 
-		console.log(map);
-
 		// builtin functions are added when untyped program is built
-		return wrapWithBuiltins(wrapWithDefinitions(res, map));
+		return wrapWithRawFunctions(TopScope.wrapWithDefinitions(res, map));
 	}
 }
 
 
-////////////////////////
-// Section 12: Plutus-Light AST build functions
-////////////////////////
+//////////////////////////////////
+// Section 11: AST build functions
+//////////////////////////////////
 
-function buildPlutusLightProgram(ts) {
+function buildProgram(ts) {
 	if (ts.length == 0) {
 		throw new Error("empty script");
 	}
@@ -4152,7 +4370,7 @@ function buildPlutusLightProgram(ts) {
 		statements.push(s);
 	}
 
-	return new PlutusLightProgram(purpose, name, statements);
+	return new Program(purpose, name, statements);
 }
 
 // return [purpose, name]
@@ -4168,6 +4386,8 @@ function buildScriptPurpose(ts) {
 		purpose = ScriptPurpose.Spending; 
 	} else if (purposeWord.isWord("mint_policy")) {
 		purpose = ScriptPurpose.Minting;
+	} else if (purpose.isWord("test")) { // 'test' is not reserved as a keyword though
+		purpose = ScriptPurpose.Testing;
 	} else if (purposeWord.isKeyword()) {
 		purposeWord.syntaxError(`script purpose missing`);
 	} else {
@@ -4363,13 +4583,13 @@ function buildImplStatement(site, ts) {
 
 	let braces = ts.shift().assertGroup("{", 1);
 
-	let statements = buildImplContent(braces.fields[0]);
+	let statements = buildImplMembers(braces.fields[0]);
 
 	return new ImplStatement(site, typeExpr, statements);
 }
 
 // returns list of statements
-function buildImplContent(ts) {
+function buildImplMembers(ts) {
 	let statements = [];
 
 	while (ts.length != 0) {
@@ -4480,31 +4700,31 @@ function buildTypeRefExpr(ts) {
 function buildValueExpr(ts, prec) {
 	assert(ts.length > 0);
 
+	// lower index in exprBuilders is lower precedence
+	const exprBuilders = [
+		// 0: lowest precedence is assignment
+		function(ts_, prec_) {
+			return buildMaybeAssignOrPrintExpr(ts_, prec_);
+		},
+		makeBinaryExprBuilder('||'), // 1: logical or operator
+		makeBinaryExprBuilder('&&'), // 2: logical and operator
+		makeBinaryExprBuilder(['==', '!=']), // 3: eq or neq
+		makeBinaryExprBuilder(['<', '<=', '>', '>=']), // 4: comparison
+		makeBinaryExprBuilder(['+', '-']), // 5: addition subtraction
+		makeBinaryExprBuilder(['*', '/', '%']), // 6: multiplication division remainder
+		makeUnaryExprBuilder(['!', '+', '-']), // 7: logical not, negate
+		// 8: variables or literal values chained with: (enum)member access, indexing and calling
+		function(ts_, prec_) {
+			return buildChainedValueExpr(ts_, prec_);
+		}
+	];
+
 	if (prec == undefined) {
 		return buildValueExpr(ts, 0);
 	} else {
-		return EXPR_BUILDERS[prec](ts, prec);
+		return exprBuilders[prec](ts, prec);
 	}
 }
-
-// lower index is lower precedence
-const EXPR_BUILDERS = [
-	// 0: lowest precedence is assignment
-	function(ts, prec) {
-		return buildMaybeAssignOrPrintExpr(ts, prec);
-	},
-	genBuildBinaryExpr('||'), // 1: logical or operator
-	genBuildBinaryExpr('&&'), // 2: logical and operator
-	genBuildBinaryExpr(['==', '!=']), // 3: eq or neq
-	genBuildBinaryExpr(['<', '<=', '>', '>=']), // 4: comparison
-	genBuildBinaryExpr(['+', '-']), // 5: addition subtraction
-	genBuildBinaryExpr(['*', '/', '%']), // 6: multiplication division remainder
-	genBuildUnaryExpr(['!', '+', '-']), // 7: logical not, negate
-	// 8: variables or literal values chained with: (enum)member access, indexing and calling
-	function(ts, prec) {
-		return buildChainedValueExpr(ts, prec);
-	}
-];
 
 function buildMaybeAssignOrPrintExpr(ts, prec) {
 	let semicolonPos = Symbol.find(ts, ";");
@@ -4519,7 +4739,7 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 			ts[semicolonPos].syntaxError("expected = or print to preceed ;");
 		}
 
-		if (equalsPos != -1 && equalsPos < printPos) {
+		if (equalsPos != -1 && equalsPos < semicolonPos) {
 			if (printPos != -1) {
 				assert(printPos > semicolonPos);
 			}
@@ -4535,18 +4755,23 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 				typeExpr = buildTypeExpr(lts);
 			}
 
-			let upstreamExpr = buildValueExpr(ts.slice(equalsPos+1, semicolonPos), prec+1);
+			let equalsSite = ts.shift().assertSymbol("=").site;
 
-			let rem = ts.slice(semicolonPos+1);
+			semicolonPos = Symbol.find(ts, ";");
+			assert(semicolonPos != -1);
 
-			if (rem.length == 0) {
-				ts[semicolonPos].syntaxError("expected expression after \';\'");
+			let upstreamExpr = buildValueExpr(ts.splice(0, semicolonPos), prec+1);
+
+			let semicolonSite = ts.shift().assertSymbol(";").site;
+
+			if (ts.length == 0) {
+				semicolonSite.syntaxError("expected expression after \';\'");
 			}
 
-			let downstreamExpr = buildValueExpr(rem, prec);
+			let downstreamExpr = buildValueExpr(ts, prec);
 
-			return new AssignExpr(ts[equalsPos].site, name, typeExpr, upstreamExpr, downstreamExpr);
-		} else if (printPos != -1 && printPos < equalsPos) {
+			return new AssignExpr(equalsSite, name, typeExpr, upstreamExpr, downstreamExpr);
+		} else if (printPos != -1 && printPos < semicolonPos) {
 			if (equalsPos != -1) {
 				assert(equalsPos > semicolonPos);
 			}
@@ -4571,7 +4796,7 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 }
 
 // returns a function!
-function genBuildBinaryExpr(symbol) {
+function makeBinaryExprBuilder(symbol) {
 	// default behaviour is left-to-right associative
 	return function(ts, prec) {
 		let iOp = Symbol.findLast(ts, symbol);
@@ -4590,7 +4815,7 @@ function genBuildBinaryExpr(symbol) {
 	};
 }
 
-function genBuildUnaryExpr(symbol) {
+function makeUnaryExprBuilder(symbol) {
 	// default behaviour is right-to-left associative
 	return function(ts, prec) {
 		if (ts[0].isSymbol(symbol)) {
@@ -4608,7 +4833,7 @@ function buildChainedValueExpr(ts, prec) {
 
 	// now we can parse the rest of the chaining
 	while(ts.length > 0) {
-		t = ts.shift();
+		let t = ts.shift();
 
 		if (t.isGroup("(")) {
 			expr = new CallExpr(t.site, expr, buildCallArgs(t));
@@ -4640,7 +4865,7 @@ function buildChainStartValueExpr(ts) {
 	} else if (ts[0].isLiteral()) {
 		return new PrimitiveLiteralExpr(ts.shift()); // can simply be reused
 	} else if (ts[0].isGroup("(")) {
-		return new ParensExpr(t.site, buildValueExpr(ts.shift().assertGroup("(", 1).fields[0]));
+		return new ParensExpr(ts[0].site, buildValueExpr(ts.shift().assertGroup("(", 1).fields[0]));
 	} else if (Group.find(ts, "{") != -1) {
 		if (ts[0].isGroup("[")) {
 			return buildListLiteralExpr(ts);
@@ -4656,6 +4881,10 @@ function buildChainStartValueExpr(ts) {
 	}
 
 	return expr;
+}
+
+function buildCallArgs(parens) {
+	return parens.fields.map(fts => buildValueExpr(fts));
 }
 
 function buildIfElseExpr(ts) {
@@ -4849,14 +5078,10 @@ function buildValuePathExpr(ts) {
 	return new ValuePathExpr(typeExpr, memberName);
 }
 
-function buildCallArgs(parens) {
-	return parens.fields.map(fts => buildValueExpr(fts));
-}
 
-
-/////////////////////////////////////////
-// Section 13: Plutus-Light builtin types
-/////////////////////////////////////////
+////////////////////////////
+// Section 12: Builtin types
+////////////////////////////
 
 class IntType extends BuiltinType {
 	constructor() {
@@ -5291,7 +5516,6 @@ class OptionNoneType extends BuiltinType {
 		return "__helios__option__none";
 	}
 }
-
 
 class HashType extends BuiltinType {
 	constructor() {
@@ -5780,11 +6004,11 @@ class MoneyValueType extends BuiltinType {
 }
 
 
-/////////////////////////////////////////////
-// Section 14: Plutus-Light builtin functions
-/////////////////////////////////////////////
+//////////////////////////////////////////
+// Section 13: Builtin low-level functions
+//////////////////////////////////////////
 
-class BuiltinRawFunc {
+class RawFunc {
 	constructor(name, definition) {
 		this.name_ = name;
 		assert(definition != undefined);
@@ -5797,7 +6021,7 @@ class BuiltinRawFunc {
 
 		if (matches != null) {
 			for (let match of matches) {
-				this.dependencies_.add(match[0]);
+				this.dependencies_.add(match);
 			}
 		}
 	}
@@ -5819,7 +6043,7 @@ class BuiltinRawFunc {
 	}
 }
 
-function fillBuiltinRawFuncDB() {
+function makeRawFunctions() {
 	let db = new Map();
 
 	// local utility functions
@@ -5831,9 +6055,9 @@ function fillBuiltinRawFuncDB() {
 	}
 
 	function addEqNeqSerialize(ns) {
-		add(new BuiltinRawFunc(`${ns}____eq`, "__helios__common____eq"));
-		add(new BuiltinRawFunc(`${ns}____neq`, "__helios__common____neq"));
-		add(new BuiltinRawFunc(`${ns}__serialize`, "__helios__common__serialize"));
+		add(new RawFunc(`${ns}____eq`, "__helios__common____eq"));
+		add(new RawFunc(`${ns}____neq`, "__helios__common____neq"));
+		add(new RawFunc(`${ns}__serialize`, "__helios__common__serialize"));
 	}
 	
 	// dataExpr is a string
@@ -5879,11 +6103,11 @@ function fillBuiltinRawFuncDB() {
 	}
 
 	// Common builtins
-	add(new BuiltinRawFunc("__helios__common__verbose_error", `
+	add(new RawFunc("__helios__common__verbose_error", `
 	(msg) -> {
 		__core__trace(msg, () -> {__core__error()})()
 	}`));
-	add(new BuiltinRawFunc("__helios__common__assert_constr_index", `
+	add(new RawFunc("__helios__common__assert_constr_index", `
 	(data, i) -> {
 		__core__ifThenElse(
 			__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), __core__unIData(i)),
@@ -5891,38 +6115,38 @@ function fillBuiltinRawFuncDB() {
 			() -> {__core__error()}
 		)()
 	}`));
-	add(new BuiltinRawFunc("__helios__common____identity", `
+	add(new RawFunc("__helios__common____identity", `
 	(self) -> {
 		() -> {
 			self
 		}
 	}`))
-	add(new BuiltinRawFunc("__helios__common__identity", `(self) -> {self}`));
-	add(new BuiltinRawFunc("__helios__common__not", `
+	add(new RawFunc("__helios__common__identity", `(self) -> {self}`));
+	add(new RawFunc("__helios__common__not", `
 	(b) -> {
 		__core__ifThenElse(b, false, true)
 	}`));
-	add(new BuiltinRawFunc("__helios__common____eq", `
+	add(new RawFunc("__helios__common____eq", `
 	(self) -> {
 		(other) -> {
 			__helios__common__boolData(__core__equalsData(self, other))
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__common____neq", `
+	add(new RawFunc("__helios__common____neq", `
 	(self) -> {
 		(other) -> {
 			__helios__common__boolData(__helios__common__not(equalsData(self, other)))
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__common__serialize", `
+	add(new RawFunc("__helios__common__serialize", `
 	(self) -> {
 		() -> {__core__serialize(self)}
 	}`));
-	add(new BuiltinRawFunc("__helios__common__is_in_bytearray_list", `
+	add(new RawFunc("__helios__common__is_in_bytearray_list", `
 	(lst, key) -> {
 		__helios__list__any(__core__listData(lst))((item) -> {__core__equalsByteString(item, key)})
 	}`));
-	add(new BuiltinRawFunc("__helios__common__unBoolData", `
+	add(new RawFunc("__helios__common__unBoolData", `
 	(d) -> {
 		__core__ifThenElse(
 			__core__equalsInteger(__core__fstPair(__core__unConstrData(d)), 0), 
@@ -5930,15 +6154,15 @@ function fillBuiltinRawFuncDB() {
 			true
 		)
 	}`));
-	add(new BuiltinRawFunc("__helios__common__boolData", `
+	add(new RawFunc("__helios__common__boolData", `
 	(b) -> {
 		__core__constrData(__core__ifThenElse(b, 1, 0), mkNilPairData(())
 	}`));
-	add(new BuiltinRawFunc("__helios__common__unStringData", `
+	add(new RawFunc("__helios__common__unStringData", `
 	(d) -> {
 		__core__decodeUtf8(__core__unBData(d))
 	}`));
-	add(new BuiltinRawFunc("__helios__common__stringData", `
+	add(new RawFunc("__helios__common__stringData", `
 	(s) -> {
 		__core__bData(__core__encodeUtf8(s))
 	}`));
@@ -5946,7 +6170,7 @@ function fillBuiltinRawFuncDB() {
 
 	// Int builtins
 	addEqNeqSerialize("__helios__int");
-	add(new BuiltinRawFunc("__helios__int____neg", `
+	add(new RawFunc("__helios__int____neg", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -5954,8 +6178,8 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__int____pos", "__helios__common____identity"));
-	add(new BuiltinRawFunc("__helios__int____add", `
+	add(new RawFunc("__helios__int____pos", "__helios__common____identity"));
+	add(new RawFunc("__helios__int____add", `
 	(self) -> {
 		(a) -> {
 			(b) -> {
@@ -5963,7 +6187,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__int____sub", `
+	add(new RawFunc("__helios__int____sub", `
 	(self) -> {
 		(a) -> {
 			(b) -> {
@@ -5971,7 +6195,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__int____mul", `
+	add(new RawFunc("__helios__int____mul", `
 	(self) -> {
 		(a) -> {
 			(b) -> {
@@ -5979,7 +6203,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__int____div", `
+	add(new RawFunc("__helios__int____div", `
 	(self) -> {
 		(a) -> {
 			(b) -> {
@@ -5987,7 +6211,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__int____mod", `
+	add(new RawFunc("__helios__int____mod", `
 	(self) -> {
 		(a) -> {
 			(b) -> {
@@ -5995,7 +6219,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__int____geq", `
+	add(new RawFunc("__helios__int____geq", `
 	(self) -> {
 		(a) -> {
 			(b) -> {
@@ -6003,7 +6227,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__int____gt", `
+	add(new RawFunc("__helios__int____gt", `
 	(self) -> {
 		(a) -> {
 			(b) -> {
@@ -6011,7 +6235,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__int____leq", `
+	add(new RawFunc("__helios__int____leq", `
 	(self) -> {
 		(a) -> {
 			(b) -> {
@@ -6019,7 +6243,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__int____lt", `
+	add(new RawFunc("__helios__int____lt", `
 	(self) -> {
 		(a) -> {
 			(a) -> {
@@ -6027,7 +6251,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__int__to_bool", `
+	add(new RawFunc("__helios__int__to_bool", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -6035,7 +6259,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__int__to_hex", `
+	add(new RawFunc("__helios__int__to_hex", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -6066,7 +6290,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__int__show", `
+	add(new RawFunc("__helios__int__show", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -6096,7 +6320,7 @@ function fillBuiltinRawFuncDB() {
 
 	// Bool builtins
 	addEqNeqSerialize("__helios__bool");
-	add(new BuiltinRawFunc("__helios__bool__and", `
+	add(new RawFunc("__helios__bool__and", `
 	(a, b) -> {
 		__helios__common__boolData(
 			__core__ifThenElse(
@@ -6106,7 +6330,7 @@ function fillBuiltinRawFuncDB() {
 			)()
 		)
 	}`));
-	add(new BuiltinRawFunc("__helios__bool__or", `
+	add(new RawFunc("__helios__bool__or", `
 	(a, b) -> {
 		__helios__common__boolData(
 			__core__ifThenElse(
@@ -6116,7 +6340,7 @@ function fillBuiltinRawFuncDB() {
 			)()
 		)
 	}`));
-	add(new BuiltinRawFunc("__helios__bool____not", `
+	add(new RawFunc("__helios__bool____not", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -6124,7 +6348,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__helios__common__unBoolData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__bool__to_int", `
+	add(new RawFunc("__helios__bool__to_int", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -6132,7 +6356,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__helios__common__unBoolData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__bool__show", `
+	add(new RawFunc("__helios__bool__show", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -6144,7 +6368,7 @@ function fillBuiltinRawFuncDB() {
 	
 	// String builtins
 	addEqNeqSerialize("__helios__string");
-	add(new BuiltinRawFunc("__helios__string____add", `
+	add(new RawFunc("__helios__string____add", `
 	(self) -> {
 		(self) -> {
 			(other) -> {
@@ -6152,7 +6376,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__helios__common__unStringData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__string__encode_utf8", `
+	add(new RawFunc("__helios__string__encode_utf8", `
 	(self) -> {
 		(self) -> {
 			__core__bData(__core__encodeUtf8(self))
@@ -6162,7 +6386,7 @@ function fillBuiltinRawFuncDB() {
 	
 	// ByteArray builtins
 	addEqNeqSerialize("__helios__bytearray");
-	add(new BuiltinRawFunc("__helios__bytearray____add", `
+	add(new RawFunc("__helios__bytearray____add", `
 	(self) -> {
 		(a) -> {
 			(b) -> {
@@ -6170,11 +6394,11 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unBData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__bytearray__length", `
+	add(new RawFunc("__helios__bytearray__length", `
 	(self) -> {
 		__core__iData(__core__lengthOfByteString(__core__unBData(self)))
 	}`));
-	add(new BuiltinRawFunc("__helios__bytearray__sha2", `
+	add(new RawFunc("__helios__bytearray__sha2", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -6182,7 +6406,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unBData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__bytearray__sha3", `
+	add(new RawFunc("__helios__bytearray__sha3", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -6190,7 +6414,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unBData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__bytearray__blake2b", `
+	add(new RawFunc("__helios__bytearray__blake2b", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -6198,7 +6422,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unBData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__bytearray__decode_utf8", `
+	add(new RawFunc("__helios__bytearray__decode_utf8", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -6206,7 +6430,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unBData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__bytearray__show", `
+	add(new RawFunc("__helios__bytearray__show", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -6237,7 +6461,7 @@ function fillBuiltinRawFuncDB() {
 
 	// List builtins
 	addEqNeqSerialize("__helios__list");
-	add(new BuiltinRawFunc("__helios__list__new", `
+	add(new RawFunc("__helios__list__new", `
 	(n, item) -> {
 		(recurse) -> {
 			__core__listData(recurse(recurse, __core__mkNilData(()), 0))
@@ -6251,7 +6475,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		)
 	}`));
-	add(new BuiltinRawFunc("__helios__list____add", `
+	add(new RawFunc("__helios__list____add", `
 	(self) -> {
 		(a) -> {
 			(b) -> {
@@ -6271,7 +6495,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__list__length", `
+	add(new RawFunc("__helios__list__length", `
 	(self) -> {
 		(self) -> {
 			(recurse) -> {
@@ -6287,15 +6511,15 @@ function fillBuiltinRawFuncDB() {
 			)
 		}(__core__unListData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__list__head", `
+	add(new RawFunc("__helios__list__head", `
 	(self) -> {
 		__core__headList(__core__unListData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__list__tail", `
+	add(new RawFunc("__helios__list__tail", `
 	(self) -> {
 		__core__listData(__core__tailList(__core__unListData(self)))
 	}`));
-	add(new BuiltinRawFunc("__helios__list__is_empty", `
+	add(new RawFunc("__helios__list__is_empty", `
 	(self) -> {
 		(self) -> {
 			() -> {
@@ -6303,7 +6527,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__list__get", `
+	add(new RawFunc("__helios__list__get", `
 	(self) -> {
 		(self) -> {
 			(i) -> {
@@ -6329,7 +6553,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__list__any", `
+	add(new RawFunc("__helios__list__any", `
 	(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -6353,7 +6577,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__list__all", `
+	add(new RawFunc("__helios__list__all", `
 	(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -6377,7 +6601,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__list__prepend", `
+	add(new RawFunc("__helios__list__prepend", `
 	(self) -> {
 		(self) -> {
 			(item) -> {
@@ -6385,7 +6609,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__list__find", `
+	add(new RawFunc("__helios__list__find", `
 	(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -6407,7 +6631,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__list__filter", `
+	add(new RawFunc("__helios__list__filter", `
 	(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -6429,7 +6653,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__list__fold", `
+	add(new RawFunc("__helios__list__fold", `
 	(self) -> {
 		(self) -> {
 			(fn, z) -> {
@@ -6447,7 +6671,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new BuiltinRawFunc("__helios__list__map", `
+	add(new RawFunc("__helios__list__map", `
 	(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -6479,25 +6703,25 @@ function fillBuiltinRawFuncDB() {
 	// Option builtins
 	addEqNeqSerialize("__helios__option");
 	addEqNeqSerialize("__helios__option__some");
-	add(new BuiltinRawFunc("__helios__option__some__new", `
+	add(new RawFunc("__helios__option__some__new", `
 	(data) -> {
 		constrData(0, ${makeList(["data"])})
 	}`));
-	add(new BuiltinRawFunc("__helios__option__some__cast", `
+	add(new RawFunc("__helios__option__some__cast", `
 	(data) -> {
 		__helios__common__assert_constr_index(data, 0)
 	}`));
-	add(new BuiltinRawFunc("__helios__option__some__value", `
+	add(new RawFunc("__helios__option__some__value", `
 	(self) -> {
 		() -> {
 			${unData("self", 0, 0)}
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__option__none__new", `
+	add(new RawFunc("__helios__option__none__new", `
 	() -> {
 		constrData(1, ${makeList([])})
 	}`));
-	add(new BuiltinRawFunc("__helios__option__none__cast", `
+	add(new RawFunc("__helios__option__none__cast", `
 	(data) -> {
 		__helios__common__assert_constr_index(data, 1)
 	}`));
@@ -6505,23 +6729,23 @@ function fillBuiltinRawFuncDB() {
 
 	// Hash builtins
 	addEqNeqSerialize("__helios__hash");
-	add(new BuiltinRawFunc("__helios__hash__new", `__helios__common__identity`));
-	add(new BuiltinRawFunc("__helios__hash__show", "__helios__bytearray__show"));
+	add(new RawFunc("__helios__hash__new", `__helios__common__identity`));
+	add(new RawFunc("__helios__hash__show", "__helios__bytearray__show"));
 
 
 	// ScriptContext builtins
 	addEqNeqSerialize("__helios__scriptcontext");
-	add(new BuiltinRawFunc("__helios__scriptcontext__tx", `
+	add(new RawFunc("__helios__scriptcontext__tx", `
 	(self) -> {
 		${unData("self", 0, 0)}
 	}`));
-	add(new BuiltinRawFunc("__helios__scriptcontext__get_spending_purpose_output_id", `
+	add(new RawFunc("__helios__scriptcontext__get_spending_purpose_output_id", `
 	(self) -> {
 		() -> {
 			${unData(unData(0, 1), 1, 0)}
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__scriptcontext__get_current_validator_hash", `
+	add(new RawFunc("__helios__scriptcontext__get_current_validator_hash", `
 	(self) -> {
 		() -> {
 			__helios__credential__validator__hash(
@@ -6537,13 +6761,13 @@ function fillBuiltinRawFuncDB() {
 			)
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__scriptcontext__get_current_minting_policy_hash", `
+	add(new RawFunc("__helios__scriptcontext__get_current_minting_policy_hash", `
 	(self) -> {
 		() -> {
 			${unData(unData("self", 0, 1), 0, 0)}
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__scriptcontext__get_current_input", `
+	add(new RawFunc("__helios__scriptcontext__get_current_input", `
 	(self) -> {
 		(id) -> {
 			__helios__list__find(__helios__tx__inputs(__helios__scriptcontext__tx(self)))(
@@ -6557,41 +6781,41 @@ function fillBuiltinRawFuncDB() {
 
 	// Tx builtins
 	addEqNeqSerialize("__helios__tx");
-	add(new BuiltinRawFunc("__helios__tx__inputs", `
+	add(new RawFunc("__helios__tx__inputs", `
 	(self) -> {
 		${unData("self", 0, 0)}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__outputs", `
+	add(new RawFunc("__helios__tx__outputs", `
 	(self) -> {
 		${unData("self", 0, 1)}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__fee", `
+	add(new RawFunc("__helios__tx__fee", `
 	(self) -> {
 		${unData("self", 0, 2)}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__minted", `
+	add(new RawFunc("__helios__tx__minted", `
 	(self) -> {
 		${unData("self", 0, 3)}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__time_range", `
+	add(new RawFunc("__helios__tx__time_range", `
 	(self) -> {
 		${unData("self", 0, 6)}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__signatories", `
+	add(new RawFunc("__helios__tx__signatories", `
 	(self) -> {
 		${unData("self", 0, 7)}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__id", `
+	add(new RawFunc("__helios__tx__id", `
 	(self) -> {
 		${unData("self", 0, 9)}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__now", `
+	add(new RawFunc("__helios__tx__now", `
 	(self) -> {
 		() -> {
 			__helios__timerange__get_start(__helios__tx__time_range(self)())
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__find_datum_hash", `
+	add(new RawFunc("__helios__tx__find_datum_hash", `
 		(self) -> {
 			(datum) -> {
 				${unData(`__helios__list__find(__helios__tx__datums(self))()
@@ -6602,7 +6826,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__outputs_sent_to", `
+	add(new RawFunc("__helios__tx__outputs_sent_to", `
 	(self) -> {
 		(hash) -> {
 			__helios__list__filter(__helios__tx__outputs(self))(
@@ -6629,7 +6853,7 @@ function fillBuiltinRawFuncDB() {
 			)
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__outputs_locked_by", `
+	add(new RawFunc("__helios__tx__outputs_locked_by", `
 	(self) -> {
 		(hash) -> {
 			__helios__list__filter(__helios__tx__outputs(self))(
@@ -6656,7 +6880,7 @@ function fillBuiltinRawFuncDB() {
 			)
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__value_sent_to", `
+	add(new RawFunc("__helios__tx__value_sent_to", `
 	(self) -> {
 		(hash) -> {
 			(outputs) -> {
@@ -6669,7 +6893,7 @@ function fillBuiltinRawFuncDB() {
 			}(__helios__tx__outputs_sent_to(self)(hash))
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__value_locked_by", `
+	add(new RawFunc("__helios__tx__value_locked_by", `
 	(self) -> {
 		(hash) -> {
 			(outputs) -> {
@@ -6682,7 +6906,7 @@ function fillBuiltinRawFuncDB() {
 			}(__helios__tx__outputs_locked_by(self)(hash))
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__value_locked_by_datum", `
+	add(new RawFunc("__helios__tx__value_locked_by_datum", `
 	(self) -> {
 		(hash, datum) -> {
 			(outputs, dhash) -> {
@@ -6701,7 +6925,7 @@ function fillBuiltinRawFuncDB() {
 			}(__helios__tx__outputs_locked_by(self)(hash), __helios__tx__find_datum_hash(self)(datum))
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__tx__is_signed_by", `
+	add(new RawFunc("__helios__tx__is_signed_by", `
 	(self) -> {
 		(hash) -> {
 			__helios__list__any(__helios__tx__signatories(self))(
@@ -6719,13 +6943,13 @@ function fillBuiltinRawFuncDB() {
 
 	// TxInput builtins
 	addEqNeqSerialize("__helios__txinput");
-	add(new BuiltinRawFunc("__helios__txinput__output_id", `
+	add(new RawFunc("__helios__txinput__output_id", `
 	(self) -> {
 		() -> {
 			${unData("self", 0, 0)}
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__txinput__output", `
+	add(new RawFunc("__helios__txinput__output", `
 	(self) -> {
 		() -> {
 			${unData("self", 0, 1)}
@@ -6735,25 +6959,25 @@ function fillBuiltinRawFuncDB() {
 
 	// TxOutput builtins
 	addEqNeqSerialize("__helios__txoutput");
-	add(new BuiltinRawFunc("__helios__txoutput__address", `
+	add(new RawFunc("__helios__txoutput__address", `
 	(self) -> {
 		() -> {
 			${unData("self", 0, 0)}
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__txoutput__value", `
+	add(new RawFunc("__helios__txoutput__value", `
 	(self) -> {
 		() -> {
 			${unData("self", 0, 1)}
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__txoutput__datum_hash", `
+	add(new RawFunc("__helios__txoutput__datum_hash", `
 	(self) -> {
 		() -> {
 			${unData("self", 0, 2)}
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__txoutput__get_datum_hash", `
+	add(new RawFunc("__helios__txoutput__get_datum_hash", `
 	(self) -> {
 		() -> {
 			(pair) -> {
@@ -6769,7 +6993,7 @@ function fillBuiltinRawFuncDB() {
 
 	// TxOutputId
 	addEqNeqSerialize("__helios__txoutputid");
-	add(new BuiltinRawFunc("__helios__txoutputid__new", `
+	add(new RawFunc("__helios__txoutputid__new", `
 	(tx_id, idx) -> {
 		constrData(0, ${makeList(`constrData(0, ${makeList("tx_id")})`, "idx")})
 	}`));
@@ -6777,19 +7001,19 @@ function fillBuiltinRawFuncDB() {
 
 	// Address
 	addEqNeqSerialize("__helios__address");
-	add(new BuiltinRawFunc("__helios__address__credential", `
+	add(new RawFunc("__helios__address__credential", `
 	(self) -> {
 		() -> {
 			${unData("self", 0, 0)}
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__address__staking_credential", `
+	add(new RawFunc("__helios__address__staking_credential", `
 	(self) -> {
 		() -> {
 			${unData("self", 0, 0)}
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__address__is_staked", `
+	add(new RawFunc("__helios__address__is_staked", `
 	(self) -> {
 		() -> {
 			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(${unData("self", 0, 1)})), 0))
@@ -6799,13 +7023,13 @@ function fillBuiltinRawFuncDB() {
 
 	// Credential builtins
 	addEqNeqSerialize("__helios__credential");
-	add(new BuiltinRawFunc("__helios__credential__is_pubkey", `
+	add(new RawFunc("__helios__credential__is_pubkey", `
 	(self) -> {
 		() -> {
 			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 0)
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__credential__is_validator", `
+	add(new RawFunc("__helios__credential__is_validator", `
 	(self) -> {
 		() -> {
 			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 1)
@@ -6815,11 +7039,11 @@ function fillBuiltinRawFuncDB() {
 
 	// Credential::PubKey builtins
 	addEqNeqSerialize("__helios__credential__pubkey");
-	add(new BuiltinRawFunc("__helios__credential__pubkey__cast", `
+	add(new RawFunc("__helios__credential__pubkey__cast", `
 	(data) -> {
 		__helios__common__assert_constr_index(data, 0)
 	}`));
-	add(new BuiltinRawFunc("__helios__credential__pubkey__hash", `
+	add(new RawFunc("__helios__credential__pubkey__hash", `
 	(self) -> {
 		${unData("self", 0, 0)}
 	}`));
@@ -6827,11 +7051,11 @@ function fillBuiltinRawFuncDB() {
 
 	// Credential::Validator builtins
 	addEqNeqSerialize("__helios__credential__validator");
-	add(new BuiltinRawFunc("__helios__credential__validator__cast", `
+	add(new RawFunc("__helios__credential__validator__cast", `
 	(data) -> {
 		__helios__common__assert_constr_index(data, 1)
 	}`));
-	add(new BuiltinRawFunc("__helios__credential__validator__hash", `
+	add(new RawFunc("__helios__credential__validator__hash", `
 	(self) -> {
 		${unData("self", 1, 0)}
 	}`));
@@ -6843,33 +7067,33 @@ function fillBuiltinRawFuncDB() {
 
 	// Time builtins
 	addEqNeqSerialize("__helios__time");
-	add(new BuiltinRawFunc("__helios__time__new", `__helios__common__identity`));
-	add(new BuiltinRawFunc("__helios__time____add", `__helios__int____add`));
-	add(new BuiltinRawFunc("__helios__time____sub", `__helios__int____sub`));
-	add(new BuiltinRawFunc("__helios__time____geq", `__helios__int____geq`));
-	add(new BuiltinRawFunc("__helios__time____gt", `__helios__int____gt`));
-	add(new BuiltinRawFunc("__helios__time____leq", `__helios__int____leq`));
-	add(new BuiltinRawFunc("__helios__time____lt", `__helios__int____lt`));
-	add(new BuiltinRawFunc("__helios__time__show", `__helios__int__show`));
+	add(new RawFunc("__helios__time__new", `__helios__common__identity`));
+	add(new RawFunc("__helios__time____add", `__helios__int____add`));
+	add(new RawFunc("__helios__time____sub", `__helios__int____sub`));
+	add(new RawFunc("__helios__time____geq", `__helios__int____geq`));
+	add(new RawFunc("__helios__time____gt", `__helios__int____gt`));
+	add(new RawFunc("__helios__time____leq", `__helios__int____leq`));
+	add(new RawFunc("__helios__time____lt", `__helios__int____lt`));
+	add(new RawFunc("__helios__time__show", `__helios__int__show`));
 
 
 	// Duratin builtins
 	addEqNeqSerialize("__helios__duration");
-	add(new BuiltinRawFunc("__helios__duration__new", `__helios__common__identity`));
-	add(new BuiltinRawFunc("__helios__duration____add", `__helios__int____add`));
-	add(new BuiltinRawFunc("__helios__duration____sub", `__helios__int____sub`));
-	add(new BuiltinRawFunc("__helios__duration____mul", `__helios__int____mul`));
-	add(new BuiltinRawFunc("__helios__duration____div", `__helios__int____div`));
-	add(new BuiltinRawFunc("__helios__duration____mod", `__helios__int____mod`));
-	add(new BuiltinRawFunc("__helios__duration____geq", `__helios__int____geq`));
-	add(new BuiltinRawFunc("__helios__duration____gt", `__helios__int____gt`));
-	add(new BuiltinRawFunc("__helios__duration____leq", `__helios__int____leq`));
-	add(new BuiltinRawFunc("__helios__duration____lt", `__helios__int____lt`));
+	add(new RawFunc("__helios__duration__new", `__helios__common__identity`));
+	add(new RawFunc("__helios__duration____add", `__helios__int____add`));
+	add(new RawFunc("__helios__duration____sub", `__helios__int____sub`));
+	add(new RawFunc("__helios__duration____mul", `__helios__int____mul`));
+	add(new RawFunc("__helios__duration____div", `__helios__int____div`));
+	add(new RawFunc("__helios__duration____mod", `__helios__int____mod`));
+	add(new RawFunc("__helios__duration____geq", `__helios__int____geq`));
+	add(new RawFunc("__helios__duration____gt", `__helios__int____gt`));
+	add(new RawFunc("__helios__duration____leq", `__helios__int____leq`));
+	add(new RawFunc("__helios__duration____lt", `__helios__int____lt`));
 	
 
 	// TimeRange builtins
 	addEqNeqSerialize("__helios__timerange");
-	add(new BuiltinRawFunc("__helios__timerange__get_start", `
+	add(new RawFunc("__helios__timerange__get_start", `
 	(self) -> {
 		() -> {
 			${unData(unData(unData("timeRange", 0, 0), 0, 0), 1, 0)}
@@ -6879,21 +7103,21 @@ function fillBuiltinRawFuncDB() {
 
 	// AssetClass builtins
 	addEqNeqSerialize("__helios__assetclass");
-	add(new BuiltinRawFunc("__helios__assetclass__ADA", `__helios__assetclass_new(__core__bData(#), __helios__common__stringData(""))`));
-	add(new BuiltinRawFunc("__helios__assetclass__new", `
+	add(new RawFunc("__helios__assetclass__ADA", `__helios__assetclass_new(__core__bData(#), __helios__common__stringData(""))`));
+	add(new RawFunc("__helios__assetclass__new", `
 	(mintingPolicyHash, tokenName) -> {
 		__core__constrData(0, ${makeList(["mintingPolicyHash", "tokenName"])})
 	}`));
 
 
 	// MoneyValue builtins
-	add(new BuiltinRawFunc("__helios__value__serialize", "__helios__common__serialize"));
-	add(new BuiltinRawFunc("__helios__value__ZERO", `__core__mapData(__core__mkNilPairData(()))`));
-	add(new BuiltinRawFunc("__helios__value__lovelace", `
+	add(new RawFunc("__helios__value__serialize", "__helios__common__serialize"));
+	add(new RawFunc("__helios__value__ZERO", `__core__mapData(__core__mkNilPairData(()))`));
+	add(new RawFunc("__helios__value__lovelace", `
 	(i) -> {
 		__helios__value__new(__helios__assetclass__ADA, i)
 	}`));
-	add(new BuiltinRawFunc("__helios__value__new", `
+	add(new RawFunc("__helios__value__new", `
 	(assetClass, i) -> {
 		(mintingPolicyHash, tokenName) -> {
 			__core__mapData(
@@ -6912,7 +7136,7 @@ function fillBuiltinRawFuncDB() {
 			)
 		}(${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})
 	}`));
-	add(new BuiltinRawFunc("__helios__value__get_map_keys", `
+	add(new RawFunc("__helios__value__get_map_keys", `
 	(map) -> {
 		(recurse) -> {
 			recurse(recurse, map)
@@ -6926,7 +7150,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		)
 	}`));	
-	add(new BuiltinRawFunc("__helios__value__merge_map_keys", `
+	add(new RawFunc("__helios__value__merge_map_keys", `
 	(a, b) -> {
 		(aKeys) -> {
 			(recurse) -> {
@@ -6951,7 +7175,7 @@ function fillBuiltinRawFuncDB() {
 		}(__helios__value__get_map_keys(a))
 	}`));
 	
-	add(new BuiltinRawFunc("__helios__value__get_inner_map", `
+	add(new RawFunc("__helios__value__get_inner_map", `
 	(map, mintingPolicyHash) -> {
 		(recurse) -> {
 			recurse(recurse, map)
@@ -6969,7 +7193,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		)
 	}`));
-	add(new BuiltinRawFunc("__helios__value__get_inner_map_int", `
+	add(new RawFunc("__helios__value__get_inner_map_int", `
 	(map, key) -> {
 		(recurse) -> {
 			recurse(recurse, map, key)
@@ -6989,7 +7213,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		)
 	}`));
-	add(new BuiltinRawFunc("__helios__value__add_or_subtract_inner", `
+	add(new RawFunc("__helios__value__add_or_subtract_inner", `
 	(op) -> {
 		(a, b) -> {
 			(recurse) -> {
@@ -7015,7 +7239,7 @@ function fillBuiltinRawFuncDB() {
 			)
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__value__add_or_subtract", `
+	add(new RawFunc("__helios__value__add_or_subtract", `
 	(op, a, b) -> {
 		(a, b) -> {
 			(recurse) -> {
@@ -7041,7 +7265,7 @@ function fillBuiltinRawFuncDB() {
 			)
 		}(__core__unMapData(a), __core__unMapData(b))
 	}`));
-	add(new BuiltinRawFunc("__helios__value__compare_inner", `
+	add(new RawFunc("__helios__value__compare_inner", `
 	(comp, a, b) -> {
 		(recurse) -> {
 			recurse(recurse, __helios__value__merge_map_keys(a, b))
@@ -7063,7 +7287,7 @@ function fillBuiltinRawFuncDB() {
 			}
 		)
 	}`));
-	add(new BuiltinRawFunc("__helios__value__compare", `
+	add(new RawFunc("__helios__value__compare", `
 	(comp, a, b) -> {
 		(a, b) -> {
 			(recurse) -> {
@@ -7093,37 +7317,37 @@ function fillBuiltinRawFuncDB() {
 			)
 		}(__core__unMapData(a), __core__unMapData(b))
 	}`));
-	add(new BuiltinRawFunc("__helios__value____eq", `
+	add(new RawFunc("__helios__value____eq", `
 	(self) -> {
 		(other) -> {
 			__helios__value__compare((a, b) -> {__core__equalsInteger(a, b)}, self, other)
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__value____neq", `
+	add(new RawFunc("__helios__value____neq", `
 	(self) -> {
 		(other) -> {
 			__helios__bool____not(__helios__value____eq(self)(other))()
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__value____add", `
+	add(new RawFunc("__helios__value____add", `
 	(self) -> {
 		(other) -> {
 			__helios__value__add_or_subtract((a, b) -> {__core__addInteger(a, b)}, self, other)
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__value____sub", `
+	add(new RawFunc("__helios__value____sub", `
 	(self) -> {
 		(other) -> {
 			__helios__value__add_or_subtract((a, b) -> {__core__subtractInteger(a, b)}, self, other)
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__value____geq", `
+	add(new RawFunc("__helios__value____geq", `
 	(self) -> {
 		(other) -> {
 			__helios__value__compare((a, b) -> {__helios__common__not(__core__lessThanInteger(a, b))}, self, other)
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__value____gt", `
+	add(new RawFunc("__helios__value____gt", `
 	(self) -> {
 		(other) -> {
 			__helios__bool__and(
@@ -7137,13 +7361,13 @@ function fillBuiltinRawFuncDB() {
 			)
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__value____leq", `
+	add(new RawFunc("__helios__value____leq", `
 	(self) -> {
 		(other) -> {
 			__helios__value__compare((a, b) -> {__core__lessThanEqualsInteger(a, b)}, self, other)
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__value____lt", `
+	add(new RawFunc("__helios__value____lt", `
 	(self) -> {
 		(other) -> {
 			__helios__bool__and(
@@ -7158,13 +7382,13 @@ function fillBuiltinRawFuncDB() {
 		}
 	}
 	`));
-	add(new BuiltinRawFunc("__helios__value__is_zero", `
+	add(new RawFunc("__helios__value__is_zero", `
 	(self) -> {
 		() -> {
 			__helios__common__boolData(__core__nullList(__core__unMapData(self)))
 		}
 	}`));
-	add(new BuiltinRawFunc("__helios__value__get", `
+	add(new RawFunc("__helios__value__get", `
 	(self) -> {
 		(assetClass) -> {
 			(map, mintingPolicyHash, tokenName) -> {
@@ -7204,10 +7428,10 @@ function fillBuiltinRawFuncDB() {
 	return db;
 }
 
-function wrapWithBuiltins(src) {
-	let db = fillBuiltinRawFuncDB();
+function wrapWithRawFunctions(src) {
+	let db = makeRawFunctions();
 
-	let re = new RegExp("__helios", "g");
+	let re = new RegExp("__helios[a-zA-Z0-9_]*", "g");
 
 	let matches = src.match(re);
 
@@ -7215,26 +7439,25 @@ function wrapWithBuiltins(src) {
 
 	if (matches != null) {
 		for (let match of matches) {
-			let name = match[0];
-			if (!map.has(name)) {
-				if (!db.has(name)) {
-					throw new Error(`builtin ${name} not found`);
+			if (!map.has(match)) {
+				if (!db.has(match)) {
+					throw new Error(`builtin ${match} not found`);
 				}
 
-				let builtin = db.get(name);
+				let builtin = db.get(match);
 
 				builtin.load(db, map);
 			}
 		}
 	}
 
-	return wrapWithDefinitions(src, map);
+	return TopScope.wrapWithDefinitions(src, map);
 }
 
 
-//////////////
-// Untyped AST
-//////////////
+//////////////////////////////////
+// Section 14: Untyped AST objects
+//////////////////////////////////
 
 class UntypedScope {
 	constructor(parent, name) {
@@ -7375,11 +7598,11 @@ class UntypedCallExpr {
 		}
 
 		if (this.argExprs_.length == 0) {
-			// a PlutusCore function application always requires a argument. In the zero-args case this is the unit value
-			term = new PlutusCoreApplication(term, new PlutusCoreUnit());
+			// a PlutusCore function call (aka function application) always requires a argument. In the zero-args case this is the unit value
+			term = new PlutusCoreCall(term, new PlutusCoreUnit());
 		} else {
 			for (let arg of this.argExprs_) {
-				term = new PlutusCoreApplication(term, arg.toPlutusCore());
+				term = new PlutusCoreCall(term, arg.toPlutusCore());
 			}
 		}
 
@@ -7414,6 +7637,11 @@ class UntypedVariable {
 		return new PlutusCoreVariable(new PlutusCoreInteger(BigInt(this.index_)));
 	}
 }
+
+
+//////////////////////////////////////////
+// Section 15: Untyped AST build functions
+//////////////////////////////////////////
 
 function buildUntypedProgram(ts) {
 	let expr = buildUntypedExpr(ts);
@@ -7458,7 +7686,7 @@ function buildUntypedExpr(ts) {
 			// only makes sense next to IntegerLiterals
 			let int = ts.shift();
 			assert(int instanceof IntLiteral);
-			expr = new IntLiteral(int.loc, int.value_*(-1n));
+			expr = new IntLiteral(int.site, int.value_*(-1n));
 		} else if (t instanceof BoolLiteral) {
 			assert(expr == null);
 			expr = t;
@@ -7511,39 +7739,13 @@ function buildUntypedFuncExpr(ts) {
 }
 
 
-////////////////////////////////////////////////
-// Functions for compiling Plutus-Light
-////////////////////////////////////////////////
+//////////////////////////////////////
+// Section 16: Compiler user functions
+//////////////////////////////////////
 
-export function parsePlutusLight(src) {
-	let ts = tokenizePlutusLight(src);
-
-	let program = buildPlutusLightProgram(ts);
-
-	return program.toString();
-}
-
-// returns string
-export function prettySource(src) {
-	if (src == undefined) {
-		return "";
-	}
-
-	let lines = src.split("\n");
-
-	let nLines = lines.length;
-	let nDigits = Math.max(Math.ceil(Math.log10(nLines)), 2);
-
-	for (let i = 0; i < lines.length; i++) {
-		lines[i] = String(i+1).padStart(nDigits, '0') + "  " + lines[i];
-	}
-
-	return lines.join("\n");
-}
-
-export function preprocessPlutusLightProgram(src, parameters) {
-	for (let key in parameters) {
-		let value = parameters[key];
+function preprocess(src, templateParameters) {
+	for (let key in templateParameters) {
+		let value = templateParameters[key];
 
 		let re = new RegExp(`\\$${key}`, 'g');
 
@@ -7552,194 +7754,123 @@ export function preprocessPlutusLightProgram(src, parameters) {
 
 	// check that there are no remaining template parameters left
 
-	let re = new RegExp('\$[a-zA-Z_][0-9a-zA-Z_]*', 'g');
+	let re = new RegExp('\$[a-zA-Z_][0-9a-zA-Z_]*');
 
 	let matches = src.match(re);
 
 	if (matches != null) {
-		console.log(matches);
-		for (let match of matches) {
-			throw new Error(`unsubstitued template parameter '${match[0]}'`);
+		for (let match of matches) { // how to get the position in the code?
+			throw UserError.syntaxError(new Source(src), match.index, `unsubstituted template parameter '${match[0]}'`);
 		}
 	}
 
 	return src;
 }
 
-function newGlobalScope() {
-	let scope = new GlobalScope();
+export const CompilationStage = {
+	Preprocess: 0,
+	Tokenize:   1,
+	BuildAST:   2,
+	Untype:     3,
+	PlutusCore: 4,
+	Final:      5,
+};
 
-	// Option, List and Map are accessed through special expressions
+// config members:
+//    templateParameters
+//    stage (defaults to CompilationStage.Final)
+// compile() returns a different object depending on 'stage':
+//    Preprocess: substitute template parameters and return preprocessed string
+//    Tokenize:   parse source and return list of tokens
+//    BuildAST:   build AST and return top-level Program object
+//    Untype:     performs type evaluation, returns untyped program as string
+//    PlutusCore: build Plutus-Core program from untyped program, returns top-level PlutusCoreProgram object
+//    Final:      encode Plutus-Core program in flat format and return JSON string containing cborHex representation of program
+export function compile(typedSrc, config = {
+	verbose: false,
+	templateParameters: {}, 
+	stage: CompilationStage.Final,
+}) {
 
-	// fill the global scope
-	scope.set("Int", new IntType());
-	scope.set("Bool", new BoolType());
-	scope.set("String", new StringType());
-	scope.set("ByteArray", new ByteArrayType());
-	scope.set("PubKeyHash", new PubKeyHashType());
-	scope.set("ValidatorHash", new ValidatorHashType());
-	scope.set("MintingPolicyHash", new MintingPolicyHashType());
-	scope.set("DatumHash", new DatumHashType());
-	scope.set("ScriptContext", new ScriptContextType());
-	scope.set("Tx", new TxType());
-	scope.set("TxId", new TxIdType());
-	scope.set("TxInput", new TxInputType());
-	scope.set("TxOutput", new TxOutputType());
-	scope.set("TxOutputId", new TxOutputIdType());
-	scope.set("Address", new AddressType());
-	scope.set("Credential", new CredentialType());
-	scope.set("StakingCredential", new StakingCredentialType());
-	scope.set("Time", new TimeType());
-	scope.set("Duration", new DurationType());
-	scope.set("TimeRange", new TimeRangeType());
-	scope.set("AssetClass", new AssetClassType());
-	scope.set("Value", new MoneyValueType());
+	// technically redundant to put the following as default parameters in the argument, but the default args act as documentation
+	config.verbose = config?.verbose??false;
+	config.templateParameters = config?.templateParameters??{};
+	config.stage = config?.stage??CompilationStage.Final;
+	assert(config.stage in CompilationStage);
 
-	return scope;
-}
+	function compileInternal() {
+		typedSrc = preprocess(typedSrc, config.templateParameters);
 
-export function compileToIR(typedSrc, templateParameters = {}) {
-	try {
-		typedSrc = preprocessPlutusLightProgram(typedSrc, templateParameters);
+		if (config.stage == CompilationStage.Preprocess) {
+			return typedSrc;
+		}
 
-		let typedTokens = tokenizePlutusLight(typedSrc);
+		let ts = tokenize(typedSrc);
 
-		let program = buildPlutusLightProgram(typedTokens);
+		if (config.stage == CompilationStage.Tokenize) {
+			return ts;
+		}
 
-		let globalScope = newGlobalScope();
+		let program = return buildProgram(ts);
 
+		if (config.stage == CompilationStage.BuildAST) {
+			return program;
+		}
+
+		let globalScope = GlobalScope.new();
 		program.eval(globalScope);
+		let untypedSrc = program.toUntyped();
 
-		return program.toUntyped();
-	} catch (error) {
-		if (error instanceof PlutusLightError) {
-			console.log(prettySource(typedSrc) + "\n");
-
-			console.error(error.message);
-		} else {
-			throw error;
+		if (config.stage == CompilationStage.Untype) {
+			return untypedSrc;
 		}
+
+		let untypedTokens = tokenizeUntyped(untypedSrc);
+		let untypedProgram = buildUntypedProgram(untypedTokens);
+		let plutusCoreProgram = new PlutusCoreProgram(untypedProgram.toPlutusCore(), );
+
+		if (config.stage == CompilationStage.PlutusCore) {
+			return plutusCoreProgram;
+		}
+		
+		assert(config.stage == CompilationStage.Final);
+
+		return plutusCoreProgram.serialize();
 	}
+
+	return UserError.catch(compileInternal, config.verbose);
 }
 
-export function compilePlutusLightProgram(typedSrc, templateParameters = {}) {
-	try {
-		typedSrc = preprocessPlutusLightProgram(typedSrc, templateParameters);
 
-		let typedTokens = tokenizePlutusLight(typedSrc);
-
-		let program = buildPlutusLightProgram(typedTokens);
-
-		let globalScope = newGlobalScope();
-
-		let topScope = program.linkAndEval(globalScope);
-
-		let untypedSrc = program.toUntyped(topScope);
-
-		try {
-			// console.log(prettySource(untypedSrc) + "\n");
-			
-			// at this point there shouldn't be any errors
-			let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
-
-			let untypedProgram = buildUntypedProgram(untypedTokens);
-
-			let plutusCoreProgram = new PlutusCoreProgram(untypedProgram.toPlutusCore());
-			
-			//console.log(plutusCoreProgram.toString());
-
-			let cborHex = serializePlutusCoreProgram(plutusCoreProgram);
-
-			return `{"type": "PlutusScriptV1", "description": "", "cborHex": "${cborHex}"}`;
-		} catch (error) {
-			if (error instanceof PlutusLightError) {
-				console.log(prettySource(untypedSrc) + "\n");
-
-				console.error(error.message);
-			} else {
-				throw error;
-			}
-		}
-	} catch (error) {
-		if (error instanceof PlutusLightError) {
-			// also pretty print the source
-			console.log(prettySource(typedSrc) + "\n");
-
-			console.error(error.message);
-		} else {
-			throw error;
-		}
-	}
-}
-
-// dumps the Plutus-Core AST
-export function compileUntypedPlutusLight(untypedSrc) {
-	let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
-
-	let untypedProgram = buildUntypedProgram(untypedTokens);
-
-	let plutusCoreProgram = new PlutusCoreProgram(untypedProgram.toPlutusCore());
-			
-	return plutusCoreProgram.toString();
-}
-
+// TODO: use a special JSON schema instead
 // output is a string with JSON content
-export function compilePlutusLightData(programSrc, dataExprSrc, templateParameters = {}) {
-	try {
-		programSrc = preprocessPlutusLightProgram(programSrc, templateParameters);
+/*export function compileData(programSrc, dataExprSrc, config = {
+	templateParameters: {}
+}) {
+	config.templateParameters = config?.templateParameters??{};
 
-		let programTokens = tokenizePlutusLight(programSrc);
+	programSrc = preprocess(programSrc, config.templateParameters);
+	let ts = tokenize(typedSrc);
+	let program = return buildProgram(ts);
+	let globalScope = GlobalScope.new();
+	program.eval(globalScope);
 
-		let program = buildPlutusLightProgram(programTokens, ScriptPurpose.Spending); // compiled data is used for Datum and Redeemer, and thus always in Spending context
+	dataExprSrc = preprocess(dataExprSrc, config.templateParameters);
+	let dataExprTokens = tokenize(dataExprSrc);
+	let dataExpr = buildValueExpr(dataExprTokens);
 
-		let globalScope = newGlobalScope();
+	dataExpr.eval(program.scope);
+	// TODO
+	let data = dataExpr.evalData();
 
-		let topScope = program.linkAndEval(globalScope);
-
-		// program must make sense before data is compiled
-
-		try {
-			dataExprSrc = preprocessPlutusLightProgram(dataExprSrc, templateParameters);
-
-			let dataExprTokens = tokenizePlutusLight(dataExprSrc);
-
-			let dataExpr = buildValueExpr(dataExprTokens);
-
-			dataExpr.link(topScope);
-
-			// dataExpr must also make sense
-			dataExpr.evalType();
-
-			let data = dataExpr.evalData();
-
-			return data.toSchemaJSON();
-		} catch (error) {
-			if (error instanceof PlutusLightError) {
-				console.log(prettySource(dataExprSrc) + "\n");
-
-				console.error(error.message);
-			} else {
-				throw error;
-			}
-		}
-	} catch (error) {
-		if (error instanceof PlutusLightError) {
-			// also pretty print the source
-			console.log(prettySource(programSrc) + "\n");
-
-			console.error(error.message);
-		} else {
-			throw error;
-		}
-	}
-}
+	return data.toSchemaJSON();
+}*/
 
 
-///////////////////////////////////////////////////////////////////
-// Section 10: Plutus-Core deserialization and analysis functions
-///////////////////////////////////////////////////////////////////
+//////////////////////////////////////////
+// Section 17: Plutus-Core deserialization
+//////////////////////////////////////////
 
-// only works for same version as Helios is using
 class PlutusCoreDeserializer {
 	constructor(bytes) {
 		this.view_    = new Uint8Array(bytes);
@@ -7752,12 +7883,17 @@ class PlutusCoreDeserializer {
 		return PLUTUS_CORE_TAG_WIDTHS[category];
 	}
 
+	// returns the integer id if id is out of range
 	builtinName(id) {
 		let all = PLUTUS_CORE_BUILTINS;
 
-		assert(id >= 0 && id < all.length, `builtin id ${id.toString()} out of range`);
+		if (id >= 0 && id < all.length) {
+			return all[id].name;
+		} else {
+			console.error(`Warning: builtin id ${id.toString()} out of range`);
 
-		return all[id].name;
+			return id;
+		}
 	}
 
 	eof() {
@@ -7845,7 +7981,7 @@ class PlutusCoreDeserializer {
 			case 2:
 				return this.readLambda();
 			case 3:
-				return this.readApplication();
+				return this.readCall(); // aka function application
 			case 4:
 				return this.readConstant();
 			case 5:
@@ -7906,11 +8042,11 @@ class PlutusCoreDeserializer {
 		return new PlutusCoreLambda(rhs);
 	}
 
-	readApplication() {
+	readCall() {
 		let a = this.readTerm();
 		let b = this.readTerm();
 
-		return new PlutusCoreApplication(a, b);
+		return new PlutusCoreCall(a, b);
 	}
 
 	readDelay() {
@@ -8000,10 +8136,22 @@ class PlutusCoreDeserializer {
 	}
 }
 
-// arg 1: list of (unsigned) integers
-// return value: a PlutusCoreProgram instance
-export function deserializePlutusCoreBytes(bytes) {
-	let reader = new PlutusCoreDeserializer(bytes, "1.0.0");
+export function deserializePlutusCore(jsonString) {
+	let obj = JSON.parse(jsonString);
+
+	if (! ("cborHex" in obj)) {
+		throw UserError.syntaxError(new Source(jsonString), 0, "cborHex field not in json")
+	}
+
+	let cborHex = obj.cborHex;
+	if (typeof cborHex != "string") {
+		
+		throw UserError.syntaxError(new Source(jsonString), jsonString.match(/cborHex/).index, "cborHex not a string");
+	}
+
+	let bytes = unwrapCborBytes(unwrapCborBytes(hexToBytes(hexToString)));
+
+	let reader = new PlutusCoreDeserializer(bytes);
 
 	let version = [
 		reader.readInteger(),
@@ -8013,47 +8161,13 @@ export function deserializePlutusCoreBytes(bytes) {
 
 	let versionKey = version.map(v => v.toString()).join(".");
 
-	if (versionKey != "1.0.0") {
-		throw new Error `unsupported plutus-core version:  ${versionKey}`;
+	if (versionKey != PLUTUS_CORE_VERSION) {
+		console.error("Warning: Plutus-Core script doesn't match version of Helios");
 	}
 
 	let expr = reader.readTerm();
 
 	reader.finalize();
 
-	return new PlutusCoreProgram(expr);
-}
-
-export function deserializePlutusCoreCborBytes(cborBytes) {
-	// expects a double nested cbor list (so called 'text-envelope' format)
-	let data = unwrapPlutusCoreCbor(unwrapPlutusCoreCbor(cborBytes));
-
-	return deserializePlutusCoreBytes(data);
-}
-
-export function deserializePlutusCoreCborHexString(hexString) {
-	return deserializePlutusCoreCborBytes(hexToBytes(hexString));
-}
-
-export function dumpPlutusCoreCborBytes(cborBytes) {
-	let data = unwrapPlutusCoreCbor(unwrapPlutusCoreCbor(cborBytes));
-
-	let chars = [];
-	for (let b of data) {
-		if (b >= 32 && b <= 126) {
-			chars.push(String.fromCharCode(b));
-		}
-	}
-
-	console.log(chars.join(''));
-}
-
-export function dumpPlutusCoreCborHexString(hexString) {
-	return dumpPlutusCoreCborBytes(hexToBytes(hexString));
-}
-
-export function unwrapTextEnvelope(hexString) {
-	let bytes = hexToBytes(hexString);
-
-	return bytesToHex(unwrapPlutusCoreCbor(unwrapPlutusCoreCbor(bytes)));
+	return new PlutusCoreProgram(expr, version);
 }
