@@ -10,16 +10,20 @@
 // License:     Unlicense
 //
 // About: Helios is a smart contract DSL for Cardano. 
-//     This library contains functions to compile Helios sources into Plutus-Core.
+//     This Javascript library contains functions to compile Helios sources into Plutus-Core.
 //     The results can be used by cardano-cli to generate and submit blockchain transactions.
 //     
 // Dependencies: none
 //
 // Disclaimer: I made Helios available as FOSS so that the Cardano community can test 
-//     it extensively. Please don't use this in production yet, it could be riddled with 
+//     it extensively. Please don't use this in production yet, it could still contain 
 //     critical bugs. There are no backward compatibility guarantees (yet).
 //
-// Exported by library: 
+// Example usage:
+//     > import * as helios from "helios.js";
+//     > console.log(helios.compile("validator my_validator; ..."));
+//
+// Exports: 
 //   * debug(bool) -> void
 //         set whole library to debug mode          
 //   * CompilationStage
@@ -33,13 +37,16 @@
 //             config.stage==CompilationStage.Untype     -> string
 //             config.stage==CompilationStage.PlutusCore -> PlutusCoreProgram
 //             config.stage==CompilationStage.Final      -> string
-//         the final string output is a json string that can saved as a file and then used 
-//         to Cardano transactions
 //
-// Note for developers: this library is a single file, doesn't use TypeScript, and must stay 
-//     unminified (so that unique git commit hash -> unique ipfs address).
+//     The final string output is a JSON string that can saved as a file and can then 
+//     be used by cardano-cli as a '--tx-in-script-file' for transaction building, 
+//     and as a '--payment-script-file' for address generation.
 //
-// Overview of this file:
+//
+// Note: the Helios library is a single file, doesn't use TypeScript, and must stay 
+//     unminified (so that unique git commit hash -> unique IPFS address of 'helios.js').
+//
+// Overview of internals:
 //     1. Constants                         VERSION, DEBUG, debug, 
 //                                          PLUTUS_CORE_VERSION_COMPONENTS, PLUTUS_CORE_VERSION, 
 //                                          PLUTUS_CORE_TAG_WIDTHS, PLUTUS_CORE_BUILTINS
@@ -7791,11 +7798,10 @@ export function compile(typedSrc, config = {
 	templateParameters: {}, 
 	stage: CompilationStage.Final,
 }) {
-
-	// technically redundant to put the following as default parameters in the argument, but the default args act as documentation
-	config.verbose = config?.verbose??false;
-	config.templateParameters = config?.templateParameters??{};
-	config.stage = config?.stage??CompilationStage.Final;
+	// additional checks of config
+	config.verbose = config.verbose || false;
+	config.templateParameters = config.templateParameters || {};
+	config.stage = config.stage || CompilationStage.Final;
 	assert(config.stage in CompilationStage);
 
 	function compileInternal() {
