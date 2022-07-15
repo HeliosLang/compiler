@@ -1,0 +1,164 @@
+# Int
+operators:   __eq, __neq, __neg, __pos, __add, __sub, __mul, __div, __mod, __geq, __gt, __leq, __lt
+methods:     serialize, to_bool, to_hex, show
+internal ns: __helios__int
+
+# Bool
+associated:  and, or
+operators:   __eq, __neq, __not, __and (desugars as 'and'), __or (desugars as 'or')
+methods:     serialize, to_int, show
+internal ns: __helios__bool
+
+# String
+operators:   __eq, __neq, __add
+methods:     serialize, encode_utf8
+internal ns: __helios__string
+
+# ByteArray
+operators:   __eq, __neq, __add
+getters:     length
+methods:     serialize, length, sha2, sha3, blake2b, decode_utf8, show
+internal ns: __helios__bytearray
+
+# List
+associated:  new
+operators:   __eq, __neq, __add
+getters:     length, head, tail
+methods:     serialize, is_empty, get, prepend, any, all, find, filter, fold, map
+internal ns: __helios__list
+
+# Map
+operators:   __eq, __neq
+methods:     serialize
+internal ns: __helios__map
+
+# Option
+operators:   __eq, __neq
+methods:     serialize
+internal ns: __helios__option
+
+## Option::Some
+associated:  new, cast
+operators:   __eq, __neq
+getters:     value
+methods:     serialize
+internal ns: __helios__option__some
+
+## Option::None
+associated:  new, cast
+operators:   __eq, __neq
+methods:     serialize
+internal ns: __helios__option__none
+
+# PubKeyHash, ValidatorHash, MintingPolicyHash, DatumHash
+associated:  new
+operators:   __eq, __neq
+methods:     serialize, show
+internal ns: __helios__hash
+
+# ScriptContext
+operators:   __eq, __neq
+getters:     tx
+methods:     serialize, get_spending_purpose_output_id, get_current_validator_hash,
+             get_current_minting_policy_hash, get_current_input
+internal ns: __helios__scriptcontext
+           
+# Tx
+operators:   __eq, __neq
+getters:     inputs, outputs, fee, minted, time_range, signatories, id
+methods:     serialize, now, find_datum_hash, outputs_sent_to, outputs_locked_by, 
+             value_sent_to, value_locked_by, value_locked_by_datum, is_signed_by
+internal ns: __helios__tx
+    
+# TxId
+operators:   __eq, __neq
+methods:     serialize
+internal ns: __helios__txid
+       
+# TxInput
+operators:   __eq, __neq
+getters:     output_id, output
+methods:     serialize
+internal ns: __helios__txinput
+
+# TxOutput
+operators:   __eq, __neq
+getters:     address, value, datum_hash
+methods:     serialize
+hidden:      get_datum_hash
+internal ns: __helios__txoutput
+
+# TxOutputId
+associated:  new
+operators:   __eq, __neq
+methods:     serialize
+internal ns: __helios__txoutputid
+
+# Address
+operators:   __eq, __neq
+getters:     credential, staking_credential
+methods:     serialize
+hidden:      is_staked
+internal ns: __helios__address
+
+# Credential
+operators:   __eq, __neq
+methods:     serialize
+hidden:      is_pubkey, is_validator
+internal ns: __helios__credential
+
+## Credential::PubKey
+associated:  cast
+operators:   __eq, __neq
+getters:     hash
+methods:     serialize
+internal ns: __helios__credential__pubkey
+
+## Credential::Validator
+associated: cast
+operators:  __eq, __neq
+getters:    hash
+methods:    serialize
+internal ns: __helios__credential__validator
+
+# StakingCredential
+operators:  __eq, __neq
+methods:    serialize
+internal ns: __helios__stakingcredential
+
+# Time
+associated: new
+operators:  __eq, __neq, __add, __sub, __geq, __gt, __leq, __lt
+methods:     serialize, show
+internal ns: __helios__time
+
+# Duration
+associated: new
+operators:  __eq, __neq, __add, __sub, __mul, __div, __mod, __geq, __gt, __leq, __lt
+methods:    serialize
+internal ns: __helios__duration
+
+# TimeRange
+operators:  __eq, __neq
+methods:    serialize, get_start
+internal ns: __helios__timerange
+
+# AssetClass
+associated: ADA, new
+operators:  __eq, __neq
+methods:    serialize
+internal ns: __helios__assetclass
+
+# Value
+associated:  ZERO, lovelace, new
+operators:   __eq, __neq, __add, __sub, __geq, __gt, __leq, __lt
+methods:     serialize, is_zero, get
+hidden:      get_map_keys, merge_map_keys, get_inner_map, get_inner_map_int, add_or_subtract_inner, add_or_subtract, compare_inner, compare
+internal ns: __helios__value
+
+# Common (hidden from user)
+associated:  verbose_error, assert_constr_index, not, identity, serialize, is_in_bytearray_list
+             unBoolData, boolData, unStringData, stringData
+operators:   __eq, __neq
+methods:     __identity
+internal ns: __helios__common
