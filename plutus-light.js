@@ -25,127 +25,113 @@
 // Disclaimer: I made this available as OpenSource so that the Cardano community can test Plutus-Light extensively.
 //    Please don't use this in production yet, it could be riddled with critical bugs.
 //    There are also no backward compatibility guarantees.
+//
+// File structure:
+//    1. Global constants and variables (DEBUG, ...)
+//    2. Utilities (idiv, ...)
+//    3. Plutus-Core AST (PlutusCoreInteger, ...)
+//    4. Plutus-Core serialization (serializePlutusCoreProgram)
+//    5. Plutus-Core data wrappers for Datum and Redeemer (IntData, ...)
+//    6. Plutus-Light tokens (Source, ...)
+//    7. Plutus-Light tokenization (Tokenizer, tokenizePlutusLight, tokenizeUntypedPlutusLight)
+//    8. Plutus-Light values and core types (GeneralizedValue, ...)
+//    9. Plutus-Light scope (GlobalScope, ...)
+//    10. Plutus-Light AST expressions (Expr, ...)
+//    11. Plutus-Light AST statements (Statement, ...)
+//    12. Plutus-Light AST build functions (buildPlutusLightProgram, ...)
+//    13. Plutus-Light builtin types (ListType, MapType, OptionType, ...) 
+//    9. Plutus-Light builtin types
+//    10. Untyped Plutus-Light AST
+//    10. Plutus-Light build functions
+//    11. Untyped Plutus-Core deserialization (PlutusCoreDeserializer, ...)
 
-var DEBUG = false; // use the exported setDebug() and unsetDebug() to change DEBUG 
+
+
+////////////////////////////////////////////
+// Section 1: Global constants and variables
+////////////////////////////////////////////
+
+const VERSION = "0.2";
+const PLUTUS_CORE_VERSION_COMPONENTS = [1n, 0n, 0n];
+const PLUTUS_CORE_VERSION = PLUTUS_CORE_VERSION_COMPONENTS.map(c => c.toString()).join(".");
+export var DEBUG = false;
+export function debug(b) {DEBUG = b};
+
+const PLUTUS_CORE_TAG_WIDTHS = {
+	term:      4,
+	type:      3,
+	constType: 4, 
+	builtin:   7,
+	constant:  4,
+	kind:      1,
+};
 
 function builtinInfo(name, forceCount) {
 	// builtins might need be wrapped in `force` a number of times if they are not fully typed
 	return {name: name, forceCount: forceCount};
-} 
-
-const DEFAULT_VERSION = [1n, 0n, 0n];
-
-
-const VERSIONS = {
-	"11.22.33": { // dummy version from example in may2022 plutus-core-spec document
-		widths: {
-			term:      4,
-			type:      3,
-			constType: 4,
-			builtin:   5, // later becomes 7
-			constant:  4,
-			kind:      1,
-		},
-		builtins: [
-			builtinInfo("addInteger", 0),
-			builtinInfo("subtractInteger", 0),
-			builtinInfo("multiplyInteger", 0),
-			builtinInfo("divideInteger", 0),
-			builtinInfo("remainderInteger", 0),
-			builtinInfo("lessThanInteger", 0),
-			builtinInfo("lessThanEqInteger", 0),
-			builtinInfo("greaterThanInteger", 0),
-			builtinInfo("greaterThanEqInteger", 0),
-			builtinInfo("eqInteger", 0),
-			builtinInfo("concatenate", 0),
-			builtinInfo("takeByteString", 0),
-			builtinInfo("dropByteString", 0),
-			builtinInfo("sha2_256", 0),
-			builtinInfo("sha3_256", 0),
-			builtinInfo("verifySignature", 1),
-			builtinInfo("eqByteString", 0),
-			builtinInfo("quotientInteger", 0),
-			builtinInfo("modInteger", 0),
-			builtinInfo("ltByteString", 0),
-			builtinInfo("gtByteString", 0),
-			builtinInfo("ifThenElse", 1),
-			builtinInfo("charToString", 0),
-			builtinInfo("append", 1),
-			builtinInfo("trace", 1),
-		],
-	},
-	"1.0.0": { // current real-world version of plutus-core
-		widths: {
-			term:      4,
-			type:      3,
-			constType: 4, 
-			builtin:   7,
-			constant:  4,
-			kind:      1,
-		},
-		builtins: [
-			builtinInfo("addInteger", 0), // 0
-			builtinInfo("subtractInteger", 0),
-			builtinInfo("multiplyInteger", 0),
-			builtinInfo("divideInteger", 0),
-			builtinInfo("quotientInteger", 0),
-			builtinInfo("remainderInteger", 0),
-			builtinInfo("modInteger", 0),
-			builtinInfo("equalsInteger", 0),
-			builtinInfo("lessThanInteger", 0),
-			builtinInfo("lessThanEqualsInteger", 0),
-			builtinInfo("appendByteString", 0), // 10
-			builtinInfo("consByteString", 0),
-			builtinInfo("sliceByteString", 0),
-			builtinInfo("lengthOfByteString", 0),
-			builtinInfo("indexByteString", 0),
-			builtinInfo("equalsByteString", 0),
-			builtinInfo("lessThanByteString", 0),
-			builtinInfo("lessThanEqualsByteString", 0),
-			builtinInfo("sha2_256", 0),
-			builtinInfo("sha3_256", 0),
-			builtinInfo("blake2b_256", 0), // 20
-			builtinInfo("verifySignature", 1),
-			builtinInfo("appendString", 0),
-			builtinInfo("equalsString", 0),
-			builtinInfo("encodeUtf8", 0),
-			builtinInfo("decodeUtf8", 0),
-			builtinInfo("ifThenElse", 1),
-			builtinInfo("chooseUnit", 1),
-			builtinInfo("trace", 1),
-			builtinInfo("fstPair", 2),
-			builtinInfo("sndPair", 2), // 30
-			builtinInfo("chooseList", 2),
-			builtinInfo("mkCons", 1), // got error 'A builtin expected a term argument, but something else was received. Caused by: (force (force (builtin mkCons)))' when forceCount was 2, so set forceCount to 1?
-			builtinInfo("headList", 1),
-			builtinInfo("tailList", 1),
-			builtinInfo("nullList", 1),
-			builtinInfo("chooseData", 0),
-			builtinInfo("constrData", 0),
-			builtinInfo("mapData", 0),
-			builtinInfo("listData", 0),
-			builtinInfo("iData", 0), // 40
-			builtinInfo("bData", 0),
-			builtinInfo("unConstrData", 0),
-			builtinInfo("unMapData", 0),
-			builtinInfo("unListData", 0),
-			builtinInfo("unIData", 0),
-			builtinInfo("unBData", 0),
-			builtinInfo("equalsData", 0),
-			builtinInfo("mkPairData", 0),
-			builtinInfo("mkNilData", 0),
-			builtinInfo("mkNilPairData", 0), // 50
-			builtinInfo("serialiseData", 0),
-			builtinInfo("verifyEcdsaSecp256k1Signature", 1),
-			builtinInfo("verifySchnorrSecp256k1Signature", 2),
-		],
-	},
 }
 
+const PLUTUS_CORE_BUILTINS = [
+	builtinInfo("addInteger", 0), // 0
+	builtinInfo("subtractInteger", 0),
+	builtinInfo("multiplyInteger", 0),
+	builtinInfo("divideInteger", 0),
+	builtinInfo("quotientInteger", 0),
+	builtinInfo("remainderInteger", 0),
+	builtinInfo("modInteger", 0),
+	builtinInfo("equalsInteger", 0),
+	builtinInfo("lessThanInteger", 0),
+	builtinInfo("lessThanEqualsInteger", 0),
+	builtinInfo("appendByteString", 0), // 10
+	builtinInfo("consByteString", 0),
+	builtinInfo("sliceByteString", 0),
+	builtinInfo("lengthOfByteString", 0),
+	builtinInfo("indexByteString", 0),
+	builtinInfo("equalsByteString", 0),
+	builtinInfo("lessThanByteString", 0),
+	builtinInfo("lessThanEqualsByteString", 0),
+	builtinInfo("sha2_256", 0),
+	builtinInfo("sha3_256", 0),
+	builtinInfo("blake2b_256", 0), // 20
+	builtinInfo("verifySignature", 1),
+	builtinInfo("appendString", 0),
+	builtinInfo("equalsString", 0),
+	builtinInfo("encodeUtf8", 0),
+	builtinInfo("decodeUtf8", 0),
+	builtinInfo("ifThenElse", 1),
+	builtinInfo("chooseUnit", 1),
+	builtinInfo("trace", 1),
+	builtinInfo("fstPair", 2),
+	builtinInfo("sndPair", 2), // 30
+	builtinInfo("chooseList", 1),
+	builtinInfo("mkCons", 1), // got error 'A builtin expected a term argument, but something else was received. Caused by: (force (force (builtin mkCons)))' when forceCount was 2, so set forceCount to 1?
+	builtinInfo("headList", 1),
+	builtinInfo("tailList", 1),
+	builtinInfo("nullList", 1),
+	builtinInfo("chooseData", 0),
+	builtinInfo("constrData", 0),
+	builtinInfo("mapData", 0),
+	builtinInfo("listData", 0),
+	builtinInfo("iData", 0), // 40
+	builtinInfo("bData", 0),
+	builtinInfo("unConstrData", 0),
+	builtinInfo("unMapData", 0),
+	builtinInfo("unListData", 0),
+	builtinInfo("unIData", 0),
+	builtinInfo("unBData", 0),
+	builtinInfo("equalsData", 0),
+	builtinInfo("mkPairData", 0),
+	builtinInfo("mkNilData", 0),
+	builtinInfo("mkNilPairData", 0), // 50
+	builtinInfo("serialiseData", 0),
+	builtinInfo("verifyEcdsaSecp256k1Signature", 1),
+	builtinInfo("verifySchnorrSecp256k1Signature", 1),
+];
 
-////////////////////
-// utility functions
-////////////////////
+
+///////////////////////
+// Section 2: utilities
+///////////////////////
 
 // integer division
 // assumes a and b are whole numbers
@@ -293,11 +279,6 @@ function wrapPlutusCoreCbor(bytes) {
 	return bytes;
 }
 
-
-////////////////////////
-// Primitive value types
-////////////////////////
-
 class BitWriter {
 	constructor() {
 		this.parts_ = [];
@@ -307,7 +288,7 @@ class BitWriter {
 	write(bitChars) {
 		for (let c of bitChars) {
 			if (c != '0' && c != '1') {
-				throw new Error("bad bitchar");
+				throw new Error("bad bit char");
 			}
 		}
 
@@ -351,6 +332,11 @@ class BitWriter {
 		return bytes;
 	}
 }
+
+
+/////////////////////////////
+// Section 3: Plutus-Core AST
+/////////////////////////////
 
 class PlutusCoreInteger {
 	// value is BigInt, which is supposed to be arbitrary precision
@@ -485,7 +471,6 @@ class PlutusCoreByteArray {
 	}
 }
 
-// TODO: make a distinction between ByteString (in reality ByteArray) and String
 class PlutusCoreString {
 	constructor(value) {
 		this.value_ = value;
@@ -538,11 +523,6 @@ class PlutusCoreBool {
 		}
 	}
 }
-
-
-////////////////////
-// Plutus Core terms
-////////////////////
 
 class PlutusCoreTerm {
 	constructor(type) {
@@ -637,7 +617,6 @@ class PlutusCoreForce extends PlutusCoreTerm {
 	}
 }
 
-// Error is already used by builtin javascript class
 class PlutusCoreError extends PlutusCoreTerm {
 	constructor() {
 		super(6);
@@ -665,7 +644,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 	toFlat(bitWriter) {
 		bitWriter.write('0111');
 
-		let i = VERSIONS["1.0.0"].builtins.findIndex(info => info.name == this.name_);
+		let i = PLUTUS_CORE_BUILTINS.findIndex(info => info.name == this.name_);
 
 		let bitString = padZeroes(i.toString(2), 7);
 		
@@ -674,12 +653,12 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 }
 
 class PlutusCoreProgram {
-	constructor(version, expr) {
-		this.version_ = version;
+	constructor(expr) {
+		this.version_ = PLUTUS_CORE_VERSION_COMPONENTS.map(v => new PlutusCoreInteger(v));
 		this.expr_    = expr;
 	}
 
-	toString(pretty = true) {
+	toString() {
 		return "(program " + 
 			this.version_.map(v => v.toString()).join(".") + " " + 
 			this.expr_.toString() + ")";
@@ -697,6289 +676,42 @@ class PlutusCoreProgram {
 }
 
 
+///////////////////////////////////////
+// Section 4: Plutus-Core serialization
+///////////////////////////////////////
 
-//////////////////////////
-// Plutus-light DSL parser
-//////////////////////////
+// returns hex representation of cbor text envelope
+export function serializePlutusCoreProgram(program) {
+	let bitWriter = new BitWriter();
 
-class Location {
-	constructor() {
-		this.pos_  = 0;
-		this.line_ = 0;
-	}
+	program.toFlat(bitWriter);
 
-	get pos() {
-		return this.pos_;
-	}
+	let bytes = bitWriter.finalize();
 
-	incrPos() {
-		this.pos_ += 1;
-	}
-
-	incrLine() {
-		this.line_ += 1;
-	}
-
-	decrPos() {
-		this.pos_ -= 1;
-	}
-
-	decrLine() {
-		this.line_ -= 1;
-	}
-
-	copy() {
-		let cpy = new Location();
-
-		cpy.pos_  = this.pos_;
-		cpy.line_ = this.line_;
-
-		return cpy;
-	}
-
-	toString() {
-		return this.line_.toString();
-	}
-
-	syntaxError(msg) {
-		throw new PlutusLightError(this, "SyntaxError", msg);
-	}
-
-	typeError(msg) {
-		throw new PlutusLightError(this, "TypeError", msg);
-	}
-
-	referenceError(msg) {
-		throw new PlutusLightError(this, "ReferenceError", msg);
-	}
-
-	static dummy() {
-		return new Location(0, 0);
-	}
+	return bytesToHex(wrapPlutusCoreCbor(wrapPlutusCoreCbor(bytes)));
 }
 
-class PlutusLightError extends Error {
-	constructor(loc, type, msg) {
-		super(type + " on line " + (loc.line_+1) + ": " + msg);
-	}
-}
 
-class Token {
-	constructor(loc) {
-		this.loc_ = loc; // position of start of token
-	}
+//////////////////////////////////////////////////
+// Sectio 5: data for schema of Datum and Redeemer
+//////////////////////////////////////////////////
 
-	get loc() {
-		return this.loc_.copy();
-	}
-
-	assertWord() {
-		throw new Error("expected word, got " + this.toString());
-	}
-
-	assertSymbol(symbol) {
-		if (symbol == undefined) {
-			this.syntaxError("expected symbol, got " + this.toString());
-		} else {
-			this.syntaxError("expected \'" + symbol + "\', got " + this.toString());
-		}
-	}
-
-	assertGroup(type) {
-		if (type != undefined) {
-			this.syntaxError(`invalid syntax: expected \'${type}...${Group.matchSymbol(type)}\'`)
-		} else {
-			this.syntaxError(`invalid syntax: expected group`);
-		}
-	}
-
-	isLiteral() {
-		return false;
-	}
-
-	isWord() {
-		return false;
-	}
-
-	isSymbol() {
-		return false;
-	}
-
-	isGroup() {
-		return false;
-	}
-
-	isBuiltin() {
-		return false;
-	}
-
-	link(scope) {
-		throw new Error("not implemented");
-	}
-
-	eval() {
-		throw new Error("not implemented");
-	}
-
-	evalData() {
-		console.log(this);
-		this.typeError("can't be used in data eval");
-	}
-
-	syntaxError(msg) {
-		this.loc_.syntaxError(msg);
-	}
-
-	typeError(msg) {
-		this.loc_.typeError(msg);
-	}
-
-	referenceError(msg) {
-		this.loc_.referenceError(msg);
-	}
-}
-
-class Word extends Token {
-	constructor(loc, value) {
-		super(loc);
+class IntData {
+	constructor(value, isBool = false) {
 		this.value_ = value;
+		this.isBool_ = isBool; // bool is also encoded using int
 	}
 
-	assertWord(v) {
-		if (v != undefined) {
-			if (v != this.value_) {
-				throw new Error("expected word " + v);
-			}
-
-			return this;
-		} else {
-			return this;
-		}
-	}
-
-	isWord(v) {
-		if (v != undefined) {
-			return v == this.value_;
-		} else {
-			return true;
-		}
-	}
-
-	toString() {
-		return this.value_;
-	}
-}
-
-class Symbol extends Token {
-	constructor(loc, value) {
-		super(loc);
-		this.value_ = value;
+	static fromBool(b) {
+		return new IntData(b ? 1n : 0n, true);
 	}
 
 	get value() {
 		return this.value_;
 	}
 
-	assertSymbol(symbol) {
-		if (!this.isSymbol(symbol)) {
-			this.syntaxError("expected \'" + symbol + "\', got \'" + this.value_ + "\'");
-		}
-
-		return this;
-	}
-
-	isSymbol(v) {
-		if (v != undefined) {
-			if (v instanceof Array) {
-				return v.lastIndexOf(this.value_) != -1;
-			} else {
-				return v == this.value_;
-			}	
-		} else {
-			return true;
-		}
-	}
-
-	toString() {
-		return this.value_;
-	}
-
-	static find(lst, value) {
-		return lst.findIndex(item => item.isSymbol(value));
-	}
-
-	static findLast(lst, value) {
-		for (let i = lst.length - 1; i >= 0; i--) {
-			if (lst[i].isSymbol(value)) {
-				return i;
-			}
-		}
-
-		return -1;
-	}
-}
-
-class Literal extends Token {
-	constructor(loc) {
-		super(loc);
-	}
-
-	isLiteral() {
-		return true;
-	}
-
-	link(scope) {
-	}
-
-	registerGlobals(registry) {
-	}
-
-	pretty(firstIndent, indent) {
-		return this.toString();
-	}
-}
-
-// always signed
-class IntegerLiteral extends Literal {
-	// value has type BigInt
-	constructor(loc, value) {
-		super(loc);
-		assert(typeof value == 'bigint');
-		this.value_ = value;
-	}
-
-	toString() {
-		return this.value_.toString();
-	}
-
-	eval() {
-		return new IntegerType(this.loc);
-	}
-
-	evalData() {
-		return new IntegerData(this.value_);
-	}
-
-	toUntyped() {
-		return this.toString();
-	}
-
-	toPlutusCore() {
-		return new PlutusCoreInteger(this.value_, true);
-	}
-}
-
-class UnitLiteral extends Literal {
-	constructor() {
-		super(Location.dummy());
-	}
-
-	toString() {
-		return "()";
-	}
-
-	toPlutusCore() {
-		return new PlutusCoreUnit();
-	}
-}
-
-class BoolLiteral extends Literal {
-	constructor(loc, value) {
-		super(loc);
-		this.value_ = value;
-	}
-
-	toString() {
-		return this.value_ ? "true" : "false";
-	}
-
-	eval() {
-		return new BoolType(this.loc);
-	}
-
-	evalData() {
-		return new IntegerData(this.value_ ? 1n : 0n);
-	}
-
-	toUntyped() {
-		return this.toString();
-	}
-
-	toPlutusCore() {
-		return new PlutusCoreBool(this.value_);
-	}
-}
-
-class ByteArrayLiteral extends Literal {
-	constructor(loc, bytes) {
-		super(loc);
-		this.bytes_ = bytes;
-	}
-
-	toString() {
-		return '#' + bytesToHex(this.bytes_);
-	}
-
-	eval() {
-		return new ByteArrayType(this.loc);
-	}
-
-	evalData() {
-		return new ByteArrayData(this.bytes_);
-	}
-
-	toUntyped() {
-		return this.toString();
-	}
-
-	toPlutusCore() {
-		return new PlutusCoreByteArray(this.bytes_)
-	}
-}
-
-// '...' or "..." is a utf8 string literal
-class StringLiteral extends Literal {
-	constructor(loc, value) {
-		super(loc);
-		this.value_ = value;
-	}
-
-	toString() {
-		return "\"" + this.value_.toString() + "\"";
-	}
-
-	eval() {
-		return new StringType(this.loc);
-	}
-
-	evalData() {
-		let bytes = (new TextEncoder()).encode(this.value_);
-
-		return new ByteArrayData(bytes);
-	}
-
-	toUntyped() {
-		return this.toString();
-	}
-
-	toPlutusCore() {
-		return new PlutusCoreString(this.value_);
-	}
-}
-
-class Group extends Token {
-	// type is "(", "[" or "{"
-	constructor(loc, type, fields) {
-		super(loc);
-		this.type_ = type;
-		this.fields_ = fields // list of lists;
-	}
-
-	get fields() {
-		return this.fields_.slice();
-	}
-
-	assertGroup(type) {
-		if (type != undefined && this.type_ != type) {
-			this.syntaxError(`invalid syntax: expected \'${type}...${Group.matchSymbol(type)}\', got \'${this.type_}...${Group.matchSymbol(this.type_)}\'`);
-		} 
-
-		return this;
-	}
-
-	isGroup(type) {
-		if (type != undefined) {
-			return this.type_ == type;
-		} else {
-			return true;
-		}
-	}
-
-	toString() {
-		let s = this.type_;
-
-		let sParts = [];
-		for (let f of this.fields_) {
-			sParts.push(f.map(t => t.toString()).join(" "));
-		}
-
-		s += sParts.join(", ") + Group.matchSymbol(this.type_);
-
-		return s;
-	}
-
-	static isOpenSymbol(t) {
-		return t.isSymbol("{") || t.isSymbol("[") || t.isSymbol("(");
-	}
-
-	static isCloseSymbol(t) {
-		return t.isSymbol("}") || t.isSymbol("]") || t.isSymbol(")");
-	}
-
-    static matchSymbol(t) {
-		if (t instanceof Symbol) {
-			if (t.isSymbol("{")) {
-				return "}";
-			} else if (t.isSymbol("[")) {
-				return "]";
-			} else if (t.isSymbol("(")) {
-				return ")";
-			} else if (t.isSymbol("}")) {
-				return "{";
-			} else if (t.isSymbol("]")) {
-				return "[";
-			} else if (t.isSymbol(")")) {
-				return "(";
-			} else {
-				throw new Error("not a group symbol");
-			}
-		} else {
-			if (t == "{") {
-				return "}";
-			} else if (t == "[") {
-				return "]";
-			} else if (t == "(") {
-				return ")";
-			} else if (t == "}") {
-				return "{";
-			} else if (t == "]") {
-				return "[";
-			} else if (t == ")") {
-				return "(";
-			} else {
-				throw new Error("not a group symbol");
-			}
-		}
-	}
-
-	static find(lst, value) {
-		return lst.findIndex(item => item.isGroup(value));
-	}
-}
-
-
-//////////////////////
-// Tokenizer singleton
-//////////////////////
-
-class Tokenizer {
-	constructor(src) {
-		this.loc_ = new Location();
-		this.src_ = src;
-	}
-
-	readChar() {
-		let p = this.loc_.pos;
-
-		assert(p >= 0);
-
-		let c;
-		if (p < this.src_.length) {
-			c = this.src_[p];
-		} else {
-			c = '\0';
-		}
-
-		this.loc_.incrPos();
-		if (c == '\n') {
-			this.loc_.incrLine();
-		}
-
-		return c;
-	}
-
-	unreadChar() {
-		this.loc_.decrPos();
-
-		let p = this.loc_.pos;
-
-		assert(p >= 0);
-
-		if (p < this.src_.length) {
-			if (this.src_[p] == '\n') {
-				this.loc_.decrLine();
-			}
-		}
-	}
-
-	tokenize() {
-		let ts = [];
-
-		let l = this.loc_.copy();
-		let c = this.readChar();
-
-		while (c != '\0') {
-			if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-				this.readWord(ts, l, c);
-			} else if (c == '/') {
-				this.readMaybeComment(ts, l);
-			} else if (c == '0') {
-				this.readSpecialInteger(ts, l);
-			} else if (c >= '1' && c <= '9') {
-				this.readDecimalInteger(ts, l, c);
-			} else if (c == '#') {
-				this.readByteArray(ts, l);
-			} else if (c == '"' || c == "'") {
-				this.readString(ts, l, c);
-			} else if (c ==  '!' || c == '%' || c == '&' || (c >= '(' && c <= '.') || (c >= ':' && c <= '>') || c == '[' || c == ']' || (c >= '{' && c <= '}')) {
-				this.readSymbol(ts, l, c);
-			} else if (!(c == ' ' || c == '\n' || c == '\t' || c == '\r')) {
-				throw new Error("bad source");
-			}
-
-			l = this.loc_.copy();
-			c = this.readChar();
-		}
-
-		return Tokenizer.nestGroups(ts);
-	}
-
-	readWord(ts, start, c) {
-		let chars = [];
-
-		while (c != '\0') {
-			if (c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-				chars.push(c);
-				c = this.readChar();
-			} else {
-				this.unreadChar();
-				break;
-			}
-		}
-
-		let value = chars.join('');
-
-		if (value == "true" || value == "false") {
-			ts.push(new BoolLiteral(start, value == "true"));
-
-		} else {
-			ts.push(new Word(start, value));
-		}
-	}
-
-	readMaybeComment(ts, start) {
-		let c = this.readChar();
-
-		if (c == '\0') {
-			ts.push(new Symbol(start, '/'));
-		} else if (c == '/') {
-			this.readSingleLineComment();
-		} else if (c == '*') {
-			this.readMultiLineComment(start);
-		} else {
-			ts.push(new Symbol(start, '/'));
-			this.unreadChar();
-		}
-	}
-
-	readSingleLineComment() {
-		let c = this.readChar();
-
-		while (c != '\n') {
-			c = this.readChar();
-		}
-	}
-
-	readMultiLineComment(start) {
-		let prev = '';
-		let c = this.readChar();
-
-		while (true) {
-			prev = c;
-			c = this.readChar();
-
-			if (c == '/' && prev == '*') {
-				break;
-			} else if (c == '\0') {
-				throw new Error("unterminated multiline comment");
-			}
-		}
-	}
-
-	readSpecialInteger(ts, start) {
-		let c = this.readChar();
-
-		if (c == '\0') {
-			ts.push(new IntegerLiteral(start, 0));
-		} else if (c == 'b') {
-			this.readBinaryInteger(ts, start);
-		} else if (c == 'o') {
-			this.readOctalInteger(ts, start);
-		} else if (c == 'x') {
-			this.readHexInteger(ts, start);
-		} else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-			throw new Error("bad literal integer type");
-		} else if (c >= '0' && c <= '9') {
-			this.readDecimalInteger(ts, start, c);
-		} else {
-			ts.push(new IntegerLiteral(start, 0n));
-			this.unreadChar();
-		}
-	}
-
-	readBinaryInteger(ts, start) {
-		this.readRadixInteger(ts, start, "0b", 
-			c => (c == '0' || c == '1'));
-	}
-
-	readOctalInteger(ts, start) {
-		this.readRadixInteger(ts, start, "0o", 
-			c => (c >= '0' && c <= '7'));
-	}
-
-	readHexInteger(ts, start) {
-		this.readRadixInteger(ts, start, "0x", 
-			c => ((c >= '0' && c <= '9') || (c >= 'a' || c <= 'f')));
-	}
-
-	readDecimalInteger(ts, start, c, negative = false) {
-		let chars = [];
-
-		while (c != '\0') {
-			if (c >= '0' && c <= '9') {
-				chars.push(c);
-			} else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-				throw new Error("invalid syntax");
-			} else {
-				this.unreadChar();
-				break;
-			}
-
-			c = this.readChar();
-		}
-
-		if (negative) {
-			chars.unshift('-');
-		}
-
-		ts.push(new IntegerLiteral(start, BigInt(chars.join(''))));
-	}
-
-	readRadixInteger(ts, start, prefix, valid) {
-		let c = this.readChar();
-
-		let chars = [];
-
-		if (!(valid(c))) {
-			throw new Error("expected at least one char for " + prefix + " integer");
-		}
-
-		while (c != '\0') {
-			if (valid(c)) {
-				chars.push(c);
-			} else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-				throw new Error("invalid syntax");
-			} else {
-				this.unreadChar();
-				break;
-			}
-
-			c = this.readChar();
-		}
-
-		ts.push(new IntegerLiteral(start, BigInt(prefix + chars.join(''))));
-	}
-
-	readByteArray(ts, start) {
-		let c = this.readChar();
-
-		let chars = [];
-
-		// case doesn't matter
-		while ((c >= 'a' && c <= 'f') || (c >= '0' && c <= '9')) {
-			chars.push(c);
-			c = this.readChar();
-		}
-
-		// empty byteArray is allowed (eg. for Ada mintingPolicyHash)
-
-		this.unreadChar(c);
-
-		let bytes = hexToBytes(chars.join(''));
-
-		ts.push(new ByteArrayLiteral(start, bytes));
-	}
-
-	readString(ts, start, quote) {
-		let c = this.readChar();
-
-		let chars = [];
-
-		let escaping = false;
-		let escapeLoc; // for location errors
-
-		while (!(!escaping && c == quote)) {
-			if (c == '\0') {
-				throw new Error("unmatched " + quote);
-			}
-
-			if (escaping) {
-				if (c == 'n') {
-					chars.push('\n');
-				} else if (c == 't') {
-					chars.push('\t');
-				} else if (c == '\\') {
-					chars.push('\\');
-				} else if (c == quote) {
-					chars.push(quote);
-				} else {
-					throw new Error("invalid escape sequence " + c);
-				}
-
-				escaping = false;
-			} else {
-				if (c == '\\') {
-					escapeLoc = this.loc_.copy();
-					escapeLoc.decrPos();
-					escaping = true;
-				} else {
-					chars.push(c);
-				}
-			}
-
-			c = this.readChar();
-		}
-
-		ts.push(new StringLiteral(start, chars.join('')));
-	}
-
-	readSymbol(ts, start, c) {
-		let chars = [c];
-
-		let parseSecondChar = (second) => {
-			let d = this.readChar();
-
-			if (d == second) {
-				chars.push(d);
-			} else {
-				this.unreadChar();
-			}
-		}
-
-		if (c == '|') {
-			parseSecondChar('|');
-		} else if (c == '&') {
-			parseSecondChar('&');
-		} else if (c == '!' || (c >= '<' && c <= '>')) { // could be !=, ==, <= or >=
-			parseSecondChar('=');
-		} else if (c == ':') {
-			parseSecondChar(':');
-		}
-
-		ts.push(new Symbol(start, chars.join('')));
-	}
-
-	static groupFields(ts) {
-		assert(ts.length > 1);
-
-		let open = ts.shift();
-
-		let stack = [open];
-		let curField = [];
-		let fields = [];
-
-		while (stack.length > 0 && ts.length > 0) {
-			let t = ts.shift();
-			let prev = stack.pop();
-
-			if (!t.isSymbol(Group.matchSymbol(prev))) {
-				stack.push(prev);
-
-				if (Group.isCloseSymbol(t)) {
-					t.syntaxError(`unmatched ${t.value} at pos ${(t.loc_.line_+1).toString()}, prev: ${(prev.loc_.line_+1).toString()}`);
-				} else if (Group.isOpenSymbol(t)) {
-					stack.push(t);
-					curField.push(t);
-				} else if (t.isSymbol(",") && stack.length == 1) {
-					if (curField.length == 0) {
-						throw new Error("empty field");
-					} else {
-						fields.push(curField);
-						curField = [];
-					}
-				} else {
-					curField.push(t);
-				}
-			} else if (stack.length > 0) {
-				curField.push(t);
-			}
-		}
-
-		if (stack.length > 0) {
-			let last = stack.pop();
-			last.syntaxError("EOF while matching \'" + last.value + "\'");
-		}
-		
-		if (curField.length > 0) {
-			fields.push(curField);
-		}		
-
-		return fields;
-	}
-
-	static nestGroups(ts) {
-		let res = [];
-
-		while (ts.length > 0) {
-			let t = ts.shift();
-
-			if (Group.isOpenSymbol(t)) {
-				ts.unshift(t);
-
-				let fields = Tokenizer.groupFields(ts).map(f => Tokenizer.nestGroups(f));
-
-				res.push(new Group(t.loc, t.value, fields));
-			} else if (Group.isCloseSymbol(t)) {
-				t.syntaxError("unmatched \'" + t.value + "\'");
-			} else {
-				res.push(t);
-			}
-		}
-
-		return res;
-	}
-}
-
-
-////////////////////////////////
-// Scopes used during link stage
-////////////////////////////////
-
-class GlobalScope {
-	constructor() {
-		this.types_ = new Map();
-		this.values_ = new Map();
-	}
-
-	has(name) {
-		let key = name.toString();
-		
-		return this.values_.has(key) || this.types_.has(key) || (key in PLUTUS_LIGHT_BUILTIN_FUNCS);
-	}
-
-	setValue(v) {
-		let name = v.name;
-
-		let key = name.toString();
-
-		this.values_.set(key, v);
-	}
-
-	getValue(name) {
-		let key = name.toString();
-
-		if (!this.values_.has(key)) {
-			if (key in PLUTUS_LIGHT_BUILTIN_FUNCS) {
-				name.referenceError("illegal reference of built-in func \'" + key + "\'");
-			} else if (this.types_.has(key)) {
-				name.referenceError("\'" + key + "\' is a type, expected a value");
-			} else {
-				name.referenceError("\'" + key + "\' undefined");
-			}
-		} else {
-			let obj = this.values_.get(key);
-			obj.incrUseCount();
-			return obj;
-		}
-	}
-
-	setType(t) {
-		let name = t.name;
-
-		let key = name.toString();
-
-		this.types_.set(key, t);
-	}
-
-	getType(name) {
-		let key = name.toString();
-
-		if (!this.types_.has(key)) {
-			if (this.values_.has(key) || key in PLUTUS_LIGHT_BUILTIN_FUNCS) {
-				name.referenceError("\'" + key + "\' is a value, expected a type");
-			} else {
-				name.referenceError("\'" + key + "\' undefined");
-			}
-		} else {
-			let obj = this.types_.get(key);
-			obj.incrUseCount();
-			return obj;
-		}
-	}
-}
-
-class Scope {
-	constructor(parent) {
-		assert(parent != null);
-
-		this.parent_ = parent;
-		this.types_ = new Map(); // data types and union types
-		this.values_ = new Map(); // funcs, consts
-	}
-
-	has(name) {
-		return this.values_.has(name.toString()) || this.types_.has(name.toString()) || (this.parent_ != null && this.parent_.has(name));
-	}
-
-	setValue(v, force = false) {
-		let name = v.name;
-
-		assert(name != undefined);
-
-		if (!force && this.has(name)) {
-			name.syntaxError("\'" + name.toString() + "\' already declared");
-		}
-
-		let key = name.toString();
-
-		this.values_.set(key, v);
-	}
-
-	getValue(name) {
-		let key = name.toString();
-
-		if (!this.values_.has(key)) {
-			if (this.types_.has(key)) {
-				name.referenceError("\'" + key + "\' is a type, expected a value");
-			} else if (this.parent_ == null) {
-				name.referenceError("\'" + key + "\' undefined");
-			} else {
-				return this.parent_.getValue(name);
-			}
-		} else {
-			let obj = this.values_.get(key);
-			obj.incrUseCount();
-			return obj;
-		}
-	}
-
-	setType(t) {
-		let name = t.name;
-
-		assert(name != undefined);
-
-		if (this.has(name)) {
-			name.syntaxError("\'" + name.toString() + "\' already declared");
-		}
-
-		let key = name.toString();
-
-		this.types_.set(key, t);
-	}
-
-	getType(name) {
-		let key = name.toString();
-
-		if (!this.types_.has(key)) {
-			if (this.values_.has(key)) {
-				name.referenceError("\'" + key + "\' is a value, expected a type");
-			} else if (this.parent_ == null) {
-				name.referenceError("\'" + key + "\' undefined");
-			} else {
-				return this.parent_.getType(name);
-			}
-		} else {
-			let obj = this.types_.get(key);
-			obj.incrUseCount();
-			return obj;
-		}
-	}
-
-	assertAllUsed() {
-		for (let objects of [this.types_, this.values_]) {
-			for (let obj of objects) {
-				obj = obj[1];
-
-				if (!obj.isBuiltin() && !obj.used) {
-					obj.name.referenceError("\'" + obj.name.toString() + "\' unused");
-				}
-			}
-		}
-	}
-
-	// inner is wrapped recursively
-	wrapWithTopLevel(inner) {	
-		// first collect, so we can optionally reverse
-		let decls = [];
-		for (let decl of this.values_) {
-			let d = decl[1];
-
-			if (d instanceof FuncDecl || d instanceof ConstDecl) {
-				assert(d.used);
-				decls.push(d);
-			}
-		}
-
-		decls.reverse();
-
-		let res = inner;
-		for (let decl of decls) {
-			res = `func(u_${decl.name.toString()}){${res}}(${decl.toUntyped()})`;
-		}
-
-		return res;
-	}
-
-	registerGlobals(registry) {
-		for (let object of this.values_) {
-			let obj = object[1];
-
-			if (!obj.isBuiltin() && obj.used) {
-				obj.registerGlobals(registry);
-			}
-		}
-	}
-}
-
-class FuncScope extends Scope {
-	constructor(parent, fn) {
-		super(parent);
-		this.fn_ = fn;
-	}
-
-	getValue(name) {
-		if (this.fn_.name != null && name.toString == this.fn_.name.toString()) {
-			this.fn_.recursive = true;
-
-			return this.fn_;
-		} else {
-			return super.getValue(name);
-		}
-	}
-
-	hasValue(name) {
-		if (this.fn_.name != null && name.toString() == this.fn_.name.toString()) {
-			return true;
-		} else {
-			return super.hasValue(name);
-		}
-	}
-}
-
-function assertTypeMatch(a, b) {
-	if (!a.eq(b)) {
-		b.typeError("expected \'" + a.toString() + "\', got \'" + b.toString() + "\'");
-	}
-}
-
-// caches the evaluated type
-class Expr extends Token {
-	constructor(loc) {
-		super(loc);
-		this.cache_ = null;
-	}
-
-	eval() {
-		if (this.cache_ == null) {
-			this.cache_ = this.evalInternal();
-		}
-
-		return this.cache_;
-	}
-}
-
-class Registry {
-	constructor() {
-		// collection of global functions
-		this.fns_ = new Map(); // name of function -> function string
-	}
-
-	register(name, definition) {
-		if (!this.fns_.has(name)) {
-			this.fns_.set(name, definition);
-		}
-	}
-
-	wrap(inner) {
-		// loop backwards through fns
-		let fns = [];
-		for (let fn of this.fns_) {
-			fns.push(fn); // tuples (name, definition)
-		}
-
-		fns.reverse();
-
-		let res = inner;
-		for (let fn of fns) {
-			let [name, def] = fn;
-
-			res = `func(${name}){${res}}(${def})`;
-		}
-
-		return res;
-	}
-}
-
-
-///////////////
-// AST elements
-///////////////
-
-export const ScriptPurpose = {
-	Minting: 0,
-	Spending: 1,
-};
-
-class PlutusLightProgram {
-	// declarations: type, const or func
-	constructor(decls, purpose) {
-		this.decls_ = decls;
-		assert(purpose != undefined);
-		this.purpose_ = purpose;
-		this.haveDatum_ = false;
-		this.haveRedeemer_ = false;
-		this.haveScriptContext_ = false;
-	}
-
-	toString() {
-		return this.decls_.map(d => d.toString()).join("\n");
-	}
-
-	// also creates the scope
-	link() {
-		let scope = new GlobalScope();
-
-		// fill the global scope
-		scope.setType(new BoolType());
-		scope.setType(new IntegerType());
-		scope.setType(new StringType());
-		scope.setType(new ByteArrayType());
-		scope.setType(new ScriptContextType());
-		scope.setType(new TxType());
-		scope.setType(new TxInputType());
-		scope.setType(new TxOutputType());
-		scope.setType(new TxIdType());
-		scope.setType(new TxOutputIdType());
-		scope.setType(new TimeType());
-		scope.setType(new DurationType());
-		scope.setType(new TimeRangeType());
-		scope.setType(new PubKeyHashType());
-		scope.setType(new ValidatorHashType());
-		scope.setType(new DatumHashType());
-		scope.setType(new MintingPolicyHashType());
-		scope.setType(new AssetClassType());
-		scope.setType(new ValueType());
-		scope.setType(new DataType());
-		scope.setType(new AddressType());
-		scope.setType(new CredentialType());
-
-		let userScope =  new Scope(scope);
-
-		for (let decl of this.decls_) {
-			decl.link(userScope);
-		}
-
-		return userScope;
-	}
-
-	eval(userScope) {
-		for (let decl of this.decls_) {
-			void decl.eval();
-		}
-
-		// look for entrypoint, and check its interface
-		let main = userScope.getValue(new Word(Location.dummy(), "main"));
-
-		let mainType = main.eval();
-
-		if (!(mainType instanceof FuncType)) {
-			main.typeError("entrypoint is not a function");
-		} else if (!(BoolType.is(mainType.retType_))) {
-			main.retType_.typeError("expected bool as main return type");
-		} else if (this.purpose_ == ScriptPurpose.Spending) {
-			if (mainType.argTypes_.length > 3) {
-				main.typeError("too many arguments for main");
-			} 
-
-			let haveDatum = false;
-			let haveRedeemer = false;
-			let haveScriptContext = false;
-			for (let arg of mainType.argTypes_) {
-				let t = arg.toString();
-
-				if (t == "Datum") {
-					if (haveDatum) {
-						main.typeError("duplicate \'Datum\' argument");
-					} else if (haveRedeemer) {
-						main.typeError("\'Datum\' must come before \'Redeemer\'");
-					} else if (haveScriptContext) {
-						main.typeError("\'Datum\' must come before \'ScriptContext\'");
-					} else {
-						haveDatum = true;
-					}
-				} else if (t == "Redeemer") {
-					if (haveRedeemer) {
-						main.typeError("duplicate \'Redeemer\' argument");
-					} else if (haveScriptContext) {
-						main.typeError("\'Redeemer\' must come before \'ScriptContext\'");
-					} else {
-						haveRedeemer = true;
-					}
-				} else if (t == "ScriptContext") {
-					if (haveScriptContext) {
-						main.typeError("duplicate \'ScriptContext\' argument");
-					} else {
-						haveScriptContext = true;
-					}
-				} else {
-					main.typeError("illegal argument type, must be \'Datum\', \'Redeemer\' or \'ScriptContext\'");
-				}
-			}
-
-			this.haveDatum_ = haveDatum;
-			this.haveRedeemer_ = haveRedeemer;
-			this.haveScriptContext_ = haveScriptContext;
-		} else if (this.purpose_ == ScriptPurpose.Minting) {
-			if (mainType.argTypes_.length > 2) {
-				main.typeError("too many arguments for main");
-			} 
-
-			let haveRedeemer = false;
-			let haveScriptContext = false;
-
-			for (let arg of mainType.argTypes_) {
-				let t = arg.toString();
-
-				if (t == "Redeemer") {
-					if (haveRedeemer) {
-						main.typeError(`duplicate "Redeemer" argument`);
-					} else if (haveScriptContext) {
-						main.typeError(`"Redeemer" must come before "ScriptContext"`);
-					} else {
-						haveRedeemer = true;
-					}
-				} else if (t == "ScriptContext") {
-					if (haveScriptContext) {
-						main.typeError(`duplicate "ScriptContext" argument`);
-					} else {
-						haveScriptContext = true;
-					}
-				} else {
-					main.typeError(`illegal argument type, must be "Redeemer" or "ScriptContext"`);
-				}
-			}
-
-			this.haveRedeemer_ = haveRedeemer;
-			this.haveScriptContext_ = haveScriptContext;
-		} else {
-			throw new Error(`unhandled ScriptPurpose ${this.purpose_.toString()}`);
-		}
-	}
-
-	linkAndEval() {
-		let userScope = this.link();
-
-		this.eval(userScope);
-
-		// very strict usage requirements for all consts, usertypes, functions and variables
-		userScope.assertAllUsed();
-
-		return userScope;
-	}
-
-	toUntyped() {
-		let userScope = this.linkAndEval();
-
-		let registry = new Registry();
-
-		userScope.registerGlobals(registry);
-
-		let res = "func(";
-
-		let mainArgs = [];
-		let uMainArgs = [];
-		if (this.haveDatum_) {
-			mainArgs.push("datum");
-			uMainArgs.push("datum");
-		} else if (this.purpose_ == ScriptPurpose.Spending) {
-			mainArgs.push("_");
-		}
-
-		if (this.haveRedeemer_) {
-			mainArgs.push("redeemer");
-			uMainArgs.push("redeemer");
-		} else { // minting script can also have a redeemer
-			mainArgs.push("_");
-		}
-
-		if (this.haveScriptContext_) {
-			mainArgs.push("ctx");
-			uMainArgs.push("ctx");
-		} else {
-			mainArgs.push("_");
-		}
-
-		res += mainArgs.join(", ");
-
-		res += "){\n  ifThenElse(";
-
-		res += "u_main(" + uMainArgs.join(", ") + "), func(){()}, func(){error()})()\n"; // deferred evaluation of branches!
-		
-		res += "}";
-
-		// only user function declarations that are called more than once are added to global space, in the order they are encountere
-
-		// wrap main wih global user functions
-		res = userScope.wrapWithTopLevel(res);
-
-		// wrap res with builtin global functions
-		return registry.wrap(res);
-	}
-}
-
-class Named extends Token {
-	constructor(loc, name) {
-		super(loc);
-		this.name_ = name; // word token or regular string
-		this.useCount_ = 0;
-	}
-
-	get name() {
-		return this.name_;
-	}
-
-	incrUseCount() {
-		this.useCount_ += 1;
-	}
-
-	get used() {
-		return this.useCount_ > 0;
-	}
-}
-
-class DataTypeDecl extends Named {
-	constructor(loc, name, fields) {
-		super(loc, name);
-		assert(name != null);
-		this.fields_ = fields;
-		this.cache_ = null;
-	}
-
-	// returns an index
-	findField(name) {
-		let found = -1;
-		let i = 0;
-		for (let f of this.fields_) {
-			if (f[0] == name.toString()) {
-				found = i;
-				break;
-			}
-			i++;
-		}
-
-		return found;
-	}
-
-	toStringInternal() {
-		let parts = [];
-
-		for (let member of this.fields_) {
-			let [key, obj] = member;
-
-			parts.push(key + " " + obj.toString());
-		}
-
-		return `${this.name_.toString()} {${parts.join(", ")}}`;
-	}
-
-	toString() {
-		return "data " + this.toStringInternal();
-	}
-
-	linkFields(scope) {
-		for (let f of this.fields_) {
-			f[1].link(scope);
-		}
-	}
-
-	link(scope) {
-		this.linkFields(scope);
-
-		scope.setType(this);
-
-		// also set a special cast
-		scope.setValue(new DataCast(this), true);
-	}
-
-	eq(other) {
-		// actually check the fields
-		if (!other instanceof DataTypeDecl) {
-			other = other.eval();
-		}
-
-		return other.name_.toString() == this.name_.toString();
-	}
-
-	evalMember(name) {
-		if (!this.fields_.has(name.toString())) {
-			name.referenceError("\'" + this.name_.toString() + "." + name.toString() + "\' undefined");
-		} else {
-			let member = this.fields_.get(name.toString());
-
-			return member.eval();
-		}
-	}
-
-	eval() {
-		if (this.cache_ != null) {
-			return this.cache_;
-		}
-
-		for (let f of this.fields_) {
-			let expr = f[1];
-			let type = expr.eval();
-
-			assertNoFunctions(type);
-		}
-
-		this.cache_ = this;
-
-		return this.cache_;
-	}
-}
-
-
-class DataLiteral extends Expr {
-	constructor(loc, type, fields) {
-		super(loc);
-		this.type_ = type;
-		this.fields_ = fields;
-	}
-
-	get constrIndex() {
-		return 0;
-	}
-
-	toStringInternal() {
-		let parts = [];
-
-		for (let member of this.fields_) {
-			let [key, obj] = member;
-
-			parts.push(key + ": " + obj.toString());
-		}
-
-		return `{${parts.join(", ")}}`;
-	}
-
-	toString() {
-		return this.type_.toString() + this.toStringInternal();
-	}
-
-	link(scope) {
-		this.type_.link(scope);
-
-		for (let f of this.fields_) {
-			f[1].link(scope);
-		}
-	}
-
-	evalInternal() {
-		let dataDecl = this.type_.eval();
-
-		if (dataDecl instanceof UnionTypeDecl) {
-			this.type_.typeError("can't construct a union type directly");
-		}
-
-		if (!dataDecl instanceof DataTypeDecl) {
-			this.type_.typeError("not a data type");
-		}
-
-		if (this.fields_.length != dataDecl.fields_.length) {
-			this.typeError(`unexpected number of ${dataDecl.name.toString()} literal fields: expected ${dataDecl.fields_.length}, got ${this.fields_.length}`);
-		}
-
-		let n = this.fields_.length;
-
-		for (let i = 0; i < n; i++) {
-			if (this.fields_.keys()[i] != dataDecl.fields_.keys()[i]) {
-				this.typeError(`bad field name ${this.fields_.keys()[i]}`);
-			}
-
-			let expectedFieldType = dataDecl.values()[i].eval();
-			let actualFieldType = this.fields_.values()[i].eval();
-
-			if (!expectedFieldType.eq(actualFieldType)) {
-				this.typeError(`bad type for field ${this.fields_.keys()[i]}, expected ${expectedFieldType.toString()}, got ${actualFieldType.toString()}`);
-			}
-		}
-
-		return dataDecl;
-	}
-
-	evalData() {
-		// create simple list of fields
-		let dataFields = [];
-
-		for (let member of this.fields_) {
-			let item = member[1];
-
-			dataFields.push(item.evalData());
-		}
-
-		return new ConstrData(0, dataFields);
-	}
-
-	registerGlobals(registry) {
-		for (let member of this.fields_) {
-			let item = member[1];
-
-			item.registerGlobals(registry);
-		}
-	}
-
-	// the final return type is `data`
-	toUntyped() {
-		let res = "mkNilData(())";
-
-		let exprs = [];
-		for (let f of this.fields_) {
-			exprs.push(f[1]);
-		}
-
-		for (let i = exprs.length - 1; i >= 0; i--) {
-			let expr = exprs[i];
-			let type = expr.eval();
-
-			res = `mkCons(${toData(expr.toUntyped(), type)}, ${res})`;
-		}
-
-		return `constrData(${this.constrIndex.toString()}, ${res})`;
-	}
-}
-
-class UnionTypeDecl extends Named {
-	constructor(loc, name, members) {
-		super(loc, name);
-		this.members_ = members;
-		this.cache_ = null;
-
-		for (let member of this.members_) {
-			member.parent_ = this;
-		}
-	}
-
-	// returns an index
-	findMember(name) {
-		let found = -1;
-		let i = 0;
-		for (let member of this.members_) {
-			if (member.name.toString() == name.toString()) {
-				found = i;
-				break;
-			}
-			i++;
-		}
-
-		return found;
-	}
-
-	toString() {
-		let parts = this.members_.map(st => st.toString());
-
-		return `union ${this.name_.toString()} {${parts.join(", ")}}`;
-	}
-
-	link(scope) {
-		for (let member of this.members_) {
-			member.link(scope);
-		}
-
-		scope.setType(this);
-
-		// also set a special cast
-		scope.setValue(new DataCast(this), true);
-	}
-
-	eq(other) {
-		// actually check the fields
-		if (!other instanceof UnionTypeDecl) {
-			other = other.eval();
-		}
-
-		if (other.name_.toString() == this.name_.toString()) {
-			return true;
-		} else if (other instanceof UnionMemberDecl && other.parent_.name.toString() == this.name_.toString()) {
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	evalMember(name) {
-		let i = this.findMember(name);
-
-		if (i == -1) {
-			name.referenceError("\'" + this.name_.toString() + "::" + name.toString() + "\' undefined");
-		} else {
-			return this.members_[i].eval();
-		}
-	}
-
-	eval() {
-		if (this.cache_ != null) {
-			return this.cache_;
-		}
-
-		for (let member of this.members_) {
-			let memberType = member.eval();
-
-			assertNoFunctions(memberType);
-		}
-
-		this.cache_ = this;
-
-		return this.cache_;
-	}
-}
-
-class UnionMemberDecl extends DataTypeDecl {
-	constructor(name, fields) {
-		super(name.loc, name, fields);
-		this.parent_ = null;
-	}
-
-	get constrIndex() {
-		let i = this.parent_.findMember(this.name);
-
-		assert(i >= 0);
-
-		return i;
-	}
-
-	toString() {
-		return this.toStringInternal();
-	}
-
-	link(scope) {
-		this.linkFields(scope);
-	}
-
-	eq(other) {
-		// actually check the fields
-		if (!other instanceof UnionMemberDecl) {
-			other = other.eval();
-		}
-
-		if (!other instanceof UnionMemberDecl) {
-			return false;
-		}
-
-		if (other.name_.toString() == this.name_.toString() && other.parent_.name.toString() == this.parent_.name.toString()) {
-			return true;
-		} else {
-			return false;
-		}
-	}
-}
-
-class UnionMemberLiteral extends DataLiteral {
-	constructor(loc, type, fields) {
-		super(loc, type, fields);
-	}
-
-	get constrIndex() {
-		return this.type_.eval().constrIndex;
-	}
-
-	evalInternal() {
-		let unionMemberDecl = this.type_.eval();
-
-		if (!unionMemberDecl instanceof UnionMemberDecl) {
-			this.type_.referenceError("not a union member type");
-		}
-
-		void super.evalInternal();
-
-		return unionMemberDecl;
-	}
-
-	evalData() {
-		let tmp = super.evalData();
-
-		return new ConstrData(this.constrIndex, tmp.fields_);
-	}
-}
-
-class UnionMemberCast extends Expr {
-	constructor(loc, type, expr) {
-		super(loc);
-		assert(type instanceof NamedMemberType);
-		this.type_ = type;
-		this.expr_ = expr;
-	}
-
-	toString() {
-		return `${this.type_.toString()}(${this.expr_.toString()})`;
-	}
-
-	link(scope) {
-		this.type_.link(scope);
-		this.expr_.link(scope);
-	}
-
-	evalInternal() {
-		let type = this.type_.eval();
-
-		let rhsType = this.expr_.eval();
-
-		if (rhsType instanceof DataType) { // cast can cast data
-			return type;
-		} else if (!(rhsType.eq(type))) {
-			this.typeError(`expected ${type.parent_.name.toString()}, got ${rhsType.toString()}`);
-		}
-
-		return type;
-	}
-
-	registerGlobals(registry) {
-		AssertConstrIndex.register(registry);
-
-		this.expr_.registerGlobals(registry);
-	}
-
-	toUntyped() {
-		return `assertConstrIndex(${this.expr_.toUntyped()}, ${this.type_.constrIndex.toString()})`;
-	}
-}
-
-class TypeAliasDecl extends Named {
-	constructor(loc, name, type) {
-		super(loc, name);
-		this.type_ = type;
-	}
-
-	toString() {
-		return "type " + this.name_.toString() + " " + this.type_.toString();
-	}
-
-	link(scope) {
-		this.type_.link(scope);
-
-		scope.setType(this);
-	}
-
-	// evaluate all aliases
-	eval() {
-		return this.type_.eval();
-	}
-
-	eq(other) {
-		return this.type_.eval().eq(other.eval());
-	}
-}
-
-class ConstDecl extends Named {
-	constructor(loc, name, type, expr) {
-		super(loc, name);
-		this.type_ = type;
-		this.expr_ = expr;
-		this.cache_ = null;
-	}
-
-	toString() {
-		return `const ${this.name_.toString()} ${this.type_.toString()} {${this.expr_.toString()}}`;
-	}
-
-	link(scope) {
-		this.type_.link(scope);
-
-		this.expr_.link(scope);
-
-		scope.setValue(this);
-	}
-
-	eval() {
-		let type = this.type_.eval();
-		if (type instanceof FuncType) {
-			this.type_.typeError("invalid const type, can't be function type");
-		}
-
-		let rhs = this.expr_.eval();
-
-		if (!type.eq(rhs)) {
-			this.expr_.typeError(`expected ${type.toString()}, got ${rhs.toString()}`);
-		}
-		
-		this.cache_ = this.expr_.evalData();
-
-		return type;
-	}
-
-	registerGlobals(registry) {
-		// fully expanded during compile-time, so no globals
-	}
-
-	evalData() {
-		return this.cache_;
-	}
-
-	toUntyped() {
-		return fromData(this.cache_.toUntyped(), this.type_.eval());
-	}
-}
-
-class FuncDecl extends Named {
-	// name == null for FuncExpr
-	constructor(loc, name, args, retType, body) {
-		super(loc, name);
-		this.args_ = args;
-		this.retType_ = retType;
-		this.body_ = body;
-		this.recursive_ = false;
-	}
-
-	set recursive(b) {
-		this.recursive_ = b;
-	}
-
-	toString() {
-		let s = "func ";
-		if (this.name_ != null) {
-			s += this.name_.toString();
-		}
-
-		let sArgs = [];
-		for (let arg of this.args_) {
-			let [name, type] = arg;
-
-			sArgs.push(name.toString() + " " + type.toString());
-		}
-
-		return s + "(" + sArgs.join(", ") + ") " + this.retType_.toString() + " {" + this.body_.toString() + "}";
-	}
-
-	link(scope) {
-		// TODO: allow recursive calls of self
-		let subScope = new FuncScope(scope, this);
-
-		let i = 0;
-		for (let arg of this.args_) {
-			let [name, type] = arg;
-
-			type.link(scope);
-
-			let val = new NamedValue(name, type);
-
-			subScope.setValue(val);
-
-			i++;
-		}
-
-		this.retType_.link(scope);
-
-		this.body_.link(subScope);
-
-		if (this.name_ != null) {
-			scope.setValue(this);
-		}
-
-		subScope.assertAllUsed();
-	}
-
-	eval() {
-		let argTypes = [];
-
-		for (let arg of this.args_) {
-			argTypes.push(arg[1]);
-		}
-
-		let retType = this.retType_.eval();
-
-		assertTypeMatch(retType, this.body_.eval());
-
-		return new FuncType(this.loc, argTypes, retType);
-	}
-
-	registerGlobals(registry) {
-		this.body_.registerGlobals(registry);
-	}
-
-	toUntyped() {
-		let result = "func";
-
-		result += "(";
-
-		let argParts = [];
-
-		for (let arg of this.args_) {
-			let argName = arg[0];
-
-			argParts.push("u_" + argName);
-		}
-
-		result += argParts.join(", ") + "){";
-
-		result += this.body_.toUntyped();
-
-		result += "}";
-
-		return result;
-	}
-}
-
-class NamedValue extends Named {
-	constructor(name, value) {
-		super(name.loc, name);
-		this.value_ = value;
-	}
-
-	eval() {
-		return this.value_.eval();
-	}
-
-	evalData() {
-		return this.value_.evalData();
-	}
-
-	toUntyped() {
-		throw new Error("should only be used as reference");
-	}
-}
-
-class NamedType extends Token {
-	constructor(name) {
-		super(name.loc);
-		this.name_ = name;
-		this.ref_ = null;
-	}
-
-	toString() {
-		return this.name_.toString();
-	}
-
-	link(scope) {
-		let type = scope.getType(this.name_);
-
-		this.ref_ = type;
-	}
-
-	eq(other) {
-		assert(this.ref_ != null);
-
-		return this.ref_.eval().eq(other);
-	}
-
-	eval() {
-		assert(this.ref_ != null);
-
-		return this.ref_.eval();
-	}
-}
-
-class NamedMemberType extends Token {
-	constructor(loc, unionName, memberName) {
-		super(loc);
-		this.unionName_ = unionName;
-		this.memberName_ = memberName;
-		this.ref_ = null; // reference to union type
-	}
-
-	get constrIndex() {
-		return this.ref_.constrIndex;
-	}
-
-	toString() {
-		return this.unionName_.toString() + "::" + this.memberName_.toString();
-	}
-
-	link(scope) {
-		let unionType = scope.getType(this.unionName_);
-
-		if (!unionType instanceof UnionTypeDecl) {
-			this.unionName_.typeError(`in ${this.toString()}: ${this.unionName_.toString()} is not a union type`);
-		}
-
-		let i = unionType.findMember(this.memberName_);
-		if (i == -1) {
-			this.memberName_.referenceError(`in ${this.toString()}: ${this.unionName_.toString()} doesn't have a member named ${this.memberName_.toString()}`);
-		}
-
-		this.ref_ = unionType.members_[i]; // unionType can be retrieved by accessing ref_.parent_
-	}
-
-	eq(other) {
-		assert(this.ref_ != null);
-
-		return this.ref_.eval().eq(other);
-	}
-
-	eval() {
-		assert(this.ref_ != null);
-
-		return this.ref_.eval();
-	}
-}
-
-class ListType extends Token {
-	constructor(loc, itemType) {
-		super(loc);
-		this.itemType_ = itemType;
-	}
-
-	get itemType() {
-		return this.itemType_.eval();
-	}
-	toString() {
-		return "[]" + this.itemType_.toString();
-	}
-
-	link(scope) {
-		this.itemType_.link(scope);
-	}
-
-	eq(other) {
-		if (other instanceof ListType) {
-			if (other.itemType_ == null || this.itemType_ == null) {
-				return true;
-			} else {
-				return (this.itemType_.eq(other.itemType_));
-			}
-		} else {
-			return false;
-		}
-	}
-
-	eval() {
-		return this;
-	}
-}
-
-class FuncType extends Token {
-	constructor(loc, argTypes, retType) {
-		super(loc);
-		this.argTypes_ = argTypes; // list
-		this.retType_  = retType;
-	}
-
-	toString() {
-		return "func (" + this.argTypes_.map(at => at.toString()).join(", ") + ") " + this.retType_.toString();
-	}
-
-	link(scope) {
-		for (let arg of this.argTypes_) {
-			arg.link(scope);
-		}
-
-		this.retType_.link(scope);
-	}
-
-	eq(other) {
-		if (!(other instanceof FuncType)) {
-			return false;
-		} else if (this.argTypes_.length != other.argTypes_.length) {
-			return false;
-		} else if (!this.retType_.eval().eq(other.retType_.eval())) {
-			return false;
-		} else {
-			for (let i = 0; i < this.argTypes_.length; i++) {
-				if (!this.argTypes_[i].eval().eq(other.argTypes_[i].eval())) {
-					return false;
-				}
-			}
-
-			return true;
-		}
-	}
-
-	assertEq(other) {
-		if (!this.eq(other)) {
-			other.loc.typeError("expected \'" + this.toString() + ", got \'" + other.toString());
-		}
-	}
-
-	eval() {
-		return this;
-	}
-
-	evalCall(loc, args) {
-		let n = this.argTypes_.length;
-
-		if (args.length != n) {			
-			loc.typeError("expected " + n.toString() + " arg(s), got " + args.length.toString() + " arg(s)");
-		}
-
-		for (let i = 0; i < n; i++) {
-			assertTypeMatch(this.argTypes_[i].eval(), args[i]);
-		}
-
-		return this.retType_.eval();
-	}
-
-	evalDataCall(loc, args) {
-		loc.typeError("user functions can't be used in data eval");
-	}
-}
-
-// used when empty list are passed into fold
-class AnyType {
-	constructor() {
-	}
-
-	eq(other) {
-		return true;
-	}
-}
-
-class Variable extends Token {
-	constructor(name) {
-		super(name.loc);
-		this.name_ = name;
-		this.ref_  = null;
-	}
-
-	toString() {
-		return this.name_.toString();
-	}
-
-	link(scope) {
-		let ref = scope.getValue(this.name_);
-
-		this.ref_ = ref;
-	}
-
-	eval() {
-		assert(this.ref_ != null);
-
-		return this.ref_.eval();
-	}
-
-	registerGlobals(registry) {
-	}
-
-	evalData() {
-		return this.ref_.evalData();
-	}
-
-	toUntyped() {
-		return "u_" + this.toString();
-	}
-}
-
-function assertNoFunctions(type) {
-	if (type instanceof FuncType) {
-		throw new Error("container can't contain function");
-	} else if (type instanceof DataTypeDecl) {
-		// handled by calling eval on DataTypeDecl itself
-		return;
-	} else if (type instanceof BoolType) {
-		return;
-	} else if (type instanceof IntegerType) {
-		return;
-	} else if (type instanceof ByteArrayType) {
-		return;
-	} else if (type instanceof StringType) {
-		return;
-	} else if (type instanceof ListType) {
-		assertNoFunctions(type.itemType);
-	} else {
-		if (!type instanceof BuiltinType) {
-			throw new Error("internal error: unhandled type " + type.toString());
-		}
-	}
-}
-
-class ListLiteral extends Expr {
-	constructor(loc, itemType, items) {
-		super(loc);
-		this.itemType_ = itemType;
-		this.items_ = items;
-	}
-
-	toString() {
-		return "[]" + this.itemType_.toString() + "{" + this.items_.map(item => item.toString()).join(', ') + "}";
-	}
-
-	link(scope) {
-		this.itemType_.link(scope);
-
-		for (let item of this.items_) {
-			item.link(scope);
-		}
-	}
-
-	evalInternal() {
-		let itemType = this.itemType_.eval();
-
-		for (let item of this.items_) {
-			assertTypeMatch(itemType, item.eval());
-		}
-
-		assertNoFunctions(itemType);
-
-		return new ListType(this.loc, itemType);
-	}
-
-	registerGlobals(registry) {
-		for (let item of this.items_) {
-			item.registerGlobals(registry);
-		}
-	}
-
-	toUntyped() {
-		// unsure if list literals in untyped plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
-		let res = "mkNilData(())";
-
-		// starting from last element, keeping prepending a data version of that item
-		let itemType = this.itemType_.eval();
-
-		for (let i = this.items_.length - 1; i >= 0; i--) {
-			let itemExpr = this.items_[i];
-			res = `mkCons(${toData(itemExpr.toUntyped(), itemType)}, ${res})`;
-		}
-
-		return res;
-	}
-}
-
-class UnaryOperator extends Expr {
-	constructor(symbol, a) {
-		super(symbol.loc);
-		this.symbol_ = symbol;
-		this.a_ = a;
-	}
-
-	toString() {
-		return this.symbol_.toString() + this.a_.toString();
-	}
-
-	link(scope) {
-		this.a_.link(scope);
-	}
-
-	evalInternal() {
-		let op = this.symbol_.toString();
-		let a = this.a_.eval();
-
-		if (op == "+" || op == "-") {
-			if (IntegerType.is(a)) {
-				return new IntegerType(this.symbol_.loc);
-			}
-		} else if (op == "!") {
-			if (BoolType.is(a)) {
-				return new BoolType();
-			}
-		} else {
-			throw new Error("unhandled unary operator");
-		}
-
-		this.symbol_.typeError("invalid operand type for " + op + ": \'" + a.toString() + "\'");
-	}
-
-	registerGlobals(registry) {
-		this.a_.registerGlobals(registry);
-
-		let op = this.symbol_.toString();
-		let a = this.a_.eval();
-
-		if (op == "!" && BoolType.is(a)) {
-			Not.register(registry);
-		}
-	}
-
-	evalData() {
-		let op = this.symbol_.toString();
-
-		let aType = this.a_.eval();
-		let a = this.a_.evalData();
-
-		if (op == "-") {
-			if (IntegerType.is(aType)) {
-				return new IntegerData((-1n)*a.value_);
-			}
-		} else if (op == "+") {
-			if (IntegerType.is(aType)) {
-				return a;
-			}
-		} else if (op == "!") {
-			if (BoolType.is(aType)) {
-				return new IntegerData(a.value_ == 0n ? 1n : 0n);
-			}
-		}
-	}
-
-	toUntyped() {
-		let op = this.symbol_.toString();
-		let a = this.a_.eval();
-		let au = a.toUntyped();
-
-		if (op == "+") {
-			assert(IntegerType.is(a));
-			return au;
-		} else if (op == "-") {
-			assert(IntegerType.is(a));
-			return `multiplyInteger(${au}, -1)`; // the minus sign should be part of literal parsing in the untyped ast builder
-		} else if (op == "!") {
-			assert(BoolType.is(a));
-			return `not(${au})`;
-		} else {
-			throw new Error("unhandled unary operator");
-		}
-	}
-}
-
-class BinaryOperator extends Expr {
-	constructor(symbol, a, b) {
-		super(symbol.loc);
-		this.symbol_ = symbol;
-		this.a_ = a;
-		this.b_ = b;
-	}
-
-	toString() {
-		return this.a_.toString() + this.symbol_.toString() + this.b_.toString();
-	}
-
-	link(scope) {
-		this.a_.link(scope);
-		this.b_.link(scope);
-	}
-
-	evalInternal() {
-		let op = this.symbol_.toString();
-		let a = this.a_.eval();
-		let b = this.b_.eval();
-
-		if (op == "||" || op == "&&") {
-			if (BoolType.is(a) && BoolType.is(b)) {
-				return new BoolType();
-			}
-		} else if (op == "==" || op == "!=") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return new BoolType(this.symbol_.loc);
-			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
-				return new BoolType();
-			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return new BoolType();
-			} else if (DurationType.is(a) && DurationType.is(b)) {
-				return new BoolType();
-			} else if (TxIdType.is(a) && TxIdType.is(b)) {
-				return new BoolType();
-			} else if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
-				return new BoolType();
-			} else if (PubKeyHashType.is(a) && PubKeyHashType.is(b)) {
-				return new BoolType();
-			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
-				return new BoolType();
-			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
-				return new BoolType();
-			} else if (MintingPolicyHashType.is(a) && MintingPolicyHashType.is(b)) {
-				return new BoolType();
-			} else if (ValueType.is(a) && ValueType.is(a)) {
-				return new BoolType();
-			}
-		} else if (op == "<" || op == "<=" || op == ">" || op == ">=") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return new BoolType(this.symbol_.loc);
-			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
-				return new BoolType();
-			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return new BoolType();
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				return new BoolType();
-			}
-		} else if (op == "+") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return new IntegerType(this.symbol_.loc);
-			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
-				return new ByteArrayType();
-			} else if (StringType.is(a) && StringType.is(b)) {
-				return new StringType();
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				return new ValueType();
-			} else if (DurationType.is(a) && DurationType.is(b)) {
-				return new DurationType();
-			} else if (TimeType.is(a) && DurationType.is(b)) {
-				return new TimeType();
-			}
-		} else if (op == "-") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return new IntegerType(this.symbol_.loc);
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				return new ValueType();
-			} else if (DurationType.is(a) && DurationType.is(b)) {
-				return new DurationType();
-			} else if (TimeType.is(a) && DurationType.is(b)) {
-				return new TimeType();
-			}
-		} else if (op == "*" || op == "/" || op == "%") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return new IntegerType(this.symbol_.loc);
-			}
-		} else {
-			throw new Error("unhandled binary operator");
-		}
-
-		this.symbol_.typeError("invalid operand types for " + op + ": \'" + a.toString() + "\' and \'" + b.toString() + "\'");
-	}
-
-	registerGlobals(registry) {
-		let op = this.symbol_.toString();
-		let a = this.a_.eval();
-		let b = this.b_.eval();
-
-		
-		if (op == "!=") {
-			Not.register(registry);
-
-			if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
-				EqualsTxOutputId.register(registry);
-			} else if (PubKeyHashType.is(a) && PubKeyHashType.is(b)) {
-				EqualsHash.register(registry);
-			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
-				EqualsHash.register(registry);
-			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
-				EqualsHash.register(registry);
-			} else if (MintingPolicyHashType.is(a) && MintingPolicyHashType.is(b)) {
-				EqualsHash.register(registry);
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				IsStrictlyEq.register(registry);
-			}
-		} else if (op == "==") {
-			if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
-				EqualsTxOutputId.register(registry);
-			} else if (PubKeyHashType.is(a) && PubKeyHashType.is(b)) {
-				EqualsHash.register(registry);
-			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
-				EqualsHash.register(registry);
-			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
-				EqualsHash.register(registry);
-			} else if (MintingPolicyHashType.is(a) && MintingPolicyHashType.is(b)) {
-				EqualsHash.register(registry);
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				IsStrictlyEq.register(registry);
-			}
-		} else if (op == ">=") {
-			if (ValueType.is(a) && ValueType.is(b)) {
-				IsStrictlyGeq.register(registry);
-			}
-		} else if (op == ">") {
-			if (ValueType.is(a) && ValueType.is(b)) {
-				IsStrictlyGt.register(registry);
-			}
-		} else if (op == "<") {
-			if (ValueType.is(a) && ValueType.is(b)) {
-				IsStrictlyLt.register(registry);
-			}
-		} else if (op == "<=") {
-			if (ValueType.is(a) && ValueType.is(b)) {
-				IsStrictlyLeq.register(registry);
-			}
-		} else if (op == "+") {
-			if (ValueType.is(a) && ValueType.is(b)) {
-				AddValues.register(registry);
-			}
-		} else if (op == "-") {
-			if (ValueType.is(a) && ValueType.is(b)) {
-				SubtractValues.register(registry);
-			}
-		}
-
-		this.a_.registerGlobals(registry);
-		this.b_.registerGlobals(registry);
-	}
-
-	evalData() {
-		// for adding Values
-		let op = this.symbol_.toString();
-		let aType = this.a_.eval();
-		let bType = this.b_.eval();
-
-		// these should be instances MapData
-		let a = this.a_.evalData();
-		let b = this.b_.evalData();
-
-		if (op == "+") {
-			if (IntegerType.is(aType) && IntegerType.is(bType)) {
-				return new IntegerData(a.value_ + b.value_);
-			} else if (ValueType.is(aType) && ValueType.is(bType)) {
-				let total = new Map(); // nested map
-
-				for (let outerMap of [a, b]) {
-					for (let outerPair of outerMap.pairs_) {
-						let mintingPolicyHash = outerPair[0].toHex();
-
-						let innerMap = outerPair[1];
-
-						for (let innerPair of innerMap.pairs_) {
-							let tokenName = innerPair[0].toHex();
-							let amount = innerPair[1].value_; // IntegerData
-
-							if (!amount.isZero()) {
-								if (!total.has(mintingPolicyHash)) {
-									total.set(mintingPolicyHash, new Map());
-								} 
-
-								if (!total.get(mintingPolicyHash).has(tokenName)) {
-									total.get(mintingPolicyHash).set(tokenName, 0);
-								}
-								
-								total.get(mintingPolicyHash).set(tokenName, total.get(mintingPolicyHash).get(tokenName) + amount);
-							}
-						}
-					}
-				}
-
-				let outerPairs = [];
-				for (let item of total) {
-					let [mintingPolicyHash, innerMap] = item;
-
-					let innerPairs = [];
-					for (let innerItem of innerMap) {
-						let [tokenName, amount] = innerItem;
-
-						innerPairs.push([new ByteArrayData(hexToBytes(tokenName)), new IntegerData(amount)]);
-					}
-
-					outerPairs.push([new ByteArrayData(hexToBytes(mintingPolicyHash)), new MapData(innerPairs)]);
-				}
-
-				return new MapData(outerPairs);
-			} else{
-				this.typeError("can't use this binary op at compile-time");
-			}
-		} else if (op == "-") {
-			if (IntegerType.is(aType) && IntegerType.is(bType)) {
-				return new IntegerData(a.value_ - b.value_);
-			} else {
-				this.typeError("can't use this binary op at compile-time");
-			}
-		} else if (op == "*") {
-			if (IntegerType.is(aType) && IntegerType.is(bType)) {
-				return new IntegerData(a.value_*b.value_);
-			} else {
-				this.typeError("can't use this binary op at compile-time");
-			}
-		} else if (op == "/") {
-			if (IntegerType.is(aType) && IntegerType.is(bType)) {
-				return new IntegerData(a.value_/b.value_);
-			} else {
-				this.typeError("can't use this binary op at compile-time");
-			}
-		} else {
-			this.typeError("can't use this binary op at compile-time");
-		}
-	}
-	
-	toUntyped() {
-		let op = this.symbol_.toString();
-		let a = this.a_.eval();
-		let b = this.b_.eval();
-
-		let au = this.a_.toUntyped();
-		let bu = this.b_.toUntyped();
-
-		if (op == "||") {
-			assert(BoolType.is(a) && BoolType.is(b));
-			return `ifThenElse(${au}, func(){true}, func(){${bu}})()`; // deferred evaluation of branches
-		} else if (op == "&&") {
-			assert(BoolType.is(a) && BoolType.is(b));
-			return And.generateCode(au, bu);
-		} else if (op == "==") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return `equalsInteger(${au}, ${bu})`;
-			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
-				return `equalsByteString(${au}, ${bu})`;
-			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return `equalsInteger(unIData(${au}), unIData(${bu}))`;
-			} else if (DurationType.is(a) && DurationType.is(b)) {
-				return `equalsInteger(unIData(${au}), unIData(${bu}))`;
-			} else if (TxIdType.is(a) && TxIdType.is(b)) {
-				return `equalsByteString(unBData(${unData(au, 0, 0)}), unBData(${unData(bu, 0, 0)}))`;
-			} else if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
-				return `equalsTxOutputId(${au}, ${bu})`;
-			} else if (PubKeyHashType.is(a) && PubKeyHashType.is(b)) {
-				return `equalsHash(${au}, ${bu})`;
-			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
-				return `equalsHash(${au}, ${bu})`;
-			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
-				return `equalsHash(${au}, ${bu})`;
-			} else if (MintingPolicyHashType.is(a) && MintingPolicyHashType.is(b)) {
-				return `equalsHash(${au}, ${bu})`;
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				return `isStrictlyEq(${au}, ${bu})`;
-			}
-		} else if (op == "!=") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return `not(equalsInteger(${au}, ${bu}))`;
-			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
-				return `not(equalsByteString(${au}, ${bu}))`;
-			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return `not(equalsInteger(unIData(${au}), unIData(${bu})))`;
-			} else if (DurationType.is(a) && DurationType.is(b)) {
-				return `not(equalsInteger(unIData(${au}), unIData(${bu})))`;
-			} else if (TxIdType.is(a) && TxIdType.is(b)) {
-				return `not(equalsByteString(unBData(${unData(au, 0, 0)}), unBData(${unData(bu, 0, 0)})))`;
-			} else if (TxOutputIdType.is(a) && TxOutputIdType.is(b)) {
-				return `not(equalsTxOutputId(${au}, ${bu}))`;
-			} else if (PubKeyHashType.is(a) && PubKeyHashType.is(b)) {
-				return `not(equalsHash(${au}, ${bu}))`;
-			} else if (ValidatorHashType.is(a) && ValidatorHashType.is(b)) {
-				return `not(equalsHash(${au}, ${bu}))`;
-			} else if (DatumHashType.is(a) && DatumHashType.is(b)) {
-				return `not(equalsHash(${au}, ${bu}))`;
-			} else if (MintingPolicyHashType.is(a) && MintingPolicyHashType.is(b)) {
-				return `not(equalsHash(${au}, ${bu}))`;
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				return `not(isStrictlyEq(${au}, ${bu}))`;
-			}
- 		} else if (op == "<") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return `lessThanInteger(${au}, ${bu})`;
-			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
-				return `lessThanByteString(${au}, ${bu})`;
-			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return `lessThanInteger(unIData(${au}), unIData(${bu}))`;
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				return `isStrictlyLt(${au}, ${bu})`;
-			}
-		} else if (op == "<=") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return `lessThanEqualsInteger(${au}, ${bu})`;
-			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
-				return `lessThanEqualsByteString(${au}, ${bu})`;
-			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return `lessThanEqualsInteger(unIData(${au}), unIData(${bu}))`;
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				return `isStrictlyLeq(${au}, ${bu})`;
-			}
-		} else if (op == ">") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return `ifThenElse(lessThanEqualsInteger(${au}, ${bu}), false, true)`; // doesn't need deferred evaluation of branches
-			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
-				return `ifThenElse(lessThanEqualsByteString(${au}, ${bu}), false, true)`; // doesn't need deferred evaluation of branches
-			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return `ifThenElse(lessThanEqualsInteger(unIData(${au}), unIData(${bu})), false, true)`; // doesn't need deferred evaluation of branches
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				return `isStrictlyGt(${au}, ${bu})`;
-			}
-		} else if (op == ">=") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return `ifThenElse(lessThanInteger(${au}, ${bu}), false, true)`; // doesn't need deferred evaluation of branches
-			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
-				return `ifThenElse(lessThanByteString(${au}, ${bu}), false, true)`; // doesn't need deferred evaluation of branches
-			} else if (TimeType.is(a) && TimeType.is(b)) {
-				return `ifThenElse(lessThanInteger(unIData(${au}), unIData(${bu})), false, true)`; // doesn't need deferred evaluation of branches
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				return `isStrictlyGeq(${au}, ${bu})`;
-			}
-		} else if (op == "+") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return `addInteger(${au}, ${bu})`;
-			} else if (ByteArrayType.is(a) && ByteArrayType.is(b)) {
-				return `appendByteString(${au}, ${bu})`;
-			} else if (StringType.is(a) && StringType.is(b)) {
-				return `appendString(${au},  ${bu})`;
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				return `addValues(${au}, ${bu})`;
-			} else if (DurationType.is(a) && DurationType.is(b)) {
-				return `iData(addInteger(unIData(${au}), unIData(${bu})))`;
-			} else if (TimeType.is(a) && DurationType.is(b)) {
-				return `iData(addInteger(unIData(${au}), unIData(${bu})))`;
-			}
-		} else if (op == "-") {
-			if (IntegerType.is(a) && IntegerType.is(b)) {
-				return `subtractInteger(${au}, ${bu})`;
-			} else if (ValueType.is(a) && ValueType.is(b)) {
-				return `subtractValues(${au}, ${bu})`;
-			} else if (DurationType.is(a) && DurationType.is(b)) {
-				return `iData(subtractInteger(unIData(${au}), unIData(${bu})))`;
-			} else if (TimeType.is(a) && DurationType.is(b)) {
-				return `iData(subtractInteger(unIData(${au}), unIData(${bu})))`;
-			}
-		} else if (op == "*") {
-			assert(IntegerType.is(a) && IntegerType.is(b));
-			return `multiplyInteger(${au}, ${bu})`;
-		} else if (op == "/") {
-			assert(IntegerType.is(a) && IntegerType.is(b));
-			return `divideInteger(${au}, ${bu})`;
-		} else if (op == "%") {
-			assert(IntegerType.is(a) && IntegerType.is(b));
-			return `modInteger(${au}, ${bu})`;
-		} else {
-			throw new Error("unhandled binary operator");
-		}
-
-		throw new Error("should've been caught before");
-	}
-}
-
-class Parens extends Expr {
-	constructor(loc, expr) {
-		super(loc);
-		this.expr_ = expr;
-	}
-
-	toString() {
-		return "(" + this.expr_.toString() + ")";
-	}
-
-	link(scope) {
-		this.expr_.link(scope);
-	}
-
-	evalInternal() {
-		return this.expr_.eval();
-	}
-
-	evalData() {
-		return this.expr_.evalData();
-	}
-
-	registerGlobals(registry) {
-		this.expr_.registerGlobals(registry);
-	}
-
-	toUntyped() {
-		return this.expr_.toUntyped();
-	}
-}
-
-class AssignExpr extends Expr {
-	constructor(loc, name, type, rhs, lambda) {
-		super(loc);
-		this.name_ = name;
-		this.type_ = type;
-		this.rhs_  = rhs;
-		this.lambda_ = lambda;
-	}
-
-	toString() {
-		let lambdaStr = this.lambda_.toString();
-		assert(lambdaStr != undefined);
-
-		return this.name_.toString() + " " + this.type_.toString() + " = " + this.rhs_.toString() + "; " + lambdaStr;
-	}
-
-	link(scope) {
-		let subScope = new Scope(scope);
-
-		this.type_.link(scope);
-		this.rhs_.link(scope);
-
-		subScope.setValue(new NamedValue(this.name_, this.type_));
-
-		this.lambda_.link(subScope);
-
-		subScope.assertAllUsed();
-	}
-
-	evalInternal() {
-		let type = this.type_.eval();
-		let rhs = this.rhs_.eval();
-
-		assertTypeMatch(type, rhs);
-
-		return this.lambda_.eval();
-	}
-
-	registerGlobals(registry) {
-		this.rhs_.registerGlobals(registry);
-		this.lambda_.registerGlobals(registry);
-	}
-
-	toUntyped() {
-		return `func(u_${this.name_.toString()}){${this.lambda_.toUntyped()}}(${this.rhs_.toUntyped()})`;
-	}
-}
-
-class FuncExpr extends FuncDecl {
-	constructor(loc, args, retType, body) {
-		super(loc, null, args, retType, body);
-	}
-}
-
-class BranchExpr extends Expr {
-	constructor(loc, conditions, blocks) {
-		assert(blocks.length == conditions.length + 1);
-		assert(blocks.length > 1);
-
-		super(loc);
-		this.conditions_ = conditions;
-		this.blocks_ = blocks;
-	}
-
-	toString() {
-		let s = "";
-		for (let i = 0; i < this.conditions_.length; i++) {
-			s += `if (${this.conditions_[i].toString()}) {${this.blocks_[i].toString()}} else `;
-		}
-
-		s += `{${this.blocks_[this.conditions_.length].toString()}}`;
-
-		return s;
-	}
-
-	link(scope) {
-		for (let c of this.conditions_) {
-			c.link(scope);
-		}
-
-		for (let b of this.blocks_) {
-			b.link(scope);
-		}
-	}
-
-	evalInternal() {
-		for (let c of this.conditions_) {
-			let cType = c.eval();
-
-			if (!BoolType.is(cType)) {
-				c.typeError("invalid condition type in branch expression: \'" + cType.toString() + "\'");
-			}
-		}
-
-		let blockType = null;
-		for (let b of this.blocks_) {
-			let bType = b.eval();
-
-			if (blockType == null) {
-				blockType = bType;
-			} else {
-				if (!blockType.eq(bType)) {
-					b.typeError("inconsistent branch block types");
-				}
-			}
-		}
-
-		return blockType;
-	}
-
-	registerGlobals(registry) {
-		for (let c of this.conditions_) {
-			c.registerGlobals(registry);
-		}
-
-		for (let b of this.blocks_) {
-			b.registerGlobals(registry);
-		}
-	}
-
-	toUntyped() {
-		let n = this.conditions_.length;
-
-		// each branch actually returns a function to allow deferred evaluation
-		let res = `func(){${this.blocks_[n].toUntyped()}}`;
-
-		for (let i = n-1; i >= 0; i--) {
-			res = `ifThenElse(${this.conditions_[i].toUntyped()}, func(){${this.blocks_[i].toUntyped()}}, func(){${res}()})`;
-		}
-
-		return res + "()";
-	}
-}
-
-class SelectExpr extends Expr {
-	constructor(loc, expr, cases) {
-		super(loc);
-		this.expr_ = expr;
-		this.cases_ = cases;
-	}
-
-	toString() {
-		return `select(${this.expr_.toString()}) ${this.cases_.map(c => c.toString()).join(" ")}`;
-	}
-
-	link(scope) {
-		this.expr_.link(scope);
-
-		for (let c of this.cases_) {
-			c.link(scope);
-		}
-	}
-
-	evalInternal() {
-		let expr = this.expr_.eval();
-
-		if (!expr instanceof UnionTypeDecl) {
-			this.expr_.typeError("not a union type");
-		}
-
-		let commonCaseType = null;
-		for (let c of this.cases_) {
-			let caseType = c.eval(expr);
-
-			if (commonCaseType == null) {
-				commonCaseType = caseType;
-			} else {
-				if (!commonCaseType.eq(caseType)) {
-					if (commonCaseType instanceof UnionMemberDecl) {
-						if (commonCaseType.parent_.eq(caseType)) {
-							commonCaseType = commonCaseType.parent_;
-						} else {
-							c.typeError("inconsistent return type");
-						}
-					} else {
-						c.typeError("inconsistent return type");
-					}
-				}
-			}
-		}
-
-		assert(commonCaseType != null);
-
-		if (this.cases_[this.cases_.length-1].type_ != null && expr.members_.length > this.cases_.length) {
-			this.typeError("insufficient coverage in select expression");
-		}
-
-		return commonCaseType;
-	}
-
-	registerGlobals(registry) {
-		this.expr_.registerGlobals(registry);
-
-		for (let c of this.cases_) {
-			c.registerGlobals(registry);
-		}
-	}
-
-	toUntyped() {
-		let n = this.cases_.length;
-
-		let res = this.cases_[n-1].toUntyped();
-
-		for (let i = n-2; i >= 0; i--) {
-			res = `ifThenElse(equalsInteger(i, ${this.cases_[i].type_.constrIndex.toString()}), func(){${this.cases_[i].toUntyped()}}, func(){${res}})()`;
-		}
-
-		return `func(e) {
-			(
-				func(i) {
-					${res}
-				}(fstPair(unConstrData(e)))
-			)(e)
-		}(${this.expr_.toUntyped()})`;
-	}
-}
-
-class SelectCase extends Token {
-	constructor(loc, varName, type, body) {
-		super(loc);
-		this.varName_ = varName;
-		this.type_ = type;
-		this.body_ = body;
-	}
-
-	toString() {
-		if (this.type_ == null) {
-			return `default {${this.body_.toString()}}`;
-		} else if (this.varName_ == null) {
-			return `case ${this.type_.toString()} {${this.body_.toString()}}`
-		} else {
-			return `case (${this.varName_.toString()} ${this.type_.toString()}) {${this.body_.toString()}}`;
-		}
-	}
-
-	link(scope) {
-		// TODO: allow recursive calls of self
-		let caseScope = new Scope(scope);
-
-		if (this.type_ != null) {
-			this.type_.link(scope);
-
-			if (this.varName_ != null) {
-				caseScope.setValue(new NamedValue(this.varName_, this.type_));
-			}
-		} 
-
-		this.body_.link(caseScope);
-
-		caseScope.assertAllUsed();
-	}
-
-	eval(expr) {
-		if (this.type_ != null) {
-			assert(expr.eq(this.type_.eval()));
-		}
-
-		return this.body_.eval();
-	}
-
-	registerGlobals(registry) {
-		this.body_.registerGlobals(registry);
-	}
-
-	toUntyped() {
-		return `func(u_${this.varName_ != null ? this.varName_.toString() : "_"}){${this.body_.toUntyped()}}`;
-	}
-}
-
-class CallExpr extends Expr {
-	constructor(loc, lhs, args) {
-		super(loc);
-		this.lhs_ = lhs;
-		this.args_ = args;
-	}
-
-	toString() {
-		return this.lhs_.toString() + "(" + this.args_.map(a => a.toString()).join(", ") + ")";
-	}
-
-	link(scope) {
-		this.lhs_.link(scope);
-
-		for (let arg of this.args_) {
-			arg.link(scope);
-		}
-	}
-
-	evalInternal() {
-		let lhs = this.lhs_.eval();
-
-		if (! ((lhs instanceof FuncType) || (lhs instanceof BuiltinFunc))) {
-			this.lhs_.typeError("\'" + this.lhs_.toString() + "\' not callable");
-		}
-
-		let args = [];
-		for (let a of this.args_) {
-			args.push(a.eval());
-		}
-
-		return lhs.evalCall(this.loc, args);
-	}
-
-	evalData() {
-		let args = [];
-
-		for (let arg of this.args_) {
-			args.push(arg.evalData());
-		}
-
-		this.lhs_.evalDataCall(this.loc, args);
-	}
-
-	registerGlobals(registry) {
-		this.lhs_.registerGlobals(registry);
-		for (let a of this.args_) {
-			a.registerGlobals(registry);
-		}
-	}
-
-	toUntyped() {
-		if (this.lhs_ instanceof Variable) {
-			if (this.lhs_.ref_ instanceof FuncDecl) {
-				return `u_${this.lhs_.ref_.name.toString()}(${this.args_.map(a => a.toUntyped()).join(", ")})`;
-			}
-		}
-
-		return `${this.lhs_.toUntyped()}(${this.args_.map(a => a.toUntyped()).join(", ")})`;
-	}
-}
-
-class BuiltinCall extends Expr {
-	constructor(name, args, obj) {
-		super(name.loc);
-		this.name_ = name;
-		this.args_ = args;
-		this.obj_  = obj; // handles the actual type check etc.
-	}
-
-	toString() {
-		return this.name_ + "(" + this.args_.map(a => a.toString()).join(", ") + ")";
-	}
-
-	link(scope) {
-		for (let arg of this.args_) {
-			arg.link(scope);
-		}
-	}
-
-	evalArgTypes() {
-		let args = [];
-		for (let a of this.args_) {
-			args.push(a.eval());
-		}
-
-		return args;
-	}
-
-	evalInternal() {
-		let args = this.evalArgTypes();
-
-		return this.obj_.evalCall(this.loc, args);
-	}
-
-	evalData() {
-		let args = this.args_.map(a => a.evalData());
-		
-		return this.obj_.evalDataCall(this.loc, args, this.evalArgTypes());
-	}
-
-	registerGlobals(registry) {
-		this.obj_.registerGlobals(registry, this.evalArgTypes());
-
-		for (let a of this.args_) {
-			a.registerGlobals(registry);
-		}
-	}
-
-	toUntyped() {		
-		return this.obj_.toUntyped(this.args_);
-	}
-}
-
-// turn a value from `data` type into whatever is needed
-function fromData(str, type) {
-	// convert to the relevant type
-	if (type instanceof IntegerType) {
-		return `unIData(${str})`;
-	} else if (type instanceof ByteArrayType) {
-		return `unBData(${str})`;
-	} else if (type instanceof StringType) {
-		return `decodeUtf8(unBData(${str}))`;
-	} else if (type instanceof BoolType) {
-		return `ifThenElse(equalsInteger(fstPair(unConstrData(${str})), 0), false, true)`; // doesn't need deferred evaluation
-	} else if (type instanceof ListType) {
-		return `unListData(${str})`; // list always contains only data in the final code
-	} else {
-		return str; // remains data
-	}
-}
-
-// turn a value from a primitive type into data
-function toData(str, type) {
-	if (type instanceof IntegerType) {
-		return `iData(${str})`;
-	} else if (type instanceof ByteArrayType) {
-		return `bData(${str})`;
-	} else if (type instanceof StringType) {
-		return `bData(encodeUtf8(${str}))`;
-	} else if (type instanceof BoolType) {
-		return `constrData(ifThenElse(${str}, 1, 0), mkNilData(()))`; // doesn't need deferred evaluation
-	} else if (type instanceof ListType) {
-		// assuming list is also a list of data
-		return `listData(${str})`;
-	} else {
-		return str; // remains data
-	}
-}
-
-// dataExpr is a string
-function unData(dataExpr, iConstr, iField, errorExpr = "error()") {
-	let inner = "sndPair(pair)";
-	for (let i = 0; i < iField; i++) {
-		inner = `tailList(${inner})`;
-	}
-
-	// deferred evaluation of ifThenElse branches
-	return `func(pair){
-		ifThenElse(
-			equalsInteger(fstPair(pair), ${iConstr}), 
-			func(){headList(${inner})}, 
-			func(){${errorExpr}}
-		)()
-	}(unConstrData(${dataExpr}))`;
-}
-
-// dataExpr is a string
-function unDataVerbose(dataExpr, constrName, iConstr, iField) {
-	if (!DEBUG) {
-		return unData(dataExpr, iConstr, iField);
-	} else {
-		return unData(dataExpr, iConstr, iField, `verboseError(appendString("bad constr for ${constrName}, want ${iConstr.toString()} but got ", showInteger(fstPair(pair))))`)
-	}
-}
-
-function registerUnDataVerbose(registry) {
-	if (DEBUG) {
-		VerboseError.register(registry);
-		ShowInteger.register(registry);
-	}
-}
-
-// also works for UnionMemberDecl
-class MemberExpr extends Expr {
-	constructor(loc, lhs, name) {
-		super(loc);
-		this.lhs_ = lhs;
-		this.name_ = name;
-	}
-	
-	toString() {
-		return this.lhs_ + "." + this.name_.toString();
-	}
-
-	link(scope) {
-		this.lhs_.link(scope);
-	}
-
-	evalInternal() {
-		let lhs = this.lhs_.eval();
-
-		if (!(lhs instanceof DataTypeDecl)) {
-			this.typeError(`\'${this.lhs_}\' is not a data-type but a \'${lhs.toString()}\'`);
-		}
-
-		return lhs.evalMember(this.name_);
-	}
-
-	registerGlobals(registry) {
-		registerUnDataVerbose(registry);
-
-		this.lhs_.registerGlobals(registry);
-	}
-
-	toUntyped() {
-		let lhs = this.lhs_.eval();
-
-		let iField = lhs.findField(this.name_);
-
-		assert(iField != -1);
-
-		let inner = `sndPair(${this.lhs_.toUntyped()})`;
-		for (let i = 0; i < iField; i++) {
-			inner = `tailList(${inner})`;
-		}
-
-		// member access is always for structs, which are always `data` -> (<index>, []data)
-		// constructor index is irrelevant here because we know the exact type
-		return fromData(`headList(${inner})`, this.eval());
-	}
-}
-
-class BuiltinType extends Named {
-	// name is string
-	constructor(loc, name) {
-		if (isString(name)) {
-			name = new Word(Location.dummy(), name);
-		}
-
-		super(loc, name);
-	}
-
-	isBuiltin() {
-		return true;
-	}
-
-	toString() {
-		return this.name_.toString();
-	}
-
-	// eval is the typeEvaluation of each expression, type checking is also done within this function
-	eval() {
-		return this;
-	}
-
-	get used() {
-		return true;
-	}
-}
-
-class IntegerType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "Integer");
-	}
-
-	eq(other) {
-		other = other.eval();
-
-		return other instanceof IntegerType;
-	}
-
-	static assert(x) {
-		assert((new IntegerType()).eq(x), "expected Integer, got " + x.eval().toString());
-	}
-
-	static is(x) {
-		return (new IntegerType()).eq(x.eval());
-	}
-}
-
-class BoolType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "Bool");
-	}
-
-	eq(other) {
-		other = other.eval();
-
-		return other instanceof BoolType;
-	}
-
-	static assert(x) {
-		assert((new BoolType()).eq(x), "expected Bool, got " + x.eval().toString());
-	}
-
-	static is(x) {
-		return (new BoolType()).eq(x);
-	}
-}
-
-class StringType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "String");
-	}
-
-	eq(other) {
-		other = other.eval();
-
-		return other instanceof StringType;
-	}
-
-	static assert(x) {
-		assert((new StringType()).eq(x), "expected String , got " + x.eval().toString());
-	}
-
-	static is(x) {
-		return (new StringType()).eq(x);
-	}
-}
-
-class ByteArrayType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "ByteArray");
-	}
-
-	eq(other) {
-		other = other.eval();
-
-		return other instanceof ByteArrayType;
-	}
-
-	static assert(x) {
-		assert((new ByteArrayType()).eq(x), "expected ByteArray, got " + x.eval().toString());
-	}
-
-	static is(x) {
-		return (new ByteArrayType()).eq(x);
-	}
-}
-
-class ScriptContextType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "ScriptContext");
-	}
-
-	eq(other) {
-		other = other.eval();
-
-		return other instanceof ScriptContextType;
-	}
-}
-
-class TxType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "Tx");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof TxType;
-	}
-}
-
-class TxIdType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "TxId");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof TxIdType;
-	}
-
-	static is(x) {
-		return (new TxIdType()).eq(x);
-	}
-}
-
-class TxInputType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "TxInput");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof TxInputType;
-	}
-}
-
-class TxOutputType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "TxOutput");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof TxOutputType;
-	}
-
-	static is(x) {
-		return (new TxOutputType()).eq(x);
-	}
-}
-
-class TxOutputIdType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "TxOutputId");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof TxOutputIdType;
-	}
-
-	static is(x) {
-		return (new TxOutputIdType()).eq(x);
-	}
-}
-
-class TimeRangeType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "TimeRange");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof TimeRangeType;
-	}
-}
-
-class TimeType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "Time");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof TimeType; 
-	}
-
-	static is(x) {
-		return (new TimeType()).eq(x);
-	}
-}
-
-class DurationType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "Duration");
-	}
-	
-	eq(other) {
-		other = other.eval();
-		return other instanceof DurationType; 
-	}
-
-	static is(x) {
-		return (new DurationType()).eq(x);
-	}
-}
-
-class PubKeyHashType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "PubKeyHash");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof PubKeyHashType;
-	}
-
-	static is(x) {
-		return (new PubKeyHashType()).eq(x);
-	}
-}
-
-class ValidatorHashType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "ValidatorHash");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof ValidatorHashType;
-	}
-
-	static is(x) {
-		return (new ValidatorHashType()).eq(x);
-	}
-}
-
-class DatumHashType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "DatumHash");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof DatumHashType;
-	}
-
-	static is(x) {
-		return (new DatumHashType()).eq(x);
-	}
-}
-
-class MintingPolicyHashType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "MintingPolicyHash");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof MintingPolicyHashType;
-	}
-
-	static is(x) {
-		return (new MintingPolicyHashType()).eq(x);
-	}
-}
-
-class ValueType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "Value");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof ValueType; 
-	}
-
-	static is(x) {
-		return (new ValueType()).eq(x);
-	}
-}
-
-class DataType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "Data");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof DataType; 
-	}
-
-	static is(x) {
-		return (new DataType()).eq(x);
-	}
-}
-
-class AddressType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "Address");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof AddressType;
-	}
-}
-
-class CredentialType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "Credential");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof CredentialType;
-	}
-}
-
-class AssetClassType extends BuiltinType {
-	constructor(loc) {
-		super(loc, "AssetClass");
-	}
-
-	eq(other) {
-		other = other.eval();
-		return other instanceof AssetClassType;
-	}
-}
-
-class BuiltinFunc extends Named {
-	constructor(name, argTypes = [], retType = null, deps = []) {
-		super(Location.dummy(), new Word(Location.dummy(), name));
-
-		this.argTypes_ = argTypes;
-		this.retType_ = retType;
-		this.deps_ = deps;
-	}
-
-	get name() {
-		return super.name.toString();
-	}
-
-	isBuiltin() {
-		return true;
-	}
-	
-	link(scope) {
-	}
-
-	evalCall(loc, args) {
-		if (args.length != this.argTypes_.length) {
-			loc.typeError(this.name + "() expects " + this.argTypes_.length + " arg(s), got " + args.length.toString() + " arg(s)");
-		}
-
-		for (let i = 0; i < args.length; i++) {
-			let argType = args[i].eval();
-			let expected =  this.argTypes_[i];
-
-			if (!expected.eq(argType)) {
-				loc.typeError("invalid argument " + (i+1).toString() + " type for " + this.name + "(): expected \'" + expected.toString() + "\', got \'" + argType.toString() + "\'");
-			}
-		}
-
-		return this.retType_;
-	}
-
-	evalDataCall(loc, args) {
-		loc.typeError("this builtinFunc can't be used in data eval");
-	}
-
-	eval() {
-		return this;
-	}
-
-	registerGlobals(registry) {
-	}
-
-	get deps() {
-		return this.deps_;
-	}
-}
-
-class Not extends BuiltinFunc {
-	constructor() {
-		super("not");
-	}
-
-	static register(registry) {
-		registry.register("not", "func(b){ifThenElse(b, false, true)}"); // doesn't need deferred evaluation of ifThenElse branches
-	}
-}
-
-class And extends BuiltinFunc {
-	constructor() {
-		super("and");
-	}
-
-	static generateCode(a, b) {
-		return `ifThenElse(
-			${a},
-			func(){${b}},
-			func(){false}
-		)()`;
-	}
-
-	static register(registry) {
-		// deferred evaluation of ifThenElse branches
-		registry.register("and", `func(a, b){
-			${And.generateCode("a", "b")}
-		}`);
-	}	
-}
-
-class Cast extends BuiltinFunc {
-	constructor(name) {
-		super(name);
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 1) {
-			loc.typeError(`${this.name}() expects 1 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let dstType = this.name.toString();
-		if (dstType == "Integer") {
-			if (BoolType.is(args[0])) {
-				return new IntegerType();
-			}
-		} else if (dstType == "ByteArray") {
-			if (StringType.is(args[0])) {
-				return new ByteArrayType();
-			}
-		} else if (dstType == "String") {
-			if (ByteArrayType.is(args[0])) {
-				return new StringType();
-			}
-		}
-
-		loc.typeError(`invalid arg type for ${this.name}(): got \'${args[0].toString()}\'`);
-	}
-
-	registerGlobals(registry, argTypes) {
-	}
-
-	toUntyped(args) {
-		let argType = args[0].eval();
-		let dstType = this.name.toString();
-		let au = args[0].toUntyped();
-
-		if (dstType == "Integer") {
-			assert(BoolType.is(argType));
-			return `ifThenElse(${au}, 1, 0)`; // doesn't need deferred evaluation
-		} else if (dstType == "ByteArray") {
-			assert(StringType.is(argType));
-			return `encodeUtf8(${au})`;
-		} else if (dstType == "String") {
-			if (ByteArrayType.is(argType)) {
-				return `decodeUtf8(${au})`;
-			} else {
-				throw new Error("can't cast to String");
-			}
-		} else {
-			throw new Error("unhandled cast");
-		}
-	}
-}
-
-// turn things into their String representation
-class Show extends BuiltinFunc {
-	constructor() {
-		super("show");
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 1) {
-			loc.typeError(`${this.name}() expects 1 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-		
-		if (IntegerType.is(args[0])) {
-			return new StringType();
-		} else if (BoolType.is(args[0])) {
-			return new StringType();
-		} else if (TimeType.is(args[0])) {
-			return new StringType();
-		} else if (ByteArrayType.is(args[0])) {
-			return new StringType();
-		}
-
-		loc.typeError(`invalid arg type for ${this.name}(): got \'${args[0].toString()}\'`);
-	}
-
-	registerGlobals(registry, argTypes) {
-		if (IntegerType.is(argTypes[0]) || TimeType.is(argTypes[0])) {
-			ShowInteger.register(registry);
-		} else if (ByteArrayType.is(argTypes[0])) {
-			ShowByteArray.register(registry);
-		} 
-	}
-
-	evalDataCall(loc, args, argTypes) {
-		let type = argTypes[0];
-		let s;
-
-		if (IntegerType.is(type)) {
-			s = args[0].value_.toString();
-		} else if (BoolType.is(type)) {
-			s = args[0].value_ == 0 ? "false" : "true";
-		} else if (TimeType.is(type)) {
-			s = args[0].value_.toString();
-		} else if (ByteArrayType.is(type)) {
-			s = args[0].toHex();
-		} else {
-			throw new Error("unhandled type for const eval of show");
-		}
-
-		return new ByteArrayData(stringToBytes(s));
-	}
-
-	toUntyped(args) {
-		let argType = args[0].eval();
-		let au = args[0].toUntyped();
-
-		if (IntegerType.is(argType)) {
-			return `showInteger(${au})`;
-		} else if (BoolType.is(argType)) {
-			return `ifThenElse(${au}, "true", "false")`;
-		} else if (TimeType.is(argType)) {
-			return `showInteger(unIData(${au}))`;
-		} else if (ByteArrayType.is(argType)) {
-			return `showByteArray(${au})`;
-		} else {
-			throw new Error("can't show as String");
-		}
-	}
-}
-
-class DataCast extends BuiltinFunc {
-	constructor(typeDecl) {
-		super(typeDecl.name, [new DataType()], typeDecl);
-		this.typeDecl_ = typeDecl;
-	}
-
-	// TODO: special checks when in DEBUG mode
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class MakeTime extends BuiltinFunc {
-	constructor() {
-		super("Time", [new IntegerType()], new TimeType());
-	}
-
-	static register(registry) {
-		registry.register("Time", `func(i){iData(i)}`);
-	}
-
-	registerGlobals(registry) {
-		MakeTime.register(registry);
-	}
-
-	evalDataCall(loc, args) {
-		return args[0];
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-// milliseconds
-class MakeDuration extends BuiltinFunc {
-	constructor() {
-		super("Duration", [new IntegerType()], new DurationType());
-	}
-
-	static register(registry) {
-		registry.register("Duration", `func(i){iData(i)}`);
-	}
-
-	registerGlobals(registry) {
-		MakeDuration.register(registry);
-	}
-
-	evalDataCall(loc, args) {
-		return args[0];
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-// Distinct Hash types
-//  * PubKeyHash
-//  * ValidatorHash
-//  * DatumHash
-//  * MintingPolicyHash (identical to CurrencySymbol, but probably a less confusing name)
-//  * RedeemerHash (will be implemented later)
-//  * StakeValidatorHash (what is this?)
-//  * ScriptHash (what is this?)
-class MakePubKeyHash extends BuiltinFunc {
-	constructor() {
-		super("PubKeyHash", [new ByteArrayType()], new PubKeyHashType());
-	}
-
-	static register(registry) {
-		registry.register("PubKeyHash", `func(b){bData(b)}`);
-	}
-
-	registerGlobals(registry) {
-		MakePubKeyHash.register(registry);
-	}
-
-	evalDataCall(loc, args) {
-		return args[0];
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class MakeValidatorHash extends BuiltinFunc {
-	constructor() {
-		super("ValidatorHash", [new ByteArrayType()], new ValidatorHashType());
-	}
-
-	static register(registry) {
-		registry.register("ValidatorHash", `func(b){bData(b)}`);
-	}
-
-	registerGlobals(registry) {
-		MakeValidatorHash.register(registry);
-	}
-
-	evalDataCall(loc, args) {
-		return args[0];
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class MakeDatumHash extends BuiltinFunc {
-	constructor() {
-		super("DatumHash", [new ByteArrayType()], new DatumHashType());
-	}
-
-	static register(registry) {
-		registry.register("DatumHash", `func(b){bData(b)}`);
-	}
-
-	registerGlobals(registry) {
-		MakeDatumHash.register(registry);
-	}
-
-	evalDataCall(loc, args) {
-		return args[0];
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class MakeMintingPolicyHash extends BuiltinFunc {
-	constructor() {
-		super("MintingPolicyHash", [new ByteArrayType()], new MintingPolicyHashType());
-	}
-
-	static register(registry) {
-		registry.register("MintingPolicyHash", `func(b){bData(b)}`);
-	}
-
-	registerGlobals(registry) {
-		MakeMintingPolicyHash.register(registry);
-	}
-
-	evalDataCall(loc, args) {
-		return args[0];
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-// builtins are always inlined
-class Fold extends BuiltinFunc {
-	constructor() {
-		super("fold");
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 3) {
-			loc.typeError(`${this.name}() expects 3 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let startType = args[1].eval();
-		let lstType = args[2].eval();
-
-		if (!(lstType instanceof ListType)) {
-			loc.typeError(`${this.name} expects list for arg 3, got \'${lstType.toString()}\'`);
-		}
-
-		let itemType = lstType.itemType;
-
-		if (itemType == null) {
-			itemType = new AnyType();
-		}
-
-		let fnType = new FuncType(loc, [startType, itemType], startType);
-
-		fnType.assertEq(args[0].eval());
-
-		return startType;
-	}
-
-	static register(registry) {
-		// deferred evaluation of ifThenElse branches
-		registry.register("fold", `
-		func(fn, z, lst){
-			func(self){
-				self(self, fn, z, lst)
-			}(
-				func(self, fn, z, lst){
-					ifThenElse(
-						nullList(lst), 
-						func(){z}, 
-						func(){self(self, fn, fn(z, headList(lst)), tailList(lst))}
-					)()
-				}
-			)
-		}`)
-	}
-
-	registerGlobals(registry) {
-		Fold.register(registry);
-	}
-
-	toUntyped(args) {
-		let a = args[0].toUntyped();
-		let b = args[1].toUntyped();
-		let c = args[2].toUntyped();
-
-		let itemType = args[2].eval().itemType;
-
-		// list always contains data values, so every item must be converted into type expected by arg0
-		return `${this.name}(func(prev, item) {${a}(prev, ${fromData("item", itemType)})}, ${b}, ${c})`;
-	}
-}
-
-class Filter extends BuiltinFunc {
-	constructor() {
-		super("filter");
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 2) {
-			loc.typeError(`${this.name}() expects 2 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let lstType = args[1].eval();
-
-		if  (!lstType instanceof ListType) {
-			loc.typeError(`${this.name} expects list for arg 2, got \'${lstType.toString()}\'`);
-		}
-
-		let itemType = lstType.itemType;
-		if (itemType == null) {
-			itemType = new AnyType();
-		}
-
-		let fnType = new FuncType(loc, [itemType], new BoolType());
-
-		fnType.assertEq(args[0].eval());
-
-		return new ListType(loc, lstType.itemType);
-	}
-
-	static register(registry) {
-		// cant use the standard fold, because that would reverse the list
-
-		// deferred evaluation of ifThenElse branches
-		registry.register("filter", `
-		func(fn, lst) {
-			func(self){
-				self(self, fn, lst)
-			}(
-				func(self, fn, lst){
-					ifThenElse(
-						nullList(lst), 
-						func(){mkNilData(())}, 
-						func(){ifThenElse(
-							fn(headList(lst)), 
-							func(){mkCons(headList(lst), self(self, fn, tailList(lst)))}, 
-							func(){self(self, fn, tailList(lst))}
-						)()}
-					)()
-				}
-			)
-		}`);
-	}
-
-	registerGlobals(registry) {
-		Filter.register(registry);
-	}
-
-	toUntyped(args) {
-		let a = args[0].toUntyped();
-		let b = args[1].toUntyped();
-
-		let itemType = args[1].eval().itemType;
-
-		// list always contains data, so its content must be converted to type expected by arg0
-		return `${this.name}(func(item){${a}(${fromData("item", itemType)})}, ${b})`;
-	}
-}
-
-// calls error if not found
-class Find extends BuiltinFunc {
-	constructor() {
-		super("find");
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 2) {
-			loc.typeError(`${this.name}() expects 3 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let lstType = args[1].eval();
-
-		if (!(lstType instanceof ListType)) {
-			loc.typeError(`${this.name} expects list for arg 2, got \'${lstType.toString()}\'`);
-		}
-
-		let itemType = lstType.itemType;
-
-		if (itemType == null) {
-			loc.typeError("can't find in empty list");
-		}
-
-		let fnType = new FuncType(loc, [itemType], new BoolType());
-
-		fnType.assertEq(args[0].eval());
-
-		return itemType;
-	}
-
-	static register(registry) {
-		// deferred evaluation of ifThenElse branches
-		registry.register("find", `
-		func(fn, lst){
-			func(self){
-				self(self, fn, lst)
-			}(
-				func(self, fn, lst) {
-					ifThenElse(
-						nullList(lst), 
-						func(){error()}, 
-						func(){ifThenElse(
-							fn(headList(lst)), 
-							func(){headList(lst)}, 
-							func(){self(self, fn, tailList(lst))}
-						)()}
-					)()
-				}
-			)
-		}`);
-	}
-
-	registerGlobals(registry) {
-		Find.register(registry);
-	}
-
-	toUntyped(args) {
-		let a = args[0].toUntyped();
-		let b = args[1].toUntyped();
-
-		let itemType = args[1].eval().itemType;
-
-		// list always contains data, so its content must be converted to type expected by arg0
-		return `${this.name}(func(item){${a}(${fromData("item", itemType)})}, ${b})`;
-	}
-}
-
-class Contains extends BuiltinFunc {
-	constructor() {
-		super("contains");
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 2) {
-			loc.typeError(`${this.name}() expects 3 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let lstType = args[1].eval();
-
-		if (!(lstType instanceof ListType)) {
-			loc.typeError(`${this.name} expects list for arg 2, got \'${lstType.toString()}\'`);
-		}
-
-		let itemType = lstType.itemType;
-
-		if (itemType == null) {
-			loc.typeError("can't find in empty list");
-		}
-
-		let fnType = new FuncType(loc, [itemType], new BoolType());
-
-		fnType.assertEq(args[0].eval());
-
-		return itemType;
-	}
-
-	static register(registry) {
-		// deferred evaluation of ifThenElse branches
-		registry.register("contains", `
-		func(fn, lst){
-			func(self){
-				self(self, fn, lst)
-			}(
-				func(self, fn, lst) {
-					ifThenElse(
-						nullList(lst), 
-						func(){false}, 
-						func(){ifThenElse(
-							fn(headList(lst)), 
-							func(){true}, 
-							func(){self(self, fn, tailList(lst))}
-						)()}
-					)()
-				}
-			)
-		}`);
-	}
-
-	registerGlobals(registry) {
-		Contains.register(registry);
-	}
-
-	toUntyped(args) {
-		let a = args[0].toUntyped();
-		let b = args[1].toUntyped();
-
-		let itemType = args[1].eval().itemType;
-
-		// list always contains data, so its content must be converted to type expected by arg0
-		return `${this.name}(func(item){${a}(${fromData("item", itemType)})}, ${b})`;
-	}
-}
-
-class Len extends BuiltinFunc {
-	constructor() {
-		super("len");
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 1) {
-			loc.typeError(`${this.name}() expects 1 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let argType = args[0].eval();
-
-		if (argType instanceof ByteArrayType) {
-			// ok
-		} else if (argType instanceof ListType) {
-			// ok
-		} else {
-			loc.typeError(`invalid argument type for ${this.name}(): expected \'ByteArray\' or \'[]Any\', got \'${argType.toString()}\'`);
-		}
-
-		return new IntegerType();
-	}
-
-	static register(registry) {
-		registry.register("len", `
-		func(lst){
-			func(self){
-				self(self, lst)
-			}(func(self, lst){
-				ifThenElse(
-					nullList(lst), 
-					func(){0}, 
-					func(){addInteger(self(self, tailList(lst)), 1)}
-				)()
-			})
-		}`);
-	}
-
-	registerGlobals(registry, argTypes) {
-		if (ListType.is(argTypes[0])) {
-			Len.register(registry);
-		}
-	}
-
-	toUntyped(args) {
-		let argType = args[0].eval();
-		let a = args[0].toUntyped();
-
-		if (argType instanceof ByteArrayType) {
-			return `lengthOfByteString(${a})`;
-		} else if (argType instanceof ListType) {
-			// deferred evaluation of ifThenElse branches
-			return `${this.name}(${a})`;
-		} else {
-			throw new Error("should've been caught earlier");
-		}
-	}
-}
-
-class Prepend extends BuiltinFunc {
-	constructor() {
-		super("prepend");
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 2) {
-			loc.typeError(`${this.name}() expects 2 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let itemType = args[0].eval();
-		let lstType = args[1].eval();
-
-		if (! lstType instanceof ListType) {
-			loc.typeError(`${this.name}() expects []Any for arg 2: got \'${lstType.toString()}\'`);
-		}
-
-		if (!itemType.eq(lstType.itemType)) {
-			loc.typeError(`${this.name}() expects []${itemType.toString()}, got ${lstType.toString()}`);
-		}
-
-		return lstType;
-	}
-
-	toUntyped(args) {
-		return `mkCons(${toData(args[0].toUntyped(), args[0].eval())}, ${args[1].toUntyped()})`;
-	}
-}
-
-class GetTx extends BuiltinFunc {
-	constructor() {
-		super("getTx", [new ScriptContextType()], new TxType());
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getTx", `func(ctx){
-			${unDataVerbose("ctx", "ScriptContext.Tx", 0, 0)}
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetTx.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetSpendingPurposeTxOutputId extends BuiltinFunc {
-	constructor() {
-		super("getSpendingPurposeTxOutputId", [new ScriptContextType()], new TxOutputIdType());
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		// in the PlutusLedgerApi the output type of this would be TxOutputRef, but that seemed like a confusing name
-		registry.register("getSpendingPurposeTxOutputId", `func(ctx){
-			${unDataVerbose(unDataVerbose("ctx", "ScriptContext.purpose", 0, 1), "ScriptPurpose.Spending", 1, 0)}
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetSpendingPurposeTxOutputId.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetTxFee extends BuiltinFunc {
-	constructor() {
-		super("getTxFee", [new TxType()], new ValueType());
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getTxFee", `
-		func(tx) {
-			${unDataVerbose("tx", "Tx.Fee", 0, 2)}
-		}
-		`);
-	}
-
-	registerGlobals(registry) {
-		GetTxFee.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetTxMintedValue extends BuiltinFunc {
-	constructor() {
-		super("getTxMintedValue", [new TxType()], new ValueType());
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getTxMintedValue", `
-		func(tx) {
-			${unDataVerbose("tx", "Tx.Minted", 0, 3)}
-		}
-		`);
-	}
-
-	registerGlobals(registry) {
-		GetTxMintedValue.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetTxTimeRange extends BuiltinFunc {
-	constructor() {
-		super("getTxTimeRange", [new TxType()], new TimeRangeType());
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getTxTimeRange", `
-		func(tx) {
-			${unDataVerbose("tx", "Tx.TimeRange", 0, 6)}
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetTxTimeRange.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetTimeRangeStart extends BuiltinFunc {
-	constructor() {
-		super("getTimeRangeStart", [new TimeRangeType()], new TimeType());
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		// the inner-most unData returns a LowerBound<POSIXTime> type (assuming that data constructor with records is equivalent to data constructor with positional fields)
-		// the next unData returns Extended<POSIXTime>
-		// the outer-most unData returns POSIXTime as data
-		registry.register("getTimeRangeStart", `func(timeRange) {
-			${unDataVerbose(unDataVerbose(unDataVerbose("timeRange", "TimeRange.LowerBound", 0, 0), "LowerBound.Extended", 0, 0), "Extended.Finite", 1, 0)}
-		}`)
-	}
-
-	registerGlobals(registry) {
-		GetTimeRangeStart.register(registry);
-	}
-
-	toUntyped(args) {
-		return`${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetTxInputs extends BuiltinFunc {
-	constructor() {
-		super("getTxInputs", [new TxType()], new ListType(Location.dummy(), new TxInputType()));
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getTxInputs", `func(tx){
-			unListData(${unDataVerbose("tx", "Tx.txInputs", 0, 0)})
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetTxInputs.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetTxOutputs extends BuiltinFunc {
-	constructor() {
-		super("getTxOutputs", [new TxType()], new ListType(Location.dummy(), new TxOutputType()));
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getTxOutputs", `func(tx){
-			unListData(${unDataVerbose("tx", "Tx.txOutputs", 0, 1)})
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetTxOutputs.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetTxOutputsLockedBy extends BuiltinFunc {
-	constructor() {
-		super("getTxOutputsLockedBy", [new TxType(), new ValidatorHashType()], new ListType(Location.dummy(), new TxOutputType()));
-	}
-
-	static register(registry) {
-		GetTxOutputs.register(registry);
-		EqualsHash.register(registry);
-		GetCredentialValidatorHash.register(registry);
-		GetAddressCredential.register(registry);
-		GetTxOutputAddress.register(registry);
-		IsValidatorCredential.register(registry);
-		Filter.register(registry);
-
-		registry.register("getTxOutputsLockedBy", `
-		func(tx, h){
-			filter(func(output){
-				func(cred) {
-					ifThenElse(
-						isValidatorCredential(cred),
-						func(){ifThenElse(
-							equalsHash(h, getCredentialValidatorHash(cred)),
-							true,
-							false
-						)},
-						func(){false}
-					)()
-				}(getAddressCredential(getTxOutputAddress(output)))
-			}, getTxOutputs(tx))
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetTxOutputsLockedBy.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
-}
-
-class GetTxOutputsSentTo extends BuiltinFunc {
-	constructor() {
-		super("getTxOutputsSentTo", [new TxType(), new PubKeyHashType()], new ListType(Location.dummy(), new TxOutputType()));
-	}
-
-	static register(registry) {
-		GetTxOutputs.register(registry);
-		EqualsHash.register(registry);
-		GetCredentialPubKeyHash.register(registry);
-		GetAddressCredential.register(registry);
-		GetTxOutputAddress.register(registry);
-		IsPubKeyCredential.register(registry);
-		Filter.register(registry);
-
-		registry.register("getTxOutputsSentTo", `
-		func(tx, h){
-			filter(func(output){
-				func(cred) {
-					ifThenElse(
-						isPubKeyCredential(cred),
-						func(){ifThenElse(
-							equalsHash(h, getCredentialPubKeyHash(cred)),
-							true,
-							false
-						)},
-						func(){false}
-					)()
-				}(getAddressCredential(getTxOutputAddress(output)))
-			}, getTxOutputs(tx))
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetTxOutputsSentTo.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
-}
-
-class GetTxSignatories extends BuiltinFunc {
-	constructor() {
-		super("getTxSignatories", [new TxType()], new ListType(Location.dummy(), new PubKeyHashType()));
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getTxSignatories", `func(tx){
-			unListData(${unDataVerbose("tx", "Tx.txSignatories", 0, 7)})
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetTxSignatories.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetTxId extends BuiltinFunc {
-	constructor() {
-		super("getTxId", [new TxType()], new TxIdType());
-	}
-
-	toUntyped(args) {
-		return unData(args[0].toUntyped(), 0, 9);
-	}
-}
-
-class IsTxSignedBy extends BuiltinFunc {
-	constructor() {
-		// second argument is in fact a PubKeyHash
-		super("isTxSignedBy", [new TxType(), new PubKeyHashType()], new BoolType());
-	}
-
-	static register(registry) {
-		GetTxSignatories.register(registry);
-		EqualsHash.register(registry);
-		Contains.register(registry);
-		ShowByteArray.register(registry);
-		Len.register(registry);
-		ShowInteger.register(registry);
-
-		if (DEBUG) {
-			registry.register("isTxSignedBy", `func(tx, h){
-				trace(appendString(appendString(showByteArray(unBData(h)), ", nTxSignatories: "), showInteger(len(getTxSignatories(tx)))), contains(func(s){
-					trace(showByteArray(unBData(s)), equalsHash(s, h))
-				}, getTxSignatories(tx)))
-			}`);
-		} else {
-			registry.register("isTxSignedBy", `func(tx, h){
-				contains(func(s){
-					equalsHash(s, h)
-				}, getTxSignatories(tx))
-			}`);
-		}
-	}
-
-	registerGlobals(registry) {
-		IsTxSignedBy.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
-}
-
-class GetTxInputOutputId extends BuiltinFunc {
-	constructor() {
-		super("getTxInputOutputId", [new TxInputType()], new TxOutputIdType());
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getTxInputOutputId", `func(input){
-			${unDataVerbose("input", "TxInput.TxOutputId", 0, 0)}
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetTxInputOutputId.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetTxInputOutput extends BuiltinFunc {
-	constructor() {
-		super("getTxInputOutput", [new TxInputType()], new TxOutputType());
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getTxInputOutput", `func(input){
-			${unDataVerbose("input", "TxInput.TxOutput", 0, 1)}
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetTxInputOutput.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetTxOutputAddress extends BuiltinFunc {
-	constructor() {
-		super("getTxOutputAddress", [new TxOutputType()], new AddressType());
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getTxOutputAddress", `func(output){
-			${unDataVerbose("output", "TxOutput.Address", 0, 0)}
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetTxOutputAddress.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetTxOutputValue extends BuiltinFunc {
-	constructor() {
-		super("getTxOutputValue", [new TxOutputType()], new ValueType());
-	}
-
-	static register(registry) {
-		registry.register("getTxOutputValue", `
-		func(output){
-			${unData("output", 0, 1)}
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetTxOutputValue.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class HasDatumHash extends BuiltinFunc {
-	constructor() {
-		super("hasDatumHash", [new TxOutputType()], new BoolType());
-	}
-
-	static register(registry) {
-		registry.register("hasDatumHash", `
-		func(output) {
-			equalsInteger(fstPair(unConstrData(${unData("output", 0, 2)})), 0)
-		}
-		`)
-	}
-
-	registerGlobals(registry) {
-		HasDatumHash.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-// returns empty hash if TxOutput doesn't have a DatumHash
-class GetTxOutputDatumHash extends BuiltinFunc {
-	constructor() {
-		super("getTxOutputDatumHash", [new TxOutputType()], new DatumHashType());
-	}
-
-	static register(registry) {
-		registry.register("getTxOutputDatumHash", `
-		func(output) {
-			func(pair) {
-				ifThenElse(
-					equalsInteger(fstPair(pair), 0),
-					func(){headList(sndPair(pair))},
-					func(){bData(#)}
-				)()
-			}(unConstrData(${unData("output", 0, 2)}))
-		}
-		`);
-	}
-
-	registerGlobals(registry) {
-		GetTxOutputDatumHash.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetAddressCredential extends BuiltinFunc {
-	constructor() {
-		super("getAddressCredential", [new AddressType()], new CredentialType());
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getAddressCredential", `func(address){
-			${unDataVerbose("address", "Address.Credential", 0, 0)}
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetAddressCredential.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class IsStakedAddress extends BuiltinFunc {
-	constructor() {
-		super("isStakedAddress", [new AddressType()], new BoolType());
-	}
-
-	static register(registry) {
-		registry.register("isStakedAddress", `
-		func(addr) {
-			equalsInteger(fstPair(unConstrData(${unData("addr", 0, 1)})), 0)
-		}`);
-	}
-
-	registerGlobals(registry) {
-		IsStakedAddress.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class IsPubKeyCredential extends BuiltinFunc {
-	constructor() {
-		super("isPubKeyCredential", [new CredentialType()], new BoolType());
-	}
-
-	static register(registry) {
-		registry.register("isPubKeyCredential", `func(cred) {
-			equalsInteger(fstPair(unConstrData(cred)), 0)
-		}`)
-	}
-
-	registerGlobals(registry) {
-		IsPubKeyCredential.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class IsValidatorCredential extends BuiltinFunc {
-	constructor() {
-		super("isValidatorCredential", [new CredentialType()], new BoolType());
-	}
-
-	static register(registry) {
-		registry.register("isValidatorCredential", `func(cred) {
-			equalsInteger(fstPair(unConstrData(cred)), 1)
-		}`)
-	}
-
-	registerGlobals(registry) {
-		IsValidatorCredential.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetCredentialPubKeyHash extends BuiltinFunc {
-	constructor() {
-		super("getCredentialPubKeyHash", [new CredentialType()], new PubKeyHashType());
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getCredentialPubKeyHash", `func(cred){
-			${unDataVerbose("cred", "PubKeyCredential", 0, 0)}
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetCredentialPubKeyHash.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetCredentialValidatorHash extends BuiltinFunc {
-	constructor() {
-		super("getCredentialValidatorHash", [new CredentialType()], new ValidatorHashType());
-	}
-
-	static register(registry) {
-		registry.register("getCredentialValidatorHash", `func(cred){
-			${unData("cred", 1, 0)}
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetCredentialValidatorHash.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class EqualsTxOutputId extends BuiltinFunc {
-	constructor() {
-		super("equalsTxOutputId", [new TxOutputIdType(), new TxOutputIdType()], new BoolType());
-	}
-
-	static register(registry) {
-		// deferred evaluation of ifThenElse branches
-		registry.register("equalsTxOutputId", `func(a, b){
-			ifThenElse(
-				equalsByteString(unBData(${unData(unData("a", 0, 0), 0, 0)}), unBData(${unData(unData("b", 0, 0), 0, 0)})), 
-				func(){equalsInteger(unIData(${unData("a", 0, 1)}), unIData(${unData("b", 0, 1)}))}, 
-				func(){false}
-			)()
-		}`);
-	}
-}
-
-class EqualsHash extends BuiltinFunc {
-	static register(registry) {
-		registry.register("equalsHash", `func(a, b){
-			equalsByteString(unBData(a), unBData(b))
-		}`);
-	}
-}
-
-class GetCurrentTxInput extends BuiltinFunc {
-	constructor() {
-		super("getCurrentTxInput", [new ScriptContextType()], new TxInputType());
-	}
-	
-	static register(registry) {
-		Find.register(registry);
-		GetTx.register(registry);
-		GetSpendingPurposeTxOutputId.register(registry);
-		GetTxInputs.register(registry);
-		GetTxInputOutputId.register(registry);
-		EqualsTxOutputId.register(registry);
-
-		registry.register("getCurrentTxInput", `func(ctx){
-			func(id){
-				find(func(input){
-					equalsTxOutputId(getTxInputOutputId(input), id)
-				}, getTxInputs(getTx(ctx)))
-			}(getSpendingPurposeTxOutputId(ctx))
-		}`)
-	}
-
-	registerGlobals(registry) {
-		GetCurrentTxInput.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetCurrentValidatorHash extends BuiltinFunc {
-	constructor() {
-		super("getCurrentValidatorHash", [new ScriptContextType()], new ValidatorHashType());
-	}
-
-	static register(registry) {
-		GetCurrentTxInput.register(registry);
-		GetTxInputOutput.register(registry);
-		GetTxOutputAddress.register(registry);
-		GetAddressCredential.register(registry);
-		GetCredentialValidatorHash.register(registry);
-
-		registry.register("getCurrentValidatorHash", `func(ctx){
-			getCredentialValidatorHash(getAddressCredential(getTxOutputAddress(getTxInputOutput(getCurrentTxInput(ctx)))))
-		}`);
-	}
-
-	registerGlobals(registry) {
-		GetCurrentValidatorHash.register(registry)
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-// throws error if ScriptContextPurpose isn't for minting
-class GetCurrentMintingPolicyHash extends BuiltinFunc {
-	constructor() {
-		super("getCurrentMintingPolicyHash", [new ScriptContextType()], new MintingPolicyHashType());
-	}
-
-	static register(registry) {
-		registerUnDataVerbose(registry);
-
-		registry.register("getCurrentMintingPolicyHash", `
-		func(ctx) {
-			${unDataVerbose(unData("ctx", 0, 1), "Minting", 0, 0)}
-		}
-		`)
-	}
-
-	registerGlobals(registry) {
-		GetCurrentMintingPolicyHash.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class GetValueComponent extends BuiltinFunc {
-	constructor() {
-		super("getValueComponent", [new ValueType(), new AssetClassType()], new IntegerType());
-	}
-
-	static register(registry) {
-		// deferred evaluation of ifThenElse branches
-
-		// first arg is expected to be of type Data.BuiltinData
-		registry.register("getValueComponent", `
-		func(value, assetClass){
-			func(map, mintingPolicyHash, tokenName){
-				func(outer, inner){
-					outer(outer, inner, map)
-				}(
-					func(outer, inner, map) {
-						ifThenElse(
-							nullList(map), 
-							func(){0}, 
-							func(){
-								ifThenElse(
-									equalsByteString(unBData(fstPair(headList(map))), mintingPolicyHash), 
-									func(){inner(inner, unMapData(sndPair(headList(map))))}, 
-									func(){outer(outer, inner, tailList(map))}
-								)()
-							}
-						)()
-					}, func(inner, map) {
-						ifThenElse(
-							nullList(map), 
-							func(){0}, 
-							func(){
-								ifThenElse(
-									equalsByteString(unBData(fstPair(headList(map))), tokenName),
-									func(){unIData(sndPair(headList(map)))},
-									func(){inner(inner, tailList(map))}
-								)()
-							}
-						)()
-					}
-				)
-			}(unMapData(value), unBData(${unData("assetClass", 0, 0)}), unBData(${unData("assetClass", 0, 1)}))
-		}`)
-	}
-
-	registerGlobals(registry) {
-		GetValueComponent.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
-}
-
-// not exposed to user! returns a list of ByteArrays (CurrenySymbols for outer map, or TokenNames for inner map)
-class GetValueMapKeys extends BuiltinFunc {
-	static register(registry) {
-		// deferred evaluation of ifThenElse branches
-		registry.register("getValueMapKeys", `
-		func(map){
-			func(self){
-				self(self, map)
-			}(
-				func(self, map) {
-					ifThenElse(
-						nullList(map), 
-						func(){mkNilData(())}, 
-						func(){mkCons(fstPair(headList(map)), self(self, tailList(map)))}
-					)()
-				}
-			)
-		}`)
-	}
-}
-
-// not exposed to user!
-class IsInByteArrayList extends BuiltinFunc {
-	static register(registry) {
-		// deferred evaluation of ifThenElse branches
-
-		// key expected as Data.ByteString type
-		registry.register("isInByteArrayList", `
-		func(lst, key){
-			func(self){
-				self(self, lst)
-			}(
-				func(self, lst) {
-					ifThenElse(
-						nullList(lst), 
-						func(){false}, 
-						func(){ifThenElse(
-							equalsByteString(unBData(headList(lst)), key), 
-							func(){true}, 
-							func(){self(self, tailList(lst))}
-						)()}
-					)()
-				}
-			)
-		}`)
-	}
-}
-
-// not exposed to user! MintingPolicyHash is just a byteString
-class GetValueInnerMap extends BuiltinFunc {
-	static register(registry) {
-		// expected Value as Map of MintingPolicyHash -> Data
-		// expects mintingPolicyHash as Data.ByteString
-
-		// deferred evaluation of ifThenElse branches
-		
-		// returns a map of TokenName -> Integer
-		registry.register("getValueInnerMap", `
-		func(map, mintingPolicyHash) {
-			func(self){
-				self(self, map)
-			}(
-				func(self, map){
-					ifThenElse(
-						nullList(map), 
-						func(){mkNilPairData(())},
-						func(){ifThenElse(
-							equalsByteString(unBData(fstPair(headList(map))), mintingPolicyHash), 
-							func(){unMapData(sndPair(headList(map)))},
-							func(){self(self, tailList(map))}
-						)()}
-					)()
-				}
-			)
-		}`)
-	}
-}
-
-// not exposed to user! O(n^2) algorithm
-class MergeValueMapKeys extends BuiltinFunc {
-	static register(registry) {
-		IsInByteArrayList.register(registry);
-		GetValueMapKeys.register(registry);
-
-		// deferred evaluation of ifThenElse branches
-		// a and b are map types
-		// returns a list of keys
-		registry.register("mergeValueMapKeys", `
-		func(a, b){
-			func(aKeys) {
-				func(self){
-					self(self, aKeys, b)
-				}(
-					func(self, keys, map){
-						ifThenElse(
-							nullList(map), 
-							func(){keys}, 
-							func(){
-								func(key) {
-									ifThenElse(
-										isInByteArrayList(aKeys, key), 
-										func(){self(self, keys, tailList(map))},
-										func(){mkCons(bData(key), self(self, keys, tailList(map)))}
-									)()
-								}(unBData(fstPair(headList(map))))
-							}
-						)()
-					}
-				)
-			}(getValueMapKeys(a))
-		}`);
-	}
-}
-
-// not exposed to user!
-class GetValueInnerMapInteger extends BuiltinFunc {
-	static register(registry) {
-		// deferred evaluation of ifThenElse branches
-		// input is map of tokenName -> Integer
-		// key is expected as Data.ByteString type
-		registry.register("getValueInnerMapInteger", `
-		func(map, key) {
-			func(self){
-				self(self, map, key)
-			}(
-				func(self, map, key) {
-					ifThenElse(
-						nullList(map), 
-						func(){0}, 
-						func(){
-							ifThenElse(
-								equalsByteString(unBData(fstPair(headList(map))), key), 
-								func(){unIData(sndPair(headList(map)))}, 
-								func(){self(self, tailList(map), key)}
-							)()
-						}
-					)()
-				}
-			)
-		}`)
-	}
-}
-
-// not exposed to user!
-class AddValueInnerMaps extends BuiltinFunc {
-	static generateCode(binaryFuncName) {
-		// deferred evaluation of ifThenElse branches
-		// a and b are map types of TokenName -> Integer
-		// returns a map ok TokenName -> Integer
-		return `
-		func(a, b) {
-			func(self) {
-				self(self, mergeValueMapKeys(a, b), mkNilPairData(()))
-			}(
-				func(self, keys, result) {
-					ifThenElse(
-						nullList(keys), 
-						func(){result}, 
-						func(){
-							func(key, tail) {
-								func(sum) {
-									ifThenElse(
-										equalsInteger(sum, 0), 
-										func(){tail}, 
-										func(){mkCons(mkPairData(bData(key), iData(sum)), tail)}
-									)()
-								}(${binaryFuncName}(getValueInnerMapInteger(a, key), getValueInnerMapInteger(b, key)))
-							}(unBData(headList(keys)), self(self, tailList(keys), result))
-						}
-					)()
-				}
-			)
-		}`;
-	}
-
-	static register(registry) {
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMapInteger.register(registry);
-
-		registry.register("addValueInnerMaps", AddValueInnerMaps.generateCode("addInteger"));
-	}
-}
-
-
-class AddValues extends BuiltinFunc {
-	constructor() {
-		super("addValues", [new ValueType(), new ValueType()], new ValueType());
-	}
-
-	static generateCode(subName) {
-		// deferred evaluation of ifThenElse branches
-		return `
-		func(a, b){
-			func(a, b){
-				func(self) {
-					mapData(self(self, mergeValueMapKeys(a, b), mkNilPairData(())))
-				}(
-					func(self, keys, result) {
-						ifThenElse(
-							nullList(keys), 
-							func(){result}, 
-							func(){
-								func(key, tail){
-									func(item){
-										ifThenElse(
-											nullList(item), 
-											func(){tail}, 
-											func(){mkCons(mkPairData(bData(key), mapData(item)), tail)}
-										)()
-									}(${subName}(getValueInnerMap(a, key), getValueInnerMap(b, key)))
-								}(unBData(headList(keys)), self(self, tailList(keys), result))
-							}
-						)()
-					}
-				)
-			}(unMapData(a), unMapData(b))
-		}`;
-	}
-
-	static register(registry) {
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMap.register(registry);
-		AddValueInnerMaps.register(registry);
-
-		registry.register("addValues", AddValues.generateCode("addValueInnerMaps"));
-	}
-}
-
-class SubtractValueInnerMaps extends BuiltinFunc {
-	static register(registry) {
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMapInteger.register(registry);
-
-		registry.register("subtractValueInnerMaps", AddValueInnerMaps.generateCode("subtractInteger"));
-	}
-}
-
-class SubtractValues extends BuiltinFunc {
-	constructor() {
-		super("subtractValues", [new ValueType(), new ValueType()], new ValueType());
-	}
-
-	static register(registry) {
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMap.register(registry);
-		SubtractValueInnerMaps.register(registry);
-
-		registry.register("subtractValues", AddValues.generateCode("subtractValueInnerMaps"));
-	}
-}
-
-class Zero extends BuiltinFunc {
-	constructor() {
-		super("zero", [], new ValueType());
-	}
-
-	static register(registry) {
-		registry.register("zero", `
-		func() {
-			mapData(mkNilPairData(()))
-		}`);
-	}
-
-	registerGlobals(registry) {
-		Zero.register(registry);
-	}
-
-	evalDataCall(loc, args) {
-		return new MapData([]);
-	}
-
-	toUntyped(args) {
-		return`${this.name}()`;
-	}
-}
-
-class IsZero extends BuiltinFunc {
-	constructor() {
-		super("isZero", [new ValueType()], new BoolType());
-	}
-
-	static register(registry) {
-		registry.register("isZero", `
-		func(v) {
-			nullList(unMapData(v))
-		}`)
-	}
-
-	registerGlobals(registry) {
-		IsZero.register(registry);
-	}
-
-	toUntyped(args) {
-		return`${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-// if any false is encountered -> return false immediately
-class IsStrictlyGeqInnerMaps extends BuiltinFunc {
-	static generateCode(compOp) {
-		// deferred evaluation of ifThenElse branches
-
-		// a and b are map types of TokenName -> Integer
-		return `
-		func(a, b) {
-			func(self) {
-				self(self, mergeValueMapKeys(a, b))
-			}(
-				func(self, keys) {
-					ifThenElse(
-						nullList(keys), 
-						func(){true}, 
-						func(){
-							func(key) {
-								ifThenElse(
-									not(${compOp("getValueInnerMapInteger(a, key)", "getValueInnerMapInteger(b, key)")}), 
-									func(){false}, 
-									func(){self(self, tailList(keys))}
-								)()
-							}(unBData(headList(keys)))
-						}
-					)()
-				}
-			)
-		}`
-	}
-
-	static register(registry) {
-		Not.register(registry);
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMapInteger.register(registry);
-
-		registry.register("isStrictlyGeqInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`not(lessThanInteger(${a}, ${b}))`));
-	}
-}
-
-// if any false is encountered -> return false immediately
-class IsStrictlyGeq extends BuiltinFunc {
-	constructor() {
-		super("isStrictlyGeq", [new ValueType(), new ValueType()], new BoolType());
-	}
-
-	static generateCode(subName) {
-		// deferred evaluation of ifThenElse branches
-		return `func(a, b) {
-			func(a, b) {
-				func(self) {
-					self(self, mergeValueMapKeys(a, b))
-				}(
-					func(self, keys) {
-						ifThenElse(
-							nullList(keys), 
-							func(){true}, 
-							func(){
-								func(key) {
-									ifThenElse(
-										not(${subName}(getValueInnerMap(a, key), getValueInnerMap(b, key))), 
-										func(){false}, 
-										func(){self(self, tailList(keys))}
-									)()
-								}(unBData(headList(keys)))
-							}
-						)()
-					}
-				)
-			}(unMapData(a), unMapData(b))
-		}`
-	}
-
-	static register(registry) {
-		Not.register(registry);
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMap.register(registry);
-		IsStrictlyGeqInnerMaps.register(registry);
-
-		registry.register("isStrictlyGeq", IsStrictlyGeq.generateCode("isStrictlyGeqInnerMaps"));
-	}
-}
-
-class IsStrictlyGtInnerMaps extends BuiltinFunc {
-	static register(registry) {
-		Not.register(registry);
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMapInteger.register(registry);
-
-		registry.register("isStrictlyGtInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`not(lessThanEqualsInteger(${a}, ${b}))`));
-	}
-}
-
-class IsStrictlyGt extends BuiltinFunc {
-	constructor() {
-		super("isStrictlyGt", [new ValueType(), new ValueType()], new BoolType());
-	}
-
-	static register(registry) {
-		Not.register(registry);
-		IsZero.register(registry);
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMap.register(registry);
-		IsStrictlyGtInnerMaps.register(registry);
-
-		registry.register("isStrictlyGt", `
-		func(a, b) {
-			${And.generateCode(
-				"not(" + And.generateCode("isZero(a)", "isZero(b)") + ")", 
-				IsStrictlyGeq.generateCode("isStrictlyGtInnerMaps") + "(a, b)"
-			)}
-		}`);
-	}
-}
-
-class IsStrictlyLtInnerMaps extends BuiltinFunc {
-	static register(registry) {
-		Not.register(registry);
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMapInteger.register(registry);
-
-		registry.register("isStrictlyLtInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`lessThanInteger(${a}, ${b})`));
-	}
-}
-
-class IsStrictlyLt extends BuiltinFunc {
-	constructor() {
-		super("isStrictlyLt", [new ValueType(), new ValueType()], new BoolType());
-	}
-
-	static register(registry) {
-		Not.register(registry);
-		IsZero.register(registry);
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMap.register(registry);
-		IsStrictlyLtInnerMaps.register(registry);
-
-		registry.register("isStrictlyLt", `
-		func(a, b) {
-			${And.generateCode(
-				"not(" + And.generateCode("isZero(a)", "isZero(b)") + ")",
-				IsStrictlyGeq.generateCode("isStrictlyLtInnerMaps") + "(a, b)"
-			)}
-		}`);
-	}
-}
-
-class IsStrictlyLeqInnerMaps extends BuiltinFunc {
-	static register(registry) {
-		Not.register(registry);
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMapInteger.register(registry);
-
-		registry.register("isStrictlyLeqInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`lessThanEqualsInteger(${a}, ${b})`));
-	}
-}
-
-class IsStrictlyLeq extends BuiltinFunc {
-	constructor() {
-		super("isStrictlyLeq", [new ValueType(), new ValueType()], new BoolType());
-	}
-
-	static register(registry) {
-		Not.register(registry);
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMap.register(registry);
-		IsStrictlyLeqInnerMaps.register(registry);
-
-		registry.register("isStrictlyLeq", IsStrictlyGeq.generateCode("isStrictlyLeqInnerMaps"));
-	}
-}
-
-class IsStrictlyEqInnerMaps extends BuiltinFunc {
-	static register(registry) {
-		Not.register(registry);
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMapInteger.register(registry);
-
-		registry.register("isStrictlyEqInnerMaps", IsStrictlyGeqInnerMaps.generateCode((a, b)=>`equalsInteger(${a}, ${b})`));
-	}
-}
-
-class IsStrictlyEq extends BuiltinFunc {
-	constructor() {
-		super("isStrictlyEq", [new ValueType(), new ValueType()], new BoolType());
-	}
-
-	static register(registry) {
-		Not.register(registry);
-		MergeValueMapKeys.register(registry);
-		GetValueInnerMap.register(registry);
-		IsStrictlyEqInnerMaps.register(registry);
-
-		registry.register("isStrictlyEq", IsStrictlyGeq.generateCode("isStrictlyEqInnerMaps"));
-	}
-}
-
-class ValueSentTo extends BuiltinFunc {
-	constructor() {
-		super("valueSentTo", [new TxType(), new PubKeyHashType()], new ValueType());
-	}
-
-	static register(registry) {
-		GetTxOutputsSentTo.register(registry);
-		GetTxOutputValue.register(registry);
-		AddValues.register(registry);
-		Fold.register(registry);
-		Zero.register(registry);
-
-		registry.register("valueSentTo", `
-		func(tx, hash) {
-			func(outputs) {
-				fold(
-					func(prev, txOutput) {
-						addValues(prev, getTxOutputValue(txOutput))
-					}, 
-					zero(), 
-					outputs
-				)	
-			}(getTxOutputsSentTo(tx, hash))
-		}
-		`);
-	}
-
-	registerGlobals(registry) {
-		ValueSentTo.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
-}
-
-class ValueLockedBy extends BuiltinFunc {
-	constructor() {
-		super("valueLockedBy", [new TxType(), new ValidatorHashType()], new ValueType());
-	}
-
-	static register(registry) {
-		GetTxOutputsLockedBy.register(registry);
-		GetTxOutputValue.register(registry);
-		AddValues.register(registry);
-		Fold.register(registry);
-		Zero.register(registry);
-
-		registry.register("valueLockedBy", `
-		func(tx, hash) {
-			func(outputs) {
-				fold(
-					func(prev, txOutput) {
-						addValues(prev, getTxOutputValue(txOutput))
-					}, 
-					zero(), 
-					outputs
-				)
-			}(getTxOutputsLockedBy(tx, hash))
-		}`)
-	}
-
-	registerGlobals(registry) {
-		ValueLockedBy.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
-}
-
-// throws error if Datum isn't found
-class ValueLockedByDatum extends BuiltinFunc {
-	constructor() {
-		// not really any type
-		super("valueLockedByDatum", [new TxType(), new ValidatorHashType(), new AnyType()], new ValueType());
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 3) {
-			loc.typeError(`${this.name}() expects 3 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let txType = args[0].eval();
-
-		if (! txType instanceof TxType) {
-			loc.typeError(`${this.name}() expects Tx for arg 1: got \'${txType.toString()}\'`)
-		}
-
-		let hashType = args[1].eval();
-
-		if (! hashType instanceof ValidatorHashType) {
-			loc.typeError(`${this.name}() expects ValidatorHash for arg 2: got \'${hashType.toString()}\'`)
-		}
-
-		let dataType = args[2].eval();
-
-		if (! dataType instanceof DataTypeDecl) {
-			loc.typeError(`${this.name}() expects user data-type for arg 3: got \'${dataType.toString()}\'`)
-		}
-
-		return new ValueType();
-	}
-
-	static register(registry) {
-		GetTxOutputsLockedBy.register(registry);
-		FindDatumHash.register(registry);
-		GetTxOutputValue.register(registry);
-		GetTxOutputDatumHash.register(registry);
-		EqualsHash.register(registry);
-		AddValues.register(registry);
-		Fold.register(registry);
-		Zero.register(registry);
-
-		registry.register("valueLockedByDatum", `
-		func(tx, hash, datum) {
-			func(outputs, datumHash) {
-				fold(
-					func(prev, txOutput) {
-						ifThenElse(
-							equalsHash(getTxOutputDatumHash(txOutput), datumHash),
-							func(){addValues(prev, getTxOutputValue(txOutput))},
-							func(){prev}
-						)()
-					}, 
-					zero(), 
-					outputs
-				)
-			}(getTxOutputsLockedBy(tx, hash), findDatumHash(tx, datum))
-		}`)
-	}
-
-	registerGlobals(registry) {
-		ValueLockedByDatum.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()}, ${args[2].toUntyped()})`;
-	}
-}
-
-class MakeList extends BuiltinFunc {
-	static register(registry, n) {
-		let itemNames = [];
-		for (let i = 0; i < n; i++) {
-			itemNames.push("item" + (i + 1).toString());
-		}
-
-		let inner = "mkNilData(())";
-
-		for (let i = n-1; i>= 0; i--) {
-			inner = `mkCons(${itemNames[i]}, ${inner})`;
-		}
-
-		let body = `func(${itemNames.join(", ")}) {
-			${inner}	
-		}`;
-
-		registry.register("list" + n.toString(), body);
-	}
-}
-
-class MakeTxOutputId extends BuiltinFunc {
-	constructor() {
-		super("TxOutputId", [new ByteArrayType(), new IntegerType()], new TxOutputIdType());
-	}
-
-	static register(registry) {
-		MakeList.register(registry, 1);
-		MakeList.register(registry, 2);
-
-		registry.register("TxOutputId", `
-		func(txId, idx) {
-			constrData(0, list2(constrData(0, list1(bData(txId))), iData(idx)))
-		}`)
-	}
-
-	registerGlobals(registry) {
-		MakeTxOutputId.register(registry);
-	}
-
-	evalDataCall(loc, args) {
-		return new ConstrData(0, [new ConstrData(0, [args[0]]), args[1]]);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
-}
-
-class MakeAssetClass extends BuiltinFunc {
-	constructor() {
-		super("AssetClass", [new MintingPolicyHashType(), new StringType()], new AssetClassType());
-	}
-
-	static register(registry) {
-		MakeList.register(registry, 2);
-
-		registry.register("AssetClass", `func(mintingPolicyHash, tokenName) {
-			constrData(0, list2(mintingPolicyHash, bData(encodeUtf8(tokenName))))
-		}`)
-	}
-
-	registerGlobals(registry) {
-		MakeAssetClass.register(registry);
-	}
-
-	evalDataCall(loc, args) {
-		// tokenName will already have been converted to ByteArray by StringLiteral
-		return new ConstrData(0, [args[0], args[1]]);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
-}
-
-class MakeValue extends BuiltinFunc {
-	constructor() {
-		super("Value", [new AssetClassType(), new IntegerType()], new ValueType());
-	}
-
-	static register(registry) {
-		// internally mintingPolicyHash and tokenName stay Data.BS
-		registry.register("Value", `
-		func(assetClass, i) {
-			func(mintingPolicyHash, tokenName) {
-				mapData(
-					mkCons(
-						mkPairData(
-							mintingPolicyHash, 
-							mapData(
-								mkCons(
-									mkPairData(tokenName, iData(i)), 
-									mkNilPairData(())
-								)
-							)
-						), 
-						mkNilPairData(())
-					)
-				)
-			}(${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})
-		}`)
-	}
-
-	registerGlobals(registry) {
-		MakeValue.register(registry);
-	}
-
-	evalDataCall(loc, args) {
-		let assetClassData = args[0];
-		assert(assetClassData.index_ == 0);
-		let mintingPolicyHashData = assetClassData.fields_[0];
-		let tokenNameData = assetClassData.fields_[1]
-
-		return new MapData([
-			[mintingPolicyHashData, new MapData([[tokenNameData, new IntegerData(args[1])]])]
-		]);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
-}
-
-class Lovelace extends BuiltinFunc {
-	constructor() {
-		super("lovelace", [new IntegerType()], new ValueType());
-	}
-
-	static register(registry) {
-		MakeValue.register(registry);
-		MakeAssetClass.register(registry);
-
-		registry.register("lovelace", `
-		func(i) {
-			func(ac) {
-				Value(ac, i)
-			}(AssetClass(#, ""))
-		}`)
-	}
-
-	registerGlobals(registry) {
-		Lovelace.register(registry);
-	}
-
-	evalDataCall(loc, args) {
-		return new MapData([
-			[new ByteArrayData([]), new MapData([
-				[new ByteArrayData([]), args[0]]
-			])]
-		]);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()})`;
-	}
-}
-
-class Trace extends BuiltinFunc {
-	constructor() {
-		super("trace");
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 2) {
-			loc.typeError(`${this.name}() expects 2 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let aType = args[0].eval();
-
-		if (! (aType instanceof StringType)) {
-			loc.typeError(`${this.name} expects String for arg 1, got ${aType.toString()}`);
-		} 
-
-		return args[1].eval();
-	}
-
-	toUntyped(args) {
-		return `trace(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
-}
-
-class VerboseError extends BuiltinFunc {
-	constructor() {
-		super("verboseError");
-	}
-
-	static register(registry) {
-		registry.register("verboseError", `func(s){
-			trace(s, func(){
-				error()
-			})()
-		}`)
-	}
-}
-
-// renamed this to showInteger?
-class ShowInteger extends BuiltinFunc {
-	constructor() {
-		super("showInteger", [new IntegerType()], new StringType());
-	}
-
-	static register(registry) {
-		registry.register("showInteger", `
-		func(i) {
-			decodeUtf8(
-				func(self){
-					ifThenElse(
-						lessThanInteger(i, 0),
-						func(){consByteString(45, self(self, multiplyInteger(i, -1)))},
-						func(){self(self, i)}
-					)()
-				}(func(self, i) {
-					func(bs) {
-						ifThenElse(
-							lessThanInteger(i, 10),
-							func(){bs},
-							func(){appendByteString(self(self, divideInteger(i, 10)), bs)}
-						)()
-					}(consByteString(addInteger(modInteger(i, 10), 48), #))
-				})
-			)
-		}`)
-	}
-}
-
-// only for unsigned ints!
-class Hex extends BuiltinFunc {
-	constructor() {
-		super("hex", [new IntegerType()], new ByteArrayType());
-	}
-
-	static register(registry) {
-		registry.register("hex", `
-		func(i) {
-			func(self) {
-				self(self, i)
-			}(func(self, i){
-				func(partial) {
-					func(bytes) {
-						ifThenElse(
-							lessThanInteger(i, 16),
-							func(){bytes},
-							func(){appendByteString(self(self, divideInteger(i, 16)), bytes)}
-						)()
-					}(consByteString(
-						ifThenElse(
-							lessThanInteger(partial, 10), 
-							addInteger(partial, 48), 
-							addInteger(partial, 87)
-						), #))
-				}(modInteger(i, 16))
-			})
-		}`)
-	}
-}
-
-// not exposed to user!
-class ShowByteArray extends BuiltinFunc {
-	static register(registry) {
-		Hex.register(registry);
-		
-		registry.register("showByteArray", `
-		func(bytes) {
-			decodeUtf8(
-				func(self) {
-					self(self, bytes)
-				}(func(self, bytes) {
-					func(n) {
-						ifThenElse(
-							lessThanInteger(0, n),
-							func(){
-								appendByteString(
-									hex(indexByteString(bytes, 0)), 
-									self(self, sliceByteString(1, n, bytes))
-								)
-							},
-							func(){
-								#
-							}
-						)()
-					}(lengthOfByteString(bytes))
-				})
-			)
-		}`)
-	}
-}
-
-// throw error if not found
-class FindDatumData extends BuiltinFunc {
-	constructor() {
-		super("findDatumData", [new TxType(), new DatumHashType()], new DataType())
-	}
-
-	static register(registry) {
-		registry.register("findDatumData", `
-		func(tx, hash) {
-			${unData(`
-				find(
-					func(tuple) {
-						equalsData(${unData("tuple", 0, 0)}, hash)
-					}, 
-					unListData(${unData("tx", 0, 8)})
-				)`, 
-				0, 1
-			)}
-		}`);
-	}
-
-	registerGlobals(registry) {
-		FindDatumData.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
-}
-
-// throws error if not found
-class FindDatumHash extends BuiltinFunc {
-	constructor() {
-		super("findDatumHash", [new TxType(), new AnyType()], new DatumHashType());
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 2) {
-			loc.typeError(`${this.name}() expects 2 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let txType = args[0].eval();
-
-		if (! txType instanceof TxType) {
-			loc.typeError(`${this.name}() expects Tx for arg 1: got \'${txType.toString()}\'`)
-		}
-
-		let dataType = args[1].eval();
-
-		if (! dataType instanceof DataTypeDecl) {
-			loc.typeError(`${this.name}() expects user data-type for arg 2: got \'${dataType.toString()}\'`)
-		}
-
-		return new DatumHashType();
-	}
-
-	static register(registry) {
-		registry.register("findDatumHash", `
-		func(tx, data) {
-			${unData(`
-				find(
-					func(tuple) {
-						equalsData(${unData("tuple", 0, 1)}, data)
-					}, 
-					unListData(${unData("tx", 0, 8)})
-				)`, 
-				0, 0
-			)}
-		}`);
-	}
-
-	registerGlobals(registry) {
-		FindDatumHash.register(registry);
-	}
-
-	toUntyped(args) {
-		return `${this.name}(${args[0].toUntyped()}, ${args[1].toUntyped()})`;
-	}
-}
-
-class GetIndex extends BuiltinFunc {
-	constructor() {
-		super("getIndex");
-	}
-	
-	evalCall(loc, args) {
-		if (args.length != 2) {
-			loc.typeError(`${this.name}() expects 2 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let lstType = args[0].eval();
-
-		if (! lstType instanceof ListType) {
-			loc.typeError(`${this.name}() expects []Any for arg 1: got \'${lstType.toString()}\'`)
-		}
-
-		let idxType = args[1].eval();
-
-		if (! idxType instanceof IntegerType) {
-			loc.typeError(`${this.name}() expects Integer for arg 2: got \'${idxType.toString()}\'`)
-		}
-
-		let itemType = lstType.itemType;s
-
-		assert(itemType != null);
-
-		return itemType;
-	}
-
-	static register(registry) {
-		// returns something of Data type, so must be converted by caller 
-		registry.register("getIndex", `
-		func(lst, i) {
-			func(self){
-				self(self, lst, i)
-			}(
-				func(self, lst, i) {
-					ifThenElse(
-						nullList(lst), 
-						func(){error()}, 
-						func(){ifThenElse(
-							lessThanInteger(i, 0), 
-							func(){error()}, 
-							func(){ifThenElse(
-								equalsInteger(i, 0), 
-								func(){headList(lst)}, 
-								func(){self(self, tailList(lst), subtractInteger(i, 1))}
-							)()}
-						)()}
-					)()
-				}
-			)
-		}
-		`)
-	}
-	
-	registerGlobals(registry) {
-		GetIndex.register(registry);
-	}
-
-	// list is always `[]data`, so item must be converted to correct type from data
-	toUntyped(args) {
-		let lst = args[0].toUntyped();
-		let idx = args[1].toUntyped();
-
-		let itemType = args[0].eval().itemType;
-
-		return fromData(`${this.name}(${lst}, ${idx})`, itemType);
-	}
-}
-
-class Head extends BuiltinFunc {
-	constructor() {
-		super("head");
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 1) {
-			loc.typeError(`${this.name}() expects 1 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let lstType = args[0].eval();
-
-		if (! lstType instanceof ListType) {
-			loc.typeError(`${this.name}() expects []Any for arg 1: got \'${lstType.toString()}\'`)
-		}
-
-		let itemType = lstType.itemType;
-
-		assert(itemType != null);
-
-		return itemType;
-	}
-
-	toUntyped(args) {
-		let lst = args[0].toUntyped();
-
-		let itemType = args[0].eval().itemType;
-
-		return fromData(`headList(${lst})`, itemType);
-	}
-}
-
-class Tail extends BuiltinFunc {
-	constructor() {
-		super("tail");
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 1) {
-			loc.typeError(`${this.name}() expects 1 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let lstType = args[0].eval();
-
-		if (! lstType instanceof ListType) {
-			loc.typeError(`${this.name}() expects []Any for arg 1: got \'${lstType.toString()}\'`)
-		}
-
-		return lstType;
-	}
-
-	toUntyped(args) {
-		let lst = args[0].toUntyped();
-
-		return `tailList(${lst})`;
-	}
-}
-
-class IsEmpty extends BuiltinFunc {
-	constructor() {
-		super("isEmpty", [new ListType(Location.dummy(), new AnyType())], new BoolType());
-	}
-
-	toUntyped(args) {
-		return `nullList(${args[0].toUntyped()})`;
-	}
-}
-
-class SerializeData extends BuiltinFunc {
-	constructor() {
-		super("serialize");
-	}
-
-	evalCall(loc, args) {
-		if (args.length != 1) {
-			loc.typeError(`${this.name}() expects 1 arg(s), got ${args.length.toString()} arg(s)`);
-		}
-
-		let dataType = args[0].eval();
-
-		if (dataType instanceof FuncType) {
-			loc.typeError(`${this.name}() doesn't work for functions`);
-		}
-
-		return new ByteArrayType();
-	}
-
-	toUntyped(args) {
-		let argType = args[0].eval();
-
-		// internally serialiseData uses UK spelling
-		return `serialiseData(${toData(args[0].toUntyped(), argType)})`;
-	}
-}
-
-class Sha2 extends BuiltinFunc {
-	constructor() {
-		super("sha2", [new ByteArrayType()], new ByteArrayType());
-	}
-
-	toUntyped(args) {
-		return `sha2_256(${args[0].toUntyped()})`;
-	}
-}
-
-class Sha3 extends BuiltinFunc {
-	constructor() {
-		super("sha3", [new ByteArrayType()], new ByteArrayType());
-	}
-
-	toUntyped(args) {
-		return `sha3_256(${args[0].toUntyped()})`;
-	}
-}
-
-class Blake2b extends BuiltinFunc {
-	constructor() {
-		super("blake2b", [new ByteArrayType()], new ByteArrayType());
-	}
-
-	toUntyped(args) {
-		return `blake2b_256(${args[0].toUntyped()})`;
-	}
-}
-
-class AssertConstrIndex extends BuiltinFunc {
-	static register(registry) {
-		registry.register("assertConstrIndex", `
-		func(d, i) {
-			ifThenElse(
-				equalsInteger(fstPair(unConstrData(d)), i),
-				func(){d},
-				func(){error()}
-			)()
-		}
-		`);
-	}
-}
-
-////////////////////////////////////////
-// Data for schema of Datum and Redeemer
-////////////////////////////////////////
-class IntegerData {
-	constructor(value) {
-		this.value_ = value;
+	isBool() {
+		return this.isBool_;
 	}
 
 	isZero() {
@@ -6997,8 +729,23 @@ class IntegerData {
 }
 
 class ByteArrayData {
-	constructor(bytes) {
+	constructor(bytes, isString = false) {
 		this.bytes_ = bytes;
+		this.isString_ = isString();
+	}
+
+	static fromString(s) {
+		let bytes = (new TextEncoder()).encode(s);
+
+		return new ByteArrayData(bytes, true);
+	}
+
+	get bytes() {
+		return this.bytes_.slice();
+	}
+
+	isString() {
+		return this.isString_;
 	}
 
 	toHex() {
@@ -7077,369 +824,3754 @@ class ConstrData {
 	}
 }
 
-////////////////////////
-// AST builder functions
-////////////////////////
-function buildProgram(ts, purpose) {
-	assert(purpose != undefined);
 
-	let decls = []; // function, const, and type declarations
+/////////////////////////////////
+// Section 6: Plutus-light tokens
+/////////////////////////////////
+
+class Source {
+	constructor(raw) {
+		this.raw_ = raw;
+	}
+
+	// should work for utf-8 runes as well
+	getChar(pos) {
+		return this.raw_[pos];
+	}
+
+	get length() {
+		return this.raw_.length;
+	}
+
+	posToLine(pos) {
+		let line = 0;
+		for (let i = 0; i < pos; i++) {
+			if (this.raw_[i] == '\n') {
+				line += 1;
+			}
+		}
+
+		return line;
+	}
+}
+
+class PlutusLightError extends Error {
+	// line here is 0-based index
+	constructor(type, line, msg) {
+		super(type + " on line " + (line+1) + ": " + msg);
+	}
+}
+
+// each token has a site, which encapsulates a position in a Source
+class Site {
+	constructor(src, pos) {
+		this.src_ = src;
+		this.pos_ = pos;
+	}
+
+	static dummy() {
+		return new Site(new Source(""), 0);
+	}
+
+	get line() {
+		return this.src_.posToLine(this.pos_);
+	}
+
+	syntaxError(msg) {
+		throw new PlutusLightError("SyntaxError", this.line, msg);
+	}
+
+	typeError(msg) {
+		throw new PlutusLightError("TypeError", this.line, msg);
+	}
+
+	referenceError(msg) {
+		throw new PlutusLightError("ReferenceError", this.line, msg);
+	}
+}
+
+class Token {
+	constructor(site) {
+		this.site_ = site; // position in source of start of token
+	}
+
+	get site() {
+		return this.site_;
+	}
+
+	isLiteral() {
+		return false;
+	}
+
+	isWord() {
+		return false;
+	}
+
+	isSymbol() {
+		return false;
+	}
+
+	isGroup() {
+		return false;
+	}
+
+
+	syntaxError(msg) {
+		this.site_.syntaxError(msg);
+	}
+
+	typeError(msg) {
+		this.site_.typeError(msg);
+	}
+
+	referenceError(msg) {
+		this.site_.referenceError(msg);
+	}
+
+	assertWord(value) {
+		if (value != undefined) {
+			this.syntaxError(`expected \'${value}\', got \'${this.toString()}\'`);
+		} else {
+			this.syntaxError(`expected word, got ${this.toString()}`);
+		}
+
+		return this; // dead code, but to make clear that overrides need to return self
+	}
+
+	assertSymbol(symbol) {
+		if (symbol != undefined) {
+			this.syntaxError(`expected \'${symbol}\', got \'${this.toString()}\'`);	
+		} else {
+			this.syntaxError(`expected symbol, got \'${this.toString()}\'`);
+		}
+
+		return this; // dead code, but to make clear that overrides need to return self
+	}
+
+	assertGroup(type) {
+		if (type != undefined) {
+			this.syntaxError(`invalid syntax: expected \'${type}...${Group.matchSymbol(type)}\'`)
+		} else {
+			this.syntaxError(`invalid syntax: expected group`);
+		}
+
+		return this; // dead code, but to make clear that overrides need to return self
+	}
+
+	link(scope) {
+		throw new Error("not implemented");
+	}
+
+	evalType() {
+		throw new Error("not implemented");
+	}
+
+	evalData() {
+		console.log(this);
+		this.typeError("can't be used in data eval");
+	}
+}
+
+class Word extends Token {
+	constructor(site, value) {
+		if (value == undefined) {
+			value = site;
+			site = Site.dummy();
+		}
+
+		super(site);
+		this.value_ = value;
+	}
+
+	get value() {
+		return this.value_;
+	}
+
+	isWord(value) {
+		if (value != undefined) {
+			if (value instanceof Array) {
+				return value.lastIndexOf(this.value_) != -1;
+			} else {
+				return value == this.value_;
+			}
+		} else {
+			return true;
+		}
+	}
+
+	assertWord(value) {
+		if (!this.isWord(value)) {
+			super.assertWord(value);
+		}
+
+		return this;
+	}
+
+	assertNotInternal() {
+		if (this.value_ == "_") {
+			this.synaxError("_ is reserved");
+		} else if (this.value_.startsWith("__")) {
+			this.syntaxError("__ prefix is reserved");
+		} else if (this.value_.endsWith("__")) {
+			this.syntaxError("__ suffix is reserved");
+		}
+
+		return this;
+	}
+
+	isKeyword() {
+		switch(this.value_) {
+			case "validator":
+			case "mint_policy":
+			case "reward_policy":
+			case "certify_policy":
+			case "const":
+			case "func":
+			case "struct":
+			case "enum":
+			case "if":
+			case "else":
+			case "switch":
+			case "case":
+			case "default":
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	assertNotKeyword() {
+		this.assertNotInternal();
+	
+		if (this.isKeyword()) {
+			this.syntaxError(`${this.value_} is a reserved word`);
+		}
+
+		return this;
+	}
+
+	toString() {
+		return this.value_;
+	}
+}
+
+class Symbol extends Token {
+	constructor(site, value) {
+		if (value == undefined) {
+			value = site;
+			site = Site.dummy();
+		}
+
+		super(site);
+		this.value_ = value;
+	}
+
+	get value() {
+		return this.value_;
+	}
+
+	isSymbol(value) {
+		if (value != undefined) {
+			if (value instanceof Array) {
+				return value.lastIndexOf(this.value_) != -1;
+			} else {
+				return value == this.value_;
+			}	
+		} else {
+			return true;
+		}
+	}
+
+	assertSymbol(value) {
+		if (!this.isSymbol(value)) {
+			super.assertSymbol(value);
+		}
+
+		return this;
+	}
+
+	toString() {
+		return this.value_;
+	}
+
+	// find the index of the first Symbol(value) in a list of tokens 
+	// returns -1 if none found
+	static find(ts, value) {
+		return ts.findIndex(item => item.isSymbol(value));
+	}
+
+	// find the index of the first Symbol(value) in a list of tokens 
+	// returns -1 if none found
+	static findLast(ts, value) {
+		for (let i = ts.length - 1; i >= 0; i--) {
+			if (ts[i].isSymbol(value)) {
+				return i;
+			}
+		}
+
+		return -1;
+	}
+}
+
+class Group extends Token {
+	// type is "(", "[" or "{"
+	constructor(site, type, fields) {
+		super(site);
+		this.type_ = type;
+		this.fields_ = fields; // list of lists of tokens
+	}
+
+	get fields() {
+		return this.fields_.slice(); // copy, so fields_ doesn't get mutated
+	}
+
+	isGroup(type) {
+		if (type != undefined) {
+			return this.type_ == type;
+		} else {
+			return true;
+		}
+	}
+
+	assertGroup(type, nFields = null) {
+		if (type != undefined && this.type_ != type) {
+			this.syntaxError(`invalid syntax: expected \'${type}...${Group.matchSymbol(type)}\', got \'${this.type_}...${Group.matchSymbol(this.type_)}\'`);
+		}  else if (type != undefined && nFields != null && nFields != this.fields_.length) {
+			this.syntaxError(`invalid syntax: expected \`${type}...${Group.matchSymbol(type)}\' with ${nFields} field(s), got \'${type}...${Group.matchSymbol(type)}\' with ${this.fields_.length} fields`);
+		}
+
+		return this;
+	}
+
+	toString() {
+		let s = this.type_;
+
+		let parts = [];
+		for (let f of this.fields_) {
+			parts.push(f.map(t => t.toString()).join(" "));
+		}
+
+		s += parts.join(", ") + Group.matchSymbol(this.type_);
+
+		return s;
+	}
+
+	static isOpenSymbol(t) {
+		return t.isSymbol("{") || t.isSymbol("[") || t.isSymbol("(");
+	}
+
+	static isCloseSymbol(t) {
+		return t.isSymbol("}") || t.isSymbol("]") || t.isSymbol(")");
+	}
+
+    static matchSymbol(t) {
+		if (t instanceof Symbol) {
+			t = t.value;
+		}
+
+		if (t == "{") {
+			return "}";
+		} else if (t == "[") {
+			return "]";
+		} else if (t == "(") {
+			return ")";
+		} else if (t == "}") {
+			return "{";
+		} else if (t == "]") {
+			return "[";
+		} else if (t == ")") {
+			return "(";
+		} else {
+			throw new Error("not a group symbol");
+		}
+	}
+
+	// find index of first Group(type) in list of tokens 
+	// returns -1 if none found
+	static find(ts, type) {
+		return ts.findIndex(item => item.isGroup(type));
+	}
+}
+
+class PrimitiveLiteral extends Token {
+	constructor(loc) {
+		super(loc);
+	}
+
+	isLiteral() {
+		return true;
+	}
+}
+
+// always signed
+class IntLiteral extends PrimitiveLiteral {
+	// value has type BigInt
+	constructor(site, value) {
+		if (value == null) {
+			value = site;
+			site = Site.dummy();
+		}
+
+		assert(typeof value == 'bigint');
+
+		super(site);
+		this.value_ = value;
+	}
+
+	get value() {
+		return this.value_;
+	}
+
+	toString() {
+		return this.value_.toString();
+	}
+
+	toUntyped() {
+		return this.toString();
+	}
+
+	toPlutusCore() {
+		// the 'true' argument means that this integer is signed
+		return new PlutusCoreInteger(this.value_, true);
+	}
+}
+
+class UnitLiteral extends PrimitiveLiteral {
+	constructor(site) {
+		if (site == undefined) {
+			site = Site.dummy();
+		}
+
+		super(site);
+	}
+
+	toString() {
+		return "()";
+	}
+
+	toPlutusCore() {
+		return new PlutusCoreUnit();
+	}
+}
+
+class BoolLiteral extends PrimitiveLiteral {
+	constructor(site, value) {
+		if (value == undefined) {
+			value = site;
+			site = Site.dummy();
+		}
+
+		super(site);
+		this.value_ = value;
+	}
+
+	toString() {
+		return this.value_ ? "true" : "false";
+	}
+
+	toUntyped() {
+		return this.toString();
+	}
+
+	toPlutusCore() {
+		return new PlutusCoreBool(this.value_);
+	}
+}
+
+class ByteArrayLiteral extends PrimitiveLiteral {
+	constructor(site, bytes) {
+		if (bytes == undefined) {
+			bytes = site;
+			site = Site.dummy();
+		}
+
+		super(site);
+		this.bytes_ = bytes;
+	}
+
+	toString() {
+		return '#' + bytesToHex(this.bytes_);
+	}
+
+	toUntyped() {
+		return this.toString();
+	}
+
+	toPlutusCore() {
+		return new PlutusCoreByteArray(this.bytes_);
+	}
+}
+
+// "..." is a utf8 string literal
+class StringLiteral extends PrimitiveLiteral {
+	constructor(site, value) {
+		if (value == undefined) {
+			value = site;
+			site = Site.dummy();
+		}
+
+		super(site);
+		this.value_ = value;
+	}
+
+	toString() {
+		return `\"${this.value_.toString()}\"`;
+	}
+
+	toUntyped() {
+		return this.toString();
+	}
+
+	toPlutusCore() {
+		return new PlutusCoreString(this.value_);
+	}
+}
+
+
+///////////////////////////////////////
+// Section 6: Plutus-light tokenization
+///////////////////////////////////////
+
+class Tokenizer {
+	constructor(src) {
+		assert(src instanceof Source);
+
+		this.src_ = src;
+		this.pos_ = 0;
+		this.ts_  = null; // set to empty to list at start of tokenize()
+	}
+
+	incrPos() {
+		this.pos_ += 1;
+	}
+
+	decrPos() {
+		this.pos_ -= 1;
+		assert(this.pos_ >= 0);
+	}
+
+	get currentSite() {
+		return new Site(this.src_, this.pos_);
+	}
+
+	readChar() {
+		assert(this.pos_ >= 0);
+
+		let c;
+		if (this.pos_ < this.src_.length) {
+			c = this.src_.getChar(this.pos_);
+		} else {
+			c = '\0';
+		}
+
+		this.incrPos();
+
+		return c;
+	}
+
+	unreadChar() {
+		this.decrPos();
+	}
+
+	tokenize() {
+		this.ts_ = [];
+
+		let site = this.currentSite;
+		let c = this.readChar();
+
+		while (c != '\0') {
+			if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+				this.readWord(site, c);
+			} else if (c == '/') {
+				this.readMaybeComment(site);
+			} else if (c == '0') {
+				this.readSpecialInteger(site);
+			} else if (c >= '1' && c <= '9') {
+				this.readDecimalInteger(site, c);
+			} else if (c == '#') {
+				this.readByteArray(site);
+			} else if (c == '"') {
+				this.readString(site);
+			} else if (c ==  '!' || c == '%' || c == '&' || (c >= '(' && c <= '.') || (c >= ':' && c <= '>') || c == '[' || c == ']' || (c >= '{' && c <= '}')) {
+				this.readSymbol(site, c);
+			} else if (!(c == ' ' || c == '\n' || c == '\t' || c == '\r')) {
+				site.syntaxError(`invalid source character (utf-8 not yet supported outside string literals)`);
+			}
+
+			site = this.currentSite;
+			c = this.readChar();
+		}
+
+		return Tokenizer.nestGroups(this.ts_);
+	}
+
+	// immediately turns "true" or "false" into a BoolLiteral instead of keeping it as Word
+	readWord(site, c0) {
+		let chars = [];
+
+		let c = c0;
+		while (c != '\0') {
+			if (c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+				chars.push(c);
+				c = this.readChar();
+			} else {
+				this.unreadChar();
+				break;
+			}
+		}
+
+		let value = chars.join('');
+
+		if (value == "true" || value == "false") {
+			this.ts_.push(new BoolLiteral(site, value == "true"));
+		} else {
+			this.ts_.push(new Word(site, value));
+		}
+	}
+
+	// comments are discarded
+	readMaybeComment(site) {
+		let c = this.readChar();
+
+		if (c == '\0') {
+			this.ts_.push(new Symbol(site, '/'));
+		} else if (c == '/') {
+			this.readSingleLineComment();
+		} else if (c == '*') {
+			this.readMultiLineComment(site);
+		} else {
+			this.ts_.push(new Symbol(site, '/'));
+			this.unreadChar();
+		}
+	}
+
+	// comments are discarded
+	readSingleLineComment() {
+		let c = this.readChar();
+
+		while (c != '\n') {
+			c = this.readChar();
+		}
+	}
+
+	readMultiLineComment(site) {
+		let prev = '';
+		let c = this.readChar();
+
+		while (true) {
+			prev = c;
+			c = this.readChar();
+
+			if (c == '/' && prev == '*') {
+				break;
+			} else if (c == '\0') {
+				site.syntaxError("unterminated multiline comment");
+			}
+		}
+	}
+
+	readSpecialInteger(site) {
+		let c = this.readChar();
+
+		if (c == '\0') {
+			this.ts_.push(new IntLiteral(site, 0));
+		} else if (c == 'b') {
+			this.readBinaryInteger(site);
+		} else if (c == 'o') {
+			this.readOctalInteger(site);
+		} else if (c == 'x') {
+			this.readHexInteger(site);
+		} else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+			site.syntaxError(`bad literal integer type 0${c}`);
+		} else if (c >= '0' && c <= '9') {
+			this.readDecimalInteger(site, c);
+		} else {
+			this.ts_.push(new IntLiteral(site, 0n));
+			this.unreadChar();
+		}
+	}
+
+	readBinaryInteger(site) {
+		this.readRadixInteger(site, "0b", c => (c == '0' || c == '1'));
+	}
+
+	readOctalInteger(site) {
+		this.readRadixInteger(site, "0o", c => (c >= '0' && c <= '7'));
+	}
+
+	readHexInteger(site) {
+		this.readRadixInteger(site, "0x", 
+			c => ((c >= '0' && c <= '9') || (c >= 'a' || c <= 'f')));
+	}
+
+	readDecimalInteger(site, c0) {
+		let chars = [];
+
+		let c = c0;
+		while (c != '\0') {
+			if (c >= '0' && c <= '9') {
+				chars.push(c);
+			} else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+				site.syntaxError("invalid syntax for decimal integer literal");
+			} else {
+				this.unreadChar();
+				break;
+			}
+
+			c = this.readChar();
+		}
+
+		this.ts_.push(new IntLiteral(site, BigInt(chars.join(''))));
+	}
+
+	readRadixInteger(site, prefix, valid) {
+		let c = this.readChar();
+
+		let chars = [];
+
+		if (!(valid(c))) {
+			site.syntaxError(`expected at least one char for ${prefix} integer literal`);
+		}
+
+		while (c != '\0') {
+			if (valid(c)) {
+				chars.push(c);
+			} else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+				site.syntaxError(`invalid syntax for ${prefix} integer literal`);
+			} else {
+				this.unreadChar();
+				break;
+			}
+
+			c = this.readChar();
+		}
+
+		this.ts_.push(new IntLiteral(site, BigInt(prefix + chars.join(''))));
+	}
+
+	readByteArray(site) {
+		let c = this.readChar();
+
+		let chars = [];
+
+		// case doesn't matter
+		while ((c >= 'a' && c <= 'f') || (c >= '0' && c <= '9')) {
+			chars.push(c);
+			c = this.readChar();
+		}
+
+		// empty byteArray is allowed (eg. for Ada mintingPolicyHash)
+
+		// last char is the one that made the while loop break, so should be unread
+		this.unreadChar();
+
+		let bytes = hexToBytes(chars.join(''));
+
+		this.ts_.push(new ByteArrayLiteral(site, bytes));
+	}
+
+	readString(site) {
+		let c = this.readChar();
+
+		let chars = [];
+
+		let escaping = false;
+		let escapeSite; // for escape syntax errors
+
+		while (!(!escaping && c == '"')) {
+			if (c == '\0') {
+				site.syntaxError("unmatched '\"'");
+			}
+
+			if (escaping) {
+				if (c == 'n') {
+					chars.push('\n');
+				} else if (c == 't') {
+					chars.push('\t');
+				} else if (c == '\\') {
+					chars.push('\\');
+				} else if (c == quote) {
+					chars.push(quote);
+				} else {
+					escapeSite.syntaxError(`invalid escape sequence ${c}`)
+					throw new Error();
+				}
+
+				escaping = false;
+			} else {
+				if (c == '\\') {
+					escapeSite = this.currentSite;
+					escaping = true;
+				} else {
+					chars.push(c);
+				}
+			}
+
+			c = this.readChar();
+		}
+
+		this.ts_.push(new StringLiteral(site, chars.join('')));
+	}
+
+	readSymbol(site, c0) {
+		let chars = [c0];
+
+		let parseSecondChar = (second) => {
+			let d = this.readChar();
+
+			if (d == second) {
+				chars.push(d);
+			} else {
+				this.unreadChar();
+			}
+		}
+
+		if (c0 == '|') {
+			parseSecondChar('|');
+		} else if (c0 == '&') {
+			parseSecondChar('&');
+		} else if (c0 == '!' || (c0 >= '<' && c0 <= '>')) { // could be !=, ==, <= or >=
+			parseSecondChar('=');
+		} else if (c0 == ':') {
+			parseSecondChar(':');
+		} else if (c0 == '-') {
+			parseSecondChar('>');
+		}
+
+		this.ts_.push(new Symbol(site, chars.join('')));
+	}
+
+	static groupFields(ts) {
+		assert(ts.length > 1);
+
+		let open = ts.shift();
+
+		let stack = [open]; // stack of symbols
+		let curField = [];
+		let fields = [];
+		let lastComma = null;
+
+		while (stack.length > 0 && ts.length > 0) {
+			let t = ts.shift();
+			let prev = stack.pop();
+
+			if (!t.isSymbol(Group.matchSymbol(prev))) {
+				stack.push(prev);
+
+				if (Group.isCloseSymbol(t)) {
+					t.syntaxError(`unmatched ${t.value}`);
+				} else if (Group.isOpenSymbol(t)) {
+					stack.push(t);
+					curField.push(t);
+				} else if (t.isSymbol(",") && stack.length == 1) {
+					lastComma = t;
+					if (curField.length == 0) {
+						t.syntaxError("empty field");
+					} else {
+						fields.push(curField);
+						curField = [];
+					}
+				} else {
+					curField.push(t);
+				}
+			} else if (stack.length > 0) {
+				curField.push(t);
+			}
+		}
+
+		if (stack.length > 0) {
+			let last = stack.pop();
+			last.syntaxError(`EOF while matching \'${last.value}\'`);
+		}
+		
+		if (curField.length > 0) {
+			fields.push(curField);
+		} else if (lastComma != null) {
+			lastComma.syntaxError(`trailing comma`);
+		}
+
+		return fields;
+	}
+
+	static nestGroups(ts) {
+		let res = [];
+
+		while (ts.length > 0) {
+			let t = ts.shift();
+
+			if (Group.isOpenSymbol(t)) {
+				ts.unshift(t);
+
+				let fields = Tokenizer.groupFields(ts).map(f => Tokenizer.nestGroups(f));
+
+				res.push(new Group(t.loc, t.value, fields));
+			} else if (Group.isCloseSymbol(t)) {
+				t.syntaxError(`unmatched \'${t.value}\'`);
+			} else {
+				res.push(t);
+			}
+		}
+
+		return res;
+	}
+}
+
+// can also be used
+export function tokenizePlutusLight(rawSrc) {
+	let src = new Source(rawSrc);
+
+	let tokenizer = new Tokenizer(src);
+	
+	return tokenizer.tokenize();
+}
+
+// same tokenizer can be used for untyped Plutus-Light
+export function tokenizeUntypedPlutusLight(rawSrc) {
+	return tokenizePlutusLight(rawSrc);
+}
+
+
+////////////////////////////////////////////////
+// Section 8: Plutus-Light values and core types
+////////////////////////////////////////////////
+
+class GeneralizedValue {
+	constructor() {
+	}
+
+	isType() {
+		throw new Error("not implemented");
+	}
+
+	isValue() {
+		throw new Error("not implemented");
+	}
+
+	getType(site) {
+		throw new Error("not implemented");
+	}
+
+	isBaseOf(site, type) {
+		throw new Error("not implemented");
+	}
+
+	isInstanceOf(site, type) {
+		throw new Error("not implemented");
+	}
+
+	call(site, args) {
+		throw new Error("not implemented");
+	}
+
+	// for `::`
+	getTypeMember(name) {
+		throw new Error("not implemented");
+	}
+
+	// for `.`
+	getInstanceMember(name) {
+		throw new Error("not implemented");
+	}
+
+	nFields(site) {
+		throw new Error("not implemented");
+	}
+
+	getConstrIndex(site) {
+		throw new Error("not implemented");
+	}
+}
+
+class Type extends GeneralizedValue {
+	constructor() {
+		super();
+		this.used = false;
+	}
+
+	static same(site, a, b) {
+		return a.isBaseOf(site, b) && b.isBaseOf(site, a);
+	}
+
+	isType() {
+		return true;
+	}
+
+	isValue() {
+		return false;
+	}
+
+	getType(site) {
+		site.typeError("can't use getType, not an instance " + this.toString());
+	}
+
+	isInstanceOf(site, type) {
+		assert(false, "block");
+		site.typeError("can't use isInstanceOf, not an instance " + this.toString());
+	}
+
+	call(site, args) {
+		site.typeError("not callable");
+	}
+}
+
+class Value extends GeneralizedValue {
+	constructor() {
+		super();
+		this.used = false;
+	}
+
+	static new(type) {
+		if (type instanceof FuncType) {
+			return new FuncValue(type);
+		} else {
+			return new DataValue(type);
+		}
+	}
+
+	isType() {
+		return false;
+	}
+	
+	isValue() {
+		return true;
+	}
+
+	isBaseOf(site, type) {
+		site.typeError("not a type");
+	}
+
+	call(site, args) {
+		site.typeError("not callable");
+	}
+}
+
+class DataType extends Type {
+	constructor() {
+		super();
+	}
+
+	isBaseOf(site, type) {
+		return Object.getPrototypeOf(this) == Object.getPrototypeOf(type);
+	}
+}
+
+class UserType extends DataType {
+	constructor(statement) {
+		super();
+		this.statement_ = statement;
+	}
+
+	isBaseOf(site, type) {
+		if (type instanceof UserType) {
+			this.statement_.isBaseOf(type.statement_);
+		} else {
+			return false;
+		}
+	}
+
+	// for `::`
+	getTypeMember(name) {
+		return this.statement_.getTypeMember(name);
+	}
+
+	// for `.`
+	getInstanceMember(name) {
+		return this.statement_.getInstanceMember(name);
+	}
+
+	nFields(site) {
+		return this.statement_.nFields(site);
+	}
+
+	getConstrIndex(site) {
+		return this.statement_.getConstrIndex(site);
+	}
+}
+
+// any builtin type that inherits from BuiltinType should implement toUntyped() and getInstanceMember() 
+class BuiltinType extends DataType {
+	constructor() {
+		super();
+	}
+
+	getTypeMember(name) {
+		name.referenceError(`${this.toString()}::${name.value} undefined`);
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "trace":
+				return Value.new(new FuncType([new StringType()], this));
+			case "serialize":
+				return Value.new(new FuncType([], new ByteArrayType()));
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([this], new BoolType()));
+			default:
+				name.referenceError(`${this.toString()}.${name.value} undefined`);
+		}
+	}
+
+	// by default builtin types don't have any fields
+	nFields(site) {
+		return 0;
+	}
+
+	// by default builtin types that are encoded as Plutus-Core data use the '0' constructor index
+	getConstrIndex(site) {
+		return 0;
+	}
+
+	// return base of type
+	toUntyped() {
+		throw new Error("not implemented")
+	}
+}
+
+class DataValue extends Value {
+	constructor(type) {
+		assert(!(type instanceof FuncType));
+
+		super();
+		this.type_ = type;
+	}
+
+	copy() {
+		return new DataValue(this.type_);
+	}
+
+	toString() {
+		return this.type_.toString();
+	}
+
+	getType(site) {
+		return this.type_;
+	}
+
+	// type can be a class, or class instance
+	isInstanceOf(site, type) {
+		if (typeof type == 'function') {
+			return this.type_ instanceof type;
+		} else {
+			return type.isBaseOf(site, this.type_);
+		}
+	}
+
+	nFields(site) {
+		return this.type_.nFields(site);
+	}
+
+	getInstanceMember(name) {
+		return this.type_.getInstanceMember(name);
+	}
+}
+
+class FuncType extends Type {
+	constructor(argTypes, retType) {
+		super();
+		this.argTypes_ = argTypes;
+		this.retType_ = retType;
+	}
+
+	get nArgs() {
+		return this.argTypes_.length;
+	}
+
+	get retType() {
+		return this.retType_;
+	}
+
+	toString() {
+		return `(${this.argTypes_.map(a => a.toString()).join(", ")}) -> ${this.retType_.toString()}`;
+	}
+
+	// the name of first arg also needs to be self, but that is checked elsewhere
+	maybeMethod(site, type) {
+		if (this.argTypes_.length > 0) {
+			return Type.same(site, this.argTypes_[0], type);
+		} else {
+			return false;
+		}
+	}
+	
+	isAssociated(site, type) {
+		for (let arg of this.argTypes_.length) {
+			if (Type.same(site, arg, type)) {
+				return true;
+			}
+		}
+
+		if (Type.same(site, type, this.retType_)) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	isBaseOf(site, type) {
+		if (type instanceof FuncType) {
+			if (this.nArgs != type.nArgs) {
+				return false;
+			} else {
+				for (let i = 0; i < this.nArgs; i++) {
+					if (!type.argTypes_[i].isBaseOf(site, this.argTypes_[i])) { // note the reversal of the check
+						return false;
+					}
+				}
+
+				return this.retType_.isBaseOf(site, type.retType_);
+			}
+
+		} else {
+			return false;
+		}
+	}
+
+	// returns a list of [haveDatum, haveRedeemer, haveScriptContext]
+	checkAsMain(site, purpose) {
+		let haveDatum = false;
+		let haveRedeemer = false;
+		let haveScriptContext = false;
+
+		if (!Type.same(site, this.retType_, new BoolType())) {
+			site.typeError(`invalid main return type: expected Bool, got ${this.retType_.toString()}`);
+		} else if (purpose == ScriptPurpose.Spending) {
+			if (this.argTypes_.length > 3) {
+				site.typeError("too many arguments for main");
+			} 
+
+			for (let arg of this.argTypes_) {
+				let t = arg.toString();
+
+				if (t == "Datum") {
+					if (haveDatum) {
+						site.typeError("duplicate \'Datum\' argument");
+					} else if (haveRedeemer) {
+						site.typeError("\'Datum\' must come before \'Redeemer\'");
+					} else if (haveScriptContext) {
+						site.typeError("\'Datum\' must come before \'ScriptContext\'");
+					} else {
+						haveDatum = true;
+					}
+				} else if (t == "Redeemer") {
+					if (haveRedeemer) {
+						site.typeError("duplicate \'Redeemer\' argument");
+					} else if (haveScriptContext) {
+						site.typeError("\'Redeemer\' must come before \'ScriptContext\'");
+					} else {
+						haveRedeemer = true;
+					}
+				} else if (t == "ScriptContext") {
+					if (haveScriptContext) {
+						site.typeError("duplicate \'ScriptContext\' argument");
+					} else {
+						haveScriptContext = true;
+					}
+				} else {
+					site.typeError("illegal argument type, must be \'Datum\', \'Redeemer\' or \'ScriptContext\'");
+				}
+			}
+		} else if (purpose == ScriptPurpose.Minting) {
+			if (this.argTypes_.length > 2) {
+				site.typeError("too many arguments for main");
+			}
+
+			for (let arg of this.argTypes_) {
+				let t = arg.toString();
+
+				if (t == "Redeemer") {
+					if (haveRedeemer) {
+						site.typeError(`duplicate "Redeemer" argument`);
+					} else if (haveScriptContext) {
+						site.typeError(`"Redeemer" must come before "ScriptContext"`);
+					} else {
+						haveRedeemer = true;
+					}
+				} else if (t == "ScriptContext") {
+					if (haveScriptContext) {
+						site.typeError(`duplicate "ScriptContext" argument`);
+					} else {
+						haveScriptContext = true;
+					}
+				} else {
+					site.typeError(`illegal argument type, must be "Redeemer" or "ScriptContext"`);
+				}
+			}
+		} else {
+			throw new Error(`unhandled ScriptPurpose ${purpose.toString()}`);
+		}
+
+		return [haveDatum, haveRedeemer, haveScriptContext];
+	}
+}
+
+class FuncValue extends Value {
+	constructor(type) {
+		assert(type instanceof FuncType);
+
+		super();
+		this.type_ = type;
+	}
+	
+	copy() {
+		return new FuncValue(this.type_);
+	}
+
+	toString() {
+		return this.type_.toString();
+	}
+
+	getType() {
+		return this.type_;
+	}
+
+	isInstanceOf(site, type) {
+		if (typeof type == 'function') {
+			return this.type_ instanceof type;
+		} else {
+			return type.isBaseOf(site, this.type_);
+		}
+	}
+	
+	call(site, args) {
+		if (this.type_.nArgs != args.length) {
+			site.typeError(`expected ${this.type_.nArgs} arg(s), got ${args.length}`);
+		}
+
+		for (let i = 0; i < this.nArgs; i++) {
+			if (!args[i].isInstanceOf(site, this.type_.argTypes_[i])) {
+				site.typeError(`expected ${this.type_.argTypes_[i].toString()} for arg ${i+1}, got ${args[i].toString()}`);
+			}
+		}
+
+		return Value.new(this.type_.retType_);
+	}
+
+	nFields(site) {
+		site.typeError("a function doesn't have fields");
+	}
+
+	getInstanceMember(name) {
+		name.typeError("a function doesn't have any members");
+	}
+}
+
+
+// used when empty list are passed into fold
+class AnyType extends Type {
+	constructor() {
+		super();
+	}
+
+	isBaseOf(site, other) {
+		return true;
+	}
+}
+
+
+/////////////////////////////////
+// Section 9: Plutus-Light scopes
+/////////////////////////////////
+
+// GlobalScope is for builtins
+class GlobalScope {
+	constructor() {
+		// let there be no confusion: types are also values!
+		// values_ contains a list of pairs
+		this.values_ = []; 
+	}
+
+	has(name) {
+		for (let pair of this.values_) {
+			if (pair[0].toString() == name.toString()) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	// when setting in global scope assuming everything is unique
+	set(name, value) {
+		if (!(name instanceof Word)) {
+			name = new Word(name);
+		}
+
+		assert(value.toUntyped != undefined);
+
+		this.values_.push([name, value]);
+	}
+
+	get(name) {
+		for (let pair of this.values_) {
+			if (pair[0].toString() == name.toString()) {
+				pair[1].used = true;
+				return pair[1];
+			}
+		}
+
+		name.referenceError(`\'${name.toString()}\' undefined`);
+	}
+}
+
+class Scope {
+	constructor(parent) {
+		assert(parent != null);
+
+		this.parent_ = parent;
+		this.values_ = []; // list of pairs
+	}
+
+	has(name) {
+		for (let pair of this.values_) {
+			if (pair[0].toString() == name.toString()) {
+				return true;
+			}
+		}
+
+		if (this.parent_ != null) {
+			return this.parent_.has(name);
+		} else {
+			return false;
+		}
+	}
+
+	set(name, value) {
+		if (this.has(name)) {
+			name.syntaxError(`\'${name.toString()}\' already defined`);
+		}
+
+		this.values_.push([name, value]);
+	}
+
+	get(name) {
+		if (!(name instanceof Word)) {
+			name = new Word(name);
+		}
+
+		for (let pair of this.values_) {
+			if (pair[0].toString() == name.toString()) {
+				pair[1].used = true;
+				return pair[1];
+			}
+		}
+
+		if (this.parent_ != null) {
+			return this.parent_.get(name);
+		} else {
+			name.referenceError(`${name.toString()} undefined`);
+		}
+	}
+
+	assertAllUsed() {
+		for (let pair of this.values_) {
+			if (!pair[1].used) {
+				pair[0].referenceError(`\'${pair[0].toString()}\' unused`);
+			}
+		}
+	}
+}
+
+// map: name -> definition
+function wrapWithDefinitions(inner, map) {
+	let keys = Array.from(map.keys()).reverse();
+
+	let res = inner;
+	for (let key of keys) {
+		res = `(${key}) -> {${res}}(${map.get(key)})`;
+	}
+
+	return res;
+}
+
+class TopScope extends Scope {
+	constructor(parent) {
+		assert(parent instanceof GlobalScope);
+		super(parent);
+	}
+
+	set(name, value) {
+		super.set(name, value);
+	}
+
+	wrapAround(inner) {	
+		// first collect, so we can optionally reverse
+		let map = new Map(); // string -> string
+
+		for (let pair of this.values_) {
+			pair[1].toUntyped(map);
+		}
+
+		return wrapWithDefinitions(inner, map);
+	}
+}
+
+
+//////////////////////////////////
+// Section 10: Plutus-Light AST expressions
+//////////////////////////////////
+
+function assertTypeMatch(a, b) {
+	if (!a.eq(b)) {
+		b.typeError(`expected \'${a.toString()}\', got \'${b.toString()}\'`);
+	}
+}
+
+// caches the evaluated type
+// both TypeExpr and ValueExpr inherit from this
+class Expr extends Token {
+	constructor(site) {
+		super(site);
+		this.cache_ = null;
+	}
+
+	eval(scope) {
+		if (this.cache_ == null) {
+			this.cache_ = this.evalInternal(scope);
+		}
+
+		return this.cache_;
+	}
+}
+
+class TypeExpr extends Expr {
+	constructor(site) {
+		super(site);
+	}
+}
+
+class TypeRefExpr extends TypeExpr {
+	constructor(name) {
+		super(name.site);
+		this.name_ = name;
+	}
+
+	toString() {
+		return this.name_.toString();
+	}
+
+	evalInternal(scope) {
+		let type = scope.get(this.name_);
+
+		if (!type.isType()) {
+			this.name_.typeError("not a type");
+		}
+
+		return type;
+	}
+
+	toUntyped() {
+		return `__${this.name_.toString()}`;
+	}
+}
+
+class TypePathExpr extends TypeExpr {
+	constructor(site, rootName, memberName) {
+		super(site);
+		this.baseName_ = baseName;
+		this.memberName_ = memberName;
+	}
+
+	toString() {
+		return this.baseName_.toString() + "::" + this.memberName_.toString();
+	}
+
+	evalInternal(scope) {
+		let baseType = scope.get(this.baseName_);
+
+		if (!baseType.isType()) {
+			this.baseName_.typeError("not a type");
+		}
+
+		let memberType = baseType.getTypeMember(this.memberName_);
+
+		if (!memberType.isType()) {
+			this.memberName_.typeError("not a type");
+		}
+
+		return memberType;
+	}
+
+	toUntyped() {
+		return `__${this.baseName_.toString()}__${this.memberName_.toString()}`;
+	}
+}
+
+class ListTypeExpr extends TypeExpr {
+	constructor(site, itemTypeExpr) {
+		super(site);
+		this.itemTypeExpr_ = itemTypeExpr;
+	}
+
+	toString() {
+		return `[]${this.itemTypeExpr_.toString()}`;
+	}
+
+	evalInternal(scope) {
+		let itemType = this.itemTypeExpr_.eval(scope);
+
+		assert(itemType.isType());
+
+		if (itemType instanceof FuncType) {
+			this.itemTypeExpr_.typeError("list item type can't be function");
+		}
+
+		return new ListType(itemType);
+	}
+}
+
+class MapTypeExpr extends TypeExpr {
+	constructor(site, keyTypeExpr, valueTypeExpr) {
+		super(site);
+		this.keyTypeExpr_ = keyTypeExpr;
+		this.valueTypeExpr_ = valueTypeExpr;
+	}
+
+	toString() {
+		return `Map[${this.keyTypeExpr_.toString()}]${this.valueTypeExpr_.toString()}`; 
+	}
+
+	evalInternal(scope) {
+		let keyType = this.keyTypeExpr_.eval(scope);
+
+		assert(keyType.isType());
+		if (keyType instanceof FuncType) {
+			this.keyTypeExpr_.typeError("map key type can't be function");
+		}
+
+		let valueType = this.valueTypeExpr_.eval(scope);
+
+		assert(valueType.isType());
+
+		if (valueType instanceof FuncType) {
+			this.valueTypeExpr_.typeError("map value type can't be function");
+		}
+
+		return new MapType(keyType, valueType);
+	}
+}
+
+class OptionTypeExpr extends TypeExpr {
+	constructor(site, someTypeExpr) {
+		super(site);
+		this.someTypeExpr_ = someTypeExpr;
+	}
+
+	toString() {
+		return `Option[${this.someTypeExpr_.toString()}]`;
+	}
+
+	evalInternal(scope) {
+		let someType = this.someTypeExpr_.eval(scope);
+
+		assert(someType.isType());
+		if (someType instanceof FuncType) {
+			this.someTypeExpr_.typeError("option some type can't be function");
+		}
+
+		return new OptionType(someType);
+	}
+}
+
+class FuncTypeExpr extends TypeExpr {
+	constructor(site, argTypeExprs, retTypeExpr) {
+		super(site);
+		this.argTypeExprs_ = argTypeExprs;
+		this.retTypeExpr_ = retTypeExpr;
+	}
+
+	toString() {
+		return `(${this.argTypeExprs_.map(a => a.toString()).join(", ")}) -> ${this.retTypeExpr_.toString()}`;
+	}
+
+	evalInternal(scope) {
+		let argTypes = this.argTypeExprs_.map(a => a.eval(scope));
+
+		let retType = this.retTypeExpr_.eval(scope);
+
+		return new FuncType(argTypes, retType);
+	}
+}
+
+class ValueExpr extends Expr {
+	constructor(site) {
+		super(site);
+	}
+
+	toUntyped() {
+		throw new Error("not implemented");
+	}
+}
+
+class AssignExpr extends ValueExpr {
+	constructor(site, name, typeExpr, upstreamExpr, downstreamExpr) {
+		super(loc);
+		this.name_ = name;
+		this.typeExpr_ = typeExpr; // is optional
+		this.upstreamExpr_  = upstreamExpr;
+		this.downstreamExpr_ = downstreamExpr;
+	}
+
+	toString() {
+		let downstreamStr = this.downstreamExpr_.toString();
+		assert(downstreamStr != undefined);
+
+		let typeStr = "";
+		if (this.typeExpr_ != null) {
+			typeStr = `: ${this.typeExpr_.toString()}`;
+		}
+		return `${this.name_.toString()}${typeStr} = ${this.upstreamExpr_.toString()}; ${downstreamStr}`;
+	}
+
+	evalInternal(scope) {
+		let subScope = new Scope(scope);
+
+		let upstreamVal = this.upstreamExpr_.eval(scope);
+
+		assert(upstreamVal.isValue());
+
+		if (this.typeExpr_ != null) {
+			let type = this.typeExpr_.eval(scope);
+			
+			assert(type.isType());
+
+			if (!upstreamVal.isInstanceOf(this.upstreamExpr_.site, type)) {
+				this.upstreamExpr_.typeError(`expected ${type.toString()}, got ${upstreamVal.toString()}`);
+			}
+		} else {
+			if (!(this.upstreamExpr_.isLiteral())) {
+				this.typeError("type inference not available");
+			}
+		}
+		
+		subScope.set(this.name_, upstreamVal.copy());
+
+		let downstreamVal = this.downstreamExpr_.eval(subScope);
+
+		subScope.assertAllUsed();
+
+		return downstreamVal;
+	}
+
+	toUntyped() {
+		return `(${this.name_.toString()}) -> {${this.downstreamExpr_.toUntyped()}}(${this.upstreamExpr_.toUntyped()})`;
+	}
+}
+
+class PrintExpr extends Expr {
+	constructor(site, msgExpr, downstreamExpr) {
+		super(loc);
+		this.msgExpr_ = msgExpr;
+		this.downstreamExpr_ = downstreamExpr;
+	}
+
+	toString() {
+		let downstreamStr = this.downstreamExpr_.toString();
+		assert(downstreamStr != undefined);
+		return `print(${this.msgExpr_.toString()}); ${downstreamStr}`;
+	}
+
+	evalInternal(scope) {
+		let subScope = new Scope(scope);
+
+		let msgVal = this.msgExpr_.eval(scope);
+
+		assert(msgVal.isValue());
+
+		if (!msgVal.isInstanceOf(this.msgExpr_.site, StringType)) {
+			this.msgExpr_.typeError("expected string arg for print");
+		}
+		
+		let downstreamVal = this.downstreamExpr_.eval(scope);
+
+		return this.downstreamExpr_.eval(scope);
+	}
+
+	toUntyped() {
+		return `__core__trace(${this.msgExpr_.toUntyped()}, () -> {${this.downstreamExpr_.toUntyped()}})()`;
+	}
+}
+
+class PrimitiveLiteralExpr extends Expr {
+	constructor(primitive) {
+		super(primitive.site);
+		assert(primitive instanceof PrimitiveLiteral);
+		this.primitive_ = primitive;
+	}
+
+	toString() {
+		return this.primitive_.toString();
+	}
+
+	evalInternal(scope) {
+		if (this.primitive_ instanceof IntLiteral) {
+			return new DataValue(new IntType());
+		} else if (this.primitive_ instanceof BoolLiteral) {
+			return new DataValue(new BoolType());
+		} else if (this.primitive_ instanceof StringLiteral) {
+			return new DataValue(new StringType());
+		} else if (this.primitive_ instanceof ByteArrayLiteral) {
+			return new DataValue(new ByteArrayType());
+		} else {
+			throw new Error("unhandled primitive type");
+		}
+	}
+
+	toUntyped() {
+		return this.primitive_.toUntyped();
+	}
+}
+
+class StructLiteralField {
+	constructor(name, value) {
+		this.name_ = name;
+		this.value_ = value;
+	}
+
+	get site() {
+		return this.name_.site;
+	}
+
+	get name() {
+		return this.name_;
+	}
+
+	toString() {
+		return `${this.name_}: ${this.value_.toString()}`;
+	}
+
+	eval(scope) {
+		return this.value_.eval(scope);
+	}
+
+	toUntyped() {
+		return toData(this.value_.toUntyped(), this.value_.evalType());
+	}
+}
+
+class StructLiteralExpr extends Expr {
+	constructor(typeExpr, fields) {
+		super(typeExpr.site);
+		this.typeExpr_ = typeExpr;
+		this.fields_ = fields; // list of StructLiteralField
+		this.constrIndex_ = null;
+	}
+
+	isLiteral() {
+		return true;
+	}
+
+	toString() {
+		return `${this.typeExpr_.toString()}{${this.fields_.map(f => f.toString()).join(", ")}}`;
+	}
+
+	evalInternal(scope) {
+		let type = this.typeExpr_.eval(scope);
+
+		assert(type.isType());
+
+		this.constrIndex_ = type.getConstrIndex(this.site);
+
+		let refInstance = Value.new(type);
+
+		if (refInstance.nFields(this.site) != this.fields_.length) {
+			this.typeError("wrong number of fields");
+		}
+
+		for (let f of this.fields_) {
+			if (!f.eval(scope).isInstanceOf(f.site, refInstance.getInstanceMember(f.name).getType(this.site))) {
+				f.typeError("wrong type");
+			}
+		}
+	}
+
+	toUntyped() {
+		let res = "mkNilData(())";
+
+		let fields = this.fields_.slice().reverse();
+
+		for (let f of fields) {
+			res = `mkCons(${f.toUntyped()}, ${res})`;
+		}
+
+		let idx = this.constrIndex_;
+
+		return `constrData(${idx.toString()}, ${res})`;
+	}
+}
+
+class ListLiteralExpr extends Expr {
+	constructor(site, itemTypeExpr, itemExprs) {
+		super(site);
+		this.itemTypeExpr_ = itemTypeExpr;
+		this.itemExprs_ = itemExprs;
+		this.itemType_ = null;
+	}
+
+	toString() {
+		return `[]${this.itemTypeExpr_.toString()}{${this.itemExprs_.map(itemExpr => itemExpr.toString()).join(', ')}}`;
+	}
+
+	evalInternal(scope) {
+		let itemType = this.itemTypeExpr_.eval(scope);
+
+		if (itemType instanceof FuncType) {
+			this.itemTypeExpr_.typeError("content of list can't be func");
+		}
+
+		assert(itemType.isType());
+
+		for (let itemExpr of this.itemExprs_) {
+			let itemVal = itemExpr.eval(scope);
+
+			if (!itemVal.isInstanceOf(itemExpr.site, itemType)) {
+				itemExpr.typeError(`expected ${itemType.toString()}, got ${itemVal.toString()}`);
+			}
+		}
+
+		this.itemType_ = itemType;
+
+		return new ListType(itemType);
+	}
+
+	toUntyped() {
+		// unsure if list literals in untyped plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
+		let res = "mkNilData(())";
+
+		// starting from last element, keeping prepending a data version of that item
+
+		for (let i = this.itemExprs_.length - 1; i >= 0; i--) {
+			let itemExpr = this.itemExprs_[i];
+			res = `mkCons(${toData(itemExpr.toUntyped(), this.itemType_)}, ${res})`;
+		}
+
+		return res;
+	}
+}
+
+class NameTypePair {
+	constructor(name, typeExpr) {
+		this.name_ = name;
+		this.typeExpr_ = typeExpr;
+	}
+
+	get name() {
+		return this.name_;
+	}
+
+	toString() {
+		return `${this.name.toString()}: ${this.typeExpr_.toString()}`;
+	}
+
+	evalType(scope) {
+		let type = this.typeExpr_.eval(scope);
+		assert(type.isType());
+
+		return type;
+	}
+
+	toUntyped() {
+		return this.name_.toString();
+	}
+}
+
+class FuncArg extends NameTypePair {
+	constructor(name, typeExpr) {
+		super(name, typeExpr);
+	}
+}
+
+class FuncLiteralExpr extends Expr {
+	constructor(site, args, retTypeExpr, bodyExpr) {
+		super(site);
+		this.args_ = args;
+		this.retTypeExpr_ = retTypeExpr;
+		this.bodyExpr_ = bodyExpr;
+	}
+
+	isLiteral() {
+		return true;
+	}
+
+	toString() {
+		return `(${this.args_.map(a => a.toString()).join(", ")}) -> ${this.retTypeExpr_.toString()} {${this.bodyExpr_.toString()}}`;
+	}
+
+	evalType(scope) {
+		let argTypes = this.args_.map(a => a.evalType(scope));
+		let retType = this.retTypeExpr_.eval(scope);
+
+		return new FuncType(argTypes, retType);
+	}
+
+	evalInternal(scope) {
+		let argTypes = this.args_.map(a => a.evalType(scope));
+		let retType = this.retTypeExpr_.eval(scope);
+
+		let res = new FuncValue(new FuncType(argTypes, retType));
+
+		let subScope = new Scope(scope);
+
+		for (let a of argTypes) {
+			subScope.set(a.name, Value.new(a));
+		}
+
+		assert(retType.isType());
+
+		let bodyVal = this.bodyExpr_.eval(subScope);
+
+		if (!bodyVal.isInstanceOf(this.retTypeExpr_.site, retType)) {
+			this.retTypeExpr_.typeError("wrong return type");
+		}
+
+		return res;
+	}
+
+	maybeMethod() {
+		return this.args_.length > 0 && this.args_[0].name.toString() == "self";
+	}
+
+	toUntyped(self = "_") {
+		let args = this.args_.map(a => a.toUntyped());
+		args.unshift(self);
+		return `(${args.join(", ")}) -> {${this.bodyExpr_.toUntyped()}}`;
+	}
+}
+
+class ValueRefExpr extends Expr {
+	constructor(name) {
+		super(name.site);
+		this.name_ = name;
+	}
+
+	toString() {
+		return this.name_.toString();
+	}
+
+	eval(scope) {
+		let val = scope.get(this.name_);
+
+		if (!val.isValue()) {
+			this.typeError("not a value");
+		}
+
+		return val;
+	}
+
+	toUntyped() {
+		return this.toString();
+	}
+}
+
+class ValuePathExpr extends Expr {
+	constructor(baseTypeExpr, memberName) {
+		assert(baseTypeExpr instanceof TypeRefExpr || baseTypeExpr instanceof TypePathExpr);
+		// root is always some type
+		this.baseTypeExpr_ = baseTypeExpr;
+		this.memberName_ = memberName;
+	}
+
+	toString() {
+		return `${this.baseTypeExpr_.toString()}::${this.memberName_.toString()}`;
+	}
+
+	eval(scope) {
+		let baseType = this.baseTypeExpr_.eval(scope);
+		assert(baseType.isType());
+
+		let memberVal = baseType.getTypeMember(this.memberName_);
+		if (!memberVal.isValue()) {
+			this.typeError("member is not a value");
+		}
+
+		return memberVal;
+	}
+
+	toUntyped() {
+		return `${this.baseTypeExpr_.toUntyped()}__${this.memberName_.toString()}`;
+	}
+}
+
+class UnaryExpr extends Expr {
+	constructor(op, a) {
+		super(op.site);
+		this.op_ = op;
+		this.a_ = a;
+		this.aVal_ = a;
+	}
+
+	toString() {
+		return `${this.op_.toString()}${this.a_.toString()}`;
+	}
+
+	translateOp() {
+		let op = this.op_.toString();
+		let site = this.op_.site;
+
+		let name;
+
+		if (op == "+") {
+			name = "__pos";
+		} else if (op == "-") {
+			name = "__neg";
+		} else if (op == "!") {
+			name = "__not";
+		}
+
+		return new Word(site, name);
+	}
+
+	evalInternal(scope) {
+		let a = this.a_.eval(scope);
+		assert(a.isValue());
+		this.fnVal_ = a.getInstanceMember(this.translateOp());
+		this.aType_ = a.getType();
+
+		return this.fnVal_.call(this.op_.site, []);
+	}
+
+	toUntyped() {
+		let path = this.aType_.getPath();
+		return `${path}__${this.translateOp().value}(${this.a_.toUntyped()})()`;
+	}
+}
+
+class BinaryExpr extends Expr {
+	constructor(op, a, b) {
+		super(op.site);
+		this.op_ = op;
+		this.a_ = a;
+		this.b_ = b;
+		this.aType_ = null;
+		this.fnVal_ = null;
+	}
+
+	toString() {
+		return `${this.a_.toString()} ${this.op_.toString()} ${this.b_.toString()}`;
+	}
+
+	translateOp() {
+		let op = this.op_.toString();
+		let site = this.op_.site;
+		let name;
+
+		if (op == "||") {
+			name = "__or";
+		} else if (op == "&&") {
+			name = "__and";
+		} else if (op == "==") {
+			name = "__eq";
+		} else if (op == "!=") {
+			name = "__neq";
+		} else if (op == "<") {
+			name = "__lt";
+		} else if (op == "<=") {
+			name = "__leq";
+		} else if (op == ">") {
+			name = "__gt";
+		} else if (op == ">=") {
+			name = "__geq";
+		} else if (op == "+") {
+			name = "__add";
+		} else if (op == "-") {
+			name = "__sub";
+		} else if (op == "*") {
+			name = "__mul";
+		} else if (op == "/") {
+			name = "__div";
+		} else if (op == "%") {
+			name = "__mod";
+		} else {
+			throw new Error("unhandled");
+		}
+
+		return new Word(site, name);
+	}
+
+	evalInternal(scope) {
+		let a = this.a_.eval(scope);
+		let b = this.b_.eval(scope);
+		assert(a.isValue() && b.isValue());
+		this.aType_ = a.getType(this.site);
+		this.fnVal_ = a.getInstanceMember(this.translateOp());
+
+		return this.fnVal_.call(this.op_.site, [b]);
+	}
+
+	toUntyped() {
+		let path = this.aType_.getPath();
+
+		let op = this.translateOp().value;
+
+		if (op == "__and") {
+			return `${path}__and(
+				() -> {${this.a_.toUntyped()}},
+				() -> {${this.b_.toUntyped()}}
+			)`;
+		} else if (op == "__or") {
+			return `${path}__or(
+				() -> {${this.a_.toUntyped()}},
+				() -> {${this.b_.toUntyped()}}
+			)`;
+		} else {
+			return `${path}__${this.translateOp().value}(${this.a_.toUntyped()})(${this.b_.toUntyped()})`;
+		}
+	}
+}
+
+class ParensExpr extends Expr {
+	constructor(site, expr) {
+		super(site);
+		this.expr_ = expr;
+	}
+
+	toString() {
+		return `(${this.expr_.toString()})`;
+	}
+
+	evalInternal(scope) {
+		return this.expr_.eval(scope);
+	}
+
+	toUntyped() {
+		return this.expr_.toUntyped();
+	}
+}
+
+class CallExpr extends Expr {
+	constructor(site, fnExpr, argExprs) {
+		super(site);
+		this.fnExpr_ = fnExpr;
+		this.argExprs_ = argExprs;
+	}
+
+	toString() {
+		return `${this.fnExpr_.toString()}(${this.argExprs_.map(a => a.toString()).join(", ")})`;
+	}
+
+	evalInternal(scope) {
+		let fnVal = this.fnExpr_.eval(scope);
+
+		let argVals = this.argExprs_.map(argExpr => {
+			let argVal = argExpr.eval(scope);
+			assert(argVal.isValue());
+			return argVal; 
+		});
+
+		return fnVal.call(this.site, argVals);
+	}
+
+	toUntyped() {
+		// all functions need to be recursively callable by default,
+		// optimization of the untyped plutus core happens later
+		return `(((fn) -> {fn(fn, ${this.argExprs_.map(a => a.toUntyped()).join(", ")})})(${this.fnExpr_.toUntyped()}))`;
+	}
+}
+
+class MemberExpr extends Expr {
+	constructor(site, objExpr, memberName) {
+		super(site);
+		this.objExpr_ = objExpr;
+		this.memberName_ = memberName;
+		this.fieldIdx_ = null;
+		this.memberType_ = null;
+	}
+	
+	toString() {
+		return `${this.objExpr_.toString()}.${this.memberName_.toString()}`;
+	}
+
+	evalInternal(scope) {
+		let objVal = this.objExpr_.eval(scope);
+		assert(objVal.isValue());
+
+		let member = objVal.getInstanceMember(this.memberName_);
+		assert(member.isValue());
+
+		this.fieldIdx_ = obj.getType().findField(this.memberName_);
+		assert(this.fieldIdx_ != -1);
+		this.memberType_ = member.getType();
+
+		return member;
+	}
+
+	toUntyped() {
+		// members can be functions so, field getters are also encoded as functions for consistency
+		return `${this.memberType.toUntyped()}__${this.memberName_.toString()}(${this.objExpr_.toUntyped()})`;
+	}
+}
+
+class IfElseExpr extends Expr {
+	constructor(site, conditions, branches) {
+		assert(branches.length == conditions.length + 1);
+		assert(branches.length > 1);
+
+		super(site);
+		this.conditions_ = conditions;
+		this.branches_ = branches;
+	}
+
+	toString() {
+		let s = "";
+		for (let i = 0; i < this.conditions_.length; i++) {
+			s += `if (${this.conditions_[i].toString()}) {${this.branches_[i].toString()}} else `;
+		}
+
+		s += `{${this.branches_[this.conditions_.length].toString()}}`;
+
+		return s;
+	}
+
+	static reduceBranchType(site, prevType, newType) {
+		if (prevType == null) {
+			return newType;
+		} else if (!prevType.isBaseOf(site, newType)) {
+			if (newType.isBaseOf(site, prevType)) {
+				return newType;
+			} else {
+				site.typeError("inconsistent types");
+			}
+		} else {
+			return prevType;
+		}
+	}
+
+	evalInternal(scope) {
+		for (let c of this.conditions_) {
+			let cVal = c.eval(scope);
+			if (!cVal.isInstanceOf(c.site, BoolType)) {
+				c.typeError("expected bool");
+			}
+		}
+
+		let branchType = null;
+		for (let b of this.branches_) {
+			let branchVal = b.branch(scope);
+
+			branchType = IfElseExpr.reduceBranchType(b.site, branchType, branchVal.getType());
+		}
+
+		return Value.new(branchType);
+	}
+
+	toUntyped() {
+		let n = this.conditions_.length;
+
+		// each branch actually returns a function to allow deferred evaluation
+		let res = `() -> {${this.branches_[n].toUntyped()}}`;
+
+		for (let i = n-1; i >= 0; i--) {
+			res = `ifThenElse(${this.conditions_[i].toUntyped()}, ()- > {${this.branches_[i].toUntyped()}}, () -> {${res}()})`;
+		}
+
+		return res + "()";
+	}
+}
+
+class SwitchCase extends Token {
+	constructor(site, varName, typeExpr, bodyExpr) {
+		super(site);
+		this.varName_ = varName; // optional
+		this.typeExpr_ = typeExpr; // not optional
+		this.bodyExpr_ = bodyExpr;
+		this.constrIndex_ = null;
+	}
+
+	get constrIndex() {
+		return this.constrIndex_;
+	}
+
+	toString() {
+		if (this.varName_ == null) {
+			return `case ${this.typeExpr_.toString()} {${this.bodyExpr_.toString()}}`
+		} else {
+			return `case (${this.varName_.toString()} ${this.typeExpr_.toString()}) {${this.bodyExpr_.toString()}}`;
+		}
+	}
+
+	eval(scope) {
+		let type = this.typeExpr_.eval(scope);
+		assert(type.isType());
+
+		if (this.varName_ != null) {
+			let caseScope = new Scope(scope);
+
+			caseScope.set(this.varName_, Value.new(type));
+
+			let bodyVal = this.bodyExpr_.eval(caseScope);
+
+			caseScope.assertAllUsed();
+
+			return bodyVal;
+		} else {
+			return this.bodyExpr_.eval(scope);
+		}
+	}
+
+	evalCond(scope, switchParentType) {
+		let caseType = this.typeExpr_.eval(scope, switchParentType);
+		assert(caseType.isType());
+
+		if (!switchParentType.isBaseOf(this.typeExpr_.site, caseType)) {
+			this.typeExpr_.typeError("switching over wrong type");
+		}
+
+		this.constrIndex_ = caseType.getConstrIndex(this.typeExpr_.site);
+	}
+
+	toUntyped() {
+		return `(${this.varName_ != null ? this.varName_.toString() : "_"}) -> {${this.bodyExpr_.toUntyped()}}`;
+	}
+}
+
+class SwitchDefault extends Token {
+	constructor(site, bodyExpr) {
+		super(site);
+		this.bodyExpr_ = bodyExpr;
+	}
+	
+	toString() {
+		return  `default {${this.bodyExpr_.toString()}}`;
+	}
+
+	eval(scope) {
+		return this.bodyExpr_.eval(scope);
+	}
+
+	toUntyped() {
+		return `(_) -> {${this.body_.toUntyped()}}`;
+	}
+}
+
+class SwitchExpr extends Expr {
+	constructor(site, expr, cases, default_ = null) {
+		super(site);
+		this.expr_ = expr;
+		this.cases_ = cases;
+		this.default_ = default_;
+	}
+
+	toString() {
+		return `switch(${this.expr_.toString()}) ${this.cases_.map(c => c.toString()).join(" ")}${this.default_ == null ? "" : " " + this.default_.toString()}`;
+	}
+
+	eval(scope) {
+		let switchVal = this.expr_.eval(scope);
+
+		let switchParentType = switchVal.getType(this.site).getParentType(this.site); 
+
+		let branchType = null;
+		for (let c of this.cases_) {
+			let branchVal = c.eval(scope);
+
+			branchType = IfElseExpr.reduceBranchType(c.site, branchType, branchVal.getType(c.site));
+
+			c.evalCond(scope);
+		}
+
+		if (this.default_ != null) {
+			let defaultVal = this.default_.eval(scope);
+			branchType = IfElseExpr.reduceBranchType(this.default_.site, branchType, defaultVal.getType(this.default_.site));
+		} else {
+			if (switchParentType.nMembers() > this.cases_.length) {
+				this.typeError("insufficient coverage in switch expression");
+			}
+		}
+
+		return Value.new(branchType);
+	}
+
+	toUntyped() {
+		// easier to include default in case
+		let cases = this.cases_.slice();
+		if (this.default_ != null) {
+			cases.push(this.default_);
+		}
+
+		let n = cases.length;
+
+		let res = cases[n-1].toUntyped();
+
+		for (let i = n-2; i >= 0; i--) {
+			res = `ifThenElse(equalsInteger(i, ${cases[i].constrIndex.toString()}), () -> {${cases[i].toUntyped()}}, () -> {${res}})()`;
+		}
+
+		return `(e) -> {
+			(
+				(i) -> {
+					${res}
+				}(fstPair(unConstrData(e)))
+			)(e)
+		}(${this.expr_.toUntyped()})`;
+	}
+}
+
+
+//////////////////////////////////////////
+// Section 11: Plutus-Light AST statements
+//////////////////////////////////////////
+
+// statements don't return a value from eval(scope)
+class Statement extends Token {
+	constructor(site) {
+		super(site);
+	}
+
+	assertAllMembersUsed() {
+	}
+}
+
+class NamedStatement extends Statement {
+	constructor(site, name) {
+		super(site);
+		this.name_ = name;
+	}
+
+	get name() {
+		return this.name_;
+	}
+}
+
+class ConstStatement extends NamedStatement {
+	constructor(site, name, typeExpr, valueExpr) {
+		super(site, name);
+		this.typeExpr_ = typeExpr; // can be null in case of type inference
+		this.valueExpr_ = valueExpr;
+		this.type_ = null;
+	}
+
+	toString() {
+		return `const ${this.name.toString()}${this.typeExpr_ == null ? "" : ": " + this.typeExpr_.toString()} = ${this.valueExpr_.toString()};`;
+	}
+
+	evalInternal(scope) {
+		let value = this.valueExpr_.eval(scope);
+
+		if (this.typeExpr_ == null) {
+			if (!this.valueExpr_.isLiteral()) {
+				this.typeError("can't infer type");
+			}
+
+			this.type_ = value.getType();
+		} else {
+			this.type_ = this.typeExpr_.eval(scope);
+
+			assert(this.type_.isType());
+
+			if (!value.isInstanceOf(this.valueExpr_.site, this.type_)) {
+				this.valueExpr_.typeError("wrong type");
+			}
+		}
+
+		return Value.new(this.type_);
+	}
+
+	eval(scope) {
+		scope.set(this.name, this.evalInternal(scope));
+	}
+
+	toUntypedInternal() {
+		return this.valueExpr_.toUntyped();
+	}
+
+	toUntyped(map) {
+		map.set(this.name.toString(), this.toUntypedInternal());
+	}
+}
+
+class DataField extends NameTypePair {
+	constructor(name, typeExpr) {
+		super(name, typeExpr);
+	}
+}
+
+class DataDefinition extends NamedStatement {
+	constructor(site, name, fields) {
+		super(site, name);
+		this.fields_ = fields; // list of StructField
+		this.fieldTypes_ = null;
+		this.constrIndex_ = 0;
+		this.implMembers_ = new ImplMembers();
+		this.fieldsUsed_ = new Set();
+		this.autoMembersUsed_ = new Set();
+
+		for (let f of this.fields_) {
+			if (this.hasAutoMember(f.name)) {
+				f.name.referenceError("reserved member");
+			}
+		}
+	}
+
+	// returns an index, -1 if not found
+	findField(name) {
+		let found = -1;
+		let i = 0;
+		for (let f of this.fields_) {
+			if (f.name.toString() == name.toString()) {
+				found = i;
+				break;
+			}
+			i++;
+		}
+
+		return found;
+	}
+
+	toString() {
+		return `${this.name_.toString()} {${this.fields_.map(f => f.toString()).join(", ")}}`;
+	}
+
+	evalInternal(scope) {
+		this.fieldTypes_ = this.fields_.map(f => {
+			let fieldType = f.evalType(scope);
+			
+			if (fieldType instanceof FuncType) {
+				f.typeError("field can't be function type");
+			}
+
+			return fieldType;
+		});
+
+		return new UserType(this);
+	}
+
+	eval(scope) {
+		scope.set(this.name, this.evalInternal(scope));
+	}
+
+	hasAutoMember(name) {
+		switch(name.toString()) {
+			case "trace":
+			case "serialize":
+				return true;
+		}
+
+		return false;
+	}
+
+	setImplAssoc(name, value) {
+		if (this.findField(name) != -1) {
+			name.referenceError("name of assoc member can't be same as field");
+		} else if (this.hasAutoMember(name)) {
+			name.referenceError("name of assoc member can't be same as auto member");
+		}
+
+		this.implMembers_.setAssoc(name, value);
+	}
+
+	setImplMethod(name, value) {
+		if (this.findField(name) != -1) {
+			name.referenceError("name of method member can't be same as field");
+		}
+
+		this.implMembers_.setMethod(name, value);
+	}
+
+	// otherType has already been unwrapped from UserType
+	isBaseOf(other) {
+		return this == other;
+	}
+
+	nFields(site) {
+		return this.fields_.length;
+	}
+
+	getTypeMember(name) {
+		return this.implMembers_.getAssoc(name); // this is easy because there is no 'self', path will be __MyStruct__MyMember
+	}
+
+	getInstanceMember(name, dryRun = false) {
+		if (this.hasAutoMember(name)) {
+			switch(name.toString()) {
+				case "serialize":
+					if (!dryRun) {
+						this.autoMembersUsed_.add(name.toString());
+					}
+					return Value.new(new FuncType([], new ByteArrayType()));
+				default:
+					throw new Error("unhandled automember");
+			}
+		} else {
+			let i = this.findField(name);
+
+			if ( !this.fields_.has(name.toString())) {
+				if (this.implMembers_.has(name)) {
+					return this.implMembers_.getMethod(name, dryRun);
+				} else {
+					name.referenceError(`\'${this.name_.toString()}.${name.toString()}\' undefined`);
+				}
+			} else {
+				if (!dryRun) {
+					this.fieldsUsed_.add(name.toString());
+				}
+				return Value.new(this.fieldTypes_[i]);
+			}
+		}	
+	}
+
+	getConstrIndex(site) {
+		return this.constrIndex_;
+	}
+
+	assertAllMembersUsed() {
+		for (let f of this.fields_) {
+			if (!this.fieldsUsed_.has(f.name.toString())) {
+				f.name.referenceError("field unused");
+			}
+		}
+	}
+
+	getPath() {
+		return `__user__${this.name.toString()}`;
+	}
+
+	toUntyped(map) {
+		for (let i = 0; i < this.fields_.length; i++) {
+			let f = this.fields_[i];
+			let key = `${this.getPath()}__${f.name.toString()}`;
+
+			let inner = `__core__sndPair(self)`;			
+			for (let j = 0; j < i; j++) {
+				inner = `__core__tailList(${inner})`;
+			}
+
+			let getter = `(self) -> {
+				${fromData(`__core__headList(${inner})`, this.memberTypes_[i])}
+			}`;
+
+			map.set(key, getter)
+		}
+
+		for (let auto of this.autoMembersUsed_) {
+			switch(auto) {
+				case "serialize":
+					map.set(auto, `(self) -> {
+						() -> {__core__serialiseData(self)}
+					}`);
+					break;
+				case "__eq":
+					map.set(auto, `(self) -> {
+						(other) -> {__core__equalsData(self, other)}
+					}`);
+					break;
+				case "__neq":
+					map.set(auto, `(self) -> {
+						(other) -> {__helios__bool____not(__core__equalsData(self, other))}
+					}`);
+					break;
+				default:
+					throw new Error("unhandled auto member");
+			}
+		}
+	}
+}
+
+class StructStatement extends DataDefinition {
+	constructor(site, name, fields) {
+		super(site, name, fields);
+	}
+
+	toString() {
+		return "struct " + super.toString();
+	}
+
+	hasAutoMember(name) {
+		switch(name.toString()) {
+			case "__eq":
+			case "__neq":
+				return true;
+		}
+
+		return super.hasAutoMember(name);
+	}
+
+	getInstanceMember(name, dryRun = false) {
+		if (this.hasAutoMember(name)) {
+			switch(name.toString()) {
+				case "__eq":
+				case "__neq":
+					if (!dryRun) {
+						this.autoMembersUsed_.add(name.toString());
+					}
+					return Value.new(new FuncType([new UserType(this), new UserType(this)], new BoolType()));
+			}
+		}
+
+		return super.getInstanceMember(name);
+	}
+}
+
+class FuncStatement extends NamedStatement {
+	constructor(site, name, funcExpr) {
+		super(site, name);
+		this.funcExpr_ = funcExpr;
+	}
+
+	toString() {
+		return `func ${this.name.toString()}${this.funcExpr_.toString()}`;
+	}
+
+	evalInternal(scope) {
+		return this.funcExpr_.evalInternal(scope);
+	}
+
+	evalType(scope) {
+		return this.funcExpr_.evalType(scope);
+	}
+
+	eval(scope) {
+		// add to scope before evaluating, to allow recursive calls
+		scope.set(this.name, Value.new(this.evalType(scope)));
+
+		void this.evalInternal(scope);
+	}
+
+	maybeMethod() {
+		return this.funcExpr_.maybeMethod();
+	}
+
+	toUntypedInternal(self = null) {
+		if (self == null) {
+			self = this.name.toString();
+		}
+
+		return this.funcExpr_.toUntyped(self);
+	}
+
+	toUntyped(map) {
+		map.set(this.name.toString(), this.toUntypedInternal());
+		console.log("main func: ", this.toUntypedInternal())
+	}
+}
+
+class EnumMember extends DataDefinition {
+	constructor(name, fields) {
+		super(name.site, name, fields);
+		this.parent_ = null;
+	}
+
+	registerParent(parent, i) {
+		this.parent_ = parent;
+		this.constrIndex_ = i;
+	}
+
+	eval(scope) {
+		super.eval(scope);
+
+		for (let f of this.fields_) {
+			let fType = f.evalType(scope);
+
+			this.parent_.maybeSetAutoMember(f.name, Value.new(fType));
+		}
+	}
+
+	setImplAssoc(name, value) {
+		// make sure parent doesn't already have a assoc or method member with the same name
+		if (this.parent_.hasMember(name)) {
+			name.referenceError("name already used by parent enum");
+		}
+
+		super.setImplAssoc(name, value);
+	}
+
+	setImplMethod(name, value) {
+		// make sure parent doesn't already have a assoc or method member with the same name
+		if (this.parent_.hasMember(name)) {
+			name.referenceError("name already used by parent enum");
+		}
+
+		super.setImplMember(name, value);
+
+		// now check if all other enum members implement that same function
+		this.parent_.maybeSetAutoMember(name, value);
+	}
+
+	getPath() {
+		return `${this.parent_.getPath()}__${this.name.toString()}`;
+	}
+}
+
+class EnumStatement extends NamedStatement {
+	constructor(site, name, members) {
+		super(site, name);
+		this.members_ = members; // list of EnumMember
+		this.membersUsed_ = new Set();
+		this.memberTypes_ = null;
+		this.implMembers_ = new ImplMembers(); // methods and associated consts/funcs
+		this.autoMembers_ = new Map();
+		this.autoMembersUsed_ = new Set();
+
+		for (let i = 0; i < this.members_.length; i++) {
+			this.members_[i].registerParent(this, i);
+		}
+	}
+
+	// returns an index
+	findEnumMember(name) {
+		let found = -1;
+		let i = 0;
+		for (let member of this.members_) {
+			if (member.name.toString() == name.toString()) {
+				found = i;
+				break;
+			}
+			i++;
+		}
+
+		return found;
+	}
+
+	hasMember(name) {
+		if (this.findEnumMember(name) != -1) {
+			return true;
+		} else {
+			return this.implMembers_.has(name);
+		}
+	}
+
+	toString() {
+		return `enum ${this.name.toString()} {${this.members_.map(m => m.toStringInternal()).join(", ")}}`;
+	}
+
+	eval(scope) {
+		this.memberTypes_ = this.members_.map(m => m.evalInternal(scope));
+
+		scope.set(this.name, new UserType(this));
+	}
+
+	setImplAssoc(name, value) {
+		if (this.findEnumMember(name) != -1) {
+			name.referenceError("assoc member can have same name as enum type member");
+		}
+
+		this.implMembers_.setAssoc(name, value);
+	}
+
+	setImplMethod(name, value) {
+		name.typeError("can't impl method directly on base type of enum");
+	}
+
+	maybeSetAutoMember(name, value) {
+		let type = value.getType();
+
+		// check that all members have the same field
+
+		let retType = null;
+		for (let m of this.members_) {
+			try {
+				let mVal = m.getInstanceMember(name, true);
+				let mType = mVal.getType(name.site);
+
+				if (!(mType instanceof FuncType)) {
+					return;
+				}
+
+				if (type instanceof FuncType) {
+					// all args must be exactly the same
+					if (!type.hasSameArgs(mType)) {
+						return;
+					}
+
+					retType = IfElseExpr.reduceBranchType(type.retType, mType.retType);
+				} else {
+					retType = IfElseExpr.reduceBranchType(retType, mVal.getType(name.site));
+				}
+			} catch (e) {
+				// don't set auto member if any error is encountered
+				return;
+			}
+		}
+
+		let autoType;
+
+		if (type instanceof FuncType) {
+			autoType = new FuncType(type.argTypes, retType);
+		} else {
+			autoType = retType;
+		}
+
+		this.autoMembers_.set(name.toString(), autoType);
+	}
+
+	// other has already been 'unwrapped' from UserType
+	isBaseOf(other) {
+		return this == other || this.members_.findIndex(m => m == other) != -1;
+	}
+
+	nFields(site) {
+		site.typeError("enum doesn't have fields");
+	}
+
+	getInstanceMember(name, dryRun = false) {
+		if (this.autoMembers_.has(name.toString())) {
+			if (!dryRun) {
+				this.autoMembersUsed_.add(name.toString());
+			}
+			return Value.new(this.autoMembers_.get(name.toString()));
+		} else {
+			name.typeError("undefined enum member");
+		}
+	}
+
+	getTypeMember(name) {
+		let i = this.findEnumMember(name);
+		if (i == -1) {
+			if (this.implMembers_.has(name)) {
+				return this.implMembers_.getAssoc(name);
+			} else {
+				name.referenceError(`${this.name.toString()}::${name.toString()} undefined`);
+			}
+		} else {
+			this.membersUsed_.set(name.toString())
+			return this.memberTypes_[i];
+		}
+	}
+
+	getConstrIndex(site) {
+		site.typeError("can't construct an enum directly (cast to a concrete type first)");
+	}
+
+	assertAllMembersUsed() {
+		for (let m of this.members_) {
+			if (!this.membersUsed_.has(m.name.toString())) {
+				m.name.referenceError("unused");
+			}
+
+			m.assertAllMembersUsed();
+		}
+	}
+
+	getPath() {
+		return `__user__${this.name.toString()}`;
+	}
+
+	toUntyped(map) {
+		for (let pair of this.autoMembers_) {
+			let name = pair[0];
+
+			if (this.autoMembersUsed_.has(name)) {
+				let n = this.members_.length;
+				let inner = `${this.members_[n-1].getPath()}__${name.toString()}`;
+				for (let i = n-2; i >= 0; i--) {
+					inner = `__core__ifThenElse(__core__equalsInteger(constrIdx, ${i}), ${this.members_[i].getPath()}__${name.toString()}, ${inner})`;
+				}
+		
+				let autoDef = `(self) -> {
+					(constrIdx) -> {
+						${inner}
+					}(__core__fstPair(__core__unConstrData(self)))(self)
+				}`;
+
+				map.set(`${this.getPath()}__${name}`, autoDef);
+			}
+		}
+	}
+}
+
+class ImplMembers {
+	constructor() {
+		this.methods_ = [];
+		this.assocs_ = [];
+
+		this.used_ = new Set(); // set of names as strings
+	}
+
+	findMethod(name) {
+		return this.methods_.findIndex(pair => pair[0].toString() == name.toString);
+	}
+
+	findAssoc(name) {
+		return this.assocs_.findIndex(pair => pair[0].toString() == name.toString);
+	}
+
+	has(name) {
+		return this.findMethod(name) != -1 || this.findAssoc(name) != -1;
+	}
+
+	setAssoc(name, value) {
+		if (this.has(name)) {
+			name.referenceError("impl member with same name already set");
+		}
+
+		this.assocs_.push([name, value]);
+	}
+
+	setMethod(name, value) {
+		if (this.has(name)) {
+			name.referenceError("impl member with same name already set");
+		}
+
+		this.methods_.push([name, value]);
+	}
+
+	getAssoc(name, dryRun = false) {
+		let i = this.findAssoc(name);
+		if (i == -1) {
+			name.referenceError("impl not found");
+		}
+
+		if (!dryRun) {
+			this.used_.add(name.toString());
+		}
+
+		return this.assocs_[i][1];
+	}
+
+	getMethod(name, dryRun = false) {
+		let i = this.findMethod(name);
+		if (i == -1) {
+			name.referenceError("impl not found");
+		}
+
+		if (!dryRun) {
+			this.used_.add(name.toString());
+		}
+
+		return this.methods_[i][1];
+	}
+
+	assertAllMembersUsed() {
+		for (let pair of this.methods_) {
+			if (!this.used_.has(this.used_.pair[0].toString())) {
+				pair[0].referenceError("impl unused");
+			}
+		}
+
+		for (let pair of this.assocs_) {
+			if (!this.used_.has(this.used_.pair[0].toString())) {
+				pair[0].referenceError("impl unused");
+			}
+		}
+	}
+}
+
+class ImplStatement extends Statement {
+	constructor(site, typeExpr, statements) {
+		super(site);
+		assert(typeExpr instanceof TypeRefExpr || typeExpr instanceof TypePathExpr);
+		this.typeExpr_ = typeExpr;
+		this.statements_ = statements;
+		this.typeStatementRef_ = null;
+	}
+
+	toString() {
+		return `impl ${this.typeExpr_.toString()} {${this.statements_.map(s => s.toString())}}`;
+	}
+
+	eval(scope) {
+		let type = this.typeExpr_.eval(scope);
+		if (!(type instanceof UserType)) {
+			this.typeExpr_.referenceError("not a user-type");
+		}
+		
+		this.typeStatementRef_ = type.statement_;
+		assert(this.typeStatementRef_ instanceof StructStatement || this.typeStatementRef_ instanceof EnumStatement);
+		let refType = new UserType(this.typeStatementRef_);
+
+		for (let s of this.statements_) {
+			if (s instanceof ConstStatement) {
+				let constVal = s.evalInternal(scope);
+				let constType = constVal.getType(s.site);
+
+				if (Type.same(s.site, constType, refType)) {
+					this.typeStatementRef_.setImplAssoc(s.name, constVal);
+				} else {
+					s.typeError("not associated");
+				}
+			} else if (s instanceof FuncStatement) {
+				let fnType = s.evalType(scope);
+				let fnVal = Value.new(fnType);
+
+				if (s.maybeMethod() && fnType.maybeMethod(s.site, new UserType(this.typeStatementRef_))) {
+					this.typeStatementRef_.setImplMethod(s.name, fnVal);
+				} else if (fnType.isAssociated(s.site, new UserType(this.typeStatementRef_))) {
+					this.typeStatementRef_.setImplAssoc(s.name, fnVal);
+				} else {
+					s.typeError("not associated");
+				}
+
+				// now do the actual internal evaluation in which recursion is now possible
+				void s.evalInternal(scope);
+			}
+		}
+	}
+
+	// all members should be used
+	toUntyped(map) {
+		let path = this.typeStatementRef_.getPath();
+
+		for (let s of this.statements_) {
+			let key = `${path}__${s.name.toString()}`
+			let value;
+			if (s instanceof FuncStatement) {
+				value = s.toUntypedInternal(key);
+			} else {
+				value = s.toUntypedInternal();
+			}
+
+			map.set(key, value);
+		}
+	}
+}
+
+const ScriptPurpose = {
+	Minting: 0,
+	Spending: 1,
+};
+
+class PlutusLightProgram {
+	constructor(purpose, name, statements) {
+		this.purpose_ = purpose;
+		this.name_ = name;
+		this.statements_ = statements;
+		this.topScope_ = null;
+		
+		this.haveDatum_ = false;
+		this.haveRedeemer_ = false;
+		this.haveScriptContext_ = false;
+	}
+
+	toString() {
+		return this.statements_.map(s => s.toString()).join("\n");
+	}
+
+	// also creates the scope
+	eval(globalScope) {
+		this.topScope_ = new TopScope(globalScope);
+
+		for (let s of this.statements_) {
+			s.eval(this.topScope_);
+		}
+
+		this.checkMain();
+
+		this.topScope_.assertAllUsed();
+
+		for (let s of this.statements_) {
+			s.assertAllMembersUsed();
+		}
+	}
+
+	checkMain() {
+		let mainVal = this.topScope_.get("main");
+		let mainSite = this.statements_.find(s => s.name.toString() == "main").site;
+		let mainType = mainVal.getType(mainSite);
+
+		if (!(mainType instanceof FuncType)) {
+			mainSite.typeError("entrypoint is not a function");
+		}
+
+		let [haveDatum, haveRedeemer, haveScriptContext] = mainType.checkAsMain(mainSite, this.purpose_);
+		
+
+		this.haveDatum_ = haveDatum;
+		this.haveRedeemer_ = haveRedeemer;
+		this.haveScriptContext_ = haveScriptContext;
+	}
+
+	toUntyped() {
+		let res = "(";
+
+		let mainArgs = [];
+		let uMainArgs = [];
+		if (this.haveDatum_) {
+			mainArgs.push("datum");
+			uMainArgs.push("datum");
+		} else if (this.purpose_ == ScriptPurpose.Spending) {
+			mainArgs.push("_");
+		}
+
+		if (this.haveRedeemer_) {
+			mainArgs.push("redeemer");
+			uMainArgs.push("redeemer");
+		} else { // minting script can also have a redeemer
+			mainArgs.push("_");
+		}
+
+		if (this.haveScriptContext_) {
+			mainArgs.push("ctx");
+			uMainArgs.push("ctx");
+		} else {
+			mainArgs.push("_");
+		}
+
+		res += mainArgs.join(", ");
+
+		res += ") -> {\n  ifThenElse(";
+
+		res += "main(" + uMainArgs.join(", ") + "), () -> {()}, () -> {error()})()\n"; // deferred evaluation of branches!
+		
+		res += "}";
+
+		let map = new Map(); // string -> string
+		for (let statement of this.statements_) {
+			console.log("wrapping with statement:", statement.toString());
+			statement.toUntyped(map);
+		}
+
+		console.log(map);
+
+		// builtin functions are added when untyped program is built
+		return wrapWithBuiltins(wrapWithDefinitions(res, map));
+	}
+}
+
+
+////////////////////////
+// Section 12: Plutus-Light AST build functions
+////////////////////////
+
+function buildPlutusLightProgram(ts) {
+	if (ts.length == 0) {
+		throw new Error("empty script");
+	}
+
+	let [purpose, name] = buildScriptPurpose(ts);
+
+	let statements = [];
 
 	while (ts.length != 0) {
-		let t = ts.shift();
+		let t = ts.shift().assertWord();
+		let kw = t.value;
+		let s;
 
-		if (t.isWord("data")) {
-			decls.push(buildDataTypeDecl(t.loc, ts));
-		} else if (t.isWord("union")) {
-			decls.push(buildUnionTypeDecl(t.loc, ts));
-		} else if (t.isWord("const")) {
-			decls.push(buildConstDecl(t.loc, ts));
-		} else if (t.isWord("func")) {
-			decls.push(buildFuncDecl(t.loc, ts));
+		if (kw == "const") {
+			s = buildConstStatement(t.site, ts);
+		} else if (kw == "struct") {
+			s = buildStructStatement(t.site, ts);
+		} else if (kw == "func") {
+			s = buildFuncStatement(t.site, ts);
+		} else if (kw == "enum") {
+			s = buildEnumStatement(t.site, ts);
+		} else if (kw == "impl") {
+			s = buildImplStatement(t.site, ts);
 		} else {
-			t.syntaxError("invalid statement");
+			t.syntaxError("invalid top-level syntax");
 		}
+
+		statements.push(s);
 	}
 
-	return new PlutusLightProgram(decls, purpose);
+	return new PlutusLightProgram(purpose, name, statements);
 }
 
-function buildDataTypeDecl(start, ts) {
-	let name = ts.shift().assertWord();
+// return [purpose, name]
+function buildScriptPurpose(ts) {
+	// need at least 3 tokens for the script purpose
+	if (ts.length < 3) {
+		ts[0].syntaxError("invalid script purpose syntax");
+	}
+
+	let purposeWord = ts.shift().assertWord();
+	let purpose;
+	if (purposeWord.isWord("validator")) {
+		purpose = ScriptPurpose.Spending; 
+	} else if (purposeWord.isWord("mint_policy")) {
+		purpose = ScriptPurpose.Minting;
+	} else if (purposeWord.isKeyword()) {
+		purposeWord.syntaxError(`script purpose missing`);
+	} else {
+		purposeWord.syntaxError(`unrecognized script purpose \'${purposeWord.value}\'`);
+	}
+
+	let name = ts.shift().assertWord().assertNotKeyword();
+	ts.shift().assertSymbol(";");
+
+	return [purpose, name];
+}
+
+function buildConstStatement(site, ts) {
+	let name = ts.shift().assertWord().assertNotKeyword();
+
+	let typeExpr = null;
+	if (ts[0].isSymbol(":")) {
+		ts.shift();
+
+		let equalsPos = Symbol.find(ts, "=");
+
+		if (equalsPos == -1) {
+			site.syntaxError("invalid syntax");
+		}
+
+		typeExpr = buildTypeExpr(ts.spice(0, equalsPos));
+	} else {
+		ts.shift().assertSymbol("=");
+	}
+
+	let semicolonPos = Symbol.find(ts, ";");
+
+	if (semicolonPos == -1) {
+		site.syntaxError("invalid syntax");
+	}
+
+	let valueExpr = buildValueExpr(ts.splice(0, semicolonPos));
+
+	return new ConstStatement(site, name, typeExpr, valueExpr);
+}
+
+function buildStructStatement(site, ts) {
+	let name = ts.shift().assertWord().assertNotKeyword();
 
 	assert(ts.length > 0);
-
-	let braces = ts.shift();
-
-	if (!braces.isGroup("{")) {
-		t.syntaxError("invalid syntax for data declaration");
-	}
-	
-	let dataFields = new Map();
-	
-	buildDataFields(braces, dataFields);
-
-	return new DataTypeDecl(start, name, dataFields);
-}
-
-function buildDataFields(braces, dataFields) {
-	let rawFields = braces.fields;
-
-	for (let f of rawFields) {
-		if (f.length == 0) {
-			braces.syntaxError("empty data field")
-		} else if (f.length < 2) {
-			f[0].syntaxError("invalid data field declaration")
-		}
-
-		let name = f.shift().assertWord();
-
-		if (dataFields.has(name.toString())) {
-			name.typeError("duplicate data member \'" + name.toString() + "\'");
-		}
-
-		let type = buildTypeExpr(f);
-
-		// no anonymous data types allowed yet
-
-		dataFields.set(name.toString(), type);
-	}
-}
-
-function buildUnionTypeDecl(start, ts) {
-	let name = ts.shift().assertWord();
-
-	assert(ts.length > 0);
-
-	let t = ts.shift();
-
-	if (!t.isGroup("{")) {
-		t.syntaxError("invalid syntax for union declaration");
-	}
-
-	if (t.fields.length == 0) {
-		t.syntaxError("invalid union declaration: expected at least one member");
-	}
-
-	let members = [];
-	for (let f of t.fields) {
-		if (f.length == 0) {
-			t.syntaxError("empty union member");
-		} else if (f.length != 2) {
-			t.syntaxError("invalid union member");
-		}
-
-		let memberName = f.shift().assertWord();
-		for (let check of members) {
-			if (check.name.toString() == memberName.toString()) {
-				subName.syntaxError(`duplicate union member name \'${memberName.toString()}\'`);
-			}
-		}
-
-		let memberBraces = f.shift().assertGroup("{");
-
-		let memberFields = new Map();
-
-		buildDataFields(memberBraces, memberFields);
-
-		members.push(new UnionMemberDecl(memberName, memberFields));
-	}
-
-	return new UnionTypeDecl(start, name, members);
-}
-
-// Type aliases are seen as a bad idea at this time, but the code is kept in case we decide otherwise in the future
-function buildTypeAliasDecl(start, name, ts) {
-	let stack = []; // keep track of blocks
-
-	for (let i = 0; i < ts.length; i++) {
-		let t = ts[i];
-
-		if (t.isWord() && !t.isWord("func")) {
-			if (t.isWord("type") || t.isWord("const")) {
-				throw new Error("syntax error");
-			}
-
-			let type = buildTypeExpr(ts.slice(0, i+1));
-
-			ts.splice(0, i+1);
-
-			return new TypeAliasDecl(start, name, type);
-		}
-	}
-
-	start.syntaxError("invalid syntax");
-}
-
-function buildConstDecl(start, ts) {
-	let name = ts.shift().assertWord();
-
-	let iBraces = Group.find(ts, "{");
-	if (iBraces == -1) {
-		start.syntaxError("invalid const syntax, expected {...}");
-	} else if (iBraces == 0) {
-		start.syntaxError("invalid const syntax, expected type expression");
-	}
-
-	let type = buildTypeExpr(ts.slice(0, iBraces));
-	ts.splice(0, iBraces);
 
 	let braces = ts.shift().assertGroup("{");
+	
+	let fields = buildDataFields(braces);
 
-	if (braces.fields.length != 1) {
-		braces.syntaxError("invalid const syntax, expected 1 field");
-	}
-
-	let expr = buildValExpr(braces.fields[0]);
-
-	return new ConstDecl(start, name, type, expr);
+	return new StructStatement(site, name, fields);
 }
 
-function buildFuncArgs(parens) {
-	let args = new Map();
+function buildDataFields(braces) {
+	let rawFields = braces.fields;
 
-	for (let f of parens.fields) {
-		let name = f.shift().assertWord();
+	let fields = []
 
-		let type = buildTypeExpr(f);
+	for (let f of rawFields) {
+		let ts = f.slice();
 
-		for (let prev of args) {
-			assert(prev[0].toString() != name.toString());
+		if (ts.length == 0) {
+			braces.syntaxError("empty field")
+		} else if (ts.length < 2) {
+			ts[0].syntaxError("invalid field syntax")
 		}
 
-		args.set(name, type);
-	}
+		let fieldName = ts.shift().assertWord().assertNotKeyword();
 
-	return args;
+		if (fields.findIndex(f => f.name.toString() == fieldName.toString()) != -1) {
+			fieldName.typeError(`duplicate field \'${fieldName.toString()}\'`);
+		}
+
+		ts.shift().assertSymbol(":");
+
+		let typeExpr = buildTypeExpr(ts);
+
+		fields.push(new DataField(fieldName, typeExpr));
+	}
 }
 
-function buildCallArgs(parens) {
+function buildFuncStatement(site, ts) {
+	let name = ts.shift().assertWord().assertNotKeyword();
+
+	return new FuncStatement(site, name, buildFuncLiteralExpr(ts));
+}
+
+function buildFuncLiteralExpr(ts) {
+	let parens = ts.shift().assertGroup("(");
+	let site = parens.site;
+	let args = buildFuncArgs(parens);
+
+	ts.shift().assertSymbol("->");
+
+	let bodyPos = Group.find(ts, "{");
+
+	if (bodyPos == -1) {
+		site.syntaxError("no function body");
+	} else if (bodyPos == 0) {
+		site.syntaxError("no return type specified");
+	}
+
+	let retTypeExpr = buildTypeExpr(ts.splice(0, bodyPos));
+	let bodyExpr = buildValueExpr(ts.shift().assertGroup("{", 1).fields[0]);
+
+	return new FuncLiteralExpr(site, args, retTypeExpr, bodyExpr);
+}
+
+// list of FuncArg
+function buildFuncArgs(parens) {
 	let args = [];
 
 	for (let f of parens.fields) {
-		let expr = buildValExpr(f);
+		let ts = f.slice();
 
-		args.push(expr);
+		let name = ts.shift().assertWord().assertNotKeyword();
+
+		for (let prev of args) {
+			if (prev[0].toString() != name.toString()) {
+				name.syntaxError("duplicate arg name");
+			}
+		}
+
+		ts.shift().assertSymbol(":");
+
+		let typeExpr = buildTypeExpr(ts);
+
+		args.push(new FuncArg(name, typeExpr));
 	}
 
 	return args;
 }
 
-function buildBuiltinCall(name, parens) {
-	let key = name.toString();
+function buildEnumStatement(site, ts) {
+	let name = ts.shift().assertWord().assertNotKeyword();
 
-	let obj = PLUTUS_LIGHT_BUILTIN_FUNCS[key];
-
-	let args = buildCallArgs(parens);
-
-	return new BuiltinCall(name, args, obj);
-}
-
-function buildFuncDecl(start, ts) {
-	let name = ts.shift().assertWord();
-
-	let parens = ts.shift().assertGroup("(");
-	let args = buildFuncArgs(parens);
-
-	let iBody = Group.find(ts, "{");
-
-	if (iBody == -1) {
-
-		start.syntaxError("no function body");
-	} else if (iBody == 0) {
-		start.syntaxError("no return type specified");
+	if (ts.length == 0) {
+		site.syntaxError("invalid syntax");
 	}
 
-	let retType = buildTypeExpr(ts.slice(0, iBody));
-	let body = buildFuncBody(ts[iBody]);
+	let t = ts.shift().assertGroup("{");
+	if (t.fields.length == 0) {
+		t.syntaxError("invalid enum: expected at least one member");
+	}
 
-	ts.splice(0, iBody+1);
+	// list of EnumMember
+	let members = [];
+	for (let f of t.fields) {
+		let ts = f.slice();
 
-	return new FuncDecl(start, name, args, retType, body);
+		if (ts.length == 0) {
+			t.syntaxError("empty enum member");
+		}
+
+		let member = buildEnumMember(ts);
+
+		for (let m of members) {
+			if (m.name.toString() == member.name.toString()) {
+				member.name.referenceError("duplicate enum member");
+			}
+		}
+
+		members.push(member);
+	}
+
+	return new EnumStatement(site, name, members);
 }
 
-function buildFuncBody(braces) {
-	assert(braces.fields.length > 0, "empty function body");
-	assert(braces.fields.length == 1);
-	assert(braces.fields[0].length > 0, "empty function body");
+function buildEnumMember(ts) {
+	let name = ts.shift().assertWord().assertNotKeyword();
 
-	let body = buildValExpr(braces.fields[0]);
+	let braces = ts.shift().assertGroup("{");
 
-	return body;
+	let fields = buildDataFields(braces);
+
+	if (ts.length != 0) {
+		ts[0].syntaxError("invalid enum member syntax");
+	}
+
+	return new EnumMember(name, fields);
+}
+
+function buildImplStatement(site, ts) {
+	let bracesPos = Group.find(ts, "{");
+	if (bracesPos == -1) {
+		site.synaxError("invalid impl syntax");
+	}
+
+	let typeExpr = buildTypeExpr(ts.splice(0, bracesPos));
+	if (!( (typeExpr instanceof TypeRefExpr) || (typeExpr instanceof TypePathExpr))) {
+		typeExpr.syntaxError("invalid impl syntax");
+	}
+
+	let braces = ts.shift().assertGroup("{", 1);
+
+	let statements = buildImplContent(braces.fields[0]);
+
+	return new ImplStatement(site, typeExpr, statements);
+}
+
+// returns list of statements
+function buildImplContent(ts) {
+	let statements = [];
+
+	while (ts.length != 0) {
+		let t = ts.shift().assertWord();
+		let kw = t.value;
+		let s;
+
+		if (kw == "const") {
+			s = buildConstStatement(t.site, ts);
+		} else if (kw == "func") {
+			s = buildFuncStatement(t.site, ts);
+		} else {
+			t.syntaxError("invalid impl syntax");
+		}
+
+		statements.push(s);
+	}
+
+	return statements
 }
 
 function buildTypeExpr(ts) {
 	assert(ts.length > 0);
 
-	let t = ts.shift();
-
-	if (t.isGroup("[")) {
-		assert(t.fields.length == 0);
-
-		let subType = buildTypeExpr(ts);
-
-		return new ListType(t.loc, subType);
-	} else if (t.isWord("func")) {
-		return buildFuncType(t.loc, ts);
-	} else if (t.isWord()) {
-		if (ts.length != 0) {
-			if (ts[0].isSymbol("::")) {
-				return buildUnionMemberTypeExpr(t, ts);
-			} else {
-				ts[0].syntaxError("invalid syntax (hint: are you missing a comma?)");
-			}
-		} else {
-			return new NamedType(t);
-		}
+	if (ts[0].isGroup("[")) {
+		return buildListTypeExpr(ts);
+	} else if (ts[0].isWord("Map")) {
+		return buildMapTypeExpr(ts);
+	} else if (ts[0].isWord("Option")) {
+		return buildOptionTypeExpr(ts);
+	} else if (ts.length > 1 && ts[0].isGroup("(") && ts[1].isSymbol("->")) {
+		return buildFuncTypeExpr(ts);
+	} else if (ts.length > 1 && ts[0].isWord() && ts[1].isSymbol("::")) {
+		return buildTypePathExpr(ts);
+	} else if (ts[0].isWord()) {
+		return buildTypeRefExpr(ts);
 	} else {
-		throw new Error("block");
-		t.syntaxError(`invalid syntax \'${t.toString()}\'`)
+		ts[0].syntaxError("invalid type syntax")
 	}
 }
 
-function buildFuncType(start, ts) {
+function buildListTypeExpr(ts) {
+	ts.shift().assertGroup("[", 0);
+
+	let itemTypeExpr = buildTypeExpr(ts);
+
+	return new ListTypeExpr(t.site, itemTypeExpr);
+}
+
+function buildMapTypeExpr(ts) {
+	let kw = ts.shift().assertWord("Map");
+
+	let keyTypeExpr = buildTypeExpr(ts.shift().assertGroup("[", 1).fields[0]);
+
+	let valueTypeExpr = buildTypeExpr(ts);
+
+	return new MapTypeExpr(kw.site, keyTypeExpr, valueTypeExpr);
+}
+
+function buildOptionTypeExpr(ts) {
+	let kw = ts.shift().assertWord("Option");
+
+	let someTypeExpr = buildTypeExpr(ts.shift().assertGroup("[", 1).fields[0]);
+
+	if (ts.length > 0) {
+		ts[0].syntaxError("invalid type syntax");
+	}
+
+	return new OptionTypeExpr(kw.site, someTypeExpr);
+}
+
+function buildFuncTypeExpr(ts) {
 	let parens = ts.shift().assertGroup("(");
 
-	let argTypes = [];
-	for (let f of parens.fields) {
-		argTypes.push(buildTypeExpr(f));
-	}
+	let argTypes = parens.fields.map(f => buildTypeExpr(f.slice()));
+	
+	ts.shift().assertSymbol("->");
 
-	for (let i = 0; i < ts.length; i++) {
-		let t = ts[i];
+	let retType = buildTypeExpr(ts);
 
-		if (t.isWord() && !t.isWord("func")) {
-			let retType = buildTypeExpr(ts.slice(0, i+1));
-
-			if (i+1 != ts.length) {
-				ts[i+1].syntaxError("invalid syntax");
-			}
-
-			return new FuncType(start, argTypes, retType);
-		}
-	}
-
-	start.syntaxError("invalid syntax");
+	return new FuncTypeExpr(parens.site, argTypes, retType);
 }
 
-function buildUnionMemberTypeExpr(unionName, ts) {
-	if (ts.length < 2) {
-		unionName.syntaxError("invalid union sub-type expression");
-	}
+function buildTypePathExpr(ts) {
+	let baseName = ts.shift().assertWord().assertNotKeyword();
 
 	let symbol = ts.shift().assertSymbol("::");
 
-	let subName = ts.shift();
-	if (!subName.isWord()) {
-		subName.syntaxError("invalid union sub-type expression");
+	let memberName = ts.shift().assertWord();
+
+	if (ts.length > 0) {
+		ts[0].syntaxError("invalid type syntax");
 	}
 
-	return new NamedMemberType(symbol.loc, unionName, subName);
+	return new TypePathExpr(symbol.site, baseName, memberName);
 }
 
-function buildListLiteral(start, itemTypeTokens, braces) {
-	let itemType = buildTypeExpr(itemTypeTokens);
+function buildTypeRefExpr(ts) {
+	let name = ts.shift().assertWord().assertNotKeyword();
 
-	let items = [];
-
-	for (let f of braces.fields) {
-		items.push(buildValExpr(f));
+	if (ts.length > 0) {
+		ts[0].syntaxError("invalid type syntax");
 	}
 
-	return new ListLiteral(start, itemType, items);
+	return new TypeRefExpr(name);
 }
 
-function buildDataLiteralFields(braces) {
-	let fields = new Map();
-
-	for (let f of braces.fields) {
-		let name = f.shift().assertWord();
-		void f.shift().assertSymbol(":");
-
-		let val = buildValExpr(f);
-
-		if (fields.has(name.toString())) {
-			name.typeError("duplicate data member \'" + name.toString() + "\'");
-		}
-
-		fields.set(name.toString(), val);
-	}
-
-	return fields;
-}
-
-function buildDataLiteral(typeName, braces) {
-	let type = buildTypeExpr([typeName]);
-
-	let fields = buildDataLiteralFields(braces);
-
-	return new DataLiteral(braces.loc, type, fields);
-}
-
-function buildUnionMemberLiteral(type, braces) {
-	let fields = buildDataLiteralFields(braces);
-
-	return new UnionMemberLiteral(braces.loc, type, fields);
-}
-
-function buildUnionMemberCast(type, parens) {
-	assert(parens.fields.length == 1);
-	
-	return new UnionMemberCast(parens.loc, type, buildValExpr(parens.fields[0]));
-}
-
-function buildValExpr(ts, prec) {
+function buildValueExpr(ts, prec) {
 	assert(ts.length > 0);
 
 	if (prec == undefined) {
-		return buildValExpr(ts, 0);
+		return buildValueExpr(ts, 0);
 	} else {
 		return EXPR_BUILDERS[prec](ts, prec);
 	}
 }
 
+// lower index is lower precedence
+const EXPR_BUILDERS = [
+	// 0: lowest precedence is assignment
+	function(ts, prec) {
+		return buildMaybeAssignOrPrintExpr(ts, prec);
+	},
+	genBuildBinaryExpr('||'), // 1: logical or operator
+	genBuildBinaryExpr('&&'), // 2: logical and operator
+	genBuildBinaryExpr(['==', '!=']), // 3: eq or neq
+	genBuildBinaryExpr(['<', '<=', '>', '>=']), // 4: comparison
+	genBuildBinaryExpr(['+', '-']), // 5: addition subtraction
+	genBuildBinaryExpr(['*', '/', '%']), // 6: multiplication division remainder
+	genBuildUnaryExpr(['!', '+', '-']), // 7: logical not, negate
+	// 8: variables or literal values chained with: (enum)member access, indexing and calling
+	function(ts, prec) {
+		return buildChainedValueExpr(ts, prec);
+	}
+];
+
+function buildMaybeAssignOrPrintExpr(ts, prec) {
+	let semicolonPos = Symbol.find(ts, ";");
+	
+	if (semicolonPos == -1) {
+		return buildValueExpr(ts, prec+1);
+	} else {
+		let equalsPos = Symbol.find(ts, "=");
+		let printPos = Word.find(ts, "print");
+
+		if (equalsPos == -1 && printPos == -1) {
+			ts[semicolonPos].syntaxError("expected = or print to preceed ;");
+		}
+
+		if (equalsPos != -1 && equalsPos < printPos) {
+			if (printPos != -1) {
+				assert(printPos > semicolonPos);
+			}
+
+			assert(equalsPos < semicolonPos);
+
+			let lts = ts.splice(0, equalsPos);
+
+			let name = lts.shift().assertWord().assertNotKeyword();
+			
+			let typeExpr = null;
+			if (lts.length > 0 && lts.shift().isSymbol(":")) {
+				typeExpr = buildTypeExpr(lts);
+			}
+
+			let upstreamExpr = buildValueExpr(ts.slice(equalsPos+1, semicolonPos), prec+1);
+
+			let rem = ts.slice(semicolonPos+1);
+
+			if (rem.length == 0) {
+				ts[semicolonPos].syntaxError("expected expression after \';\'");
+			}
+
+			let downstreamExpr = buildValueExpr(rem, prec);
+
+			return new AssignExpr(ts[equalsPos].site, name, typeExpr, upstreamExpr, downstreamExpr);
+		} else if (printPos != -1 && printPos < equalsPos) {
+			if (equalsPos != -1) {
+				assert(equalsPos > semicolonPos);
+			}
+
+			assert(printPos < semicolonPos);
+
+			let site = ts.shift().assertWord("print").site;
+
+			let parens = ts.shift().assertGroup("(", 1);
+
+			let msgExpr = buildValueExpr(parens.fields[0]);
+
+			ts.shift().assertSymbol(";");
+
+			let downstreamExpr = buildValueExpr(ts, prec);
+
+			return new PrintExpr(site, msgExpr, downstreamExpr);
+		} else {
+			throw new Error("unhandled");
+		}
+	}
+}
+
 // returns a function!
-function genBinaryOperatorBuilder(symbol) {
+function genBuildBinaryExpr(symbol) {
 	// default behaviour is left-to-right associative
 	return function(ts, prec) {
 		let iOp = Symbol.findLast(ts, symbol);
@@ -7448,32 +4580,89 @@ function genBinaryOperatorBuilder(symbol) {
 			// post-unary operator, which is invalid
 			ts[iOp].syntaxError(`invalid syntax, \'${ts[iOp].toString()}\' can't be used as a post-unary operator`);
 		} else if (iOp > 0) { // iOp == 0 means maybe a (pre)unary op, which is handled by a higher precedence
-			let a = buildValExpr(ts.slice(0, iOp), prec);
-			let b = buildValExpr(ts.slice(iOp+1), prec+1);
+			let a = buildValueExpr(ts.slice(0, iOp), prec);
+			let b = buildValueExpr(ts.slice(iOp+1), prec+1);
 
-			return new BinaryOperator(ts[iOp], a, b);
+			return new BinaryExpr(ts[iOp], a, b);
 		} else {
-			return buildValExpr(ts, prec+1);
+			return buildValueExpr(ts, prec+1);
 		}
 	};
 }
 
-function genUnaryOperatorBuilder(symbol) {
+function genBuildUnaryExpr(symbol) {
 	// default behaviour is right-to-left associative
 	return function(ts, prec) {
 		if (ts[0].isSymbol(symbol)) {
-			let rhs = buildValExpr(ts.slice(1), prec);
+			let rhs = buildValueExpr(ts.slice(1), prec);
 
-			return new UnaryOperator(ts[0], rhs);
+			return new UnaryExpr(ts[0], rhs);
 		} else {
-			return buildValExpr(ts, prec+1);
+			return buildValueExpr(ts, prec+1);
 		}
 	}
 }
 
-function buildBranchExpr(loc, ts) {
+function buildChainedValueExpr(ts, prec) {
+	let expr = buildChainStartValueExpr(ts);
+
+	// now we can parse the rest of the chaining
+	while(ts.length > 0) {
+		t = ts.shift();
+
+		if (t.isGroup("(")) {
+			expr = new CallExpr(t.site, expr, buildCallArgs(t));
+		} else if (t.isGroup("[")) {
+			t.syntaxError("invalid expression: [...]");
+		} else if (t.isSymbol(".")) {
+			let name = ts.shift().assertWord().assertNotKeyword();
+
+			expr = new MemberExpr(t.site, expr, name);
+		} else if (t.isGroup("{")) {
+			t.syntaxError("invalid syntax");
+		} else if (t.isSymbol("::")) {
+			t.syntaxError("invalid syntax");
+		} else {
+			t.syntaxError(`invalid syntax: ${t.toString()} (${prec})`);
+		}
+	}
+
+	return expr;
+}
+
+function buildChainStartValueExpr(ts) {
+	if (ts.length > 1 && ts[0].isGroup("(") && ts[1].isSymbol("->")) {
+		return buildFuncLiteralExpr(ts);
+	} else if (ts[0].isWord("if")) {
+		return buildIfElseExpr(ts);
+	} else if (ts[0].isWord("switch")) {	
+		return buildSwitchExpr(ts);
+	} else if (ts[0].isLiteral()) {
+		return new PrimitiveLiteralExpr(ts.shift()); // can simply be reused
+	} else if (ts[0].isGroup("(")) {
+		return new ParensExpr(t.site, buildValueExpr(ts.shift().assertGroup("(", 1).fields[0]));
+	} else if (Group.find(ts, "{") != -1) {
+		if (ts[0].isGroup("[")) {
+			return buildListLiteralExpr(ts);
+		} else {
+			return buildStructLiteralExpr(ts);
+		}
+	} else if (Symbol.find(ts, "::") != -1) {
+		return buildValuePathExpr(ts);
+	} else if (ts[0].isWord()) {
+		return new ValueRefExpr(ts.shift().assertWord().assertNotKeyword()); // can later be turned into a typeexpr
+	} else {
+		t.syntaxError("invalid syntax");
+	}
+
+	return expr;
+}
+
+function buildIfElseExpr(ts) {
+	let site = ts.shift().assertWord("if").site;
+	
 	let conditions = [];
-	let blocks = [];
+	let branches = [];
 	while (true) {
 		let parens = ts.shift().assertGroup("(");
 		let braces = ts.shift().assertGroup("{");
@@ -7486,8 +4675,8 @@ function buildBranchExpr(loc, ts) {
 			braces.syntaxError("expected single expession for branch block");
 		}
 
-		conditions.push(buildValExpr(parens.fields_[0]));
-		blocks.push(buildValExpr(braces.fields_[0]));
+		conditions.push(buildValueExpr(parens.fields_[0]));
+		branches.push(buildValueExpr(braces.fields_[0]));
 
 		ts.shift().assertWord("else");
 
@@ -7496,9 +4685,9 @@ function buildBranchExpr(loc, ts) {
 			// last group
 			let braces = next;
 			if (braces.fields_.length != 1) {
-				braces.syntaxError("expected single expession for branch block");
+				braces.syntaxError("expected single expession for if-else branch");
 			}
-			blocks.push(buildValExpr(braces.fields_[0]));
+			branches.push(buildValueExpr(braces.fields_[0]));
 			break;
 		} else if (next.isWord("if")) {
 			continue;
@@ -7507,20 +4696,16 @@ function buildBranchExpr(loc, ts) {
 		}
 	}
 
-	return new BranchExpr(loc, conditions, blocks);
+	return new IfElseExpr(site, conditions, branches);
 }
 
-function buildSelectExpr(loc, ts) {
-	let parens = ts.shift().assertGroup("(");
+function buildSwitchExpr(ts) {
+	let site = ts.shift().assertWord("switch").site;
+	let parens = ts.shift().assertGroup("(", 1);
 
-	if (parens.fields_.length != 1) {
-		parens.syntaxError("expected single expression");
-	}
+	let expr = buildValueExpr(parens.fields[0]);
 
-	let expr = buildValExpr(parens.fields[0]);
-
-	let braces = ts.shift().assertGroup("{");
-	assert(braces.fields.length == 1);
+	let braces = ts.shift().assertGroup("{", 1);
 
 	let cases = [];
 	let def = null;
@@ -7528,234 +4713,2523 @@ function buildSelectExpr(loc, ts) {
 	let tsInner = braces.fields[0].slice();
 
 	while (tsInner.length > 0) {
-		let keyword = tsInner.shift().assertWord();
-		let varName = null;
-		let caseType = null;
-		if (keyword.isWord("case")) {
+		if (tsInner[0].isWord("case")) {
 			if (def != null) {
 				def.syntaxError("default select must come last");
 			}
-
-			let parens = tsInner.shift();
-			if (parens.isGroup("(")) {
-				assert(parens.fields.length == 1);
-				assert(parens.fields[0].length > 1);
-
-				varName = parens.fields[0][0].assertWord();
-
-				caseType = buildTypeExpr(parens.fields[0].slice(1));
-			} else {
-				tsInner.unshift(parens);
-				let iBody = Group.find(tsInner, "{");
-				caseType = buildTypeExpr(tsInner.slice(0, iBody));
-				void tsInner.splice(0, iBody);
+			cases.push(buildSwitchCase(tsInner));
+		} else if (tsInner[0].isWord("default")) {
+			if (def != null) {
+				def.syntaxError("duplicate default");
 			}
 
-
-			if (!(caseType instanceof NamedMemberType)) {
-				caseType.syntaxError(`invalid select case type, expected a union member type, got \'${caseType.toString()}\'`);
-			}
-
-			for (let check of cases) {
-				if (check.type_.toString() == caseType.toString()) {
-					caseType.syntaxError(`duplicate select case type ${caseType.toString()}`);
-				} else if (check.type_.unionName_.toString() != caseType.unionName_.toString()) {
-					caseType.syntaxError("inconsistent union type in select statement");
-				}
-			}
-		} else if (keyword.isWord("default")) {
-			if (cases.length == 0) {
-				keyword.syntaxError("default select block can never be first");
-			} else if (def != null) {
-				keyword.syntaxError("duplicate default block");
-			}
-
-			def = keyword;
+			def = buildSwitchDefault(tsInner);
 		} else {
-			keyword.syntaxError("invalid syntax in select block");
+			ts[0].syntaxError("invalid switch syntax");
+		}
+	}
+
+	// finaly check the uniqueness of each case
+	// also check that each case uses the same enum
+	let set = new Set()
+	let base = null;
+	for (let c of cases) {
+		let t = c.typeExpr_.toString();
+		if (set.has(t)) {
+			c.typeExpr_.syntaxError("duplicate case");
 		}
 
-		let braces = tsInner.shift().assertGroup("{");
-		if (braces.fields.length != 1) {
-			braces.syntaxError("expected one field");
+		set.add(t);
+
+		let b = t.split("::")[0];
+		if (base == null) {
+			base = b;
+		} else if (base != b) {
+			c.typeExpr_.syntaxError("inconsistent enum name");
 		}
-
-		let expr = buildValExpr(braces.fields[0]);
-
-		cases.push(new SelectCase(keyword.loc, varName, caseType, expr));
 	}
 
 	if (cases.length < 1) {
-		loc.syntaxError("expected at least one case");
+		site.syntaxError("expected at least one case");
 	}
 
-	return new SelectExpr(loc, expr, cases);
+	return new SwitchExpr(site, expr, cases, def);
 }
 
-// lower index is lower precedence
-const EXPR_BUILDERS = [
-	// 0: lowest precedence is assignment
-	function(ts, prec) {
-		let iSep = Symbol.find(ts, ";");
-	
-		if (iSep == -1) {
-			return buildValExpr(ts, prec+1);
-		} else {
-			let iEq = Symbol.find(ts, "=");
-	
-			assert(iEq != -1);
-			assert(iEq < iSep);
-	
-			let name = ts[0].assertWord();
-			
-			if (1 == iEq) {
-				ts[iEq].syntaxError("expected type expression before \'=\'");
-			}
+function buildSwitchCase(ts) {
+	let site = ts.shift().assertWord("case").site;
 
-			let type = buildTypeExpr(ts.slice(1, iEq));
-	
-			let rhs = buildValExpr(ts.slice(iEq+1, iSep), prec+1);
-
-			let lambdaTokens = ts.slice(iSep+1);
-
-			if (lambdaTokens.length == 0) {
-				ts[iSep].syntaxError("expected expression after \';\'");
-			}
-
-			let lambda = buildValExpr(lambdaTokens, prec);
-	
-			return new AssignExpr(ts[iEq].loc, name, type, rhs, lambda);
-		}
-	},
-	genBinaryOperatorBuilder('||'), // 1: logical or operator
-	genBinaryOperatorBuilder('&&'), // 2: logical and operator
-	genBinaryOperatorBuilder(['==', '!=']), // 3: eq or neq
-	genBinaryOperatorBuilder(['<', '<=', '>', '>=']), // 4: comparison
-	genBinaryOperatorBuilder(['+', '-']), // 5: addition subtraction
-	genBinaryOperatorBuilder(['*', '/', '%']), // 6: multiplication division remainder
-	genUnaryOperatorBuilder(['!', '+', '-']), // 7: logical not, negate
-	// 8: variables or literal values chained with: (union)member access, indexing and calling
-	function(ts, prec) {
-		let t = ts.shift();
-
-		let expr = null;
-
-		if (t.isWord("func")) {
-			let parens = ts[0].assertGroup("(");
-			let args = buildFuncArgs(parens);
-			let iBody = Group.find(ts, "{");
-			assert(iBody != -1);
-			let retType = buildTypeExpr(ts.slice(1, iBody));
-			let body = buildFuncBody(ts[iBody]);
-
-			ts = ts.slice(iBody+1);
-
-			expr = new FuncExpr(t.loc, args, retType, body);
-		} else if (t.isWord("if")) {
-			expr = buildBranchExpr(t.loc, ts);
-		} else if (t.isWord("select")) {	
-			expr = buildSelectExpr(t.loc, ts);
-		} else if (t.isWord()) {
-			if (t.toString() in PLUTUS_LIGHT_BUILTIN_FUNCS) {
-				if (ts.length == 0) {
-					t.referenceError("illegal reference of built-in function \'" + t.toString() + "\'");
-				}
-
-				let parens = ts.shift();
-				if (!parens.isGroup("(")) {
-					t.referenceError("illegal reference of built-in function \'" + t.toString() + "\'");
-				}
-
-				expr = buildBuiltinCall(t, parens);
-			} else {
-				expr = new Variable(t); // can later be turned into a typeexpr
-			}
-		} else if (t.isLiteral()) {
-			expr = t; // token can simply be reused
-		} else if (t.isGroup("(")) {
-			assert(t.fields.length == 1);
-			expr = new Parens(t.loc, buildValExpr(t.fields[0]));
-		} else if (t.isGroup("[")) {
-			if (t.fields.length != 0) {
-				t.syntaxError("brackets must be empty for list type");
-			}
-
-			let itemTypeTokens = [];
-
-			let tType = ts.shift();
-			while (tType.isGroup("[") || tType.isWord()) {
-				if (tType.isGroup("[")) {
-					if (tType.fields.length != 0) {
-						tType.syntaxError("brackets must be empty for list type");
-					}
-
-					itemTypeTokens.push(tType);
-				}
-
-				tType = ts.shift();
-			}
-
-			if (!tType.isGroup("{")) {
-				tType.syntaxError("invalid literal list");
-			}
-			
-			expr = buildListLiteral(t.loc, itemTypeTokens, tType);
-		} else {
-			t.syntaxError("invalid syntax");
+	let varName = null;
+	let typeExpr;
+	if (ts[0].isGroup("(")) {
+		let parens = ts.shift().assertGroup("(", 1);
+		let pts = parens.fields[0];
+		if (pts.length < 5) {
+			parens.syntaxError("invalid switch case syntax");
 		}
 
-		// now we can parse the chaining
-		while(ts.length > 0) {
-			t = ts.shift();
+		varName = pts.shift().assertWord().assertNotKeyword();
+		pts.shift().assertSymol(":");
+		typeExpr = buildTypeExpr(pts);
 
-			if (expr == null) {
-				t.syntaxError("should be preceded by expression");
-			}
-
-			if (t.isGroup("(")) {
-				expr = new CallExpr(t.loc, expr, buildCallArgs(t));
-			} else if (t.isGroup("[")) {
-				t.syntaxError("invalid expression: [...]");
-			} else if (t.isSymbol(".")) {
-				let name = ts.shift().assertWord();
-
-				expr = new MemberExpr(t.loc, expr, name);
-			} else if (t.isGroup("{")) {
-				if (expr == null) {
-					t.syntaxError("empty literal data not allowed");
-				} else if (! expr instanceof Variable) {
-					t.syntaxError("invalid data literal");
-				}
-	
-				let name = expr.name_;
-	
-				expr = buildDataLiteral(name, t);
-			} else if (t.isSymbol("::")) {
-				if (expr == null) {
-					t.syntaxError("invalid syntax");
-				} else if (! expr instanceof Variable) {
-					t.syntaxError("invalid union member syntax");
-				}
-
-				let type = buildTypeExpr([expr.name_, t, ts.shift().assertWord()]);
-				let group = ts.shift().assertGroup();
-
-				if (group.isGroup("(")) {
-					expr = buildUnionMemberCast(type, group);
-				} else if (group.isGroup("{")) {
-					expr = buildUnionMemberLiteral(type, group);
-				} else {
-					group.syntaxError("invalid syntax");
-				}
-			} else {
-				t.syntaxError(`invalid syntax: ${t.toString()} (${prec})`);
-			}
+	} else {
+		let bracesPos = Group.find(ts, "{");
+		if (bracesPos == -1) {
+			site.syntaxError("invalid switch case syntax");
 		}
 
-		return expr;
+		typeExpr = buildTypeExpr(ts.splice(0, bracesPos));
 	}
-];
 
+	if (!(typeExpr instanceof TypePathExpr)) {
+		typeExpr.syntaxError(`invalid switch case type, expected an enum member type, got \'${typeExpr.toString()}\'`);
+	}
+
+	let braces = ts.shift().assertGroup("{", 1);
+	let bodyExpr = buildValueExpr(braces.fields[0]);
+
+	return new SwitchCase(site, varName, typeExpr, bodyExpr);
+}
+
+function buildSwitchDefault(ts) {
+	let site = ts.shift().assertWord("default").site;
+	let braces = ts.shift().assertGroup("{", 1);
+	let bodyExpr = buildValueExpr(braces.fields[0]);
+
+	return new SwitchDefault(site, bodyExpr);
+}
+
+function buildListLiteralExpr(ts) {
+	let site = ts.shift().assertGroup("[", 0);
+
+	let bracesPos = Group.find(ts, "{");
+
+	if (bracesPos == -1) {
+		site.syntaxError("invalid list literal expression syntax");
+	}
+
+	let itemTypeExpr = buildTypeExpr(ts.splice(0, bracesPos));
+
+	let braces = ts.shift().assertGroup("{");
+
+	let itemExprs = braces.fields.map(fts => buildValueExpr(fts));
+
+	return new ListLiteralExpr(site, itemTypeExpr, itemExprs);
+}
+
+function buildStructLiteralExpr(ts) {
+	let bracesPos = Group.find(ts, "{");
+	assert (bracesPos != -1);
+
+	let typeExpr = buildTypeExpr(ts.splice(0, bracesPos));
+
+	let braces = ts.shift().assertGroup("{");
+
+	let fields = braces.fields.map(fts => buildStructLiteralField(fts));
+
+	return new StructLiteralExpr(typeExpr, fields);
+}
+
+function buildStructLiteralField(ts) {
+	let name = ts.shift().assertWord().assertNotKeyword();
+	ts.shift().assertSymbol("::");
+	let valueExpr = buildValueExpr(ts);
+
+	return new StructLiteralField(name, valueExpr);
+}
+
+function buildValuePathExpr(ts) {
+	let dcolonPos = Symbol.findLast(ts, "::");
+	assert(dcolonPos != -1);
+
+	let typeExpr = buildTypeExpr(ts.splice(0, dcolonPos));
+
+	let memberName = ts.shift().assertWord().assertNotKeyword();
+
+	return new ValuePathExpr(typeExpr, memberName);
+}
+
+function buildCallArgs(parens) {
+	return parens.fields.map(fts => buildValueExpr(fts));
+}
+
+
+/////////////////////////////////////////
+// Section 13: Plutus-Light builtin types
+/////////////////////////////////////////
+
+class IntType extends BuiltinType {
+	constructor() {
+		super();
+	}
+
+	toString() {
+		return `Int`;
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "__neg":
+			case "__pos":
+				return Value.new(new FuncType([], new IntType()));
+			case "__add":
+			case "__sub":
+			case "__mul":
+			case "__div":
+			case "__mod":
+				return Value.new(new FuncType([new IntType()], new IntType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Value.new(new FuncType([new IntType()], new BoolType()));
+			case "to_bool":
+				return Value.new(new FuncType([], new BoolType()));
+			case "to_hex":
+			case "show":
+				return Value.new(new FuncType([], new StringType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__int";
+	}
+}
+
+class BoolType extends BuiltinType {
+	constructor() {
+		super();
+	}
+
+	toString() {
+		return `Bool`;
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "and":
+			case "or":
+				return Value.new(new FuncType([new FuncType([], new BoolType()), new FuncType([], new BoolType())], new BoolType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "__not":
+				return Value.new(new FuncType([], new BoolType()));
+			case "__and":
+			case "__or":
+				return Value.new(new FuncType([new BoolType()], new BoolType()));
+			case "to_int":
+				return Value.new(new FuncType([], new IntType()));
+			case "show":
+				return Value.new(new FuncType([], new StringType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__bool";
+	}
+}
+
+class StringType extends BuiltinType {
+	constructor() {
+		super();
+	}
+
+	toString() {
+		return "String";
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "__add":
+				return Value.new(new FuncType([new StringType()], new StringType()));
+			case "encode_utf8":
+				return Value.new(new FuncType([], new ByteArrayType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__string";
+	}
+}
+
+class ByteArrayType extends BuiltinType {
+	constructor() {
+		super();
+	}
+
+	toString() {
+		return "ByteArray";
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "__add":
+				return Value.new(new FuncType([new ByteArrayType()], new ByteArrayType()));
+			case "length":
+				return Value.new(new IntType());
+			case "sha2":
+			case "sha3":
+			case "blake2b":
+				return Value.new(new FuncType([], new ByteArrayType()));
+			case "decode_utf8":
+			case "show":
+				return Value.new(new FuncType([], new StringType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__bytearray";
+	}
+}
+
+class ListType extends BuiltinType {
+	constructor(itemType) {
+		super();
+		this.itemType_ = itemType;
+	}
+
+	get itemType() {
+		return this.itemType_;
+	}
+
+	toString() {
+		return "[]" + this.itemType_.toString();
+	}
+
+	isBaseOf(site, type) {
+		if (type instanceof ListType) {
+			 return this.itemType_.isBaseOf(site, type.itemType);
+		} else {
+			return false;
+		}
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "new":
+				return Value.new(new FuncType([new IntType(), this.itemType_], this));
+			default:
+				return supre.getTypeMember(name);
+		}
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "__add":
+				return Value.new(new FuncType([this], this));
+			case "length":
+				return Value.new(new IntType());
+			case "head":
+				return Value.new(this.itemType_);
+			case "tail":
+				return Value.new(new ListType(this.itemType_));
+			case "is_empty":
+				return Value.new(new FuncType([], new BoolType()));
+			case "get":
+				return Value.new(new FuncType([new IntType()], this.itemType_));
+			case "prepend":
+				return Value.new(new FuncType([this.itemType_], new ListType(this.itemType_)));
+			case "any":
+			case "all":
+				return Value.new(new FuncType([new FuncType([this.itemType_], new BoolType())], new BoolType()));
+			case "find":
+				return Value.new(new FuncType([new FuncType([this.itemType_], new BoolType())], this.itemType_));
+			case "filter":
+				return Value.new(new FuncType([new FuncType([this.itemType_], new BoolType())], new ListType(this.itemType_)));
+			case "fold":
+				return new FoldFuncValue(this.itemType_);
+			case "map":
+				return new MapFuncValue(this.itemType_);
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__list";
+	}
+}
+
+// lst.fold and lst.map are the only parametric function we have at the moment, so instead developing a parametric type system we can just create a special class for these unique cases 
+class FoldFuncValue extends FuncValue {
+	constructor(itemType) {
+		super(null);
+		this.itemType_ = itemType;
+	}
+
+	copy() {
+		return new FoldFuncValue(this.itemType_);
+	}
+
+	toString() {
+		return `[a](a, (a, ${this.itemType_.toString()}) -> a) -> a`;
+	}
+
+	getType(site) {
+		site.typeError("can't get type of type parametric function");
+	}
+
+	isInstanceOf(site, type) {
+		site.typeError("can't determine if type parametric function is instanceof a type");
+	}
+
+	call(site, args) {
+		if (args.length != 2) {
+			site.typeError(`expected 2 arg(s), got ${args.length}`);
+		}
+
+		let zType = args[1].getType(site);
+
+		let fnType = new FuncType([zType, this.itemType_], zType);
+
+		if (!args[0].isInstanceOf(site, fnType)) {
+			site.typeError("wrong function type for fold");
+		}
+
+		return Value.new(zType);
+	}
+}
+
+class MapFuncValue extends FuncValue {
+	constructor(itemType) {
+		super(null);
+		this.itemType_ = itemType;
+	}
+
+	copy() {
+		return new MapFuncValue(this.itemType_);
+	}
+
+	toString() {
+		return `[a]((${this.itemType_.toString()}) -> a) -> []a`;
+	}
+
+	getType(site) {
+		site.typeError("can't get type of type parametric function");
+	}
+
+	isInstanceOf(site, type) {
+		site.typeError("can't determine if type parametric function is instanceof a type");
+	}
+
+	call(site, args) {
+		if (args.length != 1) {
+			site.typeError(`map expects 1 arg(s), got ${args.length})`);
+		}
+
+		let fnType = args[0].getType();
+
+		if (!fnType instanceof FuncType) {
+			site.typeError("arg is not a func type");
+		}
+
+		if (fnType.nArgs() != 1) {
+			site.typeError("func arg takes wrong number of args");
+		}
+
+		let retItemType = fnType.retType;
+		let testFuncType = new FuncType([this.itemType_], retItemType);
+
+		if (!fnType.isBaseOf(testFuncType)) {
+			site.typeError("bad map func");
+		}
+
+		return Value.new(new ListType(retItemType));
+	}
+}
+
+class MapType extends BuiltinType {
+	constructor(keyType, valueType) {
+		super();
+		this.keyType_ = keyType;
+		this.valueType_ = valueType;
+	}
+
+	toString() {
+		return `Map[${this.keyType_.toString()}]${this.valueType_.toString()}`;
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__map";
+	}
+}
+
+class OptionType extends BuiltinType {
+	constructor(someType) {
+		super();
+		this.someType_ = someType;
+	}
+
+	toString() {
+		return `Option[${this.someType_.toString()}]`;
+	}
+
+	isBaseOf(site, type) {
+		return (new OptionSomeType(this.someType_)).isBaseOf(type) || (new OptionNoneType(this.someType_)).isBaseOf(type);
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "Some":
+				return new OptionSomeType(this.someType_);
+			case "None":
+				return new OptionNoneType(this.someType_);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__option";
+	}
+}
+
+class OptionSomeType extends BuiltinType {
+	constructor(someType) {
+		super();
+		this.someType_ = someType;
+	}
+
+	toString() {
+		return `Option[${this.someType_.toString()}]::Some`;
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "new":
+				return Value.new(new FuncType([this.someType_], this));
+			case "cast":
+				return Value.new(new FuncType([new OptionType(this.someType_)], this));
+			default:
+				return super.getTypeMember(name)
+		}
+	}
+	
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "__eq": // more generic than __eq/__neq defined in BuiltinType
+			case "__neq":
+				return Value.new(new FuncType([new OptionType(this.someType_)], new BoolType()));
+			case "value":
+				return this.someType_;
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+	
+	getConstrIndex(site) {
+		return 0;
+	}
+
+	toUntyped() {
+		return "__helios__option__some";
+	}
+}
+
+class OptionNoneType extends BuiltinType {
+	constructor(someType) {
+		super();
+		this.someType_ = someType;
+	}
+	
+	toString() {
+		return `Option[${this.someType_.toString()}]::None`;
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "new":
+				return Value.new(new FuncType([], this));
+			case "cast":
+				return Value.new(new FuncType([new OptionType(this.someType_)], this));
+			default:
+				return super.getTypeMember(name)
+		}
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "__eq": // more generic than __eq/__neq defined in BuiltinType
+			case "__neq":
+				return Value.new(new FuncType([new OptionType(this.someType_)], new BoolType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	getConstrIndex(site) {
+		return 1;
+	}
+
+	toUntyped() {
+		return "__helios__option__none";
+	}
+}
+
+
+class HashType extends BuiltinType {
+	constructor() {
+		super();
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "new":
+				return Value.new(new FuncType([new ByteArrayType()], this));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "show":
+				return Value.new(new FuncType([], new StringType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__hash"
+	}
+}
+
+class PubKeyHashType extends HashType {
+	toString() {
+		return "PubKeyHash";
+	}
+}
+
+class ValidatorHashType extends HashType{
+	toString() {
+		return "ValidatorHash";
+	}
+}
+
+class MintingPolicyHashType extends HashType{
+	toString() {
+		return "MintingPolicyHash";
+	}
+}
+
+class DatumHashType extends HashType{
+	toString() {
+		return "DatumHash";
+	}
+}
+
+class ScriptContextType extends BuiltinType {
+	constructor() {
+		super();
+	}
+
+	toString() {
+		return "ScriptContext";
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "tx":
+				return Value.new(new TxType());
+			case "get_spending_purpose_output_id":
+				return Value.new(new FuncType([], new TxOutputIdType()));
+			case "get_current_validator_hash":
+				return Value.new(new FuncType([], new ValidatorHashType()));
+			case "get_current_minting_policy_hash":
+				return Value.new(new FuncType([], new MintingPolicyHashType()));
+			case "get_current_input":
+				return Value.new(new FuncType([], new TxInputType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__scriptcontext";
+	}
+}
+
+class TxType extends BuiltinType {
+	constructor() {
+		super();
+	}
+
+	toString() {
+		return "Tx";
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "inputs":
+				return Value.new(new ListType(new TxInputType()));
+			case "outputs":
+				return Value.new(new ListType(new TxOutputType()));
+			case "fee":
+				return Value.new(new MoneyValueType());
+			case "minted":
+				return Value.new(new MoneyValueType());
+			case "time_range":
+				return Value.new(new TimeRangeType());
+			case "signatories":
+				return Value.new(new ListType(new PubKeyHashType()));
+			case "id":
+				return Value.new(new TxIdType());
+			case "now":
+				return Value.new(new FuncType([], new TimeType()));
+			case "find_datum_hash":
+				return Value.new(new FuncType([new AnyType()], new DatumHashType()));
+			case "outputs_sent_to":
+				return Value.new(new FuncType([new PubKeyHashType()], new ListType(new TxOutputType())));
+			case "outputs_locked_by":
+				return Value.new(new FuncType([new ValidatorHashType()], new ListType(new TxOutputType())));
+			case "value_sent_to":
+				return Value.new(new FuncType([new PubKeyHashType()], new MoneyValueType()));
+			case "value_locked_by":
+				return Value.new(new FuncType([new ValidatorHashType()], new MoneyValueType()));
+			case "value_locked_by_datum":
+				return Value.new(new FuncType([new ValidatorHashType(), new AnyType()], new MoneyValueType()));
+			case "is_signed_by":
+				return Value.new(new FuncType([new PubKeyHashType()], new BoolType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__tx";
+	}
+}
+
+class TxIdType extends BuiltinType {
+	toString() {
+		return "TxId";
+	}
+
+	toUntyped() {
+		return "__helios__txid";
+	}
+}
+
+class TxInputType extends BuiltinType {
+	toString() {
+		return "TxInput";
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "output_id":
+				return Value.new(new TxOutputIdType());
+			case "output":
+				return Value.new(new TxOutputType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__txinput";
+	}
+}
+
+class TxOutputType extends BuiltinType {
+	toString() {
+		return "TxOutput";
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "address":
+				return Value.new(new AddressType());
+			case "value":
+				return Value.new(new MoneyValueType());
+			case "datum_hash":
+				return Value.new(new OptionType(new DatumHashType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__txoutput";
+	}
+}
+
+class TxOutputIdType extends BuiltinType {
+	toString() {
+		return "TxOutputId";
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "new":
+				return Value.new(new FuncType([new ByteArrayType(), new IntType()], new TxOutputIdType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__txoutputid";
+	}
+}
+
+class AddressType extends BuiltinType {
+	toString() {
+		return "Address";
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "credential":
+				return Value.new(new CredentialType());
+			case "staking_credential":
+				return Value.new(new OptionType(new StakingCredentialType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__address";
+	}
+}
+
+class CredentialType extends BuiltinType {
+	toString() {
+		return "Credential";
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "PubKey":
+				return new CredentialPubKeyType();
+			case "Validator":
+				return new CredentialValidatorType();
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__credential";
+	}
+}
+
+class CredentialPubKeyType extends BuiltinType {
+	toString() {
+		return "Credential::PubKey";
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "cast":
+				return Value.new(new FuncType([new CredentialType()], this));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new CredentialType()], new BoolType()));
+			case "hash":
+				return Value.new(new PubKeyHashType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	getConstrIndex(site) {
+		return 0;
+	}
+
+	toUntyped() {
+		return "__helios__credential__pubkey";
+	}
+}
+
+class CredentialValidatorType extends BuiltinType {
+	toString() {
+		return "Credential::Validator";
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "cast":
+				return Value.new(new FuncType([new CredentialType()], this));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new CredentialType()], new BoolType()));
+			case "hash":
+				return Value.new(new ValidatorHashType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	getConstrIndex(site) {
+		return 1;
+	}
+
+	toUntyped() {
+		return "__helios__credential__validator";
+	}
+}
+
+class StakingCredentialType extends BuiltinType {
+	toString() {
+		return "StakingCredential";
+	}
+
+	toUntyped() {
+		return "__helios__stakingcredential";
+	}
+}
+
+class TimeType extends BuiltinType {
+	toString() {
+		return "Time";
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "new":
+				return Value.new(new FuncType([new IntType()], this));
+			default:
+				return super.getTypeMember();
+		}
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "__add":
+				return Value.new(new FuncType([new DurationType()], new TimeType()));
+			case "__sub":
+				return Value.new(new FuncType([new TimeType()], new DurationType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Value.new(new FuncType([new TimeType()], new BoolType()));
+			case "show":
+				return Value.new(new FuncType([], new StringType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__time";
+	}
+}
+
+class DurationType extends BuiltinType {
+	toString() {
+		return "Duration";
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "new":
+				return Value.new(new FuncType([new IntType()], this));
+			default:
+				return super.getTypeMember();
+		}
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "__add":
+			case "__sub":
+			case "__mod":
+				return Value.new(new FuncType([new DurationType()], new DurationType()));
+			case "__mul":
+			case "__div":
+				return Value.new(new FuncType([new IntType()], new DurationType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Value.new(new FuncType([new DurationType()], new BoolType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+	
+	toUntyped() {
+		return "__helios__duration";
+	}
+}
+
+class TimeRangeType extends BuiltinType {
+	toString() {
+		return "TimeRange";
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "get_start":
+				return Value.new(new FuncType([], new TimeType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__timerange";
+	}
+}
+
+class AssetClassType extends BuiltinType {
+	toString() {
+		return "AssetClass";
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "ADA":
+				return Value.new(new AssetClassType());
+			case "new":
+				return Value.new(new FuncType([new ByteArrayType(), new StringType()], new AssetClassType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__assetclass";
+	}
+}
+
+class MoneyValueType extends BuiltinType {
+	toString() {
+		return "Value";
+	}
+
+	getTypeMember(name) {
+		switch(name.value) {
+			case "ZERO":
+				return Value.new(new MoneyValueType());
+			case "lovelace":
+				return Value.new(new FuncType([new IntType()], new MoneyValueType()));
+			case "new":
+				return Value.new(new FuncType([new AssetClassType(), new IntType()], new MoneyValueType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	getInstanceMember(name) {
+		switch(name.value) {
+			case "__add":
+			case "__sub":
+				return Value.new(new FuncType([new MoneyValueType()], new MoneyValueType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Value.new(new FuncType([new MoneyValueType()], new MoneyValueType()));
+			case "is_zero":
+				return Value.new(new FuncType([], new BoolType()));
+			case "get":
+				return Value.new(new FuncType([new AssetClassType()], new IntType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	toUntyped() {
+		return "__helios__value";
+	}
+}
+
+
+/////////////////////////////////////////////
+// Section 14: Plutus-Light builtin functions
+/////////////////////////////////////////////
+
+class BuiltinRawFunc {
+	constructor(name, definition) {
+		this.name_ = name;
+		assert(definition != undefined);
+		this.definition_ = definition;
+		this.dependencies_ = new Set();
+
+		let re = new RegExp("__helios__[a-zA-Z_0-9]*", "g");
+
+		let matches = this.definition_.match(re);
+
+		if (matches != null) {
+			for (let match of matches) {
+				this.dependencies_.add(match[0]);
+			}
+		}
+	}
+
+	get name() {
+		return this.name_;
+	}
+
+	load(db, dst) {
+		if (dst.has(this.name_)) {
+			return;
+		} else {
+			for (let dep of this.dependencies_) {
+				db.get(dep).load(db, dst);
+			}
+
+			dst.set(this.name_, this.definition_);
+		}
+	}
+}
+
+function fillBuiltinRawFuncDB() {
+	let db = new Map();
+
+	// local utility functions
+	function add(fn) {
+		if (db.has(fn.name)) {
+			throw new Error(`builtin ${fn.name} duplicate`);
+		}
+		db.set(fn.name, fn);
+	}
+
+	function addEqNeqSerialize(ns) {
+		add(new BuiltinRawFunc(`${ns}____eq`, "__helios__common____eq"));
+		add(new BuiltinRawFunc(`${ns}____neq`, "__helios__common____neq"));
+		add(new BuiltinRawFunc(`${ns}__serialize`, "__helios__common__serialize"));
+	}
+	
+	// dataExpr is a string
+	function unData(dataExpr, iConstr, iField, errorExpr = "__core__error()") {
+		let inner = "__core__sndPair(pair)";
+		for (let i = 0; i < iField; i++) {
+			inner = `__core__tailList(${inner})`;
+		}
+
+		// deferred evaluation of ifThenElse branches
+		return `
+		(pair) -> {
+			__core__ifThenElse(
+				__core__equalsInteger(__core__fstPair(pair), ${iConstr}), 
+				() -> {headList(${inner})}, 
+				() -> {${errorExpr}}
+			)()
+		}(__core__unConstrData(${dataExpr}))`;
+	}
+
+	// dataExpr is a string
+	function unDataVerbose(dataExpr, constrName, iConstr, iField) {
+		if (!DEBUG) {
+			return unData(dataExpr, iConstr, iField);
+		} else {
+			return unData(dataExpr, iConstr, iField, `__helios__common__verbose_error(__core__appendString("bad constr for ${constrName}, want ${iConstr.toString()} but got ", __helios__int__show(__core__fstPair(pair))()))`)
+		}
+	}
+	
+	function makeList(args, toData = false) {
+		let n = args.length;
+		let inner = "mkNilData(())";
+
+		for (let i = n-1; i>= 0; i--) {
+			inner = `mkCons(${args[i]}, ${inner})`;
+		}
+
+		if (toData) {
+			inner = `__core__listData(${inner})`
+		}
+
+		return inner;
+	}
+
+	// Common builtins
+	add(new BuiltinRawFunc("__helios__common__verbose_error", `
+	(msg) -> {
+		__core__trace(msg, () -> {__core__error()})()
+	}`));
+	add(new BuiltinRawFunc("__helios__common__assert_constr_index", `
+	(data, i) -> {
+		__core__ifThenElse(
+			__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), __core__unIData(i)),
+			() -> {data},
+			() -> {__core__error()}
+		)()
+	}`));
+	add(new BuiltinRawFunc("__helios__common____identity", `
+	(self) -> {
+		() -> {
+			self
+		}
+	}`))
+	add(new BuiltinRawFunc("__helios__common__identity", `(self) -> {self}`));
+	add(new BuiltinRawFunc("__helios__common__not", `
+	(b) -> {
+		__core__ifThenElse(b, false, true)
+	}`));
+	add(new BuiltinRawFunc("__helios__common____eq", `
+	(self) -> {
+		(other) -> {
+			__helios__common__boolData(__core__equalsData(self, other))
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__common____neq", `
+	(self) -> {
+		(other) -> {
+			__helios__common__boolData(__helios__common__not(equalsData(self, other)))
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__common__serialize", `
+	(self) -> {
+		() -> {__core__serialize(self)}
+	}`));
+	add(new BuiltinRawFunc("__helios__common__is_in_bytearray_list", `
+	(lst, key) -> {
+		__helios__list__any(__core__listData(lst))((item) -> {__core__equalsByteString(item, key)})
+	}`));
+	add(new BuiltinRawFunc("__helios__common__unBoolData", `
+	(d) -> {
+		__core__ifThenElse(
+			__core__equalsInteger(__core__fstPair(__core__unConstrData(d)), 0), 
+			false, 
+			true
+		)
+	}`));
+	add(new BuiltinRawFunc("__helios__common__boolData", `
+	(b) -> {
+		__core__constrData(__core__ifThenElse(b, 1, 0), mkNilPairData(())
+	}`));
+	add(new BuiltinRawFunc("__helios__common__unStringData", `
+	(d) -> {
+		__core__decodeUtf8(__core__unBData(d))
+	}`));
+	add(new BuiltinRawFunc("__helios__common__stringData", `
+	(s) -> {
+		__core__bData(__core__encodeUtf8(s))
+	}`));
+
+
+	// Int builtins
+	addEqNeqSerialize("__helios__int");
+	add(new BuiltinRawFunc("__helios__int____neg", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				__core__iData(__core__multiplyInteger(self, -1))
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__int____pos", "__helios__common____identity"));
+	add(new BuiltinRawFunc("__helios__int____add", `
+	(self) -> {
+		(a) -> {
+			(b) -> {
+				__core__iData(__core__addInteger(a, __core__unIData(b)))
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__int____sub", `
+	(self) -> {
+		(a) -> {
+			(b) -> {
+				__core__iData(__core__subtractInteger(a, __core__unIData(b)))
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__int____mul", `
+	(self) -> {
+		(a) -> {
+			(b) -> {
+				__core__iData(__core__multiplyInteger(a, __core__unIData(b)))
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__int____div", `
+	(self) -> {
+		(a) -> {
+			(b) -> {
+				__core__iData(__core__divideInteger(a, __core__unIData(b)))
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__int____mod", `
+	(self) -> {
+		(a) -> {
+			(b) -> {
+				__core__iData(__core__modInteger(a, __core__unIData(b)))
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__int____geq", `
+	(self) -> {
+		(a) -> {
+			(b) -> {
+				__helios__common__boolData(__helios__common__not(__core__lessThanInteger(a, __core__unIData(b))))
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__int____gt", `
+	(self) -> {
+		(a) -> {
+			(b) -> {
+				__helios__common__boolData(__helios__common__not(__core__lessThanEqualsInteger(a, __core__unIData(b))))
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__int____leq", `
+	(self) -> {
+		(a) -> {
+			(b) -> {
+				__helios__common__boolData(__core__lessThanEqualsInteger(a, __core__unIData(b)))
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__int____lt", `
+	(self) -> {
+		(a) -> {
+			(a) -> {
+				__helios__common__boolData(__core__lessThanInteger(a, __core__unIData(b)))
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__int__to_bool", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				__helios__common__boolData(__core__ifThenElse(__core__equalsInteger(self, 0), false, true))
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__int__to_hex", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				(recurse) -> {
+					__core__unBData(recurse(recurse, self))
+				}(
+					(recurse, self) -> {
+						(partial) -> {
+							(bytes) -> {
+								__core__ifThenElse(
+									__core__lessThanInteger(self, 16),
+									() -> {bytes},
+									() -> {__core__appendByteString(recurse(recurse, __core__divideInteger(self, 16)), bytes)}
+								)()
+							}(
+								__core__consByteString(
+									__core__ifThenElse(
+										__core__lessThanInteger(partial, 10), 
+										__core__addInteger(partial, 48), 
+										__core__addInteger(partial, 87)
+									), 
+									#
+								)
+							)
+						}(__core__modInteger(self, 16))
+					}
+				)
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__int__show", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				__helios__common__stringData(__core__decodeUtf8(
+					(recurse) -> {
+						__core__ifThenElse(
+							__core__lessThanInteger(self, 0),
+							() -> {__core__consByteString(45, recurse(recurse, __core__multiplyInteger(self, -1)))},
+							() -> {recurse(recurse, self)}
+						)()
+					}(
+						(recurse, i) -> {
+							(bytes) -> {
+								__core__ifThenElse(
+									__core__lessThanInteger(self, 10),
+									() -> {bytes},
+									() -> {__core__appendByteString(recurse(recurse, __core__divideInteger(self, 10)), bytes)}
+								)()
+							}(__core__consByteString(__core__addInteger(__core__modInteger(self, 10), 48), #))
+						}
+					)
+				))()
+			}
+		}(__core__unIData(self))
+	}`));
+	
+
+	// Bool builtins
+	addEqNeqSerialize("__helios__bool");
+	add(new BuiltinRawFunc("__helios__bool__and", `
+	(a, b) -> {
+		__helios__common__boolData(
+			__core__ifThenElse(
+				__helios__common__unBoolData(a()), 
+				() -> {__helios__common__unBoolData(b())}, 
+				() -> {false}
+			)()
+		)
+	}`));
+	add(new BuiltinRawFunc("__helios__bool__or", `
+	(a, b) -> {
+		__helios__common__boolData(
+			__core__ifThenElse(
+				__helios__common__unBoolData(a()), 
+				() -> {true},
+				() -> {__helios__common__unBoolData(b())}
+			)()
+		)
+	}`));
+	add(new BuiltinRawFunc("__helios__bool____not", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				__helios__common__boolData(__helios__common__not(self))
+			}
+		}(__helios__common__unBoolData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__bool__to_int", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				__core__iData(__core__ifThenElse(self, 1, 0))
+			}
+		}(__helios__common__unBoolData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__bool__show", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				__helios__common__stringData(__core__ifThenElse(self, "true", "false"))
+			}
+		}(__helios__common__unBoolData(self))
+	}`));
+	
+	
+	// String builtins
+	addEqNeqSerialize("__helios__string");
+	add(new BuiltinRawFunc("__helios__string____add", `
+	(self) -> {
+		(self) -> {
+			(other) -> {
+				__helios__common__stringData(__core__appendString(self, __helios__common__unStringData(other)))
+			}
+		}(__helios__common__unStringData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__string__encode_utf8", `
+	(self) -> {
+		(self) -> {
+			__core__bData(__core__encodeUtf8(self))
+		}(__helios__common__unStringData(self))
+	}`));
+
+	
+	// ByteArray builtins
+	addEqNeqSerialize("__helios__bytearray");
+	add(new BuiltinRawFunc("__helios__bytearray____add", `
+	(self) -> {
+		(a) -> {
+			(b) -> {
+				__core__bData(__core__appendByteString(a, __cure__unBData(b)))
+			}
+		}(__core__unBData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__bytearray__length", `
+	(self) -> {
+		__core__iData(__core__lengthOfByteString(__core__unBData(self)))
+	}`));
+	add(new BuiltinRawFunc("__helios__bytearray__sha2", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				__core__bData(__core__sha2_256(self))
+			}
+		}(__core__unBData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__bytearray__sha3", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				__core__bData(__core__sha3_256(self))
+			}
+		}(__core__unBData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__bytearray__blake2b", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				__core__bData(__core__blake2b_256(self))
+			}
+		}(__core__unBData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__bytearray__decode_utf8", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				__helios__common__stringData(__core__decodeUtf8(self))
+			}
+		}(__core__unBData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__bytearray__show", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				(recurse) -> {
+					__helios__common__stringData(recurse(recurse, self))
+				}(
+					(recurse, self) -> {
+						(n) -> {
+							__core__ifThenElse(
+								__core__lessThanInteger(0, n),
+								() -> {
+									__core__appendString(
+										__core__decodeUtf8(__core__unBData(__helios__int__to_hex(__core__indexByteString(self, 0))())), 
+										recurse(recurse, __core__sliceByteString(1, n, self))
+									)
+								},
+								() -> {
+									""
+								}
+							)()
+						}(__core__lengthOfByteString(self))
+					}
+				)
+			}
+		}(__core__unBData(self))
+	}`));
+
+
+	// List builtins
+	addEqNeqSerialize("__helios__list");
+	add(new BuiltinRawFunc("__helios__list__new", `
+	(n, item) -> {
+		(recurse) -> {
+			__core__listData(recurse(recurse, __core__mkNilData(()), 0))
+		}(
+			(recurse, lst, i) -> {
+				__core__ifThenElse(
+					__core__lessThanInteger(i, n),
+					() -> {recurse(recurse, __core__mkCons(item, lst), __core__addInteger(i, 1))},
+					() -> {lst}
+				)()
+			}
+		)
+	}`));
+	add(new BuiltinRawFunc("__helios__list____add", `
+	(self) -> {
+		(a) -> {
+			(b) -> {
+				(b) -> {
+					(recurse) -> {
+						__core__listData(recurse(recurse, b, a))
+					}(
+						(recurse, lst, rem) -> {
+							__core__ifThenElse(
+								__core__nullList(rem),
+								() -> {lst},
+								() -> {__core__mkCons(__core__headList(rem), recurse(recurse, lst, __core__tailList(rem)))}
+							)()
+						}
+					)
+				}(__core__unListData(b))
+			}
+		}(__core__unListData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__list__length", `
+	(self) -> {
+		(self) -> {
+			(recurse) -> {
+				__core__iData(recurse(recurse, self))
+			}(
+				(recurse, self) -> {
+					__core__ifThenElse(
+						__core__nullList(self), 
+						() -> {0}, 
+						() -> {__core__addInteger(recurse(recurse, __core__tailList(self)), 1)}
+					)()
+				}
+			)
+		}(__core__unListData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__list__head", `
+	(self) -> {
+		__core__headList(__core__unListData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__list__tail", `
+	(self) -> {
+		__core__listData(__core__tailList(__core__unListData(self)))
+	}`));
+	add(new BuiltinRawFunc("__helios__list__is_empty", `
+	(self) -> {
+		(self) -> {
+			() -> {
+				__helios__common__boolData(__core__nullList(self))
+			}
+		}(__core__unListData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__list__get", `
+	(self) -> {
+		(self) -> {
+			(i) -> {
+				(recurse) -> {
+					recurse(recurse, self, i)
+				}(
+					(recurse, self, i) -> {
+						__core__ifThenElse(
+							__core__nullList(self), 
+							() -> {__core__error()}, 
+							() -> {__core__ifThenElse(
+								__core__lessThanInteger(i, 0), 
+								() -> {__core__error()}, 
+								() -> {__core__ifThenElse(
+									__core__equalsInteger(i, 0), 
+									() -> {__core__headList(self)}, 
+									() -> {recurse(recurse, __core__tailList(self), __core__subtractInteger(i, 1))}
+								)()}
+							)()}
+						)()
+					}
+				)
+			}
+		}(__core__unListData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__list__any", `
+	(self) -> {
+		(self) -> {
+			(fn) -> {
+				(recurse) -> {
+					__helios__common__boolData(recurse(recurse, self, fn))
+				}(
+					(recurse, self, fn) -> {
+						__core__ifThenElse(
+							__core__nullList(self), 
+							() -> {false}, 
+							() -> {
+								__core__ifThenElse(
+									__helios__common__unBoolData(fn(__core__headList(self))),
+									() -> {true}, 
+									() -> {recurse(recurse, __core__tailList(self), fn)}
+								)()
+							}
+						)()
+					}
+				)
+			}
+		}(__core__unListData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__list__all", `
+	(self) -> {
+		(self) -> {
+			(fn) -> {
+				(recurse) -> {
+					__helios__common__boolData(recurse(recurse, self, fn))
+				}(
+					(recurse, self, fn) -> {
+						__core__ifThenElse(
+							__core__nullList(self),
+							() -> {true},
+							() -> {
+								__core__ifThenElse(
+									__helios__common__unBoolData(fn(__core__headList(self))),
+									() -> {recurse(recurse, __core__tailList(self), fn)},
+									() -> {false}
+								)()
+							}
+						)()
+					}
+				)
+			}
+		}(__core__unListData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__list__prepend", `
+	(self) -> {
+		(self) -> {
+			(item) -> {
+				__core__listData(__core__mkCons(item, self))
+			}
+		}(__core__unListData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__list__find", `
+	(self) -> {
+		(self) -> {
+			(fn) -> {
+				(recurse) -> {
+					recurse(recurse, self, fn)
+				}(
+					(recurse, self, fn) -> {
+						__core__ifThenElse(
+							__core__nullList(self), 
+							() -> {__core__error()}, 
+							() -> {__core__ifThenElse(
+								__helios__common__unBoolData(fn(__core__headList(self))), 
+								() -> {__core__headList(self)}, 
+								() -> {recurse(recurse, tailList(self), fn)}
+							)()}
+						)()
+					}
+				)
+			}
+		}(__core__unListData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__list__filter", `
+	(self) -> {
+		(self) -> {
+			(fn) -> {
+				(recurse) -> {
+					__core__listData(recurse(recurse, self, fn))
+				}(
+					(recurse, self, fn) -> {
+						__core__ifThenElse(
+							__core__nullList(self), 
+							() -> {__core__mkNilData(())}, 
+							() -> {__core__ifThenElse(
+								__helios__common__unBoolData(fn(__core__headList(self))),
+								() -> {__core__mkCons(__core__headList(self), recurse(recurse, __core__tailList(self), fn))}, 
+								() -> {recurse(recurse, __core__tailList(self), fn)}
+							)()}
+						)()
+					}
+				)		
+			}
+		}(__core__unListData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__list__fold", `
+	(self) -> {
+		(self) -> {
+			(fn, z) -> {
+				(recurse) -> {
+					recurse(recurse, self, fn, z)
+				}(
+					(recurse, self, fn, z) -> {
+						__core__ifThenElse(
+							__core__nullList(self), 
+							() -> {z}, 
+							() -> {recurse(recurse, __core__tailList(self), fn, fn(z, __core__headList(self)))}
+						)()
+					}
+				)
+			}
+		}(__core__unListData(self))
+	}`));
+	add(new BuiltinRawFunc("__helios__list__map", `
+	(self) -> {
+		(self) -> {
+			(fn) -> {
+				(recurse) -> {
+					__core__listData(recurse(recurse, self, mkNilData(())))
+				}(
+					(recurse, rem, lst) -> {
+						__core__ifThenElse(
+							__core__nullList(rem),
+							() -> {lst},
+							() -> {
+								__core__mkCons(
+									fn(__core__headList(rem)), 
+									recurse(recurse, __core__tailList(rem), lst)
+								)
+							}
+						)()
+					}
+				)
+			}
+		}(__core__unListData(self))
+	}`));
+	
+
+	// Map builtins
+	addEqNeqSerialize("__helios__map");
+
+
+	// Option builtins
+	addEqNeqSerialize("__helios__option");
+	addEqNeqSerialize("__helios__option__some");
+	add(new BuiltinRawFunc("__helios__option__some__new", `
+	(data) -> {
+		constrData(0, ${makeList(["data"])})
+	}`));
+	add(new BuiltinRawFunc("__helios__option__some__cast", `
+	(data) -> {
+		__helios__common__assert_constr_index(data, 0)
+	}`));
+	add(new BuiltinRawFunc("__helios__option__some__value", `
+	(self) -> {
+		() -> {
+			${unData("self", 0, 0)}
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__option__none__new", `
+	() -> {
+		constrData(1, ${makeList([])})
+	}`));
+	add(new BuiltinRawFunc("__helios__option__none__cast", `
+	(data) -> {
+		__helios__common__assert_constr_index(data, 1)
+	}`));
+
+
+	// Hash builtins
+	addEqNeqSerialize("__helios__hash");
+	add(new BuiltinRawFunc("__helios__hash__new", `__helios__common__identity`));
+	add(new BuiltinRawFunc("__helios__hash__show", "__helios__bytearray__show"));
+
+
+	// ScriptContext builtins
+	addEqNeqSerialize("__helios__scriptcontext");
+	add(new BuiltinRawFunc("__helios__scriptcontext__tx", `
+	(self) -> {
+		${unData("self", 0, 0)}
+	}`));
+	add(new BuiltinRawFunc("__helios__scriptcontext__get_spending_purpose_output_id", `
+	(self) -> {
+		() -> {
+			${unData(unData(0, 1), 1, 0)}
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__scriptcontext__get_current_validator_hash", `
+	(self) -> {
+		() -> {
+			__helios__credential__validator__hash(
+				__helios__credential__validator__cast(
+					__helios__address__credential(
+						__helios__txoutput__address(
+							__helios__txinput__output(
+								__helios__scriptcontext__get_current_input(self)
+							)
+						)
+					)
+				)
+			)
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__scriptcontext__get_current_minting_policy_hash", `
+	(self) -> {
+		() -> {
+			${unData(unData("self", 0, 1), 0, 0)}
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__scriptcontext__get_current_input", `
+	(self) -> {
+		(id) -> {
+			__helios__list__find(__helios__tx__inputs(__helios__scriptcontext__tx(self)))(
+				(input) -> {
+					__helios__common__boolData(__core__equalsData(__helios__txinput__output_id(input), id))
+				}
+			)
+		}(__helios__scriptcontext__get_spending_purpose_output_id(ctx)())
+	}`));
+	
+
+	// Tx builtins
+	addEqNeqSerialize("__helios__tx");
+	add(new BuiltinRawFunc("__helios__tx__inputs", `
+	(self) -> {
+		${unData("self", 0, 0)}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__outputs", `
+	(self) -> {
+		${unData("self", 0, 1)}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__fee", `
+	(self) -> {
+		${unData("self", 0, 2)}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__minted", `
+	(self) -> {
+		${unData("self", 0, 3)}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__time_range", `
+	(self) -> {
+		${unData("self", 0, 6)}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__signatories", `
+	(self) -> {
+		${unData("self", 0, 7)}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__id", `
+	(self) -> {
+		${unData("self", 0, 9)}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__now", `
+	(self) -> {
+		() -> {
+			__helios__timerange__get_start(__helios__tx__time_range(self)())
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__find_datum_hash", `
+		(self) -> {
+			(datum) -> {
+				${unData(`__helios__list__find(__helios__tx__datums(self))()
+					(tuple) -> {
+						__core__equalsData(${unData("tuple", 0, 1)}, datum)
+					}
+				)`, 0, 0)}
+			}
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__outputs_sent_to", `
+	(self) -> {
+		(hash) -> {
+			__helios__list__filter(__helios__tx__outputs(self))(
+				(output) -> {
+					__helios__common__boolData((credential) -> {
+						__core__ifThenElse(
+							__helios__common__unBoolData(__helios__credential__is_pubkey(credential)),
+							() -> {
+								__core__ifThenElse(
+									__core__equalsData(
+										hash, 
+										__helios__credential__pubkey__hash(
+											__helios__credential__pubkey__cast(credential)
+										)
+									),
+									true,
+									false
+								)
+							},
+							() -> {false}
+						)()
+					}(__helios__address__credential(__helios__txoutput__address(output))))
+				}
+			)
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__outputs_locked_by", `
+	(self) -> {
+		(hash) -> {
+			__helios__list__filter(__helios__tx__outputs(self))(
+				(output) -> {
+					__helios__common__boolData((credential) -> {
+						__core__ifThenElse(
+							__helios__common__unBoolData(__helios__credential__is_validator(credential)),
+							() -> {
+								__core__ifThenElse(
+									__core__equalsData(
+										hash, 
+										__helios__credential__validator__hash(
+											__helios__credential__validator__cast(cred)
+										)
+									),
+									true,
+									false
+								)
+							},
+							() -> {false}
+						)()
+					}(__helios__address__credential(__helios__txoutput__address(output))))
+				}
+			)
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__value_sent_to", `
+	(self) -> {
+		(hash) -> {
+			(outputs) -> {
+				__helios__list__fold(outputs)(
+					(prev, txOutput) -> {
+						__helios__value____add(prev)(__helios__txoutput__value(txOutput))
+					}, 
+					__helios__value__ZERO
+				)	
+			}(__helios__tx__outputs_sent_to(self)(hash))
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__value_locked_by", `
+	(self) -> {
+		(hash) -> {
+			(outputs) -> {
+				__helios__list__fold(outputs)(
+					(prev, output) -> {
+						__helios__value____add(prev)(__helios__txoutput__value(output))
+					}, 
+					__helios__value__ZERO
+				)
+			}(__helios__tx__outputs_locked_by(self)(hash))
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__value_locked_by_datum", `
+	(self) -> {
+		(hash, datum) -> {
+			(outputs, dhash) -> {
+				__helios__list__fold(outputs)(
+					(prev, output) -> {
+						__core__ifThenElse(
+							__core__equalsData(__helios__txoutput__get_datum_hash(output), dhash),
+							() -> {
+								__helios__value____add(prev)(__helios__txoutput__value(output))
+							},
+							() -> {prev}
+						)()
+					}, 
+					__helios__value__ZERO
+				)
+			}(__helios__tx__outputs_locked_by(self)(hash), __helios__tx__find_datum_hash(self)(datum))
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__tx__is_signed_by", `
+	(self) -> {
+		(hash) -> {
+			__helios__list__any(__helios__tx__signatories(self))(
+				(signatory) -> {
+					__core__boolData(__core__equalsData(signatory, hash))
+				}
+			)
+		}
+	}`));
+
+
+	// TxId builtins
+	addEqNeqSerialize("__helios__txid");
+
+
+	// TxInput builtins
+	addEqNeqSerialize("__helios__txinput");
+	add(new BuiltinRawFunc("__helios__txinput__output_id", `
+	(self) -> {
+		() -> {
+			${unData("self", 0, 0)}
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__txinput__output", `
+	(self) -> {
+		() -> {
+			${unData("self", 0, 1)}
+		}
+	}`));
+
+
+	// TxOutput builtins
+	addEqNeqSerialize("__helios__txoutput");
+	add(new BuiltinRawFunc("__helios__txoutput__address", `
+	(self) -> {
+		() -> {
+			${unData("self", 0, 0)}
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__txoutput__value", `
+	(self) -> {
+		() -> {
+			${unData("self", 0, 1)}
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__txoutput__datum_hash", `
+	(self) -> {
+		() -> {
+			${unData("self", 0, 2)}
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__txoutput__get_datum_hash", `
+	(self) -> {
+		() -> {
+			(pair) -> {
+				__core__ifThenElse(
+					__core__equalsInteger(__core__fstPair(pair), 0),
+					() -> {__core__headList(__core__sndPair(pair))},
+					() -> {__core__bData(#)}
+				)()
+			}(__core__unConstrData(${unData("self", 0, 2)}))
+		}
+	}`));
+
+
+	// TxOutputId
+	addEqNeqSerialize("__helios__txoutputid");
+	add(new BuiltinRawFunc("__helios__txoutputid__new", `
+	(tx_id, idx) -> {
+		constrData(0, ${makeList(`constrData(0, ${makeList("tx_id")})`, "idx")})
+	}`));
+
+
+	// Address
+	addEqNeqSerialize("__helios__address");
+	add(new BuiltinRawFunc("__helios__address__credential", `
+	(self) -> {
+		() -> {
+			${unData("self", 0, 0)}
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__address__staking_credential", `
+	(self) -> {
+		() -> {
+			${unData("self", 0, 0)}
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__address__is_staked", `
+	(self) -> {
+		() -> {
+			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(${unData("self", 0, 1)})), 0))
+		}
+	}`));
+
+
+	// Credential builtins
+	addEqNeqSerialize("__helios__credential");
+	add(new BuiltinRawFunc("__helios__credential__is_pubkey", `
+	(self) -> {
+		() -> {
+			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 0)
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__credential__is_validator", `
+	(self) -> {
+		() -> {
+			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 1)
+		}
+	}`));
+
+
+	// Credential::PubKey builtins
+	addEqNeqSerialize("__helios__credential__pubkey");
+	add(new BuiltinRawFunc("__helios__credential__pubkey__cast", `
+	(data) -> {
+		__helios__common__assert_constr_index(data, 0)
+	}`));
+	add(new BuiltinRawFunc("__helios__credential__pubkey__hash", `
+	(self) -> {
+		${unData("self", 0, 0)}
+	}`));
+
+
+	// Credential::Validator builtins
+	addEqNeqSerialize("__helios__credential__validator");
+	add(new BuiltinRawFunc("__helios__credential__validator__cast", `
+	(data) -> {
+		__helios__common__assert_constr_index(data, 1)
+	}`));
+	add(new BuiltinRawFunc("__helios__credential__validator__hash", `
+	(self) -> {
+		${unData("self", 1, 0)}
+	}`));
+	
+
+	// StakingCredential builtins
+	addEqNeqSerialize("__helios__stakingcredential");
+
+
+	// Time builtins
+	addEqNeqSerialize("__helios__time");
+	add(new BuiltinRawFunc("__helios__time__new", `__helios__common__identity`));
+	add(new BuiltinRawFunc("__helios__time____add", `__helios__int____add`));
+	add(new BuiltinRawFunc("__helios__time____sub", `__helios__int____sub`));
+	add(new BuiltinRawFunc("__helios__time____geq", `__helios__int____geq`));
+	add(new BuiltinRawFunc("__helios__time____gt", `__helios__int____gt`));
+	add(new BuiltinRawFunc("__helios__time____leq", `__helios__int____leq`));
+	add(new BuiltinRawFunc("__helios__time____lt", `__helios__int____lt`));
+	add(new BuiltinRawFunc("__helios__time__show", `__helios__int__show`));
+
+
+	// Duratin builtins
+	addEqNeqSerialize("__helios__duration");
+	add(new BuiltinRawFunc("__helios__duration__new", `__helios__common__identity`));
+	add(new BuiltinRawFunc("__helios__duration____add", `__helios__int____add`));
+	add(new BuiltinRawFunc("__helios__duration____sub", `__helios__int____sub`));
+	add(new BuiltinRawFunc("__helios__duration____mul", `__helios__int____mul`));
+	add(new BuiltinRawFunc("__helios__duration____div", `__helios__int____div`));
+	add(new BuiltinRawFunc("__helios__duration____mod", `__helios__int____mod`));
+	add(new BuiltinRawFunc("__helios__duration____geq", `__helios__int____geq`));
+	add(new BuiltinRawFunc("__helios__duration____gt", `__helios__int____gt`));
+	add(new BuiltinRawFunc("__helios__duration____leq", `__helios__int____leq`));
+	add(new BuiltinRawFunc("__helios__duration____lt", `__helios__int____lt`));
+	
+
+	// TimeRange builtins
+	addEqNeqSerialize("__helios__timerange");
+	add(new BuiltinRawFunc("__helios__timerange__get_start", `
+	(self) -> {
+		() -> {
+			${unData(unData(unData("timeRange", 0, 0), 0, 0), 1, 0)}
+		}
+	}`));
+
+
+	// AssetClass builtins
+	addEqNeqSerialize("__helios__assetclass");
+	add(new BuiltinRawFunc("__helios__assetclass__ADA", `__helios__assetclass_new(__core__bData(#), __helios__common__stringData(""))`));
+	add(new BuiltinRawFunc("__helios__assetclass__new", `
+	(mintingPolicyHash, tokenName) -> {
+		__core__constrData(0, ${makeList(["mintingPolicyHash", "tokenName"])})
+	}`));
+
+
+	// MoneyValue builtins
+	add(new BuiltinRawFunc("__helios__value__serialize", "__helios__common__serialize"));
+	add(new BuiltinRawFunc("__helios__value__ZERO", `__core__mapData(__core__mkNilPairData(()))`));
+	add(new BuiltinRawFunc("__helios__value__lovelace", `
+	(i) -> {
+		__helios__value__new(__helios__assetclass__ADA, i)
+	}`));
+	add(new BuiltinRawFunc("__helios__value__new", `
+	(assetClass, i) -> {
+		(mintingPolicyHash, tokenName) -> {
+			__core__mapData(
+				__core__mkCons(
+					__core__mkPairData(
+						mintingPolicyHash, 
+						__core__mapData(
+							__core__mkCons(
+								__core__mkPairData(tokenName, i), 
+								__core__mkNilPairData(())
+							)
+						)
+					), 
+					__core__mkNilPairData(())
+				)
+			)
+		}(${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})
+	}`));
+	add(new BuiltinRawFunc("__helios__value__get_map_keys", `
+	(map) -> {
+		(recurse) -> {
+			recurse(recurse, map)
+		}(
+			(recurse, map) -> {
+				__core__ifThenElse(
+					__core__nullList(map), 
+					() -> {__core__mkNilData(())}, 
+					() -> {__core__mkCons(__core__fstPair(__core__headList(map)), recurse(recurse, __core__tailList(map)))}
+				)()
+			}
+		)
+	}`));	
+	add(new BuiltinRawFunc("__helios__value__merge_map_keys", `
+	(a, b) -> {
+		(aKeys) -> {
+			(recurse) -> {
+				recurse(recurse, aKeys, b)
+			}(
+				(recurse, keys, map) -> {
+					__core__ifThenElse(
+						__core__nullList(map), 
+						() -> {keys}, 
+						() -> {
+							(key) -> {
+								__core__ifThenElse(
+									__helios__common__is_in_bytearray_list(aKeys, key), 
+									() -> {recurse(recurse, keys, __core__tailList(map))},
+									() -> {__core__mkCons(__core__bData(key), recurse(recurse, keys, __core__tailList(map)))}
+								)()
+							}(__core__fstPair(__core__headList(map)))
+						}
+					)()
+				}
+			)
+		}(__helios__value__get_map_keys(a))
+	}`));
+	
+	add(new BuiltinRawFunc("__helios__value__get_inner_map", `
+	(map, mintingPolicyHash) -> {
+		(recurse) -> {
+			recurse(recurse, map)
+		}(
+			(recurse, map) -> {
+				__core__ifThenElse(
+					__core__nullList(map), 
+					() -> {__core__mkNilPairData(())},
+					() -> {__core__ifThenElse(
+						__core__equalsData(__core__fstPair(__core__headList(map))), mintingPolicyHash), 
+						() -> {__core__unMapData(__core__sndPair(__core__headList(map)))},
+						(){recurse(recurse, __core__tailList(map))}
+					)()}
+				)()
+			}
+		)
+	}`));
+	add(new BuiltinRawFunc("__helios__value__get_inner_map_int", `
+	(map, key) -> {
+		(recurse) -> {
+			recurse(recurse, map, key)
+		}(
+			(recurse, map, key) -> {
+				__core__ifThenElse(
+					__core__nullList(map), 
+					() -> {0}, 
+					() -> {
+						ifThenElse(
+							__core__equalsData(__core__fstPair(__core__headList(map))), key), 
+							(){__core__unIData(__core__sndPair(__core__headList(map)))}, 
+							(){recurse(recurse, __core__tailList(map), key)}
+						)()
+					}
+				)()
+			}
+		)
+	}`));
+	add(new BuiltinRawFunc("__helios__value__add_or_subtract_inner", `
+	(op) -> {
+		(a, b) -> {
+			(recurse) -> {
+				recurse(recurse, __helios__value__merge_map_keys(a, b), __core__mkNilPairData(()))
+			}(
+				(recurse, keys, result) -> {
+					__core__ifThenElse(
+						__core__nullList(keys), 
+						() -> {result}, 
+						() -> {
+							(key, tail) -> {
+								(sum) -> {
+									__core__ifThenElse(
+										__core__equalsInteger(sum, 0), 
+										() -> {tail}, 
+										() -> {__core__mkCons(__core__mkPairData(key, __core__iData(sum)), tail)}
+									)()
+								}(op(__helios__value__get_inner_map_int(a, key), __helios__value__get_inner_map_int(b, key)))
+							}(__core__headList(keys), recurse(recurse, __core_tailList(keys), result))
+						}
+					)()
+				}
+			)
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__value__add_or_subtract", `
+	(op, a, b) -> {
+		(a, b) -> {
+			(recurse) -> {
+				__core__mapData(recurse(recurse, __helios__value__merge_map_keys(a, b), __core__mkNilPairData(())))
+			}(
+				(recurse, keys, result) -> {
+					__core__ifThenElse(
+						__core__nullList(keys), 
+						() -> {result}, 
+						() -> {
+							(key, tail) -> {
+								(item) -> {
+									__core__ifThenElse(
+										__core__nullList(item), 
+										() -> {tail}, 
+										() -> {__core__mkCons(__core__mkPairData(key, __core__mapData(item)), tail)}
+									)()
+								}(__helios__value__add_or_substract_inner(op)(__helios__value__get_inner_map(a, key), __helios__value__get_inner_map(b, key)))
+							}(__core__headList(keys), recurse(recurse, __core__tailList(keys), result))
+						}
+					)()
+				}
+			)
+		}(__core__unMapData(a), __core__unMapData(b))
+	}`));
+	add(new BuiltinRawFunc("__helios__value__compare_inner", `
+	(comp, a, b) -> {
+		(recurse) -> {
+			recurse(recurse, __helios__value__merge_map_keys(a, b))
+		}(
+			(recurse, keys) -> {
+				__core__ifThenElse(
+					__core__nullList(keys), 
+					() -> {true}, 
+					() -> {
+						(key) -> {
+							__core__ifThenElse(
+								__helios__common__not(comp(__helios__value__get_inner_map_int(a, key), __helios__value__get_inner_map_int(b, key))})(), 
+								() -> {false}, 
+								() -> {recurse(recurse, __core__tailList(keys))}
+							)()
+						}(__core__headList(keys))
+					}
+				)()
+			}
+		)
+	}`));
+	add(new BuiltinRawFunc("__helios__value__compare", `
+	(comp, a, b) -> {
+		(a, b) -> {
+			(recurse) -> {
+				__helios__common__boolData(recurse(recurse, __helios__value__merge_map_keys(a, b)))
+			}(
+				(recurse, keys) -> {
+					__core__ifThenElse(
+						__core__nullList(keys), 
+						() -> {true}, 
+						() -> {
+							(key) -> {
+								__core__ifThenElse(
+									__helios__common__not(
+										__helios__value__compare_inner(
+											comp, 
+											__helios__value__get_inner_map(a, key), 
+											__helios__value__get_inner_map(b, key)
+										)
+									), 
+									() -> {false}, 
+									() -> {recurse(recurse, __core__tailList(keys))}
+								)()
+							}(__core__headList(keys))
+						}
+					)()
+				}
+			)
+		}(__core__unMapData(a), __core__unMapData(b))
+	}`));
+	add(new BuiltinRawFunc("__helios__value____eq", `
+	(self) -> {
+		(other) -> {
+			__helios__value__compare((a, b) -> {__core__equalsInteger(a, b)}, self, other)
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__value____neq", `
+	(self) -> {
+		(other) -> {
+			__helios__bool____not(__helios__value____eq(self)(other))()
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__value____add", `
+	(self) -> {
+		(other) -> {
+			__helios__value__add_or_subtract((a, b) -> {__core__addInteger(a, b)}, self, other)
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__value____sub", `
+	(self) -> {
+		(other) -> {
+			__helios__value__add_or_subtract((a, b) -> {__core__subtractInteger(a, b)}, self, other)
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__value____geq", `
+	(self) -> {
+		(other) -> {
+			__helios__value__compare((a, b) -> {__helios__common__not(__core__lessThanInteger(a, b))}, self, other)
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__value____gt", `
+	(self) -> {
+		(other) -> {
+			__helios__bool__and(
+				__helios__bool____not(
+					helios__bool__and(
+						__helios__value__is_zero(self),
+						__helios__value__is_zero(other)
+					)
+				),
+				__helios__value__compare((a, b) -> {__helios__common__not(__core__lessThanEqualsInteger(a, b))}, self, other)
+			)
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__value____leq", `
+	(self) -> {
+		(other) -> {
+			__helios__value__compare((a, b) -> {__core__lessThanEqualsInteger(a, b)}, self, other)
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__value____lt", `
+	(self) -> {
+		(other) -> {
+			__helios__bool__and(
+				__helios__bool____not(
+					helios__bool__and(
+						__helios__value__is_zero(self),
+						__helios__value__is_zero(other)
+					)
+				),
+				__helios__value__compare((a, b) -> {__core__lessThanInteger(a, b)}, self, other)
+			)
+		}
+	}
+	`));
+	add(new BuiltinRawFunc("__helios__value__is_zero", `
+	(self) -> {
+		() -> {
+			__helios__common__boolData(__core__nullList(__core__unMapData(self)))
+		}
+	}`));
+	add(new BuiltinRawFunc("__helios__value__get", `
+	(self) -> {
+		(assetClass) -> {
+			(map, mintingPolicyHash, tokenName) -> {
+				(outer, inner) -> {
+					__core__iData(outer(outer, inner, map))
+				}(
+					(outer, inner, map) -> {
+						__core__ifThenElse(
+							__core__nullList(map), 
+							() -> {__core__iData(0)}, 
+							() -> {
+								__core__ifThenElse(
+									__core__equalsData(__core__fstPair(__core__headList(map)), mintingPolicyHash), 
+									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList(map))))}, 
+									() -> {outer(outer, inner, __core__tailList(map))}
+								)()
+							}
+						)()
+					}, (inner, map) -> {
+						__core__ifThenElse(
+							__core__nullList(map), 
+							() -> {__core__iData(0)}, 
+							() -> {
+								__core__ifThenElse(
+									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
+									() -> {__core__sndPair(__core__headList(map))},
+									() -> {inner(inner, __core__tailList(map))}
+								)()
+							}
+						)()
+					}
+				)
+			}(__core__unMapData(self), ${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})
+		}
+	}`));
+
+	return db;
+}
+
+function wrapWithBuiltins(src) {
+	let db = fillBuiltinRawFuncDB();
+
+	let re = new RegExp("__helios", "g");
+
+	let matches = src.match(re);
+
+	let map = new Map();
+
+	if (matches != null) {
+		for (let match of matches) {
+			let name = match[0];
+			if (!map.has(name)) {
+				if (!db.has(name)) {
+					throw new Error(`builtin ${name} not found`);
+				}
+
+				let builtin = db.get(name);
+
+				builtin.load(db, map);
+			}
+		}
+	}
+
+	return wrapWithDefinitions(src, map);
+}
 
 
 //////////////
@@ -7790,9 +7264,9 @@ class UntypedFuncExpr {
 		this.body_ = body;
 	}
 
-	pretty(indent) {
-		let s = "func(" + this.argNames_.map(n => n.toString()).join(", ") + ") {\n" + indent + "  ";
-		s += this.body_.pretty(indent + "  ");
+	toString(indent = "") {
+		let s = "(" + this.argNames_.map(n => n.toString()).join(", ") + ") -> {\n" + indent + "  ";
+		s += this.body_.toString(indent + "  ");
 		s += "\n" + indent + "}";
 
 		return s;
@@ -7830,7 +7304,7 @@ class UntypedErrorCallExpr {
 	constructor() {
 	}
 
-	pretty(indent) {
+	toString(indent) {
 		return "error()";
 	}
 
@@ -7849,13 +7323,13 @@ class UntypedCallExpr {
 		this.argExprs_ = argExprs;
 	}
 
-	pretty(indent) {
-		return this.lhs_.pretty(indent) + "(" + this.argExprs_.map(e => e.pretty(indent)).join(", ") + ")";
+	toString(indent = "") {
+		return this.lhs_.toString(indent) + "(" + this.argExprs_.map(e => e.toString(indent)).join(", ") + ")";
 	}
 
 	isBuiltin() {
 		if (this.lhs_ instanceof UntypedVariable) {
-			return VERSIONS["1.0.0"].builtins.findIndex(info => info.name == this.lhs_.name) != -1;
+			return PLUTUS_CORE_BUILTINS.findIndex(info => {return "__core__ " + info.name == this.lhs_.name}) != -1;
 		} else {
 			return false;
 		}
@@ -7863,12 +7337,12 @@ class UntypedCallExpr {
 
 	builtinForceCount() {
 		if (this.lhs_ instanceof UntypedVariable) {
-			let i = VERSIONS["1.0.0"].builtins.findIndex(info => info.name == this.lhs_.name);
+			let i = PLUTUS_CORE_BUILTINS.findIndex(info => {return "__core__" + info.name == this.lhs_.name});
 
 			if (i == -1) {
 				return 0;
 			} else {
-				let info = VERSIONS["1.0.0"].builtins[i];
+				let info = PLUTUS_CORE_BUILTINS[i];
 				return info.forceCount;
 			}
 		} else {
@@ -7924,7 +7398,7 @@ class UntypedVariable {
 		return this.name_.toString();
 	}
 
-	pretty(indent) {
+	toString() {
 		if (this.index_ == null) { 
 			return this.name_.toString();
 		} else {
@@ -7958,7 +7432,7 @@ function buildUntypedExpr(ts) {
 	while (ts.length > 0) {
 		let t = ts.shift();
 
-		if (t.isWord("func")) {
+		if (t.isGroup("(") && ts.length > 0 && ts[0].isSymbol("->")) {
 			assert(expr == null);
 
 			ts.unshift(t);
@@ -7968,7 +7442,7 @@ function buildUntypedExpr(ts) {
 				if(t.fields.length == 1) {
 					expr = buildUntypedExpr(t.fields[0])
 				} else if (t.fields.length == 0) {
-					expr = new UnitLiteral();
+					expr = new UnitLiteral(t.site);
 				} else {
 					t.synaxError("unexpected parentheses with multiple fields");
 				}
@@ -7983,12 +7457,12 @@ function buildUntypedExpr(ts) {
 		} else if (t.isSymbol("-")) {
 			// only makes sense next to IntegerLiterals
 			let int = ts.shift();
-			assert(int instanceof IntegerLiteral);
-			expr = new IntegerLiteral(int.loc, int.value_*(-1n));
+			assert(int instanceof IntLiteral);
+			expr = new IntLiteral(int.loc, int.value_*(-1n));
 		} else if (t instanceof BoolLiteral) {
 			assert(expr == null);
 			expr = t;
-		} else if (t instanceof IntegerLiteral) {
+		} else if (t instanceof IntLiteral) {
 			assert(expr == null);
 			expr = t;
 		} else if (t instanceof ByteArrayLiteral) {
@@ -7997,7 +7471,7 @@ function buildUntypedExpr(ts) {
 		} else if (t instanceof StringLiteral) {
 			assert(expr == null);
 			expr = t;
-		} else if (t.isWord("error")) {
+		} else if (t.isWord("__core__error")) {
 			assert(expr == null);
 			let parens = ts.shift().assertGroup("(");
 			assert(parens.fields.length == 0);
@@ -8015,9 +7489,8 @@ function buildUntypedExpr(ts) {
 }
 
 function buildUntypedFuncExpr(ts) {
-	ts.shift().assertWord("func");
-
 	let parens = ts.shift().assertGroup("(");
+	ts.shift().assertSymbol("->");
 	let braces = ts.shift().assertGroup("{");
 
 	let argNames = [];
@@ -8038,27 +7511,251 @@ function buildUntypedFuncExpr(ts) {
 }
 
 
-/////////////////////////
-// Deserializer singleton
-/////////////////////////
+////////////////////////////////////////////////
+// Functions for compiling Plutus-Light
+////////////////////////////////////////////////
 
-class Deserializer {
-	constructor(bytes, version = "1.0.0") {
+export function parsePlutusLight(src) {
+	let ts = tokenizePlutusLight(src);
+
+	let program = buildPlutusLightProgram(ts);
+
+	return program.toString();
+}
+
+// returns string
+export function prettySource(src) {
+	if (src == undefined) {
+		return "";
+	}
+
+	let lines = src.split("\n");
+
+	let nLines = lines.length;
+	let nDigits = Math.max(Math.ceil(Math.log10(nLines)), 2);
+
+	for (let i = 0; i < lines.length; i++) {
+		lines[i] = String(i+1).padStart(nDigits, '0') + "  " + lines[i];
+	}
+
+	return lines.join("\n");
+}
+
+export function preprocessPlutusLightProgram(src, parameters) {
+	for (let key in parameters) {
+		let value = parameters[key];
+
+		let re = new RegExp(`\\$${key}`, 'g');
+
+		src = src.replace(re, value);
+	}
+
+	// check that there are no remaining template parameters left
+
+	let re = new RegExp('\$[a-zA-Z_][0-9a-zA-Z_]*', 'g');
+
+	let matches = src.match(re);
+
+	if (matches != null) {
+		console.log(matches);
+		for (let match of matches) {
+			throw new Error(`unsubstitued template parameter '${match[0]}'`);
+		}
+	}
+
+	return src;
+}
+
+function newGlobalScope() {
+	let scope = new GlobalScope();
+
+	// Option, List and Map are accessed through special expressions
+
+	// fill the global scope
+	scope.set("Int", new IntType());
+	scope.set("Bool", new BoolType());
+	scope.set("String", new StringType());
+	scope.set("ByteArray", new ByteArrayType());
+	scope.set("PubKeyHash", new PubKeyHashType());
+	scope.set("ValidatorHash", new ValidatorHashType());
+	scope.set("MintingPolicyHash", new MintingPolicyHashType());
+	scope.set("DatumHash", new DatumHashType());
+	scope.set("ScriptContext", new ScriptContextType());
+	scope.set("Tx", new TxType());
+	scope.set("TxId", new TxIdType());
+	scope.set("TxInput", new TxInputType());
+	scope.set("TxOutput", new TxOutputType());
+	scope.set("TxOutputId", new TxOutputIdType());
+	scope.set("Address", new AddressType());
+	scope.set("Credential", new CredentialType());
+	scope.set("StakingCredential", new StakingCredentialType());
+	scope.set("Time", new TimeType());
+	scope.set("Duration", new DurationType());
+	scope.set("TimeRange", new TimeRangeType());
+	scope.set("AssetClass", new AssetClassType());
+	scope.set("Value", new MoneyValueType());
+
+	return scope;
+}
+
+export function compileToIR(typedSrc, templateParameters = {}) {
+	try {
+		typedSrc = preprocessPlutusLightProgram(typedSrc, templateParameters);
+
+		let typedTokens = tokenizePlutusLight(typedSrc);
+
+		let program = buildPlutusLightProgram(typedTokens);
+
+		let globalScope = newGlobalScope();
+
+		program.eval(globalScope);
+
+		return program.toUntyped();
+	} catch (error) {
+		if (error instanceof PlutusLightError) {
+			console.log(prettySource(typedSrc) + "\n");
+
+			console.error(error.message);
+		} else {
+			throw error;
+		}
+	}
+}
+
+export function compilePlutusLightProgram(typedSrc, templateParameters = {}) {
+	try {
+		typedSrc = preprocessPlutusLightProgram(typedSrc, templateParameters);
+
+		let typedTokens = tokenizePlutusLight(typedSrc);
+
+		let program = buildPlutusLightProgram(typedTokens);
+
+		let globalScope = newGlobalScope();
+
+		let topScope = program.linkAndEval(globalScope);
+
+		let untypedSrc = program.toUntyped(topScope);
+
+		try {
+			// console.log(prettySource(untypedSrc) + "\n");
+			
+			// at this point there shouldn't be any errors
+			let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
+
+			let untypedProgram = buildUntypedProgram(untypedTokens);
+
+			let plutusCoreProgram = new PlutusCoreProgram(untypedProgram.toPlutusCore());
+			
+			//console.log(plutusCoreProgram.toString());
+
+			let cborHex = serializePlutusCoreProgram(plutusCoreProgram);
+
+			return `{"type": "PlutusScriptV1", "description": "", "cborHex": "${cborHex}"}`;
+		} catch (error) {
+			if (error instanceof PlutusLightError) {
+				console.log(prettySource(untypedSrc) + "\n");
+
+				console.error(error.message);
+			} else {
+				throw error;
+			}
+		}
+	} catch (error) {
+		if (error instanceof PlutusLightError) {
+			// also pretty print the source
+			console.log(prettySource(typedSrc) + "\n");
+
+			console.error(error.message);
+		} else {
+			throw error;
+		}
+	}
+}
+
+// dumps the Plutus-Core AST
+export function compileUntypedPlutusLight(untypedSrc) {
+	let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
+
+	let untypedProgram = buildUntypedProgram(untypedTokens);
+
+	let plutusCoreProgram = new PlutusCoreProgram(untypedProgram.toPlutusCore());
+			
+	return plutusCoreProgram.toString();
+}
+
+// output is a string with JSON content
+export function compilePlutusLightData(programSrc, dataExprSrc, templateParameters = {}) {
+	try {
+		programSrc = preprocessPlutusLightProgram(programSrc, templateParameters);
+
+		let programTokens = tokenizePlutusLight(programSrc);
+
+		let program = buildPlutusLightProgram(programTokens, ScriptPurpose.Spending); // compiled data is used for Datum and Redeemer, and thus always in Spending context
+
+		let globalScope = newGlobalScope();
+
+		let topScope = program.linkAndEval(globalScope);
+
+		// program must make sense before data is compiled
+
+		try {
+			dataExprSrc = preprocessPlutusLightProgram(dataExprSrc, templateParameters);
+
+			let dataExprTokens = tokenizePlutusLight(dataExprSrc);
+
+			let dataExpr = buildValueExpr(dataExprTokens);
+
+			dataExpr.link(topScope);
+
+			// dataExpr must also make sense
+			dataExpr.evalType();
+
+			let data = dataExpr.evalData();
+
+			return data.toSchemaJSON();
+		} catch (error) {
+			if (error instanceof PlutusLightError) {
+				console.log(prettySource(dataExprSrc) + "\n");
+
+				console.error(error.message);
+			} else {
+				throw error;
+			}
+		}
+	} catch (error) {
+		if (error instanceof PlutusLightError) {
+			// also pretty print the source
+			console.log(prettySource(programSrc) + "\n");
+
+			console.error(error.message);
+		} else {
+			throw error;
+		}
+	}
+}
+
+
+///////////////////////////////////////////////////////////////////
+// Section 10: Plutus-Core deserialization and analysis functions
+///////////////////////////////////////////////////////////////////
+
+// only works for same version as Helios is using
+class PlutusCoreDeserializer {
+	constructor(bytes) {
 		this.view_    = new Uint8Array(bytes);
 		this.pos_     = 0; // bit position, not byte position
-		this.version_ = version;
 	}
 
 	tagWidth(category) {
-		assert(category in VERSIONS[this.version_].widths, "unknown tag category " + category.toString());
+		assert(category in PLUTUS_CORE_TAG_WIDTHS, `unknown tag category ${category.toString()}`);
 
-		return VERSIONS[this.version_].widths[category];
+		return PLUTUS_CORE_TAG_WIDTHS[category];
 	}
 
 	builtinName(id) {
-		let all = VERSIONS[this.version_].builtins;
+		let all = PLUTUS_CORE_BUILTINS;
 
-		assert(id >= 0 && id < all.length, "builtin id " + id.toString() + " out of range");
+		assert(id >= 0 && id < all.length, `builtin id ${id.toString()} out of range`);
 
 		return all[id].name;
 	}
@@ -8303,252 +8000,10 @@ class Deserializer {
 	}
 }
 
-
-//////////////////////////////////////////////////////////////
-// Builtin funcs that need to be available during AST building
-//////////////////////////////////////////////////////////////
-
-var PLUTUS_LIGHT_BUILTIN_FUNCS; // hoisted
-
-// fill the PLUTUS_LIGHT_BUILTIN_FUNCS objects now
-(function() {
-	PLUTUS_LIGHT_BUILTIN_FUNCS = {};
-
-	let add = function(obj) {
-		PLUTUS_LIGHT_BUILTIN_FUNCS[obj.name.toString()] = obj;
-	}
-
-	add(new Cast("Integer"));
-	add(new Cast("ByteArray"));
-	add(new Cast("String"));
-	add(new Show());
-	add(new MakeTime());
-	add(new MakeDuration());
-	add(new MakePubKeyHash());
-	add(new MakeValidatorHash());
-	add(new MakeDatumHash());
-	add(new MakeMintingPolicyHash());
-	add(new Fold());
-	add(new Filter());
-	add(new Find());
-	add(new Contains());
-	add(new Len());
-	add(new Prepend());
-	add(new GetTx());
-	add(new GetTxFee());
-	add(new GetTxMintedValue());
-	add(new GetTxTimeRange());
-	add(new GetTxInputs());
-	add(new GetTxOutputs());
-	add(new GetTxOutputsLockedBy());
-	add(new GetTxOutputsSentTo());
-	add(new GetTimeRangeStart());
-	add(new GetTxSignatories());
-	add(new GetTxId());
-	add(new IsTxSignedBy());
-	add(new GetTxInputOutputId());
-	add(new GetTxInputOutput());
-	add(new GetTxOutputAddress());
-	add(new GetTxOutputValue());
-	add(new GetTxOutputDatumHash());
-	add(new GetAddressCredential());
-	add(new IsStakedAddress());
-	add(new IsPubKeyCredential());
-	add(new IsValidatorCredential());
-	add(new GetCredentialPubKeyHash());
-	add(new GetCredentialValidatorHash());
-	add(new GetCurrentTxInput());
-	add(new GetCurrentValidatorHash());
-	add(new GetCurrentMintingPolicyHash());
-	add(new GetValueComponent());
-	add(new IsZero());
-	add(new Zero());
-	add(new ValueSentTo());
-	add(new ValueLockedBy());
-	add(new ValueLockedByDatum());
-	add(new MakeAssetClass());
-	add(new MakeValue());
-	add(new MakeTxOutputId());
-	add(new Lovelace());
-	add(new Trace());
-	add(new FindDatumData());
-	add(new FindDatumHash());
-	add(new GetIndex());
-	add(new Head());
-	add(new Tail());
-	add(new IsEmpty());
-	add(new SerializeData());
-	add(new Sha2());
-	add(new Sha3());
-	add(new Blake2b());
-}())
-
-
-////////////////////////////////////////////////
-// Functions for compiling Plutus-Light
-////////////////////////////////////////////////
-export function setDebug(d) {
-	if (d == undefined) {
-		DEBUG = true;
-	} else {
-		assert(typeof d == 'boolean' || d instanceof Boolean);
-
-		if (d) {
-			DEBUG = true;
-		} else {
-			DEBUG = false;
-		}
-	}
-}
-
-export function unsetDebug() {
-	DEBUG = false;
-}
-
-export function tokenizePlutusLight(src) {
-	let tokenizer = new Tokenizer(src);
-	
-	return tokenizer.tokenize();
-}
-
-// same tokenizer can be used for untyped Plutus-Light
-export function tokenizeUntypedPlutusLight(src) {
-	let tokenizer = new Tokenizer(src);
-
-	return tokenizer.tokenize();
-}
-
-export function parsePlutusLight(src, purpose = ScriptPurpose.Spending) {
-	let ts = tokenizePlutusLight(src);
-
-	let program = buildProgram(ts, purpose);
-
-	return program.toString();
-}
-
-// returns string
-export function prettySource(src) {
-	let lines = src.split("\n");
-
-	let nLines = lines.length;
-	let nDigits = Math.max(Math.ceil(Math.log10(nLines)), 2);
-
-	for (let i = 0; i < lines.length; i++) {
-		lines[i] = String(i+1).padStart(nDigits, '0') + "  " + lines[i];
-	}
-
-	return lines.join("\n");
-}
-
-export function compilePlutusLightProgram(typedSrc, purpose = ScriptPurpose.Spending) {
-	try {
-		let typedTokens = tokenizePlutusLight(typedSrc);
-
-		let program = buildProgram(typedTokens, purpose);
-
-		let untypedSrc = program.toUntyped();
-
-		try {
-			// console.log(prettySource(untypedSrc) + "\n");
-			
-			// at this point there shouldn't be any errors
-			let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
-
-			let untypedProgram = buildUntypedProgram(untypedTokens);
-
-			let plutusCoreProgram = new PlutusCoreProgram(DEFAULT_VERSION.map(v => new PlutusCoreInteger(v)), untypedProgram.toPlutusCore());
-			
-			//console.log(plutusCoreProgram.toString());
-
-			let cborHex = serializePlutusCoreProgram(plutusCoreProgram);
-
-			return `{"type": "PlutusScriptV1", "description": "", "cborHex": "${cborHex}"}`;
-		} catch (error) {
-			if (error instanceof PlutusLightError) {
-				console.log(prettySource(untypedSrc) + "\n");
-
-				console.error(error.message);
-			} else {
-				throw error;
-			}
-		}
-	} catch (error) {
-		if (error instanceof PlutusLightError) {
-			// also pretty print the source
-			console.log(prettySource(typedSrc) + "\n");
-
-			console.error(error.message);
-		} else {
-			throw error;
-		}
-	}
-}
-
-// dumps the Plutus-Core AST
-export function compileUntypedPlutusLight(untypedSrc) {
-	let untypedTokens = tokenizeUntypedPlutusLight(untypedSrc);
-
-	let untypedProgram = buildUntypedProgram(untypedTokens);
-
-	let plutusCoreProgram = new PlutusCoreProgram(DEFAULT_VERSION.map(v => new PlutusCoreInteger(v)), untypedProgram.toPlutusCore());
-			
-	return plutusCoreProgram.toString();
-}
-
-// output is a string with JSON content
-export function compilePlutusLightData(programSrc, dataExprSrc) {
-	try {
-		let programTokens = tokenizePlutusLight(programSrc);
-
-		let program = buildProgram(programTokens, ScriptPurpose.Spending); // compiled data is used for Datum and Redeemer, and thus always in Spending context
-
-		let scope = program.linkAndEval();
-
-		// program must make sense before data is compiled
-
-		try {
-			let dataExprTokens = tokenizePlutusLight(dataExprSrc);
-
-			let dataExpr = buildValExpr(dataExprTokens);
-
-			dataExpr.link(scope);
-
-			// dataExpr must also make sense
-			dataExpr.eval();
-
-			let data = dataExpr.evalData();
-
-			return data.toSchemaJSON();
-		} catch (error) {
-			if (error instanceof PlutusLightError) {
-				console.log(prettySource(dataExprSrc) + "\n");
-
-				console.error(error.message);
-			} else {
-				throw error;
-			}
-		}
-	} catch (error) {
-		if (error instanceof PlutusLightError) {
-			// also pretty print the source
-			console.log(prettySource(programSrc) + "\n");
-
-			console.error(error.message);
-		} else {
-			throw error;
-		}
-	}
-}
-
-
-///////////////////////////////////////////////////////
-// Plutus-Core (de)serialization and analysis functions
-///////////////////////////////////////////////////////
-
 // arg 1: list of (unsigned) integers
 // return value: a PlutusCoreProgram instance
 export function deserializePlutusCoreBytes(bytes) {
-	let reader = new Deserializer(bytes, "1.0.0");
+	let reader = new PlutusCoreDeserializer(bytes, "1.0.0");
 
 	let version = [
 		reader.readInteger(),
@@ -8558,13 +8013,15 @@ export function deserializePlutusCoreBytes(bytes) {
 
 	let versionKey = version.map(v => v.toString()).join(".");
 
-	assert(versionKey in VERSIONS, "unsupported plutus-core version: " + versionKey);
+	if (versionKey != "1.0.0") {
+		throw new Error `unsupported plutus-core version:  ${versionKey}`;
+	}
 
 	let expr = reader.readTerm();
 
 	reader.finalize();
 
-	return new PlutusCoreProgram(version, expr);
+	return new PlutusCoreProgram(expr);
 }
 
 export function deserializePlutusCoreCborBytes(cborBytes) {
@@ -8593,17 +8050,6 @@ export function dumpPlutusCoreCborBytes(cborBytes) {
 
 export function dumpPlutusCoreCborHexString(hexString) {
 	return dumpPlutusCoreCborBytes(hexToBytes(hexString));
-}
-
-// returns hex representation of cbor text envelope
-export function serializePlutusCoreProgram(program) {
-	let bitWriter = new BitWriter();
-
-	program.toFlat(bitWriter);
-
-	let bytes = bitWriter.finalize();
-
-	return bytesToHex(wrapPlutusCoreCbor(wrapPlutusCoreCbor(bytes)));
 }
 
 export function unwrapTextEnvelope(hexString) {

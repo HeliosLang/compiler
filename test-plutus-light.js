@@ -3,16 +3,10 @@
 import * as PL from "./plutus-light.js";
 
 const ALWAYS_SUCCEEDS = `
-const X Integer {
-    -9
-}
+validator always_succeeds;
 
-const Y String {
-    show(2*X)
-}
-
-func main() Bool {
-	trace(Y, true)
+func main() -> Bool {
+	true
 }
 `
 
@@ -260,10 +254,17 @@ func main(datum Datum, redeemer Redeemer, ctx ScriptContext) Bool {
     }
 }`;
 
-function compileScript(name, src, purpose = PL.ScriptPurpose.Spending) {
+function compileScriptToIR(name, src) {
+
     console.log("Compiling", name, "...");
 
-	console.log(PL.compilePlutusLightProgram(src, purpose));
+	console.log(PL.prettySource(PL.compileToIR(src)));
+}
+
+function compileScript(name, src) {
+    console.log("Compiling", name, "...");
+
+	console.log(PL.compilePlutusLightProgram(src));
 }
 
 function compileData(name, src, data) {
@@ -273,9 +274,11 @@ function compileData(name, src, data) {
 }
 
 function main() {
-    PL.setDebug(true);
+    PL.debug(true);
 
-	compileScript("always-succeeds", ALWAYS_SUCCEEDS);
+	compileScriptToIR("always-succeeds", ALWAYS_SUCCEEDS);
+
+    return;//
 
 	compileScript("time-lock", TIME_LOCK);
 
@@ -291,7 +294,7 @@ function main() {
 
 	//console.log(PL.compileUntypedPlutusLight(UNTYPED_UNDATA));
 
-    compileScript("minting", MINTING_POLICY, PL.ScriptPurpose.Minting)
+    compileScript("minting", MINTING_POLICY);
 
     compileScript("english-auction", ENGLISH_AUCTION);
 }

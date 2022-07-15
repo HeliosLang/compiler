@@ -1,24 +1,26 @@
 # Grammar
 
-PlutusLightProgram ::= Statement [Statement [...]];
+PlutusLightProgram ::= ProgramType Statement [Statement [...]];
 
-Statement ::= StructStatement | EnumStatement | ImplStatement | ConstStatement | FuncStatement;
+Statement ::= NamedStatement | ImplStatement;
+
+NamedStatement ::= ConstStatement | StructStatement | FuncStatement | EnumStatement;
 
 Comment ::= `//` /.\*/ EOL | `/*` /.\*/ `*/`;
 
-StructStatement ::= `struct` Identifier `{`
-    [StructField [`,` StructField [`,` ...]]]
-`}`; 
+StructStatement ::= `struct` DataDefinition;
 
-StructField ::= Word `:` TypeExpr;
+DataDefintion ::= Word `{`
+    [DataField [`,` DataField [`,` ...]]]
+`}`;
+
+DataField ::= NameTypePair;
 
 EnumStatement ::= `enum` Identifier `{`
     EnumMember `,` EnumMember [`,` EnumMember [`,` EnumMember [...]]]
 `}`;
 
-EnumMember ::= Identifier `{`
-    [StructField [`,` StructField [`,` ...]]]
-`}`;
+EnumMember ::= DataDefinition;
 
 ImplStatement ::= `impl` Identifier `{`
     ImplMember [ImplMember [...]]
@@ -30,9 +32,13 @@ ConstStatement ::= `const` Identifier [`:` TypeExpr] `=` OtherValueExpr `;`;
 
 FuncStatement ::= `func` Identifier `(` [FuncArg [`,` FuncArg [...]]] `)` `->` TypeExpr `{` ValueExpr `}`;
 
-FuncArg ::= Identifier `:` TypeExpr;
+FuncArg ::= NameTypePair;
 
-TypeExpr ::= TypeRefExpr | TypePathExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr;
+NameTypePair ::= Word `:` TypeExpr;
+
+TypeExpr ::= TypeRefExpr | TypePathExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr | FuncTypeExpr;
+
+FuncTypeExpr ::= `(` [TypeExpr [`,` TypeExpr [...]]] `)` `->` TypeExpr;
 
 TypeRefExpr ::= Identifier;
 
@@ -44,19 +50,23 @@ MapTypeExpr ::= `Map` `[` TypeExpr `]` TypeExpr;
 
 OptionTypeExpr ::= `Option` `[` TypeExpr `]`;
 
-ValueExpr ::= AssignExpr | OtherValueExpr;
+ValueExpr ::= AssignExpr | PrintExpr | OtherValueExpr;
 
-OtherValueExpr ::= Literal | BinaryExpr | UnaryExpr | BranchingExpr | SwitchExpr | CallExpr | MemberExpr | ParensExpr | ValuePathExpr | ValueRefExpr;
+OtherValueExpr ::= LiteralExpr | ValueRefExpr | ValuePathExpr | UnaryExpr | BinaryExpr | ParensExpr | CallExpr | MemberExpr | IfElseExpr | SwitchExpr;
 
-Literal ::= StructLiteral | IntLiteral | BoolLiteral | StringLiteral | ByteArrayLiteral;
+LiteralExpr ::= PrimitiveLiteralExpr | StructLiteralExpr | ListLiteralExpr | FuncLiteralExpr;
 
-StructLiteral ::= (TypePathExpr | TypeRefExpr) `{`
+PrimitiveLiteralExpr ::= PrimitiveLiteral;
+
+PrimitiveLiteral ::= IntLiteral | BoolLiteral | StringLiteral | ByteArrayLiteral;
+
+StructLiteralExpr ::= (TypePathExpr | TypeRefExpr) `{`
     [StructLiteralField [`,` StructLiteralField [...]]
 `}`;
 
 StructLiteralField ::= Word `:` ValueExpr;
 
-FuncLiteral ::= `(`[FuncArg [`,` FuncArc [...]]]`)` `->` TypeExpr `{` ValueExpr `}`;
+FuncLiteralExpr ::= `(`[FuncArg [`,` FuncArc [...]]]`)` `->` TypeExpr `{` ValueExpr `}`;
 
 IntLiteral ::= /[0-9]+/ | /0b[0-1]+/ | /0o[0-7]+/ | /0x[0-9a-f]+/;
 
@@ -78,13 +88,17 @@ UnaryOp ::= `-` | `+` | `!`;
 
 AssignExpr ::= Identifier [`:` TypeExpr] `=` ValueExpr `;` ValueExpr;
 
-BranchingExpr ::= `if` `(` ValueExpr `)` `{` ValueExpr `}` [`else` `if` `(` ValueExpr `)` `{` ValueExpr `}` [...]] `else` `{` ValueExpr `}`;
+PrintExpr ::= `print` `(` ValueExpr `)` `;` ValueExpr;
+
+IfElseExpr ::= `if` `(` ValueExpr `)` `{` ValueExpr `}` [`else` `if` `(` ValueExpr `)` `{` ValueExpr `}` [...]] `else` `{` ValueExpr `}`;
 
 SwitchExpr ::= `switch` `(` ValueExpr `)` `{` 
-  `case` (`(` Identifier `:` TypePathExpr `)` | TypePathExpr) `{` ValueExpr `}`
-  [`case` ...]
-  [`default` `{` ValueExpr `}`]
+  SwitchCase [SwitchCase [...]]  [SwitchDefault]
 `}`;
+
+SwitchCase ::= `case` (`(` Identifier `:` TypePathExpr `)` | TypePathExpr) `{` ValueExpr `}`;
+
+SwitchDefault ::= `default` `{` ValueExpr `}`;
 
 CallExpr ::= ValueExpr `(` [ValueExpr [`,` ValueExpr [...]]] `)`;
 
@@ -92,13 +106,17 @@ MemberExpr ::= ValueExpr `.` Word;
 
 ParensExpr ::= `(` ValueExpr `)`;
 
-ValuePathExpr ::= (ValueRefExpr | ValuePathExpr) `::` Word;
+ValuePathExpr ::= (TypeRefExpr | TypePathExpr) `::` Word;
 
 ValueRefExpr ::= Identifier;
 
 Identifier ::= Word;
 
 Word ::= /[a-zA-Z_][0-9a-zA-Z_]*/;
+
+# Preprocessor
+
+Regexp search and replace of `$Word`.
 
 
 # Tokenization
@@ -113,8 +131,8 @@ The tokenizer generates a list of the following terms:
 
 Comments are removed immediately.
 
-# Operator precedence rules
-0. ternary assignment expressions `...=...;...`, right-to-left
+# Operator precedence and associativity
+0. `... = ... ; ...` and `print(...); ...`, right-to-left
 1. `||`, left-to-right
 2. `&&`, left-to-right
 3. `==` and `!=`, left-to-right
@@ -122,4 +140,5 @@ Comments are removed immediately.
 5. binary `+` and `-`, left-to-right
 6. `*`, `/` and `%`, left-to-right
 7. unary `+`, `-`, `!`, right-to-left
-8. `(...)`, `.`, `::`, `...(...)`, `...{...}` and `(...) -> ... {...}`, left-to-right
+8. `.`, `::`, `... (...)`, `... {...}` and `(...) -> ... {...}`, left-to-right
+9. `(...)`
