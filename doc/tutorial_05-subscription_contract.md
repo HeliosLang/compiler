@@ -1,4 +1,4 @@
-# Part 5 of Plutus-Light tutorial: Subscription contract
+# Part 5 of Helios tutorial: Subscription contract
 A subscription contract allows a beneficiary to withdraw a pre-specified amount from a script address at regular intervals.
 The owner can cancel the contract at any time.
 
@@ -6,6 +6,8 @@ This contract can alternatively be called an 'allowance' contract.
 
 ## The script
 ```golang
+validator subscription;
+
 data Datum {
     owner:            PubKeyHash,
     beneficiary:      PubKeyHash,

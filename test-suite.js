@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import * as helios from "./plutus-light.js";
+import * as helios from "./helios.js";
 
 const ALWAYS_SUCCEEDS = `
 test always_succeeds;
@@ -270,13 +270,13 @@ function runScript(name, src) {
 function compileScript(name, src) {
     console.log("Compiling", name, "...");
 
-	console.log(helios.compilePlutusLightProgram(src));
+	console.log(helios.compile(src));
 }
 
 function compileData(name, src, data) {
 	console.log("Compiling datum for", name, "...");
 
-	console.log(helios.compilePlutusLightData(src, data));
+	console.log(helios.compileData(src, data));
 }
 
 function main() {
@@ -299,8 +299,6 @@ function main() {
     compileData("subscription1", SUBSCRIPTION, SUBSCRIPTION_DATUM2);
 
 	compileScript("vesting", VESTING);
-
-	//console.log(helios.compileUntypedPlutusLight(UNTYPED_UNDATA));
 
     compileScript("minting", MINTING_POLICY);
 

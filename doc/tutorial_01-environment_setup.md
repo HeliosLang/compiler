@@ -1,4 +1,4 @@
-# Part 1 of Plutus-Light tutorial: *cardano-node* setup
+# Part 1 of Helios tutorial: *cardano-node* setup
 You will need a Linux environment with *docker* for this.
 
 Start a *cardano-node* docker container:

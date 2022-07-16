@@ -1,8 +1,10 @@
-# Part 7 of Plutus-Light tutorial: English Auction contract
+# Part 7 of Helios tutorial: English Auction contract
 
 ## The script
 
 ```golang
+validator english_auction;
+
 struct Datum {
     seller:         PubKeyHash,
     bid_asset:      AssetClass, // allow alternative assets (not just lovelace)

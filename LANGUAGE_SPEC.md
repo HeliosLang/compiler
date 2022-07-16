@@ -1,6 +1,6 @@
 # Grammar
 
-PlutusLightProgram ::= ProgramType Statement [Statement [...]];
+Program ::= ProgramType Statement [Statement [...]];
 
 Statement ::= NamedStatement | ImplStatement;
 

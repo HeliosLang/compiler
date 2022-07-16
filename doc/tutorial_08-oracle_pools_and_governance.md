@@ -1,4 +1,4 @@
-# (WiP) Part 8 of Plutus-Light tutorial: Oracle Pools and Governance
+# (WiP) Part 8 of Helios tutorial: Oracle Pools and Governance
 
 Oracles post information on the blockchain periodically (eg. the ADA/USD exchange rate), and thanks to the recent Vasil upgrade it has become easier to use that information in smart contracts (eg. stable-coin contracts).
 
@@ -24,7 +24,7 @@ Token-based membership is vulnerable to a 51% attack. An attacker could quietly 
 
 Note that oracle pools with open membership are also vulnerable to 51% attacks, but that such attacks are made more difficult by the time-delay of requiring the membership.
 
-For this example we will choose a token-based membership. So the first task will be minting the tokens (see (how-to guide to mintin)[06-minting_policy_scripts.md]).
+For this example we will choose a token-based membership. So the first task will be minting the tokens (see (how-to guide to mintin)[tutorial_06-minting_policy_scripts.md]).
 
 ### Data-point collection
 Data-point submission happens in three phases.

@@ -1,9 +1,11 @@
-# Part 4 of Plutus-Light tutorial: Time Lock contract
+# Part 4 of Helios tutorial: Time Lock contract
 
 The *always-succeeds* contract in part 3 isn't very useful. Something that is still simple, but has real-world applications, is a *time-lock* contract. Actors send UTXOs to the *time-lock* address with a datum that contains a *lock-until* time. An optional nonce can be included in the datum to allow only the actors who know the nonce value to retrieve the UTXOs. The wallet from which the original UTXOs were sent is also able to retrieve the UTXOs at any time.
 
-The Plutus-Light script:
+The Helios script:
 ```golang
+validator time_lock;
+
 data Datum {
     lockUntil: Time,
     owner:     PubKeyHash, // can't get this info from the ScriptContext
@@ -27,13 +29,13 @@ Once we have written the script, we generate its JSON representation, and then c
 ```bash
 $ nodejs
 
-> var PL; import("./plutus-light.js").then(m=>{PL=m});
+> var helios; import("./helios.js").then(m=>{helios=m});
 
-> PL.setDebug(true);
+> helios.setDebug(true);
 
 > const src = "data Datum {lockUntil...";
 
-> console.log(PL.compilePlutusLightProgram(src))
+> console.log(helios.compile(src))
 
 {"type": "PlutusScriptV1", "description": "", "cborHex": "5..."}
 ```
@@ -69,11 +71,12 @@ We also need a `lockUntil` time, for example 5 minutes from now. Now we can buil
 ```bash
 $ nodejs
 
-> var PL; import("./plutus-light.js").then(m=>{PL=m});
+> var helios; import("./helios.js").then(m=>{helios=m});
 
 > const src = "data Datum {lockUn...";
 
-> console.log(PL.compilePlutusLightData(src, `Datum{lockUntil: Time(${(new Date()).getTime() + 1000*60*5}), owner: PubKeyHash(#1d22b9ff5fc...), nonce: 42}`));
+(TODO: doesnt work anymore)
+> console.log(helios.compileData(src, `Datum{lockUntil: Time(${(new Date()).getTime() + 1000*60*5}), owner: PubKeyHash(#1d22b9ff5fc...), nonce: 42}`));
 
 {"constructor": 0, "fields": [{"int": 16....}, {"bytes": "1d22b9ff5fc..."}, {"int": 42}]}
 ```

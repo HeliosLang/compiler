@@ -4,7 +4,7 @@
 //
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
-// Website:     github.com/openengineer/plutus-light
+// Website:     github.com/hyperion-bt/helios
 // Version:     0.1.0
 // Last update: July 2022
 // License:     Unlicense

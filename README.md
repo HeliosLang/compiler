@@ -1,26 +1,26 @@
-# Plutus-Light
+# Helios
 
-Plutus-Light is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Plutus-Light is a non-Haskell alternative to Plutus.
+Helios is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Helios is a non-Haskell alternative to Plutus.
 
-Plutus-Light is purely functional, strongly typed, and has a Rusty curly braces syntax. It notably supports closures, compile-time const statements, and enums as tagged unions.
+Helios is purely functional, strongly typed, and has a Rusty curly braces syntax. It notably supports closures, compile-time const statements, and enums as tagged unions.
 
-This repository contains a reference compiler for Plutus-Light, written in Javascript.
+This repository contains a reference compiler for Helios, written in Javascript.
 
-Use the following tutorial to learn how to use Plutus-Light with cardano-cli:
-  1. [Cardano-node setup](doc/01-environment_setup.md)
-  2. [Wallet setup and funding](doc/02-wallet_setup.md)
-  3. [*Always Succeeds* contract](doc/03-always_succeeds_contract.md)
-  4. [*Time Lock* contract](doc/04-time_lock_contract.md)
-  5. [*Subscription* contract](doc/05-subscription_contract.md)
-  6. [Minting policy scripts](doc/06-minting_policy_scripts.md)
-  7. [*English Auction* contract](doc/07-english_auction_contract.md)
+Use the following tutorial to learn how to use Helios with cardano-cli:
+  1. [Cardano-node setup](doc/tutorial_01-environment_setup.md)
+  2. [Wallet setup and funding](doc/tutorial_02-wallet_setup.md)
+  3. [*Always Succeeds* contract](doc/tutorial_03-always_succeeds.md)
+  4. [*Time Lock* contract](doc/tutorial_04-time_lock.md)
+  5. [*Subscription* contract](doc/tutorial_05-subscription_contract.md)
+  6. [Minting policy scripts](doc/tutorial_06-minting.md)
+  7. [*English Auction* contract](doc/tutorial_07-english_auction.md)
 
-Note that the Plutus-Light library also contains a function to deserialize existing Plutus-Core scripts (see second example below).
+Note that the Helios library also contains a function to deserialize existing Plutus-Core scripts (see second example below).
 
 ## Quick start examples
 
 ### 1. Vesting contract example
-The following Plutus-Light example is equivalent to the Plutus vesting contract from the Plutus playground (demonstration of syntax only, shouldn't be used in production!):
+The following Helios example is equivalent to the Plutus vesting contract from the Plutus playground (demonstration of syntax only, shouldn't be used in production!):
 ```golang
 validator vesting;
 
@@ -62,33 +62,33 @@ func main(ctx: ScriptContext) -> Bool {
 }
 ```
 
-You can compile this source into Plutus-Core using the `plutus-light.js` library:
+You can compile this source into Plutus-Core using the `helios.js` library:
 ```javascript
-import * as PL from "plutus-light.js"
+import * as helios from "helios.js"
 
 const src = `struct VestingTranche {
 ...
 ...
 `;
 
-console.log(PL.compilePlutusLightProgram(src));
+console.log(helios.compile(src));
 // the output can be saved to a file, and that file can be used directly by cardano-cli
 ```
 
 ### 2. Deserialize Plutus-Core
 ```javascript
-import * as PL from "plutus-light.js"
+import * as helios from "helios.js"
 
-const cborHex = "...";
+const plutusCoreJson = `{"type": "PlutusScriptV1", ...}`;
 
 // dump Plutus-Core AST
-console.log(PL.deserializePlutusCoreCborHexString(cborHex));
+console.log(helios.deserializePlutusCore(plutusCoreJson));
 ```
 
-## Plutus-Light user guide
+## Helios user guide
 
 ### Syntax
-Plutus-Light has a C-like syntax. A function body is a single expression. There are no statements, and consequently no `return` statements. 
+Helios has a C-like syntax. A function body is a single expression. There are no statements, and consequently no `return` statements. 
 
 `=` combined with `;` is a ternary operator. `x = upstream; downstream...` is syntactic sugar for `func(x){downstream...}(upstream)`.
 
@@ -100,7 +100,7 @@ Each primitive type has associated literal expressions:
  * `ByteArray`: `#abcdef0123456789` (i.e. pound symbol followed by lower-case hexadecimal sequence)
 
 ### List types
-For now Plutus-Light only offers one builtin container type: lists. (We might implement a Map type at some point in the future).
+For now Helios only offers one builtin container type: lists. (We might implement a Map type at some point in the future).
 
 The syntax for list types and literal list expressions is the same as in Golang:
 ```golang
@@ -136,6 +136,7 @@ Besides primitive types, some other opaque builtin types are defined:
  * `Credential`
  * `Credential::PubKey`
  * `Credential::Validator`
+ * `StakingCredential`
  
 These types require special builtin functions to access their content. Some also have builtin constructors. User defined struct an enum-types automatically generate a *cast* function allowing `Data` to be cast into that particular type.
 
@@ -150,7 +151,7 @@ struct Redeemer {
 ```
 
 ### Enum-types
-Plutus-Light supports tagged unions through `enum`. These are useful for datums and redeemers with differing content depending on how the script is used. In Haskell tagged unions are called Algeabraic Data Types. Tagged union `enum`s are declared using the following syntax:
+Helios supports tagged unions through `enum`. These are useful for datums and redeemers with differing content depending on how the script is used. In Haskell tagged unions are called Algeabraic Data Types. Tagged union `enum`s are declared using the following syntax:
 ```golang
 enum Datum {
     Submission{...}, // content of Submission has the same syntax as a regular struct-type
@@ -191,14 +192,14 @@ if (code == 0) { // expression to convert an Int code into a String
 }
 ```
 
-The Plutus-Light `if else` expression is syntactic sugar for nested Plutus-Core `ifThenElse` calls. Internally the branches of Plutus-Core's `ifThenElse` are deferred by wrapping them in lambda expressions, and then calling the returned lambda expression with zero arguments (actually a 'unit' argument). `&&` and `||` also defer calculation of their right-hand arguments.
+The Helios `if else` expression is syntactic sugar for nested Plutus-Core `ifThenElse` calls. Internally the branches of Plutus-Core's `ifThenElse` are deferred by wrapping them in lambda expressions, and then calling the returned lambda expression with zero arguments (actually a 'unit' argument). `&&` and `||` also defer calculation of their right-hand arguments.
 
 Branch deferral is the expected behaviour for conventional programming languages.
 
 Each branch must evaluate to the same type.
 
 ### Function expressions
-Plutus-Light supports anonymous function expressions with the following syntax:
+Helios supports anonymous function expressions with the following syntax:
 ```golang
 my_add_integers: (Int, Int) -> Int = (a: Int, b: Int) -> Int {a + b}; ...
 ```
@@ -217,16 +218,15 @@ my_add_integers = (a: Int, b: Int) -> Int {a + b}; ...
 my_value = Value::new(AssetClass::ADA, my_number)
 ```
 
-### Builtin operators
+### (WiP) Builtin operators
 Operators that can be used in compile-time `const` statements are marked with '^'.
-
+ * `a == a -> Bool` (anything except function)
+ * `a != a -> Bool`
  * `! Bool -> Bool`
  * `Bool || Bool -> Bool`
  * `Bool && Bool -> Bool`
  * `- Int -> Int` ^
  * `+ Int -> Int` ^
- * `Int == Int -> Bool`
- * `Int != Int -> Bool`
  * `Int >= Int -> Bool`
  * `Int > Int -> Bool`
  * `Int <= Int -> Bool`
@@ -236,54 +236,38 @@ Operators that can be used in compile-time `const` statements are marked with '^
  * `Int * Int -> Int` ^
  * `Int / Int -> Int` ^
  * `Int % Int -> Int`
- * `ByteArray == ByteArray -> Bool`
- * `ByteArray != ByteArray -> Bool`
  * `ByteArray >= ByteArray -> Bool`
  * `ByteArray > ByteArray -> Bool`
  * `ByteArray <= ByteArray -> Bool`
  * `ByteArray < ByteArray -> Bool`
  * `ByteArray + ByteArray -> ByteArray` (concatenation)
  * `String + String -> String` (concatenation)
- * `Time == Time -> Bool`
- * `Time != Time -> Bool`
  * `Time >= Time -> Bool`
  * `Time > Time -> Bool`
  * `Time <= Time -> Bool`
  * `Time < Time -> Bool`
  * `Time + Duration -> Time`
  * `Time - Duration -> Time`
- * `Duration == Duration -> Bool`
- * `Duration != Duration -> Bool`
  * `Duration + Duration -> Duration`
  * `Duration - Duration -> Duration` (note that `Duration` can be negative)
- * `TxId == TxId -> Bool`
- * `TxId != TxId -> Bool`
- * `TxOutputId == TxOutputId -> Bool`
- * `TxOutputId != TxOutputId -> Bool`
- * `PubKeyHash == PubKeyHash -> Bool`
- * `PubKeyHash != PubKeyHash -> Bool`
- * `ValidatorHash == ValidatorHash -> Bool`
- * `ValidatorHash != ValidatorHash -> Bool`
- * `DatumHash == DatumHash -> Bool`
- * `DatumHash != DatumHash -> Bool`
- * `MintingPolicyHash == MintingPolicyHash -> Bool`
- * `MintingPolicyHash != MintingPolicyHash -> Bool`
+ * `Duration * Int -> Duration`
+ * `Duration / Int -> Duration`
  * `Value + Value -> Value` ^
  * `Value - Value -> Value`
- * `Value == Value -> Bool`
- * `Value != Value -> Bool`
  * `Value >= Value -> Bool` (strictly greater-or-equals for each component, NOT the same as `!(a < b)`)
  * `Value > Value -> Bool` (strictly greater-than for each component, NOT the same as `!(a <= b)`)
  * `Value < Value -> Bool` (strictly less-than for each component, NOT the same as `!(a >= b)`)
  * `Value <= Value -> Bool` (strictly less-or-equals for each component, NOT the same as `!(a > b)`)
 
-### Builtin functions
+### (WiP) Builtin functions
 Note that builtin functions can't be referenced, and must be called immediately (wrap them in closures as a work-around). Builtin functions that can be used in compile-time `const` statements are marked with '^'. 
 
  * `to_int(self: Bool) -> Int` (`false` -> `0`, `true` -> `1`)
+ * `to_bool(self: Int) -> Bool`
  * `encode_utf8(self: String) -> ByteArray`
  * `decode_utf8(self: ByteArray) -> String`
  * `show(self: Int) -> String` (string representation of integer) ^
+ * `to_hex(self: Int) -> String`
  * `show(self: Bool) -> String` (`"true"` or `"false"`) ^
  * `show(self: Time) -> String` (string representation of milliseconds since epoch) ^
  * `show(self: ByteArray) -> String` (hex representation of bytearray) ^
@@ -295,17 +279,18 @@ Note that builtin functions can't be referenced, and must be called immediately 
  * `MintingPolicyHash::new(ByteArray) -> MintingPolicyHash` ^
  * `TxOutputId::new(ByteArray, Int) -> TxOutputId` ^
  * `fold[b, a](self: []b, a, (a, b) -> a) -> a`
+ * `map[a, b](self: []a, (a) -> b) -> []b`
  * `filter[a](self: []a, (a) -> Bool) -> []a`
  * `find[a](self: []a, (a) -> Bool) -> a` (returns first found, throws error if nothing found)
- * `contains[a](self: []a, (a) -> Bool) -> Bool`
- * `len(self: ByteArray) -> Int`
- * `len[a](self: []a) -> Int`
+ * `any[a](self: []a, (a) -> Bool) -> Bool`
+ * `all[a](self: []a, (a) -> Bool) -> Bool`
+ * `ByteArray.length -> Int`
+ * `[]a.length -> Int`
  * `prepend[a](self: []a, a) -> []a`
  * `get[a](self: []a, Int) -> a` (throws error if out of range)
- * `head[a](self: []a) -> a` (first element of list, throws error if list is empty)
- * `tail[a](self: []a) -> []a` (rest of list without first element, throws error if list is empty)
- * `isEmpty[a](self: []a) -> Bool`
- * `trace[a](a, String) -> a` (print a debug message while returning a value)
+ * `[]a.head -> a` (first element of list, throws error if list is empty)
+ * `[]a.tail -> []a` (rest of list without first element, throws error if list is empty)
+ * `is_empty[a](self: []a) -> Bool`
  * `ScriptContext.tx -> Tx`
  * `spending_purpose_output_id(self: ScriptContext) -> TxOutputId`
  * `Tx.time_range -> TimeRange`
@@ -313,7 +298,7 @@ Note that builtin functions can't be referenced, and must be called immediately 
  * `Tx.outputs -> []TxOutput`
  * `outputs_sent_to(self: Tx, PubKeyHash) -> []TxOutput` (outputs being sent to regular payment address)
  * `outputs_locked_by(self: Tx, ValidatorHash) -> []TxOutput` (outputs being sent to script `Address` with specified validator credential hash)
- * `TimeRange.start -> Time` (throws error if time range start is open)
+ * `TimeRange.get_start() -> Time` (throws error if time range start is open)
  * `Tx.signatories -> []PubKeyHash`
  * `Tx.id -> TxId`
  * `is_signed_by(self: Tx, PubKeyHash) -> Bool`
@@ -321,19 +306,15 @@ Note that builtin functions can't be referenced, and must be called immediately 
  * `TxInput.output -> TxOutput` (original `TxOutput` that is now being used as `TxInput`)
  * `TxOutput.address -> Address`
  * `TxOutput.value -> Value`
- * `TxOutput.has_datum_hash() -> Bool`
  * `TxOutput.datum_hash -> Option[DatumHash]`
  * `Address.credential -> Credential`
- * `is_staked(self: Address) -> Bool`
- * `is_pub_key(self: Credential) -> Bool`
- * `is_validator(self: Credential) -> Bool`
  * `Credential::Validator.hash -> ValidatorHash`
  * `Credential::PubKey.hash -> PubKeyHash`
- * `current_input(self: ScriptContext) -> TxInput`
- * `current_validator_hash(self: ScriptContext) -> ValidatorHash` (hash of current validator script)
- * `current_minting_policy_hash(self: ScriptContext) -> MintingPolicyHash` (hash of curreny minting script)
+ * `get_current_input(self: ScriptContext) -> TxInput`
+ * `get_current_validator_hash(self: ScriptContext) -> ValidatorHash` (hash of current validator script)
+ * `get_current_minting_policy_hash(self: ScriptContext) -> MintingPolicyHash` (hash of curreny minting script)
  * `get(self: Value, AssetClass) -> Int`
- * `isZero(self: Value) -> Bool`
+ * `is_zero(self: Value) -> Bool`
  * `Value::ZERO -> Value` (`impl` can have associated `const` members)
  * `value_sent_to(self: Tx, PubKeyHash) -> Value` (`Value` sent to regular paymant address)
  * `value_locked_by(self: Tx, ValidatorHash) -> Value` (`Value` sent to script `Address` with given validator credential hash)
@@ -344,16 +325,16 @@ Note that builtin functions can't be referenced, and must be called immediately 
  * `Value::lovelace(Int) -> Value` ^
  * `find_datum_data(self: Tx, DatumHash) -> Data`
  * `find_datum_hash(self: Tx, a) -> DatumHash` (`a` must be a user-defined type)
- * `serialize(a) -> ByteArray` (`a` can be anything except a function type)
+ * `serialize(self: a) -> ByteArray` (`a` can be anything except a function type)
  * `sha2(self: ByteArray) -> ByteArray` (32 bytes)
  * `sha3(self: ByteArray) -> ByteArray` (32 bytes)
  * `blake2b(self: ByteArray) -> ByteArray` (32 bytes)
 
 
-## Plutus-Light developer guide
+## Helios developer guide
 
 ### Design principles
-* The Plutus-Light DSL is a C-like language, so it can be read by almost any programmer.
+* The Helios DSL is a C-like language, so it can be read by almost any programmer.
 * Whitespace is obviously insignificant.
 * For everything there should be one, and only one, obvious way of doing it.
 * Each symbol/operator has only one kind of functionality. Only standard symbols/operators should be used (so nothing weird like in Haskell).
@@ -371,7 +352,7 @@ Note that builtin functions can't be referenced, and must be called immediately 
 * Top-level `const` statements allow compile-time evaluation into primitive values (not available for all builtin function calls yet). Expressions are otherwise never simplified/optimized.
 
 
-### Untyped Plutus-Light
-Plutus-Light is a typed language, and is internally converted into untyped Plutus-Light before final compilation into (untyped) Plutus-Core.
+### Untyped Helios
+Helios is a typed language, and is internally converted into untyped Helios before final compilation into (untyped) Plutus-Core.
 
-Untyped Plutus-Light is essentially an expansion of all the operators and all the semi-builtin functions (semi-builtin functions are builtins provided by typed Plutus-Light, but not by Plutus-Core).
+Untyped Helios is essentially an expansion of all the operators and all the semi-builtin functions (semi-builtin functions are builtins provided by typed Helios, but not by Plutus-Core).

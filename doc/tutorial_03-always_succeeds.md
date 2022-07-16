@@ -1,16 +1,16 @@
-# Part 3 of Plutus-Light tutorial: Always Succeeds contract
-Start a nodejs repl on your development computer, and import the Plutus-Light library:
+# Part 3 of Helios tutorial: Always Succeeds contract
+Start a nodejs repl on your development computer, and import the Helios library:
 ```bash
-$ cd ./plutus-light
+$ cd ./helios
 $ nodejs
 ```
 ```javascript
-> var PL; import("./plutus-light.js").then(m=>{PL=m});
+> var helios; import("./helios.js").then(m=>{helios=m});
 ```
 
 Compile the Always Succeeds script into its JSON representation:
 ```javascript
-> console.log(PL.compilePlutusLightProgram("func main() -> Bool {true}"))
+> console.log(helios.compile("validator always_succeeds; func main() -> Bool {true}"))
 
 {"type": "PlutusScriptV1", "description": "", "cborHex" :" 581358110100002223333573464945262498992601"}
 ```

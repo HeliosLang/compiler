@@ -1,4 +1,4 @@
-# Part 6 of Plutus-Light tutorial: Minting policy scripts
+# Part 6 of Helios tutorial: Minting policy scripts
 
 Minting policy scripts are very similar to validator scripts for spending. They don't accept a `Datum` argument though, only `Redeemer` and/or `ScriptContext`.
 
@@ -36,9 +36,9 @@ Let's use the script above to mint an NFT. Choose a good UTXO before compiling t
 
 Compile the minting policy script:
 ```bash
-> var PL; import("./plutus-light.js").then(m=>{PL=m});
+> var helios; import("./helios.js").then(m=>{helios=m});
 
-> console.log(PL.compilePlutusLightProgram("func main(ctx ScriptContext) Bool {...}", PL.ScriptPurpose.Minting));
+> console.log(helios.compile("minting_policy my_nft; func main(ctx: ScriptContext) -> Bool {...}", helios.ScriptPurpose.Minting));
 
 {"type": "PlutusScriptV1", "description": "", "cborHex" :" 5..."}
 ```
