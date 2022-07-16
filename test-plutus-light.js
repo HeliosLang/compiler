@@ -6,10 +6,9 @@ const ALWAYS_SUCCEEDS = `
 test always_succeeds;
 
 func main() -> Bool {
-    print(1.show()); 
-    false
-}
-`;
+    print((true).show()); 
+    true
+}`;
 
 const TIME_LOCK = `
 data Datum {
@@ -283,7 +282,7 @@ function compileData(name, src, data) {
 function main() {
     helios.debug(true);
     
-    compileScriptToIR("always-succeeds", ALWAYS_SUCCEEDS);
+    //compileScriptToIR("always-succeeds", ALWAYS_SUCCEEDS);
     
     runScript("always-succeeds", ALWAYS_SUCCEEDS);
 
