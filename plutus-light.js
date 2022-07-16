@@ -52,10 +52,11 @@
 //                                          PLUTUS_CORE_TAG_WIDTHS, PLUTUS_CORE_BUILTINS
 //
 //     2. Utilities                         assert, assertDefined, idiv, ipow2, imask, padZeroes, 
-//                                          byteToBitString, hexToBytes, bytesToHex, stringToBytes, 
-//                                          wrapCborBytes, unwrapCborBytes, BitWriter
+//                                          byteToBitString, hexToBytes, bytesToHex, stringToBytes,
+//                                          bytesToString, wrapCborBytes, unwrapCborBytes, 
+//                                          BitWriter
 //
-//     3. Plutus-Core AST objects           PlutusCoreInteger, PlutusCoreByteArray, 
+//     3. Plutus-Core AST objects           PlutusCoreInt, PlutusCoreByteArray, 
 //                                          PlutusCoreString, PlutusCoreBool, PlutusCoreUnit,
 //                                          PlutusCoreTerm, PlutusCoreVariable, PlutusCoreDelay, 
 //                                          PlutusCoreLambda, PlutusCoreCall, PlutusCoreForce, 
@@ -299,7 +300,11 @@ function bytesToHex(bytes) {
 }
 
 function stringToBytes(str) {
-	return (new TextEncoder()).encode(str);
+	return Array.from((new TextEncoder()).encode(str));
+}
+
+function bytesToString(bytes) {
+	return (new TextDecoder()).decode((new Uint8Array(bytes)).buffer);
 }
 
 // Very rudimentary cbor parser which unwraps the cbor text envelopes of the example scripts 
@@ -420,12 +425,140 @@ class BitWriter {
 // Section 3: Plutus-Core AST
 /////////////////////////////
 
-class PlutusCoreInteger {
+// a PlutusCoreValue is not the same as a term or a constant!
+class PlutusCoreValue {
+	constructor() {
+	}
+
+	call(value) {
+		console.log(this);
+		throw new Error("not a plutus-core function");
+	}
+
+	eval(stack) {
+		return this;
+	}
+
+	get int() {
+		throw new Error("not an int");
+	}
+
+	get bytes() {
+		throw new Error("not a bytearray");
+	}
+
+	get string() {
+		throw new Error("not a string");
+	}
+
+	get bool() {
+		console.log(this);
+		throw new Error("not a bool");
+	}
+
+	get first() {
+		throw new Error("not a pair");
+	}
+
+	get second() {
+		throw new Error("not a pair");
+	}
+
+	isStrictList() {
+		return false;
+	}
+
+	get strictList() {
+		console.log(this);
+		throw new Error("not a list");
+	}
+
+	get list() {
+		throw new Error("not a list/map");
+	}
+
+	get map() {
+		throw new Error("not a map");
+	}
+
+	get data() {
+		throw new Error("not data");
+	}
+}
+
+class PlutusCoreStack {
+	constructor(parent = null, value = null) {
+		this.parent_ = parent;
+		this.value_ = value;
+	}
+
+	get(i) {
+		i -= 1;
+
+		if (i == 0) {
+			assert(this.value_ != null, "plutus-core stack value not set");
+			return this.value_;
+		} else {
+			assert(i > 0);
+			assert(this.parent_ != null, "variable index out of range");
+			return this.parent_.get(i);
+		}
+	}
+
+	push(value) {
+		return new PlutusCoreStack(this, value);
+	}
+}
+
+class PlutusCoreAnon extends PlutusCoreValue {
+	// fn is a callback
+	constructor(stack, nArgs, fn, argCount = 0) {
+		super();
+		assert(nArgs >= 1);
+		this.stack_ = stack;
+		this.nArgs_ = nArgs;
+		this.argCount_ = argCount;
+		this.fn_ = fn;
+	}
+
+	call(value) {
+		let subStack = this.stack_.push(value);
+		let argCount = this.argCount_ + 1;
+
+		if (argCount == this.nArgs_) {
+			let args = [];
+			for (let i = this.nArgs_; i >= 1; i--) {
+				args.push(subStack.get(i));
+			}
+
+			return this.fn_(subStack, ...args);
+		} else {
+			assert(this.nArgs_ > 1);
+			return new PlutusCoreAnon(subStack, this.nArgs_, this.fn_, argCount);
+		}
+	}
+}
+
+// a PlutusCoreInt is not a PlutusCoreValue!
+class PlutusCoreInt extends PlutusCoreValue {
 	// value is BigInt, which is supposed to be arbitrary precision
-	constructor(value, signed = false) {
+	constructor(value, signed = true) {
+		super();
 		assert(typeof value == 'bigint');
 		this.value_  = value;
 		this.signed_ = signed;
+	}
+
+	get value() {
+		return this.value_;
+	}
+
+	get int() {
+		if (!this.signed_) {
+			throw new Error("can't use unsigned int in eval");
+		}
+
+		return this.value;
 	}
 
 	static parseRawByte(b) {
@@ -455,9 +588,9 @@ class PlutusCoreInteger {
 	toUnsigned() {
 		if (this.signed_) {
 			if (this.value_ < 0n) {
-				return new PlutusCoreInteger(1n - this.value_*2n, false);
+				return new PlutusCoreInt(1n - this.value_*2n, false);
 			} else {
-				return new PlutusCoreInteger(this.value_*2n, false);
+				return new PlutusCoreInt(this.value_*2n, false);
 			}
 		} else {
 			return this;
@@ -470,9 +603,9 @@ class PlutusCoreInteger {
 			return this;
 		} else {
 			if (this.value_%2n == 0n) {
-				return new PlutusCoreInteger(this.value_/2n, true);
+				return new PlutusCoreInt(this.value_/2n, true);
 			} else {
-				return new PlutusCoreInteger(-(this.value_+1n)/2n, true);
+				return new PlutusCoreInt(-(this.value_+1n)/2n, true);
 			}
 		}
 	}
@@ -508,12 +641,27 @@ class PlutusCoreInteger {
 			}
 		}
 	}
+
+	assertInt() {
+		if (!this.signed_) {
+			throw new Error("can't use unsigned int in eval");
+		}
+		return this;
+	}
 }
 
-class PlutusCoreByteArray {
+class PlutusCoreByteArray extends PlutusCoreValue {
 	constructor(bytes) {
+		super();
 		assert(bytes != undefined);
 		this.bytes_ = bytes;
+		for (let b of this.bytes_) {
+			assert(typeof b == 'number');
+		}
+	}
+
+	get bytes() {
+		return this.bytes_.slice();
 	}
 
 	toString() {
@@ -553,9 +701,18 @@ class PlutusCoreByteArray {
 	}
 }
 
-class PlutusCoreString {
+class PlutusCoreString extends PlutusCoreValue {
 	constructor(value) {
+		super();
 		this.value_ = value;
+	}
+
+	get value() {
+		return this.value_;
+	}
+
+	get string() {
+		return this.value;
 	}
 
 	toString() {
@@ -572,9 +729,18 @@ class PlutusCoreString {
 	}
 }
 
-class PlutusCoreBool {
+class PlutusCoreBool extends PlutusCoreValue {
 	constructor(value) {
+		super();
 		this.value_ = value;
+	}
+
+	get value() {
+		return this.value_;
+	}
+
+	get bool() {
+		return this.value_;
 	}
 
 	toString() {
@@ -592,8 +758,9 @@ class PlutusCoreBool {
 	}
 }
 
-class PlutusCoreUnit {
+class PlutusCoreUnit extends PlutusCoreValue {
 	constructor() {
+		super();
 	}
 
 	toString() {
@@ -603,6 +770,74 @@ class PlutusCoreUnit {
 	toFlat(bitWriter) {
 		bitWriter.write('0100');
 		bitWriter.write('100110'); // PlutusCore list that contains single '0011' entry
+	}
+
+	assertUnit() {
+		return this;
+	}
+}
+
+class PlutusCorePair extends PlutusCoreValue {
+	constructor(first, second) {
+		super();
+		this.first_ = first;
+		this.second_ = second;
+	}
+
+	get first() {
+		return this.first_;
+	}
+
+	get second() {
+		return this.second_;
+	}
+}
+
+// needed for eval
+class PlutusCoreList extends PlutusCoreValue {
+	constructor(items) {
+		super();
+		this.items_ = items;
+	}
+
+	get list() {
+		return this.items_.slice();
+	}
+
+	isStrictList() {
+		return true;
+	}
+
+	get strictList() {
+		return this.list;
+	}
+}
+
+// needed for eval
+class PlutusCoreMap extends PlutusCoreValue {
+	constructor(pairs) {
+		super();
+		this.pairs_ = pairs;
+	}
+
+	get map() {
+		return this.pairs_.slice();
+	}
+
+	get list() {
+		return this.map;
+	}
+}
+
+// needed for eval
+class PlutusCoreData extends PlutusCoreValue {
+	constructor(data) {
+		super();
+		this.data_ = assertDefined(data);
+	}
+
+	get data() {
+		return this.data_;
 	}
 }
 
@@ -631,6 +866,10 @@ class PlutusCoreVariable extends PlutusCoreTerm {
 		bitWriter.write('0000');
 		this.index_.toFlat(bitWriter);
 	}
+
+	eval(stack) {
+		return stack.get(this.index_);
+	}
 }
 
 class PlutusCoreDelay extends PlutusCoreTerm {
@@ -647,6 +886,10 @@ class PlutusCoreDelay extends PlutusCoreTerm {
 		bitWriter.write('0001');
 		this.expr_.toFlat(bitWriter);
 	}
+
+	eval(stack) {
+		return this.expr_.eval(stack);
+	}
 }
 
 class PlutusCoreLambda extends PlutusCoreTerm {
@@ -662,6 +905,12 @@ class PlutusCoreLambda extends PlutusCoreTerm {
 	toFlat(bitWriter) {
 		bitWriter.write('0010');
 		this.rhs_.toFlat(bitWriter);
+	}
+
+	eval(stack) {
+		return new PlutusCoreAnon(stack, 1, (subStack) => {
+			return this.rhs_.eval(subStack);
+		});
 	}
 }
 
@@ -682,6 +931,10 @@ class PlutusCoreCall extends PlutusCoreTerm {
 		this.a_.toFlat(bitWriter);
 		this.b_.toFlat(bitWriter);
 	}
+
+	eval(stack) {
+		return this.a_.eval(stack).call(this.b_.eval(stack));
+	}
 }
 
 class PlutusCoreForce extends PlutusCoreTerm {
@@ -698,6 +951,10 @@ class PlutusCoreForce extends PlutusCoreTerm {
 		bitWriter.write('0101');
 		this.expr_.toFlat(bitWriter);
 	}
+
+	eval(stack) {
+		return this.expr_.eval(stack);
+	}
 }
 
 class PlutusCoreError extends PlutusCoreTerm {
@@ -711,6 +968,10 @@ class PlutusCoreError extends PlutusCoreTerm {
 
 	toFlat(bitWriter) {
 		bitWriter.write('0110');
+	}
+
+	eval(stack) {
+		throw new Error("plutuscore user error");
 	}
 }
 
@@ -746,10 +1007,326 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 		
 		bitWriter.write(bitString);
 	}
+
+	eval(stack) {
+		switch(this.name_) {
+			case "addInteger":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					return new PlutusCoreInt(a.int + b.int);
+				});
+			case "subtractInteger":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					return new PlutusCoreInt(a.int - b.int);
+				});
+			case "multiplyInteger":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					return new PlutusCoreInt(a.int * b.int);
+				});
+			case "divideInteger":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					return new PlutusCoreInt(a.int / b.int);
+				});
+			case "modInteger":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					return new PlutusCoreInt(a.int % b.int);
+				});
+			case "equalsInteger":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					return new PlutusCoreBool(a.int == b.int);
+				});
+			case "lessThanInteger":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					return new PlutusCoreBool(a.int < b.int);
+				});
+			case "appendByteString":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					return new PlutusCoreByteArray(a.bytes.concat(b.bytes));
+				});
+			case "consByteString":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					let bytes = b.bytes;
+					bytes.unshift(Number(a.int % 256n));
+					return new PlutusCoreByteArray(bytes);
+				});
+			case "sliceByteString":
+				return new PlutusCoreAnon(stack, 3, (_, a, b, c) => {
+					let start = Number(a.int);
+					let n = Number(b.int);
+					let bytes = c.bytes;
+					if (start < 0) {
+						start = 0;
+					}
+
+					if (start + n > bytes.length) {
+						n = bytes.length - start;
+					}
+
+					if (n < 0) {
+						n = 0;
+					}
+
+					return new PlutusCoreBytes(bytes.slice(start, start + n));
+				});
+			case "lengthOfByteString":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					return new PlutusCoreInt(BigInt(a.bytes.length));
+				});
+			case "indexByteString":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					let i = b.int;
+					let bytes = b.bytes;
+					if (i < 0 || i >= bytes.length) {
+						throw new Error("index out of range");
+					}
+
+					return new PlutusCoreInt(bytes[i]);
+				});
+			case "equalsByteString":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					let aBytes = a.bytes;
+					let bBytes = b.bytes;
+
+					let res = true;
+					if (aBytes.length != bBytes.length) {
+						res = false;
+					} else {
+						for (let i = 0; i < aBytes.length; i++) {
+							if (aBytes[i] != bBytes[i]) {
+								res = false;
+								break;
+							}
+						}
+					}
+
+					return new PlutusCoreBool(res);
+				});
+			case "lessThanByteString":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					let aBytes = a.bytes;
+					let bBytes = b.bytes;
+
+					let res = true;
+					if (aBytes.length == 0) {
+						res = bBytes.length != 0;
+					} else if (bBytes.length == 0) {
+						res = false;
+					} else {
+						for (let i = 0; i < Math.min(aBytes.length, bBytes.length); i++) {
+							if (aBytes[i] >= bBytes[i]) {
+								res = false;
+								break;
+							}
+						}
+					}
+
+					return PlutusCoreBool(res);
+				});
+			case "lessThanEqualsByteString":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					let aBytes = a.bytes;
+					let bBytes = b.bytes;
+
+					let res = true;
+					if (aBytes.length == 0) {
+						res = true;
+					} else if (bBytes.length == 0) {
+						res = false;
+					} else {
+						for (let i = 0; i < Math.min(aBytes.length, bBytes.length); i++) {
+							if (aBytes[i] > bBytes[i]) {
+								res = false;
+								break;
+							}
+						}
+					}
+				});
+			case "appendString":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					return new PlutusCoreString(a.string + b.string);
+				});
+			case "equalsString":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					return new PlutusCoreBool(a.string == b.string);
+				});
+			case "encodeUtf8":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					return new PlutusCoreByteArray(stringToBytes(a.string));
+				});
+			case "decodeUtf8":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					return new PlutusCoreString(bytesToString(a.bytes));
+				});
+			case "sha2_256":
+			case "sha3_256":
+			case "blake2b_256":
+				throw new Error("these will be some fun ones to implement");
+			case "verifyEd25519Signature":
+				throw new Error("no immediate need, so don't bother yet");
+			case "ifThenElse":
+				return new PlutusCoreAnon(stack, 3, (_, a, b, c) => {
+					return a.bool ? b : c;
+				});
+			case "chooseUnit":
+				throw new Error("what is the point of this function?");
+			case "trace":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					console.log(a.string);
+					return b;
+				});
+			case "fstPair":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					return a.first;
+				});
+			case "sndPair":
+				return new PlutusCoreAnon(stack, 1, (_, b) => {
+					return b.first;
+				});
+			case "chooseList":
+				throw new Error("no immediate need, so don't bother yet");
+			case "mkCons":
+				// only allow data items in list
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					if (b.isStrictList()) {
+						void a.data;
+						let lst = b.list;
+						lst.unshift(a);
+						return new PlutusCoreList(lst);
+					} else { // should be map
+						void a.first.data;
+						void b.second.data;
+						let pairs = b.map;
+						pairs.unshift(a);
+						return new PlutusCoreMap(pairs);
+					}
+				});
+			case "headList":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					let lst = a.list;
+					if (lst.length == 0) {
+						throw new Error("empty list");
+					}
+
+					return lst[0];
+				});
+			case "tailList":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					let lst = a.list;
+					if (lst.length == 0) {
+						throw new Error("empty list");
+					}
+
+					if (a.isStrictList()) {
+						return new PlutusCoreList(lst.slice(1));
+					} else {
+						return new PlutusCoreMap(lst.slice(1));
+					}
+				});
+			case "nullList":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					return new PlutusCoreBool(a.list.length == 0);
+				});
+			case "chooseData":
+				throw new Error("no immediate need, so don't bother yet");
+			case "constrData":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					let i = a.int;
+					assert(i >= 0);
+					let lst = b.strictList;
+					return new PlutusCoreData(new ConstrData(i, lst));
+				});
+			case "mapData":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					return new PlutusCoreData(new MapData(a.map));
+				});
+			case "listData":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					return new PlutusCoreData(new ListData(a.strictList));
+				});
+			case "iData":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					return new PlutusCoreData(new IntData(a.int));
+				});
+			case "bData":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					return new PlutusCoreData(new ByteArrayData(a.bytes));
+				});
+			case "unConstrData":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					let data = a.data;
+					assert(data instanceof ConstrData);
+
+					return new PlutusCorePair(new PlutusCoreInt(data.index), new PlutusCoreList(data.fields));
+				});
+			case "unMapData":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					let data = a.data;
+					assert(data instanceof MapData);
+
+					return new PlutusCoreMap(data.map);
+				});
+			case "unListData":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					let data = a.data;
+					assert(data instanceof ListData);
+
+					return new PlutusCoreList(data.list);
+				});
+			case "unIData":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					let data = a.data;
+					assert(data instanceof IntData);
+
+					return new PlutusCoreInt(data.value);
+				});
+			case "unBData":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					let data = a.data;
+					if (!(data instanceof ByteArrayData)) {
+						console.log(a);
+						throw new Error("unexpected unBData argument");
+					}
+
+					return new PlutusCoreByteArray(data.bytes);
+				});
+			case "equalsData":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					// just compare the schema jsons for now
+					return new PlutusCoreBool(a.data.toSchemaJSON() == b.data.toSchemaJSON());
+				});
+			case "mkPairData":
+				return new PlutusCoreAnon(stack, 2, (_, a, b) => {
+					void a.data;
+					void b.data;
+					return new PlutusCorePair(a, b);
+				});
+			case "mkNilData":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					a.assertUnit();
+
+					return new PlutusCoreList([]);
+				});
+			case "mkNilPairData":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					a.assertUnit();
+
+					return new PlutusCoreMap([]);
+				});
+			case "serialiseData":
+				return new PlutusCoreAnon(stack, 1, (_, a) => {
+					return new PlutusCoreByteArray(a.data.toCbor());
+				});
+			case "verifyEcdsaSecp256k1Signature":
+			case "verifySchnorrSecp256k1Signature":
+				throw new Error("no immediate need, so don't bother yet");
+			default:
+				throw new Error(`builtin ${this.name_} not yet implemented`);
+		}
+		
+	}
 }
 
 class PlutusCoreProgram {
-	constructor(expr, version = PLUTUS_CORE_VERSION_COMPONENTS.map(v => new PlutusCoreInteger(v))) {
+	constructor(expr, version = PLUTUS_CORE_VERSION_COMPONENTS.map(v => new PlutusCoreInt(v, false))) {
 		this.version_ = version;
 		this.expr_    = expr;
 	}
@@ -779,6 +1356,10 @@ class PlutusCoreProgram {
 		this.expr_.toFlat(bitWriter);
 
 		// final padding is handled by bitWriter upon finalization
+	}
+
+	eval(stack) {
+		return this.expr_.eval(stack);
 	}
 
 	// returns plutus-core script in JSON formats (as string, not as object!)
@@ -825,7 +1406,7 @@ class ByteArrayData {
 	}
 
 	static fromString(s) {
-		let bytes = (new TextEncoder()).encode(s);
+		let bytes = stringToBytes(s);
 
 		return new ByteArrayData(bytes);
 	}
@@ -852,6 +1433,10 @@ class ListData {
 		this.items_ = items;
 	}
 
+	get list() {
+		return this.items_.slice();
+	}
+
 	toUntyped() {
 		let lst = "__core__mkNilData(())";
 		for (let i = this.items_.length - 1; i >= 0; i--) {
@@ -870,6 +1455,10 @@ class MapData {
 	// pairs is list of lists (inner lists only have 2 items)
 	constructor(pairs) {
 		this.pairs_ = pairs;
+	}
+
+	get map() {
+		return this.pairs_.slice();
 	}
 
 	toUntyped() {
@@ -894,6 +1483,14 @@ class ConstrData {
 	constructor(index, fields) {
 		this.index_ = index;
 		this.fields_ = fields;
+	}
+
+	get index() {
+		return this.index_;
+	}
+
+	get fields() {
+		return this.fields_.slice();
 	}
 
 	toUntyped() {
@@ -991,7 +1588,7 @@ class UserError extends Error {
 
 	static catch(fn, verbose = false) {
 		try {
-			fn();
+			return fn();
 		} catch (error) {
 			if (error instanceof UserError) {
 				error.dump(verbose);
@@ -1018,7 +1615,7 @@ class Site {
 	}
 
 	syntaxError(info = "") {
-		throw UserError.syntaxError(this.src_, this.pos_, msg);
+		throw UserError.syntaxError(this.src_, this.pos_, info);
 	}
 
 	typeError(info = "") {
@@ -1098,6 +1695,7 @@ class Token {
 	}
 
 	link(scope) {
+		console.log(this);
 		throw new Error("not implemented");
 	}
 
@@ -1345,6 +1943,10 @@ class PrimitiveLiteral extends Token {
 	isLiteral() {
 		return true;
 	}
+
+	// used in untyped program
+	link(scope) {
+	}
 }
 
 // always signed
@@ -1376,7 +1978,7 @@ class IntLiteral extends PrimitiveLiteral {
 
 	toPlutusCore() {
 		// the 'true' argument means that this integer is signed
-		return new PlutusCoreInteger(this.value_, true);
+		return new PlutusCoreInt(this.value_, true);
 	}
 }
 
@@ -2128,7 +2730,11 @@ class FuncType extends Type {
 		let haveRedeemer = false;
 		let haveScriptContext = false;
 
-		if (!Type.same(site, this.retType_, new BoolType())) {
+		if (purpose == ScriptPurpose.Testing) {
+			if (this.argTypes_ != 0) {
+				site.typeError("test main should have 0 args");
+			}
+		} else if (!Type.same(site, this.retType_, new BoolType())) {
 			site.typeError(`invalid main return type: expected Bool, got ${this.retType_.toString()}`);
 		} else if (purpose == ScriptPurpose.Spending) {
 			if (this.argTypes_.length > 3) {
@@ -2788,7 +3394,7 @@ class PrintExpr extends Expr {
 	}
 
 	toUntyped() {
-		return `__core__trace(${this.msgExpr_.toUntyped()}, () -> {${this.downstreamExpr_.toUntyped()}})()`;
+		return `__core__trace(__helios__common__unStringData(${this.msgExpr_.toUntyped()}), () -> {${this.downstreamExpr_.toUntyped()}})()`;
 	}
 }
 
@@ -2818,7 +3424,18 @@ class PrimitiveLiteralExpr extends Expr {
 	}
 
 	toUntyped() {
-		return this.primitive_.toUntyped();
+		let inner = this.primitive_.toUntyped();
+		if (this.primitive_ instanceof IntLiteral) {
+			return `__core__iData(${inner})`;
+		} else if (this.primitive_ instanceof BoolLiteral) {
+			return `__helios__common__boolData(${inner})`;
+		} else if (this.primitive_ instanceof StringLiteral) {
+			return `__helios__common__stringData(${inner})`;
+		} else if (this.primitive_ instanceof ByteArrayLiteral) {
+			return `__core__bData(${inner})`;
+		} else {
+			throw new Error("unhandled primitive type");
+		}
 	}
 }
 
@@ -2886,17 +3503,17 @@ class StructLiteralExpr extends Expr {
 	}
 
 	toUntyped() {
-		let res = "mkNilData(())";
+		let res = "__core__mkNilData(())";
 
 		let fields = this.fields_.slice().reverse();
 
 		for (let f of fields) {
-			res = `mkCons(${f.toUntyped()}, ${res})`;
+			res = `__core__mkCons(${f.toUntyped()}, ${res})`;
 		}
 
 		let idx = this.constrIndex_;
 
-		return `constrData(${idx.toString()}, ${res})`;
+		return `__core__constrData(${idx.toString()}, ${res})`;
 	}
 }
 
@@ -2936,13 +3553,13 @@ class ListLiteralExpr extends Expr {
 
 	toUntyped() {
 		// unsure if list literals in untyped plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
-		let res = "mkNilData(())";
+		let res = "__core__mkNilData(())";
 
 		// starting from last element, keeping prepending a data version of that item
 
 		for (let i = this.itemExprs_.length - 1; i >= 0; i--) {
 			let itemExpr = this.itemExprs_[i];
-			res = `mkCons(${toData(itemExpr.toUntyped(), this.itemType_)}, ${res})`;
+			res = `__core__mkCons(${toData(itemExpr.toUntyped(), this.itemType_)}, ${res})`;
 		}
 
 		return res;
@@ -3286,8 +3903,7 @@ class MemberExpr extends Expr {
 		super(site);
 		this.objExpr_ = objExpr;
 		this.memberName_ = memberName;
-		this.fieldIdx_ = null;
-		this.memberType_ = null;
+		this.baseType_ = null;
 	}
 	
 	toString() {
@@ -3301,16 +3917,15 @@ class MemberExpr extends Expr {
 		let member = objVal.getInstanceMember(this.memberName_);
 		assert(member.isValue());
 
-		this.fieldIdx_ = obj.getType().findField(this.memberName_);
-		assert(this.fieldIdx_ != -1);
-		this.memberType_ = member.getType();
+		this.baseType_ = objVal.getType();
 
 		return member;
 	}
 
 	toUntyped() {
+		console.log(this.baseType_);
 		// members can be functions so, field getters are also encoded as functions for consistency
-		return `${this.memberType.toUntyped()}__${this.memberName_.toString()}(${this.objExpr_.toUntyped()})`;
+		return `${this.baseType_.toUntyped()}__${this.memberName_.toString()}(${this.objExpr_.toUntyped()})`;
 	}
 }
 
@@ -3374,7 +3989,7 @@ class IfElseExpr extends Expr {
 		let res = `() -> {${this.branches_[n].toUntyped()}}`;
 
 		for (let i = n-1; i >= 0; i--) {
-			res = `ifThenElse(${this.conditions_[i].toUntyped()}, ()- > {${this.branches_[i].toUntyped()}}, () -> {${res}()})`;
+			res = `__core__ifThenElse(__helios__common__unBoolData(${this.conditions_[i].toUntyped()}), ()- > {${this.branches_[i].toUntyped()}}, () -> {${res}()})`;
 		}
 
 		return res + "()";
@@ -3506,14 +4121,14 @@ class SwitchExpr extends Expr {
 		let res = cases[n-1].toUntyped();
 
 		for (let i = n-2; i >= 0; i--) {
-			res = `ifThenElse(equalsInteger(i, ${cases[i].constrIndex.toString()}), () -> {${cases[i].toUntyped()}}, () -> {${res}})()`;
+			res = `__core__ifThenElse(__core__equalsInteger(i, ${cases[i].constrIndex.toString()}), () -> {${cases[i].toUntyped()}}, () -> {${res}})()`;
 		}
 
 		return `(e) -> {
 			(
 				(i) -> {
 					${res}
-				}(fstPair(unConstrData(e)))
+				}(__core__fstPair(__core__unConstrData(e)))
 			)(e)
 		}(${this.expr_.toUntyped()})`;
 	}
@@ -4298,8 +4913,6 @@ class Program {
 	}
 
 	toUntyped() {
-		let res = "(";
-
 		let mainArgs = [];
 		let uMainArgs = [];
 		if (this.haveDatum_) {
@@ -4312,24 +4925,24 @@ class Program {
 		if (this.haveRedeemer_) {
 			mainArgs.push("redeemer");
 			uMainArgs.push("redeemer");
-		} else if (this.isTest()) { // minting script can also have a redeemer
+		} else if (!this.isTest()) { // minting script can also have a redeemer
 			mainArgs.push("_");
 		}
 
 		if (this.haveScriptContext_) {
 			mainArgs.push("ctx");
 			uMainArgs.push("ctx");
-		} else if (this.isTest()) {
+		} else if (!this.isTest()) {
 			mainArgs.push("_");
 		}
 
-		res += mainArgs.join(", ");
-
-		res += ") -> {\n  __core__ifThenElse(";
-
-		res += "main(" + uMainArgs.join(", ") + "), () -> {()}, () -> {__core__error()})()\n"; // deferred evaluation of branches!
-		
-		res += "}";
+		let res = `(${mainArgs.join(", ")}) -> {
+			__core__ifThenElse(
+				__helios__common__unBoolData(main(${uMainArgs.join(", ")})),
+				() -> {()},
+				() -> {__core__error()}
+			)()
+		}`
 
 		let map = new Map(); // string -> string
 		for (let statement of this.statements_) {
@@ -4393,7 +5006,7 @@ function buildScriptPurpose(ts) {
 		purpose = ScriptPurpose.Spending; 
 	} else if (purposeWord.isWord("mint_policy")) {
 		purpose = ScriptPurpose.Minting;
-	} else if (purpose.isWord("test")) { // 'test' is not reserved as a keyword though
+	} else if (purposeWord.isWord("test")) { // 'test' is not reserved as a keyword though
 		purpose = ScriptPurpose.Testing;
 	} else if (purposeWord.isKeyword()) {
 		purposeWord.syntaxError(`script purpose missing`);
@@ -6096,10 +6709,10 @@ function makeRawFunctions() {
 	
 	function makeList(args, toData = false) {
 		let n = args.length;
-		let inner = "mkNilData(())";
+		let inner = "__core__mkNilData(())";
 
 		for (let i = n-1; i>= 0; i--) {
-			inner = `mkCons(${args[i]}, ${inner})`;
+			inner = `__core__mkCons(${args[i]}, ${inner})`;
 		}
 
 		if (toData) {
@@ -6163,7 +6776,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__common__boolData", `
 	(b) -> {
-		__core__constrData(__core__ifThenElse(b, 1, 0), mkNilPairData(())
+		__core__constrData(__core__ifThenElse(b, 1, 0), __core__mkNilData(()))
 	}`));
 	add(new RawFunc("__helios__common__unStringData", `
 	(d) -> {
@@ -6271,7 +6884,7 @@ function makeRawFunctions() {
 		(self) -> {
 			() -> {
 				(recurse) -> {
-					__core__unBData(recurse(recurse, self))
+					__core__bData(recurse(recurse, self))
 				}(
 					(recurse, self) -> {
 						(partial) -> {
@@ -6548,11 +7161,13 @@ function makeRawFunctions() {
 							() -> {__core__ifThenElse(
 								__core__lessThanInteger(i, 0), 
 								() -> {__core__error()}, 
-								() -> {__core__ifThenElse(
-									__core__equalsInteger(i, 0), 
-									() -> {__core__headList(self)}, 
-									() -> {recurse(recurse, __core__tailList(self), __core__subtractInteger(i, 1))}
-								)()}
+								() -> {
+									__core__ifThenElse(
+										__core__equalsInteger(i, 0), 
+										() -> {__core__headList(self)}, 
+										() -> {recurse(recurse, __core__tailList(self), __core__subtractInteger(i, 1))}
+									)()
+								}
 							)()}
 						)()
 					}
@@ -6627,11 +7242,13 @@ function makeRawFunctions() {
 						__core__ifThenElse(
 							__core__nullList(self), 
 							() -> {__core__error()}, 
-							() -> {__core__ifThenElse(
-								__helios__common__unBoolData(fn(__core__headList(self))), 
-								() -> {__core__headList(self)}, 
-								() -> {recurse(recurse, tailList(self), fn)}
-							)()}
+							() -> {
+								__core__ifThenElse(
+									__helios__common__unBoolData(fn(__core__headList(self))), 
+									() -> {__core__headList(self)}, 
+									() -> {recurse(recurse, tailList(self), fn)}
+								)()
+							}
 						)()
 					}
 				)
@@ -6649,11 +7266,13 @@ function makeRawFunctions() {
 						__core__ifThenElse(
 							__core__nullList(self), 
 							() -> {__core__mkNilData(())}, 
-							() -> {__core__ifThenElse(
-								__helios__common__unBoolData(fn(__core__headList(self))),
-								() -> {__core__mkCons(__core__headList(self), recurse(recurse, __core__tailList(self), fn))}, 
-								() -> {recurse(recurse, __core__tailList(self), fn)}
-							)()}
+							() -> {
+								__core__ifThenElse(
+									__helios__common__unBoolData(fn(__core__headList(self))),
+									() -> {__core__mkCons(__core__headList(self), recurse(recurse, __core__tailList(self), fn))}, 
+									() -> {recurse(recurse, __core__tailList(self), fn)}
+								)()
+							}
 						)()
 					}
 				)		
@@ -7191,11 +7810,13 @@ function makeRawFunctions() {
 				__core__ifThenElse(
 					__core__nullList(map), 
 					() -> {__core__mkNilPairData(())},
-					() -> {__core__ifThenElse(
-						__core__equalsData(__core__fstPair(__core__headList(map))), mintingPolicyHash), 
-						() -> {__core__unMapData(__core__sndPair(__core__headList(map)))},
-						(){recurse(recurse, __core__tailList(map))}
-					)()}
+					() -> {
+						__core__ifThenElse(
+							__core__equalsData(__core__fstPair(__core__headList(map))), mintingPolicyHash), 
+							() -> {__core__unMapData(__core__sndPair(__core__headList(map)))},
+							(){recurse(recurse, __core__tailList(map))}
+						)()
+					}
 				)()
 			}
 		)
@@ -7210,7 +7831,7 @@ function makeRawFunctions() {
 					__core__nullList(map), 
 					() -> {0}, 
 					() -> {
-						ifThenElse(
+						__core__ifThenElse(
 							__core__equalsData(__core__fstPair(__core__headList(map))), key), 
 							(){__core__unIData(__core__sndPair(__core__headList(map)))}, 
 							(){recurse(recurse, __core__tailList(map), key)}
@@ -7476,7 +8097,9 @@ class UntypedScope {
 		if (this.name_.toString() == name.toString()) {
 			return index;
 		} else if (this.parent_ == null || this.parent_ == undefined) {
-			name.referenceError(`variable ${name.toString()} not found on line ${(name.loc_.line_ + 1).toString()}`);
+			let msg = `variable ${name.toString()} not found`;
+			throw new Error(msg);
+			name.referenceError(msg);
 		} else {
 			return this.parent_.getInternal(name, index+1);
 		}
@@ -7485,6 +8108,23 @@ class UntypedScope {
 	get(name) {
 		// one-based
 		return this.getInternal(name, 1);
+	}
+
+	static isBuiltin(name, strict = false) {
+		if (name.startsWith("__core")) {
+			if (strict) {
+				void this.findBuiltin(name); // assert that builtin exists
+			}
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	static findBuiltin(name) {
+		let i = PLUTUS_CORE_BUILTINS.findIndex(info => {return "__core__" + info.name == name});
+		assert(i != -1, `${name} is not a real builtin`);
+		return i;
 	}
 }
 
@@ -7559,22 +8199,18 @@ class UntypedCallExpr {
 
 	isBuiltin() {
 		if (this.lhs_ instanceof UntypedVariable) {
-			return PLUTUS_CORE_BUILTINS.findIndex(info => {return "__core__ " + info.name == this.lhs_.name}) != -1;
+			return UntypedScope.isBuiltin(this.lhs_.name, true);
 		} else {
 			return false;
 		}
 	}
 
 	builtinForceCount() {
-		if (this.lhs_ instanceof UntypedVariable) {
-			let i = PLUTUS_CORE_BUILTINS.findIndex(info => {return "__core__" + info.name == this.lhs_.name});
+		if (this.lhs_ instanceof UntypedVariable && UntypedScope.isBuiltin(this.lhs_.name)) {
+			let i = UntypedScope.findBuiltin(this.lhs_.name);
 
-			if (i == -1) {
-				return 0;
-			} else {
-				let info = PLUTUS_CORE_BUILTINS[i];
-				return info.forceCount;
-			}
+			let info = PLUTUS_CORE_BUILTINS[i];
+			return info.forceCount;
 		} else {
 			return 0;
 		}
@@ -7593,7 +8229,7 @@ class UntypedCallExpr {
 	toPlutusCore() {
 		let term;
 		if (this.isBuiltin()) {
-			term = new PlutusCoreBuiltin(this.lhs_.name);
+			term = new PlutusCoreBuiltin(this.lhs_.name.slice("__core__".length));
 
 			let nForce = this.builtinForceCount();
 
@@ -7641,7 +8277,7 @@ class UntypedVariable {
 	}
 
 	toPlutusCore() {
-		return new PlutusCoreVariable(new PlutusCoreInteger(BigInt(this.index_)));
+		return new PlutusCoreVariable(new PlutusCoreInt(BigInt(this.index_), false));
 	}
 }
 
@@ -7783,6 +8419,12 @@ export const CompilationStage = {
 	Final:      5,
 };
 
+const DEFAULT_CONFIG = {
+	verbose: false,
+	templateParameters: {},
+	stage: CompilationStage.Final,
+};
+
 // config members:
 //    templateParameters
 //    stage (defaults to CompilationStage.Final)
@@ -7793,16 +8435,11 @@ export const CompilationStage = {
 //    Untype:     performs type evaluation, returns untyped program as string
 //    PlutusCore: build Plutus-Core program from untyped program, returns top-level PlutusCoreProgram object
 //    Final:      encode Plutus-Core program in flat format and return JSON string containing cborHex representation of program
-export function compile(typedSrc, config = {
-	verbose: false,
-	templateParameters: {}, 
-	stage: CompilationStage.Final,
-}) {
+export function compile(typedSrc, config = DEFAULT_CONFIG) {
 	// additional checks of config
 	config.verbose = config.verbose || false;
 	config.templateParameters = config.templateParameters || {};
 	config.stage = config.stage || CompilationStage.Final;
-	assert(config.stage in CompilationStage);
 
 	function compileInternal() {
 		typedSrc = preprocess(typedSrc, config.templateParameters);
@@ -7817,7 +8454,7 @@ export function compile(typedSrc, config = {
 			return ts;
 		}
 
-		let program = return buildProgram(ts);
+		let program = buildProgram(ts);
 
 		if (config.stage == CompilationStage.BuildAST) {
 			return program;
@@ -7847,6 +8484,18 @@ export function compile(typedSrc, config = {
 	return UserError.catch(compileInternal, config.verbose);
 }
 
+// run a test script (first word of script must be 'testing')
+export function run(typedSrc, config = DEFAULT_CONFIG) {
+	config.stage = CompilationStage.PlutusCore;
+
+	let program = compile(typedSrc, config);
+
+	let stack = new PlutusCoreStack();
+
+	let fn = program.eval(stack);
+
+	console.log(fn.call(new PlutusCoreUnit()));
+}
 
 // TODO: use a special JSON schema instead
 // output is a string with JSON content
@@ -8021,16 +8670,16 @@ class PlutusCoreDeserializer {
 		let b = this.readByte();
 		bytes.push(b);
 
-		while (!PlutusCoreInteger.rawByteIsLast(b)) {
+		while (!PlutusCoreInt.rawByteIsLast(b)) {
 			b = this.readByte();
 			bytes.push(b);
 		}
 
 		// strip the leading bit
-		let res = new PlutusCoreInteger(PlutusCoreInteger.bytesToBigInt(bytes.map(b => PlutusCoreInteger.parseRawByte(b))));
+		let res = new PlutusCoreInt(PlutusCoreInt.bytesToBigInt(bytes.map(b => PlutusCoreInt.parseRawByte(b))), false); // raw int is unsigned
 
 		if (signed) {
-			res = res.toSigned();
+			res = res.toSigned(); // unzigzag is performed here
 		}
 
 		return res;
@@ -8132,7 +8781,7 @@ class PlutusCoreDeserializer {
 	readString() {
 		let bytes = this.readChars();
 
-		let s = (new TextDecoder()).decode((new Uint8Array(bytes)).buffer);
+		let s = bytesToString(bytes);
 
 		return new PlutusCoreString(s);
 	}

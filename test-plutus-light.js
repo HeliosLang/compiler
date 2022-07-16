@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 
-import * as PL from "./plutus-light.js";
+import * as helios from "./plutus-light.js";
 
 const ALWAYS_SUCCEEDS = `
-validator always_succeeds;
+test always_succeeds;
 
 func main() -> Bool {
-	true
+    print(1.show()); 
+    false
 }
-`
+`;
 
 const TIME_LOCK = `
 data Datum {
@@ -27,7 +28,7 @@ func main(datum Datum, ctx ScriptContext) Bool {
     trace("now: " + show(now) + ", lock: " + show(datum.lockUntil), now > datum.lockUntil) || 
     trace("returning? " + show(returnToOwner), returnToOwner)
 }
-`
+`;
 
 const TIME_LOCK_DATUM = `
 Datum{
@@ -35,7 +36,7 @@ Datum{
     owner: PubKeyHash(#1d22b9ff5fc20bae3b84b8f9434e747c1792b0ea2b0af658a8a76d43),
     nonce: 42
 }
-`
+`;
 
 const SUBSCRIPTION = `
 data Datum {
@@ -89,7 +90,7 @@ func main(datum Datum, ctx ScriptContext) Bool {
         trace("unauthorized", false)
     }
 }
-`
+`;
 
 const SUBSCRIPTION_TIME = (new Date()).getTime() + 1000*60*5;
 const SUBSCRIPTION_INTERVAL = 1000*60*5;
@@ -102,7 +103,7 @@ Datum{
     after:       Time(${SUBSCRIPTION_TIME.toString()}),
     interval:    Duration(${SUBSCRIPTION_INTERVAL.toString()})
 }
-`
+`;
 
 const SUBSCRIPTION_DATUM2 = `
 Datum{
@@ -113,7 +114,7 @@ Datum{
     after:       Time(${(SUBSCRIPTION_TIME + SUBSCRIPTION_INTERVAL).toString()}),
     interval:    Duration(${SUBSCRIPTION_INTERVAL.toString()})
 }
-`
+`;
 
 const VESTING = `
 data VestingTranche {
@@ -155,7 +156,7 @@ func main(ctx ScriptContext) Bool {
 	remainingExpected Value = remainingFrom(PARAMS.tranche1, now) + remainingFrom(PARAMS.tranche2, now);
     remainingActual >= remainingExpected && isTxSignedBy(tx, PARAMS.owner) 
 } 
-`
+`;
 
 const UNTYPED_UNDATA = `func(data){func(pair) {
 	ifThenElse(
@@ -163,7 +164,7 @@ const UNTYPED_UNDATA = `func(data){func(pair) {
 		func(){headList(sndPair(pair))},
 		func(){error()}
 	)()
-}(unConstrData(data))}`
+}(unConstrData(data))}`;
 
 
 const MINTING_POLICY = `func main(ctx ScriptContext) Bool {
@@ -174,7 +175,7 @@ const MINTING_POLICY = `func main(ctx ScriptContext) Bool {
 
     // we also check the total minted
     getTxInputOutputId(txInput) == TxOutputId(#047311fde3f1281fd08956918e3d37f883930836db4d8f2a75b640bbf76f5827, 0) && getTxMintedValue(tx) == Value(AssetClass(getCurrentMintingPolicyHash(ctx), "MyNFT"), 1)
-}`
+}`;
 
 const ENGLISH_AUCTION = `
 data Datum {
@@ -258,25 +259,33 @@ function compileScriptToIR(name, src) {
 
     console.log("Compiling", name, "...");
 
-	console.log(PL.prettySource(PL.compileToIR(src)));
+	console.log(helios.compile(src, {stage: helios.CompilationStage.Untype}));
+}
+
+function runScript(name, src) {
+    console.log("Running", name, "...");
+
+    helios.run(src);
 }
 
 function compileScript(name, src) {
     console.log("Compiling", name, "...");
 
-	console.log(PL.compilePlutusLightProgram(src));
+	console.log(helios.compilePlutusLightProgram(src));
 }
 
 function compileData(name, src, data) {
 	console.log("Compiling datum for", name, "...");
 
-	console.log(PL.compilePlutusLightData(src, data));
+	console.log(helios.compilePlutusLightData(src, data));
 }
 
 function main() {
-    PL.debug(true);
-
-	compileScriptToIR("always-succeeds", ALWAYS_SUCCEEDS);
+    helios.debug(true);
+    
+    compileScriptToIR("always-succeeds", ALWAYS_SUCCEEDS);
+    
+    runScript("always-succeeds", ALWAYS_SUCCEEDS);
 
     return;//
 
@@ -292,7 +301,7 @@ function main() {
 
 	compileScript("vesting", VESTING);
 
-	//console.log(PL.compileUntypedPlutusLight(UNTYPED_UNDATA));
+	//console.log(helios.compileUntypedPlutusLight(UNTYPED_UNDATA));
 
     compileScript("minting", MINTING_POLICY);
 
