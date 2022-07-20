@@ -8552,6 +8552,26 @@ function compileInternal(typedSrc, config) {
 	return plutusCoreProgram.serialize();
 }
 
+export function getName(src) {
+	let name = UserError.catch(function() {
+		let ts = tokenize(src);
+
+		if (ts.length == 0) {
+			return "untitled";
+		}
+
+		let [_, name] = buildScriptPurpose(ts);
+
+		return name.value;
+	});
+
+	if (name == null || name == undefined) {
+		return "untitled";
+	} else {
+		return name;
+	}
+}
+
 // config members:
 //    templateParameters
 //    stage (defaults to CompilationStage.Final)
