@@ -8552,12 +8552,13 @@ function compileInternal(typedSrc, config) {
 	return plutusCoreProgram.serialize();
 }
 
-export function getName(src) {
+// if any error is caught defaultName is returned
+export function extractScriptName(src, defaultName) {
 	let name = UserError.catch(function() {
 		let ts = tokenize(src);
 
 		if (ts.length == 0) {
-			return "untitled";
+			return defaultName;
 		}
 
 		let [_, name] = buildScriptPurpose(ts);
@@ -8566,7 +8567,7 @@ export function getName(src) {
 	});
 
 	if (name == null || name == undefined) {
-		return "untitled";
+		return defaultName;
 	} else {
 		return name;
 	}
