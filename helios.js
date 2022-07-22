@@ -564,6 +564,10 @@ class Site {
 	referenceError(info = "") {
 		throw UserError.referenceError(this.src_, this.pos_, info);
 	}
+
+	getFilePos() {
+		return this.src_.posToColAndLine(this.pos_);
+	}
 }
 
 
