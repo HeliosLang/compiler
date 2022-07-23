@@ -422,6 +422,40 @@ class BitWriter {
 	}
 }
 
+class UntypedWriter {
+	constructor() {
+		this.parts_ = []; // pairs of [site, string]
+	}
+
+	write(part, site = null) {
+		this.parts_.push([site, part]);
+	}
+
+	prepend(part, site = null) {
+		this.parts_.unshift([site, part]);
+	}
+
+	// returns [codeMap, untypedSrc], codeMap: [[pos, site], ...]
+	finalize() {
+		let partSrcs = [];
+		let codeMap = [];
+
+		let pos = 0;
+		for (let [origSite, rawPartSrc] of this.parts_) {
+			if (origSite != null) {
+				codeMap.push([pos, origSite]);
+			}
+
+			let partSrc = rawPartSrc.replaceAll("\t", TAB);
+
+			pos += partSrc.length;
+			partSrcs.push(partSrc);
+		}
+
+		return [codeMap, partSrcs.join("")];
+	}
+}
+
 class Source {
 	constructor(raw) {
 		this.raw_ = assertDefined(raw);
@@ -544,18 +578,31 @@ class Site {
 	constructor(src, pos) {
 		this.src_ = src;
 		this.pos_ = pos;
+		this.codeMapSite_ = null;
 	}
 
 	static dummy() {
 		return new Site(new Source(""), 0);
 	}
 
+	get src() {
+		return this.src_;
+	}
+
+	get pos() {
+		return this.pos_;
+	}
+
 	get line() {
 		return this.src_.posToLine(this.pos_);
 	}
 
-	get src() {
-		return this.src_;
+	get codeMapSite() {
+		return this.codeMapSite_;
+	}
+
+	setCodeMapSite(site) {
+		this.codeMapSite_ = site;
 	}
 
 	syntaxError(info = "") {
@@ -2343,12 +2390,14 @@ class UnitLiteral extends PrimitiveLiteral {
 //////////////////////////
 
 class Tokenizer {
-	constructor(src) {
+	constructor(src, codeMap = null) {
 		assert(src instanceof Source);
 
 		this.src_ = src;
 		this.pos_ = 0;
 		this.ts_  = null; // set to empty to list at start of tokenize()
+		this.codeMap_ = codeMap; // can be a list of pairs [pos, site in another source]
+		this.codeMapPos_ = 0; // not used of codeMap == null
 	}
 
 	incrPos() {
@@ -2362,6 +2411,18 @@ class Tokenizer {
 
 	get currentSite() {
 		return new Site(this.src_, this.pos_);
+	}
+
+	pushToken(t) {
+		this.ts_.push(t);
+
+		if (this.codeMap_ != null && this.codeMapPos_ < this.codeMap_.length) {
+			let pair = (this.codeMap_[this.codeMapPos_]);
+
+			if (pair[0] == t.site.pos) {
+				t.site.setCodeMapSite(pair[1]);
+			}
+		}
 	}
 
 	readChar() {
@@ -2460,9 +2521,9 @@ class Tokenizer {
 		let value = chars.join('');
 
 		if (value == "true" || value == "false") {
-			this.ts_.push(new BoolLiteral(site, value == "true"));
+			this.pushToken(new BoolLiteral(site, value == "true"));
 		} else {
-			this.ts_.push(new Word(site, value));
+			this.pushToken(new Word(site, value));
 		}
 	}
 
@@ -2471,13 +2532,13 @@ class Tokenizer {
 		let c = this.readChar();
 
 		if (c == '\0') {
-			this.ts_.push(new Symbol(site, '/'));
+			this.pushToken(new Symbol(site, '/'));
 		} else if (c == '/') {
 			this.readSingleLineComment();
 		} else if (c == '*') {
 			this.readMultiLineComment(site);
 		} else {
-			this.ts_.push(new Symbol(site, '/'));
+			this.pushToken(new Symbol(site, '/'));
 			this.unreadChar();
 		}
 	}
@@ -2511,7 +2572,7 @@ class Tokenizer {
 		let c = this.readChar();
 
 		if (c == '\0') {
-			this.ts_.push(new IntLiteral(site, 0));
+			this.pushToken(new IntLiteral(site, 0));
 		} else if (c == 'b') {
 			this.readBinaryInteger(site);
 		} else if (c == 'o') {
@@ -2523,7 +2584,7 @@ class Tokenizer {
 		} else if (c >= '0' && c <= '9') {
 			this.readDecimalInteger(site, c);
 		} else {
-			this.ts_.push(new IntLiteral(site, 0n));
+			this.pushToken(new IntLiteral(site, 0n));
 			this.unreadChar();
 		}
 	}
@@ -2558,7 +2619,7 @@ class Tokenizer {
 			c = this.readChar();
 		}
 
-		this.ts_.push(new IntLiteral(site, BigInt(chars.join(''))));
+		this.pushToken(new IntLiteral(site, BigInt(chars.join(''))));
 	}
 
 	readRadixInteger(site, prefix, valid) {
@@ -2583,7 +2644,7 @@ class Tokenizer {
 			c = this.readChar();
 		}
 
-		this.ts_.push(new IntLiteral(site, BigInt(prefix + chars.join(''))));
+		this.pushToken(new IntLiteral(site, BigInt(prefix + chars.join(''))));
 	}
 
 	readByteArray(site) {
@@ -2604,7 +2665,7 @@ class Tokenizer {
 
 		let bytes = hexToBytes(chars.join(''));
 
-		this.ts_.push(new ByteArrayLiteral(site, bytes));
+		this.pushToken(new ByteArrayLiteral(site, bytes));
 	}
 
 	readString(site) {
@@ -2647,7 +2708,7 @@ class Tokenizer {
 			c = this.readChar();
 		}
 
-		this.ts_.push(new StringLiteral(site, chars.join('')));
+		this.pushToken(new StringLiteral(site, chars.join('')));
 	}
 
 	readSymbol(site, c0) {
@@ -2675,7 +2736,7 @@ class Tokenizer {
 			parseSecondChar('>');
 		}
 
-		this.ts_.push(new Symbol(site, chars.join('')));
+		this.pushToken(new Symbol(site, chars.join('')));
 	}
 
 	static groupFields(ts) {
