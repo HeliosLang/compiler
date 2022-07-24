@@ -69,7 +69,7 @@
 //                                          PrimitiveLiteral, IntLiteral, BoolLiteral, 
 //                                          StringLiteral, ByteArrayLiteral, UnitLiteral
 //
-//     6. Tokenization                      Tokenizer, tokenize, tokenizeUntyped
+//     6. Tokenization                      Tokenizer, tokenize, tokenizeIR
 //
 //     7. Type evaluation objects           GeneralizedValue, Type, AnyType, DataType, BuiltinType, 
 //                                          UserType, FuncType, Value, DataValue, FuncValue, 
@@ -120,11 +120,11 @@
 //
 //    13. Builtin low-level functions       RawFunc, makeRawFunctions, wrapWithRawFunctions
 //
-//    14. Untyped AST objects               UntypedScope, UntypedFuncExpr, UntypedErrorCallExpr,
-//                                          UntypedCallExpr, UntypedVariable
+//    14. IR AST objects               IRScope, IRFuncExpr, IRErrorCallExpr,
+//                                          IRCallExpr, IRVariable
 //
-//    15. Untyped AST build functions       buildUntypedProgram, buildUntypedExpr, 
-//                                          buildUntypedFuncExpr
+//    15. IR AST build functions       buildIRProgram, buildIRExpr, 
+//                                          buildIRFuncExpr
 //
 //    16. Compilation                       preprocess, CompilationStage, compile
 //     
@@ -234,6 +234,12 @@ function assertDefined(val, msg = "unexpected undefined value") {
 	}
 
 	return val;
+}
+
+function assertString(s) {
+	assert((typeof s) == "string" || s instanceof String);
+
+	return s;
 }
 
 // integer division
@@ -422,26 +428,69 @@ class BitWriter {
 	}
 }
 
-class UntypedWriter {
-	constructor() {
-		this.parts_ = []; // pairs of [site, string]
+// TODO: rename IR everywhere to IR
+class IR {
+	constructor(src, site = null) {
+		this.src_ = src;
+		this.site_ = site;
 	}
 
-	write(part, site = null) {
-		this.parts_.push([site, part]);
+	get src() {
+		return this.src_;
 	}
 
-	prepend(part, site = null) {
-		this.parts_.unshift([site, part]);
+	get site() {
+		return this.site_;
 	}
 
-	// returns [codeMap, untypedSrc], codeMap: [[pos, site], ...]
-	finalize() {
+	static join(lst, sep) {
+		if (lst instanceof IR) {
+			return lst;
+		} else {
+			assert(lst instanceof Array);
+
+			let result = [];
+			for (let i = 0; i < lst.length; i++) {
+				result.push(lst[i]);
+				if (i < lst.length - 1) {
+					result.push(new IR(sep));
+				}
+			}
+
+			return result;
+		}
+	}
+
+	static flatten(lst) {
+		if (lst instanceof IR) {
+			return [lst];
+		}
+
+		assert(lst instanceof Array);
+
+		let result = [];
+		for (let item of lst) {
+			if (item instanceof Array) {
+				result = result.concat(IR.flatten(item));
+			} else {
+				assert(item instanceof IR, `${typeof item} ${item}`);
+				result.push(item);
+			}
+		}
+
+		return result;
+	}
+	
+	// returns [codeMap, rawIR], codeMap: [[pos, site], ...]
+	static generateSource(lst) {
+		let parts = IR.flatten(lst);
 		let partSrcs = [];
 		let codeMap = [];
 
 		let pos = 0;
-		for (let [origSite, rawPartSrc] of this.parts_) {
+		for (let part of parts) {
+			let rawPartSrc = part.src;
+			let origSite = part.site;
 			if (origSite != null) {
 				codeMap.push([pos, origSite]);
 			}
@@ -1796,8 +1845,10 @@ class IntData {
 		return this.value_.toString();
 	}
 
-	toUntyped() {
-		return `__core__iData(${this.value_.toString()})`;
+	// wrapped in IR so some parts can do codemapping by adding Site
+	// force returning IR so it is clear that string interpolation can't be used for any IR children
+	toIR() {
+		return new IR(`__core__iData(${this.value_.toString()})`);
 	}
 
 	// returns string, not js object, because of unbounded integers 
@@ -1829,8 +1880,8 @@ class ByteArrayData {
 		return `#${this.toHex()}`;
 	}
 
-	toUntyped() {
-		return `__core__bData(#${this.toHex()})`;
+	toIR() {
+		return new IR(`__core__bData(#${this.toHex()})`);
 	}
 
 	toSchemaJSON() {
@@ -1851,13 +1902,13 @@ class ListData {
 		return `[${this.items_.map(item => item.toString()).join(", ")}]`;
 	}
 
-	toUntyped() {
-		let lst = "__core__mkNilData(())";
+	toIR(writer) {
+		let lst = new IR("__core__mkNilData(())");
 		for (let i = this.items_.length - 1; i >= 0; i--) {
-			lst = `__core__mkCons(${this.items_[i].toUntyped()}, ${lst})`;
+			lst = [new IR("__core__mkCons("), this.items_[i].toIR(), new IR(", "), lst, new IR(")")];
 		}
 
-		return `__core__listData(${lst})`;
+		return [new IR("__core__listData("), lst, new IR(")")];
 	}
 
 	toSchemaJSON() {
@@ -1879,17 +1930,17 @@ class MapData {
 		return `[${this.pairs_.map(([fst, snd]) => `[${fst.toString()}, ${snd.toString()}]`).join(", ")}]`;
 	}
 
-	toUntyped() {
-		let lst = "__core__mkNilPairData(())";
+	toIR() {
+		let lst = new IR("__core__mkNilPairData(())");
 
 		for (let i = this.pairs_.length - 1; i >= 0; i--) {
-			let a = this.pairs_[i][0].toUntyped();
-			let b = this.pairs_[i][1].toUntyped();
+			let a = this.pairs_[i][0].toIR();
+			let b = this.pairs_[i][1].toIR();
 
-			lst = `__core__mkCons(__core__mkPairData(${a}, ${b}), ${lst})`;
+			lst = [new IR("__core__mkCons(__core__mkPairData("), a, new IR(", "), b, new IR(", "), new IR(")"), new IR(", "), lst, new IR(")")];
 		}
 
-		return `__core__mapData(${lst})`;
+		return [new IR("__core__mapData("), lst, new IR(")")];
 	}
 
 	toSchemaJSON() {
@@ -1917,13 +1968,13 @@ class ConstrData {
 		return parts.join(", ");
 	}
 
-	toUntyped() {
-		let lst = "__core__mkNilData(())";
+	toIR() {
+		let lst = new IR("__core__mkNilData(())");
 		for (let i = this.fields_.length - 1; i >= 0; i--) {
-			lst = `__core__mkCons(${this.fields_[i].toUntyped()}, ${lst})`
+			lst = [new IR("__core__mkCons("), this.fields_[i].toIR(), new IR(", "), lst, new IR(")")];
 		}
 
-		return `__core__constrData(${this.index_.toString()}, ${lst})`
+		return [new IR("__core__constrData("), this.index_.toString(), new IR(", "), lst, new IR(")")];
 	}
 
 	toSchemaJSON() {
@@ -2282,8 +2333,8 @@ class IntLiteral extends PrimitiveLiteral {
 		return this.value_.toString();
 	}
 
-	toUntyped() {
-		return this.toString();
+	toIR() {
+		return new IR(this.toString());
 	}
 
 	toPlutusCore() {
@@ -2307,8 +2358,8 @@ class BoolLiteral extends PrimitiveLiteral {
 		return this.value_ ? "true" : "false";
 	}
 
-	toUntyped() {
-		return this.toString();
+	toIR() {
+		return new IR(this.toString());
 	}
 
 	toPlutusCore() {
@@ -2331,8 +2382,8 @@ class ByteArrayLiteral extends PrimitiveLiteral {
 		return '#' + bytesToHex(this.bytes_);
 	}
 
-	toUntyped() {
-		return this.toString();
+	toIR() {
+		return new IR(this.toString());
 	}
 
 	toPlutusCore() {
@@ -2356,8 +2407,8 @@ class StringLiteral extends PrimitiveLiteral {
 		return `\"${this.value_.toString()}\"`;
 	}
 
-	toUntyped() {
-		return this.toString();
+	toIR() {
+		return new IR(this.toString());
 	}
 
 	toPlutusCore() {
@@ -2824,8 +2875,12 @@ function tokenize(rawSrc) {
 }
 
 // same tokenizer can be used for untyped Helios
-function tokenizeUntyped(rawSrc) {
-	return tokenize(rawSrc);
+function tokenizeIR(rawSrc, codeMap) {
+	let src = new Source(rawSrc);
+
+	let tokenizer = new Tokenizer(src, codeMap);
+	
+	return tokenizer.tokenize();
 }
 
 
@@ -2941,7 +2996,7 @@ class DataType extends Type {
 	}
 }
 
-// any builtin type that inherits from BuiltinType must implement toUntyped()
+// any builtin type that inherits from BuiltinType must implement get path()
 class BuiltinType extends DataType {
 	constructor() {
 		super();
@@ -2976,8 +3031,12 @@ class BuiltinType extends DataType {
 	}
 
 	// return base of type
-	toUntyped() {
+	get path() {
 		throw new Error("not implemented")
+	}
+
+	toIR() {
+		throw new Error("use path getter instead");
 	}
 }
 
@@ -3330,7 +3389,7 @@ class GlobalScope {
 			name = new Word(name);
 		}
 
-		assert(value.toUntyped != undefined);
+		assert(value.toIR != undefined);
 
 		this.values_.push([name, value]);
 	}
@@ -3455,12 +3514,11 @@ class TopScope extends Scope {
 
 		let res = inner;
 		for (let key of keys) {
-			res = `(${key}) -> {
-${res}
-}(
-	/*${key}*/
-	${map.get(key)}
-)`;
+			let definition = map.get(key);
+			
+			res = [new IR("("), new IR(key), new IR(") -> {\n"),
+				res, new IR(`\n}(\n${TAB}/*${key}*/\n${TAB}`), definition,
+				new IR("\n)")];
 		}
 
 		return res;
@@ -3471,7 +3529,7 @@ ${res}
 		let map = new Map(); // string -> string
 
 		for (let pair of this.values_) {
-			pair[1].toUntyped(map);
+			pair[1].toIR(map);
 		}
 
 		return TopScope.wrapWithDefinitions(inner, map);
@@ -3526,7 +3584,7 @@ class TypeRefExpr extends TypeExpr {
 		return type;
 	}
 
-	toUntyped() {
+	get path() {
 		return `__${this.name_.toString()}`;
 	}
 }
@@ -3558,7 +3616,7 @@ class TypePathExpr extends TypeExpr {
 		return memberType;
 	}
 
-	toUntyped() {
+	get path() {
 		return `__${this.baseName_.toString()}__${this.memberName_.toString()}`;
 	}
 }
@@ -3665,7 +3723,7 @@ class ValueExpr extends Expr {
 	}
 
 	// ValueExpr should be indented to make debugging of the IR easier
-	toUntyped(indent = "") {
+	toIR(indent = "") {
 		throw new Error("not implemented");
 	}
 }
@@ -3720,8 +3778,14 @@ class AssignExpr extends ValueExpr {
 		return downstreamVal;
 	}
 
-	toUntyped(indet = "") {
-		return `(${this.name_.toString()}) -> {${indent}${TAB}${this.downstreamExpr_.toUntyped(indent + TAB)}\n${indent}}(${this.upstreamExpr_.toUntyped(indent)})`;
+	toIR(indent = "") {
+		return [
+			new IR(`(${this.name_.toString()}) -> {${indent}${TAB}`),
+			this.downstreamExpr_.toIR(indent + TAB),
+			new IR(`\n${indent}}(`),
+			this.upstreamExpr_.toIR(indent),
+			new IR(")")
+		];
 	}
 }
 
@@ -3754,8 +3818,14 @@ class PrintExpr extends Expr {
 		return this.downstreamExpr_.eval(scope);
 	}
 
-	toUntyped(indent = "") {
-		return `__core__trace(__helios__common__unStringData(${this.msgExpr_.toUntyped(indent)}), () -> {\n${indent}${TAB}${this.downstreamExpr_.toUntyped(indent + TAB)}\n${indent}})()`;
+	toIR(indent = "") {
+		return [
+			new IR("__core__trace(__helios__common__unStringData("),
+			this.msgExpr_.toIR(indent),
+			new IR(`), () -> {\n${indent}${TAB}`),
+			this.downstreamExpr_.toIR(indent + TAB),
+			new IR(`\n${indent}})()`)
+		];
 	}
 }
 
@@ -3784,16 +3854,16 @@ class PrimitiveLiteralExpr extends Expr {
 		}
 	}
 
-	toUntyped(indent = "") {
-		let inner = this.primitive_.toUntyped(indent);
+	toIR(indent = "") {
+		let inner = this.primitive_.toIR(indent);
 		if (this.primitive_ instanceof IntLiteral) {
-			return `__core__iData(${inner})`;
+			return [new IR("__core__iData("), inner, new IR(")")];
 		} else if (this.primitive_ instanceof BoolLiteral) {
-			return `__helios__common__boolData(${inner})`;
+			return [new IR("__helios__common__boolData("), inner, new IR(")")];
 		} else if (this.primitive_ instanceof StringLiteral) {
-			return `__helios__common__stringData(${inner})`;
+			return [new IR("__helios__common__stringData("), inner, new IR(")")];
 		} else if (this.primitive_ instanceof ByteArrayLiteral) {
-			return `__core__bData(${inner})`;
+			return [new IR("__core__bData("), inner, new IR(")")];
 		} else {
 			throw new Error("unhandled primitive type");
 		}
@@ -3822,8 +3892,8 @@ class StructLiteralField {
 		return this.value_.eval(scope);
 	}
 
-	toUntyped(indent = "") {
-		return toData(this.value_.toUntyped(indent), this.value_.evalType());
+	toIR(indent = "") {
+		return this.value_.toIR(indent);
 	}
 }
 
@@ -3863,18 +3933,28 @@ class StructLiteralExpr extends Expr {
 		}
 	}
 
-	toUntyped(indent = "") {
-		let res = "__core__mkNilData(())";
+	toIR(indent = "") {
+		let res = new IR("__core__mkNilData(())");
 
 		let fields = this.fields_.slice().reverse();
 
 		for (let f of fields) {
-			res = `__core__mkCons(${f.toUntyped(indent)}, ${res})`;
+			res = [
+				new IR("__core__mkCons("),
+				f.toIR(indent),
+				new IR(", "),
+				res,
+				new IR(")")
+			];
 		}
 
 		let idx = this.constrIndex_;
 
-		return `__core__constrData(${idx.toString()}, ${res})`;
+		return [
+			new IR(`__core__constrData(${idx.toString()}, `),
+			res,
+			new IR(")")
+		];
 	}
 }
 
@@ -3916,17 +3996,23 @@ class ListLiteralExpr extends Expr {
 		return Value.new(new ListType(itemType));
 	}
 
-	toUntyped(indent = "") {
+	toIR(indent = "") {
 		// unsure if list literals in untyped plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
-		let res = "__core__mkNilData(())";
+		let res = new IR("__core__mkNilData(())");
 
 		// starting from last element, keeping prepending a data version of that item
 
 		for (let i = this.itemExprs_.length - 1; i >= 0; i--) {
-			res = `__core__mkCons(${this.itemExprs_[i].toUntyped(indent)}, ${res})`;
+			res = [
+				new IR("__core__mkCons("),
+				this.itemExprs_[i].toIR(indent),
+				new IR(", "),
+				res,
+				new IR(")")
+			];
 		}
 
-		return `__core__listData(${res})`;
+		return [new IR("__core__listData("), res, new IR(")")];
 	}
 }
 
@@ -3951,8 +4037,8 @@ class NameTypePair {
 		return type;
 	}
 
-	toUntyped() {
-		return this.name_.toString();
+	toIR() {
+		return new IR(this.name_.toString());
 	}
 }
 
@@ -4012,20 +4098,30 @@ class FuncLiteralExpr extends Expr {
 		return this.args_.length > 0 && this.args_[0].name.toString() == "self";
 	}
 
-	toUntypedRecursive(recursiveName, indent = "") {
-		assert(recursiveName != null);
+	argsToIR(recursiveName = null) {
+		let args = this.args_.map(a => a.toIR());
 
-		let args = this.args_.map(a => a.toUntyped());
+		if (recursiveName != null) {
+			args.unshift(new IR(assertString(recursiveName)));
+		}
 
-		args.unshift(recursiveName);
-
-		return `(${args.join(", ")}) -> {\n${indent}${TAB}${this.bodyExpr_.toUntyped(indent + TAB)}\n${indent}}`;
+		return IR.join(args, ", ");
 	}
 
-	toUntyped(indent = "") {
-		let args = this.args_.map(a => a.toUntyped());
-		
-		return `(${args.join(", ")}) -> {\n${indent}${TAB}${this.bodyExpr_.toUntyped(indent + TAB)}\n${indent}}`;
+	toIRRecursive(recursiveName, indent = "") {
+		let argsWithCommas = this.argsToIR(recursiveName);
+
+		return [
+			new IR("("),
+			argsWithCommas,
+			new IR(`) -> {\n${indent}${TAB}`),
+			this.bodyExpr_.toIR(indent + TAB),
+			new IR(`\n${indent}}`),
+		];
+	}
+
+	toIR(indent = "") {
+		return this.toIRRecursive(null, indent);
 	}
 }
 
@@ -4049,8 +4145,8 @@ class ValueRefExpr extends Expr {
 		return val;
 	}
 
-	toUntyped(indent = "") {
-		return this.toString();
+	toIR(indent = "") {
+		return new IR(this.toString());
 	}
 }
 
@@ -4078,8 +4174,8 @@ class ValuePathExpr extends Expr {
 		return memberVal;
 	}
 
-	toUntyped(indent = "") {
-		return `${this.baseTypeExpr_.toUntyped()}__${this.memberName_.toString()}`;
+	toIR(indent = "") {
+		return new IR(`${this.baseTypeExpr_.path}__${this.memberName_.toString()}`);
 	}
 }
 
@@ -4121,9 +4217,13 @@ class UnaryExpr extends Expr {
 		return this.fnVal_.call(this.op_.site, []);
 	}
 
-	toUntyped(indent = "") {
-		let path = this.aType_.toUntyped();
-		return `${path}__${this.translateOp().value}(${this.a_.toUntyped(indent)})()`;
+	toIR(indent = "") {
+		let path = this.aType_.path;
+		return [
+			new IR(`${path}__${this.translateOp().value}(`),
+			this.a_.toIR(indent),
+			new IR(")()")
+		];
 	}
 }
 
@@ -4189,23 +4289,27 @@ class BinaryExpr extends Expr {
 		return this.fnVal_.call(this.op_.site, [b]);
 	}
 
-	toUntyped(indent = "") {
-		let path = this.aType_.toUntyped();
+	toIR(indent = "") {
+		let path = this.aType_.path;
 
 		let op = this.translateOp().value;
 
-		if (op == "__and") {
-			return `${path}__and(
-${indent}${TAB}() -> {${this.a_.toUntyped()}},
-${indent}${TAB}() -> {${this.b_.toUntyped()}}
-${indent})`;
-		} else if (op == "__or") {
-			return `${path}__or(
-${indent}${TAB}() -> {${this.a_.toUntyped()}},
-${indent}${TAB}() -> {${this.b_.toUntyped()}}
-			)`;
+		if (op == "__and" || op == "__or") {
+			return [
+				new IR(`${path}${op}(\n${indent}${TAB}() -> {`),
+				this.a_.toIR(indent + TAB),
+				new IR(`},\n${indent}${TAB}() -> {`),
+				this.b_.toIR(indent + TAB),
+				new IR(`}\n${indent})`)
+			];
 		} else {
-			return `${path}__${this.translateOp().value}(${this.a_.toUntyped(indent)})(${this.b_.toUntyped(indent)})`;
+			return [
+				new IR(`${path}__${this.translateOp().value}(`),
+				this.a_.toIR(indent),
+				new IR(")("),
+				this.b_.toIR(indent),
+				new IR(")")
+			];
 		}
 	}
 }
@@ -4224,8 +4328,8 @@ class ParensExpr extends Expr {
 		return this.expr_.eval(scope);
 	}
 
-	toUntyped(indent = "") {
-		return this.expr_.toUntyped(indent);
+	toIR(indent = "") {
+		return this.expr_.toIR(indent);
 	}
 }
 
@@ -4257,14 +4361,27 @@ class CallExpr extends Expr {
 		return fnVal.call(this.site, argVals);
 	}
 
-	toUntyped(indent = "") {
+	toIR(indent = "") {
 		if (this.recursive_) {
-			let innerArgs = this.argExprs_.map(a => a.toUntyped(indent + TAB));
-			innerArgs.unshift("fn");
-			return `(fn) -> {\n${indent}${TAB}fn(${innerArgs.join(", ")})\n${indent}}(${this.fnExpr_.toUntyped(indent)})`;
+			let innerArgs = this.argExprs_.map(a => a.toIR(indent + TAB));
+			innerArgs.unshift(new IR("fn"));
+
+			return [
+				new IR(`(fn) -> {\n${indent}${TAB}fn(`),
+				IR.join(innerArgs, ", "),
+				new IR(`)\n${indent}}(`),
+				this.fnExpr_.toIR(indent),
+				new IR(")")
+			];
 		} else {
-			let innerArgs = this.argExprs_.map(a => a.toUntyped(indent));
-			return `${this.fnExpr_.toUntyped(indent)}(${innerArgs.join(", ")})`;
+			let innerArgs = this.argExprs_.map(a => a.toIR(indent));
+
+			return [
+				this.fnExpr_.toIR(indent),
+				new IR("("),
+				IR.join(innerArgs, ", "),
+				new IR(")")
+			];
 		}
 	}
 }
@@ -4293,9 +4410,13 @@ class MemberExpr extends Expr {
 		return member;
 	}
 
-	toUntyped(indent = "") {
+	toIR(indent = "") {
 		// members can be functions so, field getters are also encoded as functions for consistency
-		return `${this.baseType_.toUntyped()}__${this.memberName_.toString()}(${this.objExpr_.toUntyped(indent)})`;
+		return [
+			new IR(`${this.baseType_.path}__${this.memberName_.toString()}(`),
+			this.objExpr_.toIR(indent),
+			new IR(")"),
+		];
 	}
 }
 
@@ -4352,18 +4473,30 @@ class IfElseExpr extends Expr {
 		return Value.new(branchType);
 	}
 
-	toUntyped(indent = "") {
+	toIR(indent = "") {
 		let n = this.conditions_.length;
 
 		// each branch actually returns a function to allow deferred evaluation
-		let res = `() -> {${this.branches_[n].toUntyped(indent)}}`;
+		let res = [
+			new IR("() -> {"),
+			this.branches_[n].toIR(indent),
+			new IR("}")
+		];
 
 		// TODO: nice indentation
 		for (let i = n-1; i >= 0; i--) {
-			res = `__core__ifThenElse(__helios__common__unBoolData(${this.conditions_[i].toUntyped(indent)}), () -> {${this.branches_[i].toUntyped(indent)}}, () -> {${res}()})`;
+			res = [
+				new IR("__core__ifThenElse(__helios__common__unBoolData("),
+				this.conditions_[i].toIR(indent),
+				new IR("), () -> {"),
+				this.branches_[i].toIR(indent),
+				new IR("}, () -> {"),
+				res,
+				new IR("()})"),
+			];
 		}
 
-		return res + "()";
+		return [res, new IR("()")];
 	}
 }
 
@@ -4418,10 +4551,12 @@ class SwitchCase extends Token {
 		this.constrIndex_ = caseType.getConstrIndex(this.typeExpr_.site);
 	}
 
-	toUntyped(indent = "") {
-		return `(${this.varName_ != null ? this.varName_.toString() : "_"}) -> {
-${indent}${TAB}${this.bodyExpr_.toUntyped(indent + TAB)}
-${indent}}`;
+	toIR(indent = "") {
+		return [
+			new IR(`(${this.varName_ != null ? this.varName_.toString() : "_"}) -> {\n${indent}${TB}`),
+			this.bodyExpr_.toIR(indent + TAB),
+			new IR(`\n${indent}}`),
+		];
 	}
 }
 
@@ -4439,8 +4574,12 @@ class SwitchDefault extends Token {
 		return this.bodyExpr_.eval(scope);
 	}
 
-	toUntyped(indent = "") {
-		return `(_) -> {\n${indent}${TAB}${this.body_.toUntyped(indent + TAB)}\n${indent}}`;
+	toIR(indent = "") {
+		return [
+			new IR(`(_) -> {\n${indent}${TAB}`),
+			this.body_.toIR(indent + TAB),
+			new IR(`\n${indent}}`)
+		];
 	}
 }
 
@@ -4482,7 +4621,7 @@ class SwitchExpr extends Expr {
 		return Value.new(branchType);
 	}
 
-	toUntyped(indent = "") {
+	toIR(indent = "") {
 		// easier to include default in case
 		let cases = this.cases_.slice();
 		if (this.default_ != null) {
@@ -4492,19 +4631,25 @@ class SwitchExpr extends Expr {
 		let n = cases.length;
 
 		// TODO: nice indentation
-		let res = cases[n-1].toUntyped(indent + TAB + TAB + TAB);
+		let res = cases[n-1].toIR(indent + TAB + TAB + TAB);
 
 		for (let i = n-2; i >= 0; i--) {
-			res = `__core__ifThenElse(__core__equalsInteger(i, ${cases[i].constrIndex.toString()}), () -> {${cases[i].toUntyped(indent + TAB + TAB + TAB)}}, () -> {${res}})()`;
+			res = [
+				new IR(`__core__ifThenElse(__core__equalsInteger(i, ${cases[i].constrIndex.toString()}), () -> {`),
+				cases[i].toIR(indent + TAB + TAB + TAB),
+				new IR(`}, () -> {`),
+				res,
+				new IR(`})()`)
+			];
 		}
 
-		return `(e) -> {
-${indent}${TAB}(
-${indent}${TAB}${TAB}(i) -> {
-${indent}${TAB}${TAB}${TAB}${res}
-${indent}${TAB}${TAB}}(__core__fstPair(__core__unConstrData(e)))
-${indent}${TAB})(e)
-${indent}}(${this.expr_.toUntyped(indent)})`;
+		return [
+			new IR(`(e) -> {\n${indent}${TAB}(\n${indent}${TAB}${TAB}(i) -> {\n${indent}${TAB}${TAB}${TAB}`),
+			res,
+			new IR(`\n${indent}${TAB}${TAB}}(__core__fstPair(__core__unConstrData(e)))\n${indent}${TAB})(e)\n${indent}}(`),
+			this.expr_.toIR(indent),
+			new IR(")"),
+		];
 	}
 }
 
@@ -4572,12 +4717,12 @@ class ConstStatement extends NamedStatement {
 		scope.set(this.name, this.evalInternal(scope));
 	}
 
-	toUntypedInternal() {
-		return this.valueExpr_.toUntyped();
+	toIRInternal() {
+		return this.valueExpr_.toIR();
 	}
 
-	toUntyped(map) {
-		map.set(this.name.toString(), this.toUntypedInternal());
+	toIR(map) {
+		map.set(this.name.toString(), this.toIRInternal());
 	}
 }
 
@@ -4723,23 +4868,25 @@ class DataDefinition extends NamedStatement {
 		}
 	}
 
-	getPath() {
+	get path() {
 		return `__user__${this.name.toString()}`;
 	}
 
-	toUntyped(map) {
+	toIR(map) {
 		for (let i = 0; i < this.fields_.length; i++) {
 			let f = this.fields_[i];
-			let key = `${this.getPath()}__${f.name.toString()}`;
+			let key = `${this.path}__${f.name.toString()}`;
 
-			let inner = `__core__sndPair(self)`;			
+			let inner = new IR("__core__sndPair(self)");			
 			for (let j = 0; j < i; j++) {
-				inner = `__core__tailList(${inner})`;
+				inner = [new IR("__core__tailList("), inner, new IR(")")];
 			}
 
-			let getter = `(self) -> {
-				${fromData(`__core__headList(${inner})`, this.memberTypes_[i])}
-			}`;
+			let getter = [
+				new IR("(self) -> {__core_headList("),
+				inner,
+				new IR(")}"),
+			];
 
 			map.set(key, getter)
 		}
@@ -4747,19 +4894,25 @@ class DataDefinition extends NamedStatement {
 		for (let auto of this.autoMembersUsed_) {
 			switch(auto) {
 				case "serialize":
-					map.set(auto, `(self) -> {
-						() -> {__core__serialiseData(self)}
-					}`);
+					map.set(auto, [
+						new IR("(self) -> {\n"),
+						new IR(`${TAB}() -> {__core__serialiseData(self)}\n`),
+						new IR("}"),
+					]);
 					break;
 				case "__eq":
-					map.set(auto, `(self) -> {
-						(other) -> {__core__equalsData(self, other)}
-					}`);
+					map.set(auto, [
+						new IR("(self) -> {\n"),
+						new IR(`${TAB}(other) -> {__core__equalsData(self, other)}\n`),
+						new IR("}"),
+					]);
 					break;
 				case "__neq":
-					map.set(auto, `(self) -> {
-						(other) -> {__helios__bool____not(__core__equalsData(self, other))}
-					}`);
+					map.set(auto, [
+						new IR("(self) -> {\n"),
+						new IR(`${TAB}(other) -> {__helios__bool____not(__core__equalsData(self, other))}\n`),
+						new IR("}"),
+					]);
 					break;
 				default:
 					throw new Error("unhandled auto member");
@@ -4841,12 +4994,12 @@ class FuncStatement extends NamedStatement {
 	}
 
 	// no need to specify indent, Statement is at top level
-	toUntyped(map) {
+	toIR(map) {
 		let def;
 		if (this.recursive_) {
-			def = this.funcExpr_.toUntypedRecursive(this.name.toString(), TAB);
+			def = this.funcExpr_.toIRRecursive(this.name.toString(), TAB);
 		} else {
-			def = this.funcExpr_.toUntyped(TAB);
+			def = this.funcExpr_.toIR(TAB);
 		}
 
 		map.set(this.name.toString(), def);
@@ -4895,8 +5048,8 @@ class EnumMember extends DataDefinition {
 		this.parent_.maybeSetAutoMember(name, value);
 	}
 
-	getPath() {
-		return `${this.parent_.getPath()}__${this.name.toString()}`;
+	get path() {
+		return `${this.parent_.path}__${this.name.toString()}`;
 	}
 }
 
@@ -5050,28 +5203,32 @@ class EnumStatement extends NamedStatement {
 		}
 	}
 
-	getPath() {
+	get path() {
 		return `__user__${this.name.toString()}`;
 	}
 
-	toUntyped(map) {
+	toIR(map) {
 		for (let pair of this.autoMembers_) {
 			let name = pair[0];
 
 			if (this.autoMembersUsed_.has(name)) {
 				let n = this.members_.length;
-				let inner = `${this.members_[n-1].getPath()}__${name.toString()}`;
+				let inner = new IR(`${this.members_[n-1].path}__${name.toString()}`);
 				for (let i = n-2; i >= 0; i--) {
-					inner = `__core__ifThenElse(__core__equalsInteger(constrIdx, ${i}), ${this.members_[i].getPath()}__${name.toString()}, ${inner})`;
+					inner = [
+						new IR(`__core__ifThenElse(__core__equalsInteger(constrIdx, ${i}), ${this.members_[i].path}__${name.toString()}, `),
+						inner,
+						new IR(`)`),
+					];
 				}
 		
-				let autoDef = `(self) -> {
-					(constrIdx) -> {
-						${inner}
-					}(__core__fstPair(__core__unConstrData(self)))(self)
-				}`;
+				let autoDef = [
+					new IR(`(self) -> {\n${TAB}(constrIdx) -> {\n${TAB}${TAB}`),
+					inner,
+					new IR(`\n${TAB}}(__core__fstPair(__core__unConstrData(self)))(self)\n}`),
+				];
 
-				map.set(`${this.getPath()}__${name}`, autoDef);
+				map.set(`${this.path}__${name}`, autoDef);
 			}
 		}
 	}
@@ -5206,16 +5363,16 @@ class ImplStatement extends Statement {
 	}
 
 	// all members should be used
-	toUntyped(map) {
-		let path = this.typeStatementRef_.getPath();
+	toIR(map) {
+		let path = this.typeStatementRef_.path;
 
 		for (let s of this.statements_) {
 			let key = `${path}__${s.name.toString()}`
 			let value;
 			if (s instanceof FuncStatement) {
-				value = s.toUntypedInternal(key);
+				value = s.toIRInternal(key);
 			} else {
-				value = s.toUntypedInternal();
+				value = s.toIRInternal();
 			}
 
 			map.set(key, value);
@@ -5287,48 +5444,47 @@ class Program {
 		this.haveScriptContext_ = haveScriptContext;
 	}
 
-	toUntyped() {
+	toIR() {
 		let mainArgs = [];
 		let uMainArgs = [];
 		if (this.haveDatum_) {
-			mainArgs.push("datum");
-			uMainArgs.push("datum");
+			mainArgs.push(new IR("datum"));
+			uMainArgs.push(new IR("datum"));
 		} else if (this.purpose_ == ScriptPurpose.Spending) {
-			mainArgs.push("_");
+			mainArgs.push(new IR("_"));
 		}
 
 		if (this.haveRedeemer_) {
-			mainArgs.push("redeemer");
-			uMainArgs.push("redeemer");
+			mainArgs.push(new IR("redeemer"));
+			uMainArgs.push(new IR("redeemer"));
 		} else if (!this.isTest()) { // minting script can also have a redeemer
-			mainArgs.push("_");
+			mainArgs.push(new IR("_"));
 		}
 
 		if (this.haveScriptContext_) {
-			mainArgs.push("ctx");
-			uMainArgs.push("ctx");
+			mainArgs.push(new IR("ctx"));
+			uMainArgs.push(new IR("ctx"));
 		} else if (!this.isTest()) {
-			mainArgs.push("_");
+			mainArgs.push(new IR("_"));
 		}
 
 		// don't need to specify TAB because it is at top level
-		let res = `    /*entry point*/
-	(${mainArgs.join(", ")}) -> {
-		__core__ifThenElse(
-			__helios__common__unBoolData(main(${uMainArgs.join(", ")})),
-			() -> {()},
-			() -> {__core__error()}
-		)()
-	}`;
+		let res = [
+			new IR(`${TAB}/*entry point*/\n${TAB}(`),
+			IR.join(mainArgs, ","),
+			new IR(`) -> {\n${TAB}${TAB}__core__ifThenElse(\n${TAB}${TAB}${TAB}__helios__common__unBoolData(main(`),
+			IR.join(uMainArgs, ","),
+			new IR(`)),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error()}\n${TAB}${TAB})()\n${TAB}}`),
+		];
 
 		let map = new Map(); // string -> string
 		for (let statement of this.statements_) {
-			statement.toUntyped(map);
+			statement.toIR(map);
 		}
 
 		// builtin functions are added when untyped program is built
 		// also replace all tabs with four spaces
-		return wrapWithRawFunctions(TopScope.wrapWithDefinitions(res, map)).replaceAll("\t", TAB);
+		return wrapWithRawFunctions(TopScope.wrapWithDefinitions(res, map));
 	}
 }
 
@@ -6116,7 +6272,7 @@ class IntType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__int";
 	}
 }
@@ -6155,7 +6311,7 @@ class BoolType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__bool";
 	}
 }
@@ -6180,7 +6336,7 @@ class StringType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__string";
 	}
 }
@@ -6212,7 +6368,7 @@ class ByteArrayType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__bytearray";
 	}
 }
@@ -6280,7 +6436,7 @@ class ListType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__list";
 	}
 }
@@ -6391,7 +6547,7 @@ class MapType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__map";
 	}
 }
@@ -6428,7 +6584,7 @@ class OptionType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__option";
 	}
 }
@@ -6470,7 +6626,7 @@ class OptionSomeType extends BuiltinType {
 		return 0;
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__option__some";
 	}
 }
@@ -6510,7 +6666,7 @@ class OptionNoneType extends BuiltinType {
 		return 1;
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__option__none";
 	}
 }
@@ -6538,7 +6694,7 @@ class HashType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__hash"
 	}
 }
@@ -6593,7 +6749,7 @@ class ScriptContextType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__scriptcontext";
 	}
 }
@@ -6644,7 +6800,7 @@ class TxType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__tx";
 	}
 }
@@ -6654,7 +6810,7 @@ class TxIdType extends BuiltinType {
 		return "TxId";
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__txid";
 	}
 }
@@ -6675,7 +6831,7 @@ class TxInputType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__txinput";
 	}
 }
@@ -6698,7 +6854,7 @@ class TxOutputType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__txoutput";
 	}
 }
@@ -6717,7 +6873,7 @@ class TxOutputIdType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__txoutputid";
 	}
 }
@@ -6738,7 +6894,7 @@ class AddressType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__address";
 	}
 }
@@ -6759,7 +6915,7 @@ class CredentialType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__credential";
 	}
 }
@@ -6794,7 +6950,7 @@ class CredentialPubKeyType extends BuiltinType {
 		return 0;
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__credential__pubkey";
 	}
 }
@@ -6829,7 +6985,7 @@ class CredentialValidatorType extends BuiltinType {
 		return 1;
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__credential__validator";
 	}
 }
@@ -6839,7 +6995,7 @@ class StakingCredentialType extends BuiltinType {
 		return "StakingCredential";
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__stakingcredential";
 	}
 }
@@ -6876,7 +7032,7 @@ class TimeType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__time";
 	}
 }
@@ -6914,7 +7070,7 @@ class DurationType extends BuiltinType {
 		}
 	}
 	
-	toUntyped() {
+	get path() {
 		return "__helios__duration";
 	}
 }
@@ -6933,7 +7089,7 @@ class TimeRangeType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__timerange";
 	}
 }
@@ -6954,7 +7110,7 @@ class AssetClassType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__assetclass";
 	}
 }
@@ -6996,7 +7152,7 @@ class MoneyValueType extends BuiltinType {
 		}
 	}
 
-	toUntyped() {
+	get path() {
 		return "__helios__value";
 	}
 }
@@ -7036,11 +7192,12 @@ class RawFunc {
 				db.get(dep).load(db, dst);
 			}
 
-			dst.set(this.name_, this.definition_);
+			dst.set(this.name_, new IR(this.definition_.replaceAll("\t", TAB)));
 		}
 	}
 }
 
+// only need to wrap these source in IR right at the very end
 function makeRawFunctions() {
 	let db = new Map();
 
@@ -8434,10 +8591,12 @@ function makeRawFunctions() {
 	return db;
 }
 
-function wrapWithRawFunctions(src) {
+function wrapWithRawFunctions(ir) {
 	let db = makeRawFunctions();
 
 	let re = new RegExp("__helios[a-zA-Z0-9_]*", "g");
+
+	let [_, src] = IR.generateSource(ir);
 
 	let matches = src.match(re);
 
@@ -8457,15 +8616,15 @@ function wrapWithRawFunctions(src) {
 		}
 	}
 
-	return TopScope.wrapWithDefinitions(src, map);
+	return TopScope.wrapWithDefinitions(ir, map);
 }
 
 
 //////////////////////////////////
-// Section 14: Untyped AST objects
+// Section 14: IR AST objects
 //////////////////////////////////
 
-class UntypedScope {
+class IRScope {
 	constructor(parent, name) {
 		this.parent_ = parent;
 		this.name_ = name;
@@ -8506,7 +8665,7 @@ class UntypedScope {
 	}
 }
 
-class UntypedExpr {
+class IRExpr {
 	constructor(site) {
 		assert(site != undefined && site instanceof Site);
 		this.site_ = site;
@@ -8517,7 +8676,7 @@ class UntypedExpr {
 	}
 }
 
-class UntypedFuncExpr extends UntypedExpr {
+class IRFuncExpr extends IRExpr {
 	constructor(site, argNames, body) {
 		super(site);
 		this.argNames_ = argNames;
@@ -8534,10 +8693,10 @@ class UntypedFuncExpr extends UntypedExpr {
 
 	link(scope) {
 		if (this.argNames_.length == 0) {
-			scope = new UntypedScope(scope, "");
+			scope = new IRScope(scope, "");
 		} else {
 			for (let argName of this.argNames_) {
-				scope = new UntypedScope(scope, argName);
+				scope = new IRScope(scope, argName);
 			}
 		}
 
@@ -8560,7 +8719,7 @@ class UntypedFuncExpr extends UntypedExpr {
 	}
 }
 
-class UntypedErrorCallExpr extends UntypedExpr {
+class IRErrorCallExpr extends IRExpr {
 	constructor(site) {
 		super(site);
 	}
@@ -8577,7 +8736,7 @@ class UntypedErrorCallExpr extends UntypedExpr {
 	}
 }
 
-class UntypedCallExpr extends UntypedExpr {
+class IRCallExpr extends IRExpr {
 	constructor(lhs, argExprs, parensSite) {
 		super(lhs.site);
 		assert(lhs != null);
@@ -8591,16 +8750,16 @@ class UntypedCallExpr extends UntypedExpr {
 	}
 
 	isBuiltin() {
-		if (this.lhs_ instanceof UntypedVariable) {
-			return UntypedScope.isBuiltin(this.lhs_.name, true);
+		if (this.lhs_ instanceof IRVariable) {
+			return IRScope.isBuiltin(this.lhs_.name, true);
 		} else {
 			return false;
 		}
 	}
 
 	builtinForceCount() {
-		if (this.lhs_ instanceof UntypedVariable && UntypedScope.isBuiltin(this.lhs_.name)) {
-			let i = UntypedScope.findBuiltin(this.lhs_.name);
+		if (this.lhs_ instanceof IRVariable && IRScope.isBuiltin(this.lhs_.name)) {
+			let i = IRScope.findBuiltin(this.lhs_.name);
 
 			let info = PLUTUS_CORE_BUILTINS[i];
 			return info.forceCount;
@@ -8646,7 +8805,7 @@ class UntypedCallExpr extends UntypedExpr {
 	}
 }
 
-class UntypedVariable extends UntypedExpr {
+class IRVariable extends IRExpr {
 	constructor(name) {
 		super(name.site);
 		assert(name.toString() != "_");
@@ -8677,13 +8836,13 @@ class UntypedVariable extends UntypedExpr {
 
 
 //////////////////////////////////////////
-// Section 15: Untyped AST build functions
+// Section 15: IR AST build functions
 //////////////////////////////////////////
 
-function buildUntypedProgram(ts) {
-	let expr = buildUntypedExpr(ts);
+function buildIRProgram(ts) {
+	let expr = buildIRExpr(ts);
 
-	assert(expr instanceof UntypedFuncExpr || expr instanceof UntypedCallExpr);
+	assert(expr instanceof IRFuncExpr || expr instanceof IRCallExpr);
 
 	let scope = null;
 	expr.link(scope);
@@ -8691,7 +8850,7 @@ function buildUntypedProgram(ts) {
 	return expr;
 }
 
-function buildUntypedExpr(ts) {
+function buildIRExpr(ts) {
 	let expr = null;
 
 	while (ts.length > 0) {
@@ -8701,11 +8860,11 @@ function buildUntypedExpr(ts) {
 			assert(expr == null);
 
 			ts.unshift(t);
-			expr = buildUntypedFuncExpr(ts);
+			expr = buildIRFuncExpr(ts);
 		} else if (t.isGroup("(")) {
 			if (expr == null) {
 				if(t.fields.length == 1) {
-					expr = buildUntypedExpr(t.fields[0])
+					expr = buildIRExpr(t.fields[0])
 				} else if (t.fields.length == 0) {
 					expr = new UnitLiteral(t.site);
 				} else {
@@ -8714,10 +8873,10 @@ function buildUntypedExpr(ts) {
 			} else {
 				let args = [];
 				for (let f of t.fields) {
-					args.push(buildUntypedExpr(f));
+					args.push(buildIRExpr(f));
 				}
 
-				expr = new UntypedCallExpr(expr, args, t.site);
+				expr = new IRCallExpr(expr, args, t.site);
 			}
 		} else if (t.isSymbol("-")) {
 			// only makes sense next to IntegerLiterals
@@ -8740,10 +8899,10 @@ function buildUntypedExpr(ts) {
 			assert(expr == null);
 			let parens = ts.shift().assertGroup("(");
 			assert(parens.fields.length == 0);
-			expr = new UntypedErrorCallExpr(t.site);
+			expr = new IRErrorCallExpr(t.site);
 		} else if (t.isWord()) {
 			assert(expr == null);
-			expr = new UntypedVariable(t);
+			expr = new IRVariable(t);
 		} else {
 			throw new Error("unhandled untyped token " + t.toString());
 		}
@@ -8753,7 +8912,7 @@ function buildUntypedExpr(ts) {
 	return expr;
 }
 
-function buildUntypedFuncExpr(ts) {
+function buildIRFuncExpr(ts) {
 	let parens = ts.shift().assertGroup("(");
 	ts.shift().assertSymbol("->");
 	let braces = ts.shift().assertGroup("{");
@@ -8770,9 +8929,9 @@ function buildUntypedFuncExpr(ts) {
 		braces.typeError("empty function body")
 	}
 
-	let bodyExpr = buildUntypedExpr(braces.fields[0]);
+	let bodyExpr = buildIRExpr(braces.fields[0]);
 
-	return new UntypedFuncExpr(parens.site, argNames, bodyExpr)
+	return new IRFuncExpr(parens.site, argNames, bodyExpr)
 }
 
 
@@ -8844,15 +9003,17 @@ function compileInternal(typedSrc, config) {
 
 	let globalScope = GlobalScope.new();
 	program.eval(globalScope);
-	let untypedSrc = program.toUntyped();
+	let ir = program.toIR();
+
+	let [codeMap, irSrc] = IR.generateSource(ir);
 
 	if (config.stage == CompilationStage.Untype) {
-		return untypedSrc;
+		return irSrc;
 	}
 
-	let untypedTokens = tokenizeUntyped(untypedSrc);
-	let untypedProgram = buildUntypedProgram(untypedTokens);
-	let plutusCoreProgram = new PlutusCoreProgram(untypedProgram.toPlutusCore());
+	let irTokens = tokenizeIR(irSrc, codeMap);
+	let irProgram = buildIRProgram(irTokens);
+	let plutusCoreProgram = new PlutusCoreProgram(irProgram.toPlutusCore());
 
 	if (config.stage == CompilationStage.PlutusCore) {
 		return plutusCoreProgram;
