@@ -756,6 +756,8 @@ class PlutusCoreValue {
 class PlutusCoreRTE {
 	constructor(callbacks) {
 		this.callbacks_ = callbacks;
+		this.notifyCalls_ = true;
+		this.marker_ = null;
 	}
 
 	get(i) {
@@ -766,16 +768,33 @@ class PlutusCoreRTE {
 		return new PlutusCoreStack(this, value, valueName);
 	}
 
-	print(msg) {
+	async print(msg) {
 		if (this.callbacks_.onPrint != undefined) {
-			this.callbacks_.onPrint(msg);
+			await this.callbacks_.onPrint(msg);
 		}
 	}
 
 	// `stack` here is actually a lists of pairs, not a regular stack
-	async notify(site, rawStack) {
-		if (this.callbacks_.onNotify != undefined) {
-			await this.callbacks_.onNotify(site, rawStack);
+	async startCall(site, rawStack) {
+		if (this.notifyCalls_ && this.callbacks_.onStartCall != undefined) {
+			let stopNotifying = await this.callbacks_.onStartCall(site, rawStack);
+			if (stopNotifying) {
+				this.notifyCalls_ = false;
+				this.marker_ = rawStack;
+			}
+		}
+	}
+
+	async endCall(site, rawStack, result) {
+		if (!this.notifyCalls && this.marker_ == rawStack) {
+			this.notifyCalls_ = true;
+			this.marker_ = null;
+		}
+
+		if (this.notifyCalls_ && this.callbacks_.onEndCall != undefined) {
+			rawStack = rawStack.slice();
+			rawStack.push(["__result", result]);
+			await this.callbacks_.onEndCall(site, rawStack);
 		}
 	}
 
@@ -809,12 +828,16 @@ class PlutusCoreStack {
 		return new PlutusCoreStack(this, value, valueName);
 	}
 
-	print(msg) {
-		this.parent_.print(msg);
+	async print(msg) {
+		await this.parent_.print(msg);
 	}
 
-	async notify(site, rawStack) {
-		await this.parent_.notify(site, rawStack);
+	async startCall(site, rawStack) {
+		await this.parent_.startCall(site, rawStack);
+	}
+
+	async endCall(site, rawStack, result) {
+		await this.parent_.endCall(site, rawStack, result);
 	}
 
 	toList() {
@@ -870,12 +893,15 @@ class PlutusCoreAnon extends PlutusCoreValue {
 			}
 			
 			// notify the RTE of the new live stack (list of pairs instead of PlutusCoreStack), and await permission to continue
-			await this.rte_.notify(callSite, rawStack);
+			await this.rte_.startCall(callSite, rawStack);
 
 			let result = this.fn_(callSite, subStack, ...args);
 			if (result instanceof Promise) {
 				result = await result;
 			}
+
+			// the same rawStack object can be used as a marker for 'Step-Over' in the debugger
+			await this.rte_.endCall(callSite, rawStack, result);
 
 			return result;
 		} else {
@@ -942,9 +968,9 @@ class PlutusCoreInt extends PlutusCoreValue {
 	toUnsigned() {
 		if (this.signed_) {
 			if (this.value_ < 0n) {
-				return new PlutusCoreInt(1n - this.value_*2n, false);
+				return new PlutusCoreInt(this.site, 1n - this.value_*2n, false);
 			} else {
-				return new PlutusCoreInt(this.value_*2n, false);
+				return new PlutusCoreInt(this.site, this.value_*2n, false);
 			}
 		} else {
 			return this;
@@ -1585,8 +1611,9 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				throw new Error("what is the point of this function?");
 			case "trace":
 				return new PlutusCoreAnon(this.site, rte, ["msg", "x"], (callSite, _, a, b) => {
-					rte.print(a.string);
-					return b.copy(callSite);
+					return rte.print(a.string).then(function() {
+						return b.copy(callSite);
+					});
 				});
 			case "fstPair":
 				return new PlutusCoreAnon(this.site, rte, ["pair"], (callSite, _, a) => {
@@ -1763,7 +1790,7 @@ class PlutusCoreProgram {
 	}
 
 	plutusScriptVersion() {
-		switch (this.version_[0].toSring()) {
+		switch (this.version_[0].toString()) {
 			case 2:
 				return "PlutusScriptV2";
 			case 3:
@@ -1902,7 +1929,7 @@ class ListData {
 		return `[${this.items_.map(item => item.toString()).join(", ")}]`;
 	}
 
-	toIR(writer) {
+	toIR() {
 		let lst = new IR("__core__mkNilData(())");
 		for (let i = this.items_.length - 1; i >= 0; i--) {
 			lst = [new IR("__core__mkCons("), this.items_[i].toIR(), new IR(", "), lst, new IR(")")];
@@ -2314,12 +2341,7 @@ class PrimitiveLiteral extends Token {
 class IntLiteral extends PrimitiveLiteral {
 	// value has type BigInt
 	constructor(site, value) {
-		if (value == null) {
-			value = site;
-			site = Site.dummy();
-		}
-
-		assert(typeof value == 'bigint');
+		assert(value != undefined && value != null && typeof value == 'bigint');
 
 		super(site);
 		this.value_ = value;
@@ -2334,7 +2356,7 @@ class IntLiteral extends PrimitiveLiteral {
 	}
 
 	toIR() {
-		return new IR(this.toString());
+		return new IR(this.toString(), this.site);
 	}
 
 	toPlutusCore() {
@@ -2345,10 +2367,7 @@ class IntLiteral extends PrimitiveLiteral {
 
 class BoolLiteral extends PrimitiveLiteral {
 	constructor(site, value) {
-		if (value == undefined) {
-			value = site;
-			site = Site.dummy();
-		}
+		assert(value != undefined && value != null && ((typeof value) == 'boolean' || value instanceof Boolean));
 
 		super(site);
 		this.value_ = value;
@@ -2359,7 +2378,7 @@ class BoolLiteral extends PrimitiveLiteral {
 	}
 
 	toIR() {
-		return new IR(this.toString());
+		return new IR(this.toString(), this.site);
 	}
 
 	toPlutusCore() {
@@ -2369,10 +2388,7 @@ class BoolLiteral extends PrimitiveLiteral {
 
 class ByteArrayLiteral extends PrimitiveLiteral {
 	constructor(site, bytes) {
-		if (bytes == undefined) {
-			bytes = site;
-			site = Site.dummy();
-		}
+		assert(bytes != undefined && bytes != null && bytes instanceof Array);
 
 		super(site);
 		this.bytes_ = bytes;
@@ -2383,7 +2399,7 @@ class ByteArrayLiteral extends PrimitiveLiteral {
 	}
 
 	toIR() {
-		return new IR(this.toString());
+		return new IR(this.toString(), this.site);
 	}
 
 	toPlutusCore() {
@@ -2394,10 +2410,7 @@ class ByteArrayLiteral extends PrimitiveLiteral {
 // "..." is a utf8 string literal
 class StringLiteral extends PrimitiveLiteral {
 	constructor(site, value) {
-		if (value == undefined) {
-			value = site;
-			site = Site.dummy();
-		}
+		assert(value != undefined && value != null && ((typeof value) == "string" || value instanceof String));
 
 		super(site);
 		this.value_ = value;
@@ -2408,7 +2421,7 @@ class StringLiteral extends PrimitiveLiteral {
 	}
 
 	toIR() {
-		return new IR(this.toString());
+		return new IR(this.toString(), this.site);
 	}
 
 	toPlutusCore() {
@@ -2419,15 +2432,15 @@ class StringLiteral extends PrimitiveLiteral {
 // these tokens are used by both Helios and the IR, but UnitLiteral is only used by the IR
 class UnitLiteral extends PrimitiveLiteral {
 	constructor(site) {
-		if (site == undefined) {
-			site = Site.dummy();
-		}
-
 		super(site);
 	}
 
 	toString() {
 		return "()";
+	}
+
+	toIR() {
+		return new IR(this.toString(), this.site);
 	}
 
 	toPlutusCore() {
@@ -2472,6 +2485,7 @@ class Tokenizer {
 
 			if (pair[0] == t.site.pos) {
 				t.site.setCodeMapSite(pair[1]);
+				this.codeMapPos_ += 1;
 			}
 		}
 	}
@@ -3779,7 +3793,7 @@ class AssignExpr extends ValueExpr {
 
 	toIR(indent = "") {
 		return [
-			new IR(`(${this.name_.toString()}) -> {${indent}${TAB}`),
+			new IR(`(${this.name_.toString()}) `), new IR("->", this.site), new IR(` {${indent}${TAB}`),
 			this.downstreamExpr_.toIR(indent + TAB),
 			new IR(`\n${indent}}(`),
 			this.upstreamExpr_.toIR(indent),
@@ -3819,7 +3833,7 @@ class PrintExpr extends Expr {
 
 	toIR(indent = "") {
 		return [
-			new IR("__core__trace(__helios__common__unStringData("),
+			new IR("__core__trace", this.site), new IR("("), new IR("__helios__common__unStringData("),
 			this.msgExpr_.toIR(indent),
 			new IR(`), () -> {\n${indent}${TAB}`),
 			this.downstreamExpr_.toIR(indent + TAB),
@@ -3856,13 +3870,13 @@ class PrimitiveLiteralExpr extends Expr {
 	toIR(indent = "") {
 		let inner = this.primitive_.toIR(indent);
 		if (this.primitive_ instanceof IntLiteral) {
-			return [new IR("__core__iData("), inner, new IR(")")];
+			return [new IR("__core__iData", this.site), new IR("("), inner, new IR(")")];
 		} else if (this.primitive_ instanceof BoolLiteral) {
-			return [new IR("__helios__common__boolData("), inner, new IR(")")];
+			return [new IR("__helios__common__boolData", this.site), new IR("("), inner, new IR(")")];
 		} else if (this.primitive_ instanceof StringLiteral) {
-			return [new IR("__helios__common__stringData("), inner, new IR(")")];
+			return [new IR("__helios__common__stringData", this.site), new IR("("), inner, new IR(")")];
 		} else if (this.primitive_ instanceof ByteArrayLiteral) {
-			return [new IR("__core__bData("), inner, new IR(")")];
+			return [new IR("__core__bData", this.site), new IR("("), inner, new IR(")")];
 		} else {
 			throw new Error("unhandled primitive type");
 		}
@@ -3950,7 +3964,7 @@ class StructLiteralExpr extends Expr {
 		let idx = this.constrIndex_;
 
 		return [
-			new IR(`__core__constrData(${idx.toString()}, `),
+			new IR("__core__constrData", this.site), new IR(`(${idx.toString()}, `),
 			res,
 			new IR(")")
 		];
@@ -4011,7 +4025,7 @@ class ListLiteralExpr extends Expr {
 			];
 		}
 
-		return [new IR("__core__listData("), res, new IR(")")];
+		return [new IR("__core__listData", this.site), new IR("("), res, new IR(")")];
 	}
 }
 
@@ -4019,6 +4033,10 @@ class NameTypePair {
 	constructor(name, typeExpr) {
 		this.name_ = name;
 		this.typeExpr_ = typeExpr;
+	}
+
+	get site() {
+		return this.name_.site;
 	}
 
 	get name() {
@@ -4037,7 +4055,7 @@ class NameTypePair {
 	}
 
 	toIR() {
-		return new IR(this.name_.toString());
+		return new IR(this.name_.toString(), this.name_.site);
 	}
 }
 
@@ -4113,7 +4131,7 @@ class FuncLiteralExpr extends Expr {
 		return [
 			new IR("("),
 			argsWithCommas,
-			new IR(`) -> {\n${indent}${TAB}`),
+			new IR(") "), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
 			this.bodyExpr_.toIR(indent + TAB),
 			new IR(`\n${indent}}`),
 		];
@@ -4145,13 +4163,14 @@ class ValueRefExpr extends Expr {
 	}
 
 	toIR(indent = "") {
-		return new IR(this.toString());
+		return new IR(this.toString(), this.site);
 	}
 }
 
 class ValuePathExpr extends Expr {
 	constructor(baseTypeExpr, memberName) {
 		assert(baseTypeExpr instanceof TypeRefExpr || baseTypeExpr instanceof TypePathExpr);
+		super(this.memberName.site);
 		// root is always some type
 		this.baseTypeExpr_ = baseTypeExpr;
 		this.memberName_ = memberName;
@@ -4174,7 +4193,7 @@ class ValuePathExpr extends Expr {
 	}
 
 	toIR(indent = "") {
-		return new IR(`${this.baseTypeExpr_.path}__${this.memberName_.toString()}`);
+		return new IR(`${this.baseTypeExpr_.path}__${this.memberName_.toString()}`, this.site);
 	}
 }
 
@@ -4219,7 +4238,7 @@ class UnaryExpr extends Expr {
 	toIR(indent = "") {
 		let path = this.aType_.path;
 		return [
-			new IR(`${path}__${this.translateOp().value}(`),
+			new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
 			this.a_.toIR(indent),
 			new IR(")()")
 		];
@@ -4295,7 +4314,7 @@ class BinaryExpr extends Expr {
 
 		if (op == "__and" || op == "__or") {
 			return [
-				new IR(`${path}${op}(\n${indent}${TAB}() -> {`),
+				new IR(`${path}${op}`, this.site), new IR(`(\n${indent}${TAB}() -> {`),
 				this.a_.toIR(indent + TAB),
 				new IR(`},\n${indent}${TAB}() -> {`),
 				this.b_.toIR(indent + TAB),
@@ -4303,7 +4322,7 @@ class BinaryExpr extends Expr {
 			];
 		} else {
 			return [
-				new IR(`${path}__${this.translateOp().value}(`),
+				new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
 				this.a_.toIR(indent),
 				new IR(")("),
 				this.b_.toIR(indent),
@@ -4368,9 +4387,9 @@ class CallExpr extends Expr {
 			return [
 				new IR(`(fn) -> {\n${indent}${TAB}fn(`),
 				IR.join(innerArgs, ", "),
-				new IR(`)\n${indent}}(`),
+				new IR(`)\n${indent}}`), new IR("("),
 				this.fnExpr_.toIR(indent),
-				new IR(")")
+				new IR(")", this.site)
 			];
 		} else {
 			let innerArgs = this.argExprs_.map(a => a.toIR(indent));
@@ -4379,7 +4398,7 @@ class CallExpr extends Expr {
 				this.fnExpr_.toIR(indent),
 				new IR("("),
 				IR.join(innerArgs, ", "),
-				new IR(")")
+				new IR(")", this.site)
 			];
 		}
 	}
@@ -4412,7 +4431,7 @@ class MemberExpr extends Expr {
 	toIR(indent = "") {
 		// members can be functions so, field getters are also encoded as functions for consistency
 		return [
-			new IR(`${this.baseType_.path}__${this.memberName_.toString()}(`),
+			new IR(`${this.baseType_.path}__${this.memberName_.toString()}`, this.site), new IR("("),
 			this.objExpr_.toIR(indent),
 			new IR(")"),
 		];
@@ -4495,7 +4514,7 @@ class IfElseExpr extends Expr {
 			];
 		}
 
-		return [res, new IR("()")];
+		return [res, new IR("()", this.site)];
 	}
 }
 
@@ -4552,7 +4571,7 @@ class SwitchCase extends Token {
 
 	toIR(indent = "") {
 		return [
-			new IR(`(${this.varName_ != null ? this.varName_.toString() : "_"}) -> {\n${indent}${TB}`),
+			new IR(`(${this.varName_ != null ? this.varName_.toString() : "_"}) `), new IR("->", this.site), new IR(` {\n${indent}${TB}`),
 			this.bodyExpr_.toIR(indent + TAB),
 			new IR(`\n${indent}}`),
 		];
@@ -4575,7 +4594,7 @@ class SwitchDefault extends Token {
 
 	toIR(indent = "") {
 		return [
-			new IR(`(_) -> {\n${indent}${TAB}`),
+			new IR(`(_) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
 			this.body_.toIR(indent + TAB),
 			new IR(`\n${indent}}`)
 		];
@@ -4643,7 +4662,7 @@ class SwitchExpr extends Expr {
 		}
 
 		return [
-			new IR(`(e) -> {\n${indent}${TAB}(\n${indent}${TAB}${TAB}(i) -> {\n${indent}${TAB}${TAB}${TAB}`),
+			new IR(`(e) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}(\n${indent}${TAB}${TAB}(i) -> {\n${indent}${TAB}${TAB}${TAB}`),
 			res,
 			new IR(`\n${indent}${TAB}${TAB}}(__core__fstPair(__core__unConstrData(e)))\n${indent}${TAB})(e)\n${indent}}(`),
 			this.expr_.toIR(indent),
@@ -4882,7 +4901,7 @@ class DataDefinition extends NamedStatement {
 			}
 
 			let getter = [
-				new IR("(self) -> {__core_headList("),
+				new IR("(self) "), new IR("->", f.site), new IR(" {__core_headList("),
 				inner,
 				new IR(")}"),
 			];
@@ -4894,21 +4913,21 @@ class DataDefinition extends NamedStatement {
 			switch(auto) {
 				case "serialize":
 					map.set(auto, [
-						new IR("(self) -> {\n"),
+						new IR("(self) "), new IR("->", this.site), new IR(" {\n"),
 						new IR(`${TAB}() -> {__core__serialiseData(self)}\n`),
 						new IR("}"),
 					]);
 					break;
 				case "__eq":
 					map.set(auto, [
-						new IR("(self) -> {\n"),
+						new IR("(self) "), new IR("->", this.site), new IR(" {\n"),
 						new IR(`${TAB}(other) -> {__core__equalsData(self, other)}\n`),
 						new IR("}"),
 					]);
 					break;
 				case "__neq":
 					map.set(auto, [
-						new IR("(self) -> {\n"),
+						new IR("(self) "), new IR("->", this.site), new IR(" {\n"),
 						new IR(`${TAB}(other) -> {__helios__bool____not(__core__equalsData(self, other))}\n`),
 						new IR("}"),
 					]);
@@ -5215,14 +5234,14 @@ class EnumStatement extends NamedStatement {
 				let inner = new IR(`${this.members_[n-1].path}__${name.toString()}`);
 				for (let i = n-2; i >= 0; i--) {
 					inner = [
-						new IR(`__core__ifThenElse(__core__equalsInteger(constrIdx, ${i}), ${this.members_[i].path}__${name.toString()}, `),
+						new IR("__core__ifThenElse(__core__equalsInteger(constrIdx, "), new IR(i.toString(), this.members_[i].site), new IR("), "), new IR(`${this.members_[i].path}__${name.toString()}, `),
 						inner,
 						new IR(`)`),
 					];
 				}
 		
 				let autoDef = [
-					new IR(`(self) -> {\n${TAB}(constrIdx) -> {\n${TAB}${TAB}`),
+					new IR("(self) "), new IR("->", this.site), new IR(` {\n${TAB}(constrIdx) -> {\n${TAB}${TAB}`),
 					inner,
 					new IR(`\n${TAB}}(__core__fstPair(__core__unConstrData(self)))(self)\n}`),
 				];
@@ -8793,10 +8812,10 @@ class IRCallExpr extends IRExpr {
 
 		if (this.argExprs_.length == 0) {
 			// a PlutusCore function call (aka function application) always requires a argument. In the zero-args case this is the unit value
-			term = new PlutusCoreCall(this.parensSite_, term, new PlutusCoreUnit(this.parensSite_));
+			term = new PlutusCoreCall(this.site, term, new PlutusCoreUnit(this.parensSite_));
 		} else {
 			for (let arg of this.argExprs_) {
-				term = new PlutusCoreCall(this.parensSite_, term, arg.toPlutusCore());
+				term = new PlutusCoreCall(this.site, term, arg.toPlutusCore());
 			}
 		}
 
@@ -9006,6 +9025,8 @@ function compileInternal(typedSrc, config) {
 
 	let [codeMap, irSrc] = IR.generateSource(ir);
 
+	//console.log((new Source(irSrc)).pretty());
+
 	if (config.stage == CompilationStage.IR) {
 		return irSrc;
 	}
@@ -9086,7 +9107,12 @@ export async function run(typedSrc, config = DEFAULT_CONFIG) {
 	}, true);
 
 	let result = await program.run({
-		onPrint: function(msg) {console.log(msg)}
+		onPrint: function(msg) {
+			return new Promise(function (resolve, _) {
+				console.log(msg);
+				resolve();
+			});
+		}
 	});
 
 	console.log(result.toString());
