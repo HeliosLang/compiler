@@ -27,14 +27,14 @@
 //   * debug(bool) -> void
 //         set whole library to debug mode          
 //   * CompilationStage
-//         enum with six values: Preprocess, Tokenize, BuildAST, Untype, PlutusCore and Final
+//         enum with six values: Preprocess, Tokenize, BuildAST, IR, PlutusCore and Final
 //   * compile(src: string, 
 //             config: {verbose: false, templateParameters: {}, stage: CompilationStage}) -> ...
 //         different return types depending on config.stage:
 //             config.stage==CompilationStage.Preprocess -> string
 //             config.stage==CompilationStage.Tokenize   -> list of Tokens
 //             config.stage==CompilationStage.BuildAST   -> Program
-//             config.stage==CompilationStage.Untype     -> string
+//             config.stage==CompilationStage.IR         -> string
 //             config.stage==CompilationStage.PlutusCore -> PlutusCoreProgram
 //             config.stage==CompilationStage.Final      -> string
 //
@@ -2305,7 +2305,7 @@ class PrimitiveLiteral extends Token {
 		return true;
 	}
 
-	// used in untyped program
+	// used in IR program
 	link(scope) {
 	}
 }
@@ -2416,7 +2416,7 @@ class StringLiteral extends PrimitiveLiteral {
 	}
 }
 
-// these tokens are used by both typed and untyped Helios, but UnitLiteral is only used by untyped Helios
+// these tokens are used by both Helios and the IR, but UnitLiteral is only used by the IR
 class UnitLiteral extends PrimitiveLiteral {
 	constructor(site) {
 		if (site == undefined) {
@@ -2865,7 +2865,6 @@ class Tokenizer {
 	}
 }
 
-// can also be used
 function tokenize(rawSrc) {
 	let src = new Source(rawSrc);
 
@@ -2874,7 +2873,7 @@ function tokenize(rawSrc) {
 	return tokenizer.tokenize();
 }
 
-// same tokenizer can be used for untyped Helios
+// Tokenizer can be reused for the IR
 function tokenizeIR(rawSrc, codeMap) {
 	let src = new Source(rawSrc);
 
@@ -5482,7 +5481,7 @@ class Program {
 			statement.toIR(map);
 		}
 
-		// builtin functions are added when untyped program is built
+		// builtin functions are added when the IR program is built
 		// also replace all tabs with four spaces
 		return wrapWithRawFunctions(TopScope.wrapWithDefinitions(res, map));
 	}
@@ -8967,7 +8966,7 @@ export const CompilationStage = {
 	Preprocess: 0,
 	Tokenize:   1,
 	BuildAST:   2,
-	Untype:     3,
+	IR:     	3,
 	PlutusCore: 4,
 	Final:      5,
 };
@@ -9007,7 +9006,7 @@ function compileInternal(typedSrc, config) {
 
 	let [codeMap, irSrc] = IR.generateSource(ir);
 
-	if (config.stage == CompilationStage.Untype) {
+	if (config.stage == CompilationStage.IR) {
 		return irSrc;
 	}
 
@@ -9064,8 +9063,8 @@ export function extractScriptPurposeAndName(rawSrc) {
 //    Preprocess: substitute template parameters and return preprocessed string
 //    Tokenize:   parse source and return list of tokens
 //    BuildAST:   build AST and return top-level Program object
-//    Untype:     performs type evaluation, returns untyped program as string
-//    PlutusCore: build Plutus-Core program from untyped program, returns top-level PlutusCoreProgram object
+//    IR:         performs type evaluation, returns IR program as string
+//    PlutusCore: build Plutus-Core program from IR program, returns top-level PlutusCoreProgram object
 //    Final:      encode Plutus-Core program in flat format and return JSON string containing cborHex representation of program
 export function compile(typedSrc, config = Object.assign({}, DEFAULT_CONFIG)) {
 	// additional checks of config
