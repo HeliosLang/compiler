@@ -8011,6 +8011,7 @@ function makeRawFunctions() {
 			${unData("self", 0, 0)}
 		}
 	}`));
+	addEqNeqSerialize("__helios__option__none");
 	add(new RawFunc("__helios__option__none__new", 
 	`() -> {
 		__core__constrData(1, ${makeList([])})
