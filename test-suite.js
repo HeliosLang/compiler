@@ -464,6 +464,18 @@ func main() -> Bool {
     x.get(-1) == 3
 }`, "index out-of-range (<0)", "1");
 
+// 9. multiple_args
+// * function that takes more than 1 arguments
+await runTestScript(`test multiple_args;
+func concat(a: String, b: String) -> String {
+    a + b
+}
+func main() -> Bool {
+    print(concat("hello ", "world"));
+    true
+}`, "data(c:1)", ["hello world"]);
+
+
 console.log("all tests passed");
 // end of integration tests
 
