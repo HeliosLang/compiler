@@ -4436,6 +4436,10 @@ class CallExpr extends Expr {
 	evalInternal(scope) {
 		let fnVal = this.fnExpr_.eval(scope);
 
+		if (!fnVal.isInstanceOf(this.fnExpr_.site, FuncType)) {
+			this.fnExpr_.typeError("not callable (not a function)");
+		}
+
 		let argVals = this.argExprs_.map(argExpr => {
 			let argVal = argExpr.eval(scope);
 			assert(argVal.isValue());
@@ -4495,7 +4499,7 @@ class MemberExpr extends Expr {
 		this.memberName_ = memberName;
 		this.baseType_ = null;
 	}
-	
+
 	toString() {
 		return `${this.objExpr_.toString()}.${this.memberName_.toString()}`;
 	}
@@ -9248,12 +9252,20 @@ export function compile(typedSrc, config = Object.assign({}, DEFAULT_CONFIG)) {
 export async function run(typedSrc, config = DEFAULT_CONFIG) {
 	let program;
 
-	UserError.catch(function() {
+	try {
 		config.stage = CompilationStage.PlutusCore;
 
 		program = compileInternal(typedSrc, config);
-	}, true);
+	} catch(e) {
+		if (!(e instanceof UserError)) {
+			throw e;
+		}
 
+		return [e, []];
+	}
+
+	assertDefined(program);
+	
 	let messages = [];
 
 	let result = await program.run({

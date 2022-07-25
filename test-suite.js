@@ -432,7 +432,22 @@ func main() -> Int {
     fibonacci(5)
 }`, "data(8)", []);
 
-// 6. list_get ok
+// 6. fibonacci2
+// * calling a non-function
+await runTestScript(`test fibonacci2;
+func fibonacci(n: Int) -> Int {
+    if (n < 2) {
+        1
+    } else {
+        fibonacci(n-1) + fibonacci(n-2)
+    }
+}
+func main() -> Bool {
+    x: ByteArray = #32423acd232;
+    (fibonacci(1) == 1) && x.length() == 12
+}`, "not callable (not a function)", []);
+
+// 7. list_get ok
 await runTestScript(`test list_get;
 func main() -> Bool {
     x: []Int = []Int{1, 2, 3};
@@ -440,7 +455,7 @@ func main() -> Bool {
     x.get(2) == 3
 }`, "data(c:1)", "1");
 
-// 6. list_get nok
+// 8. list_get nok
 // * error thrown by builtin
 await runTestScript(`test list_get;
 func main() -> Bool {
