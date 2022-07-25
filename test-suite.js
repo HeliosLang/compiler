@@ -279,7 +279,7 @@ function compileData(name, src, data) {
 	console.log(helios.compileData(src, data));
 }
 
-function main() {
+/*function main() {
     helios.debug(true);
     
     //compileScriptToIR("always-succeeds", ALWAYS_SUCCEEDS);
@@ -305,4 +305,161 @@ function main() {
     compileScript("english-auction", ENGLISH_AUCTION);
 }
 
-main();
+main();*/
+
+async function runTestScript(src, expectedResult, expectedMessages) {
+    let [purpose, name] = helios.extractScriptPurposeAndName(src);
+
+    if (purpose != helios.ScriptPurpose.Testing) {
+        throw new Error(`${name} is not a test script`);
+    }
+    
+    let [result, messages] = await helios.run(src);
+
+    let resStr = result.toString();
+    if (result instanceof Error) {
+        resStr = resStr.split(":")[1].trim();
+    } 
+
+    if (resStr != expectedResult) {
+        throw new Error(`unexpected result in ${name}: expected "${expectedResult}", got "${resStr}"`);
+    }
+
+    if (messages.length != expectedMessages.length) {
+        throw new Error(`unexpected number of messages in ${name}: expected ${expectedMessages.length}, got ${messages.length}`);
+    } 
+
+    for (let i = 0; i < messages.length; i++) {
+        if (messages[i] != expectedMessages[i]) {
+            throw new Error(`unexpected message ${i} in ${name}`);
+        }
+    }   
+}
+
+async function main() {
+let stats = new Map();
+
+helios.setRawUsageNotifier(function (name, n) {
+    if (!stats.has(name)) {
+        stats.set(name, 0);
+    }
+
+    if (n != 0) {
+        stats.set(name, stats.get(name) + n);
+    }
+});
+
+// start of integration tests
+
+
+// 1. hello_world_true
+// * __helios__common__unStringData
+// * __helios__common__stringData
+// * __helios__common__boolData
+await runTestScript(`test hello_world_true;
+func main() -> Bool {
+    print("hello world");
+    true
+}`, "data(c:1)", ["hello world"]);
+
+// 2. hello_world_false
+// * __helios__common__unStringData
+// * __helios__common__stringData
+// * __helios__common__boolData
+// * __helios__common__not
+// * __helios__common__unBoolData
+// * __helios__bool____not
+await runTestScript(`test hello_world_false;
+func main() -> Bool {
+    print("hello world");
+    !true
+}`, "data(c:0)", ["hello world"]);
+
+// 3. hello_number
+// * non-main function statement
+await runTestScript(`test hello_number;
+func print_message(a: Int) -> String {
+    "hello number " + a.show()
+}
+func main() -> Bool {
+    print(print_message(0) + "");
+    !true
+}`, "data(c:0)", ["hello number 0"]);
+
+// 4. my_struct
+// * struct statement
+// * struct literal
+// * struct getters
+await runTestScript(`test my_struct;
+struct MyStruct {
+    a: Int,
+    b: Int
+}
+func main() -> Int {
+    x: MyStruct = MyStruct{a: 1, b: 1};
+    x.a + x.b
+}`, "data(2)", []);
+
+// 4. owner_value
+// * struct statement
+// * struct literal
+// * struct getters
+await runTestScript(`test owner_value;
+struct Datum {
+    owner: PubKeyHash,
+    value: Value
+}
+func main() -> Bool {
+    d = Datum{
+        owner: PubKeyHash::new(#123),
+        value: Value::lovelace(100)
+    };
+    print(d.owner.show());
+    d.value > Value::ZERO
+}`, "data(c:1)", ["123"]);
+
+// 5. fibonacci
+// * recursive function statement
+await runTestScript(`test fibonacci;
+func fibonacci(n: Int) -> Int {
+    if (n < 2) {
+        1
+    } else {
+        fibonacci(n-1) + fibonacci(n-2)
+    }
+}
+func main() -> Int {
+    fibonacci(5)
+}`, "data(8)", []);
+
+// 6. list_get ok
+await runTestScript(`test list_get;
+func main() -> Bool {
+    x: []Int = []Int{1, 2, 3};
+    print(x.get(0).show());
+    x.get(2) == 3
+}`, "data(c:1)", "1");
+
+// 6. list_get nok
+// * error thrown by builtin
+await runTestScript(`test list_get;
+func main() -> Bool {
+    x = []Int{1, 2, 3};
+    print(x.get(0).show());
+    x.get(-1) == 3
+}`, "index out-of-range (<0)", "1");
+
+console.log("all tests passed");
+// end of integration tests
+
+// print statistics
+console.log("builtin coverage:");
+for (let [name, n] of stats) {
+    console.log(n, name);
+}
+}
+
+main().catch(e => {
+    console.error(`Error: ${e.message}`);
+	process.exit(1);
+});

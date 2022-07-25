@@ -260,24 +260,27 @@ Operators that can be used in compile-time `const` statements are marked with '^
  * `Value <= Value -> Bool` (strictly less-or-equals for each component, NOT the same as `!(a > b)`)
 
 ### (WiP) Builtin functions
-Note that builtin functions can't be referenced, and must be called immediately (wrap them in closures as a work-around). Builtin functions that can be used in compile-time `const` statements are marked with '^'. 
 
  * `to_int(self: Bool) -> Int` (`false` -> `0`, `true` -> `1`)
  * `to_bool(self: Int) -> Bool`
  * `encode_utf8(self: String) -> ByteArray`
  * `decode_utf8(self: ByteArray) -> String`
- * `show(self: Int) -> String` (string representation of integer) ^
+ * `show(self: Int) -> String` (string representation of integer)
  * `to_hex(self: Int) -> String`
- * `show(self: Bool) -> String` (`"true"` or `"false"`) ^
- * `show(self: Time) -> String` (string representation of milliseconds since epoch) ^
- * `show(self: ByteArray) -> String` (hex representation of bytearray) ^
- * `Time::new(Int) -> Time` (milliseconds since epoch) ^
- * `Duration::new(Int) -> Duration` (milliseconds) ^
- * `PubKeyHash::new(ByteArray) -> PubKeyHash` ^
- * `ValidatorHash::new(ByteArray) -> ValidatorHash` ^
- * `DatumHash::new(ByteArray) -> DatumHash` ^
- * `MintingPolicyHash::new(ByteArray) -> MintingPolicyHash` ^
- * `TxOutputId::new(ByteArray, Int) -> TxOutputId` ^
+ * `show(self: Bool) -> String` (`"true"` or `"false"`)
+ * `show(self: Time) -> String` (string representation of milliseconds since epoch)
+ * `show(self: ByteArray) -> String` (hex representation of bytearray)
+ * `Time::new(Int) -> Time` (milliseconds since epoch)
+ * `Duration::new(Int) -> Duration` (milliseconds)
+ * `PubKeyHash::new(ByteArray) -> PubKeyHash`
+ * `ValidatorHash::new(ByteArray) -> ValidatorHash`
+ * `DatumHash::new(ByteArray) -> DatumHash`
+ * `MintingPolicyHash::new(ByteArray) -> MintingPolicyHash`
+ * `show(self: PubKeyHash) -> String`
+ * `show(self: ValidatorHash) -> String`
+ * `show(self: DatumHash) -> String`
+ * `show(self: MintingPolicyHash) -> String`
+ * `TxOutputId::new(ByteArray, Int) -> TxOutputId`
  * `fold[b, a](self: []b, a, (a, b) -> a) -> a`
  * `map[a, b](self: []a, (a) -> b) -> []b`
  * `filter[a](self: []a, (a) -> Bool) -> []a`
