@@ -432,19 +432,21 @@ class BitWriter {
 	}
 }
 
-// TODO: rename IR everywhere to IR
 class IR {
+	#src;
+	#site;
+
 	constructor(src, site = null) {
-		this.src_ = src;
-		this.site_ = site;
+		this.#src = src;
+		this.#site = site;
 	}
 
 	get src() {
-		return this.src_;
+		return this.#src;
 	}
 
 	get site() {
-		return this.site_;
+		return this.#site;
 	}
 
 	static join(lst, sep) {
