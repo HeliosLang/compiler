@@ -5780,7 +5780,7 @@ function buildFuncArgs(parens) {
 		let name = ts.shift().assertWord().assertNotKeyword();
 
 		for (let prev of args) {
-			if (prev[0].toString() != name.toString()) {
+			if (prev.name.toString() == name.toString()) {
 				name.syntaxError("duplicate arg name");
 			}
 		}
@@ -9265,7 +9265,7 @@ export async function run(typedSrc, config = DEFAULT_CONFIG) {
 	}
 
 	assertDefined(program);
-	
+
 	let messages = [];
 
 	let result = await program.run({
