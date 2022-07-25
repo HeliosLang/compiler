@@ -475,6 +475,22 @@ func main() -> Bool {
     true
 }`, "data(c:1)", ["hello world"]);
 
+// 10. collatz recursion
+// * recursion
+await runTestScript(`test collatz;
+func collatz(current: Int, accumulator: []Int) -> []Int {
+    if (current == 1) {
+        accumulator.prepend(current) 
+    } else if (current%2 == 0) {
+        collatz(current/2, accumulator.prepend(current))
+    } else {
+        collatz(current*3 + 1, accumulator.prepend(current))      
+    }
+}
+func main() -> []Int {
+    collatz(3, []Int{})
+}`, "data([data(1), data(2), data(4), data(8), data(16), data(5), data(10), data(3)])", []);
+
 
 console.log("all tests passed");
 // end of integration tests
