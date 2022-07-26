@@ -244,6 +244,18 @@ async function runIntegrationTests() {
         collatz(3, []Int{})
     }`, "data([data(1), data(2), data(4), data(8), data(16), data(5), data(10), data(3)])", []);
 
+    // 11. list_any
+    // * member function as value
+    await runTestScript(`test list_any;
+    func main_inner(fnAny: ((Int) -> Bool) -> Bool) -> Bool {
+        fnAny((i: Int) -> Bool {
+            i == 10
+        })
+    }
+    func main() -> Bool {
+        main_inner([]Int{1,2,3,4,5,6,10}.any)
+    }`, "data(c:1)", []);
+    
 
     console.log("all tests passed");
     // end of integration tests
