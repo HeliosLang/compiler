@@ -8680,7 +8680,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__timerange__get_start", 
 	`(self) -> {
 		() -> {
-			${unData(unData(unData("timeRange", 0, 0), 0, 0), 1, 0)}
+			${unData(unData(unData("self", 0, 0), 0, 0), 1, 0)}
 		}
 	}`));
 
