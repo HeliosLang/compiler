@@ -8514,7 +8514,7 @@ function makeRawFunctions() {
 		(hash) -> {
 			__helios__list__any(__helios__tx__signatories(self))(
 				(signatory) -> {
-					__core__boolData(__core__equalsData(signatory, hash))
+					__helios__common__boolData(__core__equalsData(signatory, hash))
 				}
 			)
 		}
