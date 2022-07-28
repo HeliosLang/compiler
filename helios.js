@@ -12046,13 +12046,13 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__credential__is_pubkey",
 	`(self) -> {
 		() -> {
-			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 0)
+			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 0))
 		}
 	}`));
 	add(new RawFunc("__helios__credential__is_validator",
 	`(self) -> {
 		() -> {
-			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 1)
+			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 1))
 		}
 	}`));
 
