@@ -9253,13 +9253,18 @@ function buildValueExpr(ts, prec = 0) {
  */
 function buildMaybeAssignOrPrintExpr(ts, prec) {
 	let semicolonPos = Symbol.find(ts, ";");
+	let equalsPos = Symbol.find(ts, "=");
+	let printPos = Word.find(ts, "print");
 
 	if (semicolonPos == -1) {
-		return buildValueExpr(ts, prec + 1);
+		if (equalsPos != -1) {
+			throw ts[equalsPos].syntaxError("invalid assignment syntax, expected ';' after '...=...'");
+		} else if (printPos != -1) {
+			throw ts[printPos].syntaxError("invalid print expression, expected ';' after 'print(...)'");
+		} else {
+			return buildValueExpr(ts, prec + 1);
+		}
 	} else {
-		let equalsPos = Symbol.find(ts, "=");
-		let printPos = Word.find(ts, "print");
-
 		if (equalsPos == -1 && printPos == -1) {
 			throw ts[semicolonPos].syntaxError("expected '=', or 'print', before ';'");
 		}
