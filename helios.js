@@ -72,7 +72,7 @@
 //
 //     6. Tokenization                      Tokenizer, tokenize, tokenizeIR
 //
-//     7. Type evaluation objects           GeneralizedValue, Type, AnyType, DataType, BuiltinType, 
+//     7. Type evaluation objects           GeneralizedValue, Type, AnyType, AnyDataType, DataType, BuiltinType, 
 //                                          UserType, FuncType, Value, DataValue, FuncValue, 
 //                                          TopFuncValue
 //
@@ -147,7 +147,7 @@ var DEBUG = false;
  * Changes the value of DEBUG
  * @param {boolean} b 
  */
-export function debug(b) {DEBUG = b};
+export function debug(b) { DEBUG = b };
 
 const TAB = "    ";
 
@@ -156,83 +156,96 @@ const PLUTUS_CORE_VERSION_COMPONENTS = [1n, 0n, 0n];
 const PLUTUS_CORE_VERSION = PLUTUS_CORE_VERSION_COMPONENTS.map(c => c.toString()).join(".");
 
 const PLUTUS_CORE_TAG_WIDTHS = {
-	term:      4,
-	type:      3,
-	constType: 4, 
-	builtin:   7,
-	constant:  4,
-	kind:      1,
+	term: 4,
+	type: 3,
+	constType: 4,
+	builtin: 7,
+	constant: 4,
+	kind: 1,
 };
 
-const PLUTUS_CORE_BUILTINS = (function() {
-	/**
-	 * Constructs a builtinInfo object
-	 * @param {string} name 
-	 * @param {number} forceCount 
-	 * @returns {object}
-	 */
-	function builtinInfo(name, forceCount) {
-		// builtins might need be wrapped in `force` a number of times if they are not fully typed
-		return {name: name, forceCount: forceCount};
-	}
+/**
+ * @typedef PlutusCoreBuiltinInfo
+ * @property {string} name
+ * @property {number} forceCount
+ */
 
-	return [
-		builtinInfo("addInteger", 0), // 0
-		builtinInfo("subtractInteger", 0),
-		builtinInfo("multiplyInteger", 0),
-		builtinInfo("divideInteger", 0),
-		builtinInfo("quotientInteger", 0),
-		builtinInfo("remainderInteger", 0),
-		builtinInfo("modInteger", 0),
-		builtinInfo("equalsInteger", 0),
-		builtinInfo("lessThanInteger", 0),
-		builtinInfo("lessThanEqualsInteger", 0),
-		builtinInfo("appendByteString", 0), // 10
-		builtinInfo("consByteString", 0),
-		builtinInfo("sliceByteString", 0),
-		builtinInfo("lengthOfByteString", 0),
-		builtinInfo("indexByteString", 0),
-		builtinInfo("equalsByteString", 0),
-		builtinInfo("lessThanByteString", 0),
-		builtinInfo("lessThanEqualsByteString", 0),
-		builtinInfo("sha2_256", 0),
-		builtinInfo("sha3_256", 0),
-		builtinInfo("blake2b_256", 0), // 20
-		builtinInfo("verifySignature", 1),
-		builtinInfo("appendString", 0),
-		builtinInfo("equalsString", 0),
-		builtinInfo("encodeUtf8", 0),
-		builtinInfo("decodeUtf8", 0),
-		builtinInfo("ifThenElse", 1),
-		builtinInfo("chooseUnit", 1),
-		builtinInfo("trace", 1),
-		builtinInfo("fstPair", 2),
-		builtinInfo("sndPair", 2), // 30
-		builtinInfo("chooseList", 1),
-		builtinInfo("mkCons", 1), // got error 'A builtin expected a term argument, but something else was received. Caused by: (force (force (builtin mkCons)))' when forceCount was 2, so set forceCount to 1?
-		builtinInfo("headList", 1),
-		builtinInfo("tailList", 1),
-		builtinInfo("nullList", 1),
-		builtinInfo("chooseData", 0),
-		builtinInfo("constrData", 0),
-		builtinInfo("mapData", 0),
-		builtinInfo("listData", 0),
-		builtinInfo("iData", 0), // 40
-		builtinInfo("bData", 0),
-		builtinInfo("unConstrData", 0),
-		builtinInfo("unMapData", 0),
-		builtinInfo("unListData", 0),
-		builtinInfo("unIData", 0),
-		builtinInfo("unBData", 0),
-		builtinInfo("equalsData", 0),
-		builtinInfo("mkPairData", 0),
-		builtinInfo("mkNilData", 0),
-		builtinInfo("mkNilPairData", 0), // 50
-		builtinInfo("serialiseData", 0),
-		builtinInfo("verifyEcdsaSecp256k1Signature", 1),
-		builtinInfo("verifySchnorrSecp256k1Signature", 1),
-	];
-})();
+/** @type {PlutusCoreBuiltinInfo[]} */
+const PLUTUS_CORE_BUILTINS = (
+	
+	/**
+	 * @returns {PlutusCoreBuiltinInfo[]}
+	 */
+	function () {
+		/**
+		 * Constructs a builtinInfo object
+		 * @param {string} name 
+		 * @param {number} forceCount 
+		 * @returns {PlutusCoreBuiltinInfo}
+		 */
+		function builtinInfo(name, forceCount) {
+			// builtins might need be wrapped in `force` a number of times if they are not fully typed
+			return { name: name, forceCount: forceCount };
+		}
+
+		return [
+			builtinInfo("addInteger", 0), // 0
+			builtinInfo("subtractInteger", 0),
+			builtinInfo("multiplyInteger", 0),
+			builtinInfo("divideInteger", 0),
+			builtinInfo("quotientInteger", 0),
+			builtinInfo("remainderInteger", 0),
+			builtinInfo("modInteger", 0),
+			builtinInfo("equalsInteger", 0),
+			builtinInfo("lessThanInteger", 0),
+			builtinInfo("lessThanEqualsInteger", 0),
+			builtinInfo("appendByteString", 0), // 10
+			builtinInfo("consByteString", 0),
+			builtinInfo("sliceByteString", 0),
+			builtinInfo("lengthOfByteString", 0),
+			builtinInfo("indexByteString", 0),
+			builtinInfo("equalsByteString", 0),
+			builtinInfo("lessThanByteString", 0),
+			builtinInfo("lessThanEqualsByteString", 0),
+			builtinInfo("sha2_256", 0),
+			builtinInfo("sha3_256", 0),
+			builtinInfo("blake2b_256", 0), // 20
+			builtinInfo("verifySignature", 1),
+			builtinInfo("appendString", 0),
+			builtinInfo("equalsString", 0),
+			builtinInfo("encodeUtf8", 0),
+			builtinInfo("decodeUtf8", 0),
+			builtinInfo("ifThenElse", 1),
+			builtinInfo("chooseUnit", 1),
+			builtinInfo("trace", 1),
+			builtinInfo("fstPair", 2),
+			builtinInfo("sndPair", 2), // 30
+			builtinInfo("chooseList", 1),
+			builtinInfo("mkCons", 1), // got error 'A builtin expected a term argument, but something else was received. Caused by: (force (force (builtin mkCons)))' when forceCount was 2, so set forceCount to 1?
+			builtinInfo("headList", 1),
+			builtinInfo("tailList", 1),
+			builtinInfo("nullList", 1),
+			builtinInfo("chooseData", 0),
+			builtinInfo("constrData", 0),
+			builtinInfo("mapData", 0),
+			builtinInfo("listData", 0),
+			builtinInfo("iData", 0), // 40
+			builtinInfo("bData", 0),
+			builtinInfo("unConstrData", 0),
+			builtinInfo("unMapData", 0),
+			builtinInfo("unListData", 0),
+			builtinInfo("unIData", 0),
+			builtinInfo("unBData", 0),
+			builtinInfo("equalsData", 0),
+			builtinInfo("mkPairData", 0),
+			builtinInfo("mkNilData", 0),
+			builtinInfo("mkNilPairData", 0), // 50
+			builtinInfo("serialiseData", 0),
+			builtinInfo("verifyEcdsaSecp256k1Signature", 1),
+			builtinInfo("verifySchnorrSecp256k1Signature", 1),
+		];
+	}
+)();
 
 
 ///////////////////////
@@ -266,17 +279,6 @@ function assertDefined(obj, msg = "unexpected undefined value") {
 }
 
 /**
- * Throws an error if 's' is undefined. Returns 's' itself for (chained application).
- * @param {any} s 
- * @returns {string}
- */
-function assertString(s) {
-	assert((typeof s) == "string" || s instanceof String);
-
-	return s;
-}
-
-/**
  * Throws an erro if two object aren't equal (deep comparison).
  * Used by unit tests that are autogenerated from JSDoc inline examples.
  * @template T
@@ -291,7 +293,7 @@ function assertEq(a, b, msg) {
 	 * @param {T} b 
 	 * @returns {boolean}
 	 */
-	var eq = function(a, b) {
+	var eq = function (a, b) {
 		if (a == undefined || b == undefined) {
 			throw new Error("one of the args is undefined");
 		} else if (typeof a == "string") {
@@ -332,9 +334,9 @@ function assertEq(a, b, msg) {
  * idiv(355, 113) => 3
  * @param {number} a
  * @param {number} b 
- * */ 
+ * */
 function idiv(a, b) {
-	return Math.floor(a/b);
+	return Math.floor(a / b);
 	// alternatively: (a - a%b)/b
 }
 
@@ -344,7 +346,7 @@ function idiv(a, b) {
  * @returns {bigint}
  */
 function ipow2(p) {
-	return (p <= 0n) ? 1n : 2n<<(p - 1n);
+	return (p <= 0n) ? 1n : 2n << (p - 1n);
 }
 
 /**
@@ -385,8 +387,8 @@ function imask(b, i0, i1) {
  */
 function padZeroes(bits, n) {
 	// padded to multiple of n
-	if (bits.length%n != 0) {
-		let nPad = n - bits.length%n;
+	if (bits.length % n != 0) {
+		let nPad = n - bits.length % n;
 		bits = (new Array(nPad)).fill('0').join('') + bits;
 	}
 
@@ -419,7 +421,7 @@ function hexToBytes(hex) {
 	let bytes = [];
 
 	for (let i = 0; i < hex.length; i += 2) {
-		bytes.push(parseInt(hex.slice(i, i+2), 16));
+		bytes.push(parseInt(hex.slice(i, i + 2), 16));
 	}
 
 	return bytes;
@@ -437,7 +439,7 @@ function bytesToHex(bytes) {
 	for (let b of bytes) {
 		parts.push(padZeroes(b.toString(16), 2));
 	}
-	
+
 	return parts.join('');
 }
 
@@ -482,14 +484,14 @@ function replaceTabs(str) {
  * @param {number[]} bytes 
  * @returns {number[]}
  */
-function unwrapCborBytes(bytes) { 
+function unwrapCborBytes(bytes) {
 	if (bytes == null || bytes == undefined || bytes.length == 0) {
 		throw new Error("expected at least one cbor byte");
 	}
 
 	let tag = assertDefined(bytes.shift());
 
-	switch(tag) {
+	switch (tag) {
 		case 0x4d:
 		case 0x4e:
 			return bytes;
@@ -502,7 +504,7 @@ function unwrapCborBytes(bytes) {
 			return bytes;
 		}
 		case 0x59: {
-			let n = assertDefined(bytes.shift())*256 + assertDefined(bytes.shift());
+			let n = assertDefined(bytes.shift()) * 256 + assertDefined(bytes.shift());
 
 			assert(n == bytes.length, "bad or unhandled cbor encoding");
 
@@ -526,8 +528,8 @@ function wrapCborBytes(bytes) {
 		bytes.unshift(n);
 		bytes.unshift(0x58);
 	} else {
-		let nSmall = n%256;
-		let nLarge = Math.floor(n/256);
+		let nSmall = n % 256;
+		let nLarge = Math.floor(n / 256);
 
 		assert(nLarge < 256);
 
@@ -545,6 +547,9 @@ function wrapCborBytes(bytes) {
  * Finalization pads the bits using '0*1` if not yet aligned with the byte boundary.
  */
 class BitWriter {
+	/**
+	 * @type {string[]}
+	 */
 	#parts;
 	#n;
 
@@ -564,7 +569,7 @@ class BitWriter {
 			}
 		}
 
-		this.#parts.push(bitChars); 
+		this.#parts.push(bitChars);
 		this.#n += bitChars.length;
 	}
 
@@ -575,15 +580,15 @@ class BitWriter {
 	 */
 	padToByteBoundary(force = false) {
 		let nPad = 0;
-		if (this.#n%8 != 0) {
-			nPad = 8 - this.#n%8;
+		if (this.#n % 8 != 0) {
+			nPad = 8 - this.#n % 8;
 		} else if (force) {
 			nPad = 8;
 		}
 
 		if (nPad != 0) {
 			let padding = (new Array(nPad)).fill('0');
-			padding[nPad-1] = '1';
+			padding[nPad - 1] = '1';
 
 			this.#parts.push(padding.join(''));
 
@@ -602,8 +607,8 @@ class BitWriter {
 
 		let bytes = [];
 
-		for (let i = 0; i < chars.length; i+= 8) {
-			let byteChars = chars.slice(i, i+8);
+		for (let i = 0; i < chars.length; i += 8) {
+			let byteChars = chars.slice(i, i + 8);
 			let byte = parseInt(byteChars, 2);
 
 			bytes.push(byte);
@@ -618,20 +623,20 @@ class BitWriter {
  * The site is used for mapping IR code to the original source code.
  */
 class IR {
-	#src;
+	#content;
 	#site;
 
 	/**
-	 * @param {string} src 
-	 * @param {Site | null} site 
+	 * @param {string | IR[]} content 
+	 * @param {?Site} site 
 	 */
-	constructor(src, site = null) {
-		this.#src = src;
+	constructor(content, site = null) {
+		this.#content = content;
 		this.#site = site;
 	}
 
-	get src() {
-		return this.#src;
+	get content() {
+		return this.#content;
 	}
 
 	get site() {
@@ -639,79 +644,85 @@ class IR {
 	}
 
 	/**
-	 * Intersperses a list of IR objects with separators (the separators are also wrapped with IR).
-	 * @param {IR[]} lst 
-	 * @param {string} sep 
+	 * Returns a list containing IR instances that themselves only contain strings
 	 * @returns {IR[]}
 	 */
-	static join(lst, sep) {
-		assert(lst instanceof Array);
+	flatten() {
+		if (typeof this.#content == "string") {
+			return [this];
+		} else {
+			/**
+			 * @type {IR[]}
+			 */
+			let result = [];
 
-		let result = [];
-		for (let i = 0; i < lst.length; i++) {
-			result.push(lst[i]);
-			if (i < lst.length - 1) {
-				result.push(new IR(sep));
+			for (let item of this.#content) {
+				result = result.concat(item.flatten());
 			}
-		}
 
-		return result;
+			return result;
+		}
 	}
 
 	/**
-	 * Flattens a potentially nested list of IR objects.
-	 * @param {IR[] | IR} lst 
-	 * @returns {IR[]}
+	 * Intersperse nested IR content with a separator
+	 * @param {string} sep
+	 * @returns {IR}
 	 */
-	static flatten(lst) {
-		if (lst instanceof IR) {
-			return [lst];
-		}
+	join(sep) {
+		if (typeof this.#content == "string") {
+			return this;
+		} else {
+			/** @type {IR[]} */
+			let result = [];
 
-		assert(lst instanceof Array);
+			for (let i = 0; i < this.#content.length; i++) {
+				result.push(this.#content[i]);
 
-		let result = [];
-		for (let item of lst) {
-			if (item instanceof Array) {
-				result = result.concat(IR.flatten(item));
-			} else {
-				assert(item instanceof IR, `bad IR type "${typeof item}": ${item}`);
-				result.push(item);
+				if (i < this.#content.length - 1) {
+					result.push(new IR(sep))
+				}
 			}
-		}
 
-		return result;
+			return new IR(result);
+		}
 	}
-	
+
 	/**
-	 * Generates the final IR source and a codemapping object.
-	 * Returns [codeMap, rawIR], codeMap: [[pos, site], ...].
-	 * @param {IR[]} lst 
 	 * @typedef {[number, Site][]} CodeMap
-	 * @returns {[CodeMap, string]}
+	 * @returns {[string, CodeMap]}
 	 */
-	static generateSource(lst) {
-		let parts = IR.flatten(lst);
+	generateSource() {
+		let parts = this.flatten();
+
+		/** @type {string[]} */
 		let partSrcs = [];
+
+		/** @type {CodeMap} */
 		let codeMap = [];
 
 		let pos = 0;
 		for (let part of parts) {
-			let rawPartSrc = part.src;
-			let origSite = part.site;
-			if (origSite != null) {
-				/** @type {[number, Site]} */
-				let pair = [pos, origSite];
-				codeMap.push(pair);
+			let rawPartSrc = part.content;
+
+			if (typeof rawPartSrc == "string") {
+				let origSite = part.site;
+				if (origSite != null) {
+					/** @type {[number, Site]} */
+					let pair = [pos, origSite];
+					codeMap.push(pair);
+				}
+
+				let partSrc = replaceTabs(rawPartSrc);
+
+				pos += partSrc.length;
+				partSrcs.push(partSrc);
+			} else {
+				throw new Error("expected IR to contain only strings after flatten");
 			}
-
-			let partSrc = replaceTabs(rawPartSrc);
-
-			pos += partSrc.length;
-			partSrcs.push(partSrc);
 		}
 
-		return [codeMap, partSrcs.join("")];
+		return [partSrcs.join(""), codeMap];
 	}
 }
 
@@ -798,7 +809,7 @@ class Source {
 		let nDigits = Math.max(Math.ceil(Math.log10(nLines)), 2); // line-number is at least two digits
 
 		for (let i = 0; i < lines.length; i++) {
-			lines[i] = String(i+1).padStart(nDigits, '0') + "  " + lines[i];
+			lines[i] = String(i + 1).padStart(nDigits, '0') + "  " + lines[i];
 		}
 
 		return lines.join("\n");
@@ -810,6 +821,9 @@ class Source {
  * or when the user of Helios throws an explicit error.
  */
 export class UserError extends Error {
+	#pos;
+	#src;
+
 	/**
 	 * @param {string} type 
 	 * @param {Source} src 
@@ -819,19 +833,19 @@ export class UserError extends Error {
 	constructor(type, src, pos, info = "") {
 		let line = src.posToLine(pos);
 
-		let msg = `${type} on line ${line+1}`;
+		let msg = `${type} on line ${line + 1}`;
 		if (info != "") {
 			msg += `: ${info}`;
 		}
 
 		super(msg);
-		this.pos_ = pos;
-		this.src_ = src;
+		this.#pos = pos;
+		this.#src = src;
 	}
 
 	/**
 	 * Constructs a SyntaxError
-	 * @param {string} src 
+	 * @param {Source} src 
 	 * @param {number} pos 
 	 * @param {string} info 
 	 * @returns {UserError}
@@ -842,7 +856,7 @@ export class UserError extends Error {
 
 	/**
 	 * Constructs a TypeError
-	 * @param {string} src 
+	 * @param {Source} src 
 	 * @param {number} pos 
 	 * @param {string} info 
 	 * @returns {UserError}
@@ -853,7 +867,7 @@ export class UserError extends Error {
 
 	/**
 	 * Constructs a ReferenceError (i.e. name undefined, or name unused)
-	 * @param {Constr} src 
+	 * @param {Source} src 
 	 * @param {number} pos 
 	 * @param {string} info 
 	 * @returns {UserError}
@@ -862,27 +876,54 @@ export class UserError extends Error {
 		return new UserError("ReferenceError", src, pos, info);
 	}
 
+	/**
+	 * Constructs a RuntimeError (i.e. when PlutusCoreError is called)
+	 * @param {Source} src 
+	 * @param {number} pos 
+	 * @param {string} info 
+	 * @returns {UserError}
+	 */
 	static runtimeError(src, pos, info = "") {
 		return new UserError("RuntimeError", src, pos, info);
 	}
 
-	// returns a pair [col, line]
+	/**
+	 * Calculates column/line position in 'this.src'.
+	 * @returns {[number, number]}
+	 */
 	getFilePos() {
-		return this.src_.posToColAndLine(this.pos_);
+		return this.#src.posToColAndLine(this.#pos);
 	}
 
+	/**
+	 * Dumps the error without throwing.
+	 * If 'verbose == true' the Source is also pretty printed with line-numbers.
+	 * @param {boolean} verbose 
+	 */
 	dump(verbose = false) {
 		if (verbose) {
-			console.error(this.src_.pretty());
+			console.error(this.#src.pretty());
 		}
 
 		console.error("\n" + this.message);
 	}
 
+	/**
+	 * Returns the error message (alternative to e.message)
+	 * @returns {string}
+	 */
 	toString() {
 		return this.message;
 	}
 
+	/**
+	 * Catches any UserErrors thrown inside 'fn()`.
+	 * Dumps the error
+	 * @template T
+	 * @param {() => T} fn 
+	 * @param {boolean} verbose 
+	 * @returns {T | undefined}	
+	 */
 	static catch(fn, verbose = false) {
 		try {
 			return fn();
@@ -894,14 +935,25 @@ export class UserError extends Error {
 			}
 		}
 	}
- }
+}
 
-// each token has a site, which encapsulates a position in a Source
+/**
+ * Each Token/Expression/Statement has a Site, which encapsulates a position in a Source
+ */
 class Site {
+	#src;
+	#pos;
+	/**@type {?Site} */
+	#codeMapSite;
+
+	/**
+	 * @param {Source} src 
+	 * @param {number} pos 
+	 */
 	constructor(src, pos) {
-		this.src_ = src;
-		this.pos_ = pos;
-		this.codeMapSite_ = null;
+		this.#src = src;
+		this.#pos = pos;
+		this.#codeMapSite = null;
 	}
 
 	static dummy() {
@@ -909,43 +961,70 @@ class Site {
 	}
 
 	get src() {
-		return this.src_;
+		return this.#src;
 	}
 
 	get pos() {
-		return this.pos_;
+		return this.#pos;
 	}
 
 	get line() {
-		return this.src_.posToLine(this.pos_);
+		return this.#src.posToLine(this.#pos);
 	}
 
 	get codeMapSite() {
-		return this.codeMapSite_;
+		return this.#codeMapSite;
 	}
 
+	/**
+	 * @param {Site} site 
+	 */
 	setCodeMapSite(site) {
-		this.codeMapSite_ = site;
+		this.#codeMapSite = site;
 	}
 
+	/**
+	 * Returns a SyntaxError
+	 * @param {string} info 
+	 * @returns {UserError}
+	 */
 	syntaxError(info = "") {
-		throw UserError.syntaxError(this.src_, this.pos_, info);
+		return UserError.syntaxError(this.#src, this.#pos, info);
 	}
 
+	/**
+	 * Returns a TypeError
+	 * @param {string} info
+	 * @returns {UserError}
+	 */
 	typeError(info = "") {
-		throw UserError.typeError(this.src_, this.pos_, info);
+		return UserError.typeError(this.#src, this.#pos, info);
 	}
 
+	/**
+	 * Returns a ReferenceError
+	 * @param {string} info 
+	 * @returns {UserError}
+	 */
 	referenceError(info = "") {
-		throw UserError.referenceError(this.src_, this.pos_, info);
+		return UserError.referenceError(this.#src, this.#pos, info);
 	}
 
+	/**
+	 * Returns a RuntimeError
+	 * @param {string} info
+	 * @returns {UserError}
+	 */
 	runtimeError(info = "") {
-		throw UserError.runtimeError(this.src_, this.pos_, info);
+		return UserError.runtimeError(this.#src, this.#pos, info);
 	}
 
+	/**
+	 * Calculates the column,line position in 'this.#src'
+	 * @returns {[number, number]}
+	 */
 	getFilePos() {
-		return this.src_.posToColAndLine(this.pos_);
+		return this.#src.posToColAndLine(this.#pos);
 	}
 }
 
@@ -954,234 +1033,514 @@ class Site {
 // Section 3: Plutus-Core AST
 /////////////////////////////
 
-// a PlutusCoreValue is not the same as a term or a constant!
+/** 
+ * a PlutusCoreValue is passed around be PlutusCore expressions.
+ */
 class PlutusCoreValue {
+	#site;
+
+	/**
+	 * @param {Site} site 
+	 */
 	constructor(site) {
 		assert(site != undefined && (site instanceof Site));
-		this.site_ = site;
+		this.#site = site;
 	}
 
+	/**
+	 * Return a copy of the PlutusCoreValue at a different Site.
+	 * @param {Site} newSite 
+	 * @returns {PlutusCoreValue}
+	 */
 	copy(newSite) {
 		throw new Error("not implemented");
 	}
 
 	get site() {
-		return this.site_;
+		return this.#site;
 	}
 
+	/**
+	 * Throws an error because most values can't be called (overridden by PlutusCoreAnon)
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
+	 * @param {Site} site 
+	 * @param {PlutusCoreValue} value
+	 * @returns {Promise<PlutusCoreValue}
+	 */
 	async call(rte, site, value) {
-		site.typeError("not a plutus-core function");
+		throw site.typeError(`expected a UPLC function, got '${this.toString()}`);
 	}
 
+	/**
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
+	 * @returns {Promise<PlutusCoreValue>}
+	 */
 	async eval(rte) {
 		return this;
 	}
 
+	/**
+	 * @type {bigint}
+	 */
 	get int() {
-		this.site.typeError("not an int");
+		throw this.site.typeError(`expected a UPLC int, got '${this.toString()}'`);
 	}
 
+	/**
+	 * @type {number[]}
+	 */
 	get bytes() {
-		this.site.typeError("not a bytearray");
+		throw this.site.typeError(`expected a UPLC bytearray, got '${this.toString()}'`);
 	}
 
+	/**
+	 * @type {string}
+	 */
 	get string() {
-		this.site.typeError("not a string");
+		throw this.site.typeError(`expected a UPLC string, got '${this.toString()}'`);
 	}
 
+	/**
+	 * @type {boolean}
+	 */
 	get bool() {
-		this.site.typeError("not a bool");
+		throw this.site.typeError(`expected a UPLC bool, got '${this.toString()}'`);
 	}
 
-	get first() {
-		this.site.typeError("not a pair");
-	}
-
-	get second() {
-		this.site.typeError("not a pair");
-	}
-
-	isStrictList() {
+	/**
+	 * @returns {boolean}
+	 */
+	isPair() {
 		return false;
 	}
 
-	get strictList() {
-		this.site.typeError("not a list");
+	/**
+	 * @type {PlutusCoreValue}
+	 */
+	get first() {
+		throw this.site.typeError(`expected a UPLC pair, got '${this.toString()}'`);
 	}
 
+	/**
+	 * @type {PlutusCoreValue}
+	 */
+	get second() {
+		throw this.site.typeError(`expected a UPLC pair, got '${this.toString()}'`);
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isMapItem() {
+		return true;
+	}
+
+	/**
+	 * @type {PlutusCoreData}
+	 */
+	get key() {
+		throw this.site.typeError(`expected a UPLC data-pair, got '${this.toString()}'`);
+	}
+
+	/**
+	 * @type {PlutusCoreData}
+	 */
+	get value() {
+		throw this.site.typeError(`expected a UPLC data-pair, got '${this.toString()}'`);
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isList() {
+		return false;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isMap() {
+		return false;
+	}
+
+	/**
+	 * @type {PlutusCoreData[]}
+	 */
 	get list() {
-		this.site.typeError("not a list/map");
+		throw this.site.typeError(`expected a UPLC list, got '${this.toString()}'`);
 	}
 
+	/**
+	 * @type {PlutusCoreMapItem[]}
+	 */
 	get map() {
-		this.site.typeError("not a map");
+		throw this.site.typeError(`expected a UPLC map '${this.toString()}'`);
 	}
 
+	/**
+	 * @type {PlutusCoreData}
+	 */
 	get data() {
-		this.site.typeError("not data");
+		throw this.site.typeError(`expeced UPLC data, got '${this.toString()}'`);
 	}
 
+	/**
+	 * @returns {PlutusCoreUnit}
+	 */
+	assertUnit() {
+		throw this.site.typeError(`expected UPLC unit, got '${this.toString}'`);
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		throw new Error("toString not implemented");
 	}
+
+	/**
+	 * Encodes value with plutus flat encoding.
+	 * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
+		throw new Error("not yet implemented");
+	}
 }
 
-// PlutusCore Runtime Environment used for controlling an evaluation (eg. by a debugger)
+/**
+ * PlutusCore Runtime Environment is used for controlling the programming evaluation (eg. by a debugger)
+
+ */
 class PlutusCoreRTE {
+	#callbacks;
+
+	/**
+	 * this.onNotifyCalls is set to 'false' when the debugger is in step over-mode.
+	 * @type {boolean}
+	 */
+	#notifyCalls;
+
+	/**
+	 * this.onNotifyCalls is set back to true if the endCall is called with the same rawStack as the marker.
+	 * @type {?PlutusCoreRawStack}
+	 */
+	#marker;
+
+	/**
+	 * @typedef {[?string, PlutusCoreValue][]} PlutusCoreRawStack
+	 */
+
+	/**
+	* @typedef {object} PlutusCoreRTECallbacks
+	* @property {(msg: string) => Promise<void>} [onPrint]
+	* @property {(site: Site, rawStack: PlutusCoreRawStack) => Promise<boolean>} [onStartCall]
+	* @property {(site: Site, rawStack: PlutusCoreRawStack) => Promise<void>} [onEndCall]
+	*/
+
+	/**
+	 * @param {PlutusCoreRTECallbacks} callbacks 
+	 */
 	constructor(callbacks) {
-		this.callbacks_ = callbacks;
-		this.notifyCalls_ = true;
-		this.marker_ = null;
+		this.#callbacks = callbacks;
+		this.#notifyCalls = true;
+		this.#marker = null;
 	}
 
+	/**
+	 * Gets variable using Debruijn index. Throws error here because PlutusCoreRTE is the stack root and doesn't contain any values.
+	 * @param {number} i 
+	 * @returns {PlutusCoreValue}
+	 */
 	get(i) {
 		throw new Error("variable index out of range");
 	}
 
+	/**
+	 * Creates a child stack.
+	 * @param {PlutusCoreValue} value 
+	 * @param {?string} valueName 
+	 * @returns {PlutusCoreStack}
+	 */
 	push(value, valueName = null) {
 		return new PlutusCoreStack(this, value, valueName);
 	}
 
+	/**
+	 * Calls the print callback (or does nothing if print callback isn't defined)
+	 * @param {string} msg 
+	 * @returns {Promise<void>}
+	 */
 	async print(msg) {
-		if (this.callbacks_.onPrint != undefined) {
-			await this.callbacks_.onPrint(msg);
+		if (this.#callbacks.onPrint != undefined) {
+			await this.#callbacks.onPrint(msg);
 		}
 	}
 
-	// `stack` here is actually a lists of pairs, not a regular stack
+	/**
+	 * Calls the onStartCall callback.
+	 * @param {Site} site 
+	 * @param {PlutusCoreRawStack} rawStack 
+	 * @returns {Promise<void>}
+	 */
 	async startCall(site, rawStack) {
-		if (this.notifyCalls_ && this.callbacks_.onStartCall != undefined) {
-			let stopNotifying = await this.callbacks_.onStartCall(site, rawStack);
+		if (this.#notifyCalls && this.#callbacks.onStartCall != undefined) {
+			let stopNotifying = await this.#callbacks.onStartCall(site, rawStack);
 			if (stopNotifying) {
-				this.notifyCalls_ = false;
-				this.marker_ = rawStack;
+				this.#notifyCalls = false;
+				this.#marker = rawStack;
 			}
 		}
 	}
 
+	/**
+	 * Calls the onEndCall callback if '#notifyCalls == true'.
+	 * '#notifyCalls' is set to true if 'rawStack == #marker'.
+	 * @param {Site} site 
+	 * @param {PlutusCoreRawStack} rawStack 
+	 * @param {PlutusCoreValue} result 
+	 * @returns {Promise<void>}
+	 */
 	async endCall(site, rawStack, result) {
-		if (!this.notifyCalls && this.marker_ == rawStack) {
-			this.notifyCalls_ = true;
-			this.marker_ = null;
+		if (!this.#notifyCalls && this.#marker == rawStack) {
+			this.#notifyCalls = true;
+			this.#marker = null;
 		}
 
-		if (this.notifyCalls_ && this.callbacks_.onEndCall != undefined) {
+		if (this.#notifyCalls && this.#callbacks.onEndCall != undefined) {
 			rawStack = rawStack.slice();
 			rawStack.push(["__result", result]);
-			await this.callbacks_.onEndCall(site, rawStack);
+			await this.#callbacks.onEndCall(site, rawStack);
 		}
 	}
 
+	/**
+	 * @returns {PlutusCoreRawStack}
+	 */
 	toList() {
 		return [];
 	}
 }
 
+/**
+ * PlutusCoreStack contains a value that can be retrieved using a Debruijn index.
+ */
 class PlutusCoreStack {
-	// valueName is optional
+	#parent;
+	#value;
+	#valueName;
+
+	/**
+	 * @param {PlutusCoreStack | PlutusCoreRTE} parent
+	 * @param {?PlutusCoreValue} value
+	 * @param {?string} valueName
+	 */
 	constructor(parent, value = null, valueName = null) {
-		this.parent_ = parent;
-		this.value_ = value;
-		this.valueName_ = valueName;
+		this.#parent = parent;
+		this.#value = value;
+		this.#valueName = valueName;
 	}
 
+	/**
+	 * Gets a value using the Debruijn index. If 'i == 1' then the current value is returned.
+	 * Otherwise 'i' is decrement and passed to the parent stack.
+	 * @param {number} i 
+	 * @returns {PlutusCoreValue}
+	 */
 	get(i) {
 		i -= 1;
 
 		if (i == 0) {
-			assert(this.value_ != null, "plutus-core stack value not set");
-			return this.value_;
+			if (this.#value === null) {
+				throw new Error("plutus-core stack value not set");
+			} else {
+				return this.#value;
+			}
 		} else {
 			assert(i > 0);
-			assert(this.parent_ != null, "variable index out of range");
-			return this.parent_.get(i);
+			return this.#parent.get(i);
 		}
 	}
 
+	/**
+	 * Creates a child stack.
+	 * @param {PlutusCoreValue} value 
+	 * @param {?string} valueName 
+	 * @returns {PlutusCoreStack}
+	 */
 	push(value, valueName = null) {
 		return new PlutusCoreStack(this, value, valueName);
 	}
 
+	/**
+	 * Calls the onPrint callback in the RTE (root of stack).
+	 * @param {string} msg 
+	 * @returns {Promise<void>}
+	 */
 	async print(msg) {
-		await this.parent_.print(msg);
+		await this.#parent.print(msg);
 	}
 
+	/**
+	 * Calls the onStartCall callback in the RTE (root of stack).
+	 * @param {Site} site 
+	 * @param {PlutusCoreRawStack} rawStack 
+	 * @returns {Promise<void>}
+	 */
 	async startCall(site, rawStack) {
-		await this.parent_.startCall(site, rawStack);
+		await this.#parent.startCall(site, rawStack);
 	}
 
+	/** 
+	 * Calls the onEndCall callback in the RTE (root of stack).
+	 * @param {Site} site
+	 * @param {PlutusCoreRawStack} rawStack
+	 * @param {PlutusCoreValue} result
+	 * @returns {Promise<void>}
+	*/
 	async endCall(site, rawStack, result) {
-		await this.parent_.endCall(site, rawStack, result);
+		await this.#parent.endCall(site, rawStack, result);
 	}
 
+	/** 
+	 * @returns {PlutusCoreRawStack}
+	*/
 	toList() {
-		let lst = this.parent_.toList();
-		lst.push([this.valueName_, this.value_]);
+		let lst = this.#parent.toList();
+		if (this.#value !== null) {
+			lst.push([this.#valueName, this.#value]);
+		}
 		return lst;
 	}
 }
 
+/**
+ * Anonymous Plutus Core function.
+ * Returns a new PlutusCoreAnon whenever it is called/applied, except final application when the function itself is evaluated.
+ */
 class PlutusCoreAnon extends PlutusCoreValue {
-	// fn is a callback
-	// args can be list of argNames (for debugging), or the number of args
+	/**
+	 * @typedef {(callSite: Site, subStack: PlutusCoreStack, ...args: PlutusCoreValue[]) => (PlutusCoreValue | Promise<PlutusCoreValue>)} PlutusCoreAnonCallback
+	 */
+
+	#rte;
+	#nArgs;
+	#argNames;
+
+	/**
+	 * Increment every time function a new argument is applied.
+	 */
+	#argCount;
+
+	/**
+	 * Callback that is called when function is fully applied.
+	 * @type {PlutusCoreAnonCallback}
+	 */
+	#fn;
+	#callSite;
+
+	/**
+	 * 
+	 * @param {Site} site 
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
+	 * @param {string[] | number} args - args can be list of argNames (for debugging), or the number of args
+	 * @param {PlutusCoreAnonCallback} fn 
+	 * @param {number} argCount 
+	 * @param {?Site} callSite 
+	 */
 	constructor(site, rte, args, fn, argCount = 0, callSite = null) {
 		super(site);
 		assert(typeof argCount == "number");
 
-		let nArgs = args;
-		if (((typeof args) != 'number')) {
-			assert(args instanceof Array);
-			nArgs = args.length;
+		let nArgs = 0;
+		/** @type {?string[]} */
+		let argNames = null;
+		if ((typeof args != 'number')) {
+			if (args instanceof Array) {
+				nArgs = args.length;
+				argNames = args;
+			} else {
+				throw new Error("not an Array");
+			}
 		} else {
-			args = null;
+			nArgs = args;
 		}
+
 		assert(nArgs >= 1);
 
-		this.rte_ = rte;
-		this.nArgs_ = nArgs;
-		this.args_  = args;
-		this.argCount_ = argCount;
-		this.fn_ = fn; // not async!
-		this.callSite_ = callSite;
+		this.#rte = rte;
+		this.#nArgs = nArgs;
+		this.#argNames = argNames;
+		this.#argCount = argCount;
+		this.#fn = fn;
+		this.#callSite = callSite;
 	}
 
+	/**
+	 * @param {Site} newSite 
+	 * @returns {PlutusCoreAnon}
+	 */
 	copy(newSite) {
-		return new PlutusCoreAnon(newSite, this.rte_, this.args_ != null ? this.args_ : this.nArgs_, this.fn_, this.argCount_, this.callSite_);
+		return new PlutusCoreAnon(
+			newSite,
+			this.#rte,
+			this.#argNames !== null ? this.#argNames : this.#nArgs,
+			this.#fn,
+			this.#argCount,
+			this.#callSite,
+		);
 	}
 
+	/**
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
+	 * @param {Site} site 
+	 * @param {PlutusCoreValue} value 
+	 * @returns {Promise<PlutusCoreValue>}
+	 */
 	async call(rte, site, value) {
 		assert(site != undefined && site instanceof Site);
-		let subStack = this.rte_.push(value, this.args_ != null ? this.args_[this.argCount_] : null); // this is the only place where the stack grows
-		let argCount = this.argCount_ + 1;
-		let callSite = this.callSite_ != null ? this.callSite_ : site;
-		
-		if (argCount == this.nArgs_) {
+
+		let subStack = this.#rte.push(value, this.#argNames !== null ? this.#argNames[this.#argCount] : null); // this is the only place where the stack grows
+		let argCount = this.#argCount + 1;
+		let callSite = this.#callSite !== null ? this.#callSite : site;
+
+		// function is fully applied, collect the args and call the callback
+		if (argCount == this.#nArgs) {
+			/** @type {PlutusCoreValue[]} */
 			let args = [];
 
 			let rawStack = rte.toList(); // use the RTE of the callsite
 
-			for (let i = this.nArgs_; i >= 1; i--) {
+			for (let i = this.#nArgs; i >= 1; i--) {
 				let argValue = subStack.get(i);
 				args.push(argValue);
-				rawStack.push([`__arg${this.nArgs_ - i}`, argValue]);
+				rawStack.push([`__arg${this.#nArgs - i}`, argValue]);
 			}
-			
-			// notify the RTE of the new live stack (list of pairs instead of PlutusCoreStack), and await permission to continue
-			await this.rte_.startCall(callSite, rawStack);
 
-			let result = this.fn_(callSite, subStack, ...args);
+			// notify the RTE of the new live stack (list of pairs instead of PlutusCoreStack), and await permission to continue
+			await this.#rte.startCall(callSite, rawStack);
+
+			let result = this.#fn(callSite, subStack, ...args);
 			if (result instanceof Promise) {
 				result = await result;
 			}
 
 			// the same rawStack object can be used as a marker for 'Step-Over' in the debugger
-			await this.rte_.endCall(callSite, rawStack, result);
+			await this.#rte.endCall(callSite, rawStack, result);
 
 			return result;
 		} else {
-			assert(this.nArgs_ > 1);
+			// function isn't yet fully applied, return a new partially applied PlutusCoreAnon
+			assert(this.#nArgs > 1);
 
-			return new PlutusCoreAnon(callSite, subStack, this.args_ != null ? this.args_ : this.nArgs_, this.fn_, argCount, callSite);			
+			return new PlutusCoreAnon(
+				callSite,
+				subStack,
+				this.#argNames !== null ? this.#argNames : this.#nArgs,
+				this.#fn,
+				argCount,
+				callSite,
+			);
 		}
 	}
 
@@ -1190,39 +1549,70 @@ class PlutusCoreAnon extends PlutusCoreValue {
 	}
 }
 
+/**
+ * UPLC Integer class
+ */
 class PlutusCoreInt extends PlutusCoreValue {
-	// value is BigInt, which is supposed to be arbitrary precision
+	#value;
+	#signed;
+
+	/**
+	 * @param {Site} site
+	 * @param {bigint} value - supposed to be arbitrary precision
+	 * @param {boolean} signed
+	 */
 	constructor(site, value, signed = true) {
 		super(site);
 		assert(typeof value == 'bigint', "not a bigint");
-		this.value_  = value;
-		this.signed_ = signed;
+		this.#value = value;
+		this.#signed = signed;
 	}
 
+	/**
+	 * Creates a PlutusCoreInt wrapped in a PlutusCoreConst, so it can be used a term
+	 * @param {Site} site 
+	 * @param {bigint} value 
+	 * @returns 
+	 */
+	static newSignedTerm(site, value) {
+		return new PlutusCoreConst(new PlutusCoreInt(site, value, true));
+	}
+
+	/**
+	 * @param {Site} newSite 
+	 * @returns 
+	 */
 	copy(newSite) {
-		return new PlutusCoreInt(newSite, this.value_, this.signed_);
-	}
-
-	get value() {
-		return this.value_;
+		return new PlutusCoreInt(newSite, this.#value, this.#signed);
 	}
 
 	get int() {
-		if (!this.signed_) {
-			throw new Error("can't use unsigned int in eval");
-		}
-
-		return this.value;
+		return this.#value;
 	}
 
+	/**
+	 * Parses a single byte in the Plutus-Core byte-list representation of an int
+	 * @param {number} b 
+	 * @returns {number}
+	 */
 	static parseRawByte(b) {
 		return b & 0b01111111;
 	}
 
+	/**
+	 * Returns true if 'b' is the last byte in the Plutus-Core byte-list representation of an int.
+	 * @param {number} b 
+	 * @returns {boolean}
+	 */
 	static rawByteIsLast(b) {
 		return (b & 0b10000000) == 0;
 	}
 
+	/**
+	 * Combines a list of Plutus-Core bytes into a bigint (leading bit of each byte is ignored)
+	 * @param {number[]} bytes
+	 * @returns {bigint}
+	 */
 	static bytesToBigInt(bytes) {
 		let value = BigInt(0);
 
@@ -1232,62 +1622,69 @@ class PlutusCoreInt extends PlutusCoreValue {
 			let b = bytes[i];
 
 			// 7 (not 8), because leading bit isn't used here
-			value = value + BigInt(b)*ipow2(BigInt(i)*7n);
+			value = value + BigInt(b) * ipow2(BigInt(i) * 7n);
 		}
 
 		return value;
 	}
 
-	// apply zigzag encoding
+	/**
+	 * Applies zigzag encoding
+	 * @returns {PlutusCoreInt}
+	 */
 	toUnsigned() {
-		if (this.signed_) {
-			if (this.value_ < 0n) {
-				return new PlutusCoreInt(this.site, 1n - this.value_*2n, false);
+		if (this.#signed) {
+			if (this.#value < 0n) {
+				return new PlutusCoreInt(this.site, 1n - this.#value * 2n, false);
 			} else {
-				return new PlutusCoreInt(this.site, this.value_*2n, false);
+				return new PlutusCoreInt(this.site, this.#value * 2n, false);
 			}
 		} else {
 			return this;
 		}
 	}
 
-	// unapply zigZag encoding
+	/** 
+	 * Unapplies zigzag encoding 
+	 * @returns {PlutusCoreInt}
+	*/
 	toSigned() {
-		if (this.signed_) {
+		if (this.#signed) {
 			return this;
 		} else {
-			if (this.value_%2n == 0n) {
-				return new PlutusCoreInt(this.value_/2n, true);
+			if (this.#value % 2n == 0n) {
+				return new PlutusCoreInt(this.site, this.#value / 2n, true);
 			} else {
-				return new PlutusCoreInt(-(this.value_+1n)/2n, true);
+				return new PlutusCoreInt(this.site, -(this.#value + 1n) / 2n, true);
 			}
 		}
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return this.value_.toString();
+		return this.#value.toString();
 	}
 
-	toFlat(bitWriter) {
-		if (this.signed_) {
-			bitWriter.write('0100');
-			bitWriter.write('100000'); // PlutusCore list with a single entry '0000'
-		}
-
+	/**
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatInternal(bitWriter) {
 		let zigzag = this.toUnsigned();
-		let bitString = padZeroes(zigzag.value_.toString(2), 7);
+		let bitString = padZeroes(zigzag.#value.toString(2), 7);
 
 		// split every 7th
 		let parts = [];
 		for (let i = 0; i < bitString.length; i += 7) {
-			parts.push(bitString.slice(i, i+7));
+			parts.push(bitString.slice(i, i + 7));
 		}
 
 		// reverse the parts
 		parts.reverse();
 
 		for (let i = 0; i < parts.length; i++) {
-			if (i == parts.length-1) {
+			if (i == parts.length - 1) {
 				// last
 				bitWriter.write('0' + parts[i]);
 			} else {
@@ -1296,44 +1693,92 @@ class PlutusCoreInt extends PlutusCoreValue {
 		}
 	}
 
-	assertInt() {
-		if (!this.signed_) {
-			throw new Error("can't use unsigned int in eval");
-		}
-		return this;
+	/**
+	 * Encodes unsigned integer with plutus flat encoding.
+	 * Throws error if signed.
+	 * Used by encoding plutus core program version and debruijn indices.
+	 * @param {BitWriter} bitWriter 
+	 */
+	toFlatUnsigned(bitWriter) {
+		assert(!this.#signed);
+
+		this.toFlatInternal(bitWriter);
+	}
+
+	/**
+	 * Encodes integer in plutus flat encoding.
+	 * @param {BitWriter} bitWriter 
+	 */
+	toFlatValue(bitWriter) {
+		assert(this.#signed);
+
+		bitWriter.write('100000'); // PlutusCore list with a single entry '0000'
+
+		this.toFlatInternal(bitWriter);
 	}
 }
 
+/**
+ * UPLC ByteArray value class
+ */
 class PlutusCoreByteArray extends PlutusCoreValue {
+	#bytes;
+
+	/**
+	 * @param {Site} site
+	 * @param {number[]} bytes
+	 */
 	constructor(site, bytes) {
 		super(site);
 		assert(bytes != undefined);
-		this.bytes_ = bytes;
-		for (let b of this.bytes_) {
+		this.#bytes = bytes;
+		for (let b of this.#bytes) {
 			assert(typeof b == 'number');
 		}
 	}
 
+	/**
+	 * Creates new PlutusCoreByteArray wrapped in PlutusCoreConst so it can be used as a term.
+	 * @param {Site} site 
+	 * @param {number[]} bytes 
+	 * @returns 
+	 */
+	static newTerm(site, bytes) {
+		return new PlutusCoreConst(new PlutusCoreByteArray(site, bytes));
+	}
+
+	/**
+	 * @param {Site} newSite 
+	 * @returns {PlutusCoreByteArray}
+	 */
 	copy(newSite) {
-		return new PlutusCoreByteArray(newSite, this.bytes_);
+		return new PlutusCoreByteArray(newSite, this.#bytes);
 	}
 
 	get bytes() {
-		return this.bytes_.slice();
+		return this.#bytes.slice();
 	}
 
 	toString() {
 		// to hex encoding
-		return '#' + bytesToHex(this.bytes_);
+		return `#${bytesToHex(this.#bytes)}`;
 	}
 
-	toFlat(bitWriter) {
-		bitWriter.write('0100');
+	/**
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
 		bitWriter.write('100010'); // PlutusCore list that contains single '0001' entry
 
-		PlutusCoreByteArray.writeBytes(bitWriter, this.bytes_);
+		PlutusCoreByteArray.writeBytes(bitWriter, this.#bytes);
 	}
 
+	/**
+	 * Write a list of bytes to the bitWriter using flat encoding.
+	 * Used by PlutusCoreString and PlutusCoreByteArray
+	 * @param {BitWriter} bitWriter 
+	 * @param {number[]} bytes 
+	 */
 	static writeBytes(bitWriter, bytes) {
 		bitWriter.padToByteBoundary(true);
 
@@ -1359,64 +1804,114 @@ class PlutusCoreByteArray extends PlutusCoreValue {
 	}
 }
 
+/**
+ * UPLC string value class
+ */
 class PlutusCoreString extends PlutusCoreValue {
+	#value;
+
+	/**
+	 * @param {Site} site 
+	 * @param {string} value 
+	 */
 	constructor(site, value) {
 		super(site);
-		this.value_ = value;
+		this.#value = value;
 	}
 
+	/**
+	 * Creates a new PlutusCoreString wrapped with PlutusCoreConst so it can be used as a term.
+	 * @param {Site} site 
+	 * @param {string} value 
+	 * @returns {PlutusCoreConst}
+	 */
+	static newTerm(site, value) {
+		return new PlutusCoreConst(new PlutusCoreString(site, value));
+	}
+
+	/**
+	 * @param {Site} newSite 
+	 * @returns {PlutusCoreString}
+	 */
 	copy(newSite) {
-		return new PlutusCoreString(newSite, this.value_);
-	}
-
-	get value() {
-		return this.value_;
+		return new PlutusCoreString(newSite, this.#value);
 	}
 
 	get string() {
-		return this.value;
+		return this.#value;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return "\"" + this.value_ + "\"";
+		return `"${this.#value}"`;
 	}
 
-	toFlat(bitWriter) {
-		bitWriter.write('0100');
+	/**
+	 * Encodes string use plutus flat encoding.
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
 		bitWriter.write('100100'); // PlutusCore list that contains single '0010' entry
 
-		let bytes = (new TextEncoder()).encode(this.value_);
+		let bytes = Array.from((new TextEncoder()).encode(this.#value));
 
 		PlutusCoreByteArray.writeBytes(bitWriter, bytes);
 	}
 }
 
+/**
+ * UPLC boolean value class
+ */
 class PlutusCoreBool extends PlutusCoreValue {
+	#value;
+
+	/**
+	 * @param {Site} site 
+	 * @param {boolean} value 
+	 */
 	constructor(site, value) {
 		super(site);
-		this.value_ = value;
+		this.#value = value;
 	}
 
+	/**
+	 * Creates a new PlutusCoreBool wrapped with PlutusCoreConst so it can be used as a term.
+	 * @param {Site} site 
+	 * @param {boolean} value 
+	 * @returns {PlutusCoreConst}
+	 */
+	static newTerm(site, value) {
+		return new PlutusCoreConst(new PlutusCoreBool(site, value));
+	}
+
+	/**
+	 * @param {Site} newSite 
+	 * @returns {PlutusCoreBool}
+	 */
 	copy(newSite) {
-		return new PlutusCoreBool(newSite, this.value_);
-	}
-
-	get value() {
-		return this.value_;
+		return new PlutusCoreBool(newSite, this.#value);
 	}
 
 	get bool() {
-		return this.value_;
+		return this.#value;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return this.value_ ? "true" : "false";
+		return this.#value ? "true" : "false";
 	}
 
-	toFlat(bitWriter) {
-		bitWriter.write('0100');
+	/**
+	 * Encodes bool using plutus flat encoding
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
 		bitWriter.write('101000'); // PlutusCore list that contains single '0100' entry
-		if (this.value_) {
+		if (this.#value) {
 			bitWriter.write('1');
 		} else {
 			bitWriter.write('0');
@@ -1424,11 +1919,30 @@ class PlutusCoreBool extends PlutusCoreValue {
 	}
 }
 
+/**
+ * UPLC unit value class
+ */
 class PlutusCoreUnit extends PlutusCoreValue {
+	/**
+	 * @param {Site} site 
+	 */
 	constructor(site) {
 		super(site);
 	}
 
+	/**
+	 * Creates a new PlutusCoreUnit wrapped with PlutusCoreConst so it can be used as a term
+	 * @param {Site} site 
+	 * @returns {PlutusCoreConst}
+	 */
+	static newTerm(site) {
+		return new PlutusCoreConst(new PlutusCoreUnit(site));
+	}
+
+	/**
+	 * @param {Site} newSite 
+	 * @returns {PlutusCoreUnit}
+	 */
 	copy(newSite) {
 		return new PlutusCoreUnit(newSite);
 	}
@@ -1437,293 +1951,601 @@ class PlutusCoreUnit extends PlutusCoreValue {
 		return "()";
 	}
 
-	toFlat(bitWriter) {
-		bitWriter.write('0100');
+	/**
+	 * Encodes PlutusCoreUnit with flat encoding.
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
 		bitWriter.write('100110'); // PlutusCore list that contains single '0011' entry
 	}
 
+	/**
+	 * @returns {PlutusCoreUnit}
+	 */
 	assertUnit() {
 		return this;
 	}
 }
 
+/**
+ * UPLC pair value class
+ * Can contain any other value type.
+ */
 class PlutusCorePair extends PlutusCoreValue {
+	#first;
+	#second;
+
+	/**
+	 * @param {Site} site
+	 * @param {PlutusCoreValue} first
+	 * @param {PlutusCoreValue} second
+	 */
 	constructor(site, first, second) {
 		super(site);
-		this.first_ = first;
-		this.second_ = second;
+		this.#first = first;
+		this.#second = second;
 	}
 
+	/**
+	 * @param {Site} newSite 
+	 * @returns {PlutusCorePair}
+	 */
 	copy(newSite) {
-		return new PlutusCorePair(newSite, this.first_, this.second_);
+		return new PlutusCorePair(newSite, this.#first, this.#second);
 	}
 
 	toString() {
-		return `(${this.first_.toString()}, ${this.second_.toString()})`;
+		return `(${this.#first.toString()}, ${this.#second.toString()})`;
 	}
 
-	get first() {
-		return this.first_;
-	}
-
-	get second() {
-		return this.second_;
-	}
-}
-
-// needed for eval
-class PlutusCoreList extends PlutusCoreValue {
-	constructor(site, items) {
-		super(site);
-		this.items_ = items;
-	}
-
-	copy(newSite) {
-		return new PlutusCoreList(newSite, this.items_.slice());
-	}
-
-	get list() {
-		return this.items_.slice();
-	}
-
-	isStrictList() {
+	/**
+	 * @returns {boolean}
+	 */
+	isPair() {
 		return true;
 	}
 
-	get strictList() {
-		return this.list;
+	get first() {
+		return this.#first;
 	}
 
-	toString() {
-		return `[${this.items_.map(item => item.toString()).join(", ")}]`;
+	get second() {
+		return this.#second;
 	}
 }
 
-// needed for eval
-class PlutusCoreMap extends PlutusCoreValue {
-	constructor(site, pairs) {
+/**
+ * UPLC pair value class that only contains data
+ * Only used during evaluation.
+ */
+class PlutusCoreMapItem extends PlutusCoreValue {
+	#key;
+	#value;
+
+	/**
+	 * @param {Site} site 
+	 * @param {PlutusCoreData} key 
+	 * @param {PlutusCoreData} value 
+	 */
+	constructor(site, key, value) {
 		super(site);
-		this.pairs_ = pairs;
+		this.#key = key;
+		this.#value = value;
 	}
 
+	/**
+	 * @param {Site} newSite 
+	 * @returns {PlutusCoreMapItem}
+	 */
 	copy(newSite) {
-		return new PlutusCoreMap(newSite, this.pairs_.slice());
+		return new PlutusCoreMapItem(newSite, this.#key, this.#value);
 	}
 
-	get map() {
-		return this.pairs_.slice();
+	toString() {
+		return `(${this.#key.toString()}: ${this.#value.toString()})`;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isMapItem() {
+		return true;
+	}
+
+	get key() {
+		return this.#key;
+	}
+
+	get value() {
+		return this.#value;
+	}
+}
+
+/** 
+ * UPLC list value class.
+ * Only used during evaluation.
+*/
+class PlutusCoreList extends PlutusCoreValue {
+	#items;
+
+	/**
+	 * @param {Site} site 
+	 * @param {PlutusCoreData[]} items 
+	 */
+	constructor(site, items) {
+		super(site);
+		this.#items = items;
+	}
+
+	/**
+	 * @param {Site} newSite
+	 * @returns {PlutusCoreList}
+	 */
+	copy(newSite) {
+		return new PlutusCoreList(newSite, this.#items.slice());
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isList() {
+		return true;
 	}
 
 	get list() {
-		return this.map;
+		return this.#items.slice();
 	}
 
 	toString() {
-		return `[${this.pairs_.map(([fst, snd]) => `[${fst.toString()}, ${snd.toString()}]`).join(", ")}]`;
+		return `[${this.#items.map(item => item.toString()).join(", ")}]`;
 	}
 }
 
-// needed for eval
-class PlutusCoreData extends PlutusCoreValue {
-	constructor(site, data) {
+/**
+ * UPLC map value class.
+ * Only used during evaluation.
+ */
+class PlutusCoreMap extends PlutusCoreValue {
+	#pairs;
+
+	/**
+	 * @param {Site} site 
+	 * @param {PlutusCoreMapItem[]} pairs 
+	 */
+	constructor(site, pairs) {
 		super(site);
-		this.data_ = assertDefined(data);
-		assert(!(data instanceof PlutusCoreData));
+		this.#pairs = pairs;
 	}
 
+	/**
+	 * @param {Site} newSite 
+	 * @returns {PlutusCoreMap}
+	 */
 	copy(newSite) {
-		return new PlutusCoreData(newSite, this.data_);
+		return new PlutusCoreMap(newSite, this.#pairs.slice());
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isMap() {
+		return true;
+	}
+
+	get map() {
+		return this.#pairs.slice();
+	}
+
+	toString() {
+		return `[${this.#pairs.map((pair) => `[${pair.key.toString()}, ${pair.value.toString()}]`).join(", ")}]`;
+	}
+}
+
+/**
+ * Wrapper for PlutusCoreData
+ */
+class PlutusCoreDataValue extends PlutusCoreValue {
+	#data;
+
+	/**
+	 * @param {Site} site 
+	 * @param {PlutusCoreData} data 
+	 */
+	constructor(site, data) {
+		super(site);
+		this.#data = assertDefined(data);
+		assert(data instanceof PlutusCoreData);
+	}
+
+	/**
+	 * @param {Site} newSite 
+	 * @returns {PlutusCoreDataValue}
+	 */
+	copy(newSite) {
+		return new PlutusCoreDataValue(newSite, this.#data);
 	}
 
 	get data() {
-		return this.data_;
+		return this.#data;
 	}
 
 	toString() {
-		return `data(${this.data_.toString()})`;
+		return `data(${this.#data.toString()})`;
 	}
 }
 
+/**
+ * Base class of UPLC terms
+ */
 class PlutusCoreTerm {
+	#site;
+	#type;
+
+	/**
+	 * @param {Site} site
+	 * @param {number} type
+	 */
 	constructor(site, type) {
 		assert(site != undefined && site instanceof Site);
-		this.type_ = type;
-		this.site_ = site;
+		this.#site = site;
+		this.#type = type;
 	}
 
 	get site() {
-		return this.site_;
+		return this.#site;
 	}
 
+	/**
+	 * Generic term toString method
+	 * @returns {string}
+	 */
 	toString() {
-		return "(Term " + this.type_.toString() + ")";
+		return `(Term ${this.#type.toString()})`;
+	}
+
+	/**
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
+	 * @returns {Promise<PlutusCoreValue>}
+	 */
+	async eval(rte) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Writes bits of flat encoded UPLC terms to bitWriter. Doesn't return anything.
+	 * @param {BitWriter} bitWriter 
+	 */
+	toFlat(bitWriter) {
+		throw new Error("not yet implemented");
 	}
 }
 
+/**
+ * UPLC variable ref term (index is a Debruijn index)
+ */
 class PlutusCoreVariable extends PlutusCoreTerm {
-	// TODO: generate globally unique names from the DeBruijn indices
+	#index;
+
+	/**
+	 * @param {Site} site 
+	 * @param {PlutusCoreInt} index 
+	 */
 	constructor(site, index) {
 		super(site, 0);
-		this.index_ = index;
+		this.#index = index;
 	}
 
 	toString() {
-		return "x" + this.index_.toString();
+		return `x${this.#index.toString()}`;
 	}
 
+	/**
+	 * @param {BitWriter} bitWriter 
+	 */
 	toFlat(bitWriter) {
 		bitWriter.write('0000');
-		this.index_.toFlat(bitWriter);
+		this.#index.toFlatUnsigned(bitWriter);
 	}
 
+	/**
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte
+	 * @returns {Promise<PlutusCoreValue>}
+	 */
 	async eval(rte) {
-		return rte.get(this.index_);
+		return rte.get(Number(this.#index.int));
 	}
 }
 
+/**
+ * UPLC delay term.
+ */
 class PlutusCoreDelay extends PlutusCoreTerm {
+	#expr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {PlutusCoreTerm} expr 
+	 */
 	constructor(site, expr) {
 		super(site, 1);
-		this.expr_ = expr;
+		this.#expr = expr;
 	}
 
 	toString() {
-		return "(delay " + this.expr_.toString() + ")";
+		return `(delay ${this.#expr.toString()})`;
 	}
 
+	/**
+	 * @param {BitWriter} bitWriter 
+	 */
 	toFlat(bitWriter) {
 		bitWriter.write('0001');
-		this.expr_.toFlat(bitWriter);
+		this.#expr.toFlat(bitWriter);
 	}
 
+	/**
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
+	 * @returns {Promise<PlutusCoreValue>}
+	 */
 	async eval(rte) {
-		return await this.expr_.eval(rte);
+		return await this.#expr.eval(rte);
 	}
 }
 
+/**
+ * UPLC lambda term
+ */
 class PlutusCoreLambda extends PlutusCoreTerm {
+	#rhs;
+	#argName;
+
+	/**
+	 * @param {Site} site
+	 * @param {PlutusCoreTerm} rhs
+	 * @param {?string} argName
+	 */
 	constructor(site, rhs, argName = null) {
 		super(site, 2);
-		this.rhs_  = rhs;
-		this.argName_ = argName;
+		this.#rhs = rhs;
+		this.#argName = argName;
 	}
 
+	/**
+	 * Returns string with unicode lambda symbol
+	 * @returns {string}
+	 */
 	toString() {
-		return `(\u039b${this.argName_ != null ? " " + this.argName_ + " ->" : ""} ${this.rhs_.toString()})`;
+		return `(\u039b${this.#argName !== null ? " " + this.#argName + " ->" : ""} ${this.#rhs.toString()})`;
 	}
 
+	/**
+	 * @param {BitWriter} bitWriter 
+	 */
 	toFlat(bitWriter) {
 		bitWriter.write('0010');
-		this.rhs_.toFlat(bitWriter);
+		this.#rhs.toFlat(bitWriter);
 	}
 
+	/**
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
+	 * @returns {Promise<PlutusCoreValue>}
+	 */
 	async eval(rte) {
-		return new PlutusCoreAnon(this.site, rte, this.argName_ != null ? [this.argName_] : 1, (callSite, subStack) => {
-			return this.rhs_.eval(subStack);
+		return new PlutusCoreAnon(this.site, rte, this.#argName !== null ? [this.#argName] : 1, (callSite, subStack) => {
+			return this.#rhs.eval(subStack);
 		});
 	}
 }
 
-// aka function application
+/**
+ * UPLC function application term
+ */
 class PlutusCoreCall extends PlutusCoreTerm {
+	#a;
+	#b;
+
+	/**
+	 * @param {Site} site
+	 * @param {PlutusCoreTerm} a
+	 * @param {PlutusCoreTerm} b
+	 */
 	constructor(site, a, b) {
 		super(site, 3);
-		this.a_ = a;
-		this.b_ = b;
+		this.#a = a;
+		this.#b = b;
 	}
 
 	toString() {
-		return "[" + this.a_.toString() + " " + this.b_.toString() + "]";
+		return `[${this.#a.toString()} ${this.#b.toString()}]`;
 	}
 
+	/**
+	 * @param {BitWriter} bitWriter 
+	 */
 	toFlat(bitWriter) {
 		bitWriter.write('0011');
-		this.a_.toFlat(bitWriter);
-		this.b_.toFlat(bitWriter);
+		this.#a.toFlat(bitWriter);
+		this.#b.toFlat(bitWriter);
 	}
 
+	/**
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
+	 * @returns 
+	 */
 	async eval(rte) {
-		let fn = await this.a_.eval(rte);
-		let arg = await this.b_.eval(rte);
+		let fn = await this.#a.eval(rte);
+		let arg = await this.#b.eval(rte);
 
 		return await fn.call(rte, this.site, arg);
 	}
 }
 
-class PlutusCoreForce extends PlutusCoreTerm {
-	constructor(site, expr) {
-		super(site, 5);
-		this.expr_ = expr;
+/**
+ * UPLC const term
+ */
+class PlutusCoreConst extends PlutusCoreTerm {
+	#value;
+
+	/**
+	 * @param {PlutusCoreValue} value 
+	 */
+	constructor(value) {
+		super(value.site, 4);
+		this.#value = value;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return "(force " + this.expr_.toString() + ")";
+		return this.#value.toString();
 	}
 
+	/**
+	 * @param {BitWriter} bitWriter 
+	 */
 	toFlat(bitWriter) {
-		bitWriter.write('0101');
-		this.expr_.toFlat(bitWriter);
+		bitWriter.write('0100');
+		this.#value.toFlatValue(bitWriter);
 	}
 
+	/**
+	 * @param {PlutusCoreStack | PlutusCoreRTE} rte 
+	 * @returns {Promise<PlutusCoreValue>}
+	 */
 	async eval(rte) {
-		return await this.expr_.eval(rte);
+		return await this.#value.eval(rte);
 	}
 }
 
+/**
+ * UPLC force term
+ */
+class PlutusCoreForce extends PlutusCoreTerm {
+	#expr;
+
+	/**
+	 * @param {Site} site
+	 * @param {PlutusCoreTerm} expr
+	 */
+	constructor(site, expr) {
+		super(site, 5);
+		this.#expr = expr;
+	}
+
+	toString() {
+		return `(force ${this.#expr.toString()})`;
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter 
+	 */
+	toFlat(bitWriter) {
+		bitWriter.write('0101');
+		this.#expr.toFlat(bitWriter);
+	}
+
+	/**
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
+	 * @returns {Promise<PlutusCoreValue}
+	 */
+	async eval(rte) {
+		return await this.#expr.eval(rte);
+	}
+}
+
+/**
+ * UPLC error term
+ */
 class PlutusCoreError extends PlutusCoreTerm {
+	/** 'msg' is only used for debuggin and doesn't actually appear in the final program */
+	#msg;
+
+	/**
+	 * @param {Site} site 
+	 * @param {string} msg 
+	 */
 	constructor(site, msg = "") {
 		super(site, 6);
-		this.msg_ = msg;
+		this.#msg = msg;
 	}
 
 	toString() {
 		return "(error)";
 	}
 
+	/**
+	 * @param {BitWriter} bitWriter 
+	 */
 	toFlat(bitWriter) {
 		bitWriter.write('0110');
 	}
 
+	/**
+	 * Throws a RuntimeError when evaluated.
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
+	 * @returns {Promise<PlutusCoreValue>}
+	 */
 	async eval(rte) {
-		this.site.runtimeError(this.msg_);
+		throw this.site.runtimeError(this.#msg);
 	}
 }
 
+/**
+ * UPLC builtin function ref term
+ */
 class PlutusCoreBuiltin extends PlutusCoreTerm {
+	/** unknown builtins stay integers */
+	#name;
+
+	/**
+	 * @param {Site} site 
+	 * @param {string | number} name 
+	 */
 	constructor(site, name) {
 		super(site, 7);
-		this.name_ = name; // unknown builtin stays an integer
-	}
-
-	isKnown() {
-		return typeof this.name_ == "string";
+		this.#name = name;
 	}
 
 	toString() {
-		if (this.isKnown()) {
-			return `(builtin ${this.name_})`;
+		if (typeof this.#name == "string") {
+			return `(builtin ${this.#name})`;
 		} else {
-			return `(builtin unknown${this.name_.toString()})`;
+			return `(builtin unknown${this.#name.toString()})`;
 		}
 	}
 
+	/**
+	 * @param {BitWriter} bitWriter 
+	 */
 	toFlat(bitWriter) {
 		bitWriter.write('0111');
 
+		/** @type {number} */
 		let i;
-		if (this.isKnown()) {
-			i = PLUTUS_CORE_BUILTINS.findIndex(info => info.name == this.name_);
+
+		if (typeof this.#name == "string") {
+			i = PLUTUS_CORE_BUILTINS.findIndex(info => info.name == this.#name);
 		} else {
-			i = this.name_;
+			i = this.#name;
 		}
 
 		let bitString = padZeroes(i.toString(2), 7);
-		
+
 		bitWriter.write(bitString);
 	}
 
-	eval(rte) {
-		switch(this.name_) {
+	/**
+	 * Returns appropriate callback wrapped with PlutusCoreAnon depending on builtin name.
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
+	 * @returns {Promise<PlutusCoreValue>}
+	 */
+	async eval(rte) {
+		if (typeof this.#name == "number") {
+			throw new Error("can't evaluate unknow uplc builtin");
+		}
+
+		switch (this.#name) {
 			case "addInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					return new PlutusCoreInt(callSite, a.int + b.int);
@@ -1797,7 +2619,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 						throw new Error("index out of range");
 					}
 
-					return new PlutusCoreInt(callSite, BigInt(bytes[i]));
+					return new PlutusCoreInt(callSite, BigInt(bytes[Number(i)]));
 				});
 			case "equalsByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
@@ -1890,61 +2712,97 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				throw new Error("what is the point of this function?");
 			case "trace":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					return rte.print(a.string).then(function() {
+					return rte.print(a.string).then(() => {
 						return b.copy(callSite);
 					});
 				});
 			case "fstPair":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					return a.first.copy(callSite);
+					if (a.isPair()) {
+						return a.first.copy(callSite);
+					} else if (a.isMapItem()) {
+						return new PlutusCoreDataValue(callSite, a.key);
+					} else {
+						throw a.site.typeError(`expected pair or data-pair, got '${a.toString()}'`);
+					}
 				});
 			case "sndPair":
-				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, b) => {
-					return b.second.copy(callSite);
+				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					if (a.isPair()) {
+						return a.second.copy(callSite);
+					} else if (a.isMapItem()) {
+						return new PlutusCoreDataValue(callSite, a.value);
+					} else {
+						throw a.site.typeError(`expected pair or data-pair, got '${a.toString()}'`);
+					}
 				});
 			case "chooseList":
 				throw new Error("no immediate need, so don't bother yet");
 			case "mkCons":
 				// only allow data items in list
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					if (b.isStrictList()) {
-						void a.data;
+					if (b.isList()) {
+						let item = a.data;
 						let lst = b.list;
-						lst.unshift(a);
+						lst.unshift(item);
 						return new PlutusCoreList(callSite, lst);
-					} else { // should be map
-						void a.first.data;
-						void a.second.data;
+					} else if (b.isMap()) {
 						let pairs = b.map;
-						pairs.unshift(a);
+						pairs.unshift(new PlutusCoreMapItem(callSite, a.key, a.value));
 						return new PlutusCoreMap(callSite, pairs);
+					} else {
+						throw b.site.typeError(`expected list of map, got '${b.toString()}'`);
 					}
 				});
 			case "headList":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					let lst = a.list;
-					if (lst.length == 0) {
-						this.site.runtimeError("empty list");
-					}
+					if (a.isList()) {
+						let lst = a.list;
+						if (lst.length == 0) {
+							throw this.site.runtimeError("empty list");
+						}
 
-					return lst[0].copy(callSite);
+						return new PlutusCoreDataValue(callSite, lst[0]);
+					} else if (a.isMap()) {
+						let lst = a.map;
+						if (lst.length == 0) {
+							throw this.site.runtimeError("empty map");
+						}
+
+						return lst[0].copy(callSite);
+					} else {
+						throw a.site.typeError(`expected list or map, got '${a.toString()}'`);
+					}
 				});
 			case "tailList":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					let lst = a.list;
-					if (lst.length == 0) {
-						this.site.runtimeError("empty list");
-					}
+					if (a.isList()) {
+						let lst = a.list;
+						if (lst.length == 0) {
+							throw this.site.runtimeError("empty list");
+						}
 
-					if (a.isStrictList()) {
 						return new PlutusCoreList(callSite, lst.slice(1));
-					} else {
+					} else if (a.isMap()) {
+						let lst = a.map;
+						if (lst.length == 0) {
+							throw this.site.runtimeError("empty map");
+						}
+
 						return new PlutusCoreMap(callSite, lst.slice(1));
+					} else {
+						throw a.site.typeError(`expected list or map, got '${a.toString()}'`);
 					}
 				});
 			case "nullList":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					return new PlutusCoreBool(callSite, a.list.length == 0);
+					if (a.isList()) {
+						return new PlutusCoreBool(callSite, a.list.length == 0);
+					} else if (a.isMap()) {
+						return new PlutusCoreBool(callSite, a.map.length == 0);
+					} else {
+						throw a.site.typeError(`expected list or map, got '${a.toString()}'`);
+					}
 				});
 			case "chooseData":
 				throw new Error("no immediate need, so don't bother yet");
@@ -1952,69 +2810,71 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					let i = a.int;
 					assert(i >= 0);
-					let lst = b.strictList;
-					return new PlutusCoreData(callSite, new ConstrData(i, lst));
+					let lst = b.list;
+					return new PlutusCoreDataValue(callSite, new ConstrData(Number(i), lst));
 				});
 			case "mapData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					return new PlutusCoreData(callSite, new MapData(a.map));
+					return new PlutusCoreDataValue(callSite, new MapData(a.map.map(pair => {
+						return [pair.key, pair.value];
+					})));
 				});
 			case "listData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					return new PlutusCoreData(callSite, new ListData(a.strictList));
+					return new PlutusCoreDataValue(callSite, new ListData(a.list));
 				});
 			case "iData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					return new PlutusCoreData(callSite, new IntData(a.int));
+					return new PlutusCoreDataValue(callSite, new IntData(a.int));
 				});
 			case "bData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					return new PlutusCoreData(callSite, new ByteArrayData(a.bytes));
+					return new PlutusCoreDataValue(callSite, new ByteArrayData(a.bytes));
 				});
 			case "unConstrData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
 					let data = a.data;
 					if (!(data instanceof ConstrData)) {
-						this.site.runtimeError("unexpected unConstrData argument");
+						throw this.site.runtimeError(`unexpected unConstrData argument '${data.toString()}'`);
+					} else {
+						return new PlutusCorePair(callSite, new PlutusCoreInt(callSite, BigInt(data.index)), new PlutusCoreList(callSite, data.fields));
 					}
-
-					return new PlutusCorePair(callSite, new PlutusCoreInt(callSite, data.index), new PlutusCoreList(callSite, data.fields));
 				});
 			case "unMapData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
 					let data = a.data;
 					if (!(data instanceof MapData)) {
-						this.site.runtimeError("unexpected unMapData argument");
+						throw this.site.runtimeError(`unexpected unMapData argument '${data.toString()}'`);
+					} else {
+						return new PlutusCoreMap(callSite, data.map.map(([fst, snd]) => new PlutusCoreMapItem(callSite, fst, snd)));
 					}
-
-					return new PlutusCoreMap(callSite, data.map);
 				});
 			case "unListData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
 					let data = a.data;
 					if (!(data instanceof ListData)) {
-						this.site.runtimeError("unexpected unListData argument");
+						throw this.site.runtimeError(`unexpected unListData argument '${data.toString()}'`);
+					} else {
+						return new PlutusCoreList(callSite, data.list);
 					}
-
-					return new PlutusCoreList(callSite, data.list);
 				});
 			case "unIData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
 					let data = a.data;
 					if (!(data instanceof IntData)) {
-						this.site.runtimeError("unexpected unIData argument");
+						throw this.site.runtimeError(`unexpected unIData argument '${data.toString()}'`);
+					} else {
+						return new PlutusCoreInt(callSite, data.value);
 					}
-
-					return new PlutusCoreInt(callSite, data.value);
 				});
 			case "unBData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
 					let data = a.data;
 					if (!(data instanceof ByteArrayData)) {
-						this.site.runtimeError("unexpected unBData argument");
+						throw this.site.runtimeError(`unexpected unBData argument '${data.toString()}'`);
+					} else {
+						return new PlutusCoreByteArray(callSite, data.bytes);
 					}
-
-					return new PlutusCoreByteArray(callSite, data.bytes);
 				});
 			case "equalsData":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
@@ -2023,9 +2883,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "mkPairData":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					void a.data;
-					void b.data;
-					return new PlutusCorePair(callSite, a.copy(callSite), b.copy(callSite));
+					return new PlutusCoreMapItem(callSite, a.data, b.data);
 				});
 			case "mkNilData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
@@ -2041,26 +2899,36 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "serialiseData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					return new PlutusCoreByteArray(callSite, a.data.toCbor());
+					return new PlutusCoreByteArray(callSite, a.data.toCBOR());
 				});
 			case "verifyEcdsaSecp256k1Signature":
 			case "verifySchnorrSecp256k1Signature":
 				throw new Error("no immediate need, so don't bother yet");
 			default:
-				throw new Error(`builtin ${this.name_} not yet implemented`);
+				throw new Error(`builtin ${this.#name} not yet implemented`);
 		}
-		
+
 	}
 }
 
+/**
+ * UPLC program class
+ */
 class PlutusCoreProgram {
+	#version;
+	#expr;
+
+	/**
+	 * @param {PlutusCoreTerm} expr 
+	 * @param {PlutusCoreInt[]} version 
+	 */
 	constructor(expr, version = PLUTUS_CORE_VERSION_COMPONENTS.map(v => new PlutusCoreInt(expr.site, v, false))) {
-		this.version_ = version;
-		this.expr_    = expr;
+		this.#version = version;
+		this.#expr = expr;
 	}
 
 	get site() {
-		return new Site(this.expr_.site.src, 0);
+		return new Site(this.#expr.site.src, 0);
 	}
 
 	// returns the IR source
@@ -2068,11 +2936,18 @@ class PlutusCoreProgram {
 		return this.site.src.raw;
 	}
 
+	get versionString() {
+		return this.#version.map(v => v.toString()).join(".");
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	plutusScriptVersion() {
-		switch (this.version_[0].toString()) {
-			case 2:
+		switch (this.#version[0].toString()) {
+			case "2":
 				return "PlutusScriptV2";
-			case 3:
+			case "3":
 				return "PlutusScriptV3";
 			default:
 				return "PlutusScriptV1";
@@ -2080,25 +2955,35 @@ class PlutusCoreProgram {
 	}
 
 	toString() {
-		return "(program " + 
-			this.versionString + " " + 
-			this.expr_.toString() + ")";
+		return `(program ${this.versionString} ${this.#expr.toString()})`;
 	}
 
+	/**
+	 * Flat encodes the entire UPLC program.
+	 * Note that final padding isn't added now but is handled by bitWriter upon finalization.
+	 * @param {BitWriter} bitWriter 
+	 */
 	toFlat(bitWriter) {
-		for (let v of this.version_) {
-			v.toFlat(bitWriter);
+		for (let v of this.#version) {
+			v.toFlatUnsigned(bitWriter);
 		}
 
-		this.expr_.toFlat(bitWriter);
-
-		// final padding is handled by bitWriter upon finalization
+		this.#expr.toFlat(bitWriter);
 	}
 
+	/**
+	 * @param {PlutusCoreRTE} rte 
+	 * @returns {Promise<PlutusCoreValue>}
+	 */
 	async eval(rte) {
-		return this.expr_.eval(rte);
+		return this.#expr.eval(rte);
 	}
 
+	/**
+	 * Evaluates the term contained in PlutusCoreProgram (assuming it is a lambda term)
+	 * @param {PlutusCoreRTECallbacks} callbacks 
+	 * @returns {Promise<PlutusCoreValue | UserError>}
+	 */
 	async run(callbacks) {
 		let rte = new PlutusCoreRTE(callbacks);
 
@@ -2110,16 +2995,19 @@ class PlutusCoreProgram {
 			let result = await fn.call(rte, globalCallSite, new PlutusCoreUnit(globalCallSite));
 
 			return result;
-		} catch(e) {
+		} catch (e) {
 			if (!(e instanceof UserError)) {
 				throw e;
+			} else {
+				return e;
 			}
-
-			return e;
 		}
 	}
 
-	// returns plutus-core script in JSON formats (as string, not as object!)
+	/**
+	 * Returns plutus-core script in JSON format (as string, not as object!)
+	 * @returns {string}
+	 */
 	serialize() {
 		let bitWriter = new BitWriter();
 
@@ -2138,36 +3026,103 @@ class PlutusCoreProgram {
 // Section 4: Plutus data objects
 /////////////////////////////////
 
-class IntData {
-	constructor(value) {
-		this.value_ = value;
+/**
+ * Base class for UPLC data classes (not the same as UPLC value classes!)
+ */
+class PlutusCoreData {
+	constructor() {
 	}
 
-	get value() {
-		return this.value_;
-	}
-
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return this.value_.toString();
+		throw new Error("not yet implemented");
 	}
 
-	// wrapped in IR so some parts can do codemapping by adding Site
-	// force returning IR so it is clear that string interpolation can't be used for any IR children
+	/**
+	 * @returns {IR}
+	 */
 	toIR() {
-		return new IR(`__core__iData(${this.value_.toString()})`);
+		throw new Error("not yet implemented");
 	}
 
-	// returns string, not js object, because of unbounded integers 
+	/**
+	 * @returns {string}
+	 */
 	toSchemaJSON() {
-		return `{"int": ${this.value_.toString()}}`;
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCBOR() {
+		throw new Error("not yet implemented");
 	}
 }
 
-class ByteArrayData {
-	constructor(bytes) {
-		this.bytes_ = bytes;
+/**
+ * UPLC int data class
+ */
+class IntData extends PlutusCoreData {
+	#value;
+
+	/**
+	 * @param {bigint} value 
+	 */
+	constructor(value) {
+		super();
+		this.#value = value;
 	}
 
+	get value() {
+		return this.#value;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.#value.toString();
+	}
+
+	/**
+	 * Returns integer literal wrapped with integer data function call.
+	 * @returns {IR}
+	 */
+	toIR() {
+		return new IR(`__core__iData(${this.#value.toString()})`);
+	}
+
+	/**
+	 * Returns string, not js object, because of unbounded integers 
+	 * @returns {string}
+	 */
+	toSchemaJSON() {
+		return `{"int": ${this.#value.toString()}}`;
+	}
+}
+
+/**
+ * UPLC bytearray data class
+ */
+class ByteArrayData extends PlutusCoreData {
+	#bytes;
+
+	/**
+	 * @param {number[]} bytes 
+	 */
+	constructor(bytes) {
+		super();
+		this.#bytes = bytes;
+	}
+
+	/**
+	 * Applies utf-8 encoding
+	 * @param {string} s 
+	 * @returns {ByteArrayData}
+	 */
 	static fromString(s) {
 		let bytes = stringToBytes(s);
 
@@ -2175,116 +3130,172 @@ class ByteArrayData {
 	}
 
 	get bytes() {
-		return this.bytes_.slice();
+		return this.#bytes.slice();
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toHex() {
-		return bytesToHex(this.bytes_);
+		return bytesToHex(this.#bytes);
 	}
 
 	toString() {
 		return `#${this.toHex()}`;
 	}
 
+	/**
+	 * Returns bytearray literal wrapped with bytearray data function as IR.
+	 * @returns {IR}
+	 */
 	toIR() {
 		return new IR(`__core__bData(#${this.toHex()})`);
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toSchemaJSON() {
 		return `{"bytes": "${this.toHex()}"}`;
 	}
 }
 
-class ListData {
+/**
+ * UPLC list data class
+ */
+class ListData extends PlutusCoreData {
+	#items;
+
+	/**
+	 * @param {PlutusCoreData[]} items 
+	 */
 	constructor(items) {
-		this.items_ = items;
+		super();
+		this.#items = items;
 	}
 
 	get list() {
-		return this.items_.slice();
+		return this.#items.slice();
 	}
 
 	toString() {
-		return `[${this.items_.map(item => item.toString()).join(", ")}]`;
+		return `[${this.#items.map(item => item.toString()).join(", ")}]`;
 	}
 
+	/**
+	 * @returns {IR}
+	 */
 	toIR() {
-		let lst = new IR("__core__mkNilData(())");
-		for (let i = this.items_.length - 1; i >= 0; i--) {
-			lst = [new IR("__core__mkCons("), this.items_[i].toIR(), new IR(", "), lst, new IR(")")];
+		let ir = new IR("__core__mkNilData(())");
+		for (let i = this.#items.length - 1; i >= 0; i--) {
+			ir = new IR([new IR("__core__mkCons("), this.#items[i].toIR(), new IR(", "), ir, new IR(")")]);
 		}
 
-		return [new IR("__core__listData("), lst, new IR(")")];
+		return new IR([new IR("__core__listData("), ir, new IR(")")]);
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toSchemaJSON() {
-		return `{"list":[${this.items_.map(item => item.toSchemaJSON()).join(", ")}]}`;
+		return `{"list":[${this.#items.map(item => item.toSchemaJSON()).join(", ")}]}`;
 	}
 }
 
-class MapData {
-	// pairs is list of lists (inner lists only have 2 items)
+/**
+ * UPLC map data class
+ */
+class MapData extends PlutusCoreData {
+	#pairs;
+
+	/**
+	 * @param {[PlutusCoreData, PlutusCoreData][]} pairs 
+	 */
 	constructor(pairs) {
-		this.pairs_ = pairs;
+		super();
+		this.#pairs = pairs;
 	}
 
 	get map() {
-		return this.pairs_.slice();
+		return this.#pairs.slice();
 	}
 
 	toString() {
-		return `[${this.pairs_.map(([fst, snd]) => `[${fst.toString()}, ${snd.toString()}]`).join(", ")}]`;
+		return `[${this.#pairs.map(([fst, snd]) => `[${fst.toString()}, ${snd.toString()}]`).join(", ")}]`;
 	}
 
+	/**
+	 * @returns {IR}
+	 */
 	toIR() {
-		let lst = new IR("__core__mkNilPairData(())");
+		let ir = new IR("__core__mkNilPairData(())");
 
-		for (let i = this.pairs_.length - 1; i >= 0; i--) {
-			let a = this.pairs_[i][0].toIR();
-			let b = this.pairs_[i][1].toIR();
+		for (let i = this.#pairs.length - 1; i >= 0; i--) {
+			let a = this.#pairs[i][0].toIR();
+			let b = this.#pairs[i][1].toIR();
 
-			lst = [new IR("__core__mkCons(__core__mkPairData("), a, new IR(", "), b, new IR(", "), new IR(")"), new IR(", "), lst, new IR(")")];
+			ir = new IR([new IR("__core__mkCons(__core__mkPairData("), a, new IR(", "), b, new IR(", "), new IR(")"), new IR(", "), ir, new IR(")")]);
 		}
 
-		return [new IR("__core__mapData("), lst, new IR(")")];
+		return new IR([new IR("__core__mapData("), ir, new IR(")")]);
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toSchemaJSON() {
-		return `{"map": [${this.pairs_.map(pair => {return "{\"k\": " + pair[0].toSchemaJSON() + ", \"v\": " + pair[1].toSchemaJSON() + "}"}).join(", ")}]}`;
+		return `{"map": [${this.#pairs.map(pair => { return "{\"k\": " + pair[0].toSchemaJSON() + ", \"v\": " + pair[1].toSchemaJSON() + "}" }).join(", ")}]}`;
 	}
 }
 
-class ConstrData {
+/**
+ * UPLC constructed data class
+ */
+class ConstrData extends PlutusCoreData {
+	#index;
+	#fields;
+
+	/**
+	 * @param {number} index 
+	 * @param {PlutusCoreData[]} fields 
+	 */
 	constructor(index, fields) {
-		this.index_ = index;
-		this.fields_ = fields;
+		super();
+		this.#index = index;
+		this.#fields = fields;
 	}
 
 	get index() {
-		return this.index_;
+		return this.#index;
 	}
 
 	get fields() {
-		return this.fields_.slice();
+		return this.#fields.slice();
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		let parts = ["c:" + this.index_.toString()];
-		parts = parts.concat(this.fields_.map(field => field.toString()));
+		let parts = ["c:" + this.#index.toString()];
+		parts = parts.concat(this.#fields.map(field => field.toString()));
 		return parts.join(", ");
 	}
 
+	/**
+	 * @returns {IR}
+	 */
 	toIR() {
-		let lst = new IR("__core__mkNilData(())");
-		for (let i = this.fields_.length - 1; i >= 0; i--) {
-			lst = [new IR("__core__mkCons("), this.fields_[i].toIR(), new IR(", "), lst, new IR(")")];
+		let ir = new IR("__core__mkNilData(())");
+		for (let i = this.#fields.length - 1; i >= 0; i--) {
+			ir = new IR([new IR("__core__mkCons("), this.#fields[i].toIR(), new IR(", "), ir, new IR(")")]);
 		}
 
-		return [new IR("__core__constrData("), this.index_.toString(), new IR(", "), lst, new IR(")")];
+		return new IR([new IR("__core__constrData("), new IR(this.#index.toString()), new IR(", "), ir, new IR(")")]);
 	}
 
 	toSchemaJSON() {
-		return `{"constructor": ${this.index_.toString()}, "fields": [${this.fields_.map(f => f.toSchemaJSON()).join(", ")}]}`;
+		return `{"constructor": ${this.#index.toString()}, "fields": [${this.#fields.map(f => f.toSchemaJSON()).join(", ")}]}`;
 	}
 }
 
@@ -2293,115 +3304,181 @@ class ConstrData {
 // Section 5: Token objects
 ///////////////////////////
 
+/**
+ * Token is the base class of all Expressions and Statements
+ */
 class Token {
+	#site;
+
+	/**
+	 * @param {Site} site 
+	 */
 	constructor(site) {
-		this.site_ = assertDefined(site); // position in source of start of token
+		this.#site = assertDefined(site); // position in source of start of token
 	}
 
 	get site() {
-		return this.site_;
+		return this.#site;
 	}
 
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Returns 'true' if 'this' is a literal primitive, a literal struct constructor, or a literal function expression.
+	 * @returns {boolean}
+	 */
 	isLiteral() {
 		return false;
 	}
 
-	isWord() {
+	/**
+	 * Returns 'true' if 'this' is a Word token.
+	 * @param {?(string | string[])} value
+	 * @returns {boolean}
+	 */
+	isWord(value = null) {
 		return false;
 	}
 
-	isSymbol() {
+	/**
+	 * Returns 'true' if 'this' is a Symbol token (eg. '+', '(' etc.)
+	 * @param {?(string | string[])} value
+	 * @returns {boolean}
+	 */
+	isSymbol(value = null) {
 		return false;
 	}
 
-	isGroup() {
+	/**
+	 * Returns 'true' if 'this' is a group (eg. '(...)').
+	 * @param {?string} value
+	 * @returns {boolean}
+	 */
+	isGroup(value) {
 		return false;
 	}
 
+	/**
+	 * Returns a SyntaxError at the current Site.
+	 * @param {string} msg 
+	 * @returns {UserError}
+	 */
 	syntaxError(msg) {
-		this.site_.syntaxError(msg);
+		return this.#site.syntaxError(msg);
 	}
 
+	/**
+	 * Returns a TypeError at the current Site.
+	 * @param {string} msg
+	 * @returns {UserError}
+	 */
 	typeError(msg) {
-		this.site_.typeError(msg);
+		return this.#site.typeError(msg);
 	}
 
+	/**
+	 * Returns a ReferenceError at the current Site.
+	 * @param {string} msg
+	 * @returns {UserError}
+	 */
 	referenceError(msg) {
-		this.site_.referenceError(msg);
+		return this.#site.referenceError(msg);
 	}
 
-	assertWord(value) {
-		if (value != undefined) {
-			this.syntaxError(`expected \'${value}\', got \'${this.toString()}\'`);
+	/**
+	 * Throws a SyntaxError if 'this' isn't a Word.
+	 * @param {?(string | string[])} value 
+	 * @returns {Word}
+	 */
+	assertWord(value = null) {
+		if (value !== null) {
+			throw this.syntaxError(`expected \'${value}\', got \'${this.toString()}\'`);
 		} else {
-			this.syntaxError(`expected word, got ${this.toString()}`);
+			throw this.syntaxError(`expected word, got ${this.toString()}`);
 		}
-
-		return this; // dead code, but to make clear that overrides need to return self
 	}
 
-	assertSymbol(symbol) {
-		if (symbol != undefined) {
-			this.syntaxError(`expected \'${symbol}\', got \'${this.toString()}\'`);	
+	/**
+	 * Throws a SyntaxError if 'this' isn't a Symbol.
+	 * @param {?(string | string[])} value 
+	 * @returns {Symbol}
+	 */
+	assertSymbol(value = null) {
+		if (value !== null) {
+			throw this.syntaxError(`expected '${value}', got '${this.toString()}'`);
 		} else {
-			this.syntaxError(`expected symbol, got \'${this.toString()}\'`);
+			throw this.syntaxError(`expected symbol, got '${this.toString()}'`);
 		}
-
-		return this; // dead code, but to make clear that overrides need to return self
 	}
 
-	assertGroup(type) {
-		if (type != undefined) {
-			this.syntaxError(`invalid syntax: expected \'${type}...${Group.matchSymbol(type)}\'`)
+	/**
+	 * Throws a SyntaxError if 'this' isn't a Group.
+	 * @param {?string} type 
+	 * @param {?number} nFields
+	 * @returns {Group}
+	 */
+	assertGroup(type = null, nFields = null) {
+		if (type !== null) {
+			throw this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}'`)
 		} else {
-			this.syntaxError(`invalid syntax: expected group`);
+			throw this.syntaxError(`invalid syntax: expected group`);
 		}
-
-		return this; // dead code, but to make clear that overrides need to return self
-	}
-
-	link(scope) {
-		console.log(this);
-		throw new Error("not implemented");
-	}
-
-	evalType() {
-		throw new Error("not implemented");
-	}
-
-	evalData() {
-		this.typeError("can't be used in data eval");
 	}
 }
 
+/**
+ * A Word token represents a token that matches /[A-Za-z_][A-Za-z_0-9]/
+ */
 class Word extends Token {
-	constructor(site, value) {
-		if (value == undefined) {
-			value = site;
-			site = Site.dummy();
-		}
+	#value;
 
+	/**
+	 * @param {Site} site 
+	 * @param {string} value 
+	 */
+	constructor(site, value) {
 		super(site);
-		this.value_ = value;
+		this.#value = value;
+	}
+
+	/**
+	 * @param {string} value 
+	 * @returns {Word}
+	 */
+	static new(value) {
+		return new Word(Site.dummy(), value);
 	}
 
 	get value() {
-		return this.value_;
+		return this.#value;
 	}
 
-	isWord(value) {
-		if (value != undefined) {
+	/**
+	 * @param {?(string | string[])} value 
+	 * @returns {boolean}
+	 */
+	isWord(value = null) {
+		if (value !== null) {
 			if (value instanceof Array) {
-				return value.lastIndexOf(this.value_) != -1;
+				return value.lastIndexOf(this.#value) != -1;
 			} else {
-				return value == this.value_;
+				return value == this.#value;
 			}
 		} else {
 			return true;
 		}
 	}
 
-	assertWord(value) {
+	/**
+	 * @param {?(string | string[])} value 
+	 * @returns {Word}
+	 */
+	assertWord(value = null) {
 		if (!this.isWord(value)) {
 			super.assertWord(value);
 		}
@@ -2409,20 +3486,26 @@ class Word extends Token {
 		return this;
 	}
 
+	/**
+	 * @returns {Word}
+	 */
 	assertNotInternal() {
-		if (this.value_ == "_") {
-			this.syntaxError("_ is reserved");
-		} else if (this.value_.startsWith("__")) {
-			this.syntaxError("__ prefix is reserved");
-		} else if (this.value_.endsWith("__")) {
-			this.syntaxError("__ suffix is reserved");
+		if (this.#value == "_") {
+			throw this.syntaxError("_ is reserved");
+		} else if (this.#value.startsWith("__")) {
+			throw this.syntaxError("__ prefix is reserved");
+		} else if (this.#value.endsWith("__")) {
+			throw this.syntaxError("__ suffix is reserved");
 		}
 
 		return this;
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isKeyword() {
-		switch(this.value_) {
+		switch (this.#value) {
 			case "validator":
 			case "mint_policy":
 			case "reward_policy":
@@ -2442,54 +3525,77 @@ class Word extends Token {
 		}
 	}
 
+	/**
+	 * @returns {Word}
+	 */
 	assertNotKeyword() {
 		this.assertNotInternal();
-	
+
 		if (this.isKeyword()) {
-			this.syntaxError(`${this.value_} is a reserved word`);
+			throw this.syntaxError(`'${this.#value}' is a reserved word`);
 		}
 
 		return this;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return this.value_;
+		return this.#value;
 	}
 
-	// find the index of the first Word(value) in a list of tokens 
-	// returns -1 if none found
+	/**
+	 * Finds the index of the first Word(value) in a list of tokens
+	 * Returns -1 if none found
+	 * @param {Token[]} ts 
+	 * @param {string} value 
+	 * @returns {number}
+	 */
 	static find(ts, value) {
 		return ts.findIndex(item => item.isWord(value));
 	}
 }
 
+/**
+ * Symbol token represent anything non alphanumeric
+ */
 class Symbol extends Token {
-	constructor(site, value) {
-		if (value == undefined) {
-			value = site;
-			site = Site.dummy();
-		}
+	#value;
 
+	/**
+	 * @param {Site} site
+	 * @param {string} value
+	 */
+	constructor(site, value) {
 		super(site);
-		this.value_ = value;
+		this.#value = value;
 	}
 
 	get value() {
-		return this.value_;
+		return this.#value;
 	}
 
-	isSymbol(value) {
-		if (value != undefined) {
+	/**
+	 * @param {?(string | string[])} value 
+	 * @returns {boolean}
+	 */
+	isSymbol(value = null) {
+		if (value !== null) {
 			if (value instanceof Array) {
-				return value.lastIndexOf(this.value_) != -1;
+				return value.lastIndexOf(this.#value) != -1;
 			} else {
-				return value == this.value_;
-			}	
+				return value == this.#value;
+			}
 		} else {
 			return true;
 		}
 	}
 
+	/**
+	 * @param {?(string | string[])} value 
+	 * @returns {Symbol}
+	 */
 	assertSymbol(value) {
 		if (!this.isSymbol(value)) {
 			super.assertSymbol(value);
@@ -2498,18 +3604,31 @@ class Symbol extends Token {
 		return this;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return this.value_;
+		return this.#value;
 	}
 
-	// find the index of the first Symbol(value) in a list of tokens 
-	// returns -1 if none found
+	/**
+	 * Finds the index of the first Symbol(value) in a list of tokens.
+	 * Returns -1 if none found.
+	 * @param {Token[]} ts
+	 * @param {string | string[]} value
+	 * @returns {number}
+	 */
 	static find(ts, value) {
 		return ts.findIndex(item => item.isSymbol(value));
 	}
 
-	// find the index of the first Symbol(value) in a list of tokens 
-	// returns -1 if none found
+	/**
+	 * Finds the index of the last Symbol(value) in a list of tokens.
+	 * Returns -1 if none found.
+	 * @param {Token[]} ts 
+	 * @param {string | string[]} value 
+	 * @returns {number}
+	 */
 	static findLast(ts, value) {
 		for (let i = ts.length - 1; i >= 0; i--) {
 			if (ts[i].isSymbol(value)) {
@@ -2521,58 +3640,96 @@ class Symbol extends Token {
 	}
 }
 
+/**
+ * Group token can '(...)', '[...]' or '{...}' and can contain a number of comma separated fields.
+ */
 class Group extends Token {
-	// type is "(", "[" or "{"
+	#type;
+	#fields;
+
+	/**
+	 * @param {Site} site 
+	 * @param {string} type - "(", "[" or "{"
+	 * @param {Token[][]} fields 
+	 */
 	constructor(site, type, fields) {
 		super(site);
-		this.type_ = type;
-		this.fields_ = fields; // list of lists of tokens
+		this.#type = type;
+		this.#fields = fields; // list of lists of tokens
 	}
 
 	get fields() {
-		return this.fields_.slice(); // copy, so fields_ doesn't get mutated
+		return this.#fields.slice(); // copy, so fields_ doesn't get mutated
 	}
 
-	isGroup(type) {
-		if (type != undefined) {
-			return this.type_ == type;
+	/**
+	 * @param {?string} type 
+	 * @returns {boolean}
+	 */
+	isGroup(type = null) {
+		if (type !== null) {
+			return this.#type == type;
 		} else {
 			return true;
 		}
 	}
 
-	assertGroup(type, nFields = null) {
-		if (type != undefined && this.type_ != type) {
-			this.syntaxError(`invalid syntax: expected \'${type}...${Group.matchSymbol(type)}\', got \'${this.type_}...${Group.matchSymbol(this.type_)}\'`);
-		}  else if (type != undefined && nFields != null && nFields != this.fields_.length) {
-			this.syntaxError(`invalid syntax: expected \`${type}...${Group.matchSymbol(type)}\' with ${nFields} field(s), got \'${type}...${Group.matchSymbol(type)}\' with ${this.fields_.length} fields`);
+	/**
+	 * @param {?string} type 
+	 * @param {?number} nFields 
+	 * @returns {Group}
+	 */
+	assertGroup(type = null, nFields = null) {
+		if (type !== null && this.#type != type) {
+			throw this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}', got '${this.#type}...${Group.matchSymbol(this.#type)}'`);
+		} else if (type !== null && nFields !== null && nFields != this.#fields.length) {
+			throw this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}' with ${nFields} field(s), got '${type}...${Group.matchSymbol(type)}' with ${this.#fields.length} fields`);
 		}
 
 		return this;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		let s = this.type_;
+		let s = this.#type;
 
 		let parts = [];
-		for (let f of this.fields_) {
+		for (let f of this.#fields) {
 			parts.push(f.map(t => t.toString()).join(" "));
 		}
 
-		s += parts.join(", ") + Group.matchSymbol(this.type_);
+		s += parts.join(", ") + Group.matchSymbol(this.#type);
 
 		return s;
 	}
 
+	/**
+	 * @param {Token} t 
+	 * @returns {boolean}
+	 */
 	static isOpenSymbol(t) {
 		return t.isSymbol("{") || t.isSymbol("[") || t.isSymbol("(");
 	}
 
+	/**
+	 * @param {Token} t 
+	 * @returns {boolean}
+	 */
 	static isCloseSymbol(t) {
 		return t.isSymbol("}") || t.isSymbol("]") || t.isSymbol(")");
 	}
 
-    static matchSymbol(t) {
+	/**
+	 * Returns the corresponding closing bracket, parenthesis or brace.
+	 * Throws an error if not a group symbol.
+	 * @example
+	 * Group.matchSymbol("(") => ")"
+	 * @param {string | Symbol} t
+	 * @returns {string}
+	 */
+	static matchSymbol(t) {
 		if (t instanceof Symbol) {
 			t = t.value;
 		}
@@ -2594,125 +3751,152 @@ class Group extends Token {
 		}
 	}
 
-	// find index of first Group(type) in list of tokens 
-	// returns -1 if none found
+	/**
+	 * Finds the index of first Group(type) in list of tokens
+	 * Returns -1 if none found.
+	 * @param {Token[]} ts 
+	 * @param {string} type 
+	 * @returns {number}
+	 */
 	static find(ts, type) {
 		return ts.findIndex(item => item.isGroup(type));
 	}
 }
 
+/**
+ * Base class of literal tokens
+ */
 class PrimitiveLiteral extends Token {
-	constructor(loc) {
-		super(loc);
+	/**
+	 * @param {Site} site 
+	 */
+	constructor(site) {
+		super(site);
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isLiteral() {
 		return true;
 	}
-
-	// used in IR program
-	link(scope) {
-	}
 }
 
-// always signed
+/**
+ * Signed int literal token
+ */
 class IntLiteral extends PrimitiveLiteral {
-	// value has type BigInt
+	#value;
+
+	/**
+	 * @param {Site} site 
+	 * @param {bigint} value 
+	 */
 	constructor(site, value) {
 		assert(value != undefined && value != null && typeof value == 'bigint');
 
 		super(site);
-		this.value_ = value;
+		this.#value = value;
 	}
 
 	get value() {
-		return this.value_;
+		return this.#value;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return this.value_.toString();
-	}
-
-	toIR() {
-		return new IR(this.toString(), this.site);
-	}
-
-	toPlutusCore() {
-		// the 'true' argument means that this integer is signed
-		return new PlutusCoreInt(this.site, this.value_, true);
+		return this.#value.toString();
 	}
 }
 
+/**
+ * Bool literal token
+ */
 class BoolLiteral extends PrimitiveLiteral {
+	#value;
+
+	/**
+	 * @param {Site} site 
+	 * @param {boolean} value 
+	 */
 	constructor(site, value) {
-		assert(value != undefined && value != null && ((typeof value) == 'boolean' || value instanceof Boolean));
+		assert(value != undefined && value != null && ((typeof value) == 'boolean'));
 
 		super(site);
-		this.value_ = value;
-	}
-
-	toString() {
-		return this.value_ ? "true" : "false";
-	}
-
-	toIR() {
-		return new IR(this.toString(), this.site);
-	}
-
-	toPlutusCore() {
-		return new PlutusCoreBool(this.site, this.value_);
-	}
-}
-
-class ByteArrayLiteral extends PrimitiveLiteral {
-	constructor(site, bytes) {
-		assert(bytes != undefined && bytes != null && bytes instanceof Array);
-
-		super(site);
-		this.bytes_ = bytes;
-	}
-
-	toString() {
-		return '#' + bytesToHex(this.bytes_);
-	}
-
-	toIR() {
-		return new IR(this.toString(), this.site);
-	}
-
-	toPlutusCore() {
-		return new PlutusCoreByteArray(this.site, this.bytes_);
-	}
-}
-
-// "..." is a utf8 string literal
-class StringLiteral extends PrimitiveLiteral {
-	constructor(site, value) {
-		assert(value != undefined && value != null && ((typeof value) == "string" || value instanceof String));
-
-		super(site);
-		this.value_ = value;
+		this.#value = value;
 	}
 
 	get value() {
-		return this.value_;
+		return this.#value;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return `\"${this.value_.toString()}\"`;
-	}
-
-	toIR() {
-		return new IR(this.toString(), this.site);
-	}
-
-	toPlutusCore() {
-		return new PlutusCoreString(this.site, this.value_);
+		return this.#value ? "true" : "false";
 	}
 }
 
-// these tokens are used by both Helios and the IR, but UnitLiteral is only used by the IR
+/**
+ * ByteArray literal token
+ */
+class ByteArrayLiteral extends PrimitiveLiteral {
+	#bytes;
+
+	/**
+	 * @param {Site} site 
+	 * @param {number[]} bytes 
+	 */
+	constructor(site, bytes) {
+		super(site);
+		this.#bytes = bytes;
+	}
+
+	get bytes() {
+		return this.#bytes;
+	}
+
+	toString() {
+		return `#${bytesToHex(this.#bytes)}`;
+	}
+}
+
+/**
+ * String literal token (utf8)
+ */
+class StringLiteral extends PrimitiveLiteral {
+	#value;
+
+	/**
+	 * @param {Site} site 
+	 * @param {string} value 
+	 */
+	constructor(site, value) {
+		assert(value != undefined && value != null && ((typeof value) == "string"));
+
+		super(site);
+		this.#value = value;
+	}
+
+	get value() {
+		return this.#value;
+	}
+
+	toString() {
+		return `"${this.#value.toString()}"`;
+	}
+}
+
+/**
+ * Unit literal token (only used by Intermediate Representation)
+ */
 class UnitLiteral extends PrimitiveLiteral {
+	/**
+	 * @param {Site} site 
+	 */
 	constructor(site) {
 		super(site);
 	}
@@ -2721,12 +3905,18 @@ class UnitLiteral extends PrimitiveLiteral {
 		return "()";
 	}
 
+	/**
+	 * @returns {IR}
+	 */
 	toIR() {
 		return new IR(this.toString(), this.site);
 	}
 
+	/**
+	 * @returns {PlutusCoreTerm}
+	 */
 	toPlutusCore() {
-		return new PlutusCoreUnit(this.site);
+		return PlutusCoreUnit.newTerm(this.site);
 	}
 }
 
@@ -2736,48 +3926,70 @@ class UnitLiteral extends PrimitiveLiteral {
 //////////////////////////
 
 class Tokenizer {
+	#src;
+	#pos;
+
+	/**
+	 * Tokens are accumulated in '#ts'
+	 * @type {Token[]} 
+	 */
+	#ts;
+	#codeMap;
+	#codeMapPos;
+
+	/**
+	 * @param {Source} src 
+	 * @param {?CodeMap} codeMap 
+	 */
 	constructor(src, codeMap = null) {
 		assert(src instanceof Source);
 
-		this.src_ = src;
-		this.pos_ = 0;
-		this.ts_  = null; // set to empty to list at start of tokenize()
-		this.codeMap_ = codeMap; // can be a list of pairs [pos, site in another source]
-		this.codeMapPos_ = 0; // not used of codeMap == null
+		this.#src = src;
+		this.#pos = 0;
+		this.#ts = []; // reset to empty to list at start of tokenize()
+		this.#codeMap = codeMap; // can be a list of pairs [pos, site in another source]
+		this.#codeMapPos = 0; // not used if codeMap === null
 	}
 
 	incrPos() {
-		this.pos_ += 1;
+		this.#pos += 1;
 	}
 
 	decrPos() {
-		this.pos_ -= 1;
-		assert(this.pos_ >= 0);
+		this.#pos -= 1;
+		assert(this.#pos >= 0);
 	}
 
 	get currentSite() {
-		return new Site(this.src_, this.pos_);
+		return new Site(this.#src, this.#pos);
 	}
 
+	/**
+	 * @param {Token} t 
+	 */
 	pushToken(t) {
-		this.ts_.push(t);
+		this.#ts.push(t);
 
-		if (this.codeMap_ != null && this.codeMapPos_ < this.codeMap_.length) {
-			let pair = (this.codeMap_[this.codeMapPos_]);
+		if (this.#codeMap != null && this.#codeMapPos < this.#codeMap.length) {
+			let pair = (this.#codeMap[this.#codeMapPos]);
 
 			if (pair[0] == t.site.pos) {
 				t.site.setCodeMapSite(pair[1]);
-				this.codeMapPos_ += 1;
+				this.#codeMapPos += 1;
 			}
 		}
 	}
 
+	/**
+	 * Reads a single char from the source and advances #pos by one
+	 * @returns {string}
+	 */
 	readChar() {
-		assert(this.pos_ >= 0);
+		assert(this.#pos >= 0);
 
 		let c;
-		if (this.pos_ < this.src_.length) {
-			c = this.src_.getChar(this.pos_);
+		if (this.#pos < this.#src.length) {
+			c = this.#src.getChar(this.#pos);
 		} else {
 			c = '\0';
 		}
@@ -2787,11 +3999,19 @@ class Tokenizer {
 		return c;
 	}
 
+	/**
+	 * Decreases #pos by one
+	 */
 	unreadChar() {
 		this.decrPos();
 	}
 
-	ingestChar(site, c) {
+	/**
+	 * Start reading precisely one token
+	 * @param {Site} site 
+	 * @param {string} c 
+	 */
+	readToken(site, c) {
 		if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
 			this.readWord(site, c);
 		} else if (c == '/') {
@@ -2804,53 +4024,70 @@ class Tokenizer {
 			this.readByteArray(site);
 		} else if (c == '"') {
 			this.readString(site);
-		} else if (c ==  '!' || c == '%' || c == '&' || (c >= '(' && c <= '.') || (c >= ':' && c <= '>') || c == '[' || c == ']' || (c >= '{' && c <= '}')) {
+		} else if (c == '!' || c == '%' || c == '&' || (c >= '(' && c <= '.') || (c >= ':' && c <= '>') || c == '[' || c == ']' || (c >= '{' && c <= '}')) {
 			this.readSymbol(site, c);
 		} else if (!(c == ' ' || c == '\n' || c == '\t' || c == '\r')) {
-			site.syntaxError(`invalid source character (utf-8 not yet supported outside string literals)`);
+			throw site.syntaxError(`invalid source character (utf-8 not yet supported outside string literals)`);
 		}
 	}
 
+	/**
+	 * Tokenize the complete source.
+	 * Nests groups before returning a list of tokens
+	 * @returns {Token[]}
+	 */
 	tokenize() {
-		this.ts_ = [];
+		// reset #ts
+		this.#ts = [];
 
 		let site = this.currentSite;
 		let c = this.readChar();
 
 		while (c != '\0') {
-			this.ingestChar(site, c);
+			this.readToken(site, c);
 
 			site = this.currentSite;
 			c = this.readChar();
 		}
 
-		return Tokenizer.nestGroups(this.ts_);
+		return Tokenizer.nestGroups(this.#ts);
 	}
 
-	// returns a generator
-	// use gen.next().value to access to values
-	// doesn't perform any grouping
+	/** 
+	 * Returns a generator
+	 * Use gen.next().value to access to the next Token
+	 * Doesn't perform any grouping
+	 * Used for quickly parsing the ScriptPurpose header of a script
+	 * @returns {Generator<Token>}
+	 */
 	*streamTokens() {
-		this.ts_ = [];
+		this.#ts = [];
 
 		let site = this.currentSite;
 		let c = this.readChar();
 
 		while (c != '\0') {
-			this.ingestChar(site, c);
+			this.readToken(site, c);
 
-			while (this.ts_.length > 0) {
-				yield this.ts_.shift();
+			let t = this.#ts.shift();
+			while (t != undefined) {
+				yield t;
+				t = this.#ts.shift();
 			}
 
 			site = this.currentSite;
 			c = this.readChar();
 		}
 
-		assert(this.ts_.length == 0);
+		assert(this.#ts.length == 0);
 	}
 
-	// immediately turns "true" or "false" into a BoolLiteral instead of keeping it as Word
+	/**
+	 * Reads one word token.
+	 * Immediately turns "true" or "false" into a BoolLiteral instead of keeping it as Word
+	 * @param {Site} site
+	 * @param {string} c0 - first character 
+	 */
 	readWord(site, c0) {
 		let chars = [];
 
@@ -2874,6 +4111,11 @@ class Tokenizer {
 		}
 	}
 
+	/**
+	 * Reads and discards a comment if current '/' char is followed by '/' or '*'.
+	 * Otherwise pushes Symbol('/') onto #ts
+	 * @param {Site} site 
+	 */
 	// comments are discarded
 	readMaybeComment(site) {
 		let c = this.readChar();
@@ -2890,7 +4132,9 @@ class Tokenizer {
 		}
 	}
 
-	// comments are discarded
+	/**
+	 * Reads and discards a single line comment (from '//' to end-of-line)
+	 */
 	readSingleLineComment() {
 		let c = this.readChar();
 
@@ -2899,6 +4143,10 @@ class Tokenizer {
 		}
 	}
 
+	/**
+	 * Reads and discards a multi-line comment (from '/' '*' to '*' '/')
+	 * @param {Site} site 
+	 */
 	readMultiLineComment(site) {
 		let prev = '';
 		let c = this.readChar();
@@ -2910,16 +4158,20 @@ class Tokenizer {
 			if (c == '/' && prev == '*') {
 				break;
 			} else if (c == '\0') {
-				site.syntaxError("unterminated multiline comment");
+				throw site.syntaxError("unterminated multiline comment");
 			}
 		}
 	}
 
+	/**
+	 * REads a literal integer
+	 * @param {Site} site 
+	 */
 	readSpecialInteger(site) {
 		let c = this.readChar();
 
 		if (c == '\0') {
-			this.pushToken(new IntLiteral(site, 0));
+			this.pushToken(new IntLiteral(site, 0n));
 		} else if (c == 'b') {
 			this.readBinaryInteger(site);
 		} else if (c == 'o') {
@@ -2927,7 +4179,7 @@ class Tokenizer {
 		} else if (c == 'x') {
 			this.readHexInteger(site);
 		} else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-			site.syntaxError(`bad literal integer type 0${c}`);
+			throw site.syntaxError(`bad literal integer type 0${c}`);
 		} else if (c >= '0' && c <= '9') {
 			this.readDecimalInteger(site, c);
 		} else {
@@ -2936,19 +4188,32 @@ class Tokenizer {
 		}
 	}
 
+	/**
+	 * @param {Site} site 
+	 */
 	readBinaryInteger(site) {
 		this.readRadixInteger(site, "0b", c => (c == '0' || c == '1'));
 	}
 
+	/**
+	 * @param {Site} site 
+	 */
 	readOctalInteger(site) {
 		this.readRadixInteger(site, "0o", c => (c >= '0' && c <= '7'));
 	}
 
+	/**
+	 * @param {Site} site 
+	 */
 	readHexInteger(site) {
-		this.readRadixInteger(site, "0x", 
+		this.readRadixInteger(site, "0x",
 			c => ((c >= '0' && c <= '9') || (c >= 'a' || c <= 'f')));
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @param {string} c0 - first character
+	 */
 	readDecimalInteger(site, c0) {
 		let chars = [];
 
@@ -2957,7 +4222,7 @@ class Tokenizer {
 			if (c >= '0' && c <= '9') {
 				chars.push(c);
 			} else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-				site.syntaxError("invalid syntax for decimal integer literal");
+				throw site.syntaxError("invalid syntax for decimal integer literal");
 			} else {
 				this.unreadChar();
 				break;
@@ -2969,20 +4234,25 @@ class Tokenizer {
 		this.pushToken(new IntLiteral(site, BigInt(chars.join(''))));
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @param {string} prefix 
+	 * @param {(c: string) => boolean} valid - checks if character is valid as part of the radix
+	 */
 	readRadixInteger(site, prefix, valid) {
 		let c = this.readChar();
 
 		let chars = [];
 
 		if (!(valid(c))) {
-			site.syntaxError(`expected at least one char for ${prefix} integer literal`);
+			throw site.syntaxError(`expected at least one char for ${prefix} integer literal`);
 		}
 
 		while (c != '\0') {
 			if (valid(c)) {
 				chars.push(c);
 			} else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-				site.syntaxError(`invalid syntax for ${prefix} integer literal`);
+				throw site.syntaxError(`invalid syntax for ${prefix} integer literal`);
 			} else {
 				this.unreadChar();
 				break;
@@ -2994,6 +4264,10 @@ class Tokenizer {
 		this.pushToken(new IntLiteral(site, BigInt(prefix + chars.join(''))));
 	}
 
+	/**
+	 * Reads literal hexadecimal representation of ByteArray
+	 * @param {Site} site 
+	 */
 	readByteArray(site) {
 		let c = this.readChar();
 
@@ -3015,17 +4289,23 @@ class Tokenizer {
 		this.pushToken(new ByteArrayLiteral(site, bytes));
 	}
 
+	/**
+	 * Reads literal string delimited by double quotes.
+	 * Allows for three escape character: '\\', '\n' and '\t'
+	 * @param {Site} site 
+	 */
 	readString(site) {
 		let c = this.readChar();
 
 		let chars = [];
 
 		let escaping = false;
-		let escapeSite; // for escape syntax errors
+		/** @type {?Site} */
+		let escapeSite = null; // for escape syntax errors
 
 		while (!(!escaping && c == '"')) {
 			if (c == '\0') {
-				site.syntaxError("unmatched '\"'");
+				throw site.syntaxError("unmatched '\"'");
 			}
 
 			if (escaping) {
@@ -3035,11 +4315,12 @@ class Tokenizer {
 					chars.push('\t');
 				} else if (c == '\\') {
 					chars.push('\\');
-				} else if (c == quote) {
-					chars.push(quote);
+				} else if (c == '"') {
+					chars.push(c);
+				} else if (escapeSite != null) {
+					throw escapeSite.syntaxError(`invalid escape sequence ${c}`)
 				} else {
-					escapeSite.syntaxError(`invalid escape sequence ${c}`)
-					throw new Error();
+					throw new Error("escape site should be non-null");
 				}
 
 				escaping = false;
@@ -3058,6 +4339,11 @@ class Tokenizer {
 		this.pushToken(new StringLiteral(site, chars.join('')));
 	}
 
+	/**
+	 * Reads single or double character symbols
+	 * @param {Site} site 
+	 * @param {string} c0 - first character
+	 */
 	readSymbol(site, c0) {
 		let chars = [c0];
 
@@ -3086,95 +4372,126 @@ class Tokenizer {
 		this.pushToken(new Symbol(site, chars.join('')));
 	}
 
+	/**
+	 * Separates tokens in fields (separted by commas)
+	 * @param {Token[]} ts 
+	 * @returns {Token[][]}
+	 */
 	static groupFields(ts) {
-		assert(ts.length > 1);
+		let tOpen = ts.shift();
+		if (tOpen == undefined) {
+			throw new Error("unexpected");
+		} else {
+			let open = tOpen.assertSymbol();
 
-		let open = ts.shift();
+			let stack = [open]; // stack of symbols
+			let curField = [];
+			let fields = [];
+			let lastComma = null;
 
-		let stack = [open]; // stack of symbols
-		let curField = [];
-		let fields = [];
-		let lastComma = null;
+			while (stack.length > 0 && ts.length > 0) {
+				let t = ts.shift();
+				let prev = stack.pop();
 
-		while (stack.length > 0 && ts.length > 0) {
-			let t = ts.shift();
-			let prev = stack.pop();
+				if (t != undefined && prev != undefined) {
+					if (!t.isSymbol(Group.matchSymbol(prev))) {
+						stack.push(prev);
 
-			if (!t.isSymbol(Group.matchSymbol(prev))) {
-				stack.push(prev);
-
-				if (Group.isCloseSymbol(t)) {
-					t.syntaxError(`unmatched ${t.value}`);
-				} else if (Group.isOpenSymbol(t)) {
-					stack.push(t);
-					curField.push(t);
-				} else if (t.isSymbol(",") && stack.length == 1) {
-					lastComma = t;
-					if (curField.length == 0) {
-						t.syntaxError("empty field");
-					} else {
-						fields.push(curField);
-						curField = [];
+						if (Group.isCloseSymbol(t)) {
+							throw t.syntaxError(`unmatched '${t.assertSymbol().value}'`);
+						} else if (Group.isOpenSymbol(t)) {
+							stack.push(t.assertSymbol());
+							curField.push(t);
+						} else if (t.isSymbol(",") && stack.length == 1) {
+							lastComma = t;
+							if (curField.length == 0) {
+								throw t.syntaxError("empty field");
+							} else {
+								fields.push(curField);
+								curField = [];
+							}
+						} else {
+							curField.push(t);
+						}
+					} else if (stack.length > 0) {
+						curField.push(t);
 					}
 				} else {
-					curField.push(t);
+					throw new Error("unexpected");
 				}
-			} else if (stack.length > 0) {
-				curField.push(t);
 			}
-		}
 
-		if (stack.length > 0) {
 			let last = stack.pop();
-			last.syntaxError(`EOF while matching \'${last.value}\'`);
-		}
-		
-		if (curField.length > 0) {
-			fields.push(curField);
-		} else if (lastComma != null) {
-			lastComma.syntaxError(`trailing comma`);
-		}
+			if (last != undefined) {
+				throw last.syntaxError(`EOF while matching '${last.value}'`);
+			}
 
-		return fields;
+			if (curField.length > 0) {
+				// add removing field
+				fields.push(curField);
+			} else if (lastComma != null) {
+				throw lastComma.syntaxError(`trailing comma`);
+			}
+
+			return fields;
+		}
 	}
 
+	/**
+	 * Match group open with group close symbols in order to form groups.
+	 * This is recursively applied to nested groups.
+	 * @param {Token[]} ts 
+	 * @returns {Token[]}
+	 */
 	static nestGroups(ts) {
 		let res = [];
 
-		while (ts.length > 0) {
-			let t = ts.shift();
-
+		let t = ts.shift();
+		while (t != undefined) {
 			if (Group.isOpenSymbol(t)) {
 				ts.unshift(t);
 
 				let fields = Tokenizer.groupFields(ts).map(f => Tokenizer.nestGroups(f));
 
-				res.push(new Group(t.site, t.value, fields));
+				res.push(new Group(t.site, t.assertSymbol().value, fields));
 			} else if (Group.isCloseSymbol(t)) {
-				t.syntaxError(`unmatched \'${t.value}\'`);
+				throw t.syntaxError(`unmatched '${t.assertSymbol().value}'`);
 			} else {
 				res.push(t);
 			}
+
+			t = ts.shift();
 		}
 
 		return res;
 	}
 }
 
+/**
+ * Tokenizes a string
+ * @param {string} rawSrc 
+ * @returns {Token[]}
+ */
 function tokenize(rawSrc) {
 	let src = new Source(rawSrc);
 
 	let tokenizer = new Tokenizer(src);
-	
+
 	return tokenizer.tokenize();
 }
 
-// Tokenizer can be reused for the IR
+/**
+ * Tokenizes an IR string with a codemap to the original source
+ * @param {string} rawSrc 
+ * @param {CodeMap} codeMap 
+ * @returns {Token[]}
+ */
 function tokenizeIR(rawSrc, codeMap) {
 	let src = new Source(rawSrc);
 
+	// the Tokenizer for Helios can simply be reused for the IR
 	let tokenizer = new Tokenizer(src, codeMap);
-	
+
 	return tokenizer.tokenize();
 }
 
@@ -3183,99 +4500,233 @@ function tokenizeIR(rawSrc, codeMap) {
 // Section 7: Type evaluation objects
 /////////////////////////////////////
 
+/**
+ * Base class of Value and Type.
+ * Any member function that takes 'site' as its first argument throws a TypeError if used incorrectly (eg. calling a non-FuncType).
+ */
 class GeneralizedValue {
 	constructor() {
 		this.used_ = false;
 	}
 
+	/**
+	 * @param {Site} site
+	 * @returns {Type}
+	 */
+	assertType(site) {
+		throw site.typeError("not a type");
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
 	isType() {
 		throw new Error("not implemented");
 	}
 
+	/**
+	 * @param {Site} site
+	 * @returns {Value}
+	 */
+	assertValue(site) {
+		throw site.typeError("not a value");
+	}
+	/**
+	 * @returns {boolean}
+	 */
 	isValue() {
 		throw new Error("not implemented");
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isUsed() {
 		return this.used_;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		throw new Error("not implemented");
 	}
-	
+
+	/**
+	 * Used by Scope to mark named Values/Types as used.
+	 * At the end of the Scope an error is thrown if any named Values/Types aren't used.
+	 */
 	markAsUsed() {
 		this.used_ = true;
 	}
 
+	/**
+	 * Gets type of a value. Throws error when trying to get type of type.
+	 * @param {Site} site
+	 * @returns {Type}
+	 */
 	getType(site) {
 		throw new Error("not implemented");
 	}
 
+	/**
+	 * Returns 'true' if 'this' is a base-type of 'type'. Throws an error if 'this' isn't a Type.
+	 * @param {Site} site
+	 * @param {Type} type
+	 * @returns {boolean}
+	 */
 	isBaseOf(site, type) {
 		throw new Error("not implemented");
 	}
 
+	/**
+	 * Returns 'true' if 'this' is an instance of 'type'. Throws an error if 'this' isn't a Value.
+	 * 'type' can be a class, or a class instance.
+	 * @param {Site} site 
+	 * @param {Type | TypeClass} type 
+	 * @returns {boolean}
+	 */
 	isInstanceOf(site, type) {
 		throw new Error("not implemented");
 	}
 
+	/**
+	 * Returns the return type of a function (wrapped as a Value) if the args have the correct types. 
+	 * Throws an error if 'this' isn't a function value, or if the args don't correspond.
+	 * @param {Site} site 
+	 * @param {Value[]} args
+	 * @returns {Value}
+	 */
 	call(site, args) {
 		throw new Error("not implemented");
 	}
 
-	// for `::`
+	/**
+	 * Gets a member of a Type (i.e. the '::' operator).
+	 * Throws an error if the member doesn't exist or if 'this' isn't a DataType.
+	 * @param {Word} name
+	 * @returns {GeneralizedValue} - can be Value or Type
+	 */
 	getTypeMember(name) {
 		throw new Error("not implemented");
 	}
 
-	// for `.`
+	/**
+	 * Gets a member of a Value (i.e. the '.' operator).
+	 * Throws an error if the member doesn't exist or if 'this' isn't a DataValue.
+	 * @param {Word} name
+	 * @returns {Value} - can be FuncValue or DataValue
+	 */
 	getInstanceMember(name) {
 		throw new Error("not implemented");
 	}
 
+	/**
+	 * Returns the number of fields in a struct.
+	 * Used to check if a literal struct constructor is correct.
+	 * Not (yet) for builtin types.
+	 * @param {Site} site
+	 * @returns {number}
+	 */
 	nFields(site) {
 		throw new Error("not implemented");
 	}
 
+	/**
+	 * Returns the constructor index so UPLC data can be created correctly.
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
 	getConstrIndex(site) {
 		throw new Error("not implemented");
 	}
 }
 
+/**
+ * Types are used during type-checking of Helios
+ */
 class Type extends GeneralizedValue {
 	constructor() {
 		super();
 	}
 
+	/**
+	 * Compares two types. Throws an error if neither is a Type.
+	 * @example
+	 * Type.same(Site.dummy(), new IntType(), new IntType()) => true
+	 * @param {Site} site 
+	 * @param {Type} a 
+	 * @param {Type} b 
+	 * @returns {boolean}
+	 */
 	static same(site, a, b) {
 		return a.isBaseOf(site, b) && b.isBaseOf(site, a);
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isType() {
 		return true;
 	}
 
+	/**
+	 * @param {Site} site
+	 * @returns {Type}
+	 */
+	assertType(site) {
+		return this;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
 	isValue() {
 		return false;
 	}
 
+	/**
+	 * Returns the underlying Type. Throws an error in this case because a Type can't return another Type.
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
 	getType(site) {
-		site.typeError("can't use getType, not an instance " + this.toString());
+		throw site.typeError(`can't use getType(), '${this.toString()}' isn't an instance`);
 	}
 
+	/**
+	 * Throws an error because a Type can't be an instance of another Type.
+	 * @param {Site} site 
+	 * @param {Type | TypeClass} type
+	 * @returns {boolean}
+	 */
 	isInstanceOf(site, type) {
-		assert(false, "block");
-		site.typeError("can't use isInstanceOf, not an instance " + this.toString());
+		throw site.typeError(`can't use isInstanceOf(), '${this.toString()}' isn't an instance`);
 	}
 
+	/**
+	 * Throws an error because a Type isn't callable.
+	 * @param {Site} site 
+	 * @param {Value[]} args 
+	 * @returns {Value}
+	 */
 	call(site, args) {
-		site.typeError("not callable");
+		throw site.typeError("not callable");
+	}
+
+	/**
+	 * Returns number of members of an enum type
+	 * Throws an error if not an enum type
+	 * @param {Site} site
+	 * @returns {number}
+	 */
+	nEnumMembers(site) {
+		throw site.typeError("not an enum type");
 	}
 
 	/**
 	 * Returns the base path of type (eg. __helios__bool).
-	 * This is used extensively in the IR
+	 * This is used extensively in the Intermediate Representation.
 	 * @type {string}
 	 */
 	get path() {
@@ -3283,7 +4734,9 @@ class Type extends GeneralizedValue {
 	}
 }
 
-// used by find_datum_hash for example
+/**
+ * AnyType matches any other type in the type checker.
+ */
 class AnyType extends Type {
 	constructor() {
 		super();
@@ -3299,6 +4752,9 @@ class AnyType extends Type {
 	}
 }
 
+/**
+ * Base class of non-FuncTypes.
+ */
 class DataType extends Type {
 	constructor() {
 		super();
@@ -3314,31 +4770,62 @@ class DataType extends Type {
 	}
 }
 
-// any builtin type that inherits from BuiltinType must implement get path()
+/**
+ * Matches everything except FuncType.
+ * Used by find_datum_hash.
+ */
+class AnyDataType extends Type {
+	constructor() {
+		super();
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {Type} other
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, other) {
+		return !(other instanceof FuncType);
+	}
+}
+
+/**
+ * Base class of all builtin types (eg. IntType)
+ * Note: any builtin type that inherits from BuiltinType must implement get path()
+ */
 class BuiltinType extends DataType {
 	constructor() {
 		super();
 	}
 
+	/**
+	 * Returns Type member (i.e. '::' operator).
+	 * @param {Word} name
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		name.referenceError(`${this.toString()}::${name.value} undefined`);
+		throw name.referenceError(`${this.toString()}::${name.value} undefined`);
 	}
 
+	/**
+	 * Returns one of default instance members, or throws an error.
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "serialize":
 				return Value.new(new FuncType([], new ByteArrayType()));
 			case "__eq":
 			case "__neq":
 				return Value.new(new FuncType([this], new BoolType()));
 			default:
-				name.referenceError(`${this.toString()}.${name.value} undefined`);
+				throw name.referenceError(`${this.toString()}.${name.value} undefined`);
 		}
 	}
 
 	/**
-	 * Returns the number of data fields in a builtin type (eg. ).
-	 * By default builtin types don't have any fields.
+	 * Returns the number of data fields in a builtin type (not yet used)
 	 * @param {Site} site 
 	 * @returns {number}
 	 */
@@ -3356,106 +4843,191 @@ class BuiltinType extends DataType {
 		return 0;
 	}
 
+	/**
+	 * Use 'path' getter instead of 'toIR()' in order to get the base path.
+	 */
 	toIR() {
 		throw new Error("use path getter instead");
 	}
 }
 
-class UserType extends DataType {
+/**
+ * Type wrapper for Struct statements and Enums and Enum members.
+ */
+class StatementType extends DataType {
+	#statement;
+
+	/**
+	 * @param {StructStatement | EnumMember | EnumStatement} statement 
+	 */
 	constructor(statement) {
 		super();
-		this.statement_ = statement;
+		this.#statement = statement;
 	}
 
+	get statement() {
+		return this.#statement;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
 	isBaseOf(site, type) {
-		if (type instanceof UserType) {
-			return this.statement_.isBaseOf(type.statement_);
+		if (type instanceof StatementType) {
+			return type.path.startsWith(this.path);
 		} else {
 			return false;
 		}
 	}
 
+	/**
+	 * Returns the name of the type.
+	 * @returns {string}
+	 */
 	toString() {
-		return this.statement_.name.toString();
+		return this.#statement.name.toString();
 	}
 
-	// for `::`
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		return this.statement_.getTypeMember(name);
+		return this.#statement.getTypeMember(name);
 	}
 
-	// for `.`
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		return this.statement_.getInstanceMember(name);
+		return this.#statement.getInstanceMember(name);
 	}
 
+	/**
+	 * Returns the number of fields in a Struct or in an EnumMember.
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
 	nFields(site) {
-		return this.statement_.nFields(site);
+		return this.#statement.nFields(site);
 	}
 
+	/**
+	 * Returns the constructor index so that __core__constrData can be called correctly.
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
 	getConstrIndex(site) {
-		return this.statement_.getConstrIndex(site);
+		return this.#statement.getConstrIndex(site);
+	}
+
+	/**
+	 * Returns the number of members of an EnumStatement
+	 * @param {Site} site
+	 * @returns {number}
+	 */
+	nEnumMembers(site) {
+		return this.#statement.nEnumMembers(site);
 	}
 
 	get path() {
-		return this.statement_.path;
+		return this.#statement.path;
 	}
 }
 
+/**
+ * Function type with arg types and a return type
+ */
 class FuncType extends Type {
+	#argTypes;
+	#retType;
+
+	/**
+	 * @param {Type[]} argTypes 
+	 * @param {Type} retType 
+	 */
 	constructor(argTypes, retType) {
 		super();
-		this.argTypes_ = argTypes;
-		this.retType_ = retType;
+		this.#argTypes = argTypes;
+		this.#retType = retType;
 	}
 
 	get nArgs() {
-		return this.argTypes_.length;
+		return this.#argTypes.length;
 	}
 
 	get retType() {
-		return this.retType_;
+		return this.#retType;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return `(${this.argTypes_.map(a => a.toString()).join(", ")}) -> ${this.retType_.toString()}`;
+		return `(${this.#argTypes.map(a => a.toString()).join(", ")}) -> ${this.#retType.toString()}`;
 	}
 
-	// the name of first arg also needs to be self, but that is checked elsewhere
-	maybeMethod(site, type) {
-		if (this.argTypes_.length > 0) {
-			return Type.same(site, this.argTypes_[0], type);
+	/**
+	 * Checks if the type of the first arg is the same as 'type'
+	 * Also returns false if there are no args.
+	 * For a method to be a valid instance member its first argument must also be named 'self', but that is checked elsewhere
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isMaybeMethod(site, type) {
+		if (this.#argTypes.length > 0) {
+			return Type.same(site, this.#argTypes[0], type);
 		} else {
 			return false;
 		}
 	}
-	
+
+	/** 
+	 * Checks if any of 'this' argTypes or retType is same as Type.
+	 * Only if this checks return true is the association allowed.
+	 * @param {Site} site
+	 * @param {Type} type
+	 * @returns {boolean}
+	 */
 	isAssociated(site, type) {
-		for (let arg of this.argTypes_.length) {
+		for (let arg of this.#argTypes) {
 			if (Type.same(site, arg, type)) {
 				return true;
 			}
 		}
 
-		if (Type.same(site, type, this.retType_)) {
+		if (Type.same(site, type, this.#retType)) {
 			return true;
 		} else {
 			return false;
 		}
 	}
 
+	/**
+	 * Checks if 'this' is a base type of another FuncType.
+	 * The number of args needs to be the same.
+	 * Each argType of the FuncType we are checking against needs to be the same or less specific (i.e. isBaseOf(this.#argTypes[i]))
+	 * The retType of 'this' needs to be the same or more specific
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
 	isBaseOf(site, type) {
 		if (type instanceof FuncType) {
 			if (this.nArgs != type.nArgs) {
 				return false;
 			} else {
 				for (let i = 0; i < this.nArgs; i++) {
-					if (!type.argTypes_[i].isBaseOf(site, this.argTypes_[i])) { // note the reversal of the check
+					if (!type.#argTypes[i].isBaseOf(site, this.#argTypes[i])) { // note the reversal of the check
 						return false;
 					}
 				}
 
-				return this.retType_.isBaseOf(site, type.retType_);
+				return this.#retType.isBaseOf(site, type.#retType);
 			}
 
 		} else {
@@ -3463,79 +5035,109 @@ class FuncType extends Type {
 		}
 	}
 
-	// returns a list of [haveDatum, haveRedeemer, haveScriptContext]
+	/**
+	 * Checks types of the args
+	 */
+	
+	/**
+	 * Checks if arg types are valid.
+	 * Throws errors if not valid. Returns the return type if valid. 
+	 * @param {Site} site 
+	 * @param {Value[]} args 
+	 * @returns {Type}
+	 */
+	checkCall(site, args) {
+		if (this.nArgs != args.length) {
+			throw site.typeError(`expected ${this.nArgs} arg(s), got ${args.length} arg(s)`);
+		}
+
+		for (let i = 0; i < this.nArgs; i++) {
+			if (!args[i].isInstanceOf(site, this.#argTypes[i])) {
+				throw site.typeError(`expected '${this.#argTypes[i].toString()}' for arg ${i + 1}, got '${args[i].toString()}'`);
+			}
+		}
+
+		return this.#retType;
+	}
+
+	/**
+	 * Checks if 'this' functype is valid for main()
+	 * @param {Site} site 
+	 * @param {number} purpose 
+	 * @returns {[boolean, boolean, boolean]} - [haveDatum, haveRedeemer, haveScriptContext]
+	 */
 	checkAsMain(site, purpose) {
 		let haveDatum = false;
 		let haveRedeemer = false;
 		let haveScriptContext = false;
 
 		if (purpose == ScriptPurpose.Testing) {
-			if (this.argTypes_ != 0) {
-				site.typeError("test main should have 0 args");
+			if (this.#argTypes.length != 0) {
+				throw site.typeError("test main should have 0 args");
 			}
-		} else if (!Type.same(site, this.retType_, new BoolType())) {
-			site.typeError(`invalid main return type: expected Bool, got ${this.retType_.toString()}`);
+		} else if (!Type.same(site, this.#retType, new BoolType())) {
+			throw site.typeError(`invalid main return type: expected Bool, got ${this.#retType.toString()}`);
 		} else if (purpose == ScriptPurpose.Spending) {
-			if (this.argTypes_.length > 3) {
-				site.typeError("too many arguments for main");
-			} 
+			if (this.#argTypes.length > 3) {
+				throw site.typeError("too many arguments for main");
+			}
 
-			for (let arg of this.argTypes_) {
+			for (let arg of this.#argTypes) {
 				let t = arg.toString();
 
 				if (t == "Datum") {
 					if (haveDatum) {
-						site.typeError("duplicate \'Datum\' argument");
+						throw site.typeError("duplicate \'Datum\' argument");
 					} else if (haveRedeemer) {
-						site.typeError("\'Datum\' must come before \'Redeemer\'");
+						throw site.typeError("\'Datum\' must come before \'Redeemer\'");
 					} else if (haveScriptContext) {
-						site.typeError("\'Datum\' must come before \'ScriptContext\'");
+						throw site.typeError("\'Datum\' must come before \'ScriptContext\'");
 					} else {
 						haveDatum = true;
 					}
 				} else if (t == "Redeemer") {
 					if (haveRedeemer) {
-						site.typeError("duplicate \'Redeemer\' argument");
+						throw site.typeError("duplicate \'Redeemer\' argument");
 					} else if (haveScriptContext) {
-						site.typeError("\'Redeemer\' must come before \'ScriptContext\'");
+						throw site.typeError("\'Redeemer\' must come before \'ScriptContext\'");
 					} else {
 						haveRedeemer = true;
 					}
 				} else if (t == "ScriptContext") {
 					if (haveScriptContext) {
-						site.typeError("duplicate \'ScriptContext\' argument");
+						throw site.typeError("duplicate \'ScriptContext\' argument");
 					} else {
 						haveScriptContext = true;
 					}
 				} else {
 					console.log("got ", t, arg);
-					site.typeError("illegal argument type, must be \'Datum\', \'Redeemer\' or \'ScriptContext\'");
+					throw site.typeError("illegal argument type, must be \'Datum\', \'Redeemer\' or \'ScriptContext\'");
 				}
 			}
 		} else if (purpose == ScriptPurpose.Minting) {
-			if (this.argTypes_.length > 2) {
-				site.typeError("too many arguments for main");
+			if (this.#argTypes.length > 2) {
+				throw site.typeError("too many arguments for main");
 			}
 
-			for (let arg of this.argTypes_) {
+			for (let arg of this.#argTypes) {
 				let t = arg.toString();
 
 				if (t == "Redeemer") {
 					if (haveRedeemer) {
-						site.typeError(`duplicate "Redeemer" argument`);
+						throw site.typeError(`duplicate "Redeemer" argument`);
 					} else if (haveScriptContext) {
-						site.typeError(`"Redeemer" must come before "ScriptContext"`);
+						throw site.typeError(`"Redeemer" must come before "ScriptContext"`);
 					} else {
 						haveRedeemer = true;
 					}
 				} else if (t == "ScriptContext") {
 					if (haveScriptContext) {
-						site.typeError(`duplicate "ScriptContext" argument`);
+						throw site.typeError(`duplicate "ScriptContext" argument`);
 					} else {
 						haveScriptContext = true;
 					}
 				} else {
-					site.typeError(`illegal argument type, must be "Redeemer" or "ScriptContext"`);
+					throw site.typeError(`illegal argument type, must be "Redeemer" or "ScriptContext"`);
 				}
 			}
 		} else {
@@ -3546,11 +5148,18 @@ class FuncType extends Type {
 	}
 }
 
+/**
+ * Base class for DataValue and FuncValue
+ */
 class Value extends GeneralizedValue {
 	constructor() {
 		super();
 	}
 
+	/**
+	 * @param {Type} type 
+	 * @returns {Value}
+	 */
 	static new(type) {
 		if (type instanceof FuncType) {
 			return new FuncValue(type);
@@ -3559,151 +5168,279 @@ class Value extends GeneralizedValue {
 		}
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isType() {
 		return false;
 	}
-	
+
+	/**
+	 * @returns {boolean}
+	 */
 	isValue() {
 		return true;
 	}
 
-	isBaseOf(site, type) {
-		site.typeError("not a type");
+	/**
+	 * @param {Site} site
+	 * @returns {Value}
+	 */
+	assertValue(site) {
+		return this;
 	}
 
-	call(site, args) {
-		site.typeError("not callable");
+	/**
+	 * Throws an error because a Value isn't a Type can't be a base-Type of anything.
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		throw site.typeError("not a type");
 	}
 }
 
+/**
+ * A regular non-Func Value. DataValues can always be compared, serialized, used in containers.
+ */
 class DataValue extends Value {
+	#type;
+
+	/**
+	 * @param {DataType} type 
+	 */
 	constructor(type) {
 		assert(!(type instanceof FuncType));
 
 		super();
-		this.type_ = type;
+		this.#type = type;
 	}
 
+	/**
+	 * @returns {DataValue}
+	 */
 	copy() {
-		return new DataValue(this.type_);
+		return new DataValue(this.#type);
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return this.type_.toString();
+		return this.#type.toString();
 	}
 
+	/**
+	 * Gets the underlying Type.
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
 	getType(site) {
-		return this.type_;
+		return this.#type;
 	}
 
-	// type can be a class, or class instance
+	/**
+	 * @typedef {new(...any) => Type} TypeClass
+	 */
+
+	/**
+	 * Checks if 'this' is instance of 'type'.
+	 * 'type' can be a class, or a class instance.
+	 * @param {Site} site 
+	 * @param {Type | TypeClass} type 
+	 * @returns 
+	 */
 	isInstanceOf(site, type) {
 		if (typeof type == 'function') {
-			return this.type_ instanceof type;
+			return this.#type instanceof type;
 		} else {
-			return type.isBaseOf(site, this.type_);
+			return type.isBaseOf(site, this.#type);
 		}
 	}
 
+	/**
+	 * Returns the number of fields of a struct, enum member, or builtin type.
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
 	nFields(site) {
-		return this.type_.nFields(site);
+		return this.#type.nFields(site);
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		return this.type_.getInstanceMember(name);
+		return this.#type.getInstanceMember(name);
+	}
+
+	/**
+	 * Throws an error bec
+	 * @param {Site} site 
+	 * @param {Value[]} args 
+	 * @returns {Value}
+	 */
+	call(site, args) {
+		throw site.typeError("not callable");
 	}
 }
 
+/**
+ * A callable Value.
+ */
 class FuncValue extends Value {
+	#type;
+
+	/**
+	 * @param {FuncType} type 
+	 */
 	constructor(type) {
 		assert(type instanceof FuncType);
 
 		super();
-		this.type_ = type;
-	}
-	
-	get nArgs() {
-		return this.type_.nArgs;
+		this.#type = type;
 	}
 
+	get nArgs() {
+		return this.#type.nArgs;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
 	isRecursive() {
 		return false;
 	}
 
+	/**
+	 * @returns {Value}
+	 */
 	copy() {
-		return new FuncValue(this.type_);
+		return new FuncValue(this.#type);
 	}
 
+	/**
+	 * Returns a string representing the type.
+	 * @returns {string}
+	 */
 	toString() {
-		return this.type_.toString();
+		return this.#type.toString();
 	}
 
-	getType() {
-		return this.type_;
+	/**
+	 * Returns the underlying FuncType as Type.
+	 * @param {Site} site
+	 * @returns {Type}
+	 */
+	getType(site) {
+		return this.#type;
 	}
 
+	/**
+	 * Returns the underlying FuncType directly.
+	 * @returns {FuncType}
+	 */
+	getFuncType() {
+		return this.#type;
+	}
+
+	/**
+	 * Checks if 'this' is an instance of 'type'.
+	 * Type can be a class or a class instance. 
+	 * @param {Site} site 
+	 * @param {Type | TypeClass} type 
+	 * @returns {boolean}
+	 */
 	isInstanceOf(site, type) {
 		if (typeof type == 'function') {
-			return this.type_ instanceof type;
+			return this.#type instanceof type;
 		} else {
-			return type.isBaseOf(site, this.type_);
+			return type.isBaseOf(site, this.#type);
 		}
 	}
-	
+
+	/**
+	 * @param {Site} site 
+	 * @param {Value[]} args 
+	 * @returns {Value}
+	 */
 	call(site, args) {
-		if (this.nArgs != args.length) {
-			site.typeError(`expected ${this.nArgs} arg(s), got ${args.length}`);
-		}
-
-		for (let i = 0; i < this.nArgs; i++) {
-			if (!args[i].isInstanceOf(site, this.type_.argTypes_[i])) {
-				site.typeError(`expected ${this.type_.argTypes_[i].toString()} for arg ${i+1}, got ${args[i].toString()}`);
-			}
-		}
-
-		return Value.new(this.type_.retType_);
+		return Value.new(this.#type.checkCall(site, args));
 	}
 
+	/**
+	 * Throws an error because a function value doesn't have any fields.
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
 	nFields(site) {
-		site.typeError("a function doesn't have fields");
+		throw site.typeError("a function doesn't have fields");
 	}
 
+	/**
+	 * Throws an error because a function value doesn't have members.
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		name.typeError("a function doesn't have any members");
+		throw name.typeError("a function doesn't have any members");
 	}
 }
 
-// only top functions (i.e. function statements) can be used recursively
-class TopFuncValue extends FuncValue {
+/**
+ * Special function value class for top level functions because they can be used recursively.s
+ */
+class FuncStatementValue extends FuncValue {
+	#recursive;
+	/** @type {?(() => void)} */
+	#onNotifyRecursive;
+
+	/**
+	 * @param {FuncType} type 
+	 * @param {boolean} recursive 
+	 */
 	constructor(type, recursive = false) {
 		super(type);
-		this.recursive_ = recursive;
-		this.onNotifyRecursive_ = null;
+		this.#recursive = recursive;
+		this.#onNotifyRecursive = null;
 	}
 
+	/**
+	 * @returns {FuncStatementValue}
+	 */
 	copy() {
-		let v = new FuncValue(this.type_, this.recursive_);
-		if (this.onNotifyRecursive_ != null) {
-			v.onNotifyRecursive_ = this.onNotifyRecursive_;
+		let v = new FuncStatementValue(this.getFuncType(), this.#recursive);
+		if (this.#onNotifyRecursive != null) {
+			v.#onNotifyRecursive = this.#onNotifyRecursive;
 		}
 		return v;
 	}
 
+	/**
+	 * Sets the onNotifyRecursive callback (so that associated FuncStatement can be notified when it is used recursively).
+	 * @param {?(()=> void)} callback 
+	 */
 	onNotifyRecursive(callback) {
-		this.onNotifyRecursive_ = callback;
+		this.#onNotifyRecursive = callback;
 	}
 
 	markAsUsed() {
 		super.markAsUsed();
-		
-		if (this.onNotifyRecursive_ != null) {
-			this.recursive_ = true;
-			this.onNotifyRecursive_();
+
+		// if onNotifyRecursive has been set then we can assume that, at this point, any reference to this function is a recursive reference.
+		if (this.#onNotifyRecursive != null) {
+			this.#recursive = true;
+			this.#onNotifyRecursive();
 		}
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isRecursive() {
-		return this.recursive_;
+		return this.#recursive;
 	}
 }
 
@@ -3712,16 +5449,26 @@ class TopFuncValue extends FuncValue {
 // Section 8: Scopes
 ////////////////////
 
-// GlobalScope is for builtins
+/**
+ * GlobalScope sits above the top-level scope and contains references to all the builtin Values and Types
+ */
 class GlobalScope {
+	/**
+	 * @type {[Word, GeneralizedValue][]}
+	 */
+	#values;
+
 	constructor() {
-		// let there be no confusion: types are also values!
-		// values_ contains a list of pairs
-		this.values_ = []; 
+		this.#values = [];
 	}
 
+	/**
+	 * Checks if scope contains a name
+	 * @param {Word} name 
+	 * @returns {boolean}
+	 */
 	has(name) {
-		for (let pair of this.values_) {
+		for (let pair of this.#values) {
 			if (pair[0].toString() == name.toString()) {
 				return true;
 			}
@@ -3730,28 +5477,40 @@ class GlobalScope {
 		return false;
 	}
 
-	// when setting in global scope assuming everything is unique
+	/**
+	 * Sets a global name, doesn't check for uniqueness
+	 * Called when initializing GlobalScope
+	 * @param {string | Word} name
+	 * @param {GeneralizedValue} value
+	 */
 	set(name, value) {
-		if (!(name instanceof Word)) {
-			name = new Word(name);
-		}
+		/** @type {Word} */
+		let nameWord = !(name instanceof Word) ? Word.new(name) : name;
 
-		assert(value.toIR != undefined);
-
-		this.values_.push([name, value]);
+		this.#values.push([nameWord, value]);
 	}
 
+	/**
+	 * Gets a named value from the scope.
+	 * Throws an error if not found.
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	get(name) {
-		for (let pair of this.values_) {
+		for (let pair of this.#values) {
 			if (pair[0].toString() == name.toString()) {
 				pair[1].markAsUsed();
 				return pair[1];
 			}
 		}
 
-		name.referenceError(`\'${name.toString()}\' undefined`);
+		throw name.referenceError(`'${name.toString()}' undefined`);
 	}
 
+	/**
+	 * Initialize the GlobalScope with all the builtins
+	 * @returns {GlobalScope}
+	 */
 	static new() {
 		let scope = new GlobalScope();
 
@@ -3785,112 +5544,119 @@ class GlobalScope {
 	}
 }
 
+/**
+ * User scope
+ */
 class Scope {
-	constructor(parent) {
-		assert(parent != null);
+	/** @type {GlobalScope | Scope} */
+	#parent;
 
-		this.parent_ = parent;
-		this.values_ = []; // list of pairs
+	/** @type {[Word, GeneralizedValue][]} */
+	#values;
+
+	/**
+	 * @param {GlobalScope | Scope} parent 
+	 */
+	constructor(parent) {
+		this.#parent = parent;
+		this.#values = []; // list of pairs
 	}
 
+	/**
+	 * Used by top-scope to loop over all the statements
+	 */
+	get values() {
+		return this.#values.slice();
+	}
+
+	/**
+	 * Checks if scope contains a name
+	 * @param {Word} name 
+	 * @returns {boolean}
+	 */
 	has(name) {
-		for (let pair of this.values_) {
+		for (let pair of this.#values) {
 			if (pair[0].toString() == name.toString()) {
 				return true;
 			}
 		}
 
-		if (this.parent_ != null) {
-			return this.parent_.has(name);
+		if (this.#parent != null) {
+			return this.#parent.has(name);
 		} else {
 			return false;
 		}
 	}
 
+	/**
+	 * Sets a named value. Throws an error if not unique
+	 * @param {Word} name 
+	 * @param {GeneralizedValue} value 
+	 */
 	set(name, value) {
 		if (this.has(name)) {
-			name.syntaxError(`\'${name.toString()}\' already defined`);
+			throw name.syntaxError(`'${name.toString()}' already defined`);
 		}
 
-		this.values_.push([name, value]);
-	}
-	
-	unset(name) {
-		let i = this.values_.findIndex(([valueName, _]) => {
-			return name == valueName
-		});
-
-		if (i != -1) {
-			this.values_.splice(i, 1);		
-		}
+		this.#values.push([name, value]);
 	}
 
+	/**
+	 * Gets a named value from the scope. Throws an error if not found
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	get(name) {
 		if (!(name instanceof Word)) {
-			name = new Word(name);
+			name = Word.new(name);
 		}
 
-		for (let pair of this.values_) {
+		for (let pair of this.#values) {
 			if (pair[0].toString() == name.toString()) {
 				pair[1].markAsUsed();
 				return pair[1];
 			}
 		}
 
-		if (this.parent_ != null) {
-			return this.parent_.get(name);
+		if (this.#parent != null) {
+			return this.#parent.get(name);
 		} else {
-			name.referenceError(`${name.toString()} undefined`);
+			throw name.referenceError(`'${name.toString()}' undefined`);
 		}
 	}
 
+	/**
+	 * Asserts that all named values are user.
+	 * Throws an error if some are unused.
+	 */
 	assertAllUsed() {
-		for (let pair of this.values_) {
+		for (let pair of this.#values) {
 			if (!pair[1].isUsed()) {
-				pair[0].referenceError(`\'${pair[0].toString()}\' unused`);
+				throw pair[0].referenceError(`'${pair[0].toString()}' unused`);
 			}
 		}
 	}
-
-	
 }
 
+/**
+ * TopScope is a special scope that can contain UserTypes
+ */
 class TopScope extends Scope {
+	/**
+	 * @param {GlobalScope} parent 
+	 */
 	constructor(parent) {
-		assert(parent instanceof GlobalScope);
 		super(parent);
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @param {GeneralizedValue} value 
+	 */
 	set(name, value) {
 		super.set(name, value);
 	}
 
-	// map: name -> definition
-	static wrapWithDefinitions(inner, map) {
-		let keys = Array.from(map.keys()).reverse();
-
-		let res = inner;
-		for (let key of keys) {
-			let definition = map.get(key);
-			
-			res = [new IR("("), new IR(key), new IR(") -> {\n"),
-				res, new IR(`\n}(\n${TAB}/*${key}*/\n${TAB}`), definition,
-				new IR("\n)")];
-		}
-
-		return res;
-	}
-
-	wrapAround(inner) {	
-		// first collect, so we can optionally reverse
-		let map = new Map(); // string -> string
-
-		for (let pair of this.values_) {
-			pair[1].toIR(map);
-		}
-
-		return TopScope.wrapWithDefinitions(inner, map);
-	}
 }
 
 
@@ -3898,374 +5664,623 @@ class TopScope extends Scope {
 // Section 9: AST expression objects
 ////////////////////////////////////
 
-// caches the evaluated type
-// both TypeExpr and ValueExpr inherit from this
+/**
+ * Base class of every Type and Value expression.
+ */
 class Expr extends Token {
+	/**
+	 * @param {Site} site 
+	 */
 	constructor(site) {
 		super(site);
-		this.cache_ = null;
+	}
+}
+
+/**
+ * Base calss of every Type expression
+ * Caches evaluated Type.
+ */
+class TypeExpr extends Expr {
+	/** @type {?Type} */
+	#cache;
+
+	/**
+	 * @param {Site} site 
+	 */
+	constructor(site) {
+		super(site);
+		this.#cache = null;
 	}
 
+	get type() {
+		if (this.#cache === null) {
+			throw new Error("type not yet evaluated");
+		} else {
+			return this.#cache;
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
+	evalInternal(scope) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
 	eval(scope) {
-		if (this.cache_ == null) {
-			this.cache_ = this.evalInternal(scope);
+		if (this.#cache === null) {
+			this.#cache = this.evalInternal(scope);
 		}
 
-		return this.cache_;
+		return this.#cache;
 	}
 }
 
-class TypeExpr extends Expr {
-	constructor(site) {
-		super(site);
-	}
-}
-
+/**
+ * Type reference class (i.e. using a Word)
+ */
 class TypeRefExpr extends TypeExpr {
+	#name;
+
+	/**
+	 * @param {Word} name 
+	 */
 	constructor(name) {
 		super(name.site);
-		this.name_ = name;
-		this.type_ = null;
+		this.#name = name;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return this.name_.toString();
+		return this.#name.toString();
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
 	evalInternal(scope) {
-		let type = scope.get(this.name_);
+		let type = scope.get(this.#name);
 
-		if (!type.isType()) {
-			this.name_.typeError("not a type");
-		}
-
-		this.type_ = type;
-
-		return this.type_;
+		return type.assertType(this.#name.site);
 	}
 
 	get path() {
-		return this.type_.path;
+		return this.type.path;
 	}
 }
 
+/**
+ * Type::Member expression
+ */
 class TypePathExpr extends TypeExpr {
-	constructor(site, rootName, memberName) {
+	#enumName;
+	#memberName;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Word} enumName 
+	 * @param {Word} memberName
+	 */
+	constructor(site, enumName, memberName) {
 		super(site);
-		this.baseName_ = baseName;
-		this.memberName_ = memberName;
-		this.memberType_ = null;
+		this.#enumName = enumName;
+		this.#memberName = memberName;
 	}
 
 	toString() {
-		return this.baseName_.toString() + "::" + this.memberName_.toString();
+		return `${this.#enumName.toString()}::${this.#memberName.toString()}`;
 	}
 
+	/**
+	 * @param {Scope} scope
+	 * @returns {Type}
+	 */
+	evalEnumType(scope) {
+		return scope.get(this.#enumName).assertType(this.#enumName.site);
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
 	evalInternal(scope) {
-		let baseType = scope.get(this.baseName_);
+		let enumType = this.evalEnumType(scope);
 
-		if (!baseType.isType()) {
-			this.baseName_.typeError("not a type");
-		}
+		let memberType = enumType.getTypeMember(this.#memberName);
 
-		let memberType = baseType.getTypeMember(this.memberName_);
-
-		if (!memberType.isType()) {
-			this.memberName_.typeError("not a type");
-		}
-
-		this.memberType_ = memberType;
-
-		return this.memberType_;
+		return memberType.assertType(this.#memberName.site);
 	}
 
 	get path() {
-		return this.memberType_.path;
+		return this.type.path;
 	}
 }
 
 class ListTypeExpr extends TypeExpr {
+	#itemTypeExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {TypeExpr} itemTypeExpr 
+	 */
 	constructor(site, itemTypeExpr) {
 		super(site);
-		this.itemTypeExpr_ = itemTypeExpr;
+		this.#itemTypeExpr = itemTypeExpr;
 	}
 
 	toString() {
-		return `[]${this.itemTypeExpr_.toString()}`;
+		return `[]${this.#itemTypeExpr.toString()}`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
 	evalInternal(scope) {
-		let itemType = this.itemTypeExpr_.eval(scope);
-
-		assert(itemType.isType());
+		let itemType = this.#itemTypeExpr.eval(scope);
 
 		if (itemType instanceof FuncType) {
-			this.itemTypeExpr_.typeError("list item type can't be function");
+			throw this.#itemTypeExpr.typeError("list item type can't be function");
 		}
 
 		return new ListType(itemType);
 	}
 }
 
+/**
+ * Map[KeyType]ValueType expression
+ */
 class MapTypeExpr extends TypeExpr {
+	#keyTypeExpr;
+	#valueTypeExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {TypeExpr} keyTypeExpr 
+	 * @param {TypeExpr} valueTypeExpr 
+	 */
 	constructor(site, keyTypeExpr, valueTypeExpr) {
 		super(site);
-		this.keyTypeExpr_ = keyTypeExpr;
-		this.valueTypeExpr_ = valueTypeExpr;
+		this.#keyTypeExpr = keyTypeExpr;
+		this.#valueTypeExpr = valueTypeExpr;
 	}
 
 	toString() {
-		return `Map[${this.keyTypeExpr_.toString()}]${this.valueTypeExpr_.toString()}`; 
+		return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
 	evalInternal(scope) {
-		let keyType = this.keyTypeExpr_.eval(scope);
+		let keyType = this.#keyTypeExpr.eval(scope);
 
-		assert(keyType.isType());
 		if (keyType instanceof FuncType) {
-			this.keyTypeExpr_.typeError("map key type can't be function");
+			throw this.#keyTypeExpr.typeError("map key type can't be function");
 		}
 
-		let valueType = this.valueTypeExpr_.eval(scope);
-
-		assert(valueType.isType());
+		let valueType = this.#valueTypeExpr.eval(scope);
 
 		if (valueType instanceof FuncType) {
-			this.valueTypeExpr_.typeError("map value type can't be function");
+			throw this.#valueTypeExpr.typeError("map value type can't be function");
 		}
 
 		return new MapType(keyType, valueType);
 	}
 }
 
+/**
+ * Option[SomeType] expression
+ */
 class OptionTypeExpr extends TypeExpr {
+	#someTypeExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {TypeExpr} someTypeExpr 
+	 */
 	constructor(site, someTypeExpr) {
 		super(site);
-		this.someTypeExpr_ = someTypeExpr;
+		this.#someTypeExpr = someTypeExpr;
 	}
 
 	toString() {
-		return `Option[${this.someTypeExpr_.toString()}]`;
+		return `Option[${this.#someTypeExpr.toString()}]`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
 	evalInternal(scope) {
-		let someType = this.someTypeExpr_.eval(scope);
+		let someType = this.#someTypeExpr.eval(scope);
 
-		assert(someType.isType());
 		if (someType instanceof FuncType) {
-			this.someTypeExpr_.typeError("option some type can't be function");
+			throw this.#someTypeExpr.typeError("option some type can't be function");
 		}
 
 		return new OptionType(someType);
 	}
 }
 
+/**
+ * (ArgType1, ...) -> RetType expression
+ */
 class FuncTypeExpr extends TypeExpr {
+	#argTypeExprs;
+	#retTypeExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {TypeExpr[]} argTypeExprs 
+	 * @param {TypeExpr} retTypeExpr 
+	 */
 	constructor(site, argTypeExprs, retTypeExpr) {
 		super(site);
-		this.argTypeExprs_ = argTypeExprs;
-		this.retTypeExpr_ = retTypeExpr;
+		this.#argTypeExprs = argTypeExprs;
+		this.#retTypeExpr = retTypeExpr;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return `(${this.argTypeExprs_.map(a => a.toString()).join(", ")}) -> ${this.retTypeExpr_.toString()}`;
+		return `(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExpr.toString()}`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
 	evalInternal(scope) {
-		let argTypes = this.argTypeExprs_.map(a => a.eval(scope));
+		let argTypes = this.#argTypeExprs.map(a => a.eval(scope));
 
-		let retType = this.retTypeExpr_.eval(scope);
+		let retType = this.#retTypeExpr.eval(scope);
 
 		return new FuncType(argTypes, retType);
 	}
 }
 
+/**
+ * Base class of expression that evaluate to Values.
+ */
 class ValueExpr extends Expr {
+	/** @type {?Value} */
+	#cache;
+
+	/**
+	 * @param {Site} site 
+	 */
 	constructor(site) {
 		super(site);
+
+		this.#cache = null;
 	}
 
-	// ValueExpr should be indented to make debugging of the IR easier
+	get value() {
+		if (this.#cache === null) {
+			throw new Error("type not yet evaluated");
+		} else {
+			return this.#cache;
+		}
+	}
+
+	get type() {
+		return this.value.getType(this.site);
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
+	evalInternal(scope) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
+	eval(scope) {
+		if (this.#cache === null) {
+			this.#cache = this.evalInternal(scope);
+		}
+
+		return this.#cache;
+	}
+
+	/**
+	 * Returns Intermediate Representation of a value expression.
+	 * The IR should be indented to make debugging easier.
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
 		throw new Error("not implemented");
 	}
 }
 
+/**
+ * '... = ... ; ...' expression
+ */
 class AssignExpr extends ValueExpr {
+	#name;
+	#typeExpr;
+	#upstreamExpr;
+	#downstreamExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Word} name 
+	 * @param {?TypeExpr} typeExpr - typeExpr can null for type inference (only works for literal rhs though)
+	 * @param {ValueExpr} upstreamExpr 
+	 * @param {ValueExpr} downstreamExpr 
+	 */
 	constructor(site, name, typeExpr, upstreamExpr, downstreamExpr) {
 		super(site);
-		this.name_ = name;
-		this.typeExpr_ = typeExpr; // is optional
-		this.upstreamExpr_  = assertDefined(upstreamExpr);
-		this.downstreamExpr_ = assertDefined(downstreamExpr);
+		this.#name = name;
+		this.#typeExpr = typeExpr; // optionally can be null for type inference
+		this.#upstreamExpr = assertDefined(upstreamExpr);
+		this.#downstreamExpr = assertDefined(downstreamExpr);
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		let downstreamStr = this.downstreamExpr_.toString();
+		let downstreamStr = this.#downstreamExpr.toString();
 		assert(downstreamStr != undefined);
 
 		let typeStr = "";
-		if (this.typeExpr_ != null) {
-			typeStr = `: ${this.typeExpr_.toString()}`;
+		if (this.#typeExpr != null) {
+			typeStr = `: ${this.#typeExpr.toString()}`;
 		}
-		return `${this.name_.toString()}${typeStr} = ${this.upstreamExpr_.toString()}; ${downstreamStr}`;
+		return `${this.#name.toString()}${typeStr} = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
 	evalInternal(scope) {
 		let subScope = new Scope(scope);
 
-		let upstreamVal = this.upstreamExpr_.eval(scope);
+		let upstreamVal = this.#upstreamExpr.eval(scope);
 
 		assert(upstreamVal.isValue());
 
-		if (this.typeExpr_ != null) {
-			let type = this.typeExpr_.eval(scope);
-			
+		if (this.#typeExpr != null) {
+			let type = this.#typeExpr.eval(scope);
+
 			assert(type.isType());
 
-			if (!upstreamVal.isInstanceOf(this.upstreamExpr_.site, type)) {
-				this.upstreamExpr_.typeError(`expected ${type.toString()}, got ${upstreamVal.toString()}`);
+			if (!upstreamVal.isInstanceOf(this.#upstreamExpr.site, type)) {
+				throw this.#upstreamExpr.typeError(`expected ${type.toString()}, got ${upstreamVal.toString()}`);
 			}
 		} else {
-			if (!(this.upstreamExpr_.isLiteral())) {
-				this.typeError("unable to infer type of assignment rhs");
+			if (!(this.#upstreamExpr.isLiteral())) {
+				throw this.typeError("unable to infer type of assignment rhs");
 			}
 		}
-		
-		subScope.set(this.name_, upstreamVal.copy());
 
-		let downstreamVal = this.downstreamExpr_.eval(subScope);
+		subScope.set(this.#name, upstreamVal);
+
+		let downstreamVal = this.#downstreamExpr.eval(subScope);
 
 		subScope.assertAllUsed();
 
 		return downstreamVal;
 	}
 
+	/**
+	 * 
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		return [
-			new IR(`(${this.name_.toString()}) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
-			this.downstreamExpr_.toIR(indent + TAB),
+		return new IR([
+			new IR(`(${this.#name.toString()}) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
+			this.#downstreamExpr.toIR(indent + TAB),
 			new IR(`\n${indent}}(`),
-			this.upstreamExpr_.toIR(indent),
+			this.#upstreamExpr.toIR(indent),
 			new IR(")")
-		];
+		]);
 	}
 }
 
-class PrintExpr extends Expr {
+/**
+ * print(...); ... expression
+ */
+class PrintExpr extends ValueExpr {
+	#msgExpr;
+	#downstreamExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {ValueExpr} msgExpr 
+	 * @param {ValueExpr} downstreamExpr 
+	 */
 	constructor(site, msgExpr, downstreamExpr) {
 		super(site);
-		this.msgExpr_ = msgExpr;
-		this.downstreamExpr_ = downstreamExpr;
+		this.#msgExpr = msgExpr;
+		this.#downstreamExpr = downstreamExpr;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		let downstreamStr = this.downstreamExpr_.toString();
+		let downstreamStr = this.#downstreamExpr.toString();
 		assert(downstreamStr != undefined);
-		return `print(${this.msgExpr_.toString()}); ${downstreamStr}`;
+		return `print(${this.#msgExpr.toString()}); ${downstreamStr}`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
 	evalInternal(scope) {
-		let subScope = new Scope(scope);
-
-		let msgVal = this.msgExpr_.eval(scope);
+		let msgVal = this.#msgExpr.eval(scope);
 
 		assert(msgVal.isValue());
 
-		if (!msgVal.isInstanceOf(this.msgExpr_.site, StringType)) {
-			this.msgExpr_.typeError("expected string arg for print");
+		if (!msgVal.isInstanceOf(this.#msgExpr.site, StringType)) {
+			throw this.#msgExpr.typeError("expected string arg for print");
 		}
-		
-		let downstreamVal = this.downstreamExpr_.eval(scope);
 
-		return this.downstreamExpr_.eval(scope);
+		let downstreamVal = this.#downstreamExpr.eval(scope);
+
+		return downstreamVal;
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		return [
+		return new IR([
 			new IR("__core__trace", this.site), new IR("("), new IR("__helios__common__unStringData("),
-			this.msgExpr_.toIR(indent),
+			this.#msgExpr.toIR(indent),
 			new IR(`), () -> {\n${indent}${TAB}`),
-			this.downstreamExpr_.toIR(indent + TAB),
+			this.#downstreamExpr.toIR(indent + TAB),
 			new IR(`\n${indent}})()`)
-		];
+		]);
 	}
 }
 
-class PrimitiveLiteralExpr extends Expr {
+/**
+ * Literal expression class (wraps literal tokens)
+ */
+class PrimitiveLiteralExpr extends ValueExpr {
+	#primitive;
+
+	/**
+	 * @param {PrimitiveLiteral} primitive 
+	 */
 	constructor(primitive) {
 		super(primitive.site);
-		assert(primitive instanceof PrimitiveLiteral);
-		this.primitive_ = primitive;
+		this.#primitive = primitive;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return this.primitive_.toString();
+		return this.#primitive.toString();
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
 	evalInternal(scope) {
-		if (this.primitive_ instanceof IntLiteral) {
+		if (this.#primitive instanceof IntLiteral) {
 			return new DataValue(new IntType());
-		} else if (this.primitive_ instanceof BoolLiteral) {
+		} else if (this.#primitive instanceof BoolLiteral) {
 			return new DataValue(new BoolType());
-		} else if (this.primitive_ instanceof StringLiteral) {
+		} else if (this.#primitive instanceof StringLiteral) {
 			return new DataValue(new StringType());
-		} else if (this.primitive_ instanceof ByteArrayLiteral) {
+		} else if (this.#primitive instanceof ByteArrayLiteral) {
 			return new DataValue(new ByteArrayType());
 		} else {
 			throw new Error("unhandled primitive type");
 		}
 	}
 
+	/**
+	 * @param {string} indent
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		let inner = this.primitive_.toIR(indent);
-		if (this.primitive_ instanceof IntLiteral) {
-			return [new IR("__core__iData", this.site),                new IR("("), inner, new IR(")")];
-		} else if (this.primitive_ instanceof BoolLiteral) {
-			return [new IR("__helios__common__boolData", this.site),   new IR("("), inner, new IR(")")];
-		} else if (this.primitive_ instanceof StringLiteral) {
-			return [new IR("__helios__common__stringData", this.site), new IR("("), inner, new IR(")")];
-		} else if (this.primitive_ instanceof ByteArrayLiteral) {
-			return [new IR("__core__bData", this.site),                new IR("("), inner, new IR(")")];
+		// all literals can be reused in their string-form in the IR
+		let inner = new IR(this.#primitive.toString(), this.#primitive.site);
+
+		if (this.#primitive instanceof IntLiteral) {
+			return new IR([new IR("__core__iData", this.site), new IR("("), inner, new IR(")")]);
+		} else if (this.#primitive instanceof BoolLiteral) {
+			return new IR([new IR("__helios__common__boolData", this.site), new IR("("), inner, new IR(")")]);
+		} else if (this.#primitive instanceof StringLiteral) {
+			return new IR([new IR("__helios__common__stringData", this.site), new IR("("), inner, new IR(")")]);
+		} else if (this.#primitive instanceof ByteArrayLiteral) {
+			return new IR([new IR("__core__bData", this.site), new IR("("), inner, new IR(")")]);
 		} else {
 			throw new Error("unhandled primitive type");
 		}
 	}
 }
 
+/**
+ * Struct field (part of a literal struct constructor)
+ */
 class StructLiteralField {
+	#name;
+	#value;
+
+	/**
+	 * @param {Word} name 
+	 * @param {ValueExpr} value 
+	 */
 	constructor(name, value) {
-		this.name_ = name;
-		this.value_ = value;
+		this.#name = name;
+		this.#value = value;
 	}
 
 	get site() {
-		return this.name_.site;
+		return this.#name.site;
 	}
 
 	get name() {
-		return this.name_;
+		return this.#name;
 	}
 
 	toString() {
-		return `${this.name_}: ${this.value_.toString()}`;
+		return `${this.#name}: ${this.#value.toString()}`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
 	eval(scope) {
-		return this.value_.eval(scope);
+		return this.#value.eval(scope);
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		return this.value_.toIR(indent);
+		return this.#value.toIR(indent);
 	}
 }
 
-class StructLiteralExpr extends Expr {
+/**
+ * Struct literal constructor
+ */
+class StructLiteralExpr extends ValueExpr {
+	#typeExpr;
+	#fields;
+	/** @type {?number} - set during evaluation */
+	#constrIndex;
+
+	/**
+	 * @param {TypeExpr} typeExpr 
+	 * @param {StructLiteralField[]} fields 
+	 */
 	constructor(typeExpr, fields) {
 		super(typeExpr.site);
-		this.typeExpr_ = typeExpr;
-		this.fields_ = fields; // list of StructLiteralField
-		this.constrIndex_ = null;
+		this.#typeExpr = typeExpr;
+		this.#fields = fields;
+		this.#constrIndex = null;
 	}
 
 	isLiteral() {
@@ -4273,62 +6288,85 @@ class StructLiteralExpr extends Expr {
 	}
 
 	toString() {
-		return `${this.typeExpr_.toString()}{${this.fields_.map(f => f.toString()).join(", ")}}`;
+		return `${this.#typeExpr.toString()}{${this.#fields.map(f => f.toString()).join(", ")}}`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns 
+	 */
 	evalInternal(scope) {
-		let type = this.typeExpr_.eval(scope);
+		let type = this.#typeExpr.eval(scope);
 
 		assert(type.isType());
 
-		this.constrIndex_ = type.getConstrIndex(this.site);
+		this.#constrIndex = type.getConstrIndex(this.site);
 
-		let refInstance = Value.new(type);
+		let instance = Value.new(type);
 
-		if (refInstance.nFields(this.site) != this.fields_.length) {
-			this.typeError("wrong number of fields");
+		if (instance.nFields(this.site) != this.#fields.length) {
+			throw this.typeError("wrong number of fields");
 		}
 
-		for (let f of this.fields_) {
-			if (!f.eval(scope).isInstanceOf(f.site, refInstance.getInstanceMember(f.name).getType(this.site))) {
-				f.typeError("wrong type");
+		for (let f of this.#fields) {
+			let memberType = instance.getInstanceMember(f.name).getType(this.site);
+
+			if (!f.eval(scope).isInstanceOf(f.site, memberType)) {
+				throw f.site.typeError("wrong type");
 			}
 		}
 
-		return Value.new(type);
+		return instance;
 	}
 
+	/**
+	 * @param {string} indent
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
 		let res = new IR("__core__mkNilData(())");
 
-		let fields = this.fields_.slice().reverse();
+		let fields = this.#fields.slice().reverse();
 
 		for (let f of fields) {
-			res = [
+			res = new IR([
 				new IR("__core__mkCons("),
 				f.toIR(indent),
 				new IR(", "),
 				res,
 				new IR(")")
-			];
+			]);
 		}
 
-		let idx = this.constrIndex_;
-
-		return [
-			new IR("__core__constrData", this.site), new IR(`(${idx.toString()}, `),
-			res,
-			new IR(")")
-		];
+		let idx = this.#constrIndex;
+		if (idx === null) {
+			throw new Error("constrIndex not yet set");
+		} else {
+			return new IR([
+				new IR("__core__constrData", this.site), new IR(`(${idx.toString()}, `),
+				res,
+				new IR(")")
+			]);
+		}
 	}
 }
 
-class ListLiteralExpr extends Expr {
+/**
+ * []{...} expression
+ */
+class ListLiteralExpr extends ValueExpr {
+	#itemTypeExpr;
+	#itemExprs;
+
+	/**
+	 * @param {Site} site 
+	 * @param {TypeExpr} itemTypeExpr 
+	 * @param {ValueExpr[]} itemExprs 
+	 */
 	constructor(site, itemTypeExpr, itemExprs) {
 		super(site);
-		this.itemTypeExpr_ = itemTypeExpr;
-		this.itemExprs_ = itemExprs;
-		this.itemType_ = null;
+		this.#itemTypeExpr = itemTypeExpr;
+		this.#itemExprs = itemExprs;
 	}
 
 	isLiteral() {
@@ -4336,93 +6374,137 @@ class ListLiteralExpr extends Expr {
 	}
 
 	toString() {
-		return `[]${this.itemTypeExpr_.toString()}{${this.itemExprs_.map(itemExpr => itemExpr.toString()).join(', ')}}`;
+		return `[]${this.#itemTypeExpr.toString()}{${this.#itemExprs.map(itemExpr => itemExpr.toString()).join(', ')}}`;
 	}
 
+	/**
+	 * @param {Scope} scope
+	 */
 	evalInternal(scope) {
-		let itemType = this.itemTypeExpr_.eval(scope);
+		let itemType = this.#itemTypeExpr.eval(scope);
 
 		if (itemType instanceof FuncType) {
-			this.itemTypeExpr_.typeError("content of list can't be func");
+			throw this.#itemTypeExpr.typeError("content of list can't be func");
 		}
 
 		assert(itemType.isType());
 
-		for (let itemExpr of this.itemExprs_) {
+		for (let itemExpr of this.#itemExprs) {
 			let itemVal = itemExpr.eval(scope);
 
 			if (!itemVal.isInstanceOf(itemExpr.site, itemType)) {
-				itemExpr.typeError(`expected ${itemType.toString()}, got ${itemVal.toString()}`);
+				throw itemExpr.typeError(`expected ${itemType.toString()}, got ${itemVal.toString()}`);
 			}
 		}
-
-		this.itemType_ = itemType;
 
 		return Value.new(new ListType(itemType));
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
 		// unsure if list literals in untyped plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
 		let res = new IR("__core__mkNilData(())");
 
 		// starting from last element, keeping prepending a data version of that item
 
-		for (let i = this.itemExprs_.length - 1; i >= 0; i--) {
-			res = [
+		for (let i = this.#itemExprs.length - 1; i >= 0; i--) {
+			res = new IR([
 				new IR("__core__mkCons("),
-				this.itemExprs_[i].toIR(indent),
+				this.#itemExprs[i].toIR(indent),
 				new IR(", "),
 				res,
 				new IR(")")
-			];
+			]);
 		}
 
-		return [new IR("__core__listData", this.site), new IR("("), res, new IR(")")];
+		return new IR([new IR("__core__listData", this.site), new IR("("), res, new IR(")")]);
 	}
 }
 
+/**
+ * NameTypePair is base class of FuncArg and DataField (differs from StructLiteralField) 
+ */
 class NameTypePair {
+	#name;
+	#typeExpr;
+
+	/**
+	 * @param {Word} name 
+	 * @param {TypeExpr} typeExpr 
+	 */
 	constructor(name, typeExpr) {
-		this.name_ = name;
-		this.typeExpr_ = typeExpr;
+		this.#name = name;
+		this.#typeExpr = typeExpr;
 	}
 
 	get site() {
-		return this.name_.site;
+		return this.#name.site;
 	}
 
 	get name() {
-		return this.name_;
+		return this.#name;
+	}
+
+	/**
+	 * Throws an error if called before evalType()
+	 */
+	get type() {
+		return this.#typeExpr.type;
 	}
 
 	toString() {
-		return `${this.name.toString()}: ${this.typeExpr_.toString()}`;
+		return `${this.name.toString()}: ${this.#typeExpr.toString()}`;
 	}
 
+	/**
+	 * Evaluates the type, used by FuncLiteralExpr and DataDefinition
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
 	evalType(scope) {
-		let type = this.typeExpr_.eval(scope);
-		assert(type.isType());
-
-		return type;
+		return this.#typeExpr.eval(scope);
 	}
 
 	toIR() {
-		return new IR(this.name_.toString(), this.name_.site);
+		return new IR(this.#name.toString(), this.#name.site);
 	}
 }
 
+/**
+ * Function argument class
+ */
 class FuncArg extends NameTypePair {
+	/**
+	 * @param {Word} name 
+	 * @param {TypeExpr} typeExpr 
+	 */
 	constructor(name, typeExpr) {
 		super(name, typeExpr);
 	}
 }
 
-class FuncLiteralExpr extends Expr {
+/**
+ * (..) -> RetTypeExpr {...} expression
+ */
+class FuncLiteralExpr extends ValueExpr {
+	#args;
+	#retTypeExpr;
+	#bodyExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {FuncArg[]} args 
+	 * @param {TypeExpr} retTypeExpr 
+	 * @param {ValueExpr} bodyExpr 
+	 */
 	constructor(site, args, retTypeExpr, bodyExpr) {
 		super(site);
-		this.args_ = args;
-		this.retTypeExpr_ = retTypeExpr;
-		this.bodyExpr_ = bodyExpr;
+		this.#args = args;
+		this.#retTypeExpr = retTypeExpr;
+		this.#bodyExpr = bodyExpr;
 	}
 
 	isLiteral() {
@@ -4430,198 +6512,281 @@ class FuncLiteralExpr extends Expr {
 	}
 
 	toString() {
-		return `(${this.args_.map(a => a.toString()).join(", ")}) -> ${this.retTypeExpr_.toString()} {${this.bodyExpr_.toString()}}`;
+		return `(${this.#args.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns 
+	 */
 	evalType(scope) {
-		let argTypes = this.args_.map(a => a.evalType(scope));
-		let retType = this.retTypeExpr_.eval(scope);
+		let argTypes = this.#args.map(a => a.evalType(scope));
+		let retType = this.#retTypeExpr.eval(scope);
 
 		return new FuncType(argTypes, retType);
 	}
 
-	evalInternalWithSubScope(scope, subScope) {
-		let argTypes = this.args_.map(a => a.evalType(scope));
-		let retType = this.retTypeExpr_.eval(scope);
+	/**
+	 * @param {Scope} scope 
+	 * @returns {FuncValue}
+	 */
+	evalInternal(scope) {
+		let argTypes = this.#args.map(a => a.evalType(scope));
+		let retType = this.#retTypeExpr.eval(scope);
 
 		let res = new FuncValue(new FuncType(argTypes, retType));
 
+		let subScope = new Scope(scope);
 		argTypes.forEach((a, i) => {
-			subScope.set(this.args_[i].name, Value.new(a));
+			subScope.set(this.#args[i].name, Value.new(a));
 		});
 
 		assert(retType.isType());
 
-		let bodyVal = this.bodyExpr_.eval(subScope);
+		let bodyVal = this.#bodyExpr.eval(subScope);
 
-		if (!bodyVal.isInstanceOf(this.retTypeExpr_.site, retType)) {
-			this.retTypeExpr_.typeError(`wrong return type, expected ${retType.toString()} but got ${bodyVal.getType().toString()}`);
+		if (!bodyVal.isInstanceOf(this.#retTypeExpr.site, retType)) {
+			throw this.#retTypeExpr.typeError(`wrong return type, expected ${retType.toString()} but got ${this.#bodyExpr.type.toString()}`);
 		}
-
-		return res;
-	}
-
-	evalInternal(scope) {
-		let subScope = new Scope(scope);
-
-		let res = this.evalInternalWithSubScope(scope, subScope);
 
 		subScope.assertAllUsed();
 
 		return res;
 	}
 
-	maybeMethod() {
-		return this.args_.length > 0 && this.args_[0].name.toString() == "self";
+	isMaybeMethod() {
+		return this.#args.length > 0 && this.#args[0].name.toString() == "self";
 	}
 
+	/**
+	 * @param {?string} recursiveName 
+	 * @returns {IR}
+	 */
 	argsToIR(recursiveName = null) {
-		let args = this.args_.map(a => a.toIR());
+		let args = this.#args.map(a => a.toIR());
 
-		if (recursiveName != null) {
-			args.unshift(new IR(assertString(recursiveName)));
+		if (recursiveName !== null) {
+			args.unshift(new IR(recursiveName));
 		}
 
-		return IR.join(args, ", ");
+		return (new IR(args)).join(", ");
 	}
 
-	toIRRecursive(recursiveName, indent = "") {
+	/**
+	 * @param {?string} recursiveName 
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIRInternal(recursiveName, indent = "") {
 		let argsWithCommas = this.argsToIR(recursiveName);
 
-		return [
+		return new IR([
 			new IR("("),
 			argsWithCommas,
 			new IR(") "), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
-			this.bodyExpr_.toIR(indent + TAB),
+			this.#bodyExpr.toIR(indent + TAB),
 			new IR(`\n${indent}}`),
-		];
+		]);
 	}
 
+	/**
+	 * @param {string} recursiveName 
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIRRecursive(recursiveName, indent = "") {
+		return this.toIRInternal(recursiveName, indent);
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		return this.toIRRecursive(null, indent);
+		return this.toIRInternal(null, indent);
 	}
 }
 
-class ValueRefExpr extends Expr {
+/**
+ * Variable expression
+ */
+class ValueRefExpr extends ValueExpr {
+	#name;
+
+	/**
+	 * @param {Word} name 
+	 */
 	constructor(name) {
 		super(name.site);
-		this.name_ = name;
+		this.#name = name;
 	}
 
 	toString() {
-		return this.name_.toString();
+		return this.#name.toString();
 	}
 
-	eval(scope) {
-		let val = scope.get(this.name_);
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
+	evalInternal(scope) {
+		let val = scope.get(this.#name);
 
-		if (!val.isValue()) {
-			this.typeError("not a value");
-		}
-
-		return val;
+		return val.assertValue(this.#name.site);
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
 		return new IR(this.toString(), this.site);
 	}
 }
 
-class ValuePathExpr extends Expr {
+/**
+ * Word::Word::... expression
+ */
+class ValuePathExpr extends ValueExpr {
+	#baseTypeExpr;
+	#memberName;
+
+	/**
+	 * @param {TypeRefExpr | TypePathExpr} baseTypeExpr 
+	 * @param {Word} memberName 
+	 */
 	constructor(baseTypeExpr, memberName) {
-		assert(baseTypeExpr instanceof TypeRefExpr || baseTypeExpr instanceof TypePathExpr);
 		super(memberName.site);
-		// root is always some type
-		this.baseTypeExpr_ = baseTypeExpr;
-		this.memberName_ = memberName;
+		this.#baseTypeExpr = baseTypeExpr;
+		this.#memberName = memberName;
 	}
 
 	toString() {
-		return `${this.baseTypeExpr_.toString()}::${this.memberName_.toString()}`;
+		return `${this.#baseTypeExpr.toString()}::${this.#memberName.toString()}`;
 	}
 
-	eval(scope) {
-		let baseType = this.baseTypeExpr_.eval(scope);
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
+	evalInternal(scope) {
+		let baseType = this.#baseTypeExpr.eval(scope);
 		assert(baseType.isType());
 
-		let memberVal = baseType.getTypeMember(this.memberName_);
-		if (!memberVal.isValue()) {
-			this.typeError("member is not a value");
-		}
+		let memberVal = baseType.getTypeMember(this.#memberName);
 
-		return memberVal;
+		return memberVal.assertValue(this.#memberName.site);
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		return new IR(`${this.baseTypeExpr_.path}__${this.memberName_.toString()}`, this.site);
+		return new IR(`${this.#baseTypeExpr.path}__${this.#memberName.toString()}`, this.site);
 	}
 }
 
-class UnaryExpr extends Expr {
+/**
+ * Unary operator expression
+ * Note: there are no post-unary operators, only pre
+ */
+class UnaryExpr extends ValueExpr {
+	#op;
+	#a;
+
+	/**
+	 * @param {Symbol} op 
+	 * @param {ValueExpr} a 
+	 */
 	constructor(op, a) {
 		super(op.site);
-		this.op_ = op;
-		this.a_ = a;
-		this.aVal_ = a;
+		this.#op = op;
+		this.#a = a;
 	}
 
 	toString() {
-		return `${this.op_.toString()}${this.a_.toString()}`;
+		return `${this.#op.toString()}${this.#a.toString()}`;
 	}
 
+	/**
+	 * Turns an op symbol into an internal name
+	 * @returns {Word}
+	 */
 	translateOp() {
-		let op = this.op_.toString();
-		let site = this.op_.site;
-
-		let name;
+		let op = this.#op.toString();
+		let site = this.#op.site;
 
 		if (op == "+") {
-			name = "__pos";
+			return new Word(site, "__pos");
 		} else if (op == "-") {
-			name = "__neg";
+			return new Word(site, "__neg");
 		} else if (op == "!") {
-			name = "__not";
+			return new Word(site, "__not");
+		} else {
+			throw new Error("unhandled unary op");
 		}
-
-		return new Word(site, name);
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
 	evalInternal(scope) {
-		let a = this.a_.eval(scope);
-		assert(a.isValue());
-		this.fnVal_ = a.getInstanceMember(this.translateOp());
-		this.aType_ = a.getType();
+		let a = this.#a.eval(scope);
 
-		return this.fnVal_.call(this.op_.site, []);
+		this.fnVal_ = a.assertValue(this.#a.site).getInstanceMember(this.translateOp());
+
+		// ops are immediately applied
+		return this.fnVal_.call(this.#op.site, []);
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		let path = this.aType_.path;
-		return [
+		let path = this.type.path;
+
+		return new IR([
 			new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
-			this.a_.toIR(indent),
+			this.#a.toIR(indent),
 			new IR(")()")
-		];
+		]);
 	}
 }
 
-class BinaryExpr extends Expr {
+/**
+ * Binary operator expression
+ */
+class BinaryExpr extends ValueExpr {
+	#op;
+	#a;
+	#b;
+
+	/**
+	 * @param {Symbol} op 
+	 * @param {ValueExpr} a 
+	 * @param {ValueExpr} b 
+	 */
 	constructor(op, a, b) {
 		super(op.site);
-		this.op_ = op;
-		this.a_ = a;
-		this.b_ = b;
-		this.aType_ = null;
-		this.fnVal_ = null;
+		this.#op = op;
+		this.#a = a;
+		this.#b = b;
 	}
 
 	toString() {
-		return `${this.a_.toString()} ${this.op_.toString()} ${this.b_.toString()}`;
+		return `${this.#a.toString()} ${this.#op.toString()} ${this.#b.toString()}`;
 	}
 
+	/**
+	 * Turns op symbol into internal name
+	 * @returns {Word}
+	 */
 	translateOp() {
-		let op = this.op_.toString();
-		let site = this.op_.site;
+		let op = this.#op.toString();
+		let site = this.#op.site;
 		let name;
 
 		if (op == "||") {
@@ -4657,395 +6822,600 @@ class BinaryExpr extends Expr {
 		return new Word(site, name);
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
 	evalInternal(scope) {
-		let a = this.a_.eval(scope);
-		let b = this.b_.eval(scope);
-		assert(a.isValue() && b.isValue());
-		this.aType_ = a.getType(this.site);
-		this.fnVal_ = a.getInstanceMember(this.translateOp());
+		let a = this.#a.eval(scope);
+		let b = this.#b.eval(scope);
 
-		return this.fnVal_.call(this.op_.site, [b]);
+		assert(a.isValue() && b.isValue());
+
+		let fnVal = a.getInstanceMember(this.translateOp());
+
+		return fnVal.call(this.#op.site, [b]);
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		let path = this.aType_.path;
+		let path = this.#a.type.path;
 
 		let op = this.translateOp().value;
 
 		if (op == "__and" || op == "__or") {
-			return [
+			return new IR([
 				new IR(`${path}${op}`, this.site), new IR(`(\n${indent}${TAB}() -> {`),
-				this.a_.toIR(indent + TAB),
+				this.#a.toIR(indent + TAB),
 				new IR(`},\n${indent}${TAB}() -> {`),
-				this.b_.toIR(indent + TAB),
+				this.#b.toIR(indent + TAB),
 				new IR(`}\n${indent})`)
-			];
+			]);
 		} else {
-			return [
+			return new IR([
 				new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
-				this.a_.toIR(indent),
+				this.#a.toIR(indent),
 				new IR(")("),
-				this.b_.toIR(indent),
+				this.#b.toIR(indent),
 				new IR(")")
-			];
+			]);
 		}
 	}
 }
 
-class ParensExpr extends Expr {
+/**
+ * Parentheses expression
+ */
+class ParensExpr extends ValueExpr {
+	#expr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {ValueExpr} expr 
+	 */
 	constructor(site, expr) {
 		super(site);
-		this.expr_ = expr;
+		this.#expr = expr;
 	}
 
 	toString() {
-		return `(${this.expr_.toString()})`;
+		return `(${this.#expr.toString()})`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
 	evalInternal(scope) {
-		return this.expr_.eval(scope);
+		return this.#expr.eval(scope);
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		return this.expr_.toIR(indent);
+		return this.#expr.toIR(indent);
 	}
 }
 
-class CallExpr extends Expr {
+/**
+ * ...(...) expression
+ */
+class CallExpr extends ValueExpr {
+	#fnExpr;
+	#argExprs;
+	#recursive;
+
+	/**
+	 * @param {Site} site 
+	 * @param {ValueExpr} fnExpr 
+	 * @param {ValueExpr[]} argExprs 
+	 */
 	constructor(site, fnExpr, argExprs) {
 		super(site);
-		this.fnExpr_ = fnExpr;
-		this.argExprs_ = argExprs;
-		this.recursive_ = false;
+		this.#fnExpr = fnExpr;
+		this.#argExprs = argExprs;
+		this.#recursive = false;
 	}
 
 	toString() {
-		return `${this.fnExpr_.toString()}(${this.argExprs_.map(a => a.toString()).join(", ")})`;
+		return `${this.#fnExpr.toString()}(${this.#argExprs.map(a => a.toString()).join(", ")})`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
 	evalInternal(scope) {
-		let fnVal = this.fnExpr_.eval(scope);
+		let fnVal = this.#fnExpr.eval(scope);
 
-		if (!fnVal.isInstanceOf(this.fnExpr_.site, FuncType)) {
-			this.fnExpr_.typeError("not callable (not a function)");
+		if (!fnVal.isInstanceOf(this.#fnExpr.site, FuncType)) {
+			throw this.#fnExpr.typeError("not callable (not a function)");
 		}
 
-		let argVals = this.argExprs_.map(argExpr => {
-			let argVal = argExpr.eval(scope);
-			assert(argVal.isValue());
-			return argVal; 
-		});
+		let argVals = this.#argExprs.map(argExpr => argExpr.eval(scope));
 
-		if (fnVal.isRecursive()) {
-			this.recursive_ = true;
+		if (fnVal instanceof FuncStatementValue && fnVal.isRecursive()) {
+			this.#recursive = true;
 		}
 
 		return fnVal.call(this.site, argVals);
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		if (this.recursive_) {
-			let innerArgs = this.argExprs_.map(a => a.toIR(indent + TAB));
+		if (this.#recursive) {
+			let innerArgs = this.#argExprs.map(a => a.toIR(indent + TAB));
 
-			if (this.fnExpr_ instanceof ValueRefExpr || this.fnExpr_ instanceof ValuePathExpr) {
-				let fnWord = this.fnExpr_.toIR().src;
+			if (this.#fnExpr instanceof ValueRefExpr || this.#fnExpr instanceof ValuePathExpr) {
+				let fnWord = this.#fnExpr.toIR().content;
 
 				innerArgs.unshift(new IR(fnWord));
 
-				return [
-					new IR(fnWord, this.fnExpr_.site),
+				return new IR([
+					new IR(fnWord, this.#fnExpr.site),
 					new IR("("),
-					IR.join(innerArgs, ", "),
+					(new IR(innerArgs)).join(", "),
 					new IR(")")
-				];
+				]);
 			} else {
 				innerArgs.unshift(new IR("fn"));
 
-				return [
+				return new IR([
 					new IR(`(fn) -> {\n${indent}${TAB}fn(`),
-					IR.join(innerArgs, ", "),
+					(new IR(innerArgs)).join(", "),
 					new IR(`)\n${indent}}`), new IR("("),
-					this.fnExpr_.toIR(indent),
+					this.#fnExpr.toIR(indent),
 					new IR(")", this.site)
-				];
+				]);
 			}
 		} else {
-			let innerArgs = this.argExprs_.map(a => a.toIR(indent));
+			let innerArgs = this.#argExprs.map(a => a.toIR(indent));
 
-			return [
-				this.fnExpr_.toIR(indent),
+			return new IR([
+				this.#fnExpr.toIR(indent),
 				new IR("("),
-				IR.join(innerArgs, ", "),
+				(new IR(innerArgs)).join(", "),
 				new IR(")", this.site)
-			];
+			]);
 		}
 	}
 }
 
-class MemberExpr extends Expr {
+/**
+ *  ... . ... expression
+ */
+class MemberExpr extends ValueExpr {
+	#objExpr;
+	#memberName;
+
+	/**
+	 * @param {Site} site 
+	 * @param {ValueExpr} objExpr 
+	 * @param {*} memberName 
+	 */
 	constructor(site, objExpr, memberName) {
 		super(site);
-		this.objExpr_ = objExpr;
-		this.memberName_ = memberName;
-		this.baseType_ = null;
+		this.#objExpr = objExpr;
+		this.#memberName = memberName;
 	}
 
 	toString() {
-		return `${this.objExpr_.toString()}.${this.memberName_.toString()}`;
+		return `${this.#objExpr.toString()}.${this.#memberName.toString()}`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
 	evalInternal(scope) {
-		let objVal = this.objExpr_.eval(scope);
-		assert(objVal.isValue());
+		let objVal = this.#objExpr.eval(scope);
 
-		let member = objVal.getInstanceMember(this.memberName_);
-		assert(member.isValue());
-
-		this.baseType_ = objVal.getType();
-
-		return member;
+		return objVal.assertValue(this.#objExpr.site).getInstanceMember(this.#memberName);
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
 		// members can be functions so, field getters are also encoded as functions for consistency
-		return [
-			new IR(`${assertDefined(this.baseType_.path)}__${this.memberName_.toString()}`, this.site), new IR("("),
-			this.objExpr_.toIR(indent),
+		return new IR([
+			new IR(`${assertDefined(this.#objExpr.type.path)}__${this.#memberName.toString()}`, this.site), new IR("("),
+			this.#objExpr.toIR(indent),
 			new IR(")"),
-		];
+		]);
 	}
 }
 
-class IfElseExpr extends Expr {
+/**
+ * if-then-else expression 
+ */
+class IfElseExpr extends ValueExpr {
+	#conditions;
+	#branches;
+
+	/**
+	 * @param {Site} site 
+	 * @param {ValueExpr[]} conditions 
+	 * @param {ValueExpr[]} branches 
+	 */
 	constructor(site, conditions, branches) {
 		assert(branches.length == conditions.length + 1);
 		assert(branches.length > 1);
 
 		super(site);
-		this.conditions_ = conditions;
-		this.branches_ = branches;
+		this.#conditions = conditions;
+		this.#branches = branches;
 	}
 
 	toString() {
 		let s = "";
-		for (let i = 0; i < this.conditions_.length; i++) {
-			s += `if (${this.conditions_[i].toString()}) {${this.branches_[i].toString()}} else `;
+		for (let i = 0; i < this.#conditions.length; i++) {
+			s += `if (${this.#conditions[i].toString()}) {${this.#branches[i].toString()}} else `;
 		}
 
-		s += `{${this.branches_[this.conditions_.length].toString()}}`;
+		s += `{${this.#branches[this.#conditions.length].toString()}}`;
 
 		return s;
 	}
 
+	/**
+	 * @param {Site} site
+	 * @param {?Type} prevType
+	 * @param {Type} newType
+	 */
 	static reduceBranchType(site, prevType, newType) {
-		if (prevType == null) {
+		if (prevType === null) {
 			return newType;
 		} else if (!prevType.isBaseOf(site, newType)) {
 			if (newType.isBaseOf(site, prevType)) {
 				return newType;
 			} else {
-				site.typeError("inconsistent types");
+				throw site.typeError("inconsistent types");
 			}
 		} else {
 			return prevType;
 		}
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
 	evalInternal(scope) {
-		for (let c of this.conditions_) {
+		for (let c of this.#conditions) {
 			let cVal = c.eval(scope);
 			if (!cVal.isInstanceOf(c.site, BoolType)) {
-				c.typeError("expected bool");
+				throw c.typeError("expected bool");
 			}
 		}
 
+		/**
+		 * @type {?Type}
+		 */
 		let branchType = null;
-		for (let b of this.branches_) {
+		for (let b of this.#branches) {
 			let branchVal = b.eval(scope);
 
-			branchType = IfElseExpr.reduceBranchType(b.site, branchType, branchVal.getType());
+			branchType = IfElseExpr.reduceBranchType(b.site, branchType, branchVal.getType(b.site));
 		}
 
-		return Value.new(branchType);
+		if (branchType === null) {
+			throw new Error("unexpected");
+		} else {
+			return Value.new(branchType);
+		}
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		let n = this.conditions_.length;
+		let n = this.#conditions.length;
 
 		// each branch actually returns a function to allow deferred evaluation
-		let res = [
+		let res = new IR([
 			new IR("() -> {"),
-			this.branches_[n].toIR(indent),
+			this.#branches[n].toIR(indent),
 			new IR("}")
-		];
+		]);
 
 		// TODO: nice indentation
-		for (let i = n-1; i >= 0; i--) {
-			res = [
+		for (let i = n - 1; i >= 0; i--) {
+			res = new IR([
 				new IR("__core__ifThenElse(__helios__common__unBoolData("),
-				this.conditions_[i].toIR(indent),
+				this.#conditions[i].toIR(indent),
 				new IR("), () -> {"),
-				this.branches_[i].toIR(indent),
+				this.#branches[i].toIR(indent),
 				new IR("}, () -> {"),
 				res,
 				new IR("()})"),
-			];
+			]);
 		}
 
-		return [res, new IR("()", this.site)];
+		return new IR([res, new IR("()", this.site)]);
 	}
 }
 
+/**
+ * Switch case for a switch expression
+ */
 class SwitchCase extends Token {
+	#varName;
+	#typeExpr;
+	#bodyExpr;
+
+	/** @type {?number} */
+	#constrIndex;
+
+	/**
+	 * @param {Site} site 
+	 * @param {?Word} varName - optional
+	 * @param {TypePathExpr} typeExpr - not optional
+	 * @param {ValueExpr} bodyExpr 
+	 */
 	constructor(site, varName, typeExpr, bodyExpr) {
 		super(site);
-		this.varName_ = varName; // optional
-		this.typeExpr_ = typeExpr; // not optional
-		this.bodyExpr_ = bodyExpr;
-		this.constrIndex_ = null;
+		this.#varName = varName;
+		this.#typeExpr = typeExpr;
+		this.#bodyExpr = bodyExpr;
+		this.#constrIndex = null;
+	}
+
+	/**
+	 * Returns typeExpr.
+	 * Used by parser to check if typeExpr reference the same base enum
+	 */
+	get typeExpr() {
+		return this.#typeExpr;
 	}
 
 	get constrIndex() {
-		return this.constrIndex_;
-	}
-
-	toString() {
-		if (this.varName_ == null) {
-			return `case ${this.typeExpr_.toString()} {${this.bodyExpr_.toString()}}`
+		if (this.#constrIndex === null) {
+			throw new Error("constrIndex not yet set");
 		} else {
-			return `case (${this.varName_.toString()} ${this.typeExpr_.toString()}) {${this.bodyExpr_.toString()}}`;
+			return this.#constrIndex;
 		}
 	}
 
-	eval(scope) {
-		let type = this.typeExpr_.eval(scope);
-		assert(type.isType());
+	toString() {
+		if (this.#varName == null) {
+			return `case ${this.#typeExpr.toString()} {${this.#bodyExpr.toString()}}`
+		} else {
+			return `case (${this.#varName.toString()} ${this.#typeExpr.toString()}) {${this.#bodyExpr.toString()}}`;
+		}
+	}
 
-		if (this.varName_ != null) {
+	/**
+	 * @param {Scope} scope
+	 * @returns {Type}
+	 */
+	evalEnumType(scope) {
+		return this.#typeExpr.evalEnumType(scope);
+	}
+
+	/**
+	 * Evaluates the switch type and checks if corresponds to the switch input type (throws an error if it doesn't).
+	 * @param {Scope} scope
+	 * @param {Type} switchParentType - switch input type
+	 */
+	 evalCond(scope, switchParentType) {
+		let caseType = this.#typeExpr.eval(scope);
+
+		if (!switchParentType.isBaseOf(this.#typeExpr.site, caseType)) {
+			throw this.#typeExpr.typeError("switching over wrong type");
+		}
+
+		this.#constrIndex = caseType.getConstrIndex(this.#typeExpr.site);
+	}
+
+	/**
+	 * Evaluates the switch type and body value of a case.
+	 * Evaluated switch type is only used if #varName !== null
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
+	evalCase(scope) {
+		let caseType = this.#typeExpr.eval(scope);
+
+		if (this.#varName !== null) {
 			let caseScope = new Scope(scope);
 
-			caseScope.set(this.varName_, Value.new(type));
+			caseScope.set(this.#varName, Value.new(caseType));
 
-			let bodyVal = this.bodyExpr_.eval(caseScope);
+			let bodyVal = this.#bodyExpr.eval(caseScope);
 
 			caseScope.assertAllUsed();
 
 			return bodyVal;
 		} else {
-			return this.bodyExpr_.eval(scope);
+			return this.#bodyExpr.eval(scope);
 		}
 	}
 
-	evalCond(scope, switchParentType) {
-		let caseType = this.typeExpr_.eval(scope, switchParentType);
-		assert(caseType.isType());
-
-		if (!switchParentType.isBaseOf(this.typeExpr_.site, caseType)) {
-			this.typeExpr_.typeError("switching over wrong type");
-		}
-
-		this.constrIndex_ = caseType.getConstrIndex(this.typeExpr_.site);
-	}
-
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		return [
-			new IR(`(${this.varName_ != null ? this.varName_.toString() : "_"}) `), new IR("->", this.site), new IR(` {\n${indent}${TB}`),
-			this.bodyExpr_.toIR(indent + TAB),
+		return new IR([
+			new IR(`(${this.#varName !== null ? this.#varName.toString() : "_"}) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
+			this.#bodyExpr.toIR(indent + TAB),
 			new IR(`\n${indent}}`),
-		];
+		]);
 	}
 }
 
+/**
+ * Default switch case
+ */
 class SwitchDefault extends Token {
+	#bodyExpr;
+
+	/**
+	 * @param {Site} site
+	 * @param {ValueExpr} bodyExpr
+	 */
 	constructor(site, bodyExpr) {
 		super(site);
-		this.bodyExpr_ = bodyExpr;
+		this.#bodyExpr = bodyExpr;
 	}
-	
+
 	toString() {
-		return  `default {${this.bodyExpr_.toString()}}`;
+		return `default {${this.#bodyExpr.toString()}}`;
 	}
 
-	eval(scope) {
-		return this.bodyExpr_.eval(scope);
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
+	evalCase(scope) {
+		return this.#bodyExpr.eval(scope);
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		return [
+		return new IR([
 			new IR(`(_) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
-			this.body_.toIR(indent + TAB),
+			this.#bodyExpr.toIR(indent + TAB),
 			new IR(`\n${indent}}`)
-		];
+		]);
 	}
 }
 
-class SwitchExpr extends Expr {
-	constructor(site, expr, cases, default_ = null) {
+/**
+ * Switch expression, with SwitchCases and SwitchDefault as children
+ */
+class SwitchExpr extends ValueExpr {
+	#expr;
+	#cases;
+	#default;
+
+	/** 
+	 * @param {Site} site
+	 * @param {ValueExpr} expr - input value of the switch
+	 * @param {SwitchCase[]} cases
+	 * @param {?SwitchDefault} defaultCase
+	*/
+	constructor(site, expr, cases, defaultCase = null) {
 		super(site);
-		this.expr_ = expr;
-		this.cases_ = cases;
-		this.default_ = default_;
+		this.#expr = expr;
+		this.#cases = cases;
+		this.#default = defaultCase;
 	}
 
 	toString() {
-		return `switch(${this.expr_.toString()}) ${this.cases_.map(c => c.toString()).join(" ")}${this.default_ == null ? "" : " " + this.default_.toString()}`;
+		return `switch(${this.#expr.toString()}) ${this.#cases.map(c => c.toString()).join(" ")}${this.#default == null ? "" : " " + this.#default.toString()}`;
 	}
 
-	eval(scope) {
-		let switchVal = this.expr_.eval(scope);
+	/**
+	 * Evaluates parent enum type being switched over. Uses the fact that at least one case type expression references this enum directly.
+	 * @param {Scope} scope 
+	 * @returns {Type} 
+	 */
+	evalEnumType(scope) {
+		/** @type {?Type} */
+		let enumType = null;
+		for (let c of this.#cases) {
+			enumType = IfElseExpr.reduceBranchType(c.site, enumType, c.evalEnumType(scope));
+		}
 
-		let switchParentType = switchVal.getType(this.site).getParentType(this.site); 
+		if (enumType === null) {
+			throw new Error("expected at least one case");
+		} else {
+			return enumType;
+		}
+	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
+	evalInternal(scope) {
+		let switchVal = this.#expr.eval(scope);
+
+		let enumType = this.evalEnumType(scope);
+
+		if (!switchVal.isInstanceOf(this.#expr.site, enumType)) {
+			this.#expr.site.typeError(`expected '${enumType}', got '${switchVal.getType(this.#expr.site).toString()}'`);
+		}
+
+		/** @type {?Type} */
 		let branchType = null;
-		for (let c of this.cases_) {
-			let branchVal = c.eval(scope);
+		for (let c of this.#cases) {
+			let branchVal = c.evalCase(scope);
 
 			branchType = IfElseExpr.reduceBranchType(c.site, branchType, branchVal.getType(c.site));
 
-			c.evalCond(scope);
+			c.evalCond(scope, enumType);
 		}
 
-		if (this.default_ != null) {
-			let defaultVal = this.default_.eval(scope);
-			branchType = IfElseExpr.reduceBranchType(this.default_.site, branchType, defaultVal.getType(this.default_.site));
+		if (this.#default != null) {
+			let defaultVal = this.#default.evalCase(scope);
+
+			branchType = IfElseExpr.reduceBranchType(this.#default.site, branchType, defaultVal.getType(this.#default.site));
 		} else {
-			if (switchParentType.nMembers() > this.cases_.length) {
-				this.typeError("insufficient coverage in switch expression");
+			if (enumType.nEnumMembers(this.site) > this.#cases.length) {
+				throw this.typeError("insufficient coverage in switch expression");
 			}
 		}
 
-		return Value.new(branchType);
+		if (branchType === null) {
+			throw new Error("unexpected");
+		} else {
+			return Value.new(branchType);
+		}
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
 	toIR(indent = "") {
-		// easier to include default in case
-		let cases = this.cases_.slice();
-		if (this.default_ != null) {
-			cases.push(this.default_);
+		let cases = this.#cases.slice();
+
+		/** @type {SwitchCase | SwitchDefault} */
+		let last;
+		if (this.#default !== null) {
+			last = this.#default;
+		} else {
+			last = assertDefined(cases.pop());
 		}
 
 		let n = cases.length;
 
 		// TODO: nice indentation
-		let res = cases[n-1].toIR(indent + TAB + TAB + TAB);
+		let res = last.toIR(indent + TAB + TAB + TAB);
 
-		for (let i = n-2; i >= 0; i--) {
-			res = [
+		for (let i = n - 2; i >= 0; i--) {
+			res = new IR([
 				new IR(`__core__ifThenElse(__core__equalsInteger(i, ${cases[i].constrIndex.toString()}), () -> {`),
 				cases[i].toIR(indent + TAB + TAB + TAB),
 				new IR(`}, () -> {`),
 				res,
 				new IR(`})()`)
-			];
+			]);
 		}
 
-		return [
+		return new IR([
 			new IR(`(e) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}(\n${indent}${TAB}${TAB}(i) -> {\n${indent}${TAB}${TAB}${TAB}`),
 			res,
 			new IR(`\n${indent}${TAB}${TAB}}(__core__fstPair(__core__unConstrData(e)))\n${indent}${TAB})(e)\n${indent}}(`),
-			this.expr_.toIR(indent),
+			this.#expr.toIR(indent),
 			new IR(")"),
-		];
+		]);
 	}
 }
 
@@ -5054,102 +7424,194 @@ class SwitchExpr extends Expr {
 // Section 10: AST statement objects
 ////////////////////////////////////
 
-// statements don't return a value from eval(scope)
+/**
+ * Base class for all statements
+ * Doesn't return a value upon calling eval(scope)
+ */
 class Statement extends Token {
+	/**
+	 * @param {Site} site 
+	 */
 	constructor(site) {
 		super(site);
 	}
 
+	/**
+	 * @param {TopScope} scope 
+	 */
+	eval(scope) {
+		throw new Error("not yet implemented");
+	}
+
 	assertAllMembersUsed() {
+	}
+
+	/**
+	 * Returns IR of statement.
+	 * No need to specify indent here, because all statements are top-level
+	 * @param {IRDefinitions} map 
+	 */
+	 toIR(map) {
+		throw new Error("not yet implemented");
 	}
 }
 
+/**
+ * Base class of named statement (everything except ImplStatement)
+ */
 class NamedStatement extends Statement {
+	#name;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Word} name 
+	 */
 	constructor(site, name) {
 		super(site);
-		this.name_ = name;
+		this.#name = name;
 	}
 
 	get name() {
-		return this.name_;
+		return this.#name;
 	}
 }
 
+/**
+ * Const value statement
+ */
 class ConstStatement extends NamedStatement {
+	#typeExpr;
+	#valueExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Word} name 
+	 * @param {?TypeExpr} typeExpr - can be null in case of type inference
+	 * @param {ValueExpr} valueExpr 
+	 */
 	constructor(site, name, typeExpr, valueExpr) {
 		super(site, name);
-		this.typeExpr_ = typeExpr; // can be null in case of type inference
-		this.valueExpr_ = valueExpr;
-		this.type_ = null;
+		this.#typeExpr = typeExpr;
+		this.#valueExpr = valueExpr;
 	}
 
 	toString() {
-		return `const ${this.name.toString()}${this.typeExpr_ == null ? "" : ": " + this.typeExpr_.toString()} = ${this.valueExpr_.toString()};`;
+		return `const ${this.name.toString()}${this.#typeExpr === null ? "" : ": " + this.#typeExpr.toString()} = ${this.#valueExpr.toString()};`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
 	evalInternal(scope) {
-		let value = this.valueExpr_.eval(scope);
+		let value = this.#valueExpr.eval(scope);
 
-		if (this.typeExpr_ == null) {
-			if (!this.valueExpr_.isLiteral()) {
-				this.typeError("can't infer type");
+		/** @type {Type} */
+		let type;
+
+		if (this.#typeExpr == null) {
+			if (!this.#valueExpr.isLiteral()) {
+				throw this.typeError("can't infer type");
 			}
 
-			this.type_ = value.getType();
+			type = this.#valueExpr.type;
 		} else {
-			this.type_ = this.typeExpr_.eval(scope);
+			type = this.#typeExpr.eval(scope);
 
-			assert(this.type_.isType());
-
-			if (!value.isInstanceOf(this.valueExpr_.site, this.type_)) {
-				this.valueExpr_.typeError("wrong type");
+			if (!value.isInstanceOf(this.#valueExpr.site, type)) {
+				throw this.#valueExpr.typeError("wrong type");
 			}
 		}
 
-		return Value.new(this.type_);
+		return Value.new(type);
 	}
 
+	/**
+	 * Evaluates rhs and adds to scope
+	 * @param {TopScope} scope 
+	 */
 	eval(scope) {
 		scope.set(this.name, this.evalInternal(scope));
 	}
 
+	/**
+	 * @returns {IR}
+	 */
 	toIRInternal() {
-		return this.valueExpr_.toIR();
+		return this.#valueExpr.toIR();
 	}
 
+	/**
+	 * @param {IRDefinitions} map 
+	 */
 	toIR(map) {
 		map.set(this.name.toString(), this.toIRInternal());
 	}
 }
 
+/**
+ * Single field in struct or enum member
+ */
 class DataField extends NameTypePair {
+	/**
+	 * @param {Word} name 
+	 * @param {TypeExpr} typeExpr 
+	 */
 	constructor(name, typeExpr) {
 		super(name, typeExpr);
 	}
 }
 
+/**
+ * Base class for struct and enum member
+ */
 class DataDefinition extends NamedStatement {
+	#fields;
+
+	/** @type {ImplRegistry} - filled by ImplStatements */
+	#registry;
+
+	/** @type {Set<string>} - all fields must be used */
+	#fieldsUsed;
+
+	/** @type {Set<string>} - automatic members that if used must be included in IR */
+	#autoMembersUsed;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Word} name 
+	 * @param {DataField[]} fields 
+	 */
 	constructor(site, name, fields) {
 		super(site, name);
-		this.fields_ = assertDefined(fields); // list of StructField
-		this.fieldTypes_ = null;
-		this.constrIndex_ = 0;
-		this.registry_ = new ImplRegistry();
-		this.fieldsUsed_ = new Set();
-		this.autoMembersUsed_ = new Set();
+		this.#fields = assertDefined(fields); // list of StructField
+		this.#registry = new ImplRegistry();
+		this.#fieldsUsed = new Set();
+		this.#autoMembersUsed = new Set();
 
-		for (let f of this.fields_) {
+		// non of the fields can be named the same as one of the autoMembers 
+		for (let f of this.#fields) {
 			if (this.hasAutoMember(f.name)) {
-				f.name.referenceError("reserved member");
+				throw f.name.referenceError("reserved member");
 			}
 		}
 	}
 
-	// returns an index, -1 if not found
+	get fields() {
+		return this.#fields.slice();
+	}
+
+
+	/**
+	 * Returns index of a field.
+	 * Returns -1 if not found.
+	 * @param {Word} name 
+	 * @returns {number}
+	 */
 	findField(name) {
 		let found = -1;
 		let i = 0;
-		for (let f of this.fields_) {
+		for (let f of this.#fields) {
 			if (f.name.toString() == name.toString()) {
 				found = i;
 				break;
@@ -5161,29 +7623,48 @@ class DataDefinition extends NamedStatement {
 	}
 
 	toString() {
-		return `${this.name_.toString()} {${this.fields_.map(f => f.toString()).join(", ")}}`;
+		return `${this.name.toString()} {${this.#fields.map(f => f.toString()).join(", ")}}`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
 	evalInternal(scope) {
-		this.fieldTypes_ = this.fields_.map(f => {
+		this.fieldTypes_ = this.#fields.map(f => {
 			let fieldType = f.evalType(scope);
-			
+
 			if (fieldType instanceof FuncType) {
-				f.typeError("field can't be function type");
+				throw f.site.typeError("field can't be function type");
 			}
 
 			return fieldType;
 		});
 
-		return new UserType(this);
+		// the following assertion is needed for vscode typechecking
+		if (this instanceof StructStatement || this instanceof EnumMember) {
+			return new StatementType(this);
+		} else {
+			throw new Error("unhandled implementations");
+		}
 	}
 
+	/**
+	 * Evaluates own type and adds to scope
+	 * @param {TopScope} scope 
+	 */
 	eval(scope) {
 		scope.set(this.name, this.evalInternal(scope));
 	}
 
+	/**
+	 * Checks if 'name' is an auto member (eg. "__eq", "__neq", "serialize")
+	 * "__eq" and "__neq" aren't included here because they work a little different for structs vs enummembers
+	 * @param {Word} name 
+	 * @returns 
+	 */
 	hasAutoMember(name) {
-		switch(name.toString()) {
+		switch (name.toString()) {
 			case "serialize":
 				return true;
 		}
@@ -5191,43 +7672,73 @@ class DataDefinition extends NamedStatement {
 		return false;
 	}
 
+	/**
+	 * Sets accociated member. Can be const or func
+	 * @param {Word} name 
+	 * @param {Value} value 
+	 */
 	setImplAssoc(name, value) {
 		if (this.findField(name) != -1) {
-			name.referenceError("name of assoc member can't be same as field");
+			throw name.referenceError("name of assoc member can't be same as field");
 		} else if (this.hasAutoMember(name)) {
-			name.referenceError("name of assoc member can't be same as auto member");
+			throw name.referenceError("name of assoc member can't be same as auto member");
 		}
 
-		this.registry_.setAssoc(name, value);
+		this.#registry.setAssoc(name, value);
 	}
 
+	/**
+	 * Sets method member (first arg must be named self)
+	 * @param {Word} name 
+	 * @param {Value} value 
+	 */
 	setImplMethod(name, value) {
 		if (this.findField(name) != -1) {
-			name.referenceError("name of method member can't be same as field");
+			throw name.referenceError("name of method member can't be same as field");
+		} else if (this.hasAutoMember(name)) {
+			throw name.referenceError("name of member method can't be the same as auto member");
 		}
 
-		this.registry_.setMethod(name, value);
+		this.#registry.setMethod(name, value);
 	}
 
-	// otherType has already been unwrapped from UserType
-	isBaseOf(other) {
-		return this.path == other.path;
-	}
-
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
 	nFields(site) {
-		return this.fields_.length;
+		return this.#fields.length;
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	nEnumMembers(site) {
+		throw site.typeError("not an enum type");
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		return this.registry_.getAssoc(name); // this is easy because there is no 'self', path will be __MyStruct__MyMember
+		return this.#registry.getAssoc(name); // this is easy because there is no 'self', path will be __MyStruct__MyMember
 	}
 
+	/**
+	 * Gets insance member value.
+	 * If dryRun == true usage is triggered
+	 * @param {Word} name 
+	 * @param {boolean} dryRun 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name, dryRun = false) {
 		if (this.hasAutoMember(name)) {
-			switch(name.toString()) {
+			switch (name.toString()) {
 				case "serialize":
 					if (!dryRun) {
-						this.autoMembersUsed_.add(name.toString());
+						this.#autoMembersUsed.add(name.toString());
 					}
 					return Value.new(new FuncType([], new ByteArrayType()));
 				default:
@@ -5237,28 +7748,31 @@ class DataDefinition extends NamedStatement {
 			let i = this.findField(name);
 
 			if (i == -1) {
-				if (this.registry_.has(name)) {
-					return this.registry_.getMethod(name, dryRun);
+				if (this.#registry.has(name)) {
+					return this.#registry.getMethod(name, dryRun);
 				} else {
-					name.referenceError(`\'${this.name_.toString()}.${name.toString()}\' undefined`);
+					throw name.referenceError(`\'${this.name.toString()}.${name.toString()}\' undefined`);
 				}
 			} else {
 				if (!dryRun) {
-					this.fieldsUsed_.add(name.toString());
+					this.#fieldsUsed.add(name.toString());
 				}
-				return Value.new(this.fieldTypes_[i]);
+				return Value.new(this.#fields[i].type);
 			}
-		}	
+		}
 	}
 
-	getConstrIndex(site) {
-		return this.constrIndex_;
+	/**
+	 * @param {string} name
+	 */
+	useAutoMember(name) {
+		this.#autoMembersUsed.add(name.toString());
 	}
 
 	assertAllMembersUsed() {
-		for (let f of this.fields_) {
-			if (!this.fieldsUsed_.has(f.name.toString())) {
-				f.name.referenceError("field unused");
+		for (let f of this.#fields) {
+			if (!this.#fieldsUsed.has(f.name.toString())) {
+				throw f.name.referenceError("field unused");
 			}
 		}
 	}
@@ -5267,47 +7781,52 @@ class DataDefinition extends NamedStatement {
 		return `__user__${this.name.toString()}`;
 	}
 
+	/**
+	 * @param {IRDefinitions} map
+	 */
 	toIR(map) {
-		for (let i = 0; i < this.fields_.length; i++) {
-			let f = this.fields_[i];
+		// add a getter for each field
+		for (let i = 0; i < this.#fields.length; i++) {
+			let f = this.#fields[i];
 			let key = `${this.path}__${f.name.toString()}`;
 
-			let inner = new IR("__core__sndPair(__core__unConstrData(self))");			
+			let inner = new IR("__core__sndPair(__core__unConstrData(self))");
 			for (let j = 0; j < i; j++) {
-				inner = [new IR("__core__tailList("), inner, new IR(")")];
+				inner = new IR([new IR("__core__tailList("), inner, new IR(")")]);
 			}
 
-			let getter = [
+			let getter = new IR([
 				new IR("(self) "), new IR("->", f.site), new IR(" {__core__headList("),
 				inner,
 				new IR(")}"),
-			];
+			]);
 
 			map.set(key, getter)
 		}
 
-		for (let auto of this.autoMembersUsed_) {
-			switch(auto) {
+		// add each automember
+		for (let auto of this.#autoMembersUsed) {
+			switch (auto) {
 				case "serialize":
-					map.set(auto, [
+					map.set(auto, new IR([
 						new IR("(self) "), new IR("->", this.site), new IR(" {\n"),
 						new IR(`${TAB}() -> {__core__serialiseData(self)}\n`),
 						new IR("}"),
-					]);
+					]));
 					break;
 				case "__eq":
-					map.set(auto, [
+					map.set(auto, new IR([
 						new IR("(self) "), new IR("->", this.site), new IR(" {\n"),
 						new IR(`${TAB}(other) -> {__core__equalsData(self, other)}\n`),
 						new IR("}"),
-					]);
+					]));
 					break;
 				case "__neq":
-					map.set(auto, [
+					map.set(auto, new IR([
 						new IR("(self) "), new IR("->", this.site), new IR(" {\n"),
 						new IR(`${TAB}(other) -> {__helios__bool____not(__core__equalsData(self, other))}\n`),
 						new IR("}"),
-					]);
+					]));
 					break;
 				default:
 					throw new Error("unhandled auto member");
@@ -5316,17 +7835,41 @@ class DataDefinition extends NamedStatement {
 	}
 }
 
+/**
+ * Struct statement
+ */
 class StructStatement extends DataDefinition {
+	/**
+	 * @param {Site} site 
+	 * @param {Word} name 
+	 * @param {DataField[]} fields 
+	 */
 	constructor(site, name, fields) {
 		super(site, name, fields);
+	}
+
+	get type() {
+		return new StatementType(this);
 	}
 
 	toString() {
 		return "struct " + super.toString();
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	 getConstrIndex(site) {
+		return 0;
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {boolean}
+	 */
 	hasAutoMember(name) {
-		switch(name.toString()) {
+		switch (name.toString()) {
 			case "__eq":
 			case "__neq":
 				return true;
@@ -5335,100 +7878,201 @@ class StructStatement extends DataDefinition {
 		return super.hasAutoMember(name);
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @param {boolean} dryRun 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name, dryRun = false) {
 		if (this.hasAutoMember(name)) {
-			switch(name.toString()) {
+			switch (name.toString()) {
 				case "__eq":
 				case "__neq":
 					if (!dryRun) {
-						this.autoMembersUsed_.add(name.toString());
+						this.useAutoMember(name.toString());
+						
 					}
-					return Value.new(new FuncType([new UserType(this), new UserType(this)], new BoolType()));
+
+					return Value.new(new FuncType([new StatementType(this), new StatementType(this)], new BoolType()));
 			}
 		}
 
+		// parent class handles serialize, fields, and registry members
 		return super.getInstanceMember(name);
 	}
 }
 
+/**
+ * Function statement
+ * (basically just a named FuncLiteralExpr)
+ */
 class FuncStatement extends NamedStatement {
+	#funcExpr;
+	#recursive;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Word} name 
+	 * @param {FuncLiteralExpr} funcExpr 
+	 */
 	constructor(site, name, funcExpr) {
 		super(site, name);
-		this.funcExpr_ = funcExpr;
-		this.recursive_ = false;
+		this.#funcExpr = funcExpr;
+		this.#recursive = false;
 	}
 
 	toString() {
-		return `func ${this.name.toString()}${this.funcExpr_.toString()}`;
+		return `func ${this.name.toString()}${this.#funcExpr.toString()}`;
 	}
 
+	/**
+	 * Evaluates a function and returns a func value
+	 * @param {Scope} scope 
+	 * @returns {Value}
+	 */
 	evalInternal(scope) {
-		return this.funcExpr_.evalInternal(scope);
+		return this.#funcExpr.evalInternal(scope);
 	}
 
+	/**
+	 * Evaluates type of a funtion.
+	 * Separate from evalInternal so we can use this function recursively inside evalInternal
+	 * @param {Scope} scope 
+	 * @returns {FuncType}
+	 */
 	evalType(scope) {
-		return this.funcExpr_.evalType(scope);
+		return this.#funcExpr.evalType(scope);
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 */
 	eval(scope) {
 		// add to scope before evaluating, to allow recursive calls
 
 		let fnType = this.evalType(scope);
 
-		let fnVal = new TopFuncValue(fnType);
+		let fnVal = new FuncStatementValue(fnType);
 		fnVal.onNotifyRecursive(() => {
-			this.recursive_ = true;
+			this.#recursive = true;
 		});
 
 		scope.set(this.name, fnVal);
 
-		void this.funcExpr_.evalInternal(scope);
+		void this.#funcExpr.evalInternal(scope);
 
 		fnVal.onNotifyRecursive(null);
 	}
 
-	maybeMethod() {
-		return this.funcExpr_.maybeMethod();
+	/**
+	 * A function can maybe be a method if its first argument is name "self"
+	 * @returns {boolean}
+	 */
+	isMaybeMethod() {
+		return this.#funcExpr.isMaybeMethod();
 	}
 
-	// no need to specify indent, Statement is at top level
-	toIR(map) {
-		let def;
-		if (this.recursive_) {
-			def = this.funcExpr_.toIRRecursive(this.name.toString(), TAB);
+	/**
+	 * Returns IR of function.
+	 * @param {string} fullName - fullName is prefixed with a type path for impl members
+	 * @returns 
+	 */
+	toIRInternal(fullName = this.name.toString()) {
+		if (this.#recursive) {
+			return this.#funcExpr.toIRRecursive(fullName, TAB);
 		} else {
-			def = this.funcExpr_.toIR(TAB);
+			return this.#funcExpr.toIR(TAB);
 		}
+	}
 
-		map.set(this.name.toString(), def);
+	/**
+	 * @param {IRDefinitions} map 
+	 */
+	toIR(map) {
+		map.set(this.name.toString(), this.toIRInternal());
 	}
 }
 
+/**
+ * EnumMember defintion is similar to a struct definition
+ */
 class EnumMember extends DataDefinition {
+	/** @type {?EnumStatement} */
+	#parent;
+
+	/** @type {?number} */
+	#constrIndex;
+
+	/**
+	 * @param {Word} name
+	 * @param {DataField[]} fields
+ 	 */
 	constructor(name, fields) {
 		super(name.site, name, fields);
-		this.parent_ = null;
+		this.#parent = null; // registered later
+		this.#constrIndex = null;
 	}
 
+	/** 
+	 * @param {EnumStatement} parent
+	 * @param {number} i
+	*/
 	registerParent(parent, i) {
-		this.parent_ = parent;
-		this.constrIndex_ = i;
+		this.#parent = parent;
+		this.#constrIndex = i;
 	}
-
-	eval(scope) {
-		super.eval(scope);
-
-		for (let f of this.fields_) {
-			let fType = f.evalType(scope);
-
-			this.parent_.maybeSetAutoMember(f.name, Value.new(fType));
+	
+	get parent() {
+		if (this.#parent === null) {
+			throw new Error("parent not yet registered");
+		} else {
+			return this.#parent;
 		}
 	}
 
+	get type() {
+		return new StatementType(this);
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		if (this.#constrIndex === null) {
+			throw new Error("constrIndex not set");
+		} else {
+			return this.#constrIndex;
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 */
+	eval(scope) {
+		super.eval(scope);
+
+		if (this.#parent === null) {
+			throw new Error("parent should've been registered");
+		} else {
+			// TODO: set members on parent enum automatically
+			// (the following code is wrong)
+			/*for (let f of this.fields) {
+				let fType = f.evalType(scope);
+
+				this.#parent.maybeSetAutoMember(f.name, Value.new(fType));
+			}*/
+		}
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @param {Value} value 
+	 */
 	setImplAssoc(name, value) {
 		// make sure parent doesn't already have a assoc or method member with the same name
-		if (this.parent_.hasMember(name)) {
-			name.referenceError("name already used by parent enum");
+		if (this.parent.hasMember(name)) {
+			throw name.referenceError("name already used by parent enum");
 		}
 
 		super.setImplAssoc(name, value);
@@ -5436,41 +8080,72 @@ class EnumMember extends DataDefinition {
 
 	setImplMethod(name, value) {
 		// make sure parent doesn't already have a assoc or method member with the same name
-		if (this.parent_.hasMember(name)) {
-			name.referenceError("name already used by parent enum");
+		if (this.parent.hasMember(name)) {
+			throw name.referenceError("name already used by parent enum");
 		}
 
-		super.setImplMember(name, value);
+		super.setImplMethod(name, value);
 
-		// now check if all other enum members implement that same function
-		this.parent_.maybeSetAutoMember(name, value);
+		// TODO: check if all other enum members implement that same function
+		//this.#parent?.maybeSetAutoMember(name, value);
 	}
 
 	get path() {
-		return `${this.parent_.path}__${this.name.toString()}`;
+		return `${this.parent.path}__${this.name.toString()}`;
 	}
 }
 
+/**
+ * Enum statement, containing at least one member
+ */
 class EnumStatement extends NamedStatement {
+	#members;
+
+	/** @type {Set<string>} */
+	#membersUsed;
+
+	/** @type {ImplRegistry} - methods and associated consts/funcs */
+	#registry;
+
+	/** @type {Map<string, Value>} */
+	#autoMembers;
+
+	/** @type {Set<string>} */
+	#autoMembersUsed;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Word} name 
+	 * @param {EnumMember[]} members 
+	 */
 	constructor(site, name, members) {
 		super(site, name);
-		this.members_ = members; // list of EnumMember
-		this.membersUsed_ = new Set();
-		this.memberTypes_ = null;
-		this.registry_ = new ImplRegistry(); // methods and associated consts/funcs
-		this.autoMembers_ = new Map();
-		this.autoMembersUsed_ = new Set();
+		this.#members = members;
+		this.#membersUsed = new Set();
+		this.#registry = new ImplRegistry(); //
+		this.#autoMembers = new Map();
+		this.#autoMembersUsed = new Set();
 
-		for (let i = 0; i < this.members_.length; i++) {
-			this.members_[i].registerParent(this, i);
+		for (let i = 0; i < this.#members.length; i++) {
+			this.#members[i].registerParent(this, i);
 		}
 	}
 
+	get type() {
+		return new StatementType(this);
+	}
+
+	/**
+	 * Returns index of enum member.
+	 * Returns -1 if not found
+	 * @param {Word} name 
+	 * @returns {number}
+	 */
 	// returns an index
 	findEnumMember(name) {
 		let found = -1;
 		let i = 0;
-		for (let member of this.members_) {
+		for (let member of this.#members) {
 			if (member.name.toString() == name.toString()) {
 				found = i;
 				break;
@@ -5481,43 +8156,65 @@ class EnumStatement extends NamedStatement {
 		return found;
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns 
+	 */
 	hasMember(name) {
 		if (this.findEnumMember(name) != -1) {
 			return true;
 		} else {
-			return this.registry_.has(name);
+			return this.#registry.has(name);
 		}
 	}
 
 	toString() {
-		return `enum ${this.name.toString()} {${this.members_.map(m => m.toStringInternal()).join(", ")}}`;
+		return `enum ${this.name.toString()} {${this.#members.map(m => m.toString()).join(", ")}}`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 */
 	eval(scope) {
-		this.memberTypes_ = this.members_.map(m => m.evalInternal(scope));
+		this.#members.forEach(m => {
+			m.eval(scope);
+		});
 
-		scope.set(this.name, new UserType(this));
+		scope.set(this.name, new StatementType(this));
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @param {Value} value 
+	 */
 	setImplAssoc(name, value) {
 		if (this.findEnumMember(name) != -1) {
-			name.referenceError("assoc member can have same name as enum type member");
+			throw name.referenceError("assoc member can have same name as enum type member");
 		}
 
-		this.registry_.setAssoc(name, value);
+		this.#registry.setAssoc(name, value);
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @param {Value} value 
+	 */
 	setImplMethod(name, value) {
-		name.typeError("can't impl method directly on base type of enum");
+		throw name.typeError("can't impl method directly on base type of enum");
 	}
 
-	maybeSetAutoMember(name, value) {
-		let type = value.getType();
+	/**
+	 * @param {Word} name 
+	 * @param {Value} value 
+	 * @returns 
+	 */
+	/*maybeSetAutoMember(name, value) {
+		let type = value.getType(this.site);
 
 		// check that all members have the same field
 
 		let retType = null;
-		for (let m of this.members_) {
+		for (let m of this.#members) {
 			try {
 				let mVal = m.getInstanceMember(name, true);
 				let mType = mVal.getType(name.site);
@@ -5532,9 +8229,9 @@ class EnumStatement extends NamedStatement {
 						return;
 					}
 
-					retType = IfElseExpr.reduceBranchType(type.retType, mType.retType);
+					retType = IfElseExpr.reduceBranchType(this.site, type.retType, mType.retType);
 				} else {
-					retType = IfElseExpr.reduceBranchType(retType, mVal.getType(name.site));
+					retType = IfElseExpr.reduceBranchType(this.site, retType, mVal.getType(name.site));
 				}
 			} catch (e) {
 				// don't set auto member if any error is encountered
@@ -5550,51 +8247,72 @@ class EnumStatement extends NamedStatement {
 			autoType = retType;
 		}
 
-		this.autoMembers_.set(name.toString(), autoType);
-	}
+		this.#autoMembers.set(name.toString(), autoType);
+	}*/
 
-	// other has already been 'unwrapped' from UserType
-	isBaseOf(other) {
-		return this == other || this.members_.findIndex(m => m == other) != -1;
-	}
-
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
 	nFields(site) {
-		site.typeError("enum doesn't have fields");
+		throw site.typeError("enum doesn't have fields");
 	}
 
+	/** 
+	 * @param {Word} name 
+	 * @param {boolean} dryRun 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name, dryRun = false) {
-		if (this.autoMembers_.has(name.toString())) {
+		if (this.#autoMembers.has(name.toString())) {
 			if (!dryRun) {
-				this.autoMembersUsed_.add(name.toString());
+				this.#autoMembersUsed.add(name.toString());
 			}
-			return Value.new(this.autoMembers_.get(name.toString()));
+			return assertDefined(this.#autoMembers.get(name.toString()));
 		} else {
-			name.typeError("undefined enum member");
+			throw name.typeError("undefined enum member");
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
 		let i = this.findEnumMember(name);
 		if (i == -1) {
-			if (this.registry_.has(name)) {
-				return this.registry_.getAssoc(name);
+			// if it isn't an enum then get an auto member
+			if (this.#registry.has(name)) {
+				return this.#registry.getAssoc(name);
 			} else {
-				name.referenceError(`${this.name.toString()}::${name.toString()} undefined`);
+				throw name.referenceError(`${this.name.toString()}::${name.toString()} undefined`);
 			}
 		} else {
-			this.membersUsed_.set(name.toString())
-			return this.memberTypes_[i];
+			this.#membersUsed.add(name.toString())
+			return this.#members[i].type;
 		}
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
 	getConstrIndex(site) {
-		site.typeError("can't construct an enum directly (cast to a concrete type first)");
+		throw site.typeError("can't construct an enum directly (cast to a concrete type first)");
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	nEnumMembers(site) {
+		return this.#members.length;
 	}
 
 	assertAllMembersUsed() {
-		for (let m of this.members_) {
-			if (!this.membersUsed_.has(m.name.toString())) {
-				m.name.referenceError("unused");
+		for (let m of this.#members) {
+			if (!this.#membersUsed.has(m.name.toString())) {
+				throw m.name.referenceError("unused");
 			}
 
 			m.assertAllMembersUsed();
@@ -5605,26 +8323,30 @@ class EnumStatement extends NamedStatement {
 		return `__user__${this.name.toString()}`;
 	}
 
+	/**
+	 * @param {IRDefinitions} map 
+	 */
 	toIR(map) {
-		for (let pair of this.autoMembers_) {
+		// only adds automembers
+		for (let pair of this.#autoMembers) {
 			let name = pair[0];
 
-			if (this.autoMembersUsed_.has(name)) {
-				let n = this.members_.length;
-				let inner = new IR(`${this.members_[n-1].path}__${name.toString()}`);
-				for (let i = n-2; i >= 0; i--) {
-					inner = [
-						new IR("__core__ifThenElse(__core__equalsInteger(constrIdx, "), new IR(i.toString(), this.members_[i].site), new IR("), "), new IR(`${this.members_[i].path}__${name.toString()}, `),
+			if (this.#autoMembersUsed.has(name)) {
+				let n = this.#members.length;
+				let inner = new IR(`${this.#members[n - 1].path}__${name.toString()}`);
+				for (let i = n - 2; i >= 0; i--) {
+					inner = new IR([
+						new IR("__core__ifThenElse(__core__equalsInteger(constrIdx, "), new IR(i.toString(), this.#members[i].site), new IR("), "), new IR(`${this.#members[i].path}__${name.toString()}, `),
 						inner,
 						new IR(`)`),
-					];
+					]);
 				}
-		
-				let autoDef = [
+
+				let autoDef = new IR([
 					new IR("(self) "), new IR("->", this.site), new IR(` {\n${TAB}(constrIdx) -> {\n${TAB}${TAB}`),
 					inner,
 					new IR(`\n${TAB}}(__core__fstPair(__core__unConstrData(self)))(self)\n}`),
-				];
+				]);
 
 				map.set(`${this.path}__${name}`, autoDef);
 			}
@@ -5632,139 +8354,208 @@ class EnumStatement extends NamedStatement {
 	}
 }
 
+/**
+ * Registry which is attached to Structs, Enum Members and Enums 
+ */
 class ImplRegistry {
+	/** @type {[Word, Value][]} */
+	#methods;
+
+	/** @type {[Word, Value][]} */
+	#assocs;
+
+	/** @type {Set<string>} */
+	#used;
+
 	constructor() {
-		this.methods_ = [];
-		this.assocs_ = [];
+		this.#methods = [];
+		this.#assocs = [];
 
-		this.used_ = new Set(); // set of names as strings
+		this.#used = new Set(); // set of names as strings
 	}
 
+	/**
+	 * Returns index of method.
+	 * Returns -1 if not found.
+	 * @param {Word} name 
+	 * @returns {number}
+	 */
 	findMethod(name) {
-		return this.methods_.findIndex(pair => pair[0].toString() == name.toString);
+		return this.#methods.findIndex(pair => pair[0].toString() == name.toString());
 	}
 
+	/**
+	 * Returns index of assoc.
+	 * Returns -1 if not found.
+	 * @param {Word} name 
+	 * @returns {number}
+	 */
 	findAssoc(name) {
-		return this.assocs_.findIndex(pair => pair[0].toString() == name.toString);
+		return this.#assocs.findIndex(pair => pair[0].toString() == name.toString());
 	}
 
+	/**
+	 * Checks if 'name' is a registry member (method or assoc)
+	 * @param {Word} name 
+	 * @returns {boolean}
+	 */
 	has(name) {
 		return this.findMethod(name) != -1 || this.findAssoc(name) != -1;
 	}
 
+	/**
+	 * Sets a registry assoc
+	 * @param {Word} name 
+	 * @param {Value} value 
+	 */
 	setAssoc(name, value) {
 		if (this.has(name)) {
-			name.referenceError("impl member with same name already set");
+			throw name.referenceError("impl member with same name already set");
 		}
 
-		this.assocs_.push([name, value]);
+		this.#assocs.push([name, value]);
 	}
 
+	/**
+	 * Sets a registry method
+	 * @param {Word} name 
+	 * @param {Value} value 
+	 */
 	setMethod(name, value) {
 		if (this.has(name)) {
-			name.referenceError("impl member with same name already set");
+			throw name.referenceError("impl member with same name already set");
 		}
 
-		this.methods_.push([name, value]);
+		this.#methods.push([name, value]);
 	}
 
+	/**
+	 * Gets a registry assoc
+	 * @param {Word} name
+	 * @param {boolean} dryRun - if true then name isn't added to used
+	 * @returns {Value}
+	 */
 	getAssoc(name, dryRun = false) {
 		let i = this.findAssoc(name);
 		if (i == -1) {
-			name.referenceError("impl not found");
+			throw name.referenceError("impl not found");
 		}
 
 		if (!dryRun) {
-			this.used_.add(name.toString());
+			this.#used.add(name.toString());
 		}
 
-		return this.assocs_[i][1];
+		return this.#assocs[i][1];
 	}
 
+	/**
+	 * Gets a registry method
+	 * @param {Word} name 
+	 * @param {boolean} dryRun - if true then name isn't added to used
+	 * @returns {Value}
+	 */
 	getMethod(name, dryRun = false) {
 		let i = this.findMethod(name);
 		if (i == -1) {
-			name.referenceError("impl not found");
+			throw name.referenceError("impl not found");
 		}
 
 		if (!dryRun) {
-			this.used_.add(name.toString());
+			this.#used.add(name.toString());
 		}
 
-		return this.methods_[i][1];
+		return this.#methods[i][1];
 	}
 
+	/**
+	 * Throws an error of some registry members haven't been used
+	 */
 	assertAllMembersUsed() {
-		for (let pair of this.methods_) {
-			if (!this.used_.has(this.used_.pair[0].toString())) {
-				pair[0].referenceError("impl unused");
+		for (let pair of this.#methods) {
+			if (!this.#used.has(pair[0].toString())) {
+				throw pair[0].referenceError("impl unused");
 			}
 		}
 
-		for (let pair of this.assocs_) {
-			if (!this.used_.has(this.used_.pair[0].toString())) {
-				pair[0].referenceError("impl unused");
+		for (let pair of this.#assocs) {
+			if (!this.#used.has(pair[0].toString())) {
+				throw pair[0].referenceError("impl unused");
 			}
 		}
 	}
 }
 
+/**
+ * Impl statements, which add functions and constants to registry of user types (Struct, Enum Member and Enums)
+ */
 class ImplStatement extends Statement {
+	#typeExpr;
+	#statements;
+
+	/**
+	 * 
+	 * @param {Site} site 
+	 * @param {TypeRefExpr | TypePathExpr} typeExpr 
+	 * @param {(FuncStatement | ConstStatement)[]} statements 
+	 */
 	constructor(site, typeExpr, statements) {
 		super(site);
-		assert(typeExpr instanceof TypeRefExpr || typeExpr instanceof TypePathExpr);
-		this.typeExpr_ = typeExpr;
-		this.statements_ = statements;
-		this.typeStatementRef_ = null;
+		this.#typeExpr = typeExpr;
+		this.#statements = statements;
 	}
 
 	toString() {
-		return `impl ${this.typeExpr_.toString()} {${this.statements_.map(s => s.toString())}}`;
+		return `impl ${this.#typeExpr.toString()} {${this.#statements.map(s => s.toString())}}`;
 	}
 
 	eval(scope) {
-		let type = this.typeExpr_.eval(scope);
-		if (!(type instanceof UserType)) {
-			this.typeExpr_.referenceError("not a user-type");
-		}
-		
-		this.typeStatementRef_ = type.statement_;
-		assert(this.typeStatementRef_ instanceof StructStatement || this.typeStatementRef_ instanceof EnumStatement);
-		let refType = new UserType(this.typeStatementRef_);
+		let type = this.#typeExpr.eval(scope);
+		if (!(type instanceof StatementType)) {
+			throw this.#typeExpr.referenceError("not a user-type");
+		} else {
 
-		for (let s of this.statements_) {
-			if (s instanceof ConstStatement) {
-				let constVal = s.evalInternal(scope);
-				let constType = constVal.getType(s.site);
+			let ref = type.statement;
 
-				if (Type.same(s.site, constType, refType)) {
-					this.typeStatementRef_.setImplAssoc(s.name, constVal);
+			for (let s of this.#statements) {
+				if (s instanceof ConstStatement) {
+					let constVal = s.evalInternal(scope);
+					let constType = constVal.getType(s.site);
+
+					if (Type.same(s.site, constType, type)) {
+						ref.setImplAssoc(s.name, constVal);
+					} else {
+						throw s.typeError("not associated");
+					}
+				} else if (s instanceof FuncStatement) {
+					let fnType = s.evalType(scope);
+					let fnVal = Value.new(fnType);
+
+					// TODO: perhaps if first argument is "self" the that type can be infered?
+					if (s.isMaybeMethod() && fnType.isMaybeMethod(s.site, type)) {
+						ref.setImplMethod(s.name, fnVal);
+					} else if (fnType.isAssociated(s.site, type)) {
+						ref.setImplAssoc(s.name, fnVal);
+					} else {
+						throw s.typeError("not associated");
+					}
+
+					// now do the actual internal evaluation in which recursion is now possible
+					void s.evalInternal(scope);
 				} else {
-					s.typeError("not associated");
+					throw new Error("expected FuncStatement or ConstStatement");
 				}
-			} else if (s instanceof FuncStatement) {
-				let fnType = s.evalType(scope);
-				let fnVal = Value.new(fnType);
-
-				if (s.maybeMethod() && fnType.maybeMethod(s.site, new UserType(this.typeStatementRef_))) {
-					this.typeStatementRef_.setImplMethod(s.name, fnVal);
-				} else if (fnType.isAssociated(s.site, new UserType(this.typeStatementRef_))) {
-					this.typeStatementRef_.setImplAssoc(s.name, fnVal);
-				} else {
-					s.typeError("not associated");
-				}
-
-				// now do the actual internal evaluation in which recursion is now possible
-				void s.evalInternal(scope);
 			}
 		}
 	}
 
-	// all members should be used
+	/**
+	 * Returns IR of all impl members
+	 * @param {IRDefinitions} map 
+	 */
 	toIR(map) {
-		let path = this.typeStatementRef_.path;
+		let path = this.#typeExpr.path;
 
-		for (let s of this.statements_) {
+		for (let s of this.#statements) {
 			let key = `${path}__${s.name.toString()}`
 			let value;
 			if (s instanceof FuncStatement) {
@@ -5778,88 +8569,154 @@ class ImplStatement extends Statement {
 	}
 }
 
+/**
+ * A Program can have different purposes
+ */
 export const ScriptPurpose = {
 	Testing: -1,
 	Minting: 0,
 	Spending: 1,
 };
 
-class Program {
-	constructor(purpose, name, statements) {
-		this.purpose_ = purpose;
-		this.name_ = name;
-		this.statements_ = statements;
-		this.scope_ = null;
-		
-		this.haveDatum_ = false;
-		this.haveRedeemer_ = false;
-		this.haveScriptContext_ = false;
-	}
+/**
+ * @typedef {Map<string, IR>} IRDefinitions
+ */
 
-	get scope() {
-		return this.scope_;
+/**
+ * Helios root object
+ */
+class Program {
+	#purpose;
+	#name;
+	#statements;
+
+	/** @type {?Scope} */
+	#scope;
+
+	#haveDatum;
+	#haveRedeemer;
+	#haveScriptContext;
+
+	/**
+	 * @param {number} purpose
+	 * @param {Word} name
+	 * @param {Statement[]} statements
+	 */
+	constructor(purpose, name, statements) {
+		this.#purpose = purpose;
+		this.#name = name;
+		this.#statements = statements;
+		this.#scope = null;
+
+		this.#haveDatum = false;
+		this.#haveRedeemer = false;
+		this.#haveScriptContext = false;
 	}
 
 	isTest() {
-		return this.purpose_ == ScriptPurpose.Testing;
+		return this.#purpose == ScriptPurpose.Testing;
 	}
 
 	toString() {
-		return this.statements_.map(s => s.toString()).join("\n");
+		return this.#statements.map(s => s.toString()).join("\n");
 	}
 
-	// also creates the scope
+	/**
+	 * @param {GlobalScope} globalScope 
+	 */
 	eval(globalScope) {
-		this.scope_ = new TopScope(globalScope);
+		this.#scope = new TopScope(globalScope);
 
-		for (let s of this.statements_) {
-			s.eval(this.scope_);
+		for (let s of this.#statements) {
+			s.eval(this.#scope);
 		}
 
 		this.checkMain();
 
-		this.scope_.assertAllUsed();
+		this.#scope.assertAllUsed();
 
-		for (let s of this.statements_) {
+		for (let s of this.#statements) {
 			s.assertAllMembersUsed();
 		}
 	}
 
 	checkMain() {
-		let mainVal = this.scope_.get("main");
-		let mainSite = this.statements_.find(s => s.name.toString() == "main").site;
-		let mainType = mainVal.getType(mainSite);
+		let scope = this.#scope;
+		if (scope === null) {
 
-		if (!(mainType instanceof FuncType)) {
-			mainSite.typeError("entrypoint is not a function");
+		} else {
+			let mainVal = scope.get(Word.new("main"));
+			let mainSite = assertDefined(this.#statements.find(s => {
+				if (s instanceof NamedStatement) {
+					return s.name.toString() == "main";
+				} else {
+					return false;
+				}
+			})).site;
+
+			// get the type of the entry point so we can easily check the interface
+			let mainType = mainVal.getType(mainSite);
+
+			if (!(mainType instanceof FuncType)) {
+				throw mainSite.typeError("entrypoint is not a function");
+			}
+
+			let [haveDatum, haveRedeemer, haveScriptContext] = mainType.checkAsMain(mainSite, this.#purpose);
+
+			this.#haveDatum = haveDatum;
+			this.#haveRedeemer = haveRedeemer;
+			this.#haveScriptContext = haveScriptContext;
 		}
-
-		let [haveDatum, haveRedeemer, haveScriptContext] = mainType.checkAsMain(mainSite, this.purpose_);
-		
-
-		this.haveDatum_ = haveDatum;
-		this.haveRedeemer_ = haveRedeemer;
-		this.haveScriptContext_ = haveScriptContext;
 	}
 
+	/**
+	 * Wraps 'inner' IR source with some definitions (used for top-level statements and for builtins)
+	 * @param {IR} inner 
+	 * @param {IRDefinitions} definitions - name -> definition
+	 * @returns {IR}
+	 */
+	// map: name -> definition
+	static wrapWithDefinitions(inner, definitions) {
+		let keys = Array.from(definitions.keys()).reverse();
+
+		let res = inner;
+		for (let key of keys) {
+			let definition = definitions.get(key);
+
+			if (definition === undefined) {
+				throw new Error("unexpected");
+			} else {
+
+				res = new IR([new IR("("), new IR(key), new IR(") -> {\n"),
+					res, new IR(`\n}(\n${TAB}/*${key}*/\n${TAB}`), definition,
+				new IR("\n)")]);
+			}
+		}
+
+		return res;
+	}
+
+	/**
+	 * @returns {IR}
+	 */
 	toIR() {
 		let mainArgs = [];
 		let uMainArgs = [];
-		if (this.haveDatum_) {
+		if (this.#haveDatum) {
 			mainArgs.push(new IR("datum"));
 			uMainArgs.push(new IR("datum"));
-		} else if (this.purpose_ == ScriptPurpose.Spending) {
+		} else if (this.#purpose == ScriptPurpose.Spending) {
 			mainArgs.push(new IR("_"));
 		}
 
-		if (this.haveRedeemer_) {
+		if (this.#haveRedeemer) {
 			mainArgs.push(new IR("redeemer"));
 			uMainArgs.push(new IR("redeemer"));
 		} else if (!this.isTest()) { // minting script can also have a redeemer
 			mainArgs.push(new IR("_"));
 		}
 
-		if (this.haveScriptContext_) {
+		if (this.#haveScriptContext) {
 			mainArgs.push(new IR("ctx"));
 			uMainArgs.push(new IR("ctx"));
 		} else if (!this.isTest()) {
@@ -5869,16 +8726,16 @@ class Program {
 		// don't need to specify TAB because it is at top level
 		let res = [
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
-			IR.join(mainArgs, ","),
+			(new IR(mainArgs)).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`)
 		];
-		
-		if (this.purpose_ == ScriptPurpose.Testing) {
+
+		if (this.#purpose == ScriptPurpose.Testing) {
 			res.push(new IR("main()"));
 		} else {
 			res = res.concat([
 				new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}__helios__common__unBoolData(main(`),
-				IR.join(uMainArgs, ","),
+				(new IR(uMainArgs)).join(", "),
 				new IR(`)),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error("transaction rejected")}\n${TAB}${TAB})()`),
 			]);
 		}
@@ -5886,13 +8743,13 @@ class Program {
 		res.push(new IR(`\n${TAB}}`));
 
 		let map = new Map(); // string -> string
-		for (let statement of this.statements_) {
+		for (let statement of this.#statements) {
 			statement.toIR(map);
 		}
 
 		// builtin functions are added when the IR program is built
 		// also replace all tabs with four spaces
-		return wrapWithRawFunctions(TopScope.wrapWithDefinitions(res, map));
+		return wrapWithRawFunctions(Program.wrapWithDefinitions(new IR(res), map));
 	}
 }
 
@@ -5901,6 +8758,10 @@ class Program {
 // Section 11: AST build functions
 //////////////////////////////////
 
+/**
+ * @param {Token[]} ts 
+ * @returns {Program}
+ */
 function buildProgram(ts) {
 	if (ts.length == 0) {
 		throw new Error("empty script");
@@ -5911,7 +8772,7 @@ function buildProgram(ts) {
 	let statements = [];
 
 	while (ts.length != 0) {
-		let t = ts.shift().assertWord();
+		let t = assertDefined(ts.shift()).assertWord();
 		let kw = t.value;
 		let s;
 
@@ -5926,7 +8787,7 @@ function buildProgram(ts) {
 		} else if (kw == "impl") {
 			s = buildImplStatement(t.site, ts);
 		} else {
-			t.syntaxError("invalid top-level syntax");
+			throw t.syntaxError(`invalid top-level keyword '${kw}'`);
 		}
 
 		statements.push(s);
@@ -5935,35 +8796,43 @@ function buildProgram(ts) {
 	return new Program(purpose, name, statements);
 }
 
-// return [purpose, name] (purpose as an ScriptPurpose ie as an integer)
+/**
+ * @param {Token[]} ts 
+ * @returns {[number, Word]} - [purpose, name] (ScriptPurpose is an integer)
+ */
 function buildScriptPurpose(ts) {
 	// need at least 3 tokens for the script purpose
 	if (ts.length < 3) {
-		ts[0].syntaxError("invalid script purpose syntax");
+		throw ts[0].syntaxError("invalid script purpose syntax");
 	}
 
-	let purposeWord = ts.shift().assertWord();
+	let purposeWord = assertDefined(ts.shift()).assertWord();
 	let purpose;
 	if (purposeWord.isWord("validator")) {
-		purpose = ScriptPurpose.Spending; 
+		purpose = ScriptPurpose.Spending;
 	} else if (purposeWord.isWord("mint_policy")) {
 		purpose = ScriptPurpose.Minting;
 	} else if (purposeWord.isWord("test")) { // 'test' is not reserved as a keyword though
 		purpose = ScriptPurpose.Testing;
 	} else if (purposeWord.isKeyword()) {
-		purposeWord.syntaxError(`script purpose missing`);
+		throw purposeWord.syntaxError(`script purpose missing`);
 	} else {
-		purposeWord.syntaxError(`unrecognized script purpose \'${purposeWord.value}\'`);
+		throw purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}'`);
 	}
 
-	let name = ts.shift().assertWord().assertNotKeyword();
-	ts.shift().assertSymbol(";");
+	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	assertDefined(ts.shift()).assertSymbol(";");
 
 	return [purpose, name];
 }
 
+/**
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {ConstStatement}
+ */
 function buildConstStatement(site, ts) {
-	let name = ts.shift().assertWord().assertNotKeyword();
+	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
 	let typeExpr = null;
 	if (ts[0].isSymbol(":")) {
@@ -5972,18 +8841,18 @@ function buildConstStatement(site, ts) {
 		let equalsPos = Symbol.find(ts, "=");
 
 		if (equalsPos == -1) {
-			site.syntaxError("invalid syntax");
+			throw site.syntaxError("invalid syntax");
 		}
 
-		typeExpr = buildTypeExpr(ts.spice(0, equalsPos));
+		typeExpr = buildTypeExpr(ts.splice(0, equalsPos));
 	} else {
-		ts.shift().assertSymbol("=");
+		assertDefined(ts.shift()).assertSymbol("=");
 	}
 
 	let semicolonPos = Symbol.find(ts, ";");
 
 	if (semicolonPos == -1) {
-		site.syntaxError("invalid syntax");
+		throw site.syntaxError("invalid syntax");
 	}
 
 	let valueExpr = buildValueExpr(ts.splice(0, semicolonPos));
@@ -5991,39 +8860,49 @@ function buildConstStatement(site, ts) {
 	return new ConstStatement(site, name, typeExpr, valueExpr);
 }
 
+/**
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {StructStatement}
+ */
 function buildStructStatement(site, ts) {
-	let name = ts.shift().assertWord().assertNotKeyword();
+	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
 	assert(ts.length > 0);
 
-	let braces = ts.shift().assertGroup("{");
-	
+	let braces = assertDefined(ts.shift()).assertGroup("{");
+
 	let fields = buildDataFields(braces);
 
 	return new StructStatement(site, name, fields);
 }
 
+/**
+ * @param {Group} braces 
+ * @returns {DataField[]}
+ */
 function buildDataFields(braces) {
 	let rawFields = braces.fields;
 
+	/** @type {DataField[]} */
 	let fields = []
 
 	for (let f of rawFields) {
 		let ts = f.slice();
 
 		if (ts.length == 0) {
-			braces.syntaxError("empty field")
+			throw braces.syntaxError("empty field")
 		} else if (ts.length < 2) {
-			ts[0].syntaxError("invalid field syntax")
+			throw ts[0].syntaxError("invalid field syntax")
 		}
 
-		let fieldName = ts.shift().assertWord().assertNotKeyword();
+		let fieldName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
 		if (fields.findIndex(f => f.name.toString() == fieldName.toString()) != -1) {
-			fieldName.typeError(`duplicate field \'${fieldName.toString()}\'`);
+			throw fieldName.typeError(`duplicate field \'${fieldName.toString()}\'`);
 		}
 
-		ts.shift().assertSymbol(":");
+		assertDefined(ts.shift()).assertSymbol(":");
 
 		let typeExpr = buildTypeExpr(ts);
 
@@ -6033,49 +8912,62 @@ function buildDataFields(braces) {
 	return fields;
 }
 
+/**
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {FuncStatement}
+ */
 function buildFuncStatement(site, ts) {
-	let name = ts.shift().assertWord().assertNotKeyword();
+	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
 	return new FuncStatement(site, name, buildFuncLiteralExpr(ts));
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {FuncLiteralExpr}
+ */
 function buildFuncLiteralExpr(ts) {
-	let parens = ts.shift().assertGroup("(");
+	let parens = assertDefined(ts.shift()).assertGroup("(");
 	let site = parens.site;
 	let args = buildFuncArgs(parens);
 
-	ts.shift().assertSymbol("->");
+	assertDefined(ts.shift()).assertSymbol("->");
 
 	let bodyPos = Group.find(ts, "{");
 
 	if (bodyPos == -1) {
-		site.syntaxError("no function body");
+		throw site.syntaxError("no function body");
 	} else if (bodyPos == 0) {
-		site.syntaxError("no return type specified");
+		throw site.syntaxError("no return type specified");
 	}
 
 	let retTypeExpr = buildTypeExpr(ts.splice(0, bodyPos));
-	let bodyExpr = buildValueExpr(ts.shift().assertGroup("{", 1).fields[0]);
+	let bodyExpr = buildValueExpr(assertDefined(ts.shift()).assertGroup("{", 1).fields[0]);
 
 	return new FuncLiteralExpr(site, args, retTypeExpr, bodyExpr);
 }
 
-// list of FuncArg
+/**
+ * @param {Group} parens 
+ * @returns {FuncArg[]}
+ */
 function buildFuncArgs(parens) {
+	/** @type {FuncArg[]} */
 	let args = [];
 
 	for (let f of parens.fields) {
 		let ts = f.slice();
 
-		let name = ts.shift().assertWord().assertNotKeyword();
+		let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
 		for (let prev of args) {
 			if (prev.name.toString() == name.toString()) {
-				name.syntaxError("duplicate arg name");
+				throw name.syntaxError("duplicate arg name");
 			}
 		}
 
-		ts.shift().assertSymbol(":");
+		assertDefined(ts.shift()).assertSymbol(":");
 
 		let typeExpr = buildTypeExpr(ts);
 
@@ -6085,16 +8977,21 @@ function buildFuncArgs(parens) {
 	return args;
 }
 
+/**
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {EnumStatement}
+ */
 function buildEnumStatement(site, ts) {
-	let name = ts.shift().assertWord().assertNotKeyword();
+	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
 	if (ts.length == 0) {
-		site.syntaxError("invalid syntax");
+		throw site.syntaxError("invalid syntax");
 	}
 
-	let t = ts.shift().assertGroup("{");
+	let t = assertDefined(ts.shift()).assertGroup("{");
 	if (t.fields.length == 0) {
-		t.syntaxError("invalid enum: expected at least one member");
+		throw t.syntaxError("invalid enum: expected at least one member");
 	}
 
 	// list of EnumMember
@@ -6103,14 +9000,14 @@ function buildEnumStatement(site, ts) {
 		let ts = f.slice();
 
 		if (ts.length == 0) {
-			t.syntaxError("empty enum member");
+			throw t.syntaxError("empty enum member");
 		}
 
 		let member = buildEnumMember(ts);
 
 		for (let m of members) {
 			if (m.name.toString() == member.name.toString()) {
-				member.name.referenceError("duplicate enum member");
+				throw member.name.referenceError("duplicate enum member");
 			}
 		}
 
@@ -6120,44 +9017,57 @@ function buildEnumStatement(site, ts) {
 	return new EnumStatement(site, name, members);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {EnumMember}
+ */
 function buildEnumMember(ts) {
-	let name = ts.shift().assertWord().assertNotKeyword();
+	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
-	let braces = ts.shift().assertGroup("{");
+	let braces = assertDefined(ts.shift()).assertGroup("{");
 
 	let fields = buildDataFields(braces);
 
 	if (ts.length != 0) {
-		ts[0].syntaxError("invalid enum member syntax");
+		throw ts[0].syntaxError("invalid enum member syntax");
 	}
 
 	return new EnumMember(name, fields);
 }
 
+/**
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {ImplStatement}
+ */
 function buildImplStatement(site, ts) {
 	let bracesPos = Group.find(ts, "{");
 	if (bracesPos == -1) {
-		site.synaxError("invalid impl syntax");
+		throw site.syntaxError("invalid impl syntax");
 	}
 
 	let typeExpr = buildTypeExpr(ts.splice(0, bracesPos));
-	if (!( (typeExpr instanceof TypeRefExpr) || (typeExpr instanceof TypePathExpr))) {
-		typeExpr.syntaxError("invalid impl syntax");
+	if (!((typeExpr instanceof TypeRefExpr) || (typeExpr instanceof TypePathExpr))) {
+		throw typeExpr.syntaxError("invalid impl syntax");
 	}
 
-	let braces = ts.shift().assertGroup("{", 1);
+	let braces = assertDefined(ts.shift()).assertGroup("{", 1);
 
 	let statements = buildImplMembers(braces.fields[0]);
 
 	return new ImplStatement(site, typeExpr, statements);
 }
 
-// returns list of statements
+/**
+ * @param {Token[]} ts 
+ * @returns {(ConstStatement | FuncStatement)[]}
+ */
 function buildImplMembers(ts) {
+	/** @type {(ConstStatement | FuncStatement)[]} */
 	let statements = [];
 
 	while (ts.length != 0) {
-		let t = ts.shift().assertWord();
+		let t = assertDefined(ts.shift()).assertWord();
 		let kw = t.value;
 		let s;
 
@@ -6166,7 +9076,7 @@ function buildImplMembers(ts) {
 		} else if (kw == "func") {
 			s = buildFuncStatement(t.site, ts);
 		} else {
-			t.syntaxError("invalid impl syntax");
+			throw t.syntaxError("invalid impl syntax");
 		}
 
 		statements.push(s);
@@ -6175,6 +9085,10 @@ function buildImplMembers(ts) {
 	return statements
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {TypeExpr}
+ */
 function buildTypeExpr(ts) {
 	assert(ts.length > 0);
 
@@ -6191,83 +9105,118 @@ function buildTypeExpr(ts) {
 	} else if (ts[0].isWord()) {
 		return buildTypeRefExpr(ts);
 	} else {
-		ts[0].syntaxError("invalid type syntax")
+		throw ts[0].syntaxError("invalid type syntax")
 	}
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {ListTypeExpr}
+ */
 function buildListTypeExpr(ts) {
-	let brackets = ts.shift().assertGroup("[", 0);
+	let brackets = assertDefined(ts.shift()).assertGroup("[", 0);
 
 	let itemTypeExpr = buildTypeExpr(ts);
 
 	return new ListTypeExpr(brackets.site, itemTypeExpr);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {MapTypeExpr}
+ */
 function buildMapTypeExpr(ts) {
-	let kw = ts.shift().assertWord("Map");
+	let kw = assertDefined(ts.shift()).assertWord("Map");
 
-	let keyTypeExpr = buildTypeExpr(ts.shift().assertGroup("[", 1).fields[0]);
+	let keyTypeExpr = buildTypeExpr(assertDefined(ts.shift()).assertGroup("[", 1).fields[0]);
 
 	let valueTypeExpr = buildTypeExpr(ts);
 
 	return new MapTypeExpr(kw.site, keyTypeExpr, valueTypeExpr);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {OptionTypeExpr}
+ */
 function buildOptionTypeExpr(ts) {
-	let kw = ts.shift().assertWord("Option");
+	let kw = assertDefined(ts.shift()).assertWord("Option");
 
-	let someTypeExpr = buildTypeExpr(ts.shift().assertGroup("[", 1).fields[0]);
+	let someTypeExpr = buildTypeExpr(assertDefined(ts.shift()).assertGroup("[", 1).fields[0]);
 
 	if (ts.length > 0) {
-		ts[0].syntaxError("invalid type syntax");
+		throw ts[0].syntaxError("invalid type syntax");
 	}
 
 	return new OptionTypeExpr(kw.site, someTypeExpr);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {FuncTypeExpr}
+ */
 function buildFuncTypeExpr(ts) {
-	let parens = ts.shift().assertGroup("(");
+	let parens = assertDefined(ts.shift()).assertGroup("(");
 
 	let argTypes = parens.fields.map(f => buildTypeExpr(f.slice()));
-	
-	ts.shift().assertSymbol("->");
+
+	assertDefined(ts.shift()).assertSymbol("->");
 
 	let retType = buildTypeExpr(ts);
 
 	return new FuncTypeExpr(parens.site, argTypes, retType);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {TypePathExpr}
+ */
 function buildTypePathExpr(ts) {
-	let baseName = ts.shift().assertWord().assertNotKeyword();
+	let baseName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
-	let symbol = ts.shift().assertSymbol("::");
+	let symbol = assertDefined(ts.shift()).assertSymbol("::");
 
-	let memberName = ts.shift().assertWord();
+	let memberName = assertDefined(ts.shift()).assertWord();
 
 	if (ts.length > 0) {
-		ts[0].syntaxError("invalid type syntax");
+		throw ts[0].syntaxError("invalid type syntax");
 	}
 
 	return new TypePathExpr(symbol.site, baseName, memberName);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {TypeRefExpr}
+ */
 function buildTypeRefExpr(ts) {
-	let name = ts.shift().assertWord().assertNotKeyword();
+	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
 	if (ts.length > 0) {
-		ts[0].syntaxError("invalid type syntax");
+		throw ts[0].syntaxError("invalid type syntax");
 	}
 
 	return new TypeRefExpr(name);
 }
 
-function buildValueExpr(ts, prec) {
+/**
+ * @param {Token[]} ts 
+ * @param {number} prec 
+ * @returns {ValueExpr}
+ */
+function buildValueExpr(ts, prec = 0) {
 	assert(ts.length > 0);
 
 	// lower index in exprBuilders is lower precedence
+	/** @type {((ts: Token[], prev: number) => ValueExpr)[]} */
 	const exprBuilders = [
-		// 0: lowest precedence is assignment
-		function(ts_, prec_) {
+		/**
+		 * 0: lowest precedence is assignment
+		 * @param {Token[]} ts_ 
+		 * @param {number} prec_ 
+		 * @returns 
+		 */
+		function (ts_, prec_) {
 			return buildMaybeAssignOrPrintExpr(ts_, prec_);
 		},
 		makeBinaryExprBuilder('||'), // 1: logical or operator
@@ -6277,30 +9226,36 @@ function buildValueExpr(ts, prec) {
 		makeBinaryExprBuilder(['+', '-']), // 5: addition subtraction
 		makeBinaryExprBuilder(['*', '/', '%']), // 6: multiplication division remainder
 		makeUnaryExprBuilder(['!', '+', '-']), // 7: logical not, negate
-		// 8: variables or literal values chained with: (enum)member access, indexing and calling
-		function(ts_, prec_) {
+		/**
+		 * 8: variables or literal values chained with: (enum)member access, indexing and calling
+		 * @param {Token[]} ts_ 
+		 * @param {number} prec_ 
+		 * @returns 
+		 */
+		function (ts_, prec_) {
 			return buildChainedValueExpr(ts_, prec_);
 		}
 	];
 
-	if (prec == undefined) {
-		return buildValueExpr(ts, 0);
-	} else {
-		return exprBuilders[prec](ts, prec);
-	}
+	return exprBuilders[prec](ts, prec);
 }
 
+/**
+ * @param {Token[]} ts
+ * @param {number} prec
+ * @returns {ValueExpr}
+ */
 function buildMaybeAssignOrPrintExpr(ts, prec) {
 	let semicolonPos = Symbol.find(ts, ";");
-	
+
 	if (semicolonPos == -1) {
-		return buildValueExpr(ts, prec+1);
+		return buildValueExpr(ts, prec + 1);
 	} else {
 		let equalsPos = Symbol.find(ts, "=");
 		let printPos = Word.find(ts, "print");
 
 		if (equalsPos == -1 && printPos == -1) {
-			ts[semicolonPos].syntaxError("expected = or print to preceed ;");
+			throw ts[semicolonPos].syntaxError("expected '=', or 'print', before ';'");
 		}
 
 		if (equalsPos != -1 && equalsPos < semicolonPos) {
@@ -6312,24 +9267,24 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 
 			let lts = ts.splice(0, equalsPos);
 
-			let name = lts.shift().assertWord().assertNotKeyword();
-			
+			let name = assertDefined(lts.shift()).assertWord().assertNotKeyword();
+
 			let typeExpr = null;
-			if (lts.length > 0 && lts.shift().isSymbol(":")) {
+			if (lts.length > 0 && assertDefined(lts.shift()).isSymbol(":")) {
 				typeExpr = buildTypeExpr(lts);
 			}
 
-			let equalsSite = ts.shift().assertSymbol("=").site;
+			let equalsSite = assertDefined(ts.shift()).assertSymbol("=").site;
 
 			semicolonPos = Symbol.find(ts, ";");
 			assert(semicolonPos != -1);
 
-			let upstreamExpr = buildValueExpr(ts.splice(0, semicolonPos), prec+1);
+			let upstreamExpr = buildValueExpr(ts.splice(0, semicolonPos), prec + 1);
 
-			let semicolonSite = ts.shift().assertSymbol(";").site;
+			let semicolonSite = assertDefined(ts.shift()).assertSymbol(";").site;
 
 			if (ts.length == 0) {
-				semicolonSite.syntaxError("expected expression after \';\'");
+				throw semicolonSite.syntaxError("expected expression after ';'");
 			}
 
 			let downstreamExpr = buildValueExpr(ts, prec);
@@ -6342,13 +9297,13 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 
 			assert(printPos < semicolonPos);
 
-			let site = ts.shift().assertWord("print").site;
+			let site = assertDefined(ts.shift()).assertWord("print").site;
 
-			let parens = ts.shift().assertGroup("(", 1);
+			let parens = assertDefined(ts.shift()).assertGroup("(", 1);
 
 			let msgExpr = buildValueExpr(parens.fields[0]);
 
-			ts.shift().assertSymbol(";");
+			assertDefined(ts.shift()).assertSymbol(";");
 
 			let downstreamExpr = buildValueExpr(ts, prec);
 
@@ -6359,77 +9314,94 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 	}
 }
 
-// returns a function!
+/**
+ * @param {string | string[]} symbol 
+ * @returns {(ts: Token[], prec: number) => ValueExpr}
+ */
 function makeBinaryExprBuilder(symbol) {
 	// default behaviour is left-to-right associative
-	return function(ts, prec) {
+	return function (ts, prec) {
 		let iOp = Symbol.findLast(ts, symbol);
 
 		if (iOp == ts.length - 1) {
 			// post-unary operator, which is invalid
-			ts[iOp].syntaxError(`invalid syntax, \'${ts[iOp].toString()}\' can't be used as a post-unary operator`);
+			throw ts[iOp].syntaxError(`invalid syntax, '${ts[iOp].toString()}' can't be used as a post-unary operator`);
 		} else if (iOp > 0) { // iOp == 0 means maybe a (pre)unary op, which is handled by a higher precedence
 			let a = buildValueExpr(ts.slice(0, iOp), prec);
-			let b = buildValueExpr(ts.slice(iOp+1), prec+1);
+			let b = buildValueExpr(ts.slice(iOp + 1), prec + 1);
 
-			return new BinaryExpr(ts[iOp], a, b);
+			return new BinaryExpr(ts[iOp].assertSymbol(), a, b);
 		} else {
-			return buildValueExpr(ts, prec+1);
+			return buildValueExpr(ts, prec + 1);
 		}
 	};
 }
 
+/**
+ * @param {string | string[]} symbol 
+ * @returns {(ts: Token[], prec: number) => ValueExpr}
+ */
 function makeUnaryExprBuilder(symbol) {
 	// default behaviour is right-to-left associative
-	return function(ts, prec) {
+	return function (ts, prec) {
 		if (ts[0].isSymbol(symbol)) {
 			let rhs = buildValueExpr(ts.slice(1), prec);
 
-			return new UnaryExpr(ts[0], rhs);
+			return new UnaryExpr(ts[0].assertSymbol(), rhs);
 		} else {
-			return buildValueExpr(ts, prec+1);
+			return buildValueExpr(ts, prec + 1);
 		}
 	}
 }
 
+/**
+ * @param {Token[]} ts 
+ * @param {number} prec 
+ * @returns {ValueExpr}
+ */
 function buildChainedValueExpr(ts, prec) {
+	/** @type {ValueExpr} */
 	let expr = buildChainStartValueExpr(ts);
 
 	// now we can parse the rest of the chaining
-	while(ts.length > 0) {
-		let t = ts.shift();
+	while (ts.length > 0) {
+		let t = assertDefined(ts.shift());
 
 		if (t.isGroup("(")) {
-			expr = new CallExpr(t.site, expr, buildCallArgs(t));
+			expr = new CallExpr(t.site, expr, buildCallArgs(t.assertGroup()));
 		} else if (t.isGroup("[")) {
-			t.syntaxError("invalid expression: [...]");
+			throw t.syntaxError("invalid expression '[...]'");
 		} else if (t.isSymbol(".")) {
-			let name = ts.shift().assertWord().assertNotKeyword();
+			let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
 			expr = new MemberExpr(t.site, expr, name);
 		} else if (t.isGroup("{")) {
-			t.syntaxError("invalid syntax");
+			throw t.syntaxError("invalid syntax");
 		} else if (t.isSymbol("::")) {
-			t.syntaxError("invalid syntax");
+			throw t.syntaxError("invalid syntax");
 		} else {
-			t.syntaxError(`invalid syntax: ${t.toString()} (${prec})`);
+			throw t.syntaxError(`invalid syntax '${t.toString()}'`);
 		}
 	}
 
 	return expr;
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {ValueExpr}
+ */
 function buildChainStartValueExpr(ts) {
 	if (ts.length > 1 && ts[0].isGroup("(") && ts[1].isSymbol("->")) {
 		return buildFuncLiteralExpr(ts);
 	} else if (ts[0].isWord("if")) {
 		return buildIfElseExpr(ts);
-	} else if (ts[0].isWord("switch")) {	
+	} else if (ts[0].isWord("switch")) {
 		return buildSwitchExpr(ts);
 	} else if (ts[0].isLiteral()) {
-		return new PrimitiveLiteralExpr(ts.shift()); // can simply be reused
+		return new PrimitiveLiteralExpr(assertDefined(ts.shift())); // can simply be reused
 	} else if (ts[0].isGroup("(")) {
-		return new ParensExpr(ts[0].site, buildValueExpr(ts.shift().assertGroup("(", 1).fields[0]));
+		return new ParensExpr(ts[0].site, buildValueExpr(assertDefined(ts.shift()).assertGroup("(", 1).fields[0]));
 	} else if (Group.find(ts, "{") != -1) {
 		if (ts[0].isGroup("[")) {
 			return buildListLiteralExpr(ts);
@@ -6439,66 +9411,76 @@ function buildChainStartValueExpr(ts) {
 	} else if (Symbol.find(ts, "::") != -1) {
 		return buildValuePathExpr(ts);
 	} else if (ts[0].isWord()) {
-		return new ValueRefExpr(ts.shift().assertWord().assertNotKeyword()); // can later be turned into a typeexpr
+		return new ValueRefExpr(assertDefined(ts.shift()).assertWord().assertNotKeyword()); // can later be turned into a typeexpr
 	} else {
-		t.syntaxError("invalid syntax");
+		throw ts[0].syntaxError("invalid syntax");
 	}
-
-	return expr;
 }
 
+/**
+ * @param {Group} parens 
+ * @returns {ValueExpr[]}
+ */
 function buildCallArgs(parens) {
 	return parens.fields.map(fts => buildValueExpr(fts));
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {IfElseExpr}
+ */
 function buildIfElseExpr(ts) {
-	let site = ts.shift().assertWord("if").site;
-	
+	let site = assertDefined(ts.shift()).assertWord("if").site;
+
 	let conditions = [];
 	let branches = [];
 	while (true) {
-		let parens = ts.shift().assertGroup("(");
-		let braces = ts.shift().assertGroup("{");
+		let parens = assertDefined(ts.shift()).assertGroup("(");
+		let braces = assertDefined(ts.shift()).assertGroup("{");
 
-		if (parens.fields_.length != 1) {
-			parens.syntaxError("expected single condition");
+		if (parens.fields.length != 1) {
+			throw parens.syntaxError("expected single if-else condition");
 		}
 
-		if (braces.fields_.length != 1) {
-			braces.syntaxError("expected single expession for branch block");
+		if (braces.fields.length != 1) {
+			throw braces.syntaxError("expected single if-else branch expession");
 		}
 
-		conditions.push(buildValueExpr(parens.fields_[0]));
-		branches.push(buildValueExpr(braces.fields_[0]));
+		conditions.push(buildValueExpr(parens.fields[0]));
+		branches.push(buildValueExpr(braces.fields[0]));
 
-		ts.shift().assertWord("else");
+		assertDefined(ts.shift()).assertWord("else");
 
-		let next = ts.shift();
+		let next = assertDefined(ts.shift());
 		if (next.isGroup("{")) {
 			// last group
-			let braces = next;
-			if (braces.fields_.length != 1) {
-				braces.syntaxError("expected single expession for if-else branch");
+			let braces = next.assertGroup();
+			if (braces.fields.length != 1) {
+				throw braces.syntaxError("expected single expession for if-else branch");
 			}
-			branches.push(buildValueExpr(braces.fields_[0]));
+			branches.push(buildValueExpr(braces.fields[0]));
 			break;
 		} else if (next.isWord("if")) {
 			continue;
 		} else {
-			next.syntaxError("unexpected token");
+			throw next.syntaxError("unexpected token");
 		}
 	}
 
 	return new IfElseExpr(site, conditions, branches);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {SwitchExpr}
+ */
 function buildSwitchExpr(ts) {
-	let site = ts.shift().assertWord("switch").site;
-	let parens = ts.shift().assertGroup("(", 1);
+	let site = assertDefined(ts.shift()).assertWord("switch").site;
+	let parens = assertDefined(ts.shift()).assertGroup("(", 1);
 
 	let expr = buildValueExpr(parens.fields[0]);
 
-	let braces = ts.shift().assertGroup("{", 1);
+	let braces = assertDefined(ts.shift()).assertGroup("{", 1);
 
 	let cases = [];
 	let def = null;
@@ -6508,17 +9490,17 @@ function buildSwitchExpr(ts) {
 	while (tsInner.length > 0) {
 		if (tsInner[0].isWord("case")) {
 			if (def != null) {
-				def.syntaxError("default select must come last");
+				throw def.syntaxError("default select must come last");
 			}
 			cases.push(buildSwitchCase(tsInner));
 		} else if (tsInner[0].isWord("default")) {
 			if (def != null) {
-				def.syntaxError("duplicate default");
+				throw def.syntaxError("duplicate default");
 			}
 
 			def = buildSwitchDefault(tsInner);
 		} else {
-			ts[0].syntaxError("invalid switch syntax");
+			throw ts[0].syntaxError("invalid switch syntax");
 		}
 	}
 
@@ -6527,9 +9509,9 @@ function buildSwitchExpr(ts) {
 	let set = new Set()
 	let base = null;
 	for (let c of cases) {
-		let t = c.typeExpr_.toString();
+		let t = c.typeExpr.toString();
 		if (set.has(t)) {
-			c.typeExpr_.syntaxError("duplicate case");
+			throw c.typeExpr.syntaxError("duplicate case");
 		}
 
 		set.add(t);
@@ -6538,111 +9520,141 @@ function buildSwitchExpr(ts) {
 		if (base == null) {
 			base = b;
 		} else if (base != b) {
-			c.typeExpr_.syntaxError("inconsistent enum name");
+			throw c.typeExpr.syntaxError("inconsistent enum name");
 		}
 	}
 
 	if (cases.length < 1) {
-		site.syntaxError("expected at least one case");
+		throw site.syntaxError("expected at least one case");
 	}
 
 	return new SwitchExpr(site, expr, cases, def);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {SwitchCase}
+ */
 function buildSwitchCase(ts) {
-	let site = ts.shift().assertWord("case").site;
+	let site = assertDefined(ts.shift()).assertWord("case").site;
 
 	let varName = null;
 	let typeExpr;
 	if (ts[0].isGroup("(")) {
-		let parens = ts.shift().assertGroup("(", 1);
+		let parens = assertDefined(ts.shift()).assertGroup("(", 1);
 		let pts = parens.fields[0];
 		if (pts.length < 5) {
-			parens.syntaxError("invalid switch case syntax");
+			throw parens.syntaxError("invalid switch case syntax");
 		}
 
-		varName = pts.shift().assertWord().assertNotKeyword();
-		pts.shift().assertSymol(":");
+		varName = assertDefined(pts.shift()).assertWord().assertNotKeyword();
+		assertDefined(pts.shift()).assertSymbol(":");
 		typeExpr = buildTypeExpr(pts);
 
 	} else {
 		let bracesPos = Group.find(ts, "{");
 		if (bracesPos == -1) {
-			site.syntaxError("invalid switch case syntax");
+			throw site.syntaxError("invalid switch case syntax");
 		}
 
 		typeExpr = buildTypeExpr(ts.splice(0, bracesPos));
 	}
 
 	if (!(typeExpr instanceof TypePathExpr)) {
-		typeExpr.syntaxError(`invalid switch case type, expected an enum member type, got \'${typeExpr.toString()}\'`);
+		throw typeExpr.syntaxError(`invalid switch case type, expected an enum member type, got '${typeExpr.toString()}'`);
 	}
 
-	let braces = ts.shift().assertGroup("{", 1);
+	let braces = assertDefined(ts.shift()).assertGroup("{", 1);
 	let bodyExpr = buildValueExpr(braces.fields[0]);
 
 	return new SwitchCase(site, varName, typeExpr, bodyExpr);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {SwitchDefault}
+ */
 function buildSwitchDefault(ts) {
-	let site = ts.shift().assertWord("default").site;
-	let braces = ts.shift().assertGroup("{", 1);
+	let site = assertDefined(ts.shift()).assertWord("default").site;
+	let braces = assertDefined(ts.shift()).assertGroup("{", 1);
 	let bodyExpr = buildValueExpr(braces.fields[0]);
 
 	return new SwitchDefault(site, bodyExpr);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {ListLiteralExpr}
+ */
 function buildListLiteralExpr(ts) {
-	let site = ts.shift().assertGroup("[", 0);
+	let site = assertDefined(ts.shift()).assertGroup("[", 0).site;
 
 	let bracesPos = Group.find(ts, "{");
 
 	if (bracesPos == -1) {
-		site.syntaxError("invalid list literal expression syntax");
+		throw site.syntaxError("invalid list literal expression syntax");
 	}
 
 	let itemTypeExpr = buildTypeExpr(ts.splice(0, bracesPos));
 
-	let braces = ts.shift().assertGroup("{");
+	let braces = assertDefined(ts.shift()).assertGroup("{");
 
 	let itemExprs = braces.fields.map(fts => buildValueExpr(fts));
 
 	return new ListLiteralExpr(site, itemTypeExpr, itemExprs);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {StructLiteralExpr}
+ */
 function buildStructLiteralExpr(ts) {
 	let bracesPos = Group.find(ts, "{");
-	assert (bracesPos != -1);
+	assert(bracesPos != -1);
 
 	let typeExpr = buildTypeExpr(ts.splice(0, bracesPos));
 
-	let braces = ts.shift().assertGroup("{");
+	let braces = assertDefined(ts.shift()).assertGroup("{");
 
 	let fields = braces.fields.map(fts => buildStructLiteralField(fts));
 
 	return new StructLiteralExpr(typeExpr, fields);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {StructLiteralField}
+ */
 function buildStructLiteralField(ts) {
-	let name = ts.shift().assertWord().assertNotKeyword();
-	ts.shift().assertSymbol(":");
+	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	assertDefined(ts.shift()).assertSymbol(":");
 	let valueExpr = buildValueExpr(ts);
 
 	return new StructLiteralField(name, valueExpr);
 }
 
+/**
+ * @param {Token[]} ts 
+ * @returns {ValueExpr}
+ */
 function buildValuePathExpr(ts) {
 	let dcolonPos = Symbol.findLast(ts, "::");
 
 	assert(dcolonPos != -1);
 
+	let typeSite = assertDefined(ts[0]).site;
+
 	let typeExpr = buildTypeExpr(ts.splice(0, dcolonPos));
 
-	ts.shift().assertSymbol("::");
+	if (typeExpr instanceof TypePathExpr || typeExpr instanceof TypeRefExpr) {
+		assertDefined(ts.shift()).assertSymbol("::");
 
-	let memberName = ts.shift().assertWord().assertNotKeyword();
-
-	return new ValuePathExpr(typeExpr, memberName);
+		let memberName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	
+		return new ValuePathExpr(typeExpr, memberName);
+	} else {
+		throw typeSite.syntaxError("expected plain type or type path");	
+	}
 }
 
 
@@ -6650,17 +9662,24 @@ function buildValuePathExpr(ts) {
 // Section 12: Builtin types
 ////////////////////////////
 
+/**
+ * Builtin Int type
+ */
 class IntType extends BuiltinType {
 	constructor() {
 		super();
 	}
 
 	toString() {
-		return `Int`;
+		return "Int";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "__neg":
 			case "__pos":
 				return Value.new(new FuncType([], new IntType()));
@@ -6690,17 +9709,24 @@ class IntType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin bool type
+ */
 class BoolType extends BuiltinType {
 	constructor() {
 		super();
 	}
 
 	toString() {
-		return `Bool`;
+		return "Bool";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "and":
 			case "or":
 				return Value.new(new FuncType([new FuncType([], new BoolType()), new FuncType([], new BoolType())], new BoolType()));
@@ -6708,8 +9734,13 @@ class BoolType extends BuiltinType {
 				return super.getTypeMember(name);
 		}
 	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "__not":
 				return Value.new(new FuncType([], new BoolType()));
 			case "__and":
@@ -6729,6 +9760,9 @@ class BoolType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin string type
+ */
 class StringType extends BuiltinType {
 	constructor() {
 		super();
@@ -6738,8 +9772,12 @@ class StringType extends BuiltinType {
 		return "String";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "__add":
 				return Value.new(new FuncType([new StringType()], new StringType()));
 			case "encode_utf8":
@@ -6754,6 +9792,9 @@ class StringType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin bytearray type
+ */
 class ByteArrayType extends BuiltinType {
 	constructor() {
 		super();
@@ -6763,8 +9804,12 @@ class ByteArrayType extends BuiltinType {
 		return "ByteArray";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "__add":
 				return Value.new(new FuncType([new ByteArrayType()], new ByteArrayType()));
 			case "length":
@@ -6786,64 +9831,85 @@ class ByteArrayType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin list type
+ */
 class ListType extends BuiltinType {
+	#itemType;
+
+	/**
+	 * @param {Type} itemType 
+	 */
 	constructor(itemType) {
 		super();
-		this.itemType_ = itemType;
+		this.#itemType = itemType;
 	}
 
 	get itemType() {
-		return this.itemType_;
+		return this.#itemType;
 	}
 
 	toString() {
-		return "[]" + this.itemType_.toString();
+		return `[]${this.#itemType.toString()}`;
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns 
+	 */
 	isBaseOf(site, type) {
 		if (type instanceof ListType) {
-			 return this.itemType_.isBaseOf(site, type.itemType);
+			return this.#itemType.isBaseOf(site, type.itemType);
 		} else {
 			return false;
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "new":
-				return Value.new(new FuncType([new IntType(), this.itemType_], this));
+				return Value.new(new FuncType([new IntType(), this.#itemType], this));
 			default:
-				return supre.getTypeMember(name);
+				return super.getTypeMember(name);
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "__add":
 				return Value.new(new FuncType([this], this));
 			case "length":
 				return Value.new(new IntType());
 			case "head":
-				return Value.new(this.itemType_);
+				return Value.new(this.#itemType);
 			case "tail":
-				return Value.new(new ListType(this.itemType_));
+				return Value.new(new ListType(this.#itemType));
 			case "is_empty":
 				return Value.new(new FuncType([], new BoolType()));
 			case "get":
-				return Value.new(new FuncType([new IntType()], this.itemType_));
+				return Value.new(new FuncType([new IntType()], this.#itemType));
 			case "prepend":
-				return Value.new(new FuncType([this.itemType_], new ListType(this.itemType_)));
+				return Value.new(new FuncType([this.#itemType], new ListType(this.#itemType)));
 			case "any":
 			case "all":
-				return Value.new(new FuncType([new FuncType([this.itemType_], new BoolType())], new BoolType()));
+				return Value.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new BoolType()));
 			case "find":
-				return Value.new(new FuncType([new FuncType([this.itemType_], new BoolType())], this.itemType_));
+				return Value.new(new FuncType([new FuncType([this.#itemType], new BoolType())], this.#itemType));
 			case "filter":
-				return Value.new(new FuncType([new FuncType([this.itemType_], new BoolType())], new ListType(this.itemType_)));
+				return Value.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new ListType(this.#itemType)));
 			case "fold":
-				return new FoldFuncValue(this.itemType_);
+				return new FoldFuncValue(this.#itemType);
 			case "map":
-				return new MapFuncValue(this.itemType_);
+				return new MapFuncValue(this.#itemType);
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -6854,107 +9920,172 @@ class ListType extends BuiltinType {
 	}
 }
 
-// lst.fold and lst.map are the only parametric function we have at the moment, so instead developing a parametric type system we can just create a special class for these unique cases 
+/**
+ * A special func value with parametric arg types, returned of list.fold.
+ * Instead of creating special support for parametric function types we can just created these special classes (parametric types aren't expected to be needed a lot anyway)
+ */
 class FoldFuncValue extends FuncValue {
+	#itemType;
+
+	/**
+	 * @param {Type} itemType 
+	 */
 	constructor(itemType) {
-		super(null);
-		this.itemType_ = itemType;
+		super(new FuncType([new AnyType(), itemType], new AnyType())); // dummy FuncType
+		this.#itemType = itemType;
 	}
 
+	/**
+	 * @returns {Value}
+	 */
 	copy() {
-		return new FoldFuncValue(this.itemType_);
+		return new FoldFuncValue(this.#itemType);
 	}
 
 	toString() {
-		return `[a](a, (a, ${this.itemType_.toString()}) -> a) -> a`;
+		return `[a](a, (a, ${this.#itemType.toString()}) -> a) -> a`;
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
 	getType(site) {
-		site.typeError("can't get type of type parametric function");
+		throw site.typeError("can't get type of type parametric function");
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
 	isInstanceOf(site, type) {
-		site.typeError("can't determine if type parametric function is instanceof a type");
+		throw site.typeError("can't determine if type parametric function is instanceof a type");
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @param {Value[]} args 
+	 * @returns {Value}
+	 */
 	call(site, args) {
 		if (args.length != 2) {
-			site.typeError(`expected 2 arg(s), got ${args.length}`);
+			throw site.typeError(`expected 2 arg(s), got ${args.length}`);
 		}
 
 		let zType = args[1].getType(site);
 
-		let fnType = new FuncType([zType, this.itemType_], zType);
+		let fnType = new FuncType([zType, this.#itemType], zType);
 
 		if (!args[0].isInstanceOf(site, fnType)) {
-			site.typeError("wrong function type for fold");
+			throw site.typeError("wrong function type for fold");
 		}
 
 		return Value.new(zType);
 	}
 }
 
+/**
+ * A special func value with parametric arg types, returned of list.map.
+ */
 class MapFuncValue extends FuncValue {
+	#itemType;
+
+	/**
+	 * @param {Type} itemType 
+	 */
 	constructor(itemType) {
-		super(null);
-		this.itemType_ = itemType;
+		super(new FuncType([itemType], new AnyType())); // dummy
+		this.#itemType = itemType;
 	}
 
+	/**
+	 * @returns {Value}
+	 */
 	copy() {
-		return new MapFuncValue(this.itemType_);
+		return new MapFuncValue(this.#itemType);
 	}
 
 	toString() {
-		return `[a]((${this.itemType_.toString()}) -> a) -> []a`;
+		return `[a]((${this.#itemType.toString()}) -> a) -> []a`;
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
 	getType(site) {
-		site.typeError("can't get type of type parametric function");
+		throw site.typeError("can't get type of type parametric function");
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
 	isInstanceOf(site, type) {
-		site.typeError("can't determine if type parametric function is instanceof a type");
+		throw site.typeError("can't determine if type parametric function is instanceof a type");
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @param {Value[]} args 
+	 * @returns {Value}
+	 */
 	call(site, args) {
 		if (args.length != 1) {
-			site.typeError(`map expects 1 arg(s), got ${args.length})`);
+			throw site.typeError(`map expects 1 arg(s), got ${args.length})`);
 		}
 
-		let fnType = args[0].getType();
+		let fnType = args[0].getType(site);
 
-		if (!fnType instanceof FuncType) {
-			site.typeError("arg is not a func type");
+		if (!(fnType instanceof FuncType)) {
+			throw site.typeError("arg is not a func type");
+		} else {
+
+			if (fnType.nArgs != 1) {
+				throw site.typeError("func arg takes wrong number of args");
+			}
+
+			let retItemType = fnType.retType;
+			let testFuncType = new FuncType([this.#itemType], retItemType);
+
+			if (!fnType.isBaseOf(site, testFuncType)) {
+				throw site.typeError("bad map func");
+			}
+
+			return Value.new(new ListType(retItemType));
 		}
-
-		if (fnType.nArgs() != 1) {
-			site.typeError("func arg takes wrong number of args");
-		}
-
-		let retItemType = fnType.retType;
-		let testFuncType = new FuncType([this.itemType_], retItemType);
-
-		if (!fnType.isBaseOf(testFuncType)) {
-			site.typeError("bad map func");
-		}
-
-		return Value.new(new ListType(retItemType));
 	}
 }
 
+/**
+ * Builtin map type (in reality list of key-value pairs)
+ */
 class MapType extends BuiltinType {
+	#keyType;
+	#valueType;
+
+	/**
+	 * @param {Type} keyType 
+	 * @param {Type} valueType 
+	 */
 	constructor(keyType, valueType) {
 		super();
-		this.keyType_ = keyType;
-		this.valueType_ = valueType;
+		this.#keyType = keyType;
+		this.#valueType = valueType;
 	}
 
 	toString() {
-		return `Map[${this.keyType_.toString()}]${this.valueType_.toString()}`;
+		return `Map[${this.#keyType.toString()}]${this.#valueType.toString()}`;
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -6965,33 +10096,62 @@ class MapType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin option type
+ */
 class OptionType extends BuiltinType {
+	#someType;
+
+	/**
+	 * @param {Type} someType 
+	 */
 	constructor(someType) {
 		super();
-		this.someType_ = someType;
+		this.#someType = someType;
 	}
 
 	toString() {
-		return `Option[${this.someType_.toString()}]`;
+		return `Option[${this.#someType.toString()}]`;
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	nEnumMembers(site) {
+		return 2;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
 	isBaseOf(site, type) {
-		return (new OptionSomeType(this.someType_)).isBaseOf(type) || (new OptionNoneType(this.someType_)).isBaseOf(type);
+		return (new OptionSomeType(this.#someType)).isBaseOf(site, type) || (new OptionNoneType(this.#someType)).isBaseOf(site, type);
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "Some":
-				return new OptionSomeType(this.someType_);
+				return new OptionSomeType(this.#someType);
 			case "None":
-				return new OptionNoneType(this.someType_);
+				return new OptionNoneType(this.#someType);
 			default:
 				return super.getTypeMember(name);
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -7002,39 +10162,59 @@ class OptionType extends BuiltinType {
 	}
 }
 
+/**
+ * Member type of OptionType with some content
+ */
 class OptionSomeType extends BuiltinType {
+	#someType;
+
+	/**
+	 * @param {Type} someType 
+	 */
 	constructor(someType) {
 		super();
-		this.someType_ = someType;
+		this.#someType = someType;
 	}
 
 	toString() {
-		return `Option[${this.someType_.toString()}]::Some`;
+		return `Option[${this.#someType.toString()}]::Some`;
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "new":
-				return Value.new(new FuncType([this.someType_], this));
+				return Value.new(new FuncType([this.#someType], this));
 			case "cast":
-				return Value.new(new FuncType([new OptionType(this.someType_)], this));
+				return Value.new(new FuncType([new OptionType(this.#someType)], this));
 			default:
 				return super.getTypeMember(name)
 		}
 	}
-	
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "__eq": // more generic than __eq/__neq defined in BuiltinType
 			case "__neq":
-				return Value.new(new FuncType([new OptionType(this.someType_)], new BoolType()));
+				return Value.new(new FuncType([new OptionType(this.#someType)], new BoolType()));
 			case "value":
-				return this.someType_;
+				return this.#someType;
 			default:
 				return super.getInstanceMember(name);
 		}
 	}
-	
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
 	getConstrIndex(site) {
 		return 0;
 	}
@@ -7044,37 +10224,57 @@ class OptionSomeType extends BuiltinType {
 	}
 }
 
+/**
+ * Member type of OptionType with no content
+ */
 class OptionNoneType extends BuiltinType {
+	#someType;
+
+	/**
+	 * @param {Type} someType 
+	 */
 	constructor(someType) {
 		super();
-		this.someType_ = someType;
-	}
-	
-	toString() {
-		return `Option[${this.someType_.toString()}]::None`;
+		this.#someType = someType;
 	}
 
+	toString() {
+		return `Option[${this.#someType.toString()}]::None`;
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "new":
 				return Value.new(new FuncType([], this));
 			case "cast":
-				return Value.new(new FuncType([new OptionType(this.someType_)], this));
+				return Value.new(new FuncType([new OptionType(this.#someType)], this));
 			default:
 				return super.getTypeMember(name)
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "__eq": // more generic than __eq/__neq defined in BuiltinType
 			case "__neq":
-				return Value.new(new FuncType([new OptionType(this.someType_)], new BoolType()));
+				return Value.new(new FuncType([new OptionType(this.#someType)], new BoolType()));
 			default:
 				return super.getInstanceMember(name);
 		}
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
 	getConstrIndex(site) {
 		return 1;
 	}
@@ -7084,13 +10284,20 @@ class OptionNoneType extends BuiltinType {
 	}
 }
 
+/**
+ * Base type of other ValidatorHash etc. (all functionality is actually implemented here)
+ */
 class HashType extends BuiltinType {
 	constructor() {
 		super();
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "new":
 				return Value.new(new FuncType([new ByteArrayType()], this));
 			default:
@@ -7098,8 +10305,12 @@ class HashType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "show":
 				return Value.new(new FuncType([], new StringType()));
 			default:
@@ -7112,30 +10323,45 @@ class HashType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin PubKeyHash type
+ */
 class PubKeyHashType extends HashType {
 	toString() {
 		return "PubKeyHash";
 	}
 }
 
-class ValidatorHashType extends HashType{
+/**
+ * Builtin ValidatorHash type
+ */
+class ValidatorHashType extends HashType {
 	toString() {
 		return "ValidatorHash";
 	}
 }
 
-class MintingPolicyHashType extends HashType{
+/**
+ * Builtin MintingPolicyHash type
+ */
+class MintingPolicyHashType extends HashType {
 	toString() {
 		return "MintingPolicyHash";
 	}
 }
 
-class DatumHashType extends HashType{
+/**
+ * Builtin DatumHash type
+ */
+class DatumHashType extends HashType {
 	toString() {
 		return "DatumHash";
 	}
 }
 
+/**
+ * Builtin ScriptContext type
+ */
 class ScriptContextType extends BuiltinType {
 	constructor() {
 		super();
@@ -7145,8 +10371,12 @@ class ScriptContextType extends BuiltinType {
 		return "ScriptContext";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "tx":
 				return Value.new(new TxType());
 			case "get_spending_purpose_output_id":
@@ -7167,6 +10397,9 @@ class ScriptContextType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin Tx type
+ */
 class TxType extends BuiltinType {
 	constructor() {
 		super();
@@ -7176,8 +10409,12 @@ class TxType extends BuiltinType {
 		return "Tx";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "inputs":
 				return Value.new(new ListType(new TxInputType()));
 			case "outputs":
@@ -7195,7 +10432,7 @@ class TxType extends BuiltinType {
 			case "now":
 				return Value.new(new FuncType([], new TimeType()));
 			case "find_datum_hash":
-				return Value.new(new FuncType([new AnyType()], new DatumHashType()));
+				return Value.new(new FuncType([new AnyDataType()], new DatumHashType()));
 			case "outputs_sent_to":
 				return Value.new(new FuncType([new PubKeyHashType()], new ListType(new TxOutputType())));
 			case "outputs_locked_by":
@@ -7205,7 +10442,7 @@ class TxType extends BuiltinType {
 			case "value_locked_by":
 				return Value.new(new FuncType([new ValidatorHashType()], new MoneyValueType()));
 			case "value_locked_by_datum":
-				return Value.new(new FuncType([new ValidatorHashType(), new AnyType()], new MoneyValueType()));
+				return Value.new(new FuncType([new ValidatorHashType(), new AnyDataType()], new MoneyValueType()));
 			case "is_signed_by":
 				return Value.new(new FuncType([new PubKeyHashType()], new BoolType()));
 			default:
@@ -7218,6 +10455,9 @@ class TxType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin TxId type
+ */
 class TxIdType extends BuiltinType {
 	toString() {
 		return "TxId";
@@ -7228,13 +10468,20 @@ class TxIdType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin TxInput type
+ */
 class TxInputType extends BuiltinType {
 	toString() {
 		return "TxInput";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "output_id":
 				return Value.new(new TxOutputIdType());
 			case "output":
@@ -7249,13 +10496,20 @@ class TxInputType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin TxOutput type
+ */
 class TxOutputType extends BuiltinType {
 	toString() {
 		return "TxOutput";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "address":
 				return Value.new(new AddressType());
 			case "value":
@@ -7272,13 +10526,20 @@ class TxOutputType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin TxOutputId type
+ */
 class TxOutputIdType extends BuiltinType {
 	toString() {
 		return "TxOutputId";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "new":
 				return Value.new(new FuncType([new ByteArrayType(), new IntType()], new TxOutputIdType()));
 			default:
@@ -7291,13 +10552,20 @@ class TxOutputIdType extends BuiltinType {
 	}
 }
 
+/**
+ * Buitin Address type
+ */
 class AddressType extends BuiltinType {
 	toString() {
 		return "Address";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "credential":
 				return Value.new(new CredentialType());
 			case "staking_credential":
@@ -7312,13 +10580,20 @@ class AddressType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin Credential type
+ */
 class CredentialType extends BuiltinType {
 	toString() {
 		return "Credential";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "PubKey":
 				return new CredentialPubKeyType();
 			case "Validator":
@@ -7333,13 +10608,20 @@ class CredentialType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin Credential::PubKey
+ */
 class CredentialPubKeyType extends BuiltinType {
 	toString() {
 		return "Credential::PubKey";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "cast":
 				return Value.new(new FuncType([new CredentialType()], this));
 			default:
@@ -7347,8 +10629,12 @@ class CredentialPubKeyType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "__eq":
 			case "__neq":
 				return Value.new(new FuncType([new CredentialType()], new BoolType()));
@@ -7359,6 +10645,10 @@ class CredentialPubKeyType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
 	getConstrIndex(site) {
 		return 0;
 	}
@@ -7368,13 +10658,20 @@ class CredentialPubKeyType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin Credential::Validator type
+ */
 class CredentialValidatorType extends BuiltinType {
 	toString() {
 		return "Credential::Validator";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "cast":
 				return Value.new(new FuncType([new CredentialType()], this));
 			default:
@@ -7382,8 +10679,12 @@ class CredentialValidatorType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "__eq":
 			case "__neq":
 				return Value.new(new FuncType([new CredentialType()], new BoolType()));
@@ -7394,6 +10695,10 @@ class CredentialValidatorType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @returns 
+	 */
 	getConstrIndex(site) {
 		return 1;
 	}
@@ -7403,6 +10708,9 @@ class CredentialValidatorType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin StakingCredential type
+ */
 class StakingCredentialType extends BuiltinType {
 	toString() {
 		return "StakingCredential";
@@ -7413,22 +10721,33 @@ class StakingCredentialType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin Time type
+ */
 class TimeType extends BuiltinType {
 	toString() {
 		return "Time";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "new":
 				return Value.new(new FuncType([new IntType()], this));
 			default:
-				return super.getTypeMember();
+				return super.getTypeMember(name);
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "__add":
 				return Value.new(new FuncType([new DurationType()], new TimeType()));
 			case "__sub":
@@ -7450,22 +10769,33 @@ class TimeType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin Duration type
+ */
 class DurationType extends BuiltinType {
 	toString() {
 		return "Duration";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "new":
 				return Value.new(new FuncType([new IntType()], this));
 			default:
-				return super.getTypeMember();
+				return super.getTypeMember(name);
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "__add":
 			case "__sub":
 			case "__mod":
@@ -7482,19 +10812,26 @@ class DurationType extends BuiltinType {
 				return super.getInstanceMember(name);
 		}
 	}
-	
+
 	get path() {
 		return "__helios__duration";
 	}
 }
 
+/**
+ * Builtin TimeRange type
+ */
 class TimeRangeType extends BuiltinType {
 	toString() {
 		return "TimeRange";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "get_start":
 				return Value.new(new FuncType([], new TimeType()));
 			default:
@@ -7507,13 +10844,20 @@ class TimeRangeType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin AssetClass type
+ */
 class AssetClassType extends BuiltinType {
 	toString() {
 		return "AssetClass";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "ADA":
 				return Value.new(new AssetClassType());
 			case "new":
@@ -7528,13 +10872,21 @@ class AssetClassType extends BuiltinType {
 	}
 }
 
+/**
+ * Builtin (Money)Value type
+ * Named MoneyValue here to avoid confusion with the Value class
+ */
 class MoneyValueType extends BuiltinType {
 	toString() {
 		return "Value";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
 	getTypeMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "ZERO":
 				return Value.new(new MoneyValueType());
 			case "lovelace":
@@ -7546,8 +10898,12 @@ class MoneyValueType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
 	getInstanceMember(name) {
-		switch(name.value) {
+		switch (name.value) {
 			case "__add":
 			case "__sub":
 				return Value.new(new FuncType([new MoneyValueType()], new MoneyValueType()));
@@ -7575,61 +10931,97 @@ class MoneyValueType extends BuiltinType {
 // Section 13: Builtin low-level functions
 //////////////////////////////////////////
 
-// for collecting test coverage statistics
+/**
+ * For collecting test coverage statistics
+ * @type {?((name: string, count: number) => void)}
+ */
 var onNotifyRawUsage = null;
 
+/**
+ * Set the statistics collector (used by the test-suite)
+ * @param {(name: string, count: number) => void} callback 
+ */
 export function setRawUsageNotifier(callback) {
 	onNotifyRawUsage = callback;
 }
 
+/**
+ * Wrapper for a builtin function (written in IR)
+ */
 class RawFunc {
+	#name;
+	#definition;
+
+	/** @type {Set<string>} */
+	#dependencies;
+
+	/**
+	 * Construct a RawFunc, and immediately scan the definition for dependencies
+	 * @param {string} name 
+	 * @param {string} definition 
+	 */
 	constructor(name, definition) {
-		this.name_ = name;
+		this.#name = name;
 		assert(definition != undefined);
-		this.definition_ = definition;
-		this.dependencies_ = new Set();
+		this.#definition = definition;
+		this.#dependencies = new Set();
 
 		let re = new RegExp("__helios__[a-zA-Z_0-9]*", "g");
 
-		let matches = this.definition_.match(re);
+		let matches = this.#definition.match(re);
 
 		if (matches != null) {
 			for (let match of matches) {
-				this.dependencies_.add(match);
+				this.#dependencies.add(match);
 			}
 		}
 	}
 
 	get name() {
-		return this.name_;
+		return this.#name;
 	}
 
+	/**
+	 * Loads 'this.#dependecies' (if not already loaded), then load 'this'
+	 * @param {Map<string, RawFunc>} db 
+	 * @param {Map<string, IR>} dst 
+	 * @returns {void}
+	 */
 	load(db, dst) {
 		if (onNotifyRawUsage != null) {
-			onNotifyRawUsage(this.name_, 1);
+			onNotifyRawUsage(this.#name, 1);
 		}
 
-		if (dst.has(this.name_)) {
+		if (dst.has(this.#name)) {
 			return;
 		} else {
-			for (let dep of this.dependencies_) {
+			for (let dep of this.#dependencies) {
 				if (!db.has(dep)) {
 					throw new Error(`InternalError: dependency ${dep} is not a builtin`);
+				} else {
+					assertDefined(db.get(dep)).load(db, dst);
 				}
-
-				db.get(dep).load(db, dst);
 			}
 
-			dst.set(this.name_, new IR(replaceTabs(this.definition_)));
+			dst.set(this.#name, new IR(replaceTabs(this.#definition)));
 		}
 	}
 }
 
+/**
+ * Initializes the db containing all the builtin functions
+ * @returns {Map<string, RawFunc>}
+ */
 // only need to wrap these source in IR right at the very end
 function makeRawFunctions() {
+	/** @type {Map<string, RawFunc>} */
 	let db = new Map();
 
 	// local utility functions
+
+	/**
+	 * @param {RawFunc} fn 
+	 */
 	function add(fn) {
 		if (db.has(fn.name)) {
 			throw new Error(`builtin ${fn.name} duplicate`);
@@ -7637,13 +11029,24 @@ function makeRawFunctions() {
 		db.set(fn.name, fn);
 	}
 
+	/**
+	 * Adds basic auto members to a fully named type
+	 * @param {string} ns 
+	 */
 	function addEqNeqSerialize(ns) {
 		add(new RawFunc(`${ns}____eq`, "__helios__common____eq"));
 		add(new RawFunc(`${ns}____neq`, "__helios__common____neq"));
 		add(new RawFunc(`${ns}__serialize`, "__helios__common__serialize"));
 	}
-	
-	// dataExpr is a string
+
+	/**
+	 * Generates the IR needed to unwrap a PlutusCore constrData
+	 * @param {string} dataExpr
+	 * @param {number} iConstr 
+	 * @param {number} iField 
+	 * @param {string} errorExpr 
+	 * @returns {string}
+	 */
 	function unData(dataExpr, iConstr, iField, errorExpr = "__core__error(\"unexpected constructor index\")") {
 		let inner = "__core__sndPair(pair)";
 		for (let i = 0; i < iField; i++) {
@@ -7654,7 +11057,15 @@ function makeRawFunctions() {
 		return `(pair) -> {__core__ifThenElse(__core__equalsInteger(__core__fstPair(pair), ${iConstr}), () -> {__core__headList(${inner})}, () -> {${errorExpr}})()}(__core__unConstrData(${dataExpr}))`;
 	}
 
-	// dataExpr is a string
+	/**
+	 * Generates verbose IR for unwrapping a PlutusCore constrData.
+	 * If DEBUG === false then returns IR without print statement
+	 * @param {string} dataExpr
+	 * @param {string} constrName
+	 * @param {number} iConstr
+	 * @param {number} iField
+	 * @returns {string}
+	 */
 	function unDataVerbose(dataExpr, constrName, iConstr, iField) {
 		if (!DEBUG) {
 			return unData(dataExpr, iConstr, iField);
@@ -7662,12 +11073,19 @@ function makeRawFunctions() {
 			return unData(dataExpr, iConstr, iField, `__helios__common__verbose_error(__core__appendString("bad constr for ${constrName}, want ${iConstr.toString()} but got ", __helios__int__show(__core__fstPair(pair))()))`)
 		}
 	}
-	
+
+	/**
+	 * Generates IR for constructing a list.
+	 * By default the result is kept as list, and not converted to data
+	 * @param {string[]} args 
+	 * @param {boolean} toData 
+	 * @returns 
+	 */
 	function makeList(args, toData = false) {
 		let n = args.length;
 		let inner = "__core__mkNilData(())";
 
-		for (let i = n-1; i>= 0; i--) {
+		for (let i = n - 1; i >= 0; i--) {
 			inner = `__core__mkCons(${args[i]}, ${inner})`;
 		}
 
@@ -7680,11 +11098,11 @@ function makeRawFunctions() {
 
 
 	// Common builtins
-	add(new RawFunc("__helios__common__verbose_error", 
+	add(new RawFunc("__helios__common__verbose_error",
 	`(msg) -> {
 		__core__trace(msg, () -> {__core__error("")})()
 	}`));
-	add(new RawFunc("__helios__common__assert_constr_index", 
+	add(new RawFunc("__helios__common__assert_constr_index",
 	`(data, i) -> {
 		__core__ifThenElse(
 			__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), __core__unIData(i)),
@@ -7692,39 +11110,39 @@ function makeRawFunctions() {
 			() -> {__core__error("unexpected constructor index")}
 		)()
 	}`));
-	add(new RawFunc("__helios__common____identity", 
+	add(new RawFunc("__helios__common____identity",
 	`(self) -> {
 		() -> {
 			self
 		}
 	}`))
-	add(new RawFunc("__helios__common__identity", 
+	add(new RawFunc("__helios__common__identity",
 	`(self) -> {self}`));
-	add(new RawFunc("__helios__common__not", 
+	add(new RawFunc("__helios__common__not",
 	`(b) -> {
 		__core__ifThenElse(b, false, true)
 	}`));
-	add(new RawFunc("__helios__common____eq", 
+	add(new RawFunc("__helios__common____eq",
 	`(self) -> {
 		(other) -> {
 			__helios__common__boolData(__core__equalsData(self, other))
 		}
 	}`));
-	add(new RawFunc("__helios__common____neq", 
+	add(new RawFunc("__helios__common____neq",
 	`(self) -> {
 		(other) -> {
 			__helios__common__boolData(__helios__common__not(__core__equalsData(self, other)))
 		}
 	}`));
-	add(new RawFunc("__helios__common__serialize", 
+	add(new RawFunc("__helios__common__serialize",
 	`(self) -> {
 		() -> {__core__serialize(self)}
 	}`));
-	add(new RawFunc("__helios__common__is_in_bytearray_list", 
+	add(new RawFunc("__helios__common__is_in_bytearray_list",
 	`(lst, key) -> {
 		__helios__list__any(__core__listData(lst))((item) -> {__core__equalsByteString(item, key)})
 	}`));
-	add(new RawFunc("__helios__common__unBoolData", 
+	add(new RawFunc("__helios__common__unBoolData",
 	`(d) -> {
 		__core__ifThenElse(
 			__core__equalsInteger(__core__fstPair(__core__unConstrData(d)), 0), 
@@ -7732,15 +11150,15 @@ function makeRawFunctions() {
 			true
 		)
 	}`));
-	add(new RawFunc("__helios__common__boolData", 
+	add(new RawFunc("__helios__common__boolData",
 	`(b) -> {
 		__core__constrData(__core__ifThenElse(b, 1, 0), __core__mkNilData(()))
 	}`));
-	add(new RawFunc("__helios__common__unStringData", 
+	add(new RawFunc("__helios__common__unStringData",
 	`(d) -> {
 		__core__decodeUtf8(__core__unBData(d))
 	}`));
-	add(new RawFunc("__helios__common__stringData", 
+	add(new RawFunc("__helios__common__stringData",
 	`(s) -> {
 		__core__bData(__core__encodeUtf8(s))
 	}`));
@@ -7748,7 +11166,7 @@ function makeRawFunctions() {
 
 	// Int builtins
 	addEqNeqSerialize("__helios__int");
-	add(new RawFunc("__helios__int____neg", 
+	add(new RawFunc("__helios__int____neg",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -7757,7 +11175,7 @@ function makeRawFunctions() {
 		}(__core__unIData(self))
 	}`));
 	add(new RawFunc("__helios__int____pos", "__helios__common____identity"));
-	add(new RawFunc("__helios__int____add", 
+	add(new RawFunc("__helios__int____add",
 	`(self) -> {
 		(a) -> {
 			(b) -> {
@@ -7765,7 +11183,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new RawFunc("__helios__int____sub", 
+	add(new RawFunc("__helios__int____sub",
 	`(self) -> {
 		(a) -> {
 			(b) -> {
@@ -7773,7 +11191,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new RawFunc("__helios__int____mul", 
+	add(new RawFunc("__helios__int____mul",
 	`(self) -> {
 		(a) -> {
 			(b) -> {
@@ -7781,7 +11199,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new RawFunc("__helios__int____div", 
+	add(new RawFunc("__helios__int____div",
 	`(self) -> {
 		(a) -> {
 			(b) -> {
@@ -7789,7 +11207,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new RawFunc("__helios__int____mod", 
+	add(new RawFunc("__helios__int____mod",
 	`(self) -> {
 		(a) -> {
 			(b) -> {
@@ -7797,7 +11215,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new RawFunc("__helios__int____geq", 
+	add(new RawFunc("__helios__int____geq",
 	`(self) -> {
 		(a) -> {
 			(b) -> {
@@ -7805,7 +11223,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new RawFunc("__helios__int____gt", 
+	add(new RawFunc("__helios__int____gt",
 	`(self) -> {
 		(a) -> {
 			(b) -> {
@@ -7813,7 +11231,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new RawFunc("__helios__int____leq", 
+	add(new RawFunc("__helios__int____leq",
 	`(self) -> {
 		(a) -> {
 			(b) -> {
@@ -7821,7 +11239,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new RawFunc("__helios__int____lt", 
+	add(new RawFunc("__helios__int____lt",
 	`(self) -> {
 		(a) -> {
 			(b) -> {
@@ -7829,7 +11247,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new RawFunc("__helios__int__to_bool", 
+	add(new RawFunc("__helios__int__to_bool",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -7837,7 +11255,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new RawFunc("__helios__int__to_hex", 
+	add(new RawFunc("__helios__int__to_hex",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -7868,7 +11286,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
-	add(new RawFunc("__helios__int__show", 
+	add(new RawFunc("__helios__int__show",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -7894,11 +11312,11 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
-	
+
 
 	// Bool builtins
 	addEqNeqSerialize("__helios__bool");
-	add(new RawFunc("__helios__bool__and", 
+	add(new RawFunc("__helios__bool__and",
 	`(a, b) -> {
 		__helios__common__boolData(
 			__core__ifThenElse(
@@ -7908,7 +11326,7 @@ function makeRawFunctions() {
 			)()
 		)
 	}`));
-	add(new RawFunc("__helios__bool__or", 
+	add(new RawFunc("__helios__bool__or",
 	`(a, b) -> {
 		__helios__common__boolData(
 			__core__ifThenElse(
@@ -7918,7 +11336,7 @@ function makeRawFunctions() {
 			)()
 		)
 	}`));
-	add(new RawFunc("__helios__bool____not", 
+	add(new RawFunc("__helios__bool____not",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -7926,7 +11344,7 @@ function makeRawFunctions() {
 			}
 		}(__helios__common__unBoolData(self))
 	}`));
-	add(new RawFunc("__helios__bool__to_int", 
+	add(new RawFunc("__helios__bool__to_int",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -7934,7 +11352,7 @@ function makeRawFunctions() {
 			}
 		}(__helios__common__unBoolData(self))
 	}`));
-	add(new RawFunc("__helios__bool__show", 
+	add(new RawFunc("__helios__bool__show",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -7942,11 +11360,11 @@ function makeRawFunctions() {
 			}
 		}(__helios__common__unBoolData(self))
 	}`));
-	
-	
+
+
 	// String builtins
 	addEqNeqSerialize("__helios__string");
-	add(new RawFunc("__helios__string____add", 
+	add(new RawFunc("__helios__string____add",
 	`(self) -> {
 		(self) -> {
 			(other) -> {
@@ -7954,17 +11372,17 @@ function makeRawFunctions() {
 			}
 		}(__helios__common__unStringData(self))
 	}`));
-	add(new RawFunc("__helios__string__encode_utf8", 
+	add(new RawFunc("__helios__string__encode_utf8",
 	`(self) -> {
 		(self) -> {
 			__core__bData(__core__encodeUtf8(self))
 		}(__helios__common__unStringData(self))
 	}`));
 
-	
+
 	// ByteArray builtins
 	addEqNeqSerialize("__helios__bytearray");
-	add(new RawFunc("__helios__bytearray____add", 
+	add(new RawFunc("__helios__bytearray____add",
 	`(self) -> {
 		(a) -> {
 			(b) -> {
@@ -7972,11 +11390,11 @@ function makeRawFunctions() {
 			}
 		}(__core__unBData(self))
 	}`));
-	add(new RawFunc("__helios__bytearray__length", 
+	add(new RawFunc("__helios__bytearray__length",
 	`(self) -> {
 		__core__iData(__core__lengthOfByteString(__core__unBData(self)))
 	}`));
-	add(new RawFunc("__helios__bytearray__sha2", 
+	add(new RawFunc("__helios__bytearray__sha2",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -7984,7 +11402,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unBData(self))
 	}`));
-	add(new RawFunc("__helios__bytearray__sha3", 
+	add(new RawFunc("__helios__bytearray__sha3",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -7992,7 +11410,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unBData(self))
 	}`));
-	add(new RawFunc("__helios__bytearray__blake2b", 
+	add(new RawFunc("__helios__bytearray__blake2b",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -8000,7 +11418,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unBData(self))
 	}`));
-	add(new RawFunc("__helios__bytearray__decode_utf8", 
+	add(new RawFunc("__helios__bytearray__decode_utf8",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -8008,7 +11426,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unBData(self))
 	}`));
-	add(new RawFunc("__helios__bytearray__show", 
+	add(new RawFunc("__helios__bytearray__show",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -8039,7 +11457,7 @@ function makeRawFunctions() {
 
 	// List builtins
 	addEqNeqSerialize("__helios__list");
-	add(new RawFunc("__helios__list__new", 
+	add(new RawFunc("__helios__list__new",
 	`(n, item) -> {
 		(recurse) -> {
 			__core__listData(recurse(recurse, __core__mkNilData(()), 0))
@@ -8053,7 +11471,7 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
-	add(new RawFunc("__helios__list____add", 
+	add(new RawFunc("__helios__list____add",
 	`(self) -> {
 		(a) -> {
 			(b) -> {
@@ -8073,7 +11491,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__length", 
+	add(new RawFunc("__helios__list__length",
 	`(self) -> {
 		(self) -> {
 			(recurse) -> {
@@ -8089,15 +11507,15 @@ function makeRawFunctions() {
 			)
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__head", 
+	add(new RawFunc("__helios__list__head",
 	`(self) -> {
 		__core__headList(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__tail", 
+	add(new RawFunc("__helios__list__tail",
 	`(self) -> {
 		__core__listData(__core__tailList(__core__unListData(self)))
 	}`));
-	add(new RawFunc("__helios__list__is_empty", 
+	add(new RawFunc("__helios__list__is_empty",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -8105,7 +11523,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__get", 
+	add(new RawFunc("__helios__list__get",
 	`(self) -> {
 		(self) -> {
 			(index) -> {
@@ -8133,7 +11551,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__any", 
+	add(new RawFunc("__helios__list__any",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -8157,7 +11575,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__all", 
+	add(new RawFunc("__helios__list__all",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -8181,7 +11599,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__prepend", 
+	add(new RawFunc("__helios__list__prepend",
 	`(self) -> {
 		(self) -> {
 			(item) -> {
@@ -8189,7 +11607,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__find", 
+	add(new RawFunc("__helios__list__find",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -8213,7 +11631,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__filter", 
+	add(new RawFunc("__helios__list__filter",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -8237,7 +11655,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__fold", 
+	add(new RawFunc("__helios__list__fold",
 	`(self) -> {
 		(self) -> {
 			(fn, z) -> {
@@ -8255,7 +11673,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__map", 
+	add(new RawFunc("__helios__list__map",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -8278,7 +11696,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	
+
 
 	// Map builtins
 	addEqNeqSerialize("__helios__map");
@@ -8287,26 +11705,26 @@ function makeRawFunctions() {
 	// Option builtins
 	addEqNeqSerialize("__helios__option");
 	addEqNeqSerialize("__helios__option__some");
-	add(new RawFunc("__helios__option__some__new", 
+	add(new RawFunc("__helios__option__some__new",
 	`(data) -> {
 		__core__constrData(0, ${makeList(["data"])})
 	}`));
-	add(new RawFunc("__helios__option__some__cast", 
+	add(new RawFunc("__helios__option__some__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 0)
 	}`));
-	add(new RawFunc("__helios__option__some__value", 
+	add(new RawFunc("__helios__option__some__value",
 	`(self) -> {
 		() -> {
 			${unData("self", 0, 0)}
 		}
 	}`));
 	addEqNeqSerialize("__helios__option__none");
-	add(new RawFunc("__helios__option__none__new", 
+	add(new RawFunc("__helios__option__none__new",
 	`() -> {
 		__core__constrData(1, ${makeList([])})
 	}`));
-	add(new RawFunc("__helios__option__none__cast", 
+	add(new RawFunc("__helios__option__none__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 1)
 	}`));
@@ -8320,17 +11738,17 @@ function makeRawFunctions() {
 
 	// ScriptContext builtins
 	addEqNeqSerialize("__helios__scriptcontext");
-	add(new RawFunc("__helios__scriptcontext__tx", 
+	add(new RawFunc("__helios__scriptcontext__tx",
 	`(self) -> {
 		${unData("self", 0, 0)}
 	}`));
-	add(new RawFunc("__helios__scriptcontext__get_spending_purpose_output_id", 
+	add(new RawFunc("__helios__scriptcontext__get_spending_purpose_output_id",
 	`(self) -> {
 		() -> {
-			${unData(unData(0, 1), 1, 0)}
+			${unData(unData("self", 0, 1), 1, 0)}
 		}
 	}`));
-	add(new RawFunc("__helios__scriptcontext__get_current_validator_hash", 
+	add(new RawFunc("__helios__scriptcontext__get_current_validator_hash",
 	`(self) -> {
 		() -> {
 			__helios__credential__validator__hash(
@@ -8346,13 +11764,13 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__scriptcontext__get_current_minting_policy_hash", 
+	add(new RawFunc("__helios__scriptcontext__get_current_minting_policy_hash",
 	`(self) -> {
 		() -> {
 			${unData(unData("self", 0, 1), 0, 0)}
 		}
 	}`));
-	add(new RawFunc("__helios__scriptcontext__get_current_input", 
+	add(new RawFunc("__helios__scriptcontext__get_current_input",
 	`(self) -> {
 		(id) -> {
 			__helios__list__find(__helios__tx__inputs(__helios__scriptcontext__tx(self)))(
@@ -8362,27 +11780,27 @@ function makeRawFunctions() {
 			)
 		}(__helios__scriptcontext__get_spending_purpose_output_id(ctx)())
 	}`));
-	
+
 
 	// Tx builtins
 	addEqNeqSerialize("__helios__tx");
-	add(new RawFunc("__helios__tx__inputs", 
+	add(new RawFunc("__helios__tx__inputs",
 	`(self) -> {
 		${unData("self", 0, 0)}
 	}`));
-	add(new RawFunc("__helios__tx__outputs", 
+	add(new RawFunc("__helios__tx__outputs",
 	`(self) -> {
 		${unData("self", 0, 1)}
 	}`));
-	add(new RawFunc("__helios__tx__fee", 
+	add(new RawFunc("__helios__tx__fee",
 	`(self) -> {
 		${unData("self", 0, 2)}
 	}`));
-	add(new RawFunc("__helios__tx__minted", 
+	add(new RawFunc("__helios__tx__minted",
 	`(self) -> {
 		${unData("self", 0, 3)}
 	}`));
-	add(new RawFunc("__helios__tx__time_range", 
+	add(new RawFunc("__helios__tx__time_range",
 	`(self) -> {
 		${unData("self", 0, 6)}
 	}`));
@@ -8390,17 +11808,21 @@ function makeRawFunctions() {
 	`(self) -> {
 		${unData("self", 0, 7)}
 	}`));
-	add(new RawFunc("__helios__tx__id", 
+	add(new RawFunc("__helios__tx__datums", // hidden getter, used by __helios__tx__find_datum_hash
+	`(self) -> {
+		${unData("self", 0, 8)}
+	}`))
+	add(new RawFunc("__helios__tx__id",
 	`(self) -> {
 		${unData("self", 0, 9)}
 	}`));
-	add(new RawFunc("__helios__tx__now", 
+	add(new RawFunc("__helios__tx__now",
 	`(self) -> {
 		() -> {
 			__helios__timerange__get_start(__helios__tx__time_range(self)())
 		}
 	}`));
-	add(new RawFunc("__helios__tx__find_datum_hash", 
+	add(new RawFunc("__helios__tx__find_datum_hash",
 	`(self) -> {
 		(datum) -> {
 			${unData(`__helios__list__find(__helios__tx__datums(self))(
@@ -8410,7 +11832,7 @@ function makeRawFunctions() {
 			)`, 0, 0)}
 		}
 	}`));
-	add(new RawFunc("__helios__tx__outputs_sent_to", 
+	add(new RawFunc("__helios__tx__outputs_sent_to",
 	`(self) -> {
 		(hash) -> {
 			__helios__list__filter(__helios__tx__outputs(self))(
@@ -8437,7 +11859,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__tx__outputs_locked_by", 
+	add(new RawFunc("__helios__tx__outputs_locked_by",
 	`(self) -> {
 		(hash) -> {
 			__helios__list__filter(__helios__tx__outputs(self))(
@@ -8464,7 +11886,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__tx__value_sent_to", 
+	add(new RawFunc("__helios__tx__value_sent_to",
 	`(self) -> {
 		(hash) -> {
 			(outputs) -> {
@@ -8477,7 +11899,7 @@ function makeRawFunctions() {
 			}(__helios__tx__outputs_sent_to(self)(hash))
 		}
 	}`));
-	add(new RawFunc("__helios__tx__value_locked_by", 
+	add(new RawFunc("__helios__tx__value_locked_by",
 	`(self) -> {
 		(hash) -> {
 			(outputs) -> {
@@ -8490,7 +11912,7 @@ function makeRawFunctions() {
 			}(__helios__tx__outputs_locked_by(self)(hash))
 		}
 	}`));
-	add(new RawFunc("__helios__tx__value_locked_by_datum", 
+	add(new RawFunc("__helios__tx__value_locked_by_datum",
 	`(self) -> {
 		(hash, datum) -> {
 			(outputs, dhash) -> {
@@ -8509,7 +11931,7 @@ function makeRawFunctions() {
 			}(__helios__tx__outputs_locked_by(self)(hash), __helios__tx__find_datum_hash(self)(datum))
 		}
 	}`));
-	add(new RawFunc("__helios__tx__is_signed_by", 
+	add(new RawFunc("__helios__tx__is_signed_by",
 	`(self) -> {
 		(hash) -> {
 			__helios__list__any(__helios__tx__signatories(self))(
@@ -8527,13 +11949,13 @@ function makeRawFunctions() {
 
 	// TxInput builtins
 	addEqNeqSerialize("__helios__txinput");
-	add(new RawFunc("__helios__txinput__output_id", 
+	add(new RawFunc("__helios__txinput__output_id",
 	`(self) -> {
 		() -> {
 			${unData("self", 0, 0)}
 		}
 	}`));
-	add(new RawFunc("__helios__txinput__output", 
+	add(new RawFunc("__helios__txinput__output",
 	`(self) -> {
 		() -> {
 			${unData("self", 0, 1)}
@@ -8543,25 +11965,25 @@ function makeRawFunctions() {
 
 	// TxOutput builtins
 	addEqNeqSerialize("__helios__txoutput");
-	add(new RawFunc("__helios__txoutput__address", 
+	add(new RawFunc("__helios__txoutput__address",
 	`(self) -> {
 		() -> {
 			${unData("self", 0, 0)}
 		}
 	}`));
-	add(new RawFunc("__helios__txoutput__value", 
+	add(new RawFunc("__helios__txoutput__value",
 	`(self) -> {
 		() -> {
 			${unData("self", 0, 1)}
 		}
 	}`));
-	add(new RawFunc("__helios__txoutput__datum_hash", 
+	add(new RawFunc("__helios__txoutput__datum_hash",
 	`(self) -> {
 		() -> {
 			${unData("self", 0, 2)}
 		}
 	}`));
-	add(new RawFunc("__helios__txoutput__get_datum_hash", 
+	add(new RawFunc("__helios__txoutput__get_datum_hash",
 	`(self) -> {
 		() -> {
 			(pair) -> {
@@ -8577,27 +11999,27 @@ function makeRawFunctions() {
 
 	// TxOutputId
 	addEqNeqSerialize("__helios__txoutputid");
-	add(new RawFunc("__helios__txoutputid__new", 
+	add(new RawFunc("__helios__txoutputid__new",
 	`(tx_id, idx) -> {
-		__core__constrData(0, ${makeList(`__core__constrData(0, ${makeList("tx_id")})`, "idx")})
+		__core__constrData(0, ${makeList([`__core__constrData(0, ${makeList(["tx_id"])})`, "idx"])})
 	}`));
 
 
 	// Address
 	addEqNeqSerialize("__helios__address");
-	add(new RawFunc("__helios__address__credential", 
+	add(new RawFunc("__helios__address__credential",
 	`(self) -> {
 		() -> {
 			${unData("self", 0, 0)}
 		}
 	}`));
-	add(new RawFunc("__helios__address__staking_credential", 
+	add(new RawFunc("__helios__address__staking_credential",
 	`(self) -> {
 		() -> {
 			${unData("self", 0, 0)}
 		}
 	}`));
-	add(new RawFunc("__helios__address__is_staked", 
+	add(new RawFunc("__helios__address__is_staked",
 	`(self) -> {
 		() -> {
 			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(${unData("self", 0, 1)})), 0))
@@ -8607,13 +12029,13 @@ function makeRawFunctions() {
 
 	// Credential builtins
 	addEqNeqSerialize("__helios__credential");
-	add(new RawFunc("__helios__credential__is_pubkey", 
+	add(new RawFunc("__helios__credential__is_pubkey",
 	`(self) -> {
 		() -> {
 			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 0)
 		}
 	}`));
-	add(new RawFunc("__helios__credential__is_validator", 
+	add(new RawFunc("__helios__credential__is_validator",
 	`(self) -> {
 		() -> {
 			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 1)
@@ -8623,11 +12045,11 @@ function makeRawFunctions() {
 
 	// Credential::PubKey builtins
 	addEqNeqSerialize("__helios__credential__pubkey");
-	add(new RawFunc("__helios__credential__pubkey__cast", 
+	add(new RawFunc("__helios__credential__pubkey__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 0)
 	}`));
-	add(new RawFunc("__helios__credential__pubkey__hash", 
+	add(new RawFunc("__helios__credential__pubkey__hash",
 	`(self) -> {
 		${unData("self", 0, 0)}
 	}`));
@@ -8635,15 +12057,15 @@ function makeRawFunctions() {
 
 	// Credential::Validator builtins
 	addEqNeqSerialize("__helios__credential__validator");
-	add(new RawFunc("__helios__credential__validator__cast", 
+	add(new RawFunc("__helios__credential__validator__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 1)
 	}`));
-	add(new RawFunc("__helios__credential__validator__hash", 
+	add(new RawFunc("__helios__credential__validator__hash",
 	`(self) -> {
 		${unData("self", 1, 0)}
 	}`));
-	
+
 
 	// StakingCredential builtins
 	addEqNeqSerialize("__helios__stakingcredential");
@@ -8673,11 +12095,11 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__duration____gt", `__helios__int____gt`));
 	add(new RawFunc("__helios__duration____leq", `__helios__int____leq`));
 	add(new RawFunc("__helios__duration____lt", `__helios__int____lt`));
-	
+
 
 	// TimeRange builtins
 	addEqNeqSerialize("__helios__timerange");
-	add(new RawFunc("__helios__timerange__get_start", 
+	add(new RawFunc("__helios__timerange__get_start",
 	`(self) -> {
 		() -> {
 			${unData(unData(unData("self", 0, 0), 0, 0), 1, 0)}
@@ -8688,7 +12110,7 @@ function makeRawFunctions() {
 	// AssetClass builtins
 	addEqNeqSerialize("__helios__assetclass");
 	add(new RawFunc("__helios__assetclass__ADA", `__helios__assetclass__new(__core__bData(#), __helios__common__stringData(""))`));
-	add(new RawFunc("__helios__assetclass__new", 
+	add(new RawFunc("__helios__assetclass__new",
 	`(mintingPolicyHash, tokenName) -> {
 		__core__constrData(0, ${makeList(["mintingPolicyHash", "tokenName"])})
 	}`));
@@ -8697,11 +12119,11 @@ function makeRawFunctions() {
 	// MoneyValue builtins
 	add(new RawFunc("__helios__value__serialize", "__helios__common__serialize"));
 	add(new RawFunc("__helios__value__ZERO", `__core__mapData(__core__mkNilPairData(()))`));
-	add(new RawFunc("__helios__value__lovelace", 
+	add(new RawFunc("__helios__value__lovelace",
 	`(i) -> {
 		__helios__value__new(__helios__assetclass__ADA, i)
 	}`));
-	add(new RawFunc("__helios__value__new", 
+	add(new RawFunc("__helios__value__new",
 	`(assetClass, i) -> {
 		(mintingPolicyHash, tokenName) -> {
 			__core__mapData(
@@ -8720,7 +12142,7 @@ function makeRawFunctions() {
 			)
 		}(${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})
 	}`));
-	add(new RawFunc("__helios__value__get_map_keys", 
+	add(new RawFunc("__helios__value__get_map_keys",
 	`(map) -> {
 		(recurse) -> {
 			recurse(recurse, map)
@@ -8733,8 +12155,8 @@ function makeRawFunctions() {
 				)()
 			}
 		)
-	}`));	
-	add(new RawFunc("__helios__value__merge_map_keys", 
+	}`));
+	add(new RawFunc("__helios__value__merge_map_keys",
 	`(a, b) -> {
 		(aKeys) -> {
 			(recurse) -> {
@@ -8758,8 +12180,8 @@ function makeRawFunctions() {
 			)
 		}(__helios__value__get_map_keys(a))
 	}`));
-	
-	add(new RawFunc("__helios__value__get_inner_map", 
+
+	add(new RawFunc("__helios__value__get_inner_map",
 	`(map, mph) -> {
 		(recurse) -> {
 			recurse(recurse, map)
@@ -8779,7 +12201,7 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
-	add(new RawFunc("__helios__value__get_inner_map_int", 
+	add(new RawFunc("__helios__value__get_inner_map_int",
 	`(map, key) -> {
 		(recurse) -> {
 			recurse(recurse, map, key)
@@ -8799,7 +12221,7 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
-	add(new RawFunc("__helios__value__add_or_subtract_inner", 
+	add(new RawFunc("__helios__value__add_or_subtract_inner",
 	`(op) -> {
 		(a, b) -> {
 			(recurse) -> {
@@ -8825,7 +12247,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__value__add_or_subtract", 
+	add(new RawFunc("__helios__value__add_or_subtract",
 	`(op, a, b) -> {
 		(a, b) -> {
 			(recurse) -> {
@@ -8851,7 +12273,7 @@ function makeRawFunctions() {
 			)
 		}(__core__unMapData(a), __core__unMapData(b))
 	}`));
-	add(new RawFunc("__helios__value__compare_inner", 
+	add(new RawFunc("__helios__value__compare_inner",
 	`(comp, a, b) -> {
 		(recurse) -> {
 			recurse(recurse, __helios__value__merge_map_keys(a, b))
@@ -8873,7 +12295,7 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
-	add(new RawFunc("__helios__value__compare", 
+	add(new RawFunc("__helios__value__compare",
 	`(comp, a, b) -> {
 		(a, b) -> {
 			(recurse) -> {
@@ -8903,37 +12325,37 @@ function makeRawFunctions() {
 			)
 		}(__core__unMapData(a), __core__unMapData(b))
 	}`));
-	add(new RawFunc("__helios__value____eq", 
+	add(new RawFunc("__helios__value____eq",
 	`(self) -> {
 		(other) -> {
 			__helios__value__compare((a, b) -> {__core__equalsInteger(a, b)}, self, other)
 		}
 	}`));
-	add(new RawFunc("__helios__value____neq", 
+	add(new RawFunc("__helios__value____neq",
 	`(self) -> {
 		(other) -> {
 			__helios__bool____not(__helios__value____eq(self)(other))()
 		}
 	}`));
-	add(new RawFunc("__helios__value____add", 
+	add(new RawFunc("__helios__value____add",
 	`(self) -> {
 		(other) -> {
 			__helios__value__add_or_subtract((a, b) -> {__core__addInteger(a, b)}, self, other)
 		}
 	}`));
-	add(new RawFunc("__helios__value____sub", 
+	add(new RawFunc("__helios__value____sub",
 	`(self) -> {
 		(other) -> {
 			__helios__value__add_or_subtract((a, b) -> {__core__subtractInteger(a, b)}, self, other)
 		}
 	}`));
-	add(new RawFunc("__helios__value____geq", 
+	add(new RawFunc("__helios__value____geq",
 	`(self) -> {
 		(other) -> {
 			__helios__value__compare((a, b) -> {__helios__common__not(__core__lessThanInteger(a, b))}, self, other)
 		}
 	}`));
-	add(new RawFunc("__helios__value____gt", 
+	add(new RawFunc("__helios__value____gt",
 	`(self) -> {
 		(other) -> {
 			__helios__bool__and(
@@ -8955,13 +12377,13 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__value____leq", 
+	add(new RawFunc("__helios__value____leq",
 	`(self) -> {
 		(other) -> {
 			__helios__value__compare((a, b) -> {__core__lessThanEqualsInteger(a, b)}, self, other)
 		}
 	}`));
-	add(new RawFunc("__helios__value____lt", 
+	add(new RawFunc("__helios__value____lt",
 	`(self) -> {
 		(other) -> {
 			__helios__bool__and(
@@ -8983,13 +12405,13 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__value__is_zero", 
+	add(new RawFunc("__helios__value__is_zero",
 	`(self) -> {
 		() -> {
 			__helios__common__boolData(__core__nullList(__core__unMapData(self)))
 		}
 	}`));
-	add(new RawFunc("__helios__value__get", 
+	add(new RawFunc("__helios__value__get",
 	`(self) -> {
 		(assetClass) -> {
 			(map, mintingPolicyHash, tokenName) -> {
@@ -9029,7 +12451,10 @@ function makeRawFunctions() {
 	return db;
 }
 
-
+/**
+ * @param {IR} ir 
+ * @returns {IR}
+ */
 function wrapWithRawFunctions(ir) {
 	let db = makeRawFunctions();
 
@@ -9042,7 +12467,7 @@ function wrapWithRawFunctions(ir) {
 
 	let re = new RegExp("__helios[a-zA-Z0-9_]*", "g");
 
-	let [_, src] = IR.generateSource(ir);
+	let [src, _] = ir.generateSource();
 
 	//console.log(src);
 
@@ -9057,15 +12482,14 @@ function wrapWithRawFunctions(ir) {
 					throw new Error(`builtin ${match} not found`);
 				}
 
-				let builtin = db.get(match);
+				let builtin = assertDefined(db.get(match));
 
 				builtin.load(db, map);
 			}
 		}
 	}
 
-
-	return TopScope.wrapWithDefinitions(ir, map);
+	return Program.wrapWithDefinitions(ir, map);
 }
 
 
@@ -9073,28 +12497,56 @@ function wrapWithRawFunctions(ir) {
 // Section 14: IR AST objects
 //////////////////////////////////
 
+/**
+ * Scope for IR names.
+ * Works like a stack of named values from which a Debruijn index can be derived
+ */
 class IRScope {
+	#parent;
+	/** variable name (can be empty if no usable variable defined at this level) */
+	#name;
+
+	/**
+	 * @param {?IRScope} parent 
+	 * @param {?Word} name 
+	 */
 	constructor(parent, name) {
-		this.parent_ = parent;
-		this.name_ = name;
+		this.#parent = parent;
+		this.#name = name;
 	}
 
+	/**
+	 * Calculates the Debruijn index of a named value. Internal method
+	 * @param {Word} name 
+	 * @param {number} index 
+	 * @returns {number}
+	 */
 	getInternal(name, index) {
-		if (this.name_.toString() == name.toString()) {
+		if (this.#name !== null && this.#name.toString() == name.toString()) {
 			return index;
-		} else if (this.parent_ == null || this.parent_ == undefined) {
-			let msg = `variable ${name.toString()} not found`;
-			name.referenceError(msg);
+		} else if (this.#parent === null) {
+			throw name.referenceError(`variable ${name.toString()} not found`);
 		} else {
-			return this.parent_.getInternal(name, index+1);
+			return this.#parent.getInternal(name, index + 1);
 		}
 	}
 
+	/**
+	 * Calculates the Debruijn index.
+	 * @param {Word} name 
+	 * @returns {number}
+	 */
 	get(name) {
 		// one-based
 		return this.getInternal(name, 1);
 	}
 
+	/**
+	 * Checks if a named builtin exists
+	 * @param {string} name 
+	 * @param {boolean} strict - if true then throws an error if builtin doesn't exist
+	 * @returns {boolean}
+	 */
 	static isBuiltin(name, strict = false) {
 		if (name.startsWith("__core")) {
 			if (strict) {
@@ -9106,60 +12558,113 @@ class IRScope {
 		}
 	}
 
+	/**
+	 * Returns index of a named builtin
+	 * Throws an error if builtin doesn't exist
+	 * @param {string} name 
+	 * @returns 
+	 */
 	static findBuiltin(name) {
-		let i = PLUTUS_CORE_BUILTINS.findIndex(info => {return "__core__" + info.name == name});
+		let i = PLUTUS_CORE_BUILTINS.findIndex(info => { return "__core__" + info.name == name });
 		assert(i != -1, `${name} is not a real builtin`);
 		return i;
 	}
 }
 
+/**
+ * Base class of all Intermediate Representation expressions
+ */
 class IRExpr {
+	#site;
+
+	/**
+	 * @param {Site} site 
+	 */
 	constructor(site) {
-		assert(site != undefined && site instanceof Site);
-		this.site_ = site;
+		this.#site = site;
 	}
 
 	get site() {
-		return this.site_;
+		return this.#site;
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {string}
+	 */
+	toString(indent = "") {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {IRScope} scope 
+	 */
+	link(scope) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @returns {PlutusCoreTerm}
+	 */
+	toPlutusCore() {
+		throw new Error("not yet implemented");
 	}
 }
 
 class IRFuncExpr extends IRExpr {
+	#argNames;
+	#body;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Word[]} argNames 
+	 * @param {IRExpr} body 
+	 */
 	constructor(site, argNames, body) {
 		super(site);
-		this.argNames_ = argNames;
-		this.body_ = body;
+		this.#argNames = argNames;
+		this.#body = body;
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {string}
+	 */
 	toString(indent = "") {
-		let s = "(" + this.argNames_.map(n => n.toString()).join(", ") + ") -> {\n" + indent + "  ";
-		s += this.body_.toString(indent + "  ");
+		let s = "(" + this.#argNames.map(n => n.toString()).join(", ") + ") -> {\n" + indent + "  ";
+		s += this.#body.toString(indent + "  ");
 		s += "\n" + indent + "}";
 
 		return s;
 	}
 
+	/**
+	 * @param {IRScope} scope 
+	 */
 	link(scope) {
-		if (this.argNames_.length == 0) {
-			scope = new IRScope(scope, "");
+		if (this.#argNames.length == 0) {
+			scope = new IRScope(scope, null);
 		} else {
-			for (let argName of this.argNames_) {
+			for (let argName of this.#argNames) {
 				scope = new IRScope(scope, argName);
 			}
 		}
 
-		this.body_.link(scope);
+		this.#body.link(scope);
 	}
 
+	/** 
+	 * @returns {PlutusCoreTerm}
+	 */
 	toPlutusCore() {
-		let term = this.body_.toPlutusCore();
+		let term = this.#body.toPlutusCore();
 
-		if (this.argNames_.length == 0) {
+		if (this.#argNames.length == 0) {
 			// must wrap at least once, even if there are no args
 			term = new PlutusCoreLambda(this.site, term);
 		} else {
-			for (let i = this.argNames_.length - 1; i >=0; i--) {
-				term = new PlutusCoreLambda(this.site, term, this.argNames_[i]);
+			for (let i = this.#argNames.length - 1; i >= 0; i--) {
+				term = new PlutusCoreLambda(this.site, term, this.#argNames[i].toString());
 			}
 		}
 
@@ -9167,48 +12672,86 @@ class IRFuncExpr extends IRExpr {
 	}
 }
 
+/**
+ * Intermediate Representation error call (with optional literal error message)
+ */
 class IRErrorCallExpr extends IRExpr {
+	#msg;
+
+	/**
+	 * @param {Site} site 
+	 * @param {string} msg 
+	 */
 	constructor(site, msg = "") {
 		super(site);
-		this.msg_ = msg;
+		this.#msg = msg;
 	}
 
-	toString(indent) {
+	/**
+	 * @param {string} indent 
+	 * @returns {string}
+	 */
+	toString(indent = "") {
 		return "error()";
 	}
 
+	/**
+	 * @param {IRScope} scope 
+	 */
 	link(scope) {
 	}
 
+	/**
+	 * @returns {PlutusCoreTerm}
+	 */
 	toPlutusCore() {
-		return new PlutusCoreError(this.site, this.msg_);
+		return new PlutusCoreError(this.site, this.#msg);
 	}
 }
 
+/**
+ * Intermediate Representation function call
+ */
 class IRCallExpr extends IRExpr {
+	#lhs;
+	#argExprs;
+	#parensSite;
+
+	/**
+	 * @param {IRExpr} lhs 
+	 * @param {IRExpr[]} argExprs 
+	 * @param {Site} parensSite 
+	 */
 	constructor(lhs, argExprs, parensSite) {
 		super(lhs.site);
 		assert(lhs != null);
-		this.lhs_ = lhs;
-		this.argExprs_ = argExprs;
-		this.parensSite_ = parensSite;
+		this.#lhs = lhs;
+		this.#argExprs = argExprs;
+		this.#parensSite = parensSite;
 	}
 
+	/**
+	 * @param {string} indent
+	 * @returns {string}
+	 */
 	toString(indent = "") {
-		return this.lhs_.toString(indent) + "(" + this.argExprs_.map(e => e.toString(indent)).join(", ") + ")";
+		return this.#lhs.toString(indent) + "(" + this.#argExprs.map(e => e.toString(indent)).join(", ") + ")";
 	}
 
 	isBuiltin() {
-		if (this.lhs_ instanceof IRVariable) {
-			return IRScope.isBuiltin(this.lhs_.name, true);
+		if (this.#lhs instanceof IRVariable) {
+			return IRScope.isBuiltin(this.#lhs.name, true);
 		} else {
 			return false;
 		}
 	}
 
+	/**
+	 * @returns {number}
+	 */
 	builtinForceCount() {
-		if (this.lhs_ instanceof IRVariable && IRScope.isBuiltin(this.lhs_.name)) {
-			let i = IRScope.findBuiltin(this.lhs_.name);
+		if (this.#lhs instanceof IRVariable && IRScope.isBuiltin(this.#lhs.name)) {
+			let i = IRScope.findBuiltin(this.#lhs.name);
 
 			let info = PLUTUS_CORE_BUILTINS[i];
 			return info.forceCount;
@@ -9217,35 +12760,45 @@ class IRCallExpr extends IRExpr {
 		}
 	}
 
+	/**
+	 * @param {IRScope} scope 
+	 */
 	link(scope) {
 		if (!this.isBuiltin()) {
-			this.lhs_.link(scope);
+			this.#lhs.link(scope);
 		}
 
-		for (let arg of this.argExprs_) {
+		for (let arg of this.#argExprs) {
 			arg.link(scope);
 		}
 	}
 
+	/**
+	 * @returns {PlutusCoreTerm}
+	 */
 	toPlutusCore() {
 		let term;
 		if (this.isBuiltin()) {
-			term = new PlutusCoreBuiltin(this.site, this.lhs_.name.slice("__core__".length));
+			if (this.#lhs instanceof IRVariable) {
+				term = new PlutusCoreBuiltin(this.site, this.#lhs.name.slice("__core__".length));
 
-			let nForce = this.builtinForceCount();
+				let nForce = this.builtinForceCount();
 
-			for (let i = 0; i < nForce; i++) {
-				term = new PlutusCoreForce(this.site, term);
+				for (let i = 0; i < nForce; i++) {
+					term = new PlutusCoreForce(this.site, term);
+				}
+			} else {
+				throw new Error("unexpected");
 			}
 		} else {
-			term = this.lhs_.toPlutusCore();
+			term = this.#lhs.toPlutusCore();
 		}
 
-		if (this.argExprs_.length == 0) {
+		if (this.#argExprs.length == 0) {
 			// a PlutusCore function call (aka function application) always requires a argument. In the zero-args case this is the unit value
-			term = new PlutusCoreCall(this.site, term, new PlutusCoreUnit(this.parensSite_));
+			term = new PlutusCoreCall(this.site, term, PlutusCoreUnit.newTerm(this.#parensSite));
 		} else {
-			for (let arg of this.argExprs_) {
+			for (let arg of this.#argExprs) {
 				term = new PlutusCoreCall(this.site, term, arg.toPlutusCore());
 			}
 		}
@@ -9254,33 +12807,110 @@ class IRCallExpr extends IRExpr {
 	}
 }
 
+/**
+ * Intermediate Representation variable reference expression
+ */
 class IRVariable extends IRExpr {
+	#name;
+	/** @type {?number} - cached debruijn index */
+	#index;
+
+	/**
+	 * @param {Word} name 
+	 */
 	constructor(name) {
 		super(name.site);
 		assert(name.toString() != "_");
 		assert(!name.toString().startsWith("undefined"));
-		this.name_ = name;
-		this.index_ = null; // debruijn index
+		this.#name = name;
+		this.#index = null;
 	}
 
 	get name() {
-		return this.name_.toString();
+		return this.#name.toString();
 	}
 
-	toString() {
-		if (this.index_ == null) { 
-			return this.name_.toString();
+	/**
+	 * @param {string} indent 
+	 * @returns {string}
+	 */
+	toString(indent = "") {
+		if (this.#index == null) {
+			return this.#name.toString();
 		} else {
-			return this.name_.toString() + "[" + this.index_.toString() + "]";
+			return `${this.#name.toString()}[${this.#index.toString()}]`;
 		}
 	}
 
+	/**
+	 * @param {IRScope} scope 
+	 */
 	link(scope) {
-		this.index_ = scope.get(this.name_);
+		this.#index = scope.get(this.#name);
 	}
 
+	/**
+	 * @returns {PlutusCoreTerm}
+	 */
 	toPlutusCore() {
-		return new PlutusCoreVariable(this.site, new PlutusCoreInt(this.site, BigInt(this.index_), false));
+		if (this.#index === null) {
+			throw new Error("debruijn index not yet set");
+		} else {
+			return new PlutusCoreVariable(
+				this.site,
+				new PlutusCoreInt(this.site, BigInt(this.#index), false),
+			);
+		}
+	}
+}
+
+/**
+ * Intermediate Representation wrapper for literal tokens
+ */
+class IRLiteral extends IRExpr {
+	#lit;
+
+	/**
+	 * @param {PrimitiveLiteral} lit 
+	 */
+	constructor(lit) {
+		super(lit.site);
+		this.#lit = lit;
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {string}
+	 */
+	toString(indent = "") {
+		return this.#lit.toString();
+	}
+
+	/**
+	 * Linking doesn't do anything for literals
+	 * @param {IRScope} scope 
+	 */
+	link(scope) {
+	}
+
+	/**
+	 * @returns {PlutusCoreTerm}
+	 */
+	toPlutusCore() {
+
+		if (this.#lit instanceof IntLiteral) {
+			return PlutusCoreInt.newSignedTerm(this.site, this.#lit.value);
+		} else if (this.#lit instanceof BoolLiteral) {
+			return PlutusCoreBool.newTerm(this.site, this.#lit.value);
+		} else if (this.#lit instanceof ByteArrayLiteral) {
+			return PlutusCoreByteArray.newTerm(this.site, this.#lit.bytes);
+		} else if (this.#lit instanceof StringLiteral) {
+			return PlutusCoreString.newTerm(this.site, this.#lit.value);
+		} else if (this.#lit instanceof UnitLiteral) {
+			return PlutusCoreUnit.newTerm(this.site);
+		} else {
+			throw new Error("unhandled literal type")
+		}
 	}
 }
 
@@ -9289,108 +12919,152 @@ class IRVariable extends IRExpr {
 // Section 15: IR AST build functions
 //////////////////////////////////////////
 
+/**
+ * Build Intermediate Representation top-level expression
+ * @param {Token[]} ts 
+ * @returns {IRExpr}
+ */
 function buildIRProgram(ts) {
 	let expr = buildIRExpr(ts);
 
 	assert(expr instanceof IRFuncExpr || expr instanceof IRCallExpr);
 
-	let scope = null;
-	expr.link(scope);
+	expr.link(new IRScope(null, null));
 
 	return expr;
 }
 
+/**
+ * Build an Intermediate Representation expression
+ * @param {Token[]} ts 
+ * @returns {IRExpr}
+ */
 function buildIRExpr(ts) {
+	/** @type {?IRExpr} */
 	let expr = null;
 
 	while (ts.length > 0) {
 		let t = ts.shift();
 
-		if (t.isGroup("(") && ts.length > 0 && ts[0].isSymbol("->")) {
-			assert(expr == null);
-
-			ts.unshift(t);
-			expr = buildIRFuncExpr(ts);
-		} else if (t.isGroup("(")) {
-			if (expr == null) {
-				if(t.fields.length == 1) {
-					expr = buildIRExpr(t.fields[0])
-				} else if (t.fields.length == 0) {
-					expr = new UnitLiteral(t.site);
-				} else {
-					t.synaxError("unexpected parentheses with multiple fields");
-				}
-			} else {
-				let args = [];
-				for (let f of t.fields) {
-					args.push(buildIRExpr(f));
-				}
-
-				expr = new IRCallExpr(expr, args, t.site);
-			}
-		} else if (t.isSymbol("-")) {
-			// only makes sense next to IntegerLiterals
-			let int = ts.shift();
-			assert(int instanceof IntLiteral);
-			expr = new IntLiteral(int.site, int.value_*(-1n));
-		} else if (t instanceof BoolLiteral) {
-			assert(expr == null);
-			expr = t;
-		} else if (t instanceof IntLiteral) {
-			assert(expr == null);
-			expr = t;
-		} else if (t instanceof ByteArrayLiteral) {
-			assert(expr == null);
-			expr = t;
-		} else if (t instanceof StringLiteral) {
-			assert(expr == null);
-			expr = t;
-		} else if (t.isWord("__core__error")) {
-			assert(expr == null);
-			let parens = ts.shift().assertGroup("(", 1);
-			let pts = parens.fields[0];
-
-			if (pts.length != 1) {
-				parens.syntaxError("error call expects a single literal string msg arg");
-			}
-
-			let msg = pts[0];
-			if (!(msg instanceof StringLiteral)) {
-				msg.syntaxError("error call expects literal string msg arg");
-			}
-			expr = new IRErrorCallExpr(t.site, msg.value);
-		} else if (t.isWord()) {
-			assert(expr == null);
-			expr = new IRVariable(t);
+		if (t === undefined) {
+			throw new Error("unexpected");
 		} else {
-			throw new Error("unhandled untyped token " + t.toString());
+			if (t.isGroup("(") && ts.length > 0 && ts[0].isSymbol("->")) {
+				assert(expr === null);
+
+				ts.unshift(t);
+
+				expr = buildIRFuncExpr(ts);
+			} else if (t.isGroup("(")) {
+				let group = t.assertGroup();
+
+				if (expr === null) {
+					if (group.fields.length == 1) {
+						expr = buildIRExpr(group.fields[0])
+					} else if (group.fields.length == 0) {
+						expr = new IRLiteral(new UnitLiteral(t.site));
+					} else {
+						group.syntaxError("unexpected parentheses with multiple fields");
+					}
+				} else {
+					let args = [];
+					for (let f of group.fields) {
+						args.push(buildIRExpr(f));
+					}
+
+					expr = new IRCallExpr(expr, args, t.site);
+				}
+			} else if (t.isSymbol("-")) {
+				// only makes sense next to IntegerLiterals
+				let int = assertDefined(ts.shift());
+				if (int instanceof IntLiteral) {
+					expr = new IRLiteral(new IntLiteral(int.site, int.value * (-1n)));
+				} else {
+					throw int.site.typeError(`expected literal int, got ${int}`);
+				}
+			} else if (t instanceof BoolLiteral) {
+				assert(expr == null);
+				expr = new IRLiteral(t);
+			} else if (t instanceof IntLiteral) {
+				assert(expr == null);
+				expr = new IRLiteral(t);
+			} else if (t instanceof ByteArrayLiteral) {
+				assert(expr == null);
+				expr = new IRLiteral(t);
+			} else if (t instanceof StringLiteral) {
+				assert(expr == null);
+				expr = new IRLiteral(t);
+			} else if (t.isWord("__core__error")) {
+				assert(expr === null);
+
+				let maybeGroup = ts.shift();
+				if (maybeGroup === undefined) {
+					throw t.site.syntaxError("expected parens after __core__error");
+				} else {
+					let parens = maybeGroup.assertGroup("(", 1);
+					let pts = parens.fields[0];
+
+					if (pts.length != 1) {
+						throw parens.syntaxError("error call expects a single literal string msg arg");
+					}
+
+					let msg = pts[0];
+					if (!(msg instanceof StringLiteral)) {
+						throw msg.syntaxError("error call expects literal string msg arg");
+					}
+					expr = new IRErrorCallExpr(t.site, msg.value);
+				}
+			} else if (t.isWord()) {
+				assert(expr == null);
+				expr = new IRVariable(t.assertWord());
+			} else {
+				throw new Error("unhandled untyped token " + t.toString());
+			}
 		}
 	}
 
-	assert(expr != null);
-	return expr;
+	if (expr === null) {
+		throw new Error("expr is null");
+	} else {
+		return expr;
+	}
 }
 
+/**
+ * Build an IR function expression
+ * @param {Token[]} ts 
+ * @returns {IRFuncExpr}
+ */
 function buildIRFuncExpr(ts) {
-	let parens = ts.shift().assertGroup("(");
-	ts.shift().assertSymbol("->");
-	let braces = ts.shift().assertGroup("{");
+	let maybeParens = ts.shift();
+	if (maybeParens === undefined) {
+		throw new Error("empty func expr");
+	} else {
+		let parens = maybeParens.assertGroup("(");
 
-	let argNames = [];
-	for (let f of parens.fields) {
-		assert(f.length == 1, "expected single word per arg");
-		argNames.push(f[0].assertWord());
+		assertDefined(ts.shift()).assertSymbol("->");
+		let braces = assertDefined(ts.shift()).assertGroup("{");
+
+		/**
+		 * @type {Word[]}
+		 */
+		let argNames = [];
+
+		for (let f of parens.fields) {
+			assert(f.length == 1, "expected single word per arg");
+			argNames.push(f[0].assertWord());
+		}
+
+		if (braces.fields.length > 1) {
+			throw braces.syntaxError("unexpected comma in function body")
+		} else if (braces.fields.length == 0) {
+			throw braces.syntaxError("empty function body")
+		}
+
+		let bodyExpr = buildIRExpr(braces.fields[0]);
+
+		return new IRFuncExpr(parens.site, argNames, bodyExpr)
 	}
-
-	if (braces.fields_.length > 1) {
-		braces.typeError("unexpected comma in function body")
-	} else if (braces.fields_.length == 0) {
-		braces.typeError("empty function body")
-	}
-
-	let bodyExpr = buildIRExpr(braces.fields[0]);
-
-	return new IRFuncExpr(parens.site, argNames, bodyExpr)
 }
 
 
@@ -9398,6 +13072,14 @@ function buildIRFuncExpr(ts) {
 // Section 16: Compiler user functions
 //////////////////////////////////////
 
+/**
+ * Substitutes template parameters ($WORD) in the source.
+ * Throws an error if some template parameters can't be found in the object
+ * @typedef {Object.<string, string>} TemplateParams
+ * @param {string} src 
+ * @param {TemplateParams} templateParameters 
+ * @returns 
+ */
 function preprocess(src, templateParameters) {
 	for (let key in templateParameters) {
 		let value = templateParameters[key];
@@ -9413,10 +13095,10 @@ function preprocess(src, templateParameters) {
 
 	let matches = src.match(re);
 
-	if (matches != null) {
-		for (let match of matches) { // how to get the position in the code?
+	if (matches !== null) {
+		matches.forEach((match) => {
 			throw UserError.syntaxError(new Source(src), match.index, `unsubstituted template parameter '${match[0]}'`);
-		}
+		});
 	}
 
 	return src;
@@ -9424,19 +13106,35 @@ function preprocess(src, templateParameters) {
 
 export const CompilationStage = {
 	Preprocess: 0,
-	Tokenize:   1,
-	BuildAST:   2,
-	IR:     	3,
+	Tokenize: 1,
+	BuildAST: 2,
+	IR: 3,
 	PlutusCore: 4,
-	Final:      5,
+	Final: 5,
 };
 
+/**
+ * @typedef {Object} CompilationConfig
+ * @property {boolean} verbose
+ * @property {TemplateParams} templateParameters
+ * @property {number} stage
+ */
+
+/**
+ * @type {CompilationConfig}
+ */
 const DEFAULT_CONFIG = {
 	verbose: false,
 	templateParameters: {},
 	stage: CompilationStage.Final,
 };
 
+/**
+ * Compiles Helios uptil several different stages.
+ * @param {string} typedSrc 
+ * @param {CompilationConfig} config 
+ * @returns {string | Token[] | Program | PlutusCoreProgram}
+ */
 function compileInternal(typedSrc, config) {
 	typedSrc = preprocess(typedSrc, config.templateParameters);
 
@@ -9464,7 +13162,7 @@ function compileInternal(typedSrc, config) {
 	program.eval(globalScope);
 	let ir = program.toIR();
 
-	let [codeMap, irSrc] = IR.generateSource(ir);
+	let [irSrc, codeMap] = ir.generateSource();
 
 	//console.log((new Source(irSrc)).pretty());
 
@@ -9479,20 +13177,24 @@ function compileInternal(typedSrc, config) {
 	if (config.stage == CompilationStage.PlutusCore) {
 		return plutusCoreProgram;
 	}
-	
+
 	assert(config.stage == CompilationStage.Final);
 
 	return plutusCoreProgram.serialize();
 }
 
-// if any error is caught null is returned
-// upon success [purpose, name] is returned
+/**
+ * Parses Helios quickly to extract the script purpose header.
+ * Returns null if header is missing or incorrectly formed (instead of throwing an error)
+ * @param {string} rawSrc 
+ * @returns {?[number, string]} - [purpose, name]
+ */
 export function extractScriptPurposeAndName(rawSrc) {
 	try {
 		let src = new Source(rawSrc);
 
 		let tokenizer = new Tokenizer(src);
-		
+
 		let gen = tokenizer.streamTokens();
 
 		// eat 3 tokens: `<purpose> <name>;`
@@ -9509,7 +13211,7 @@ export function extractScriptPurposeAndName(rawSrc) {
 		let [purpose, nameWord] = buildScriptPurpose(ts);
 
 		return [purpose, nameWord.value];
-	} catch(e) {
+	} catch (e) {
 		if (!(e instanceof UserError)) {
 			throw e;
 		} else {
@@ -9518,16 +13220,18 @@ export function extractScriptPurposeAndName(rawSrc) {
 	}
 }
 
-// config members:
-//    templateParameters
-//    stage (defaults to CompilationStage.Final)
-// compile() returns a different object depending on 'stage':
-//    Preprocess: substitute template parameters and return preprocessed string
-//    Tokenize:   parse source and return list of tokens
-//    BuildAST:   build AST and return top-level Program object
-//    IR:         performs type evaluation, returns IR program as string
-//    PlutusCore: build Plutus-Core program from IR program, returns top-level PlutusCoreProgram object
-//    Final:      encode Plutus-Core program in flat format and return JSON string containing cborHex representation of program
+/**
+ * Compiles a Helios source and returns different types depending on the chosen stage
+ *    Preprocess: substitute template parameters and return preprocessed string
+ *    Tokenize:   parse source and return list of tokens
+ *    BuildAST:   build AST and return top-level Program object
+ *    IR:         performs type evaluation, returns IR program as string
+ *    PlutusCore: build Plutus-Core program from IR program, returns top-level PlutusCoreProgram object
+ *    Final:      encode Plutus-Core program in flat format and return JSON string containing cborHex representation of program
+ * @param {string} typedSrc
+ * @param {CompilationConfig} config
+ * @returns {string | Token[] | Program | PlutusCoreProgram}
+ */
 export function compile(typedSrc, config = Object.assign({}, DEFAULT_CONFIG)) {
 	// additional checks of config
 	config.verbose = config.verbose || false;
@@ -9537,9 +13241,12 @@ export function compile(typedSrc, config = Object.assign({}, DEFAULT_CONFIG)) {
 	return compileInternal(typedSrc, config);
 }
 
-// run a test script (first word of script must be 'testing')
-// returns [result, messages], with messages :[string]
-// result can be an error
+/** 
+ * Runs a test script (first word of script must be 'testing')
+ * @param {string} typedSrc
+ * @param {CompilationConfig} config
+ * @returns {Promise<[PlutusCoreValue | UserError, string[]]>} - [result, messages]
+ */
 export async function run(typedSrc, config = DEFAULT_CONFIG) {
 	let program;
 
@@ -9547,7 +13254,7 @@ export async function run(typedSrc, config = DEFAULT_CONFIG) {
 		config.stage = CompilationStage.PlutusCore;
 
 		program = compileInternal(typedSrc, config);
-	} catch(e) {
+	} catch (e) {
 		if (!(e instanceof UserError)) {
 			throw e;
 		}
@@ -9555,20 +13262,23 @@ export async function run(typedSrc, config = DEFAULT_CONFIG) {
 		return [e, []];
 	}
 
-	assertDefined(program);
+	if (!(program instanceof PlutusCoreProgram)) {
+		throw new Error("unexpected");
+	} else {
+		/** @type {string[]} */
+		let messages = [];
 
-	let messages = [];
+		let result = await program.run({
+			onPrint: function (msg) {
+				return new Promise(function (resolve, _) {
+					messages.push(msg);
+					resolve();
+				});
+			}
+		});
 
-	let result = await program.run({
-		onPrint: function(msg) {
-			return new Promise(function (resolve, _) {
-				messages.push(msg);
-				resolve();
-			});
-		}
-	});
-
-	return [result, messages];
+		return [result, messages];
+	}
 }
 
 // TODO: use a special JSON schema instead
@@ -9600,19 +13310,37 @@ export async function run(typedSrc, config = DEFAULT_CONFIG) {
 // Section 17: Plutus-Core deserialization
 //////////////////////////////////////////
 
+/**
+ * PlutusCore deserializer creates a PlutusCore form an array of bytes
+ */
 class PlutusCoreDeserializer {
+	#view;
+	#pos;
+
+	/**
+	 * @param {number[]} bytes 
+	 */
 	constructor(bytes) {
-		this.view_    = new Uint8Array(bytes);
-		this.pos_     = 0; // bit position, not byte position
+		this.#view = new Uint8Array(bytes);
+		this.#pos = 0; // bit position, not byte position
 	}
 
+	/**
+	 * @param {string} category 
+	 * @returns {number}
+	 */
 	tagWidth(category) {
 		assert(category in PLUTUS_CORE_TAG_WIDTHS, `unknown tag category ${category.toString()}`);
 
 		return PLUTUS_CORE_TAG_WIDTHS[category];
 	}
 
-	// returns the integer id if id is out of range
+	/**
+	 * Returns the name of a known builtin
+	 * Returns the integer id if id is out of range (thus if the builtin is unknown)
+	 * @param {number} id
+	 * @returns {string | number}
+	 */
 	builtinName(id) {
 		let all = PLUTUS_CORE_BUILTINS;
 
@@ -9625,41 +13353,52 @@ class PlutusCoreDeserializer {
 		}
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	eof() {
-		return idiv(this.pos_, 8) >= this.view_.length;
+		return idiv(this.#pos, 8) >= this.#view.length;
 	}
 
-	// n is number of bits to be read
+	/**
+	 * Reads a number of bits (<= 8) and returns the result as an unsigned number
+	 * @param {number} n - number of bits to read
+	 * @returns {number}
+	 */
 	readBits(n) {
 		assert(n <= 8, "reading more than 1 byte");
-		assert(this.pos_ + n <= this.view_.length*8, "eof");
+		assert(this.#pos + n <= this.#view.length * 8, "eof");
 
 		// it is assumed we don't need to be at the byte boundary
 
-		let res =  0;
-		let i0  = this.pos_;
-		let old = this.pos_;
+		let res = 0;
+		let i0 = this.#pos;
+		let old = this.#pos;
 
-		for (let i = this.pos_ + 1; i <= this.pos_ + n; i++) {
-			if (i%8 == 0) {
+		for (let i = this.#pos + 1; i <= this.#pos + n; i++) {
+			if (i % 8 == 0) {
 				let nPart = i - i0;
 
-				res += imask(this.view_[idiv(i, 8)-1], i0%8, 8) << (n - nPart);
+				res += imask(this.#view[idiv(i, 8) - 1], i0 % 8, 8) << (n - nPart);
 
 				i0 = i;
-			} else if (i == this.pos_ + n) {
-				res += imask(this.view_[idiv(i, 8)], i0%8, i%8);
+			} else if (i == this.#pos + n) {
+				res += imask(this.#view[idiv(i, 8)], i0 % 8, i % 8);
 			}
 		}
 
-		this.pos_ += n;
+		this.#pos += n;
 
 		return res;
 	}
 
+	/**
+	 * Moves position to next byte boundary
+	 * @param {boolean} force - if true then move to next byte boundary if already at byte boundary
+	 */
 	moveToByteBoundary(force = false) {
-		if (this.pos_%8 != 0) {
-			let n = 8 - this.pos_%8;
+		if (this.#pos % 8 != 0) {
+			let n = 8 - this.#pos % 8;
 
 			void this.readBits(n);
 		} else if (force) {
@@ -9667,10 +13406,20 @@ class PlutusCoreDeserializer {
 		}
 	}
 
+	/**
+	 * Reads 8 bits
+	 * @returns {number}
+	 */
 	readByte() {
 		return this.readBits(8);
 	}
 
+	/**
+	 * Reads a PlutusCore list with a specified size per element
+	 * Calls itself recursively until the end of the list is reached
+	 * @param {number} elemSize 
+	 * @returns {number[]}
+	 */
 	readLinkedList(elemSize) {
 		// Cons and Nil constructors come from Lisp/Haskell
 		//  cons 'a' creates a linked list node,
@@ -9684,14 +13433,18 @@ class PlutusCoreDeserializer {
 		}
 	}
 
+	/**
+	 * Dumps remaining bits we #pos isn't yet at end.
+	 * This is intended for debugging use.
+	 */
 	dumpRemainingBits() {
 		if (!this.eof()) {
 			console.log("remaining bytes:");
-			for (let first = true, i = idiv(this.pos_, 8); i < this.view_.length; first = false, i++) {
-				if (first && this.pos_%8 != 0) {
-					console.log(byteToBitString(imask(this.view_[i], this.pos_%8, 8) << 8 - this.pos%7));
+			for (let first = true, i = idiv(this.#pos, 8); i < this.#view.length; first = false, i++) {
+				if (first && this.#pos % 8 != 0) {
+					console.log(byteToBitString(imask(this.#view[i], this.#pos % 8, 8) << 8 - this.#pos % 7));
 				} else {
-					console.log(byteToBitString(this.view_[i]));
+					console.log(byteToBitString(this.#view[i]));
 				}
 			}
 		} else {
@@ -9699,10 +13452,14 @@ class PlutusCoreDeserializer {
 		}
 	}
 
+	/**
+	 * Reads a single PlutusCoreTerm
+	 * @returns {PlutusCoreTerm}
+	 */
 	readTerm() {
 		let tag = this.readBits(this.tagWidth("term"));
 
-		switch(tag) {
+		switch (tag) {
 			case 0:
 				return this.readVariable();
 			case 1:
@@ -9724,20 +13481,11 @@ class PlutusCoreDeserializer {
 		}
 	}
 
-	readTypeList() {
-		return this.readLinkedList(this.tagWidth("constType"));
-	}
-
-	readConstant() {
-		let typeList = this.readTypeList();
-
-		let res = this.readTypedConstant(typeList);
-
-		assert(typeList.length == 0);
-
-		return res;
-	}
-
+	/**
+	 * Reads a single unbounded integer
+	 * @param {boolean} signed 
+	 * @returns {PlutusCoreInt}
+	 */
 	readInteger(signed = false) {
 		let bytes = [];
 
@@ -9759,75 +13507,10 @@ class PlutusCoreDeserializer {
 		return res;
 	}
 
-	readVariable() {
-		let index = this.readInteger()
-
-		return new PlutusCoreVariable(Site.dummy(), index);
-	}
-
-	readLambda() {
-		let rhs  = this.readTerm();
-
-		return new PlutusCoreLambda(Site.dummy(), rhs);
-	}
-
-	readCall() {
-		let a = this.readTerm();
-		let b = this.readTerm();
-
-		return new PlutusCoreCall(Site.dummy(), a, b);
-	}
-
-	readDelay() {
-		let expr = this.readTerm();
-
-		return new PlutusCoreDelay(Site.dummy(), expr);
-	}
-
-	readForce() {
-		let expr = this.readTerm();
-
-		return new PlutusCoreForce(Site.dummy(), expr);
-	}
-
-	readBuiltin() {
-		let id = this.readBits(this.tagWidth("builtin"));
-
-		let name = this.builtinName(id);
-
-		return new PlutusCoreBuiltin(Site.dummy(), name);
-	}
-
-	readTypedConstant(typeList) {
-		let type = assertDefined(typeList.shift());
-
-		let res;
-
-		assert(typeList.length == 0, "recursive types not yet handled");
-
-		switch(type) {
-			case 0: // signed Integer
-				res = this.readInteger(true);
-				break;
-			case 1: // bytearray
-				res = this.readByteArray();
-				break;
-			case 2: // utf8-string
-				res = this.readString();
-				break;
-			case 3:
-				res = new PlutusCoreUnit(Site.dumm()); // no reading needed
-				break;
-			case 4: // Bool
-				res = new PlutusCoreBool(Site.dummy(), this.readBits(1) == 1);
-				break;
-			default:
-				throw new Error("unhandled constant type " + type.toString());
-		}
-
-		return res;
-	}
-
+	/**
+	 * Reads bytearray or string characters
+	 * @returns {number[]}
+	 */
 	readChars() {
 		this.moveToByteBoundary(true);
 
@@ -9835,7 +13518,7 @@ class PlutusCoreDeserializer {
 
 		let nChunk = this.readByte();
 
-		while(nChunk > 0) {
+		while (nChunk > 0) {
 			for (let i = 0; i < nChunk; i++) {
 				bytes.push(this.readByte());
 			}
@@ -9846,12 +13529,20 @@ class PlutusCoreDeserializer {
 		return bytes;
 	}
 
+	/**
+	 * Reads a literal bytearray
+	 * @returns {PlutusCoreByteArray}
+	 */
 	readByteArray() {
 		let bytes = this.readChars();
 
 		return new PlutusCoreByteArray(Site.dummy(), bytes);
 	}
 
+	/**
+	 * Reads a literal string
+	 * @returns {PlutusCoreString}
+	 */
 	readString() {
 		let bytes = this.readChars();
 
@@ -9860,24 +13551,152 @@ class PlutusCoreDeserializer {
 		return new PlutusCoreString(Site.dummy(), s);
 	}
 
+	/**
+	 * Reads a variable term
+	 * @returns {PlutusCoreVariable}
+	 */
+	readVariable() {
+		let index = this.readInteger()
+
+		return new PlutusCoreVariable(Site.dummy(), index);
+	}
+
+	/**
+	 * Reads a lambda expression term
+	 * @returns {PlutusCoreLambda}
+	 */
+	readLambda() {
+		let rhs = this.readTerm();
+
+		return new PlutusCoreLambda(Site.dummy(), rhs);
+	}
+
+	/**
+	 * Reads a function application term
+	 * @returns {PlutusCoreCall}
+	 */
+	readCall() {
+		let a = this.readTerm();
+		let b = this.readTerm();
+
+		return new PlutusCoreCall(Site.dummy(), a, b);
+	}
+
+	/**
+	 * Reads a single constant
+	 * @returns {PlutusCoreConst}
+	 */
+	readConstant() {
+		let typeList = this.readLinkedList(this.tagWidth("constType"));
+
+		let res = this.readTypedConstant(typeList);
+
+		assert(typeList.length == 0);
+
+		return res;
+	}
+
+	/**
+	 * Reads a single constant (recursive types not yet handled)
+	 * @param {number[]} typeList 
+	 * @returns {PlutusCoreConst}
+	 */
+	readTypedConstant(typeList) {
+		let type = assertDefined(typeList.shift());
+
+		assert(typeList.length == 0, "recursive types not yet handled");
+
+		/** @type {PlutusCoreValue} */
+		let inner;
+
+		switch (type) {
+			case 0: // signed Integer
+				inner = this.readInteger();
+				break;
+			case 1: // bytearray
+				inner = this.readByteArray();
+				break;
+			case 2: // utf8-string
+				inner = this.readString();
+				break;
+			case 3:
+				inner = new PlutusCoreUnit(Site.dummy()); // no reading needed
+				break;
+			case 4: // Bool
+				inner = new PlutusCoreBool(Site.dummy(), this.readBits(1) == 1);
+				break;
+			default:
+				throw new Error("unhandled constant type " + type.toString());
+		}
+
+		return new PlutusCoreConst(inner);
+	}
+
+	/**
+	 * Reads a delay term
+	 * @returns {PlutusCoreDelay}
+	 */
+	readDelay() {
+		let expr = this.readTerm();
+
+		return new PlutusCoreDelay(Site.dummy(), expr);
+	}
+
+	/**
+	 * Reads a force term
+	 * @returns {PlutusCoreForce}
+	 */
+	readForce() {
+		let expr = this.readTerm();
+
+		return new PlutusCoreForce(Site.dummy(), expr);
+	}
+
+	/**
+	 * Reads a builtin function ref term
+	 * @returns {PlutusCoreBuiltin}
+	 */
+	readBuiltin() {
+		let id = this.readBits(this.tagWidth("builtin"));
+
+		let name = this.builtinName(id);
+
+		return new PlutusCoreBuiltin(Site.dummy(), name);
+	}
+
+	/**
+	 * Move to the next byteboundary
+	 * (and check that we are at the end)
+	 */
 	finalize() {
 		this.moveToByteBoundary(true);
 	}
 }
 
+/**
+ * Parses a plutus core program. Returns a PlutusCoreProgram object
+ * @param {string} jsonString 
+ * @returns {PlutusCoreProgram}
+ */
 export function deserializePlutusCore(jsonString) {
 	let obj = JSON.parse(jsonString);
 
-	if (! ("cborHex" in obj)) {
+	if (!("cborHex" in obj)) {
 		throw UserError.syntaxError(new Source(jsonString), 0, "cborHex field not in json")
 	}
 
 	let cborHex = obj.cborHex;
-	if (typeof cborHex != "string") {
-		throw UserError.syntaxError(new Source(jsonString), jsonString.match(/cborHex/).index, "cborHex not a string");
+	if (typeof cborHex !== "string") {
+		let src = new Source(jsonString);
+		let cborHexMatch = jsonString.match(/cborHex/);
+		if (cborHexMatch === null) {
+			throw UserError.syntaxError(src, 0, "'cborHex' key not found");
+		} else {
+			throw UserError.syntaxError(src, cborHexMatch[0].index, "cborHex not a string");
+		}
 	}
 
-	let bytes = unwrapCborBytes(unwrapCborBytes(hexToBytes(hexToString)));
+	let bytes = unwrapCborBytes(unwrapCborBytes(hexToBytes(cborHex)));
 
 	let reader = new PlutusCoreDeserializer(bytes);
 
