@@ -1720,6 +1720,7 @@ class PlutusCoreInt extends PlutusCoreValue {
 
 /**
  * UPLC ByteArray value class
+ * Wraps a regular list of uint8 numbers (so not Uint8Array)
  */
 class PlutusCoreByteArray extends PlutusCoreValue {
 	#bytes;
@@ -3105,7 +3106,8 @@ class IntData extends PlutusCoreData {
 }
 
 /**
- * UPLC bytearray data class
+ * UPLC bytearray data class.
+ * Wraps a regular list of uint8 numbers (so not Uint8Array)
  */
 class ByteArrayData extends PlutusCoreData {
 	#bytes;
@@ -13116,7 +13118,7 @@ function preprocess(src, templateParameters) {
 
 	if (matches !== null) {
 		matches.forEach((match) => {
-			throw UserError.syntaxError(new Source(src), match.index, `unsubstituted template parameter '${match[0]}'`);
+			throw UserError.syntaxError(new Source(src), src.search(re), `unsubstituted template parameter '${match[0]}'`);
 		});
 	}
 
@@ -13203,10 +13205,26 @@ function compileInternal(typedSrc, config) {
 }
 
 /**
+ * @param {number} id
+ * @returns {string}
+ */
+function getPurposeName(id) {
+	switch (id) {
+		case ScriptPurpose.Testing:
+			return "test";
+		case ScriptPurpose.Minting:
+			return "minting_policy";
+		case ScriptPurpose.Spending:
+			return "validator";
+		default:
+			throw new Error(`unhandled ScriptPurpose ${id}`);
+	}
+}
+/**
  * Parses Helios quickly to extract the script purpose header.
  * Returns null if header is missing or incorrectly formed (instead of throwing an error)
  * @param {string} rawSrc 
- * @returns {?[number, string]} - [purpose, name]
+ * @returns {?[string, string]} - [purpose, name]
  */
 export function extractScriptPurposeAndName(rawSrc) {
 	try {
@@ -13227,9 +13245,9 @@ export function extractScriptPurposeAndName(rawSrc) {
 			ts.push(yielded.value);
 		}
 
-		let [purpose, nameWord] = buildScriptPurpose(ts);
+		let [purposeId, nameWord] = buildScriptPurpose(ts);
 
-		return [purpose, nameWord.value];
+		return [getPurposeName(purposeId), nameWord.value];
 	} catch (e) {
 		if (!(e instanceof UserError)) {
 			throw e;
@@ -13707,11 +13725,12 @@ export function deserializePlutusCore(jsonString) {
 	let cborHex = obj.cborHex;
 	if (typeof cborHex !== "string") {
 		let src = new Source(jsonString);
-		let cborHexMatch = jsonString.match(/cborHex/);
+		let re = /cborHex/;
+		let cborHexMatch = jsonString.match(re);
 		if (cborHexMatch === null) {
 			throw UserError.syntaxError(src, 0, "'cborHex' key not found");
 		} else {
-			throw UserError.syntaxError(src, cborHexMatch[0].index, "cborHex not a string");
+			throw UserError.syntaxError(src, jsonString.search(re), "cborHex not a string");
 		}
 	}
 
