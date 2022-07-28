@@ -7396,7 +7396,6 @@ class SwitchExpr extends ValueExpr {
 
 		let n = cases.length;
 
-		// TODO: nice indentation
 		let res = last.toIR(indent + TAB + TAB + TAB);
 
 		for (let i = n - 1; i >= 0; i--) {
@@ -13179,7 +13178,7 @@ function compileInternal(typedSrc, config) {
 
 	let [irSrc, codeMap] = ir.generateSource();
 
-	//console.log((new Source(irSrc)).pretty());
+	console.log((new Source(irSrc)).pretty());
 
 	if (config.stage == CompilationStage.IR) {
 		return irSrc;
