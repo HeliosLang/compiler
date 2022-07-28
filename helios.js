@@ -7399,7 +7399,7 @@ class SwitchExpr extends ValueExpr {
 		// TODO: nice indentation
 		let res = last.toIR(indent + TAB + TAB + TAB);
 
-		for (let i = n - 2; i >= 0; i--) {
+		for (let i = n - 1; i >= 0; i--) {
 			res = new IR([
 				new IR(`__core__ifThenElse(__core__equalsInteger(i, ${cases[i].constrIndex.toString()}), () -> {`),
 				cases[i].toIR(indent + TAB + TAB + TAB),
