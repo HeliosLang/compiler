@@ -7650,14 +7650,6 @@ class DataDefinition extends NamedStatement {
 	}
 
 	/**
-	 * Evaluates own type and adds to scope
-	 * @param {TopScope} scope 
-	 */
-	eval(scope) {
-		scope.set(this.name, this.evalInternal(scope));
-	}
-
-	/**
 	 * Checks if 'name' is an auto member (eg. "__eq", "__neq", "serialize")
 	 * "__eq" and "__neq" aren't included here because they work a little different for structs vs enummembers
 	 * @param {Word} name 
@@ -7865,6 +7857,14 @@ class StructStatement extends DataDefinition {
 	}
 
 	/**
+	 * Evaluates own type and adds to scope
+	 * @param {TopScope} scope 
+	 */
+	 eval(scope) {
+		scope.set(this.name, this.evalInternal(scope));
+	}
+
+	/**
 	 * @param {Word} name 
 	 * @returns {boolean}
 	 */
@@ -8050,7 +8050,7 @@ class EnumMember extends DataDefinition {
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
-		super.eval(scope);
+		void super.evalInternal(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
 
 		if (this.#parent === null) {
 			throw new Error("parent should've been registered");
@@ -8288,7 +8288,8 @@ class EnumStatement extends NamedStatement {
 				throw name.referenceError(`${this.name.toString()}::${name.toString()} undefined`);
 			}
 		} else {
-			this.#membersUsed.add(name.toString())
+			this.#membersUsed.add(name.toString());
+
 			return this.#members[i].type;
 		}
 	}
@@ -9024,15 +9025,21 @@ function buildEnumStatement(site, ts) {
 function buildEnumMember(ts) {
 	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
-	let braces = assertDefined(ts.shift()).assertGroup("{");
+	let maybeBraces = ts.shift();
 
-	let fields = buildDataFields(braces);
+	if (maybeBraces === undefined) {
+		throw name.site.syntaxError("invalid enum member syntax");
+	} else {
+		let braces = maybeBraces.assertGroup("{");
 
-	if (ts.length != 0) {
-		throw ts[0].syntaxError("invalid enum member syntax");
+		let fields = buildDataFields(braces);
+
+		if (ts.length != 0) {
+			throw ts[0].syntaxError("invalid enum member syntax");
+		}
+
+		return new EnumMember(name, fields);
 	}
-
-	return new EnumMember(name, fields);
 }
 
 /**
@@ -9492,9 +9499,10 @@ function buildSwitchExpr(ts) {
 			if (def != null) {
 				throw def.syntaxError("default select must come last");
 			}
+
 			cases.push(buildSwitchCase(tsInner));
 		} else if (tsInner[0].isWord("default")) {
-			if (def != null) {
+			if (def !== null) {
 				throw def.syntaxError("duplicate default");
 			}
 
@@ -9576,10 +9584,17 @@ function buildSwitchCase(ts) {
  */
 function buildSwitchDefault(ts) {
 	let site = assertDefined(ts.shift()).assertWord("default").site;
-	let braces = assertDefined(ts.shift()).assertGroup("{", 1);
-	let bodyExpr = buildValueExpr(braces.fields[0]);
 
-	return new SwitchDefault(site, bodyExpr);
+	let maybeBraces = ts.shift();
+
+	if (maybeBraces === undefined) {
+		throw site.syntaxError("invalid switch default syntax");
+	} else {
+		let braces = maybeBraces.assertGroup("{", 1);
+		let bodyExpr = buildValueExpr(braces.fields[0]);
+
+		return new SwitchDefault(site, bodyExpr);
+	}
 }
 
 /**
