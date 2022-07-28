@@ -11799,7 +11799,7 @@ function makeRawFunctions() {
 					__helios__common__boolData(__core__equalsData(__helios__txinput__output_id(input), id))
 				}
 			)
-		}(__helios__scriptcontext__get_spending_purpose_output_id(ctx)())
+		}(__helios__scriptcontext__get_spending_purpose_output_id(self)())
 	}`));
 
 
