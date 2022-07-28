@@ -10932,6 +10932,7 @@ class MoneyValueType extends BuiltinType {
 			case "__gt":
 			case "__leq":
 			case "__lt":
+			case "contains":
 				return Value.new(new FuncType([new MoneyValueType()], new BoolType()));
 			case "is_zero":
 				return Value.new(new FuncType([], new BoolType()));
@@ -12376,6 +12377,7 @@ function makeRawFunctions() {
 			__helios__value__compare((a, b) -> {__helios__common__not(__core__lessThanInteger(a, b))}, self, other)
 		}
 	}`));
+	add(new RawFunc("__helios__value__contains", "__helios__value____geq"));
 	add(new RawFunc("__helios__value____gt",
 	`(self) -> {
 		(other) -> {
