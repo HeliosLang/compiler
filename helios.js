@@ -9790,7 +9790,11 @@ function buildChainStartValueExpr(ts) {
 	} else if (Symbol.find(ts, "::") != -1) {
 		return buildValuePathExpr(ts);
 	} else if (ts[0].isWord()) {
-		return new ValueRefExpr(assertDefined(ts.shift()).assertWord().assertNotKeyword()); // can later be turned into a typeexpr
+		if (ts[0].isWord("const") || ts[0].isWord("struct") || ts[0].isWord("enum") || ts[0].isWord("func")) {
+			throw ts[0].syntaxError(`invalid use of '${ts[0].assertWord().value}', can only be used at top-level`);
+		} else {
+			return new ValueRefExpr(assertDefined(ts.shift()).assertWord().assertNotKeyword()); // can later be turned into a typeexpr
+		}
 	} else {
 		throw ts[0].syntaxError("invalid syntax");
 	}
