@@ -65,7 +65,7 @@ async function runIntegrationTests() {
     async function runTestScript(src, expectedResult, expectedMessages) {
         let [purpose, name] = helios.extractScriptPurposeAndName(src);
     
-        if (purpose != helios.ScriptPurpose.Testing) {
+        if (purpose != "test") {
             throw new Error(`${name} is not a test script`);
         }
         
