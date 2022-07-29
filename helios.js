@@ -12628,7 +12628,7 @@ function makeRawFunctions() {
 										() -> {__core__mkCons(__core__mkPairData(key, __core__iData(sum)), tail)}
 									)()
 								}(op(__helios__value__get_inner_map_int(a, key), __helios__value__get_inner_map_int(b, key)))
-							}(__core__headList(keys), recurse(recurse, __core_tailList(keys), result))
+							}(__core__headList(keys), recurse(recurse, __core__tailList(keys), result))
 						}
 					)()
 				}
