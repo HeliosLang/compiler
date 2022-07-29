@@ -12260,7 +12260,7 @@ function makeRawFunctions() {
 									__core__equalsData(
 										hash, 
 										__helios__credential__validator__hash(
-											__helios__credential__validator__cast(cred)
+											__helios__credential__validator__cast(credential)
 										)
 									),
 									true,
