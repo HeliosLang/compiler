@@ -9611,54 +9611,82 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 
 		if (equalsPos != -1 && equalsPos < semicolonPos) {
 			if (printPos != -1) {
-				assert(printPos > semicolonPos);
+				if (printPos <= semicolonPos) {
+					throw ts[printPos].syntaxError("expected ';' after 'print(...)'");
+				}
 			}
 
-			assert(equalsPos < semicolonPos);
+			let equalsSite = ts[equalsPos].assertSymbol("=").site;
 
 			let lts = ts.splice(0, equalsPos);
 
-			let name = assertDefined(lts.shift()).assertWord().assertNotKeyword();
+			let maybeName = lts.shift();
+			if (maybeName === undefined) {
+				throw equalsSite.syntaxError("expected a name before '='");
+			} else {
+				let name = maybeName.assertWord().assertNotKeyword();
 
-			let typeExpr = null;
-			if (lts.length > 0 && assertDefined(lts.shift()).isSymbol(":")) {
-				typeExpr = buildTypeExpr(lts);
+				let typeExpr = null;
+				if (lts.length > 0) {
+					let colon = assertDefined(lts.shift()).assertSymbol(":");
+
+					if (lts.length == 0) {
+						colon.syntaxError("expected type expression after ':'");
+					} else {
+						typeExpr = buildTypeExpr(lts);
+					}
+				}
+
+				assertDefined(ts.shift()).assertSymbol("=");
+
+				semicolonPos = Symbol.find(ts, ";");
+				assert(semicolonPos != -1);
+
+				let upstreamTs = ts.splice(0, semicolonPos);
+				if (upstreamTs.length == 0) {
+					throw equalsSite.syntaxError("expected expression between '=' and ';'");
+				}
+
+				let upstreamExpr = buildValueExpr(upstreamTs, prec + 1);
+
+				let semicolonSite = assertDefined(ts.shift()).assertSymbol(";").site;
+
+				if (ts.length == 0) {
+					throw semicolonSite.syntaxError("expected expression after ';'");
+				}
+
+				let downstreamExpr = buildValueExpr(ts, prec);
+
+				return new AssignExpr(equalsSite, name, typeExpr, upstreamExpr, downstreamExpr);
 			}
-
-			let equalsSite = assertDefined(ts.shift()).assertSymbol("=").site;
-
-			semicolonPos = Symbol.find(ts, ";");
-			assert(semicolonPos != -1);
-
-			let upstreamExpr = buildValueExpr(ts.splice(0, semicolonPos), prec + 1);
-
-			let semicolonSite = assertDefined(ts.shift()).assertSymbol(";").site;
-
-			if (ts.length == 0) {
-				throw semicolonSite.syntaxError("expected expression after ';'");
-			}
-
-			let downstreamExpr = buildValueExpr(ts, prec);
-
-			return new AssignExpr(equalsSite, name, typeExpr, upstreamExpr, downstreamExpr);
 		} else if (printPos != -1 && printPos < semicolonPos) {
 			if (equalsPos != -1) {
-				assert(equalsPos > semicolonPos);
+				if (equalsPos <= semicolonPos) {
+					throw ts[equalsPos].syntaxError("expected ';' after '...=...'");
+				}
 			}
 
-			assert(printPos < semicolonPos);
+			let printSite = assertDefined(ts.shift()).assertWord("print").site;
 
-			let site = assertDefined(ts.shift()).assertWord("print").site;
+			let maybeParens = ts.shift();
 
-			let parens = assertDefined(ts.shift()).assertGroup("(", 1);
+			if (maybeParens === undefined) {
+				throw ts[printPos].syntaxError("expected '(...)' after 'print'");
+			} else {
+				let parens = maybeParens.assertGroup("(", 1);
 
-			let msgExpr = buildValueExpr(parens.fields[0]);
+				let msgExpr = buildValueExpr(parens.fields[0]);
 
-			assertDefined(ts.shift()).assertSymbol(";");
+				let semicolonSite = assertDefined(ts.shift()).assertSymbol(";").site;
 
-			let downstreamExpr = buildValueExpr(ts, prec);
+				if (ts.length == 0) {
+					throw semicolonSite.syntaxError("expected expression after ';'");
+				}
 
-			return new PrintExpr(site, msgExpr, downstreamExpr);
+				let downstreamExpr = buildValueExpr(ts, prec);
+
+				return new PrintExpr(printSite, msgExpr, downstreamExpr);
+			}
 		} else {
 			throw new Error("unhandled");
 		}
