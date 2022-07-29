@@ -4522,7 +4522,7 @@ const SyntaxCategory = {
 	Symbol:     3,
 	Type:       4,
 	Keyword:    5,
-	Whitespace: 6,
+	Error: 6,
 };
 
 /**
@@ -4557,6 +4557,9 @@ export function highlight(src) {
 
 	let j = 0; // position in data
 	let state = SyntaxState.Normal;
+
+	/** @type {Symbol[]} */
+	let groupStack = [];
 	
 	for (let i = 0; i < n; i++) {
 		let c = src[i];
@@ -4580,6 +4583,24 @@ export function highlight(src) {
 						state = SyntaxState.MLComment;
 					} else {
 						data[j++] = SyntaxCategory.Symbol;
+					}
+				} else if (c == "[" || c == "]" || c == "{" || c == "}" || c == "(" || c == ")") {
+					let s = new Symbol(new Site(new Source(src), i), c);
+
+					if (Group.isOpenSymbol(s)) {
+						groupStack.push(s);
+						data[j++] = SyntaxCategory.Normal;
+					} else {
+						let prevGroup = groupStack.pop();
+
+						if (prevGroup === undefined) {
+							data[j++] = SyntaxCategory.Error;
+						} else if (c == Group.matchSymbol(prevGroup)) {
+							data[j++] = SyntaxCategory.Normal;
+						} else {
+							data[prevGroup.site.pos] = SyntaxCategory.Error;
+							data[j++] = SyntaxCategory.Error;
+						}
 					}
 				} else if (c == "%" || c == "!" || c == "&" || c == "*" || c == "+" || c == "-" || c == "<" || c == "=" || c == ">" || c == "|") {
 					// symbol
@@ -4807,6 +4828,9 @@ export function highlight(src) {
 		}		
 	}
 
+	for (let s of groupStack) {
+		data[s.site.pos] = SyntaxCategory.Error;
+	}
 
 	return data;
 }
