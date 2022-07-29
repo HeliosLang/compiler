@@ -15,7 +15,18 @@ Use the following tutorial to learn how to use Helios with cardano-cli:
   6. [Minting policy scripts](doc/tutorial_06-minting.md)
   7. [*English Auction* contract](doc/tutorial_07-english_auction.md)
 
+We are in the process of migrating these docs [here](https://hyperion-bt.github.io/Helios-Book/).
+
 Note that the Helios library also contains a function to deserialize existing Plutus-Core scripts (see second example below).
+
+
+## Acknowledgements
+
+* [Ch1n3du](https://github.com/Ch1n3du): improved syntax, documentation
+* [Tanyalouise](https://github.com/): designs
+* [Cnftacademy](https://cnftacademy.com/): testing
+* [mikky-j](https://github.com/mikky-j): documentation
+
 
 ## Quick start examples
 
