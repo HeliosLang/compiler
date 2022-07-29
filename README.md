@@ -23,7 +23,7 @@ Note that the Helios library also contains a function to deserialize existing Pl
 ## Acknowledgements
 
 * [Ch1n3du](https://github.com/Ch1n3du): improved syntax, documentation
-* [Tanyalouise](https://github.com/): designs
+* Tanyalouise: designs
 * [Cnftacademy](https://cnftacademy.com/): testing
 * [mikky-j](https://github.com/mikky-j): documentation
 
