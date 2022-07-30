@@ -256,6 +256,18 @@ async function runIntegrationTests() {
         main_inner([]Int{1,2,3,4,5,6,10}.any)
     }`, "data(c:1)", []);
     
+    // 12. value_get
+    await runTestScript(`test value_get;
+    func main() -> []Int {
+        ac1: AssetClass = AssetClass::new(#123, "123");
+        ac2: AssetClass = AssetClass::new(#456, "456");
+        ac3: AssetClass = AssetClass::new(#789, "789");
+
+
+        x: Value = Value::new(ac1, 100) + Value::new(ac2, 200) - Value::new(ac1, 50);
+
+        []Int{x.get(ac1), x.get(ac2), x.get(ac3)}
+    }`, "data([50, 200, 0])", []);
 
     console.log("all tests passed");
     // end of integration tests
