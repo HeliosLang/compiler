@@ -1544,7 +1544,7 @@ class PlutusCoreAnon extends PlutusCoreValue {
 			// the same rawStack object can be used as a marker for 'Step-Over' in the debugger
 			await this.#rte.endCall(callSite, rawStack, result);
 
-			return result;
+			return result.copy(callSite);
 		} else {
 			// function isn't yet fully applied, return a new partially applied PlutusCoreAnon
 			assert(this.#nArgs > 1);
@@ -11532,7 +11532,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__common__is_in_bytearray_list",
 	`(lst, key) -> {
-		__helios__list__any(__core__listData(lst))((item) -> {__core__equalsByteString(item, key)})
+		__helios__list__any(__core__listData(lst))((item) -> {__helios__common__boolData(__core__equalsData(item, key))})
 	}`));
 	add(new RawFunc("__helios__common__unBoolData",
 	`(d) -> {
@@ -12561,9 +12561,9 @@ function makeRawFunctions() {
 						() -> {
 							(key) -> {
 								__core__ifThenElse(
-									__helios__common__is_in_bytearray_list(aKeys, key), 
+									__helios__common__unBoolData(__helios__common__is_in_bytearray_list(aKeys, key)), 
 									() -> {recurse(recurse, keys, __core__tailList(map))},
-									() -> {__core__mkCons(__core__bData(key), recurse(recurse, keys, __core__tailList(map)))}
+									() -> {__core__mkCons(key, recurse(recurse, keys, __core__tailList(map)))}
 								)()
 							}(__core__fstPair(__core__headList(map)))
 						}
@@ -12809,7 +12809,7 @@ function makeRawFunctions() {
 		(assetClass) -> {
 			(map, mintingPolicyHash, tokenName) -> {
 				(outer, inner) -> {
-					__core__iData(outer(outer, inner, map))
+					outer(outer, inner, map)
 				}(
 					(outer, inner, map) -> {
 						__core__ifThenElse(
