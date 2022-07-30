@@ -1081,7 +1081,7 @@ class PlutusCoreValue {
 	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
 	 * @param {Site} site 
 	 * @param {PlutusCoreValue} value
-	 * @returns {Promise<PlutusCoreValue}
+	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async call(rte, site, value) {
 		throw site.typeError(`expected a UPLC function, got '${this.toString()}`);
