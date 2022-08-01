@@ -2464,7 +2464,7 @@ class PlutusCoreForce extends PlutusCoreTerm {
 
 	/**
 	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
-	 * @returns {Promise<PlutusCoreValue}
+	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async eval(rte) {
 		return await this.#expr.eval(rte);
@@ -12343,15 +12343,11 @@ function makeRawFunctions() {
 	addEqNeqSerialize("__helios__txinput");
 	add(new RawFunc("__helios__txinput__output_id",
 	`(self) -> {
-		() -> {
-			${unData("self", 0, 0)}
-		}
+		${unData("self", 0, 0)}
 	}`));
 	add(new RawFunc("__helios__txinput__output",
 	`(self) -> {
-		() -> {
-			${unData("self", 0, 1)}
-		}
+		${unData("self", 0, 1)}
 	}`));
 
 
@@ -12359,21 +12355,15 @@ function makeRawFunctions() {
 	addEqNeqSerialize("__helios__txoutput");
 	add(new RawFunc("__helios__txoutput__address",
 	`(self) -> {
-		() -> {
-			${unData("self", 0, 0)}
-		}
+		${unData("self", 0, 0)}
 	}`));
 	add(new RawFunc("__helios__txoutput__value",
 	`(self) -> {
-		() -> {
-			${unData("self", 0, 1)}
-		}
+		${unData("self", 0, 1)}
 	}`));
 	add(new RawFunc("__helios__txoutput__datum_hash",
 	`(self) -> {
-		() -> {
-			${unData("self", 0, 2)}
-		}
+		${unData("self", 0, 2)}
 	}`));
 	add(new RawFunc("__helios__txoutput__get_datum_hash",
 	`(self) -> {
@@ -12401,15 +12391,11 @@ function makeRawFunctions() {
 	addEqNeqSerialize("__helios__address");
 	add(new RawFunc("__helios__address__credential",
 	`(self) -> {
-		() -> {
 			${unData("self", 0, 0)}
-		}
 	}`));
 	add(new RawFunc("__helios__address__staking_credential",
 	`(self) -> {
-		() -> {
-			${unData("self", 0, 0)}
-		}
+		${unData("self", 0, 1)}
 	}`));
 	add(new RawFunc("__helios__address__is_staked",
 	`(self) -> {
