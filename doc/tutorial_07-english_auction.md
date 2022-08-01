@@ -43,9 +43,9 @@ func main(datum: Datum, redeemer: Redeemer, ctx: ScriptContext) -> Bool {
     validator_hash: ValidatorHash = ctx.current_validator_hash();
 
     if (now < datum.deadline) {
-        switch (redeemer) {
-            case Redeemer::Close {false}
-            case (b: Redeemer::Bid) {
+        redeemer.switch{
+            Close  => false,
+            (b: Bid) => {
                 if (b.bid < datum.min_bid) {
                     false
                 } else if (datum.highest_bid == 0) {
@@ -65,8 +65,8 @@ func main(datum: Datum, redeemer: Redeemer, ctx: ScriptContext) -> Bool {
         }
     } else {
         // after deadline -> must close
-        switch (redeemer) {
-            case Redeemer::Close {
+        redeemer.switch {
+            Close => {
                 if (datum.highest_bid < datum.min_bid) {
                     // the forSale asset must return to the seller, what happens to any erroneous bid value is irrelevant
                     tx.value_sent_to(datum.seller) >= datum.for_sale
@@ -74,8 +74,8 @@ func main(datum: Datum, redeemer: Redeemer, ctx: ScriptContext) -> Bool {
                     tx.value_sent_to(datum.seller) >= Value::new(datum.bid_asset, datum.highest_bid) &&
                     tx.value_sent_to(datum.highest_bidder) >= datum.for_sale
                 }
-            }
-            default {false}
+            },
+            else => false
         }
     }
 }
