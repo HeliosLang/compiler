@@ -11497,7 +11497,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__common__assert_constr_index",
 	`(data, i) -> {
 		__core__ifThenElse(
-			__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), __core__unIData(i)),
+			__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), i),
 			() -> {data},
 			() -> {__core__error("unexpected constructor index")}
 		)()
