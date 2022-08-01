@@ -269,6 +269,27 @@ async function runIntegrationTests() {
         []Int{x.get(ac1), x.get(ac2), x.get(ac3)}
     }`, "data([50, 200, 0])", []);
 
+    // 13. switch_redeemer
+    await runTestScript(`test staking;
+    enum Redeemer {
+        Unstake{},
+        Reward{},
+        Migrate{}
+    }
+    func main_internal(redeemer: Redeemer) -> Bool {
+        redeemer.switch{
+            Unstake => {false},
+            Reward  => {true},
+            Migrate => {false}
+        }
+    }
+    func main() -> Bool {
+        print(main_internal(Redeemer::Unstake{}).show());
+        print(main_internal(Redeemer::Reward{}).show());
+        print(main_internal(Redeemer::Migrate{}).show());
+        true
+    }`, "data(c:1)", ["false", "true", "false"]);
+
     console.log("all tests passed");
     // end of integration tests
 

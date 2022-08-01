@@ -485,7 +485,7 @@ function replaceTabs(str) {
  * @returns {number[]}
  */
 function unwrapCborBytes(bytes) {
-	if (bytes == null || bytes == undefined || bytes.length == 0) {
+	if (bytes.length == 0) {
 		throw new Error("expected at least one cbor byte");
 	}
 
@@ -707,7 +707,7 @@ class IR {
 
 			if (typeof rawPartSrc == "string") {
 				let origSite = part.site;
-				if (origSite != null) {
+				if (origSite !== null) {
 					/** @type {[number, Site]} */
 					let pair = [pos, origSite];
 					codeMap.push(pair);
@@ -3531,8 +3531,6 @@ class Word extends Token {
 			case "if":
 			case "else":
 			case "switch":
-			case "case":
-			case "default":
 			case "print":
 				return true;
 			default:
@@ -3661,16 +3659,21 @@ class Symbol extends Token {
 class Group extends Token {
 	#type;
 	#fields;
+	#firstComma;
 
 	/**
 	 * @param {Site} site 
 	 * @param {string} type - "(", "[" or "{"
 	 * @param {Token[][]} fields 
+	 * @param {?Symbol} firstComma
 	 */
-	constructor(site, type, fields) {
+	constructor(site, type, fields, firstComma = null) {
 		super(site);
 		this.#type = type;
 		this.#fields = fields; // list of lists of tokens
+		this.#firstComma = firstComma;
+
+		assert(fields.length < 2 || firstComma !== null);
 	}
 
 	get fields() {
@@ -3698,7 +3701,11 @@ class Group extends Token {
 		if (type !== null && this.#type != type) {
 			throw this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}', got '${this.#type}...${Group.matchSymbol(this.#type)}'`);
 		} else if (type !== null && nFields !== null && nFields != this.#fields.length) {
-			throw this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}' with ${nFields} field(s), got '${type}...${Group.matchSymbol(type)}' with ${this.#fields.length} fields`);
+			if (this.#fields.length > 1 && nFields <= 1 && this.#firstComma !== null) {
+				throw this.#firstComma.syntaxError(`invalid syntax, unexpected ','`);
+			} else {
+				throw this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}' with ${nFields} field(s), got '${type}...${Group.matchSymbol(type)}' with ${this.#fields.length} fields`);
+			}
 		}
 
 		return this;
@@ -3808,8 +3815,6 @@ class IntLiteral extends PrimitiveLiteral {
 	 * @param {bigint} value 
 	 */
 	constructor(site, value) {
-		assert(value != undefined && value != null && typeof value == 'bigint');
-
 		super(site);
 		this.#value = value;
 	}
@@ -3837,8 +3842,6 @@ class BoolLiteral extends PrimitiveLiteral {
 	 * @param {boolean} value 
 	 */
 	constructor(site, value) {
-		assert(value != undefined && value != null && ((typeof value) == 'boolean'));
-
 		super(site);
 		this.#value = value;
 	}
@@ -3890,8 +3893,6 @@ class StringLiteral extends PrimitiveLiteral {
 	 * @param {string} value 
 	 */
 	constructor(site, value) {
-		assert(value != undefined && value != null && ((typeof value) == "string"));
-
 		super(site);
 		this.#value = value;
 	}
@@ -3985,7 +3986,7 @@ class Tokenizer {
 	pushToken(t) {
 		this.#ts.push(t);
 
-		if (this.#codeMap != null && this.#codeMapPos < this.#codeMap.length) {
+		if (this.#codeMap !== null && this.#codeMapPos < this.#codeMap.length) {
 			let pair = (this.#codeMap[this.#codeMapPos]);
 
 			if (pair[0] == t.site.pos) {
@@ -4332,7 +4333,7 @@ class Tokenizer {
 					chars.push('\\');
 				} else if (c == '"') {
 					chars.push(c);
-				} else if (escapeSite != null) {
+				} else if (escapeSite !== null) {
 					throw escapeSite.syntaxError(`invalid escape sequence ${c}`)
 				} else {
 					throw new Error("escape site should be non-null");
@@ -4362,13 +4363,16 @@ class Tokenizer {
 	readSymbol(site, c0) {
 		let chars = [c0];
 
+		/** @type {(second: string) => boolean} */
 		let parseSecondChar = (second) => {
 			let d = this.readChar();
 
 			if (d == second) {
 				chars.push(d);
+				return true;
 			} else {
 				this.unreadChar();
+				return false;
 			}
 		}
 
@@ -4376,7 +4380,11 @@ class Tokenizer {
 			parseSecondChar('|');
 		} else if (c0 == '&') {
 			parseSecondChar('&');
-		} else if (c0 == '!' || (c0 >= '<' && c0 <= '>')) { // could be !=, ==, <= or >=
+		} else if (c0 == '=') {
+			if (!parseSecondChar('=')) {
+				parseSecondChar('>');
+			}
+		} else if (c0 == '!' || c0 == '<' || c0 == '>') { // could be !=, ==, <= or >=
 			parseSecondChar('=');
 		} else if (c0 == ':') {
 			parseSecondChar(':');
@@ -4390,11 +4398,11 @@ class Tokenizer {
 	/**
 	 * Separates tokens in fields (separted by commas)
 	 * @param {Token[]} ts 
-	 * @returns {Token[][]}
+	 * @returns {Group}
 	 */
-	static groupFields(ts) {
+	static buildGroup(ts) {
 		let tOpen = ts.shift();
-		if (tOpen == undefined) {
+		if (tOpen === undefined) {
 			throw new Error("unexpected");
 		} else {
 			let open = tOpen.assertSymbol();
@@ -4402,6 +4410,11 @@ class Tokenizer {
 			let stack = [open]; // stack of symbols
 			let curField = [];
 			let fields = [];
+
+			/** @type {?Symbol} */
+			let firstComma = null;
+
+			/** @type {?Symbol} */
 			let lastComma = null;
 
 			while (stack.length > 0 && ts.length > 0) {
@@ -4418,7 +4431,11 @@ class Tokenizer {
 							stack.push(t.assertSymbol());
 							curField.push(t);
 						} else if (t.isSymbol(",") && stack.length == 1) {
-							lastComma = t;
+							if (firstComma === null) {
+								firstComma = t.assertSymbol();
+							}
+
+							lastComma = t.assertSymbol();
 							if (curField.length == 0) {
 								throw t.syntaxError("empty field");
 							} else {
@@ -4444,11 +4461,13 @@ class Tokenizer {
 			if (curField.length > 0) {
 				// add removing field
 				fields.push(curField);
-			} else if (lastComma != null) {
+			} else if (lastComma !== null) {
 				throw lastComma.syntaxError(`trailing comma`);
 			}
 
-			return fields;
+			fields = fields.map(f => Tokenizer.nestGroups(f));
+
+			return new Group(tOpen.site, open.value, fields, firstComma);
 		}
 	}
 
@@ -4466,9 +4485,7 @@ class Tokenizer {
 			if (Group.isOpenSymbol(t)) {
 				ts.unshift(t);
 
-				let fields = Tokenizer.groupFields(ts).map(f => Tokenizer.nestGroups(f));
-
-				res.push(new Group(t.site, t.assertSymbol().value, fields));
+				res.push(Tokenizer.buildGroup(ts));
 			} else if (Group.isCloseSymbol(t)) {
 				throw t.syntaxError(`unmatched '${t.assertSymbol().value}'`);
 			} else {
@@ -4725,8 +4742,6 @@ export function highlight(src) {
 						case "struct":
 						case "enum":
 						case "print":
-						case "case":
-						case "default":
 							type = SyntaxCategory.Keyword;
 							break;
 						case "test":
@@ -5752,7 +5767,7 @@ class FuncStatementValue extends FuncValue {
 	 */
 	copy() {
 		let v = new FuncStatementValue(this.getFuncType(), this.#recursive);
-		if (this.#onNotifyRecursive != null) {
+		if (this.#onNotifyRecursive !== null) {
 			v.#onNotifyRecursive = this.#onNotifyRecursive;
 		}
 		return v;
@@ -5770,7 +5785,7 @@ class FuncStatementValue extends FuncValue {
 		super.markAsUsed();
 
 		// if onNotifyRecursive has been set then we can assume that, at this point, any reference to this function is a recursive reference.
-		if (this.#onNotifyRecursive != null) {
+		if (this.#onNotifyRecursive !== null) {
 			this.#recursive = true;
 			this.#onNotifyRecursive();
 		}
@@ -5921,7 +5936,7 @@ class Scope {
 			}
 		}
 
-		if (this.#parent != null) {
+		if (this.#parent !== null) {
 			return this.#parent.has(name);
 		} else {
 			return false;
@@ -5958,7 +5973,7 @@ class Scope {
 			}
 		}
 
-		if (this.#parent != null) {
+		if (this.#parent !== null) {
 			return this.#parent.get(name);
 		} else {
 			throw name.referenceError(`'${name.toString()}' undefined`);
@@ -6120,19 +6135,11 @@ class TypePathExpr extends TypeExpr {
 	}
 
 	/**
-	 * @param {Scope} scope
-	 * @returns {Type}
-	 */
-	evalEnumType(scope) {
-		return scope.get(this.#enumName).assertType(this.#enumName.site);
-	}
-
-	/**
 	 * @param {Scope} scope 
 	 * @returns {Type}
 	 */
 	evalInternal(scope) {
-		let enumType = this.evalEnumType(scope);
+		let enumType = scope.get(this.#enumName).assertType(this.#enumName.site);
 
 		let memberType = enumType.getTypeMember(this.#memberName);
 
@@ -6381,7 +6388,7 @@ class AssignExpr extends ValueExpr {
 		assert(downstreamStr != undefined);
 
 		let typeStr = "";
-		if (this.#typeExpr != null) {
+		if (this.#typeExpr !== null) {
 			typeStr = `: ${this.#typeExpr.toString()}`;
 		}
 		return `${this.#name.toString()}${typeStr} = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
@@ -6398,7 +6405,7 @@ class AssignExpr extends ValueExpr {
 
 		assert(upstreamVal.isValue());
 
-		if (this.#typeExpr != null) {
+		if (this.#typeExpr !== null) {
 			let type = this.#typeExpr.eval(scope);
 
 			assert(type.isType());
@@ -7491,7 +7498,7 @@ class IfElseExpr extends ValueExpr {
  */
 class SwitchCase extends Token {
 	#varName;
-	#typeExpr;
+	#memberName;
 	#bodyExpr;
 
 	/** @type {?number} */
@@ -7500,13 +7507,13 @@ class SwitchCase extends Token {
 	/**
 	 * @param {Site} site 
 	 * @param {?Word} varName - optional
-	 * @param {TypePathExpr} typeExpr - not optional
+	 * @param {Word} memberName - not optional
 	 * @param {ValueExpr} bodyExpr 
 	 */
-	constructor(site, varName, typeExpr, bodyExpr) {
+	constructor(site, varName, memberName, bodyExpr) {
 		super(site);
 		this.#varName = varName;
-		this.#typeExpr = typeExpr;
+		this.#memberName = memberName;
 		this.#bodyExpr = bodyExpr;
 		this.#constrIndex = null;
 	}
@@ -7515,8 +7522,8 @@ class SwitchCase extends Token {
 	 * Returns typeExpr.
 	 * Used by parser to check if typeExpr reference the same base enum
 	 */
-	get typeExpr() {
-		return this.#typeExpr;
+	get memberName() {
+		return this.#memberName;
 	}
 
 	get constrIndex() {
@@ -7528,44 +7535,23 @@ class SwitchCase extends Token {
 	}
 
 	toString() {
-		if (this.#varName == null) {
-			return `case ${this.#typeExpr.toString()} {${this.#bodyExpr.toString()}}`
+		if (this.#varName === null) {
+			return `${this.#memberName.toString()} => ${this.#bodyExpr.toString()}`
 		} else {
-			return `case (${this.#varName.toString()} ${this.#typeExpr.toString()}) {${this.#bodyExpr.toString()}}`;
+			return `(${this.#varName.toString()}: ${this.#memberName.toString()}) => ${this.#bodyExpr.toString()}`;
 		}
-	}
-
-	/**
-	 * @param {Scope} scope
-	 * @returns {Type}
-	 */
-	evalEnumType(scope) {
-		return this.#typeExpr.evalEnumType(scope);
-	}
-
-	/**
-	 * Evaluates the switch type and checks if corresponds to the switch input type (throws an error if it doesn't).
-	 * @param {Scope} scope
-	 * @param {Type} switchParentType - switch input type
-	 */
-	 evalCond(scope, switchParentType) {
-		let caseType = this.#typeExpr.eval(scope);
-
-		if (!switchParentType.isBaseOf(this.#typeExpr.site, caseType)) {
-			throw this.#typeExpr.typeError("switching over wrong type");
-		}
-
-		this.#constrIndex = caseType.getConstrIndex(this.#typeExpr.site);
 	}
 
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * Evaluated switch type is only used if #varName !== null
 	 * @param {Scope} scope 
+	 * @param {Type} enumType
 	 * @returns {Value}
 	 */
-	evalCase(scope) {
-		let caseType = this.#typeExpr.eval(scope);
+	eval(scope, enumType) {
+		let caseType = enumType.getTypeMember(this.#memberName).assertType(this.#memberName.site);
+		this.#constrIndex = caseType.getConstrIndex(this.#memberName.site);
 
 		if (this.#varName !== null) {
 			let caseScope = new Scope(scope);
@@ -7611,14 +7597,14 @@ class SwitchDefault extends Token {
 	}
 
 	toString() {
-		return `default {${this.#bodyExpr.toString()}}`;
+		return `else => ${this.#bodyExpr.toString()}`;
 	}
 
 	/**
 	 * @param {Scope} scope 
 	 * @returns {Value}
 	 */
-	evalCase(scope) {
+	eval(scope) {
 		return this.#bodyExpr.eval(scope);
 	}
 
@@ -7639,44 +7625,25 @@ class SwitchDefault extends Token {
  * Switch expression, with SwitchCases and SwitchDefault as children
  */
 class SwitchExpr extends ValueExpr {
-	#expr;
+	#controlExpr;
 	#cases;
 	#default;
 
 	/** 
 	 * @param {Site} site
-	 * @param {ValueExpr} expr - input value of the switch
+	 * @param {ValueExpr} controlExpr - input value of the switch
 	 * @param {SwitchCase[]} cases
 	 * @param {?SwitchDefault} defaultCase
 	*/
-	constructor(site, expr, cases, defaultCase = null) {
+	constructor(site, controlExpr, cases, defaultCase = null) {
 		super(site);
-		this.#expr = expr;
+		this.#controlExpr = controlExpr;
 		this.#cases = cases;
 		this.#default = defaultCase;
 	}
 
 	toString() {
-		return `switch(${this.#expr.toString()}) ${this.#cases.map(c => c.toString()).join(" ")}${this.#default == null ? "" : " " + this.#default.toString()}`;
-	}
-
-	/**
-	 * Evaluates parent enum type being switched over. Uses the fact that at least one case type expression references this enum directly.
-	 * @param {Scope} scope 
-	 * @returns {Type} 
-	 */
-	evalEnumType(scope) {
-		/** @type {?Type} */
-		let enumType = null;
-		for (let c of this.#cases) {
-			enumType = IfElseExpr.reduceBranchType(c.site, enumType, c.evalEnumType(scope));
-		}
-
-		if (enumType === null) {
-			throw new Error("expected at least one case");
-		} else {
-			return enumType;
-		}
+		return `${this.#controlExpr.toString()}.switch{${this.#cases.map(c => c.toString()).join(", ")}${this.#default === null ? "" : ", " + this.#default.toString()}}`;
 	}
 
 	/**
@@ -7684,26 +7651,26 @@ class SwitchExpr extends ValueExpr {
 	 * @returns {Value}
 	 */
 	evalInternal(scope) {
-		let switchVal = this.#expr.eval(scope);
+		let controlVal = this.#controlExpr.eval(scope);
+		let enumType = controlVal.getType(this.#controlExpr.site);
+		let nEnumMembers = enumType.nEnumMembers(this.#controlExpr.site);
 
-		let enumType = this.evalEnumType(scope);
-
-		if (!switchVal.isInstanceOf(this.#expr.site, enumType)) {
-			this.#expr.site.typeError(`expected '${enumType}', got '${switchVal.getType(this.#expr.site).toString()}'`);
+		// check that we have enough cases to cover the enum members
+		if (this.#default === null && nEnumMembers > this.#cases.length) {
+			throw this.typeError(`insufficient coverage of '${enumType.toString()}' in switch expression`);
 		}
 
 		/** @type {?Type} */
 		let branchType = null;
+
 		for (let c of this.#cases) {
-			let branchVal = c.evalCase(scope);
+			let branchVal = c.eval(scope, enumType);
 
 			branchType = IfElseExpr.reduceBranchType(c.site, branchType, branchVal.getType(c.site));
-
-			c.evalCond(scope, enumType);
 		}
 
-		if (this.#default != null) {
-			let defaultVal = this.#default.evalCase(scope);
+		if (this.#default !== null) {
+			let defaultVal = this.#default.eval(scope);
 
 			branchType = IfElseExpr.reduceBranchType(this.#default.site, branchType, defaultVal.getType(this.#default.site));
 		} else {
@@ -7752,7 +7719,7 @@ class SwitchExpr extends ValueExpr {
 			new IR(`(e) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}(\n${indent}${TAB}${TAB}(i) -> {\n${indent}${TAB}${TAB}${TAB}`),
 			res,
 			new IR(`\n${indent}${TAB}${TAB}}(__core__fstPair(__core__unConstrData(e)))\n${indent}${TAB})(e)\n${indent}}(`),
-			this.#expr.toIR(indent),
+			this.#controlExpr.toIR(indent),
 			new IR(")"),
 		]);
 	}
@@ -7848,7 +7815,7 @@ class ConstStatement extends NamedStatement {
 		/** @type {Type} */
 		let type;
 
-		if (this.#typeExpr == null) {
+		if (this.#typeExpr === null) {
 			if (!this.#valueExpr.isLiteral()) {
 				throw this.typeError("can't infer type");
 			}
@@ -9750,6 +9717,8 @@ function buildChainedValueExpr(ts, prec) {
 			expr = new CallExpr(t.site, expr, buildCallArgs(t.assertGroup()));
 		} else if (t.isGroup("[")) {
 			throw t.syntaxError("invalid expression '[...]'");
+		} else if (t.isSymbol(".") && ts.length > 0 && ts[0].isWord("switch")) {
+			expr = buildSwitchExpr(expr, ts);
 		} else if (t.isSymbol(".")) {
 			let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
@@ -9776,7 +9745,7 @@ function buildChainStartValueExpr(ts) {
 	} else if (ts[0].isWord("if")) {
 		return buildIfElseExpr(ts);
 	} else if (ts[0].isWord("switch")) {
-		return buildSwitchExpr(ts);
+		throw ts[0].syntaxError("expected '... .switch' instead of 'switch'");
 	} else if (ts[0].isLiteral()) {
 		return new PrimitiveLiteralExpr(assertDefined(ts.shift())); // can simply be reused
 	} else if (ts[0].isGroup("(")) {
@@ -9785,13 +9754,22 @@ function buildChainStartValueExpr(ts) {
 		if (ts[0].isGroup("[")) {
 			return buildListLiteralExpr(ts);
 		} else {
-			return buildStructLiteralExpr(ts);
+			// could be switch or literal struct construction
+			let iBraces = Group.find(ts, "{");
+			let iSwitch = Word.find(ts, "switch");
+			let iPeriod = Symbol.find(ts, ".");
+
+			if (iSwitch != -1 && iPeriod != -1 && iSwitch < iBraces && iPeriod < iBraces && iSwitch > iPeriod) {
+				return buildValueExpr(ts.splice(0, iPeriod));
+			} else {
+				return buildStructLiteralExpr(ts);
+			}
 		}
 	} else if (Symbol.find(ts, "::") != -1) {
 		return buildValuePathExpr(ts);
 	} else if (ts[0].isWord()) {
 		if (ts[0].isWord("const") || ts[0].isWord("struct") || ts[0].isWord("enum") || ts[0].isWord("func")) {
-			throw ts[0].syntaxError(`invalid use of '${ts[0].assertWord().value}', can only be used at top-level`);
+			throw ts[0].syntaxError(`invalid use of '${ts[0].assertWord().value}', can only be used as top-level statement`);
 		} else {
 			return new ValueRefExpr(assertDefined(ts.shift()).assertWord().assertNotKeyword()); // can later be turned into a typeexpr
 		}
@@ -9854,65 +9832,54 @@ function buildIfElseExpr(ts) {
 }
 
 /**
+ * @param {ValueExpr} controlExpr
  * @param {Token[]} ts 
  * @returns {SwitchExpr}
  */
-function buildSwitchExpr(ts) {
+function buildSwitchExpr(controlExpr, ts) {
 	let site = assertDefined(ts.shift()).assertWord("switch").site;
-	let parens = assertDefined(ts.shift()).assertGroup("(", 1);
 
-	let expr = buildValueExpr(parens.fields[0]);
+	let braces = assertDefined(ts.shift()).assertGroup("{");
 
-	let braces = assertDefined(ts.shift()).assertGroup("{", 1);
-
+	/** @type {SwitchCase[]} */
 	let cases = [];
+
+	/** @type {?SwitchDefault} */
 	let def = null;
 
-	let tsInner = braces.fields[0].slice();
-
-	while (tsInner.length > 0) {
-		if (tsInner[0].isWord("case")) {
-			if (def != null) {
-				throw def.syntaxError("default select must come last");
-			}
-
-			cases.push(buildSwitchCase(tsInner));
-		} else if (tsInner[0].isWord("default")) {
+	for (let tsInner of braces.fields) {
+		if (tsInner[0].isWord("else")) {
 			if (def !== null) {
-				throw def.syntaxError("duplicate default");
+				throw def.syntaxError("duplicate 'else' in switch");
 			}
 
 			def = buildSwitchDefault(tsInner);
 		} else {
-			throw ts[0].syntaxError("invalid switch syntax");
+			if (def !== null) {
+				throw def.syntaxError("switch 'else' must come last");
+			}
+
+			cases.push(buildSwitchCase(tsInner));
 		}
 	}
 
-	// finaly check the uniqueness of each case
-	// also check that each case uses the same enum
+	// check the uniqueness of each case here
+	/** @type {Set<string>} */
 	let set = new Set()
-	let base = null;
 	for (let c of cases) {
-		let t = c.typeExpr.toString();
+		let t = c.memberName.toString();
 		if (set.has(t)) {
-			throw c.typeExpr.syntaxError("duplicate case");
+			throw c.memberName.syntaxError(`duplicate switch case '${t}')`);
 		}
 
 		set.add(t);
-
-		let b = t.split("::")[0];
-		if (base == null) {
-			base = b;
-		} else if (base != b) {
-			throw c.typeExpr.syntaxError("inconsistent enum name");
-		}
 	}
 
 	if (cases.length < 1) {
-		throw site.syntaxError("expected at least one case");
+		throw site.syntaxError("expected at least one switch case");
 	}
 
-	return new SwitchExpr(site, expr, cases, def);
+	return new SwitchExpr(site, controlExpr, cases, def);
 }
 
 /**
@@ -9920,10 +9887,12 @@ function buildSwitchExpr(ts) {
  * @returns {SwitchCase}
  */
 function buildSwitchCase(ts) {
-	let site = assertDefined(ts.shift()).assertWord("case").site;
-
+	/** @type {?Word} */
 	let varName = null;
-	let typeExpr;
+
+	/** @type {?Word} */
+	let memberName = null;
+
 	if (ts[0].isGroup("(")) {
 		let parens = assertDefined(ts.shift()).assertGroup("(", 1);
 		let pts = parens.fields[0];
@@ -9932,26 +9901,62 @@ function buildSwitchCase(ts) {
 		}
 
 		varName = assertDefined(pts.shift()).assertWord().assertNotKeyword();
-		assertDefined(pts.shift()).assertSymbol(":");
-		typeExpr = buildTypeExpr(pts);
+		
+		let maybeColon = pts.shift();
+		if (maybeColon === undefined) {
+			throw parens.syntaxError("invalid switch case syntax, expected '(<name>: <enum-member>)', got '(<name>)'");
+		} else {
 
-	} else {
-		let bracesPos = Group.find(ts, "{");
-		if (bracesPos == -1) {
-			throw site.syntaxError("invalid switch case syntax");
+			void maybeColon.assertSymbol(":");
+
+			let maybeMemberName = pts.shift();
+			if (maybeMemberName === undefined) {
+				throw maybeColon.syntaxError("invalid switch case syntax, expected member name after ':'");
+			}
+
+			memberName = maybeMemberName.assertWord().assertNotKeyword();
+
+			if (pts.length > 0) {
+				throw pts[0].syntaxError("unexpected token");
+			}
 		}
-
-		typeExpr = buildTypeExpr(ts.splice(0, bracesPos));
+	} else {
+		memberName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 	}
 
-	if (!(typeExpr instanceof TypePathExpr)) {
-		throw typeExpr.syntaxError(`invalid switch case type, expected an enum member type, got '${typeExpr.toString()}'`);
+	if (memberName === null) {
+		throw new Error("unexpected");
+	} else {
+		let maybeArrow = ts.shift();
+
+		if (maybeArrow === undefined) {
+			throw memberName.syntaxError("expected '=>'");
+		} else {
+			let arrow = maybeArrow.assertSymbol("=>");
+
+			/** @type {?ValueExpr} */
+			let bodyExpr = null;
+
+			if (ts.length == 0) {
+				throw arrow.syntaxError("expected expression after '=>'");
+			} else if (ts[0].isGroup("{")) {
+				if (ts.length > 1) {
+					throw ts[1].syntaxError("unexpected token");
+				}
+
+				let tsBody = ts[0].assertGroup("{", 1).fields[0];
+				bodyExpr = buildValueExpr(tsBody);
+			} else {
+				bodyExpr = buildValueExpr(ts);
+			}
+
+			if (bodyExpr === null) {
+				throw arrow.syntaxError("empty switch case body");
+			} else {
+				return new SwitchCase(arrow.site, varName, memberName, bodyExpr);
+			}
+		}
 	}
-
-	let braces = assertDefined(ts.shift()).assertGroup("{", 1);
-	let bodyExpr = buildValueExpr(braces.fields[0]);
-
-	return new SwitchCase(site, varName, typeExpr, bodyExpr);
 }
 
 /**
@@ -9959,17 +9964,33 @@ function buildSwitchCase(ts) {
  * @returns {SwitchDefault}
  */
 function buildSwitchDefault(ts) {
-	let site = assertDefined(ts.shift()).assertWord("default").site;
+	let site = assertDefined(ts.shift()).assertWord("else").site;
 
-	let maybeBraces = ts.shift();
-
-	if (maybeBraces === undefined) {
-		throw site.syntaxError("invalid switch default syntax");
+	let maybeArrow = ts.shift();
+	if (maybeArrow === undefined) {
+		throw site.syntaxError("expected '=>' after 'else'");
 	} else {
-		let braces = maybeBraces.assertGroup("{", 1);
-		let bodyExpr = buildValueExpr(braces.fields[0]);
+		let arrow = maybeArrow.assertSymbol("=>");
 
-		return new SwitchDefault(site, bodyExpr);
+		/** @type {?ValueExpr} */
+		let bodyExpr = null;
+		if (ts.length == 0) {
+			throw arrow.syntaxError("expected expression after '=>'");
+		} else if (ts[0].isGroup("{")) {
+			if (ts.length > 1) {
+				throw ts[1].syntaxError("unexpected token");
+			} else {
+				bodyExpr = buildValueExpr(ts[0].assertGroup("{", 1).fields[0]);
+			}
+		} else {
+			bodyExpr = buildValueExpr(ts);
+		}
+
+		if (bodyExpr === null) {
+			throw arrow.syntaxError("empty else body");
+		} else {
+			return new SwitchDefault(arrow.site, bodyExpr);
+		}
 	}
 }
 
@@ -10994,6 +11015,14 @@ class CredentialType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	nEnumMembers(site) {
+		return 2;
+	}
+
 	get path() {
 		return "__helios__credential";
 	}
@@ -11362,7 +11391,7 @@ class RawFunc {
 
 		let matches = this.#definition.match(re);
 
-		if (matches != null) {
+		if (matches !== null) {
 			for (let match of matches) {
 				this.#dependencies.add(match);
 			}
@@ -11380,7 +11409,7 @@ class RawFunc {
 	 * @returns {void}
 	 */
 	load(db, dst) {
-		if (onNotifyRawUsage != null) {
+		if (onNotifyRawUsage !== null) {
 			onNotifyRawUsage(this.#name, 1);
 		}
 
@@ -12838,7 +12867,7 @@ function wrapWithRawFunctions(ir) {
 	let db = makeRawFunctions();
 
 	// notify statistics of existence of builtin in correct order
-	if (onNotifyRawUsage != null) {
+	if (onNotifyRawUsage !== null) {
 		for (let [name, _] of db) {
 			onNotifyRawUsage(name, 0);
 		}
@@ -12854,7 +12883,7 @@ function wrapWithRawFunctions(ir) {
 
 	let map = new Map();
 
-	if (matches != null) {
+	if (matches !== null) {
 		for (let match of matches) {
 			if (!map.has(match)) {
 				if (!db.has(match)) {
@@ -13103,7 +13132,6 @@ class IRCallExpr extends IRExpr {
 	 */
 	constructor(lhs, argExprs, parensSite) {
 		super(lhs.site);
-		assert(lhs != null);
 		this.#lhs = lhs;
 		this.#argExprs = argExprs;
 		this.#parensSite = parensSite;
@@ -13214,7 +13242,7 @@ class IRVariable extends IRExpr {
 	 * @returns {string}
 	 */
 	toString(indent = "") {
-		if (this.#index == null) {
+		if (this.#index === null) {
 			return this.#name.toString();
 		} else {
 			return `${this.#name.toString()}[${this.#index.toString()}]`;
@@ -13362,16 +13390,16 @@ function buildIRExpr(ts) {
 					throw int.site.typeError(`expected literal int, got ${int}`);
 				}
 			} else if (t instanceof BoolLiteral) {
-				assert(expr == null);
+				assert(expr === null);
 				expr = new IRLiteral(t);
 			} else if (t instanceof IntLiteral) {
-				assert(expr == null);
+				assert(expr === null);
 				expr = new IRLiteral(t);
 			} else if (t instanceof ByteArrayLiteral) {
-				assert(expr == null);
+				assert(expr === null);
 				expr = new IRLiteral(t);
 			} else if (t instanceof StringLiteral) {
-				assert(expr == null);
+				assert(expr === null);
 				expr = new IRLiteral(t);
 			} else if (t.isWord("__core__error")) {
 				assert(expr === null);
@@ -13394,7 +13422,7 @@ function buildIRExpr(ts) {
 					expr = new IRErrorCallExpr(t.site, msg.value);
 				}
 			} else if (t.isWord()) {
-				assert(expr == null);
+				assert(expr === null);
 				expr = new IRVariable(t.assertWord());
 			} else {
 				throw new Error("unhandled untyped token " + t.toString());
