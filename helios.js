@@ -5297,6 +5297,7 @@ class StatementType extends DataType {
 	/**
 	 * A StatementType can instantiate itself if the underlying statement is an enum member with no fields
 	 * @param {Site} site
+	 * @returns {Value}
 	 */
 	assertValue(site) {
 		if (this.#statement instanceof EnumMember) {
@@ -10613,6 +10614,8 @@ class OptionNoneType extends BuiltinType {
 
 	/**
 	 * Instantiates self as value
+	 * @param {Site} site
+	 * @returns {Value}
 	 */
 	assertValue(site) {
 		return Value.new(this);
