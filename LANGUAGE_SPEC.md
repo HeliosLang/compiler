@@ -2,39 +2,35 @@
 
 Program ::= ProgramType Statement [Statement [...]];
 
-Statement ::= NamedStatement | ImplStatement;
-
-NamedStatement ::= ConstStatement | StructStatement | FuncStatement | EnumStatement;
+Statement ::= ConstStatement | StructStatement | FuncStatement | EnumStatement;
 
 Comment ::= `//` /.\*/ EOL | `/*` /.\*/ `*/`;
 
-StructStatement ::= `struct` DataDefinition;
+StructStatement ::= `struct` Word `{` DataDefinition [ImplDefinition ] `}`;
 
-DataDefintion ::= Word `{`
-    [DataField [`,` DataField [`,` ...]]]
-`}`;
+DataDefinition ::= DataField [DataField [...]];
 
 DataField ::= NameTypePair;
 
+NameTypePair ::= Word `:` TypeExpr;
+
 EnumStatement ::= `enum` Identifier `{`
-    EnumMember `,` EnumMember [`,` EnumMember [`,` EnumMember [...]]]
+    EnumMember [EnumMember [... ]]
+
+    [ImplDefinition]
 `}`;
 
-EnumMember ::= DataDefinition;
+EnumMember ::= Word [`{` DataDefinition `}`];
 
-ImplStatement ::= `impl` Identifier `{`
-    ImplMember [ImplMember [...]]
-`}`;
+ImplDefinition ::= ImplMember [ImplMember [... ]];
 
 ImplMember ::= ConstStatement | FuncStatement;
 
-ConstStatement ::= `const` Identifier [`:` TypeExpr] `=` OtherValueExpr `;`;
+ConstStatement ::= `const` Identifier [`:` TypeExpr] `=` OtherValueExpr;
 
 FuncStatement ::= `func` Identifier `(` [FuncArg [`,` FuncArg [...]]] `)` `->` TypeExpr `{` ValueExpr `}`;
 
 FuncArg ::= NameTypePair;
-
-NameTypePair ::= Word `:` TypeExpr;
 
 TypeExpr ::= TypeRefExpr | TypePathExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr | FuncTypeExpr;
 
@@ -92,13 +88,13 @@ PrintExpr ::= `print` `(` ValueExpr `)` `;` ValueExpr;
 
 IfElseExpr ::= `if` `(` ValueExpr `)` `{` ValueExpr `}` [`else` `if` `(` ValueExpr `)` `{` ValueExpr `}` [...]] `else` `{` ValueExpr `}`;
 
-SwitchExpr ::= `switch` `(` ValueExpr `)` `{` 
-  SwitchCase [SwitchCase [...]]  [SwitchDefault]
+SwitchExpr ::= ValueExpr `.` `switch` `{` 
+  SwitchCase [`,` SwitchCase [`,` ... ]]  [SwitchDefault ]
 `}`;
 
-SwitchCase ::= `case` (`(` Identifier `:` TypePathExpr `)` | TypePathExpr) `{` ValueExpr `}`;
+SwitchCase ::= (Word | (Identifier `:` Word)) `=>` (ValueExpr | (`{` ValueExpr `}`));
 
-SwitchDefault ::= `default` `{` ValueExpr `}`;
+SwitchDefault ::= `else` `=>` (ValueExpr | `{` ValueExpr `}`);
 
 CallExpr ::= ValueExpr `(` [ValueExpr [`,` ValueExpr [...]]] `)`;
 
