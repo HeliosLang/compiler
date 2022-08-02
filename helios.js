@@ -8634,6 +8634,10 @@ class EnumStatement extends NamedStatement {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
+		for (let member of this.#members) {
+			member.toIR(map);
+		}
+
 		// only adds automembers
 		for (let pair of this.#autoMembers) {
 			let name = pair[0];
@@ -9893,35 +9897,44 @@ function buildSwitchCase(ts) {
 	/** @type {?Word} */
 	let memberName = null;
 
-	if (ts[0].isGroup("(")) {
-		let parens = assertDefined(ts.shift()).assertGroup("(", 1);
-		let pts = parens.fields[0];
-		if (pts.length < 5) {
-			throw parens.syntaxError("invalid switch case syntax");
-		}
+	let arrowPos = Symbol.find(ts, "=>");
 
-		varName = assertDefined(pts.shift()).assertWord().assertNotKeyword();
+	if (arrowPos == -1) {
+		throw ts[0].syntaxError("expected '=>' in switch case");
+	} else if (arrowPos == 0) {
+		throw ts[0].syntaxError("expected '<word>' or '<word>: <word>' to the left of '=>'");
+	}
+
+	let tsLeft = ts.splice(0, arrowPos);
+
+	let colonPos = Symbol.find(tsLeft, ":");
+
+	if (colonPos != -1) {
+		varName = assertDefined(tsLeft.shift()).assertWord().assertNotKeyword();
 		
-		let maybeColon = pts.shift();
+		let maybeColon = tsLeft.shift();
 		if (maybeColon === undefined) {
-			throw parens.syntaxError("invalid switch case syntax, expected '(<name>: <enum-member>)', got '(<name>)'");
+			throw varName.syntaxError("invalid switch case syntax, expected '(<name>: <enum-member>)', got '(<name>)'");
 		} else {
-
 			void maybeColon.assertSymbol(":");
 
-			let maybeMemberName = pts.shift();
+			let maybeMemberName = tsLeft.shift();
 			if (maybeMemberName === undefined) {
 				throw maybeColon.syntaxError("invalid switch case syntax, expected member name after ':'");
 			}
 
 			memberName = maybeMemberName.assertWord().assertNotKeyword();
 
-			if (pts.length > 0) {
-				throw pts[0].syntaxError("unexpected token");
+			if (tsLeft.length > 0) {
+				throw tsLeft[0].syntaxError("unexpected token");
 			}
 		}
 	} else {
-		memberName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+		memberName = assertDefined(tsLeft.shift()).assertWord().assertNotKeyword();
+
+		if (tsLeft.length > 0) {
+			throw tsLeft[0].syntaxError("unexpected token");
+		}
 	}
 
 	if (memberName === null) {
