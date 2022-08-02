@@ -4878,7 +4878,7 @@ class GeneralizedValue {
 	 * @returns {boolean}
 	 */
 	isType() {
-		throw new Error("not implemented");
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -4892,7 +4892,7 @@ class GeneralizedValue {
 	 * @returns {boolean}
 	 */
 	isValue() {
-		throw new Error("not implemented");
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -4906,7 +4906,7 @@ class GeneralizedValue {
 	 * @returns {string}
 	 */
 	toString() {
-		throw new Error("not implemented");
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -4923,7 +4923,7 @@ class GeneralizedValue {
 	 * @returns {Type}
 	 */
 	getType(site) {
-		throw new Error("not implemented");
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -4933,7 +4933,7 @@ class GeneralizedValue {
 	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
-		throw new Error("not implemented");
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -4944,7 +4944,7 @@ class GeneralizedValue {
 	 * @returns {boolean}
 	 */
 	isInstanceOf(site, type) {
-		throw new Error("not implemented");
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -4955,7 +4955,7 @@ class GeneralizedValue {
 	 * @returns {Value}
 	 */
 	call(site, args) {
-		throw new Error("not implemented");
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -4965,7 +4965,7 @@ class GeneralizedValue {
 	 * @returns {GeneralizedValue} - can be Value or Type
 	 */
 	getTypeMember(name) {
-		throw new Error("not implemented");
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -4975,18 +4975,28 @@ class GeneralizedValue {
 	 * @returns {Value} - can be FuncValue or DataValue
 	 */
 	getInstanceMember(name) {
-		throw new Error("not implemented");
+		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * Returns the number of fields in a struct.
 	 * Used to check if a literal struct constructor is correct.
-	 * Not (yet) for builtin types.
 	 * @param {Site} site
 	 * @returns {number}
 	 */
 	nFields(site) {
-		throw new Error("not implemented");
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Returns the type of struct or enumMember fields.
+	 * Used to check if literal struct constructor is correct.
+	 * @param {Site} site
+	 * @param {number} i
+	 * @returns {Type}
+	 */
+	getFieldType(site, i) {
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -4995,7 +5005,7 @@ class GeneralizedValue {
 	 * @returns {number}
 	 */
 	getConstrIndex(site) {
-		throw new Error("not implemented");
+		throw new Error("not yet implemented");
 	}
 }
 
@@ -5270,6 +5280,16 @@ class StatementType extends DataType {
 	 */
 	nFields(site) {
 		return this.#statement.nFields(site);
+	}
+
+	/**
+	 * Returns the i-th field of a Struct or an EnumMember
+	 * @param {Site} site
+	 * @param {number} i
+	 * @returns {Type}
+	 */
+	getFieldType(site, i) {
+		return this.#statement.getFieldType(site, i);
 	}
 
 	/**
@@ -5643,6 +5663,16 @@ class DataValue extends Value {
 	}
 
 	/**
+	 * Returns the i-th field of a Struct or an EnumMember
+	 * @param {Site} site
+	 * @param {number} i
+	 * @returns {Type}
+	 */
+	getFieldType(site, i) {
+		return this.#type.getFieldType(site, i);
+	}
+
+	/**
 	 * @param {Word} name 
 	 * @returns {Value}
 	 */
@@ -5750,6 +5780,16 @@ class FuncValue extends Value {
 	 * @returns {number}
 	 */
 	nFields(site) {
+		throw site.typeError("a function doesn't have fields");
+	}
+
+	/**
+	 * Throws an error because a function value doens't have any fields.
+	 * @param {Site} site
+	 * @param {number} i
+	 * @returns {Type}
+	 */
+	getFieldType(site, i) {
 		throw site.typeError("a function doesn't have fields");
 	}
 
@@ -6596,7 +6636,7 @@ class StructLiteralField {
 	#value;
 
 	/**
-	 * @param {Word} name 
+	 * @param {?Word} name 
 	 * @param {ValueExpr} value 
 	 */
 	constructor(name, value) {
@@ -6605,15 +6645,34 @@ class StructLiteralField {
 	}
 
 	get site() {
-		return this.#name.site;
+		if (this.#name === null) {
+			return this.#value.site;
+		} else {
+			return this.#name.site;
+		}
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isNamed() {
+		return this.#name !== null;
 	}
 
 	get name() {
-		return this.#name;
+		if (this.#name === null) {
+			throw new Error("name of field not given");
+		} else {
+			return this.#name;
+		}
 	}
 
 	toString() {
-		return `${this.#name}: ${this.#value.toString()}`;
+		if (this.#name === null) {
+			return this.#value.toString();
+		} else {
+			return `${this.#name.toString()}: ${this.#value.toString()}`;
+		}
 	}
 
 	/**
@@ -6678,11 +6737,29 @@ class StructLiteralExpr extends ValueExpr {
 			throw this.typeError("wrong number of fields");
 		}
 
-		for (let f of this.#fields) {
-			let memberType = instance.getInstanceMember(f.name).getType(this.site);
+		for (let i = 0; i < this.#fields.length; i++) {
+			let f = this.#fields[i];
+		
+			let fieldVal = f.eval(scope);
 
-			if (!f.eval(scope).isInstanceOf(f.site, memberType)) {
-				throw f.site.typeError("wrong type");
+			if (f.isNamed()) {
+				// check the named type
+				let memberType = instance.getInstanceMember(f.name).getType(f.name.site);
+
+				if (!fieldVal.isInstanceOf(f.site, memberType)) {
+					throw f.site.typeError(`wrong field type for '${f.name.toString()}'`);
+				}
+			}
+			
+			// check the positional type
+			let memberType = instance.getFieldType(f.site, i);
+			
+			if (!fieldVal.isInstanceOf(f.site, memberType)) {
+				if (f.isNamed()) {
+					throw f.site.typeError("wrond field order");
+				} else {
+					throw f.site.typeError("wrong field type");
+				}
 			}
 		}
 
@@ -8020,6 +8097,15 @@ class DataDefinition extends Statement {
 
 	/**
 	 * @param {Site} site 
+	 * @param {number} i 
+	 * @returns {Type}
+	 */
+	getFieldType(site, i) {
+		return this.#fields[i].type;
+	}
+
+	/**
+	 * @param {Site} site 
 	 * @returns {number}
 	 */
 	nEnumMembers(site) {
@@ -8446,6 +8532,15 @@ class EnumStatement extends Statement {
 	 * @returns {number}
 	 */
 	nFields(site) {
+		throw site.typeError("enum doesn't have fields");
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {number} i
+	 * @returns {Type}
+	 */
+	getFieldType(site, i) {
 		throw site.typeError("enum doesn't have fields");
 	}
 
@@ -9986,25 +10081,55 @@ function buildStructLiteralExpr(ts) {
 
 	let braces = assertDefined(ts.shift()).assertGroup("{");
 
-	if (braces.fields.length == 0) {
+	let nFields = braces.fields.length;
+
+	if (nFields == 0) {
 		throw braces.syntaxError(`expected at least one field in '${typeExpr.toString()}{...}'`);
 	}
 
-	let fields = braces.fields.map(fts => buildStructLiteralField(fts));
+	let fields = braces.fields.map(fts => buildStructLiteralField(braces.site, fts, nFields > 1));
 
 	return new StructLiteralExpr(typeExpr, fields);
 }
 
 /**
+ * @param {Site} bracesSite
  * @param {Token[]} ts 
+ * @param {boolean} isNamed
  * @returns {StructLiteralField}
  */
-function buildStructLiteralField(ts) {
-	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
-	assertDefined(ts.shift()).assertSymbol(":");
-	let valueExpr = buildValueExpr(ts);
+function buildStructLiteralField(bracesSite, ts, isNamed) {
+	if (isNamed) {
+		let maybeName = ts.shift();
+		if (maybeName === undefined) {
+			throw bracesSite.syntaxError("empty struct literal field");
+		} else {
+			let name = maybeName.assertWord().assertNotKeyword();
 
-	return new StructLiteralField(name, valueExpr);
+			let maybeColon = ts.shift();
+			if (maybeColon === undefined) {
+				throw bracesSite.syntaxError("expected ':'");
+			} else {
+				let colon = maybeColon.assertSymbol(":");
+
+				if (ts.length == 0) {
+					throw colon.syntaxError("expected expression after ':'");
+				} else {
+					let valueExpr = buildValueExpr(ts);
+
+					return new StructLiteralField(name, valueExpr);
+				}
+			}
+		}
+	} else {
+		if (ts.length > 1 && ts[0].isWord() && ts[1].isSymbol(":")) {
+			throw ts[0].syntaxError("unexpected key for struct literal constructor with 1 field");
+		} else {
+			let valueExpr = buildValueExpr(ts);
+
+			return new StructLiteralField(null, valueExpr);
+		}
+	}
 }
 
 /**
@@ -10554,6 +10679,15 @@ class OptionSomeType extends BuiltinType {
 	 */
 	nFields(site) {
 		return 1;
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {number} i
+	 * @returns {Type}
+	 */
+	getFieldType(site, i) {
+		return this.#someType;
 	}
 
 	/**
