@@ -145,7 +145,7 @@ async function runIntegrationTests() {
     // * struct getters
     await runTestScript(`test my_struct;
     struct MyStruct {
-        a: Int,
+        a: Int
         b: Int
     }
     func main() -> Int {
@@ -159,7 +159,7 @@ async function runIntegrationTests() {
     // * struct getters
     await runTestScript(`test owner_value;
     struct Datum {
-        owner: PubKeyHash,
+        owner: PubKeyHash
         value: Value
     }
     func main() -> Bool {
@@ -272,9 +272,9 @@ async function runIntegrationTests() {
     // 13. switch_redeemer
     await runTestScript(`test staking;
     enum Redeemer {
-        Unstake{},
-        Reward{},
-        Migrate{}
+        Unstake
+        Reward
+        Migrate
     }
     func main_internal(redeemer: Redeemer) -> Bool {
         redeemer.switch{
@@ -284,9 +284,9 @@ async function runIntegrationTests() {
         }
     }
     func main() -> Bool {
-        print(main_internal(Redeemer::Unstake{}).show());
-        print(main_internal(Redeemer::Reward{}).show());
-        print(main_internal(Redeemer::Migrate{}).show());
+        print(main_internal(Redeemer::Unstake).show());
+        print(main_internal(Redeemer::Reward).show());
+        print(main_internal(Redeemer::Migrate).show());
         true
     }`, "data(c:1)", ["false", "true", "false"]);
 
