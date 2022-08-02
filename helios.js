@@ -88,9 +88,9 @@
 //                                          CallExpr, MemberExpr, IfElseExpr, 
 //                                          SwitchCase, SwitchDefault, SwitchExpr
 //
-//    10. AST statement objects             Statement, NamedStatement, ConstStatement, DataField, 
+//    10. AST statement objects             Statement, ConstStatement, DataField, 
 //                                          DataDefinition, StructStatement, FuncStatement, 
-//                                          EnumMember, EnumStatement, ImplRegistry, ImplStatement,
+//                                          EnumMember, EnumStatement, ImplDefinition,
 //                                          ScriptPurpose, Program
 //
 //    11. AST build functions               buildProgram, buildScriptPurpose, buildConstStatement, 
@@ -3532,6 +3532,7 @@ class Word extends Token {
 			case "else":
 			case "switch":
 			case "print":
+			case "self":
 				return true;
 			default:
 				return false;
@@ -3562,7 +3563,7 @@ class Word extends Token {
 	 * Finds the index of the first Word(value) in a list of tokens
 	 * Returns -1 if none found
 	 * @param {Token[]} ts 
-	 * @param {string} value 
+	 * @param {string | string[]} value 
 	 * @returns {number}
 	 */
 	static find(ts, value) {
@@ -4742,6 +4743,7 @@ export function highlight(src) {
 						case "struct":
 						case "enum":
 						case "print":
+						case "self":
 							type = SyntaxCategory.Keyword;
 							break;
 						case "test":
@@ -5290,6 +5292,22 @@ class StatementType extends DataType {
 
 	get path() {
 		return this.#statement.path;
+	}
+
+	/**
+	 * A StatementType can instantiate itself if the underlying statement is an enum member with no fields
+	 * @param {Site} site
+	 */
+	assertValue(site) {
+		if (this.#statement instanceof EnumMember) {
+			if (this.#statement.nFields(site) == 0) {
+				return Value.new(this);
+			} else {
+				throw site.typeError(`expected '{...}' after '${this.#statement.name.toString()}'`);
+			}
+		} else {
+			throw site.typeError(`expected a value, got a type`);
+		}
 	}
 }
 
@@ -6518,6 +6536,10 @@ class PrimitiveLiteralExpr extends ValueExpr {
 		this.#primitive = primitive;
 	}
 
+	isLiteral() {
+		return true;
+	}
+
 	/**
 	 * @returns {string}
 	 */
@@ -6780,7 +6802,7 @@ class NameTypePair {
 
 	/**
 	 * @param {Word} name 
-	 * @param {TypeExpr} typeExpr 
+	 * @param {?TypeExpr} typeExpr 
 	 */
 	constructor(name, typeExpr) {
 		this.#name = name;
@@ -6799,11 +6821,19 @@ class NameTypePair {
 	 * Throws an error if called before evalType()
 	 */
 	get type() {
-		return this.#typeExpr.type;
+		if (this.#typeExpr === null) {
+			throw new Error("typeExpr not set");
+		} else {
+			return this.#typeExpr.type;
+		}
 	}
 
 	toString() {
-		return `${this.name.toString()}: ${this.#typeExpr.toString()}`;
+		if (this.#typeExpr === null) {
+			return this.name.toString();
+		} else {
+			return `${this.name.toString()}: ${this.#typeExpr.toString()}`;
+		}
 	}
 
 	/**
@@ -6812,7 +6842,11 @@ class NameTypePair {
 	 * @returns {Type}
 	 */
 	evalType(scope) {
-		return this.#typeExpr.eval(scope);
+		if (this.#typeExpr === null) {
+			throw new Error("typeExpr not set");
+		} else {
+			return this.#typeExpr.eval(scope);
+		}
 	}
 
 	toIR() {
@@ -6826,7 +6860,7 @@ class NameTypePair {
 class FuncArg extends NameTypePair {
 	/**
 	 * @param {Word} name 
-	 * @param {TypeExpr} typeExpr 
+	 * @param {?TypeExpr} typeExpr 
 	 */
 	constructor(name, typeExpr) {
 		super(name, typeExpr);
@@ -6867,7 +6901,12 @@ class FuncLiteralExpr extends ValueExpr {
 	 * @returns 
 	 */
 	evalType(scope) {
-		let argTypes = this.#args.map(a => a.evalType(scope));
+		let args = this.#args;
+		if (this.isMethod()) {
+			args = args.slice(1);
+		}
+
+		let argTypes = args.map(a => a.evalType(scope));
 		let retType = this.#retTypeExpr.eval(scope);
 
 		return new FuncType(argTypes, retType);
@@ -6878,22 +6917,22 @@ class FuncLiteralExpr extends ValueExpr {
 	 * @returns {FuncValue}
 	 */
 	evalInternal(scope) {
+		let fnType = this.evalType(scope);
+		
+		// argTypes is calculated separately again here so it includes self
 		let argTypes = this.#args.map(a => a.evalType(scope));
-		let retType = this.#retTypeExpr.eval(scope);
 
-		let res = new FuncValue(new FuncType(argTypes, retType));
+		let res = new FuncValue(fnType);
 
 		let subScope = new Scope(scope);
 		argTypes.forEach((a, i) => {
 			subScope.set(this.#args[i].name, Value.new(a));
 		});
 
-		assert(retType.isType());
-
 		let bodyVal = this.#bodyExpr.eval(subScope);
 
-		if (!bodyVal.isInstanceOf(this.#retTypeExpr.site, retType)) {
-			throw this.#retTypeExpr.typeError(`wrong return type, expected ${retType.toString()} but got ${this.#bodyExpr.type.toString()}`);
+		if (!bodyVal.isInstanceOf(this.#retTypeExpr.site, fnType.retType)) {
+			throw this.#retTypeExpr.typeError(`wrong return type, expected ${fnType.retType.toString()} but got ${this.#bodyExpr.type.toString()}`);
 		}
 
 		subScope.assertAllUsed();
@@ -6901,7 +6940,7 @@ class FuncLiteralExpr extends ValueExpr {
 		return res;
 	}
 
-	isMaybeMethod() {
+	isMethod() {
 		return this.#args.length > 0 && this.#args[0].name.toString() == "self";
 	}
 
@@ -6911,6 +6950,9 @@ class FuncLiteralExpr extends ValueExpr {
 	 */
 	argsToIR(recursiveName = null) {
 		let args = this.#args.map(a => a.toIR());
+		if (this.isMethod()) {
+			args = args.slice(1);
+		}
 
 		if (recursiveName !== null) {
 			args.unshift(new IR(recursiveName));
@@ -6927,13 +6969,29 @@ class FuncLiteralExpr extends ValueExpr {
 	toIRInternal(recursiveName, indent = "") {
 		let argsWithCommas = this.argsToIR(recursiveName);
 
-		return new IR([
+		let innerIndent = indent;
+		if (this.isMethod()) {
+			innerIndent += TAB;
+		}
+
+		let ir = new IR([
 			new IR("("),
 			argsWithCommas,
-			new IR(") "), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
-			this.#bodyExpr.toIR(indent + TAB),
-			new IR(`\n${indent}}`),
+			new IR(") "), new IR("->", this.site), new IR(` {\n${innerIndent}${TAB}`),
+			this.#bodyExpr.toIR(innerIndent + TAB),
+			new IR(`\n${innerIndent}}`),
 		]);
+
+		// wrap with self
+		if (this.isMethod()) {
+			ir = new IR([
+				new IR(`(self) -> {\n${indent}${TAB}`),
+				ir,
+				new IR(`\n${indent}}`),
+			]);
+		}
+
+		return ir;
 	}
 
 	/**
@@ -6999,7 +7057,7 @@ class ValuePathExpr extends ValueExpr {
 	#memberName;
 
 	/**
-	 * @param {TypeRefExpr | TypePathExpr} baseTypeExpr 
+	 * @param {TypeExpr} baseTypeExpr 
 	 * @param {Word} memberName 
 	 */
 	constructor(baseTypeExpr, memberName) {
@@ -7026,11 +7084,20 @@ class ValuePathExpr extends ValueExpr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {string} indent
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		return new IR(`${this.#baseTypeExpr.path}__${this.#memberName.toString()}`, this.site);
+		// if the we are directly accessing an enum member as a zero-field constructor we must change the code a bit
+		let memberVal = this.#baseTypeExpr.type.getTypeMember(this.#memberName);
+
+		if ((memberVal instanceof StatementType) && (memberVal.statement instanceof EnumMember)) {
+			let cId = memberVal.getConstrIndex(this.#memberName.site);
+
+			return new IR(`__core__constrData(${cId.toString()}, __core__mkNilData(()))`, this.site)
+		} else {
+			return new IR(`${this.#baseTypeExpr.type.path}__${this.#memberName.toString()}`, this.site);
+		}
 	}
 }
 
@@ -7374,8 +7441,16 @@ class MemberExpr extends ValueExpr {
 	 */
 	toIR(indent = "") {
 		// members can be functions so, field getters are also encoded as functions for consistency
+
+		let objPath = this.#objExpr.type.path;
+
+		// if we are getting the member of an enum member we should check if it a field or method, because for a method we have to use the parent type
+		if ((this.#objExpr.type instanceof StatementType) && (this.#objExpr.type.statement instanceof EnumMember) && (!this.#objExpr.type.statement.hasField(this.#memberName))) {
+			objPath = this.#objExpr.type.statement.parent.path;
+		} 
+
 		return new IR([
-			new IR(`${assertDefined(this.#objExpr.type.path)}__${this.#memberName.toString()}`, this.site), new IR("("),
+			new IR(`${objPath}__${this.#memberName.toString()}`, this.site), new IR("("),
 			this.#objExpr.toIR(indent),
 			new IR(")"),
 		]);
@@ -7735,37 +7810,6 @@ class SwitchExpr extends ValueExpr {
  * Doesn't return a value upon calling eval(scope)
  */
 class Statement extends Token {
-	/**
-	 * @param {Site} site 
-	 */
-	constructor(site) {
-		super(site);
-	}
-
-	/**
-	 * @param {TopScope} scope 
-	 */
-	eval(scope) {
-		throw new Error("not yet implemented");
-	}
-
-	assertAllMembersUsed() {
-	}
-
-	/**
-	 * Returns IR of statement.
-	 * No need to specify indent here, because all statements are top-level
-	 * @param {IRDefinitions} map 
-	 */
-	 toIR(map) {
-		throw new Error("not yet implemented");
-	}
-}
-
-/**
- * Base class of named statement (everything except ImplStatement)
- */
-class NamedStatement extends Statement {
 	#name;
 
 	/**
@@ -7780,12 +7824,31 @@ class NamedStatement extends Statement {
 	get name() {
 		return this.#name;
 	}
+
+	/**
+	 * @param {TopScope} scope 
+	 */
+	 eval(scope) {
+		throw new Error("not yet implemented");
+	}
+
+	assertAllMembersUsed() {
+	}
+
+	/**
+	 * Returns IR of statement.
+	 * No need to specify indent here, because all statements are top-level
+	 * @param {IRDefinitions} map 
+	 */
+	toIR(map) {
+		throw new Error("not yet implemented");
+	}
 }
 
 /**
  * Const value statement
  */
-class ConstStatement extends NamedStatement {
+class ConstStatement extends Statement {
 	#typeExpr;
 	#valueExpr;
 
@@ -7817,6 +7880,7 @@ class ConstStatement extends NamedStatement {
 
 		if (this.#typeExpr === null) {
 			if (!this.#valueExpr.isLiteral()) {
+				console.log(this.#valueExpr);
 				throw this.typeError("can't infer type");
 			}
 
@@ -7871,17 +7935,11 @@ class DataField extends NameTypePair {
 /**
  * Base class for struct and enum member
  */
-class DataDefinition extends NamedStatement {
+class DataDefinition extends Statement {
 	#fields;
-
-	/** @type {ImplRegistry} - filled by ImplStatements */
-	#registry;
 
 	/** @type {Set<string>} - all fields must be used */
 	#fieldsUsed;
-
-	/** @type {Set<string>} - automatic members that if used must be included in IR */
-	#autoMembersUsed;
 
 	/**
 	 * @param {Site} site 
@@ -7890,23 +7948,13 @@ class DataDefinition extends NamedStatement {
 	 */
 	constructor(site, name, fields) {
 		super(site, name);
-		this.#fields = assertDefined(fields); // list of StructField
-		this.#registry = new ImplRegistry();
+		this.#fields = fields;
 		this.#fieldsUsed = new Set();
-		this.#autoMembersUsed = new Set();
-
-		// non of the fields can be named the same as one of the autoMembers 
-		for (let f of this.#fields) {
-			if (this.hasAutoMember(f.name)) {
-				throw f.name.referenceError("reserved member");
-			}
-		}
 	}
 
 	get fields() {
 		return this.#fields.slice();
 	}
-
 
 	/**
 	 * Returns index of a field.
@@ -7928,6 +7976,14 @@ class DataDefinition extends NamedStatement {
 		return found;
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {boolean}
+	 */
+	hasField(name) {
+		return this.findField(name) != -1;
+	}
+
 	toString() {
 		return `${this.name.toString()} {${this.#fields.map(f => f.toString()).join(", ")}}`;
 	}
@@ -7937,15 +7993,13 @@ class DataDefinition extends NamedStatement {
 	 * @returns {Type}
 	 */
 	evalInternal(scope) {
-		this.fieldTypes_ = this.#fields.map(f => {
+		for (let f of this.#fields) {
 			let fieldType = f.evalType(scope);
 
 			if (fieldType instanceof FuncType) {
 				throw f.site.typeError("field can't be function type");
 			}
-
-			return fieldType;
-		});
+		}
 
 		// the following assertion is needed for vscode typechecking
 		if (this instanceof StructStatement || this instanceof EnumMember) {
@@ -7953,51 +8007,6 @@ class DataDefinition extends NamedStatement {
 		} else {
 			throw new Error("unhandled implementations");
 		}
-	}
-
-	/**
-	 * Checks if 'name' is an auto member (eg. "__eq", "__neq", "serialize")
-	 * "__eq" and "__neq" aren't included here because they work a little different for structs vs enummembers
-	 * @param {Word} name 
-	 * @returns 
-	 */
-	hasAutoMember(name) {
-		switch (name.toString()) {
-			case "serialize":
-				return true;
-		}
-
-		return false;
-	}
-
-	/**
-	 * Sets accociated member. Can be const or func
-	 * @param {Word} name 
-	 * @param {Value} value 
-	 */
-	setImplAssoc(name, value) {
-		if (this.findField(name) != -1) {
-			throw name.referenceError("name of assoc member can't be same as field");
-		} else if (this.hasAutoMember(name)) {
-			throw name.referenceError("name of assoc member can't be same as auto member");
-		}
-
-		this.#registry.setAssoc(name, value);
-	}
-
-	/**
-	 * Sets method member (first arg must be named self)
-	 * @param {Word} name 
-	 * @param {Value} value 
-	 */
-	setImplMethod(name, value) {
-		if (this.findField(name) != -1) {
-			throw name.referenceError("name of method member can't be same as field");
-		} else if (this.hasAutoMember(name)) {
-			throw name.referenceError("name of member method can't be the same as auto member");
-		}
-
-		this.#registry.setMethod(name, value);
 	}
 
 	/**
@@ -8021,7 +8030,11 @@ class DataDefinition extends NamedStatement {
 	 * @returns {GeneralizedValue}
 	 */
 	getTypeMember(name) {
-		return this.#registry.getAssoc(name); // this is easy because there is no 'self', path will be __MyStruct__MyMember
+		if (this.hasField(name)) {
+			throw name.referenceError(`'${this.name.toString()}::${name.toString()}' undefined (did you mean '${this.name.toString()}.${name.toString()}'?)`);
+		} else {
+			throw name.referenceError(`'${this.name.toString()}::${name.toString()}' undefined`);
+		}
 	}
 
 	/**
@@ -8032,45 +8045,22 @@ class DataDefinition extends NamedStatement {
 	 * @returns {Value}
 	 */
 	getInstanceMember(name, dryRun = false) {
-		if (this.hasAutoMember(name)) {
-			switch (name.toString()) {
-				case "serialize":
-					if (!dryRun) {
-						this.#autoMembersUsed.add(name.toString());
-					}
-					return Value.new(new FuncType([], new ByteArrayType()));
-				default:
-					throw new Error("unhandled automember");
-			}
+		let i = this.findField(name);
+
+		if (i == -1) {
+			throw name.referenceError(`'${this.name.toString()}.${name.toString()}' undefined`);
 		} else {
-			let i = this.findField(name);
-
-			if (i == -1) {
-				if (this.#registry.has(name)) {
-					return this.#registry.getMethod(name, dryRun);
-				} else {
-					throw name.referenceError(`\'${this.name.toString()}.${name.toString()}\' undefined`);
-				}
-			} else {
-				if (!dryRun) {
-					this.#fieldsUsed.add(name.toString());
-				}
-				return Value.new(this.#fields[i].type);
+			if (!dryRun) {
+				this.#fieldsUsed.add(name.toString());
 			}
+			return Value.new(this.#fields[i].type);
 		}
-	}
-
-	/**
-	 * @param {string} name
-	 */
-	useAutoMember(name) {
-		this.#autoMembersUsed.add(name.toString());
 	}
 
 	assertAllMembersUsed() {
 		for (let f of this.#fields) {
 			if (!this.#fieldsUsed.has(f.name.toString())) {
-				throw f.name.referenceError("field unused");
+				throw f.name.referenceError(`field '${this.name.toString()}.${f.name.toString()}' unused`);
 			}
 		}
 	}
@@ -8101,35 +8091,6 @@ class DataDefinition extends NamedStatement {
 
 			map.set(key, getter)
 		}
-
-		// add each automember
-		for (let auto of this.#autoMembersUsed) {
-			switch (auto) {
-				case "serialize":
-					map.set(auto, new IR([
-						new IR("(self) "), new IR("->", this.site), new IR(" {\n"),
-						new IR(`${TAB}() -> {__core__serialiseData(self)}\n`),
-						new IR("}"),
-					]));
-					break;
-				case "__eq":
-					map.set(auto, new IR([
-						new IR("(self) "), new IR("->", this.site), new IR(" {\n"),
-						new IR(`${TAB}(other) -> {__core__equalsData(self, other)}\n`),
-						new IR("}"),
-					]));
-					break;
-				case "__neq":
-					map.set(auto, new IR([
-						new IR("(self) "), new IR("->", this.site), new IR(" {\n"),
-						new IR(`${TAB}(other) -> {__helios__bool____not(__core__equalsData(self, other))}\n`),
-						new IR("}"),
-					]));
-					break;
-				default:
-					throw new Error("unhandled auto member");
-			}
-		}
 	}
 }
 
@@ -8137,13 +8098,18 @@ class DataDefinition extends NamedStatement {
  * Struct statement
  */
 class StructStatement extends DataDefinition {
+	#impl;
+
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
 	 * @param {DataField[]} fields 
+	 * @param {ImplDefinition} impl
 	 */
-	constructor(site, name, fields) {
+	constructor(site, name, fields, impl) {
 		super(site, name, fields);
+
+		this.#impl = impl;
 	}
 
 	get type() {
@@ -8158,7 +8124,7 @@ class StructStatement extends DataDefinition {
 	 * @param {Site} site 
 	 * @returns {number}
 	 */
-	 getConstrIndex(site) {
+	getConstrIndex(site) {
 		return 0;
 	}
 
@@ -8166,22 +8132,11 @@ class StructStatement extends DataDefinition {
 	 * Evaluates own type and adds to scope
 	 * @param {TopScope} scope 
 	 */
-	 eval(scope) {
+	eval(scope) {
 		scope.set(this.name, this.evalInternal(scope));
-	}
 
-	/**
-	 * @param {Word} name 
-	 * @returns {boolean}
-	 */
-	hasAutoMember(name) {
-		switch (name.toString()) {
-			case "__eq":
-			case "__neq":
-				return true;
-		}
-
-		return super.hasAutoMember(name);
+		// check the types of the member methods
+		this.#impl.eval(scope);
 	}
 
 	/**
@@ -8190,21 +8145,39 @@ class StructStatement extends DataDefinition {
 	 * @returns {Value}
 	 */
 	getInstanceMember(name, dryRun = false) {
-		if (this.hasAutoMember(name)) {
-			switch (name.toString()) {
-				case "__eq":
-				case "__neq":
-					if (!dryRun) {
-						this.useAutoMember(name.toString());
-						
-					}
-
-					return Value.new(new FuncType([new StatementType(this), new StatementType(this)], new BoolType()));
-			}
+		if (this.hasField(name)) {
+			return super.getInstanceMember(name, dryRun);
+		} else {
+			return this.#impl.getInstanceMember(name, dryRun);
 		}
+	}
 
-		// parent class handles serialize, fields, and registry members
-		return super.getInstanceMember(name);
+	/**
+	 * @param {Word} name
+	 * @param {boolean} dryRun
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name, dryRun = false) {
+		// only the impl can contain potentially contain type members
+		return this.#impl.getTypeMember(name, dryRun);
+	}
+
+	/**
+	 * Throws error if some fields or some impl statements aren't used.
+	 */
+	assertAllMembersUsed() {
+		super.assertAllMembersUsed();
+
+		this.#impl.assertAllMembersUsed();
+	}
+
+	/**
+	 * @param {IRDefinitions} map
+	 */
+	toIR(map) {
+		super.toIR(map);
+
+		this.#impl.toIR(map);
 	}
 }
 
@@ -8212,7 +8185,7 @@ class StructStatement extends DataDefinition {
  * Function statement
  * (basically just a named FuncLiteralExpr)
  */
-class FuncStatement extends NamedStatement {
+class FuncStatement extends Statement {
 	#funcExpr;
 	#recursive;
 
@@ -8271,14 +8244,6 @@ class FuncStatement extends NamedStatement {
 	}
 
 	/**
-	 * A function can maybe be a method if its first argument is name "self"
-	 * @returns {boolean}
-	 */
-	isMaybeMethod() {
-		return this.#funcExpr.isMaybeMethod();
-	}
-
-	/**
 	 * Returns IR of function.
 	 * @param {string} fullName - fullName is prefixed with a type path for impl members
 	 * @returns 
@@ -8296,6 +8261,18 @@ class FuncStatement extends NamedStatement {
 	 */
 	toIR(map) {
 		map.set(this.name.toString(), this.toIRInternal());
+	}
+
+	/**
+	 * @param {Statement} s 
+	 * @returns {boolean}
+	 */
+	static isMethod(s) {
+		if (s instanceof FuncStatement) {
+			return s.#funcExpr.isMethod();
+		} else {
+			return false;
+		}
 	}
 }
 
@@ -8356,44 +8333,28 @@ class EnumMember extends DataDefinition {
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
-		void super.evalInternal(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
-
 		if (this.#parent === null) {
 			throw new Error("parent should've been registered");
-		} else {
-			// TODO: set members on parent enum automatically
-			// (the following code is wrong)
-			/*for (let f of this.fields) {
-				let fType = f.evalType(scope);
-
-				this.#parent.maybeSetAutoMember(f.name, Value.new(fType));
-			}*/
 		}
+
+		void super.evalInternal(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
 	}
 
 	/**
 	 * @param {Word} name 
-	 * @param {Value} value 
+	 * @param {boolean} dryRun 
+	 * @returns {Value}
 	 */
-	setImplAssoc(name, value) {
-		// make sure parent doesn't already have a assoc or method member with the same name
-		if (this.parent.hasMember(name)) {
-			throw name.referenceError("name already used by parent enum");
+	 getInstanceMember(name, dryRun = false) {
+		if (this.hasField(name)) {
+			return super.getInstanceMember(name, dryRun);
+		} else {
+			if (this.#parent === null) {
+				throw new Error("parent should've been registered");
+			} else {
+				return this.#parent.getInstanceMember(name, dryRun);
+			}
 		}
-
-		super.setImplAssoc(name, value);
-	}
-
-	setImplMethod(name, value) {
-		// make sure parent doesn't already have a assoc or method member with the same name
-		if (this.parent.hasMember(name)) {
-			throw name.referenceError("name already used by parent enum");
-		}
-
-		super.setImplMethod(name, value);
-
-		// TODO: check if all other enum members implement that same function
-		//this.#parent?.maybeSetAutoMember(name, value);
 	}
 
 	get path() {
@@ -8404,33 +8365,25 @@ class EnumMember extends DataDefinition {
 /**
  * Enum statement, containing at least one member
  */
-class EnumStatement extends NamedStatement {
+class EnumStatement extends Statement {
 	#members;
+	#impl;
 
 	/** @type {Set<string>} */
-	#membersUsed;
-
-	/** @type {ImplRegistry} - methods and associated consts/funcs */
-	#registry;
-
-	/** @type {Map<string, Value>} */
-	#autoMembers;
-
-	/** @type {Set<string>} */
-	#autoMembersUsed;
+	#membersUsed;	
 
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
 	 * @param {EnumMember[]} members 
+	 * @param {ImplDefinition} impl
 	 */
-	constructor(site, name, members) {
+	constructor(site, name, members, impl) {
 		super(site, name);
 		this.#members = members;
+		this.#impl = impl;
 		this.#membersUsed = new Set();
-		this.#registry = new ImplRegistry(); //
-		this.#autoMembers = new Map();
-		this.#autoMembersUsed = new Set();
+		
 
 		for (let i = 0; i < this.#members.length; i++) {
 			this.#members[i].registerParent(this, i);
@@ -8463,15 +8416,11 @@ class EnumStatement extends NamedStatement {
 	}
 
 	/**
-	 * @param {Word} name 
-	 * @returns 
+	 * @param {Word} name
+	 * @returns {boolean}
 	 */
-	hasMember(name) {
-		if (this.findEnumMember(name) != -1) {
-			return true;
-		} else {
-			return this.#registry.has(name);
-		}
+	hasEnumMember(name) {
+		return this.findEnumMember(name) != -1;
 	}
 
 	toString() {
@@ -8486,75 +8435,10 @@ class EnumStatement extends NamedStatement {
 			m.eval(scope);
 		});
 
-		scope.set(this.name, new StatementType(this));
+		scope.set(this.name, this.type);
+
+		this.#impl.eval(scope);
 	}
-
-	/**
-	 * @param {Word} name 
-	 * @param {Value} value 
-	 */
-	setImplAssoc(name, value) {
-		if (this.findEnumMember(name) != -1) {
-			throw name.referenceError("assoc member can have same name as enum type member");
-		}
-
-		this.#registry.setAssoc(name, value);
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @param {Value} value 
-	 */
-	setImplMethod(name, value) {
-		throw name.typeError("can't impl method directly on base type of enum");
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @param {Value} value 
-	 * @returns 
-	 */
-	/*maybeSetAutoMember(name, value) {
-		let type = value.getType(this.site);
-
-		// check that all members have the same field
-
-		let retType = null;
-		for (let m of this.#members) {
-			try {
-				let mVal = m.getInstanceMember(name, true);
-				let mType = mVal.getType(name.site);
-
-				if (!(mType instanceof FuncType)) {
-					return;
-				}
-
-				if (type instanceof FuncType) {
-					// all args must be exactly the same
-					if (!type.hasSameArgs(mType)) {
-						return;
-					}
-
-					retType = IfElseExpr.reduceBranchType(this.site, type.retType, mType.retType);
-				} else {
-					retType = IfElseExpr.reduceBranchType(this.site, retType, mVal.getType(name.site));
-				}
-			} catch (e) {
-				// don't set auto member if any error is encountered
-				return;
-			}
-		}
-
-		let autoType;
-
-		if (type instanceof FuncType) {
-			autoType = new FuncType(type.argTypes, retType);
-		} else {
-			autoType = retType;
-		}
-
-		this.#autoMembers.set(name.toString(), autoType);
-	}*/
 
 	/**
 	 * @param {Site} site 
@@ -8570,31 +8454,26 @@ class EnumStatement extends NamedStatement {
 	 * @returns {Value}
 	 */
 	getInstanceMember(name, dryRun = false) {
-		if (this.#autoMembers.has(name.toString())) {
-			if (!dryRun) {
-				this.#autoMembersUsed.add(name.toString());
-			}
-			return assertDefined(this.#autoMembers.get(name.toString()));
+		if (this.hasEnumMember(name)) {
+			throw name.referenceError(`'${name.toString()}' is an enum of '${this.toString}' (did you mean '${this.toString()}::${name.toString()}'?)`);
 		} else {
-			throw name.typeError("undefined enum member");
+			return this.#impl.getInstanceMember(name, dryRun);
 		}
 	}
 
 	/**
 	 * @param {Word} name 
+	 * @param {boolean} dryRun
 	 * @returns {GeneralizedValue}
 	 */
-	getTypeMember(name) {
+	getTypeMember(name, dryRun = false) {
 		let i = this.findEnumMember(name);
 		if (i == -1) {
-			// if it isn't an enum then get an auto member
-			if (this.#registry.has(name)) {
-				return this.#registry.getAssoc(name);
-			} else {
-				throw name.referenceError(`${this.name.toString()}::${name.toString()} undefined`);
-			}
+			return this.#impl.getTypeMember(name, dryRun);
 		} else {
-			this.#membersUsed.add(name.toString());
+			if (!dryRun) {
+				this.#membersUsed.add(name.toString());
+			}
 
 			return this.#members[i].type;
 		}
@@ -8619,11 +8498,13 @@ class EnumStatement extends NamedStatement {
 	assertAllMembersUsed() {
 		for (let m of this.#members) {
 			if (!this.#membersUsed.has(m.name.toString())) {
-				throw m.name.referenceError("unused");
+				throw m.name.referenceError(`'${this.toString()}::${m.name.toString}' unused`);
 			}
 
 			m.assertAllMembersUsed();
 		}
+
+		this.#impl.assertAllMembersUsed();
 	}
 
 	get path() {
@@ -8638,222 +8519,149 @@ class EnumStatement extends NamedStatement {
 			member.toIR(map);
 		}
 
-		// only adds automembers
-		for (let pair of this.#autoMembers) {
-			let name = pair[0];
-
-			if (this.#autoMembersUsed.has(name)) {
-				let n = this.#members.length;
-				let inner = new IR(`${this.#members[n - 1].path}__${name.toString()}`);
-				for (let i = n - 2; i >= 0; i--) {
-					inner = new IR([
-						new IR("__core__ifThenElse(__core__equalsInteger(constrIdx, "), new IR(i.toString(), this.#members[i].site), new IR("), "), new IR(`${this.#members[i].path}__${name.toString()}, `),
-						inner,
-						new IR(`)`),
-					]);
-				}
-
-				let autoDef = new IR([
-					new IR("(self) "), new IR("->", this.site), new IR(` {\n${TAB}(constrIdx) -> {\n${TAB}${TAB}`),
-					inner,
-					new IR(`\n${TAB}}(__core__fstPair(__core__unConstrData(self)))(self)\n}`),
-				]);
-
-				map.set(`${this.path}__${name}`, autoDef);
-			}
-		}
-	}
-}
-
-/**
- * Registry which is attached to Structs, Enum Members and Enums 
- */
-class ImplRegistry {
-	/** @type {[Word, Value][]} */
-	#methods;
-
-	/** @type {[Word, Value][]} */
-	#assocs;
-
-	/** @type {Set<string>} */
-	#used;
-
-	constructor() {
-		this.#methods = [];
-		this.#assocs = [];
-
-		this.#used = new Set(); // set of names as strings
-	}
-
-	/**
-	 * Returns index of method.
-	 * Returns -1 if not found.
-	 * @param {Word} name 
-	 * @returns {number}
-	 */
-	findMethod(name) {
-		return this.#methods.findIndex(pair => pair[0].toString() == name.toString());
-	}
-
-	/**
-	 * Returns index of assoc.
-	 * Returns -1 if not found.
-	 * @param {Word} name 
-	 * @returns {number}
-	 */
-	findAssoc(name) {
-		return this.#assocs.findIndex(pair => pair[0].toString() == name.toString());
-	}
-
-	/**
-	 * Checks if 'name' is a registry member (method or assoc)
-	 * @param {Word} name 
-	 * @returns {boolean}
-	 */
-	has(name) {
-		return this.findMethod(name) != -1 || this.findAssoc(name) != -1;
-	}
-
-	/**
-	 * Sets a registry assoc
-	 * @param {Word} name 
-	 * @param {Value} value 
-	 */
-	setAssoc(name, value) {
-		if (this.has(name)) {
-			throw name.referenceError("impl member with same name already set");
-		}
-
-		this.#assocs.push([name, value]);
-	}
-
-	/**
-	 * Sets a registry method
-	 * @param {Word} name 
-	 * @param {Value} value 
-	 */
-	setMethod(name, value) {
-		if (this.has(name)) {
-			throw name.referenceError("impl member with same name already set");
-		}
-
-		this.#methods.push([name, value]);
-	}
-
-	/**
-	 * Gets a registry assoc
-	 * @param {Word} name
-	 * @param {boolean} dryRun - if true then name isn't added to used
-	 * @returns {Value}
-	 */
-	getAssoc(name, dryRun = false) {
-		let i = this.findAssoc(name);
-		if (i == -1) {
-			throw name.referenceError("impl not found");
-		}
-
-		if (!dryRun) {
-			this.#used.add(name.toString());
-		}
-
-		return this.#assocs[i][1];
-	}
-
-	/**
-	 * Gets a registry method
-	 * @param {Word} name 
-	 * @param {boolean} dryRun - if true then name isn't added to used
-	 * @returns {Value}
-	 */
-	getMethod(name, dryRun = false) {
-		let i = this.findMethod(name);
-		if (i == -1) {
-			throw name.referenceError("impl not found");
-		}
-
-		if (!dryRun) {
-			this.#used.add(name.toString());
-		}
-
-		return this.#methods[i][1];
-	}
-
-	/**
-	 * Throws an error of some registry members haven't been used
-	 */
-	assertAllMembersUsed() {
-		for (let pair of this.#methods) {
-			if (!this.#used.has(pair[0].toString())) {
-				throw pair[0].referenceError("impl unused");
-			}
-		}
-
-		for (let pair of this.#assocs) {
-			if (!this.#used.has(pair[0].toString())) {
-				throw pair[0].referenceError("impl unused");
-			}
-		}
+		this.#impl.toIR(map);
 	}
 }
 
 /**
  * Impl statements, which add functions and constants to registry of user types (Struct, Enum Member and Enums)
  */
-class ImplStatement extends Statement {
-	#typeExpr;
+class ImplDefinition {
+	#selfTypeExpr;
 	#statements;
 
+	/** @type {Value[]} - filled during eval to allow same recursive behaviour as for top-level statements */
+	#statementValues;
+
+	/** @type {Set<string>} */
+	#usedStatements;
+
 	/**
-	 * 
-	 * @param {Site} site 
-	 * @param {TypeRefExpr | TypePathExpr} typeExpr 
+	 * @param {TypeRefExpr} selfTypeExpr;
 	 * @param {(FuncStatement | ConstStatement)[]} statements 
 	 */
-	constructor(site, typeExpr, statements) {
-		super(site);
-		this.#typeExpr = typeExpr;
+	constructor(selfTypeExpr, statements) {
+		this.#selfTypeExpr = selfTypeExpr;
 		this.#statements = statements;
+		this.#statementValues = [];
+		this.#usedStatements = new Set();
 	}
 
 	toString() {
-		return `impl ${this.#typeExpr.toString()} {${this.#statements.map(s => s.toString())}}`;
+		return `${this.#statements.map(s => s.toString()).join("\n")}`;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 */
 	eval(scope) {
-		let type = this.#typeExpr.eval(scope);
-		if (!(type instanceof StatementType)) {
-			throw this.#typeExpr.referenceError("not a user-type");
+		let selfType = this.#selfTypeExpr.eval(scope);
+
+		if (!(selfType instanceof StatementType)) {
+			throw this.#selfTypeExpr.referenceError("not a user-type");
 		} else {
-
-			let ref = type.statement;
-
 			for (let s of this.#statements) {
-				if (s instanceof ConstStatement) {
-					let constVal = s.evalInternal(scope);
-					let constType = constVal.getType(s.site);
+				if (s instanceof FuncStatement) {
+					this.#statementValues.push(new FuncStatementValue(s.evalType(scope))); // add func type to #statementValues in order to allow recursive calls
 
-					if (Type.same(s.site, constType, type)) {
-						ref.setImplAssoc(s.name, constVal);
-					} else {
-						throw s.typeError("not associated");
-					}
-				} else if (s instanceof FuncStatement) {
-					let fnType = s.evalType(scope);
-					let fnVal = Value.new(fnType);
-
-					// TODO: perhaps if first argument is "self" the that type can be infered?
-					if (s.isMaybeMethod() && fnType.isMaybeMethod(s.site, type)) {
-						ref.setImplMethod(s.name, fnVal);
-					} else if (fnType.isAssociated(s.site, type)) {
-						ref.setImplAssoc(s.name, fnVal);
-					} else {
-						throw s.typeError("not associated");
-					}
-
-					// now do the actual internal evaluation in which recursion is now possible
 					void s.evalInternal(scope);
 				} else {
-					throw new Error("expected FuncStatement or ConstStatement");
+					// eval internal doesn't add anything to scope
+					this.#statementValues.push(s.evalInternal(scope));
+				}
+			}
+		}
+	}
+
+	/**
+	 * @param {Word} name
+	 * @param {boolean} dryRun
+	 * @returns {Value}
+	 */
+	getInstanceMember(name, dryRun = false) {
+		switch (name.value) {
+			case "serialize":
+				this.#usedStatements.add(name.toString());
+				return Value.new(new FuncType([], new ByteArrayType()));
+			case "__eq":
+			case "__neq":
+				this.#usedStatements.add(name.toString());
+				return Value.new(new FuncType([this.#selfTypeExpr.type], new BoolType()));
+			default:
+				assert(this.#statementValues.length == this.#statements.length);
+
+				// loop the contained statements to find one with name 'name'
+				for (let i = 0; i < this.#statements.length; i++) {
+					let s = this.#statements[i];
+
+					if (name.toString() == s.name.toString()) {
+
+						if (FuncStatement.isMethod(s)) {
+							if (!dryRun) {
+								this.#usedStatements.add(name.toString());
+							}
+							return this.#statementValues[i];
+						} else {
+							throw name.referenceError(`'${this.#selfTypeExpr.toString()}.${name.toString()}' isn't a method (did you mean '${this.#selfTypeExpr.toString()}::${name.toString()}'?)`);
+						}
+					}
+				}
+
+				throw name.referenceError(`'${this.#selfTypeExpr.toString()}.${name.toString()}' undefined`);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
+	 * @param {boolean} dryRun 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name, dryRun = false) {
+		switch (name.value) {
+			default:
+				assert(this.#statementValues.length == this.#statements.length);
+
+				for (let i = 0; i < this.#statementValues.length; i++) {
+					let s = this.#statements[i];
+					let isLast = i == this.#statementValues.length - 1;
+
+					if (name.toString() == s.name.toString()) {
+						if (FuncStatement.isMethod(s)) {
+							throw name.referenceError(`'${this.#selfTypeExpr.toString()}::${name.value}' is a method (did you mean '${this.#selfTypeExpr.toString()}.${name.toString()}'?)`)
+						} else {
+							if (!dryRun) {
+								this.#usedStatements.add(name.toString());
+							}
+
+							let v = this.#statementValues[i];
+
+							if (isLast && s instanceof FuncStatement) {
+								if (v instanceof FuncStatementValue) {
+									v.markAsUsed();
+								} else {
+									throw new Error("unexpected");
+								}
+							}
+
+							return v;
+						}
+					}
+				}
+
+				throw name.referenceError(`'${this.#selfTypeExpr.toString()}::${name.toString()}' undefined`);
+		}
+	}
+
+	/**
+	 * Throws error if some statements not used
+	 */
+	assertAllMembersUsed() {
+		for (let s of this.#statements) {
+			if (!this.#usedStatements.has(s.name.toString())) {
+				if (FuncStatement.isMethod(s)) {
+					throw s.name.referenceError(`'${this.#selfTypeExpr.toString()}.${s.name.toString()}' unused`);
+				} else {
+					throw s.name.referenceError(`'${this.#selfTypeExpr.toString()}::${s.name.toString()}' unused`);
 				}
 			}
 		}
@@ -8864,18 +8672,40 @@ class ImplStatement extends Statement {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		let path = this.#typeExpr.path;
+		let path = this.#selfTypeExpr.path;
+		let site = this.#selfTypeExpr.site;
+
+		if (this.#usedStatements.has("__eq")) {
+			map.set(`${path}____eq`, new IR([
+				new IR("(self) "), new IR("->", site), new IR(" {\n"),
+				new IR(`${TAB}(other) -> {__core__equalsData(self, other)}\n`),
+				new IR("}"),
+			]));
+		}
+
+		if (this.#usedStatements.has("__neq")) {
+			map.set(`${path}____neq`, new IR([
+				new IR("(self) "), new IR("->", site), new IR(" {\n"),
+				new IR(`${TAB}(other) -> {__helios__bool____not(__core__equalsData(self, other))}\n`),
+				new IR("}"),
+			]));
+		}
+
+		if (this.#usedStatements.has("serialize")) {
+			map.set(`${path}__serialize`, new IR([
+				new IR("(self) "), new IR("->", site), new IR(" {\n"),
+				new IR(`${TAB}() -> {__core__serialiseData(self)}\n`),
+				new IR("}"),
+			]));
+		}
 
 		for (let s of this.#statements) {
 			let key = `${path}__${s.name.toString()}`
-			let value;
 			if (s instanceof FuncStatement) {
-				value = s.toIRInternal(key);
+				map.set(key, s.toIRInternal(key));
 			} else {
-				value = s.toIRInternal();
+				map.set(key, s.toIRInternal());
 			}
-
-			map.set(key, value);
 		}
 	}
 }
@@ -8958,7 +8788,7 @@ class Program {
 		} else {
 			let mainVal = scope.get(Word.new("main"));
 			let mainSite = assertDefined(this.#statements.find(s => {
-				if (s instanceof NamedStatement) {
+				if (s instanceof Statement) {
 					return s.name.toString() == "main";
 				} else {
 					return false;
@@ -9095,8 +8925,6 @@ function buildProgram(ts) {
 			s = buildFuncStatement(t.site, ts);
 		} else if (kw == "enum") {
 			s = buildEnumStatement(t.site, ts);
-		} else if (kw == "impl") {
-			s = buildImplStatement(t.site, ts);
 		} else {
 			throw t.syntaxError(`invalid top-level keyword '${kw}'`);
 		}
@@ -9160,15 +8988,27 @@ function buildConstStatement(site, ts) {
 		assertDefined(ts.shift()).assertSymbol("=");
 	}
 
-	let semicolonPos = Symbol.find(ts, ";");
+	let nextStatementPos = Word.find(ts, ["const", "func", "struct", "enum"]);
 
-	if (semicolonPos == -1) {
-		throw site.syntaxError("invalid syntax");
-	}
+	let tsValue = nextStatementPos == -1 ? ts.splice(0) : ts.splice(nextStatementPos);
 
-	let valueExpr = buildValueExpr(ts.splice(0, semicolonPos));
+	let valueExpr = buildValueExpr(tsValue);
 
 	return new ConstStatement(site, name, typeExpr, valueExpr);
+}
+
+/**
+ * @param {Token[]} ts
+ * @returns {[Token[], Token[]]}
+ */
+function splitDataImpl(ts) {
+	let implPos = Word.find(ts, ["const", "func"]);
+
+	if (implPos == -1) {
+		return [ts, []];
+	} else {
+		return [ts.slice(0, implPos), ts.slice(implPos)];
+	}
 }
 
 /**
@@ -9177,47 +9017,90 @@ function buildConstStatement(site, ts) {
  * @returns {StructStatement}
  */
 function buildStructStatement(site, ts) {
-	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	let maybeName = ts.shift();
 
-	assert(ts.length > 0);
+	if (maybeName === undefined) {
+		throw site.syntaxError("expected name after 'struct'");
+	} else {
+		let name = maybeName.assertWord().assertNotKeyword();
 
-	let braces = assertDefined(ts.shift()).assertGroup("{");
+		let maybeBraces = ts.shift();
+		if (maybeBraces === undefined) {
+			throw name.syntaxError(`expected '{...}' after 'struct ${name.toString()}'`);
+		} else {
+			let braces = maybeBraces.assertGroup("{", 1);
 
-	let fields = buildDataFields(braces);
+			let [tsFields, tsImpl] = splitDataImpl(braces.fields[0]);
 
-	return new StructStatement(site, name, fields);
+			if (tsFields.length == 0) {
+				throw braces.syntaxError("expected at least one struct field");
+			}
+
+			let fields = buildDataFields(tsFields);
+
+			let impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), fields.map(f => f.name));
+
+			return new StructStatement(site, name, fields, impl);
+		}
+	}
 }
 
 /**
- * @param {Group} braces 
+ * @param {Token[]} ts 
  * @returns {DataField[]}
  */
-function buildDataFields(braces) {
-	let rawFields = braces.fields;
-
+function buildDataFields(ts) {
 	/** @type {DataField[]} */
 	let fields = []
 
-	for (let f of rawFields) {
-		let ts = f.slice();
-
-		if (ts.length == 0) {
-			throw braces.syntaxError("empty field")
-		} else if (ts.length < 2) {
-			throw ts[0].syntaxError("invalid field syntax")
-		}
-
-		let fieldName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
-
+	/**
+	 * @param {Word} fieldName
+	 */
+	function assertUnique(fieldName) {
 		if (fields.findIndex(f => f.name.toString() == fieldName.toString()) != -1) {
 			throw fieldName.typeError(`duplicate field \'${fieldName.toString()}\'`);
 		}
+	}
 
-		assertDefined(ts.shift()).assertSymbol(":");
+	while (ts.length > 0) {
+		let colonPos = Symbol.find(ts, ":");
 
-		let typeExpr = buildTypeExpr(ts);
+		if (colonPos == -1) {
+			throw ts[0].syntaxError("expected ':' in data field");
+		}
 
-		fields.push(new DataField(fieldName, typeExpr));
+		let tsBef = ts.slice(0, colonPos);
+		let tsAft = ts.slice(colonPos+1);
+		let maybeFieldName = tsBef.shift();
+		if (maybeFieldName === undefined) {
+			throw ts[colonPos].syntaxError("expected word before ':'");
+		} else {
+			let fieldName = maybeFieldName.assertWord().assertNotKeyword();
+
+			assertUnique(fieldName);
+
+			if (tsAft.length == 0) {
+				throw ts[colonPos].syntaxError("expected type expression after ':'");
+			}
+
+			let nextColonPos = Symbol.find(tsAft, ":");
+
+			if (nextColonPos != -1) {
+				if (nextColonPos == 0) {
+					throw tsAft[nextColonPos].syntaxError("expected word before ':'");
+				}
+
+				void tsAft[nextColonPos-1].assertWord();
+
+				ts = tsAft.splice(nextColonPos-1);
+			} else {
+				ts = [];
+			}
+
+			let typeExpr = buildTypeExpr(tsAft);
+
+			fields.push(new DataField(fieldName, typeExpr));
+		}
 	}
 
 	return fields;
@@ -9226,22 +9109,24 @@ function buildDataFields(braces) {
 /**
  * @param {Site} site 
  * @param {Token[]} ts 
+ * @param {?TypeExpr} methodOf - methodOf !== null then first arg can be named 'self'
  * @returns {FuncStatement}
  */
-function buildFuncStatement(site, ts) {
+function buildFuncStatement(site, ts, methodOf = null) {
 	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
-	return new FuncStatement(site, name, buildFuncLiteralExpr(ts));
+	return new FuncStatement(site, name, buildFuncLiteralExpr(ts, methodOf));
 }
 
 /**
  * @param {Token[]} ts 
+ * @param {?TypeExpr} methodOf - methodOf !== null then first arg can be named 'self'
  * @returns {FuncLiteralExpr}
  */
-function buildFuncLiteralExpr(ts) {
+function buildFuncLiteralExpr(ts, methodOf = null) {
 	let parens = assertDefined(ts.shift()).assertGroup("(");
 	let site = parens.site;
-	let args = buildFuncArgs(parens);
+	let args = buildFuncArgs(parens, methodOf);
 
 	assertDefined(ts.shift()).assertSymbol("->");
 
@@ -9261,28 +9146,57 @@ function buildFuncLiteralExpr(ts) {
 
 /**
  * @param {Group} parens 
+ * @param {?TypeExpr} methodOf - methodOf !== nul then first arg can be named 'self'
  * @returns {FuncArg[]}
  */
-function buildFuncArgs(parens) {
+function buildFuncArgs(parens, methodOf = null) {
 	/** @type {FuncArg[]} */
 	let args = [];
 
-	for (let f of parens.fields) {
+	for (let i = 0; i < parens.fields.length; i++) {
+		let f = parens.fields[i];
 		let ts = f.slice();
 
-		let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+		let name = assertDefined(ts.shift()).assertWord();
 
-		for (let prev of args) {
-			if (prev.name.toString() == name.toString()) {
-				throw name.syntaxError("duplicate arg name");
+		if (name.toString() == "self") {
+			if (i != 0 || methodOf === null) {
+				throw name.syntaxError("'self' is reserved");
+			} else {
+				if (ts.length > 0) {
+					if (ts[0].isSymbol(":")) {
+						throw ts[0].syntaxError("unexpected type expression after 'self'");
+					} else {
+						throw ts[0].syntaxError("unexpected token");
+					}
+				} else {
+					args.push(new FuncArg(name, methodOf));
+				}
+			}
+		} else {
+			name = name.assertNotKeyword();
+
+			for (let prev of args) {
+				if (prev.name.toString() == name.toString()) {
+					throw name.syntaxError(`duplicate argument '${name.toString()}'`);
+				}
+			}
+
+			let maybeColon = ts.shift();
+			if (maybeColon === undefined) {
+				throw name.syntaxError(`expected ':' after '${name.toString()}'`);
+			} else {
+				let colon = maybeColon.assertSymbol(":");
+
+				if (ts.length == 0) {
+					throw colon.syntaxError("expected type expression after ':'");
+				}
+
+				let typeExpr = buildTypeExpr(ts);
+
+				args.push(new FuncArg(name, typeExpr));
 			}
 		}
-
-		assertDefined(ts.shift()).assertSymbol(":");
-
-		let typeExpr = buildTypeExpr(ts);
-
-		args.push(new FuncArg(name, typeExpr));
 	}
 
 	return args;
@@ -9294,38 +9208,37 @@ function buildFuncArgs(parens) {
  * @returns {EnumStatement}
  */
 function buildEnumStatement(site, ts) {
-	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	let maybeName = ts.shift();
 
-	if (ts.length == 0) {
-		throw site.syntaxError("invalid syntax");
-	}
+	if (maybeName === undefined) {
+		throw site.syntaxError("expected word after 'enum'");
+	} else {
+		let name = maybeName.assertWord().assertNotKeyword();
 
-	let t = assertDefined(ts.shift()).assertGroup("{");
-	if (t.fields.length == 0) {
-		throw t.syntaxError("invalid enum: expected at least one member");
-	}
+		let maybeBraces = ts.shift();
+		if (maybeBraces === undefined) {
+			throw name.syntaxError(`expected '{...}' after 'enum ${name.toString()}'`);
+		} else {
+			let braces = maybeBraces.assertGroup("{", 1);
 
-	// list of EnumMember
-	let members = [];
-	for (let f of t.fields) {
-		let ts = f.slice();
+			let [tsMembers, tsImpl] = splitDataImpl(braces.fields[0]);
 
-		if (ts.length == 0) {
-			throw t.syntaxError("empty enum member");
-		}
-
-		let member = buildEnumMember(ts);
-
-		for (let m of members) {
-			if (m.name.toString() == member.name.toString()) {
-				throw member.name.referenceError("duplicate enum member");
+			if (tsMembers.length == 0) {
+				throw braces.syntaxError("expected at least one enum member");
 			}
+
+			/** @type {EnumMember[]} */
+			let members = [];
+
+			while (tsMembers.length > 0) {
+				members.push(buildEnumMember(tsMembers));
+			}
+
+			let impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), members.map(m => m.name));
+
+			return new EnumStatement(site, name, members, impl);
 		}
-
-		members.push(member);
 	}
-
-	return new EnumStatement(site, name, members);
 }
 
 /**
@@ -9335,53 +9248,71 @@ function buildEnumStatement(site, ts) {
 function buildEnumMember(ts) {
 	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
-	let maybeBraces = ts.shift();
-
-	if (maybeBraces === undefined) {
-		throw name.site.syntaxError("invalid enum member syntax");
+	if (ts.length == 0 || ts[0].isWord()) {
+		return new EnumMember(name, []);
 	} else {
-		let braces = maybeBraces.assertGroup("{");
+		let braces = assertDefined(ts.shift()).assertGroup("{", 1);
 
-		let fields = buildDataFields(braces);
-
-		if (ts.length != 0) {
-			throw ts[0].syntaxError("invalid enum member syntax");
-		}
+		let fields = buildDataFields(braces.fields[0]);
 
 		return new EnumMember(name, fields);
 	}
 }
 
-/**
- * @param {Site} site 
+/** 
  * @param {Token[]} ts 
- * @returns {ImplStatement}
+ * @param {TypeRefExpr} selfTypeExpr - reference to parent type
+ * @param {Word[]} fieldNames - to check if impl statements have a unique name
+ * @returns {ImplDefinition}
  */
-function buildImplStatement(site, ts) {
-	let bracesPos = Group.find(ts, "{");
-	if (bracesPos == -1) {
-		throw site.syntaxError("invalid impl syntax");
+function buildImplDefinition(ts, selfTypeExpr, fieldNames) {
+	function assertNonAuto(name) {
+		if (name.toString() == "serialize" || name.toString() == "__eq" || name.toString() == "__neq") {
+			throw name.syntaxError(`'${name.toString()}' is a reserved member`);
+		}
 	}
 
-	let typeExpr = buildTypeExpr(ts.splice(0, bracesPos));
-	if (!((typeExpr instanceof TypeRefExpr) || (typeExpr instanceof TypePathExpr))) {
-		throw typeExpr.syntaxError("invalid impl syntax");
+	for (let fieldName of fieldNames) {
+		assertNonAuto(fieldName);
 	}
 
-	let braces = assertDefined(ts.shift()).assertGroup("{", 1);
+	let statements = buildImplMembers(ts, selfTypeExpr);
 
-	let statements = buildImplMembers(braces.fields[0]);
+	/** @param {number} i */
+	function assertUnique(i) {
+		let s = statements[i];
 
-	return new ImplStatement(site, typeExpr, statements);
+		assertNonAuto(s.name);
+
+		for (let fieldName of fieldNames) {
+			if (fieldName.toString() == s.name.toString()) {
+				throw s.name.syntaxError(`'${s.name.toString()}' is duplicate`);
+			}
+		}
+
+		for (let j = i+1; j < statements.length; j++) {
+			if (statements[j].name.toString() == s.name.toString()) {
+				throw statements[j].name.syntaxError(`'${s.name.toString()}' is duplicate`);
+			}
+		}
+	}
+
+	for (let i = 0; i < statements.length; i++) {
+		assertUnique(i);
+	}
+
+	return new ImplDefinition(selfTypeExpr, statements);
 }
 
 /**
  * @param {Token[]} ts 
+ * @param {TypeExpr} methodOf
  * @returns {(ConstStatement | FuncStatement)[]}
  */
-function buildImplMembers(ts) {
+function buildImplMembers(ts, methodOf) {
 	/** @type {(ConstStatement | FuncStatement)[]} */
 	let statements = [];
+
 
 	while (ts.length != 0) {
 		let t = assertDefined(ts.shift()).assertWord();
@@ -9391,7 +9322,7 @@ function buildImplMembers(ts) {
 		if (kw == "const") {
 			s = buildConstStatement(t.site, ts);
 		} else if (kw == "func") {
-			s = buildFuncStatement(t.site, ts);
+			s = buildFuncStatement(t.site, ts, methodOf);
 		} else {
 			throw t.syntaxError("invalid impl syntax");
 		}
@@ -9775,7 +9706,10 @@ function buildChainStartValueExpr(ts) {
 		if (ts[0].isWord("const") || ts[0].isWord("struct") || ts[0].isWord("enum") || ts[0].isWord("func")) {
 			throw ts[0].syntaxError(`invalid use of '${ts[0].assertWord().value}', can only be used as top-level statement`);
 		} else {
-			return new ValueRefExpr(assertDefined(ts.shift()).assertWord().assertNotKeyword()); // can later be turned into a typeexpr
+			let name = assertDefined(ts.shift()).assertWord();
+
+			// only place where a word can be "self"
+			return new ValueRefExpr(name.value == "self" ? name : name.assertNotKeyword());
 		}
 	} else {
 		throw ts[0].syntaxError("invalid syntax");
@@ -10035,11 +9969,16 @@ function buildListLiteralExpr(ts) {
  */
 function buildStructLiteralExpr(ts) {
 	let bracesPos = Group.find(ts, "{");
+
 	assert(bracesPos != -1);
 
 	let typeExpr = buildTypeExpr(ts.splice(0, bracesPos));
 
 	let braces = assertDefined(ts.shift()).assertGroup("{");
+
+	if (braces.fields.length == 0) {
+		throw braces.syntaxError(`expected at least one field in '${typeExpr.toString()}{...}'`);
+	}
 
 	let fields = braces.fields.map(fts => buildStructLiteralField(fts));
 
@@ -10067,19 +10006,13 @@ function buildValuePathExpr(ts) {
 
 	assert(dcolonPos != -1);
 
-	let typeSite = assertDefined(ts[0]).site;
-
 	let typeExpr = buildTypeExpr(ts.splice(0, dcolonPos));
 
-	if (typeExpr instanceof TypePathExpr || typeExpr instanceof TypeRefExpr) {
-		assertDefined(ts.shift()).assertSymbol("::");
+	assertDefined(ts.shift()).assertSymbol("::");
 
-		let memberName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	let memberName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 	
-		return new ValuePathExpr(typeExpr, memberName);
-	} else {
-		throw typeSite.syntaxError("expected plain type or type path");	
-	}
+	return new ValuePathExpr(typeExpr, memberName);
 }
 
 
@@ -10607,21 +10540,6 @@ class OptionSomeType extends BuiltinType {
 
 	/**
 	 * @param {Word} name 
-	 * @returns {GeneralizedValue}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "new":
-				return Value.new(new FuncType([this.#someType], this));
-			case "cast":
-				return Value.new(new FuncType([new OptionType(this.#someType)], this));
-			default:
-				return super.getTypeMember(name)
-		}
-	}
-
-	/**
-	 * @param {Word} name 
 	 * @returns {Value}
 	 */
 	getInstanceMember(name) {
@@ -10629,8 +10547,8 @@ class OptionSomeType extends BuiltinType {
 			case "__eq": // more generic than __eq/__neq defined in BuiltinType
 			case "__neq":
 				return Value.new(new FuncType([new OptionType(this.#someType)], new BoolType()));
-			case "value":
-				return this.#someType;
+			case "some":
+				return Value.new(this.#someType);
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -10669,21 +10587,6 @@ class OptionNoneType extends BuiltinType {
 
 	/**
 	 * @param {Word} name 
-	 * @returns {GeneralizedValue}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "new":
-				return Value.new(new FuncType([], this));
-			case "cast":
-				return Value.new(new FuncType([new OptionType(this.#someType)], this));
-			default:
-				return super.getTypeMember(name)
-		}
-	}
-
-	/**
-	 * @param {Word} name 
 	 * @returns {Value}
 	 */
 	getInstanceMember(name) {
@@ -10706,6 +10609,13 @@ class OptionNoneType extends BuiltinType {
 
 	get path() {
 		return "__helios__option__none";
+	}
+
+	/**
+	 * Instantiates self as value
+	 */
+	assertValue(site) {
+		return Value.new(this);
 	}
 }
 
@@ -11051,19 +10961,6 @@ class CredentialPubKeyType extends BuiltinType {
 
 	/**
 	 * @param {Word} name 
-	 * @returns {GeneralizedValue}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "cast":
-				return Value.new(new FuncType([new CredentialType()], this));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
 	 * @returns {Value}
 	 */
 	getInstanceMember(name) {
@@ -11097,19 +10994,6 @@ class CredentialPubKeyType extends BuiltinType {
 class CredentialValidatorType extends BuiltinType {
 	toString() {
 		return "Credential::Validator";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {GeneralizedValue}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "cast":
-				return Value.new(new FuncType([new CredentialType()], this));
-			default:
-				return super.getTypeMember(name);
-		}
 	}
 
 	/**
@@ -12147,11 +12031,9 @@ function makeRawFunctions() {
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 0)
 	}`));
-	add(new RawFunc("__helios__option__some__value",
+	add(new RawFunc("__helios__option__some__some",
 	`(self) -> {
-		() -> {
-			${unData("self", 0, 0)}
-		}
+		${unData("self", 0, 0)}
 	}`));
 	addEqNeqSerialize("__helios__option__none");
 	add(new RawFunc("__helios__option__none__new",
