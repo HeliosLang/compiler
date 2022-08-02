@@ -94,7 +94,7 @@ SwitchExpr ::= ValueExpr `.` `switch` `{`
 
 SwitchCase ::= (Word | (Identifier `:` Word)) `=>` (ValueExpr | (`{` ValueExpr `}`));
 
-SwitchDefault ::= `else` `=>` (ValueExpr | `{` ValueExpr `}`);
+SwitchDefault ::= `else` `=>` (ValueExpr | (`{` ValueExpr `}`));
 
 CallExpr ::= ValueExpr `(` [ValueExpr [`,` ValueExpr [...]]] `)`;
 
