@@ -6135,22 +6135,22 @@ class TypeRefExpr extends TypeExpr {
  * Type::Member expression
  */
 class TypePathExpr extends TypeExpr {
-	#enumName;
+	#baseExpr;
 	#memberName;
 
 	/**
 	 * @param {Site} site 
-	 * @param {Word} enumName 
+	 * @param {TypeExpr} baseExpr 
 	 * @param {Word} memberName
 	 */
-	constructor(site, enumName, memberName) {
+	constructor(site, baseExpr, memberName) {
 		super(site);
-		this.#enumName = enumName;
+		this.#baseExpr = baseExpr;
 		this.#memberName = memberName;
 	}
 
 	toString() {
-		return `${this.#enumName.toString()}::${this.#memberName.toString()}`;
+		return `${this.#baseExpr.toString()}::${this.#memberName.toString()}`;
 	}
 
 	/**
@@ -6158,7 +6158,7 @@ class TypePathExpr extends TypeExpr {
 	 * @returns {Type}
 	 */
 	evalInternal(scope) {
-		let enumType = scope.get(this.#enumName).assertType(this.#enumName.site);
+		let enumType = this.#baseExpr.eval(scope);
 
 		let memberType = enumType.getTypeMember(this.#memberName);
 
@@ -7092,7 +7092,7 @@ class ValuePathExpr extends ValueExpr {
 		// if the we are directly accessing an enum member as a zero-field constructor we must change the code a bit
 		let memberVal = this.#baseTypeExpr.type.getTypeMember(this.#memberName);
 
-		if ((memberVal instanceof StatementType) && (memberVal.statement instanceof EnumMember)) {
+		if (((memberVal instanceof StatementType) && (memberVal.statement instanceof EnumMember)) || (memberVal instanceof OptionNoneType)) {
 			let cId = memberVal.getConstrIndex(this.#memberName.site);
 
 			return new IR(`__core__constrData(${cId.toString()}, __core__mkNilData(()))`, this.site)
@@ -9386,18 +9386,27 @@ function buildMapTypeExpr(ts) {
 
 /**
  * @param {Token[]} ts 
- * @returns {OptionTypeExpr}
+ * @returns {TypeExpr}
  */
 function buildOptionTypeExpr(ts) {
 	let kw = assertDefined(ts.shift()).assertWord("Option");
 
 	let someTypeExpr = buildTypeExpr(assertDefined(ts.shift()).assertGroup("[", 1).fields[0]);
 
+	let typeExpr = new OptionTypeExpr(kw.site, someTypeExpr);
 	if (ts.length > 0) {
-		throw ts[0].syntaxError("invalid type syntax");
-	}
+		if (ts[0].isSymbol("::") && ts[1].isWord(["Some", "None"])) {
+			if (ts.length > 2) {
+				throw ts[2].syntaxError("unexpected token");
+			}
 
-	return new OptionTypeExpr(kw.site, someTypeExpr);
+			return new TypePathExpr(ts[0].site, typeExpr, ts[1].assertWord());
+		} else {
+			throw ts[0].syntaxError("invalid option type syntax");
+		}
+	} else {
+		return typeExpr;
+	}
 }
 
 /**
@@ -9431,7 +9440,7 @@ function buildTypePathExpr(ts) {
 		throw ts[0].syntaxError("invalid type syntax");
 	}
 
-	return new TypePathExpr(symbol.site, baseName, memberName);
+	return new TypePathExpr(symbol.site, new TypeRefExpr(baseName), memberName);
 }
 
 /**
@@ -10537,6 +10546,14 @@ class OptionSomeType extends BuiltinType {
 
 	toString() {
 		return `Option[${this.#someType.toString()}]::Some`;
+	}
+
+	/**
+	 * @param {Site} site
+	 * @returns {number}
+	 */
+	nFields(site) {
+		return 1;
 	}
 
 	/**
