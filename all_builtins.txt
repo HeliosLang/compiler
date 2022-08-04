@@ -17,7 +17,7 @@ internal ns: __helios__string
 # ByteArray
 operators:   __eq, __neq, __add
 getters:     length
-methods:     serialize, length, sha2, sha3, blake2b, decode_utf8, show
+methods:     serialize, sha2, sha3, blake2b, decode_utf8, show
 internal ns: __helios__bytearray
 
 # List
@@ -38,16 +38,16 @@ methods:     serialize
 internal ns: __helios__option
 
 ## Option::Some
-associated:  new, cast
 operators:   __eq, __neq
-getters:     value
+getters:     some
 methods:     serialize
+hidden:      new, cast
 internal ns: __helios__option__some
 
 ## Option::None
-associated:  new, cast
 operators:   __eq, __neq
 methods:     serialize
+hidden:      new, cast
 internal ns: __helios__option__none
 
 # PubKeyHash, ValidatorHash, MintingPolicyHash, DatumHash
@@ -153,7 +153,7 @@ internal ns: __helios__assetclass
 # Value
 associated:  ZERO, lovelace, new
 operators:   __eq, __neq, __add, __sub, __geq, __gt, __leq, __lt
-methods:     serialize, is_zero, get
+methods:     serialize, is_zero, get, contains
 hidden:      get_map_keys, merge_map_keys, get_inner_map, get_inner_map_int, add_or_subtract_inner, add_or_subtract, compare_inner, compare
 internal ns: __helios__value
 
