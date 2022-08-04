@@ -131,6 +131,8 @@
 //     
 //    17. Plutus-Core deserialization       PlutusCoreDeserializer, deserializePlutusCore
 //
+//    18. Property test framework           FuzzyTest
+//
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -462,7 +464,7 @@ function stringToBytes(str) {
  * @returns {string}
  */
 function bytesToString(bytes) {
-	return (new TextDecoder()).decode((new Uint8Array(bytes)).buffer);
+	return (new TextDecoder("utf-8", {fatal: true})).decode((new Uint8Array(bytes)).buffer);
 }
 
 /**
@@ -540,6 +542,42 @@ function wrapCborBytes(bytes) {
 	}
 
 	return bytes;
+}
+
+/**
+ * Function that generates a random number between 0 and 1
+ * @typedef {() => number} NumberGenerator
+ */
+
+/**
+ * A collection of cryptography primitives are included here in order to avoid external dependencies.
+ */
+class Crypto {
+	/**
+	 * Returns a simple random number generator
+	 * @param {number} seed
+	 * @returns {NumberGenerator} - a random number generator
+	 */
+	static mulberry32(seed) {
+		/**
+		 * @type {NumberGenerator}
+		 */
+		return function() {
+			let t = seed += 0x6D2B79F5;
+			t = Math.imul(t ^ t >>> 15, t | 1);
+			t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+			return ((t ^ t >>> 14) >>> 0) / 4294967296;
+		}
+	}
+
+	/**
+	 * Alias for rand generator of choice
+	 * @param {number} seed
+	 * @returns {NumberGenerator} - the random number generator function
+	 */
+	static rand(seed) {
+		return this.mulberry32(seed);
+	}
 }
 
 /**
@@ -823,6 +861,7 @@ class Source {
 export class UserError extends Error {
 	#pos;
 	#src;
+	#info;
 
 	/**
 	 * @param {string} type 
@@ -841,6 +880,7 @@ export class UserError extends Error {
 		super(msg);
 		this.#pos = pos;
 		this.#src = src;
+		this.#info = info;
 	}
 
 	/**
@@ -885,6 +925,13 @@ export class UserError extends Error {
 	 */
 	static runtimeError(src, pos, info = "") {
 		return new UserError("RuntimeError", src, pos, info);
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get info() {
+		return this.#info;
 	}
 
 	/**
@@ -2577,11 +2624,19 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "divideInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					return new PlutusCoreInt(callSite, a.int / b.int);
+					if (b.int === 0n) {
+						throw callSite.runtimeError("division by zero");
+					} else {
+						return new PlutusCoreInt(callSite, a.int / b.int);
+					}
 				});
 			case "modInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					return new PlutusCoreInt(callSite, a.int % b.int);
+					if (b.int === 0n) {
+						throw callSite.runtimeError("division by zero");
+					} else {
+						return new PlutusCoreInt(callSite, a.int % b.int);
+					}
 				});
 			case "equalsInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
@@ -2713,7 +2768,11 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "decodeUtf8":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					return new PlutusCoreString(callSite, bytesToString(a.bytes));
+					try {
+						return new PlutusCoreString(callSite, bytesToString(a.bytes));
+					} catch(_) {
+						throw callSite.runtimeError("invalid utf-8");
+					}
 				});
 			case "sha2_256":
 			case "sha3_256":
@@ -2998,10 +3057,11 @@ class PlutusCoreProgram {
 
 	/**
 	 * Evaluates the term contained in PlutusCoreProgram (assuming it is a lambda term)
+	 * @param {PlutusCoreData[]} rawArgs
 	 * @param {PlutusCoreRTECallbacks} callbacks 
-	 * @returns {Promise<PlutusCoreValue | UserError>}
+	 * @returns {Promise<PlutusCoreData | UserError>}
 	 */
-	async run(callbacks) {
+	async run(rawArgs, callbacks) {
 		let rte = new PlutusCoreRTE(callbacks);
 
 		try {
@@ -3009,9 +3069,17 @@ class PlutusCoreProgram {
 
 			// program site is at pos 0, but now the call site is actually at the end 
 			let globalCallSite = new Site(this.site.src, this.site.src.length);
-			let result = await fn.call(rte, globalCallSite, new PlutusCoreUnit(globalCallSite));
 
-			return result;
+			let args = (rawArgs.length == 0) ? [new PlutusCoreUnit(globalCallSite)] : rawArgs.map(a => new PlutusCoreDataValue(globalCallSite, a));
+			
+			/** @type {PlutusCoreValue} */
+			let result = fn;
+
+			for (let arg of args) {
+				result = await result.call(rte, globalCallSite, arg);
+			}
+
+			return result.data;
 		} catch (e) {
 			if (!(e instanceof UserError)) {
 				throw e;
@@ -3051,6 +3119,130 @@ class PlutusCoreData {
 	}
 
 	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	 isBool() {
+		return false;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	asBool() {
+		throw new Error("not a bool");
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	isInt() {
+		return false;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {bigint}
+	 */
+	asInt() {
+		throw new Error("not an int");
+	}
+
+	/**
+	 * Handy for property tests
+	 * @param {bigint | PlutusCoreData} x
+	 * @returns {boolean}
+	 */
+	equalsInt(x) {
+		throw new Error("not an int");
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	isString() {
+		return false;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {string}
+	 */
+	asString() {
+		throw new Error("not a string");
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	isByteArray() {
+		return false;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {number[]}
+	 */
+	asByteArray() {
+		throw new Error("not a bytearray");
+	}
+
+	/**
+	 * Handy for property tests
+	 * @param {number[]} bytes
+	 * @returns {boolean}
+	 */
+	equalsByteArray(bytes) {
+		throw new Error("not a bytearray");
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	isList() {
+		return false;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @param {any[]} list
+	 * @returns {boolean}
+	 */
+	equalsList(list) {
+		throw new Error("not a list");
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {PlutusCoreData[]}
+	 */
+	asList() {
+		throw new Error("not a list");
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	isConstr() {
+		return false;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @param {PlutusCoreData} data 
+	 * @returns {boolean}
+	 */
+	equalsConstr(data) {
+		throw new Error("not a constr");
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
@@ -3077,6 +3269,53 @@ class PlutusCoreData {
 	toCBOR() {
 		throw new Error("not yet implemented");
 	}
+
+	/**
+	 * @param {boolean | bigint | string | any[] | PlutusCoreData} a 
+	 * @param {PlutusCoreData} b 
+	 * @returns {boolean}
+	 */
+	static equals(a, b) {
+		if (typeof a === "bigint") {
+			if (!(b instanceof IntData) || !b.equalsInt(a)) {
+				return false;
+			}
+		} else if (a instanceof IntData) {
+			if (!(b instanceof IntData) || !b.equalsInt(a)) {
+				return false;
+			}
+		} else if (typeof a === "boolean") {
+			if (!b.isBool() || a !== b.asBool()) {
+				return false;
+			}
+		} else if (a instanceof ConstrData && a.isBool()) {
+			if (!b.isBool() || a.asBool() !== b.asBool()) {
+				return false;
+			}
+		} else if (typeof a === "string") {
+			if (!b.isString() || a !== b.asString()) {
+				return false;
+			}
+		} else if (a instanceof ByteArrayData && a.isString()) {
+			if (!b.isString() || a.asString() !== b.asString()) {
+				return false;
+			}
+		} else if (a instanceof Array) {
+			if (!b.isList() || !b.equalsList(a)) {
+				return false;
+			}
+		} else if (a instanceof ListData) {
+			if (!b.isList() || !b.equalsList(a.asList())) {
+				return false;
+			}
+		} else if (a instanceof ConstrData) {
+			if (!(b instanceof ConstrData) || !a.equalsConstr(b)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
 }
 
 /**
@@ -3095,6 +3334,37 @@ class IntData extends PlutusCoreData {
 
 	get value() {
 		return this.#value;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	isInt() {
+		return true;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {bigint}
+	 */
+	asInt() {
+		return this.#value;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @param {bigint | PlutusCoreData} x
+	 * @returns {boolean}
+	 */
+	equalsInt(x) {
+		if (typeof x == "bigint") {
+			return x === this.#value;
+		} else if (x instanceof IntData) {
+			return x.asInt() === this.#value;
+		} else {
+			throw new Error("not an int");
+		}
 	}
 
 	/**
@@ -3152,6 +3422,64 @@ class ByteArrayData extends PlutusCoreData {
 	}
 
 	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	isString() {
+		try {
+			void bytesToString(this.#bytes);
+
+			return true;
+		} catch(_) {
+			return false;
+		}
+	}
+
+	/**
+	 * Handy for property tests
+	 * @return {string}
+	 */
+	asString() {
+		return bytesToString(this.#bytes);
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	isByteArray() {
+		return true;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {number[]}
+	 */
+	asByteArray() {
+		return this.#bytes;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @param {number[]} bytes
+	 * @returns {boolean}
+	 */
+	equalsByteArray(bytes) {
+		let n = bytes.length;
+		if (n !== this.#bytes.length) {
+			return false;
+		}
+
+		for (let i = 0; i < n; i++) {
+			if (bytes[i] !== this.#bytes[i]) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toHex() {
@@ -3193,6 +3521,46 @@ class ListData extends PlutusCoreData {
 	}
 
 	get list() {
+		return this.#items.slice();
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	isList() {
+		return true;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @param {any[]} list
+	 * @returns {boolean}
+	 */
+	equalsList(list) {
+		let n = this.#items.length;
+		if (list.length != n) {
+			return false;
+		}
+
+		for (let i = 0; i < n; i++) {
+			let x = list[i];
+			let item = this.#items[i];
+
+			if (!PlutusCoreData.equals(x, item)) {
+				return false;
+			}
+
+		}
+
+		return true;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {PlutusCoreData[]}
+	 */
+	asList() {
 		return this.#items.slice();
 	}
 
@@ -3289,6 +3657,68 @@ class ConstrData extends PlutusCoreData {
 
 	get fields() {
 		return this.#fields.slice();
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	isBool() {
+		return (this.#index == 0 || this.#index == 1) && this.#fields.length == 0;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	asBool() {
+		if (this.#fields.length == 0) {
+			if (this.#index == 0) {
+				return false;
+			} else if (this.#index == 1) {
+				return true;
+			} else {
+				throw new Error("not a bool");
+			}
+		} else {
+			throw new Error("not a bool");
+		}
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
+	isConstr() {
+		return true;
+	}
+
+	/**
+	 * Handy for property tests
+	 * @param {PlutusCoreData} data
+	 * @returns {boolean}
+	 */
+	equalsConstr(data) {
+		if (data instanceof ConstrData) {
+			if (data.index !== this.#index) {
+				return false;
+			} else {
+				let n = this.#fields.length;
+				if (n != data.fields.length) {
+					return false;
+				}
+
+				for (let i = 0; i < n; i++) {
+					if (!PlutusCoreData.equals(this.#fields[i], data.fields[i])) {
+						return false;
+					}
+				}
+
+				return true;
+			}
+		} else {
+			throw new Error("not a constr");
+		}
 	}
 
 	/**
@@ -5466,9 +5896,7 @@ class FuncType extends Type {
 		let haveScriptContext = false;
 
 		if (purpose == ScriptPurpose.Testing) {
-			if (this.#argTypes.length != 0) {
-				throw site.typeError("test main should have 0 args");
-			}
+			// any number of arguments of any type allowed
 		} else if (!Type.same(site, this.#retType, new BoolType())) {
 			throw site.typeError(`invalid main return type: expected Bool, got ${this.#retType.toString()}`);
 		} else if (purpose == ScriptPurpose.Spending) {
@@ -7425,10 +7853,6 @@ class CallExpr extends ValueExpr {
 	evalInternal(scope) {
 		let fnVal = this.#fnExpr.eval(scope);
 
-		if (!fnVal.isInstanceOf(this.#fnExpr.site, FuncType)) {
-			throw this.#fnExpr.typeError("not callable (not a function)");
-		}
-
 		let argVals = this.#argExprs.map(argExpr => argExpr.eval(scope));
 
 		if (fnVal instanceof FuncStatementValue && fnVal.isRecursive()) {
@@ -8834,6 +9258,9 @@ class Program {
 	#haveRedeemer;
 	#haveScriptContext;
 
+	/** @type {IR[]} - TODO  merge this with haveDatum etc. */
+	#testArgs;
+
 	/**
 	 * @param {number} purpose
 	 * @param {Word} name
@@ -8848,6 +9275,7 @@ class Program {
 		this.#haveDatum = false;
 		this.#haveRedeemer = false;
 		this.#haveScriptContext = false;
+		this.#testArgs = [];
 	}
 
 	isTest() {
@@ -8896,13 +9324,20 @@ class Program {
 
 			if (!(mainType instanceof FuncType)) {
 				throw mainSite.typeError("entrypoint is not a function");
+			} else {
+				let [haveDatum, haveRedeemer, haveScriptContext] = mainType.checkAsMain(mainSite, this.#purpose);
+
+				this.#haveDatum = haveDatum;
+				this.#haveRedeemer = haveRedeemer;
+				this.#haveScriptContext = haveScriptContext;
+
+				if (this.#purpose == ScriptPurpose.Testing) {
+					this.#testArgs = [];
+					for (let i = 0; i < mainType.nArgs; i++) {
+						this.#testArgs.push(new IR(`arg${i}`));
+					}
+				}
 			}
-
-			let [haveDatum, haveRedeemer, haveScriptContext] = mainType.checkAsMain(mainSite, this.#purpose);
-
-			this.#haveDatum = haveDatum;
-			this.#haveRedeemer = haveRedeemer;
-			this.#haveScriptContext = haveScriptContext;
 		}
 	}
 
@@ -8937,8 +9372,12 @@ class Program {
 	 * @returns {IR}
 	 */
 	toIR() {
+		/** @type {IR[]} */
 		let mainArgs = [];
+
+		/** @type {IR[]} */
 		let uMainArgs = [];
+
 		if (this.#haveDatum) {
 			mainArgs.push(new IR("datum"));
 			uMainArgs.push(new IR("datum"));
@@ -8960,6 +9399,11 @@ class Program {
 			mainArgs.push(new IR("_"));
 		}
 
+		if (this.#purpose == ScriptPurpose.Testing) {
+			mainArgs = this.#testArgs.slice();
+			uMainArgs = this.#testArgs.slice();
+		}
+
 		// don't need to specify TAB because it is at top level
 		let res = [
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
@@ -8968,7 +9412,7 @@ class Program {
 		];
 
 		if (this.#purpose == ScriptPurpose.Testing) {
-			res.push(new IR("main()"));
+			res = res.concat([new IR("main("), (new IR(uMainArgs)).join(", "), new IR(")")]);
 		} else {
 			res = res.concat([
 				new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}__helios__common__unBoolData(main(`),
@@ -10621,7 +11065,11 @@ class OptionType extends BuiltinType {
 	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
-		return (new OptionSomeType(this.#someType)).isBaseOf(site, type) || (new OptionNoneType(this.#someType)).isBaseOf(site, type);
+		let b = super.isBaseOf(site, type) ||
+		        (new OptionSomeType(this.#someType)).isBaseOf(site, type) || 
+		        (new OptionNoneType(this.#someType)).isBaseOf(site, type); 
+
+		return b;
 	}
 
 	/**
@@ -11075,6 +11523,19 @@ class AddressType extends BuiltinType {
 class CredentialType extends BuiltinType {
 	toString() {
 		return "Credential";
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		let b = super.isBaseOf(site, type) ||
+				(new CredentialPubKeyType()).isBaseOf(site, type) || 
+				(new CredentialValidatorType()).isBaseOf(site, type); 
+
+		return b;
 	}
 
 	/**
@@ -11732,7 +12193,13 @@ function makeRawFunctions() {
 		(self) -> {
 			() -> {
 				(recurse) -> {
-					__core__bData(recurse(recurse, self))
+					__core__bData(
+						__core__ifThenElse(
+							__core__lessThanInteger(self, 0),
+							() -> {__core__consByteString(45, recurse(recurse, __core__multiplyInteger(self, -1)))},
+							() -> {recurse(recurse, self)}
+						)()
+					)
 				}(
 					(recurse, self) -> {
 						(partial) -> {
@@ -11847,7 +12314,9 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__string__encode_utf8",
 	`(self) -> {
 		(self) -> {
-			__core__bData(__core__encodeUtf8(self))
+			() -> {
+				__core__bData(__core__encodeUtf8(self))
+			}
 		}(__helios__common__unStringData(self))
 	}`));
 
@@ -11858,7 +12327,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(a) -> {
 			(b) -> {
-				__core__bData(__core__appendByteString(a, __cure__unBData(b)))
+				__core__bData(__core__appendByteString(a, __core__unBData(b)))
 			}
 		}(__core__unBData(self))
 	}`));
@@ -11911,7 +12380,13 @@ function makeRawFunctions() {
 								__core__lessThanInteger(0, n),
 								() -> {
 									__core__appendString(
-										__core__decodeUtf8(__core__unBData(__helios__int__to_hex(__core__iData(__core__indexByteString(self, 0)))())), 
+										__core__decodeUtf8((hexBytes) -> {
+											__core__ifThenElse(
+												__core__equalsInteger(__core__lengthOfByteString(hexBytes), 1),
+												__core__consByteString(48, hexBytes),
+												hexBytes
+											)
+										}(__core__unBData(__helios__int__to_hex(__core__iData(__core__indexByteString(self, 0)))()))), 
 										recurse(recurse, __core__sliceByteString(1, n, self))
 									)
 								},
@@ -11931,17 +12406,19 @@ function makeRawFunctions() {
 	addEqNeqSerialize("__helios__list");
 	add(new RawFunc("__helios__list__new",
 	`(n, item) -> {
-		(recurse) -> {
-			__core__listData(recurse(recurse, __core__mkNilData(()), 0))
-		}(
-			(recurse, lst, i) -> {
-				__core__ifThenElse(
-					__core__lessThanInteger(i, n),
-					() -> {recurse(recurse, __core__mkCons(item, lst), __core__addInteger(i, 1))},
-					() -> {lst}
-				)()
-			}
-		)
+		(n) -> {
+			(recurse) -> {
+				__core__listData(recurse(recurse, __core__mkNilData(()), 0))
+			}(
+				(recurse, lst, i) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(i, n),
+						() -> {recurse(recurse, __core__mkCons(item, lst), __core__addInteger(i, 1))},
+						() -> {lst}
+					)()
+				}
+			)
+		}(__core__unIData(n))
 	}`));
 	add(new RawFunc("__helios__list____add",
 	`(self) -> {
@@ -12005,10 +12482,10 @@ function makeRawFunctions() {
 					(recurse, self, index) -> {
 						__core__ifThenElse(
 							__core__nullList(self), 
-							() -> {__core__error("index out-of-range (>=n)")}, 
+							() -> {__core__error("index out of range")}, 
 							() -> {__core__ifThenElse(
 								__core__lessThanInteger(index, 0), 
-								() -> {__core__error("index out-of-range (<0)")}, 
+								() -> {__core__error("index out of range")}, 
 								() -> {
 									__core__ifThenElse(
 										__core__equalsInteger(index, 0), 
@@ -12089,7 +12566,7 @@ function makeRawFunctions() {
 					(recurse, self, fn) -> {
 						__core__ifThenElse(
 							__core__nullList(self), 
-							() -> {__core__error("list item not found")}, 
+							() -> {__core__error("not found")}, 
 							() -> {
 								__core__ifThenElse(
 									__helios__common__unBoolData(fn(__core__headList(self))), 
@@ -12577,22 +13054,30 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__value__new",
 	`(assetClass, i) -> {
-		(mintingPolicyHash, tokenName) -> {
-			__core__mapData(
-				__core__mkCons(
-					__core__mkPairData(
-						mintingPolicyHash, 
-						__core__mapData(
-							__core__mkCons(
-								__core__mkPairData(tokenName, i), 
-								__core__mkNilPairData(())
-							)
+		__core__ifThenElse(
+			__core__equalsInteger(0, __core__unIData(i)),
+			() -> {
+				__helios__value__ZERO
+			},
+			() -> {
+				(mintingPolicyHash, tokenName) -> {
+					__core__mapData(
+						__core__mkCons(
+							__core__mkPairData(
+								mintingPolicyHash, 
+								__core__mapData(
+									__core__mkCons(
+										__core__mkPairData(tokenName, i), 
+										__core__mkNilPairData(())
+									)
+								)
+							), 
+							__core__mkNilPairData(())
 						)
-					), 
-					__core__mkNilPairData(())
-				)
-			)
-		}(${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})
+					)
+				}(${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})
+			}
+		)()
 	}`));
 	add(new RawFunc("__helios__value__get_map_keys",
 	`(map) -> {
@@ -13616,7 +14101,7 @@ function compileInternal(typedSrc, config) {
 
 	let [irSrc, codeMap] = ir.generateSource();
 
-	console.log((new Source(irSrc)).pretty());
+	//console.log((new Source(irSrc)).pretty());
 
 	if (config.stage == CompilationStage.IR) {
 		return irSrc;
@@ -13713,7 +14198,7 @@ export function compile(typedSrc, config = Object.assign({}, DEFAULT_CONFIG)) {
  * Runs a test script (first word of script must be 'testing')
  * @param {string} typedSrc
  * @param {CompilationConfig} config
- * @returns {Promise<[PlutusCoreValue | UserError, string[]]>} - [result, messages]
+ * @returns {Promise<[PlutusCoreData | UserError, string[]]>} - [result, messages]
  */
 export async function run(typedSrc, config = DEFAULT_CONFIG) {
 	let program;
@@ -13736,7 +14221,7 @@ export async function run(typedSrc, config = DEFAULT_CONFIG) {
 		/** @type {string[]} */
 		let messages = [];
 
-		let result = await program.run({
+		let result = await program.run([], {
 			onPrint: function (msg) {
 				return new Promise(function (resolve, _) {
 					messages.push(msg);
@@ -14186,4 +14671,299 @@ export function deserializePlutusCore(jsonString) {
 	reader.finalize();
 
 	return new PlutusCoreProgram(expr, version);
+}
+
+
+///////////////////////////////////////////////
+// Section 18. Property based testing framework
+///////////////////////////////////////////////
+
+/**
+ * @typedef {() => PlutusCoreData} DataGenerator
+ */
+
+/**
+ * @typedef {(args: PlutusCoreData[], res: (PlutusCoreData | UserError)) => (boolean | Object.<string, boolean>)} PropertyTest
+ */
+
+/**
+ * Creates generators and runs script tests
+ */
+export class FuzzyTest {
+	/**
+	 * @type {NumberGenerator} - seed generator
+	 */
+	#rand;
+
+	#runsPerTest;
+
+	/**
+	 * @param {number} seed
+	 * @param {number} runsPerTest
+	 */
+	constructor(seed = 0, runsPerTest = 100) {
+		this.#rand = Crypto.rand(seed);
+		this.#runsPerTest = runsPerTest;
+	}
+
+	/**
+	 * @returns {NumberGenerator}
+	 */
+	newRand() {
+		let seed = this.#rand()*1000000;
+
+		return Crypto.rand(seed);
+	}
+
+	/**
+	 * Returns a generator for whole numbers between min and max
+	 * @param {number} min
+	 * @param {number} max
+	 * @returns {DataGenerator}
+	 */
+	int(min = -10000000, max = 10000000) {		
+		let rand = this.newRand();
+
+		return function() {
+			return new IntData(BigInt(Math.floor(rand()*(max - min)) + min));
+		}
+	}
+
+	/**
+	 * Returns a generator for strings containing any utf-8 character
+	 * @param {number} minLength
+	 * @param {number} maxLength
+	 * @returns {DataGenerator}
+	 */
+	string(minLength = 0, maxLength = 64) {
+		let rand = this.newRand();
+
+		return function() {
+			let n = Math.round(rand()*(maxLength - minLength)) + minLength;
+			if (n < 0) {
+				n = 0;
+			}
+
+			let chars = [];
+			for (let i = 0; i < n; i++) {
+				chars.push(String.fromCodePoint(Math.round(rand()*1112064)));
+			}
+			
+			return ByteArrayData.fromString(chars.join(""));
+		}
+	}
+
+	/** 
+	 * Returns a generator for strings with ascii characters from 32 (space) to 126 (tilde)
+	 * @param {number} minLength
+	 * @param {number} maxLength
+	 * @returns {DataGenerator}
+	 */
+	ascii(minLength = 0, maxLength = 64) {
+		let rand = this.newRand();
+
+		return function() {
+			let n = Math.round(rand()*(maxLength - minLength)) + minLength;
+			if (n < 0) {
+				n = 0;
+			}
+
+			let chars = [];
+			for (let i = 0; i < n; i++) {
+				chars.push(String.fromCharCode(Math.round(rand()*94 + 32)));
+			}
+			
+			return ByteArrayData.fromString(chars.join(""));
+		}
+	}
+
+	/**
+	 * Returns a generator for bytearrays containing only valid ascii characters
+	 * @param {number} minLength
+	 * @param {number} maxLength
+	 * @returns {DataGenerator}
+	 */
+	asciiBytes(minLength = 0, maxLength = 64) {
+		let rand = this.newRand();
+
+		return function() {
+			let n = Math.round(rand()*(maxLength - minLength)) + minLength;
+			if (n < 0) {
+				n = 0;
+			}
+
+			let bytes = [];
+			for (let i = 0; i < n; i++) {
+				bytes.push(Math.floor(rand()*94 + 32));
+			}
+
+			return new ByteArrayData(bytes);
+		}
+	}
+
+	/**
+	 * Returns a generator for bytearrays the are also valid utf8 strings
+	 * @param {number} minLength - length of the string, not of the bytearray!
+	 * @param {number} maxLength - length of the string, not of the bytearray!
+	 * @returns {DataGenerator}
+	 */
+	utf8Bytes(minLength = 0, maxLength = 64) {
+		return this.string(minLength, maxLength);
+	}
+
+	/**
+	 * Returns a generator for bytearrays 
+	 * @param {number} minLength
+	 * @param {number} maxLength
+	 * @returns {DataGenerator}
+	 */
+	bytes(minLength = 0, maxLength = 64) {
+		let rand = this.newRand();
+
+		return function() {
+			let n = Math.round(rand()*(maxLength - minLength)) + minLength;
+			if (n < 0) {
+				n = 0;
+			}
+
+			let bytes = [];
+			for (let i = 0; i < n; i++) {
+				bytes.push(Math.floor(rand()*256));
+			}
+
+			return new ByteArrayData(bytes);
+		}
+	}
+
+	/**
+	 * Returns a generator for booleans
+	 * @returns {DataGenerator}
+	 */
+	bool() {
+		let rand = this.newRand();
+
+		return function() {
+			let x = rand();
+
+			if (x < 0.5) {
+				return new ConstrData(0, []);
+			} else {
+				return new ConstrData(1, []);
+			}
+		}
+	}
+
+	/**
+	 * Returns a generator for options
+	 * @param {DataGenerator} someGenerator
+	 * @param {number} noneProbability
+	 * @returns {DataGenerator}
+	 */
+	option(someGenerator, noneProbability = 0.5) {
+		let rand = this.newRand();
+
+		return function() {
+			let x = rand();
+
+			if (x < noneProbability) {
+				return new ConstrData(1, []);
+			} else {
+				return new ConstrData(0, [someGenerator()]);
+			}
+		}
+	}
+
+	/**
+	 * Returns a generator for lists
+	 * @param {DataGenerator} itemGenerator
+	 * @param {number} minLength
+	 * @param {number} maxLength
+	 * @returns {DataGenerator}
+	 */
+	list(itemGenerator, minLength = 0, maxLength = 10) {
+		let rand = this.newRand();
+
+		if (minLength < 0) {
+			minLength = 0;
+		}
+
+		if (maxLength < 0) {
+			maxLength = 0;
+		}
+
+		return function() {
+			let n = Math.round(rand()*(maxLength - minLength)) + minLength;
+			if (n < 0) {
+				n = 0;
+			}
+
+			/**
+			 * @type {PlutusCoreData[]}
+			 */
+			let items = [];
+
+			for (let i = 0; i < n; i++) {
+				items.push(itemGenerator());
+			}
+
+			return new ListData(items);
+		}
+	}
+
+	/**
+	 * Run a test
+	 * @param {DataGenerator[]} argGens
+	 * @param {string} src
+	 * @param {PropertyTest} propTest
+	 * @returns {Promise<void>} - throws an error if any of the property tests fail
+	 */
+	async test(argGens, src, propTest) {
+		// compilation errors here aren't caught
+
+		/** @type {CompilationConfig} */
+		let config = {verbose: false, templateParameters: {}, stage: CompilationStage.PlutusCore};
+
+		let purposeName = extractScriptPurposeAndName(src);
+
+		if (purposeName === null) {
+			throw new Error("failed to get script purpose and name");
+		} else {
+			let [_, testName] = purposeName;
+
+			let program = compileInternal(src, config);
+
+			if (!(program instanceof PlutusCoreProgram)) {
+				throw new Error("unexpected");
+			} else {
+				for (let it = 0; it < this.#runsPerTest; it++) {
+					let args = argGens.map(ag => ag());
+				
+					let result = await program.run(args, {
+						onPrint: function (msg) {
+							return new Promise(function (resolve, _) {
+								resolve(); // ignore the incoming messages
+							});
+						}
+					});
+
+					let obj = propTest(args, result);
+
+					if (typeof obj == "boolean") {
+						if (!obj) {
+							throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+						}
+					} else {
+						// check for failures
+						for (let key in obj) {
+							if (!obj[key]) {
+								throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+							}
+						}
+					}
+				}
+			}
+
+			console.log(`property tests for '${testName}' succeeded`);
+		}
+	}
 }
