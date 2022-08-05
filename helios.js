@@ -22,7 +22,7 @@
 //
 // Example usage:
 //     > import * as helios from "helios.js";
-//     > console.log(helios.compile("validator my_validator; ..."));
+//     > console.log(helios.compile("validator my_validator ..."));
 //
 // Exports: 
 //   * debug(bool) -> void
@@ -10093,8 +10093,8 @@ function buildProgram(ts) {
  * @returns {[number, Word]} - [purpose, name] (ScriptPurpose is an integer)
  */
 function buildScriptPurpose(ts) {
-	// need at least 3 tokens for the script purpose
-	if (ts.length < 3) {
+	// need at least 2 tokens for the script purpose
+	if (ts.length < 2) {
 		throw ts[0].syntaxError("invalid script purpose syntax");
 	}
 
@@ -10113,7 +10113,6 @@ function buildScriptPurpose(ts) {
 	}
 
 	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
-	assertDefined(ts.shift()).assertSymbol(";");
 
 	return [purpose, name];
 }
@@ -14763,9 +14762,9 @@ export function extractScriptPurposeAndName(rawSrc) {
 
 		let gen = tokenizer.streamTokens();
 
-		// eat 3 tokens: `<purpose> <name>;`
+		// Don't parse the whole script, just 'eat' 2 tokens: `<purpose> <name>`
 		let ts = [];
-		for (let i = 0; i < 3; i++) {
+		for (let i = 0; i < 2; i++) {
 			let yielded = gen.next();
 			if (yielded.done) {
 				return null;

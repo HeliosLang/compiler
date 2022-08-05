@@ -6,56 +6,56 @@ This contract can alternatively be called an 'allowance' contract.
 
 ## The script
 ```golang
-validator subscription;
+validator subscription
 
-data Datum {
-    owner:            PubKeyHash,
-    beneficiary:      PubKeyHash,
-    total:            Value, // remaining Value locked in script
-    benefit:          Value, 
-    after:            Time,  // must be incremented by 'interval' every time beneficiary withdraws
+struct Datum {
+    owner:            PubKeyHash
+    beneficiary:      PubKeyHash
+    total:            Value // remaining Value locked in script
+    benefit:          Value 
+    after:            Time  // must be incremented by 'interval' every time beneficiary withdraws
     interval:         Duration
 }
 
 func main(datum: Datum, ctx: ScriptContext) -> Bool {
-    tx: Tx = getTx(ctx);
+    tx: Tx = ctx.tx;
 
-    if (isTxSignedBy(tx, datum.owner)) {
+    if (tx.is_signed_by(datum.owner)) {
         true
-    } else if (isTxSignedBy(tx, datum.beneficiary)) {
-        now: Time = getTimeRangeStart(getTxTimeRange(tx));
+    } else if (tx.is_signed_by(datum.beneficiary)) {
+        now: Time = tx.now();
         if (now >= datum.after) {
              if (datum.benefit >= datum.total) {
                 true
              } else {
-                currentHash: ValidatorHash = getCurrentValidatorHash(ctx);
+                current_hash: ValidatorHash = ctx.get_current_validator_hash();
 
-                expectedRemaining: Value = datum.total - datum.benefit;
+                expected_remaining: Value = datum.total - datum.benefit;
 
-                expectedDatum: Datum = Datum{
+                expected_datum: Datum = Datum{
                     owner:       datum.owner,
                     beneficiary: datum.beneficiary,
-                    total:       expectedRemaining,
+                    total:       expected_remaining,
                     benefit:     datum.benefit,
                     after:       datum.after + datum.interval,
                     interval:    datum.interval
                 };
 
-                actualRemaining: Value = valueLockedByDatum(tx, currentHash, expectedDatum);
+                actual_remaining: Value = tx.value_locked_by_datum(currentHash, expectedDatum);
 
-                if (trace("actualRemaining: "  + show(getValueComponent(actualRemaining, AssetClass(MintingPolicyHash(#), "")))   + " lovelace", actualRemaining) >= 
-                    trace("expectedRemaining " + show(getValueComponent(expectedRemaining, AssetClass(MintingPolicyHash(#), ""))) + " lovelace", expectedRemaining))
+                if ((print("actualRemaining: "  + show(getValueComponent(actualRemaining, AssetClass(MintingPolicyHash(#), "")))   + " lovelace"); actualRemaining) >= 
+                    (print("expectedRemaining " + show(getValueComponent(expectedRemaining, AssetClass(MintingPolicyHash(#), ""))) + " lovelace"); expectedRemaining))
                 {
                     true
                 } else {
-                    trace("too much", false)
+                    print("too much"); false
                 }
              }
         } else {
-            trace("too soon", false)
+            print("too soon"); false
         }
     } else {
-        trace("unauthorized", false)
+        print("unauthorized"); false
     }
 }
 ```

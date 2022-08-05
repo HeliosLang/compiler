@@ -4,6 +4,8 @@ Minting policy scripts are very similar to validator scripts for spending. They 
 
 The most trivial minting policy would allow any number of tokens to be minted (or burned):
 ```golang
+minting_policy my_nft
+
 func main() Bool { // compiler is smart enough to add dummy Redeemer and ScriptContext arguments to final program
     true
 }
@@ -11,23 +13,27 @@ func main() Bool { // compiler is smart enough to add dummy Redeemer and ScriptC
 
 A slightly more elaborate minting policy allows a single centralized actor to mint (or burn) any number of tokens:
 ```golang
-func main(ctx: ScriptContext) Bool {
-    tx: Tx = getTx(ctx);
+minting_policy my_nft
 
-    isTxSignedBy(tx, PubKeyHash(#a14f...))
+func main(ctx: ScriptContext) Bool {
+    tx: Tx = ctx.tx;
+
+    tx.is_signed_by(PubKeyHash::new(#a14f...))
 }
 ```
 
 For NFTs, or public-sale tokens, the minting policy needs to be provably single-use. UTXOs are guaranteed to be unique, and can be used for this purpose:
 ```golang
+minting_policy my_nft
+
 func main(ctx: ScriptContext) -> Bool {
-    tx: Tx = getTx(ctx);
+    tx: Tx = ctx.tx;
 
     // assume a single input
-    txInput: TxInput = head(getTxInputs(tx));
+    tx_input: TxInput = tx.inputs.head;
 
     // we also check the total minted
-    getTxInputOutputId(txInput) == TxOutputId(#<utxo-id>, 0) && getTxMintedValue(tx) == Value(AssetClass(getCurrentMintingPolicyHash(ctx), "MyNFT"), 1)
+    tx_input.output_id == TxOutputId::new(#<utxo-id>, 0) && tx.minted == Value::new(AssetClass::new(ctx.get_current_minting_policy_hash(), "MyNFT"), 1)
 }
 ```
 Note that this minting policy can't be used for burning.
@@ -38,7 +44,7 @@ Compile the minting policy script:
 ```bash
 > var helios; import("./helios.js").then(m=>{helios=m});
 
-> console.log(helios.compile("minting_policy my_nft; func main(ctx: ScriptContext) -> Bool {...}", helios.ScriptPurpose.Minting));
+> console.log(helios.compile("minting_policy my_nft func main(ctx: ScriptContext) -> Bool {...}", helios.ScriptPurpose.Minting));
 
 {"type": "PlutusScriptV1", "description": "", "cborHex" :" 5..."}
 ```

@@ -4,21 +4,21 @@ The *always-succeeds* contract in part 3 isn't very useful. Something that is st
 
 The Helios script:
 ```golang
-validator time_lock;
+validator time_lock
 
-data Datum {
-    lockUntil: Time,
-    owner:     PubKeyHash, // can't get this info from the ScriptContext
+struct Datum {
+    lockUntil: Time
+    owner:     PubKeyHash // can't get this info from the ScriptContext
     nonce:     Integer // doesn't actually need be checked here
 }
 
 func main(datum: Datum, ctx: ScriptContext) -> Bool {
-    tx: Tx = getTx(ctx);
-    now: Time = getTimeRangeStart(getTxTimeRange(tx));
-    returnToOwner: Bool = isTxSignedBy(tx, datum.owner);
+    tx: Tx = ctx.tx;
+    now: Time = tx.now();
+    returnToOwner: Bool = tx.is_signed_by(datum.owner);
 
-    trace("now: " + show(now) + ", lock: " + show(datum.lockUntil), now > datum.lockUntil) || 
-    trace("returning? " + show(returnToOwner), returnToOwner)
+    print("now: " + now.show() + ", lock: " + datum.lockUntil.show()); now > datum.lockUntil || 
+    (print("returning? " + show(returnToOwner)); returnToOwner)
 }
 ```
 
@@ -33,7 +33,7 @@ $ nodejs
 
 > helios.setDebug(true);
 
-> const src = "data Datum {lockUntil...";
+> const src = "struct Datum {lockUntil...";
 
 > console.log(helios.compile(src))
 
@@ -73,7 +73,7 @@ $ nodejs
 
 > var helios; import("./helios.js").then(m=>{helios=m});
 
-> const src = "data Datum {lockUn...";
+> const src = "struct Datum {lockUntil...";
 
 (TODO: doesnt work anymore)
 > console.log(helios.compileData(src, `Datum{lockUntil: Time(${(new Date()).getTime() + 1000*60*5}), owner: PubKeyHash(#1d22b9ff5fc...), nonce: 42}`));
