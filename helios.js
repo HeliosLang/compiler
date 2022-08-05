@@ -622,20 +622,23 @@ class Crypto {
 		 * @param {number[]} src - list of uint8 numbers
 		 * @returns {number[]}
 		 */
-		function preprocess(src) {
+		function applyPadding(src) {
 			let nBits = src.length*8;
 
 			let dst = src.slice();
 
 			dst.push(0x80);
 
-			let nZeroes = -8 - (dst.length%64 - 64);
+			let nZeroes = (64 - dst.length%64) - 8;
+			if (nZeroes < 0) {
+				nZeroes += 64;
+			}
 
 			for (let i = 0; i < nZeroes; i++) {
 				dst.push(0);
 			}
 
-			// assume n fits in 32 bits
+			// assume nBits fits in 32 bits
 
 			dst.push(0);
 			dst.push(0);
@@ -672,7 +675,7 @@ class Crypto {
 		];
 
 		/**
-		 * Initial hash (update during compression phase)
+		 * Initial hash (updated during compression phase)
 		 * @type {number[]} - 8 uint32 number
 		 */
 		const hash = [
@@ -686,7 +689,7 @@ class Crypto {
 			0x5be0cd19,
 		];
 	
-		bytes = preprocess(bytes);
+		bytes = applyPadding(bytes);
 
 		// break message in successive 64 byte chunks
 		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += 64) {
@@ -761,6 +764,193 @@ class Crypto {
 		}
 	
 		return result;
+	}
+
+	/**
+	 * Calculates sha3-256 (32bytes) hash of a list of uint8 numbers.
+	 * @example
+	 * bytesToHex(Crypto.sha3(stringToBytes("abc"))) => "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
+	 * @example
+	 * bytesToHex(Crypto.sha3((new Array(136)).fill(1))) => "b36dc2167c4d9dda1a58b87046c8d76a6359afe3612c4de8a38857e09117b2db"
+	 * @example
+	 * bytesToHex(Crypto.sha3((new Array(135)).fill(2))) => "5bdf5d815d29a9d7161c66520efc17c2edd7898f2b99a029e8d2e4ff153407f4"
+	 * @example
+	 * bytesToHex(Crypto.sha3((new Array(134)).fill(3))) => "8e6575663dfb75a88f94a32c5b363c410278b65020734560d968aadd6896a621"
+	 * @example
+	 * bytesToHex(Crypto.sha3((new Array(137)).fill(4))) => "f10b39c3e455006aa42120b9751faa0f35c821211c9d086beb28bf3c4134c6c6"
+	 * @param {number[]} bytes - list of uint8 numbers
+	 * @returns {number[]} - list of uint8 numbers
+	 */
+	static sha3(bytes) {
+		/**
+		 * @type {number} - state width (1600 bits, )
+		 */
+		const WIDTH = 200;
+
+		/**
+		 * @type {number} - rate (1088 bits, 136 bytes)
+		 */
+		const RATE = 136;
+
+		/**
+		 * @type {number} - capacity
+		 */
+		const CAP = WIDTH - RATE;
+
+		/**
+		 * Apply 1000...1 padding until size is multiple of r.
+		 * If already multiple of r then add a whole block of padding.
+		 * @param {number[]} src - list of uint8 numbers
+		 * @returns {number[]} - list of uint8 numbers
+		 */
+		function applyPadding(src) {
+			let dst = src.slice();
+
+			/** @type {number} */
+			let nZeroes = RATE - 2 - (dst.length%RATE);
+			if (nZeroes < -1) {
+				nZeroes += RATE - 2;
+			}
+
+			if (nZeroes == -1) {
+				dst.push(0x86);
+			} else {
+				dst.push(0x06);
+
+				for (let i = 0; i < nZeroes; i++) {
+					dst.push(0);
+				}
+
+				dst.push(0x80);
+			}
+
+			assert(dst.length%RATE == 0);
+			
+			return dst;
+		}
+
+		/**
+		 * 24 numbers used in the permute function
+		 * @type {number[]}
+		 */
+		const OFFSETS = [6, 12, 18, 24, 3, 9, 10, 16, 22, 1, 7, 13, 19, 20, 4, 5, 11, 17, 23, 2, 8, 14, 15, 21];
+
+		/**
+		 * 24 numbers used in the permute function
+		 * @type {number[]}
+		 */
+		const SHIFTS = [-12, -11, 21, 14, 28, 20, 3, -13, -29, 1, 6, 25, 8, 18, 27, -4, 10, 15, -24, -30, -23, -7, -9, 2];
+
+		/**
+		 * Round constants used in permute function
+		 * @type {number[]} 
+		 */
+		const RC = [
+			0x00000001, 0x00000000, 
+			0x00008082, 0x00000000, 
+			0x0000808a, 0x80000000,
+			0x80008000, 0x80000000,
+			0x0000808b, 0x00000000,
+			0x80000001, 0x00000000,
+			0x80008081, 0x80000000,
+			0x00008009, 0x80000000,
+			0x0000008a, 0x00000000,
+			0x00000088, 0x00000000,
+			0x80008009, 0x00000000,
+			0x8000000a, 0x00000000,
+			0x8000808b, 0x00000000,
+			0x0000008b, 0x80000000,
+			0x00008089, 0x80000000,
+			0x00008003, 0x80000000,
+			0x00008002, 0x80000000,
+			0x00000080, 0x80000000,
+			0x0000800a, 0x00000000,
+			0x8000000a, 0x80000000,
+			0x80008081, 0x80000000,
+			0x00008080, 0x80000000,
+			0x80000001, 0x00000000,
+			0x80008008, 0x80000000,
+		];
+		
+		/**
+		 * @param {Uint32Array} s 
+		 */
+		function permute(s) {			
+			let c = new Uint32Array(10);
+			let b = new Uint32Array(50);
+			
+			for (let round = 0; round < 24; round++) {
+				for (let i = 0; i < 10; i++) {
+					c[i] = s[i] ^ s[i+10] ^ s[i+20] ^ s[i+30] ^ s[i+40];
+ 				}
+		
+				for (let i = 0; i < 5; i++) {
+					let i1 = (i+1)%5;
+					let i2 = (i+4)%5;
+
+					let h = c[i2*2+0] ^ ((c[i1*2+0] << 1) | (c[i1*2+1] >>> 31));
+					let l = c[i2*2+1] ^ ((c[i1*2+1] << 1) | (c[i1*2+0] >>> 31));
+
+					for (let j = 0; j < 5; j++) {
+						s[i*2+j*10+0] ^= h;
+						s[i*2+j*10+1] ^= l;
+					}
+				}
+
+				b[0] = s[0];
+				b[1] = s[1];
+
+				for(let i = 1; i < 25; i++) {
+					let offset = OFFSETS[i-1];
+
+					let left = Math.abs(SHIFTS[i-1]);
+					let right = 32 - left;
+
+					let d = (SHIFTS[i-1] < 0) ? 1 : 0;
+
+					b[i*2+0] = (s[offset*2+  d] << left) | (s[offset*2+1-d] >>> right);
+					b[i*2+1] = (s[offset*2+1-d] << left) | (s[offset*2+  d] >>> right);
+				}
+
+				for (let i = 0; i < 5; i++) {
+					for (let j = 0; j < 10; j++) {
+						s[i*10+j] = b[i*10+j] ^ (~b[i*10 + (j+2)%10] & b[i*10 + (j+4)%10])
+					}
+				}
+		
+			  	s[0] ^= RC[round*2];
+			  	s[1] ^= RC[round*2 + 1];
+			}
+		}
+
+		bytes = applyPadding(bytes);
+
+		// initialize the state
+		let state = new Uint32Array(WIDTH/4);
+
+		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += RATE) {
+			// extend the chunk to become length WIDTH
+			let chunk = bytes.slice(chunkStart, chunkStart + RATE).concat((new Array(CAP)).fill(0));
+
+			// element-wise xor with 'state'
+			for (let i = 0; i < WIDTH; i += 4) {
+				// beware: a uint32 is stored as little endian, but a pair of uint32s that form a uin64 are stored in big endian format!
+				state[i/4] ^= (chunk[i] << 0) | (chunk[i+1] << 8) | (chunk[i+2] << 16) | (chunk[i+3] << 24);
+			}
+
+			// apply block permutations
+			permute(state);
+		}
+
+		let view = new DataView(state.buffer);
+
+		/** @type {number[]} */
+		let hash = [];
+		for (let i = 0; i < 32; i++) {
+			hash.push(view.getUint8(i));
+		}
+
+		return hash;
 	}
 }
 
@@ -2959,7 +3149,13 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 					}
 				});
 			case "sha2_256":
+				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					return new PlutusCoreByteArray(callSite, Crypto.sha2(a.bytes))
+				});
 			case "sha3_256":
+				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					return new PlutusCoreByteArray(callSite, Crypto.sha3(a.bytes))
+				});
 			case "blake2b_256":
 				throw new Error("these will be some fun ones to implement");
 			case "verifyEd25519Signature":

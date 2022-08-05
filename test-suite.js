@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "fs";
+import crypto from "crypto";
 import * as helios from "./helios.js";
 
 
@@ -694,6 +695,54 @@ async function runPropertyTests() {
             } else {
                 return res instanceof helios.UserError && res.info === "invalid utf-8";
             }
+        });
+
+        await ft.test([ft.bytes()], `
+        test bytearray_sha2;
+        func main(a: ByteArray) -> ByteArray {
+            a.sha2()
+        }`, ([a], res) => {
+            let hasher = crypto.createHash("sha256");
+
+            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+
+            return res.equalsByteArray(Array.from(hasher.digest()));
+        });
+
+        await ft.test([ft.bytes(55, 70)], `
+        test bytearray_sha2_alt;
+        func main(a: ByteArray) -> ByteArray {
+            a.sha2()
+        }`, ([a], res) => {
+            let hasher = crypto.createHash("sha256");
+
+            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+
+            return res.equalsByteArray(Array.from(hasher.digest()));
+        });
+
+        await ft.test([ft.bytes(0, 256)], `
+        test bytearray_sha3;
+        func main(a: ByteArray) -> ByteArray {
+            a.sha3()
+        }`, ([a], res) => {
+            let hasher = crypto.createHash("sha3-256");
+
+            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+
+            return res.equalsByteArray(Array.from(hasher.digest()));
+        });
+
+        await ft.test([ft.bytes(130, 140)], `
+        test bytearray_sha3_alt;
+        func main(a: ByteArray) -> ByteArray {
+            a.sha3()
+        }`, ([a], res) => {
+            let hasher = crypto.createHash("sha3-256");
+
+            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+
+            return res.equalsByteArray(Array.from(hasher.digest()));
         });
 
         await ft.test([ft.bytes()], `
