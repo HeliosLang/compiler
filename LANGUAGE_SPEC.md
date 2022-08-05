@@ -1,6 +1,7 @@
 # Grammar
-
 Program ::= ProgramType Statement [Statement [...]];
+
+ProgramType ::= (`test` | `minting_policy` | `validator`) Word;
 
 Statement ::= ConstStatement | StructStatement | FuncStatement | EnumStatement;
 
@@ -26,29 +27,29 @@ ImplDefinition ::= ImplMember [ImplMember [... ]];
 
 ImplMember ::= ConstStatement | FuncStatement;
 
-ConstStatement ::= `const` Identifier [`:` TypeExpr] `=` OtherValueExpr;
+ConstStatement ::= `const` Identifier [`:` TypeExpr] `=` ValueExpr;
 
 FuncStatement ::= `func` Identifier `(` [FuncArg [`,` FuncArg [...]]] `)` `->` TypeExpr `{` ValueExpr `}`;
 
 FuncArg ::= NameTypePair;
 
-TypeExpr ::= TypeRefExpr | TypePathExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr | FuncTypeExpr;
+TypeExpr ::= NonFuncTypeExpr | FuncTypeExpr;
+
+NonFuncTypeExpr ::= TypeRefExpr | TypePathExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr;
 
 FuncTypeExpr ::= `(` [TypeExpr [`,` TypeExpr [...]]] `)` `->` TypeExpr;
 
 TypeRefExpr ::= Identifier;
 
-TypePathExpr ::= TypeRefExpr `::` Word;
+TypePathExpr ::= NonFuncTypeExpr `::` Word;
 
-ListTypeExpr ::= `[` `]` TypeExpr;
+ListTypeExpr ::= `[` `]` NonFuncTypeExpr;
 
-MapTypeExpr ::= `Map` `[` TypeExpr `]` TypeExpr;
+MapTypeExpr ::= `Map` `[` NonFuncTypeExpr `]` NonFuncTypeExpr;
 
-OptionTypeExpr ::= `Option` `[` TypeExpr `]`;
+OptionTypeExpr ::= `Option` `[` NonFuncTypeExpr `]`;
 
-ValueExpr ::= AssignExpr | PrintExpr | OtherValueExpr;
-
-OtherValueExpr ::= LiteralExpr | ValueRefExpr | ValuePathExpr | UnaryExpr | BinaryExpr | ParensExpr | CallExpr | MemberExpr | IfElseExpr | SwitchExpr;
+ValueExpr ::= AssignExpr | PrintExpr | LiteralExpr | ValueRefExpr | ValuePathExpr | UnaryExpr | BinaryExpr | ParensExpr | CallExpr | MemberExpr | IfElseExpr | SwitchExpr;
 
 LiteralExpr ::= PrimitiveLiteralExpr | StructLiteralExpr | ListLiteralExpr | FuncLiteralExpr;
 
@@ -86,7 +87,7 @@ AssignExpr ::= Identifier [`:` TypeExpr] `=` ValueExpr `;` ValueExpr;
 
 PrintExpr ::= `print` `(` ValueExpr `)` `;` ValueExpr;
 
-IfElseExpr ::= `if` `(` ValueExpr `)` `{` ValueExpr `}` [`else` `if` `(` ValueExpr `)` `{` ValueExpr `}` [...]] `else` `{` ValueExpr `}`;
+IfElseExpr ::= `if` `(` ValueExpr `)` `{` ValueExpr `}` [`else` `if` `(` ValueExpr `)` `{` ValueExpr `}` [... ]] `else` `{` ValueExpr `}`;
 
 SwitchExpr ::= ValueExpr `.` `switch` `{` 
   SwitchCase [`,` SwitchCase [`,` ... ]]  [SwitchDefault ]
@@ -96,13 +97,13 @@ SwitchCase ::= (Word | (Identifier `:` Word)) `=>` (ValueExpr | (`{` ValueExpr `
 
 SwitchDefault ::= `else` `=>` (ValueExpr | (`{` ValueExpr `}`));
 
-CallExpr ::= ValueExpr `(` [ValueExpr [`,` ValueExpr [...]]] `)`;
+CallExpr ::= ValueExpr `(` [ValueExpr [`,` ValueExpr [... ]]] `)`;
 
 MemberExpr ::= ValueExpr `.` Word;
 
 ParensExpr ::= `(` ValueExpr `)`;
 
-ValuePathExpr ::= (TypeRefExpr | TypePathExpr) `::` Word;
+ValuePathExpr ::= NonFuncTypeExpr `::` Word;
 
 ValueRefExpr ::= Identifier;
 
@@ -110,8 +111,8 @@ Identifier ::= Word;
 
 Word ::= /[a-zA-Z_][0-9a-zA-Z_]*/;
 
-# Preprocessor
 
+# Preprocessor
 Regexp search and replace of `$Word`.
 
 
@@ -127,6 +128,7 @@ The tokenizer generates a list of the following terms:
 
 Comments are removed immediately.
 
+
 # Operator precedence and associativity
 0. `... = ... ; ...` and `print(...); ...`, right-to-left
 1. `||`, left-to-right
@@ -136,5 +138,5 @@ Comments are removed immediately.
 5. binary `+` and `-`, left-to-right
 6. `*`, `/` and `%`, left-to-right
 7. unary `+`, `-`, `!`, right-to-left
-8. `.`, `::`, `... (...)`, `... {...}` and `(...) -> ... {...}`, left-to-right
+8. `.`, `::`, `... (...)`, `... {...}`, `(...) -> ... {...}`, `if (...) {...} else ...` and `... . switch {...}`, left-to-right
 9. `(...)`
