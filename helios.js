@@ -622,7 +622,7 @@ class Crypto {
 		 * @param {number[]} src - list of uint8 numbers
 		 * @returns {number[]}
 		 */
-		function applyPadding(src) {
+		function pad(src) {
 			let nBits = src.length*8;
 
 			let dst = src.slice();
@@ -689,7 +689,7 @@ class Crypto {
 			0x5be0cd19,
 		];
 	
-		bytes = applyPadding(bytes);
+		bytes = pad(bytes);
 
 		// break message in successive 64 byte chunks
 		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += 64) {
@@ -768,6 +768,7 @@ class Crypto {
 
 	/**
 	 * Calculates sha3-256 (32bytes) hash of a list of uint8 numbers.
+	 * Result is also a list of uint8 number.
 	 * @example
 	 * bytesToHex(Crypto.sha3(stringToBytes("abc"))) => "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
 	 * @example
@@ -803,7 +804,7 @@ class Crypto {
 		 * @param {number[]} src - list of uint8 numbers
 		 * @returns {number[]} - list of uint8 numbers
 		 */
-		function applyPadding(src) {
+		function pad(src) {
 			let dst = src.slice();
 
 			/** @type {number} */
@@ -923,7 +924,7 @@ class Crypto {
 			}
 		}
 
-		bytes = applyPadding(bytes);
+		bytes = pad(bytes);
 
 		// initialize the state
 		let state = new Uint32Array(WIDTH/4);
@@ -951,6 +952,90 @@ class Crypto {
 		}
 
 		return hash;
+	}
+
+	/**
+	 * Calculates blake2-256 (32 bytes) hash of a list of uint8 numbers
+	 * Result is also a list of uint8 number.
+	 * @param {number[]} bytes 
+	 * @returns {number[]}
+	 */
+	static blake2b(bytes) {
+		/**
+		 * 128 bytes (16*8 byte words)
+		 * @type {number}
+		 */
+		const WIDTH = 128;
+
+		/**
+		 * @param {number[]} src - list of uint8 bytes
+		 * @returns {number[]} - list of uint8 bytes
+		 */
+		function pad(src) {
+			let dst = src.slice();
+
+			let nZeroes = WIDTH - dst%WIDTH;
+
+			for (let i = 0; i < nZeroes; i++) {
+				dst.push(0);
+			}
+			
+			return dst;
+		}
+
+		/**
+		 * @param {number[]} h - state vector
+		 * @param {Uint32Array} chunk
+		 * @param {number} t
+		 * @param {boolean} f
+ 		 */
+		function compress(h, chunk, t, f) {
+			// local work vector
+		}
+ 
+		let nBytes = bytes.length;
+
+		bytes = pad(bytes);
+
+		// init hash vector
+		let h = [
+			0xf3bcc908, 0x6a09e667, 0x84caa73b, 0xbb67ae85,
+			0xfe94f82b, 0x3c6ef372, 0x5f1d36f1, 0xa54ff53a,
+			0xade682d1, 0x510e527f, 0x2b3e6c1f, 0x9b05688c,
+			0xfb41bd6b, 0x1f83d9ab, 0x137e2179, 0x5be0cd19
+		];
+
+		// setup the param block
+		let paramBlock = new Uint8Array(64);
+		paramBlock[0] = 32; // n output  bytes
+		paramBlock[1] = 0; // key-length (always zero in our case) 
+		paramBlock[2] = 1; // fanout
+		paramBlock[3] = 1; // depth
+
+		//mix in the parameter block
+		let paramBlockView = new DataView(paramBlock.buffer);
+		for (let i = 0; i < 16; i++) {
+			h[i] ^= paramBlockView.getUint32(i*4, true);
+		}
+
+		// loop all chunks
+		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += WIDTH) {
+			let chunk = bytes.slice(chunkStart, chunkStart + WIDTH);
+
+			let chunk32 = new Uint32Array(WIDTH/4);
+			for (let i = 0; i < WIDTH; i += 4) {
+				// beware: a uint32 is stored as little endian, but a pair of uint32s that form a uin64 are stored in big endian format!
+				chunk32[i/4] ^= (chunk[i] << 0) | (chunk[i+1] << 8) | (chunk[i+2] << 16) | (chunk[i+3] << 24);
+			}
+
+			if (chunkStart == bytes.length - WIDTH) {
+				// last block
+				compress(h, chunk32, nBytes, true);
+			} else {
+				compress(h, chunk32, (i+1)*WIDTH, false);
+			}
+		}
+
 	}
 }
 
