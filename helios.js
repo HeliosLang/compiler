@@ -151,6 +151,17 @@ var DEBUG = false;
  */
 export function debug(b) { DEBUG = b };
 
+var BLAKE2B_DIGEST_SIZE = 32; // bytes
+
+/**
+ * Changes the value of BLAKE2B_DIGEST_SIZE (because nodjes crypto module only supports blake2b-512 and not blake2b-256, 
+ *  and we want to avoid non-standard dependencies in the test-suite)
+ * @param {number} s - 32 or 64
+ */
+export function setBlake2bDigestSize(s) {
+	BLAKE2B_DIGEST_SIZE = s;
+}
+
 const TAB = "    ";
 
 const PLUTUS_CORE_VERSION_COMPONENTS = [1n, 0n, 0n];
@@ -380,6 +391,68 @@ function imask(b, i0, i1) {
 }
 
 /**
+ * Make sure resulting number fits in uint32
+ * @param {number} x
+ */
+function imod32(x) {
+	return x >>> 0;
+}
+
+/**
+ * Make sure resulting number fits in uint8
+ * @param {number} x
+ */
+function imod8(x) {
+	return x & 0xff;
+}
+
+/**
+ * 32 bit number rotation
+ * @param {number} x - originally uint32
+ * @param {number} n
+ * @returns {number} - originally uint32
+ */
+function irotr(x, n) {
+	return imod32((x >>> n) | (x << (32 - n)));
+}
+
+/**
+ * 64-bit addition emulated with 32 bit numbers.
+ * Low overflow spills into high result
+ * @param {number} a0 - left low number
+ * @param {number} a1 - left high number
+ * @param {number} b0 - right low number
+ * @param {number} b1 -right high number
+ * @returns {[number, number]} - low and high result
+ */
+function iadd64(a0, a1, b0, b1) {
+	let c0 = a0 + b0;
+	let c1 = a1 + b1;
+
+	if (c0 >= 0x100000000) {
+		c1 += 1;
+	}
+
+	return [imod32(c0), imod32(c1)];
+}
+
+/**
+ * @param {number} x0 
+ * @param {number} x1 
+ * @param {number} n - between 0 and 32
+ * @returns {[number, number]} - low and high result
+ */
+function irotr64(x0, x1, n) {
+	if (n == 32) {
+		return [x1, x0];
+	} else if (n > 32) {
+		return irotr64(x1, x0, n - 32);
+	} else {
+		return [imod32((x0 >>> n) | (x1 << (32 - n))), imod32((x1 >>> n) | (x0 << (32 - n)))];
+	}
+}
+
+/**
  * Prepends zeroes to a bit-string so that 'result.length == n'.
  * @example
  * padZeroes("1111", 8) => "00001111"
@@ -577,6 +650,538 @@ class Crypto {
 	 */
 	static rand(seed) {
 		return this.mulberry32(seed);
+	}
+	
+	/**
+	 * Calculates sha2-256 (32bytes) hash of a list of uint8 numbers.
+	 * Result is also a list of uint8 number.
+	 * @example 
+	 * bytesToHex(Crypto.sha2([0x61, 0x62, 0x63])) => "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+	 * @example
+	 * Crypto.sha2(stringToBytes("Hello, World!")) => [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
+	 * @param {number[]} bytes - list of uint8 numbers
+	 * @returns {number[]} - list of uint8 numbers
+	 */
+	static sha2(bytes) {
+		/**
+		 * Pad a bytearray so its size is a multiple of 64 (512 bits).
+		 * Internal method.
+		 * @param {number[]} src - list of uint8 numbers
+		 * @returns {number[]}
+		 */
+		function pad(src) {
+			let nBits = src.length*8;
+
+			let dst = src.slice();
+
+			dst.push(0x80);
+
+			let nZeroes = (64 - dst.length%64) - 8;
+			if (nZeroes < 0) {
+				nZeroes += 64;
+			}
+
+			for (let i = 0; i < nZeroes; i++) {
+				dst.push(0);
+			}
+
+			// assume nBits fits in 32 bits
+
+			dst.push(0);
+			dst.push(0);
+			dst.push(0);
+			dst.push(0);
+			dst.push(imod8(nBits >> 24));
+			dst.push(imod8(nBits >> 16));
+			dst.push(imod8(nBits >> 8));
+			dst.push(imod8(nBits >> 0));
+			
+			return dst;
+		}
+
+		/**
+		 * @type {number[]} - 64 uint32 numbers
+		 */
+		 const k = [
+			0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+			0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+			0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+			0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+			0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+			0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+			0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+			0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+			0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+			0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+			0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+			0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+			0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+			0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+			0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+			0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+		];
+
+		/**
+		 * Initial hash (updated during compression phase)
+		 * @type {number[]} - 8 uint32 number
+		 */
+		const hash = [
+			0x6a09e667, 
+			0xbb67ae85, 
+			0x3c6ef372, 
+			0xa54ff53a, 
+			0x510e527f, 
+			0x9b05688c, 
+			0x1f83d9ab, 
+			0x5be0cd19,
+		];
+	
+		bytes = pad(bytes);
+
+		// break message in successive 64 byte chunks
+		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += 64) {
+			let chunk = bytes.slice(chunkStart, chunkStart + 64);
+
+			let w = (new Array(64)).fill(0); // array of 32 bit numbers!
+
+			// copy chunk into first 16 positions of w
+			for (let i = 0; i < 16; i++) {
+				w[i] = (chunk[i*4 + 0] << 24) |
+					   (chunk[i*4 + 1] << 16) |
+					   (chunk[i*4 + 2] <<  8) |
+					   (chunk[i*4 + 3]);
+			}
+
+			// extends the first 16 positions into the remaining 48 positions
+			for (let i = 16; i < 64; i++) {
+				let s0 = irotr(w[i-15],  7) ^ irotr(w[i-15], 18) ^ (w[i-15] >>> 3);
+				let s1 = irotr(w[i- 2], 17) ^ irotr(w[i- 2], 19) ^ (w[i- 2] >>> 10);
+				w[i] = imod32(w[i-16] + s0 + w[i-7] + s1);
+			}
+
+			// intialize working variables to current hash value
+			let a = hash[0];
+			let b = hash[1];
+			let c = hash[2];
+			let d = hash[3];
+			let e = hash[4];
+			let f = hash[5];
+			let g = hash[6];
+			let h = hash[7];
+
+			// compression function main loop
+			for (let i = 0; i < 64; i++) {
+				let S1 = irotr(e, 6) ^ irotr(e, 11) ^ irotr(e, 25);
+				let ch = (e & f) ^ ((~e) & g);
+				let temp1 = imod32(h + S1 + ch + k[i] + w[i]);
+				let S0 = irotr(a, 2) ^ irotr(a, 13) ^ irotr(a, 22);
+				let maj = (a & b) ^ (a & c) ^ (b & c);
+				let temp2 = imod32(S0 + maj);
+
+				h = g;
+				g = f;
+				f = e;
+				e = imod32(d + temp1);
+				d = c;
+				c = b;
+				b = a;
+				a = imod32(temp1 + temp2);
+			}
+
+			// update the hash
+			hash[0] = imod32(hash[0] + a);
+			hash[1] = imod32(hash[1] + b);
+			hash[2] = imod32(hash[2] + c);
+			hash[3] = imod32(hash[3] + d);
+			hash[4] = imod32(hash[4] + e);
+			hash[5] = imod32(hash[5] + f);
+			hash[6] = imod32(hash[6] + g);
+			hash[7] = imod32(hash[7] + h);
+		}
+
+		// produce the final digest of uint8 numbers
+		let result = [];
+		for (let i = 0; i < 8; i++) {
+			let item = hash[i];
+
+			result.push(imod8(item >> 24));
+			result.push(imod8(item >> 16));
+			result.push(imod8(item >>  8));
+			result.push(imod8(item >>  0));
+		}
+	
+		return result;
+	}
+
+	/**
+	 * Calculates sha3-256 (32bytes) hash of a list of uint8 numbers.
+	 * Result is also a list of uint8 number.
+	 * Sha3 only bit-wise operations, so 64-bit operations can easily be replicated using 2 32-bit operations instead
+	 * @example
+	 * bytesToHex(Crypto.sha3(stringToBytes("abc"))) => "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
+	 * @example
+	 * bytesToHex(Crypto.sha3((new Array(136)).fill(1))) => "b36dc2167c4d9dda1a58b87046c8d76a6359afe3612c4de8a38857e09117b2db"
+	 * @example
+	 * bytesToHex(Crypto.sha3((new Array(135)).fill(2))) => "5bdf5d815d29a9d7161c66520efc17c2edd7898f2b99a029e8d2e4ff153407f4"
+	 * @example
+	 * bytesToHex(Crypto.sha3((new Array(134)).fill(3))) => "8e6575663dfb75a88f94a32c5b363c410278b65020734560d968aadd6896a621"
+	 * @example
+	 * bytesToHex(Crypto.sha3((new Array(137)).fill(4))) => "f10b39c3e455006aa42120b9751faa0f35c821211c9d086beb28bf3c4134c6c6"
+	 * @param {number[]} bytes - list of uint8 numbers
+	 * @returns {number[]} - list of uint8 numbers
+	 */
+	static sha3(bytes) {
+		/**
+		 * @type {number} - state width (1600 bits, )
+		 */
+		const WIDTH = 200;
+
+		/**
+		 * @type {number} - rate (1088 bits, 136 bytes)
+		 */
+		const RATE = 136;
+
+		/**
+		 * @type {number} - capacity
+		 */
+		const CAP = WIDTH - RATE;
+
+		/**
+		 * Apply 1000...1 padding until size is multiple of r.
+		 * If already multiple of r then add a whole block of padding.
+		 * @param {number[]} src - list of uint8 numbers
+		 * @returns {number[]} - list of uint8 numbers
+		 */
+		function pad(src) {
+			let dst = src.slice();
+
+			/** @type {number} */
+			let nZeroes = RATE - 2 - (dst.length%RATE);
+			if (nZeroes < -1) {
+				nZeroes += RATE - 2;
+			}
+
+			if (nZeroes == -1) {
+				dst.push(0x86);
+			} else {
+				dst.push(0x06);
+
+				for (let i = 0; i < nZeroes; i++) {
+					dst.push(0);
+				}
+
+				dst.push(0x80);
+			}
+
+			assert(dst.length%RATE == 0);
+			
+			return dst;
+		}
+
+		/**
+		 * 24 numbers used in the permute function
+		 * @type {number[]}
+		 */
+		const OFFSETS = [6, 12, 18, 24, 3, 9, 10, 16, 22, 1, 7, 13, 19, 20, 4, 5, 11, 17, 23, 2, 8, 14, 15, 21];
+
+		/**
+		 * 24 numbers used in the permute function
+		 * @type {number[]}
+		 */
+		const SHIFTS = [-12, -11, 21, 14, 28, 20, 3, -13, -29, 1, 6, 25, 8, 18, 27, -4, 10, 15, -24, -30, -23, -7, -9, 2];
+
+		/**
+		 * Round constants used in permute function
+		 * @type {number[]} 
+		 */
+		const RC = [
+			0x00000001, 0x00000000, 
+			0x00008082, 0x00000000, 
+			0x0000808a, 0x80000000,
+			0x80008000, 0x80000000,
+			0x0000808b, 0x00000000,
+			0x80000001, 0x00000000,
+			0x80008081, 0x80000000,
+			0x00008009, 0x80000000,
+			0x0000008a, 0x00000000,
+			0x00000088, 0x00000000,
+			0x80008009, 0x00000000,
+			0x8000000a, 0x00000000,
+			0x8000808b, 0x00000000,
+			0x0000008b, 0x80000000,
+			0x00008089, 0x80000000,
+			0x00008003, 0x80000000,
+			0x00008002, 0x80000000,
+			0x00000080, 0x80000000,
+			0x0000800a, 0x00000000,
+			0x8000000a, 0x80000000,
+			0x80008081, 0x80000000,
+			0x00008080, 0x80000000,
+			0x80000001, 0x00000000,
+			0x80008008, 0x80000000,
+		];
+		
+		/**
+		 * @param {Uint32Array} s 
+		 */
+		function permute(s) {			
+			let c = new Uint32Array(10);
+			let b = new Uint32Array(50);
+			
+			for (let round = 0; round < 24; round++) {
+				for (let i = 0; i < 10; i++) {
+					c[i] = s[i] ^ s[i+10] ^ s[i+20] ^ s[i+30] ^ s[i+40];
+ 				}
+		
+				for (let i = 0; i < 5; i++) {
+					let i1 = (i+1)%5;
+					let i2 = (i+4)%5;
+
+					let h = c[i2*2+0] ^ ((c[i1*2+0] << 1) | (c[i1*2+1] >>> 31));
+					let l = c[i2*2+1] ^ ((c[i1*2+1] << 1) | (c[i1*2+0] >>> 31));
+
+					for (let j = 0; j < 5; j++) {
+						s[i*2+j*10+0] ^= h;
+						s[i*2+j*10+1] ^= l;
+					}
+				}
+
+				b[0] = s[0];
+				b[1] = s[1];
+
+				for(let i = 1; i < 25; i++) {
+					let offset = OFFSETS[i-1];
+
+					let left = Math.abs(SHIFTS[i-1]);
+					let right = 32 - left;
+
+					let d = (SHIFTS[i-1] < 0) ? 1 : 0;
+
+					b[i*2+0] = (s[offset*2+  d] << left) | (s[offset*2+1-d] >>> right);
+					b[i*2+1] = (s[offset*2+1-d] << left) | (s[offset*2+  d] >>> right);
+				}
+
+				for (let i = 0; i < 5; i++) {
+					for (let j = 0; j < 10; j++) {
+						s[i*10+j] = b[i*10+j] ^ (~b[i*10 + (j+2)%10] & b[i*10 + (j+4)%10])
+					}
+				}
+		
+			  	s[0] ^= RC[round*2];
+			  	s[1] ^= RC[round*2 + 1];
+			}
+		}
+
+		bytes = pad(bytes);
+
+		// initialize the state
+		let state = new Uint32Array(WIDTH/4);
+
+		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += RATE) {
+			// extend the chunk to become length WIDTH
+			let chunk = bytes.slice(chunkStart, chunkStart + RATE).concat((new Array(CAP)).fill(0));
+
+			// element-wise xor with 'state'
+			for (let i = 0; i < WIDTH; i += 4) {
+				// beware: a uint32 is stored as little endian, but a pair of uint32s that form a uin64 are stored in big endian format!
+				state[i/4] ^= (chunk[i] << 0) | (chunk[i+1] << 8) | (chunk[i+2] << 16) | (chunk[i+3] << 24);
+			}
+
+			// apply block permutations
+			permute(state);
+		}
+
+		let view = new DataView(state.buffer);
+
+		/** @type {number[]} */
+		let hash = [];
+		for (let i = 0; i < 32; i++) {
+			hash.push(view.getUint8(i));
+		}
+
+		return hash;
+	}
+
+	/**
+	 * Calculates blake2-256 (32 bytes) hash of a list of uint8 numbers.
+	 * Result is also a list of uint8 number.
+	 * Blake2b is a 64bit algorithm, so we need to be careful when replicating 64-bit additions with 2 32-bit numbers (low-word overflow must spill into high-word, and shifts must go over low/high boundary)
+	 * @example                                        
+	 * bytesToHex(Crypto.blake2b([0, 1])) => "01cf79da4945c370c68b265ef70641aaa65eaa8f5953e3900d97724c2c5aa095"
+	 * @example
+	 * bytesToHex(Crypto.blake2b(stringToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
+	 * @param {number[]} bytes 
+	 * @param {number} digestSize - 32 or 64
+	 * @returns {number[]}
+	 */
+	static blake2b(bytes, digestSize = BLAKE2B_DIGEST_SIZE) {
+		/**
+		 * 128 bytes (16*8 byte words)
+		 * @type {number}
+		 */
+		const WIDTH = 128;
+
+		/**
+		 * Initialization vector
+		 */
+		const IV = new Uint32Array([
+			0xf3bcc908, 0x6a09e667, 0x84caa73b, 0xbb67ae85,
+			0xfe94f82b, 0x3c6ef372, 0x5f1d36f1, 0xa54ff53a,
+			0xade682d1, 0x510e527f, 0x2b3e6c1f, 0x9b05688c,
+			0xfb41bd6b, 0x1f83d9ab, 0x137e2179, 0x5be0cd19
+		]);
+
+		const SIGMA = [
+			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+			[14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
+			[11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4],
+			[7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8],
+			[9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13],
+			[2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9],
+			[12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11],
+			[13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10],
+			[6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5],
+			[10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
+		];
+
+		/**
+		 * @param {number[]} src - list of uint8 bytes
+		 * @returns {number[]} - list of uint8 bytes
+		 */
+		function pad(src) {
+			let dst = src.slice();
+
+			let nZeroes = dst.length == 0 ? WIDTH : (WIDTH - dst.length%WIDTH)%WIDTH;
+
+			// just padding with zeroes, the actual message length is used during compression stage of final block in order to uniquely hash messages of different lengths
+			for (let i = 0; i < nZeroes; i++) {
+				dst.push(0);
+			}
+			
+			return dst;
+		}
+
+		/**
+		 * @param {Uint32Array} v
+		 * @param {Uint32Array} chunk
+		 * @param {number} a - index
+		 * @param {number} b - index
+		 * @param {number} c - index
+		 * @param {number} d - index
+		 * @param {number} i - index in chunk for low word 1
+		 * @param {number} j - index in chunk for low word 2
+		 */
+		function mix(v, chunk, a, b, c, d, i, j) {
+			let x0 = chunk[i+0];
+			let x1 = chunk[i+1];
+			let y0 = chunk[j+0];
+			let y1 = chunk[j+1];
+
+			[v[a+0], v[a+1]] = iadd64(v[a+0], v[a+1], v[b+0], v[b+1]);
+			[v[a+0], v[a+1]] = iadd64(v[a+0], v[a+1], x0, x1);
+
+			[v[d+0], v[d+1]] = irotr64(v[d+0] ^ v[a+0], v[d+1] ^ v[a+1], 32);
+			[v[c+0], v[c+1]] = iadd64(v[c+0], v[c+1], v[d+0], v[d+1]);
+
+			[v[b+0], v[b+1]] = irotr64(v[b+0] ^ v[c+0], v[b+1] ^ v[c+1], 24);
+
+			[v[a+0], v[a+1]] = iadd64(v[a+0], v[a+1], v[b+0], v[b+1]);
+			[v[a+0], v[a+1]] = iadd64(v[a+0], v[a+1], y0, y1);
+
+			[v[d+0], v[d+1]] = irotr64(v[d+0] ^ v[a+0], v[d+1] ^ v[a+1], 16);
+
+			[v[c+0], v[c+1]] = iadd64(v[c+0], v[c+1], v[d+0], v[d+1]);
+
+			[v[b+0], v[b+1]] = irotr64(v[b+0] ^ v[c+0], v[b+1] ^ v[c+1], 63);
+		}
+
+		/**
+		 * @param {Uint32Array} h - state vector
+		 * @param {Uint32Array} chunk
+		 * @param {number} t - chunkEnd (expected to fit in uint32)
+		 * @param {boolean} last
+ 		 */
+		function compress(h, chunk, t, last) {
+			// work vectors
+			let v = new Uint32Array(32);
+
+			v.set(h, 0);
+			v.set(IV, 16);
+
+			v[24] ^= imod32(t); // v[25] unmodified
+			// v[26] and v[27] unmodified
+
+			if (last) {
+				v[28] ^= 0xffffffff;
+				v[29] ^= 0xffffffff;
+			}
+
+			for (let round = 0; round < 12; round++) {
+				let s = SIGMA[round%10];
+
+				for (let i = 0; i < 4; i++) {
+					mix(v, chunk, i*2, i*2+8, i*2+16, i*2+24, 2*s[i*2], 2*s[i*2+1]);
+				}
+				
+				for (let i = 0; i < 4; i++) {
+					mix(v, chunk, i*2, (i*2+2)%8 + 8, (i*2+4)%8 + 16, (i*2+6)%8 + 24, 2*s[8+i*2], 2*s[8 + i*2 + 1]);
+				}
+			}
+
+			for (let i = 0; i < 16; i++) {
+				h[i] ^= (v[i] ^ v[i+16]);
+			}		
+		}
+ 
+		let nBytes = bytes.length;
+
+		bytes = pad(bytes);
+
+		// init hash vector
+		let h = IV.slice();
+
+		// setup the param block
+		let paramBlock = new Uint8Array(64);
+		paramBlock[0] = digestSize; // n output  bytes
+		paramBlock[1] = 0; // key-length (always zero in our case) 
+		paramBlock[2] = 1; // fanout
+		paramBlock[3] = 1; // depth
+
+		//mix in the parameter block
+		let paramBlockView = new DataView(paramBlock.buffer);
+		for (let i = 0; i < 16; i++) {
+			h[i] ^= paramBlockView.getUint32(i*4, true);
+		}
+
+		// loop all chunks
+		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += WIDTH) {
+			let chunkEnd = chunkStart + WIDTH; // exclusive
+			let chunk = bytes.slice(chunkStart, chunkStart + WIDTH);
+
+			let chunk32 = new Uint32Array(WIDTH/4);
+			for (let i = 0; i < WIDTH; i += 4) {
+				// beware: a uint32 is stored as little endian, but a pair of uint32s that form a uin64 are stored in big endian format!
+				chunk32[i/4] = (chunk[i] << 0) | (chunk[i+1] << 8) | (chunk[i+2] << 16) | (chunk[i+3] << 24);
+			}
+
+			if (chunkStart == bytes.length - WIDTH) {
+				// last block
+				compress(h, chunk32, nBytes, true);
+			} else {
+				compress(h, chunk32, chunkEnd, false);
+			}
+		}
+
+		// extract lowest BLAKE2B_DIGEST_SIZE (32 or 64) bytes from h
+		let view = new DataView(h.buffer);
+
+		/** @type {number[]} */
+		let hash = [];
+		for (let i = 0; i < digestSize; i++) {
+			hash.push(view.getUint8(i));
+		}
+
+		return hash;
 	}
 }
 
@@ -2775,9 +3380,17 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 					}
 				});
 			case "sha2_256":
+				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					return new PlutusCoreByteArray(callSite, Crypto.sha2(a.bytes))
+				});
 			case "sha3_256":
+				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					return new PlutusCoreByteArray(callSite, Crypto.sha3(a.bytes))
+				});
 			case "blake2b_256":
-				throw new Error("these will be some fun ones to implement");
+				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					return new PlutusCoreByteArray(callSite, Crypto.blake2b(a.bytes))
+				});
 			case "verifyEd25519Signature":
 				throw new Error("no immediate need, so don't bother yet");
 			case "ifThenElse":

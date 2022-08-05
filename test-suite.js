@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "fs";
+import crypto from "crypto";
 import * as helios from "./helios.js";
 
 
@@ -695,6 +696,85 @@ async function runPropertyTests() {
                 return res instanceof helios.UserError && res.info === "invalid utf-8";
             }
         });
+
+        await ft.test([ft.bytes(0, 10)], `
+        test bytearray_sha2;
+        func main(a: ByteArray) -> ByteArray {
+            a.sha2()
+        }`, ([a], res) => {
+            let hasher = crypto.createHash("sha256");
+
+            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+
+            return res.equalsByteArray(Array.from(hasher.digest()));
+        });
+
+        await ft.test([ft.bytes(55, 70)], `
+        test bytearray_sha2_alt;
+        func main(a: ByteArray) -> ByteArray {
+            a.sha2()
+        }`, ([a], res) => {
+            let hasher = crypto.createHash("sha256");
+
+            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+
+            return res.equalsByteArray(Array.from(hasher.digest()));
+        });
+
+        await ft.test([ft.bytes(0, 10)], `
+        test bytearray_sha3;
+        func main(a: ByteArray) -> ByteArray {
+            a.sha3()
+        }`, ([a], res) => {
+            let hasher = crypto.createHash("sha3-256");
+
+            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+
+            return res.equalsByteArray(Array.from(hasher.digest()));
+        });
+
+        await ft.test([ft.bytes(130, 140)], `
+        test bytearray_sha3_alt;
+        func main(a: ByteArray) -> ByteArray {
+            a.sha3()
+        }`, ([a], res) => {
+            let hasher = crypto.createHash("sha3-256");
+
+            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+
+            return res.equalsByteArray(Array.from(hasher.digest()));
+        });
+
+        // the crypto library only supports blake2b512 (and not blake2b256), so temporarily set digest size to 64 bytes for testing
+        helios.setBlake2bDigestSize(64);
+
+        await ft.test([ft.bytes(0, 10)], `
+        test bytearray_blake2b;
+        func main(a: ByteArray) -> ByteArray {
+            a.blake2b()
+        }`, ([a], res) => {
+            let hasher = crypto.createHash("blake2b512");
+
+            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+
+            let hash = Array.from(hasher.digest());
+
+            return res.equalsByteArray(hash);
+        });
+
+        await ft.test([ft.bytes(130, 140)], `
+        test bytearray_blake2b_alt;
+        func main(a: ByteArray) -> ByteArray {
+            a.blake2b()
+        }`, ([a], res) => {
+            let hasher = crypto.createHash("blake2b512");
+
+            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+
+            return res.equalsByteArray(Array.from(hasher.digest()));
+        });
+
+        helios.setBlake2bDigestSize(32);
 
         await ft.test([ft.bytes()], `
         test bytearray_show;
