@@ -1,115 +1,107 @@
 # Grammar
-Program ::= ProgramType Statement [Statement [...]];
+Program ::= ProgramType Statement (Statement)*
 
-ProgramType ::= (`test` | `minting_policy` | `validator`) Word;
+ProgramType ::= ('test' | 'minting_policy' | 'validator') Word
 
-Statement ::= ConstStatement | StructStatement | FuncStatement | EnumStatement;
+Statement ::= ConstStatement | StructStatement | FuncStatement | EnumStatement
 
-Comment ::= `//` /.\*/ EOL | `/*` /.\*/ `*/`;
+Comment ::= 'regexp://.*\n' | 'regexp:/\*(.*|\n)\*/'
 
-StructStatement ::= `struct` Word `{` DataDefinition [ImplDefinition ] `}`;
+StructStatement ::= 'struct' Word '{' DataDefinition [ImplDefinition] '}'
 
-DataDefinition ::= DataField [DataField [...]];
+DataDefinition ::= DataField (DataField)*
 
-DataField ::= NameTypePair;
+DataField ::= NameTypePair
 
-NameTypePair ::= Word `:` TypeExpr;
+NameTypePair ::= Word ':' TypeExpr
 
-EnumStatement ::= `enum` Identifier `{`
-    EnumMember [EnumMember [... ]]
+EnumStatement ::= 'enum' Identifier '{' EnumMember (EnumMember)* [ImplDefinition] '}'
 
-    [ImplDefinition]
-`}`;
+EnumMember ::= Word ['{' DataDefinition '}']
 
-EnumMember ::= Word [`{` DataDefinition `}`];
+ImplDefinition ::= ImplMember (ImplMember)*
 
-ImplDefinition ::= ImplMember [ImplMember [... ]];
+ImplMember ::= ConstStatement | FuncStatement
 
-ImplMember ::= ConstStatement | FuncStatement;
+ConstStatement ::= 'const' Identifier [':' TypeExpr] '=' ValueExpr
 
-ConstStatement ::= `const` Identifier [`:` TypeExpr] `=` ValueExpr;
+FuncStatement ::= 'func' Identifier '(' [FuncArg (',' FuncArg)*] ')' '->' TypeExpr '{' ValueExpr '}'
 
-FuncStatement ::= `func` Identifier `(` [FuncArg [`,` FuncArg [...]]] `)` `->` TypeExpr `{` ValueExpr `}`;
+FuncArg ::= NameTypePair
 
-FuncArg ::= NameTypePair;
+TypeExpr ::= NonFuncTypeExpr | FuncTypeExpr
 
-TypeExpr ::= NonFuncTypeExpr | FuncTypeExpr;
+NonFuncTypeExpr ::= TypeRefExpr | TypePathExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr
 
-NonFuncTypeExpr ::= TypeRefExpr | TypePathExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr;
+FuncTypeExpr ::= '(' [TypeExpr (',' TypeExpr)*] ')' '->' TypeExpr
 
-FuncTypeExpr ::= `(` [TypeExpr [`,` TypeExpr [...]]] `)` `->` TypeExpr;
+TypeRefExpr ::= Identifier
 
-TypeRefExpr ::= Identifier;
+TypePathExpr ::= NonFuncTypeExpr '::' Word
 
-TypePathExpr ::= NonFuncTypeExpr `::` Word;
+ListTypeExpr ::= '[' ']' NonFuncTypeExpr
 
-ListTypeExpr ::= `[` `]` NonFuncTypeExpr;
+MapTypeExpr ::= 'Map' '[' NonFuncTypeExpr ']' NonFuncTypeExpr
 
-MapTypeExpr ::= `Map` `[` NonFuncTypeExpr `]` NonFuncTypeExpr;
+OptionTypeExpr ::= 'Option' '[' NonFuncTypeExpr ']'
 
-OptionTypeExpr ::= `Option` `[` NonFuncTypeExpr `]`;
+ValueExpr ::= AssignExpr | PrintExpr | LiteralExpr | ValueRefExpr | ValuePathExpr | UnaryExpr | BinaryExpr | ParensExpr | CallExpr | MemberExpr | IfElseExpr | SwitchExpr
 
-ValueExpr ::= AssignExpr | PrintExpr | LiteralExpr | ValueRefExpr | ValuePathExpr | UnaryExpr | BinaryExpr | ParensExpr | CallExpr | MemberExpr | IfElseExpr | SwitchExpr;
+LiteralExpr ::= PrimitiveLiteralExpr | StructLiteralExpr | ListLiteralExpr | FuncLiteralExpr
 
-LiteralExpr ::= PrimitiveLiteralExpr | StructLiteralExpr | ListLiteralExpr | FuncLiteralExpr;
+PrimitiveLiteralExpr ::= PrimitiveLiteral
 
-PrimitiveLiteralExpr ::= PrimitiveLiteral;
+PrimitiveLiteral ::= IntLiteral | BoolLiteral | StringLiteral | ByteArrayLiteral
 
-PrimitiveLiteral ::= IntLiteral | BoolLiteral | StringLiteral | ByteArrayLiteral;
+StructLiteralExpr ::= (TypePathExpr | TypeRefExpr) ['{' StructLiteralField (',' StructLiteralField)* '}']
 
-StructLiteralExpr ::= (TypePathExpr | TypeRefExpr) `{`
-    [StructLiteralField [`,` StructLiteralField [...]]
-`}`;
+StructLiteralField ::= [Word ':'] ValueExpr
 
-StructLiteralField ::= Word `:` ValueExpr;
+FuncLiteralExpr ::= '(' [FuncArg (',' FuncArc)*] ')' '->' TypeExpr '{' ValueExpr '}'
 
-FuncLiteralExpr ::= `(`[FuncArg [`,` FuncArc [...]]]`)` `->` TypeExpr `{` ValueExpr `}`;
+IntLiteral ::= 'regexp:[0-9]+' | 'regexp:0b[0-1]+' | 'regexp:0o[0-7]+' | 'regexp:0x[0-9a-f]+'
 
-IntLiteral ::= /[0-9]+/ | /0b[0-1]+/ | /0o[0-7]+/ | /0x[0-9a-f]+/;
+BoolLiteral ::= 'true' | 'false'
 
-BoolLiteral ::= `true` | `false`;
+StringLiteral ::= '"' StringLiteralChar* '"';
 
-StringLiteral ::= `"` StringLiteralChar* `"`;
+StringLiteralChar ::= '\\' | '\n' | '\t' | '\"' | 'regexp:[^\]'
 
-StringLiteralChar ::= `\\` | `\n` | `\t` | `\"` | /[[^\]/;
+ByteArrayLiteral ::= '#' 'regexp:[0-9a-f]*'
 
-ByteArrayLiteral ::= `#` /[0-9a-f]*/;
+BinaryExpr ::= ValueExpr BinaryOp ValueExpr
 
-BinaryExpr ::= ValueExpr BinaryOp ValueExpr;
+BinaryOp ::= '+' | '-' | '*' | '/' | '%' | '==' | '!=' | '<' | '>' | '<=' | '>=' | '||' | '&&'
 
-BinaryOp ::= `+` | `-` | `*` | `/` | `%` | `==` | `!=` | `<` | `>` | `<=` | `>=` | `||` | `&&`;
+UnaryExpr ::= UnaryOp ValueExpr
 
-UnaryExpr ::= UnaryOp ValueExpr;
+UnaryOp ::= '-' | '+' | '!'
 
-UnaryOp ::= `-` | `+` | `!`;
+AssignExpr ::= Identifier [':' TypeExpr] '=' ValueExpr ';' ValueExpr
 
-AssignExpr ::= Identifier [`:` TypeExpr] `=` ValueExpr `;` ValueExpr;
+PrintExpr ::= 'print' '(' ValueExpr ')' ';' ValueExpr
 
-PrintExpr ::= `print` `(` ValueExpr `)` `;` ValueExpr;
+IfElseExpr ::= 'if' '(' ValueExpr ')' '{' ValueExpr '}' ('else' 'if' '(' ValueExpr ')' '{' ValueExpr '}')* 'else' '{' ValueExpr '}'
 
-IfElseExpr ::= `if` `(` ValueExpr `)` `{` ValueExpr `}` [`else` `if` `(` ValueExpr `)` `{` ValueExpr `}` [... ]] `else` `{` ValueExpr `}`;
+SwitchExpr ::= ValueExpr '.' 'switch' '{' SwitchCase (',' SwitchCase)* [SwitchDefault] '}'
 
-SwitchExpr ::= ValueExpr `.` `switch` `{` 
-  SwitchCase [`,` SwitchCase [`,` ... ]]  [SwitchDefault ]
-`}`;
+SwitchCase ::= (Word | (Identifier ':' Word)) '=>' (ValueExpr | ('{' ValueExpr '}'))
 
-SwitchCase ::= (Word | (Identifier `:` Word)) `=>` (ValueExpr | (`{` ValueExpr `}`));
+SwitchDefault ::= 'else' '=>' (ValueExpr | ('{' ValueExpr '}'))
 
-SwitchDefault ::= `else` `=>` (ValueExpr | (`{` ValueExpr `}`));
+CallExpr ::= ValueExpr '(' [ValueExpr (',' ValueExpr)*] ')';
 
-CallExpr ::= ValueExpr `(` [ValueExpr [`,` ValueExpr [... ]]] `)`;
+MemberExpr ::= ValueExpr '.' Word
 
-MemberExpr ::= ValueExpr `.` Word;
+ParensExpr ::= '(' ValueExpr ')'
 
-ParensExpr ::= `(` ValueExpr `)`;
+ValuePathExpr ::= NonFuncTypeExpr '::' Word
 
-ValuePathExpr ::= NonFuncTypeExpr `::` Word;
+ValueRefExpr ::= Identifier
 
-ValueRefExpr ::= Identifier;
+Identifier ::= Word
 
-Identifier ::= Word;
-
-Word ::= /[a-zA-Z_][0-9a-zA-Z_]*/;
+Word ::= 'regexp:[a-zA-Z_][0-9a-zA-Z_]*'
 
 
 # Preprocessor
