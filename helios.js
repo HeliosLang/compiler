@@ -618,6 +618,204 @@ function wrapCborBytes(bytes) {
 }
 
 /**
+ * Read non-byte aligned numbers
+ */
+ class BitReader {
+	#view;
+	#pos;
+	#truncate;
+
+	/**
+	 * @param {number[]} bytes
+	 * @param {boolean} truncate - if true then read last bits as low part of number, if false pad with zero bits
+	 */
+	constructor(bytes, truncate = true) {
+		this.#view = new Uint8Array(bytes);
+		this.#pos = 0; // bit position, not byte position
+		this.#truncate = truncate;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	eof() {
+		return idiv(this.#pos, 8) >= this.#view.length;
+	}
+
+	/**
+	 * Reads a number of bits (<= 8) and returns the result as an unsigned number
+	 * @param {number} n - number of bits to read
+	 * @returns {number}
+	 */
+	readBits(n) {
+		assert(n <= 8, "reading more than 1 byte");
+
+		let leftShift = 0;
+		if (this.#pos + n > this.#view.length * 8) {
+			let newN = (this.#view.length*8 - this.#pos);
+
+			if (!this.#truncate) {
+				leftShift = n - newN;
+			}
+
+			n = newN;
+		}
+
+		assert(n > 0, "eof");
+
+		// it is assumed we don't need to be at the byte boundary
+
+		let res = 0;
+		let i0 = this.#pos;
+
+		for (let i = this.#pos + 1; i <= this.#pos + n; i++) {
+			if (i % 8 == 0) {
+				let nPart = i - i0;
+
+				res += imask(this.#view[idiv(i, 8) - 1], i0 % 8, 8) << (n - nPart);
+
+				i0 = i;
+			} else if (i == this.#pos + n) {
+				res += imask(this.#view[idiv(i, 8)], i0 % 8, i % 8);
+			}
+		}
+
+		this.#pos += n;
+		return res << leftShift;
+	}
+
+	/**
+	 * Moves position to next byte boundary
+	 * @param {boolean} force - if true then move to next byte boundary if already at byte boundary
+	 */
+	moveToByteBoundary(force = false) {
+		if (this.#pos % 8 != 0) {
+			let n = 8 - this.#pos % 8;
+
+			void this.readBits(n);
+		} else if (force) {
+			this.readBits(8);
+		}
+	}
+
+	/**
+	 * Reads 8 bits
+	 * @returns {number}
+	 */
+	readByte() {
+		return this.readBits(8);
+	}
+
+	/**
+	 * Dumps remaining bits we #pos isn't yet at end.
+	 * This is intended for debugging use.
+	 */
+	 dumpRemainingBits() {
+		if (!this.eof()) {
+			console.log("remaining bytes:");
+			for (let first = true, i = idiv(this.#pos, 8); i < this.#view.length; first = false, i++) {
+				if (first && this.#pos % 8 != 0) {
+					console.log(byteToBitString(imask(this.#view[i], this.#pos % 8, 8) << 8 - this.#pos % 7));
+				} else {
+					console.log(byteToBitString(this.#view[i]));
+				}
+			}
+		} else {
+			console.log("eof");
+		}
+	}
+}
+
+/**
+ * BitWriter turns a string of '0's and '1's into a list of bytes.
+ * Finalization pads the bits using '0*1` if not yet aligned with the byte boundary.
+ */
+ class BitWriter {
+	/**
+	 * @type {string[]}
+	 */
+	#parts;
+	#n;
+
+	constructor() {
+		this.#parts = [];
+		this.#n = 0;
+	}
+
+	/**
+	 * Write a string of '0's and '1's to the BitWriter. 
+	 * @param {string} bitChars
+	 */
+	write(bitChars) {
+		for (let c of bitChars) {
+			if (c != '0' && c != '1') {
+				throw new Error("bad bit char");
+			}
+		}
+
+		this.#parts.push(bitChars);
+		this.#n += bitChars.length;
+	}
+
+	/**
+	 * Add padding to the BitWriter in order to align with the byte boundary.
+	 * If 'force == true' then 8 bits are added if the BitWriter is already aligned.
+	 * @param {boolean} force 
+	 */
+	padToByteBoundary(force = false) {
+		let nPad = 0;
+		if (this.#n % 8 != 0) {
+			nPad = 8 - this.#n % 8;
+		} else if (force) {
+			nPad = 8;
+		}
+
+		if (nPad != 0) {
+			let padding = (new Array(nPad)).fill('0');
+			padding[nPad - 1] = '1';
+
+			this.#parts.push(padding.join(''));
+
+			this.#n += nPad;
+		}
+	}
+
+	/**
+	 * Pads the BitWriter to align with the byte boundary and returns the resulting bytes.
+	 * @param {boolean} force - force padding (will add one byte if already aligned)
+	 * @returns {number[]}
+	 */
+	finalize(force = true) {
+		this.padToByteBoundary(force);
+
+		let chars = this.#parts.join('');
+
+		let bytes = [];
+
+		for (let i = 0; i < chars.length; i += 8) {
+			let byteChars = chars.slice(i, i + 8);
+			let byte = parseInt(byteChars, 2);
+
+			bytes.push(byte);
+		}
+
+		return bytes;
+	}
+}
+
+/**
+ * Rfc 4648 base32 alphabet
+ * @type {string}
+ */
+const DEFAULT_BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
+
+/**
+ * Bech32 base32 alphabet
+ * @type {string}
+ */
+const BECH32_BASE32_ALPHABET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+
+/**
  * Function that generates a random number between 0 and 1
  * @typedef {() => number} NumberGenerator
  */
@@ -652,6 +850,236 @@ class Crypto {
 		return this.mulberry32(seed);
 	}
 	
+	/**
+	 * Encode bytes in special base32.
+	 * @example
+	 * Crypto.encodeBase32(stringToBytes("f")) => "my"
+	 * @example
+	 * Crypto.encodeBase32(stringToBytes("fo")) => "mzxq"
+	 * @example
+	 * Crypto.encodeBase32(stringToBytes("foo")) => "mzxw6"
+	 * @example
+	 * Crypto.encodeBase32(stringToBytes("foob")) => "mzxw6yq"
+	 * @example
+	 * Crypto.encodeBase32(stringToBytes("fooba")) => "mzxw6ytb"
+	 * @example
+	 * Crypto.encodeBase32(stringToBytes("foobar")) => "mzxw6ytboi"
+	 * @param {number[]} bytes - uint8 numbers
+	 * @param {string} alphabet - list of chars
+	 * @return {string}
+	 */
+	static encodeBase32(bytes, alphabet = DEFAULT_BASE32_ALPHABET) {
+		return Crypto.encodeBase32Bytes(bytes).map(c => alphabet[c]).join("");
+	}
+
+	/**
+	 * 
+	 * @param {number[]} bytes 
+	 * @returns {number[]} - each number in range 0 -32
+	 */
+	static encodeBase32Bytes(bytes)  {
+		let result = [];
+
+		let reader = new BitReader(bytes, false);
+
+		while (!reader.eof()) {
+			result.push(reader.readBits(5));
+		}
+
+		return result;
+	}
+
+	/**
+	 * Decode base32 string into bytes.
+	 * @example
+	 * bytesToString(Crypto.decodeBase32("my")) => "f"
+	 * @example
+	 * bytesToString(Crypto.decodeBase32("mzxq")) => "fo"
+	 * @example
+	 * bytesToString(Crypto.decodeBase32("mzxw6")) => "foo"
+	 * @example
+	 * bytesToString(Crypto.decodeBase32("mzxw6yq")) => "foob"
+	 * @example
+	 * bytesToString(Crypto.decodeBase32("mzxw6ytb")) => "fooba"
+	 * @example
+	 * bytesToString(Crypto.decodeBase32("mzxw6ytboi")) => "foobar"
+	 * @param {string} encoded
+	 * @param {string} alphabet
+	 * @return {number[]}
+	 */
+	static decodeBase32(encoded, alphabet = DEFAULT_BASE32_ALPHABET) {
+		let writer = new BitWriter();
+
+		let n = encoded.length;
+		for (let i = 0; i < n; i++) {
+			let c = encoded[i];
+			let code = alphabet.indexOf(c.toLowerCase());
+
+			if (i == n - 1) {
+				// last, make sure we align to byte
+
+				let nCut = n*5 - 8*Math.floor(n*5/8);
+
+				let bits = padZeroes(code.toString(2), 5)
+
+				writer.write(bits.slice(0, 5 - nCut));
+			} else {
+				let bits = padZeroes(code.toString(2), 5);
+
+				writer.write(bits);
+			}
+		}
+
+		let result = writer.finalize(false);
+
+		return result;
+	}
+
+	/**
+	 * @param {string} hrp
+	 * @returns {number[]}
+	 */
+	static expandBech32HumanReadablePart(hrp) {
+		let bytes = [];
+		for (let c of hrp) {
+			bytes.push(c.charCodeAt(0) >> 5);
+		}
+
+		bytes.push(0);
+
+		for (let c of hrp) {
+			bytes.push(c.charCodeAt(0) & 31);
+		}
+
+		return bytes;
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 */
+	static calcBech32Polymod(bytes) {
+		const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+
+		let chk = 1;
+		for (let b of bytes) {
+			let c = (chk >> 25);
+			chk = (chk & 0x1fffffff) << 5 ^ b;
+
+			for (let i = 0; i < 5; i++) {
+				if (((c >> i) & 1) != 0) {
+					chk ^= GEN[i];
+				}
+			}
+ 		}
+
+		return chk;
+	}
+
+	/**
+	 * @param {string} hrp 
+	 * @param {number[]} data - numbers between 0 and 32
+	 * @returns {number[]} - 6 numbers between 0 and 32
+	 */
+	static calcBech32Checksum(hrp, data) {
+		let bytes = Crypto.expandBech32HumanReadablePart(hrp).concat(data);
+
+		let chk = Crypto.calcBech32Polymod(bytes.concat([0,0,0,0,0,0])) ^ 1;
+
+		let chkSum = [];
+		for (let i = 0; i < 6; i++) {
+			chkSum.push((chk >> 5 * (5 - i)) & 31);
+		}
+
+		return chkSum;
+	}
+
+	/**
+	 * Creates a bech32 checksum
+	 * @example
+	 * Crypto.encodeBech32("foo", stringToBytes("foobar")) => "foo1vehk7cnpwgry9h96"
+	 * @param {string} hrp 
+	 * @param {number[]} data - uint8 0 - 256
+	 * @returns {string}
+	 */
+	static encodeBech32(hrp, data) {
+		assert(hrp.length > 0, "human-readable-part must have non-zero length");
+
+		data = Crypto.encodeBase32Bytes(data);
+
+		let chkSum = Crypto.calcBech32Checksum(hrp, data);
+
+		return hrp + "1" + data.concat(chkSum).map(i => BECH32_BASE32_ALPHABET[i]).join("");
+	}
+
+	/**
+	 * @param {string} addr 
+	 * @returns {[string, number[]]}
+	 */
+	static decodeBech32(addr) {
+		assert(Crypto.verifyBech32(addr), "invalid bech32 addr");
+
+		let i = addr.indexOf("1");
+
+		assert(i != -1);
+
+		let hrp = addr.slice(0, i);
+
+		addr = addr.slice(i+1);
+
+		let data = Crypto.decodeBase32(addr, BECH32_BASE32_ALPHABET);
+
+		return [hrp, data.slice(0, data.length - 6)];
+	}
+
+	/**
+	 * @example
+	 * Crypto.verifyBech32("foo1vehk7cnpwgry9h96") => true
+	 * @example
+	 * Crypto.verifyBech32("foo1vehk7cnpwgry9h97") => false
+	 * @example
+	 * Crypto.verifyBech32("a12uel5l") => true
+	 * @example
+	 * Crypto.verifyBech32("mm1crxm3i") => false
+	 * @example
+	 * Crypto.verifyBech32("A1G7SGD8") => false
+	 * @param {string} addr
+	 * @returns {boolean}
+	 */
+	static verifyBech32(addr) {
+		console.log(addr);
+		let data =[];
+
+		let i = addr.indexOf("1");
+		if (i == -1 || i == 0) {
+			return false;
+		}
+
+		let hrp = addr.slice(0, i);
+
+		addr = addr.slice(i + 1);
+
+		for (let c of addr) {
+			let j = BECH32_BASE32_ALPHABET.indexOf(c);
+			if (j == -1) {
+				return false;
+			}
+
+			data.push(j);
+		}
+
+		let chkSumA = data.slice(data.length - 6);
+
+		let chkSumB = Crypto.calcBech32Checksum(hrp, data.slice(0, data.length - 6));
+
+		for (let i = 0; i < 6; i++) {
+			if (chkSumA[i] != chkSumB[i]) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	/**
 	 * Calculates sha2-256 (32bytes) hash of a list of uint8 numbers.
 	 * Result is also a list of uint8 number.
@@ -1182,82 +1610,6 @@ class Crypto {
 		}
 
 		return hash;
-	}
-}
-
-/**
- * BitWriter turns a string of '0's and '1's into a list of bytes.
- * Finalization pads the bits using '0*1` if not yet aligned with the byte boundary.
- */
-class BitWriter {
-	/**
-	 * @type {string[]}
-	 */
-	#parts;
-	#n;
-
-	constructor() {
-		this.#parts = [];
-		this.#n = 0;
-	}
-
-	/**
-	 * Write a string of '0's and '1's to the BitWriter. 
-	 * @param {string} bitChars
-	 */
-	write(bitChars) {
-		for (let c of bitChars) {
-			if (c != '0' && c != '1') {
-				throw new Error("bad bit char");
-			}
-		}
-
-		this.#parts.push(bitChars);
-		this.#n += bitChars.length;
-	}
-
-	/**
-	 * Add padding to the BitWriter in order to align with the byte boundary.
-	 * If 'force == true' then 8 bits are added if the BitWriter is already aligned.
-	 * @param {boolean} force 
-	 */
-	padToByteBoundary(force = false) {
-		let nPad = 0;
-		if (this.#n % 8 != 0) {
-			nPad = 8 - this.#n % 8;
-		} else if (force) {
-			nPad = 8;
-		}
-
-		if (nPad != 0) {
-			let padding = (new Array(nPad)).fill('0');
-			padding[nPad - 1] = '1';
-
-			this.#parts.push(padding.join(''));
-
-			this.#n += nPad;
-		}
-	}
-
-	/**
-	 * Pads the BitWriter to align with the byte boundary and returns the resulting bytes.
-	 * @returns {number[]}
-	 */
-	finalize() {
-		this.padToByteBoundary(true);
-
-		let chars = this.#parts.join('');
-
-		let bytes = [];
-
-		for (let i = 0; i < chars.length; i += 8) {
-			let byteChars = chars.slice(i, i + 8);
-			let byte = parseInt(byteChars, 2);
-
-			bytes.push(byte);
-		}
-
-		return bytes;
 	}
 }
 
@@ -14878,16 +15230,13 @@ export async function run(typedSrc, config = DEFAULT_CONFIG) {
 /**
  * PlutusCore deserializer creates a PlutusCore form an array of bytes
  */
-class PlutusCoreDeserializer {
-	#view;
-	#pos;
-
+class PlutusCoreDeserializer extends BitReader {
+	
 	/**
 	 * @param {number[]} bytes 
 	 */
 	constructor(bytes) {
-		this.#view = new Uint8Array(bytes);
-		this.#pos = 0; // bit position, not byte position
+		super(bytes);
 	}
 
 	/**
@@ -14919,67 +15268,6 @@ class PlutusCoreDeserializer {
 	}
 
 	/**
-	 * @returns {boolean}
-	 */
-	eof() {
-		return idiv(this.#pos, 8) >= this.#view.length;
-	}
-
-	/**
-	 * Reads a number of bits (<= 8) and returns the result as an unsigned number
-	 * @param {number} n - number of bits to read
-	 * @returns {number}
-	 */
-	readBits(n) {
-		assert(n <= 8, "reading more than 1 byte");
-		assert(this.#pos + n <= this.#view.length * 8, "eof");
-
-		// it is assumed we don't need to be at the byte boundary
-
-		let res = 0;
-		let i0 = this.#pos;
-		let old = this.#pos;
-
-		for (let i = this.#pos + 1; i <= this.#pos + n; i++) {
-			if (i % 8 == 0) {
-				let nPart = i - i0;
-
-				res += imask(this.#view[idiv(i, 8) - 1], i0 % 8, 8) << (n - nPart);
-
-				i0 = i;
-			} else if (i == this.#pos + n) {
-				res += imask(this.#view[idiv(i, 8)], i0 % 8, i % 8);
-			}
-		}
-
-		this.#pos += n;
-
-		return res;
-	}
-
-	/**
-	 * Moves position to next byte boundary
-	 * @param {boolean} force - if true then move to next byte boundary if already at byte boundary
-	 */
-	moveToByteBoundary(force = false) {
-		if (this.#pos % 8 != 0) {
-			let n = 8 - this.#pos % 8;
-
-			void this.readBits(n);
-		} else if (force) {
-			this.readBits(8);
-		}
-	}
-
-	/**
-	 * Reads 8 bits
-	 * @returns {number}
-	 */
-	readByte() {
-		return this.readBits(8);
-	}
-
-	/**
 	 * Reads a PlutusCore list with a specified size per element
 	 * Calls itself recursively until the end of the list is reached
 	 * @param {number} elemSize 
@@ -14995,25 +15283,6 @@ class PlutusCoreDeserializer {
 			return [];
 		} else {
 			return [this.readBits(elemSize)].concat(this.readLinkedList(elemSize));
-		}
-	}
-
-	/**
-	 * Dumps remaining bits we #pos isn't yet at end.
-	 * This is intended for debugging use.
-	 */
-	dumpRemainingBits() {
-		if (!this.eof()) {
-			console.log("remaining bytes:");
-			for (let first = true, i = idiv(this.#pos, 8); i < this.#view.length; first = false, i++) {
-				if (first && this.#pos % 8 != 0) {
-					console.log(byteToBitString(imask(this.#view[i], this.#pos % 8, 8) << 8 - this.#pos % 7));
-				} else {
-					console.log(byteToBitString(this.#view[i]));
-				}
-			}
-		} else {
-			console.log("eof");
 		}
 	}
 
