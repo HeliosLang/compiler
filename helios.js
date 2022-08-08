@@ -164,6 +164,15 @@ export function setBlake2bDigestSize(s) {
 
 const TAB = "    ";
 
+/**
+ * A Program can have different purposes
+ */
+ export const ScriptPurpose = {
+	Testing: -1,
+	Minting: 0,
+	Spending: 1,
+};
+
 const PLUTUS_CORE_VERSION_COMPONENTS = [1n, 0n, 0n];
 
 const PLUTUS_CORE_VERSION = PLUTUS_CORE_VERSION_COMPONENTS.map(c => c.toString()).join(".");
@@ -492,7 +501,7 @@ function byteToBitString(b, n = 8) {
  * @param {string} hex 
  * @returns {number[]}
  */
-function hexToBytes(hex) {
+export function hexToBytes(hex) {
 	let bytes = [];
 
 	for (let i = 0; i < hex.length; i += 2) {
@@ -509,7 +518,7 @@ function hexToBytes(hex) {
  * @param {number[]} bytes
  * @returns {string}
  */
-function bytesToHex(bytes) {
+export function bytesToHex(bytes) {
 	let parts = [];
 	for (let b of bytes) {
 		parts.push(padZeroes(b.toString(16), 2));
@@ -525,7 +534,7 @@ function bytesToHex(bytes) {
  * @param {string} str 
  * @returns {number[]}
  */
-function stringToBytes(str) {
+export function stringToBytes(str) {
 	return Array.from((new TextEncoder()).encode(str));
 }
 
@@ -536,7 +545,7 @@ function stringToBytes(str) {
  * @param {number[]} bytes 
  * @returns {string}
  */
-function bytesToString(bytes) {
+export function bytesToString(bytes) {
 	return (new TextDecoder("utf-8", {fatal: true})).decode((new Uint8Array(bytes)).buffer);
 }
 
@@ -559,7 +568,7 @@ function replaceTabs(str) {
  * @param {number[]} bytes 
  * @returns {number[]}
  */
-function unwrapCborBytes(bytes) {
+export function unwrapCborBytes(bytes) {
 	if (bytes.length == 0) {
 		throw new Error("expected at least one cbor byte");
 	}
@@ -596,7 +605,7 @@ function unwrapCborBytes(bytes) {
  * @param {number[]} bytes 
  * @returns {number[]}
  */
-function wrapCborBytes(bytes) {
+export function wrapCborBytes(bytes) {
 	let n = bytes.length;
 
 	if (n < 256) {
@@ -823,7 +832,7 @@ const BECH32_BASE32_ALPHABET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 /**
  * A collection of cryptography primitives are included here in order to avoid external dependencies.
  */
-class Crypto {
+export class Crypto {
 	/**
 	 * Returns a simple random number generator
 	 * @param {number} seed
@@ -997,6 +1006,8 @@ class Crypto {
 	 * Creates a bech32 checksum
 	 * @example
 	 * Crypto.encodeBech32("foo", stringToBytes("foobar")) => "foo1vehk7cnpwgry9h96"
+	 * @example
+	 * Crypto.encodeBech32("addr_test", hexToBytes("70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539")) => "addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld"
 	 * @param {string} hrp 
 	 * @param {number[]} data - uint8 0 - 256
 	 * @returns {string}
@@ -1012,6 +1023,8 @@ class Crypto {
 	}
 
 	/**
+	 * @example
+	 * bytesToHex(Crypto.decodeBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld")[1]) => "70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539"
 	 * @param {string} addr 
 	 * @returns {[string, number[]]}
 	 */
@@ -1026,9 +1039,9 @@ class Crypto {
 
 		addr = addr.slice(i+1);
 
-		let data = Crypto.decodeBase32(addr, BECH32_BASE32_ALPHABET);
+		let data = Crypto.decodeBase32(addr.slice(0, addr.length - 6), BECH32_BASE32_ALPHABET);
 
-		return [hrp, data.slice(0, data.length - 6)];
+		return [hrp, data];
 	}
 
 	/**
@@ -1042,11 +1055,16 @@ class Crypto {
 	 * Crypto.verifyBech32("mm1crxm3i") => false
 	 * @example
 	 * Crypto.verifyBech32("A1G7SGD8") => false
+	 * @example
+	 * Crypto.verifyBech32("abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw") => true
+	 * @example
+	 * Crypto.verifyBech32("?1ezyfcl") => true
+	 * @example
+	 * Crypto.verifyBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld") => true
 	 * @param {string} addr
 	 * @returns {boolean}
 	 */
 	static verifyBech32(addr) {
-		console.log(addr);
 		let data =[];
 
 		let i = addr.indexOf("1");
@@ -1611,6 +1629,30 @@ class Crypto {
 
 		return hash;
 	}
+
+	/**
+	 * Hashes a serialized plutus-core script. 
+	 * Result is the ValidatorHash for validator scripts, and MintingPolicyHash for minting_policy scripts.
+	 * @param {number[]} cborBytes - serialized Plutus-Core program (2x wrapped CBOR Bytearray)
+	 * @param {string} plutusCoreVersion - defaults to "1.0.0"
+	 * @returns {number[]}
+	 */
+	static hashScript(cborBytes, plutusCoreVersion = PLUTUS_CORE_VERSION) {
+		let bytes = wrapCborBytes(cborBytes);
+
+		switch (plutusCoreVersion) {
+			case "1.0.0":
+				bytes.unshift(0x01);
+				break;
+			case "2.0.0":
+				bytes.unshift(0x02);
+				break;
+			default:
+				throw new Error("unhandled plutus core version");
+		}
+
+		return Crypto.blake2b(bytes, 28);
+	}
 }
 
 /**
@@ -1838,6 +1880,10 @@ export class UserError extends Error {
 		this.#pos = pos;
 		this.#src = src;
 		this.#info = info;
+	}
+
+	get src() {
+		return this.#src;
 	}
 
 	/**
@@ -2152,7 +2198,7 @@ class PlutusCoreValue {
 	 * @returns {boolean}
 	 */
 	isMapItem() {
-		return true;
+		return false;
 	}
 
 	/**
@@ -2166,7 +2212,7 @@ class PlutusCoreValue {
 	 * @type {PlutusCoreData}
 	 */
 	get value() {
-		throw this.site.typeError(`expected a UPLC data-pair, got '${this.toString()}'`);
+		throw this.site.typeError(`expected a UPLC data-pair_, got '${this.toString()}'`);
 	}
 
 	/**
@@ -2201,7 +2247,7 @@ class PlutusCoreValue {
 	 * @type {PlutusCoreData}
 	 */
 	get data() {
-		throw this.site.typeError(`expeced UPLC data, got '${this.toString()}'`);
+		throw this.site.typeError(`expected UPLC data, got '${this.toString()}'`);
 	}
 
 	/**
@@ -2262,6 +2308,7 @@ class PlutusCoreRTE {
 	 * @param {PlutusCoreRTECallbacks} callbacks 
 	 */
 	constructor(callbacks) {
+		assertDefined(callbacks);
 		this.#callbacks = callbacks;
 		this.#notifyCalls = true;
 		this.#marker = null;
@@ -3764,7 +3811,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 					} else if (a.isMapItem()) {
 						return new PlutusCoreDataValue(callSite, a.key);
 					} else {
-						throw a.site.typeError(`expected pair or data-pair, got '${a.toString()}'`);
+						throw callSite.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
 					}
 				});
 			case "sndPair":
@@ -3774,7 +3821,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 					} else if (a.isMapItem()) {
 						return new PlutusCoreDataValue(callSite, a.value);
 					} else {
-						throw a.site.typeError(`expected pair or data-pair, got '${a.toString()}'`);
+						throw callSite.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
 					}
 				});
 			case "chooseList":
@@ -3792,7 +3839,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 						pairs.unshift(new PlutusCoreMapItem(callSite, a.key, a.value));
 						return new PlutusCoreMap(callSite, pairs);
 					} else {
-						throw b.site.typeError(`expected list of map, got '${b.toString()}'`);
+						throw callSite.typeError(`expected list or map for second arg, got '${b.toString()}'`);
 					}
 				});
 			case "headList":
@@ -3800,19 +3847,19 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 					if (a.isList()) {
 						let lst = a.list;
 						if (lst.length == 0) {
-							throw this.site.runtimeError("empty list");
+							throw callSite.runtimeError("empty list");
 						}
 
 						return new PlutusCoreDataValue(callSite, lst[0]);
 					} else if (a.isMap()) {
 						let lst = a.map;
 						if (lst.length == 0) {
-							throw this.site.runtimeError("empty map");
+							throw callSite.runtimeError("empty map");
 						}
 
 						return lst[0].copy(callSite);
 					} else {
-						throw a.site.typeError(`expected list or map, got '${a.toString()}'`);
+						throw callSite.typeError(`expected list or map, got '${a.toString()}'`);
 					}
 				});
 			case "tailList":
@@ -3820,19 +3867,19 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 					if (a.isList()) {
 						let lst = a.list;
 						if (lst.length == 0) {
-							throw this.site.runtimeError("empty list");
+							throw callSite.runtimeError("empty list");
 						}
 
 						return new PlutusCoreList(callSite, lst.slice(1));
 					} else if (a.isMap()) {
 						let lst = a.map;
 						if (lst.length == 0) {
-							throw this.site.runtimeError("empty map");
+							throw callSite.runtimeError("empty map");
 						}
 
 						return new PlutusCoreMap(callSite, lst.slice(1));
 					} else {
-						throw a.site.typeError(`expected list or map, got '${a.toString()}'`);
+						throw callSite.typeError(`expected list or map, got '${a.toString()}'`);
 					}
 				});
 			case "nullList":
@@ -3842,7 +3889,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 					} else if (a.isMap()) {
 						return new PlutusCoreBool(callSite, a.map.length == 0);
 					} else {
-						throw a.site.typeError(`expected list or map, got '${a.toString()}'`);
+						throw callSite.typeError(`expected list or map, got '${a.toString()}'`);
 					}
 				});
 			case "chooseData":
@@ -3876,7 +3923,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
 					let data = a.data;
 					if (!(data instanceof ConstrData)) {
-						throw this.site.runtimeError(`unexpected unConstrData argument '${data.toString()}'`);
+						throw callSite.runtimeError(`unexpected unConstrData argument '${data.toString()}'`);
 					} else {
 						return new PlutusCorePair(callSite, new PlutusCoreInt(callSite, BigInt(data.index)), new PlutusCoreList(callSite, data.fields));
 					}
@@ -3885,7 +3932,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
 					let data = a.data;
 					if (!(data instanceof MapData)) {
-						throw this.site.runtimeError(`unexpected unMapData argument '${data.toString()}'`);
+						throw callSite.runtimeError(`unexpected unMapData argument '${data.toString()}'`);
 					} else {
 						return new PlutusCoreMap(callSite, data.map.map(([fst, snd]) => new PlutusCoreMapItem(callSite, fst, snd)));
 					}
@@ -3894,7 +3941,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
 					let data = a.data;
 					if (!(data instanceof ListData)) {
-						throw this.site.runtimeError(`unexpected unListData argument '${data.toString()}'`);
+						throw callSite.runtimeError(`unexpected unListData argument '${data.toString()}'`);
 					} else {
 						return new PlutusCoreList(callSite, data.list);
 					}
@@ -3903,7 +3950,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
 					let data = a.data;
 					if (!(data instanceof IntData)) {
-						throw this.site.runtimeError(`unexpected unIData argument '${data.toString()}'`);
+						throw callSite.runtimeError(`unexpected unIData argument '${data.toString()}'`);
 					} else {
 						return new PlutusCoreInt(callSite, data.value);
 					}
@@ -3912,7 +3959,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
 					let data = a.data;
 					if (!(data instanceof ByteArrayData)) {
-						throw this.site.runtimeError(`unexpected unBData argument '${data.toString()}'`);
+						throw callSite.runtimeError(`unexpected unBData argument '${data.toString()}'`);
 					} else {
 						return new PlutusCoreByteArray(callSite, data.bytes);
 					}
@@ -3920,7 +3967,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 			case "equalsData":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					// just compare the schema jsons for now
-					return new PlutusCoreBool(callSite, a.data.toSchemaJSON() == b.data.toSchemaJSON());
+					return new PlutusCoreBool(callSite, a.data.isSame(b.data));
 				});
 			case "mkPairData":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
@@ -4027,6 +4074,7 @@ class PlutusCoreProgram {
 	 * @returns {Promise<PlutusCoreData | UserError>}
 	 */
 	async run(rawArgs, callbacks) {
+		assertDefined(callbacks);
 		let rte = new PlutusCoreRTE(callbacks);
 
 		try {
@@ -4055,15 +4103,23 @@ class PlutusCoreProgram {
 	}
 
 	/**
-	 * Returns plutus-core script in JSON format (as string, not as object!)
-	 * @returns {string}
+	 * Returns flat bytes of serialized script
+	 * @returns {number[]}
 	 */
-	serialize() {
+	serializeBytes() {
 		let bitWriter = new BitWriter();
 
 		this.toFlat(bitWriter);
 
-		let bytes = bitWriter.finalize();
+		return bitWriter.finalize();
+	}
+
+	/**
+	 * Returns plutus-core script in JSON format (as string, not as object!)
+	 * @returns {string}
+	 */
+	serialize() {
+		let bytes = this.serializeBytes();
 
 		let cborHex = bytesToHex(wrapCborBytes(wrapCborBytes(bytes)));
 
@@ -4081,6 +4137,14 @@ class PlutusCoreProgram {
  */
 class PlutusCoreData {
 	constructor() {
+	}
+
+	/**
+	 * @param {PlutusCoreData} other 
+	 * @returns {boolean}
+	 */
+	isSame(other) {
+		return this.toSchemaJSON() == other.toSchemaJSON();
 	}
 
 	/**
@@ -4690,9 +4754,8 @@ class ConstrData extends PlutusCoreData {
 	 * @returns {string}
 	 */
 	toString() {
-		let parts = ["c:" + this.#index.toString()];
-		parts = parts.concat(this.#fields.map(field => field.toString()));
-		return parts.join(", ");
+		let parts = this.#fields.map(field => field.toString());
+		return `${this.#index.toString()}{${parts.join(", ")}}`;
 	}
 
 	/**
@@ -4709,6 +4772,313 @@ class ConstrData extends PlutusCoreData {
 
 	toSchemaJSON() {
 		return `{"constructor": ${this.#index.toString()}, "fields": [${this.#fields.map(f => f.toSchemaJSON()).join(", ")}]}`;
+	}
+}
+
+/**
+ * Special ConstrData builders
+ */
+class LedgerData extends ConstrData {
+	#parameters;
+
+	/**
+	 * 
+	 * @param {number} idx 
+	 * @param {PlutusCoreData[]} fields 
+	 * @param {Object.<string, any>} parameters
+	 */
+	constructor(idx, fields, parameters) {
+		super(idx, fields);
+
+		this.#parameters = parameters;
+	}
+
+	/**
+	 * @param {string} name 
+	 * @returns {any}
+	 */
+	getParam(name) {
+		if (name in this.#parameters) {
+			return this.#parameters[name]
+		} else {
+			throw new Error(`member ${name} undefined`);
+		}
+	}
+
+	/**
+	 * Things that can be randomized: number of inputs, number of outputs, fee, TimeRange start, number of signatories, hash of the tx
+	 * @param {number[]} scriptHash - 28 byte minting policy hash hash
+	 * @returns {LedgerData}
+	 */
+	static newMintingScriptContext(scriptHash) {
+
+		let txInputHash = (new Array(32)).fill(0x00); // each transaction must have at least 1 input
+		let txHash = (new Array(32)).fill(0x01); // hash of current transaction
+		let txOutputAddr = (new Array(28)).fill(0x02); // pubkeyhash
+
+		let purposeData = new ConstrData(0, [new ByteArrayData(scriptHash)]);
+
+		let fee = 1n;
+		let mintedQty = 100n;
+		let mintedValue = LedgerData.newValue(mintedQty, scriptHash);
+		let signatories = [new ByteArrayData(txOutputAddr)];
+
+		let txDataFields = [
+			new ListData([LedgerData.newTxInput(txInputHash, 0n, scriptHash, LedgerData.newValue(1000n))]),
+			new ListData([
+				LedgerData.newTxOutput(txOutputAddr, false, LedgerData.newValue(999n)),
+				LedgerData.newTxOutput(txOutputAddr, false, mintedValue),
+			]),
+			LedgerData.newValue(fee), // fee value
+			mintedValue, // minted value
+			new ListData([]), // digests of certificates
+			new ListData([]), // staking withdrawals
+			LedgerData.newFiniteTimeRange(), // valid time range
+			new ListData(signatories), // signatories
+			new ListData([]), // datums
+			LedgerData.newTxId(txHash),
+		];
+
+		let txData = new LedgerData(0, txDataFields, {
+			fee: fee,
+			minted: mintedQty,
+			signatories: signatories,
+			id: txHash,
+		});
+
+		return new LedgerData(0, [
+			txData,
+			purposeData,
+		], {
+			scriptHash: scriptHash,
+			tx: txData,
+			purpose: ScriptPurpose.Minting,
+			minted: mintedQty,
+		});
+	}
+
+	/**
+	 * @param {number[]} scriptHash - 28 byte hash
+	 * @param {number[]} txHash - 32 byte hash of current transaction (acts as TxId)
+	 * @param {LedgerData[]} inputs
+	 * @param {bigint} fee
+	 * @param {LedgerData[]} outputs
+	 * @param {ByteArrayData[]} signatories
+	 * @param {number} currentInput
+	 * @returns {LedgerData}
+	 */
+	static newSpendingScriptContext(
+		scriptHash, 
+		txHash, 
+		inputs, 
+		fee, 
+		outputs, 
+		signatories, 
+		currentInput = 0
+	) {
+		if (currentInput < 0) {
+			currentInput = 0;
+		} else if (currentInput >= inputs.length) {
+			currentInput = inputs.length - 1;
+		}
+
+		let txOutputId = inputs[currentInput].getParam("txOutputId");
+		let purposeData = new ConstrData(1, [txOutputId]);
+
+		let txDataFields = [
+			new ListData(inputs), // tx input
+			new ListData(outputs), // tx output
+			LedgerData.newValue(fee), // fee value
+			LedgerData.newValue(0n), // minted value
+			new ListData([]), // digests of certificates
+			new ListData([]), // staking withdrawals
+			LedgerData.newFiniteTimeRange(), // valid time range
+			new ListData(signatories), // signatories
+			new ListData([]), // datums
+			LedgerData.newTxId(txHash),
+		];
+
+		let txData = new LedgerData(0, txDataFields, {
+			fee: fee,
+			minted: 0n,
+			signatories: signatories,
+			id: txHash,
+		});
+
+		return new LedgerData(0, [
+			txData,
+			purposeData,
+		], {
+			scriptHash: scriptHash,
+			tx: txData,
+			purpose: ScriptPurpose.Spending,
+			txOutputId: txOutputId,
+		});
+	}
+
+	/**
+	 * Returns a moneyvalue map
+	 * @param {bigint} qty 
+	 * @param {number[]} mph - minting policy hash
+	 * @param {string} tokenName
+	 * @returns {MapData}
+	 */
+	 static newValue(qty, mph = [], tokenName = "") {
+		if (qty == 0n) {
+			return new MapData([]);
+		} else {
+			let mphData = new ByteArrayData(mph);
+			let tokenNameData = new ByteArrayData(stringToBytes(tokenName));
+			
+			return new MapData([
+				[mphData, new MapData([
+					[tokenNameData, new IntData(qty)]
+				])]
+			]);
+		}
+	}
+
+	/**
+	 * @param {number[]} hash - 32 byte hash
+	 * @returns {LedgerData}
+	 */
+	static newTxId(hash) {
+		return new LedgerData(0, [
+			new ByteArrayData(hash),
+		], {
+			hash: hash
+		});
+	}
+
+	/**
+	 * @param {number[]} originTxHash - 32 byte hash
+	 * @param {bigint} originUtxoId
+	 * @param {number[]} scriptHash - 28 byte hash
+	 * @param {MapData} value - amount of lovelace
+	 * @returns {LedgerData}
+	 */
+	static newTxInput(originTxHash, originUtxoId, scriptHash, value) {
+		let txOutputId = LedgerData.newTxOutputId(originTxHash, originUtxoId);
+		return new LedgerData(0, [
+			txOutputId,
+			LedgerData.newTxOutput(scriptHash, true, value), // assume locked in current script
+		], {
+			txOutputId: txOutputId,
+			originTxHash: originTxHash,
+			originUtxoId: originUtxoId,
+			scriptHash: scriptHash,
+			value: value,
+		});
+	}
+
+	/**
+	 * 
+	 * @param {number[]} addr
+	 * @param {boolean} isSentToValidator
+	 * @param {MapData} value 
+	 * @returns {LedgerData}
+	 */
+	static newTxOutput(addr, isSentToValidator, value) {
+		return new LedgerData(0, [
+			LedgerData.newAddress(addr, isSentToValidator),
+			value,
+			LedgerData.newOption(),
+		], {
+			addr: addr,
+			isSentToValidator: isSentToValidator,
+			value: value,
+		});
+	}
+
+	/**
+	 * Returns address without staking
+	 * @param {number[]} hash - pubkeyhash or validatorhash
+	 * @param {boolean} isValidator - defaults to false
+	 * @returns {LedgerData}
+	 */
+	static newAddress(hash, isValidator = false) {
+		return new LedgerData(0, [
+			LedgerData.newCredential(hash, isValidator),
+			LedgerData.newOption(),
+		], {
+			hash: hash,
+			isValidator: isValidator,
+		});
+	}
+
+	/**
+	 * @param {number[]} hash 
+	 * @param {boolean} isValidator 
+	 * @returns {LedgerData}
+	 */
+	static newCredential(hash, isValidator = false) {
+		if (isValidator) {
+			return new LedgerData(1, [
+				new ByteArrayData(hash),
+			], {hash: hash, isValidator: isValidator});
+		} else {
+			return new LedgerData(0, [
+				new ByteArrayData(hash),
+			], {hash: hash, isValidator: isValidator});
+		}
+	}
+
+	/**
+	 * @param {?PlutusCoreData} content
+	 * @returns {LedgerData}
+	 */
+	static newOption(content = null) {
+		if (content === null) {
+			return new LedgerData(1, [], {content: content});
+		} else {
+			return new LedgerData(0, [content], {content: content});
+		}
+	}
+
+	/**
+	 * Returns a UTXO id
+	 * @param {number[]} txHash - 32 bytes
+	 * @param {bigint} utxoId
+	 */
+	static newTxOutputId(txHash, utxoId = 0n) {
+		return new LedgerData(0, [
+			new ConstrData(0, [new ByteArrayData(txHash)]), new IntData(utxoId)
+		], {
+			txHash: txHash,
+			utxoId: utxoId,
+		});
+	}
+
+	/**
+	 * @param {boolean} value
+	 * @returns {LedgerData}
+	 */
+	static newBool(value) {
+		return new LedgerData(value ? 1 : 0, [], {value: value});
+	}
+
+	/**
+	 * Returns a TimeRange object
+	 * @param {bigint} start
+	 * @param {bigint} duration
+	 * @returns {LedgerData}
+	 */
+	static newFiniteTimeRange(start = 1600000000n, duration = 10000n) {
+		return new LedgerData(0, [
+			// LowerBound
+			new LedgerData(0, [
+				new LedgerData(1, [new IntData(start)], {}),
+				LedgerData.newBool(true),
+			], {}),
+			// UpperBound
+			new LedgerData(0, [
+				new LedgerData(1, [new IntData(start + duration)], {}),
+				LedgerData.newBool(true),
+			], {})
+		], {
+			start: start,
+			duration: duration,
+		});
 	}
 }
 
@@ -6897,7 +7267,6 @@ class FuncType extends Type {
 						haveScriptContext = true;
 					}
 				} else {
-					console.log("got ", t, arg);
 					throw site.typeError("illegal argument type, must be \'Datum\', \'Redeemer\' or \'ScriptContext\'");
 				}
 			}
@@ -9347,7 +9716,6 @@ class ConstStatement extends Statement {
 
 		if (this.#typeExpr === null) {
 			if (!this.#valueExpr.isLiteral()) {
-				console.log(this.#valueExpr);
 				throw this.typeError("can't infer type");
 			}
 
@@ -10194,15 +10562,6 @@ class ImplDefinition {
 		}
 	}
 }
-
-/**
- * A Program can have different purposes
- */
-export const ScriptPurpose = {
-	Testing: -1,
-	Minting: 0,
-	Spending: 1,
-};
 
 /**
  * @typedef {Map<string, IR>} IRDefinitions
@@ -12721,6 +13080,18 @@ class TimeRangeType extends BuiltinType {
 	toString() {
 		return "TimeRange";
 	}
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+ 	getTypeMember(name) {
+		switch (name.value) {
+			case "new":
+				return Value.new(new FuncType([new TimeType(), new TimeType()], new TimeRangeType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
 
 	/**
 	 * @param {Word} name 
@@ -12728,6 +13099,8 @@ class TimeRangeType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
+			case "contains":
+				return Value.new(new FuncType([new TimeType()], new BoolType()));
 			case "get_start":
 				return Value.new(new FuncType([], new TimeType()));
 			default:
@@ -13730,7 +14103,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__tx__now",
 	`(self) -> {
 		() -> {
-			__helios__timerange__get_start(__helios__tx__time_range(self)())
+			__helios__timerange__get_start(__helios__tx__time_range(self))()
 		}
 	}`));
 	add(new RawFunc("__helios__tx__find_datum_hash",
@@ -13992,6 +14365,81 @@ function makeRawFunctions() {
 
 	// TimeRange builtins
 	addEqNeqSerialize("__helios__timerange");
+	add(new RawFunc("__helios__timerange__new", `
+	(a, b) -> {
+		__core__constrData(0, ${makeList([
+			`__core__constrData(0, ${makeList([
+				`__core__constrData(1, ${makeList(["a"])})`,
+				`__helios__common__boolData(false)`
+			])})`,
+			`__core__constrData(0, ${makeList([
+				`__core__constrData(1, ${makeList(["b"])})`,
+				`__helios__common__boolData(false)`
+			])})`
+		])})
+	}`));
+	add(new RawFunc("__helios__timerange__contains",
+	`(self) -> {
+		(t) -> {
+			(lower) -> {
+				(extended, closed) -> {
+					(lowerExtType, checkUpper) -> {
+						__helios__common__boolData(
+							__core__ifThenElse(
+								__core__equalsInteger(lowerExtType, 2),
+								() -> {false},
+								() -> {
+									__core__ifThenElse(
+										__core__equalsInteger(lowerExtType, 0),
+										() -> {checkUpper()},
+										() -> {
+											__core__ifThenElse(
+												__core__ifThenElse(
+													__helios__common__unBoolData(closed),
+													() -> {__core__lessThanEqualsInteger(__core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))), __core__unIData(t))},
+													() -> {__core__lessThanInteger(__core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))), __core__unIData(t))}
+												)(),
+												() -> {checkUpper()},
+												() -> {false}
+											)()
+										}
+									)()
+								}
+							)()
+						)
+					}(__core__fstPair(__core__unConstrData(extended)), () -> {
+						(upper) -> {
+							(extended, closed) -> {
+								(upperExtType) -> {
+									__core__ifThenElse(
+										__core__equalsInteger(upperExtType, 0),
+										() -> {false},
+										() -> {
+											__core__ifThenElse(
+												__core__equalsInteger(upperExtType, 2),
+												() -> {true},
+												() -> {
+													__core__ifThenElse(
+														__core__ifThenElse(
+															__helios__common__unBoolData(closed),
+															() -> {__core__lessThanEqualsInteger(__core__unIData(t), __core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))))},
+															() -> {__core__lessThanInteger(__core__unIData(t), __core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))))}
+														)(),
+														true,
+														false
+													)
+												}
+											)()
+										}
+									)()
+								}(__core__fstPair(__core__unConstrData(extended)))
+							}(${unData("upper", 0, 0)}, ${unData("upper", 0, 1)})
+						}(${unData("self", 0, 1)})
+					})
+				}(${unData("lower", 0, 0)}, ${unData("lower", 0, 1)})
+			}(${unData("self", 0, 0)})
+		}
+	}`));
 	add(new RawFunc("__helios__timerange__get_start",
 	`(self) -> {
 		() -> {
@@ -15560,7 +16008,11 @@ export function deserializePlutusCore(jsonString) {
 ///////////////////////////////////////////////
 
 /**
- * @typedef {() => PlutusCoreData} DataGenerator
+ * @typedef {Object} DataGeneratorConfig
+ * @property {number[]} scriptHash
+ */
+/**
+ * @typedef {(config: ?DataGeneratorConfig) => PlutusCoreData} DataGenerator
  */
 
 /**
@@ -15597,16 +16049,30 @@ export class FuzzyTest {
 	}
 
 	/**
-	 * Returns a generator for whole numbers between min and max
+	 * Returns a gernator for whole numbers between min and max
+	 * @param {number} min
+	 * @param {number} max
+	 * @returns {() => bigint}
+	 */
+	rawInt(min = -10000000, max = 10000000) {
+		let rand = this.newRand();
+
+		return function() {
+			return BigInt(Math.floor(rand()*(max - min)) + min);
+		}
+	}
+
+	/**
+	 * Returns a generator for whole numbers between min and max, wrapped with IntData
 	 * @param {number} min
 	 * @param {number} max
 	 * @returns {DataGenerator}
 	 */
 	int(min = -10000000, max = 10000000) {		
-		let rand = this.newRand();
+		let rand = this.rawInt(min, max);
 
 		return function() {
-			return new IntData(BigInt(Math.floor(rand()*(max - min)) + min));
+			return new IntData(rand());
 		}
 	}
 
@@ -15693,12 +16159,12 @@ export class FuzzyTest {
 	}
 
 	/**
-	 * Returns a generator for bytearrays 
+	 * Returns a generator for number[]
 	 * @param {number} minLength
 	 * @param {number} maxLength
-	 * @returns {DataGenerator}
+	 * @returns {() => number[]}
 	 */
-	bytes(minLength = 0, maxLength = 64) {
+	rawBytes(minLength = 0, maxLength = 64) {
 		let rand = this.newRand();
 
 		return function() {
@@ -15712,24 +16178,51 @@ export class FuzzyTest {
 				bytes.push(Math.floor(rand()*256));
 			}
 
-			return new ByteArrayData(bytes);
+			return bytes;
 		}
 	}
 
 	/**
-	 * Returns a generator for booleans
+	 * Returns a generator for bytearrays 
+	 * @param {number} minLength
+	 * @param {number} maxLength
 	 * @returns {DataGenerator}
 	 */
-	bool() {
+	bytes(minLength = 0, maxLength = 64) {
+		let rand = this.rawBytes(minLength, maxLength);
+
+		return function() {
+			let bytes = rand();
+
+			return new ByteArrayData(bytes);
+		}
+	}
+	/**
+	 * Returns a generator for booleans,
+	 * @returns {() => boolean)}
+	 */
+	rawBool() {
 		let rand = this.newRand();
 
 		return function() {
 			let x = rand();
 
-			if (x < 0.5) {
-				return new ConstrData(0, []);
-			} else {
+			return x >= 0.5;
+		}
+	}
+
+	/**
+	 * Returns a generator for booleans, wrapped with ConstrData
+	 * @returns {DataGenerator}
+	 */
+	bool() {
+		let rand = this.rawBool();
+
+		return function() {
+			if (rand()) {
 				return new ConstrData(1, []);
+			} else {
+				return new ConstrData(0, []);
 			}
 		}
 	}
@@ -15743,13 +16236,16 @@ export class FuzzyTest {
 	option(someGenerator, noneProbability = 0.5) {
 		let rand = this.newRand();
 
-		return function() {
+		/**
+		 * @param {?DataGeneratorConfig} config
+		 */
+		return function(config = null) {
 			let x = rand();
 
 			if (x < noneProbability) {
 				return new ConstrData(1, []);
 			} else {
-				return new ConstrData(0, [someGenerator()]);
+				return new ConstrData(0, [someGenerator(config)]);
 			}
 		}
 	}
@@ -15772,7 +16268,10 @@ export class FuzzyTest {
 			maxLength = 0;
 		}
 
-		return function() {
+		/**
+		 * @param {?DataGeneratorConfig} config
+		 */
+		return function(config = null) {
 			let n = Math.round(rand()*(maxLength - minLength)) + minLength;
 			if (n < 0) {
 				n = 0;
@@ -15784,10 +16283,115 @@ export class FuzzyTest {
 			let items = [];
 
 			for (let i = 0; i < n; i++) {
-				items.push(itemGenerator());
+				items.push(itemGenerator(config));
 			}
 
 			return new ListData(items);
+		}
+	}
+
+	/**
+	 * Returns a generator for spending script contexts
+	 * @returns {DataGenerator}
+	 */
+	spendingScriptContext() {
+		let rand = this.newRand();
+
+		let randTxHash = this.rawBytes(32, 32);
+		let randPubKeyHash = this.rawBytes(28, 28);
+		let randValue = this.rawInt(1, 10000); // at least 1 lovelace in the utxo
+		let randId = this.rawInt(0, 10);
+		let randBool = this.rawBool();
+
+		/**
+		 * @param {?DataGeneratorConfig} config
+		 */
+		return function(config = null) {
+			if (config === null) {
+				throw new Error("can't be null");
+			} else {
+				let nInputs = Math.round(rand()*10 + 1); // between 1 and 11
+
+				// generate the inputs
+				/**
+				 * @type {LedgerData[]}
+				 */
+				let inputs = [];
+
+				let inputValue = 0n; // number of Lovelace
+
+				for (let i = 0; i < nInputs; i++) {
+					let v = randValue(); 
+
+					inputValue += v;
+
+					let utxoId = randId();
+
+					inputs.push(LedgerData.newTxInput(randTxHash(), utxoId, config.scriptHash, LedgerData.newValue(v)));
+				}
+
+				// generate the fee
+				let feeValue = BigInt(Math.floor(Number(inputValue)*rand()/2.0)); // at most half
+				let outputValue = inputValue - feeValue;
+
+				// generate the outputs
+				/**
+				 * @type {LedgerData[]}
+				 */
+				let outputs = [];
+
+				/**
+				 * Some of the output pubkeyhashes are also signatories.
+				 * @type {ByteArrayData[]}
+				 */
+				let signatories = [];
+
+				while (outputValue > 0n) {
+					// always a positive number
+					let v = BigInt(Math.ceil(rand()*Number(outputValue)));
+
+					if (v == 0n) {
+						v = 1n;
+					}
+
+					if (v > outputValue) {
+						v = outputValue;
+					}
+
+					if (randBool()) {
+						// send back to script
+						outputs.push(LedgerData.newTxOutput(config.scriptHash, true, LedgerData.newValue(v)));
+					} else {
+						let pubKeyHashBytes = randPubKeyHash();
+						outputs.push(LedgerData.newTxOutput(pubKeyHashBytes, false, LedgerData.newValue(v)));
+
+						if (randBool()) {
+							signatories.push(new ByteArrayData(pubKeyHashBytes));
+						}
+					}
+
+					outputValue -= v;
+				}
+
+				return LedgerData.newSpendingScriptContext(config.scriptHash, randTxHash(), inputs, feeValue, outputs, signatories, Math.floor(rand()*inputs.length));
+			}
+		}
+	}
+
+	/**
+	 * Returns a generator for minting script contexts
+	 * @returns {DataGenerator}
+	 */
+	mintingScriptContext() {
+		/**
+		 * @param {?DataGeneratorConfig} config
+		 */
+		return function(config = null) {
+			if (config === null) {
+				throw new Error("can't be null");
+			} else {
+				return LedgerData.newMintingScriptContext(config.scriptHash);
+			}
 		}
 	}
 
@@ -15799,6 +16403,18 @@ export class FuzzyTest {
 	 * @returns {Promise<void>} - throws an error if any of the property tests fail
 	 */
 	async test(argGens, src, propTest) {
+		return await this.testn(this.#runsPerTest, argGens, src, propTest);
+	}
+
+	/**
+	 * Run a test
+	 * @param {number} nRuns
+	 * @param {DataGenerator[]} argGens
+	 * @param {string} src
+	 * @param {PropertyTest} propTest
+	 * @returns {Promise<void>} - throws an error if any of the property tests fail
+	 */
+	async testn(nRuns, argGens, src, propTest) {
 		// compilation errors here aren't caught
 
 		/** @type {CompilationConfig} */
@@ -15816,8 +16432,16 @@ export class FuzzyTest {
 			if (!(program instanceof PlutusCoreProgram)) {
 				throw new Error("unexpected");
 			} else {
-				for (let it = 0; it < this.#runsPerTest; it++) {
-					let args = argGens.map(ag => ag());
+
+				/**
+				 * @type {DataGeneratorConfig}
+				 */
+				let dgConfig = {
+					scriptHash: Crypto.hashScript(program.serializeBytes()),
+				};
+
+				for (let it = 0; it < nRuns; it++) {
+					let args = argGens.map(ag => ag(dgConfig));
 				
 					let result = await program.run(args, {
 						onPrint: function (msg) {

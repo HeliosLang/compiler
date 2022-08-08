@@ -13,7 +13,7 @@ async function runInlineUnitTests() {
 
    let heliosSrc = fs.readFileSync("./helios.js").toString();
 
-   heliosSrc = heliosSrc.replace(/^export /gm, "");
+   heliosSrc = heliosSrc.replace(/^\ *export /gm, "");
 
    let lines = heliosSrc.split("\n");
 
@@ -792,224 +792,228 @@ async function runPropertyTests() {
     // List tests
     /////////////
 
-    await ft.test([ft.int(-20, 20), ft.int()], `
-    test list_new
-    func main(a: Int, b: Int) -> []Int {
-        []Int::new(a, b)
-    }`, ([a, b], res) => {
-        let n = Number(a.asInt());
-        if (n < 0) {
-            n = 0;
-        }
+    let testList = true;
 
-        return res.isList() && res.equalsList((new Array(n).fill(b.asInt())));
-    });
+    if (testList) {
+        await ft.test([ft.int(-20, 20), ft.int()], `
+        test list_new
+        func main(a: Int, b: Int) -> []Int {
+            []Int::new(a, b)
+        }`, ([a, b], res) => {
+            let n = Number(a.asInt());
+            if (n < 0) {
+                n = 0;
+            }
 
-    await ft.test([ft.list(ft.int(), 0, 20)], `
-    test list_eq_1
-    func main(a: []Int) -> Bool {
-        a == a
-    }`, ([_], res) => {
-        return res.isBool() && (true === res.asBool());
-    });
+            return res.isList() && res.equalsList((new Array(n).fill(b.asInt())));
+        });
 
-    await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
-    test list_eq_2
-    func main(a: []Int, b: []Int) -> Bool {
-        a == b
-    }`, ([a, b], res) => {
-        return res.isBool() && (b.equalsList(a.asList()) === res.asBool());
-    });
+        await ft.test([ft.list(ft.int(), 0, 20)], `
+        test list_eq_1
+        func main(a: []Int) -> Bool {
+            a == a
+        }`, ([_], res) => {
+            return res.isBool() && (true === res.asBool());
+        });
 
-    await ft.test([ft.list(ft.int())], `
-    test list_neq_1
-    func main(a: []Int) -> Bool {
-        a != a
-    }`, ([_], res) => {
-        return res.isBool() && (false === res.asBool());
-    });
+        await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
+        test list_eq_2
+        func main(a: []Int, b: []Int) -> Bool {
+            a == b
+        }`, ([a, b], res) => {
+            return res.isBool() && (b.equalsList(a.asList()) === res.asBool());
+        });
 
-    await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
-    test list_neq_2
-    func main(a: []Int, b: []Int) -> Bool {
-        a != b
-    }`, ([a, b], res) => {
-        return res.isBool() && (b.equalsList(a.asList()) === !res.asBool());
-    });
+        await ft.test([ft.list(ft.int())], `
+        test list_neq_1
+        func main(a: []Int) -> Bool {
+            a != a
+        }`, ([_], res) => {
+            return res.isBool() && (false === res.asBool());
+        });
 
-    await ft.test([ft.list(ft.int())], `
-    test list_add_1
-    func main(a: []Int) -> []Int {
-        a + []Int{}
-    }`, ([a], res) => {
-        return res.isList() && (res.equalsList(a.asList()));
-    });
+        await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
+        test list_neq_2
+        func main(a: []Int, b: []Int) -> Bool {
+            a != b
+        }`, ([a, b], res) => {
+            return res.isBool() && (b.equalsList(a.asList()) === !res.asBool());
+        });
 
-    await ft.test([ft.list(ft.int())], `
-    test list_add_1_alt
-    func main(a: []Int) -> []Int {
-        []Int{} + a
-    }`, ([a], res) => {
-        return res.isList() && (res.equalsList(a.asList()));
-    });
+        await ft.test([ft.list(ft.int())], `
+        test list_add_1
+        func main(a: []Int) -> []Int {
+            a + []Int{}
+        }`, ([a], res) => {
+            return res.isList() && (res.equalsList(a.asList()));
+        });
 
-    await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
-    test list_add_2
-    func main(a: []Int, b: []Int) -> []Int {
-        a + b
-    }`, ([a, b], res) => {
-        return res.isList() && res.equalsList(a.asList().concat(b.asList()));
-    });
+        await ft.test([ft.list(ft.int())], `
+        test list_add_1_alt
+        func main(a: []Int) -> []Int {
+            []Int{} + a
+        }`, ([a], res) => {
+            return res.isList() && (res.equalsList(a.asList()));
+        });
 
-    await ft.test([ft.list(ft.int(), 0, 50)], `
-    test list_length
-    func main(a: []Int) -> Int {
-        a.length
-    }`, ([a], res) => {
-        return res.isInt() && (BigInt(a.asList().length) === res.asInt());
-    });
+        await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
+        test list_add_2
+        func main(a: []Int, b: []Int) -> []Int {
+            a + b
+        }`, ([a, b], res) => {
+            return res.isList() && res.equalsList(a.asList().concat(b.asList()));
+        });
 
-    await ft.test([ft.list(ft.int())], `
-    test list_head
-    func main(a: []Int) -> Int {
-        a.head
-    }`, ([a], res) => {
-        let aLst = a.asList();
+        await ft.test([ft.list(ft.int(), 0, 50)], `
+        test list_length
+        func main(a: []Int) -> Int {
+            a.length
+        }`, ([a], res) => {
+            return res.isInt() && (BigInt(a.asList().length) === res.asInt());
+        });
 
-        return (
-            aLst.length == 0 ? 
-            res instanceof helios.UserError && res.info === "empty list" :
-            res.equalsInt(aLst[0])
-        );
-    });
+        await ft.test([ft.list(ft.int())], `
+        test list_head
+        func main(a: []Int) -> Int {
+            a.head
+        }`, ([a], res) => {
+            let aLst = a.asList();
 
-    await ft.test([ft.list(ft.int())], `
-    test list_tail
-    func main(a: []Int) -> []Int {
-        a.tail
-    }`, ([a], res) => {
-        let aLst = a.asList();
+            return (
+                aLst.length == 0 ? 
+                res instanceof helios.UserError && res.info === "empty list" :
+                res.equalsInt(aLst[0])
+            );
+        });
 
-        return  (
-            aLst.length == 0 ?
-            res instanceof helios.UserError && res.info === "empty list" :
-            res.isList() && res.equalsList(aLst.slice(1))
-        );
-    });
+        await ft.test([ft.list(ft.int())], `
+        test list_tail
+        func main(a: []Int) -> []Int {
+            a.tail
+        }`, ([a], res) => {
+            let aLst = a.asList();
 
-    await ft.test([ft.list(ft.int())], `
-    test list_is_empty
-    func main(a: []Int) -> Bool {
-        a.is_empty()
-    }`, ([a], res) => {
-        return res.isBool() && ((a.asList().length == 0) === res.asBool());
-    });
+            return  (
+                aLst.length == 0 ?
+                res instanceof helios.UserError && res.info === "empty list" :
+                res.isList() && res.equalsList(aLst.slice(1))
+            );
+        });
 
-    await ft.test([ft.list(ft.int(), 0, 10), ft.int(-5, 15)], `
-    test list_get
-    func main(a: []Int, b: Int) -> Int {
-        a.get(b)
-    }`, ([a, b], res) => {
-        let i = Number(b.asInt());
-        let n = a.asList().length;
+        await ft.test([ft.list(ft.int())], `
+        test list_is_empty
+        func main(a: []Int) -> Bool {
+            a.is_empty()
+        }`, ([a], res) => {
+            return res.isBool() && ((a.asList().length == 0) === res.asBool());
+        });
 
-        if (i >= n || i < 0) {
-            return res instanceof helios.UserError && res.info === "index out of range";
-        } else {
-            return res.isInt() && res.equalsInt(a.asList()[i]);
-        }
-    });
+        await ft.test([ft.list(ft.int(), 0, 10), ft.int(-5, 15)], `
+        test list_get
+        func main(a: []Int, b: Int) -> Int {
+            a.get(b)
+        }`, ([a, b], res) => {
+            let i = Number(b.asInt());
+            let n = a.asList().length;
 
-    await ft.test([ft.list(ft.int()), ft.int()], `
-    test list_prepend
-    func main(a: []Int, b: Int) -> []Int {
-        a.prepend(b)
-    }`, ([a, b], res) => {
-        let expected = a.asList();
-        expected.unshift(b);
-        return res.isList() && res.equalsList(expected);
-    });
+            if (i >= n || i < 0) {
+                return res instanceof helios.UserError && res.info === "index out of range";
+            } else {
+                return res.isInt() && res.equalsInt(a.asList()[i]);
+            }
+        });
 
-    await ft.test([ft.list(ft.int())], `
-    test list_any
-    func main(a: []Int) -> Bool {
-        a.any((x: Int) -> Bool {x > 0})
-    }`, ([a], res) => {
-        return res.isBool() && (a.asList().some((i) => i.asInt() > 0n) === res.asBool());
-    });
+        await ft.test([ft.list(ft.int()), ft.int()], `
+        test list_prepend
+        func main(a: []Int, b: Int) -> []Int {
+            a.prepend(b)
+        }`, ([a, b], res) => {
+            let expected = a.asList();
+            expected.unshift(b);
+            return res.isList() && res.equalsList(expected);
+        });
 
-    await ft.test([ft.list(ft.int())], `
-    test list_all
-    func main(a: []Int) -> Bool {
-        a.all((x: Int) -> Bool {x > 0})
-    }`, ([a], res) => {
-        return res.isBool() && (a.asList().every((i) => i.asInt() > 0n) === res.asBool());
-    });
+        await ft.test([ft.list(ft.int())], `
+        test list_any
+        func main(a: []Int) -> Bool {
+            a.any((x: Int) -> Bool {x > 0})
+        }`, ([a], res) => {
+            return res.isBool() && (a.asList().some((i) => i.asInt() > 0n) === res.asBool());
+        });
 
-    await ft.test([ft.list(ft.int())], `
-    test list_find
-    func main(a: []Int) -> Int {
-        a.find((x: Int) -> Bool {x > 0})
-    }`, ([a], res) => {
-        let aLst = a.asList();
+        await ft.test([ft.list(ft.int())], `
+        test list_all
+        func main(a: []Int) -> Bool {
+            a.all((x: Int) -> Bool {x > 0})
+        }`, ([a], res) => {
+            return res.isBool() && (a.asList().every((i) => i.asInt() > 0n) === res.asBool());
+        });
 
-        if (aLst.every(i => i.asInt() <= 0n)) {
-            return res instanceof helios.UserError && res.info === "not found";
-        } else {
-            return res.equalsInt(aLst.find(i => i.asInt() > 0n));
-        }
-    });
+        await ft.test([ft.list(ft.int())], `
+        test list_find
+        func main(a: []Int) -> Int {
+            a.find((x: Int) -> Bool {x > 0})
+        }`, ([a], res) => {
+            let aLst = a.asList();
 
-    await ft.test([ft.list(ft.int())], `
-    test list_filter
-    func main(a: []Int) -> []Int {
-        a.filter((x: Int) -> Bool {x > 0})
-    }`, ([a], res) => {
-        let aLst = a.asList();
-        return res.equalsList(aLst.filter(i => i.asInt() > 0n));
-    });
+            if (aLst.every(i => i.asInt() <= 0n)) {
+                return res instanceof helios.UserError && res.info === "not found";
+            } else {
+                return res.equalsInt(aLst.find(i => i.asInt() > 0n));
+            }
+        });
 
-    await ft.test([ft.list(ft.int())], `
-    test list_fold
-    func main(a: []Int) -> Int {
-        a.fold((sum: Int, x: Int) -> Int {sum + x}, 0)
-    }`, ([a], res) => {
-        let aLst = a.asList();
+        await ft.test([ft.list(ft.int())], `
+        test list_filter
+        func main(a: []Int) -> []Int {
+            a.filter((x: Int) -> Bool {x > 0})
+        }`, ([a], res) => {
+            let aLst = a.asList();
+            return res.equalsList(aLst.filter(i => i.asInt() > 0n));
+        });
 
-        return aLst.reduce((sum, i) => sum + i.asInt(), 0n) === res.asInt();
-    });
+        await ft.test([ft.list(ft.int())], `
+        test list_fold
+        func main(a: []Int) -> Int {
+            a.fold((sum: Int, x: Int) -> Int {sum + x}, 0)
+        }`, ([a], res) => {
+            let aLst = a.asList();
 
-    await ft.test([ft.list(ft.list(ft.int()))], `
-    test list_fold_nested
-    func main(a: [][]Int) -> Int {
-        a.fold((sum: Int, x: []Int) -> Int {
-            x.fold((sumInner: Int, xInner: Int) -> Int {
-                sumInner + xInner
-            }, sum)
-        }, 0)
-    }`, ([a], res) => {
-        let aLst = a.asList();
+            return aLst.reduce((sum, i) => sum + i.asInt(), 0n) === res.asInt();
+        });
 
-        let sum = aLst.reduce((sum, inner) => inner.asList().reduce((sum, i) => sum + i.asInt(), sum), 0n);
-
-        return sum === res.asInt();
-    });
-
-    await ft.test([ft.list(ft.list(ft.int()))], `
-    test list_map_fold
-    func main(a: [][]Int) -> []Int {
-        a.map((inner: []Int) -> Int {
-            inner.fold((sum: Int, x: Int) -> Int {
-                sum + x
+        await ft.test([ft.list(ft.list(ft.int()))], `
+        test list_fold_nested
+        func main(a: [][]Int) -> Int {
+            a.fold((sum: Int, x: []Int) -> Int {
+                x.fold((sumInner: Int, xInner: Int) -> Int {
+                    sumInner + xInner
+                }, sum)
             }, 0)
-        })
-    }`, ([a], res) => {
-        let aLst = a.asList();
+        }`, ([a], res) => {
+            let aLst = a.asList();
 
-        let sumLst = aLst.map(inner => inner.asList().reduce((sum, i) => sum + i.asInt(), 0n));
+            let sum = aLst.reduce((sum, inner) => inner.asList().reduce((sum, i) => sum + i.asInt(), sum), 0n);
 
-        return res.equalsList(sumLst);
-    });
+            return sum === res.asInt();
+        });
+
+        await ft.test([ft.list(ft.list(ft.int()))], `
+        test list_map_fold
+        func main(a: [][]Int) -> []Int {
+            a.map((inner: []Int) -> Int {
+                inner.fold((sum: Int, x: Int) -> Int {
+                    sum + x
+                }, 0)
+            })
+        }`, ([a], res) => {
+            let aLst = a.asList();
+
+            let sumLst = aLst.map(inner => inner.asList().reduce((sum, i) => sum + i.asInt(), 0n));
+
+            return res.equalsList(sumLst);
+        });
+    }
 
 
     ///////////////
@@ -1170,166 +1174,983 @@ async function runPropertyTests() {
     // MoneyValue tests
     ///////////////////
 
-    await ft.test([ft.int(-5, 5)], `
-    test value_is_zero
-    func main(a: Int) -> Bool {
-        Value::lovelace(a).is_zero()
-    }`, ([a], res) => {
-        return res.isBool() && ((a.asInt() === 0n) === res.asBool());
+    let testValue = true;
+
+    if (testValue) {
+        await ft.test([ft.int(-5, 5)], `
+        test value_is_zero
+        func main(a: Int) -> Bool {
+            Value::lovelace(a).is_zero()
+        }`, ([a], res) => {
+            return res.isBool() && ((a.asInt() === 0n) === res.asBool());
+        });
+
+        await ft.test([ft.int()], `
+        test value_get
+        func main(a: Int) -> Int {
+            Value::lovelace(a).get(AssetClass::ADA)
+        }`, ([a], res) => {
+            return res.isInt() && (a.asInt() === res.asInt());
+        });
+
+        await ft.test([ft.int()], `
+        test value_eq_1
+        func main(a: Int) -> Bool {
+            Value::lovelace(a) == Value::lovelace(a)
+        }`, ([_], res) => {
+            return res.isBool() && res.asBool();
+        });
+
+        await ft.test([ft.int(), ft.int()], `
+        test value_eq_2
+        func main(a: Int, b: Int) -> Bool {
+            Value::lovelace(a) == Value::lovelace(b)
+        }`, ([a, b], res) => {
+            return res.isBool() && ((a.asInt() === b.asInt()) === res.asBool());
+        });
+
+        await ft.test([ft.int()], `
+        test value_neq_1
+        func main(a: Int) -> Bool {
+            Value::lovelace(a) != Value::lovelace(a)
+        }`, ([_], res) => {
+            return res.isBool() && !res.asBool();
+        });
+
+        await ft.test([ft.int(), ft.int()], `
+        test value_neq_2
+        func main(a: Int, b: Int) -> Bool {
+            Value::lovelace(a) != Value::lovelace(b)
+        }`, ([a, b], res) => {
+            return res.isBool() && ((a.asInt() === b.asInt()) === (!res.asBool()));
+        });
+
+        await ft.test([ft.int()], `
+        test value_add_0
+        func main(a: Int) -> Int {
+            (Value::lovelace(a) + Value::ZERO).get(AssetClass::ADA)
+        }`, ([a], res) => {
+            return res.isInt() && (a.asInt() === res.asInt());
+        });
+
+        await ft.test([ft.int(), ft.int()], `
+        test value_add_2
+        func main(a: Int, b: Int) -> Int {
+            (Value::lovelace(a) + Value::lovelace(b)).get(AssetClass::ADA)
+        }`, ([a, b], res) => {
+            return res.isInt() && (a.asInt() + b.asInt() === res.asInt());
+        });
+
+        await ft.test([ft.int()], `
+        test value_sub_0
+        func main(a: Int) -> Int {
+            (Value::lovelace(a) - Value::ZERO).get(AssetClass::ADA)
+        }`, ([a], res) => {
+            return res.isInt() && (a.asInt() === res.asInt());
+        });
+
+        await ft.test([ft.int()], `
+        test value_sub_0_alt
+        func main(a: Int) -> Int {
+            (Value::ZERO - Value::lovelace(a)).get(AssetClass::ADA)
+        }`, ([a], res) => {
+            return res.isInt() && (a.asInt() === -res.asInt());
+        });
+
+        await ft.test([ft.int()], `
+        test value_sub_self
+        func main(a: Int) -> Bool {
+            (Value::lovelace(a) - Value::lovelace(a)).is_zero()
+        }`, ([_], res) => {
+            return res.isBool() && res.asBool()
+        });
+
+        await ft.test([ft.int(), ft.int()], `
+        test value_sub_2
+        func main(a: Int, b: Int) -> Int {
+            (Value::lovelace(a) - Value::lovelace(b)).get(AssetClass::ADA)
+        }`, ([a, b], res) => {
+            return res.isInt() && (a.asInt() - b.asInt() === res.asInt());
+        });
+
+        await ft.test([ft.int()], `
+        test value_geq_1
+        func main(a: Int) -> Bool {
+            Value::lovelace(a) >= Value::lovelace(a)
+        }`, ([_], res) => {
+            return res.isBool() && res.asBool();
+        });
+
+        await ft.test([ft.int(), ft.int()], `
+        test value_geq_2
+        func main(a: Int, b: Int) -> Bool {
+            Value::lovelace(a) >= Value::lovelace(b)
+        }`, ([a, b], res) => {
+            return res.isBool() && ((a.asInt() >= b.asInt()) === res.asBool());
+        });
+
+        await ft.test([ft.int(), ft.int()], `
+        test value_contains
+        func main(a: Int, b: Int) -> Bool {
+            Value::lovelace(a).contains(Value::lovelace(b))
+        }`, ([a, b], res) => {
+            return res.isBool() && ((a.asInt() >= b.asInt()) === res.asBool());
+        });
+
+        await ft.test([ft.int()], `
+        test value_gt_1
+        func main(a: Int) -> Bool {
+            Value::lovelace(a) > Value::lovelace(a)
+        }`, ([_], res) => {
+            return res.isBool() && !res.asBool();
+        });
+
+        await ft.test([ft.int(), ft.int()], `
+        test value_gt_2
+        func main(a: Int, b: Int) -> Bool {
+            Value::lovelace(a) > Value::lovelace(b)
+        }`, ([a, b], res) => {
+            return res.isBool() && ((a.asInt() > b.asInt()) === res.asBool());
+        });
+
+        await ft.test([ft.int()], `
+        test value_leq_1
+        func main(a: Int) -> Bool {
+            Value::lovelace(a) <= Value::lovelace(a)
+        }`, ([_], res) => {
+            return res.isBool() && res.asBool();
+        });
+
+        await ft.test([ft.int(), ft.int()], `
+        test value_leq_2
+        func main(a: Int, b: Int) -> Bool {
+            Value::lovelace(a) <= Value::lovelace(b)
+        }`, ([a, b], res) => {
+            return res.isBool() && ((a.asInt() <= b.asInt()) === res.asBool());
+        });
+
+        await ft.test([ft.int()], `
+        test value_lt_1
+        func main(a: Int) -> Bool {
+            Value::lovelace(a) < Value::lovelace(a)
+        }`, ([a], res) => {
+            return res.isBool() && !res.asBool();
+        });
+
+        await ft.test([ft.int(), ft.int()], `
+        test value_lt_2
+        func main(a: Int, b: Int) -> Bool {
+            Value::lovelace(a) < Value::lovelace(b)
+        }`, ([a, b], res) => {
+            return res.isBool() && ((a.asInt() < b.asInt()) === res.asBool());
+        });
+    }
+
+
+    ///////////////
+    // Ledger tests
+    ///////////////
+    await ft.test([ft.spendingScriptContext()], `
+    test scriptcontext_eq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx == ctx
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.mintingScriptContext()], `
+    test scriptcontext_eq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx == ctx
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test scriptcontext_neq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx != ctx
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.mintingScriptContext()], `
+    test scriptcontext_neq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx != ctx
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test scriptcontext_tx
+    func main(ctx: ScriptContext) -> Tx {
+        ctx.tx
+    }`, ([ctx], res) => {
+        return res.isSame(ctx.getParam("tx"));
+    });
+
+    await ft.test([ft.mintingScriptContext()], `
+    test scriptcontext_tx
+    func main(ctx: ScriptContext) -> Tx {
+        ctx.tx
+    }`, ([ctx], res) => {
+        return res.isSame(ctx.getParam("tx"));
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test scriptcontext_get_spending_purpose_output_id
+    func main(ctx: ScriptContext) -> TxOutputId {
+        ctx.get_spending_purpose_output_id()
+    }`, ([ctx], res) => {
+        return res.isSame(ctx.getParam("txOutputId"));
+    });
+
+    await ft.test([ft.mintingScriptContext()], `
+    test scriptcontext_get_spending_purpose_output_id
+    func main(ctx: ScriptContext) -> TxOutputId {
+        ctx.get_spending_purpose_output_id()
+    }`, ([_], res) => {
+        return res instanceof helios.UserError && res.info == "unexpected constructor index";
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test scriptcontext_get_current_validator_hash
+    func main(ctx: ScriptContext) -> ValidatorHash {
+        ctx.get_current_validator_hash()
+    }`, ([ctx], res) => {
+        return res.equalsByteArray(ctx.getParam("scriptHash"));
+    });
+
+    await ft.test([ft.mintingScriptContext()], `
+    test scriptcontext_get_current_validator_hash
+    func main(ctx: ScriptContext) -> ValidatorHash {
+        ctx.get_current_validator_hash()
+    }`, ([ctx], res) => {
+        return res instanceof helios.UserError && res.info == "unexpected constructor index";
+    });
+
+
+    await ft.test([ft.spendingScriptContext()], `
+    test scriptcontext_get_current_minting_policy_hash
+    func main(ctx: ScriptContext) -> MintingPolicyHash {
+        ctx.get_current_minting_policy_hash()
+    }`, ([ctx], res) => {
+        return res instanceof helios.UserError && res.info == "unexpected constructor index";
+    });
+
+    await ft.test([ft.mintingScriptContext()], `
+    test scriptcontext_get_current_minting_policy_hash
+    func main(ctx: ScriptContext) -> MintingPolicyHash {
+        ctx.get_current_minting_policy_hash()
+    }`, ([ctx], res) => {
+        return res.equalsByteArray(ctx.getParam("scriptHash"));
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test tx_eq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx == ctx.tx
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.mintingScriptContext()], `
+    test tx_eq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx == ctx.tx
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test tx_neq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx != ctx.tx
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.mintingScriptContext()], `
+    test tx_neq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx != ctx.tx
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    // test if transaction is balanced (should always be true)
+    await ft.testn(10, [ft.spendingScriptContext()], `
+    test tx_outputs_and_fee
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.fold((a: Value, b: TxInput) -> Value {
+            a + b.output.value
+        }, Value::ZERO) + ctx.tx.minted == ctx.tx.fee + ctx.tx.outputs.fold((a: Value, b: TxOutput) -> Value {
+            a + b.value
+        }, Value::ZERO)
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool()
+    });
+
+    // test if a signatory also sent some outputs self
+    await ft.test([ft.spendingScriptContext()], `
+    test tx_signatories
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.signatories.all((s: PubKeyHash) -> Bool {
+            ctx.tx.outputs.any((o: TxOutput) -> Bool {
+                o.address.credential.switch{
+                    c: PubKey => c.hash == s,
+                    else => false
+                }
+            })
+        })
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test tx_id
+    func main(ctx: ScriptContext) -> TxId {
+        ctx.tx.id
+    }`, ([ctx], res) => {
+        return res.isConstr() && res.fields[0].equalsByteArray(ctx.getParam("tx").getParam("id"));
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test tx_time_range
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.time_range.contains(ctx.tx.now() + Duration::new(10))
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    })
+
+    await ft.test([ft.spendingScriptContext()], `
+    test tx_outputs_sent_to
+    func main(ctx: ScriptContext) -> Bool {
+        if (ctx.tx.signatories.is_empty()) {
+            true
+        } else {
+            ctx.tx.outputs_sent_to(ctx.tx.signatories.head).length > 0
+        }
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test tx_outputs_locked_by
+    func main(ctx: ScriptContext) -> Bool {
+        h: ValidatorHash = ctx.get_current_validator_hash();
+        ctx.tx.outputs_locked_by(h) == ctx.tx.outputs.filter((o: TxOutput) -> Bool {
+            o.address.credential.switch{
+                Validator => true,
+                else => false
+            }
+        })
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.testn(10, [ft.spendingScriptContext()], `
+    test tx_value_send_to
+    func main(ctx: ScriptContext) -> Bool {
+        if (ctx.tx.signatories.is_empty()) {
+            true
+        } else {
+            h: PubKeyHash = ctx.tx.signatories.head;
+            ctx.tx.value_sent_to(h) == ctx.tx.outputs.fold((sum: Value, o: TxOutput) -> Value {
+                sum + if (o.address.credential.switch{p: PubKey => p.hash == h, else => false}) {o.value} else {Value::ZERO}
+            }, Value::ZERO)
+        }
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.testn(10, [ft.spendingScriptContext()], `
+    test tx_value_locked_by
+    func main(ctx: ScriptContext) -> Bool {
+        h: ValidatorHash = ctx.get_current_validator_hash();
+        ctx.tx.value_locked_by(h) == ctx.tx.outputs.fold((sum: Value, o: TxOutput) -> Value {
+            sum + if (o.address.credential.switch{v: Validator => v.hash == h, else => false}) {o.value} else {Value::ZERO}
+        }, Value::ZERO)
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool()
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test tx_is_signed_by
+    func main(ctx: ScriptContext) -> Bool {
+        if (ctx.tx.signatories.is_empty()) {
+            false
+        } else {
+            ctx.tx.is_signed_by(ctx.tx.signatories.head)
+        }
+    }`, ([ctx], res) => {
+        return res.isBool() && ((ctx.getParam("tx").getParam("signatories").length > 0) === res.asBool());
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test txid_eq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.id == ctx.tx.id
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test txid_neq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.id != ctx.tx.id
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test txinput_eq_neq
+    func main(ctx: ScriptContext) -> Bool {
+        if (ctx.tx.inputs.length == 1) {
+            ctx.tx.inputs.head == ctx.tx.inputs.get(0)
+        } else {
+            ctx.tx.inputs.head != ctx.tx.inputs.get(1)
+        }
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test txoutput_eq_neq
+    func main(ctx: ScriptContext) -> Bool {
+        if (ctx.tx.outputs.length == 1) {
+            ctx.tx.outputs.head == ctx.tx.outputs.get(0)
+        } else {
+            ctx.tx.outputs.head != ctx.tx.outputs.get(1)
+        }
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test txoutputid_eq_neq
+    func main(ctx: ScriptContext) -> Bool {
+        if (ctx.tx.inputs.length == 1) {
+            ctx.tx.inputs.head.output_id == ctx.tx.inputs.get(0).output_id
+        } else {
+            ctx.tx.inputs.head.output_id != ctx.tx.inputs.get(1).output_id
+        }
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test txoutputid_new
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.head.output_id != TxOutputId::new(#123, 0)
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test address_eq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.head.output.address == ctx.tx.inputs.get(0).output.address
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test address_neq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.head.output.address != ctx.tx.inputs.get(0).output.address
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test address_staking_credential
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.head.output.address.staking_credential == Option[StakingCredential]::None
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test credential_eq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.head.output.address.credential == ctx.tx.inputs.get(0).output.address.credential
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test credential_neq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.head.output.address.credential != ctx.tx.inputs.get(0).output.address.credential
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test credential_sub_eq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.outputs.head.address.credential.switch{
+            p: PubKey => p == p,
+            v: Validator => v == v
+        }
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test credential_sub_neq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.outputs.head.address.credential.switch{
+            p: PubKey => p != p,
+            v: Validator => v != v
+        }
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
     });
 
     await ft.test([ft.int()], `
-    test value_get
-    func main(a: Int) -> Int {
-        Value::lovelace(a).get(AssetClass::ADA)
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === res.asInt());
-    });
-
-    await ft.test([ft.int()], `
-    test value_eq_1
+    test time_eq_1
     func main(a: Int) -> Bool {
-        Value::lovelace(a) == Value::lovelace(a)
+        Time::new(a) == Time::new(a)
     }`, ([_], res) => {
         return res.isBool() && res.asBool();
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test value_eq_2
+    test time_eq_2
     func main(a: Int, b: Int) -> Bool {
-        Value::lovelace(a) == Value::lovelace(b)
+        Time::new(a) == Time::new(b)
     }`, ([a, b], res) => {
         return res.isBool() && ((a.asInt() === b.asInt()) === res.asBool());
     });
 
     await ft.test([ft.int()], `
-    test value_neq_1
+    test time_neq_1
     func main(a: Int) -> Bool {
-        Value::lovelace(a) != Value::lovelace(a)
+        Time::new(a) != Time::new(a)
     }`, ([_], res) => {
         return res.isBool() && !res.asBool();
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test value_neq_2
+    test time_neq_2
     func main(a: Int, b: Int) -> Bool {
-        Value::lovelace(a) != Value::lovelace(b)
+        Time::new(a) != Time::new(b)
     }`, ([a, b], res) => {
         return res.isBool() && ((a.asInt() === b.asInt()) === (!res.asBool()));
     });
 
-    await ft.test([ft.int()], `
-    test value_add_0
-    func main(a: Int) -> Int {
-        (Value::lovelace(a) + Value::ZERO).get(AssetClass::ADA)
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === res.asInt());
-    });
-
     await ft.test([ft.int(), ft.int()], `
-    test value_add_2
-    func main(a: Int, b: Int) -> Int {
-        (Value::lovelace(a) + Value::lovelace(b)).get(AssetClass::ADA)
+    test time_add_2
+    func main(a: Int, b: Int) -> Time {
+        Time::new(a) + Duration::new(b)
     }`, ([a, b], res) => {
         return res.isInt() && (a.asInt() + b.asInt() === res.asInt());
     });
 
     await ft.test([ft.int()], `
-    test value_sub_0
-    func main(a: Int) -> Int {
-        (Value::lovelace(a) - Value::ZERO).get(AssetClass::ADA)
+    test time_sub_0
+    func main(a: Int) -> Duration {
+        Time::new(a) - Time::new(0)
     }`, ([a], res) => {
         return res.isInt() && (a.asInt() === res.asInt());
     });
 
     await ft.test([ft.int()], `
-    test value_sub_0_alt
-    func main(a: Int) -> Int {
-        (Value::ZERO - Value::lovelace(a)).get(AssetClass::ADA)
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === -res.asInt());
-    });
-
-    await ft.test([ft.int()], `
-    test value_sub_self
-    func main(a: Int) -> Bool {
-        (Value::lovelace(a) - Value::lovelace(a)).is_zero()
+    test time_sub_self
+    func main(a: Int) -> Duration {
+        Time::new(a) - Time::new(a)
     }`, ([_], res) => {
-        return res.isBool() && res.asBool()
+        return res.isInt() && (0n === res.asInt())
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test value_sub_2
-    func main(a: Int, b: Int) -> Int {
-        (Value::lovelace(a) - Value::lovelace(b)).get(AssetClass::ADA)
+    test time_sub_2
+    func main(a: Int, b: Int) -> Duration {
+        Time::new(a) - Time::new(b)
     }`, ([a, b], res) => {
         return res.isInt() && (a.asInt() - b.asInt() === res.asInt());
     });
 
     await ft.test([ft.int()], `
-    test value_geq_1
+    test time_geq_1
     func main(a: Int) -> Bool {
-        Value::lovelace(a) >= Value::lovelace(a)
+        Time::new(a) >= Time::new(a)
     }`, ([_], res) => {
         return res.isBool() && res.asBool();
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test value_geq_2
+    test time_geq_2
     func main(a: Int, b: Int) -> Bool {
-        Value::lovelace(a) >= Value::lovelace(b)
+        Time::new(a) >= Time::new(b)
     }`, ([a, b], res) => {
         return res.isBool() && ((a.asInt() >= b.asInt()) === res.asBool());
     });
 
     await ft.test([ft.int()], `
-    test value_gt_1
+    test time_gt_1
     func main(a: Int) -> Bool {
-        Value::lovelace(a) > Value::lovelace(a)
+        Time::new(a) > Time::new(a)
     }`, ([_], res) => {
         return res.isBool() && !res.asBool();
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test value_gt_2
+    test time_gt_2
     func main(a: Int, b: Int) -> Bool {
-        Value::lovelace(a) > Value::lovelace(b)
+        Time::new(a) > Time::new(b)
     }`, ([a, b], res) => {
         return res.isBool() && ((a.asInt() > b.asInt()) === res.asBool());
     });
 
     await ft.test([ft.int()], `
-    test value_leq_1
+    test time_leq_1
     func main(a: Int) -> Bool {
-        Value::lovelace(a) <= Value::lovelace(a)
+        Time::new(a) <= Time::new(a)
     }`, ([_], res) => {
         return res.isBool() && res.asBool();
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test value_leq_2
+    test time_leq_2
     func main(a: Int, b: Int) -> Bool {
-        Value::lovelace(a) <= Value::lovelace(b)
+        Time::new(a) <= Time::new(b)
     }`, ([a, b], res) => {
         return res.isBool() && ((a.asInt() <= b.asInt()) === res.asBool());
     });
 
     await ft.test([ft.int()], `
-    test value_lt_1
+    test time_lt_1
     func main(a: Int) -> Bool {
-        Value::lovelace(a) < Value::lovelace(a)
+        Time::new(a) < Time::new(a)
     }`, ([a], res) => {
         return res.isBool() && !res.asBool();
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test value_lt_2
+    test time_lt_2
     func main(a: Int, b: Int) -> Bool {
-        Value::lovelace(a) < Value::lovelace(b)
+        Time::new(a) < Time::new(b)
     }`, ([a, b], res) => {
         return res.isBool() && ((a.asInt() < b.asInt()) === res.asBool());
     });
+
+    await ft.test([ft.int()], `
+    test time_show
+    func main(a: Int) -> String {
+        Time::new(a).show()
+    }`, ([a], res) => {
+        return res.isString() && (a.asInt().toString() === res.asString());
+    });
+
+    await ft.test([ft.int()], `
+    test duration_eq_1
+    func main(a: Int) -> Bool {
+        Duration::new(a) == Duration::new(a)
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test duration_eq_2
+    func main(a: Int, b: Int) -> Bool {
+        Duration::new(a) == Duration::new(b)
+    }`, ([a, b], res) => {
+        return res.isBool() && ((a.asInt() === b.asInt()) === res.asBool());
+    });
+
+    await ft.test([ft.int()], `
+    test duration_neq_1
+    func main(a: Int) -> Bool {
+        Duration::new(a) != Duration::new(a)
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test duration_neq_2
+    func main(a: Int, b: Int) -> Bool {
+        Duration::new(a) != Duration::new(b)
+    }`, ([a, b], res) => {
+        return res.isBool() && ((a.asInt() === b.asInt()) === (!res.asBool()));
+    });
+
+    await ft.test([ft.int()], `
+    test duration_add_0
+    func main(a: Int) -> Duration {
+        Duration::new(a) + Duration::new(0)
+    }`, ([a], res) => {
+        return res.isInt() && (a.asInt() === res.asInt());
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test duration_add_2
+    func main(a: Int, b: Int) -> Duration {
+        Duration::new(a) + Duration::new(b)
+    }`, ([a, b], res) => {
+        return res.isInt() && (a.asInt() + b.asInt() === res.asInt());
+    });
+
+    await ft.test([ft.int()], `
+    test duration_sub_0
+    func main(a: Int) -> Duration {
+        Duration::new(a) - Duration::new(0)
+    }`, ([a], res) => {
+        return res.isInt() && (a.asInt() === res.asInt());
+    });
+
+    await ft.test([ft.int()], `
+    test duration_sub_0_alt
+    func main(a: Int) -> Duration {
+        Duration::new(0) - Duration::new(a)
+    }`, ([a], res) => {
+        return res.isInt() && (a.asInt() === -res.asInt());
+    });
+
+    await ft.test([ft.int()], `
+    test duration_sub_self
+    func main(a: Int) -> Duration {
+        Duration::new(a) - Duration::new(a)
+    }`, ([_], res) => {
+        return res.isInt() && (0n === res.asInt())
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test duration_sub_2
+    func main(a: Int, b: Int) -> Duration {
+        Duration::new(a) - Duration::new(b)
+    }`, ([a, b], res) => {
+        return res.isInt() && (a.asInt() - b.asInt() === res.asInt());
+    });
+
+    await ft.test([ft.int()], `
+    test duration_mul_0
+    func main(a: Int) -> Duration {
+        Duration::new(a)*0
+    }`, ([_], res) => {
+        return res.isInt() && (0n === res.asInt());
+    });
+
+    await ft.test([ft.int()], `
+    test duration_mul_1
+    func main(a: Int) -> Duration {
+        Duration::new(a)*1
+    }`, ([a], res) => {
+        return res.isInt() && (a.asInt() === res.asInt());
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test duration_mul_2
+    func main(a: Int, b: Int) -> Duration {
+        Duration::new(a) * b
+    }`, ([a, b], res) => {
+        return res.isInt() && (a.asInt() * b.asInt() === res.asInt());
+    });
+
+    await ft.test([ft.int()], `
+    test duration_div_0
+    func main(a: Int) -> Duration {
+        Duration::new(a) / 0
+    }`, ([_], res) => {
+        return res instanceof helios.UserError && res.info === "division by zero";
+    });
+
+    await ft.test([ft.int()], `
+    test duration_div_1
+    func main(a: Int) -> Duration {
+        Duration::new(a) / 1
+    }`, ([a], res) => {
+        return res.isInt() && (a.asInt() === res.asInt());
+    });
+
+    await ft.test([ft.int(-20, 20)], `
+    test duration_div_1_self
+    func main(a: Int) -> Duration {
+        Duration::new(a) / a
+    }`, ([a], res) => {
+        return (
+            a.asInt() === 0n ?
+            res instanceof helios.UserError && res.info === "division by zero" :
+            res.isInt() && (1n === res.asInt())
+        );
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test duration_div_2
+    func main(a: Int, b: Int) -> Duration {
+        Duration::new(a) / b
+    }`, ([a, b], res) => {
+        return (
+            b.asInt() === 0n ? 
+            res instanceof helios.UserError && res.info === "division by zero" :
+            res.isInt() && (a.asInt() / b.asInt() === res.asInt())
+        );
+    });
+
+    await ft.test([ft.int()], `
+    test duration_mod_0
+    func main(a: Int) -> Duration {
+        Duration::new(a) % Duration::new(0)
+    }`, ([_], res) => {
+        return res instanceof helios.UserError && res.info === "division by zero";
+    });
+
+    await ft.test([ft.int()], `
+    test duration_mod_1
+    func main(a: Int) -> Duration {
+        Duration::new(a) % Duration::new(1)
+    }`, ([_], res) => {
+        return res.isInt() && (0n === res.asInt());
+    });
+
+    await ft.test([ft.int(-20, 20)], `
+    test duration_mod_1_alt
+    func main(a: Int) -> Duration {
+        Duration::new(1) % Duration::new(a)
+    }`, ([a], res) => {
+        return (
+            a.asInt() === 0n ? 
+            res instanceof helios.UserError && res.info === "division by zero" :
+            (
+                a.asInt() === -1n || a.asInt() === 1n ?
+                res.isInt() && (0n === res.asInt()) :
+                res.isInt() && (1n === res.asInt())
+            )
+        );
+    });
+
+    await ft.test([ft.int(-10, 10)], `
+    test duration_mod_1_self
+    func main(a: Int) -> Duration {
+        Duration::new(a) % Duration::new(a)
+    }`, ([a], res) => {
+        return (
+            a.asInt() === 0n ?
+            res instanceof helios.UserError && res.info === "division by zero" :
+            res.isInt() && (0n === res.asInt())
+        );
+    });
+
+    await ft.test([ft.int(), ft.int(-10, 10)], `
+    test duration_mod_2
+    func main(a: Int, b: Int) -> Duration {
+        Duration::new(a) % Duration::new(b)
+    }`, ([a, b], res) => {
+        return (
+            b.asInt() === 0n ? 
+            res instanceof helios.UserError && res.info === "division by zero" :
+            res.isInt() && (a.asInt() % b.asInt() === res.asInt())
+        );
+    });
+
+    await ft.test([ft.int()], `
+    test duration_geq_1
+    func main(a: Int) -> Bool {
+        Duration::new(a) >= Duration::new(a)
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test duration_geq_2
+    func main(a: Int, b: Int) -> Bool {
+        Duration::new(a) >= Duration::new(b)
+    }`, ([a, b], res) => {
+        return res.isBool() && ((a.asInt() >= b.asInt()) === res.asBool());
+    });
+
+    await ft.test([ft.int()], `
+    test duration_gt_1
+    func main(a: Int) -> Bool {
+        Duration::new(a) > Duration::new(a)
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test duration_gt_2
+    func main(a: Int, b: Int) -> Bool {
+        Duration::new(a) > Duration::new(b)
+    }`, ([a, b], res) => {
+        return res.isBool() && ((a.asInt() > b.asInt()) === res.asBool());
+    });
+
+    await ft.test([ft.int()], `
+    test duration_leq_1
+    func main(a: Int) -> Bool {
+        Duration::new(a) <= Duration::new(a)
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test duration_leq_2
+    func main(a: Int, b: Int) -> Bool {
+        Duration::new(a) <= Duration::new(b)
+    }`, ([a, b], res) => {
+        return res.isBool() && ((a.asInt() <= b.asInt()) === res.asBool());
+    });
+
+    await ft.test([ft.int()], `
+    test duration_lt_1
+    func main(a: Int) -> Bool {
+        Duration::new(a) < Duration::new(a)
+    }`, ([a], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test duration_lt_2
+    func main(a: Int, b: Int) -> Bool {
+        Duration::new(a) < Duration::new(b)
+    }`, ([a, b], res) => {
+        return res.isBool() && ((a.asInt() < b.asInt()) === res.asBool());
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test timerange_eq_1
+    func main(a: Int, b: Int) -> Bool {
+        TimeRange::new(Time::new(a), Time::new(b)) == TimeRange::new(Time::new(a), Time::new(b))
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
+    test timerange_eq_2
+    func main(a: Int, b: Int, c: Int, d: Int) -> Bool {
+        TimeRange::new(Time::new(a), Time::new(b)) == TimeRange::new(Time::new(c), Time::new(d))
+    }`, ([a, b, c, d], res) => {
+        return res.isBool() && (((a.asInt() == c.asInt()) && (b.asInt() == d.asInt())) === res.asBool());
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test timerange_neq_1
+    func main(a: Int, b: Int) -> Bool {
+        TimeRange::new(Time::new(a), Time::new(b)) != TimeRange::new(Time::new(a), Time::new(b))
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
+    test timerange_neq_2
+    func main(a: Int, b: Int, c: Int, d: Int) -> Bool {
+        TimeRange::new(Time::new(a), Time::new(b)) != TimeRange::new(Time::new(c), Time::new(d))
+    }`, ([a, b, c, d], res) => {
+        return res.isBool() && (((a.asInt() == c.asInt()) && (b.asInt() == d.asInt())) === !res.asBool());
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test timerange_contains
+    func main(a: Int, b: Int) -> Bool {
+        TimeRange::new(Time::new(a), Time::new(b)).contains(Time::new((a+b)/2))
+    }`, ([a, b], res) => {
+        return res.isBool() && ((a.asInt() < b.asInt() - 1n) === res.asBool());
+    });
 }
+
 
 async function runIntegrationTests() {
     async function runTestScript(src, expectedResult, expectedMessages) {
@@ -1375,7 +2196,7 @@ async function runIntegrationTests() {
     func main() -> Bool {
         print("hello world");
         true
-    }`, "c:1", ["hello world"]);
+    }`, "1{}", ["hello world"]);
 
     // 2. hello_world_false
     // * __helios__common__unStringData
@@ -1388,7 +2209,7 @@ async function runIntegrationTests() {
     func main() -> Bool {
         print("hello world");
         !true
-    }`, "c:0", ["hello world"]);
+    }`, "0{}", ["hello world"]);
 
     // 3. hello_number
     // * non-main function statement
@@ -1399,7 +2220,7 @@ async function runIntegrationTests() {
     func main() -> Bool {
         print(print_message(0) + "");
         !true
-    }`, "c:0", ["hello number 0"]);
+    }`, "0{}", ["hello number 0"]);
 
     // 4. my_struct
     // * struct statement
@@ -1431,7 +2252,7 @@ async function runIntegrationTests() {
         };
         print(d.owner.show());
         d.value > Value::ZERO
-    }`, "c:1", ["1234"]);
+    }`, "1{}", ["1234"]);
 
     // 5. fibonacci
     // * recursive function statement
@@ -1468,7 +2289,7 @@ async function runIntegrationTests() {
         x: []Int = []Int{1, 2, 3};
         print(x.get(0).show());
         x.get(2) == 3
-    }`, "c:1", "1");
+    }`, "1{}", "1");
 
     // 8. list_get nok
     // * error thrown by builtin
@@ -1488,7 +2309,7 @@ async function runIntegrationTests() {
     func main() -> Bool {
         print(concat("hello ", "world"));
         true
-    }`, "c:1", ["hello world"]);
+    }`, "1{}", ["hello world"]);
 
     // 10. collatz recursion
     // * recursion
@@ -1516,7 +2337,7 @@ async function runIntegrationTests() {
     }
     func main() -> Bool {
         main_inner([]Int{1,2,3,4,5,6,10}.any)
-    }`, "c:1", []);
+    }`, "1{}", []);
     
     // 12. value_get
     await runTestScript(`test value_get
@@ -1550,7 +2371,7 @@ async function runIntegrationTests() {
         print(main_internal(Redeemer::Reward).show());
         print(main_internal(Redeemer::Migrate).show());
         true
-    }`, "c:1", ["false", "true", "false"]);
+    }`, "1{}", ["false", "true", "false"]);
 }
 
 async function main() {
