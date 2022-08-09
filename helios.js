@@ -3210,7 +3210,7 @@ class PlutusCoreMap extends PlutusCoreValue {
 }
 
 /**
- * Wrapper for PlutusCoreData
+ * Wrapper for PlutusCoreData.
  */
 class PlutusCoreDataValue extends PlutusCoreValue {
 	#data;
@@ -4134,8 +4134,9 @@ class PlutusCoreProgram {
 
 /**
  * Base class for UPLC data classes (not the same as UPLC value classes!)
+ * Also contains helper methods for (de)serializing data to/from CBOR
  */
-class PlutusCoreData {
+export class PlutusCoreData {
 	constructor() {
 	}
 
@@ -4345,6 +4346,363 @@ class PlutusCoreData {
 
 		return true;
 	}
+
+	/**
+	 * @param {bigint} n
+	 * @returns {number[]}
+	 */
+	static itos(n) {
+		if (n == 0n) {
+			return [0];
+		} else {
+			/**
+			 * @type {number[]}
+			 */
+			let res = [];
+
+			while (n > 0n) {
+				res.unshift(Number(n%256n));
+
+				n = n/256n;
+			}
+
+			return res;
+		}
+	}
+
+	/**
+	 * @param {number[]} b
+	 * @return {bigint}
+	 */
+	static stoi(b) {
+		let s = 1n;
+
+		let total = 0n;
+		while (b.length > 0) {
+			total += BigInt(assertDefined(b.pop()))*s;
+
+			s *= 256n;
+		}
+
+		return total;
+	}
+
+	/**
+	 * @param {number} m - major type
+	 * @param {bigint} n - size parameter
+	 * @returns {number[]} - uint8 bytes
+	 */
+	static encodeCBORHead(m, n) {
+		if (n <= 23n) {
+			return [32*m + Number(n)];
+		} else if (n >= 24n && n <= 255n) {
+			return [32*m + 24, Number(n)];
+		} else if (n >= 256n && n <= 256n*256n - 1n) {
+			return [32*m + 25, Number((n/256n)%256n), Number(n%256n)];
+		} else if (n >= 256n*256n && n <= 256n*256n*256n*256n - 1n) {
+			let e4 = PlutusCoreData.itos(n);
+
+			while (e4.length < 4) {
+				e4.unshift(0);
+			}
+			return [32*m + 26].concat(e4);
+		} else if (n >= 256n*256n*256n*256n && n <= 256n*256n*256n*256n*256n*256n*256n*256n - 1n) {
+			let e8 = PlutusCoreData.itos(n);
+
+			while(e8.length < 8) {
+				e8.unshift(0);
+			}
+			return [32*m + 27].concat(e8);
+		} else {
+			throw new Error("n out of range");
+		}
+	}
+
+	/**
+	 * @param {number[]} bytes - mutated to contain the rest
+	 * @returns {[number, bigint]} - [majorType, n]
+	 */
+	static decodeCBORHead(bytes) {
+		if (bytes.length == 0) {
+			throw new Error("empty cbor head");
+		}
+
+		let first = assertDefined(bytes.shift());
+
+		if (first%32 <= 23) {
+			return [idiv(first, 32), BigInt(first%32)];
+		} else if (first%32 == 24) {
+			return [idiv(first, 32), PlutusCoreData.stoi(bytes.splice(0, 1))];
+		} else if (first%32 == 25) {
+			return [idiv(first, 32), PlutusCoreData.stoi(bytes.splice(0, 2))];
+		} else if (first%32 == 26) {
+			return [idiv(first, 32), PlutusCoreData.stoi(bytes.splice(0, 4))];
+		} else if (first%32 == 27) {
+			return [idiv(first, 32), PlutusCoreData.stoi(bytes.splice(0, 8))];
+		} else {
+			throw new Error("bad header");
+		}
+	}
+
+	/**
+	 * @param {number} m 
+	 * @returns {number[]}
+	 */
+	static encodeCBORIndefHead(m) {
+		return [32*m + 31];
+	}
+
+	/**
+	 * @param {number[]} bytes - cbor bytes
+	 * @returns {number} - majorType
+	 */
+	static decodeCBORIndefHead(bytes) {
+		let first = assertDefined(bytes.shift());
+
+		let m = idiv(first - 31, 32);
+		
+		return m;
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {number[]} - cbor bytes
+	 */
+	static encodeCBORByteArray(bytes) {
+		bytes = bytes.slice();
+
+		if (bytes.length <= 64) {
+			return PlutusCoreData.encodeCBORHead(2, BigInt(bytes.length)).concat(bytes);
+		} else {
+			let res = PlutusCoreData.encodeCBORIndefHead(2);
+
+			while (bytes.length > 0) {
+				let chunk = bytes.splice(0, 64);
+
+				res = res.concat(PlutusCoreData.encodeCBORHead(2, BigInt(chunk.length))).concat(chunk);
+			}
+
+			res.push(255);
+
+			return res;
+		}
+	}
+
+	/**
+	 * @param {number[]} bytes - cborbytes, mutated to form remaining
+	 * @returns {number[]} - byteArray
+	 */
+	static decodeCBORByteArray(bytes) {
+		// check header type
+		assert(bytes.length > 0);
+
+		if (2*32 + 31 == bytes[0]) {
+			// multiple chunks
+			void bytes.shift();
+
+			/**
+			 * @type {number[]}
+			 */
+			let res = [];
+
+			while(bytes[0] != 255) {
+				let [_, n] = PlutusCoreData.decodeCBORHead(bytes);
+				if (n > 64n) {
+					throw new Error("bytearray chunk too large");
+				}
+
+				res = res.concat(bytes.splice(0, Number(n)));
+			}
+
+			assert(bytes.shift() == 255);
+
+			return res;
+		} else {
+			let [_, n] = PlutusCoreData.decodeCBORHead(bytes);
+
+			return bytes.splice(0, Number(n));
+		}
+	}
+
+	/**
+	 * @param {bigint} n
+	 * @returns {number[]} - cbor bytes
+	 */
+	static encodeInteger(n) {
+		if (n >= 0n && n <= (2n << 63n) - 1n) {
+			return PlutusCoreData.encodeCBORHead(0, n);
+		} else if (n >= (2n << 63n)) {
+			return PlutusCoreData.encodeCBORHead(6, 2n).concat(PlutusCoreData.encodeCBORByteArray(PlutusCoreData.itos(n)));
+		} else if (n <= -1n && n >= -(2n << 63n)) {
+			return PlutusCoreData.encodeCBORHead(1, -n - 1n);
+		} else {
+			return PlutusCoreData.encodeCBORHead(6, 3n).concat(PlutusCoreData.encodeCBORByteArray(PlutusCoreData.itos(-n - 1n)));
+		}
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @returns {bigint}
+	 */
+	static decodeInteger(bytes) {
+		let [m, n] = PlutusCoreData.decodeCBORHead(bytes);
+
+		if (m == 0) {
+			return n;
+		} else if (m == 1) {
+			return -n - 1n;
+		} else if (m == 6) {
+			if (n == 2n) {
+				let b = PlutusCoreData.decodeCBORByteArray(bytes);
+
+				return PlutusCoreData.stoi(b);
+			} else if (n == 3n) {
+				let b = PlutusCoreData.decodeCBORByteArray(bytes);
+
+				return -PlutusCoreData.stoi(b) - 1n;
+			} else {
+				throw new Error("unexpected tag");
+			}
+		} else {
+			throw new Error("unexpected tag");
+		}
+	}
+
+	/**
+	 * @param {PlutusCoreData[]} list 
+	 * @returns {number[]}
+	 */
+	static encodeDataList(list) {
+		/**
+		 * @type {number[]}
+		 */
+		let res = [];
+		for (let item of list) {
+			res = res.concat(item.toCBOR());
+		}
+
+		return res;
+	}
+
+	/**
+	 * @param {[PlutusCoreData, PlutusCoreData][]} pairList
+	 * @returns {number[]}
+	 */
+	static encodeDataPairList(pairList) {
+		/**
+		 * @type {number[]}
+		 */
+		let res = [];
+
+		for (let pair of pairList) {
+			res = res.concat(pair[0].toCBOR()).concat(pair[1].toCBOR());
+		}
+
+		return res;
+	}
+
+	/**
+	 * @param {number} tag 
+	 * @returns {number[]}
+	 */
+	static encodeCTag(tag) {
+		if (tag >= 0 && tag <= 6) {
+			return PlutusCoreData.encodeCBORHead(6, 121n + BigInt(tag));
+		} else if (tag >= 7 && tag <= 127) {
+			return PlutusCoreData.encodeCBORHead(6, 1280n + BigInt(tag - 7));
+		} else {
+			return PlutusCoreData.encodeCBORHead(6, 102n).concat(PlutusCoreData.encodeCBORHead(4, 2n)).concat(PlutusCoreData.encodeInteger(BigInt(tag)));
+		}
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {PlutusCoreData}
+	 */
+	static decodeCBORData(bytes) {
+		if (bytes.length == 0) {
+			throw new Error("empty cbor bytes");
+		}
+
+		if (4*32 + 31 == bytes[0]) {
+			// list
+
+			assert(PlutusCoreData.decodeCBORIndefHead(bytes) == 4);
+			
+			/**
+			 * @type {PlutusCoreData[]}
+			 */
+			let list = [];
+
+			while(bytes[0] != 255) {
+				list.push(PlutusCoreData.decodeCBORData(bytes));
+			}
+
+			assert(bytes.shift() == 255);
+
+			return new ListData(list);
+		} else if (2*32 + 31 == bytes[0]) {
+			// bytearray of indef length
+			return new ByteArrayData(PlutusCoreData.decodeCBORByteArray(bytes));
+		} else {			
+			let [m, _] = PlutusCoreData.decodeCBORHead(bytes.slice(0, 9));
+
+			if (m == 2) {
+				return new ByteArrayData(PlutusCoreData.decodeCBORByteArray(bytes));
+			} else if (m == 5) {
+				// map
+				let [_, n] = PlutusCoreData.decodeCBORHead(bytes);
+
+				/**
+				 * @type {[PlutusCoreData, PlutusCoreData][]}
+				 */
+				let pairs = [];
+
+				for (let i = 0; i < n; i++) {
+					pairs.push([PlutusCoreData.decodeCBORData(bytes), PlutusCoreData.decodeCBORData(bytes)]);
+				}
+
+				return new MapData(pairs);
+			} else if (m == 6) {
+				// constr
+				let [_, n] = PlutusCoreData.decodeCBORHead(bytes);
+
+				/**
+				 * @type {number}
+				 */
+				let tag;
+
+				if (n < 127n) {
+					tag = Number(n - 121n);
+				} else if (n == 102n) {
+					let [mCheck, nCheck] = PlutusCoreData.decodeCBORHead(bytes);
+					assert(mCheck == 4 && nCheck == 2n);
+
+					tag = Number(PlutusCoreData.decodeInteger(bytes));
+				} else {
+					tag = Number(n - 1280n + 7n);
+				}
+
+				assert(PlutusCoreData.decodeCBORIndefHead(bytes) == 4);
+
+				/**
+				 * @type {PlutusCoreData[]}
+				 */
+				let fields = [];
+
+				while(bytes[0] != 255) {
+					fields.push(PlutusCoreData.decodeCBORData(bytes));
+				}
+
+				assert(bytes.shift() == 255);
+
+				return new ConstrData(tag, fields);
+			} else {
+				// int
+				return new IntData(PlutusCoreData.decodeInteger(bytes));
+			}
+		}
+	}
 }
 
 /**
@@ -4418,6 +4776,13 @@ class IntData extends PlutusCoreData {
 	toSchemaJSON() {
 		return `{"int": ${this.#value.toString()}}`;
 	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCBOR() {
+		return PlutusCoreData.encodeInteger(this.#value);
+	}
 }
 
 /**
@@ -4485,7 +4850,7 @@ class ByteArrayData extends PlutusCoreData {
 	 * @returns {number[]}
 	 */
 	asByteArray() {
-		return this.#bytes;
+		return this.#bytes.slice();
 	}
 
 	/**
@@ -4532,6 +4897,13 @@ class ByteArrayData extends PlutusCoreData {
 	 */
 	toSchemaJSON() {
 		return `{"bytes": "${this.toHex()}"}`;
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCBOR() {
+		return PlutusCoreData.encodeCBORByteArray(this.#bytes);
 	}
 }
 
@@ -4615,6 +4987,13 @@ class ListData extends PlutusCoreData {
 	toSchemaJSON() {
 		return `{"list":[${this.#items.map(item => item.toSchemaJSON()).join(", ")}]}`;
 	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCBOR() {
+		return PlutusCoreData.encodeCBORIndefHead(4).concat(PlutusCoreData.encodeDataList(this.#items)).concat([255]);
+	}
 }
 
 /**
@@ -4660,6 +5039,13 @@ class MapData extends PlutusCoreData {
 	 */
 	toSchemaJSON() {
 		return `{"map": [${this.#pairs.map(pair => { return "{\"k\": " + pair[0].toSchemaJSON() + ", \"v\": " + pair[1].toSchemaJSON() + "}" }).join(", ")}]}`;
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCBOR() {
+		return PlutusCoreData.encodeCBORHead(5, BigInt(this.#pairs.length)).concat(PlutusCoreData.encodeDataPairList(this.#pairs));
 	}
 }
 
@@ -4770,15 +5156,25 @@ class ConstrData extends PlutusCoreData {
 		return new IR([new IR("__core__constrData("), new IR(this.#index.toString()), new IR(", "), ir, new IR(")")]);
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toSchemaJSON() {
 		return `{"constructor": ${this.#index.toString()}, "fields": [${this.#fields.map(f => f.toSchemaJSON()).join(", ")}]}`;
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCBOR() {
+		return PlutusCoreData.encodeCTag(this.#index).concat(PlutusCoreData.encodeCBORIndefHead(4)).concat(PlutusCoreData.encodeDataList(this.#fields)).concat([255]);
 	}
 }
 
 /**
  * Special ConstrData builders
  */
-class LedgerData extends ConstrData {
+export class LedgerData extends ConstrData {
 	#parameters;
 
 	/**
@@ -4822,13 +5218,15 @@ class LedgerData extends ConstrData {
 		let mintedQty = 100n;
 		let mintedValue = LedgerData.newValue(mintedQty, scriptHash);
 		let signatories = [new ByteArrayData(txOutputAddr)];
+		let inputs = [LedgerData.newTxInput(txInputHash, 0n, scriptHash, LedgerData.newValue(1000n))];
+		let outputs = [
+			LedgerData.newTxOutput(txOutputAddr, false, LedgerData.newValue(999n)),
+			LedgerData.newTxOutput(txOutputAddr, false, mintedValue),
+		];
 
 		let txDataFields = [
-			new ListData([LedgerData.newTxInput(txInputHash, 0n, scriptHash, LedgerData.newValue(1000n))]),
-			new ListData([
-				LedgerData.newTxOutput(txOutputAddr, false, LedgerData.newValue(999n)),
-				LedgerData.newTxOutput(txOutputAddr, false, mintedValue),
-			]),
+			new ListData(inputs),
+			new ListData(outputs),
 			LedgerData.newValue(fee), // fee value
 			mintedValue, // minted value
 			new ListData([]), // digests of certificates
@@ -4844,6 +5242,8 @@ class LedgerData extends ConstrData {
 			minted: mintedQty,
 			signatories: signatories,
 			id: txHash,
+			inputs: inputs,
+			outputs: outputs,
 		});
 
 		return new LedgerData(0, [
@@ -4882,7 +5282,7 @@ class LedgerData extends ConstrData {
 			currentInput = inputs.length - 1;
 		}
 
-		let txOutputId = inputs[currentInput].getParam("txOutputId");
+		let txOutputId = inputs[currentInput].getParam("outputId");
 		let purposeData = new ConstrData(1, [txOutputId]);
 
 		let txDataFields = [
@@ -4903,6 +5303,8 @@ class LedgerData extends ConstrData {
 			minted: 0n,
 			signatories: signatories,
 			id: txHash,
+			inputs: inputs,
+			outputs: outputs,
 		});
 
 		return new LedgerData(0, [
@@ -4912,7 +5314,19 @@ class LedgerData extends ConstrData {
 			scriptHash: scriptHash,
 			tx: txData,
 			purpose: ScriptPurpose.Spending,
-			txOutputId: txOutputId,
+			outputId: txOutputId,
+		});
+	}
+
+	/**
+	 * @param {number[]} mph
+	 * @param {string} tokenName
+	 * @returns {LedgerData}
+	 */
+	static newAssetClass(mph = [], tokenName = "") {
+		return new LedgerData(0, [new ByteArrayData(mph), new ByteArrayData(stringToBytes(tokenName))], {
+			mintingPolicyHash: mph,
+			tokenName: tokenName,
 		});
 	}
 
@@ -4959,11 +5373,13 @@ class LedgerData extends ConstrData {
 	 */
 	static newTxInput(originTxHash, originUtxoId, scriptHash, value) {
 		let txOutputId = LedgerData.newTxOutputId(originTxHash, originUtxoId);
+		let output = LedgerData.newTxOutput(scriptHash, true, value);
 		return new LedgerData(0, [
 			txOutputId,
-			LedgerData.newTxOutput(scriptHash, true, value), // assume locked in current script
+			output, // assume locked in current script
 		], {
-			txOutputId: txOutputId,
+			outputId: txOutputId,
+			output: output,
 			originTxHash: originTxHash,
 			originUtxoId: originUtxoId,
 			scriptHash: scriptHash,
@@ -4979,12 +5395,14 @@ class LedgerData extends ConstrData {
 	 * @returns {LedgerData}
 	 */
 	static newTxOutput(addr, isSentToValidator, value) {
+		let address = LedgerData.newAddress(addr, isSentToValidator);
 		return new LedgerData(0, [
-			LedgerData.newAddress(addr, isSentToValidator),
+			address,
 			value,
 			LedgerData.newOption(),
 		], {
 			addr: addr,
+			address: address, 
 			isSentToValidator: isSentToValidator,
 			value: value,
 		});
@@ -4997,10 +5415,12 @@ class LedgerData extends ConstrData {
 	 * @returns {LedgerData}
 	 */
 	static newAddress(hash, isValidator = false) {
+		let credential = LedgerData.newCredential(hash, isValidator);
 		return new LedgerData(0, [
-			LedgerData.newCredential(hash, isValidator),
+			credential,
 			LedgerData.newOption(),
 		], {
+			credential: credential,
 			hash: hash,
 			isValidator: isValidator,
 		});
@@ -5064,21 +5484,23 @@ class LedgerData extends ConstrData {
 	 * @returns {LedgerData}
 	 */
 	static newFiniteTimeRange(start = 1600000000n, duration = 10000n) {
-		return new LedgerData(0, [
+		let res = new LedgerData(0, [
 			// LowerBound
 			new LedgerData(0, [
 				new LedgerData(1, [new IntData(start)], {}),
-				LedgerData.newBool(true),
+				LedgerData.newBool(false),
 			], {}),
 			// UpperBound
 			new LedgerData(0, [
 				new LedgerData(1, [new IntData(start + duration)], {}),
-				LedgerData.newBool(true),
+				LedgerData.newBool(false),
 			], {})
 		], {
 			start: start,
 			duration: duration,
 		});
+
+		return res;
 	}
 }
 
@@ -13406,7 +13828,9 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__common__serialize",
 	`(self) -> {
-		() -> {__core__serialize(self)}
+		() -> {
+			__core__bData(__core__serialiseData(self))
+		}
 	}`));
 	add(new RawFunc("__helios__common__is_in_bytearray_list",
 	`(lst, key) -> {

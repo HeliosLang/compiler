@@ -411,6 +411,14 @@ async function runPropertyTests() {
         return res.isString() && (a.asInt().toString() === res.asString());
     });
 
+    await ft.test([ft.int()], `
+    test int_serialize
+    func main(a: Int) -> ByteArray {
+        a.serialize()
+    }`, ([a], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+    });
+
 
     /////////////
     // Bool tests
@@ -527,6 +535,14 @@ async function runPropertyTests() {
     }`, ([a], res) => {
         return res.isString() && ((a.asBool() ? "true": "false") === res.asString());
     });
+    
+    await ft.test([ft.bool()], `
+    test bool_serialize
+    func main(a: Bool) -> ByteArray {
+        a.serialize()
+    }`, ([a], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+    });
 
 
     ///////////////
@@ -603,6 +619,14 @@ async function runPropertyTests() {
     }`, ([a], res) => {
         let aBytes = Array.from((new TextEncoder()).encode(a.asString()));
         return res.isByteArray() && res.equalsByteArray(aBytes);
+    });
+
+    await ft.test([ft.string()], `
+    test string_serialize
+    func main(a: String) -> ByteArray {
+        a.serialize()
+    }`, ([a], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
     });
 
 
@@ -784,6 +808,14 @@ async function runPropertyTests() {
             let s = Array.from(a.asByteArray(), byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
 
             return res.isString() && (s === res.asString());
+        });
+
+        await ft.test([ft.bytes(0, 1024)], `
+        test bytearray_serialize
+        func main(a: ByteArray) -> ByteArray {
+            a.serialize()
+        }`, ([a], res) => {
+            return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
         });
     }
 
@@ -1013,6 +1045,14 @@ async function runPropertyTests() {
 
             return res.equalsList(sumLst);
         });
+
+        await ft.test([ft.list(ft.int())], `
+        test list_serialize
+        func main(a: []Int) -> ByteArray {
+            a.serialize()
+        }`, ([a], res) => {
+            return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+        });
     }
 
 
@@ -1089,6 +1129,25 @@ async function runPropertyTests() {
         }
     });
 
+    await ft.test([ft.option(ft.int())], `
+    test option_serialize
+    func main(a: Option[Int]) -> ByteArray {
+        a.serialize()
+    }`, ([a], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+    });
+
+    await ft.test([ft.option(ft.int())], `
+    test option_sub_serialize
+    func main(a: Option[Int]) -> ByteArray {
+        a.switch{
+            s: Some => s.serialize(),
+            n: None => n.serialize()
+        }
+    }`, ([a], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+    });
+
 
     /////////////
     // Hash tests
@@ -1148,6 +1207,14 @@ async function runPropertyTests() {
         return res.isString() && (s === res.asString());
     });
 
+    await ft.test([ft.bytes()], `
+    test hash_serialize
+    func main(a: PubKeyHash) -> ByteArray {
+        a.serialize()
+    }`, ([a], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+    });
+
 
     ///////////////////
     // AssetClass tests
@@ -1167,6 +1234,14 @@ async function runPropertyTests() {
         AssetClass::new(a, b) != AssetClass::ADA
     }`, ([a, b], res) => {
         return res.isBool() && ((a.asByteArray().length == 0 && b.asString().length == 0) === !res.asBool());
+    });
+
+    await ft.test([ft.bytes(), ft.string()], `
+    test assetclass_serialize
+    func main(a: ByteArray, b: String) -> ByteArray {
+        AssetClass::new(a, b).serialize()
+    }`, ([a, b], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios.LedgerData.newAssetClass(a.asByteArray(), b.asString()));
     });
 
 
@@ -1344,6 +1419,14 @@ async function runPropertyTests() {
         }`, ([a, b], res) => {
             return res.isBool() && ((a.asInt() < b.asInt()) === res.asBool());
         });
+
+        await ft.test([ft.int(), ft.bytes(), ft.string()], `
+        test value_serialize
+        func main(qty: Int, mph: ByteArray, name: String) -> ByteArray {
+            Value::new(AssetClass::new(mph, name), qty).serialize()
+        }`, ([qty, mph, name], res) => {
+            return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios.LedgerData.newValue(qty.asInt(), mph.asByteArray(), name.asString()));
+        });
     }
 
 
@@ -1403,7 +1486,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> TxOutputId {
         ctx.get_spending_purpose_output_id()
     }`, ([ctx], res) => {
-        return res.isSame(ctx.getParam("txOutputId"));
+        return res.isSame(ctx.getParam("outputId"));
     });
 
     await ft.test([ft.mintingScriptContext()], `
@@ -1445,6 +1528,14 @@ async function runPropertyTests() {
         ctx.get_current_minting_policy_hash()
     }`, ([ctx], res) => {
         return res.equalsByteArray(ctx.getParam("scriptHash"));
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test scriptcontext_serialize
+    func main(ctx: ScriptContext) -> ByteArray {
+        ctx.serialize()
+    }`, ([ctx], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx);
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1589,6 +1680,14 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
+    test tx_serialize
+    func main(ctx: ScriptContext) -> ByteArray {
+        ctx.tx.serialize()
+    }`, ([ctx], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx"));
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
     test txid_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.id == ctx.tx.id
@@ -1605,6 +1704,14 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
+    test txid_serialize
+    func main(ctx: ScriptContext) -> ByteArray {
+        ctx.tx.id.serialize()
+    }`, ([ctx], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios.LedgerData.newTxId(ctx.getParam('tx').getParam("id")));
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
     test txinput_eq_neq
     func main(ctx: ScriptContext) -> Bool {
         if (ctx.tx.inputs.length == 1) {
@@ -1617,6 +1724,14 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
+    test txinput_serialize
+    func main(ctx: ScriptContext) -> ByteArray {
+        ctx.tx.inputs.head.serialize()
+    }`, ([ctx], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0]);
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
     test txoutput_eq_neq
     func main(ctx: ScriptContext) -> Bool {
         if (ctx.tx.outputs.length == 1) {
@@ -1626,6 +1741,14 @@ async function runPropertyTests() {
         }
     }`, ([_], res) => {
         return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test txoutput_serialize
+    func main(ctx: ScriptContext) -> ByteArray {
+        ctx.tx.outputs.head.serialize()
+    }`, ([ctx], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("outputs")[0]);
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1646,6 +1769,14 @@ async function runPropertyTests() {
         ctx.tx.inputs.head.output_id != TxOutputId::new(#123, 0)
     }`, ([_], res) => {
         return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test txoutputid_serialize
+    func main(ctx: ScriptContext) -> ByteArray {
+        ctx.tx.inputs.head.output_id.serialize()
+    }`, ([ctx], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("outputId"));
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1673,6 +1804,14 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
+    test address_serialize
+    func main(ctx: ScriptContext) -> ByteArray {
+        ctx.tx.inputs.head.output.address.serialize()
+    }`, ([ctx], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address"))
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
     test credential_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.credential == ctx.tx.inputs.get(0).output.address.credential
@@ -1686,6 +1825,14 @@ async function runPropertyTests() {
         ctx.tx.inputs.head.output.address.credential != ctx.tx.inputs.get(0).output.address.credential
     }`, ([_], res) => {
         return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test credential_serialize
+    func main(ctx: ScriptContext) -> ByteArray {
+        ctx.tx.inputs.head.output.address.credential.serialize()
+    }`, ([ctx], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("credential"));
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1708,6 +1855,17 @@ async function runPropertyTests() {
         }
     }`, ([_], res) => {
         return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test credential_sub_serialize
+    func main(ctx: ScriptContext) -> ByteArray {
+        ctx.tx.inputs.head.output.address.credential.switch{
+            p: PubKey => p.serialize(),
+            v: Validator => v.serialize()
+        }
+    }`, ([ctx], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("credential"));
     });
 
     await ft.test([ft.int()], `
@@ -1844,6 +2002,14 @@ async function runPropertyTests() {
         Time::new(a).show()
     }`, ([a], res) => {
         return res.isString() && (a.asInt().toString() === res.asString());
+    });
+
+    await ft.test([ft.int()], `
+    test time_serialize
+    func main(a: Int) -> ByteArray {
+        Time::new(a).serialize()
+    }`, ([a], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
     });
 
     await ft.test([ft.int()], `
@@ -2109,6 +2275,14 @@ async function runPropertyTests() {
     }`, ([a, b], res) => {
         return res.isBool() && ((a.asInt() < b.asInt()) === res.asBool());
     });
+    
+    await ft.test([ft.int()], `
+    test duration_serialize
+    func main(a: Int) -> ByteArray {
+        Duration::new(a).serialize()
+    }`, ([a], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+    });
 
     await ft.test([ft.int(), ft.int()], `
     test timerange_eq_1
@@ -2148,6 +2322,14 @@ async function runPropertyTests() {
         TimeRange::new(Time::new(a), Time::new(b)).contains(Time::new((a+b)/2))
     }`, ([a, b], res) => {
         return res.isBool() && ((a.asInt() < b.asInt() - 1n) === res.asBool());
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test timerange_serialize
+    func main(a: Int, b: Int) -> ByteArray {
+        TimeRange::new(Time::new(a), Time::new(b)).serialize()
+    }`, ([a, b], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios.LedgerData.newFiniteTimeRange(a.asInt(), b.asInt() - a.asInt()));
     });
 }
 
