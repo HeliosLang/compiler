@@ -66,6 +66,7 @@ async function runPropertyTests() {
     const ft = new helios.FuzzyTest(Math.random()*42);
 
 
+
     ////////////
     // Int tests
     ////////////
@@ -1642,7 +1643,7 @@ async function runPropertyTests() {
     });
 
     await ft.testn(10, [ft.spendingScriptContext()], `
-    test tx_value_send_to
+    test tx_value_sent_to
     func main(ctx: ScriptContext) -> Bool {
         if (ctx.tx.signatories.is_empty()) {
             true
@@ -1664,7 +1665,21 @@ async function runPropertyTests() {
             sum + if (o.address.credential.switch{v: Validator => v.hash == h, else => false}) {o.value} else {Value::ZERO}
         }, Value::ZERO)
     }`, ([_], res) => {
-        return res.isBool() && res.asBool()
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.object(ft.int()), ft.spendingScriptContext()],`
+    test tx_value_locked_by_datum
+    struct Datum {
+        a: Int
+    }
+    func main(datum: Datum, ctx: ScriptContext) -> Bool {
+        h: ValidatorHash = ctx.get_current_validator_hash();
+        (ctx.tx.value_locked_by_datum(h, datum) == ctx.tx.outputs.fold((a: Value, o: TxOutput) -> Value {
+            a + if (o.address.credential.switch{v: Validator => v.hash == h, else => false}) {o.value} else {Value::ZERO}
+        }, Value::ZERO)) && datum.a == datum.a
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1744,6 +1759,17 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
+    test txoutput_datum_hash
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.outputs.head.datum_hash.switch{
+            s: Some => s.some == s.some,
+            n: None => n == n
+        }
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
     test txoutput_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.outputs.head.serialize()
@@ -1797,10 +1823,11 @@ async function runPropertyTests() {
 
     await ft.test([ft.spendingScriptContext()], `
     test address_staking_credential
-    func main(ctx: ScriptContext) -> Bool {
-        ctx.tx.inputs.head.output.address.staking_credential == Option[StakingCredential]::None
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
+    func main(ctx: ScriptContext) -> Option[StakingCredential] {
+        ctx.tx.inputs.head.output.address.staking_credential
+    }`, ([a], res) => {
+
+        return res.isSame(helios.LedgerData.newOption(helios.LedgerData.newStakingCredential(a.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("stakingHash"))));
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1866,6 +1893,39 @@ async function runPropertyTests() {
         }
     }`, ([ctx], res) => {
         return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("credential"));
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test staking_credential_eq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.head.output.address.staking_credential.switch{
+            s: Some => s.some == s.some,
+            n: None => n == n
+        }
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test staking_credential_neq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.head.output.address.staking_credential.switch{
+            s: Some => s.some != s.some,
+            n: None => n != n
+        }
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.spendingScriptContext()], `
+    test staking_credential_serialize
+    func main(ctx: ScriptContext) -> ByteArray {
+        ctx.tx.inputs.head.output.address.staking_credential.switch{
+            s: Some => s.some.serialize(),
+            n: None => n.serialize()
+        }
+    }`, ([ctx], res) => {
+        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios.LedgerData.newStakingCredential(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("stakingHash")));
     });
 
     await ft.test([ft.int()], `

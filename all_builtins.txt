@@ -109,17 +109,17 @@ hidden:      is_pubkey, is_validator
 internal ns: __helios__credential
 
 ## Credential::PubKey
-associated:  cast
 operators:   __eq, __neq
 getters:     hash
 methods:     serialize
+hidden:      cast
 internal ns: __helios__credential__pubkey
 
 ## Credential::Validator
-associated: cast
 operators:  __eq, __neq
 getters:    hash
 methods:    serialize
+hidden:     cast
 internal ns: __helios__credential__validator
 
 # StakingCredential
@@ -140,8 +140,9 @@ methods:    serialize
 internal ns: __helios__duration
 
 # TimeRange
+associated: new
 operators:  __eq, __neq
-methods:    serialize, get_start
+methods:    serialize, get_start, contains
 internal ns: __helios__timerange
 
 # AssetClass

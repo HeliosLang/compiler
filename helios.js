@@ -5263,6 +5263,7 @@ export class LedgerData extends ConstrData {
 	 * @param {LedgerData[]} inputs
 	 * @param {bigint} fee
 	 * @param {LedgerData[]} outputs
+	 * @param {[number[], PlutusCoreData][]} datums
 	 * @param {ByteArrayData[]} signatories
 	 * @param {number} currentInput
 	 * @returns {LedgerData}
@@ -5272,7 +5273,8 @@ export class LedgerData extends ConstrData {
 		txHash, 
 		inputs, 
 		fee, 
-		outputs, 
+		outputs,
+		datums,
 		signatories, 
 		currentInput = 0
 	) {
@@ -5294,7 +5296,9 @@ export class LedgerData extends ConstrData {
 			new ListData([]), // staking withdrawals
 			LedgerData.newFiniteTimeRange(), // valid time range
 			new ListData(signatories), // signatories
-			new ListData([]), // datums
+			new ListData(datums.map(([hash, data]) => {
+				return new ConstrData(0, [new ByteArrayData(hash), data]);
+			})), // datums
 			LedgerData.newTxId(txHash),
 		];
 
@@ -5369,11 +5373,13 @@ export class LedgerData extends ConstrData {
 	 * @param {bigint} originUtxoId
 	 * @param {number[]} scriptHash - 28 byte hash
 	 * @param {MapData} value - amount of lovelace
+	 * @param {?number[]} stakingAddr - also 28 bytes?
+	 * @param {?number[]} datumHash
 	 * @returns {LedgerData}
 	 */
-	static newTxInput(originTxHash, originUtxoId, scriptHash, value) {
+	static newTxInput(originTxHash, originUtxoId, scriptHash, value, stakingAddr = null, datumHash = null) {
 		let txOutputId = LedgerData.newTxOutputId(originTxHash, originUtxoId);
-		let output = LedgerData.newTxOutput(scriptHash, true, value);
+		let output = LedgerData.newTxOutput(scriptHash, true, value, stakingAddr, datumHash);
 		return new LedgerData(0, [
 			txOutputId,
 			output, // assume locked in current script
@@ -5384,6 +5390,7 @@ export class LedgerData extends ConstrData {
 			originUtxoId: originUtxoId,
 			scriptHash: scriptHash,
 			value: value,
+			datumHash: datumHash,
 		});
 	}
 
@@ -5392,19 +5399,23 @@ export class LedgerData extends ConstrData {
 	 * @param {number[]} addr
 	 * @param {boolean} isSentToValidator
 	 * @param {MapData} value 
+	 * @param {?number[]} stakingAddr - 28 bytes?
+	 * @param {?number[]} datumHash - 28 bytes?
 	 * @returns {LedgerData}
 	 */
-	static newTxOutput(addr, isSentToValidator, value) {
-		let address = LedgerData.newAddress(addr, isSentToValidator);
+	static newTxOutput(addr, isSentToValidator, value, stakingAddr = null, datumHash = null) {
+		let address = LedgerData.newAddress(addr, isSentToValidator, stakingAddr);
+
 		return new LedgerData(0, [
 			address,
 			value,
-			LedgerData.newOption(),
+			datumHash === null ? LedgerData.newOption() : LedgerData.newOption(new ByteArrayData(datumHash)), 
 		], {
 			addr: addr,
 			address: address, 
 			isSentToValidator: isSentToValidator,
 			value: value,
+			datumHash: datumHash,
 		});
 	}
 
@@ -5412,16 +5423,18 @@ export class LedgerData extends ConstrData {
 	 * Returns address without staking
 	 * @param {number[]} hash - pubkeyhash or validatorhash
 	 * @param {boolean} isValidator - defaults to false
+	 * @param {?number[]} stakingHash
 	 * @returns {LedgerData}
 	 */
-	static newAddress(hash, isValidator = false) {
+	static newAddress(hash, isValidator = false, stakingHash = null) {
 		let credential = LedgerData.newCredential(hash, isValidator);
 		return new LedgerData(0, [
 			credential,
-			LedgerData.newOption(),
+			stakingHash === null ? LedgerData.newOption() : LedgerData.newOption(LedgerData.newStakingCredential(stakingHash)),
 		], {
 			credential: credential,
 			hash: hash,
+			stakingHash: stakingHash,
 			isValidator: isValidator,
 		});
 	}
@@ -5441,6 +5454,16 @@ export class LedgerData extends ConstrData {
 				new ByteArrayData(hash),
 			], {hash: hash, isValidator: isValidator});
 		}
+	}
+
+	/**
+	 * @param {number[]} hash
+	 * @returns {LedgerData}
+	 */
+	static newStakingCredential(hash) {
+		return new LedgerData(0, [
+			LedgerData.newCredential(hash),
+		], {hash: hash});
 	}
 
 	/**
@@ -14535,7 +14558,7 @@ function makeRawFunctions() {
 		(datum) -> {
 			${unData(`__helios__list__find(__helios__tx__datums(self))(
 				(tuple) -> {
-					__core__equalsData(${unData("tuple", 0, 1)}, datum)
+					__helios__common__boolData(__core__equalsData(${unData("tuple", 0, 1)}, datum))
 				}
 			)`, 0, 0)}
 		}
@@ -14627,7 +14650,7 @@ function makeRawFunctions() {
 				__helios__list__fold(outputs)(
 					(prev, output) -> {
 						__core__ifThenElse(
-							__core__equalsData(__helios__txoutput__get_datum_hash(output), dhash),
+							__core__equalsData(__helios__txoutput__get_datum_hash(output)(), dhash),
 							() -> {
 								__helios__value____add(prev)(__helios__txoutput__value(output))
 							},
@@ -16434,6 +16457,7 @@ export function deserializePlutusCore(jsonString) {
 /**
  * @typedef {Object} DataGeneratorConfig
  * @property {number[]} scriptHash
+ * @property {PlutusCoreData[]} prevArgs
  */
 /**
  * @typedef {(config: ?DataGeneratorConfig) => PlutusCoreData} DataGenerator
@@ -16623,7 +16647,7 @@ export class FuzzyTest {
 	}
 	/**
 	 * Returns a generator for booleans,
-	 * @returns {() => boolean)}
+	 * @returns {() => boolean}
 	 */
 	rawBool() {
 		let rand = this.newRand();
@@ -16715,6 +16739,22 @@ export class FuzzyTest {
 	}
 
 	/**
+	 * Returns a generator for objects
+	 * @param {...DataGenerator} itemGenerators
+	 * @returns {DataGenerator}
+	 */
+	object(...itemGenerators) {
+		/**
+		 * @param {?DataGeneratorConfig} config
+		 */
+		return function(config = null) {
+			let items = itemGenerators.map(g => g(config));
+
+			return new ConstrData(0, items);
+		}
+	}
+
+	/**
 	 * Returns a generator for spending script contexts
 	 * @returns {DataGenerator}
 	 */
@@ -16723,6 +16763,7 @@ export class FuzzyTest {
 
 		let randTxHash = this.rawBytes(32, 32);
 		let randPubKeyHash = this.rawBytes(28, 28);
+		let randStakingHash = this.rawBytes(28, 28);
 		let randValue = this.rawInt(1, 10000); // at least 1 lovelace in the utxo
 		let randId = this.rawInt(0, 10);
 		let randBool = this.rawBool();
@@ -16744,6 +16785,16 @@ export class FuzzyTest {
 
 				let inputValue = 0n; // number of Lovelace
 
+				/**
+				 * @type {?PlutusCoreData}
+				 */
+				let datum = config.prevArgs.length == 0 ? null : config.prevArgs[0];
+
+				/**
+				 * @type {?number[]}
+				 */
+				let datumHash = datum === null ? null : Crypto.blake2b(datum.toCBOR(), 28);
+
 				for (let i = 0; i < nInputs; i++) {
 					let v = randValue(); 
 
@@ -16751,7 +16802,16 @@ export class FuzzyTest {
 
 					let utxoId = randId();
 
-					inputs.push(LedgerData.newTxInput(randTxHash(), utxoId, config.scriptHash, LedgerData.newValue(v)));
+					inputs.push(
+						LedgerData.newTxInput(
+							randTxHash(), 
+							utxoId, 
+							config.scriptHash, 
+							LedgerData.newValue(v), 
+							randStakingHash(),
+							datumHash,
+						)
+					);
 				}
 
 				// generate the fee
@@ -16784,10 +16844,10 @@ export class FuzzyTest {
 
 					if (randBool()) {
 						// send back to script
-						outputs.push(LedgerData.newTxOutput(config.scriptHash, true, LedgerData.newValue(v)));
+						outputs.push(LedgerData.newTxOutput(config.scriptHash, true, LedgerData.newValue(v), null, datumHash));
 					} else {
 						let pubKeyHashBytes = randPubKeyHash();
-						outputs.push(LedgerData.newTxOutput(pubKeyHashBytes, false, LedgerData.newValue(v)));
+						outputs.push(LedgerData.newTxOutput(pubKeyHashBytes, false, LedgerData.newValue(v), randStakingHash(), null));
 
 						if (randBool()) {
 							signatories.push(new ByteArrayData(pubKeyHashBytes));
@@ -16796,8 +16856,13 @@ export class FuzzyTest {
 
 					outputValue -= v;
 				}
+				
+				/** 
+				 * @type {[number[], PlutusCoreData][]}
+				 */
+				let datums = (datum === null || datumHash === null) ? [] : [[datumHash, datum]];
 
-				return LedgerData.newSpendingScriptContext(config.scriptHash, randTxHash(), inputs, feeValue, outputs, signatories, Math.floor(rand()*inputs.length));
+				return LedgerData.newSpendingScriptContext(config.scriptHash, randTxHash(), inputs, feeValue, outputs, datums, signatories, Math.floor(rand()*inputs.length));
 			}
 		}
 	}
@@ -16862,10 +16927,22 @@ export class FuzzyTest {
 				 */
 				let dgConfig = {
 					scriptHash: Crypto.hashScript(program.serializeBytes()),
+					prevArgs: [],
 				};
 
 				for (let it = 0; it < nRuns; it++) {
-					let args = argGens.map(ag => ag(dgConfig));
+					/**
+					 * @type {PlutusCoreData[]}
+					 */
+					let args = [];
+					dgConfig.prevArgs = [];
+
+					for (let argGen of argGens) {
+						let arg = argGen(dgConfig);
+
+						args.push(arg);
+						dgConfig.prevArgs.push(arg);
+					}
 				
 					let result = await program.run(args, {
 						onPrint: function (msg) {
