@@ -3,6 +3,7 @@ import fs from "fs";
 import crypto from "crypto";
 import * as helios from "./helios.js";
 
+const helios_ = helios.exportedForTesting;
 
 ///////////////////////////////////////////////////////////
 // Inline unit tests 
@@ -63,7 +64,7 @@ async function runUnitTests() {
 }
 
 async function runPropertyTests() {
-    const ft = new helios.FuzzyTest(Math.random()*42);
+    const ft = new helios_.FuzzyTest(Math.random()*42);
 
 
 
@@ -417,7 +418,7 @@ async function runPropertyTests() {
     func main(a: Int) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
     });
 
 
@@ -542,7 +543,7 @@ async function runPropertyTests() {
     func main(a: Bool) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
     });
 
 
@@ -627,7 +628,7 @@ async function runPropertyTests() {
     func main(a: String) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
     });
 
 
@@ -771,7 +772,7 @@ async function runPropertyTests() {
         });
 
         // the crypto library only supports blake2b512 (and not blake2b256), so temporarily set digest size to 64 bytes for testing
-        helios.setBlake2bDigestSize(64);
+        helios_.setBlake2bDigestSize(64);
 
         await ft.test([ft.bytes(0, 10)], `
         test bytearray_blake2b
@@ -799,7 +800,7 @@ async function runPropertyTests() {
             return res.equalsByteArray(Array.from(hasher.digest()));
         });
 
-        helios.setBlake2bDigestSize(32);
+        helios_.setBlake2bDigestSize(32);
 
         await ft.test([ft.bytes()], `
         test bytearray_show
@@ -816,7 +817,7 @@ async function runPropertyTests() {
         func main(a: ByteArray) -> ByteArray {
             a.serialize()
         }`, ([a], res) => {
-            return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+            return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
         });
     }
 
@@ -1052,7 +1053,7 @@ async function runPropertyTests() {
         func main(a: []Int) -> ByteArray {
             a.serialize()
         }`, ([a], res) => {
-            return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+            return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
         });
     }
 
@@ -1135,7 +1136,7 @@ async function runPropertyTests() {
     func main(a: Option[Int]) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
     });
 
     await ft.test([ft.option(ft.int())], `
@@ -1146,7 +1147,7 @@ async function runPropertyTests() {
             n: None => n.serialize()
         }
     }`, ([a], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
     });
 
 
@@ -1213,7 +1214,7 @@ async function runPropertyTests() {
     func main(a: PubKeyHash) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
     });
 
 
@@ -1242,7 +1243,7 @@ async function runPropertyTests() {
     func main(a: ByteArray, b: String) -> ByteArray {
         AssetClass::new(a, b).serialize()
     }`, ([a, b], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios.LedgerData.newAssetClass(a.asByteArray(), b.asString()));
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newAssetClass(a.asByteArray(), b.asString()));
     });
 
 
@@ -1426,7 +1427,7 @@ async function runPropertyTests() {
         func main(qty: Int, mph: ByteArray, name: String) -> ByteArray {
             Value::new(AssetClass::new(mph, name), qty).serialize()
         }`, ([qty, mph, name], res) => {
-            return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios.LedgerData.newValue(qty.asInt(), mph.asByteArray(), name.asString()));
+            return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newValue(qty.asInt(), mph.asByteArray(), name.asString()));
         });
     }
 
@@ -1536,7 +1537,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.serialize()
     }`, ([ctx], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx);
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx);
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1699,7 +1700,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.serialize()
     }`, ([ctx], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx"));
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx"));
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1723,7 +1724,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.id.serialize()
     }`, ([ctx], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios.LedgerData.newTxId(ctx.getParam('tx').getParam("id")));
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newTxId(ctx.getParam('tx').getParam("id")));
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1743,7 +1744,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.serialize()
     }`, ([ctx], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0]);
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0]);
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1774,7 +1775,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.outputs.head.serialize()
     }`, ([ctx], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("outputs")[0]);
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("outputs")[0]);
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1802,7 +1803,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output_id.serialize()
     }`, ([ctx], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("outputId"));
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("outputId"));
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1827,7 +1828,7 @@ async function runPropertyTests() {
         ctx.tx.inputs.head.output.address.staking_credential
     }`, ([a], res) => {
 
-        return res.isSame(helios.LedgerData.newOption(helios.LedgerData.newStakingCredential(a.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("stakingHash"))));
+        return res.isSame(helios_.LedgerData.newOption(helios_.LedgerData.newStakingCredential(a.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("stakingHash"))));
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1835,7 +1836,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output.address.serialize()
     }`, ([ctx], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address"))
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address"))
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1859,7 +1860,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output.address.credential.serialize()
     }`, ([ctx], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("credential"));
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("credential"));
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1892,7 +1893,7 @@ async function runPropertyTests() {
             v: Validator => v.serialize()
         }
     }`, ([ctx], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("credential"));
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("credential"));
     });
 
     await ft.test([ft.spendingScriptContext()], `
@@ -1925,7 +1926,7 @@ async function runPropertyTests() {
             n: None => n.serialize()
         }
     }`, ([ctx], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios.LedgerData.newStakingCredential(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("stakingHash")));
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newStakingCredential(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("stakingHash")));
     });
 
     await ft.test([ft.int()], `
@@ -2069,7 +2070,7 @@ async function runPropertyTests() {
     func main(a: Int) -> ByteArray {
         Time::new(a).serialize()
     }`, ([a], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
     });
 
     await ft.test([ft.int()], `
@@ -2341,7 +2342,7 @@ async function runPropertyTests() {
     func main(a: Int) -> ByteArray {
         Duration::new(a).serialize()
     }`, ([a], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
     });
 
     await ft.test([ft.int(), ft.int()], `
@@ -2389,7 +2390,7 @@ async function runPropertyTests() {
     func main(a: Int, b: Int) -> ByteArray {
         TimeRange::new(Time::new(a), Time::new(b)).serialize()
     }`, ([a, b], res) => {
-        return helios.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios.LedgerData.newFiniteTimeRange(a.asInt(), b.asInt() - a.asInt()));
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newFiniteTimeRange(a.asInt(), b.asInt() - a.asInt()));
     });
 }
 
@@ -2619,7 +2620,7 @@ async function runIntegrationTests() {
 async function main() {
     let stats = new Map();
 
-    helios.setRawUsageNotifier(function (name, n) {
+    helios_.setRawUsageNotifier(function (name, n) {
         if (!stats.has(name)) {
             stats.set(name, 0);
         }

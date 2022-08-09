@@ -7,28 +7,32 @@
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
 // Version:     0.2.0
-// Last update: July 2022
+// Last update: August 2022
 // License:     Unlicense
+//
 //
 // About: Helios is a smart contract DSL for Cardano. 
 //     This Javascript library contains functions to compile Helios sources into Plutus-Core.
 //     The results can be used by cardano-cli to generate and submit blockchain transactions.
+//
 //     
 // Dependencies: none
 //
+//
 // Disclaimer: I made Helios available as FOSS so that the Cardano community can test 
-//     it extensively. Please don't use this in production yet, it could still contain 
-//     critical bugs. There are no backward compatibility guarantees (yet).
+//     it extensively. I don't guarantee the library is bug-free, 
+//     nor do I guarantee backward compatibility with future versions.
+//
 //
 // Example usage:
 //     > import * as helios from "helios.js";
 //     > console.log(helios.compile("validator my_validator ..."));
 //
-// Exports: 
-//   * debug(bool) -> void
-//         set whole library to debug mode          
+//
+// Exports:      
 //   * CompilationStage
 //         enum with six values: Preprocess, Tokenize, BuildAST, IR, PlutusCore and Final
+//
 //   * compile(src: string, 
 //             config: {verbose: false, templateParameters: {}, stage: CompilationStage}) -> ...
 //         different return types depending on config.stage:
@@ -38,43 +42,60 @@
 //             config.stage==CompilationStage.IR         -> string
 //             config.stage==CompilationStage.PlutusCore -> PlutusCoreProgram
 //             config.stage==CompilationStage.Final      -> string
+//       The final string output is a JSON string that be can saved as a file and then 
+//       be used by cardano-cli as a '--tx-in-script-file' for transaction building.
 //
-//     The final string output is a JSON string that can saved as a file and can then 
-//     be used by cardano-cli as a '--tx-in-script-file' for transaction building, 
-//     and as a '--payment-script-file' for address generation.
+//   * async run(typedSrc: string, config: {verbose: false, templateParameters: {}}) -> 
+//           [PlutusCoreData | UserError, []string]
+//       Compile and run a test program that doesn't take any arguments, returns a tuple where the
+//       first value is either the result or an error, and the second value is a list of printed 
+//       messages.
+//
+//   * highlight(src: string) -> Uint8Array
+//       Returns one marker byte per src character.
 //
 //
-// Note: the Helios library is a single file, doesn't use TypeScript, and must stay 
-//     unminified (so that unique git commit hash -> unique IPFS address of 'helios.js').
+// Note: the Helios library is a single file, doesn't use TypeScript, and should stay 
+//     unminified (so that a unique git commit of this repo is directly related to a unique IPFS 
+//     address of 'helios.js').
+//
 //
 // Overview of internals:
-//     1. Constants                         VERSION, DEBUG, debug, 
+//     1. Constants                         VERSION, DEBUG, debug, BLAKE2B_DIGEST_SIZE, 
+//                                          setBlake2bDigestSize, TAB, ScriptPurpose, 
 //                                          PLUTUS_CORE_VERSION_COMPONENTS, PLUTUS_CORE_VERSION, 
 //                                          PLUTUS_CORE_TAG_WIDTHS, PLUTUS_CORE_BUILTINS
 //
-//     2. Utilities                         assert, assertDefined, idiv, ipow2, imask, padZeroes, 
+//     2. Utilities                         assert, assertDefined, assertEq, idiv, ipow2, imask, 
+//                                          imod32, imod8, irotr, iadd64, irotr64, padZeroes, 
 //                                          byteToBitString, hexToBytes, bytesToHex, stringToBytes,
-//                                          bytesToString, unwrapCborBytes, wrapCborBytes,
-//                                          BitWriter, Source, UserError, Site
+//                                          bytesToString, replaceTabs, unwrapCborBytes, 
+//                                          wrapCborBytes, BitReader, BitWriter, 
+//                                          DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
+//                                          Crypto, IR, Source, UserError, Site
 //
-//     3. Plutus-Core AST objects           PlutusCoreValue, PlutusCoreStack, PlutusCoreAnon, PlutusCoreInt, PlutusCoreByteArray, 
+//     3. Plutus-Core AST objects           PlutusCoreValue, PlutusCoreRTE, PlutusCoreStack, 
+//                                          PlutusCoreAnon, PlutusCoreInt, PlutusCoreByteArray, 
 //                                          PlutusCoreString, PlutusCoreBool, PlutusCoreUnit,
-//                                          PlutusCorePair, PlutusCoreList, PlutusCoreMap, PlutusCoreData,
-//                                          PlutusCoreTerm, PlutusCoreVariable, PlutusCoreDelay, 
-//                                          PlutusCoreLambda, PlutusCoreCall, PlutusCoreForce, 
+//                                          PlutusCorePair, PlutusCoreMapItem, PlutusCoreList, 
+//                                          PlutusCoreMap, PlutusCoreDataValue, PlutusCoreTerm, 
+//                                          PlutusCoreVariable, PlutusCoreDelay, PlutusCoreLambda, 
+//                                          PlutusCoreCall, PlutusCoreConst, PlutusCoreForce, 
 //                                          PlutusCoreError, PlutusCoreBuiltin, PlutusCoreProgram
 //
-//     4. Plutus-Core data objects          IntData, ByteArrayData, ListData, MapData, ConstrData
+//     4. Plutus-Core data objects          PlutusCoreData, IntData, ByteArrayData, ListData, 
+//                                          MapData, ConstrData, LedgerData
 //
 //     5. Token objects                     Token, Word, Symbol, Group, 
 //                                          PrimitiveLiteral, IntLiteral, BoolLiteral, 
-//                                          StringLiteral, ByteArrayLiteral, UnitLiteral
+//                                          ByteArrayLiteral, StringLiteral, UnitLiteral
 //
-//     6. Tokenization                      Tokenizer, tokenize, tokenizeIR
+//     6. Tokenization                      Tokenizer, tokenize, tokenizeIR, 
+//                                          SyntaxCategory, highlight
 //
-//     7. Type evaluation objects           GeneralizedValue, Type, AnyType, AnyDataType, DataType, BuiltinType, 
-//                                          UserType, FuncType, Value, DataValue, FuncValue, 
-//                                          TopFuncValue
+//     7. Type evaluation objects           GeneralizedValue, Type, AnyType, DataType, AnyDataType, 
+//                                          BuiltinType, StatementType, FuncType, Value, DataValue, 
+//                                          FuncValue, FuncStatementValue
 //
 //     8. Scopes                            GlobalScope, Scope, TopScope
 //
@@ -91,13 +112,13 @@
 //    10. AST statement objects             Statement, ConstStatement, DataField, 
 //                                          DataDefinition, StructStatement, FuncStatement, 
 //                                          EnumMember, EnumStatement, ImplDefinition,
-//                                          ScriptPurpose, Program
+//                                          Program
 //
 //    11. AST build functions               buildProgram, buildScriptPurpose, buildConstStatement, 
-//                                          buildStructStatement, buildDataFields,
+//                                          splitDataImpl, buildStructStatement, buildDataFields,
 //                                          buildFuncStatement, buildFuncLiteralExpr, buildFuncArgs,
 //                                          buildEnumStatement, buildEnumMember, 
-//                                          buildImplStatement, buildImplMembers, buildTypeExpr, 
+//                                          buildImplDefinition, buildImplMembers, buildTypeExpr, 
 //                                          buildListTypeExpr, buildMapTypeExpr, 
 //                                          buildOptionTypeExpr, buildFuncTypeExpr, 
 //                                          buildTypePathExpr, buildTypeRefExpr, 
@@ -110,6 +131,7 @@
 //                                          buildStructLiteralField, buildValuePathExpr
 //
 //    12. Builtin types                     IntType, BoolType, StringType, ByteArrayType, ListType,
+//                                          FoldFuncValue, MapFuncValue,
 //                                          MapType, OptionType, OptionSomeType, OptionNoneType,
 //                                          HashType, PubKeyHashType, ValidatorHashType, 
 //                                          MintinPolicyHashType, DatumHashType, ScriptContextType,
@@ -119,15 +141,17 @@
 //                                          StakingCredentialType, TimeType, DurationType,
 //                                          TimeRangeType, AssetClassType, MoneyValueType
 //
-//    13. Builtin low-level functions       RawFunc, makeRawFunctions, wrapWithRawFunctions
+//    13. Builtin low-level functions       onNotifyRawUsage, setRawUsageNotifier, 
+//                                          RawFunc, makeRawFunctions, wrapWithRawFunctions
 //
-//    14. IR AST objects               IRScope, IRFuncExpr, IRErrorCallExpr,
-//                                          IRCallExpr, IRVariable
+//    14. IR AST objects                    IRScope, IRExpr, IRFuncExpr, IRErrorCallExpr,
+//                                          IRCallExpr, IRVariable, IRLiteral
 //
-//    15. IR AST build functions       buildIRProgram, buildIRExpr, 
-//                                          buildIRFuncExpr
+//    15. IR AST build functions            buildIRProgram, buildIRExpr, buildIRFuncExpr
 //
-//    16. Compilation                       preprocess, CompilationStage, compile
+//    16. Compilation                       preprocess, CompilationStage, DEFAULT_CONFIG,
+//                                          compileInternal, getPurposeName, 
+//                                          extractScriptPurposeAndName, compile, run
 //     
 //    17. Plutus-Core deserialization       PlutusCoreDeserializer, deserializePlutusCore
 //
@@ -149,7 +173,7 @@ var DEBUG = false;
  * Changes the value of DEBUG
  * @param {boolean} b 
  */
-export function debug(b) { DEBUG = b };
+function debug(b) { DEBUG = b };
 
 var BLAKE2B_DIGEST_SIZE = 32; // bytes
 
@@ -158,16 +182,16 @@ var BLAKE2B_DIGEST_SIZE = 32; // bytes
  *  and we want to avoid non-standard dependencies in the test-suite)
  * @param {number} s - 32 or 64
  */
-export function setBlake2bDigestSize(s) {
+function setBlake2bDigestSize(s) {
 	BLAKE2B_DIGEST_SIZE = s;
 }
 
 const TAB = "    ";
 
 /**
- * A Program can have different purposes
+ * A Helios Program can have different purposes
  */
- export const ScriptPurpose = {
+const ScriptPurpose = {
 	Testing: -1,
 	Minting: 0,
 	Spending: 1,
@@ -232,7 +256,7 @@ const PLUTUS_CORE_BUILTINS = (
 			builtinInfo("sha2_256", 0),
 			builtinInfo("sha3_256", 0),
 			builtinInfo("blake2b_256", 0), // 20
-			builtinInfo("verifySignature", 1),
+			builtinInfo("verifyEd25519Signature", 0),
 			builtinInfo("appendString", 0),
 			builtinInfo("equalsString", 0),
 			builtinInfo("encodeUtf8", 0),
@@ -243,7 +267,7 @@ const PLUTUS_CORE_BUILTINS = (
 			builtinInfo("fstPair", 2),
 			builtinInfo("sndPair", 2), // 30
 			builtinInfo("chooseList", 1),
-			builtinInfo("mkCons", 1), // got error 'A builtin expected a term argument, but something else was received. Caused by: (force (force (builtin mkCons)))' when forceCount was 2, so set forceCount to 1?
+			builtinInfo("mkCons", 1),
 			builtinInfo("headList", 1),
 			builtinInfo("tailList", 1),
 			builtinInfo("nullList", 1),
@@ -263,8 +287,8 @@ const PLUTUS_CORE_BUILTINS = (
 			builtinInfo("mkNilData", 0),
 			builtinInfo("mkNilPairData", 0), // 50
 			builtinInfo("serialiseData", 0),
-			builtinInfo("verifyEcdsaSecp256k1Signature", 1),
-			builtinInfo("verifySchnorrSecp256k1Signature", 1),
+			builtinInfo("verifyEcdsaSecp256k1Signature", 0),
+			builtinInfo("verifySchnorrSecp256k1Signature", 0),
 		];
 	}
 )();
@@ -446,6 +470,8 @@ function iadd64(a0, a1, b0, b1) {
 }
 
 /**
+ * Rotate uint64 integer right.
+ * The uint64 integer is emulated using two uint32 numbers.
  * @param {number} x0 
  * @param {number} x1 
  * @param {number} n - between 0 and 32
@@ -501,7 +527,7 @@ function byteToBitString(b, n = 8) {
  * @param {string} hex 
  * @returns {number[]}
  */
-export function hexToBytes(hex) {
+function hexToBytes(hex) {
 	let bytes = [];
 
 	for (let i = 0; i < hex.length; i += 2) {
@@ -518,7 +544,7 @@ export function hexToBytes(hex) {
  * @param {number[]} bytes
  * @returns {string}
  */
-export function bytesToHex(bytes) {
+function bytesToHex(bytes) {
 	let parts = [];
 	for (let b of bytes) {
 		parts.push(padZeroes(b.toString(16), 2));
@@ -534,7 +560,7 @@ export function bytesToHex(bytes) {
  * @param {string} str 
  * @returns {number[]}
  */
-export function stringToBytes(str) {
+function stringToBytes(str) {
 	return Array.from((new TextEncoder()).encode(str));
 }
 
@@ -545,7 +571,7 @@ export function stringToBytes(str) {
  * @param {number[]} bytes 
  * @returns {string}
  */
-export function bytesToString(bytes) {
+function bytesToString(bytes) {
 	return (new TextDecoder("utf-8", {fatal: true})).decode((new Uint8Array(bytes)).buffer);
 }
 
@@ -565,65 +591,29 @@ function replaceTabs(str) {
  * Unwraps cbor byte arrays. Returns a list of uint8 bytes without the cbor tag.
  * This function unwraps one level, so must be called twice to unwrap the text envelopes of plutus scripts.
  *  (for some reason the text envelopes is cbor wrapped in cbor)
+ * @example
+ * bytesToHex(unwrapCborBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
  * @param {number[]} bytes 
  * @returns {number[]}
  */
-export function unwrapCborBytes(bytes) {
+function unwrapCborBytes(bytes) {
 	if (bytes.length == 0) {
 		throw new Error("expected at least one cbor byte");
 	}
 
-	let tag = assertDefined(bytes.shift());
-
-	switch (tag) {
-		case 0x4d:
-		case 0x4e:
-			return bytes;
-		case 0x58: {
-			// byte array
-			let n = assertDefined(bytes.shift());
-
-			assert(n == bytes.length, "bad or unhandled cbor encoding");
-
-			return bytes;
-		}
-		case 0x59: {
-			let n = assertDefined(bytes.shift()) * 256 + assertDefined(bytes.shift());
-
-			assert(n == bytes.length, "bad or unhandled cbor encoding");
-
-			return bytes;
-		}
-		default:
-			throw new Error("unhandled cbor tag 0x" + tag.toString(16));
-	}
+	return PlutusCoreData.decodeCBORByteArray(bytes);
 }
 
 /**
  * Wraps byte arrays with a cbor tag so they become valid cbor byte arrays.
  * Roughly the inverse of unwrapCborBytes.
+ * @example
+ * bytesToHex(wrapCborBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
  * @param {number[]} bytes 
  * @returns {number[]}
  */
-export function wrapCborBytes(bytes) {
-	let n = bytes.length;
-
-	if (n < 256) {
-		bytes.unshift(n);
-		bytes.unshift(0x58);
-	} else {
-		let nSmall = n % 256;
-		let nLarge = Math.floor(n / 256);
-
-		assert(nLarge < 256);
-
-		bytes.unshift(nSmall);
-		bytes.unshift(nLarge);
-
-		bytes.unshift(0x59);
-	}
-
-	return bytes;
+function wrapCborBytes(bytes) {
+	return PlutusCoreData.encodeCBORByteArray(bytes);
 }
 
 /**
@@ -830,9 +820,13 @@ const BECH32_BASE32_ALPHABET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
  */
 
 /**
- * A collection of cryptography primitives are included here in order to avoid external dependencies.
+ * A collection of cryptography primitives are included here in order to avoid external dependencies
+ *     mulberry32: random number generator
+ *     base32 encoding and decoding
+ *     bech32 encoding, checking, and decoding
+ *     sha2, sha3 and blake2b hashing
  */
-export class Crypto {
+class Crypto {
 	/**
 	 * Returns a simple random number generator
 	 * @param {number} seed
@@ -1838,7 +1832,6 @@ class Source {
 	 * (new Source("hello\nworld")).pretty() => "01  hello\n02  world"
 	 * @returns {string}
 	 */
-	// add line-numbers, returns string
 	pretty() {
 		let lines = this.#raw.split("\n");
 
@@ -2095,9 +2088,9 @@ class Site {
 }
 
 
-/////////////////////////////
-// Section 3: Plutus-Core AST
-/////////////////////////////
+/////////////////////////////////////
+// Section 3: Plutus-Core AST objects
+/////////////////////////////////////
 
 /** 
  * a PlutusCoreValue is passed around be PlutusCore expressions.
@@ -2276,7 +2269,6 @@ class PlutusCoreValue {
 
 /**
  * PlutusCore Runtime Environment is used for controlling the programming evaluation (eg. by a debugger)
-
  */
 class PlutusCoreRTE {
 	#callbacks;
@@ -2430,7 +2422,7 @@ class PlutusCoreStack {
 	}
 
 	/**
-	 * Creates a child stack.
+	 * Instantiates a child stack.
 	 * @param {PlutusCoreValue} value 
 	 * @param {?string} valueName 
 	 * @returns {PlutusCoreStack}
@@ -2827,8 +2819,11 @@ class PlutusCoreByteArray extends PlutusCoreValue {
 		return this.#bytes.slice();
 	}
 
+	/**
+	 * Returns hex representation of byte array
+	 * @returns {string}
+	 */
 	toString() {
-		// to hex encoding
 		return `#${bytesToHex(this.#bytes)}`;
 	}
 
@@ -3605,6 +3600,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 
 	/**
 	 * Returns appropriate callback wrapped with PlutusCoreAnon depending on builtin name.
+	 * Emulates every Plutus-Core that Helios exposes to the user.
 	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
@@ -3995,7 +3991,6 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 			default:
 				throw new Error(`builtin ${this.#name} not yet implemented`);
 		}
-
 	}
 }
 
@@ -4136,7 +4131,7 @@ class PlutusCoreProgram {
  * Base class for UPLC data classes (not the same as UPLC value classes!)
  * Also contains helper methods for (de)serializing data to/from CBOR
  */
-export class PlutusCoreData {
+class PlutusCoreData {
 	constructor() {
 	}
 
@@ -4348,6 +4343,8 @@ export class PlutusCoreData {
 	}
 
 	/**
+	 * Converts an unbounded integer into a list of uint8 numbers.
+	 * Used by the CBOR encoding of data structures.
 	 * @param {bigint} n
 	 * @returns {number[]}
 	 */
@@ -4371,6 +4368,8 @@ export class PlutusCoreData {
 	}
 
 	/**
+	 * Converts a list of uint8 numbers into an unbounded int.
+	 * Used by the CBOR decoding of data structures.
 	 * @param {number[]} b
 	 * @return {bigint}
 	 */
@@ -4602,6 +4601,7 @@ export class PlutusCoreData {
 	}
 
 	/**
+	 * Encode a constructor tag of a ConstrData type
 	 * @param {number} tag 
 	 * @returns {number[]}
 	 */
@@ -5172,9 +5172,10 @@ class ConstrData extends PlutusCoreData {
 }
 
 /**
- * Special ConstrData builders
+ * Special ConstrData builders.
+ * Used extensively in the test-suite property based tests.
  */
-export class LedgerData extends ConstrData {
+class LedgerData extends ConstrData {
 	#parameters;
 
 	/**
@@ -6708,7 +6709,6 @@ class Tokenizer {
 
 		return res;
 	}
-
 }
 
 /**
@@ -6739,7 +6739,6 @@ function tokenizeIR(rawSrc, codeMap) {
 	return tokenizer.tokenize();
 }
 
-
 /**
  * Categories for syntax highlighting
  */
@@ -6755,7 +6754,8 @@ const SyntaxCategory = {
 
 /**
  * Applies syntax highlighting by returning a list of char categories.
- * Not part of Tokeizer because it needs to be very fast and can't throw errors
+ * Not part of Tokeizer because it needs to be very fast and can't throw errors.
+ * Doesn't depend on any other functions so it can easily be ported to other languages.
  * @param {string} src
  * @returns {Uint8Array}
  */
@@ -7638,10 +7638,6 @@ class FuncType extends Type {
 			return false;
 		}
 	}
-
-	/**
-	 * Checks types of the args
-	 */
 	
 	/**
 	 * Checks if arg types are valid.
@@ -11292,13 +11288,13 @@ function buildConstStatement(site, ts) {
 		}
 
 		typeExpr = buildTypeExpr(ts.splice(0, equalsPos));
-	} else {
-		assertDefined(ts.shift()).assertSymbol("=");
 	}
+
+	void ts.shift()?.assertSymbol("=");
 
 	let nextStatementPos = Word.find(ts, ["const", "func", "struct", "enum"]);
 
-	let tsValue = nextStatementPos == -1 ? ts.splice(0) : ts.splice(nextStatementPos);
+	let tsValue = nextStatementPos == -1 ? ts.splice(0) : ts.splice(0, nextStatementPos);
 
 	let valueExpr = buildValueExpr(tsValue);
 
@@ -13656,7 +13652,7 @@ var onNotifyRawUsage = null;
  * Set the statistics collector (used by the test-suite)
  * @param {(name: string, count: number) => void} callback 
  */
-export function setRawUsageNotifier(callback) {
+function setRawUsageNotifier(callback) {
 	onNotifyRawUsage = callback;
 }
 
@@ -15864,9 +15860,9 @@ function buildIRFuncExpr(ts) {
 }
 
 
-//////////////////////////////////////
-// Section 16: Compiler user functions
-//////////////////////////////////////
+//////////////////////////
+// Section 16: Compilation
+//////////////////////////
 
 /**
  * Substitutes template parameters ($WORD) in the source.
@@ -15995,6 +15991,7 @@ function getPurposeName(id) {
 			throw new Error(`unhandled ScriptPurpose ${id}`);
 	}
 }
+
 /**
  * Parses Helios quickly to extract the script purpose header.
  * Returns null if header is missing or incorrectly formed (instead of throwing an error)
@@ -16470,7 +16467,7 @@ export function deserializePlutusCore(jsonString) {
 /**
  * Creates generators and runs script tests
  */
-export class FuzzyTest {
+class FuzzyTest {
 	/**
 	 * @type {NumberGenerator} - seed generator
 	 */
@@ -16973,3 +16970,20 @@ export class FuzzyTest {
 		}
 	}
 }
+
+export const exportedForTesting = {
+	setRawUsageNotifier: setRawUsageNotifier,
+	debug: debug,
+	setBlake2bDigestSize: setBlake2bDigestSize,
+	hexToBytes: hexToBytes,
+	bytesToHex: bytesToHex,
+	stringToBytes: stringToBytes,
+	bytesToString: bytesToString,
+	wrapCborBytes: wrapCborBytes,
+	unwrapCborBytes: unwrapCborBytes,
+	Crypto: Crypto,
+	FuzzyTest: FuzzyTest,
+	LedgerData: LedgerData,
+	PlutusCoreData: PlutusCoreData,
+	ScriptPurpose: ScriptPurpose,
+};

@@ -17,7 +17,7 @@ const MINTING_CONTEXT_EQUIVALENCE_TEST = "59110959110601000032323233223332223322
 function testCbor(name, cborHex) {
 	console.log("Deserializing program " + name + "...");
 
-	let program = helios.deserializePlutusCore(cborHex);
+	let program = helios.deserializePlutusCore(`{"type": "PlutusScriptV1", "cborHex": "${cborHex}"}`);
 
 	console.log(program.toString() + "\n");
 }
