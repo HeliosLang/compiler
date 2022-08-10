@@ -97,7 +97,7 @@
 //                                          BuiltinType, StatementType, FuncType, Value, DataValue, 
 //                                          FuncValue, FuncStatementValue
 //
-//     8. Scopes                            GlobalScope, Scope, TopScope
+//     8. Scopes                            GlobalScope, Scope, TopScope, FuncStatementScope
 //
 //     9. AST expression objects            Expr, TypeExpr, TypeRefExpr, TypePathExpr, 
 //                                          ListTypeExpr, MapTypeExpr, OptionTypeExpr, 
@@ -7482,6 +7482,9 @@ class StatementType extends DataType {
 		this.#statement = statement;
 	}
 
+	/**
+	 * @returns {StructStatement | EnumMember | EnumStatement}
+	 */
 	get statement() {
 		return this.#statement;
 	}
@@ -7855,13 +7858,6 @@ class DataValue extends Value {
 	}
 
 	/**
-	 * @returns {DataValue}
-	 */
-	copy() {
-		return new DataValue(this.#type);
-	}
-
-	/**
 	 * @returns {string}
 	 */
 	toString() {
@@ -7955,17 +7951,11 @@ class FuncValue extends Value {
 	}
 
 	/**
+	 * @param {Scope} scope
 	 * @returns {boolean}
 	 */
-	isRecursive() {
+	isRecursive(scope) {
 		return false;
-	}
-
-	/**
-	 * @returns {Value}
-	 */
-	copy() {
-		return new FuncValue(this.#type);
 	}
 
 	/**
@@ -8050,54 +8040,27 @@ class FuncValue extends Value {
  * Special function value class for top level functions because they can be used recursively.s
  */
 class FuncStatementValue extends FuncValue {
-	#recursive;
-	/** @type {?(() => void)} */
-	#onNotifyRecursive;
+	#statement
 
 	/**
 	 * @param {FuncType} type 
-	 * @param {boolean} recursive 
+	 * @param {FuncStatement} statement 
 	 */
-	constructor(type, recursive = false) {
+	constructor(type, statement) {
 		super(type);
-		this.#recursive = recursive;
-		this.#onNotifyRecursive = null;
+		this.#statement = statement;
 	}
 
 	/**
-	 * @returns {FuncStatementValue}
-	 */
-	copy() {
-		let v = new FuncStatementValue(this.getFuncType(), this.#recursive);
-		if (this.#onNotifyRecursive !== null) {
-			v.#onNotifyRecursive = this.#onNotifyRecursive;
-		}
-		return v;
-	}
-
-	/**
-	 * Sets the onNotifyRecursive callback (so that associated FuncStatement can be notified when it is used recursively).
-	 * @param {?(()=> void)} callback 
-	 */
-	onNotifyRecursive(callback) {
-		this.#onNotifyRecursive = callback;
-	}
-
-	markAsUsed() {
-		super.markAsUsed();
-
-		// if onNotifyRecursive has been set then we can assume that, at this point, any reference to this function is a recursive reference.
-		if (this.#onNotifyRecursive !== null) {
-			this.#recursive = true;
-			this.#onNotifyRecursive();
-		}
-	}
-
-	/**
+	 * @param {Scope} scope
 	 * @returns {boolean}
 	 */
-	isRecursive() {
-		return this.#recursive;
+	isRecursive(scope) {
+		if (this.#statement.isRecursive()) {
+			return true;
+		} else {
+			return scope.isRecursive(this.#statement);
+		}
 	}
 }
 
@@ -8162,6 +8125,15 @@ class GlobalScope {
 		}
 
 		throw name.referenceError(`'${name.toString()}' undefined`);
+	}
+
+	/**
+	 * Check if funcstatement is called recursively (always false here)
+	 * @param {FuncStatement} statement
+	 * @returns {boolean}
+	 */
+	isRecursive(statement) {
+		return false;
 	}
 
 	/**
@@ -8283,6 +8255,15 @@ class Scope {
 	}
 
 	/**
+	 * Check if function statement is called recursively
+	 * @param {FuncStatement} statement
+	 * @returns {boolean}
+	 */
+	isRecursive(statement) {
+		return this.#parent.isRecursive(statement);
+	}
+
+	/**
 	 * Asserts that all named values are user.
 	 * Throws an error if some are unused.
 	 */
@@ -8313,7 +8294,36 @@ class TopScope extends Scope {
 	set(name, value) {
 		super.set(name, value);
 	}
+}
 
+/**
+ * FuncStatementScope is a special scope used to detect recursion
+ */
+class FuncStatementScope extends Scope {
+	#statement;
+
+	/**
+	 * @param {Scope} parent
+	 * @param {FuncStatement} statement
+	 */
+	constructor(parent, statement) {
+		super(parent);
+
+		this.#statement = statement;
+	}
+
+	/**
+	 * @param {FuncStatement} statement 
+	 * @returns {boolean}
+	 */
+	isRecursive(statement) {
+		if (this.#statement === statement) {
+			this.#statement.setRecursive();
+			return true;
+		} else {
+			return super.isRecursive(statement);
+		}
+	}
 }
 
 
@@ -9266,17 +9276,12 @@ class FuncLiteralExpr extends ValueExpr {
 	}
 
 	/**
-	 * @param {?string} recursiveName 
 	 * @returns {IR}
 	 */
-	argsToIR(recursiveName = null) {
+	argsToIR() {
 		let args = this.#args.map(a => a.toIR());
 		if (this.isMethod()) {
 			args = args.slice(1);
-		}
-
-		if (recursiveName !== null) {
-			args.unshift(new IR(recursiveName));
 		}
 
 		return (new IR(args)).join(", ");
@@ -9288,12 +9293,20 @@ class FuncLiteralExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIRInternal(recursiveName, indent = "") {
-		let argsWithCommas = this.argsToIR(recursiveName);
+		let argsWithCommas = this.argsToIR();
 
 		let innerIndent = indent;
+		let methodIndent = indent;
 		if (this.isMethod()) {
 			innerIndent += TAB;
 		}
+
+		if (recursiveName !== null) {
+			innerIndent += TAB;
+			methodIndent += TAB;
+		}
+
+		
 
 		let ir = new IR([
 			new IR("("),
@@ -9303,12 +9316,22 @@ class FuncLiteralExpr extends ValueExpr {
 			new IR(`\n${innerIndent}}`),
 		]);
 
-		// wrap with self
+		// wrap with 'self'
 		if (this.isMethod()) {
 			ir = new IR([
-				new IR(`(self) -> {\n${indent}${TAB}`),
+				new IR(`(self) -> {\n${methodIndent}${TAB}`),
 				ir,
-				new IR(`\n${indent}}`),
+				new IR(`\n${methodIndent}}`),
+			]);
+		}
+
+		if (recursiveName !== null) {
+			ir = new IR([
+				new IR("("),
+				new IR(recursiveName),
+				new IR(`) -> {\n${indent}${TAB}`),
+				ir,
+				new IR(`\n${indent}}`)
 			]);
 		}
 
@@ -9338,6 +9361,7 @@ class FuncLiteralExpr extends ValueExpr {
  */
 class ValueRefExpr extends ValueExpr {
 	#name;
+	#isRecursiveFunc;
 
 	/**
 	 * @param {Word} name 
@@ -9345,6 +9369,7 @@ class ValueRefExpr extends ValueExpr {
 	constructor(name) {
 		super(name.site);
 		this.#name = name;
+		this.#isRecursiveFunc = false;
 	}
 
 	toString() {
@@ -9358,6 +9383,10 @@ class ValueRefExpr extends ValueExpr {
 	evalInternal(scope) {
 		let val = scope.get(this.#name);
 
+		if (val instanceof FuncValue && val.isRecursive(scope)) {
+			this.#isRecursiveFunc = true;
+		}
+
 		return val.assertValue(this.#name.site);
 	}
 
@@ -9366,7 +9395,18 @@ class ValueRefExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		return new IR(this.toString(), this.site);
+		let ir = new IR(this.toString(), this.site);
+
+		if (this.#isRecursiveFunc) {
+			ir = new IR([
+				ir,
+				new IR("("),
+				ir,
+				new IR(")")
+			]);
+		}
+		
+		return ir;
 	}
 }
 
@@ -9376,6 +9416,7 @@ class ValueRefExpr extends ValueExpr {
 class ValuePathExpr extends ValueExpr {
 	#baseTypeExpr;
 	#memberName;
+	#isRecursiveFunc;
 
 	/**
 	 * @param {TypeExpr} baseTypeExpr 
@@ -9385,6 +9426,7 @@ class ValuePathExpr extends ValueExpr {
 		super(memberName.site);
 		this.#baseTypeExpr = baseTypeExpr;
 		this.#memberName = memberName;
+		this.#isRecursiveFunc = false;
 	}
 
 	toString() {
@@ -9401,6 +9443,10 @@ class ValuePathExpr extends ValueExpr {
 
 		let memberVal = baseType.getTypeMember(this.#memberName);
 
+		if (memberVal instanceof FuncValue && memberVal.isRecursive(scope)) {
+			this.#isRecursiveFunc = true;
+		}
+
 		return memberVal.assertValue(this.#memberName.site);
 	}
 
@@ -9409,7 +9455,7 @@ class ValuePathExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		// if the we are directly accessing an enum member as a zero-field constructor we must change the code a bit
+		// if we are directly accessing an enum member as a zero-field constructor we must change the code a bit
 		let memberVal = this.#baseTypeExpr.type.getTypeMember(this.#memberName);
 
 		if (((memberVal instanceof StatementType) && (memberVal.statement instanceof EnumMember)) || (memberVal instanceof OptionNoneType)) {
@@ -9417,7 +9463,18 @@ class ValuePathExpr extends ValueExpr {
 
 			return new IR(`__core__constrData(${cId.toString()}, __core__mkNilData(()))`, this.site)
 		} else {
-			return new IR(`${this.#baseTypeExpr.type.path}__${this.#memberName.toString()}`, this.site);
+			let ir = new IR(`${this.#baseTypeExpr.type.path}__${this.#memberName.toString()}`, this.site);
+
+			if (this.#isRecursiveFunc) {
+				ir = new IR([
+					ir,
+					new IR("("),
+					ir,
+					new IR(")")
+				]);
+			}
+
+			return ir;
 		}
 	}
 }
@@ -9643,7 +9700,6 @@ class ParensExpr extends ValueExpr {
 class CallExpr extends ValueExpr {
 	#fnExpr;
 	#argExprs;
-	#recursive;
 
 	/**
 	 * @param {Site} site 
@@ -9654,7 +9710,6 @@ class CallExpr extends ValueExpr {
 		super(site);
 		this.#fnExpr = fnExpr;
 		this.#argExprs = argExprs;
-		this.#recursive = false;
 	}
 
 	toString() {
@@ -9670,10 +9725,6 @@ class CallExpr extends ValueExpr {
 
 		let argVals = this.#argExprs.map(argExpr => argExpr.eval(scope));
 
-		if (fnVal instanceof FuncStatementValue && fnVal.isRecursive()) {
-			this.#recursive = true;
-		}
-
 		return fnVal.call(this.site, argVals);
 	}
 
@@ -9682,41 +9733,14 @@ class CallExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		if (this.#recursive) {
-			let innerArgs = this.#argExprs.map(a => a.toIR(indent + TAB));
+		let args = this.#argExprs.map(a => a.toIR(indent));
 
-			if (this.#fnExpr instanceof ValueRefExpr || this.#fnExpr instanceof ValuePathExpr) {
-				let fnWord = this.#fnExpr.toIR().content;
-
-				innerArgs.unshift(new IR(fnWord));
-
-				return new IR([
-					new IR(fnWord, this.#fnExpr.site),
-					new IR("("),
-					(new IR(innerArgs)).join(", "),
-					new IR(")")
-				]);
-			} else {
-				innerArgs.unshift(new IR("fn"));
-
-				return new IR([
-					new IR(`(fn) -> {\n${indent}${TAB}fn(`),
-					(new IR(innerArgs)).join(", "),
-					new IR(`)\n${indent}}`), new IR("("),
-					this.#fnExpr.toIR(indent),
-					new IR(")", this.site)
-				]);
-			}
-		} else {
-			let innerArgs = this.#argExprs.map(a => a.toIR(indent));
-
-			return new IR([
-				this.#fnExpr.toIR(indent),
-				new IR("("),
-				(new IR(innerArgs)).join(", "),
-				new IR(")", this.site)
-			]);
-		}
+		return new IR([
+			this.#fnExpr.toIR(indent),
+			new IR("("),
+			(new IR(args)).join(", "),
+			new IR(")", this.site)
+		]);
 	}
 }
 
@@ -9726,6 +9750,7 @@ class CallExpr extends ValueExpr {
 class MemberExpr extends ValueExpr {
 	#objExpr;
 	#memberName;
+	#isRecursiveFunc;
 
 	/**
 	 * @param {Site} site 
@@ -9736,6 +9761,7 @@ class MemberExpr extends ValueExpr {
 		super(site);
 		this.#objExpr = objExpr;
 		this.#memberName = memberName;
+		this.#isRecursiveFunc = false;
 	}
 
 	toString() {
@@ -9749,7 +9775,13 @@ class MemberExpr extends ValueExpr {
 	evalInternal(scope) {
 		let objVal = this.#objExpr.eval(scope);
 
-		return objVal.assertValue(this.#objExpr.site).getInstanceMember(this.#memberName);
+		let memberVal = objVal.assertValue(this.#objExpr.site).getInstanceMember(this.#memberName);
+
+		if (memberVal instanceof FuncValue && memberVal.isRecursive(scope)) {
+			this.#isRecursiveFunc = true;
+		}
+
+		return memberVal;
 	}
 
 	/**
@@ -9766,8 +9798,19 @@ class MemberExpr extends ValueExpr {
 			objPath = this.#objExpr.type.statement.parent.path;
 		} 
 
+		let ir = new IR(`${objPath}__${this.#memberName.toString()}`, this.site);
+
+		if (this.#isRecursiveFunc) {
+			ir = new IR([
+				ir,
+				new IR("("),
+				ir,
+				new IR(")"),
+			]);
+		}
+
 		return new IR([
-			new IR(`${objPath}__${this.#memberName.toString()}`, this.site), new IR("("),
+			ir, new IR("("),
 			this.#objExpr.toIR(indent),
 			new IR(")"),
 		]);
@@ -10548,6 +10591,13 @@ class FuncStatement extends Statement {
 		return this.#funcExpr.evalType(scope);
 	}
 
+	isRecursive() {
+		return this.#recursive;
+	}
+
+	/**
+	 * Called in FuncStatementScope as soon as recursion is detected
+	 */
 	setRecursive() {
 		this.#recursive = true;
 	}
@@ -10560,21 +10610,16 @@ class FuncStatement extends Statement {
 
 		let fnType = this.evalType(scope);
 
-		let fnVal = new FuncStatementValue(fnType);
-		fnVal.onNotifyRecursive(() => {
-			this.setRecursive();
-		});
+		let fnVal = new FuncStatementValue(fnType, this);
 
 		scope.set(this.name, fnVal);
 
-		void this.#funcExpr.evalInternal(scope);
-
-		fnVal.onNotifyRecursive(null);
+		void this.#funcExpr.evalInternal(new FuncStatementScope(scope, this));
 	}
 
 	/**
 	 * Returns IR of function.
-	 * @param {string} fullName - fullName is prefixed with a type path for impl members
+	 * @param {string} fullName - fullName has been prefixed with a type path for impl members
 	 * @returns 
 	 */
 	toIRInternal(fullName = this.name.toString()) {
@@ -10900,30 +10945,18 @@ class ImplDefinition {
 		} else {
 			for (let s of this.#statements) {
 				if (s instanceof FuncStatement) {
-					let v = new FuncStatementValue(s.evalType(scope));
+					// override eval() of FuncStatement because we don't want the function to add itself to the scope directly.
+					let v = new FuncStatementValue(s.evalType(scope), s);
 
-					v.onNotifyRecursive(() => {
-						if (s instanceof FuncStatement) {
-							s.setRecursive();
-						}
-					});
+					this.#statementValues.push(v); // add func type to #statementValues in order to allow recursive calls (acts as a special scope)
 
-					this.#statementValues.push(v); // add func type to #statementValues in order to allow recursive calls
-
-					void s.evalInternal(scope);
+					// eval internal doesn't add anything to scope
+					void s.evalInternal(new FuncStatementScope(scope, s));
 				} else {
 					// eval internal doesn't add anything to scope
 					this.#statementValues.push(s.evalInternal(scope));
 				}
 			}
-
-			for (let v of this.#statementValues) {
-				if (v instanceof FuncStatementValue) {
-					v.onNotifyRecursive(null);
-				}
-			}
-
-			console.log("n statements:", this.#statementValues.length, this.#statements.length);
 		}
 	}
 
@@ -10945,27 +10978,14 @@ class ImplDefinition {
 				// loop the contained statements to find one with name 'name'
 				for (let i = 0; i < this.#statementValues.length; i++) {
 					let s = this.#statements[i];
-					let isLast = i == this.#statementValues.length - 1;
 
 					if (name.toString() == s.name.toString()) {
-
 						if (FuncStatement.isMethod(s)) {
 							if (!dryRun) {
 								this.#usedStatements.add(name.toString());
 							}
 
-							let v = this.#statementValues[i];
-
-							if (isLast && s instanceof FuncStatement) {
-								if (v instanceof FuncStatementValue) {
-									console.log("marking as used");
-									v.markAsUsed();
-								} else {
-									throw new Error("unexpected");
-								}
-							}
-
-							return v;
+							return this.#statementValues[i];
 						} else {
 							throw name.referenceError(`'${this.#selfTypeExpr.toString()}.${name.toString()}' isn't a method (did you mean '${this.#selfTypeExpr.toString()}::${name.toString()}'?)`);
 						}
@@ -10986,7 +11006,6 @@ class ImplDefinition {
 			default:
 				for (let i = 0; i < this.#statementValues.length; i++) {
 					let s = this.#statements[i];
-					let isLast = i == this.#statementValues.length - 1;
 
 					if (name.toString() == s.name.toString()) {
 						if (FuncStatement.isMethod(s)) {
@@ -10996,17 +11015,7 @@ class ImplDefinition {
 								this.#usedStatements.add(name.toString());
 							}
 
-							let v = this.#statementValues[i];
-
-							if (isLast && s instanceof FuncStatement) {
-								if (v instanceof FuncStatementValue) {
-									v.markAsUsed();
-								} else {
-									throw new Error("unexpected");
-								}
-							}
-
-							return v;
+							return this.#statementValues[i];
 						}
 					}
 				}
@@ -12710,13 +12719,6 @@ class FoldFuncValue extends FuncValue {
 		this.#itemType = itemType;
 	}
 
-	/**
-	 * @returns {Value}
-	 */
-	copy() {
-		return new FoldFuncValue(this.#itemType);
-	}
-
 	toString() {
 		return `[a](a, (a, ${this.#itemType.toString()}) -> a) -> a`;
 	}
@@ -12772,13 +12774,6 @@ class MapFuncValue extends FuncValue {
 	constructor(itemType) {
 		super(new FuncType([itemType], new AnyType())); // dummy
 		this.#itemType = itemType;
-	}
-
-	/**
-	 * @returns {Value}
-	 */
-	copy() {
-		return new MapFuncValue(this.#itemType);
 	}
 
 	toString() {
@@ -16030,7 +16025,7 @@ function compileInternal(typedSrc, config) {
 
 	let [irSrc, codeMap] = ir.generateSource();
 
-	console.log((new Source(irSrc)).pretty());
+	//console.log((new Source(irSrc)).pretty());
 
 	if (config.stage == CompilationStage.IR) {
 		return irSrc;

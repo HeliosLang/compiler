@@ -2615,6 +2615,72 @@ async function runIntegrationTests() {
         print(main_internal(Redeemer::Migrate).show());
         true
     }`, "1{}", ["false", "true", "false"]);
+
+    // 14. struct method recursion
+    await runTestScript(`
+    test fibonacci_struct
+    struct Fib {
+        a: Int
+        b: Int
+        func calc_internal(self, n: Int) -> Fib {
+            if (n == 0) {
+                self
+            } else {
+                Fib{a: self.b, b: self.a + self.b}.calc_internal(n-1)
+            }
+        }
+        func calc(self, n: Int) -> Int {
+            res: Fib = self.calc_internal(n);
+            res.a + res.b
+        }
+    }
+    func main() -> Int {
+        fib = Fib{a: 0, b: 1};
+        fib.calc(5)
+    }`, "13", []);
+
+    // 15. enum method recursion
+    await runTestScript(`
+    test fibonacci_enum
+    enum Fib {
+        One{
+            a: Int
+            b: Int
+        }
+        Two{
+            a: Int
+            b: Int
+        }
+        func calc_internal(self, n: Int) -> Fib {
+            self.switch{
+                o: One => 
+                    if (n == 0) {
+                        o
+                    } else {
+                        Fib::One{a: o.b, b: o.a + o.b}.calc_internal(n-1)
+                    },
+                t: Two =>
+                    if (n == 0) {
+                        t
+                    } else {
+                        Fib::Two{a: t.b, b: t.a + t.b}.calc_internal(n-1)
+                    }
+            }  
+        }
+        func calc(self, n: Int) -> Int {
+            res: Fib = self.calc_internal(n);
+
+            res.switch{
+                o: One => o.a + o.b,
+                t: Two => t.a + t.b
+            }
+        }
+    }
+    func main() -> Int {
+        fib = Fib::One{a: 0, b: 1};
+        print(fib.calc(5).show());
+        Fib::Two{a: 0, b: 1}.calc(6)
+    }`, "21", ["13"]);
 }
 
 async function main() {
