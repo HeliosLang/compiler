@@ -5552,12 +5552,12 @@ class LedgerData extends ConstrData {
 			// LowerBound
 			new LedgerData(0, [
 				new LedgerData(1, [new IntData(start)], {}),
-				LedgerData.newBool(false),
+				LedgerData.newBool(true),
 			], {}),
 			// UpperBound
 			new LedgerData(0, [
 				new LedgerData(1, [new IntData(start + duration)], {}),
-				LedgerData.newBool(false),
+				LedgerData.newBool(true),
 			], {})
 		], {
 			start: start,
@@ -13598,6 +13598,14 @@ class TimeRangeType extends BuiltinType {
 		switch (name.value) {
 			case "new":
 				return Value.new(new FuncType([new TimeType(), new TimeType()], new TimeRangeType()));
+			case "ALWAYS":
+				return Value.new(new TimeRangeType());
+			case "NEVER":
+				return Value.new(new TimeRangeType());
+			case "from":
+				return Value.new(new FuncType([new TimeType()], new TimeRangeType()));
+			case "to":
+				return Value.new(new FuncType([new TimeType()], new TimeRangeType()));
 			default:
 				return super.getTypeMember(name);
 		}
@@ -14882,11 +14890,59 @@ function makeRawFunctions() {
 		__core__constrData(0, ${makeList([
 			`__core__constrData(0, ${makeList([
 				`__core__constrData(1, ${makeList(["a"])})`,
-				`__helios__common__boolData(false)`
+				`__helios__common__boolData(true)`
 			])})`,
 			`__core__constrData(0, ${makeList([
 				`__core__constrData(1, ${makeList(["b"])})`,
-				`__helios__common__boolData(false)`
+				`__helios__common__boolData(true)`
+			])})`
+		])})
+	}`));
+	add(new RawFunc("__helios__timerange__ALWAYS", `
+	__core__constrData(0, ${makeList([
+		`__core__constrData(0, ${makeList([
+			`__core__constrData(0, ${makeList([])})`,
+			`__helios__common__boolData(true)`
+		])})`,
+		`__core__constrData(0, ${makeList([
+			`__core__constrData(2, ${makeList([])})`,
+			`__helios__common__boolData(true)`
+		])})`
+	])})`));
+	add(new RawFunc("__helios__timerange__NEVER", `
+	__core__constrData(0, ${makeList([
+		`__core__constrData(0, ${makeList([
+			`__core__constrData(2, ${makeList([])})`,
+			`__helios__common__boolData(true)`
+		])})`,
+		`__core__constrData(0, ${makeList([
+			`__core__constrData(0, ${makeList([])})`,
+			`__helios__common__boolData(true)`
+		])})`
+	])})`));
+	add(new RawFunc("__helios__timerange__from", `
+	(a) -> {
+		__core__constrData(0, ${makeList([
+			`__core__constrData(0, ${makeList([
+				`__core__constrData(1, ${makeList(["a"])})`,
+				`__helios__common__boolData(true)`
+			])})`,
+			`__core__constrData(0, ${makeList([
+				`__core__constrData(2, ${makeList([])})`,
+				`__helios__common__boolData(true)`
+			])})`
+		])})
+	}`));
+	add(new RawFunc("__helios__timerange__to", `
+	(b) -> {
+		__core__constrData(0, ${makeList([
+			`__core__constrData(0, ${makeList([
+				`__core__constrData(0, ${makeList([])})`,
+				`__helios__common__boolData(true)`
+			])})`,
+			`__core__constrData(0, ${makeList([
+				`__core__constrData(1, ${makeList(["b"])})`,
+				`__helios__common__boolData(true)`
 			])})`
 		])})
 	}`));

@@ -2345,6 +2345,38 @@ async function runPropertyTests() {
         return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
     });
 
+    await ft.test([ft.int()], `
+    test timerange_always
+    func main(a: Int) -> Bool {
+        TimeRange::ALWAYS.contains(Time::new(a))
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.int()], `
+    test timerange_never
+    func main(a: Int) -> Bool {
+        TimeRange::NEVER.contains(Time::new(a))
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test timerange_from
+    func main(a: Int, b: Int) -> Bool {
+        TimeRange::from(Time::new(a)).contains(Time::new(b))
+    }`, ([a, b], res) => {
+        return res.isBool() && ((b.asInt() >= a.asInt()) === res.asBool());
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test timerange_to
+    func main(a: Int, b: Int) -> Bool {
+        TimeRange::to(Time::new(a)).contains(Time::new(b))
+    }`, ([a, b], res) => {
+        return res.isBool() && ((b.asInt() <= a.asInt()) === res.asBool());
+    });
+
     await ft.test([ft.int(), ft.int()], `
     test timerange_eq_1
     func main(a: Int, b: Int) -> Bool {
