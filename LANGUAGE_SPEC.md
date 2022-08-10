@@ -47,7 +47,7 @@ OptionTypeExpr ::= 'Option' '[' NonFuncTypeExpr ']'
 
 ValueExpr ::= AssignExpr | PrintExpr | LiteralExpr | ValueRefExpr | ValuePathExpr | UnaryExpr | BinaryExpr | ParensExpr | CallExpr | MemberExpr | IfElseExpr | SwitchExpr
 
-LiteralExpr ::= PrimitiveLiteralExpr | StructLiteralExpr | ListLiteralExpr | FuncLiteralExpr
+LiteralExpr ::= PrimitiveLiteralExpr | StructLiteralExpr | ListLiteralExpr | MapLiteralExpr | FuncLiteralExpr
 
 PrimitiveLiteralExpr ::= PrimitiveLiteral
 
@@ -56,6 +56,10 @@ PrimitiveLiteral ::= IntLiteral | BoolLiteral | StringLiteral | ByteArrayLiteral
 StructLiteralExpr ::= (TypePathExpr | TypeRefExpr) ['{' StructLiteralField (',' StructLiteralField)* '}']
 
 StructLiteralField ::= [Word ':'] ValueExpr
+
+ListLiteralExpr ::= '[]' TypeExpr '{' [ValueExpr] (',' ValueExpr)* '}'
+
+MapLiteralExpr ::= 'Map' '[' TypeExpr ']' TypeExpr '{' [ValueExpr ':' ValueExpr] (',' ValueExpr ':' ValueExpr)* '}'
 
 FuncLiteralExpr ::= '(' [FuncArg (',' FuncArc)*] ')' '->' TypeExpr '{' ValueExpr '}'
 

@@ -103,9 +103,9 @@
 //                                          ListTypeExpr, MapTypeExpr, OptionTypeExpr, 
 //                                          FuncTypeExpr, ValueExpr, AssignExpr, PrintExpr, 
 //                                          PrimitiveLiteralExpr, StructLiteralField, 
-//                                          StructLiteralExpr, ListLiteralExpr, NameTypePair, 
-//                                          FuncArg, FuncLiteralExpr, ValueRefExpr, ValuePathExpr, 
-//                                          UnaryExpr, BinaryExpr, ParensExpr, 
+//                                          StructLiteralExpr, ListLiteralExpr, MapLiteralExpr, 
+//                                          NameTypePair, FuncArg, FuncLiteralExpr, ValueRefExpr, 
+//                                          ValuePathExpr, UnaryExpr, BinaryExpr, ParensExpr, 
 //                                          CallExpr, MemberExpr, IfElseExpr, 
 //                                          SwitchCase, SwitchDefault, SwitchExpr
 //
@@ -127,8 +127,9 @@
 //                                          buildChainedValueExpr, buildChainStartValueExpr, 
 //                                          buildCallArgs, buildIfElseExpr, buildSwitchExpr, 
 //                                          buildSwitchCase, buildSwitchDefault, 
-//                                          buildListLiteralExpr, buildStructLiteralExpr,
-//                                          buildStructLiteralField, buildValuePathExpr
+//                                          buildListLiteralExpr, buildMapLiteralExpr, 
+//                                          buildStructLiteralExpr, buildStructLiteralField, 
+//                                          buildValuePathExpr
 //
 //    12. Builtin types                     IntType, BoolType, StringType, ByteArrayType, ListType,
 //                                          FoldFuncValue, MapFuncValue,
@@ -9087,8 +9088,6 @@ class ListLiteralExpr extends ValueExpr {
 			throw this.#itemTypeExpr.typeError("content of list can't be func");
 		}
 
-		assert(itemType.isType());
-
 		for (let itemExpr of this.#itemExprs) {
 			let itemVal = itemExpr.eval(scope);
 
@@ -9121,6 +9120,92 @@ class ListLiteralExpr extends ValueExpr {
 		}
 
 		return new IR([new IR("__core__listData", this.site), new IR("("), res, new IR(")")]);
+	}
+}
+
+/**
+ * Map[...]...{... : ...} expression
+ */
+ class MapLiteralExpr extends ValueExpr {
+	#keyTypeExpr;
+	#valueTypeExpr;
+	#pairExprs;
+
+	/**
+	 * @param {Site} site 
+	 * @param {TypeExpr} keyTypeExpr 
+	 * @param {TypeExpr} valueTypeExpr
+	 * @param {[ValueExpr, ValueExpr][]} pairExprs 
+	 */
+	constructor(site, keyTypeExpr, valueTypeExpr, pairExprs) {
+		super(site);
+		this.#keyTypeExpr = keyTypeExpr;
+		this.#valueTypeExpr = valueTypeExpr;
+		this.#pairExprs = pairExprs;
+	}
+
+	isLiteral() {
+		return true;
+	}
+
+	toString() {
+		return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}{${this.#pairExprs.map(([keyExpr, valueExpr]) => `${keyExpr.toString()}: ${valueExpr.toString()}`).join(', ')}}`;
+	}
+
+	/**
+	 * @param {Scope} scope
+	 */
+	evalInternal(scope) {
+		let keyType = this.#keyTypeExpr.eval(scope);
+		let valueType = this.#valueTypeExpr.eval(scope);
+
+		if (keyType instanceof FuncType) {
+			throw this.#keyTypeExpr.typeError("key-type of Map can't be func");
+		} else if (valueType instanceof FuncType) {
+			throw this.#valueTypeExpr.typeError("value-type of Map can't be func");
+		}
+
+		for (let [keyExpr, valueExpr] of this.#pairExprs) {
+			let keyVal = keyExpr.eval(scope);
+			let valueVal = valueExpr.eval(scope);
+
+			if (!keyVal.isInstanceOf(keyExpr.site, keyType)) {
+				throw keyExpr.typeError(`expected ${keyType.toString()} for map key, got ${keyVal.toString()}`);
+			} else if (!valueVal.isInstanceOf(valueExpr.site, valueType)) {
+				throw valueExpr.typeError(`expected ${valueType.toString()} for map value, got ${valueVal.toString()}`);
+			}
+		}
+
+		return Value.new(new MapType(keyType, valueType));
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		// unsure if list literals in untyped plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
+		let res = new IR("__core__mkNilPairData(())");
+
+		// starting from last element, keeping prepending a data version of that item
+
+		for (let i = this.#pairExprs.length - 1; i >= 0; i--) {
+			let [keyExpr, valueExpr] = this.#pairExprs[i];
+
+			res = new IR([
+				new IR("__core__mkCons("),
+				new IR("__core__mkPairData("),
+				keyExpr.toIR(indent),
+				new IR(","),
+				valueExpr.toIR(indent),
+				new IR(")"),
+				new IR(", "),
+				res,
+				new IR(")")
+			]);
+		}
+
+		return new IR([new IR("__core__mapData", this.site), new IR("("), res, new IR(")")]);
 	}
 }
 
@@ -12084,6 +12169,8 @@ function buildChainStartValueExpr(ts) {
 	} else if (Group.find(ts, "{") != -1) {
 		if (ts[0].isGroup("[")) {
 			return buildListLiteralExpr(ts);
+		} else if (ts[0].isWord("Map") && ts[1].isGroup("[")) {
+			return buildMapLiteralExpr(ts); 
 		} else {
 			// could be switch or literal struct construction
 			let iBraces = Group.find(ts, "{");
@@ -12357,6 +12444,58 @@ function buildListLiteralExpr(ts) {
 	let itemExprs = braces.fields.map(fts => buildValueExpr(fts));
 
 	return new ListLiteralExpr(site, itemTypeExpr, itemExprs);
+}
+
+/**
+ * @param {Token[]} ts
+ * @returns {MapLiteralExpr}
+ */
+function buildMapLiteralExpr(ts) {
+	let site = assertDefined(ts.shift()).assertWord("Map").site;
+
+	let bracket = assertDefined(ts.shift()).assertGroup("[", 1);
+
+	let keyTypeExpr = buildTypeExpr(bracket.fields[0]);
+
+	let bracesPos = Group.find(ts, "{");
+
+	if (bracesPos == -1) {
+		throw site.syntaxError("invalid map literal expression syntax");
+	}
+
+	let valueTypeExpr = buildTypeExpr(ts.splice(0, bracesPos));
+
+	let braces = assertDefined(ts.shift()).assertGroup("{");
+
+	/**
+	 * @type {[ValueExpr, ValueExpr][]}
+	 */
+	let pairs = braces.fields.map(fts => {
+		let colonPos = Symbol.find(fts, ":");
+
+		if (colonPos == -1) {
+			if (fts.length == 0) {
+				throw braces.syntaxError("unexpected empty field");
+			} else {
+				throw fts[0].syntaxError("expected ':' in map literal field");
+			}
+		} else if (colonPos == 0) {
+			throw fts[colonPos].syntaxError("expected expression before ':' in map literal field");
+		} else if (colonPos == fts.length - 1) {
+			throw fts[colonPos].syntaxError("expected expression after ':' in map literal field");
+		}
+
+		let keyExpr = buildValueExpr(fts.slice(0, colonPos));
+
+		let valueExpr = buildValueExpr(fts.slice(colonPos+1));
+
+		/**
+		 * @type {[ValueExpr, ValueExpr]}
+		 */
+		return [keyExpr, valueExpr];
+	});
+
+	return new MapLiteralExpr(site, keyTypeExpr, valueTypeExpr, pairs);
 }
 
 /**
