@@ -1057,6 +1057,51 @@ async function runPropertyTests() {
         });
     }
 
+    ////////////
+    // Map tests
+    ////////////
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_eq
+    func main(a: Map[Int]Int) -> Bool {
+        a == a
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_neq
+    func main(a: Map[Int]Int) -> Bool {
+        a != a
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_length
+    func main(a: Map[Int]Int) -> Int {
+        a.length
+    }`, ([a], res) => {
+        return res.isInt() && (a.map.length == Number(res.asInt()));
+    });
+
+    await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
+    test map_get
+    func main(a: Int, b: Int, c: Int, d: Int) -> Int {
+        m = Map[Int]Int{a: b, c: d};
+        m.get(c)
+    }`, ([a, b, c, d], res) => {
+        return res.isInt() && (d.asInt() === res.asInt());
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_serialize
+    func main(a: Map[Int]Int) -> ByteArray {
+        a.serialize()
+    }`, ([a], res) => {
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
+    });
+
 
     ///////////////
     // Option tests
@@ -1067,7 +1112,7 @@ async function runPropertyTests() {
     func main(a: Option[Int]) -> Bool {
         a == a
     }`, ([_], res) => {
-        return res.isBool() && (true === res.asBool());
+        return res.isBool() && res.asBool();
     });
 
     await ft.test([ft.option(ft.int(0, 5)), ft.option(ft.int(0, 5))], `

@@ -12995,6 +12995,10 @@ class MapType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
+			case "length":
+				return Value.new(new IntType());
+			case "get":
+				return Value.new(new FuncType([this.#keyType], this.#valueType));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -14091,6 +14095,20 @@ function makeRawFunctions() {
 	`(s) -> {
 		__core__bData(__core__encodeUtf8(s))
 	}`));
+	add(new RawFunc("__helios__common__length", 
+	`(lst) -> {
+		(recurse) -> {
+			__core__iData(recurse(recurse, lst))
+		}(
+			(recurse, lst) -> {
+				__core__ifThenElse(
+					__core__nullList(lst), 
+					() -> {0}, 
+					() -> {__core__addInteger(recurse(recurse, __core__tailList(lst)), 1)}
+				)()
+			}
+		)
+	}`));
 
 
 	// Int builtins
@@ -14438,19 +14456,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__list__length",
 	`(self) -> {
-		(self) -> {
-			(recurse) -> {
-				__core__iData(recurse(recurse, self))
-			}(
-				(recurse, self) -> {
-					__core__ifThenElse(
-						__core__nullList(self), 
-						() -> {0}, 
-						() -> {__core__addInteger(recurse(recurse, __core__tailList(self)), 1)}
-					)()
-				}
-			)
-		}(__core__unListData(self))
+		__helios__common__length(__core__unListData(self))
 	}`));
 	add(new RawFunc("__helios__list__head",
 	`(self) -> {
@@ -14645,6 +14651,34 @@ function makeRawFunctions() {
 
 	// Map builtins
 	addEqNeqSerialize("__helios__map");
+	add(new RawFunc("__helios__map__length",
+	`(self) -> {
+		__helios__common__length(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__get",
+	`(self) -> {
+		(self) -> {
+			(key) -> {
+				(recurse) -> {
+					recurse(recurse, self, key)
+				}(
+					(recurse, self, key) -> {
+						__core__ifThenElse(
+							__core__nullList(self), 
+							() -> {__core__error("key not found")}, 
+							() -> {
+								__core__ifThenElse(
+									__core__equalsData(key, __core__fstPair(__core__headList(self))), 
+									() -> {__core__sndPair(__core__headList(self))}, 
+									() -> {recurse(recurse, __core__tailList(self), key)}
+								)()
+							}
+						)()
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
 
 
 	// Option builtins
@@ -16997,6 +17031,48 @@ class FuzzyTest {
 
 			return new ListData(items);
 		}
+	}
+
+	/**
+	 * Returns a generator for maps
+	 * @param {DataGenerator} keyGenerator
+	 * @param {DataGenerator} valueGenerator
+	 * @param {number} minLength
+	 * @param {number} maxLength
+	 * @returns {DataGenerator}
+	 */
+	map(keyGenerator, valueGenerator, minLength = 0, maxLength = 10) {
+		let rand = this.newRand();
+
+		if (minLength < 0) {
+			minLength = 0;
+		}
+
+		if (maxLength < 0) {
+			maxLength = 0;
+		}
+
+		/**
+		 * @param {?DataGeneratorConfig} config
+		 */
+		return function(config = null) {
+			let n = Math.round(rand()*(maxLength - minLength)) + minLength;
+
+			if (n < 0) {
+				n = 0;
+			}
+
+			/**
+			 * @type {[PlutusCoreData, PlutusCoreData][]}
+			 */
+			let pairs = [];
+
+			for (let i = 0; i < n; i++) {
+				pairs.push([keyGenerator(config), valueGenerator(config)]);
+			}
+
+			return new MapData(pairs);
+		};
 	}
 
 	/**
