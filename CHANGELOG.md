@@ -1,5 +1,8 @@
 This Changelog only applies to notable changes to `helios.js` on the main branch.
 
+# 2022 08/10
+* rust-like syntax
+
 # 2022/07/15
 * renamed to helios
 
