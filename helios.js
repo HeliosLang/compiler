@@ -2236,6 +2236,10 @@ class PlutusCoreValue {
 		throw this.site.typeError(`expected a UPLC map '${this.toString()}'`);
 	}
 
+	isData() {
+		return false;
+	}
+
 	/**
 	 * @type {PlutusCoreData}
 	 */
@@ -3228,6 +3232,10 @@ class PlutusCoreDataValue extends PlutusCoreValue {
 		return new PlutusCoreDataValue(newSite, this.#data);
 	}
 
+	isData() {
+		return true;
+	}
+
 	get data() {
 		return this.#data;
 	}
@@ -3826,6 +3834,10 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				// only allow data items in list
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					if (b.isList()) {
+						if (!a.isData()) {
+							throw callSite.typeError(`expected data, got ${a.toString()}`);
+						}
+
 						let item = a.data;
 						let lst = b.list;
 						lst.unshift(item);
@@ -3917,6 +3929,10 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unConstrData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					if (!a.isData()) {
+						throw callSite.typeError(`expected data, got ${a.toString()}`);
+					}
+
 					let data = a.data;
 					if (!(data instanceof ConstrData)) {
 						throw callSite.runtimeError(`unexpected unConstrData argument '${data.toString()}'`);
@@ -3926,6 +3942,10 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unMapData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					if (!a.isData()) {
+						throw callSite.typeError(`expected data, got ${a.toString()}`);
+					}
+
 					let data = a.data;
 					if (!(data instanceof MapData)) {
 						throw callSite.runtimeError(`unexpected unMapData argument '${data.toString()}'`);
@@ -3935,6 +3955,10 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unListData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					if (!a.isData()) {
+						throw callSite.typeError(`expected data, got ${a.toString()}`);
+					}
+
 					let data = a.data;
 					if (!(data instanceof ListData)) {
 						throw callSite.runtimeError(`unexpected unListData argument '${data.toString()}'`);
@@ -3944,6 +3968,10 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unIData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					if (!a.isData()) {
+						throw callSite.typeError(`expected data, got ${a.toString()}`);
+					}
+
 					let data = a.data;
 					if (!(data instanceof IntData)) {
 						throw callSite.runtimeError(`unexpected unIData argument '${data.toString()}'`);
@@ -3953,6 +3981,10 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unBData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					if (!a.isData()) {
+						throw callSite.typeError(`expected data, got ${a.toString()}`);
+					}
+
 					let data = a.data;
 					if (!(data instanceof ByteArrayData)) {
 						throw callSite.runtimeError(`unexpected unBData argument '${data.toString()}'`);
@@ -3962,6 +3994,14 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "equalsData":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					if (!a.isData()) {
+						throw callSite.typeError(`expected data, got ${a.toString()}`);
+					}
+
+					if (!b.isData()) {
+						throw callSite.typeError(`expected data, got ${b.toString()}`);
+					}
+
 					// just compare the schema jsons for now
 					return new PlutusCoreBool(callSite, a.data.isSame(b.data));
 				});
@@ -10508,6 +10548,10 @@ class FuncStatement extends Statement {
 		return this.#funcExpr.evalType(scope);
 	}
 
+	setRecursive() {
+		this.#recursive = true;
+	}
+
 	/**
 	 * @param {Scope} scope 
 	 */
@@ -10518,7 +10562,7 @@ class FuncStatement extends Statement {
 
 		let fnVal = new FuncStatementValue(fnType);
 		fnVal.onNotifyRecursive(() => {
-			this.#recursive = true;
+			this.setRecursive();
 		});
 
 		scope.set(this.name, fnVal);
@@ -10856,7 +10900,15 @@ class ImplDefinition {
 		} else {
 			for (let s of this.#statements) {
 				if (s instanceof FuncStatement) {
-					this.#statementValues.push(new FuncStatementValue(s.evalType(scope))); // add func type to #statementValues in order to allow recursive calls
+					let v = new FuncStatementValue(s.evalType(scope));
+
+					v.onNotifyRecursive(() => {
+						if (s instanceof FuncStatement) {
+							s.setRecursive();
+						}
+					});
+
+					this.#statementValues.push(v); // add func type to #statementValues in order to allow recursive calls
 
 					void s.evalInternal(scope);
 				} else {
@@ -10864,6 +10916,14 @@ class ImplDefinition {
 					this.#statementValues.push(s.evalInternal(scope));
 				}
 			}
+
+			for (let v of this.#statementValues) {
+				if (v instanceof FuncStatementValue) {
+					v.onNotifyRecursive(null);
+				}
+			}
+
+			console.log("n statements:", this.#statementValues.length, this.#statements.length);
 		}
 	}
 
@@ -10882,11 +10942,10 @@ class ImplDefinition {
 				this.#usedStatements.add(name.toString());
 				return Value.new(new FuncType([this.#selfTypeExpr.type], new BoolType()));
 			default:
-				assert(this.#statementValues.length == this.#statements.length);
-
 				// loop the contained statements to find one with name 'name'
-				for (let i = 0; i < this.#statements.length; i++) {
+				for (let i = 0; i < this.#statementValues.length; i++) {
 					let s = this.#statements[i];
+					let isLast = i == this.#statementValues.length - 1;
 
 					if (name.toString() == s.name.toString()) {
 
@@ -10894,7 +10953,19 @@ class ImplDefinition {
 							if (!dryRun) {
 								this.#usedStatements.add(name.toString());
 							}
-							return this.#statementValues[i];
+
+							let v = this.#statementValues[i];
+
+							if (isLast && s instanceof FuncStatement) {
+								if (v instanceof FuncStatementValue) {
+									console.log("marking as used");
+									v.markAsUsed();
+								} else {
+									throw new Error("unexpected");
+								}
+							}
+
+							return v;
 						} else {
 							throw name.referenceError(`'${this.#selfTypeExpr.toString()}.${name.toString()}' isn't a method (did you mean '${this.#selfTypeExpr.toString()}::${name.toString()}'?)`);
 						}
@@ -10913,8 +10984,6 @@ class ImplDefinition {
 	getTypeMember(name, dryRun = false) {
 		switch (name.value) {
 			default:
-				assert(this.#statementValues.length == this.#statements.length);
-
 				for (let i = 0; i < this.#statementValues.length; i++) {
 					let s = this.#statements[i];
 					let isLast = i == this.#statementValues.length - 1;
@@ -12317,7 +12386,7 @@ function buildStructLiteralField(bracesSite, ts, isNamed) {
 		if (maybeName === undefined) {
 			throw bracesSite.syntaxError("empty struct literal field");
 		} else {
-			let name = maybeName.assertWord().assertNotKeyword();
+			let name = maybeName.assertWord();
 
 			let maybeColon = ts.shift();
 			if (maybeColon === undefined) {
@@ -12330,7 +12399,7 @@ function buildStructLiteralField(bracesSite, ts, isNamed) {
 				} else {
 					let valueExpr = buildValueExpr(ts);
 
-					return new StructLiteralField(name, valueExpr);
+					return new StructLiteralField(name.assertNotKeyword(), valueExpr);
 				}
 			}
 		}
@@ -15961,7 +16030,7 @@ function compileInternal(typedSrc, config) {
 
 	let [irSrc, codeMap] = ir.generateSource();
 
-	//console.log((new Source(irSrc)).pretty());
+	console.log((new Source(irSrc)).pretty());
 
 	if (config.stage == CompilationStage.IR) {
 		return irSrc;
