@@ -629,7 +629,7 @@ function unwrapCborBytes(bytes) {
  * @returns {number[]}
  */
 function wrapCborBytes(bytes) {
-	return PlutusCoreData.encodeCBORByteArray(bytes);
+	return PlutusCoreData.encodeCBORByteArray(bytes, false);
 }
 
 /**
@@ -4537,13 +4537,15 @@ class PlutusCoreData {
 
 	/**
 	 * @param {number[]} bytes 
+	 * @param {boolean} splitInChunks
 	 * @returns {number[]} - cbor bytes
 	 */
-	static encodeCBORByteArray(bytes) {
+	static encodeCBORByteArray(bytes, splitInChunks = true) {
 		bytes = bytes.slice();
 
-		if (bytes.length <= 64) {
-			return PlutusCoreData.encodeCBORHead(2, BigInt(bytes.length)).concat(bytes);
+		if (bytes.length <= 64 || !splitInChunks) {
+			let head = PlutusCoreData.encodeCBORHead(2, BigInt(bytes.length));
+			return head.concat(bytes);
 		} else {
 			let res = PlutusCoreData.encodeCBORIndefHead(2);
 
