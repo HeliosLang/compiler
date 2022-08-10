@@ -64,8 +64,7 @@ async function runUnitTests() {
 }
 
 async function runPropertyTests() {
-    const ft = new helios_.FuzzyTest(Math.random()*42);
-
+    const ft = new helios.FuzzyTest(Math.random()*42);
 
 
     ////////////
