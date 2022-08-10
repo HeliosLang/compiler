@@ -11290,15 +11290,20 @@ function buildConstStatement(site, ts) {
 		typeExpr = buildTypeExpr(ts.splice(0, equalsPos));
 	}
 
-	void ts.shift()?.assertSymbol("=");
+	let maybeEquals = ts.shift();
+	if (maybeEquals === undefined) {
+		throw site.syntaxError("expected '=' after 'consts'");
+	} else {
+		void maybeEquals.assertSymbol("=");
 
-	let nextStatementPos = Word.find(ts, ["const", "func", "struct", "enum"]);
+		let nextStatementPos = Word.find(ts, ["const", "func", "struct", "enum"]);
 
-	let tsValue = nextStatementPos == -1 ? ts.splice(0) : ts.splice(0, nextStatementPos);
+		let tsValue = nextStatementPos == -1 ? ts.splice(0) : ts.splice(0, nextStatementPos);
 
-	let valueExpr = buildValueExpr(tsValue);
+		let valueExpr = buildValueExpr(tsValue);
 
-	return new ConstStatement(site, name, typeExpr, valueExpr);
+		return new ConstStatement(site, name, typeExpr, valueExpr);
+	}
 }
 
 /**
