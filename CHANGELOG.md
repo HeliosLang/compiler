@@ -1,8 +1,10 @@
 This Changelog only applies to notable changes to `helios.js` on the main branch.
 
 # 2022/08/11
-* ByteArray.slice with negative indices behaving like python
+* ByteArray.slice (negative indices relative to end)
 * Map + Map operator (note: map merge doesn't assert uniqueness of keys and simply acts as a concatenation of two lists)
+* Map methods: all, all_keys, all_values, any, any_key, any_value, filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values
+* all methods named 'get...' or 'find...' throw errors if not found
 
 # 2022/08/10
 * Rust-like syntax, structs and enums can have methods
@@ -11,7 +13,7 @@ This Changelog only applies to notable changes to `helios.js` on the main branch
 * C#-like switch syntax
 * TimeRange constructors: ALWAYS, NEVER, from, to
 * TimeRange comparison: is_before(Time) and is_after(Time)
-* Map literal, Map.length, Map.is_empty() and Map.get()
+* Map literal construction, Map.length, Map.is_empty() and Map.get()
 * Value.get_policy()
 
 # 2022/07/15

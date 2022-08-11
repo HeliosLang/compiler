@@ -30,7 +30,8 @@ internal ns: __helios__list
 # Map
 operators:   __eq, __neq, __add
 getters:     length
-methods:     serialize, is_empty, get
+methods:     serialize, is_empty, get, all, all_keys, all_values, any, any_key, any_value, 
+             filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values
 internal ns: __helios__map
 
 # Option

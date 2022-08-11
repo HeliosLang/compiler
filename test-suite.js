@@ -1157,6 +1157,159 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_all
+    func main(a: Map[Int]Int) -> Bool {
+        a.all((k: Int, v: Int) -> Bool {
+            k < v
+        })
+    }`, ([a], res) => {
+        return res.isBool() && ((a.map.every(([k, v]) => {
+            return k.asInt() < v.asInt()
+        })) === res.asBool());
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_all_keys
+    func main(a: Map[Int]Int) -> Bool {
+        a.all_keys((k: Int) -> Bool {
+            k > 0
+        })
+    }`, ([a], res) => {
+        return res.isBool() && ((a.map.every(([k, _]) => {
+            return k.asInt() > 0n
+        })) === res.asBool());
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_all_values
+    func main(a: Map[Int]Int) -> Bool {
+        a.all_values((v: Int) -> Bool {
+            v > 0
+        })
+    }`, ([a], res) => {
+        return res.isBool() && ((a.map.every(([_, v]) => {
+            return v.asInt() > 0n
+        })) === res.asBool());
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_any
+    func main(a: Map[Int]Int) -> Bool {
+        a.any((k: Int, v: Int) -> Bool {
+            k < v
+        })
+    }`, ([a], res) => {
+        return res.isBool() && ((a.map.some(([k, v]) => {
+            return k.asInt() < v.asInt()
+        })) === res.asBool());
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_any_key
+    func main(a: Map[Int]Int) -> Bool {
+        a.any_key((k: Int) -> Bool {
+            k > 0
+        })
+    }`, ([a], res) => {
+        return res.isBool() && ((a.map.some(([k, _]) => {
+            return k.asInt() > 0n
+        })) === res.asBool());
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_any_value
+    func main(a: Map[Int]Int) -> Bool {
+        a.any_value((v: Int) -> Bool {
+            v > 0
+        })
+    }`, ([a], res) => {
+        return res.isBool() && ((a.map.some(([_, v]) => {
+            return v.asInt() > 0n
+        })) === res.asBool());
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_filter
+    func main(a: Map[Int]Int) -> Map[Int]Int {
+        a.filter((k: Int, v: Int) -> Bool {
+            k < v
+        })
+    }`, ([_], res) => {
+        return res.isMap() && res.map.every(([k, v]) => {
+            return k.asInt() < v.asInt()
+        });
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_filter_by_key
+    func main(a: Map[Int]Int) -> Map[Int]Int {
+        a.filter_by_key((k: Int) -> Bool {
+            k > 0
+        })
+    }`, ([_], res) => {
+        return res.isMap() && res.map.every(([k, _]) => {
+            return k.asInt() > 0n
+        });
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_filter_by_value
+    func main(a: Map[Int]Int) -> Map[Int]Int {
+        a.filter_by_value((v: Int) -> Bool {
+            v > 0
+        })
+    }`, ([_], res) => {
+        return res.isMap() && res.map.every(([_, v]) => {
+            return v.asInt() > 0n
+        });
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_fold
+    func main(a: Map[Int]Int) -> Int {
+        a.fold((prev: Int, k: Int, v: Int) -> Int {
+            prev + k + v
+        }, 0)
+    }`, ([a], res) => {
+        let sum = 0n;
+        a.map.forEach(([k, v]) => {
+            sum += k.asInt() + v.asInt();
+        });
+
+        return res.isInt() && (sum === res.asInt());
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_fold_keys
+    func main(a: Map[Int]Int) -> Int {
+        a.fold_keys((prev: Int, k: Int) -> Int {
+            prev + k
+        }, 0)
+    }`, ([a], res) => {
+        let sum = 0n;
+        a.map.forEach(([k, _]) => {
+            sum += k.asInt();
+        });
+
+        return res.isInt() && (sum === res.asInt());
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
+    test map_fold_values
+    func main(a: Map[Int]Int) -> Int {
+        a.fold_values((prev: Int, v: Int) -> Int {
+            prev + v
+        }, 0)
+    }`, ([a], res) => {
+        let sum = 0n;
+        a.map.forEach(([_, v]) => {
+            sum += v.asInt();
+        });
+
+        return res.isInt() && (sum === res.asInt());
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int())], `
     test map_serialize
     func main(a: Map[Int]Int) -> ByteArray {
         a.serialize()

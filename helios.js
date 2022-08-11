@@ -4328,6 +4328,14 @@ class PlutusCoreData {
 	 * Handy for property tests
 	 * @returns {boolean}
 	 */
+	isMap() {
+		throw new Error("not a map");
+	}
+
+	/**
+	 * Handy for property tests
+	 * @returns {boolean}
+	 */
 	isConstr() {
 		return false;
 	}
@@ -5084,6 +5092,10 @@ class MapData extends PlutusCoreData {
 	constructor(pairs) {
 		super();
 		this.#pairs = pairs;
+	}
+
+	isMap() {
+		return true;
 	}
 
 	get map() {
@@ -12867,9 +12879,9 @@ class ListType extends BuiltinType {
 			case "filter":
 				return Value.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new ListType(this.#itemType)));
 			case "fold":
-				return new FoldFuncValue(this.#itemType);
+				return new FoldListFuncValue(this.#itemType);
 			case "map":
-				return new MapFuncValue(this.#itemType);
+				return new MapListFuncValue(this.#itemType);
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -12881,10 +12893,10 @@ class ListType extends BuiltinType {
 }
 
 /**
- * A special func value with parametric arg types, returned of list.fold.
+ * A special func value with parametric arg types, returned by list.fold
  * Instead of creating special support for parametric function types we can just created these special classes (parametric types aren't expected to be needed a lot anyway)
  */
-class FoldFuncValue extends FuncValue {
+class FoldListFuncValue extends FuncValue {
 	#itemType;
 
 	/**
@@ -12931,7 +12943,7 @@ class FoldFuncValue extends FuncValue {
 		let fnType = new FuncType([zType, this.#itemType], zType);
 
 		if (!args[0].isInstanceOf(site, fnType)) {
-			throw site.typeError("wrong function type for fold");
+			throw site.typeError("wrong function type for list.fold");
 		}
 
 		return Value.new(zType);
@@ -12939,9 +12951,9 @@ class FoldFuncValue extends FuncValue {
 }
 
 /**
- * A special func value with parametric arg types, returned of list.map.
+ * A special func value with parametric arg types, returned by list.map
  */
-class MapFuncValue extends FuncValue {
+class MapListFuncValue extends FuncValue {
 	#itemType;
 
 	/**
@@ -13040,6 +13052,27 @@ class MapType extends BuiltinType {
 				return Value.new(new FuncType([], new BoolType()));
 			case "get":
 				return Value.new(new FuncType([this.#keyType], this.#valueType));
+			case "all":
+			case "any":
+				return Value.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], new BoolType()));
+			case "all_keys":
+			case "any_key":
+				return Value.new(new FuncType([new FuncType([this.#keyType], new BoolType())], new BoolType()));
+			case "all_values":
+			case "any_value":
+				return Value.new(new FuncType([new FuncType([this.#valueType], new BoolType())], new BoolType()));
+			case "filter":
+				return Value.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], this));
+			case "filter_by_key":
+				return Value.new(new FuncType([new FuncType([this.#keyType], new BoolType())], this));
+			case "filter_by_value":
+				return Value.new(new FuncType([new FuncType([this.#valueType], new BoolType())], this));
+			case "fold":
+				return new FoldMapFuncValue(this.#keyType, this.#valueType);
+			case "fold_keys":
+				return new FoldListFuncValue(this.#keyType);
+			case "fold_values":
+				return new FoldListFuncValue(this.#valueType);
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -13047,6 +13080,66 @@ class MapType extends BuiltinType {
 
 	get path() {
 		return "__helios__map";
+	}
+}
+
+/**
+ * A special func value with parametric arg types, returned by map.fold.
+ */
+ class FoldMapFuncValue extends FuncValue {
+	#keyType;
+	#valueType;
+
+	/**
+	 * @param {Type} keyType 
+	 * @param {Type} valueType
+	 */
+	constructor(keyType, valueType) {
+		super(new FuncType([new AnyType(), keyType, valueType], new AnyType())); // dummy FuncType
+		this.#keyType = keyType;
+		this.#valueType = valueType;
+	}
+
+	toString() {
+		return `[a](a, (a, ${this.#keyType.toString()}, ${this.#valueType.toString()}) -> a) -> a`;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
+	getType(site) {
+		throw site.typeError("can't get type of type parametric function");
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isInstanceOf(site, type) {
+		throw site.typeError("can't determine if type parametric function is instanceof a type");
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Value[]} args 
+	 * @returns {Value}
+	 */
+	call(site, args) {
+		if (args.length != 2) {
+			throw site.typeError(`expected 3 arg(s), got ${args.length}`);
+		}
+
+		let zType = args[1].getType(site);
+
+		let fnType = new FuncType([zType, this.#keyType, this.#valueType], zType);
+
+		if (!args[0].isInstanceOf(site, fnType)) {
+			throw site.typeError("wrong function type for map.fold");
+		}
+
+		return Value.new(zType);
 	}
 }
 
@@ -14157,14 +14250,14 @@ function makeRawFunctions() {
 		)
 	}`));
 	add(new RawFunc("__helios__common__filter", 
-	`(self, fn) -> {
+	`(self, fn, nil) -> {
 		(recurse) -> {
 			recurse(recurse, self, fn)
 		}(
 			(recurse, self, fn) -> {
 				__core__ifThenElse(
 					__core__nullList(self), 
-					() -> {__core__mkNilData(())}, 
+					() -> {nil}, 
 					() -> {
 						__core__ifThenElse(
 							fn(__core__headList(self)),
@@ -14175,6 +14268,14 @@ function makeRawFunctions() {
 				)()
 			}
 		)
+	}`));
+	add(new RawFunc("__helios__common__filter_list", 
+	`(self, fn) -> {
+		__helios__common__filter(self, fn, __core__mkNilData(()))
+	}`));
+	add(new RawFunc("__helios__common__filter_map",
+	`(self, fn) -> {
+		__helios__common__filter(self, fn, __core__mkNilPairData(()))
 	}`));
 	add(new RawFunc("__helios__common__fold",
 	`(self, fn, z) -> {
@@ -14747,7 +14848,7 @@ function makeRawFunctions() {
 		(self) -> {
 			(fn) -> {
 				(fn) -> {
-					__core__listData(__helios__common__filter(self, fn))
+					__core__listData(__helios__common__filter_list(self, fn))
 				}(
 					(item) -> {
 						__helios__common__unBoolData(fn(item))
@@ -14834,6 +14935,177 @@ function makeRawFunctions() {
 						)()
 					}
 				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__all",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__boolData(__helios__common__all(self, fn))
+				}(
+					(pair) -> {
+						__helios__common__unBoolData(fn(__core__fstPair(pair), __core__sndPair(pair)))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__all_keys",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__boolData(__helios__common__all(self, fn))
+				}(
+					(pair) -> {
+						__helios__common__unBoolData(fn(__core__fstPair(pair)))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__all_values",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__boolData(__helios__common__all(self, fn))
+				}(
+					(pair) -> {
+						__helios__common__unBoolData(fn(__core__sndPair(pair)))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__any",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__boolData(__helios__common__any(self, fn))
+				}(
+					(pair) -> {
+						__helios__common__unBoolData(fn(__core__fstPair(pair), __core__sndPair(pair)))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__any_key",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__boolData(__helios__common__any(self, fn))
+				}(
+					(pair) -> {
+						__helios__common__unBoolData(fn(__core__fstPair(pair)))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__any_value",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__boolData(__helios__common__any(self, fn))
+				}(
+					(pair) -> {
+						__helios__common__unBoolData(fn(__core__sndPair(pair)))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__filter",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__core__mapData(__helios__common__filter_map(self, fn))
+				}(
+					(pair) -> {
+						__helios__common__unBoolData(fn(__core__fstPair(pair), __core__sndPair(pair)))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__filter_by_key",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__core__mapData(__helios__common__filter_map(self, fn))
+				}(
+					(pair) -> {
+						__helios__common__unBoolData(fn(__core__fstPair(pair)))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__filter_by_value",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__core__mapData(__helios__common__filter_map(self, fn))
+				}(
+					(pair) -> {
+						__helios__common__unBoolData(fn(__core__sndPair(pair)))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__fold",
+	`(self) -> {
+		(self) -> {
+			(fn, z) -> {
+				(fn) -> {
+					__helios__common__fold(self, fn, z)
+				}(
+					(z, pair) -> {
+						fn(z, __core__fstPair(pair), __core__sndPair(pair))
+					}
+				)
+				
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__fold_keys",
+	`(self) -> {
+		(self) -> {
+			(fn, z) -> {
+				(fn) -> {
+					__helios__common__fold(self, fn, z)
+				}(
+					(z, pair) -> {
+						fn(z, __core__fstPair(pair))
+					}
+				)
+				
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__fold_values",
+	`(self) -> {
+		(self) -> {
+			(fn, z) -> {
+				(fn) -> {
+					__helios__common__fold(self, fn, z)
+				}(
+					(z, pair) -> {
+						fn(z, __core__sndPair(pair))
+					}
+				)
+				
 			}
 		}(__core__unMapData(self))
 	}`));
@@ -14971,7 +15243,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(hash) -> {
 			__core__listData(
-				__helios__common__filter(
+				__helios__common__filter_list(
 					__core__unListData(__helios__tx__outputs(self)), 
 					(output) -> {
 						(credential) -> {
@@ -15001,7 +15273,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(hash) -> {
 			__core__listData(
-				__helios__common__filter(
+				__helios__common__filter_list(
 					__core__unListData(__helios__tx__outputs(self)), 
 					(output) -> {
 						(credential) -> {
