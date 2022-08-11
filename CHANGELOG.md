@@ -2,6 +2,7 @@ This Changelog only applies to notable changes to `helios.js` on the main branch
 
 # 2022/08/11
 * ByteArray.slice with negative indices behaving like python
+* Map + Map operator (note: map merge doesn't assert uniqueness of keys and simply acts as a concatenation of two lists)
 
 # 2022/08/10
 * Rust-like syntax, structs and enums can have methods

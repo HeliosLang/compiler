@@ -3716,7 +3716,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 					if (n < 0) {
 						n = 0;
 					}
-					
+
 					let sub = bytes.slice(start, start + n);
 
 					return new PlutusCoreByteArray(callSite, sub);
@@ -13032,6 +13032,8 @@ class MapType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
+			case "__add":
+				return Value.new(new FuncType([this], this));
 			case "length":
 				return Value.new(new IntType());
 			case "is_empty":
@@ -14168,6 +14170,20 @@ function makeRawFunctions() {
 			b
 		)
 	}`));
+	add(new RawFunc("__helios__common__concat", 
+	`(a, b) -> {
+		(recurse) -> {
+			recurse(recurse, b, a)
+		}(
+			(recurse, lst, rem) -> {
+				__core__ifThenElse(
+					__core__nullList(rem),
+					() -> {lst},
+					() -> {__core__mkCons(__core__headList(rem), recurse(recurse, lst, __core__tailList(rem)))}
+				)()
+			}
+		)
+	}`));
 
 
 	// Int builtins
@@ -14539,17 +14555,7 @@ function makeRawFunctions() {
 		(a) -> {
 			(b) -> {
 				(b) -> {
-					(recurse) -> {
-						__core__listData(recurse(recurse, b, a))
-					}(
-						(recurse, lst, rem) -> {
-							__core__ifThenElse(
-								__core__nullList(rem),
-								() -> {lst},
-								() -> {__core__mkCons(__core__headList(rem), recurse(recurse, lst, __core__tailList(rem)))}
-							)()
-						}
-					)
+					__core__listData(__helios__common__concat(a, b))
 				}(__core__unListData(b))
 			}
 		}(__core__unListData(self))
@@ -14751,6 +14757,16 @@ function makeRawFunctions() {
 
 	// Map builtins
 	addEqNeqSerialize("__helios__map");
+	add(new RawFunc("__helios__map____add",
+	`(self) -> {
+		(a) -> {
+			(b) -> {
+				(b) -> {
+					__core__mapData(__helios__common__concat(a, b))
+				}(__core__unMapData(b))
+			}
+		}(__core__unMapData(self))
+	}`));
 	add(new RawFunc("__helios__map__length",
 	`(self) -> {
 		__helios__common__length(__core__unMapData(self))
@@ -15419,7 +15435,7 @@ function makeRawFunctions() {
 		(aKeys) -> {
 			(recurse) -> {
 				(uniqueBKeys) -> {
-					__core__unListData(__helios__list____add(__core__listData(aKeys))(__core__listData(uniqueBKeys)))
+					__helios__common__concat(aKeys, uniqueBKeys)
 				}(recurse(recurse, aKeys, b))
 			}(
 				(recurse, keys, map) -> {
@@ -17520,6 +17536,7 @@ export const exportedForTesting = {
 	wrapCborBytes: wrapCborBytes,
 	unwrapCborBytes: unwrapCborBytes,
 	Crypto: Crypto,
+	MapData: MapData,
 	LedgerData: LedgerData,
 	PlutusCoreData: PlutusCoreData,
 	ScriptPurpose: ScriptPurpose,

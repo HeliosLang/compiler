@@ -17,7 +17,7 @@ internal ns: __helios__string
 # ByteArray
 operators:   __eq, __neq, __add
 getters:     length
-methods:     serialize, sha2, sha3, blake2b, decode_utf8, show
+methods:     serialize, slice, sha2, sha3, blake2b, decode_utf8, show
 internal ns: __helios__bytearray
 
 # List
@@ -28,7 +28,7 @@ methods:     serialize, is_empty, get, prepend, any, all, find, filter, fold, ma
 internal ns: __helios__list
 
 # Map
-operators:   __eq, __neq
+operators:   __eq, __neq, __add
 getters:     length
 methods:     serialize, is_empty, get
 internal ns: __helios__map

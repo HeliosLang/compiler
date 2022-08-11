@@ -1123,6 +1123,14 @@ async function runPropertyTests() {
         return res.isBool() && !res.asBool();
     });
 
+    await ft.test([ft.map(ft.int(), ft.int(), 0, 10), ft.map(ft.int(), ft.int(), 0, 10)], `
+    test map_add
+    func main(a: Map[Int]Int, b: Map[Int]Int) -> Map[Int]Int {
+        a + b
+    }`, ([a, b], res) => {
+        return res.isSame(new helios_.MapData(a.map.concat(b.map)));
+    });
+
     await ft.test([ft.map(ft.int(), ft.int())], `
     test map_length
     func main(a: Map[Int]Int) -> Int {
