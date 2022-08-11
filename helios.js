@@ -13030,6 +13030,8 @@ class MapType extends BuiltinType {
 		switch (name.value) {
 			case "length":
 				return Value.new(new IntType());
+			case "is_empty":
+				return Value.new(new FuncType([], new BoolType()));
 			case "get":
 				return Value.new(new FuncType([this.#keyType], this.#valueType));
 			default:
@@ -13882,6 +13884,8 @@ class MoneyValueType extends BuiltinType {
 				return Value.new(new FuncType([], new BoolType()));
 			case "get":
 				return Value.new(new FuncType([new AssetClassType()], new IntType()));
+			case "get_policy":
+				return Value.new(new FuncType([new MintingPolicyHashType()], new MapType(new StringType(), new IntType())));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -14690,6 +14694,14 @@ function makeRawFunctions() {
 	`(self) -> {
 		__helios__common__length(__core__unMapData(self))
 	}`));
+	add(new RawFunc("__helios__map__is_empty",
+	`(self) -> {
+		(self) -> {
+			() -> {
+				__helios__common__boolData(__core__nullList(self))
+			}
+		}(__core__unMapData(self))
+	}`));
 	add(new RawFunc("__helios__map__get",
 	`(self) -> {
 		(self) -> {
@@ -15345,12 +15357,14 @@ function makeRawFunctions() {
 	`(a, b) -> {
 		(aKeys) -> {
 			(recurse) -> {
-				recurse(recurse, aKeys, b)
+				(uniqueBKeys) -> {
+					__core__unListData(__helios__list____add(__core__listData(aKeys))(__core__listData(uniqueBKeys)))
+				}(recurse(recurse, aKeys, b))
 			}(
 				(recurse, keys, map) -> {
 					__core__ifThenElse(
 						__core__nullList(map), 
-						() -> {keys}, 
+						() -> {__core__mkNilData(())}, 
 						() -> {
 							(key) -> {
 								__core__ifThenElse(
@@ -15632,6 +15646,30 @@ function makeRawFunctions() {
 				)
 			}(__core__unMapData(self), ${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})
 		}
+	}`));
+	add(new RawFunc("__helios__value__get_policy", 
+	`(self) -> {
+		(mph) -> {
+			(map) -> {
+				(recurse) -> {
+					recurse(recurse, map)
+				}(
+					(recurse, map) -> {
+						__core__ifThenElse(
+							__core__nullList(map),
+							() -> {__core__trace("not found", __core__mapData(__core__mkNilPairData(())))},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsData(__core__fstPair(__core__headList(map)), mph),
+									() -> {__core__sndPair(__core__headList(map))},
+									() -> {recurse(recurse, __core__tailList(map))}
+								)()
+							}
+						)()
+					}
+				)
+			}(__core__unMapData(self))
+		} 
 	}`));
 
 	return db;

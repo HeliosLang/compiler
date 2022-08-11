@@ -933,7 +933,7 @@ async function runPropertyTests() {
             );
         });
 
-        await ft.test([ft.list(ft.int())], `
+        await ft.test([ft.list(ft.int(), 0, 10)], `
         test list_is_empty
         func main(a: []Int) -> Bool {
             a.is_empty()
@@ -1082,6 +1082,14 @@ async function runPropertyTests() {
         a.length
     }`, ([a], res) => {
         return res.isInt() && (a.map.length == Number(res.asInt()));
+    });
+
+    await ft.test([ft.map(ft.int(), ft.int(), 0, 10)], `
+    test map_is_empty
+    func main(a: Map[Int]Int) -> Bool {
+        a.is_empty()
+    }`, ([a], res) => {
+        return res.isBool() && ((a.map.length == 0) === res.asBool());
     });
 
     await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
@@ -1307,14 +1315,6 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int()], `
-        test value_get
-        func main(a: Int) -> Int {
-            Value::lovelace(a).get(AssetClass::ADA)
-        }`, ([a], res) => {
-            return res.isInt() && (a.asInt() === res.asInt());
-        });
-
-        await ft.test([ft.int()], `
         test value_eq_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) == Value::lovelace(a)
@@ -1464,6 +1464,23 @@ async function runPropertyTests() {
             Value::lovelace(a) < Value::lovelace(b)
         }`, ([a, b], res) => {
             return res.isBool() && ((a.asInt() < b.asInt()) === res.asBool());
+        });
+
+        await ft.test([ft.int()], `
+        test value_get
+        func main(a: Int) -> Int {
+            Value::lovelace(a).get(AssetClass::ADA)
+        }`, ([a], res) => {
+            return res.isInt() && (a.asInt() === res.asInt());
+        });
+
+        await ft.test([ft.bytes(10, 10), ft.string(5,5), ft.int(), ft.string(3,3), ft.int()], `
+        test value_get_policy
+        func main(mph_bytes: ByteArray, tn_a: String, qty_a: Int, tn_b: String, qty_b: Int) -> Bool {
+            sum: Value = Value::new(AssetClass::new(mph_bytes, tn_a), qty_a) + Value::new(AssetClass::new(mph_bytes, tn_b), qty_b);
+            sum.get_policy(MintingPolicyHash::new(mph_bytes)) == Map[String]Int{tn_a: qty_a, tn_b: qty_b}
+        }`, ([_], res) => {    
+            return res.isBool() && res.asBool();
         });
 
         await ft.test([ft.int(), ft.bytes(), ft.string()], `

@@ -5,9 +5,10 @@ This Changelog only applies to notable changes to `helios.js` on the main branch
 * No commas in struct/enum-member definitions
 * No semicolon after const statement
 * C#-like switch syntax
-* TimeRange contstructors: ALWAYS, NEVER, from, to
+* TimeRange constructors: ALWAYS, NEVER, from, to
 * TimeRange comparison: is_before(Time) and is_after(Time)
-* Map literal, Map.get() and Map.length
+* Map literal, Map.length, Map.is_empty() and Map.get()
+* Value.get_policy()
 
 # 2022/07/15
 * renamed to helios
