@@ -2822,7 +2822,7 @@ async function runIntegrationTests() {
         x: Value = Value::new(ac1, 100) + Value::new(ac2, 200) - Value::new(ac1, 50);
 
         []Int{x.get(ac1), x.get(ac2), x.get(ac3)}
-    }`, "[50, 200, 0]", []);
+    }`, "policy not found", []);
 
     // 13. switch_redeemer
     await runTestScript(`test staking

@@ -14116,9 +14116,83 @@ function makeRawFunctions() {
 			__core__bData(__core__serialiseData(self))
 		}
 	}`));
+	add(new RawFunc("__helios__common__any",
+	`(self, fn) -> {
+		(recurse) -> {
+			recurse(recurse, self, fn)
+		}(
+			(recurse, self, fn) -> {
+				__core__ifThenElse(
+					__core__nullList(self), 
+					() -> {false}, 
+					() -> {
+						__core__ifThenElse(
+							fn(__core__headList(self)),
+							() -> {true}, 
+							() -> {recurse(recurse, __core__tailList(self), fn)}
+						)()
+					}
+				)()
+			}
+		)
+	}`));
+	add(new RawFunc("__helios__common__all", 
+	`(self, fn) -> {
+		(recurse) -> {
+			recurse(recurse, self, fn)
+		}(
+			(recurse, self, fn) -> {
+				__core__ifThenElse(
+					__core__nullList(self),
+					() -> {true},
+					() -> {
+						__core__ifThenElse(
+							fn(__core__headList(self)),
+							() -> {recurse(recurse, __core__tailList(self), fn)},
+							() -> {false}
+						)()
+					}
+				)()
+			}
+		)
+	}`));
+	add(new RawFunc("__helios__common__filter", 
+	`(self, fn) -> {
+		(recurse) -> {
+			recurse(recurse, self, fn)
+		}(
+			(recurse, self, fn) -> {
+				__core__ifThenElse(
+					__core__nullList(self), 
+					() -> {__core__mkNilData(())}, 
+					() -> {
+						__core__ifThenElse(
+							fn(__core__headList(self)),
+							() -> {__core__mkCons(__core__headList(self), recurse(recurse, __core__tailList(self), fn))}, 
+							() -> {recurse(recurse, __core__tailList(self), fn)}
+						)()
+					}
+				)()
+			}
+		)
+	}`));
+	add(new RawFunc("__helios__common__fold",
+	`(self, fn, z) -> {
+		(recurse) -> {
+			recurse(recurse, self, fn, z)
+		}(
+			(recurse, self, fn, z) -> {
+				__core__ifThenElse(
+					__core__nullList(self), 
+					() -> {z}, 
+					() -> {recurse(recurse, __core__tailList(self), fn, fn(z, __core__headList(self)))}
+				)()
+			}
+		)
+	}`));
 	add(new RawFunc("__helios__common__is_in_bytearray_list",
 	`(lst, key) -> {
-		__helios__list__any(__core__listData(lst))((item) -> {__helios__common__boolData(__core__equalsData(item, key))})
+		__helios__common__any(lst, (item) -> {__core__equalsData(item, key)})
 	}`));
 	add(new RawFunc("__helios__common__unBoolData",
 	`(d) -> {
@@ -14612,21 +14686,11 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
-				(recurse) -> {
-					__helios__common__boolData(recurse(recurse, self, fn))
+				(fn) -> {
+					__helios__common__boolData(__helios__common__any(self, fn))
 				}(
-					(recurse, self, fn) -> {
-						__core__ifThenElse(
-							__core__nullList(self), 
-							() -> {false}, 
-							() -> {
-								__core__ifThenElse(
-									__helios__common__unBoolData(fn(__core__headList(self))),
-									() -> {true}, 
-									() -> {recurse(recurse, __core__tailList(self), fn)}
-								)()
-							}
-						)()
+					(item) -> {
+						__helios__common__unBoolData(fn(item))
 					}
 				)
 			}
@@ -14636,21 +14700,11 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
-				(recurse) -> {
-					__helios__common__boolData(recurse(recurse, self, fn))
+				(fn) -> {
+					__helios__common__boolData(__helios__common__all(self, fn))
 				}(
-					(recurse, self, fn) -> {
-						__core__ifThenElse(
-							__core__nullList(self),
-							() -> {true},
-							() -> {
-								__core__ifThenElse(
-									__helios__common__unBoolData(fn(__core__headList(self))),
-									() -> {recurse(recurse, __core__tailList(self), fn)},
-									() -> {false}
-								)()
-							}
-						)()
+					(item) -> {
+						__helios__common__unBoolData(fn(item))
 					}
 				)
 			}
@@ -14692,23 +14746,13 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
-				(recurse) -> {
-					__core__listData(recurse(recurse, self, fn))
+				(fn) -> {
+					__core__listData(__helios__common__filter(self, fn))
 				}(
-					(recurse, self, fn) -> {
-						__core__ifThenElse(
-							__core__nullList(self), 
-							() -> {__core__mkNilData(())}, 
-							() -> {
-								__core__ifThenElse(
-									__helios__common__unBoolData(fn(__core__headList(self))),
-									() -> {__core__mkCons(__core__headList(self), recurse(recurse, __core__tailList(self), fn))}, 
-									() -> {recurse(recurse, __core__tailList(self), fn)}
-								)()
-							}
-						)()
+					(item) -> {
+						__helios__common__unBoolData(fn(item))
 					}
-				)		
+				)	
 			}
 		}(__core__unListData(self))
 	}`));
@@ -14716,17 +14760,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			(fn, z) -> {
-				(recurse) -> {
-					recurse(recurse, self, fn, z)
-				}(
-					(recurse, self, fn, z) -> {
-						__core__ifThenElse(
-							__core__nullList(self), 
-							() -> {z}, 
-							() -> {recurse(recurse, __core__tailList(self), fn, fn(z, __core__headList(self)))}
-						)()
-					}
-				)
+				__helios__common__fold(self, fn, z)
 			}
 		}(__core__unListData(self))
 	}`));
@@ -14936,54 +14970,60 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__tx__outputs_sent_to",
 	`(self) -> {
 		(hash) -> {
-			__helios__list__filter(__helios__tx__outputs(self))(
-				(output) -> {
-					__helios__common__boolData((credential) -> {
-						__core__ifThenElse(
-							__helios__common__unBoolData(__helios__credential__is_pubkey(credential)),
-							() -> {
-								__core__ifThenElse(
-									__core__equalsData(
-										hash, 
-										__helios__credential__pubkey__hash(
-											__helios__credential__pubkey__cast(credential)
-										)
-									),
-									true,
-									false
-								)
-							},
-							() -> {false}
-						)()
-					}(__helios__address__credential(__helios__txoutput__address(output))))
-				}
+			__core__listData(
+				__helios__common__filter(
+					__core__unListData(__helios__tx__outputs(self)), 
+					(output) -> {
+						(credential) -> {
+							__core__ifThenElse(
+								__helios__credential__is_pubkey(credential),
+								() -> {
+									__core__ifThenElse(
+										__core__equalsData(
+											hash, 
+											__helios__credential__pubkey__hash(
+												__helios__credential__pubkey__cast(credential)
+											)
+										),
+										true,
+										false
+									)
+								},
+								() -> {false}
+							)()
+						}(__helios__address__credential(__helios__txoutput__address(output)))
+					}
+				)
 			)
 		}
 	}`));
 	add(new RawFunc("__helios__tx__outputs_locked_by",
 	`(self) -> {
 		(hash) -> {
-			__helios__list__filter(__helios__tx__outputs(self))(
-				(output) -> {
-					__helios__common__boolData((credential) -> {
-						__core__ifThenElse(
-							__helios__common__unBoolData(__helios__credential__is_validator(credential)),
-							() -> {
-								__core__ifThenElse(
-									__core__equalsData(
-										hash, 
-										__helios__credential__validator__hash(
-											__helios__credential__validator__cast(credential)
-										)
-									),
-									true,
-									false
-								)
-							},
-							() -> {false}
-						)()
-					}(__helios__address__credential(__helios__txoutput__address(output))))
-				}
+			__core__listData(
+				__helios__common__filter(
+					__core__unListData(__helios__tx__outputs(self)), 
+					(output) -> {
+						(credential) -> {
+							__core__ifThenElse(
+								__helios__credential__is_validator(credential),
+								() -> {
+									__core__ifThenElse(
+										__core__equalsData(
+											hash, 
+											__helios__credential__validator__hash(
+												__helios__credential__validator__cast(credential)
+											)
+										),
+										true,
+										false
+									)
+								},
+								() -> {false}
+							)()
+						}(__helios__address__credential(__helios__txoutput__address(output)))
+					}
+				)
 			)
 		}
 	}`));
@@ -15035,10 +15075,13 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__tx__is_signed_by",
 	`(self) -> {
 		(hash) -> {
-			__helios__list__any(__helios__tx__signatories(self))(
-				(signatory) -> {
-					__helios__common__boolData(__core__equalsData(signatory, hash))
-				}
+			__helios__common__boolData(
+				__helios__common__any(
+					__core__unListData(__helios__tx__signatories(self)),
+					(signatory) -> {
+						__core__equalsData(signatory, hash)
+					}
+				)
 			)
 		}
 	}`));
@@ -15118,11 +15161,11 @@ function makeRawFunctions() {
 	addEqNeqSerialize("__helios__credential");
 	add(new RawFunc("__helios__credential__is_pubkey",
 	`(self) -> {
-		__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 0))
+		__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 0)
 	}`));
 	add(new RawFunc("__helios__credential__is_validator",
 	`(self) -> {
-		__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 1))
+		__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 1)
 	}`));
 
 
@@ -15445,7 +15488,7 @@ function makeRawFunctions() {
 						() -> {
 							(key) -> {
 								__core__ifThenElse(
-									__helios__common__unBoolData(__helios__common__is_in_bytearray_list(aKeys, key)), 
+									__helios__common__is_in_bytearray_list(aKeys, key), 
 									() -> {recurse(recurse, keys, __core__tailList(map))},
 									() -> {__core__mkCons(key, recurse(recurse, keys, __core__tailList(map)))}
 								)()
@@ -15698,7 +15741,7 @@ function makeRawFunctions() {
 					(outer, inner, map) -> {
 						__core__ifThenElse(
 							__core__nullList(map), 
-							() -> {__core__iData(0)}, 
+							() -> {__core__error("policy not found")}, 
 							() -> {
 								__core__ifThenElse(
 									__core__equalsData(__core__fstPair(__core__headList(map)), mintingPolicyHash), 
@@ -15710,7 +15753,7 @@ function makeRawFunctions() {
 					}, (inner, map) -> {
 						__core__ifThenElse(
 							__core__nullList(map), 
-							() -> {__core__iData(0)}, 
+							() -> {__core__error("tokenName not found")}, 
 							() -> {
 								__core__ifThenElse(
 									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
@@ -15734,7 +15777,7 @@ function makeRawFunctions() {
 					(recurse, map) -> {
 						__core__ifThenElse(
 							__core__nullList(map),
-							() -> {__core__trace("not found", __core__mapData(__core__mkNilPairData(())))},
+							() -> {__core__error("policy not found")},
 							() -> {
 								__core__ifThenElse(
 									__core__equalsData(__core__fstPair(__core__headList(map)), mph),
