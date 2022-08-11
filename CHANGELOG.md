@@ -7,6 +7,7 @@ This Changelog only applies to notable changes to `helios.js` on the main branch
 * Map + Map operator (note: map merge doesn't assert uniqueness of keys and simply acts as a concatenation of two lists)
 * Map methods: all, all_keys, all_values, any, any_key, any_value, filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values
 * all methods named 'get...' or 'find...' throw errors if not found
+* TokenName in AssetClass is now ByteArray in order to align with Plutus-Ledger-API (used to be String)
 
 # 2022/08/10
 * Rust-like syntax, structs and enums can have methods

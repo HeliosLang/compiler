@@ -1577,28 +1577,28 @@ async function runPropertyTests() {
     // AssetClass tests
     ///////////////////
 
-    await ft.test([ft.bytes(0, 1), ft.string(0, 1)], `
+    await ft.test([ft.bytes(0, 1), ft.bytes(0, 1)], `
     test assetclass_new
-    func main(a: ByteArray, b: String) -> Bool {
+    func main(a: ByteArray, b: ByteArray) -> Bool {
         AssetClass::new(a, b) == AssetClass::ADA
     }`, ([a, b], res) => {
-        return res.isBool() && ((a.asByteArray().length == 0 && b.asString().length == 0) === res.asBool());
+        return res.isBool() && ((a.asByteArray().length == 0 && b.asByteArray().length == 0) === res.asBool());
     });
 
-    await ft.test([ft.bytes(0, 1), ft.string(0, 1)], `
+    await ft.test([ft.bytes(0, 1), ft.bytes(0, 1)], `
     test assetclass_new
-    func main(a: ByteArray, b: String) -> Bool {
+    func main(a: ByteArray, b: ByteArray) -> Bool {
         AssetClass::new(a, b) != AssetClass::ADA
     }`, ([a, b], res) => {
-        return res.isBool() && ((a.asByteArray().length == 0 && b.asString().length == 0) === !res.asBool());
+        return res.isBool() && ((a.asByteArray().length == 0 && b.asByteArray().length == 0) === !res.asBool());
     });
 
-    await ft.test([ft.bytes(), ft.string()], `
+    await ft.test([ft.bytes(), ft.bytes()], `
     test assetclass_serialize
-    func main(a: ByteArray, b: String) -> ByteArray {
+    func main(a: ByteArray, b: ByteArray) -> ByteArray {
         AssetClass::new(a, b).serialize()
     }`, ([a, b], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newAssetClass(a.asByteArray(), b.asString()));
+        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newAssetClass(a.asByteArray(), b.asByteArray()));
     });
 
 
@@ -1779,19 +1779,19 @@ async function runPropertyTests() {
 
         await ft.test([ft.bytes(10, 10), ft.string(5,5), ft.int(), ft.string(3,3), ft.int()], `
         test value_get_policy
-        func main(mph_bytes: ByteArray, tn_a: String, qty_a: Int, tn_b: String, qty_b: Int) -> Bool {
+        func main(mph_bytes: ByteArray, tn_a: ByteArray, qty_a: Int, tn_b: ByteArray, qty_b: Int) -> Bool {
             sum: Value = Value::new(AssetClass::new(mph_bytes, tn_a), qty_a) + Value::new(AssetClass::new(mph_bytes, tn_b), qty_b);
-            sum.get_policy(MintingPolicyHash::new(mph_bytes)) == Map[String]Int{tn_a: qty_a, tn_b: qty_b}
+            sum.get_policy(MintingPolicyHash::new(mph_bytes)) == Map[ByteArray]Int{tn_a: qty_a, tn_b: qty_b}
         }`, ([_], res) => {    
             return res.isBool() && res.asBool();
         });
 
-        await ft.test([ft.int(), ft.bytes(), ft.string()], `
+        await ft.test([ft.int(), ft.bytes(), ft.bytes()], `
         test value_serialize
-        func main(qty: Int, mph: ByteArray, name: String) -> ByteArray {
+        func main(qty: Int, mph: ByteArray, name: ByteArray) -> ByteArray {
             Value::new(AssetClass::new(mph, name), qty).serialize()
         }`, ([qty, mph, name], res) => {
-            return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newValue(qty.asInt(), mph.asByteArray(), name.asString()));
+            return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newValue(qty.asInt(), mph.asByteArray(), name.asByteArray()));
         });
     }
 
@@ -3062,9 +3062,9 @@ async function runIntegrationTests() {
     // 12. value_get
     await runTestScript(`test value_get
     func main() -> []Int {
-        ac1: AssetClass = AssetClass::new(#123, "123");
-        ac2: AssetClass = AssetClass::new(#456, "456");
-        ac3: AssetClass = AssetClass::new(#789, "789");
+        ac1: AssetClass = AssetClass::new(#1234, #1234);
+        ac2: AssetClass = AssetClass::new(#5678, #5678);
+        ac3: AssetClass = AssetClass::new(#9abc, #9abc);
 
 
         x: Value = Value::new(ac1, 100) + Value::new(ac2, 200) - Value::new(ac1, 50);
@@ -3187,6 +3187,7 @@ async function main() {
 }
 
 main().catch(e => {
+    throw e;
     console.error(`Error: ${e.message}`);
 	process.exit(1);
 });

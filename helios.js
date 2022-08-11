@@ -5413,11 +5413,11 @@ class LedgerData extends ConstrData {
 
 	/**
 	 * @param {number[]} mph
-	 * @param {string} tokenName
+	 * @param {number[]} tokenName - list of uint8 numbers
 	 * @returns {LedgerData}
 	 */
-	static newAssetClass(mph = [], tokenName = "") {
-		return new LedgerData(0, [new ByteArrayData(mph), new ByteArrayData(stringToBytes(tokenName))], {
+	static newAssetClass(mph = [], tokenName = []) {
+		return new LedgerData(0, [new ByteArrayData(mph), new ByteArrayData(tokenName)], {
 			mintingPolicyHash: mph,
 			tokenName: tokenName,
 		});
@@ -5427,15 +5427,15 @@ class LedgerData extends ConstrData {
 	 * Returns a moneyvalue map
 	 * @param {bigint} qty 
 	 * @param {number[]} mph - minting policy hash
-	 * @param {string} tokenName
+	 * @param {number[]} tokenName - list of uint8 numbers
 	 * @returns {MapData}
 	 */
-	 static newValue(qty, mph = [], tokenName = "") {
+	 static newValue(qty, mph = [], tokenName = []) {
 		if (qty == 0n) {
 			return new MapData([]);
 		} else {
 			let mphData = new ByteArrayData(mph);
-			let tokenNameData = new ByteArrayData(stringToBytes(tokenName));
+			let tokenNameData = new ByteArrayData(tokenName);
 			
 			return new MapData([
 				[mphData, new MapData([
@@ -13933,7 +13933,7 @@ class AssetClassType extends BuiltinType {
 			case "ADA":
 				return Value.new(new AssetClassType());
 			case "new":
-				return Value.new(new FuncType([new ByteArrayType(), new StringType()], new AssetClassType()));
+				return Value.new(new FuncType([new ByteArrayType(), new ByteArrayType()], new AssetClassType()));
 			default:
 				return super.getTypeMember(name);
 		}
@@ -13990,7 +13990,7 @@ class MoneyValueType extends BuiltinType {
 			case "get":
 				return Value.new(new FuncType([new AssetClassType()], new IntType()));
 			case "get_policy":
-				return Value.new(new FuncType([new MintingPolicyHashType()], new MapType(new StringType(), new IntType())));
+				return Value.new(new FuncType([new MintingPolicyHashType()], new MapType(new ByteArrayType(), new IntType())));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -15738,7 +15738,7 @@ function makeRawFunctions() {
 
 	// AssetClass builtins
 	addEqNeqSerialize("__helios__assetclass");
-	add(new RawFunc("__helios__assetclass__ADA", `__helios__assetclass__new(__core__bData(#), __helios__common__stringData(""))`));
+	add(new RawFunc("__helios__assetclass__ADA", `__helios__assetclass__new(__core__bData(#), __core__bData(#))`));
 	add(new RawFunc("__helios__assetclass__new",
 	`(mintingPolicyHash, tokenName) -> {
 		__core__constrData(0, ${makeList(["mintingPolicyHash", "tokenName"])})
