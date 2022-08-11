@@ -1,6 +1,9 @@
 This Changelog only applies to notable changes to `helios.js` on the main branch.
 
-# 2022 08/10
+# 2022/08/11
+* ByteArray.slice with negative indices behaving like python
+
+# 2022/08/10
 * Rust-like syntax, structs and enums can have methods
 * No commas in struct/enum-member definitions
 * No semicolon after const statement

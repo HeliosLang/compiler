@@ -702,6 +702,53 @@ async function runPropertyTests() {
             return res.isInt() && (BigInt(a.asByteArray().length) === res.asInt());
         });
 
+        await ft.test([ft.bytes(0, 64), ft.int(-10, 100)], `
+        test bytearray_slice_1
+        func main(a: ByteArray, b: Int) -> ByteArray {
+            a.slice(b, -1)
+        }`, ([a, b], res) => {
+            let aBytes = a.asByteArray();
+            let n = aBytes.length;
+
+            let start = b.asInt() < 0n ? n + 1 + Number(b.asInt()) : Number(b.asInt());
+            if (start < 0) {
+                start = 0;
+            } else if (start > n) {
+                start = n;
+            }
+
+            let expected = aBytes.slice(start);
+
+            return res.equalsByteArray(expected);
+        });
+
+        await ft.test([ft.bytes(0, 64), ft.int(-10, 100), ft.int(-10, 100)], `
+        test bytearray_slice_2
+        func main(a: ByteArray, b: Int, c: Int) -> ByteArray {
+            a.slice(b, c)
+        }`, ([a, b, c], res) => {
+            let aBytes = a.asByteArray();
+            let n = aBytes.length;
+
+            let start = b.asInt() < 0n ? n + 1 + Number(b.asInt()) : Number(b.asInt());
+            if (start < 0) {
+                start = 0;
+            } else if (start > n) {
+                start = n;
+            }
+
+            let end = c.asInt() < 0n ? n + 1 + Number(c.asInt()) : Number(c.asInt());
+            if (end < 0) {
+                end = 0;
+            } else if (end > n) {
+                end = n;
+            }
+
+            let expected = aBytes.slice(start, end);
+
+            return res.equalsByteArray(expected);
+        });
+
         await ft.test([ft.utf8Bytes()], `
         test bytearray_decode_utf8_utf8
         func main(a: ByteArray) -> String {

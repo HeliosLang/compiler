@@ -3716,8 +3716,10 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 					if (n < 0) {
 						n = 0;
 					}
+					
+					let sub = bytes.slice(start, start + n);
 
-					return new PlutusCoreByteArray(callSite, bytes.slice(start, start + n));
+					return new PlutusCoreByteArray(callSite, sub);
 				});
 			case "lengthOfByteString":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
@@ -12770,6 +12772,8 @@ class ByteArrayType extends BuiltinType {
 				return Value.new(new FuncType([new ByteArrayType()], new ByteArrayType()));
 			case "length":
 				return Value.new(new IntType());
+			case "slice":
+				return Value.new(new FuncType([new IntType(), new IntType()], new ByteArrayType()));
 			case "sha2":
 			case "sha3":
 			case "blake2b":
@@ -14148,6 +14152,22 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
+	add(new RawFunc("__helios__common__max",
+	`(a, b) -> {
+		__core__ifThenElse(
+			__core__lessThanInteger(a, b),
+			b,
+			a
+		)
+	}`));
+	add(new RawFunc("__helios__common__min", 
+	`(a, b) -> {
+		__core__ifThenElse(
+			__core__lessThanEqualsInteger(a, b),
+			a,
+			b
+		)
+	}`));
 
 
 	// Int builtins
@@ -14387,6 +14407,47 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__bytearray__length",
 	`(self) -> {
 		__core__iData(__core__lengthOfByteString(__core__unBData(self)))
+	}`));
+	add(new RawFunc("__helios__bytearray__slice", 
+	`(self) -> {
+		(start, end) -> {
+			(self) -> {
+				(start, end) -> {
+					__core__bData(
+						(fn) -> {
+							__core__ifThenElse(
+								__core__lessThanInteger(start, 0),
+								() -> {
+									fn(__core__addInteger(__core__addInteger(__core__lengthOfByteString(self), 1), start))
+								},
+								() -> {
+									fn(start)
+								}
+							)()
+						}
+						(
+							(start) -> {
+								(fn) -> {
+									__core__ifThenElse(
+										__core__lessThanInteger(end, 0),
+										() -> {
+											fn(__core__addInteger(__core__addInteger(__core__lengthOfByteString(self), 1), end))
+										},
+										() -> {
+											fn(end)
+										}
+									)()
+								}(
+									(end) -> {
+										__core__sliceByteString(start, __core__subtractInteger(end, __helios__common__max(start, 0)), self)
+									}
+								)
+							}
+						)
+					)
+				}(__core__unIData(start), __core__unIData(end))
+			}(__core__unBData(self))
+		}
 	}`));
 	add(new RawFunc("__helios__bytearray__sha2",
 	`(self) -> {
