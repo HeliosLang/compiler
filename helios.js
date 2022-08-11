@@ -13793,6 +13793,8 @@ class TimeRangeType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
+			case "is_before": // is_before condition never overlaps with contains
+			case "is_after": // is_after condition never overlaps with contains
 			case "contains":
 				return Value.new(new FuncType([new TimeType()], new BoolType()));
 			case "get_start":
@@ -15151,6 +15153,66 @@ function makeRawFunctions() {
 				`__helios__common__boolData(true)`
 			])})`
 		])})
+	}`));
+	add(new RawFunc("__helios__timerange__is_before", 
+	`(self) -> {
+		(t) -> {
+			(upper) -> {
+				(extended, closed) -> {
+					(extType) -> {
+						__helios__common__boolData(
+							__core__ifThenElse(
+								__core__equalsInteger(extType, 2),
+								() -> {false},
+								() -> {
+									__core__ifThenElse(
+										__core__equalsInteger(extType, 0),
+										() -> {true},
+										() -> {
+											__core__ifThenElse(
+												__helios__common__unBoolData(closed),
+												() -> {__core__lessThanInteger(__core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))), __core__unIData(t))},
+												() -> {__core__lessThanEqualsInteger(__core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))), __core__unIData(t))}
+											)()
+										}
+									)()
+								}
+							)()
+						)
+					}(__core__fstPair(__core__unConstrData(extended)))
+				}(${unData("upper", 0, 0)}, ${unData("upper", 0, 1)})
+			}(${unData("self", 0, 1)})
+		}
+	}`));
+	add(new RawFunc("__helios__timerange__is_after",
+	`(self) -> {
+		(t) -> {
+			(lower) -> {
+				(extended, closed) -> {
+					(extType) -> {
+						__helios__common__boolData(
+							__core__ifThenElse(
+								__core__equalsInteger(extType, 0),
+								() -> {false},
+								() -> {
+									__core__ifThenElse(
+										__core__equalsInteger(extType, 2),
+										() -> {true},
+										() -> {
+											__core__ifThenElse(
+												__helios__common__unBoolData(closed),
+												() -> {__core__lessThanInteger(__core__unIData(t), __core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))))},
+												() -> {__core__lessThanEqualsInteger(__core__unIData(t), __core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))))}
+											)()
+										}
+									)()
+								}
+							)()
+						)
+					}(__core__fstPair(__core__unConstrData(extended)))
+				}(${unData("lower", 0, 0)}, ${unData("lower", 0, 1)})
+			}(${unData("self", 0, 0)})
+		}
 	}`));
 	add(new RawFunc("__helios__timerange__contains",
 	`(self) -> {

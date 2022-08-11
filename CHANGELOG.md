@@ -1,7 +1,13 @@
 This Changelog only applies to notable changes to `helios.js` on the main branch.
 
 # 2022 08/10
-* rust-like syntax
+* Rust-like syntax, structs and enums can have methods
+* No commas in struct/enum-member definitions
+* No semicolon after const statement
+* C#-like switch syntax
+* TimeRange contstructors: ALWAYS, NEVER, from, to
+* TimeRange comparison: is_before(Time) and is_after(Time)
+* Map literal, Map.get() and Map.length
 
 # 2022/07/15
 * renamed to helios

@@ -2461,6 +2461,87 @@ async function runPropertyTests() {
         return res.isBool() && ((a.asInt() < b.asInt() - 1n) === res.asBool());
     });
 
+    await ft.test([ft.int()], `
+    test timerange_is_after_1
+    func main(a: Int) -> Bool {
+        TimeRange::NEVER.is_after(Time::new(a))
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.int()], `
+    test timerange_is_after_2
+    func main(a: Int) -> Bool {
+        TimeRange::ALWAYS.is_after(Time::new(a))
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test timerange_is_after_3
+    func main(a: Int, b: Int) -> Bool {
+        TimeRange::to(Time::new(a)).is_after(Time::new(b))
+    }`, ([a, b], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test timerange_is_after_4
+    func main(a: Int, b: Int) -> Bool {
+        TimeRange::from(Time::new(a)).is_after(Time::new(b))
+    }`, ([a, b], res) => {
+        return res.isBool() && ((b.asInt() < a.asInt()) === res.asBool());
+    });
+
+    await ft.test([ft.int(), ft.int(), ft.int()], `
+    test timerange_is_after_5
+    func main(a: Int, b: Int, c: Int) -> Bool {
+        TimeRange::new(Time::new(a), Time::new(b)).is_after(Time::new(c))
+    }`, ([a, _, c], res) => {
+        return res.isBool() && ((c.asInt() < a.asInt()) === res.asBool());
+    });
+
+    await ft.test([ft.int()], `
+    test timerange_is_before_1
+    func main(a: Int) -> Bool {
+        TimeRange::NEVER.is_before(Time::new(a))
+    }`, ([_], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.int()], `
+    test timerange_is_before_2
+    func main(a: Int) -> Bool {
+        TimeRange::ALWAYS.is_before(Time::new(a))
+    }`, ([_], res) => {
+        return res.isBool() && !res.asBool();
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test timerange_is_before_3
+    func main(a: Int, b: Int) -> Bool {
+        TimeRange::to(Time::new(a)).is_before(Time::new(b))
+    }`, ([a, b], res) => {
+        return res.isBool() && ((a.asInt() < b.asInt()) === res.asBool());
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    test timerange_is_before_4
+    func main(a: Int, b: Int) -> Bool {
+        TimeRange::from(Time::new(a)).is_before(Time::new(b))
+    }`, ([a, b], res) => {
+        return res.isBool() && !res.asBool();
+        
+    });
+
+    await ft.test([ft.int(), ft.int(), ft.int()], `
+    test timerange_is_before_5
+    func main(a: Int, b: Int, c: Int) -> Bool {
+        TimeRange::new(Time::new(a), Time::new(b)).is_before(Time::new(c))
+    }`, ([_, b, c], res) => {
+        return res.isBool() && ((b.asInt() < c.asInt()) === res.asBool());
+    });
+
     await ft.test([ft.int(), ft.int()], `
     test timerange_serialize
     func main(a: Int, b: Int) -> ByteArray {
