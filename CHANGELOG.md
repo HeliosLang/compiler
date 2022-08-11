@@ -2,6 +2,7 @@ This Changelog only applies to notable changes to `helios.js` on the main branch
 
 # 2022/08/11
 * ByteArray.slice (negative indices relative to end)
+* ByteArray starts_with and ends_with
 * Map + Map operator (note: map merge doesn't assert uniqueness of keys and simply acts as a concatenation of two lists)
 * Map methods: all, all_keys, all_values, any, any_key, any_value, filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values
 * all methods named 'get...' or 'find...' throw errors if not found

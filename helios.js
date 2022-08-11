@@ -12786,6 +12786,9 @@ class ByteArrayType extends BuiltinType {
 				return Value.new(new IntType());
 			case "slice":
 				return Value.new(new FuncType([new IntType(), new IntType()], new ByteArrayType()));
+			case "starts_with":
+			case "ends_with":
+				return Value.new(new FuncType([new ByteArrayType()], new BoolType()));
 			case "sha2":
 			case "sha3":
 			case "blake2b":
@@ -14639,6 +14642,46 @@ function makeRawFunctions() {
 				}(__core__unIData(start), __core__unIData(end))
 			}(__core__unBData(self))
 		}
+	}`));
+	add(new RawFunc("__helios__bytearray__starts_with", 
+	`(self) -> {
+		(self) -> {
+			(prefix) -> {
+				(prefix) -> {
+					(n, m) -> {
+						__helios__common__boolData(
+							__core__ifThenElse(
+								__core__lessThanInteger(n, m),
+								() -> {false},
+								() -> {
+									__core__equalsByteString(prefix, __core__sliceByteString(0, m, self))
+								}
+							)()
+						)
+					}(__core__lengthOfByteString(self), __core__lengthOfByteString(prefix))
+				}(__core__unBData(prefix))
+			}
+		}(__core__unBData(self))
+	}`));
+	add(new RawFunc("__helios__bytearray__ends_with",
+	`(self) -> {
+		(self) -> {
+			(suffix) -> {
+				(suffix) -> {
+					(n, m) -> {
+						__helios__common__boolData(
+							__core__ifThenElse(
+								__core__lessThanInteger(n, m),
+								() -> {false},
+								() -> {
+									__core__equalsByteString(suffix, __core__sliceByteString(__core__subtractInteger(n, m), m, self))
+								}
+							)()
+						)
+					}(__core__lengthOfByteString(self), __core__lengthOfByteString(suffix))
+				}(__core__unBData(suffix))
+			}
+		}(__core__unBData(self))
 	}`));
 	add(new RawFunc("__helios__bytearray__sha2",
 	`(self) -> {

@@ -749,6 +749,60 @@ async function runPropertyTests() {
             return res.equalsByteArray(expected);
         });
 
+        await ft.test([ft.bytes(0, 10), ft.bytes(0, 10)], `
+        test bytearray_starts_with_1
+        func main(a: ByteArray, b: ByteArray) -> Bool {
+            (a+b).starts_with(a)
+        }`, ([a, b], res) => {
+            return res.isBool() && res.asBool();
+        });
+
+        await ft.test([ft.bytes(0, 10), ft.bytes(0, 10)], `
+        test bytearray_starts_with_2
+        func main(a: ByteArray, b: ByteArray) -> Bool {
+            (a+b).starts_with(b)
+        }`, ([a, b], res) => {
+            let aBytes = a.asByteArray();
+            let bBytes = b.asByteArray();
+            
+            let allBytes = aBytes.concat(bBytes);
+
+            for (let i = 0; i < Math.min(allBytes.length, bBytes.length); i++) {
+                if (allBytes[i] != bBytes[i]) {
+                    return res.isBool() && !res.asBool();
+                }
+            }
+
+            return res.isBool() && res.asBool();
+        });
+
+        await ft.test([ft.bytes(0, 10), ft.bytes(0, 10)], `
+        test bytearray_ends_with_1
+        func main(a: ByteArray, b: ByteArray) -> Bool {
+            (a+b).ends_with(b)
+        }`, ([a, b], res) => {
+            return res.isBool() && res.asBool();
+        });
+
+        await ft.test([ft.bytes(0, 10), ft.bytes(0, 10)], `
+        test bytearray_ends_with_2
+        func main(a: ByteArray, b: ByteArray) -> Bool {
+            (a+b).ends_with(a)
+        }`, ([a, b], res) => {
+            let aBytes = a.asByteArray();
+            let bBytes = b.asByteArray();
+            
+            let allBytes = aBytes.concat(bBytes);
+
+            for (let i = 0; i < Math.min(allBytes.length, aBytes.length); i++) {
+                if (allBytes[allBytes.length - 1 - i] != aBytes[aBytes.length - 1 - i]) {
+                    return res.isBool() && !res.asBool();
+                }
+            }
+
+            return res.isBool() && res.asBool();
+        });
+
         await ft.test([ft.utf8Bytes()], `
         test bytearray_decode_utf8_utf8
         func main(a: ByteArray) -> String {
