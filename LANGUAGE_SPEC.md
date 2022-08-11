@@ -136,3 +136,10 @@ Comments are removed immediately.
 7. unary `+`, `-`, `!`, right-to-left
 8. `.`, `::`, `... (...)`, `... {...}`, `(...) -> ... {...}`, `if (...) {...} else ...` and `... . switch {...}`, left-to-right
 9. `(...)`
+
+# Optimization of generated code (IR level)
+1. as much reuse as possible in the manually written IR code
+2. const evaluation (with special handling of partial consts in eg. the ifThenElse condition, multiplying by zero etc.)
+3. elimination of function calls with a single argument itself starting with the inverse call
+4. inlining of single use variables
+5. unused variable and dead-code elimination

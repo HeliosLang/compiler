@@ -612,6 +612,47 @@ async function runPropertyTests() {
             "concat": res.isString() && ((sa + sb) === sRes)
         };
     });
+    await ft.test([ft.string(0, 10), ft.string(0, 10)], `
+    test string_starts_with_1
+    func main(a: String, b: String) -> Bool {
+        (a+b).starts_with(a)
+    }`, ([a, b], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.string(0, 10), ft.string(0, 10)], `
+    test string_starts_with_2
+    func main(a: String, b: String) -> Bool {
+        (a+b).starts_with(b)
+    }`, ([a, b], res) => {
+        let aStr = a.asString();
+        let bStr = b.asString();
+        
+        let allStr = aStr + bStr;
+
+        return res.isBool() && (allStr.startsWith(bStr) === res.asBool());
+    });
+
+    await ft.test([ft.string(0, 10), ft.string(0, 10)], `
+    test string_ends_with_1
+    func main(a: String, b: String) -> Bool {
+        (a+b).ends_with(b)
+    }`, ([a, b], res) => {
+        return res.isBool() && res.asBool();
+    });
+
+    await ft.test([ft.string(0, 10), ft.string(0, 10)], `
+    test string_ends_with_2
+    func main(a: String, b: String) -> Bool {
+        (a+b).ends_with(a)
+    }`, ([a, b], res) => {
+        let aStr = a.asString();
+        let bStr = b.asString();
+        
+        let allStr = aStr + bStr;
+
+        return res.isBool() && (allStr.endsWith(aStr) === res.asBool());
+    });
 
     await ft.test([ft.string()], `
     test string_encode_utf8

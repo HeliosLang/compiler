@@ -11,7 +11,7 @@ internal ns: __helios__bool
 
 # String
 operators:   __eq, __neq, __add
-methods:     serialize, encode_utf8
+methods:     serialize, starts_with, ends_with, encode_utf8
 internal ns: __helios__string
 
 # ByteArray

@@ -12750,6 +12750,9 @@ class StringType extends BuiltinType {
 		switch (name.value) {
 			case "__add":
 				return Value.new(new FuncType([new StringType()], new StringType()));
+			case "starts_with":
+			case "ends_with":
+				return Value.new(new FuncType([new StringType()], new BoolType()));
 			case "encode_utf8":
 				return Value.new(new FuncType([], new ByteArrayType()));
 			default:
@@ -14578,6 +14581,8 @@ function makeRawFunctions() {
 			}
 		}(__helios__common__unStringData(self))
 	}`));
+	add(new RawFunc("__helios__string__starts_with", "__helios__bytearray__starts_with"));
+	add(new RawFunc("__helios__string__ends_with", "__helios__bytearray__ends_with"));
 	add(new RawFunc("__helios__string__encode_utf8",
 	`(self) -> {
 		(self) -> {
