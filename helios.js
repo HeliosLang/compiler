@@ -135,9 +135,10 @@
 //                                          buildStructLiteralExpr, buildStructLiteralField, 
 //                                          buildValuePathExpr
 //
-//    12. Builtin types                     IntType, BoolType, StringType, ByteArrayType, ListType,
-//                                          FoldFuncValue, MapFuncValue,
-//                                          MapType, OptionType, OptionSomeType, OptionNoneType,
+//    12. Builtin types                     IntType, BoolType, StringType, ByteArrayType, 
+//                                          ListType, FoldListFuncValue, MapListFuncValue,
+//                                          MapType, FoldMapFuncValue,
+//                                          OptionType, OptionSomeType, OptionNoneType,
 //                                          HashType, PubKeyHashType, ValidatorHashType, 
 //                                          MintinPolicyHashType, DatumHashType, ScriptContextType,
 //                                          TxType, TxIdType, TxInputType, TxOutputType, 
@@ -149,8 +150,10 @@
 //    13. Builtin low-level functions       onNotifyRawUsage, setRawUsageNotifier, 
 //                                          RawFunc, makeRawFunctions, wrapWithRawFunctions
 //
-//    14. IR AST objects                    IRScope, IRExpr, IRFuncExpr, IRErrorCallExpr,
-//                                          IRCallExpr, IRVariable, IRLiteral
+//    14. IR AST objects                    IRScope, IRNode, IRExpr, IRVariable, IRReturn,
+//                                          IRExit, IRFuncExpr,
+//                                          IRUserCallExpr, IRCoreCallExpr, IRErrorCallExpr,
+//                                          IRNameExpr, IRLiteral
 //
 //    15. IR AST build functions            buildIRProgram, buildIRExpr, buildIRFuncExpr
 //
@@ -218,6 +221,9 @@ const PLUTUS_CORE_VERSION_COMPONENTS = [1n, 0n, 0n];
  */
 const PLUTUS_CORE_VERSION = PLUTUS_CORE_VERSION_COMPONENTS.map(c => c.toString()).join(".");
 
+/**
+ * @type {Object.<string, number>}
+ */
 const PLUTUS_CORE_TAG_WIDTHS = {
 	term:      4,
 	type:      3,
@@ -6855,7 +6861,7 @@ export function highlight(src) {
 		SLComment: 1,
 		MLComment: 2,
 		String: 3,
-		NumberState: 4,
+		NumberStart: 4,
 		HexNumber: 5,
 		BinaryNumber: 6,
 		OctalNumber: 7,
@@ -11785,6 +11791,9 @@ function buildEnumMember(ts) {
  * @returns {ImplDefinition}
  */
 function buildImplDefinition(ts, selfTypeExpr, fieldNames) {
+	/**
+	 * @param {Word} name 
+	 */
 	function assertNonAuto(name) {
 		if (name.toString() == "serialize" || name.toString() == "__eq" || name.toString() == "__neq") {
 			throw name.syntaxError(`'${name.toString()}' is a reserved member`);
@@ -11797,7 +11806,9 @@ function buildImplDefinition(ts, selfTypeExpr, fieldNames) {
 
 	let statements = buildImplMembers(ts, selfTypeExpr);
 
-	/** @param {number} i */
+	/** 
+	 * @param {number} i 
+	 */
 	function assertUnique(i) {
 		let s = statements[i];
 
@@ -16168,26 +16179,26 @@ function wrapWithRawFunctions(ir) {
 class IRScope {
 	#parent;
 	/** variable name (can be empty if no usable variable defined at this level) */
-	#name;
+	#variable;
 
 	/**
 	 * @param {?IRScope} parent 
-	 * @param {?Word} name 
+	 * @param {?IRVariable} variable
 	 */
-	constructor(parent, name) {
+	constructor(parent, variable) {
 		this.#parent = parent;
-		this.#name = name;
+		this.#variable = variable;
 	}
 
 	/**
 	 * Calculates the Debruijn index of a named value. Internal method
 	 * @param {Word} name 
 	 * @param {number} index 
-	 * @returns {number}
+	 * @returns {[number, IRVariable]}
 	 */
 	getInternal(name, index) {
-		if (this.#name !== null && this.#name.toString() == name.toString()) {
-			return index;
+		if (this.#variable !== null && this.#variable.toString() == name.toString()) {
+			return [index, this.#variable];
 		} else if (this.#parent === null) {
 			throw name.referenceError(`variable ${name.toString()} not found`);
 		} else {
@@ -16198,7 +16209,7 @@ class IRScope {
 	/**
 	 * Calculates the Debruijn index.
 	 * @param {Word} name 
-	 * @returns {number}
+	 * @returns {[number, IRVariable]}
 	 */
 	get(name) {
 		// one-based
@@ -16236,20 +16247,136 @@ class IRScope {
 }
 
 /**
- * Base class of all Intermediate Representation expressions
+ * Base class of all IR graph nodes.
+ * The IR graph is used to perform advanced code simplifications
  */
-class IRExpr {
+class IRNode {
 	#site;
+
+	/**
+	 * @type {Set<IRNode>[]} - filled during buildGraph() step
+	 */
+	#upstream;
+
+	/**
+	 * @type {Set<IRNode>} - filled during buildGraph() step
+	 */
+	#downstream;
 
 	/**
 	 * @param {Site} site 
 	 */
 	constructor(site) {
 		this.#site = site;
+		this.#upstream = [];
+		this.#downstream = new Set();
 	}
 
 	get site() {
 		return this.#site;
+	}
+
+	/**
+	 * @param {number} i
+	 * @param {IRNode} node
+	 * @returns {boolean}
+	 */
+	addUpstream(i, node) {
+		while (i >= this.#upstream.length) {
+			this.#upstream.push(new Set());
+		}
+
+		if (!this.#upstream[i].has(node)) {
+			this.#upstream[i].add(node);
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * @param {IRNode} node
+	 * @returns {boolean}
+	 */
+	addDownstream(node) {
+		if (!this.#downstream.has(node)) {
+			this.#downstream.add(node);
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Fill #upstream and #downstream.
+	 * Returns true if some nodes were added to either #upstream or #downstream (or in the children).
+	 * The true return-value signals that buildGraph() should be called at least one more time.
+	 * @returns {boolean}
+	 */
+	buildGraph() {
+		throw new Error("not yet implemented");
+	}
+}
+
+/**
+ * IRNode that represents function arg
+ */
+class IRVariable extends IRNode {
+	#name;
+
+	/**
+	 * @param {Word} name
+	 */
+	constructor(name) {
+		super(name.site);
+		this.#name = name;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#name.toString();
+	}
+
+	toString() {
+		return this.name;
+	}
+}
+
+/**
+ * IRNode that represents return value of a function
+ */
+class IRReturn extends IRNode {
+	/**
+	 * @param {Site} site 
+	 */
+	constructor(site) {
+		super(site);
+	}
+}
+
+/**
+ * IRNode that represents exit of program
+ */
+class IRExit extends IRNode {
+	/**
+	 * @param {Site} site
+	 */
+	constructor(site) {
+		super(site);
+	}
+}
+
+/**
+ * Base class of all Intermediate Representation expressions
+ */
+class IRExpr extends IRNode {
+	/**
+	 * @param {Site} site 
+	 */
+	constructor(site) {
+		super(site);
 	}
 
 	/**
@@ -16263,7 +16390,7 @@ class IRExpr {
 	/**
 	 * @param {IRScope} scope 
 	 */
-	link(scope) {
+	resolveNames(scope) {
 		throw new Error("not yet implemented");
 	}
 
@@ -16276,7 +16403,7 @@ class IRExpr {
 }
 
 class IRFuncExpr extends IRExpr {
-	#argNames;
+	#args;
 	#body;
 
 	/**
@@ -16286,7 +16413,7 @@ class IRFuncExpr extends IRExpr {
 	 */
 	constructor(site, argNames, body) {
 		super(site);
-		this.#argNames = argNames;
+		this.#args = argNames.map(name => new IRVariable(name));
 		this.#body = body;
 	}
 
@@ -16295,7 +16422,7 @@ class IRFuncExpr extends IRExpr {
 	 * @returns {string}
 	 */
 	toString(indent = "") {
-		let s = "(" + this.#argNames.map(n => n.toString()).join(", ") + ") -> {\n" + indent + "  ";
+		let s = "(" + this.#args.map(n => n.toString()).join(", ") + ") -> {\n" + indent + "  ";
 		s += this.#body.toString(indent + "  ");
 		s += "\n" + indent + "}";
 
@@ -16305,16 +16432,16 @@ class IRFuncExpr extends IRExpr {
 	/**
 	 * @param {IRScope} scope 
 	 */
-	link(scope) {
-		if (this.#argNames.length == 0) {
+	resolveNames(scope) {
+		if (this.#args.length == 0) {
 			scope = new IRScope(scope, null);
 		} else {
-			for (let argName of this.#argNames) {
-				scope = new IRScope(scope, argName);
+			for (let arg of this.#args) {
+				scope = new IRScope(scope, arg);
 			}
 		}
 
-		this.#body.link(scope);
+		this.#body.resolveNames(scope);
 	}
 
 	/** 
@@ -16323,12 +16450,182 @@ class IRFuncExpr extends IRExpr {
 	toPlutusCore() {
 		let term = this.#body.toPlutusCore();
 
-		if (this.#argNames.length == 0) {
+		if (this.#args.length == 0) {
 			// must wrap at least once, even if there are no args
 			term = new PlutusCoreLambda(this.site, term);
 		} else {
-			for (let i = this.#argNames.length - 1; i >= 0; i--) {
-				term = new PlutusCoreLambda(this.site, term, this.#argNames[i].toString());
+			for (let i = this.#args.length - 1; i >= 0; i--) {
+				term = new PlutusCoreLambda(this.site, term, this.#args[i].toString());
+			}
+		}
+
+		return term;
+	}
+}
+
+/**
+ * Intermediate Representation function call of non-core function
+ * 
+ * In the IR graph the IRUserCallExpr is connected as follows:
+ * 
+ * argNode1 -->--\
+ * argNode2 -->--- IRUserCallExpr -->-- downstreamNode
+ * ...      -->--/
+ * 
+ * Besides these connections the IRUserCallExpr also asures the argNodes are connected to the underlying function
+ */
+ class IRUserCallExpr extends IRExpr {
+	#lhs;
+	#argExprs;
+	#parensSite;
+
+	/**
+	 * @param {IRExpr} lhs 
+	 * @param {IRExpr[]} argExprs 
+	 * @param {Site} parensSite 
+	 */
+	constructor(lhs, argExprs, parensSite) {
+		super(lhs.site);
+		this.#lhs = lhs;
+		this.#argExprs = argExprs;
+		this.#parensSite = parensSite;
+	}
+
+	/**
+	 * @param {string} indent
+	 * @returns {string}
+	 */
+	toString(indent = "") {
+		return this.#lhs.toString(indent) + "(" + this.#argExprs.map(e => e.toString(indent)).join(", ") + ")";
+	}
+
+	/**
+	 * @param {IRScope} scope 
+	 */
+	resolveNames(scope) {
+		this.#lhs.resolveNames(scope);
+
+		for (let arg of this.#argExprs) {
+			arg.resolveNames(scope);
+		}
+	}
+
+	/**
+	 * @returns {PlutusCoreTerm}
+	 */
+	toPlutusCore() {
+		let term = this.#lhs.toPlutusCore();
+
+		if (this.#argExprs.length == 0) {
+			// a PlutusCore function call (aka function application) always requires a argument. In the zero-args case this is the unit value
+			term = new PlutusCoreCall(this.site, term, PlutusCoreUnit.newTerm(this.#parensSite));
+		} else {
+			for (let arg of this.#argExprs) {
+				term = new PlutusCoreCall(this.site, term, arg.toPlutusCore());
+			}
+		}
+
+		return term;
+	}
+}
+
+/**
+ * Intermediate Representation function call of core function.
+ * 
+ * In the IR graph the IRCoreCallExpr node is connected as follows:
+ * 
+ * argExpr0 -->--\
+ * argExpr1 -->--- IRCoreCallExpr -->-- downstreamNode
+ * ...      -->--/ 
+ */
+class IRCoreCallExpr extends IRExpr {
+	#name;
+	#argExprs;
+	#parensSite;
+
+	/**
+	 * @param {Word} name 
+	 * @param {IRExpr[]} argExprs 
+	 * @param {Site} parensSite 
+	 */
+	constructor(name, argExprs, parensSite) {
+		super(name.site);
+		this.#name = name;
+		this.#argExprs = argExprs;
+		this.#parensSite = parensSite;
+	}
+
+	/**
+	 * @param {string} indent
+	 * @returns {string}
+	 */
+	toString(indent = "") {
+		return `${this.#name.toString()}(${this.#argExprs.map(e => e.toString(indent)).join(", ")})`;
+	}
+
+	/**
+	 * @returns {number}
+	 */
+	builtinForceCount() {
+		let i = IRScope.findBuiltin(this.#name.value);
+
+		let info = PLUTUS_CORE_BUILTINS[i];
+		return info.forceCount;
+	}
+
+	/**
+	 * @param {IRScope} scope 
+	 */
+	resolveNames(scope) {
+		for (let arg of this.#argExprs) {
+			arg.resolveNames(scope);
+		}
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	buildGraph() {
+		// add this as a downstream node to each argExpr
+		// and add argExprs as upstream nodes of this
+
+		let dirty = false;
+		for (let i = 0; i < this.#argExprs.length; i++) {
+			let arg = this.#argExprs[i];
+
+			if (arg.addDownstream(this)) {
+				dirty = true;
+			}
+
+			if (this.addUpstream(0, arg)) {
+				dirty = true;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * @returns {PlutusCoreTerm}
+	 */
+	toPlutusCore() {
+		/**
+		 * @type {PlutusCoreTerm}
+		 */
+		let term = new PlutusCoreBuiltin(this.site, this.#name.value.slice("__core__".length));
+
+		let nForce = this.builtinForceCount();
+
+		for (let i = 0; i < nForce; i++) {
+			term = new PlutusCoreForce(this.site, term);
+		}
+
+		if (this.#argExprs.length == 0) {
+			// a PlutusCore function call (aka function application) always requires a argument. In the zero-args case this is the unit value
+			term = new PlutusCoreCall(this.site, term, PlutusCoreUnit.newTerm(this.#parensSite));
+		} else {
+			for (let arg of this.#argExprs) {
+				term = new PlutusCoreCall(this.site, term, arg.toPlutusCore());
 			}
 		}
 
@@ -16362,7 +16659,7 @@ class IRErrorCallExpr extends IRExpr {
 	/**
 	 * @param {IRScope} scope 
 	 */
-	link(scope) {
+	resolveNames(scope) {
 	}
 
 	/**
@@ -16374,109 +16671,20 @@ class IRErrorCallExpr extends IRExpr {
 }
 
 /**
- * Intermediate Representation function call
- */
-class IRCallExpr extends IRExpr {
-	#lhs;
-	#argExprs;
-	#parensSite;
-
-	/**
-	 * @param {IRExpr} lhs 
-	 * @param {IRExpr[]} argExprs 
-	 * @param {Site} parensSite 
-	 */
-	constructor(lhs, argExprs, parensSite) {
-		super(lhs.site);
-		this.#lhs = lhs;
-		this.#argExprs = argExprs;
-		this.#parensSite = parensSite;
-	}
-
-	/**
-	 * @param {string} indent
-	 * @returns {string}
-	 */
-	toString(indent = "") {
-		return this.#lhs.toString(indent) + "(" + this.#argExprs.map(e => e.toString(indent)).join(", ") + ")";
-	}
-
-	isBuiltin() {
-		if (this.#lhs instanceof IRVariable) {
-			return IRScope.isBuiltin(this.#lhs.name, true);
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * @returns {number}
-	 */
-	builtinForceCount() {
-		if (this.#lhs instanceof IRVariable && IRScope.isBuiltin(this.#lhs.name)) {
-			let i = IRScope.findBuiltin(this.#lhs.name);
-
-			let info = PLUTUS_CORE_BUILTINS[i];
-			return info.forceCount;
-		} else {
-			return 0;
-		}
-	}
-
-	/**
-	 * @param {IRScope} scope 
-	 */
-	link(scope) {
-		if (!this.isBuiltin()) {
-			this.#lhs.link(scope);
-		}
-
-		for (let arg of this.#argExprs) {
-			arg.link(scope);
-		}
-	}
-
-	/**
-	 * @returns {PlutusCoreTerm}
-	 */
-	toPlutusCore() {
-		let term;
-		if (this.isBuiltin()) {
-			if (this.#lhs instanceof IRVariable) {
-				term = new PlutusCoreBuiltin(this.site, this.#lhs.name.slice("__core__".length));
-
-				let nForce = this.builtinForceCount();
-
-				for (let i = 0; i < nForce; i++) {
-					term = new PlutusCoreForce(this.site, term);
-				}
-			} else {
-				throw new Error("unexpected");
-			}
-		} else {
-			term = this.#lhs.toPlutusCore();
-		}
-
-		if (this.#argExprs.length == 0) {
-			// a PlutusCore function call (aka function application) always requires a argument. In the zero-args case this is the unit value
-			term = new PlutusCoreCall(this.site, term, PlutusCoreUnit.newTerm(this.#parensSite));
-		} else {
-			for (let arg of this.#argExprs) {
-				term = new PlutusCoreCall(this.site, term, arg.toPlutusCore());
-			}
-		}
-
-		return term;
-	}
-}
-
-/**
  * Intermediate Representation variable reference expression
  */
-class IRVariable extends IRExpr {
+class IRNameExpr extends IRExpr {
 	#name;
-	/** @type {?number} - cached debruijn index */
+
+	/**
+	 * @type {?number} - cached debruijn index 
+	 */
 	#index;
+
+	/**
+	 * @type {?IRVariable} - cached variable (note that core functions can be referenced as variables (yet))
+	 */
+	#variable;
 
 	/**
 	 * @param {Word} name 
@@ -16487,8 +16695,12 @@ class IRVariable extends IRExpr {
 		assert(!name.toString().startsWith("undefined"));
 		this.#name = name;
 		this.#index = null;
+		this.#variable = null;
 	}
 
+	/**
+	 * @type {string}
+	 */
 	get name() {
 		return this.#name.toString();
 	}
@@ -16508,8 +16720,8 @@ class IRVariable extends IRExpr {
 	/**
 	 * @param {IRScope} scope 
 	 */
-	link(scope) {
-		this.#index = scope.get(this.#name);
+	resolveNames(scope) {
+		[this.#index, this.#variable] = scope.get(this.#name);
 	}
 
 	/**
@@ -16553,7 +16765,7 @@ class IRLiteral extends IRExpr {
 	 * Linking doesn't do anything for literals
 	 * @param {IRScope} scope 
 	 */
-	link(scope) {
+	resolveNames(scope) {
 	}
 
 	/**
@@ -16590,9 +16802,9 @@ class IRLiteral extends IRExpr {
 function buildIRProgram(ts) {
 	let expr = buildIRExpr(ts);
 
-	assert(expr instanceof IRFuncExpr || expr instanceof IRCallExpr);
+	assert(expr instanceof IRFuncExpr || expr instanceof IRUserCallExpr);
 
-	expr.link(new IRScope(null, null));
+	expr.resolveNames(new IRScope(null, null));
 
 	return expr;
 }
@@ -16635,7 +16847,15 @@ function buildIRExpr(ts) {
 						args.push(buildIRExpr(f));
 					}
 
-					expr = new IRCallExpr(expr, args, t.site);
+					if (expr instanceof IRNameExpr && expr.name.startsWith("__core")) {
+						if (!IRScope.isBuiltin(expr.name)) {
+							throw expr.site.referenceError(`builtin '${expr.name}' undefined`);
+						}
+
+						expr = new IRCoreCallExpr(new Word(expr.site, expr.name), args, t.site);
+					} else {
+						expr = new IRUserCallExpr(expr, args, t.site);
+					}
 				}
 			} else if (t.isSymbol("-")) {
 				// only makes sense next to IntegerLiterals
@@ -16679,7 +16899,7 @@ function buildIRExpr(ts) {
 				}
 			} else if (t.isWord()) {
 				assert(expr === null);
-				expr = new IRVariable(t.assertWord());
+				expr = new IRNameExpr(t.assertWord());
 			} else {
 				throw new Error("unhandled untyped token " + t.toString());
 			}
