@@ -80,7 +80,7 @@
 //
 //     3. Plutus-Core AST objects           PlutusCoreValue, PlutusCoreRTE, PlutusCoreStack, 
 //                                          PlutusCoreAnon, PlutusCoreInt, PlutusCoreByteArray, 
-//                                          PlutusCoreString, PlutusCoreBool, PlutusCoreUnit,
+//                                          PlutusCoreString, PlutusCoreUnit, PlutusCoreBool,
 //                                          PlutusCorePair, PlutusCoreMapItem, PlutusCoreList, 
 //                                          PlutusCoreMap, PlutusCoreDataValue, PlutusCoreTerm, 
 //                                          PlutusCoreVariable, PlutusCoreDelay, PlutusCoreLambda, 
@@ -155,7 +155,8 @@
 //                                          IRUserCallExpr, IRCoreCallExpr, IRErrorCallExpr,
 //                                          IRNameExpr, IRLiteral
 //
-//    15. IR AST build functions            buildIRProgram, buildIRExpr, buildIRFuncExpr
+//    15. IR AST build functions            buildIRProgram, buildIRExpr, buildIRFuncExpr,
+//                                          simplifyIRProgram
 //
 //    16. Compilation                       preprocess, CompilationStage, DEFAULT_CONFIG,
 //                                          compileInternal, getPurposeName, 
@@ -782,6 +783,13 @@ function wrapCborBytes(bytes) {
 
 		this.#parts.push(bitChars);
 		this.#n += bitChars.length;
+	}
+
+	/**
+	 * @param {number} byte
+	 */
+	writeByte(byte) {
+		this.write(padZeroes(byte.toString(2), 8));
 	}
 
 	/**
@@ -2300,13 +2308,68 @@ class PlutusCoreValue {
 	}
 
 	/**
+	 * @returns {string}
+	 */
+	typeBits() {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Encodes value without type header
+	 */
+	toFlatValueInternal(bitWriter) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
 	 * Encodes value with plutus flat encoding.
 	 * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValue(bitWriter) {
-		throw new Error("not yet implemented");
+		bitWriter.write('1' + this.typeBits() + '0');
+		
+		this.toFlatValueInternal(bitWriter);
 	}
+
+	/**
+	 * @param {Site} site
+	 * @param {PrimitiveLiteral} lit 
+	 * @returns {PlutusCoreValue}
+	 */
+	static fromLiteral(site, lit) {
+		if (lit instanceof IntLiteral) {
+			return new PlutusCoreInt(site, lit.value);
+		} else if (lit instanceof BoolLiteral) {
+			return new PlutusCoreBool(site, lit.value);
+		} else if (lit instanceof StringLiteral) {
+			return new PlutusCoreString(site, lit.value);
+		} else if (lit instanceof ByteArrayData) {
+			return new PlutusCoreByteArray(site, lit.bytes);
+		} else if (lit instanceof PairLiteral) {
+			return new PlutusCorePair(site, PlutusCoreValue.fromLiteral(site, lit.first), PlutusCoreValue.fromLiteral(site, lit.second));
+		} else if (lit instanceof UnitLiteral) {
+			return new PlutusCoreUnit(site);
+		} else {
+			throw new Error("unhandled literal type");
+		}
+	}
+}
+
+/**
+* @typedef {object} PlutusCoreRTECallbacks
+* @property {(msg: string) => Promise<void>} [onPrint]
+* @property {(site: Site, rawStack: PlutusCoreRawStack) => Promise<boolean>} [onStartCall]
+* @property {(site: Site, rawStack: PlutusCoreRawStack) => Promise<void>} [onEndCall]
+*/
+
+/**
+ * @type {PlutusCoreRTECallbacks}
+ */
+const DEFAULT_PLUTUS_CORE_RTE_CALLBACKS = {
+	onPrint: async function (msg) {return},
+	onStartCall: async function(site, rawStack) {return false},
+	onEndCall: async function(site, rawStack) {return},
 }
 
 /**
@@ -2331,17 +2394,12 @@ class PlutusCoreRTE {
 	 * @typedef {[?string, PlutusCoreValue][]} PlutusCoreRawStack
 	 */
 
-	/**
-	* @typedef {object} PlutusCoreRTECallbacks
-	* @property {(msg: string) => Promise<void>} [onPrint]
-	* @property {(site: Site, rawStack: PlutusCoreRawStack) => Promise<boolean>} [onStartCall]
-	* @property {(site: Site, rawStack: PlutusCoreRawStack) => Promise<void>} [onEndCall]
-	*/
+	
 
 	/**
 	 * @param {PlutusCoreRTECallbacks} callbacks 
 	 */
-	constructor(callbacks) {
+	constructor(callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
 		assertDefined(callbacks);
 		this.#callbacks = callbacks;
 		this.#notifyCalls = true;
@@ -2593,6 +2651,16 @@ class PlutusCoreAnon extends PlutusCoreValue {
 	}
 
 	/**
+	 * @param {Site} callSite
+	 * @param {PlutusCoreStack} subStack
+	 * @param {PlutusCoreValue[]} args
+	 * @returns {PlutusCoreValue | Promise<PlutusCoreValue>}
+	 */
+	callSync(callSite, subStack, args) {
+		return this.#fn(callSite, subStack, ...args);
+	}
+
+	/**
 	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
 	 * @param {Site} site 
 	 * @param {PlutusCoreValue} value 
@@ -2621,7 +2689,8 @@ class PlutusCoreAnon extends PlutusCoreValue {
 			// notify the RTE of the new live stack (list of pairs instead of PlutusCoreStack), and await permission to continue
 			await this.#rte.startCall(callSite, rawStack);
 
-			let result = this.#fn(callSite, subStack, ...args);
+			let result = this.callSync(callSite, subStack, args);
+
 			if (result instanceof Promise) {
 				result = await result;
 			}
@@ -2807,13 +2876,17 @@ class PlutusCoreInt extends PlutusCoreValue {
 	}
 
 	/**
-	 * Encodes integer in plutus flat encoding.
+	 * @returns {string}
+	 */
+	typeBits() {
+		return "0000";
+	}
+
+	/**
 	 * @param {BitWriter} bitWriter 
 	 */
-	toFlatValue(bitWriter) {
+	toFlatValueInternal(bitWriter) {
 		assert(this.#signed);
-
-		bitWriter.write('100000'); // PlutusCore list with a single entry '0000'
 
 		this.toFlatInternal(bitWriter);
 	}
@@ -2870,11 +2943,16 @@ class PlutusCoreByteArray extends PlutusCoreValue {
 	}
 
 	/**
+	 * @returns {string}
+	 */
+	typeBits() {
+		return "0001";
+	}
+
+	/**
 	 * @param {BitWriter} bitWriter
 	 */
-	toFlatValue(bitWriter) {
-		bitWriter.write('100010'); // PlutusCore list that contains single '0001' entry
-
+	toFlatValueInternal(bitWriter) {
 		PlutusCoreByteArray.writeBytes(bitWriter, this.#bytes);
 	}
 
@@ -2954,15 +3032,69 @@ class PlutusCoreString extends PlutusCoreValue {
 	}
 
 	/**
-	 * Encodes string use plutus flat encoding.
+	 * @returns {string}
+	 */
+	typeBits() {
+		return "0010";
+	}
+
+	/**
 	 * @param {BitWriter} bitWriter
 	 */
-	toFlatValue(bitWriter) {
-		bitWriter.write('100100'); // PlutusCore list that contains single '0010' entry
-
+	toFlatValueInternal(bitWriter) {
 		let bytes = Array.from((new TextEncoder()).encode(this.#value));
 
 		PlutusCoreByteArray.writeBytes(bitWriter, bytes);
+	}
+}
+
+/**
+ * UPLC unit value class
+ */
+ class PlutusCoreUnit extends PlutusCoreValue {
+	/**
+	 * @param {Site} site 
+	 */
+	constructor(site) {
+		super(site);
+	}
+
+	/**
+	 * Creates a new PlutusCoreUnit wrapped with PlutusCoreConst so it can be used as a term
+	 * @param {Site} site 
+	 * @returns {PlutusCoreConst}
+	 */
+	static newTerm(site) {
+		return new PlutusCoreConst(new PlutusCoreUnit(site));
+	}
+
+	/**
+	 * @param {Site} newSite 
+	 * @returns {PlutusCoreUnit}
+	 */
+	copy(newSite) {
+		return new PlutusCoreUnit(newSite);
+	}
+
+	toString() {
+		return "()";
+	}
+
+	typeBits() {
+		return "0011";
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValueInternal(bitWriter) {
+	}
+
+	/**
+	 * @returns {PlutusCoreUnit}
+	 */
+	assertUnit() {
+		return this;
 	}
 }
 
@@ -3011,11 +3143,16 @@ class PlutusCoreBool extends PlutusCoreValue {
 	}
 
 	/**
-	 * Encodes bool using plutus flat encoding
+	 * @returns {string}
+	 */
+	typeBits() {
+		return '0100';
+	}
+
+	/**
 	 * @param {BitWriter} bitWriter
 	 */
-	toFlatValue(bitWriter) {
-		bitWriter.write('101000'); // PlutusCore list that contains single '0100' entry
+	toFlatValueInternal(bitWriter) {
 		if (this.#value) {
 			bitWriter.write('1');
 		} else {
@@ -3024,53 +3161,6 @@ class PlutusCoreBool extends PlutusCoreValue {
 	}
 }
 
-/**
- * UPLC unit value class
- */
-class PlutusCoreUnit extends PlutusCoreValue {
-	/**
-	 * @param {Site} site 
-	 */
-	constructor(site) {
-		super(site);
-	}
-
-	/**
-	 * Creates a new PlutusCoreUnit wrapped with PlutusCoreConst so it can be used as a term
-	 * @param {Site} site 
-	 * @returns {PlutusCoreConst}
-	 */
-	static newTerm(site) {
-		return new PlutusCoreConst(new PlutusCoreUnit(site));
-	}
-
-	/**
-	 * @param {Site} newSite 
-	 * @returns {PlutusCoreUnit}
-	 */
-	copy(newSite) {
-		return new PlutusCoreUnit(newSite);
-	}
-
-	toString() {
-		return "()";
-	}
-
-	/**
-	 * Encodes PlutusCoreUnit with flat encoding.
-	 * @param {BitWriter} bitWriter
-	 */
-	toFlatValue(bitWriter) {
-		bitWriter.write('100110'); // PlutusCore list that contains single '0011' entry
-	}
-
-	/**
-	 * @returns {PlutusCoreUnit}
-	 */
-	assertUnit() {
-		return this;
-	}
-}
 
 /**
  * UPLC pair value class
@@ -3089,6 +3179,17 @@ class PlutusCorePair extends PlutusCoreValue {
 		super(site);
 		this.#first = first;
 		this.#second = second;
+	}
+
+	/**
+	 * Creates a new PlutusCoreBool wrapped with PlutusCoreConst so it can be used as a term.
+	 * @param {Site} site 
+	 * @param {PlutusCoreValue} first
+	 * @param {PlutusCoreValue} second
+	 * @returns {PlutusCoreConst}
+	 */
+ 	static newTerm(site, first, second) {
+		return new PlutusCoreConst(new PlutusCorePair(site, first, second));
 	}
 
 	/**
@@ -3116,6 +3217,19 @@ class PlutusCorePair extends PlutusCoreValue {
 
 	get second() {
 		return this.#second;
+	}
+
+	typeBits() {
+		// 7 (7 (6) (fst)) (snd)
+		return `011101110110${this.#first.typeBits()}${this.#second.typeBits()}`;
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValueInternal(bitWriter) {
+		this.#first.toFlatValueInternal(bitWriter);
+		this.#second.toFlatValueInternal(bitWriter);
 	}
 }
 
@@ -3164,6 +3278,19 @@ class PlutusCoreMapItem extends PlutusCoreValue {
 	get value() {
 		return this.#value;
 	}
+
+	typeBits() {
+		// 7 (7 (6) (8)) (8)
+		return "01110111011010001000";
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValueInternal(bitWriter) {
+		this.#key.toFlatValue(bitWriter);
+		this.#value.toFlatValue(bitWriter);
+	}
 }
 
 /** 
@@ -3203,6 +3330,23 @@ class PlutusCoreList extends PlutusCoreValue {
 
 	toString() {
 		return `[${this.#items.map(item => item.toString()).join(", ")}]`;
+	}
+
+	typeBits() {
+		// 7 (5) (8)
+		return `011101011000`;
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter 
+	 */
+	toFlatValueInternal(bitWriter) {
+		for (let item of this.#items) {
+			bitWriter.write('1');
+			item.toFlatValue(bitWriter);
+		}
+
+		bitWriter.write('0');
 	}
 }
 
@@ -3244,6 +3388,25 @@ class PlutusCoreMap extends PlutusCoreValue {
 	toString() {
 		return `[${this.#pairs.map((pair) => `[${pair.key.toString()}, ${pair.value.toString()}]`).join(", ")}]`;
 	}
+
+	typeBits() {
+		// 7 (5) (7 (7 (6) (8)) (8))
+		return `0111010101110111011010001000`;
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter 
+	 */
+	toFlatValueInternal(bitWriter) {
+
+		for (let pair of this.#pairs) {
+			bitWriter.write('1');
+
+			pair.toFlatValueInternal(bitWriter);
+		}
+
+		bitWriter.write('0');
+	}
 }
 
 /**
@@ -3280,6 +3443,17 @@ class PlutusCoreDataValue extends PlutusCoreValue {
 
 	toString() {
 		return `data(${this.#data.toString()})`;
+	}
+
+	typeBits() {
+		return '1000';
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValueInternal(bitWriter) {
+		this.#data.toFlatValue(bitWriter);
 	}
 }
 
@@ -3503,6 +3677,10 @@ class PlutusCoreConst extends PlutusCoreTerm {
 		this.#value = value;
 	}
 
+	get value() {
+		return this.#value;
+	}
+
 	/**
 	 * @returns {string}
 	 */
@@ -3645,12 +3823,34 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 	}
 
 	/**
-	 * Returns appropriate callback wrapped with PlutusCoreAnon depending on builtin name.
-	 * Emulates every Plutus-Core that Helios exposes to the user.
-	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
-	 * @returns {Promise<PlutusCoreValue>}
+	 * Used by IRCoreCallExpr
+	 * @param {Word} name
+	 * @param {PlutusCoreValue[]} args
+	 * @returns {PlutusCoreValue}
 	 */
-	async eval(rte) {
+	static evalStatic(name, args) {
+		let builtin = new PlutusCoreBuiltin(name.site, name.value);
+
+		let dummyRte = new PlutusCoreRTE();
+
+		let anon = builtin.evalInternal(dummyRte);
+
+		let subStack = new PlutusCoreStack(dummyRte);
+
+		let res = anon.callSync(name.site, subStack, args);
+
+		if (res instanceof Promise) {
+			throw new Error("can't call trace through evalStatic");
+		} else {
+			return res;
+		}
+	}
+
+	/**
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte
+	 * @returns {PlutusCoreAnon}
+	 */
+	evalInternal(rte = new PlutusCoreRTE()) {
 		if (typeof this.#name == "number") {
 			throw new Error("can't evaluate unknow uplc builtin");
 		}
@@ -4072,6 +4272,16 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				throw new Error(`builtin ${this.#name} not yet implemented`);
 		}
 	}
+
+	/**
+	 * Returns appropriate callback wrapped with PlutusCoreAnon depending on builtin name.
+	 * Emulates every Plutus-Core that Helios exposes to the user.
+	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
+	 * @returns {Promise<PlutusCoreValue>}
+	 */
+	async eval(rte) {
+		return this.evalInternal(rte);
+	}
 }
 
 /**
@@ -4380,6 +4590,13 @@ class PlutusCoreData {
 	 * @returns {number[]}
 	 */
 	toCBOR() {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
 		throw new Error("not yet implemented");
 	}
 
@@ -4873,6 +5090,17 @@ class IntData extends PlutusCoreData {
 	toCBOR() {
 		return PlutusCoreData.encodeInteger(this.#value);
 	}
+
+	/**
+	 * @param {BitWriter} bitWriter 
+	 */
+	toFlatValue(bitWriter) {
+		bitWriter.writeByte(3);
+
+		this.toCBOR().forEach(b => {
+			bitWriter.writeByte(b);
+		});
+	}
 }
 
 /**
@@ -4995,6 +5223,17 @@ class ByteArrayData extends PlutusCoreData {
 	toCBOR() {
 		return PlutusCoreData.encodeCBORByteArray(this.#bytes);
 	}
+
+	/**
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
+		bitWriter.writeByte(4);
+
+		this.toCBOR().forEach(b => {
+			bitWriter.writeByte(b);
+		})
+	}
 }
 
 /**
@@ -5084,6 +5323,17 @@ class ListData extends PlutusCoreData {
 	toCBOR() {
 		return PlutusCoreData.encodeCBORIndefHead(4).concat(PlutusCoreData.encodeDataList(this.#items)).concat([255]);
 	}
+
+	/**
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
+		bitWriter.writeByte(2);
+
+		this.toCBOR().forEach(b => {
+			bitWriter.writeByte(b);
+		});
+	}
 }
 
 /**
@@ -5140,6 +5390,17 @@ class MapData extends PlutusCoreData {
 	 */
 	toCBOR() {
 		return PlutusCoreData.encodeCBORHead(5, BigInt(this.#pairs.length)).concat(PlutusCoreData.encodeDataPairList(this.#pairs));
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
+		bitWriter.writeByte(1);
+
+		this.toCBOR().forEach(b => {
+			bitWriter.writeByte(b);
+		});
 	}
 }
 
@@ -5262,6 +5523,17 @@ class ConstrData extends PlutusCoreData {
 	 */
 	toCBOR() {
 		return PlutusCoreData.encodeCTag(this.#index).concat(PlutusCoreData.encodeCBORIndefHead(4)).concat(PlutusCoreData.encodeDataList(this.#fields)).concat([255]);
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
+		bitWriter.writeByte(0);
+
+		this.toCBOR().forEach(b => {
+			bitWriter.writeByte(b);
+		});
 	}
 }
 
@@ -6241,6 +6513,45 @@ class UnitLiteral extends PrimitiveLiteral {
 		return PlutusCoreUnit.newTerm(this.site);
 	}
 }
+
+/**
+ * Pair literal (only used by Intermediate Representation)
+ */
+ class PairLiteral extends PrimitiveLiteral {
+	#first;
+	#second;
+
+	/**
+	 * @param {Site} site 
+	 * @param {PrimitiveLiteral} first
+	 * @param {PrimitiveLiteral} second
+	 */
+	constructor(site, first, second) {
+		super(site);
+		this.#first = first;
+		this.#second = second;
+	}
+
+	get first() {
+		return this.#first;
+	}
+
+	get second() {
+		return this.#second;
+	}
+
+	toString() {
+		return `(${this.#first.toString()}, ${this.#second.toString()})`;
+	}
+
+	/**
+	 * @returns {IR}
+	 */
+	toIR() {
+		return new IR(this.toString(), this.site);
+	}
+}
+
 
 
 //////////////////////////
@@ -16247,6 +16558,192 @@ class IRScope {
 }
 
 /**
+ * Wrapper for PlutusCoreValue, null, and anon func
+ */
+class IRValue {
+	#value;
+	#origFnExpr;
+
+	/**
+	 * @param {?(PlutusCoreValue | ((args: IRValue[]) => IRValue))} value
+	 * @param {?IRFuncExpr} origFnExpr
+	 */
+	constructor(value, origFnExpr = null) {
+		this.#value = value;
+		this.#origFnExpr = origFnExpr;
+
+		if (value instanceof PlutusCoreValue) {
+			if (!(
+				value instanceof PlutusCoreBool || 
+				value instanceof PlutusCoreInt || 
+				value instanceof PlutusCoreDataValue || 
+				value instanceof PlutusCoreString || 
+				value instanceof PlutusCoreByteArray || 
+				value instanceof PlutusCoreUnit ||
+				value instanceof PlutusCoreList || 
+				value instanceof PlutusCorePair
+			)) {
+				let e = value.site.typeError("unexpected type for IRValue " + value.toString());
+				throw new Error(e.message);
+			}
+		}
+	}
+
+	get value() {
+		return this.#value;
+	}
+
+	toString() {
+		if (this.#value === null) {
+			return "null";
+		} else if (this.#value instanceof PlutusCoreValue) {
+			return this.#value.toString();
+		} else {
+			return "fn";
+		}
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {PlutusCoreData[]} lst 
+	 */
+	static dataListToExpr(site, lst) {
+		let expr = new IRCoreCallExpr(new Word(site, "__core__mkNilData"), [
+			new IRLiteral(new UnitLiteral(site))
+		], site);
+
+		for (let i = lst.length - 1; i >= 0; i--) {
+			expr = new IRCoreCallExpr(new Word(site, "__core__mkCons"), [
+				(new IRValue(new PlutusCoreDataValue(site, lst[i]))).toIRExpr(site),
+				expr
+			], site);
+		}
+
+		return expr;
+	}
+
+	/**
+	 * Only works for PlutusCoreValue
+	 * @param {Site} site
+	 * @returns {IRExpr}
+	 */
+	toIRExpr(site) {
+		if (this.#value instanceof PlutusCoreValue) {
+			let v = this.#value;
+
+			if (v instanceof PlutusCoreInt) {
+				return new IRLiteral(new IntLiteral(site, v.int));
+			} else if (v instanceof PlutusCoreBool) {
+				return new IRLiteral(new BoolLiteral(site, v.bool));
+			} else if (v instanceof PlutusCoreString) {
+				return new IRLiteral(new StringLiteral(site, v.string));
+			} else if (v instanceof PlutusCoreByteArray) {
+				return new IRLiteral(new ByteArrayLiteral(site, v.bytes));
+			} else if (v instanceof PlutusCoreUnit) {
+				return new IRLiteral(new UnitLiteral(site));
+			} else if (v instanceof PlutusCoreList) {
+				return IRValue.dataListToExpr(site, v.list);
+			} else if (v instanceof PlutusCorePair) {
+				let first = new IRValue(v.first).toIRExpr(site);
+				let second = new IRValue(v.second).toIRExpr(site);
+
+				if (first instanceof IRLiteral && second instanceof IRLiteral) {
+					return new IRLiteral(new PairLiteral(site, first.primitive, second.primitive));
+				} else {
+					throw new Error("unexpected");
+				}
+			} else if (v instanceof PlutusCoreDataValue) {
+				let d = v.data;
+
+				if (d instanceof IntData) {
+					return new IRCoreCallExpr(new Word(site, "__core__iData"), [new IRLiteral(new IntLiteral(site, d.asInt()))], site);
+				} else if (d instanceof ConstrData) {
+					return new IRCoreCallExpr(new Word(site, "__core__constrData"), [
+						new IRLiteral(new IntLiteral(site, BigInt(d.index))),
+						IRValue.dataListToExpr(site, d.fields)
+					], site);
+				} else if (d instanceof ByteArrayData) {
+					return new IRCoreCallExpr(new Word(site, "__core__bData"), [
+						new IRLiteral(new ByteArrayLiteral(site, d.asByteArray()))
+					], site)
+				} else {
+					console.log(d.toString());
+					throw new Error("unhandled data type");
+				}
+			} else {
+				console.log(v.toString(), Object.getPrototypeOf(v));
+				throw new Error("unhandled value type");
+			}
+		} else {
+			throw new Error("expected PlutusCoreValue");
+		}
+	}
+}
+
+/**
+ * Map of names to PlutusCoreValue
+ */
+class IRCallStack {
+	#map;
+
+	/**
+	 * @param {Map<IRVariable, IRValue>} map
+	 */
+	constructor(map = new Map()) {
+		this.#map = map;
+	}
+
+	/**
+	 * @param {IRVariable} ref 
+	 * @param {IRValue} value 
+	 * @returns {IRCallStack}
+	 */
+	set(ref, value) {
+		
+		/**
+		 * @type {Map<IRVariable, IRValue>}
+		 */
+		let map = new Map();
+
+		for (let [k, v] of this.#map) {
+			map.set(k, v);
+		}
+
+		map.set(ref, value);
+
+		return new IRCallStack(map);
+	}
+
+	/**
+	 * Returns null if not found
+	 * @param {IRVariable} ref
+	 * @returns {IRValue}
+	 */
+	get(ref) {
+		let val = this.#map.get(ref);
+
+		if (val === undefined) {
+			return new IRValue(null);
+		} else {
+			return val;
+		}
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		let names = [];
+
+		for (let [k, _] of this.#map) {
+			names.push(k.name);
+		}
+
+		return names.join(", ");
+	}
+}
+
+/**
  * Base class of all IR graph nodes.
  * The IR graph is used to perform advanced code simplifications
  */
@@ -16276,6 +16773,40 @@ class IRNode {
 		return this.#site;
 	}
 
+	get upstream() {
+		return this.#upstream;
+	}
+
+	get downstream() {
+		return this.#downstream;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isConst() {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {?number} i 
+	 * @returns {boolean}
+	 */
+	hasUpstream(i) {
+		if (i === null) {
+			return this.#upstream.length > 0 && this.#upstream.some(s => s.size > 0);
+		} else {
+			return this.#upstream[i].size > 0;
+		}
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	hasDownstream() {
+		return this.#downstream.size > 0;
+	}
+
 	/**
 	 * @param {number} i
 	 * @param {IRNode} node
@@ -16295,31 +16826,36 @@ class IRNode {
 	}
 
 	/**
+	 * @param {?number} i - if non-null then also update inverse relationship
 	 * @param {IRNode} node
 	 * @returns {boolean}
 	 */
-	addDownstream(node) {
+	addDownstream(i, node) {
+		let dirty = false;
 		if (!this.#downstream.has(node)) {
 			this.#downstream.add(node);
-			return true;
-		} else {
-			return false;
+			dirty = true;
+		} 
+
+		if (i !== null && node.addUpstream(i, this)) {
+			dirty = true;
 		}
+
+		return dirty;
 	}
 
 	/**
-	 * Fill #upstream and #downstream.
-	 * Returns true if some nodes were added to either #upstream or #downstream (or in the children).
-	 * The true return-value signals that buildGraph() should be called at least one more time.
-	 * @returns {boolean}
+	 * Get upstream funcExprs, so that IRUserCallExpr can link their args
+	 * @returns {Set<IRFuncExpr>}
 	 */
-	buildGraph() {
+	getFuncExprs() {
 		throw new Error("not yet implemented");
 	}
 }
 
 /**
- * IRNode that represents function arg
+ * IRNode that represents function arg.
+ * Is a start
  */
 class IRVariable extends IRNode {
 	#name;
@@ -16339,8 +16875,41 @@ class IRVariable extends IRNode {
 		return this.#name.toString();
 	}
 
+	isConst() {
+		return false;
+	}
+
 	toString() {
 		return this.name;
+	}
+
+	/**
+	 * @returns {Set<IRFuncExpr>}
+	 */
+	getFuncExprs() {
+		let res = new Set();
+
+		if (this.upstream.length > 0) {
+			assert(this.upstream.length == 1);
+
+			for (let obj of this.upstream[0]) {
+				let sub = obj.getFuncExprs();
+
+				for (let fn of sub) {
+					res.add(fn);
+				}
+			}
+		}
+
+		return res;
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRValue}
+	 */
+	eval(stack) {
+		return stack.get(this);
 	}
 }
 
@@ -16395,6 +16964,50 @@ class IRExpr extends IRNode {
 	}
 
 	/**
+	 * Fill super.#upstream and super.#downstream.
+	 * Returns true if some nodes were added to either #upstream or #downstream (or in the children).
+	 * The true return-value signals that buildGraph() should be called at least one more time.
+	 * @returns {boolean}
+	 */
+	buildGraph() {
+		throw new Error("not yet implemented");
+	}
+	
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {number}
+	 */
+	countRefs(ref) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Evaluate as PlutusCoreValue, or return null if not possible
+	 * @param {IRCallStack} stack
+	 * @returns {IRValue}
+	 */
+	eval(stack) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {Map<IRVariable, IRExpr>} todo
+	 * @returns {IRExpr}
+	 */
+	inline(todo) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Simplify 'this' by returning something better
+	 * @param {IRCallStack} stack - contains some global definitions that might be useful for simplification
+	 * @returns {IRExpr}
+	 */
+	simplify(stack) {
+		return this;
+	}
+
+	/**
 	 * @returns {PlutusCoreTerm}
 	 */
 	toPlutusCore() {
@@ -16405,6 +17018,7 @@ class IRExpr extends IRNode {
 class IRFuncExpr extends IRExpr {
 	#args;
 	#body;
+	#return;
 
 	/**
 	 * @param {Site} site 
@@ -16415,6 +17029,26 @@ class IRFuncExpr extends IRExpr {
 		super(site);
 		this.#args = argNames.map(name => new IRVariable(name));
 		this.#body = body;
+		this.#return = new IRReturn(site);
+	}
+
+	get argVariables() {
+		return this.#args.slice();
+	}
+
+	/**
+	 * @param {IRVariable[]} vars 
+	 */
+	setArgVariables(vars) {
+		this.#args = vars;
+	}
+
+	get body() {
+		return this.#body;
+	}
+
+	isConst() {
+		return this.#body.isConst();
 	}
 
 	/**
@@ -16444,6 +17078,119 @@ class IRFuncExpr extends IRExpr {
 		this.#body.resolveNames(scope);
 	}
 
+	/**
+	 * @param {number} i
+	 * @param {IRNode} node
+	 * @returns {boolean}
+	 */
+	addArgUpstream(i, node) {
+		if (i < 0 || i >= this.#args.length) {
+			throw new Error(`${i} out of range`);
+		}
+
+		return node.addDownstream(0, this.#args[i])
+	}
+
+	/**
+	 * @returns {Set<IRFuncExpr>}
+	 */
+	getFuncExprs() {
+		let res = new Set();
+		res.add(this);
+
+		return res;
+	}
+
+	/**
+	 * @returns {Set<IRFuncExpr>}
+	 */
+	getBodyFuncExprs() {
+		return this.#body.getFuncExprs();
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	buildGraph() {
+		let dirty = false;
+
+		// call this.#body.buildGraph()
+		if (this.#body.buildGraph()) {
+			dirty = true;
+		}
+
+		// add this.#return as downstream of body
+		if (this.#body.addDownstream(0, this.#return)) {
+			dirty = true;
+		}
+
+		return dirty;
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {number}
+	 */
+	countRefs(ref) {
+		return this.#body.countRefs(ref);
+	}
+
+	/**
+	 * Doesn't yet support evaluating fnExpr as PlutusCoreValue, instead use evalCall
+	 * @param {IRCallStack} stack
+	 * @returns {IRValue}
+	 */
+	eval(stack = new IRCallStack()) {
+		return new IRValue(
+			/**
+			 * @param {IRValue[]} args 
+			 * @returns {IRValue}
+			 */
+			(args) => {
+				return this.evalCall(stack, args);
+			}
+		)
+	}
+
+	/**
+	 * Evaluate with known arguments
+	 * @param {IRCallStack} stack
+	 * @param {IRValue[]} args
+	 * @returns {IRValue}
+	 */
+	evalCall(stack, args) {
+		for (let i = 0; i < this.#args.length; i++) {
+			if (args[i].value === null) {
+				return new IRValue(null);
+			}
+
+			let v = this.#args[i];
+			stack = stack.set(v, args[i]);
+		}
+
+		return this.#body.eval(stack);
+	}
+
+	/**
+	 * @param {Map<IRVariable, IRExpr>} todo
+	 * @returns {IRFuncExpr}
+	 */
+	inline(todo) {
+		this.#body = this.#body.inline(todo);
+
+		return this;
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRFuncExpr}
+	 */
+	simplify(stack = new IRCallStack()) {
+		this.#body = this.#body.simplify(stack);
+
+		return this;
+	}
+
 	/** 
 	 * @returns {PlutusCoreTerm}
 	 */
@@ -16464,58 +17211,164 @@ class IRFuncExpr extends IRExpr {
 }
 
 /**
- * Intermediate Representation function call of non-core function
- * 
- * In the IR graph the IRUserCallExpr is connected as follows:
- * 
- * argNode1 -->--\
- * argNode2 -->--- IRUserCallExpr -->-- downstreamNode
- * ...      -->--/
- * 
- * Besides these connections the IRUserCallExpr also asures the argNodes are connected to the underlying function
+ * Base class of IRUserCallExpr and IRCoreCallExpr
  */
- class IRUserCallExpr extends IRExpr {
-	#lhs;
+class IRCallExpr extends IRExpr {
 	#argExprs;
 	#parensSite;
 
 	/**
-	 * @param {IRExpr} lhs 
+	 * @param {Site} site
 	 * @param {IRExpr[]} argExprs 
 	 * @param {Site} parensSite 
 	 */
-	constructor(lhs, argExprs, parensSite) {
-		super(lhs.site);
-		this.#lhs = lhs;
+	constructor(site, argExprs, parensSite) {
+		super(site);
 		this.#argExprs = argExprs;
 		this.#parensSite = parensSite;
+		
+	}
+
+	get argExprs() {
+		return this.#argExprs.slice();
+	}
+	
+	/**
+	 * @param {IRExpr[]} argExprs 
+	 */
+	setArgExprs(argExprs) {
+		this.#argExprs = argExprs;
+	}
+
+	isConst() {
+		for (let arg of this.#argExprs) {
+			if (!arg.isConst()) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
-	 * @param {string} indent
+	 * @param {string} indent 
 	 * @returns {string}
 	 */
-	toString(indent = "") {
-		return this.#lhs.toString(indent) + "(" + this.#argExprs.map(e => e.toString(indent)).join(", ") + ")";
+	argsToString(indent = "") {
+		return this.#argExprs.map(e => e.toString(indent)).join(", ")
 	}
 
 	/**
 	 * @param {IRScope} scope 
 	 */
-	resolveNames(scope) {
-		this.#lhs.resolveNames(scope);
-
+	resolveArgNames(scope) {
 		for (let arg of this.#argExprs) {
 			arg.resolveNames(scope);
 		}
 	}
 
 	/**
+	 * @param {number} offset - 0 for IRCoreCallExpr and 1 for IRUserCallExpr
+	 * @returns {boolean}
+	 */
+	buildGraph(offset = 0) {
+		// add this as a downstream node to each argExpr
+		// and add argExprs as upstream nodes of this
+
+		let dirty = false;
+
+		for (let i = 0; i < this.#argExprs.length; i++) {
+			let arg = this.#argExprs[i];
+
+			if (arg.buildGraph()) {
+				dirty = true;
+			}
+
+			if (arg.addDownstream(offset + i, this)) {
+				dirty = true;
+			}
+		}
+
+		return dirty;
+	}
+
+	/**
+	 * @param {IRCallStack} stack 
+	 * @returns {?(IRValue[])}
+	 */
+	evalArgs(stack = new IRCallStack()) {
+		/**
+		 * @type {IRValue[]}
+		 */
+		let res = [];
+
+		for (let arg of this.#argExprs) {
+			let x = arg.eval(stack);
+
+			if (x.value === null) {
+				return null;
+			} else {
+				res.push(x);
+			}
+		}
+
+		return res;
+	}
+
+	/**
+	 * @param {Set<IRFuncExpr>} fns
+	 * @returns {boolean}
+	 */
+	buildSubGraphs(fns) {
+		let dirty = false;
+
+		for (let fn of fns) {
+			for (let i = 0; i < this.#argExprs.length; i++) {
+				if (fn.addArgUpstream(i, this.#argExprs[i])) {
+					dirty = true;
+				}
+			}
+		}
+
+		return dirty;
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {number}
+	 */
+	countRefs(ref) {
+		let count = 0;
+		for (let arg of this.#argExprs) {
+			count += arg.countRefs(ref);
+		}
+
+		return count;
+	}
+
+	/**
+	 * @param {Map<IRVariable, IRExpr>} todo
+	 */
+	inlineArgs(todo) {
+		for (let i = 0; i < this.#argExprs.length; i++) {
+			this.#argExprs[i] = this.#argExprs[i].inline(todo);
+		}
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 */
+	simplifyArgs(stack) {
+		for (let i = 0; i < this.#argExprs.length; i++) {
+			this.#argExprs[i] = this.#argExprs[i].simplify(stack);
+		}
+	}
+
+	/**
+	 * @param {PlutusCoreTerm} term
 	 * @returns {PlutusCoreTerm}
 	 */
-	toPlutusCore() {
-		let term = this.#lhs.toPlutusCore();
-
+	callToPlutusCore(term) {
 		if (this.#argExprs.length == 0) {
 			// a PlutusCore function call (aka function application) always requires a argument. In the zero-args case this is the unit value
 			term = new PlutusCoreCall(this.site, term, PlutusCoreUnit.newTerm(this.#parensSite));
@@ -16530,6 +17383,246 @@ class IRFuncExpr extends IRExpr {
 }
 
 /**
+ * Intermediate Representation function call of non-core function
+ * 
+ * In the IR graph the IRUserCallExpr is connected as follows:
+ * 
+ * fnExpr   -->--\
+ * argExpr0 -->--- IRUserCallExpr -->-- downstreamNode
+ * ...      -->--/
+ * 
+ * Besides these connections the IRUserCallExpr also asures the argNodes are connected to the underlying function
+ */
+ class IRUserCallExpr extends IRCallExpr {
+	#fnExpr;
+
+	/**
+	 * @param {IRExpr} fnExpr 
+	 * @param {IRExpr[]} argExprs 
+	 * @param {Site} parensSite 
+	 */
+	constructor(fnExpr, argExprs, parensSite) {
+		super(fnExpr.site, argExprs, parensSite);
+
+		this.#fnExpr = fnExpr;
+	}
+
+	get fnExpr() {
+		return this.#fnExpr;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isConst() {
+		return this.#fnExpr.isConst() && super.isConst();
+	}
+
+	/**
+	 * @param {string} indent
+	 * @returns {string}
+	 */
+	toString(indent = "") {
+		return `${this.#fnExpr.toString(indent)}(${this.argsToString(indent)})`;
+	}
+
+	/**
+	 * @param {IRScope} scope 
+	 */
+	resolveNames(scope) {
+		this.#fnExpr.resolveNames(scope);
+
+		this.resolveArgNames(scope);
+	}
+
+	/**
+	 * @returns {Set<IRFuncExpr>}
+	 */
+	getFuncExprs() {
+		let fns = this.#fnExpr.getFuncExprs();
+
+		let res = new Set();
+		for (let fn of fns) {
+			let sub = fn.getBodyFuncExprs();
+
+			for (let s of sub) {
+				res.add(s);
+			}
+		}
+
+		return res;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	buildGraph() {
+		let dirty = false;
+
+		if (this.#fnExpr.buildGraph()) {
+			dirty = true;
+		}
+
+		if (super.buildGraph(1)) {
+			dirty = true;
+		}
+
+		let fns = this.#fnExpr.getFuncExprs();
+
+		if (this.buildSubGraphs(fns)) {
+			dirty = true;
+		}
+
+		return dirty;
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {number}
+	 */
+	countRefs(ref) {
+		return this.#fnExpr.countRefs(ref) + super.countRefs(ref);
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRValue}
+	 */
+	eval(stack = new IRCallStack()) {
+		let args = super.evalArgs(stack);
+
+		if (args === null) {
+			return new IRValue(null);
+		} else {
+			let fnVal = this.#fnExpr.eval(stack);
+
+			if (fnVal.value === null) {
+				return new IRValue(null);
+			} else if (fnVal.value instanceof PlutusCoreValue) {
+				throw new Error("expected func value");
+			} else {
+				return fnVal.value(args);
+			}
+		}
+	}
+
+	/**
+	 * @param {Map<IRVariable, IRExpr>} todo
+	 * @returns {IRExpr}
+	 */
+	inline(todo) {
+		super.inlineArgs(todo);
+
+		this.#fnExpr = this.#fnExpr.inline(todo);
+
+		return this;
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
+	 */
+	simplify(stack = new IRCallStack()) {
+		if (this.#fnExpr instanceof IRFuncExpr) {
+			let args = this.evalArgs(stack);
+
+			if (args !== null) {
+				let vars = this.#fnExpr.argVariables;
+
+				for (let i = 0; i < args.length; i++) {
+					stack = stack.set(vars[i], args[i]);
+				}
+			}
+		}
+
+		this.#fnExpr = this.#fnExpr.simplify(stack);
+
+		super.simplifyArgs(stack);
+
+		let val = this.eval(stack);
+
+		if (val.value instanceof PlutusCoreValue) {
+			return val.toIRExpr(this.site);
+		} else {
+			if (this.#fnExpr instanceof IRFuncExpr) {
+				// eliminate the unused args
+				let vars = this.#fnExpr.argVariables;
+				let argExprs = super.argExprs;
+
+				/**
+				 * @type {IRVariable[]}
+				 */
+				let remVars = [];
+
+				/**
+				 * @type {IRExpr[]}
+				 */
+				let remArgExprs = [];
+
+				/**
+				 * @type {Map<IRVariable, IRExpr>}
+				 */
+				let inlineTodo = new Map();
+
+				for (let i = 0; i < vars.length; i++) {
+					let nRefs = this.#fnExpr.countRefs(vars[i]);
+					if (nRefs == 0) {
+						// dont add var to remVars
+					} else if (nRefs == 1 && vars[i].name != "__helios__common__unBoolData" && vars[i].name != "__helios__common__boolData") {
+						// never inline __helios__common__boolData and __helios__common__unBoolData (needed for other optimizations)
+						inlineTodo.set(vars[i], argExprs[i]);
+					} else {
+						remVars.push(vars[i]);
+						remArgExprs.push(argExprs[i]);
+					}
+				}
+
+				let fnExpr = this.#fnExpr.inline(inlineTodo);
+				this.#fnExpr = fnExpr;
+
+				if (remVars.length == 0) {
+					// eliminate call itself
+					return fnExpr.body;
+				} else {
+					fnExpr.setArgVariables(remVars);
+					this.setArgExprs(remArgExprs);
+				}
+			} else if (this.#fnExpr instanceof IRNameExpr) {
+				switch (this.#fnExpr.name) {
+					case "__helios__common__boolData": {
+							// check if arg is a call to __helios__common__unBoolData
+							let argExpr = this.argExprs[0];
+							if (argExpr instanceof IRUserCallExpr && argExpr.fnExpr instanceof IRNameExpr && argExpr.fnExpr.name == "__helios__common__unBoolData") {
+								return argExpr.argExprs[0];
+							}
+						}
+						break;
+					case "__helios__common__unBoolData": {
+							// check if arg is a call to __helios__common__boolData
+							let argExpr = this.argExprs[0];
+							if (argExpr instanceof IRUserCallExpr && argExpr.fnExpr instanceof IRNameExpr && argExpr.fnExpr.name == "__helios__common__boolData") {
+								return argExpr.argExprs[0];
+							}
+						}
+						break;
+
+					// TODO: it might be smart to do the same optimization for __helios__common__concat
+				}
+			}
+
+			return this;
+		}
+	}
+
+	/**
+	 * @returns {PlutusCoreTerm}
+	 */
+	toPlutusCore() {
+		return super.callToPlutusCore(this.#fnExpr.toPlutusCore());
+	}
+}
+
+/**
  * Intermediate Representation function call of core function.
  * 
  * In the IR graph the IRCoreCallExpr node is connected as follows:
@@ -16538,10 +17631,8 @@ class IRFuncExpr extends IRExpr {
  * argExpr1 -->--- IRCoreCallExpr -->-- downstreamNode
  * ...      -->--/ 
  */
-class IRCoreCallExpr extends IRExpr {
+class IRCoreCallExpr extends IRCallExpr {
 	#name;
-	#argExprs;
-	#parensSite;
 
 	/**
 	 * @param {Word} name 
@@ -16549,10 +17640,12 @@ class IRCoreCallExpr extends IRExpr {
 	 * @param {Site} parensSite 
 	 */
 	constructor(name, argExprs, parensSite) {
-		super(name.site);
+		super(name.site, argExprs, parensSite);
 		this.#name = name;
-		this.#argExprs = argExprs;
-		this.#parensSite = parensSite;
+	}
+
+	get builtinName() {
+		return this.#name.toString().slice(8);
 	}
 
 	/**
@@ -16560,7 +17653,7 @@ class IRCoreCallExpr extends IRExpr {
 	 * @returns {string}
 	 */
 	toString(indent = "") {
-		return `${this.#name.toString()}(${this.#argExprs.map(e => e.toString(indent)).join(", ")})`;
+		return `${this.#name.toString()}(${this.argsToString()})`;
 	}
 
 	/**
@@ -16577,32 +17670,267 @@ class IRCoreCallExpr extends IRExpr {
 	 * @param {IRScope} scope 
 	 */
 	resolveNames(scope) {
-		for (let arg of this.#argExprs) {
-			arg.resolveNames(scope);
+		this.resolveArgNames(scope);
+	}
+
+	/**
+	 * @returns {Set<IRFuncExpr>}
+	 */
+	getFuncExprs() {
+		throw new Error("core function never returns anon");
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRValue}
+	 */
+	 eval(stack) {
+		let args = super.evalArgs(stack);
+
+		if (args === null) {
+			return new IRValue(null);
+		} else {
+			if (this.builtinName == "ifThenElse") {
+				let maybeCond = args[0].value;
+				if (maybeCond instanceof PlutusCoreBool) {
+					if (maybeCond.bool) {
+						return args[1];
+					} else {
+						return args[2];
+					}
+				} else {
+					throw new Error("expected bool condition");
+				}
+			} else if (this.builtinName == "trace") {
+				return args[1];
+			} else {
+				let rawArgs = args.map(a => {
+					if (a.value === null) {
+						throw new Error("unexpected");
+					} else if (a.value instanceof PlutusCoreValue) {
+						return a.value;
+					} else {
+						throw new Error(`core function ${this.builtinName} can never take func value as arg`);
+					}
+				});
+
+				try {
+					let result = PlutusCoreBuiltin.evalStatic(new Word(this.#name.site, this.builtinName), rawArgs);
+
+					return new IRValue(result);
+				} catch(e) {
+					if (e instanceof UserError) {
+						return new IRValue(null);
+					} else {
+						throw e;
+					}
+				}
+			}
 		}
 	}
 
 	/**
-	 * @returns {boolean}
+	 * @param {Map<IRVariable, IRExpr>} todo
+	 * @returns {IRExpr}
 	 */
-	buildGraph() {
-		// add this as a downstream node to each argExpr
-		// and add argExprs as upstream nodes of this
+	inline(todo) {
+		super.inlineArgs(todo);
 
-		let dirty = false;
-		for (let i = 0; i < this.#argExprs.length; i++) {
-			let arg = this.#argExprs[i];
+		return this;
+	}
 
-			if (arg.addDownstream(this)) {
-				dirty = true;
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
+	 */
+	simplify(stack) {
+		this.simplifyArgs(stack);
+
+		let simpler = this.eval(stack);
+
+		if (simpler.value instanceof PlutusCoreValue) {
+			return simpler.toIRExpr(this.site);
+		} else {
+			switch (this.builtinName) {
+			
+			case "encodeUtf8": {
+					// check if arg is a call to decodeUtf8
+					let argExpr = this.argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "decodeUtf8") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "decodeUtf8": {
+					// check if arg is a call to encodeUtf8
+					let argExpr = this.argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "encodeUtf8") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "ifThenElse": {
+					// check if first arg evaluates to constant condition
+					let cond = this.argExprs[0].eval(stack);
+					if (cond.value !== null && cond.value instanceof PlutusCoreBool) {
+						return cond.value.bool ? this.argExprs[1] : this.argExprs[2];
+					}
+				}
+				break;
+			case "addInteger": {
+					// check if first or second arg evaluates to 0
+					let a = this.argExprs[0].eval(stack);
+					if (a.value !== null && a.value instanceof PlutusCoreInt && a.value.int == 0n) {
+						return this.argExprs[1];
+					} else {
+						let b = this.argExprs[1].eval(stack);
+						if (b.value !== null && b.value instanceof PlutusCoreInt && b.value.int == 0n) {
+							return this.argExprs[0];
+						}
+					}
+				}
+				break;
+			case "subtractInteger": {
+					// check if second arg evaluates to 0
+					let b = this.argExprs[1].eval(stack);
+					if (b.value !== null && b.value instanceof PlutusCoreInt && b.value.int == 0n) {
+						return this.argExprs[0];
+					}
+				}
+				break;
+			case "multiplyInteger": {
+					// check if first arg is 0 or 1
+					let a = this.argExprs[0].eval(stack);
+					if (a.value !== null && a.value instanceof PlutusCoreInt) {
+						if (a.value.int == 0n) {
+							return new IRLiteral(new IntLiteral(this.site, 0n));
+						} else if (a.value.int == 1n) {
+							return this.argExprs[1];
+						}
+					} else {
+						let b = this.argExprs[1].eval(stack);
+						if (b.value !== null && b.value instanceof PlutusCoreInt) {
+							if (b.value.int == 0n) {
+								return new IRLiteral(new IntLiteral(this.site, 0n));
+							} else if (b.value.int == 1n) {
+								return this.argExprs[0];
+							}
+						}
+					}
+				}
+				break;
+			case "divideInteger": {
+					// check if second arg is 1
+					let b = this.argExprs[1].eval(stack);
+					if (b.value !== null && b.value instanceof PlutusCoreInt && b.value.int == 1n) {
+						return this.argExprs[0];
+					}
+				}
+				break;
+			case "modInteger": {
+					// check if second arg is 1
+					let b = this.argExprs[1].eval(stack);
+					if (b.value !== null && b.value instanceof PlutusCoreInt && b.value.int == 1n) {
+						return this.argExprs[0];
+					}
+				}
+				break;
+			case "appendByteString": {
+					// check if either 1st or 2nd arg is the empty bytearray
+					let a = this.argExprs[0].eval(stack);
+					if (a.value !== null && a.value instanceof PlutusCoreByteArray && a.value.bytes.length == 0) {
+						return this.argExprs[1];
+					} else {
+						let b = this.argExprs[1].eval(stack);
+						if (b.value !== null && b.value instanceof PlutusCoreByteArray && b.value.bytes.length == 0) {
+							return this.argExprs[0];
+						}
+					}
+				}
+				break;
+			case "appendString": {
+					// check if either 1st or 2nd arg is the empty string
+					let a = this.argExprs[0].eval(stack);
+					if (a.value !== null && a.value instanceof PlutusCoreString && a.value.string.length == 0) {
+						return this.argExprs[1];
+					} else {
+						let b = this.argExprs[1].eval(stack);
+						if (b.value !== null && b.value instanceof PlutusCoreString && b.value.string.length == 0) {
+							return this.argExprs[0];
+						}
+					}
+				}
+				break;
+			case "trace":
+				return this.argExprs[1];
+			case "unIData": {
+					// check if arg is a call to iData
+					let argExpr = this.argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "iData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "iData": {
+					// check if arg is a call to unIData
+					let argExpr = this.argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unIData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "unBData": {
+					// check if arg is a call to bData
+					let argExpr = this.argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "bData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "bData": {
+					// check if arg is a call to unBData
+					let argExpr = this.argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unBData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "unMapData": {
+					// check if arg is call to mapData
+					let argExpr = this.argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "mapData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "mapData": {
+					// check if arg is call to unMapData
+					let argExpr = this.argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unMapData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "listData": {
+					// check if arg is call to unListData
+					let argExpr = this.argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unListData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "unListData": {
+					// check if arg is call to listData
+					let argExpr = this.argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "listData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
 			}
 
-			if (this.addUpstream(0, arg)) {
-				dirty = true;
-			}
+			return this;
 		}
-
-		return true;
 	}
 
 	/**
@@ -16620,16 +17948,7 @@ class IRCoreCallExpr extends IRExpr {
 			term = new PlutusCoreForce(this.site, term);
 		}
 
-		if (this.#argExprs.length == 0) {
-			// a PlutusCore function call (aka function application) always requires a argument. In the zero-args case this is the unit value
-			term = new PlutusCoreCall(this.site, term, PlutusCoreUnit.newTerm(this.#parensSite));
-		} else {
-			for (let arg of this.#argExprs) {
-				term = new PlutusCoreCall(this.site, term, arg.toPlutusCore());
-			}
-		}
-
-		return term;
+		return this.callToPlutusCore(term);
 	}
 }
 
@@ -16648,6 +17967,10 @@ class IRErrorCallExpr extends IRExpr {
 		this.#msg = msg;
 	}
 
+	isConst() {
+		return false;
+	}
+
 	/**
 	 * @param {string} indent 
 	 * @returns {string}
@@ -16660,6 +17983,47 @@ class IRErrorCallExpr extends IRExpr {
 	 * @param {IRScope} scope 
 	 */
 	resolveNames(scope) {
+	}
+
+	/**
+	 * @param {?number} i 
+	 * @param {IRNode} node 
+	 * @returns {boolean}
+	 */
+	addDownstream(i, node) {
+		throw new Error("error call can't have downstream nodes");
+	}
+
+	/**
+	 * Isn't connected to graph
+	 * @returns {boolean}
+	 */
+	buildGraph() {
+		return false;
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {number}
+	 */
+	countRefs(ref) {
+		return 0;
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRValue}
+	 */
+	eval(stack) {
+		return new IRValue(null);
+	}
+
+	/**
+	 * @param {Map<IRVariable, IRExpr>} todo
+	 * @returns {IRExpr}
+	 */
+	inline(todo) {
+		return this;
 	}
 
 	/**
@@ -16705,16 +18069,21 @@ class IRNameExpr extends IRExpr {
 		return this.#name.toString();
 	}
 
+	isConst() {
+		return false;
+	}
+
 	/**
 	 * @param {string} indent 
 	 * @returns {string}
 	 */
 	toString(indent = "") {
-		if (this.#index === null) {
+		return this.#name.toString();
+		/*if (this.#index === null) {
 			return this.#name.toString();
 		} else {
 			return `${this.#name.toString()}[${this.#index.toString()}]`;
-		}
+		}*/
 	}
 
 	/**
@@ -16722,6 +18091,83 @@ class IRNameExpr extends IRExpr {
 	 */
 	resolveNames(scope) {
 		[this.#index, this.#variable] = scope.get(this.#name);
+	}
+
+	/**
+	 * @param {?number} i 
+	 * @param {IRNode} node 
+	 * @returns {boolean}
+	 */
+	addDownstream(i, node) {
+		if (this.#variable === null) {
+			throw new Error("variable should bet set");
+		} else {
+			return this.#variable.addDownstream(i, node);
+		}
+	}
+
+	/**
+	 * @returns {Set<IRFuncExpr>}
+	 */
+	getFuncExprs() {
+		if (this.#variable === null) {
+			throw new Error("variable should be set");
+		} else {
+			return this.#variable.getFuncExprs();
+		}
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	buildGraph() {
+		return false;
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {number}
+	 */
+	countRefs(ref) {
+		if (this.#variable === null) {
+			throw new Error("variable should be set");
+		} else {
+			if (ref === this.#variable) {
+				return 1;
+			} else {
+				return 0;
+			}
+		}
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRValue}
+	 */
+	eval(stack) {
+		if (this.#variable === null) {
+			throw new Error("variable should be set");
+		} else {
+			return this.#variable.eval(stack);
+		}
+	}
+
+	/**
+	 * @param {Map<IRVariable, IRExpr>} todo
+	 * @returns {IRExpr}
+	 */
+	inline(todo) {
+		if (this.#variable === null) {
+			throw new Error("variable should be set");
+		} else {
+			let expr = todo.get(this.#variable);
+
+			if (expr === undefined) {
+				return this;
+			} else {
+				return expr;
+			}
+		}
 	}
 
 	/**
@@ -16753,6 +18199,14 @@ class IRLiteral extends IRExpr {
 		this.#lit = lit;
 	}
 
+	get primitive() {
+		return this.#lit;
+	}
+
+	isConst() {
+		return true;
+	}
+
 	/**
 	 * @param {string} indent 
 	 * @returns {string}
@@ -16769,10 +18223,42 @@ class IRLiteral extends IRExpr {
 	}
 
 	/**
-	 * @returns {PlutusCoreTerm}
+	 * Building graph for literals doesn't do anything
+	 * @returns {boolean}
+	 */
+	buildGraph() {
+		return false;
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {number}
+	 */
+	countRefs(ref) {
+		return 0;
+	}
+	
+	/**
+	 * Turns this into PlutusCoreConst
+	 * @param {IRCallStack} stack
+	 * @returns {IRValue}
+	 */
+	eval(stack) {
+		return new IRValue(this.toPlutusCore().value);
+	}
+
+	/**
+	 * @param {Map<IRVariable, IRExpr>} todo
+	 * @returns {IRExpr}
+	 */
+	inline(todo) {
+		return this;
+	}
+	
+	/**
+	 * @returns {PlutusCoreConst}
 	 */
 	toPlutusCore() {
-
 		if (this.#lit instanceof IntLiteral) {
 			return PlutusCoreInt.newSignedTerm(this.site, this.#lit.value);
 		} else if (this.#lit instanceof BoolLiteral) {
@@ -16783,6 +18269,8 @@ class IRLiteral extends IRExpr {
 			return PlutusCoreString.newTerm(this.site, this.#lit.value);
 		} else if (this.#lit instanceof UnitLiteral) {
 			return PlutusCoreUnit.newTerm(this.site);
+		} else if (this.#lit instanceof PairLiteral) {
+			return PlutusCorePair.newTerm(this.site, PlutusCoreValue.fromLiteral(this.site, this.#lit.first), PlutusCoreValue.fromLiteral(this.site, this.#lit.second));
 		} else {
 			throw new Error("unhandled literal type")
 		}
@@ -16797,16 +18285,18 @@ class IRLiteral extends IRExpr {
 /**
  * Build Intermediate Representation top-level expression
  * @param {Token[]} ts 
- * @returns {IRExpr}
+ * @returns {IRFuncExpr | IRUserCallExpr}
  */
 function buildIRProgram(ts) {
 	let expr = buildIRExpr(ts);
 
-	assert(expr instanceof IRFuncExpr || expr instanceof IRUserCallExpr);
+	if (expr instanceof IRFuncExpr || expr instanceof IRUserCallExpr) {
+		expr.resolveNames(new IRScope(null, null));
 
-	expr.resolveNames(new IRScope(null, null));
-
-	return expr;
+		return expr;
+	} else {
+		throw new Error("expected IRFuncExpr or IRUserCallExpr as result of buildIRProgram");
+	}
 }
 
 /**
@@ -16838,6 +18328,15 @@ function buildIRExpr(ts) {
 						expr = buildIRExpr(group.fields[0])
 					} else if (group.fields.length == 0) {
 						expr = new IRLiteral(new UnitLiteral(t.site));
+					} else if (group.fields.length == 2) {
+						let first = buildIRExpr(group.fields[0]);
+						let second = buildIRExpr(group.fields[1]);
+
+						if (first instanceof IRLiteral && second instanceof IRLiteral) {
+							expr = new IRLiteral(new PairLiteral(t.site, first.primitive, second.primitive));
+						} else {
+							group.syntaxError("pair literal expects pair content");
+						}
 					} else {
 						group.syntaxError("unexpected parentheses with multiple fields");
 					}
@@ -16950,6 +18449,36 @@ function buildIRFuncExpr(ts) {
 	}
 }
 
+/**
+ * Simplify IR program (evaluate const expression, eliminate dead code etc.)
+ * @param {IRFuncExpr | IRUserCallExpr} program
+ * @returns {IRFuncExpr | IRUserCallExpr}
+ */
+function simplifyIRProgram(program) {
+	let exit = new IRExit(program.site);
+
+	console.log(new Source(program.toString()).pretty());
+	program.addDownstream(0, exit);
+
+	/*let count = 0;
+	while (program.buildGraph()) {
+		count++;
+	}*/
+
+	let dirty = true;
+
+	while(dirty) {
+		dirty = false;
+		let newProgram = program.simplify();
+		if (newProgram instanceof IRFuncExpr || newProgram instanceof IRUserCallExpr) {
+			dirty = newProgram.toString() != program.toString();
+			program = newProgram;
+		}
+	}
+
+	return program;;
+}
+
 
 //////////////////////////
 // Section 16: Compilation
@@ -16992,8 +18521,9 @@ export const CompilationStage = {
 	Tokenize: 1,
 	BuildAST: 2,
 	IR: 3,
-	PlutusCore: 4,
-	Final: 5,
+	Simplify: 4,
+	PlutusCore: 5,
+	Final: 6,
 };
 
 /**
@@ -17001,6 +18531,7 @@ export const CompilationStage = {
  * @property {boolean} verbose
  * @property {TemplateParams} templateParameters
  * @property {number} stage
+ * @property {boolean} simplify
  */
 
 /**
@@ -17010,13 +18541,14 @@ const DEFAULT_CONFIG = {
 	verbose: false,
 	templateParameters: {},
 	stage: CompilationStage.Final,
+	simplify: false,
 };
 
 /**
  * Compiles Helios uptil several different stages.
  * @param {string} typedSrc 
  * @param {CompilationConfig} config 
- * @returns {string | Token[] | Program | PlutusCoreProgram}
+ * @returns {string | Token[] | Program | PlutusCoreProgram | [string, string]}
  */
 function compileInternal(typedSrc, config) {
 	typedSrc = preprocess(typedSrc, config.templateParameters);
@@ -17054,7 +18586,17 @@ function compileInternal(typedSrc, config) {
 	}
 
 	let irTokens = tokenizeIR(irSrc, codeMap);
+
 	let irProgram = buildIRProgram(irTokens);
+
+	if (config.simplify) {
+		irProgram = simplifyIRProgram(irProgram);
+
+		if (config.stage == CompilationStage.Simplify) {
+			return [irSrc, irProgram.toString()];
+		}
+	}
+
 	let plutusCoreProgram = new PlutusCoreProgram(irProgram.toPlutusCore());
 
 	if (config.stage == CompilationStage.PlutusCore) {
@@ -17130,13 +18672,14 @@ export function extractScriptPurposeAndName(rawSrc) {
  *    Final:      encode Plutus-Core program in flat format and return JSON string containing cborHex representation of program
  * @param {string} typedSrc
  * @param {CompilationConfig} config
- * @returns {string | Token[] | Program | PlutusCoreProgram}
+ * @returns {string | Token[] | Program | PlutusCoreProgram | [string, string]}
  */
 export function compile(typedSrc, config = Object.assign({}, DEFAULT_CONFIG)) {
 	// additional checks of config
 	config.verbose = config.verbose || false;
 	config.templateParameters = config.templateParameters || {};
 	config.stage = config.stage || CompilationStage.Final;
+	config.simplify = config.simplify || false;
 
 	return compileInternal(typedSrc, config);
 }
@@ -18037,7 +19580,7 @@ export class FuzzyTest {
 		// compilation errors here aren't caught
 
 		/** @type {CompilationConfig} */
-		let config = {verbose: false, templateParameters: {}, stage: CompilationStage.PlutusCore};
+		let config = {verbose: false, templateParameters: {}, stage: CompilationStage.PlutusCore, simplify: false};
 
 		let purposeName = extractScriptPurposeAndName(src);
 
