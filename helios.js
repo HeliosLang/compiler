@@ -14655,37 +14655,34 @@ function makeRawFunctions() {
 		(start, end) -> {
 			(self) -> {
 				(start, end) -> {
-					__core__bData(
-						(fn) -> {
+					(normalize) -> {
+						__core__bData(
+							(fn) -> {
+								normalize(start, fn)
+							}(
+								(start) -> {
+									(fn) -> {
+										normalize(end, fn)
+									}(
+										(end) -> {
+											__core__sliceByteString(start, __core__subtractInteger(end, __helios__common__max(start, 0)), self)
+										}
+									)
+								}
+							)
+						)
+					}(
+						(pos, fn) -> {
 							__core__ifThenElse(
-								__core__lessThanInteger(start, 0),
+								__core__lessThanInteger(pos, 0),
 								() -> {
-									fn(__core__addInteger(__core__addInteger(selfLengthFn(self), 1), start))
+									fn(__core__addInteger(__core__addInteger(selfLengthFn(self), 1), pos))
 								},
 								() -> {
-									fn(start)
+									fn(pos)
 								}
 							)()
 						}
-						(
-							(start) -> {
-								(fn) -> {
-									__core__ifThenElse(
-										__core__lessThanInteger(end, 0),
-										() -> {
-											fn(__core__addInteger(__core__addInteger(selfLengthFn(self), 1), end))
-										},
-										() -> {
-											fn(end)
-										}
-									)()
-								}(
-									(end) -> {
-										__core__sliceByteString(start, __core__subtractInteger(end, __helios__common__max(start, 0)), self)
-									}
-								)
-							}
-						)
 					)
 				}(__core__unIData(start), __core__unIData(end))
 			}(__core__unBData(self))
@@ -17172,14 +17169,21 @@ class IRCallExpr extends IRExpr {
 
 				for (let i = 0; i < vars.length; i++) {
 					let nRefs = newFnExpr.countRefs(vars[i]);
+					let argExpr = argExprs[i];
+
 					if (nRefs == 0) {
 						// dont add var to remVars
-					} else if ((nRefs == 1 || argExprs[i] instanceof IRNameExpr) && vars[i].name != "__helios__common__unBoolData" && vars[i].name != "__helios__common__boolData" && vars[i].name != "__helios__common__concat") {
+					} else if (
+						(nRefs == 1 || argExpr instanceof IRNameExpr || (argExpr instanceof IRLiteral && argExpr.primitive instanceof IntLiteral)) && 
+						vars[i].name != "__helios__common__unBoolData" && 
+						vars[i].name != "__helios__common__boolData" && 
+						vars[i].name != "__helios__common__concat"
+					) {
 						// never inline __helios__common__boolData and __helios__common__unBoolData (needed for other optimizations)
-						inlineTodo.set(vars[i], argExprs[i]);
+						inlineTodo.set(vars[i], argExpr);
 					} else {
 						remVars.push(vars[i]);
-						remArgExprs.push(argExprs[i]);
+						remArgExprs.push(argExpr);
 					}
 				}
 
@@ -17683,12 +17687,12 @@ class IRNameExpr extends IRExpr {
 	 * @returns {string}
 	 */
 	toString(indent = "") {
-		//return this.#name.toString();
-		if (this.#index === null) {
+		return this.#name.toString();
+		/*if (this.#index === null) {
 			return this.#name.toString();
 		} else {
 			return `${this.#name.toString()}[${this.#index.toString()}]`;
-		}
+		}*/
 	}
 
 	/**
