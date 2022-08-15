@@ -64,7 +64,7 @@ async function runUnitTests() {
 }
 
 async function runPropertyTests() {
-    const ft = new helios.FuzzyTest(Math.random()*42);
+    const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
 
 
     ////////////
@@ -849,7 +849,7 @@ async function runPropertyTests() {
         func main(a: ByteArray) -> String {
             a.decode_utf8()
         }`, ([a], res) => {
-            return res.isString() && (a.asString() === res.asString());
+            return res.isString() && (a.asString() == res.asString());
         });
 
         await ft.test([ft.bytes()], `
@@ -858,7 +858,7 @@ async function runPropertyTests() {
             a.decode_utf8()
         }`, ([a], res) => {
             if (a.isString()) {
-                return res.isString() && (a.asString() === res.asString());
+                return res.isString() && (a.asString() == res.asString());
             } else {
                 return res instanceof helios.UserError && res.info === "invalid utf-8";
             }
@@ -2882,14 +2882,18 @@ async function runIntegrationTests() {
         
         let [result, messages] = await helios.run(src);
     
-        let resStr = result.toString();
-        if (result instanceof Error) {
-            resStr = resStr.split(":")[1].trim();
-        } 
-    
-        if (resStr != expectedResult) {
-            throw new Error(`unexpected result in ${name}: expected "${expectedResult}", got "${resStr}"`);
+        function checkResult(result_) {
+            let resStr = result_.toString();
+            if (result_ instanceof Error) {
+                resStr = resStr.split(":")[1].trim();
+            } 
+        
+            if (resStr != expectedResult) {
+                throw new Error(`unexpected result in ${name}: expected "${expectedResult}", got "${resStr}"`);
+            }
         }
+
+        checkResult(result);
     
         if (messages.length != expectedMessages.length) {
             throw new Error(`unexpected number of messages in ${name}: expected ${expectedMessages.length}, got ${messages.length}`);
@@ -2902,6 +2906,18 @@ async function runIntegrationTests() {
         }   
 
         console.log(`integration test '${name}' succeeded`);
+
+        // also try the simplified version (don't check for the message though because all trace calls will've been eliminated)
+
+        [result, messages] = await helios.run(src, {simplify: true});
+
+        if (messages.length != 0) {
+            throw new Error("unexpected messages");
+        }
+
+        checkResult(result);
+
+        console.log(`integration test '${name}' succeeded (simplified)`);
     }
     
    

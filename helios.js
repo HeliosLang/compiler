@@ -150,8 +150,7 @@
 //    13. Builtin low-level functions       onNotifyRawUsage, setRawUsageNotifier, 
 //                                          RawFunc, makeRawFunctions, wrapWithRawFunctions
 //
-//    14. IR AST objects                    IRScope, IRNode, IRExpr, IRVariable, IRReturn,
-//                                          IRExit, IRFuncExpr,
+//    14. IR AST objects                    IRScope, IRExpr, IRVariable, IRFuncExpr,
 //                                          IRUserCallExpr, IRCoreCallExpr, IRErrorCallExpr,
 //                                          IRNameExpr, IRLiteral
 //
@@ -2331,29 +2330,6 @@ class PlutusCoreValue {
 		
 		this.toFlatValueInternal(bitWriter);
 	}
-
-	/**
-	 * @param {Site} site
-	 * @param {PrimitiveLiteral} lit 
-	 * @returns {PlutusCoreValue}
-	 */
-	static fromLiteral(site, lit) {
-		if (lit instanceof IntLiteral) {
-			return new PlutusCoreInt(site, lit.value);
-		} else if (lit instanceof BoolLiteral) {
-			return new PlutusCoreBool(site, lit.value);
-		} else if (lit instanceof StringLiteral) {
-			return new PlutusCoreString(site, lit.value);
-		} else if (lit instanceof ByteArrayData) {
-			return new PlutusCoreByteArray(site, lit.bytes);
-		} else if (lit instanceof PairLiteral) {
-			return new PlutusCorePair(site, PlutusCoreValue.fromLiteral(site, lit.first), PlutusCoreValue.fromLiteral(site, lit.second));
-		} else if (lit instanceof UnitLiteral) {
-			return new PlutusCoreUnit(site);
-		} else {
-			throw new Error("unhandled literal type");
-		}
-	}
 }
 
 /**
@@ -2393,8 +2369,6 @@ class PlutusCoreRTE {
 	/**
 	 * @typedef {[?string, PlutusCoreValue][]} PlutusCoreRawStack
 	 */
-
-	
 
 	/**
 	 * @param {PlutusCoreRTECallbacks} callbacks 
@@ -4397,6 +4371,14 @@ class PlutusCoreProgram {
 		this.toFlat(bitWriter);
 
 		return bitWriter.finalize();
+	}
+
+	/**
+	 * Calculates the on chain size of the program (number of bytes).
+	 * @returns {number}
+	 */
+	calcSize() {
+		return this.serializeBytes().length;
 	}
 
 	/**
@@ -6513,45 +6495,6 @@ class UnitLiteral extends PrimitiveLiteral {
 		return PlutusCoreUnit.newTerm(this.site);
 	}
 }
-
-/**
- * Pair literal (only used by Intermediate Representation)
- */
- class PairLiteral extends PrimitiveLiteral {
-	#first;
-	#second;
-
-	/**
-	 * @param {Site} site 
-	 * @param {PrimitiveLiteral} first
-	 * @param {PrimitiveLiteral} second
-	 */
-	constructor(site, first, second) {
-		super(site);
-		this.#first = first;
-		this.#second = second;
-	}
-
-	get first() {
-		return this.#first;
-	}
-
-	get second() {
-		return this.#second;
-	}
-
-	toString() {
-		return `(${this.#first.toString()}, ${this.#second.toString()})`;
-	}
-
-	/**
-	 * @returns {IR}
-	 */
-	toIR() {
-		return new IR(this.toString(), this.site);
-	}
-}
-
 
 
 //////////////////////////
@@ -13091,8 +13034,15 @@ class StringType extends BuiltinType {
  * Builtin bytearray type
  */
 class ByteArrayType extends BuiltinType {
-	constructor() {
+	#size;
+
+	/**
+	 * @param {?number} size - can be null or 32 (result of hashing)
+	 */
+	constructor(size = null) {
 		super();
+
+		this.#size = size;
 	}
 
 	toString() {
@@ -13117,7 +13067,7 @@ class ByteArrayType extends BuiltinType {
 			case "sha2":
 			case "sha3":
 			case "blake2b":
-				return Value.new(new FuncType([], new ByteArrayType()));
+				return Value.new(new FuncType([], new ByteArrayType(32)));
 			case "decode_utf8":
 			case "show":
 				return Value.new(new FuncType([], new StringType()));
@@ -13127,7 +13077,7 @@ class ByteArrayType extends BuiltinType {
 	}
 
 	get path() {
-		return "__helios__bytearray";
+		return `__helios__bytearray${this.#size === null ? "" : this.#size}`;
 	}
 }
 
@@ -13364,6 +13314,19 @@ class MapType extends BuiltinType {
 
 	toString() {
 		return `Map[${this.#keyType.toString()}]${this.#valueType.toString()}`;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns 
+	 */
+	 isBaseOf(site, type) {
+		if (type instanceof MapType) {
+			return this.#keyType.isBaseOf(site, type.#keyType) && this.#valueType.isBaseOf(site, type.#valueType);
+		} else {
+			return false;
+		}
 	}
 
 	/**
@@ -14687,6 +14650,87 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
+	add(new RawFunc("__helios__common__slice_bytearray",
+	`(self, selfLengthFn) -> {
+		(start, end) -> {
+			(self) -> {
+				(start, end) -> {
+					__core__bData(
+						(fn) -> {
+							__core__ifThenElse(
+								__core__lessThanInteger(start, 0),
+								() -> {
+									fn(__core__addInteger(__core__addInteger(selfLengthFn(self), 1), start))
+								},
+								() -> {
+									fn(start)
+								}
+							)()
+						}
+						(
+							(start) -> {
+								(fn) -> {
+									__core__ifThenElse(
+										__core__lessThanInteger(end, 0),
+										() -> {
+											fn(__core__addInteger(__core__addInteger(selfLengthFn(self), 1), end))
+										},
+										() -> {
+											fn(end)
+										}
+									)()
+								}(
+									(end) -> {
+										__core__sliceByteString(start, __core__subtractInteger(end, __helios__common__max(start, 0)), self)
+									}
+								)
+							}
+						)
+					)
+				}(__core__unIData(start), __core__unIData(end))
+			}(__core__unBData(self))
+		}
+	}`));
+	add(new RawFunc("__helios__common__starts_with", 
+	`(self, selfLengthFn) -> {
+		(self) -> {
+			(prefix) -> {
+				(prefix) -> {
+					(n, m) -> {
+						__helios__common__boolData(
+							__core__ifThenElse(
+								__core__lessThanInteger(n, m),
+								() -> {false},
+								() -> {
+									__core__equalsByteString(prefix, __core__sliceByteString(0, m, self))
+								}
+							)()
+						)
+					}(selfLengthFn(self), __core__lengthOfByteString(prefix))
+				}(__core__unBData(prefix))
+			}
+		}(__core__unBData(self))
+	}`));
+	add(new RawFunc("__helios__common__ends_with",
+	`(self, selfLengthFn) -> {
+		(self) -> {
+			(suffix) -> {
+				(suffix) -> {
+					(n, m) -> {
+						__helios__common__boolData(
+							__core__ifThenElse(
+								__core__lessThanInteger(n, m),
+								() -> {false},
+								() -> {
+									__core__equalsByteString(suffix, __core__sliceByteString(__core__subtractInteger(n, m), m, self))
+								}
+							)()
+						)
+					}(selfLengthFn(self), __core__lengthOfByteString(suffix))
+				}(__core__unBData(suffix))
+			}
+		}(__core__unBData(self))
+	}`));
 
 
 	// Int builtins
@@ -14929,86 +14973,17 @@ function makeRawFunctions() {
 	`(self) -> {
 		__core__iData(__core__lengthOfByteString(__core__unBData(self)))
 	}`));
-	add(new RawFunc("__helios__bytearray__slice", 
+	add(new RawFunc("__helios__bytearray__slice",
 	`(self) -> {
-		(start, end) -> {
-			(self) -> {
-				(start, end) -> {
-					__core__bData(
-						(fn) -> {
-							__core__ifThenElse(
-								__core__lessThanInteger(start, 0),
-								() -> {
-									fn(__core__addInteger(__core__addInteger(__core__lengthOfByteString(self), 1), start))
-								},
-								() -> {
-									fn(start)
-								}
-							)()
-						}
-						(
-							(start) -> {
-								(fn) -> {
-									__core__ifThenElse(
-										__core__lessThanInteger(end, 0),
-										() -> {
-											fn(__core__addInteger(__core__addInteger(__core__lengthOfByteString(self), 1), end))
-										},
-										() -> {
-											fn(end)
-										}
-									)()
-								}(
-									(end) -> {
-										__core__sliceByteString(start, __core__subtractInteger(end, __helios__common__max(start, 0)), self)
-									}
-								)
-							}
-						)
-					)
-				}(__core__unIData(start), __core__unIData(end))
-			}(__core__unBData(self))
-		}
+		__helios__common__slice_bytearray(self, (self) -> {__core__lengthOfByteString(self)})
 	}`));
 	add(new RawFunc("__helios__bytearray__starts_with", 
 	`(self) -> {
-		(self) -> {
-			(prefix) -> {
-				(prefix) -> {
-					(n, m) -> {
-						__helios__common__boolData(
-							__core__ifThenElse(
-								__core__lessThanInteger(n, m),
-								() -> {false},
-								() -> {
-									__core__equalsByteString(prefix, __core__sliceByteString(0, m, self))
-								}
-							)()
-						)
-					}(__core__lengthOfByteString(self), __core__lengthOfByteString(prefix))
-				}(__core__unBData(prefix))
-			}
-		}(__core__unBData(self))
+		__helios__common__starts_with(self, (self) -> {__core__lengthOfByteString(self)})
 	}`));
 	add(new RawFunc("__helios__bytearray__ends_with",
 	`(self) -> {
-		(self) -> {
-			(suffix) -> {
-				(suffix) -> {
-					(n, m) -> {
-						__helios__common__boolData(
-							__core__ifThenElse(
-								__core__lessThanInteger(n, m),
-								() -> {false},
-								() -> {
-									__core__equalsByteString(suffix, __core__sliceByteString(__core__subtractInteger(n, m), m, self))
-								}
-							)()
-						)
-					}(__core__lengthOfByteString(self), __core__lengthOfByteString(suffix))
-				}(__core__unBData(suffix))
-			}
-		}(__core__unBData(self))
+		__helios__common__ends_with(self, (self) -> {__core__lengthOfByteString(self)})
 	}`));
 	add(new RawFunc("__helios__bytearray__sha2",
 	`(self) -> {
@@ -15075,6 +15050,28 @@ function makeRawFunctions() {
 			}
 		}(__core__unBData(self))
 	}`));
+	add(new RawFunc("__helios__bytearray32____eq", "__helios__bytearray____eq"));
+	add(new RawFunc("__helios__bytearray32____neq", "__helios__bytearray____neq"));
+	add(new RawFunc("__helios__bytearray32____serialize", "__helios__bytearray__serialize"));
+	add(new RawFunc("__helios__bytearray32____add", "__helios__bytearray____add"));
+	add(new RawFunc("__helios__bytearray32__length", "(_) -> {__core__iData(32)}"));
+	add(new RawFunc("__helios__bytearray32__slice", 
+	`(self) -> {
+		__helios__common__slice_bytearray(self, (self) -> {32})
+	}`));
+	add(new RawFunc("__helios__bytearray32__starts_with", 
+	`(self) -> {
+		__helios__common__starts_with(self, (self) -> {32})
+	}`));
+	add(new RawFunc("__helios__bytearray32__ends_with", 
+	`(self) -> {
+		__helios__common__ends_with(self, (self) -> {32})
+	}`));
+	add(new RawFunc("__helios__bytearray32__sha2", "__helios__bytearray__sha2"));
+	add(new RawFunc("__helios__bytearray32__sha3", "__helios__bytearray__sha3"));
+	add(new RawFunc("__helios__bytearray32__blake2b", "__helios__bytearray__blake2b"));
+	add(new RawFunc("__helios__bytearray32__decode_utf8", "__helios__bytearray__decode_utf8"));
+	add(new RawFunc("__helios__bytearray32__show", "__helios__bytearray__show"));
 
 
 	// List builtins
@@ -16503,12 +16500,12 @@ class IRScope {
 
 	/**
 	 * Calculates the Debruijn index of a named value. Internal method
-	 * @param {Word} name 
+	 * @param {Word | IRVariable} name 
 	 * @param {number} index 
 	 * @returns {[number, IRVariable]}
 	 */
 	getInternal(name, index) {
-		if (this.#variable !== null && this.#variable.toString() == name.toString()) {
+		if (this.#variable !== null && (name instanceof Word && this.#variable.toString() == name.toString()) || (name instanceof IRVariable && this.#variable == name)) {
 			return [index, this.#variable];
 		} else if (this.#parent === null) {
 			throw name.referenceError(`variable ${name.toString()} not found`);
@@ -16519,7 +16516,7 @@ class IRScope {
 
 	/**
 	 * Calculates the Debruijn index.
-	 * @param {Word} name 
+	 * @param {Word | IRVariable} name 
 	 * @returns {[number, IRVariable]}
 	 */
 	get(name) {
@@ -16571,22 +16568,6 @@ class IRValue {
 	constructor(value, origFnExpr = null) {
 		this.#value = value;
 		this.#origFnExpr = origFnExpr;
-
-		if (value instanceof PlutusCoreValue) {
-			if (!(
-				value instanceof PlutusCoreBool || 
-				value instanceof PlutusCoreInt || 
-				value instanceof PlutusCoreDataValue || 
-				value instanceof PlutusCoreString || 
-				value instanceof PlutusCoreByteArray || 
-				value instanceof PlutusCoreUnit ||
-				value instanceof PlutusCoreList || 
-				value instanceof PlutusCorePair
-			)) {
-				let e = value.site.typeError("unexpected type for IRValue " + value.toString());
-				throw new Error(e.message);
-			}
-		}
 	}
 
 	get value() {
@@ -16604,76 +16585,13 @@ class IRValue {
 	}
 
 	/**
-	 * @param {Site} site
-	 * @param {PlutusCoreData[]} lst 
-	 */
-	static dataListToExpr(site, lst) {
-		let expr = new IRCoreCallExpr(new Word(site, "__core__mkNilData"), [
-			new IRLiteral(new UnitLiteral(site))
-		], site);
-
-		for (let i = lst.length - 1; i >= 0; i--) {
-			expr = new IRCoreCallExpr(new Word(site, "__core__mkCons"), [
-				(new IRValue(new PlutusCoreDataValue(site, lst[i]))).toIRExpr(site),
-				expr
-			], site);
-		}
-
-		return expr;
-	}
-
-	/**
 	 * Only works for PlutusCoreValue
 	 * @param {Site} site
 	 * @returns {IRExpr}
 	 */
 	toIRExpr(site) {
 		if (this.#value instanceof PlutusCoreValue) {
-			let v = this.#value;
-
-			if (v instanceof PlutusCoreInt) {
-				return new IRLiteral(new IntLiteral(site, v.int));
-			} else if (v instanceof PlutusCoreBool) {
-				return new IRLiteral(new BoolLiteral(site, v.bool));
-			} else if (v instanceof PlutusCoreString) {
-				return new IRLiteral(new StringLiteral(site, v.string));
-			} else if (v instanceof PlutusCoreByteArray) {
-				return new IRLiteral(new ByteArrayLiteral(site, v.bytes));
-			} else if (v instanceof PlutusCoreUnit) {
-				return new IRLiteral(new UnitLiteral(site));
-			} else if (v instanceof PlutusCoreList) {
-				return IRValue.dataListToExpr(site, v.list);
-			} else if (v instanceof PlutusCorePair) {
-				let first = new IRValue(v.first).toIRExpr(site);
-				let second = new IRValue(v.second).toIRExpr(site);
-
-				if (first instanceof IRLiteral && second instanceof IRLiteral) {
-					return new IRLiteral(new PairLiteral(site, first.primitive, second.primitive));
-				} else {
-					throw new Error("unexpected");
-				}
-			} else if (v instanceof PlutusCoreDataValue) {
-				let d = v.data;
-
-				if (d instanceof IntData) {
-					return new IRCoreCallExpr(new Word(site, "__core__iData"), [new IRLiteral(new IntLiteral(site, d.asInt()))], site);
-				} else if (d instanceof ConstrData) {
-					return new IRCoreCallExpr(new Word(site, "__core__constrData"), [
-						new IRLiteral(new IntLiteral(site, BigInt(d.index))),
-						IRValue.dataListToExpr(site, d.fields)
-					], site);
-				} else if (d instanceof ByteArrayData) {
-					return new IRCoreCallExpr(new Word(site, "__core__bData"), [
-						new IRLiteral(new ByteArrayLiteral(site, d.asByteArray()))
-					], site)
-				} else {
-					console.log(d.toString());
-					throw new Error("unhandled data type");
-				}
-			} else {
-				console.log(v.toString(), Object.getPrototypeOf(v));
-				throw new Error("unhandled value type");
-			}
+			return new IRLiteral(this.#value);
 		} else {
 			throw new Error("expected PlutusCoreValue");
 		}
@@ -16744,120 +16662,10 @@ class IRCallStack {
 }
 
 /**
- * Base class of all IR graph nodes.
- * The IR graph is used to perform advanced code simplifications
- */
-class IRNode {
-	#site;
-
-	/**
-	 * @type {Set<IRNode>[]} - filled during buildGraph() step
-	 */
-	#upstream;
-
-	/**
-	 * @type {Set<IRNode>} - filled during buildGraph() step
-	 */
-	#downstream;
-
-	/**
-	 * @param {Site} site 
-	 */
-	constructor(site) {
-		this.#site = site;
-		this.#upstream = [];
-		this.#downstream = new Set();
-	}
-
-	get site() {
-		return this.#site;
-	}
-
-	get upstream() {
-		return this.#upstream;
-	}
-
-	get downstream() {
-		return this.#downstream;
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isConst() {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {?number} i 
-	 * @returns {boolean}
-	 */
-	hasUpstream(i) {
-		if (i === null) {
-			return this.#upstream.length > 0 && this.#upstream.some(s => s.size > 0);
-		} else {
-			return this.#upstream[i].size > 0;
-		}
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	hasDownstream() {
-		return this.#downstream.size > 0;
-	}
-
-	/**
-	 * @param {number} i
-	 * @param {IRNode} node
-	 * @returns {boolean}
-	 */
-	addUpstream(i, node) {
-		while (i >= this.#upstream.length) {
-			this.#upstream.push(new Set());
-		}
-
-		if (!this.#upstream[i].has(node)) {
-			this.#upstream[i].add(node);
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * @param {?number} i - if non-null then also update inverse relationship
-	 * @param {IRNode} node
-	 * @returns {boolean}
-	 */
-	addDownstream(i, node) {
-		let dirty = false;
-		if (!this.#downstream.has(node)) {
-			this.#downstream.add(node);
-			dirty = true;
-		} 
-
-		if (i !== null && node.addUpstream(i, this)) {
-			dirty = true;
-		}
-
-		return dirty;
-	}
-
-	/**
-	 * Get upstream funcExprs, so that IRUserCallExpr can link their args
-	 * @returns {Set<IRFuncExpr>}
-	 */
-	getFuncExprs() {
-		throw new Error("not yet implemented");
-	}
-}
-
-/**
- * IRNode that represents function arg.
+ * IR class that represents function arg.
  * Is a start
  */
-class IRVariable extends IRNode {
+class IRVariable extends Token {
 	#name;
 
 	/**
@@ -16875,33 +16683,8 @@ class IRVariable extends IRNode {
 		return this.#name.toString();
 	}
 
-	isConst() {
-		return false;
-	}
-
 	toString() {
 		return this.name;
-	}
-
-	/**
-	 * @returns {Set<IRFuncExpr>}
-	 */
-	getFuncExprs() {
-		let res = new Set();
-
-		if (this.upstream.length > 0) {
-			assert(this.upstream.length == 1);
-
-			for (let obj of this.upstream[0]) {
-				let sub = obj.getFuncExprs();
-
-				for (let fn of sub) {
-					res.add(fn);
-				}
-			}
-		}
-
-		return res;
 	}
 
 	/**
@@ -16914,38 +16697,22 @@ class IRVariable extends IRNode {
 }
 
 /**
- * IRNode that represents return value of a function
- */
-class IRReturn extends IRNode {
-	/**
-	 * @param {Site} site 
-	 */
-	constructor(site) {
-		super(site);
-	}
-}
-
-/**
- * IRNode that represents exit of program
- */
-class IRExit extends IRNode {
-	/**
-	 * @param {Site} site
-	 */
-	constructor(site) {
-		super(site);
-	}
-}
-
-/**
  * Base class of all Intermediate Representation expressions
  */
-class IRExpr extends IRNode {
+class IRExpr extends Token {
 	/**
 	 * @param {Site} site 
 	 */
 	constructor(site) {
 		super(site);
+	}
+
+	/**
+	 * Used during inlining to make sure multiple inlines of IRNameExpr don't interfere when setting the index
+	 * @returns {IRExpr}
+	 */
+	copy() {
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -16963,16 +16730,6 @@ class IRExpr extends IRNode {
 		throw new Error("not yet implemented");
 	}
 
-	/**
-	 * Fill super.#upstream and super.#downstream.
-	 * Returns true if some nodes were added to either #upstream or #downstream (or in the children).
-	 * The true return-value signals that buildGraph() should be called at least one more time.
-	 * @returns {boolean}
-	 */
-	buildGraph() {
-		throw new Error("not yet implemented");
-	}
-	
 	/**
 	 * @param {IRVariable} ref
 	 * @returns {number}
@@ -16991,6 +16748,8 @@ class IRExpr extends IRNode {
 	}
 
 	/**
+	 * Inline some expressions.
+	 * Shouldn't mutate, but rather return a new expression instead
 	 * @param {Map<IRVariable, IRExpr>} todo
 	 * @returns {IRExpr}
 	 */
@@ -16999,12 +16758,12 @@ class IRExpr extends IRNode {
 	}
 
 	/**
-	 * Simplify 'this' by returning something better
+	 * Simplify 'this' by returning something better (shouldn't mutate)
 	 * @param {IRCallStack} stack - contains some global definitions that might be useful for simplification
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
-		return this;
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -17018,18 +16777,16 @@ class IRExpr extends IRNode {
 class IRFuncExpr extends IRExpr {
 	#args;
 	#body;
-	#return;
 
 	/**
 	 * @param {Site} site 
-	 * @param {Word[]} argNames 
+	 * @param {IRVariable[]} args 
 	 * @param {IRExpr} body 
 	 */
-	constructor(site, argNames, body) {
+	constructor(site, args, body) {
 		super(site);
-		this.#args = argNames.map(name => new IRVariable(name));
+		this.#args = args;
 		this.#body = body;
-		this.#return = new IRReturn(site);
 	}
 
 	get argVariables() {
@@ -17047,8 +16804,8 @@ class IRFuncExpr extends IRExpr {
 		return this.#body;
 	}
 
-	isConst() {
-		return this.#body.isConst();
+	copy() {
+		return new IRFuncExpr(this.site, this.#args.slice(), this.#body.copy());
 	}
 
 	/**
@@ -17066,7 +16823,7 @@ class IRFuncExpr extends IRExpr {
 	/**
 	 * @param {IRScope} scope 
 	 */
-	resolveNames(scope) {
+	resolveNames(scope = new IRScope(null, null)) {
 		if (this.#args.length == 0) {
 			scope = new IRScope(scope, null);
 		} else {
@@ -17076,55 +16833,6 @@ class IRFuncExpr extends IRExpr {
 		}
 
 		this.#body.resolveNames(scope);
-	}
-
-	/**
-	 * @param {number} i
-	 * @param {IRNode} node
-	 * @returns {boolean}
-	 */
-	addArgUpstream(i, node) {
-		if (i < 0 || i >= this.#args.length) {
-			throw new Error(`${i} out of range`);
-		}
-
-		return node.addDownstream(0, this.#args[i])
-	}
-
-	/**
-	 * @returns {Set<IRFuncExpr>}
-	 */
-	getFuncExprs() {
-		let res = new Set();
-		res.add(this);
-
-		return res;
-	}
-
-	/**
-	 * @returns {Set<IRFuncExpr>}
-	 */
-	getBodyFuncExprs() {
-		return this.#body.getFuncExprs();
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	buildGraph() {
-		let dirty = false;
-
-		// call this.#body.buildGraph()
-		if (this.#body.buildGraph()) {
-			dirty = true;
-		}
-
-		// add this.#return as downstream of body
-		if (this.#body.addDownstream(0, this.#return)) {
-			dirty = true;
-		}
-
-		return dirty;
 	}
 
 	/**
@@ -17176,9 +16884,7 @@ class IRFuncExpr extends IRExpr {
 	 * @returns {IRFuncExpr}
 	 */
 	inline(todo) {
-		this.#body = this.#body.inline(todo);
-
-		return this;
+		return new IRFuncExpr(this.site, this.#args, this.#body.inline(todo));
 	}
 
 	/**
@@ -17186,9 +16892,7 @@ class IRFuncExpr extends IRExpr {
 	 * @returns {IRFuncExpr}
 	 */
 	simplify(stack = new IRCallStack()) {
-		this.#body = this.#body.simplify(stack);
-
-		return this;
+		return new IRFuncExpr(this.site, this.#args, this.#body.simplify(stack));
 	}
 
 	/** 
@@ -17232,22 +16936,16 @@ class IRCallExpr extends IRExpr {
 	get argExprs() {
 		return this.#argExprs.slice();
 	}
+
+	get parensSite() {
+		return this.#parensSite;
+	}
 	
 	/**
 	 * @param {IRExpr[]} argExprs 
 	 */
 	setArgExprs(argExprs) {
 		this.#argExprs = argExprs;
-	}
-
-	isConst() {
-		for (let arg of this.#argExprs) {
-			if (!arg.isConst()) {
-				return false;
-			}
-		}
-
-		return true;
 	}
 
 	/**
@@ -17265,31 +16963,6 @@ class IRCallExpr extends IRExpr {
 		for (let arg of this.#argExprs) {
 			arg.resolveNames(scope);
 		}
-	}
-
-	/**
-	 * @param {number} offset - 0 for IRCoreCallExpr and 1 for IRUserCallExpr
-	 * @returns {boolean}
-	 */
-	buildGraph(offset = 0) {
-		// add this as a downstream node to each argExpr
-		// and add argExprs as upstream nodes of this
-
-		let dirty = false;
-
-		for (let i = 0; i < this.#argExprs.length; i++) {
-			let arg = this.#argExprs[i];
-
-			if (arg.buildGraph()) {
-				dirty = true;
-			}
-
-			if (arg.addDownstream(offset + i, this)) {
-				dirty = true;
-			}
-		}
-
-		return dirty;
 	}
 
 	/**
@@ -17316,24 +16989,6 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {Set<IRFuncExpr>} fns
-	 * @returns {boolean}
-	 */
-	buildSubGraphs(fns) {
-		let dirty = false;
-
-		for (let fn of fns) {
-			for (let i = 0; i < this.#argExprs.length; i++) {
-				if (fn.addArgUpstream(i, this.#argExprs[i])) {
-					dirty = true;
-				}
-			}
-		}
-
-		return dirty;
-	}
-
-	/**
 	 * @param {IRVariable} ref
 	 * @returns {number}
 	 */
@@ -17348,20 +17003,17 @@ class IRCallExpr extends IRExpr {
 
 	/**
 	 * @param {Map<IRVariable, IRExpr>} todo
+	 * @returns {IRExpr[]}
 	 */
 	inlineArgs(todo) {
-		for (let i = 0; i < this.#argExprs.length; i++) {
-			this.#argExprs[i] = this.#argExprs[i].inline(todo);
-		}
+		return this.#argExprs.map(expr => expr.inline(todo));
 	}
 
 	/**
 	 * @param {IRCallStack} stack
 	 */
 	simplifyArgs(stack) {
-		for (let i = 0; i < this.#argExprs.length; i++) {
-			this.#argExprs[i] = this.#argExprs[i].simplify(stack);
-		}
+		return this.#argExprs.map(expr => expr.simplify(stack));
 	}
 
 	/**
@@ -17411,11 +17063,8 @@ class IRCallExpr extends IRExpr {
 		return this.#fnExpr;
 	}
 
-	/**
-	 * @returns {boolean}
-	 */
-	isConst() {
-		return this.#fnExpr.isConst() && super.isConst();
+	copy() {
+		return new IRUserCallExpr(this.#fnExpr.copy(), this.argExprs.map(a => a.copy()), this.parensSite);
 	}
 
 	/**
@@ -17429,51 +17078,10 @@ class IRCallExpr extends IRExpr {
 	/**
 	 * @param {IRScope} scope 
 	 */
-	resolveNames(scope) {
+	resolveNames(scope = new IRScope(null, null)) {
 		this.#fnExpr.resolveNames(scope);
 
 		this.resolveArgNames(scope);
-	}
-
-	/**
-	 * @returns {Set<IRFuncExpr>}
-	 */
-	getFuncExprs() {
-		let fns = this.#fnExpr.getFuncExprs();
-
-		let res = new Set();
-		for (let fn of fns) {
-			let sub = fn.getBodyFuncExprs();
-
-			for (let s of sub) {
-				res.add(s);
-			}
-		}
-
-		return res;
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	buildGraph() {
-		let dirty = false;
-
-		if (this.#fnExpr.buildGraph()) {
-			dirty = true;
-		}
-
-		if (super.buildGraph(1)) {
-			dirty = true;
-		}
-
-		let fns = this.#fnExpr.getFuncExprs();
-
-		if (this.buildSubGraphs(fns)) {
-			dirty = true;
-		}
-
-		return dirty;
 	}
 
 	/**
@@ -17511,11 +17119,7 @@ class IRCallExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	inline(todo) {
-		super.inlineArgs(todo);
-
-		this.#fnExpr = this.#fnExpr.inline(todo);
-
-		return this;
+		return new IRUserCallExpr(this.#fnExpr.inline(todo), super.inlineArgs(todo), this.parensSite);
 	}
 
 	/**
@@ -17535,19 +17139,21 @@ class IRCallExpr extends IRExpr {
 			}
 		}
 
-		this.#fnExpr = this.#fnExpr.simplify(stack);
+		let newFnExpr = this.#fnExpr.simplify(stack);
 
-		super.simplifyArgs(stack);
+		let newArgs = super.simplifyArgs(stack);
 
-		let val = this.eval(stack);
+		let newThis = new IRUserCallExpr(newFnExpr, newArgs, this.parensSite);
+
+		let val = newThis.eval(stack);
 
 		if (val.value instanceof PlutusCoreValue) {
 			return val.toIRExpr(this.site);
 		} else {
-			if (this.#fnExpr instanceof IRFuncExpr) {
+			if (newFnExpr instanceof IRFuncExpr) {
 				// eliminate the unused args
-				let vars = this.#fnExpr.argVariables;
-				let argExprs = super.argExprs;
+				let vars = newFnExpr.argVariables;
+				let argExprs = newArgs;
 
 				/**
 				 * @type {IRVariable[]}
@@ -17565,10 +17171,10 @@ class IRCallExpr extends IRExpr {
 				let inlineTodo = new Map();
 
 				for (let i = 0; i < vars.length; i++) {
-					let nRefs = this.#fnExpr.countRefs(vars[i]);
+					let nRefs = newFnExpr.countRefs(vars[i]);
 					if (nRefs == 0) {
 						// dont add var to remVars
-					} else if (nRefs == 1 && vars[i].name != "__helios__common__unBoolData" && vars[i].name != "__helios__common__boolData") {
+					} else if ((nRefs == 1 || argExprs[i] instanceof IRNameExpr) && vars[i].name != "__helios__common__unBoolData" && vars[i].name != "__helios__common__boolData" && vars[i].name != "__helios__common__concat") {
 						// never inline __helios__common__boolData and __helios__common__unBoolData (needed for other optimizations)
 						inlineTodo.set(vars[i], argExprs[i]);
 					} else {
@@ -17577,21 +17183,22 @@ class IRCallExpr extends IRExpr {
 					}
 				}
 
-				let fnExpr = this.#fnExpr.inline(inlineTodo);
-				this.#fnExpr = fnExpr;
+				newFnExpr = newFnExpr.inline(inlineTodo);
 
-				if (remVars.length == 0) {
-					// eliminate call itself
-					return fnExpr.body;
-				} else {
-					fnExpr.setArgVariables(remVars);
-					this.setArgExprs(remArgExprs);
+				if (newFnExpr instanceof IRFuncExpr) {
+					if (remVars.length == 0) {
+						// eliminate call itself
+						return newFnExpr.body;
+					} else {
+						newFnExpr = new IRFuncExpr(newFnExpr.site, remVars, newFnExpr.body);
+						newArgs = remArgExprs;
+					}
 				}
-			} else if (this.#fnExpr instanceof IRNameExpr) {
-				switch (this.#fnExpr.name) {
+			} else if (newFnExpr instanceof IRNameExpr) {
+				switch (newFnExpr.name) {
 					case "__helios__common__boolData": {
 							// check if arg is a call to __helios__common__unBoolData
-							let argExpr = this.argExprs[0];
+							let argExpr = newArgs[0];
 							if (argExpr instanceof IRUserCallExpr && argExpr.fnExpr instanceof IRNameExpr && argExpr.fnExpr.name == "__helios__common__unBoolData") {
 								return argExpr.argExprs[0];
 							}
@@ -17599,18 +17206,33 @@ class IRCallExpr extends IRExpr {
 						break;
 					case "__helios__common__unBoolData": {
 							// check if arg is a call to __helios__common__boolData
-							let argExpr = this.argExprs[0];
+							let argExpr = newArgs[0];
 							if (argExpr instanceof IRUserCallExpr && argExpr.fnExpr instanceof IRNameExpr && argExpr.fnExpr.name == "__helios__common__boolData") {
 								return argExpr.argExprs[0];
 							}
 						}
 						break;
-
-					// TODO: it might be smart to do the same optimization for __helios__common__concat
+					case "__helios__common__concat": {
+							// check if either 1st or 2nd arg is the empty list
+							let a = newArgs[0].eval(stack);
+							if (a.value !== null && a.value instanceof PlutusCoreList && a.value.list.length == 0) {
+								return newArgs[1];
+							} else if (a.value !== null && a.value instanceof PlutusCoreMap && a.value.map.length == 0) {
+								return newArgs[1];
+							} else {
+								let b = newArgs[1].eval(stack);
+								if (b.value !== null && b.value instanceof PlutusCoreList && b.value.list.length == 0) {
+									return newArgs[0];
+								} else if (b.value !== null && b.value instanceof PlutusCoreMap && b.value.map.length == 0) {
+									return newArgs[0];
+								}
+							}
+						}
+						break;
 				}
 			}
 
-			return this;
+			return new IRUserCallExpr(newFnExpr, newArgs, newThis.parensSite);
 		}
 	}
 
@@ -17648,6 +17270,10 @@ class IRCoreCallExpr extends IRCallExpr {
 		return this.#name.toString().slice(8);
 	}
 
+	copy() {
+		return new IRCoreCallExpr(this.#name, this.argExprs.map(a => a.copy()), this.parensSite);
+	}
+
 	/**
 	 * @param {string} indent
 	 * @returns {string}
@@ -17671,13 +17297,6 @@ class IRCoreCallExpr extends IRCallExpr {
 	 */
 	resolveNames(scope) {
 		this.resolveArgNames(scope);
-	}
-
-	/**
-	 * @returns {Set<IRFuncExpr>}
-	 */
-	getFuncExprs() {
-		throw new Error("core function never returns anon");
 	}
 
 	/**
@@ -17734,9 +17353,9 @@ class IRCoreCallExpr extends IRCallExpr {
 	 * @returns {IRExpr}
 	 */
 	inline(todo) {
-		super.inlineArgs(todo);
+		let newArgExprs = super.inlineArgs(todo);
 
-		return this;
+		return new IRCoreCallExpr(this.#name, newArgExprs, this.parensSite);
 	}
 
 	/**
@@ -17744,26 +17363,20 @@ class IRCoreCallExpr extends IRCallExpr {
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
-		this.simplifyArgs(stack);
+		let newArgExprs = this.simplifyArgs(stack);
 
 		let simpler = this.eval(stack);
 
 		if (simpler.value instanceof PlutusCoreValue) {
 			return simpler.toIRExpr(this.site);
 		} else {
-			switch (this.builtinName) {
-			
-			case "encodeUtf8": {
-					// check if arg is a call to decodeUtf8
-					let argExpr = this.argExprs[0];
-					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "decodeUtf8") {
-						return argExpr.argExprs[0];
-					}
-				}
+			switch (this.builtinName) {			
+			case "encodeUtf8":
+				// we can't eliminate a call to decodeUtf8, as it might throw some errors
 				break;
 			case "decodeUtf8": {
 					// check if arg is a call to encodeUtf8
-					let argExpr = this.argExprs[0];
+					let argExpr = newArgExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "encodeUtf8") {
 						return argExpr.argExprs[0];
 					}
@@ -17771,49 +17384,49 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "ifThenElse": {
 					// check if first arg evaluates to constant condition
-					let cond = this.argExprs[0].eval(stack);
+					let cond = newArgExprs[0].eval(stack);
 					if (cond.value !== null && cond.value instanceof PlutusCoreBool) {
-						return cond.value.bool ? this.argExprs[1] : this.argExprs[2];
+						return cond.value.bool ? newArgExprs[1] : newArgExprs[2];
 					}
 				}
 				break;
 			case "addInteger": {
 					// check if first or second arg evaluates to 0
-					let a = this.argExprs[0].eval(stack);
+					let a = newArgExprs[0].eval(stack);
 					if (a.value !== null && a.value instanceof PlutusCoreInt && a.value.int == 0n) {
-						return this.argExprs[1];
+						return newArgExprs[1];
 					} else {
-						let b = this.argExprs[1].eval(stack);
+						let b = newArgExprs[1].eval(stack);
 						if (b.value !== null && b.value instanceof PlutusCoreInt && b.value.int == 0n) {
-							return this.argExprs[0];
+							return newArgExprs[0];
 						}
 					}
 				}
 				break;
 			case "subtractInteger": {
 					// check if second arg evaluates to 0
-					let b = this.argExprs[1].eval(stack);
+					let b = newArgExprs[1].eval(stack);
 					if (b.value !== null && b.value instanceof PlutusCoreInt && b.value.int == 0n) {
-						return this.argExprs[0];
+						return newArgExprs[0];
 					}
 				}
 				break;
 			case "multiplyInteger": {
 					// check if first arg is 0 or 1
-					let a = this.argExprs[0].eval(stack);
+					let a = newArgExprs[0].eval(stack);
 					if (a.value !== null && a.value instanceof PlutusCoreInt) {
 						if (a.value.int == 0n) {
 							return new IRLiteral(new IntLiteral(this.site, 0n));
 						} else if (a.value.int == 1n) {
-							return this.argExprs[1];
+							return newArgExprs[1];
 						}
 					} else {
-						let b = this.argExprs[1].eval(stack);
+						let b = newArgExprs[1].eval(stack);
 						if (b.value !== null && b.value instanceof PlutusCoreInt) {
 							if (b.value.int == 0n) {
 								return new IRLiteral(new IntLiteral(this.site, 0n));
 							} else if (b.value.int == 1n) {
-								return this.argExprs[0];
+								return newArgExprs[0];
 							}
 						}
 					}
@@ -17821,51 +17434,51 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "divideInteger": {
 					// check if second arg is 1
-					let b = this.argExprs[1].eval(stack);
+					let b = newArgExprs[1].eval(stack);
 					if (b.value !== null && b.value instanceof PlutusCoreInt && b.value.int == 1n) {
-						return this.argExprs[0];
+						return newArgExprs[0];
 					}
 				}
 				break;
 			case "modInteger": {
 					// check if second arg is 1
-					let b = this.argExprs[1].eval(stack);
+					let b = newArgExprs[1].eval(stack);
 					if (b.value !== null && b.value instanceof PlutusCoreInt && b.value.int == 1n) {
-						return this.argExprs[0];
+						return new IRLiteral(new IntLiteral(this.site, 0n));
 					}
 				}
 				break;
 			case "appendByteString": {
 					// check if either 1st or 2nd arg is the empty bytearray
-					let a = this.argExprs[0].eval(stack);
+					let a = newArgExprs[0].eval(stack);
 					if (a.value !== null && a.value instanceof PlutusCoreByteArray && a.value.bytes.length == 0) {
-						return this.argExprs[1];
+						return newArgExprs[1];
 					} else {
-						let b = this.argExprs[1].eval(stack);
+						let b = newArgExprs[1].eval(stack);
 						if (b.value !== null && b.value instanceof PlutusCoreByteArray && b.value.bytes.length == 0) {
-							return this.argExprs[0];
+							return newArgExprs[0];
 						}
 					}
 				}
 				break;
 			case "appendString": {
 					// check if either 1st or 2nd arg is the empty string
-					let a = this.argExprs[0].eval(stack);
+					let a = newArgExprs[0].eval(stack);
 					if (a.value !== null && a.value instanceof PlutusCoreString && a.value.string.length == 0) {
-						return this.argExprs[1];
+						return newArgExprs[1];
 					} else {
-						let b = this.argExprs[1].eval(stack);
+						let b = newArgExprs[1].eval(stack);
 						if (b.value !== null && b.value instanceof PlutusCoreString && b.value.string.length == 0) {
-							return this.argExprs[0];
+							return newArgExprs[0];
 						}
 					}
 				}
 				break;
 			case "trace":
-				return this.argExprs[1];
+				return newArgExprs[1];
 			case "unIData": {
 					// check if arg is a call to iData
-					let argExpr = this.argExprs[0];
+					let argExpr = newArgExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "iData") {
 						return argExpr.argExprs[0];
 					}
@@ -17873,7 +17486,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "iData": {
 					// check if arg is a call to unIData
-					let argExpr = this.argExprs[0];
+					let argExpr = newArgExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unIData") {
 						return argExpr.argExprs[0];
 					}
@@ -17881,7 +17494,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "unBData": {
 					// check if arg is a call to bData
-					let argExpr = this.argExprs[0];
+					let argExpr = newArgExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "bData") {
 						return argExpr.argExprs[0];
 					}
@@ -17889,7 +17502,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "bData": {
 					// check if arg is a call to unBData
-					let argExpr = this.argExprs[0];
+					let argExpr = newArgExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unBData") {
 						return argExpr.argExprs[0];
 					}
@@ -17897,7 +17510,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "unMapData": {
 					// check if arg is call to mapData
-					let argExpr = this.argExprs[0];
+					let argExpr = newArgExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "mapData") {
 						return argExpr.argExprs[0];
 					}
@@ -17905,7 +17518,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "mapData": {
 					// check if arg is call to unMapData
-					let argExpr = this.argExprs[0];
+					let argExpr = newArgExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unMapData") {
 						return argExpr.argExprs[0];
 					}
@@ -17913,7 +17526,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "listData": {
 					// check if arg is call to unListData
-					let argExpr = this.argExprs[0];
+					let argExpr = newArgExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unListData") {
 						return argExpr.argExprs[0];
 					}
@@ -17921,7 +17534,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "unListData": {
 					// check if arg is call to listData
-					let argExpr = this.argExprs[0];
+					let argExpr = newArgExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "listData") {
 						return argExpr.argExprs[0];
 					}
@@ -17929,7 +17542,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			}
 
-			return this;
+			return new IRCoreCallExpr(this.#name, newArgExprs, this.parensSite);
 		}
 	}
 
@@ -17967,8 +17580,8 @@ class IRErrorCallExpr extends IRExpr {
 		this.#msg = msg;
 	}
 
-	isConst() {
-		return false;
+	copy() {
+		return new IRErrorCallExpr(this.site, this.#msg);
 	}
 
 	/**
@@ -17983,23 +17596,6 @@ class IRErrorCallExpr extends IRExpr {
 	 * @param {IRScope} scope 
 	 */
 	resolveNames(scope) {
-	}
-
-	/**
-	 * @param {?number} i 
-	 * @param {IRNode} node 
-	 * @returns {boolean}
-	 */
-	addDownstream(i, node) {
-		throw new Error("error call can't have downstream nodes");
-	}
-
-	/**
-	 * Isn't connected to graph
-	 * @returns {boolean}
-	 */
-	buildGraph() {
-		return false;
 	}
 
 	/**
@@ -18023,6 +17619,14 @@ class IRErrorCallExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	inline(todo) {
+		return this;
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
+	 */
+	simplify(stack) {
 		return this;
 	}
 
@@ -18052,14 +17656,15 @@ class IRNameExpr extends IRExpr {
 
 	/**
 	 * @param {Word} name 
+	 * @param {?IRVariable} variable
 	 */
-	constructor(name) {
+	constructor(name, variable = null) {
 		super(name.site);
 		assert(name.toString() != "_");
 		assert(!name.toString().startsWith("undefined"));
 		this.#name = name;
 		this.#index = null;
-		this.#variable = null;
+		this.#variable = variable;
 	}
 
 	/**
@@ -18069,8 +17674,8 @@ class IRNameExpr extends IRExpr {
 		return this.#name.toString();
 	}
 
-	isConst() {
-		return false;
+	copy() {
+		return new IRNameExpr(this.#name, this.#variable);
 	}
 
 	/**
@@ -18078,50 +17683,23 @@ class IRNameExpr extends IRExpr {
 	 * @returns {string}
 	 */
 	toString(indent = "") {
-		return this.#name.toString();
-		/*if (this.#index === null) {
+		//return this.#name.toString();
+		if (this.#index === null) {
 			return this.#name.toString();
 		} else {
 			return `${this.#name.toString()}[${this.#index.toString()}]`;
-		}*/
+		}
 	}
 
 	/**
 	 * @param {IRScope} scope 
 	 */
 	resolveNames(scope) {
-		[this.#index, this.#variable] = scope.get(this.#name);
-	}
-
-	/**
-	 * @param {?number} i 
-	 * @param {IRNode} node 
-	 * @returns {boolean}
-	 */
-	addDownstream(i, node) {
-		if (this.#variable === null) {
-			throw new Error("variable should bet set");
+		if (this.#variable == null) {
+			[this.#index, this.#variable] = scope.get(this.#name);
 		} else {
-			return this.#variable.addDownstream(i, node);
+			[this.#index, this.#variable] = scope.get(this.#variable);
 		}
-	}
-
-	/**
-	 * @returns {Set<IRFuncExpr>}
-	 */
-	getFuncExprs() {
-		if (this.#variable === null) {
-			throw new Error("variable should be set");
-		} else {
-			return this.#variable.getFuncExprs();
-		}
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	buildGraph() {
-		return false;
 	}
 
 	/**
@@ -18165,9 +17743,17 @@ class IRNameExpr extends IRExpr {
 			if (expr === undefined) {
 				return this;
 			} else {
-				return expr;
+				return expr.copy(); // always make a copy, because it might be inlined multi times
 			}
 		}
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
+	 */
+	simplify(stack) {
+		return this;
 	}
 
 	/**
@@ -18189,22 +17775,22 @@ class IRNameExpr extends IRExpr {
  * Intermediate Representation wrapper for literal tokens
  */
 class IRLiteral extends IRExpr {
-	#lit;
+	#value;
 
 	/**
-	 * @param {PrimitiveLiteral} lit 
+	 * @param {PrimitiveLiteral | PlutusCoreValue} value 
 	 */
-	constructor(lit) {
-		super(lit.site);
-		this.#lit = lit;
+	constructor(value) {
+		super(value.site);
+		this.#value = value;
 	}
 
 	get primitive() {
-		return this.#lit;
+		return this.#value;
 	}
 
-	isConst() {
-		return true;
+	copy() {
+		return new IRLiteral(this.#value);
 	}
 
 	/**
@@ -18212,7 +17798,7 @@ class IRLiteral extends IRExpr {
 	 * @returns {string}
 	 */
 	toString(indent = "") {
-		return this.#lit.toString();
+		return this.#value.toString();
 	}
 
 	/**
@@ -18220,14 +17806,6 @@ class IRLiteral extends IRExpr {
 	 * @param {IRScope} scope 
 	 */
 	resolveNames(scope) {
-	}
-
-	/**
-	 * Building graph for literals doesn't do anything
-	 * @returns {boolean}
-	 */
-	buildGraph() {
-		return false;
 	}
 
 	/**
@@ -18256,23 +17834,31 @@ class IRLiteral extends IRExpr {
 	}
 	
 	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
+	 */
+	simplify(stack) {
+		return this;
+	}
+
+	/**
 	 * @returns {PlutusCoreConst}
 	 */
 	toPlutusCore() {
-		if (this.#lit instanceof IntLiteral) {
-			return PlutusCoreInt.newSignedTerm(this.site, this.#lit.value);
-		} else if (this.#lit instanceof BoolLiteral) {
-			return PlutusCoreBool.newTerm(this.site, this.#lit.value);
-		} else if (this.#lit instanceof ByteArrayLiteral) {
-			return PlutusCoreByteArray.newTerm(this.site, this.#lit.bytes);
-		} else if (this.#lit instanceof StringLiteral) {
-			return PlutusCoreString.newTerm(this.site, this.#lit.value);
-		} else if (this.#lit instanceof UnitLiteral) {
+		if (this.#value instanceof IntLiteral) {
+			return PlutusCoreInt.newSignedTerm(this.site, this.#value.value);
+		} else if (this.#value instanceof BoolLiteral) {
+			return PlutusCoreBool.newTerm(this.site, this.#value.value);
+		} else if (this.#value instanceof ByteArrayLiteral) {
+			return PlutusCoreByteArray.newTerm(this.site, this.#value.bytes);
+		} else if (this.#value instanceof StringLiteral) {
+			return PlutusCoreString.newTerm(this.site, this.#value.value);
+		} else if (this.#value instanceof UnitLiteral) {
 			return PlutusCoreUnit.newTerm(this.site);
-		} else if (this.#lit instanceof PairLiteral) {
-			return PlutusCorePair.newTerm(this.site, PlutusCoreValue.fromLiteral(this.site, this.#lit.first), PlutusCoreValue.fromLiteral(this.site, this.#lit.second));
+		} else if (this.#value instanceof PlutusCoreValue) {
+			return new PlutusCoreConst(this.#value);
 		} else {
-			throw new Error("unhandled literal type")
+			throw new Error("unhandled literal type");
 		}
 	}
 }
@@ -18291,7 +17877,7 @@ function buildIRProgram(ts) {
 	let expr = buildIRExpr(ts);
 
 	if (expr instanceof IRFuncExpr || expr instanceof IRUserCallExpr) {
-		expr.resolveNames(new IRScope(null, null));
+		expr.resolveNames();
 
 		return expr;
 	} else {
@@ -18328,15 +17914,6 @@ function buildIRExpr(ts) {
 						expr = buildIRExpr(group.fields[0])
 					} else if (group.fields.length == 0) {
 						expr = new IRLiteral(new UnitLiteral(t.site));
-					} else if (group.fields.length == 2) {
-						let first = buildIRExpr(group.fields[0]);
-						let second = buildIRExpr(group.fields[1]);
-
-						if (first instanceof IRLiteral && second instanceof IRLiteral) {
-							expr = new IRLiteral(new PairLiteral(t.site, first.primitive, second.primitive));
-						} else {
-							group.syntaxError("pair literal expects pair content");
-						}
 					} else {
 						group.syntaxError("unexpected parentheses with multiple fields");
 					}
@@ -18445,7 +18022,7 @@ function buildIRFuncExpr(ts) {
 
 		let bodyExpr = buildIRExpr(braces.fields[0]);
 
-		return new IRFuncExpr(parens.site, argNames, bodyExpr)
+		return new IRFuncExpr(parens.site, argNames.map(a => new IRVariable(a)), bodyExpr)
 	}
 }
 
@@ -18455,18 +18032,9 @@ function buildIRFuncExpr(ts) {
  * @returns {IRFuncExpr | IRUserCallExpr}
  */
 function simplifyIRProgram(program) {
-	let exit = new IRExit(program.site);
-
-	console.log(new Source(program.toString()).pretty());
-	program.addDownstream(0, exit);
-
-	/*let count = 0;
-	while (program.buildGraph()) {
-		count++;
-	}*/
-
 	let dirty = true;
 
+	//console.log(new Source(program.toString()).pretty());	
 	while(dirty) {
 		dirty = false;
 		let newProgram = program.simplify();
@@ -18476,7 +18044,16 @@ function simplifyIRProgram(program) {
 		}
 	}
 
-	return program;;
+	if (program instanceof IRFuncExpr || program instanceof IRUserCallExpr) {
+		// recalculate the Debruijn indices
+		program.resolveNames();
+
+		//console.log(new Source(program.toString()).pretty());	
+
+		return program;
+	} else {
+		throw new Error("unexpected");
+	}
 }
 
 
@@ -18596,6 +18173,8 @@ function compileInternal(typedSrc, config) {
 			return [irSrc, irProgram.toString()];
 		}
 	}
+
+	//console.log((new Source(irProgram.toString())).pretty());
 
 	let plutusCoreProgram = new PlutusCoreProgram(irProgram.toPlutusCore());
 
@@ -19109,13 +18688,19 @@ export class FuzzyTest {
 
 	#runsPerTest;
 
+	#simplify;
+
 	/**
 	 * @param {number} seed
 	 * @param {number} runsPerTest
+	 * @param {boolean} simplify - if true then also test the simplified program
 	 */
-	constructor(seed = 0, runsPerTest = 100) {
+	constructor(seed = 0, runsPerTest = 100, simplify = false) {
+		console.log("starting fuzzy testing  with seed", seed);
+
 		this.#rand = Crypto.rand(seed);
 		this.#runsPerTest = runsPerTest;
+		this.#simplify = simplify;
 	}
 
 	/**
@@ -19574,13 +19159,14 @@ export class FuzzyTest {
 	 * @param {DataGenerator[]} argGens
 	 * @param {string} src
 	 * @param {PropertyTest} propTest
+	 * @param {boolean} simplify
 	 * @returns {Promise<void>} - throws an error if any of the property tests fail
 	 */
-	async testn(nRuns, argGens, src, propTest) {
+	async testn(nRuns, argGens, src, propTest, simplify = false) {
 		// compilation errors here aren't caught
 
 		/** @type {CompilationConfig} */
-		let config = {verbose: false, templateParameters: {}, stage: CompilationStage.PlutusCore, simplify: false};
+		let config = {verbose: false, templateParameters: {}, stage: CompilationStage.PlutusCore, simplify: simplify};
 
 		let purposeName = extractScriptPurposeAndName(src);
 
@@ -19640,9 +19226,13 @@ export class FuzzyTest {
 						}
 					}
 				}
-			}
 
-			console.log(`property tests for '${testName}' succeeded`);
+				console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${program.calcSize()} bytes)`);
+			}
+		}
+
+		if (!simplify && this.#simplify) {
+			await this.testn(nRuns, argGens, src, propTest, true);
 		}
 	}
 }
@@ -19661,6 +19251,7 @@ export const exportedForTesting = {
 	bytesToString: bytesToString,
 	wrapCborBytes: wrapCborBytes,
 	unwrapCborBytes: unwrapCborBytes,
+	Source: Source,
 	Crypto: Crypto,
 	MapData: MapData,
 	LedgerData: LedgerData,
