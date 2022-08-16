@@ -15281,7 +15281,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__bytearray32____eq", "__helios__bytearray____eq"));
 	add(new RawFunc("__helios__bytearray32____neq", "__helios__bytearray____neq"));
-	add(new RawFunc("__helios__bytearray32____serialize", "__helios__bytearray__serialize"));
+	add(new RawFunc("__helios__bytearray32__serialize", "__helios__bytearray__serialize"));
 	add(new RawFunc("__helios__bytearray32____add", "__helios__bytearray____add"));
 	add(new RawFunc("__helios__bytearray32__length", "(_) -> {__core__iData(32)}"));
 	add(new RawFunc("__helios__bytearray32__slice", 
@@ -15516,10 +15516,12 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__boollist__find",
 	`(self) -> {
 		(fn) -> {
-			__helios__list__find(self)(
-				(item) -> {
-					fn(__helios__common__unBoolData(item))
-				}
+			__helios__common__unBoolData(
+				__helios__list__find(self)(
+					(item) -> {
+						fn(__helios__common__unBoolData(item))
+					}
+				)
 			)
 		}
 	}`));
@@ -15818,11 +15820,11 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__boolmap__any_keys", "__helios__map__any_keys"));
-	add(new RawFunc("__helios__boolmap__any_values", 
+	add(new RawFunc("__helios__boolmap__any_key", "__helios__map__any_key"));
+	add(new RawFunc("__helios__boolmap__any_value", 
 	`(self) -> {
 		(fn) -> {
-			__helios__map__any_values(self)(
+			__helios__map__any_value(self)(
 				(value) -> {
 					fn(__helios__common__unBoolData(value))
 				}
@@ -16894,54 +16896,9 @@ class IRScope {
 }
 
 /**
- * Wrapper for PlutusCoreValue, null, and anon func
- * TODO: do we really need IRValue, can't we just return IRExpr directly?
+ * Map of variables to IRExpr
  */
-class IRValue {
-	#value;
-	#origFnExpr;
-
-	/**
-	 * @param {?(PlutusCoreValue | ((args: IRValue[]) => IRValue))} value
-	 * @param {?IRFuncExpr} origFnExpr
-	 */
-	constructor(value, origFnExpr = null) {
-		this.#value = value;
-		this.#origFnExpr = origFnExpr;
-	}
-
-	get value() {
-		return this.#value;
-	}
-
-	toString() {
-		if (this.#value === null) {
-			return "null";
-		} else if (this.#value instanceof PlutusCoreValue) {
-			return this.#value.toString();
-		} else {
-			return "fn";
-		}
-	}
-
-	/**
-	 * Only works for PlutusCoreValue
-	 * @param {Site} site
-	 * @returns {IRExpr}
-	 */
-	toIRExpr(site) {
-		if (this.#value instanceof PlutusCoreValue) {
-			return new IRLiteral(this.#value);
-		} else {
-			throw new Error("expected PlutusCoreValue");
-		}
-	}
-}
-
-/**
- * Map of names to PlutusCoreValue
- */
-class IRCallStack {
+class IRStack {
 	#map;
 
 	/**
@@ -16955,10 +16912,9 @@ class IRCallStack {
 	 * Doesn't mutate, returns a new stack
 	 * @param {IRVariable} ref 
 	 * @param {IRExpr} value 
-	 * @returns {IRCallStack}
+	 * @returns {IRStack}
 	 */
 	set(ref, value) {
-		
 		/**
 		 * @type {Map<IRVariable, IRExpr>}
 		 */
@@ -16970,7 +16926,16 @@ class IRCallStack {
 
 		map.set(ref, value);
 
-		return new IRCallStack(map);
+		return new IRStack(map);
+	}
+
+	/**
+	 * Mutates
+	 * @param {IRVariable} variable
+	 * @param {IRExpr} expr
+	 */
+ 	setInline(variable, expr) {
+		this.#map.set(variable, expr);
 	}
 
 	/**
@@ -16991,6 +16956,7 @@ class IRCallStack {
 	}
 
 	/**
+	 * Returns a list of the names in the stack
 	 * @returns {string}
 	 */
 	dump() {
@@ -17005,49 +16971,7 @@ class IRCallStack {
 }
 
 /**
- * Wrapper for map, where map.get() always returns copy of expr
- */
-class IRInlineMap {
-	#map;
-
-	/**
-	 * 
-	 * @param {Map<IRVariable, IRExpr>} map 
-	 */
-	constructor(map = new Map()) {
-		this.#map = map;
-	}
-
-	/**
-	 * Mutates (unlike IRCallStack, which doesn't mutate)
-	 * @param {IRVariable} variable
-	 * @param {IRExpr} expr
-	 */
-	set(variable, expr) {
-		this.#map.set(variable, expr);
-	}
-
-	/**
-	 * @param {IRVariable} variable
-	 * @returns {boolean}
-	 */
-	has(variable) {
-		return this.#map.has(variable);
-	}
-
-	/**
-	 * 
-	 * @param {IRVariable} variable 
-	 * @returns {IRExpr}
-	 */
-	get(variable) {
-		return assertDefined(this.#map.get(variable)).copy();
-	}
-}
-
-/**
- * IR class that represents function arg.
- * Is a start
+ * IR class that represents function arguments
  */
 class IRVariable extends Token {
 	#name;
@@ -17114,6 +17038,7 @@ class IRExpr extends Token {
 	}
 
 	/**
+	 * Link IRNameExprs to variables
 	 * @param {IRScope} scope 
 	 */
 	resolveNames(scope) {
@@ -17121,6 +17046,7 @@ class IRExpr extends Token {
 	}
 
 	/**
+	 * Counts the number of times a variable is referenced inside the current expression
 	 * @param {IRVariable} ref
 	 * @returns {number}
 	 */
@@ -17129,32 +17055,19 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * @param {IRVariable} ref
-	 * @returns {IRExpr[][]}
-	 */
-	getUsage(ref) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {Map<IRVariable, Set<number>>} map
+	 * Inline every variable that can be found in the stack.
+	 * @param {IRStack} stack
 	 * @returns {IRExpr}
 	 */
- 	removeCallArgs(map) {
+	inline(stack) {
 		throw new Error("not yet implemented");
 	}
 
 	/**
-	 * Inline some expressions (doesn't mutate).
-	 * @param {IRInlineMap} inlineMap
-	 * @returns {IRExpr}
-	 */
-	inline(inlineMap) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {IRCallStack} stack
+	 * Evaluates an expression to something (hopefully) literal
+	 * Returns null if it the result would be worse than the current expression
+	 * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
+	 * @param {IRStack} stack
 	 * @param {IRLiteral[]} args 
 	 * @returns {?IRExpr}
 	 */
@@ -17164,7 +17077,7 @@ class IRExpr extends Token {
 
 	/**
 	 * Simplify 'this' by returning something smaller (doesn't mutate)
-	 * @param {IRCallStack} stack - contains some global definitions that might be useful for simplification
+	 * @param {IRStack} stack - contains some global definitions that might be useful for simplification
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
@@ -17236,11 +17149,6 @@ class IRExpr extends Token {
 	 */
 	toString(indent = "") {
 		return this.#name.toString();
-		/*if (this.#index === null) {
-			return this.#name.toString();
-		} else {
-			return `${this.#name.toString()}[${this.#index.toString()}]`;
-		}*/
 	}
 
 	/**
@@ -17275,33 +17183,17 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * @param {IRVariable} ref
-	 * @returns {IRExpr[][]}
-	 */
-	getUsage(ref) {
-		return [];
-	}
-
-	/**
-	 * @param {Map<IRVariable, Set<number>>} map
+	 * @param {IRStack} stack
 	 * @returns {IRExpr}
 	 */
- 	removeCallArgs(map) {
-		return this;
-	}
-
-	/**
-	 * @param {IRInlineMap} inlineMap
-	 * @returns {IRExpr}
-	 */
-	inline(inlineMap) {
+	inline(stack) {
 		if (this.name.startsWith("__core")) {
 			return this;
 		} else if (this.#variable === null) {
 			throw new Error("variable should be set");
 		} else {
-			if (inlineMap.has(this.#variable)) {
-				return inlineMap.get(this.#variable).inline(inlineMap);
+			if (stack.has(this.#variable)) {
+				return stack.get(this.#variable).inline(stack);
 			} else {
 				return this;
 			}
@@ -17309,7 +17201,7 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * @param {IRCallStack} stack
+	 * @param {IRStack} stack
 	 * @param {IRLiteral[]} args
 	 * @returns {?IRExpr}
 	 */
@@ -17336,7 +17228,7 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * @param {IRCallStack} stack
+	 * @param {IRStack} stack
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
@@ -17365,7 +17257,7 @@ class IRExpr extends Token {
 	 */
 	toPlutusCore() {
 		if (this.name.startsWith("__core")) {
-			return IRCoreCallExpr.builtinPlutusCoreTerm(this.site, this.name);
+			return IRCoreCallExpr.newPlutusCoreBuiltin(this.site, this.name);
 		} else if (this.#index === null) {
 			// use a dummy index (for size calculation)
 			return new PlutusCoreVariable(
@@ -17382,7 +17274,7 @@ class IRExpr extends Token {
 }
 
 /**
- * Intermediate Representation wrapper for literal tokens
+ * IR wrapper for PlutusCoreValues, representing literals
  */
  class IRLiteral extends IRExpr {
 	/**
@@ -17391,26 +17283,12 @@ class IRExpr extends Token {
 	#value;
 
 	/**
-	 * @param {PrimitiveLiteral | PlutusCoreValue} value 
+	 * @param {PlutusCoreValue} value 
 	 */
 	constructor(value) {
 		super(value.site);
 
-		if (value instanceof PlutusCoreValue) {
-			this.#value = value;
-		} else if (value instanceof IntLiteral) {
-			this.#value = new PlutusCoreInt(value.site, value.value);
-		} else if (value instanceof BoolLiteral) {
-			this.#value = new PlutusCoreBool(value.site, value.value);
-		} else if (value instanceof StringLiteral) {
-			this.#value = new PlutusCoreString(value.site, value.value);
-		} else if (value instanceof ByteArrayLiteral) {
-			this.#value = new PlutusCoreByteArray(value.site, value.bytes);
-		} else if (value instanceof UnitLiteral) {
-			this.#value = new PlutusCoreUnit(value.site);
-		} else {
-			throw new Error("unhandled literal type");
-		}
+		this.#value = value;
 	}
 
 	get value() {
@@ -17443,44 +17321,28 @@ class IRExpr extends Token {
 	countRefs(ref) {
 		return 0;
 	}
-	
-	/**
-	 * @param {IRVariable} ref
-	 * @returns {IRExpr[][]}
-	 */
-	getUsage(ref) {
-		return []
-	}
-
-	/**
-	 * @param {Map<IRVariable, Set<number>>} map
-	 * @returns {IRExpr}
-	 */
- 	removeCallArgs(map) {
-		return this;
-	}
 
 	/**
 	 * Returns 'this' (nothing to inline)
-	 * @param {IRInlineMap} inlineMap
+	 * @param {IRStack} stack
 	 * @returns {IRExpr}
 	 */
-	inline(inlineMap) {
+	inline(stack) {
 		return this;
 	}
 	
 	/**
-	 * @param {IRCallStack} stack
+	 * @param {IRStack} stack
 	 * @param {IRLiteral[]} args
-	 * @returns {?IRLiteral}
+	 * @returns {?IRExpr}
 	 */
-	eval(stack, args) {
+	evalCall(stack, args) {
 		throw new Error("can't call literal");
 	}
 
 	/**
 	 * Returns 'this' (nothing to simplify)
-	 * @param {IRCallStack} stack
+	 * @param {IRStack} stack
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
@@ -17495,6 +17357,9 @@ class IRExpr extends Token {
 	}
 }
 
+/**
+ * IR function expression with some args, that act as the header, and a body expression
+ */
 class IRFuncExpr extends IRExpr {
 	#args;
 	#body;
@@ -17510,7 +17375,7 @@ class IRFuncExpr extends IRExpr {
 		this.#body = body;
 	}
 
-	get argVariables() {
+	get args() {
 		return this.#args.slice();
 	}
 
@@ -17519,7 +17384,7 @@ class IRFuncExpr extends IRExpr {
 	}
 
 	copy() {
-		return new IRFuncExpr(this.site, this.#args.slice(), this.#body.copy());
+		return new IRFuncExpr(this.site, this.args, this.#body.copy());
 	}
 
 	/**
@@ -17539,6 +17404,7 @@ class IRFuncExpr extends IRExpr {
 	 */
 	resolveNames(scope = new IRScope(null, null)) {
 		if (this.#args.length == 0) {
+			// in the zero-arg case a unit-value needs to be added to the scope (to assure correct DeBruijn index calculation)
 			scope = new IRScope(scope, null);
 		} else {
 			for (let arg of this.#args) {
@@ -17558,56 +17424,41 @@ class IRFuncExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRVariable} ref
-	 * @returns {IRExpr[][]}
-	 */
-	getUsage(ref) {
-		return this.#body.getUsage(ref);
-	}
-
-	/**
-	 * @param {Map<IRVariable, Set<number>>} map
-	 * @returns {IRExpr}
-	 */
-	removeCallArgs(map) {
-		return new IRFuncExpr(this.site, this.#args, this.#body.removeCallArgs(map));
-	}
-
-	/**
-	 * Inline stuff in body
+	 * Inline expressions in the body
 	 * Checking of unused args is done by caller
-	 * @param {IRInlineMap} inlineMap
+	 * @param {IRStack} stack
 	 * @returns {IRFuncExpr}
 	 */
-	inline(inlineMap) {
-		return new IRFuncExpr(this.site, this.#args, this.#body.inline(inlineMap));
+	inline(stack) {
+		return new IRFuncExpr(this.site, this.#args, this.#body.inline(stack));
 	}
 
 	/**
-	 * @param {IRCallStack} stack
+	 * @param {IRStack} stack
 	 * @param {IRLiteral[]} args
 	 * @returns {?IRExpr}
 	 */
 	evalCall(stack, args) {
 		assert(args.length == this.#args.length);
 
-		let inlineMap = new IRInlineMap();
+		// instead of having a special eval function for expressions we can just inline the arg expressions and check if the simplified body is an improvement
+		let inlineStack = new IRStack();
 
 		for (let i = 0; i < args.length; i++) {
 			let v = this.#args[i];
-			inlineMap.set(v, args[i]);
+			inlineStack.setInline(v, args[i]);
 		}
 
-		return this.#body.inline(inlineMap).simplify(stack);
+		return this.#body.inline(inlineStack).simplify(stack);
 	}
 
 	/**
 	 * Simplify body
-	 * Checking of unused args is done by caller
-	 * @param {IRCallStack} stack
+	 * (Checking of unused args is done by caller)
+	 * @param {IRStack} stack
 	 * @returns {IRFuncExpr}
 	 */
-	simplify(stack = new IRCallStack()) {
+	simplify(stack = new IRStack()) {
 		return new IRFuncExpr(this.site, this.#args, this.#body.simplify(stack));
 	}
 
@@ -17662,15 +17513,15 @@ class IRCallExpr extends IRExpr {
 	 * @returns {string}
 	 */
 	argsToString(indent = "") {
-		return this.#argExprs.map(e => e.toString(indent)).join(", ")
+		return this.#argExprs.map(argExpr => argExpr.toString(indent)).join(", ")
 	}
 
 	/**
 	 * @param {IRScope} scope 
 	 */
-	resolveArgNames(scope) {
-		for (let arg of this.#argExprs) {
-			arg.resolveNames(scope);
+	resolveNames(scope) {
+		for (let argExpr of this.#argExprs) {
+			argExpr.resolveNames(scope);
 		}
 	}
 
@@ -17680,68 +17531,37 @@ class IRCallExpr extends IRExpr {
 	 */
 	countRefs(ref) {
 		let count = 0;
-		for (let arg of this.#argExprs) {
-			count += arg.countRefs(ref);
+		for (let argExpr of this.#argExprs) {
+			count += argExpr.countRefs(ref);
 		}
 
 		return count;
 	}
 
 	/**
-	 * @param {IRVariable} ref
-	 * @returns {IRExpr[][]}
+	 * @param {IRStack} stack
+	 * @param {boolean} inline
+	 * @returns {IRExpr[]}
 	 */
-	getUsage(ref) {
-		/**
-		 * @type {IRExpr[][]}
-		 */
-		let res = [];
-
-		for (let arg of this.#argExprs) {
-			let argUsage = arg.getUsage(ref);
-
-			res = res.concat(argUsage);
+	simplifyArgs(stack, inline = false) {
+		if (inline) {
+			return this.#argExprs.map(argExpr => argExpr.inline(stack));
+		} else {
+			return this.#argExprs.map(argExpr => argExpr.simplify(stack));
 		}
-
-		return res;
-	}
-
-	/**
-	 * 
-	 * @param {Map<IRVariable, Set<number>>} map 
-	 * @returns {IRExpr[]}
-	 */
-	removeArgCallArgs(map) {
-		return this.#argExprs.map(argExpr => argExpr.removeCallArgs(map));
-	}
-
-	/**
-	 * @param {IRInlineMap} inlineMap
-	 * @returns {IRExpr[]}
-	 */
-	inlineArgs(inlineMap) {
-		return this.#argExprs.map(argExpr => argExpr.inline(inlineMap));
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {IRExpr[]}
-	 */
-	simplifyArgs(stack) {
-		return this.#argExprs.map(argExpr => argExpr.simplify(stack));
 	}
 
 	/**
 	 * @param {PlutusCoreTerm} term
 	 * @returns {PlutusCoreTerm}
 	 */
-	callToPlutusCore(term) {
+	toPlutusCoreCall(term) {
 		if (this.#argExprs.length == 0) {
 			// a PlutusCore function call (aka function application) always requires a argument. In the zero-args case this is the unit value
 			term = new PlutusCoreCall(this.site, term, PlutusCoreUnit.newTerm(this.#parensSite));
 		} else {
-			for (let arg of this.#argExprs) {
-				term = new PlutusCoreCall(this.site, term, arg.toPlutusCore());
+			for (let argExpr of this.#argExprs) {
+				term = new PlutusCoreCall(this.site, term, argExpr.toPlutusCore());
 			}
 		}
 
@@ -17750,15 +17570,7 @@ class IRCallExpr extends IRExpr {
 }
 
 /**
- * Intermediate Representation function call of non-core function
- * 
- * In the IR graph the IRUserCallExpr is connected as follows:
- * 
- * fnExpr   -->--\
- * argExpr0 -->--- IRUserCallExpr -->-- downstreamNode
- * ...      -->--/
- * 
- * Besides these connections the IRUserCallExpr also asures the argNodes are connected to the underlying function
+ * IR function call of non-core function
  */
  class IRUserCallExpr extends IRCallExpr {
 	#fnExpr;
@@ -17796,7 +17608,7 @@ class IRCallExpr extends IRExpr {
 	resolveNames(scope = new IRScope(null, null)) {
 		this.#fnExpr.resolveNames(scope);
 
-		this.resolveArgNames(scope);
+		super.resolveNames(scope);
 	}
 
 	/**
@@ -17808,42 +17620,7 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRVariable} ref
-	 * @returns {IRExpr[][]}
-	 */
-	getUsage(ref) {
-		if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.variable == ref) {
-			return super.getUsage(ref).concat([this.argExprs]);
-		} else {
-			return this.#fnExpr.getUsage(ref).concat(super.getUsage(ref));
-		}
-	}
-
-	/**
-	 * @param {Map<IRVariable, Set<number>>} map
-	 * @returns {IRExpr}
-	 */
-	removeCallArgs(map) {
-		if (this.#fnExpr instanceof IRNameExpr && map.has(this.#fnExpr.variable)) {
-			let s = assertDefined(map.get(this.#fnExpr.variable));
-
-			let argExprs = this.removeArgCallArgs(map);
-			let remArgs = [];
-			for (let i = 0; i < argExprs.length; i++) {
-				if (!s.has(i)) {
-					remArgs.push(argExprs[i]);
-				}
-			}
-
-
-			return new IRUserCallExpr(this.#fnExpr, remArgs, this.parensSite);
-		} else {
-			return new IRUserCallExpr(this.#fnExpr.removeCallArgs(map), super.removeArgCallArgs(map), this.parensSite);
-		}
-	}
-
-	/**
-	 * @param {IRCallStack} stack
+	 * @param {IRStack} stack
 	 * @param {IRLiteral[]} args
 	 * @returns {?IRExpr}
 	 */
@@ -17877,20 +17654,22 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRInlineMap} inlineMap
+	 * @param {IRStack} stack
 	 * @returns {IRExpr}
 	 */
-	inline(inlineMap) {
-		return new IRUserCallExpr(this.#fnExpr.inline(inlineMap), super.inlineArgs(inlineMap), this.parensSite);
+	inline(stack) {
+		return new IRUserCallExpr(this.#fnExpr.inline(stack), super.simplifyArgs(stack, true), this.parensSite);
 	}
 
 	/**
-	 * @param {IRCallStack} stack
+	 * Inlines arguments that are only used once in fnExpr.
+	 * Also eliminates unused arguments
+	 * @param {IRStack} stack
 	 * @param {IRExpr} fnExpr - already simplified
 	 * @param {IRExpr[]} argExprs - already simplified
 	 * @returns {?IRExpr} - returns null if it isn't simpler
 	 */
-	inlineSingleUseAndRemoveUnusedArgs(stack, fnExpr, argExprs) {
+	inlineArgs(stack, fnExpr, argExprs) {
 		// inline single use vars, and eliminate unused vars
 		if (fnExpr instanceof IRFuncExpr) {
 			/**
@@ -17903,10 +17682,10 @@ class IRCallExpr extends IRExpr {
 			 */
 			let remArgExprs = [];
 
-			let inlineMap = new IRInlineMap();
+			let inlineStack = new IRStack();
 
-			for (let i = 0; i < fnExpr.argVariables.length; i++) {
-				let variable = fnExpr.argVariables[i];
+			for (let i = 0; i < fnExpr.args.length; i++) {
+				let variable = fnExpr.args[i];
 				let nRefs = fnExpr.countRefs(variable);
 				let argExpr = argExprs[i];
 
@@ -17914,7 +17693,7 @@ class IRCallExpr extends IRExpr {
 					// don't add
 				} else if (nRefs == 1 || argExpr instanceof IRNameExpr) {
 					// inline for sure
-					inlineMap.set(variable, argExpr);
+					inlineStack.setInline(variable, argExpr);
 				} else {
 					remVars.push(variable);
 					remArgExprs.push(argExpr);
@@ -17923,9 +17702,9 @@ class IRCallExpr extends IRExpr {
 
 			if (remArgExprs.length < argExprs.length || remArgExprs.length == 0) {
 				if (remArgExprs.length == 0) {
-					return fnExpr.inline(inlineMap).simplify(stack).body;
+					return fnExpr.inline(inlineStack).simplify(stack).body;
 				} else {
-					return new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.inline(inlineMap).simplify(stack).body), remArgExprs, this.parensSite);
+					return new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.inline(inlineStack).simplify(stack).body), remArgExprs, this.parensSite);
 				}
 			}
 		}
@@ -17934,104 +17713,15 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * This optimization doesn't work with recursive functions, so it shouldn't be used (I've left it here as a reference)
-	 * @param {IRCallStack} stack
+	 * Inline all literal args if the resulting expression is an improvement over the current expression
+	 * @param {IRStack} stack
 	 * @param {IRExpr} fnExpr - already simplified
 	 * @param {IRExpr[]} argExprs - already simplified
 	 * @returns {?IRExpr} - returns null if it isn't simpler
 	 */
-	inlineCommonRhsFuncArgs(stack, fnExpr, argExprs) {
-		// if the rhs is a single IRFuncExpr, then check how it is used in each call (should be more than once)
-		if (argExprs.length == 1) {
-			let argExpr = argExprs[0];
-			
-			if (argExpr instanceof IRFuncExpr) {
-				let fnExprInner = fnExpr; 
-
-				if (fnExprInner instanceof IRFuncExpr) {
-					let variable = fnExprInner.argVariables[0];
-
-					/**
-					 * @type {IRExpr[][]}
-					 */
-					let usage = fnExprInner.body.getUsage(variable);
-
-					// inline any arg whose usage is always the same literal
-					let remVars = [];
-					let inlineMap = new IRInlineMap();
-
-					/**
-					 * @type {Set<number>}
-					 */
-					let toRemove = new Set();
-
-					for (let i = 0; i < argExpr.argVariables.length; i++) {
-						let v = argExpr.argVariables[i];
-
-						/**
-						 * @type {?IRExpr}
-						 */
-						let usageExpr = null;
-
-						let same = true;
-						for (let u of usage) {
-							assert(i < u.length);
-							if (usageExpr === null) {
-								if (!(u[i] instanceof IRLiteral)) {
-									same = false;
-								} else {
-									usageExpr = u[i];
-								}
-							} else if (!(usageExpr instanceof IRLiteral) || usageExpr.toString() != u[i].toString()) {
-								same = false;
-							}
-
-							if (!same) {
-								break;
-							}
-						}
-
-						if (same && usageExpr !== null) {
-							inlineMap.set(v, usageExpr);
-							toRemove.add(i);
-						} else {
-							remVars.push(v);
-						}
-					}
-
-					if (remVars.length < argExpr.argVariables.length) {
-						argExpr = new IRFuncExpr(argExpr.site, remVars, argExpr.body.inline(inlineMap));
-
-						/**
-						 * @type {Map<IRVariable, Set<number>>}
-						 */
-						let toRemoveMap = new Map();
-						toRemoveMap.set(variable, toRemove);
-
-						fnExprInner = fnExprInner.removeCallArgs(toRemoveMap);
-
-						let newCall = new IRUserCallExpr(fnExprInner, [argExpr], this.parensSite);
-
-						if (newCall.calcSize() < this.calcSize()) {
-							return newCall;
-						}
-					}
-				}
-			}
-		}
-
-		return null;
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @param {IRExpr} fnExpr - already simplified
-	 * @param {IRExpr[]} argExprs - already simplified
-	 * @returns {?IRExpr} - returns null if it isn't simpler
-	 */
-	inlineLiterals(stack, fnExpr, argExprs) {
+	inlineLiteralArgs(stack, fnExpr, argExprs) {
 		if (fnExpr instanceof IRFuncExpr) {
-			let inlineMap = new IRInlineMap();
+			let inlineStack = new IRStack();
 
 			/**
 			 * @type {IRVariable[]}
@@ -18043,13 +17733,13 @@ class IRCallExpr extends IRExpr {
 			 */
 			let remArgs = [];
 
-			let argVariables = fnExpr.argVariables;
+			let argVariables = fnExpr.args;
 
 			for (let i = 0; i < argVariables.length; i++) {
 				let v = argVariables[i];
 				let argExpr = argExprs[i];
 				if (argExpr instanceof IRLiteral) {
-					inlineMap.set(v, argExpr);
+					inlineStack.setInline(v, argExpr);
 				} else {
 					remVars.push(v);
 					remArgs.push(argExpr);
@@ -18057,7 +17747,7 @@ class IRCallExpr extends IRExpr {
 			}
 
 			if (remVars.length < argVariables.length) {
-				let that = new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.body.inline(inlineMap).simplify(stack)), remArgs, this.parensSite);
+				let that = new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.body.inline(inlineStack).simplify(stack)), remArgs, this.parensSite);
 
 				if (that.calcSize() <= this.calcSize()) {
 					return that;
@@ -18069,12 +17759,13 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRCallStack} stack
+	 * Simplify some specific builtin functions
+	 * @param {IRStack} stack
 	 * @param {IRExpr} fnExpr
 	 * @param {IRExpr[]} argExprs
 	 * @returns {?IRExpr}
 	 */
-	simplifyInverseCalls(stack, fnExpr, argExprs) {
+	simplifyTopology(stack, fnExpr, argExprs) {
 		if (fnExpr instanceof IRNameExpr) {
 			switch (fnExpr.name) {
 				case "__helios__common__boolData": {
@@ -18117,12 +17808,14 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRCallStack} stack
+	 * Evaluates fnExpr if all args are literals
+	 * Otherwise returns null
+	 * @param {IRStack} stack
 	 * @param {IRExpr} fnExpr
 	 * @param {IRExpr[]} argExprs
 	 * @returns {?IRExpr}
 	 */
-	evalLiteralCall(stack, fnExpr, argExprs) {
+	simplifyLiteral(stack, fnExpr, argExprs) {
 		/**
 		 * @type {IRLiteral[]}
 		 */
@@ -18140,53 +17833,54 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRCallStack} stack
+	 * @param {IRStack} stack
 	 * @returns {IRExpr}
 	 */
-	simplify(stack = new IRCallStack()) {
+	simplify(stack = new IRStack()) {
 		let argExprs = this.simplifyArgs(stack);
 
 		let innerStack = stack;
 
 		if (this.#fnExpr instanceof IRFuncExpr) {
-			assert(argExprs.length == this.#fnExpr.argVariables.length);
+			assert(argExprs.length == this.#fnExpr.args.length);
 			for (let i = 0; i < argExprs.length; i++) {
-				let v = this.#fnExpr.argVariables[i];
+				let v = this.#fnExpr.args[i];
 				innerStack = innerStack.set(v, argExprs[i]);
 			}
 		}
 
 		let fnExpr = this.#fnExpr.simplify(innerStack);
 
-
 		if (fnExpr instanceof IRNameExpr && fnExpr.name.startsWith("__core")) {
 			return new IRCoreCallExpr(new Word(fnExpr.site, fnExpr.name), argExprs, this.parensSite);
 		}
 
-		let maybeBetter0 = this.evalLiteralCall(stack, fnExpr, argExprs);
-		if (maybeBetter0 !== null && maybeBetter0.calcSize() < this.calcSize()) {
-			return maybeBetter0;
+		{
+			let maybeBetter = this.simplifyLiteral(stack, fnExpr, argExprs);
+			if (maybeBetter !== null && maybeBetter.calcSize() < this.calcSize()) {
+				return maybeBetter;
+			}
 		}
 
-		let maybeBetter1 = this.inlineSingleUseAndRemoveUnusedArgs(stack, fnExpr, argExprs);
-		if (maybeBetter1 !== null) {
-			return maybeBetter1;
+		{
+			let maybeBetter = this.inlineArgs(stack, fnExpr, argExprs);
+			if (maybeBetter !== null) {
+				return maybeBetter;
+			}
 		}
 
-		// can't inline common rhs func args for recursive functions
-		/*let maybeBetter2 = this.inlineCommonRhsFuncArgs(stack, fnExpr, argExprs);
-		if (maybeBetter2 !== null) {
-			return maybeBetter2;
-		}*/
-
-		let maybeBetter3 = this.inlineLiterals(stack, fnExpr, argExprs);
-		if (maybeBetter3 !== null) {
-			return maybeBetter3;
+		{
+			let maybeBetter = this.inlineLiteralArgs(stack, fnExpr, argExprs);
+			if (maybeBetter !== null) {
+				return maybeBetter;
+			}
 		}
 
-		let maybeBetter4 = this.simplifyInverseCalls(stack, fnExpr, argExprs);
-		if (maybeBetter4 !== null) {
-			return maybeBetter4;
+		{
+			let maybeBetter = this.simplifyTopology(stack, fnExpr, argExprs);
+			if (maybeBetter !== null) {
+				return maybeBetter;
+			}
 		}
 
 		return new IRUserCallExpr(fnExpr, argExprs, this.parensSite);
@@ -18196,18 +17890,12 @@ class IRCallExpr extends IRExpr {
 	 * @returns {PlutusCoreTerm}
 	 */
 	toPlutusCore() {
-		return super.callToPlutusCore(this.#fnExpr.toPlutusCore());
+		return super.toPlutusCoreCall(this.#fnExpr.toPlutusCore());
 	}
 }
 
 /**
- * Intermediate Representation function call of core function.
- * 
- * In the IR graph the IRCoreCallExpr node is connected as follows:
- * 
- * argExpr0 -->--\
- * argExpr1 -->--- IRCoreCallExpr -->-- downstreamNode
- * ...      -->--/ 
+ * IR function call of core functions
  */
 class IRCoreCallExpr extends IRCallExpr {
 	#name;
@@ -18238,37 +17926,20 @@ class IRCoreCallExpr extends IRCallExpr {
 		return `${this.#name.toString()}(${this.argsToString()})`;
 	}
 
-	
-
 	/**
-	 * @param {IRScope} scope 
-	 */
-	resolveNames(scope) {
-		this.resolveArgNames(scope);
-	}
-
-	/**
-	 * @param {Map<IRVariable, Set<number>>} map
-	 * @returns {IRExpr}
-	 */
-	removeCallArgs(map) {
-		return new IRCoreCallExpr(this.#name, this.removeArgCallArgs(map), this.parensSite);
-	}
-
-	/**
-	 * @param {IRCallStack} stack
+	 * @param {IRStack} stack
 	 * @param {IRLiteral[]} args
 	 * @returns {?IRExpr}
 	 */
 	evalCall(stack, args) {
-		return this.simplifyLiterals(args);
+		return this.simplifyLiteralArgs(args);
 	}
 
 	/**
 	 * @param {IRExpr[]} argExprs
 	 * @returns {?IRExpr}
 	 */
-	simplifyLiterals(argExprs) {
+	simplifyLiteralArgs(argExprs) {
 		if (this.builtinName == "ifThenElse") {
 			let cond = argExprs[0];
 
@@ -18315,7 +17986,7 @@ class IRCoreCallExpr extends IRCallExpr {
 	 * @param {IRExpr[]} argExprs
 	 * @returns {?IRExpr}
 	 */
-	simplifyInverseCalls(argExprs) {
+	simplifyTopology(argExprs) {
 		switch (this.builtinName) {			
 			case "encodeUtf8":
 				// we can't eliminate a call to decodeUtf8, as it might throw some errors
@@ -18492,28 +18163,32 @@ class IRCoreCallExpr extends IRCallExpr {
 	}
 
 	/**
-	 * @param {IRInlineMap} inlineMap
+	 * @param {IRStack} stack
 	 * @returns {IRExpr}
 	 */
- 	inline(inlineMap) {
-		return new IRCoreCallExpr(this.#name, super.inlineArgs(inlineMap), this.parensSite);
+ 	inline(stack) {
+		return new IRCoreCallExpr(this.#name, super.simplifyArgs(stack, true), this.parensSite);
 	}
 
 	/**
-	 * @param {IRCallStack} stack
+	 * @param {IRStack} stack
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
 		let argExprs = super.simplifyArgs(stack);
 
-		let maybeBetter1 = this.simplifyLiterals(argExprs);
-		if (maybeBetter1 !== null) {
-			return maybeBetter1;
+		{
+			let maybeBetter = this.simplifyLiteralArgs(argExprs);
+			if (maybeBetter !== null) {
+				return maybeBetter;
+			}
 		}
 
-		let maybeBetter2 = this.simplifyInverseCalls(argExprs);
-		if (maybeBetter2 !== null) {
-			return maybeBetter2;
+		{
+			let maybeBetter = this.simplifyTopology(argExprs);
+			if (maybeBetter !== null) {
+				return maybeBetter;
+			}
 		}
 		
 		return new IRCoreCallExpr(this.#name, argExprs, this.parensSite);
@@ -18524,7 +18199,7 @@ class IRCoreCallExpr extends IRCallExpr {
 	 * @param {string} name - full name of builtin, including prefix
 	 * @returns {PlutusCoreTerm}
 	 */
-	static builtinPlutusCoreTerm(site, name) {
+	static newPlutusCoreBuiltin(site, name) {
 		/**
 		 * @type {PlutusCoreTerm}
 		 */
@@ -18543,9 +18218,9 @@ class IRCoreCallExpr extends IRCallExpr {
 	 * @returns {PlutusCoreTerm}
 	 */
 	toPlutusCore() {
-		let term = IRCoreCallExpr.builtinPlutusCoreTerm(this.site, this.#name.value);
+		let term = IRCoreCallExpr.newPlutusCoreBuiltin(this.site, this.#name.value);
 
-		return this.callToPlutusCore(term);
+		return this.toPlutusCoreCall(term);
 	}
 }
 
@@ -18591,23 +18266,7 @@ class IRErrorCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRVariable} ref
-	 * @returns {IRExpr[][]}
-	 */
-	getUsage(ref) {
-		return [];
-	}
-
-	/**
-	 * @param {Map<IRVariable, Set<number>>} map
-	 * @returns {IRExpr}
-	 */
-	removeCallArgs(map) {
-		return this;
-	}
-
-	/**
-	 * @param {IRCallStack} stack
+	 * @param {IRStack} stack
 	 * @param {IRLiteral[]} args
 	 * @returns {?IRExpr}
 	 */
@@ -18616,15 +18275,15 @@ class IRErrorCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRInlineMap} inlineMap
+	 * @param {IRStack} stack
 	 * @returns {IRExpr}
 	 */
-	inline(inlineMap) {
+	inline(stack) {
 		return this;
 	}
 
 	/**
-	 * @param {IRCallStack} stack
+	 * @param {IRStack} stack
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
@@ -18689,7 +18348,7 @@ function buildIRExpr(ts) {
 					if (group.fields.length == 1) {
 						expr = buildIRExpr(group.fields[0])
 					} else if (group.fields.length == 0) {
-						expr = new IRLiteral(new UnitLiteral(t.site));
+						expr = new IRLiteral(new PlutusCoreUnit(t.site));
 					} else {
 						group.syntaxError("unexpected parentheses with multiple fields");
 					}
@@ -18713,22 +18372,22 @@ function buildIRExpr(ts) {
 				// only makes sense next to IntegerLiterals
 				let int = assertDefined(ts.shift());
 				if (int instanceof IntLiteral) {
-					expr = new IRLiteral(new IntLiteral(int.site, int.value * (-1n)));
+					expr = new IRLiteral(new PlutusCoreInt(int.site, int.value * (-1n)));
 				} else {
 					throw int.site.typeError(`expected literal int, got ${int}`);
 				}
 			} else if (t instanceof BoolLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(t);
+				expr = new IRLiteral(new PlutusCoreBool(t.site, t.value));
 			} else if (t instanceof IntLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(t);
+				expr = new IRLiteral(new PlutusCoreInt(t.site, t.value));
 			} else if (t instanceof ByteArrayLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(t);
+				expr = new IRLiteral(new PlutusCoreByteArray(t.site, t.bytes));
 			} else if (t instanceof StringLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(t);
+				expr = new IRLiteral(new PlutusCoreString(t.site, t.value));
 			} else if (t.isWord("__core__error")) {
 				assert(expr === null);
 
