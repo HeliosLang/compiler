@@ -7921,6 +7921,10 @@ class FuncType extends Type {
 		return this.#argTypes.length;
 	}
 
+	get argTypes() {
+		return this.#argTypes.slice();
+	}
+
 	get retType() {
 		return this.#retType;
 	}
@@ -8841,6 +8845,8 @@ class MapTypeExpr extends TypeExpr {
 
 		if (keyType instanceof FuncType) {
 			throw this.#keyTypeExpr.typeError("map key type can't be function");
+		} else if (keyType instanceof BoolType) {
+			throw this.#keyTypeExpr.typeError("map key type can't be a boolean");
 		}
 
 		let valueType = this.#valueTypeExpr.eval(scope);
@@ -9186,7 +9192,7 @@ class PrimitiveLiteralExpr extends ValueExpr {
 		if (this.#primitive instanceof IntLiteral) {
 			return new IR([new IR("__core__iData", this.site), new IR("("), inner, new IR(")")]);
 		} else if (this.#primitive instanceof BoolLiteral) {
-			return new IR([new IR("__helios__common__boolData", this.site), new IR("("), inner, new IR(")")]);
+			return inner;
 		} else if (this.#primitive instanceof StringLiteral) {
 			return new IR([new IR("__helios__common__stringData", this.site), new IR("("), inner, new IR(")")]);
 		} else if (this.#primitive instanceof ByteArrayLiteral) {
@@ -9344,10 +9350,26 @@ class StructLiteralExpr extends ValueExpr {
 
 		let fields = this.#fields.slice().reverse();
 
+		let instance = Value.new(this.#typeExpr.type);
+
+		
+
 		for (let f of fields) {
+			let isBool = instance.getInstanceMember(f.name).getType(f.name.site) instanceof BoolType;
+
+			let fIR = f.toIR(indent);
+
+			if (isBool) {
+				fIR = new IR([
+					new IR("__helios__common__boolData("),
+					fIR,
+					new IR(")"),
+				]);
+			}
+
 			res = new IR([
 				new IR("__core__mkCons("),
-				f.toIR(indent),
+				fIR,
 				new IR(", "),
 				res,
 				new IR(")")
@@ -9419,15 +9441,27 @@ class ListLiteralExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
+		let isBool = this.#itemTypeExpr.type instanceof BoolType;
+
 		// unsure if list literals in untyped plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
 		let res = new IR("__core__mkNilData(())");
 
 		// starting from last element, keeping prepending a data version of that item
 
 		for (let i = this.#itemExprs.length - 1; i >= 0; i--) {
+			let itemIR = this.#itemExprs[i].toIR(indent);
+
+			if (isBool) {
+				itemIR = new IR([
+					new IR("__helios__common__boolData("),
+					itemIR,
+					new IR(")"),
+				]);
+			}
+
 			res = new IR([
 				new IR("__core__mkCons("),
-				this.#itemExprs[i].toIR(indent),
+				itemIR,
 				new IR(", "),
 				res,
 				new IR(")")
@@ -9499,6 +9533,8 @@ class ListLiteralExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
+		let isBoolValue = this.#valueTypeExpr.type instanceof BoolType;
+
 		// unsure if list literals in untyped plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
 		let res = new IR("__core__mkNilPairData(())");
 
@@ -9507,12 +9543,22 @@ class ListLiteralExpr extends ValueExpr {
 		for (let i = this.#pairExprs.length - 1; i >= 0; i--) {
 			let [keyExpr, valueExpr] = this.#pairExprs[i];
 
+			let valueIR = valueExpr.toIR(indent);
+
+			if (isBoolValue) {
+				valueIR = new IR([
+					new IR("__helios__common__boolData("),
+					valueIR,
+					new IR(")"),
+				]);
+			}
+
 			res = new IR([
 				new IR("__core__mkCons("),
 				new IR("__core__mkPairData("),
 				keyExpr.toIR(indent),
 				new IR(","),
-				valueExpr.toIR(indent),
+				valueIR,
 				new IR(")"),
 				new IR(", "),
 				res,
@@ -10314,9 +10360,9 @@ class IfElseExpr extends ValueExpr {
 		// TODO: nice indentation
 		for (let i = n - 1; i >= 0; i--) {
 			res = new IR([
-				new IR("__core__ifThenElse(__helios__common__unBoolData("),
+				new IR("__core__ifThenElse("),
 				this.#conditions[i].toIR(indent),
-				new IR("), () -> {"),
+				new IR(", () -> {"),
 				this.#branches[i].toIR(indent),
 				new IR("}, () -> {"),
 				res,
@@ -10845,6 +10891,7 @@ class DataDefinition extends Statement {
 		for (let i = 0; i < this.#fields.length; i++) {
 			let f = this.#fields[i];
 			let key = `${this.path}__${f.name.toString()}`;
+			let isBool = f.type instanceof BoolType;
 
 			/**
 			 * @type {IR}
@@ -10852,17 +10899,37 @@ class DataDefinition extends Statement {
 			let getter;
 
 			if (i < 10) {
-				getter = new IR(`__helios__common__field_${i}`);
+				getter = new IR(`__helios__common__field_${i}`, f.site);
+
+				if (isBool) {
+					getter = new IR([
+						new IR("(self) "), new IR("->", f.site), new IR(" {"),
+						new IR(`__helios__common__unBoolData(__helios__common__field_${i}(self))`),
+						new IR("}"),
+					]);
+				} else {
+					getter = new IR(`__helios__common__field_${i}`, f.site);
+				}
 			} else {
 				let inner = new IR("__core__sndPair(__core__unConstrData(self))");
 				for (let j = 0; j < i; j++) {
 					inner = new IR([new IR("__core__tailList("), inner, new IR(")")]);
 				}
 
-				getter = new IR([
-					new IR("(self) "), new IR("->", f.site), new IR(" {__core__headList("),
+				inner = new IR([
+					new IR("__core__headList("),
 					inner,
-					new IR(")}"),
+					new IR(")"),
+				]);
+
+				if (isBool) {
+					inner = new IR([new IR("__helios__common__unBoolData("), inner, new IR(")")]);
+				}
+
+				getter = new IR([
+					new IR("(self) "), new IR("->", f.site), new IR(" {"),
+					inner,
+					new IR("}"),
 				]);
 			}
 
@@ -11513,6 +11580,12 @@ class Program {
 	/** @type {IR[]} - TODO  merge this with haveDatum etc. */
 	#testArgs;
 
+	/** @type {?Type} */
+	#retType;
+
+	/** @type {?Type[]} */
+	#argTypes;
+
 	/**
 	 * @param {number} purpose
 	 * @param {Word} name
@@ -11528,6 +11601,8 @@ class Program {
 		this.#haveRedeemer = false;
 		this.#haveScriptContext = false;
 		this.#testArgs = [];
+		this.#retType = null;
+		this.#argTypes = null;
 	}
 
 	get purpose() {
@@ -11593,6 +11668,9 @@ class Program {
 						this.#testArgs.push(new IR(`arg${i}`));
 					}
 				}
+
+				this.#retType = mainType.retType;
+				this.#argTypes = mainType.argTypes;
 			}
 		}
 	}
@@ -11657,7 +11735,17 @@ class Program {
 
 		if (this.#purpose == ScriptPurpose.Testing) {
 			mainArgs = this.#testArgs.slice();
-			uMainArgs = this.#testArgs.slice();
+			uMainArgs = this.#testArgs.map((ta, i) => {
+				if (this.#argTypes !== null && this.#argTypes[i] instanceof BoolType) {
+					return new IR([
+						new IR("__helios__common__unBoolData("),
+						ta,
+						new IR(")")
+					]);
+				} else {
+					return ta;
+				}
+			});
 		}
 
 		// don't need to specify TAB because it is at top level
@@ -11668,12 +11756,19 @@ class Program {
 		];
 
 		if (this.#purpose == ScriptPurpose.Testing) {
-			res = res.concat([new IR("main("), (new IR(uMainArgs)).join(", "), new IR(")")]);
+			let mainIR = [new IR("main("), (new IR(uMainArgs)).join(", "), new IR(")")];
+
+			if (this.#retType !== null && this.#retType instanceof BoolType) {
+				mainIR.unshift(new IR("__helios__common__boolData("));
+				mainIR.push(new IR(")"));
+			}
+
+			res = res.concat(mainIR);
 		} else {
 			res = res.concat([
-				new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}__helios__common__unBoolData(main(`),
+				new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}main(`),
 				(new IR(uMainArgs)).join(", "),
-				new IR(`)),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error("transaction rejected")}\n${TAB}${TAB})()`),
+				new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error("transaction rejected")}\n${TAB}${TAB})()`),
 			]);
 		}
 
@@ -13187,7 +13282,7 @@ class ListType extends BuiltinType {
 	}
 
 	get path() {
-		return "__helios__list";
+		return `__helios__${this.#itemType instanceof BoolType ? "bool" : ""}list`;
 	}
 }
 
@@ -13391,7 +13486,7 @@ class MapType extends BuiltinType {
 	}
 
 	get path() {
-		return "__helios__map";
+		return `__helios__${this.#valueType instanceof BoolType ? "bool" : ""}map`;
 	}
 }
 
@@ -13521,7 +13616,7 @@ class OptionType extends BuiltinType {
 	}
 
 	get path() {
-		return "__helios__option";
+		return `__helios__option`;
 	}
 }
 
@@ -13585,7 +13680,7 @@ class OptionSomeType extends BuiltinType {
 	}
 
 	get path() {
-		return "__helios__option__some";
+		return `__helios__option__${this.#someType instanceof BoolType ? "bool" : ""}some`;
 	}
 }
 
@@ -14524,13 +14619,13 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__common____eq",
 	`(self) -> {
 		(other) -> {
-			__helios__common__boolData(__core__equalsData(self, other))
+			__core__equalsData(self, other)
 		}
 	}`));
 	add(new RawFunc("__helios__common____neq",
 	`(self) -> {
 		(other) -> {
-			__helios__common__boolData(__helios__common__not(__core__equalsData(self, other)))
+			__helios__common__not(__core__equalsData(self, other))
 		}
 	}`));
 	add(new RawFunc("__helios__common__serialize",
@@ -14733,15 +14828,13 @@ function makeRawFunctions() {
 			(prefix) -> {
 				(prefix) -> {
 					(n, m) -> {
-						__helios__common__boolData(
-							__core__ifThenElse(
-								__core__lessThanInteger(n, m),
-								() -> {false},
-								() -> {
-									__core__equalsByteString(prefix, __core__sliceByteString(0, m, self))
-								}
-							)()
-						)
+						__core__ifThenElse(
+							__core__lessThanInteger(n, m),
+							() -> {false},
+							() -> {
+								__core__equalsByteString(prefix, __core__sliceByteString(0, m, self))
+							}
+						)()
 					}(selfLengthFn(self), __core__lengthOfByteString(prefix))
 				}(__core__unBData(prefix))
 			}
@@ -14753,15 +14846,13 @@ function makeRawFunctions() {
 			(suffix) -> {
 				(suffix) -> {
 					(n, m) -> {
-						__helios__common__boolData(
-							__core__ifThenElse(
-								__core__lessThanInteger(n, m),
-								() -> {false},
-								() -> {
-									__core__equalsByteString(suffix, __core__sliceByteString(__core__subtractInteger(n, m), m, self))
-								}
-							)()
-						)
+						__core__ifThenElse(
+							__core__lessThanInteger(n, m),
+							() -> {false},
+							() -> {
+								__core__equalsByteString(suffix, __core__sliceByteString(__core__subtractInteger(n, m), m, self))
+							}
+						)()
 					}(selfLengthFn(self), __core__lengthOfByteString(suffix))
 				}(__core__unBData(suffix))
 			}
@@ -14921,7 +15012,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(a) -> {
 			(b) -> {
-				__helios__common__boolData(__helios__common__not(__core__lessThanInteger(a, __core__unIData(b))))
+				__helios__common__not(__core__lessThanInteger(a, __core__unIData(b)))
 			}
 		}(__core__unIData(self))
 	}`));
@@ -14929,7 +15020,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(a) -> {
 			(b) -> {
-				__helios__common__boolData(__helios__common__not(__core__lessThanEqualsInteger(a, __core__unIData(b))))
+				__helios__common__not(__core__lessThanEqualsInteger(a, __core__unIData(b)))
 			}
 		}(__core__unIData(self))
 	}`));
@@ -14937,7 +15028,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(a) -> {
 			(b) -> {
-				__helios__common__boolData(__core__lessThanEqualsInteger(a, __core__unIData(b)))
+				__core__lessThanEqualsInteger(a, __core__unIData(b))
 			}
 		}(__core__unIData(self))
 	}`));
@@ -14945,7 +15036,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(a) -> {
 			(b) -> {
-				__helios__common__boolData(__core__lessThanInteger(a, __core__unIData(b)))
+				__core__lessThanInteger(a, __core__unIData(b))
 			}
 		}(__core__unIData(self))
 	}`));
@@ -14953,7 +15044,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			() -> {
-				__helios__common__boolData(__core__ifThenElse(__core__equalsInteger(self, 0), false, true))
+				__core__ifThenElse(__core__equalsInteger(self, 0), false, true)
 			}
 		}(__core__unIData(self))
 	}`));
@@ -15023,50 +15114,55 @@ function makeRawFunctions() {
 
 
 	// Bool builtins
-	addEqNeqSerialize("__helios__bool");
+	add(new RawFunc(`__helios__bool____eq`, 
+	`(a) -> {
+		(b) -> {
+			__core__ifThenElse(a, b, __helios__common__not(b))
+		}
+	}`));
+	add(new RawFunc(`__helios__bool____neq`,
+	`(a) -> {
+		(b) -> {
+			__core__ifThenElse(a, __helios__common__not(b), b)
+		}
+	}`));
+	add(new RawFunc(`__helios__bool__serialize`, 
+	`(self) -> {
+		__helios__common__serialize(__helios__common__boolData(self))
+	}`));
 	add(new RawFunc("__helios__bool__and",
 	`(a, b) -> {
-		__helios__common__boolData(
-			__core__ifThenElse(
-				__helios__common__unBoolData(a()), 
-				() -> {__helios__common__unBoolData(b())}, 
-				() -> {false}
-			)()
-		)
+		__core__ifThenElse(
+			a(), 
+			() -> {b()}, 
+			() -> {false}
+		)()
 	}`));
 	add(new RawFunc("__helios__bool__or",
 	`(a, b) -> {
-		__helios__common__boolData(
-			__core__ifThenElse(
-				__helios__common__unBoolData(a()), 
-				() -> {true},
-				() -> {__helios__common__unBoolData(b())}
-			)()
-		)
+		__core__ifThenElse(
+			a(), 
+			() -> {true},
+			() -> {b()}
+		)()
 	}`));
 	add(new RawFunc("__helios__bool____not",
 	`(self) -> {
-		(self) -> {
-			() -> {
-				__helios__common__boolData(__helios__common__not(self))
-			}
-		}(__helios__common__unBoolData(self))
+		() -> {
+			__helios__common__not(self)
+		}
 	}`));
 	add(new RawFunc("__helios__bool__to_int",
 	`(self) -> {
-		(self) -> {
-			() -> {
-				__core__iData(__core__ifThenElse(self, 1, 0))
-			}
-		}(__helios__common__unBoolData(self))
+		() -> {
+			__core__iData(__core__ifThenElse(self, 1, 0))
+		}
 	}`));
 	add(new RawFunc("__helios__bool__show",
 	`(self) -> {
-		(self) -> {
-			() -> {
-				__helios__common__stringData(__core__ifThenElse(self, "true", "false"))
-			}
-		}(__helios__common__unBoolData(self))
+		() -> {
+			__helios__common__stringData(__core__ifThenElse(self, "true", "false"))
+		}
 	}`));
 
 
@@ -15251,7 +15347,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			() -> {
-				__helios__common__boolData(__core__nullList(self))
+				__core__nullList(self)
 			}
 		}(__core__unListData(self))
 	}`));
@@ -15287,13 +15383,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
-				(fn) -> {
-					__helios__common__boolData(__helios__common__any(self, fn))
-				}(
-					(item) -> {
-						__helios__common__unBoolData(fn(item))
-					}
-				)
+				__helios__common__any(self, fn)
 			}
 		}(__core__unListData(self))
 	}`));
@@ -15301,13 +15391,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
-				(fn) -> {
-					__helios__common__boolData(__helios__common__all(self, fn))
-				}(
-					(item) -> {
-						__helios__common__unBoolData(fn(item))
-					}
-				)
+				__helios__common__all(self, fn)
 			}
 		}(__core__unListData(self))
 	}`));
@@ -15332,7 +15416,7 @@ function makeRawFunctions() {
 							() -> {__core__error("not found")}, 
 							() -> {
 								__core__ifThenElse(
-									__helios__common__unBoolData(fn(__core__headList(self))), 
+									fn(__core__headList(self)), 
 									() -> {__core__headList(self)}, 
 									() -> {recurse(recurse, __core__tailList(self), fn)}
 								)()
@@ -15347,13 +15431,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
-				(fn) -> {
-					__core__listData(__helios__common__filter_list(self, fn))
-				}(
-					(item) -> {
-						__helios__common__unBoolData(fn(item))
-					}
-				)	
+				__core__listData(__helios__common__filter_list(self, fn))
 			}
 		}(__core__unListData(self))
 	}`));
@@ -15388,6 +15466,94 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
+	add(new RawFunc("__helios__boollist__new", 
+	`(n, item) -> {
+		__helios__list__new(n, __helios__common__boolData(item))
+	}`));
+	add(new RawFunc("__helios__boollist____eq", "__helios__list____eq"));
+	add(new RawFunc("__helios__boollist____neq", "__helios__list____neq"));
+	add(new RawFunc("__helios__boollist__serialize", "__helios__list__serialize"));
+	add(new RawFunc("__helios__boollist____add", "__helios__list____add"));
+	add(new RawFunc("__helios__boollist__length", "__helios__list__length"));
+	add(new RawFunc("__helios__boollist__head", 
+	`(self) -> {
+		__helios__common__unBoolData(__helios__list__head(self))
+	}`));
+	add(new RawFunc("__helios__boollist__tail", "__helios__list__tail"));
+	add(new RawFunc("__helios__boollist__is_empty", "__helios__list__is_empty"));
+	add(new RawFunc("__helios__boollist__get", 
+	`(self) -> {
+		(index) -> {
+			__helios__common__unBoolData(__helios__list__get(self)(index))
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__any", 
+	`(self) -> {
+		(fn) -> {
+			__helios__list__any(self)(
+				(item) -> {
+					fn(__helios__common__unBoolData(item))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__all",
+	`(self) -> {
+		(fn) -> {
+			__helios__list__all(self)(
+				(item) -> {
+					fn(__helios__common__unBoolData(item))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__prepend",
+	`(self) -> {
+		(item) -> {
+			__helios__list__prepend(self)(__helios__common__boolData(item))
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__find",
+	`(self) -> {
+		(fn) -> {
+			__helios__list__find(self)(
+				(item) -> {
+					fn(__helios__common__unBoolData(item))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__filter",
+	`(self) -> {
+		(fn) -> {
+			__helios__list__filter(self)(
+				(item) -> {
+					fn(__helios__common__unBoolData(item))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__fold",
+	`(self) -> {
+		(fn, z) -> {
+			__helios__list__fold(self)(
+				(prev, item) -> {
+					fn(prev, __helios__common__unBoolData(item))
+				},
+				z
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__map",
+	`(self) -> {
+		(fn) -> {
+			__helios__list__map(self)(
+				(item) -> {
+					fn(__helios__common__unBoolData(item))
+				}
+			)
+		}
+	}`));
 
 
 	// Map builtins
@@ -15410,7 +15576,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			() -> {
-				__helios__common__boolData(__core__nullList(self))
+				__core__nullList(self)
 			}
 		}(__core__unMapData(self))
 	}`));
@@ -15443,10 +15609,10 @@ function makeRawFunctions() {
 		(self) -> {
 			(fn) -> {
 				(fn) -> {
-					__helios__common__boolData(__helios__common__all(self, fn))
+					__helios__common__all(self, fn)
 				}(
 					(pair) -> {
-						__helios__common__unBoolData(fn(__core__fstPair(pair), __core__sndPair(pair)))
+						fn(__core__fstPair(pair), __core__sndPair(pair))
 					}
 				)
 			}
@@ -15457,10 +15623,10 @@ function makeRawFunctions() {
 		(self) -> {
 			(fn) -> {
 				(fn) -> {
-					__helios__common__boolData(__helios__common__all(self, fn))
+					__helios__common__all(self, fn)
 				}(
 					(pair) -> {
-						__helios__common__unBoolData(fn(__core__fstPair(pair)))
+						fn(__core__fstPair(pair))
 					}
 				)
 			}
@@ -15471,10 +15637,10 @@ function makeRawFunctions() {
 		(self) -> {
 			(fn) -> {
 				(fn) -> {
-					__helios__common__boolData(__helios__common__all(self, fn))
+					__helios__common__all(self, fn)
 				}(
 					(pair) -> {
-						__helios__common__unBoolData(fn(__core__sndPair(pair)))
+						fn(__core__sndPair(pair))
 					}
 				)
 			}
@@ -15485,10 +15651,10 @@ function makeRawFunctions() {
 		(self) -> {
 			(fn) -> {
 				(fn) -> {
-					__helios__common__boolData(__helios__common__any(self, fn))
+					__helios__common__any(self, fn)
 				}(
 					(pair) -> {
-						__helios__common__unBoolData(fn(__core__fstPair(pair), __core__sndPair(pair)))
+						fn(__core__fstPair(pair), __core__sndPair(pair))
 					}
 				)
 			}
@@ -15499,10 +15665,10 @@ function makeRawFunctions() {
 		(self) -> {
 			(fn) -> {
 				(fn) -> {
-					__helios__common__boolData(__helios__common__any(self, fn))
+					__helios__common__any(self, fn)
 				}(
 					(pair) -> {
-						__helios__common__unBoolData(fn(__core__fstPair(pair)))
+						fn(__core__fstPair(pair))
 					}
 				)
 			}
@@ -15513,10 +15679,10 @@ function makeRawFunctions() {
 		(self) -> {
 			(fn) -> {
 				(fn) -> {
-					__helios__common__boolData(__helios__common__any(self, fn))
+					__helios__common__any(self, fn)
 				}(
 					(pair) -> {
-						__helios__common__unBoolData(fn(__core__sndPair(pair)))
+						fn(__core__sndPair(pair))
 					}
 				)
 			}
@@ -15530,7 +15696,7 @@ function makeRawFunctions() {
 					__core__mapData(__helios__common__filter_map(self, fn))
 				}(
 					(pair) -> {
-						__helios__common__unBoolData(fn(__core__fstPair(pair), __core__sndPair(pair)))
+						fn(__core__fstPair(pair), __core__sndPair(pair))
 					}
 				)
 			}
@@ -15544,7 +15710,7 @@ function makeRawFunctions() {
 					__core__mapData(__helios__common__filter_map(self, fn))
 				}(
 					(pair) -> {
-						__helios__common__unBoolData(fn(__core__fstPair(pair)))
+						fn(__core__fstPair(pair))
 					}
 				)
 			}
@@ -15558,7 +15724,7 @@ function makeRawFunctions() {
 					__core__mapData(__helios__common__filter_map(self, fn))
 				}(
 					(pair) -> {
-						__helios__common__unBoolData(fn(__core__sndPair(pair)))
+						fn(__core__sndPair(pair))
 					}
 				)
 			}
@@ -15609,6 +15775,104 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
+	add(new RawFunc("__helios__boolmap____eq", "__helios__map____eq"));
+	add(new RawFunc("__helios__boolmap____neq", "__helios__map____neq"));
+	add(new RawFunc("__helios__boolmap__serialize", "__helios__map__serialize"));
+	add(new RawFunc("__helios__boolmap____add", "__helios__map____add"));
+	add(new RawFunc("__helios__boolmap__length", "__helios__map__length"));
+	add(new RawFunc("__helios__boolmap__is_empty", "__helios__map__is_empty"));
+	add(new RawFunc("__helios__boolmap__get", 
+	`(self) -> {
+		(key) -> {
+			__helios__common__unBoolData(__helios__map__get(self)(key))
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__all",
+	`(self) -> {
+		(fn) -> {
+			__helios__map__all(self)(
+				(key, value) -> {
+					fn(key, __helios__common__unBoolData(value))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__all_keys", "__helios__map__all_keys"));
+	add(new RawFunc("__helios__boolmap__all_values", 
+	`(self) -> {
+		(fn) -> {
+			__helios__map__all_values(self)(
+				(value) -> {
+					fn(__helios__common__unBoolData(value))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__any",
+	`(self) -> {
+		(fn) -> {
+			__helios__map__any(self)(
+				(key, value) -> {
+					fn(key, __helios__common__unBoolData(value))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__any_keys", "__helios__map__any_keys"));
+	add(new RawFunc("__helios__boolmap__any_values", 
+	`(self) -> {
+		(fn) -> {
+			__helios__map__any_values(self)(
+				(value) -> {
+					fn(__helios__common__unBoolData(value))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__filter",
+	`(self) -> {
+		(fn) -> {
+			__helios__map__filter(self)(
+				(key, value) -> {
+					fn(key, __helios__common__unBoolData(value))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__filter_by_key", "__helios__map__filter_by_key"));
+	add(new RawFunc("__helios__boolmap__filter_by_value", 
+	`(self) -> {
+		(fn) -> {
+			__helios__map__filter_by_value(self)(
+				(value) -> {
+					fn(__helios__common__unBoolData(value))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__fold",
+	`(self) -> {
+		(fn, z) -> {
+			__helios__map__fold(self)(
+				(prev, key, value) -> {
+					fn(prev, key, __helios__common__unBoolData(value))
+				},
+				z
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__fold_keys", "__helios__map__fold_keys"));
+	add(new RawFunc("__helios__boolmap__fold_values", 
+	`(self) -> {
+		(fn, z) -> {
+			__helios__map__fold_values(self)(
+				(prev, value) -> {
+					fn(prev, __helios__common__unBoolData(value))
+				},
+				z
+			)
+		}
+	}`));
 
 
 	// Option builtins
@@ -15623,6 +15887,18 @@ function makeRawFunctions() {
 		__helios__common__assert_constr_index(data, 0)
 	}`));
 	add(new RawFunc("__helios__option__some__some", "__helios__common__field_0"));
+	add(new RawFunc("__helios__option__boolsome____eq", "__helios__option__some____eq"));
+	add(new RawFunc("__helios__option__boolsome____neq", "__helios__option__some____neq"));
+	add(new RawFunc("__helios__option__boolsome__serialize", "__helios__option__some__serialize"));
+	add(new RawFunc("__helios__option__boolsome__new", 
+	`(b) -> {
+		__helios__option__some__new(__helios__common__boolData(b))
+	}`));
+	add(new RawFunc("__helios__option__boolsome__cast", "__helios__option__some__cast"));
+	add(new RawFunc("__helios__option__boolsome__some", 
+	`(self) -> {
+		__helios__common__unBoolData(__helios__option__some__some(self))
+	}`));
 	addEqNeqSerialize("__helios__option__none");
 	add(new RawFunc("__helios__option__none__new",
 	`() -> {
@@ -15671,7 +15947,7 @@ function makeRawFunctions() {
 		(id) -> {
 			__helios__list__find(__helios__tx__inputs(__helios__scriptcontext__tx(self)))(
 				(input) -> {
-					__helios__common__boolData(__core__equalsData(__helios__txinput__output_id(input), id))
+					__core__equalsData(__helios__txinput__output_id(input), id)
 				}
 			)
 		}(__helios__scriptcontext__get_spending_purpose_output_id(self)())
@@ -15699,7 +15975,7 @@ function makeRawFunctions() {
 		(datum) -> {
 			__helios__common__field_0(__helios__list__find(__helios__tx__datums(self))(
 				(tuple) -> {
-					__helios__common__boolData(__core__equalsData(__helios__common__field_1(tuple), datum))
+					__core__equalsData(__helios__common__field_1(tuple), datum)
 				}
 			))
 		}
@@ -15812,13 +16088,11 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__tx__is_signed_by",
 	`(self) -> {
 		(hash) -> {
-			__helios__common__boolData(
-				__helios__common__any(
-					__core__unListData(__helios__tx__signatories(self)),
-					(signatory) -> {
-						__core__equalsData(signatory, hash)
-					}
-				)
+			__helios__common__any(
+				__core__unListData(__helios__tx__signatories(self)),
+				(signatory) -> {
+					__core__equalsData(signatory, hash)
+				}
 			)
 		}
 	}`));
@@ -15868,7 +16142,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__address__is_staked",
 	`(self) -> {
 		() -> {
-			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(__helios__common__field_1(self))), 0))
+			__core__equalsInteger(__core__fstPair(__core__unConstrData(__helios__common__field_1(self))), 0)
 		}
 	}`));
 
@@ -16002,27 +16276,25 @@ function makeRawFunctions() {
 			(upper) -> {
 				(extended, closed) -> {
 					(extType) -> {
-						__helios__common__boolData(
-							__core__ifThenElse(
-								__core__equalsInteger(extType, 2),
-								() -> {false},
-								() -> {
-									__core__ifThenElse(
-										__core__equalsInteger(extType, 0),
-										() -> {true},
-										() -> {
-											__core__ifThenElse(
-												__helios__common__unBoolData(closed),
-												() -> {__core__lessThanInteger(__core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))), __core__unIData(t))},
-												() -> {__core__lessThanEqualsInteger(__core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))), __core__unIData(t))}
-											)()
-										}
-									)()
-								}
-							)()
-						)
+						__core__ifThenElse(
+							__core__equalsInteger(extType, 2),
+							() -> {false},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(extType, 0),
+									() -> {true},
+									() -> {
+										__core__ifThenElse(
+											closed,
+											() -> {__core__lessThanInteger(__core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))), __core__unIData(t))},
+											() -> {__core__lessThanEqualsInteger(__core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))), __core__unIData(t))}
+										)()
+									}
+								)()
+							}
+						)()
 					}(__core__fstPair(__core__unConstrData(extended)))
-				}(__helios__common__field_0(upper), __helios__common__field_1(upper))
+				}(__helios__common__field_0(upper), __helios__common__unBoolData(__helios__common__field_1(upper)))
 			}(__helios__common__field_1(self))
 		}
 	}`));
@@ -16032,27 +16304,25 @@ function makeRawFunctions() {
 			(lower) -> {
 				(extended, closed) -> {
 					(extType) -> {
-						__helios__common__boolData(
-							__core__ifThenElse(
-								__core__equalsInteger(extType, 0),
-								() -> {false},
-								() -> {
-									__core__ifThenElse(
-										__core__equalsInteger(extType, 2),
-										() -> {true},
-										() -> {
-											__core__ifThenElse(
-												__helios__common__unBoolData(closed),
-												() -> {__core__lessThanInteger(__core__unIData(t), __core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))))},
-												() -> {__core__lessThanEqualsInteger(__core__unIData(t), __core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))))}
-											)()
-										}
-									)()
-								}
-							)()
-						)
+						__core__ifThenElse(
+							__core__equalsInteger(extType, 0),
+							() -> {false},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(extType, 2),
+									() -> {true},
+									() -> {
+										__core__ifThenElse(
+											closed,
+											() -> {__core__lessThanInteger(__core__unIData(t), __core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))))},
+											() -> {__core__lessThanEqualsInteger(__core__unIData(t), __core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))))}
+										)()
+									}
+								)()
+							}
+						)()
 					}(__core__fstPair(__core__unConstrData(extended)))
-				}(__helios__common__field_0(lower), __helios__common__field_1(lower))
+				}(__helios__common__field_0(lower), __helios__common__unBoolData(__helios__common__field_1(lower)))
 			}(__helios__common__field_0(self))
 		}
 	}`));
@@ -16062,29 +16332,27 @@ function makeRawFunctions() {
 			(lower) -> {
 				(extended, closed) -> {
 					(lowerExtType, checkUpper) -> {
-						__helios__common__boolData(
-							__core__ifThenElse(
-								__core__equalsInteger(lowerExtType, 2),
-								() -> {false},
-								() -> {
-									__core__ifThenElse(
-										__core__equalsInteger(lowerExtType, 0),
-										() -> {checkUpper()},
-										() -> {
+						__core__ifThenElse(
+							__core__equalsInteger(lowerExtType, 2),
+							() -> {false},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(lowerExtType, 0),
+									() -> {checkUpper()},
+									() -> {
+										__core__ifThenElse(
 											__core__ifThenElse(
-												__core__ifThenElse(
-													__helios__common__unBoolData(closed),
-													() -> {__core__lessThanEqualsInteger(__core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))), __core__unIData(t))},
-													() -> {__core__lessThanInteger(__core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))), __core__unIData(t))}
-												)(),
-												() -> {checkUpper()},
-												() -> {false}
-											)()
-										}
-									)()
-								}
-							)()
-						)
+												closed,
+												() -> {__core__lessThanEqualsInteger(__core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))), __core__unIData(t))},
+												() -> {__core__lessThanInteger(__core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))), __core__unIData(t))}
+											)(),
+											() -> {checkUpper()},
+											() -> {false}
+										)()
+									}
+								)()
+							}
+						)()
 					}(__core__fstPair(__core__unConstrData(extended)), () -> {
 						(upper) -> {
 							(extended, closed) -> {
@@ -16099,7 +16367,7 @@ function makeRawFunctions() {
 												() -> {
 													__core__ifThenElse(
 														__core__ifThenElse(
-															__helios__common__unBoolData(closed),
+															closed,
 															() -> {__core__lessThanEqualsInteger(__core__unIData(t), __core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))))},
 															() -> {__core__lessThanInteger(__core__unIData(t), __core__unIData(__core__headList(__core__sndPair(__core__unConstrData(extended)))))}
 														)(),
@@ -16111,10 +16379,10 @@ function makeRawFunctions() {
 										}
 									)()
 								}(__core__fstPair(__core__unConstrData(extended)))
-							}(__helios__common__field_0(upper), __helios__common__field_1(upper))
+							}(__helios__common__field_0(upper), __helios__common__unBoolData(__helios__common__field_1(upper)))
 						}(__helios__common__field_1(self))
 					})
-				}(__helios__common__field_0(lower), __helios__common__field_1(lower))
+				}(__helios__common__field_0(lower), __helios__common__unBoolData(__helios__common__field_1(lower)))
 			}(__helios__common__field_0(self))
 		}
 	}`));
@@ -16328,7 +16596,7 @@ function makeRawFunctions() {
 	`(comp, a, b) -> {
 		(a, b) -> {
 			(recurse) -> {
-				__helios__common__boolData(recurse(recurse, __helios__value__merge_map_keys(a, b)))
+				recurse(recurse, __helios__value__merge_map_keys(a, b))
 			}(
 				(recurse, keys) -> {
 					__core__ifThenElse(
@@ -16438,7 +16706,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__value__is_zero",
 	`(self) -> {
 		() -> {
-			__helios__common__boolData(__core__nullList(__core__unMapData(self)))
+			__core__nullList(__core__unMapData(self))
 		}
 	}`));
 	add(new RawFunc("__helios__value__get",
@@ -17666,6 +17934,7 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
+	 * This optimization doesn't work with recursive functions, so it shouldn't be used (I've left it here as a reference)
 	 * @param {IRCallStack} stack
 	 * @param {IRExpr} fnExpr - already simplified
 	 * @param {IRExpr[]} argExprs - already simplified
