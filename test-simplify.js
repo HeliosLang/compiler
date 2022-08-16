@@ -13,8 +13,13 @@ function simplify(src) {
 	console.log(new helios_.Source(orig).pretty());
 
 	console.log("\nSIMPLIFIED:");
-	console.log(simplified);
+	console.log(new helios_.Source(simplified).pretty());
 }
+
+simplify(` test list_new
+func main(a: Int, b: Int) -> []Int {
+    []Int::new(a, b)
+}`);
 
 simplify(`
 test add

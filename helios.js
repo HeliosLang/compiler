@@ -770,6 +770,13 @@ function wrapCborBytes(bytes) {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get length() {
+		return this.#n;
+	}
+
+	/**
 	 * Write a string of '0's and '1's to the BitWriter. 
 	 * @param {string} bitChars
 	 */
@@ -3360,7 +3367,7 @@ class PlutusCoreMap extends PlutusCoreValue {
 	}
 
 	toString() {
-		return `[${this.#pairs.map((pair) => `[${pair.key.toString()}, ${pair.value.toString()}]`).join(", ")}]`;
+		return `{${this.#pairs.map((pair) => `${pair.key.toString()}: ${pair.value.toString()}`).join(", ")}}`;
 	}
 
 	typeBits() {
@@ -5341,7 +5348,7 @@ class MapData extends PlutusCoreData {
 	}
 
 	toString() {
-		return `[${this.#pairs.map(([fst, snd]) => `[${fst.toString()}, ${snd.toString()}]`).join(", ")}]`;
+		return `{${this.#pairs.map(([fst, snd]) => `${fst.toString()}: ${snd.toString()}`).join(", ")}}`;
 	}
 
 	/**
@@ -8446,9 +8453,10 @@ class GlobalScope {
 
 	/**
 	 * Initialize the GlobalScope with all the builtins
+	 * @param {number} purpose
 	 * @returns {GlobalScope}
 	 */
-	static new() {
+	static new(purpose) {
 		let scope = new GlobalScope();
 
 		// List (aka '[]'), Option, and Map types are accessed through special expressions
@@ -8462,7 +8470,7 @@ class GlobalScope {
 		scope.set("ValidatorHash", new ValidatorHashType());
 		scope.set("MintingPolicyHash", new MintingPolicyHashType());
 		scope.set("DatumHash", new DatumHashType());
-		scope.set("ScriptContext", new ScriptContextType());
+		scope.set("ScriptContext", new ScriptContextType(purpose));
 		scope.set("Tx", new TxType());
 		scope.set("TxId", new TxIdType());
 		scope.set("TxInput", new TxInputType());
@@ -10838,16 +10846,25 @@ class DataDefinition extends Statement {
 			let f = this.#fields[i];
 			let key = `${this.path}__${f.name.toString()}`;
 
-			let inner = new IR("__core__sndPair(__core__unConstrData(self))");
-			for (let j = 0; j < i; j++) {
-				inner = new IR([new IR("__core__tailList("), inner, new IR(")")]);
-			}
+			/**
+			 * @type {IR}
+			 */
+			let getter;
 
-			let getter = new IR([
-				new IR("(self) "), new IR("->", f.site), new IR(" {__core__headList("),
-				inner,
-				new IR(")}"),
-			]);
+			if (i < 10) {
+				getter = new IR(`__helios__common__field_${i}`);
+			} else {
+				let inner = new IR("__core__sndPair(__core__unConstrData(self))");
+				for (let j = 0; j < i; j++) {
+					inner = new IR([new IR("__core__tailList("), inner, new IR(")")]);
+				}
+
+				getter = new IR([
+					new IR("(self) "), new IR("->", f.site), new IR(" {__core__headList("),
+					inner,
+					new IR(")}"),
+				]);
+			}
 
 			map.set(key, getter)
 		}
@@ -11513,6 +11530,10 @@ class Program {
 		this.#testArgs = [];
 	}
 
+	get purpose() {
+		return this.#purpose;
+	}
+	
 	isTest() {
 		return this.#purpose == ScriptPurpose.Testing;
 	}
@@ -13701,8 +13722,14 @@ class DatumHashType extends HashType {
  * Builtin ScriptContext type
  */
 class ScriptContextType extends BuiltinType {
-	constructor() {
+	#purpose;
+
+	/**
+	 * @param {number} purpose 
+	 */
+	constructor(purpose) {
 		super();
+		this.#purpose = purpose;
 	}
 
 	toString() {
@@ -13718,11 +13745,23 @@ class ScriptContextType extends BuiltinType {
 			case "tx":
 				return Value.new(new TxType());
 			case "get_spending_purpose_output_id":
-				return Value.new(new FuncType([], new TxOutputIdType()));
+				if (this.#purpose == ScriptPurpose.Minting) {
+					throw name.referenceError("not available in minting script");
+				} else {
+					return Value.new(new FuncType([], new TxOutputIdType()));
+				}
 			case "get_current_validator_hash":
-				return Value.new(new FuncType([], new ValidatorHashType()));
+				if (this.#purpose == ScriptPurpose.Minting) {
+					throw name.referenceError("not available in minting script");
+				} else {
+					return Value.new(new FuncType([], new ValidatorHashType()));
+				}
 			case "get_current_minting_policy_hash":
-				return Value.new(new FuncType([], new MintingPolicyHashType()));
+				if (this.#purpose == ScriptPurpose.Spending) {
+					throw name.referenceError("not available in minting script");
+				} else {
+					return Value.new(new FuncType([], new MintingPolicyHashType()));
+				}
 			case "get_current_input":
 				return Value.new(new FuncType([], new TxInputType()));
 			default:
@@ -14562,7 +14601,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__common__filter_list", 
 	`(self, fn) -> {
-		__helios__common__filter(self, fn, __core__mkNilData(()))
+		__helios__common__filter(self, fn, __helios__common__list_0)
 	}`));
 	add(new RawFunc("__helios__common__filter_map",
 	`(self, fn) -> {
@@ -14596,7 +14635,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__common__boolData",
 	`(b) -> {
-		__core__constrData(__core__ifThenElse(b, 1, 0), __core__mkNilData(()))
+		__core__constrData(__core__ifThenElse(b, 1, 0), __helios__common__list_0)
 	}`));
 	add(new RawFunc("__helios__common__unStringData",
 	`(d) -> {
@@ -14658,11 +14697,11 @@ function makeRawFunctions() {
 					(normalize) -> {
 						__core__bData(
 							(fn) -> {
-								normalize(start, fn)
+								fn(normalize(start))
 							}(
 								(start) -> {
 									(fn) -> {
-										normalize(end, fn)
+										fn(normalize(end))
 									}(
 										(end) -> {
 											__core__sliceByteString(start, __core__subtractInteger(end, __helios__common__max(start, 0)), self)
@@ -14672,14 +14711,14 @@ function makeRawFunctions() {
 							)
 						)
 					}(
-						(pos, fn) -> {
+						(pos) -> {
 							__core__ifThenElse(
 								__core__lessThanInteger(pos, 0),
 								() -> {
-									fn(__core__addInteger(__core__addInteger(selfLengthFn(self), 1), pos))
+									__core__addInteger(__core__addInteger(selfLengthFn(self), 1), pos)
 								},
 								() -> {
-									fn(pos)
+									pos
 								}
 							)()
 						}
@@ -14727,6 +14766,103 @@ function makeRawFunctions() {
 				}(__core__unBData(suffix))
 			}
 		}(__core__unBData(self))
+	}`));
+	add(new RawFunc("__helios__common__fields", 
+	`(self) -> {
+		__core__sndPair(__core__unConstrData(self))
+	}`));
+	add(new RawFunc("__helios__common__field_0", 
+	`(self) -> {
+		__core__headList(__helios__common__fields(self))
+	}`));
+	add(new RawFunc("__helios__common__fields_after_0",
+	`(self) -> {
+		__core__tailList(__helios__common__fields(self))
+	}`));
+	add(new RawFunc("__helios__common__field_1",
+	`(self) -> {
+		__core__headList(__helios__common__fields_after_0(self))
+	}`));
+	add(new RawFunc("__helios__common__fields_after_1",
+	`(self) -> {
+		__core__tailList(__helios__common__fields_after_0(self))
+	}`));
+	add(new RawFunc("__helios__common__field_2",
+	`(self) -> {
+		__core__headList(__helios__common__fields_after_1(self))
+	}`));
+	add(new RawFunc("__helios__common__fields_after_2",
+	`(self) -> {
+		__core__tailList(__helios__common__fields_after_1(self))
+	}`));
+	add(new RawFunc("__helios__common__field_3",
+	`(self) -> {
+		__core__headList(__helios__common__fields_after_2(self))
+	}`));
+	add(new RawFunc("__helios__common__fields_after_3",
+	`(self) -> {
+		__core__tailList(__helios__common__fields_after_2(self))
+	}`));
+	add(new RawFunc("__helios__common__field_4",
+	`(self) -> {
+		__core__headList(__helios__common__fields_after_3(self))
+	}`));
+	add(new RawFunc("__helios__common__fields_after_4",
+	`(self) -> {
+		__core__tailList(__helios__common__fields_after_3(self))
+	}`));
+	add(new RawFunc("__helios__common__field_5",
+	`(self) -> {
+		__core__headList(__helios__common__fields_after_4(self))
+	}`));
+	add(new RawFunc("__helios__common__fields_after_5",
+	`(self) -> {
+		__core__tailList(__helios__common__fields_after_4(self))
+	}`));
+	add(new RawFunc("__helios__common__field_6",
+	`(self) -> {
+		__core__headList(__helios__common__fields_after_5(self))
+	}`));
+	add(new RawFunc("__helios__common__fields_after_6",
+	`(self) -> {
+		__core__tailList(__helios__common__fields_after_5(self))
+	}`));
+	add(new RawFunc("__helios__common__field_7",
+	`(self) -> {
+		__core__headList(__helios__common__fields_after_6(self))
+	}`));
+	add(new RawFunc("__helios__common__fields_after_7",
+	`(self) -> {
+		__core__tailList(__helios__common__fields_after_6(self))
+	}`));
+	add(new RawFunc("__helios__common__field_8",
+	`(self) -> {
+		__core__headList(__helios__common__fields_after_7(self))
+	}`));
+	add(new RawFunc("__helios__common__fields_after_8",
+	`(self) -> {
+		__core__tailList(__helios__common__fields_after_7(self))
+	}`));
+	add(new RawFunc("__helios__common__field_9",
+	`(self) -> {
+		__core__headList(__helios__common__fields_after_8(self))
+	}`));
+	add(new RawFunc("__helios__common__fields_after_9",
+	`(self) -> {
+		__core__tailList(__helios__common__fields_after_8(self))
+	}`));
+	add(new RawFunc("__helios__common__list_0", "__core__mkNilData(())"));
+	add(new RawFunc("__helios__common__list_1", 
+	`(a) -> {
+		__core__mkCons(a, __helios__common__list_0)
+	}`));
+	add(new RawFunc("__helios__common__list_2",
+	`(a, b) -> {
+		__core__mkCons(a, __helios__common__list_1(b))
+	}`));
+	add(new RawFunc("__helios__common__list_3",
+	`(a, b, c) -> {
+		__core__mkCons(a, __helios__common__list_2(b, c))
 	}`));
 
 
@@ -14972,15 +15108,15 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__bytearray__slice",
 	`(self) -> {
-		__helios__common__slice_bytearray(self, (self) -> {__core__lengthOfByteString(self)})
+		__helios__common__slice_bytearray(self, __core__lengthOfByteString)
 	}`));
 	add(new RawFunc("__helios__bytearray__starts_with", 
 	`(self) -> {
-		__helios__common__starts_with(self, (self) -> {__core__lengthOfByteString(self)})
+		__helios__common__starts_with(self, __core__lengthOfByteString)
 	}`));
 	add(new RawFunc("__helios__bytearray__ends_with",
 	`(self) -> {
-		__helios__common__ends_with(self, (self) -> {__core__lengthOfByteString(self)})
+		__helios__common__ends_with(self, __core__lengthOfByteString)
 	}`));
 	add(new RawFunc("__helios__bytearray__sha2",
 	`(self) -> {
@@ -15480,20 +15616,17 @@ function makeRawFunctions() {
 	addEqNeqSerialize("__helios__option__some");
 	add(new RawFunc("__helios__option__some__new",
 	`(data) -> {
-		__core__constrData(0, ${makeList(["data"])})
+		__core__constrData(0, __helios__common__list_1(data))
 	}`));
 	add(new RawFunc("__helios__option__some__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 0)
 	}`));
-	add(new RawFunc("__helios__option__some__some",
-	`(self) -> {
-		${unData("self", 0, 0)}
-	}`));
+	add(new RawFunc("__helios__option__some__some", "__helios__common__field_0"));
 	addEqNeqSerialize("__helios__option__none");
 	add(new RawFunc("__helios__option__none__new",
 	`() -> {
-		__core__constrData(1, ${makeList([])})
+		__core__constrData(1, __helios__common__list_0)
 	}`));
 	add(new RawFunc("__helios__option__none__cast",
 	`(data) -> {
@@ -15509,14 +15642,11 @@ function makeRawFunctions() {
 
 	// ScriptContext builtins
 	addEqNeqSerialize("__helios__scriptcontext");
-	add(new RawFunc("__helios__scriptcontext__tx",
-	`(self) -> {
-		${unData("self", 0, 0)}
-	}`));
+	add(new RawFunc("__helios__scriptcontext__tx", "__helios__common__field_0"));
 	add(new RawFunc("__helios__scriptcontext__get_spending_purpose_output_id",
 	`(self) -> {
 		() -> {
-			${unData(unData("self", 0, 1), 1, 0)}
+			__helios__common__field_0(__helios__common__field_1(self))
 		}
 	}`));
 	add(new RawFunc("__helios__scriptcontext__get_current_validator_hash",
@@ -15535,12 +15665,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__scriptcontext__get_current_minting_policy_hash",
-	`(self) -> {
-		() -> {
-			${unData(unData("self", 0, 1), 0, 0)}
-		}
-	}`));
+	add(new RawFunc("__helios__scriptcontext__get_current_minting_policy_hash", "__helios__scriptcontext__get_spending_purpose_output_id"));
 	add(new RawFunc("__helios__scriptcontext__get_current_input",
 	`(self) -> {
 		(id) -> {
@@ -15555,38 +15680,14 @@ function makeRawFunctions() {
 
 	// Tx builtins
 	addEqNeqSerialize("__helios__tx");
-	add(new RawFunc("__helios__tx__inputs",
-	`(self) -> {
-		${unData("self", 0, 0)}
-	}`));
-	add(new RawFunc("__helios__tx__outputs",
-	`(self) -> {
-		${unData("self", 0, 1)}
-	}`));
-	add(new RawFunc("__helios__tx__fee",
-	`(self) -> {
-		${unData("self", 0, 2)}
-	}`));
-	add(new RawFunc("__helios__tx__minted",
-	`(self) -> {
-		${unData("self", 0, 3)}
-	}`));
-	add(new RawFunc("__helios__tx__time_range",
-	`(self) -> {
-		${unData("self", 0, 6)}
-	}`));
-	add(new RawFunc("__helios__tx__signatories",
-	`(self) -> {
-		${unData("self", 0, 7)}
-	}`));
-	add(new RawFunc("__helios__tx__datums", // hidden getter, used by __helios__tx__find_datum_hash
-	`(self) -> {
-		${unData("self", 0, 8)}
-	}`))
-	add(new RawFunc("__helios__tx__id",
-	`(self) -> {
-		${unData("self", 0, 9)}
-	}`));
+	add(new RawFunc("__helios__tx__inputs", "__helios__common__field_0"));
+	add(new RawFunc("__helios__tx__outputs", "__helios__common__field_1"));
+	add(new RawFunc("__helios__tx__fee", "__helios__common__field_2"));
+	add(new RawFunc("__helios__tx__minted", "__helios__common__field_3"));
+	add(new RawFunc("__helios__tx__time_range", "__helios__common__field_6"));
+	add(new RawFunc("__helios__tx__signatories", "__helios__common__field_7"));
+	add(new RawFunc("__helios__tx__datums", "__helios__common__field_8"));// hidden getter, used by __helios__tx__find_datum_hash
+	add(new RawFunc("__helios__tx__id", "__helios__common__field_9"));
 	add(new RawFunc("__helios__tx__now",
 	`(self) -> {
 		() -> {
@@ -15596,11 +15697,11 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__tx__find_datum_hash",
 	`(self) -> {
 		(datum) -> {
-			${unData(`__helios__list__find(__helios__tx__datums(self))(
+			__helios__common__field_0(__helios__list__find(__helios__tx__datums(self))(
 				(tuple) -> {
-					__helios__common__boolData(__core__equalsData(${unData("tuple", 0, 1)}, datum))
+					__helios__common__boolData(__core__equalsData(__helios__common__field_1(tuple), datum))
 				}
-			)`, 0, 0)}
+			))
 		}
 	}`));
 	add(new RawFunc("__helios__tx__outputs_sent_to",
@@ -15729,30 +15830,15 @@ function makeRawFunctions() {
 
 	// TxInput builtins
 	addEqNeqSerialize("__helios__txinput");
-	add(new RawFunc("__helios__txinput__output_id",
-	`(self) -> {
-		${unData("self", 0, 0)}
-	}`));
-	add(new RawFunc("__helios__txinput__output",
-	`(self) -> {
-		${unData("self", 0, 1)}
-	}`));
+	add(new RawFunc("__helios__txinput__output_id", "__helios__common__field_0"));
+	add(new RawFunc("__helios__txinput__output", "__helios__common__field_1"));
 
 
 	// TxOutput builtins
 	addEqNeqSerialize("__helios__txoutput");
-	add(new RawFunc("__helios__txoutput__address",
-	`(self) -> {
-		${unData("self", 0, 0)}
-	}`));
-	add(new RawFunc("__helios__txoutput__value",
-	`(self) -> {
-		${unData("self", 0, 1)}
-	}`));
-	add(new RawFunc("__helios__txoutput__datum_hash",
-	`(self) -> {
-		${unData("self", 0, 2)}
-	}`));
+	add(new RawFunc("__helios__txoutput__address", "__helios__common__field_0"));
+	add(new RawFunc("__helios__txoutput__value", "__helios__common__field_1"));
+	add(new RawFunc("__helios__txoutput__datum_hash", "__helios__common__field_2"));
 	add(new RawFunc("__helios__txoutput__get_datum_hash",
 	`(self) -> {
 		() -> {
@@ -15762,7 +15848,7 @@ function makeRawFunctions() {
 					() -> {__core__headList(__core__sndPair(pair))},
 					() -> {__core__bData(#)}
 				)()
-			}(__core__unConstrData(${unData("self", 0, 2)}))
+			}(__core__unConstrData(__helios__common__field_2(self)))
 		}
 	}`));
 
@@ -15771,24 +15857,18 @@ function makeRawFunctions() {
 	addEqNeqSerialize("__helios__txoutputid");
 	add(new RawFunc("__helios__txoutputid__new",
 	`(tx_id, idx) -> {
-		__core__constrData(0, ${makeList([`__core__constrData(0, ${makeList(["tx_id"])})`, "idx"])})
+		__core__constrData(0, __helios__common__list_2(__core__constrData(0, __helios__common__list_1(tx_id)), idx))
 	}`));
 
 
 	// Address
 	addEqNeqSerialize("__helios__address");
-	add(new RawFunc("__helios__address__credential",
-	`(self) -> {
-			${unData("self", 0, 0)}
-	}`));
-	add(new RawFunc("__helios__address__staking_credential",
-	`(self) -> {
-		${unData("self", 0, 1)}
-	}`));
+	add(new RawFunc("__helios__address__credential", "__helios__common__field_0"));
+	add(new RawFunc("__helios__address__staking_credential", "__helios__common__field_1"));
 	add(new RawFunc("__helios__address__is_staked",
 	`(self) -> {
 		() -> {
-			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(${unData("self", 0, 1)})), 0))
+			__helios__common__boolData(__core__equalsInteger(__core__fstPair(__core__unConstrData(__helios__common__field_1(self))), 0))
 		}
 	}`));
 
@@ -15811,10 +15891,7 @@ function makeRawFunctions() {
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 0)
 	}`));
-	add(new RawFunc("__helios__credential__pubkey__hash",
-	`(self) -> {
-		${unData("self", 0, 0)}
-	}`));
+	add(new RawFunc("__helios__credential__pubkey__hash", "__helios__common__field_0"));
 
 
 	// Credential::Validator builtins
@@ -15823,10 +15900,7 @@ function makeRawFunctions() {
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 1)
 	}`));
-	add(new RawFunc("__helios__credential__validator__hash",
-	`(self) -> {
-		${unData("self", 1, 0)}
-	}`));
+	add(new RawFunc("__helios__credential__validator__hash", "__helios__common__field_0"));
 
 
 	// StakingCredential builtins
@@ -15863,64 +15937,64 @@ function makeRawFunctions() {
 	addEqNeqSerialize("__helios__timerange");
 	add(new RawFunc("__helios__timerange__new", `
 	(a, b) -> {
-		__core__constrData(0, ${makeList([
-			`__core__constrData(0, ${makeList([
-				`__core__constrData(1, ${makeList(["a"])})`,
-				`__helios__common__boolData(true)`
-			])})`,
-			`__core__constrData(0, ${makeList([
-				`__core__constrData(1, ${makeList(["b"])})`,
-				`__helios__common__boolData(true)`
-			])})`
-		])})
+		__core__constrData(0, __helios__common__list_2(
+			__core__constrData(0, __helios__common__list_2(
+				__core__constrData(1, __helios__common__list_1(a)),
+				__helios__common__boolData(true)
+			)),
+			__core__constrData(0, __helios__common__list_2(
+				__core__constrData(1, __helios__common__list_1(b)),
+				__helios__common__boolData(true)
+			))
+		))
 	}`));
 	add(new RawFunc("__helios__timerange__ALWAYS", `
-	__core__constrData(0, ${makeList([
-		`__core__constrData(0, ${makeList([
-			`__core__constrData(0, ${makeList([])})`,
-			`__helios__common__boolData(true)`
-		])})`,
-		`__core__constrData(0, ${makeList([
-			`__core__constrData(2, ${makeList([])})`,
-			`__helios__common__boolData(true)`
-		])})`
-	])})`));
+	__core__constrData(0, __helios__common__list_2(
+		__core__constrData(0, __helios__common__list_2(
+			__core__constrData(0, __helios__common__list_0),
+			__helios__common__boolData(true)
+		)),
+		__core__constrData(0, __helios__common__list_2(
+			__core__constrData(2, __helios__common__list_0),
+			__helios__common__boolData(true)
+		))
+	))`));
 	add(new RawFunc("__helios__timerange__NEVER", `
-	__core__constrData(0, ${makeList([
-		`__core__constrData(0, ${makeList([
-			`__core__constrData(2, ${makeList([])})`,
-			`__helios__common__boolData(true)`
-		])})`,
-		`__core__constrData(0, ${makeList([
-			`__core__constrData(0, ${makeList([])})`,
-			`__helios__common__boolData(true)`
-		])})`
-	])})`));
+	__core__constrData(0, __helios__common__list_2(
+		__core__constrData(0, __helios__common__list_2(
+			__core__constrData(2, __helios__common__list_0),
+			__helios__common__boolData(true)
+		)),
+		__core__constrData(0, __helios__common__list_2(
+			__core__constrData(0, __helios__common__list_0),
+			__helios__common__boolData(true)
+		))
+	))`));
 	add(new RawFunc("__helios__timerange__from", `
 	(a) -> {
-		__core__constrData(0, ${makeList([
-			`__core__constrData(0, ${makeList([
-				`__core__constrData(1, ${makeList(["a"])})`,
-				`__helios__common__boolData(true)`
-			])})`,
-			`__core__constrData(0, ${makeList([
-				`__core__constrData(2, ${makeList([])})`,
-				`__helios__common__boolData(true)`
-			])})`
-		])})
+		__core__constrData(0, __helios__common__list_2(
+			__core__constrData(0, __helios__common__list_2(
+				__core__constrData(1, __helios__common__list_1(a)),
+				__helios__common__boolData(true)
+			)),
+			__core__constrData(0, __helios__common__list_2(
+				__core__constrData(2, __helios__common__list_0),
+				__helios__common__boolData(true)
+			))
+		))
 	}`));
 	add(new RawFunc("__helios__timerange__to", `
 	(b) -> {
-		__core__constrData(0, ${makeList([
-			`__core__constrData(0, ${makeList([
-				`__core__constrData(0, ${makeList([])})`,
-				`__helios__common__boolData(true)`
-			])})`,
-			`__core__constrData(0, ${makeList([
-				`__core__constrData(1, ${makeList(["b"])})`,
-				`__helios__common__boolData(true)`
-			])})`
-		])})
+		__core__constrData(0, __helios__common__list_2(
+			__core__constrData(0, __helios__common__list_2(
+				__core__constrData(0, __helios__common__list_0),
+				__helios__common__boolData(true)
+			)),
+			__core__constrData(0, __helios__common__list_2(
+				__core__constrData(1, __helios__common__list_1(b)),
+				__helios__common__boolData(true)
+			))
+		))
 	}`));
 	add(new RawFunc("__helios__timerange__is_before", 
 	`(self) -> {
@@ -15948,8 +16022,8 @@ function makeRawFunctions() {
 							)()
 						)
 					}(__core__fstPair(__core__unConstrData(extended)))
-				}(${unData("upper", 0, 0)}, ${unData("upper", 0, 1)})
-			}(${unData("self", 0, 1)})
+				}(__helios__common__field_0(upper), __helios__common__field_1(upper))
+			}(__helios__common__field_1(self))
 		}
 	}`));
 	add(new RawFunc("__helios__timerange__is_after",
@@ -15978,8 +16052,8 @@ function makeRawFunctions() {
 							)()
 						)
 					}(__core__fstPair(__core__unConstrData(extended)))
-				}(${unData("lower", 0, 0)}, ${unData("lower", 0, 1)})
-			}(${unData("self", 0, 0)})
+				}(__helios__common__field_0(lower), __helios__common__field_1(lower))
+			}(__helios__common__field_0(self))
 		}
 	}`));
 	add(new RawFunc("__helios__timerange__contains",
@@ -16037,17 +16111,17 @@ function makeRawFunctions() {
 										}
 									)()
 								}(__core__fstPair(__core__unConstrData(extended)))
-							}(${unData("upper", 0, 0)}, ${unData("upper", 0, 1)})
-						}(${unData("self", 0, 1)})
+							}(__helios__common__field_0(upper), __helios__common__field_1(upper))
+						}(__helios__common__field_1(self))
 					})
-				}(${unData("lower", 0, 0)}, ${unData("lower", 0, 1)})
-			}(${unData("self", 0, 0)})
+				}(__helios__common__field_0(lower), __helios__common__field_1(lower))
+			}(__helios__common__field_0(self))
 		}
 	}`));
 	add(new RawFunc("__helios__timerange__get_start",
 	`(self) -> {
 		() -> {
-			${unData(unData(unData("self", 0, 0), 0, 0), 1, 0)}
+			__helios__common__field_0(__helios__common__field_0(__helios__common__field_0(self)))
 		}
 	}`));
 
@@ -16057,7 +16131,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__assetclass__ADA", `__helios__assetclass__new(__core__bData(#), __core__bData(#))`));
 	add(new RawFunc("__helios__assetclass__new",
 	`(mintingPolicyHash, tokenName) -> {
-		__core__constrData(0, ${makeList(["mintingPolicyHash", "tokenName"])})
+		__core__constrData(0, __helios__common__list_2(mintingPolicyHash, tokenName))
 	}`));
 
 
@@ -16091,7 +16165,7 @@ function makeRawFunctions() {
 							__core__mkNilPairData(())
 						)
 					)
-				}(${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})
+				}(__helios__common__field_0(assetClass), __helios__common__field_1(assetClass))
 			}
 		)()
 	}`));
@@ -16103,7 +16177,7 @@ function makeRawFunctions() {
 			(recurse, map) -> {
 				__core__ifThenElse(
 					__core__nullList(map), 
-					() -> {__core__mkNilData(())}, 
+					() -> {__helios__common__list_0}, 
 					() -> {__core__mkCons(__core__fstPair(__core__headList(map)), recurse(recurse, __core__tailList(map)))}
 				)()
 			}
@@ -16120,7 +16194,7 @@ function makeRawFunctions() {
 				(recurse, keys, map) -> {
 					__core__ifThenElse(
 						__core__nullList(map), 
-						() -> {__core__mkNilData(())}, 
+						() -> {__helios__common__list_0}, 
 						() -> {
 							(key) -> {
 								__core__ifThenElse(
@@ -16400,7 +16474,7 @@ function makeRawFunctions() {
 						)()
 					}
 				)
-			}(__core__unMapData(self), ${unData("assetClass", 0, 0)}, ${unData("assetClass", 0, 1)})
+			}(__core__unMapData(self), __helios__common__field_0(assetClass), __helios__common__field_1(assetClass))
 		}
 	}`));
 	add(new RawFunc("__helios__value__get_policy", 
@@ -16553,6 +16627,7 @@ class IRScope {
 
 /**
  * Wrapper for PlutusCoreValue, null, and anon func
+ * TODO: do we really need IRValue, can't we just return IRExpr directly?
  */
 class IRValue {
 	#value;
@@ -16602,21 +16677,22 @@ class IRCallStack {
 	#map;
 
 	/**
-	 * @param {Map<IRVariable, IRValue>} map
+	 * @param {Map<IRVariable, IRExpr>} map
 	 */
 	constructor(map = new Map()) {
 		this.#map = map;
 	}
 
 	/**
+	 * Doesn't mutate, returns a new stack
 	 * @param {IRVariable} ref 
-	 * @param {IRValue} value 
+	 * @param {IRExpr} value 
 	 * @returns {IRCallStack}
 	 */
 	set(ref, value) {
 		
 		/**
-		 * @type {Map<IRVariable, IRValue>}
+		 * @type {Map<IRVariable, IRExpr>}
 		 */
 		let map = new Map();
 
@@ -16630,18 +16706,20 @@ class IRCallStack {
 	}
 
 	/**
+	 * @param {IRVariable} ref
+	 * @returns {boolean}
+	 */
+	has(ref) {
+		return this.#map.has(ref);
+	}
+
+	/**
 	 * Returns null if not found
 	 * @param {IRVariable} ref
-	 * @returns {IRValue}
+	 * @returns {IRExpr}
 	 */
 	get(ref) {
-		let val = this.#map.get(ref);
-
-		if (val === undefined) {
-			return new IRValue(null);
-		} else {
-			return val;
-		}
+		return assertDefined(this.#map.get(ref)).copy();
 	}
 
 	/**
@@ -16655,6 +16733,47 @@ class IRCallStack {
 		}
 
 		return names.join(", ");
+	}
+}
+
+/**
+ * Wrapper for map, where map.get() always returns copy of expr
+ */
+class IRInlineMap {
+	#map;
+
+	/**
+	 * 
+	 * @param {Map<IRVariable, IRExpr>} map 
+	 */
+	constructor(map = new Map()) {
+		this.#map = map;
+	}
+
+	/**
+	 * Mutates (unlike IRCallStack, which doesn't mutate)
+	 * @param {IRVariable} variable
+	 * @param {IRExpr} expr
+	 */
+	set(variable, expr) {
+		this.#map.set(variable, expr);
+	}
+
+	/**
+	 * @param {IRVariable} variable
+	 * @returns {boolean}
+	 */
+	has(variable) {
+		return this.#map.has(variable);
+	}
+
+	/**
+	 * 
+	 * @param {IRVariable} variable 
+	 * @returns {IRExpr}
+	 */
+	get(variable) {
+		return assertDefined(this.#map.get(variable)).copy();
 	}
 }
 
@@ -16683,14 +16802,6 @@ class IRVariable extends Token {
 	toString() {
 		return this.name;
 	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {IRValue}
-	 */
-	eval(stack) {
-		return stack.get(this);
-	}
 }
 
 /**
@@ -16705,11 +16816,25 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * Used during inlining to make sure multiple inlines of IRNameExpr don't interfere when setting the index
+	 * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the index
 	 * @returns {IRExpr}
 	 */
 	copy() {
 		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Calc size of equivalent plutus-core expression
+	 * @returns {number} - number of bits (not bytes!)
+	 */
+	calcSize() {
+		let term = this.toPlutusCore();
+
+		let bitWriter = new BitWriter(); 
+
+		term.toFlat(bitWriter);
+
+		return bitWriter.length;
 	}
 
 	/**
@@ -16736,26 +16861,41 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * Evaluate as PlutusCoreValue, or return null if not possible
-	 * @param {IRCallStack} stack
-	 * @returns {IRValue}
+	 * @param {IRVariable} ref
+	 * @returns {IRExpr[][]}
 	 */
-	eval(stack) {
+	getUsage(ref) {
 		throw new Error("not yet implemented");
 	}
 
 	/**
-	 * Inline some expressions.
-	 * Shouldn't mutate, but rather return a new expression instead
-	 * @param {Map<IRVariable, IRExpr>} todo
+	 * @param {Map<IRVariable, Set<number>>} map
 	 * @returns {IRExpr}
 	 */
-	inline(todo) {
+ 	removeCallArgs(map) {
 		throw new Error("not yet implemented");
 	}
 
 	/**
-	 * Simplify 'this' by returning something better (shouldn't mutate)
+	 * Inline some expressions (doesn't mutate).
+	 * @param {IRInlineMap} inlineMap
+	 * @returns {IRExpr}
+	 */
+	inline(inlineMap) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @param {IRLiteral[]} args 
+	 * @returns {?IRExpr}
+	 */
+	evalCall(stack, args) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Simplify 'this' by returning something smaller (doesn't mutate)
 	 * @param {IRCallStack} stack - contains some global definitions that might be useful for simplification
 	 * @returns {IRExpr}
 	 */
@@ -16768,6 +16908,322 @@ class IRExpr extends Token {
 	 */
 	toPlutusCore() {
 		throw new Error("not yet implemented");
+	}
+}
+
+/**
+ * Intermediate Representation variable reference expression
+ */
+ class IRNameExpr extends IRExpr {
+	#name;
+
+	/**
+	 * @type {?number} - cached debruijn index 
+	 */
+	#index;
+
+	/**
+	 * @type {?IRVariable} - cached variable (note that core functions can be referenced as variables (yet))
+	 */
+	#variable;
+
+	/**
+	 * @param {Word} name 
+	 * @param {?IRVariable} variable
+	 */
+	constructor(name, variable = null) {
+		super(name.site);
+		assert(name.toString() != "_");
+		assert(!name.toString().startsWith("undefined"));
+		this.#name = name;
+		this.#index = null;
+		this.#variable = variable;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#name.toString();
+	}
+
+	/**
+	 * @type {IRVariable}
+	 */
+	get variable() {
+		if (this.#variable === null) {
+			throw new Error("variable should be set");
+		} else {
+			return this.#variable;
+		}
+	}
+
+	copy() {
+		return new IRNameExpr(this.#name, this.#variable);
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {string}
+	 */
+	toString(indent = "") {
+		return this.#name.toString();
+		/*if (this.#index === null) {
+			return this.#name.toString();
+		} else {
+			return `${this.#name.toString()}[${this.#index.toString()}]`;
+		}*/
+	}
+
+	/**
+	 * @param {IRScope} scope 
+	 */
+	resolveNames(scope) {
+		if (!this.name.startsWith("__core")) {
+			if (this.#variable == null) {
+				[this.#index, this.#variable] = scope.get(this.#name);
+			} else {
+				[this.#index, this.#variable] = scope.get(this.#variable);
+			}
+		}
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {number}
+	 */
+	countRefs(ref) {
+		if (this.name.startsWith("__core")) {
+			return 0;
+		} else if (this.#variable === null) {
+			throw new Error("variable should be set");
+		} else {
+			if (ref === this.#variable) {
+				return 1;
+			} else {
+				return 0;
+			}
+		}
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {IRExpr[][]}
+	 */
+	getUsage(ref) {
+		return [];
+	}
+
+	/**
+	 * @param {Map<IRVariable, Set<number>>} map
+	 * @returns {IRExpr}
+	 */
+ 	removeCallArgs(map) {
+		return this;
+	}
+
+	/**
+	 * @param {IRInlineMap} inlineMap
+	 * @returns {IRExpr}
+	 */
+	inline(inlineMap) {
+		if (this.name.startsWith("__core")) {
+			return this;
+		} else if (this.#variable === null) {
+			throw new Error("variable should be set");
+		} else {
+			if (inlineMap.has(this.#variable)) {
+				return inlineMap.get(this.#variable).inline(inlineMap);
+			} else {
+				return this;
+			}
+		}
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @param {IRLiteral[]} args
+	 * @returns {?IRExpr}
+	 */
+	evalCall(stack, args) {
+		if (this.name.startsWith("__core")) {
+			let coreCall = new IRCoreCallExpr(this.#name, args, this.site);
+
+			let res = coreCall.simplify(stack);
+
+			if (res instanceof IRLiteral) {
+				return res;
+			} else {
+				return null;
+			}
+		} else if (this.#variable === null) {
+			throw new Error("variable should be set");
+		} else {
+			if (stack.has(this.#variable)) {
+				return stack.get(this.#variable).evalCall(stack, args);
+			} else {
+				return null;
+			}
+		}
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
+	 */
+	simplify(stack) {
+		if (this.name.startsWith("__core")) {
+			return this;
+		} else if (this.#variable === null) {
+			throw new Error("variable should be set");
+		} else {
+			// first check if expanded version is smaller
+			if (stack.has(this.#variable)) {
+				let that = stack.get(this.#variable);
+
+				if (that.calcSize() <= this.calcSize()) {
+					return that;
+				} else {
+					return this;
+				}
+			} else {
+				return this;
+			}
+		}
+	}
+
+	/**
+	 * @returns {PlutusCoreTerm}
+	 */
+	toPlutusCore() {
+		if (this.name.startsWith("__core")) {
+			return IRCoreCallExpr.builtinPlutusCoreTerm(this.site, this.name);
+		} else if (this.#index === null) {
+			// use a dummy index (for size calculation)
+			return new PlutusCoreVariable(
+				this.site,
+				new PlutusCoreInt(this.site, BigInt(0), false),
+			);
+		} else {
+			return new PlutusCoreVariable(
+				this.site,
+				new PlutusCoreInt(this.site, BigInt(this.#index), false),
+			);
+		}
+	}
+}
+
+/**
+ * Intermediate Representation wrapper for literal tokens
+ */
+ class IRLiteral extends IRExpr {
+	/**
+	 * @type {PlutusCoreValue}
+	 */
+	#value;
+
+	/**
+	 * @param {PrimitiveLiteral | PlutusCoreValue} value 
+	 */
+	constructor(value) {
+		super(value.site);
+
+		if (value instanceof PlutusCoreValue) {
+			this.#value = value;
+		} else if (value instanceof IntLiteral) {
+			this.#value = new PlutusCoreInt(value.site, value.value);
+		} else if (value instanceof BoolLiteral) {
+			this.#value = new PlutusCoreBool(value.site, value.value);
+		} else if (value instanceof StringLiteral) {
+			this.#value = new PlutusCoreString(value.site, value.value);
+		} else if (value instanceof ByteArrayLiteral) {
+			this.#value = new PlutusCoreByteArray(value.site, value.bytes);
+		} else if (value instanceof UnitLiteral) {
+			this.#value = new PlutusCoreUnit(value.site);
+		} else {
+			throw new Error("unhandled literal type");
+		}
+	}
+
+	get value() {
+		return this.#value;
+	}
+
+	copy() {
+		return new IRLiteral(this.#value);
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {string}
+	 */
+	toString(indent = "") {
+		return this.#value.toString();
+	}
+
+	/**
+	 * Linking doesn't do anything for literals
+	 * @param {IRScope} scope 
+	 */
+	resolveNames(scope) {
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {number}
+	 */
+	countRefs(ref) {
+		return 0;
+	}
+	
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {IRExpr[][]}
+	 */
+	getUsage(ref) {
+		return []
+	}
+
+	/**
+	 * @param {Map<IRVariable, Set<number>>} map
+	 * @returns {IRExpr}
+	 */
+ 	removeCallArgs(map) {
+		return this;
+	}
+
+	/**
+	 * Returns 'this' (nothing to inline)
+	 * @param {IRInlineMap} inlineMap
+	 * @returns {IRExpr}
+	 */
+	inline(inlineMap) {
+		return this;
+	}
+	
+	/**
+	 * @param {IRCallStack} stack
+	 * @param {IRLiteral[]} args
+	 * @returns {?IRLiteral}
+	 */
+	eval(stack, args) {
+		throw new Error("can't call literal");
+	}
+
+	/**
+	 * Returns 'this' (nothing to simplify)
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
+	 */
+	simplify(stack) {
+		return this;
+	}
+
+	/**
+	 * @returns {PlutusCoreConst}
+	 */
+	toPlutusCore() {
+		return new PlutusCoreConst(this.#value);
 	}
 }
 
@@ -16788,13 +17244,6 @@ class IRFuncExpr extends IRExpr {
 
 	get argVariables() {
 		return this.#args.slice();
-	}
-
-	/**
-	 * @param {IRVariable[]} vars 
-	 */
-	setArgVariables(vars) {
-		this.#args = vars;
 	}
 
 	get body() {
@@ -16841,50 +17290,52 @@ class IRFuncExpr extends IRExpr {
 	}
 
 	/**
-	 * Doesn't yet support evaluating fnExpr as PlutusCoreValue, instead use evalCall
-	 * @param {IRCallStack} stack
-	 * @returns {IRValue}
+	 * @param {IRVariable} ref
+	 * @returns {IRExpr[][]}
 	 */
-	eval(stack = new IRCallStack()) {
-		return new IRValue(
-			/**
-			 * @param {IRValue[]} args 
-			 * @returns {IRValue}
-			 */
-			(args) => {
-				return this.evalCall(stack, args);
-			}
-		)
+	getUsage(ref) {
+		return this.#body.getUsage(ref);
 	}
 
 	/**
-	 * Evaluate with known arguments
-	 * @param {IRCallStack} stack
-	 * @param {IRValue[]} args
-	 * @returns {IRValue}
+	 * @param {Map<IRVariable, Set<number>>} map
+	 * @returns {IRExpr}
 	 */
-	evalCall(stack, args) {
-		for (let i = 0; i < this.#args.length; i++) {
-			if (args[i].value === null) {
-				return new IRValue(null);
-			}
-
-			let v = this.#args[i];
-			stack = stack.set(v, args[i]);
-		}
-
-		return this.#body.eval(stack);
+	removeCallArgs(map) {
+		return new IRFuncExpr(this.site, this.#args, this.#body.removeCallArgs(map));
 	}
 
 	/**
-	 * @param {Map<IRVariable, IRExpr>} todo
+	 * Inline stuff in body
+	 * Checking of unused args is done by caller
+	 * @param {IRInlineMap} inlineMap
 	 * @returns {IRFuncExpr}
 	 */
-	inline(todo) {
-		return new IRFuncExpr(this.site, this.#args, this.#body.inline(todo));
+	inline(inlineMap) {
+		return new IRFuncExpr(this.site, this.#args, this.#body.inline(inlineMap));
 	}
 
 	/**
+	 * @param {IRCallStack} stack
+	 * @param {IRLiteral[]} args
+	 * @returns {?IRExpr}
+	 */
+	evalCall(stack, args) {
+		assert(args.length == this.#args.length);
+
+		let inlineMap = new IRInlineMap();
+
+		for (let i = 0; i < args.length; i++) {
+			let v = this.#args[i];
+			inlineMap.set(v, args[i]);
+		}
+
+		return this.#body.inline(inlineMap).simplify(stack);
+	}
+
+	/**
+	 * Simplify body
+	 * Checking of unused args is done by caller
 	 * @param {IRCallStack} stack
 	 * @returns {IRFuncExpr}
 	 */
@@ -16937,13 +17388,6 @@ class IRCallExpr extends IRExpr {
 	get parensSite() {
 		return this.#parensSite;
 	}
-	
-	/**
-	 * @param {IRExpr[]} argExprs 
-	 */
-	setArgExprs(argExprs) {
-		this.#argExprs = argExprs;
-	}
 
 	/**
 	 * @param {string} indent 
@@ -16963,29 +17407,6 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRCallStack} stack 
-	 * @returns {?(IRValue[])}
-	 */
-	evalArgs(stack = new IRCallStack()) {
-		/**
-		 * @type {IRValue[]}
-		 */
-		let res = [];
-
-		for (let arg of this.#argExprs) {
-			let x = arg.eval(stack);
-
-			if (x.value === null) {
-				return null;
-			} else {
-				res.push(x);
-			}
-		}
-
-		return res;
-	}
-
-	/**
 	 * @param {IRVariable} ref
 	 * @returns {number}
 	 */
@@ -16999,18 +17420,47 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {Map<IRVariable, IRExpr>} todo
+	 * @param {IRVariable} ref
+	 * @returns {IRExpr[][]}
+	 */
+	getUsage(ref) {
+		/**
+		 * @type {IRExpr[][]}
+		 */
+		let res = [];
+
+		for (let arg of this.#argExprs) {
+			let argUsage = arg.getUsage(ref);
+
+			res = res.concat(argUsage);
+		}
+
+		return res;
+	}
+
+	/**
+	 * 
+	 * @param {Map<IRVariable, Set<number>>} map 
 	 * @returns {IRExpr[]}
 	 */
-	inlineArgs(todo) {
-		return this.#argExprs.map(expr => expr.inline(todo));
+	removeArgCallArgs(map) {
+		return this.#argExprs.map(argExpr => argExpr.removeCallArgs(map));
+	}
+
+	/**
+	 * @param {IRInlineMap} inlineMap
+	 * @returns {IRExpr[]}
+	 */
+	inlineArgs(inlineMap) {
+		return this.#argExprs.map(argExpr => argExpr.inline(inlineMap));
 	}
 
 	/**
 	 * @param {IRCallStack} stack
+	 * @returns {IRExpr[]}
 	 */
 	simplifyArgs(stack) {
-		return this.#argExprs.map(expr => expr.simplify(stack));
+		return this.#argExprs.map(argExpr => argExpr.simplify(stack));
 	}
 
 	/**
@@ -17090,33 +17540,334 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRCallStack} stack
-	 * @returns {IRValue}
+	 * @param {IRVariable} ref
+	 * @returns {IRExpr[][]}
 	 */
-	eval(stack = new IRCallStack()) {
-		let args = super.evalArgs(stack);
-
-		if (args === null) {
-			return new IRValue(null);
+	getUsage(ref) {
+		if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.variable == ref) {
+			return super.getUsage(ref).concat([this.argExprs]);
 		} else {
-			let fnVal = this.#fnExpr.eval(stack);
+			return this.#fnExpr.getUsage(ref).concat(super.getUsage(ref));
+		}
+	}
 
-			if (fnVal.value === null) {
-				return new IRValue(null);
-			} else if (fnVal.value instanceof PlutusCoreValue) {
-				throw new Error("expected func value");
+	/**
+	 * @param {Map<IRVariable, Set<number>>} map
+	 * @returns {IRExpr}
+	 */
+	removeCallArgs(map) {
+		if (this.#fnExpr instanceof IRNameExpr && map.has(this.#fnExpr.variable)) {
+			let s = assertDefined(map.get(this.#fnExpr.variable));
+
+			let argExprs = this.removeArgCallArgs(map);
+			let remArgs = [];
+			for (let i = 0; i < argExprs.length; i++) {
+				if (!s.has(i)) {
+					remArgs.push(argExprs[i]);
+				}
+			}
+
+
+			return new IRUserCallExpr(this.#fnExpr, remArgs, this.parensSite);
+		} else {
+			return new IRUserCallExpr(this.#fnExpr.removeCallArgs(map), super.removeArgCallArgs(map), this.parensSite);
+		}
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @param {IRLiteral[]} args
+	 * @returns {?IRExpr}
+	 */
+	evalCall(stack, args) {
+		/**
+		 * @type {IRLiteral[]}
+		 */
+		let ownArgs = [];
+
+		for (let arg of this.argExprs) {
+			if (arg instanceof IRLiteral) {
+				ownArgs.push(arg);
 			} else {
-				return fnVal.value(args);
+				return null;
+			}
+		}
+
+		let fn = this.#fnExpr.evalCall(stack, ownArgs);
+
+		if (fn === null) {
+			return null; 
+		} else {
+			let res = fn.evalCall(stack, args);
+
+			if (res === null) {
+				return null;
+			} else {
+				return res;
 			}
 		}
 	}
 
 	/**
-	 * @param {Map<IRVariable, IRExpr>} todo
+	 * @param {IRInlineMap} inlineMap
 	 * @returns {IRExpr}
 	 */
-	inline(todo) {
-		return new IRUserCallExpr(this.#fnExpr.inline(todo), super.inlineArgs(todo), this.parensSite);
+	inline(inlineMap) {
+		return new IRUserCallExpr(this.#fnExpr.inline(inlineMap), super.inlineArgs(inlineMap), this.parensSite);
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @param {IRExpr} fnExpr - already simplified
+	 * @param {IRExpr[]} argExprs - already simplified
+	 * @returns {?IRExpr} - returns null if it isn't simpler
+	 */
+	inlineSingleUseAndRemoveUnusedArgs(stack, fnExpr, argExprs) {
+		// inline single use vars, and eliminate unused vars
+		if (fnExpr instanceof IRFuncExpr) {
+			/**
+			 * @type {IRVariable[]}
+			 */
+			let remVars = [];
+
+			/**
+			 * @type {IRExpr[]}
+			 */
+			let remArgExprs = [];
+
+			let inlineMap = new IRInlineMap();
+
+			for (let i = 0; i < fnExpr.argVariables.length; i++) {
+				let variable = fnExpr.argVariables[i];
+				let nRefs = fnExpr.countRefs(variable);
+				let argExpr = argExprs[i];
+
+				if (nRefs == 0) {
+					// don't add
+				} else if (nRefs == 1 || argExpr instanceof IRNameExpr) {
+					// inline for sure
+					inlineMap.set(variable, argExpr);
+				} else {
+					remVars.push(variable);
+					remArgExprs.push(argExpr);
+				}
+			}
+
+			if (remArgExprs.length < argExprs.length || remArgExprs.length == 0) {
+				if (remArgExprs.length == 0) {
+					return fnExpr.inline(inlineMap).simplify(stack).body;
+				} else {
+					return new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.inline(inlineMap).simplify(stack).body), remArgExprs, this.parensSite);
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @param {IRExpr} fnExpr - already simplified
+	 * @param {IRExpr[]} argExprs - already simplified
+	 * @returns {?IRExpr} - returns null if it isn't simpler
+	 */
+	inlineCommonRhsFuncArgs(stack, fnExpr, argExprs) {
+		// if the rhs is a single IRFuncExpr, then check how it is used in each call (should be more than once)
+		if (argExprs.length == 1) {
+			let argExpr = argExprs[0];
+			
+			if (argExpr instanceof IRFuncExpr) {
+				let fnExprInner = fnExpr; 
+
+				if (fnExprInner instanceof IRFuncExpr) {
+					let variable = fnExprInner.argVariables[0];
+
+					/**
+					 * @type {IRExpr[][]}
+					 */
+					let usage = fnExprInner.body.getUsage(variable);
+
+					// inline any arg whose usage is always the same literal
+					let remVars = [];
+					let inlineMap = new IRInlineMap();
+
+					/**
+					 * @type {Set<number>}
+					 */
+					let toRemove = new Set();
+
+					for (let i = 0; i < argExpr.argVariables.length; i++) {
+						let v = argExpr.argVariables[i];
+
+						/**
+						 * @type {?IRExpr}
+						 */
+						let usageExpr = null;
+
+						let same = true;
+						for (let u of usage) {
+							assert(i < u.length);
+							if (usageExpr === null) {
+								if (!(u[i] instanceof IRLiteral)) {
+									same = false;
+								} else {
+									usageExpr = u[i];
+								}
+							} else if (!(usageExpr instanceof IRLiteral) || usageExpr.toString() != u[i].toString()) {
+								same = false;
+							}
+
+							if (!same) {
+								break;
+							}
+						}
+
+						if (same && usageExpr !== null) {
+							inlineMap.set(v, usageExpr);
+							toRemove.add(i);
+						} else {
+							remVars.push(v);
+						}
+					}
+
+					if (remVars.length < argExpr.argVariables.length) {
+						argExpr = new IRFuncExpr(argExpr.site, remVars, argExpr.body.inline(inlineMap));
+
+						/**
+						 * @type {Map<IRVariable, Set<number>>}
+						 */
+						let toRemoveMap = new Map();
+						toRemoveMap.set(variable, toRemove);
+
+						fnExprInner = fnExprInner.removeCallArgs(toRemoveMap);
+
+						let newCall = new IRUserCallExpr(fnExprInner, [argExpr], this.parensSite);
+
+						if (newCall.calcSize() < this.calcSize()) {
+							return newCall;
+						}
+					}
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @param {IRExpr} fnExpr - already simplified
+	 * @param {IRExpr[]} argExprs - already simplified
+	 * @returns {?IRExpr} - returns null if it isn't simpler
+	 */
+	inlineLiterals(stack, fnExpr, argExprs) {
+		if (fnExpr instanceof IRFuncExpr) {
+			let inlineMap = new IRInlineMap();
+
+			/**
+			 * @type {IRVariable[]}
+			 */
+			let remVars = [];
+
+			/**
+			 * @type {IRExpr[]}
+			 */
+			let remArgs = [];
+
+			let argVariables = fnExpr.argVariables;
+
+			for (let i = 0; i < argVariables.length; i++) {
+				let v = argVariables[i];
+				let argExpr = argExprs[i];
+				if (argExpr instanceof IRLiteral) {
+					inlineMap.set(v, argExpr);
+				} else {
+					remVars.push(v);
+					remArgs.push(argExpr);
+				}
+			}
+
+			if (remVars.length < argVariables.length) {
+				let that = new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.body.inline(inlineMap).simplify(stack)), remArgs, this.parensSite);
+
+				if (that.calcSize() <= this.calcSize()) {
+					return that;
+				}
+			}
+		}
+		
+		return null;
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @param {IRExpr} fnExpr
+	 * @param {IRExpr[]} argExprs
+	 * @returns {?IRExpr}
+	 */
+	simplifyInverseCalls(stack, fnExpr, argExprs) {
+		if (fnExpr instanceof IRNameExpr) {
+			switch (fnExpr.name) {
+				case "__helios__common__boolData": {
+						// check if arg is a call to __helios__common__unBoolData
+						let argExpr = argExprs[0];
+						if (argExpr instanceof IRUserCallExpr && argExpr.fnExpr instanceof IRNameExpr && argExpr.fnExpr.name == "__helios__common__unBoolData") {
+							return argExpr.argExprs[0];
+						}
+					}
+					break;
+				case "__helios__common__unBoolData": {
+						// check if arg is a call to __helios__common__boolData
+						let argExpr = argExprs[0];
+						if (argExpr instanceof IRUserCallExpr && argExpr.fnExpr instanceof IRNameExpr && argExpr.fnExpr.name == "__helios__common__boolData") {
+							return argExpr.argExprs[0];
+						}
+					}
+					break;
+				case "__helios__common__concat": {
+						// check if either 1st or 2nd arg is the empty list
+						let a = argExprs[0];
+						if (a instanceof IRLiteral && a.value instanceof PlutusCoreList && a.value.list.length == 0) {
+							return argExprs[1];
+						} else if (a instanceof IRLiteral && a.value instanceof PlutusCoreMap && a.value.map.length == 0) {
+							return argExprs[1];
+						} else {
+							let b = argExprs[1];
+							if (b instanceof IRLiteral && b.value instanceof PlutusCoreList && b.value.list.length == 0) {
+								return argExprs[0];
+							} else if (b instanceof IRLiteral && b.value instanceof PlutusCoreMap && b.value.map.length == 0) {
+								return argExprs[0];
+							}
+						}
+					}
+					break;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @param {IRExpr} fnExpr
+	 * @param {IRExpr[]} argExprs
+	 * @returns {?IRExpr}
+	 */
+	evalLiteralCall(stack, fnExpr, argExprs) {
+		/**
+		 * @type {IRLiteral[]}
+		 */
+		let litArgs = [];
+
+		for (let argExpr of argExprs) {
+			if (argExpr instanceof IRLiteral) {
+				litArgs.push(argExpr);
+			} else {
+				return null;
+			}
+		}
+
+		return fnExpr.evalCall(stack, litArgs);
 	}
 
 	/**
@@ -17124,120 +17875,52 @@ class IRCallExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	simplify(stack = new IRCallStack()) {
+		let argExprs = this.simplifyArgs(stack);
+
+		let innerStack = stack;
+
 		if (this.#fnExpr instanceof IRFuncExpr) {
-			let args = this.evalArgs(stack);
-
-			if (args !== null) {
-				let vars = this.#fnExpr.argVariables;
-
-				for (let i = 0; i < args.length; i++) {
-					stack = stack.set(vars[i], args[i]);
-				}
+			assert(argExprs.length == this.#fnExpr.argVariables.length);
+			for (let i = 0; i < argExprs.length; i++) {
+				let v = this.#fnExpr.argVariables[i];
+				innerStack = innerStack.set(v, argExprs[i]);
 			}
 		}
 
-		let newFnExpr = this.#fnExpr.simplify(stack);
+		let fnExpr = this.#fnExpr.simplify(innerStack);
 
-		let newArgs = super.simplifyArgs(stack);
 
-		let newThis = new IRUserCallExpr(newFnExpr, newArgs, this.parensSite);
-
-		let val = newThis.eval(stack);
-
-		if (val.value instanceof PlutusCoreValue) {
-			return val.toIRExpr(this.site);
-		} else {
-			if (newFnExpr instanceof IRFuncExpr) {
-				// eliminate the unused args
-				let vars = newFnExpr.argVariables;
-				let argExprs = newArgs;
-
-				/**
-				 * @type {IRVariable[]}
-				 */
-				let remVars = [];
-
-				/**
-				 * @type {IRExpr[]}
-				 */
-				let remArgExprs = [];
-
-				/**
-				 * @type {Map<IRVariable, IRExpr>}
-				 */
-				let inlineTodo = new Map();
-
-				for (let i = 0; i < vars.length; i++) {
-					let nRefs = newFnExpr.countRefs(vars[i]);
-					let argExpr = argExprs[i];
-
-					if (nRefs == 0) {
-						// dont add var to remVars
-					} else if (
-						(nRefs == 1 || argExpr instanceof IRNameExpr || (argExpr instanceof IRLiteral && argExpr.primitive instanceof IntLiteral)) && 
-						vars[i].name != "__helios__common__unBoolData" && 
-						vars[i].name != "__helios__common__boolData" && 
-						vars[i].name != "__helios__common__concat"
-					) {
-						// never inline __helios__common__boolData and __helios__common__unBoolData (needed for other optimizations)
-						inlineTodo.set(vars[i], argExpr);
-					} else {
-						remVars.push(vars[i]);
-						remArgExprs.push(argExpr);
-					}
-				}
-
-				newFnExpr = newFnExpr.inline(inlineTodo);
-
-				if (newFnExpr instanceof IRFuncExpr) {
-					if (remVars.length == 0) {
-						// eliminate call itself
-						return newFnExpr.body;
-					} else {
-						newFnExpr = new IRFuncExpr(newFnExpr.site, remVars, newFnExpr.body);
-						newArgs = remArgExprs;
-					}
-				}
-			} else if (newFnExpr instanceof IRNameExpr) {
-				switch (newFnExpr.name) {
-					case "__helios__common__boolData": {
-							// check if arg is a call to __helios__common__unBoolData
-							let argExpr = newArgs[0];
-							if (argExpr instanceof IRUserCallExpr && argExpr.fnExpr instanceof IRNameExpr && argExpr.fnExpr.name == "__helios__common__unBoolData") {
-								return argExpr.argExprs[0];
-							}
-						}
-						break;
-					case "__helios__common__unBoolData": {
-							// check if arg is a call to __helios__common__boolData
-							let argExpr = newArgs[0];
-							if (argExpr instanceof IRUserCallExpr && argExpr.fnExpr instanceof IRNameExpr && argExpr.fnExpr.name == "__helios__common__boolData") {
-								return argExpr.argExprs[0];
-							}
-						}
-						break;
-					case "__helios__common__concat": {
-							// check if either 1st or 2nd arg is the empty list
-							let a = newArgs[0].eval(stack);
-							if (a.value !== null && a.value instanceof PlutusCoreList && a.value.list.length == 0) {
-								return newArgs[1];
-							} else if (a.value !== null && a.value instanceof PlutusCoreMap && a.value.map.length == 0) {
-								return newArgs[1];
-							} else {
-								let b = newArgs[1].eval(stack);
-								if (b.value !== null && b.value instanceof PlutusCoreList && b.value.list.length == 0) {
-									return newArgs[0];
-								} else if (b.value !== null && b.value instanceof PlutusCoreMap && b.value.map.length == 0) {
-									return newArgs[0];
-								}
-							}
-						}
-						break;
-				}
-			}
-
-			return new IRUserCallExpr(newFnExpr, newArgs, newThis.parensSite);
+		if (fnExpr instanceof IRNameExpr && fnExpr.name.startsWith("__core")) {
+			return new IRCoreCallExpr(new Word(fnExpr.site, fnExpr.name), argExprs, this.parensSite);
 		}
+
+		let maybeBetter0 = this.evalLiteralCall(stack, fnExpr, argExprs);
+		if (maybeBetter0 !== null && maybeBetter0.calcSize() < this.calcSize()) {
+			return maybeBetter0;
+		}
+
+		let maybeBetter1 = this.inlineSingleUseAndRemoveUnusedArgs(stack, fnExpr, argExprs);
+		if (maybeBetter1 !== null) {
+			return maybeBetter1;
+		}
+
+		// can't inline common rhs func args for recursive functions
+		/*let maybeBetter2 = this.inlineCommonRhsFuncArgs(stack, fnExpr, argExprs);
+		if (maybeBetter2 !== null) {
+			return maybeBetter2;
+		}*/
+
+		let maybeBetter3 = this.inlineLiterals(stack, fnExpr, argExprs);
+		if (maybeBetter3 !== null) {
+			return maybeBetter3;
+		}
+
+		let maybeBetter4 = this.simplifyInverseCalls(stack, fnExpr, argExprs);
+		if (maybeBetter4 !== null) {
+			return maybeBetter4;
+		}
+
+		return new IRUserCallExpr(fnExpr, argExprs, this.parensSite);
 	}
 
 	/**
@@ -17286,15 +17969,7 @@ class IRCoreCallExpr extends IRCallExpr {
 		return `${this.#name.toString()}(${this.argsToString()})`;
 	}
 
-	/**
-	 * @returns {number}
-	 */
-	builtinForceCount() {
-		let i = IRScope.findBuiltin(this.#name.value);
-
-		let info = PLUTUS_CORE_BUILTINS[i];
-		return info.forceCount;
-	}
+	
 
 	/**
 	 * @param {IRScope} scope 
@@ -17304,83 +17979,81 @@ class IRCoreCallExpr extends IRCallExpr {
 	}
 
 	/**
-	 * @param {IRCallStack} stack
-	 * @returns {IRValue}
+	 * @param {Map<IRVariable, Set<number>>} map
+	 * @returns {IRExpr}
 	 */
-	 eval(stack) {
-		let args = super.evalArgs(stack);
+	removeCallArgs(map) {
+		return new IRCoreCallExpr(this.#name, this.removeArgCallArgs(map), this.parensSite);
+	}
 
-		if (args === null) {
-			return new IRValue(null);
-		} else {
-			if (this.builtinName == "ifThenElse") {
-				let maybeCond = args[0].value;
-				if (maybeCond instanceof PlutusCoreBool) {
-					if (maybeCond.bool) {
-						return args[1];
-					} else {
-						return args[2];
-					}
+	/**
+	 * @param {IRCallStack} stack
+	 * @param {IRLiteral[]} args
+	 * @returns {?IRExpr}
+	 */
+	evalCall(stack, args) {
+		return this.simplifyLiterals(args);
+	}
+
+	/**
+	 * @param {IRExpr[]} argExprs
+	 * @returns {?IRExpr}
+	 */
+	simplifyLiterals(argExprs) {
+		if (this.builtinName == "ifThenElse") {
+			let cond = argExprs[0];
+
+			if (cond instanceof IRLiteral && cond.value instanceof PlutusCoreBool) {
+				if (cond.value.bool) {
+					return argExprs[1];
 				} else {
-					throw new Error("expected bool condition");
+					return argExprs[2];
 				}
-			} else if (this.builtinName == "trace") {
-				return args[1];
-			} else {
-				let rawArgs = args.map(a => {
-					if (a.value === null) {
-						throw new Error("unexpected");
-					} else if (a.value instanceof PlutusCoreValue) {
-						return a.value;
-					} else {
-						throw new Error(`core function ${this.builtinName} can never take func value as arg`);
-					}
-				});
+			} 
+		} else if (this.builtinName == "trace") {
+			return argExprs[1];
+		} else {
+			// if all the args are literals -> return the result
 
-				try {
-					let result = PlutusCoreBuiltin.evalStatic(new Word(this.#name.site, this.builtinName), rawArgs);
+			/**
+			 * @type {PlutusCoreValue[]}
+			 */
+			let argValues = [];
 
-					return new IRValue(result);
-				} catch(e) {
-					if (e instanceof UserError) {
-						return new IRValue(null);
-					} else {
-						throw e;
-					}
+			for (let arg of argExprs) {
+				if (arg instanceof IRLiteral) {
+					argValues.push(arg.value);
+				} else {
+					return null;
+				}
+			}
+
+			try {
+				let result = PlutusCoreBuiltin.evalStatic(new Word(this.#name.site, this.builtinName), argValues);
+
+				return new IRLiteral(result);
+			} catch(e) {
+				if (!(e instanceof UserError)) { 
+					throw e;
 				}
 			}
 		}
+		
+		return null;
 	}
 
 	/**
-	 * @param {Map<IRVariable, IRExpr>} todo
-	 * @returns {IRExpr}
+	 * @param {IRExpr[]} argExprs
+	 * @returns {?IRExpr}
 	 */
-	inline(todo) {
-		let newArgExprs = super.inlineArgs(todo);
-
-		return new IRCoreCallExpr(this.#name, newArgExprs, this.parensSite);
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {IRExpr}
-	 */
-	simplify(stack) {
-		let newArgExprs = this.simplifyArgs(stack);
-
-		let simpler = this.eval(stack);
-
-		if (simpler.value instanceof PlutusCoreValue) {
-			return simpler.toIRExpr(this.site);
-		} else {
-			switch (this.builtinName) {			
+	simplifyInverseCalls(argExprs) {
+		switch (this.builtinName) {			
 			case "encodeUtf8":
 				// we can't eliminate a call to decodeUtf8, as it might throw some errors
 				break;
 			case "decodeUtf8": {
 					// check if arg is a call to encodeUtf8
-					let argExpr = newArgExprs[0];
+					let argExpr = argExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "encodeUtf8") {
 						return argExpr.argExprs[0];
 					}
@@ -17388,49 +18061,49 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "ifThenElse": {
 					// check if first arg evaluates to constant condition
-					let cond = newArgExprs[0].eval(stack);
-					if (cond.value !== null && cond.value instanceof PlutusCoreBool) {
-						return cond.value.bool ? newArgExprs[1] : newArgExprs[2];
+					let cond = argExprs[0];
+					if (cond instanceof IRLiteral && cond.value instanceof PlutusCoreBool) {
+						return cond.value.bool ? argExprs[1] : argExprs[2];
 					}
 				}
 				break;
 			case "addInteger": {
 					// check if first or second arg evaluates to 0
-					let a = newArgExprs[0].eval(stack);
-					if (a.value !== null && a.value instanceof PlutusCoreInt && a.value.int == 0n) {
-						return newArgExprs[1];
+					let a = argExprs[0];
+					if (a instanceof IRLiteral && a.value instanceof PlutusCoreInt && a.value.int == 0n) {
+						return argExprs[1];
 					} else {
-						let b = newArgExprs[1].eval(stack);
-						if (b.value !== null && b.value instanceof PlutusCoreInt && b.value.int == 0n) {
-							return newArgExprs[0];
+						let b = argExprs[1];
+						if (b instanceof IRLiteral && b.value instanceof PlutusCoreInt && b.value.int == 0n) {
+							return argExprs[0];
 						}
 					}
 				}
 				break;
 			case "subtractInteger": {
 					// check if second arg evaluates to 0
-					let b = newArgExprs[1].eval(stack);
-					if (b.value !== null && b.value instanceof PlutusCoreInt && b.value.int == 0n) {
-						return newArgExprs[0];
+					let b = argExprs[1];
+					if (b instanceof IRLiteral && b.value instanceof PlutusCoreInt && b.value.int == 0n) {
+						return argExprs[0];
 					}
 				}
 				break;
 			case "multiplyInteger": {
 					// check if first arg is 0 or 1
-					let a = newArgExprs[0].eval(stack);
-					if (a.value !== null && a.value instanceof PlutusCoreInt) {
+					let a = argExprs[0];
+					if (a instanceof IRLiteral && a.value instanceof PlutusCoreInt) {
 						if (a.value.int == 0n) {
-							return new IRLiteral(new IntLiteral(this.site, 0n));
+							return a;
 						} else if (a.value.int == 1n) {
-							return newArgExprs[1];
+							return argExprs[1];
 						}
 					} else {
-						let b = newArgExprs[1].eval(stack);
-						if (b.value !== null && b.value instanceof PlutusCoreInt) {
+						let b = argExprs[1];
+						if (b instanceof IRLiteral && b.value instanceof PlutusCoreInt) {
 							if (b.value.int == 0n) {
-								return new IRLiteral(new IntLiteral(this.site, 0n));
+								return b;
 							} else if (b.value.int == 1n) {
-								return newArgExprs[0];
+								return argExprs[0];
 							}
 						}
 					}
@@ -17438,51 +18111,51 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "divideInteger": {
 					// check if second arg is 1
-					let b = newArgExprs[1].eval(stack);
-					if (b.value !== null && b.value instanceof PlutusCoreInt && b.value.int == 1n) {
-						return newArgExprs[0];
+					let b = argExprs[1];
+					if (b instanceof IRLiteral && b.value instanceof PlutusCoreInt && b.value.int == 1n) {
+						return argExprs[0];
 					}
 				}
 				break;
 			case "modInteger": {
 					// check if second arg is 1
-					let b = newArgExprs[1].eval(stack);
-					if (b.value !== null && b.value instanceof PlutusCoreInt && b.value.int == 1n) {
-						return new IRLiteral(new IntLiteral(this.site, 0n));
+					let b = argExprs[1];
+					if (b instanceof IRLiteral && b.value instanceof PlutusCoreInt && b.value.int == 1n) {
+						return new IRLiteral(new PlutusCoreInt(this.site, 0n));
 					}
 				}
 				break;
 			case "appendByteString": {
 					// check if either 1st or 2nd arg is the empty bytearray
-					let a = newArgExprs[0].eval(stack);
-					if (a.value !== null && a.value instanceof PlutusCoreByteArray && a.value.bytes.length == 0) {
-						return newArgExprs[1];
+					let a = argExprs[0];
+					if (a instanceof IRLiteral && a.value instanceof PlutusCoreByteArray && a.value.bytes.length == 0) {
+						return argExprs[1];
 					} else {
-						let b = newArgExprs[1].eval(stack);
-						if (b.value !== null && b.value instanceof PlutusCoreByteArray && b.value.bytes.length == 0) {
-							return newArgExprs[0];
+						let b = argExprs[1];
+						if (b instanceof IRLiteral && b.value instanceof PlutusCoreByteArray && b.value.bytes.length == 0) {
+							return argExprs[0];
 						}
 					}
 				}
 				break;
 			case "appendString": {
 					// check if either 1st or 2nd arg is the empty string
-					let a = newArgExprs[0].eval(stack);
-					if (a.value !== null && a.value instanceof PlutusCoreString && a.value.string.length == 0) {
-						return newArgExprs[1];
+					let a = argExprs[0];
+					if (a instanceof IRLiteral && a.value instanceof PlutusCoreString && a.value.string.length == 0) {
+						return argExprs[1];
 					} else {
-						let b = newArgExprs[1].eval(stack);
-						if (b.value !== null && b.value instanceof PlutusCoreString && b.value.string.length == 0) {
-							return newArgExprs[0];
+						let b = argExprs[1];
+						if (b instanceof IRLiteral && b.value instanceof PlutusCoreString && b.value.string.length == 0) {
+							return argExprs[0];
 						}
 					}
 				}
 				break;
 			case "trace":
-				return newArgExprs[1];
+				return argExprs[1];
 			case "unIData": {
 					// check if arg is a call to iData
-					let argExpr = newArgExprs[0];
+					let argExpr = argExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "iData") {
 						return argExpr.argExprs[0];
 					}
@@ -17490,7 +18163,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "iData": {
 					// check if arg is a call to unIData
-					let argExpr = newArgExprs[0];
+					let argExpr = argExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unIData") {
 						return argExpr.argExprs[0];
 					}
@@ -17498,7 +18171,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "unBData": {
 					// check if arg is a call to bData
-					let argExpr = newArgExprs[0];
+					let argExpr = argExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "bData") {
 						return argExpr.argExprs[0];
 					}
@@ -17506,7 +18179,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "bData": {
 					// check if arg is a call to unBData
-					let argExpr = newArgExprs[0];
+					let argExpr = argExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unBData") {
 						return argExpr.argExprs[0];
 					}
@@ -17514,7 +18187,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "unMapData": {
 					// check if arg is call to mapData
-					let argExpr = newArgExprs[0];
+					let argExpr = argExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "mapData") {
 						return argExpr.argExprs[0];
 					}
@@ -17522,7 +18195,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "mapData": {
 					// check if arg is call to unMapData
-					let argExpr = newArgExprs[0];
+					let argExpr = argExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unMapData") {
 						return argExpr.argExprs[0];
 					}
@@ -17530,7 +18203,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "listData": {
 					// check if arg is call to unListData
-					let argExpr = newArgExprs[0];
+					let argExpr = argExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unListData") {
 						return argExpr.argExprs[0];
 					}
@@ -17538,32 +18211,70 @@ class IRCoreCallExpr extends IRCallExpr {
 				break;
 			case "unListData": {
 					// check if arg is call to listData
-					let argExpr = newArgExprs[0];
+					let argExpr = argExprs[0];
 					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "listData") {
 						return argExpr.argExprs[0];
 					}
 				}
 				break;
-			}
-
-			return new IRCoreCallExpr(this.#name, newArgExprs, this.parensSite);
 		}
+
+		return null;
+	}
+
+	/**
+	 * @param {IRInlineMap} inlineMap
+	 * @returns {IRExpr}
+	 */
+ 	inline(inlineMap) {
+		return new IRCoreCallExpr(this.#name, super.inlineArgs(inlineMap), this.parensSite);
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
+	 */
+	simplify(stack) {
+		let argExprs = super.simplifyArgs(stack);
+
+		let maybeBetter1 = this.simplifyLiterals(argExprs);
+		if (maybeBetter1 !== null) {
+			return maybeBetter1;
+		}
+
+		let maybeBetter2 = this.simplifyInverseCalls(argExprs);
+		if (maybeBetter2 !== null) {
+			return maybeBetter2;
+		}
+		
+		return new IRCoreCallExpr(this.#name, argExprs, this.parensSite);
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {string} name - full name of builtin, including prefix
+	 * @returns {PlutusCoreTerm}
+	 */
+	static builtinPlutusCoreTerm(site, name) {
+		/**
+		 * @type {PlutusCoreTerm}
+		 */
+		 let term = new PlutusCoreBuiltin(site, name.slice("__core__".length));
+
+		 let nForce = PLUTUS_CORE_BUILTINS[IRScope.findBuiltin(name)].forceCount;
+ 
+		 for (let i = 0; i < nForce; i++) {
+			 term = new PlutusCoreForce(site, term);
+		 }
+ 
+		 return term;
 	}
 
 	/**
 	 * @returns {PlutusCoreTerm}
 	 */
 	toPlutusCore() {
-		/**
-		 * @type {PlutusCoreTerm}
-		 */
-		let term = new PlutusCoreBuiltin(this.site, this.#name.value.slice("__core__".length));
-
-		let nForce = this.builtinForceCount();
-
-		for (let i = 0; i < nForce; i++) {
-			term = new PlutusCoreForce(this.site, term);
-		}
+		let term = IRCoreCallExpr.builtinPlutusCoreTerm(this.site, this.#name.value);
 
 		return this.callToPlutusCore(term);
 	}
@@ -17611,18 +18322,35 @@ class IRErrorCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRCallStack} stack
-	 * @returns {IRValue}
+	 * @param {IRVariable} ref
+	 * @returns {IRExpr[][]}
 	 */
-	eval(stack) {
-		return new IRValue(null);
+	getUsage(ref) {
+		return [];
 	}
 
 	/**
-	 * @param {Map<IRVariable, IRExpr>} todo
+	 * @param {Map<IRVariable, Set<number>>} map
 	 * @returns {IRExpr}
 	 */
-	inline(todo) {
+	removeCallArgs(map) {
+		return this;
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @param {IRLiteral[]} args
+	 * @returns {?IRExpr}
+	 */
+	evalCall(stack, args) {
+		throw new Error("should never be called");
+	}
+
+	/**
+	 * @param {IRInlineMap} inlineMap
+	 * @returns {IRExpr}
+	 */
+	inline(inlineMap) {
 		return this;
 	}
 
@@ -17639,231 +18367,6 @@ class IRErrorCallExpr extends IRExpr {
 	 */
 	toPlutusCore() {
 		return new PlutusCoreError(this.site, this.#msg);
-	}
-}
-
-/**
- * Intermediate Representation variable reference expression
- */
-class IRNameExpr extends IRExpr {
-	#name;
-
-	/**
-	 * @type {?number} - cached debruijn index 
-	 */
-	#index;
-
-	/**
-	 * @type {?IRVariable} - cached variable (note that core functions can be referenced as variables (yet))
-	 */
-	#variable;
-
-	/**
-	 * @param {Word} name 
-	 * @param {?IRVariable} variable
-	 */
-	constructor(name, variable = null) {
-		super(name.site);
-		assert(name.toString() != "_");
-		assert(!name.toString().startsWith("undefined"));
-		this.#name = name;
-		this.#index = null;
-		this.#variable = variable;
-	}
-
-	/**
-	 * @type {string}
-	 */
-	get name() {
-		return this.#name.toString();
-	}
-
-	copy() {
-		return new IRNameExpr(this.#name, this.#variable);
-	}
-
-	/**
-	 * @param {string} indent 
-	 * @returns {string}
-	 */
-	toString(indent = "") {
-		return this.#name.toString();
-		/*if (this.#index === null) {
-			return this.#name.toString();
-		} else {
-			return `${this.#name.toString()}[${this.#index.toString()}]`;
-		}*/
-	}
-
-	/**
-	 * @param {IRScope} scope 
-	 */
-	resolveNames(scope) {
-		if (this.#variable == null) {
-			[this.#index, this.#variable] = scope.get(this.#name);
-		} else {
-			[this.#index, this.#variable] = scope.get(this.#variable);
-		}
-	}
-
-	/**
-	 * @param {IRVariable} ref
-	 * @returns {number}
-	 */
-	countRefs(ref) {
-		if (this.#variable === null) {
-			throw new Error("variable should be set");
-		} else {
-			if (ref === this.#variable) {
-				return 1;
-			} else {
-				return 0;
-			}
-		}
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {IRValue}
-	 */
-	eval(stack) {
-		if (this.#variable === null) {
-			throw new Error("variable should be set");
-		} else {
-			return this.#variable.eval(stack);
-		}
-	}
-
-	/**
-	 * @param {Map<IRVariable, IRExpr>} todo
-	 * @returns {IRExpr}
-	 */
-	inline(todo) {
-		if (this.#variable === null) {
-			throw new Error("variable should be set");
-		} else {
-			let expr = todo.get(this.#variable);
-
-			if (expr === undefined) {
-				return this;
-			} else {
-				return expr.copy(); // always make a copy, because it might be inlined multi times
-			}
-		}
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {IRExpr}
-	 */
-	simplify(stack) {
-		return this;
-	}
-
-	/**
-	 * @returns {PlutusCoreTerm}
-	 */
-	toPlutusCore() {
-		if (this.#index === null) {
-			throw new Error("debruijn index not yet set");
-		} else {
-			return new PlutusCoreVariable(
-				this.site,
-				new PlutusCoreInt(this.site, BigInt(this.#index), false),
-			);
-		}
-	}
-}
-
-/**
- * Intermediate Representation wrapper for literal tokens
- */
-class IRLiteral extends IRExpr {
-	#value;
-
-	/**
-	 * @param {PrimitiveLiteral | PlutusCoreValue} value 
-	 */
-	constructor(value) {
-		super(value.site);
-		this.#value = value;
-	}
-
-	get primitive() {
-		return this.#value;
-	}
-
-	copy() {
-		return new IRLiteral(this.#value);
-	}
-
-	/**
-	 * @param {string} indent 
-	 * @returns {string}
-	 */
-	toString(indent = "") {
-		return this.#value.toString();
-	}
-
-	/**
-	 * Linking doesn't do anything for literals
-	 * @param {IRScope} scope 
-	 */
-	resolveNames(scope) {
-	}
-
-	/**
-	 * @param {IRVariable} ref
-	 * @returns {number}
-	 */
-	countRefs(ref) {
-		return 0;
-	}
-	
-	/**
-	 * Turns this into PlutusCoreConst
-	 * @param {IRCallStack} stack
-	 * @returns {IRValue}
-	 */
-	eval(stack) {
-		return new IRValue(this.toPlutusCore().value);
-	}
-
-	/**
-	 * @param {Map<IRVariable, IRExpr>} todo
-	 * @returns {IRExpr}
-	 */
-	inline(todo) {
-		return this;
-	}
-	
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {IRExpr}
-	 */
-	simplify(stack) {
-		return this;
-	}
-
-	/**
-	 * @returns {PlutusCoreConst}
-	 */
-	toPlutusCore() {
-		if (this.#value instanceof IntLiteral) {
-			return PlutusCoreInt.newSignedTerm(this.site, this.#value.value);
-		} else if (this.#value instanceof BoolLiteral) {
-			return PlutusCoreBool.newTerm(this.site, this.#value.value);
-		} else if (this.#value instanceof ByteArrayLiteral) {
-			return PlutusCoreByteArray.newTerm(this.site, this.#value.bytes);
-		} else if (this.#value instanceof StringLiteral) {
-			return PlutusCoreString.newTerm(this.site, this.#value.value);
-		} else if (this.#value instanceof UnitLiteral) {
-			return PlutusCoreUnit.newTerm(this.site);
-		} else if (this.#value instanceof PlutusCoreValue) {
-			return new PlutusCoreConst(this.#value);
-		} else {
-			throw new Error("unhandled literal type");
-		}
 	}
 }
 
@@ -18039,9 +18542,11 @@ function simplifyIRProgram(program) {
 	let dirty = true;
 
 	//console.log(new Source(program.toString()).pretty());	
+
 	while(dirty) {
 		dirty = false;
 		let newProgram = program.simplify();
+
 		if (newProgram instanceof IRFuncExpr || newProgram instanceof IRUserCallExpr) {
 			dirty = newProgram.toString() != program.toString();
 			program = newProgram;
@@ -18154,8 +18659,10 @@ function compileInternal(typedSrc, config) {
 		return program;
 	}
 
-	let globalScope = GlobalScope.new();
+	let globalScope = GlobalScope.new(program.purpose);
+
 	program.eval(globalScope);
+
 	let ir = program.toIR();
 
 	let [irSrc, codeMap] = ir.generateSource();

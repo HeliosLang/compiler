@@ -1855,37 +1855,12 @@ async function runPropertyTests() {
         return res.isSame(ctx.getParam("outputId"));
     });
 
-    await ft.test([ft.mintingScriptContext()], `
-    test scriptcontext_get_spending_purpose_output_id
-    func main(ctx: ScriptContext) -> TxOutputId {
-        ctx.get_spending_purpose_output_id()
-    }`, ([_], res) => {
-        return res instanceof helios.UserError && res.info == "unexpected constructor index";
-    });
-
     await ft.test([ft.spendingScriptContext()], `
     test scriptcontext_get_current_validator_hash
     func main(ctx: ScriptContext) -> ValidatorHash {
         ctx.get_current_validator_hash()
     }`, ([ctx], res) => {
         return res.equalsByteArray(ctx.getParam("scriptHash"));
-    });
-
-    await ft.test([ft.mintingScriptContext()], `
-    test scriptcontext_get_current_validator_hash
-    func main(ctx: ScriptContext) -> ValidatorHash {
-        ctx.get_current_validator_hash()
-    }`, ([ctx], res) => {
-        return res instanceof helios.UserError && res.info == "unexpected constructor index";
-    });
-
-
-    await ft.test([ft.spendingScriptContext()], `
-    test scriptcontext_get_current_minting_policy_hash
-    func main(ctx: ScriptContext) -> MintingPolicyHash {
-        ctx.get_current_minting_policy_hash()
-    }`, ([ctx], res) => {
-        return res instanceof helios.UserError && res.info == "unexpected constructor index";
     });
 
     await ft.test([ft.mintingScriptContext()], `
