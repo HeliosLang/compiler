@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.2.0
+// Version:     0.3.0
 // Last update: August 2022
 // License:     Unlicense
 //
@@ -34,7 +34,7 @@
 //         enum with six values: Preprocess, Tokenize, BuildAST, IR, PlutusCore and Final
 //
 //   * compile(src: string, 
-//             config: {verbose: false, templateParameters: {}, stage: CompilationStage}) -> ...
+//             config: {verbose: false, templateParameters: {}, stage: CompilationStage, simplify: false}) -> ...
 //         different return types depending on config.stage:
 //             config.stage==CompilationStage.Preprocess -> string
 //             config.stage==CompilationStage.Tokenize   -> list of Tokens
