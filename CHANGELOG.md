@@ -1,8 +1,11 @@
 This Changelog only applies to notable changes to `helios.js` on the main branch.
 
+# 2022/08/17
+* Cost calculation of a plutus-core program run
+
 # 2022/08/16
 * 'simplify' boolean flag in config object that is passed to compile()
-* Map key can't be bool type (makes it easier to use bool as primitive in plutus-core, instead of a data type)
+* Map key can't be bool type (makes it easier to use bool as primitive in plutus-core, instead of as data type)
 * `Value*Int` (not commutative) and `Value/Int` operators
 * tx methods: 'outputs_sent_to_datum', 'outputs_locked_by_datum' and 'value_sent_to_datum' (not yet property tested)
 

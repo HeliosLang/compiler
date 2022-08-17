@@ -65,12 +65,18 @@
 //
 //
 // Overview of internals:
-//     1. Constants                         VERSION, DEBUG, debug, BLAKE2B_DIGEST_SIZE, 
+//     1. Global constants and vars         VERSION, DEBUG, debug, BLAKE2B_DIGEST_SIZE, 
 //                                          setBlake2bDigestSize, TAB, ScriptPurpose, 
 //                                          PLUTUS_CORE_VERSION_COMPONENTS, PLUTUS_CORE_VERSION, 
-//                                          PLUTUS_CORE_TAG_WIDTHS, PLUTUS_CORE_BUILTINS
+//                                          PLUTUS_CORE_TAG_WIDTHS, PLUTUS_CORE_TERM_COSTS, 
+//                                          PLUTUS_CORE_DATA_NODE_MEM_SIZE
 //
-//     2. Utilities                         assert, assertDefined, assertEq, idiv, ipow2, imask, 
+//     2. Plutus-Core builtins              CostModel, ConstCost, LinearCost, ArgSizeCost, 
+//                                          MinArgSizeCost, MaxArgSizeCost, SumArgSizesCost,
+//                                          ArgSizeDiffCost, ArgSizeProdCost, ArgSizeDiagCost,
+//                                          PlutusCoreBuiltinInfo, PLUTUS_CORE_BUILTIN
+//
+//     3. Utilities                         assert, assertDefined, assertEq, idiv, ipow2, imask, 
 //                                          imod32, imod8, irotr, iadd64, irotr64, padZeroes, 
 //                                          byteToBitString, hexToBytes, bytesToHex, stringToBytes,
 //                                          bytesToString, replaceTabs, unwrapCborBytes, 
@@ -78,7 +84,7 @@
 //                                          DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
 //                                          Crypto, IR, Source, UserError, Site
 //
-//     3. Plutus-Core AST objects           PlutusCoreValue, PlutusCoreRTE, PlutusCoreStack, 
+//     4. Plutus-Core AST objects           PlutusCoreValue, PlutusCoreRTE, PlutusCoreStack, 
 //                                          PlutusCoreAnon, PlutusCoreInt, PlutusCoreByteArray, 
 //                                          PlutusCoreString, PlutusCoreUnit, PlutusCoreBool,
 //                                          PlutusCorePair, PlutusCoreMapItem, PlutusCoreList, 
@@ -87,23 +93,23 @@
 //                                          PlutusCoreCall, PlutusCoreConst, PlutusCoreForce, 
 //                                          PlutusCoreError, PlutusCoreBuiltin, PlutusCoreProgram
 //
-//     4. Plutus-Core data objects          PlutusCoreData, IntData, ByteArrayData, ListData, 
+//     5. Plutus-Core data objects          PlutusCoreData, IntData, ByteArrayData, ListData, 
 //                                          MapData, ConstrData, LedgerData
 //
-//     5. Token objects                     Token, Word, Symbol, Group, 
+//     6. Token objects                     Token, Word, Symbol, Group, 
 //                                          PrimitiveLiteral, IntLiteral, BoolLiteral, 
 //                                          ByteArrayLiteral, StringLiteral, UnitLiteral
 //
-//     6. Tokenization                      Tokenizer, tokenize, tokenizeIR, 
+//     7. Tokenization                      Tokenizer, tokenize, tokenizeIR, 
 //                                          SyntaxCategory, highlight
 //
-//     7. Type evaluation objects           GeneralizedValue, Type, AnyType, DataType, AnyDataType, 
+//     8. Type evaluation objects           GeneralizedValue, Type, AnyType, DataType, AnyDataType, 
 //                                          BuiltinType, StatementType, FuncType, Value, DataValue, 
 //                                          FuncValue, FuncStatementValue
 //
-//     8. Scopes                            GlobalScope, Scope, TopScope, FuncStatementScope
+//     9. Scopes                            GlobalScope, Scope, TopScope, FuncStatementScope
 //
-//     9. AST expression objects            Expr, TypeExpr, TypeRefExpr, TypePathExpr, 
+//    10. AST expression objects            Expr, TypeExpr, TypeRefExpr, TypePathExpr, 
 //                                          ListTypeExpr, MapTypeExpr, OptionTypeExpr, 
 //                                          FuncTypeExpr, ValueExpr, AssignExpr, PrintExpr, 
 //                                          PrimitiveLiteralExpr, StructLiteralField, 
@@ -113,12 +119,12 @@
 //                                          CallExpr, MemberExpr, IfElseExpr, 
 //                                          SwitchCase, SwitchDefault, SwitchExpr
 //
-//    10. AST statement objects             Statement, ConstStatement, DataField, 
+//    11. AST statement objects             Statement, ConstStatement, DataField, 
 //                                          DataDefinition, StructStatement, FuncStatement, 
 //                                          EnumMember, EnumStatement, ImplDefinition,
 //                                          Program
 //
-//    11. AST build functions               buildProgram, buildScriptPurpose, buildConstStatement, 
+//    12. AST build functions               buildProgram, buildScriptPurpose, buildConstStatement, 
 //                                          splitDataImpl, buildStructStatement, buildDataFields,
 //                                          buildFuncStatement, buildFuncLiteralExpr, buildFuncArgs,
 //                                          buildEnumStatement, buildEnumMember, 
@@ -135,7 +141,7 @@
 //                                          buildStructLiteralExpr, buildStructLiteralField, 
 //                                          buildValuePathExpr
 //
-//    12. Builtin types                     IntType, BoolType, StringType, ByteArrayType, 
+//    13. Builtin types                     IntType, BoolType, StringType, ByteArrayType, 
 //                                          ListType, FoldListFuncValue, MapListFuncValue,
 //                                          MapType, FoldMapFuncValue,
 //                                          OptionType, OptionSomeType, OptionNoneType,
@@ -147,31 +153,31 @@
 //                                          StakingCredentialType, TimeType, DurationType,
 //                                          TimeRangeType, AssetClassType, MoneyValueType
 //
-//    13. Builtin low-level functions       onNotifyRawUsage, setRawUsageNotifier, 
+//    14. Builtin low-level functions       onNotifyRawUsage, setRawUsageNotifier, 
 //                                          RawFunc, makeRawFunctions, wrapWithRawFunctions
 //
-//    14. IR AST objects                    IRScope, IRExpr, IRVariable, IRFuncExpr,
+//    15. IR AST objects                    IRScope, IRExpr, IRVariable, IRFuncExpr,
 //                                          IRUserCallExpr, IRCoreCallExpr, IRErrorCallExpr,
 //                                          IRNameExpr, IRLiteral
 //
-//    15. IR AST build functions            buildIRProgram, buildIRExpr, buildIRFuncExpr,
+//    16. IR AST build functions            buildIRProgram, buildIRExpr, buildIRFuncExpr,
 //                                          simplifyIRProgram
 //
-//    16. Compilation                       preprocess, CompilationStage, DEFAULT_CONFIG,
+//    17. Compilation                       preprocess, CompilationStage, DEFAULT_CONFIG,
 //                                          compileInternal, getPurposeName, 
 //                                          extractScriptPurposeAndName, compile, run
 //     
-//    17. Plutus-Core deserialization       PlutusCoreDeserializer, deserializePlutusCore
+//    18. Plutus-Core deserialization       PlutusCoreDeserializer, deserializePlutusCore
 //
-//    18. Property test framework           FuzzyTest
+//    19. Property test framework           FuzzyTest
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-////////////////////////////////////////////
-// Section 1: Global constants and variables
-////////////////////////////////////////////
+///////////////////////////////////////
+// Section 1: Global constants and vars
+///////////////////////////////////////
 
 const VERSION = "0.3.0";
 
@@ -234,10 +240,321 @@ const PLUTUS_CORE_TAG_WIDTHS = {
 };
 
 /**
- * @typedef PlutusCoreBuiltinInfo
- * @property {string} name
- * @property {number} forceCount - number of type parameters of a plutus-core builtin function (0, 1 or 2)
+ * @typedef {Object} Cost
+ * @property {number} mem
+ * @property {number} cpu
  */
+
+/**
+ * No cost for error 
+ * @type {Object.<string, Cost>}
+ */
+const PLUTUS_CORE_TERM_COSTS = {
+	startup:  {mem: 100, cpu: 100},
+	variable: {mem: 100, cpu: 23000},
+	lambda:   {mem: 100, cpu: 23000},
+	delay:    {mem: 100, cpu: 23000},
+	call:     {mem: 100, cpu: 23000},
+	const:    {mem: 100, cpu: 23000},
+	force:    {mem: 100, cpu: 23000},
+	builtin:  {mem: 100, cpu: 23000}
+};
+
+/**
+ * Min memory used by a PlutusCoreData value during validation
+ * @type {number}
+ */
+const PLUTUS_CORE_DATA_NODE_MEM_SIZE = 4;
+
+
+//////////////////////////////////
+// Section 2: Plutus-Core builtins
+//////////////////////////////////
+
+class CostModel {
+	constructor() {
+	}
+
+	/**
+	 * @param {number[]} args 
+	 * @returns {number}
+	 */
+	calc(args) {
+		throw new Error("not yet implemented");
+	}
+}
+
+class ConstCost extends CostModel {
+	#constant;
+
+	/**
+	 * @param {number} constant
+	 */
+	constructor(constant) {
+		super();
+		this.#constant = constant;
+	}
+
+	/**
+	 * @param {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		return this.#constant;
+	}
+}
+
+class LinearCost extends CostModel {
+	#a;
+	#b;
+
+	/**
+	 * a + b*SizeFn(x, y)
+	 * @param {number} a - intercept
+	 * @param {number} b - slope
+	 */
+	constructor(a, b) {
+		super();
+		this.#a = a;
+		this.#b = b;
+	}
+
+
+	/**
+	 * @param  {number} size
+	 * @returns {number}
+	 */
+	calcInternal(size) {
+		return this.#a + this.#b*size;
+	}
+}
+
+class ArgSizeCost extends LinearCost {
+	#i;
+
+	/**
+	 * @param {number} a
+	 * @param {number} b
+	 * @param {number} i - index of the arg
+	 */
+    constructor(a, b, i) {
+	   	super(a, b);
+		this.#i = i;
+    }
+
+	/**
+	 * @param {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		assert(this.#i < args.length && this.#i >= 0);
+
+		return this.calcInternal(args[this.#i]);
+	}
+}
+
+class MinArgSizeCost extends LinearCost {
+	/**
+	 * a + b*min(args)
+	 * @param {number} a - intercept
+	 * @param {number} b - slope
+	 */
+	constructor(a, b) {
+		super(a, b);
+	}
+
+	/**
+	 * @param  {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		let min = args[0];
+
+		for (let arg of args) {
+			min = Math.min(arg, min);
+		}
+
+		return this.calcInternal(min);
+	}
+}
+
+class MaxArgSizeCost extends LinearCost {
+	/**
+	 * a + b*max(args)
+	 * @param {number} a - intercept
+	 * @param {number} b - slope
+	 */
+	constructor(a, b) {
+		super(a, b);
+	}
+
+	/**
+	 * @param  {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		let max = args[0];
+
+		for (let arg of args) {
+			max = Math.max(arg, max);
+		}
+
+		return this.calcInternal(max);
+	}
+}
+
+class SumArgSizesCost extends LinearCost {
+	/**
+	 * a + b*sum(args)
+	 * @param {number} a - intercept
+	 * @param {number} b - slope
+	 */
+	 constructor(a, b) {
+		super(a, b);
+	}
+
+	/**
+	 * @param  {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		let sum = 0;
+
+		for (let arg of args) {
+			sum += arg;
+		}
+
+		return this.calcInternal(sum);
+	}
+}
+
+class ArgSizeDiffCost extends LinearCost {
+	#min;
+
+	/**
+	 * a + b*max(x-y, min)
+	 * @param {number} a - intercept
+	 * @param {number} b - slope
+	 * @param {number} min
+	 */
+	 constructor(a, b, min) {
+		super(a, b);
+		this.#min = min
+	}
+
+	/**
+	 * @param {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		assert(args.length == 2);
+		let [x, y] = args;
+
+		return this.calcInternal(Math.max(x - y, this.#min));
+	}
+}
+
+class ArgSizeProdCost extends LinearCost {
+	#constant;
+
+	/**
+	 * (x > y) ? constant : a + b*x*y
+	 * @param {number} a
+	 * @param {number} b
+	 * @param {number} constant
+ 	 */
+	constructor(a, b, constant) {
+		super(a, b);
+		this.#constant = constant;
+	}
+
+	/**
+	 * @param {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		assert(args.length == 2);
+		
+		let [x, y] = args;
+
+		if (x > y) {
+			return this.#constant;
+		} else {
+			return this.calcInternal(x*y);
+		}
+	}
+}
+
+class ArgSizeDiagCost extends LinearCost {
+	#constant;
+
+	/**
+	 * @param {number} a
+	 * @param {number} b
+	 * @param {number} constant
+	 */
+	constructor(a, b, constant) {
+		super(a, b);
+		this.#constant = constant;
+	}
+
+	/**
+	 * @param {number[]} args 
+	 * @returns {number}
+	 */
+	calc(args) {
+		assert(args.length == 2);
+
+		if (args[0] == args[1]) {
+			return this.calcInternal(args[0]);
+		} else {
+			return this.#constant;
+		}
+	}
+}
+
+class PlutusCoreBuiltinInfo {
+	#name;
+	#forceCount;
+	#memCostModel;
+	#cpuCostModel;
+
+	/**
+	 * @param {string} name 
+	 * @param {number} forceCount - number of type parameters of a plutus-core builtin function (0, 1 or 2)
+	 * @param {CostModel} memCostModel 
+	 * @param {CostModel} cpuCostModel 
+	 */
+	constructor(name, forceCount, memCostModel, cpuCostModel) {
+		this.#name = name;
+		this.#forceCount = forceCount;
+		this.#memCostModel = memCostModel;
+		this.#cpuCostModel = cpuCostModel;
+	}
+
+	get name() {
+		return this.#name;
+	}
+
+	get forceCount() {
+		return this.#forceCount;
+	}
+
+	/**
+	 * @param {number[]} argSizes
+	 * @returns {Cost}
+	 */
+	calcCost(argSizes) {
+		if (this.#memCostModel !== null && this.#cpuCostModel !== null) {
+			let memCost = this.#memCostModel.calc(argSizes);
+			let cpuCost = this.#cpuCostModel.calc(argSizes);
+	
+			return {mem: memCost, cpu: cpuCost};
+		} else {
+			throw new Error(`cost model not yet implemented for builtin ${this.#name}`);
+		}
+	}
+}
 
 /** @type {PlutusCoreBuiltinInfo[]} */
 const PLUTUS_CORE_BUILTINS = (
@@ -249,75 +566,77 @@ const PLUTUS_CORE_BUILTINS = (
 		 * Constructs a builtinInfo object
 		 * @param {string} name 
 		 * @param {number} forceCount 
+		 * @param {CostModel} memCostModel
+		 * @param {CostModel} cpuCostModel
 		 * @returns {PlutusCoreBuiltinInfo}
 		 */
-		function builtinInfo(name, forceCount) {
+		function builtinInfo(name, forceCount, memCostModel, cpuCostModel) {
 			// builtins might need be wrapped in `force` a number of times if they are not fully typed
-			return { name: name, forceCount: forceCount };
+			return new PlutusCoreBuiltinInfo(name, forceCount, memCostModel, cpuCostModel);
 		}
 
 		return [
-			builtinInfo("addInteger", 0), // 0
-			builtinInfo("subtractInteger", 0),
-			builtinInfo("multiplyInteger", 0),
-			builtinInfo("divideInteger", 0),
-			builtinInfo("quotientInteger", 0),
-			builtinInfo("remainderInteger", 0),
-			builtinInfo("modInteger", 0),
-			builtinInfo("equalsInteger", 0),
-			builtinInfo("lessThanInteger", 0),
-			builtinInfo("lessThanEqualsInteger", 0),
-			builtinInfo("appendByteString", 0), // 10
-			builtinInfo("consByteString", 0),
-			builtinInfo("sliceByteString", 0),
-			builtinInfo("lengthOfByteString", 0),
-			builtinInfo("indexByteString", 0),
-			builtinInfo("equalsByteString", 0),
-			builtinInfo("lessThanByteString", 0),
-			builtinInfo("lessThanEqualsByteString", 0),
-			builtinInfo("sha2_256", 0),
-			builtinInfo("sha3_256", 0),
-			builtinInfo("blake2b_256", 0), // 20
-			builtinInfo("verifyEd25519Signature", 0),
-			builtinInfo("appendString", 0),
-			builtinInfo("equalsString", 0),
-			builtinInfo("encodeUtf8", 0),
-			builtinInfo("decodeUtf8", 0),
-			builtinInfo("ifThenElse", 1),
-			builtinInfo("chooseUnit", 1),
-			builtinInfo("trace", 1),
-			builtinInfo("fstPair", 2),
-			builtinInfo("sndPair", 2), // 30
-			builtinInfo("chooseList", 1),
-			builtinInfo("mkCons", 1),
-			builtinInfo("headList", 1),
-			builtinInfo("tailList", 1),
-			builtinInfo("nullList", 1),
-			builtinInfo("chooseData", 0),
-			builtinInfo("constrData", 0),
-			builtinInfo("mapData", 0),
-			builtinInfo("listData", 0),
-			builtinInfo("iData", 0), // 40
-			builtinInfo("bData", 0),
-			builtinInfo("unConstrData", 0),
-			builtinInfo("unMapData", 0),
-			builtinInfo("unListData", 0),
-			builtinInfo("unIData", 0),
-			builtinInfo("unBData", 0),
-			builtinInfo("equalsData", 0),
-			builtinInfo("mkPairData", 0),
-			builtinInfo("mkNilData", 0),
-			builtinInfo("mkNilPairData", 0), // 50
-			builtinInfo("serialiseData", 0),
-			builtinInfo("verifyEcdsaSecp256k1Signature", 0),
-			builtinInfo("verifySchnorrSecp256k1Signature", 0),
+			builtinInfo("addInteger",               0, new MaxArgSizeCost(1, 1), new MaxArgSizeCost(205665, 812)), // 0
+			builtinInfo("subtractInteger",          0, new MaxArgSizeCost(1, 1), new MaxArgSizeCost(205665, 812)),
+			builtinInfo("multiplyInteger",          0, new SumArgSizesCost(0, 1), new SumArgSizesCost(69522, 11687)),
+			builtinInfo("divideInteger",            0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)),
+			builtinInfo("quotientInteger",          0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)), 
+			builtinInfo("remainderInteger",         0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)),
+			builtinInfo("modInteger",               0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)),
+			builtinInfo("equalsInteger",            0, new ConstCost(1), new MinArgSizeCost(208512, 421)),
+			builtinInfo("lessThanInteger",          0, new ConstCost(1), new MinArgSizeCost(208896, 511)),
+			builtinInfo("lessThanEqualsInteger",    0, new ConstCost(1), new MinArgSizeCost(204924, 473)),
+			builtinInfo("appendByteString",         0, new SumArgSizesCost(0, 1), new SumArgSizesCost(1000, 571)), // 10
+			builtinInfo("consByteString",           0, new SumArgSizesCost(0, 1), new ArgSizeCost(221973, 511, 1)),
+			builtinInfo("sliceByteString",          0, new ArgSizeCost(4, 0, 2), new ArgSizeCost(265318, 0, 2)),
+			builtinInfo("lengthOfByteString",       0, new ConstCost(10), new ConstCost(1000)),
+			builtinInfo("indexByteString",          0, new ConstCost(4), new ConstCost(57667)),
+			builtinInfo("equalsByteString",         0, new ConstCost(1), new ArgSizeDiagCost(216773, 62, 245000)),
+			builtinInfo("lessThanByteString",       0, new ConstCost(1), new MinArgSizeCost(197145, 156)),
+			builtinInfo("lessThanEqualsByteString", 0, new ConstCost(1), new MinArgSizeCost(197145, 156)),
+			builtinInfo("sha2_256",                 0, new ConstCost(4), new ArgSizeCost(806990, 30482, 0)),
+			builtinInfo("sha3_256",                 0, new ConstCost(4), new ArgSizeCost(1927926, 82523, 0)),
+			builtinInfo("blake2b_256",              0, new ConstCost(4), new ArgSizeCost(117366, 10475, 0)), // 20
+			builtinInfo("verifyEd25519Signature",   0, new ConstCost(10), new ArgSizeCost(9462713, 1021, 2)),
+			builtinInfo("appendString",             0, new SumArgSizesCost(4, 1), new SumArgSizesCost(1000, 24177)),
+			builtinInfo("equalsString",             0, new ConstCost(1), new ArgSizeDiagCost(1000, 52998, 187000)),
+			builtinInfo("encodeUtf8",               0, new ArgSizeCost(4, 2, 0), new ArgSizeCost(1000, 28662, 0)),
+			builtinInfo("decodeUtf8",               0, new ArgSizeCost(4, 2, 0), new ArgSizeCost(497525, 14068, 0)),
+			builtinInfo("ifThenElse",               1, new ConstCost(1), new ConstCost(80556)),
+			builtinInfo("chooseUnit",               1, new ConstCost(4), new ConstCost(46417)),
+			builtinInfo("trace",                    1, new ConstCost(32), new ConstCost(212342)),
+			builtinInfo("fstPair",                  2, new ConstCost(32), new ConstCost(80436)),
+			builtinInfo("sndPair",                  2, new ConstCost(32), new ConstCost(85931)), // 30
+			builtinInfo("chooseList",               1, new ConstCost(32), new ConstCost(175354)),
+			builtinInfo("mkCons",                   1, new ConstCost(32), new ConstCost(65493)),
+			builtinInfo("headList",                 1, new ConstCost(32), new ConstCost(43249)),
+			builtinInfo("tailList",                 1, new ConstCost(32), new ConstCost(41182)),
+			builtinInfo("nullList",                 1, new ConstCost(32), new ConstCost(60091)),
+			builtinInfo("chooseData",               0, new ConstCost(32), new ConstCost(19537)),
+			builtinInfo("constrData",               0, new ConstCost(32), new ConstCost(89141)),
+			builtinInfo("mapData",                  0, new ConstCost(32), new ConstCost(64832)),
+			builtinInfo("listData",                 0, new ConstCost(32), new ConstCost(52467)),
+			builtinInfo("iData",                    0, new ConstCost(32), new ConstCost(1000)), // 40
+			builtinInfo("bData",                    0, new ConstCost(32), new ConstCost(1000)),
+			builtinInfo("unConstrData",             0, new ConstCost(32), new ConstCost(32696)),
+			builtinInfo("unMapData",                0, new ConstCost(32), new ConstCost(38314)),
+			builtinInfo("unListData",               0, new ConstCost(32), new ConstCost(32247)),
+			builtinInfo("unIData",                  0, new ConstCost(32), new ConstCost(43357)),
+			builtinInfo("unBData",                  0, new ConstCost(32), new ConstCost(31220)),
+			builtinInfo("equalsData",               0, new ConstCost(1), new MinArgSizeCost(1060367, 12586)),
+			builtinInfo("mkPairData",               0, new ConstCost(32), new ConstCost(76511)),
+			builtinInfo("mkNilData",                0, new ConstCost(32), new ConstCost(22558)),
+			builtinInfo("mkNilPairData",            0, new ConstCost(32), new ConstCost(16563)), // 50
+			builtinInfo("serialiseData",            0, new ArgSizeCost(0, 2, 0), new ArgSizeCost(1159724, 392670, 0)),
+			builtinInfo("verifyEcdsaSecp256k1Signature",   0, new ConstCost(10), new ConstCost(35190005)), // these parameters are from aiken, but the cardano-cli parameter file differ?
+			builtinInfo("verifySchnorrSecp256k1Signature", 0, new ConstCost(10), new ArgSizeCost(39121781, 32260, 1)), // these parameters are from, but the cardano-cli parameter file differs?
 		];
 	}
 )();
 
 
 ///////////////////////
-// Section 2: utilities
+// Section 3: utilities
 ///////////////////////
 
 /**
@@ -2141,7 +2460,7 @@ class Site {
 
 
 /////////////////////////////////////
-// Section 3: Plutus-Core AST objects
+// Section 4: Plutus-Core AST objects
 /////////////////////////////////////
 
 /** 
@@ -2169,6 +2488,14 @@ class PlutusCoreValue {
 
 	get site() {
 		return this.#site;
+	}
+
+	/**
+	 * Size in words (8 bytes, 64 bits) occupied in target node
+	 * @type {number}
+	 */
+	get memSize() {
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -2374,6 +2701,16 @@ class PlutusCoreRTE {
 	#marker;
 
 	/**
+	 * @type {number} memCost of whole run (seems to always increase)
+	 */
+	#memCost;
+
+	/**
+	 * @type {number} - cpuCost of whole run
+	 */
+	#cpuCost;
+
+	/**
 	 * @typedef {[?string, PlutusCoreValue][]} PlutusCoreRawStack
 	 */
 
@@ -2385,6 +2722,23 @@ class PlutusCoreRTE {
 		this.#callbacks = callbacks;
 		this.#notifyCalls = true;
 		this.#marker = null;
+		this.#memCost = 0;
+		this.#cpuCost = 0;
+	}
+
+	/**
+	 * @type {Cost}
+	 */
+	get cost() {
+		return {mem: this.#memCost, cpu: this.#cpuCost};
+	}
+
+	/**
+	 * @param {Cost} cost 
+	 */
+	incrCost(cost) {
+		this.#memCost += cost.mem;
+		this.#cpuCost += cost.cpu;
 	}
 
 	/**
@@ -2479,6 +2833,13 @@ class PlutusCoreStack {
 		this.#parent = parent;
 		this.#value = value;
 		this.#valueName = valueName;
+	}
+
+	/**
+	 * @param {Cost} cost 
+	 */
+	incrCost(cost) {
+		this.#parent.incrCost(cost)
 	}
 
 	/**
@@ -2616,6 +2977,10 @@ class PlutusCoreAnon extends PlutusCoreValue {
 		this.#callSite = callSite;
 	}
 
+	get memSize() {
+		return 1;
+	}
+
 	/**
 	 * @param {Site} newSite 
 	 * @returns {PlutusCoreAnon}
@@ -2727,6 +3092,16 @@ class PlutusCoreInt extends PlutusCoreValue {
 	 */
 	static newSignedTerm(site, value) {
 		return new PlutusCoreConst(new PlutusCoreInt(site, value, true));
+	}
+
+	get memSize() {
+		if (this.#value == 0n) {
+			return 1;
+		} else {
+			let abs = this.#value > 0 ? this.#value : -this.#value;
+
+			return Math.floor(Math.floor(Math.log2(Number(abs)))/64) + 1;
+		}
 	}
 
 	/**
@@ -2903,6 +3278,10 @@ class PlutusCoreByteArray extends PlutusCoreValue {
 		return new PlutusCoreConst(new PlutusCoreByteArray(site, bytes));
 	}
 
+	get memSize() {
+		return Math.floor((this.#bytes.length - 1)/8) + 1;
+	}
+
 	/**
 	 * @param {Site} newSite 
 	 * @returns {PlutusCoreByteArray}
@@ -2993,6 +3372,10 @@ class PlutusCoreString extends PlutusCoreValue {
 		return new PlutusCoreConst(new PlutusCoreString(site, value));
 	}
 
+	get memSize() {
+		return this.#value.length;
+	}
+
 	/**
 	 * @param {Site} newSite 
 	 * @returns {PlutusCoreString}
@@ -3049,6 +3432,10 @@ class PlutusCoreString extends PlutusCoreValue {
 		return new PlutusCoreConst(new PlutusCoreUnit(site));
 	}
 
+	get memSize() {
+		return 1;
+	}
+
 	/**
 	 * @param {Site} newSite 
 	 * @returns {PlutusCoreUnit}
@@ -3102,6 +3489,10 @@ class PlutusCoreBool extends PlutusCoreValue {
 	 */
 	static newTerm(site, value) {
 		return new PlutusCoreConst(new PlutusCoreBool(site, value));
+	}
+
+	get memSize() {
+		return 1;
 	}
 
 	/**
@@ -3173,6 +3564,10 @@ class PlutusCorePair extends PlutusCoreValue {
 		return new PlutusCoreConst(new PlutusCorePair(site, first, second));
 	}
 
+	get memSize() {
+		return 1 + this.#first.memSize + this.#second.memSize;
+	}
+
 	/**
 	 * @param {Site} newSite 
 	 * @returns {PlutusCorePair}
@@ -3233,6 +3628,11 @@ class PlutusCoreMapItem extends PlutusCoreValue {
 		this.#value = value;
 	}
 
+	get memSize() {
+		return 1 + (new PlutusCoreDataValue(this.site, this.#key)).memSize + 
+			(new PlutusCoreDataValue(this.site, this.#value)).memSize;
+	}
+
 	/**
 	 * @param {Site} newSite 
 	 * @returns {PlutusCoreMapItem}
@@ -3288,6 +3688,18 @@ class PlutusCoreList extends PlutusCoreValue {
 	constructor(site, items) {
 		super(site);
 		this.#items = items;
+	}
+
+	get memSize() {
+		let sum = 0;
+
+		for (let item of this.#items) {
+			let data = new PlutusCoreDataValue(this.site, item);
+
+			sum += data.memSize;
+		}
+
+		return sum;
 	}
 
 	/**
@@ -3347,6 +3759,17 @@ class PlutusCoreMap extends PlutusCoreValue {
 		this.#pairs = pairs;
 	}
 
+	get memSize() {
+		let sum = 0;
+
+		for (let pair of this.#pairs) {
+
+			sum += pair.memSize;
+		}
+
+		return sum;
+	}
+
 	/**
 	 * @param {Site} newSite 
 	 * @returns {PlutusCoreMap}
@@ -3404,6 +3827,10 @@ class PlutusCoreDataValue extends PlutusCoreValue {
 		super(site);
 		this.#data = assertDefined(data);
 		assert(data instanceof PlutusCoreData);
+	}
+
+	get memSize() {
+		return this.#data.memSize;
 	}
 
 	/**
@@ -3468,6 +3895,7 @@ class PlutusCoreTerm {
 	}
 
 	/**
+	 * Calculates a value, and also increments the cost
 	 * @param {PlutusCoreRTE | PlutusCoreStack} rte 
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
@@ -3516,6 +3944,9 @@ class PlutusCoreVariable extends PlutusCoreTerm {
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async eval(rte) {
+		// add costs before get the value
+		rte.incrCost(PLUTUS_CORE_TERM_COSTS.variable);
+
 		return rte.get(Number(this.#index.int));
 	}
 }
@@ -3552,6 +3983,8 @@ class PlutusCoreDelay extends PlutusCoreTerm {
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async eval(rte) {
+		rte.incrCost(PLUTUS_CORE_TERM_COSTS.delay);
+
 		return await this.#expr.eval(rte);
 	}
 }
@@ -3595,6 +4028,8 @@ class PlutusCoreLambda extends PlutusCoreTerm {
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async eval(rte) {
+		rte.incrCost(PLUTUS_CORE_TERM_COSTS.lambda);
+
 		return new PlutusCoreAnon(this.site, rte, this.#argName !== null ? [this.#argName] : 1, (callSite, subStack) => {
 			return this.#rhs.eval(subStack);
 		});
@@ -3637,6 +4072,8 @@ class PlutusCoreCall extends PlutusCoreTerm {
 	 * @returns 
 	 */
 	async eval(rte) {
+		rte.incrCost(PLUTUS_CORE_TERM_COSTS.call)
+
 		let fn = await this.#a.eval(rte);
 		let arg = await this.#b.eval(rte);
 
@@ -3682,6 +4119,8 @@ class PlutusCoreConst extends PlutusCoreTerm {
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async eval(rte) {
+		rte.incrCost(PLUTUS_CORE_TERM_COSTS.const);
+
 		return await this.#value.eval(rte);
 	}
 }
@@ -3718,6 +4157,8 @@ class PlutusCoreForce extends PlutusCoreTerm {
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async eval(rte) {
+		rte.incrCost(PLUTUS_CORE_TERM_COSTS.force);
+
 		return await this.#expr.eval(rte);
 	}
 }
@@ -3804,6 +4245,16 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 	}
 
 	/**
+	 * @param  {...PlutusCoreValue} args
+	 * @returns {Cost}
+	 */
+	calcCost(...args) {
+		let i = PLUTUS_CORE_BUILTINS.findIndex(info => info.name == this.#name);
+
+		return PLUTUS_CORE_BUILTINS[i].calcCost(args.map(a => a.memSize));
+	}
+
+	/**
 	 * Used by IRCoreCallExpr
 	 * @param {Word} name
 	 * @param {PlutusCoreValue[]} args
@@ -3838,19 +4289,29 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 
 		switch (this.#name) {
 			case "addInteger":
+				// returning a lambda is assumed to be free
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					// but calling a lambda has a cost associated
+					rte.incrCost(this.calcCost(a, b));
+
 					return new PlutusCoreInt(callSite, a.int + b.int);
 				});
 			case "subtractInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					return new PlutusCoreInt(callSite, a.int - b.int);
 				});
 			case "multiplyInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					return new PlutusCoreInt(callSite, a.int * b.int);
 				});
 			case "divideInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					if (b.int === 0n) {
 						throw callSite.runtimeError("division by zero");
 					} else {
@@ -3859,6 +4320,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "modInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					if (b.int === 0n) {
 						throw callSite.runtimeError("division by zero");
 					} else {
@@ -3867,28 +4330,40 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "equalsInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					return new PlutusCoreBool(callSite, a.int == b.int);
 				});
 			case "lessThanInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					return new PlutusCoreBool(callSite, a.int < b.int);
 				});
 			case "lessThanEqualsInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					return new PlutusCoreBool(callSite, a.int <= b.int);
 				});
 			case "appendByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					return new PlutusCoreByteArray(callSite, a.bytes.concat(b.bytes));
 				});
 			case "consByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					let bytes = b.bytes;
 					bytes.unshift(Number(a.int % 256n));
 					return new PlutusCoreByteArray(callSite, bytes);
 				});
 			case "sliceByteString":
 				return new PlutusCoreAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
+					rte.incrCost(this.calcCost(a, b, c));
+
 					let start = Number(a.int);
 					let n = Number(b.int);
 					let bytes = c.bytes;
@@ -3910,10 +4385,14 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "lengthOfByteString":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					return new PlutusCoreInt(callSite, BigInt(a.bytes.length));
 				});
 			case "indexByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					let bytes = a.bytes;
 					let i = b.int;
 					if (i < 0 || i >= bytes.length) {
@@ -3924,6 +4403,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "equalsByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					let aBytes = a.bytes;
 					let bBytes = b.bytes;
 
@@ -3943,6 +4424,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "lessThanByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					let aBytes = a.bytes;
 					let bBytes = b.bytes;
 
@@ -3964,6 +4447,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "lessThanEqualsByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					let aBytes = a.bytes;
 					let bBytes = b.bytes;
 
@@ -3985,18 +4470,26 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "appendString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					return new PlutusCoreString(callSite, a.string + b.string);
 				});
 			case "equalsString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					return new PlutusCoreBool(callSite, a.string == b.string);
 				});
 			case "encodeUtf8":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					return new PlutusCoreByteArray(callSite, stringToBytes(a.string));
 				});
 			case "decodeUtf8":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					try {
 						return new PlutusCoreString(callSite, bytesToString(a.bytes));
 					} catch(_) {
@@ -4005,32 +4498,43 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "sha2_256":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					return new PlutusCoreByteArray(callSite, Crypto.sha2(a.bytes))
 				});
 			case "sha3_256":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					return new PlutusCoreByteArray(callSite, Crypto.sha3(a.bytes))
 				});
 			case "blake2b_256":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					return new PlutusCoreByteArray(callSite, Crypto.blake2b(a.bytes))
 				});
 			case "verifyEd25519Signature":
 				throw new Error("no immediate need, so don't bother yet");
 			case "ifThenElse":
 				return new PlutusCoreAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
+					rte.incrCost(this.calcCost(a, b, c));
 					return a.bool ? b.copy(callSite) : c.copy(callSite);
 				});
 			case "chooseUnit":
 				throw new Error("what is the point of this function?");
 			case "trace":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					return rte.print(a.string).then(() => {
 						return b.copy(callSite);
 					});
 				});
 			case "fstPair":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					if (a.isPair()) {
 						return a.first.copy(callSite);
 					} else if (a.isMapItem()) {
@@ -4041,6 +4545,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "sndPair":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					if (a.isPair()) {
 						return a.second.copy(callSite);
 					} else if (a.isMapItem()) {
@@ -4054,6 +4560,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 			case "mkCons":
 				// only allow data items in list
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					if (b.isList()) {
 						if (!a.isData()) {
 							throw callSite.typeError(`expected data, got ${a.toString()}`);
@@ -4073,6 +4581,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "headList":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					if (a.isList()) {
 						let lst = a.list;
 						if (lst.length == 0) {
@@ -4093,6 +4603,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "tailList":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					if (a.isList()) {
 						let lst = a.list;
 						if (lst.length == 0) {
@@ -4113,6 +4625,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "nullList":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					if (a.isList()) {
 						return new PlutusCoreBool(callSite, a.list.length == 0);
 					} else if (a.isMap()) {
@@ -4125,6 +4639,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				throw new Error("no immediate need, so don't bother yet");
 			case "constrData":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					let i = a.int;
 					assert(i >= 0);
 					let lst = b.list;
@@ -4132,24 +4648,34 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "mapData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					return new PlutusCoreDataValue(callSite, new MapData(a.map.map(pair => {
 						return [pair.key, pair.value];
 					})));
 				});
 			case "listData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					return new PlutusCoreDataValue(callSite, new ListData(a.list));
 				});
 			case "iData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+					
 					return new PlutusCoreDataValue(callSite, new IntData(a.int));
 				});
 			case "bData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					return new PlutusCoreDataValue(callSite, new ByteArrayData(a.bytes));
 				});
 			case "unConstrData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					if (!a.isData()) {
 						throw callSite.typeError(`expected data, got ${a.toString()}`);
 					}
@@ -4163,6 +4689,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unMapData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					if (!a.isData()) {
 						throw callSite.typeError(`expected data, got ${a.toString()}`);
 					}
@@ -4176,6 +4704,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unListData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					if (!a.isData()) {
 						throw callSite.typeError(`expected data, got ${a.toString()}`);
 					}
@@ -4189,6 +4719,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unIData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					if (!a.isData()) {
 						throw callSite.typeError(`expected data, got ${a.toString()}`);
 					}
@@ -4202,6 +4734,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unBData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					if (!a.isData()) {
 						throw callSite.typeError(`expected data, got ${a.toString()}`);
 					}
@@ -4215,6 +4749,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "equalsData":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					if (!a.isData()) {
 						throw callSite.typeError(`expected data, got ${a.toString()}`);
 					}
@@ -4228,22 +4764,30 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "mkPairData":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.incrCost(this.calcCost(a, b));
+
 					return new PlutusCoreMapItem(callSite, a.data, b.data);
 				});
 			case "mkNilData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					a.assertUnit();
 
 					return new PlutusCoreList(callSite, []);
 				});
 			case "mkNilPairData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+
 					a.assertUnit();
 
 					return new PlutusCoreMap(callSite, []);
 				});
 			case "serialiseData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
+					rte.incrCost(this.calcCost(a));
+					
 					return new PlutusCoreByteArray(callSite, a.data.toCBOR());
 				});
 			case "verifyEcdsaSecp256k1Signature":
@@ -4261,6 +4805,8 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async eval(rte) {
+		rte.incrCost(PLUTUS_CORE_TERM_COSTS.builtin);
+
 		return this.evalInternal(rte);
 	}
 }
@@ -4334,31 +4880,20 @@ class PlutusCoreProgram {
 	}
 
 	/**
-	 * Evaluates the term contained in PlutusCoreProgram (assuming it is a lambda term)
-	 * @param {PlutusCoreData[]} rawArgs
+	 * 
+	 * @param {PlutusCoreData[]} rawArgs 
 	 * @param {PlutusCoreRTECallbacks} callbacks 
 	 * @returns {Promise<PlutusCoreData | UserError>}
 	 */
-	async run(rawArgs, callbacks) {
-		assertDefined(callbacks);
-		let rte = new PlutusCoreRTE(callbacks);
+	async run(rawArgs, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
+		let globalCallSite = new Site(this.site.src, this.site.src.length);
+
+		let args = (rawArgs.length == 0) ? [new PlutusCoreUnit(globalCallSite)] : rawArgs.map(a => new PlutusCoreDataValue(globalCallSite, a));
 
 		try {
-			let fn = await this.eval(rte);
+			let res = await this.runInternal(args, callbacks);
 
-			// program site is at pos 0, but now the call site is actually at the end 
-			let globalCallSite = new Site(this.site.src, this.site.src.length);
-
-			let args = (rawArgs.length == 0) ? [new PlutusCoreUnit(globalCallSite)] : rawArgs.map(a => new PlutusCoreDataValue(globalCallSite, a));
-			
-			/** @type {PlutusCoreValue} */
-			let result = fn;
-
-			for (let arg of args) {
-				result = await result.call(rte, globalCallSite, arg);
-			}
-
-			return result.data;
+			return res.data;
 		} catch (e) {
 			if (!(e instanceof UserError)) {
 				throw e;
@@ -4366,6 +4901,34 @@ class PlutusCoreProgram {
 				return e;
 			}
 		}
+	}
+	/**
+	 * Evaluates the term contained in PlutusCoreProgram (assuming it is a lambda term)
+	 * @param {PlutusCoreValue[]} args
+	 * @param {PlutusCoreRTECallbacks} callbacks 
+	 * @returns {Promise<PlutusCoreValue>}
+	 */
+	async runInternal(args, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
+		assertDefined(callbacks);
+
+		let rte = new PlutusCoreRTE(callbacks);
+
+		// add the startup costs
+		rte.incrCost(PLUTUS_CORE_TERM_COSTS.startup);
+
+		let fn = await this.eval(rte);
+
+		// program site is at pos 0, but now the call site is actually at the end 
+		let globalCallSite = new Site(this.site.src, this.site.src.length);
+		
+		/** @type {PlutusCoreValue} */
+		let result = fn;
+
+		for (let arg of args) {
+			result = await result.call(rte, globalCallSite, arg);
+		}
+
+		return result;
 	}
 
 	/**
@@ -4403,7 +4966,7 @@ class PlutusCoreProgram {
 
 
 /////////////////////////////////
-// Section 4: Plutus data objects
+// Section 5: Plutus data objects
 /////////////////////////////////
 
 /**
@@ -4412,6 +4975,14 @@ class PlutusCoreProgram {
  */
 class PlutusCoreData {
 	constructor() {
+	}
+
+	/**
+	 * Estimate of memory usage during validation
+	 * @type {number}
+	 */
+	get memSize() {
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -4426,7 +4997,7 @@ class PlutusCoreData {
 	 * Handy for property tests
 	 * @returns {boolean}
 	 */
-	 isBool() {
+	isBool() {
 		return false;
 	}
 
@@ -5019,6 +5590,10 @@ class IntData extends PlutusCoreData {
 		return this.#value;
 	}
 
+	get memSize() {
+		return PLUTUS_CORE_DATA_NODE_MEM_SIZE + (new PlutusCoreInt(Site.dummy(), this.#value)).memSize;
+	}
+
 	/**
 	 * Handy for property tests
 	 * @returns {boolean}
@@ -5120,6 +5695,10 @@ class ByteArrayData extends PlutusCoreData {
 
 	get bytes() {
 		return this.#bytes.slice();
+	}
+
+	get memSize() {
+		return PLUTUS_CORE_DATA_NODE_MEM_SIZE + (new PlutusCoreByteArray(Site.dummy(), this.#bytes)).memSize;
 	}
 
 	/**
@@ -5243,6 +5822,16 @@ class ListData extends PlutusCoreData {
 		return this.#items.slice();
 	}
 
+	get memSize() {
+		let sum = PLUTUS_CORE_DATA_NODE_MEM_SIZE;
+
+		for (let item of this.#items) {
+			sum += item.memSize;
+		}
+
+		return sum;
+	}
+
 	/**
 	 * Handy for property tests
 	 * @returns {boolean}
@@ -5347,6 +5936,16 @@ class MapData extends PlutusCoreData {
 		return this.#pairs.slice();
 	}
 
+	get memSize() {
+		let sum = PLUTUS_CORE_DATA_NODE_MEM_SIZE;
+
+		for (let [k, v] of this.#pairs) {
+			sum += k.memSize + v.memSize;
+		}
+
+		return sum;
+	}
+
 	toString() {
 		return `{${this.#pairs.map(([fst, snd]) => `${fst.toString()}: ${snd.toString()}`).join(", ")}}`;
 	}
@@ -5416,6 +6015,16 @@ class ConstrData extends PlutusCoreData {
 
 	get fields() {
 		return this.#fields.slice();
+	}
+
+	get memSize() {
+		let sum = PLUTUS_CORE_DATA_NODE_MEM_SIZE;
+
+		for (let field of this.#fields) {
+			sum += field.memSize;
+		}
+
+		return sum;
 	}
 
 	/**
@@ -5885,7 +6494,7 @@ class LedgerData extends ConstrData {
 
 
 ///////////////////////////
-// Section 5: Token objects
+// Section 6: Token objects
 ///////////////////////////
 
 /**
@@ -6505,7 +7114,7 @@ class UnitLiteral extends PrimitiveLiteral {
 
 
 //////////////////////////
-// Section 6: Tokenization
+// Section 7: Tokenization
 //////////////////////////
 
 class Tokenizer {
@@ -7419,7 +8028,7 @@ export function highlight(src) {
 
 
 /////////////////////////////////////
-// Section 7: Type evaluation objects
+// Section 8: Type evaluation objects
 /////////////////////////////////////
 
 /**
@@ -8385,7 +8994,7 @@ class FuncStatementValue extends FuncValue {
 
 
 ////////////////////
-// Section 8: Scopes
+// Section 9: Scopes
 ////////////////////
 
 /**
@@ -8648,7 +9257,7 @@ class FuncStatementScope extends Scope {
 
 
 ////////////////////////////////////
-// Section 9: AST expression objects
+// Section 10: AST expression objects
 ////////////////////////////////////
 
 /**
@@ -10608,7 +11217,7 @@ class SwitchExpr extends ValueExpr {
 
 
 ////////////////////////////////////
-// Section 10: AST statement objects
+// Section 11: AST statement objects
 ////////////////////////////////////
 
 /**
@@ -11787,7 +12396,7 @@ class Program {
 
 
 //////////////////////////////////
-// Section 11: AST build functions
+// Section 12: AST build functions
 //////////////////////////////////
 
 /**
@@ -13010,7 +13619,7 @@ function buildValuePathExpr(ts) {
 
 
 ////////////////////////////
-// Section 12: Builtin types
+// Section 13: Builtin types
 ////////////////////////////
 
 /**
@@ -14458,7 +15067,7 @@ class MoneyValueType extends BuiltinType {
 
 
 //////////////////////////////////////////
-// Section 13: Builtin low-level functions
+// Section 14: Builtin low-level functions
 //////////////////////////////////////////
 
 /**
@@ -16945,7 +17554,7 @@ function wrapWithRawFunctions(ir) {
 
 
 //////////////////////////////////
-// Section 14: IR AST objects
+// Section 15: IR AST objects
 //////////////////////////////////
 
 /**
@@ -18427,7 +19036,7 @@ class IRErrorCallExpr extends IRExpr {
 
 
 //////////////////////////////////////////
-// Section 15: IR AST build functions
+// Section 16: IR AST build functions
 //////////////////////////////////////////
 
 /**
@@ -18622,7 +19231,7 @@ function simplifyIRProgram(program) {
 
 
 //////////////////////////
-// Section 16: Compilation
+// Section 17: Compilation
 //////////////////////////
 
 /**
@@ -18895,7 +19504,7 @@ export async function run(typedSrc, config = DEFAULT_CONFIG) {
 
 
 //////////////////////////////////////////
-// Section 17: Plutus-Core deserialization
+// Section 18: Plutus-Core deserialization
 //////////////////////////////////////////
 
 /**
@@ -19227,7 +19836,7 @@ export function deserializePlutusCore(jsonString) {
 
 
 ///////////////////////////////////////////////
-// Section 18. Property based testing framework
+// Section 19. Property based testing framework
 ///////////////////////////////////////////////
 
 /**
@@ -19769,13 +20378,7 @@ export class FuzzyTest {
 						dgConfig.prevArgs.push(arg);
 					}
 				
-					let result = await program.run(args, {
-						onPrint: function (msg) {
-							return new Promise(function (resolve, _) {
-								resolve(); // ignore the incoming messages
-							});
-						}
-					});
+					let result = await program.run(args);
 
 					let obj = propTest(args, result);
 
@@ -19817,10 +20420,18 @@ export const exportedForTesting = {
 	bytesToString: bytesToString,
 	wrapCborBytes: wrapCborBytes,
 	unwrapCborBytes: unwrapCborBytes,
+	Site: Site,
 	Source: Source,
 	Crypto: Crypto,
 	MapData: MapData,
 	LedgerData: LedgerData,
 	PlutusCoreData: PlutusCoreData,
 	ScriptPurpose: ScriptPurpose,
+	PlutusCoreProgram: PlutusCoreProgram,
+	PlutusCoreLambda: PlutusCoreLambda,
+	PlutusCoreCall: PlutusCoreCall,
+	PlutusCoreBuiltin: PlutusCoreBuiltin,
+	PlutusCoreVariable: PlutusCoreVariable,
+	PlutusCoreConst: PlutusCoreConst,
+	PlutusCoreInt: PlutusCoreInt,
 };
