@@ -3,6 +3,7 @@ This Changelog only applies to notable changes to `helios.js` on the main branch
 # 2022/08/16
 * 'simplify' boolean flag in config object that is passed to compile()
 * Map key can't be bool type (makes it easier to use bool as primitive in plutus-core, instead of a data type)
+* `Value*Int` (not commutative) and `Value/Int` operators
 
 # 2022/08/11
 * ByteArray.slice (negative indices relative to end)

@@ -2480,6 +2480,64 @@ async function runPropertyTests() {
             return res.isInt() && (a.asInt() - b.asInt() === res.asInt());
         });
 
+        await ft.test([ft.int()],
+        `test value_mul_1
+        func main(a: Int) -> Int {
+            (Value::lovelace(a)*1).get(AssetClass::ADA)
+        }`, ([a], res) => {
+            return res.isInt() && (a.asInt() === res.asInt());
+        });
+
+        await ft.test([ft.int(), ft.int()],
+        `test value_mul_2
+        func main(a: Int, b: Int) -> Int {
+            (Value::lovelace(a)*b).get(AssetClass::ADA)
+        }`, ([a, b], res) => {
+            return res.isInt() && (a.asInt()*b.asInt() === res.asInt());
+        });
+
+        await ft.test([ft.int(), ft.int(), ft.int()],
+        `test value_mul_3
+        const MY_NFT: AssetClass = AssetClass::new(#abc, #abc)
+        func main(a: Int, b: Int, c: Int) -> Int {
+            ((Value::lovelace(a) + Value::new(MY_NFT, b))*c).get(AssetClass::ADA)
+        }`, ([a, b, c], res) => {
+            return res.isInt() && (a.asInt()*c.asInt() === res.asInt());
+        });
+
+        await ft.test([ft.int()],
+        `test value_div_1
+        func main(a: Int) -> Int {
+            (Value::lovelace(a)/1).get(AssetClass::ADA)
+        }`, ([a], res) => {
+            return res.isInt() && (a.asInt() === res.asInt());
+        });
+
+        await ft.test([ft.int(), ft.int()],
+        `test value_div_2
+        func main(a: Int, b: Int) -> Int {
+            (Value::lovelace(a)/b).get(AssetClass::ADA)
+        }`, ([a, b], res) => {
+            if (b.asInt() === 0n) {
+                return res instanceof helios.UserError && res.info == "division by zero";
+            } else {
+                return res.isInt() && (a.asInt()/b.asInt() === res.asInt())
+            }
+        });
+
+        await ft.test([ft.int(), ft.int(), ft.int()],
+        `test value_div_3
+        const MY_NFT: AssetClass = AssetClass::new(#abc, #abc)
+        func main(a: Int, b: Int, c: Int) -> Int {
+            ((Value::lovelace(a) + Value::new(MY_NFT, b))/c).get(AssetClass::ADA)
+        }`, ([a, b, c], res) => {
+            if (c.asInt() === 0n) {
+                return res instanceof helios.UserError && res.info == "division by zero";
+            } else {
+                return res.isInt() && (a.asInt()/c.asInt() === res.asInt())
+            }
+        });
+
         await ft.test([ft.int()], `
         test value_geq_1
         func main(a: Int) -> Bool {

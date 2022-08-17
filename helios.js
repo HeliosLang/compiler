@@ -14398,6 +14398,9 @@ class MoneyValueType extends BuiltinType {
 			case "__add":
 			case "__sub":
 				return Value.new(new FuncType([new MoneyValueType()], new MoneyValueType()));
+			case "__mul":
+			case "__div":
+				return Value.new(new FuncType([new IntType()], new MoneyValueType()));
 			case "__geq":
 			case "__gt":
 			case "__leq":
@@ -16572,6 +16575,52 @@ function makeRawFunctions() {
 			)
 		}(__core__unMapData(a), __core__unMapData(b))
 	}`));
+	add(new RawFunc("__helios__value__map_amounts",
+	`(self, op) -> {
+		(self) -> {
+			(recurseInner) -> {
+				(recurseOuter) -> {
+					__core__mapData(recurseOuter(recurseOuter, self))
+				}(
+					(recurseOuter, outer) -> {
+						__core__ifThenElse(
+							__core__nullList(outer),
+							() -> {__core__mkNilPairData(())},
+							() -> {
+								(head) -> {
+									__core__mkCons(
+										__core__mkPairData(
+											__core__fstPair(head), 
+											__core__mapData(recurseInner(recurseInner, __core__unMapData(__core__sndPair(head))))
+										),  
+										recurseOuter(recurseOuter, __core__tailList(outer))
+									)
+								}(__core__headList(outer))
+							}
+						)()
+					}
+				)
+			}(
+				(recurseInner, inner) -> {
+					__core__ifThenElse(
+						__core__nullList(inner),
+						() -> {__core__mkNilPairData(())},
+						() -> {
+							(head) -> {
+								__core__mkCons(
+									__core__mkPairData(
+										__core__fstPair(head),
+										__core__iData(op(__core__unIData(__core__sndPair(head))))
+									),
+									recurseInner(recurseInner, __core__tailList(inner))
+								)
+							}(__core__headList(inner))
+						}
+					)()
+				}
+			)
+		}(__core__unMapData(self))
+	}`));
 	add(new RawFunc("__helios__value__compare_inner",
 	`(comp, a, b) -> {
 		(recurse) -> {
@@ -16646,6 +16695,22 @@ function makeRawFunctions() {
 	`(self) -> {
 		(other) -> {
 			__helios__value__add_or_subtract((a, b) -> {__core__subtractInteger(a, b)}, self, other)
+		}
+	}`));
+	add(new RawFunc("__helios__value____mul",
+	`(self) -> {
+		(scale) -> {
+			(scale) -> {
+				__helios__value__map_amounts(self, (amount) -> {__core__multiplyInteger(amount, scale)})
+			}(__core__unIData(scale))
+		}
+	}`));
+	add(new RawFunc("__helios__value____div",
+	`(self) -> {
+		(den) -> {
+			(den) -> {
+				__helios__value__map_amounts(self, (amount) -> {__core__divideInteger(amount, den)})
+			}(__core__unIData(den))
 		}
 	}`));
 	add(new RawFunc("__helios__value____geq",
