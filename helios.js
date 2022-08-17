@@ -173,7 +173,7 @@
 // Section 1: Global constants and variables
 ////////////////////////////////////////////
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 
 var DEBUG = false;
 
