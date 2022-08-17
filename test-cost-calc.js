@@ -34,19 +34,16 @@ function newInt(x) {
 	return new helios_.PlutusCoreConst(new helios_.PlutusCoreInt(site, x));
 }
 
-async function run(program, args) {
-	console.log(program.toString())
+async function run(name, program, args) {
+	let [res, profile] = await program.runInternal(args);
 
-	let res = await program.runInternal(args);
-
-	console.log("Result: ", res.toString());
-	console.log("Size: ", program.calcSize());
+	console.log(`${name} (result: ${res.toString()}, mem: ${profile.mem}, cpu: ${profile.cpu}, size: ${profile.size})`);
 }
 
 
 
 // expected memCost: 200, expected cpuCost: 23100
-run(
+run("add1",
 	newProgram(
 		newLambda( 
 			newLambda(
@@ -62,7 +59,7 @@ run(
 )
 
 // expected memCost: 3710, expected cpuCost: 1860485
-run(
+run("add-lambda",
 	newProgram(
 		newCall(
 			newLambda(

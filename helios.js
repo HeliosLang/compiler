@@ -4787,7 +4787,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 			case "serialiseData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.incrCost(this.calcCost(a));
-					
+
 					return new PlutusCoreByteArray(callSite, a.data.toCBOR());
 				});
 			case "verifyEcdsaSecp256k1Signature":
@@ -4880,7 +4880,6 @@ class PlutusCoreProgram {
 	}
 
 	/**
-	 * 
 	 * @param {PlutusCoreData[]} rawArgs 
 	 * @param {PlutusCoreRTECallbacks} callbacks 
 	 * @returns {Promise<PlutusCoreData | UserError>}
@@ -4891,7 +4890,7 @@ class PlutusCoreProgram {
 		let args = (rawArgs.length == 0) ? [new PlutusCoreUnit(globalCallSite)] : rawArgs.map(a => new PlutusCoreDataValue(globalCallSite, a));
 
 		try {
-			let res = await this.runInternal(args, callbacks);
+			let [res] = await this.runInternal(args, callbacks);
 
 			return res.data;
 		} catch (e) {
@@ -4902,11 +4901,19 @@ class PlutusCoreProgram {
 			}
 		}
 	}
+
+	/**
+	 * @typedef {Object} Profile
+	 * @property {number} mem  - in 8 byte words (i.e. 1 mem unit is 64 bits)
+	 * @property {number} cpu  - in reference cpu microseconds
+	 * @property {number} size - in bytes
+	 */
+
 	/**
 	 * Evaluates the term contained in PlutusCoreProgram (assuming it is a lambda term)
 	 * @param {PlutusCoreValue[]} args
 	 * @param {PlutusCoreRTECallbacks} callbacks 
-	 * @returns {Promise<PlutusCoreValue>}
+	 * @returns {Promise<[PlutusCoreValue, Profile]>}
 	 */
 	async runInternal(args, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
 		assertDefined(callbacks);
@@ -4928,7 +4935,11 @@ class PlutusCoreProgram {
 			result = await result.call(rte, globalCallSite, arg);
 		}
 
-		return result;
+		return [result, {
+			mem: rte.cost.mem,
+			cpu: rte.cost.cpu,
+			size: this.calcSize(),
+		}];
 	}
 
 	/**
