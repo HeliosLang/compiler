@@ -13934,10 +13934,16 @@ class TxType extends BuiltinType {
 				return Value.new(new FuncType([new AnyDataType()], new DatumHashType()));
 			case "outputs_sent_to":
 				return Value.new(new FuncType([new PubKeyHashType()], new ListType(new TxOutputType())));
+			case "outputs_sent_to_datum":
+				return Value.new(new FuncType([new PubKeyHashType(), new AnyDataType()], new ListType(new TxOutputType())));
 			case "outputs_locked_by":
 				return Value.new(new FuncType([new ValidatorHashType()], new ListType(new TxOutputType())));
+			case "outputs_locked_by_datum":
+				return Value.new(new FuncType([new ValidatorHashType(), new AnyDataType()], new ListType(new TxOutputType())));
 			case "value_sent_to":
 				return Value.new(new FuncType([new PubKeyHashType()], new MoneyValueType()));
+			case "value_sent_to_datum":
+				return Value.new(new FuncType([new PubKeyHashType(), new AnyDataType()], new MoneyValueType()));
 			case "value_locked_by":
 				return Value.new(new FuncType([new ValidatorHashType()], new MoneyValueType()));
 			case "value_locked_by_datum":
@@ -16012,109 +16018,87 @@ function makeRawFunctions() {
 			))
 		}
 	}`));
+	add(new RawFunc("__helios__tx__filter_outputs",
+	`(self, fn) -> {
+		__core__listData(
+			__helios__common__filter_list(
+				__core__unListData(__helios__tx__outputs(self)), 
+				fn
+			)
+		)
+	}`));
 	add(new RawFunc("__helios__tx__outputs_sent_to",
 	`(self) -> {
-		(hash) -> {
-			__core__listData(
-				__helios__common__filter_list(
-					__core__unListData(__helios__tx__outputs(self)), 
-					(output) -> {
-						(credential) -> {
-							__core__ifThenElse(
-								__helios__credential__is_pubkey(credential),
-								() -> {
-									__core__ifThenElse(
-										__core__equalsData(
-											hash, 
-											__helios__credential__pubkey__hash(
-												__helios__credential__pubkey__cast(credential)
-											)
-										),
-										true,
-										false
-									)
-								},
-								() -> {false}
-							)()
-						}(__helios__address__credential(__helios__txoutput__address(output)))
-					}
-				)
-			)
+		(pubKeyHash) -> {
+			__helios__tx__filter_outputs(self, (output) -> {
+				__helios__txoutput__is_sent_to(output)(pubKeyHash)
+			})
+		}
+	}`));
+	add(new RawFunc("__helios__tx__outputs_sent_to_datum",
+	`(self) -> {
+		(pubKeyHash, datum) -> {
+			(datumHash) -> {
+				__helios__tx__filter_outputs(self, (output) -> {
+					__helios__bool__and(
+						() -> {
+							__helios__txoutput__is_sent_to(output)(pubKeyHash)
+						},
+						() -> {
+							__helios__txoutput__has_datum_hash(output, datumHash)
+						}
+					)
+				})
+			}(__helios__tx__find_datum_hash(self)(datum))
 		}
 	}`));
 	add(new RawFunc("__helios__tx__outputs_locked_by",
 	`(self) -> {
-		(hash) -> {
-			__core__listData(
-				__helios__common__filter_list(
-					__core__unListData(__helios__tx__outputs(self)), 
-					(output) -> {
-						(credential) -> {
-							__core__ifThenElse(
-								__helios__credential__is_validator(credential),
-								() -> {
-									__core__ifThenElse(
-										__core__equalsData(
-											hash, 
-											__helios__credential__validator__hash(
-												__helios__credential__validator__cast(credential)
-											)
-										),
-										true,
-										false
-									)
-								},
-								() -> {false}
-							)()
-						}(__helios__address__credential(__helios__txoutput__address(output)))
-					}
-				)
-			)
+		(validatorHash) -> {
+			__helios__tx__filter_outputs(self, (output) -> {
+				__helios__txoutput__is_locked_by(output)(validatorHash)
+			})
+		}
+	}`));
+	add(new RawFunc("__helios__tx__outputs_locked_by_datum",
+	`(self) -> {
+		(validatorHash, datum) -> {
+			(datumHash) -> {
+				__helios__tx__filter_outputs(self, (output) -> {
+					__helios__bool__and(
+						() -> {
+							__helios__txoutput__is_locked_by(output)(validatorHash)
+						},
+						() -> {
+							__helios__txoutput__has_datum_hash(output, datumHash)
+						}
+					)
+				})
+			}(__helios__tx__find_datum_hash(self)(datum))
 		}
 	}`));
 	add(new RawFunc("__helios__tx__value_sent_to",
 	`(self) -> {
-		(hash) -> {
-			(outputs) -> {
-				__helios__list__fold(outputs)(
-					(prev, txOutput) -> {
-						__helios__value____add(prev)(__helios__txoutput__value(txOutput))
-					}, 
-					__helios__value__ZERO
-				)	
-			}(__helios__tx__outputs_sent_to(self)(hash))
+		(pubKeyHash) -> {
+			__helios__txoutput__sum_values(__helios__tx__outputs_sent_to(self)(pubKeyHash))
+		}
+	}`));
+	add(new RawFunc("__helios__tx__value_sent_to_datum",
+	`(self) -> {
+		(pubKeyHash, datum) -> {
+			__helios__txoutput__sum_values(__helios__tx__outputs_sent_to_datum(self)(pubKeyHash, datum))
 		}
 	}`));
 	add(new RawFunc("__helios__tx__value_locked_by",
 	`(self) -> {
-		(hash) -> {
-			(outputs) -> {
-				__helios__list__fold(outputs)(
-					(prev, output) -> {
-						__helios__value____add(prev)(__helios__txoutput__value(output))
-					}, 
-					__helios__value__ZERO
-				)
-			}(__helios__tx__outputs_locked_by(self)(hash))
+		(validatorHash) -> {
+			__helios__txoutput__sum_values(__helios__tx__outputs_locked_by(self)(validatorHash))
 		}
 	}`));
 	add(new RawFunc("__helios__tx__value_locked_by_datum",
 	`(self) -> {
-		(hash, datum) -> {
-			(outputs, dhash) -> {
-				__helios__list__fold(outputs)(
-					(prev, output) -> {
-						__core__ifThenElse(
-							__core__equalsData(__helios__txoutput__get_datum_hash(output)(), dhash),
-							() -> {
-								__helios__value____add(prev)(__helios__txoutput__value(output))
-							},
-							() -> {prev}
-						)()
-					}, 
-					__helios__value__ZERO
-				)
-			}(__helios__tx__outputs_locked_by(self)(hash), __helios__tx__find_datum_hash(self)(datum))
+		(validatorHash, datum) -> {
+			__helios__txoutput__sum_values(__helios__tx__outputs_locked_by_datum(self)(validatorHash, datum))
 		}
 	}`));
 	add(new RawFunc("__helios__tx__is_signed_by",
@@ -16156,6 +16140,57 @@ function makeRawFunctions() {
 				)()
 			}(__core__unConstrData(__helios__common__field_2(self)))
 		}
+	}`));
+	add(new RawFunc("__helios__txoutput__has_datum_hash",
+	`(self, datumHash) -> {
+		__core__equalsData(__helios__txoutput__get_datum_hash(self)(), datumHash)
+	}`));
+	add(new RawFunc("__helios__txoutput__is_locked_by",
+	`(self) -> {
+		(hash) -> {
+			(credential) -> {
+				__core__ifThenElse(
+					__helios__credential__is_validator(credential),
+					() -> {
+						__core__equalsData(
+							hash, 
+							__helios__credential__validator__hash(
+								__helios__credential__validator__cast(credential)
+							)
+						)
+					},
+					() -> {false}
+				)()
+			}(__helios__address__credential(__helios__txoutput__address(self)))
+		}
+	}`));
+	add(new RawFunc("__helios__txoutput__is_sent_to",
+	`(self) -> {
+		(pkh) -> {
+			(credential) -> {
+				__core__ifThenElse(
+					__helios__credential__is_pubkey(credential),
+					() -> {
+						__core__equalsData(
+							pkh, 
+							__helios__credential__pubkey__hash(
+								__helios__credential__pubkey__cast(credential)
+							)
+						)
+					},
+					() -> {false}
+				)()
+			}(__helios__address__credential(__helios__txoutput__address(self)))
+		}
+	}`));
+	add(new RawFunc("__helios__txoutput__sum_values",
+	`(outputs) -> {
+		__helios__list__fold(outputs)(
+			(prev, txOutput) -> {
+				__helios__value____add(prev)(__helios__txoutput__value(txOutput))
+			}, 
+			__helios__value__ZERO
+		)	
 	}`));
 
 
