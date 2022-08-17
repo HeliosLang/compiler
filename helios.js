@@ -9352,10 +9352,10 @@ class StructLiteralExpr extends ValueExpr {
 
 		let instance = Value.new(this.#typeExpr.type);
 
-		
+		for (let i = 0; i < fields.length; i++) {
+			let f = fields[i];
 
-		for (let f of fields) {
-			let isBool = instance.getInstanceMember(f.name).getType(f.name.site) instanceof BoolType;
+			let isBool = instance.getFieldType(f.site, i) instanceof BoolType;
 
 			let fIR = f.toIR(indent);
 
@@ -13582,11 +13582,12 @@ class OptionType extends BuiltinType {
 	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
-		let b = super.isBaseOf(site, type) ||
-		        (new OptionSomeType(this.#someType)).isBaseOf(site, type) || 
-		        (new OptionNoneType(this.#someType)).isBaseOf(site, type); 
-
-		return b;
+		if (type instanceof OptionType) {
+			return this.#someType.isBaseOf(site, type.#someType);
+		} else {
+			return (new OptionSomeType(this.#someType)).isBaseOf(site, type) || 
+				(new OptionNoneType(this.#someType)).isBaseOf(site, type);
+		}
 	}
 
 	/**
@@ -13636,6 +13637,19 @@ class OptionSomeType extends BuiltinType {
 
 	toString() {
 		return `Option[${this.#someType.toString()}]::Some`;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		if (type instanceof OptionSomeType) {
+			return this.#someType.isBaseOf(site, type.#someType);
+		} else {
+			return false;
+		}
 	}
 
 	/**
@@ -13700,6 +13714,19 @@ class OptionNoneType extends BuiltinType {
 
 	toString() {
 		return `Option[${this.#someType.toString()}]::None`;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		if (type instanceof OptionNoneType) {
+			return this.#someType.isBaseOf(site, type.#someType);
+		} else {
+			return false;
+		}
 	}
 
 	/**
