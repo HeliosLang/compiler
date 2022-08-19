@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.3.0
+// Version:     0.4.0
 // Last update: August 2022
 // License:     Unlicense
 //
