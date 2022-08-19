@@ -2973,7 +2973,7 @@ async function runPropertyTests() {
     await ft.test([ft.spendingScriptContext()], `
     testing txoutputid_new
     func main(ctx: ScriptContext) -> Bool {
-        ctx.tx.inputs.head.output_id != TxOutputId::new(#123, 0)
+        ctx.tx.inputs.head.output_id != TxOutputId::new(TxId::new(#1234), 0)
     }`, ([_], res) => {
         return res.isBool() && res.asBool();
     });

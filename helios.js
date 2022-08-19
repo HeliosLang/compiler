@@ -8440,8 +8440,19 @@ class AnyDataType extends Type {
  * Note: any builtin type that inherits from BuiltinType must implement get path()
  */
 class BuiltinType extends DataType {
+	#macrosAllowed; // macros are allowed after the definition of the main function
+
 	constructor() {
 		super();
+		this.#macrosAllowed = false;
+	}
+
+	allowMacros() {
+		this.#macrosAllowed = true;
+	}
+
+	get macrosAllowed() {
+		return this.#macrosAllowed;
 	}
 
 	/**
@@ -9185,8 +9196,8 @@ class GlobalScope {
 		scope.set("String", new StringType());
 		scope.set("ByteArray", new ByteArrayType());
 		scope.set("PubKeyHash", new PubKeyHashType());
-		scope.set("ValidatorHash", new ValidatorHashType());
-		scope.set("MintingPolicyHash", new MintingPolicyHashType());
+		scope.set("ValidatorHash", new ValidatorHashType(purpose));
+		scope.set("MintingPolicyHash", new MintingPolicyHashType(purpose));
 		scope.set("DatumHash", new DatumHashType());
 		scope.set("ScriptContext", new ScriptContextType(purpose));
 		scope.set("Tx", new TxType());
@@ -9204,6 +9215,14 @@ class GlobalScope {
 		scope.set("Value", new MoneyValueType());
 
 		return scope;
+	}
+
+	allowMacros() {
+		for (let [_, value] of this.#values) {
+			if (value instanceof BuiltinType) {
+				value.allowMacros();
+			}
+		}
 	}
 }
 
@@ -12551,6 +12570,8 @@ export class Program {
 				if (!(s instanceof FuncStatement)) {
 					throw s.typeError("'main' isn't a function statement");
 				}
+
+				globalScope.allowMacros();
 			}
 		}
 
@@ -15001,6 +15022,37 @@ class PubKeyHashType extends HashType {
  * Builtin ValidatorHash type
  */
 class ValidatorHashType extends HashType {
+	#purpose;
+
+	/**
+	 * @param {number} purpose 
+	 */
+	constructor(purpose = -1) {
+		super();
+		this.#purpose = purpose;
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "CURRENT":
+				if (this.macrosAllowed) {
+					if (this.#purpose == ScriptPurpose.Spending) {
+						return this;
+					} else {
+						throw name.referenceError("'ValidatorHash::CURRENT' only available in spending script");
+					}
+				} else {
+					throw name.referenceError("'ValidatorHash::CURRENT' can only be used after 'main'");
+				}
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
 	toString() {
 		return "ValidatorHash";
 	}
@@ -15010,6 +15062,37 @@ class ValidatorHashType extends HashType {
  * Builtin MintingPolicyHash type
  */
 class MintingPolicyHashType extends HashType {
+	#purpose;
+
+	/**
+	 * @param {number} purpose 
+	 */
+	constructor(purpose = -1) {
+		super();
+		this.#purpose = purpose;
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	 getTypeMember(name) {
+		switch (name.value) {
+			case "CURRENT":
+				if (this.macrosAllowed) {
+					if (this.#purpose == ScriptPurpose.Minting) {
+						return this;
+					} else {
+						throw name.referenceError("'MintingPolicyHash::CURRENT' only available in minting script");
+					}
+				} else {
+					throw name.referenceError("'MintingPolicyHash::CURRENT' can only be used after 'main'");
+				}
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
 	toString() {
 		return "MintingPolicyHash";
 	}
@@ -15044,6 +15127,29 @@ class ScriptContextType extends BuiltinType {
 
 	/**
 	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+ 	getTypeMember(name) {
+		switch (name.value) {
+			case "new":
+				if (this.macrosAllowed) {
+					if (this.#purpose == ScriptPurpose.Spending) {
+						return Value.new(new FuncType([new IntType(), new TxType()], this));
+					} else if (this.#purpose == ScriptPurpose.Minting) {
+						return Value.new(new FuncType([new TxType()], this));
+					} else {
+						throw new Error("unhandled purpose");
+					}
+				} else {
+					throw name.referenceError("'ScriptContext::new' can only be used after 'main'");
+				}
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
 	 * @returns {Value}
 	 */
 	getInstanceMember(name) {
@@ -15060,13 +15166,13 @@ class ScriptContextType extends BuiltinType {
 				if (this.#purpose == ScriptPurpose.Minting) {
 					throw name.referenceError("not available in minting script");
 				} else {
-					return Value.new(new FuncType([], new ValidatorHashType()));
+					return Value.new(new FuncType([], new ValidatorHashType(this.#purpose)));
 				}
 			case "get_current_minting_policy_hash":
 				if (this.#purpose == ScriptPurpose.Spending) {
 					throw name.referenceError("not available in minting script");
 				} else {
-					return Value.new(new FuncType([], new MintingPolicyHashType()));
+					return Value.new(new FuncType([], new MintingPolicyHashType(this.#purpose)));
 				}
 			case "get_current_input":
 				return Value.new(new FuncType([], new TxInputType()));
@@ -15076,7 +15182,11 @@ class ScriptContextType extends BuiltinType {
 	}
 
 	get path() {
-		return "__helios__scriptcontext";
+		if (this.#purpose == ScriptPurpose.Testing) {
+			return "__helios__scriptcontext";
+		} else {
+			return `__helios__${getPurposeName(this.#purpose)}scriptcontext`;
+		}
 	}
 }
 
@@ -15090,6 +15200,31 @@ class TxType extends BuiltinType {
 
 	toString() {
 		return "Tx";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "new":
+				if (this.macrosAllowed) {
+					return Value.new(new FuncType([
+						new ListType(new TxInputType()), // 0
+						new ListType(new TxOutputType()), // 1
+						new MoneyValueType(), // 2
+						new MoneyValueType(), // 3
+						new TimeRangeType(), // 6
+						new ListType(new PubKeyHashType()), // 7
+						new MapType(new DatumHashType(), new AnyDataType()) // 8
+					], this));
+				} else {
+					throw name.referenceError("'Tx::new' can only be used after 'main'");
+				}
+			default:
+				return super.getTypeMember(name);
+		}
 	}
 
 	/**
@@ -15155,6 +15290,25 @@ class TxIdType extends BuiltinType {
 	get path() {
 		return "__helios__txid";
 	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	 getTypeMember(name) {
+		switch (name.value) {
+			case "new":
+				return Value.new(new FuncType([new ByteArrayType()], this));
+			case "CURRENT":
+				if (this.macrosAllowed) {
+					return Value.new(this);
+				} else {
+					throw name.referenceError("'TxId::CURRENT' can only be used after 'main'");
+				}
+			default:
+				return super.getTypeMember(name);
+		}
+	}
 }
 
 /**
@@ -15163,6 +15317,26 @@ class TxIdType extends BuiltinType {
 class TxInputType extends BuiltinType {
 	toString() {
 		return "TxInput";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "new":
+				if (this.macrosAllowed) {
+					return Value.new(new FuncType([
+						new TxOutputIdType(), // 0
+						new TxOutputType(), // 1
+					], this));
+				} else {
+					throw name.referenceError("'TxInput::new' can only be used after 'main'");
+				}
+			default:
+				return super.getTypeMember(name);
+		}
 	}
 
 	/**
@@ -15191,6 +15365,27 @@ class TxInputType extends BuiltinType {
 class TxOutputType extends BuiltinType {
 	toString() {
 		return "TxOutput";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "new":
+				if (this.macrosAllowed) {
+					return Value.new(new FuncType([
+						new AddressType(), // 0
+						new MoneyValueType(), // 1
+						new OptionType(new DatumHashType()), // 2
+					], this));
+				} else {
+					throw name.referenceError("'TxOutput::new' can only be used after 'main'");
+				}
+			default:
+				return super.getTypeMember(name);
+		}
 	}
 
 	/**
@@ -15230,7 +15425,7 @@ class TxOutputIdType extends BuiltinType {
 	getTypeMember(name) {
 		switch (name.value) {
 			case "new":
-				return Value.new(new FuncType([new ByteArrayType(), new IntType()], new TxOutputIdType()));
+				return Value.new(new FuncType([new TxIdType(), new IntType()], new TxOutputIdType()));
 			default:
 				return super.getTypeMember(name);
 		}
@@ -15247,6 +15442,22 @@ class TxOutputIdType extends BuiltinType {
 class AddressType extends BuiltinType {
 	toString() {
 		return "Address";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "new":
+				return Value.new(new FuncType([
+					new CredentialType(), // 0
+					new OptionType(new StakingCredentialType()), // 1
+				], this));
+			default:
+				return super.getTypeMember(name);
+		}
 	}
 
 	/**
@@ -15300,6 +15511,10 @@ class CredentialType extends BuiltinType {
 				return new CredentialPubKeyType();
 			case "Validator":
 				return new CredentialValidatorType();
+			case "new_pubkey":
+				return Value.new(new FuncType([new PubKeyHashType()], new CredentialPubKeyType()));
+			case "new_validator":
+				return Value.new(new FuncType([new ValidatorHashType()], new CredentialValidatorType()));
 			default:
 				return super.getTypeMember(name);
 		}
@@ -15400,8 +15615,114 @@ class StakingCredentialType extends BuiltinType {
 		return "StakingCredential";
 	}
 
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	 isBaseOf(site, type) {
+		let b = super.isBaseOf(site, type) ||
+				(new StakingHashCredentialType()).isBaseOf(site, type) || 
+				(new StakingPtrCredentialType()).isBaseOf(site, type); 
+
+		return b;
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	 getTypeMember(name) {
+		switch (name.value) {
+			case "new_hash":
+				return Value.new(new FuncType([new CredentialType()], new StakingHashCredentialType()));
+			case "new_ptr":
+				return Value.new(new FuncType([new IntType(), new IntType(), new IntType()], new StakingPtrCredentialType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+ 	nEnumMembers(site) {
+		return 2;
+	}
+
 	get path() {
 		return "__helios__stakingcredential";
+	}
+}
+
+/**
+ * Builtin StakingCredential::Hash
+ */
+ class StakingHashCredentialType extends BuiltinType {
+	toString() {
+		return "StakingCredential::Hash";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new StakingCredentialType()], new BoolType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 0;
+	}
+
+	get path() {
+		return "__helios__stakingcredential__hash";
+	}
+}
+
+/**
+ * Builtin StakingCredential::Ptr
+ */
+ class StakingPtrCredentialType extends BuiltinType {
+	toString() {
+		return "StakingCredential::Ptr";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new StakingCredentialType()], new BoolType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 1;
+	}
+
+	get path() {
+		return "__helios__stakingcredential__ptr";
 	}
 }
 
@@ -15894,6 +16215,25 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
+	add(new RawFunc("__helios__common__map",
+	`(self, fn) -> {
+		(recurse) -> {
+			__core__listData(recurse(recurse, self, __core__mkNilData(())))
+		}(
+			(recurse, rem, lst) -> {
+				__core__ifThenElse(
+					__core__nullList(rem),
+					() -> {lst},
+					() -> {
+						__core__mkCons(
+							fn(__core__headList(rem)), 
+							recurse(recurse, __core__tailList(rem), lst)
+						)
+					}
+				)()
+			}
+		)
+	}`));
 	add(new RawFunc("__helios__common__filter", 
 	`(self, fn, nil) -> {
 		(recurse) -> {
@@ -16174,6 +16514,34 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__common__list_3",
 	`(a, b, c) -> {
 		__core__mkCons(a, __helios__common__list_2(b, c))
+	}`));
+	add(new RawFunc("__helios__common__list_4",
+	`(a, b, c, d) -> {
+		__core__mkCons(a, __helios__common__list_3(b, c, d))
+	}`));
+	add(new RawFunc("__helios__common__list_5",
+	`(a, b, c, d, e) -> {
+		__core__mkCons(a, __helios__common__list_4(b, c, d, e))
+	}`));
+	add(new RawFunc("__helios__common__list_6",
+	`(a, b, c, d, e, f) -> {
+		__core__mkCons(a, __helios__common__list_5(b, c, d, e, f))
+	}`));
+	add(new RawFunc("__helios__common__list_7",
+	`(a, b, c, d, e, f, g) -> {
+		__core__mkCons(a, __helios__common__list_6(b, c, d, e, f, g))
+	}`));
+	add(new RawFunc("__helios__common__list_8",
+	`(a, b, c, d, e, f, g, h) -> {
+		__core__mkCons(a, __helios__common__list_7(b, c, d, e, f, g, h))
+	}`));
+	add(new RawFunc("__helios__common__list_9",
+	`(a, b, c, d, e, f, g, h, i) -> {
+		__core__mkCons(a, __helios__common__list_8(b, c, d, e, f, g, h, i))
+	}`));
+	add(new RawFunc("__helios__common__list_10",
+	`(a, b, c, d, e, f, g, h, i, j) -> {
+		__core__mkCons(a, __helios__common__list_9(b, c, d, e, f, g, h, i, j))
 	}`));
 
 
@@ -16667,22 +17035,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
-				(recurse) -> {
-					__core__listData(recurse(recurse, self, __core__mkNilData(())))
-				}(
-					(recurse, rem, lst) -> {
-						__core__ifThenElse(
-							__core__nullList(rem),
-							() -> {lst},
-							() -> {
-								__core__mkCons(
-									fn(__core__headList(rem)), 
-									recurse(recurse, __core__tailList(rem), lst)
-								)
-							}
-						)()
-					}
-				)
+				__helios__common__map(self, fn)
 			}
 		}(__core__unListData(self))
 	}`));
@@ -16952,6 +17305,20 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
+	add(new RawFunc("__helios__map__map",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__map(self, fn)
+				}(
+					(pair) -> {
+						fn(__core__fstPair(pair), __core__sndPair(pair))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`))
 	add(new RawFunc("__helios__map__fold",
 	`(self) -> {
 		(self) -> {
@@ -17072,6 +17439,16 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
+	add(new RawFunc("__helios__boolmap__map",
+	`(self) -> {
+		(fn) -> {
+			__helios__map__map(self)(
+				(key, value) -> {
+					fn(key, __helios__common__unBoolData(value))
+				}
+			)
+		}
+	}`));
 	add(new RawFunc("__helios__boolmap__fold",
 	`(self) -> {
 		(fn, z) -> {
@@ -17136,11 +17513,22 @@ function makeRawFunctions() {
 	addEqNeqSerialize("__helios__hash");
 	add(new RawFunc("__helios__hash__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__hash__show", "__helios__bytearray__show"));
+	add(new RawFunc("__helios__hash__CURRENT", "__core__bData(#0000000000000000000000000000000000000000000000000000000000000000)"));
 
 
 	// ScriptContext builtins
 	addEqNeqSerialize("__helios__scriptcontext");
 	add(new RawFunc("__helios__scriptcontext__tx", "__helios__common__field_0"));
+	add(new RawFunc("__helios__scriptcontext__get_current_input",
+	`(self) -> {
+		(id) -> {
+			__helios__list__find(__helios__tx__inputs(__helios__scriptcontext__tx(self)))(
+				(input) -> {
+					__core__equalsData(__helios__txinput__output_id(input), id)
+				}
+			)
+		}(__helios__scriptcontext__get_spending_purpose_output_id(self)())
+	}`));
 	add(new RawFunc("__helios__scriptcontext__get_spending_purpose_output_id",
 	`(self) -> {
 		() -> {
@@ -17155,7 +17543,7 @@ function makeRawFunctions() {
 					__helios__address__credential(
 						__helios__txoutput__address(
 							__helios__txinput__output(
-								__helios__scriptcontext__get_current_input(self)
+								__helios__spendingscriptcontext__get_current_input(self)
 							)
 						)
 					)
@@ -17164,20 +17552,54 @@ function makeRawFunctions() {
 		}
 	}`));
 	add(new RawFunc("__helios__scriptcontext__get_current_minting_policy_hash", "__helios__scriptcontext__get_spending_purpose_output_id"));
-	add(new RawFunc("__helios__scriptcontext__get_current_input",
-	`(self) -> {
-		(id) -> {
-			__helios__list__find(__helios__tx__inputs(__helios__scriptcontext__tx(self)))(
-				(input) -> {
-					__core__equalsData(__helios__txinput__output_id(input), id)
-				}
-			)
-		}(__helios__scriptcontext__get_spending_purpose_output_id(self)())
+	add(new RawFunc("__helios__spendingscriptcontext__new",
+	`(output_idx, tx) -> {
+		__core__constrData(0, __helios__common__list_2(
+			__core__constrData(1, __helios__common__list_1(__helios__txoutputid__new(__helios__txid__CURRENT, output_idx))), 
+			tx
+		))
 	}`));
+	add(new RawFunc("__helios__spendingscriptcontext____eq", "__helios__scriptcontext____eq"));
+	add(new RawFunc("__helios__spendingscriptcontext____neq", "__helios__scriptcontext____neq"));
+	add(new RawFunc("__helios__spendingscriptcontext__serialize", "__helios__scriptcontext__serialize"));
+	add(new RawFunc("__helios__spendingscriptcontext__get_current_input", "__helios__scriptcontext__get_current_input"));
+	add(new RawFunc("__helios__spendingscriptcontext__get_spending_purpose_output_id", "__helios__scriptcontext__get_spending_purpose_output_id"));
+	add(new RawFunc("__helios__spendingscriptcontext__get_current_validator_hash", "__helios__scriptcontext__get_current_validator_hash"));
+	add(new RawFunc("__helios__mintingscriptcontext__new",
+	`(tx) -> {
+		__core__constrData(0, __helios__common__list_2(
+			__core__constrData(0, __helios__common__list_1(__helios__hash__CURRENT)), 
+			tx
+		))
+	}`));
+	add(new RawFunc("__helios__mintingscriptcontext____eq", "__helios__scriptcontext____eq"));
+	add(new RawFunc("__helios__mintingscriptcontext____neq", "__helios__scriptcontext____neq"));
+	add(new RawFunc("__helios__mintingscriptcontext__serialize", "__helios__scriptcontext__serialize"));
+	add(new RawFunc("__helios__mintingscriptcontext__get_current_input", "__helios__scriptcontext__get_current_input"));
+	add(new RawFunc("__helios__mintingscriptcontext__get_current_minting_policy_hash", "__helios__scriptcontext__get_current_minting_policy_hash"));
 
 
 	// Tx builtins
 	addEqNeqSerialize("__helios__tx");
+	add(new RawFunc("__helios__tx__new",
+	`(inputs, outputs, fee, minted, validity, signatories, datums) -> {
+		__core__constrData(0, __helios__common__list_10(
+			inputs,
+			outputs,
+			fee,
+			minted,
+			__helios__common__list_0,
+			__helios__common__list_0,
+			validity,
+			signatories,
+			__helios__map__map(datums)(
+				(key, value) -> {
+					__core__constrData(0, __helios__common__list_2(key, value))
+				}
+			),
+			__helios__txid__CURRENT
+		))
+	}`));
 	add(new RawFunc("__helios__tx__inputs", "__helios__common__field_0"));
 	add(new RawFunc("__helios__tx__outputs", "__helios__common__field_1"));
 	add(new RawFunc("__helios__tx__fee", "__helios__common__field_2"));
@@ -17300,19 +17722,33 @@ function makeRawFunctions() {
 
 	// TxId builtins
 	addEqNeqSerialize("__helios__txid");
+	add(new RawFunc("__helios__txid__new",
+	`(bytes) -> {
+		__core__constrData(0, __helios__common__list_1(bytes)) 
+	}`));
+	add(new RawFunc("__helios__txid__CURRENT", "__helios__txid__new(__core__bData(#0000000000000000000000000000000000000000000000000000000000000000))"));
 
 
 	// TxInput builtins
 	addEqNeqSerialize("__helios__txinput");
+	add(new RawFunc("__helios__txinput__new",
+	`(output_id, output) -> {
+		__core__constrData(0, __helios__common__list_2(output_id, output))
+	}`));
 	add(new RawFunc("__helios__txinput__output_id", "__helios__common__field_0"));
 	add(new RawFunc("__helios__txinput__output", "__helios__common__field_1"));
-
+	
 
 	// TxOutput builtins
 	addEqNeqSerialize("__helios__txoutput");
+	add(new RawFunc("__helios__txoutput__new", 
+	`(address, value, datum_hash) -> {
+		__core__constrData(0, __helios__common__list_3(address, value, datum_hash))
+	}`));
 	add(new RawFunc("__helios__txoutput__address", "__helios__common__field_0"));
 	add(new RawFunc("__helios__txoutput__value", "__helios__common__field_1"));
 	add(new RawFunc("__helios__txoutput__datum_hash", "__helios__common__field_2"));
+	
 	add(new RawFunc("__helios__txoutput__get_datum_hash",
 	`(self) -> {
 		() -> {
@@ -17382,12 +17818,16 @@ function makeRawFunctions() {
 	addEqNeqSerialize("__helios__txoutputid");
 	add(new RawFunc("__helios__txoutputid__new",
 	`(tx_id, idx) -> {
-		__core__constrData(0, __helios__common__list_2(__core__constrData(0, __helios__common__list_1(tx_id)), idx))
+		__core__constrData(0, __helios__common__list_2(tx_id, idx))
 	}`));
 
 
 	// Address
 	addEqNeqSerialize("__helios__address");
+	add(new RawFunc("__helios__address__new", 
+	`(cred, staking_cred) -> {
+		__core__constrData(0, __helios__common__list_2(cred, staking_cred))
+	}`));
 	add(new RawFunc("__helios__address__credential", "__helios__common__field_0"));
 	add(new RawFunc("__helios__address__staking_credential", "__helios__common__field_1"));
 	add(new RawFunc("__helios__address__is_staked",
@@ -17400,6 +17840,14 @@ function makeRawFunctions() {
 
 	// Credential builtins
 	addEqNeqSerialize("__helios__credential");
+	add(new RawFunc("__helios__credential__new_pubkey",
+	`(hash) -> {
+		__core__constrData(0, __helios__common__list_1(hash))
+	}`));
+	add(new RawFunc("__helios__credential__new_validator",
+	`(hash) -> {
+		__core__constrData(1, __helios__common__list_1(hash))
+	}`));
 	add(new RawFunc("__helios__credential__is_pubkey",
 	`(self) -> {
 		__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 0)
@@ -17430,6 +17878,22 @@ function makeRawFunctions() {
 
 	// StakingCredential builtins
 	addEqNeqSerialize("__helios__stakingcredential");
+	add(new RawFunc("__helios__stakingcredential__new_hash", 
+	`(cred) -> {
+		__core__constrData(0, __helios__common__list_1(cred))
+	}`));
+	add(new RawFunc("__helios__stakingcredential__new_ptr", 
+	`(i, j, k) -> {
+		__core__constrData(1, __helios__common__list_3(i, j, k))
+	}`));
+
+	
+	// StakingCredential::Hash builtins
+	addEqNeqSerialize("__helios__stakingcredential__hash");
+
+
+	// StakingCredential::Ptr builtins
+	addEqNeqSerialize("__helios__stakingcredential__ptr");
 
 
 	// Time builtins

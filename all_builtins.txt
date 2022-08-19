@@ -56,6 +56,7 @@ internal ns: __helios__option__none
 associated:  new
 operators:   __eq, __neq
 methods:     serialize, show
+macros:      CURRENT (only ValidatorHash and MintingPolicyHash)
 internal ns: __helios__hash
 
 # ScriptContext
@@ -63,6 +64,7 @@ operators:   __eq, __neq
 getters:     tx
 methods:     serialize, get_spending_purpose_output_id, get_current_validator_hash,
              get_current_minting_policy_hash, get_current_input
+macros:      new
 internal ns: __helios__scriptcontext
            
 # Tx
@@ -73,24 +75,29 @@ methods:     serialize, now, find_datum_hash,
              outputs_locked_by, outputs_locked_by_datum,
              value_sent_to, value_sent_to_dataum,
              value_locked_by, value_locked_by_datum, is_signed_by
+macros:      new
 hidden:      datums
 internal ns: __helios__tx
     
 # TxId
+associated:  new
 operators:   __eq, __neq
 methods:     serialize
+macros:      CURRENT
 internal ns: __helios__txid
        
 # TxInput
 operators:   __eq, __neq
 getters:     output_id, output
 methods:     serialize
+macros:      new
 internal ns: __helios__txinput
 
 # TxOutput
 operators:   __eq, __neq
 getters:     address, value, datum_hash
 methods:     serialize
+macros:      new
 hidden:      get_datum_hash
 internal ns: __helios__txoutput
 
@@ -101,6 +108,7 @@ methods:     serialize
 internal ns: __helios__txoutputid
 
 # Address
+associated:  new
 operators:   __eq, __neq
 getters:     credential, staking_credential
 methods:     serialize
@@ -108,6 +116,7 @@ hidden:      is_staked
 internal ns: __helios__address
 
 # Credential
+associated:  new_pubkey, new_validator
 operators:   __eq, __neq
 methods:     serialize
 hidden:      is_pubkey, is_validator
@@ -128,9 +137,20 @@ hidden:     cast
 internal ns: __helios__credential__validator
 
 # StakingCredential
+associated: new_hash, new_ptr
 operators:  __eq, __neq
 methods:    serialize
 internal ns: __helios__stakingcredential
+
+# StakingCredential::Hash
+operators:  __eq, __neq
+methods:    serialize
+internal ns: __helios__stakingcredential__hash
+
+# StakingCredential::Ptr
+operators:  __eq, __neq
+methods:    serialize
+internal ns: __helios__stakingcredential__ptr
 
 # Time
 associated: new

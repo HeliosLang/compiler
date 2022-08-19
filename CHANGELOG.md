@@ -3,6 +3,8 @@ This Changelog only applies to notable changes to `helios.js` on the main branch
 # 2022/08/19
 * Library interface changed to something more object-like
 * Script purpose keywords changed to 'testing', 'spending' and 'minting'
+* Macro-like builtins whichs are only allowed after 'main': ValidatorHash::CURRENT, MintingPolicyHash::CURRENT, ScriptContext::new, Tx::new, TxID::CURRENT, TxInput::new, TxOutput::new
+* Generally usable constructors: TxId::new, Address::new, Credential::new_pubkey, Credential::new_validator, StakingCredential::new_hash, StakingCredential::new_ptr
 
 # 2022/08/17
 * Cost calculation of a plutus-core program run
