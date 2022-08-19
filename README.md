@@ -16,7 +16,7 @@ Use the following tutorial to learn how to use Helios with cardano-cli:
   7. [*English Auction* contract](doc/tutorial_07-english_auction.md)
 
 We are in the process of migrating these tutorials [here](https://hyperion-bt.github.io/Helios-Book/).
-There is an online coding [playground](http://helios-playground.s3-website.us-east-2.amazonaws.com?share=7860030a9fc194f87488ad8273fcadde).
+There is an online coding [playground](http://helios-playground.s3-website.us-east-2.amazonaws.com?share=bd071424ebb752c3bbb2e2e45074c195).
 
 Additionally the Helios library contains a function to deserialize existing Plutus-Core scripts (see second example below).
 
@@ -90,7 +90,7 @@ console.log(helios.Program.new(src).compile().serialize());
 // the output can be saved to a file, and that file can be used directly by cardano-cli
 ```
 
-You can explore this example on the [Helios playground](http://helios-playground.s3-website.us-east-2.amazonaws.com/?share=b2f2c85d86cca5921e14f16d642f4c0a).
+You can explore this example on the [Helios playground](http://helios-playground.s3-website.us-east-2.amazonaws.com/?share=7860030a9fc194f87488ad8273fcadde).
 
 ### 2. Deserialize Plutus-Core
 ```javascript
