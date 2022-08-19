@@ -4,7 +4,7 @@ The *always-succeeds* contract in part 3 isn't very useful. Something that is st
 
 The Helios script:
 ```golang
-validator time_lock
+spending time_lock
 
 struct Datum {
     lockUntil: Time
@@ -33,9 +33,9 @@ $ nodejs
 
 > helios.setDebug(true);
 
-> const src = "struct Datum {lockUntil...";
+> const src = "spending time_lock  struct Datum {lockUntil...";
 
-> console.log(helios.compile(src))
+> console.log(helios.Program.new(src).compile().serialize())
 
 {"type": "PlutusScriptV1", "description": "", "cborHex": "5..."}
 ```
@@ -73,10 +73,16 @@ $ nodejs
 
 > var helios; import("./helios.js").then(m=>{helios=m});
 
-> const src = "struct Datum {lockUntil...";
+> const src = `spending  time_lock 
+struct Datum {lockUntil...
 
-(TODO: doesnt work anymore)
-> console.log(helios.compileData(src, `Datum{lockUntil: Time(${(new Date()).getTime() + 1000*60*5}), owner: PubKeyHash(#1d22b9ff5fc...), nonce: 42}`));
+const MY_DATUM = Datum{
+  lockUntil: Time(${(new Date()).getTime() + 1000*60*5}), 
+  owner: PubKeyHash(#1d22b9ff5fc...), 
+  nonce: 42
+}`;
+
+> console.log(helios.Program.new(src).evalParam("MY_DATUM").toSchemaJSON());
 
 {"constructor": 0, "fields": [{"int": 16....}, {"bytes": "1d22b9ff5fc..."}, {"int": 42}]}
 ```

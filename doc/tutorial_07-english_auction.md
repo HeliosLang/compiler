@@ -3,7 +3,7 @@
 ## The script
 
 ```golang
-validator english_auction
+spending english_auction
 
 struct Datum {
     seller:         PubKeyHash

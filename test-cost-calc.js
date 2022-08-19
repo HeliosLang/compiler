@@ -35,9 +35,9 @@ function newInt(x) {
 }
 
 async function run(name, program, args) {
-	let [res, profile] = await program.runInternal(args);
+	let profile = await program.profile(args);
 
-	console.log(`${name} (result: ${res.toString()}, mem: ${profile.mem}, cpu: ${profile.cpu}, size: ${profile.size})`);
+	console.log(`${name} (mem: ${profile.mem}, cpu: ${profile.cpu}, size: ${profile.size})`);
 }
 
 

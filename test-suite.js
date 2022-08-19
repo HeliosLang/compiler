@@ -72,7 +72,7 @@ async function runPropertyTests() {
     ////////////
 
     await ft.test([ft.int()], `
-    test int_eq_1
+    testing int_eq_1
     func main(a: Int) -> Bool {
         a == a
     }`, ([_], res) => {
@@ -80,7 +80,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test int_eq_2
+    testing int_eq_2
     func main(a: Int, b: Int) -> Bool {
         a == b
     }`, ([a, b], res) => {
@@ -88,7 +88,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_neq_1
+    testing int_neq_1
     func main(a: Int) -> Bool {
         a != a
     }`, ([_], res) => {
@@ -96,7 +96,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test int_neq_2
+    testing int_neq_2
     func main(a: Int, b: Int) -> Bool {
         a != b
     }`, ([a, b], res) => {
@@ -104,7 +104,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_neg
+    testing int_neg
     func main(a: Int) -> Int {
         -a
     }`, ([a], res) => {
@@ -113,7 +113,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_pos
+    testing int_pos
     func main(a: Int) -> Int {
         +a
     }`, ([a], res) => {
@@ -121,7 +121,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_add_0
+    testing int_add_0
     func main(a: Int) -> Int {
         a + 0
     }`, ([a], res) => {
@@ -129,7 +129,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test int_add_2
+    testing int_add_2
     func main(a: Int, b: Int) -> Int {
         a + b
     }`, ([a, b], res) => {
@@ -137,7 +137,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_sub_0
+    testing int_sub_0
     func main(a: Int) -> Int {
         a - 0
     }`, ([a], res) => {
@@ -145,7 +145,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_sub_0_alt
+    testing int_sub_0_alt
     func main(a: Int) -> Int {
         0 - a
     }`, ([a], res) => {
@@ -153,7 +153,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_sub_self
+    testing int_sub_self
     func main(a: Int) -> Int {
         a - a
     }`, ([_], res) => {
@@ -161,7 +161,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test int_sub_2
+    testing int_sub_2
     func main(a: Int, b: Int) -> Int {
         a - b
     }`, ([a, b], res) => {
@@ -169,7 +169,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_mul_0
+    testing int_mul_0
     func main(a: Int) -> Int {
         a*0
     }`, ([_], res) => {
@@ -177,7 +177,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_mul_1
+    testing int_mul_1
     func main(a: Int) -> Int {
         a*1
     }`, ([a], res) => {
@@ -185,7 +185,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test int_mul_2
+    testing int_mul_2
     func main(a: Int, b: Int) -> Int {
         a * b
     }`, ([a, b], res) => {
@@ -193,7 +193,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_div_0
+    testing int_div_0
     func main(a: Int) -> Int {
         a / 0
     }`, ([_], res) => {
@@ -201,7 +201,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_div_0_alt
+    testing int_div_0_alt
     func main(a: Int) -> Int {
         0 / a
     }`, ([_], res) => {
@@ -209,7 +209,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_div_1
+    testing int_div_1
     func main(a: Int) -> Int {
         a / 1
     }`, ([a], res) => {
@@ -217,7 +217,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(-10, 10)], `
-    test int_div_1_alt
+    testing int_div_1_alt
     func main(a: Int) -> Int {
         1 / a
     }`, ([a], res) => {
@@ -237,7 +237,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(-20, 20)], `
-    test int_div_1_self
+    testing int_div_1_self
     func main(a: Int) -> Int {
         a / a
     }`, ([a], res) => {
@@ -249,7 +249,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test int_div_2
+    testing int_div_2
     func main(a: Int, b: Int) -> Int {
         a / b
     }`, ([a, b], res) => {
@@ -261,7 +261,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_mod_0
+    testing int_mod_0
     func main(a: Int) -> Int {
         a % 0
     }`, ([_], res) => {
@@ -269,7 +269,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_mod_0_alt
+    testing int_mod_0_alt
     func main(a: Int) -> Int {
         0 % a
     }`, ([_], res) => {
@@ -277,7 +277,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_mod_1
+    testing int_mod_1
     func main(a: Int) -> Int {
         a % 1
     }`, ([_], res) => {
@@ -285,7 +285,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(-20, 20)], `
-    test int_mod_1_alt
+    testing int_mod_1_alt
     func main(a: Int) -> Int {
         1 % a
     }`, ([a], res) => {
@@ -301,7 +301,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(-10, 10)], `
-    test int_mod_1_self
+    testing int_mod_1_self
     func main(a: Int) -> Int {
         a % a
     }`, ([a], res) => {
@@ -313,7 +313,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int(-10, 10)], `
-    test int_mod_2
+    testing int_mod_2
     func main(a: Int, b: Int) -> Int {
         a % b
     }`, ([a, b], res) => {
@@ -325,7 +325,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_geq_1
+    testing int_geq_1
     func main(a: Int) -> Bool {
         a >= a
     }`, ([_], res) => {
@@ -333,7 +333,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test int_geq_2
+    testing int_geq_2
     func main(a: Int, b: Int) -> Bool {
         a >= b
     }`, ([a, b], res) => {
@@ -341,7 +341,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_gt_1
+    testing int_gt_1
     func main(a: Int) -> Bool {
         a > a
     }`, ([_], res) => {
@@ -349,7 +349,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test int_gt_2
+    testing int_gt_2
     func main(a: Int, b: Int) -> Bool {
         a > b
     }`, ([a, b], res) => {
@@ -357,7 +357,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_leq_1
+    testing int_leq_1
     func main(a: Int) -> Bool {
         a <= a
     }`, ([_], res) => {
@@ -365,7 +365,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test int_leq_2
+    testing int_leq_2
     func main(a: Int, b: Int) -> Bool {
         a <= b
     }`, ([a, b], res) => {
@@ -373,7 +373,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_lt_1
+    testing int_lt_1
     func main(a: Int) -> Bool {
         a < a
     }`, ([a], res) => {
@@ -381,7 +381,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test int_lt_2
+    testing int_lt_2
     func main(a: Int, b: Int) -> Bool {
         a < b
     }`, ([a, b], res) => {
@@ -389,7 +389,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(-10, 10)], `
-    test int_to_bool
+    testing int_to_bool
     func main(a: Int) -> Bool {
         a.to_bool()
     }`, ([a], res) => {
@@ -397,7 +397,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_to_hex
+    testing int_to_hex
     func main(a: Int) -> String {
         a.to_hex()
     }`, ([a], res) => {
@@ -405,7 +405,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_show
+    testing int_show
     func main(a: Int) -> String {
         a.show()
     }`, ([a], res) => {
@@ -413,7 +413,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test int_serialize
+    testing int_serialize
     func main(a: Int) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
@@ -426,7 +426,7 @@ async function runPropertyTests() {
     /////////////
 
     await ft.test([ft.bool(), ft.bool()], `
-    test bool_and
+    testing bool_and
     func main(a: Bool, b: Bool) -> Bool {
         a && b
     }`, ([a, b], res) => {
@@ -435,7 +435,7 @@ async function runPropertyTests() {
 
     // test branch deferral as well
     await ft.test([ft.bool(), ft.bool()], `
-    test bool_and_alt
+    testing bool_and_alt
     func main(a: Bool, b: Bool) -> Bool {
         Bool::and(() -> Bool {
             a
@@ -454,7 +454,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bool(), ft.bool()], `
-    test bool_or
+    testing bool_or
     func main(a: Bool, b: Bool) -> Bool {
         a || b
     }`, ([a, b], res) => {
@@ -462,7 +462,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bool(), ft.bool()], `
-    test bool_or_alt
+    testing bool_or_alt
     func main(a: Bool, b: Bool) -> Bool {
         Bool::or(() -> Bool {
             a
@@ -482,7 +482,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bool()], `
-    test bool_eq_1
+    testing bool_eq_1
     func main(a: Bool) -> Bool {
         a == a
     }`, ([a], res) => {
@@ -490,7 +490,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bool(), ft.bool()], `
-    test bool_eq_2
+    testing bool_eq_2
     func main(a: Bool, b: Bool) -> Bool {
         a == b
     }`, ([a, b], res) => {
@@ -498,7 +498,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bool()], `
-    test bool_neq_1
+    testing bool_neq_1
     func main(a: Bool) -> Bool {
         a != a
     }`, ([a], res) => {
@@ -506,7 +506,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bool(), ft.bool()], `
-    test bool_neq_2
+    testing bool_neq_2
     func main(a: Bool, b: Bool) -> Bool {
         a != b
     }`, ([a, b], res) => {
@@ -514,7 +514,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bool()], `
-    test bool_not
+    testing bool_not
     func main(a: Bool) -> Bool {
         !a
     }`, ([a], res) => {
@@ -522,7 +522,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bool()], `
-    test bool_to_int
+    testing bool_to_int
     func main(a: Bool) -> Int {
         a.to_int()
     }`, ([a], res) => {
@@ -530,7 +530,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bool()], `
-    test bool_show
+    testing bool_show
     func main(a: Bool) -> String {
         a.show()
     }`, ([a], res) => {
@@ -538,7 +538,7 @@ async function runPropertyTests() {
     });
     
     await ft.test([ft.bool()], `
-    test bool_serialize
+    testing bool_serialize
     func main(a: Bool) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
@@ -551,7 +551,7 @@ async function runPropertyTests() {
     ///////////////
 
     await ft.test([ft.string()], `
-    test string_eq_1
+    testing string_eq_1
     func main(a: String) -> Bool {
         a == a
     }`, ([_], res) => {
@@ -559,7 +559,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.string(), ft.string()], `
-    test string_eq_2
+    testing string_eq_2
     func main(a: String, b: String) -> Bool {
         a == b
     }`, ([a, b], res) => {
@@ -567,7 +567,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.string()], `
-    test string_neq_1
+    testing string_neq_1
     func main(a: String) -> Bool {
         a != a
     }`, ([_], res) => {
@@ -575,7 +575,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.string(), ft.string()], `
-    test string_neq_2
+    testing string_neq_2
     func main(a: String, b: String) -> Bool {
         a != b
     }`, ([a, b], res) => {
@@ -583,7 +583,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.string()], `
-    test string_add_1
+    testing string_add_1
     func main(a: String) -> String {
         a + ""
     }`, ([a], res) => {
@@ -591,7 +591,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.string()], `
-    test string_add_1_alt
+    testing string_add_1_alt
     func main(a: String) -> String {
         "" + a
     }`, ([a], res) => {
@@ -599,7 +599,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.string(), ft.string()], `
-    test string_add_2
+    testing string_add_2
     func main(a: String, b: String) -> String {
         a + b
     }`, ([a, b], res) => {
@@ -613,7 +613,7 @@ async function runPropertyTests() {
         };
     });
     await ft.test([ft.string(0, 10), ft.string(0, 10)], `
-    test string_starts_with_1
+    testing string_starts_with_1
     func main(a: String, b: String) -> Bool {
         (a+b).starts_with(a)
     }`, ([a, b], res) => {
@@ -621,7 +621,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.string(0, 10), ft.string(0, 10)], `
-    test string_starts_with_2
+    testing string_starts_with_2
     func main(a: String, b: String) -> Bool {
         (a+b).starts_with(b)
     }`, ([a, b], res) => {
@@ -634,7 +634,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.string(0, 10), ft.string(0, 10)], `
-    test string_ends_with_1
+    testing string_ends_with_1
     func main(a: String, b: String) -> Bool {
         (a+b).ends_with(b)
     }`, ([a, b], res) => {
@@ -642,7 +642,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.string(0, 10), ft.string(0, 10)], `
-    test string_ends_with_2
+    testing string_ends_with_2
     func main(a: String, b: String) -> Bool {
         (a+b).ends_with(a)
     }`, ([a, b], res) => {
@@ -655,7 +655,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.string()], `
-    test string_encode_utf8
+    testing string_encode_utf8
     func main(a: String) -> ByteArray {
         a.encode_utf8()
     }`, ([a], res) => {
@@ -664,7 +664,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.string()], `
-    test string_serialize
+    testing string_serialize
     func main(a: String) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
@@ -680,7 +680,7 @@ async function runPropertyTests() {
 
     if (testByteArray) {
         await ft.test([ft.bytes()], `
-        test bytearray_eq_1
+        testing bytearray_eq_1
         func main(a: ByteArray) -> Bool {
             a == a
         }`, ([_], res) => {
@@ -688,7 +688,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(), ft.bytes()], `
-        test bytearray_eq_2
+        testing bytearray_eq_2
         func main(a: ByteArray, b: ByteArray) -> Bool {
             a == b
         }`, ([a, b], res) => {
@@ -696,7 +696,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes()], `
-        test bytearray_neq_1
+        testing bytearray_neq_1
         func main(a: ByteArray) -> Bool {
             a != a
         }`, ([_], res) => {
@@ -704,7 +704,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(), ft.bytes()], `
-        test bytearray_neq_2
+        testing bytearray_neq_2
         func main(a: ByteArray, b: ByteArray) -> Bool {
             a != b
         }`, ([a, b], res) => {
@@ -712,7 +712,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes()], `
-        test bytearray_add_1
+        testing bytearray_add_1
         func main(a: ByteArray) -> ByteArray {
             a + #
         }`, ([a], res) => {
@@ -720,7 +720,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes()], `
-        test bytearray_add_1_alt
+        testing bytearray_add_1_alt
         func main(a: ByteArray) -> ByteArray {
             # + a
         }`, ([a], res) => {
@@ -728,7 +728,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(), ft.bytes()], `
-        test bytearray_add_2
+        testing bytearray_add_2
         func main(a: ByteArray, b: ByteArray) -> ByteArray {
             a + b
         }`, ([a, b], res) => {
@@ -736,7 +736,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes()], `
-        test bytearray_length
+        testing bytearray_length
         func main(a: ByteArray) -> Int {
             a.length
         }`, ([a], res) => {
@@ -744,7 +744,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 64), ft.int(-10, 100)], `
-        test bytearray_slice_1
+        testing bytearray_slice_1
         func main(a: ByteArray, b: Int) -> ByteArray {
             a.slice(b, -1)
         }`, ([a, b], res) => {
@@ -764,7 +764,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 64), ft.int(-10, 100), ft.int(-10, 100)], `
-        test bytearray_slice_2
+        testing bytearray_slice_2
         func main(a: ByteArray, b: Int, c: Int) -> ByteArray {
             a.slice(b, c)
         }`, ([a, b, c], res) => {
@@ -791,7 +791,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 10), ft.bytes(0, 10)], `
-        test bytearray_starts_with_1
+        testing bytearray_starts_with_1
         func main(a: ByteArray, b: ByteArray) -> Bool {
             (a+b).starts_with(a)
         }`, ([a, b], res) => {
@@ -799,7 +799,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 10), ft.bytes(0, 10)], `
-        test bytearray_starts_with_2
+        testing bytearray_starts_with_2
         func main(a: ByteArray, b: ByteArray) -> Bool {
             (a+b).starts_with(b)
         }`, ([a, b], res) => {
@@ -818,7 +818,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 10), ft.bytes(0, 10)], `
-        test bytearray_ends_with_1
+        testing bytearray_ends_with_1
         func main(a: ByteArray, b: ByteArray) -> Bool {
             (a+b).ends_with(b)
         }`, ([a, b], res) => {
@@ -826,7 +826,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 10), ft.bytes(0, 10)], `
-        test bytearray_ends_with_2
+        testing bytearray_ends_with_2
         func main(a: ByteArray, b: ByteArray) -> Bool {
             (a+b).ends_with(a)
         }`, ([a, b], res) => {
@@ -845,7 +845,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.utf8Bytes()], `
-        test bytearray_decode_utf8_utf8
+        testing bytearray_decode_utf8_utf8
         func main(a: ByteArray) -> String {
             a.decode_utf8()
         }`, ([a], res) => {
@@ -853,7 +853,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes()], `
-        test bytearray_decode_utf8
+        testing bytearray_decode_utf8
         func main(a: ByteArray) -> String {
             a.decode_utf8()
         }`, ([a], res) => {
@@ -865,7 +865,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 10)], `
-        test bytearray_sha2
+        testing bytearray_sha2
         func main(a: ByteArray) -> ByteArray {
             a.sha2()
         }`, ([a], res) => {
@@ -877,7 +877,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(55, 70)], `
-        test bytearray_sha2_alt
+        testing bytearray_sha2_alt
         func main(a: ByteArray) -> ByteArray {
             a.sha2()
         }`, ([a], res) => {
@@ -889,7 +889,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 10)], `
-        test bytearray_sha3
+        testing bytearray_sha3
         func main(a: ByteArray) -> ByteArray {
             a.sha3()
         }`, ([a], res) => {
@@ -901,7 +901,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(130, 140)], `
-        test bytearray_sha3_alt
+        testing bytearray_sha3_alt
         func main(a: ByteArray) -> ByteArray {
             a.sha3()
         }`, ([a], res) => {
@@ -916,7 +916,7 @@ async function runPropertyTests() {
         helios_.setBlake2bDigestSize(64);
 
         await ft.test([ft.bytes(0, 10)], `
-        test bytearray_blake2b
+        testing bytearray_blake2b
         func main(a: ByteArray) -> ByteArray {
             a.blake2b()
         }`, ([a], res) => {
@@ -930,7 +930,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(130, 140)], `
-        test bytearray_blake2b_alt
+        testing bytearray_blake2b_alt
         func main(a: ByteArray) -> ByteArray {
             a.blake2b()
         }`, ([a], res) => {
@@ -944,7 +944,7 @@ async function runPropertyTests() {
         helios_.setBlake2bDigestSize(32);
 
         await ft.test([ft.bytes()], `
-        test bytearray_show
+        testing bytearray_show
         func main(a: ByteArray) -> String {
             a.show()
         }`, ([a], res) => {
@@ -954,7 +954,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 1024)], `
-        test bytearray_serialize
+        testing bytearray_serialize
         func main(a: ByteArray) -> ByteArray {
             a.serialize()
         }`, ([a], res) => {
@@ -962,7 +962,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes()], `
-        test bytearray32_eq_1
+        testing bytearray32_eq_1
         func main(a: ByteArray) -> Bool {
             a.blake2b() == a.blake2b()
         }`, ([_], res) => {
@@ -970,7 +970,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(), ft.bytes()], `
-        test bytearray32_eq_2
+        testing bytearray32_eq_2
         func main(a: ByteArray, b: ByteArray) -> Bool {
             a.blake2b() == b.blake2b()
         }`, ([a, b], res) => {
@@ -978,7 +978,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes()], `
-        test bytearray32_neq_1
+        testing bytearray32_neq_1
         func main(a: ByteArray) -> Bool {
             a.blake2b() != a.blake2b()
         }`, ([_], res) => {
@@ -986,7 +986,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(), ft.bytes()], `
-        test bytearray32_neq_2
+        testing bytearray32_neq_2
         func main(a: ByteArray, b: ByteArray) -> Bool {
             a.blake2b() != b.blake2b()
         }`, ([a, b], res) => {
@@ -994,7 +994,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes()], `
-        test bytearray32_add_1
+        testing bytearray32_add_1
         func main(a: ByteArray) -> ByteArray {
             a.blake2b() + #
         }`, ([a], res) => {
@@ -1002,7 +1002,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes()], `
-        test bytearray32_add_1_alt
+        testing bytearray32_add_1_alt
         func main(a: ByteArray) -> ByteArray {
             # + a.blake2b()
         }`, ([a], res) => {
@@ -1010,7 +1010,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(), ft.bytes()], `
-        test bytearray32_add_2
+        testing bytearray32_add_2
         func main(a: ByteArray, b: ByteArray) -> ByteArray {
             a.blake2b() + b.blake2b()
         }`, ([a, b], res) => {
@@ -1018,7 +1018,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes()], `
-        test bytearray32_length
+        testing bytearray32_length
         func main(a: ByteArray) -> Int {
             a.blake2b().length
         }`, ([a], res) => {
@@ -1026,7 +1026,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 64), ft.int(-10, 100)], `
-        test bytearray32_slice_1
+        testing bytearray32_slice_1
         func main(a: ByteArray, b: Int) -> ByteArray {
             a.blake2b().slice(b, -1)
         }`, ([a, b], res) => {
@@ -1046,7 +1046,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 64), ft.int(-10, 100), ft.int(-10, 100)], `
-        test bytearray32_slice_2
+        testing bytearray32_slice_2
         func main(a: ByteArray, b: Int, c: Int) -> ByteArray {
             a.blake2b().slice(b, c)
         }`, ([a, b, c], res) => {
@@ -1073,7 +1073,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 10)], `
-        test bytearray32_starts_with_1
+        testing bytearray32_starts_with_1
         func main(a: ByteArray) -> Bool {
             a.blake2b().starts_with(#)
         }`, ([a, b], res) => {
@@ -1081,7 +1081,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 10)], `
-        test bytearray32_ends_with_1
+        testing bytearray32_ends_with_1
         func main(a: ByteArray) -> Bool {
             a.blake2b().ends_with(#)
         }`, ([a, b], res) => {
@@ -1089,7 +1089,7 @@ async function runPropertyTests() {
         });
         
         await ft.test([ft.utf8Bytes()], `
-        test bytearray32_decode_utf8_utf8
+        testing bytearray32_decode_utf8_utf8
         func main(a: ByteArray) -> String {
             a.blake2b().decode_utf8()
         }`, ([a], res) => {
@@ -1105,7 +1105,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 10)], `
-        test bytearray32_sha2
+        testing bytearray32_sha2
         func main(a: ByteArray) -> ByteArray {
             a.blake2b().sha2()
         }`, ([a], res) => {
@@ -1117,7 +1117,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(55, 70)], `
-        test bytearray32_sha2_alt
+        testing bytearray32_sha2_alt
         func main(a: ByteArray) -> ByteArray {
             a.blake2b().sha2()
         }`, ([a], res) => {
@@ -1129,7 +1129,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 10)], `
-        test bytearray32_sha3
+        testing bytearray32_sha3
         func main(a: ByteArray) -> ByteArray {
             a.blake2b().sha3()
         }`, ([a], res) => {
@@ -1141,7 +1141,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(130, 140)], `
-        test bytearray32_sha3_alt
+        testing bytearray32_sha3_alt
         func main(a: ByteArray) -> ByteArray {
             a.blake2b().sha3()
         }`, ([a], res) => {
@@ -1156,7 +1156,7 @@ async function runPropertyTests() {
         helios_.setBlake2bDigestSize(64);
 
         await ft.test([ft.bytes(0, 10)], `
-        test bytearray32_blake2b
+        testing bytearray32_blake2b
         func main(a: ByteArray) -> ByteArray {
             a.blake2b().blake2b()
         }`, ([a], res) => {
@@ -1170,7 +1170,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(130, 140)], `
-        test bytearray32_blake2b_alt
+        testing bytearray32_blake2b_alt
         func main(a: ByteArray) -> ByteArray {
             a.blake2b().blake2b()
         }`, ([a], res) => {
@@ -1184,7 +1184,7 @@ async function runPropertyTests() {
         helios_.setBlake2bDigestSize(32);
 
         await ft.test([ft.bytes()], `
-        test bytearray32_show
+        testing bytearray32_show
         func main(a: ByteArray) -> String {
             a.blake2b().show()
         }`, ([a], res) => {
@@ -1194,7 +1194,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(0, 1024)], `
-        test bytearray32_serialize
+        testing bytearray32_serialize
         func main(a: ByteArray) -> ByteArray {
             a.blake2b().serialize()
         }`, ([a], res) => {
@@ -1211,7 +1211,7 @@ async function runPropertyTests() {
 
     if (testList) {
         await ft.test([ft.int(-20, 20), ft.int()], `
-        test list_new
+        testing list_new
         func main(a: Int, b: Int) -> []Int {
             []Int::new(a, b)
         }`, ([a, b], res) => {
@@ -1224,7 +1224,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int(), 0, 20)], `
-        test list_eq_1
+        testing list_eq_1
         func main(a: []Int) -> Bool {
             a == a
         }`, ([_], res) => {
@@ -1232,7 +1232,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
-        test list_eq_2
+        testing list_eq_2
         func main(a: []Int, b: []Int) -> Bool {
             a == b
         }`, ([a, b], res) => {
@@ -1240,7 +1240,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        test list_neq_1
+        testing list_neq_1
         func main(a: []Int) -> Bool {
             a != a
         }`, ([_], res) => {
@@ -1248,7 +1248,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
-        test list_neq_2
+        testing list_neq_2
         func main(a: []Int, b: []Int) -> Bool {
             a != b
         }`, ([a, b], res) => {
@@ -1256,7 +1256,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        test list_add_1
+        testing list_add_1
         func main(a: []Int) -> []Int {
             a + []Int{}
         }`, ([a], res) => {
@@ -1264,7 +1264,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        test list_add_1_alt
+        testing list_add_1_alt
         func main(a: []Int) -> []Int {
             []Int{} + a
         }`, ([a], res) => {
@@ -1272,7 +1272,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
-        test list_add_2
+        testing list_add_2
         func main(a: []Int, b: []Int) -> []Int {
             a + b
         }`, ([a, b], res) => {
@@ -1280,7 +1280,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int(), 0, 50)], `
-        test list_length
+        testing list_length
         func main(a: []Int) -> Int {
             a.length
         }`, ([a], res) => {
@@ -1288,7 +1288,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        test list_head
+        testing list_head
         func main(a: []Int) -> Int {
             a.head
         }`, ([a], res) => {
@@ -1302,7 +1302,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        test list_tail
+        testing list_tail
         func main(a: []Int) -> []Int {
             a.tail
         }`, ([a], res) => {
@@ -1316,7 +1316,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int(), 0, 10)], `
-        test list_is_empty
+        testing list_is_empty
         func main(a: []Int) -> Bool {
             a.is_empty()
         }`, ([a], res) => {
@@ -1324,7 +1324,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int(), 0, 10), ft.int(-5, 15)], `
-        test list_get
+        testing list_get
         func main(a: []Int, b: Int) -> Int {
             a.get(b)
         }`, ([a, b], res) => {
@@ -1339,7 +1339,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int()), ft.int()], `
-        test list_prepend
+        testing list_prepend
         func main(a: []Int, b: Int) -> []Int {
             a.prepend(b)
         }`, ([a, b], res) => {
@@ -1349,7 +1349,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        test list_any
+        testing list_any
         func main(a: []Int) -> Bool {
             a.any((x: Int) -> Bool {x > 0})
         }`, ([a], res) => {
@@ -1357,7 +1357,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        test list_all
+        testing list_all
         func main(a: []Int) -> Bool {
             a.all((x: Int) -> Bool {x > 0})
         }`, ([a], res) => {
@@ -1365,7 +1365,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        test list_find
+        testing list_find
         func main(a: []Int) -> Int {
             a.find((x: Int) -> Bool {x > 0})
         }`, ([a], res) => {
@@ -1379,7 +1379,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        test list_filter
+        testing list_filter
         func main(a: []Int) -> []Int {
             a.filter((x: Int) -> Bool {x > 0})
         }`, ([a], res) => {
@@ -1388,7 +1388,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        test list_fold
+        testing list_fold
         func main(a: []Int) -> Int {
             a.fold((sum: Int, x: Int) -> Int {sum + x}, 0)
         }`, ([a], res) => {
@@ -1398,7 +1398,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.list(ft.int()))], `
-        test list_fold_nested
+        testing list_fold_nested
         func main(a: [][]Int) -> Int {
             a.fold((sum: Int, x: []Int) -> Int {
                 x.fold((sumInner: Int, xInner: Int) -> Int {
@@ -1414,7 +1414,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.list(ft.int()))], `
-        test list_map_fold
+        testing list_map_fold
         func main(a: [][]Int) -> []Int {
             a.map((inner: []Int) -> Int {
                 inner.fold((sum: Int, x: Int) -> Int {
@@ -1430,7 +1430,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        test list_serialize
+        testing list_serialize
         func main(a: []Int) -> ByteArray {
             a.serialize()
         }`, ([a], res) => {
@@ -1438,7 +1438,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int(-20, 20), ft.bool()], `
-        test boollist_new
+        testing boollist_new
         func main(a: Int, b: Bool) -> []Bool {
             []Bool::new(a, b)
         }`, ([a, b], res) => {
@@ -1451,7 +1451,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool(), 0, 20)], `
-        test boollist_eq_1
+        testing boollist_eq_1
         func main(a: []Bool) -> Bool {
             a == a
         }`, ([_], res) => {
@@ -1459,7 +1459,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool()), ft.list(ft.bool())], `
-        test boollist_eq_2
+        testing boollist_eq_2
         func main(a: []Bool, b: []Bool) -> Bool {
             a == b
         }`, ([a, b], res) => {
@@ -1467,7 +1467,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool())], `
-        test boollist_neq_1
+        testing boollist_neq_1
         func main(a: []Bool) -> Bool {
             a != a
         }`, ([_], res) => {
@@ -1475,7 +1475,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool()), ft.list(ft.bool())], `
-        test boollist_neq_2
+        testing boollist_neq_2
         func main(a: []Bool, b: []Bool) -> Bool {
             a != b
         }`, ([a, b], res) => {
@@ -1483,7 +1483,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool())], `
-        test boollist_add_1
+        testing boollist_add_1
         func main(a: []Bool) -> []Bool {
             a + []Bool{}
         }`, ([a], res) => {
@@ -1491,7 +1491,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool())], `
-        test boollist_add_1_alt
+        testing boollist_add_1_alt
         func main(a: []Bool) -> []Bool {
             []Bool{} + a
         }`, ([a], res) => {
@@ -1499,7 +1499,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool()), ft.list(ft.bool())], `
-        test boollist_add_2
+        testing boollist_add_2
         func main(a: []Bool, b: []Bool) -> []Bool {
             a + b
         }`, ([a, b], res) => {
@@ -1507,7 +1507,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool(), 0, 50)], `
-        test boollist_length
+        testing boollist_length
         func main(a: []Bool) -> Int {
             a.length
         }`, ([a], res) => {
@@ -1515,7 +1515,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool())], `
-        test boollist_head
+        testing boollist_head
         func main(a: []Bool) -> Bool {
             a.head
         }`, ([a], res) => {
@@ -1529,7 +1529,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool())], `
-        test boollist_tail
+        testing boollist_tail
         func main(a: []Bool) -> []Bool {
             a.tail
         }`, ([a], res) => {
@@ -1543,7 +1543,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool(), 0, 10)], `
-        test boollist_is_empty
+        testing boollist_is_empty
         func main(a: []Bool) -> Bool {
             a.is_empty()
         }`, ([a], res) => {
@@ -1551,7 +1551,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool(), 0, 10), ft.int(-5, 15)], `
-        test boollist_get
+        testing boollist_get
         func main(a: []Bool, b: Int) -> Bool {
             a.get(b)
         }`, ([a, b], res) => {
@@ -1566,7 +1566,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool()), ft.bool()], `
-        test boollist_prepend
+        testing boollist_prepend
         func main(a: []Bool, b: Bool) -> []Bool {
             a.prepend(b)
         }`, ([a, b], res) => {
@@ -1576,7 +1576,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool())], `
-        test boollist_any
+        testing boollist_any
         func main(a: []Bool) -> Bool {
             a.any((x: Bool) -> Bool {x})
         }`, ([a], res) => {
@@ -1584,7 +1584,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool())], `
-        test boollist_all
+        testing boollist_all
         func main(a: []Bool) -> Bool {
             a.all((x: Bool) -> Bool {x})
         }`, ([a], res) => {
@@ -1592,7 +1592,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool())], `
-        test boollist_find
+        testing boollist_find
         func main(a: []Bool) -> Bool {
             a.find((x: Bool) -> Bool {x})
         }`, ([a], res) => {
@@ -1606,7 +1606,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool())], `
-        test boollist_filter
+        testing boollist_filter
         func main(a: []Bool) -> []Bool {
             a.filter((x: Bool) -> Bool {x})
         }`, ([a], res) => {
@@ -1615,7 +1615,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool())], `
-        test boollist_fold
+        testing boollist_fold
         func main(a: []Bool) -> Int {
             a.fold((sum: Int, x: Bool) -> Int {sum + x.to_int()}, 0)
         }`, ([a], res) => {
@@ -1625,7 +1625,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.list(ft.bool()))], `
-        test boollist_fold_nested
+        testing boollist_fold_nested
         func main(a: [][]Bool) -> Int {
             a.fold((sum: Int, x: []Bool) -> Int {
                 x.fold((sumInner: Int, xInner: Bool) -> Int {
@@ -1641,7 +1641,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.list(ft.bool()))], `
-        test boollist_map_fold
+        testing boollist_map_fold
         func main(a: [][]Bool) -> []Int {
             a.map((inner: []Bool) -> Int {
                 inner.fold((sum: Int, x: Bool) -> Int {
@@ -1657,7 +1657,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool())], `
-        test boollist_map
+        testing boollist_map
         func main(a: []Bool) -> []Int {
             a.map((x: Bool) -> Int {
                 x.to_int()
@@ -1669,7 +1669,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.bool())], `
-        test boollist_serialize
+        testing boollist_serialize
         func main(a: []Bool) -> ByteArray {
             a.serialize()
         }`, ([a], res) => {
@@ -1683,7 +1683,7 @@ async function runPropertyTests() {
     ////////////
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_eq
+    testing map_eq
     func main(a: Map[Int]Int) -> Bool {
         a == a
     }`, ([_], res) => {
@@ -1691,7 +1691,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_neq
+    testing map_neq
     func main(a: Map[Int]Int) -> Bool {
         a != a
     }`, ([_], res) => {
@@ -1699,7 +1699,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int(), 0, 10), ft.map(ft.int(), ft.int(), 0, 10)], `
-    test map_add
+    testing map_add
     func main(a: Map[Int]Int, b: Map[Int]Int) -> Map[Int]Int {
         a + b
     }`, ([a, b], res) => {
@@ -1707,7 +1707,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_length
+    testing map_length
     func main(a: Map[Int]Int) -> Int {
         a.length
     }`, ([a], res) => {
@@ -1715,7 +1715,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int(), 0, 10)], `
-    test map_is_empty
+    testing map_is_empty
     func main(a: Map[Int]Int) -> Bool {
         a.is_empty()
     }`, ([a], res) => {
@@ -1723,7 +1723,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
-    test map_get
+    testing map_get
     func main(a: Int, b: Int, c: Int, d: Int) -> Int {
         m = Map[Int]Int{a: b, c: d};
         m.get(c)
@@ -1732,7 +1732,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_all
+    testing map_all
     func main(a: Map[Int]Int) -> Bool {
         a.all((k: Int, v: Int) -> Bool {
             k < v
@@ -1744,7 +1744,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_all_keys
+    testing map_all_keys
     func main(a: Map[Int]Int) -> Bool {
         a.all_keys((k: Int) -> Bool {
             k > 0
@@ -1756,7 +1756,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_all_values
+    testing map_all_values
     func main(a: Map[Int]Int) -> Bool {
         a.all_values((v: Int) -> Bool {
             v > 0
@@ -1768,7 +1768,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_any
+    testing map_any
     func main(a: Map[Int]Int) -> Bool {
         a.any((k: Int, v: Int) -> Bool {
             k < v
@@ -1780,7 +1780,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_any_key
+    testing map_any_key
     func main(a: Map[Int]Int) -> Bool {
         a.any_key((k: Int) -> Bool {
             k > 0
@@ -1792,7 +1792,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_any_value
+    testing map_any_value
     func main(a: Map[Int]Int) -> Bool {
         a.any_value((v: Int) -> Bool {
             v > 0
@@ -1804,7 +1804,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_filter
+    testing map_filter
     func main(a: Map[Int]Int) -> Map[Int]Int {
         a.filter((k: Int, v: Int) -> Bool {
             k < v
@@ -1816,7 +1816,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_filter_by_key
+    testing map_filter_by_key
     func main(a: Map[Int]Int) -> Map[Int]Int {
         a.filter_by_key((k: Int) -> Bool {
             k > 0
@@ -1828,7 +1828,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_filter_by_value
+    testing map_filter_by_value
     func main(a: Map[Int]Int) -> Map[Int]Int {
         a.filter_by_value((v: Int) -> Bool {
             v > 0
@@ -1840,7 +1840,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_fold
+    testing map_fold
     func main(a: Map[Int]Int) -> Int {
         a.fold((prev: Int, k: Int, v: Int) -> Int {
             prev + k + v
@@ -1855,7 +1855,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_fold_keys
+    testing map_fold_keys
     func main(a: Map[Int]Int) -> Int {
         a.fold_keys((prev: Int, k: Int) -> Int {
             prev + k
@@ -1870,7 +1870,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_fold_values
+    testing map_fold_values
     func main(a: Map[Int]Int) -> Int {
         a.fold_values((prev: Int, v: Int) -> Int {
             prev + v
@@ -1885,7 +1885,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.int())], `
-    test map_serialize
+    testing map_serialize
     func main(a: Map[Int]Int) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
@@ -1898,7 +1898,7 @@ async function runPropertyTests() {
     ////////////
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_eq
+    testing boolmap_eq
     func main(a: Map[Int]Bool) -> Bool {
         a == a
     }`, ([_], res) => {
@@ -1906,7 +1906,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_neq
+    testing boolmap_neq
     func main(a: Map[Int]Bool) -> Bool {
         a != a
     }`, ([_], res) => {
@@ -1914,7 +1914,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool(), 0, 10), ft.map(ft.int(), ft.bool(), 0, 10)], `
-    test boolmap_add
+    testing boolmap_add
     func main(a: Map[Int]Bool, b: Map[Int]Bool) -> Map[Int]Bool {
         a + b
     }`, ([a, b], res) => {
@@ -1922,7 +1922,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_length
+    testing boolmap_length
     func main(a: Map[Int]Bool) -> Int {
         a.length
     }`, ([a], res) => {
@@ -1930,7 +1930,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool(), 0, 10)], `
-    test boolmap_is_empty
+    testing boolmap_is_empty
     func main(a: Map[Int]Bool) -> Bool {
         a.is_empty()
     }`, ([a], res) => {
@@ -1938,7 +1938,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.bool(), ft.int(), ft.bool()], `
-    test boolmap_get
+    testing boolmap_get
     func main(a: Int, b: Bool, c: Int, d: Bool) -> Bool {
         m = Map[Int]Bool{a: b, c: d};
         m.get(c)
@@ -1947,7 +1947,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_all
+    testing boolmap_all
     func main(a: Map[Int]Bool) -> Bool {
         a.all((k: Int, v: Bool) -> Bool {
             k < v.to_int()
@@ -1959,7 +1959,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_all_keys
+    testing boolmap_all_keys
     func main(a: Map[Int]Bool) -> Bool {
         a.all_keys((k: Int) -> Bool {
             k > 0
@@ -1971,7 +1971,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_all_values
+    testing boolmap_all_values
     func main(a: Map[Int]Bool) -> Bool {
         a.all_values((v: Bool) -> Bool {
             v.to_int() > 0
@@ -1983,7 +1983,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_any
+    testing boolmap_any
     func main(a: Map[Int]Bool) -> Bool {
         a.any((k: Int, v: Bool) -> Bool {
             k < v.to_int()
@@ -1995,7 +1995,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_any_key
+    testing boolmap_any_key
     func main(a: Map[Int]Bool) -> Bool {
         a.any_key((k: Int) -> Bool {
             k > 0
@@ -2007,7 +2007,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_any_value
+    testing boolmap_any_value
     func main(a: Map[Int]Bool) -> Bool {
         a.any_value((v: Bool) -> Bool {
             v.to_int() > 0
@@ -2019,7 +2019,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_filter
+    testing boolmap_filter
     func main(a: Map[Int]Bool) -> Map[Int]Bool {
         a.filter((k: Int, v: Bool) -> Bool {
             k < v.to_int()
@@ -2031,7 +2031,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_filter_by_key
+    testing boolmap_filter_by_key
     func main(a: Map[Int]Bool) -> Map[Int]Bool {
         a.filter_by_key((k: Int) -> Bool {
             k > 0
@@ -2043,7 +2043,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_filter_by_value
+    testing boolmap_filter_by_value
     func main(a: Map[Int]Bool) -> Map[Int]Bool {
         a.filter_by_value((v: Bool) -> Bool {
             v.to_int() > 0
@@ -2055,7 +2055,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_fold
+    testing boolmap_fold
     func main(a: Map[Int]Bool) -> Int {
         a.fold((prev: Int, k: Int, v: Bool) -> Int {
             prev + k + v.to_int()
@@ -2070,7 +2070,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_fold_keys
+    testing boolmap_fold_keys
     func main(a: Map[Int]Bool) -> Int {
         a.fold_keys((prev: Int, k: Int) -> Int {
             prev + k
@@ -2085,7 +2085,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_fold_values
+    testing boolmap_fold_values
     func main(a: Map[Int]Bool) -> Int {
         a.fold_values((prev: Int, v: Bool) -> Int {
             prev + v.to_int()
@@ -2100,7 +2100,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.map(ft.int(), ft.bool())], `
-    test boolmap_serialize
+    testing boolmap_serialize
     func main(a: Map[Int]Bool) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
@@ -2113,7 +2113,7 @@ async function runPropertyTests() {
     ///////////////
 
     await ft.test([ft.option(ft.int())], `
-    test option_eq_1
+    testing option_eq_1
     func main(a: Option[Int]) -> Bool {
         a == a
     }`, ([_], res) => {
@@ -2121,7 +2121,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.int(0, 5)), ft.option(ft.int(0, 5))], `
-    test option_eq_2
+    testing option_eq_2
     func main(a: Option[Int], b: Option[Int]) -> Bool {
         a == b
     }`, ([a, b], res) => {
@@ -2129,7 +2129,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.int(0, 5)), ft.option(ft.int(0, 5))], `
-    test option_eq_2_alt
+    testing option_eq_2_alt
     func main(a: Option[Int], b: Option[Int]) -> Bool {
         a.switch{
             s: Some => s == b,
@@ -2140,7 +2140,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.int())], `
-    test option_neq_1
+    testing option_neq_1
     func main(a: Option[Int]) -> Bool {
         a != a
     }`, ([_], res) => {
@@ -2148,7 +2148,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.int(0, 5)), ft.option(ft.int(0, 5))], `
-    test option_neq_2
+    testing option_neq_2
     func main(a: Option[Int], b: Option[Int]) -> Bool {
         a != b
     }`, ([a, b], res) => {
@@ -2156,7 +2156,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.int(0, 5)), ft.option(ft.int(0, 5))], `
-    test option_neq_2_alt
+    testing option_neq_2_alt
     func main(a: Option[Int], b: Option[Int]) -> Bool {
         a.switch{
             s: Some => s != b,
@@ -2167,7 +2167,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.int())], `
-    test option_some
+    testing option_some
     func main(a: Option[Int]) -> Int {
         a.switch{
             s: Some => s.some,
@@ -2182,7 +2182,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.int())], `
-    test option_serialize
+    testing option_serialize
     func main(a: Option[Int]) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
@@ -2190,7 +2190,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.int())], `
-    test option_sub_serialize
+    testing option_sub_serialize
     func main(a: Option[Int]) -> ByteArray {
         a.switch{
             s: Some => s.serialize(),
@@ -2201,7 +2201,7 @@ async function runPropertyTests() {
     });
 
     await ft.testn(15, [ft.option(ft.bool())], `
-    test booloption_eq_1
+    testing booloption_eq_1
     func main(a: Option[Bool]) -> Bool {
         a == a
     }`, ([_], res) => {
@@ -2209,7 +2209,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.bool()), ft.option(ft.bool())], `
-    test booloption_eq_2
+    testing booloption_eq_2
     func main(a: Option[Bool], b: Option[Bool]) -> Bool {
         a == b
     }`, ([a, b], res) => {
@@ -2217,7 +2217,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.bool()), ft.option(ft.bool())], `
-    test booloption_eq_2_alt
+    testing booloption_eq_2_alt
     func main(a: Option[Bool], b: Option[Bool]) -> Bool {
         a.switch{
             s: Some => s == b,
@@ -2228,7 +2228,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.bool())], `
-    test booloption_neq_1
+    testing booloption_neq_1
     func main(a: Option[Bool]) -> Bool {
         a != a
     }`, ([_], res) => {
@@ -2236,7 +2236,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.bool()), ft.option(ft.bool())], `
-    test booloption_neq_2
+    testing booloption_neq_2
     func main(a: Option[Bool], b: Option[Bool]) -> Bool {
         a != b
     }`, ([a, b], res) => {
@@ -2244,7 +2244,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.bool()), ft.option(ft.bool())], `
-    test booloption_neq_2_alt
+    testing booloption_neq_2_alt
     func main(a: Option[Bool], b: Option[Bool]) -> Bool {
         a.switch{
             s: Some => s != b,
@@ -2255,7 +2255,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.bool())], `
-    test booloption_some
+    testing booloption_some
     func main(a: Option[Bool]) -> Bool {
         a.switch{
             s: Some => s.some,
@@ -2270,7 +2270,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.bool())], `
-    test booloption_serialize
+    testing booloption_serialize
     func main(a: Option[Bool]) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
@@ -2278,7 +2278,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.bool())], `
-    test option_sub_serialize
+    testing option_sub_serialize
     func main(a: Option[Bool]) -> ByteArray {
         a.switch{
             s: Some => s.serialize(),
@@ -2296,7 +2296,7 @@ async function runPropertyTests() {
     // all hash types are equivalent, so we only need to test one
     
     await ft.test([ft.bytes(0, 1)], `
-    test hash_new
+    testing hash_new
     func main(a: PubKeyHash) -> Bool {
         []ByteArray{#70, #71, #72, #73, #74, #75, #76, #77, #78, #79, #7a, #7b, #7c, #7d, #7e, #7f}.any((ba: ByteArray) -> Bool {
             PubKeyHash::new(ba) == a
@@ -2306,7 +2306,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bytes()], `
-    test hash_eq_1
+    testing hash_eq_1
     func main(a: PubKeyHash) -> Bool {
         a == a
     }`, ([_], res) => {
@@ -2314,7 +2314,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bytes(), ft.bytes()], `
-    test hash_eq_2
+    testing hash_eq_2
     func main(a: PubKeyHash, b: PubKeyHash) -> Bool {
         a == b
     }`, ([a, b], res) => {
@@ -2322,7 +2322,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bytes()], `
-    test hash_neq_1
+    testing hash_neq_1
     func main(a: PubKeyHash) -> Bool {
         a != a
     }`, ([_], res) => {
@@ -2330,7 +2330,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bytes(), ft.bytes()], `
-    test hash_neq_2
+    testing hash_neq_2
     func main(a: PubKeyHash, b: PubKeyHash) -> Bool {
         a != b
     }`, ([a, b], res) => {
@@ -2338,7 +2338,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bytes(0, 10)], `
-    test hash_show
+    testing hash_show
     func main(a: PubKeyHash) -> String {
         a.show()
     }`, ([a], res) => {
@@ -2348,7 +2348,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bytes()], `
-    test hash_serialize
+    testing hash_serialize
     func main(a: PubKeyHash) -> ByteArray {
         a.serialize()
     }`, ([a], res) => {
@@ -2361,7 +2361,7 @@ async function runPropertyTests() {
     ///////////////////
 
     await ft.test([ft.bytes(0, 1), ft.bytes(0, 1)], `
-    test assetclass_new
+    testing assetclass_new
     func main(a: ByteArray, b: ByteArray) -> Bool {
         AssetClass::new(a, b) == AssetClass::ADA
     }`, ([a, b], res) => {
@@ -2369,7 +2369,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bytes(0, 1), ft.bytes(0, 1)], `
-    test assetclass_new
+    testing assetclass_new
     func main(a: ByteArray, b: ByteArray) -> Bool {
         AssetClass::new(a, b) != AssetClass::ADA
     }`, ([a, b], res) => {
@@ -2377,7 +2377,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.bytes(), ft.bytes()], `
-    test assetclass_serialize
+    testing assetclass_serialize
     func main(a: ByteArray, b: ByteArray) -> ByteArray {
         AssetClass::new(a, b).serialize()
     }`, ([a, b], res) => {
@@ -2393,7 +2393,7 @@ async function runPropertyTests() {
 
     if (testValue) {
         await ft.test([ft.int(-5, 5)], `
-        test value_is_zero
+        testing value_is_zero
         func main(a: Int) -> Bool {
             Value::lovelace(a).is_zero()
         }`, ([a], res) => {
@@ -2401,7 +2401,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int()], `
-        test value_eq_1
+        testing value_eq_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) == Value::lovelace(a)
         }`, ([_], res) => {
@@ -2409,7 +2409,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int(), ft.int()], `
-        test value_eq_2
+        testing value_eq_2
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a) == Value::lovelace(b)
         }`, ([a, b], res) => {
@@ -2417,7 +2417,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int()], `
-        test value_neq_1
+        testing value_neq_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) != Value::lovelace(a)
         }`, ([_], res) => {
@@ -2425,7 +2425,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int(), ft.int()], `
-        test value_neq_2
+        testing value_neq_2
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a) != Value::lovelace(b)
         }`, ([a, b], res) => {
@@ -2433,7 +2433,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int()], `
-        test value_add_0
+        testing value_add_0
         func main(a: Int) -> Int {
             (Value::lovelace(a) + Value::ZERO).get(AssetClass::ADA)
         }`, ([a], res) => {
@@ -2441,7 +2441,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int(), ft.int()], `
-        test value_add_2
+        testing value_add_2
         func main(a: Int, b: Int) -> Int {
             (Value::lovelace(a) + Value::lovelace(b)).get(AssetClass::ADA)
         }`, ([a, b], res) => {
@@ -2449,7 +2449,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int()], `
-        test value_sub_0
+        testing value_sub_0
         func main(a: Int) -> Int {
             (Value::lovelace(a) - Value::ZERO).get(AssetClass::ADA)
         }`, ([a], res) => {
@@ -2457,7 +2457,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int()], `
-        test value_sub_0_alt
+        testing value_sub_0_alt
         func main(a: Int) -> Int {
             (Value::ZERO - Value::lovelace(a)).get(AssetClass::ADA)
         }`, ([a], res) => {
@@ -2465,7 +2465,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int()], `
-        test value_sub_self
+        testing value_sub_self
         func main(a: Int) -> Bool {
             (Value::lovelace(a) - Value::lovelace(a)).is_zero()
         }`, ([_], res) => {
@@ -2473,31 +2473,31 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int(), ft.int()], `
-        test value_sub_2
+        testing value_sub_2
         func main(a: Int, b: Int) -> Int {
             (Value::lovelace(a) - Value::lovelace(b)).get(AssetClass::ADA)
         }`, ([a, b], res) => {
             return res.isInt() && (a.asInt() - b.asInt() === res.asInt());
         });
 
-        await ft.test([ft.int()],
-        `test value_mul_1
+        await ft.test([ft.int()], `
+        testing value_mul_1
         func main(a: Int) -> Int {
             (Value::lovelace(a)*1).get(AssetClass::ADA)
         }`, ([a], res) => {
             return res.isInt() && (a.asInt() === res.asInt());
         });
 
-        await ft.test([ft.int(), ft.int()],
-        `test value_mul_2
+        await ft.test([ft.int(), ft.int()], `
+        testing value_mul_2
         func main(a: Int, b: Int) -> Int {
             (Value::lovelace(a)*b).get(AssetClass::ADA)
         }`, ([a, b], res) => {
             return res.isInt() && (a.asInt()*b.asInt() === res.asInt());
         });
 
-        await ft.test([ft.int(), ft.int(), ft.int()],
-        `test value_mul_3
+        await ft.test([ft.int(), ft.int(), ft.int()], `
+        testing value_mul_3
         const MY_NFT: AssetClass = AssetClass::new(#abc, #abc)
         func main(a: Int, b: Int, c: Int) -> Int {
             ((Value::lovelace(a) + Value::new(MY_NFT, b))*c).get(AssetClass::ADA)
@@ -2505,16 +2505,16 @@ async function runPropertyTests() {
             return res.isInt() && (a.asInt()*c.asInt() === res.asInt());
         });
 
-        await ft.test([ft.int()],
-        `test value_div_1
+        await ft.test([ft.int()],`
+        testing value_div_1
         func main(a: Int) -> Int {
             (Value::lovelace(a)/1).get(AssetClass::ADA)
         }`, ([a], res) => {
             return res.isInt() && (a.asInt() === res.asInt());
         });
 
-        await ft.test([ft.int(), ft.int()],
-        `test value_div_2
+        await ft.test([ft.int(), ft.int()],`
+        testing value_div_2
         func main(a: Int, b: Int) -> Int {
             (Value::lovelace(a)/b).get(AssetClass::ADA)
         }`, ([a, b], res) => {
@@ -2525,8 +2525,8 @@ async function runPropertyTests() {
             }
         });
 
-        await ft.test([ft.int(), ft.int(), ft.int()],
-        `test value_div_3
+        await ft.test([ft.int(), ft.int(), ft.int()],`
+        testing value_div_3
         const MY_NFT: AssetClass = AssetClass::new(#abc, #abc)
         func main(a: Int, b: Int, c: Int) -> Int {
             ((Value::lovelace(a) + Value::new(MY_NFT, b))/c).get(AssetClass::ADA)
@@ -2539,7 +2539,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int()], `
-        test value_geq_1
+        testing value_geq_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) >= Value::lovelace(a)
         }`, ([_], res) => {
@@ -2547,7 +2547,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int(), ft.int()], `
-        test value_geq_2
+        testing value_geq_2
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a) >= Value::lovelace(b)
         }`, ([a, b], res) => {
@@ -2555,7 +2555,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int(), ft.int()], `
-        test value_contains
+        testing value_contains
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a).contains(Value::lovelace(b))
         }`, ([a, b], res) => {
@@ -2563,7 +2563,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int()], `
-        test value_gt_1
+        testing value_gt_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) > Value::lovelace(a)
         }`, ([_], res) => {
@@ -2571,7 +2571,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int(), ft.int()], `
-        test value_gt_2
+        testing value_gt_2
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a) > Value::lovelace(b)
         }`, ([a, b], res) => {
@@ -2579,7 +2579,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int()], `
-        test value_leq_1
+        testing value_leq_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) <= Value::lovelace(a)
         }`, ([_], res) => {
@@ -2587,7 +2587,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int(), ft.int()], `
-        test value_leq_2
+        testing value_leq_2
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a) <= Value::lovelace(b)
         }`, ([a, b], res) => {
@@ -2595,7 +2595,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int()], `
-        test value_lt_1
+        testing value_lt_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) < Value::lovelace(a)
         }`, ([a], res) => {
@@ -2603,7 +2603,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int(), ft.int()], `
-        test value_lt_2
+        testing value_lt_2
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a) < Value::lovelace(b)
         }`, ([a, b], res) => {
@@ -2611,7 +2611,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int()], `
-        test value_get
+        testing value_get
         func main(a: Int) -> Int {
             Value::lovelace(a).get(AssetClass::ADA)
         }`, ([a], res) => {
@@ -2619,7 +2619,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.bytes(10, 10), ft.string(5,5), ft.int(), ft.string(3,3), ft.int()], `
-        test value_get_policy
+        testing value_get_policy
         func main(mph_bytes: ByteArray, tn_a: ByteArray, qty_a: Int, tn_b: ByteArray, qty_b: Int) -> Bool {
             sum: Value = Value::new(AssetClass::new(mph_bytes, tn_a), qty_a) + Value::new(AssetClass::new(mph_bytes, tn_b), qty_b);
             sum.get_policy(MintingPolicyHash::new(mph_bytes)) == Map[ByteArray]Int{tn_a: qty_a, tn_b: qty_b}
@@ -2628,7 +2628,7 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.int(), ft.bytes(), ft.bytes()], `
-        test value_serialize
+        testing value_serialize
         func main(qty: Int, mph: ByteArray, name: ByteArray) -> ByteArray {
             Value::new(AssetClass::new(mph, name), qty).serialize()
         }`, ([qty, mph, name], res) => {
@@ -2641,7 +2641,7 @@ async function runPropertyTests() {
     // Ledger tests
     ///////////////
     await ft.test([ft.spendingScriptContext()], `
-    test scriptcontext_eq
+    testing scriptcontext_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx == ctx
     }`, ([_], res) => {
@@ -2649,7 +2649,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.mintingScriptContext()], `
-    test scriptcontext_eq
+    testing scriptcontext_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx == ctx
     }`, ([_], res) => {
@@ -2657,7 +2657,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test scriptcontext_neq
+    testing scriptcontext_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx != ctx
     }`, ([_], res) => {
@@ -2665,7 +2665,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.mintingScriptContext()], `
-    test scriptcontext_neq
+    testing scriptcontext_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx != ctx
     }`, ([_], res) => {
@@ -2673,7 +2673,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test scriptcontext_tx
+    testing scriptcontext_tx
     func main(ctx: ScriptContext) -> Tx {
         ctx.tx
     }`, ([ctx], res) => {
@@ -2681,7 +2681,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.mintingScriptContext()], `
-    test scriptcontext_tx
+    testing scriptcontext_tx
     func main(ctx: ScriptContext) -> Tx {
         ctx.tx
     }`, ([ctx], res) => {
@@ -2689,7 +2689,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test scriptcontext_get_spending_purpose_output_id
+    testing scriptcontext_get_spending_purpose_output_id
     func main(ctx: ScriptContext) -> TxOutputId {
         ctx.get_spending_purpose_output_id()
     }`, ([ctx], res) => {
@@ -2697,7 +2697,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test scriptcontext_get_current_validator_hash
+    testing scriptcontext_get_current_validator_hash
     func main(ctx: ScriptContext) -> ValidatorHash {
         ctx.get_current_validator_hash()
     }`, ([ctx], res) => {
@@ -2705,7 +2705,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.mintingScriptContext()], `
-    test scriptcontext_get_current_minting_policy_hash
+    testing scriptcontext_get_current_minting_policy_hash
     func main(ctx: ScriptContext) -> MintingPolicyHash {
         ctx.get_current_minting_policy_hash()
     }`, ([ctx], res) => {
@@ -2713,7 +2713,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test scriptcontext_serialize
+    testing scriptcontext_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.serialize()
     }`, ([ctx], res) => {
@@ -2721,7 +2721,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test tx_eq
+    testing tx_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx == ctx.tx
     }`, ([_], res) => {
@@ -2729,7 +2729,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.mintingScriptContext()], `
-    test tx_eq
+    testing tx_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx == ctx.tx
     }`, ([_], res) => {
@@ -2737,7 +2737,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test tx_neq
+    testing tx_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx != ctx.tx
     }`, ([_], res) => {
@@ -2745,7 +2745,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.mintingScriptContext()], `
-    test tx_neq
+    testing tx_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx != ctx.tx
     }`, ([_], res) => {
@@ -2754,7 +2754,7 @@ async function runPropertyTests() {
 
     // test if transaction is balanced (should always be true)
     await ft.testn(10, [ft.spendingScriptContext()], `
-    test tx_outputs_and_fee
+    testing tx_outputs_and_fee
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.fold((a: Value, b: TxInput) -> Value {
             a + b.output.value
@@ -2767,7 +2767,7 @@ async function runPropertyTests() {
 
     // test if a signatory also sent some outputs self
     await ft.test([ft.spendingScriptContext()], `
-    test tx_signatories
+    testing tx_signatories
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.signatories.all((s: PubKeyHash) -> Bool {
             ctx.tx.outputs.any((o: TxOutput) -> Bool {
@@ -2782,7 +2782,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test tx_id
+    testing tx_id
     func main(ctx: ScriptContext) -> TxId {
         ctx.tx.id
     }`, ([ctx], res) => {
@@ -2790,7 +2790,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test tx_time_range
+    testing tx_time_range
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.time_range.contains(ctx.tx.now() + Duration::new(10))
     }`, ([_], res) => {
@@ -2798,7 +2798,7 @@ async function runPropertyTests() {
     })
 
     await ft.test([ft.spendingScriptContext()], `
-    test tx_outputs_sent_to
+    testing tx_outputs_sent_to
     func main(ctx: ScriptContext) -> Bool {
         if (ctx.tx.signatories.is_empty()) {
             true
@@ -2810,7 +2810,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test tx_outputs_locked_by
+    testing tx_outputs_locked_by
     func main(ctx: ScriptContext) -> Bool {
         h: ValidatorHash = ctx.get_current_validator_hash();
         ctx.tx.outputs_locked_by(h) == ctx.tx.outputs.filter((o: TxOutput) -> Bool {
@@ -2824,7 +2824,7 @@ async function runPropertyTests() {
     });
 
     await ft.testn(10, [ft.spendingScriptContext()], `
-    test tx_value_sent_to
+    testing tx_value_sent_to
     func main(ctx: ScriptContext) -> Bool {
         if (ctx.tx.signatories.is_empty()) {
             true
@@ -2839,7 +2839,7 @@ async function runPropertyTests() {
     });
 
     await ft.testn(10, [ft.spendingScriptContext()], `
-    test tx_value_locked_by
+    testing tx_value_locked_by
     func main(ctx: ScriptContext) -> Bool {
         h: ValidatorHash = ctx.get_current_validator_hash();
         ctx.tx.value_locked_by(h) == ctx.tx.outputs.fold((sum: Value, o: TxOutput) -> Value {
@@ -2850,7 +2850,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.object(ft.int()), ft.spendingScriptContext()],`
-    test tx_value_locked_by_datum
+    testing tx_value_locked_by_datum
     struct Datum {
         a: Int
     }
@@ -2864,7 +2864,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test tx_is_signed_by
+    testing tx_is_signed_by
     func main(ctx: ScriptContext) -> Bool {
         if (ctx.tx.signatories.is_empty()) {
             false
@@ -2876,7 +2876,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test tx_serialize
+    testing tx_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.serialize()
     }`, ([ctx], res) => {
@@ -2884,7 +2884,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test txid_eq
+    testing txid_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.id == ctx.tx.id
     }`, ([_], res) => {
@@ -2892,7 +2892,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test txid_neq
+    testing txid_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.id != ctx.tx.id
     }`, ([_], res) => {
@@ -2900,7 +2900,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test txid_serialize
+    testing txid_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.id.serialize()
     }`, ([ctx], res) => {
@@ -2908,7 +2908,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test txinput_eq_neq
+    testing txinput_eq_neq
     func main(ctx: ScriptContext) -> Bool {
         if (ctx.tx.inputs.length == 1) {
             ctx.tx.inputs.head == ctx.tx.inputs.get(0)
@@ -2920,7 +2920,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test txinput_serialize
+    testing txinput_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.serialize()
     }`, ([ctx], res) => {
@@ -2928,7 +2928,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test txoutput_eq_neq
+    testing txoutput_eq_neq
     func main(ctx: ScriptContext) -> Bool {
         if (ctx.tx.outputs.length == 1) {
             ctx.tx.outputs.head == ctx.tx.outputs.get(0)
@@ -2940,7 +2940,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test txoutput_datum_hash
+    testing txoutput_datum_hash
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.outputs.head.datum_hash.switch{
             s: Some => s.some == s.some,
@@ -2951,7 +2951,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test txoutput_serialize
+    testing txoutput_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.outputs.head.serialize()
     }`, ([ctx], res) => {
@@ -2959,7 +2959,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test txoutputid_eq_neq
+    testing txoutputid_eq_neq
     func main(ctx: ScriptContext) -> Bool {
         if (ctx.tx.inputs.length == 1) {
             ctx.tx.inputs.head.output_id == ctx.tx.inputs.get(0).output_id
@@ -2971,7 +2971,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test txoutputid_new
+    testing txoutputid_new
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output_id != TxOutputId::new(#123, 0)
     }`, ([_], res) => {
@@ -2979,7 +2979,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test txoutputid_serialize
+    testing txoutputid_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output_id.serialize()
     }`, ([ctx], res) => {
@@ -2987,7 +2987,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test address_eq
+    testing address_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address == ctx.tx.inputs.get(0).output.address
     }`, ([_], res) => {
@@ -2995,7 +2995,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test address_neq
+    testing address_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address != ctx.tx.inputs.get(0).output.address
     }`, ([_], res) => {
@@ -3003,7 +3003,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test address_staking_credential
+    testing address_staking_credential
     func main(ctx: ScriptContext) -> Option[StakingCredential] {
         ctx.tx.inputs.head.output.address.staking_credential
     }`, ([a], res) => {
@@ -3012,7 +3012,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test address_serialize
+    testing address_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output.address.serialize()
     }`, ([ctx], res) => {
@@ -3020,7 +3020,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test credential_eq
+    testing credential_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.credential == ctx.tx.inputs.get(0).output.address.credential
     }`, ([_], res) => {
@@ -3028,7 +3028,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test credential_neq
+    testing credential_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.credential != ctx.tx.inputs.get(0).output.address.credential
     }`, ([_], res) => {
@@ -3036,7 +3036,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test credential_serialize
+    testing credential_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output.address.credential.serialize()
     }`, ([ctx], res) => {
@@ -3044,7 +3044,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test credential_sub_eq
+    testing credential_sub_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.outputs.head.address.credential.switch{
             p: PubKey => p == p,
@@ -3055,7 +3055,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test credential_sub_neq
+    testing credential_sub_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.outputs.head.address.credential.switch{
             p: PubKey => p != p,
@@ -3066,7 +3066,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test credential_sub_serialize
+    testing credential_sub_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output.address.credential.switch{
             p: PubKey => p.serialize(),
@@ -3077,7 +3077,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test staking_credential_eq
+    testing staking_credential_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.staking_credential.switch{
             s: Some => s.some == s.some,
@@ -3088,7 +3088,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test staking_credential_neq
+    testing staking_credential_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.staking_credential.switch{
             s: Some => s.some != s.some,
@@ -3099,7 +3099,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    test staking_credential_serialize
+    testing staking_credential_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output.address.staking_credential.switch{
             s: Some => s.some.serialize(),
@@ -3110,7 +3110,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test time_eq_1
+    testing time_eq_1
     func main(a: Int) -> Bool {
         Time::new(a) == Time::new(a)
     }`, ([_], res) => {
@@ -3118,7 +3118,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test time_eq_2
+    testing time_eq_2
     func main(a: Int, b: Int) -> Bool {
         Time::new(a) == Time::new(b)
     }`, ([a, b], res) => {
@@ -3126,7 +3126,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test time_neq_1
+    testing time_neq_1
     func main(a: Int) -> Bool {
         Time::new(a) != Time::new(a)
     }`, ([_], res) => {
@@ -3134,7 +3134,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test time_neq_2
+    testing time_neq_2
     func main(a: Int, b: Int) -> Bool {
         Time::new(a) != Time::new(b)
     }`, ([a, b], res) => {
@@ -3142,7 +3142,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test time_add_2
+    testing time_add_2
     func main(a: Int, b: Int) -> Time {
         Time::new(a) + Duration::new(b)
     }`, ([a, b], res) => {
@@ -3150,7 +3150,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test time_sub_0
+    testing time_sub_0
     func main(a: Int) -> Duration {
         Time::new(a) - Time::new(0)
     }`, ([a], res) => {
@@ -3158,7 +3158,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test time_sub_self
+    testing time_sub_self
     func main(a: Int) -> Duration {
         Time::new(a) - Time::new(a)
     }`, ([_], res) => {
@@ -3166,7 +3166,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test time_sub_2
+    testing time_sub_2
     func main(a: Int, b: Int) -> Duration {
         Time::new(a) - Time::new(b)
     }`, ([a, b], res) => {
@@ -3174,7 +3174,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test time_geq_1
+    testing time_geq_1
     func main(a: Int) -> Bool {
         Time::new(a) >= Time::new(a)
     }`, ([_], res) => {
@@ -3182,7 +3182,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test time_geq_2
+    testing time_geq_2
     func main(a: Int, b: Int) -> Bool {
         Time::new(a) >= Time::new(b)
     }`, ([a, b], res) => {
@@ -3190,7 +3190,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test time_gt_1
+    testing time_gt_1
     func main(a: Int) -> Bool {
         Time::new(a) > Time::new(a)
     }`, ([_], res) => {
@@ -3198,7 +3198,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test time_gt_2
+    testing time_gt_2
     func main(a: Int, b: Int) -> Bool {
         Time::new(a) > Time::new(b)
     }`, ([a, b], res) => {
@@ -3206,7 +3206,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test time_leq_1
+    testing time_leq_1
     func main(a: Int) -> Bool {
         Time::new(a) <= Time::new(a)
     }`, ([_], res) => {
@@ -3214,7 +3214,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test time_leq_2
+    testing time_leq_2
     func main(a: Int, b: Int) -> Bool {
         Time::new(a) <= Time::new(b)
     }`, ([a, b], res) => {
@@ -3222,7 +3222,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test time_lt_1
+    testing time_lt_1
     func main(a: Int) -> Bool {
         Time::new(a) < Time::new(a)
     }`, ([a], res) => {
@@ -3230,7 +3230,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test time_lt_2
+    testing time_lt_2
     func main(a: Int, b: Int) -> Bool {
         Time::new(a) < Time::new(b)
     }`, ([a, b], res) => {
@@ -3238,7 +3238,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test time_show
+    testing time_show
     func main(a: Int) -> String {
         Time::new(a).show()
     }`, ([a], res) => {
@@ -3246,7 +3246,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test time_serialize
+    testing time_serialize
     func main(a: Int) -> ByteArray {
         Time::new(a).serialize()
     }`, ([a], res) => {
@@ -3254,7 +3254,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_eq_1
+    testing duration_eq_1
     func main(a: Int) -> Bool {
         Duration::new(a) == Duration::new(a)
     }`, ([_], res) => {
@@ -3262,7 +3262,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test duration_eq_2
+    testing duration_eq_2
     func main(a: Int, b: Int) -> Bool {
         Duration::new(a) == Duration::new(b)
     }`, ([a, b], res) => {
@@ -3270,7 +3270,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_neq_1
+    testing duration_neq_1
     func main(a: Int) -> Bool {
         Duration::new(a) != Duration::new(a)
     }`, ([_], res) => {
@@ -3278,7 +3278,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test duration_neq_2
+    testing duration_neq_2
     func main(a: Int, b: Int) -> Bool {
         Duration::new(a) != Duration::new(b)
     }`, ([a, b], res) => {
@@ -3286,7 +3286,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_add_0
+    testing duration_add_0
     func main(a: Int) -> Duration {
         Duration::new(a) + Duration::new(0)
     }`, ([a], res) => {
@@ -3294,7 +3294,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test duration_add_2
+    testing duration_add_2
     func main(a: Int, b: Int) -> Duration {
         Duration::new(a) + Duration::new(b)
     }`, ([a, b], res) => {
@@ -3302,7 +3302,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_sub_0
+    testing duration_sub_0
     func main(a: Int) -> Duration {
         Duration::new(a) - Duration::new(0)
     }`, ([a], res) => {
@@ -3310,7 +3310,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_sub_0_alt
+    testing duration_sub_0_alt
     func main(a: Int) -> Duration {
         Duration::new(0) - Duration::new(a)
     }`, ([a], res) => {
@@ -3318,7 +3318,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_sub_self
+    testing duration_sub_self
     func main(a: Int) -> Duration {
         Duration::new(a) - Duration::new(a)
     }`, ([_], res) => {
@@ -3326,7 +3326,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test duration_sub_2
+    testing duration_sub_2
     func main(a: Int, b: Int) -> Duration {
         Duration::new(a) - Duration::new(b)
     }`, ([a, b], res) => {
@@ -3334,7 +3334,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_mul_0
+    testing duration_mul_0
     func main(a: Int) -> Duration {
         Duration::new(a)*0
     }`, ([_], res) => {
@@ -3342,7 +3342,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_mul_1
+    testing duration_mul_1
     func main(a: Int) -> Duration {
         Duration::new(a)*1
     }`, ([a], res) => {
@@ -3350,7 +3350,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test duration_mul_2
+    testing duration_mul_2
     func main(a: Int, b: Int) -> Duration {
         Duration::new(a) * b
     }`, ([a, b], res) => {
@@ -3358,7 +3358,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_div_0
+    testing duration_div_0
     func main(a: Int) -> Duration {
         Duration::new(a) / 0
     }`, ([_], res) => {
@@ -3366,7 +3366,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_div_1
+    testing duration_div_1
     func main(a: Int) -> Duration {
         Duration::new(a) / 1
     }`, ([a], res) => {
@@ -3374,7 +3374,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(-20, 20)], `
-    test duration_div_1_self
+    testing duration_div_1_self
     func main(a: Int) -> Duration {
         Duration::new(a) / a
     }`, ([a], res) => {
@@ -3386,7 +3386,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test duration_div_2
+    testing duration_div_2
     func main(a: Int, b: Int) -> Duration {
         Duration::new(a) / b
     }`, ([a, b], res) => {
@@ -3398,7 +3398,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_mod_0
+    testing duration_mod_0
     func main(a: Int) -> Duration {
         Duration::new(a) % Duration::new(0)
     }`, ([_], res) => {
@@ -3406,7 +3406,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_mod_1
+    testing duration_mod_1
     func main(a: Int) -> Duration {
         Duration::new(a) % Duration::new(1)
     }`, ([_], res) => {
@@ -3414,7 +3414,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(-20, 20)], `
-    test duration_mod_1_alt
+    testing duration_mod_1_alt
     func main(a: Int) -> Duration {
         Duration::new(1) % Duration::new(a)
     }`, ([a], res) => {
@@ -3430,7 +3430,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(-10, 10)], `
-    test duration_mod_1_self
+    testing duration_mod_1_self
     func main(a: Int) -> Duration {
         Duration::new(a) % Duration::new(a)
     }`, ([a], res) => {
@@ -3442,7 +3442,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int(-10, 10)], `
-    test duration_mod_2
+    testing duration_mod_2
     func main(a: Int, b: Int) -> Duration {
         Duration::new(a) % Duration::new(b)
     }`, ([a, b], res) => {
@@ -3454,7 +3454,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_geq_1
+    testing duration_geq_1
     func main(a: Int) -> Bool {
         Duration::new(a) >= Duration::new(a)
     }`, ([_], res) => {
@@ -3462,7 +3462,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test duration_geq_2
+    testing duration_geq_2
     func main(a: Int, b: Int) -> Bool {
         Duration::new(a) >= Duration::new(b)
     }`, ([a, b], res) => {
@@ -3470,7 +3470,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_gt_1
+    testing duration_gt_1
     func main(a: Int) -> Bool {
         Duration::new(a) > Duration::new(a)
     }`, ([_], res) => {
@@ -3478,7 +3478,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test duration_gt_2
+    testing duration_gt_2
     func main(a: Int, b: Int) -> Bool {
         Duration::new(a) > Duration::new(b)
     }`, ([a, b], res) => {
@@ -3486,7 +3486,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_leq_1
+    testing duration_leq_1
     func main(a: Int) -> Bool {
         Duration::new(a) <= Duration::new(a)
     }`, ([_], res) => {
@@ -3494,7 +3494,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test duration_leq_2
+    testing duration_leq_2
     func main(a: Int, b: Int) -> Bool {
         Duration::new(a) <= Duration::new(b)
     }`, ([a, b], res) => {
@@ -3502,7 +3502,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test duration_lt_1
+    testing duration_lt_1
     func main(a: Int) -> Bool {
         Duration::new(a) < Duration::new(a)
     }`, ([a], res) => {
@@ -3510,7 +3510,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test duration_lt_2
+    testing duration_lt_2
     func main(a: Int, b: Int) -> Bool {
         Duration::new(a) < Duration::new(b)
     }`, ([a, b], res) => {
@@ -3518,7 +3518,7 @@ async function runPropertyTests() {
     });
     
     await ft.test([ft.int()], `
-    test duration_serialize
+    testing duration_serialize
     func main(a: Int) -> ByteArray {
         Duration::new(a).serialize()
     }`, ([a], res) => {
@@ -3526,7 +3526,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test timerange_always
+    testing timerange_always
     func main(a: Int) -> Bool {
         TimeRange::ALWAYS.contains(Time::new(a))
     }`, ([_], res) => {
@@ -3534,7 +3534,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test timerange_never
+    testing timerange_never
     func main(a: Int) -> Bool {
         TimeRange::NEVER.contains(Time::new(a))
     }`, ([_], res) => {
@@ -3542,7 +3542,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test timerange_from
+    testing timerange_from
     func main(a: Int, b: Int) -> Bool {
         TimeRange::from(Time::new(a)).contains(Time::new(b))
     }`, ([a, b], res) => {
@@ -3550,7 +3550,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test timerange_to
+    testing timerange_to
     func main(a: Int, b: Int) -> Bool {
         TimeRange::to(Time::new(a)).contains(Time::new(b))
     }`, ([a, b], res) => {
@@ -3558,7 +3558,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test timerange_eq_1
+    testing timerange_eq_1
     func main(a: Int, b: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)) == TimeRange::new(Time::new(a), Time::new(b))
     }`, ([_], res) => {
@@ -3566,7 +3566,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
-    test timerange_eq_2
+    testing timerange_eq_2
     func main(a: Int, b: Int, c: Int, d: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)) == TimeRange::new(Time::new(c), Time::new(d))
     }`, ([a, b, c, d], res) => {
@@ -3574,7 +3574,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test timerange_neq_1
+    testing timerange_neq_1
     func main(a: Int, b: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)) != TimeRange::new(Time::new(a), Time::new(b))
     }`, ([_], res) => {
@@ -3582,7 +3582,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
-    test timerange_neq_2
+    testing timerange_neq_2
     func main(a: Int, b: Int, c: Int, d: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)) != TimeRange::new(Time::new(c), Time::new(d))
     }`, ([a, b, c, d], res) => {
@@ -3590,7 +3590,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test timerange_contains
+    testing timerange_contains
     func main(a: Int, b: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)).contains(Time::new((a+b)/2))
     }`, ([a, b], res) => {
@@ -3598,7 +3598,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test timerange_is_after_1
+    testing timerange_is_after_1
     func main(a: Int) -> Bool {
         TimeRange::NEVER.is_after(Time::new(a))
     }`, ([_], res) => {
@@ -3606,7 +3606,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test timerange_is_after_2
+    testing timerange_is_after_2
     func main(a: Int) -> Bool {
         TimeRange::ALWAYS.is_after(Time::new(a))
     }`, ([_], res) => {
@@ -3614,7 +3614,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test timerange_is_after_3
+    testing timerange_is_after_3
     func main(a: Int, b: Int) -> Bool {
         TimeRange::to(Time::new(a)).is_after(Time::new(b))
     }`, ([a, b], res) => {
@@ -3622,7 +3622,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test timerange_is_after_4
+    testing timerange_is_after_4
     func main(a: Int, b: Int) -> Bool {
         TimeRange::from(Time::new(a)).is_after(Time::new(b))
     }`, ([a, b], res) => {
@@ -3630,7 +3630,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int(), ft.int()], `
-    test timerange_is_after_5
+    testing timerange_is_after_5
     func main(a: Int, b: Int, c: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)).is_after(Time::new(c))
     }`, ([a, _, c], res) => {
@@ -3638,7 +3638,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test timerange_is_before_1
+    testing timerange_is_before_1
     func main(a: Int) -> Bool {
         TimeRange::NEVER.is_before(Time::new(a))
     }`, ([_], res) => {
@@ -3646,7 +3646,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int()], `
-    test timerange_is_before_2
+    testing timerange_is_before_2
     func main(a: Int) -> Bool {
         TimeRange::ALWAYS.is_before(Time::new(a))
     }`, ([_], res) => {
@@ -3654,7 +3654,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test timerange_is_before_3
+    testing timerange_is_before_3
     func main(a: Int, b: Int) -> Bool {
         TimeRange::to(Time::new(a)).is_before(Time::new(b))
     }`, ([a, b], res) => {
@@ -3662,7 +3662,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test timerange_is_before_4
+    testing timerange_is_before_4
     func main(a: Int, b: Int) -> Bool {
         TimeRange::from(Time::new(a)).is_before(Time::new(b))
     }`, ([a, b], res) => {
@@ -3671,7 +3671,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int(), ft.int()], `
-    test timerange_is_before_5
+    testing timerange_is_before_5
     func main(a: Int, b: Int, c: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)).is_before(Time::new(c))
     }`, ([_, b, c], res) => {
@@ -3679,7 +3679,7 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.int(), ft.int()], `
-    test timerange_serialize
+    testing timerange_serialize
     func main(a: Int, b: Int) -> ByteArray {
         TimeRange::new(Time::new(a), Time::new(b)).serialize()
     }`, ([a, b], res) => {
@@ -3689,15 +3689,20 @@ async function runPropertyTests() {
 
 
 async function runIntegrationTests() {
-    async function runTestScript(src, expectedResult, expectedMessages) {
-        let [purpose, name] = helios.extractScriptPurposeAndName(src);
     
-        if (purpose != "test") {
+    async function runTestScript(src, expectedResult, expectedMessages) {
+        let purposeName = helios.extractScriptPurposeAndName(src);
+
+        if (purposeName == null) {
+            throw new Error("invalid header");
+        }
+
+        let [purpose, name] = purposeName;
+    
+        if (purpose != "testing") {
             throw new Error(`${name} is not a test script`);
         }
-        
-        let [result, messages] = await helios.run(src);
-    
+
         function checkResult(result_) {
             let resStr = result_.toString();
             if (result_ instanceof Error) {
@@ -3709,29 +3714,41 @@ async function runIntegrationTests() {
             }
         }
 
-        checkResult(result);
-    
-        if (messages.length != expectedMessages.length) {
-            throw new Error(`unexpected number of messages in ${name}: expected ${expectedMessages.length}, got ${messages.length}`);
-        } 
-    
-        for (let i = 0; i < messages.length; i++) {
-            if (messages[i] != expectedMessages[i]) {
-                throw new Error(`unexpected message ${i} in ${name}`);
+        try {
+            let program = helios.Program.new(src);
+
+            let [result, messages] = await program.compile().runWithPrint([]);
+        
+            checkResult(result);
+        
+            if (messages.length != expectedMessages.length) {
+                throw new Error(`unexpected number of messages in ${name}: expected ${expectedMessages.length}, got ${messages.length}`);
+            } 
+        
+            for (let i = 0; i < messages.length; i++) {
+                if (messages[i] != expectedMessages[i]) {
+                    throw new Error(`unexpected message ${i} in ${name}`);
+                }
+            }   
+
+            console.log(`integration test '${name}' succeeded`);
+
+            // also try the simplified version (don't check for the message though because all trace calls will've been eliminated)
+
+            [result, messages] = await program.compile(true).runWithPrint([]);
+
+            if (messages.length != 0) {
+                throw new Error("unexpected messages");
             }
-        }   
 
-        console.log(`integration test '${name}' succeeded`);
-
-        // also try the simplified version (don't check for the message though because all trace calls will've been eliminated)
-
-        [result, messages] = await helios.run(src, {simplify: true});
-
-        if (messages.length != 0) {
-            throw new Error("unexpected messages");
+            checkResult(result);
+        } catch(e) {
+            if (!(e instanceof helios.UserError)) {
+                throw e
+            } else {
+                checkResult(e);
+            }
         }
-
-        checkResult(result);
 
         console.log(`integration test '${name}' succeeded (simplified)`);
     }
@@ -3741,23 +3758,16 @@ async function runIntegrationTests() {
     // start of integration tests
 
     // 1. hello_world_true
-    // * __helios__common__unStringData
-    // * __helios__common__stringData
-    // * __helios__common__boolData
-    await runTestScript(`test hello_world_true
+    await runTestScript(`
+    testing hello_world_true
     func main() -> Bool {
         print("hello world");
         true
     }`, "1{}", ["hello world"]);
 
     // 2. hello_world_false
-    // * __helios__common__unStringData
-    // * __helios__common__stringData
-    // * __helios__common__boolData
-    // * __helios__common__not
-    // * __helios__common__unBoolData
-    // * __helios__bool____not
-    await runTestScript(`test hello_world_false
+    await runTestScript(`
+    testing hello_world_false
     func main() -> Bool {
         print("hello world");
         !true
@@ -3765,7 +3775,8 @@ async function runIntegrationTests() {
 
     // 3. hello_number
     // * non-main function statement
-    await runTestScript(`test hello_number
+    await runTestScript(`
+    testing hello_number
     func print_message(a: Int) -> String {
         "hello number " + a.show()
     }
@@ -3778,7 +3789,8 @@ async function runIntegrationTests() {
     // * struct statement
     // * struct literal
     // * struct getters
-    await runTestScript(`test my_struct
+    await runTestScript(`
+    testing my_struct
     struct MyStruct {
         a: Int
         b: Int
@@ -3792,7 +3804,8 @@ async function runIntegrationTests() {
     // * struct statement
     // * struct literal
     // * struct getters
-    await runTestScript(`test owner_value
+    await runTestScript(`
+    testing owner_value
     struct Datum {
         owner: PubKeyHash
         value: Value
@@ -3808,7 +3821,8 @@ async function runIntegrationTests() {
 
     // 5. fibonacci
     // * recursive function statement
-    await runTestScript(`test fibonacci
+    await runTestScript(`
+    testing fibonacci
     func fibonacci(n: Int) -> Int {
         if (n < 2) {
             1
@@ -3822,7 +3836,8 @@ async function runIntegrationTests() {
 
     // 6. fibonacci2
     // * calling a non-function
-    await runTestScript(`test fibonacci2
+    await runTestScript(`
+    testing fibonacci2
     func fibonacci(n: Int) -> Int {
         if (n < 2) {
             1
@@ -3836,7 +3851,8 @@ async function runIntegrationTests() {
     }`, "not callable", []);
 
     // 7. list_get ok
-    await runTestScript(`test list_get
+    await runTestScript(`
+    testing list_get
     func main() -> Bool {
         x: []Int = []Int{1, 2, 3};
         print(x.get(0).show());
@@ -3845,7 +3861,8 @@ async function runIntegrationTests() {
 
     // 8. list_get nok
     // * error thrown by builtin
-    await runTestScript(`test list_get
+    await runTestScript(`
+    testing list_get
     func main() -> Bool {
         x = []Int{1, 2, 3};
         print(x.get(0).show());
@@ -3854,7 +3871,8 @@ async function runIntegrationTests() {
 
     // 9. multiple_args
     // * function that takes more than 1 arguments
-    await runTestScript(`test multiple_args
+    await runTestScript(`
+    testing multiple_args
     func concat(a: String, b: String) -> String {
         a + b
     }
@@ -3865,7 +3883,8 @@ async function runIntegrationTests() {
 
     // 10. collatz recursion
     // * recursion
-    await runTestScript(`test collatz
+    await runTestScript(`
+    testing collatz
     func collatz(current: Int, accumulator: []Int) -> []Int {
         if (current == 1) {
             accumulator.prepend(current) 
@@ -3881,7 +3900,8 @@ async function runIntegrationTests() {
 
     // 11. list_any
     // * member function as value
-    await runTestScript(`test list_any
+    await runTestScript(`
+    testing list_any
     func main_inner(fnAny: ((Int) -> Bool) -> Bool) -> Bool {
         fnAny((i: Int) -> Bool {
             i == 10
@@ -3892,7 +3912,8 @@ async function runIntegrationTests() {
     }`, "1{}", []);
     
     // 12. value_get
-    await runTestScript(`test value_get
+    await runTestScript(`
+    testing value_get
     func main() -> []Int {
         ac1: AssetClass = AssetClass::new(#1234, #1234);
         ac2: AssetClass = AssetClass::new(#5678, #5678);
@@ -3905,7 +3926,8 @@ async function runIntegrationTests() {
     }`, "policy not found", []);
 
     // 13. switch_redeemer
-    await runTestScript(`test staking
+    await runTestScript(`
+    testing staking
     enum Redeemer {
         Unstake
         Reward
@@ -3927,7 +3949,7 @@ async function runIntegrationTests() {
 
     // 14. struct method recursion
     await runTestScript(`
-    test fibonacci_struct
+    testing fibonacci_struct
     struct Fib {
         a: Int
         b: Int
@@ -3950,7 +3972,7 @@ async function runIntegrationTests() {
 
     // 15. enum method recursion
     await runTestScript(`
-    test fibonacci_enum
+    testing fibonacci_enum
     enum Fib {
         One{
             a: Int

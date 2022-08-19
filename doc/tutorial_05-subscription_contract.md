@@ -6,7 +6,7 @@ This contract can alternatively be called an 'allowance' contract.
 
 ## The script
 ```golang
-validator subscription
+spending subscription
 
 struct Datum {
     owner:            PubKeyHash

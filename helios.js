@@ -26,34 +26,36 @@
 //
 // Example usage:
 //     > import * as helios from "helios.js";
-//     > console.log(helios.compile("validator my_validator ..."));
+//     > console.log(helios.Program.new("validator my_validator ...").compile().serialize());
 //
 //
-// Exports:      
-//   * CompilationStage
-//         enum with six values: Preprocess, Tokenize, BuildAST, IR, PlutusCore and Final
+// Exports:
+//   * Program
+//   	Helios program object. 
+//       	* Program.new(src: string) -> Program
+//         	* program.compile(simplify: boolean = false) -> PlutusCoreProgram
+//       	* program.paramTypes -> Object.<name: string, type: Type>
+//       	* program.changeParam(name: string, json: string)
+//       	* program.evalParam(name: string) -> PlutusCoreData  
+//          	result can be used as an arg when running a PlutusCoreProgram
 //
-//   * compile(src: string, 
-//             config: {verbose: false, templateParameters: {}, stage: CompilationStage, simplify: false}) -> ...
-//         different return types depending on config.stage:
-//             config.stage==CompilationStage.Preprocess -> string
-//             config.stage==CompilationStage.Tokenize   -> list of Tokens
-//             config.stage==CompilationStage.BuildAST   -> Program
-//             config.stage==CompilationStage.IR         -> string
-//             config.stage==CompilationStage.PlutusCore -> PlutusCoreProgram
-//             config.stage==CompilationStage.Final      -> string
-//       The final string output is a JSON string that be can saved as a file and can then 
-//       be used by cardano-cli as a '--tx-in-script-file' for transaction building.
-//
-//   * async run(typedSrc: string, config: {verbose: false, templateParameters: {}}) -> 
-//           [PlutusCoreData | UserError, []string]
-//       Compile and run a test program that doesn't take any arguments, returns a tuple where the
-//       first value is either the result or an error, and the second value is a list of printed 
-//       messages.
+//   * PlutusCoreProgram
+//		Plutus-Core program object
+//      	* async program.run(args: PlutusCoreData[]) -> PlutusCoreData | UserError
+//          * async program.profile(args: PlutusCoreData[]) -> {mem: number, cpu: number, size: number}
+//          * program.serialize() -> string
+//          	json string which can be used as a file by cardano-cli to submit a transaction
+//		
+//   * UserError
+//       Special error object used for syntax, type, reference and runtime errors.
+//       Contains a reference to the script location were the error occured.
 //
 //   * FuzzyTest(seed: number)
 //       Fuzzy testing class which can be used for propery based testing of test scripts.
 //       See ./test-suite.js for examples of how to use this.
+//
+//   * extractScriptPurposeAndName(src: string) -> [string, string]
+//       Parses Helios quickly to extract the script purpose header.
 //
 //   * highlight(src: string) -> Uint8Array
 //       Returns one marker byte per src character.
@@ -100,8 +102,8 @@
 //                                          PrimitiveLiteral, IntLiteral, BoolLiteral, 
 //                                          ByteArrayLiteral, StringLiteral, UnitLiteral
 //
-//     7. Tokenization                      Tokenizer, tokenize, tokenizeIR, 
-//                                          SyntaxCategory, highlight
+//     7. Tokenization                      Tokenizer, tokenize, tokenizeIR, getPurposeName,
+//                                          extractScriptPurposeAndName, SyntaxCategory, highlight
 //
 //     8. Type evaluation objects           GeneralizedValue, Type, AnyType, DataType, AnyDataType, 
 //                                          BuiltinType, StatementType, FuncType, Value, DataValue, 
@@ -124,7 +126,8 @@
 //                                          EnumMember, EnumStatement, ImplDefinition,
 //                                          Program
 //
-//    12. AST build functions               buildProgram, buildScriptPurpose, buildConstStatement, 
+//    12. AST build functions               buildProgramStatements, buildScriptPurpose, 
+//                                          buildConstStatement, 
 //                                          splitDataImpl, buildStructStatement, buildDataFields,
 //                                          buildFuncStatement, buildFuncLiteralExpr, buildFuncArgs,
 //                                          buildEnumStatement, buildEnumMember, 
@@ -156,20 +159,16 @@
 //    14. Builtin low-level functions       onNotifyRawUsage, setRawUsageNotifier, 
 //                                          RawFunc, makeRawFunctions, wrapWithRawFunctions
 //
-//    15. IR AST objects                    IRScope, IRExpr, IRVariable, IRFuncExpr,
-//                                          IRUserCallExpr, IRCoreCallExpr, IRErrorCallExpr,
-//                                          IRNameExpr, IRLiteral
+//    15. IR AST objects                    IRScope, IRExprStack, IRValue, IRFuncValue, 
+//                                          IRLiteralValue, IRCallStack, IRExpr, IRVariable, 
+//                                          IRFuncExpr, IRUserCallExpr, IRCoreCallExpr, 
+//                                          IRErrorCallExpr, IRNameExpr, IRLiteral
 //
-//    16. IR AST build functions            buildIRProgram, buildIRExpr, buildIRFuncExpr,
-//                                          simplifyIRProgram
-//
-//    17. Compilation                       preprocess, CompilationStage, DEFAULT_CONFIG,
-//                                          compileInternal, getPurposeName, 
-//                                          extractScriptPurposeAndName, compile, run
+//    16. IR AST build functions            buildIRExpr, buildIRFuncExpr
 //     
-//    18. Plutus-Core deserialization       PlutusCoreDeserializer, deserializePlutusCore
+//    17. Plutus-Core deserialization       PlutusCoreDeserializer, deserializePlutusCore
 //
-//    19. Property test framework           FuzzyTest
+//    18. Property test framework           FuzzyTest
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2671,6 +2670,7 @@ class PlutusCoreValue {
 * @property {(msg: string) => Promise<void>} [onPrint]
 * @property {(site: Site, rawStack: PlutusCoreRawStack) => Promise<boolean>} [onStartCall]
 * @property {(site: Site, rawStack: PlutusCoreRawStack) => Promise<void>} [onEndCall]
+* @property {(cost: Cost) => void} [onIncrCost]
 */
 
 /**
@@ -2680,6 +2680,7 @@ const DEFAULT_PLUTUS_CORE_RTE_CALLBACKS = {
 	onPrint: async function (msg) {return},
 	onStartCall: async function(site, rawStack) {return false},
 	onEndCall: async function(site, rawStack) {return},
+	onIncrCost: function(cost) {return},
 }
 
 /**
@@ -2701,16 +2702,6 @@ class PlutusCoreRTE {
 	#marker;
 
 	/**
-	 * @type {number} memCost of whole run (seems to always increase)
-	 */
-	#memCost;
-
-	/**
-	 * @type {number} - cpuCost of whole run
-	 */
-	#cpuCost;
-
-	/**
 	 * @typedef {[?string, PlutusCoreValue][]} PlutusCoreRawStack
 	 */
 
@@ -2722,23 +2713,15 @@ class PlutusCoreRTE {
 		this.#callbacks = callbacks;
 		this.#notifyCalls = true;
 		this.#marker = null;
-		this.#memCost = 0;
-		this.#cpuCost = 0;
-	}
-
-	/**
-	 * @type {Cost}
-	 */
-	get cost() {
-		return {mem: this.#memCost, cpu: this.#cpuCost};
 	}
 
 	/**
 	 * @param {Cost} cost 
 	 */
 	incrCost(cost) {
-		this.#memCost += cost.mem;
-		this.#cpuCost += cost.cpu;
+		if (this.#callbacks.onIncrCost !== undefined) {
+			this.#callbacks.onIncrCost(cost);
+		}
 	}
 
 	/**
@@ -2825,7 +2808,7 @@ class PlutusCoreStack {
 	#valueName;
 
 	/**
-	 * @param {PlutusCoreStack | PlutusCoreRTE} parent
+	 * @param {(?PlutusCoreStack) | PlutusCoreRTE} parent
 	 * @param {?PlutusCoreValue} value
 	 * @param {?string} valueName
 	 */
@@ -2839,7 +2822,9 @@ class PlutusCoreStack {
 	 * @param {Cost} cost 
 	 */
 	incrCost(cost) {
-		this.#parent.incrCost(cost)
+		if (this.#parent !== null) {
+			this.#parent.incrCost(cost)
+		}
 	}
 
 	/**
@@ -2859,7 +2844,11 @@ class PlutusCoreStack {
 			}
 		} else {
 			assert(i > 0);
-			return this.#parent.get(i);
+			if (this.#parent === null) {
+				throw new Error("variable index out of range");
+			} else {
+				return this.#parent.get(i);
+			}
 		}
 	}
 
@@ -2879,7 +2868,9 @@ class PlutusCoreStack {
 	 * @returns {Promise<void>}
 	 */
 	async print(msg) {
-		await this.#parent.print(msg);
+		if (this.#parent !== null) {
+			await this.#parent.print(msg);
+		}
 	}
 
 	/**
@@ -2889,7 +2880,9 @@ class PlutusCoreStack {
 	 * @returns {Promise<void>}
 	 */
 	async startCall(site, rawStack) {
-		await this.#parent.startCall(site, rawStack);
+		if (this.#parent !== null) {
+			await this.#parent.startCall(site, rawStack);
+		}
 	}
 
 	/** 
@@ -2900,14 +2893,16 @@ class PlutusCoreStack {
 	 * @returns {Promise<void>}
 	*/
 	async endCall(site, rawStack, result) {
-		await this.#parent.endCall(site, rawStack, result);
+		if (this.#parent !== null) {
+			await this.#parent.endCall(site, rawStack, result);
+		}
 	}
 
 	/** 
 	 * @returns {PlutusCoreRawStack}
 	*/
 	toList() {
-		let lst = this.#parent.toList();
+		let lst = this.#parent !== null ? this.#parent.toList() : [];
 		if (this.#value !== null) {
 			lst.push([this.#valueName, this.#value]);
 		}
@@ -4880,40 +4875,10 @@ class PlutusCoreProgram {
 	}
 
 	/**
-	 * @param {PlutusCoreData[]} rawArgs 
-	 * @param {PlutusCoreRTECallbacks} callbacks 
-	 * @returns {Promise<PlutusCoreData | UserError>}
-	 */
-	async run(rawArgs, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
-		let globalCallSite = new Site(this.site.src, this.site.src.length);
-
-		let args = (rawArgs.length == 0) ? [new PlutusCoreUnit(globalCallSite)] : rawArgs.map(a => new PlutusCoreDataValue(globalCallSite, a));
-
-		try {
-			let [res] = await this.runInternal(args, callbacks);
-
-			return res.data;
-		} catch (e) {
-			if (!(e instanceof UserError)) {
-				throw e;
-			} else {
-				return e;
-			}
-		}
-	}
-
-	/**
-	 * @typedef {Object} Profile
-	 * @property {number} mem  - in 8 byte words (i.e. 1 mem unit is 64 bits)
-	 * @property {number} cpu  - in reference cpu microseconds
-	 * @property {number} size - in bytes
-	 */
-
-	/**
 	 * Evaluates the term contained in PlutusCoreProgram (assuming it is a lambda term)
 	 * @param {PlutusCoreValue[]} args
 	 * @param {PlutusCoreRTECallbacks} callbacks 
-	 * @returns {Promise<[PlutusCoreValue, Profile]>}
+	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async runInternal(args, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
 		assertDefined(callbacks);
@@ -4935,11 +4900,89 @@ class PlutusCoreProgram {
 			result = await result.call(rte, globalCallSite, arg);
 		}
 
-		return [result, {
-			mem: rte.cost.mem,
-			cpu: rte.cost.cpu,
+		return result;
+	}
+
+	/**
+	 * @param {PlutusCoreData[]} rawArgs 
+	 * @param {PlutusCoreRTECallbacks} callbacks 
+	 * @returns {Promise<PlutusCoreData | UserError>}
+	 */
+	async run(rawArgs, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
+		let globalCallSite = new Site(this.site.src, this.site.src.length);
+
+		let args = (rawArgs.length == 0) ? [new PlutusCoreUnit(globalCallSite)] : rawArgs.map(a => new PlutusCoreDataValue(globalCallSite, a));
+
+		try {
+			let res = await this.runInternal(args, callbacks);
+
+			return res.data;
+		} catch (e) {
+			if (!(e instanceof UserError)) {
+				throw e;
+			} else {
+				return e;
+			}
+		}
+	}
+
+	/**
+	 * @param {PlutusCoreData[]} args
+	 * @returns {Promise<[(PlutusCoreData | UserError), string[]]>}
+	 */
+	async runWithPrint(args) {
+		/**
+		 * @type {string[]}
+		 */
+		let messages = [];
+
+		let callbacks = Object.assign({}, DEFAULT_PLUTUS_CORE_RTE_CALLBACKS);
+
+		callbacks.onPrint = async function(msg) {
+			messages.push(msg);
+		};
+
+		let res = await this.run(args, callbacks);
+
+		return [res, messages];
+	}
+
+	/**
+	 * @typedef {Object} Profile
+	 * @property {number} mem  - in 8 byte words (i.e. 1 mem unit is 64 bits)
+	 * @property {number} cpu  - in reference cpu microseconds
+	 * @property {number} size - in bytes
+	 */
+
+	/**
+	 * @param {(PlutusCoreData[]) | (PlutusCoreValue[])} args
+	 * @returns {Promise<Profile>}
+	 */
+	async profile(args) {
+		let callbacks = Object.assign({}, DEFAULT_PLUTUS_CORE_RTE_CALLBACKS);
+
+		let memCost = 0;
+		let cpuCost = 0;
+
+		/**
+		 * @type {(cost: Cost) => void}
+		 */
+		callbacks.onIncrCost = (cost) => {
+			memCost += cost.mem;
+			cpuCost += cost.cpu;
+		};
+
+		if (args[0] instanceof PlutusCoreData) {
+			void await this.run(args.map(a => {if (a instanceof PlutusCoreData) {return a} else {throw new Error("unexpected")}}), callbacks);
+		} else {
+			void await this.runInternal(args.map(a => {if (a instanceof PlutusCoreValue) {return a} else {throw new Error("unexpected")}}), callbacks);
+		}
+
+		return {
+			mem: memCost,
+			cpu: cpuCost,
 			size: this.calcSize(),
-		}];
+		};
 	}
 
 	/**
@@ -7687,13 +7730,11 @@ class Tokenizer {
 }
 
 /**
- * Tokenizes a string
- * @param {string} rawSrc 
+ * Tokenizes a string (wrapped in Source0)
+ * @param {Source} src 
  * @returns {Token[]}
  */
-function tokenize(rawSrc) {
-	let src = new Source(rawSrc);
-
+function tokenize(src) {
 	let tokenizer = new Tokenizer(src);
 
 	return tokenizer.tokenize();
@@ -7712,6 +7753,60 @@ function tokenizeIR(rawSrc, codeMap) {
 	let tokenizer = new Tokenizer(src, codeMap);
 
 	return tokenizer.tokenize();
+}
+
+/**
+ * @param {number} id
+ * @returns {string}
+ */
+ function getPurposeName(id) {
+	switch (id) {
+		case ScriptPurpose.Testing:
+			return "testing";
+		case ScriptPurpose.Minting:
+			return "minting";
+		case ScriptPurpose.Spending:
+			return "spending";
+		default:
+			throw new Error(`unhandled ScriptPurpose ${id}`);
+	}
+}
+
+/**
+ * Parses Helios quickly to extract the script purpose header.
+ * Returns null if header is missing or incorrectly formed (instead of throwing an error)
+ * @param {string} rawSrc 
+ * @returns {?[string, string]} - [purpose, name]
+ */
+export function extractScriptPurposeAndName(rawSrc) {
+	try {
+		let src = new Source(rawSrc);
+
+		let tokenizer = new Tokenizer(src);
+
+		let gen = tokenizer.streamTokens();
+
+		// Don't parse the whole script, just 'eat' 2 tokens: `<purpose> <name>`
+		let ts = [];
+		for (let i = 0; i < 2; i++) {
+			let yielded = gen.next();
+			if (yielded.done) {
+				return null;
+			}
+
+			ts.push(yielded.value);
+		}
+
+		let [purposeId, nameWord] = buildScriptPurpose(ts);
+
+		return [getPurposeName(purposeId), nameWord.value];
+	} catch (e) {
+		if (!(e instanceof UserError)) {
+			throw e;
+		} else {
+			return null;
+		}
+	}
 }
 
 /**
@@ -7931,10 +8026,9 @@ export function highlight(src) {
 						case "self":
 							type = SyntaxCategory.Keyword;
 							break;
-						case "test":
-						case "validator":
-						case "mint_policy":
-						case "cert_policy":
+						case "testing":
+						case "spending":
+						case "minting":
 							if (i0 == 0) {
 								type = SyntaxCategory.Keyword;
 							} else {
@@ -9284,19 +9378,19 @@ class Expr extends Token {
 }
 
 /**
- * Base calss of every Type expression
+ * Base class of every Type expression
  * Caches evaluated Type.
  */
 class TypeExpr extends Expr {
-	/** @type {?Type} */
 	#cache;
 
 	/**
 	 * @param {Site} site 
+	 * @param {?Type} cache
 	 */
-	constructor(site) {
+	constructor(site, cache = null) {
 		super(site);
-		this.#cache = null;
+		this.#cache = cache;
 	}
 
 	get type() {
@@ -10283,6 +10377,14 @@ class FuncLiteralExpr extends ValueExpr {
 		this.#args = args;
 		this.#retTypeExpr = retTypeExpr;
 		this.#bodyExpr = bodyExpr;
+	}
+
+	get argTypes() {
+		return this.#args.map(a => a.type);
+	}
+
+	get retType() {
+		return this.#retTypeExpr.type;
 	}
 
 	isLiteral() {
@@ -11290,6 +11392,144 @@ class ConstStatement extends Statement {
 		this.#valueExpr = valueExpr;
 	}
 
+	get type() {
+		if (this.#typeExpr === null) {
+			return this.#valueExpr.type;
+		} else {
+			return this.#typeExpr.type;
+		}
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {Type} type - expected type
+	 * @param {string} str 
+	 * @param {string} path 
+	 * @returns {ValueExpr}
+	 */
+	static genLiteral(site, type, str, path) {
+		if (type instanceof BoolType) {
+			if (str == "true") {
+				return new PrimitiveLiteralExpr(new BoolLiteral(site, true));
+			} else if (str == "false") {
+				return new PrimitiveLiteralExpr(new BoolLiteral(site, false));
+			} else {
+				throw site.typeError(`expected 'true' or 'false' for parameter '${path}', got '${str}'`);
+			}
+		} else if (type instanceof StringType) {
+			return new PrimitiveLiteralExpr(new StringLiteral(site, str));
+		} else if (type instanceof IntType) {
+			let i = parseInt(str);
+
+			if (Number.isNaN(i)) {
+				throw site.typeError(`expected valid int literal for parameter '${path}, got '${str}`);
+			}
+
+			return new PrimitiveLiteralExpr(new IntLiteral(site, BigInt(i)));
+		} else if (type instanceof ByteArrayType) {
+			let bs = hexToBytes(str);
+			for (let b of bs) {
+				if (b < 0 || b > 255 || Number.isNaN(b)) {
+					throw site.typeError(`expected valid bytearray hex literal for parameters '${path}', got '${str}'`);
+				}
+			}
+
+			return new PrimitiveLiteralExpr(new ByteArrayLiteral(site, bs));
+		} else if (type instanceof ListType) {
+			let json = JSON.parse(str);
+
+			if (json instanceof Array) {
+				/**
+				 * @type {ValueExpr[]}
+				 */
+				let items = [];
+
+				for (let x of json) {
+					let xStr = JSON.stringify(x);
+
+					items.push(ConstStatement.genLiteral(site, type.itemType, xStr, path + "[]"));
+				}
+
+				return new ListLiteralExpr(site, new TypeExpr(site, type.itemType), items);
+			} else {
+				throw site.typeError(`expected valid list for '${path}', got '${str}'`);
+			}
+		} else if (type instanceof MapType) {
+			let json = JSON.parse(str);
+
+			if (json instanceof Object) {
+				/**
+				 * @type {[ValueExpr, ValueExpr][]}
+				 */
+				let pairs = [];
+
+				for (let k of json) {
+					let v = json[k];
+
+					let vStr = JSON.stringify(v);
+
+					let keyExpr = ConstStatement.genLiteral(site, type.keyType, k, path + "{key}");
+					let valueExpr = ConstStatement.genLiteral(site, type.valueType, vStr, path + "{value}");
+
+					pairs.push([keyExpr, valueExpr]);
+				}
+
+				return new MapLiteralExpr(
+					site, 
+					new TypeExpr(site, type.keyType), 
+					new TypeExpr(site, type.valueType),
+					pairs
+				);
+			} else {
+				throw site.typeError(`expected valid object for '${path}', got '${str}'`);
+			}
+		} else if (type instanceof StatementType && type.statement instanceof StructStatement) {
+			let json = JSON.parse(str);
+
+			if (json instanceof Object) {
+				let nFields = type.statement.nFields(site);
+				/**
+				 * @type {StructLiteralField[]}
+				 */
+				let fields = new Array(nFields);
+
+				for (let k of json) {
+					let v = json[k];
+
+					let vStr = JSON.stringify(v);
+
+					let i = type.statement.findField(k);
+					if (i == -1) {
+						throw site.typeError(`invalid parameter field '${path}.${k}'`);
+					}
+
+					let fieldType = type.statement.getFieldType(site, i);
+
+					let valueExpr = ConstStatement.genLiteral(site, fieldType, vStr, path + "." + k);
+
+
+					fields[i] = new StructLiteralField(nFields == 1 ? null : new Word(site, k), valueExpr);
+				}
+
+				return new StructLiteralExpr(new TypeExpr(site, type), fields);
+			} else {
+				throw site.typeError(`expected valid object for '${path}', got '${str}'`);
+			}
+		} else {
+			throw site.typeError(`unhandled parameter type '${type.toString()}', for parameter ${path}`);
+		}
+	}
+
+	/**
+	 * @param {string} value 
+	 */
+	changeValue(value) {
+		let type = this.type;
+		let site = this.#valueExpr.site;
+
+		this.#valueExpr = ConstStatement.genLiteral(site, type, value, this.name.value);
+	}
+
 	toString() {
 		return `const ${this.name.toString()}${this.#typeExpr === null ? "" : ": " + this.#typeExpr.toString()} = ${this.#valueExpr.toString()};`;
 	}
@@ -11662,6 +11902,14 @@ class FuncStatement extends Statement {
 		super(site, name);
 		this.#funcExpr = funcExpr;
 		this.#recursive = false;
+	}
+
+	get argTypes() {
+		return this.#funcExpr.argTypes;
+	}
+
+	get retType() {
+		return this.#funcExpr.retType;
 	}
 
 	toString() {
@@ -12185,52 +12433,97 @@ class ImplDefinition {
 /**
  * Helios root object
  */
-class Program {
-	#purpose;
+export class Program {
 	#name;
 	#statements;
 
-	/** @type {?Scope} */
-	#scope;
-
-	#haveDatum;
-	#haveRedeemer;
-	#haveScriptContext;
-
-	/** @type {IR[]} - TODO  merge this with haveDatum etc. */
-	#testArgs;
-
-	/** @type {?Type} */
-	#retType;
-
-	/** @type {?Type[]} */
-	#argTypes;
-
 	/**
-	 * @param {number} purpose
 	 * @param {Word} name
 	 * @param {Statement[]} statements
 	 */
-	constructor(purpose, name, statements) {
-		this.#purpose = purpose;
+	constructor(name, statements) {
 		this.#name = name;
 		this.#statements = statements;
-		this.#scope = null;
-
-		this.#haveDatum = false;
-		this.#haveRedeemer = false;
-		this.#haveScriptContext = false;
-		this.#testArgs = [];
-		this.#retType = null;
-		this.#argTypes = null;
 	}
 
-	get purpose() {
-		return this.#purpose;
-	}
+	/**
+	 * Creates  a new program.
+	 * @param {string} rawSrc 
+	 * @returns {Program}
+	 */
+	static new(rawSrc) {
+		let src = new Source(rawSrc);
+
+		let ts = tokenize(src);
+
+		if (ts.length == 0) {
+			throw UserError.syntaxError(src, 0, "empty script");
+		}
+
+		let [purpose, name] = buildScriptPurpose(ts);
+
+		let statements = buildProgramStatements(ts);
 	
-	isTest() {
-		return this.#purpose == ScriptPurpose.Testing;
+		/**
+		 * @type {Program}
+		 */
+		let program;
+
+		switch (purpose) {
+			case ScriptPurpose.Testing:
+				program = new TestingProgram(name, statements);
+				break;
+			case ScriptPurpose.Spending:
+				program = new SpendingProgram(name, statements);
+				break;
+			case ScriptPurpose.Minting:
+				program = new MintingProgram(name, statements);
+				break
+			default:
+				throw new Error("unhandled script purpose");
+		}
+
+		program.evalTypes();
+
+		return program;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#name.value;
+	}
+
+	/**
+	 * @type {FuncStatement}
+	 */
+	get main() {
+		for (let s of this.#statements) {
+			if (s.name.value == "main" && s instanceof FuncStatement) {	
+				return s;
+			}
+		}
+
+		throw new Error("should've been caught before");
+	}
+
+	/**
+	 * @type {Object.<string, Type>}
+	 */
+	get paramTypes() {
+		/**
+		 * @type {Object.<string, Type>}
+		 */
+		let res = {};
+
+		for (let s of this.#statements) {
+			if (s instanceof ConstStatement) {
+				res[s.name.value] = s.type;
+			}
+		}
+
+		return res;
 	}
 
 	toString() {
@@ -12240,59 +12533,58 @@ class Program {
 	/**
 	 * @param {GlobalScope} globalScope 
 	 */
-	eval(globalScope) {
-		this.#scope = new TopScope(globalScope);
+	evalTypesInternal(globalScope) {
+		let scope = new TopScope(globalScope);
+
+		let mainFound = false;
 
 		for (let s of this.#statements) {
-			s.eval(this.#scope);
+			s.eval(scope);
+
+			if (s.name.value == "main") {
+				void scope.get(new Word(Site.dummy(), "main"));
+
+				scope.assertAllUsed();
+
+				mainFound = true;
+
+				if (!(s instanceof FuncStatement)) {
+					throw s.typeError("'main' isn't a function statement");
+				}
+			}
 		}
 
-		this.checkMain();
-
-		this.#scope.assertAllUsed();
+		if (!mainFound) {
+			throw this.#name.referenceError("'main' not found");
+		}
 
 		for (let s of this.#statements) {
 			s.assertAllMembersUsed();
+
+			if (s.name.value == "main") {
+				break;
+			}
 		}
 	}
 
-	checkMain() {
-		let scope = this.#scope;
-		if (scope === null) {
+	evalTypes() {
+		throw new Error("not yet implemeneted");
+	}
 
-		} else {
-			let mainVal = scope.get(Word.new("main"));
-			let mainSite = assertDefined(this.#statements.find(s => {
-				if (s instanceof Statement) {
-					return s.name.toString() == "main";
-				} else {
-					return false;
-				}
-			})).site;
-
-			// get the type of the entry point so we can easily check the interface
-			let mainType = mainVal.getType(mainSite);
-
-			if (!(mainType instanceof FuncType)) {
-				throw mainSite.typeError("entrypoint is not a function");
-			} else {
-				let [haveDatum, haveRedeemer, haveScriptContext] = mainType.checkAsMain(mainSite, this.#purpose);
-
-				this.#haveDatum = haveDatum;
-				this.#haveRedeemer = haveRedeemer;
-				this.#haveScriptContext = haveScriptContext;
-
-				if (this.#purpose == ScriptPurpose.Testing) {
-					this.#testArgs = [];
-					for (let i = 0; i < mainType.nArgs; i++) {
-						this.#testArgs.push(new IR(`arg${i}`));
-					}
-				}
-
-				this.#retType = mainType.retType;
-				this.#argTypes = mainType.argTypes;
+	/**
+	 * Change the literal value of a const statements  
+	 * @param {string} name 
+	 * @param {string} value 
+	 */
+	changeParam(name, value) {
+		for (let s of this.#statements) {
+			if (s instanceof ConstStatement && s.name.value == name) {
+				s.changeValue(value);
+				return;
 			}
 		}
+
+		throw this.main.referenceError(`param '${name}' not found`);
 	}
 
 	/**
@@ -12322,86 +12614,353 @@ class Program {
 		return res;
 	}
 
+
+	/**
+	 * @param {IR} ir
+	 * @returns {IR}
+	 */
+	wrapEntryPoint(ir) {
+		/**
+		 * @type {Map<string, IR>}
+		 */
+		 let map = new Map();
+
+		 for (let statement of this.#statements) {
+			 statement.toIR(map);
+
+			 if (statement.name.value == "main") {
+				break;
+			 }
+		 }
+ 
+		 // builtin functions are added when the IR program is built
+		 // also replace all tabs with four spaces
+		 return wrapWithRawFunctions(Program.wrapWithDefinitions(ir, map));
+	}
+
 	/**
 	 * @returns {IR}
 	 */
 	toIR() {
-		/** @type {IR[]} */
-		let mainArgs = [];
+		throw new Error("not yet implemented");
+	}
 
-		/** @type {IR[]} */
-		let uMainArgs = [];
+	/**
+	 * Doesn't use wrapEntryPoint
+	 * @param {string} name 
+	 * @returns {PlutusCoreData}
+	 */
+	evalParam(name) {
+		/**
+		 * @type {Map<string, IR>}
+		 */
+		let map = new Map();
 
-		if (this.#haveDatum) {
-			mainArgs.push(new IR("datum"));
-			uMainArgs.push(new IR("datum"));
-		} else if (this.#purpose == ScriptPurpose.Spending) {
-			mainArgs.push(new IR("_"));
+		for (let s of this.#statements) {
+			s.toIR(map);
+			if (s.name.value == name) {
+				break;
+			}
 		}
 
-		if (this.#haveRedeemer) {
-			mainArgs.push(new IR("redeemer"));
-			uMainArgs.push(new IR("redeemer"));
-		} else if (!this.isTest()) { // minting script can also have a redeemer
-			mainArgs.push(new IR("_"));
-		}
+		let ir = assertDefined(map.get(name));
 
-		if (this.#haveScriptContext) {
-			mainArgs.push(new IR("ctx"));
-			uMainArgs.push(new IR("ctx"));
-		} else if (!this.isTest()) {
-			mainArgs.push(new IR("_"));
-		}
+		map.delete(name);
 
-		if (this.#purpose == ScriptPurpose.Testing) {
-			mainArgs = this.#testArgs.slice();
-			uMainArgs = this.#testArgs.map((ta, i) => {
-				if (this.#argTypes !== null && this.#argTypes[i] instanceof BoolType) {
-					return new IR([
-						new IR("__helios__common__unBoolData("),
-						ta,
-						new IR(")")
-					]);
-				} else {
-					return ta;
-				}
-			});
-		}
+		ir = wrapWithRawFunctions(Program.wrapWithDefinitions(ir, map));
+
+		let irProgram = IRProgram.new(ir, true);
+
+		return irProgram.data;
+	}
+
+	/**
+	 * @param {boolean} simplify 
+	 * @returns {PlutusCoreProgram}
+	 */
+	compile(simplify = false) {
+		let ir = this.toIR();
+
+		let irProgram = IRProgram.new(ir, simplify);
+
+		return irProgram.toPlutusCore();
+	}
+}
+
+class TestingProgram extends Program {
+	/**
+	 * @param {Word} name 
+	 * @param {Statement[]} statements 
+	 */
+	constructor(name, statements) {
+		super(name, statements);
+	}
+
+	toString() {
+		return `testing ${this.name}\n${super.toString()}`;
+	}
+
+	evalTypes() {
+		let scope = GlobalScope.new(ScriptPurpose.Testing);
+
+		this.evalTypesInternal(scope);
+
+		// main can have any arg types, and any return type 
+	}
+
+	/**
+	 * @returns {IR}
+	 */
+	toIR() {
+		let outerArgs = this.main.argTypes.map((_, i) => new IR(`arg${i}`));
+
+		let innerArgs = this.main.argTypes.map((t, i) => {
+			if (t instanceof BoolType) {
+				return new IR([
+					new IR("__helios__common__unBoolData("),
+					new IR(`arg${i}`),
+					new IR(")")
+				]);
+			} else {
+				return new IR(`arg${i}`);
+			}
+		});
 
 		// don't need to specify TAB because it is at top level
-		let res = [
-			new IR(`${TAB}/*entry point*/\n${TAB}(`),
-			(new IR(mainArgs)).join(", "),
-			new IR(`) -> {\n${TAB}${TAB}`)
-		];
+		let ir = new IR([
+			new IR("main("),
+			new IR(innerArgs).join(", "),
+			new IR(")"),
+		]);
 
-		if (this.#purpose == ScriptPurpose.Testing) {
-			let mainIR = [new IR("main("), (new IR(uMainArgs)).join(", "), new IR(")")];
-
-			if (this.#retType !== null && this.#retType instanceof BoolType) {
-				mainIR.unshift(new IR("__helios__common__boolData("));
-				mainIR.push(new IR(")"));
-			}
-
-			res = res.concat(mainIR);
-		} else {
-			res = res.concat([
-				new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}main(`),
-				(new IR(uMainArgs)).join(", "),
-				new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error("transaction rejected")}\n${TAB}${TAB})()`),
+		if (this.main.retType instanceof BoolType) {
+			ir = new IR([
+				new IR("__helios__common__boolData("),
+				ir,
+				new IR(")"),
 			]);
 		}
 
-		res.push(new IR(`\n${TAB}}`));
+		ir = new IR([
+			new IR(`${TAB}/*entry point*/\n${TAB}(`),
+			new IR(outerArgs).join(", "),
+			new IR(`) -> {\n${TAB}${TAB}`),
+			ir,
+			new IR(`\n${TAB}}`),
+		]);
 
-		let map = new Map(); // string -> string
-		for (let statement of this.#statements) {
-			statement.toIR(map);
+		return this.wrapEntryPoint(ir);
+	}
+}
+
+class SpendingProgram extends Program {
+	/**
+	 * @param {Word} name 
+	 * @param {Statement[]} statements 
+	 */
+	constructor(name, statements) {
+		super(name, statements);
+	}
+
+	toString() {
+		return `spending ${this.name}\n${super.toString()}`;
+	}
+
+	evalTypes() {
+		let scope = GlobalScope.new(ScriptPurpose.Testing);
+
+		this.evalTypesInternal(scope);
+
+		// check the 'main' function
+
+		let main = this.main;
+		let argTypes = main.argTypes;
+		let retType = main.retType;
+		let haveDatum = false;
+		let haveRedeemer = false;
+		let haveScriptContext = false;
+
+		if (argTypes.length > 3) {
+			throw main.typeError("too many arguments for main");
 		}
 
-		// builtin functions are added when the IR program is built
-		// also replace all tabs with four spaces
-		return wrapWithRawFunctions(Program.wrapWithDefinitions(new IR(res), map));
+		for (let arg of argTypes) {
+			let t = arg.toString();
+			
+			if (t == "Datum") {
+				if (haveDatum) {
+					throw main.typeError("duplicate 'Datum' argument");
+				} else if (haveRedeemer) {
+					throw main.typeError("'Datum' must come before 'Redeemer'");
+				} else if (haveScriptContext) {
+					throw main.typeError("'Datum' must come before 'ScriptContext'");
+				} else {
+					haveDatum = true;
+				}
+			} else if (t == "Redeemer") {
+				if (haveRedeemer) {
+					throw main.typeError("duplicate 'Redeemer' argument");
+				} else if (haveScriptContext) {
+					throw main.typeError("'Redeemer' must come before 'ScriptContext'");
+				} else {
+					haveRedeemer = true;
+				}
+			} else if (t == "ScriptContext") {
+				if (haveScriptContext) {
+					throw main.typeError("duplicate 'ScriptContext' argument");
+				} else {
+					haveScriptContext = true;
+				}
+			} else {
+				throw main.typeError("illegal argument type, must be 'Datum', 'Redeemer' or 'ScriptContext'");
+			}
+		}
+
+		if (!(retType instanceof BoolType)) {
+			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retType.toString()}'`);
+		}
+	}
+
+	toIR() {
+		/** @type {IR[]} */
+		let outerArgs = [];
+
+		/** @type {IR[]} */
+		let innerArgs = [];
+
+		for (let t of this.main.argTypes) {
+			if (t.toString() == "Datum") {
+				innerArgs.push(new IR("datum"));
+				outerArgs.push(new IR("datum"));
+			} else if (t.toString() == "Redeemer") {
+				innerArgs.push(new IR("redeemer"));
+				if (outerArgs.length == 0) {
+					outerArgs.push(new IR("_"));
+				}
+				outerArgs.push(new IR("redeemer"));
+			} else if (t.toString() == "ScriptContext") {
+				innerArgs.push(new IR("ctx"));
+				while (outerArgs.length < 2) {
+					outerArgs.push(new IR("_"));
+				}
+				outerArgs.push(new IR("ctx"));
+			} else {
+				throw new Error("unexpected");
+			}
+		}
+
+		while(outerArgs.length < 3) {
+			outerArgs.push(new IR("_"));
+		}
+
+		let ir = new IR([
+			new IR(`${TAB}/*entry point*/\n${TAB}(`),
+			new IR(outerArgs).join(", "),
+			new IR(`) -> {\n${TAB}${TAB}`),
+			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}main(`),
+			new IR(innerArgs).join(", "),
+			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error("transaction rejected")}\n${TAB}${TAB})()`),
+			new IR(`\n${TAB}}`),
+		]);
+
+		return this.wrapEntryPoint(ir);
+	}
+}
+
+class MintingProgram extends Program {
+	/**
+	 * @param {Word} name 
+	 * @param {Statement[]} statements 
+	 */
+	constructor(name, statements) {
+		super(name, statements);
+	}
+
+	toString() {
+		return `minting ${this.name}\n${super.toString()}`;
+	}
+
+	evalTypes() {
+		let scope = GlobalScope.new(ScriptPurpose.Testing);
+
+		this.evalTypesInternal(scope);
+
+		// check the 'main' function
+
+		let main = this.main;
+		let argTypes = main.argTypes;
+		let retType = main.retType;
+		let haveRedeemer = false;
+		let haveScriptContext = false;
+
+		if (argTypes.length > 2) {
+			throw main.typeError("too many arguments for main");
+		}
+
+		for (let arg of argTypes) {
+			let t = arg.toString();
+
+			if (t == "Redeemer") {
+				if (haveRedeemer) {
+					throw main.typeError(`duplicate 'Redeemer' argument`);
+				} else if (haveScriptContext) {
+					throw main.typeError(`'Redeemer' must come before 'ScriptContext'`);
+				} else {
+					haveRedeemer = true;
+				}
+			} else if (t == "ScriptContext") {
+				if (haveScriptContext) {
+					throw main.typeError(`duplicate 'ScriptContext' argument`);
+				} else {
+					haveScriptContext = true;
+				}
+			} else {
+				throw main.typeError(`illegal argument type, must be 'Redeemer' or 'ScriptContext'`);
+			}
+		}
+
+		if (!(retType instanceof BoolType)) {
+			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retType.toString()}'`);
+		}
+	}
+
+	toIR() {
+		/** @type {IR[]} */
+		let outerArgs = [];
+
+		/** @type {IR[]} */
+		let innerArgs = [];
+
+		for (let t of this.main.argTypes) {
+			if (t.toString() == "Redeemer") {
+				innerArgs.push(new IR("redeemer"));
+				outerArgs.push(new IR("redeemer"));
+			} else if (t.toString() == "ScriptContext") {
+				innerArgs.push(new IR("ctx"));
+				if (outerArgs.length == 0) {
+					outerArgs.push(new IR("_"));
+				}
+				outerArgs.push(new IR("ctx"));
+			} else {
+				throw new Error("unexpected");
+			}
+		}
+
+		while(outerArgs.length < 2) {
+			outerArgs.push(new IR("_"));
+		}
+
+		let ir = new IR([
+			new IR(`${TAB}/*entry point*/\n${TAB}(`),
+			new IR(outerArgs).join(", "),
+			new IR(`) -> {\n${TAB}${TAB}`),
+			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}main(`),
+			new IR(innerArgs).join(", "),
+			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error("transaction rejected")}\n${TAB}${TAB})()`),
+			new IR(`\n${TAB}}`),
+		]);
+
+		return this.wrapEntryPoint(ir);
 	}
 }
 
@@ -12411,16 +12970,13 @@ class Program {
 //////////////////////////////////
 
 /**
- * @param {Token[]} ts 
- * @returns {Program}
+ * @param {Token[]} ts
+ * @returns {Statement[]}
  */
-function buildProgram(ts) {
-	if (ts.length == 0) {
-		throw new Error("empty script");
-	}
-
-	let [purpose, name] = buildScriptPurpose(ts);
-
+function buildProgramStatements(ts) {
+	/**
+	 * @type {Statement[]}
+	 */
 	let statements = [];
 
 	while (ts.length != 0) {
@@ -12443,7 +12999,7 @@ function buildProgram(ts) {
 		statements.push(s);
 	}
 
-	return new Program(purpose, name, statements);
+	return statements;
 }
 
 /**
@@ -12458,16 +13014,16 @@ function buildScriptPurpose(ts) {
 
 	let purposeWord = assertDefined(ts.shift()).assertWord();
 	let purpose;
-	if (purposeWord.isWord("validator")) {
+	if (purposeWord.isWord("spending")) {
 		purpose = ScriptPurpose.Spending;
-	} else if (purposeWord.isWord("mint_policy")) {
+	} else if (purposeWord.isWord("minting")) {
 		purpose = ScriptPurpose.Minting;
-	} else if (purposeWord.isWord("test")) { // 'test' is not reserved as a keyword though
+	} else if (purposeWord.isWord("testing")) { // 'test' is not reserved as a keyword though
 		purpose = ScriptPurpose.Testing;
 	} else if (purposeWord.isKeyword()) {
 		throw purposeWord.syntaxError(`script purpose missing`);
 	} else {
-		throw purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}'`);
+		throw purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending' or 'minting')`);
 	}
 
 	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
@@ -14046,6 +14602,14 @@ class MapType extends BuiltinType {
 		super();
 		this.#keyType = keyType;
 		this.#valueType = valueType;
+	}
+
+	get keyType() {
+		return this.#keyType;
+	}
+
+	get valueType() {
+		return this.#valueType;
 	}
 
 	toString() {
@@ -17645,10 +18209,11 @@ class IRScope {
 /**
  * Map of variables to IRExpr
  */
-class IRStack {
+class IRExprStack {
 	#map;
 
 	/**
+	 * Keeps order
 	 * @param {Map<IRVariable, IRExpr>} map
 	 */
 	constructor(map = new Map()) {
@@ -17659,7 +18224,7 @@ class IRStack {
 	 * Doesn't mutate, returns a new stack
 	 * @param {IRVariable} ref 
 	 * @param {IRExpr} value 
-	 * @returns {IRStack}
+	 * @returns {IRExprStack}
 	 */
 	set(ref, value) {
 		/**
@@ -17673,7 +18238,7 @@ class IRStack {
 
 		map.set(ref, value);
 
-		return new IRStack(map);
+		return new IRExprStack(map);
 	}
 
 	/**
@@ -17703,6 +18268,22 @@ class IRStack {
 	}
 
 	/**
+	 * @returns {IRCallStack}
+	 */
+	initCallStack() {
+		let stack = new IRCallStack();
+
+		for (let [variable, expr] of this.#map) {
+			let val = expr.eval(stack);
+			if (val !== null) {
+				stack = stack.set(variable, val);
+			}
+		}
+
+		return stack;
+	}
+
+	/**
 	 * Returns a list of the names in the stack
 	 * @returns {string}
 	 */
@@ -17714,6 +18295,106 @@ class IRStack {
 		}
 
 		return names.join(", ");
+	}
+}
+
+class IRValue {
+	constructor() {
+	}
+
+	/**
+	 * @param {IRValue[]} args 
+	 * @returns {?IRValue}
+	 */
+	call(args) {
+		throw new Error("not a function");
+	}
+
+	/**
+	 * @type {?IRLiteral}
+	 */
+	get value() {
+		return null;
+	}
+}
+
+class IRFuncValue extends IRValue {
+	#callback;
+
+	/**
+	 * @param {(args: IRValue[]) => ?IRValue} callback
+	 */
+	constructor(callback) {
+		super();
+		this.#callback = callback;
+	}
+
+	/**
+	 * @param {IRValue[]} args 
+	 * @returns {?IRValue}
+	 */
+	call(args) {
+		return this.#callback(args);
+	}
+}
+
+class IRLiteralValue extends IRValue {
+	#literal;
+
+	/**
+	 * @param {IRLiteral} literal 
+	 */
+	constructor(literal) {
+		super();
+		this.#literal = literal;
+	}
+
+	/**
+	 * @type {?IRLiteral}
+	 */
+	get value() {
+		return this.#literal;
+	}
+}
+
+class IRCallStack {
+	#parent;
+	#variable;
+	#value;
+
+	/**
+	 * 
+	 * @param {?IRCallStack} parent 
+	 * @param {?IRVariable} variable 
+	 * @param {?IRValue} value 
+	 */
+	constructor(parent = null, variable = null, value = null) {
+		this.#parent = parent;
+		this.#variable = variable;
+		this.#value = value;
+	}
+
+	/**
+	 * @param {IRVariable} variable 
+	 * @returns {?IRValue}
+	 */
+	get(variable) {
+		if (this.#variable !== null && this.#variable === variable) {
+			return this.#value;
+		} else if (this.#parent !== null) {
+			return this.#parent.get(variable);
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * @param {IRVariable} variable 
+	 * @param {IRValue} value 
+	 * @returns {IRCallStack}
+	 */
+	set(variable, value) {
+		return new IRCallStack(this, variable, value);
 	}
 }
 
@@ -17803,7 +18484,7 @@ class IRExpr extends Token {
 
 	/**
 	 * Inline every variable that can be found in the stack.
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
 	inline(stack) {
@@ -17814,17 +18495,16 @@ class IRExpr extends Token {
 	 * Evaluates an expression to something (hopefully) literal
 	 * Returns null if it the result would be worse than the current expression
 	 * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
-	 * @param {IRStack} stack
-	 * @param {IRLiteral[]} args 
-	 * @returns {?IRExpr}
+	 * @param {IRCallStack} stack
+	 * @returns {?IRValue}
 	 */
-	evalCall(stack, args) {
+	eval(stack) {
 		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * Simplify 'this' by returning something smaller (doesn't mutate)
-	 * @param {IRStack} stack - contains some global definitions that might be useful for simplification
+	 * @param {IRExprStack} stack - contains some global definitions that might be useful for simplification
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
@@ -17930,7 +18610,7 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
 	inline(stack) {
@@ -17948,26 +18628,20 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * @param {IRStack} stack
-	 * @param {IRLiteral[]} args
-	 * @returns {?IRExpr}
+	 * @param {IRCallStack} stack
+	 * @returns {?IRValue}
 	 */
-	evalCall(stack, args) {
+	eval(stack) {
 		if (this.name.startsWith("__core")) {
-			let coreCall = new IRCoreCallExpr(this.#name, args, this.site);
-
-			let res = coreCall.simplify(stack);
-
-			if (res instanceof IRLiteral) {
-				return res;
-			} else {
-				return null;
-			}
+			return new IRFuncValue((args) => {
+				return IRCoreCallExpr.evalValues(this.#name.value, args);
+			});
 		} else if (this.#variable === null) {
 			throw new Error("variable should be set");
 		} else {
-			if (stack.has(this.#variable)) {
-				return stack.get(this.#variable).evalCall(stack, args);
+			let v = stack.get(this.#variable);
+			if (v !== null) {
+				return v;
 			} else {
 				return null;
 			}
@@ -17975,7 +18649,7 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
@@ -18071,7 +18745,7 @@ class IRExpr extends Token {
 
 	/**
 	 * Returns 'this' (nothing to inline)
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
 	inline(stack) {
@@ -18079,17 +18753,25 @@ class IRExpr extends Token {
 	}
 	
 	/**
-	 * @param {IRStack} stack
+	 * @param {IRCallStack} stack
+	 * @returns {?IRValue}
+	 */
+	eval(stack) {
+		return new IRLiteralValue(this);
+	}
+
+	/**
+	 * @param {IRExprStack} stack
 	 * @param {IRLiteral[]} args
 	 * @returns {?IRExpr}
 	 */
-	evalCall(stack, args) {
+	call(stack, args) {
 		throw new Error("can't call literal");
 	}
 
 	/**
 	 * Returns 'this' (nothing to simplify)
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
@@ -18173,7 +18855,7 @@ class IRFuncExpr extends IRExpr {
 	/**
 	 * Inline expressions in the body
 	 * Checking of unused args is done by caller
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRFuncExpr}
 	 */
 	inline(stack) {
@@ -18181,31 +18863,29 @@ class IRFuncExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRStack} stack
-	 * @param {IRLiteral[]} args
-	 * @returns {?IRExpr}
+	 * @param {IRCallStack} stack
+	 * @returns {?IRValue}
 	 */
-	evalCall(stack, args) {
-		assert(args.length == this.#args.length);
+	eval(stack) {
+		return new IRFuncValue((args) => {
+			assert(args.length == this.#args.length);
 
-		// instead of having a special eval function for expressions we can just inline the arg expressions and check if the simplified body is an improvement
-		let inlineStack = new IRStack();
+			for (let i = 0; i < args.length; i++) {
+				let v = this.#args[i];
+				stack = stack.set(v, args[i]);
+			}
 
-		for (let i = 0; i < args.length; i++) {
-			let v = this.#args[i];
-			inlineStack.setInline(v, args[i]);
-		}
-
-		return this.#body.inline(inlineStack).simplify(stack);
+			return this.#body.eval(stack);
+		});
 	}
 
 	/**
 	 * Simplify body
 	 * (Checking of unused args is done by caller)
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRFuncExpr}
 	 */
-	simplify(stack = new IRStack()) {
+	simplify(stack = new IRExprStack()) {
 		return new IRFuncExpr(this.site, this.#args, this.#body.simplify(stack));
 	}
 
@@ -18227,6 +18907,7 @@ class IRFuncExpr extends IRExpr {
 		return term;
 	}
 }
+
 
 /**
  * Base class of IRUserCallExpr and IRCoreCallExpr
@@ -18285,8 +18966,30 @@ class IRCallExpr extends IRExpr {
 		return count;
 	}
 
+	/** 
+	 * @param {IRCallStack} stack
+	 * @returns {?IRValue[]} 
+	 */
+	evalArgs(stack) {
+		/**
+		 * @type {IRValue[]}
+		 */
+ 		let args = [];
+
+		for (let argExpr of this.argExprs) {
+			let argVal = argExpr.eval(stack);
+			if (argVal !== null) {
+				args.push(argVal);
+			} else {
+				return null;
+			}
+		}
+
+		return args;
+	}
+
 	/**
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @param {boolean} inline
 	 * @returns {IRExpr[]}
 	 */
@@ -18367,41 +19070,27 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRStack} stack
-	 * @param {IRLiteral[]} args
-	 * @returns {?IRExpr}
+	 * @param {IRCallStack} stack 
+	 * @returns {?IRValue}
 	 */
-	evalCall(stack, args) {
-		/**
-		 * @type {IRLiteral[]}
-		 */
-		let ownArgs = [];
+	eval(stack) {
+		let args = this.evalArgs(stack);
 
-		for (let arg of this.argExprs) {
-			if (arg instanceof IRLiteral) {
-				ownArgs.push(arg);
-			} else {
-				return null;
-			}
-		}
-
-		let fn = this.#fnExpr.evalCall(stack, ownArgs);
-
-		if (fn === null) {
-			return null; 
+		if (args === null) {
+			return null;
 		} else {
-			let res = fn.evalCall(stack, args);
+			let fn = this.#fnExpr.eval(stack);
 
-			if (res === null) {
+			if (fn === null) {
 				return null;
 			} else {
-				return res;
+				return fn.call(args);
 			}
 		}
 	}
 
 	/**
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
 	inline(stack) {
@@ -18411,7 +19100,7 @@ class IRCallExpr extends IRExpr {
 	/**
 	 * Inlines arguments that are only used once in fnExpr.
 	 * Also eliminates unused arguments
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @param {IRExpr} fnExpr - already simplified
 	 * @param {IRExpr[]} argExprs - already simplified
 	 * @returns {?IRExpr} - returns null if it isn't simpler
@@ -18429,7 +19118,7 @@ class IRCallExpr extends IRExpr {
 			 */
 			let remArgExprs = [];
 
-			let inlineStack = new IRStack();
+			let inlineStack = new IRExprStack();
 
 			for (let i = 0; i < fnExpr.args.length; i++) {
 				let variable = fnExpr.args[i];
@@ -18461,14 +19150,14 @@ class IRCallExpr extends IRExpr {
 
 	/**
 	 * Inline all literal args if the resulting expression is an improvement over the current expression
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @param {IRExpr} fnExpr - already simplified
 	 * @param {IRExpr[]} argExprs - already simplified
 	 * @returns {?IRExpr} - returns null if it isn't simpler
 	 */
 	inlineLiteralArgs(stack, fnExpr, argExprs) {
 		if (fnExpr instanceof IRFuncExpr) {
-			let inlineStack = new IRStack();
+			let inlineStack = new IRExprStack();
 
 			/**
 			 * @type {IRVariable[]}
@@ -18507,7 +19196,7 @@ class IRCallExpr extends IRExpr {
 
 	/**
 	 * Simplify some specific builtin functions
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @param {IRExpr} fnExpr
 	 * @param {IRExpr[]} argExprs
 	 * @returns {?IRExpr}
@@ -18557,34 +19246,38 @@ class IRCallExpr extends IRExpr {
 	/**
 	 * Evaluates fnExpr if all args are literals
 	 * Otherwise returns null
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @param {IRExpr} fnExpr
 	 * @param {IRExpr[]} argExprs
 	 * @returns {?IRExpr}
 	 */
 	simplifyLiteral(stack, fnExpr, argExprs) {
-		/**
-		 * @type {IRLiteral[]}
-		 */
-		let litArgs = [];
+		let callExpr = new IRUserCallExpr(fnExpr, argExprs, this.parensSite);
+		
+		let callStack = stack.initCallStack();
+		
+		let res = callExpr.eval(callStack);
 
-		for (let argExpr of argExprs) {
-			if (argExpr instanceof IRLiteral) {
-				litArgs.push(argExpr);
-			} else {
-				return null;
-			}
+		if (res === null) {
+			return null;
+		} else {
+			return res.value;
 		}
-
-		return fnExpr.evalCall(stack, litArgs);
 	}
 
 	/**
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
-	simplify(stack = new IRStack()) {
+	simplify(stack = new IRExprStack()) {
 		let argExprs = this.simplifyArgs(stack);
+
+		{
+			let maybeBetter = this.simplifyLiteral(stack, this.#fnExpr, this.argExprs);
+			if (maybeBetter !== null && maybeBetter.calcSize() < this.calcSize()) {
+				return maybeBetter;
+			}
+		}
 
 		let innerStack = stack;
 
@@ -18674,12 +19367,71 @@ class IRCoreCallExpr extends IRCallExpr {
 	}
 
 	/**
-	 * @param {IRStack} stack
-	 * @param {IRLiteral[]} args
-	 * @returns {?IRExpr}
+	 * @param {IRScope} scope 
 	 */
-	evalCall(stack, args) {
-		return this.simplifyLiteralArgs(args);
+	resolveNames(scope = new IRScope(null, null)) {
+		super.resolveNames(scope);
+	}
+
+	/**
+	 * @param {string} builtinName
+	 * @param {IRValue[]} args 
+	 * @returns {?IRValue}
+	 */
+	static evalValues(builtinName, args) {
+		if (builtinName == "ifThenElse") {
+			let cond = args[0].value;
+			if (cond !== null && cond.value instanceof PlutusCoreBool) {
+				if (cond.value.bool) {
+					return args[1];
+				} else {
+					return args[2];
+				}
+			} else {
+				return null;
+			}
+		} else if (builtinName == "trace") {
+			return args[1];
+		} else {
+			/**
+			 * @type {PlutusCoreValue[]}
+			 */
+			let argValues = [];
+
+			for (let arg of args) {
+				if (arg.value !== null) {
+					argValues.push(arg.value.value);
+				} else {
+					return null;
+				}
+			}
+
+			try {
+				let result = PlutusCoreBuiltin.evalStatic(new Word(Site.dummy(), builtinName), argValues);
+
+				return new IRLiteralValue(new IRLiteral(result));
+			} catch(e) {
+				if (!(e instanceof UserError)) { 
+					throw e;
+				} else {
+					return null;
+				}
+			}
+		}
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {?IRValue}
+	 */
+	eval(stack) {
+		let args = this.evalArgs(stack);
+
+		if (args !== null) {
+			return IRCoreCallExpr.evalValues(this.builtinName, args);
+		}
+		
+		return null;
 	}
 
 	/**
@@ -18688,6 +19440,7 @@ class IRCoreCallExpr extends IRCallExpr {
 	 */
 	simplifyLiteralArgs(argExprs) {
 		if (this.builtinName == "ifThenElse") {
+			assert(argExprs.length == 3);
 			let cond = argExprs[0];
 
 			if (cond instanceof IRLiteral && cond.value instanceof PlutusCoreBool) {
@@ -18698,6 +19451,7 @@ class IRCoreCallExpr extends IRCallExpr {
 				}
 			} 
 		} else if (this.builtinName == "trace") {
+			assert(argExprs.length == 2);
 			return argExprs[1];
 		} else {
 			// if all the args are literals -> return the result
@@ -18910,7 +19664,7 @@ class IRCoreCallExpr extends IRCallExpr {
 	}
 
 	/**
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
  	inline(stack) {
@@ -18918,10 +19672,10 @@ class IRCoreCallExpr extends IRCallExpr {
 	}
 
 	/**
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
-	simplify(stack) {
+	simplify(stack = new IRExprStack()) {
 		let argExprs = super.simplifyArgs(stack);
 
 		{
@@ -19013,16 +19767,15 @@ class IRErrorCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRStack} stack
-	 * @param {IRLiteral[]} args
-	 * @returns {?IRExpr}
+	 * @param {IRCallStack} stack
+	 * @returns {?IRValue}
 	 */
-	evalCall(stack, args) {
-		throw new Error("should never be called");
+	eval(stack) {
+		return null;
 	}
 
 	/**
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
 	inline(stack) {
@@ -19030,7 +19783,7 @@ class IRErrorCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRStack} stack
+	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
@@ -19045,27 +19798,110 @@ class IRErrorCallExpr extends IRExpr {
 	}
 }
 
+/**
+ * Wrapper for IRFuncExpr, IRCallExpr or IRLiteral
+ */
+class IRProgram {
+	#expr;
+
+	/**
+	 * @param {IRFuncExpr | IRCallExpr | IRLiteral} expr
+	 */
+	constructor(expr) {
+		this.#expr = expr;
+	}
+
+	/**
+	 * @param {IR} ir 
+	 * @param {boolean} simplify
+	 * @returns {IRProgram}
+	 */
+	static new(ir, simplify = false) {
+		let [irSrc, codeMap] = ir.generateSource();
+
+		let irTokens = tokenizeIR(irSrc, codeMap);
+
+		let expr = buildIRExpr(irTokens);
+
+		
+		/**
+		 * @type {IRProgram}
+		 */
+		if (expr instanceof IRFuncExpr || expr instanceof IRCallExpr || expr instanceof IRLiteral) {
+			if (expr instanceof IRFuncExpr || expr instanceof IRUserCallExpr || expr instanceof IRCoreCallExpr) {
+				expr.resolveNames();
+			}
+
+			let program = new IRProgram(expr);
+
+			if (simplify) {
+				program.simplify();
+			}
+
+			return program;
+		} else {
+			throw new Error("expected IRFuncExpr or IRUserCallExpr or IRLiteral as result of IRProgram.new");
+		}
+	}
+
+	/**
+	 * @type {PlutusCoreData}
+	 */
+	get data() {
+		if (this.#expr instanceof IRLiteral) {
+			let v = this.#expr.value;
+
+			return v.data;
+		} else {
+			console.log(this.#expr.toString());
+			throw new Error("expected data literal");
+		}
+	}
+
+	toString() {
+		return this.#expr.toString();
+	}
+
+	simplify() {
+		let dirty = true;
+	
+		//console.log(new Source(program.toString()).pretty());	
+	
+		while(dirty && (this.#expr instanceof IRFuncExpr || this.#expr instanceof IRUserCallExpr || this.#expr instanceof IRCoreCallExpr)) {
+			dirty = false;
+			let newExpr = this.#expr.simplify();
+	
+			if (newExpr instanceof IRFuncExpr || newExpr instanceof IRUserCallExpr || newExpr instanceof IRCoreCallExpr || newExpr instanceof IRLiteral) {
+				dirty = newExpr.toString() != this.#expr.toString();
+				this.#expr = newExpr;
+			}
+		}
+	
+		if (this.#expr instanceof IRFuncExpr || this.#expr instanceof IRUserCallExpr || this.#expr instanceof IRCoreCallExpr) {
+			// recalculate the Debruijn indices
+			this.#expr.resolveNames();
+		}
+	}
+
+	/**
+	 * @returns {PlutusCoreProgram}
+	 */
+	toPlutusCore() {
+		return new PlutusCoreProgram(this.#expr.toPlutusCore());
+	}
+
+	/**
+	 * @returns {number}
+	 */
+	calcSize() {
+		return this.toPlutusCore().calcSize();
+	}
+}
+
 
 //////////////////////////////////////////
 // Section 16: IR AST build functions
 //////////////////////////////////////////
-
-/**
- * Build Intermediate Representation top-level expression
- * @param {Token[]} ts 
- * @returns {IRFuncExpr | IRUserCallExpr}
- */
-function buildIRProgram(ts) {
-	let expr = buildIRExpr(ts);
-
-	if (expr instanceof IRFuncExpr || expr instanceof IRUserCallExpr) {
-		expr.resolveNames();
-
-		return expr;
-	} else {
-		throw new Error("expected IRFuncExpr or IRUserCallExpr as result of buildIRProgram");
-	}
-}
 
 /**
  * Build an Intermediate Representation expression
@@ -19208,314 +20044,9 @@ function buildIRFuncExpr(ts) {
 	}
 }
 
-/**
- * Simplify IR program (evaluate const expression, eliminate dead code etc.)
- * @param {IRFuncExpr | IRUserCallExpr} program
- * @returns {IRFuncExpr | IRUserCallExpr}
- */
-function simplifyIRProgram(program) {
-	let dirty = true;
-
-	//console.log(new Source(program.toString()).pretty());	
-
-	while(dirty) {
-		dirty = false;
-		let newProgram = program.simplify();
-
-		if (newProgram instanceof IRFuncExpr || newProgram instanceof IRUserCallExpr) {
-			dirty = newProgram.toString() != program.toString();
-			program = newProgram;
-		}
-	}
-
-	if (program instanceof IRFuncExpr || program instanceof IRUserCallExpr) {
-		// recalculate the Debruijn indices
-		program.resolveNames();
-
-		//console.log(new Source(program.toString()).pretty());	
-
-		return program;
-	} else {
-		throw new Error("unexpected");
-	}
-}
-
-
-//////////////////////////
-// Section 17: Compilation
-//////////////////////////
-
-/**
- * Substitutes template parameters ($WORD) in the source.
- * Throws an error if some template parameters can't be found in the object
- * @typedef {Object.<string, string>} TemplateParams
- * @param {string} src 
- * @param {TemplateParams} templateParameters 
- * @returns 
- */
-function preprocess(src, templateParameters) {
-	for (let key in templateParameters) {
-		let value = templateParameters[key];
-
-		let re = new RegExp(`\\$${key}`, 'g');
-
-		src = src.replace(re, value);
-	}
-
-	// check that there are no remaining template parameters left
-
-	let re = new RegExp('\$[a-zA-Z_][0-9a-zA-Z_]*');
-
-	let matches = src.match(re);
-
-	if (matches !== null) {
-		matches.forEach((match) => {
-			throw UserError.syntaxError(new Source(src), src.search(re), `unsubstituted template parameter '${match[0]}'`);
-		});
-	}
-
-	return src;
-}
-
-export const CompilationStage = {
-	Preprocess: 0,
-	Tokenize: 1,
-	BuildAST: 2,
-	IR: 3,
-	Simplify: 4,
-	PlutusCore: 5,
-	Final: 6,
-};
-
-/**
- * @typedef {Object} CompilationConfig
- * @property {boolean} verbose
- * @property {TemplateParams} templateParameters
- * @property {number} stage
- * @property {boolean} simplify
- */
-
-/**
- * @type {CompilationConfig}
- */
-const DEFAULT_CONFIG = {
-	verbose: false,
-	templateParameters: {},
-	stage: CompilationStage.Final,
-	simplify: false,
-};
-
-/**
- * Compiles Helios uptil several different stages.
- * @param {string} typedSrc 
- * @param {CompilationConfig} config 
- * @returns {string | Token[] | Program | PlutusCoreProgram | [string, string]}
- */
-function compileInternal(typedSrc, config) {
-	typedSrc = preprocess(typedSrc, config.templateParameters);
-
-	if (config.stage == CompilationStage.Preprocess) {
-		return typedSrc;
-	}
-
-	let ts = tokenize(typedSrc);
-
-	if (config.stage == CompilationStage.Tokenize) {
-		return ts;
-	}
-
-	if (ts.length == 0) {
-		throw UserError.syntaxError(new Source(typedSrc), 0, "empty script");
-	}
-
-	let program = buildProgram(ts);
-
-	if (config.stage == CompilationStage.BuildAST) {
-		return program;
-	}
-
-	let globalScope = GlobalScope.new(program.purpose);
-
-	program.eval(globalScope);
-
-	let ir = program.toIR();
-
-	let [irSrc, codeMap] = ir.generateSource();
-
-	//console.log((new Source(irSrc)).pretty());
-
-	if (config.stage == CompilationStage.IR) {
-		return irSrc;
-	}
-
-	let irTokens = tokenizeIR(irSrc, codeMap);
-
-	let irProgram = buildIRProgram(irTokens);
-
-	if (config.simplify) {
-		irProgram = simplifyIRProgram(irProgram);
-
-		if (config.stage == CompilationStage.Simplify) {
-			return [irSrc, irProgram.toString()];
-		}
-	}
-
-	//console.log((new Source(irProgram.toString())).pretty());
-
-	let plutusCoreProgram = new PlutusCoreProgram(irProgram.toPlutusCore());
-
-	if (config.stage == CompilationStage.PlutusCore) {
-		return plutusCoreProgram;
-	}
-
-	assert(config.stage == CompilationStage.Final);
-
-	return plutusCoreProgram.serialize();
-}
-
-/**
- * @param {number} id
- * @returns {string}
- */
-function getPurposeName(id) {
-	switch (id) {
-		case ScriptPurpose.Testing:
-			return "test";
-		case ScriptPurpose.Minting:
-			return "minting_policy";
-		case ScriptPurpose.Spending:
-			return "validator";
-		default:
-			throw new Error(`unhandled ScriptPurpose ${id}`);
-	}
-}
-
-/**
- * Parses Helios quickly to extract the script purpose header.
- * Returns null if header is missing or incorrectly formed (instead of throwing an error)
- * @param {string} rawSrc 
- * @returns {?[string, string]} - [purpose, name]
- */
-export function extractScriptPurposeAndName(rawSrc) {
-	try {
-		let src = new Source(rawSrc);
-
-		let tokenizer = new Tokenizer(src);
-
-		let gen = tokenizer.streamTokens();
-
-		// Don't parse the whole script, just 'eat' 2 tokens: `<purpose> <name>`
-		let ts = [];
-		for (let i = 0; i < 2; i++) {
-			let yielded = gen.next();
-			if (yielded.done) {
-				return null;
-			}
-
-			ts.push(yielded.value);
-		}
-
-		let [purposeId, nameWord] = buildScriptPurpose(ts);
-
-		return [getPurposeName(purposeId), nameWord.value];
-	} catch (e) {
-		if (!(e instanceof UserError)) {
-			throw e;
-		} else {
-			return null;
-		}
-	}
-}
-
-/**
- * Compiles a Helios source and returns different types depending on the chosen stage
- *    Preprocess: substitute template parameters and return preprocessed string
- *    Tokenize:   parse source and return list of tokens
- *    BuildAST:   build AST and return top-level Program object
- *    IR:         performs type evaluation, returns IR program as string
- *    PlutusCore: build Plutus-Core program from IR program, returns top-level PlutusCoreProgram object
- *    Final:      encode Plutus-Core program in flat format and return JSON string containing cborHex representation of program
- * @param {string} typedSrc
- * @param {CompilationConfig} config
- * @returns {string | Token[] | Program | PlutusCoreProgram | [string, string]}
- */
-export function compile(typedSrc, config = Object.assign({}, DEFAULT_CONFIG)) {
-	// additional checks of config
-	config.verbose = config.verbose || false;
-	config.templateParameters = config.templateParameters || {};
-	config.stage = config.stage || CompilationStage.Final;
-	config.simplify = config.simplify || false;
-
-	return compileInternal(typedSrc, config);
-}
-
-/** 
- * Runs a test script (first word of script must be 'testing')
- * @param {string} typedSrc
- * @param {CompilationConfig} config
- * @returns {Promise<[PlutusCoreData | UserError, string[]]>} - [result, messages]
- */
-export async function run(typedSrc, config = DEFAULT_CONFIG) {
-	let program;
-
-	try {
-		config.stage = CompilationStage.PlutusCore;
-
-		program = compileInternal(typedSrc, config);
-	} catch (e) {
-		if (!(e instanceof UserError)) {
-			throw e;
-		}
-
-		return [e, []];
-	}
-
-	if (!(program instanceof PlutusCoreProgram)) {
-		throw new Error("unexpected");
-	} else {
-		/** @type {string[]} */
-		let messages = [];
-
-		let result = await program.run([], {
-			onPrint: function (msg) {
-				return new Promise(function (resolve, _) {
-					messages.push(msg);
-					resolve();
-				});
-			}
-		});
-
-		return [result, messages];
-	}
-}
-
-// TODO: use a special JSON schema instead
-// output is a string with JSON content
-/*export function compileData(programSrc, dataExprSrc, config = {
-	templateParameters: {}
-}) {
-	config.templateParameters = config?.templateParameters??{};
-
-	programSrc = preprocess(programSrc, config.templateParameters);
-	let ts = tokenize(typedSrc);
-	let program = return buildProgram(ts);
-	let globalScope = GlobalScope.new();
-	program.eval(globalScope);
-
-	dataExprSrc = preprocess(dataExprSrc, config.templateParameters);
-	let dataExprTokens = tokenize(dataExprSrc);
-	let dataExpr = buildValueExpr(dataExprTokens);
-
-	dataExpr.eval(program.scope);
-	// TODO
-	let data = dataExpr.evalData();
-
-	return data.toSchemaJSON();
-}*/
-
 
 //////////////////////////////////////////
-// Section 18: Plutus-Core deserialization
+// Section 17: Plutus-Core deserialization
 //////////////////////////////////////////
 
 /**
@@ -19847,7 +20378,7 @@ export function deserializePlutusCore(jsonString) {
 
 
 ///////////////////////////////////////////////
-// Section 19. Property based testing framework
+// Section 18. Property based testing framework
 ///////////////////////////////////////////////
 
 /**
@@ -20351,9 +20882,6 @@ export class FuzzyTest {
 	async testn(nRuns, argGens, src, propTest, simplify = false) {
 		// compilation errors here aren't caught
 
-		/** @type {CompilationConfig} */
-		let config = {verbose: false, templateParameters: {}, stage: CompilationStage.PlutusCore, simplify: simplify};
-
 		let purposeName = extractScriptPurposeAndName(src);
 
 		if (purposeName === null) {
@@ -20361,7 +20889,7 @@ export class FuzzyTest {
 		} else {
 			let [_, testName] = purposeName;
 
-			let program = compileInternal(src, config);
+			let program = Program.new(src).compile(simplify);
 
 			if (!(program instanceof PlutusCoreProgram)) {
 				throw new Error("unexpected");
@@ -20445,4 +20973,5 @@ export const exportedForTesting = {
 	PlutusCoreVariable: PlutusCoreVariable,
 	PlutusCoreConst: PlutusCoreConst,
 	PlutusCoreInt: PlutusCoreInt,
+	IRProgram: IRProgram,
 };

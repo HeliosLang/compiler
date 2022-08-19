@@ -34,7 +34,7 @@ Additionally the Helios library contains a function to deserialize existing Plut
 ### 1. Vesting contract example
 The following Helios example is equivalent to the Plutus vesting contract from the Plutus playground:
 ```golang
-validator vesting
+spending vesting
 
 struct VestingTranche {
     time:  Time // 'amount' is available after 'time'
@@ -86,7 +86,7 @@ const src = `struct VestingTranche {
 ...
 `;
 
-console.log(helios.compile(src));
+console.log(helios.Program.new(src).compile().serialize());
 // the output can be saved to a file, and that file can be used directly by cardano-cli
 ```
 

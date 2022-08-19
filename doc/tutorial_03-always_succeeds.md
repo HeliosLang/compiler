@@ -10,7 +10,7 @@ $ nodejs
 
 Compile the Always Succeeds script into its JSON representation:
 ```javascript
-> console.log(helios.compile("validator always_succeeds func main() -> Bool {true}"))
+> console.log(helios.Program.new("spending always_succeeds func main() -> Bool {true}").compile().serialize())
 
 {"type": "PlutusScriptV1", "description": "", "cborHex" :" 581358110100002223333573464945262498992601"}
 ```

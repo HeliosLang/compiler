@@ -4,7 +4,7 @@ Minting policy scripts are very similar to validator scripts for spending. They 
 
 The most trivial minting policy would allow any number of tokens to be minted (or burned):
 ```golang
-minting_policy my_nft
+minting my_nft
 
 func main() Bool { // compiler is smart enough to add dummy Redeemer and ScriptContext arguments to final program
     true
@@ -13,7 +13,7 @@ func main() Bool { // compiler is smart enough to add dummy Redeemer and ScriptC
 
 A slightly more elaborate minting policy allows a single centralized actor to mint (or burn) any number of tokens:
 ```golang
-minting_policy my_nft
+minting my_nft
 
 func main(ctx: ScriptContext) Bool {
     tx: Tx = ctx.tx;
@@ -24,7 +24,7 @@ func main(ctx: ScriptContext) Bool {
 
 For NFTs, or public-sale tokens, the minting policy needs to be provably single-use. UTXOs are guaranteed to be unique, and can be used for this purpose:
 ```golang
-minting_policy my_nft
+minting my_nft
 
 func main(ctx: ScriptContext) -> Bool {
     tx: Tx = ctx.tx;
@@ -44,7 +44,7 @@ Compile the minting policy script:
 ```bash
 > var helios; import("./helios.js").then(m=>{helios=m});
 
-> console.log(helios.compile("minting_policy my_nft func main(ctx: ScriptContext) -> Bool {...}", helios.ScriptPurpose.Minting));
+> console.log(helios.Program.new("minting my_nft func main(ctx: ScriptContext) -> Bool {...}").compile().serialize());
 
 {"type": "PlutusScriptV1", "description": "", "cborHex" :" 5..."}
 ```

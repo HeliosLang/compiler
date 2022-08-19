@@ -5,24 +5,44 @@ import * as helios from "./helios.js";
 const helios_ = helios.exportedForTesting;
 
 function simplify(src) {
-	let config = {stage: helios.CompilationStage.Simplify, simplify: true};
+    let program = helios.Program.new(src);
 
-	let [orig, simplified] = helios.compile(src, config);
+    let paramTypes = program.paramTypes;
 
-	console.log("ORIG:");
-	console.log(new helios_.Source(orig).pretty());
+    if (program.paramTypes["PREC_NFT"] !== undefined) {
+        program.changeParam("PREC_NFT", "abc");
 
-	console.log("\nSIMPLIFIED:");
-	console.log(new helios_.Source(simplified).pretty());
+        console.log(program.evalParam("LIST").toString());
+    }
+
+    let ir = program.toIR();
+
+    let irProgram0 = helios_.IRProgram.new(ir);
+    let irProgram1 = helios_.IRProgram.new(ir, true);
+
+	console.log(`ORIG (${irProgram0.calcSize()} bytes):`);
+	console.log(new helios_.Source(irProgram0.toString()).pretty());
+
+	console.log(`\nSIMPLIFIED (${irProgram1.calcSize()} bytes):`);
+	console.log(new helios_.Source(irProgram1.toString()).pretty(), "\n\n");
 }
 
-simplify(` test list_new
+async function profile(src, argNames) {
+    let program = helios.Program.new(src);
+
+    let args = argNames.map(name => program.evalParam(name));
+	
+    console.log(await program.compile(true).profile(args));//, program.evalParam("C").toString());
+}
+
+simplify(`
+testing list_new
 func main(a: Int, b: Int) -> []Int {
     []Int::new(a, b)
 }`);
 
 simplify(`
-test add
+testing add
 func main(a: Int) -> Int {
 	if (true) {
   		print("blablal" + "balbalb"); 1 + 1/2 + a
@@ -32,33 +52,33 @@ func main(a: Int) -> Int {
 }`);
 
 simplify(`
-test and
+testing and
 func main() -> Bool {
 	false && true
 }`);
 
 simplify(`
-test concat
+testing concat
 func main() -> []Int {
 	[]Int{1,2,3} + []Int{4,5,6}
 }`);
 
 simplify(`
-test concat
+testing concat
 func main(a: Int) -> []Int {
 	[]Int{a,1,2} + []Int{}
 }
 `)
 
 simplify(`
-test value_is_zero
+testing value_is_zero
 func main(a: Int) -> Bool {
 	Value::lovelace(a).is_zero()
 }
 `);
 
 simplify(`
-mint_policy multi_nft
+minting multi_nft
 
 // a single transaction allows multiple minting policies to be used
 // PREC_NFT is empty for the base multi_nft minting policy, 
@@ -100,4 +120,21 @@ func main(redeemer: Redeemer, ctx: ScriptContext) -> Bool {
             )
         }
     } 
-}`)
+}
+
+const RANDOM = "aksjdkjasd"
+
+const LIST: []Int = []Int{1,2,3} + []Int{5,6,7}
+`);
+
+profile(`
+testing profile
+
+func main(a: Int, b: Int) -> Int {
+    a + b + b
+}
+
+const A = 1
+const B = 1
+const C: Int = main(A, B)
+`, ["A", "B"]);

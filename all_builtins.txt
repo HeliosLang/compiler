@@ -68,8 +68,11 @@ internal ns: __helios__scriptcontext
 # Tx
 operators:   __eq, __neq
 getters:     inputs, outputs, fee, minted, time_range, signatories, id
-methods:     serialize, now, find_datum_hash, outputs_sent_to, outputs_locked_by, 
-             value_sent_to, value_locked_by, value_locked_by_datum, is_signed_by
+methods:     serialize, now, find_datum_hash, 
+             outputs_sent_to, outputs_sent_to_datum, 
+             outputs_locked_by, outputs_locked_by_datum,
+             value_sent_to, value_sent_to_dataum,
+             value_locked_by, value_locked_by_datum, is_signed_by
 hidden:      datums
 internal ns: __helios__tx
     
