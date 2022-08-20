@@ -36,13 +36,13 @@
 //         	* program.compile(simplify: boolean = false) -> PlutusCoreProgram
 //       	* program.paramTypes -> Object.<name: string, type: Type>
 //       	* program.changeParam(name: string, json: string)
-//       	* program.evalParam(name: string) -> PlutusCoreData  
+//       	* program.evalParam(name: string) -> PlutusCoreValue  
 //          	result can be used as an arg when running a PlutusCoreProgram
 //
 //   * PlutusCoreProgram
 //		Plutus-Core program object
-//      	* async program.run(args: PlutusCoreData[]) -> PlutusCoreData | UserError
-//          * async program.profile(args: PlutusCoreData[]) -> {mem: number, cpu: number, size: number}
+//      	* async program.run(args: PlutusCoreValue[]) -> PlutusCoreValue | UserError
+//          * async program.profile(args: PlutusCoreValue[]) -> {mem: number, cpu: number, size: number}
 //          * program.serialize() -> string
 //          	json string which can be used as a file by cardano-cli to submit a transaction
 //		
@@ -4904,19 +4904,19 @@ class PlutusCoreProgram {
 	}
 
 	/**
-	 * @param {PlutusCoreData[]} rawArgs 
+	 * @param {PlutusCoreValue[]} args 
 	 * @param {PlutusCoreRTECallbacks} callbacks 
-	 * @returns {Promise<PlutusCoreData | UserError>}
+	 * @returns {Promise<PlutusCoreValue | UserError>}
 	 */
-	async run(rawArgs, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
+	async run(args, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
 		let globalCallSite = new Site(this.site.src, this.site.src.length);
 
-		let args = (rawArgs.length == 0) ? [new PlutusCoreUnit(globalCallSite)] : rawArgs.map(a => new PlutusCoreDataValue(globalCallSite, a));
+		if (args.length == 0) {
+			args = [new PlutusCoreUnit(globalCallSite)];
+		}
 
 		try {
-			let res = await this.runInternal(args, callbacks);
-
-			return res.data;
+			return await this.runInternal(args, callbacks);
 		} catch (e) {
 			if (!(e instanceof UserError)) {
 				throw e;
@@ -4927,8 +4927,8 @@ class PlutusCoreProgram {
 	}
 
 	/**
-	 * @param {PlutusCoreData[]} args
-	 * @returns {Promise<[(PlutusCoreData | UserError), string[]]>}
+	 * @param {PlutusCoreValue[]} args
+	 * @returns {Promise<[(PlutusCoreValue | UserError), string[]]>}
 	 */
 	async runWithPrint(args) {
 		/**
@@ -4955,7 +4955,7 @@ class PlutusCoreProgram {
 	 */
 
 	/**
-	 * @param {(PlutusCoreData[]) | (PlutusCoreValue[])} args
+	 * @param {PlutusCoreValue[]} args
 	 * @returns {Promise<Profile>}
 	 */
 	async profile(args) {
@@ -4972,12 +4972,9 @@ class PlutusCoreProgram {
 			cpuCost += cost.cpu;
 		};
 
-		if (args[0] instanceof PlutusCoreData) {
-			void await this.run(args.map(a => {if (a instanceof PlutusCoreData) {return a} else {throw new Error("unexpected")}}), callbacks);
-		} else {
-			void await this.runInternal(args.map(a => {if (a instanceof PlutusCoreValue) {return a} else {throw new Error("unexpected")}}), callbacks);
-		}
-
+		let res = await this.run(args, callbacks);
+		console.log(res.toString());
+		
 		return {
 			mem: memCost,
 			cpu: cpuCost,
@@ -8167,6 +8164,7 @@ class GeneralizedValue {
 	assertValue(site) {
 		throw site.typeError("not a value");
 	}
+
 	/**
 	 * @returns {boolean}
 	 */
@@ -12669,7 +12667,7 @@ export class Program {
 	/**
 	 * Doesn't use wrapEntryPoint
 	 * @param {string} name 
-	 * @returns {PlutusCoreData}
+	 * @returns {PlutusCoreValue}
 	 */
 	evalParam(name) {
 		/**
@@ -12692,7 +12690,7 @@ export class Program {
 
 		let irProgram = IRProgram.new(ir, true);
 
-		return irProgram.data;
+		return new PlutusCoreDataValue(irProgram.site, irProgram.data);
 	}
 
 	/**
@@ -12788,7 +12786,7 @@ class SpendingProgram extends Program {
 	}
 
 	evalTypes() {
-		let scope = GlobalScope.new(ScriptPurpose.Testing);
+		let scope = GlobalScope.new(ScriptPurpose.Spending);
 
 		this.evalTypesInternal(scope);
 
@@ -12902,7 +12900,7 @@ class MintingProgram extends Program {
 	}
 
 	evalTypes() {
-		let scope = GlobalScope.new(ScriptPurpose.Testing);
+		let scope = GlobalScope.new(ScriptPurpose.Minting);
 
 		this.evalTypesInternal(scope);
 
@@ -15041,7 +15039,7 @@ class ValidatorHashType extends HashType {
 			case "CURRENT":
 				if (this.macrosAllowed) {
 					if (this.#purpose == ScriptPurpose.Spending) {
-						return this;
+						return Value.new(this);
 					} else {
 						throw name.referenceError("'ValidatorHash::CURRENT' only available in spending script");
 					}
@@ -15081,7 +15079,7 @@ class MintingPolicyHashType extends HashType {
 			case "CURRENT":
 				if (this.macrosAllowed) {
 					if (this.#purpose == ScriptPurpose.Minting) {
-						return this;
+						return Value.new(this);
 					} else {
 						throw name.referenceError("'MintingPolicyHash::CURRENT' only available in minting script");
 					}
@@ -15890,7 +15888,7 @@ class AssetClassType extends BuiltinType {
 			case "ADA":
 				return Value.new(new AssetClassType());
 			case "new":
-				return Value.new(new FuncType([new ByteArrayType(), new ByteArrayType()], new AssetClassType()));
+				return Value.new(new FuncType([new MintingPolicyHashType(), new ByteArrayType()], new AssetClassType()));
 			default:
 				return super.getTypeMember(name);
 		}
@@ -17555,26 +17553,28 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__spendingscriptcontext__new",
 	`(output_idx, tx) -> {
 		__core__constrData(0, __helios__common__list_2(
-			__core__constrData(1, __helios__common__list_1(__helios__txoutputid__new(__helios__txid__CURRENT, output_idx))), 
-			tx
+			tx,
+			__core__constrData(1, __helios__common__list_1(__helios__txoutputid__new(__helios__txid__CURRENT, output_idx)))
 		))
 	}`));
 	add(new RawFunc("__helios__spendingscriptcontext____eq", "__helios__scriptcontext____eq"));
 	add(new RawFunc("__helios__spendingscriptcontext____neq", "__helios__scriptcontext____neq"));
 	add(new RawFunc("__helios__spendingscriptcontext__serialize", "__helios__scriptcontext__serialize"));
+	add(new RawFunc("__helios__spendingscriptcontext__tx", "__helios__scriptcontext__tx"));
 	add(new RawFunc("__helios__spendingscriptcontext__get_current_input", "__helios__scriptcontext__get_current_input"));
 	add(new RawFunc("__helios__spendingscriptcontext__get_spending_purpose_output_id", "__helios__scriptcontext__get_spending_purpose_output_id"));
 	add(new RawFunc("__helios__spendingscriptcontext__get_current_validator_hash", "__helios__scriptcontext__get_current_validator_hash"));
 	add(new RawFunc("__helios__mintingscriptcontext__new",
 	`(tx) -> {
 		__core__constrData(0, __helios__common__list_2(
-			__core__constrData(0, __helios__common__list_1(__helios__hash__CURRENT)), 
-			tx
+			tx,
+			__core__constrData(0, __helios__common__list_1(__helios__hash__CURRENT))
 		))
 	}`));
 	add(new RawFunc("__helios__mintingscriptcontext____eq", "__helios__scriptcontext____eq"));
 	add(new RawFunc("__helios__mintingscriptcontext____neq", "__helios__scriptcontext____neq"));
 	add(new RawFunc("__helios__mintingscriptcontext__serialize", "__helios__scriptcontext__serialize"));
+	add(new RawFunc("__helios__mintingscriptcontext__tx", "__helios__scriptcontext__tx"));
 	add(new RawFunc("__helios__mintingscriptcontext__get_current_input", "__helios__scriptcontext__get_current_input"));
 	add(new RawFunc("__helios__mintingscriptcontext__get_current_minting_policy_hash", "__helios__scriptcontext__get_current_minting_policy_hash"));
 
@@ -17588,8 +17588,8 @@ function makeRawFunctions() {
 			outputs,
 			fee,
 			minted,
-			__helios__common__list_0,
-			__helios__common__list_0,
+			__core__listData(__helios__common__list_0),
+			__core__listData(__helios__common__list_0),
 			validity,
 			signatories,
 			__helios__map__map(datums)(
@@ -19875,10 +19875,11 @@ class IRCoreCallExpr extends IRCallExpr {
 
 				return new IRLiteralValue(new IRLiteral(result));
 			} catch(e) {
-				if (!(e instanceof UserError)) { 
-					throw e;
-				} else {
+				// runtime errors like division by zero are allowed
+				if (e instanceof UserError && e.message.startsWith("RuntimeError")) {
 					return null;
+				} else {
+					throw e;
 				}
 			}
 		}
@@ -20306,6 +20307,10 @@ class IRProgram {
 		} else {
 			throw new Error("expected IRFuncExpr or IRUserCallExpr or IRLiteral as result of IRProgram.new");
 		}
+	}
+
+	get site() {
+		return this.#expr.site;
 	}
 
 	/**
@@ -21381,9 +21386,11 @@ export class FuzzyTest {
 						dgConfig.prevArgs.push(arg);
 					}
 				
-					let result = await program.run(args);
+					let result = await program.run(args.map(a => new PlutusCoreDataValue(Site.dummy(), a)));
 
-					let obj = propTest(args, result);
+					let dataResult = result instanceof PlutusCoreValue ? result.data : result;
+
+					let obj = propTest(args, dataResult);
 
 					if (typeof obj == "boolean") {
 						if (!obj) {

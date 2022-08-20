@@ -2363,7 +2363,7 @@ async function runPropertyTests() {
     await ft.test([ft.bytes(0, 1), ft.bytes(0, 1)], `
     testing assetclass_new
     func main(a: ByteArray, b: ByteArray) -> Bool {
-        AssetClass::new(a, b) == AssetClass::ADA
+        AssetClass::new(MintingPolicyHash::new(a), b) == AssetClass::ADA
     }`, ([a, b], res) => {
         return res.isBool() && ((a.asByteArray().length == 0 && b.asByteArray().length == 0) === res.asBool());
     });
@@ -2371,7 +2371,7 @@ async function runPropertyTests() {
     await ft.test([ft.bytes(0, 1), ft.bytes(0, 1)], `
     testing assetclass_new
     func main(a: ByteArray, b: ByteArray) -> Bool {
-        AssetClass::new(a, b) != AssetClass::ADA
+        AssetClass::new(MintingPolicyHash::new(a), b) != AssetClass::ADA
     }`, ([a, b], res) => {
         return res.isBool() && ((a.asByteArray().length == 0 && b.asByteArray().length == 0) === !res.asBool());
     });
@@ -2379,7 +2379,7 @@ async function runPropertyTests() {
     await ft.test([ft.bytes(), ft.bytes()], `
     testing assetclass_serialize
     func main(a: ByteArray, b: ByteArray) -> ByteArray {
-        AssetClass::new(a, b).serialize()
+        AssetClass::new(MintingPolicyHash::new(a), b).serialize()
     }`, ([a, b], res) => {
         return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newAssetClass(a.asByteArray(), b.asByteArray()));
     });
@@ -2498,7 +2498,7 @@ async function runPropertyTests() {
 
         await ft.test([ft.int(), ft.int(), ft.int()], `
         testing value_mul_3
-        const MY_NFT: AssetClass = AssetClass::new(#abc, #abc)
+        const MY_NFT: AssetClass = AssetClass::new(MintingPolicyHash::new(#abc), #abc)
         func main(a: Int, b: Int, c: Int) -> Int {
             ((Value::lovelace(a) + Value::new(MY_NFT, b))*c).get(AssetClass::ADA)
         }`, ([a, b, c], res) => {
@@ -2527,7 +2527,7 @@ async function runPropertyTests() {
 
         await ft.test([ft.int(), ft.int(), ft.int()],`
         testing value_div_3
-        const MY_NFT: AssetClass = AssetClass::new(#abc, #abc)
+        const MY_NFT: AssetClass = AssetClass::new(MintingPolicyHash::new(#abc), #abc)
         func main(a: Int, b: Int, c: Int) -> Int {
             ((Value::lovelace(a) + Value::new(MY_NFT, b))/c).get(AssetClass::ADA)
         }`, ([a, b, c], res) => {
@@ -2621,7 +2621,7 @@ async function runPropertyTests() {
         await ft.test([ft.bytes(10, 10), ft.string(5,5), ft.int(), ft.string(3,3), ft.int()], `
         testing value_get_policy
         func main(mph_bytes: ByteArray, tn_a: ByteArray, qty_a: Int, tn_b: ByteArray, qty_b: Int) -> Bool {
-            sum: Value = Value::new(AssetClass::new(mph_bytes, tn_a), qty_a) + Value::new(AssetClass::new(mph_bytes, tn_b), qty_b);
+            sum: Value = Value::new(AssetClass::new(MintingPolicyHash::new(mph_bytes), tn_a), qty_a) + Value::new(AssetClass::new(MintingPolicyHash::new(mph_bytes), tn_b), qty_b);
             sum.get_policy(MintingPolicyHash::new(mph_bytes)) == Map[ByteArray]Int{tn_a: qty_a, tn_b: qty_b}
         }`, ([_], res) => {    
             return res.isBool() && res.asBool();
@@ -2630,7 +2630,7 @@ async function runPropertyTests() {
         await ft.test([ft.int(), ft.bytes(), ft.bytes()], `
         testing value_serialize
         func main(qty: Int, mph: ByteArray, name: ByteArray) -> ByteArray {
-            Value::new(AssetClass::new(mph, name), qty).serialize()
+            Value::new(AssetClass::new(MintingPolicyHash::new(mph), name), qty).serialize()
         }`, ([qty, mph, name], res) => {
             return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newValue(qty.asInt(), mph.asByteArray(), name.asByteArray()));
         });
@@ -3763,7 +3763,7 @@ async function runIntegrationTests() {
     func main() -> Bool {
         print("hello world");
         true
-    }`, "1{}", ["hello world"]);
+    }`, "data(1{})", ["hello world"]);
 
     // 2. hello_world_false
     await runTestScript(`
@@ -3771,7 +3771,7 @@ async function runIntegrationTests() {
     func main() -> Bool {
         print("hello world");
         !true
-    }`, "0{}", ["hello world"]);
+    }`, "data(0{})", ["hello world"]);
 
     // 3. hello_number
     // * non-main function statement
@@ -3783,7 +3783,7 @@ async function runIntegrationTests() {
     func main() -> Bool {
         print(print_message(0) + "");
         !true
-    }`, "0{}", ["hello number 0"]);
+    }`, "data(0{})", ["hello number 0"]);
 
     // 4. my_struct
     // * struct statement
@@ -3798,7 +3798,7 @@ async function runIntegrationTests() {
     func main() -> Int {
         x: MyStruct = MyStruct{a: 1, b: 1};
         x.a + x.b
-    }`, "2", []);
+    }`, "data(2)", []);
 
     // 4. owner_value
     // * struct statement
@@ -3817,7 +3817,7 @@ async function runIntegrationTests() {
         };
         print(d.owner.show());
         d.value > Value::ZERO
-    }`, "1{}", ["1234"]);
+    }`, "data(1{})", ["1234"]);
 
     // 5. fibonacci
     // * recursive function statement
@@ -3832,7 +3832,7 @@ async function runIntegrationTests() {
     }
     func main() -> Int {
         fibonacci(5)
-    }`, "8", []);
+    }`, "data(8)", []);
 
     // 6. fibonacci2
     // * calling a non-function
@@ -3857,7 +3857,7 @@ async function runIntegrationTests() {
         x: []Int = []Int{1, 2, 3};
         print(x.get(0).show());
         x.get(2) == 3
-    }`, "1{}", "1");
+    }`, "data(1{})", "1");
 
     // 8. list_get nok
     // * error thrown by builtin
@@ -3879,7 +3879,7 @@ async function runIntegrationTests() {
     func main() -> Bool {
         print(concat("hello ", "world"));
         true
-    }`, "1{}", ["hello world"]);
+    }`, "data(1{})", ["hello world"]);
 
     // 10. collatz recursion
     // * recursion
@@ -3896,7 +3896,7 @@ async function runIntegrationTests() {
     }
     func main() -> []Int {
         collatz(3, []Int{})
-    }`, "[1, 2, 4, 8, 16, 5, 10, 3]", []);
+    }`, "data([1, 2, 4, 8, 16, 5, 10, 3])", []);
 
     // 11. list_any
     // * member function as value
@@ -3909,15 +3909,15 @@ async function runIntegrationTests() {
     }
     func main() -> Bool {
         main_inner([]Int{1,2,3,4,5,6,10}.any)
-    }`, "1{}", []);
+    }`, "data(1{})", []);
     
     // 12. value_get
     await runTestScript(`
     testing value_get
     func main() -> []Int {
-        ac1: AssetClass = AssetClass::new(#1234, #1234);
-        ac2: AssetClass = AssetClass::new(#5678, #5678);
-        ac3: AssetClass = AssetClass::new(#9abc, #9abc);
+        ac1: AssetClass = AssetClass::new(MintingPolicyHash::new(#1234), #1234);
+        ac2: AssetClass = AssetClass::new(MintingPolicyHash::new(#5678), #5678);
+        ac3: AssetClass = AssetClass::new(MintingPolicyHash::new(#9abc), #9abc);
 
 
         x: Value = Value::new(ac1, 100) + Value::new(ac2, 200) - Value::new(ac1, 50);
@@ -3945,7 +3945,7 @@ async function runIntegrationTests() {
         print(main_internal(Redeemer::Reward).show());
         print(main_internal(Redeemer::Migrate).show());
         true
-    }`, "1{}", ["false", "true", "false"]);
+    }`, "data(1{})", ["false", "true", "false"]);
 
     // 14. struct method recursion
     await runTestScript(`
@@ -3968,7 +3968,7 @@ async function runIntegrationTests() {
     func main() -> Int {
         fib = Fib{a: 0, b: 1};
         fib.calc(5)
-    }`, "13", []);
+    }`, "data(13)", []);
 
     // 15. enum method recursion
     await runTestScript(`
@@ -4011,7 +4011,7 @@ async function runIntegrationTests() {
         fib = Fib::One{a: 0, b: 1};
         print(fib.calc(5).show());
         Fib::Two{a: 0, b: 1}.calc(6)
-    }`, "21", ["13"]);
+    }`, "data(21)", ["13"]);
 }
 
 async function main() {
