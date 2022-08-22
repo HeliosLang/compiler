@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.4.0
+// Version:     0.4.1
 // Last update: August 2022
 // License:     Unlicense
 //
@@ -178,7 +178,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-const VERSION = "0.3.0";
+const VERSION = "0.4.1";
 
 var DEBUG = false;
 

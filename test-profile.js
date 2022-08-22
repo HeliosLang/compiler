@@ -2,8 +2,6 @@
 
 import * as helios from "./helios.js";
 
-const helios_ = helios.exportedForTesting;
-
 async function profile(src, argNames) {
     let program = helios.Program.new(src);
 
