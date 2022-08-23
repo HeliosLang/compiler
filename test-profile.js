@@ -79,12 +79,15 @@ struct Datum {
     a: Int
 }
 
-const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new(Tx::new(
-    []TxInput{TxInput::new(REF_ID, TxOutput::new(ADDRESS, IN_VALUE, Option[DatumHash]::None))},
-    []TxOutput{TxOutput::new(ADDRESS, OUT_VALUE, Option[DatumHash]::None)},
+const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_minting(Tx::new(
+    []TxInput{TxInput::new(REF_ID, TxOutput::new(ADDRESS, IN_VALUE, OutputDatum::new_none()))},
+    []TxInput{},
+    []TxOutput{TxOutput::new(ADDRESS, OUT_VALUE, OutputDatum::new_none())},
     Value::lovelace(160000),
     MINTED,
+    []DCert{},
+    Map[StakingCredential]Int{},
     TimeRange::ALWAYS,
     []PubKeyHash{},
-    Map[DatumHash]Datum{}
+    Map[DatumHash]Data{}
 ))`, ["REDEEMER", "SCRIPT_CONTEXT"]);

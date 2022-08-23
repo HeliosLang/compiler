@@ -41,56 +41,59 @@ async function run(name, program, args) {
 }
 
 
-
-// expected memCost: 200, expected cpuCost: 23100
-run("add1",
-	newProgram(
-		newLambda( 
-			newLambda(
-				newCall2(
-					newBuiltin("addInteger"),
-					newCall2(newBuiltin("addInteger"), newVariable(2), newVariable(1)),
-					newInt(1n)
-				)
-			)
-		)
-	),
-	[]
-)
-
-// expected memCost: 3710, expected cpuCost: 1860485
-run("add-lambda",
-	newProgram(
-		newCall(
-			newLambda(
-				newCall2(
-					newBuiltin("addInteger"),
-					newCall2(
-						newVariable(1),
-						newInt(12n),
-						newInt(32n)
-					),
-					newCall2(
-						newVariable(1),
-						newInt(5n),
-						newInt(4n)
-					)
-				)
-			),
-			newLambda(
+async function main() {
+	// expected memCost: 200, expected cpuCost: 23100
+	await run("add1",
+		newProgram(
+			newLambda( 
 				newLambda(
 					newCall2(
 						newBuiltin("addInteger"),
-						newCall2(
-							newBuiltin("addInteger"),
-							newVariable(2),
-							newVariable(1)
-						),
+						newCall2(newBuiltin("addInteger"), newVariable(2), newVariable(1)),
 						newInt(1n)
 					)
 				)
 			)
-		)
-	),
-	[]
-)
+		),
+		null
+	)
+
+	// expected memCost: 3710, expected cpuCost: 1860485
+	await run("add-lambda",
+		newProgram(
+			newCall(
+				newLambda(
+					newCall2(
+						newBuiltin("addInteger"),
+						newCall2(
+							newVariable(1),
+							newInt(12n),
+							newInt(32n)
+						),
+						newCall2(
+							newVariable(1),
+							newInt(5n),
+							newInt(4n)
+						)
+					)
+				),
+				newLambda(
+					newLambda(
+						newCall2(
+							newBuiltin("addInteger"),
+							newCall2(
+								newBuiltin("addInteger"),
+								newVariable(2),
+								newVariable(1)
+							),
+							newInt(1n)
+						)
+					)
+				)
+			)
+		),
+		null
+	)
+}
+
+void main();

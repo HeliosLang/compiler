@@ -66,7 +66,7 @@ async function runUnitTests() {
 async function runPropertyTests() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
 
-
+  
     ////////////
     // Int tests
     ////////////
@@ -2940,11 +2940,12 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.spendingScriptContext()], `
-    testing txoutput_datum_hash
+    testing txoutput_datum
     func main(ctx: ScriptContext) -> Bool {
-        ctx.tx.outputs.head.datum_hash.switch{
-            s: Some => s.some == s.some,
-            n: None => n == n
+        ctx.tx.outputs.head.datum.switch{
+            n: None => n == n,
+            h: Hash => h.hash == h.hash,
+            i: Inline => i.data == i.data
         }
     }`, ([_], res) => {
         return res.isBool() && res.asBool();

@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.4.1
+// Version:     0.5.0
 // Last update: August 2022
 // License:     Unlicense
 //
@@ -124,7 +124,9 @@
 //    11. AST statement objects             Statement, ConstStatement, DataField, 
 //                                          DataDefinition, StructStatement, FuncStatement, 
 //                                          EnumMember, EnumStatement, ImplDefinition,
-//                                          Program
+//                                          Program, RedeemerProgram, DatumRedeemerProgram,
+//                                          TestingProgram, SpendingProgram, MintingProgram,
+//                                          StakingProgram
 //
 //    12. AST build functions               buildProgramStatements, buildScriptPurpose, 
 //                                          buildConstStatement, 
@@ -178,7 +180,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-const VERSION = "0.4.1";
+const VERSION = "0.5.0";
 
 var DEBUG = false;
 
@@ -213,15 +215,16 @@ const ScriptPurpose = {
 	Testing: -1,
 	Minting: 0,
 	Spending: 1,
+	Staking: 2,
 };
 
 /**
- * This library use version "1.0.0" of Plutus-Core (TODO: implement "2.0.0" upon mainnet Vasil HFC)
+ * This library use version 2.0.0" of Plutus-Core
  */
-const PLUTUS_CORE_VERSION_COMPONENTS = [1n, 0n, 0n];
+const PLUTUS_CORE_VERSION_COMPONENTS = [2n, 0n, 0n];
 
 /**
- * I.e. "1.0.0" (TODO: implement "2.0.0" upon mainnet Vasil HFC)
+ * i.e. "2.0.0"
  * @type {string}
  */
 const PLUTUS_CORE_VERSION = PLUTUS_CORE_VERSION_COMPONENTS.map(c => c.toString()).join(".");
@@ -2505,7 +2508,7 @@ class PlutusCoreValue {
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async call(rte, site, value) {
-		throw site.typeError(`expected a UPLC function, got '${this.toString()}`);
+		throw site.typeError(`expected a UPLC function, got '${this.toString()}'`);
 	}
 
 	/**
@@ -4876,7 +4879,7 @@ class PlutusCoreProgram {
 
 	/**
 	 * Evaluates the term contained in PlutusCoreProgram (assuming it is a lambda term)
-	 * @param {PlutusCoreValue[]} args
+	 * @param {?PlutusCoreValue[]} args
 	 * @param {PlutusCoreRTECallbacks} callbacks 
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
@@ -4896,22 +4899,24 @@ class PlutusCoreProgram {
 		/** @type {PlutusCoreValue} */
 		let result = fn;
 
-		for (let arg of args) {
-			result = await result.call(rte, globalCallSite, arg);
+		if (args !== null) {
+			for (let arg of args) {
+				result = await result.call(rte, globalCallSite, arg);
+			}
 		}
 
 		return result;
 	}
 
 	/**
-	 * @param {PlutusCoreValue[]} args 
+	 * @param {?PlutusCoreValue[]} args - if null the top-level term is returned as a value
 	 * @param {PlutusCoreRTECallbacks} callbacks 
 	 * @returns {Promise<PlutusCoreValue | UserError>}
 	 */
 	async run(args, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
 		let globalCallSite = new Site(this.site.src, this.site.src.length);
 
-		if (args.length == 0) {
+		if (args !== null && args.length == 0) {
 			args = [new PlutusCoreUnit(globalCallSite)];
 		}
 
@@ -4927,7 +4932,7 @@ class PlutusCoreProgram {
 	}
 
 	/**
-	 * @param {PlutusCoreValue[]} args
+	 * @param {?PlutusCoreValue[]} args
 	 * @returns {Promise<[(PlutusCoreValue | UserError), string[]]>}
 	 */
 	async runWithPrint(args) {
@@ -6242,14 +6247,16 @@ class LedgerData extends ConstrData {
 
 		let txDataFields = [
 			new ListData(inputs),
+			new ListData([]), // reference inputs
 			new ListData(outputs),
 			LedgerData.newValue(fee), // fee value
 			mintedValue, // minted value
 			new ListData([]), // digests of certificates
-			new ListData([]), // staking withdrawals
+			new MapData([]), // staking withdrawals
 			LedgerData.newFiniteTimeRange(), // valid time range
 			new ListData(signatories), // signatories
-			new ListData([]), // datums
+			new MapData([]), // redeemers
+			new MapData([]), // datums
 			LedgerData.newTxId(txHash),
 		];
 
@@ -6305,15 +6312,17 @@ class LedgerData extends ConstrData {
 
 		let txDataFields = [
 			new ListData(inputs), // tx input
+			new ListData([]), // reference inputs
 			new ListData(outputs), // tx output
 			LedgerData.newValue(fee), // fee value
 			LedgerData.newValue(0n), // minted value
 			new ListData([]), // digests of certificates
-			new ListData([]), // staking withdrawals
+			new MapData([]), // staking withdrawals
 			LedgerData.newFiniteTimeRange(), // valid time range
 			new ListData(signatories), // signatories
-			new ListData(datums.map(([hash, data]) => {
-				return new ConstrData(0, [new ByteArrayData(hash), data]);
+			new MapData([]), // redeemers
+			new MapData(datums.map(([hash, data]) => {
+				return [new ByteArrayData(hash), data];
 			})), // datums
 			LedgerData.newTxId(txHash),
 		];
@@ -6425,7 +6434,7 @@ class LedgerData extends ConstrData {
 		return new LedgerData(0, [
 			address,
 			value,
-			datumHash === null ? LedgerData.newOption() : LedgerData.newOption(new ByteArrayData(datumHash)), 
+			datumHash === null ? LedgerData.newOutputDatumNone() : LedgerData.newOutputDatumHash(datumHash), 
 		], {
 			addr: addr,
 			address: address, 
@@ -6492,6 +6501,30 @@ class LedgerData extends ConstrData {
 		} else {
 			return new LedgerData(0, [content], {content: content});
 		}
+	}
+
+	/**
+	 * @returns {LedgerData}
+	 */
+	static newOutputDatumNone() {
+		return new LedgerData(0, [], {});
+	}
+
+
+	/**
+	 * @param {number[]} hash 
+	 * @returns {LedgerData}
+	 */
+	static newOutputDatumHash(hash) {
+		return new LedgerData(1, [new ByteArrayData(hash)], {});
+	}
+
+	/**
+	 * @param {PlutusCoreData} data
+	 * @returns {LedgerData}
+	 */
+	static newOutputDatumInline(data) {
+		return new LedgerData(2, [data], {});
 	}
 
 	/**
@@ -7764,6 +7797,8 @@ function tokenizeIR(rawSrc, codeMap) {
 			return "minting";
 		case ScriptPurpose.Spending:
 			return "spending";
+		case ScriptPurpose.Staking:
+			return "staking";
 		default:
 			throw new Error(`unhandled ScriptPurpose ${id}`);
 	}
@@ -8459,7 +8494,12 @@ class BuiltinType extends DataType {
 	 * @returns {GeneralizedValue}
 	 */
 	getTypeMember(name) {
-		throw name.referenceError(`${this.toString()}::${name.value} undefined`);
+		switch (name.value) {
+			case "from_data":
+				return Value.new(new FuncType([new RawDataType()], this));
+			default:
+				throw name.referenceError(`${this.toString()}::${name.value} undefined`);
+		}
 	}
 
 	/**
@@ -8743,90 +8783,6 @@ class FuncType extends Type {
 		}
 
 		return this.#retType;
-	}
-
-	/**
-	 * Checks if 'this' functype is valid for main()
-	 * @param {Site} site 
-	 * @param {number} purpose 
-	 * @returns {[boolean, boolean, boolean]} - [haveDatum, haveRedeemer, haveScriptContext]
-	 */
-	checkAsMain(site, purpose) {
-		let haveDatum = false;
-		let haveRedeemer = false;
-		let haveScriptContext = false;
-
-		if (purpose == ScriptPurpose.Testing) {
-			// any number of arguments of any type allowed
-		} else if (!Type.same(site, this.#retType, new BoolType())) {
-			throw site.typeError(`invalid main return type: expected Bool, got ${this.#retType.toString()}`);
-		} else if (purpose == ScriptPurpose.Spending) {
-			if (this.#argTypes.length > 3) {
-				throw site.typeError("too many arguments for main");
-			}
-
-			for (let arg of this.#argTypes) {
-				let t = arg.toString();
-
-				if (t == "Datum") {
-					if (haveDatum) {
-						throw site.typeError("duplicate \'Datum\' argument");
-					} else if (haveRedeemer) {
-						throw site.typeError("\'Datum\' must come before \'Redeemer\'");
-					} else if (haveScriptContext) {
-						throw site.typeError("\'Datum\' must come before \'ScriptContext\'");
-					} else {
-						haveDatum = true;
-					}
-				} else if (t == "Redeemer") {
-					if (haveRedeemer) {
-						throw site.typeError("duplicate \'Redeemer\' argument");
-					} else if (haveScriptContext) {
-						throw site.typeError("\'Redeemer\' must come before \'ScriptContext\'");
-					} else {
-						haveRedeemer = true;
-					}
-				} else if (t == "ScriptContext") {
-					if (haveScriptContext) {
-						throw site.typeError("duplicate \'ScriptContext\' argument");
-					} else {
-						haveScriptContext = true;
-					}
-				} else {
-					throw site.typeError("illegal argument type, must be \'Datum\', \'Redeemer\' or \'ScriptContext\'");
-				}
-			}
-		} else if (purpose == ScriptPurpose.Minting) {
-			if (this.#argTypes.length > 2) {
-				throw site.typeError("too many arguments for main");
-			}
-
-			for (let arg of this.#argTypes) {
-				let t = arg.toString();
-
-				if (t == "Redeemer") {
-					if (haveRedeemer) {
-						throw site.typeError(`duplicate "Redeemer" argument`);
-					} else if (haveScriptContext) {
-						throw site.typeError(`"Redeemer" must come before "ScriptContext"`);
-					} else {
-						haveRedeemer = true;
-					}
-				} else if (t == "ScriptContext") {
-					if (haveScriptContext) {
-						throw site.typeError(`duplicate "ScriptContext" argument`);
-					} else {
-						haveScriptContext = true;
-					}
-				} else {
-					throw site.typeError(`illegal argument type, must be "Redeemer" or "ScriptContext"`);
-				}
-			}
-		} else {
-			throw new Error(`unhandled ScriptPurpose ${purpose.toString()}`);
-		}
-
-		return [haveDatum, haveRedeemer, haveScriptContext];
 	}
 }
 
@@ -9198,10 +9154,14 @@ class GlobalScope {
 		scope.set("MintingPolicyHash", new MintingPolicyHashType(purpose));
 		scope.set("DatumHash", new DatumHashType());
 		scope.set("ScriptContext", new ScriptContextType(purpose));
+		scope.set("StakingPurpose", new StakingPurposeType());
+		scope.set("DCert", new DCertType());
 		scope.set("Tx", new TxType());
 		scope.set("TxId", new TxIdType());
 		scope.set("TxInput", new TxInputType());
 		scope.set("TxOutput", new TxOutputType());
+		scope.set("OutputDatum", new OutputDatumType());
+		scope.set("Data", new RawDataType());
 		scope.set("TxOutputId", new TxOutputIdType());
 		scope.set("Address", new AddressType());
 		scope.set("Credential", new CredentialType());
@@ -11775,7 +11735,7 @@ class DataDefinition extends Statement {
 			 */
 			let getter;
 
-			if (i < 10) {
+			if (i < 20) {
 				getter = new IR(`__helios__common__field_${i}`, f.site);
 
 				if (isBool) {
@@ -12364,6 +12324,9 @@ class ImplDefinition {
 	 */
 	getTypeMember(name, dryRun = false) {
 		switch (name.value) {
+			case "from_data":
+				this.#usedStatements.add(name.toString());
+				return Value.new(new FuncType([new RawDataType()], this.#selfTypeExpr.type));
 			default:
 				for (let i = 0; i < this.#statementValues.length; i++) {
 					let s = this.#statements[i];
@@ -12432,6 +12395,12 @@ class ImplDefinition {
 			]));
 		}
 
+		if (this.#usedStatements.has("from_data")) {
+			map.set(`${path}__from_data`, new IR([
+				new IR("(self) "), new IR("->", site), new IR(" {self}")
+			]));
+		}
+
 		for (let s of this.#statements) {
 			let key = `${path}__${s.name.toString()}`
 			if (s instanceof FuncStatement) {
@@ -12496,6 +12465,9 @@ export class Program {
 			case ScriptPurpose.Minting:
 				program = new MintingProgram(name, statements);
 				break
+			case ScriptPurpose.Staking:
+				program = new StakingProgram(name, statements);
+				break;
 			default:
 				throw new Error("unhandled script purpose");
 		}
@@ -12702,11 +12674,13 @@ export class Program {
 
 		let irProgram = IRProgram.new(ir, simplify);
 
+		//console.log(irProgram.site.src.pretty());
+		
 		return irProgram.toPlutusCore();
 	}
 }
 
-class TestingProgram extends Program {
+class RedeemerProgram extends Program {
 	/**
 	 * @param {Word} name 
 	 * @param {Statement[]} statements 
@@ -12715,56 +12689,84 @@ class TestingProgram extends Program {
 		super(name, statements);
 	}
 
-	toString() {
-		return `testing ${this.name}\n${super.toString()}`;
-	}
-
-	evalTypes() {
-		let scope = GlobalScope.new(ScriptPurpose.Testing);
-
-		this.evalTypesInternal(scope);
-
-		// main can have any arg types, and any return type 
-	}
-
 	/**
-	 * @returns {IR}
+	 * @param {GlobalScope} scope
 	 */
-	toIR() {
-		let outerArgs = this.main.argTypes.map((_, i) => new IR(`arg${i}`));
+	evalTypesInternal(scope) {
+		super.evalTypesInternal(scope);
 
-		let innerArgs = this.main.argTypes.map((t, i) => {
-			if (t instanceof BoolType) {
-				return new IR([
-					new IR("__helios__common__unBoolData("),
-					new IR(`arg${i}`),
-					new IR(")")
-				]);
-			} else {
-				return new IR(`arg${i}`);
-			}
-		});
+		// check the 'main' function
 
-		// don't need to specify TAB because it is at top level
-		let ir = new IR([
-			new IR("main("),
-			new IR(innerArgs).join(", "),
-			new IR(")"),
-		]);
+		let main = this.main;
+		let argTypes = main.argTypes;
+		let retType = main.retType;
+		let haveRedeemer = false;
+		let haveScriptContext = false;
 
-		if (this.main.retType instanceof BoolType) {
-			ir = new IR([
-				new IR("__helios__common__boolData("),
-				ir,
-				new IR(")"),
-			]);
+		if (argTypes.length > 2) {
+			throw main.typeError("too many arguments for main");
 		}
 
-		ir = new IR([
+		for (let arg of argTypes) {
+			let t = arg.toString();
+
+			if (t == "Redeemer") {
+				if (haveRedeemer) {
+					throw main.typeError(`duplicate 'Redeemer' argument`);
+				} else if (haveScriptContext) {
+					throw main.typeError(`'Redeemer' must come before 'ScriptContext'`);
+				} else {
+					haveRedeemer = true;
+				}
+			} else if (t == "ScriptContext") {
+				if (haveScriptContext) {
+					throw main.typeError(`duplicate 'ScriptContext' argument`);
+				} else {
+					haveScriptContext = true;
+				}
+			} else {
+				throw main.typeError(`illegal argument type, must be 'Redeemer' or 'ScriptContext'`);
+			}
+		}
+
+		if (!(retType instanceof BoolType)) {
+			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retType.toString()}'`);
+		}
+	}
+
+	toIR() {
+		/** @type {IR[]} */
+		let outerArgs = [];
+
+		/** @type {IR[]} */
+		let innerArgs = [];
+
+		for (let t of this.main.argTypes) {
+			if (t.toString() == "Redeemer") {
+				innerArgs.push(new IR("redeemer"));
+				outerArgs.push(new IR("redeemer"));
+			} else if (t.toString() == "ScriptContext") {
+				innerArgs.push(new IR("ctx"));
+				if (outerArgs.length == 0) {
+					outerArgs.push(new IR("_"));
+				}
+				outerArgs.push(new IR("ctx"));
+			} else {
+				throw new Error("unexpected");
+			}
+		}
+
+		while(outerArgs.length < 2) {
+			outerArgs.push(new IR("_"));
+		}
+
+		let ir = new IR([
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
-			ir,
+			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}main(`),
+			new IR(innerArgs).join(", "),
+			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
 		]);
 
@@ -12772,7 +12774,7 @@ class TestingProgram extends Program {
 	}
 }
 
-class SpendingProgram extends Program {
+class DatumRedeemerProgram extends Program {
 	/**
 	 * @param {Word} name 
 	 * @param {Statement[]} statements 
@@ -12781,14 +12783,11 @@ class SpendingProgram extends Program {
 		super(name, statements);
 	}
 
-	toString() {
-		return `spending ${this.name}\n${super.toString()}`;
-	}
-
-	evalTypes() {
-		let scope = GlobalScope.new(ScriptPurpose.Spending);
-
-		this.evalTypesInternal(scope);
+	/**
+	 * @param {GlobalScope} scope 
+	 */
+	evalTypesInternal(scope) {
+		super.evalTypesInternal(scope);
 
 		// check the 'main' function
 
@@ -12886,7 +12885,93 @@ class SpendingProgram extends Program {
 	}
 }
 
-class MintingProgram extends Program {
+class TestingProgram extends Program {
+	/**
+	 * @param {Word} name 
+	 * @param {Statement[]} statements 
+	 */
+	constructor(name, statements) {
+		super(name, statements);
+	}
+
+	toString() {
+		return `testing ${this.name}\n${super.toString()}`;
+	}
+
+	evalTypes() {
+		let scope = GlobalScope.new(ScriptPurpose.Testing);
+
+		this.evalTypesInternal(scope);
+
+		// main can have any arg types, and any return type 
+	}
+
+	/**
+	 * @returns {IR}
+	 */
+	toIR() {
+		let outerArgs = this.main.argTypes.map((_, i) => new IR(`arg${i}`));
+
+		let innerArgs = this.main.argTypes.map((t, i) => {
+			if (t instanceof BoolType) {
+				return new IR([
+					new IR("__helios__common__unBoolData("),
+					new IR(`arg${i}`),
+					new IR(")")
+				]);
+			} else {
+				return new IR(`arg${i}`);
+			}
+		});
+
+		// don't need to specify TAB because it is at top level
+		let ir = new IR([
+			new IR("main("),
+			new IR(innerArgs).join(", "),
+			new IR(")"),
+		]);
+
+		if (this.main.retType instanceof BoolType) {
+			ir = new IR([
+				new IR("__helios__common__boolData("),
+				ir,
+				new IR(")"),
+			]);
+		}
+
+		ir = new IR([
+			new IR(`${TAB}/*entry point*/\n${TAB}(`),
+			new IR(outerArgs).join(", "),
+			new IR(`) -> {\n${TAB}${TAB}`),
+			ir,
+			new IR(`\n${TAB}}`),
+		]);
+
+		return this.wrapEntryPoint(ir);
+	}
+}
+
+class SpendingProgram extends DatumRedeemerProgram {
+	/**
+	 * @param {Word} name 
+	 * @param {Statement[]} statements 
+	 */
+	constructor(name, statements) {
+		super(name, statements);
+	}
+
+	toString() {
+		return `spending ${this.name}\n${super.toString()}`;
+	}
+
+	evalTypes() {
+		let scope = GlobalScope.new(ScriptPurpose.Spending);
+
+		this.evalTypesInternal(scope);	
+	}
+}
+
+class MintingProgram extends RedeemerProgram {
 	/**
 	 * @param {Word} name 
 	 * @param {Statement[]} statements 
@@ -12902,84 +12987,27 @@ class MintingProgram extends Program {
 	evalTypes() {
 		let scope = GlobalScope.new(ScriptPurpose.Minting);
 
-		this.evalTypesInternal(scope);
+		this.evalTypesInternal(scope);	
+	}
+}
 
-		// check the 'main' function
-
-		let main = this.main;
-		let argTypes = main.argTypes;
-		let retType = main.retType;
-		let haveRedeemer = false;
-		let haveScriptContext = false;
-
-		if (argTypes.length > 2) {
-			throw main.typeError("too many arguments for main");
-		}
-
-		for (let arg of argTypes) {
-			let t = arg.toString();
-
-			if (t == "Redeemer") {
-				if (haveRedeemer) {
-					throw main.typeError(`duplicate 'Redeemer' argument`);
-				} else if (haveScriptContext) {
-					throw main.typeError(`'Redeemer' must come before 'ScriptContext'`);
-				} else {
-					haveRedeemer = true;
-				}
-			} else if (t == "ScriptContext") {
-				if (haveScriptContext) {
-					throw main.typeError(`duplicate 'ScriptContext' argument`);
-				} else {
-					haveScriptContext = true;
-				}
-			} else {
-				throw main.typeError(`illegal argument type, must be 'Redeemer' or 'ScriptContext'`);
-			}
-		}
-
-		if (!(retType instanceof BoolType)) {
-			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retType.toString()}'`);
-		}
+class StakingProgram extends RedeemerProgram {
+	/**
+	 * @param {Word} name 
+	 * @param {Statement[]} statements 
+	 */
+	constructor(name, statements) {
+		super(name, statements);
 	}
 
-	toIR() {
-		/** @type {IR[]} */
-		let outerArgs = [];
+	toString() {
+		return `staking ${this.name}\n${super.toString()}`;
+	}
 
-		/** @type {IR[]} */
-		let innerArgs = [];
+	evalTypes() {
+		let scope = GlobalScope.new(ScriptPurpose.Staking);
 
-		for (let t of this.main.argTypes) {
-			if (t.toString() == "Redeemer") {
-				innerArgs.push(new IR("redeemer"));
-				outerArgs.push(new IR("redeemer"));
-			} else if (t.toString() == "ScriptContext") {
-				innerArgs.push(new IR("ctx"));
-				if (outerArgs.length == 0) {
-					outerArgs.push(new IR("_"));
-				}
-				outerArgs.push(new IR("ctx"));
-			} else {
-				throw new Error("unexpected");
-			}
-		}
-
-		while(outerArgs.length < 2) {
-			outerArgs.push(new IR("_"));
-		}
-
-		let ir = new IR([
-			new IR(`${TAB}/*entry point*/\n${TAB}(`),
-			new IR(outerArgs).join(", "),
-			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}main(`),
-			new IR(innerArgs).join(", "),
-			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error("transaction rejected")}\n${TAB}${TAB})()`),
-			new IR(`\n${TAB}}`),
-		]);
-
-		return this.wrapEntryPoint(ir);
+		this.evalTypesInternal(scope);	
 	}
 }
 
@@ -13360,7 +13388,7 @@ function buildImplDefinition(ts, selfTypeExpr, fieldNames) {
 	 * @param {Word} name 
 	 */
 	function assertNonAuto(name) {
-		if (name.toString() == "serialize" || name.toString() == "__eq" || name.toString() == "__neq") {
+		if (name.toString() == "serialize" || name.toString() == "__eq" || name.toString() == "__neq" || name.toString() == "from_data") {
 			throw name.syntaxError(`'${name.toString()}' is a reserved member`);
 		}
 	}
@@ -14662,6 +14690,8 @@ class MapType extends BuiltinType {
 				return Value.new(new FuncType([], new BoolType()));
 			case "get":
 				return Value.new(new FuncType([this.#keyType], this.#valueType));
+			case "get_safe":
+				return Value.new(new FuncType([this.#keyType], new OptionType(this.#valueType)));
 			case "all":
 			case "any":
 				return Value.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], new BoolType()));
@@ -14874,6 +14904,19 @@ class OptionSomeType extends BuiltinType {
 
 	/**
 	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
 	 * @returns {Value}
 	 */
 	getInstanceMember(name) {
@@ -14929,6 +14972,19 @@ class OptionNoneType extends BuiltinType {
 			return this.#someType.isBaseOf(site, type.#someType);
 		} else {
 			return false;
+		}
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
 		}
 	}
 
@@ -15129,17 +15185,61 @@ class ScriptContextType extends BuiltinType {
 	 */
  	getTypeMember(name) {
 		switch (name.value) {
-			case "new":
+			case "new_spending":
 				if (this.macrosAllowed) {
-					if (this.#purpose == ScriptPurpose.Spending) {
-						return Value.new(new FuncType([new IntType(), new TxType()], this));
-					} else if (this.#purpose == ScriptPurpose.Minting) {
-						return Value.new(new FuncType([new TxType()], this));
+					if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Testing) {
+						return Value.new(new FuncType([new TxType(), new IntType()], this));
 					} else {
-						throw new Error("unhandled purpose");
+						throw name.referenceError("'ScriptContext::new_spending' only avaiable for spending");
 					}
 				} else {
-					throw name.referenceError("'ScriptContext::new' can only be used after 'main'");
+					if (this.#purpose == ScriptPurpose.Staking || this.#purpose == ScriptPurpose.Minting) {
+						throw name.referenceError("'ScriptContext::new_spending' only avaiable for spending  scripts");
+					} else {
+						throw name.referenceError("'ScriptContext::new_spending' can only be used after 'main'");
+					}
+				}
+			case "new_minting":
+				if (this.macrosAllowed) {
+					if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Testing) {
+						return Value.new(new FuncType([new TxType()], this));
+					} else {
+						throw name.referenceError("'ScriptContext::new_minting' only avaiable for minting scripts");
+					}
+				} else {
+					if (this.#purpose == ScriptPurpose.Staking || this.#purpose == ScriptPurpose.Spending) {
+						throw name.referenceError("'ScriptContext::new_minting' only avaiable for minting scripts");
+					} else {
+						throw name.referenceError("'ScriptContext::new_minting' can only be used after 'main'");
+					}
+				}
+			case "new_rewarding":
+				if (this.macrosAllowed) {
+					if (this.#purpose == ScriptPurpose.Staking || this.#purpose == ScriptPurpose.Testing) {
+						return Value.new(new FuncType([new TxType(), new StakingCredentialType()], this));
+					} else {
+						throw name.referenceError("'ScriptContext::new_rewarding' only avaiable for staking scripts");
+					}
+				} else {
+					if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Minting) {
+						throw name.referenceError("'ScriptContext::new_rewarding' only avaiable for staking scripts");
+					} else {
+						throw name.referenceError("'ScriptContext::new_rewarding' can only be used after 'main'");
+					}
+				}
+			case "new_certifying":
+				if (this.macrosAllowed) {
+					if (this.#purpose == ScriptPurpose.Staking || this.#purpose == ScriptPurpose.Testing) {
+						return Value.new(new FuncType([new TxType(), new DCertType()], this));
+					} else {
+						throw name.referenceError("'ScriptContext::new_certifying' only avaiable for staking scripts");
+					}
+				} else {
+					if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Minting) {
+						throw name.referenceError("'ScriptContext::new_certifying' only avaiable for staking scripts");
+					} else {
+						throw name.referenceError("'ScriptContext::new_certifying' can only be used after 'main'");
+					}
 				}
 			default:
 				return super.getTypeMember(name);
@@ -15155,25 +15255,35 @@ class ScriptContextType extends BuiltinType {
 			case "tx":
 				return Value.new(new TxType());
 			case "get_spending_purpose_output_id":
-				if (this.#purpose == ScriptPurpose.Minting) {
+				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
 					throw name.referenceError("not available in minting script");
 				} else {
 					return Value.new(new FuncType([], new TxOutputIdType()));
 				}
 			case "get_current_validator_hash":
-				if (this.#purpose == ScriptPurpose.Minting) {
+				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
 					throw name.referenceError("not available in minting script");
 				} else {
 					return Value.new(new FuncType([], new ValidatorHashType(this.#purpose)));
 				}
 			case "get_current_minting_policy_hash":
-				if (this.#purpose == ScriptPurpose.Spending) {
+				if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Staking) {
 					throw name.referenceError("not available in minting script");
 				} else {
 					return Value.new(new FuncType([], new MintingPolicyHashType(this.#purpose)));
 				}
 			case "get_current_input":
-				return Value.new(new FuncType([], new TxInputType()));
+				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
+					throw name.referenceError("not available in spending script");
+				} else {
+					return Value.new(new FuncType([], new TxInputType()));
+				}
+			case "get_staking_purpose":
+				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Spending) {
+					throw name.referenceError("not available in staking script");
+				} else {
+					return Value.new(new FuncType([], new StakingPurposeType()));
+				}
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -15185,6 +15295,461 @@ class ScriptContextType extends BuiltinType {
 		} else {
 			return `__helios__${getPurposeName(this.#purpose)}scriptcontext`;
 		}
+	}
+}
+
+/**
+ * Builtin StakingPurpose type (Rewarding or Certifying)
+ */
+ class StakingPurposeType extends BuiltinType {
+	toString() {
+		return "StakingPurpose";
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		let b = super.isBaseOf(site, type) ||
+				(new StakingRewardingPurposeType()).isBaseOf(site, type) || 
+				(new StakingCertifyingPurposeType()).isBaseOf(site, type); 
+
+		return b;
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "Rewarding":
+				return new StakingRewardingPurposeType();
+			case "Certifying":
+				return new StakingCertifyingPurposeType();
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	nEnumMembers(site) {
+		return 2;
+	}
+
+	get path() {
+		return "__helios__stakingpurpose";
+	}
+}
+
+/**
+ * Builtin StakingPurpose::Rewarding
+ */
+class StakingRewardingPurposeType extends BuiltinType {
+	toString() {
+		return "StakingPurpose::Rewarding";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new StakingPurposeType()], new BoolType()));
+			case "credential":
+				return Value.new(new StakingCredentialType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 2;
+	}
+
+	get path() {
+		return "__helios__stakingpurpose__rewarding";
+	}
+}
+
+/**
+ * Builtin StakingPurpose::Certifying type
+ */
+class StakingCertifyingPurposeType extends BuiltinType {
+	toString() {
+		return "StakingPurpose::Certifying";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new StakingPurposeType()], new BoolType()));
+			case "dcert":
+				return Value.new(new DCertType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 3;
+	}
+
+	get path() {
+		return "__helios__stakingpurpose__certifying";
+	}
+}
+
+class DCertType extends BuiltinType {
+	toString() {
+		return "DCert";
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		let b = super.isBaseOf(site, type) ||
+				(new RegisterDCertType()).isBaseOf(site, type) || 
+				(new DeregisterDCertType()).isBaseOf(site, type) || 
+				(new DelegateDCertType()).isBaseOf(site, type) || 
+				(new RegisterPoolDCertType()).isBaseOf(site, type) ||
+				(new RetirePoolDCertType()).isBaseOf(site, type); 
+
+		return b;
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "new_register":
+				return Value.new(new FuncType([new StakingCredentialType()], new RegisterDCertType()));
+			case "new_deregister":
+				return Value.new(new FuncType([new StakingCredentialType()], new DeregisterDCertType()));
+			case "new_delegate":
+				return Value.new(new FuncType([new StakingCredentialType(), new PubKeyHashType()], new DelegateDCertType()));
+			case "new_register_pool":
+				return Value.new(new FuncType([new PubKeyHashType(), new PubKeyHashType()], new RegisterPoolDCertType()));
+			case "new_retire_pool":
+				return Value.new(new FuncType([new PubKeyHashType(), new IntType()], new RetirePoolDCertType()));
+			case "Register":
+				return new RegisterDCertType();
+			case "Deregister":
+				return new DeregisterDCertType();
+			case "Delegate":
+				return new DelegateDCertType();
+			case "RegisterPool":
+				return new RegisterPoolDCertType();
+			case "RetirePool":
+				return new RetirePoolDCertType();
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	nEnumMembers(site) {
+		return 5;
+	}
+
+	get path() {
+		return "__helios__dcert";
+	}
+}
+
+class RegisterDCertType extends BuiltinType {
+	toString() {
+		return "DCert::Register";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new DCertType()], new BoolType()));
+			case "credential":
+				return Value.new(new StakingCredentialType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 0;
+	}
+
+	get path() {
+		return "__helios__dcert__register";
+	}
+}
+
+class DeregisterDCertType extends BuiltinType {
+	toString() {
+		return "DCert::Deregister";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new DCertType()], new BoolType()));
+			case "credential":
+				return Value.new(new StakingCredentialType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 1;
+	}
+
+	get path() {
+		return "__helios__dcert__deregister";
+	}
+}
+
+class DelegateDCertType extends BuiltinType {
+	toString() {
+		return "DCert::Delegate";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new DCertType()], new BoolType()));
+			case "delegator":
+				return Value.new(new StakingCredentialType());
+			case "pool_id":
+				return Value.new(new PubKeyHashType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 2;
+	}
+
+	get path() {
+		return "__helios__dcert__delegate";
+	}
+}
+
+class RegisterPoolDCertType extends BuiltinType {
+	toString() {
+		return "DCert::RegisterPool";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new DCertType()], new BoolType()));
+			case "pool_id":
+				return Value.new(new PubKeyHashType());
+			case "pool_vfr":
+				return Value.new(new PubKeyHashType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 3;
+	}
+
+	get path() {
+		return "__helios__dcert__registerpool";
+	}
+}
+
+class RetirePoolDCertType extends BuiltinType {
+	toString() {
+		return "DCert::RetirePool";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new DCertType()], new BoolType()));
+			case "pool_id":
+				return Value.new(new PubKeyHashType());
+			case "epoch":
+				return Value.new(new IntType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 4;
+	}
+
+	get path() {
+		return "__helios__dcert__retirepool";
 	}
 }
 
@@ -15210,12 +15775,15 @@ class TxType extends BuiltinType {
 				if (this.macrosAllowed) {
 					return Value.new(new FuncType([
 						new ListType(new TxInputType()), // 0
-						new ListType(new TxOutputType()), // 1
-						new MoneyValueType(), // 2
+						new ListType(new TxInputType()), // 1
+						new ListType(new TxOutputType()), // 2
 						new MoneyValueType(), // 3
-						new TimeRangeType(), // 6
-						new ListType(new PubKeyHashType()), // 7
-						new MapType(new DatumHashType(), new AnyDataType()) // 8
+						new MoneyValueType(), // 4
+						new ListType(new DCertType()), // 5
+						new MapType(new StakingCredentialType(), new IntType()), // 6
+						new TimeRangeType(), // 7
+						new ListType(new PubKeyHashType()), // 8
+						new MapType(new DatumHashType(), new AnyDataType()) // 10
 					], this));
 				} else {
 					throw name.referenceError("'Tx::new' can only be used after 'main'");
@@ -15233,12 +15801,18 @@ class TxType extends BuiltinType {
 		switch (name.value) {
 			case "inputs":
 				return Value.new(new ListType(new TxInputType()));
+			case "ref_inputs":
+				return Value.new(new ListType(new TxInputType()));
 			case "outputs":
 				return Value.new(new ListType(new TxOutputType()));
 			case "fee":
 				return Value.new(new MoneyValueType());
 			case "minted":
 				return Value.new(new MoneyValueType());
+			case "dcerts":
+				return Value.new(new ListType(new DCertType()));
+			case "withdrawals":
+				return Value.new(new MapType(new StakingCredentialType(), new IntType()));
 			case "time_range":
 				return Value.new(new TimeRangeType());
 			case "signatories":
@@ -15376,7 +15950,7 @@ class TxOutputType extends BuiltinType {
 					return Value.new(new FuncType([
 						new AddressType(), // 0
 						new MoneyValueType(), // 1
-						new OptionType(new DatumHashType()), // 2
+						new OutputDatumType(), // 2
 					], this));
 				} else {
 					throw name.referenceError("'TxOutput::new' can only be used after 'main'");
@@ -15396,8 +15970,8 @@ class TxOutputType extends BuiltinType {
 				return Value.new(new AddressType());
 			case "value":
 				return Value.new(new MoneyValueType());
-			case "datum_hash":
-				return Value.new(new OptionType(new DatumHashType()));
+			case "datum":
+				return Value.new(new OutputDatumType());
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -15405,6 +15979,221 @@ class TxOutputType extends BuiltinType {
 
 	get path() {
 		return "__helios__txoutput";
+	}
+}
+class OutputDatumType extends BuiltinType {
+	toString() {
+		return "OutputDatum";
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		let b = super.isBaseOf(site, type) ||
+				(new OutputDatumNoneType()).isBaseOf(site, type) || 
+				(new OutputDatumHashType()).isBaseOf(site, type) || 
+				(new OutputDatumInlineType()).isBaseOf(site, type);; 
+
+		return b;
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "new_none":
+				if (this.macrosAllowed) {
+					return Value.new(new FuncType([], new OutputDatumNoneType()));
+				} else {
+					throw name.referenceError("'OutputDatum::new_none' only allowed after 'main'");
+				}
+			case "new_hash":
+				if (this.macrosAllowed) {
+					return Value.new(new FuncType([new DatumHashType()], new OutputDatumHashType()));
+				} else {
+					throw name.referenceError("'OutputDatum::new_hash' only allowed after 'main'");
+				}
+			case "new_inline":
+				if (this.macrosAllowed) {
+					return Value.new(new FuncType([new AnyDataType()], new OutputDatumInlineType()));
+				} else {
+					throw name.referenceError("'OutputDatum::new_inline' only allowed after 'main'");
+				}
+			case "None":
+				return new OutputDatumNoneType();
+			case "Hash":
+				return new OutputDatumHashType();
+			case "Inline":
+				return new OutputDatumInlineType();
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	nEnumMembers(site) {
+		return 3;
+	}
+
+	get path() {
+		return "__helios__outputdatum";
+	}
+}
+
+class OutputDatumNoneType extends BuiltinType {
+	toString() {
+		return "OutputDatum::None";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new OutputDatumType()], new BoolType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 0;
+	}
+
+	get path() {
+		return "__helios__outputdatum__none";
+	}
+}
+
+class OutputDatumHashType extends BuiltinType {
+	toString() {
+		return "OutputDatum::Hash";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new OutputDatumType()], new BoolType()));
+			case "hash":
+				return Value.new(new DatumHashType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 1;
+	}
+
+	get path() {
+		return "__helios__outputdatum__hash";
+	}
+}
+
+class OutputDatumInlineType extends BuiltinType {
+	toString() {
+		return "OutputDatum::Inline";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
+	 * @returns {Value}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Value.new(new FuncType([new OutputDatumType()], new BoolType()));
+			case "data":
+				return Value.new(new RawDataType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 2;
+	}
+
+	get path() {
+		return "__helios__outputdatum__inline";
+	}
+}
+
+class RawDataType extends BuiltinType {
+	toString() {
+		return "Data";
+	}
+
+	get path() {
+		return "__helios__data";
 	}
 }
 
@@ -15541,6 +16330,19 @@ class CredentialPubKeyType extends BuiltinType {
 
 	/**
 	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
 	 * @returns {Value}
 	 */
 	getInstanceMember(name) {
@@ -15578,6 +16380,19 @@ class CredentialValidatorType extends BuiltinType {
 
 	/**
 	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
 	 * @returns {Value}
 	 */
 	getInstanceMember(name) {
@@ -15594,7 +16409,7 @@ class CredentialValidatorType extends BuiltinType {
 
 	/**
 	 * @param {Site} site 
-	 * @returns 
+	 * @returns {number}
 	 */
 	getConstrIndex(site) {
 		return 1;
@@ -15618,7 +16433,7 @@ class StakingCredentialType extends BuiltinType {
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	 isBaseOf(site, type) {
+	isBaseOf(site, type) {
 		let b = super.isBaseOf(site, type) ||
 				(new StakingHashCredentialType()).isBaseOf(site, type) || 
 				(new StakingPtrCredentialType()).isBaseOf(site, type); 
@@ -15630,8 +16445,12 @@ class StakingCredentialType extends BuiltinType {
 	 * @param {Word} name 
 	 * @returns {GeneralizedValue}
 	 */
-	 getTypeMember(name) {
+	getTypeMember(name) {
 		switch (name.value) {
+			case "Hash":
+				return new StakingHashCredentialType();
+			case "Ptr":
+				return new StakingPtrCredentialType();
 			case "new_hash":
 				return Value.new(new FuncType([new CredentialType()], new StakingHashCredentialType()));
 			case "new_ptr":
@@ -15662,6 +16481,19 @@ class StakingCredentialType extends BuiltinType {
 		return "StakingCredential::Hash";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
 	/**
 	 * @param {Word} name 
 	 * @returns {Value}
@@ -15697,6 +16529,19 @@ class StakingCredentialType extends BuiltinType {
 		return "StakingCredential::Ptr";
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {GeneralizedValue}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
 	/**
 	 * @param {Word} name 
 	 * @returns {Value}
@@ -16066,10 +16911,11 @@ function makeRawFunctions() {
 	 * Adds basic auto members to a fully named type
 	 * @param {string} ns 
 	 */
-	function addEqNeqSerialize(ns) {
+	function addDataFuncs(ns) {
 		add(new RawFunc(`${ns}____eq`, "__helios__common____eq"));
 		add(new RawFunc(`${ns}____neq`, "__helios__common____neq"));
 		add(new RawFunc(`${ns}__serialize`, "__helios__common__serialize"));
+		add(new RawFunc(`${ns}__from_data`, "__helios__common__identity"));
 	}
 
 	/**
@@ -16260,6 +17106,26 @@ function makeRawFunctions() {
 	`(self, fn) -> {
 		__helios__common__filter(self, fn, __core__mkNilPairData(()))
 	}`));
+	add(new RawFunc("__helios__common__find",
+	`(self, fn) -> {
+		(recurse) -> {
+			recurse(recurse, self, fn)
+		}(
+			(recurse, self, fn) -> {
+				__core__ifThenElse(
+					__core__nullList(self), 
+					() -> {__core__error("not found")}, 
+					() -> {
+						__core__ifThenElse(
+							fn(__core__headList(self)), 
+							() -> {__core__headList(self)}, 
+							() -> {recurse(recurse, __core__tailList(self), fn)}
+						)()
+					}
+				)()
+			}
+		)
+	}`));
 	add(new RawFunc("__helios__common__fold",
 	`(self, fn, z) -> {
 		(recurse) -> {
@@ -16273,6 +17139,28 @@ function makeRawFunctions() {
 				)()
 			}
 		)
+	}`));
+	add(new RawFunc("__helios__common__map_get",
+	`(self, key, fnFound, fnNotFound) -> {
+		(self) -> {
+			(recurse) -> {
+				recurse(recurse, self, key)
+			}(
+				(recurse, self, key) -> {
+					__core__ifThenElse(
+						__core__nullList(self), 
+						fnNotFound, 
+						() -> {
+							__core__ifThenElse(
+								__core__equalsData(key, __core__fstPair(__core__headList(self))), 
+								() -> {fnFound(__core__sndPair(__core__headList(self)))}, 
+								() -> {recurse(recurse, __core__tailList(self), key)}
+							)()
+						}
+					)()
+				}
+			)
+		}(__core__unMapData(self))
 	}`));
 	add(new RawFunc("__helios__common__is_in_bytearray_list",
 	`(lst, key) -> {
@@ -16428,123 +17316,43 @@ function makeRawFunctions() {
 	`(self) -> {
 		__core__tailList(__helios__common__fields(self))
 	}`));
-	add(new RawFunc("__helios__common__field_1",
+	for (let i = 1; i < 20; i++) {
+		add(new RawFunc(`__helios__common__field_${i.toString()}`,
 	`(self) -> {
-		__core__headList(__helios__common__fields_after_0(self))
+		__core__headList(__helios__common__fields_after_${(i-1).toString()}(self))
 	}`));
-	add(new RawFunc("__helios__common__fields_after_1",
+		add(new RawFunc(`__helios__common__fields_after_${i.toString()}`,
 	`(self) -> {
-		__core__tailList(__helios__common__fields_after_0(self))
+		__core__tailList(__helios__common__fields_after_${(i-1).toString()}(self))
 	}`));
-	add(new RawFunc("__helios__common__field_2",
-	`(self) -> {
-		__core__headList(__helios__common__fields_after_1(self))
-	}`));
-	add(new RawFunc("__helios__common__fields_after_2",
-	`(self) -> {
-		__core__tailList(__helios__common__fields_after_1(self))
-	}`));
-	add(new RawFunc("__helios__common__field_3",
-	`(self) -> {
-		__core__headList(__helios__common__fields_after_2(self))
-	}`));
-	add(new RawFunc("__helios__common__fields_after_3",
-	`(self) -> {
-		__core__tailList(__helios__common__fields_after_2(self))
-	}`));
-	add(new RawFunc("__helios__common__field_4",
-	`(self) -> {
-		__core__headList(__helios__common__fields_after_3(self))
-	}`));
-	add(new RawFunc("__helios__common__fields_after_4",
-	`(self) -> {
-		__core__tailList(__helios__common__fields_after_3(self))
-	}`));
-	add(new RawFunc("__helios__common__field_5",
-	`(self) -> {
-		__core__headList(__helios__common__fields_after_4(self))
-	}`));
-	add(new RawFunc("__helios__common__fields_after_5",
-	`(self) -> {
-		__core__tailList(__helios__common__fields_after_4(self))
-	}`));
-	add(new RawFunc("__helios__common__field_6",
-	`(self) -> {
-		__core__headList(__helios__common__fields_after_5(self))
-	}`));
-	add(new RawFunc("__helios__common__fields_after_6",
-	`(self) -> {
-		__core__tailList(__helios__common__fields_after_5(self))
-	}`));
-	add(new RawFunc("__helios__common__field_7",
-	`(self) -> {
-		__core__headList(__helios__common__fields_after_6(self))
-	}`));
-	add(new RawFunc("__helios__common__fields_after_7",
-	`(self) -> {
-		__core__tailList(__helios__common__fields_after_6(self))
-	}`));
-	add(new RawFunc("__helios__common__field_8",
-	`(self) -> {
-		__core__headList(__helios__common__fields_after_7(self))
-	}`));
-	add(new RawFunc("__helios__common__fields_after_8",
-	`(self) -> {
-		__core__tailList(__helios__common__fields_after_7(self))
-	}`));
-	add(new RawFunc("__helios__common__field_9",
-	`(self) -> {
-		__core__headList(__helios__common__fields_after_8(self))
-	}`));
-	add(new RawFunc("__helios__common__fields_after_9",
-	`(self) -> {
-		__core__tailList(__helios__common__fields_after_8(self))
-	}`));
+	}
 	add(new RawFunc("__helios__common__list_0", "__core__mkNilData(())"));
 	add(new RawFunc("__helios__common__list_1", 
 	`(a) -> {
 		__core__mkCons(a, __helios__common__list_0)
 	}`));
-	add(new RawFunc("__helios__common__list_2",
-	`(a, b) -> {
-		__core__mkCons(a, __helios__common__list_1(b))
+	for (let i = 2; i < 20; i++) {
+		/**
+		 * @type {string[]}
+		 */
+		let args = [];
+
+		for (let j = 0; j < i; j++) {
+			args.push(`arg${j.toString()}`);
+		}
+
+		let woFirst = args.slice()
+		let first = assertDefined(woFirst.shift());
+
+		add(new RawFunc(`__helios__common__list_${i.toString()}`,
+	`(${args.join(", ")}) -> {
+		__core__mkCons(${first}, __helios__common__list_${(i-1).toString()}(${woFirst.join(", ")}))
 	}`));
-	add(new RawFunc("__helios__common__list_3",
-	`(a, b, c) -> {
-		__core__mkCons(a, __helios__common__list_2(b, c))
-	}`));
-	add(new RawFunc("__helios__common__list_4",
-	`(a, b, c, d) -> {
-		__core__mkCons(a, __helios__common__list_3(b, c, d))
-	}`));
-	add(new RawFunc("__helios__common__list_5",
-	`(a, b, c, d, e) -> {
-		__core__mkCons(a, __helios__common__list_4(b, c, d, e))
-	}`));
-	add(new RawFunc("__helios__common__list_6",
-	`(a, b, c, d, e, f) -> {
-		__core__mkCons(a, __helios__common__list_5(b, c, d, e, f))
-	}`));
-	add(new RawFunc("__helios__common__list_7",
-	`(a, b, c, d, e, f, g) -> {
-		__core__mkCons(a, __helios__common__list_6(b, c, d, e, f, g))
-	}`));
-	add(new RawFunc("__helios__common__list_8",
-	`(a, b, c, d, e, f, g, h) -> {
-		__core__mkCons(a, __helios__common__list_7(b, c, d, e, f, g, h))
-	}`));
-	add(new RawFunc("__helios__common__list_9",
-	`(a, b, c, d, e, f, g, h, i) -> {
-		__core__mkCons(a, __helios__common__list_8(b, c, d, e, f, g, h, i))
-	}`));
-	add(new RawFunc("__helios__common__list_10",
-	`(a, b, c, d, e, f, g, h, i, j) -> {
-		__core__mkCons(a, __helios__common__list_9(b, c, d, e, f, g, h, i, j))
-	}`));
+	}
 
 
 	// Int builtins
-	addEqNeqSerialize("__helios__int");
+	addDataFuncs("__helios__int");
 	add(new RawFunc("__helios__int____neg",
 	`(self) -> {
 		(self) -> {
@@ -16716,6 +17524,10 @@ function makeRawFunctions() {
 	`(self) -> {
 		__helios__common__serialize(__helios__common__boolData(self))
 	}`));
+	add(new RawFunc(`__helios__bool__from_data`,
+	`(data) -> {
+		__helios__common__unBoolData(data)
+	}`));
 	add(new RawFunc("__helios__bool__and",
 	`(a, b) -> {
 		__core__ifThenElse(
@@ -16753,7 +17565,7 @@ function makeRawFunctions() {
 
 
 	// String builtins
-	addEqNeqSerialize("__helios__string");
+	addDataFuncs("__helios__string");
 	add(new RawFunc("__helios__string____add",
 	`(self) -> {
 		(self) -> {
@@ -16775,7 +17587,7 @@ function makeRawFunctions() {
 
 
 	// ByteArray builtins
-	addEqNeqSerialize("__helios__bytearray");
+	addDataFuncs("__helios__bytearray");
 	add(new RawFunc("__helios__bytearray____add",
 	`(self) -> {
 		(a) -> {
@@ -16868,6 +17680,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__bytearray32____eq", "__helios__bytearray____eq"));
 	add(new RawFunc("__helios__bytearray32____neq", "__helios__bytearray____neq"));
 	add(new RawFunc("__helios__bytearray32__serialize", "__helios__bytearray__serialize"));
+	add(new RawFunc("__helios__bytearray32__from_data", "__helios__bytearray__from_data"))
 	add(new RawFunc("__helios__bytearray32____add", "__helios__bytearray____add"));
 	add(new RawFunc("__helios__bytearray32__length", "(_) -> {__core__iData(32)}"));
 	add(new RawFunc("__helios__bytearray32__slice", 
@@ -16890,7 +17703,7 @@ function makeRawFunctions() {
 
 
 	// List builtins
-	addEqNeqSerialize("__helios__list");
+	addDataFuncs("__helios__list");
 	add(new RawFunc("__helios__list__new",
 	`(n, item) -> {
 		(n) -> {
@@ -16993,23 +17806,8 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
-				(recurse) -> {
-					recurse(recurse, self, fn)
-				}(
-					(recurse, self, fn) -> {
-						__core__ifThenElse(
-							__core__nullList(self), 
-							() -> {__core__error("not found")}, 
-							() -> {
-								__core__ifThenElse(
-									fn(__core__headList(self)), 
-									() -> {__core__headList(self)}, 
-									() -> {recurse(recurse, __core__tailList(self), fn)}
-								)()
-							}
-						)()
-					}
-				)
+				__helios__common__find(self, fn)
+				
 			}
 		}(__core__unListData(self))
 	}`));
@@ -17044,6 +17842,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__boollist____eq", "__helios__list____eq"));
 	add(new RawFunc("__helios__boollist____neq", "__helios__list____neq"));
 	add(new RawFunc("__helios__boollist__serialize", "__helios__list__serialize"));
+	add(new RawFunc("__helios__boollist__from_data", "__helios__list__from_data"));
 	add(new RawFunc("__helios__boollist____add", "__helios__list____add"));
 	add(new RawFunc("__helios__boollist__length", "__helios__list__length"));
 	add(new RawFunc("__helios__boollist__head", 
@@ -17130,7 +17929,7 @@ function makeRawFunctions() {
 
 
 	// Map builtins
-	addEqNeqSerialize("__helios__map");
+	addDataFuncs("__helios__map");
 	add(new RawFunc("__helios__map____add",
 	`(self) -> {
 		(a) -> {
@@ -17155,27 +17954,24 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__map__get",
 	`(self) -> {
-		(self) -> {
-			(key) -> {
-				(recurse) -> {
-					recurse(recurse, self, key)
-				}(
-					(recurse, self, key) -> {
-						__core__ifThenElse(
-							__core__nullList(self), 
-							() -> {__core__error("key not found")}, 
-							() -> {
-								__core__ifThenElse(
-									__core__equalsData(key, __core__fstPair(__core__headList(self))), 
-									() -> {__core__sndPair(__core__headList(self))}, 
-									() -> {recurse(recurse, __core__tailList(self), key)}
-								)()
-							}
-						)()
-					}
-				)
-			}
-		}(__core__unMapData(self))
+		(key) -> {
+			__helios__common__map_get(self, key, (x) -> {x}, () -> {__core__error("key not found")})
+		}
+	}`));
+	add(new RawFunc("__helios__map__get_safe",
+	`(self) -> {
+		(key) -> {
+			__helios__common__map_get(
+				self, 
+				key, 
+				(x) -> {
+					__core__constrData(0, __helios__common__list_1(x))
+				}, 
+				() -> {
+					__core__constrData(1, __helios__common__list_0)
+				}
+			)
+		}
 	}`));
 	add(new RawFunc("__helios__map__all",
 	`(self) -> {
@@ -17365,6 +18161,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__boolmap____eq", "__helios__map____eq"));
 	add(new RawFunc("__helios__boolmap____neq", "__helios__map____neq"));
 	add(new RawFunc("__helios__boolmap__serialize", "__helios__map__serialize"));
+	add(new RawFunc("__helios__boolmap__from_data", "__helios__from_data"));
 	add(new RawFunc("__helios__boolmap____add", "__helios__map____add"));
 	add(new RawFunc("__helios__boolmap__length", "__helios__map__length"));
 	add(new RawFunc("__helios__boolmap__is_empty", "__helios__map__is_empty"));
@@ -17473,8 +18270,8 @@ function makeRawFunctions() {
 
 
 	// Option builtins
-	addEqNeqSerialize("__helios__option");
-	addEqNeqSerialize("__helios__option__some");
+	addDataFuncs("__helios__option");
+	addDataFuncs("__helios__option__some");
 	add(new RawFunc("__helios__option__some__new",
 	`(data) -> {
 		__core__constrData(0, __helios__common__list_1(data))
@@ -17487,6 +18284,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__option__boolsome____eq", "__helios__option__some____eq"));
 	add(new RawFunc("__helios__option__boolsome____neq", "__helios__option__some____neq"));
 	add(new RawFunc("__helios__option__boolsome__serialize", "__helios__option__some__serialize"));
+	add(new RawFunc("__helios__option__boolsome__from_data", "__helios__option__some__from_data"));
 	add(new RawFunc("__helios__option__boolsome__new", 
 	`(b) -> {
 		__helios__option__some__new(__helios__common__boolData(b))
@@ -17496,7 +18294,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		__helios__common__unBoolData(__helios__option__some__some(self))
 	}`));
-	addEqNeqSerialize("__helios__option__none");
+	addDataFuncs("__helios__option__none");
 	add(new RawFunc("__helios__option__none__new",
 	`() -> {
 		__core__constrData(1, __helios__common__list_0)
@@ -17508,15 +18306,44 @@ function makeRawFunctions() {
 
 
 	// Hash builtins
-	addEqNeqSerialize("__helios__hash");
+	addDataFuncs("__helios__hash");
 	add(new RawFunc("__helios__hash__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__hash__show", "__helios__bytearray__show"));
 	add(new RawFunc("__helios__hash__CURRENT", "__core__bData(#0000000000000000000000000000000000000000000000000000000000000000)"));
 
 
 	// ScriptContext builtins
-	addEqNeqSerialize("__helios__scriptcontext");
+	addDataFuncs("__helios__scriptcontext");
+	add(new RawFunc("__helios__scriptcontext__new_spending",
+	`(tx, output_idx) -> {
+		__core__constrData(0, __helios__common__list_2(
+			tx,
+			__core__constrData(1, __helios__common__list_1(__helios__txoutputid__new(__helios__txid__CURRENT, output_idx)))
+		))
+	}`));
+	add(new RawFunc("__helios__scriptcontext__new_minting",
+	`(tx) -> {
+		__core__constrData(0, __helios__common__list_2(
+			tx,
+			__core__constrData(0, __helios__common__list_1(__helios__hash__CURRENT))
+		))
+	}`));
+	add(new RawFunc("__helios__scriptcontext__new_rewarding",
+	`(tx, cred) -> {
+		__core__constrData(0, __helios__common__list_2(
+			tx,
+			__core__constrData(2, __helios__common__list_1(cred))
+		))
+	}`));
+	add(new RawFunc("__helios__scriptcontext__new_certifying",
+	`(tx, dcert) -> {
+		__core__constrData(0, __helios__common__list_2(
+			tx,
+			__core__constrData(3, __helios__common__list_1(dcert))
+		))
+	}`));
 	add(new RawFunc("__helios__scriptcontext__tx", "__helios__common__field_0"));
+	add(new RawFunc("__helios__scriptcontext__purpose", "__helios__common__field_1"));
 	add(new RawFunc("__helios__scriptcontext__get_current_input",
 	`(self) -> {
 		(id) -> {
@@ -17550,64 +18377,135 @@ function makeRawFunctions() {
 		}
 	}`));
 	add(new RawFunc("__helios__scriptcontext__get_current_minting_policy_hash", "__helios__scriptcontext__get_spending_purpose_output_id"));
-	add(new RawFunc("__helios__spendingscriptcontext__new",
-	`(output_idx, tx) -> {
-		__core__constrData(0, __helios__common__list_2(
-			tx,
-			__core__constrData(1, __helios__common__list_1(__helios__txoutputid__new(__helios__txid__CURRENT, output_idx)))
-		))
+	add(new RawFunc("__helios__scriptcontext__get_staking_purpose", 
+	`(self) -> {
+		() -> {
+			__helios__scriptcontext__purpose(self)
+		}
 	}`));
+	add(new RawFunc("__helios__spendingscriptcontext__new_spending", "__helios__scriptcontext__new_spending"));
 	add(new RawFunc("__helios__spendingscriptcontext____eq", "__helios__scriptcontext____eq"));
 	add(new RawFunc("__helios__spendingscriptcontext____neq", "__helios__scriptcontext____neq"));
 	add(new RawFunc("__helios__spendingscriptcontext__serialize", "__helios__scriptcontext__serialize"));
+	add(new RawFunc("__helios__spendingscriptcontext__from_data", "__helios__scriptcontext__from_data"));
 	add(new RawFunc("__helios__spendingscriptcontext__tx", "__helios__scriptcontext__tx"));
 	add(new RawFunc("__helios__spendingscriptcontext__get_current_input", "__helios__scriptcontext__get_current_input"));
 	add(new RawFunc("__helios__spendingscriptcontext__get_spending_purpose_output_id", "__helios__scriptcontext__get_spending_purpose_output_id"));
 	add(new RawFunc("__helios__spendingscriptcontext__get_current_validator_hash", "__helios__scriptcontext__get_current_validator_hash"));
-	add(new RawFunc("__helios__mintingscriptcontext__new",
-	`(tx) -> {
-		__core__constrData(0, __helios__common__list_2(
-			tx,
-			__core__constrData(0, __helios__common__list_1(__helios__hash__CURRENT))
-		))
-	}`));
+	add(new RawFunc("__helios__mintingscriptcontext__new_minting", "__helios__scriptcontext__new_minting")); 
 	add(new RawFunc("__helios__mintingscriptcontext____eq", "__helios__scriptcontext____eq"));
 	add(new RawFunc("__helios__mintingscriptcontext____neq", "__helios__scriptcontext____neq"));
 	add(new RawFunc("__helios__mintingscriptcontext__serialize", "__helios__scriptcontext__serialize"));
+	add(new RawFunc("__helios__mintingscriptcontext__from_data", "__helios__scriptcontext__from_data"));
 	add(new RawFunc("__helios__mintingscriptcontext__tx", "__helios__scriptcontext__tx"));
-	add(new RawFunc("__helios__mintingscriptcontext__get_current_input", "__helios__scriptcontext__get_current_input"));
 	add(new RawFunc("__helios__mintingscriptcontext__get_current_minting_policy_hash", "__helios__scriptcontext__get_current_minting_policy_hash"));
+	add(new RawFunc("__helios__stakingscriptcontext__new_rewarding", "__helios__scriptcontext__new_rewarding"));
+	add(new RawFunc("__helios__stakingscriptcontext__new_certifying", "__helios__scriptcontext__new_certifying"));
+	add(new RawFunc("__helios__stakingscriptcontext____eq", "__helios__scriptcontext____eq"));
+	add(new RawFunc("__helios__stakingscriptcontext____neq", "__helios__scriptcontext____neq"));
+	add(new RawFunc("__helios__stakingscriptcontext__serialize", "__helios__scriptcontext__serialize"));
+	add(new RawFunc("__helios__stakingscriptcontext__from_data", "__helios__scriptcontext__from_data"));
+	add(new RawFunc("__helios__stakingscriptcontext__tx", "__helios__scriptcontext__tx"));
+	add(new RawFunc("__helios__stakingscriptcontext__get_staking_purpose", "__helios__scriptcontext__get_staking_purpose"));
+
+
+	// StakingPurpose builtins
+	addDataFuncs("__helios__stakingpurpose");
+
+
+	// StakingPurpose::Rewarding builtins
+	addDataFuncs("__helios__stakingpurpose__rewarding");
+	add(new RawFunc("__helios__stakingpurpose__credential", "__helios__common__field_0"));
+
+	
+	// StakingPurpose::Certifying builtins
+	addDataFuncs("__helios__stakingpurpose__certifying");
+	add(new RawFunc("__helios__stakingpurpose__dcert", "__helios__common__field_0"));
+
+
+	// DCert builtins
+	addDataFuncs("__helios__dcert");
+	add(new RawFunc("__helios__dcert__new_register",
+	`(cred) -> {
+		__core__constrData(0, __helios__common__list_1(cred))
+	}`));
+	add(new RawFunc("__helios__dcert__new_deregister",
+	`(cred) -> {
+		__core__constrData(1, __helios__common__list_1(cred))
+	}`));
+	add(new RawFunc("__helios__dcert__new_delegate",
+	`(cred, pool_id) -> {
+		__core__constrData(2, __helios__common__list_2(cred, pool_id))
+	}`));
+	add(new RawFunc("__helios__dcert__new_register_pool",
+	`(id, vfr) -> {
+		__core__constrData(3, __helios__common__list_2(id, vfr))
+	}`));
+	add(new RawFunc("__helios__dcert__new_retire_pool",
+	`(id, epoch) -> {
+		__core__constrData(4, __helios__common__list_2(id, epoch))
+	}`));
+
+
+	// DCert::Register builtins
+	addDataFuncs("__helios__dcert__register");
+	add(new RawFunc("__helios__dcert__register__credential", "__helios__common__field_0"));
+
+
+	// DCert::Deregister builtins
+	addDataFuncs("__helios__dcert__deregister");
+	add(new RawFunc("__helios__dcert__deregister__credential", "__helios__common__field_0"));
+
+
+	// DCert::Delegate builtins
+	addDataFuncs("__helios__dcert__delegate");
+	add(new RawFunc("__helios__dcert__delegate__delegator", "__helios__common__field_0"));
+	add(new RawFunc("__helios__dcert__delegate__pool_id", "__helios__common__field_1"));
+
+
+	// DCert::RegisterPool builtins
+	addDataFuncs("__helios__dcert__registerpool");
+	add(new RawFunc("__helios__dcert__registerpool__pool_id", "__helios__common__field_0"));
+	add(new RawFunc("__helios__dcert__registerpool__pool_vfr", "__helios__common__field_1"));
+
+
+	// DCert::RetirePool builtins
+	addDataFuncs("__helios__dcert__retirepool");
+	add(new RawFunc("__helios__dcert__retirepool__pool_id", "__helios__common__field_0"));
+	add(new RawFunc("__helios__dcert__retirepool__epoch", "__helios__common__field_1"));
 
 
 	// Tx builtins
-	addEqNeqSerialize("__helios__tx");
+	addDataFuncs("__helios__tx");
 	add(new RawFunc("__helios__tx__new",
-	`(inputs, outputs, fee, minted, validity, signatories, datums) -> {
-		__core__constrData(0, __helios__common__list_10(
+	`(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, datums) -> {
+		__core__constrData(0, __helios__common__list_12(
 			inputs,
+			ref_inputs,
 			outputs,
 			fee,
 			minted,
-			__core__listData(__helios__common__list_0),
-			__core__listData(__helios__common__list_0),
+			dcerts,
+			withdrawals,
 			validity,
 			signatories,
-			__helios__map__map(datums)(
-				(key, value) -> {
-					__core__constrData(0, __helios__common__list_2(key, value))
-				}
-			),
+			__core__mapData(__core__mkNilPairData(())),
+			datums,
 			__helios__txid__CURRENT
 		))
 	}`));
 	add(new RawFunc("__helios__tx__inputs", "__helios__common__field_0"));
-	add(new RawFunc("__helios__tx__outputs", "__helios__common__field_1"));
-	add(new RawFunc("__helios__tx__fee", "__helios__common__field_2"));
-	add(new RawFunc("__helios__tx__minted", "__helios__common__field_3"));
-	add(new RawFunc("__helios__tx__time_range", "__helios__common__field_6"));
-	add(new RawFunc("__helios__tx__signatories", "__helios__common__field_7"));
-	add(new RawFunc("__helios__tx__datums", "__helios__common__field_8"));// hidden getter, used by __helios__tx__find_datum_hash
-	add(new RawFunc("__helios__tx__id", "__helios__common__field_9"));
+	add(new RawFunc("__helios__tx__ref_inputs", "__helios__common__field_1"))
+	add(new RawFunc("__helios__tx__outputs", "__helios__common__field_2"));
+	add(new RawFunc("__helios__tx__fee", "__helios__common__field_3"));
+	add(new RawFunc("__helios__tx__minted", "__helios__common__field_4"));
+	add(new RawFunc("__helios__tx__dcerts", "__helios__common__field_5"));
+	add(new RawFunc("__helios__tx__withdrawals", "__helios__common__field_6"));
+	add(new RawFunc("__helios__tx__time_range", "__helios__common__field_7"));
+	add(new RawFunc("__helios__tx__signatories", "__helios__common__field_8"));
+	add(new RawFunc("__helios__tx__redeemers", "__helios__common__field_9"));
+	add(new RawFunc("__helios__tx__datums", "__helios__common__field_10"));// hidden getter, used by __helios__tx__find_datum_hash
+	add(new RawFunc("__helios__tx__id", "__helios__common__field_11"));
 	add(new RawFunc("__helios__tx__now",
 	`(self) -> {
 		() -> {
@@ -17617,9 +18515,9 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__tx__find_datum_hash",
 	`(self) -> {
 		(datum) -> {
-			__helios__common__field_0(__helios__list__find(__helios__tx__datums(self))(
-				(tuple) -> {
-					__core__equalsData(__helios__common__field_1(tuple), datum)
+			__core__fstPair(__helios__common__find(__core__unMapData(__helios__tx__datums(self)),
+				(pair) -> {
+					__core__equalsData(__core__sndPair(pair), datum)
 				}
 			))
 		}
@@ -17721,7 +18619,7 @@ function makeRawFunctions() {
 
 
 	// TxId builtins
-	addEqNeqSerialize("__helios__txid");
+	addDataFuncs("__helios__txid");
 	add(new RawFunc("__helios__txid__new",
 	`(bytes) -> {
 		__core__constrData(0, __helios__common__list_1(bytes)) 
@@ -17730,7 +18628,7 @@ function makeRawFunctions() {
 
 
 	// TxInput builtins
-	addEqNeqSerialize("__helios__txinput");
+	addDataFuncs("__helios__txinput");
 	add(new RawFunc("__helios__txinput__new",
 	`(output_id, output) -> {
 		__core__constrData(0, __helios__common__list_2(output_id, output))
@@ -17740,21 +18638,20 @@ function makeRawFunctions() {
 	
 
 	// TxOutput builtins
-	addEqNeqSerialize("__helios__txoutput");
+	addDataFuncs("__helios__txoutput");
 	add(new RawFunc("__helios__txoutput__new", 
-	`(address, value, datum_hash) -> {
-		__core__constrData(0, __helios__common__list_3(address, value, datum_hash))
+	`(address, value, datum) -> {
+		__core__constrData(0, __helios__common__list_3(address, value, datum))
 	}`));
 	add(new RawFunc("__helios__txoutput__address", "__helios__common__field_0"));
 	add(new RawFunc("__helios__txoutput__value", "__helios__common__field_1"));
-	add(new RawFunc("__helios__txoutput__datum_hash", "__helios__common__field_2"));
-	
+	add(new RawFunc("__helios__txoutput__datum", "__helios__common__field_2"));
 	add(new RawFunc("__helios__txoutput__get_datum_hash",
 	`(self) -> {
 		() -> {
 			(pair) -> {
 				__core__ifThenElse(
-					__core__equalsInteger(__core__fstPair(pair), 0),
+					__core__equalsInteger(__core__fstPair(pair), 1),
 					() -> {__core__headList(__core__sndPair(pair))},
 					() -> {__core__bData(#)}
 				)()
@@ -17814,8 +18711,42 @@ function makeRawFunctions() {
 	}`));
 
 
+	// OutputDatum
+	addDataFuncs("__helios__outputdatum");
+	add(new RawFunc("__helios__outputdatum__new_none",
+	`() -> {
+		__core__constrData(0, __helios__common__list_0)
+	}`));
+	add(new RawFunc("__helios__outputdatum__new_hash",
+	`(hash) -> {
+		__core__constrData(1, __helios__common__list_1(hash))
+	}`));
+	add(new RawFunc("__helios__outputdatum__new_inline",
+	`(data) -> {
+		__core__constrData(2, __helios__common__list_1(data))
+	}`));
+
+
+	// OutputDatum::None
+	addDataFuncs("__helios__outputdatum__none");
+	
+
+	// OutputDatum::Hash
+	addDataFuncs("__helios__outputdatum__hash");
+	add(new RawFunc("__helios__outputdatum__hash__hash", "__helios__common__field_0"));
+
+
+	// OutputDatum::Inline
+	addDataFuncs("__helios__outputdatum__inline");
+	add(new RawFunc("__helios__outputdatum__inline__data", "__helios__common__field_0"));
+
+
+	// RawData
+	addDataFuncs("__helios__data");
+
+
 	// TxOutputId
-	addEqNeqSerialize("__helios__txoutputid");
+	addDataFuncs("__helios__txoutputid");
 	add(new RawFunc("__helios__txoutputid__new",
 	`(tx_id, idx) -> {
 		__core__constrData(0, __helios__common__list_2(tx_id, idx))
@@ -17823,7 +18754,7 @@ function makeRawFunctions() {
 
 
 	// Address
-	addEqNeqSerialize("__helios__address");
+	addDataFuncs("__helios__address");
 	add(new RawFunc("__helios__address__new", 
 	`(cred, staking_cred) -> {
 		__core__constrData(0, __helios__common__list_2(cred, staking_cred))
@@ -17839,7 +18770,7 @@ function makeRawFunctions() {
 
 
 	// Credential builtins
-	addEqNeqSerialize("__helios__credential");
+	addDataFuncs("__helios__credential");
 	add(new RawFunc("__helios__credential__new_pubkey",
 	`(hash) -> {
 		__core__constrData(0, __helios__common__list_1(hash))
@@ -17859,7 +18790,7 @@ function makeRawFunctions() {
 
 
 	// Credential::PubKey builtins
-	addEqNeqSerialize("__helios__credential__pubkey");
+	addDataFuncs("__helios__credential__pubkey");
 	add(new RawFunc("__helios__credential__pubkey__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 0)
@@ -17868,7 +18799,7 @@ function makeRawFunctions() {
 
 
 	// Credential::Validator builtins
-	addEqNeqSerialize("__helios__credential__validator");
+	addDataFuncs("__helios__credential__validator");
 	add(new RawFunc("__helios__credential__validator__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 1)
@@ -17877,7 +18808,7 @@ function makeRawFunctions() {
 
 
 	// StakingCredential builtins
-	addEqNeqSerialize("__helios__stakingcredential");
+	addDataFuncs("__helios__stakingcredential");
 	add(new RawFunc("__helios__stakingcredential__new_hash", 
 	`(cred) -> {
 		__core__constrData(0, __helios__common__list_1(cred))
@@ -17889,15 +18820,15 @@ function makeRawFunctions() {
 
 	
 	// StakingCredential::Hash builtins
-	addEqNeqSerialize("__helios__stakingcredential__hash");
+	addDataFuncs("__helios__stakingcredential__hash");
 
 
 	// StakingCredential::Ptr builtins
-	addEqNeqSerialize("__helios__stakingcredential__ptr");
+	addDataFuncs("__helios__stakingcredential__ptr");
 
 
 	// Time builtins
-	addEqNeqSerialize("__helios__time");
+	addDataFuncs("__helios__time");
 	add(new RawFunc("__helios__time__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__time____add", `__helios__int____add`));
 	add(new RawFunc("__helios__time____sub", `__helios__int____sub`));
@@ -17909,7 +18840,7 @@ function makeRawFunctions() {
 
 
 	// Duratin builtins
-	addEqNeqSerialize("__helios__duration");
+	addDataFuncs("__helios__duration");
 	add(new RawFunc("__helios__duration__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__duration____add", `__helios__int____add`));
 	add(new RawFunc("__helios__duration____sub", `__helios__int____sub`));
@@ -17923,7 +18854,7 @@ function makeRawFunctions() {
 
 
 	// TimeRange builtins
-	addEqNeqSerialize("__helios__timerange");
+	addDataFuncs("__helios__timerange");
 	add(new RawFunc("__helios__timerange__new", `
 	(a, b) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -18110,7 +19041,7 @@ function makeRawFunctions() {
 
 
 	// AssetClass builtins
-	addEqNeqSerialize("__helios__assetclass");
+	addDataFuncs("__helios__assetclass");
 	add(new RawFunc("__helios__assetclass__ADA", `__helios__assetclass__new(__core__bData(#), __core__bData(#))`));
 	add(new RawFunc("__helios__assetclass__new",
 	`(mintingPolicyHash, tokenName) -> {
@@ -19332,7 +20263,9 @@ class IRFuncExpr extends IRExpr {
 	 */
 	eval(stack) {
 		return new IRFuncValue((args) => {
-			assert(args.length == this.#args.length);
+			if (args.length != this.#args.length) {
+				throw this.site.syntaxError(`expected ${this.#args.length} arg(s), got ${args.length} arg(s)`);
+			}
 
 			for (let i = 0; i < args.length; i++) {
 				let v = this.#args[i];

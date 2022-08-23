@@ -1,5 +1,18 @@
 This Changelog only applies to notable changes to `helios.js` on the main branch.
 
+# 2022/08/22
+* TxOutput can have inline datum
+* TxOutput.datum returns OutputDatum enum (there is no longer a .datum_hash field)
+* OutputDatum enum has members None, Hash and Inline
+* generic Data type (used by inline datum)
+* All types have builtin associated ::from_data() method that converts `Data` into that type
+* Map.get_safe() method that returns Option
+* staking script purpose
+* StakingPurpose enum, with members Rewarding and Certifying, returned by ScriptContext.get_staking_purpose() (only available in staking script)
+* DCert enum with members Register, Deregister, Delegate, RegisterPool, RetirePool (Genesis and Mir are ignored)
+* New fields for Tx: Tx.ref_inputs, Tx.dcerts and Tx.withdrawals (constructor also changed accordingly)
+* ScriptContext constructors are now called: new_spending, new_minting, new_rewarding and new_certifying
+
 # 2022/08/19
 * Library interface changed to something more object-like
 * Script purpose keywords changed to 'testing', 'spending' and 'minting'
