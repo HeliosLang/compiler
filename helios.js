@@ -96,7 +96,7 @@
 //                                          PlutusCoreError, PlutusCoreBuiltin, PlutusCoreProgram
 //
 //     5. Plutus-Core data objects          PlutusCoreData, IntData, ByteArrayData, ListData, 
-//                                          MapData, ConstrData, LedgerData
+//                                          MapData, ConstrData
 //
 //     6. Token objects                     Token, Word, Symbol, Group, 
 //                                          PrimitiveLiteral, IntLiteral, BoolLiteral, 
@@ -2304,6 +2304,14 @@ export class UserError extends Error {
 	}
 
 	/**
+	 * @param {string} info 
+	 * @returns {boolean}
+	 */
+	isError(info = "") {
+		return this.info == info;
+	}
+
+	/**
 	 * Calculates column/line position in 'this.src'.
 	 * @returns {[number, number]}
 	 */
@@ -2539,7 +2547,7 @@ class PlutusCoreValue {
 	get string() {
 		throw this.site.typeError(`expected a UPLC string, got '${this.toString()}'`);
 	}
-
+	
 	/**
 	 * @type {boolean}
 	 */
@@ -2548,6 +2556,7 @@ class PlutusCoreValue {
 	}
 
 	/**
+	 * Distinguishes a pair from a mapItem
 	 * @returns {boolean}
 	 */
 	isPair() {
@@ -2569,6 +2578,7 @@ class PlutusCoreValue {
 	}
 
 	/**
+	 * Distinguishes a mapItem from a pair
 	 * @returns {boolean}
 	 */
 	isMapItem() {
@@ -2590,6 +2600,7 @@ class PlutusCoreValue {
 	}
 
 	/**
+	 * Distinguishes a list from a map
 	 * @returns {boolean}
 	 */
 	isList() {
@@ -2597,6 +2608,7 @@ class PlutusCoreValue {
 	}
 
 	/**
+	 * DIstinguishes a map from a list
 	 * @returns {boolean}
 	 */
 	isMap() {
@@ -3033,16 +3045,21 @@ class PlutusCoreAnon extends PlutusCoreValue {
 			// notify the RTE of the new live stack (list of pairs instead of PlutusCoreStack), and await permission to continue
 			await this.#rte.startCall(callSite, rawStack);
 
-			let result = this.callSync(callSite, subStack, args);
+			try {
+				let result = this.callSync(callSite, subStack, args);
 
-			if (result instanceof Promise) {
-				result = await result;
+				if (result instanceof Promise) {
+					result = await result;
+				}
+	
+				// the same rawStack object can be used as a marker for 'Step-Over' in the debugger
+				await this.#rte.endCall(callSite, rawStack, result);
+	
+				return result.copy(callSite);
+			} catch(e) {
+				// TODO: a trace can be added to the error here
+				throw e;
 			}
-
-			// the same rawStack object can be used as a marker for 'Step-Over' in the debugger
-			await this.#rte.endCall(callSite, rawStack, result);
-
-			return result.copy(callSite);
 		} else {
 			// function isn't yet fully applied, return a new partially applied PlutusCoreAnon
 			assert(this.#nArgs > 1);
@@ -3503,6 +3520,13 @@ class PlutusCoreBool extends PlutusCoreValue {
 
 	get bool() {
 		return this.#value;
+	}
+
+	/**
+	 * @type {PlutusCoreData}
+	 */
+	get data() {
+		return new ConstrData(this.#value ? 1 : 0, []);
 	}
 
 	/**
@@ -5050,134 +5074,9 @@ class PlutusCoreData {
 	}
 
 	/**
-	 * Handy for property tests
-	 * @returns {boolean}
+	 * @type {number}
 	 */
-	isBool() {
-		return false;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	asBool() {
-		throw new Error("not a bool");
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	isInt() {
-		return false;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {bigint}
-	 */
-	asInt() {
-		throw new Error("not an int");
-	}
-
-	/**
-	 * Handy for property tests
-	 * @param {bigint | PlutusCoreData} x
-	 * @returns {boolean}
-	 */
-	equalsInt(x) {
-		throw new Error("not an int");
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	isString() {
-		return false;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {string}
-	 */
-	asString() {
-		throw new Error("not a string");
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	isByteArray() {
-		return false;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {number[]}
-	 */
-	asByteArray() {
-		throw new Error("not a bytearray");
-	}
-
-	/**
-	 * Handy for property tests
-	 * @param {number[]} bytes
-	 * @returns {boolean}
-	 */
-	equalsByteArray(bytes) {
-		throw new Error("not a bytearray");
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	isList() {
-		return false;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @param {any[]} list
-	 * @returns {boolean}
-	 */
-	equalsList(list) {
-		throw new Error("not a list");
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {PlutusCoreData[]}
-	 */
-	asList() {
-		throw new Error("not a list");
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	isMap() {
-		throw new Error("not a map");
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	isConstr() {
-		return false;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @param {PlutusCoreData} data 
-	 * @returns {boolean}
-	 */
-	equalsConstr(data) {
+	get constrIndex() {
 		throw new Error("not a constr");
 	}
 
@@ -5214,53 +5113,6 @@ class PlutusCoreData {
 	 */
 	toFlatValue(bitWriter) {
 		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {boolean | bigint | string | any[] | PlutusCoreData} a 
-	 * @param {PlutusCoreData} b 
-	 * @returns {boolean}
-	 */
-	static equals(a, b) {
-		if (typeof a === "bigint") {
-			if (!(b instanceof IntData) || !b.equalsInt(a)) {
-				return false;
-			}
-		} else if (a instanceof IntData) {
-			if (!(b instanceof IntData) || !b.equalsInt(a)) {
-				return false;
-			}
-		} else if (typeof a === "boolean") {
-			if (!b.isBool() || a !== b.asBool()) {
-				return false;
-			}
-		} else if (a instanceof ConstrData && a.isBool()) {
-			if (!b.isBool() || a.asBool() !== b.asBool()) {
-				return false;
-			}
-		} else if (typeof a === "string") {
-			if (!b.isString() || a !== b.asString()) {
-				return false;
-			}
-		} else if (a instanceof ByteArrayData && a.isString()) {
-			if (!b.isString() || a.asString() !== b.asString()) {
-				return false;
-			}
-		} else if (a instanceof Array) {
-			if (!b.isList() || !b.equalsList(a)) {
-				return false;
-			}
-		} else if (a instanceof ListData) {
-			if (!b.isList() || !b.equalsList(a.asList())) {
-				return false;
-			}
-		} else if (a instanceof ConstrData) {
-			if (!(b instanceof ConstrData) || !a.equalsConstr(b)) {
-				return false;
-			}
-		}
-
-		return true;
 	}
 
 	/**
@@ -5651,37 +5503,6 @@ class IntData extends PlutusCoreData {
 	}
 
 	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	isInt() {
-		return true;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {bigint}
-	 */
-	asInt() {
-		return this.#value;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @param {bigint | PlutusCoreData} x
-	 * @returns {boolean}
-	 */
-	equalsInt(x) {
-		if (typeof x == "bigint") {
-			return x === this.#value;
-		} else if (x instanceof IntData) {
-			return x.asInt() === this.#value;
-		} else {
-			throw new Error("not an int");
-		}
-	}
-
-	/**
 	 * @returns {string}
 	 */
 	toString() {
@@ -5758,64 +5579,6 @@ class ByteArrayData extends PlutusCoreData {
 	}
 
 	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	isString() {
-		try {
-			void bytesToString(this.#bytes);
-
-			return true;
-		} catch(_) {
-			return false;
-		}
-	}
-
-	/**
-	 * Handy for property tests
-	 * @return {string}
-	 */
-	asString() {
-		return bytesToString(this.#bytes);
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	isByteArray() {
-		return true;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {number[]}
-	 */
-	asByteArray() {
-		return this.#bytes.slice();
-	}
-
-	/**
-	 * Handy for property tests
-	 * @param {number[]} bytes
-	 * @returns {boolean}
-	 */
-	equalsByteArray(bytes) {
-		let n = bytes.length;
-		if (n !== this.#bytes.length) {
-			return false;
-		}
-
-		for (let i = 0; i < n; i++) {
-			if (bytes[i] !== this.#bytes[i]) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	/**
 	 * @returns {string}
 	 */
 	toHex() {
@@ -5888,46 +5651,6 @@ class ListData extends PlutusCoreData {
 		return sum;
 	}
 
-	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	isList() {
-		return true;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @param {any[]} list
-	 * @returns {boolean}
-	 */
-	equalsList(list) {
-		let n = this.#items.length;
-		if (list.length != n) {
-			return false;
-		}
-
-		for (let i = 0; i < n; i++) {
-			let x = list[i];
-			let item = this.#items[i];
-
-			if (!PlutusCoreData.equals(x, item)) {
-				return false;
-			}
-
-		}
-
-		return true;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {PlutusCoreData[]}
-	 */
-	asList() {
-		return this.#items.slice();
-	}
-
 	toString() {
 		return `[${this.#items.map(item => item.toString()).join(", ")}]`;
 	}
@@ -5982,10 +5705,6 @@ class MapData extends PlutusCoreData {
 	constructor(pairs) {
 		super();
 		this.#pairs = pairs;
-	}
-
-	isMap() {
-		return true;
 	}
 
 	get map() {
@@ -6084,68 +5803,6 @@ class ConstrData extends PlutusCoreData {
 	}
 
 	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	isBool() {
-		return (this.#index == 0 || this.#index == 1) && this.#fields.length == 0;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	asBool() {
-		if (this.#fields.length == 0) {
-			if (this.#index == 0) {
-				return false;
-			} else if (this.#index == 1) {
-				return true;
-			} else {
-				throw new Error("not a bool");
-			}
-		} else {
-			throw new Error("not a bool");
-		}
-	}
-
-	/**
-	 * Handy for property tests
-	 * @returns {boolean}
-	 */
-	isConstr() {
-		return true;
-	}
-
-	/**
-	 * Handy for property tests
-	 * @param {PlutusCoreData} data
-	 * @returns {boolean}
-	 */
-	equalsConstr(data) {
-		if (data instanceof ConstrData) {
-			if (data.index !== this.#index) {
-				return false;
-			} else {
-				let n = this.#fields.length;
-				if (n != data.fields.length) {
-					return false;
-				}
-
-				for (let i = 0; i < n; i++) {
-					if (!PlutusCoreData.equals(this.#fields[i], data.fields[i])) {
-						return false;
-					}
-				}
-
-				return true;
-			}
-		} else {
-			throw new Error("not a constr");
-		}
-	}
-
-	/**
 	 * @returns {string}
 	 */
 	toString() {
@@ -6188,391 +5845,6 @@ class ConstrData extends PlutusCoreData {
 		this.toCBOR().forEach(b => {
 			bitWriter.writeByte(b);
 		});
-	}
-}
-
-/**
- * Special ConstrData builders.
- * Used extensively in the test-suite property based tests.
- */
-class LedgerData extends ConstrData {
-	#parameters;
-
-	/**
-	 * 
-	 * @param {number} idx 
-	 * @param {PlutusCoreData[]} fields 
-	 * @param {Object.<string, any>} parameters
-	 */
-	constructor(idx, fields, parameters) {
-		super(idx, fields);
-
-		this.#parameters = parameters;
-	}
-
-	/**
-	 * @param {string} name 
-	 * @returns {any}
-	 */
-	getParam(name) {
-		if (name in this.#parameters) {
-			return this.#parameters[name]
-		} else {
-			throw new Error(`member ${name} undefined`);
-		}
-	}
-
-	/**
-	 * Things that can be randomized: number of inputs, number of outputs, fee, TimeRange start, number of signatories, hash of the tx
-	 * @param {number[]} scriptHash - 28 byte minting policy hash hash
-	 * @returns {LedgerData}
-	 */
-	static newMintingScriptContext(scriptHash) {
-
-		let txInputHash = (new Array(32)).fill(0x00); // each transaction must have at least 1 input
-		let txHash = (new Array(32)).fill(0x01); // hash of current transaction
-		let txOutputAddr = (new Array(28)).fill(0x02); // pubkeyhash
-
-		let purposeData = new ConstrData(0, [new ByteArrayData(scriptHash)]);
-
-		let fee = 1n;
-		let mintedQty = 100n;
-		let mintedValue = LedgerData.newValue(mintedQty, scriptHash);
-		let signatories = [new ByteArrayData(txOutputAddr)];
-		let inputs = [LedgerData.newTxInput(txInputHash, 0n, scriptHash, LedgerData.newValue(1000n))];
-		let outputs = [
-			LedgerData.newTxOutput(txOutputAddr, false, LedgerData.newValue(999n)),
-			LedgerData.newTxOutput(txOutputAddr, false, mintedValue),
-		];
-
-		let txDataFields = [
-			new ListData(inputs),
-			new ListData([]), // reference inputs
-			new ListData(outputs),
-			LedgerData.newValue(fee), // fee value
-			mintedValue, // minted value
-			new ListData([]), // digests of certificates
-			new MapData([]), // staking withdrawals
-			LedgerData.newFiniteTimeRange(), // valid time range
-			new ListData(signatories), // signatories
-			new MapData([]), // redeemers
-			new MapData([]), // datums
-			LedgerData.newTxId(txHash),
-		];
-
-		let txData = new LedgerData(0, txDataFields, {
-			fee: fee,
-			minted: mintedQty,
-			signatories: signatories,
-			id: txHash,
-			inputs: inputs,
-			outputs: outputs,
-		});
-
-		return new LedgerData(0, [
-			txData,
-			purposeData,
-		], {
-			scriptHash: scriptHash,
-			tx: txData,
-			purpose: ScriptPurpose.Minting,
-			minted: mintedQty,
-		});
-	}
-
-	/**
-	 * @param {number[]} scriptHash - 28 byte hash
-	 * @param {number[]} txHash - 32 byte hash of current transaction (acts as TxId)
-	 * @param {LedgerData[]} inputs
-	 * @param {bigint} fee
-	 * @param {LedgerData[]} outputs
-	 * @param {[number[], PlutusCoreData][]} datums
-	 * @param {ByteArrayData[]} signatories
-	 * @param {number} currentInput
-	 * @returns {LedgerData}
-	 */
-	static newSpendingScriptContext(
-		scriptHash, 
-		txHash, 
-		inputs, 
-		fee, 
-		outputs,
-		datums,
-		signatories, 
-		currentInput = 0
-	) {
-		if (currentInput < 0) {
-			currentInput = 0;
-		} else if (currentInput >= inputs.length) {
-			currentInput = inputs.length - 1;
-		}
-
-		let txOutputId = inputs[currentInput].getParam("outputId");
-		let purposeData = new ConstrData(1, [txOutputId]);
-
-		let txDataFields = [
-			new ListData(inputs), // tx input
-			new ListData([]), // reference inputs
-			new ListData(outputs), // tx output
-			LedgerData.newValue(fee), // fee value
-			LedgerData.newValue(0n), // minted value
-			new ListData([]), // digests of certificates
-			new MapData([]), // staking withdrawals
-			LedgerData.newFiniteTimeRange(), // valid time range
-			new ListData(signatories), // signatories
-			new MapData([]), // redeemers
-			new MapData(datums.map(([hash, data]) => {
-				return [new ByteArrayData(hash), data];
-			})), // datums
-			LedgerData.newTxId(txHash),
-		];
-
-		let txData = new LedgerData(0, txDataFields, {
-			fee: fee,
-			minted: 0n,
-			signatories: signatories,
-			id: txHash,
-			inputs: inputs,
-			outputs: outputs,
-		});
-
-		return new LedgerData(0, [
-			txData,
-			purposeData,
-		], {
-			scriptHash: scriptHash,
-			tx: txData,
-			purpose: ScriptPurpose.Spending,
-			outputId: txOutputId,
-		});
-	}
-
-	/**
-	 * @param {number[]} mph
-	 * @param {number[]} tokenName - list of uint8 numbers
-	 * @returns {LedgerData}
-	 */
-	static newAssetClass(mph = [], tokenName = []) {
-		return new LedgerData(0, [new ByteArrayData(mph), new ByteArrayData(tokenName)], {
-			mintingPolicyHash: mph,
-			tokenName: tokenName,
-		});
-	}
-
-	/**
-	 * Returns a moneyvalue map
-	 * @param {bigint} qty 
-	 * @param {number[]} mph - minting policy hash
-	 * @param {number[]} tokenName - list of uint8 numbers
-	 * @returns {MapData}
-	 */
-	 static newValue(qty, mph = [], tokenName = []) {
-		if (qty == 0n) {
-			return new MapData([]);
-		} else {
-			let mphData = new ByteArrayData(mph);
-			let tokenNameData = new ByteArrayData(tokenName);
-			
-			return new MapData([
-				[mphData, new MapData([
-					[tokenNameData, new IntData(qty)]
-				])]
-			]);
-		}
-	}
-
-	/**
-	 * @param {number[]} hash - 32 byte hash
-	 * @returns {LedgerData}
-	 */
-	static newTxId(hash) {
-		return new LedgerData(0, [
-			new ByteArrayData(hash),
-		], {
-			hash: hash
-		});
-	}
-
-	/**
-	 * @param {number[]} originTxHash - 32 byte hash
-	 * @param {bigint} originUtxoId
-	 * @param {number[]} scriptHash - 28 byte hash
-	 * @param {MapData} value - amount of lovelace
-	 * @param {?number[]} stakingAddr - also 28 bytes?
-	 * @param {?number[]} datumHash
-	 * @returns {LedgerData}
-	 */
-	static newTxInput(originTxHash, originUtxoId, scriptHash, value, stakingAddr = null, datumHash = null) {
-		let txOutputId = LedgerData.newTxOutputId(originTxHash, originUtxoId);
-		let output = LedgerData.newTxOutput(scriptHash, true, value, stakingAddr, datumHash);
-		return new LedgerData(0, [
-			txOutputId,
-			output, // assume locked in current script
-		], {
-			outputId: txOutputId,
-			output: output,
-			originTxHash: originTxHash,
-			originUtxoId: originUtxoId,
-			scriptHash: scriptHash,
-			value: value,
-			datumHash: datumHash,
-		});
-	}
-
-	/**
-	 * 
-	 * @param {number[]} addr
-	 * @param {boolean} isSentToValidator
-	 * @param {MapData} value 
-	 * @param {?number[]} stakingAddr - 28 bytes?
-	 * @param {?number[]} datumHash - 28 bytes?
-	 * @returns {LedgerData}
-	 */
-	static newTxOutput(addr, isSentToValidator, value, stakingAddr = null, datumHash = null) {
-		let address = LedgerData.newAddress(addr, isSentToValidator, stakingAddr);
-
-		return new LedgerData(0, [
-			address,
-			value,
-			datumHash === null ? LedgerData.newOutputDatumNone() : LedgerData.newOutputDatumHash(datumHash), 
-		], {
-			addr: addr,
-			address: address, 
-			isSentToValidator: isSentToValidator,
-			value: value,
-			datumHash: datumHash,
-		});
-	}
-
-	/**
-	 * Returns address without staking
-	 * @param {number[]} hash - pubkeyhash or validatorhash
-	 * @param {boolean} isValidator - defaults to false
-	 * @param {?number[]} stakingHash
-	 * @returns {LedgerData}
-	 */
-	static newAddress(hash, isValidator = false, stakingHash = null) {
-		let credential = LedgerData.newCredential(hash, isValidator);
-		return new LedgerData(0, [
-			credential,
-			stakingHash === null ? LedgerData.newOption() : LedgerData.newOption(LedgerData.newStakingCredential(stakingHash)),
-		], {
-			credential: credential,
-			hash: hash,
-			stakingHash: stakingHash,
-			isValidator: isValidator,
-		});
-	}
-
-	/**
-	 * @param {number[]} hash 
-	 * @param {boolean} isValidator 
-	 * @returns {LedgerData}
-	 */
-	static newCredential(hash, isValidator = false) {
-		if (isValidator) {
-			return new LedgerData(1, [
-				new ByteArrayData(hash),
-			], {hash: hash, isValidator: isValidator});
-		} else {
-			return new LedgerData(0, [
-				new ByteArrayData(hash),
-			], {hash: hash, isValidator: isValidator});
-		}
-	}
-
-	/**
-	 * @param {number[]} hash
-	 * @returns {LedgerData}
-	 */
-	static newStakingCredential(hash) {
-		return new LedgerData(0, [
-			LedgerData.newCredential(hash),
-		], {hash: hash});
-	}
-
-	/**
-	 * @param {?PlutusCoreData} content
-	 * @returns {LedgerData}
-	 */
-	static newOption(content = null) {
-		if (content === null) {
-			return new LedgerData(1, [], {content: content});
-		} else {
-			return new LedgerData(0, [content], {content: content});
-		}
-	}
-
-	/**
-	 * @returns {LedgerData}
-	 */
-	static newOutputDatumNone() {
-		return new LedgerData(0, [], {});
-	}
-
-
-	/**
-	 * @param {number[]} hash 
-	 * @returns {LedgerData}
-	 */
-	static newOutputDatumHash(hash) {
-		return new LedgerData(1, [new ByteArrayData(hash)], {});
-	}
-
-	/**
-	 * @param {PlutusCoreData} data
-	 * @returns {LedgerData}
-	 */
-	static newOutputDatumInline(data) {
-		return new LedgerData(2, [data], {});
-	}
-
-	/**
-	 * Returns a UTXO id
-	 * @param {number[]} txHash - 32 bytes
-	 * @param {bigint} utxoId
-	 */
-	static newTxOutputId(txHash, utxoId = 0n) {
-		return new LedgerData(0, [
-			new ConstrData(0, [new ByteArrayData(txHash)]), new IntData(utxoId)
-		], {
-			txHash: txHash,
-			utxoId: utxoId,
-		});
-	}
-
-	/**
-	 * @param {boolean} value
-	 * @returns {LedgerData}
-	 */
-	static newBool(value) {
-		return new LedgerData(value ? 1 : 0, [], {value: value});
-	}
-
-	/**
-	 * Returns a TimeRange object
-	 * @param {bigint} start
-	 * @param {bigint} duration
-	 * @returns {LedgerData}
-	 */
-	static newFiniteTimeRange(start = 1600000000n, duration = 10000n) {
-		let res = new LedgerData(0, [
-			// LowerBound
-			new LedgerData(0, [
-				new LedgerData(1, [new IntData(start)], {}),
-				LedgerData.newBool(true),
-			], {}),
-			// UpperBound
-			new LedgerData(0, [
-				new LedgerData(1, [new IntData(start + duration)], {}),
-				LedgerData.newBool(true),
-			], {})
-		], {
-			start: start,
-			duration: duration,
-		});
-
-		return res;
 	}
 }
 
@@ -7303,7 +6575,7 @@ class Tokenizer {
 		} else if (c == '!' || c == '%' || c == '&' || (c >= '(' && c <= '.') || (c >= ':' && c <= '>') || c == '[' || c == ']' || (c >= '{' && c <= '}')) {
 			this.readSymbol(site, c);
 		} else if (!(c == ' ' || c == '\n' || c == '\t' || c == '\r')) {
-			throw site.syntaxError(`invalid source character (utf-8 not yet supported outside string literals)`);
+			throw site.syntaxError(`invalid source character '${c}' (utf-8 not yet supported outside string literals)`);
 		}
 	}
 
@@ -8543,6 +7815,22 @@ class BuiltinType extends DataType {
 	 */
 	toIR() {
 		throw new Error("use path getter instead");
+	}
+}
+
+class BuiltinEnumMember extends BuiltinType {
+	#parentType;
+
+	/**
+	 * @param {BuiltinType} parentType 
+	 */
+	constructor(parentType) {
+		super();
+		this.#parentType = parentType;
+	}
+
+	get parentType() {
+		return this.#parentType;
 	}
 }
 
@@ -9855,21 +9143,28 @@ class PrimitiveLiteralExpr extends ValueExpr {
 	}
 
 	/**
+	 * @type {Type}
+	 */
+	get type() {
+		if (this.#primitive instanceof IntLiteral) {
+			return new IntType();
+		} else if (this.#primitive instanceof BoolLiteral) {
+			return new BoolType();
+		} else if (this.#primitive instanceof StringLiteral) {
+			return new StringType();
+		} else if (this.#primitive instanceof ByteArrayLiteral) {
+			return new ByteArrayType(this.#primitive.bytes.length == 32 ? 32 : null);
+		} else {
+			throw new Error("unhandled primitive type");
+		}	
+	}
+
+	/**
 	 * @param {Scope} scope 
 	 * @returns {Value}
 	 */
 	evalInternal(scope) {
-		if (this.#primitive instanceof IntLiteral) {
-			return new DataValue(new IntType());
-		} else if (this.#primitive instanceof BoolLiteral) {
-			return new DataValue(new BoolType());
-		} else if (this.#primitive instanceof StringLiteral) {
-			return new DataValue(new StringType());
-		} else if (this.#primitive instanceof ByteArrayLiteral) {
-			return new DataValue(new ByteArrayType());
-		} else {
-			throw new Error("unhandled primitive type");
-		}
+		return new DataValue(this.type);
 	}
 
 	/**
@@ -11006,6 +10301,21 @@ class IfElseExpr extends ValueExpr {
 			if (newType.isBaseOf(site, prevType)) {
 				return newType;
 			} else {
+				// check if enumparent is base of newType and of prevType
+				if (newType instanceof StatementType && newType.statement instanceof EnumMember) {
+					let parentType = newType.statement.type;
+
+					if (parentType.isBaseOf(site, prevType) && parentType.isBaseOf(site, newType)) {
+						return parentType;
+					}
+				} else if (newType instanceof BuiltinEnumMember) {
+					let parentType = newType.parentType;
+
+					if (parentType.isBaseOf(site, prevType) && parentType.isBaseOf(site, newType)) {
+						return parentType;
+					}
+				}
+
 				throw site.typeError("inconsistent types");
 			}
 		} else {
@@ -11380,73 +10690,60 @@ class ConstStatement extends Statement {
 	/**
 	 * @param {Site} site
 	 * @param {Type} type - expected type
-	 * @param {string} str 
+	 * @param {PlutusCoreValue} value 
 	 * @param {string} path 
 	 * @returns {ValueExpr}
 	 */
-	static genLiteral(site, type, str, path) {
+	static genLiteral(site, type, value, path) {
 		if (type instanceof BoolType) {
-			if (str == "true") {
-				return new PrimitiveLiteralExpr(new BoolLiteral(site, true));
-			} else if (str == "false") {
-				return new PrimitiveLiteralExpr(new BoolLiteral(site, false));
+			if (value instanceof PlutusCoreBool) {
+				return new PrimitiveLiteralExpr(new BoolLiteral(site, value.bool));
 			} else {
-				throw site.typeError(`expected 'true' or 'false' for parameter '${path}', got '${str}'`);
+				throw site.typeError(`expected PlutusCoreBool for parameter '${path}', got '${value}'`);
 			}
 		} else if (type instanceof StringType) {
-			return new PrimitiveLiteralExpr(new StringLiteral(site, str));
+			if (value instanceof PlutusCoreDataValue && value.data instanceof ByteArrayData) {
+				return new PrimitiveLiteralExpr(new StringLiteral(site, bytesToString(value.data.bytes)));
+			} else {
+				throw site.typeError(`expected ByteArrayData for parameter '${path}', got '${value}'`);
+			}
 		} else if (type instanceof IntType) {
-			let i = parseInt(str);
-
-			if (Number.isNaN(i)) {
-				throw site.typeError(`expected valid int literal for parameter '${path}, got '${str}`);
+			if (value instanceof PlutusCoreDataValue && value.data instanceof IntData) {
+				return new PrimitiveLiteralExpr(new IntLiteral(site, value.data.value));
+			} else {
+				throw site.typeError(`expected IntData for parameter '${path}', got '${value}'`);
 			}
-
-			return new PrimitiveLiteralExpr(new IntLiteral(site, BigInt(i)));
 		} else if (type instanceof ByteArrayType) {
-			let bs = hexToBytes(str);
-			for (let b of bs) {
-				if (b < 0 || b > 255 || Number.isNaN(b)) {
-					throw site.typeError(`expected valid bytearray hex literal for parameters '${path}', got '${str}'`);
-				}
+			if (value instanceof PlutusCoreDataValue && value.data instanceof ByteArrayData) {
+				return new PrimitiveLiteralExpr(new ByteArrayLiteral(site, value.data.bytes));
+			} else {
+				throw site.typeError(`expected ByteArrayData for parameter '${path}', got '${value}'`);
 			}
-
-			return new PrimitiveLiteralExpr(new ByteArrayLiteral(site, bs));
 		} else if (type instanceof ListType) {
-			let json = JSON.parse(str);
-
-			if (json instanceof Array) {
+			if (value instanceof PlutusCoreDataValue && value.data instanceof ListData) {
 				/**
 				 * @type {ValueExpr[]}
 				 */
 				let items = [];
 
-				for (let x of json) {
-					let xStr = JSON.stringify(x);
-
-					items.push(ConstStatement.genLiteral(site, type.itemType, xStr, path + "[]"));
+				for (let data of value.data.list) {
+					items.push(ConstStatement.genLiteral(site, type.itemType, new PlutusCoreDataValue(site, data), path + "[]"));
 				}
 
 				return new ListLiteralExpr(site, new TypeExpr(site, type.itemType), items);
 			} else {
-				throw site.typeError(`expected valid list for '${path}', got '${str}'`);
+				throw site.typeError(`expected ListData for parameter '${path}', got '${value}'`);
 			}
 		} else if (type instanceof MapType) {
-			let json = JSON.parse(str);
-
-			if (json instanceof Object) {
+			if (value instanceof PlutusCoreDataValue && value.data instanceof MapData) {
 				/**
 				 * @type {[ValueExpr, ValueExpr][]}
 				 */
-				let pairs = [];
+ 				let pairs = [];
 
-				for (let k of json) {
-					let v = json[k];
-
-					let vStr = JSON.stringify(v);
-
-					let keyExpr = ConstStatement.genLiteral(site, type.keyType, k, path + "{key}");
-					let valueExpr = ConstStatement.genLiteral(site, type.valueType, vStr, path + "{value}");
+				for (let dataPair of value.data.map) {
+					let keyExpr = ConstStatement.genLiteral(site, type.keyType, new PlutusCoreDataValue(site, dataPair[0]), path + "{key}");
+					let valueExpr = ConstStatement.genLiteral(site, type.valueType, new PlutusCoreDataValue(site, dataPair[1]), path + "{value}");
 
 					pairs.push([keyExpr, valueExpr]);
 				}
@@ -11458,39 +10755,33 @@ class ConstStatement extends Statement {
 					pairs
 				);
 			} else {
-				throw site.typeError(`expected valid object for '${path}', got '${str}'`);
+				throw site.typeError(`expected ListData for parameter '${path}', got '${value}'`);
 			}
 		} else if (type instanceof StatementType && type.statement instanceof StructStatement) {
-			let json = JSON.parse(str);
-
-			if (json instanceof Object) {
+			if (value instanceof PlutusCoreDataValue && value.data instanceof ConstrData) {
 				let nFields = type.statement.nFields(site);
 				/**
 				 * @type {StructLiteralField[]}
 				 */
 				let fields = new Array(nFields);
 
-				for (let k of json) {
-					let v = json[k];
+				if (nFields != value.data.fields.length) {
+					throw site.typeError(`expected ConstrData with ${nFields.toString} fields for parameter '${path}', got '${value}' with ${value.data.fields.length.toString()} fields`);
+				}
 
-					let vStr = JSON.stringify(v);
-
-					let i = type.statement.findField(k);
-					if (i == -1) {
-						throw site.typeError(`invalid parameter field '${path}.${k}'`);
-					}
+				for (let i = 0; i < nFields; i++) {
+					let f = value.data.fields[i];
 
 					let fieldType = type.statement.getFieldType(site, i);
 
-					let valueExpr = ConstStatement.genLiteral(site, fieldType, vStr, path + "." + k);
+					let valueExpr = ConstStatement.genLiteral(site, fieldType, new PlutusCoreDataValue(site, f), path + "." + i.toString());
 
-
-					fields[i] = new StructLiteralField(nFields == 1 ? null : new Word(site, k), valueExpr);
+					fields[i] = new StructLiteralField(nFields == 1 ? null : new Word(site, type.statement.getFieldName(i)), valueExpr);
 				}
 
 				return new StructLiteralExpr(new TypeExpr(site, type), fields);
 			} else {
-				throw site.typeError(`expected valid object for '${path}', got '${str}'`);
+				throw site.typeError(`expected ConstrData for parameter '${path}', got '${value}'`);
 			}
 		} else {
 			throw site.typeError(`unhandled parameter type '${type.toString()}', for parameter ${path}`);
@@ -11498,7 +10789,7 @@ class ConstStatement extends Statement {
 	}
 
 	/**
-	 * @param {string} value 
+	 * @param {PlutusCoreValue} value 
 	 */
 	changeValue(value) {
 		let type = this.type;
@@ -11668,6 +10959,14 @@ class DataDefinition extends Statement {
 		return this.#fields[i].type;
 	}
 
+	/**
+	 * @param {number} i
+	 * @returns {string}
+	 */
+	getFieldName(i) {
+		return this.#fields[i].name.toString();
+	}
+	
 	/**
 	 * @param {Site} site 
 	 * @returns {number}
@@ -12040,7 +11339,7 @@ class EnumMember extends DataDefinition {
 	 * @param {boolean} dryRun 
 	 * @returns {Value}
 	 */
-	 getInstanceMember(name, dryRun = false) {
+	getInstanceMember(name, dryRun = false) {
 		if (this.hasField(name)) {
 			return super.getInstanceMember(name, dryRun);
 		} else {
@@ -12565,7 +11864,7 @@ export class Program {
 	/**
 	 * Change the literal value of a const statements  
 	 * @param {string} name 
-	 * @param {string} value 
+	 * @param {PlutusCoreValue} value 
 	 */
 	changeParam(name, value) {
 		for (let s of this.#statements) {
@@ -12910,40 +12209,17 @@ class TestingProgram extends Program {
 	 * @returns {IR}
 	 */
 	toIR() {
-		let outerArgs = this.main.argTypes.map((_, i) => new IR(`arg${i}`));
+		let args = this.main.argTypes.map((_, i) => new IR(`arg${i}`));
 
-		let innerArgs = this.main.argTypes.map((t, i) => {
-			if (t instanceof BoolType) {
-				return new IR([
-					new IR("__helios__common__unBoolData("),
-					new IR(`arg${i}`),
-					new IR(")")
-				]);
-			} else {
-				return new IR(`arg${i}`);
-			}
-		});
-
-		// don't need to specify TAB because it is at top level
 		let ir = new IR([
-			new IR("main("),
-			new IR(innerArgs).join(", "),
-			new IR(")"),
-		]);
-
-		if (this.main.retType instanceof BoolType) {
-			ir = new IR([
-				new IR("__helios__common__boolData("),
-				ir,
-				new IR(")"),
-			]);
-		}
-
-		ir = new IR([
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
-			new IR(outerArgs).join(", "),
+			new IR(args).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
-			ir,
+			new IR([
+				new IR("main("),
+				new IR(args).join(", "),
+				new IR(")"),
+			]),
 			new IR(`\n${TAB}}`),
 		]);
 
@@ -14462,6 +13738,8 @@ class ListType extends BuiltinType {
 	getTypeMember(name) {
 		switch (name.value) {
 			case "new":
+				return Value.new(new FuncType([new IntType(), new FuncType([new IntType()], this.#itemType)], this));
+			case "new_const":
 				return Value.new(new FuncType([new IntType(), this.#itemType], this));
 			default:
 				return super.getTypeMember(name);
@@ -14857,14 +14135,14 @@ class OptionType extends BuiltinType {
 /**
  * Member type of OptionType with some content
  */
-class OptionSomeType extends BuiltinType {
+class OptionSomeType extends BuiltinEnumMember {
 	#someType;
 
 	/**
 	 * @param {Type} someType 
 	 */
 	constructor(someType) {
-		super();
+		super(new OptionType(someType));
 		this.#someType = someType;
 	}
 
@@ -14947,14 +14225,14 @@ class OptionSomeType extends BuiltinType {
 /**
  * Member type of OptionType with no content
  */
-class OptionNoneType extends BuiltinType {
+class OptionNoneType extends BuiltinEnumMember {
 	#someType;
 
 	/**
 	 * @param {Type} someType 
 	 */
 	constructor(someType) {
-		super();
+		super(new OptionType(someType));
 		this.#someType = someType;
 	}
 
@@ -15094,7 +14372,7 @@ class ValidatorHashType extends HashType {
 		switch (name.value) {
 			case "CURRENT":
 				if (this.macrosAllowed) {
-					if (this.#purpose == ScriptPurpose.Spending) {
+					if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Testing) {
 						return Value.new(this);
 					} else {
 						throw name.referenceError("'ValidatorHash::CURRENT' only available in spending script");
@@ -15188,7 +14466,7 @@ class ScriptContextType extends BuiltinType {
 			case "new_spending":
 				if (this.macrosAllowed) {
 					if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Testing) {
-						return Value.new(new FuncType([new TxType(), new IntType()], this));
+						return Value.new(new FuncType([new TxType(), new TxOutputIdType()], this));
 					} else {
 						throw name.referenceError("'ScriptContext::new_spending' only avaiable for spending");
 					}
@@ -15202,7 +14480,7 @@ class ScriptContextType extends BuiltinType {
 			case "new_minting":
 				if (this.macrosAllowed) {
 					if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Testing) {
-						return Value.new(new FuncType([new TxType()], this));
+						return Value.new(new FuncType([new TxType(), new MintingPolicyHashType()], this));
 					} else {
 						throw name.referenceError("'ScriptContext::new_minting' only avaiable for minting scripts");
 					}
@@ -15290,11 +14568,7 @@ class ScriptContextType extends BuiltinType {
 	}
 
 	get path() {
-		if (this.#purpose == ScriptPurpose.Testing) {
-			return "__helios__scriptcontext";
-		} else {
-			return `__helios__${getPurposeName(this.#purpose)}scriptcontext`;
-		}
+		return "__helios__scriptcontext";
 	}
 }
 
@@ -15350,7 +14624,11 @@ class ScriptContextType extends BuiltinType {
 /**
  * Builtin StakingPurpose::Rewarding
  */
-class StakingRewardingPurposeType extends BuiltinType {
+class StakingRewardingPurposeType extends BuiltinEnumMember {
+	constructor() {
+		super(new StakingPurposeType());
+	}
+
 	toString() {
 		return "StakingPurpose::Rewarding";
 	}
@@ -15400,7 +14678,11 @@ class StakingRewardingPurposeType extends BuiltinType {
 /**
  * Builtin StakingPurpose::Certifying type
  */
-class StakingCertifyingPurposeType extends BuiltinType {
+class StakingCertifyingPurposeType extends BuiltinEnumMember {
+	constructor() {
+		super(new StakingPurposeType());
+	}
+
 	toString() {
 		return "StakingPurpose::Certifying";
 	}
@@ -15512,7 +14794,11 @@ class DCertType extends BuiltinType {
 	}
 }
 
-class RegisterDCertType extends BuiltinType {
+class RegisterDCertType extends BuiltinEnumMember {
+	constructor() {
+		super(new DCertType());
+	}
+
 	toString() {
 		return "DCert::Register";
 	}
@@ -15559,7 +14845,11 @@ class RegisterDCertType extends BuiltinType {
 	}
 }
 
-class DeregisterDCertType extends BuiltinType {
+class DeregisterDCertType extends BuiltinEnumMember {
+	constructor() {
+		super(new DCertType());
+	}
+
 	toString() {
 		return "DCert::Deregister";
 	}
@@ -15606,7 +14896,11 @@ class DeregisterDCertType extends BuiltinType {
 	}
 }
 
-class DelegateDCertType extends BuiltinType {
+class DelegateDCertType extends BuiltinEnumMember {
+	constructor() {
+		super(new DCertType());
+	}
+
 	toString() {
 		return "DCert::Delegate";
 	}
@@ -15655,7 +14949,11 @@ class DelegateDCertType extends BuiltinType {
 	}
 }
 
-class RegisterPoolDCertType extends BuiltinType {
+class RegisterPoolDCertType extends BuiltinEnumMember {
+	constructor() {
+		super(new DCertType());
+	}
+
 	toString() {
 		return "DCert::RegisterPool";
 	}
@@ -15704,7 +15002,11 @@ class RegisterPoolDCertType extends BuiltinType {
 	}
 }
 
-class RetirePoolDCertType extends BuiltinType {
+class RetirePoolDCertType extends BuiltinEnumMember {
+	constructor() {
+		super(new DCertType());
+	}
+
 	toString() {
 		return "DCert::RetirePool";
 	}
@@ -16048,7 +15350,11 @@ class OutputDatumType extends BuiltinType {
 	}
 }
 
-class OutputDatumNoneType extends BuiltinType {
+class OutputDatumNoneType extends BuiltinEnumMember {
+	constructor() {
+		super(new OutputDatumType);
+	}
+
 	toString() {
 		return "OutputDatum::None";
 	}
@@ -16093,7 +15399,11 @@ class OutputDatumNoneType extends BuiltinType {
 	}
 }
 
-class OutputDatumHashType extends BuiltinType {
+class OutputDatumHashType extends BuiltinEnumMember {
+	constructor() {
+		super(new OutputDatumType());
+	}
+
 	toString() {
 		return "OutputDatum::Hash";
 	}
@@ -16140,7 +15450,11 @@ class OutputDatumHashType extends BuiltinType {
 	}
 }
 
-class OutputDatumInlineType extends BuiltinType {
+class OutputDatumInlineType extends BuiltinEnumMember {
+	constructor() {
+		super(new OutputDatumType());
+	}
+
 	toString() {
 		return "OutputDatum::Inline";
 	}
@@ -16323,7 +15637,11 @@ class CredentialType extends BuiltinType {
 /**
  * Builtin Credential::PubKey
  */
-class CredentialPubKeyType extends BuiltinType {
+class CredentialPubKeyType extends BuiltinEnumMember {
+	constructor() {
+		super(new CredentialType());
+	}
+
 	toString() {
 		return "Credential::PubKey";
 	}
@@ -16373,7 +15691,11 @@ class CredentialPubKeyType extends BuiltinType {
 /**
  * Builtin Credential::Validator type
  */
-class CredentialValidatorType extends BuiltinType {
+class CredentialValidatorType extends BuiltinEnumMember {
+	constructor() {
+		super(new CredentialType());
+	}
+
 	toString() {
 		return "Credential::Validator";
 	}
@@ -16476,7 +15798,11 @@ class StakingCredentialType extends BuiltinType {
 /**
  * Builtin StakingCredential::Hash
  */
- class StakingHashCredentialType extends BuiltinType {
+ class StakingHashCredentialType extends BuiltinEnumMember {
+	constructor() {
+		super(new StakingCredentialType());
+	}
+
 	toString() {
 		return "StakingCredential::Hash";
 	}
@@ -16524,7 +15850,11 @@ class StakingCredentialType extends BuiltinType {
 /**
  * Builtin StakingCredential::Ptr
  */
- class StakingPtrCredentialType extends BuiltinType {
+ class StakingPtrCredentialType extends BuiltinEnumMember {
+	constructor() {
+		super(new StakingCredentialType());
+	}
+
 	toString() {
 		return "StakingCredential::Ptr";
 	}
@@ -16916,6 +16246,16 @@ function makeRawFunctions() {
 		add(new RawFunc(`${ns}____neq`, "__helios__common____neq"));
 		add(new RawFunc(`${ns}__serialize`, "__helios__common__serialize"));
 		add(new RawFunc(`${ns}__from_data`, "__helios__common__identity"));
+	}
+
+	/**
+	 * Adds basic auto members to a fully named enum type
+	 * @param {string} ns 
+	 */
+	function addEnumDataFuncs(ns) {
+		add(new RawFunc(`${ns}____eq`, "__helios__common____eq"));
+		add(new RawFunc(`${ns}____neq`, "__helios__common____neq"));
+		add(new RawFunc(`${ns}__serialize`, "__helios__common__serialize"));
 	}
 
 	/**
@@ -17680,7 +17020,6 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__bytearray32____eq", "__helios__bytearray____eq"));
 	add(new RawFunc("__helios__bytearray32____neq", "__helios__bytearray____neq"));
 	add(new RawFunc("__helios__bytearray32__serialize", "__helios__bytearray__serialize"));
-	add(new RawFunc("__helios__bytearray32__from_data", "__helios__bytearray__from_data"))
 	add(new RawFunc("__helios__bytearray32____add", "__helios__bytearray____add"));
 	add(new RawFunc("__helios__bytearray32__length", "(_) -> {__core__iData(32)}"));
 	add(new RawFunc("__helios__bytearray32__slice", 
@@ -17705,20 +17044,24 @@ function makeRawFunctions() {
 	// List builtins
 	addDataFuncs("__helios__list");
 	add(new RawFunc("__helios__list__new",
-	`(n, item) -> {
+	`(n, fn) -> {
 		(n) -> {
 			(recurse) -> {
-				__core__listData(recurse(recurse, __core__mkNilData(()), 0))
+				__core__listData(recurse(recurse, 0))
 			}(
-				(recurse, lst, i) -> {
+				(recurse, i) -> {
 					__core__ifThenElse(
 						__core__lessThanInteger(i, n),
-						() -> {recurse(recurse, __core__mkCons(item, lst), __core__addInteger(i, 1))},
-						() -> {lst}
+						() -> {__core__mkCons(fn(__core__iData(i)), recurse(recurse, __core__addInteger(i, 1)))},
+						() -> {__core__mkNilData(())}
 					)()
 				}
 			)
 		}(__core__unIData(n))
+	}`));
+	add(new RawFunc("__helios__list__new_const",
+	`(n, item) -> {
+		__helios__list__new(n, (i) -> {item})
 	}`));
 	add(new RawFunc("__helios__list____add",
 	`(self) -> {
@@ -17836,8 +17179,17 @@ function makeRawFunctions() {
 		}(__core__unListData(self))
 	}`));
 	add(new RawFunc("__helios__boollist__new", 
+	`(n, fn) -> {
+		__helios__list__new(
+			n, 
+			(i) -> {
+				__helios__common__boolData(fn(i))
+			}
+		)
+	}`));
+	add(new RawFunc("__helios__boollist__new_const", 
 	`(n, item) -> {
-		__helios__list__new(n, __helios__common__boolData(item))
+		__helios__list__new_const(n, __helios__common__boolData(item))
 	}`));
 	add(new RawFunc("__helios__boollist____eq", "__helios__list____eq"));
 	add(new RawFunc("__helios__boollist____neq", "__helios__list____neq"));
@@ -18161,7 +17513,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__boolmap____eq", "__helios__map____eq"));
 	add(new RawFunc("__helios__boolmap____neq", "__helios__map____neq"));
 	add(new RawFunc("__helios__boolmap__serialize", "__helios__map__serialize"));
-	add(new RawFunc("__helios__boolmap__from_data", "__helios__from_data"));
+	add(new RawFunc("__helios__boolmap__from_data", "__helios__map__from_data"));
 	add(new RawFunc("__helios__boolmap____add", "__helios__map____add"));
 	add(new RawFunc("__helios__boolmap__length", "__helios__map__length"));
 	add(new RawFunc("__helios__boolmap__is_empty", "__helios__map__is_empty"));
@@ -18271,7 +17623,7 @@ function makeRawFunctions() {
 
 	// Option builtins
 	addDataFuncs("__helios__option");
-	addDataFuncs("__helios__option__some");
+	addEnumDataFuncs("__helios__option__some");
 	add(new RawFunc("__helios__option__some__new",
 	`(data) -> {
 		__core__constrData(0, __helios__common__list_1(data))
@@ -18284,7 +17636,6 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__option__boolsome____eq", "__helios__option__some____eq"));
 	add(new RawFunc("__helios__option__boolsome____neq", "__helios__option__some____neq"));
 	add(new RawFunc("__helios__option__boolsome__serialize", "__helios__option__some__serialize"));
-	add(new RawFunc("__helios__option__boolsome__from_data", "__helios__option__some__from_data"));
 	add(new RawFunc("__helios__option__boolsome__new", 
 	`(b) -> {
 		__helios__option__some__new(__helios__common__boolData(b))
@@ -18294,7 +17645,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		__helios__common__unBoolData(__helios__option__some__some(self))
 	}`));
-	addDataFuncs("__helios__option__none");
+	addEnumDataFuncs("__helios__option__none");
 	add(new RawFunc("__helios__option__none__new",
 	`() -> {
 		__core__constrData(1, __helios__common__list_0)
@@ -18315,17 +17666,17 @@ function makeRawFunctions() {
 	// ScriptContext builtins
 	addDataFuncs("__helios__scriptcontext");
 	add(new RawFunc("__helios__scriptcontext__new_spending",
-	`(tx, output_idx) -> {
+	`(tx, output_id) -> {
 		__core__constrData(0, __helios__common__list_2(
 			tx,
-			__core__constrData(1, __helios__common__list_1(__helios__txoutputid__new(__helios__txid__CURRENT, output_idx)))
+			__core__constrData(1, __helios__common__list_1(output_id))
 		))
 	}`));
 	add(new RawFunc("__helios__scriptcontext__new_minting",
-	`(tx) -> {
+	`(tx, mph) -> {
 		__core__constrData(0, __helios__common__list_2(
 			tx,
-			__core__constrData(0, __helios__common__list_1(__helios__hash__CURRENT))
+			__core__constrData(0, __helios__common__list_1(mph))
 		))
 	}`));
 	add(new RawFunc("__helios__scriptcontext__new_rewarding",
@@ -18368,7 +17719,7 @@ function makeRawFunctions() {
 					__helios__address__credential(
 						__helios__txoutput__address(
 							__helios__txinput__output(
-								__helios__spendingscriptcontext__get_current_input(self)
+								__helios__scriptcontext__get_current_input(self)
 							)
 						)
 					)
@@ -18383,30 +17734,6 @@ function makeRawFunctions() {
 			__helios__scriptcontext__purpose(self)
 		}
 	}`));
-	add(new RawFunc("__helios__spendingscriptcontext__new_spending", "__helios__scriptcontext__new_spending"));
-	add(new RawFunc("__helios__spendingscriptcontext____eq", "__helios__scriptcontext____eq"));
-	add(new RawFunc("__helios__spendingscriptcontext____neq", "__helios__scriptcontext____neq"));
-	add(new RawFunc("__helios__spendingscriptcontext__serialize", "__helios__scriptcontext__serialize"));
-	add(new RawFunc("__helios__spendingscriptcontext__from_data", "__helios__scriptcontext__from_data"));
-	add(new RawFunc("__helios__spendingscriptcontext__tx", "__helios__scriptcontext__tx"));
-	add(new RawFunc("__helios__spendingscriptcontext__get_current_input", "__helios__scriptcontext__get_current_input"));
-	add(new RawFunc("__helios__spendingscriptcontext__get_spending_purpose_output_id", "__helios__scriptcontext__get_spending_purpose_output_id"));
-	add(new RawFunc("__helios__spendingscriptcontext__get_current_validator_hash", "__helios__scriptcontext__get_current_validator_hash"));
-	add(new RawFunc("__helios__mintingscriptcontext__new_minting", "__helios__scriptcontext__new_minting")); 
-	add(new RawFunc("__helios__mintingscriptcontext____eq", "__helios__scriptcontext____eq"));
-	add(new RawFunc("__helios__mintingscriptcontext____neq", "__helios__scriptcontext____neq"));
-	add(new RawFunc("__helios__mintingscriptcontext__serialize", "__helios__scriptcontext__serialize"));
-	add(new RawFunc("__helios__mintingscriptcontext__from_data", "__helios__scriptcontext__from_data"));
-	add(new RawFunc("__helios__mintingscriptcontext__tx", "__helios__scriptcontext__tx"));
-	add(new RawFunc("__helios__mintingscriptcontext__get_current_minting_policy_hash", "__helios__scriptcontext__get_current_minting_policy_hash"));
-	add(new RawFunc("__helios__stakingscriptcontext__new_rewarding", "__helios__scriptcontext__new_rewarding"));
-	add(new RawFunc("__helios__stakingscriptcontext__new_certifying", "__helios__scriptcontext__new_certifying"));
-	add(new RawFunc("__helios__stakingscriptcontext____eq", "__helios__scriptcontext____eq"));
-	add(new RawFunc("__helios__stakingscriptcontext____neq", "__helios__scriptcontext____neq"));
-	add(new RawFunc("__helios__stakingscriptcontext__serialize", "__helios__scriptcontext__serialize"));
-	add(new RawFunc("__helios__stakingscriptcontext__from_data", "__helios__scriptcontext__from_data"));
-	add(new RawFunc("__helios__stakingscriptcontext__tx", "__helios__scriptcontext__tx"));
-	add(new RawFunc("__helios__stakingscriptcontext__get_staking_purpose", "__helios__scriptcontext__get_staking_purpose"));
 
 
 	// StakingPurpose builtins
@@ -18414,13 +17741,13 @@ function makeRawFunctions() {
 
 
 	// StakingPurpose::Rewarding builtins
-	addDataFuncs("__helios__stakingpurpose__rewarding");
-	add(new RawFunc("__helios__stakingpurpose__credential", "__helios__common__field_0"));
+	addEnumDataFuncs("__helios__stakingpurpose__rewarding");
+	add(new RawFunc("__helios__stakingpurpose__rewarding__credential", "__helios__common__field_0"));
 
 	
 	// StakingPurpose::Certifying builtins
-	addDataFuncs("__helios__stakingpurpose__certifying");
-	add(new RawFunc("__helios__stakingpurpose__dcert", "__helios__common__field_0"));
+	addEnumDataFuncs("__helios__stakingpurpose__certifying");
+	add(new RawFunc("__helios__stakingpurpose__certifying__dcert", "__helios__common__field_0"));
 
 
 	// DCert builtins
@@ -18448,29 +17775,29 @@ function makeRawFunctions() {
 
 
 	// DCert::Register builtins
-	addDataFuncs("__helios__dcert__register");
+	addEnumDataFuncs("__helios__dcert__register");
 	add(new RawFunc("__helios__dcert__register__credential", "__helios__common__field_0"));
 
 
 	// DCert::Deregister builtins
-	addDataFuncs("__helios__dcert__deregister");
+	addEnumDataFuncs("__helios__dcert__deregister");
 	add(new RawFunc("__helios__dcert__deregister__credential", "__helios__common__field_0"));
 
 
 	// DCert::Delegate builtins
-	addDataFuncs("__helios__dcert__delegate");
+	addEnumDataFuncs("__helios__dcert__delegate");
 	add(new RawFunc("__helios__dcert__delegate__delegator", "__helios__common__field_0"));
 	add(new RawFunc("__helios__dcert__delegate__pool_id", "__helios__common__field_1"));
 
 
 	// DCert::RegisterPool builtins
-	addDataFuncs("__helios__dcert__registerpool");
+	addEnumDataFuncs("__helios__dcert__registerpool");
 	add(new RawFunc("__helios__dcert__registerpool__pool_id", "__helios__common__field_0"));
 	add(new RawFunc("__helios__dcert__registerpool__pool_vfr", "__helios__common__field_1"));
 
 
 	// DCert::RetirePool builtins
-	addDataFuncs("__helios__dcert__retirepool");
+	addEnumDataFuncs("__helios__dcert__retirepool");
 	add(new RawFunc("__helios__dcert__retirepool__pool_id", "__helios__common__field_0"));
 	add(new RawFunc("__helios__dcert__retirepool__epoch", "__helios__common__field_1"));
 
@@ -18728,16 +18055,16 @@ function makeRawFunctions() {
 
 
 	// OutputDatum::None
-	addDataFuncs("__helios__outputdatum__none");
+	addEnumDataFuncs("__helios__outputdatum__none");
 	
 
 	// OutputDatum::Hash
-	addDataFuncs("__helios__outputdatum__hash");
+	addEnumDataFuncs("__helios__outputdatum__hash");
 	add(new RawFunc("__helios__outputdatum__hash__hash", "__helios__common__field_0"));
 
 
 	// OutputDatum::Inline
-	addDataFuncs("__helios__outputdatum__inline");
+	addEnumDataFuncs("__helios__outputdatum__inline");
 	add(new RawFunc("__helios__outputdatum__inline__data", "__helios__common__field_0"));
 
 
@@ -18790,7 +18117,7 @@ function makeRawFunctions() {
 
 
 	// Credential::PubKey builtins
-	addDataFuncs("__helios__credential__pubkey");
+	addEnumDataFuncs("__helios__credential__pubkey");
 	add(new RawFunc("__helios__credential__pubkey__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 0)
@@ -18799,7 +18126,7 @@ function makeRawFunctions() {
 
 
 	// Credential::Validator builtins
-	addDataFuncs("__helios__credential__validator");
+	addEnumDataFuncs("__helios__credential__validator");
 	add(new RawFunc("__helios__credential__validator__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 1)
@@ -18820,11 +18147,11 @@ function makeRawFunctions() {
 
 	
 	// StakingCredential::Hash builtins
-	addDataFuncs("__helios__stakingcredential__hash");
+	addEnumDataFuncs("__helios__stakingcredential__hash");
 
 
 	// StakingCredential::Ptr builtins
-	addDataFuncs("__helios__stakingcredential__ptr");
+	addEnumDataFuncs("__helios__stakingcredential__ptr");
 
 
 	// Time builtins
@@ -19051,6 +18378,7 @@ function makeRawFunctions() {
 
 	// MoneyValue builtins
 	add(new RawFunc("__helios__value__serialize", "__helios__common__serialize"));
+	add(new RawFunc("__helios__value__from_data", "__helios__common__identity"));
 	add(new RawFunc("__helios__value__ZERO", `__core__mapData(__core__mkNilPairData(()))`));
 	add(new RawFunc("__helios__value__lovelace",
 	`(i) -> {
@@ -21784,16 +21112,11 @@ export function deserializePlutusCore(jsonString) {
 ///////////////////////////////////////////////
 
 /**
- * @typedef {Object} DataGeneratorConfig
- * @property {number[]} scriptHash
- * @property {PlutusCoreData[]} prevArgs
- */
-/**
- * @typedef {(config: ?DataGeneratorConfig) => PlutusCoreData} DataGenerator
+ * @typedef {() => PlutusCoreValue} ValueGenerator
  */
 
 /**
- * @typedef {(args: PlutusCoreData[], res: (PlutusCoreData | UserError)) => (boolean | Object.<string, boolean>)} PropertyTest
+ * @typedef {(args: PlutusCoreValue[], res: (PlutusCoreValue | UserError)) => (boolean | Object.<string, boolean>)} PropertyTest
  */
 
 /**
@@ -21849,13 +21172,13 @@ export class FuzzyTest {
 	 * Returns a generator for whole numbers between min and max, wrapped with IntData
 	 * @param {number} min
 	 * @param {number} max
-	 * @returns {DataGenerator}
+	 * @returns {ValueGenerator}
 	 */
 	int(min = -10000000, max = 10000000) {		
 		let rand = this.rawInt(min, max);
 
 		return function() {
-			return new IntData(rand());
+			return new PlutusCoreDataValue(Site.dummy(), new IntData(rand()));
 		}
 	}
 
@@ -21863,7 +21186,7 @@ export class FuzzyTest {
 	 * Returns a generator for strings containing any utf-8 character
 	 * @param {number} minLength
 	 * @param {number} maxLength
-	 * @returns {DataGenerator}
+	 * @returns {ValueGenerator}
 	 */
 	string(minLength = 0, maxLength = 64) {
 		let rand = this.newRand();
@@ -21879,7 +21202,7 @@ export class FuzzyTest {
 				chars.push(String.fromCodePoint(Math.round(rand()*1112064)));
 			}
 			
-			return ByteArrayData.fromString(chars.join(""));
+			return new PlutusCoreDataValue(Site.dummy(), ByteArrayData.fromString(chars.join("")));
 		}
 	}
 
@@ -21887,7 +21210,7 @@ export class FuzzyTest {
 	 * Returns a generator for strings with ascii characters from 32 (space) to 126 (tilde)
 	 * @param {number} minLength
 	 * @param {number} maxLength
-	 * @returns {DataGenerator}
+	 * @returns {ValueGenerator}
 	 */
 	ascii(minLength = 0, maxLength = 64) {
 		let rand = this.newRand();
@@ -21903,7 +21226,7 @@ export class FuzzyTest {
 				chars.push(String.fromCharCode(Math.round(rand()*94 + 32)));
 			}
 			
-			return ByteArrayData.fromString(chars.join(""));
+			return new PlutusCoreDataValue(Site.dummy(), ByteArrayData.fromString(chars.join("")));
 		}
 	}
 
@@ -21911,7 +21234,7 @@ export class FuzzyTest {
 	 * Returns a generator for bytearrays containing only valid ascii characters
 	 * @param {number} minLength
 	 * @param {number} maxLength
-	 * @returns {DataGenerator}
+	 * @returns {ValueGenerator}
 	 */
 	asciiBytes(minLength = 0, maxLength = 64) {
 		let rand = this.newRand();
@@ -21927,7 +21250,7 @@ export class FuzzyTest {
 				bytes.push(Math.floor(rand()*94 + 32));
 			}
 
-			return new ByteArrayData(bytes);
+			return new PlutusCoreDataValue(Site.dummy(), new ByteArrayData(bytes));
 		}
 	}
 
@@ -21935,7 +21258,7 @@ export class FuzzyTest {
 	 * Returns a generator for bytearrays the are also valid utf8 strings
 	 * @param {number} minLength - length of the string, not of the bytearray!
 	 * @param {number} maxLength - length of the string, not of the bytearray!
-	 * @returns {DataGenerator}
+	 * @returns {ValueGenerator}
 	 */
 	utf8Bytes(minLength = 0, maxLength = 64) {
 		return this.string(minLength, maxLength);
@@ -21969,7 +21292,7 @@ export class FuzzyTest {
 	 * Returns a generator for bytearrays 
 	 * @param {number} minLength
 	 * @param {number} maxLength
-	 * @returns {DataGenerator}
+	 * @returns {ValueGenerator}
 	 */
 	bytes(minLength = 0, maxLength = 64) {
 		let rand = this.rawBytes(minLength, maxLength);
@@ -21977,7 +21300,7 @@ export class FuzzyTest {
 		return function() {
 			let bytes = rand();
 
-			return new ByteArrayData(bytes);
+			return new PlutusCoreDataValue(Site.dummy(), new ByteArrayData(bytes));
 		}
 	}
 	/**
@@ -21996,49 +21319,42 @@ export class FuzzyTest {
 
 	/**
 	 * Returns a generator for booleans, wrapped with ConstrData
-	 * @returns {DataGenerator}
+	 * @returns {ValueGenerator}
 	 */
 	bool() {
 		let rand = this.rawBool();
 
 		return function() {
-			if (rand()) {
-				return new ConstrData(1, []);
-			} else {
-				return new ConstrData(0, []);
-			}
+			return new PlutusCoreBool(Site.dummy(), rand());
 		}
 	}
 
 	/**
 	 * Returns a generator for options
-	 * @param {DataGenerator} someGenerator
+	 * @param {ValueGenerator} someGenerator
 	 * @param {number} noneProbability
-	 * @returns {DataGenerator}
+	 * @returns {ValueGenerator}
 	 */
 	option(someGenerator, noneProbability = 0.5) {
 		let rand = this.newRand();
 
-		/**
-		 * @param {?DataGeneratorConfig} config
-		 */
-		return function(config = null) {
+		return function() {
 			let x = rand();
 
 			if (x < noneProbability) {
-				return new ConstrData(1, []);
+				return new PlutusCoreDataValue(Site.dummy(), new ConstrData(1, []));
 			} else {
-				return new ConstrData(0, [someGenerator(config)]);
+				return new PlutusCoreDataValue(Site.dummy(), new ConstrData(0, [someGenerator().data]));
 			}
 		}
 	}
 
 	/**
 	 * Returns a generator for lists
-	 * @param {DataGenerator} itemGenerator
+	 * @param {ValueGenerator} itemGenerator
 	 * @param {number} minLength
 	 * @param {number} maxLength
-	 * @returns {DataGenerator}
+	 * @returns {ValueGenerator}
 	 */
 	list(itemGenerator, minLength = 0, maxLength = 10) {
 		let rand = this.newRand();
@@ -22051,10 +21367,7 @@ export class FuzzyTest {
 			maxLength = 0;
 		}
 
-		/**
-		 * @param {?DataGeneratorConfig} config
-		 */
-		return function(config = null) {
+		return function() {
 			let n = Math.round(rand()*(maxLength - minLength)) + minLength;
 			if (n < 0) {
 				n = 0;
@@ -22066,20 +21379,20 @@ export class FuzzyTest {
 			let items = [];
 
 			for (let i = 0; i < n; i++) {
-				items.push(itemGenerator(config));
+				items.push(itemGenerator().data);
 			}
 
-			return new ListData(items);
+			return new PlutusCoreDataValue(Site.dummy(), new ListData(items));
 		}
 	}
 
 	/**
 	 * Returns a generator for maps
-	 * @param {DataGenerator} keyGenerator
-	 * @param {DataGenerator} valueGenerator
+	 * @param {ValueGenerator} keyGenerator
+	 * @param {ValueGenerator} valueGenerator
 	 * @param {number} minLength
 	 * @param {number} maxLength
-	 * @returns {DataGenerator}
+	 * @returns {ValueGenerator}
 	 */
 	map(keyGenerator, valueGenerator, minLength = 0, maxLength = 10) {
 		let rand = this.newRand();
@@ -22092,10 +21405,7 @@ export class FuzzyTest {
 			maxLength = 0;
 		}
 
-		/**
-		 * @param {?DataGeneratorConfig} config
-		 */
-		return function(config = null) {
+		return function() {
 			let n = Math.round(rand()*(maxLength - minLength)) + minLength;
 
 			if (n < 0) {
@@ -22108,180 +21418,50 @@ export class FuzzyTest {
 			let pairs = [];
 
 			for (let i = 0; i < n; i++) {
-				pairs.push([keyGenerator(config), valueGenerator(config)]);
+				pairs.push([keyGenerator().data, valueGenerator().data]);
 			}
 
-			return new MapData(pairs);
+			return new PlutusCoreDataValue(Site.dummy(), new MapData(pairs));
 		};
 	}
 
 	/**
 	 * Returns a generator for objects
-	 * @param {...DataGenerator} itemGenerators
-	 * @returns {DataGenerator}
+	 * @param {...ValueGenerator} itemGenerators
+	 * @returns {ValueGenerator}
 	 */
 	object(...itemGenerators) {
-		/**
-		 * @param {?DataGeneratorConfig} config
-		 */
-		return function(config = null) {
-			let items = itemGenerators.map(g => g(config));
+		return function() {
+			let items = itemGenerators.map(g => g().data);
 
-			return new ConstrData(0, items);
+			return new PlutusCoreDataValue(Site.dummy(), new ConstrData(0, items));
 		}
 	}
 
 	/**
-	 * Returns a generator for spending script contexts
-	 * @returns {DataGenerator}
+	 * Returns a generator for tagged constr
+	 * @param {number} tag
+	 * @param {...ValueGenerator} fieldGenerators
+	 * @returns {ValueGenerator}
 	 */
-	spendingScriptContext() {
-		let rand = this.newRand();
+	constr(tag, ...fieldGenerators) {
+		return function() {
+			let fields = fieldGenerators.map(g => g().data);
 
-		let randTxHash = this.rawBytes(32, 32);
-		let randPubKeyHash = this.rawBytes(28, 28);
-		let randStakingHash = this.rawBytes(28, 28);
-		let randValue = this.rawInt(1, 10000); // at least 1 lovelace in the utxo
-		let randId = this.rawInt(0, 10);
-		let randBool = this.rawBool();
-
-		/**
-		 * @param {?DataGeneratorConfig} config
-		 */
-		return function(config = null) {
-			if (config === null) {
-				throw new Error("can't be null");
-			} else {
-				let nInputs = Math.round(rand()*10 + 1); // between 1 and 11
-
-				// generate the inputs
-				/**
-				 * @type {LedgerData[]}
-				 */
-				let inputs = [];
-
-				let inputValue = 0n; // number of Lovelace
-
-				/**
-				 * @type {?PlutusCoreData}
-				 */
-				let datum = config.prevArgs.length == 0 ? null : config.prevArgs[0];
-
-				/**
-				 * @type {?number[]}
-				 */
-				let datumHash = datum === null ? null : Crypto.blake2b(datum.toCBOR(), 28);
-
-				for (let i = 0; i < nInputs; i++) {
-					let v = randValue(); 
-
-					inputValue += v;
-
-					let utxoId = randId();
-
-					inputs.push(
-						LedgerData.newTxInput(
-							randTxHash(), 
-							utxoId, 
-							config.scriptHash, 
-							LedgerData.newValue(v), 
-							randStakingHash(),
-							datumHash,
-						)
-					);
-				}
-
-				// generate the fee
-				let feeValue = BigInt(Math.floor(Number(inputValue)*rand()/2.0)); // at most half
-				let outputValue = inputValue - feeValue;
-
-				// generate the outputs
-				/**
-				 * @type {LedgerData[]}
-				 */
-				let outputs = [];
-
-				/**
-				 * Some of the output pubkeyhashes are also signatories.
-				 * @type {ByteArrayData[]}
-				 */
-				let signatories = [];
-
-				while (outputValue > 0n) {
-					// always a positive number
-					let v = BigInt(Math.ceil(rand()*Number(outputValue)));
-
-					if (v == 0n) {
-						v = 1n;
-					}
-
-					if (v > outputValue) {
-						v = outputValue;
-					}
-
-					if (randBool()) {
-						// send back to script
-						outputs.push(LedgerData.newTxOutput(config.scriptHash, true, LedgerData.newValue(v), null, datumHash));
-					} else {
-						let pubKeyHashBytes = randPubKeyHash();
-						outputs.push(LedgerData.newTxOutput(pubKeyHashBytes, false, LedgerData.newValue(v), randStakingHash(), null));
-
-						if (randBool()) {
-							signatories.push(new ByteArrayData(pubKeyHashBytes));
-						}
-					}
-
-					outputValue -= v;
-				}
-				
-				/** 
-				 * @type {[number[], PlutusCoreData][]}
-				 */
-				let datums = (datum === null || datumHash === null) ? [] : [[datumHash, datum]];
-
-				return LedgerData.newSpendingScriptContext(config.scriptHash, randTxHash(), inputs, feeValue, outputs, datums, signatories, Math.floor(rand()*inputs.length));
-			}
-		}
-	}
-
-	/**
-	 * Returns a generator for minting script contexts
-	 * @returns {DataGenerator}
-	 */
-	mintingScriptContext() {
-		/**
-		 * @param {?DataGeneratorConfig} config
-		 */
-		return function(config = null) {
-			if (config === null) {
-				throw new Error("can't be null");
-			} else {
-				return LedgerData.newMintingScriptContext(config.scriptHash);
-			}
+			return new PlutusCoreDataValue(Site.dummy(), new ConstrData(tag, fields));
 		}
 	}
 
 	/**
 	 * Run a test
-	 * @param {DataGenerator[]} argGens
+	 * @param {ValueGenerator[]} argGens
 	 * @param {string} src
 	 * @param {PropertyTest} propTest
-	 * @returns {Promise<void>} - throws an error if any of the property tests fail
-	 */
-	async test(argGens, src, propTest) {
-		return await this.testn(this.#runsPerTest, argGens, src, propTest);
-	}
-
-	/**
-	 * Run a test
 	 * @param {number} nRuns
-	 * @param {DataGenerator[]} argGens
-	 * @param {string} src
-	 * @param {PropertyTest} propTest
 	 * @param {boolean} simplify
 	 * @returns {Promise<void>} - throws an error if any of the property tests fail
 	 */
-	async testn(nRuns, argGens, src, propTest, simplify = false) {
+	async test(argGens, src, propTest, nRuns = this.#runsPerTest, simplify = false) {
 		// compilation errors here aren't caught
 
 		let purposeName = extractScriptPurposeAndName(src);
@@ -22293,58 +21473,87 @@ export class FuzzyTest {
 
 			let program = Program.new(src).compile(simplify);
 
-			if (!(program instanceof PlutusCoreProgram)) {
-				throw new Error("unexpected");
-			} else {
+			for (let it = 0; it < nRuns; it++) {
+				let args = argGens.map(gen => gen());
+			
+				let result = await program.run(args);
 
-				/**
-				 * @type {DataGeneratorConfig}
-				 */
-				let dgConfig = {
-					scriptHash: Crypto.hashScript(program.serializeBytes()),
-					prevArgs: [],
-				};
+				let obj = propTest(args, result);
 
-				for (let it = 0; it < nRuns; it++) {
-					/**
-					 * @type {PlutusCoreData[]}
-					 */
-					let args = [];
-					dgConfig.prevArgs = [];
-
-					for (let argGen of argGens) {
-						let arg = argGen(dgConfig);
-
-						args.push(arg);
-						dgConfig.prevArgs.push(arg);
+				if (typeof obj == "boolean") {
+					if (!obj) {
+						throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 					}
-				
-					let result = await program.run(args.map(a => new PlutusCoreDataValue(Site.dummy(), a)));
-
-					let dataResult = result instanceof PlutusCoreValue ? result.data : result;
-
-					let obj = propTest(args, dataResult);
-
-					if (typeof obj == "boolean") {
-						if (!obj) {
-							throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
-						}
-					} else {
-						// check for failures
-						for (let key in obj) {
-							if (!obj[key]) {
-								throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
-							}
+				} else {
+					// check for failures
+					for (let key in obj) {
+						if (!obj[key]) {
+							throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 						}
 					}
 				}
-
-				console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${program.calcSize()} bytes)`);
 			}
+
+			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${program.calcSize()} bytes)`);
 		}
 
 		if (!simplify && this.#simplify) {
-			await this.testn(nRuns, argGens, src, propTest, true);
+			await this.test(argGens, src, propTest, nRuns, true);
+		}
+	}
+
+	/**
+	 * @param {Object.<string, ValueGenerator>} paramGenerators
+	 * @param {string[]} paramArgs
+	 * @param {string} src
+	 * @param {PropertyTest} propTest
+	 * @param {number} nRuns
+	 * @param {boolean} simplify
+	 * @returns {Promise<void>}
+	 */
+	async testParams(paramGenerators, paramArgs, src, propTest, nRuns = this.#runsPerTest, simplify = false) {
+		let program = Program.new(src);
+
+		let purposeName = extractScriptPurposeAndName(src);
+
+		if (purposeName === null) {
+			throw new Error("failed to get script purpose and name");
+		} else {
+			let [_, testName] = purposeName;
+
+			for (let it = 0; it < nRuns; it++) {
+
+				for (let key in paramGenerators) {
+					program.changeParam(key, paramGenerators[key]())
+				}
+
+				let args = paramArgs.map(paramArg => program.evalParam(paramArg));
+			
+				let coreProgram = Program.new(src).compile(simplify);
+
+				let result = await coreProgram.run(args);
+
+				let obj = propTest(args, result);
+
+				if (typeof obj == "boolean") {
+					if (!obj) {
+						throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+					}
+				} else {
+					// check for failures
+					for (let key in obj) {
+						if (!obj[key]) {
+							throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+						}
+					}
+				}
+			}
+
+			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""}`);
+		}
+
+		if (!simplify && this.#simplify) {
+			await this.testParams(paramGenerators, paramArgs, src, propTest, nRuns, true);
 		}
 	}
 }
@@ -22367,8 +21576,14 @@ export const exportedForTesting = {
 	Source: Source,
 	Crypto: Crypto,
 	MapData: MapData,
-	LedgerData: LedgerData,
 	PlutusCoreData: PlutusCoreData,
+	ConstrData: ConstrData,
+	IntData: IntData,
+	ByteArrayData: ByteArrayData,
+	ListData: ListData,
+	PlutusCoreBool: PlutusCoreBool,
+	PlutusCoreValue: PlutusCoreValue,
+	PlutusCoreDataValue: PlutusCoreDataValue,
 	ScriptPurpose: ScriptPurpose,
 	PlutusCoreProgram: PlutusCoreProgram,
 	PlutusCoreLambda: PlutusCoreLambda,

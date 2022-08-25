@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import fs from "fs";
+import fs, { fstat } from "fs";
 import crypto from "crypto";
 import * as helios from "./helios.js";
 
@@ -63,6 +63,299 @@ async function runUnitTests() {
     }
 }
 
+
+// helper functions for script property tests
+function asBool(value) {
+    if (value instanceof helios_.PlutusCoreBool) {
+        return value.bool;
+    }
+
+    throw new Error(`expected PlutusCoreBool, got ${value.toString()}`);
+}
+
+function asInt(value) {
+    if (value instanceof helios_.IntData) {
+        return value.value;
+    } else if (value instanceof helios_.PlutusCoreDataValue) {
+        let data = value.data;
+        if (data instanceof helios_.IntData) {
+            return data.value;
+        }
+    }
+
+    throw new Error(`expected IntData, got ${value.toString()}`);
+}
+
+function asBytes(value) {
+    if (value instanceof helios_.ByteArrayData) {
+        return value.bytes;
+    } else if (value instanceof helios_.PlutusCoreDataValue) {
+        let data = value.data;
+        if (data instanceof helios_.ByteArrayData) {
+            return data.bytes;
+        }
+    }
+
+    throw new Error(`expected ByteArrayData, got ${value.toString()}`);
+}
+
+function equalsList(a, b) {
+    let n = a.length;
+    return n == b.length && a.every((v, i) => b[i] === v);
+}
+
+function decodeCBOR(bs) {
+    return helios_.PlutusCoreData.decodeCBORData(bs);
+}
+
+function isValidString(value) {
+    if (value instanceof helios_.PlutusCoreDataValue) {
+        let data = value.data;
+        if (data instanceof helios_.ByteArrayData) {
+            try {
+                void helios_.bytesToString(data.bytes);
+    
+                return true;
+            } catch(_) {
+                return false;
+            }
+        }
+    }
+
+    throw new Error(`expected ByteArrayData, got ${value.toString()}`);
+}
+
+function asString(value) {
+    if (value instanceof helios_.PlutusCoreDataValue) {
+        let data = value.data;
+        if (data instanceof helios_.ByteArrayData) {
+            return helios_.bytesToString(data.bytes);
+        }
+    }
+
+    throw new Error(`expected ByteArrayData, got ${value.toString()}`);
+}
+
+function asIntList(value) {
+    if (value instanceof helios_.PlutusCoreDataValue) {
+        let data = value.data;
+        if (data instanceof helios_.ListData) {
+            let items = [];
+
+            for (let item of data.list) {
+                if (item instanceof helios_.IntData) {
+                    items.push(item.value);
+                } else {
+                    throw new Error(`expected ListData of IntData, got ${value.toString()}`);
+                }
+            }
+
+            return items;
+        }
+    }
+
+    throw new Error(`expected ListData, got ${value.toString()}`);
+}
+
+function asBoolList(value) {
+    if (value instanceof helios_.PlutusCoreDataValue) {
+        let data = value.data;
+        if (data instanceof helios_.ListData) {
+            let items = [];
+
+            for (let item of data.list) {
+                if (item instanceof helios_.ConstrData && item.fields.length == 0 && (item.index == 0 || item.index == 1)) {
+                    items.push(item.index == 1);
+                } else {
+                    throw new Error(`expected ListData of bool-like ConstrData, got ${value.toString()}`);
+                }
+            }
+
+            return items;
+        }
+    }
+
+    throw new Error(`expected ListData, got ${value.toString()}`);
+}
+
+function constrIndex(value) {
+    if (value instanceof helios_.ConstrData) {
+        return value.index;
+    } else if (value instanceof helios_.PlutusCoreDataValue) {
+        let data = value.data;
+        if (data instanceof helios_.ConstrData) {
+            return data.index;
+        }
+    }
+
+    throw new Error(`expected ConstrIndex, got ${value.toString()}`);
+}
+
+
+function isError(err, info) {
+    if (err instanceof helios.UserError) {
+        if (err.message.split(":")[1].trim() == info) {
+            return true
+        } else {
+            return false;
+        }
+    } else {
+        throw new Error(`expected UserError, got ${err.toString()}`);
+    }
+}
+
+const serializeProp = ([a], res) => {
+    return decodeCBOR(asBytes(res)).isSame(a.data);
+};
+
+const spendingScriptContextParam = `
+    // a script context with a single input and a single output
+    const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
+    const TX_ID_IN_BYTES = #0123456789012345678901234567890123456789012345678901234567891234
+    const TX_ID_IN: TxId = TxId::new(TX_ID_IN_BYTES)
+    const CURRENT_VALIDATOR_BYTES = #01234567890123456789012345678901234567890123456789012346
+    const CURRENT_VALIDATOR: ValidatorHash = ValidatorHash::new(CURRENT_VALIDATOR_BYTES)
+    const HAS_STAKING_CRED_IN = false
+    const STAKING_CRED_TYPE = false
+    const SOME_STAKING_CRED_IN: StakingCredential = if (STAKING_CRED_TYPE) {
+        StakingCredential::new_ptr(0, 0, 0)
+    } else {
+        StakingCredential::new_hash(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)))
+    }
+    const STAKING_CRED_IN: Option[StakingCredential] = if (HAS_STAKING_CRED_IN) {
+        Option[StakingCredential]::Some{SOME_STAKING_CRED_IN}
+    } else {
+        Option[StakingCredential]::None
+    }
+    const CURRENT_VALIDATOR_CRED: Credential = Credential::new_validator(CURRENT_VALIDATOR)
+    const ADDRESS_IN: Address = Address::new(CURRENT_VALIDATOR_CRED, STAKING_CRED_IN)
+    const TX_OUTPUT_ID_IN: TxOutputId = TxOutputId::new(TX_ID_IN, 0)
+    const ADDRESS_OUT: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+    const ADDRESS_OUT_1: Address = Address::new(Credential::new_validator(CURRENT_VALIDATOR), Option[StakingCredential]::None)
+    const QTY = 200000
+    const QTY_1 = 100000
+    const QTY_2 = 100000
+
+    const FEE = 160000
+    const VALUE_IN: Value = Value::lovelace(QTY + QTY_1 + QTY_2)
+    const VALUE_OUT: Value = Value::lovelace(QTY - FEE)
+    const VALUE_OUT_1: Value = Value::lovelace(QTY_1)
+    const VALUE_OUT_2: Value = Value::lovelace(QTY_2)
+
+    const DATUM_HASH_1: DatumHash = DatumHash::new(#1234)
+    const DATUM_1: Int = 42
+
+    const CURRENT_TX_ID: TxId = TxId::CURRENT
+
+    const FIRST_TX_INPUT: TxInput = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN, OutputDatum::new_none()))
+    const REF_INPUT: TxInput = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0), OutputDatum::new_inline(42)))
+    const FIRST_TX_OUTPUT: TxOutput = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
+    const TX: Tx = Tx::new(
+        []TxInput{FIRST_TX_INPUT},
+        []TxInput{REF_INPUT},
+        []TxOutput{
+            FIRST_TX_OUTPUT,
+            TxOutput::new(ADDRESS_OUT, VALUE_OUT_1, OutputDatum::new_hash(DATUM_HASH_1)),
+            TxOutput::new(ADDRESS_OUT_1, VALUE_OUT_2, OutputDatum::new_hash(DATUM_HASH_1))
+        },
+        Value::lovelace(FEE),
+        Value::ZERO,
+        []DCert{},
+        Map[StakingCredential]Int{},
+        TimeRange::from(Time::new(0)),
+        []PubKeyHash{PubKeyHash::new(PUB_KEY_HASH_BYTES)},
+        Map[DatumHash]Int{DATUM_HASH_1: DATUM_1}
+    )
+    const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
+`;
+
+const mintingScriptContextParam = `
+    // a script context with a single input and a single output
+    const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
+    const TX_ID_IN: TxId = TxId::CURRENT
+    const CURRENT_MPH_BYTES = #01234567890123456789012345678901234567890123456789012346
+    const CURRENT_MPH: MintingPolicyHash = MintingPolicyHash::new(CURRENT_MPH_BYTES)
+    const ADDRESS_IN: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+    const ADDRESS_OUT: Address = ADDRESS_IN
+    const QTY = 1000
+    const VALUE: Value = Value::lovelace(QTY)
+    const MINTED: Value = Value::new(AssetClass::new(CURRENT_MPH, #abcd), 1)
+    const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_minting(Tx::new(
+        []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
+        []TxInput{},
+        []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE + MINTED, OutputDatum::new_none())},
+        Value::lovelace(160000),
+        MINTED,
+        []DCert{},
+        Map[StakingCredential]Int{},
+        TimeRange::ALWAYS,
+        []PubKeyHash{},
+        Map[DatumHash]Data{}
+    ), CURRENT_MPH)
+`;
+
+const rewardingScriptContextParam = `
+    // a script context with a single input and a single output
+    const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
+    const TX_ID_IN: TxId = TxId::CURRENT
+    const CURRENT_STAKING_CRED_BYTES = #01234567890123456789012345678901234567890123456789012346
+    const CURRENT_STAKING_CRED: StakingCredential = StakingCredential::new_hash(Credential::new_pubkey(PubKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
+    const REWARD_QTY = 2000
+    const ADDRESS_IN: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+    const ADDRESS_OUT: Address = ADDRESS_IN
+    const QTY = 1000
+    const VALUE: Value = Value::lovelace(QTY)
+    const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_rewarding(Tx::new(
+        []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
+        []TxInput{},
+        []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE + Value::lovelace(REWARD_QTY), OutputDatum::new_none())},
+        Value::lovelace(160000),
+        Value::ZERO,
+        []DCert{},
+        Map[StakingCredential]Int{
+            CURRENT_STAKING_CRED: REWARD_QTY
+        },
+        TimeRange::ALWAYS,
+        []PubKeyHash{},
+        Map[DatumHash]Data{}
+    ), CURRENT_STAKING_CRED)
+
+    const STAKING_PURPOSE: StakingPurpose = SCRIPT_CONTEXT.get_staking_purpose()
+`;
+
+const certifyingScriptContextParam = `
+    // a script context with a single input and a single output
+    const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
+    const TX_ID_IN: TxId = TxId::CURRENT
+    const CURRENT_STAKING_CRED_BYTES = #01234567890123456789012345678901234567890123456789012346
+    const CURRENT_STAKING_CRED: StakingCredential = StakingCredential::new_hash(Credential::new_pubkey(PubKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
+    const ADDRESS_IN: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+    const ADDRESS_OUT: Address = ADDRESS_IN
+    const QTY_IN = 1000
+    const VALUE: Value = Value::lovelace(QTY_IN)
+    const CURRENT_DCERT: DCert = DCert::new_register(CURRENT_STAKING_CRED)
+    const DCERT_DEREGISTER: DCert = DCert::new_deregister(CURRENT_STAKING_CRED)
+    const POOL_ID: PubKeyHash = PubKeyHash::new(#1253751235)
+    const POOL_VFR: PubKeyHash = PubKeyHash::new(#125375123598)
+    const EPOCH = 370
+    const DCERT_DELEGATE: DCert = DCert::new_delegate(CURRENT_STAKING_CRED, POOL_ID)
+    const DCERT_REGISTER_POOL: DCert = DCert::new_register_pool(POOL_ID, POOL_VFR)
+    const DCERT_RETIRE_POOL: DCert = DCert::new_retire_pool(POOL_ID, EPOCH)
+    const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_certifying(Tx::new(
+        []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
+        []TxInput{},
+        []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE, OutputDatum::new_none())},
+        Value::lovelace(0),
+        Value::ZERO,
+        []DCert{CURRENT_DCERT, DCERT_DEREGISTER, DCERT_DELEGATE, DCERT_REGISTER_POOL, DCERT_RETIRE_POOL},
+        Map[StakingCredential]Int{},
+        TimeRange::ALWAYS,
+        []PubKeyHash{},
+        Map[DatumHash]Data{}
+    ), CURRENT_DCERT)
+    const STAKING_PURPOSE: StakingPurpose = SCRIPT_CONTEXT.get_staking_purpose()
+`;
+
 async function runPropertyTests() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
 
@@ -75,350 +368,278 @@ async function runPropertyTests() {
     testing int_eq_1
     func main(a: Int) -> Bool {
         a == a
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing int_eq_2
     func main(a: Int, b: Int) -> Bool {
         a == b
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() === b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) === asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing int_neq_1
     func main(a: Int) -> Bool {
         a != a
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing int_neq_2
     func main(a: Int, b: Int) -> Bool {
         a != b
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() === b.asInt()) === (!res.asBool()));
-    });
+    }`, ([a, b], res) => (asInt(a) === asInt(b)) === (!asBool(res)));
 
     await ft.test([ft.int()], `
     testing int_neg
     func main(a: Int) -> Int {
         -a
-    }`, ([a], res) => {
-        return 
-        res.isInt() && (a.asInt() === -res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === -asInt(res));
 
     await ft.test([ft.int()], `
     testing int_pos
     func main(a: Int) -> Int {
         +a
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === asInt(res));
 
+    
     await ft.test([ft.int()], `
     testing int_add_0
     func main(a: Int) -> Int {
         a + 0
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === asInt(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing int_add_2
     func main(a: Int, b: Int) -> Int {
         a + b
-    }`, ([a, b], res) => {
-        return res.isInt() && (a.asInt() + b.asInt() === res.asInt());
-    });
+    }`, ([a, b], res) => asInt(a) + asInt(b) === asInt(res));
 
     await ft.test([ft.int()], `
     testing int_sub_0
     func main(a: Int) -> Int {
         a - 0
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === asInt(res));
 
     await ft.test([ft.int()], `
     testing int_sub_0_alt
     func main(a: Int) -> Int {
         0 - a
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === -res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === -asInt(res));
 
     await ft.test([ft.int()], `
     testing int_sub_self
     func main(a: Int) -> Int {
         a - a
-    }`, ([_], res) => {
-        return res.isInt() && (0n === res.asInt())
-    });
+    }`, ([_], res) => 0n === asInt(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing int_sub_2
     func main(a: Int, b: Int) -> Int {
         a - b
-    }`, ([a, b], res) => {
-        return res.isInt() && (a.asInt() - b.asInt() === res.asInt());
-    });
+    }`, ([a, b], res) => asInt(a) - asInt(b) === asInt(res));
 
     await ft.test([ft.int()], `
     testing int_mul_0
     func main(a: Int) -> Int {
         a*0
-    }`, ([_], res) => {
-        return res.isInt() && (0n === res.asInt());
-    });
+    }`, ([_], res) => 0n === asInt(res));
 
     await ft.test([ft.int()], `
     testing int_mul_1
     func main(a: Int) -> Int {
         a*1
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === asInt(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing int_mul_2
     func main(a: Int, b: Int) -> Int {
         a * b
-    }`, ([a, b], res) => {
-        return res.isInt() && (a.asInt() * b.asInt() === res.asInt());
-    });
+    }`, ([a, b], res) => asInt(a) * asInt(b) === asInt(res));
 
     await ft.test([ft.int()], `
     testing int_div_0
     func main(a: Int) -> Int {
         a / 0
-    }`, ([_], res) => {
-        return res instanceof helios.UserError && res.info === "division by zero";
-    });
+    }`, ([_], res) => isError(res, "division by zero"));
 
     await ft.test([ft.int()], `
     testing int_div_0_alt
     func main(a: Int) -> Int {
         0 / a
-    }`, ([_], res) => {
-        return res.isInt() && (0n === res.asInt());
-    });
+    }`, ([_], res) => 0n === asInt(res));
 
     await ft.test([ft.int()], `
     testing int_div_1
     func main(a: Int) -> Int {
         a / 1
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === asInt(res));
 
     await ft.test([ft.int(-10, 10)], `
     testing int_div_1_alt
     func main(a: Int) -> Int {
         1 / a
-    }`, ([a], res) => {
-        return (
-            a.asInt() === 0n ?
-            res instanceof helios.UserError && res.info === "division by zero" :
+    }`, ([a], res) => 
+        asInt(a) === 0n ?
+        isError(res, "division by zero") :
+        (
+            asInt(a) === 1n ? 
+            1n === asInt(res) :
             (
-                a.asInt() === 1n ? 
-                1n === res.asInt() :
-                (
-                    a.asInt() === -1n ?
-                    -1n === res.asInt() :
-                    0n === res.asInt()
-                )
+                asInt(a) === -1n ?
+                -1n === asInt(res) :
+                0n === asInt(res)
             )
-        );
-    });
+        )
+    );
 
     await ft.test([ft.int(-20, 20)], `
     testing int_div_1_self
     func main(a: Int) -> Int {
         a / a
-    }`, ([a], res) => {
-        return (
-            a.asInt() === 0n ?
-            res instanceof helios.UserError && res.info === "division by zero" :
-            res.isInt() && (1n === res.asInt())
-        );
-    });
+    }`, ([a], res) => 
+        asInt(a) === 0n ?
+        isError(res, "division by zero") :
+        1n === asInt(res)
+    );
 
     await ft.test([ft.int(), ft.int()], `
     testing int_div_2
     func main(a: Int, b: Int) -> Int {
         a / b
-    }`, ([a, b], res) => {
-        return (
-            b.asInt() === 0n ? 
-            res instanceof helios.UserError && res.info === "division by zero" :
-            res.isInt() && (a.asInt() / b.asInt() === res.asInt())
-        );
-    });
+    }`, ([a, b], res) => 
+        asInt(b) === 0n ? 
+        isError(res, "division by zero") :
+        asInt(a) / asInt(b) === asInt(res)
+    );
 
     await ft.test([ft.int()], `
     testing int_mod_0
     func main(a: Int) -> Int {
         a % 0
-    }`, ([_], res) => {
-        return res instanceof helios.UserError && res.info === "division by zero";
-    });
+    }`, ([_], res) => isError(res, "division by zero"));
 
     await ft.test([ft.int()], `
     testing int_mod_0_alt
     func main(a: Int) -> Int {
         0 % a
-    }`, ([_], res) => {
-        return res.isInt() && (0n === res.asInt());
-    });
+    }`, ([_], res) => 0n === asInt(res));
 
     await ft.test([ft.int()], `
     testing int_mod_1
     func main(a: Int) -> Int {
         a % 1
-    }`, ([_], res) => {
-        return res.isInt() && (0n === res.asInt());
-    });
+    }`, ([_], res) => 0n === asInt(res));
 
     await ft.test([ft.int(-20, 20)], `
     testing int_mod_1_alt
     func main(a: Int) -> Int {
         1 % a
-    }`, ([a], res) => {
-        return (
-            a.asInt() === 0n ? 
-            res instanceof helios.UserError && res.info === "division by zero" :
-            (
-                a.asInt() === -1n || a.asInt() === 1n ?
-                res.isInt() && (0n === res.asInt()) :
-                res.isInt() && (1n === res.asInt())
-            )
-        );
-    });
+    }`, ([a], res) => 
+        asInt(a) === 0n ? 
+        isError(res, "division by zero") :
+        (
+            asInt(a) === -1n || asInt(a) === 1n ?
+            0n === asInt(res) :
+            1n === asInt(res)
+        )
+    );
 
     await ft.test([ft.int(-10, 10)], `
     testing int_mod_1_self
     func main(a: Int) -> Int {
         a % a
-    }`, ([a], res) => {
-        return (
-            a.asInt() === 0n ?
-            res instanceof helios.UserError && res.info === "division by zero" :
-            res.isInt() && (0n === res.asInt())
-        );
-    });
+    }`, ([a], res) => 
+        asInt(a) === 0n ?
+        isError(res, "division by zero") :
+        0n === asInt(res)
+    );
 
     await ft.test([ft.int(), ft.int(-10, 10)], `
     testing int_mod_2
     func main(a: Int, b: Int) -> Int {
         a % b
-    }`, ([a, b], res) => {
-        return (
-            b.asInt() === 0n ? 
-            res instanceof helios.UserError && res.info === "division by zero" :
-            res.isInt() && (a.asInt() % b.asInt() === res.asInt())
-        );
-    });
+    }`, ([a, b], res) => 
+        asInt(b) === 0n ? 
+        isError(res, "division by zero") :
+        asInt(a) % asInt(b) === asInt(res)
+    );
 
     await ft.test([ft.int()], `
     testing int_geq_1
     func main(a: Int) -> Bool {
         a >= a
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing int_geq_2
     func main(a: Int, b: Int) -> Bool {
         a >= b
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() >= b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) >= asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing int_gt_1
     func main(a: Int) -> Bool {
         a > a
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing int_gt_2
     func main(a: Int, b: Int) -> Bool {
         a > b
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() > b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) > asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing int_leq_1
     func main(a: Int) -> Bool {
         a <= a
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing int_leq_2
     func main(a: Int, b: Int) -> Bool {
         a <= b
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() <= b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) <= asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing int_lt_1
     func main(a: Int) -> Bool {
         a < a
-    }`, ([a], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([a], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing int_lt_2
     func main(a: Int, b: Int) -> Bool {
         a < b
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() < b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) < asInt(b)) === asBool(res));
 
     await ft.test([ft.int(-10, 10)], `
     testing int_to_bool
     func main(a: Int) -> Bool {
         a.to_bool()
-    }`, ([a], res) => {
-        return res.isBool() && ((a.asInt() === 0n) === !res.asBool());
-    });
+    }`, ([a], res) => (asInt(a) === 0n) === !asBool(res));
 
     await ft.test([ft.int()], `
     testing int_to_hex
     func main(a: Int) -> String {
         a.to_hex()
-    }`, ([a], res) => {
-        return res.isString() && (a.asInt().toString("16") === res.asString());
-    });
+    }`, ([a], res) => (asInt(a).toString("16") === asString(res)));
 
     await ft.test([ft.int()], `
     testing int_show
     func main(a: Int) -> String {
         a.show()
-    }`, ([a], res) => {
-        return res.isString() && (a.asInt().toString() === res.asString());
-    });
+    }`, ([a], res) => asInt(a).toString() === asString(res));
+
+    await ft.test([ft.int()], `
+    testing int_from_data
+    func main(a: Data) -> Int {
+        Int::from_data(a)
+    }`, ([a], res) => asInt(a) === asInt(res));
 
     await ft.test([ft.int()], `
     testing int_serialize
     func main(a: Int) -> ByteArray {
         a.serialize()
-    }`, ([a], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-    });
+    }`, serializeProp);
 
 
     /////////////
@@ -429,9 +650,7 @@ async function runPropertyTests() {
     testing bool_and
     func main(a: Bool, b: Bool) -> Bool {
         a && b
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asBool() && b.asBool()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asBool(a) && asBool(b)) === asBool(res));
 
     // test branch deferral as well
     await ft.test([ft.bool(), ft.bool()], `
@@ -442,24 +661,20 @@ async function runPropertyTests() {
         }, () -> Bool {
             b && (0 / 0 == 0)
         })
-    }`, ([a, b], res) => {
-        return (
-            a.asBool() ? (
-                b.asBool() ?
-                res instanceof helios.UserError && res.info === "division by zero" :
-                res.isBool() && (false === res.asBool())        
-            ) :
-            res.isBool() && (false === res.asBool())
-        );
-    });
+    }`, ([a, b], res) => 
+        asBool(a) ? (
+            asBool(b) ?
+            isError(res, "division by zero") :
+            false === asBool(res)
+        ) :
+        false === asBool(res)
+    );
 
     await ft.test([ft.bool(), ft.bool()], `
     testing bool_or
     func main(a: Bool, b: Bool) -> Bool {
         a || b
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asBool() || b.asBool()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asBool(a) || asBool(b)) === asBool(res));
 
     await ft.test([ft.bool(), ft.bool()], `
     testing bool_or_alt
@@ -469,81 +684,71 @@ async function runPropertyTests() {
         }, () -> Bool {
             b || (0 / 0 == 0)
         }) 
-    }`, ([a, b], res) => {
-        return (
-            a.asBool() ? 
-            res.isBool() && (true === res.asBool()) :
-            (
-                b.asBool() ?
-                res.isBool() && (true === res.asBool()) :
-                res instanceof helios.UserError && res.info === "division by zero"
-            )
-        );
-    });
+    }`, ([a, b], res) => 
+        asBool(a) ? 
+        true === asBool(res) :
+        (
+            asBool(b) ?
+            true === asBool(res) :
+            isError(res, "division by zero")
+        )
+    );
 
     await ft.test([ft.bool()], `
     testing bool_eq_1
     func main(a: Bool) -> Bool {
         a == a
-    }`, ([a], res) => {
-        return res.isBool() && (true === res.asBool());
-    });
+    }`, ([a], res) => asBool(res));
 
     await ft.test([ft.bool(), ft.bool()], `
     testing bool_eq_2
     func main(a: Bool, b: Bool) -> Bool {
         a == b
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asBool() === b.asBool()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asBool(a) === asBool(b)) === asBool(res));
 
     await ft.test([ft.bool()], `
     testing bool_neq_1
     func main(a: Bool) -> Bool {
         a != a
-    }`, ([a], res) => {
-        return res.isBool() && (false === res.asBool());
-    });
+    }`, ([a], res) => !asBool(res));
 
     await ft.test([ft.bool(), ft.bool()], `
     testing bool_neq_2
     func main(a: Bool, b: Bool) -> Bool {
         a != b
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asBool() === b.asBool()) === !res.asBool());
-    });
+    }`, ([a, b], res) => (asBool(a) === asBool(b)) === !asBool(res));
 
     await ft.test([ft.bool()], `
     testing bool_not
     func main(a: Bool) -> Bool {
         !a
-    }`, ([a], res) => {
-        return res.isBool() && (a.asBool() === !res.asBool());
-    });
+    }`, ([a], res) => asBool(a) === !asBool(res));
 
     await ft.test([ft.bool()], `
     testing bool_to_int
     func main(a: Bool) -> Int {
         a.to_int()
-    }`, ([a], res) => {
-        return res.isInt() && ((a.asBool() ? 1n : 0n) === res.asInt());
-    });
+    }`, ([a], res) => (asBool(a) ? 1n : 0n) === asInt(res));
 
     await ft.test([ft.bool()], `
     testing bool_show
     func main(a: Bool) -> String {
         a.show()
-    }`, ([a], res) => {
-        return res.isString() && ((a.asBool() ? "true": "false") === res.asString());
-    });
+    }`, ([a], res) => (asBool(a) ? "true": "false") === asString(res));
     
+    const boolGen = ft.bool();
+
+    await ft.test([() => new helios_.PlutusCoreDataValue(helios_.Site.dummy(), new helios_.ConstrData(boolGen ? 1 : 0, []))], `
+    testing bool_from_data
+    func main(a: Data) -> Bool {
+        Bool::from_data(a)
+    }`, ([a], res) => constrIndex(a) === (asBool(res) ? 1 : 0));
+
     await ft.test([ft.bool()], `
     testing bool_serialize
     func main(a: Bool) -> ByteArray {
         a.serialize()
-    }`, ([a], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-    });
+    }`, serializeProp);
 
 
     ///////////////
@@ -554,104 +759,89 @@ async function runPropertyTests() {
     testing string_eq_1
     func main(a: String) -> Bool {
         a == a
-    }`, ([_], res) => {
-        return res.isBool() && (true === res.asBool());
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.string(), ft.string()], `
     testing string_eq_2
     func main(a: String, b: String) -> Bool {
         a == b
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asString() === b.asString()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asString(a) === asString(b)) === asBool(res));
 
     await ft.test([ft.string()], `
     testing string_neq_1
     func main(a: String) -> Bool {
         a != a
-    }`, ([_], res) => {
-        return res.isBool() && (false === res.asBool());
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.string(), ft.string()], `
     testing string_neq_2
     func main(a: String, b: String) -> Bool {
         a != b
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asString() === b.asString()) === !res.asBool());
-    });
+    }`, ([a, b], res) => (asString(a) === asString(b)) === !asBool(res));
 
     await ft.test([ft.string()], `
     testing string_add_1
     func main(a: String) -> String {
         a + ""
-    }`, ([a], res) => {
-        return res.isString() && (a.asString() === res.asString());
-    });
+    }`, ([a], res) => asString(a) === asString(res));
 
     await ft.test([ft.string()], `
     testing string_add_1_alt
     func main(a: String) -> String {
         "" + a
-    }`, ([a], res) => {
-        return res.isString() && (a.asString() === res.asString());
-    });
+    }`, ([a], res) => asString(a) === asString(res));
 
     await ft.test([ft.string(), ft.string()], `
     testing string_add_2
     func main(a: String, b: String) -> String {
         a + b
     }`, ([a, b], res) => {
-        let sa = a.asString();
-        let sb = b.asString();
-        let sRes = res.asString();
+        let sa = asString(a);
+        let sb = asString(b);
+        let sRes = asString(res);
 
         return {
-            "length": res.isString() && ((sa + sb).length === sRes.length),
-            "concat": res.isString() && ((sa + sb) === sRes)
+            "length": (sa + sb).length === sRes.length,
+            "concat": (sa + sb) === sRes
         };
     });
+
     await ft.test([ft.string(0, 10), ft.string(0, 10)], `
     testing string_starts_with_1
     func main(a: String, b: String) -> Bool {
         (a+b).starts_with(a)
-    }`, ([a, b], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([a, b], res) => asBool(res));
 
     await ft.test([ft.string(0, 10), ft.string(0, 10)], `
     testing string_starts_with_2
     func main(a: String, b: String) -> Bool {
         (a+b).starts_with(b)
     }`, ([a, b], res) => {
-        let aStr = a.asString();
-        let bStr = b.asString();
+        let sa = asString(a);
+        let sb = asString(b);
         
-        let allStr = aStr + bStr;
+        let s = sa + sb;
 
-        return res.isBool() && (allStr.startsWith(bStr) === res.asBool());
+        return s.startsWith(sb) === asBool(res);
     });
 
     await ft.test([ft.string(0, 10), ft.string(0, 10)], `
     testing string_ends_with_1
     func main(a: String, b: String) -> Bool {
         (a+b).ends_with(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([a, b], res) => asBool(res));
 
     await ft.test([ft.string(0, 10), ft.string(0, 10)], `
     testing string_ends_with_2
     func main(a: String, b: String) -> Bool {
         (a+b).ends_with(a)
     }`, ([a, b], res) => {
-        let aStr = a.asString();
-        let bStr = b.asString();
+        let sa = asString(a);
+        let sb = asString(b);
         
-        let allStr = aStr + bStr;
+        let s = sa + sb;
 
-        return res.isBool() && (allStr.endsWith(aStr) === res.asBool());
+        return s.endsWith(sa) === asBool(res);
     });
 
     await ft.test([ft.string()], `
@@ -659,17 +849,21 @@ async function runPropertyTests() {
     func main(a: String) -> ByteArray {
         a.encode_utf8()
     }`, ([a], res) => {
-        let aBytes = Array.from((new TextEncoder()).encode(a.asString()));
-        return res.isByteArray() && res.equalsByteArray(aBytes);
+        let bsa = Array.from((new TextEncoder()).encode(asString(a)));
+        return equalsList(asBytes(res), bsa);
     });
+
+    await ft.test([ft.string()], `
+    testing string_from_data
+    func main(a: Data) -> String {
+        String::from_data(a)
+    }`, ([a], res) => asString(a) == asString(res));
 
     await ft.test([ft.string()], `
     testing string_serialize
     func main(a: String) -> ByteArray {
         a.serialize()
-    }`, ([a], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-    });
+    }`, serializeProp);
 
 
     //////////////////
@@ -683,84 +877,68 @@ async function runPropertyTests() {
         testing bytearray_eq_1
         func main(a: ByteArray) -> Bool {
             a == a
-        }`, ([_], res) => {
-            return res.isBool() && (true === res.asBool());
-        });
+        }`, ([_], res) => asBool(res));
 
         await ft.test([ft.bytes(), ft.bytes()], `
         testing bytearray_eq_2
         func main(a: ByteArray, b: ByteArray) -> Bool {
             a == b
-        }`, ([a, b], res) => {
-            return res.isBool() && (a.equalsByteArray(b.asByteArray()) === res.asBool());
-        });
+        }`, ([a, b], res) => equalsList(asBytes(a), asBytes(b)) === asBool(res));
 
         await ft.test([ft.bytes()], `
         testing bytearray_neq_1
         func main(a: ByteArray) -> Bool {
             a != a
-        }`, ([_], res) => {
-            return res.isBool() && (false === res.asBool());
-        });
+        }`, ([_], res) => !asBool(res));
 
         await ft.test([ft.bytes(), ft.bytes()], `
         testing bytearray_neq_2
         func main(a: ByteArray, b: ByteArray) -> Bool {
             a != b
-        }`, ([a, b], res) => {
-            return res.isBool() && (a.equalsByteArray(b.asByteArray()) === !res.asBool());
-        });
+        }`, ([a, b], res) => equalsList(asBytes(a), asBytes(b)) === !asBool(res));
 
         await ft.test([ft.bytes()], `
         testing bytearray_add_1
         func main(a: ByteArray) -> ByteArray {
             a + #
-        }`, ([a], res) => {
-            return res.isByteArray() && res.equalsByteArray(a.asByteArray());
-        });
+        }`, ([a], res) => equalsList(asBytes(a), asBytes(res)));
 
         await ft.test([ft.bytes()], `
         testing bytearray_add_1_alt
         func main(a: ByteArray) -> ByteArray {
             # + a
-        }`, ([a], res) => {
-            return res.isByteArray() && res.equalsByteArray(a.asByteArray());
-        });
+        }`, ([a], res) => equalsList(asBytes(a), asBytes(res)));
 
         await ft.test([ft.bytes(), ft.bytes()], `
         testing bytearray_add_2
         func main(a: ByteArray, b: ByteArray) -> ByteArray {
             a + b
-        }`, ([a, b], res) => {
-            return res.isByteArray() && res.equalsByteArray(a.asByteArray().concat(b.asByteArray()));
-        });
+        }`, ([a, b], res) => equalsList(asBytes(a).concat(asBytes(b)), asBytes(res)));
 
         await ft.test([ft.bytes()], `
         testing bytearray_length
         func main(a: ByteArray) -> Int {
             a.length
-        }`, ([a], res) => {
-            return res.isInt() && (BigInt(a.asByteArray().length) === res.asInt());
-        });
+        }`, ([a], res) => BigInt(asBytes(a).length) === asInt(res));
 
         await ft.test([ft.bytes(0, 64), ft.int(-10, 100)], `
         testing bytearray_slice_1
         func main(a: ByteArray, b: Int) -> ByteArray {
             a.slice(b, -1)
         }`, ([a, b], res) => {
-            let aBytes = a.asByteArray();
-            let n = aBytes.length;
+            let bsa = asBytes(a);
+            let n = bsa.length;
 
-            let start = b.asInt() < 0n ? n + 1 + Number(b.asInt()) : Number(b.asInt());
+            let start = asInt(b) < 0n ? n + 1 + Number(asInt(b)) : Number(asInt(b));
             if (start < 0) {
                 start = 0;
             } else if (start > n) {
                 start = n;
             }
 
-            let expected = aBytes.slice(start);
+            let expected = bsa.slice(start);
 
-            return res.equalsByteArray(expected);
+            return equalsList(expected, asBytes(res));
         });
 
         await ft.test([ft.bytes(0, 64), ft.int(-10, 100), ft.int(-10, 100)], `
@@ -768,101 +946,93 @@ async function runPropertyTests() {
         func main(a: ByteArray, b: Int, c: Int) -> ByteArray {
             a.slice(b, c)
         }`, ([a, b, c], res) => {
-            let aBytes = a.asByteArray();
-            let n = aBytes.length;
+            let bsa = asBytes(a);
+            let n = bsa.length;
 
-            let start = b.asInt() < 0n ? n + 1 + Number(b.asInt()) : Number(b.asInt());
+            let start = asInt(b) < 0n ? n + 1 + Number(asInt(b)) : Number(asInt(b));
             if (start < 0) {
                 start = 0;
             } else if (start > n) {
                 start = n;
             }
 
-            let end = c.asInt() < 0n ? n + 1 + Number(c.asInt()) : Number(c.asInt());
+            let end = asInt(c) < 0n ? n + 1 + Number(asInt(c)) : Number(asInt(c));
             if (end < 0) {
                 end = 0;
             } else if (end > n) {
                 end = n;
             }
 
-            let expected = aBytes.slice(start, end);
+            let expected = bsa.slice(start, end);
 
-            return res.equalsByteArray(expected);
+            return equalsList(expected, asBytes(res));
         });
 
         await ft.test([ft.bytes(0, 10), ft.bytes(0, 10)], `
         testing bytearray_starts_with_1
         func main(a: ByteArray, b: ByteArray) -> Bool {
             (a+b).starts_with(a)
-        }`, ([a, b], res) => {
-            return res.isBool() && res.asBool();
-        });
+        }`, ([a, b], res) => asBool(res));
 
         await ft.test([ft.bytes(0, 10), ft.bytes(0, 10)], `
         testing bytearray_starts_with_2
         func main(a: ByteArray, b: ByteArray) -> Bool {
             (a+b).starts_with(b)
         }`, ([a, b], res) => {
-            let aBytes = a.asByteArray();
-            let bBytes = b.asByteArray();
+            let bsa = asBytes(a);
+            let bsb = asBytes(b);
             
-            let allBytes = aBytes.concat(bBytes);
+            let bs = bsa.concat(bsb);
 
-            for (let i = 0; i < Math.min(allBytes.length, bBytes.length); i++) {
-                if (allBytes[i] != bBytes[i]) {
-                    return res.isBool() && !res.asBool();
+            for (let i = 0; i < Math.min(bs.length, bsb.length); i++) {
+                if (bs[i] != bsb[i]) {
+                    return !asBool(res);
                 }
             }
 
-            return res.isBool() && res.asBool();
+            return asBool(res);
         });
 
         await ft.test([ft.bytes(0, 10), ft.bytes(0, 10)], `
         testing bytearray_ends_with_1
         func main(a: ByteArray, b: ByteArray) -> Bool {
             (a+b).ends_with(b)
-        }`, ([a, b], res) => {
-            return res.isBool() && res.asBool();
-        });
+        }`, ([a, b], res) => asBool(res));
 
         await ft.test([ft.bytes(0, 10), ft.bytes(0, 10)], `
         testing bytearray_ends_with_2
         func main(a: ByteArray, b: ByteArray) -> Bool {
             (a+b).ends_with(a)
         }`, ([a, b], res) => {
-            let aBytes = a.asByteArray();
-            let bBytes = b.asByteArray();
+            let bsa = asBytes(a);
+            let bsb = asBytes(b);
             
-            let allBytes = aBytes.concat(bBytes);
+            let bs = bsa.concat(bsb);
 
-            for (let i = 0; i < Math.min(allBytes.length, aBytes.length); i++) {
-                if (allBytes[allBytes.length - 1 - i] != aBytes[aBytes.length - 1 - i]) {
-                    return res.isBool() && !res.asBool();
+            for (let i = 0; i < Math.min(bs.length, bsa.length); i++) {
+                if (bs[bs.length - 1 - i] != bsa[bsa.length - 1 - i]) {
+                    return !asBool(res);
                 }
             }
 
-            return res.isBool() && res.asBool();
+            return asBool(res);
         });
 
         await ft.test([ft.utf8Bytes()], `
         testing bytearray_decode_utf8_utf8
         func main(a: ByteArray) -> String {
             a.decode_utf8()
-        }`, ([a], res) => {
-            return res.isString() && (a.asString() == res.asString());
-        });
+        }`, ([a], res) => asString(a) == asString(res));
 
         await ft.test([ft.bytes()], `
         testing bytearray_decode_utf8
         func main(a: ByteArray) -> String {
             a.decode_utf8()
-        }`, ([a], res) => {
-            if (a.isString()) {
-                return res.isString() && (a.asString() == res.asString());
-            } else {
-                return res instanceof helios.UserError && res.info === "invalid utf-8";
-            }
-        });
+        }`, ([a], res) => 
+            isValidString(a) ?
+            asString(a) == asString(res) :
+            isError(res, "invalid utf-8")
+        );
 
         await ft.test([ft.bytes(0, 10)], `
         testing bytearray_sha2
@@ -871,9 +1041,9 @@ async function runPropertyTests() {
         }`, ([a], res) => {
             let hasher = crypto.createHash("sha256");
 
-            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+            hasher.update(new DataView((new Uint8Array(asBytes(a))).buffer));
 
-            return res.equalsByteArray(Array.from(hasher.digest()));
+            return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
         await ft.test([ft.bytes(55, 70)], `
@@ -883,9 +1053,9 @@ async function runPropertyTests() {
         }`, ([a], res) => {
             let hasher = crypto.createHash("sha256");
 
-            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+            hasher.update(new DataView((new Uint8Array(asBytes(a))).buffer));
 
-            return res.equalsByteArray(Array.from(hasher.digest()));
+            return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
         await ft.test([ft.bytes(0, 10)], `
@@ -895,9 +1065,9 @@ async function runPropertyTests() {
         }`, ([a], res) => {
             let hasher = crypto.createHash("sha3-256");
 
-            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+            hasher.update(new DataView((new Uint8Array(asBytes(a))).buffer));
 
-            return res.equalsByteArray(Array.from(hasher.digest()));
+            return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
         await ft.test([ft.bytes(130, 140)], `
@@ -907,9 +1077,9 @@ async function runPropertyTests() {
         }`, ([a], res) => {
             let hasher = crypto.createHash("sha3-256");
 
-            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+            hasher.update(new DataView((new Uint8Array(asBytes(a))).buffer));
 
-            return res.equalsByteArray(Array.from(hasher.digest()));
+            return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
         // the crypto library only supports blake2b512 (and not blake2b256), so temporarily set digest size to 64 bytes for testing
@@ -922,11 +1092,9 @@ async function runPropertyTests() {
         }`, ([a], res) => {
             let hasher = crypto.createHash("blake2b512");
 
-            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+            hasher.update(new DataView((new Uint8Array(asBytes(a))).buffer));
 
-            let hash = Array.from(hasher.digest());
-
-            return res.equalsByteArray(hash);
+            return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
         await ft.test([ft.bytes(130, 140)], `
@@ -936,9 +1104,9 @@ async function runPropertyTests() {
         }`, ([a], res) => {
             let hasher = crypto.createHash("blake2b512");
 
-            hasher.update(new DataView((new Uint8Array(a.asByteArray())).buffer));
+            hasher.update(new DataView((new Uint8Array(asBytes(a))).buffer));
 
-            return res.equalsByteArray(Array.from(hasher.digest()));
+            return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
         helios_.setBlake2bDigestSize(32);
@@ -948,101 +1116,89 @@ async function runPropertyTests() {
         func main(a: ByteArray) -> String {
             a.show()
         }`, ([a], res) => {
-            let s = Array.from(a.asByteArray(), byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
+            let s = Array.from(asBytes(a), byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
 
-            return res.isString() && (s === res.asString());
+            return s === asString(res);
         });
+
+        await ft.test([ft.bytes()], `
+        testing bytearray_from_data
+        func main(a: Data) -> ByteArray {
+            ByteArray::from_data(a)
+        }`, ([a], res) => equalsList(asBytes(a), asBytes(res)));
 
         await ft.test([ft.bytes(0, 1024)], `
         testing bytearray_serialize
         func main(a: ByteArray) -> ByteArray {
             a.serialize()
-        }`, ([a], res) => {
-            return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-        });
+        }`, serializeProp);
 
         await ft.test([ft.bytes()], `
         testing bytearray32_eq_1
         func main(a: ByteArray) -> Bool {
             a.blake2b() == a.blake2b()
-        }`, ([_], res) => {
-            return res.isBool() && (true === res.asBool());
-        });
+        }`, ([_], res) => asBool(res));
 
         await ft.test([ft.bytes(), ft.bytes()], `
         testing bytearray32_eq_2
         func main(a: ByteArray, b: ByteArray) -> Bool {
             a.blake2b() == b.blake2b()
-        }`, ([a, b], res) => {
-            return res.isBool() && (a.equalsByteArray(b.asByteArray()) === res.asBool());
-        });
+        }`, ([a, b], res) => equalsList(asBytes(a), asBytes(b)) === asBool(res));
 
         await ft.test([ft.bytes()], `
         testing bytearray32_neq_1
         func main(a: ByteArray) -> Bool {
             a.blake2b() != a.blake2b()
-        }`, ([_], res) => {
-            return res.isBool() && (false === res.asBool());
-        });
+        }`, ([_], res) => !asBool(res));
 
         await ft.test([ft.bytes(), ft.bytes()], `
         testing bytearray32_neq_2
         func main(a: ByteArray, b: ByteArray) -> Bool {
             a.blake2b() != b.blake2b()
-        }`, ([a, b], res) => {
-            return res.isBool() && (a.equalsByteArray(b.asByteArray()) === !res.asBool());
-        });
+        }`, ([a, b], res) => equalsList(asBytes(a), asBytes(b)) === !asBool(res));
 
         await ft.test([ft.bytes()], `
         testing bytearray32_add_1
         func main(a: ByteArray) -> ByteArray {
             a.blake2b() + #
-        }`, ([a], res) => {
-            return res.isByteArray() && res.equalsByteArray(helios_.Crypto.blake2b(a.asByteArray()));
-        });
+        }`, ([a], res) => equalsList(helios_.Crypto.blake2b(asBytes(a)), asBytes(res)));
 
         await ft.test([ft.bytes()], `
         testing bytearray32_add_1_alt
         func main(a: ByteArray) -> ByteArray {
             # + a.blake2b()
-        }`, ([a], res) => {
-            return res.isByteArray() && res.equalsByteArray(helios_.Crypto.blake2b(a.asByteArray()));
-        });
+        }`, ([a], res) => equalsList(helios_.Crypto.blake2b(asBytes(a)), asBytes(res)));
 
         await ft.test([ft.bytes(), ft.bytes()], `
         testing bytearray32_add_2
         func main(a: ByteArray, b: ByteArray) -> ByteArray {
             a.blake2b() + b.blake2b()
-        }`, ([a, b], res) => {
-            return res.isByteArray() && res.equalsByteArray(helios_.Crypto.blake2b(a.asByteArray()).concat(helios_.Crypto.blake2b(b.asByteArray())));
-        });
+        }`, ([a, b], res) => equalsList(helios_.Crypto.blake2b(asBytes(a)).concat(helios_.Crypto.blake2b(asBytes(b))), asBytes(res)));
 
         await ft.test([ft.bytes()], `
         testing bytearray32_length
         func main(a: ByteArray) -> Int {
             a.blake2b().length
-        }`, ([a], res) => {
-            return res.isInt() && (32n === res.asInt());
-        });
+        }`, ([a], res) => 32n === asInt(res));
 
         await ft.test([ft.bytes(0, 64), ft.int(-10, 100)], `
         testing bytearray32_slice_1
         func main(a: ByteArray, b: Int) -> ByteArray {
             a.blake2b().slice(b, -1)
         }`, ([a, b], res) => {
-            let aBytes = helios_.Crypto.blake2b(a.asByteArray());
-            let n = aBytes.length;
+            let bsa = helios_.Crypto.blake2b(asBytes(a));
+            let n = bsa.length;
 
-            let start = b.asInt() < 0n ? n + 1 + Number(b.asInt()) : Number(b.asInt());
+            let start = asInt(b) < 0n ? n + 1 + Number(asInt(b)) : Number(asInt(b));
             if (start < 0) {
                 start = 0;
             } else if (start > n) {
                 start = n;
             }
 
-            let expected = aBytes.slice(start);
+            let expected = bsa.slice(start);
 
-            return res.equalsByteArray(expected);
+            return equalsList(expected, asBytes(res));
         });
 
         await ft.test([ft.bytes(0, 64), ft.int(-10, 100), ft.int(-10, 100)], `
@@ -1050,57 +1206,53 @@ async function runPropertyTests() {
         func main(a: ByteArray, b: Int, c: Int) -> ByteArray {
             a.blake2b().slice(b, c)
         }`, ([a, b, c], res) => {
-            let aBytes = helios_.Crypto.blake2b(a.asByteArray());
-            let n = aBytes.length;
+            let bsa = helios_.Crypto.blake2b(asBytes(a));
+            let n = bsa.length;
 
-            let start = b.asInt() < 0n ? n + 1 + Number(b.asInt()) : Number(b.asInt());
+            let start = asInt(b) < 0n ? n + 1 + Number(asInt(b)) : Number(asInt(b));
             if (start < 0) {
                 start = 0;
             } else if (start > n) {
                 start = n;
             }
 
-            let end = c.asInt() < 0n ? n + 1 + Number(c.asInt()) : Number(c.asInt());
+            let end = asInt(c) < 0n ? n + 1 + Number(asInt(c)) : Number(asInt(c));
             if (end < 0) {
                 end = 0;
             } else if (end > n) {
                 end = n;
             }
 
-            let expected = aBytes.slice(start, end);
+            let expected = bsa.slice(start, end);
 
-            return res.equalsByteArray(expected);
+            return equalsList(expected, asBytes(res));
         });
 
         await ft.test([ft.bytes(0, 10)], `
         testing bytearray32_starts_with_1
         func main(a: ByteArray) -> Bool {
             a.blake2b().starts_with(#)
-        }`, ([a, b], res) => {
-            return res.isBool() && res.asBool();
-        });
+        }`, ([a, b], res) => asBool(res));
 
         await ft.test([ft.bytes(0, 10)], `
         testing bytearray32_ends_with_1
         func main(a: ByteArray) -> Bool {
             a.blake2b().ends_with(#)
-        }`, ([a, b], res) => {
-            return res.isBool() && res.asBool();
-        });
+        }`, ([a, b], res) => asBool(res));
         
         await ft.test([ft.utf8Bytes()], `
         testing bytearray32_decode_utf8_utf8
         func main(a: ByteArray) -> String {
             a.blake2b().decode_utf8()
         }`, ([a], res) => {
-            let aBytes = helios_.Crypto.blake2b(a.asByteArray());
+            let bsa = helios_.Crypto.blake2b(asBytes(a));
 
             try {
-                let aString = helios_.bytesToString(aBytes);
+                let aString = helios_.bytesToString(bsa);
 
-                res.isString() && (aString == res.asString());
+                return aString == asString(res);
             } catch (_) {
-                return res instanceof helios.UserError && res.info == "invalid utf-8";
+                return isError(res, "invalid utf-8");
             }
         });
 
@@ -1111,9 +1263,9 @@ async function runPropertyTests() {
         }`, ([a], res) => {
             let hasher = crypto.createHash("sha256");
 
-            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(a.asByteArray()))).buffer));
+            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(asBytes(a)))).buffer));
 
-            return res.equalsByteArray(Array.from(hasher.digest()));
+            return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
         await ft.test([ft.bytes(55, 70)], `
@@ -1123,9 +1275,9 @@ async function runPropertyTests() {
         }`, ([a], res) => {
             let hasher = crypto.createHash("sha256");
 
-            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(a.asByteArray()))).buffer));
+            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(asBytes(a)))).buffer));
 
-            return res.equalsByteArray(Array.from(hasher.digest()));
+            return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
         await ft.test([ft.bytes(0, 10)], `
@@ -1135,9 +1287,9 @@ async function runPropertyTests() {
         }`, ([a], res) => {
             let hasher = crypto.createHash("sha3-256");
 
-            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(a.asByteArray()))).buffer));
+            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(asBytes(a)))).buffer));
 
-            return res.equalsByteArray(Array.from(hasher.digest()));
+            return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
         await ft.test([ft.bytes(130, 140)], `
@@ -1147,9 +1299,9 @@ async function runPropertyTests() {
         }`, ([a], res) => {
             let hasher = crypto.createHash("sha3-256");
 
-            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(a.asByteArray()))).buffer));
+            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(asBytes(a)))).buffer));
 
-            return res.equalsByteArray(Array.from(hasher.digest()));
+            return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
         // the crypto library only supports blake2b512 (and not blake2b256), so temporarily set digest size to 64 bytes for testing
@@ -1162,11 +1314,9 @@ async function runPropertyTests() {
         }`, ([a], res) => {
             let hasher = crypto.createHash("blake2b512");
 
-            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(a.asByteArray()))).buffer));
+            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(asBytes(a)))).buffer));
 
-            let hash = Array.from(hasher.digest());
-
-            return res.equalsByteArray(hash);
+            return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
         await ft.test([ft.bytes(130, 140)], `
@@ -1176,9 +1326,9 @@ async function runPropertyTests() {
         }`, ([a], res) => {
             let hasher = crypto.createHash("blake2b512");
 
-            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(a.asByteArray()))).buffer));
+            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(asBytes(a)))).buffer));
 
-            return res.equalsByteArray(Array.from(hasher.digest()));
+            return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
         helios_.setBlake2bDigestSize(32);
@@ -1188,18 +1338,16 @@ async function runPropertyTests() {
         func main(a: ByteArray) -> String {
             a.blake2b().show()
         }`, ([a], res) => {
-            let s = Array.from(helios_.Crypto.blake2b(a.asByteArray()), byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
+            let s = Array.from(helios_.Crypto.blake2b(asBytes(a)), byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
 
-            return res.isString() && (s === res.asString());
+            return s === asString(res);
         });
 
         await ft.test([ft.bytes(0, 1024)], `
         testing bytearray32_serialize
         func main(a: ByteArray) -> ByteArray {
             a.blake2b().serialize()
-        }`, ([a], res) => {
-            return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).equalsByteArray(helios_.Crypto.blake2b(a.asByteArray()));
-        });
+        }`, ([a], res) => decodeCBOR(asBytes(res)).isSame(new helios_.ByteArrayData(helios_.Crypto.blake2b(asBytes(a)))));
     }
 
 
@@ -1211,170 +1359,186 @@ async function runPropertyTests() {
 
     if (testList) {
         await ft.test([ft.int(-20, 20), ft.int()], `
+        testing list_new_const
+        func main(n: Int, b: Int) -> Bool {
+            lst: []Int = []Int::new_const(n, b);
+            if (n < 0) {
+                lst.length == 0
+            } else {
+                lst.length == n && lst.all((v: Int) -> Bool {v == b})
+            }
+        }`, ([a, b], res) => asBool(res));
+
+        await ft.test([ft.int(-20, 20)], `
         testing list_new
-        func main(a: Int, b: Int) -> []Int {
-            []Int::new(a, b)
-        }`, ([a, b], res) => {
-            let n = Number(a.asInt());
+        func main(n: Int) -> []Int {
+            []Int::new(n, (i: Int) -> Int {i})
+        }`, ([a], res) => {
+            let n = Number(asInt(a));
             if (n < 0) {
                 n = 0;
             }
 
-            return res.isList() && res.equalsList((new Array(n).fill(b.asInt())));
+            let lRes = asIntList(res);
+
+            return n == lRes.length && lRes.every((v, i) => i == v);
         });
+
+        await ft.test([ft.int(-20, 20)], `
+        testing list_new
+        func main(n: Int) -> Bool {
+            lst: []Int = []Int::new(n, (i: Int) -> Int {i});
+            if (n < 0) {
+                lst.length == 0
+            } else {
+                lst.length == n && (
+                    sum: Int = lst.fold((acc: Int, v: Int) -> Int {acc + v}, 0);
+                    sum == n*(n-1)/2
+                )
+            }
+        }`, ([a, b], res) => asBool(res));
 
         await ft.test([ft.list(ft.int(), 0, 20)], `
         testing list_eq_1
         func main(a: []Int) -> Bool {
             a == a
-        }`, ([_], res) => {
-            return res.isBool() && (true === res.asBool());
-        });
+        }`, ([_], res) => asBool(res));
 
         await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
         testing list_eq_2
         func main(a: []Int, b: []Int) -> Bool {
-            a == b
-        }`, ([a, b], res) => {
-            return res.isBool() && (b.equalsList(a.asList()) === res.asBool());
-        });
+            (a == b) == ((a.length == b.length) && (
+                []Int::new(a.length, (i: Int) -> Int {i}).all((i: Int) -> Bool {
+                    a.get(i) == b.get(i)
+                })
+            ))
+        }`, ([a, b], res) => asBool(res));
 
         await ft.test([ft.list(ft.int())], `
         testing list_neq_1
         func main(a: []Int) -> Bool {
             a != a
-        }`, ([_], res) => {
-            return res.isBool() && (false === res.asBool());
-        });
+        }`, ([_], res) => !asBool(res));
 
         await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
         testing list_neq_2
         func main(a: []Int, b: []Int) -> Bool {
-            a != b
-        }`, ([a, b], res) => {
-            return res.isBool() && (b.equalsList(a.asList()) === !res.asBool());
-        });
+            (a != b) == ((a.length != b.length) || (
+                []Int::new(a.length, (i: Int) -> Int{i}).any((i: Int) -> Bool {
+                    a.get(i) != b.get(i)
+                })
+            ))
+        }`, ([a, b], res) => asBool(res));
 
         await ft.test([ft.list(ft.int())], `
         testing list_add_1
-        func main(a: []Int) -> []Int {
-            a + []Int{}
-        }`, ([a], res) => {
-            return res.isList() && (res.equalsList(a.asList()));
-        });
+        func main(a: []Int) -> Bool {
+            newLst: []Int = a + []Int{};
+            newLst == a
+        }`, ([a], res) => asBool(res));
 
         await ft.test([ft.list(ft.int())], `
         testing list_add_1_alt
-        func main(a: []Int) -> []Int {
-            []Int{} + a
-        }`, ([a], res) => {
-            return res.isList() && (res.equalsList(a.asList()));
-        });
+        func main(a: []Int) -> Bool {
+            newLst: []Int = []Int{} + a;
+            newLst == a
+        }`, ([a], res) => asBool(res));
 
         await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
         testing list_add_2
-        func main(a: []Int, b: []Int) -> []Int {
-            a + b
-        }`, ([a, b], res) => {
-            return res.isList() && res.equalsList(a.asList().concat(b.asList()));
-        });
+        func main(a: []Int, b: []Int) -> Bool {
+            newLst: []Int = a + b;
+            n: Int = a.length;
+
+            []Int::new(newLst.length, (i: Int) -> Int {i}).all(
+                (i: Int) -> Bool {
+                    if (i < n) {
+                        newLst.get(i) == a.get(i)
+                    } else {
+                        newLst.get(i) == b.get(i - n)
+                    }
+                }
+            )
+        }`, ([a, b], res) => asBool(res));
 
         await ft.test([ft.list(ft.int(), 0, 50)], `
         testing list_length
-        func main(a: []Int) -> Int {
-            a.length
-        }`, ([a], res) => {
-            return res.isInt() && (BigInt(a.asList().length) === res.asInt());
-        });
+        func main(a: []Int) -> Bool {
+            a.length == a.fold((acc:Int, v: Int) -> Int {
+                acc + if (v == v) {1} else {0}
+            }, 0)
+        }`, ([a], res) => asBool(res));
 
         await ft.test([ft.list(ft.int())], `
         testing list_head
-        func main(a: []Int) -> Int {
-            a.head
-        }`, ([a], res) => {
-            let aLst = a.asList();
-
-            return (
-                aLst.length == 0 ? 
-                res instanceof helios.UserError && res.info === "empty list" :
-                res.equalsInt(aLst[0])
-            );
-        });
+        func main(a: []Int) -> Bool {
+            if (a.length == 0) {
+                true
+            } else {
+                a.head == a.get(0)
+            }
+        }`, ([a], res) => asBool(res));
 
         await ft.test([ft.list(ft.int())], `
         testing list_tail
-        func main(a: []Int) -> []Int {
-            a.tail
-        }`, ([a], res) => {
-            let aLst = a.asList();
-
-            return  (
-                aLst.length == 0 ?
-                res instanceof helios.UserError && res.info === "empty list" :
-                res.isList() && res.equalsList(aLst.slice(1))
-            );
-        });
+        func main(a: []Int) -> Bool {
+            if (a.length == 0) {
+                true
+            } else {
+                tl: []Int = a.tail;
+                ([]Int::new(tl.length, (i: Int) -> Int{i})).all(
+                    (i: Int) -> Bool {
+                        tl.get(i) == a.get(i+1)
+                    }
+                )
+            }
+        }`, ([a], res) => asBool(res));
 
         await ft.test([ft.list(ft.int(), 0, 10)], `
         testing list_is_empty
         func main(a: []Int) -> Bool {
-            a.is_empty()
-        }`, ([a], res) => {
-            return res.isBool() && ((a.asList().length == 0) === res.asBool());
-        });
-
-        await ft.test([ft.list(ft.int(), 0, 10), ft.int(-5, 15)], `
-        testing list_get
-        func main(a: []Int, b: Int) -> Int {
-            a.get(b)
-        }`, ([a, b], res) => {
-            let i = Number(b.asInt());
-            let n = a.asList().length;
-
-            if (i >= n || i < 0) {
-                return res instanceof helios.UserError && res.info === "index out of range";
-            } else {
-                return res.isInt() && res.equalsInt(a.asList()[i]);
-            }
-        });
+            a.is_empty() == (a.length == 0)
+        }`, ([a], res) => asBool(res));
 
         await ft.test([ft.list(ft.int()), ft.int()], `
         testing list_prepend
-        func main(a: []Int, b: Int) -> []Int {
-            a.prepend(b)
-        }`, ([a, b], res) => {
-            let expected = a.asList();
-            expected.unshift(b);
-            return res.isList() && res.equalsList(expected);
-        });
+        func main(a: []Int, b: Int) -> Bool {
+            newList: []Int = a.prepend(b);
+
+            ([]Int::new(newList.length, (i: Int) -> Int{i})).all(
+                (i: Int) -> Bool {
+                    if (i == 0) {
+                        newList.get(i) == b
+                    } else {
+                        newList.get(i) == a.get(i-1)
+                    }
+                }
+            )
+        }`, ([a, b], res) => asBool(res));
 
         await ft.test([ft.list(ft.int())], `
         testing list_any
         func main(a: []Int) -> Bool {
-            a.any((x: Int) -> Bool {x > 0})
-        }`, ([a], res) => {
-            return res.isBool() && (a.asList().some((i) => i.asInt() > 0n) === res.asBool());
-        });
+            (a + []Int{1}).any((x: Int) -> Bool {x > 0})
+        }`, ([a], res) => asBool(res));
 
         await ft.test([ft.list(ft.int())], `
         testing list_all
         func main(a: []Int) -> Bool {
-            a.all((x: Int) -> Bool {x > 0})
-        }`, ([a], res) => {
-            return res.isBool() && (a.asList().every((i) => i.asInt() > 0n) === res.asBool());
-        });
+            (a + []Int{-1}).all((x: Int) -> Bool {x > 0})
+        }`, ([a], res) => !asBool(res));
 
         await ft.test([ft.list(ft.int())], `
         testing list_find
         func main(a: []Int) -> Int {
             a.find((x: Int) -> Bool {x > 0})
         }`, ([a], res) => {
-            let aLst = a.asList();
+            let la = asIntList(a);
 
-            if (aLst.every(i => i.asInt() <= 0n)) {
-                return res instanceof helios.UserError && res.info === "not found";
+            if (la.every(i => i <= 0n)) {
+                return isError(res, "not found");
             } else {
-                return res.equalsInt(aLst.find(i => i.asInt() > 0n));
+                return asInt(res) == la.find(i => i > 0n);
             }
         });
 
@@ -1383,8 +1547,10 @@ async function runPropertyTests() {
         func main(a: []Int) -> []Int {
             a.filter((x: Int) -> Bool {x > 0})
         }`, ([a], res) => {
-            let aLst = a.asList();
-            return res.equalsList(aLst.filter(i => i.asInt() > 0n));
+            let la = asIntList(a).filter(i => i > 0n);
+            let lRes = asIntList(res);
+
+            return (la.length == lRes.length) && la.every((a, i) => a == lRes[i]);
         });
 
         await ft.test([ft.list(ft.int())], `
@@ -1392,139 +1558,127 @@ async function runPropertyTests() {
         func main(a: []Int) -> Int {
             a.fold((sum: Int, x: Int) -> Int {sum + x}, 0)
         }`, ([a], res) => {
-            let aLst = a.asList();
+            let la = asIntList(a);
 
-            return aLst.reduce((sum, i) => sum + i.asInt(), 0n) === res.asInt();
+            return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
         });
 
-        await ft.test([ft.list(ft.list(ft.int()))], `
-        testing list_fold_nested
-        func main(a: [][]Int) -> Int {
-            a.fold((sum: Int, x: []Int) -> Int {
-                x.fold((sumInner: Int, xInner: Int) -> Int {
-                    sumInner + xInner
-                }, sum)
-            }, 0)
-        }`, ([a], res) => {
-            let aLst = a.asList();
-
-            let sum = aLst.reduce((sum, inner) => inner.asList().reduce((sum, i) => sum + i.asInt(), sum), 0n);
-
-            return sum === res.asInt();
-        });
-
-        await ft.test([ft.list(ft.list(ft.int()))], `
-        testing list_map_fold
-        func main(a: [][]Int) -> []Int {
-            a.map((inner: []Int) -> Int {
-                inner.fold((sum: Int, x: Int) -> Int {
-                    sum + x
-                }, 0)
+        await ft.test([ft.list(ft.int())], `
+        testing list_map
+        func main(a: []Int) -> []Int {
+            a.map((x: Int) -> Int {
+                x*2
             })
         }`, ([a], res) => {
-            let aLst = a.asList();
+            let la = asIntList(a);
+            let lRes = asIntList(res);
 
-            let sumLst = aLst.map(inner => inner.asList().reduce((sum, i) => sum + i.asInt(), 0n));
+            return la.every((v, i) => v*2n == lRes[i]);
+        });
 
-            return res.equalsList(sumLst);
+        await ft.test([ft.list(ft.int())], `
+        testing list_from_data
+        func main(a: Data) -> []Int {
+            []Int::from_data(a)
+        }`, ([a], res) => {
+            let la = asIntList(a);
+            let lRes = asIntList(res);
+
+            return la.length == lRes.length && la.every((v, i) => v == lRes[i]);
         });
 
         await ft.test([ft.list(ft.int())], `
         testing list_serialize
         func main(a: []Int) -> ByteArray {
             a.serialize()
-        }`, ([a], res) => {
-            return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-        });
+        }`, serializeProp);
 
         await ft.test([ft.int(-20, 20), ft.bool()], `
-        testing boollist_new
+        testing boollist_new_const
         func main(a: Int, b: Bool) -> []Bool {
-            []Bool::new(a, b)
+            []Bool::new_const(a, b)
         }`, ([a, b], res) => {
-            let n = Number(a.asInt());
+            let n = Number(asInt(a));
             if (n < 0) {
                 n = 0;
             }
 
-            return res.isList() && res.equalsList((new Array(n).fill(b.asBool())));
+            return equalsList((new Array(n)).fill(asBool(b)), asBoolList(res));
+        });
+
+        await ft.test([ft.int(-20, 20)], `
+        testing boollist_new
+        func main(a: Int) -> []Bool {
+            []Bool::new(a, (i: Int) -> Bool {i%2 == 0})
+        }`, ([a], res) => {
+            let n = Number(asInt(a));
+            if (n < 0) {
+                n = 0;
+            }
+
+            let lRes = asBoolList(res)
+            return n == lRes.length && lRes.every((b, i) => b === (i%2 == 0));
         });
 
         await ft.test([ft.list(ft.bool(), 0, 20)], `
         testing boollist_eq_1
         func main(a: []Bool) -> Bool {
             a == a
-        }`, ([_], res) => {
-            return res.isBool() && (true === res.asBool());
-        });
+        }`, ([_], res) => asBool(res));
 
         await ft.test([ft.list(ft.bool()), ft.list(ft.bool())], `
         testing boollist_eq_2
         func main(a: []Bool, b: []Bool) -> Bool {
             a == b
-        }`, ([a, b], res) => {
-            return res.isBool() && (b.equalsList(a.asList()) === res.asBool());
-        });
+        }`, ([a, b], res) => equalsList(asBoolList(a), asBoolList(b)) === asBool(res));
 
         await ft.test([ft.list(ft.bool())], `
         testing boollist_neq_1
         func main(a: []Bool) -> Bool {
             a != a
-        }`, ([_], res) => {
-            return res.isBool() && (false === res.asBool());
-        });
+        }`, ([_], res) => !asBool(res));
 
         await ft.test([ft.list(ft.bool()), ft.list(ft.bool())], `
         testing boollist_neq_2
         func main(a: []Bool, b: []Bool) -> Bool {
             a != b
-        }`, ([a, b], res) => {
-            return res.isBool() && (b.equalsList(a.asList()) === !res.asBool());
-        });
+        }`, ([a, b], res) => equalsList(asBoolList(a), asBoolList(b)) === !asBool(res));
 
         await ft.test([ft.list(ft.bool())], `
         testing boollist_add_1
         func main(a: []Bool) -> []Bool {
             a + []Bool{}
-        }`, ([a], res) => {
-            return res.isList() && (res.equalsList(a.asList()));
-        });
+        }`, ([a], res) => equalsList(asBoolList(a), asBoolList(res)));
 
         await ft.test([ft.list(ft.bool())], `
         testing boollist_add_1_alt
         func main(a: []Bool) -> []Bool {
             []Bool{} + a
-        }`, ([a], res) => {
-            return res.isList() && (res.equalsList(a.asList()));
-        });
+        }`, ([a], res) => equalsList(asBoolList(a), asBoolList(res)));
 
         await ft.test([ft.list(ft.bool()), ft.list(ft.bool())], `
         testing boollist_add_2
         func main(a: []Bool, b: []Bool) -> []Bool {
             a + b
-        }`, ([a, b], res) => {
-            return res.isList() && res.equalsList(a.asList().concat(b.asList()));
-        });
+        }`, ([a, b], res) => equalsList(asBoolList(a).concat(asBoolList(b)), asBoolList(res)));
 
         await ft.test([ft.list(ft.bool(), 0, 50)], `
         testing boollist_length
         func main(a: []Bool) -> Int {
             a.length
-        }`, ([a], res) => {
-            return res.isInt() && (BigInt(a.asList().length) === res.asInt());
-        });
+        }`, ([a], res) => BigInt(asBoolList(a).length) === asInt(res));
 
         await ft.test([ft.list(ft.bool())], `
         testing boollist_head
         func main(a: []Bool) -> Bool {
             a.head
         }`, ([a], res) => {
-            let aLst = a.asList();
+            let la = asBoolList(a);
 
             return (
-                aLst.length == 0 ? 
-                res instanceof helios.UserError && res.info === "empty list" :
-                res.asBool() == aLst[0].asBool()
+                la.length == 0 ? 
+                isError(res, "empty list") :
+                asBool(res) === la[0]
             );
         });
 
@@ -1533,12 +1687,12 @@ async function runPropertyTests() {
         func main(a: []Bool) -> []Bool {
             a.tail
         }`, ([a], res) => {
-            let aLst = a.asList();
+            let la = asBoolList(a);
 
             return  (
-                aLst.length == 0 ?
-                res instanceof helios.UserError && res.info === "empty list" :
-                res.isList() && res.equalsList(aLst.slice(1))
+                la.length == 0 ?
+                isError(res, "empty list") :
+                equalsList(la.slice(1), asBoolList(res))
             );
         });
 
@@ -1546,22 +1700,21 @@ async function runPropertyTests() {
         testing boollist_is_empty
         func main(a: []Bool) -> Bool {
             a.is_empty()
-        }`, ([a], res) => {
-            return res.isBool() && ((a.asList().length == 0) === res.asBool());
-        });
+        }`, ([a], res) => (asBoolList(a).length == 0) === asBool(res));
 
         await ft.test([ft.list(ft.bool(), 0, 10), ft.int(-5, 15)], `
         testing boollist_get
         func main(a: []Bool, b: Int) -> Bool {
             a.get(b)
         }`, ([a, b], res) => {
-            let i = Number(b.asInt());
-            let n = a.asList().length;
+            let i = Number(asInt(b));
+            let la = asBoolList(a);
+            let n = la.length;
 
             if (i >= n || i < 0) {
-                return res instanceof helios.UserError && res.info === "index out of range";
+                return isError(res, "index out of range");
             } else {
-                return res.isBool() && (a.asList()[i].asBool() === res.asBool());
+                return la[i] === asBool(res);
             }
         });
 
@@ -1570,38 +1723,34 @@ async function runPropertyTests() {
         func main(a: []Bool, b: Bool) -> []Bool {
             a.prepend(b)
         }`, ([a, b], res) => {
-            let expected = a.asList();
-            expected.unshift(b);
-            return res.isList() && res.equalsList(expected);
+            let expected = asBoolList(a);
+            expected.unshift(asBool(b));
+            return equalsList(expected, asBoolList(res));
         });
 
         await ft.test([ft.list(ft.bool())], `
         testing boollist_any
         func main(a: []Bool) -> Bool {
             a.any((x: Bool) -> Bool {x})
-        }`, ([a], res) => {
-            return res.isBool() && (a.asList().some((i) => i.asBool()) === res.asBool());
-        });
+        }`, ([a], res) => asBoolList(a).some((i) => i) === asBool(res));
 
         await ft.test([ft.list(ft.bool())], `
         testing boollist_all
         func main(a: []Bool) -> Bool {
             a.all((x: Bool) -> Bool {x})
-        }`, ([a], res) => {
-            return res.isBool() && (a.asList().every((i) => i.asBool()) === res.asBool());
-        });
+        }`, ([a], res) => asBoolList(a).every((i) => i) === asBool(res));
 
         await ft.test([ft.list(ft.bool())], `
         testing boollist_find
         func main(a: []Bool) -> Bool {
             a.find((x: Bool) -> Bool {x})
         }`, ([a], res) => {
-            let aLst = a.asList();
+            let la = asBoolList(a);
 
-            if (aLst.every(i => (!i.asBool()))) {
-                return res instanceof helios.UserError && res.info === "not found";
+            if (la.every(i => !i)) {
+                return isError(res, "not found");
             } else {
-                return res.isBool() && res.asBool();
+                return asBool(res);
             }
         });
 
@@ -1609,52 +1758,13 @@ async function runPropertyTests() {
         testing boollist_filter
         func main(a: []Bool) -> []Bool {
             a.filter((x: Bool) -> Bool {x})
-        }`, ([a], res) => {
-            let aLst = a.asList();
-            return res.equalsList(aLst.filter(i => i.asBool()));
-        });
+        }`, ([a], res) => equalsList(asBoolList(a).filter(b => b), asBoolList(res)));
 
         await ft.test([ft.list(ft.bool())], `
         testing boollist_fold
         func main(a: []Bool) -> Int {
             a.fold((sum: Int, x: Bool) -> Int {sum + x.to_int()}, 0)
-        }`, ([a], res) => {
-            let aLst = a.asList();
-
-            return aLst.reduce((sum, i) => sum + (i.asBool() ? 1n : 0n), 0n) === res.asInt();
-        });
-
-        await ft.test([ft.list(ft.list(ft.bool()))], `
-        testing boollist_fold_nested
-        func main(a: [][]Bool) -> Int {
-            a.fold((sum: Int, x: []Bool) -> Int {
-                x.fold((sumInner: Int, xInner: Bool) -> Int {
-                    sumInner + xInner.to_int()
-                }, sum)
-            }, 0)
-        }`, ([a], res) => {
-            let aLst = a.asList();
-
-            let sum = aLst.reduce((sum, inner) => inner.asList().reduce((sum, i) => sum + (i.asBool() ? 1n : 0n), sum), 0n);
-
-            return sum === res.asInt();
-        });
-
-        await ft.test([ft.list(ft.list(ft.bool()))], `
-        testing boollist_map_fold
-        func main(a: [][]Bool) -> []Int {
-            a.map((inner: []Bool) -> Int {
-                inner.fold((sum: Int, x: Bool) -> Int {
-                    sum + x.to_int()
-                }, 0)
-            })
-        }`, ([a], res) => {
-            let aLst = a.asList();
-
-            let sumLst = aLst.map(inner => inner.asList().reduce((sum, i) => sum + (i.asBool() ? 1n : 0n), 0n));
-
-            return res.equalsList(sumLst);
-        });
+        }`, ([a], res) => asBoolList(a).reduce((sum, b) => sum + (b ? 1n : 0n), 0n) === asInt(res));
 
         await ft.test([ft.list(ft.bool())], `
         testing boollist_map
@@ -1662,19 +1772,19 @@ async function runPropertyTests() {
             a.map((x: Bool) -> Int {
                 x.to_int()
             })
-        }`, ([a], res) => {
-            let aLst = a.asList();
+        }`, ([a], res) => equalsList(asBoolList(a).map(b => b ? 1n : 0n), asIntList(res)));
 
-            return res.equalsList(aLst.map(a => a.asBool() ? 1n : 0n));
-        });
+        await ft.test([ft.list(ft.bool())], `
+        testing boollist_from_data
+        func main(a: Data) -> []Bool {
+            []Bool::from_data(a)
+        }`, ([a], res) => equalsList(asBoolList(a), asBoolList(res)));
 
         await ft.test([ft.list(ft.bool())], `
         testing boollist_serialize
         func main(a: []Bool) -> ByteArray {
             a.serialize()
-        }`, ([a], res) => {
-            return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-        });
+        }`, serializeProp);
     }
 
 
@@ -1682,430 +1792,364 @@ async function runPropertyTests() {
     // Map tests
     ////////////
 
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_eq
-    func main(a: Map[Int]Int) -> Bool {
-        a == a
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    const testMap = true;
 
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_neq
-    func main(a: Map[Int]Int) -> Bool {
-        a != a
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int(), 0, 10), ft.map(ft.int(), ft.int(), 0, 10)], `
-    testing map_add
-    func main(a: Map[Int]Int, b: Map[Int]Int) -> Map[Int]Int {
-        a + b
-    }`, ([a, b], res) => {
-        return res.isSame(new helios_.MapData(a.map.concat(b.map)));
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_length
-    func main(a: Map[Int]Int) -> Int {
-        a.length
-    }`, ([a], res) => {
-        return res.isInt() && (a.map.length == Number(res.asInt()));
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int(), 0, 10)], `
-    testing map_is_empty
-    func main(a: Map[Int]Int) -> Bool {
-        a.is_empty()
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.length == 0) === res.asBool());
-    });
-
-    await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
-    testing map_get
-    func main(a: Int, b: Int, c: Int, d: Int) -> Int {
-        m = Map[Int]Int{a: b, c: d};
-        m.get(c)
-    }`, ([a, b, c, d], res) => {
-        return res.isInt() && (d.asInt() === res.asInt());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_all
-    func main(a: Map[Int]Int) -> Bool {
-        a.all((k: Int, v: Int) -> Bool {
-            k < v
-        })
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.every(([k, v]) => {
-            return k.asInt() < v.asInt()
-        })) === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_all_keys
-    func main(a: Map[Int]Int) -> Bool {
-        a.all_keys((k: Int) -> Bool {
-            k > 0
-        })
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.every(([k, _]) => {
-            return k.asInt() > 0n
-        })) === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_all_values
-    func main(a: Map[Int]Int) -> Bool {
-        a.all_values((v: Int) -> Bool {
-            v > 0
-        })
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.every(([_, v]) => {
-            return v.asInt() > 0n
-        })) === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_any
-    func main(a: Map[Int]Int) -> Bool {
-        a.any((k: Int, v: Int) -> Bool {
-            k < v
-        })
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.some(([k, v]) => {
-            return k.asInt() < v.asInt()
-        })) === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_any_key
-    func main(a: Map[Int]Int) -> Bool {
-        a.any_key((k: Int) -> Bool {
-            k > 0
-        })
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.some(([k, _]) => {
-            return k.asInt() > 0n
-        })) === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_any_value
-    func main(a: Map[Int]Int) -> Bool {
-        a.any_value((v: Int) -> Bool {
-            v > 0
-        })
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.some(([_, v]) => {
-            return v.asInt() > 0n
-        })) === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_filter
-    func main(a: Map[Int]Int) -> Map[Int]Int {
-        a.filter((k: Int, v: Int) -> Bool {
-            k < v
-        })
-    }`, ([_], res) => {
-        return res.isMap() && res.map.every(([k, v]) => {
-            return k.asInt() < v.asInt()
-        });
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_filter_by_key
-    func main(a: Map[Int]Int) -> Map[Int]Int {
-        a.filter_by_key((k: Int) -> Bool {
-            k > 0
-        })
-    }`, ([_], res) => {
-        return res.isMap() && res.map.every(([k, _]) => {
-            return k.asInt() > 0n
-        });
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_filter_by_value
-    func main(a: Map[Int]Int) -> Map[Int]Int {
-        a.filter_by_value((v: Int) -> Bool {
-            v > 0
-        })
-    }`, ([_], res) => {
-        return res.isMap() && res.map.every(([_, v]) => {
-            return v.asInt() > 0n
-        });
-    });
-
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_fold
-    func main(a: Map[Int]Int) -> Int {
-        a.fold((prev: Int, k: Int, v: Int) -> Int {
-            prev + k + v
-        }, 0)
-    }`, ([a], res) => {
-        let sum = 0n;
-        a.map.forEach(([k, v]) => {
-            sum += k.asInt() + v.asInt();
+    if (testMap) {
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_eq
+        func main(a: Map[Int]Int) -> Bool {
+            a == a
+        }`, ([_], res) => {
+            return asBool(res);
         });
 
-        return res.isInt() && (sum === res.asInt());
-    });
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_neq
+        func main(a: Map[Int]Int) -> Bool {
+            a != a
+        }`, ([_], res) => !asBool(res));
 
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_fold_keys
-    func main(a: Map[Int]Int) -> Int {
-        a.fold_keys((prev: Int, k: Int) -> Int {
-            prev + k
-        }, 0)
-    }`, ([a], res) => {
-        let sum = 0n;
-        a.map.forEach(([k, _]) => {
-            sum += k.asInt();
+        await ft.test([ft.map(ft.int(), ft.int(), 0, 10), ft.map(ft.int(), ft.int(), 0, 10)], `
+        testing map_add
+        func main(a: Map[Int]Int, b: Map[Int]Int) -> Map[Int]Int {
+            a + b
+        }`, ([a, b], res) => res.data.isSame(new helios_.MapData(a.data.map.concat(b.data.map))));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_length
+        func main(a: Map[Int]Int) -> Int {
+            a.length
+        }`, ([a], res) => a.data.map.length == Number(asInt(res)));
+
+        await ft.test([ft.map(ft.int(), ft.int(), 0, 10)], `
+        testing map_is_empty
+        func main(a: Map[Int]Int) -> Bool {
+            a.is_empty()
+        }`, ([a], res) => (a.data.map.length == 0) === asBool(res));
+
+        await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
+        testing map_get
+        func main(a: Int, b: Int, c: Int, d: Int) -> Int {
+            m = Map[Int]Int{a: b, c: d};
+            m.get(c)
+        }`, ([a, b, c, d], res) => asInt(d) === asInt(res));
+
+        await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
+        testing map_get_safe_1
+        func main(a: Int, b: Int, c: Int, d: Int) -> Bool {
+            m = Map[Int]Int{a: b, c: d};
+            m.get_safe(c) == Option[Int]::Some{d}
+        }`, ([a, b, c, d], res) => asBool(res));
+
+        await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
+        testing map_get_safe_2
+        func main(a: Int, b: Int, c: Int, d: Int) -> Bool {
+            m = Map[Int]Int{a: b, c: d};
+            m.get_safe(d) == Option[Int]::None
+        }`, ([a, b, c, d], res) => asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_all
+        func main(a: Map[Int]Int) -> Bool {
+            a.all((k: Int, v: Int) -> Bool {
+                k < v
+            })
+        }`, ([a], res) => (a.data.map.every(([k, v]) => asInt(k) < asInt(v))) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_all_keys
+        func main(a: Map[Int]Int) -> Bool {
+            a.all_keys((k: Int) -> Bool {
+                k > 0
+            })
+        }`, ([a], res) => (a.data.map.every(([k, _]) => asInt(k) > 0n)) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_all_values
+        func main(a: Map[Int]Int) -> Bool {
+            a.all_values((v: Int) -> Bool {
+                v > 0
+            })
+        }`, ([a], res) => (a.data.map.every(([_, v]) => asInt(v) > 0n)) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_any
+        func main(a: Map[Int]Int) -> Bool {
+            a.any((k: Int, v: Int) -> Bool {
+                k < v
+            })
+        }`, ([a], res) => (a.data.map.some(([k, v]) => asInt(k) < asInt(v))) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_any_key
+        func main(a: Map[Int]Int) -> Bool {
+            a.any_key((k: Int) -> Bool {
+                k > 0
+            })
+        }`, ([a], res) => (a.data.map.some(([k, _]) => asInt(k) > 0n)) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_any_value
+        func main(a: Map[Int]Int) -> Bool {
+            a.any_value((v: Int) -> Bool {
+                v > 0
+            })
+        }`, ([a], res) => (a.data.map.some(([_, v]) => asInt(v) > 0n)) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_filter
+        func main(a: Map[Int]Int) -> Map[Int]Int {
+            a.filter((k: Int, v: Int) -> Bool {
+                k < v
+            })
+        }`, ([_], res) => res.data.map.every(([k, v]) => asInt(k) < asInt(v)));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_filter_by_key
+        func main(a: Map[Int]Int) -> Map[Int]Int {
+            a.filter_by_key((k: Int) -> Bool {
+                k > 0
+            })
+        }`, ([_], res) => res.data.map.every(([k, _]) => asInt(k) > 0n));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_filter_by_value
+        func main(a: Map[Int]Int) -> Map[Int]Int {
+            a.filter_by_value((v: Int) -> Bool {
+                v > 0
+            })
+        }`, ([_], res) => res.data.map.every(([_, v]) => asInt(v) > 0n));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_fold
+        func main(a: Map[Int]Int) -> Int {
+            a.fold((prev: Int, k: Int, v: Int) -> Int {
+                prev + k + v
+            }, 0)
+        }`, ([a], res) => {
+            let sum = 0n;
+            a.data.map.forEach(([k, v]) => {
+                sum += asInt(k) + asInt(v);
+            });
+
+            return sum === asInt(res);
         });
 
-        return res.isInt() && (sum === res.asInt());
-    });
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_fold_keys
+        func main(a: Map[Int]Int) -> Int {
+            a.fold_keys((prev: Int, k: Int) -> Int {
+                prev + k
+            }, 0)
+        }`, ([a], res) => {
+            let sum = 0n;
+            a.data.map.forEach(([k, _]) => {
+                sum += asInt(k);
+            });
 
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_fold_values
-    func main(a: Map[Int]Int) -> Int {
-        a.fold_values((prev: Int, v: Int) -> Int {
-            prev + v
-        }, 0)
-    }`, ([a], res) => {
-        let sum = 0n;
-        a.map.forEach(([_, v]) => {
-            sum += v.asInt();
+            return sum === asInt(res);
         });
 
-        return res.isInt() && (sum === res.asInt());
-    });
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_fold_values
+        func main(a: Map[Int]Int) -> Int {
+            a.fold_values((prev: Int, v: Int) -> Int {
+                prev + v
+            }, 0)
+        }`, ([a], res) => {
+            let sum = 0n;
+            a.data.map.forEach(([_, v]) => {
+                sum += asInt(v);
+            });
 
-    await ft.test([ft.map(ft.int(), ft.int())], `
-    testing map_serialize
-    func main(a: Map[Int]Int) -> ByteArray {
-        a.serialize()
-    }`, ([a], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-    });
-
-
-    ////////////
-    // BoolMap tests
-    ////////////
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_eq
-    func main(a: Map[Int]Bool) -> Bool {
-        a == a
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_neq
-    func main(a: Map[Int]Bool) -> Bool {
-        a != a
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool(), 0, 10), ft.map(ft.int(), ft.bool(), 0, 10)], `
-    testing boolmap_add
-    func main(a: Map[Int]Bool, b: Map[Int]Bool) -> Map[Int]Bool {
-        a + b
-    }`, ([a, b], res) => {
-        return res.isSame(new helios_.MapData(a.map.concat(b.map)));
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_length
-    func main(a: Map[Int]Bool) -> Int {
-        a.length
-    }`, ([a], res) => {
-        return res.isInt() && (a.map.length == Number(res.asInt()));
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool(), 0, 10)], `
-    testing boolmap_is_empty
-    func main(a: Map[Int]Bool) -> Bool {
-        a.is_empty()
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.length == 0) === res.asBool());
-    });
-
-    await ft.test([ft.int(), ft.bool(), ft.int(), ft.bool()], `
-    testing boolmap_get
-    func main(a: Int, b: Bool, c: Int, d: Bool) -> Bool {
-        m = Map[Int]Bool{a: b, c: d};
-        m.get(c)
-    }`, ([a, b, c, d], res) => {
-        return res.isBool() && (d.asBool() === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_all
-    func main(a: Map[Int]Bool) -> Bool {
-        a.all((k: Int, v: Bool) -> Bool {
-            k < v.to_int()
-        })
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.every(([k, v]) => {
-            return k.asInt() < (v.asBool() ? 1n : 0n)
-        })) === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_all_keys
-    func main(a: Map[Int]Bool) -> Bool {
-        a.all_keys((k: Int) -> Bool {
-            k > 0
-        })
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.every(([k, _]) => {
-            return k.asInt() > 0n
-        })) === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_all_values
-    func main(a: Map[Int]Bool) -> Bool {
-        a.all_values((v: Bool) -> Bool {
-            v.to_int() > 0
-        })
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.every(([_, v]) => {
-            return (v.asBool() ? 1n : 0n) > 0n
-        })) === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_any
-    func main(a: Map[Int]Bool) -> Bool {
-        a.any((k: Int, v: Bool) -> Bool {
-            k < v.to_int()
-        })
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.some(([k, v]) => {
-            return k.asInt() < (v.asBool() ? 1n : 0n)
-        })) === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_any_key
-    func main(a: Map[Int]Bool) -> Bool {
-        a.any_key((k: Int) -> Bool {
-            k > 0
-        })
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.some(([k, _]) => {
-            return k.asInt() > 0n
-        })) === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_any_value
-    func main(a: Map[Int]Bool) -> Bool {
-        a.any_value((v: Bool) -> Bool {
-            v.to_int() > 0
-        })
-    }`, ([a], res) => {
-        return res.isBool() && ((a.map.some(([_, v]) => {
-            return (v.asBool() ? 1n : 0n) > 0n
-        })) === res.asBool());
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_filter
-    func main(a: Map[Int]Bool) -> Map[Int]Bool {
-        a.filter((k: Int, v: Bool) -> Bool {
-            k < v.to_int()
-        })
-    }`, ([_], res) => {
-        return res.isMap() && res.map.every(([k, v]) => {
-            return k.asInt() < (v.asBool() ? 1n : 0n)
-        });
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_filter_by_key
-    func main(a: Map[Int]Bool) -> Map[Int]Bool {
-        a.filter_by_key((k: Int) -> Bool {
-            k > 0
-        })
-    }`, ([_], res) => {
-        return res.isMap() && res.map.every(([k, _]) => {
-            return k.asInt() > 0n
-        });
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_filter_by_value
-    func main(a: Map[Int]Bool) -> Map[Int]Bool {
-        a.filter_by_value((v: Bool) -> Bool {
-            v.to_int() > 0
-        })
-    }`, ([_], res) => {
-        return res.isMap() && res.map.every(([_, v]) => {
-            return (v.asBool() ? 1n : 0n) > 0n
-        });
-    });
-
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_fold
-    func main(a: Map[Int]Bool) -> Int {
-        a.fold((prev: Int, k: Int, v: Bool) -> Int {
-            prev + k + v.to_int()
-        }, 0)
-    }`, ([a], res) => {
-        let sum = 0n;
-        a.map.forEach(([k, v]) => {
-            sum += k.asInt() + (v.asBool() ? 1n : 0n);
+            return sum === asInt(res);
         });
 
-        return res.isInt() && (sum === res.asInt());
-    });
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_from_data
+        func main(a: Data) -> Map[Int]Int {
+            Map[Int]Int::from_data(a)
+        }`, ([a], res) => a.data.isSame(res.data));
 
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_fold_keys
-    func main(a: Map[Int]Bool) -> Int {
-        a.fold_keys((prev: Int, k: Int) -> Int {
-            prev + k
-        }, 0)
-    }`, ([a], res) => {
-        let sum = 0n;
-        a.map.forEach(([k, _]) => {
-            sum += k.asInt();
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_serialize
+        func main(a: Map[Int]Int) -> ByteArray {
+            a.serialize()
+        }`, serializeProp);
+
+
+        ////////////////
+        // BoolMap tests
+        ////////////////
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_eq
+        func main(a: Map[Int]Bool) -> Bool {
+            a == a
+        }`, ([_], res) => asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_neq
+        func main(a: Map[Int]Bool) -> Bool {
+            a != a
+        }`, ([_], res) => !asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.bool(), 0, 10), ft.map(ft.int(), ft.bool(), 0, 10)], `
+        testing boolmap_add
+        func main(a: Map[Int]Bool, b: Map[Int]Bool) -> Map[Int]Bool {
+            a + b
+        }`, ([a, b], res) => res.data.isSame(new helios_.MapData(a.data.map.concat(b.data.map))));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_length
+        func main(a: Map[Int]Bool) -> Int {
+            a.length
+        }`, ([a], res) => a.data.map.length == Number(asInt(res)));
+
+        await ft.test([ft.map(ft.int(), ft.bool(), 0, 10)], `
+        testing boolmap_is_empty
+        func main(a: Map[Int]Bool) -> Bool {
+            a.is_empty()
+        }`, ([a], res) => (a.data.map.length == 0) === asBool(res));
+
+        await ft.test([ft.int(), ft.bool(), ft.int(), ft.bool()], `
+        testing boolmap_get
+        func main(a: Int, b: Bool, c: Int, d: Bool) -> Bool {
+            m = Map[Int]Bool{a: b, c: d};
+            m.get(c)
+        }`, ([a, b, c, d], res) => asBool(d) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_all
+        func main(a: Map[Int]Bool) -> Bool {
+            a.all((k: Int, v: Bool) -> Bool {
+                k < v.to_int()
+            })
+        }`, ([a], res) => (a.data.map.every(([k, v]) => asInt(k) < BigInt(constrIndex(v)))) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_all_keys
+        func main(a: Map[Int]Bool) -> Bool {
+            a.all_keys((k: Int) -> Bool {
+                k > 0
+            })
+        }`, ([a], res) => (a.data.map.every(([k, _]) => asInt(k) > 0n)) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_all_values
+        func main(a: Map[Int]Bool) -> Bool {
+            a.all_values((v: Bool) -> Bool {
+                v.to_int() > 0
+            })
+        }`, ([a], res) => (a.data.map.every(([_, v]) => constrIndex(v) > 0)) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_any
+        func main(a: Map[Int]Bool) -> Bool {
+            a.any((k: Int, v: Bool) -> Bool {
+                k < v.to_int()
+            })
+        }`, ([a], res) => (a.data.map.some(([k, v]) => asInt(k) < BigInt(constrIndex(v)))) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_any_key
+        func main(a: Map[Int]Bool) -> Bool {
+            a.any_key((k: Int) -> Bool {
+                k > 0
+            })
+        }`, ([a], res) => (a.data.map.some(([k, _]) => asInt(k) > 0n)) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_any_value
+        func main(a: Map[Int]Bool) -> Bool {
+            a.any_value((v: Bool) -> Bool {
+                v.to_int() > 0
+            })
+        }`, ([a], res) => (a.data.map.some(([_, v]) => constrIndex(v) > 0)) === asBool(res));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_filter
+        func main(a: Map[Int]Bool) -> Map[Int]Bool {
+            a.filter((k: Int, v: Bool) -> Bool {
+                k < v.to_int()
+            })
+        }`, ([_], res) => res.data.map.every(([k, v]) => asInt(k) < BigInt(constrIndex(v))));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_filter_by_key
+        func main(a: Map[Int]Bool) -> Map[Int]Bool {
+            a.filter_by_key((k: Int) -> Bool {
+                k > 0
+            })
+        }`, ([_], res) => res.data.map.every(([k, _]) => asInt(k) > 0n));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_filter_by_value
+        func main(a: Map[Int]Bool) -> Map[Int]Bool {
+            a.filter_by_value((v: Bool) -> Bool {
+                v.to_int() > 0
+            })
+        }`, ([_], res) => res.data.map.every(([_, v]) => constrIndex(v) > 0));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_fold
+        func main(a: Map[Int]Bool) -> Int {
+            a.fold((prev: Int, k: Int, v: Bool) -> Int {
+                prev + k + v.to_int()
+            }, 0)
+        }`, ([a], res) => {
+            let sum = 0n;
+            a.data.map.forEach(([k, v]) => {
+                sum += asInt(k) + BigInt(constrIndex(v));
+            });
+
+            return sum === asInt(res);
         });
 
-        return res.isInt() && (sum === res.asInt());
-    });
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_fold_keys
+        func main(a: Map[Int]Bool) -> Int {
+            a.fold_keys((prev: Int, k: Int) -> Int {
+                prev + k
+            }, 0)
+        }`, ([a], res) => {
+            let sum = 0n;
+            a.data.map.forEach(([k, _]) => {
+                sum += asInt(k);
+            });
 
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_fold_values
-    func main(a: Map[Int]Bool) -> Int {
-        a.fold_values((prev: Int, v: Bool) -> Int {
-            prev + v.to_int()
-        }, 0)
-    }`, ([a], res) => {
-        let sum = 0n;
-        a.map.forEach(([_, v]) => {
-            sum += (v.asBool() ? 1n : 0n);
+            return sum === asInt(res);
         });
 
-        return res.isInt() && (sum === res.asInt());
-    });
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_fold_values
+        func main(a: Map[Int]Bool) -> Int {
+            a.fold_values((prev: Int, v: Bool) -> Int {
+                prev + v.to_int()
+            }, 0)
+        }`, ([a], res) => {
+            let sum = 0n;
+            a.data.map.forEach(([_, v]) => {
+                sum += BigInt(constrIndex(v));
+            });
 
-    await ft.test([ft.map(ft.int(), ft.bool())], `
-    testing boolmap_serialize
-    func main(a: Map[Int]Bool) -> ByteArray {
-        a.serialize()
-    }`, ([a], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-    });
+            return sum === asInt(res);
+        });
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_from_data
+        func main(a: Data) -> Map[Int]Bool {
+            Map[Int]Bool::from_data(a)
+        }`, ([a], res) => {
+            return a.data.map.length == res.data.map.length && a.data.map.every((pair, i) => pair[0] === res.data.map[i][0] && pair[1] === res.data.map[i][1]);
+        });
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_serialize
+        func main(a: Map[Int]Bool) -> ByteArray {
+            a.serialize()
+        }`, serializeProp);
+    }
 
 
     ///////////////
@@ -2116,17 +2160,13 @@ async function runPropertyTests() {
     testing option_eq_1
     func main(a: Option[Int]) -> Bool {
         a == a
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.option(ft.int(0, 5)), ft.option(ft.int(0, 5))], `
     testing option_eq_2
     func main(a: Option[Int], b: Option[Int]) -> Bool {
         a == b
-    }`, ([a, b], res) => {
-        return res.isBool() && (a.equalsConstr(b) === res.asBool());
-    });
+    }`, ([a, b], res) => a.data.isSame(b.data) === asBool(res));
 
     await ft.test([ft.option(ft.int(0, 5)), ft.option(ft.int(0, 5))], `
     testing option_eq_2_alt
@@ -2135,25 +2175,19 @@ async function runPropertyTests() {
             s: Some => s == b,
             n: None => n == b
         }
-    }`, ([a, b], res) => {
-        return res.isBool() && (a.equalsConstr(b) === res.asBool());
-    });
+    }`, ([a, b], res) => a.data.isSame(b.data) === asBool(res));
 
     await ft.test([ft.option(ft.int())], `
     testing option_neq_1
     func main(a: Option[Int]) -> Bool {
         a != a
-    }`, ([_], res) => {
-        return res.isBool() && (false === res.asBool());
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.option(ft.int(0, 5)), ft.option(ft.int(0, 5))], `
     testing option_neq_2
     func main(a: Option[Int], b: Option[Int]) -> Bool {
         a != b
-    }`, ([a, b], res) => {
-        return res.isBool() && (a.equalsConstr(b) === !res.asBool());
-    });
+    }`, ([a, b], res) => a.data.isSame(b.data) === !asBool(res));
 
     await ft.test([ft.option(ft.int(0, 5)), ft.option(ft.int(0, 5))], `
     testing option_neq_2_alt
@@ -2162,9 +2196,7 @@ async function runPropertyTests() {
             s: Some => s != b,
             n: None => n != b
         }
-    }`, ([a, b], res) => {
-        return res.isBool() && (a.equalsConstr(b) === !res.asBool());
-    });
+    }`, ([a, b], res) => a.data.isSame(b.data) === !asBool(res));
 
     await ft.test([ft.option(ft.int())], `
     testing option_some
@@ -2174,20 +2206,24 @@ async function runPropertyTests() {
             None    => -1
         }
     }`, ([a], res) => {
-        if (a.index == 1) {
-            return -1n === res.asInt();
+        if (a.data.index == 1) {
+            return -1n === asInt(res);
         } else {
-            return a.fields[0].asInt() === res.asInt();
+            return asInt(a.data.fields[0]) === asInt(res);
         }
     });
+
+    await ft.test([ft.option(ft.int())], `
+    testing option_from_data
+    func main(a: Data) -> Option[Int] {
+        Option[Int]::from_data(a)
+    }`, ([a], res) => a.data.isSame(res.data));
 
     await ft.test([ft.option(ft.int())], `
     testing option_serialize
     func main(a: Option[Int]) -> ByteArray {
         a.serialize()
-    }`, ([a], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-    });
+    }`, serializeProp);
 
     await ft.test([ft.option(ft.int())], `
     testing option_sub_serialize
@@ -2196,25 +2232,24 @@ async function runPropertyTests() {
             s: Some => s.serialize(),
             n: None => n.serialize()
         }
-    }`, ([a], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-    });
+    }`, serializeProp);
 
-    await ft.testn(15, [ft.option(ft.bool())], `
+
+    ///////////////////
+    // BoolOption tests
+    ///////////////////
+
+    await ft.test([ft.option(ft.bool())], `
     testing booloption_eq_1
     func main(a: Option[Bool]) -> Bool {
         a == a
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res), 15);
 
     await ft.test([ft.option(ft.bool()), ft.option(ft.bool())], `
     testing booloption_eq_2
     func main(a: Option[Bool], b: Option[Bool]) -> Bool {
         a == b
-    }`, ([a, b], res) => {
-        return res.isBool() && (a.equalsConstr(b) === res.asBool());
-    });
+    }`, ([a, b], res) => a.data.isSame(b.data) === asBool(res));
 
     await ft.test([ft.option(ft.bool()), ft.option(ft.bool())], `
     testing booloption_eq_2_alt
@@ -2223,25 +2258,19 @@ async function runPropertyTests() {
             s: Some => s == b,
             n: None => n == b
         }
-    }`, ([a, b], res) => {
-        return res.isBool() && (a.equalsConstr(b) === res.asBool());
-    });
+    }`, ([a, b], res) => a.data.isSame(b.data) === asBool(res));
 
     await ft.test([ft.option(ft.bool())], `
     testing booloption_neq_1
     func main(a: Option[Bool]) -> Bool {
         a != a
-    }`, ([_], res) => {
-        return res.isBool() && (false === res.asBool());
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.option(ft.bool()), ft.option(ft.bool())], `
     testing booloption_neq_2
     func main(a: Option[Bool], b: Option[Bool]) -> Bool {
         a != b
-    }`, ([a, b], res) => {
-        return res.isBool() && (a.equalsConstr(b) === !res.asBool());
-    });
+    }`, ([a, b], res) => a.data.isSame(b.data) === !asBool(res));
 
     await ft.test([ft.option(ft.bool()), ft.option(ft.bool())], `
     testing booloption_neq_2_alt
@@ -2250,9 +2279,7 @@ async function runPropertyTests() {
             s: Some => s != b,
             n: None => n != b
         }
-    }`, ([a, b], res) => {
-        return res.isBool() && (a.equalsConstr(b) === !res.asBool());
-    });
+    }`, ([a, b], res) => a.data.isSame(b.data) === !asBool(res));
 
     await ft.test([ft.option(ft.bool())], `
     testing booloption_some
@@ -2262,20 +2289,24 @@ async function runPropertyTests() {
             None    => false
         }
     }`, ([a], res) => {
-        if (a.index == 1) {
-            return res.isBool() && (false === res.asBool());
+        if (a.data.index == 1) {
+            return !asBool(res);
         } else {
-            return res.isBool() && (a.fields[0].asBool() === res.asBool());
+            return constrIndex(a.data.fields[0]) === (asBool(res) ? 1 : 0);
         }
     });
+
+    await ft.test([ft.option(ft.bool())], `
+    testing booloption_from_data
+    func main(a: Data) -> Option[Bool] {
+        Option[Bool]::from_data(a)
+    }`, ([a], res) => a.data.isSame(res.data));
 
     await ft.test([ft.option(ft.bool())], `
     testing booloption_serialize
     func main(a: Option[Bool]) -> ByteArray {
         a.serialize()
-    }`, ([a], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-    });
+    }`, serializeProp);
 
     await ft.test([ft.option(ft.bool())], `
     testing option_sub_serialize
@@ -2284,9 +2315,7 @@ async function runPropertyTests() {
             s: Some => s.serialize(),
             n: None => n.serialize()
         }
-    }`, ([a], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-    });
+    }`, serializeProp);
 
 
     /////////////
@@ -2302,58 +2331,54 @@ async function runPropertyTests() {
             PubKeyHash::new(ba) == a
         })
     }`, ([a], res) => {
-        return res.isBool() && ([[0x70], [0x71], [0x72], [0x73], [0x74], [0x75], [0x76], [0x77], [0x78], [0x79], [0x7a], [0x7b], [0x7c], [0x7d], [0x7e], [0x7f]].some(ba => a.equalsByteArray(ba)) === res.asBool());
+        return [[0x70], [0x71], [0x72], [0x73], [0x74], [0x75], [0x76], [0x77], [0x78], [0x79], [0x7a], [0x7b], [0x7c], [0x7d], [0x7e], [0x7f]].some(ba => equalsList(asBytes(a), ba)) === asBool(res);
     });
 
     await ft.test([ft.bytes()], `
     testing hash_eq_1
     func main(a: PubKeyHash) -> Bool {
         a == a
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.bytes(), ft.bytes()], `
     testing hash_eq_2
     func main(a: PubKeyHash, b: PubKeyHash) -> Bool {
         a == b
-    }`, ([a, b], res) => {
-        return res.isBool() && (a.equalsByteArray(b.asByteArray()) === res.asBool());
-    });
+    }`, ([a, b], res) => equalsList(asBytes(a), asBytes(b)) === asBool(res));
 
     await ft.test([ft.bytes()], `
     testing hash_neq_1
     func main(a: PubKeyHash) -> Bool {
         a != a
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.bytes(), ft.bytes()], `
     testing hash_neq_2
     func main(a: PubKeyHash, b: PubKeyHash) -> Bool {
         a != b
-    }`, ([a, b], res) => {
-        return res.isBool() && (a.equalsByteArray(b.asByteArray()) === !res.asBool());
-    });
+    }`, ([a, b], res) => equalsList(asBytes(a), asBytes(b)) === !asBool(res));
 
     await ft.test([ft.bytes(0, 10)], `
     testing hash_show
     func main(a: PubKeyHash) -> String {
         a.show()
     }`, ([a], res) => {
-        let s = Array.from(a.asByteArray(), byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
+        let s = Array.from(asBytes(a), byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
 
-        return res.isString() && (s === res.asString());
+        return s === asString(res);
     });
+
+    await ft.test([ft.bytes()], `
+    testing hash_from_data
+    func main(a: Data) -> PubKeyHash {
+        PubKeyHash::from_data(a)
+    }`, ([a], res) => a.data.isSame(res.data));
 
     await ft.test([ft.bytes()], `
     testing hash_serialize
     func main(a: PubKeyHash) -> ByteArray {
         a.serialize()
-    }`, ([a], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-    });
+    }`, serializeProp);
 
 
     ///////////////////
@@ -2364,24 +2389,27 @@ async function runPropertyTests() {
     testing assetclass_new
     func main(a: ByteArray, b: ByteArray) -> Bool {
         AssetClass::new(MintingPolicyHash::new(a), b) == AssetClass::ADA
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asByteArray().length == 0 && b.asByteArray().length == 0) === res.asBool());
-    });
+    }`, ([a, b], res) => (asBytes(a).length == 0 && asBytes(b).length == 0) === asBool(res));
 
     await ft.test([ft.bytes(0, 1), ft.bytes(0, 1)], `
     testing assetclass_new
     func main(a: ByteArray, b: ByteArray) -> Bool {
         AssetClass::new(MintingPolicyHash::new(a), b) != AssetClass::ADA
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asByteArray().length == 0 && b.asByteArray().length == 0) === !res.asBool());
-    });
+    }`, ([a, b], res) => (asBytes(a).length == 0 && asBytes(b).length == 0) === !asBool(res));
+
+    await ft.test([ft.constr(0, ft.bytes(), ft.bytes())], `
+    testing assetclass_from_data
+    func main(a: Data) -> AssetClass {
+        AssetClass::from_data(a)
+    }`, ([a], res) => a.data.isSame(res.data));
 
     await ft.test([ft.bytes(), ft.bytes()], `
     testing assetclass_serialize
     func main(a: ByteArray, b: ByteArray) -> ByteArray {
         AssetClass::new(MintingPolicyHash::new(a), b).serialize()
     }`, ([a, b], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newAssetClass(a.asByteArray(), b.asByteArray()));
+        let ref = new helios_.ConstrData(0, [new helios_.ByteArrayData(asBytes(a)), new helios_.ByteArrayData(asBytes(b))]);
+        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ref);
     });
 
 
@@ -2396,132 +2424,102 @@ async function runPropertyTests() {
         testing value_is_zero
         func main(a: Int) -> Bool {
             Value::lovelace(a).is_zero()
-        }`, ([a], res) => {
-            return res.isBool() && ((a.asInt() === 0n) === res.asBool());
-        });
+        }`, ([a], res) => (asInt(a) === 0n) === asBool(res));
 
         await ft.test([ft.int()], `
         testing value_eq_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) == Value::lovelace(a)
-        }`, ([_], res) => {
-            return res.isBool() && res.asBool();
-        });
+        }`, ([_], res) => asBool(res));
 
         await ft.test([ft.int(), ft.int()], `
         testing value_eq_2
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a) == Value::lovelace(b)
-        }`, ([a, b], res) => {
-            return res.isBool() && ((a.asInt() === b.asInt()) === res.asBool());
-        });
+        }`, ([a, b], res) => (asInt(a) === asInt(b)) === asBool(res));
 
         await ft.test([ft.int()], `
         testing value_neq_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) != Value::lovelace(a)
-        }`, ([_], res) => {
-            return res.isBool() && !res.asBool();
-        });
+        }`, ([_], res) => !asBool(res));
 
         await ft.test([ft.int(), ft.int()], `
         testing value_neq_2
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a) != Value::lovelace(b)
-        }`, ([a, b], res) => {
-            return res.isBool() && ((a.asInt() === b.asInt()) === (!res.asBool()));
-        });
+        }`, ([a, b], res) => (asInt(a) === asInt(b)) === (!asBool(res)));
 
         await ft.test([ft.int()], `
         testing value_add_0
         func main(a: Int) -> Int {
             (Value::lovelace(a) + Value::ZERO).get(AssetClass::ADA)
-        }`, ([a], res) => {
-            return res.isInt() && (a.asInt() === res.asInt());
-        });
+        }`, ([a], res) => asInt(a) === asInt(res));
 
         await ft.test([ft.int(), ft.int()], `
         testing value_add_2
         func main(a: Int, b: Int) -> Int {
             (Value::lovelace(a) + Value::lovelace(b)).get(AssetClass::ADA)
-        }`, ([a, b], res) => {
-            return res.isInt() && (a.asInt() + b.asInt() === res.asInt());
-        });
+        }`, ([a, b], res) => asInt(a) + asInt(b) === asInt(res));
 
         await ft.test([ft.int()], `
         testing value_sub_0
         func main(a: Int) -> Int {
             (Value::lovelace(a) - Value::ZERO).get(AssetClass::ADA)
-        }`, ([a], res) => {
-            return res.isInt() && (a.asInt() === res.asInt());
-        });
+        }`, ([a], res) => asInt(a) === asInt(res));
 
         await ft.test([ft.int()], `
         testing value_sub_0_alt
         func main(a: Int) -> Int {
             (Value::ZERO - Value::lovelace(a)).get(AssetClass::ADA)
-        }`, ([a], res) => {
-            return res.isInt() && (a.asInt() === -res.asInt());
-        });
+        }`, ([a], res) => asInt(a) === -asInt(res));
 
         await ft.test([ft.int()], `
         testing value_sub_self
         func main(a: Int) -> Bool {
             (Value::lovelace(a) - Value::lovelace(a)).is_zero()
-        }`, ([_], res) => {
-            return res.isBool() && res.asBool()
-        });
+        }`, ([_], res) => asBool(res));
 
         await ft.test([ft.int(), ft.int()], `
         testing value_sub_2
         func main(a: Int, b: Int) -> Int {
             (Value::lovelace(a) - Value::lovelace(b)).get(AssetClass::ADA)
-        }`, ([a, b], res) => {
-            return res.isInt() && (a.asInt() - b.asInt() === res.asInt());
-        });
+        }`, ([a, b], res) => asInt(a) - asInt(b) === asInt(res));
 
         await ft.test([ft.int()], `
         testing value_mul_1
         func main(a: Int) -> Int {
             (Value::lovelace(a)*1).get(AssetClass::ADA)
-        }`, ([a], res) => {
-            return res.isInt() && (a.asInt() === res.asInt());
-        });
+        }`, ([a], res) => asInt(a) === asInt(res));
 
         await ft.test([ft.int(), ft.int()], `
         testing value_mul_2
         func main(a: Int, b: Int) -> Int {
             (Value::lovelace(a)*b).get(AssetClass::ADA)
-        }`, ([a, b], res) => {
-            return res.isInt() && (a.asInt()*b.asInt() === res.asInt());
-        });
+        }`, ([a, b], res) => asInt(a)*asInt(b) === asInt(res));
 
         await ft.test([ft.int(), ft.int(), ft.int()], `
         testing value_mul_3
         const MY_NFT: AssetClass = AssetClass::new(MintingPolicyHash::new(#abc), #abc)
         func main(a: Int, b: Int, c: Int) -> Int {
             ((Value::lovelace(a) + Value::new(MY_NFT, b))*c).get(AssetClass::ADA)
-        }`, ([a, b, c], res) => {
-            return res.isInt() && (a.asInt()*c.asInt() === res.asInt());
-        });
+        }`, ([a, b, c], res) => asInt(a)*asInt(c) === asInt(res));
 
         await ft.test([ft.int()],`
         testing value_div_1
         func main(a: Int) -> Int {
             (Value::lovelace(a)/1).get(AssetClass::ADA)
-        }`, ([a], res) => {
-            return res.isInt() && (a.asInt() === res.asInt());
-        });
+        }`, ([a], res) => asInt(a) === asInt(res));
 
         await ft.test([ft.int(), ft.int()],`
         testing value_div_2
         func main(a: Int, b: Int) -> Int {
             (Value::lovelace(a)/b).get(AssetClass::ADA)
         }`, ([a, b], res) => {
-            if (b.asInt() === 0n) {
-                return res instanceof helios.UserError && res.info == "division by zero";
+            if (asInt(b) === 0n) {
+                return isError(res, "division by zero");
             } else {
-                return res.isInt() && (a.asInt()/b.asInt() === res.asInt())
+                return asInt(a)/asInt(b) === asInt(res);
             }
         });
 
@@ -2531,10 +2529,10 @@ async function runPropertyTests() {
         func main(a: Int, b: Int, c: Int) -> Int {
             ((Value::lovelace(a) + Value::new(MY_NFT, b))/c).get(AssetClass::ADA)
         }`, ([a, b, c], res) => {
-            if (c.asInt() === 0n) {
-                return res instanceof helios.UserError && res.info == "division by zero";
+            if (asInt(c) === 0n) {
+                return isError(res, "division by zero");
             } else {
-                return res.isInt() && (a.asInt()/c.asInt() === res.asInt())
+                return asInt(a)/asInt(c) === asInt(res);
             }
         });
 
@@ -2542,97 +2540,91 @@ async function runPropertyTests() {
         testing value_geq_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) >= Value::lovelace(a)
-        }`, ([_], res) => {
-            return res.isBool() && res.asBool();
-        });
+        }`, ([_], res) => asBool(res));
 
         await ft.test([ft.int(), ft.int()], `
         testing value_geq_2
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a) >= Value::lovelace(b)
-        }`, ([a, b], res) => {
-            return res.isBool() && ((a.asInt() >= b.asInt()) === res.asBool());
-        });
+        }`, ([a, b], res) => (asInt(a) >= asInt(b)) === asBool(res));
 
         await ft.test([ft.int(), ft.int()], `
         testing value_contains
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a).contains(Value::lovelace(b))
-        }`, ([a, b], res) => {
-            return res.isBool() && ((a.asInt() >= b.asInt()) === res.asBool());
-        });
+        }`, ([a, b], res) => (asInt(a) >= asInt(b)) === asBool(res));
 
         await ft.test([ft.int()], `
         testing value_gt_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) > Value::lovelace(a)
-        }`, ([_], res) => {
-            return res.isBool() && !res.asBool();
-        });
+        }`, ([_], res) => !asBool(res));
 
         await ft.test([ft.int(), ft.int()], `
         testing value_gt_2
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a) > Value::lovelace(b)
-        }`, ([a, b], res) => {
-            return res.isBool() && ((a.asInt() > b.asInt()) === res.asBool());
-        });
+        }`, ([a, b], res) => (asInt(a) > asInt(b)) === asBool(res));
 
         await ft.test([ft.int()], `
         testing value_leq_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) <= Value::lovelace(a)
-        }`, ([_], res) => {
-            return res.isBool() && res.asBool();
-        });
+        }`, ([_], res) => asBool(res));
 
         await ft.test([ft.int(), ft.int()], `
         testing value_leq_2
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a) <= Value::lovelace(b)
-        }`, ([a, b], res) => {
-            return res.isBool() && ((a.asInt() <= b.asInt()) === res.asBool());
-        });
+        }`, ([a, b], res) => (asInt(a) <= asInt(b)) === asBool(res));
 
         await ft.test([ft.int()], `
         testing value_lt_1
         func main(a: Int) -> Bool {
             Value::lovelace(a) < Value::lovelace(a)
-        }`, ([a], res) => {
-            return res.isBool() && !res.asBool();
-        });
+        }`, ([a], res) => !asBool(res));
 
         await ft.test([ft.int(), ft.int()], `
         testing value_lt_2
         func main(a: Int, b: Int) -> Bool {
             Value::lovelace(a) < Value::lovelace(b)
-        }`, ([a, b], res) => {
-            return res.isBool() && ((a.asInt() < b.asInt()) === res.asBool());
-        });
+        }`, ([a, b], res) => (asInt(a) < asInt(b)) === asBool(res));
 
         await ft.test([ft.int()], `
         testing value_get
         func main(a: Int) -> Int {
             Value::lovelace(a).get(AssetClass::ADA)
-        }`, ([a], res) => {
-            return res.isInt() && (a.asInt() === res.asInt());
-        });
+        }`, ([a], res) => asInt(a) === asInt(res));
 
         await ft.test([ft.bytes(10, 10), ft.string(5,5), ft.int(), ft.string(3,3), ft.int()], `
         testing value_get_policy
         func main(mph_bytes: ByteArray, tn_a: ByteArray, qty_a: Int, tn_b: ByteArray, qty_b: Int) -> Bool {
             sum: Value = Value::new(AssetClass::new(MintingPolicyHash::new(mph_bytes), tn_a), qty_a) + Value::new(AssetClass::new(MintingPolicyHash::new(mph_bytes), tn_b), qty_b);
             sum.get_policy(MintingPolicyHash::new(mph_bytes)) == Map[ByteArray]Int{tn_a: qty_a, tn_b: qty_b}
-        }`, ([_], res) => {    
-            return res.isBool() && res.asBool();
-        });
+        }`, ([_], res) => asBool(res));
+
+        await ft.test([ft.map(ft.bytes(), ft.map(ft.bytes(), ft.int()))], `
+        testing value_from_data
+        func main(a: Data) -> Value {
+            Value::from_data(a)
+        }`, ([a], res) => a.data.isSame(res.data));
 
         await ft.test([ft.int(), ft.bytes(), ft.bytes()], `
         testing value_serialize
         func main(qty: Int, mph: ByteArray, name: ByteArray) -> ByteArray {
             Value::new(AssetClass::new(MintingPolicyHash::new(mph), name), qty).serialize()
         }`, ([qty, mph, name], res) => {
-            return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newValue(qty.asInt(), mph.asByteArray(), name.asByteArray()));
+            let ref = new helios_.MapData([
+                [
+                    new helios_.ByteArrayData(asBytes(mph)),
+                    new helios_.MapData([[
+                        new helios_.ByteArrayData(asBytes(name)),
+                        new helios_.IntData(asInt(qty)),
+                    ]])
+                ]
+            ]);
+            
+            return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ref);
         });
     }
 
@@ -2640,274 +2632,557 @@ async function runPropertyTests() {
     ///////////////
     // Ledger tests
     ///////////////
-    await ft.test([ft.spendingScriptContext()], `
-    testing scriptcontext_eq
-    func main(ctx: ScriptContext) -> Bool {
-        ctx == ctx
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
 
-    await ft.test([ft.mintingScriptContext()], `
-    testing scriptcontext_eq
-    func main(ctx: ScriptContext) -> Bool {
-        ctx == ctx
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    const testScriptContext = true;
 
-    await ft.test([ft.spendingScriptContext()], `
-    testing scriptcontext_neq
-    func main(ctx: ScriptContext) -> Bool {
-        ctx != ctx
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    if (testScriptContext) {
+        await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
+        testing scriptcontext_eq
+        func main(ctx: ScriptContext) -> Bool {
+            ctx == ctx
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 10);
 
-    await ft.test([ft.mintingScriptContext()], `
-    testing scriptcontext_neq
-    func main(ctx: ScriptContext) -> Bool {
-        ctx != ctx
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+        await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
+        testing scriptcontext_neq
+        func main(ctx: ScriptContext) -> Bool {
+            ctx != ctx
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => !asBool(res), 10);
 
-    await ft.test([ft.spendingScriptContext()], `
-    testing scriptcontext_tx
-    func main(ctx: ScriptContext) -> Tx {
-        ctx.tx
-    }`, ([ctx], res) => {
-        return res.isSame(ctx.getParam("tx"));
-    });
+        await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
+        testing scriptcontext_tx
+        func main(ctx: ScriptContext) -> Tx {
+            ctx.tx
+        }
+        ${spendingScriptContextParam}
+        `, ([ctx], res) => ctx.data.fields[0].isSame(res.data), 10);
 
-    await ft.test([ft.mintingScriptContext()], `
-    testing scriptcontext_tx
-    func main(ctx: ScriptContext) -> Tx {
-        ctx.tx
-    }`, ([ctx], res) => {
-        return res.isSame(ctx.getParam("tx"));
-    });
+        await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
+        testing scriptcontext_get_spending_purpose_output_id
+        func main(ctx: ScriptContext) -> TxOutputId {
+            ctx.get_spending_purpose_output_id()
+        }
+        ${spendingScriptContextParam}
+        `, ([ctx], res) => ctx.data.fields[1].fields[0].isSame(res.data), 10);
 
-    await ft.test([ft.spendingScriptContext()], `
-    testing scriptcontext_get_spending_purpose_output_id
-    func main(ctx: ScriptContext) -> TxOutputId {
-        ctx.get_spending_purpose_output_id()
-    }`, ([ctx], res) => {
-        return res.isSame(ctx.getParam("outputId"));
-    });
+        await ft.testParams({"CURRENT_VALIDATOR_BYTES": ft.bytes()}, ["CURRENT_VALIDATOR", "SCRIPT_CONTEXT"], `
+        testing scriptcontext_get_current_validator_hash
+        func main(hash: ValidatorHash, ctx: ScriptContext) -> Bool {
+            ctx.get_current_validator_hash() == hash
+        }
+        ${spendingScriptContextParam}
+        `, ([ctx], res) => asBool(res), 10);
 
-    await ft.test([ft.spendingScriptContext()], `
-    testing scriptcontext_get_current_validator_hash
-    func main(ctx: ScriptContext) -> ValidatorHash {
-        ctx.get_current_validator_hash()
-    }`, ([ctx], res) => {
-        return res.equalsByteArray(ctx.getParam("scriptHash"));
-    });
+        await ft.testParams({"CURRENT_MPH_BYTES": ft.bytes()}, ["CURRENT_MPH", "SCRIPT_CONTEXT"], `
+        testing scriptcontext_get_current_minting_policy_hash
+        func main(hash: MintingPolicyHash, ctx: ScriptContext) -> Bool {
+            ctx.get_current_minting_policy_hash() == hash
+        }
+        ${mintingScriptContextParam}
+        `, ([ctx], res) => asBool(res), 10);
 
-    await ft.test([ft.mintingScriptContext()], `
-    testing scriptcontext_get_current_minting_policy_hash
-    func main(ctx: ScriptContext) -> MintingPolicyHash {
-        ctx.get_current_minting_policy_hash()
-    }`, ([ctx], res) => {
-        return res.equalsByteArray(ctx.getParam("scriptHash"));
-    });
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_STAKING_CRED", "SCRIPT_CONTEXT"], `
+        testing scriptcontext_get_staking_purpose
+        func main(cred: StakingCredential, ctx: ScriptContext) -> Bool {
+            ctx.get_staking_purpose().switch{
+                r: Rewarding => r.credential == cred,
+                Certifying => false
+            }
+        }
+        ${rewardingScriptContextParam}
+        `, ([ctx], res) => asBool(res), 10);
 
-    await ft.test([ft.spendingScriptContext()], `
-    testing scriptcontext_serialize
-    func main(ctx: ScriptContext) -> ByteArray {
-        ctx.serialize()
-    }`, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx);
-    });
+        await ft.testParams({"CURRENT_VALIDATOR_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing scriptcontext_from_data
+        func main(ctx: Data) -> ScriptContext {
+            ScriptContext::from_data(ctx)
+        }
+        ${spendingScriptContextParam}
+        `, ([ctx], res) => res.data.isSame(ctx.data), 10);
 
-    await ft.test([ft.spendingScriptContext()], `
-    testing tx_eq
-    func main(ctx: ScriptContext) -> Bool {
-        ctx.tx == ctx.tx
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+        await ft.testParams({"CURRENT_VALIDATOR_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing scriptcontext_serialize
+        func main(ctx: ScriptContext) -> ByteArray {
+            ctx.serialize()
+        }
+        ${spendingScriptContextParam}
+        `, serializeProp, 10);
+    }
 
-    await ft.test([ft.mintingScriptContext()], `
-    testing tx_eq
-    func main(ctx: ScriptContext) -> Bool {
-        ctx.tx == ctx.tx
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    const testStakingPurpose = true;
 
-    await ft.test([ft.spendingScriptContext()], `
-    testing tx_neq
-    func main(ctx: ScriptContext) -> Bool {
-        ctx.tx != ctx.tx
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    if (testStakingPurpose) {
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing stakingpurpose_eq
+        func main(ctx: ScriptContext) -> Bool {
+            sp: StakingPurpose = ctx.get_staking_purpose();
+            sp == sp
+        }
+        ${rewardingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.mintingScriptContext()], `
-    testing tx_neq
-    func main(ctx: ScriptContext) -> Bool {
-        ctx.tx != ctx.tx
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing stakingpurpose_neq
+        func main(ctx: ScriptContext) -> Bool {
+            sp: StakingPurpose = ctx.get_staking_purpose();
+            sp != sp
+        }
+        ${certifyingScriptContextParam}
+        `, ([_], res) => !asBool(res), 5);
 
-    // test if transaction is balanced (should always be true)
-    await ft.testn(10, [ft.spendingScriptContext()], `
-    testing tx_outputs_and_fee
-    func main(ctx: ScriptContext) -> Bool {
-        ctx.tx.inputs.fold((a: Value, b: TxInput) -> Value {
-            a + b.output.value
-        }, Value::ZERO) + ctx.tx.minted == ctx.tx.fee + ctx.tx.outputs.fold((a: Value, b: TxOutput) -> Value {
-            a + b.value
-        }, Value::ZERO)
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool()
-    });
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["STAKING_PURPOSE"], `
+        testing stakingpurpose_from_data
+        func main(sp: Data) -> StakingPurpose {
+            StakingPurpose::from_data(sp)
+        }
+        ${rewardingScriptContextParam}
+        `, ([sp], res) => sp.data.isSame(res.data), 5);
 
-    // test if a signatory also sent some outputs self
-    await ft.test([ft.spendingScriptContext()], `
-    testing tx_signatories
-    func main(ctx: ScriptContext) -> Bool {
-        ctx.tx.signatories.all((s: PubKeyHash) -> Bool {
-            ctx.tx.outputs.any((o: TxOutput) -> Bool {
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing stakingpurpose_serialize
+        func main(ctx: ScriptContext) -> ByteArray {
+            ctx.get_staking_purpose().serialize()
+        }
+        ${rewardingScriptContextParam}
+        `, ([ctx], res) => {
+            return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[1]);
+        }, 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["STAKING_PURPOSE"], `
+        testing stakingpurpose_rewarding_eq
+        func main(sp: StakingPurpose::Rewarding) -> Bool {
+            sp == sp
+        }
+        ${rewardingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["STAKING_PURPOSE"], `
+        testing stakingpurpose_rewarding_neq
+        func main(sp: StakingPurpose::Rewarding) -> Bool {
+            sp != sp
+        }
+        ${rewardingScriptContextParam}
+        `, ([_], res) => !asBool(res), 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["STAKING_PURPOSE"], `
+        testing stakingpurpose_rewarding_serialize
+        func main(sp: StakingPurpose::Rewarding) -> ByteArray {
+        sp.serialize()
+        }
+        ${rewardingScriptContextParam}
+        `, serializeProp, 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["STAKING_PURPOSE"], `
+        testing stakingpurpose_certifying_eq
+        func main(sp: StakingPurpose::Certifying) -> Bool {
+            sp == sp
+        }
+        ${certifyingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["STAKING_PURPOSE"], `
+        testing stakingpurpose_certifying_neq
+        func main(sp: StakingPurpose::Certifying) -> Bool {
+            sp != sp
+        }
+        ${certifyingScriptContextParam}
+        `, ([_], res) => !asBool(res), 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["STAKING_PURPOSE"], `
+        testing stakingpurpose_certifying_dcert
+        func main(sp: StakingPurpose::Certifying) -> Bool {
+            sp.dcert == sp.dcert
+        }
+        ${certifyingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["STAKING_PURPOSE"], `
+        testing stakingpurpose_certifying_serialize
+        func main(sp: StakingPurpose::Certifying) -> ByteArray {
+        sp.serialize()
+        }
+        ${certifyingScriptContextParam}
+        `, serializeProp, 5);
+    }
+
+    const testDCert = true;
+
+    if (testDCert) {
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
+        testing dcert_eq
+        func main(dcert: DCert) -> Bool {
+            dcert == dcert
+        }
+        ${certifyingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
+        testing dcert_neq
+        func main(dcert: DCert) -> Bool {
+            dcert != dcert
+        }
+        ${certifyingScriptContextParam}
+        `, ([_], res) => !asBool(res), 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
+        testing dcert_from_data
+        func main(dcert: Data) -> DCert {
+            DCert::from_data(dcert)
+        }
+        ${certifyingScriptContextParam}
+        `, ([a], res) => a.data.isSame(res.data), 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
+        testing dcert_serialize
+        func main(dcert: DCert) -> ByteArray {
+            dcert.serialize()
+        }
+        ${certifyingScriptContextParam}
+        `, serializeProp, 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing dcert_member_eq
+        func main(ctx: ScriptContext) -> Bool {
+            ctx.tx.dcerts.all((dcert: DCert) -> Bool {
+                dcert.switch{
+                    r: Register => r == r,
+                    d: Deregister => d == d,
+                    del: Delegate => del == del,
+                    rp: RegisterPool => rp == rp,
+                    ret: RetirePool => ret == ret
+                }
+            })
+        }
+        ${certifyingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing dcert_member_neq
+        func main(ctx: ScriptContext) -> Bool {
+            ctx.tx.dcerts.any((dcert: DCert) -> Bool {
+                dcert.switch{
+                    r: Register => r != r,
+                    d: Deregister => d != d,
+                    del: Delegate => del != del,
+                    rp: RegisterPool => rp != rp,
+                    ret: RetirePool => ret != ret
+                }
+            })
+        }
+        ${certifyingScriptContextParam}
+        `, ([_], res) => !asBool(res), 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_STAKING_CRED", "POOL_ID", "POOL_VFR", "EPOCH", "SCRIPT_CONTEXT"], `
+        testing dcert_member_fields
+        func main(staking_cred: StakingCredential, pool_id: PubKeyHash, pool_vfr: PubKeyHash, epoch: Int, ctx: ScriptContext) -> Bool {
+            ctx.tx.dcerts.any((dcert: DCert) -> Bool {
+                dcert.switch{
+                    r: Register => r.credential == staking_cred,
+                    d: Deregister => d.credential == staking_cred,
+                    del: Delegate => del.delegator == staking_cred && del.pool_id == pool_id,
+                    rp: RegisterPool => rp.pool_id == pool_id && rp.pool_vfr == pool_vfr,
+                    ret: RetirePool => ret.pool_id == pool_id && ret.epoch == epoch
+                }
+            })
+        }
+        ${certifyingScriptContextParam}
+        `, ([a], res) => asBool(res), 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing dcert_member_serialize
+        func main(ctx: ScriptContext) -> []ByteArray {
+            ctx.tx.dcerts.map((dcert: DCert) -> ByteArray {
+                dcert.switch{
+                    r: Register => r.serialize(),
+                    d: Deregister => d.serialize(),
+                    del: Delegate => del.serialize(),
+                    rp: RegisterPool => rp.serialize(),
+                    ret: RetirePool => ret.serialize()
+                }
+            })
+        }
+        ${certifyingScriptContextParam}
+        `, ([ctx], res) => {
+            return res.data.list.every((d, i) => {
+                let ref = ctx.data.fields[0].fields[5].list[i];
+                return helios_.PlutusCoreData.decodeCBORData(asBytes(d)).isSame(ref);
+            });
+        }, 5);
+    }
+
+    const testTx = true;
+
+    if (testTx) {
+        await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
+        testing tx_eq
+        func main(ctx: ScriptContext) -> Bool {
+            ctx.tx == ctx.tx
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 10);
+
+        await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
+        testing tx_neq
+        func main(ctx: ScriptContext) -> Bool {
+            ctx.tx != ctx.tx
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => !asBool(res), 10);
+
+        // test if transaction is balanced (should always be true)
+        await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
+        testing tx_is_balanced
+        func main(ctx: ScriptContext) -> Bool {
+            ctx.tx.inputs.fold((a: Value, b: TxInput) -> Value {
+                a + b.output.value
+            }, Value::ZERO) + ctx.tx.minted == ctx.tx.fee + ctx.tx.outputs.fold((a: Value, b: TxOutput) -> Value {
+                a + b.value
+            }, Value::ZERO)
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 3);
+
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_ref_inputs
+        func main(ctx: ScriptContext) -> Bool {
+            ctx.tx.ref_inputs.length > 0
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
+
+        // test if a signatory also sent some outputs self
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_signatories
+        func main(ctx: ScriptContext) -> Bool {
+            ctx.tx.signatories.all((s: PubKeyHash) -> Bool {
+                ctx.tx.outputs.any((o: TxOutput) -> Bool {
+                    o.address.credential.switch{
+                        c: PubKey => c.hash == s,
+                        else => false
+                    }
+                })
+            })
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 4);
+
+        await ft.testParams({"QTY": ft.int(200000, 3000000)}, ["CURRENT_TX_ID", "SCRIPT_CONTEXT"], `
+        testing tx_id
+        func main(tx_id: TxId, ctx: ScriptContext) -> Bool {
+            ctx.tx.id == tx_id
+        }
+        ${spendingScriptContextParam}
+        `, ([ctx], res) => asBool(res), 5);
+
+        await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
+        testing tx_time_range
+        func main(ctx: ScriptContext) -> Bool {
+            ctx.tx.time_range.contains(ctx.tx.now() + Duration::new(10))
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 10);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_dcerts
+        func main(ctx: ScriptContext) -> Bool {
+            ctx.tx.dcerts.length > 0
+        }
+        ${certifyingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_withdrawals
+        func main(ctx: ScriptContext) -> Bool {
+            ctx.tx.withdrawals.length > 0
+        }
+        ${rewardingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
+        
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_outputs_sent_to
+        func main(ctx: ScriptContext) -> Bool {
+            if (ctx.tx.signatories.is_empty()) {
+                true
+            } else {
+                ctx.tx.outputs_sent_to(ctx.tx.signatories.head).length > 0
+            }
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_outputs_sent_to_datum
+        func main(ctx: ScriptContext) -> Bool {
+            if (ctx.tx.signatories.is_empty()) {
+                true
+            } else {
+                ctx.tx.outputs_sent_to_datum(ctx.tx.signatories.head, 42).length > 0
+            }
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_outputs_locked_by
+        func main(ctx: ScriptContext) -> Bool {
+            h: ValidatorHash = ctx.get_current_validator_hash();
+            ctx.tx.outputs_locked_by(h) == ctx.tx.outputs.filter((o: TxOutput) -> Bool {
                 o.address.credential.switch{
-                    c: PubKey => c.hash == s,
+                    Validator => true,
                     else => false
                 }
             })
-        })
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
-
-    await ft.test([ft.spendingScriptContext()], `
-    testing tx_id
-    func main(ctx: ScriptContext) -> TxId {
-        ctx.tx.id
-    }`, ([ctx], res) => {
-        return res.isConstr() && res.fields[0].equalsByteArray(ctx.getParam("tx").getParam("id"));
-    });
-
-    await ft.test([ft.spendingScriptContext()], `
-    testing tx_time_range
-    func main(ctx: ScriptContext) -> Bool {
-        ctx.tx.time_range.contains(ctx.tx.now() + Duration::new(10))
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    })
-
-    await ft.test([ft.spendingScriptContext()], `
-    testing tx_outputs_sent_to
-    func main(ctx: ScriptContext) -> Bool {
-        if (ctx.tx.signatories.is_empty()) {
-            true
-        } else {
-            ctx.tx.outputs_sent_to(ctx.tx.signatories.head).length > 0
         }
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
-    testing tx_outputs_locked_by
-    func main(ctx: ScriptContext) -> Bool {
-        h: ValidatorHash = ctx.get_current_validator_hash();
-        ctx.tx.outputs_locked_by(h) == ctx.tx.outputs.filter((o: TxOutput) -> Bool {
-            o.address.credential.switch{
-                Validator => true,
-                else => false
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_outputs_locked_by_dataum
+        func main(ctx: ScriptContext) -> Bool {
+            h: ValidatorHash = ctx.get_current_validator_hash();
+            ctx.tx.outputs_locked_by_datum(h, 42) == ctx.tx.outputs.filter((o: TxOutput) -> Bool {
+                o.address.credential.switch{
+                    Validator => true,
+                    else => false
+                }
+            })
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_value_sent_to
+        func main(ctx: ScriptContext) -> Bool {
+            if (ctx.tx.signatories.is_empty()) {
+                true
+            } else {
+                h: PubKeyHash = ctx.tx.signatories.head;
+                ctx.tx.value_sent_to(h) == ctx.tx.outputs.fold((sum: Value, o: TxOutput) -> Value {
+                    sum + if (o.address.credential.switch{p: PubKey => p.hash == h, else => false}) {o.value} else {Value::ZERO}
+                }, Value::ZERO)
             }
-        })
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
 
-    await ft.testn(10, [ft.spendingScriptContext()], `
-    testing tx_value_sent_to
-    func main(ctx: ScriptContext) -> Bool {
-        if (ctx.tx.signatories.is_empty()) {
-            true
-        } else {
-            h: PubKeyHash = ctx.tx.signatories.head;
-            ctx.tx.value_sent_to(h) == ctx.tx.outputs.fold((sum: Value, o: TxOutput) -> Value {
-                sum + if (o.address.credential.switch{p: PubKey => p.hash == h, else => false}) {o.value} else {Value::ZERO}
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["DATUM_HASH_1", "SCRIPT_CONTEXT"], `
+        testing tx_value_sent_to_datum
+        func main(datum_hash: DatumHash, ctx: ScriptContext) -> Bool {
+            if (ctx.tx.signatories.is_empty()) {
+                true
+            } else {
+                h: PubKeyHash = ctx.tx.signatories.head;
+                ctx.tx.value_sent_to_datum(h, 42) == ctx.tx.outputs.fold((sum: Value, o: TxOutput) -> Value {
+                    sum + if (
+                        o.address.credential.switch{p: PubKey => p.hash == h, else => false} && 
+                        o.datum.switch{ha: Hash => ha.hash == datum_hash, None => false, Inline => false}
+                    ) {
+                        o.value
+                    } else {
+                        Value::ZERO
+                    }
+                }, Value::ZERO)
+            }
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_value_locked_by
+        func main(ctx: ScriptContext) -> Bool {
+            h: ValidatorHash = ctx.get_current_validator_hash();
+            ctx.tx.value_locked_by(h) == ctx.tx.outputs.fold((sum: Value, o: TxOutput) -> Value {
+                sum + if (o.address.credential.switch{v: Validator => v.hash == h, else => false}) {o.value} else {Value::ZERO}
             }, Value::ZERO)
         }
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
 
-    await ft.testn(10, [ft.spendingScriptContext()], `
-    testing tx_value_locked_by
-    func main(ctx: ScriptContext) -> Bool {
-        h: ValidatorHash = ctx.get_current_validator_hash();
-        ctx.tx.value_locked_by(h) == ctx.tx.outputs.fold((sum: Value, o: TxOutput) -> Value {
-            sum + if (o.address.credential.switch{v: Validator => v.hash == h, else => false}) {o.value} else {Value::ZERO}
-        }, Value::ZERO)
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
-
-    await ft.test([ft.object(ft.int()), ft.spendingScriptContext()],`
-    testing tx_value_locked_by_datum
-    struct Datum {
-        a: Int
-    }
-    func main(datum: Datum, ctx: ScriptContext) -> Bool {
-        h: ValidatorHash = ctx.get_current_validator_hash();
-        (ctx.tx.value_locked_by_datum(h, datum) == ctx.tx.outputs.fold((a: Value, o: TxOutput) -> Value {
-            a + if (o.address.credential.switch{v: Validator => v.hash == h, else => false}) {o.value} else {Value::ZERO}
-        }, Value::ZERO)) && datum.a == datum.a
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
-
-    await ft.test([ft.spendingScriptContext()], `
-    testing tx_is_signed_by
-    func main(ctx: ScriptContext) -> Bool {
-        if (ctx.tx.signatories.is_empty()) {
-            false
-        } else {
-            ctx.tx.is_signed_by(ctx.tx.signatories.head)
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["DATUM_HASH_1", "SCRIPT_CONTEXT"],`
+        testing tx_value_locked_by_datum
+        func main(datum_hash: DatumHash, ctx: ScriptContext) -> Bool {
+            h: ValidatorHash = ctx.get_current_validator_hash();
+            (ctx.tx.value_locked_by_datum(h, 42) == ctx.tx.outputs.fold((a: Value, o: TxOutput) -> Value {
+                a + if (
+                    o.address.credential.switch{v: Validator => v.hash == h, else => false} && 
+                    o.datum.switch{ha: Hash => ha.hash == datum_hash, None => false, Inline => false}
+                ) {
+                    o.value
+                } else {
+                    Value::ZERO
+                }
+            }, Value::ZERO))
         }
-    }`, ([ctx], res) => {
-        return res.isBool() && ((ctx.getParam("tx").getParam("signatories").length > 0) === res.asBool());
-    });
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
-    testing tx_serialize
-    func main(ctx: ScriptContext) -> ByteArray {
-        ctx.tx.serialize()
-    }`, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx"));
-    });
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_is_signed_by
+        func main(ctx: ScriptContext) -> Bool {
+            if (ctx.tx.signatories.is_empty()) {
+                true
+            } else {
+                ctx.tx.is_signed_by(ctx.tx.signatories.head)
+            }
+        }
+        ${spendingScriptContextParam}
+        `, ([ctx], res) => asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["TX"], `
+        testing tx_from_data
+        func main(tx: Data) -> Tx {
+            Tx::from_data(tx)
+        }
+        ${spendingScriptContextParam}
+        `, ([tx], res) => res.data.isSame(tx.data), 5);
+
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_serialize
+        func main(ctx: ScriptContext) -> ByteArray {
+            ctx.tx.serialize()
+        }
+        ${spendingScriptContextParam}
+        `, ([ctx], res) => {
+            return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0]);
+        }, 5);
+    }
+
+    await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
     testing txid_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.id == ctx.tx.id
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => asBool(res), 2);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
     testing txid_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.id != ctx.tx.id
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => !asBool(res), 2);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"QTY": ft.int()}, ["CURRENT_TX_ID"], `
+    testing txid_from_data
+    func main(tx_id: Data) -> TxId {
+        TxId::from_data(tx_id)
+    }
+    ${spendingScriptContextParam}
+    `, ([txId], res) => res.data.isSame(txId.data), 2);
+
+    await ft.testParams({"QTY": ft.int()}, ["CURRENT_TX_ID"], `
     testing txid_serialize
-    func main(ctx: ScriptContext) -> ByteArray {
-        ctx.tx.id.serialize()
-    }`, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newTxId(ctx.getParam('tx').getParam("id")));
-    });
+    func main(tx_id: TxId) -> ByteArray {
+        tx_id.serialize()
+    }
+    ${spendingScriptContextParam}
+    `, serializeProp, 2);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing txinput_eq_neq
     func main(ctx: ScriptContext) -> Bool {
         if (ctx.tx.inputs.length == 1) {
@@ -2915,19 +3190,29 @@ async function runPropertyTests() {
         } else {
             ctx.tx.inputs.head != ctx.tx.inputs.get(1)
         }
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["FIRST_TX_INPUT"], `
+    testing txinput_from_data
+    func main(txinput: Data) -> TxInput {
+        TxInput::from_data(txinput)
+    }
+    ${spendingScriptContextParam}
+    `, ([a], res) => a.data.isSame(res.data), 5);
+
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing txinput_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.serialize()
-    }`, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0]);
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([ctx], res) => {
+        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0]);
+    }, 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing txoutput_eq_neq
     func main(ctx: ScriptContext) -> Bool {
         if (ctx.tx.outputs.length == 1) {
@@ -2935,31 +3220,165 @@ async function runPropertyTests() {
         } else {
             ctx.tx.outputs.head != ctx.tx.outputs.get(1)
         }
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing txoutput_datum
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.outputs.head.datum.switch{
             n: None => n == n,
-            h: Hash => h.hash == h.hash,
-            i: Inline => i.data == i.data
+            h: Hash => h == h && h.hash == h.hash,
+            i: Inline => i == i && i.data == i.data
         }
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["FIRST_TX_OUTPUT"], `
+    testing txoutput_from_data
+    func main(data: Data) -> TxOutput {
+        TxOutput::from_data(data)
+    }
+    ${spendingScriptContextParam}
+    `, ([a], res) => a.data.isSame(res.data), 5);
+
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing txoutput_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.outputs.head.serialize()
-    }`, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("outputs")[0]);
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([ctx], res) => {
+        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0].fields[2].list[0]);
+    }, 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    const testOutputDatum = true;
+
+    if (testOutputDatum) {
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing outputdatum_eq
+        func main(ctx: ScriptContext) -> Bool {
+            od: OutputDatum = ctx.tx.outputs.head.datum;
+            od == od
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => asBool(res), 2);
+
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing outputdatum_neq
+        func main(ctx: ScriptContext) -> Bool {
+            od: OutputDatum = ctx.tx.outputs.head.datum;
+            od != od
+        }
+        ${spendingScriptContextParam}
+        `, ([_], res) => !asBool(res), 2);
+
+        await ft.testParams({"INLINE_DATUM": ft.int()}, ["OUTPUT_DATUM"], `
+        testing outputdatum_from_data
+        func main(data: Data) -> OutputDatum {
+            OutputDatum::from_data(data)
+        }
+        const INLINE_DATUM = 0
+
+        const OUTPUT_DATUM: OutputDatum = OutputDatum::new_inline(INLINE_DATUM)
+        `, ([a], res) => a.data.isSame(res.data), 5);
+
+        await ft.testParams({"INLINE_DATUM": ft.int()}, ["OUTPUT_DATUM"], `
+        testing outputdatum_serialize
+        func main(od: OutputDatum) -> ByteArray {
+            od.serialize()
+        }
+        const INLINE_DATUM = 0
+
+        const OUTPUT_DATUM: OutputDatum = OutputDatum::new_inline(INLINE_DATUM)
+        `, serializeProp, 5);
+
+        const outputDatumParam = `
+        const CONSTR_INDEX = 0
+        const INLINE_DATA = 0
+        const DATUM_HASH_BYTES = #
+        const DATUM_HASH: DatumHash = DatumHash::new(DATUM_HASH_BYTES)
+
+        const OUTPUT_DATUM: OutputDatum = if (CONSTR_INDEX == 0) {
+            OutputDatum::new_none()
+        } else if (CONSTR_INDEX == 1) {
+            OutputDatum::new_hash(DATUM_HASH)
+        } else {
+            OutputDatum::new_inline(INLINE_DATA)
+        }`;
+
+        await ft.testParams({"CONSTR_INDEX": ft.int(0, 2), "INLINE_DATA": ft.int(), "DATUM_HASH_BYTES": ft.bytes()}, ["DATUM_HASH", "INLINE_DATA", "OUTPUT_DATUM"], `
+        testing outputdatum_eq
+        func main(datum_hash: DatumHash, inline_data: Data, od: OutputDatum) -> Bool {
+            od.switch{
+                n: None => n == n,
+                dh: Hash => dh == dh && dh.hash == datum_hash,
+                in: Inline => in == in && in.data == inline_data
+            }
+        }
+        ${outputDatumParam}
+        `, ([_], res) => asBool(res), 10);
+
+        await ft.testParams({"CONSTR_INDEX": ft.int(0, 2), "INLINE_DATA": ft.int(), "DATUM_HASH_BYTES": ft.bytes()}, ["OUTPUT_DATUM"], `
+        testing outputdatum_neq
+        func main(od: OutputDatum) -> Bool {
+            od.switch{
+                n: None => n != n,
+                dh: Hash => dh != dh,
+                in: Inline => in != in
+            }
+        }
+        ${outputDatumParam}
+        `, ([_], res) => !asBool(res), 10);
+
+        await ft.testParams({"CONSTR_INDEX": ft.int(0, 2), "INLINE_DATA": ft.int(), "DATUM_HASH_BYTES": ft.bytes()}, ["OUTPUT_DATUM"], `
+        testing outputdatum_serialize
+        func main(od: OutputDatum) -> ByteArray {
+            od.switch{
+                n: None => n.serialize(),
+                dh: Hash => dh.serialize(),
+                in: Inline => in.serialize()
+            }
+        }
+        ${outputDatumParam}
+        `, serializeProp, 10);
+    }
+
+    await ft.testParams({"DATA": ft.int()}, ["DATA"], `
+    testing data_eq
+    func main(data: Data) -> Bool {
+        data == data
+    }
+    const DATA = 0
+    `, ([_], res) => asBool(res), 10);
+
+    await ft.testParams({"DATA": ft.int()}, ["DATA"], `
+    testing data_neq
+    func main(data: Data) -> Bool {
+        data != data
+    }
+    const DATA = 0
+    `, ([_], res) => !asBool(res), 10);
+
+    await ft.testParams({"DATA": ft.int()}, ["DATA"], `
+    testing data_from_data
+    func main(data: Data) -> Bool {
+        data == Data::from_data(data)
+    }
+    const DATA = 0
+    `, ([_], res) => asBool(res), 10);
+
+    await ft.testParams({"DATA": ft.int()}, ["DATA"], `
+    testing data_serialize
+    func main(data: Data) -> ByteArray {
+        data.serialize()
+    }
+    const DATA = 0
+    `, serializeProp, 10);
+
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing txoutputid_eq_neq
     func main(ctx: ScriptContext) -> Bool {
         if (ctx.tx.inputs.length == 1) {
@@ -2967,725 +3386,694 @@ async function runPropertyTests() {
         } else {
             ctx.tx.inputs.head.output_id != ctx.tx.inputs.get(1).output_id
         }
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing txoutputid_new
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output_id != TxOutputId::new(TxId::new(#1234), 0)
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["TX_OUTPUT_ID_IN"], `
+    testing txoutputid_from_data
+    func main(data: Data) -> TxOutputId {
+        TxOutputId::from_data(data)
+    }
+    ${spendingScriptContextParam}
+    `, ([a], res) => a.data.isSame(res.data), 5);
+
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing txoutputid_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output_id.serialize()
-    }`, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("outputId"));
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([ctx], res) => {
+        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[0]);
+    }, 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing address_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address == ctx.tx.inputs.get(0).output.address
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing address_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address != ctx.tx.inputs.get(0).output.address
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => !asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["STAKING_CRED_IN", "SCRIPT_CONTEXT"], `
     testing address_staking_credential
-    func main(ctx: ScriptContext) -> Option[StakingCredential] {
-        ctx.tx.inputs.head.output.address.staking_credential
-    }`, ([a], res) => {
+    func main(staking_cred: Option[StakingCredential], ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.head.output.address.staking_credential == staking_cred
+    }
+    ${spendingScriptContextParam}
+    `, ([a], res) => asBool(res), 3);
 
-        return res.isSame(helios_.LedgerData.newOption(helios_.LedgerData.newStakingCredential(a.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("stakingHash"))));
-    });
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["ADDRESS"], `
+    testing address_from_data
+    func main(data: Data) -> Address {
+        Address::from_data(data)
+    }
+    const PUB_KEY_HASH_BYTES = #
+    const ADDRESS: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+    `, ([a], res) => a.data.isSame(res.data), 10);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing address_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output.address.serialize()
-    }`, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address"))
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([ctx], res) => {
+        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0])
+    }, 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing credential_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.credential == ctx.tx.inputs.get(0).output.address.credential
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing credential_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.credential != ctx.tx.inputs.get(0).output.address.credential
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => !asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["CURRENT_VALIDATOR_CRED"], `
+    testing credential_from_data
+    func main(data: Data) -> Credential {
+        Credential::from_data(data)
+    }
+    ${spendingScriptContextParam}
+    `, ([a], res) => a.data.isSame(res.data), 3);
+
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing credential_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output.address.credential.serialize()
-    }`, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("credential"));
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([ctx], res) => {
+        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0].fields[0]);
+    }, 3);
 
-    await ft.test([ft.spendingScriptContext()], `
-    testing credential_sub_eq
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+    testing credential_member_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.outputs.head.address.credential.switch{
-            p: PubKey => p == p,
-            v: Validator => v == v
+            p: PubKey => p == p && p.hash == p.hash,
+            v: Validator => v == v && v.hash == v.hash
         }
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
-    testing credential_sub_neq
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+    testing credential_member_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.outputs.head.address.credential.switch{
             p: PubKey => p != p,
             v: Validator => v != v
         }
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => !asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
-    testing credential_sub_serialize
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+    testing credential_member_serialize
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output.address.credential.switch{
             p: PubKey => p.serialize(),
             v: Validator => v.serialize()
         }
-    }`, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("credential"));
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([ctx], res) => {
+        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0].fields[0]);
+    }, 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool()}, ["SCRIPT_CONTEXT"], `
     testing staking_credential_eq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.staking_credential.switch{
             s: Some => s.some == s.some,
             n: None => n == n
         }
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool()}, ["SCRIPT_CONTEXT"], `
     testing staking_credential_neq
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.staking_credential.switch{
             s: Some => s.some != s.some,
             n: None => n != n
         }
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => !asBool(res), 5);
 
-    await ft.test([ft.spendingScriptContext()], `
+    await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool()}, ["SOME_STAKING_CRED_IN"], `
+    testing staking_credential_from_data
+    func main(data: Data) -> StakingCredential {
+        StakingCredential::from_data(data)
+    }
+    ${spendingScriptContextParam}
+    `, ([a], res) => a.data.isSame(res.data), 2);
+
+    await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool()}, ["SCRIPT_CONTEXT"], `
     testing staking_credential_serialize
-    func main(ctx: ScriptContext) -> ByteArray {
+    func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.staking_credential.switch{
-            s: Some => s.some.serialize(),
-            n: None => n.serialize()
+            s: Some => s.some.serialize().length > 0,
+            n: None => n.serialize().length > 0
         }
-    }`, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newStakingCredential(ctx.getParam("tx").getParam("inputs")[0].getParam("output").getParam("address").getParam("stakingHash")));
-    });
+    }
+    ${spendingScriptContextParam}
+    `, ([ctx], res) => asBool(res), 5);
+
+    await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool(), "STAKING_CRED_TYPE": ft.bool()}, ["SCRIPT_CONTEXT"], `
+    testing staking_credential_eq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.head.output.address.staking_credential.switch{
+            s: Some => s.some.switch{
+                sp: Ptr => sp == sp,
+                sh: Hash => sh == sh
+            },
+            n: None => n == n
+        }
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => asBool(res), 5);
+
+    await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool(), "STAKING_CRED_TYPE": ft.bool()}, ["SCRIPT_CONTEXT"], `
+    testing staking_credential_neq
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.head.output.address.staking_credential.switch{
+            s: Some => s.some.switch{
+                sp: Ptr => sp != sp,
+                sh: Hash => sh != sh
+            },
+            n: None => n != n
+        }
+    }
+    ${spendingScriptContextParam}
+    `, ([_], res) => !asBool(res), 5);
+
+    await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool(), "STAKING_CRED_TYPE": ft.bool()}, ["SCRIPT_CONTEXT"], `
+    testing staking_credential_serialize
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.inputs.head.output.address.staking_credential.switch{
+            s: Some => s.some.switch{
+                sp: Ptr => sp.serialize().length > 0,
+                sh: Hash => sh.serialize().length > 0
+            },
+            n: None => n.serialize().length > 0
+        }
+    }
+    ${spendingScriptContextParam}
+    `, ([ctx], res) => asBool(res), 5);
 
     await ft.test([ft.int()], `
     testing time_eq_1
     func main(a: Int) -> Bool {
         Time::new(a) == Time::new(a)
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing time_eq_2
     func main(a: Int, b: Int) -> Bool {
         Time::new(a) == Time::new(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() === b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) === asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing time_neq_1
     func main(a: Int) -> Bool {
         Time::new(a) != Time::new(a)
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing time_neq_2
     func main(a: Int, b: Int) -> Bool {
         Time::new(a) != Time::new(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() === b.asInt()) === (!res.asBool()));
-    });
+    }`, ([a, b], res) => (asInt(a) === asInt(b)) === (!asBool(res)));
 
     await ft.test([ft.int(), ft.int()], `
     testing time_add_2
     func main(a: Int, b: Int) -> Time {
         Time::new(a) + Duration::new(b)
-    }`, ([a, b], res) => {
-        return res.isInt() && (a.asInt() + b.asInt() === res.asInt());
-    });
+    }`, ([a, b], res) => asInt(a) + asInt(b) === asInt(res));
 
     await ft.test([ft.int()], `
     testing time_sub_0
     func main(a: Int) -> Duration {
         Time::new(a) - Time::new(0)
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === asInt(res));
 
     await ft.test([ft.int()], `
     testing time_sub_self
     func main(a: Int) -> Duration {
         Time::new(a) - Time::new(a)
-    }`, ([_], res) => {
-        return res.isInt() && (0n === res.asInt())
-    });
+    }`, ([_], res) => 0n === asInt(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing time_sub_2
     func main(a: Int, b: Int) -> Duration {
         Time::new(a) - Time::new(b)
-    }`, ([a, b], res) => {
-        return res.isInt() && (a.asInt() - b.asInt() === res.asInt());
-    });
+    }`, ([a, b], res) => asInt(a) - asInt(b) === asInt(res));
 
     await ft.test([ft.int()], `
     testing time_geq_1
     func main(a: Int) -> Bool {
         Time::new(a) >= Time::new(a)
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing time_geq_2
     func main(a: Int, b: Int) -> Bool {
         Time::new(a) >= Time::new(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() >= b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) >= asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing time_gt_1
     func main(a: Int) -> Bool {
         Time::new(a) > Time::new(a)
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing time_gt_2
     func main(a: Int, b: Int) -> Bool {
         Time::new(a) > Time::new(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() > b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) > asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing time_leq_1
     func main(a: Int) -> Bool {
         Time::new(a) <= Time::new(a)
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing time_leq_2
     func main(a: Int, b: Int) -> Bool {
         Time::new(a) <= Time::new(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() <= b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) <= asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing time_lt_1
     func main(a: Int) -> Bool {
         Time::new(a) < Time::new(a)
-    }`, ([a], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([a], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing time_lt_2
     func main(a: Int, b: Int) -> Bool {
         Time::new(a) < Time::new(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() < b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) < asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing time_show
     func main(a: Int) -> String {
         Time::new(a).show()
-    }`, ([a], res) => {
-        return res.isString() && (a.asInt().toString() === res.asString());
-    });
+    }`, ([a], res) => asInt(a).toString() === asString(res));
+
+    await ft.test([ft.int()], `
+    testing time_from_data
+    func main(data: Data) -> Bool {
+        Time::from_data(data) == Time::new(Int::from_data(data))
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int()], `
     testing time_serialize
     func main(a: Int) -> ByteArray {
         Time::new(a).serialize()
-    }`, ([a], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-    });
+    }`, serializeProp);
 
     await ft.test([ft.int()], `
     testing duration_eq_1
     func main(a: Int) -> Bool {
         Duration::new(a) == Duration::new(a)
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing duration_eq_2
     func main(a: Int, b: Int) -> Bool {
         Duration::new(a) == Duration::new(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() === b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) === asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing duration_neq_1
     func main(a: Int) -> Bool {
         Duration::new(a) != Duration::new(a)
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing duration_neq_2
     func main(a: Int, b: Int) -> Bool {
         Duration::new(a) != Duration::new(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() === b.asInt()) === (!res.asBool()));
-    });
+    }`, ([a, b], res) => (asInt(a) === asInt(b)) === (!asBool(res)));
 
     await ft.test([ft.int()], `
     testing duration_add_0
     func main(a: Int) -> Duration {
         Duration::new(a) + Duration::new(0)
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === asInt(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing duration_add_2
     func main(a: Int, b: Int) -> Duration {
         Duration::new(a) + Duration::new(b)
-    }`, ([a, b], res) => {
-        return res.isInt() && (a.asInt() + b.asInt() === res.asInt());
-    });
+    }`, ([a, b], res) => asInt(a) + asInt(b) === asInt(res));
 
     await ft.test([ft.int()], `
     testing duration_sub_0
     func main(a: Int) -> Duration {
         Duration::new(a) - Duration::new(0)
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === asInt(res));
 
     await ft.test([ft.int()], `
     testing duration_sub_0_alt
     func main(a: Int) -> Duration {
         Duration::new(0) - Duration::new(a)
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === -res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === -asInt(res));
 
     await ft.test([ft.int()], `
     testing duration_sub_self
     func main(a: Int) -> Duration {
         Duration::new(a) - Duration::new(a)
-    }`, ([_], res) => {
-        return res.isInt() && (0n === res.asInt())
-    });
+    }`, ([_], res) => 0n === asInt(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing duration_sub_2
     func main(a: Int, b: Int) -> Duration {
         Duration::new(a) - Duration::new(b)
-    }`, ([a, b], res) => {
-        return res.isInt() && (a.asInt() - b.asInt() === res.asInt());
-    });
+    }`, ([a, b], res) => asInt(a) - asInt(b) === asInt(res));
 
     await ft.test([ft.int()], `
     testing duration_mul_0
     func main(a: Int) -> Duration {
         Duration::new(a)*0
-    }`, ([_], res) => {
-        return res.isInt() && (0n === res.asInt());
-    });
+    }`, ([_], res) => 0n === asInt(res));
 
     await ft.test([ft.int()], `
     testing duration_mul_1
     func main(a: Int) -> Duration {
         Duration::new(a)*1
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === asInt(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing duration_mul_2
     func main(a: Int, b: Int) -> Duration {
         Duration::new(a) * b
-    }`, ([a, b], res) => {
-        return res.isInt() && (a.asInt() * b.asInt() === res.asInt());
-    });
+    }`, ([a, b], res) => asInt(a) * asInt(b) === asInt(res));
 
     await ft.test([ft.int()], `
     testing duration_div_0
     func main(a: Int) -> Duration {
         Duration::new(a) / 0
-    }`, ([_], res) => {
-        return res instanceof helios.UserError && res.info === "division by zero";
-    });
+    }`, ([_], res) => isError(res, "division by zero"));
 
     await ft.test([ft.int()], `
     testing duration_div_1
     func main(a: Int) -> Duration {
         Duration::new(a) / 1
-    }`, ([a], res) => {
-        return res.isInt() && (a.asInt() === res.asInt());
-    });
+    }`, ([a], res) => asInt(a) === asInt(res));
 
     await ft.test([ft.int(-20, 20)], `
     testing duration_div_1_self
     func main(a: Int) -> Duration {
         Duration::new(a) / a
-    }`, ([a], res) => {
-        return (
-            a.asInt() === 0n ?
-            res instanceof helios.UserError && res.info === "division by zero" :
-            res.isInt() && (1n === res.asInt())
-        );
-    });
+    }`, ([a], res) => 
+        asInt(a) === 0n ?
+        isError(res, "division by zero") :
+        1n === asInt(res)
+    );
 
     await ft.test([ft.int(), ft.int()], `
     testing duration_div_2
     func main(a: Int, b: Int) -> Duration {
         Duration::new(a) / b
-    }`, ([a, b], res) => {
-        return (
-            b.asInt() === 0n ? 
-            res instanceof helios.UserError && res.info === "division by zero" :
-            res.isInt() && (a.asInt() / b.asInt() === res.asInt())
-        );
-    });
+    }`, ([a, b], res) => 
+        asInt(b) === 0n ? 
+        isError(res, "division by zero") :
+        asInt(a) / asInt(b) === asInt(res)
+    );
 
     await ft.test([ft.int()], `
     testing duration_mod_0
     func main(a: Int) -> Duration {
         Duration::new(a) % Duration::new(0)
-    }`, ([_], res) => {
-        return res instanceof helios.UserError && res.info === "division by zero";
-    });
+    }`, ([_], res) => isError(res, "division by zero"));
 
     await ft.test([ft.int()], `
     testing duration_mod_1
     func main(a: Int) -> Duration {
         Duration::new(a) % Duration::new(1)
-    }`, ([_], res) => {
-        return res.isInt() && (0n === res.asInt());
-    });
+    }`, ([_], res) => 0n === asInt(res));
 
     await ft.test([ft.int(-20, 20)], `
     testing duration_mod_1_alt
     func main(a: Int) -> Duration {
         Duration::new(1) % Duration::new(a)
-    }`, ([a], res) => {
-        return (
-            a.asInt() === 0n ? 
-            res instanceof helios.UserError && res.info === "division by zero" :
-            (
-                a.asInt() === -1n || a.asInt() === 1n ?
-                res.isInt() && (0n === res.asInt()) :
-                res.isInt() && (1n === res.asInt())
-            )
-        );
-    });
+    }`, ([a], res) => 
+        asInt(a) === 0n ? 
+        isError(res, "division by zero") :
+        (
+            asInt(a) === -1n || asInt(a) === 1n ?
+            0n === asInt(res) :
+            1n === asInt(res)
+        )
+    );
 
     await ft.test([ft.int(-10, 10)], `
     testing duration_mod_1_self
     func main(a: Int) -> Duration {
         Duration::new(a) % Duration::new(a)
-    }`, ([a], res) => {
-        return (
-            a.asInt() === 0n ?
-            res instanceof helios.UserError && res.info === "division by zero" :
-            res.isInt() && (0n === res.asInt())
-        );
-    });
+    }`, ([a], res) => 
+        asInt(a) === 0n ?
+        isError(res, "division by zero") :
+        0n === asInt(res)
+    );
 
     await ft.test([ft.int(), ft.int(-10, 10)], `
     testing duration_mod_2
     func main(a: Int, b: Int) -> Duration {
         Duration::new(a) % Duration::new(b)
-    }`, ([a, b], res) => {
-        return (
-            b.asInt() === 0n ? 
-            res instanceof helios.UserError && res.info === "division by zero" :
-            res.isInt() && (a.asInt() % b.asInt() === res.asInt())
-        );
-    });
+    }`, ([a, b], res) => 
+        asInt(b) === 0n ? 
+        isError(res, "division by zero") :
+        asInt(a) % asInt(b) === asInt(res)
+    );
 
     await ft.test([ft.int()], `
     testing duration_geq_1
     func main(a: Int) -> Bool {
         Duration::new(a) >= Duration::new(a)
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing duration_geq_2
     func main(a: Int, b: Int) -> Bool {
         Duration::new(a) >= Duration::new(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() >= b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) >= asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing duration_gt_1
     func main(a: Int) -> Bool {
         Duration::new(a) > Duration::new(a)
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing duration_gt_2
     func main(a: Int, b: Int) -> Bool {
         Duration::new(a) > Duration::new(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() > b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) > asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing duration_leq_1
     func main(a: Int) -> Bool {
         Duration::new(a) <= Duration::new(a)
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing duration_leq_2
     func main(a: Int, b: Int) -> Bool {
         Duration::new(a) <= Duration::new(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() <= b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) <= asInt(b)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing duration_lt_1
     func main(a: Int) -> Bool {
         Duration::new(a) < Duration::new(a)
-    }`, ([a], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([a], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing duration_lt_2
     func main(a: Int, b: Int) -> Bool {
         Duration::new(a) < Duration::new(b)
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() < b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) < asInt(b)) === asBool(res));
     
+    await ft.test([ft.int()], `
+    testing duration_from_data
+    func main(a: Data) -> Bool {
+        Duration::from_data(a) == Duration::new(Int::from_data(a))
+    }`, ([_], res) => asBool(res));
+
     await ft.test([ft.int()], `
     testing duration_serialize
     func main(a: Int) -> ByteArray {
         Duration::new(a).serialize()
-    }`, ([a], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(a);
-    });
+    }`, serializeProp);
 
     await ft.test([ft.int()], `
     testing timerange_always
     func main(a: Int) -> Bool {
         TimeRange::ALWAYS.contains(Time::new(a))
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int()], `
     testing timerange_never
     func main(a: Int) -> Bool {
         TimeRange::NEVER.contains(Time::new(a))
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing timerange_from
     func main(a: Int, b: Int) -> Bool {
         TimeRange::from(Time::new(a)).contains(Time::new(b))
-    }`, ([a, b], res) => {
-        return res.isBool() && ((b.asInt() >= a.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(b) >= asInt(a)) === asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing timerange_to
     func main(a: Int, b: Int) -> Bool {
         TimeRange::to(Time::new(a)).contains(Time::new(b))
-    }`, ([a, b], res) => {
-        return res.isBool() && ((b.asInt() <= a.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(b) <= asInt(a)) === asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing timerange_eq_1
     func main(a: Int, b: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)) == TimeRange::new(Time::new(a), Time::new(b))
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
     testing timerange_eq_2
     func main(a: Int, b: Int, c: Int, d: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)) == TimeRange::new(Time::new(c), Time::new(d))
-    }`, ([a, b, c, d], res) => {
-        return res.isBool() && (((a.asInt() == c.asInt()) && (b.asInt() == d.asInt())) === res.asBool());
-    });
+    }`, ([a, b, c, d], res) => ((asInt(a) == asInt(c)) && (asInt(b) == asInt(d))) === asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing timerange_neq_1
     func main(a: Int, b: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)) != TimeRange::new(Time::new(a), Time::new(b))
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int(), ft.int(), ft.int()], `
     testing timerange_neq_2
     func main(a: Int, b: Int, c: Int, d: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)) != TimeRange::new(Time::new(c), Time::new(d))
-    }`, ([a, b, c, d], res) => {
-        return res.isBool() && (((a.asInt() == c.asInt()) && (b.asInt() == d.asInt())) === !res.asBool());
-    });
+    }`, ([a, b, c, d], res) => ((asInt(a) == asInt(c)) && (asInt(b) == asInt(d))) === !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing timerange_contains
     func main(a: Int, b: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)).contains(Time::new((a+b)/2))
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() < b.asInt() - 1n) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) < asInt(b) - 1n) === asBool(res));
 
     await ft.test([ft.int()], `
     testing timerange_is_after_1
     func main(a: Int) -> Bool {
         TimeRange::NEVER.is_after(Time::new(a))
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int()], `
     testing timerange_is_after_2
     func main(a: Int) -> Bool {
         TimeRange::ALWAYS.is_after(Time::new(a))
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing timerange_is_after_3
     func main(a: Int, b: Int) -> Bool {
         TimeRange::to(Time::new(a)).is_after(Time::new(b))
-    }`, ([a, b], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([a, b], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing timerange_is_after_4
     func main(a: Int, b: Int) -> Bool {
         TimeRange::from(Time::new(a)).is_after(Time::new(b))
-    }`, ([a, b], res) => {
-        return res.isBool() && ((b.asInt() < a.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(b) < asInt(a)) === asBool(res));
 
     await ft.test([ft.int(), ft.int(), ft.int()], `
     testing timerange_is_after_5
     func main(a: Int, b: Int, c: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)).is_after(Time::new(c))
-    }`, ([a, _, c], res) => {
-        return res.isBool() && ((c.asInt() < a.asInt()) === res.asBool());
-    });
+    }`, ([a, _, c], res) => (asInt(c) < asInt(a)) === asBool(res));
 
     await ft.test([ft.int()], `
     testing timerange_is_before_1
     func main(a: Int) -> Bool {
         TimeRange::NEVER.is_before(Time::new(a))
-    }`, ([_], res) => {
-        return res.isBool() && res.asBool();
-    });
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int()], `
     testing timerange_is_before_2
     func main(a: Int) -> Bool {
         TimeRange::ALWAYS.is_before(Time::new(a))
-    }`, ([_], res) => {
-        return res.isBool() && !res.asBool();
-    });
+    }`, ([_], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing timerange_is_before_3
     func main(a: Int, b: Int) -> Bool {
         TimeRange::to(Time::new(a)).is_before(Time::new(b))
-    }`, ([a, b], res) => {
-        return res.isBool() && ((a.asInt() < b.asInt()) === res.asBool());
-    });
+    }`, ([a, b], res) => (asInt(a) < asInt(b)) === asBool(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing timerange_is_before_4
     func main(a: Int, b: Int) -> Bool {
         TimeRange::from(Time::new(a)).is_before(Time::new(b))
-    }`, ([a, b], res) => {
-        return res.isBool() && !res.asBool();
-        
-    });
+    }`, ([a, b], res) => !asBool(res));
 
     await ft.test([ft.int(), ft.int(), ft.int()], `
     testing timerange_is_before_5
     func main(a: Int, b: Int, c: Int) -> Bool {
         TimeRange::new(Time::new(a), Time::new(b)).is_before(Time::new(c))
-    }`, ([_, b, c], res) => {
-        return res.isBool() && ((b.asInt() < c.asInt()) === res.asBool());
-    });
+    }`, ([_, b, c], res) => (asInt(b) < asInt(c)) === asBool(res));
+
+
+    await ft.testParams({"START": ft.int(), "DUR": ft.int()}, ["TR"], `
+    testing timerange_from_data
+    func main(a: Data) -> TimeRange {
+        TimeRange::from_data(a)
+    }
+    const START = 0
+    const DUR = 100
+
+    const TR: TimeRange = TimeRange::new(Time::new(START), Time::new(START + DUR))
+    `, ([a], res) => a.data.isSame(res.data));
+
 
     await ft.test([ft.int(), ft.int()], `
     testing timerange_serialize
-    func main(a: Int, b: Int) -> ByteArray {
-        TimeRange::new(Time::new(a), Time::new(b)).serialize()
-    }`, ([a, b], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(res.asByteArray()).isSame(helios_.LedgerData.newFiniteTimeRange(a.asInt(), b.asInt() - a.asInt()));
-    });
+    func main(a: Int, b: Int) -> Bool {
+        tr: TimeRange = TimeRange::new(Time::new(a), Time::new(b));
+        tr.serialize() == tr.serialize()
+    }`, ([a, b], res) => asBool(res));
 }
 
 
@@ -3764,7 +4152,7 @@ async function runIntegrationTests() {
     func main() -> Bool {
         print("hello world");
         true
-    }`, "data(1{})", ["hello world"]);
+    }`, "true", ["hello world"]);
 
     // 2. hello_world_false
     await runTestScript(`
@@ -3772,7 +4160,7 @@ async function runIntegrationTests() {
     func main() -> Bool {
         print("hello world");
         !true
-    }`, "data(0{})", ["hello world"]);
+    }`, "false", ["hello world"]);
 
     // 3. hello_number
     // * non-main function statement
@@ -3784,7 +4172,7 @@ async function runIntegrationTests() {
     func main() -> Bool {
         print(print_message(0) + "");
         !true
-    }`, "data(0{})", ["hello number 0"]);
+    }`, "false", ["hello number 0"]);
 
     // 4. my_struct
     // * struct statement
@@ -3818,7 +4206,7 @@ async function runIntegrationTests() {
         };
         print(d.owner.show());
         d.value > Value::ZERO
-    }`, "data(1{})", ["1234"]);
+    }`, "true", ["1234"]);
 
     // 5. fibonacci
     // * recursive function statement
@@ -3858,7 +4246,7 @@ async function runIntegrationTests() {
         x: []Int = []Int{1, 2, 3};
         print(x.get(0).show());
         x.get(2) == 3
-    }`, "data(1{})", "1");
+    }`, "true", "1");
 
     // 8. list_get nok
     // * error thrown by builtin
@@ -3880,7 +4268,7 @@ async function runIntegrationTests() {
     func main() -> Bool {
         print(concat("hello ", "world"));
         true
-    }`, "data(1{})", ["hello world"]);
+    }`, "true", ["hello world"]);
 
     // 10. collatz recursion
     // * recursion
@@ -3910,7 +4298,7 @@ async function runIntegrationTests() {
     }
     func main() -> Bool {
         main_inner([]Int{1,2,3,4,5,6,10}.any)
-    }`, "data(1{})", []);
+    }`, "true", []);
     
     // 12. value_get
     await runTestScript(`
@@ -3946,7 +4334,7 @@ async function runIntegrationTests() {
         print(main_internal(Redeemer::Reward).show());
         print(main_internal(Redeemer::Migrate).show());
         true
-    }`, "data(1{})", ["false", "true", "false"]);
+    }`, "true", ["false", "true", "false"]);
 
     // 14. struct method recursion
     await runTestScript(`

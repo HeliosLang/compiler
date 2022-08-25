@@ -24,7 +24,7 @@ methods:     serialize, slice, starts_with, ends_with, sha2, sha3, blake2b, deco
 internal ns: __helios__bytearray
 
 # List
-associated:  new, from_data
+associated:  new, new_const, from_data
 operators:   __eq, __neq, __add
 getters:     length, head, tail
 methods:     serialize, is_empty, get, prepend, any, all, find, filter, fold, map
@@ -34,7 +34,7 @@ internal ns: __helios__list
 associated:  from_data
 operators:   __eq, __neq, __add
 getters:     length
-methods:     serialize, is_empty, get, all, all_keys, all_values, any, any_key, any_value, 
+methods:     serialize, is_empty, get, get_safe, all, all_keys, all_values, any, any_key, any_value, 
              filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values
 internal ns: __helios__map
 
@@ -69,7 +69,7 @@ associated:  from_data
 operators:   __eq, __neq
 getters:     tx
 methods:     serialize, get_spending_purpose_output_id, get_current_validator_hash,
-             get_current_minting_policy_hash, get_current_input
+             get_current_minting_policy_hash, get_current_input, get_staking_purpose
 macros:      new_spending, new_minting, new_rewarding, new_certifying
 internal ns: __helios__scriptcontext
 

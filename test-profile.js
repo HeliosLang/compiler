@@ -90,4 +90,4 @@ const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_minting(Tx::new(
     TimeRange::ALWAYS,
     []PubKeyHash{},
     Map[DatumHash]Data{}
-))`, ["REDEEMER", "SCRIPT_CONTEXT"]);
+), MintingPolicyHash::CURRENT)`, ["REDEEMER", "SCRIPT_CONTEXT"]);

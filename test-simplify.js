@@ -7,14 +7,6 @@ const helios_ = helios.exportedForTesting;
 function simplify(src) {
     let program = helios.Program.new(src);
 
-    let paramTypes = program.paramTypes;
-
-    if (program.paramTypes["PREC_NFT"] !== undefined) {
-        program.changeParam("PREC_NFT", "abc");
-
-        console.log(program.evalParam("LIST").toString());
-    }
-
     let ir = program.toIR();
 
     let irProgram0 = helios_.IRProgram.new(ir);
@@ -38,7 +30,7 @@ async function profile(src, argNames) {
 simplify(`
 testing list_new
 func main(a: Int, b: Int) -> []Int {
-    []Int::new(a, b)
+    []Int::new_const(a, b)
 }`);
 
 simplify(`
