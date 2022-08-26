@@ -35,7 +35,8 @@
 //       	* Program.new(src: string) -> Program
 //         	* program.compile(simplify: boolean = false) -> PlutusCoreProgram
 //       	* program.paramTypes -> Object.<name: string, type: Type>
-//       	* program.changeParam(name: string, json: string)
+//       	* program.changeParam(name: string, value: string | PlutusCoreValue)
+//              value can be a valid JSON string or a PlutusCoreValue result from program.evalParam()
 //       	* program.evalParam(name: string) -> PlutusCoreValue  
 //          	result can be used as an arg when running a PlutusCoreProgram
 //
@@ -86,7 +87,8 @@
 //                                          DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
 //                                          Crypto, IR, Source, UserError, Site
 //
-//     4. Plutus-Core AST objects           PlutusCoreValue, PlutusCoreRTE, PlutusCoreStack, 
+//     4. Plutus-Core AST objects           PlutusCoreValue, DEFAULT_PLUTUS_CORE_RTE_CALLBACKS,
+//                                          PlutusCoreRTE, PlutusCoreStack, 
 //                                          PlutusCoreAnon, PlutusCoreInt, PlutusCoreByteArray, 
 //                                          PlutusCoreString, PlutusCoreUnit, PlutusCoreBool,
 //                                          PlutusCorePair, PlutusCoreMapItem, PlutusCoreList, 
@@ -106,7 +108,8 @@
 //                                          extractScriptPurposeAndName, SyntaxCategory, highlight
 //
 //     8. Type evaluation objects           GeneralizedValue, Type, AnyType, DataType, AnyDataType, 
-//                                          BuiltinType, StatementType, FuncType, Value, DataValue, 
+//                                          BuiltinType, BuiltinEnumMember, 
+//                                          StatementType, FuncType, Value, DataValue, 
 //                                          FuncValue, FuncStatementValue
 //
 //     9. Scopes                            GlobalScope, Scope, TopScope, FuncStatementScope
@@ -144,27 +147,38 @@
 //                                          buildSwitchCase, buildSwitchDefault, 
 //                                          buildListLiteralExpr, buildMapLiteralExpr, 
 //                                          buildStructLiteralExpr, buildStructLiteralField, 
-//                                          buildValuePathExpr
+//                                          buildValuePathExpr, buildLiteralExprFromJSON,
+//                                          buildLiteralExprFromValue
 //
 //    13. Builtin types                     IntType, BoolType, StringType, ByteArrayType, 
 //                                          ListType, FoldListFuncValue, MapListFuncValue,
 //                                          MapType, FoldMapFuncValue,
 //                                          OptionType, OptionSomeType, OptionNoneType,
 //                                          HashType, PubKeyHashType, ValidatorHashType, 
-//                                          MintinPolicyHashType, DatumHashType, ScriptContextType,
+//                                          MintingPolicyHashType, DatumHashType, 
+//                                          ScriptContextType, StakingPurposeType,
+//                                          StakingRewardingPurposeType, StakingCertifyingPurposeType,
+//                                          DCertType, RegisterDCertType, DeregisterDCertType,
+//                                          DelegateDCertType, RegisterPoolDCertType,
+//                                          RetirePoolDCertType,
 //                                          TxType, TxIdType, TxInputType, TxOutputType, 
+//                                          OutputDatumType, OutputDatumNoneType,
+//                                          OutputDatumHashType, OutputDatumInlineType,
+//                                          RawDataType,
 //                                          TxOutputIdType, AddressType, CredentialType, 
 //                                          CredentialPubKeyType, CredentialValidatorType, 
-//                                          StakingCredentialType, TimeType, DurationType,
+//                                          StakingCredentialType, StakingHashCredentialType,
+//                                          StakingPtrCredentialType, TimeType, DurationType,
 //                                          TimeRangeType, AssetClassType, MoneyValueType
 //
 //    14. Builtin low-level functions       onNotifyRawUsage, setRawUsageNotifier, 
 //                                          RawFunc, makeRawFunctions, wrapWithRawFunctions
 //
 //    15. IR AST objects                    IRScope, IRExprStack, IRValue, IRFuncValue, 
-//                                          IRLiteralValue, IRCallStack, IRExpr, IRVariable, 
-//                                          IRFuncExpr, IRUserCallExpr, IRCoreCallExpr, 
-//                                          IRErrorCallExpr, IRNameExpr, IRLiteral
+//                                          IRLiteralValue, IRCallStack, IRVariable, IRExpr,
+//                                          IRNameExpr, IRLiteral, IRFuncExpr, IRCallExpr, 
+//                                          IRUserCallExpr, IRCoreCallExpr, IRErrorCallExpr,
+//                                          IRProgram
 //
 //    16. IR AST build functions            buildIRExpr, buildIRFuncExpr
 //     
@@ -10687,115 +10701,20 @@ class ConstStatement extends Statement {
 		}
 	}
 
-	/**
-	 * @param {Site} site
-	 * @param {Type} type - expected type
-	 * @param {PlutusCoreValue} value 
-	 * @param {string} path 
-	 * @returns {ValueExpr}
-	 */
-	static genLiteral(site, type, value, path) {
-		if (type instanceof BoolType) {
-			if (value instanceof PlutusCoreBool) {
-				return new PrimitiveLiteralExpr(new BoolLiteral(site, value.bool));
-			} else {
-				throw site.typeError(`expected PlutusCoreBool for parameter '${path}', got '${value}'`);
-			}
-		} else if (type instanceof StringType) {
-			if (value instanceof PlutusCoreDataValue && value.data instanceof ByteArrayData) {
-				return new PrimitiveLiteralExpr(new StringLiteral(site, bytesToString(value.data.bytes)));
-			} else {
-				throw site.typeError(`expected ByteArrayData for parameter '${path}', got '${value}'`);
-			}
-		} else if (type instanceof IntType) {
-			if (value instanceof PlutusCoreDataValue && value.data instanceof IntData) {
-				return new PrimitiveLiteralExpr(new IntLiteral(site, value.data.value));
-			} else {
-				throw site.typeError(`expected IntData for parameter '${path}', got '${value}'`);
-			}
-		} else if (type instanceof ByteArrayType) {
-			if (value instanceof PlutusCoreDataValue && value.data instanceof ByteArrayData) {
-				return new PrimitiveLiteralExpr(new ByteArrayLiteral(site, value.data.bytes));
-			} else {
-				throw site.typeError(`expected ByteArrayData for parameter '${path}', got '${value}'`);
-			}
-		} else if (type instanceof ListType) {
-			if (value instanceof PlutusCoreDataValue && value.data instanceof ListData) {
-				/**
-				 * @type {ValueExpr[]}
-				 */
-				let items = [];
 
-				for (let data of value.data.list) {
-					items.push(ConstStatement.genLiteral(site, type.itemType, new PlutusCoreDataValue(site, data), path + "[]"));
-				}
-
-				return new ListLiteralExpr(site, new TypeExpr(site, type.itemType), items);
-			} else {
-				throw site.typeError(`expected ListData for parameter '${path}', got '${value}'`);
-			}
-		} else if (type instanceof MapType) {
-			if (value instanceof PlutusCoreDataValue && value.data instanceof MapData) {
-				/**
-				 * @type {[ValueExpr, ValueExpr][]}
-				 */
- 				let pairs = [];
-
-				for (let dataPair of value.data.map) {
-					let keyExpr = ConstStatement.genLiteral(site, type.keyType, new PlutusCoreDataValue(site, dataPair[0]), path + "{key}");
-					let valueExpr = ConstStatement.genLiteral(site, type.valueType, new PlutusCoreDataValue(site, dataPair[1]), path + "{value}");
-
-					pairs.push([keyExpr, valueExpr]);
-				}
-
-				return new MapLiteralExpr(
-					site, 
-					new TypeExpr(site, type.keyType), 
-					new TypeExpr(site, type.valueType),
-					pairs
-				);
-			} else {
-				throw site.typeError(`expected ListData for parameter '${path}', got '${value}'`);
-			}
-		} else if (type instanceof StatementType && type.statement instanceof StructStatement) {
-			if (value instanceof PlutusCoreDataValue && value.data instanceof ConstrData) {
-				let nFields = type.statement.nFields(site);
-				/**
-				 * @type {StructLiteralField[]}
-				 */
-				let fields = new Array(nFields);
-
-				if (nFields != value.data.fields.length) {
-					throw site.typeError(`expected ConstrData with ${nFields.toString} fields for parameter '${path}', got '${value}' with ${value.data.fields.length.toString()} fields`);
-				}
-
-				for (let i = 0; i < nFields; i++) {
-					let f = value.data.fields[i];
-
-					let fieldType = type.statement.getFieldType(site, i);
-
-					let valueExpr = ConstStatement.genLiteral(site, fieldType, new PlutusCoreDataValue(site, f), path + "." + i.toString());
-
-					fields[i] = new StructLiteralField(nFields == 1 ? null : new Word(site, type.statement.getFieldName(i)), valueExpr);
-				}
-
-				return new StructLiteralExpr(new TypeExpr(site, type), fields);
-			} else {
-				throw site.typeError(`expected ConstrData for parameter '${path}', got '${value}'`);
-			}
-		} else {
-			throw site.typeError(`unhandled parameter type '${type.toString()}', for parameter ${path}`);
-		}
-	}
 
 	/**
-	 * @param {PlutusCoreValue} value 
+	 * @param {string | PlutusCoreValue} value 
 	 */
 	changeValue(value) {
 		let type = this.type;
 		let site = this.#valueExpr.site;
 
-		this.#valueExpr = ConstStatement.genLiteral(site, type, value, this.name.value);
+		if (typeof value == "string") {
+			this.#valueExpr = buildLiteralExprFromJSON(site, type, JSON.parse(value), this.name.value);
+		} else {
+			this.#valueExpr = buildLiteralExprFromValue(site, type, value, this.name.value);
+		}
 	}
 
 	toString() {
@@ -11864,7 +11783,7 @@ export class Program {
 	/**
 	 * Change the literal value of a const statements  
 	 * @param {string} name 
-	 * @param {PlutusCoreValue} value 
+	 * @param {string | PlutusCoreValue} value 
 	 */
 	changeParam(name, value) {
 		for (let s of this.#statements) {
@@ -13505,6 +13424,243 @@ function buildValuePathExpr(ts) {
 	let memberName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 	
 	return new ValuePathExpr(typeExpr, memberName);
+}
+
+/**
+ * @param {Site} site
+ * @param {Type} type - expected type
+ * @param {any} value - result of JSON.parse(string)
+ * @param {string} path - context for debugging
+ * @returns {ValueExpr}
+ */
+function buildLiteralExprFromJSON(site, type, value, path) {
+	if (value === null) {
+		throw site.typeError(`expected non-null value for parameter '${path}'`);
+	} else if (type instanceof BoolType) {
+		if (typeof value == "boolean") {
+			return new PrimitiveLiteralExpr(new BoolLiteral(site, value));
+		} else {
+			throw site.typeError(`expected boolean for parameter '${path}', got '${value}'`);
+		}
+	} else if (type instanceof StringType) {
+		if (typeof value == "string") {
+			return new PrimitiveLiteralExpr(new StringLiteral(site, value));
+		} else {
+			throw site.typeError(`expected string for parameter '${path}', got '${value}'`);
+		}
+	} else if (type instanceof IntType) {
+		if (typeof value == "number") {
+			if (value%1 == 0.0) {
+				return new PrimitiveLiteralExpr(new IntLiteral(site, BigInt(value)));
+			} else {
+				throw site.typeError(`expected round number for parameter '${path}', got '${value}'`);
+			}
+		} else {
+			throw site.typeError(`expected number for parameter '${path}', got '${value}'`);
+		}
+	} else if (type instanceof ByteArrayType) {
+		if (value instanceof Array) {
+			/**
+			 * @type {number[]}
+			 */
+			let bytes = [];
+
+			for (let item of value) {
+				if (typeof item == "number" && item%1 == 0.0 && item >= 0 && item < 256) {
+					bytes.push(item);
+				} else {
+					throw site.typeError(`expected uint8[] for parameter '${path}', got '${value}'`);
+				}
+			}
+
+			return new PrimitiveLiteralExpr(new ByteArrayLiteral(site, bytes));
+		} else {
+			throw site.typeError(`expected array for parameter '${path}', got '${value}'`);
+		}
+	} else if (type instanceof ListType) {
+		if (value instanceof Array) {
+			/**
+			 * @type {ValueExpr[]}
+			 */
+			let items = [];
+
+			for (let item of value) {
+				items.push(buildLiteralExprFromJSON(site, type.itemType, item, path + "[]"));
+			}
+
+			return new ListLiteralExpr(site, new TypeExpr(site, type.itemType), items);
+		} else {
+			throw site.typeError(`expected array for parameter '${path}', got '${value}'`);
+		}
+	} else if (type instanceof MapType) {
+		/**
+		 * @type {[ValueExpr, ValueExpr][]}
+		 */
+   		let pairs = [];
+
+		if (value instanceof Object && type.keyType instanceof StringType) {
+			for (let key in value) {
+				pairs.push([new PrimitiveLiteralExpr(new StringLiteral(site, key)), buildLiteralExprFromJSON(site, type.valueType, value[key], path + "." + key)]);
+			}
+		} else if (value instanceof Array) {
+			for (let item of value) {
+				if (item instanceof Array && item.length == 2) {
+					pairs.push([
+						buildLiteralExprFromJSON(site, type.keyType, item[0], path + "[0]"),
+						buildLiteralExprFromJSON(site, type.valueType, item[1], path + "[1]"),
+					]);
+				} else {
+					throw site.typeError(`expected array of pairs for parameter '${path}', got '${value}'`);
+				}
+			}
+		} else {
+			throw site.typeError(`expected array or object for parameter '${path}', got '${value}'`);
+		}
+
+		return new MapLiteralExpr(
+			site, 
+			new TypeExpr(site, type.keyType), 
+			new TypeExpr(site, type.valueType),
+			pairs
+		);
+	} else if (type instanceof StatementType && type.statement instanceof DataDefinition) {
+		if (value instanceof Object) {
+			let nFields = type.statement.nFields(site);
+			/**
+			 * @type {StructLiteralField[]}
+			 */
+			let fields = new Array(nFields);
+
+			let nActual = Object.entries(value).length;
+
+			if (nFields != nActual) {
+				throw site.typeError(`expected object with ${nFields.toString} fields for parameter '${path}', got '${value}' with ${nActual.toString()} fields`);
+			}
+
+			for (let i = 0; i < nFields; i++) {
+				let key = type.statement.getFieldName(i);
+
+				let subValue = value[key];
+
+				if (subValue === undefined) {
+					throw site.typeError(`expected object with key '${key}' for parameter '${path}', got '${value}`);
+				}
+
+				let fieldType = type.statement.getFieldType(site, i);
+
+				let valueExpr = buildLiteralExprFromJSON(site, fieldType, subValue, path + "." + key);
+
+				fields[i] = new StructLiteralField(nFields == 1 ? null : new Word(site, key), valueExpr);
+			}
+
+			return new StructLiteralExpr(new TypeExpr(site, type), fields);
+		} else {
+			throw site.typeError(`expected object for parameter '${path}', got '${value}'`);
+		}
+	} else {
+		throw site.typeError(`unhandled parameter type '${type.toString()}', for parameter ${path}`);
+	}
+}
+
+/**
+ * @param {Site} site
+ * @param {Type} type - expected type
+ * @param {PlutusCoreValue} value 
+ * @param {string} path - context for debugging
+ * @returns {ValueExpr}
+ */
+function buildLiteralExprFromValue(site, type, value, path) {
+	if (type instanceof BoolType) {
+		if (value instanceof PlutusCoreBool) {
+			return new PrimitiveLiteralExpr(new BoolLiteral(site, value.bool));
+		} else {
+			throw site.typeError(`expected PlutusCoreBool for parameter '${path}', got '${value}'`);
+		}
+	} else if (type instanceof StringType) {
+		if (value instanceof PlutusCoreDataValue && value.data instanceof ByteArrayData) {
+			return new PrimitiveLiteralExpr(new StringLiteral(site, bytesToString(value.data.bytes)));
+		} else {
+			throw site.typeError(`expected ByteArrayData for parameter '${path}', got '${value}'`);
+		}
+	} else if (type instanceof IntType) {
+		if (value instanceof PlutusCoreDataValue && value.data instanceof IntData) {
+			return new PrimitiveLiteralExpr(new IntLiteral(site, value.data.value));
+		} else {
+			throw site.typeError(`expected IntData for parameter '${path}', got '${value}'`);
+		}
+	} else if (type instanceof ByteArrayType) {
+		if (value instanceof PlutusCoreDataValue && value.data instanceof ByteArrayData) {
+			return new PrimitiveLiteralExpr(new ByteArrayLiteral(site, value.data.bytes));
+		} else {
+			throw site.typeError(`expected ByteArrayData for parameter '${path}', got '${value}'`);
+		}
+	} else if (type instanceof ListType) {
+		if (value instanceof PlutusCoreDataValue && value.data instanceof ListData) {
+			/**
+			 * @type {ValueExpr[]}
+			 */
+			let items = [];
+
+			for (let data of value.data.list) {
+				items.push(buildLiteralExprFromValue(site, type.itemType, new PlutusCoreDataValue(site, data), path + "[]"));
+			}
+
+			return new ListLiteralExpr(site, new TypeExpr(site, type.itemType), items);
+		} else {
+			throw site.typeError(`expected ListData for parameter '${path}', got '${value}'`);
+		}
+	} else if (type instanceof MapType) {
+		if (value instanceof PlutusCoreDataValue && value.data instanceof MapData) {
+			/**
+			 * @type {[ValueExpr, ValueExpr][]}
+			 */
+			let pairs = [];
+
+			for (let dataPair of value.data.map) {
+				let keyExpr = buildLiteralExprFromValue(site, type.keyType, new PlutusCoreDataValue(site, dataPair[0]), path + "{key}");
+				let valueExpr = buildLiteralExprFromValue(site, type.valueType, new PlutusCoreDataValue(site, dataPair[1]), path + "{value}");
+
+				pairs.push([keyExpr, valueExpr]);
+			}
+
+			return new MapLiteralExpr(
+				site, 
+				new TypeExpr(site, type.keyType), 
+				new TypeExpr(site, type.valueType),
+				pairs
+			);
+		} else {
+			throw site.typeError(`expected ListData for parameter '${path}', got '${value}'`);
+		}
+	} else if (type instanceof StatementType && type.statement instanceof DataDefinition) {
+		if (value instanceof PlutusCoreDataValue && value.data instanceof ConstrData) {
+			let nFields = type.statement.nFields(site);
+			/**
+			 * @type {StructLiteralField[]}
+			 */
+			let fields = new Array(nFields);
+
+			if (nFields != value.data.fields.length) {
+				throw site.typeError(`expected ConstrData with ${nFields.toString} fields for parameter '${path}', got '${value}' with ${value.data.fields.length.toString()} fields`);
+			}
+
+			for (let i = 0; i < nFields; i++) {
+				let f = value.data.fields[i];
+
+				let fieldType = type.statement.getFieldType(site, i);
+
+				let valueExpr = buildLiteralExprFromValue(site, fieldType, new PlutusCoreDataValue(site, f), path + "." + i.toString());
+
+				fields[i] = new StructLiteralField(nFields == 1 ? null : new Word(site, type.statement.getFieldName(i)), valueExpr);
+			}
+
+			return new StructLiteralExpr(new TypeExpr(site, type), fields);
+		} else {
+			throw site.typeError(`expected ConstrData for parameter '${path}', got '${value}'`);
+		}
+	} else {
+		throw site.typeError(`unhandled parameter type '${type.toString()}', for parameter ${path}`);
+	}
 }
 
 
