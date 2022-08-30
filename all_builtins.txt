@@ -118,7 +118,7 @@ internal ns: __helios__dcert__delegate
 
 # DCert::RegisterPool
 operators:   __eq, __neq
-getters:     pool_id, pool_vfr
+getters:     pool_id, pool_vrf
 methods:     serialize
 internal ns: __helios__dcert__registerpool
 
@@ -197,13 +197,13 @@ methods:     serialize
 internal ns: __helios__data
 
 # TxOutputId
-associated:  new
+associated:  new, from_data
 operators:   __eq, __neq
 methods:     serialize
 internal ns: __helios__txoutputid
 
 # Address
-associated:  new
+associated:  new, from_data
 operators:   __eq, __neq
 getters:     credential, staking_credential
 methods:     serialize
@@ -211,13 +211,14 @@ hidden:      is_staked
 internal ns: __helios__address
 
 # Credential
-associated:  new_pubkey, new_validator
+associated:  new_pubkey, new_validator, from_data
 operators:   __eq, __neq
 methods:     serialize
 hidden:      is_pubkey, is_validator
 internal ns: __helios__credential
 
 ## Credential::PubKey
+associated:  from_data
 operators:   __eq, __neq
 getters:     hash
 methods:     serialize
@@ -225,6 +226,7 @@ hidden:      cast
 internal ns: __helios__credential__pubkey
 
 ## Credential::Validator
+associated: from_data
 operators:  __eq, __neq
 getters:    hash
 methods:    serialize
@@ -232,7 +234,7 @@ hidden:     cast
 internal ns: __helios__credential__validator
 
 # StakingCredential
-associated: new_hash, new_ptr
+associated: new_hash, new_ptr, from_data
 operators:  __eq, __neq
 methods:    serialize
 internal ns: __helios__stakingcredential
@@ -248,31 +250,31 @@ methods:    serialize
 internal ns: __helios__stakingcredential__ptr
 
 # Time
-associated: new
+associated: new, from_data
 operators:  __eq, __neq, __add, __sub, __geq, __gt, __leq, __lt
 methods:     serialize, show
 internal ns: __helios__time
 
 # Duration
-associated: new
+associated: new, from_data
 operators:  __eq, __neq, __add, __sub, __mul, __div, __mod, __geq, __gt, __leq, __lt
 methods:    serialize
 internal ns: __helios__duration
 
 # TimeRange
-associated: new, to, from, ALWAYS, NEVER
+associated: new, to, from, ALWAYS, NEVER, from_data
 operators:  __eq, __neq
 methods:    serialize, get_start, contains, is_before, is_after
 internal ns: __helios__timerange
 
 # AssetClass
-associated: ADA, new
+associated: ADA, new, from_data
 operators:  __eq, __neq
 methods:    serialize
 internal ns: __helios__assetclass
 
 # Value
-associated:  ZERO, lovelace, new
+associated:  ZERO, lovelace, new, from_data
 operators:   __eq, __neq, __add, __sub, __geq, __gt, __leq, __lt
 methods:     serialize, is_zero, get, contains, get_policy
 hidden:      get_map_keys, merge_map_keys, get_inner_map, get_inner_map_int, add_or_subtract_inner, add_or_subtract, compare_inner, compare

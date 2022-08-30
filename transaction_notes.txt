@@ -1,0 +1,217 @@
+This document describes the data format of transactions, both signed and unsigned
+The (CBOR) serialized signed transaction can be submitted using `cardano-cli transaction sumbit --tx-file ...`
+
+All arrays can be serialized using the indef encoding we already have.
+
+Transaction ::= [ // tuple
+    body: TransactionBody,
+    witness_set: TransactionWitnessSet,
+    is_valid: bool,
+    auxiliary_data: AuxiliaryData | null
+]
+
+TransactionBody ::= { // object
+    inputs: TransactionInputs, // 0
+    outputs: TransactionOutputs, // 1
+    fee: Coin, // 2
+    ?ttl: Slot, // 3, time range end?
+    ?certs: Certificates, // 4, not yet implemented
+    ?withdrawals: Withdrawals, // 5, not yet implemented
+    ?update: Update, // 6, probably not needed
+    ?auxiliary_data_hash: AuxiliaryDataHash, // 7, probably not needed
+    ?validity_start_interval: Slot, // 8, time range start? neg inf if ommited?
+    ?mint: Mint, // 9, same as Value map? appears yes
+    ?script_data_hash: ScriptDataHash, // 11, ??
+    ?collateral: TransactionInputs, // 13
+    ?required_signers: RequiredSigners, // 14
+    ?network_id: NetworkId, // 15
+    ?collateral_return: TransactionOutput, // 16
+    ?total_collateral: Coin, // 17
+    ?reference_inputs: TransactionInputs // 18
+}
+
+TransactionWitnessSet ::= { // object
+    ?vkeys: Vkeywitnesses, // 0, txinputs coming from regular payment addresses need these?
+    ?native_scripts: NativeScripts, // 1, probably not needed
+    ?bootstraps: BootstrapWitnesses, // 2, probably not needed
+    ?plutus_v1_scripts: PlutusV1Scripts, // 3, probably not needed
+    ?plutus_data: PlutusList, // 4, Datums?, so spending must come first?
+    ?redeemers: Redeemers, // 5, same length as plutus_v2_scripts?
+    ?plutus_v2_scripts: PlutusV2Scripts // 6
+}
+
+AuxiliaryData ::= 
+    DEPRECATED |
+    AuxiliaryData{ // 259
+        ?metadata: GeneralTransactionMetadata, // 0
+        ?native_scripts: NativeScripts, // 1
+        ?plutus_v1_scripts: PlutusV1Scripts, // 2
+        ?plutus_v2_scripts: PlutusV2Scripts // 3
+    }
+}
+
+ScriptDataHash ::= blake2b256([Redeemers | Datums | LanguageViewBytes ])
+
+LanguageViewBytes ::= TODO
+
+Coin ::= BigNum
+
+Slot ::= BigNum
+
+Epoch ::= uint32
+
+BigNum ::= uint64 // could use bigint instead, serialization takes proper care of that
+
+TransactionInputs ::= []TransactionInput // array
+
+TransactionOutputs ::= []TransactionOutput // array
+
+Certificates ::= []Certificate // array
+
+Certificate ::= 
+    StakeRegistration{stake_credential: StakeCredential} | // 0
+    StakeDeregistration{stake_credential: StakeCredential} | // 1
+    StakeDelegation{stake_credential: StakeCredential, pool_keyhash:  Ed25519KeyHash} | // 2
+    PoolRegistration{pool_param: PoolParams} | // 3
+    PoolRetirement{pool_keyhash: Ed25519KeyHash, epoch: Epoch} | // 4
+    GenesisKeyDelegation{genesishash: GenesisHash, genesis_delegate_hash: GenesisDelegateHash, vrf_keyhash: VRFKeyHash} | // 5
+    MoveInstantaneousRewardsCert{move_instantaneous_reward: MoveInstantaneousReward} // 6
+
+StakeCredential ::=
+    Key as Ed25519KeyHash |
+    Script as ScriptHash
+
+GenesisHash ::= TODO
+
+GenesisDelegateHash ::= TODO
+
+VRFKeyHash ::= Hash(32)
+
+MoveInstantaneousReward ::= TODO
+
+Withdrawals ::= [RewardAddress]Coin // map
+
+RewardAddress ::= Address
+
+Vkeywitnesses ::= []Vkeywitness
+
+Vkeywitness ::= [
+    vkey: Vkey,
+    signature: Ed25519Signature
+]
+
+Vkey ::= PublicKey 
+
+PublicKey ::= bytearray
+
+Ed25519Signature ::= bytearray
+
+NativeScripts ::= []NativeScript
+
+NativeScript ::= // enum
+    ScriptPubKey{addr_keyhash: Ed25519KeyHash} | // 0
+    ScriptAll{native_scripts: NativeScripts} | // 1
+    ScriptAny{native_scripts: NativeScripts} | // 2
+    ScriptNOfK{n: uint32, native_scripts: NativeScripts} | // 3
+    TimelockStart{slot: Slot} | // 4
+    TimelockExpiry{slot: Slot} // 5
+
+PlutusV1Scripts ::= []PlutusV1Script
+
+PlutusV1Script ::= bytearray
+
+PlutusV2Scripts ::= []PlutusV2Script
+
+PlutusV2Script ::= bytearray
+
+PlutusList ::= []PlutusData
+
+Redeemers ::= []Redeemer
+
+Redeemer ::= [
+    tag: RedeemerTag, 
+    index: BigNum,
+    data: PlutusData,
+    ex_units: ExUnits
+]
+
+RedeemerTag ::=
+    Spend | // 0
+    Mint | // 1
+    Cert | // 2
+    Reward // 3
+
+// we already have PlutusCoreData
+PlutusData ::= 
+    ConstrPlutusData |
+    PlutusMap |
+    PlutusList |
+    Integer |
+    Bytes
+
+ConstrPlutusData ::= 
+
+PlutusMap ::= [PlutusData]PlutusData
+
+Integer :: BigInt
+
+Update ::= [ // tuple
+    proposed_protocol_parameter_updates: ProposedProtocolParameterUpdates,
+    epoch: Epoch
+]
+
+ProposedProtocolParameterUpdates ::= TODO
+
+Mint ::= [PolicyID]MintAssets
+
+PolicyID ::= ScriptHash
+
+ScriptHash ::= Hash(28)
+
+ScriptDataHash ::= Hash(32)
+
+MintAssets :: [AssetName]Int // equivalent to multi-asset part of Value, Int is signed, so burning is allowed
+
+Int ::= int128 // can use the integer encoding we already have
+
+BigInt ::= bigint // can use the integer encoding we already have
+
+NetworkId ::= uint64 (0 for testnet?, 1 for mainnet)
+
+GeneralTransactionMetadata ::= *[TransactionMetadatumLabel]TransactionMetadatum // linked hash map
+
+TransactionMetadatumLabel ::= TODO
+
+TransactionMetadatum ::= TODO
+
+TransactionInput ::= [ // tuple, equivalent to TxOutputId
+    transaction_id: TransactionHash
+    index: TransactionIndex
+]
+
+TransactionHash ::= Hash(32)
+
+TransactionIndex ::= BigInt
+
+TransactionOutput ::= { // object
+    address: Address, // 0
+    amount: Value, // 1
+    ?datum: DatumEnum, // 2
+    ?script_ref: ScriptRef // 3
+}
+
+Address ::= bytearray
+
+// ADA value and an optional multiasset
+Value ::= [ // tuple or integer
+    coin: Coin, 
+    multiasset: MultiAsset
+] | Coin
+
+MultiAsset ::= [PolicyID]Assets
+
+Assets ::= [AssetName]BigNum
+
+RequiredSigners ::= Ed25519KeyHashes
+
+Ed25519KeyHashes ::= []Ed25519KeyHash

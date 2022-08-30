@@ -15138,7 +15138,7 @@ class RegisterPoolDCertType extends BuiltinEnumMember {
 				return Value.new(new FuncType([new DCertType()], new BoolType()));
 			case "pool_id":
 				return Value.new(new PubKeyHashType());
-			case "pool_vfr":
+			case "pool_vrf":
 				return Value.new(new PubKeyHashType());
 			default:
 				return super.getInstanceMember(name);
@@ -16056,7 +16056,7 @@ class StakingCredentialType extends BuiltinType {
 }
 
 /**
- * Builtin Time type
+ * Builtin Time type. Opaque alias of Int representing milliseconds since 1970
  */
 class TimeType extends BuiltinType {
 	toString() {
@@ -17921,8 +17921,8 @@ function makeRawFunctions() {
 		__core__constrData(2, __helios__common__list_2(cred, pool_id))
 	}`));
 	add(new RawFunc("__helios__dcert__new_register_pool",
-	`(id, vfr) -> {
-		__core__constrData(3, __helios__common__list_2(id, vfr))
+	`(id, vrf) -> {
+		__core__constrData(3, __helios__common__list_2(id, vrf))
 	}`));
 	add(new RawFunc("__helios__dcert__new_retire_pool",
 	`(id, epoch) -> {
@@ -17949,7 +17949,7 @@ function makeRawFunctions() {
 	// DCert::RegisterPool builtins
 	addEnumDataFuncs("__helios__dcert__registerpool");
 	add(new RawFunc("__helios__dcert__registerpool__pool_id", "__helios__common__field_0"));
-	add(new RawFunc("__helios__dcert__registerpool__pool_vfr", "__helios__common__field_1"));
+	add(new RawFunc("__helios__dcert__registerpool__pool_vrf", "__helios__common__field_1"));
 
 
 	// DCert::RetirePool builtins

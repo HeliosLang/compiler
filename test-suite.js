@@ -2877,13 +2877,13 @@ async function runPropertyTests() {
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_STAKING_CRED", "POOL_ID", "POOL_VFR", "EPOCH", "SCRIPT_CONTEXT"], `
         testing dcert_member_fields
-        func main(staking_cred: StakingCredential, pool_id: PubKeyHash, pool_vfr: PubKeyHash, epoch: Int, ctx: ScriptContext) -> Bool {
+        func main(staking_cred: StakingCredential, pool_id: PubKeyHash, pool_vrf: PubKeyHash, epoch: Int, ctx: ScriptContext) -> Bool {
             ctx.tx.dcerts.any((dcert: DCert) -> Bool {
                 dcert.switch{
                     r: Register => r.credential == staking_cred,
                     d: Deregister => d.credential == staking_cred,
                     del: Delegate => del.delegator == staking_cred && del.pool_id == pool_id,
-                    rp: RegisterPool => rp.pool_id == pool_id && rp.pool_vfr == pool_vfr,
+                    rp: RegisterPool => rp.pool_id == pool_id && rp.pool_vrf == pool_vrf,
                     ret: RetirePool => ret.pool_id == pool_id && ret.epoch == epoch
                 }
             })
