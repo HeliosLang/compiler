@@ -97,8 +97,8 @@
 //                                          PlutusCoreCall, PlutusCoreConst, PlutusCoreForce, 
 //                                          PlutusCoreError, PlutusCoreBuiltin, PlutusCoreProgram
 //
-//     5. Plutus-Core data objects          PlutusCoreData, IntData, ByteArrayData, ListData, 
-//                                          MapData, ConstrData
+//     5. Plutus-Core data objects          CBORData, PlutusCoreData, IntData, ByteArrayData, 
+//                                          ListData, MapData, ConstrData
 //
 //     6. Token objects                     Token, Word, Symbol, Group, 
 //                                          PrimitiveLiteral, IntLiteral, BoolLiteral, 
@@ -184,7 +184,9 @@
 //     
 //    17. Plutus-Core deserialization       PlutusCoreDeserializer, deserializePlutusCore
 //
-//    18. Property test framework           FuzzyTest
+//    18. Transaction objects               Tx
+//
+//    19. Property test framework           FuzzyTest
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -958,7 +960,7 @@ function unwrapCborBytes(bytes) {
 		throw new Error("expected at least one cbor byte");
 	}
 
-	return PlutusCoreData.decodeCBORByteArray(bytes);
+	return CBORData.decodeBytes(bytes);
 }
 
 /**
@@ -970,7 +972,7 @@ function unwrapCborBytes(bytes) {
  * @returns {number[]}
  */
 function wrapCborBytes(bytes) {
-	return PlutusCoreData.encodeCBORByteArray(bytes, false);
+	return CBORData.encodeBytes(bytes, false);
 }
 
 /**
@@ -5064,68 +5066,16 @@ class PlutusCoreProgram {
 /////////////////////////////////
 
 /**
- * Base class for UPLC data classes (not the same as UPLC value classes!)
- * Also contains helper methods for (de)serializing data to/from CBOR
+ * Base case of any CBOR serializable data class
  */
-class PlutusCoreData {
+class CBORData {
 	constructor() {
-	}
-
-	/**
-	 * Estimate of memory usage during validation
-	 * @type {number}
-	 */
-	get memSize() {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {PlutusCoreData} other 
-	 * @returns {boolean}
-	 */
-	isSame(other) {
-		return this.toSchemaJSON() == other.toSchemaJSON();
-	}
-
-	/**
-	 * @type {number}
-	 */
-	get constrIndex() {
-		throw new Error("not a constr");
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @returns {IR}
-	 */
-	toIR() {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toSchemaJSON() {
-		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * @returns {number[]}
 	 */
 	toCBOR() {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {BitWriter} bitWriter
-	 */
-	toFlatValue(bitWriter) {
 		throw new Error("not yet implemented");
 	}
 
@@ -5178,7 +5128,7 @@ class PlutusCoreData {
 	 * @param {bigint} n - size parameter
 	 * @returns {number[]} - uint8 bytes
 	 */
-	static encodeCBORHead(m, n) {
+	static encodeHead(m, n) {
 		if (n <= 23n) {
 			return [32*m + Number(n)];
 		} else if (n >= 24n && n <= 255n) {
@@ -5186,14 +5136,14 @@ class PlutusCoreData {
 		} else if (n >= 256n && n <= 256n*256n - 1n) {
 			return [32*m + 25, Number((n/256n)%256n), Number(n%256n)];
 		} else if (n >= 256n*256n && n <= 256n*256n*256n*256n - 1n) {
-			let e4 = PlutusCoreData.itos(n);
+			let e4 = CBORData.itos(n);
 
 			while (e4.length < 4) {
 				e4.unshift(0);
 			}
 			return [32*m + 26].concat(e4);
 		} else if (n >= 256n*256n*256n*256n && n <= 256n*256n*256n*256n*256n*256n*256n*256n - 1n) {
-			let e8 = PlutusCoreData.itos(n);
+			let e8 = CBORData.itos(n);
 
 			while(e8.length < 8) {
 				e8.unshift(0);
@@ -5208,7 +5158,7 @@ class PlutusCoreData {
 	 * @param {number[]} bytes - mutated to contain the rest
 	 * @returns {[number, bigint]} - [majorType, n]
 	 */
-	static decodeCBORHead(bytes) {
+	static decodeHead(bytes) {
 		if (bytes.length == 0) {
 			throw new Error("empty cbor head");
 		}
@@ -5218,13 +5168,13 @@ class PlutusCoreData {
 		if (first%32 <= 23) {
 			return [idiv(first, 32), BigInt(first%32)];
 		} else if (first%32 == 24) {
-			return [idiv(first, 32), PlutusCoreData.stoi(bytes.splice(0, 1))];
+			return [idiv(first, 32), CBORData.stoi(bytes.splice(0, 1))];
 		} else if (first%32 == 25) {
-			return [idiv(first, 32), PlutusCoreData.stoi(bytes.splice(0, 2))];
+			return [idiv(first, 32), CBORData.stoi(bytes.splice(0, 2))];
 		} else if (first%32 == 26) {
-			return [idiv(first, 32), PlutusCoreData.stoi(bytes.splice(0, 4))];
+			return [idiv(first, 32), CBORData.stoi(bytes.splice(0, 4))];
 		} else if (first%32 == 27) {
-			return [idiv(first, 32), PlutusCoreData.stoi(bytes.splice(0, 8))];
+			return [idiv(first, 32), CBORData.stoi(bytes.splice(0, 8))];
 		} else {
 			throw new Error("bad header");
 		}
@@ -5234,7 +5184,7 @@ class PlutusCoreData {
 	 * @param {number} m 
 	 * @returns {number[]}
 	 */
-	static encodeCBORIndefHead(m) {
+	static encodeIndefHead(m) {
 		return [32*m + 31];
 	}
 
@@ -5242,7 +5192,7 @@ class PlutusCoreData {
 	 * @param {number[]} bytes - cbor bytes
 	 * @returns {number} - majorType
 	 */
-	static decodeCBORIndefHead(bytes) {
+	static decodeIndefHead(bytes) {
 		let first = assertDefined(bytes.shift());
 
 		let m = idiv(first - 31, 32);
@@ -5252,22 +5202,40 @@ class PlutusCoreData {
 
 	/**
 	 * @param {number[]} bytes 
+	 * @returns {boolean} 
+	 */
+	static isDefBytes(bytes) {
+		let [m, _] = CBORData.decodeHead(bytes.slice(0, 9));
+
+		return m == 2;
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @returns {boolean}
+	 */
+	static isIndefBytes(bytes) {
+		return 2*32 + 31 == bytes[0];
+	}
+
+	/**
+	 * @param {number[]} bytes 
 	 * @param {boolean} splitInChunks
 	 * @returns {number[]} - cbor bytes
 	 */
-	static encodeCBORByteArray(bytes, splitInChunks = true) {
+	static encodeBytes(bytes, splitInChunks = true) {
 		bytes = bytes.slice();
 
 		if (bytes.length <= 64 || !splitInChunks) {
-			let head = PlutusCoreData.encodeCBORHead(2, BigInt(bytes.length));
+			let head = CBORData.encodeHead(2, BigInt(bytes.length));
 			return head.concat(bytes);
 		} else {
-			let res = PlutusCoreData.encodeCBORIndefHead(2);
+			let res = CBORData.encodeIndefHead(2);
 
 			while (bytes.length > 0) {
 				let chunk = bytes.splice(0, 64);
 
-				res = res.concat(PlutusCoreData.encodeCBORHead(2, BigInt(chunk.length))).concat(chunk);
+				res = res.concat(CBORData.encodeHead(2, BigInt(chunk.length))).concat(chunk);
 			}
 
 			res.push(255);
@@ -5277,14 +5245,15 @@ class PlutusCoreData {
 	}
 
 	/**
+	 * Decodes both an indef array of bytes, and a bytearray of specified length
 	 * @param {number[]} bytes - cborbytes, mutated to form remaining
 	 * @returns {number[]} - byteArray
 	 */
-	static decodeCBORByteArray(bytes) {
+	static decodeBytes(bytes) {
 		// check header type
 		assert(bytes.length > 0);
 
-		if (2*32 + 31 == bytes[0]) {
+		if (CBORData.isIndefBytes(bytes)) {
 			// multiple chunks
 			void bytes.shift();
 
@@ -5294,7 +5263,7 @@ class PlutusCoreData {
 			let res = [];
 
 			while(bytes[0] != 255) {
-				let [_, n] = PlutusCoreData.decodeCBORHead(bytes);
+				let [_, n] = CBORData.decodeHead(bytes);
 				if (n > 64n) {
 					throw new Error("bytearray chunk too large");
 				}
@@ -5306,7 +5275,7 @@ class PlutusCoreData {
 
 			return res;
 		} else {
-			let [_, n] = PlutusCoreData.decodeCBORHead(bytes);
+			let [_, n] = CBORData.decodeHead(bytes);
 
 			return bytes.splice(0, Number(n));
 		}
@@ -5318,13 +5287,13 @@ class PlutusCoreData {
 	 */
 	static encodeInteger(n) {
 		if (n >= 0n && n <= (2n << 63n) - 1n) {
-			return PlutusCoreData.encodeCBORHead(0, n);
+			return CBORData.encodeHead(0, n);
 		} else if (n >= (2n << 63n)) {
-			return PlutusCoreData.encodeCBORHead(6, 2n).concat(PlutusCoreData.encodeCBORByteArray(PlutusCoreData.itos(n)));
+			return CBORData.encodeHead(6, 2n).concat(CBORData.encodeBytes(CBORData.itos(n)));
 		} else if (n <= -1n && n >= -(2n << 63n)) {
-			return PlutusCoreData.encodeCBORHead(1, -n - 1n);
+			return CBORData.encodeHead(1, -n - 1n);
 		} else {
-			return PlutusCoreData.encodeCBORHead(6, 3n).concat(PlutusCoreData.encodeCBORByteArray(PlutusCoreData.itos(-n - 1n)));
+			return CBORData.encodeHead(6, 3n).concat(CBORData.encodeBytes(CBORData.itos(-n - 1n)));
 		}
 	}
 
@@ -5333,7 +5302,7 @@ class PlutusCoreData {
 	 * @returns {bigint}
 	 */
 	static decodeInteger(bytes) {
-		let [m, n] = PlutusCoreData.decodeCBORHead(bytes);
+		let [m, n] = CBORData.decodeHead(bytes);
 
 		if (m == 0) {
 			return n;
@@ -5341,13 +5310,13 @@ class PlutusCoreData {
 			return -n - 1n;
 		} else if (m == 6) {
 			if (n == 2n) {
-				let b = PlutusCoreData.decodeCBORByteArray(bytes);
+				let b = CBORData.decodeBytes(bytes);
 
-				return PlutusCoreData.stoi(b);
+				return CBORData.stoi(b);
 			} else if (n == 3n) {
-				let b = PlutusCoreData.decodeCBORByteArray(bytes);
+				let b = CBORData.decodeBytes(bytes);
 
-				return -PlutusCoreData.stoi(b) - 1n;
+				return -CBORData.stoi(b) - 1n;
 			} else {
 				throw new Error("unexpected tag");
 			}
@@ -5357,10 +5326,18 @@ class PlutusCoreData {
 	}
 
 	/**
-	 * @param {PlutusCoreData[]} list 
+	 * @param {number[]} bytes
+	 * @returns {boolean}
+	 */
+	static isIndefList(bytes) {
+		return 4*32 + 31 == bytes[0];
+	}
+
+	/**
+	 * @param {CBORData[]} list 
 	 * @returns {number[]}
 	 */
-	static encodeDataList(list) {
+	static encodeListInternal(list) {
 		/**
 		 * @type {number[]}
 		 */
@@ -5373,10 +5350,28 @@ class PlutusCoreData {
 	}
 
 	/**
-	 * @param {[PlutusCoreData, PlutusCoreData][]} pairList
+	 * @param {CBORData[]} list 
 	 * @returns {number[]}
 	 */
-	static encodeDataPairList(pairList) {
+	static encodeList(list) {
+		return CBORData.encodeIndefHead(4).concat(CBORData.encodeListInternal(list)).concat([255]);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {boolean}
+	 */
+	static isDefMap(bytes) {
+		let [m, _] = CBORData.decodeHead(bytes.slice(0, 9));
+
+		return m == 5;
+	}
+
+	/**
+	 * @param {[CBORData, CBORData][]} pairList
+	 * @returns {number[]}
+	 */
+	static encodeMapInternal(pairList) {
 		/**
 		 * @type {number[]}
 		 */
@@ -5390,33 +5385,113 @@ class PlutusCoreData {
 	}
 
 	/**
+	 * A decode map method doesn't exist because it specific for the requested type
+	 * @param {[CBORData, CBORData][]} pairList 
+	 * @returns {number[]}
+	 */
+	static encodeMap(pairList) {
+		return CBORData.encodeHead(5, BigInt(pairList.length)).concat(CBORData.encodeMapInternal(pairList));
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @returns {boolean}
+	 */
+	static isConstr(bytes) {
+		let [m, _] = CBORData.decodeHead(bytes.slice(0, 9));
+
+		return m == 6;
+	}
+
+	/**
 	 * Encode a constructor tag of a ConstrData type
 	 * @param {number} tag 
 	 * @returns {number[]}
 	 */
-	static encodeCTag(tag) {
+	static encodeConstrTag(tag) {
 		if (tag >= 0 && tag <= 6) {
-			return PlutusCoreData.encodeCBORHead(6, 121n + BigInt(tag));
+			return CBORData.encodeHead(6, 121n + BigInt(tag));
 		} else if (tag >= 7 && tag <= 127) {
-			return PlutusCoreData.encodeCBORHead(6, 1280n + BigInt(tag - 7));
+			return CBORData.encodeHead(6, 1280n + BigInt(tag - 7));
 		} else {
-			return PlutusCoreData.encodeCBORHead(6, 102n).concat(PlutusCoreData.encodeCBORHead(4, 2n)).concat(PlutusCoreData.encodeInteger(BigInt(tag)));
+			return CBORData.encodeHead(6, 102n).concat(CBORData.encodeHead(4, 2n)).concat(CBORData.encodeInteger(BigInt(tag)));
 		}
+	}
+}
+
+/**
+ * Base class for UPLC data classes (not the same as UPLC value classes!)
+ * Also contains helper methods for (de)serializing data to/from CBOR
+ */
+class PlutusCoreData extends CBORData {
+	constructor() {
+		super();
+	}
+
+	/**
+	 * Estimate of memory usage during validation
+	 * @type {number}
+	 */
+	get memSize() {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {PlutusCoreData} other 
+	 * @returns {boolean}
+	 */
+	isSame(other) {
+		return this.toSchemaJSON() == other.toSchemaJSON();
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get constrIndex() {
+		throw new Error("not a constr");
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @returns {IR}
+	 */
+	toIR() {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toSchemaJSON() {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
+		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {PlutusCoreData}
 	 */
-	static decodeCBORData(bytes) {
+	static fromCBOR(bytes) {
 		if (bytes.length == 0) {
 			throw new Error("empty cbor bytes");
 		}
 
-		if (4*32 + 31 == bytes[0]) {
+		if (CBORData.isIndefList(bytes)) {
 			// list
 
-			assert(PlutusCoreData.decodeCBORIndefHead(bytes) == 4);
+			assert(CBORData.decodeIndefHead(bytes) == 4);
 			
 			/**
 			 * @type {PlutusCoreData[]}
@@ -5424,23 +5499,21 @@ class PlutusCoreData {
 			let list = [];
 
 			while(bytes[0] != 255) {
-				list.push(PlutusCoreData.decodeCBORData(bytes));
+				list.push(PlutusCoreData.fromCBOR(bytes));
 			}
 
 			assert(bytes.shift() == 255);
 
 			return new ListData(list);
-		} else if (2*32 + 31 == bytes[0]) {
+		} else if (CBORData.isIndefBytes(bytes)) {
 			// bytearray of indef length
-			return new ByteArrayData(PlutusCoreData.decodeCBORByteArray(bytes));
-		} else {			
-			let [m, _] = PlutusCoreData.decodeCBORHead(bytes.slice(0, 9));
-
-			if (m == 2) {
-				return new ByteArrayData(PlutusCoreData.decodeCBORByteArray(bytes));
-			} else if (m == 5) {
+			return new ByteArrayData(CBORData.decodeBytes(bytes));
+		} else {
+			if (CBORData.isDefBytes(bytes)) {
+				return new ByteArrayData(CBORData.decodeBytes(bytes));
+			} else if (CBORData.isDefMap(bytes)) {
 				// map
-				let [_, n] = PlutusCoreData.decodeCBORHead(bytes);
+				let [_, n] = CBORData.decodeHead(bytes);
 
 				/**
 				 * @type {[PlutusCoreData, PlutusCoreData][]}
@@ -5448,13 +5521,13 @@ class PlutusCoreData {
 				let pairs = [];
 
 				for (let i = 0; i < n; i++) {
-					pairs.push([PlutusCoreData.decodeCBORData(bytes), PlutusCoreData.decodeCBORData(bytes)]);
+					pairs.push([PlutusCoreData.fromCBOR(bytes), PlutusCoreData.fromCBOR(bytes)]);
 				}
 
 				return new MapData(pairs);
-			} else if (m == 6) {
+			} else if (CBORData.isConstr(bytes)) {
 				// constr
-				let [_, n] = PlutusCoreData.decodeCBORHead(bytes);
+				let [_, n] = CBORData.decodeHead(bytes);
 
 				/**
 				 * @type {number}
@@ -5464,15 +5537,15 @@ class PlutusCoreData {
 				if (n < 127n) {
 					tag = Number(n - 121n);
 				} else if (n == 102n) {
-					let [mCheck, nCheck] = PlutusCoreData.decodeCBORHead(bytes);
+					let [mCheck, nCheck] = CBORData.decodeHead(bytes);
 					assert(mCheck == 4 && nCheck == 2n);
 
-					tag = Number(PlutusCoreData.decodeInteger(bytes));
+					tag = Number(CBORData.decodeInteger(bytes));
 				} else {
 					tag = Number(n - 1280n + 7n);
 				}
 
-				assert(PlutusCoreData.decodeCBORIndefHead(bytes) == 4);
+				assert(CBORData.decodeIndefHead(bytes) == 4);
 
 				/**
 				 * @type {PlutusCoreData[]}
@@ -5480,15 +5553,15 @@ class PlutusCoreData {
 				let fields = [];
 
 				while(bytes[0] != 255) {
-					fields.push(PlutusCoreData.decodeCBORData(bytes));
+					fields.push(PlutusCoreData.fromCBOR(bytes));
 				}
 
 				assert(bytes.shift() == 255);
 
 				return new ConstrData(tag, fields);
 			} else {
-				// int
-				return new IntData(PlutusCoreData.decodeInteger(bytes));
+				// int, must come last
+				return new IntData(CBORData.decodeInteger(bytes));
 			}
 		}
 	}
@@ -5543,7 +5616,7 @@ class IntData extends PlutusCoreData {
 	 * @returns {number[]}
 	 */
 	toCBOR() {
-		return PlutusCoreData.encodeInteger(this.#value);
+		return CBORData.encodeInteger(this.#value);
 	}
 
 	/**
@@ -5622,7 +5695,7 @@ class ByteArrayData extends PlutusCoreData {
 	 * @returns {number[]}
 	 */
 	toCBOR() {
-		return PlutusCoreData.encodeCBORByteArray(this.#bytes);
+		return CBORData.encodeBytes(this.#bytes);
 	}
 
 	/**
@@ -5692,7 +5765,7 @@ class ListData extends PlutusCoreData {
 	 * @returns {number[]}
 	 */
 	toCBOR() {
-		return PlutusCoreData.encodeCBORIndefHead(4).concat(PlutusCoreData.encodeDataList(this.#items)).concat([255]);
+		return CBORData.encodeList(this.#items);
 	}
 
 	/**
@@ -5766,7 +5839,7 @@ class MapData extends PlutusCoreData {
 	 * @returns {number[]}
 	 */
 	toCBOR() {
-		return PlutusCoreData.encodeCBORHead(5, BigInt(this.#pairs.length)).concat(PlutusCoreData.encodeDataPairList(this.#pairs));
+		return CBORData.encodeMap(this.#pairs);
 	}
 
 	/**
@@ -5847,7 +5920,7 @@ class ConstrData extends PlutusCoreData {
 	 * @returns {number[]}
 	 */
 	toCBOR() {
-		return PlutusCoreData.encodeCTag(this.#index).concat(PlutusCoreData.encodeCBORIndefHead(4)).concat(PlutusCoreData.encodeDataList(this.#fields)).concat([255]);
+		return CBORData.encodeConstrTag(this.#index).concat(CBORData.encodeList(this.#fields));
 	}
 
 	/**
@@ -21733,6 +21806,7 @@ export const exportedForTesting = {
 	Crypto: Crypto,
 	MapData: MapData,
 	PlutusCoreData: PlutusCoreData,
+	CBORData: CBORData,
 	ConstrData: ConstrData,
 	IntData: IntData,
 	ByteArrayData: ByteArrayData,

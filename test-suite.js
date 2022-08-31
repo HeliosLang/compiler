@@ -105,7 +105,7 @@ function equalsList(a, b) {
 }
 
 function decodeCBOR(bs) {
-    return helios_.PlutusCoreData.decodeCBORData(bs);
+    return helios_.PlutusCoreData.fromCBOR(bs);
 }
 
 function isValidString(value) {
@@ -2409,7 +2409,7 @@ async function runPropertyTests() {
         AssetClass::new(MintingPolicyHash::new(a), b).serialize()
     }`, ([a, b], res) => {
         let ref = new helios_.ConstrData(0, [new helios_.ByteArrayData(asBytes(a)), new helios_.ByteArrayData(asBytes(b))]);
-        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ref);
+        return decodeCBOR(asBytes(res)).isSame(ref);
     });
 
 
@@ -2624,7 +2624,7 @@ async function runPropertyTests() {
                 ]
             ]);
             
-            return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ref);
+            return decodeCBOR(asBytes(res)).isSame(ref);
         });
     }
 
@@ -2748,7 +2748,7 @@ async function runPropertyTests() {
         }
         ${rewardingScriptContextParam}
         `, ([ctx], res) => {
-            return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[1]);
+            return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[1]);
         }, 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["STAKING_PURPOSE"], `
@@ -2908,7 +2908,7 @@ async function runPropertyTests() {
         `, ([ctx], res) => {
             return res.data.list.every((d, i) => {
                 let ref = ctx.data.fields[0].fields[5].list[i];
-                return helios_.PlutusCoreData.decodeCBORData(asBytes(d)).isSame(ref);
+                return decodeCBOR(asBytes(d)).isSame(ref);
             });
         }, 5);
     }
@@ -3146,7 +3146,7 @@ async function runPropertyTests() {
         }
         ${spendingScriptContextParam}
         `, ([ctx], res) => {
-            return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0]);
+            return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0]);
         }, 5);
     }
 
@@ -3209,7 +3209,7 @@ async function runPropertyTests() {
     }
     ${spendingScriptContextParam}
     `, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0]);
+        return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0]);
     }, 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3251,7 +3251,7 @@ async function runPropertyTests() {
     }
     ${spendingScriptContextParam}
     `, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0].fields[2].list[0]);
+        return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0].fields[2].list[0]);
     }, 5);
 
     const testOutputDatum = true;
@@ -3413,7 +3413,7 @@ async function runPropertyTests() {
     }
     ${spendingScriptContextParam}
     `, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[0]);
+        return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[0]);
     }, 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3456,7 +3456,7 @@ async function runPropertyTests() {
     }
     ${spendingScriptContextParam}
     `, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0])
+        return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0])
     }, 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3490,7 +3490,7 @@ async function runPropertyTests() {
     }
     ${spendingScriptContextParam}
     `, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0].fields[0]);
+        return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0].fields[0]);
     }, 3);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3525,7 +3525,7 @@ async function runPropertyTests() {
     }
     ${spendingScriptContextParam}
     `, ([ctx], res) => {
-        return helios_.PlutusCoreData.decodeCBORData(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0].fields[0]);
+        return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0].fields[0]);
     }, 5);
 
     await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool()}, ["SCRIPT_CONTEXT"], `
