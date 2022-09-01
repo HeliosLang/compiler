@@ -5066,6 +5066,10 @@ class PlutusCoreProgram {
 /////////////////////////////////
 
 /**
+ * @typedef {(bytes: number[]) => void} Decoder
+ */
+
+/**
  * Base case of any CBOR serializable data class
  */
 class CBORData {
@@ -5205,6 +5209,10 @@ class CBORData {
 	 * @returns {boolean} 
 	 */
 	static isDefBytes(bytes) {
+		if (bytes.length == 0) {
+			throw new Error("empty cbor bytes");
+		}
+
 		let [m, _] = CBORData.decodeHead(bytes.slice(0, 9));
 
 		return m == 2;
@@ -5215,6 +5223,10 @@ class CBORData {
 	 * @returns {boolean}
 	 */
 	static isIndefBytes(bytes) {
+		if (bytes.length == 0) {
+			throw new Error("empty cbor bytes");
+		}
+
 		return 2*32 + 31 == bytes[0];
 	}
 
@@ -5330,6 +5342,10 @@ class CBORData {
 	 * @returns {boolean}
 	 */
 	static isIndefList(bytes) {
+		if (bytes.length == 0) {
+			throw new Error("empty cbor bytes");
+		}
+
 		return 4*32 + 31 == bytes[0];
 	}
 
@@ -5355,6 +5371,20 @@ class CBORData {
 	 */
 	static encodeList(list) {
 		return CBORData.encodeIndefHead(4).concat(CBORData.encodeListInternal(list)).concat([255]);
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @param {Decoder} itemDecoder
+	 */
+	static decodeList(bytes, itemDecoder) {
+		assert(CBORData.decodeIndefHead(bytes) == 4);
+			
+		while(bytes[0] != 255) {
+			itemDecoder(bytes);
+		}
+
+		assert(bytes.shift() == 255);
 	}
 
 	/**
@@ -5395,9 +5425,27 @@ class CBORData {
 
 	/**
 	 * @param {number[]} bytes
+	 * @param {Decoder} pairDecoder
+	 */
+	static decodeMap(bytes, pairDecoder) {
+		let [m, n] = CBORData.decodeHead(bytes);
+
+		assert(m == 5);
+
+		for (let i = 0; i < n; i++) {
+			pairDecoder(bytes);
+		}
+	}
+
+	/**
+	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
 	static isConstr(bytes) {
+		if (bytes.length == 0) {
+			throw new Error("empty cbor bytes");
+		}
+
 		let [m, _] = CBORData.decodeHead(bytes.slice(0, 9));
 
 		return m == 6;
@@ -5416,6 +5464,51 @@ class CBORData {
 		} else {
 			return CBORData.encodeHead(6, 102n).concat(CBORData.encodeHead(4, 2n)).concat(CBORData.encodeInteger(BigInt(tag)));
 		}
+	}
+
+	/**
+	 * @param {number} tag 
+	 * @param {CBORData[]} fields 
+	 * @returns {number[]}
+	 */
+	static encodeConstr(tag, fields) {
+		return CBORData.encodeConstrTag(tag).concat(CBORData.encodeList(fields));
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @returns {number}
+	 */
+	static decodeConstrTag(bytes) {
+		// constr
+		let [m, n] = CBORData.decodeHead(bytes);
+
+		assert(m == 6);
+
+		if (n < 127n) {
+			return Number(n - 121n);
+		} else if (n == 102n) {
+			let [mCheck, nCheck] = CBORData.decodeHead(bytes);
+			assert(mCheck == 4 && nCheck == 2n);
+
+			return Number(CBORData.decodeInteger(bytes));
+		} else {
+			return Number(n - 1280n + 7n);
+		}
+	}
+
+	/**
+	 * Returns the tag
+	 * @param {number[]} bytes 
+	 * @param {Decoder} fieldDecoder 
+	 * @returns {number}
+	 */
+	static decodeConstr(bytes, fieldDecoder) {
+		let tag = CBORData.decodeConstrTag(bytes);
+
+		CBORData.decodeList(bytes, fieldDecoder);
+
+		return tag;
 	}
 }
 
@@ -5488,80 +5581,20 @@ class PlutusCoreData extends CBORData {
 			throw new Error("empty cbor bytes");
 		}
 
-		if (CBORData.isIndefList(bytes)) {
-			// list
-
-			assert(CBORData.decodeIndefHead(bytes) == 4);
-			
-			/**
-			 * @type {PlutusCoreData[]}
-			 */
-			let list = [];
-
-			while(bytes[0] != 255) {
-				list.push(PlutusCoreData.fromCBOR(bytes));
-			}
-
-			assert(bytes.shift() == 255);
-
-			return new ListData(list);
+		if (CBORData.isIndefList(bytes)) {	
+			return ListData.fromCBOR(bytes);		
 		} else if (CBORData.isIndefBytes(bytes)) {
-			// bytearray of indef length
-			return new ByteArrayData(CBORData.decodeBytes(bytes));
+			return ByteArrayData.fromCBOR(bytes);
 		} else {
 			if (CBORData.isDefBytes(bytes)) {
-				return new ByteArrayData(CBORData.decodeBytes(bytes));
+				return ByteArrayData.fromCBOR(bytes);
 			} else if (CBORData.isDefMap(bytes)) {
-				// map
-				let [_, n] = CBORData.decodeHead(bytes);
-
-				/**
-				 * @type {[PlutusCoreData, PlutusCoreData][]}
-				 */
-				let pairs = [];
-
-				for (let i = 0; i < n; i++) {
-					pairs.push([PlutusCoreData.fromCBOR(bytes), PlutusCoreData.fromCBOR(bytes)]);
-				}
-
-				return new MapData(pairs);
+				return MapData.fromCBOR(bytes);
 			} else if (CBORData.isConstr(bytes)) {
-				// constr
-				let [_, n] = CBORData.decodeHead(bytes);
-
-				/**
-				 * @type {number}
-				 */
-				let tag;
-
-				if (n < 127n) {
-					tag = Number(n - 121n);
-				} else if (n == 102n) {
-					let [mCheck, nCheck] = CBORData.decodeHead(bytes);
-					assert(mCheck == 4 && nCheck == 2n);
-
-					tag = Number(CBORData.decodeInteger(bytes));
-				} else {
-					tag = Number(n - 1280n + 7n);
-				}
-
-				assert(CBORData.decodeIndefHead(bytes) == 4);
-
-				/**
-				 * @type {PlutusCoreData[]}
-				 */
-				let fields = [];
-
-				while(bytes[0] != 255) {
-					fields.push(PlutusCoreData.fromCBOR(bytes));
-				}
-
-				assert(bytes.shift() == 255);
-
-				return new ConstrData(tag, fields);
+				return ConstrData.fromCBOR(bytes);
 			} else {
 				// int, must come last
-				return new IntData(CBORData.decodeInteger(bytes));
+				return IntData.fromCBOR(bytes);
 			}
 		}
 	}
@@ -5617,6 +5650,14 @@ class IntData extends PlutusCoreData {
 	 */
 	toCBOR() {
 		return CBORData.encodeInteger(this.#value);
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @returns {IntData}
+	 */
+	static fromCBOR(bytes) {
+		return new IntData(CBORData.decodeInteger(bytes));
 	}
 
 	/**
@@ -5699,6 +5740,14 @@ class ByteArrayData extends PlutusCoreData {
 	}
 
 	/**
+	 * @param {number[]} bytes 
+	 * @returns {ByteArrayData}
+	 */
+	static fromCBOR(bytes) {
+		return new ByteArrayData(CBORData.decodeBytes(bytes));
+	}
+
+	/**
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValue(bitWriter) {
@@ -5766,6 +5815,23 @@ class ListData extends PlutusCoreData {
 	 */
 	toCBOR() {
 		return CBORData.encodeList(this.#items);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {ListData}
+	 */
+	static fromCBOR(bytes) {
+		/**
+		 * @type {PlutusCoreData[]}
+		 */
+		let list = [];
+
+		CBORData.decodeList(bytes, (itemBytes) => {
+			list.push(PlutusCoreData.fromCBOR(itemBytes));
+		});
+
+		return new ListData(list);
 	}
 
 	/**
@@ -5840,6 +5906,23 @@ class MapData extends PlutusCoreData {
 	 */
 	toCBOR() {
 		return CBORData.encodeMap(this.#pairs);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {MapData}
+	 */
+	static fromCBOR(bytes) {
+		/**
+		 * @type {[PlutusCoreData, PlutusCoreData][]}
+		 */
+		let pairs = [];
+
+		CBORData.decodeMap(bytes, (pairBytes) => {
+			pairs.push([PlutusCoreData.fromCBOR(pairBytes), PlutusCoreData.fromCBOR(pairBytes)]);
+		});
+
+		return new MapData(pairs);
 	}
 
 	/**
@@ -5920,7 +6003,24 @@ class ConstrData extends PlutusCoreData {
 	 * @returns {number[]}
 	 */
 	toCBOR() {
-		return CBORData.encodeConstrTag(this.#index).concat(CBORData.encodeList(this.#fields));
+		return CBORData.encodeConstr(this.#index, this.#fields);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {ConstrData}
+	 */
+	static fromCBOR(bytes) {
+		/**
+		 * @type {PlutusCoreData[]}
+		 */
+		let fields = [];
+
+		let tag = CBORData.decodeConstr(bytes, (fieldBytes) => {
+			fields.push(PlutusCoreData.fromCBOR(fieldBytes));
+		});
+
+		return new ConstrData(tag, fields);
 	}
 
 	/**
