@@ -6,7 +6,7 @@ All arrays can be serialized using the indef encoding we already have.
 Transaction ::= [ // tuple
     body: TransactionBody,
     witness_set: TransactionWitnessSet,
-    is_valid: bool,
+    is_valid: bool, // assume this starts as false, and becomes true once all signatures have been collected
     auxiliary_data: AuxiliaryData | null
 ]
 

@@ -5070,6 +5070,10 @@ class PlutusCoreProgram {
  */
 
 /**
+ * @typedef {(i: number, bytes: number[]) => void} IDecoder
+ */
+
+/**
  * Base case of any CBOR serializable data class
  */
 class CBORData {
@@ -5205,6 +5209,49 @@ class CBORData {
 	}
 
 	/**
+	 * @param {number[]} bytes
+	 * @returns {boolean}
+	 */
+	static isNull(bytes) {
+		return bytes[0] == 246;
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	static encodeNull() {
+		return [246];
+	}
+
+	/**
+	 * @param {boolean} b
+	 * @returns {number[]}
+	 */
+	static encodeBool(b) {
+		if (b) {
+			return [245];
+		} else {
+			return [244];
+		}
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {boolean}
+	 */
+	static decodeBool(bytes) {
+		let b = assertDefined(bytes.shift());
+
+		if (b == 245) {
+			return true;
+		} else if (b == 244) {
+			return false;
+		} else {
+			throw new Error("unexpected non-boolean cbor object");
+		}
+	}
+
+	/**
 	 * @param {number[]} bytes 
 	 * @returns {boolean} 
 	 */
@@ -5301,11 +5348,11 @@ class CBORData {
 		if (n >= 0n && n <= (2n << 63n) - 1n) {
 			return CBORData.encodeHead(0, n);
 		} else if (n >= (2n << 63n)) {
-			return CBORData.encodeHead(6, 2n).concat(CBORData.encodeBytes(CBORData.itos(n)));
+			return CBORData.encodeHead(6, 2n).concat(CBORData.encodeBytes(CBORData.itos(n), false));
 		} else if (n <= -1n && n >= -(2n << 63n)) {
 			return CBORData.encodeHead(1, -n - 1n);
 		} else {
-			return CBORData.encodeHead(6, 3n).concat(CBORData.encodeBytes(CBORData.itos(-n - 1n)));
+			return CBORData.encodeHead(6, 3n).concat(CBORData.encodeBytes(CBORData.itos(-n - 1n), false));
 		}
 	}
 
@@ -5350,7 +5397,14 @@ class CBORData {
 	}
 
 	/**
-	 * @param {CBORData[]} list 
+	 * @returns {number[]}
+	 */
+	static encodeListStart() {
+		return CBORData.encodeIndefHead(4);
+	}
+
+	/**
+	 * @param {CBORData[] | number[][]} list 
 	 * @returns {number[]}
 	 */
 	static encodeListInternal(list) {
@@ -5359,18 +5413,45 @@ class CBORData {
 		 */
 		let res = [];
 		for (let item of list) {
-			res = res.concat(item.toCBOR());
+			if (item instanceof CBORData) {
+				res = res.concat(item.toCBOR());
+			} else {
+				res = res.concat(item);
+			}
 		}
 
 		return res;
 	}
 
 	/**
-	 * @param {CBORData[]} list 
+	 * @returns {number[]}
+	 */
+	static encodeListEnd() {
+		return [255];
+	}
+
+	/**
+	 * @param {CBORData[] | number[][]} list 
 	 * @returns {number[]}
 	 */
 	static encodeList(list) {
-		return CBORData.encodeIndefHead(4).concat(CBORData.encodeListInternal(list)).concat([255]);
+		return CBORData.encodeListStart().concat(CBORData.encodeListInternal(list)).concat(CBORData.encodeListEnd());
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @returns {boolean}
+	 */
+	static isTuple(bytes) {
+		return CBORData.isIndefList(bytes);
+	}
+
+	/**
+	 * @param {number[][]} tuple
+	 * @returns {number[]}
+	 */
+	static encodeTuple(tuple) {
+		return CBORData.encodeList(tuple);
 	}
 
 	/**
@@ -5389,6 +5470,22 @@ class CBORData {
 
 	/**
 	 * @param {number[]} bytes 
+	 * @param {IDecoder} tupleDecoder 
+	 * @returns {number} - returns the size of the tuple
+	 */
+	static decodeTuple(bytes, tupleDecoder) {
+		let count = 0;
+
+		CBORData.decodeList(bytes, (itemBytes) => {
+			tupleDecoder(count, itemBytes);
+			count++;
+		});
+
+		return count;
+	}
+
+	/**
+	 * @param {number[]} bytes 
 	 * @returns {boolean}
 	 */
 	static isDefMap(bytes) {
@@ -5398,7 +5495,7 @@ class CBORData {
 	}
 
 	/**
-	 * @param {[CBORData, CBORData][]} pairList
+	 * @param {[CBORData | number[], CBORData | number[]][]} pairList
 	 * @returns {number[]}
 	 */
 	static encodeMapInternal(pairList) {
@@ -5408,7 +5505,20 @@ class CBORData {
 		let res = [];
 
 		for (let pair of pairList) {
-			res = res.concat(pair[0].toCBOR()).concat(pair[1].toCBOR());
+			let key = pair[0];
+			let value = pair[1];
+
+			if (key instanceof CBORData) {
+				res = res.concat(key.toCBOR());
+			} else {
+				res = res.concat(key);
+			}
+
+			if (value instanceof CBORData) {
+				res = res.concat(value.toCBOR());
+			} else {
+				res = res.concat(value);
+			}
 		}
 
 		return res;
@@ -5416,7 +5526,7 @@ class CBORData {
 
 	/**
 	 * A decode map method doesn't exist because it specific for the requested type
-	 * @param {[CBORData, CBORData][]} pairList 
+	 * @param {[CBORData | number[], CBORData | number[]][]} pairList 
 	 * @returns {number[]}
 	 */
 	static encodeMap(pairList) {
@@ -5435,6 +5545,35 @@ class CBORData {
 		for (let i = 0; i < n; i++) {
 			pairDecoder(bytes);
 		}
+	}
+
+	/**
+	 * 
+	 * @param {Map<number, CBORData | number[]>} object
+	 */
+	static encodeObject(object) {
+		return CBORData.encodeMap(Array.from(object.entries()).map(pair => [
+			CBORData.encodeInteger(BigInt(pair[0])),
+			pair[1]
+		]));
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @param {IDecoder} fieldDecoder
+	 * @returns {Set<number>}
+	 */
+	static decodeObject(bytes, fieldDecoder) {
+		/** @type {Set<number>} */
+		let done = new Set();
+
+		CBORData.decodeMap(bytes, pairBytes => {
+			let i = Number(CBORData.decodeInteger(pairBytes));
+			fieldDecoder(i, pairBytes);
+			done.add(i);
+		});
+
+		return done;
 	}
 
 	/**
@@ -5468,7 +5607,7 @@ class CBORData {
 
 	/**
 	 * @param {number} tag 
-	 * @param {CBORData[]} fields 
+	 * @param {CBORData[] | number[][]} fields 
 	 * @returns {number[]}
 	 */
 	static encodeConstr(tag, fields) {
@@ -5577,10 +5716,6 @@ class PlutusCoreData extends CBORData {
 	 * @returns {PlutusCoreData}
 	 */
 	static fromCBOR(bytes) {
-		if (bytes.length == 0) {
-			throw new Error("empty cbor bytes");
-		}
-
 		if (CBORData.isIndefList(bytes)) {	
 			return ListData.fromCBOR(bytes);		
 		} else if (CBORData.isIndefBytes(bytes)) {
@@ -5918,7 +6053,7 @@ class MapData extends PlutusCoreData {
 		 */
 		let pairs = [];
 
-		CBORData.decodeMap(bytes, (pairBytes) => {
+		CBORData.decodeMap(bytes, pairBytes => {
 			pairs.push([PlutusCoreData.fromCBOR(pairBytes), PlutusCoreData.fromCBOR(pairBytes)]);
 		});
 
@@ -21435,9 +21570,957 @@ export function deserializePlutusCore(jsonString) {
 	return new PlutusCoreProgram(expr, version);
 }
 
+//////////////////////////
+// 18. Transaction objects
+//////////////////////////
+
+class Tx extends CBORData {
+	#body;
+	#witnesses;
+	#valid;
+
+	constructor() {
+		super();
+		this.#body = new TxBody();
+		this.#witnesses = new TxWitnesses();
+		this.#valid = false;
+		// no auxiliary data for now
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCBOR() {
+		return CBORData.encodeTuple([
+			this.#body.toCBOR(),
+			this.#witnesses.toCBOR(),
+			CBORData.encodeBool(this.#valid),
+			CBORData.encodeNull(),
+		]);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {Tx}
+	 */
+	static fromCBOR(bytes) {
+		let tx = new Tx();
+
+		let n = CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+			switch(i) {
+				case 0:
+					tx.#body = TxBody.fromCBOR(fieldBytes);
+					break;
+				case 1:
+					tx.#witnesses = TxWitnesses.fromCBOR(fieldBytes);
+					break;
+				case 2:
+					tx.#valid = CBORData.decodeBool(fieldBytes);
+					break;
+				case 3:
+					assert(CBORData.isNull(fieldBytes));
+					break;
+				default:
+					throw new Error("bad tuple size");
+			}
+		});
+
+		assert(n == 4);
+
+		return tx;
+	}
+}
+
+class TxBody extends CBORData {
+	/** @type {TxInput[]} */
+	#inputs;
+
+	/** @type {TxOutput[]} */
+	#outputs;
+
+	/** @type {bigint} in lovelace */
+	#fee;
+
+	/** @type {?bigint} */
+	#lastValidSlot;
+
+	/** @type {DCert[]} */
+	#certs;
+
+	/** @type {Map<Address, bigint>} */
+	#withdrawals;
+
+	/** @type {?bigint} */
+	#firstValidSlot;
+
+	/** @type {MultiAsset} */
+	#minted;
+
+	/** @type {?Hash} */
+	#dataHash;
+
+	/** @type {TxInput[]} */
+	#collateral;
+
+	/** @type {Hash[]} */
+	#requiredSignatories;
+
+	/** @type {?TxOutput} */
+	#collateralReturn;
+
+	/** @type {bigint} */
+	#totalCollateral;
+
+	/** @type {TxInput[]} */
+	#refInputs;
+
+	constructor() {
+		super();
+
+		this.#inputs = [];
+		this.#outputs = [];
+		this.#fee = 0n;
+		this.#lastValidSlot = null;
+		this.#certs	= [];
+		this.#withdrawals = new Map();
+		this.#firstValidSlot = null;
+		this.#minted = new MultiAsset(); // starts as zero value (i.e. empty map)
+		this.#dataHash = null; // calculated upon finalization
+		this.#collateral = [];
+		this.#requiredSignatories = [];
+		this.#collateralReturn = null;
+		this.#totalCollateral = 0n;
+		this.#refInputs = [];
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCBOR() {
+		/**
+		 * @type {Map<number, number[]>}
+		 */
+		let object = new Map();
+
+		object.set(0, CBORData.encodeList(this.#inputs));
+		object.set(1, CBORData.encodeList(this.#outputs));
+		object.set(2, CBORData.encodeInteger(this.#fee));
+		
+		if (this.#lastValidSlot !== null) {
+			object.set(3, CBORData.encodeInteger(this.#lastValidSlot));
+		}
+
+		if (this.#certs.length != 0) {
+			object.set(4, CBORData.encodeList(this.#certs));
+		}
+
+		if (this.#withdrawals.size != 0) {
+			throw new Error("not yet implemented");
+		}
+
+		if (this.#firstValidSlot !== null) {
+			object.set(8, CBORData.encodeInteger(this.#firstValidSlot));
+		}
+
+		if (!this.#minted.isZero()) {
+			object.set(9, this.#minted.toCBOR());
+		}
+
+		if (this.#dataHash !== null) {
+			object.set(11, this.#dataHash.toCBOR());
+		}
+
+		if (this.#collateral.length != 0) {
+			object.set(13, CBORData.encodeList(this.#collateral));
+		}
+
+		if (this.#requiredSignatories.length != 0) {
+			object.set(14, CBORData.encodeList(this.#requiredSignatories));
+		}
+
+		// TODO: get NetworkId through parameter, for now just use preview
+		object.set(15, CBORData.encodeInteger(2n));
+
+		if (this.#collateralReturn !== null) {
+			object.set(16, this.#collateralReturn.toCBOR());
+		}
+
+		if (this.#totalCollateral > 0n) {
+			object.set(17, CBORData.encodeInteger(this.#totalCollateral));
+		}
+
+		if (this.#refInputs.length != 0) {
+			object.set(18, CBORData.encodeList(this.#refInputs));
+		}
+
+		return CBORData.encodeObject(object);
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @returns {TxBody}
+	 */
+	static fromCBOR(bytes) {
+		let txBody = new TxBody();
+
+		let done = CBORData.decodeObject(bytes, (i, fieldBytes) => {
+			switch(i) {
+				case 0:
+					CBORData.decodeList(fieldBytes, itemBytes => {
+						txBody.#inputs.push(TxInput.fromCBOR(itemBytes));
+					});
+					break;
+				case 1:
+					CBORData.decodeList(fieldBytes, itemBytes => {
+						txBody.#outputs.push(TxOutput.fromCBOR(itemBytes));
+					})
+					break;
+				case 2:
+					txBody.#fee = CBORData.decodeInteger(fieldBytes);
+					break;
+				case 3:
+					txBody.#lastValidSlot = CBORData.decodeInteger(fieldBytes);
+					break;
+				case 4:
+					CBORData.decodeList(fieldBytes, itemBytes => {
+						txBody.#certs.push(DCert.fromCBOR(itemBytes));
+					});
+					break;
+				case 5:
+					throw new Error("not yet implemented");
+				case 6:
+					throw new Error("not yet implemented");
+				case 7:
+					throw new Error("not yet implemented");
+				case 8:
+					txBody.#firstValidSlot = CBORData.decodeInteger(fieldBytes);
+					break;
+				case 9:
+					txBody.#minted = MultiAsset.fromCBOR(fieldBytes);
+					break;
+				case 10:
+					throw new Error("unhandled field");
+				case 11:
+					txBody.#dataHash = Hash.fromCBOR(fieldBytes);
+					break;
+				case 12:
+					throw new Error("unhandled field");
+				case 13:
+					CBORData.decodeList(fieldBytes, itemBytes => {
+						txBody.#collateral.push(TxInput.fromCBOR(itemBytes));
+					});
+					break;
+				case 14:
+					CBORData.decodeList(fieldBytes, itemBytes => {
+						txBody.#requiredSignatories.push(Hash.fromCBOR(itemBytes));
+					});
+					break;
+				case 15:
+					assert(CBORData.decodeInteger(fieldBytes) == 2n);
+					break;
+				case 16:
+					txBody.#collateralReturn = TxOutput.fromCBOR(fieldBytes);
+					break;
+				case 17:
+					txBody.#totalCollateral = CBORData.decodeInteger(fieldBytes);
+					break;
+				case 18:
+					CBORData.decodeList(fieldBytes, itemBytes => {
+						txBody.#refInputs.push(TxInput.fromCBOR(fieldBytes));
+					});
+					break;
+				default:
+					throw new Error("unrecognized field");
+			}
+		});
+
+		assert(0 in done && 1 in done && 2 in done);
+
+		return txBody;
+	}
+}
+
+class TxWitnesses extends CBORData {
+	/** @type {PubKeyWitness[]} */
+	#pubKeyWitnesses;
+
+	/** @type {ListData} */
+	#datums;
+
+	/** @type {Redeemer[]} */
+	#redeemers;
+
+	/** @type {number[][]} */
+	#scripts;
+
+	constructor() {
+		super();
+		this.#pubKeyWitnesses = [];
+		this.#datums = new ListData([]);
+		this.#redeemers = [];
+		this.#scripts = [];
+	}
+
+	toCBOR() {
+		/**
+		 * @type {Map<number, number[]>}
+		 */
+ 		let object = new Map();
+
+		if (this.#pubKeyWitnesses.length != 0) {
+			object.set(0, CBORData.encodeList(this.#pubKeyWitnesses));
+		}
+
+		if (this.#datums.list.length != 0) {
+			object.set(4, this.#datums.toCBOR());
+		}
+
+		if (this.#redeemers.length != 0) {
+			object.set(5, CBORData.encodeList(this.#redeemers));
+		}
+
+		if (this.#scripts.length != 0) {
+			/**
+			 * @type {number[]}
+			 */
+			let scriptBytes = [];
+
+			for (let script of this.#scripts) {
+				scriptBytes = scriptBytes.concat(CBORData.encodeBytes(script, false));
+			}
+
+			object.set(6, CBORData.encodeListStart().concat(scriptBytes).concat(CBORData.encodeListEnd()));
+		}
+
+		return CBORData.encodeObject(object);
+	}
+
+	/**
+	 * 
+	 * @param {number[]} bytes 
+	 * @returns {TxWitnesses}
+	 */
+	static fromCBOR(bytes) {
+		let txWitnesses = new TxWitnesses();
+
+		CBORData.decodeObject(bytes, (i, fieldBytes) => {
+			switch(i) {
+				case 0:
+					CBORData.decodeList(fieldBytes, itemBytes => {
+						txWitnesses.#pubKeyWitnesses.push(PubKeyWitness.fromCBOR(itemBytes));
+					});
+					break;
+				case 1:
+				case 2:
+				case 3:
+					throw new Error("unhandled field");
+				case 4:
+					txWitnesses.#datums = ListData.fromCBOR(fieldBytes);
+					break;
+				case 5:
+					CBORData.decodeList(fieldBytes, itemBytes => {
+						txWitnesses.#redeemers.push(Redeemer.fromCBOR(itemBytes));
+					});
+					break;
+				case 6:
+					CBORData.decodeList(fieldBytes, itemBytes => {
+						txWitnesses.#scripts.push(CBORData.decodeBytes(itemBytes));
+					});
+					break;
+				default:
+					throw new Error("unrecognized field");
+			}
+		});
+
+		return txWitnesses;
+	}
+}
+
+class TxInput extends CBORData {
+	/** @type {Hash} */
+	#txId;
+
+	/** @type {bigint} */
+	#utxoIdx;
+
+	/**
+	 * @param {Hash} txId 
+	 * @param {bigint} utxoIdx 
+	 */
+	constructor(txId, utxoIdx) {
+		super();
+		this.#txId = txId;
+		this.#utxoIdx = utxoIdx;
+	}
+	
+	toCBOR() {
+		return CBORData.encodeTuple([
+			this.#txId.toCBOR(),
+			CBORData.encodeInteger(this.#utxoIdx),
+		]);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {TxInput}
+	 */
+	static fromCBOR(bytes) {
+		/** @type {?Hash} */
+		let txId = null;
+
+		/** @type {?bigint} */
+		let utxoIdx = null;
+
+		CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+			switch(i) {
+				case 0:
+					txId = Hash.fromCBOR(fieldBytes);
+					break;
+				case 1:
+					utxoIdx = CBORData.decodeInteger(fieldBytes);
+					break;
+				default:
+					throw new Error("unrecognized field");
+			}
+		});
+
+		if (txId === null || utxoIdx === null) {
+			throw new Error("unexpected");
+		} else {
+			return new TxInput(txId, utxoIdx);
+		}
+	}
+}
+
+class TxOutput extends CBORData {
+	/** @type {Address} */
+	#address;
+
+	/** @type {MoneyValue} */
+	#value;
+
+	/** @type {?OutputDatum} */
+	#datum;
+
+	/** @type {?number[]} */
+	#refScript;
+
+	/**
+	 * @param {Address} address 
+	 * @param {MoneyValue} value 
+	 * @param {?OutputDatum} datum 
+	 * @param {?number[]} refScript 
+	 */
+	constructor(address, value, datum = null, refScript = null) {
+		super();
+		this.#address = address;
+		this.#value = value;
+		this.#datum = datum;
+		this.#refScript = refScript;
+	}
+
+	toCBOR() {
+		/** @type {Map<number, number[]>} */
+		let object = new Map();
+
+		object.set(0, this.#address.toCBOR());
+		object.set(1, this.#value.toCBOR());
+
+		if (this.#datum !== null) {
+			object.set(2, this.#datum.toCBOR());
+		}
+
+		if (this.#refScript !== null) {
+			object.set(3, CBORData.encodeBytes(this.#refScript, false));
+		}
+
+		return CBORData.encodeObject(object);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {TxOutput}
+	 */
+	static fromCBOR(bytes) {
+		/** @type {?Address} */
+		let address = null;
+
+		/** @type {?MoneyValue} */
+		let value = null;
+
+		/** @type {?OutputDatum} */
+		let outputDatum = null;
+
+		/** @type {?number[]} */
+		let refScript = null;
+
+		CBORData.decodeObject(bytes, (i, fieldBytes) => {
+			switch(i) { 
+				case 0:
+					address = Address.fromCBOR(fieldBytes);
+					break;
+				case 1:
+					value = MoneyValue.fromCBOR(fieldBytes);
+					break;
+				case 2:
+					outputDatum = OutputDatum.fromCBOR(fieldBytes);
+					break;
+				case 3:
+					refScript = CBORData.decodeBytes(fieldBytes);
+					break;
+				default:
+					throw new Error("unreconginzed field");
+			}
+		});
+
+		if (address === null || value === null) {
+			throw new Error("unexpected");
+		} else {
+			return new TxOutput(address, value, outputDatum, refScript);
+		}
+	}
+}
+
+// TODO
+class DCert extends CBORData {
+	constructor() {
+		super();
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {DCert}
+	 */
+	static fromCBOR(bytes) {
+		throw new Error("not yet implemented");
+	}
+}
+
+class Address extends CBORData {
+	/** @type {number[]} */
+	#bytes;
+
+	/**
+	 * @param {number[]} bytes 
+	 */
+	constructor(bytes) {
+		super();
+		this.#bytes = bytes;
+	}
+
+	toCBOR() {
+		return CBORData.encodeBytes(this.#bytes, false);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {Address}
+	 */
+	static fromCBOR(bytes) {
+		return new Address(CBORData.decodeBytes(bytes));
+	}
+}
+
+class MultiAsset extends CBORData {
+	/** @type {Map<Hash, Map<number[], bigint>>} */
+	#assets;
+
+	/**
+	 * @param {Map<Hash, Map<number[], bigint>>} assets 
+	 */
+	constructor(assets = new Map()) {
+		super();
+		this.#assets = assets;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isZero() {
+		return this.#assets.size == 0;
+	}
+
+	toCBOR() {
+		return CBORData.encodeMap(
+			Array.from(this.#assets.entries()).map(
+				outerPair => {
+					return [outerPair[0].toCBOR(), CBORData.encodeMap(Array.from(outerPair[1].entries()).map(
+						innerPair => {
+							return [
+								CBORData.encodeBytes(innerPair[0], false), CBORData.encodeInteger(innerPair[1])
+							]
+						}
+					))]
+				}
+			)
+		)
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @returns {MultiAsset}
+	 */
+	static fromCBOR(bytes) {
+		let ms = new MultiAsset();
+
+		CBORData.decodeMap(bytes, pairBytes => {
+			let mph = Hash.fromCBOR(pairBytes);
+
+			/**
+			 * @type {Map<number[], bigint>}
+			 */
+			let innerMap = new Map();
+			
+			CBORData.decodeMap(pairBytes, innerPairBytes => {
+				innerMap.set(
+					CBORData.decodeBytes(innerPairBytes),
+					CBORData.decodeInteger(innerPairBytes),
+				);
+			});
+
+			ms.#assets.set(mph, innerMap);
+		});
+
+		return ms;
+	}
+}
+
+class MoneyValue extends CBORData {
+	/** @type {bigint} */
+	#lovelace;
+
+	/** @type {MultiAsset} */
+	#multiAsset;
+	
+	/**
+	 * @param {bigint} lovelace 
+	 * @param {MultiAsset} multiAsset 
+	 */
+	constructor(lovelace = 0n, multiAsset = new MultiAsset()) {
+		super();
+		this.#lovelace = lovelace;
+		this.#multiAsset = multiAsset;
+	}
+
+	toCBOR() {
+		if (this.#multiAsset.isZero()) {
+			return CBORData.encodeInteger(this.#lovelace);
+		} else {
+			return CBORData.encodeTuple([
+				CBORData.encodeInteger(this.#lovelace),
+				this.#multiAsset.toCBOR()
+			]);
+		}
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {MoneyValue}
+	 */
+	static fromCBOR(bytes) {
+		let mv = new MoneyValue();
+
+		if (CBORData.isTuple(bytes)) {
+			CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+				switch(i) {
+					case 0:
+						mv.#lovelace = CBORData.decodeInteger(fieldBytes);
+						break;
+					case 1:
+						mv.#multiAsset = MultiAsset.fromCBOR(fieldBytes);
+						break;
+					default:
+						throw new Error("unrecognized field");
+				}
+			});
+		} else {
+			mv.#lovelace = CBORData.decodeInteger(bytes);
+		}
+
+		return mv;
+	}
+}
+
+class Hash extends CBORData {
+	/** @type {number[]} */
+	#bytes;
+
+	constructor(bytes) {
+		super();
+		this.#bytes = bytes;
+	}
+
+	toCBOR() {
+		return CBORData.encodeBytes(this.#bytes, false);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {Hash}
+	 */
+	static fromCBOR(bytes) {
+		return new Hash(CBORData.decodeBytes(bytes));
+	}
+}
+
+class PubKeyWitness extends CBORData {
+	/** @type {Hash} */
+	#pubKey;
+
+	/** @type {number[]} */
+	#signature;
+
+	/**
+	 * @param {Hash} pubKey 
+	 * @param {number[]} signature 
+	 */
+	constructor(pubKey, signature) {
+		super();
+		this.#pubKey = pubKey;
+		this.#signature = signature;
+	}
+
+	toCBOR() {
+		return CBORData.encodeTuple([
+			this.#pubKey.toCBOR(),
+			CBORData.encodeBytes(this.#signature, false),
+		]);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {PubKeyWitness}
+	 */
+	static fromCBOR(bytes) {
+		/** @type {?Hash} */
+		let pubKey = null;
+
+		/** @type {?number[]} */
+		let signature = null;
+
+		let n = CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+			switch(i) {
+				case 0:
+					pubKey = Hash.fromCBOR(fieldBytes);
+					break;
+				case 1:
+					signature = CBORData.decodeBytes(fieldBytes);
+					break;
+				default:
+					throw new Error("unrecognized field");
+			}
+		});
+
+		assert(n == 2);
+
+		if (pubKey === null || signature === null) {
+			throw new Error("unexpected");
+		} else {
+			return new PubKeyWitness(pubKey, signature);
+		}
+	}
+}
+
+class Redeemer extends CBORData {
+	/** @type {number} */
+	#type;
+
+	/** @type {bigint} */
+	#index;
+
+	/** @type {PlutusCoreData} */
+	#data;
+
+	/** @type {Cost} */
+	#exUnits;
+
+	/**
+	 * 
+	 * @param {number} type 
+	 * @param {bigint} index 
+	 * @param {PlutusCoreData} data 
+	 * @param {Cost} exUnits 
+	 */
+	constructor(type, index, data, exUnits = {mem: 0, cpu: 0}) {
+		super();
+		this.#type = type;
+		this.#index = index;
+		this.#data = data;
+		this.#exUnits = exUnits;
+	}
+
+	toCBOR() {
+		return CBORData.encodeTuple([
+			CBORData.encodeInteger(BigInt(this.#type)),
+			CBORData.encodeInteger(this.#index),
+			this.#data.toCBOR(),
+			CBORData.encodeTuple([
+				CBORData.encodeInteger(BigInt(this.#exUnits.mem)),
+				CBORData.encodeInteger(BigInt(this.#exUnits.cpu)),
+			]),
+		]);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {Redeemer}
+	 */
+	static fromCBOR(bytes) {
+		/** @type {?number} */
+		let type = null;
+
+		/** @type {?bigint} */
+		let index = null;
+
+		/** @type {?PlutusCoreData} */
+		let data = null;
+
+		/** @type {?Cost} */
+		let cost = null;
+
+		let n = CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+			switch(i) {
+				case 0:
+					type = Number(CBORData.decodeInteger(fieldBytes));
+					break;
+				case 1:
+					index = CBORData.decodeInteger(fieldBytes);
+					break;
+				case 2:
+					data = PlutusCoreData.fromCBOR(fieldBytes);
+					break;
+				case 3: 
+					/** @type {?number} */
+					let mem = null;
+
+					/** @type {?number} */
+					let cpu = null;
+
+					let m = CBORData.decodeTuple(fieldBytes, (j, subFieldBytes) => {
+						switch (j) {
+							case 0:
+								mem = Number(CBORData.decodeInteger(subFieldBytes));
+								break;
+							case 1:
+								cpu = Number(CBORData.decodeInteger(subFieldBytes));
+								break;
+							default:
+								throw new Error("unrecognized field");
+						}
+					});
+
+					assert(m == 2);
+
+					if (mem === null || cpu === null) {
+						throw new Error("unexpected");
+					} else {
+						cost = {mem: mem, cpu: cpu};
+					}
+					break;
+				default:
+					throw new Error("unrecognized field");
+			}
+		});
+
+		assert(n == 4);
+
+		if (type === null || index === null || data === null || cost === null) {
+			throw new Error("unexpected");
+		} else {
+			return new Redeemer(type, index, data, cost);
+		}
+	}
+}
+
+class OutputDatum extends CBORData {
+	constructor() {
+		super();
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {OutputDatum}
+	 */
+	static fromCBOR(bytes) {
+		/** @type {?number} */
+		let type = null;
+
+		/** @type {?OutputDatum} */
+		let res = null;
+
+		let n = CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+			switch(i) {
+				case 0:
+					type = Number(CBORData.decodeInteger(fieldBytes));
+					break;
+				case 1:
+					if (type == 0) {
+						res = new OutputDatumHash(Hash.fromCBOR(fieldBytes));
+					} else if (type == 1) {
+						let tag = CBORData.decodeConstr(fieldBytes, subFieldBytes => {
+							res = new OutputDatumInline(PlutusCoreData.fromCBOR(subFieldBytes));
+						});
+						assert(tag == 24);
+					}
+					break;
+				default:
+					throw new Error("unrecognizedf field label");
+			}
+		});
+
+		assert(n == 2);
+
+		if (type === null || res === null) {
+			throw new Error("unexpected");
+		} else {
+			return res;
+		}
+	}
+}
+
+class OutputDatumHash extends OutputDatum {
+	/** @type {Hash} */
+	#hash;
+
+	/**
+	 * @param {Hash} hash 
+	 */
+	constructor(hash) {
+		super();
+		this.#hash = hash;
+	}
+
+	toCBOR() {
+		return CBORData.encodeTuple([
+			CBORData.encodeInteger(0n),
+			this.#hash.toCBOR(),
+		]);
+	}
+}
+
+class OutputDatumInline extends OutputDatum {
+	/** @type {PlutusCoreData} */
+	#data;
+
+	/**
+	 * @param {PlutusCoreData} data
+	 */
+	constructor(data) {
+		super();
+		this.#data = data;
+	}
+
+	toCBOR() {
+		return CBORData.encodeTuple([
+			CBORData.encodeInteger(1n),
+			CBORData.encodeConstr(24, [this.#data.toCBOR()]),
+		]);
+	}
+}
+
 
 ///////////////////////////////////////////////
-// Section 18. Property based testing framework
+// Section 19. Property based testing framework
 ///////////////////////////////////////////////
 
 /**
