@@ -5399,7 +5399,7 @@ class CBORData {
 	/**
 	 * @returns {number[]}
 	 */
-	static encodeListStart() {
+	static encodeIndefListStart() {
 		return CBORData.encodeIndefHead(4);
 	}
 
@@ -5426,7 +5426,7 @@ class CBORData {
 	/**
 	 * @returns {number[]}
 	 */
-	static encodeListEnd() {
+	static encodeIndefListEnd() {
 		return [255];
 	}
 
@@ -5434,8 +5434,48 @@ class CBORData {
 	 * @param {CBORData[] | number[][]} list 
 	 * @returns {number[]}
 	 */
-	static encodeList(list) {
-		return CBORData.encodeListStart().concat(CBORData.encodeListInternal(list)).concat(CBORData.encodeListEnd());
+	static encodeIndefList(list) {
+		return CBORData.encodeIndefListStart().concat(CBORData.encodeListInternal(list)).concat(CBORData.encodeIndefListEnd());
+	}
+
+	/**
+	 * @param {bigint} n
+	 * @returns {number[]}
+	 */
+	static encodeDefListStart(n) {
+		return CBORData.encodeHead(4, n);
+	}
+
+	/**
+	 * @param {CBORData[] | number[][]} list 
+	 * @returns {number[]}
+	 */
+	static encodeDefList(list) {
+		return CBORData.encodeDefListStart(BigInt(list.length)).concat(CBORData.encodeListInternal(list));
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @param {Decoder} itemDecoder
+	 */
+	 static decodeList(bytes, itemDecoder) {
+		if (CBORData.isIndefList(bytes)) {
+			assert(CBORData.decodeIndefHead(bytes) == 4);
+
+			while(bytes[0] != 255) {
+				itemDecoder(bytes);
+			}
+	
+			assert(bytes.shift() == 255);
+		} else {
+			let [m, n] = CBORData.decodeHead(bytes);
+
+			assert(m == 4);
+
+			for (let i = 0; i < Number(n); i++) {
+				itemDecoder(bytes);
+			}
+		}
 	}
 
 	/**
@@ -5451,22 +5491,9 @@ class CBORData {
 	 * @returns {number[]}
 	 */
 	static encodeTuple(tuple) {
-		return CBORData.encodeList(tuple);
+		return CBORData.encodeIndefList(tuple);
 	}
 
-	/**
-	 * @param {number[]} bytes
-	 * @param {Decoder} itemDecoder
-	 */
-	static decodeList(bytes, itemDecoder) {
-		assert(CBORData.decodeIndefHead(bytes) == 4);
-			
-		while(bytes[0] != 255) {
-			itemDecoder(bytes);
-		}
-
-		assert(bytes.shift() == 255);
-	}
 
 	/**
 	 * @param {number[]} bytes 
@@ -5569,6 +5596,7 @@ class CBORData {
 
 		CBORData.decodeMap(bytes, pairBytes => {
 			let i = Number(CBORData.decodeInteger(pairBytes));
+
 			fieldDecoder(i, pairBytes);
 			done.add(i);
 		});
@@ -5611,7 +5639,7 @@ class CBORData {
 	 * @returns {number[]}
 	 */
 	static encodeConstr(tag, fields) {
-		return CBORData.encodeConstrTag(tag).concat(CBORData.encodeList(fields));
+		return CBORData.encodeConstrTag(tag).concat(CBORData.encodeIndefList(fields));
 	}
 
 	/**
@@ -5949,7 +5977,7 @@ class ListData extends PlutusCoreData {
 	 * @returns {number[]}
 	 */
 	toCBOR() {
-		return CBORData.encodeList(this.#items);
+		return CBORData.encodeIndefList(this.#items);
 	}
 
 	/**
@@ -21629,6 +21657,17 @@ class Tx extends CBORData {
 
 		return tx;
 	}
+	
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			"body": this.#body.dump(),
+			"witnesses": this.#witnesses.dump(),
+			"valid": this.#valid ? "true" : "false",
+		};
+	}
 }
 
 class TxBody extends CBORData {
@@ -21702,8 +21741,8 @@ class TxBody extends CBORData {
 		 */
 		let object = new Map();
 
-		object.set(0, CBORData.encodeList(this.#inputs));
-		object.set(1, CBORData.encodeList(this.#outputs));
+		object.set(0, CBORData.encodeIndefList(this.#inputs));
+		object.set(1, CBORData.encodeIndefList(this.#outputs));
 		object.set(2, CBORData.encodeInteger(this.#fee));
 		
 		if (this.#lastValidSlot !== null) {
@@ -21711,7 +21750,7 @@ class TxBody extends CBORData {
 		}
 
 		if (this.#certs.length != 0) {
-			object.set(4, CBORData.encodeList(this.#certs));
+			object.set(4, CBORData.encodeIndefList(this.#certs));
 		}
 
 		if (this.#withdrawals.size != 0) {
@@ -21731,11 +21770,11 @@ class TxBody extends CBORData {
 		}
 
 		if (this.#collateral.length != 0) {
-			object.set(13, CBORData.encodeList(this.#collateral));
+			object.set(13, CBORData.encodeIndefList(this.#collateral));
 		}
 
 		if (this.#requiredSignatories.length != 0) {
-			object.set(14, CBORData.encodeList(this.#requiredSignatories));
+			object.set(14, CBORData.encodeIndefList(this.#requiredSignatories));
 		}
 
 		// TODO: get NetworkId through parameter, for now just use preview
@@ -21750,7 +21789,7 @@ class TxBody extends CBORData {
 		}
 
 		if (this.#refInputs.length != 0) {
-			object.set(18, CBORData.encodeList(this.#refInputs));
+			object.set(18, CBORData.encodeIndefList(this.#refInputs));
 		}
 
 		return CBORData.encodeObject(object);
@@ -21834,9 +21873,20 @@ class TxBody extends CBORData {
 			}
 		});
 
-		assert(0 in done && 1 in done && 2 in done);
+		assert(done.has(0) && done.has(1) && done.has(2));
 
 		return txBody;
+	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			"inputs": this.#inputs.map(input => input.dump()),
+			"outputs": this.#outputs.map(output => output.dump()),
+			"fee": this.#fee.toString(),
+		};
 	}
 }
 
@@ -21868,7 +21918,7 @@ class TxWitnesses extends CBORData {
  		let object = new Map();
 
 		if (this.#pubKeyWitnesses.length != 0) {
-			object.set(0, CBORData.encodeList(this.#pubKeyWitnesses));
+			object.set(0, CBORData.encodeIndefList(this.#pubKeyWitnesses));
 		}
 
 		if (this.#datums.list.length != 0) {
@@ -21876,7 +21926,7 @@ class TxWitnesses extends CBORData {
 		}
 
 		if (this.#redeemers.length != 0) {
-			object.set(5, CBORData.encodeList(this.#redeemers));
+			object.set(5, CBORData.encodeIndefList(this.#redeemers));
 		}
 
 		if (this.#scripts.length != 0) {
@@ -21889,7 +21939,7 @@ class TxWitnesses extends CBORData {
 				scriptBytes = scriptBytes.concat(CBORData.encodeBytes(script, false));
 			}
 
-			object.set(6, CBORData.encodeListStart().concat(scriptBytes).concat(CBORData.encodeListEnd()));
+			object.set(6, CBORData.encodeIndefListStart().concat(scriptBytes).concat(CBORData.encodeIndefListEnd()));
 		}
 
 		return CBORData.encodeObject(object);
@@ -21933,6 +21983,15 @@ class TxWitnesses extends CBORData {
 		});
 
 		return txWitnesses;
+	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			"pubKeyWitnesses": this.#pubKeyWitnesses.map(pkw => pkw.dump()),
+		};
 	}
 }
 
@@ -21989,6 +22048,16 @@ class TxInput extends CBORData {
 		} else {
 			return new TxInput(txId, utxoIdx);
 		}
+	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			"txId": this.#txId.dump(),
+			"utxoIdx": this.#utxoIdx.toString(),
+		};
 	}
 }
 
@@ -22079,6 +22148,18 @@ class TxOutput extends CBORData {
 			return new TxOutput(address, value, outputDatum, refScript);
 		}
 	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			"address": this.#address.dump(),
+			"value": this.#value.dump(),
+			"datum": this.#datum === null ? "none" : this.#datum.dump(),
+			"ref_script": this.#refScript === null ? "none" : bytesToHex(this.#refScript),
+		};
+	}
 }
 
 // TODO
@@ -22118,6 +22199,13 @@ class Address extends CBORData {
 	 */
 	static fromCBOR(bytes) {
 		return new Address(CBORData.decodeBytes(bytes));
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		return bytesToHex(this.#bytes);
 	}
 }
 
@@ -22183,6 +22271,25 @@ class MultiAsset extends CBORData {
 
 		return ms;
 	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		let obj = {};
+
+		for (let pairs of this.#assets) {
+			let innerObj = {};
+
+			for (let innerPair of pairs[1]) {
+				innerObj[bytesToHex(innerPair[0])] = innerPair[1].toString();
+			}
+
+			obj[pairs[0].dump()] = innerObj;
+		}
+
+		return obj;
+	}
 }
 
 class MoneyValue extends CBORData {
@@ -22239,6 +22346,16 @@ class MoneyValue extends CBORData {
 
 		return mv;
 	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			"lovelace": this.#lovelace.toString(),
+			"multiAsset": this.#multiAsset.dump()
+		};
+	}
 }
 
 class Hash extends CBORData {
@@ -22260,6 +22377,13 @@ class Hash extends CBORData {
 	 */
 	static fromCBOR(bytes) {
 		return new Hash(CBORData.decodeBytes(bytes));
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		return bytesToHex(this.#bytes);
 	}
 }
 
@@ -22318,6 +22442,16 @@ class PubKeyWitness extends CBORData {
 		} else {
 			return new PubKeyWitness(pubKey, signature);
 		}
+	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			"pubKey": this.#pubKey.dump(),
+			"signature": bytesToHex(this.#signature),
+		};
 	}
 }
 
@@ -22476,6 +22610,10 @@ class OutputDatum extends CBORData {
 			return res;
 		}
 	}
+
+	dump() {
+		throw new Error("not yet implemented");
+	}
 }
 
 class OutputDatumHash extends OutputDatum {
@@ -22496,6 +22634,15 @@ class OutputDatumHash extends OutputDatum {
 			this.#hash.toCBOR(),
 		]);
 	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			"hash": this.#hash.dump(),
+		};
+	}
 }
 
 class OutputDatumInline extends OutputDatum {
@@ -22515,6 +22662,15 @@ class OutputDatumInline extends OutputDatum {
 			CBORData.encodeInteger(1n),
 			CBORData.encodeConstr(24, [this.#data.toCBOR()]),
 		]);
+	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			"inline": this.#data.toSchemaJSON(),
+		};
 	}
 }
 
@@ -23006,4 +23162,6 @@ export const exportedForTesting = {
 	PlutusCoreConst: PlutusCoreConst,
 	PlutusCoreInt: PlutusCoreInt,
 	IRProgram: IRProgram,
+	Tx: Tx,
+	TxBody: TxBody,
 };
