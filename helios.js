@@ -2144,12 +2144,16 @@ class Crypto {
 		/**
 		 * Initialization vector
 		 */
-		const IV = new Uint32Array([
-			0xf3bcc908, 0x6a09e667, 0x84caa73b, 0xbb67ae85,
-			0xfe94f82b, 0x3c6ef372, 0x5f1d36f1, 0xa54ff53a,
-			0xade682d1, 0x510e527f, 0x2b3e6c1f, 0x9b05688c,
-			0xfb41bd6b, 0x1f83d9ab, 0x137e2179, 0x5be0cd19
-		]);
+		const IV = [
+			new UInt64(0x6a09e667, 0xf3bcc908), 
+			new UInt64(0xbb67ae85, 0x84caa73b),
+			new UInt64(0x3c6ef372, 0xfe94f82b), 
+			new UInt64(0xa54ff53a, 0x5f1d36f1),
+			new UInt64(0x510e527f, 0xade682d1),
+			new UInt64(0x9b05688c, 0x2b3e6c1f),
+			new UInt64(0x1f83d9ab, 0xfb41bd6b), 
+			new UInt64(0x5be0cd19, 0x137e2179), 
+		];
 
 		const SIGMA = [
 			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
@@ -2182,8 +2186,8 @@ class Crypto {
 		}
 
 		/**
-		 * @param {Uint32Array} v
-		 * @param {Uint32Array} chunk
+		 * @param {Array<UInt64>} v
+		 * @param {Array<UInt64>} chunk
 		 * @param {number} a - index
 		 * @param {number} b - index
 		 * @param {number} c - index
@@ -2192,64 +2196,50 @@ class Crypto {
 		 * @param {number} j - index in chunk for low word 2
 		 */
 		function mix(v, chunk, a, b, c, d, i, j) {
-			let x0 = chunk[i+0];
-			let x1 = chunk[i+1];
-			let y0 = chunk[j+0];
-			let y1 = chunk[j+1];
+			let x = chunk[i];
+			let y = chunk[j];
 
-			[v[a+0], v[a+1]] = iadd64(v[a+0], v[a+1], v[b+0], v[b+1]);
-			[v[a+0], v[a+1]] = iadd64(v[a+0], v[a+1], x0, x1);
-
-			[v[d+0], v[d+1]] = irotr64(v[d+0] ^ v[a+0], v[d+1] ^ v[a+1], 32);
-			[v[c+0], v[c+1]] = iadd64(v[c+0], v[c+1], v[d+0], v[d+1]);
-
-			[v[b+0], v[b+1]] = irotr64(v[b+0] ^ v[c+0], v[b+1] ^ v[c+1], 24);
-
-			[v[a+0], v[a+1]] = iadd64(v[a+0], v[a+1], v[b+0], v[b+1]);
-			[v[a+0], v[a+1]] = iadd64(v[a+0], v[a+1], y0, y1);
-
-			[v[d+0], v[d+1]] = irotr64(v[d+0] ^ v[a+0], v[d+1] ^ v[a+1], 16);
-
-			[v[c+0], v[c+1]] = iadd64(v[c+0], v[c+1], v[d+0], v[d+1]);
-
-			[v[b+0], v[b+1]] = irotr64(v[b+0] ^ v[c+0], v[b+1] ^ v[c+1], 63);
+			v[a] = v[a].add(v[b]).add(x);
+			v[d] = v[d].xor(v[a]).rotr(32);
+			v[c] = v[c].add(v[d]);
+			v[b] = v[b].xor(v[c]).rotr(24);
+			v[a] = v[a].add(v[b]).add(y);
+			v[d] = v[d].xor(v[a]).rotr(16);
+			v[c] = v[c].add(v[d]);
+			v[b] = v[b].xor(v[c]).rotr(63);
 		}
 
 		/**
-		 * @param {Uint32Array} h - state vector
-		 * @param {Uint32Array} chunk
+		 * @param {Array<UInt64>} h - state vector
+		 * @param {Array<UInt64>} chunk
 		 * @param {number} t - chunkEnd (expected to fit in uint32)
 		 * @param {boolean} last
  		 */
 		function compress(h, chunk, t, last) {
 			// work vectors
-			let v = new Uint32Array(32);
+			let v = h.slice().concat(IV.slice());
 
-			v.set(h, 0);
-			v.set(IV, 16);
-
-			v[24] ^= imod32(t); // v[25] unmodified
-			// v[26] and v[27] unmodified
+			v[12] = v[12].xor(new UInt64(0, imod32(t))); // v[12].high unmodified
+			// v[13] unmodified
 
 			if (last) {
-				v[28] ^= 0xffffffff;
-				v[29] ^= 0xffffffff;
+				v[14] = v[14].xor(new UInt64(0xffffffff, 0xffffffff));
 			}
 
 			for (let round = 0; round < 12; round++) {
 				let s = SIGMA[round%10];
 
 				for (let i = 0; i < 4; i++) {
-					mix(v, chunk, i*2, i*2+8, i*2+16, i*2+24, 2*s[i*2], 2*s[i*2+1]);
+					mix(v, chunk, i, i+4, i+8, i+12, s[i*2], s[i*2+1]);
 				}
 				
 				for (let i = 0; i < 4; i++) {
-					mix(v, chunk, i*2, (i*2+2)%8 + 8, (i*2+4)%8 + 16, (i*2+6)%8 + 24, 2*s[8+i*2], 2*s[8 + i*2 + 1]);
+					mix(v, chunk, i, (i+1)%4 + 4, (i+2)%4 + 8, (i+3)%4 + 12, s[8+i*2], s[8 + i*2 + 1]);
 				}
 			}
 
-			for (let i = 0; i < 16; i++) {
-				h[i] ^= (v[i] ^ v[i+16]);
+			for (let i = 0; i < 8; i++) {
+				h[i] = h[i].xor(v[i].xor(v[i+8]));
 			}		
 		}
  
@@ -2259,6 +2249,7 @@ class Crypto {
 
 		// init hash vector
 		let h = IV.slice();
+		
 
 		// setup the param block
 		let paramBlock = new Uint8Array(64);
@@ -2269,36 +2260,37 @@ class Crypto {
 
 		//mix in the parameter block
 		let paramBlockView = new DataView(paramBlock.buffer);
-		for (let i = 0; i < 16; i++) {
-			h[i] ^= paramBlockView.getUint32(i*4, true);
+		for (let i = 0; i < 8; i++) {
+			h[i] = h[i].xor(new UInt64(
+				paramBlockView.getUint32(i*8+4, true),
+				paramBlockView.getUint32(i*8, true),
+			));
 		}
-
+		
 		// loop all chunks
 		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += WIDTH) {
 			let chunkEnd = chunkStart + WIDTH; // exclusive
 			let chunk = bytes.slice(chunkStart, chunkStart + WIDTH);
 
-			let chunk32 = new Uint32Array(WIDTH/4);
-			for (let i = 0; i < WIDTH; i += 4) {
-				// beware: a uint32 is stored as little endian, but a pair of uint32s that form a uin64 are stored in big endian format!
-				chunk32[i/4] = (chunk[i] << 0) | (chunk[i+1] << 8) | (chunk[i+2] << 16) | (chunk[i+3] << 24);
+			let chunk64 = new Array(WIDTH/8);
+			for (let i = 0; i < WIDTH; i += 8) {
+				chunk64[i/8] = UInt64.fromBytes(chunk.slice(i, i+8));
 			}
-
+			
 			if (chunkStart == bytes.length - WIDTH) {
 				// last block
-				compress(h, chunk32, nBytes, true);
+				compress(h, chunk64, nBytes, true);
 			} else {
-				compress(h, chunk32, chunkEnd, false);
+				compress(h, chunk64, chunkEnd, false);
 			}
 		}
 
 		// extract lowest BLAKE2B_DIGEST_SIZE (32 or 64) bytes from h
-		let view = new DataView(h.buffer);
 
 		/** @type {number[]} */
 		let hash = [];
-		for (let i = 0; i < digestSize; i++) {
-			hash.push(view.getUint8(i));
+		for (let i = 0; i < digestSize/8; i++) {
+			hash = hash.concat(h[i].toBytes());
 		}
 
 		return hash;
