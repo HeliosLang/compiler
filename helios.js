@@ -74,18 +74,18 @@
 //                                          PLUTUS_CORE_TAG_WIDTHS, PLUTUS_CORE_TERM_COSTS, 
 //                                          PLUTUS_CORE_DATA_NODE_MEM_SIZE
 //
-//     2. Plutus-Core builtins              CostModel, ConstCost, LinearCost, ArgSizeCost, 
+//     2. Utilities                         assert, assertDefined, assertEq, idiv, ipow2, imask, 
+//                                          imod32, imod8, posMod, irotr, bigIntToBytes, bytesToBigInt, 
+//                                          padZeroes, byteToBitString, hexToBytes, bytesToHex, 
+//                                          stringToBytes, bytesToString, replaceTabs, 
+//                                          unwrapCborBytes, wrapCborBytes, BitReader, BitWriter, 
+//                                          UInt64, DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
+//                                          Crypto, IR, Source, UserError, Site
+//
+//     3. Plutus-Core builtins              CostModel, ConstCost, LinearCost, ArgSizeCost, 
 //                                          MinArgSizeCost, MaxArgSizeCost, SumArgSizesCost,
 //                                          ArgSizeDiffCost, ArgSizeProdCost, ArgSizeDiagCost,
 //                                          PlutusCoreBuiltinInfo, PLUTUS_CORE_BUILTIN
-//
-//     3. Utilities                         assert, assertDefined, assertEq, idiv, ipow2, imask, 
-//                                          imod32, imod8, irotr, iadd64, irotr64, padZeroes, 
-//                                          byteToBitString, hexToBytes, bytesToHex, stringToBytes,
-//                                          bytesToString, replaceTabs, unwrapCborBytes, 
-//                                          wrapCborBytes, BitReader, BitWriter, 
-//                                          DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
-//                                          Crypto, IR, Source, UserError, Site
 //
 //     4. Plutus-Core AST objects           PlutusCoreValue, DEFAULT_PLUTUS_CORE_RTE_CALLBACKS,
 //                                          PlutusCoreRTE, PlutusCoreStack, 
@@ -285,376 +285,8 @@ const PLUTUS_CORE_TERM_COSTS = {
 const PLUTUS_CORE_DATA_NODE_MEM_SIZE = 4;
 
 
-//////////////////////////////////
-// Section 2: Plutus-Core builtins
-//////////////////////////////////
-
-class CostModel {
-	constructor() {
-	}
-
-	/**
-	 * @param {number[]} args 
-	 * @returns {number}
-	 */
-	calc(args) {
-		throw new Error("not yet implemented");
-	}
-}
-
-class ConstCost extends CostModel {
-	#constant;
-
-	/**
-	 * @param {number} constant
-	 */
-	constructor(constant) {
-		super();
-		this.#constant = constant;
-	}
-
-	/**
-	 * @param {number[]} args
-	 * @returns {number}
-	 */
-	calc(args) {
-		return this.#constant;
-	}
-}
-
-class LinearCost extends CostModel {
-	#a;
-	#b;
-
-	/**
-	 * a + b*SizeFn(x, y)
-	 * @param {number} a - intercept
-	 * @param {number} b - slope
-	 */
-	constructor(a, b) {
-		super();
-		this.#a = a;
-		this.#b = b;
-	}
-
-
-	/**
-	 * @param  {number} size
-	 * @returns {number}
-	 */
-	calcInternal(size) {
-		return this.#a + this.#b*size;
-	}
-}
-
-class ArgSizeCost extends LinearCost {
-	#i;
-
-	/**
-	 * @param {number} a
-	 * @param {number} b
-	 * @param {number} i - index of the arg
-	 */
-    constructor(a, b, i) {
-	   	super(a, b);
-		this.#i = i;
-    }
-
-	/**
-	 * @param {number[]} args
-	 * @returns {number}
-	 */
-	calc(args) {
-		assert(this.#i < args.length && this.#i >= 0);
-
-		return this.calcInternal(args[this.#i]);
-	}
-}
-
-class MinArgSizeCost extends LinearCost {
-	/**
-	 * a + b*min(args)
-	 * @param {number} a - intercept
-	 * @param {number} b - slope
-	 */
-	constructor(a, b) {
-		super(a, b);
-	}
-
-	/**
-	 * @param  {number[]} args
-	 * @returns {number}
-	 */
-	calc(args) {
-		let min = args[0];
-
-		for (let arg of args) {
-			min = Math.min(arg, min);
-		}
-
-		return this.calcInternal(min);
-	}
-}
-
-class MaxArgSizeCost extends LinearCost {
-	/**
-	 * a + b*max(args)
-	 * @param {number} a - intercept
-	 * @param {number} b - slope
-	 */
-	constructor(a, b) {
-		super(a, b);
-	}
-
-	/**
-	 * @param  {number[]} args
-	 * @returns {number}
-	 */
-	calc(args) {
-		let max = args[0];
-
-		for (let arg of args) {
-			max = Math.max(arg, max);
-		}
-
-		return this.calcInternal(max);
-	}
-}
-
-class SumArgSizesCost extends LinearCost {
-	/**
-	 * a + b*sum(args)
-	 * @param {number} a - intercept
-	 * @param {number} b - slope
-	 */
-	 constructor(a, b) {
-		super(a, b);
-	}
-
-	/**
-	 * @param  {number[]} args
-	 * @returns {number}
-	 */
-	calc(args) {
-		let sum = 0;
-
-		for (let arg of args) {
-			sum += arg;
-		}
-
-		return this.calcInternal(sum);
-	}
-}
-
-class ArgSizeDiffCost extends LinearCost {
-	#min;
-
-	/**
-	 * a + b*max(x-y, min)
-	 * @param {number} a - intercept
-	 * @param {number} b - slope
-	 * @param {number} min
-	 */
-	 constructor(a, b, min) {
-		super(a, b);
-		this.#min = min
-	}
-
-	/**
-	 * @param {number[]} args
-	 * @returns {number}
-	 */
-	calc(args) {
-		assert(args.length == 2);
-		let [x, y] = args;
-
-		return this.calcInternal(Math.max(x - y, this.#min));
-	}
-}
-
-class ArgSizeProdCost extends LinearCost {
-	#constant;
-
-	/**
-	 * (x > y) ? constant : a + b*x*y
-	 * @param {number} a
-	 * @param {number} b
-	 * @param {number} constant
- 	 */
-	constructor(a, b, constant) {
-		super(a, b);
-		this.#constant = constant;
-	}
-
-	/**
-	 * @param {number[]} args
-	 * @returns {number}
-	 */
-	calc(args) {
-		assert(args.length == 2);
-		
-		let [x, y] = args;
-
-		if (x > y) {
-			return this.#constant;
-		} else {
-			return this.calcInternal(x*y);
-		}
-	}
-}
-
-class ArgSizeDiagCost extends LinearCost {
-	#constant;
-
-	/**
-	 * @param {number} a
-	 * @param {number} b
-	 * @param {number} constant
-	 */
-	constructor(a, b, constant) {
-		super(a, b);
-		this.#constant = constant;
-	}
-
-	/**
-	 * @param {number[]} args 
-	 * @returns {number}
-	 */
-	calc(args) {
-		assert(args.length == 2);
-
-		if (args[0] == args[1]) {
-			return this.calcInternal(args[0]);
-		} else {
-			return this.#constant;
-		}
-	}
-}
-
-class PlutusCoreBuiltinInfo {
-	#name;
-	#forceCount;
-	#memCostModel;
-	#cpuCostModel;
-
-	/**
-	 * @param {string} name 
-	 * @param {number} forceCount - number of type parameters of a plutus-core builtin function (0, 1 or 2)
-	 * @param {CostModel} memCostModel 
-	 * @param {CostModel} cpuCostModel 
-	 */
-	constructor(name, forceCount, memCostModel, cpuCostModel) {
-		this.#name = name;
-		this.#forceCount = forceCount;
-		this.#memCostModel = memCostModel;
-		this.#cpuCostModel = cpuCostModel;
-	}
-
-	get name() {
-		return this.#name;
-	}
-
-	get forceCount() {
-		return this.#forceCount;
-	}
-
-	/**
-	 * @param {number[]} argSizes
-	 * @returns {Cost}
-	 */
-	calcCost(argSizes) {
-		if (this.#memCostModel !== null && this.#cpuCostModel !== null) {
-			let memCost = this.#memCostModel.calc(argSizes);
-			let cpuCost = this.#cpuCostModel.calc(argSizes);
-	
-			return {mem: memCost, cpu: cpuCost};
-		} else {
-			throw new Error(`cost model not yet implemented for builtin ${this.#name}`);
-		}
-	}
-}
-
-/** @type {PlutusCoreBuiltinInfo[]} */
-const PLUTUS_CORE_BUILTINS = (
-	/**
-	 * @returns {PlutusCoreBuiltinInfo[]}
-	 */
-	function () {
-		/**
-		 * Constructs a builtinInfo object
-		 * @param {string} name 
-		 * @param {number} forceCount 
-		 * @param {CostModel} memCostModel
-		 * @param {CostModel} cpuCostModel
-		 * @returns {PlutusCoreBuiltinInfo}
-		 */
-		function builtinInfo(name, forceCount, memCostModel, cpuCostModel) {
-			// builtins might need be wrapped in `force` a number of times if they are not fully typed
-			return new PlutusCoreBuiltinInfo(name, forceCount, memCostModel, cpuCostModel);
-		}
-
-		return [
-			builtinInfo("addInteger",               0, new MaxArgSizeCost(1, 1), new MaxArgSizeCost(205665, 812)), // 0
-			builtinInfo("subtractInteger",          0, new MaxArgSizeCost(1, 1), new MaxArgSizeCost(205665, 812)),
-			builtinInfo("multiplyInteger",          0, new SumArgSizesCost(0, 1), new SumArgSizesCost(69522, 11687)),
-			builtinInfo("divideInteger",            0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)),
-			builtinInfo("quotientInteger",          0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)), 
-			builtinInfo("remainderInteger",         0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)),
-			builtinInfo("modInteger",               0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)),
-			builtinInfo("equalsInteger",            0, new ConstCost(1), new MinArgSizeCost(208512, 421)),
-			builtinInfo("lessThanInteger",          0, new ConstCost(1), new MinArgSizeCost(208896, 511)),
-			builtinInfo("lessThanEqualsInteger",    0, new ConstCost(1), new MinArgSizeCost(204924, 473)),
-			builtinInfo("appendByteString",         0, new SumArgSizesCost(0, 1), new SumArgSizesCost(1000, 571)), // 10
-			builtinInfo("consByteString",           0, new SumArgSizesCost(0, 1), new ArgSizeCost(221973, 511, 1)),
-			builtinInfo("sliceByteString",          0, new ArgSizeCost(4, 0, 2), new ArgSizeCost(265318, 0, 2)),
-			builtinInfo("lengthOfByteString",       0, new ConstCost(10), new ConstCost(1000)),
-			builtinInfo("indexByteString",          0, new ConstCost(4), new ConstCost(57667)),
-			builtinInfo("equalsByteString",         0, new ConstCost(1), new ArgSizeDiagCost(216773, 62, 245000)),
-			builtinInfo("lessThanByteString",       0, new ConstCost(1), new MinArgSizeCost(197145, 156)),
-			builtinInfo("lessThanEqualsByteString", 0, new ConstCost(1), new MinArgSizeCost(197145, 156)),
-			builtinInfo("sha2_256",                 0, new ConstCost(4), new ArgSizeCost(806990, 30482, 0)),
-			builtinInfo("sha3_256",                 0, new ConstCost(4), new ArgSizeCost(1927926, 82523, 0)),
-			builtinInfo("blake2b_256",              0, new ConstCost(4), new ArgSizeCost(117366, 10475, 0)), // 20
-			builtinInfo("verifyEd25519Signature",   0, new ConstCost(10), new ArgSizeCost(9462713, 1021, 2)),
-			builtinInfo("appendString",             0, new SumArgSizesCost(4, 1), new SumArgSizesCost(1000, 24177)),
-			builtinInfo("equalsString",             0, new ConstCost(1), new ArgSizeDiagCost(1000, 52998, 187000)),
-			builtinInfo("encodeUtf8",               0, new ArgSizeCost(4, 2, 0), new ArgSizeCost(1000, 28662, 0)),
-			builtinInfo("decodeUtf8",               0, new ArgSizeCost(4, 2, 0), new ArgSizeCost(497525, 14068, 0)),
-			builtinInfo("ifThenElse",               1, new ConstCost(1), new ConstCost(80556)),
-			builtinInfo("chooseUnit",               1, new ConstCost(4), new ConstCost(46417)),
-			builtinInfo("trace",                    1, new ConstCost(32), new ConstCost(212342)),
-			builtinInfo("fstPair",                  2, new ConstCost(32), new ConstCost(80436)),
-			builtinInfo("sndPair",                  2, new ConstCost(32), new ConstCost(85931)), // 30
-			builtinInfo("chooseList",               1, new ConstCost(32), new ConstCost(175354)),
-			builtinInfo("mkCons",                   1, new ConstCost(32), new ConstCost(65493)),
-			builtinInfo("headList",                 1, new ConstCost(32), new ConstCost(43249)),
-			builtinInfo("tailList",                 1, new ConstCost(32), new ConstCost(41182)),
-			builtinInfo("nullList",                 1, new ConstCost(32), new ConstCost(60091)),
-			builtinInfo("chooseData",               0, new ConstCost(32), new ConstCost(19537)),
-			builtinInfo("constrData",               0, new ConstCost(32), new ConstCost(89141)),
-			builtinInfo("mapData",                  0, new ConstCost(32), new ConstCost(64832)),
-			builtinInfo("listData",                 0, new ConstCost(32), new ConstCost(52467)),
-			builtinInfo("iData",                    0, new ConstCost(32), new ConstCost(1000)), // 40
-			builtinInfo("bData",                    0, new ConstCost(32), new ConstCost(1000)),
-			builtinInfo("unConstrData",             0, new ConstCost(32), new ConstCost(32696)),
-			builtinInfo("unMapData",                0, new ConstCost(32), new ConstCost(38314)),
-			builtinInfo("unListData",               0, new ConstCost(32), new ConstCost(32247)),
-			builtinInfo("unIData",                  0, new ConstCost(32), new ConstCost(43357)),
-			builtinInfo("unBData",                  0, new ConstCost(32), new ConstCost(31220)),
-			builtinInfo("equalsData",               0, new ConstCost(1), new MinArgSizeCost(1060367, 12586)),
-			builtinInfo("mkPairData",               0, new ConstCost(32), new ConstCost(76511)),
-			builtinInfo("mkNilData",                0, new ConstCost(32), new ConstCost(22558)),
-			builtinInfo("mkNilPairData",            0, new ConstCost(32), new ConstCost(16563)), // 50
-			builtinInfo("serialiseData",            0, new ArgSizeCost(0, 2, 0), new ArgSizeCost(1159724, 392670, 0)),
-			builtinInfo("verifyEcdsaSecp256k1Signature",   0, new ConstCost(10), new ConstCost(35190005)), // these parameters are from aiken, but the cardano-cli parameter file differ?
-			builtinInfo("verifySchnorrSecp256k1Signature", 0, new ConstCost(10), new ArgSizeCost(39121781, 32260, 1)), // these parameters are from, but the cardano-cli parameter file differs?
-		];
-	}
-)();
-
-
 ///////////////////////
-// Section 3: utilities
+// Section 2: Utilities
 ///////////////////////
 
 /**
@@ -799,6 +431,20 @@ function imod8(x) {
 }
 
 /**
+ * @param {bigint} x 
+ * @param {bigint} n 
+ * @returns {bigint}
+ */
+function posMod(x, n) {
+	let res = x % n;
+	if (res < 0n) {
+		return res + n;
+	} else {
+		return res;
+	}
+}
+
+/**
  * 32 bit number rotation
  * @param {number} x - originally uint32
  * @param {number} n
@@ -809,41 +455,47 @@ function irotr(x, n) {
 }
 
 /**
- * 64-bit addition emulated with 32 bit numbers.
- * Low overflow spills into high result
- * @param {number} a0 - left low number
- * @param {number} a1 - left high number
- * @param {number} b0 - right low number
- * @param {number} b1 -right high number
- * @returns {[number, number]} - low and high result
+ * Converts an unbounded integer into a list of uint8 numbers (big endian)
+ * Used by the CBOR encoding of data structures, and by Ed25519
+ * @param {bigint} x
+ * @returns {number[]}
  */
-function iadd64(a0, a1, b0, b1) {
-	let c0 = a0 + b0;
-	let c1 = a1 + b1;
+function bigIntToBytes(x) {
+	if (x == 0n) {
+		return [0];
+	} else {
+		/**
+		 * @type {number[]}
+		 */
+		let res = [];
 
-	if (c0 >= 0x100000000) {
-		c1 += 1;
+		while (x > 0n) {
+			res.unshift(Number(x%256n));
+
+			x = x/256n;
+		}
+
+		return res;
 	}
-
-	return [imod32(c0), imod32(c1)];
 }
 
 /**
- * Rotate uint64 integer right.
- * The uint64 integer is emulated using two uint32 numbers.
- * @param {number} x0 
- * @param {number} x1 
- * @param {number} n - between 0 and 32
- * @returns {[number, number]} - low and high result
+ * Converts a list of uint8 numbers into an unbounded int (big endian)
+ * Used by the CBOR decoding of data structures.
+ * @param {number[]} b
+ * @return {bigint}
  */
-function irotr64(x0, x1, n) {
-	if (n == 32) {
-		return [x1, x0];
-	} else if (n > 32) {
-		return irotr64(x1, x0, n - 32);
-	} else {
-		return [imod32((x0 >>> n) | (x1 << (32 - n))), imod32((x1 >>> n) | (x0 << (32 - n)))];
+function bytesToBigInt(b) {
+	let s = 1n;
+
+	let total = 0n;
+	while (b.length > 0) {
+		total += BigInt(assertDefined(b.pop()))*s;
+
+		s *= 256n;
 	}
+
+	return total;
 }
 
 /**
@@ -2408,6 +2060,289 @@ class Crypto {
 
 		return Crypto.blake2b(bytes, 28);
 	}
+
+	/**
+	 * Crypto.Ed25519 exports the following functions:
+	 *  * Crypto.Ed25519.derivePublicKey(privateKey)
+	 *  * Crypto.Ed25519.sign(message, privateKey)
+	 *  * Crypto.Ed25519.verify(message, signature, publicKey)
+	 * 
+	 * Ported from: https://ed25519.cr.yp.to/python/ed25519.py
+	 */
+	static get Ed25519() {
+		const q = ipow2(255n) - 19n;
+		const CURVE_ORDER = ipow2(252n) + 27742317777372353535851937790883648493n;
+
+		/**
+		 * 
+		 * @param {bigint} b 
+		 * @param {bigint} e 
+		 * @param {bigint} m 
+		 * @returns {bigint}
+		 */
+		function expMod(b, e, m) {
+			if (e == 0n) {
+				return 1n;
+			} else {
+				let t = expMod(b, e/2n, m);
+				t = (t*t) % m;
+
+				if ((e % 2n) != 0n) {
+					t = posMod(t*b, m)
+				}
+
+				return t;
+			}
+		}
+
+		/**
+		 * @param {bigint} x 
+		 * @returns {bigint}
+		 */
+		function invert(x) {
+			return expMod(x, q-2n, q);
+		}
+
+
+		const d = -121665n * invert(121666n);
+		const I = expMod(2n, (q - 1n)/4n, q);
+
+		/**
+		 * @param {bigint} y 
+		 * @returns {bigint}
+		 */
+		function recoverX(y) {
+			const yy = y*y;
+			const xx = (yy - 1n) * invert(d*yy + 1n);
+			let x = expMod(xx, (q+3n)/8n, q);
+
+			if (((x*x - xx) % q) != 0n) {
+				x = (x*I) % q;
+			}
+
+			if ((x%2n) != 0n) {
+				x = q - x;
+			}
+
+			return x;
+		}
+
+		const By = 4n*invert(5n);
+		const Bx = recoverX(By);
+
+		/**
+		 * @type {[bigint, bigint]}
+		 */
+		const B = [Bx%q, By%q];
+
+		/**
+		 * 
+		 * @param {[bigint, bigint]} P 
+		 * @param {[bigint, bigint]} Q 
+		 * @returns {[bigint, bigint]}
+		 */
+		function edwards(P, Q) {
+			const x1 = P[0];
+			const y1 = P[1];
+			const x2 = Q[0];
+			const y2 = Q[1];
+			const dxxyy = d*x1*x2*y1*y2;
+			const x3 = (x1*y2+x2*y1) * invert(1n+dxxyy);
+			const y3 = (y1*y2+x1*x2) * invert(1n-dxxyy);
+			return [posMod(x3, q), posMod(y3, q)];
+		}
+
+		/**
+		 * Note: this is probably the bottleneck of this Ed25519 implementation
+		 * @param {[bigint, bigint]} P 
+		 * @param {bigint} e 
+		 * @returns {[bigint, bigint]}
+		 */
+		function scalarMul(P, e) {
+			if (e == 0n) {
+				return [0n, 1n];
+			} else {
+				let Q = scalarMul(P, e/2n);
+				Q = edwards(Q, Q);
+				if ((e % 2n) != 0n) {
+					Q = edwards(Q, P);
+				}
+
+				return Q;
+			}
+		}
+
+		/**
+		 * @param {bigint} y 
+		 * @returns {number[]}
+		 */
+		function encodeInt(y) {
+			let bytes = bigIntToBytes(y).reverse();
+			
+			while (bytes.length < 32) {
+				bytes.push(0);
+			}
+
+			return bytes;
+		}
+
+		/**
+		 * @param {number[]} s 
+		 * @returns {bigint}
+		 */
+		 function decodeInt(s) {
+			return bytesToBigInt(s.reverse());
+		}
+
+		/**
+		 * @param {[bigint, bigint]} point
+		 * @returns {number[]}
+		 */
+		function encodePoint(point) {
+			const [x, y] = point;
+
+			let bytes = encodeInt(y);
+
+			// last bit is determined by x
+
+			bytes[31] = (bytes[31] & 0b011111111) | (Number(x & 1n) * 0b10000000);
+
+			return bytes;
+		}
+
+		/**
+		 * @param {number[]} bytes 
+		 * @param {number} i - bit index
+		 * @returns {number} - 0 or 1
+		 */
+		 function getBit(bytes, i) {
+			return (bytes[Math.floor(i/8)] >> i%8) & 1
+		}
+
+		/**
+		 * @param {number[]} s 
+		 */
+		 function decodePoint(s) {
+			assert(s.length == 32);
+
+			let bytes = s.slice();
+			bytes[31] = bytes[31] & 0b01111111;
+
+			const y = decodeInt(bytes);
+
+			let x = recoverX(y);
+			if (Number(x & 1n) != getBit(s, 255)) {
+				x = q - x;
+			}
+
+			/**
+			 * @type {[bigint, bigint]}
+			 */
+			const point = [x, y];
+
+			if (!isOnCurve(point)) {
+				throw new Error("point isn't on curve");
+			}
+
+			return point;
+		}
+
+
+		/**
+		 * @param {number[]} h 
+		 * @returns {bigint}
+		 */
+		function calca(h) {
+			let a = 28948022309329048855892746252171976963317496166410141009864396001978282409984n; // ipow2(253)
+
+			let bytes = h.slice(0, 32);
+			bytes[0] = bytes[0] & 0b11111000;
+			bytes[31] = bytes[31] & 0b00111111;
+
+			return a + bytesToBigInt(bytes.reverse());
+		}
+
+		/**
+		 * @param {number[]} m 
+		 * @returns {bigint}
+		 */
+		function hint(m) {
+			const h = Crypto.sha2_512(m);
+
+			return decodeInt(h);
+		}
+
+		/**
+		 * @param {[bigint, bigint]} point
+		 * @returns {boolean}
+		 */
+		function isOnCurve(point) {
+			const x = point[0];
+			const y = point[1];
+			const xx = x*x;
+			const yy = y*y;
+			return (-xx + yy - 1n - d*xx*yy) % q == 0n;
+		}
+
+		return {
+			/**
+			 * @param {number[]} privateKey 
+			 * @returns {number[]}
+			 */
+			derivePublicKey: function(privateKey) {
+				const privateKeyHash = Crypto.sha2_512(privateKey);
+				const a = calca(privateKeyHash);
+				const A = scalarMul(B, a);
+
+				return encodePoint(A);
+			},
+
+			/**
+			 * @param {number[]} message 
+			 * @param {number[]} privateKey 
+			 * @returns {number[]}
+			 */
+			sign: function(message, privateKey) {
+				const privateKeyHash = Crypto.sha2_512(privateKey);
+				const a = calca(privateKeyHash);
+
+				// for convenience calculate publicKey here:
+				const publicKey = encodePoint(scalarMul(B, a));
+
+				const r = hint(privateKeyHash.slice(32, 64).concat(message));
+				const R = scalarMul(B, r);
+				const S = (r + hint(encodePoint(R).concat(publicKey).concat(message))*a) % CURVE_ORDER;
+
+				return encodePoint(R).concat(encodeInt(S));
+			},
+
+			/**
+			 * @param {number[]} signature 
+			 * @param {number[]} message 
+			 * @param {number[]} publicKey 
+			 * @returns {boolean}
+			 */
+			verify: function(signature, message, publicKey) {
+				if (signature.length != 64) {
+					throw new Error(`unexpected signature length ${signature.length}`);
+				}
+	
+				if (publicKey.length != 32) {
+					throw new Error(`unexpected publickey length ${publicKey.length}`);
+				}
+
+				const R = decodePoint(signature.slice(0, 32));
+				const A = decodePoint(publicKey);
+				const S = decodeInt(signature.slice(32, 64));
+				const h = hint(signature.slice(0, 32).concat(publicKey).concat(message));
+
+				const left = scalarMul(B, S);
+				const right = edwards(R, scalarMul(A, h));
+
+				return (left[0] == right[0]) && (left[1] == right[1]);
+			}
+		}
+	}
 }
 
 /**
@@ -2855,6 +2790,374 @@ class Site {
 		return this.#src.posToColAndLine(this.#pos);
 	}
 }
+
+
+//////////////////////////////////
+// Section 3: Plutus-Core builtins
+//////////////////////////////////
+
+class CostModel {
+	constructor() {
+	}
+
+	/**
+	 * @param {number[]} args 
+	 * @returns {number}
+	 */
+	calc(args) {
+		throw new Error("not yet implemented");
+	}
+}
+
+class ConstCost extends CostModel {
+	#constant;
+
+	/**
+	 * @param {number} constant
+	 */
+	constructor(constant) {
+		super();
+		this.#constant = constant;
+	}
+
+	/**
+	 * @param {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		return this.#constant;
+	}
+}
+
+class LinearCost extends CostModel {
+	#a;
+	#b;
+
+	/**
+	 * a + b*SizeFn(x, y)
+	 * @param {number} a - intercept
+	 * @param {number} b - slope
+	 */
+	constructor(a, b) {
+		super();
+		this.#a = a;
+		this.#b = b;
+	}
+
+
+	/**
+	 * @param  {number} size
+	 * @returns {number}
+	 */
+	calcInternal(size) {
+		return this.#a + this.#b*size;
+	}
+}
+
+class ArgSizeCost extends LinearCost {
+	#i;
+
+	/**
+	 * @param {number} a
+	 * @param {number} b
+	 * @param {number} i - index of the arg
+	 */
+    constructor(a, b, i) {
+	   	super(a, b);
+		this.#i = i;
+    }
+
+	/**
+	 * @param {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		assert(this.#i < args.length && this.#i >= 0);
+
+		return this.calcInternal(args[this.#i]);
+	}
+}
+
+class MinArgSizeCost extends LinearCost {
+	/**
+	 * a + b*min(args)
+	 * @param {number} a - intercept
+	 * @param {number} b - slope
+	 */
+	constructor(a, b) {
+		super(a, b);
+	}
+
+	/**
+	 * @param  {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		let min = args[0];
+
+		for (let arg of args) {
+			min = Math.min(arg, min);
+		}
+
+		return this.calcInternal(min);
+	}
+}
+
+class MaxArgSizeCost extends LinearCost {
+	/**
+	 * a + b*max(args)
+	 * @param {number} a - intercept
+	 * @param {number} b - slope
+	 */
+	constructor(a, b) {
+		super(a, b);
+	}
+
+	/**
+	 * @param  {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		let max = args[0];
+
+		for (let arg of args) {
+			max = Math.max(arg, max);
+		}
+
+		return this.calcInternal(max);
+	}
+}
+
+class SumArgSizesCost extends LinearCost {
+	/**
+	 * a + b*sum(args)
+	 * @param {number} a - intercept
+	 * @param {number} b - slope
+	 */
+	 constructor(a, b) {
+		super(a, b);
+	}
+
+	/**
+	 * @param  {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		let sum = 0;
+
+		for (let arg of args) {
+			sum += arg;
+		}
+
+		return this.calcInternal(sum);
+	}
+}
+
+class ArgSizeDiffCost extends LinearCost {
+	#min;
+
+	/**
+	 * a + b*max(x-y, min)
+	 * @param {number} a - intercept
+	 * @param {number} b - slope
+	 * @param {number} min
+	 */
+	 constructor(a, b, min) {
+		super(a, b);
+		this.#min = min
+	}
+
+	/**
+	 * @param {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		assert(args.length == 2);
+		let [x, y] = args;
+
+		return this.calcInternal(Math.max(x - y, this.#min));
+	}
+}
+
+class ArgSizeProdCost extends LinearCost {
+	#constant;
+
+	/**
+	 * (x > y) ? constant : a + b*x*y
+	 * @param {number} a
+	 * @param {number} b
+	 * @param {number} constant
+ 	 */
+	constructor(a, b, constant) {
+		super(a, b);
+		this.#constant = constant;
+	}
+
+	/**
+	 * @param {number[]} args
+	 * @returns {number}
+	 */
+	calc(args) {
+		assert(args.length == 2);
+		
+		let [x, y] = args;
+
+		if (x > y) {
+			return this.#constant;
+		} else {
+			return this.calcInternal(x*y);
+		}
+	}
+}
+
+class ArgSizeDiagCost extends LinearCost {
+	#constant;
+
+	/**
+	 * @param {number} a
+	 * @param {number} b
+	 * @param {number} constant
+	 */
+	constructor(a, b, constant) {
+		super(a, b);
+		this.#constant = constant;
+	}
+
+	/**
+	 * @param {number[]} args 
+	 * @returns {number}
+	 */
+	calc(args) {
+		assert(args.length == 2);
+
+		if (args[0] == args[1]) {
+			return this.calcInternal(args[0]);
+		} else {
+			return this.#constant;
+		}
+	}
+}
+
+class PlutusCoreBuiltinInfo {
+	#name;
+	#forceCount;
+	#memCostModel;
+	#cpuCostModel;
+
+	/**
+	 * @param {string} name 
+	 * @param {number} forceCount - number of type parameters of a plutus-core builtin function (0, 1 or 2)
+	 * @param {CostModel} memCostModel 
+	 * @param {CostModel} cpuCostModel 
+	 */
+	constructor(name, forceCount, memCostModel, cpuCostModel) {
+		this.#name = name;
+		this.#forceCount = forceCount;
+		this.#memCostModel = memCostModel;
+		this.#cpuCostModel = cpuCostModel;
+	}
+
+	get name() {
+		return this.#name;
+	}
+
+	get forceCount() {
+		return this.#forceCount;
+	}
+
+	/**
+	 * @param {number[]} argSizes
+	 * @returns {Cost}
+	 */
+	calcCost(argSizes) {
+		if (this.#memCostModel !== null && this.#cpuCostModel !== null) {
+			let memCost = this.#memCostModel.calc(argSizes);
+			let cpuCost = this.#cpuCostModel.calc(argSizes);
+	
+			return {mem: memCost, cpu: cpuCost};
+		} else {
+			throw new Error(`cost model not yet implemented for builtin ${this.#name}`);
+		}
+	}
+}
+
+/** @type {PlutusCoreBuiltinInfo[]} */
+const PLUTUS_CORE_BUILTINS = (
+	/**
+	 * @returns {PlutusCoreBuiltinInfo[]}
+	 */
+	function () {
+		/**
+		 * Constructs a builtinInfo object
+		 * @param {string} name 
+		 * @param {number} forceCount 
+		 * @param {CostModel} memCostModel
+		 * @param {CostModel} cpuCostModel
+		 * @returns {PlutusCoreBuiltinInfo}
+		 */
+		function builtinInfo(name, forceCount, memCostModel, cpuCostModel) {
+			// builtins might need be wrapped in `force` a number of times if they are not fully typed
+			return new PlutusCoreBuiltinInfo(name, forceCount, memCostModel, cpuCostModel);
+		}
+
+		return [
+			builtinInfo("addInteger",               0, new MaxArgSizeCost(1, 1), new MaxArgSizeCost(205665, 812)), // 0
+			builtinInfo("subtractInteger",          0, new MaxArgSizeCost(1, 1), new MaxArgSizeCost(205665, 812)),
+			builtinInfo("multiplyInteger",          0, new SumArgSizesCost(0, 1), new SumArgSizesCost(69522, 11687)),
+			builtinInfo("divideInteger",            0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)),
+			builtinInfo("quotientInteger",          0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)), 
+			builtinInfo("remainderInteger",         0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)),
+			builtinInfo("modInteger",               0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)),
+			builtinInfo("equalsInteger",            0, new ConstCost(1), new MinArgSizeCost(208512, 421)),
+			builtinInfo("lessThanInteger",          0, new ConstCost(1), new MinArgSizeCost(208896, 511)),
+			builtinInfo("lessThanEqualsInteger",    0, new ConstCost(1), new MinArgSizeCost(204924, 473)),
+			builtinInfo("appendByteString",         0, new SumArgSizesCost(0, 1), new SumArgSizesCost(1000, 571)), // 10
+			builtinInfo("consByteString",           0, new SumArgSizesCost(0, 1), new ArgSizeCost(221973, 511, 1)),
+			builtinInfo("sliceByteString",          0, new ArgSizeCost(4, 0, 2), new ArgSizeCost(265318, 0, 2)),
+			builtinInfo("lengthOfByteString",       0, new ConstCost(10), new ConstCost(1000)),
+			builtinInfo("indexByteString",          0, new ConstCost(4), new ConstCost(57667)),
+			builtinInfo("equalsByteString",         0, new ConstCost(1), new ArgSizeDiagCost(216773, 62, 245000)),
+			builtinInfo("lessThanByteString",       0, new ConstCost(1), new MinArgSizeCost(197145, 156)),
+			builtinInfo("lessThanEqualsByteString", 0, new ConstCost(1), new MinArgSizeCost(197145, 156)),
+			builtinInfo("sha2_256",                 0, new ConstCost(4), new ArgSizeCost(806990, 30482, 0)),
+			builtinInfo("sha3_256",                 0, new ConstCost(4), new ArgSizeCost(1927926, 82523, 0)),
+			builtinInfo("blake2b_256",              0, new ConstCost(4), new ArgSizeCost(117366, 10475, 0)), // 20
+			builtinInfo("verifyEd25519Signature",   0, new ConstCost(10), new ArgSizeCost(9462713, 1021, 2)),
+			builtinInfo("appendString",             0, new SumArgSizesCost(4, 1), new SumArgSizesCost(1000, 24177)),
+			builtinInfo("equalsString",             0, new ConstCost(1), new ArgSizeDiagCost(1000, 52998, 187000)),
+			builtinInfo("encodeUtf8",               0, new ArgSizeCost(4, 2, 0), new ArgSizeCost(1000, 28662, 0)),
+			builtinInfo("decodeUtf8",               0, new ArgSizeCost(4, 2, 0), new ArgSizeCost(497525, 14068, 0)),
+			builtinInfo("ifThenElse",               1, new ConstCost(1), new ConstCost(80556)),
+			builtinInfo("chooseUnit",               1, new ConstCost(4), new ConstCost(46417)),
+			builtinInfo("trace",                    1, new ConstCost(32), new ConstCost(212342)),
+			builtinInfo("fstPair",                  2, new ConstCost(32), new ConstCost(80436)),
+			builtinInfo("sndPair",                  2, new ConstCost(32), new ConstCost(85931)), // 30
+			builtinInfo("chooseList",               1, new ConstCost(32), new ConstCost(175354)),
+			builtinInfo("mkCons",                   1, new ConstCost(32), new ConstCost(65493)),
+			builtinInfo("headList",                 1, new ConstCost(32), new ConstCost(43249)),
+			builtinInfo("tailList",                 1, new ConstCost(32), new ConstCost(41182)),
+			builtinInfo("nullList",                 1, new ConstCost(32), new ConstCost(60091)),
+			builtinInfo("chooseData",               0, new ConstCost(32), new ConstCost(19537)),
+			builtinInfo("constrData",               0, new ConstCost(32), new ConstCost(89141)),
+			builtinInfo("mapData",                  0, new ConstCost(32), new ConstCost(64832)),
+			builtinInfo("listData",                 0, new ConstCost(32), new ConstCost(52467)),
+			builtinInfo("iData",                    0, new ConstCost(32), new ConstCost(1000)), // 40
+			builtinInfo("bData",                    0, new ConstCost(32), new ConstCost(1000)),
+			builtinInfo("unConstrData",             0, new ConstCost(32), new ConstCost(32696)),
+			builtinInfo("unMapData",                0, new ConstCost(32), new ConstCost(38314)),
+			builtinInfo("unListData",               0, new ConstCost(32), new ConstCost(32247)),
+			builtinInfo("unIData",                  0, new ConstCost(32), new ConstCost(43357)),
+			builtinInfo("unBData",                  0, new ConstCost(32), new ConstCost(31220)),
+			builtinInfo("equalsData",               0, new ConstCost(1), new MinArgSizeCost(1060367, 12586)),
+			builtinInfo("mkPairData",               0, new ConstCost(32), new ConstCost(76511)),
+			builtinInfo("mkNilData",                0, new ConstCost(32), new ConstCost(22558)),
+			builtinInfo("mkNilPairData",            0, new ConstCost(32), new ConstCost(16563)), // 50
+			builtinInfo("serialiseData",            0, new ArgSizeCost(0, 2, 0), new ArgSizeCost(1159724, 392670, 0)),
+			builtinInfo("verifyEcdsaSecp256k1Signature",   0, new ConstCost(10), new ConstCost(35190005)), // these parameters are from aiken, but the cardano-cli parameter file differ?
+			builtinInfo("verifySchnorrSecp256k1Signature", 0, new ConstCost(10), new ArgSizeCost(39121781, 32260, 1)), // these parameters are from, but the cardano-cli parameter file differs?
+		];
+	}
+)();
 
 
 /////////////////////////////////////
@@ -5459,49 +5762,6 @@ class CBORData {
 		throw new Error("not yet implemented");
 	}
 
-	/**
-	 * Converts an unbounded integer into a list of uint8 numbers.
-	 * Used by the CBOR encoding of data structures.
-	 * @param {bigint} n
-	 * @returns {number[]}
-	 */
-	static itos(n) {
-		if (n == 0n) {
-			return [0];
-		} else {
-			/**
-			 * @type {number[]}
-			 */
-			let res = [];
-
-			while (n > 0n) {
-				res.unshift(Number(n%256n));
-
-				n = n/256n;
-			}
-
-			return res;
-		}
-	}
-
-	/**
-	 * Converts a list of uint8 numbers into an unbounded int.
-	 * Used by the CBOR decoding of data structures.
-	 * @param {number[]} b
-	 * @return {bigint}
-	 */
-	static stoi(b) {
-		let s = 1n;
-
-		let total = 0n;
-		while (b.length > 0) {
-			total += BigInt(assertDefined(b.pop()))*s;
-
-			s *= 256n;
-		}
-
-		return total;
-	}
 
 	/**
 	 * @param {number} m - major type
@@ -5516,14 +5776,14 @@ class CBORData {
 		} else if (n >= 256n && n <= 256n*256n - 1n) {
 			return [32*m + 25, Number((n/256n)%256n), Number(n%256n)];
 		} else if (n >= 256n*256n && n <= 256n*256n*256n*256n - 1n) {
-			let e4 = CBORData.itos(n);
+			let e4 = bigIntToBytes(n);
 
 			while (e4.length < 4) {
 				e4.unshift(0);
 			}
 			return [32*m + 26].concat(e4);
 		} else if (n >= 256n*256n*256n*256n && n <= 256n*256n*256n*256n*256n*256n*256n*256n - 1n) {
-			let e8 = CBORData.itos(n);
+			let e8 = bigIntToBytes(n);
 
 			while(e8.length < 8) {
 				e8.unshift(0);
@@ -5548,13 +5808,13 @@ class CBORData {
 		if (first%32 <= 23) {
 			return [idiv(first, 32), BigInt(first%32)];
 		} else if (first%32 == 24) {
-			return [idiv(first, 32), CBORData.stoi(bytes.splice(0, 1))];
+			return [idiv(first, 32), bytesToBigInt(bytes.splice(0, 1))];
 		} else if (first%32 == 25) {
-			return [idiv(first, 32), CBORData.stoi(bytes.splice(0, 2))];
+			return [idiv(first, 32), bytesToBigInt(bytes.splice(0, 2))];
 		} else if (first%32 == 26) {
-			return [idiv(first, 32), CBORData.stoi(bytes.splice(0, 4))];
+			return [idiv(first, 32), bytesToBigInt(bytes.splice(0, 4))];
 		} else if (first%32 == 27) {
-			return [idiv(first, 32), CBORData.stoi(bytes.splice(0, 8))];
+			return [idiv(first, 32), bytesToBigInt(bytes.splice(0, 8))];
 		} else {
 			throw new Error("bad header");
 		}
@@ -5720,11 +5980,11 @@ class CBORData {
 		if (n >= 0n && n <= (2n << 63n) - 1n) {
 			return CBORData.encodeHead(0, n);
 		} else if (n >= (2n << 63n)) {
-			return CBORData.encodeHead(6, 2n).concat(CBORData.encodeBytes(CBORData.itos(n), false));
+			return CBORData.encodeHead(6, 2n).concat(CBORData.encodeBytes(bigIntToBytes(n), false));
 		} else if (n <= -1n && n >= -(2n << 63n)) {
 			return CBORData.encodeHead(1, -n - 1n);
 		} else {
-			return CBORData.encodeHead(6, 3n).concat(CBORData.encodeBytes(CBORData.itos(-n - 1n), false));
+			return CBORData.encodeHead(6, 3n).concat(CBORData.encodeBytes(bigIntToBytes(-n - 1n), false));
 		}
 	}
 
@@ -5743,11 +6003,11 @@ class CBORData {
 			if (n == 2n) {
 				let b = CBORData.decodeBytes(bytes);
 
-				return CBORData.stoi(b);
+				return bytesToBigInt(b);
 			} else if (n == 3n) {
 				let b = CBORData.decodeBytes(bytes);
 
-				return -CBORData.stoi(b) - 1n;
+				return -bytesToBigInt(b) - 1n;
 			} else {
 				throw new Error("unexpected tag");
 			}
