@@ -1198,19 +1198,45 @@ class UInt64 {
 	}
 
 	/**
+	 * @returns {UInt64}
+	 */
+	static zero() {
+		return new UInt64(0, 0);
+	}
+
+	/**
 	 * A uint32 part is assumed to be stored as little endian, but a pair of uint32s that form a uin64 are stored assumed to be in big endian order
 	 * @param {number[]} bytes - 8 uint8 numbers
+	 * @returns {UInt64}
 	 */
-	static fromBytes(bytes) {
-		let low = (bytes[0] << 0) | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24);
+	static fromBytes(bytes, littleEndian = true) {
+		/** @type {number} */
+		let low;
 
-		let high = (bytes[4] << 0) | (bytes[5] << 8) | (bytes[6] << 16) | (bytes[7] << 24);
+		/** @type {number} */
+		let high;
+
+		if (littleEndian) {
+			low  = (bytes[0] << 0) | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24);
+			high = (bytes[4] << 0) | (bytes[5] << 8) | (bytes[6] << 16) | (bytes[7] << 24);
+ 		} else {
+			high = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | (bytes[3] << 0);
+			low  = (bytes[4] << 24) | (bytes[5] << 16) | (bytes[6] << 8) | (bytes[7] << 0);
+		}
 
 		return new UInt64(imod32(high), imod32(low));
 	}
 
-	static zero() {
-		return new UInt64(0, 0);
+	/**
+	 * 
+	 * @param {string} str 
+	 * @returns {UInt64}
+	 */
+	static fromString(str) {
+		let high = parseInt(str.slice(0,  8), 16);
+		let low  = parseInt(str.slice(8, 16), 16);
+
+		return new UInt64(high, low);
 	}
 
 	get high() {
@@ -1222,11 +1248,12 @@ class UInt64 {
 	}
 
 	/**
-	 * Returns [low[0], low[1], low[2], low[3], high[0], high[1], high[2], high[3]]
+	 * Returns [low[0], low[1], low[2], low[3], high[0], high[1], high[2], high[3]] if littleEndian==true
+	 * @param {boolean} littleEndian
 	 * @returns {number[]}
 	 */
-	toBytes() {
-		return [
+	toBytes(littleEndian = true) {
+		let res = [
 			(0x000000ff & this.#low),
 			(0x0000ff00 & this.#low) >>> 8,
 			(0x00ff0000 & this.#low) >>> 16,
@@ -1236,6 +1263,20 @@ class UInt64 {
 			(0x00ff0000 & this.#high) >>> 16,
 			(0xff000000 & this.#high) >>> 24,
 		];
+
+		if (!littleEndian) {
+			res.reverse(); 
+		} 
+		
+		return res;
+	}
+
+	/**
+	 * @param {UInt64} other 
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return (this.#high == other.#high) && (this.#low == other.#low);
 	}
 
 	/**
@@ -1293,7 +1334,17 @@ class UInt64 {
 		}
 	}
 
-	
+	/**
+	 * @param {number} n
+	 * @returns {UInt64}
+	 */
+	shiftr(n) {
+		if (n >= 32) {
+			return new UInt64(0, this.#high >>> n - 32);
+		} else {
+			return new UInt64(this.#high >>> n, (this.#low >>> n) | (this.#high << (32 - n)));
+		}
+	}	
 }
 
 /**
@@ -1680,6 +1731,22 @@ class Crypto {
 			0x5be0cd19,
 		];
 	
+		/**
+		 * @param {number} x
+		 * @returns {number}
+		 */
+		 function sigma0(x) {
+			return irotr(x, 7) ^ irotr(x, 18) ^ (x >>> 3);
+		}
+
+		/**
+		 * @param {number} x
+		 * @returns {number}
+		 */
+		function sigma1(x) {
+			return irotr(x, 17) ^ irotr(x, 19) ^ (x >>> 10);
+		}
+
 		bytes = pad(bytes);
 
 		// break message in successive 64 byte chunks
@@ -1698,9 +1765,7 @@ class Crypto {
 
 			// extends the first 16 positions into the remaining 48 positions
 			for (let i = 16; i < 64; i++) {
-				let s0 = irotr(w[i-15],  7) ^ irotr(w[i-15], 18) ^ (w[i-15] >>> 3);
-				let s1 = irotr(w[i- 2], 17) ^ irotr(w[i- 2], 19) ^ (w[i- 2] >>> 10);
-				w[i] = imod32(w[i-16] + s0 + w[i-7] + s1);
+				w[i] = imod32(w[i-16] + sigma0(w[i-15]) + w[i-7] + sigma1(w[i-2]));
 			}
 
 			// intialize working variables to current hash value
@@ -1760,6 +1825,10 @@ class Crypto {
 	/**
 	 * Calculates sha2-512 (64bytes) hash of a list of uint8 numbers.
 	 * Result is also a list of uint8 number.
+	 * @example 
+	 * bytesToHex(Crypto.sha2_512([0x61, 0x62, 0x63])) => "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
+	 * @example 
+	 * bytesToHex(Crypto.sha2_512([])) => "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
 	 * @param {number[]} bytes - list of uint8 numbers
 	 * @returns {number[]} - list of uint8 numbers
 	 */
@@ -1801,70 +1870,98 @@ class Crypto {
 		}
 
 		/**
-		 * @type {number[]} - 160 uint32 numbers
+		 * @type {UInt64[]} - 80 uint64 numbers
 		 */
-		 const k = [
-			0x428a2f98, 0xd728ae22, 0x71374491, 0x23ef65cd, 0xb5c0fbcf, 0xec4d3b2f, 0xe9b5dba5, 0x8189dbbc,
-			0x3956c25b, 0xf348b538, 0x59f111f1, 0xb605d019, 0x923f82a4, 0xaf194f9b, 0xab1c5ed5, 0xda6d8118,
-			0xd807aa98, 0xa3030242, 0x12835b01, 0x45706fbe, 0x4ee4b28c, 0x243185be, 0x550c7dc3, 0xd5ffb4e2,
-			0x72be5d74, 0xf27b896f, 0x80deb1fe, 0x3b1696b1, 0x9bdc06a7, 0x25c71235, 0xc19bf174, 0xcf692694,
-			0xe49b69c1, 0x9ef14ad2, 0xefbe4786, 0x384f25e3, 0x0fc19dc6, 0x8b8cd5b5, 0x240ca1cc, 0x77ac9c65,
-			0x2de92c6f, 0x592b0275, 0x4a7484aa, 0x6ea6e483, 0x5cb0a9dc, 0xbd41fbd4, 0x76f988da, 0x831153b5,
-			0x983e5152, 0xee66dfab, 0xa831c66d, 0x2db43210, 0xb00327c8, 0x98fb213f, 0xbf597fc7, 0xbeef0ee4,
-			0xc6e00bf3, 0x3da88fc2, 0xd5a79147, 0x930aa725, 0x06ca6351, 0xe003826f, 0x14292967, 0x0a0e6e70,
-			0x27b70a85, 0x46d22ffc, 0x2e1b2138, 0x5c26c926, 0x4d2c6dfc, 0x5ac42aed, 0x53380d13, 0x9d95b3df,
-			0x650a7354, 0x8baf63de, 0x766a0abb, 0x3c77b2a8, 0x81c2c92e, 0x47edaee6, 0x92722c85, 0x1482353b,
-			0xa2bfe8a1, 0x4cf10364, 0xa81a664b, 0xbc423001, 0xc24b8b70, 0xd0f89791, 0xc76c51a3, 0x0654be30,
-			0xd192e819, 0xd6ef5218, 0xd6990624, 0x5565a910, 0xf40e3585, 0x5771202a, 0x106aa070, 0x32bbd1b8,
-			0x19a4c116, 0xb8d2d0c8, 0x1e376c08, 0x5141ab53, 0x2748774c, 0xdf8eeb99, 0x34b0bcb5, 0xe19b48a8,
-			0x391c0cb3, 0xc5c95a63, 0x4ed8aa4a, 0xe3418acb, 0x5b9cca4f, 0x7763e373, 0x682e6ff3, 0xd6b2b8a3,
-			0x748f82ee, 0x5defb2fc, 0x78a5636f, 0x43172f60, 0x84c87814, 0xa1f0ab72, 0x8cc70208, 0x1a6439ec,
-			0x90befffa, 0x23631e28, 0xa4506ceb, 0xde82bde9, 0xbef9a3f7, 0xb2c67915, 0xc67178f2, 0xe372532b,
-			0xca273ece, 0xea26619c, 0xd186b8c7, 0x21c0c207, 0xeada7dd6, 0xcde0eb1e, 0xf57d4f7f, 0xee6ed178,
-            0x06f067aa, 0x72176fba, 0x0a637dc5, 0xa2c898a6, 0x113f9804, 0xbef90dae, 0x1b710b35, 0x131c471b,
-            0x28db77f5, 0x23047d84, 0x32caab7b, 0x40c72493, 0x3c9ebe0a, 0x15c9bebc, 0x431d67c4, 0x9c100d4c,
-            0x4cc5d4be, 0xcb3e42b6, 0x597f299c, 0xfc657e2a, 0x5fcb6fab, 0x3ad6faec, 0x6c44198c, 0x4a475817,
+		const k = [
+			new UInt64(0x428a2f98, 0xd728ae22), new UInt64(0x71374491, 0x23ef65cd), 
+			new UInt64(0xb5c0fbcf, 0xec4d3b2f), new UInt64(0xe9b5dba5, 0x8189dbbc),
+			new UInt64(0x3956c25b, 0xf348b538), new UInt64(0x59f111f1, 0xb605d019), 
+			new UInt64(0x923f82a4, 0xaf194f9b), new UInt64(0xab1c5ed5, 0xda6d8118),
+			new UInt64(0xd807aa98, 0xa3030242), new UInt64(0x12835b01, 0x45706fbe), 
+			new UInt64(0x243185be, 0x4ee4b28c), new UInt64(0x550c7dc3, 0xd5ffb4e2),
+			new UInt64(0x72be5d74, 0xf27b896f), new UInt64(0x80deb1fe, 0x3b1696b1), 
+			new UInt64(0x9bdc06a7, 0x25c71235), new UInt64(0xc19bf174, 0xcf692694),
+			new UInt64(0xe49b69c1, 0x9ef14ad2), new UInt64(0xefbe4786, 0x384f25e3), 
+			new UInt64(0x0fc19dc6, 0x8b8cd5b5), new UInt64(0x240ca1cc, 0x77ac9c65),
+			new UInt64(0x2de92c6f, 0x592b0275), new UInt64(0x4a7484aa, 0x6ea6e483), 
+			new UInt64(0x5cb0a9dc, 0xbd41fbd4), new UInt64(0x76f988da, 0x831153b5),
+			new UInt64(0x983e5152, 0xee66dfab), new UInt64(0xa831c66d, 0x2db43210), 
+			new UInt64(0xb00327c8, 0x98fb213f), new UInt64(0xbf597fc7, 0xbeef0ee4),
+			new UInt64(0xc6e00bf3, 0x3da88fc2), new UInt64(0xd5a79147, 0x930aa725), 
+			new UInt64(0x06ca6351, 0xe003826f), new UInt64(0x14292967, 0x0a0e6e70),
+			new UInt64(0x27b70a85, 0x46d22ffc), new UInt64(0x2e1b2138, 0x5c26c926), 
+			new UInt64(0x4d2c6dfc, 0x5ac42aed), new UInt64(0x53380d13, 0x9d95b3df),
+			new UInt64(0x650a7354, 0x8baf63de), new UInt64(0x766a0abb, 0x3c77b2a8), 
+			new UInt64(0x81c2c92e, 0x47edaee6), new UInt64(0x92722c85, 0x1482353b),
+			new UInt64(0xa2bfe8a1, 0x4cf10364), new UInt64(0xa81a664b, 0xbc423001), 
+			new UInt64(0xc24b8b70, 0xd0f89791), new UInt64(0xc76c51a3, 0x0654be30),
+			new UInt64(0xd192e819, 0xd6ef5218), new UInt64(0xd6990624, 0x5565a910), 
+			new UInt64(0xf40e3585, 0x5771202a), new UInt64(0x106aa070, 0x32bbd1b8),
+			new UInt64(0x19a4c116, 0xb8d2d0c8), new UInt64(0x1e376c08, 0x5141ab53), 
+			new UInt64(0x2748774c, 0xdf8eeb99), new UInt64(0x34b0bcb5, 0xe19b48a8),
+			new UInt64(0x391c0cb3, 0xc5c95a63), new UInt64(0x4ed8aa4a, 0xe3418acb), 
+			new UInt64(0x5b9cca4f, 0x7763e373), new UInt64(0x682e6ff3, 0xd6b2b8a3),
+			new UInt64(0x748f82ee, 0x5defb2fc), new UInt64(0x78a5636f, 0x43172f60), 
+			new UInt64(0x84c87814, 0xa1f0ab72), new UInt64(0x8cc70208, 0x1a6439ec),
+			new UInt64(0x90befffa, 0x23631e28), new UInt64(0xa4506ceb, 0xde82bde9), 
+			new UInt64(0xbef9a3f7, 0xb2c67915), new UInt64(0xc67178f2, 0xe372532b),
+			new UInt64(0xca273ece, 0xea26619c), new UInt64(0xd186b8c7, 0x21c0c207), 
+			new UInt64(0xeada7dd6, 0xcde0eb1e), new UInt64(0xf57d4f7f, 0xee6ed178),
+            new UInt64(0x06f067aa, 0x72176fba), new UInt64(0x0a637dc5, 0xa2c898a6), 
+			new UInt64(0x113f9804, 0xbef90dae), new UInt64(0x1b710b35, 0x131c471b),
+            new UInt64(0x28db77f5, 0x23047d84), new UInt64(0x32caab7b, 0x40c72493), 
+			new UInt64(0x3c9ebe0a, 0x15c9bebc), new UInt64(0x431d67c4, 0x9c100d4c),
+            new UInt64(0x4cc5d4be, 0xcb3e42b6), new UInt64(0x597f299c, 0xfc657e2a), 
+			new UInt64(0x5fcb6fab, 0x3ad6faec), new UInt64(0x6c44198c, 0x4a475817),
 		];
 
 		/**
 		 * Initial hash (updated during compression phase)
-		 * @type {number[]} - 16 uint32 number
+		 * @type {UInt64[]} - 8 uint64 numbers
 		 */
 		const hash = [
-			0x6a09e667, 0xf3bcc908,
-			0xbb67ae85, 0x84caa73b,
-			0x3c6ef372, 0xfe94f82b,
-			0xa54ff53a, 0x5f1d36f1,
-			0x510e527f, 0xade682d1,
-			0x9b05688c, 0x2b3e6c1f,
-			0x1f83d9ab, 0xfb41bd6b,
-			0x5be0cd19, 0x137e2179,
+			new UInt64(0x6a09e667, 0xf3bcc908),
+			new UInt64(0xbb67ae85, 0x84caa73b),
+			new UInt64(0x3c6ef372, 0xfe94f82b),
+			new UInt64(0xa54ff53a, 0x5f1d36f1),
+			new UInt64(0x510e527f, 0xade682d1),
+			new UInt64(0x9b05688c, 0x2b3e6c1f),
+			new UInt64(0x1f83d9ab, 0xfb41bd6b),
+			new UInt64(0x5be0cd19, 0x137e2179),
 		];
 	
+		/**
+		 * @param {UInt64} x
+		 * @returns {UInt64} 
+		 */
+		function sigma0(x) {
+			return x.rotr(1).xor(x.rotr(8)).xor(x.shiftr(7));
+		}
+
+		/**
+		 * @param {UInt64} x
+		 * @returns {UInt64}
+		 */
+		function sigma1(x) {
+			return x.rotr(19).xor(x.rotr(61)).xor(x.shiftr(6));
+		}
+
 		bytes = pad(bytes);
 
 		// break message in successive 64 byte chunks
 		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += 128) {
 			let chunk = bytes.slice(chunkStart, chunkStart + 128);
 
-			let w = (new Array(160)).fill(0); // array of 32 bit numbers!
+			let w = (new Array(80)).fill(UInt64.zero()); // array of 32 bit numbers!
 
 			// copy chunk into first 16 hi/lo positions of w (i.e. into first 32 uint32 positions)
-			for (let i = 0; i < 32; i++) {
-				w[i] = 
-					(chunk[i*4 + 0] << 24) |
-					(chunk[i*4 + 1] << 16) |
-					(chunk[i*4 + 2] <<  8) |
-					(chunk[i*4 + 3]);
+			for (let i = 0; i < 16; i++) {
+				w[i] = UInt64.fromBytes(chunk.slice(i*8, i*8 + 8), false);
 			}
 
 			// extends the first 16 positions into the remaining 80 positions
 			for (let i = 16; i < 80; i++) {
-				let [s0l, s0h] = irotr64(w[i-15],  7) ^ irotr(w[i-15], 18) ^ (w[i-15] >>> 3);
-
-				let s1 = irotr(w[i- 2], 17) ^ irotr(w[i- 2], 19) ^ (w[i- 2] >>> 10);
-
-				w[i] = imod32(w[i-16] + s0 + w[i-7] + s1);
+				w[i] = sigma1(w[i-2]).add(w[i-7]).add(sigma0(w[i-15])).add(w[i-16]);
 			}
 
 			// intialize working variables to current hash value
@@ -1878,33 +1975,33 @@ class Crypto {
 			let h = hash[7];
 
 			// compression function main loop
-			for (let i = 0; i < 64; i++) {
-				let S1 = irotr(e, 6) ^ irotr(e, 11) ^ irotr(e, 25);
-				let ch = (e & f) ^ ((~e) & g);
-				let temp1 = imod32(h + S1 + ch + k[i] + w[i]);
-				let S0 = irotr(a, 2) ^ irotr(a, 13) ^ irotr(a, 22);
-				let maj = (a & b) ^ (a & c) ^ (b & c);
-				let temp2 = imod32(S0 + maj);
+			for (let i = 0; i < 80; i++) {
+				let S1 = e.rotr(14).xor(e.rotr(18)).xor(e.rotr(41));
+				let ch = e.and(f).xor(e.not().and(g));
+				let temp1 = h.add(S1).add(ch).add(k[i]).add(w[i]);
+				let S0 = a.rotr(28).xor(a.rotr(34)).xor(a.rotr(39));
+				let maj = a.and(b).xor(a.and(c)).xor(b.and(c));
+				let temp2 = S0.add(maj);
 
 				h = g;
 				g = f;
 				f = e;
-				e = imod32(d + temp1);
+				e = d.add(temp1);
 				d = c;
 				c = b;
 				b = a;
-				a = imod32(temp1 + temp2);
+				a = temp1.add(temp2);
 			}
 
 			// update the hash
-			hash[0] = imod32(hash[0] + a);
-			hash[1] = imod32(hash[1] + b);
-			hash[2] = imod32(hash[2] + c);
-			hash[3] = imod32(hash[3] + d);
-			hash[4] = imod32(hash[4] + e);
-			hash[5] = imod32(hash[5] + f);
-			hash[6] = imod32(hash[6] + g);
-			hash[7] = imod32(hash[7] + h);
+			hash[0] = hash[0].add(a);
+			hash[1] = hash[1].add(b);
+			hash[2] = hash[2].add(c);
+			hash[3] = hash[3].add(d);
+			hash[4] = hash[4].add(e);
+			hash[5] = hash[5].add(f);
+			hash[6] = hash[6].add(g);
+			hash[7] = hash[7].add(h);
 		}
 
 		// produce the final digest of uint8 numbers
@@ -1912,10 +2009,7 @@ class Crypto {
 		for (let i = 0; i < 8; i++) {
 			let item = hash[i];
 
-			result.push(imod8(item >> 24));
-			result.push(imod8(item >> 16));
-			result.push(imod8(item >>  8));
-			result.push(imod8(item >>  0));
+			result = result.concat(hash[i].toBytes(false));
 		}
 	
 		return result;
@@ -2030,16 +2124,16 @@ class Crypto {
 		];
 		
 		/**
-		 * @param {Array<UInt64>} s 
+		 * @param {UInt64[]} s 
 		 */
 		function permute(s) {	
 			/**
-			 * @type {Array<UInt64>}
+			 * @type {UInt64[]}
 			 */		
 			let c = new Array(5);
 
 			/**
-			 * @type {Array<UInt64>}
+			 * @type {UInt64[]}
 			 */
 			let b = new Array(25);
 			
@@ -2074,8 +2168,6 @@ class Crypto {
 					}
 				}
 
-				
-
 				for (let i = 0; i < 5; i++) {
 					for (let j = 0; j < 5; j++) {
 						s[i*5+j] = b[i*5+j].xor(b[i*5 + (j+1)%5].not().and(b[i*5 + (j+2)%5]))
@@ -2090,12 +2182,9 @@ class Crypto {
 
 		// initialize the state
 		/**
-		 * @type {Array<UInt64>}
+		 * @type {UInt64[]}
 		 */
-		let state = new Array(WIDTH/8);
-		for(let i = 0; i < state.length; i++) {
-			state[i] = UInt64.zero();
-		}
+		let state = (new Array(WIDTH/8)).fill(UInt64.zero());
 
 		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += RATE) {
 			// extend the chunk to become length WIDTH
@@ -2186,8 +2275,8 @@ class Crypto {
 		}
 
 		/**
-		 * @param {Array<UInt64>} v
-		 * @param {Array<UInt64>} chunk
+		 * @param {UInt64[]} v
+		 * @param {UInt64[]} chunk
 		 * @param {number} a - index
 		 * @param {number} b - index
 		 * @param {number} c - index
@@ -2210,8 +2299,8 @@ class Crypto {
 		}
 
 		/**
-		 * @param {Array<UInt64>} h - state vector
-		 * @param {Array<UInt64>} chunk
+		 * @param {UInt64[]} h - state vector
+		 * @param {UInt64[]} chunk
 		 * @param {number} t - chunkEnd (expected to fit in uint32)
 		 * @param {boolean} last
  		 */
