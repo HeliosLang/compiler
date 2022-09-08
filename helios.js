@@ -85,7 +85,7 @@
 //     3. Plutus-Core builtins              CostModel, ConstCost, LinearCost, ArgSizeCost, 
 //                                          MinArgSizeCost, MaxArgSizeCost, SumArgSizesCost,
 //                                          ArgSizeDiffCost, ArgSizeProdCost, ArgSizeDiagCost,
-//                                          PlutusCoreBuiltinInfo, PLUTUS_CORE_BUILTIN
+//                                          PlutusCoreBuiltinInfo, PLUTUS_CORE_BUILTINS
 //
 //     4. Plutus-Core AST objects           PlutusCoreValue, DEFAULT_PLUTUS_CORE_RTE_CALLBACKS,
 //                                          PlutusCoreRTE, PlutusCoreStack, 
@@ -2067,11 +2067,24 @@ class Crypto {
 	 *  * Crypto.Ed25519.sign(message, privateKey)
 	 *  * Crypto.Ed25519.verify(message, signature, publicKey)
 	 * 
+	 * This is implementation is slow, but should be good enough for client-side usage
+	 * 
 	 * Ported from: https://ed25519.cr.yp.to/python/ed25519.py
 	 */
 	static get Ed25519() {
-		const q = ipow2(255n) - 19n;
-		const CURVE_ORDER = ipow2(252n) + 27742317777372353535851937790883648493n;
+		const Q = 57896044618658097711785492504343953926634992332820282019728792003956564819949n; // ipowi(255n) - 19n
+		const Q38 = 7237005577332262213973186563042994240829374041602535252466099000494570602494n; // (Q + 3n)/8n
+		const CURVE_ORDER = 7237005577332262213973186563042994240857116359379907606001950938285454250989n; // ipow2(252n) + 27742317777372353535851937790883648493n;
+		const D = -4513249062541557337682894930092624173785641285191125241628941591882900924598840740n; // -121665n * invert(121666n);
+		const I = 19681161376707505956807079304988542015446066515923890162744021073123829784752n; // expMod(2n, (Q - 1n)/4n, Q);
+		
+		/**
+		 * @type {[bigint, bigint]}
+		 */
+		const BASE = [
+			15112221349535400772501151409588531511454012693041857206046113283949847762202n, // recoverX(B[1]) % Q
+			46316835694926478169428394003475163141307993866256225615783033603165251855960n, // (4n*invert(5n)) % Q
+		];
 
 		/**
 		 * 
@@ -2100,12 +2113,8 @@ class Crypto {
 		 * @returns {bigint}
 		 */
 		function invert(x) {
-			return expMod(x, q-2n, q);
+			return expMod(x, Q-2n, Q);
 		}
-
-
-		const d = -121665n * invert(121666n);
-		const I = expMod(2n, (q - 1n)/4n, q);
 
 		/**
 		 * @param {bigint} y 
@@ -2113,43 +2122,35 @@ class Crypto {
 		 */
 		function recoverX(y) {
 			const yy = y*y;
-			const xx = (yy - 1n) * invert(d*yy + 1n);
-			let x = expMod(xx, (q+3n)/8n, q);
+			const xx = (yy - 1n) * invert(D*yy + 1n);
+			let x = expMod(xx, Q38, Q);
 
-			if (((x*x - xx) % q) != 0n) {
-				x = (x*I) % q;
+			if (((x*x - xx) % Q) != 0n) {
+				x = (x*I) % Q;
 			}
 
 			if ((x%2n) != 0n) {
-				x = q - x;
+				x = Q - x;
 			}
 
 			return x;
-		}
-
-		const By = 4n*invert(5n);
-		const Bx = recoverX(By);
-
-		/**
-		 * @type {[bigint, bigint]}
-		 */
-		const B = [Bx%q, By%q];
+		}		
 
 		/**
 		 * 
-		 * @param {[bigint, bigint]} P 
-		 * @param {[bigint, bigint]} Q 
+		 * @param {[bigint, bigint]} a 
+		 * @param {[bigint, bigint]} b 
 		 * @returns {[bigint, bigint]}
 		 */
-		function edwards(P, Q) {
-			const x1 = P[0];
-			const y1 = P[1];
-			const x2 = Q[0];
-			const y2 = Q[1];
-			const dxxyy = d*x1*x2*y1*y2;
+		function edwards(a, b) {
+			const x1 = a[0];
+			const y1 = a[1];
+			const x2 = b[0];
+			const y2 = b[1];
+			const dxxyy = D*x1*x2*y1*y2;
 			const x3 = (x1*y2+x2*y1) * invert(1n+dxxyy);
 			const y3 = (y1*y2+x1*x2) * invert(1n-dxxyy);
-			return [posMod(x3, q), posMod(y3, q)];
+			return [posMod(x3, Q), posMod(y3, Q)];
 		}
 
 		/**
@@ -2220,6 +2221,18 @@ class Crypto {
 		}
 
 		/**
+		 * @param {[bigint, bigint]} point
+		 * @returns {boolean}
+		 */
+		function isOnCurve(point) {
+			const x = point[0];
+			const y = point[1];
+			const xx = x*x;
+			const yy = y*y;
+			return (-xx + yy - 1n - D*xx*yy) % Q == 0n;
+		}
+
+		/**
 		 * @param {number[]} s 
 		 */
 		 function decodePoint(s) {
@@ -2232,7 +2245,7 @@ class Crypto {
 
 			let x = recoverX(y);
 			if (Number(x & 1n) != getBit(s, 255)) {
-				x = q - x;
+				x = Q - x;
 			}
 
 			/**
@@ -2247,41 +2260,29 @@ class Crypto {
 			return point;
 		}
 
-
 		/**
 		 * @param {number[]} h 
 		 * @returns {bigint}
 		 */
 		function calca(h) {
-			let a = 28948022309329048855892746252171976963317496166410141009864396001978282409984n; // ipow2(253)
+			const a = 28948022309329048855892746252171976963317496166410141009864396001978282409984n; // ipow2(253)
 
 			let bytes = h.slice(0, 32);
 			bytes[0] = bytes[0] & 0b11111000;
 			bytes[31] = bytes[31] & 0b00111111;
 
-			return a + bytesToBigInt(bytes.reverse());
+			let x = bytesToBigInt(bytes.reverse());
+			return a + x;
 		}
 
 		/**
 		 * @param {number[]} m 
 		 * @returns {bigint}
 		 */
-		function hint(m) {
+		function ihash(m) {
 			const h = Crypto.sha2_512(m);
 
 			return decodeInt(h);
-		}
-
-		/**
-		 * @param {[bigint, bigint]} point
-		 * @returns {boolean}
-		 */
-		function isOnCurve(point) {
-			const x = point[0];
-			const y = point[1];
-			const xx = x*x;
-			const yy = y*y;
-			return (-xx + yy - 1n - d*xx*yy) % q == 0n;
 		}
 
 		return {
@@ -2292,7 +2293,7 @@ class Crypto {
 			derivePublicKey: function(privateKey) {
 				const privateKeyHash = Crypto.sha2_512(privateKey);
 				const a = calca(privateKeyHash);
-				const A = scalarMul(B, a);
+				const A = scalarMul(BASE, a);
 
 				return encodePoint(A);
 			},
@@ -2307,11 +2308,11 @@ class Crypto {
 				const a = calca(privateKeyHash);
 
 				// for convenience calculate publicKey here:
-				const publicKey = encodePoint(scalarMul(B, a));
+				const publicKey = encodePoint(scalarMul(BASE, a));
 
-				const r = hint(privateKeyHash.slice(32, 64).concat(message));
-				const R = scalarMul(B, r);
-				const S = (r + hint(encodePoint(R).concat(publicKey).concat(message))*a) % CURVE_ORDER;
+				const r = ihash(privateKeyHash.slice(32, 64).concat(message));
+				const R = scalarMul(BASE, r);
+				const S = posMod(r + ihash(encodePoint(R).concat(publicKey).concat(message))*a, CURVE_ORDER);
 
 				return encodePoint(R).concat(encodeInt(S));
 			},
@@ -2334,9 +2335,9 @@ class Crypto {
 				const R = decodePoint(signature.slice(0, 32));
 				const A = decodePoint(publicKey);
 				const S = decodeInt(signature.slice(32, 64));
-				const h = hint(signature.slice(0, 32).concat(publicKey).concat(message));
+				const h = ihash(signature.slice(0, 32).concat(publicKey).concat(message));
 
-				const left = scalarMul(B, S);
+				const left = scalarMul(BASE, S);
 				const right = edwards(R, scalarMul(A, h));
 
 				return (left[0] == right[0]) && (left[1] == right[1]);
@@ -5228,14 +5229,33 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 					return new PlutusCoreByteArray(callSite, Crypto.blake2b(a.bytes))
 				});
 			case "verifyEd25519Signature":
-				throw new Error("no immediate need, so don't bother yet");
+				return new PlutusCoreAnon(this.site, rte, 3, (callSite, _, key, msg, signature) => {
+					rte.incrCost(this.calcCost(key, msg, signature));
+
+					let keyBytes = key.bytes;
+					if (keyBytes.length != 32) {
+						throw callSite.runtimeError(`expected key of length 32 for verifyEd25519Signature, got key of length ${keyBytes.length}`);
+					}
+
+					let msgBytes = msg.bytes;
+					
+					let signatureBytes = signature.bytes;
+					if (signatureBytes.length != 64) {
+						throw callSite.runtimeError(`expected signature of length 64 for verifyEd25519Signature, got signature of length ${signatureBytes.length}`);
+					}
+
+					let ok = Crypto.Ed25519.verify(signatureBytes, msgBytes, keyBytes);
+
+					return new PlutusCoreBool(callSite, ok);
+				});
 			case "ifThenElse":
 				return new PlutusCoreAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
 					rte.incrCost(this.calcCost(a, b, c));
 					return a.bool ? b.copy(callSite) : c.copy(callSite);
 				});
 			case "chooseUnit":
-				throw new Error("what is the point of this function?");
+				// what is the point of this function?
+				throw new Error("no immediate need, so don't bother yet");
 			case "trace":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.incrCost(this.calcCost(a, b));
