@@ -1048,17 +1048,17 @@ function main() {
         let message = helios_.hexToBytes(fields[2]);
         let expectedSignature = helios_.hexToBytes(fields[3].slice(0, 128));
 
-        /*let derivedPublicKey = Ed25519.derivePublicKey(privateKey);
+        let derivedPublicKey = Ed25519.derivePublicKey(privateKey);
         if (helios_.bytesToHex(derivedPublicKey) != helios_.bytesToHex(expectedPublicKey)) {
             console.log(`${helios_.bytesToHex(derivedPublicKey)}\nvs\n${expectedPublicKey}`);
             throw new Error("public key doesn't match");
-        }*/
-
-        /*let calculatedSignature = Ed25519.sign(message, privateKey);
+        }
+        
+        let calculatedSignature = Ed25519.sign(message, privateKey);
         if (helios_.bytesToHex(calculatedSignature) != helios_.bytesToHex(expectedSignature)) {
             console.log(`${helios_.bytesToHex(calculatedSignature)}\nvs\n${expectedSignature}`);
             throw new Error("signature doesn't match");
-        }*/
+        }
 
         if (!Ed25519.verify(expectedSignature, message, expectedPublicKey)) {
             throw new Error("verify failed");
