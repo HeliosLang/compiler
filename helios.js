@@ -71,7 +71,8 @@
 //     1. Global constants and vars         VERSION, DEBUG, debug, BLAKE2B_DIGEST_SIZE, 
 //                                          setBlake2bDigestSize, TAB, ScriptPurpose, 
 //                                          PLUTUS_CORE_VERSION_COMPONENTS, PLUTUS_CORE_VERSION, 
-//                                          PLUTUS_CORE_TAG_WIDTH, PLUTUS_CORE_DATA_NODE_MEM_SIZE
+//                                          PLUTUS_SCRIPT_VERSION, PLUTUS_CORE_TAG_WIDTH, 
+//                                          PLUTUS_CORE_DATA_NODE_MEM_SIZE
 //
 //     2. Utilities                         assert, assertDefined, assertEq, idiv, ipow2, imask, 
 //                                          imod32, imod8, posMod, irotr, bigIntToBytes, bytesToBigInt, 
@@ -160,16 +161,15 @@
 //                                          StakingRewardingPurposeType, StakingCertifyingPurposeType,
 //                                          DCertType, RegisterDCertType, DeregisterDCertType,
 //                                          DelegateDCertType, RegisterPoolDCertType,
-//                                          RetirePoolDCertType,
-//                                          TxType, TxIdType, TxInputType, TxOutputType, 
-//                                          OutputDatumType, OutputDatumNoneType,
+//                                          RetirePoolDCertType, TxType, TxIdType, TxInputType, 
+//                                          TxOutputType, OutputDatumType, OutputDatumNoneType,
 //                                          OutputDatumHashType, OutputDatumInlineType,
-//                                          RawDataType,
-//                                          TxOutputIdType, AddressType, CredentialType, 
-//                                          CredentialPubKeyType, CredentialValidatorType, 
-//                                          StakingCredentialType, StakingHashCredentialType,
-//                                          StakingPtrCredentialType, TimeType, DurationType,
-//                                          TimeRangeType, AssetClassType, MoneyValueType
+//                                          RawDataType, TxOutputIdType, AddressType, 
+//                                          CredentialType, CredentialPubKeyType, 
+//                                          CredentialValidatorType, StakingCredentialType, 
+//                                          StakingHashCredentialType, StakingPtrCredentialType, 
+//                                          TimeType, DurationType, TimeRangeType, 
+//                                          AssetClassType, MoneyValueType
 //
 //    14. Builtin low-level functions       onNotifyRawUsage, setRawUsageNotifier, 
 //                                          RawFunc, makeRawFunctions, wrapWithRawFunctions
@@ -184,7 +184,10 @@
 //     
 //    17. Plutus-Core deserialization       PlutusCoreDeserializer, deserializePlutusCore
 //
-//    18. Transaction objects               Tx
+//    18. Transaction objects               Tx, TxBody, TxWitnesses, TxInput, TxOutput, DCert,
+//                                          Address, MultiAsset, MoneyValue, Hash, PubKeyWitness,
+//                                          Redeemer, OutputDatum, OutputDatumHash, 
+//                                          OutputDatumInline
 //
 //    19. Property test framework           FuzzyTest
 //
@@ -240,10 +243,12 @@ const ScriptPurpose = {
 const PLUTUS_CORE_VERSION_COMPONENTS = [1n, 0n, 0n];
 
 /**
- * i.e. "2.0.0"
+ * i.e. "1.0.0"
  * @type {string}
  */
 const PLUTUS_CORE_VERSION = PLUTUS_CORE_VERSION_COMPONENTS.map(c => c.toString()).join(".");
+
+const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 
 /**
  * @type {Object.<string, number>}
@@ -2026,17 +2031,17 @@ class Crypto {
 	 * Hashes a serialized plutus-core script. 
 	 * Result is the ValidatorHash for validator scripts, and MintingPolicyHash for minting_policy scripts.
 	 * @param {number[]} cborBytes - serialized Plutus-Core program (2x wrapped CBOR Bytearray)
-	 * @param {string} plutusCoreVersion - defaults to "1.0.0"
+	 * @param {string} plutusScriptVersion - defaults to "PlutusScriptV2"
 	 * @returns {number[]}
 	 */
-	static hashScript(cborBytes, plutusCoreVersion = PLUTUS_CORE_VERSION) {
+	static hashScript(cborBytes, plutusScriptVersion = PLUTUS_SCRIPT_VERSION) {
 		let bytes = wrapCborBytes(cborBytes);
 
-		switch (plutusCoreVersion) {
-			case "1.0.0":
+		switch (plutusScriptVersion) {
+			case "PlutusScriptV1":
 				bytes.unshift(0x01);
 				break;
-			case "2.0.0":
+			case "PlutusScriptV2":
 				bytes.unshift(0x02);
 				break;
 			default:
@@ -2871,6 +2876,26 @@ export class NetworkParams {
 	 */
 	get plutusCoreBuiltinCost() {
 		return this.getTermCost("Builtin");
+	}
+
+	/**
+	 * @type {[number, number]} - a + b*size
+	 */
+	get txFeeParams() {
+		return [
+			assertDefined(this.#raw?.latestParams?.txFeeFixed),
+			assertDefined(this.#raw?.latestParams?.txFeePerByte),
+		];
+	}
+
+	/**
+	 * @type {[number, number]} - [memFee, cpuFee]
+	 */
+	get exFeeParams() {
+		return [
+			assertDefined(this.#raw?.latestParams?.executionUnitPrices?.priceMemory),
+			assertDefined(this.#raw?.latestParams?.executionUnitPrices?.priceSteps),
+		];
 	}
 }
 
@@ -5948,14 +5973,7 @@ class PlutusCoreProgram {
 	 * @returns {string}
 	 */
 	plutusScriptVersion() {
-		switch (this.#version[0].toString()) {
-			case "2":
-				return "PlutusScriptV2";
-			case "3":
-				return "PlutusScriptV3";
-			default:
-				return "PlutusScriptV1";
-		}
+		return PLUTUS_SCRIPT_VERSION;
 	}
 
 	toString() {
@@ -6529,7 +6547,7 @@ class CBORData {
 	 * @returns {number[]}
 	 */
 	static encodeTuple(tuple) {
-		return CBORData.encodeIndefList(tuple);
+		return CBORData.encodeDefList(tuple);
 	}
 
 
@@ -22703,11 +22721,56 @@ class Tx extends CBORData {
 	 * @returns {Object}
 	 */
 	dump() {
+		console.log("verifying signatures");
+		let bodyBytes = this.#body.toCBOR();
+		this.#witnesses.verifySignatures(Crypto.blake2b(bodyBytes));
+		console.log("done verifying signatures");
+
 		return {
 			"body": this.#body.dump(),
 			"witnesses": this.#witnesses.dump(),
 			"valid": this.#valid ? "true" : "false",
 		};
+	}
+
+	/**
+	 * @param {TxInput} input
+	 * @returns {Tx}
+	 */
+	addInput(input) {
+		assert(!this.#valid);
+
+		this.#body.addInput(input);
+
+		return this;
+	}
+
+	/**
+	 * @param {TxOutput} output 
+	 * @returns {Tx}
+	 */
+	addOutput(output) {
+		assert(!this.#valid);
+		
+		this.#body.addOutput(output);
+
+		return this;
+	}
+
+	/**
+	 * @param {NetworkParams} networkParams
+	 * @returns {bigint}
+	 */
+	estimateFee(networkParams) {
+		let [a, b] = networkParams.txFeeParams;
+
+		let size = this.toCBOR().length;
+
+		let sizeFee = BigInt(a) + BigInt(size)*BigInt(b);
+
+		let exFee = this.#witnesses.estimateFee(networkParams);
+
+		return sizeFee + exFee;
 	}
 }
 
@@ -22782,8 +22845,8 @@ class TxBody extends CBORData {
 		 */
 		let object = new Map();
 
-		object.set(0, CBORData.encodeIndefList(this.#inputs));
-		object.set(1, CBORData.encodeIndefList(this.#outputs));
+		object.set(0, CBORData.encodeDefList(this.#inputs));
+		object.set(1, CBORData.encodeDefList(this.#outputs));
 		object.set(2, CBORData.encodeInteger(this.#fee));
 		
 		if (this.#lastValidSlot !== null) {
@@ -22791,7 +22854,7 @@ class TxBody extends CBORData {
 		}
 
 		if (this.#certs.length != 0) {
-			object.set(4, CBORData.encodeIndefList(this.#certs));
+			object.set(4, CBORData.encodeDefList(this.#certs));
 		}
 
 		if (this.#withdrawals.size != 0) {
@@ -22811,15 +22874,15 @@ class TxBody extends CBORData {
 		}
 
 		if (this.#collateral.length != 0) {
-			object.set(13, CBORData.encodeIndefList(this.#collateral));
+			object.set(13, CBORData.encodeDefList(this.#collateral));
 		}
 
 		if (this.#requiredSignatories.length != 0) {
-			object.set(14, CBORData.encodeIndefList(this.#requiredSignatories));
+			object.set(14, CBORData.encodeDefList(this.#requiredSignatories));
 		}
 
-		// TODO: get NetworkId through parameter, for now just use preview
-		object.set(15, CBORData.encodeInteger(2n));
+		// what is NetworkId used for?
+		//object.set(15, CBORData.encodeInteger(2n));
 
 		if (this.#collateralReturn !== null) {
 			object.set(16, this.#collateralReturn.toCBOR());
@@ -22830,7 +22893,7 @@ class TxBody extends CBORData {
 		}
 
 		if (this.#refInputs.length != 0) {
-			object.set(18, CBORData.encodeIndefList(this.#refInputs));
+			object.set(18, CBORData.encodeDefList(this.#refInputs));
 		}
 
 		return CBORData.encodeObject(object);
@@ -22929,6 +22992,20 @@ class TxBody extends CBORData {
 			"fee": this.#fee.toString(),
 		};
 	}
+
+	/**
+	 * @param {TxInput} input 
+	 */
+	addInput(input) {
+		this.#inputs.push(input);
+	}
+
+	/**
+	 * @param {TxOutput} output
+	 */
+	addOutput(output) {
+		this.#outputs.push(output);
+	}
 }
 
 class TxWitnesses extends CBORData {
@@ -22959,7 +23036,7 @@ class TxWitnesses extends CBORData {
  		let object = new Map();
 
 		if (this.#pubKeyWitnesses.length != 0) {
-			object.set(0, CBORData.encodeIndefList(this.#pubKeyWitnesses));
+			object.set(0, CBORData.encodeDefList(this.#pubKeyWitnesses));
 		}
 
 		if (this.#datums.list.length != 0) {
@@ -22967,7 +23044,7 @@ class TxWitnesses extends CBORData {
 		}
 
 		if (this.#redeemers.length != 0) {
-			object.set(5, CBORData.encodeIndefList(this.#redeemers));
+			object.set(5, CBORData.encodeDefList(this.#redeemers));
 		}
 
 		if (this.#scripts.length != 0) {
@@ -23027,12 +23104,36 @@ class TxWitnesses extends CBORData {
 	}
 
 	/**
+	 * Throws error if signatures are incorrect
+	 * @param {number[]} bodyBytes 
+	 */
+	verifySignatures(bodyBytes) {
+		for (let pubKeyWitness of this.#pubKeyWitnesses) {
+			pubKeyWitness.verifySignature(bodyBytes);
+		}
+	}
+
+	/**
 	 * @returns {Object}
 	 */
 	dump() {
 		return {
 			"pubKeyWitnesses": this.#pubKeyWitnesses.map(pkw => pkw.dump()),
 		};
+	}
+
+	/**
+	 * @param {NetworkParams} networkParams
+	 * @returns {bigint}
+	 */
+	estimateFee(networkParams) {
+		let sum = 0n;
+
+		for (let redeemer of this.#redeemers) {
+			sum += redeemer.estimateFee(networkParams);
+		}
+
+		return sum;
 	}
 }
 
@@ -23043,14 +23144,19 @@ class TxInput extends CBORData {
 	/** @type {bigint} */
 	#utxoIdx;
 
+	/** @type {?MoneyValue} */
+	#value;
+
 	/**
 	 * @param {Hash} txId 
 	 * @param {bigint} utxoIdx 
+	 * @param {?MoneyValue} value - used during building, not part of serialization
 	 */
-	constructor(txId, utxoIdx) {
+	constructor(txId, utxoIdx, value = null) {
 		super();
 		this.#txId = txId;
 		this.#utxoIdx = utxoIdx;
+		this.#value = value;
 	}
 	
 	toCBOR() {
@@ -23098,6 +23204,7 @@ class TxInput extends CBORData {
 		return {
 			"txId": this.#txId.dump(),
 			"utxoIdx": this.#utxoIdx.toString(),
+			"value": this.#value !== null ? this.#value.dump() : "na"
 		};
 	}
 }
@@ -23403,9 +23510,16 @@ class Hash extends CBORData {
 	/** @type {number[]} */
 	#bytes;
 
+	/**
+	 * @param {number[]} bytes 
+	 */
 	constructor(bytes) {
 		super();
 		this.#bytes = bytes;
+	}
+
+	get bytes() {
+		return this.#bytes;
 	}
 
 	toCBOR() {
@@ -23429,14 +23543,14 @@ class Hash extends CBORData {
 }
 
 class PubKeyWitness extends CBORData {
-	/** @type {Hash} */
+	/** @type {number[]} */
 	#pubKey;
 
 	/** @type {number[]} */
 	#signature;
 
 	/**
-	 * @param {Hash} pubKey 
+	 * @param {number[]} pubKey 
 	 * @param {number[]} signature 
 	 */
 	constructor(pubKey, signature) {
@@ -23447,7 +23561,7 @@ class PubKeyWitness extends CBORData {
 
 	toCBOR() {
 		return CBORData.encodeTuple([
-			this.#pubKey.toCBOR(),
+			CBORData.encodeBytes(this.#pubKey, false),
 			CBORData.encodeBytes(this.#signature, false),
 		]);
 	}
@@ -23457,7 +23571,7 @@ class PubKeyWitness extends CBORData {
 	 * @returns {PubKeyWitness}
 	 */
 	static fromCBOR(bytes) {
-		/** @type {?Hash} */
+		/** @type {?number[]} */
 		let pubKey = null;
 
 		/** @type {?number[]} */
@@ -23466,7 +23580,7 @@ class PubKeyWitness extends CBORData {
 		let n = CBORData.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					pubKey = Hash.fromCBOR(fieldBytes);
+					pubKey = CBORData.decodeBytes(fieldBytes);
 					break;
 				case 1:
 					signature = CBORData.decodeBytes(fieldBytes);
@@ -23490,9 +23604,28 @@ class PubKeyWitness extends CBORData {
 	 */
 	dump() {
 		return {
-			"pubKey": this.#pubKey.dump(),
+			"pubKey": bytesToHex(this.#pubKey),
+			"pubKeyHash": bytesToHex(Crypto.blake2b(this.#pubKey, 28)),
 			"signature": bytesToHex(this.#signature),
 		};
+	}
+
+	/**
+	 * Throws error if incorrect
+	 * @param {number[]} msg
+	 */
+	verifySignature(msg) {
+		if (this.#signature === null) {
+			throw new Error("signature can't be null");
+		} else {
+			if (this.#pubKey === null) {
+				throw new Error("pubKey can't be null");
+			} else {
+				if (!Crypto.Ed25519.verify(this.#signature, msg, this.#pubKey)) {
+					throw new Error("incorrect signature");
+				}
+			}
+		}
 	}
 }
 
@@ -23605,6 +23738,16 @@ class Redeemer extends CBORData {
 			return new Redeemer(type, index, data, cost);
 		}
 	}
+
+	/**
+	 * @param {NetworkParams} networkParams 
+	 * @returns {bigint}
+	 */
+	estimateFee(networkParams) {
+		let [memFee, cpuFee] = networkParams.exFeeParams;
+
+		return this.#exUnits.mem*BigInt(memFee) + this.#exUnits.cpu*BigInt(cpuFee);
+	}
 }
 
 class OutputDatum extends CBORData {
@@ -23639,7 +23782,7 @@ class OutputDatum extends CBORData {
 					}
 					break;
 				default:
-					throw new Error("unrecognizedf field label");
+					throw new Error("unrecognized field label");
 			}
 		});
 
