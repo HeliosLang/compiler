@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
+import fs from "fs";
 import * as helios from "./helios.js";
 
 const helios_ = helios.exportedForTesting;
+
+const networkParams = new helios.NetworkParams(JSON.parse(fs.readFileSync("./network-parameters/preview.json").toString()));
 
 let site = helios_.Site.dummy();
 
@@ -35,7 +38,7 @@ function newInt(x) {
 }
 
 async function run(name, program, args) {
-	let profile = await program.profile(args);
+	let profile = await program.profile(args, networkParams);
 
 	console.log(`${name} (mem: ${profile.mem}, cpu: ${profile.cpu}, size: ${profile.size})`);
 }
