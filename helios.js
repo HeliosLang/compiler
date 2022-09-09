@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.5.1
+// Version:     0.5.2
 // Last update: August 2022
 // License:     Unlicense
 //
@@ -194,7 +194,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-const VERSION = "0.5.1";
+const VERSION = "0.5.2";
 
 var DEBUG = false;
 
@@ -233,9 +233,9 @@ const ScriptPurpose = {
 };
 
 /**
- * This library use version 2.0.0" of Plutus-Core
+ * This library uses version "1.0.0" of Plutus-Core
  */
-const PLUTUS_CORE_VERSION_COMPONENTS = [2n, 0n, 0n];
+const PLUTUS_CORE_VERSION_COMPONENTS = [1n, 0n, 0n];
 
 /**
  * i.e. "2.0.0"
