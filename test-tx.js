@@ -20,3 +20,6 @@ const signedBytes = helios_.hexToBytes(signedHex);
 console.log("UNSIGNED:\n", JSON.stringify(helios_.Tx.fromCBOR(bodyBytes).dump(), undefined, "    "));
 
 console.log("\nSIGNED:\n", JSON.stringify(helios_.Tx.fromCBOR(signedBytes).dump(), undefined, "    "));
+
+console.log("UNSIGNED SIZE:", bodyBytes.length.toString());
+console.log("SIGNED SIZE:", signedBytes.length.toString());

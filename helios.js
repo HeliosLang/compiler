@@ -6250,6 +6250,18 @@ class CBORData {
 	}
 
 	/**
+	 * Throws error if not null
+	 * @param {number[]} bytes 
+	 */
+	static decodeNull(bytes) {
+		let b = assertDefined(bytes.shift());
+
+		if (b != 246) {
+			throw new Error("not null");
+		}
+	}
+
+	/**
 	 * @param {boolean} b
 	 * @returns {number[]}
 	 */
@@ -22658,6 +22670,8 @@ class Tx extends CBORData {
 	 * @returns {Tx}
 	 */
 	static fromCBOR(bytes) {
+		bytes = bytes.slice();
+
 		let tx = new Tx();
 
 		let n = CBORData.decodeTuple(bytes, (i, fieldBytes) => {
@@ -22672,7 +22686,7 @@ class Tx extends CBORData {
 					tx.#valid = CBORData.decodeBool(fieldBytes);
 					break;
 				case 3:
-					assert(CBORData.isNull(fieldBytes));
+					CBORData.decodeNull(fieldBytes);
 					break;
 				default:
 					throw new Error("bad tuple size");
@@ -22680,6 +22694,7 @@ class Tx extends CBORData {
 		});
 
 		assert(n == 4);
+		assert(bytes.length == 0);
 
 		return tx;
 	}
