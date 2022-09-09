@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import fs, { fstat } from "fs";
+import fs from "fs";
 import crypto from "crypto";
 import * as helios from "./helios.js";
 

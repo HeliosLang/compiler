@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
+import fs from "fs";
 import * as helios from "./helios.js";
 
 const helios_ = helios.exportedForTesting;
+
+const networkParams = new helios.NetworkParams(JSON.parse(fs.readFileSync("./network-parameters/preview.json").toString()));
 
 function simplify(src) {
     let program = helios.Program.new(src);
@@ -24,7 +27,7 @@ async function profile(src, argNames) {
 
     let args = argNames.map(name => program.evalParam(name));
 	
-    console.log(await program.compile(true).profile(args));//, program.evalParam("C").toString());
+    console.log(await program.compile(true).profile(args, networkParams));//, program.evalParam("C").toString());
 }
 
 simplify(`

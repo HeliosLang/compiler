@@ -71,8 +71,7 @@
 //     1. Global constants and vars         VERSION, DEBUG, debug, BLAKE2B_DIGEST_SIZE, 
 //                                          setBlake2bDigestSize, TAB, ScriptPurpose, 
 //                                          PLUTUS_CORE_VERSION_COMPONENTS, PLUTUS_CORE_VERSION, 
-//                                          PLUTUS_CORE_TAG_WIDTHS, PLUTUS_CORE_TERM_COSTS, 
-//                                          PLUTUS_CORE_DATA_NODE_MEM_SIZE
+//                                          PLUTUS_CORE_TAG_WIDTH, PLUTUS_CORE_DATA_NODE_MEM_SIZE
 //
 //     2. Utilities                         assert, assertDefined, assertEq, idiv, ipow2, imask, 
 //                                          imod32, imod8, posMod, irotr, bigIntToBytes, bytesToBigInt, 
@@ -82,7 +81,8 @@
 //                                          UInt64, DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
 //                                          Crypto, IR, Source, UserError, Site
 //
-//     3. Plutus-Core builtins              CostModel, ConstCost, LinearCost, ArgSizeCost, 
+//     3. Plutus-Core builtins              NetworkParams, 
+//                                          CostModel, ConstCost, LinearCost, ArgSizeCost, 
 //                                          MinArgSizeCost, MaxArgSizeCost, SumArgSizesCost,
 //                                          ArgSizeDiffCost, ArgSizeProdCost, ArgSizeDiagCost,
 //                                          PlutusCoreBuiltinInfo, PLUTUS_CORE_BUILTINS
@@ -202,7 +202,7 @@ var DEBUG = false;
 
 /**
  * Changes the value of DEBUG
- * @param {boolean} b 
+ * @param {boolean} b
  */
 function debug(b) { DEBUG = b };
 
@@ -259,24 +259,9 @@ const PLUTUS_CORE_TAG_WIDTHS = {
 
 /**
  * @typedef {Object} Cost
- * @property {number} mem
- * @property {number} cpu
+ * @property {bigint} mem
+ * @property {bigint} cpu
  */
-
-/**
- * No cost for error 
- * @type {Object.<string, Cost>}
- */
-const PLUTUS_CORE_TERM_COSTS = {
-	startup:  {mem: 100, cpu: 100},
-	variable: {mem: 100, cpu: 23000},
-	lambda:   {mem: 100, cpu: 23000},
-	delay:    {mem: 100, cpu: 23000},
-	call:     {mem: 100, cpu: 23000},
-	const:    {mem: 100, cpu: 23000},
-	force:    {mem: 100, cpu: 23000},
-	builtin:  {mem: 100, cpu: 23000}
-};
 
 /**
  * Min memory used by a PlutusCoreData value during validation
@@ -2797,13 +2782,114 @@ class Site {
 // Section 3: Plutus-Core builtins
 //////////////////////////////////
 
+export class NetworkParams {
+	#raw;
+
+	/**
+	 * @param {Object} raw 
+	 */
+	constructor(raw) {
+		this.#raw = raw;
+	}
+	
+	get costModel() {
+		return assertDefined(this.#raw?.latestParams?.costModels?.PlutusScriptV2, "'obj.latestParams.costModels.PlutusScriptV2' undefined");
+	}
+	/**
+	 * @param {string} key 
+	 * @returns {number}
+	 */
+	getCostModelParameter(key) {
+		return assertDefined(this.costModel[key], `'obj.${key}' undefined`);
+	}
+
+	/**
+	 * @param {string} name 
+	 * @returns {Cost}
+	 */
+	getTermCost(name) {
+		let memKey = `cek${name}Cost-exBudgetMemory`;
+		let cpuKey = `cek${name}Cost-exBudgetCPU`;
+
+		return {
+			mem: BigInt(assertDefined(this.costModel[memKey], `'obj.${memKey}' undefined`)),
+			cpu: BigInt(assertDefined(this.costModel[cpuKey], `'obj.${cpuKey}' undefined`)),
+		};
+	}
+
+	/**
+	 * @type {Cost}
+	 */
+	get plutusCoreStartupCost() {
+		return this.getTermCost("Startup");
+	}
+
+	/**
+	 * @type {Cost}
+	 */
+	get plutusCoreVariableCost() {
+		return this.getTermCost("Var");
+	}
+
+	/**
+	 * @type {Cost}
+	 */
+	get plutusCoreLambdaCost() {
+		return this.getTermCost("Lam");
+	}
+
+	/**
+	 * @type {Cost}
+	 */
+	get plutusCoreDelayCost() {
+		return this.getTermCost("Delay");
+	}
+
+	/**
+	 * @type {Cost}
+	 */
+	get plutusCoreCallCost() {
+		return this.getTermCost("Apply");
+	}
+
+	/**
+	 * @type {Cost}
+	 */
+	get plutusCoreConstCost() {
+		return this.getTermCost("Const");
+	}
+
+	/**
+	 * @type {Cost}
+	 */
+	get plutusCoreForceCost() {
+		return this.getTermCost("Force");
+	}
+
+	/**
+	 * @type {Cost}
+	 */
+	get plutusCoreBuiltinCost() {
+		return this.getTermCost("Builtin");
+	}
+}
+
 class CostModel {
 	constructor() {
 	}
 
 	/**
+	 * @param {NetworkParams} params
+	 * @param {string} baseName
+	 * @returns {CostModel}
+	 */
+	static fromParams(params, baseName) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
 	 * @param {number[]} args 
-	 * @returns {number}
+	 * @returns {bigint}
 	 */
 	calc(args) {
 		throw new Error("not yet implemented");
@@ -2814,7 +2900,7 @@ class ConstCost extends CostModel {
 	#constant;
 
 	/**
-	 * @param {number} constant
+	 * @param {bigint} constant
 	 */
 	constructor(constant) {
 		super();
@@ -2822,8 +2908,19 @@ class ConstCost extends CostModel {
 	}
 
 	/**
+	 * @param {NetworkParams} params 
+	 * @param {string} baseName - eg. addInteger-cpu-arguments
+	 * @returns {ConstCost}
+	 */
+	static fromParams(params, baseName) {
+		let a = params.getCostModelParameter(`${baseName}`);
+
+		return new ConstCost(BigInt(a));
+	}
+
+	/**
 	 * @param {number[]} args
-	 * @returns {number}
+	 * @returns {bigint}
 	 */
 	calc(args) {
 		return this.#constant;
@@ -2836,8 +2933,8 @@ class LinearCost extends CostModel {
 
 	/**
 	 * a + b*SizeFn(x, y)
-	 * @param {number} a - intercept
-	 * @param {number} b - slope
+	 * @param {bigint} a - intercept
+	 * @param {bigint} b - slope
 	 */
 	constructor(a, b) {
 		super();
@@ -2845,13 +2942,24 @@ class LinearCost extends CostModel {
 		this.#b = b;
 	}
 
+	/**
+	 * @param {NetworkParams} params 
+	 * @param {string} baseName - eg. addInteger-cpu-arguments
+	 * @returns {[bigint, bigint]}
+	 */
+	static getParams(params, baseName) {
+		let a = params.getCostModelParameter(`${baseName}-intercept`);
+		let b = params.getCostModelParameter(`${baseName}-slope`);
+
+		return [BigInt(a), BigInt(b)];
+	}
 
 	/**
 	 * @param  {number} size
-	 * @returns {number}
+	 * @returns {bigint}
 	 */
 	calcInternal(size) {
-		return this.#a + this.#b*size;
+		return this.#a + this.#b*BigInt(size);
 	}
 }
 
@@ -2859,8 +2967,8 @@ class ArgSizeCost extends LinearCost {
 	#i;
 
 	/**
-	 * @param {number} a
-	 * @param {number} b
+	 * @param {bigint} a
+	 * @param {bigint} b
 	 * @param {number} i - index of the arg
 	 */
     constructor(a, b, i) {
@@ -2870,7 +2978,7 @@ class ArgSizeCost extends LinearCost {
 
 	/**
 	 * @param {number[]} args
-	 * @returns {number}
+	 * @returns {bigint}
 	 */
 	calc(args) {
 		assert(this.#i < args.length && this.#i >= 0);
@@ -2879,19 +2987,92 @@ class ArgSizeCost extends LinearCost {
 	}
 }
 
+class Arg0SizeCost extends ArgSizeCost {
+	/**
+	 * @param {bigint} a 
+	 * @param {bigint} b 
+	 */
+	constructor(a, b) {
+		super(a, b, 0);
+	}
+
+	/**
+	 * @param {NetworkParams} params 
+	 * @param {string} baseName - eg. addInteger-cpu-arguments
+	 * @returns {Arg0SizeCost}
+	 */
+	 static fromParams(params, baseName) {
+		let [a, b] = LinearCost.getParams(params, baseName);
+
+		return new Arg0SizeCost(a, b);
+	}
+}
+
+class Arg1SizeCost extends ArgSizeCost {
+	/**
+	 * @param {bigint} a 
+	 * @param {bigint} b 
+	 */
+	constructor(a, b) {
+		super(a, b, 1);
+	}
+
+	/**
+	 * @param {NetworkParams} params 
+	 * @param {string} baseName - eg. addInteger-cpu-arguments
+	 * @returns {Arg0SizeCost}
+	 */
+	 static fromParams(params, baseName) {
+		let [a, b] = LinearCost.getParams(params, baseName);
+
+		return new Arg1SizeCost(a, b);
+	}
+}
+
+class Arg2SizeCost extends ArgSizeCost {
+	/**
+	 * @param {bigint} a 
+	 * @param {bigint} b 
+	 */
+	constructor(a, b) {
+		super(a, b, 2);
+	}
+
+	/**
+	 * @param {NetworkParams} params 
+	 * @param {string} baseName - eg. addInteger-cpu-arguments
+	 * @returns {Arg0SizeCost}
+	 */
+	 static fromParams(params, baseName) {
+		let [a, b] = LinearCost.getParams(params, baseName);
+
+		return new Arg2SizeCost(a, b);
+	}
+}
+
 class MinArgSizeCost extends LinearCost {
 	/**
 	 * a + b*min(args)
-	 * @param {number} a - intercept
-	 * @param {number} b - slope
+	 * @param {bigint} a - intercept
+	 * @param {bigint} b - slope
 	 */
 	constructor(a, b) {
 		super(a, b);
 	}
+	/**
+	 * @param {NetworkParams} params 
+	 * @param {string} baseName - eg. addInteger-cpu-arguments
+	 * @returns {MaxArgSizeCost}
+	 */
+	static fromParams(params, baseName) {
+		let [a, b] = LinearCost.getParams(params, baseName);
+
+		return new MinArgSizeCost(a, b);
+	}
 
 	/**
 	 * @param  {number[]} args
-	 * @returns {number}
+	 * @returns {bigint}
 	 */
 	calc(args) {
 		let min = args[0];
@@ -2907,16 +3088,27 @@ class MinArgSizeCost extends LinearCost {
 class MaxArgSizeCost extends LinearCost {
 	/**
 	 * a + b*max(args)
-	 * @param {number} a - intercept
-	 * @param {number} b - slope
+	 * @param {bigint} a - intercept
+	 * @param {bigint} b - slope
 	 */
 	constructor(a, b) {
 		super(a, b);
 	}
 
 	/**
+	 * @param {NetworkParams} params 
+	 * @param {string} baseName - eg. addInteger-cpu-arguments
+	 * @returns {MaxArgSizeCost}
+	 */
+	static fromParams(params, baseName) {
+		let [a, b] = LinearCost.getParams(params, baseName);
+
+		return new MaxArgSizeCost(a, b);
+	}
+
+	/**
 	 * @param  {number[]} args
-	 * @returns {number}
+	 * @returns {bigint}
 	 */
 	calc(args) {
 		let max = args[0];
@@ -2932,16 +3124,27 @@ class MaxArgSizeCost extends LinearCost {
 class SumArgSizesCost extends LinearCost {
 	/**
 	 * a + b*sum(args)
-	 * @param {number} a - intercept
-	 * @param {number} b - slope
+	 * @param {bigint} a - intercept
+	 * @param {bigint} b - slope
 	 */
 	 constructor(a, b) {
 		super(a, b);
 	}
 
 	/**
+	 * @param {NetworkParams} params 
+	 * @param {string} baseName - eg. addInteger-cpu-arguments
+	 * @returns {MaxArgSizeCost}
+	 */
+	static fromParams(params, baseName) {
+		let [a, b] = LinearCost.getParams(params, baseName);
+
+		return new SumArgSizesCost(a, b);
+	}
+
+	/**
 	 * @param  {number[]} args
-	 * @returns {number}
+	 * @returns {bigint}
 	 */
 	calc(args) {
 		let sum = 0;
@@ -2959,18 +3162,29 @@ class ArgSizeDiffCost extends LinearCost {
 
 	/**
 	 * a + b*max(x-y, min)
-	 * @param {number} a - intercept
-	 * @param {number} b - slope
+	 * @param {bigint} a - intercept
+	 * @param {bigint} b - slope
 	 * @param {number} min
 	 */
-	 constructor(a, b, min) {
+	constructor(a, b, min) {
 		super(a, b);
 		this.#min = min
+	}
+	/**
+	 * @param {NetworkParams} params 
+	 * @param {string} baseName - eg. addInteger-cpu-arguments
+	 * @returns {ArgSizeDiffCost}
+	 */
+	static fromParams(params, baseName) {
+		let [a, b] = LinearCost.getParams(params, baseName);
+		let min = params.getCostModelParameter(`${baseName}-minimum`);
+
+		return new ArgSizeDiffCost(a, b, min);
 	}
 
 	/**
 	 * @param {number[]} args
-	 * @returns {number}
+	 * @returns {bigint}
 	 */
 	calc(args) {
 		assert(args.length == 2);
@@ -2985,9 +3199,9 @@ class ArgSizeProdCost extends LinearCost {
 
 	/**
 	 * (x > y) ? constant : a + b*x*y
-	 * @param {number} a
-	 * @param {number} b
-	 * @param {number} constant
+	 * @param {bigint} a
+	 * @param {bigint} b
+	 * @param {bigint} constant
  	 */
 	constructor(a, b, constant) {
 		super(a, b);
@@ -2995,8 +3209,20 @@ class ArgSizeProdCost extends LinearCost {
 	}
 
 	/**
+	 * @param {NetworkParams} params 
+	 * @param {string} baseName - eg. addInteger-cpu-arguments
+	 * @returns {MaxArgSizeCost}
+	 */
+	static fromParams(params, baseName) {
+		let [a, b] = LinearCost.getParams(params, `${baseName}-model-arguments`);
+		let constant = params.getCostModelParameter(`${baseName}-constant`);
+
+		return new ArgSizeProdCost(a, b, BigInt(constant));
+	}
+
+	/**
 	 * @param {number[]} args
-	 * @returns {number}
+	 * @returns {bigint}
 	 */
 	calc(args) {
 		assert(args.length == 2);
@@ -3015,18 +3241,29 @@ class ArgSizeDiagCost extends LinearCost {
 	#constant;
 
 	/**
-	 * @param {number} a
-	 * @param {number} b
-	 * @param {number} constant
+	 * @param {bigint} a
+	 * @param {bigint} b
+	 * @param {bigint} constant
 	 */
 	constructor(a, b, constant) {
 		super(a, b);
 		this.#constant = constant;
 	}
+	/**
+	 * @param {NetworkParams} params 
+	 * @param {string} baseName - eg. addInteger-cpu-arguments
+	 * @returns {ArgSizeDiagCost}
+	 */
+	static fromParams(params, baseName) {
+		let [a, b] = LinearCost.getParams(params, baseName);
+		let constant = params.getCostModelParameter(`${baseName}-constant`);
+
+		return new ArgSizeDiagCost(a, b, BigInt(constant));
+	}
 
 	/**
 	 * @param {number[]} args 
-	 * @returns {number}
+	 * @returns {bigint}
 	 */
 	calc(args) {
 		assert(args.length == 2);
@@ -3039,23 +3276,28 @@ class ArgSizeDiagCost extends LinearCost {
 	}
 }
 
+/**
+ * @typedef CostModelClass
+ * @property {(params: NetworkParams, baseName: string) => CostModel} fromParams
+ */
+
 class PlutusCoreBuiltinInfo {
 	#name;
 	#forceCount;
-	#memCostModel;
-	#cpuCostModel;
+	#memCostModelClass;
+	#cpuCostModelClass;
 
 	/**
 	 * @param {string} name 
 	 * @param {number} forceCount - number of type parameters of a plutus-core builtin function (0, 1 or 2)
-	 * @param {CostModel} memCostModel 
-	 * @param {CostModel} cpuCostModel 
+	 * @param {CostModelClass} memCostModelClass 
+	 * @param {CostModelClass} cpuCostModelClass 
 	 */
-	constructor(name, forceCount, memCostModel, cpuCostModel) {
+	constructor(name, forceCount, memCostModelClass, cpuCostModelClass) {
 		this.#name = name;
 		this.#forceCount = forceCount;
-		this.#memCostModel = memCostModel;
-		this.#cpuCostModel = cpuCostModel;
+		this.#memCostModelClass = memCostModelClass;
+		this.#cpuCostModelClass = cpuCostModelClass;
 	}
 
 	get name() {
@@ -3067,18 +3309,33 @@ class PlutusCoreBuiltinInfo {
 	}
 
 	/**
-	 * @param {number[]} argSizes
-	 * @returns {Cost}
+	 * @param {NetworkParams} params
+	 * @returns {[CostModel, CostModel]}
 	 */
-	calcCost(argSizes) {
-		if (this.#memCostModel !== null && this.#cpuCostModel !== null) {
-			let memCost = this.#memCostModel.calc(argSizes);
-			let cpuCost = this.#cpuCostModel.calc(argSizes);
-	
-			return {mem: memCost, cpu: cpuCost};
+	instantiateCostModels(params) {
+		if (this.#memCostModelClass !== null && this.#cpuCostModelClass !== null) {
+			let memCostModel = this.#memCostModelClass.fromParams(params, `${this.#name}-memory-arguments`);
+			let cpuCostModel = this.#cpuCostModelClass.fromParams(params, `${this.#name}-cpu-arguments`);
+
+			return [memCostModel, cpuCostModel];
 		} else {
 			throw new Error(`cost model not yet implemented for builtin ${this.#name}`);
 		}
+	}
+
+	/**
+	 * @param {NetworkParams} params
+	 * @param {number[]} argSizes
+	 * @returns {Cost}
+	 */
+	calcCost(params, argSizes) {
+		// Note: instantiating everytime might be slow. Should this be cached (eg. in the params object?)?
+		let [memCostModel, cpuCostModel] = this.instantiateCostModels(params);
+
+		let memCost = memCostModel.calc(argSizes);
+		let cpuCost = cpuCostModel.calc(argSizes);
+
+		return {mem: memCost, cpu: cpuCost};
 	}
 }
 
@@ -3092,8 +3349,8 @@ const PLUTUS_CORE_BUILTINS = (
 		 * Constructs a builtinInfo object
 		 * @param {string} name 
 		 * @param {number} forceCount 
-		 * @param {CostModel} memCostModel
-		 * @param {CostModel} cpuCostModel
+		 * @param {CostModelClass} memCostModel
+		 * @param {CostModelClass} cpuCostModel
 		 * @returns {PlutusCoreBuiltinInfo}
 		 */
 		function builtinInfo(name, forceCount, memCostModel, cpuCostModel) {
@@ -3102,60 +3359,60 @@ const PLUTUS_CORE_BUILTINS = (
 		}
 
 		return [
-			builtinInfo("addInteger",               0, new MaxArgSizeCost(1, 1), new MaxArgSizeCost(205665, 812)), // 0
-			builtinInfo("subtractInteger",          0, new MaxArgSizeCost(1, 1), new MaxArgSizeCost(205665, 812)),
-			builtinInfo("multiplyInteger",          0, new SumArgSizesCost(0, 1), new SumArgSizesCost(69522, 11687)),
-			builtinInfo("divideInteger",            0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)),
-			builtinInfo("quotientInteger",          0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)), 
-			builtinInfo("remainderInteger",         0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)),
-			builtinInfo("modInteger",               0, new ArgSizeDiffCost(0, 1, 1), new ArgSizeProdCost(453240, 220, 196500)),
-			builtinInfo("equalsInteger",            0, new ConstCost(1), new MinArgSizeCost(208512, 421)),
-			builtinInfo("lessThanInteger",          0, new ConstCost(1), new MinArgSizeCost(208896, 511)),
-			builtinInfo("lessThanEqualsInteger",    0, new ConstCost(1), new MinArgSizeCost(204924, 473)),
-			builtinInfo("appendByteString",         0, new SumArgSizesCost(0, 1), new SumArgSizesCost(1000, 571)), // 10
-			builtinInfo("consByteString",           0, new SumArgSizesCost(0, 1), new ArgSizeCost(221973, 511, 1)),
-			builtinInfo("sliceByteString",          0, new ArgSizeCost(4, 0, 2), new ArgSizeCost(265318, 0, 2)),
-			builtinInfo("lengthOfByteString",       0, new ConstCost(10), new ConstCost(1000)),
-			builtinInfo("indexByteString",          0, new ConstCost(4), new ConstCost(57667)),
-			builtinInfo("equalsByteString",         0, new ConstCost(1), new ArgSizeDiagCost(216773, 62, 245000)),
-			builtinInfo("lessThanByteString",       0, new ConstCost(1), new MinArgSizeCost(197145, 156)),
-			builtinInfo("lessThanEqualsByteString", 0, new ConstCost(1), new MinArgSizeCost(197145, 156)),
-			builtinInfo("sha2_256",                 0, new ConstCost(4), new ArgSizeCost(806990, 30482, 0)),
-			builtinInfo("sha3_256",                 0, new ConstCost(4), new ArgSizeCost(1927926, 82523, 0)),
-			builtinInfo("blake2b_256",              0, new ConstCost(4), new ArgSizeCost(117366, 10475, 0)), // 20
-			builtinInfo("verifyEd25519Signature",   0, new ConstCost(10), new ArgSizeCost(9462713, 1021, 2)),
-			builtinInfo("appendString",             0, new SumArgSizesCost(4, 1), new SumArgSizesCost(1000, 24177)),
-			builtinInfo("equalsString",             0, new ConstCost(1), new ArgSizeDiagCost(1000, 52998, 187000)),
-			builtinInfo("encodeUtf8",               0, new ArgSizeCost(4, 2, 0), new ArgSizeCost(1000, 28662, 0)),
-			builtinInfo("decodeUtf8",               0, new ArgSizeCost(4, 2, 0), new ArgSizeCost(497525, 14068, 0)),
-			builtinInfo("ifThenElse",               1, new ConstCost(1), new ConstCost(80556)),
-			builtinInfo("chooseUnit",               1, new ConstCost(4), new ConstCost(46417)),
-			builtinInfo("trace",                    1, new ConstCost(32), new ConstCost(212342)),
-			builtinInfo("fstPair",                  2, new ConstCost(32), new ConstCost(80436)),
-			builtinInfo("sndPair",                  2, new ConstCost(32), new ConstCost(85931)), // 30
-			builtinInfo("chooseList",               1, new ConstCost(32), new ConstCost(175354)),
-			builtinInfo("mkCons",                   1, new ConstCost(32), new ConstCost(65493)),
-			builtinInfo("headList",                 1, new ConstCost(32), new ConstCost(43249)),
-			builtinInfo("tailList",                 1, new ConstCost(32), new ConstCost(41182)),
-			builtinInfo("nullList",                 1, new ConstCost(32), new ConstCost(60091)),
-			builtinInfo("chooseData",               0, new ConstCost(32), new ConstCost(19537)),
-			builtinInfo("constrData",               0, new ConstCost(32), new ConstCost(89141)),
-			builtinInfo("mapData",                  0, new ConstCost(32), new ConstCost(64832)),
-			builtinInfo("listData",                 0, new ConstCost(32), new ConstCost(52467)),
-			builtinInfo("iData",                    0, new ConstCost(32), new ConstCost(1000)), // 40
-			builtinInfo("bData",                    0, new ConstCost(32), new ConstCost(1000)),
-			builtinInfo("unConstrData",             0, new ConstCost(32), new ConstCost(32696)),
-			builtinInfo("unMapData",                0, new ConstCost(32), new ConstCost(38314)),
-			builtinInfo("unListData",               0, new ConstCost(32), new ConstCost(32247)),
-			builtinInfo("unIData",                  0, new ConstCost(32), new ConstCost(43357)),
-			builtinInfo("unBData",                  0, new ConstCost(32), new ConstCost(31220)),
-			builtinInfo("equalsData",               0, new ConstCost(1), new MinArgSizeCost(1060367, 12586)),
-			builtinInfo("mkPairData",               0, new ConstCost(32), new ConstCost(76511)),
-			builtinInfo("mkNilData",                0, new ConstCost(32), new ConstCost(22558)),
-			builtinInfo("mkNilPairData",            0, new ConstCost(32), new ConstCost(16563)), // 50
-			builtinInfo("serialiseData",            0, new ArgSizeCost(0, 2, 0), new ArgSizeCost(1159724, 392670, 0)),
-			builtinInfo("verifyEcdsaSecp256k1Signature",   0, new ConstCost(10), new ConstCost(35190005)), // these parameters are from aiken, but the cardano-cli parameter file differ?
-			builtinInfo("verifySchnorrSecp256k1Signature", 0, new ConstCost(10), new ArgSizeCost(39121781, 32260, 1)), // these parameters are from, but the cardano-cli parameter file differs?
+			builtinInfo("addInteger",               0, MaxArgSizeCost, MaxArgSizeCost), // 0
+			builtinInfo("subtractInteger",          0, MaxArgSizeCost, MaxArgSizeCost),
+			builtinInfo("multiplyInteger",          0, SumArgSizesCost, SumArgSizesCost),
+			builtinInfo("divideInteger",            0, ArgSizeDiffCost, ArgSizeProdCost),
+			builtinInfo("quotientInteger",          0, ArgSizeDiffCost, ArgSizeProdCost), 
+			builtinInfo("remainderInteger",         0, ArgSizeDiffCost, ArgSizeProdCost),
+			builtinInfo("modInteger",               0, ArgSizeDiffCost, ArgSizeProdCost),
+			builtinInfo("equalsInteger",            0, ConstCost, MinArgSizeCost),
+			builtinInfo("lessThanInteger",          0, ConstCost, MinArgSizeCost),
+			builtinInfo("lessThanEqualsInteger",    0, ConstCost, MinArgSizeCost),
+			builtinInfo("appendByteString",         0, SumArgSizesCost, SumArgSizesCost), // 10
+			builtinInfo("consByteString",           0, SumArgSizesCost, Arg1SizeCost),
+			builtinInfo("sliceByteString",          0, Arg2SizeCost, Arg2SizeCost),
+			builtinInfo("lengthOfByteString",       0, ConstCost, ConstCost),
+			builtinInfo("indexByteString",          0, ConstCost, ConstCost),
+			builtinInfo("equalsByteString",         0, ConstCost, ArgSizeDiagCost),
+			builtinInfo("lessThanByteString",       0, ConstCost, MinArgSizeCost),
+			builtinInfo("lessThanEqualsByteString", 0, ConstCost, MinArgSizeCost),
+			builtinInfo("sha2_256",                 0, ConstCost, Arg0SizeCost),
+			builtinInfo("sha3_256",                 0, ConstCost, Arg0SizeCost),
+			builtinInfo("blake2b_256",              0, ConstCost, Arg0SizeCost), // 20
+			builtinInfo("verifyEd25519Signature",   0, ConstCost, Arg2SizeCost),
+			builtinInfo("appendString",             0, SumArgSizesCost, SumArgSizesCost),
+			builtinInfo("equalsString",             0, ConstCost, ArgSizeDiagCost),
+			builtinInfo("encodeUtf8",               0, Arg0SizeCost, Arg0SizeCost),
+			builtinInfo("decodeUtf8",               0, Arg0SizeCost, Arg0SizeCost),
+			builtinInfo("ifThenElse",               1, ConstCost, ConstCost),
+			builtinInfo("chooseUnit",               1, ConstCost, ConstCost),
+			builtinInfo("trace",                    1, ConstCost, ConstCost),
+			builtinInfo("fstPair",                  2, ConstCost, ConstCost),
+			builtinInfo("sndPair",                  2, ConstCost, ConstCost), // 30
+			builtinInfo("chooseList",               1, ConstCost, ConstCost),
+			builtinInfo("mkCons",                   1, ConstCost, ConstCost),
+			builtinInfo("headList",                 1, ConstCost, ConstCost),
+			builtinInfo("tailList",                 1, ConstCost, ConstCost),
+			builtinInfo("nullList",                 1, ConstCost, ConstCost),
+			builtinInfo("chooseData",               0, ConstCost, ConstCost),
+			builtinInfo("constrData",               0, ConstCost, ConstCost),
+			builtinInfo("mapData",                  0, ConstCost, ConstCost),
+			builtinInfo("listData",                 0, ConstCost, ConstCost),
+			builtinInfo("iData",                    0, ConstCost, ConstCost), // 40
+			builtinInfo("bData",                    0, ConstCost, ConstCost),
+			builtinInfo("unConstrData",             0, ConstCost, ConstCost),
+			builtinInfo("unMapData",                0, ConstCost, ConstCost),
+			builtinInfo("unListData",               0, ConstCost, ConstCost),
+			builtinInfo("unIData",                  0, ConstCost, ConstCost),
+			builtinInfo("unBData",                  0, ConstCost, ConstCost),
+			builtinInfo("equalsData",               0, ConstCost, MinArgSizeCost),
+			builtinInfo("mkPairData",               0, ConstCost, ConstCost),
+			builtinInfo("mkNilData",                0, ConstCost, ConstCost),
+			builtinInfo("mkNilPairData",            0, ConstCost, ConstCost), // 50
+			builtinInfo("serialiseData",            0, Arg0SizeCost, Arg0SizeCost),
+			builtinInfo("verifyEcdsaSecp256k1Signature",   0, ConstCost, ConstCost), // these parameters are from aiken, but the cardano-cli parameter file differ?
+			builtinInfo("verifySchnorrSecp256k1Signature", 0, ConstCost, Arg1SizeCost), // these parameters are from, but the cardano-cli parameter file differs?
 		];
 	}
 )();
@@ -3396,6 +3653,8 @@ const DEFAULT_PLUTUS_CORE_RTE_CALLBACKS = {
 class PlutusCoreRTE {
 	#callbacks;
 
+	#networkParams;
+
 	/**
 	 * this.onNotifyCalls is set to 'false' when the debugger is in step over-mode.
 	 * @type {boolean}
@@ -3414,10 +3673,12 @@ class PlutusCoreRTE {
 
 	/**
 	 * @param {PlutusCoreRTECallbacks} callbacks 
+	 * @param {?NetworkParams} networkParams
 	 */
-	constructor(callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
+	constructor(callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS, networkParams = null) {
 		assertDefined(callbacks);
 		this.#callbacks = callbacks;
+		this.#networkParams = networkParams;
 		this.#notifyCalls = true;
 		this.#marker = null;
 	}
@@ -3428,6 +3689,66 @@ class PlutusCoreRTE {
 	incrCost(cost) {
 		if (this.#callbacks.onIncrCost !== undefined) {
 			this.#callbacks.onIncrCost(cost);
+		}
+	}
+
+	incrStartupCost() {
+		if (this.#networkParams !== null) {
+			this.incrCost(this.#networkParams.plutusCoreStartupCost);
+		}
+	}
+
+	incrVariableCost() {
+		if (this.#networkParams !== null) {
+			this.incrCost(this.#networkParams.plutusCoreVariableCost);
+		}
+	}
+
+	incrLambdaCost() {
+		if (this.#networkParams !== null) {
+			this.incrCost(this.#networkParams.plutusCoreLambdaCost);
+		}
+	}
+
+	incrDelayCost() {
+		if (this.#networkParams !== null) {
+			this.incrCost(this.#networkParams.plutusCoreDelayCost);
+		}
+	}
+
+	incrCallCost() {
+		if (this.#networkParams !== null) {
+			this.incrCost(this.#networkParams.plutusCoreCallCost);
+		}
+	}
+
+	incrConstCost() {
+		if (this.#networkParams !== null) {
+			this.incrCost(this.#networkParams.plutusCoreConstCost);
+		}
+	}
+
+	incrForceCost() {
+		if (this.#networkParams !== null) {
+			this.incrCost(this.#networkParams.plutusCoreForceCost);
+		}
+	}
+
+	incrBuiltinCost() {
+		if (this.#networkParams !== null) {
+			this.incrCost(this.#networkParams.plutusCoreBuiltinCost);
+		}
+	}
+
+	/**
+	 * @param {PlutusCoreBuiltin} fn
+	 * @param {PlutusCoreValue[]} args
+	 */
+	calcAndIncrCost(fn, ...args) {
+		if (this.#networkParams !== null) {
+			let cost = fn.calcCost(this.#networkParams, ...args);
+
+			this.incrCost(cost);
 		}
 	}
 
@@ -3525,12 +3846,61 @@ class PlutusCoreStack {
 		this.#valueName = valueName;
 	}
 
-	/**
-	 * @param {Cost} cost 
-	 */
-	incrCost(cost) {
+	incrStartupCost() {
 		if (this.#parent !== null) {
-			this.#parent.incrCost(cost)
+			this.#parent.incrStartupCost()
+		}
+	}
+
+	incrVariableCost() {
+		if (this.#parent !== null) {
+			this.#parent.incrVariableCost()
+		}
+	}
+
+	incrLambdaCost() {
+		if (this.#parent !== null) {
+			this.#parent.incrLambdaCost()
+		}
+	}
+	
+	incrDelayCost() {
+		if (this.#parent !== null) {
+			this.#parent.incrDelayCost();
+		}
+	}
+
+	incrCallCost() {
+		if (this.#parent !== null) {
+			this.#parent.incrCallCost();
+		}
+	}
+
+	incrConstCost() {
+		if (this.#parent !== null) {
+			this.#parent.incrConstCost();
+		}
+	}
+
+	incrForceCost() {
+		if (this.#parent !== null) {
+			this.#parent.incrForceCost()
+		}
+	}
+
+	incrBuiltinCost() {
+		if (this.#parent !== null) {
+			this.#parent.incrBuiltinCost()
+		}
+	}
+
+	/**
+	 * @param {PlutusCoreBuiltin} fn
+	 * @param {PlutusCoreValue[]} args
+	 */
+	calcAndIncrCost(fn, ...args) {
+		if (this.#parent !== null) {
+			this.#parent.calcAndIncrCost(fn, ...args);
 		}
 	}
 
@@ -4659,7 +5029,7 @@ class PlutusCoreVariable extends PlutusCoreTerm {
 	 */
 	async eval(rte) {
 		// add costs before get the value
-		rte.incrCost(PLUTUS_CORE_TERM_COSTS.variable);
+		rte.incrVariableCost();
 
 		return rte.get(Number(this.#index.int));
 	}
@@ -4697,7 +5067,7 @@ class PlutusCoreDelay extends PlutusCoreTerm {
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async eval(rte) {
-		rte.incrCost(PLUTUS_CORE_TERM_COSTS.delay);
+		rte.incrDelayCost();
 
 		return await this.#expr.eval(rte);
 	}
@@ -4742,7 +5112,7 @@ class PlutusCoreLambda extends PlutusCoreTerm {
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async eval(rte) {
-		rte.incrCost(PLUTUS_CORE_TERM_COSTS.lambda);
+		rte.incrLambdaCost();
 
 		return new PlutusCoreAnon(this.site, rte, this.#argName !== null ? [this.#argName] : 1, (callSite, subStack) => {
 			return this.#rhs.eval(subStack);
@@ -4786,7 +5156,7 @@ class PlutusCoreCall extends PlutusCoreTerm {
 	 * @returns 
 	 */
 	async eval(rte) {
-		rte.incrCost(PLUTUS_CORE_TERM_COSTS.call)
+		rte.incrCallCost();
 
 		let fn = await this.#a.eval(rte);
 		let arg = await this.#b.eval(rte);
@@ -4833,7 +5203,7 @@ class PlutusCoreConst extends PlutusCoreTerm {
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async eval(rte) {
-		rte.incrCost(PLUTUS_CORE_TERM_COSTS.const);
+		rte.incrConstCost();
 
 		return await this.#value.eval(rte);
 	}
@@ -4871,7 +5241,7 @@ class PlutusCoreForce extends PlutusCoreTerm {
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async eval(rte) {
-		rte.incrCost(PLUTUS_CORE_TERM_COSTS.force);
+		rte.incrForceCost();
 
 		return await this.#expr.eval(rte);
 	}
@@ -4959,13 +5329,14 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 	}
 
 	/**
+	 * @param {NetworkParams} params
 	 * @param  {...PlutusCoreValue} args
 	 * @returns {Cost}
 	 */
-	calcCost(...args) {
+	calcCost(params, ...args) {
 		let i = PLUTUS_CORE_BUILTINS.findIndex(info => info.name == this.#name);
 
-		return PLUTUS_CORE_BUILTINS[i].calcCost(args.map(a => a.memSize));
+		return PLUTUS_CORE_BUILTINS[i].calcCost(params, args.map(a => a.memSize));
 	}
 
 	/**
@@ -5006,25 +5377,25 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				// returning a lambda is assumed to be free
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					// but calling a lambda has a cost associated
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					return new PlutusCoreInt(callSite, a.int + b.int);
 				});
 			case "subtractInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					return new PlutusCoreInt(callSite, a.int - b.int);
 				});
 			case "multiplyInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					return new PlutusCoreInt(callSite, a.int * b.int);
 				});
 			case "divideInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					if (b.int === 0n) {
 						throw callSite.runtimeError("division by zero");
@@ -5034,7 +5405,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "modInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					if (b.int === 0n) {
 						throw callSite.runtimeError("division by zero");
@@ -5044,31 +5415,31 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "equalsInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					return new PlutusCoreBool(callSite, a.int == b.int);
 				});
 			case "lessThanInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					return new PlutusCoreBool(callSite, a.int < b.int);
 				});
 			case "lessThanEqualsInteger":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					return new PlutusCoreBool(callSite, a.int <= b.int);
 				});
 			case "appendByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					return new PlutusCoreByteArray(callSite, a.bytes.concat(b.bytes));
 				});
 			case "consByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					let bytes = b.bytes;
 					bytes.unshift(Number(a.int % 256n));
@@ -5076,7 +5447,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "sliceByteString":
 				return new PlutusCoreAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
-					rte.incrCost(this.calcCost(a, b, c));
+					rte.calcAndIncrCost(this, a, b, c);
 
 					let start = Number(a.int);
 					let n = Number(b.int);
@@ -5099,13 +5470,13 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "lengthOfByteString":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					return new PlutusCoreInt(callSite, BigInt(a.bytes.length));
 				});
 			case "indexByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					let bytes = a.bytes;
 					let i = b.int;
@@ -5117,7 +5488,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "equalsByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					let aBytes = a.bytes;
 					let bBytes = b.bytes;
@@ -5138,7 +5509,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "lessThanByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					let aBytes = a.bytes;
 					let bBytes = b.bytes;
@@ -5161,7 +5532,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "lessThanEqualsByteString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					let aBytes = a.bytes;
 					let bBytes = b.bytes;
@@ -5184,25 +5555,25 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "appendString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					return new PlutusCoreString(callSite, a.string + b.string);
 				});
 			case "equalsString":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					return new PlutusCoreBool(callSite, a.string == b.string);
 				});
 			case "encodeUtf8":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					return new PlutusCoreByteArray(callSite, stringToBytes(a.string));
 				});
 			case "decodeUtf8":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					try {
 						return new PlutusCoreString(callSite, bytesToString(a.bytes));
@@ -5212,25 +5583,25 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "sha2_256":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					return new PlutusCoreByteArray(callSite, Crypto.sha2_256(a.bytes))
 				});
 			case "sha3_256":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					return new PlutusCoreByteArray(callSite, Crypto.sha3(a.bytes))
 				});
 			case "blake2b_256":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					return new PlutusCoreByteArray(callSite, Crypto.blake2b(a.bytes))
 				});
 			case "verifyEd25519Signature":
 				return new PlutusCoreAnon(this.site, rte, 3, (callSite, _, key, msg, signature) => {
-					rte.incrCost(this.calcCost(key, msg, signature));
+					rte.calcAndIncrCost(this, key, msg, signature);
 
 					let keyBytes = key.bytes;
 					if (keyBytes.length != 32) {
@@ -5250,7 +5621,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "ifThenElse":
 				return new PlutusCoreAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
-					rte.incrCost(this.calcCost(a, b, c));
+					rte.calcAndIncrCost(this, a, b, c);
 					return a.bool ? b.copy(callSite) : c.copy(callSite);
 				});
 			case "chooseUnit":
@@ -5258,7 +5629,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				throw new Error("no immediate need, so don't bother yet");
 			case "trace":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					return rte.print(a.string).then(() => {
 						return b.copy(callSite);
@@ -5266,7 +5637,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "fstPair":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					if (a.isPair()) {
 						return a.first.copy(callSite);
@@ -5278,7 +5649,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "sndPair":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					if (a.isPair()) {
 						return a.second.copy(callSite);
@@ -5293,7 +5664,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 			case "mkCons":
 				// only allow data items in list
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					if (b.isList()) {
 						if (!a.isData()) {
@@ -5314,7 +5685,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "headList":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					if (a.isList()) {
 						let lst = a.list;
@@ -5336,7 +5707,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "tailList":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					if (a.isList()) {
 						let lst = a.list;
@@ -5358,7 +5729,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "nullList":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					if (a.isList()) {
 						return new PlutusCoreBool(callSite, a.list.length == 0);
@@ -5372,7 +5743,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				throw new Error("no immediate need, so don't bother yet");
 			case "constrData":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					let i = a.int;
 					assert(i >= 0);
@@ -5381,7 +5752,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "mapData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					return new PlutusCoreDataValue(callSite, new MapData(a.map.map(pair => {
 						return [pair.key, pair.value];
@@ -5389,25 +5760,25 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "listData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					return new PlutusCoreDataValue(callSite, new ListData(a.list));
 				});
 			case "iData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 					
 					return new PlutusCoreDataValue(callSite, new IntData(a.int));
 				});
 			case "bData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					return new PlutusCoreDataValue(callSite, new ByteArrayData(a.bytes));
 				});
 			case "unConstrData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
 						throw callSite.typeError(`expected data, got ${a.toString()}`);
@@ -5422,7 +5793,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unMapData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
 						throw callSite.typeError(`expected data, got ${a.toString()}`);
@@ -5437,7 +5808,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unListData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
 						throw callSite.typeError(`expected data, got ${a.toString()}`);
@@ -5452,7 +5823,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unIData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
 						throw callSite.typeError(`expected data, got ${a.toString()}`);
@@ -5467,7 +5838,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "unBData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
 						throw callSite.typeError(`expected data, got ${a.toString()}`);
@@ -5482,7 +5853,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "equalsData":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					if (!a.isData()) {
 						throw callSite.typeError(`expected data, got ${a.toString()}`);
@@ -5497,13 +5868,13 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "mkPairData":
 				return new PlutusCoreAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.incrCost(this.calcCost(a, b));
+					rte.calcAndIncrCost(this, a, b);
 
 					return new PlutusCoreMapItem(callSite, a.data, b.data);
 				});
 			case "mkNilData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					a.assertUnit();
 
@@ -5511,7 +5882,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "mkNilPairData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					a.assertUnit();
 
@@ -5519,7 +5890,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 				});
 			case "serialiseData":
 				return new PlutusCoreAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.incrCost(this.calcCost(a));
+					rte.calcAndIncrCost(this, a);
 
 					return new PlutusCoreByteArray(callSite, a.data.toCBOR());
 				});
@@ -5538,7 +5909,7 @@ class PlutusCoreBuiltin extends PlutusCoreTerm {
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
 	async eval(rte) {
-		rte.incrCost(PLUTUS_CORE_TERM_COSTS.builtin);
+		rte.incrBuiltinCost();
 
 		return this.evalInternal(rte);
 	}
@@ -5616,15 +5987,16 @@ class PlutusCoreProgram {
 	 * Evaluates the term contained in PlutusCoreProgram (assuming it is a lambda term)
 	 * @param {?PlutusCoreValue[]} args
 	 * @param {PlutusCoreRTECallbacks} callbacks 
+	 * @param {?NetworkParams} networkParams
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
-	async runInternal(args, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
+	async runInternal(args, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS, networkParams = null) {
 		assertDefined(callbacks);
 
-		let rte = new PlutusCoreRTE(callbacks);
+		let rte = new PlutusCoreRTE(callbacks, networkParams);
 
 		// add the startup costs
-		rte.incrCost(PLUTUS_CORE_TERM_COSTS.startup);
+		rte.incrStartupCost();
 
 		let fn = await this.eval(rte);
 
@@ -5646,9 +6018,10 @@ class PlutusCoreProgram {
 	/**
 	 * @param {?PlutusCoreValue[]} args - if null the top-level term is returned as a value
 	 * @param {PlutusCoreRTECallbacks} callbacks 
+	 * @param {?NetworkParams} networkParams
 	 * @returns {Promise<PlutusCoreValue | UserError>}
 	 */
-	async run(args, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS) {
+	async run(args, callbacks = DEFAULT_PLUTUS_CORE_RTE_CALLBACKS, networkParams = null) {
 		let globalCallSite = new Site(this.site.src, this.site.src.length);
 
 		if (args !== null && args.length == 0) {
@@ -5656,7 +6029,7 @@ class PlutusCoreProgram {
 		}
 
 		try {
-			return await this.runInternal(args, callbacks);
+			return await this.runInternal(args, callbacks, networkParams);
 		} catch (e) {
 			if (!(e instanceof UserError)) {
 				throw e;
@@ -5689,20 +6062,21 @@ class PlutusCoreProgram {
 
 	/**
 	 * @typedef {Object} Profile
-	 * @property {number} mem  - in 8 byte words (i.e. 1 mem unit is 64 bits)
-	 * @property {number} cpu  - in reference cpu microseconds
+	 * @property {bigint} mem  - in 8 byte words (i.e. 1 mem unit is 64 bits)
+	 * @property {bigint} cpu  - in reference cpu microseconds
 	 * @property {number} size - in bytes
 	 */
 
 	/**
 	 * @param {PlutusCoreValue[]} args
+	 * @param {NetworkParams} networkParams
 	 * @returns {Promise<Profile>}
 	 */
-	async profile(args) {
+	async profile(args, networkParams) {
 		let callbacks = Object.assign({}, DEFAULT_PLUTUS_CORE_RTE_CALLBACKS);
 
-		let memCost = 0;
-		let cpuCost = 0;
+		let memCost = 0n;
+		let cpuCost = 0n;
 
 		/**
 		 * @type {(cost: Cost) => void}
@@ -5712,7 +6086,7 @@ class PlutusCoreProgram {
 			cpuCost += cost.cpu;
 		};
 
-		let res = await this.run(args, callbacks);
+		let res = await this.run(args, callbacks, networkParams);
 		console.log(res.toString());
 		
 		return {
@@ -23127,7 +23501,7 @@ class Redeemer extends CBORData {
 	 * @param {PlutusCoreData} data 
 	 * @param {Cost} exUnits 
 	 */
-	constructor(type, index, data, exUnits = {mem: 0, cpu: 0}) {
+	constructor(type, index, data, exUnits = {mem: 0n, cpu: 0n}) {
 		super();
 		this.#type = type;
 		this.#index = index;
@@ -23141,8 +23515,8 @@ class Redeemer extends CBORData {
 			CBORData.encodeInteger(this.#index),
 			this.#data.toCBOR(),
 			CBORData.encodeTuple([
-				CBORData.encodeInteger(BigInt(this.#exUnits.mem)),
-				CBORData.encodeInteger(BigInt(this.#exUnits.cpu)),
+				CBORData.encodeInteger(this.#exUnits.mem),
+				CBORData.encodeInteger(this.#exUnits.cpu),
 			]),
 		]);
 	}
@@ -23176,19 +23550,19 @@ class Redeemer extends CBORData {
 					data = PlutusCoreData.fromCBOR(fieldBytes);
 					break;
 				case 3: 
-					/** @type {?number} */
+					/** @type {?bigint} */
 					let mem = null;
 
-					/** @type {?number} */
+					/** @type {?bigint} */
 					let cpu = null;
 
 					let m = CBORData.decodeTuple(fieldBytes, (j, subFieldBytes) => {
 						switch (j) {
 							case 0:
-								mem = Number(CBORData.decodeInteger(subFieldBytes));
+								mem = CBORData.decodeInteger(subFieldBytes);
 								break;
 							case 1:
-								cpu = Number(CBORData.decodeInteger(subFieldBytes));
+								cpu = CBORData.decodeInteger(subFieldBytes);
 								break;
 							default:
 								throw new Error("unrecognized field");
