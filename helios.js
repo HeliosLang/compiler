@@ -2019,7 +2019,7 @@ class Crypto {
 			hash = hash.concat(h[i].toBytes());
 		}
 
-		return hash;
+		return hash.slice(0, digestSize);
 	}
 
 	/**
