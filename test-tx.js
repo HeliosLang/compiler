@@ -35,3 +35,26 @@ console.log("ESTIMATED TX SIZE:", signedTx.estimateFee(networkParams));
 console.log("CBOR ENCODING:", helios_.bytesToHex(signedTx.toCBOR()));
 
 console.log("INV:", JSON.stringify(helios_.Tx.fromCBOR(signedTx.toCBOR()).dump(), undefined, "    "));
+
+// build same transaction using helios only:
+let tx = new helios.Tx();
+
+tx.addInput(new helios.TxInput(
+    helios.Hash.fromHex("d4b22d33611fb2b3764080cb349b3f12d353aef1d4319ee33e44594bbebe5e83"),
+    0n,
+    new helios.TxOutput(
+        helios.Address.fromBech32("addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w"),
+        new helios.MoneyValue(10n*1000n*1000n*1000n),
+    )
+));
+
+tx.addOutput(new helios.TxOutput(
+    helios.Address.fromBech32("addr_test1vqzhgmkqsyyzxthk7vzxet4283wx8wwygu9nq0v94mdldxs0d56ku"),
+    new helios.MoneyValue(10n*1000n*1000n),
+));
+
+tx.setChangeAddress(helios.Address.fromBech32("addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w"));
+
+tx.build(networkParams);
+
+console.log(JSON.stringify(tx.dump(), undefined, "    "));
