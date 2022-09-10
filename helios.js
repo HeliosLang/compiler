@@ -2099,11 +2099,32 @@ class Crypto {
 		}
 
 		/**
-		 * @param {bigint} x 
+		 * @param {bigint} n 
 		 * @returns {bigint}
 		 */
-		function invert(x) {
-			return expMod(x, Q-2n, Q);
+		function invert(n) {
+			let a = posMod(n, Q);
+			let b = Q;
+
+			let x = 0n;
+			let y = 1n;
+			let u = 1n;
+			let v = 0n;
+
+			while (a !== 0n) {
+				const q = b / a;
+				const r = b % a;
+				const m = x - u*q;
+				const n = y - v*q;
+				b = a;
+				a = r;
+				x = u;
+				y = v;
+				u = m;
+				v = n;
+			}
+
+			return posMod(x, Q)
 		}
 
 		/**
@@ -2127,7 +2148,7 @@ class Crypto {
 		}		
 
 		/**
-		 * 
+		 * Note: this is probably the bottleneck of this Ed25519 implementation
 		 * @param {[bigint, bigint]} a 
 		 * @param {[bigint, bigint]} b 
 		 * @returns {[bigint, bigint]}
@@ -2144,25 +2165,24 @@ class Crypto {
 		}
 
 		/**
-		 * Note: this is probably the bottleneck of this Ed25519 implementation
-		 * @param {[bigint, bigint]} P 
-		 * @param {bigint} e 
+		 * @param {[bigint, bigint]} point 
+		 * @param {bigint} n 
 		 * @returns {[bigint, bigint]}
 		 */
-		function scalarMul(P, e) {
-			if (e == 0n) {
+		function scalarMul(point, n) {
+			if (n == 0n) {
 				return [0n, 1n];
 			} else {
-				let Q = scalarMul(P, e/2n);
-				Q = edwards(Q, Q);
-				if ((e % 2n) != 0n) {
-					Q = edwards(Q, P);
+				let sum = scalarMul(point, n/2n);
+				sum = edwards(sum, sum);
+				if ((n % 2n) != 0n) {
+					sum = edwards(sum, point);
 				}
 
-				return Q;
+				return sum;
 			}
 		}
-
+		
 		/**
 		 * @param {bigint} y 
 		 * @returns {number[]}
