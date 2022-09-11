@@ -2918,6 +2918,18 @@ export class NetworkParams {
 			assertDefined(this.#raw?.latestParams?.executionUnitPrices?.priceSteps),
 		];
 	}
+	
+	/**
+	 * @type {number[]}
+	 */
+	get sortedCostParams() {
+		let baseObj = this.#raw?.latestParams?.costModels?.PlutusScriptV2;
+		let keys = Object.keys(baseObj);
+
+		keys.sort();
+
+		return keys.map(key => assertDefined(baseObj[key]));
+	}
 }
 
 class CostModel {
@@ -6166,6 +6178,28 @@ class PlutusCoreProgram {
 
 		return `{"type": "${this.plutusScriptVersion()}", "description": "", "cborHex": "${cborHex}"}`;
 	}
+
+	/**
+	 * @returns {number[]} - 28 byte hash
+	 */
+	hash() {
+		let innerBytes = wrapCborBytes(this.serializeBytes());
+
+		let v = this.plutusScriptVersion();
+		switch (v) {
+			case "PlutusScriptV1":
+				innerBytes.unshift(1);
+				break;
+			case "PlutusScriptV2":
+				innerBytes.unshift(2);
+				break;
+			default:
+				throw new Error(`unhandled script version '${v}'`);
+		}
+
+		// used for both script addresses and minting policy hashes
+		return Crypto.blake2b(innerBytes, 28);
+	}
 }
 
 
@@ -6454,10 +6488,10 @@ class CBORData {
 
 				return -bytesToBigInt(b) - 1n;
 			} else {
-				throw new Error("unexpected tag");
+				throw new Error(`unexpected tag n:${n}`);
 			}
 		} else {
-			throw new Error("unexpected tag");
+			throw new Error(`unexpected tag m:${m}`);
 		}
 	}
 
@@ -6516,6 +6550,16 @@ class CBORData {
 	}
 
 	/**
+	 * @param {number[]} bytes 
+	 * @returns {boolean}
+	 */
+	static isDefList(bytes) {
+		let [m, _] = CBORData.decodeHead(bytes.slice(0, 9));
+
+		return m == 4;
+	}
+
+	/**
 	 * @param {bigint} n
 	 * @returns {number[]}
 	 */
@@ -6560,7 +6604,7 @@ class CBORData {
 	 * @returns {boolean}
 	 */
 	static isTuple(bytes) {
-		return CBORData.isIndefList(bytes);
+		return CBORData.isIndefList(bytes) || CBORData.isDefList(bytes);
 	}
 
 	/**
@@ -22813,6 +22857,7 @@ export class Tx extends CBORData {
 	addOutput(output) {
 		assert(!this.#valid);
 		
+		// TODO: min lovelace check during build?
 		this.#body.addOutput(output);
 
 		return this;
@@ -22890,6 +22935,13 @@ export class Tx extends CBORData {
 	}
 
 	/**
+	 * @param {NetworkParams} networkParams 
+	 */
+	debugScriptDataHash(networkParams) {
+		console.log(this.#witnesses.calcScriptDataHash(networkParams).dump());
+	}
+
+	/**
 	 * Assumes transaction hasn't yet been signed by anyone (i.e. witnesses.pubKeyWitnesses is empty)
 	 * 1. assume transaction is balanced and calculate the
 	 * @param {NetworkParams} networkParams
@@ -22962,7 +23014,7 @@ export class Tx extends CBORData {
 		assert(this.#valid);
 
 		pubKeyWitness.verifySignature(this.#body.toCBOR());
-		
+
 		this.#witnesses.addSignature(pubKeyWitness);
 
 		return this;
@@ -22995,7 +23047,7 @@ class TxBody extends CBORData {
 	#minted;
 
 	/** @type {?Hash} */
-	#dataHash;
+	#scriptDataHash;
 
 	/** @type {TxInput[]} */
 	#collateral;
@@ -23023,7 +23075,7 @@ class TxBody extends CBORData {
 		this.#withdrawals = new Map();
 		this.#firstValidSlot = null;
 		this.#minted = new MultiAsset(); // starts as zero value (i.e. empty map)
-		this.#dataHash = null; // calculated upon finalization
+		this.#scriptDataHash = null; // calculated upon finalization
 		this.#collateral = [];
 		this.#requiredSignatories = [];
 		this.#collateralReturn = null;
@@ -23075,8 +23127,8 @@ class TxBody extends CBORData {
 			object.set(9, this.#minted.toCBOR());
 		}
 
-		if (this.#dataHash !== null) {
-			object.set(11, this.#dataHash.toCBOR());
+		if (this.#scriptDataHash !== null) {
+			object.set(11, this.#scriptDataHash.toCBOR());
 		}
 
 		if (this.#collateral.length != 0) {
@@ -23150,7 +23202,7 @@ class TxBody extends CBORData {
 				case 10:
 					throw new Error("unhandled field");
 				case 11:
-					txBody.#dataHash = Hash.fromCBOR(fieldBytes);
+					txBody.#scriptDataHash = Hash.fromCBOR(fieldBytes);
 					break;
 				case 12:
 					throw new Error("unhandled field");
@@ -23196,6 +23248,15 @@ class TxBody extends CBORData {
 			"inputs": this.#inputs.map(input => input.dump()),
 			"outputs": this.#outputs.map(output => output.dump()),
 			"fee": this.#fee.toString(),
+			"lastValidSlot": this.#lastValidSlot === null ? null : this.#lastValidSlot.toString(),
+			"firstValidSlot": this.#firstValidSlot === null ? null : this.#firstValidSlot.toString(),
+			"minted": this.#minted.isZero() ? null : this.#minted.dump(),
+			"scriptDataHash": this.#scriptDataHash === null ? null : this.#scriptDataHash.dump(),
+			"collateral": this.#collateral.length == 0 ? null : this.#collateral.map(c => c.dump()),
+			"requiredSignatories": this.#requiredSignatories.length == 0 ? null : this.#requiredSignatories.map(rs => rs.dump()),
+			"collateralReturn": this.#collateralReturn === null ? null : this.#collateralReturn.dump(),
+			"totalCollateral": this.#totalCollateral.toString(),
+			"refInputs": this.#refInputs.map(ri => ri.dump()),
 		};
 	}
 
@@ -23276,6 +23337,13 @@ class TxBody extends CBORData {
 		this.#collateral = [input];
 	}
 	
+	/**
+	 * @param {Hash} scriptDataHash
+	 */
+	setScriptDataHash(scriptDataHash) {
+		this.#scriptDataHash = scriptDataHash;
+	}
+
 	countUniqueSignatories() {
 		/** @type {Set<Hash>} */
 		let set = new Set();
@@ -23411,6 +23479,9 @@ class TxWitnesses extends CBORData {
 	dump() {
 		return {
 			"pubKeyWitnesses": this.#pubKeyWitnesses.map(pkw => pkw.dump()),
+			"datums": this.#datums.list.map(datum => datum.toString()),
+			"redeemers": this.#redeemers.map(redeemer => redeemer.dump()),
+			"scripts": this.#scripts.map(script => bytesToHex(script)),
 		};
 	}
 
@@ -23446,6 +23517,32 @@ class TxWitnesses extends CBORData {
 
 	removeDummySignatures() {
 		this.#pubKeyWitnesses = this.#pubKeyWitnesses.filter(pkw => !pkw.isDummy());
+	}
+
+	/**
+	 * @param {NetworkParams} networkParams 
+	 * @returns {Hash}
+	 */
+	calcScriptDataHash(networkParams) {
+		assert(this.#redeemers.length > 0);
+		assert(this.#datums.list.length > 0 || this.#redeemers.length > 0);
+
+
+		let bytes = CBORData.encodeDefList(this.#redeemers);
+
+		if (this.#datums.list.length > 0) {
+			bytes = bytes.concat(this.#datums.toCBOR());
+		}
+
+		// language view encodings?
+		let sortedCostParams = networkParams.sortedCostParams;
+
+		bytes = bytes.concat(CBORData.encodeMap([[
+			CBORData.encodeInteger(1n), 
+			CBORData.encodeDefList(sortedCostParams.map(cp => CBORData.encodeInteger(BigInt(cp)))),
+		]]));
+
+		return new Hash(Crypto.blake2b(bytes));
 	}
 }
 
@@ -24367,6 +24464,40 @@ class Redeemer extends CBORData {
 			throw new Error("unexpected");
 		} else {
 			return new Redeemer(type, index, data, cost);
+		}
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get typeName() {
+		switch (this.#type) {
+			case 0: 
+				return "spending";
+			case 1:
+				return "minting";
+			case 2:
+				return "certifying";
+			case 3:
+				return "rewarding";
+			default:
+				throw new Error("unhandled redeemer type");
+		}
+	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			"type": this.#type,
+			"typeName": this.typeName,
+			"index": Number(this.#index),
+			"data": this.#data.toString(),
+			"exUnits": {
+				"mem": Number(this.#exUnits.mem),
+				"cpu": Number(this.#exUnits.cpu),
+			},
 		}
 	}
 
