@@ -78,7 +78,7 @@
 //                                          imask, imod32, imod8, posMod, irotr, bigIntToBytes, 
 //                                          bytesToBigInt, padZeroes, byteToBitString, hexToBytes, 
 //                                          bytesToHex, stringToBytes, bytesToString, replaceTabs, 
-//                                          unwrapCborBytes, wrapCborBytes, BitReader, BitWriter, 
+//                                          unwrapCBORBytes, wrapCBORBytes, BitReader, BitWriter, 
 //                                          UInt64, DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
 //                                          Crypto, IR, Source, UserError, Site
 //
@@ -182,7 +182,8 @@
 //
 //    16. IR AST build functions            buildIRExpr, buildIRFuncExpr
 //     
-//    17. Plutus-Core deserialization       PlutusCoreDeserializer, deserializePlutusCore
+//    17. Plutus-Core deserialization       PlutusCoreDeserializer, deserializePlutusCoreBytes, 
+//                                          deserializePlutusCore
 //
 //    18. Transaction objects               Tx, TxBody, TxWitnesses, TxInput, LockedTxInput,
 //                                          TxOutput, DCert, Address, MultiAsset, MoneyValue, 
@@ -594,11 +595,11 @@ function replaceTabs(str) {
  * This function unwraps one level, so must be called twice to unwrap the text envelopes of plutus scripts.
  *  (for some reason the text envelopes is cbor wrapped in cbor)
  * @example
- * bytesToHex(unwrapCborBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
+ * bytesToHex(unwrapCBORBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
  * @param {number[]} bytes 
  * @returns {number[]}
  */
-function unwrapCborBytes(bytes) {
+function unwrapCBORBytes(bytes) {
 	if (bytes.length == 0) {
 		throw new Error("expected at least one cbor byte");
 	}
@@ -608,13 +609,13 @@ function unwrapCborBytes(bytes) {
 
 /**
  * Wraps byte arrays with a cbor tag so they become valid cbor byte arrays.
- * Roughly the inverse of unwrapCborBytes.
+ * Roughly the inverse of unwrapCBORBytes.
  * @example
- * bytesToHex(wrapCborBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
+ * bytesToHex(wrapCBORBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
  * @param {number[]} bytes 
  * @returns {number[]}
  */
-function wrapCborBytes(bytes) {
+function wrapCBORBytes(bytes) {
 	return CBORData.encodeBytes(bytes, false);
 }
 
@@ -2036,7 +2037,7 @@ class Crypto {
 	 * @returns {number[]}
 	 */
 	static hashScript(cborBytes, plutusScriptVersion = PLUTUS_SCRIPT_VERSION) {
-		let bytes = wrapCborBytes(cborBytes);
+		let bytes = wrapCBORBytes(cborBytes);
 
 		switch (plutusScriptVersion) {
 			case "PlutusScriptV1":
@@ -6174,7 +6175,7 @@ class PlutusCoreProgram {
 	serialize() {
 		let bytes = this.serializeBytes();
 
-		let cborHex = bytesToHex(wrapCborBytes(wrapCborBytes(bytes)));
+		let cborHex = bytesToHex(wrapCBORBytes(wrapCBORBytes(bytes)));
 
 		return `{"type": "${this.plutusScriptVersion()}", "description": "", "cborHex": "${cborHex}"}`;
 	}
@@ -6183,7 +6184,7 @@ class PlutusCoreProgram {
 	 * @returns {number[]} - 28 byte hash
 	 */
 	hash() {
-		let innerBytes = wrapCborBytes(this.serializeBytes());
+		let innerBytes = wrapCBORBytes(this.serializeBytes());
 
 		let v = this.plutusScriptVersion();
 		switch (v) {
@@ -22673,6 +22674,32 @@ class PlutusCoreDeserializer extends BitReader {
 }
 
 /**
+ * @param {number[]} bytes 
+ * @returns {PlutusCoreProgram}
+ */
+function deserializePlutusCoreBytes(bytes) {
+	let reader = new PlutusCoreDeserializer(bytes);
+
+	let version = [
+		reader.readInteger(),
+		reader.readInteger(),
+		reader.readInteger(),
+	];
+
+	let versionKey = version.map(v => v.toString()).join(".");
+
+	if (versionKey != PLUTUS_CORE_VERSION) {
+		console.error(`Warning: Plutus-Core script doesn't match version of Helios (expected ${PLUTUS_CORE_VERSION}, got ${versionKey})`);
+	}
+
+	let expr = reader.readTerm();
+
+	reader.finalize();
+
+	return new PlutusCoreProgram(expr, version);
+}
+
+/**
  * Parses a plutus core program. Returns a PlutusCoreProgram object
  * @param {string} jsonString 
  * @returns {PlutusCoreProgram}
@@ -22696,27 +22723,9 @@ export function deserializePlutusCore(jsonString) {
 		}
 	}
 
-	let bytes = unwrapCborBytes(unwrapCborBytes(hexToBytes(cborHex)));
+	let bytes = unwrapCBORBytes(unwrapCBORBytes(hexToBytes(cborHex)));
 
-	let reader = new PlutusCoreDeserializer(bytes);
-
-	let version = [
-		reader.readInteger(),
-		reader.readInteger(),
-		reader.readInteger(),
-	];
-
-	let versionKey = version.map(v => v.toString()).join(".");
-
-	if (versionKey != PLUTUS_CORE_VERSION) {
-		console.error("Warning: Plutus-Core script doesn't match version of Helios");
-	}
-
-	let expr = reader.readTerm();
-
-	reader.finalize();
-
-	return new PlutusCoreProgram(expr, version);
+	return deserializePlutusCoreBytes(bytes);
 }
 
 //////////////////////////
@@ -23378,7 +23387,7 @@ class TxWitnesses extends CBORData {
 	/** @type {Redeemer[]} */
 	#redeemers;
 
-	/** @type {number[][]} */
+	/** @type {PlutusCoreProgram[]} */
 	#scripts;
 
 	constructor() {
@@ -23414,7 +23423,7 @@ class TxWitnesses extends CBORData {
 			let scriptBytes = [];
 
 			for (let script of this.#scripts) {
-				scriptBytes = scriptBytes.concat(CBORData.encodeBytes(script, false));
+				scriptBytes = scriptBytes.concat(CBORData.encodeBytes(wrapCBORBytes(script.serializeBytes()), false));
 			}
 
 			object.set(6, CBORData.encodeIndefListStart().concat(scriptBytes).concat(CBORData.encodeIndefListEnd()));
@@ -23452,7 +23461,7 @@ class TxWitnesses extends CBORData {
 					break;
 				case 6:
 					CBORData.decodeList(fieldBytes, itemBytes => {
-						txWitnesses.#scripts.push(CBORData.decodeBytes(itemBytes));
+						txWitnesses.#scripts.push(deserializePlutusCoreBytes(unwrapCBORBytes(CBORData.decodeBytes(itemBytes))));
 					});
 					break;
 				default:
@@ -23481,7 +23490,7 @@ class TxWitnesses extends CBORData {
 			"pubKeyWitnesses": this.#pubKeyWitnesses.map(pkw => pkw.dump()),
 			"datums": this.#datums.list.map(datum => datum.toString()),
 			"redeemers": this.#redeemers.map(redeemer => redeemer.dump()),
-			"scripts": this.#scripts.map(script => bytesToHex(script)),
+			"scripts": this.#scripts.map(script => bytesToHex(wrapCBORBytes(script.serializeBytes()))),
 		};
 	}
 
@@ -25084,8 +25093,8 @@ export const exportedForTesting = {
 	bytesToHex: bytesToHex,
 	stringToBytes: stringToBytes,
 	bytesToString: bytesToString,
-	wrapCborBytes: wrapCborBytes,
-	unwrapCborBytes: unwrapCborBytes,
+	wrapCBORBytes: wrapCBORBytes,
+	unwrapCBORBytes: unwrapCBORBytes,
 	Site: Site,
 	Source: Source,
 	Crypto: Crypto,
