@@ -751,6 +751,7 @@
         "era": "Babbage",
         "hash": "fb470299a3d447fa3d04bb82f6c3d754bdce6040d0e210c09fdad6e9771afc83",
         "slot": 2671702,
-        "syncProgress": "100.00"
+        "syncProgress": "100.00",
+        "time": 1662071016000
     }
 }

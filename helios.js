@@ -6,14 +6,14 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.5.2
-// Last update: August 2022
+// Version:     0.5.3
+// Last update: September 2022
 // License:     Unlicense
 //
 //
 // About: Helios is a smart contract DSL for Cardano. 
 //     This Javascript library contains functions to compile Helios sources into Plutus-Core.
-//     The results can be used by cardano-cli to generate and submit blockchain transactions.
+//     Transactions can also be generated using Helios.
 //
 //     
 // Dependencies: none
@@ -60,6 +60,9 @@
 //
 //   * highlight(src: string) -> Uint8Array
 //       Returns one marker byte per src character.
+//
+//   * Tx
+//       Tx class which can also be used for building transactions.
 //
 //
 // Note: the Helios library is a single file, doesn't use TypeScript, and should stay 
@@ -185,10 +188,10 @@
 //    17. Plutus-Core deserialization       PlutusCoreDeserializer, deserializePlutusCoreBytes, 
 //                                          deserializePlutusCore
 //
-//    18. Transaction objects               Tx, TxBody, TxWitnesses, TxInput, LockedTxInput,
-//                                          TxOutput, DCert, Address, MultiAsset, MoneyValue, 
-//                                          Hash, PubKeyWitness, Redeemer, OutputDatum, 
-//                                          OutputDatumHash, OutputDatumInline
+//    18. Transaction objects               Tx, TxBody, TxWitnesses, TxInput, TxOutput, DCert, 
+//                                          Address, MultiAsset, MoneyValue, Hash, PubKeyWitness, 
+//                                          Redeemer, SpendingRedeemer, MintingRedeemer, 
+//                                          OutputDatum, OutputDatumHash, OutputDatumInline
 //
 //    19. Property test framework           FuzzyTest
 //
@@ -200,7 +203,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-const VERSION = "0.5.2";
+const VERSION = "0.5.3"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -249,6 +252,9 @@ const PLUTUS_CORE_VERSION_COMPONENTS = [1n, 0n, 0n];
  */
 const PLUTUS_CORE_VERSION = PLUTUS_CORE_VERSION_COMPONENTS.map(c => c.toString()).join(".");
 
+/**
+ * This library uses V2 of the Plutus Ledger API, and is no longer compatible with V1
+ */
 const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 
 /**
@@ -299,11 +305,26 @@ function assert(cond, msg = "unexpected") {
  * @returns {T}
  */
 function assertDefined(obj, msg = "unexpected undefined value") {
-	if (obj == undefined) {
+	if (obj === undefined || obj === null ) {
 		throw new Error(msg);
 	}
 
 	return obj;
+}
+
+/**
+ * @param {any} obj 
+ * @param {string} msg 
+ * @returns {number}
+ */
+function assertNumber(obj, msg = "expected a number") {
+	if (obj === undefined || obj === null) {
+		throw new Error(msg);
+	} else if (typeof obj == "number") {
+		return obj;
+	} else {
+		throw new Error(msg);
+	}
 }
 
 /**
@@ -314,7 +335,7 @@ function assertDefined(obj, msg = "unexpected undefined value") {
  * @returns {boolean}
  */
 function equals(a, b) {
-	if (a == undefined || b == undefined) {
+	if (a === undefined || b === undefined) {
 		throw new Error("one of the args is undefined");
 	} else if (typeof a == "string") {
 		return a === b;
@@ -826,7 +847,7 @@ function wrapCBORBytes(bytes) {
 }
 
 /**
- * UInt64 number represented by 2 UInt32 numbers
+ * UInt64 number (represented by 2 UInt32 numbers)
  */
 class UInt64 {
 	#high;
@@ -849,8 +870,8 @@ class UInt64 {
 	}
 
 	/**
-	 * A uint32 part is assumed to be stored as little endian, but a pair of uint32s that form a uin64 are stored assumed to be in big endian order
 	 * @param {number[]} bytes - 8 uint8 numbers
+	 * @param {boolean} littleEndian
 	 * @returns {UInt64}
 	 */
 	static fromBytes(bytes, littleEndian = true) {
@@ -872,7 +893,6 @@ class UInt64 {
 	}
 
 	/**
-	 * 
 	 * @param {string} str 
 	 * @returns {UInt64}
 	 */
@@ -1014,6 +1034,7 @@ const BECH32_BASE32_ALPHABET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
  *     base32 encoding and decoding
  *     bech32 encoding, checking, and decoding
  *     sha2_256, sha2_512, sha3 and blake2b hashing
+ *     ed25519 pubkey generation, signing, and signature verification (NOTE: the current implementation is very slow)
  */
 class Crypto {
 	/**
@@ -2059,7 +2080,7 @@ class Crypto {
 	 *  * Crypto.Ed25519.sign(message, privateKey)
 	 *  * Crypto.Ed25519.verify(message, signature, publicKey)
 	 * 
-	 * This is implementation is slow, but should be good enough for client-side usage
+	 * This is implementation is slow (~0.5s per verification), but should be good enough for simple client-side usage
 	 * 
 	 * Ported from: https://ed25519.cr.yp.to/python/ed25519.py
 	 */
@@ -2150,6 +2171,7 @@ class Crypto {
 		}		
 
 		/**
+		 * Curve point 'addition'
 		 * Note: this is probably the bottleneck of this Ed25519 implementation
 		 * @param {[bigint, bigint]} a 
 		 * @param {[bigint, bigint]} b 
@@ -2186,6 +2208,7 @@ class Crypto {
 		}
 
 		/**
+		 * Curve point 'multiplication'
 		 * @param {bigint} y 
 		 * @returns {number[]}
 		 */
@@ -2273,6 +2296,7 @@ class Crypto {
 		}
 
 		/**
+		 * Couldn't think of a proper name for this function
 		 * @param {number[]} h 
 		 * @returns {bigint}
 		 */
@@ -2359,7 +2383,7 @@ class Crypto {
 }
 
 /**
- * The IR class combines a string of IR sourcecode with an optional site.
+ * The IR class combines a string of intermediate representation sourcecode with an optional site.
  * The site is used for mapping IR code to the original source code.
  */
 class IR {
@@ -2557,7 +2581,7 @@ class Source {
 
 /**
  * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
- * or when the user of Helios throws an explicit error.
+ * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
  */
 export class UserError extends Error {
 	#pos;
@@ -2809,6 +2833,9 @@ class Site {
 // Section 3: Plutus-Core builtins
 //////////////////////////////////
 
+/**
+ * NetworkParams contains all protocol parameters. These are needed to do correct, up-to-date, cost calculations.
+ */
 export class NetworkParams {
 	#raw;
 
@@ -2827,7 +2854,7 @@ export class NetworkParams {
 	 * @returns {number}
 	 */
 	getCostModelParameter(key) {
-		return assertDefined(this.costModel[key], `'obj.${key}' undefined`);
+		return assertNumber(this.costModel[key], `'obj.${key}' undefined`);
 	}
 
 	/**
@@ -2839,8 +2866,8 @@ export class NetworkParams {
 		let cpuKey = `cek${name}Cost-exBudgetCPU`;
 
 		return {
-			mem: BigInt(assertDefined(this.costModel[memKey], `'obj.${memKey}' undefined`)),
-			cpu: BigInt(assertDefined(this.costModel[cpuKey], `'obj.${cpuKey}' undefined`)),
+			mem: BigInt(assertNumber(this.costModel[memKey], `'obj.${memKey}' undefined`)),
+			cpu: BigInt(assertNumber(this.costModel[cpuKey], `'obj.${cpuKey}' undefined`)),
 		};
 	}
 
@@ -2905,8 +2932,8 @@ export class NetworkParams {
 	 */
 	get txFeeParams() {
 		return [
-			assertDefined(this.#raw?.latestParams?.txFeeFixed),
-			assertDefined(this.#raw?.latestParams?.txFeePerByte),
+			assertNumber(this.#raw?.latestParams?.txFeeFixed),
+			assertNumber(this.#raw?.latestParams?.txFeePerByte),
 		];
 	}
 
@@ -2915,8 +2942,8 @@ export class NetworkParams {
 	 */
 	get exFeeParams() {
 		return [
-			assertDefined(this.#raw?.latestParams?.executionUnitPrices?.priceMemory),
-			assertDefined(this.#raw?.latestParams?.executionUnitPrices?.priceSteps),
+			assertNumber(this.#raw?.latestParams?.executionUnitPrices?.priceMemory),
+			assertNumber(this.#raw?.latestParams?.executionUnitPrices?.priceSteps),
 		];
 	}
 	
@@ -2929,10 +2956,77 @@ export class NetworkParams {
 
 		keys.sort();
 
-		return keys.map(key => assertDefined(baseObj[key]));
+		return keys.map(key => assertNumber(baseObj[key]));
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get lovelacePerUTXOByte() {
+		return assertNumber(this.#raw?.latestParams?.utxoCostPerByte);
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get minCollateralPct() {
+		return assertNumber(this.#raw?.latestParams?.collateralPercentage);
+	}
+
+	/**
+	 * @type {[number, number]} - [mem, cpu]
+	 */
+	get txExecutionBudget() {
+		return [
+			assertNumber(this.#raw?.latestParams?.maxTxExecutionUnits?.memory),
+			assertNumber(this.#raw?.latestParams?.maxTxExecutionUnits?.steps),
+		];
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get maxTxSize() {
+		return assertNumber(this.#raw?.latestParams?.maxTxSize);
+	}
+
+	/**
+	 * Use the latest slot in networkParameters to determine time
+	 * @param {bigint} slot
+	 * @returns {bigint}
+	 */
+	slotToTime(slot) {
+		let secondsPerSlot = assertNumber(this.#raw?.shelleyGenesis?.slotLength);
+
+		let lastSlot = BigInt(assertNumber(this.#raw?.latestTip?.slot));
+		let lastTime = BigInt(assertNumber(this.#raw?.latestTip?.time)); // in ms
+
+		let slotDiff = slot - lastSlot;
+
+		return lastTime + slotDiff*BigInt(secondsPerSlot*1000);
+	}
+
+	/**
+	 * Use the latest slot in network parameters to determine slot
+	 * @param {bigint} time - milliseconds since 1970
+	 * @returns {bigint}
+	 */
+	timeToSlot(time) {
+		let secondsPerSlot = assertNumber(this.#raw?.shelleyGenesis?.slotLength);
+
+		let lastSlot = BigInt(assertNumber(this.#raw?.latestTip?.slot));
+		let lastTime = BigInt(assertNumber(this.#raw?.latestTip?.time));
+
+		let timeDiff = lastTime - time;
+
+		return lastSlot + BigInt(Math.round(Number(timeDiff)/(1000*secondsPerSlot)));
 	}
 }
 
+/**
+ * Each builtin has an associated CostModel.
+ * The CostModel calculates the execution cost of a builtin, depending on the byte-size of the inputs.
+ */
 class CostModel {
 	constructor() {
 	}
@@ -3398,7 +3492,10 @@ class PlutusCoreBuiltinInfo {
 	}
 }
 
-/** @type {PlutusCoreBuiltinInfo[]} */
+/** 
+ * A list of all PlutusScript builins, with associated costmodels (actual costmodel parameters are loaded from NetworkParams during runtime)
+ * @type {PlutusCoreBuiltinInfo[]} 
+ */
 const PLUTUS_CORE_BUILTINS = (
 	/**
 	 * @returns {PlutusCoreBuiltinInfo[]}
@@ -3482,7 +3579,7 @@ const PLUTUS_CORE_BUILTINS = (
 /////////////////////////////////////
 
 /** 
- * a PlutusCoreValue is passed around be PlutusCore expressions.
+ * a PlutusCoreValue is passed around by PlutusCore expressions.
  */
 class PlutusCoreValue {
 	#site;
@@ -4047,8 +4144,8 @@ class PlutusCoreStack {
 }
 
 /**
- * Anonymous Plutus Core function.
- * Returns a new PlutusCoreAnon whenever it is called/applied, except final application when the function itself is evaluated.
+ * Anonymous PlutusCore function.
+ * Returns a new PlutusCoreAnon whenever it is called/applied (args are 'accumulated'), except final application, when the function itself is evaluated.
  */
 class PlutusCoreAnon extends PlutusCoreValue {
 	/**
@@ -4676,7 +4773,6 @@ class PlutusCoreBool extends PlutusCoreValue {
 	}
 }
 
-
 /**
  * UPLC pair value class
  * Can contain any other value type.
@@ -5180,7 +5276,7 @@ class PlutusCoreLambda extends PlutusCoreTerm {
 }
 
 /**
- * UPLC function application term
+ * UPLC function application term (i.e. function call)
  */
 class PlutusCoreCall extends PlutusCoreTerm {
 	#a;
@@ -5225,7 +5321,7 @@ class PlutusCoreCall extends PlutusCoreTerm {
 }
 
 /**
- * UPLC const term
+ * UPLC const term (i.e. a literal in conventional sense)
  */
 class PlutusCoreConst extends PlutusCoreTerm {
 	#value;
@@ -6007,6 +6103,7 @@ class PlutusCoreProgram {
 	 * @returns {string}
 	 */
 	plutusScriptVersion() {
+		// Note: only supports PlutusScriptV2 for now
 		return PLUTUS_SCRIPT_VERSION;
 	}
 
@@ -6038,7 +6135,7 @@ class PlutusCoreProgram {
 	/**
 	 * Evaluates the term contained in PlutusCoreProgram (assuming it is a lambda term)
 	 * @param {?PlutusCoreValue[]} args
-	 * @param {PlutusCoreRTECallbacks} callbacks 
+	 * @param {PlutusCoreRTECallbacks} callbacks
 	 * @param {?NetworkParams} networkParams
 	 * @returns {Promise<PlutusCoreValue>}
 	 */
@@ -6060,6 +6157,10 @@ class PlutusCoreProgram {
 
 		if (args !== null) {
 			for (let arg of args) {
+				// each call also adds to the total cost
+				rte.incrCallCost();
+				rte.incrConstCost();
+
 				result = await result.call(rte, globalCallSite, arg);
 			}
 		}
@@ -6139,7 +6240,6 @@ class PlutusCoreProgram {
 		};
 
 		let res = await this.run(args, callbacks, networkParams);
-		console.log(res.toString());
 		
 		return {
 			mem: memCost,
@@ -6218,6 +6318,7 @@ class PlutusCoreProgram {
 
 /**
  * Base case of any CBOR serializable data class
+ * Also contains helper methods for (de)serializing data to/from CBOR
  */
 class CBORData {
 	constructor() {
@@ -6803,7 +6904,6 @@ class CBORData {
 
 /**
  * Base class for UPLC data classes (not the same as UPLC value classes!)
- * Also contains helper methods for (de)serializing data to/from CBOR
  */
 class PlutusCoreData extends CBORData {
 	constructor() {
@@ -6888,7 +6988,7 @@ class PlutusCoreData extends CBORData {
 /**
  * UPLC int data class
  */
-class IntData extends PlutusCoreData {
+export class IntData extends PlutusCoreData {
 	#value;
 
 	/**
@@ -6961,7 +7061,7 @@ class IntData extends PlutusCoreData {
  * UPLC bytearray data class.
  * Wraps a regular list of uint8 numbers (so not Uint8Array)
  */
-class ByteArrayData extends PlutusCoreData {
+export class ByteArrayData extends PlutusCoreData {
 	#bytes;
 
 	/**
@@ -7047,7 +7147,7 @@ class ByteArrayData extends PlutusCoreData {
 /**
  * UPLC list data class
  */
-class ListData extends PlutusCoreData {
+export class ListData extends PlutusCoreData {
 	#items;
 
 	/**
@@ -7134,7 +7234,7 @@ class ListData extends PlutusCoreData {
 /**
  * UPLC map data class
  */
-class MapData extends PlutusCoreData {
+export class MapData extends PlutusCoreData {
 	#pairs;
 
 	/**
@@ -7225,7 +7325,7 @@ class MapData extends PlutusCoreData {
 /**
  * UPLC constructed data class
  */
-class ConstrData extends PlutusCoreData {
+export class ConstrData extends PlutusCoreData {
 	#index;
 	#fields;
 
@@ -7658,7 +7758,7 @@ class Symbol extends Token {
 }
 
 /**
- * Group token can '(...)', '[...]' or '{...}' and can contain a number of comma separated fields.
+ * Group token can '(...)', '[...]' or '{...}' and can contain comma separated fields.
  */
 class Group extends Token {
 	#type;
@@ -7907,36 +8007,6 @@ class StringLiteral extends PrimitiveLiteral {
 
 	toString() {
 		return `"${this.#value.toString()}"`;
-	}
-}
-
-/**
- * Unit literal token (only used by Intermediate Representation)
- */
-class UnitLiteral extends PrimitiveLiteral {
-	/**
-	 * @param {Site} site 
-	 */
-	constructor(site) {
-		super(site);
-	}
-
-	toString() {
-		return "()";
-	}
-
-	/**
-	 * @returns {IR}
-	 */
-	toIR() {
-		return new IR(this.toString(), this.site);
-	}
-
-	/**
-	 * @returns {PlutusCoreTerm}
-	 */
-	toPlutusCore() {
-		return PlutusCoreUnit.newTerm(this.site);
 	}
 }
 
@@ -8504,7 +8574,7 @@ class Tokenizer {
 }
 
 /**
- * Tokenizes a string (wrapped in Source0)
+ * Tokenizes a string (wrapped in Source)
  * @param {Source} src 
  * @returns {Token[]}
  */
@@ -8595,7 +8665,7 @@ const SyntaxCategory = {
 	Symbol:     3,
 	Type:       4,
 	Keyword:    5,
-	Error: 6,
+	Error:      6,
 };
 
 /**
@@ -8609,24 +8679,19 @@ export function highlight(src) {
 	let n = src.length;
 
 	const SyntaxState = {
-		Normal: 0,
-		SLComment: 1,
-		MLComment: 2,
-		String: 3,
-		NumberStart: 4,
-		HexNumber: 5,
-		BinaryNumber: 6,
-		OctalNumber: 7,
+		Normal:        0,
+		SLComment:     1,
+		MLComment:     2,
+		String:        3,
+		NumberStart:   4,
+		HexNumber:     5,
+		BinaryNumber:  6,
+		OctalNumber:   7,
 		DecimalNumber: 8,
-		ByteArray: 9,
+		ByteArray:     9,
 	};
 
-	// categories:
-	//  0: normal
-	//  1: comment
-	//  2: literal
-	//  3: expression symbol
-	//  4: builtin-type
+	// array of categories
 	let data = new Uint8Array(n);
 
 	let j = 0; // position in data
@@ -22832,17 +22897,58 @@ export class Tx extends CBORData {
 		return this;
 	}
 
+	/**
+	 * @param {Hash} mph 
+	 * @param {[number[], bigint][]} lst - list of pairs of [tokenName,amount]
+	 * @param {PlutusCoreData} redeemer
+	 * @returns {Tx}
+	 */
+	addMint(mph, lst, redeemer) {
+		assert(!this.#valid);
+
+		let idx = this.#body.addMint(mph, lst);
+
+		this.#witnesses.addMintingRedeemer(idx, redeemer);
+
+		return this;
+	}
 
 	/**
 	 * @param {TxInput} input
+	 * @param {?PlutusCoreData} redeemer
 	 * @returns {Tx}
 	 */
-	addInput(input) {
+	addInput(input, redeemer = null) {
 		assert(!this.#valid);
 
-		assert(input.origOutput !== null);
+		if (input.origOutput === null) {
+			throw new Error("TxInput.origOutput must be set when building transaction");
+		} else {
+			let id = this.#body.addInput(input);
 
-		this.#body.addInput(input);
+			if (redeemer !== null) {
+				assert(input.origOutput.address.validatorHash !== null, "input isn't locked by a script");
+
+				this.#witnesses.addSpendingRedeemer(id, redeemer);
+
+				if (input.origOutput.datum === null) {
+					throw new Error("expected non-null datum");
+				} else {
+					let datum = input.origOutput.datum;
+
+					if (datum instanceof OutputDatumHash) {
+						let datumData = datum.data;
+						if (datumData === null) {
+							throw new Error("expected non-null datum data");
+						} else {
+							this.#witnesses.addDatumData(datumData);
+						}
+					}
+				}
+			} else {
+				assert(input.origOutput.address.pubKeyHash !== null, "input is locked by a script, but redeemer isn't specified");
+			}
+		}
 
 		return this;
 	}
@@ -22866,7 +22972,7 @@ export class Tx extends CBORData {
 	addOutput(output) {
 		assert(!this.#valid);
 		
-		// TODO: min lovelace check during build?
+		// min lovelace is checked during build, because 
 		this.#body.addOutput(output);
 
 		return this;
@@ -22885,6 +22991,20 @@ export class Tx extends CBORData {
 	}
 
 	/**
+	 * Unused scripts are detected during build(), in which case an error is thrown
+	 * @param {PlutusCoreProgram} program
+	 * @returns {Tx}
+	 */
+	addScript(program) {
+		assert(!this.#valid);
+
+		this.#witnesses.addScript(program);
+
+		return this;
+	}
+
+	/**
+	 * Only one collateral input is required
 	 * @param {TxInput} input 
 	 * @returns {Tx}
 	 */
@@ -22944,45 +23064,68 @@ export class Tx extends CBORData {
 	}
 
 	/**
-	 * @param {NetworkParams} networkParams 
+	 * Checks that all necessary scripts are included, and that all included scripts are used
 	 */
-	debugScriptDataHash(networkParams) {
-		console.log(this.#witnesses.calcScriptDataHash(networkParams).dump());
+	checkScripts() {
+		let scripts = this.#witnesses.scripts;
+
+		/** @type {Set<string>} */
+		let scriptHashSet = new Set();
+
+		this.#body.collectScriptHashes(scriptHashSet);
+
+		if (scriptHashSet.size < scripts.length) {
+			throw new Error("too many scripts included");
+		} else if (scriptHashSet.size > scripts.length) {
+			throw new Error("missing scripts");
+		}
+
+		for (let script of scripts) {
+			assert(scriptHashSet.has(bytesToHex(script.hash())), "missing script");
+		}
 	}
 
 	/**
-	 * Assumes transaction hasn't yet been signed by anyone (i.e. witnesses.pubKeyWitnesses is empty)
-	 * 1. assume transaction is balanced and calculate the
-	 * @param {NetworkParams} networkParams
+	 * @param {NetworkParams} networkParams 
+	 * @returns {Promise<void>}
 	 */
-	build(networkParams) {
-		assert(!this.#valid);
+	async executeRedeemers(networkParams) {
+		await this.#witnesses.executeRedeemers(networkParams, this.#body);
+	}
 
+	/**
+	 * Calculates fee and balances transaction by sending an output back to changeAddress
+	 * First assumes that change output isn't needed, and if that assumption doesn't result in a balanced transaction the change output is created.
+	 * Iteratively increments the fee because the fee increase the tx size which in turn increases the fee (always converges within two steps though).
+	 * Throws error if transaction can't be balanced.
+	 * @param {NetworkParams} networkParams 
+	 */
+	balance(networkParams) {
 		let fee = this.setFee(networkParams, this.estimateFee(networkParams));
-
-		// if transaction isn't balanced we must add a change address
-
-		let inputValue = this.#body.sumInputValue();
+		
+		let inputValue = this.#body.sumInputAndMintedValue();
 
 		let outputValue = this.#body.sumOutputValue();
 
 		let feeValue = new MoneyValue(fee);
 
-		let rightValue = feeValue.add(outputValue);
+		let totalOutputValue = feeValue.add(outputValue);
 
-		if (rightValue.equals(inputValue)) {
-			this.#valid = true;
+		if (totalOutputValue.equals(inputValue)) {
 			return;
-		} else if (rightValue.gt(inputValue)) { // strict gt for every asset kind
+		} else if (!inputValue.greaterOrEqualsThan(totalOutputValue)) { // strict gt for every asset kind
+			console.log(inputValue.dump(), totalOutputValue.dump())
 			throw new Error("transaction outputs more than it inputs");
 		} else if (this.#changeAddress === null) {
+			// if transaction isn't balanced we must add a change address
+
 			throw new Error("change address not specified");
 		}
 
 		// use the change address to create a change utxo
-		let diffValue = inputValue.sub(rightValue);
+		let diffValue = inputValue.sub(totalOutputValue);
 
-		let changeOutput = new TxOutput(this.#changeAddress, diffValue);
+		let changeOutput = new TxOutput(this.#changeAddress, diffValue); // also includes any minted change
 
 		this.#body.addOutput(changeOutput);
 
@@ -23006,11 +23149,72 @@ export class Tx extends CBORData {
 
 			fee = this.estimateFee(networkParams);
 		}
+	}
 
-		// transaction should finally be balanced
+	/**
+	 * @param {NetworkParams} networkParams 
+	 */
+	syncScriptDataHash(networkParams) {
+		let hash = this.#witnesses.calcScriptDataHash(networkParams);
 
-		// TODO: collateral
-		// TODO: datahash
+		if (hash !== null) {
+			this.#body.setScriptDataHash(hash);
+		}
+	}
+
+	/**
+	 * Throws an error if there isn't enough collateral
+	 * Also throws an error if the script doesn't require collateral, but collateral was actually included
+	 * @param {NetworkParams} networkParams 
+	 */
+	checkCollateral(networkParams) {
+		if (this.#witnesses.scripts.length > 0) {
+
+			let minCollateralPct = networkParams.minCollateralPct;
+
+			this.#body.checkCollateral(BigInt(Math.ceil(minCollateralPct*Number(this.#body.fee)/100.0)));
+		} else {
+			this.#body.checkCollateral(null);
+		}
+	}
+
+	/**
+	 * Throws error if tx is too big
+	 * @param {NetworkParams} networkParams 
+	 */
+	checkSize(networkParams) {
+		let size = this.toCBOR().length;
+
+		if (size > networkParams.maxTxSize) {
+			throw new Error("tx too big");
+		}
+	}
+
+	/**
+	 * Assumes transaction hasn't yet been signed by anyone (i.e. witnesses.pubKeyWitnesses is empty)
+	 * @param {NetworkParams} networkParams
+	 * @returns {Promise<void>}
+	 */
+	async build(networkParams) {
+		assert(!this.#valid);
+
+		this.checkScripts();
+
+		// first do everything that might increase the size of the transaction		
+
+		await this.executeRedeemers(networkParams);
+
+		this.syncScriptDataHash(networkParams);
+
+		this.balance(networkParams);
+
+		this.#body.checkOutputs(networkParams);
+
+		this.checkCollateral(networkParams);
+
+		this.#witnesses.checkExecutionBudget(networkParams);
+
+		this.checkSize(networkParams);
 
 		this.#valid = true;
 	}
@@ -23087,9 +23291,13 @@ class TxBody extends CBORData {
 		this.#scriptDataHash = null; // calculated upon finalization
 		this.#collateral = [];
 		this.#requiredSignatories = [];
-		this.#collateralReturn = null;
-		this.#totalCollateral = 0n;
+		this.#collateralReturn = null; // doesn't seem to be used anymore
+		this.#totalCollateral = 0n; // doesn't seem to be used anymore
 		this.#refInputs = [];
+	}
+
+	get inputs() {
+		return this.#inputs.slice();
 	}
 
 	get fee() {
@@ -23101,6 +23309,10 @@ class TxBody extends CBORData {
 	 */
 	setFee(fee) {
 		this.#fee = fee;
+	}
+
+	get minted() {
+		return this.#minted;
 	}
 
 	/**
@@ -23263,10 +23475,70 @@ class TxBody extends CBORData {
 			"scriptDataHash": this.#scriptDataHash === null ? null : this.#scriptDataHash.dump(),
 			"collateral": this.#collateral.length == 0 ? null : this.#collateral.map(c => c.dump()),
 			"requiredSignatories": this.#requiredSignatories.length == 0 ? null : this.#requiredSignatories.map(rs => rs.dump()),
-			"collateralReturn": this.#collateralReturn === null ? null : this.#collateralReturn.dump(),
-			"totalCollateral": this.#totalCollateral.toString(),
+			//"collateralReturn": this.#collateralReturn === null ? null : this.#collateralReturn.dump(), // doesn't seem to be used anymore
+			//"totalCollateral": this.#totalCollateral.toString(), // doesn't seem to be used anymore
 			"refInputs": this.#refInputs.map(ri => ri.dump()),
 		};
+	}
+
+	/**
+	 * For now simply returns minus infinity to plus infinity (WiP)
+	 * @param {NetworkParams} networkParams
+	 * @returns {ConstrData}
+	 */
+	toValidTimeRangeData(networkParams) {
+		return new ConstrData(0, [
+			new ConstrData(0, [ // LowerBound
+				this.#firstValidSlot === null ? new ConstrData(0, []) : new ConstrData(1, [new IntData(networkParams.slotToTime(this.#firstValidSlot))]), // NegInf
+				new ConstrData(1, []), // true
+			]),
+			new ConstrData(0, [ // UpperBound
+				this.#lastValidSlot === null ? new ConstrData(2, []) : new ConstrData(1, [new IntData(networkParams.slotToTime(this.#lastValidSlot))]), // PosInf
+				new ConstrData(1, []), // true
+			]),
+		]);
+	}
+
+	/**
+	 * @param {NetworkParams} networkParams
+	 * @param {Redeemer[]} redeemers
+	 * @param {ListData} datums 
+	 * @param {Hash} txId
+	 * @returns {ConstrData}
+	 */
+	toTxData(networkParams, redeemers, datums, txId) {
+		return new ConstrData(0, [
+			new ListData(this.#inputs.map(input => input.toData())),
+			new ListData(this.#outputs.map(output => output.toData())),
+			(new MoneyValue(this.#fee)).toData(),
+			this.#minted.toData(),
+			new ListData(this.#certs.map(cert => cert.toData())),
+			new MapData(Array.from(this.#withdrawals.entries()).map(w => [w[0].toStakingData(), new IntData(w[1])])),
+			new MapData([]), // TODO: staking withdrawals
+			this.toValidTimeRangeData(networkParams),
+			new ListData(this.#requiredSignatories.map(rs => new ByteArrayData(rs.bytes))),
+			new MapData(redeemers.map(r => [r.toScriptPurposeData(this), r.data])),
+			new MapData(datums.list.map(d => [
+				new ByteArrayData(Crypto.blake2b(d.toCBOR())), 
+				d
+			])),
+			new ConstrData(0, [new ByteArrayData(txId.bytes)]),
+		]);
+	}
+
+	/**
+	 * @param {NetworkParams} networkParams 
+	 * @param {Redeemer[]} redeemers
+	 * @param {ListData} datums
+	 * @param {number} redeemerIdx
+	 * @returns {PlutusCoreData}
+	 */
+	toScriptContextData(networkParams, redeemers, datums, redeemerIdx) {		
+		return new ConstrData(0, [
+			// tx (we can't know the txId right now, because we don't know the execution costs yet, but a dummy txId should be fine)
+			this.toTxData(networkParams, redeemers, datums, Hash.dummy()),
+			redeemers[redeemerIdx].toScriptPurposeData(this),
+		]);
 	}
 
 	/**
@@ -23282,6 +23554,13 @@ class TxBody extends CBORData {
 		}
 
 		return sum;
+	}
+
+	/**
+	 * Throws error if any part of the sum is negative (i.e. more is burned than)
+	 */
+	sumInputAndMintedValue() {
+		return this.sumInputValue().add(new MoneyValue(0n, this.#minted)).assertAllPositive();
 	}
 
 	/**
@@ -23312,10 +23591,31 @@ class TxBody extends CBORData {
 	}
 
 	/**
+	 * Throws error if this.#minted already contains mph
+	 * @param {Hash} mph - minting policy hash
+	 * @param {[number[], bigint][]} lst
+	 * @returns {number} - index of entry
+	 */
+	addMint(mph, lst) {
+		return this.#minted.addMintingPolicy(mph, lst);
+	}
+
+	/**
 	 * @param {TxInput} input 
+	 * @returns {number} - index of added input
 	 */
 	addInput(input) {
+		if (input.origOutput === null) {
+			throw new Error("TxInput.origOutput must be set when building transaction");
+		} else {
+			input.origOutput.value.assertAllPositive();
+		}
+
+		let idx = this.#inputs.length;
+
 		this.#inputs.push(input);
+
+		return idx;
 	}
 
 	/**
@@ -23329,6 +23629,8 @@ class TxBody extends CBORData {
 	 * @param {TxOutput} output
 	 */
 	addOutput(output) {
+		output.value.assertAllPositive();
+
 		this.#outputs.push(output);
 	}
 
@@ -23375,6 +23677,67 @@ class TxBody extends CBORData {
 
 		return set.size;
 	}
+
+	/**
+	 * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset
+	 * @param {Set<string>} set - hashes in hex format
+	 */
+	collectScriptHashes(set) {
+		for (let input of this.#inputs) {
+			if (input.origOutput !== null) {
+				let scriptHash = input.origOutput.address.validatorHash;
+
+				if (scriptHash !== null) {
+					set.add(bytesToHex(scriptHash.bytes));
+				}
+			}
+		}
+
+		let mphs = this.#minted.keys;
+
+		for (let mph of mphs) {
+			set.add(bytesToHex(mph.bytes));
+		}
+	}
+
+	/**
+	 * Checks that each output contains enough lovelace
+	 * @param {NetworkParams} networkParams
+	 */
+	checkOutputs(networkParams) {
+		let lovelacePerByte = networkParams.lovelacePerUTXOByte;
+
+		for (let output of this.#outputs) {
+			let outputSize = output.toCBOR().length + 160;
+
+			assert(BigInt(outputSize)*BigInt(lovelacePerByte) <= output.value.lovelace, "not enough lovelace in output");
+		}
+	}
+	
+	/**
+	 * @param {?bigint} minCollateral 
+	 */
+	checkCollateral(minCollateral) {
+		if (minCollateral === null) {
+			assert(this.#collateral.length == 0, "unnecessary collateral included");
+		} else {
+			let sum = new MoneyValue();
+
+			for (let col of this.#collateral) {
+				if (col.origOutput === null) {
+					throw new Error("expected collateral TxInput.origOutput to be set");
+				} else {
+					sum = sum.add(col.origOutput.value);
+				}
+			}
+
+			assert(sum.lovelace >= minCollateral, "not enough collateral");
+
+			if (sum.lovelace > minCollateral*5n){
+				console.error("Warning: way too much collateral");
+			}
+		}
+	}
 }
 
 class TxWitnesses extends CBORData {
@@ -23398,6 +23761,13 @@ class TxWitnesses extends CBORData {
 		this.#scripts = [];
 	}
 
+	/**
+	 * @type {PlutusCoreProgram[]}
+	 */
+	get scripts() {
+		return this.#scripts.slice();
+	}
+
 	toCBOR() {
 		/**
 		 * @type {Map<number, number[]>}
@@ -23418,15 +23788,11 @@ class TxWitnesses extends CBORData {
 
 		if (this.#scripts.length != 0) {
 			/**
-			 * @type {number[]}
+			 * @type {number[][]}
 			 */
-			let scriptBytes = [];
+			let scriptBytes = this.#scripts.map(s => CBORData.encodeBytes(wrapCBORBytes(s.serializeBytes())));
 
-			for (let script of this.#scripts) {
-				scriptBytes = scriptBytes.concat(CBORData.encodeBytes(wrapCBORBytes(script.serializeBytes()), false));
-			}
-
-			object.set(6, CBORData.encodeIndefListStart().concat(scriptBytes).concat(CBORData.encodeIndefListEnd()));
+			object.set(6, CBORData.encodeDefList(scriptBytes));
 		}
 
 		return CBORData.encodeObject(object);
@@ -23529,29 +23895,156 @@ class TxWitnesses extends CBORData {
 	}
 
 	/**
-	 * @param {NetworkParams} networkParams 
-	 * @returns {Hash}
+	 * @param {number} index 
+	 * @param {PlutusCoreData} redeemerData 
 	 */
-	calcScriptDataHash(networkParams) {
-		assert(this.#redeemers.length > 0);
-		assert(this.#datums.list.length > 0 || this.#redeemers.length > 0);
+	addSpendingRedeemer(index, redeemerData) {
+		this.#redeemers.push(new SpendingRedeemer(index, redeemerData));
+	}
 
+	/**
+	 * @param {number} index
+	 * @param {PlutusCoreData} redeemerData
+	 */
+	addMintingRedeemer(index, redeemerData) {
+		this.#redeemers.push(new MintingRedeemer(index, redeemerData));
+	}
 
-		let bytes = CBORData.encodeDefList(this.#redeemers);
-
-		if (this.#datums.list.length > 0) {
-			bytes = bytes.concat(this.#datums.toCBOR());
+	/**
+	 * @param {PlutusCoreData} data 
+	 */
+	addDatumData(data) {
+		// check that it hasn't already been included
+		for (let prev of this.#datums.list) {
+			if (equals(prev.toCBOR(), data.toCBOR())) {
+				return;
+			}
 		}
 
-		// language view encodings?
-		let sortedCostParams = networkParams.sortedCostParams;
+		let lst = this.#datums.list;
+		lst.push(data);
 
-		bytes = bytes.concat(CBORData.encodeMap([[
-			CBORData.encodeInteger(1n), 
-			CBORData.encodeDefList(sortedCostParams.map(cp => CBORData.encodeInteger(BigInt(cp)))),
-		]]));
+		this.#datums = new ListData(lst);
+	}
 
-		return new Hash(Crypto.blake2b(bytes));
+	/**
+	 * @param {PlutusCoreProgram} program 
+	 */
+	addScript(program) {
+		this.#scripts.push(program);
+	}
+
+	/**
+	 * @param {Hash} validatorHash
+	 * @returns {PlutusCoreProgram}
+	 */
+	getScript(validatorHash) {
+		return assertDefined(this.#scripts.find(s => equals(s.hash(), validatorHash.bytes)));
+	}
+
+	/**
+	 * @param {NetworkParams} networkParams 
+	 * @returns {?Hash} - returns null if there are no redeemers
+	 */
+	calcScriptDataHash(networkParams) {
+		if (this.#redeemers.length > 0) {
+			let bytes = CBORData.encodeDefList(this.#redeemers);
+
+			if (this.#datums.list.length > 0) {
+				bytes = bytes.concat(this.#datums.toCBOR());
+			}
+
+			// language view encodings?
+			let sortedCostParams = networkParams.sortedCostParams;
+
+			bytes = bytes.concat(CBORData.encodeMap([[
+				CBORData.encodeInteger(1n), 
+				CBORData.encodeDefList(sortedCostParams.map(cp => CBORData.encodeInteger(BigInt(cp)))),
+			]]));
+
+			return new Hash(Crypto.blake2b(bytes));
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * Executes the redeemers in order to calculate the necessary ex units
+	 * @param {NetworkParams} networkParams 
+	 * @param {TxBody} body - needed in order to create correct ScriptContexts
+	 * @returns {Promise<void>}
+	 */
+	async executeRedeemers(networkParams, body) {
+		for (let i = 0; i < this.#redeemers.length; i++) {
+			let redeemer = this.#redeemers[i];
+
+			let scriptContext = body.toScriptContextData(networkParams, this.#redeemers, this.#datums, i);
+
+			if (redeemer instanceof SpendingRedeemer) {
+				let idx = redeemer.inputIndex;
+
+				let origOutput = body.inputs[idx].origOutput;
+
+				if (origOutput === null) {
+					throw new Error("expected origOutput to be non-null");
+				} else {
+					let datumData = origOutput.getDatumData();
+
+					let validatorHash = origOutput.address.validatorHash;
+
+					if (validatorHash === null || validatorHash === undefined) {
+						throw new Error("expected validatorHash to be non-null");
+					} else {
+						let script = this.getScript(validatorHash);
+
+						let profile = await script.profile([
+							new PlutusCoreDataValue(Site.dummy(), datumData), 
+							new PlutusCoreDataValue(Site.dummy(), redeemer.data), 
+							new PlutusCoreDataValue(Site.dummy(), scriptContext),
+						], networkParams);
+
+						redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
+					}
+				}
+			} else if (redeemer instanceof MintingRedeemer) {
+				let mph = body.minted.getMintingPolicyHash(redeemer.mphIndex);
+
+				let script = this.getScript(mph);
+
+				let profile = await script.profile([
+					new PlutusCoreDataValue(Site.dummy(), redeemer.data),
+					new PlutusCoreDataValue(Site.dummy(), scriptContext),
+				], networkParams);
+
+				redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
+			} else {
+				throw new Error("unhandled redeemer type");
+			}
+		}
+	}
+
+	/**
+	 * Throws error if execution budget is exceeded
+	 * @param {NetworkParams} networkParams
+	 */
+	checkExecutionBudget(networkParams) {
+		let totalMem = 0n;
+		let totalCpu = 0n;
+
+		for (let redeemer of this.#redeemers) {
+			totalMem += redeemer.memCost;
+			totalCpu += redeemer.cpuCost;
+		}
+
+		let [maxMem, maxCpu] = networkParams.txExecutionBudget;
+
+		if (totalMem >= BigInt(maxMem)) {
+			throw new Error("execution budget exceeded for mem");
+		}
+
+		if (totalCpu >= BigInt(maxCpu)) {
+			throw new Error("execution budget exceeded for cpu");
+		}
 	}
 }
 
@@ -23579,6 +24072,30 @@ export class TxInput extends CBORData {
 	
 	get origOutput() {
 		return this.#origOutput;
+	}
+
+	/**
+	 * @returns {ConstrData}
+	 */
+	toOutputIdData() {
+		return new ConstrData(0, [
+			new ConstrData(0, [new ByteArrayData(this.#txId.bytes)]),
+			new IntData(this.#utxoIdx),
+		]);
+	}
+
+	/**
+	 * @returns {ConstrData}
+	 */
+	toData() {
+		if (this.#origOutput === null) {
+			throw new Error("expected to be non-null");
+		} else {
+			return new ConstrData(0, [
+				this.toOutputIdData(),
+				this.#origOutput.toData(),
+			]);
+		}
 	}
 
 	toCBOR() {
@@ -23631,30 +24148,6 @@ export class TxInput extends CBORData {
 	}
 }
 
-/**
- * Used during building, not part of serialization
- */
-export class LockedTxInput extends TxInput {
-	#datum;
-	#redeemer;
-	#script;
-
-	/**
-	 * @param {Hash} txId 
-	 * @param {bigint} utxoIdx 
-	 * @param {TxOutput} origOutput 
-	 * @param {PlutusCoreData} datum
-	 * @param {PlutusCoreData} redeemer
-	 * @param {PlutusCoreProgram} script
-	 */
-	 constructor(txId, utxoIdx, origOutput, datum, redeemer, script) {
-		super(txId, utxoIdx, origOutput);
-		this.#datum = datum;
-		this.#redeemer = redeemer;
-		this.#script = script;
-	}
-}
-
 export class TxOutput extends CBORData {
 	/** @type {Address} */
 	#address;
@@ -23688,6 +24181,21 @@ export class TxOutput extends CBORData {
 
 	get value() {
 		return this.#value;
+	}
+
+	get datum() {
+		return this.#datum;
+	}
+
+	/**
+	 * @returns {PlutusCoreData}
+	 */
+	getDatumData() {
+		if (this.#datum === null) {
+			throw new Error("no datum data available");
+		} else {
+			return this.#datum.getDatumData();
+		}
 	}
 
 	toCBOR() {
@@ -23762,6 +24270,22 @@ export class TxOutput extends CBORData {
 			"ref_script": this.#refScript === null ? "none" : bytesToHex(this.#refScript),
 		};
 	}
+
+	/**
+	 * @returns {ConstrData}
+	 */
+	toData() {
+		let datum = new ConstrData(0, []); // none
+		if (this.#datum !== null) {
+			datum = this.#datum.getDatumData();
+		}
+
+		return new ConstrData(0, [
+			this.#address.toData(),
+			this.#value.toData(),
+			datum,
+		]);
+	}
 }
 
 // TODO
@@ -23775,6 +24299,13 @@ class DCert extends CBORData {
 	 * @returns {DCert}
 	 */
 	static fromCBOR(bytes) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @returns {ConstrData}
+	 */
+	toData() {
 		throw new Error("not yet implemented");
 	}
 }
@@ -23825,6 +24356,61 @@ export class Address extends CBORData {
 	}
 
 	/**
+	 * @returns {ConstrData}
+	 */
+	toCredentialData() {
+		let vh = this.validatorHash;
+
+		if (vh !== null) {
+			return new ConstrData(1, [
+				new ByteArrayData(vh.bytes)
+			]);
+		} else {
+			let pkh = this.pubKeyHash;
+
+			if (pkh === null) {
+				throw new Error("unexpected");
+			} else {
+				return new ConstrData(0, [
+					new ByteArrayData(pkh.bytes)
+				]);
+			}
+		}
+	}
+
+	/**
+	 * @returns {ConstrData}
+	 */
+	toStakingData() {
+		let sh = this.stakingHash;
+
+		if (sh == null) {
+			return new ConstrData(1, []); // none
+		} else {
+			// some
+			return new ConstrData(0, [
+				// staking credential
+				new ConstrData(0, [
+					// credential (TODO: also allow script and pointer)
+					new ConstrData(0, [
+						new ByteArrayData(sh.bytes),
+					]),
+				])
+			]); // some
+		}
+	}
+
+	/**
+	 * @returns {ConstrData}
+	 */
+	toData() {
+		return new ConstrData(0, [
+			this.toCredentialData(),
+			this.toStakingData(),
+		]);
+	}
+
+	/**
 	 * @type {?Hash}
 	 */
 	get pubKeyHash() {
@@ -23849,9 +24435,24 @@ export class Address extends CBORData {
 			return null;
 		}
 	}
+
+	/**
+	 * @type {?Hash}
+	 */
+	get stakingHash() {
+		let type = (this.#bytes[0] >> 4);
+
+		if (type < 4) {
+			let bytes = this.#bytes.slice(29);
+			assert(bytes.length == 28);
+			return new Hash(bytes);
+		} else {
+			return null;
+		}
+	}
 }
 
-class MultiAsset extends CBORData {
+export class MultiAsset extends CBORData {
 	/** @type {[Hash, [number[], bigint][]][]} */
 	#assets;
 
@@ -23861,6 +24462,13 @@ class MultiAsset extends CBORData {
 	constructor(assets = []) {
 		super();
 		this.#assets = assets;
+	}
+
+	/**
+	 * @type {Hash[]}
+	 */
+	get keys() {
+		return this.#assets.map(pair => pair[0]);
 	}
 
 	/**
@@ -23984,7 +24592,34 @@ class MultiAsset extends CBORData {
 		return this.addSub(other, (a, b) => a - b);
 	}
 
+	/**
+	 * Mutates. Throws error if mph is already contained in this
+	 * @param {Hash} mph
+	 * @param {[number[], bigint][]} lst
+	 * @returns {number} - index of added entry
+	 */
+	addMintingPolicy(mph, lst) {
+		for (let asset of this.#assets) {
+			if (asset[0].equals(mph)) {
+				throw new Error(`MultiAsset already contains ${bytesToHex(mph.bytes)}`);
+			}
+		}
+
+		let idx = this.#assets.length;
+
+		this.#assets.push([mph, lst.slice()]);
+
+		return idx;
+	}
 	
+	/**
+	 * @param {number} idx 
+	 * @returns {Hash}
+	 */
+	getMintingPolicyHash(idx) {
+		return this.#assets[idx][0];
+	}
+
 	/**
 	 * @param {MultiAsset} other 
 	 * @returns {boolean}
@@ -24036,6 +24671,38 @@ class MultiAsset extends CBORData {
 		}
 
 		return true;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	allPositive() {
+		for (let asset of this.#assets) {
+			for (let pair of asset[1]) {
+				if (pair[1] < 0n) {
+					return false;
+				} else if (pair[1] == 0n) {
+					throw new Error("unexpected");
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param {MultiAsset} other 
+	 * @returns {boolean}
+	 */
+	greaterOrEqualsThan(other) {
+		return this.greaterThan(other) || this.equals(other);
+	}
+
+	/**
+	 * Throws an error if any contained quantity <= 0n
+	 */
+	assertAllPositive() {
+		assert(this.allPositive());
 	}
 
 	toCBOR() {
@@ -24099,6 +24766,33 @@ class MultiAsset extends CBORData {
 		}
 
 		return obj;
+	}
+
+	/**
+	 * @returns {MapData}
+	 */
+	toData() {
+		/** @type {[PlutusCoreData, PlutusCoreData][]} */
+		let pairs = [];
+
+		for (let asset of this.#assets) {
+			/** @type {[PlutusCoreData, PlutusCoreData][]} */
+			let innerPairs = [];
+
+			for (let token of asset[1]) {
+				innerPairs.push([
+					new ByteArrayData(token[0]),
+					new IntData(token[1]),
+				]);
+			}
+
+			pairs.push([
+				new ByteArrayData(asset[0].bytes),
+				new MapData(innerPairs),
+			])
+		}
+
+		return new MapData(pairs);
 	}
 }
 
@@ -24190,11 +24884,32 @@ export class MoneyValue extends CBORData {
 	}
 
 	/**
+	 * Strictly greater than. Returns false if any asset is missing 
 	 * @param {MoneyValue} other 
 	 * @returns {boolean}
 	 */
-	gt(other) {
+	greaterThan(other) {
 		return (this.#lovelace > other.#lovelace) && (this.#multiAsset.greaterThan(other.#multiAsset));
+	}
+
+	/**
+	 * Strictly >= 
+	 * @param {MoneyValue} other 
+	 * @returns {boolean}
+	 */
+	greaterOrEqualsThan(other) {
+		return (this.#lovelace >= other.#lovelace) && (this.#multiAsset.greaterOrEqualsThan(other.#multiAsset));
+	}
+
+	/**
+	 * @returns {MoneyValue} - returns this
+	 */
+	assertAllPositive() {
+		assert(this.#lovelace >= 0n);
+
+		this.#multiAsset.assertAllPositive();
+
+		return this;
 	}
 
 	/**
@@ -24205,6 +24920,26 @@ export class MoneyValue extends CBORData {
 			"lovelace": this.#lovelace.toString(),
 			"multiAsset": this.#multiAsset.dump()
 		};
+	}
+
+	/**
+	 * @returns {MapData}
+	 */
+	toData() {
+		let map = this.#multiAsset.toData();
+
+		if (this.#lovelace != 0n) {
+			let inner = map.map;
+
+			inner.unshift([
+				new ByteArrayData([]),
+				new MapData([
+					[new ByteArrayData([]), new IntData(this.#lovelace)]
+				]),
+			]);
+		}
+
+		return map;
 	}
 }
 
@@ -24244,6 +24979,9 @@ export class Hash extends CBORData {
 		return new Hash(hexToBytes(str));
 	}
 
+	static dummy(n = 32) {
+		return new Hash((new Array(n)).fill(0));
+	}
 	/**
 	 * @returns {string}
 	 */
@@ -24361,18 +25099,6 @@ class PubKeyWitness extends CBORData {
 }
 
 class Redeemer extends CBORData {
-	/**
-	 * 0 -> spending
-	 * 1 -> minting 
-	 * 2 -> certifying
-	 * 3 -> rewarding
-	 * @type {number} 
-	 * */
-	#type;
-
-	/** @type {bigint} */
-	#index;
-
 	/** @type {PlutusCoreData} */
 	#data;
 
@@ -24380,24 +25106,50 @@ class Redeemer extends CBORData {
 	#exUnits;
 
 	/**
-	 * 
-	 * @param {number} type 
-	 * @param {bigint} index 
 	 * @param {PlutusCoreData} data 
 	 * @param {Cost} exUnits 
 	 */
-	constructor(type, index, data, exUnits = {mem: 0n, cpu: 0n}) {
+	constructor(data, exUnits = {mem: 0n, cpu: 0n}) {
 		super();
-		this.#type = type;
-		this.#index = index;
 		this.#data = data;
 		this.#exUnits = exUnits;
 	}
 
-	toCBOR() {
+	/**
+	 * @type {PlutusCoreData}
+	 */
+	get data() {
+		return this.#data;
+	}
+
+	/**
+	 * @type {bigint}
+	 */
+	get memCost() {
+		return this.#exUnits.mem;
+	}
+
+	/**
+	 * @type {bigint}
+	 */
+	get cpuCost() {
+		return this.#exUnits.cpu;
+	}
+
+	/**
+	 * type:
+	 *   0 -> spending
+	 *   1 -> minting 
+	 *   2 -> certifying
+	 *   3 -> rewarding
+	 * @param {number} type 
+	 * @param {number} index 
+	 * @returns {number[]}
+	 */
+	toCBORInternal(type, index) {
 		return CBORData.encodeTuple([
-			CBORData.encodeInteger(BigInt(this.#type)),
-			CBORData.encodeInteger(this.#index),
+			CBORData.encodeInteger(BigInt(type)),
+			CBORData.encodeInteger(BigInt(index)),
 			this.#data.toCBOR(),
 			CBORData.encodeTuple([
 				CBORData.encodeInteger(this.#exUnits.mem),
@@ -24414,7 +25166,7 @@ class Redeemer extends CBORData {
 		/** @type {?number} */
 		let type = null;
 
-		/** @type {?bigint} */
+		/** @type {?number} */
 		let index = null;
 
 		/** @type {?PlutusCoreData} */
@@ -24429,7 +25181,7 @@ class Redeemer extends CBORData {
 					type = Number(CBORData.decodeInteger(fieldBytes));
 					break;
 				case 1:
-					index = CBORData.decodeInteger(fieldBytes);
+					index = Number(CBORData.decodeInteger(fieldBytes));
 					break;
 				case 2:
 					data = PlutusCoreData.fromCBOR(fieldBytes);
@@ -24472,36 +25224,23 @@ class Redeemer extends CBORData {
 		if (type === null || index === null || data === null || cost === null) {
 			throw new Error("unexpected");
 		} else {
-			return new Redeemer(type, index, data, cost);
-		}
-	}
 
-	/**
-	 * @type {string}
-	 */
-	get typeName() {
-		switch (this.#type) {
-			case 0: 
-				return "spending";
-			case 1:
-				return "minting";
-			case 2:
-				return "certifying";
-			case 3:
-				return "rewarding";
-			default:
-				throw new Error("unhandled redeemer type");
+			switch(type) {
+				case 0:
+					return new SpendingRedeemer(index, data, cost);
+				case 1:
+					return new MintingRedeemer(index, data, cost);
+				default:
+					throw new Error("unhandled redeemer type (Todo)");	
+			}
 		}
 	}
 
 	/**
 	 * @returns {Object}
 	 */
-	dump() {
+	dumpInternal() {
 		return {
-			"type": this.#type,
-			"typeName": this.typeName,
-			"index": Number(this.#index),
 			"data": this.#data.toString(),
 			"exUnits": {
 				"mem": Number(this.#exUnits.mem),
@@ -24511,13 +25250,141 @@ class Redeemer extends CBORData {
 	}
 
 	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {TxBody} body 
+	 * @returns {ConstrData}
+	 */
+	toScriptPurposeData(body) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {Cost} cost 
+	 */
+	setCost(cost) {
+		this.#exUnits = cost;
+	}
+
+	/**
 	 * @param {NetworkParams} networkParams 
 	 * @returns {bigint}
 	 */
 	estimateFee(networkParams) {
+		assert(this.#exUnits.mem != 0n && this.#exUnits.cpu != 0n);
+
 		let [memFee, cpuFee] = networkParams.exFeeParams;
 
-		return this.#exUnits.mem*BigInt(memFee) + this.#exUnits.cpu*BigInt(cpuFee);
+		return BigInt(Math.ceil(Number(this.#exUnits.mem)*memFee + Number(this.#exUnits.cpu)*cpuFee));
+	}
+}
+
+class SpendingRedeemer extends Redeemer {
+	#inputIndex;
+
+	/**
+	 * @param {number} inputIndex 
+	 * @param {PlutusCoreData} data 
+	 * @param {Cost} exUnits 
+	 */
+	constructor(inputIndex, data, exUnits = {mem: 0n, cpu: 0n}) {
+		super(data, exUnits);
+
+		this.#inputIndex = inputIndex;
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get inputIndex() {
+		return this.#inputIndex;
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCBOR() {
+		return this.toCBORInternal(0, this.#inputIndex);
+	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		let obj = super.dumpInternal();
+
+		obj["type"] = 0;
+		obj["typeName"] = "spending";
+		obj["inputIndex"] = this.#inputIndex;
+
+		return obj;
+	}
+
+	/**
+	 * @param {TxBody} body 
+	 * @returns {ConstrData}
+	 */
+	toScriptPurposeData(body) {
+		return new ConstrData(1, [
+			body.inputs[this.#inputIndex].toOutputIdData(),
+		]);
+	}
+}
+
+class MintingRedeemer extends Redeemer {
+	#mphIndex;
+
+	/**
+	 * @param {number} mphIndex
+	 * @param {PlutusCoreData} data
+	 * @param {Cost} exUnits
+	 */
+	constructor(mphIndex, data, exUnits = {mem: 0n, cpu: 0n}) {
+		super(data, exUnits);
+
+		this.#mphIndex = mphIndex;
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get mphIndex() {
+		return this.#mphIndex;
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCBOR() {
+		return this.toCBORInternal(1, this.#mphIndex);
+	}
+
+	dump() {
+		let obj = super.dumpInternal();
+
+		obj["type"] = 1;
+		obj["typeName"] = "minting";
+		obj["mphIndex"] = this.#mphIndex;
+
+		return obj;
+	}
+
+	/**
+	 * 
+	 * @param {TxBody} body 
+	 * @returns {ConstrData}
+	 */
+	toScriptPurposeData(body) {
+		let mph = body.minted.getMintingPolicyHash(this.#mphIndex);
+
+		return new ConstrData(0, [
+			new ByteArrayData(mph.bytes),
+		]);
 	}
 }
 
@@ -24569,18 +25436,45 @@ class OutputDatum extends CBORData {
 	dump() {
 		throw new Error("not yet implemented");
 	}
+
+	/**
+	 * @returns {ConstrData}
+	 */
+	getDatumData() {
+		throw new Error("not yet implemented");
+	}
 }
 
 class OutputDatumHash extends OutputDatum {
 	/** @type {Hash} */
 	#hash;
 
+	/** @type {?PlutusCoreData} */
+	#origData;
+
 	/**
 	 * @param {Hash} hash 
+	 * @param {?PlutusCoreData} origData
 	 */
-	constructor(hash) {
+	constructor(hash, origData = null) {
 		super();
 		this.#hash = hash;
+		this.#origData = origData;
+
+		if (this.#origData !== null) {
+			assert(equals(this.#hash.bytes, Crypto.blake2b(this.#origData.toCBOR())));
+		}
+	}
+
+	get data() {
+		return this.#origData;
+	}
+
+	/**
+	 * @returns {ConstrData}
+	 */
+	getDatumData() {
+		return new ConstrData(1, [new ByteArrayData(this.#hash.bytes)]);
 	}
 
 	toCBOR() {
@@ -24588,6 +25482,14 @@ class OutputDatumHash extends OutputDatum {
 			CBORData.encodeInteger(0n),
 			this.#hash.toCBOR(),
 		]);
+	}
+
+	/**
+	 * @param {PlutusCoreData} data 
+	 * @returns {OutputDatumHash}
+	 */
+	static fromData(data) {
+		return new OutputDatumHash(new Hash(Crypto.blake2b(data.toCBOR())), data);
 	}
 
 	/**
@@ -24612,6 +25514,16 @@ class OutputDatumInline extends OutputDatum {
 		this.#data = data;
 	}
 
+	/**
+	 * @returns {ConstrData}
+	 */
+	getDatumData() {
+		return new ConstrData(2, [this.#data]);
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
 	toCBOR() {
 		return CBORData.encodeTuple([
 			CBORData.encodeInteger(1n),
