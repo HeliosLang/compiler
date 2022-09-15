@@ -146,12 +146,58 @@ async function testMinting(optimized = false) {
 	console.log(`BUILT_BY_HELIOS (${heliosTx.toCBOR().length}):`, JSON.stringify(heliosTx.dump(), undefined, 4));
 }
 
-async function main() {
-    await testBasic();
+async function testInlineDatum() {
+    const src = `
+	spending always_succeeds
 
-    await testMinting();
+	func main() -> Bool {
+		true
+	}`;
+
+	const program = helios.Program.new(src).compile(true);
+
+	// wallet1 address: addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w
+	// submit minting transaction:
+	//  cardano-cli address build --payment-script-file /data/scripts/always_succeeds.json \
+	//    --out-file /data/script/always_succeeds.addr \
+	//    --testnet-magic $TESTNET_MAGIC
+    //   addr_test1wpfvdtcvnd6yknhve6pc2w999n4325pck00x3c4m9750cdch6csfq
+	//  cardano-cli transaction build \
+	//    --tx-in d4b22d33611fb2b3764080cb349b3f12d353aef1d4319ee33e44594bbebe5e83#0 \
+	//    --tx-out $(cat /data/scripts/always_succeeds.addr)+2000000 \
+	//    --tx-out-datum-file /data/scripts/datum_42.json \
+	//    --change-address addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w \
+	//    --tx-in-collateral d4b22d33611fb2b3764080cb349b3f12d353aef1d4319ee33e44594bbebe5e83#0 \
+	//    --testnet-magic 2 \
+	//    --out-file /data/preview/transactions/202209142346.tx
+	//    --cddl-format \
+	//    --babbage-era
+	//    --protocol-params-file <PARAMS>
+
+	const unsignedHex = "84a400818258205d4bc6456f3bc6ac9f0c36ac25b0a4a9c2d793aaa5344355fcd2c8f647f2b55c000d818258205d4bc6456f3bc6ac9f0c36ac25b0a4a9c2d793aaa5344355fcd2c8f647f2b55c000182a200581d6085842b5f34a2b74e6639cbf1cf4f0826f146db513b7bc04f4b024337011b0000000253c6daafa300581d7052c6af0c9b744b4eecce838538a52ceb155038b3de68e2bb2fa8fc37011a001e8480028201d81842182a021a0002a09da0f5f6";
+
+	const unsignedBytes = helios.hexToBytes(unsignedHex);
+
+	let inlineDatum = new helios.InlineOutputDatum(new helios.IntData(42n));
+
+	console.log(helios.bytesToHex(inlineDatum.toCBOR()));
+	
+	console.log(helios.bytesToHex(helios.CBORData.encodeHead(6, 24)));
+
+	let tx = helios.Tx.fromCBOR(unsignedBytes);
+
+	console.log(JSON.stringify(tx.dump(), undefined, 4));
+
+}
+
+async function main() {
+    //await testBasic();
+
+    //await testMinting();
     
-    await testMinting(true);
+    //await testMinting(true);
+
+	await testInlineDatum();
 }
 
 main();

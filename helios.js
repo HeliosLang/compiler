@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.5.6
+// Version:     0.5.7
 // Last update: September 2022
 // License:     Unlicense
 //
@@ -203,7 +203,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.5.6"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.5.7"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -6832,6 +6832,27 @@ export class CBORData {
 		});
 
 		return done;
+	}
+
+	/**
+	 * Unrelated to constructor
+	 * @param {bigint} tag
+	 * @returns {number[]}
+	 */
+	static encodeTag(tag) {
+		return CBORData.encodeHead(6, tag);
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @returns {bigint}
+	 */
+	static decodeTag(bytes) {
+		let [m, n] = CBORData.decodeHead(bytes);
+
+		assert(m == 6);
+
+		return n;
 	}
 
 	/**
@@ -23715,7 +23736,7 @@ class TxBody extends CBORData {
 		for (let output of this.#outputs) {
 			let minLovelace = output.calcMinLovelace(networkParams);
 
-			assert(minLovelace <= output.value.lovelace, "not enough lovelace in output");
+			assert(minLovelace <= output.value.lovelace, `not enough lovelace in output (expected at least ${minLovelace.toString()}, got ${output.value.lovelace})`);
 		}
 	}
 	
@@ -25570,10 +25591,12 @@ export class OutputDatum extends CBORData {
 					if (type == 0) {
 						res = new HashedOutputDatum(Hash.fromCBOR(fieldBytes));
 					} else if (type == 1) {
-						let tag = CBORData.decodeConstr(fieldBytes, subFieldBytes => {
-							res = new InlineOutputDatum(PlutusCoreData.fromCBOR(subFieldBytes));
-						});
-						assert(tag == 24);
+						assert(CBORData.decodeTag(fieldBytes) == 24n);
+
+						let dataBytes = CBORData.decodeBytes(fieldBytes);
+						let data = PlutusCoreData.fromCBOR(dataBytes);
+
+						res = new InlineOutputDatum(data);
 					}
 					break;
 				default:
@@ -25684,7 +25707,7 @@ export class InlineOutputDatum extends OutputDatum {
 	toCBOR() {
 		return CBORData.encodeTuple([
 			CBORData.encodeInteger(1n),
-			CBORData.encodeConstr(24, [this.#data.toCBOR()]),
+			CBORData.encodeTag(24n).concat(CBORData.encodeBytes(this.#data.toCBOR()))
 		]);
 	}
 
