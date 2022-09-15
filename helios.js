@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.5.7
+// Version:     0.5.8
 // Last update: September 2022
 // License:     Unlicense
 //
@@ -203,7 +203,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.5.7"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.5.8"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -637,7 +637,7 @@ function unwrapCBORBytes(bytes) {
  * @returns {number[]}
  */
 function wrapCBORBytes(bytes) {
-	return CBORData.encodeBytes(bytes, false);
+	return CBORData.encodeBytes(bytes);
 }
 
 /**
@@ -2724,7 +2724,7 @@ export class UserError extends Error {
 /**
  * Each Token/Expression/Statement has a Site, which encapsulates a position in a Source
  */
-class Site {
+export class Site {
 	#src;
 	#pos;
 
@@ -5055,7 +5055,7 @@ class PlutusCoreMap extends PlutusCoreValue {
 /**
  * Wrapper for PlutusCoreData.
  */
-class PlutusCoreDataValue extends PlutusCoreValue {
+export class PlutusCoreDataValue extends PlutusCoreValue {
 	#data;
 
 	/**
@@ -6494,7 +6494,7 @@ export class CBORData {
 	 * @param {boolean} splitInChunks
 	 * @returns {number[]} - cbor bytes
 	 */
-	static encodeBytes(bytes, splitInChunks = true) {
+	static encodeBytes(bytes, splitInChunks = false) {
 		bytes = bytes.slice();
 
 		if (bytes.length <= 64 || !splitInChunks) {
@@ -6560,11 +6560,11 @@ export class CBORData {
 		if (n >= 0n && n <= (2n << 63n) - 1n) {
 			return CBORData.encodeHead(0, n);
 		} else if (n >= (2n << 63n)) {
-			return CBORData.encodeHead(6, 2n).concat(CBORData.encodeBytes(bigIntToBytes(n), false));
+			return CBORData.encodeHead(6, 2n).concat(CBORData.encodeBytes(bigIntToBytes(n)));
 		} else if (n <= -1n && n >= -(2n << 63n)) {
 			return CBORData.encodeHead(1, -n - 1n);
 		} else {
-			return CBORData.encodeHead(6, 3n).concat(CBORData.encodeBytes(bigIntToBytes(-n - 1n), false));
+			return CBORData.encodeHead(6, 3n).concat(CBORData.encodeBytes(bigIntToBytes(-n - 1n)));
 		}
 	}
 
@@ -7149,7 +7149,7 @@ export class ByteArrayData extends PlutusCoreData {
 	 * @returns {number[]}
 	 */
 	toCBOR() {
-		return CBORData.encodeBytes(this.#bytes);
+		return CBORData.encodeBytes(this.#bytes, true);
 	}
 
 	/**
@@ -24299,7 +24299,7 @@ export class TxOutput extends CBORData {
 			}
 
 			if (this.#refScript !== null) {
-				object.set(3, CBORData.encodeBytes(this.#refScript, false));
+				object.set(3, CBORData.encodeBytes(this.#refScript));
 			}
 
 			return CBORData.encodeObject(object);
@@ -24446,7 +24446,7 @@ export class Address extends CBORData {
 	}
 
 	toCBOR() {
-		return CBORData.encodeBytes(this.#bytes, false);
+		return CBORData.encodeBytes(this.#bytes);
 	}
 
 	/**
@@ -24873,7 +24873,7 @@ export class MultiAsset extends CBORData {
 					return [outerPair[0].toCBOR(), CBORData.encodeMap(outerPair[1].map(
 						innerPair => {
 							return [
-								CBORData.encodeBytes(innerPair[0], false), CBORData.encodeInteger(innerPair[1])
+								CBORData.encodeBytes(innerPair[0]), CBORData.encodeInteger(innerPair[1])
 							]
 						}
 					))]
@@ -25138,7 +25138,7 @@ export class Hash extends CBORData {
 	 * @returns {number[]}
 	 */
 	toCBOR() {
-		return CBORData.encodeBytes(this.#bytes, false);
+		return CBORData.encodeBytes(this.#bytes);
 	}
 
 	/**
@@ -25208,8 +25208,8 @@ class PubKeyWitness extends CBORData {
 
 	toCBOR() {
 		return CBORData.encodeTuple([
-			CBORData.encodeBytes(this.#pubKey, false),
-			CBORData.encodeBytes(this.#signature, false),
+			CBORData.encodeBytes(this.#pubKey),
+			CBORData.encodeBytes(this.#signature),
 		]);
 	}
 
