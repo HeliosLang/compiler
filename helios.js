@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.5.8
+// Version:     0.5.9
 // Last update: September 2022
 // License:     Unlicense
 //
@@ -203,7 +203,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.5.8"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.5.9"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -23248,13 +23248,16 @@ export class Tx extends CBORData {
 	}
 
 	/**
+	 * Throws an error if signature is invalid (might a bit slow for many utxos though)
 	 * @param {PubKeyWitness} pubKeyWitness 
 	 * @returns {Tx}
 	 */
-	addSignature(pubKeyWitness) {
+	addSignature(pubKeyWitness, verify = true) {
 		assert(this.#valid);
 
-		pubKeyWitness.verifySignature(this.#body.toCBOR());
+		if (verify) {
+			pubKeyWitness.verifySignature(this.#body.toCBOR());
+		}
 
 		this.#witnesses.addSignature(pubKeyWitness);
 
@@ -23766,7 +23769,7 @@ class TxBody extends CBORData {
 	}
 }
 
-class TxWitnesses extends CBORData {
+export class TxWitnesses extends CBORData {
 	/** @type {PubKeyWitness[]} */
 	#pubKeyWitnesses;
 
@@ -23785,6 +23788,13 @@ class TxWitnesses extends CBORData {
 		this.#datums = new ListData([]);
 		this.#redeemers = [];
 		this.#scripts = [];
+	}
+
+	/**
+	 * @type {PubKeyWitness[]}
+	 */
+	get pubKeyWitnesses() {
+		return this.#pubKeyWitnesses;
 	}
 
 	/**
