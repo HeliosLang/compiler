@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.5.9
+// Version:     0.5.10
 // Last update: September 2022
 // License:     Unlicense
 //
@@ -203,7 +203,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.5.9"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.5.10"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -22844,6 +22844,14 @@ export class Tx extends CBORData {
 		this.#changeAddress = null;
 	}
 
+	get body() {
+		return this.#body;
+	}
+
+	get witnesses() {
+		return this.#witnesses;
+	}
+
 	/**
 	 * @returns {number[]}
 	 */
@@ -23256,7 +23264,7 @@ export class Tx extends CBORData {
 		assert(this.#valid);
 
 		if (verify) {
-			pubKeyWitness.verifySignature(this.#body.toCBOR());
+			pubKeyWitness.verifyTxBodySignature(this.#body.toCBOR());
 		}
 
 		this.#witnesses.addSignature(pubKeyWitness);
@@ -23880,7 +23888,7 @@ export class TxWitnesses extends CBORData {
 	 */
 	verifySignatures(bodyBytes) {
 		for (let pubKeyWitness of this.#pubKeyWitnesses) {
-			pubKeyWitness.verifySignature(bodyBytes);
+			pubKeyWitness.verifyTxBodySignature(bodyBytes);
 		}
 	}
 
@@ -25283,6 +25291,10 @@ class PubKeyWitness extends CBORData {
 				}
 			}
 		}
+	}
+
+	verifyTxBodySignature(bodyBytes) {
+		this.verifySignature(Crypto.blake2b(bodyBytes));
 	}
 }
 

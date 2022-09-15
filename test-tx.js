@@ -25,9 +25,14 @@ async function testBasic() {
 
     const signedTx = helios_.Tx.fromCBOR(signedBytes);
 
+
     console.log("UNSIGNED:\n", JSON.stringify(unsignedTx.dump(), undefined, "    "));
 
     console.log("\nSIGNED:\n", JSON.stringify(signedTx.dump(), undefined, "    "));
+
+	console.log("BODY BYTES: ", helios.bytesToHex(signedTx.body.toCBOR()));
+
+	signedTx.witnesses.verifySignatures(signedTx.body.toCBOR());
 
     console.log("UNSIGNED SIZE:", unsignedBytes.length.toString());
     console.log("SIGNED SIZE:", signedBytes.length.toString());
@@ -59,6 +64,7 @@ async function testBasic() {
     await tx.build(networkParams);
 
     console.log(JSON.stringify(tx.dump(), undefined, "    "));
+
 }
 
 async function testMinting(optimized = false) {
@@ -191,11 +197,11 @@ async function testInlineDatum() {
 }
 
 async function main() {
-    //await testBasic();
+    await testBasic();
 
-    //await testMinting();
+    await testMinting();
     
-    //await testMinting(true);
+    await testMinting(true);
 
 	await testInlineDatum();
 }
