@@ -203,7 +203,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-const VERSION = "0.5.3"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.5.3"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -551,7 +551,7 @@ function byteToBitString(b, n = 8) {
  * @param {string} hex 
  * @returns {number[]}
  */
-function hexToBytes(hex) {
+export function hexToBytes(hex) {
 	let bytes = [];
 
 	for (let i = 0; i < hex.length; i += 2) {
@@ -568,7 +568,7 @@ function hexToBytes(hex) {
  * @param {number[]} bytes
  * @returns {string}
  */
-function bytesToHex(bytes) {
+export function bytesToHex(bytes) {
 	let parts = [];
 	for (let b of bytes) {
 		parts.push(padZeroes(b.toString(16), 2));
@@ -6320,7 +6320,7 @@ class PlutusCoreProgram {
  * Base case of any CBOR serializable data class
  * Also contains helper methods for (de)serializing data to/from CBOR
  */
-class CBORData {
+export class CBORData {
 	constructor() {
 	}
 
@@ -6330,7 +6330,6 @@ class CBORData {
 	toCBOR() {
 		throw new Error("not yet implemented");
 	}
-
 
 	/**
 	 * @param {number} m - major type
@@ -6798,8 +6797,16 @@ class CBORData {
 	}
 
 	/**
-	 * 
+	 * @param {number[]} bytes
+	 * @returns {boolean}
+	 */
+	static isObject(bytes) {
+		return CBORData.isDefMap(bytes);
+	}
+
+	/**
 	 * @param {Map<number, CBORData | number[]>} object
+	 * @returns {number[]}
 	 */
 	static encodeObject(object) {
 		return CBORData.encodeMap(Array.from(object.entries()).map(pair => [
@@ -24070,6 +24077,14 @@ export class TxInput extends CBORData {
 		this.#origOutput = origOutput;
 	}
 	
+	get txId() {
+		return this.#txId;
+	}
+
+	get utxoIdx() {
+		return this.#utxoIdx;
+	}
+
 	get origOutput() {
 		return this.#origOutput;
 	}
@@ -24098,6 +24113,9 @@ export class TxInput extends CBORData {
 		}
 	}
 
+	/**
+	 * @returns {number[]}
+	 */
 	toCBOR() {
 		return CBORData.encodeTuple([
 			this.#txId.toCBOR(),
@@ -24145,6 +24163,52 @@ export class TxInput extends CBORData {
 			"utxoIdx": this.#utxoIdx.toString(),
 			"origOutput": this.#origOutput !== null ? this.#origOutput.dump() : null,
 		};
+	}
+}
+
+/**
+ * UTxO is an alias for TxInput
+ */
+export class UTxO extends TxInput {
+	/**
+	 * @param {Hash} txId 
+	 * @param {bigint} utxoIdx 
+	 * @param {TxOutput} origOutput
+	 */
+	constructor(txId, utxoIdx, origOutput) {
+		super(txId, utxoIdx, origOutput);
+	}
+
+	/**
+	 * Deserializes UTxO format used by wallet connector
+	 * @param {number[]} bytes
+	 * @returns {TxInput}
+	 */
+	static fromCBOR(bytes) {
+		/** @type {?TxInput} */
+		let txInput = null;
+
+		/** @type {?TxOutput} */
+		let origOutput = null;
+
+		CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+			switch(i) {
+				case 0:
+					txInput = TxInput.fromCBOR(fieldBytes);
+					break;
+				case 1:
+					origOutput = TxOutput.fromCBOR(fieldBytes);
+					break;
+				default:
+					throw new Error("unrecognized field");
+			}
+		});
+
+		if (txInput == null || origOutput == null) {
+			throw new Error("unexpected");
+		} else {
+			return new TxInput(txInput.txId, txInput.utxoIdx, origOutput);
+		}
 	}
 }
 
@@ -24233,24 +24297,42 @@ export class TxOutput extends CBORData {
 		/** @type {?number[]} */
 		let refScript = null;
 
-		CBORData.decodeObject(bytes, (i, fieldBytes) => {
-			switch(i) { 
-				case 0:
-					address = Address.fromCBOR(fieldBytes);
-					break;
-				case 1:
-					value = MoneyValue.fromCBOR(fieldBytes);
-					break;
-				case 2:
-					outputDatum = OutputDatum.fromCBOR(fieldBytes);
-					break;
-				case 3:
-					refScript = CBORData.decodeBytes(fieldBytes);
-					break;
-				default:
-					throw new Error("unreconginzed field");
-			}
-		});
+		if (CBORData.isObject(bytes)) {
+			CBORData.decodeObject(bytes, (i, fieldBytes) => {
+				switch(i) { 
+					case 0:
+						address = Address.fromCBOR(fieldBytes);
+						break;
+					case 1:
+						value = MoneyValue.fromCBOR(fieldBytes);
+						break;
+					case 2:
+						outputDatum = OutputDatum.fromCBOR(fieldBytes);
+						break;
+					case 3:
+						refScript = CBORData.decodeBytes(fieldBytes);
+						break;
+					default:
+						throw new Error("unreconginzed field");
+				}
+			});
+		} else if (CBORData.isTuple(bytes)) {
+			// this is the pre-alonzo format, which is still sometimes returned by wallet connector functions
+			CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+				switch(i) { 
+					case 0:
+						address = Address.fromCBOR(fieldBytes);
+						break;
+					case 1:
+						value = MoneyValue.fromCBOR(fieldBytes);
+						break;
+					default:
+						throw new Error("unrecognized field");
+				}
+			});
+		} else {
+			throw new Error("expected object or tuple for TxOutput");
+		}
 
 		if (address === null || value === null) {
 			throw new Error("unexpected");
@@ -24351,10 +24433,26 @@ export class Address extends CBORData {
 	/**
 	 * @returns {string}
 	 */
+	toBech32() {
+		return Crypto.encodeBech32(this.isForTestnet() ? "addr_test" : "addr", this.#bytes);
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	dump() {
 		return bytesToHex(this.#bytes);
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
+	isForTestnet() {
+		let type = this.#bytes[0] & 0b00001111;
+
+		return type == 0;
+	}
+		
 	/**
 	 * @returns {ConstrData}
 	 */
@@ -24621,6 +24719,20 @@ export class MultiAsset extends CBORData {
 	}
 
 	/**
+	 * @param {Hash} mph
+	 * @returns {number[][]}
+	 */
+	getTokens(mph) {
+		for (let asset of this.#assets) {
+			if (asset[0].equals(mph)) {
+				return asset[1].map(pair => pair[0]);
+			}
+		}
+
+		return [];
+	}
+
+	/**
 	 * @param {MultiAsset} other 
 	 * @returns {boolean}
 	 */
@@ -24821,6 +24933,10 @@ export class MoneyValue extends CBORData {
 		this.#lovelace = lovelace;
 	}
 
+	get multiAsset() {
+		return this.#multiAsset;
+	}
+
 	toCBOR() {
 		if (this.#multiAsset.isZero()) {
 			return CBORData.encodeInteger(this.#lovelace);
@@ -24955,10 +25071,23 @@ export class Hash extends CBORData {
 		this.#bytes = bytes;
 	}
 
+	/**
+	 * @returns {number[]}
+	 */
 	get bytes() {
 		return this.#bytes;
 	}
 
+	/**
+	 * @returns {string}
+	 */
+	get hex() {
+		return bytesToHex(this.#bytes);
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
 	toCBOR() {
 		return CBORData.encodeBytes(this.#bytes, false);
 	}
