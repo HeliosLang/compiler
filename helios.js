@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.5.4
+// Version:     0.5.5
 // Last update: September 2022
 // License:     Unlicense
 //
@@ -203,7 +203,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.5.4"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.5.5"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -24262,22 +24262,29 @@ export class TxOutput extends CBORData {
 		}
 	}
 
-	toCBOR() {
-		/** @type {Map<number, number[]>} */
-		let object = new Map();
+	toCBOR(preVasil = false) {
+		if (preVasil) {
+			return CBORData.encodeTuple([
+				this.#address.toCBOR(),
+				this.#value.toCBOR()
+			]);
+		} else {
+			/** @type {Map<number, number[]>} */
+			let object = new Map();
 
-		object.set(0, this.#address.toCBOR());
-		object.set(1, this.#value.toCBOR());
+			object.set(0, this.#address.toCBOR());
+			object.set(1, this.#value.toCBOR());
 
-		if (this.#datum !== null) {
-			object.set(2, this.#datum.toCBOR());
+			if (this.#datum !== null) {
+				object.set(2, this.#datum.toCBOR());
+			}
+
+			if (this.#refScript !== null) {
+				object.set(3, CBORData.encodeBytes(this.#refScript, false));
+			}
+
+			return CBORData.encodeObject(object);
 		}
-
-		if (this.#refScript !== null) {
-			object.set(3, CBORData.encodeBytes(this.#refScript, false));
-		}
-
-		return CBORData.encodeObject(object);
 	}
 
 	/**
@@ -24317,7 +24324,7 @@ export class TxOutput extends CBORData {
 				}
 			});
 		} else if (CBORData.isTuple(bytes)) {
-			// this is the pre-alonzo format, which is still sometimes returned by wallet connector functions
+			// this is the pre-vasil format, which is still sometimes returned by wallet connector functions
 			CBORData.decodeTuple(bytes, (i, fieldBytes) => {
 				switch(i) { 
 					case 0:
@@ -24428,6 +24435,17 @@ export class Address extends CBORData {
 		let [_, bytes] = Crypto.decodeBech32(str);
 
 		return new Address(bytes);
+	}
+
+	/**
+	 * Simple script address without a staking part
+	 * Only relevant for validator scripts
+	 * @params {boolean} isTestnet
+	 * @params {number[]} hash
+	 * @returns {Address}
+	 */
+	static fromValidatorHash(isTestnet, hash) {
+		return new Address([isTestnet ? 0x70 : 0x71].concat(hash));
 	}
 
 	/**
