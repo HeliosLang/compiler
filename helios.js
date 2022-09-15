@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.5.5
+// Version:     0.5.6
 // Last update: September 2022
 // License:     Unlicense
 //
@@ -165,8 +165,8 @@
 //                                          DCertType, RegisterDCertType, DeregisterDCertType,
 //                                          DelegateDCertType, RegisterPoolDCertType,
 //                                          RetirePoolDCertType, TxType, TxIdType, TxInputType, 
-//                                          TxOutputType, OutputDatumType, OutputDatumNoneType,
-//                                          OutputDatumHashType, OutputDatumInlineType,
+//                                          TxOutputType, OutputDatumType, NoOutputDatumType,
+//                                          HashedOutputDatumType, InlineOutputDatumType,
 //                                          RawDataType, TxOutputIdType, AddressType, 
 //                                          CredentialType, CredentialPubKeyType, 
 //                                          CredentialValidatorType, StakingCredentialType, 
@@ -191,7 +191,7 @@
 //    18. Transaction objects               Tx, TxBody, TxWitnesses, TxInput, TxOutput, DCert, 
 //                                          Address, MultiAsset, MoneyValue, Hash, PubKeyWitness, 
 //                                          Redeemer, SpendingRedeemer, MintingRedeemer, 
-//                                          OutputDatum, OutputDatumHash, OutputDatumInline
+//                                          OutputDatum, HashedOutputDatum, InlineOutputDatum
 //
 //    19. Property test framework           FuzzyTest
 //
@@ -203,7 +203,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.5.5"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.5.6"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -16981,9 +16981,9 @@ class OutputDatumType extends BuiltinType {
 	 */
 	isBaseOf(site, type) {
 		let b = super.isBaseOf(site, type) ||
-				(new OutputDatumNoneType()).isBaseOf(site, type) || 
-				(new OutputDatumHashType()).isBaseOf(site, type) || 
-				(new OutputDatumInlineType()).isBaseOf(site, type);; 
+				(new NoOutputDatumType()).isBaseOf(site, type) || 
+				(new HashedOutputDatumType()).isBaseOf(site, type) || 
+				(new InlineOutputDatumType()).isBaseOf(site, type);; 
 
 		return b;
 	}
@@ -16996,28 +16996,28 @@ class OutputDatumType extends BuiltinType {
 		switch (name.value) {
 			case "new_none":
 				if (this.macrosAllowed) {
-					return Value.new(new FuncType([], new OutputDatumNoneType()));
+					return Value.new(new FuncType([], new NoOutputDatumType()));
 				} else {
 					throw name.referenceError("'OutputDatum::new_none' only allowed after 'main'");
 				}
 			case "new_hash":
 				if (this.macrosAllowed) {
-					return Value.new(new FuncType([new DatumHashType()], new OutputDatumHashType()));
+					return Value.new(new FuncType([new DatumHashType()], new HashedOutputDatumType()));
 				} else {
 					throw name.referenceError("'OutputDatum::new_hash' only allowed after 'main'");
 				}
 			case "new_inline":
 				if (this.macrosAllowed) {
-					return Value.new(new FuncType([new AnyDataType()], new OutputDatumInlineType()));
+					return Value.new(new FuncType([new AnyDataType()], new InlineOutputDatumType()));
 				} else {
 					throw name.referenceError("'OutputDatum::new_inline' only allowed after 'main'");
 				}
 			case "None":
-				return new OutputDatumNoneType();
+				return new NoOutputDatumType();
 			case "Hash":
-				return new OutputDatumHashType();
+				return new HashedOutputDatumType();
 			case "Inline":
-				return new OutputDatumInlineType();
+				return new InlineOutputDatumType();
 			default:
 				return super.getTypeMember(name);
 		}
@@ -17036,7 +17036,7 @@ class OutputDatumType extends BuiltinType {
 	}
 }
 
-class OutputDatumNoneType extends BuiltinEnumMember {
+class NoOutputDatumType extends BuiltinEnumMember {
 	constructor() {
 		super(new OutputDatumType);
 	}
@@ -17085,7 +17085,7 @@ class OutputDatumNoneType extends BuiltinEnumMember {
 	}
 }
 
-class OutputDatumHashType extends BuiltinEnumMember {
+class HashedOutputDatumType extends BuiltinEnumMember {
 	constructor() {
 		super(new OutputDatumType());
 	}
@@ -17136,7 +17136,7 @@ class OutputDatumHashType extends BuiltinEnumMember {
 	}
 }
 
-class OutputDatumInlineType extends BuiltinEnumMember {
+class InlineOutputDatumType extends BuiltinEnumMember {
 	constructor() {
 		super(new OutputDatumType());
 	}
@@ -22943,7 +22943,7 @@ export class Tx extends CBORData {
 				} else {
 					let datum = input.origOutput.datum;
 
-					if (datum instanceof OutputDatumHash) {
+					if (datum instanceof HashedOutputDatum) {
 						let datumData = datum.data;
 						if (datumData === null) {
 							throw new Error("expected non-null datum data");
@@ -23712,12 +23712,10 @@ class TxBody extends CBORData {
 	 * @param {NetworkParams} networkParams
 	 */
 	checkOutputs(networkParams) {
-		let lovelacePerByte = networkParams.lovelacePerUTXOByte;
-
 		for (let output of this.#outputs) {
-			let outputSize = output.toCBOR().length + 160;
+			let minLovelace = output.calcMinLovelace(networkParams);
 
-			assert(BigInt(outputSize)*BigInt(lovelacePerByte) <= output.value.lovelace, "not enough lovelace in output");
+			assert(minLovelace <= output.value.lovelace, "not enough lovelace in output");
 		}
 	}
 	
@@ -24374,6 +24372,18 @@ export class TxOutput extends CBORData {
 			this.#value.toData(),
 			datum,
 		]);
+	}
+
+	/**
+	 * @param {NetworkParams} networkParams
+	 * @returns {bigint}
+	 */
+	calcMinLovelace(networkParams) {
+		let lovelacePerByte = networkParams.lovelacePerUTXOByte;
+
+		let correctedSize = this.toCBOR().length + 160; // 160 accounts for some database overhead?
+
+		return BigInt(correctedSize)*BigInt(lovelacePerByte);
 	}
 }
 
@@ -25535,7 +25545,7 @@ class MintingRedeemer extends Redeemer {
 	}
 }
 
-class OutputDatum extends CBORData {
+export class OutputDatum extends CBORData {
 	constructor() {
 		super();
 	}
@@ -25558,10 +25568,10 @@ class OutputDatum extends CBORData {
 					break;
 				case 1:
 					if (type == 0) {
-						res = new OutputDatumHash(Hash.fromCBOR(fieldBytes));
+						res = new HashedOutputDatum(Hash.fromCBOR(fieldBytes));
 					} else if (type == 1) {
 						let tag = CBORData.decodeConstr(fieldBytes, subFieldBytes => {
-							res = new OutputDatumInline(PlutusCoreData.fromCBOR(subFieldBytes));
+							res = new InlineOutputDatum(PlutusCoreData.fromCBOR(subFieldBytes));
 						});
 						assert(tag == 24);
 					}
@@ -25592,7 +25602,7 @@ class OutputDatum extends CBORData {
 	}
 }
 
-class OutputDatumHash extends OutputDatum {
+export class HashedOutputDatum extends OutputDatum {
 	/** @type {Hash} */
 	#hash;
 
@@ -25633,10 +25643,10 @@ class OutputDatumHash extends OutputDatum {
 
 	/**
 	 * @param {PlutusCoreData} data 
-	 * @returns {OutputDatumHash}
+	 * @returns {HashedOutputDatum}
 	 */
 	static fromData(data) {
-		return new OutputDatumHash(new Hash(Crypto.blake2b(data.toCBOR())), data);
+		return new HashedOutputDatum(new Hash(Crypto.blake2b(data.toCBOR())), data);
 	}
 
 	/**
@@ -25649,7 +25659,7 @@ class OutputDatumHash extends OutputDatum {
 	}
 }
 
-class OutputDatumInline extends OutputDatum {
+export class InlineOutputDatum extends OutputDatum {
 	/** @type {PlutusCoreData} */
 	#data;
 
