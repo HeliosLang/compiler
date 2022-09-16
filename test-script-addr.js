@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+//@ts-check
 
 import * as helios from "./helios.js";
 

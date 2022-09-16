@@ -1,4 +1,8 @@
-This Changelog only applies to notable changes to `helios.js` on the main branch.
+This Changelog only applies to notable changes of `helios.js` on the main branch.
+
+# 2022/09/16
+* PlutusCore renamed to UPLC everywhere
+* helios.d.ts file generated
 
 # 2022/08/26
 * program.changeParam accepts both jsons strings and PlutusCoreValue is value

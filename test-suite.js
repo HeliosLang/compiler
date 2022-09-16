@@ -1,7 +1,12 @@
 #!/usr/bin/env node
+//@ts-check
 import fs from "fs";
 import crypto from "crypto";
 import * as helios from "./helios.js";
+
+/**
+ * @typedef {import('./helios.js').PropertyTest} PropertyTest
+ */
 
 const helios_ = helios.exportedForTesting;
 
@@ -66,17 +71,17 @@ async function runUnitTests() {
 
 // helper functions for script property tests
 function asBool(value) {
-    if (value instanceof helios_.PlutusCoreBool) {
+    if (value instanceof helios_.UPLCBool) {
         return value.bool;
     }
 
-    throw new Error(`expected PlutusCoreBool, got ${value.toString()}`);
+    throw new Error(`expected UPLCBool, got ${value.toString()}`);
 }
 
 function asInt(value) {
     if (value instanceof helios_.IntData) {
         return value.value;
-    } else if (value instanceof helios_.PlutusCoreDataValue) {
+    } else if (value instanceof helios_.UPLCDataValue) {
         let data = value.data;
         if (data instanceof helios_.IntData) {
             return data.value;
@@ -89,7 +94,7 @@ function asInt(value) {
 function asBytes(value) {
     if (value instanceof helios_.ByteArrayData) {
         return value.bytes;
-    } else if (value instanceof helios_.PlutusCoreDataValue) {
+    } else if (value instanceof helios_.UPLCDataValue) {
         let data = value.data;
         if (data instanceof helios_.ByteArrayData) {
             return data.bytes;
@@ -105,11 +110,11 @@ function equalsList(a, b) {
 }
 
 function decodeCBOR(bs) {
-    return helios_.PlutusCoreData.fromCBOR(bs);
+    return helios_.UPLCData.fromCBOR(bs);
 }
 
 function isValidString(value) {
-    if (value instanceof helios_.PlutusCoreDataValue) {
+    if (value instanceof helios_.UPLCDataValue) {
         let data = value.data;
         if (data instanceof helios_.ByteArrayData) {
             try {
@@ -126,7 +131,7 @@ function isValidString(value) {
 }
 
 function asString(value) {
-    if (value instanceof helios_.PlutusCoreDataValue) {
+    if (value instanceof helios_.UPLCDataValue) {
         let data = value.data;
         if (data instanceof helios_.ByteArrayData) {
             return helios_.bytesToString(data.bytes);
@@ -137,7 +142,7 @@ function asString(value) {
 }
 
 function asIntList(value) {
-    if (value instanceof helios_.PlutusCoreDataValue) {
+    if (value instanceof helios_.UPLCDataValue) {
         let data = value.data;
         if (data instanceof helios_.ListData) {
             let items = [];
@@ -158,7 +163,7 @@ function asIntList(value) {
 }
 
 function asBoolList(value) {
-    if (value instanceof helios_.PlutusCoreDataValue) {
+    if (value instanceof helios_.UPLCDataValue) {
         let data = value.data;
         if (data instanceof helios_.ListData) {
             let items = [];
@@ -181,7 +186,7 @@ function asBoolList(value) {
 function constrIndex(value) {
     if (value instanceof helios_.ConstrData) {
         return value.index;
-    } else if (value instanceof helios_.PlutusCoreDataValue) {
+    } else if (value instanceof helios_.UPLCDataValue) {
         let data = value.data;
         if (data instanceof helios_.ConstrData) {
             return data.index;
@@ -204,6 +209,9 @@ function isError(err, info) {
     }
 }
 
+/**
+ * @type {PropertyTest}
+ */
 const serializeProp = ([a], res) => {
     return decodeCBOR(asBytes(res)).isSame(a.data);
 };
@@ -621,7 +629,7 @@ async function runPropertyTests() {
     testing int_to_hex
     func main(a: Int) -> String {
         a.to_hex()
-    }`, ([a], res) => (asInt(a).toString("16") === asString(res)));
+    }`, ([a], res) => (asInt(a).toString(16) === asString(res)));
 
     await ft.test([ft.int()], `
     testing int_show
@@ -738,7 +746,7 @@ async function runPropertyTests() {
     
     const boolGen = ft.bool();
 
-    await ft.test([() => new helios_.PlutusCoreDataValue(helios_.Site.dummy(), new helios_.ConstrData(boolGen ? 1 : 0, []))], `
+    await ft.test([() => new helios_.UPLCDataValue(helios_.Site.dummy(), new helios_.ConstrData(boolGen() ? 1 : 0, []))], `
     testing bool_from_data
     func main(a: Data) -> Bool {
         Bool::from_data(a)
@@ -1381,7 +1389,7 @@ async function runPropertyTests() {
 
             let lRes = asIntList(res);
 
-            return n == lRes.length && lRes.every((v, i) => i == v);
+            return n == lRes.length && lRes.every((v, i) => BigInt(i) == v);
         });
 
         await ft.test([ft.int(-20, 20)], `

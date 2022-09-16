@@ -1,24 +1,22 @@
 #!/usr/bin/env node
-
+//@ts-check
 import fs from "fs";
-import * as helios from "./helios.js";
+import {exportedForTesting as helios_, NetworkParams} from "./helios.js";
 
-const helios_ = helios.exportedForTesting;
-
-const networkParams = new helios.NetworkParams(JSON.parse(fs.readFileSync("./network-parameters/preview.json").toString()));
+const networkParams = new NetworkParams(JSON.parse(fs.readFileSync("./network-parameters/preview.json").toString()));
 
 let site = helios_.Site.dummy();
 
 function newProgram(term) {
-	return new helios_.PlutusCoreProgram(term);
+	return new helios_.UPLCProgram(term);
 }
 
 function newLambda(term) {
-	return new helios_.PlutusCoreLambda(site, term);
+	return new helios_.UPLCLambda(site, term);
 }
 
 function newCall(fn, arg) {
-	return new helios_.PlutusCoreCall(site, fn, arg);
+	return new helios_.UPLCCall(site, fn, arg);
 }
 
 function newCall2(fn, a, b) {
@@ -26,15 +24,15 @@ function newCall2(fn, a, b) {
 }
 
 function newBuiltin(name) {
-	return new helios_.PlutusCoreBuiltin(site, name);
+	return new helios_.UPLCBuiltin(site, name);
 }
 
 function newVariable(i) {
-	return new helios_.PlutusCoreVariable(site, new helios_.PlutusCoreInt(site, BigInt(i), false));
+	return new helios_.UPLCVariable(site, new helios_.UPLCInt(site, BigInt(i), false));
 }
 
 function newInt(x) {
-	return new helios_.PlutusCoreConst(new helios_.PlutusCoreInt(site, x));
+	return new helios_.UPLCConst(new helios_.UPLCInt(site, x));
 }
 
 async function run(name, program, args) {

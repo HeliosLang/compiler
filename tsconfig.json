@@ -1,0 +1,10 @@
+{
+    "include": ["helios.js"],
+    "compilerOptions": {
+		"target": "es2020",
+        "allowJs": true,
+        "declaration": true,
+        "emitDeclarationOnly": true,
+        "declarationMap": true
+    }
+}

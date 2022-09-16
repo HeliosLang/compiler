@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+//@ts-check
 import fs from "fs";
 import * as helios from "./helios.js"
 
@@ -21,9 +22,9 @@ async function testBasic() {
 
     const signedBytes = helios_.hexToBytes(signedHex);
 
-    const unsignedTx = helios_.Tx.fromCBOR(unsignedBytes);
+    const unsignedTx = helios.Tx.fromCBOR(unsignedBytes);
 
-    const signedTx = helios_.Tx.fromCBOR(signedBytes);
+    const signedTx = helios.Tx.fromCBOR(signedBytes);
 
 
     console.log("UNSIGNED:\n", JSON.stringify(unsignedTx.dump(), undefined, "    "));
@@ -32,7 +33,7 @@ async function testBasic() {
 
 	console.log("BODY BYTES: ", helios.bytesToHex(signedTx.body.toCBOR()));
 
-	signedTx.witnesses.verifySignatures(signedTx.body.toCBOR());
+	//signedTx.witnesses.verifySignatures(signedTx.body.toCBOR());
 
     console.log("UNSIGNED SIZE:", unsignedBytes.length.toString());
     console.log("SIGNED SIZE:", signedBytes.length.toString());
@@ -50,18 +51,18 @@ async function testBasic() {
         0n,
         new helios.TxOutput(
             helios.Address.fromBech32("addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w"),
-            new helios.MoneyValue(10n*1000n*1000n*1000n),
+            new helios.Value(10n*1000n*1000n*1000n),
         )
     ));
 
     tx.addOutput(new helios.TxOutput(
         helios.Address.fromBech32("addr_test1vqzhgmkqsyyzxthk7vzxet4283wx8wwygu9nq0v94mdldxs0d56ku"),
-        new helios.MoneyValue(10n*1000n*1000n),
+        new helios.Value(10n*1000n*1000n),
     ));
 
     tx.setChangeAddress(helios.Address.fromBech32("addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w"));
 
-    await tx.build(networkParams);
+    await tx.finalize(networkParams);
 
     console.log(JSON.stringify(tx.dump(), undefined, "    "));
 
@@ -123,7 +124,7 @@ async function testMinting(optimized = false) {
 		0n,
 		new helios.TxOutput(
 			addr,
-            new helios.MoneyValue(10n*1000n*1000n*1000n),
+            new helios.Value(10n*1000n*1000n*1000n),
 		)
 	);
 
@@ -131,13 +132,16 @@ async function testMinting(optimized = false) {
 
 	let mph = new helios.Hash(program.hash());
 
+	/**
+	 * @type {[number[], bigint][]}
+	 */
 	let tokens = [[[], 1n]];
 
-	heliosTx.addMint(mph, tokens, new helios.IntData(42));
+	heliosTx.addMint(mph, tokens, new helios.IntData(42n));
 
 	heliosTx.addOutput(new helios.TxOutput(
 		addr,
-		new helios.MoneyValue(2n*1000n*1000n, new helios.MultiAsset([[mph, tokens]]))
+		new helios.Value(2n*1000n*1000n, new helios.Assets([[mph, tokens]]))
 	));
 
 	heliosTx.setChangeAddress(addr);
@@ -146,8 +150,7 @@ async function testMinting(optimized = false) {
 
 	heliosTx.addScript(program);
 
-
-	await heliosTx.build(networkParams);
+	await heliosTx.finalize(networkParams);
 
 	console.log(`BUILT_BY_HELIOS (${heliosTx.toCBOR().length}):`, JSON.stringify(heliosTx.dump(), undefined, 4));
 }
@@ -184,16 +187,26 @@ async function testInlineDatum() {
 
 	const unsignedBytes = helios.hexToBytes(unsignedHex);
 
-	let inlineDatum = new helios.InlineOutputDatum(new helios.IntData(42n));
+	let inlineDatum = new helios.InlineDatum(new helios.IntData(42n));
 
 	console.log(helios.bytesToHex(inlineDatum.toCBOR()));
 	
-	console.log(helios.bytesToHex(helios.CBORData.encodeHead(6, 24)));
+	console.log(helios.bytesToHex(helios.CBORData.encodeHead(6, 24n)));
 
 	let tx = helios.Tx.fromCBOR(unsignedBytes);
 
 	console.log(JSON.stringify(tx.dump(), undefined, 4));
 
+}
+
+async function testSubmitOwner() {
+	const unsignedHex = "84a60082825820088ce1fbcfb1a3221ea274921759bf7adb30beec750cc3ae50657b70d5138a8d00825820e2b4ec8b1ffa64082238c8a8963fd2b56e5e7256d4ce45f0e21f33c696d44da8010d81825820e2b4ec8b1ffa64082238c8a8963fd2b56e5e7256d4ce45f0e21f33c696d44da8010182a200583900d0d62ed8c1582b2459bafdcd6fe4eabd4b5d836478e81fb05168112e6403bccce5e41e05f3b8dc3d23d71deeb2077a6bf7e62c5c274b58ed011b0000000253fbe141a200583900d0d62ed8c1582b2459bafdcd6fe4eabd4b5d836478e81fb05168112e6403bccce5e41e05f3b8dc3d23d71deeb2077a6bf7e62c5c274b58ed01821a00153e02a1581c919d4c2c9455016289341b1a14dedf697687af31751170d56a31466ea14001021a000395110e81581cc1585421b224463e11264c1411e9e3346a3d6fa99b2ffc449aa267dc0b58203c3888dfdaa574e916814ae22c3e8abb75885a4a3e32c6c423bf0b9a9635c7a4a2068159043159042e01000032323232323232323232323232323222233335734646666ae68cc034004c02c01092891980691919999ab9a3370e6aae74dd5000a40044494488cc048018c0400052600130070062332232330010013300f00300222333357346ae8c0049289191999ab9a3011332232330010013301500300222333357346ae8c0049289191999ab9a30173017337106602c00c0026602c00a00249408cc014014d5d100224c6ae84009263300f0060013300f00500124a046600a00a6ae880112635742004931bab323333001001323330010013758601200a4660224646666ae68cdc39aab9d37540029000119baf301300c30133333573466e1cd55ce9baa00248000800c992624a09318089808801119baf323333573466e1cd55ce800a400446ae84d55cf00112601014000498dd518058011aab9d3233300100137566ae84d5d11aba2301500823375e6aae78004d5d0980b8061111999ab9a357460044c46666ae68c008d5d080191aba10042333005005357440080069324c4446666ae68d5d1801125eb808cccd5cd18011aba100323357406ae84010ccc014014d5d100200191998028029aba20040034992622332232374c6660020026602400600497adef6c60222333357346ae8c00880088cc88c8cccd5cd1aba30012003233574066ec0010dd3001001a4c6644646660020026603400600497adef6c60222333357346ae8c00880088cc88c8cccd5cd19b8700148000800c8cd5d019bb000437500040069319b803301d0080023301d007002357420066660080086ae8800c009263301400800233014007002357420066660080086ae8800c0092637560046eacc02c00530101a0002222333357346ae8c00c80088cccc014014d5d1002001998018011aba1004498dd5980400324c60140024931324c46ae84c0300048d5d09806000911919800800801911999ab9a35746002497adef6c6023333573466ebcd55ce9aba1002004237566aae78d5d08019198020021aba2003499262232333001001003002222333357346ae8c0089200023333573466ebcd55ce9aba10030022375a6aae78d5d080211998028029aba2004003499262333573400294128911919191998008009998010010018020019111999ab9a357460024006466ae80d5d08011998020020019aba2002498888cccd5cd1aba300124bd701191999ab9a3301100623375e002004466600c00c00a6ae880108cd5d00011998030030029aba2004498d55ce9aba1002498c8cc00400400c88cccd5cd1aba300124bd70119aba035573a6ae84008cc00c00cd5d100124c46ae84c02000488cccd5cd180124c4600493125049888cc020dd61aba1300300223375e00200446ae88d5d11aba2357446ae88c0080048d5d1180100091aba23002001235744600400246aae78dd500091191998008008018011111999ab9a3574600449408cccd5cd18011aba100324a2466600a00a6ae8801000d264990581840000182a821956e51a0070986af5f6";
+
+	const unsignedBytes = helios.hexToBytes(unsignedHex);
+
+	let tx = helios.Tx.fromCBOR(unsignedBytes);
+
+	console.log(JSON.stringify(tx.dump(), undefined, 4));
 }
 
 async function main() {
@@ -204,6 +217,8 @@ async function main() {
     await testMinting(true);
 
 	await testInlineDatum();
+
+	await testSubmitOwner();
 }
 
 main();

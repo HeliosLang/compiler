@@ -1,2 +1,5 @@
 log.*
 *.swp
+node_modules
+helios.d.ts
+helios.d.ts.map
