@@ -32,7 +32,7 @@ exec("git tag", (error, stdout, stderr) => {
 	if (error) {
 		throw error
 	} else {
-		let tags = stdout.split("\n").filter(t => t != ""); 
+		let tags = stdout.split("\n").filter(t => t != "").map(t => t.startsWith("v") ? t.slice(1) : t); 
 
 		tags.sort(compareVersions);
 

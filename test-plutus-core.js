@@ -25,7 +25,7 @@ const SWAP = "59043159042e01000032323232323232323232323232323222233335734646666a
 function testCbor(name, cborHex) {
 	console.log("Deserializing program " + name + "...");
 
-	let program = helios.deserializeUPLC(`{"type": "PlutusScriptV1", "cborHex": "${cborHex}"}`);
+	let program = helios.deserializeUplc(`{"type": "PlutusScriptV1", "cborHex": "${cborHex}"}`);
 
 	console.log(program.toString() + "\n");
 }

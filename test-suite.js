@@ -71,17 +71,17 @@ async function runUnitTests() {
 
 // helper functions for script property tests
 function asBool(value) {
-    if (value instanceof helios_.UPLCBool) {
+    if (value instanceof helios_.UplcBool) {
         return value.bool;
     }
 
-    throw new Error(`expected UPLCBool, got ${value.toString()}`);
+    throw new Error(`expected UplcBool, got ${value.toString()}`);
 }
 
 function asInt(value) {
     if (value instanceof helios_.IntData) {
         return value.value;
-    } else if (value instanceof helios_.UPLCDataValue) {
+    } else if (value instanceof helios_.UplcDataValue) {
         let data = value.data;
         if (data instanceof helios_.IntData) {
             return data.value;
@@ -94,7 +94,7 @@ function asInt(value) {
 function asBytes(value) {
     if (value instanceof helios_.ByteArrayData) {
         return value.bytes;
-    } else if (value instanceof helios_.UPLCDataValue) {
+    } else if (value instanceof helios_.UplcDataValue) {
         let data = value.data;
         if (data instanceof helios_.ByteArrayData) {
             return data.bytes;
@@ -109,12 +109,12 @@ function equalsList(a, b) {
     return n == b.length && a.every((v, i) => b[i] === v);
 }
 
-function decodeCBOR(bs) {
-    return helios_.UPLCData.fromCBOR(bs);
+function decodeCbor(bs) {
+    return helios_.UplcData.fromCbor(bs);
 }
 
 function isValidString(value) {
-    if (value instanceof helios_.UPLCDataValue) {
+    if (value instanceof helios_.UplcDataValue) {
         let data = value.data;
         if (data instanceof helios_.ByteArrayData) {
             try {
@@ -131,7 +131,7 @@ function isValidString(value) {
 }
 
 function asString(value) {
-    if (value instanceof helios_.UPLCDataValue) {
+    if (value instanceof helios_.UplcDataValue) {
         let data = value.data;
         if (data instanceof helios_.ByteArrayData) {
             return helios_.bytesToString(data.bytes);
@@ -142,7 +142,7 @@ function asString(value) {
 }
 
 function asIntList(value) {
-    if (value instanceof helios_.UPLCDataValue) {
+    if (value instanceof helios_.UplcDataValue) {
         let data = value.data;
         if (data instanceof helios_.ListData) {
             let items = [];
@@ -163,7 +163,7 @@ function asIntList(value) {
 }
 
 function asBoolList(value) {
-    if (value instanceof helios_.UPLCDataValue) {
+    if (value instanceof helios_.UplcDataValue) {
         let data = value.data;
         if (data instanceof helios_.ListData) {
             let items = [];
@@ -186,7 +186,7 @@ function asBoolList(value) {
 function constrIndex(value) {
     if (value instanceof helios_.ConstrData) {
         return value.index;
-    } else if (value instanceof helios_.UPLCDataValue) {
+    } else if (value instanceof helios_.UplcDataValue) {
         let data = value.data;
         if (data instanceof helios_.ConstrData) {
             return data.index;
@@ -213,7 +213,7 @@ function isError(err, info) {
  * @type {PropertyTest}
  */
 const serializeProp = ([a], res) => {
-    return decodeCBOR(asBytes(res)).isSame(a.data);
+    return decodeCbor(asBytes(res)).isSame(a.data);
 };
 
 const spendingScriptContextParam = `
@@ -746,7 +746,7 @@ async function runPropertyTests() {
     
     const boolGen = ft.bool();
 
-    await ft.test([() => new helios_.UPLCDataValue(helios_.Site.dummy(), new helios_.ConstrData(boolGen() ? 1 : 0, []))], `
+    await ft.test([() => new helios_.UplcDataValue(helios_.Site.dummy(), new helios_.ConstrData(boolGen() ? 1 : 0, []))], `
     testing bool_from_data
     func main(a: Data) -> Bool {
         Bool::from_data(a)
@@ -1355,7 +1355,7 @@ async function runPropertyTests() {
         testing bytearray32_serialize
         func main(a: ByteArray) -> ByteArray {
             a.blake2b().serialize()
-        }`, ([a], res) => decodeCBOR(asBytes(res)).isSame(new helios_.ByteArrayData(helios_.Crypto.blake2b(asBytes(a)))));
+        }`, ([a], res) => decodeCbor(asBytes(res)).isSame(new helios_.ByteArrayData(helios_.Crypto.blake2b(asBytes(a)))));
     }
 
 
@@ -2417,7 +2417,7 @@ async function runPropertyTests() {
         AssetClass::new(MintingPolicyHash::new(a), b).serialize()
     }`, ([a, b], res) => {
         let ref = new helios_.ConstrData(0, [new helios_.ByteArrayData(asBytes(a)), new helios_.ByteArrayData(asBytes(b))]);
-        return decodeCBOR(asBytes(res)).isSame(ref);
+        return decodeCbor(asBytes(res)).isSame(ref);
     });
 
 
@@ -2632,7 +2632,7 @@ async function runPropertyTests() {
                 ]
             ]);
             
-            return decodeCBOR(asBytes(res)).isSame(ref);
+            return decodeCbor(asBytes(res)).isSame(ref);
         });
     }
 
@@ -2756,7 +2756,7 @@ async function runPropertyTests() {
         }
         ${rewardingScriptContextParam}
         `, ([ctx], res) => {
-            return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[1]);
+            return decodeCbor(asBytes(res)).isSame(ctx.data.fields[1]);
         }, 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["STAKING_PURPOSE"], `
@@ -2916,7 +2916,7 @@ async function runPropertyTests() {
         `, ([ctx], res) => {
             return res.data.list.every((d, i) => {
                 let ref = ctx.data.fields[0].fields[5].list[i];
-                return decodeCBOR(asBytes(d)).isSame(ref);
+                return decodeCbor(asBytes(d)).isSame(ref);
             });
         }, 5);
     }
@@ -3154,7 +3154,7 @@ async function runPropertyTests() {
         }
         ${spendingScriptContextParam}
         `, ([ctx], res) => {
-            return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0]);
+            return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0]);
         }, 5);
     }
 
@@ -3217,7 +3217,7 @@ async function runPropertyTests() {
     }
     ${spendingScriptContextParam}
     `, ([ctx], res) => {
-        return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0]);
+        return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0]);
     }, 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3259,7 +3259,7 @@ async function runPropertyTests() {
     }
     ${spendingScriptContextParam}
     `, ([ctx], res) => {
-        return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0].fields[2].list[0]);
+        return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[2].list[0]);
     }, 5);
 
     const testOutputDatum = true;
@@ -3421,7 +3421,7 @@ async function runPropertyTests() {
     }
     ${spendingScriptContextParam}
     `, ([ctx], res) => {
-        return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[0]);
+        return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[0]);
     }, 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3464,7 +3464,7 @@ async function runPropertyTests() {
     }
     ${spendingScriptContextParam}
     `, ([ctx], res) => {
-        return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0])
+        return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0])
     }, 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3498,7 +3498,7 @@ async function runPropertyTests() {
     }
     ${spendingScriptContextParam}
     `, ([ctx], res) => {
-        return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0].fields[0]);
+        return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0].fields[0]);
     }, 3);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3533,7 +3533,7 @@ async function runPropertyTests() {
     }
     ${spendingScriptContextParam}
     `, ([ctx], res) => {
-        return decodeCBOR(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0].fields[0]);
+        return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0].fields[0]);
     }, 5);
 
     await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool()}, ["SCRIPT_CONTEXT"], `

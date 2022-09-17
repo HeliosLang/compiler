@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.6.0
+// Version:     0.6.1
 // Last update: September 2022
 // License:     Unlicense
 //
@@ -33,17 +33,17 @@
 //   * Program
 //   	Helios program object. 
 //       	* Program.new(src: string) -> Program
-//         	* program.compile(simplify: boolean = false) -> UPLCProgram (UPLC is acronym for Untyped PLutus Core)
+//         	* program.compile(simplify: boolean = false) -> UplcProgram (Uplc is acronym for Untyped PLutus Core)
 //       	* program.paramTypes -> Object.<name: string, type: Type>
-//       	* program.changeParam(name: string, value: string | UPLCValue)
-//              value can be a valid JSON string or a UPLCValue result from program.evalParam()
-//       	* program.evalParam(name: string) -> UPLCValue  
-//          	result can be used as an arg when running a UPLCProgram
+//       	* program.changeParam(name: string, value: string | UplcValue)
+//              value can be a valid JSON string or a UplcValue result from program.evalParam()
+//       	* program.evalParam(name: string) -> UplcValue  
+//          	result can be used as an arg when running a UplcProgram
 //
-//   * UPLCProgram
+//   * UplcProgram
 //		Plutus-core program object
-//      	* async program.run(args: UPLCValue[]) -> UPLCValue | UserError
-//          * async program.profile(args: UPLCValue[]) -> {mem: number, cpu: number, size: number}
+//      	* async program.run(args: UplcValue[]) -> UplcValue | UserError
+//          * async program.profile(args: UplcValue[]) -> {mem: number, cpu: number, size: number}
 //          * program.serialize() -> string
 //          	json string which can be used as a file by cardano-cli to submit a transaction
 //		
@@ -81,23 +81,23 @@
 //                                          imask, imod32, imod8, posMod, irotr, bigIntToBytes, 
 //                                          bytesToBigInt, padZeroes, byteToBitString, hexToBytes, 
 //                                          bytesToHex, stringToBytes, bytesToString, replaceTabs, 
-//                                          unwrapCBORBytes, wrapCBORBytes, BitReader, BitWriter, 
+//                                          unwrapCborBytes, wrapCborBytes, BitReader, BitWriter, 
 //                                          UInt64, DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
 //                                          Crypto, IR, Source, UserError, Site
 //
 //     3. Plutus-core builtins              NetworkParams, CostModel, ConstCost, LinearCost, 
 //                                          ArgSizeCost, MinArgSizeCost, MaxArgSizeCost, 
 //                                          SumArgSizesCost, ArgSizeDiffCost, ArgSizeProdCost, 
-//                                          ArgSizeDiagCost, UPLCBuiltinInfo, UPLC_BUILTINS
+//                                          ArgSizeDiagCost, UplcBuiltinInfo, Uplc_BUILTINS
 //
-//     4. Plutus-core AST objects           UPLCValue, DEFAULT_UPLC_RTE_CALLBACKS,
-//                                          UPLCRTE, UPLCStack, UPLCAnon, UPLCInt, UPLCByteArray, 
-//                                          UPLCString, UPLCUnit, UPLCBool, UPLCPair, UPLCMapItem, UPLCList, 
-//                                          UPLCMap, UPLCDataValue, UPLCTerm, UPLCVariable, UPLCDelay, 
-//                                          UPLCLambda, UPLCCall, UPLCConst, UPLCForce, UPLCError, 
-//                                          UPLCBuiltin, UPLCProgram
+//     4. Plutus-core AST objects           UplcValue, DEFAULT_UPLC_RTE_CALLBACKS,
+//                                          UplcRte, UplcStack, UplcAnon, UplcInt, UplcByteArray, 
+//                                          UplcString, UplcUnit, UplcBool, UplcPair, UplcMapItem, UplcList, 
+//                                          UplcMap, UplcDataValue, UplcTerm, UplcVariable, UplcDelay, 
+//                                          UplcLambda, UplcCall, UplcConst, UplcForce, UplcError, 
+//                                          UplcBuiltin, UplcProgram
 //
-//     5. Plutus-core data objects          CBORData, UPLCData, IntData, ByteArrayData, 
+//     5. Plutus-core data objects          CborData, UplcData, IntData, ByteArrayData, 
 //                                          ListData, MapData, ConstrData
 //
 //     6. Token objects                     Token, Word, Symbol, Group, 
@@ -181,8 +181,8 @@
 //
 //    16. IR AST build functions            buildIRExpr, buildIRFuncExpr
 //     
-//    17. Plutus-core deserialization       UPLCDeserializer, deserializeUPLCBytes, 
-//                                          deserializeUPLC
+//    17. Plutus-core deserialization       UplcDeserializer, deserializeUplcBytes, 
+//                                          deserializeUplc
 //
 //    18. Transaction objects               Tx, TxBody, TxWitnesses, TxInput, TxOutput, DCert, 
 //                                          Address, Assets, Value, Hash, PubKeyHash, 
@@ -200,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.6.0"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.6.1"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -273,7 +273,7 @@ const UPLC_TAG_WIDTHS = {
  */
 
 /**
- * Min memory used by a UPLCData value during validation
+ * Min memory used by a UplcData value during validation
  * @type {number}
  */
 const UPLC_DATA_NODE_MEM_SIZE = 4;
@@ -613,28 +613,28 @@ function replaceTabs(str) {
  * This function unwraps one level, so must be called twice to unwrap the text envelopes of plutus scripts.
  *  (for some reason the text envelopes is cbor wrapped in cbor)
  * @example
- * bytesToHex(unwrapCBORBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
+ * bytesToHex(unwrapCborBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
  * @param {number[]} bytes 
  * @returns {number[]}
  */
-function unwrapCBORBytes(bytes) {
+function unwrapCborBytes(bytes) {
 	if (bytes.length == 0) {
 		throw new Error("expected at least one cbor byte");
 	}
 
-	return CBORData.decodeBytes(bytes);
+	return CborData.decodeBytes(bytes);
 }
 
 /**
  * Wraps byte arrays with a cbor tag so they become valid cbor byte arrays.
- * Roughly the inverse of unwrapCBORBytes.
+ * Roughly the inverse of unwrapCborBytes.
  * @example
- * bytesToHex(wrapCBORBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
+ * bytesToHex(wrapCborBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
  * @param {number[]} bytes 
  * @returns {number[]}
  */
-function wrapCBORBytes(bytes) {
-	return CBORData.encodeBytes(bytes);
+function wrapCborBytes(bytes) {
+	return CborData.encodeBytes(bytes);
 }
 
 /**
@@ -2055,7 +2055,7 @@ class Crypto {
 	 * @returns {number[]}
 	 */
 	static hashScript(cborBytes, plutusScriptVersion = PLUTUS_SCRIPT_VERSION) {
-		let bytes = wrapCBORBytes(cborBytes);
+		let bytes = wrapCborBytes(cborBytes);
 
 		switch (plutusScriptVersion) {
 			case "PlutusScriptV1":
@@ -2643,7 +2643,7 @@ export class UserError extends Error {
 	}
 
 	/**
-	 * Constructs a RuntimeError (i.e. when UPLCError is called)
+	 * Constructs a RuntimeError (i.e. when UplcError is called)
 	 * @param {Source} src 
 	 * @param {number} pos 
 	 * @param {string} info 
@@ -2661,7 +2661,7 @@ export class UserError extends Error {
 	}
 
 	/**
-	 * @type {UPLCData}
+	 * @type {UplcData}
 	 */
 	get data() {
 		throw new Error("is error");
@@ -3438,7 +3438,7 @@ class ArgSizeDiagCost extends LinearCost {
  * @property {(params: NetworkParams, baseName: string) => CostModel} fromParams
  */
 
-class UPLCBuiltinInfo {
+class UplcBuiltinInfo {
 	#name;
 	#forceCount;
 	#memCostModelClass;
@@ -3498,11 +3498,11 @@ class UPLCBuiltinInfo {
 
 /** 
  * A list of all PlutusScript builins, with associated costmodels (actual costmodel parameters are loaded from NetworkParams during runtime)
- * @type {UPLCBuiltinInfo[]} 
+ * @type {UplcBuiltinInfo[]} 
  */
-const UPLC_BUILTINS = (
+const Uplc_BUILTINS = (
 	/**
-	 * @returns {UPLCBuiltinInfo[]}
+	 * @returns {UplcBuiltinInfo[]}
 	 */
 	function () {
 		/**
@@ -3511,11 +3511,11 @@ const UPLC_BUILTINS = (
 		 * @param {number} forceCount 
 		 * @param {CostModelClass} memCostModel
 		 * @param {CostModelClass} cpuCostModel
-		 * @returns {UPLCBuiltinInfo}
+		 * @returns {UplcBuiltinInfo}
 		 */
 		function builtinInfo(name, forceCount, memCostModel, cpuCostModel) {
 			// builtins might need be wrapped in `force` a number of times if they are not fully typed
-			return new UPLCBuiltinInfo(name, forceCount, memCostModel, cpuCostModel);
+			return new UplcBuiltinInfo(name, forceCount, memCostModel, cpuCostModel);
 		}
 
 		return [
@@ -3583,9 +3583,9 @@ const UPLC_BUILTINS = (
 /////////////////////////////////////
 
 /** 
- * a UPLCValue is passed around by Plutus-core expressions.
+ * a UplcValue is passed around by Plutus-core expressions.
  */
-class UPLCValue {
+class UplcValue {
 	#site;
 
 	/**
@@ -3597,9 +3597,9 @@ class UPLCValue {
 	}
 
 	/**
-	 * Return a copy of the UPLCValue at a different Site.
+	 * Return a copy of the UplcValue at a different Site.
 	 * @param {Site} newSite 
-	 * @returns {UPLCValue}
+	 * @returns {UplcValue}
 	 */
 	copy(newSite) {
 		throw new Error("not implemented");
@@ -3618,19 +3618,19 @@ class UPLCValue {
 	}
 
 	/**
-	 * Throws an error because most values can't be called (overridden by UPLCAnon)
-	 * @param {UPLCRTE | UPLCStack} rte 
+	 * Throws an error because most values can't be called (overridden by UplcAnon)
+	 * @param {UplcRte | UplcStack} rte 
 	 * @param {Site} site 
-	 * @param {UPLCValue} value
-	 * @returns {Promise<UPLCValue>}
+	 * @param {UplcValue} value
+	 * @returns {Promise<UplcValue>}
 	 */
 	async call(rte, site, value) {
 		throw site.typeError(`expected a Plutus-core function, got '${this.toString()}'`);
 	}
 
 	/**
-	 * @param {UPLCRTE | UPLCStack} rte 
-	 * @returns {Promise<UPLCValue>}
+	 * @param {UplcRte | UplcStack} rte 
+	 * @returns {Promise<UplcValue>}
 	 */
 	async eval(rte) {
 		return this;
@@ -3673,14 +3673,14 @@ class UPLCValue {
 	}
 
 	/**
-	 * @type {UPLCValue}
+	 * @type {UplcValue}
 	 */
 	get first() {
 		throw this.site.typeError(`expected a Plutus-core pair, got '${this.toString()}'`);
 	}
 
 	/**
-	 * @type {UPLCValue}
+	 * @type {UplcValue}
 	 */
 	get second() {
 		throw this.site.typeError(`expected a Plutus-core pair, got '${this.toString()}'`);
@@ -3695,14 +3695,14 @@ class UPLCValue {
 	}
 
 	/**
-	 * @type {UPLCData}
+	 * @type {UplcData}
 	 */
 	get key() {
 		throw this.site.typeError(`expected a Plutus-core data-pair, got '${this.toString()}'`);
 	}
 
 	/**
-	 * @type {UPLCData}
+	 * @type {UplcData}
 	 */
 	get value() {
 		throw this.site.typeError(`expected a Plutus-core data-pair_, got '${this.toString()}'`);
@@ -3725,14 +3725,14 @@ class UPLCValue {
 	}
 
 	/**
-	 * @type {UPLCData[]}
+	 * @type {UplcData[]}
 	 */
 	get list() {
 		throw this.site.typeError(`expected a Plutus-core list, got '${this.toString()}'`);
 	}
 
 	/**
-	 * @type {UPLCMapItem[]}
+	 * @type {UplcMapItem[]}
 	 */
 	get map() {
 		throw this.site.typeError(`expected a Plutus-core map '${this.toString()}'`);
@@ -3743,14 +3743,14 @@ class UPLCValue {
 	}
 
 	/**
-	 * @type {UPLCData}
+	 * @type {UplcData}
 	 */
 	get data() {
 		throw this.site.typeError(`expected Plutus-core data, got '${this.toString()}'`);
 	}
 
 	/**
-	 * @returns {UPLCUnit}
+	 * @returns {UplcUnit}
 	 */
 	assertUnit() {
 		throw this.site.typeError(`expected Plutus-core unit, got '${this.toString}'`);
@@ -3760,7 +3760,7 @@ class UPLCValue {
 	 * @returns {string}
 	 */
 	toString() {
-		throw new Error("toString not implemented");
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -3772,6 +3772,7 @@ class UPLCValue {
 
 	/**
 	 * Encodes value without type header
+	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValueInternal(bitWriter) {
 		throw new Error("not yet implemented");
@@ -3790,15 +3791,15 @@ class UPLCValue {
 }
 
 /**
-* @typedef {object} UPLCRTECallbacks
+* @typedef {object} UplcRTECallbacks
 * @property {(msg: string) => Promise<void>} [onPrint]
-* @property {(site: Site, rawStack: UPLCRawStack) => Promise<boolean>} [onStartCall]
-* @property {(site: Site, rawStack: UPLCRawStack) => Promise<void>} [onEndCall]
+* @property {(site: Site, rawStack: UplcRawStack) => Promise<boolean>} [onStartCall]
+* @property {(site: Site, rawStack: UplcRawStack) => Promise<void>} [onEndCall]
 * @property {(cost: Cost) => void} [onIncrCost]
 */
 
 /**
- * @type {UPLCRTECallbacks}
+ * @type {UplcRTECallbacks}
  */
 const DEFAULT_UPLC_RTE_CALLBACKS = {
 	onPrint: async function (msg) {return},
@@ -3810,7 +3811,7 @@ const DEFAULT_UPLC_RTE_CALLBACKS = {
 /**
  * Plutus-core Runtime Environment is used for controlling the programming evaluation (eg. by a debugger)
  */
-class UPLCRTE {
+class UplcRte {
 	#callbacks;
 
 	#networkParams;
@@ -3823,16 +3824,16 @@ class UPLCRTE {
 
 	/**
 	 * this.onNotifyCalls is set back to true if the endCall is called with the same rawStack as the marker.
-	 * @type {?UPLCRawStack}
+	 * @type {?UplcRawStack}
 	 */
 	#marker;
 
 	/**
-	 * @typedef {[?string, UPLCValue][]} UPLCRawStack
+	 * @typedef {[?string, UplcValue][]} UplcRawStack
 	 */
 
 	/**
-	 * @param {UPLCRTECallbacks} callbacks 
+	 * @param {UplcRTECallbacks} callbacks 
 	 * @param {?NetworkParams} networkParams
 	 */
 	constructor(callbacks = DEFAULT_UPLC_RTE_CALLBACKS, networkParams = null) {
@@ -3901,8 +3902,8 @@ class UPLCRTE {
 	}
 
 	/**
-	 * @param {UPLCBuiltin} fn
-	 * @param {UPLCValue[]} args
+	 * @param {UplcBuiltin} fn
+	 * @param {UplcValue[]} args
 	 */
 	calcAndIncrCost(fn, ...args) {
 		if (this.#networkParams !== null) {
@@ -3913,9 +3914,9 @@ class UPLCRTE {
 	}
 
 	/**
-	 * Gets variable using Debruijn index. Throws error here because UPLCRTE is the stack root and doesn't contain any values.
+	 * Gets variable using Debruijn index. Throws error here because UplcRTE is the stack root and doesn't contain any values.
 	 * @param {number} i 
-	 * @returns {UPLCValue}
+	 * @returns {UplcValue}
 	 */
 	get(i) {
 		throw new Error("variable index out of range");
@@ -3923,12 +3924,12 @@ class UPLCRTE {
 
 	/**
 	 * Creates a child stack.
-	 * @param {UPLCValue} value 
+	 * @param {UplcValue} value 
 	 * @param {?string} valueName 
-	 * @returns {UPLCStack}
+	 * @returns {UplcStack}
 	 */
 	push(value, valueName = null) {
-		return new UPLCStack(this, value, valueName);
+		return new UplcStack(this, value, valueName);
 	}
 
 	/**
@@ -3945,7 +3946,7 @@ class UPLCRTE {
 	/**
 	 * Calls the onStartCall callback.
 	 * @param {Site} site 
-	 * @param {UPLCRawStack} rawStack 
+	 * @param {UplcRawStack} rawStack 
 	 * @returns {Promise<void>}
 	 */
 	async startCall(site, rawStack) {
@@ -3962,8 +3963,8 @@ class UPLCRTE {
 	 * Calls the onEndCall callback if '#notifyCalls == true'.
 	 * '#notifyCalls' is set to true if 'rawStack == #marker'.
 	 * @param {Site} site 
-	 * @param {UPLCRawStack} rawStack 
-	 * @param {UPLCValue} result 
+	 * @param {UplcRawStack} rawStack 
+	 * @param {UplcValue} result 
 	 * @returns {Promise<void>}
 	 */
 	async endCall(site, rawStack, result) {
@@ -3980,7 +3981,7 @@ class UPLCRTE {
 	}
 
 	/**
-	 * @returns {UPLCRawStack}
+	 * @returns {UplcRawStack}
 	 */
 	toList() {
 		return [];
@@ -3988,16 +3989,16 @@ class UPLCRTE {
 }
 
 /**
- * UPLCStack contains a value that can be retrieved using a Debruijn index.
+ * UplcStack contains a value that can be retrieved using a Debruijn index.
  */
-class UPLCStack {
+class UplcStack {
 	#parent;
 	#value;
 	#valueName;
 
 	/**
-	 * @param {(?UPLCStack) | UPLCRTE} parent
-	 * @param {?UPLCValue} value
+	 * @param {(?UplcStack) | UplcRte} parent
+	 * @param {?UplcValue} value
 	 * @param {?string} valueName
 	 */
 	constructor(parent, value = null, valueName = null) {
@@ -4055,8 +4056,8 @@ class UPLCStack {
 	}
 
 	/**
-	 * @param {UPLCBuiltin} fn
-	 * @param {UPLCValue[]} args
+	 * @param {UplcBuiltin} fn
+	 * @param {UplcValue[]} args
 	 */
 	calcAndIncrCost(fn, ...args) {
 		if (this.#parent !== null) {
@@ -4068,7 +4069,7 @@ class UPLCStack {
 	 * Gets a value using the Debruijn index. If 'i == 1' then the current value is returned.
 	 * Otherwise 'i' is decrement and passed to the parent stack.
 	 * @param {number} i 
-	 * @returns {UPLCValue}
+	 * @returns {UplcValue}
 	 */
 	get(i) {
 		i -= 1;
@@ -4091,12 +4092,12 @@ class UPLCStack {
 
 	/**
 	 * Instantiates a child stack.
-	 * @param {UPLCValue} value 
+	 * @param {UplcValue} value 
 	 * @param {?string} valueName 
-	 * @returns {UPLCStack}
+	 * @returns {UplcStack}
 	 */
 	push(value, valueName = null) {
-		return new UPLCStack(this, value, valueName);
+		return new UplcStack(this, value, valueName);
 	}
 
 	/**
@@ -4113,7 +4114,7 @@ class UPLCStack {
 	/**
 	 * Calls the onStartCall callback in the RTE (root of stack).
 	 * @param {Site} site 
-	 * @param {UPLCRawStack} rawStack 
+	 * @param {UplcRawStack} rawStack 
 	 * @returns {Promise<void>}
 	 */
 	async startCall(site, rawStack) {
@@ -4125,8 +4126,8 @@ class UPLCStack {
 	/** 
 	 * Calls the onEndCall callback in the RTE (root of stack).
 	 * @param {Site} site
-	 * @param {UPLCRawStack} rawStack
-	 * @param {UPLCValue} result
+	 * @param {UplcRawStack} rawStack
+	 * @param {UplcValue} result
 	 * @returns {Promise<void>}
 	*/
 	async endCall(site, rawStack, result) {
@@ -4136,7 +4137,7 @@ class UPLCStack {
 	}
 
 	/** 
-	 * @returns {UPLCRawStack}
+	 * @returns {UplcRawStack}
 	*/
 	toList() {
 		let lst = this.#parent !== null ? this.#parent.toList() : [];
@@ -4149,11 +4150,11 @@ class UPLCStack {
 
 /**
  * Anonymous Plutus-core function.
- * Returns a new UPLCAnon whenever it is called/applied (args are 'accumulated'), except final application, when the function itself is evaluated.
+ * Returns a new UplcAnon whenever it is called/applied (args are 'accumulated'), except final application, when the function itself is evaluated.
  */
-class UPLCAnon extends UPLCValue {
+class UplcAnon extends UplcValue {
 	/**
-	 * @typedef {(callSite: Site, subStack: UPLCStack, ...args: UPLCValue[]) => (UPLCValue | Promise<UPLCValue>)} UPLCAnonCallback
+	 * @typedef {(callSite: Site, subStack: UplcStack, ...args: UplcValue[]) => (UplcValue | Promise<UplcValue>)} UplcAnonCallback
 	 */
 
 	#rte;
@@ -4167,7 +4168,7 @@ class UPLCAnon extends UPLCValue {
 
 	/**
 	 * Callback that is called when function is fully applied.
-	 * @type {UPLCAnonCallback}
+	 * @type {UplcAnonCallback}
 	 */
 	#fn;
 	#callSite;
@@ -4175,9 +4176,9 @@ class UPLCAnon extends UPLCValue {
 	/**
 	 * 
 	 * @param {Site} site 
-	 * @param {UPLCRTE | UPLCStack} rte 
+	 * @param {UplcRte | UplcStack} rte 
 	 * @param {string[] | number} args - args can be list of argNames (for debugging), or the number of args
-	 * @param {UPLCAnonCallback} fn 
+	 * @param {UplcAnonCallback} fn 
 	 * @param {number} argCount 
 	 * @param {?Site} callSite 
 	 */
@@ -4215,10 +4216,10 @@ class UPLCAnon extends UPLCValue {
 
 	/**
 	 * @param {Site} newSite 
-	 * @returns {UPLCAnon}
+	 * @returns {UplcAnon}
 	 */
 	copy(newSite) {
-		return new UPLCAnon(
+		return new UplcAnon(
 			newSite,
 			this.#rte,
 			this.#argNames !== null ? this.#argNames : this.#nArgs,
@@ -4230,19 +4231,19 @@ class UPLCAnon extends UPLCValue {
 
 	/**
 	 * @param {Site} callSite
-	 * @param {UPLCStack} subStack
-	 * @param {UPLCValue[]} args
-	 * @returns {UPLCValue | Promise<UPLCValue>}
+	 * @param {UplcStack} subStack
+	 * @param {UplcValue[]} args
+	 * @returns {UplcValue | Promise<UplcValue>}
 	 */
 	callSync(callSite, subStack, args) {
 		return this.#fn(callSite, subStack, ...args);
 	}
 
 	/**
-	 * @param {UPLCRTE | UPLCStack} rte 
+	 * @param {UplcRte | UplcStack} rte 
 	 * @param {Site} site 
-	 * @param {UPLCValue} value 
-	 * @returns {Promise<UPLCValue>}
+	 * @param {UplcValue} value 
+	 * @returns {Promise<UplcValue>}
 	 */
 	async call(rte, site, value) {
 		assert(site != undefined && site instanceof Site);
@@ -4253,7 +4254,7 @@ class UPLCAnon extends UPLCValue {
 
 		// function is fully applied, collect the args and call the callback
 		if (argCount == this.#nArgs) {
-			/** @type {UPLCValue[]} */
+			/** @type {UplcValue[]} */
 			let args = [];
 
 			let rawStack = rte.toList(); // use the RTE of the callsite
@@ -4264,7 +4265,7 @@ class UPLCAnon extends UPLCValue {
 				rawStack.push([`__arg${this.#nArgs - i}`, argValue]);
 			}
 
-			// notify the RTE of the new live stack (list of pairs instead of UPLCStack), and await permission to continue
+			// notify the RTE of the new live stack (list of pairs instead of UplcStack), and await permission to continue
 			await this.#rte.startCall(callSite, rawStack);
 
 			try {
@@ -4283,10 +4284,10 @@ class UPLCAnon extends UPLCValue {
 				throw e;
 			}
 		} else {
-			// function isn't yet fully applied, return a new partially applied UPLCAnon
+			// function isn't yet fully applied, return a new partially applied UplcAnon
 			assert(this.#nArgs > 1);
 
-			return new UPLCAnon(
+			return new UplcAnon(
 				callSite,
 				subStack,
 				this.#argNames !== null ? this.#argNames : this.#nArgs,
@@ -4305,7 +4306,7 @@ class UPLCAnon extends UPLCValue {
 /**
  * Plutus-core Integer class
  */
-class UPLCInt extends UPLCValue {
+class UplcInt extends UplcValue {
 	#value;
 	#signed;
 
@@ -4326,15 +4327,18 @@ class UPLCInt extends UPLCValue {
 	}
 
 	/**
-	 * Creates a UPLCInt wrapped in a UPLCConst, so it can be used a term
+	 * Creates a UplcInt wrapped in a UplcConst, so it can be used a term
 	 * @param {Site} site 
 	 * @param {bigint} value 
 	 * @returns 
 	 */
 	static newSignedTerm(site, value) {
-		return new UPLCConst(new UPLCInt(site, value, true));
+		return new UplcConst(new UplcInt(site, value, true));
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		if (this.#value == 0n) {
 			return 1;
@@ -4347,12 +4351,15 @@ class UPLCInt extends UPLCValue {
 
 	/**
 	 * @param {Site} newSite 
-	 * @returns 
+	 * @returns {UplcInt}
 	 */
 	copy(newSite) {
-		return new UPLCInt(newSite, this.#value, this.#signed);
+		return new UplcInt(newSite, this.#value, this.#signed);
 	}
 
+	/**
+	 * @type {bigint}
+	 */
 	get int() {
 		return this.#value;
 	}
@@ -4397,14 +4404,14 @@ class UPLCInt extends UPLCValue {
 
 	/**
 	 * Applies zigzag encoding
-	 * @returns {UPLCInt}
+	 * @returns {UplcInt}
 	 */
 	toUnsigned() {
 		if (this.#signed) {
 			if (this.#value < 0n) {
-				return new UPLCInt(this.site, 1n - this.#value * 2n, false);
+				return new UplcInt(this.site, 1n - this.#value * 2n, false);
 			} else {
-				return new UPLCInt(this.site, this.#value * 2n, false);
+				return new UplcInt(this.site, this.#value * 2n, false);
 			}
 		} else {
 			return this;
@@ -4413,16 +4420,16 @@ class UPLCInt extends UPLCValue {
 
 	/** 
 	 * Unapplies zigzag encoding 
-	 * @returns {UPLCInt}
+	 * @returns {UplcInt}
 	*/
 	toSigned() {
 		if (this.#signed) {
 			return this;
 		} else {
 			if (this.#value % 2n == 0n) {
-				return new UPLCInt(this.site, this.#value / 2n, true);
+				return new UplcInt(this.site, this.#value / 2n, true);
 			} else {
-				return new UPLCInt(this.site, -(this.#value + 1n) / 2n, true);
+				return new UplcInt(this.site, -(this.#value + 1n) / 2n, true);
 			}
 		}
 	}
@@ -4493,7 +4500,7 @@ class UPLCInt extends UPLCValue {
  * Plutus-core ByteArray value class
  * Wraps a regular list of uint8 numbers (so not Uint8Array)
  */
-class UPLCByteArray extends UPLCValue {
+class UplcByteArray extends UplcValue {
 	#bytes;
 
 	/**
@@ -4510,27 +4517,33 @@ class UPLCByteArray extends UPLCValue {
 	}
 
 	/**
-	 * Creates new UPLCByteArray wrapped in UPLCConst so it can be used as a term.
+	 * Creates new UplcByteArray wrapped in UplcConst so it can be used as a term.
 	 * @param {Site} site 
 	 * @param {number[]} bytes 
 	 * @returns 
 	 */
 	static newTerm(site, bytes) {
-		return new UPLCConst(new UPLCByteArray(site, bytes));
+		return new UplcConst(new UplcByteArray(site, bytes));
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		return Math.floor((this.#bytes.length - 1)/8) + 1;
 	}
 
 	/**
 	 * @param {Site} newSite 
-	 * @returns {UPLCByteArray}
+	 * @returns {UplcByteArray}
 	 */
 	copy(newSite) {
-		return new UPLCByteArray(newSite, this.#bytes);
+		return new UplcByteArray(newSite, this.#bytes);
 	}
 
+	/**
+	 * @type {number[]}
+	 */
 	get bytes() {
 		return this.#bytes.slice();
 	}
@@ -4554,12 +4567,12 @@ class UPLCByteArray extends UPLCValue {
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValueInternal(bitWriter) {
-		UPLCByteArray.writeBytes(bitWriter, this.#bytes);
+		UplcByteArray.writeBytes(bitWriter, this.#bytes);
 	}
 
 	/**
 	 * Write a list of bytes to the bitWriter using flat encoding.
-	 * Used by UPLCString, UPLCByteArray and UPLCDataValue
+	 * Used by UplcString, UplcByteArray and UplcDataValue
 	 * Equivalent to E_B* function in Plutus-core docs
 	 * @param {BitWriter} bitWriter 
 	 * @param {number[]} bytes 
@@ -4597,7 +4610,7 @@ class UPLCByteArray extends UPLCValue {
 /**
  * Plutus-core string value class
  */
-class UPLCString extends UPLCValue {
+class UplcString extends UplcValue {
 	#value;
 
 	/**
@@ -4610,27 +4623,33 @@ class UPLCString extends UPLCValue {
 	}
 
 	/**
-	 * Creates a new UPLCString wrapped with UPLCConst so it can be used as a term.
+	 * Creates a new UplcString wrapped with UplcConst so it can be used as a term.
 	 * @param {Site} site 
 	 * @param {string} value 
-	 * @returns {UPLCConst}
+	 * @returns {UplcConst}
 	 */
 	static newTerm(site, value) {
-		return new UPLCConst(new UPLCString(site, value));
+		return new UplcConst(new UplcString(site, value));
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		return this.#value.length;
 	}
 
 	/**
 	 * @param {Site} newSite 
-	 * @returns {UPLCString}
+	 * @returns {UplcString}
 	 */
 	copy(newSite) {
-		return new UPLCString(newSite, this.#value);
+		return new UplcString(newSite, this.#value);
 	}
 
+	/**
+	 * @type {string}
+	 */
 	get string() {
 		return this.#value;
 	}
@@ -4655,14 +4674,14 @@ class UPLCString extends UPLCValue {
 	toFlatValueInternal(bitWriter) {
 		let bytes = Array.from((new TextEncoder()).encode(this.#value));
 
-		UPLCByteArray.writeBytes(bitWriter, bytes);
+		UplcByteArray.writeBytes(bitWriter, bytes);
 	}
 }
 
 /**
  * Plutus-core unit value class
  */
- class UPLCUnit extends UPLCValue {
+ class UplcUnit extends UplcValue {
 	/**
 	 * @param {Site} site 
 	 */
@@ -4671,30 +4690,36 @@ class UPLCString extends UPLCValue {
 	}
 
 	/**
-	 * Creates a new UPLCUnit wrapped with UPLCConst so it can be used as a term
+	 * Creates a new UplcUnit wrapped with UplcConst so it can be used as a term
 	 * @param {Site} site 
-	 * @returns {UPLCConst}
+	 * @returns {UplcConst}
 	 */
 	static newTerm(site) {
-		return new UPLCConst(new UPLCUnit(site));
+		return new UplcConst(new UplcUnit(site));
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		return 1;
 	}
 
 	/**
 	 * @param {Site} newSite 
-	 * @returns {UPLCUnit}
+	 * @returns {UplcUnit}
 	 */
 	copy(newSite) {
-		return new UPLCUnit(newSite);
+		return new UplcUnit(newSite);
 	}
 
 	toString() {
 		return "()";
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	typeBits() {
 		return "0011";
 	}
@@ -4706,7 +4731,7 @@ class UPLCString extends UPLCValue {
 	}
 
 	/**
-	 * @returns {UPLCUnit}
+	 * @returns {UplcUnit}
 	 */
 	assertUnit() {
 		return this;
@@ -4716,7 +4741,7 @@ class UPLCString extends UPLCValue {
 /**
  * Plutus-core boolean value class
  */
-class UPLCBool extends UPLCValue {
+class UplcBool extends UplcValue {
 	#value;
 
 	/**
@@ -4729,33 +4754,39 @@ class UPLCBool extends UPLCValue {
 	}
 
 	/**
-	 * Creates a new UPLCBool wrapped with UPLCConst so it can be used as a term.
+	 * Creates a new UplcBool wrapped with UplcConst so it can be used as a term.
 	 * @param {Site} site 
 	 * @param {boolean} value 
-	 * @returns {UPLCConst}
+	 * @returns {UplcConst}
 	 */
 	static newTerm(site, value) {
-		return new UPLCConst(new UPLCBool(site, value));
+		return new UplcConst(new UplcBool(site, value));
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		return 1;
 	}
 
 	/**
 	 * @param {Site} newSite 
-	 * @returns {UPLCBool}
+	 * @returns {UplcBool}
 	 */
 	copy(newSite) {
-		return new UPLCBool(newSite, this.#value);
+		return new UplcBool(newSite, this.#value);
 	}
 
+	/**
+	 * @type {boolean}
+	 */
 	get bool() {
 		return this.#value;
 	}
 
 	/**
-	 * @type {UPLCData}
+	 * @type {UplcData}
 	 */
 	get data() {
 		return new ConstrData(this.#value ? 1 : 0, []);
@@ -4791,14 +4822,14 @@ class UPLCBool extends UPLCValue {
  * Plutus-core pair value class
  * Can contain any other value type.
  */
-class UPLCPair extends UPLCValue {
+class UplcPair extends UplcValue {
 	#first;
 	#second;
 
 	/**
 	 * @param {Site} site
-	 * @param {UPLCValue} first
-	 * @param {UPLCValue} second
+	 * @param {UplcValue} first
+	 * @param {UplcValue} second
 	 */
 	constructor(site, first, second) {
 		super(site);
@@ -4807,28 +4838,34 @@ class UPLCPair extends UPLCValue {
 	}
 
 	/**
-	 * Creates a new UPLCBool wrapped with UPLCConst so it can be used as a term.
+	 * Creates a new UplcBool wrapped with UplcConst so it can be used as a term.
 	 * @param {Site} site 
-	 * @param {UPLCValue} first
-	 * @param {UPLCValue} second
-	 * @returns {UPLCConst}
+	 * @param {UplcValue} first
+	 * @param {UplcValue} second
+	 * @returns {UplcConst}
 	 */
  	static newTerm(site, first, second) {
-		return new UPLCConst(new UPLCPair(site, first, second));
+		return new UplcConst(new UplcPair(site, first, second));
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		return 1 + this.#first.memSize + this.#second.memSize;
 	}
 
 	/**
 	 * @param {Site} newSite 
-	 * @returns {UPLCPair}
+	 * @returns {UplcPair}
 	 */
 	copy(newSite) {
-		return new UPLCPair(newSite, this.#first, this.#second);
+		return new UplcPair(newSite, this.#first, this.#second);
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `(${this.#first.toString()}, ${this.#second.toString()})`;
 	}
@@ -4840,14 +4877,23 @@ class UPLCPair extends UPLCValue {
 		return true;
 	}
 
+	/**
+	 * @type {UplcValue}
+	 */
 	get first() {
 		return this.#first;
 	}
 
+	/**
+	 * @type {UplcValue}
+	 */
 	get second() {
 		return this.#second;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	typeBits() {
 		// 7 (7 (6) (fst)) (snd)
 		return ["0111", "0111", "0110", this.#first.typeBits(), this.#second.typeBits()].join("1");
@@ -4866,14 +4912,14 @@ class UPLCPair extends UPLCValue {
  * Plutus-core pair value class that only contains data
  * Only used during evaluation.
  */
-class UPLCMapItem extends UPLCValue {
+class UplcMapItem extends UplcValue {
 	#key;
 	#value;
 
 	/**
 	 * @param {Site} site 
-	 * @param {UPLCData} key 
-	 * @param {UPLCData} value 
+	 * @param {UplcData} key 
+	 * @param {UplcData} value 
 	 */
 	constructor(site, key, value) {
 		super(site);
@@ -4881,19 +4927,25 @@ class UPLCMapItem extends UPLCValue {
 		this.#value = value;
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
-		return 1 + (new UPLCDataValue(this.site, this.#key)).memSize + 
-			(new UPLCDataValue(this.site, this.#value)).memSize;
+		return 1 + (new UplcDataValue(this.site, this.#key)).memSize + 
+			(new UplcDataValue(this.site, this.#value)).memSize;
 	}
 
 	/**
 	 * @param {Site} newSite 
-	 * @returns {UPLCMapItem}
+	 * @returns {UplcMapItem}
 	 */
 	copy(newSite) {
-		return new UPLCMapItem(newSite, this.#key, this.#value);
+		return new UplcMapItem(newSite, this.#key, this.#value);
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `(${this.#key.toString()}: ${this.#value.toString()})`;
 	}
@@ -4905,14 +4957,23 @@ class UPLCMapItem extends UPLCValue {
 		return true;
 	}
 
+	/**
+	 * @type {UplcData}
+	 */
 	get key() {
 		return this.#key;
 	}
 
+	/**
+	 * @type {UplcData}
+	 */
 	get value() {
 		return this.#value;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	typeBits() {
 		// 7 (7 (6) (8)) (8)
 		return ["0111", "0111", "0110", "1000", "1000"].join("1");
@@ -4922,8 +4983,8 @@ class UPLCMapItem extends UPLCValue {
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValueInternal(bitWriter) {
-		(new UPLCDataValue(this.site, this.#key)).toFlatValue(bitWriter);
-		(new UPLCDataValue(this.site, this.#value)).toFlatValue(bitWriter);
+		(new UplcDataValue(this.site, this.#key)).toFlatValueInternal(bitWriter);
+		(new UplcDataValue(this.site, this.#value)).toFlatValueInternal(bitWriter);
 	}
 }
 
@@ -4931,23 +4992,26 @@ class UPLCMapItem extends UPLCValue {
  * Plutus-core list value class.
  * Only used during evaluation.
 */
-class UPLCList extends UPLCValue {
+class UplcList extends UplcValue {
 	#items;
 
 	/**
 	 * @param {Site} site 
-	 * @param {UPLCData[]} items 
+	 * @param {UplcData[]} items 
 	 */
 	constructor(site, items) {
 		super(site);
 		this.#items = items;
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		let sum = 0;
 
 		for (let item of this.#items) {
-			let data = new UPLCDataValue(this.site, item);
+			let data = new UplcDataValue(this.site, item);
 
 			sum += data.memSize;
 		}
@@ -4957,10 +5021,10 @@ class UPLCList extends UPLCValue {
 
 	/**
 	 * @param {Site} newSite
-	 * @returns {UPLCList}
+	 * @returns {UplcList}
 	 */
 	copy(newSite) {
-		return new UPLCList(newSite, this.#items.slice());
+		return new UplcList(newSite, this.#items.slice());
 	}
 
 	/**
@@ -4970,14 +5034,23 @@ class UPLCList extends UPLCValue {
 		return true;
 	}
 
+	/**
+	 * @type {UplcData[]}
+	 */
 	get list() {
 		return this.#items.slice();
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `[${this.#items.map(item => item.toString()).join(", ")}]`;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	typeBits() {
 		// 7 (5) (8)
 		return ["0111", "0101", "1000"].join("1");
@@ -4989,7 +5062,8 @@ class UPLCList extends UPLCValue {
 	toFlatValueInternal(bitWriter) {
 		for (let item of this.#items) {
 			bitWriter.write('1');
-			(new UPLCDataValue(this.site, item)).toFlatValue(bitWriter);
+
+			(new UplcDataValue(this.site, item)).toFlatValueInternal(bitWriter);
 		}
 
 		bitWriter.write('0');
@@ -5000,18 +5074,21 @@ class UPLCList extends UPLCValue {
  * Plutus-core map value class.
  * Only used during evaluation.
  */
-class UPLCMap extends UPLCValue {
+class UplcMap extends UplcValue {
 	#pairs;
 
 	/**
 	 * @param {Site} site 
-	 * @param {UPLCMapItem[]} pairs 
+	 * @param {UplcMapItem[]} pairs 
 	 */
 	constructor(site, pairs) {
 		super(site);
 		this.#pairs = pairs;
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		let sum = 0;
 
@@ -5025,10 +5102,10 @@ class UPLCMap extends UPLCValue {
 
 	/**
 	 * @param {Site} newSite 
-	 * @returns {UPLCMap}
+	 * @returns {UplcMap}
 	 */
 	copy(newSite) {
-		return new UPLCMap(newSite, this.#pairs.slice());
+		return new UplcMap(newSite, this.#pairs.slice());
 	}
 
 	/**
@@ -5038,14 +5115,23 @@ class UPLCMap extends UPLCValue {
 		return true;
 	}
 
+	/**
+	 * @type {UplcMapItem[]}
+	 */
 	get map() {
 		return this.#pairs.slice();
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `{${this.#pairs.map((pair) => `${pair.key.toString()}: ${pair.value.toString()}`).join(", ")}}`;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	typeBits() {
 		// 7 (5) (7 (7 (6) (8)) (8))
 		return ["0111", "0101", "0111", "0111", "0110", "1000", "1000"].join("1");
@@ -5067,45 +5153,60 @@ class UPLCMap extends UPLCValue {
 }
 
 /**
- * Wrapper for UPLCData.
+ * Wrapper for UplcData.
  */
-export class UPLCDataValue extends UPLCValue {
+export class UplcDataValue extends UplcValue {
 	#data;
 
 	/**
 	 * @param {Site} site 
-	 * @param {UPLCData} data 
+	 * @param {UplcData} data 
 	 */
 	constructor(site, data) {
 		super(site);
 		this.#data = assertDefined(data);
-		assert(data instanceof UPLCData);
+		assert(data instanceof UplcData);
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		return this.#data.memSize;
 	}
 
 	/**
 	 * @param {Site} newSite 
-	 * @returns {UPLCDataValue}
+	 * @returns {UplcDataValue}
 	 */
 	copy(newSite) {
-		return new UPLCDataValue(newSite, this.#data);
+		return new UplcDataValue(newSite, this.#data);
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isData() {
 		return true;
 	}
 
+	/**
+	 * @type {UplcData}
+	 */
 	get data() {
 		return this.#data;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `data(${this.#data.toString()})`;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	typeBits() {
 		return '1000';
 	}
@@ -5114,15 +5215,15 @@ export class UPLCDataValue extends UPLCValue {
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValueInternal(bitWriter) {
-		UPLCByteArray.writeBytes(bitWriter, this.#data.toCBOR());
+		UplcByteArray.writeBytes(bitWriter, this.#data.toCbor());
 	}
 
 	/**
-	 * @param {UPLCDataValue | UPLCData} data 
-	 * @returns {UPLCData}
+	 * @param {UplcDataValue | UplcData} data 
+	 * @returns {UplcData}
 	 */
 	static unwrap(data) {
-		if (data instanceof UPLCDataValue) {
+		if (data instanceof UplcDataValue) {
 			return data.data;
 		} else {
 			return data;
@@ -5133,7 +5234,7 @@ export class UPLCDataValue extends UPLCValue {
 /**
  * Base class of Plutus-core terms
  */
-export class UPLCTerm {
+export class UplcTerm {
 	#site;
 	#type;
 
@@ -5147,6 +5248,9 @@ export class UPLCTerm {
 		this.#type = type;
 	}
 
+	/**
+	 * @type {Site}
+	 */
 	get site() {
 		return this.#site;
 	}
@@ -5161,8 +5265,8 @@ export class UPLCTerm {
 
 	/**
 	 * Calculates a value, and also increments the cost
-	 * @param {UPLCRTE | UPLCStack} rte 
-	 * @returns {Promise<UPLCValue>}
+	 * @param {UplcRte | UplcStack} rte 
+	 * @returns {Promise<UplcValue>}
 	 */
 	async eval(rte) {
 		throw new Error("not yet implemented");
@@ -5180,18 +5284,21 @@ export class UPLCTerm {
 /**
  * Plutus-core variable ref term (index is a Debruijn index)
  */
-class UPLCVariable extends UPLCTerm {
+class UplcVariable extends UplcTerm {
 	#index;
 
 	/**
 	 * @param {Site} site 
-	 * @param {UPLCInt} index 
+	 * @param {UplcInt} index 
 	 */
 	constructor(site, index) {
 		super(site, 0);
 		this.#index = index;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `x${this.#index.toString()}`;
 	}
@@ -5205,8 +5312,8 @@ class UPLCVariable extends UPLCTerm {
 	}
 
 	/**
-	 * @param {UPLCRTE | UPLCStack} rte
-	 * @returns {Promise<UPLCValue>}
+	 * @param {UplcRte | UplcStack} rte
+	 * @returns {Promise<UplcValue>}
 	 */
 	async eval(rte) {
 		// add costs before get the value
@@ -5219,18 +5326,21 @@ class UPLCVariable extends UPLCTerm {
 /**
  * Plutus-core delay term.
  */
-class UPLCDelay extends UPLCTerm {
+class UplcDelay extends UplcTerm {
 	#expr;
 
 	/**
 	 * @param {Site} site 
-	 * @param {UPLCTerm} expr 
+	 * @param {UplcTerm} expr 
 	 */
 	constructor(site, expr) {
 		super(site, 1);
 		this.#expr = expr;
 	}
 
+	/**
+	 * @returns {string} 
+	 */
 	toString() {
 		return `(delay ${this.#expr.toString()})`;
 	}
@@ -5244,8 +5354,8 @@ class UPLCDelay extends UPLCTerm {
 	}
 
 	/**
-	 * @param {UPLCRTE | UPLCStack} rte 
-	 * @returns {Promise<UPLCValue>}
+	 * @param {UplcRte | UplcStack} rte 
+	 * @returns {Promise<UplcValue>}
 	 */
 	async eval(rte) {
 		rte.incrDelayCost();
@@ -5257,13 +5367,13 @@ class UPLCDelay extends UPLCTerm {
 /**
  * Plutus-core lambda term
  */
-class UPLCLambda extends UPLCTerm {
+class UplcLambda extends UplcTerm {
 	#rhs;
 	#argName;
 
 	/**
 	 * @param {Site} site
-	 * @param {UPLCTerm} rhs
+	 * @param {UplcTerm} rhs
 	 * @param {?string} argName
 	 */
 	constructor(site, rhs, argName = null) {
@@ -5289,13 +5399,13 @@ class UPLCLambda extends UPLCTerm {
 	}
 
 	/**
-	 * @param {UPLCRTE | UPLCStack} rte 
-	 * @returns {Promise<UPLCValue>}
+	 * @param {UplcRte | UplcStack} rte 
+	 * @returns {Promise<UplcValue>}
 	 */
 	async eval(rte) {
 		rte.incrLambdaCost();
 
-		return new UPLCAnon(this.site, rte, this.#argName !== null ? [this.#argName] : 1, (callSite, subStack) => {
+		return new UplcAnon(this.site, rte, this.#argName !== null ? [this.#argName] : 1, (callSite, subStack) => {
 			return this.#rhs.eval(subStack);
 		});
 	}
@@ -5304,14 +5414,14 @@ class UPLCLambda extends UPLCTerm {
 /**
  * Plutus-core function application term (i.e. function call)
  */
-class UPLCCall extends UPLCTerm {
+class UplcCall extends UplcTerm {
 	#a;
 	#b;
 
 	/**
 	 * @param {Site} site
-	 * @param {UPLCTerm} a
-	 * @param {UPLCTerm} b
+	 * @param {UplcTerm} a
+	 * @param {UplcTerm} b
 	 */
 	constructor(site, a, b) {
 		super(site, 3);
@@ -5319,6 +5429,9 @@ class UPLCCall extends UPLCTerm {
 		this.#b = b;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `[${this.#a.toString()} ${this.#b.toString()}]`;
 	}
@@ -5333,7 +5446,7 @@ class UPLCCall extends UPLCTerm {
 	}
 
 	/**
-	 * @param {UPLCRTE | UPLCStack} rte 
+	 * @param {UplcRte | UplcStack} rte 
 	 * @returns 
 	 */
 	async eval(rte) {
@@ -5349,22 +5462,25 @@ class UPLCCall extends UPLCTerm {
 /**
  * Plutus-core const term (i.e. a literal in conventional sense)
  */
-class UPLCConst extends UPLCTerm {
+class UplcConst extends UplcTerm {
 	#value;
 
 	/**
-	 * @param {UPLCValue} value 
+	 * @param {UplcValue} value 
 	 */
 	constructor(value) {
 		super(value.site, 4);
 
 		this.#value = value;
 
-		if (value instanceof UPLCInt) {
+		if (value instanceof UplcInt) {
 			assert(value.signed);
 		}
 	}
 
+	/**
+	 * @type {UplcValue}
+	 */
 	get value() {
 		return this.#value;
 	}
@@ -5385,8 +5501,8 @@ class UPLCConst extends UPLCTerm {
 	}
 
 	/**
-	 * @param {UPLCStack | UPLCRTE} rte 
-	 * @returns {Promise<UPLCValue>}
+	 * @param {UplcStack | UplcRte} rte 
+	 * @returns {Promise<UplcValue>}
 	 */
 	async eval(rte) {
 		rte.incrConstCost();
@@ -5398,18 +5514,21 @@ class UPLCConst extends UPLCTerm {
 /**
  * Plutus-core force term
  */
-class UPLCForce extends UPLCTerm {
+class UplcForce extends UplcTerm {
 	#expr;
 
 	/**
 	 * @param {Site} site
-	 * @param {UPLCTerm} expr
+	 * @param {UplcTerm} expr
 	 */
 	constructor(site, expr) {
 		super(site, 5);
 		this.#expr = expr;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `(force ${this.#expr.toString()})`;
 	}
@@ -5423,8 +5542,8 @@ class UPLCForce extends UPLCTerm {
 	}
 
 	/**
-	 * @param {UPLCRTE | UPLCStack} rte 
-	 * @returns {Promise<UPLCValue>}
+	 * @param {UplcRte | UplcStack} rte 
+	 * @returns {Promise<UplcValue>}
 	 */
 	async eval(rte) {
 		rte.incrForceCost();
@@ -5436,7 +5555,7 @@ class UPLCForce extends UPLCTerm {
 /**
  * Plutus-core error term
  */
-class UPLCError extends UPLCTerm {
+class UplcError extends UplcTerm {
 	/** 'msg' is only used for debuggin and doesn't actually appear in the final program */
 	#msg;
 
@@ -5449,6 +5568,9 @@ class UPLCError extends UPLCTerm {
 		this.#msg = msg;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return "(error)";
 	}
@@ -5462,8 +5584,8 @@ class UPLCError extends UPLCTerm {
 
 	/**
 	 * Throws a RuntimeError when evaluated.
-	 * @param {UPLCRTE | UPLCStack} rte 
-	 * @returns {Promise<UPLCValue>}
+	 * @param {UplcRte | UplcStack} rte 
+	 * @returns {Promise<UplcValue>}
 	 */
 	async eval(rte) {
 		throw this.site.runtimeError(this.#msg);
@@ -5473,7 +5595,7 @@ class UPLCError extends UPLCTerm {
 /**
  * Plutus-core builtin function ref term
  */
-class UPLCBuiltin extends UPLCTerm {
+class UplcBuiltin extends UplcTerm {
 	/** unknown builtins stay integers */
 	#name;
 
@@ -5486,6 +5608,9 @@ class UPLCBuiltin extends UPLCTerm {
 		this.#name = name;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		if (typeof this.#name == "string") {
 			return `(builtin ${this.#name})`;
@@ -5504,7 +5629,7 @@ class UPLCBuiltin extends UPLCTerm {
 		let i;
 
 		if (typeof this.#name == "string") {
-			i = UPLC_BUILTINS.findIndex(info => info.name == this.#name);
+			i = Uplc_BUILTINS.findIndex(info => info.name == this.#name);
 		} else {
 			i = this.#name;
 		}
@@ -5516,29 +5641,29 @@ class UPLCBuiltin extends UPLCTerm {
 
 	/**
 	 * @param {NetworkParams} params
-	 * @param  {...UPLCValue} args
+	 * @param  {...UplcValue} args
 	 * @returns {Cost}
 	 */
 	calcCost(params, ...args) {
-		let i = UPLC_BUILTINS.findIndex(info => info.name == this.#name);
+		let i = Uplc_BUILTINS.findIndex(info => info.name == this.#name);
 
-		return UPLC_BUILTINS[i].calcCost(params, args.map(a => a.memSize));
+		return Uplc_BUILTINS[i].calcCost(params, args.map(a => a.memSize));
 	}
 
 	/**
 	 * Used by IRCoreCallExpr
 	 * @param {Word} name
-	 * @param {UPLCValue[]} args
-	 * @returns {UPLCValue}
+	 * @param {UplcValue[]} args
+	 * @returns {UplcValue}
 	 */
 	static evalStatic(name, args) {
-		let builtin = new UPLCBuiltin(name.site, name.value);
+		let builtin = new UplcBuiltin(name.site, name.value);
 
-		let dummyRte = new UPLCRTE();
+		let dummyRte = new UplcRte();
 
 		let anon = builtin.evalInternal(dummyRte);
 
-		let subStack = new UPLCStack(dummyRte);
+		let subStack = new UplcStack(dummyRte);
 
 		let res = anon.callSync(name.site, subStack, args);
 
@@ -5550,10 +5675,10 @@ class UPLCBuiltin extends UPLCTerm {
 	}
 
 	/**
-	 * @param {UPLCRTE | UPLCStack} rte
-	 * @returns {UPLCAnon}
+	 * @param {UplcRte | UplcStack} rte
+	 * @returns {UplcAnon}
 	 */
-	evalInternal(rte = new UPLCRTE()) {
+	evalInternal(rte = new UplcRte()) {
 		if (typeof this.#name == "number") {
 			throw new Error("can't evaluate unknow Plutus-core builtin");
 		}
@@ -5561,78 +5686,78 @@ class UPLCBuiltin extends UPLCTerm {
 		switch (this.#name) {
 			case "addInteger":
 				// returning a lambda is assumed to be free
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					// but calling a lambda has a cost associated
 					rte.calcAndIncrCost(this, a, b);
 
-					return new UPLCInt(callSite, a.int + b.int);
+					return new UplcInt(callSite, a.int + b.int);
 				});
 			case "subtractInteger":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					return new UPLCInt(callSite, a.int - b.int);
+					return new UplcInt(callSite, a.int - b.int);
 				});
 			case "multiplyInteger":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					return new UPLCInt(callSite, a.int * b.int);
+					return new UplcInt(callSite, a.int * b.int);
 				});
 			case "divideInteger":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
 					if (b.int === 0n) {
 						throw callSite.runtimeError("division by zero");
 					} else {
-						return new UPLCInt(callSite, a.int / b.int);
+						return new UplcInt(callSite, a.int / b.int);
 					}
 				});
 			case "modInteger":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
 					if (b.int === 0n) {
 						throw callSite.runtimeError("division by zero");
 					} else {
-						return new UPLCInt(callSite, a.int % b.int);
+						return new UplcInt(callSite, a.int % b.int);
 					}
 				});
 			case "equalsInteger":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					return new UPLCBool(callSite, a.int == b.int);
+					return new UplcBool(callSite, a.int == b.int);
 				});
 			case "lessThanInteger":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					return new UPLCBool(callSite, a.int < b.int);
+					return new UplcBool(callSite, a.int < b.int);
 				});
 			case "lessThanEqualsInteger":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					return new UPLCBool(callSite, a.int <= b.int);
+					return new UplcBool(callSite, a.int <= b.int);
 				});
 			case "appendByteString":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					return new UPLCByteArray(callSite, a.bytes.concat(b.bytes));
+					return new UplcByteArray(callSite, a.bytes.concat(b.bytes));
 				});
 			case "consByteString":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
 					let bytes = b.bytes;
 					bytes.unshift(Number(a.int % 256n));
-					return new UPLCByteArray(callSite, bytes);
+					return new UplcByteArray(callSite, bytes);
 				});
 			case "sliceByteString":
-				return new UPLCAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
+				return new UplcAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
 					rte.calcAndIncrCost(this, a, b, c);
 
 					let start = Number(a.int);
@@ -5652,16 +5777,16 @@ class UPLCBuiltin extends UPLCTerm {
 
 					let sub = bytes.slice(start, start + n);
 
-					return new UPLCByteArray(callSite, sub);
+					return new UplcByteArray(callSite, sub);
 				});
 			case "lengthOfByteString":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UPLCInt(callSite, BigInt(a.bytes.length));
+					return new UplcInt(callSite, BigInt(a.bytes.length));
 				});
 			case "indexByteString":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
 					let bytes = a.bytes;
@@ -5670,10 +5795,10 @@ class UPLCBuiltin extends UPLCTerm {
 						throw new Error("index out of range");
 					}
 
-					return new UPLCInt(callSite, BigInt(bytes[Number(i)]));
+					return new UplcInt(callSite, BigInt(bytes[Number(i)]));
 				});
 			case "equalsByteString":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
 					let aBytes = a.bytes;
@@ -5691,10 +5816,10 @@ class UPLCBuiltin extends UPLCTerm {
 						}
 					}
 
-					return new UPLCBool(callSite, res);
+					return new UplcBool(callSite, res);
 				});
 			case "lessThanByteString":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
 					let aBytes = a.bytes;
@@ -5714,10 +5839,10 @@ class UPLCBuiltin extends UPLCTerm {
 						}
 					}
 
-					return new UPLCBool(callSite, res);
+					return new UplcBool(callSite, res);
 				});
 			case "lessThanEqualsByteString":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
 					let aBytes = a.bytes;
@@ -5737,56 +5862,56 @@ class UPLCBuiltin extends UPLCTerm {
 						}
 					}
 
-					return new UPLCBool(callSite, res);
+					return new UplcBool(callSite, res);
 				});
 			case "appendString":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					return new UPLCString(callSite, a.string + b.string);
+					return new UplcString(callSite, a.string + b.string);
 				});
 			case "equalsString":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					return new UPLCBool(callSite, a.string == b.string);
+					return new UplcBool(callSite, a.string == b.string);
 				});
 			case "encodeUtf8":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UPLCByteArray(callSite, stringToBytes(a.string));
+					return new UplcByteArray(callSite, stringToBytes(a.string));
 				});
 			case "decodeUtf8":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					try {
-						return new UPLCString(callSite, bytesToString(a.bytes));
+						return new UplcString(callSite, bytesToString(a.bytes));
 					} catch(_) {
 						throw callSite.runtimeError("invalid utf-8");
 					}
 				});
 			case "sha2_256":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UPLCByteArray(callSite, Crypto.sha2_256(a.bytes))
+					return new UplcByteArray(callSite, Crypto.sha2_256(a.bytes))
 				});
 			case "sha3_256":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UPLCByteArray(callSite, Crypto.sha3(a.bytes))
+					return new UplcByteArray(callSite, Crypto.sha3(a.bytes))
 				});
 			case "blake2b_256":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UPLCByteArray(callSite, Crypto.blake2b(a.bytes))
+					return new UplcByteArray(callSite, Crypto.blake2b(a.bytes))
 				});
 			case "verifyEd25519Signature":
-				return new UPLCAnon(this.site, rte, 3, (callSite, _, key, msg, signature) => {
+				return new UplcAnon(this.site, rte, 3, (callSite, _, key, msg, signature) => {
 					rte.calcAndIncrCost(this, key, msg, signature);
 
 					let keyBytes = key.bytes;
@@ -5803,10 +5928,10 @@ class UPLCBuiltin extends UPLCTerm {
 
 					let ok = Crypto.Ed25519.verify(signatureBytes, msgBytes, keyBytes);
 
-					return new UPLCBool(callSite, ok);
+					return new UplcBool(callSite, ok);
 				});
 			case "ifThenElse":
-				return new UPLCAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
+				return new UplcAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
 					rte.calcAndIncrCost(this, a, b, c);
 					return a.bool ? b.copy(callSite) : c.copy(callSite);
 				});
@@ -5814,7 +5939,7 @@ class UPLCBuiltin extends UPLCTerm {
 				// what is the point of this function?
 				throw new Error("no immediate need, so don't bother yet");
 			case "trace":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
 					return rte.print(a.string).then(() => {
@@ -5822,25 +5947,25 @@ class UPLCBuiltin extends UPLCTerm {
 					});
 				});
 			case "fstPair":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					if (a.isPair()) {
 						return a.first.copy(callSite);
 					} else if (a.isMapItem()) {
-						return new UPLCDataValue(callSite, a.key);
+						return new UplcDataValue(callSite, a.key);
 					} else {
 						throw callSite.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
 					}
 				});
 			case "sndPair":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					if (a.isPair()) {
 						return a.second.copy(callSite);
 					} else if (a.isMapItem()) {
-						return new UPLCDataValue(callSite, a.value);
+						return new UplcDataValue(callSite, a.value);
 					} else {
 						throw callSite.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
 					}
@@ -5849,7 +5974,7 @@ class UPLCBuiltin extends UPLCTerm {
 				throw new Error("no immediate need, so don't bother yet");
 			case "mkCons":
 				// only allow data items in list
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
 					if (b.isList()) {
@@ -5860,17 +5985,17 @@ class UPLCBuiltin extends UPLCTerm {
 						let item = a.data;
 						let lst = b.list;
 						lst.unshift(item);
-						return new UPLCList(callSite, lst);
+						return new UplcList(callSite, lst);
 					} else if (b.isMap()) {
 						let pairs = b.map;
-						pairs.unshift(new UPLCMapItem(callSite, a.key, a.value));
-						return new UPLCMap(callSite, pairs);
+						pairs.unshift(new UplcMapItem(callSite, a.key, a.value));
+						return new UplcMap(callSite, pairs);
 					} else {
 						throw callSite.typeError(`expected list or map for second arg, got '${b.toString()}'`);
 					}
 				});
 			case "headList":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					if (a.isList()) {
@@ -5879,7 +6004,7 @@ class UPLCBuiltin extends UPLCTerm {
 							throw callSite.runtimeError("empty list");
 						}
 
-						return new UPLCDataValue(callSite, lst[0]);
+						return new UplcDataValue(callSite, lst[0]);
 					} else if (a.isMap()) {
 						let lst = a.map;
 						if (lst.length == 0) {
@@ -5892,7 +6017,7 @@ class UPLCBuiltin extends UPLCTerm {
 					}
 				});
 			case "tailList":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					if (a.isList()) {
@@ -5901,26 +6026,26 @@ class UPLCBuiltin extends UPLCTerm {
 							throw callSite.runtimeError("empty list");
 						}
 
-						return new UPLCList(callSite, lst.slice(1));
+						return new UplcList(callSite, lst.slice(1));
 					} else if (a.isMap()) {
 						let lst = a.map;
 						if (lst.length == 0) {
 							throw callSite.runtimeError("empty map");
 						}
 
-						return new UPLCMap(callSite, lst.slice(1));
+						return new UplcMap(callSite, lst.slice(1));
 					} else {
 						throw callSite.typeError(`expected list or map, got '${a.toString()}'`);
 					}
 				});
 			case "nullList":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					if (a.isList()) {
-						return new UPLCBool(callSite, a.list.length == 0);
+						return new UplcBool(callSite, a.list.length == 0);
 					} else if (a.isMap()) {
-						return new UPLCBool(callSite, a.map.length == 0);
+						return new UplcBool(callSite, a.map.length == 0);
 					} else {
 						throw callSite.typeError(`expected list or map, got '${a.toString()}'`);
 					}
@@ -5928,42 +6053,42 @@ class UPLCBuiltin extends UPLCTerm {
 			case "chooseData":
 				throw new Error("no immediate need, so don't bother yet");
 			case "constrData":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
 					let i = a.int;
 					assert(i >= 0);
 					let lst = b.list;
-					return new UPLCDataValue(callSite, new ConstrData(Number(i), lst));
+					return new UplcDataValue(callSite, new ConstrData(Number(i), lst));
 				});
 			case "mapData":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UPLCDataValue(callSite, new MapData(a.map.map(pair => {
+					return new UplcDataValue(callSite, new MapData(a.map.map(pair => {
 						return [pair.key, pair.value];
 					})));
 				});
 			case "listData":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UPLCDataValue(callSite, new ListData(a.list));
+					return new UplcDataValue(callSite, new ListData(a.list));
 				});
 			case "iData":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 					
-					return new UPLCDataValue(callSite, new IntData(a.int));
+					return new UplcDataValue(callSite, new IntData(a.int));
 				});
 			case "bData":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UPLCDataValue(callSite, new ByteArrayData(a.bytes));
+					return new UplcDataValue(callSite, new ByteArrayData(a.bytes));
 				});
 			case "unConstrData":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
@@ -5974,11 +6099,11 @@ class UPLCBuiltin extends UPLCTerm {
 					if (!(data instanceof ConstrData)) {
 						throw callSite.runtimeError(`unexpected unConstrData argument '${data.toString()}'`);
 					} else {
-						return new UPLCPair(callSite, new UPLCInt(callSite, BigInt(data.index)), new UPLCList(callSite, data.fields));
+						return new UplcPair(callSite, new UplcInt(callSite, BigInt(data.index)), new UplcList(callSite, data.fields));
 					}
 				});
 			case "unMapData":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
@@ -5989,11 +6114,11 @@ class UPLCBuiltin extends UPLCTerm {
 					if (!(data instanceof MapData)) {
 						throw callSite.runtimeError(`unexpected unMapData argument '${data.toString()}'`);
 					} else {
-						return new UPLCMap(callSite, data.map.map(([fst, snd]) => new UPLCMapItem(callSite, fst, snd)));
+						return new UplcMap(callSite, data.map.map(([fst, snd]) => new UplcMapItem(callSite, fst, snd)));
 					}
 				});
 			case "unListData":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
@@ -6004,11 +6129,11 @@ class UPLCBuiltin extends UPLCTerm {
 					if (!(data instanceof ListData)) {
 						throw callSite.runtimeError(`unexpected unListData argument '${data.toString()}'`);
 					} else {
-						return new UPLCList(callSite, data.list);
+						return new UplcList(callSite, data.list);
 					}
 				});
 			case "unIData":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
@@ -6019,11 +6144,11 @@ class UPLCBuiltin extends UPLCTerm {
 					if (!(data instanceof IntData)) {
 						throw callSite.runtimeError(`unexpected unIData argument '${data.toString()}'`);
 					} else {
-						return new UPLCInt(callSite, data.value);
+						return new UplcInt(callSite, data.value);
 					}
 				});
 			case "unBData":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
@@ -6034,11 +6159,11 @@ class UPLCBuiltin extends UPLCTerm {
 					if (!(data instanceof ByteArrayData)) {
 						throw callSite.runtimeError(`unexpected unBData argument '${data.toString()}'`);
 					} else {
-						return new UPLCByteArray(callSite, data.bytes);
+						return new UplcByteArray(callSite, data.bytes);
 					}
 				});
 			case "equalsData":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
 					if (!a.isData()) {
@@ -6050,35 +6175,35 @@ class UPLCBuiltin extends UPLCTerm {
 					}
 
 					// just compare the schema jsons for now
-					return new UPLCBool(callSite, a.data.isSame(b.data));
+					return new UplcBool(callSite, a.data.isSame(b.data));
 				});
 			case "mkPairData":
-				return new UPLCAnon(this.site, rte, 2, (callSite, _, a, b) => {
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					return new UPLCMapItem(callSite, a.data, b.data);
+					return new UplcMapItem(callSite, a.data, b.data);
 				});
 			case "mkNilData":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					a.assertUnit();
 
-					return new UPLCList(callSite, []);
+					return new UplcList(callSite, []);
 				});
 			case "mkNilPairData":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
 					a.assertUnit();
 
-					return new UPLCMap(callSite, []);
+					return new UplcMap(callSite, []);
 				});
 			case "serialiseData":
-				return new UPLCAnon(this.site, rte, 1, (callSite, _, a) => {
+				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UPLCByteArray(callSite, a.data.toCBOR());
+					return new UplcByteArray(callSite, a.data.toCbor());
 				});
 			case "verifyEcdsaSecp256k1Signature":
 			case "verifySchnorrSecp256k1Signature":
@@ -6089,10 +6214,10 @@ class UPLCBuiltin extends UPLCTerm {
 	}
 
 	/**
-	 * Returns appropriate callback wrapped with UPLCAnon depending on builtin name.
+	 * Returns appropriate callback wrapped with UplcAnon depending on builtin name.
 	 * Emulates every Plutus-core that Helios exposes to the user.
-	 * @param {UPLCRTE | UPLCStack} rte 
-	 * @returns {Promise<UPLCValue>}
+	 * @param {UplcRte | UplcStack} rte 
+	 * @returns {Promise<UplcValue>}
 	 */
 	async eval(rte) {
 		rte.incrBuiltinCost();
@@ -6104,31 +6229,41 @@ class UPLCBuiltin extends UPLCTerm {
 /**
  * Plutus-core program class
  */
-class UPLCProgram {
+class UplcProgram {
 	#version;
 	#expr;
 	#purpose;
 
 	/**
-	 * @param {UPLCTerm} expr 
-	 * @param {UPLCInt[]} version
+	 * @param {UplcTerm} expr 
+	 * @param {UplcInt[]} version
 	 * @param {?number} purpose // TODO: enum type
 	 */
-	constructor(expr, version = UPLC_VERSION_COMPONENTS.map(v => new UPLCInt(expr.site, v, false)), purpose = null) {
+	constructor(expr, version = UPLC_VERSION_COMPONENTS.map(v => new UplcInt(expr.site, v, false)), purpose = null) {
 		this.#version = version;
 		this.#expr = expr;
 		this.#purpose = purpose;
 	}
 
+	/**
+	 * @type {Site}
+	 */
 	get site() {
 		return new Site(this.#expr.site.src, 0);
 	}
 
-	// returns the IR source
+	/**
+	 * Returns the IR source
+	 * @type {string}
+	 */
 	get src() {
 		return this.site.src.raw;
 	}
 
+	/**
+	 * Returns version of Plutus-core (!== Plutus script version!)
+	 * @type {string}
+	 */
 	get versionString() {
 		return this.#version.map(v => v.toString()).join(".");
 	}
@@ -6141,6 +6276,9 @@ class UPLCProgram {
 		return PLUTUS_SCRIPT_VERSION;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `(program ${this.versionString} ${this.#expr.toString()})`;
 	}
@@ -6159,24 +6297,24 @@ class UPLCProgram {
 	}
 
 	/**
-	 * @param {UPLCRTE} rte 
-	 * @returns {Promise<UPLCValue>}
+	 * @param {UplcRte} rte 
+	 * @returns {Promise<UplcValue>}
 	 */
 	async eval(rte) {
 		return this.#expr.eval(rte);
 	}
 
 	/**
-	 * Evaluates the term contained in UPLCProgram (assuming it is a lambda term)
-	 * @param {?UPLCValue[]} args
-	 * @param {UPLCRTECallbacks} callbacks
+	 * Evaluates the term contained in UplcProgram (assuming it is a lambda term)
+	 * @param {?UplcValue[]} args
+	 * @param {UplcRTECallbacks} callbacks
 	 * @param {?NetworkParams} networkParams
-	 * @returns {Promise<UPLCValue>}
+	 * @returns {Promise<UplcValue>}
 	 */
 	async runInternal(args, callbacks = DEFAULT_UPLC_RTE_CALLBACKS, networkParams = null) {
 		assertDefined(callbacks);
 
-		let rte = new UPLCRTE(callbacks, networkParams);
+		let rte = new UplcRte(callbacks, networkParams);
 
 		// add the startup costs
 		rte.incrStartupCost();
@@ -6186,7 +6324,7 @@ class UPLCProgram {
 		// program site is at pos 0, but now the call site is actually at the end 
 		let globalCallSite = new Site(this.site.src, this.site.src.length);
 		
-		/** @type {UPLCValue} */
+		/** @type {UplcValue} */
 		let result = fn;
 
 		if (args !== null) {
@@ -6203,16 +6341,16 @@ class UPLCProgram {
 	}
 
 	/**
-	 * @param {?UPLCValue[]} args - if null the top-level term is returned as a value
-	 * @param {UPLCRTECallbacks} callbacks 
+	 * @param {?UplcValue[]} args - if null the top-level term is returned as a value
+	 * @param {UplcRTECallbacks} callbacks 
 	 * @param {?NetworkParams} networkParams
-	 * @returns {Promise<UPLCValue | UserError>}
+	 * @returns {Promise<UplcValue | UserError>}
 	 */
 	async run(args, callbacks = DEFAULT_UPLC_RTE_CALLBACKS, networkParams = null) {
 		let globalCallSite = new Site(this.site.src, this.site.src.length);
 
 		if (args !== null && args.length == 0) {
-			args = [new UPLCUnit(globalCallSite)];
+			args = [new UplcUnit(globalCallSite)];
 		}
 
 		try {
@@ -6227,8 +6365,8 @@ class UPLCProgram {
 	}
 
 	/**
-	 * @param {?UPLCValue[]} args
-	 * @returns {Promise<[(UPLCValue | UserError), string[]]>}
+	 * @param {?UplcValue[]} args
+	 * @returns {Promise<[(UplcValue | UserError), string[]]>}
 	 */
 	async runWithPrint(args) {
 		/**
@@ -6255,7 +6393,7 @@ class UPLCProgram {
 	 */
 
 	/**
-	 * @param {UPLCValue[]} args
+	 * @param {UplcValue[]} args
 	 * @param {NetworkParams} networkParams
 	 * @returns {Promise<Profile>}
 	 */
@@ -6309,7 +6447,7 @@ class UPLCProgram {
 	serialize() {
 		let bytes = this.serializeBytes();
 
-		let cborHex = bytesToHex(wrapCBORBytes(wrapCBORBytes(bytes)));
+		let cborHex = bytesToHex(wrapCborBytes(wrapCborBytes(bytes)));
 
 		return `{"type": "${this.plutusScriptVersion()}", "description": "", "cborHex": "${cborHex}"}`;
 	}
@@ -6318,7 +6456,7 @@ class UPLCProgram {
 	 * @returns {number[]} - 28 byte hash
 	 */
 	hash() {
-		let innerBytes = wrapCBORBytes(this.serializeBytes());
+		let innerBytes = wrapCborBytes(this.serializeBytes());
 
 		let v = this.plutusScriptVersion();
 		switch (v) {
@@ -6372,14 +6510,14 @@ class UPLCProgram {
  * Base case of any CBOR serializable data class
  * Also contains helper methods for (de)serializing data to/from CBOR
  */
-export class CBORData {
+export class CborData {
 	constructor() {
 	}
 
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
+	toCbor() {
 		throw new Error("not yet implemented");
 	}
 
@@ -6524,7 +6662,7 @@ export class CBORData {
 			throw new Error("empty cbor bytes");
 		}
 
-		let [m, _] = CBORData.decodeHead(bytes.slice(0, 9));
+		let [m, _] = CborData.decodeHead(bytes.slice(0, 9));
 
 		return m == 2;
 	}
@@ -6550,15 +6688,15 @@ export class CBORData {
 		bytes = bytes.slice();
 
 		if (bytes.length <= 64 || !splitInChunks) {
-			let head = CBORData.encodeHead(2, BigInt(bytes.length));
+			let head = CborData.encodeHead(2, BigInt(bytes.length));
 			return head.concat(bytes);
 		} else {
-			let res = CBORData.encodeIndefHead(2);
+			let res = CborData.encodeIndefHead(2);
 
 			while (bytes.length > 0) {
 				let chunk = bytes.splice(0, 64);
 
-				res = res.concat(CBORData.encodeHead(2, BigInt(chunk.length))).concat(chunk);
+				res = res.concat(CborData.encodeHead(2, BigInt(chunk.length))).concat(chunk);
 			}
 
 			res.push(255);
@@ -6576,7 +6714,7 @@ export class CBORData {
 		// check header type
 		assert(bytes.length > 0);
 
-		if (CBORData.isIndefBytes(bytes)) {
+		if (CborData.isIndefBytes(bytes)) {
 			// multiple chunks
 			void bytes.shift();
 
@@ -6586,7 +6724,7 @@ export class CBORData {
 			let res = [];
 
 			while(bytes[0] != 255) {
-				let [_, n] = CBORData.decodeHead(bytes);
+				let [_, n] = CborData.decodeHead(bytes);
 				if (n > 64n) {
 					throw new Error("bytearray chunk too large");
 				}
@@ -6598,7 +6736,7 @@ export class CBORData {
 
 			return res;
 		} else {
-			let [_, n] = CBORData.decodeHead(bytes);
+			let [_, n] = CborData.decodeHead(bytes);
 
 			return bytes.splice(0, Number(n));
 		}
@@ -6610,13 +6748,13 @@ export class CBORData {
 	 */
 	static encodeInteger(n) {
 		if (n >= 0n && n <= (2n << 63n) - 1n) {
-			return CBORData.encodeHead(0, n);
+			return CborData.encodeHead(0, n);
 		} else if (n >= (2n << 63n)) {
-			return CBORData.encodeHead(6, 2n).concat(CBORData.encodeBytes(bigIntToBytes(n)));
+			return CborData.encodeHead(6, 2n).concat(CborData.encodeBytes(bigIntToBytes(n)));
 		} else if (n <= -1n && n >= -(2n << 63n)) {
-			return CBORData.encodeHead(1, -n - 1n);
+			return CborData.encodeHead(1, -n - 1n);
 		} else {
-			return CBORData.encodeHead(6, 3n).concat(CBORData.encodeBytes(bigIntToBytes(-n - 1n)));
+			return CborData.encodeHead(6, 3n).concat(CborData.encodeBytes(bigIntToBytes(-n - 1n)));
 		}
 	}
 
@@ -6625,7 +6763,7 @@ export class CBORData {
 	 * @returns {bigint}
 	 */
 	static decodeInteger(bytes) {
-		let [m, n] = CBORData.decodeHead(bytes);
+		let [m, n] = CborData.decodeHead(bytes);
 
 		if (m == 0) {
 			return n;
@@ -6633,11 +6771,11 @@ export class CBORData {
 			return -n - 1n;
 		} else if (m == 6) {
 			if (n == 2n) {
-				let b = CBORData.decodeBytes(bytes);
+				let b = CborData.decodeBytes(bytes);
 
 				return bytesToBigInt(b);
 			} else if (n == 3n) {
-				let b = CBORData.decodeBytes(bytes);
+				let b = CborData.decodeBytes(bytes);
 
 				return -bytesToBigInt(b) - 1n;
 			} else {
@@ -6664,11 +6802,11 @@ export class CBORData {
 	 * @returns {number[]}
 	 */
 	static encodeIndefListStart() {
-		return CBORData.encodeIndefHead(4);
+		return CborData.encodeIndefHead(4);
 	}
 
 	/**
-	 * @param {CBORData[] | number[][]} list 
+	 * @param {CborData[] | number[][]} list 
 	 * @returns {number[]}
 	 */
 	static encodeListInternal(list) {
@@ -6677,8 +6815,8 @@ export class CBORData {
 		 */
 		let res = [];
 		for (let item of list) {
-			if (item instanceof CBORData) {
-				res = res.concat(item.toCBOR());
+			if (item instanceof CborData) {
+				res = res.concat(item.toCbor());
 			} else {
 				res = res.concat(item);
 			}
@@ -6695,11 +6833,11 @@ export class CBORData {
 	}
 
 	/**
-	 * @param {CBORData[] | number[][]} list 
+	 * @param {CborData[] | number[][]} list 
 	 * @returns {number[]}
 	 */
 	static encodeIndefList(list) {
-		return CBORData.encodeIndefListStart().concat(CBORData.encodeListInternal(list)).concat(CBORData.encodeIndefListEnd());
+		return CborData.encodeIndefListStart().concat(CborData.encodeListInternal(list)).concat(CborData.encodeIndefListEnd());
 	}
 
 	/**
@@ -6707,7 +6845,7 @@ export class CBORData {
 	 * @returns {boolean}
 	 */
 	static isDefList(bytes) {
-		let [m, _] = CBORData.decodeHead(bytes.slice(0, 9));
+		let [m, _] = CborData.decodeHead(bytes.slice(0, 9));
 
 		return m == 4;
 	}
@@ -6717,15 +6855,15 @@ export class CBORData {
 	 * @returns {number[]}
 	 */
 	static encodeDefListStart(n) {
-		return CBORData.encodeHead(4, n);
+		return CborData.encodeHead(4, n);
 	}
 
 	/**
-	 * @param {CBORData[] | number[][]} list 
+	 * @param {CborData[] | number[][]} list 
 	 * @returns {number[]}
 	 */
 	static encodeDefList(list) {
-		return CBORData.encodeDefListStart(BigInt(list.length)).concat(CBORData.encodeListInternal(list));
+		return CborData.encodeDefListStart(BigInt(list.length)).concat(CborData.encodeListInternal(list));
 	}
 
 	/**
@@ -6733,8 +6871,8 @@ export class CBORData {
 	 * @param {Decoder} itemDecoder
 	 */
 	 static decodeList(bytes, itemDecoder) {
-		if (CBORData.isIndefList(bytes)) {
-			assert(CBORData.decodeIndefHead(bytes) == 4);
+		if (CborData.isIndefList(bytes)) {
+			assert(CborData.decodeIndefHead(bytes) == 4);
 
 			while(bytes[0] != 255) {
 				itemDecoder(bytes);
@@ -6742,7 +6880,7 @@ export class CBORData {
 	
 			assert(bytes.shift() == 255);
 		} else {
-			let [m, n] = CBORData.decodeHead(bytes);
+			let [m, n] = CborData.decodeHead(bytes);
 
 			assert(m == 4);
 
@@ -6757,7 +6895,7 @@ export class CBORData {
 	 * @returns {boolean}
 	 */
 	static isTuple(bytes) {
-		return CBORData.isIndefList(bytes) || CBORData.isDefList(bytes);
+		return CborData.isIndefList(bytes) || CborData.isDefList(bytes);
 	}
 
 	/**
@@ -6765,7 +6903,7 @@ export class CBORData {
 	 * @returns {number[]}
 	 */
 	static encodeTuple(tuple) {
-		return CBORData.encodeDefList(tuple);
+		return CborData.encodeDefList(tuple);
 	}
 
 
@@ -6777,7 +6915,7 @@ export class CBORData {
 	static decodeTuple(bytes, tupleDecoder) {
 		let count = 0;
 
-		CBORData.decodeList(bytes, (itemBytes) => {
+		CborData.decodeList(bytes, (itemBytes) => {
 			tupleDecoder(count, itemBytes);
 			count++;
 		});
@@ -6790,13 +6928,13 @@ export class CBORData {
 	 * @returns {boolean}
 	 */
 	static isDefMap(bytes) {
-		let [m, _] = CBORData.decodeHead(bytes.slice(0, 9));
+		let [m, _] = CborData.decodeHead(bytes.slice(0, 9));
 
 		return m == 5;
 	}
 
 	/**
-	 * @param {[CBORData | number[], CBORData | number[]][]} pairList
+	 * @param {[CborData | number[], CborData | number[]][]} pairList
 	 * @returns {number[]}
 	 */
 	static encodeMapInternal(pairList) {
@@ -6809,14 +6947,14 @@ export class CBORData {
 			let key = pair[0];
 			let value = pair[1];
 
-			if (key instanceof CBORData) {
-				res = res.concat(key.toCBOR());
+			if (key instanceof CborData) {
+				res = res.concat(key.toCbor());
 			} else {
 				res = res.concat(key);
 			}
 
-			if (value instanceof CBORData) {
-				res = res.concat(value.toCBOR());
+			if (value instanceof CborData) {
+				res = res.concat(value.toCbor());
 			} else {
 				res = res.concat(value);
 			}
@@ -6827,11 +6965,11 @@ export class CBORData {
 
 	/**
 	 * A decode map method doesn't exist because it specific for the requested type
-	 * @param {[CBORData | number[], CBORData | number[]][]} pairList 
+	 * @param {[CborData | number[], CborData | number[]][]} pairList 
 	 * @returns {number[]}
 	 */
 	static encodeMap(pairList) {
-		return CBORData.encodeHead(5, BigInt(pairList.length)).concat(CBORData.encodeMapInternal(pairList));
+		return CborData.encodeHead(5, BigInt(pairList.length)).concat(CborData.encodeMapInternal(pairList));
 	}
 
 	/**
@@ -6839,7 +6977,7 @@ export class CBORData {
 	 * @param {Decoder} pairDecoder
 	 */
 	static decodeMap(bytes, pairDecoder) {
-		let [m, n] = CBORData.decodeHead(bytes);
+		let [m, n] = CborData.decodeHead(bytes);
 
 		assert(m == 5);
 
@@ -6853,16 +6991,16 @@ export class CBORData {
 	 * @returns {boolean}
 	 */
 	static isObject(bytes) {
-		return CBORData.isDefMap(bytes);
+		return CborData.isDefMap(bytes);
 	}
 
 	/**
-	 * @param {Map<number, CBORData | number[]>} object
+	 * @param {Map<number, CborData | number[]>} object
 	 * @returns {number[]}
 	 */
 	static encodeObject(object) {
-		return CBORData.encodeMap(Array.from(object.entries()).map(pair => [
-			CBORData.encodeInteger(BigInt(pair[0])),
+		return CborData.encodeMap(Array.from(object.entries()).map(pair => [
+			CborData.encodeInteger(BigInt(pair[0])),
 			pair[1]
 		]));
 	}
@@ -6876,8 +7014,8 @@ export class CBORData {
 		/** @type {Set<number>} */
 		let done = new Set();
 
-		CBORData.decodeMap(bytes, pairBytes => {
-			let i = Number(CBORData.decodeInteger(pairBytes));
+		CborData.decodeMap(bytes, pairBytes => {
+			let i = Number(CborData.decodeInteger(pairBytes));
 
 			fieldDecoder(i, pairBytes);
 			done.add(i);
@@ -6892,7 +7030,7 @@ export class CBORData {
 	 * @returns {number[]}
 	 */
 	static encodeTag(tag) {
-		return CBORData.encodeHead(6, tag);
+		return CborData.encodeHead(6, tag);
 	}
 
 	/**
@@ -6900,7 +7038,7 @@ export class CBORData {
 	 * @returns {bigint}
 	 */
 	static decodeTag(bytes) {
-		let [m, n] = CBORData.decodeHead(bytes);
+		let [m, n] = CborData.decodeHead(bytes);
 
 		assert(m == 6);
 
@@ -6916,7 +7054,7 @@ export class CBORData {
 			throw new Error("empty cbor bytes");
 		}
 
-		let [m, _] = CBORData.decodeHead(bytes.slice(0, 9));
+		let [m, _] = CborData.decodeHead(bytes.slice(0, 9));
 
 		return m == 6;
 	}
@@ -6928,21 +7066,21 @@ export class CBORData {
 	 */
 	static encodeConstrTag(tag) {
 		if (tag >= 0 && tag <= 6) {
-			return CBORData.encodeHead(6, 121n + BigInt(tag));
+			return CborData.encodeHead(6, 121n + BigInt(tag));
 		} else if (tag >= 7 && tag <= 127) {
-			return CBORData.encodeHead(6, 1280n + BigInt(tag - 7));
+			return CborData.encodeHead(6, 1280n + BigInt(tag - 7));
 		} else {
-			return CBORData.encodeHead(6, 102n).concat(CBORData.encodeHead(4, 2n)).concat(CBORData.encodeInteger(BigInt(tag)));
+			return CborData.encodeHead(6, 102n).concat(CborData.encodeHead(4, 2n)).concat(CborData.encodeInteger(BigInt(tag)));
 		}
 	}
 
 	/**
 	 * @param {number} tag 
-	 * @param {CBORData[] | number[][]} fields 
+	 * @param {CborData[] | number[][]} fields 
 	 * @returns {number[]}
 	 */
 	static encodeConstr(tag, fields) {
-		return CBORData.encodeConstrTag(tag).concat(CBORData.encodeIndefList(fields));
+		return CborData.encodeConstrTag(tag).concat(CborData.encodeIndefList(fields));
 	}
 
 	/**
@@ -6951,17 +7089,17 @@ export class CBORData {
 	 */
 	static decodeConstrTag(bytes) {
 		// constr
-		let [m, n] = CBORData.decodeHead(bytes);
+		let [m, n] = CborData.decodeHead(bytes);
 
 		assert(m == 6);
 
 		if (n < 127n) {
 			return Number(n - 121n);
 		} else if (n == 102n) {
-			let [mCheck, nCheck] = CBORData.decodeHead(bytes);
+			let [mCheck, nCheck] = CborData.decodeHead(bytes);
 			assert(mCheck == 4 && nCheck == 2n);
 
-			return Number(CBORData.decodeInteger(bytes));
+			return Number(CborData.decodeInteger(bytes));
 		} else {
 			return Number(n - 1280n + 7n);
 		}
@@ -6974,9 +7112,9 @@ export class CBORData {
 	 * @returns {number}
 	 */
 	static decodeConstr(bytes, fieldDecoder) {
-		let tag = CBORData.decodeConstrTag(bytes);
+		let tag = CborData.decodeConstrTag(bytes);
 
-		CBORData.decodeList(bytes, fieldDecoder);
+		CborData.decodeList(bytes, fieldDecoder);
 
 		return tag;
 	}
@@ -6985,7 +7123,7 @@ export class CBORData {
 /**
  * Base class for Plutus-core data classes (not the same as Plutus-core value classes!)
  */
-class UPLCData extends CBORData {
+class UplcData extends CborData {
 	constructor() {
 		super();
 	}
@@ -6999,7 +7137,7 @@ class UPLCData extends CBORData {
 	}
 
 	/**
-	 * @param {UPLCData} other 
+	 * @param {UplcData} other 
 	 * @returns {boolean}
 	 */
 	isSame(other) {
@@ -7014,21 +7152,21 @@ class UPLCData extends CBORData {
 	}
 
 	/**
-	 * @type {UPLCData[]}
+	 * @type {UplcData[]}
 	 */
 	get fields() {
 		throw new Error("not a constr");
 	}
 
 	/**
-	 * @type {UPLCData[]}
+	 * @type {UplcData[]}
 	 */
 	get list() {
 		throw new Error("not a list");
 	}
 
 	/**
-	 * @type {[UPLCData, UPLCData][]}
+	 * @type {[UplcData, UplcData][]}
 	 */
 	get map() {
 		throw new Error("not a map");
@@ -7057,23 +7195,23 @@ class UPLCData extends CBORData {
 
 	/**
 	 * @param {number[]} bytes 
-	 * @returns {UPLCData}
+	 * @returns {UplcData}
 	 */
-	static fromCBOR(bytes) {
-		if (CBORData.isIndefList(bytes)) {	
-			return ListData.fromCBOR(bytes);		
-		} else if (CBORData.isIndefBytes(bytes)) {
-			return ByteArrayData.fromCBOR(bytes);
+	static fromCbor(bytes) {
+		if (CborData.isIndefList(bytes)) {	
+			return ListData.fromCbor(bytes);		
+		} else if (CborData.isIndefBytes(bytes)) {
+			return ByteArrayData.fromCbor(bytes);
 		} else {
-			if (CBORData.isDefBytes(bytes)) {
-				return ByteArrayData.fromCBOR(bytes);
-			} else if (CBORData.isDefMap(bytes)) {
-				return MapData.fromCBOR(bytes);
-			} else if (CBORData.isConstr(bytes)) {
-				return ConstrData.fromCBOR(bytes);
+			if (CborData.isDefBytes(bytes)) {
+				return ByteArrayData.fromCbor(bytes);
+			} else if (CborData.isDefMap(bytes)) {
+				return MapData.fromCbor(bytes);
+			} else if (CborData.isConstr(bytes)) {
+				return ConstrData.fromCbor(bytes);
 			} else {
 				// int, must come last
-				return IntData.fromCBOR(bytes);
+				return IntData.fromCbor(bytes);
 			}
 		}
 	}
@@ -7082,7 +7220,7 @@ class UPLCData extends CBORData {
 /**
  * Plutus-core int data class
  */
-export class IntData extends UPLCData {
+export class IntData extends UplcData {
 	#value;
 
 	/**
@@ -7093,12 +7231,18 @@ export class IntData extends UPLCData {
 		this.#value = value;
 	}
 
+	/**
+	 * @type {bigint}
+	 */
 	get value() {
 		return this.#value;
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
-		return UPLC_DATA_NODE_MEM_SIZE + (new UPLCInt(Site.dummy(), this.#value)).memSize;
+		return UPLC_DATA_NODE_MEM_SIZE + (new UplcInt(Site.dummy(), this.#value)).memSize;
 	}
 
 	/**
@@ -7127,16 +7271,16 @@ export class IntData extends UPLCData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return CBORData.encodeInteger(this.#value);
+	toCbor() {
+		return CborData.encodeInteger(this.#value);
 	}
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {IntData}
 	 */
-	static fromCBOR(bytes) {
-		return new IntData(CBORData.decodeInteger(bytes));
+	static fromCbor(bytes) {
+		return new IntData(CborData.decodeInteger(bytes));
 	}
 }
 
@@ -7144,7 +7288,7 @@ export class IntData extends UPLCData {
  * Plutus-core bytearray data class.
  * Wraps a regular list of uint8 numbers (so not Uint8Array)
  */
-export class ByteArrayData extends UPLCData {
+export class ByteArrayData extends UplcData {
 	#bytes;
 
 	/**
@@ -7171,7 +7315,7 @@ export class ByteArrayData extends UPLCData {
 	}
 
 	get memSize() {
-		return UPLC_DATA_NODE_MEM_SIZE + (new UPLCByteArray(Site.dummy(), this.#bytes)).memSize;
+		return UPLC_DATA_NODE_MEM_SIZE + (new UplcByteArray(Site.dummy(), this.#bytes)).memSize;
 	}
 
 	/**
@@ -7203,27 +7347,27 @@ export class ByteArrayData extends UPLCData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return CBORData.encodeBytes(this.#bytes, true);
+	toCbor() {
+		return CborData.encodeBytes(this.#bytes, true);
 	}
 
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {ByteArrayData}
 	 */
-	static fromCBOR(bytes) {
-		return new ByteArrayData(CBORData.decodeBytes(bytes));
+	static fromCbor(bytes) {
+		return new ByteArrayData(CborData.decodeBytes(bytes));
 	}
 }
 
 /**
  * Plutus-core list data class
  */
-export class ListData extends UPLCData {
+export class ListData extends UplcData {
 	#items;
 
 	/**
-	 * @param {UPLCData[]} items 
+	 * @param {UplcData[]} items 
 	 */
 	constructor(items) {
 		super();
@@ -7231,7 +7375,7 @@ export class ListData extends UPLCData {
 	}
 
 	/**
-	 * @type {UPLCData[]}
+	 * @type {UplcData[]}
 	 */
 	get list() {
 		return this.#items.slice();
@@ -7276,22 +7420,22 @@ export class ListData extends UPLCData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return CBORData.encodeIndefList(this.#items);
+	toCbor() {
+		return CborData.encodeIndefList(this.#items);
 	}
 
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {ListData}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		/**
-		 * @type {UPLCData[]}
+		 * @type {UplcData[]}
 		 */
 		let list = [];
 
-		CBORData.decodeList(bytes, (itemBytes) => {
-			list.push(UPLCData.fromCBOR(itemBytes));
+		CborData.decodeList(bytes, (itemBytes) => {
+			list.push(UplcData.fromCbor(itemBytes));
 		});
 
 		return new ListData(list);
@@ -7301,11 +7445,11 @@ export class ListData extends UPLCData {
 /**
  * Plutus-core map data class
  */
-export class MapData extends UPLCData {
+export class MapData extends UplcData {
 	#pairs;
 
 	/**
-	 * @param {[UPLCData, UPLCData][]} pairs 
+	 * @param {[UplcData, UplcData][]} pairs 
 	 */
 	constructor(pairs) {
 		super();
@@ -7313,7 +7457,7 @@ export class MapData extends UPLCData {
 	}
 
 	/**
-	 * @type {[UPLCData, UPLCData][]}
+	 * @type {[UplcData, UplcData][]}
 	 */
 	get map() {
 		return this.#pairs.slice();
@@ -7359,22 +7503,22 @@ export class MapData extends UPLCData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return CBORData.encodeMap(this.#pairs);
+	toCbor() {
+		return CborData.encodeMap(this.#pairs);
 	}
 
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {MapData}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		/**
-		 * @type {[UPLCData, UPLCData][]}
+		 * @type {[UplcData, UplcData][]}
 		 */
 		let pairs = [];
 
-		CBORData.decodeMap(bytes, pairBytes => {
-			pairs.push([UPLCData.fromCBOR(pairBytes), UPLCData.fromCBOR(pairBytes)]);
+		CborData.decodeMap(bytes, pairBytes => {
+			pairs.push([UplcData.fromCbor(pairBytes), UplcData.fromCbor(pairBytes)]);
 		});
 
 		return new MapData(pairs);
@@ -7384,13 +7528,13 @@ export class MapData extends UPLCData {
 /**
  * Plutus-core constructed data class
  */
-export class ConstrData extends UPLCData {
+export class ConstrData extends UplcData {
 	#index;
 	#fields;
 
 	/**
 	 * @param {number} index 
-	 * @param {UPLCData[]} fields 
+	 * @param {UplcData[]} fields 
 	 */
 	constructor(index, fields) {
 		super();
@@ -7406,7 +7550,7 @@ export class ConstrData extends UPLCData {
 	}
 
 	/**
-	 * @type {UPLCData[]}
+	 * @type {UplcData[]}
 	 */
 	get fields() {
 		return this.#fields.slice();
@@ -7455,22 +7599,22 @@ export class ConstrData extends UPLCData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return CBORData.encodeConstr(this.#index, this.#fields);
+	toCbor() {
+		return CborData.encodeConstr(this.#index, this.#fields);
 	}
 
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {ConstrData}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		/**
-		 * @type {UPLCData[]}
+		 * @type {UplcData[]}
 		 */
 		let fields = [];
 
-		let tag = CBORData.decodeConstr(bytes, (fieldBytes) => {
-			fields.push(UPLCData.fromCBOR(fieldBytes));
+		let tag = CborData.decodeConstr(bytes, (fieldBytes) => {
+			fields.push(UplcData.fromCbor(fieldBytes));
 		});
 
 		return new ConstrData(tag, fields);
@@ -12285,7 +12429,7 @@ class ConstStatement extends Statement {
 
 
 	/**
-	 * @param {string | UPLCValue} value 
+	 * @param {string | UplcValue} value 
 	 */
 	changeValue(value) {
 		let type = this.type;
@@ -13367,7 +13511,7 @@ export class Program {
 	/**
 	 * Change the literal value of a const statements  
 	 * @param {string} name 
-	 * @param {string | UPLCValue} value 
+	 * @param {string | UplcValue} value 
 	 */
 	changeParam(name, value) {
 		for (let s of this.#statements) {
@@ -13441,7 +13585,7 @@ export class Program {
 	/**
 	 * Doesn't use wrapEntryPoint
 	 * @param {string} name 
-	 * @returns {UPLCValue}
+	 * @returns {UplcValue}
 	 */
 	evalParam(name) {
 		/**
@@ -13464,12 +13608,12 @@ export class Program {
 
 		let irProgram = IRProgram.new(ir, true);
 
-		return new UPLCDataValue(irProgram.site, irProgram.data);
+		return new UplcDataValue(irProgram.site, irProgram.data);
 	}
 
 	/**
 	 * @param {boolean} simplify 
-	 * @returns {UPLCProgram}
+	 * @returns {UplcProgram}
 	 */
 	compile(simplify = false) {
 		let ir = this.toIR();
@@ -13478,7 +13622,7 @@ export class Program {
 
 		//console.log(irProgram.site.src.pretty());
 		
-		return irProgram.toUPLC();
+		return irProgram.toUplc();
 	}
 }
 
@@ -15151,44 +15295,44 @@ function buildLiteralExprFromJSON(site, type, value, path) {
 /**
  * @param {Site} site
  * @param {Type} type - expected type
- * @param {UPLCValue} value 
+ * @param {UplcValue} value 
  * @param {string} path - context for debugging
  * @returns {ValueExpr}
  */
 function buildLiteralExprFromValue(site, type, value, path) {
 	if (type instanceof BoolType) {
-		if (value instanceof UPLCBool) {
+		if (value instanceof UplcBool) {
 			return new PrimitiveLiteralExpr(new BoolLiteral(site, value.bool));
 		} else {
-			throw site.typeError(`expected UPLCBool for parameter '${path}', got '${value}'`);
+			throw site.typeError(`expected UplcBool for parameter '${path}', got '${value}'`);
 		}
 	} else if (type instanceof StringType) {
-		if (value instanceof UPLCDataValue && value.data instanceof ByteArrayData) {
+		if (value instanceof UplcDataValue && value.data instanceof ByteArrayData) {
 			return new PrimitiveLiteralExpr(new StringLiteral(site, bytesToString(value.data.bytes)));
 		} else {
 			throw site.typeError(`expected ByteArrayData for parameter '${path}', got '${value}'`);
 		}
 	} else if (type instanceof IntType) {
-		if (value instanceof UPLCDataValue && value.data instanceof IntData) {
+		if (value instanceof UplcDataValue && value.data instanceof IntData) {
 			return new PrimitiveLiteralExpr(new IntLiteral(site, value.data.value));
 		} else {
 			throw site.typeError(`expected IntData for parameter '${path}', got '${value}'`);
 		}
 	} else if (type instanceof ByteArrayType) {
-		if (value instanceof UPLCDataValue && value.data instanceof ByteArrayData) {
+		if (value instanceof UplcDataValue && value.data instanceof ByteArrayData) {
 			return new PrimitiveLiteralExpr(new ByteArrayLiteral(site, value.data.bytes));
 		} else {
 			throw site.typeError(`expected ByteArrayData for parameter '${path}', got '${value}'`);
 		}
 	} else if (type instanceof ListType) {
-		if (value instanceof UPLCDataValue && value.data instanceof ListData) {
+		if (value instanceof UplcDataValue && value.data instanceof ListData) {
 			/**
 			 * @type {ValueExpr[]}
 			 */
 			let items = [];
 
 			for (let data of value.data.list) {
-				items.push(buildLiteralExprFromValue(site, type.itemType, new UPLCDataValue(site, data), path + "[]"));
+				items.push(buildLiteralExprFromValue(site, type.itemType, new UplcDataValue(site, data), path + "[]"));
 			}
 
 			return new ListLiteralExpr(site, new TypeExpr(site, type.itemType), items);
@@ -15196,15 +15340,15 @@ function buildLiteralExprFromValue(site, type, value, path) {
 			throw site.typeError(`expected ListData for parameter '${path}', got '${value}'`);
 		}
 	} else if (type instanceof MapType) {
-		if (value instanceof UPLCDataValue && value.data instanceof MapData) {
+		if (value instanceof UplcDataValue && value.data instanceof MapData) {
 			/**
 			 * @type {[ValueExpr, ValueExpr][]}
 			 */
 			let pairs = [];
 
 			for (let dataPair of value.data.map) {
-				let keyExpr = buildLiteralExprFromValue(site, type.keyType, new UPLCDataValue(site, dataPair[0]), path + "{key}");
-				let valueExpr = buildLiteralExprFromValue(site, type.valueType, new UPLCDataValue(site, dataPair[1]), path + "{value}");
+				let keyExpr = buildLiteralExprFromValue(site, type.keyType, new UplcDataValue(site, dataPair[0]), path + "{key}");
+				let valueExpr = buildLiteralExprFromValue(site, type.valueType, new UplcDataValue(site, dataPair[1]), path + "{value}");
 
 				pairs.push([keyExpr, valueExpr]);
 			}
@@ -15219,7 +15363,7 @@ function buildLiteralExprFromValue(site, type, value, path) {
 			throw site.typeError(`expected ListData for parameter '${path}', got '${value}'`);
 		}
 	} else if (type instanceof StatementType && type.statement instanceof DataDefinition) {
-		if (value instanceof UPLCDataValue && value.data instanceof ConstrData) {
+		if (value instanceof UplcDataValue && value.data instanceof ConstrData) {
 			let nFields = type.statement.nFields(site);
 			/**
 			 * @type {StructLiteralField[]}
@@ -15235,7 +15379,7 @@ function buildLiteralExprFromValue(site, type, value, path) {
 
 				let fieldType = type.statement.getFieldType(site, i);
 
-				let valueExpr = buildLiteralExprFromValue(site, fieldType, new UPLCDataValue(site, f), path + "." + i.toString());
+				let valueExpr = buildLiteralExprFromValue(site, fieldType, new UplcDataValue(site, f), path + "." + i.toString());
 
 				fields[i] = new StructLiteralField(nFields == 1 ? null : new Word(site, type.statement.getFieldName(i)), valueExpr);
 			}
@@ -20664,7 +20808,7 @@ class IRScope {
 	 * @returns 
 	 */
 	static findBuiltin(name) {
-		let i = UPLC_BUILTINS.findIndex(info => { return "__core__" + info.name == name });
+		let i = Uplc_BUILTINS.findIndex(info => { return "__core__" + info.name == name });
 		assert(i != -1, `${name} is not a real builtin`);
 		return i;
 	}
@@ -20912,7 +21056,7 @@ class IRExpr extends Token {
 	 * @returns {number} - number of bits (not bytes!)
 	 */
 	calcSize() {
-		let term = this.toUPLC();
+		let term = this.toUplc();
 
 		let bitWriter = new BitWriter(); 
 
@@ -20976,9 +21120,9 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * @returns {UPLCTerm}
+	 * @returns {UplcTerm}
 	 */
-	toUPLC() {
+	toUplc() {
 		throw new Error("not yet implemented");
 	}
 }
@@ -21138,37 +21282,37 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * @returns {UPLCTerm}
+	 * @returns {UplcTerm}
 	 */
-	toUPLC() {
+	toUplc() {
 		if (this.name.startsWith("__core")) {
-			return IRCoreCallExpr.newUPLCBuiltin(this.site, this.name);
+			return IRCoreCallExpr.newUplcBuiltin(this.site, this.name);
 		} else if (this.#index === null) {
 			// use a dummy index (for size calculation)
-			return new UPLCVariable(
+			return new UplcVariable(
 				this.site,
-				new UPLCInt(this.site, BigInt(0), false),
+				new UplcInt(this.site, BigInt(0), false),
 			);
 		} else {
-			return new UPLCVariable(
+			return new UplcVariable(
 				this.site,
-				new UPLCInt(this.site, BigInt(this.#index), false),
+				new UplcInt(this.site, BigInt(this.#index), false),
 			);
 		}
 	}
 }
 
 /**
- * IR wrapper for UPLCValues, representing literals
+ * IR wrapper for UplcValues, representing literals
  */
  class IRLiteral extends IRExpr {
 	/**
-	 * @type {UPLCValue}
+	 * @type {UplcValue}
 	 */
 	#value;
 
 	/**
-	 * @param {UPLCValue} value 
+	 * @param {UplcValue} value 
 	 */
 	constructor(value) {
 		super(value.site);
@@ -21243,10 +21387,10 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * @returns {UPLCConst}
+	 * @returns {UplcConst}
 	 */
-	toUPLC() {
-		return new UPLCConst(this.#value);
+	toUplc() {
+		return new UplcConst(this.#value);
 	}
 }
 
@@ -21356,17 +21500,17 @@ class IRFuncExpr extends IRExpr {
 	}
 
 	/** 
-	 * @returns {UPLCTerm}
+	 * @returns {UplcTerm}
 	 */
-	toUPLC() {
-		let term = this.#body.toUPLC();
+	toUplc() {
+		let term = this.#body.toUplc();
 
 		if (this.#args.length == 0) {
 			// must wrap at least once, even if there are no args
-			term = new UPLCLambda(this.site, term);
+			term = new UplcLambda(this.site, term);
 		} else {
 			for (let i = this.#args.length - 1; i >= 0; i--) {
-				term = new UPLCLambda(this.site, term, this.#args[i].toString());
+				term = new UplcLambda(this.site, term, this.#args[i].toString());
 			}
 		}
 
@@ -21468,16 +21612,16 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {UPLCTerm} term
-	 * @returns {UPLCTerm}
+	 * @param {UplcTerm} term
+	 * @returns {UplcTerm}
 	 */
-	toUPLCCall(term) {
+	toUplcCall(term) {
 		if (this.#argExprs.length == 0) {
 			// a Plutus-core function call (aka function application) always requires a argument. In the zero-args case this is the unit value
-			term = new UPLCCall(this.site, term, UPLCUnit.newTerm(this.#parensSite));
+			term = new UplcCall(this.site, term, UplcUnit.newTerm(this.#parensSite));
 		} else {
 			for (let argExpr of this.#argExprs) {
-				term = new UPLCCall(this.site, term, argExpr.toUPLC());
+				term = new UplcCall(this.site, term, argExpr.toUplc());
 			}
 		}
 
@@ -21689,15 +21833,15 @@ class IRCallExpr extends IRExpr {
 				case "__helios__common__concat": {
 						// check if either 1st or 2nd arg is the empty list
 						let a = argExprs[0];
-						if (a instanceof IRLiteral && a.value instanceof UPLCList && a.value.list.length == 0) {
+						if (a instanceof IRLiteral && a.value instanceof UplcList && a.value.list.length == 0) {
 							return argExprs[1];
-						} else if (a instanceof IRLiteral && a.value instanceof UPLCMap && a.value.map.length == 0) {
+						} else if (a instanceof IRLiteral && a.value instanceof UplcMap && a.value.map.length == 0) {
 							return argExprs[1];
 						} else {
 							let b = argExprs[1];
-							if (b instanceof IRLiteral && b.value instanceof UPLCList && b.value.list.length == 0) {
+							if (b instanceof IRLiteral && b.value instanceof UplcList && b.value.list.length == 0) {
 								return argExprs[0];
-							} else if (b instanceof IRLiteral && b.value instanceof UPLCMap && b.value.map.length == 0) {
+							} else if (b instanceof IRLiteral && b.value instanceof UplcMap && b.value.map.length == 0) {
 								return argExprs[0];
 							}
 						}
@@ -21793,10 +21937,10 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @returns {UPLCTerm}
+	 * @returns {UplcTerm}
 	 */
-	toUPLC() {
-		return super.toUPLCCall(this.#fnExpr.toUPLC());
+	toUplc() {
+		return super.toUplcCall(this.#fnExpr.toUplc());
 	}
 }
 
@@ -21847,7 +21991,7 @@ class IRCoreCallExpr extends IRCallExpr {
 	static evalValues(builtinName, args) {
 		if (builtinName == "ifThenElse") {
 			let cond = args[0].value;
-			if (cond !== null && cond.value instanceof UPLCBool) {
+			if (cond !== null && cond.value instanceof UplcBool) {
 				if (cond.value.bool) {
 					return args[1];
 				} else {
@@ -21860,7 +22004,7 @@ class IRCoreCallExpr extends IRCallExpr {
 			return args[1];
 		} else {
 			/**
-			 * @type {UPLCValue[]}
+			 * @type {UplcValue[]}
 			 */
 			let argValues = [];
 
@@ -21873,7 +22017,7 @@ class IRCoreCallExpr extends IRCallExpr {
 			}
 
 			try {
-				let result = UPLCBuiltin.evalStatic(new Word(Site.dummy(), builtinName), argValues);
+				let result = UplcBuiltin.evalStatic(new Word(Site.dummy(), builtinName), argValues);
 
 				return new IRLiteralValue(new IRLiteral(result));
 			} catch(e) {
@@ -21910,7 +22054,7 @@ class IRCoreCallExpr extends IRCallExpr {
 			assert(argExprs.length == 3);
 			let cond = argExprs[0];
 
-			if (cond instanceof IRLiteral && cond.value instanceof UPLCBool) {
+			if (cond instanceof IRLiteral && cond.value instanceof UplcBool) {
 				if (cond.value.bool) {
 					return argExprs[1];
 				} else {
@@ -21924,7 +22068,7 @@ class IRCoreCallExpr extends IRCallExpr {
 			// if all the args are literals -> return the result
 
 			/**
-			 * @type {UPLCValue[]}
+			 * @type {UplcValue[]}
 			 */
 			let argValues = [];
 
@@ -21937,7 +22081,7 @@ class IRCoreCallExpr extends IRCallExpr {
 			}
 
 			try {
-				let result = UPLCBuiltin.evalStatic(new Word(this.#name.site, this.builtinName), argValues);
+				let result = UplcBuiltin.evalStatic(new Word(this.#name.site, this.builtinName), argValues);
 
 				return new IRLiteral(result);
 			} catch(e) {
@@ -21970,7 +22114,7 @@ class IRCoreCallExpr extends IRCallExpr {
 			case "ifThenElse": {
 					// check if first arg evaluates to constant condition
 					let cond = argExprs[0];
-					if (cond instanceof IRLiteral && cond.value instanceof UPLCBool) {
+					if (cond instanceof IRLiteral && cond.value instanceof UplcBool) {
 						return cond.value.bool ? argExprs[1] : argExprs[2];
 					}
 				}
@@ -21978,11 +22122,11 @@ class IRCoreCallExpr extends IRCallExpr {
 			case "addInteger": {
 					// check if first or second arg evaluates to 0
 					let a = argExprs[0];
-					if (a instanceof IRLiteral && a.value instanceof UPLCInt && a.value.int == 0n) {
+					if (a instanceof IRLiteral && a.value instanceof UplcInt && a.value.int == 0n) {
 						return argExprs[1];
 					} else {
 						let b = argExprs[1];
-						if (b instanceof IRLiteral && b.value instanceof UPLCInt && b.value.int == 0n) {
+						if (b instanceof IRLiteral && b.value instanceof UplcInt && b.value.int == 0n) {
 							return argExprs[0];
 						}
 					}
@@ -21991,7 +22135,7 @@ class IRCoreCallExpr extends IRCallExpr {
 			case "subtractInteger": {
 					// check if second arg evaluates to 0
 					let b = argExprs[1];
-					if (b instanceof IRLiteral && b.value instanceof UPLCInt && b.value.int == 0n) {
+					if (b instanceof IRLiteral && b.value instanceof UplcInt && b.value.int == 0n) {
 						return argExprs[0];
 					}
 				}
@@ -21999,7 +22143,7 @@ class IRCoreCallExpr extends IRCallExpr {
 			case "multiplyInteger": {
 					// check if first arg is 0 or 1
 					let a = argExprs[0];
-					if (a instanceof IRLiteral && a.value instanceof UPLCInt) {
+					if (a instanceof IRLiteral && a.value instanceof UplcInt) {
 						if (a.value.int == 0n) {
 							return a;
 						} else if (a.value.int == 1n) {
@@ -22007,7 +22151,7 @@ class IRCoreCallExpr extends IRCallExpr {
 						}
 					} else {
 						let b = argExprs[1];
-						if (b instanceof IRLiteral && b.value instanceof UPLCInt) {
+						if (b instanceof IRLiteral && b.value instanceof UplcInt) {
 							if (b.value.int == 0n) {
 								return b;
 							} else if (b.value.int == 1n) {
@@ -22020,7 +22164,7 @@ class IRCoreCallExpr extends IRCallExpr {
 			case "divideInteger": {
 					// check if second arg is 1
 					let b = argExprs[1];
-					if (b instanceof IRLiteral && b.value instanceof UPLCInt && b.value.int == 1n) {
+					if (b instanceof IRLiteral && b.value instanceof UplcInt && b.value.int == 1n) {
 						return argExprs[0];
 					}
 				}
@@ -22028,19 +22172,19 @@ class IRCoreCallExpr extends IRCallExpr {
 			case "modInteger": {
 					// check if second arg is 1
 					let b = argExprs[1];
-					if (b instanceof IRLiteral && b.value instanceof UPLCInt && b.value.int == 1n) {
-						return new IRLiteral(new UPLCInt(this.site, 0n));
+					if (b instanceof IRLiteral && b.value instanceof UplcInt && b.value.int == 1n) {
+						return new IRLiteral(new UplcInt(this.site, 0n));
 					}
 				}
 				break;
 			case "appendByteString": {
 					// check if either 1st or 2nd arg is the empty bytearray
 					let a = argExprs[0];
-					if (a instanceof IRLiteral && a.value instanceof UPLCByteArray && a.value.bytes.length == 0) {
+					if (a instanceof IRLiteral && a.value instanceof UplcByteArray && a.value.bytes.length == 0) {
 						return argExprs[1];
 					} else {
 						let b = argExprs[1];
-						if (b instanceof IRLiteral && b.value instanceof UPLCByteArray && b.value.bytes.length == 0) {
+						if (b instanceof IRLiteral && b.value instanceof UplcByteArray && b.value.bytes.length == 0) {
 							return argExprs[0];
 						}
 					}
@@ -22049,11 +22193,11 @@ class IRCoreCallExpr extends IRCallExpr {
 			case "appendString": {
 					// check if either 1st or 2nd arg is the empty string
 					let a = argExprs[0];
-					if (a instanceof IRLiteral && a.value instanceof UPLCString && a.value.string.length == 0) {
+					if (a instanceof IRLiteral && a.value instanceof UplcString && a.value.string.length == 0) {
 						return argExprs[1];
 					} else {
 						let b = argExprs[1];
-						if (b instanceof IRLiteral && b.value instanceof UPLCString && b.value.string.length == 0) {
+						if (b instanceof IRLiteral && b.value instanceof UplcString && b.value.string.length == 0) {
 							return argExprs[0];
 						}
 					}
@@ -22165,30 +22309,30 @@ class IRCoreCallExpr extends IRCallExpr {
 	/**
 	 * @param {Site} site
 	 * @param {string} name - full name of builtin, including prefix
-	 * @returns {UPLCTerm}
+	 * @returns {UplcTerm}
 	 */
-	static newUPLCBuiltin(site, name) {
+	static newUplcBuiltin(site, name) {
 		/**
-		 * @type {UPLCTerm}
+		 * @type {UplcTerm}
 		 */
-		 let term = new UPLCBuiltin(site, name.slice("__core__".length));
+		 let term = new UplcBuiltin(site, name.slice("__core__".length));
 
-		 let nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
+		 let nForce = Uplc_BUILTINS[IRScope.findBuiltin(name)].forceCount;
  
 		 for (let i = 0; i < nForce; i++) {
-			 term = new UPLCForce(site, term);
+			 term = new UplcForce(site, term);
 		 }
  
 		 return term;
 	}
 
 	/**
-	 * @returns {UPLCTerm}
+	 * @returns {UplcTerm}
 	 */
-	toUPLC() {
-		let term = IRCoreCallExpr.newUPLCBuiltin(this.site, this.#name.value);
+	toUplc() {
+		let term = IRCoreCallExpr.newUplcBuiltin(this.site, this.#name.value);
 
-		return this.toUPLCCall(term);
+		return this.toUplcCall(term);
 	}
 }
 
@@ -22258,10 +22402,10 @@ class IRErrorCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @returns {UPLCTerm}
+	 * @returns {UplcTerm}
 	 */
-	toUPLC() {
-		return new UPLCError(this.site, this.#msg);
+	toUplc() {
+		return new UplcError(this.site, this.#msg);
 	}
 }
 
@@ -22316,7 +22460,7 @@ class IRProgram {
 	}
 
 	/**
-	 * @type {UPLCData}
+	 * @type {UplcData}
 	 */
 	get data() {
 		if (this.#expr instanceof IRLiteral) {
@@ -22355,17 +22499,17 @@ class IRProgram {
 	}
 
 	/**
-	 * @returns {UPLCProgram}
+	 * @returns {UplcProgram}
 	 */
-	toUPLC() {
-		return new UPLCProgram(this.#expr.toUPLC());
+	toUplc() {
+		return new UplcProgram(this.#expr.toUplc());
 	}
 
 	/**
 	 * @returns {number}
 	 */
 	calcSize() {
-		return this.toUPLC().calcSize();
+		return this.toUplc().calcSize();
 	}
 }
 
@@ -22402,7 +22546,7 @@ function buildIRExpr(ts) {
 					if (group.fields.length == 1) {
 						expr = buildIRExpr(group.fields[0])
 					} else if (group.fields.length == 0) {
-						expr = new IRLiteral(new UPLCUnit(t.site));
+						expr = new IRLiteral(new UplcUnit(t.site));
 					} else {
 						group.syntaxError("unexpected parentheses with multiple fields");
 					}
@@ -22426,22 +22570,22 @@ function buildIRExpr(ts) {
 				// only makes sense next to IntegerLiterals
 				let int = assertDefined(ts.shift());
 				if (int instanceof IntLiteral) {
-					expr = new IRLiteral(new UPLCInt(int.site, int.value * (-1n)));
+					expr = new IRLiteral(new UplcInt(int.site, int.value * (-1n)));
 				} else {
 					throw int.site.typeError(`expected literal int, got ${int}`);
 				}
 			} else if (t instanceof BoolLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(new UPLCBool(t.site, t.value));
+				expr = new IRLiteral(new UplcBool(t.site, t.value));
 			} else if (t instanceof IntLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(new UPLCInt(t.site, t.value));
+				expr = new IRLiteral(new UplcInt(t.site, t.value));
 			} else if (t instanceof ByteArrayLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(new UPLCByteArray(t.site, t.bytes));
+				expr = new IRLiteral(new UplcByteArray(t.site, t.bytes));
 			} else if (t instanceof StringLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(new UPLCString(t.site, t.value));
+				expr = new IRLiteral(new UplcString(t.site, t.value));
 			} else if (t.isWord("__core__error")) {
 				assert(expr === null);
 
@@ -22523,7 +22667,7 @@ function buildIRFuncExpr(ts) {
 /**
  * Plutus-core deserializer creates a Plutus-core form an array of bytes
  */
-class UPLCDeserializer extends BitReader {
+class UplcDeserializer extends BitReader {
 	
 	/**
 	 * @param {number[]} bytes 
@@ -22549,7 +22693,7 @@ class UPLCDeserializer extends BitReader {
 	 * @returns {string | number}
 	 */
 	builtinName(id) {
-		let all = UPLC_BUILTINS;
+		let all = Uplc_BUILTINS;
 
 		if (id >= 0 && id < all.length) {
 			return all[id].name;
@@ -22580,8 +22724,8 @@ class UPLCDeserializer extends BitReader {
 	}
 
 	/**
-	 * Reads a single UPLCTerm
-	 * @returns {UPLCTerm}
+	 * Reads a single UplcTerm
+	 * @returns {UplcTerm}
 	 */
 	readTerm() {
 		let tag = this.readBits(this.tagWidth("term"));
@@ -22600,7 +22744,7 @@ class UPLCDeserializer extends BitReader {
 			case 5:
 				return this.readForce();
 			case 6:
-				return new UPLCError(Site.dummy());
+				return new UplcError(Site.dummy());
 			case 7:
 				return this.readBuiltin();
 			default:
@@ -22611,7 +22755,7 @@ class UPLCDeserializer extends BitReader {
 	/**
 	 * Reads a single unbounded integer
 	 * @param {boolean} signed 
-	 * @returns {UPLCInt}
+	 * @returns {UplcInt}
 	 */
 	readInteger(signed = false) {
 		let bytes = [];
@@ -22619,13 +22763,13 @@ class UPLCDeserializer extends BitReader {
 		let b = this.readByte();
 		bytes.push(b);
 
-		while (!UPLCInt.rawByteIsLast(b)) {
+		while (!UplcInt.rawByteIsLast(b)) {
 			b = this.readByte();
 			bytes.push(b);
 		}
 
 		// strip the leading bit
-		let res = new UPLCInt(Site.dummy(), UPLCInt.bytesToBigInt(bytes.map(b => UPLCInt.parseRawByte(b))), false); // raw int is unsigned
+		let res = new UplcInt(Site.dummy(), UplcInt.bytesToBigInt(bytes.map(b => UplcInt.parseRawByte(b))), false); // raw int is unsigned
 
 		if (signed) {
 			res = res.toSigned(); // unzigzag is performed here
@@ -22658,41 +22802,41 @@ class UPLCDeserializer extends BitReader {
 
 	/**
 	 * Reads a literal bytearray
-	 * @returns {UPLCByteArray}
+	 * @returns {UplcByteArray}
 	 */
 	readByteArray() {
 		let bytes = this.readBytes();
 
-		return new UPLCByteArray(Site.dummy(), bytes);
+		return new UplcByteArray(Site.dummy(), bytes);
 	}
 
 	/**
 	 * Reads a literal string
-	 * @returns {UPLCString}
+	 * @returns {UplcString}
 	 */
 	readString() {
 		let bytes = this.readBytes();
 
 		let s = bytesToString(bytes);
 
-		return new UPLCString(Site.dummy(), s);
+		return new UplcString(Site.dummy(), s);
 	}
 
 	/**
 	 * Reads a data object
-	 * @returns {UPLCData}
+	 * @returns {UplcData}
 	 */
 	readData() {
 		let bytes = this.readBytes();
 
-		return UPLCData.fromCBOR(bytes);
+		return UplcData.fromCbor(bytes);
 	}
 
 	/**
-	 * @returns {UPLCData[]}
+	 * @returns {UplcData[]}
 	 */
 	readDataList() {
-		/** @type {UPLCData[]} */
+		/** @type {UplcData[]} */
 		let items = [];
 
 		while (this.readBits(1) == 1) {
@@ -22703,14 +22847,14 @@ class UPLCDeserializer extends BitReader {
 	}
 
 	/**
-	 * @returns {UPLCMapItem[]}
+	 * @returns {UplcMapItem[]}
 	 */
 	readDataPairList() {
-		/** @type {UPLCMapItem[]} */
+		/** @type {UplcMapItem[]} */
 		let pairs = [];
 
 		while (this.readBits(1) == 1) {
-			pairs.push(new UPLCMapItem(Site.dummy(), this.readData(), this.readData()));
+			pairs.push(new UplcMapItem(Site.dummy(), this.readData(), this.readData()));
 		}
 
 
@@ -22719,43 +22863,43 @@ class UPLCDeserializer extends BitReader {
 
 	/**
 	 * Reads a variable term
-	 * @returns {UPLCVariable}
+	 * @returns {UplcVariable}
 	 */
 	readVariable() {
 		let index = this.readInteger()
 
-		return new UPLCVariable(Site.dummy(), index);
+		return new UplcVariable(Site.dummy(), index);
 	}
 
 	/**
 	 * Reads a lambda expression term
-	 * @returns {UPLCLambda}
+	 * @returns {UplcLambda}
 	 */
 	readLambda() {
 		let rhs = this.readTerm();
 
-		return new UPLCLambda(Site.dummy(), rhs);
+		return new UplcLambda(Site.dummy(), rhs);
 	}
 
 	/**
 	 * Reads a function application term
-	 * @returns {UPLCCall}
+	 * @returns {UplcCall}
 	 */
 	readCall() {
 		let a = this.readTerm();
 		let b = this.readTerm();
 
-		return new UPLCCall(Site.dummy(), a, b);
+		return new UplcCall(Site.dummy(), a, b);
 	}
 
 	/**
 	 * Reads a single constant
-	 * @returns {UPLCConst}
+	 * @returns {UplcConst}
 	 */
 	readConstant() {
 		let typeList = this.readLinkedList(this.tagWidth("constType"));
 
-		let res = new UPLCConst(this.readTypedValue(typeList));
+		let res = new UplcConst(this.readTypedValue(typeList));
 
 		return res;
 	}
@@ -22763,7 +22907,7 @@ class UPLCDeserializer extends BitReader {
 	/**
 	 * Reads a single constant (recursive types not yet handled)
 	 * @param {number[]} typeList 
-	 * @returns {UPLCValue}
+	 * @returns {UplcValue}
 	 */
 	readTypedValue(typeList) {
 		let type = assertDefined(typeList.shift());
@@ -22778,30 +22922,30 @@ class UPLCDeserializer extends BitReader {
 			case 2: // utf8-string
 				return this.readString();
 			case 3:
-				return new UPLCUnit(Site.dummy()); // no reading needed
+				return new UplcUnit(Site.dummy()); // no reading needed
 			case 4: // Bool
-				return new UPLCBool(Site.dummy(), this.readBits(1) == 1);
+				return new UplcBool(Site.dummy(), this.readBits(1) == 1);
 			case 5:
 			case 6:
 				throw new Error("unexpected type tag without type application");
 			case 7:
 				if (eq(typeList, [5, 8])) {
-					return new UPLCList(Site.dummy(), this.readDataList());
+					return new UplcList(Site.dummy(), this.readDataList());
 				} else if (eq(typeList, [5, 7, 7, 6, 8, 8])) {
 					// map of (data, data)
-					return new UPLCMap(Site.dummy(), this.readDataPairList());
+					return new UplcMap(Site.dummy(), this.readDataPairList());
 				} else if (eq(typeList, [7, 6, 8, 8])) {
 					// pair of (data, data)
-					return new UPLCMapItem(Site.dummy(), this.readData(), this.readData());
+					return new UplcMapItem(Site.dummy(), this.readData(), this.readData());
 				} else if (eq(typeList, [7, 6, 0, 7, 5, 8])) {
 					// constr
-					return new UPLCPair(Site.dummy(), this.readInteger(true), new UPLCList(Site.dummy(), this.readDataList()));
+					return new UplcPair(Site.dummy(), this.readInteger(true), new UplcList(Site.dummy(), this.readDataList()));
 				} else {
 					console.log(typeList);
 					throw new Error("unhandled container type")
 				}
 			case 8:
-				return new UPLCDataValue(Site.dummy(), this.readData());
+				return new UplcDataValue(Site.dummy(), this.readData());
 			default:
 				throw new Error(`unhandled constant type ${type.toString()}`);
 		}
@@ -22809,34 +22953,34 @@ class UPLCDeserializer extends BitReader {
 
 	/**
 	 * Reads a delay term
-	 * @returns {UPLCDelay}
+	 * @returns {UplcDelay}
 	 */
 	readDelay() {
 		let expr = this.readTerm();
 
-		return new UPLCDelay(Site.dummy(), expr);
+		return new UplcDelay(Site.dummy(), expr);
 	}
 
 	/**
 	 * Reads a force term
-	 * @returns {UPLCForce}
+	 * @returns {UplcForce}
 	 */
 	readForce() {
 		let expr = this.readTerm();
 
-		return new UPLCForce(Site.dummy(), expr);
+		return new UplcForce(Site.dummy(), expr);
 	}
 
 	/**
 	 * Reads a builtin function ref term
-	 * @returns {UPLCBuiltin}
+	 * @returns {UplcBuiltin}
 	 */
 	readBuiltin() {
 		let id = this.readBits(this.tagWidth("builtin"));
 
 		let name = this.builtinName(id);
 
-		return new UPLCBuiltin(Site.dummy(), name);
+		return new UplcBuiltin(Site.dummy(), name);
 	}
 
 	/**
@@ -22850,10 +22994,10 @@ class UPLCDeserializer extends BitReader {
 
 /**
  * @param {number[]} bytes 
- * @returns {UPLCProgram}
+ * @returns {UplcProgram}
  */
-function deserializeUPLCBytes(bytes) {
-	let reader = new UPLCDeserializer(bytes);
+export function deserializeUplcBytes(bytes) {
+	let reader = new UplcDeserializer(bytes);
 
 	let version = [
 		reader.readInteger(),
@@ -22871,15 +23015,15 @@ function deserializeUPLCBytes(bytes) {
 
 	reader.finalize();
 
-	return new UPLCProgram(expr, version);
+	return new UplcProgram(expr, version);
 }
 
 /**
- * Parses a plutus core program. Returns a UPLCProgram object
+ * Parses a plutus core program. Returns a UplcProgram object
  * @param {string} jsonString 
- * @returns {UPLCProgram}
+ * @returns {UplcProgram}
  */
-export function deserializeUPLC(jsonString) {
+export function deserializeUplc(jsonString) {
 	let obj = JSON.parse(jsonString);
 
 	if (!("cborHex" in obj)) {
@@ -22898,16 +23042,16 @@ export function deserializeUPLC(jsonString) {
 		}
 	}
 
-	let bytes = unwrapCBORBytes(unwrapCBORBytes(hexToBytes(cborHex)));
+	let bytes = unwrapCborBytes(unwrapCborBytes(hexToBytes(cborHex)));
 
-	return deserializeUPLCBytes(bytes);
+	return deserializeUplcBytes(bytes);
 }
 
 //////////////////////////
 // 18. Transaction objects
 //////////////////////////
 
-export class Tx extends CBORData {
+export class Tx extends CborData {
 	#body;
 	#witnesses;
 	#valid;
@@ -22943,12 +23087,12 @@ export class Tx extends CBORData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return CBORData.encodeTuple([
-			this.#body.toCBOR(),
-			this.#witnesses.toCBOR(),
-			CBORData.encodeBool(this.#valid),
-			CBORData.encodeNull(),
+	toCbor() {
+		return CborData.encodeTuple([
+			this.#body.toCbor(),
+			this.#witnesses.toCbor(),
+			CborData.encodeBool(this.#valid),
+			CborData.encodeNull(),
 		]);
 	}
 
@@ -22956,24 +23100,24 @@ export class Tx extends CBORData {
 	 * @param {number[]} bytes 
 	 * @returns {Tx}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		bytes = bytes.slice();
 
 		let tx = new Tx();
 
-		let n = CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					tx.#body = TxBody.fromCBOR(fieldBytes);
+					tx.#body = TxBody.fromCbor(fieldBytes);
 					break;
 				case 1:
-					tx.#witnesses = TxWitnesses.fromCBOR(fieldBytes);
+					tx.#witnesses = TxWitnesses.fromCbor(fieldBytes);
 					break;
 				case 2:
-					tx.#valid = CBORData.decodeBool(fieldBytes);
+					tx.#valid = CborData.decodeBool(fieldBytes);
 					break;
 				case 3:
-					CBORData.decodeNull(fieldBytes);
+					CborData.decodeNull(fieldBytes);
 					break;
 				default:
 					throw new Error("bad tuple size");
@@ -23024,7 +23168,7 @@ export class Tx extends CBORData {
 	/**
 	 * @param {MintingPolicyHash} mph 
 	 * @param {[number[], bigint][]} tokens - list of pairs of [tokenName, quantity]
-	 * @param {UPLCDataValue | UPLCData} redeemer
+	 * @param {UplcDataValue | UplcData} redeemer
 	 * @returns {Tx}
 	 */
 	addMint(mph, tokens, redeemer) {
@@ -23032,14 +23176,14 @@ export class Tx extends CBORData {
 
 		let index = this.#body.addMint(mph, tokens);
 
-		this.#witnesses.addMintingRedeemer(index, UPLCDataValue.unwrap(redeemer));
+		this.#witnesses.addMintingRedeemer(index, UplcDataValue.unwrap(redeemer));
 
 		return this;
 	}
 
 	/**
 	 * @param {TxInput} input
-	 * @param {?(UPLCDataValue | UPLCData)} redeemer
+	 * @param {?(UplcDataValue | UplcData)} redeemer
 	 * @returns {Tx}
 	 */
 	addInput(input, redeemer = null) {
@@ -23053,7 +23197,7 @@ export class Tx extends CBORData {
 			if (redeemer !== null) {
 				assert(input.origOutput.address.validatorHash !== null, "input isn't locked by a script");
 
-				this.#witnesses.addSpendingRedeemer(id, UPLCDataValue.unwrap(redeemer));
+				this.#witnesses.addSpendingRedeemer(id, UplcDataValue.unwrap(redeemer));
 
 				if (input.origOutput.datum === null) {
 					throw new Error("expected non-null datum");
@@ -23116,7 +23260,7 @@ export class Tx extends CBORData {
 
 	/**
 	 * Unused scripts are detected during build(), in which case an error is thrown
-	 * @param {UPLCProgram} program
+	 * @param {UplcProgram} program
 	 * @returns {Tx}
 	 */
 	addScript(program) {
@@ -23154,7 +23298,7 @@ export class Tx extends CBORData {
 			this.#witnesses.addDummySignatures(nUniquePubKeyHashes);
 		}
 
-		let size = this.toCBOR().length;
+		let size = this.toCbor().length;
 
 		if (!this.#valid) {
 			this.#witnesses.removeDummySignatures();
@@ -23334,7 +23478,7 @@ export class Tx extends CBORData {
 	 * @param {NetworkParams} networkParams 
 	 */
 	checkSize(networkParams) {
-		let size = this.toCBOR().length;
+		let size = this.toCbor().length;
 
 		if (size > networkParams.maxTxSize) {
 			throw new Error("tx too big");
@@ -23386,7 +23530,7 @@ export class Tx extends CBORData {
 		assert(this.#valid);
 
 		if (verify) {
-			signature.verify(Crypto.blake2b(this.#body.toCBOR()));
+			signature.verify(Crypto.blake2b(this.#body.toCbor()));
 		}
 
 		this.#witnesses.addSignature(signature);
@@ -23395,7 +23539,7 @@ export class Tx extends CBORData {
 	}
 }
 
-class TxBody extends CBORData {
+class TxBody extends CborData {
 	/** @type {TxInput[]} */
 	#inputs;
 
@@ -23479,22 +23623,22 @@ class TxBody extends CBORData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
+	toCbor() {
 		/**
 		 * @type {Map<number, number[]>}
 		 */
 		let object = new Map();
 
-		object.set(0, CBORData.encodeDefList(this.#inputs));
-		object.set(1, CBORData.encodeDefList(this.#outputs));
-		object.set(2, CBORData.encodeInteger(this.#fee));
+		object.set(0, CborData.encodeDefList(this.#inputs));
+		object.set(1, CborData.encodeDefList(this.#outputs));
+		object.set(2, CborData.encodeInteger(this.#fee));
 		
 		if (this.#lastValidSlot !== null) {
-			object.set(3, CBORData.encodeInteger(this.#lastValidSlot));
+			object.set(3, CborData.encodeInteger(this.#lastValidSlot));
 		}
 
 		if (this.#certs.length != 0) {
-			object.set(4, CBORData.encodeDefList(this.#certs));
+			object.set(4, CborData.encodeDefList(this.#certs));
 		}
 
 		if (this.#withdrawals.size != 0) {
@@ -23502,71 +23646,71 @@ class TxBody extends CBORData {
 		}
 
 		if (this.#firstValidSlot !== null) {
-			object.set(8, CBORData.encodeInteger(this.#firstValidSlot));
+			object.set(8, CborData.encodeInteger(this.#firstValidSlot));
 		}
 
 		if (!this.#minted.isZero()) {
-			object.set(9, this.#minted.toCBOR());
+			object.set(9, this.#minted.toCbor());
 		}
 
 		if (this.#scriptDataHash !== null) {
-			object.set(11, this.#scriptDataHash.toCBOR());
+			object.set(11, this.#scriptDataHash.toCbor());
 		}
 
 		if (this.#collateral.length != 0) {
-			object.set(13, CBORData.encodeDefList(this.#collateral));
+			object.set(13, CborData.encodeDefList(this.#collateral));
 		}
 
 		if (this.#requiredSigners.length != 0) {
-			object.set(14, CBORData.encodeDefList(this.#requiredSigners));
+			object.set(14, CborData.encodeDefList(this.#requiredSigners));
 		}
 
 		// what is NetworkId used for?
-		//object.set(15, CBORData.encodeInteger(2n));
+		//object.set(15, CborData.encodeInteger(2n));
 
 		if (this.#collateralReturn !== null) {
-			object.set(16, this.#collateralReturn.toCBOR());
+			object.set(16, this.#collateralReturn.toCbor());
 		}
 
 		if (this.#totalCollateral > 0n) {
-			object.set(17, CBORData.encodeInteger(this.#totalCollateral));
+			object.set(17, CborData.encodeInteger(this.#totalCollateral));
 		}
 
 		if (this.#refInputs.length != 0) {
-			object.set(18, CBORData.encodeDefList(this.#refInputs));
+			object.set(18, CborData.encodeDefList(this.#refInputs));
 		}
 
-		return CBORData.encodeObject(object);
+		return CborData.encodeObject(object);
 	}
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {TxBody}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		let txBody = new TxBody();
 
-		let done = CBORData.decodeObject(bytes, (i, fieldBytes) => {
+		let done = CborData.decodeObject(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					CBORData.decodeList(fieldBytes, itemBytes => {
-						txBody.#inputs.push(TxInput.fromCBOR(itemBytes));
+					CborData.decodeList(fieldBytes, itemBytes => {
+						txBody.#inputs.push(TxInput.fromCbor(itemBytes));
 					});
 					break;
 				case 1:
-					CBORData.decodeList(fieldBytes, itemBytes => {
-						txBody.#outputs.push(TxOutput.fromCBOR(itemBytes));
+					CborData.decodeList(fieldBytes, itemBytes => {
+						txBody.#outputs.push(TxOutput.fromCbor(itemBytes));
 					})
 					break;
 				case 2:
-					txBody.#fee = CBORData.decodeInteger(fieldBytes);
+					txBody.#fee = CborData.decodeInteger(fieldBytes);
 					break;
 				case 3:
-					txBody.#lastValidSlot = CBORData.decodeInteger(fieldBytes);
+					txBody.#lastValidSlot = CborData.decodeInteger(fieldBytes);
 					break;
 				case 4:
-					CBORData.decodeList(fieldBytes, itemBytes => {
-						txBody.#certs.push(DCert.fromCBOR(itemBytes));
+					CborData.decodeList(fieldBytes, itemBytes => {
+						txBody.#certs.push(DCert.fromCbor(itemBytes));
 					});
 					break;
 				case 5:
@@ -23576,40 +23720,40 @@ class TxBody extends CBORData {
 				case 7:
 					throw new Error("not yet implemented");
 				case 8:
-					txBody.#firstValidSlot = CBORData.decodeInteger(fieldBytes);
+					txBody.#firstValidSlot = CborData.decodeInteger(fieldBytes);
 					break;
 				case 9:
-					txBody.#minted = Assets.fromCBOR(fieldBytes);
+					txBody.#minted = Assets.fromCbor(fieldBytes);
 					break;
 				case 10:
 					throw new Error("unhandled field");
 				case 11:
-					txBody.#scriptDataHash = Hash.fromCBOR(fieldBytes);
+					txBody.#scriptDataHash = Hash.fromCbor(fieldBytes);
 					break;
 				case 12:
 					throw new Error("unhandled field");
 				case 13:
-					CBORData.decodeList(fieldBytes, itemBytes => {
-						txBody.#collateral.push(TxInput.fromCBOR(itemBytes));
+					CborData.decodeList(fieldBytes, itemBytes => {
+						txBody.#collateral.push(TxInput.fromCbor(itemBytes));
 					});
 					break;
 				case 14:
-					CBORData.decodeList(fieldBytes, itemBytes => {
-						txBody.#requiredSigners.push(PubKeyHash.fromCBOR(itemBytes));
+					CborData.decodeList(fieldBytes, itemBytes => {
+						txBody.#requiredSigners.push(PubKeyHash.fromCbor(itemBytes));
 					});
 					break;
 				case 15:
-					assert(CBORData.decodeInteger(fieldBytes) == 2n);
+					assert(CborData.decodeInteger(fieldBytes) == 2n);
 					break;
 				case 16:
-					txBody.#collateralReturn = TxOutput.fromCBOR(fieldBytes);
+					txBody.#collateralReturn = TxOutput.fromCbor(fieldBytes);
 					break;
 				case 17:
-					txBody.#totalCollateral = CBORData.decodeInteger(fieldBytes);
+					txBody.#totalCollateral = CborData.decodeInteger(fieldBytes);
 					break;
 				case 18:
-					CBORData.decodeList(fieldBytes, itemBytes => {
-						txBody.#refInputs.push(TxInput.fromCBOR(fieldBytes));
+					CborData.decodeList(fieldBytes, itemBytes => {
+						txBody.#refInputs.push(TxInput.fromCbor(fieldBytes));
 					});
 					break;
 				default:
@@ -23680,7 +23824,7 @@ class TxBody extends CBORData {
 			new ListData(this.#requiredSigners.map(rs => new ByteArrayData(rs.bytes))),
 			new MapData(redeemers.map(r => [r.toScriptPurposeData(this), r.data])),
 			new MapData(datums.list.map(d => [
-				new ByteArrayData(Crypto.blake2b(d.toCBOR())), 
+				new ByteArrayData(Crypto.blake2b(d.toCbor())), 
 				d
 			])),
 			new ConstrData(0, [new ByteArrayData(txId.bytes)]),
@@ -23692,7 +23836,7 @@ class TxBody extends CBORData {
 	 * @param {Redeemer[]} redeemers
 	 * @param {ListData} datums
 	 * @param {number} redeemerIdx
-	 * @returns {UPLCData}
+	 * @returns {UplcData}
 	 */
 	toScriptContextData(networkParams, redeemers, datums, redeemerIdx) {		
 		return new ConstrData(0, [
@@ -23909,7 +24053,7 @@ class TxBody extends CBORData {
 	}
 }
 
-export class TxWitnesses extends CBORData {
+export class TxWitnesses extends CborData {
 	/** @type {Signature[]} */
 	#signatures;
 
@@ -23919,7 +24063,7 @@ export class TxWitnesses extends CBORData {
 	/** @type {Redeemer[]} */
 	#redeemers;
 
-	/** @type {UPLCProgram[]} */
+	/** @type {UplcProgram[]} */
 	#scripts;
 
 	constructor() {
@@ -23938,7 +24082,7 @@ export class TxWitnesses extends CBORData {
 	}
 
 	/**
-	 * @type {UPLCProgram[]}
+	 * @type {UplcProgram[]}
 	 */
 	get scripts() {
 		return this.#scripts.slice();
@@ -23947,48 +24091,48 @@ export class TxWitnesses extends CBORData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
+	toCbor() {
 		/**
 		 * @type {Map<number, number[]>}
 		 */
  		let object = new Map();
 
 		if (this.#signatures.length != 0) {
-			object.set(0, CBORData.encodeDefList(this.#signatures));
+			object.set(0, CborData.encodeDefList(this.#signatures));
 		}
 
 		if (this.#datums.list.length != 0) {
-			object.set(4, this.#datums.toCBOR());
+			object.set(4, this.#datums.toCbor());
 		}
 
 		if (this.#redeemers.length != 0) {
-			object.set(5, CBORData.encodeDefList(this.#redeemers));
+			object.set(5, CborData.encodeDefList(this.#redeemers));
 		}
 
 		if (this.#scripts.length != 0) {
 			/**
 			 * @type {number[][]}
 			 */
-			let scriptBytes = this.#scripts.map(s => CBORData.encodeBytes(wrapCBORBytes(s.serializeBytes())));
+			let scriptBytes = this.#scripts.map(s => CborData.encodeBytes(wrapCborBytes(s.serializeBytes())));
 
-			object.set(6, CBORData.encodeDefList(scriptBytes));
+			object.set(6, CborData.encodeDefList(scriptBytes));
 		}
 
-		return CBORData.encodeObject(object);
+		return CborData.encodeObject(object);
 	}
 
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {TxWitnesses}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		let txWitnesses = new TxWitnesses();
 
-		CBORData.decodeObject(bytes, (i, fieldBytes) => {
+		CborData.decodeObject(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					CBORData.decodeList(fieldBytes, itemBytes => {
-						txWitnesses.#signatures.push(Signature.fromCBOR(itemBytes));
+					CborData.decodeList(fieldBytes, itemBytes => {
+						txWitnesses.#signatures.push(Signature.fromCbor(itemBytes));
 					});
 					break;
 				case 1:
@@ -23996,17 +24140,17 @@ export class TxWitnesses extends CBORData {
 				case 3:
 					throw new Error("unhandled field");
 				case 4:
-					txWitnesses.#datums = ListData.fromCBOR(fieldBytes);
+					txWitnesses.#datums = ListData.fromCbor(fieldBytes);
 					break;
 				case 5:
-					CBORData.decodeList(fieldBytes, itemBytes => {
-						txWitnesses.#redeemers.push(Redeemer.fromCBOR(itemBytes));
+					CborData.decodeList(fieldBytes, itemBytes => {
+						txWitnesses.#redeemers.push(Redeemer.fromCbor(itemBytes));
 					});
 					break;
 				case 6:
-					CBORData.decodeList(fieldBytes, itemBytes => {
-						txWitnesses.#scripts.push(deserializeUPLCBytes(unwrapCBORBytes(CBORData.decodeBytes(itemBytes))));
-						//console.log(bytesToHex(CBORData.decodeBytes(itemBytes)));
+					CborData.decodeList(fieldBytes, itemBytes => {
+						txWitnesses.#scripts.push(deserializeUplcBytes(unwrapCborBytes(CborData.decodeBytes(itemBytes))));
+						//console.log(bytesToHex(CborData.decodeBytes(itemBytes)));
 					});
 					break;
 				default:
@@ -24035,7 +24179,7 @@ export class TxWitnesses extends CBORData {
 			signatures: this.#signatures.map(pkw => pkw.dump()),
 			datums: this.#datums.list.map(datum => datum.toString()),
 			redeemers: this.#redeemers.map(redeemer => redeemer.dump()),
-			scripts: this.#scripts.map(script => bytesToHex(wrapCBORBytes(script.serializeBytes()))),
+			scripts: this.#scripts.map(script => bytesToHex(wrapCborBytes(script.serializeBytes()))),
 		};
 	}
 
@@ -24075,7 +24219,7 @@ export class TxWitnesses extends CBORData {
 
 	/**
 	 * @param {number} index 
-	 * @param {UPLCData} redeemerData 
+	 * @param {UplcData} redeemerData 
 	 */
 	addSpendingRedeemer(index, redeemerData) {
 		this.#redeemers.push(new SpendingRedeemer(index, redeemerData));
@@ -24083,19 +24227,19 @@ export class TxWitnesses extends CBORData {
 
 	/**
 	 * @param {number} index
-	 * @param {UPLCData} redeemerData
+	 * @param {UplcData} redeemerData
 	 */
 	addMintingRedeemer(index, redeemerData) {
 		this.#redeemers.push(new MintingRedeemer(index, redeemerData));
 	}
 
 	/**
-	 * @param {UPLCData} data 
+	 * @param {UplcData} data 
 	 */
 	addDatumData(data) {
 		// check that it hasn't already been included
 		for (let prev of this.#datums.list) {
-			if (eq(prev.toCBOR(), data.toCBOR())) {
+			if (eq(prev.toCbor(), data.toCbor())) {
 				return;
 			}
 		}
@@ -24107,7 +24251,7 @@ export class TxWitnesses extends CBORData {
 	}
 
 	/**
-	 * @param {UPLCProgram} program 
+	 * @param {UplcProgram} program 
 	 */
 	addScript(program) {
 		this.#scripts.push(program);
@@ -24115,7 +24259,7 @@ export class TxWitnesses extends CBORData {
 
 	/**
 	 * @param {Hash} scriptHash - can be ValidatorHash or MintingPolicyHash
-	 * @returns {UPLCProgram}
+	 * @returns {UplcProgram}
 	 */
 	getScript(scriptHash) {
 		return assertDefined(this.#scripts.find(s => eq(s.hash(), scriptHash.bytes)));
@@ -24127,18 +24271,18 @@ export class TxWitnesses extends CBORData {
 	 */
 	calcScriptDataHash(networkParams) {
 		if (this.#redeemers.length > 0) {
-			let bytes = CBORData.encodeDefList(this.#redeemers);
+			let bytes = CborData.encodeDefList(this.#redeemers);
 
 			if (this.#datums.list.length > 0) {
-				bytes = bytes.concat(this.#datums.toCBOR());
+				bytes = bytes.concat(this.#datums.toCbor());
 			}
 
 			// language view encodings?
 			let sortedCostParams = networkParams.sortedCostParams;
 
-			bytes = bytes.concat(CBORData.encodeMap([[
-				CBORData.encodeInteger(1n), 
-				CBORData.encodeDefList(sortedCostParams.map(cp => CBORData.encodeInteger(BigInt(cp)))),
+			bytes = bytes.concat(CborData.encodeMap([[
+				CborData.encodeInteger(1n), 
+				CborData.encodeDefList(sortedCostParams.map(cp => CborData.encodeInteger(BigInt(cp)))),
 			]]));
 
 			return new Hash(Crypto.blake2b(bytes));
@@ -24177,9 +24321,9 @@ export class TxWitnesses extends CBORData {
 						let script = this.getScript(validatorHash);
 
 						let profile = await script.profile([
-							new UPLCDataValue(Site.dummy(), datumData), 
-							new UPLCDataValue(Site.dummy(), redeemer.data), 
-							new UPLCDataValue(Site.dummy(), scriptContext),
+							new UplcDataValue(Site.dummy(), datumData), 
+							new UplcDataValue(Site.dummy(), redeemer.data), 
+							new UplcDataValue(Site.dummy(), scriptContext),
 						], networkParams);
 
 						redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
@@ -24191,8 +24335,8 @@ export class TxWitnesses extends CBORData {
 				let script = this.getScript(mph);
 
 				let profile = await script.profile([
-					new UPLCDataValue(Site.dummy(), redeemer.data),
-					new UPLCDataValue(Site.dummy(), scriptContext),
+					new UplcDataValue(Site.dummy(), redeemer.data),
+					new UplcDataValue(Site.dummy(), scriptContext),
 				], networkParams);
 
 				redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
@@ -24227,7 +24371,7 @@ export class TxWitnesses extends CBORData {
 	}
 }
 
-export class TxInput extends CBORData {
+export class TxInput extends CborData {
 	/** @type {Hash} */
 	#txId;
 
@@ -24311,10 +24455,10 @@ export class TxInput extends CBORData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return CBORData.encodeTuple([
-			this.#txId.toCBOR(),
-			CBORData.encodeInteger(this.#utxoIdx),
+	toCbor() {
+		return CborData.encodeTuple([
+			this.#txId.toCbor(),
+			CborData.encodeInteger(this.#utxoIdx),
 		]);
 	}
 
@@ -24322,20 +24466,20 @@ export class TxInput extends CBORData {
 	 * @param {number[]} bytes 
 	 * @returns {TxInput}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		/** @type {?Hash} */
 		let txId = null;
 
 		/** @type {?bigint} */
 		let utxoIdx = null;
 
-		CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+		CborData.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					txId = Hash.fromCBOR(fieldBytes);
+					txId = Hash.fromCbor(fieldBytes);
 					break;
 				case 1:
-					utxoIdx = CBORData.decodeInteger(fieldBytes);
+					utxoIdx = CborData.decodeInteger(fieldBytes);
 					break;
 				default:
 					throw new Error("unrecognized field");
@@ -24379,20 +24523,20 @@ export class UTxO extends TxInput {
 	 * @param {number[]} bytes
 	 * @returns {TxInput}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		/** @type {?TxInput} */
 		let txInput = null;
 
 		/** @type {?TxOutput} */
 		let origOutput = null;
 
-		CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+		CborData.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					txInput = TxInput.fromCBOR(fieldBytes);
+					txInput = TxInput.fromCbor(fieldBytes);
 					break;
 				case 1:
-					origOutput = TxOutput.fromCBOR(fieldBytes);
+					origOutput = TxOutput.fromCbor(fieldBytes);
 					break;
 				default:
 					throw new Error("unrecognized field");
@@ -24407,7 +24551,7 @@ export class UTxO extends TxInput {
 	}
 }
 
-export class TxOutput extends CBORData {
+export class TxOutput extends CborData {
 	/** @type {Address} */
 	#address;
 
@@ -24471,7 +24615,7 @@ export class TxOutput extends CBORData {
 	}
 
 	/**
-	 * @returns {UPLCData}
+	 * @returns {UplcData}
 	 */
 	getDatumData() {
 		if (this.#datum === null) {
@@ -24484,31 +24628,31 @@ export class TxOutput extends CBORData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
+	toCbor() {
 		if (this.#datum === null && this.#refScript === null) {
 			// this is needed to match eternl wallet (de)serialization (annoyingly eternl deserializes the tx and then signs its own serialization)
 			// hopefully cardano-cli signs whatever serialization we choose (so we use the eternl variant in order to be compatible with both)
 
-			return CBORData.encodeTuple([
-				this.#address.toCBOR(),
-				this.#value.toCBOR()
+			return CborData.encodeTuple([
+				this.#address.toCbor(),
+				this.#value.toCbor()
 			]);
 		} else {
 			/** @type {Map<number, number[]>} */
 			let object = new Map();
 
-			object.set(0, this.#address.toCBOR());
-			object.set(1, this.#value.toCBOR());
+			object.set(0, this.#address.toCbor());
+			object.set(1, this.#value.toCbor());
 
 			if (this.#datum !== null) {
-				object.set(2, this.#datum.toCBOR());
+				object.set(2, this.#datum.toCbor());
 			}
 
 			if (this.#refScript !== null) {
-				object.set(3, CBORData.encodeBytes(this.#refScript));
+				object.set(3, CborData.encodeBytes(this.#refScript));
 			}
 
-			return CBORData.encodeObject(object);
+			return CborData.encodeObject(object);
 		}
 	}
 
@@ -24516,7 +24660,7 @@ export class TxOutput extends CBORData {
 	 * @param {number[]} bytes 
 	 * @returns {TxOutput}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		/** @type {?Address} */
 		let address = null;
 
@@ -24529,34 +24673,34 @@ export class TxOutput extends CBORData {
 		/** @type {?number[]} */
 		let refScript = null;
 
-		if (CBORData.isObject(bytes)) {
-			CBORData.decodeObject(bytes, (i, fieldBytes) => {
+		if (CborData.isObject(bytes)) {
+			CborData.decodeObject(bytes, (i, fieldBytes) => {
 				switch(i) { 
 					case 0:
-						address = Address.fromCBOR(fieldBytes);
+						address = Address.fromCbor(fieldBytes);
 						break;
 					case 1:
-						value = Value.fromCBOR(fieldBytes);
+						value = Value.fromCbor(fieldBytes);
 						break;
 					case 2:
-						outputDatum = Datum.fromCBOR(fieldBytes);
+						outputDatum = Datum.fromCbor(fieldBytes);
 						break;
 					case 3:
-						refScript = CBORData.decodeBytes(fieldBytes);
+						refScript = CborData.decodeBytes(fieldBytes);
 						break;
 					default:
 						throw new Error("unreconginzed field");
 				}
 			});
-		} else if (CBORData.isTuple(bytes)) {
+		} else if (CborData.isTuple(bytes)) {
 			// this is the pre-vasil format, which is still sometimes returned by wallet connector functions
-			CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+			CborData.decodeTuple(bytes, (i, fieldBytes) => {
 				switch(i) { 
 					case 0:
-						address = Address.fromCBOR(fieldBytes);
+						address = Address.fromCbor(fieldBytes);
 						break;
 					case 1:
-						value = Value.fromCBOR(fieldBytes);
+						value = Value.fromCbor(fieldBytes);
 						break;
 					default:
 						throw new Error("unrecognized field");
@@ -24609,7 +24753,7 @@ export class TxOutput extends CBORData {
 	calcMinLovelace(networkParams) {
 		let lovelacePerByte = networkParams.lovelacePerUTXOByte;
 
-		let correctedSize = this.toCBOR().length + 160; // 160 accounts for some database overhead?
+		let correctedSize = this.toCbor().length + 160; // 160 accounts for some database overhead?
 
 		return BigInt(correctedSize)*BigInt(lovelacePerByte);
 	}
@@ -24634,7 +24778,7 @@ export class TxOutput extends CBORData {
 }
 
 // TODO: enum members
-class DCert extends CBORData {
+class DCert extends CborData {
 	constructor() {
 		super();
 	}
@@ -24643,7 +24787,7 @@ class DCert extends CBORData {
 	 * @param {number[]} bytes 
 	 * @returns {DCert}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		throw new Error("not yet implemented");
 	}
 
@@ -24658,7 +24802,7 @@ class DCert extends CBORData {
 /**
  * See CIP19 for formatting of first byte
  */
-export class Address extends CBORData {
+export class Address extends CborData {
 	/** @type {number[]} */
 	#bytes;
 
@@ -24670,16 +24814,16 @@ export class Address extends CBORData {
 		this.#bytes = bytes;
 	}
 
-	toCBOR() {
-		return CBORData.encodeBytes(this.#bytes);
+	toCbor() {
+		return CborData.encodeBytes(this.#bytes);
 	}
 
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {Address}
 	 */
-	static fromCBOR(bytes) {
-		return new Address(CBORData.decodeBytes(bytes));
+	static fromCbor(bytes) {
+		return new Address(CborData.decodeBytes(bytes));
 	}
 
 	/**
@@ -24836,7 +24980,7 @@ export class Address extends CBORData {
 	}
 }
 
-export class Assets extends CBORData {
+export class Assets extends CborData {
 	/** @type {[MintingPolicyHash, [number[], bigint][]][]} */
 	#assets;
 
@@ -25098,14 +25242,14 @@ export class Assets extends CBORData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return CBORData.encodeMap(
+	toCbor() {
+		return CborData.encodeMap(
 			this.#assets.map(
 				outerPair => {
-					return [outerPair[0].toCBOR(), CBORData.encodeMap(outerPair[1].map(
+					return [outerPair[0].toCbor(), CborData.encodeMap(outerPair[1].map(
 						innerPair => {
 							return [
-								CBORData.encodeBytes(innerPair[0]), CBORData.encodeInteger(innerPair[1])
+								CborData.encodeBytes(innerPair[0]), CborData.encodeInteger(innerPair[1])
 							]
 						}
 					))]
@@ -25118,21 +25262,21 @@ export class Assets extends CBORData {
 	 * @param {number[]} bytes
 	 * @returns {Assets}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		let ms = new Assets();
 
-		CBORData.decodeMap(bytes, pairBytes => {
-			let mph = Hash.fromCBOR(pairBytes);
+		CborData.decodeMap(bytes, pairBytes => {
+			let mph = Hash.fromCbor(pairBytes);
 
 			/**
 			 * @type {[number[], bigint][]}
 			 */
 			let innerMap = [];
 			
-			CBORData.decodeMap(pairBytes, innerPairBytes => {
+			CborData.decodeMap(pairBytes, innerPairBytes => {
 				innerMap.push([
-					CBORData.decodeBytes(innerPairBytes),
-					CBORData.decodeInteger(innerPairBytes),
+					CborData.decodeBytes(innerPairBytes),
+					CborData.decodeInteger(innerPairBytes),
 				]);
 			});
 
@@ -25166,11 +25310,11 @@ export class Assets extends CBORData {
 	 * @returns {MapData}
 	 */
 	toData() {
-		/** @type {[UPLCData, UPLCData][]} */
+		/** @type {[UplcData, UplcData][]} */
 		let pairs = [];
 
 		for (let asset of this.#assets) {
-			/** @type {[UPLCData, UPLCData][]} */
+			/** @type {[UplcData, UplcData][]} */
 			let innerPairs = [];
 
 			for (let token of asset[1]) {
@@ -25190,7 +25334,7 @@ export class Assets extends CBORData {
 	}
 }
 
-export class Value extends CBORData {
+export class Value extends CborData {
 	/** @type {bigint} */
 	#lovelace;
 
@@ -25247,13 +25391,13 @@ export class Value extends CBORData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
+	toCbor() {
 		if (this.#assets.isZero()) {
-			return CBORData.encodeInteger(this.#lovelace);
+			return CborData.encodeInteger(this.#lovelace);
 		} else {
-			return CBORData.encodeTuple([
-				CBORData.encodeInteger(this.#lovelace),
-				this.#assets.toCBOR()
+			return CborData.encodeTuple([
+				CborData.encodeInteger(this.#lovelace),
+				this.#assets.toCbor()
 			]);
 		}
 	}
@@ -25262,24 +25406,24 @@ export class Value extends CBORData {
 	 * @param {number[]} bytes 
 	 * @returns {Value}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		let mv = new Value();
 
-		if (CBORData.isTuple(bytes)) {
-			CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+		if (CborData.isTuple(bytes)) {
+			CborData.decodeTuple(bytes, (i, fieldBytes) => {
 				switch(i) {
 					case 0:
-						mv.#lovelace = CBORData.decodeInteger(fieldBytes);
+						mv.#lovelace = CborData.decodeInteger(fieldBytes);
 						break;
 					case 1:
-						mv.#assets = Assets.fromCBOR(fieldBytes);
+						mv.#assets = Assets.fromCbor(fieldBytes);
 						break;
 					default:
 						throw new Error("unrecognized field");
 				}
 			});
 		} else {
-			mv.#lovelace = CBORData.decodeInteger(bytes);
+			mv.#lovelace = CborData.decodeInteger(bytes);
 		}
 
 		return mv;
@@ -25375,7 +25519,7 @@ export class Value extends CBORData {
 /**
  * TODO: make a distinction between different kinds of hashes
  */
-export class Hash extends CBORData {
+export class Hash extends CborData {
 	/** @type {number[]} */
 	#bytes;
 
@@ -25404,8 +25548,8 @@ export class Hash extends CBORData {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return CBORData.encodeBytes(this.#bytes);
+	toCbor() {
+		return CborData.encodeBytes(this.#bytes);
 	}
 
 	/**
@@ -25413,8 +25557,8 @@ export class Hash extends CBORData {
 	 * @param {number[]} bytes 
 	 * @returns {Hash}
 	 */
-	static fromCBOR(bytes) {
-		return new Hash(CBORData.decodeBytes(bytes));
+	static fromCbor(bytes) {
+		return new Hash(CborData.decodeBytes(bytes));
 	}
 
 	/**
@@ -25463,8 +25607,8 @@ export class PubKeyHash extends Hash {
 	 * @param {number[]} bytes 
 	 * @returns {PubKeyHash}
 	 */
-	 static fromCBOR(bytes) {
-		return new PubKeyHash(CBORData.decodeBytes(bytes));
+	 static fromCbor(bytes) {
+		return new PubKeyHash(CborData.decodeBytes(bytes));
 	}
 
 	/**
@@ -25489,8 +25633,8 @@ export class ValidatorHash extends Hash {
 	 * @param {number[]} bytes 
 	 * @returns {ValidatorHash}
 	 */
-	 static fromCBOR(bytes) {
-		return new ValidatorHash(CBORData.decodeBytes(bytes));
+	 static fromCbor(bytes) {
+		return new ValidatorHash(CborData.decodeBytes(bytes));
 	}
 
 	/**
@@ -25515,8 +25659,8 @@ export class MintingPolicyHash extends Hash {
 	 * @param {number[]} bytes 
 	 * @returns {MintingPolicyHash}
 	 */
-	 static fromCBOR(bytes) {
-		return new MintingPolicyHash(CBORData.decodeBytes(bytes));
+	 static fromCbor(bytes) {
+		return new MintingPolicyHash(CborData.decodeBytes(bytes));
 	}
 
 	/**
@@ -25528,7 +25672,7 @@ export class MintingPolicyHash extends Hash {
 	}
 }
 
-class Signature extends CBORData {
+class Signature extends CborData {
 	/** @type {number[]} */
 	#pubKey;
 
@@ -25559,10 +25703,10 @@ class Signature extends CBORData {
 		return this.#pubKey.every(b => b == 0) && this.#signature.every(b => b == 0);
 	}
 
-	toCBOR() {
-		return CBORData.encodeTuple([
-			CBORData.encodeBytes(this.#pubKey),
-			CBORData.encodeBytes(this.#signature),
+	toCbor() {
+		return CborData.encodeTuple([
+			CborData.encodeBytes(this.#pubKey),
+			CborData.encodeBytes(this.#signature),
 		]);
 	}
 
@@ -25570,20 +25714,20 @@ class Signature extends CBORData {
 	 * @param {number[]} bytes 
 	 * @returns {Signature}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		/** @type {?number[]} */
 		let pubKey = null;
 
 		/** @type {?number[]} */
 		let signature = null;
 
-		let n = CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					pubKey = CBORData.decodeBytes(fieldBytes);
+					pubKey = CborData.decodeBytes(fieldBytes);
 					break;
 				case 1:
-					signature = CBORData.decodeBytes(fieldBytes);
+					signature = CborData.decodeBytes(fieldBytes);
 					break;
 				default:
 					throw new Error("unrecognized field");
@@ -25629,15 +25773,15 @@ class Signature extends CBORData {
 	}
 }
 
-class Redeemer extends CBORData {
-	/** @type {UPLCData} */
+class Redeemer extends CborData {
+	/** @type {UplcData} */
 	#data;
 
 	/** @type {Cost} */
 	#exUnits;
 
 	/**
-	 * @param {UPLCData} data 
+	 * @param {UplcData} data 
 	 * @param {Cost} exUnits 
 	 */
 	constructor(data, exUnits = {mem: 0n, cpu: 0n}) {
@@ -25647,7 +25791,7 @@ class Redeemer extends CBORData {
 	}
 
 	/**
-	 * @type {UPLCData}
+	 * @type {UplcData}
 	 */
 	get data() {
 		return this.#data;
@@ -25677,14 +25821,14 @@ class Redeemer extends CBORData {
 	 * @param {number} index 
 	 * @returns {number[]}
 	 */
-	toCBORInternal(type, index) {
-		return CBORData.encodeTuple([
-			CBORData.encodeInteger(BigInt(type)),
-			CBORData.encodeInteger(BigInt(index)),
-			this.#data.toCBOR(),
-			CBORData.encodeTuple([
-				CBORData.encodeInteger(this.#exUnits.mem),
-				CBORData.encodeInteger(this.#exUnits.cpu),
+	toCborInternal(type, index) {
+		return CborData.encodeTuple([
+			CborData.encodeInteger(BigInt(type)),
+			CborData.encodeInteger(BigInt(index)),
+			this.#data.toCbor(),
+			CborData.encodeTuple([
+				CborData.encodeInteger(this.#exUnits.mem),
+				CborData.encodeInteger(this.#exUnits.cpu),
 			]),
 		]);
 	}
@@ -25693,29 +25837,29 @@ class Redeemer extends CBORData {
 	 * @param {number[]} bytes 
 	 * @returns {Redeemer}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		/** @type {?number} */
 		let type = null;
 
 		/** @type {?number} */
 		let index = null;
 
-		/** @type {?UPLCData} */
+		/** @type {?UplcData} */
 		let data = null;
 
 		/** @type {?Cost} */
 		let cost = null;
 
-		let n = CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					type = Number(CBORData.decodeInteger(fieldBytes));
+					type = Number(CborData.decodeInteger(fieldBytes));
 					break;
 				case 1:
-					index = Number(CBORData.decodeInteger(fieldBytes));
+					index = Number(CborData.decodeInteger(fieldBytes));
 					break;
 				case 2:
-					data = UPLCData.fromCBOR(fieldBytes);
+					data = UplcData.fromCbor(fieldBytes);
 					break;
 				case 3: 
 					/** @type {?bigint} */
@@ -25724,13 +25868,13 @@ class Redeemer extends CBORData {
 					/** @type {?bigint} */
 					let cpu = null;
 
-					let m = CBORData.decodeTuple(fieldBytes, (j, subFieldBytes) => {
+					let m = CborData.decodeTuple(fieldBytes, (j, subFieldBytes) => {
 						switch (j) {
 							case 0:
-								mem = CBORData.decodeInteger(subFieldBytes);
+								mem = CborData.decodeInteger(subFieldBytes);
 								break;
 							case 1:
-								cpu = CBORData.decodeInteger(subFieldBytes);
+								cpu = CborData.decodeInteger(subFieldBytes);
 								break;
 							default:
 								throw new Error("unrecognized field");
@@ -25820,7 +25964,7 @@ class SpendingRedeemer extends Redeemer {
 
 	/**
 	 * @param {number} inputIndex 
-	 * @param {UPLCData} data 
+	 * @param {UplcData} data 
 	 * @param {Cost} exUnits 
 	 */
 	constructor(inputIndex, data, exUnits = {mem: 0n, cpu: 0n}) {
@@ -25839,8 +25983,8 @@ class SpendingRedeemer extends Redeemer {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return this.toCBORInternal(0, this.#inputIndex);
+	toCbor() {
+		return this.toCborInternal(0, this.#inputIndex);
 	}
 
 	/**
@@ -25872,7 +26016,7 @@ class MintingRedeemer extends Redeemer {
 
 	/**
 	 * @param {number} mphIndex
-	 * @param {UPLCData} data
+	 * @param {UplcData} data
 	 * @param {Cost} exUnits
 	 */
 	constructor(mphIndex, data, exUnits = {mem: 0n, cpu: 0n}) {
@@ -25891,8 +26035,8 @@ class MintingRedeemer extends Redeemer {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return this.toCBORInternal(1, this.#mphIndex);
+	toCbor() {
+		return this.toCborInternal(1, this.#mphIndex);
 	}
 
 	/** 
@@ -25926,7 +26070,7 @@ class MintingRedeemer extends Redeemer {
  * Inside helios this type is named OutputDatum in order to distinguish it from the user defined Datum,
  * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
  */
-export class Datum extends CBORData {
+export class Datum extends CborData {
 	constructor() {
 		super();
 	}
@@ -25935,26 +26079,26 @@ export class Datum extends CBORData {
 	 * @param {number[]} bytes 
 	 * @returns {Datum}
 	 */
-	static fromCBOR(bytes) {
+	static fromCbor(bytes) {
 		/** @type {?number} */
 		let type = null;
 
 		/** @type {?Datum} */
 		let res = null;
 
-		let n = CBORData.decodeTuple(bytes, (i, fieldBytes) => {
+		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					type = Number(CBORData.decodeInteger(fieldBytes));
+					type = Number(CborData.decodeInteger(fieldBytes));
 					break;
 				case 1:
 					if (type == 0) {
-						res = new HashedDatum(Hash.fromCBOR(fieldBytes));
+						res = new HashedDatum(Hash.fromCbor(fieldBytes));
 					} else if (type == 1) {
-						assert(CBORData.decodeTag(fieldBytes) == 24n);
+						assert(CborData.decodeTag(fieldBytes) == 24n);
 
-						let dataBytes = CBORData.decodeBytes(fieldBytes);
-						let data = UPLCData.fromCBOR(dataBytes);
+						let dataBytes = CborData.decodeBytes(fieldBytes);
+						let data = UplcData.fromCbor(dataBytes);
 
 						res = new InlineDatum(data);
 					}
@@ -25974,19 +26118,19 @@ export class Datum extends CBORData {
 	}
 
 	/**
-	 * @param {UPLCDataValue | UPLCData} data
+	 * @param {UplcDataValue | UplcData} data
 	 * @returns {HashedDatum}
 	 */
 	static hashed(data) {
-		return HashedDatum.fromData(UPLCDataValue.unwrap(data));
+		return HashedDatum.fromData(UplcDataValue.unwrap(data));
 	}
 
 	/**
-	 * @param {UPLCDataValue | UPLCData} data
+	 * @param {UplcDataValue | UplcData} data
 	 * @returns {InlineDatum}
 	 */
 	static inline(data) {
-		return new InlineDatum(UPLCDataValue.unwrap(data))
+		return new InlineDatum(UplcDataValue.unwrap(data))
 	}
 
 	/**
@@ -26012,12 +26156,12 @@ export class HashedDatum extends Datum {
 	/** @type {Hash} */
 	#hash;
 
-	/** @type {?UPLCData} */
+	/** @type {?UplcData} */
 	#origData;
 
 	/**
 	 * @param {Hash} hash 
-	 * @param {?UPLCData} origData
+	 * @param {?UplcData} origData
 	 */
 	constructor(hash, origData = null) {
 		super();
@@ -26025,12 +26169,12 @@ export class HashedDatum extends Datum {
 		this.#origData = origData;
 
 		if (this.#origData !== null) {
-			assert(eq(this.#hash.bytes, Crypto.blake2b(this.#origData.toCBOR())));
+			assert(eq(this.#hash.bytes, Crypto.blake2b(this.#origData.toCbor())));
 		}
 	}
 
 	/**
-	 * @type {?UPLCData}
+	 * @type {?UplcData}
 	 */
 	get data() {
 		return this.#origData;
@@ -26046,19 +26190,19 @@ export class HashedDatum extends Datum {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return CBORData.encodeTuple([
-			CBORData.encodeInteger(0n),
-			this.#hash.toCBOR(),
+	toCbor() {
+		return CborData.encodeTuple([
+			CborData.encodeInteger(0n),
+			this.#hash.toCbor(),
 		]);
 	}
 
 	/**
-	 * @param {UPLCData} data 
+	 * @param {UplcData} data 
 	 * @returns {HashedDatum}
 	 */
 	static fromData(data) {
-		return new HashedDatum(new Hash(Crypto.blake2b(data.toCBOR())), data);
+		return new HashedDatum(new Hash(Crypto.blake2b(data.toCbor())), data);
 	}
 
 	/**
@@ -26067,7 +26211,7 @@ export class HashedDatum extends Datum {
 	dump() {
 		return {
 			hash: this.#hash.dump(),
-			cbor: this.#origData === null ? null : bytesToHex(this.#origData.toCBOR()),
+			cbor: this.#origData === null ? null : bytesToHex(this.#origData.toCbor()),
 			schema: this.#origData === null ? null : JSON.parse(this.#origData.toSchemaJSON())
 		};
 	}
@@ -26078,11 +26222,11 @@ export class HashedDatum extends Datum {
  * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
  */
 export class InlineDatum extends Datum {
-	/** @type {UPLCData} */
+	/** @type {UplcData} */
 	#data;
 
 	/**
-	 * @param {UPLCData} data
+	 * @param {UplcData} data
 	 */
 	constructor(data) {
 		super();
@@ -26099,10 +26243,10 @@ export class InlineDatum extends Datum {
 	/**
 	 * @returns {number[]}
 	 */
-	toCBOR() {
-		return CBORData.encodeTuple([
-			CBORData.encodeInteger(1n),
-			CBORData.encodeTag(24n).concat(CBORData.encodeBytes(this.#data.toCBOR()))
+	toCbor() {
+		return CborData.encodeTuple([
+			CborData.encodeInteger(1n),
+			CborData.encodeTag(24n).concat(CborData.encodeBytes(this.#data.toCbor()))
 		]);
 	}
 
@@ -26111,7 +26255,7 @@ export class InlineDatum extends Datum {
 	 */
 	dump() {
 		return {
-			inlineCbor: bytesToHex(this.#data.toCBOR()),
+			inlineCbor: bytesToHex(this.#data.toCbor()),
 			inlineSchema: JSON.parse(this.#data.toSchemaJSON())
 		};
 	}
@@ -26123,11 +26267,11 @@ export class InlineDatum extends Datum {
 ///////////////////////////////////////////////
 
 /**
- * @typedef {() => UPLCValue} ValueGenerator
+ * @typedef {() => UplcValue} ValueGenerator
  */
 
 /**
- * @typedef {(args: UPLCValue[], res: (UPLCValue | UserError)) => (boolean | Object.<string, boolean>)} PropertyTest
+ * @typedef {(args: UplcValue[], res: (UplcValue | UserError)) => (boolean | Object.<string, boolean>)} PropertyTest
  */
 
 /**
@@ -26189,7 +26333,7 @@ export class FuzzyTest {
 		let rand = this.rawInt(min, max);
 
 		return function() {
-			return new UPLCDataValue(Site.dummy(), new IntData(rand()));
+			return new UplcDataValue(Site.dummy(), new IntData(rand()));
 		}
 	}
 
@@ -26213,7 +26357,7 @@ export class FuzzyTest {
 				chars.push(String.fromCodePoint(Math.round(rand()*1112064)));
 			}
 			
-			return new UPLCDataValue(Site.dummy(), ByteArrayData.fromString(chars.join("")));
+			return new UplcDataValue(Site.dummy(), ByteArrayData.fromString(chars.join("")));
 		}
 	}
 
@@ -26237,7 +26381,7 @@ export class FuzzyTest {
 				chars.push(String.fromCharCode(Math.round(rand()*94 + 32)));
 			}
 			
-			return new UPLCDataValue(Site.dummy(), ByteArrayData.fromString(chars.join("")));
+			return new UplcDataValue(Site.dummy(), ByteArrayData.fromString(chars.join("")));
 		}
 	}
 
@@ -26261,7 +26405,7 @@ export class FuzzyTest {
 				bytes.push(Math.floor(rand()*94 + 32));
 			}
 
-			return new UPLCDataValue(Site.dummy(), new ByteArrayData(bytes));
+			return new UplcDataValue(Site.dummy(), new ByteArrayData(bytes));
 		}
 	}
 
@@ -26311,7 +26455,7 @@ export class FuzzyTest {
 		return function() {
 			let bytes = rand();
 
-			return new UPLCDataValue(Site.dummy(), new ByteArrayData(bytes));
+			return new UplcDataValue(Site.dummy(), new ByteArrayData(bytes));
 		}
 	}
 	/**
@@ -26336,7 +26480,7 @@ export class FuzzyTest {
 		let rand = this.rawBool();
 
 		return function() {
-			return new UPLCBool(Site.dummy(), rand());
+			return new UplcBool(Site.dummy(), rand());
 		}
 	}
 
@@ -26353,9 +26497,9 @@ export class FuzzyTest {
 			let x = rand();
 
 			if (x < noneProbability) {
-				return new UPLCDataValue(Site.dummy(), new ConstrData(1, []));
+				return new UplcDataValue(Site.dummy(), new ConstrData(1, []));
 			} else {
-				return new UPLCDataValue(Site.dummy(), new ConstrData(0, [someGenerator().data]));
+				return new UplcDataValue(Site.dummy(), new ConstrData(0, [someGenerator().data]));
 			}
 		}
 	}
@@ -26385,7 +26529,7 @@ export class FuzzyTest {
 			}
 
 			/**
-			 * @type {UPLCData[]}
+			 * @type {UplcData[]}
 			 */
 			let items = [];
 
@@ -26393,7 +26537,7 @@ export class FuzzyTest {
 				items.push(itemGenerator().data);
 			}
 
-			return new UPLCDataValue(Site.dummy(), new ListData(items));
+			return new UplcDataValue(Site.dummy(), new ListData(items));
 		}
 	}
 
@@ -26424,7 +26568,7 @@ export class FuzzyTest {
 			}
 
 			/**
-			 * @type {[UPLCData, UPLCData][]}
+			 * @type {[UplcData, UplcData][]}
 			 */
 			let pairs = [];
 
@@ -26432,7 +26576,7 @@ export class FuzzyTest {
 				pairs.push([keyGenerator().data, valueGenerator().data]);
 			}
 
-			return new UPLCDataValue(Site.dummy(), new MapData(pairs));
+			return new UplcDataValue(Site.dummy(), new MapData(pairs));
 		};
 	}
 
@@ -26445,7 +26589,7 @@ export class FuzzyTest {
 		return function() {
 			let items = itemGenerators.map(g => g().data);
 
-			return new UPLCDataValue(Site.dummy(), new ConstrData(0, items));
+			return new UplcDataValue(Site.dummy(), new ConstrData(0, items));
 		}
 	}
 
@@ -26459,7 +26603,7 @@ export class FuzzyTest {
 		return function() {
 			let fields = fieldGenerators.map(g => g().data);
 
-			return new UPLCDataValue(Site.dummy(), new ConstrData(tag, fields));
+			return new UplcDataValue(Site.dummy(), new ConstrData(tag, fields));
 		}
 	}
 
@@ -26581,30 +26725,30 @@ export const exportedForTesting = {
 	bytesToHex: bytesToHex,
 	stringToBytes: stringToBytes,
 	bytesToString: bytesToString,
-	wrapCBORBytes: wrapCBORBytes,
-	unwrapCBORBytes: unwrapCBORBytes,
+	wrapCborBytes: wrapCborBytes,
+	unwrapCborBytes: unwrapCborBytes,
 	Site: Site,
 	Source: Source,
 	Crypto: Crypto,
 	MapData: MapData,
-	UPLCData: UPLCData,
-	CBORData: CBORData,
+	UplcData: UplcData,
+	CborData: CborData,
 	ConstrData: ConstrData,
 	IntData: IntData,
 	ByteArrayData: ByteArrayData,
 	ListData: ListData,
-	UPLCBool: UPLCBool,
-	UPLCValue: UPLCValue,
-	UPLCDataValue: UPLCDataValue,
+	UplcBool: UplcBool,
+	UplcValue: UplcValue,
+	UplcDataValue: UplcDataValue,
 	ScriptPurpose: ScriptPurpose,
-	UPLCTerm: UPLCTerm,
-	UPLCProgram: UPLCProgram,
-	UPLCLambda: UPLCLambda,
-	UPLCCall: UPLCCall,
-	UPLCBuiltin: UPLCBuiltin,
-	UPLCVariable: UPLCVariable,
-	UPLCConst: UPLCConst,
-	UPLCInt: UPLCInt,
+	UplcTerm: UplcTerm,
+	UplcProgram: UplcProgram,
+	UplcLambda: UplcLambda,
+	UplcCall: UplcCall,
+	UplcBuiltin: UplcBuiltin,
+	UplcVariable: UplcVariable,
+	UplcConst: UplcConst,
+	UplcInt: UplcInt,
 	IRProgram: IRProgram,
 	Tx: Tx,
 	TxBody: TxBody,

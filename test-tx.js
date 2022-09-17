@@ -22,26 +22,26 @@ async function testBasic() {
 
     const signedBytes = helios_.hexToBytes(signedHex);
 
-    const unsignedTx = helios.Tx.fromCBOR(unsignedBytes);
+    const unsignedTx = helios.Tx.fromCbor(unsignedBytes);
 
-    const signedTx = helios.Tx.fromCBOR(signedBytes);
+    const signedTx = helios.Tx.fromCbor(signedBytes);
 
 
     console.log("UNSIGNED:\n", JSON.stringify(unsignedTx.dump(), undefined, "    "));
 
     console.log("\nSIGNED:\n", JSON.stringify(signedTx.dump(), undefined, "    "));
 
-	console.log("BODY BYTES: ", helios.bytesToHex(signedTx.body.toCBOR()));
+	console.log("BODY BYTES: ", helios.bytesToHex(signedTx.body.toCbor()));
 
-	//signedTx.witnesses.verifySignatures(signedTx.body.toCBOR());
+	//signedTx.witnesses.verifySignatures(signedTx.body.toCbor());
 
     console.log("UNSIGNED SIZE:", unsignedBytes.length.toString());
     console.log("SIGNED SIZE:", signedBytes.length.toString());
     console.log("ESTIMATED TX SIZE:", signedTx.estimateFee(networkParams));
 
-    console.log("CBOR ENCODING:", helios_.bytesToHex(signedTx.toCBOR()));
+    console.log("CBOR ENCODING:", helios_.bytesToHex(signedTx.toCbor()));
 
-    console.log("INV:", JSON.stringify(helios_.Tx.fromCBOR(signedTx.toCBOR()).dump(), undefined, "    "));
+    console.log("INV:", JSON.stringify(helios_.Tx.fromCbor(signedTx.toCbor()).dump(), undefined, "    "));
 
     // build same transaction using helios only:
     let tx = new helios.Tx();
@@ -111,9 +111,9 @@ async function testMinting(optimized = false) {
 
 	const cliTxBytes = helios_.hexToBytes(cliTxHex);
 
-	const cliTx = helios.Tx.fromCBOR(cliTxBytes);
+	const cliTx = helios.Tx.fromCbor(cliTxBytes);
 
-	console.log(`BUILT_BY_CARDANO_CLI (${cliTx.toCBOR().length}):`, JSON.stringify(cliTx.dump(), undefined, 4));
+	console.log(`BUILT_BY_CARDANO_CLI (${cliTx.toCbor().length}):`, JSON.stringify(cliTx.dump(), undefined, 4));
 
 	// build the same transaction using helios only
 	const addr = helios.Address.fromBech32("addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w");
@@ -152,7 +152,7 @@ async function testMinting(optimized = false) {
 
 	await heliosTx.finalize(networkParams);
 
-	console.log(`BUILT_BY_HELIOS (${heliosTx.toCBOR().length}):`, JSON.stringify(heliosTx.dump(), undefined, 4));
+	console.log(`BUILT_BY_HELIOS (${heliosTx.toCbor().length}):`, JSON.stringify(heliosTx.dump(), undefined, 4));
 }
 
 async function testInlineDatum() {
@@ -189,11 +189,11 @@ async function testInlineDatum() {
 
 	let inlineDatum = new helios.InlineDatum(new helios.IntData(42n));
 
-	console.log(helios.bytesToHex(inlineDatum.toCBOR()));
+	console.log(helios.bytesToHex(inlineDatum.toCbor()));
 	
-	console.log(helios.bytesToHex(helios.CBORData.encodeHead(6, 24n)));
+	console.log(helios.bytesToHex(helios.CborData.encodeHead(6, 24n)));
 
-	let tx = helios.Tx.fromCBOR(unsignedBytes);
+	let tx = helios.Tx.fromCbor(unsignedBytes);
 
 	console.log(JSON.stringify(tx.dump(), undefined, 4));
 
@@ -204,7 +204,7 @@ async function testSubmitOwner() {
 
 	const unsignedBytes = helios.hexToBytes(unsignedHex);
 
-	let tx = helios.Tx.fromCBOR(unsignedBytes);
+	let tx = helios.Tx.fromCbor(unsignedBytes);
 
 	console.log(JSON.stringify(tx.dump(), undefined, 4));
 }
