@@ -25514,6 +25514,38 @@ export class Value extends CborData {
 
 		return map;
 	}
+
+	/**
+	 * Useful when deserializing inline datums
+	 * @returns {Value}
+	 */
+	static fromData(data) {
+		let sum = new Value();
+
+		let outerMap = data.map;
+
+		for (let [mphData, tokensData] of outerMap) {
+			let mphBytes = mphData.bytes;
+
+			let innerMap = tokensData.map;
+
+			if (mphBytes.length == 0) {
+				assert(innerMap.length == 1 && innerMap[0][0].bytes.length == 0); 
+				sum = sum.add(new Value(innerMap[0][1].value));
+			} else {
+				let mph = new MintingPolicyHash(mphBytes);
+
+				for (let [tokenNameData, quantityData] of innerMap) {
+					let tokeName = tokenNameData.bytes;
+					let quantity = quantityData.value;
+
+					sum = sum.add(Value.asset(mph, tokenName, quantity));
+				}
+			}
+		}
+
+		return sum;
+	}
 }
 
 /**
