@@ -24549,6 +24549,20 @@ export class UTxO extends TxInput {
 			throw new Error("unexpected");
 		}
 	}
+
+	/**
+	 * @param {UTxO[]} utxos
+	 * @returns {Value}
+	 */
+	static sumValue(utxos) {
+		let sum = new Value();
+
+		for (let utxo of utxos) {
+			sum = sum.add(utxo.value);
+		}
+
+		return sum;
+	}
 }
 
 export class TxOutput extends CborData {
