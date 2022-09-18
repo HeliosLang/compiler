@@ -25672,7 +25672,7 @@ export class MintingPolicyHash extends Hash {
 	}
 }
 
-class Signature extends CborData {
+export class Signature extends CborData {
 	/** @type {number[]} */
 	#pubKey;
 
