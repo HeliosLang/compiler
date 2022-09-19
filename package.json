@@ -2,7 +2,7 @@
   "name": "@hyperionbt/helios",
   "type": "module",
   "description": "Helios is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Helios is a non-Haskell alternative to Plutus. This library contains a reference compiler for Helios, as well as off-chain functions to set-up transactions.",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "main": "helios.js",
   "types": "helios.d.ts",
   "directories": {
