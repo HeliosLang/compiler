@@ -24729,7 +24729,12 @@ export class TxOutput extends CborData {
 		if (this.#datum === null) {
 			throw new Error("no datum data available");
 		} else {
-			return this.#datum.getData();
+			let data = this.#datum.data;
+			if (data === null) {
+				throw new Error("no datum data available");
+			} else {
+				return data;
+			}
 		}
 	}
 
@@ -24843,7 +24848,7 @@ export class TxOutput extends CborData {
 	toData() {
 		let datum = new ConstrData(0, []); // none
 		if (this.#datum !== null) {
-			datum = this.#datum.getData();
+			datum = this.#datum.toData();
 		}
 
 		return new ConstrData(0, [
@@ -26288,7 +26293,7 @@ export class Datum extends CborData {
 	/**
 	 * @returns {ConstrData}
 	 */
-	getData() {
+	toData() {
 		throw new Error("not yet implemented");
 	}
 }
@@ -26326,9 +26331,10 @@ export class HashedDatum extends Datum {
 	}
 
 	/**
+	 * Used by script context emulation
 	 * @returns {ConstrData}
 	 */
-	getData() {
+	toData() {
 		return new ConstrData(1, [new ByteArrayData(this.#hash.bytes)]);
 	}
 
@@ -26379,9 +26385,17 @@ export class InlineDatum extends Datum {
 	}
 
 	/**
+	 * @type {?UplcData}
+	 */
+	get data() {
+		return this.#data;
+	}
+
+	/**
+	 * Used by script context emulation
 	 * @returns {ConstrData}
 	 */
-	getData() {
+	toData() {
 		return new ConstrData(2, [this.#data]);
 	}
 
