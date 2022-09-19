@@ -7123,7 +7123,7 @@ export class CborData {
 /**
  * Base class for Plutus-core data classes (not the same as Plutus-core value classes!)
  */
-class UplcData extends CborData {
+export class UplcData extends CborData {
 	constructor() {
 		super();
 	}
@@ -24881,6 +24881,8 @@ export class TxOutput extends CborData {
 			if (updater != null) {
 				updater(this);
 			}
+
+			minLovelace = this.calcMinLovelace(networkParams);
 		}
 	}
 }
