@@ -216,66 +216,73 @@ const serializeProp = ([a], res) => {
     return decodeCbor(asBytes(res)).isSame(a.data);
 };
 
-const spendingScriptContextParam = `
-    // a script context with a single input and a single output
-    const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
-    const TX_ID_IN_BYTES = #0123456789012345678901234567890123456789012345678901234567891234
-    const TX_ID_IN: TxId = TxId::new(TX_ID_IN_BYTES)
-    const CURRENT_VALIDATOR_BYTES = #01234567890123456789012345678901234567890123456789012346
-    const CURRENT_VALIDATOR: ValidatorHash = ValidatorHash::new(CURRENT_VALIDATOR_BYTES)
-    const HAS_STAKING_CRED_IN = false
-    const STAKING_CRED_TYPE = false
-    const SOME_STAKING_CRED_IN: StakingCredential = if (STAKING_CRED_TYPE) {
-        StakingCredential::new_ptr(0, 0, 0)
-    } else {
-        StakingCredential::new_hash(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)))
-    }
-    const STAKING_CRED_IN: Option[StakingCredential] = if (HAS_STAKING_CRED_IN) {
-        Option[StakingCredential]::Some{SOME_STAKING_CRED_IN}
-    } else {
-        Option[StakingCredential]::None
-    }
-    const CURRENT_VALIDATOR_CRED: Credential = Credential::new_validator(CURRENT_VALIDATOR)
-    const ADDRESS_IN: Address = Address::new(CURRENT_VALIDATOR_CRED, STAKING_CRED_IN)
-    const TX_OUTPUT_ID_IN: TxOutputId = TxOutputId::new(TX_ID_IN, 0)
-    const ADDRESS_OUT: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
-    const ADDRESS_OUT_1: Address = Address::new(Credential::new_validator(CURRENT_VALIDATOR), Option[StakingCredential]::None)
-    const QTY = 200000
-    const QTY_1 = 100000
-    const QTY_2 = 100000
+/**
+ * @param {boolean} useInlineDatum 
+ * @returns {string}
+ */
+function spendingScriptContextParam(useInlineDatum) {
+    return `
+        // a script context with a single input and a single output
+        const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
+        const TX_ID_IN_BYTES = #0123456789012345678901234567890123456789012345678901234567891234
+        const TX_ID_IN: TxId = TxId::new(TX_ID_IN_BYTES)
+        const CURRENT_VALIDATOR_BYTES = #01234567890123456789012345678901234567890123456789012346
+        const CURRENT_VALIDATOR: ValidatorHash = ValidatorHash::new(CURRENT_VALIDATOR_BYTES)
+        const HAS_STAKING_CRED_IN = false
+        const STAKING_CRED_TYPE = false
+        const SOME_STAKING_CRED_IN: StakingCredential = if (STAKING_CRED_TYPE) {
+            StakingCredential::new_ptr(0, 0, 0)
+        } else {
+            StakingCredential::new_hash(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)))
+        }
+        const STAKING_CRED_IN: Option[StakingCredential] = if (HAS_STAKING_CRED_IN) {
+            Option[StakingCredential]::Some{SOME_STAKING_CRED_IN}
+        } else {
+            Option[StakingCredential]::None
+        }
+        const CURRENT_VALIDATOR_CRED: Credential = Credential::new_validator(CURRENT_VALIDATOR)
+        const ADDRESS_IN: Address = Address::new(CURRENT_VALIDATOR_CRED, STAKING_CRED_IN)
+        const TX_OUTPUT_ID_IN: TxOutputId = TxOutputId::new(TX_ID_IN, 0)
+        const ADDRESS_OUT: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+        const ADDRESS_OUT_1: Address = Address::new(Credential::new_validator(CURRENT_VALIDATOR), Option[StakingCredential]::None)
+        const QTY = 200000
+        const QTY_1 = 100000
+        const QTY_2 = 100000
 
-    const FEE = 160000
-    const VALUE_IN: Value = Value::lovelace(QTY + QTY_1 + QTY_2)
-    const VALUE_OUT: Value = Value::lovelace(QTY - FEE)
-    const VALUE_OUT_1: Value = Value::lovelace(QTY_1)
-    const VALUE_OUT_2: Value = Value::lovelace(QTY_2)
+        const FEE = 160000
+        const VALUE_IN: Value = Value::lovelace(QTY + QTY_1 + QTY_2)
+        const VALUE_OUT: Value = Value::lovelace(QTY - FEE)
+        const VALUE_OUT_1: Value = Value::lovelace(QTY_1)
+        const VALUE_OUT_2: Value = Value::lovelace(QTY_2)
 
-    const DATUM_HASH_1: DatumHash = DatumHash::new(#1234)
-    const DATUM_1: Int = 42
+        const DATUM_HASH_1: DatumHash = DatumHash::new(#1234)
+        const DATUM_1: Int = 42
+        const OUTPUT_DATUM: OutputDatum = ${useInlineDatum ? "OutputDatum::new_inline(DATUM_1)" : "OutputDatum::new_hash(DATUM_HASH_1)"}
 
-    const CURRENT_TX_ID: TxId = TxId::CURRENT
+        const CURRENT_TX_ID: TxId = TxId::CURRENT
 
-    const FIRST_TX_INPUT: TxInput = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN, OutputDatum::new_none()))
-    const REF_INPUT: TxInput = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0), OutputDatum::new_inline(42)))
-    const FIRST_TX_OUTPUT: TxOutput = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
-    const TX: Tx = Tx::new(
-        []TxInput{FIRST_TX_INPUT},
-        []TxInput{REF_INPUT},
-        []TxOutput{
-            FIRST_TX_OUTPUT,
-            TxOutput::new(ADDRESS_OUT, VALUE_OUT_1, OutputDatum::new_hash(DATUM_HASH_1)),
-            TxOutput::new(ADDRESS_OUT_1, VALUE_OUT_2, OutputDatum::new_hash(DATUM_HASH_1))
-        },
-        Value::lovelace(FEE),
-        Value::ZERO,
-        []DCert{},
-        Map[StakingCredential]Int{},
-        TimeRange::from(Time::new(0)),
-        []PubKeyHash{PubKeyHash::new(PUB_KEY_HASH_BYTES)},
-        Map[DatumHash]Int{DATUM_HASH_1: DATUM_1}
-    )
-    const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
-`;
+        const FIRST_TX_INPUT: TxInput = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN, OutputDatum::new_none()))
+        const REF_INPUT: TxInput = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0), OutputDatum::new_inline(42)))
+        const FIRST_TX_OUTPUT: TxOutput = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
+        const TX: Tx = Tx::new(
+            []TxInput{FIRST_TX_INPUT},
+            []TxInput{REF_INPUT},
+            []TxOutput{
+                FIRST_TX_OUTPUT,
+                TxOutput::new(ADDRESS_OUT, VALUE_OUT_1, OUTPUT_DATUM),
+                TxOutput::new(ADDRESS_OUT_1, VALUE_OUT_2, OUTPUT_DATUM)
+            },
+            Value::lovelace(FEE),
+            Value::ZERO,
+            []DCert{},
+            Map[StakingCredential]Int{},
+            TimeRange::from(Time::new(0)),
+            []PubKeyHash{PubKeyHash::new(PUB_KEY_HASH_BYTES)},
+            Map[DatumHash]Int{${useInlineDatum ? "" : "DATUM_HASH_1: DATUM_1"}}
+        )
+        const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
+    `;
+}
 
 const mintingScriptContextParam = `
     // a script context with a single input and a single output
@@ -2649,7 +2656,7 @@ async function runPropertyTests() {
         func main(ctx: ScriptContext) -> Bool {
             ctx == ctx
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => asBool(res), 10);
 
         await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
@@ -2657,7 +2664,7 @@ async function runPropertyTests() {
         func main(ctx: ScriptContext) -> Bool {
             ctx != ctx
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => !asBool(res), 10);
 
         await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
@@ -2665,7 +2672,7 @@ async function runPropertyTests() {
         func main(ctx: ScriptContext) -> Tx {
             ctx.tx
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([ctx], res) => ctx.data.fields[0].isSame(res.data), 10);
 
         await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
@@ -2673,7 +2680,7 @@ async function runPropertyTests() {
         func main(ctx: ScriptContext) -> TxOutputId {
             ctx.get_spending_purpose_output_id()
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([ctx], res) => ctx.data.fields[1].fields[0].isSame(res.data), 10);
 
         await ft.testParams({"CURRENT_VALIDATOR_BYTES": ft.bytes()}, ["CURRENT_VALIDATOR", "SCRIPT_CONTEXT"], `
@@ -2681,7 +2688,7 @@ async function runPropertyTests() {
         func main(hash: ValidatorHash, ctx: ScriptContext) -> Bool {
             ctx.get_current_validator_hash() == hash
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([ctx], res) => asBool(res), 10);
 
         await ft.testParams({"CURRENT_MPH_BYTES": ft.bytes()}, ["CURRENT_MPH", "SCRIPT_CONTEXT"], `
@@ -2708,7 +2715,7 @@ async function runPropertyTests() {
         func main(ctx: Data) -> ScriptContext {
             ScriptContext::from_data(ctx)
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([ctx], res) => res.data.isSame(ctx.data), 10);
 
         await ft.testParams({"CURRENT_VALIDATOR_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -2716,7 +2723,7 @@ async function runPropertyTests() {
         func main(ctx: ScriptContext) -> ByteArray {
             ctx.serialize()
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, serializeProp, 10);
     }
 
@@ -2929,7 +2936,7 @@ async function runPropertyTests() {
         func main(ctx: ScriptContext) -> Bool {
             ctx.tx == ctx.tx
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => asBool(res), 10);
 
         await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
@@ -2937,7 +2944,7 @@ async function runPropertyTests() {
         func main(ctx: ScriptContext) -> Bool {
             ctx.tx != ctx.tx
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => !asBool(res), 10);
 
         // test if transaction is balanced (should always be true)
@@ -2950,7 +2957,7 @@ async function runPropertyTests() {
                 a + b.value
             }, Value::ZERO)
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => asBool(res), 3);
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -2958,7 +2965,7 @@ async function runPropertyTests() {
         func main(ctx: ScriptContext) -> Bool {
             ctx.tx.ref_inputs.length > 0
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => asBool(res), 5);
 
         // test if a signatory also sent some outputs self
@@ -2974,7 +2981,7 @@ async function runPropertyTests() {
                 })
             })
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => asBool(res), 4);
 
         await ft.testParams({"QTY": ft.int(200000, 3000000)}, ["CURRENT_TX_ID", "SCRIPT_CONTEXT"], `
@@ -2982,7 +2989,7 @@ async function runPropertyTests() {
         func main(tx_id: TxId, ctx: ScriptContext) -> Bool {
             ctx.tx.id == tx_id
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([ctx], res) => asBool(res), 5);
 
         await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
@@ -2990,7 +2997,7 @@ async function runPropertyTests() {
         func main(ctx: ScriptContext) -> Bool {
             ctx.tx.time_range.contains(ctx.tx.now() + Duration::new(10))
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => asBool(res), 10);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3018,7 +3025,20 @@ async function runPropertyTests() {
                 ctx.tx.outputs_sent_to(ctx.tx.signatories.head).length > 0
             }
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
+        `, ([_], res) => asBool(res), 5);
+
+        
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_outputs_sent_to_datum
+        func main(ctx: ScriptContext) -> Bool {
+            if (ctx.tx.signatories.is_empty()) {
+                true
+            } else {
+                ctx.tx.outputs_sent_to_datum(ctx.tx.signatories.head, 42, false).length > 0
+            }
+        }
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => asBool(res), 5);
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3027,11 +3047,12 @@ async function runPropertyTests() {
             if (ctx.tx.signatories.is_empty()) {
                 true
             } else {
-                ctx.tx.outputs_sent_to_datum(ctx.tx.signatories.head, 42).length > 0
+                ctx.tx.outputs_sent_to_datum(ctx.tx.signatories.head, 42, true).length > 0
             }
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(true)}
         `, ([_], res) => asBool(res), 5);
+
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
         testing tx_outputs_locked_by
@@ -3044,21 +3065,35 @@ async function runPropertyTests() {
                 }
             })
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => asBool(res), 5);
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
-        testing tx_outputs_locked_by_dataum
+        testing tx_outputs_locked_by_datum
         func main(ctx: ScriptContext) -> Bool {
             h: ValidatorHash = ctx.get_current_validator_hash();
-            ctx.tx.outputs_locked_by_datum(h, 42) == ctx.tx.outputs.filter((o: TxOutput) -> Bool {
+            ctx.tx.outputs_locked_by_datum(h, 42, false) == ctx.tx.outputs.filter((o: TxOutput) -> Bool {
                 o.address.credential.switch{
                     Validator => true,
                     else => false
                 }
             })
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
+        `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing tx_outputs_locked_by_datum
+        func main(ctx: ScriptContext) -> Bool {
+            h: ValidatorHash = ctx.get_current_validator_hash();
+            ctx.tx.outputs_locked_by_datum(h, 42, true) == ctx.tx.outputs.filter((o: TxOutput) -> Bool {
+                o.address.credential.switch{
+                    Validator => true,
+                    else => false
+                }
+            })
+        }
+        ${spendingScriptContextParam(true)}
         `, ([_], res) => asBool(res), 5);
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3073,7 +3108,7 @@ async function runPropertyTests() {
                 }, Value::ZERO)
             }
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => asBool(res), 5);
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["DATUM_HASH_1", "SCRIPT_CONTEXT"], `
@@ -3083,7 +3118,7 @@ async function runPropertyTests() {
                 true
             } else {
                 h: PubKeyHash = ctx.tx.signatories.head;
-                ctx.tx.value_sent_to_datum(h, 42) == ctx.tx.outputs.fold((sum: Value, o: TxOutput) -> Value {
+                ctx.tx.value_sent_to_datum(h, 42, false) == ctx.tx.outputs.fold((sum: Value, o: TxOutput) -> Value {
                     sum + if (
                         o.address.credential.switch{p: PubKey => p.hash == h, else => false} && 
                         o.datum.switch{ha: Hash => ha.hash == datum_hash, None => false, Inline => false}
@@ -3095,7 +3130,29 @@ async function runPropertyTests() {
                 }, Value::ZERO)
             }
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
+        `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["DATUM_1", "SCRIPT_CONTEXT"], `
+        testing tx_value_sent_to_datum
+        func main(datum: Int, ctx: ScriptContext) -> Bool {
+            if (ctx.tx.signatories.is_empty()) {
+                true
+            } else {
+                h: PubKeyHash = ctx.tx.signatories.head;
+                ctx.tx.value_sent_to_datum(h, 42, true) == ctx.tx.outputs.fold((sum: Value, o: TxOutput) -> Value {
+                    sum + if (
+                        o.address.credential.switch{p: PubKey => p.hash == h, else => false} && 
+                        o.datum.switch{Hash => false, None => false, in: Inline => Int::from_data(in.data) == datum}
+                    ) {
+                        o.value
+                    } else {
+                        Value::ZERO
+                    }
+                }, Value::ZERO)
+            }
+        }
+        ${spendingScriptContextParam(true)}
         `, ([_], res) => asBool(res), 5);
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3106,14 +3163,14 @@ async function runPropertyTests() {
                 sum + if (o.address.credential.switch{v: Validator => v.hash == h, else => false}) {o.value} else {Value::ZERO}
             }, Value::ZERO)
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => asBool(res), 5);
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["DATUM_HASH_1", "SCRIPT_CONTEXT"],`
         testing tx_value_locked_by_datum
         func main(datum_hash: DatumHash, ctx: ScriptContext) -> Bool {
             h: ValidatorHash = ctx.get_current_validator_hash();
-            (ctx.tx.value_locked_by_datum(h, 42) == ctx.tx.outputs.fold((a: Value, o: TxOutput) -> Value {
+            (ctx.tx.value_locked_by_datum(h, 42, false) == ctx.tx.outputs.fold((a: Value, o: TxOutput) -> Value {
                 a + if (
                     o.address.credential.switch{v: Validator => v.hash == h, else => false} && 
                     o.datum.switch{ha: Hash => ha.hash == datum_hash, None => false, Inline => false}
@@ -3124,8 +3181,27 @@ async function runPropertyTests() {
                 }
             }, Value::ZERO))
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([_], res) => asBool(res), 5);
+
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["DATUM_1", "SCRIPT_CONTEXT"],`
+        testing tx_value_locked_by_datum
+        func main(datum: Int, ctx: ScriptContext) -> Bool {
+            h: ValidatorHash = ctx.get_current_validator_hash();
+            (ctx.tx.value_locked_by_datum(h, 42, true) == ctx.tx.outputs.fold((a: Value, o: TxOutput) -> Value {
+                a + if (
+                    o.address.credential.switch{v: Validator => v.hash == h, else => false} && 
+                    o.datum.switch{Hash => false, None => false, in: Inline => Int::from_data(in.data) == datum}
+                ) {
+                    o.value
+                } else {
+                    Value::ZERO
+                }
+            }, Value::ZERO))
+        }
+        ${spendingScriptContextParam(true)}
+        `, ([_], res) => asBool(res), 5);
+
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
         testing tx_is_signed_by
@@ -3136,7 +3212,7 @@ async function runPropertyTests() {
                 ctx.tx.is_signed_by(ctx.tx.signatories.head)
             }
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([ctx], res) => asBool(res), 5);
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["TX"], `
@@ -3144,7 +3220,7 @@ async function runPropertyTests() {
         func main(tx: Data) -> Tx {
             Tx::from_data(tx)
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([tx], res) => res.data.isSame(tx.data), 5);
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3152,7 +3228,7 @@ async function runPropertyTests() {
         func main(ctx: ScriptContext) -> ByteArray {
             ctx.tx.serialize()
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
         `, ([ctx], res) => {
             return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0]);
         }, 5);
@@ -3163,7 +3239,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.id == ctx.tx.id
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 2);
 
     await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
@@ -3171,7 +3247,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.id != ctx.tx.id
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => !asBool(res), 2);
 
     await ft.testParams({"QTY": ft.int()}, ["CURRENT_TX_ID"], `
@@ -3179,7 +3255,7 @@ async function runPropertyTests() {
     func main(tx_id: Data) -> TxId {
         TxId::from_data(tx_id)
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([txId], res) => res.data.isSame(txId.data), 2);
 
     await ft.testParams({"QTY": ft.int()}, ["CURRENT_TX_ID"], `
@@ -3187,7 +3263,7 @@ async function runPropertyTests() {
     func main(tx_id: TxId) -> ByteArray {
         tx_id.serialize()
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, serializeProp, 2);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3199,7 +3275,7 @@ async function runPropertyTests() {
             ctx.tx.inputs.head != ctx.tx.inputs.get(1)
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["FIRST_TX_INPUT"], `
@@ -3207,7 +3283,7 @@ async function runPropertyTests() {
     func main(txinput: Data) -> TxInput {
         TxInput::from_data(txinput)
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([a], res) => a.data.isSame(res.data), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3215,7 +3291,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.serialize()
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([ctx], res) => {
         return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0]);
     }, 5);
@@ -3229,7 +3305,7 @@ async function runPropertyTests() {
             ctx.tx.outputs.head != ctx.tx.outputs.get(1)
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3241,7 +3317,19 @@ async function runPropertyTests() {
             i: Inline => i == i && i.data == i.data
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
+    `, ([_], res) => asBool(res), 5);
+
+    await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+    testing txoutput_datum
+    func main(ctx: ScriptContext) -> Bool {
+        ctx.tx.outputs.head.datum.switch{
+            n: None => n == n,
+            h: Hash => h == h && h.hash == h.hash,
+            i: Inline => i == i && i.data == i.data
+        }
+    }
+    ${spendingScriptContextParam(true)}
     `, ([_], res) => asBool(res), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["FIRST_TX_OUTPUT"], `
@@ -3249,7 +3337,7 @@ async function runPropertyTests() {
     func main(data: Data) -> TxOutput {
         TxOutput::from_data(data)
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([a], res) => a.data.isSame(res.data), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3257,7 +3345,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.outputs.head.serialize()
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([ctx], res) => {
         return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[2].list[0]);
     }, 5);
@@ -3271,7 +3359,16 @@ async function runPropertyTests() {
             od: OutputDatum = ctx.tx.outputs.head.datum;
             od == od
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
+        `, ([_], res) => asBool(res), 2);
+
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing outputdatum_eq
+        func main(ctx: ScriptContext) -> Bool {
+            od: OutputDatum = ctx.tx.outputs.head.datum;
+            od == od
+        }
+        ${spendingScriptContextParam(true)}
         `, ([_], res) => asBool(res), 2);
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3280,7 +3377,16 @@ async function runPropertyTests() {
             od: OutputDatum = ctx.tx.outputs.head.datum;
             od != od
         }
-        ${spendingScriptContextParam}
+        ${spendingScriptContextParam(false)}
+        `, ([_], res) => !asBool(res), 2);
+
+        await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
+        testing outputdatum_neq
+        func main(ctx: ScriptContext) -> Bool {
+            od: OutputDatum = ctx.tx.outputs.head.datum;
+            od != od
+        }
+        ${spendingScriptContextParam(true)}
         `, ([_], res) => !asBool(res), 2);
 
         await ft.testParams({"INLINE_DATUM": ft.int()}, ["OUTPUT_DATUM"], `
@@ -3395,7 +3501,7 @@ async function runPropertyTests() {
             ctx.tx.inputs.head.output_id != ctx.tx.inputs.get(1).output_id
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3403,7 +3509,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output_id != TxOutputId::new(TxId::new(#1234), 0)
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["TX_OUTPUT_ID_IN"], `
@@ -3411,7 +3517,7 @@ async function runPropertyTests() {
     func main(data: Data) -> TxOutputId {
         TxOutputId::from_data(data)
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([a], res) => a.data.isSame(res.data), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3419,7 +3525,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output_id.serialize()
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([ctx], res) => {
         return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[0]);
     }, 5);
@@ -3429,7 +3535,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address == ctx.tx.inputs.get(0).output.address
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3437,7 +3543,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address != ctx.tx.inputs.get(0).output.address
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => !asBool(res), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["STAKING_CRED_IN", "SCRIPT_CONTEXT"], `
@@ -3445,7 +3551,7 @@ async function runPropertyTests() {
     func main(staking_cred: Option[StakingCredential], ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.staking_credential == staking_cred
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([a], res) => asBool(res), 3);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["ADDRESS"], `
@@ -3462,7 +3568,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output.address.serialize()
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([ctx], res) => {
         return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0])
     }, 5);
@@ -3472,7 +3578,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.credential == ctx.tx.inputs.get(0).output.address.credential
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3480,7 +3586,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> Bool {
         ctx.tx.inputs.head.output.address.credential != ctx.tx.inputs.get(0).output.address.credential
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => !asBool(res), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["CURRENT_VALIDATOR_CRED"], `
@@ -3488,7 +3594,7 @@ async function runPropertyTests() {
     func main(data: Data) -> Credential {
         Credential::from_data(data)
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([a], res) => a.data.isSame(res.data), 3);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3496,7 +3602,7 @@ async function runPropertyTests() {
     func main(ctx: ScriptContext) -> ByteArray {
         ctx.tx.inputs.head.output.address.credential.serialize()
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([ctx], res) => {
         return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0].fields[0]);
     }, 3);
@@ -3509,7 +3615,7 @@ async function runPropertyTests() {
             v: Validator => v == v && v.hash == v.hash
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3520,7 +3626,7 @@ async function runPropertyTests() {
             v: Validator => v != v
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => !asBool(res), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -3531,7 +3637,7 @@ async function runPropertyTests() {
             v: Validator => v.serialize()
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([ctx], res) => {
         return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[1].fields[0].fields[0]);
     }, 5);
@@ -3544,7 +3650,7 @@ async function runPropertyTests() {
             n: None => n == n
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 5);
 
     await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool()}, ["SCRIPT_CONTEXT"], `
@@ -3555,7 +3661,7 @@ async function runPropertyTests() {
             n: None => n != n
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => !asBool(res), 5);
 
     await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool()}, ["SOME_STAKING_CRED_IN"], `
@@ -3563,7 +3669,7 @@ async function runPropertyTests() {
     func main(data: Data) -> StakingCredential {
         StakingCredential::from_data(data)
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([a], res) => a.data.isSame(res.data), 2);
 
     await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool()}, ["SCRIPT_CONTEXT"], `
@@ -3574,7 +3680,7 @@ async function runPropertyTests() {
             n: None => n.serialize().length > 0
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([ctx], res) => asBool(res), 5);
 
     await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool(), "STAKING_CRED_TYPE": ft.bool()}, ["SCRIPT_CONTEXT"], `
@@ -3588,7 +3694,7 @@ async function runPropertyTests() {
             n: None => n == n
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 5);
 
     await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool(), "STAKING_CRED_TYPE": ft.bool()}, ["SCRIPT_CONTEXT"], `
@@ -3602,7 +3708,7 @@ async function runPropertyTests() {
             n: None => n != n
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([_], res) => !asBool(res), 5);
 
     await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool(), "STAKING_CRED_TYPE": ft.bool()}, ["SCRIPT_CONTEXT"], `
@@ -3616,7 +3722,7 @@ async function runPropertyTests() {
             n: None => n.serialize().length > 0
         }
     }
-    ${spendingScriptContextParam}
+    ${spendingScriptContextParam(false)}
     `, ([ctx], res) => asBool(res), 5);
 
     await ft.test([ft.int()], `

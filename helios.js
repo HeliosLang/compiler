@@ -147,7 +147,7 @@
 //                                          buildSwitchCase, buildSwitchDefault, 
 //                                          buildListLiteralExpr, buildMapLiteralExpr, 
 //                                          buildStructLiteralExpr, buildStructLiteralField, 
-//                                          buildValuePathExpr, buildLiteralExprFromJSON,
+//                                          buildValuePathExpr, buildLiteralExprFromJson,
 //                                          buildLiteralExprFromValue
 //
 //    13. Builtin types                     IntType, BoolType, StringType, ByteArrayType, 
@@ -7141,7 +7141,21 @@ class UplcData extends CborData {
 	 * @returns {boolean}
 	 */
 	isSame(other) {
-		return this.toSchemaJSON() == other.toSchemaJSON();
+		return this.toSchemaJson() == other.toSchemaJson();
+	}
+
+	/**
+	 * @type {number[]}
+	 */
+	get bytes() {
+		throw new Error("not a bytearray");
+	}
+
+	/**
+	 * @type {bigint}
+	 */
+	get int() {
+		throw new Error("not an int");
 	}
 
 	/**
@@ -7189,7 +7203,7 @@ class UplcData extends CborData {
 	/**
 	 * @returns {string}
 	 */
-	toSchemaJSON() {
+	toSchemaJson() {
 		throw new Error("not yet implemented");
 	}
 
@@ -7239,6 +7253,14 @@ export class IntData extends UplcData {
 	}
 
 	/**
+	 * Alias getter
+	 * @type {bigint}
+	 */
+	get int() {
+		return this.#value;
+	}
+	
+	/**
 	 * @type {number}
 	 */
 	get memSize() {
@@ -7264,7 +7286,7 @@ export class IntData extends UplcData {
 	 * Returns string, not js object, because of unbounded integers 
 	 * @returns {string}
 	 */
-	toSchemaJSON() {
+	toSchemaJson() {
 		return `{"int": ${this.#value.toString()}}`;
 	}
 
@@ -7340,7 +7362,7 @@ export class ByteArrayData extends UplcData {
 	/**
 	 * @returns {string}
 	 */
-	toSchemaJSON() {
+	toSchemaJson() {
 		return `{"bytes": "${this.toHex()}"}`;
 	}
 
@@ -7413,8 +7435,8 @@ export class ListData extends UplcData {
 	/**
 	 * @returns {string}
 	 */
-	toSchemaJSON() {
-		return `{"list":[${this.#items.map(item => item.toSchemaJSON()).join(", ")}]}`;
+	toSchemaJson() {
+		return `{"list":[${this.#items.map(item => item.toSchemaJson()).join(", ")}]}`;
 	}
 
 	/**
@@ -7496,8 +7518,8 @@ export class MapData extends UplcData {
 	/**
 	 * @returns {string}
 	 */
-	toSchemaJSON() {
-		return `{"map": [${this.#pairs.map(pair => { return "{\"k\": " + pair[0].toSchemaJSON() + ", \"v\": " + pair[1].toSchemaJSON() + "}" }).join(", ")}]}`;
+	toSchemaJson() {
+		return `{"map": [${this.#pairs.map(pair => { return "{\"k\": " + pair[0].toSchemaJson() + ", \"v\": " + pair[1].toSchemaJson() + "}" }).join(", ")}]}`;
 	}
 
 	/**
@@ -7592,8 +7614,8 @@ export class ConstrData extends UplcData {
 	/**
 	 * @returns {string}
 	 */
-	toSchemaJSON() {
-		return `{"constructor": ${this.#index.toString()}, "fields": [${this.#fields.map(f => f.toSchemaJSON()).join(", ")}]}`;
+	toSchemaJson() {
+		return `{"constructor": ${this.#index.toString()}, "fields": [${this.#fields.map(f => f.toSchemaJson()).join(", ")}]}`;
 	}
 
 	/**
@@ -12436,7 +12458,7 @@ class ConstStatement extends Statement {
 		let site = this.#valueExpr.site;
 
 		if (typeof value == "string") {
-			this.#valueExpr = buildLiteralExprFromJSON(site, type, JSON.parse(value), this.name.value);
+			this.#valueExpr = buildLiteralExprFromJson(site, type, JSON.parse(value), this.name.value);
 		} else {
 			this.#valueExpr = buildLiteralExprFromValue(site, type, value, this.name.value);
 		}
@@ -15163,7 +15185,7 @@ function buildValuePathExpr(ts) {
  * @param {string} path - context for debugging
  * @returns {ValueExpr}
  */
-function buildLiteralExprFromJSON(site, type, value, path) {
+function buildLiteralExprFromJson(site, type, value, path) {
 	if (value === null) {
 		throw site.typeError(`expected non-null value for parameter '${path}'`);
 	} else if (type instanceof BoolType) {
@@ -15215,7 +15237,7 @@ function buildLiteralExprFromJSON(site, type, value, path) {
 			let items = [];
 
 			for (let item of value) {
-				items.push(buildLiteralExprFromJSON(site, type.itemType, item, path + "[]"));
+				items.push(buildLiteralExprFromJson(site, type.itemType, item, path + "[]"));
 			}
 
 			return new ListLiteralExpr(site, new TypeExpr(site, type.itemType), items);
@@ -15230,14 +15252,14 @@ function buildLiteralExprFromJSON(site, type, value, path) {
 
 		if (value instanceof Object && type.keyType instanceof StringType) {
 			for (let key in value) {
-				pairs.push([new PrimitiveLiteralExpr(new StringLiteral(site, key)), buildLiteralExprFromJSON(site, type.valueType, value[key], path + "." + key)]);
+				pairs.push([new PrimitiveLiteralExpr(new StringLiteral(site, key)), buildLiteralExprFromJson(site, type.valueType, value[key], path + "." + key)]);
 			}
 		} else if (value instanceof Array) {
 			for (let item of value) {
 				if (item instanceof Array && item.length == 2) {
 					pairs.push([
-						buildLiteralExprFromJSON(site, type.keyType, item[0], path + "[0]"),
-						buildLiteralExprFromJSON(site, type.valueType, item[1], path + "[1]"),
+						buildLiteralExprFromJson(site, type.keyType, item[0], path + "[0]"),
+						buildLiteralExprFromJson(site, type.valueType, item[1], path + "[1]"),
 					]);
 				} else {
 					throw site.typeError(`expected array of pairs for parameter '${path}', got '${value}'`);
@@ -15278,7 +15300,7 @@ function buildLiteralExprFromJSON(site, type, value, path) {
 
 				let fieldType = type.statement.getFieldType(site, i);
 
-				let valueExpr = buildLiteralExprFromJSON(site, fieldType, subValue, path + "." + key);
+				let valueExpr = buildLiteralExprFromJson(site, fieldType, subValue, path + "." + key);
 
 				fields[i] = new StructLiteralField(nFields == 1 ? null : new Word(site, key), valueExpr);
 			}
@@ -17014,19 +17036,19 @@ class TxType extends BuiltinType {
 			case "outputs_sent_to":
 				return Instance.new(new FuncType([new PubKeyHashType()], new ListType(new TxOutputType())));
 			case "outputs_sent_to_datum":
-				return Instance.new(new FuncType([new PubKeyHashType(), new AnyDataType()], new ListType(new TxOutputType())));
+				return Instance.new(new FuncType([new PubKeyHashType(), new AnyDataType(), new BoolType()], new ListType(new TxOutputType())));
 			case "outputs_locked_by":
 				return Instance.new(new FuncType([new ValidatorHashType()], new ListType(new TxOutputType())));
 			case "outputs_locked_by_datum":
-				return Instance.new(new FuncType([new ValidatorHashType(), new AnyDataType()], new ListType(new TxOutputType())));
+				return Instance.new(new FuncType([new ValidatorHashType(), new AnyDataType(), new BoolType()], new ListType(new TxOutputType())));
 			case "value_sent_to":
 				return Instance.new(new FuncType([new PubKeyHashType()], new ValueType()));
 			case "value_sent_to_datum":
-				return Instance.new(new FuncType([new PubKeyHashType(), new AnyDataType()], new ValueType()));
+				return Instance.new(new FuncType([new PubKeyHashType(), new AnyDataType(), new BoolType()], new ValueType()));
 			case "value_locked_by":
 				return Instance.new(new FuncType([new ValidatorHashType()], new ValueType()));
 			case "value_locked_by_datum":
-				return Instance.new(new FuncType([new ValidatorHashType(), new AnyDataType()], new ValueType()));
+				return Instance.new(new FuncType([new ValidatorHashType(), new AnyDataType(), new BoolType()], new ValueType()));
 			case "is_signed_by":
 				return Instance.new(new FuncType([new PubKeyHashType()], new BoolType()));
 			default:
@@ -19753,9 +19775,24 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__tx__outputs_sent_to_datum",
 	`(self) -> {
-		(pubKeyHash, datum) -> {
-			(datumHash) -> {
-				__helios__tx__filter_outputs(self, (output) -> {
+		(pubKeyHash, datum, isInline) -> {
+			__core__ifThenElse(
+				isInline,
+				() -> {
+					__helios__tx__outputs_sent_to_inline_datum(self, pubKeyHash, datum)
+				},
+				() -> {
+					__helios__tx__outputs_sent_to_datum_hash(self, pubKeyHash, datum)
+				}
+			)()
+		}
+	}`));
+	add(new RawFunc("__helios__tx__outputs_sent_to_datum_hash",
+	`(self, pubKeyHash, datum) -> {
+		(datumHash) -> {
+			__helios__tx__filter_outputs(
+				self, 
+				(output) -> {
 					__helios__bool__and(
 						() -> {
 							__helios__txoutput__is_sent_to(output)(pubKeyHash)
@@ -19764,9 +19801,25 @@ function makeRawFunctions() {
 							__helios__txoutput__has_datum_hash(output, datumHash)
 						}
 					)
-				})
-			}(__helios__tx__find_datum_hash(self)(datum))
-		}
+				}
+			)
+		}(__helios__tx__find_datum_hash(self)(datum))
+	}`));
+	add(new RawFunc("__helios__tx__outputs_sent_to_inline_datum",
+	`(self, pubKeyHash, datum) -> {
+		__helios__tx__filter_outputs(
+			self, 
+			(output) -> {
+				__helios__bool__and(
+					() -> {
+						__helios__txoutput__is_sent_to(output)(pubKeyHash)
+					},
+					() -> {
+						__helios__txoutput__has_inline_datum(output, datum)
+					}
+				)
+			}
+		)
 	}`));
 	add(new RawFunc("__helios__tx__outputs_locked_by",
 	`(self) -> {
@@ -19778,9 +19831,24 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__tx__outputs_locked_by_datum",
 	`(self) -> {
-		(validatorHash, datum) -> {
-			(datumHash) -> {
-				__helios__tx__filter_outputs(self, (output) -> {
+		(validatorHash, datum, isInline) -> {
+			__core__ifThenElse(
+				isInline,
+				() -> {
+					__helios__tx__outputs_locked_by_inline_datum(self, validatorHash, datum)
+				},
+				() -> {
+					__helios__tx__outputs_locked_by_datum_hash(self, validatorHash, datum)
+				}
+			)()
+		}
+	}`));
+	add(new RawFunc("__helios__tx__outputs_locked_by_datum_hash",
+	`(self, validatorHash, datum) -> {
+		(datumHash) -> {
+			__helios__tx__filter_outputs(
+				self, 
+				(output) -> {
 					__helios__bool__and(
 						() -> {
 							__helios__txoutput__is_locked_by(output)(validatorHash)
@@ -19789,9 +19857,25 @@ function makeRawFunctions() {
 							__helios__txoutput__has_datum_hash(output, datumHash)
 						}
 					)
-				})
-			}(__helios__tx__find_datum_hash(self)(datum))
-		}
+				}
+			)
+		}(__helios__tx__find_datum_hash(self)(datum))
+	}`));
+	add(new RawFunc("__helios__tx__outputs_locked_by_inline_datum",
+	`(self, validatorHash, datum) -> {
+		__helios__tx__filter_outputs(
+			self, 
+			(output) -> {
+				__helios__bool__and(
+					() -> {
+						__helios__txoutput__is_locked_by(output)(validatorHash)
+					},
+					() -> {
+						__helios__txoutput__has_inline_datum(output, datum)
+					}
+				)
+			}
+		)
 	}`));
 	add(new RawFunc("__helios__tx__value_sent_to",
 	`(self) -> {
@@ -19801,8 +19885,8 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__tx__value_sent_to_datum",
 	`(self) -> {
-		(pubKeyHash, datum) -> {
-			__helios__txoutput__sum_values(__helios__tx__outputs_sent_to_datum(self)(pubKeyHash, datum))
+		(pubKeyHash, datum, isInline) -> {
+			__helios__txoutput__sum_values(__helios__tx__outputs_sent_to_datum(self)(pubKeyHash, datum, isInline))
 		}
 	}`));
 	add(new RawFunc("__helios__tx__value_locked_by",
@@ -19813,8 +19897,8 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__tx__value_locked_by_datum",
 	`(self) -> {
-		(validatorHash, datum) -> {
-			__helios__txoutput__sum_values(__helios__tx__outputs_locked_by_datum(self)(validatorHash, datum))
+		(validatorHash, datum, isInline) -> {
+			__helios__txoutput__sum_values(__helios__tx__outputs_locked_by_datum(self)(validatorHash, datum, isInline))
 		}
 	}`));
 	add(new RawFunc("__helios__tx__is_signed_by",
@@ -19867,12 +19951,22 @@ function makeRawFunctions() {
 					() -> {__core__headList(__core__sndPair(pair))},
 					() -> {__core__bData(#)}
 				)()
-			}(__core__unConstrData(__helios__common__field_2(self)))
+			}(__core__unConstrData(__helios__txoutput__datum(self)))
 		}
 	}`));
 	add(new RawFunc("__helios__txoutput__has_datum_hash",
 	`(self, datumHash) -> {
 		__core__equalsData(__helios__txoutput__get_datum_hash(self)(), datumHash)
+	}`));
+	add(new RawFunc("__helios__txoutput__has_inline_datum",
+	`(self, datum) -> {
+		(pair) -> {
+			__core__ifThenElse(
+				__core__equalsInteger(__core__fstPair(pair), 2),
+				() -> {__core__equalsData(datum, __core__headList(__core__sndPair(pair)))},
+				() -> {false}
+			)()
+		}(__core__unConstrData(__helios__txoutput__datum(self)))
 	}`));
 	add(new RawFunc("__helios__txoutput__is_locked_by",
 	`(self) -> {
@@ -25531,6 +25625,7 @@ export class Value extends CborData {
 
 	/**
 	 * Useful when deserializing inline datums
+	 * @param {UplcData} data
 	 * @returns {Value}
 	 */
 	static fromData(data) {
@@ -25544,14 +25639,16 @@ export class Value extends CborData {
 			let innerMap = tokensData.map;
 
 			if (mphBytes.length == 0) {
+				//lovelace
 				assert(innerMap.length == 1 && innerMap[0][0].bytes.length == 0); 
-				sum = sum.add(new Value(innerMap[0][1].value));
+				sum = sum.add(new Value(innerMap[0][1].int));
 			} else {
+				// other assets
 				let mph = new MintingPolicyHash(mphBytes);
 
 				for (let [tokenNameData, quantityData] of innerMap) {
-					let tokeName = tokenNameData.bytes;
-					let quantity = quantityData.value;
+					let tokenName = tokenNameData.bytes;
+					let quantity = quantityData.int;
 
 					sum = sum.add(Value.asset(mph, tokenName, quantity));
 				}
@@ -26258,7 +26355,7 @@ export class HashedDatum extends Datum {
 		return {
 			hash: this.#hash.dump(),
 			cbor: this.#origData === null ? null : bytesToHex(this.#origData.toCbor()),
-			schema: this.#origData === null ? null : JSON.parse(this.#origData.toSchemaJSON())
+			schema: this.#origData === null ? null : JSON.parse(this.#origData.toSchemaJson())
 		};
 	}
 }
@@ -26302,7 +26399,7 @@ export class InlineDatum extends Datum {
 	dump() {
 		return {
 			inlineCbor: bytesToHex(this.#data.toCbor()),
-			inlineSchema: JSON.parse(this.#data.toSchemaJSON())
+			inlineSchema: JSON.parse(this.#data.toSchemaJson())
 		};
 	}
 }

@@ -1,5 +1,9 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/09/19
+* toSchemaJSON renamed to toSchemaJson
+* tx.outputs_sent_to_datum, tx.value_sent_to_datum, tx.outputs_locked_by_datum, tx.value_locked_by_datum: now take 'isInline' as a third boolean argument
+
 # 2022/09/16
 * PlutusCore renamed to UPLC everywhere
 * helios.d.ts file generated

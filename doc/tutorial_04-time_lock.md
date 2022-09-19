@@ -82,7 +82,7 @@ const MY_DATUM = Datum{
   nonce: 42
 }`;
 
-> console.log(helios.Program.new(src).evalParam("MY_DATUM").toSchemaJSON());
+> console.log(helios.Program.new(src).evalParam("MY_DATUM").data.toSchemaJson());
 
 {"constructor": 0, "fields": [{"int": 16....}, {"bytes": "1d22b9ff5fc..."}, {"int": 42}]}
 ```
