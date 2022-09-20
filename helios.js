@@ -25014,6 +25014,16 @@ export class Address extends CborData {
 	}
 
 	/**
+	 * Simple payment address without a staking part
+	 * @param {boolean} isTestnet
+	 * @param {PubKeyHash} hash
+	 * @returns {Address}
+	 */
+	static fromPubKeyHash(isTestnet, hash) {
+		return new Address([isTestnet ? 0x60 ? 0x61].concat(hash.bytes));
+	}
+
+	/**
 	 * Simple script address without a staking part
 	 * Only relevant for validator scripts
 	 * @param {boolean} isTestnet
