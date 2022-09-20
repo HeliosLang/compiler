@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.6.2
+// Version:     0.6.3
 // Last update: September 2022
 // License:     Unlicense
 //
@@ -200,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.6.2"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.6.3"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -7347,10 +7347,14 @@ export class ByteArrayData extends UplcData {
 				return false;
 			} else {
 				for (let i = 0; i < Math.min(a.length, b.length); i++) {
-					if (a[i] >= b[i]) {
+					if (a[i] < b[i]) {
+						return true;
+					} else if (a[i] > b[i]) {
 						return false;
 					}
 				}
+
+				return false;
 			}
 		}
 
@@ -7367,9 +7371,9 @@ export class ByteArrayData extends UplcData {
 					return lessOrGreater();
 				}
 			}
-		}
 
-		return 0;
+			return 0;
+		}
 	}
 }
 
@@ -24266,7 +24270,6 @@ export class TxWitnesses extends CborData {
 				case 6:
 					CborData.decodeList(fieldBytes, itemBytes => {
 						txWitnesses.#scripts.push(deserializeUplcBytes(unwrapCborBytes(CborData.decodeBytes(itemBytes))));
-						//console.log(bytesToHex(CborData.decodeBytes(itemBytes)));
 					});
 					break;
 				default:
