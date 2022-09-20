@@ -25020,7 +25020,7 @@ export class Address extends CborData {
 	 * @returns {Address}
 	 */
 	static fromPubKeyHash(isTestnet, hash) {
-		return new Address([isTestnet ? 0x60 ? 0x61].concat(hash.bytes));
+		return new Address([isTestnet ? 0x60 : 0x61].concat(hash.bytes));
 	}
 
 	/**
