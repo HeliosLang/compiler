@@ -5801,68 +5801,19 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					let aBytes = a.bytes;
-					let bBytes = b.bytes;
-
-					let res = true;
-					if (aBytes.length != bBytes.length) {
-						res = false;
-					} else {
-						for (let i = 0; i < aBytes.length; i++) {
-							if (aBytes[i] != bBytes[i]) {
-								res = false;
-								break;
-							}
-						}
-					}
-
-					return new UplcBool(callSite, res);
+					return new UplcBool(callSite, ByteArrayData.comp(a.bytes, b.bytes) == 0);
 				});
 			case "lessThanByteString":
 				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					let aBytes = a.bytes;
-					let bBytes = b.bytes;
-
-					let res = true;
-					if (aBytes.length == 0) {
-						res = bBytes.length != 0;
-					} else if (bBytes.length == 0) {
-						res = false;
-					} else {
-						for (let i = 0; i < Math.min(aBytes.length, bBytes.length); i++) {
-							if (aBytes[i] >= bBytes[i]) {
-								res = false;
-								break;
-							}
-						}
-					}
-
-					return new UplcBool(callSite, res);
+					return new UplcBool(callSite, ByteArrayData.comp(a.bytes, b.bytes) == -1);
 				});
 			case "lessThanEqualsByteString":
 				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					let aBytes = a.bytes;
-					let bBytes = b.bytes;
-
-					let res = true;
-					if (aBytes.length == 0) {
-						res = true;
-					} else if (bBytes.length == 0) {
-						res = false;
-					} else {
-						for (let i = 0; i < Math.min(aBytes.length, bBytes.length); i++) {
-							if (aBytes[i] > bBytes[i]) {
-								res = false;
-								break;
-							}
-						}
-					}
-
-					return new UplcBool(callSite, res);
+					return new UplcBool(callSite, ByteArrayData.comp(a.bytes, b.bytes) <= 0);
 				});
 			case "appendString":
 				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
@@ -7379,6 +7330,46 @@ export class ByteArrayData extends UplcData {
 	 */
 	static fromCbor(bytes) {
 		return new ByteArrayData(CborData.decodeBytes(bytes));
+	}
+
+	/**
+	 * Bytearray comparison, which can be used for sorting bytearrays
+	 * @param {number[]} a
+	 * @param {number[]} b
+	 * @returns {number} - 0 -> equals, 1 -> gt, -1 -> lt
+	 */
+	static comp(a, b) {
+		/** @return {boolean} */
+		function lessThan() {
+			if (a.length == 0) {
+				return b.length != 0;
+			} else if (b.length == 0) {
+				return false;
+			} else {
+				for (let i = 0; i < Math.min(a.length, b.length); i++) {
+					if (a[i] >= b[i]) {
+						return false;
+					}
+				}
+			}
+		}
+
+		/** @return {number} */
+		function lessOrGreater() {
+			return lessThan() ? -1 : 1;	
+		}
+
+		if (a.length != b.length) {
+			return lessOrGreater();
+		} else {
+			for (let i = 0; i < a.length; i++) {
+				if (a[i] != b[i]) {
+					return lessOrGreater();
+				}
+			}
+		}
+
+		return 0;
 	}
 }
 
@@ -23268,9 +23259,9 @@ export class Tx extends CborData {
 	addMint(mph, tokens, redeemer) {
 		assert(!this.#valid);
 
-		let index = this.#body.addMint(mph, tokens);
+		this.#body.addMint(mph, tokens);
 
-		this.#witnesses.addMintingRedeemer(index, UplcDataValue.unwrap(redeemer));
+		this.#witnesses.addMintingRedeemer(mph, UplcDataValue.unwrap(redeemer));
 
 		return this;
 	}
@@ -23286,12 +23277,12 @@ export class Tx extends CborData {
 		if (input.origOutput === null) {
 			throw new Error("TxInput.origOutput must be set when building transaction");
 		} else {
-			let id = this.#body.addInput(input);
+			void this.#body.addInput(input);
 
 			if (redeemer !== null) {
 				assert(input.origOutput.address.validatorHash !== null, "input isn't locked by a script");
 
-				this.#witnesses.addSpendingRedeemer(id, UplcDataValue.unwrap(redeemer));
+				this.#witnesses.addSpendingRedeemer(input, UplcDataValue.unwrap(redeemer));
 
 				if (input.origOutput.datum === null) {
 					throw new Error("expected non-null datum");
@@ -23590,9 +23581,15 @@ export class Tx extends CborData {
 	async finalize(networkParams, spareUtxos = []) {
 		assert(!this.#valid);
 
+		// inputs, minted assets, and withdrawals must all be in a particular order
+		this.#body.sort();
+
+		// after inputs etc. have been sorted we can calculate the indices of the redeemers referring to those inputs
+		this.#witnesses.updateRedeemerIndices(this.#body);
+
 		this.checkScripts();
 
-		// first do everything that might increase the size of the transaction	
+		// now do everything that might increase the size of the transaction	
 
 		this.#body.correctOutputs(networkParams);
 
@@ -23633,8 +23630,15 @@ export class Tx extends CborData {
 	}
 }
 
+/**
+ * inputs, minted assets, and withdrawals need to be sorted in order to form a valid transaction
+ */
 class TxBody extends CborData {
-	/** @type {TxInput[]} */
+	/**
+	 * Inputs must be sorted before submitting (first by TxId, then by utxoIndex)
+	 * Spending redeemers must point to the sorted inputs
+	 * @type {TxInput[]} 
+	 */
 	#inputs;
 
 	/** @type {TxOutput[]} */
@@ -23649,13 +23653,21 @@ class TxBody extends CborData {
 	/** @type {DCert[]} */
 	#certs;
 
-	/** @type {Map<Address, bigint>} */
+	/**
+	 * Withdrawals must be sorted by address
+	 * Stake rewarding redeemers must point to the sorted withdrawals
+	 * @type {Map<Address, bigint>} 
+	 */
 	#withdrawals;
 
 	/** @type {?bigint} */
 	#firstValidSlot;
 
-	/** @type {Assets} */
+	/**
+	 * Internally the assets must be sorted by mintingpolicyhash
+	 * Minting redeemers must point to the sorted minted assets
+	 * @type {Assets} 
+	 */
 	#minted;
 
 	/** @type {?Hash} */
@@ -23993,15 +24005,13 @@ class TxBody extends CborData {
 	 * Throws error if this.#minted already contains mph
 	 * @param {MintingPolicyHash} mph - minting policy hash
 	 * @param {[number[], bigint][]} tokens
-	 * @returns {number} - index of entry
 	 */
 	addMint(mph, tokens) {
-		return this.#minted.addTokens(mph, tokens);
+		this.#minted.addTokens(mph, tokens);
 	}
 
 	/**
 	 * @param {TxInput} input 
-	 * @returns {number} - index of added input
 	 */
 	addInput(input) {
 		if (input.origOutput === null) {
@@ -24010,11 +24020,7 @@ class TxBody extends CborData {
 			input.origOutput.value.assertAllPositive();
 		}
 
-		let idx = this.#inputs.length;
-
 		this.#inputs.push(input);
-
-		return idx;
 	}
 
 	/**
@@ -24133,6 +24139,8 @@ class TxBody extends CborData {
 			for (let col of this.#collateral) {
 				if (col.origOutput === null) {
 					throw new Error("expected collateral TxInput.origOutput to be set");
+				} else if (!col.origOutput.value.assets.isZero()) {
+					throw new Error("collateral can only contain lovelace");
 				} else {
 					sum = sum.add(col.origOutput.value);
 				}
@@ -24144,6 +24152,20 @@ class TxBody extends CborData {
 				console.error("Warning: way too much collateral");
 			}
 		}
+	}
+
+	/**
+	 * Makes sore inputs, withdrawals, and minted assets are in correct order
+	 * Mutates
+	 */
+	sort() {
+		this.#inputs.sort(TxInput.comp);
+
+		this.#withdrawals = new Map(Array.from(this.#withdrawals.entries()).sort((a, b) => {
+			return Address.compStakingHashes(a[0], b[0]);
+		}));
+
+		this.#minted.sort();
 	}
 }
 
@@ -24312,19 +24334,20 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
-	 * @param {number} index 
+	 * Index is calculated later
+	 * @param {TxInput} input
 	 * @param {UplcData} redeemerData 
 	 */
-	addSpendingRedeemer(index, redeemerData) {
-		this.#redeemers.push(new SpendingRedeemer(index, redeemerData));
+	addSpendingRedeemer(input, redeemerData) {
+		this.#redeemers.push(new SpendingRedeemer(input, -1, redeemerData)); // actual input index is determined later
 	}
 
 	/**
-	 * @param {number} index
+	 * @param {MintingPolicyHash} mph
 	 * @param {UplcData} redeemerData
 	 */
-	addMintingRedeemer(index, redeemerData) {
-		this.#redeemers.push(new MintingRedeemer(index, redeemerData));
+	addMintingRedeemer(mph, redeemerData) {
+		this.#redeemers.push(new MintingRedeemer(mph, -1, redeemerData));
 	}
 
 	/**
@@ -24357,6 +24380,15 @@ export class TxWitnesses extends CborData {
 	 */
 	getScript(scriptHash) {
 		return assertDefined(this.#scripts.find(s => eq(s.hash(), scriptHash.bytes)));
+	}
+
+	/**
+	 * @param {TxBody} body
+	 */
+	updateRedeemerIndices(body) {
+		for (let redeemer of this.#redeemers) {
+			redeemer.updateIndex(body);
+		}
 	}
 
 	/**
@@ -24586,6 +24618,23 @@ export class TxInput extends CborData {
 			return new TxInput(txId, utxoIdx);
 		}
 	}
+
+	/**
+	 * Tx inputs must be ordered. 
+	 * The following function can be used directly by a js array sort
+	 * @param {TxInput} a
+	 * @param {TxInput} b
+	 * @returns {number}
+	 */
+	static comp(a, b) {
+		let res = ByteArrayData.comp(a.#txId.bytes, b.#txId.bytes);
+
+		if (res == 0) {
+			return Number(a.#utxoIdx - b.#utxoIdx);
+		} else {
+			return res;
+		}
+	} 
 
 	/**
 	 * @returns {Object}
@@ -25093,6 +25142,16 @@ export class Address extends CborData {
 			return null;
 		}
 	}
+
+	/**
+	 * Used to sort txbody withdrawals
+	 * @param {Address} a
+	 * @param {Address} b
+	 * @return {number}
+	 */
+	static compStakingHashes(a, b) {
+		return Hash.comp(a.stakingHash, b.stakingHash);
+	}
 }
 
 export class Assets extends CborData {
@@ -25239,7 +25298,6 @@ export class Assets extends CborData {
 	 * Mutates. Throws error if mph is already contained in this
 	 * @param {MintingPolicyHash} mph
 	 * @param {[number[], bigint][]} tokens
-	 * @returns {number} - index of added entry
 	 */
 	addTokens(mph, tokens) {
 		for (let asset of this.#assets) {
@@ -25248,11 +25306,7 @@ export class Assets extends CborData {
 			}
 		}
 
-		let index = this.#assets.length;
-
 		this.#assets.push([mph, tokens.slice()]);
-
-		return index;
 	}
 
 	/**
@@ -25446,6 +25500,16 @@ export class Assets extends CborData {
 		}
 
 		return new MapData(pairs);
+	}
+
+	/**
+	 * Makes sure minting policies are in correct order
+	 * Mutates
+	 */
+	sort() {
+		this.#assets.sort((a, b) => {
+			return Hash.comp(a[0], b[0]);
+		});
 	}
 }
 
@@ -25741,6 +25805,15 @@ export class Hash extends CborData {
 	 */
 	eq(other) {
 		return eq(this.#bytes, other.#bytes);
+	}
+
+	/**
+	 * @param {Hash} a 
+	 * @param {Hash} b 
+	 * @returns {number}
+	 */
+	static comp(a, b) {
+		return ByteArrayData.comp(a.#bytes, b.#bytes);
 	}
 }
 
@@ -26052,9 +26125,9 @@ class Redeemer extends CborData {
 
 			switch(type) {
 				case 0:
-					return new SpendingRedeemer(index, data, cost);
+					return new SpendingRedeemer(null, index, data, cost);
 				case 1:
-					return new MintingRedeemer(index, data, cost);
+					return new MintingRedeemer(null, index, data, cost);
 				default:
 					throw new Error("unhandled redeemer type (Todo)");	
 			}
@@ -26090,6 +26163,13 @@ class Redeemer extends CborData {
 	}
 
 	/**
+	 * @param {TxBody} body 
+	 */
+	updateIndex(body) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
 	 * @param {Cost} cost 
 	 */
 	setCost(cost) {
@@ -26110,16 +26190,19 @@ class Redeemer extends CborData {
 }
 
 class SpendingRedeemer extends Redeemer {
+	#input;
 	#inputIndex;
 
 	/**
-	 * @param {number} inputIndex 
+	 * @param {?TxInput} input
+	 * @param {number} inputIndex
 	 * @param {UplcData} data 
 	 * @param {Cost} exUnits 
 	 */
-	constructor(inputIndex, data, exUnits = {mem: 0n, cpu: 0n}) {
+	constructor(input, inputIndex, data, exUnits = {mem: 0n, cpu: 0n}) {
 		super(data, exUnits);
 
+		this.#input = input
 		this.#inputIndex = inputIndex;
 	}
 
@@ -26159,19 +26242,37 @@ class SpendingRedeemer extends Redeemer {
 			body.inputs[this.#inputIndex].toOutputIdData(),
 		]);
 	}
+
+	/**
+	 * @param {TxBody} body
+	 */
+	updateIndex(body) {
+		if (this.#input === null) {
+			throw new Error("input can't be null");
+		} else {
+			this.#inputIndex = body.inputs.findIndex(i => {
+				return i.txId.eq(this.#input.txId) && (i.utxoIdx == this.#input.utxoIdx)
+			});
+
+			assert(this.#inputIndex != -1);
+		}
+	}
 }
 
 class MintingRedeemer extends Redeemer {
+	#mph;
 	#mphIndex;
 
 	/**
+	 * @param {?MintingPolicyHash} mph
 	 * @param {number} mphIndex
 	 * @param {UplcData} data
 	 * @param {Cost} exUnits
 	 */
-	constructor(mphIndex, data, exUnits = {mem: 0n, cpu: 0n}) {
+	constructor(mph, mphIndex, data, exUnits = {mem: 0n, cpu: 0n}) {
 		super(data, exUnits);
 
+		this.#mph = mph;
 		this.#mphIndex = mphIndex;
 	}
 
@@ -26203,7 +26304,6 @@ class MintingRedeemer extends Redeemer {
 	}
 
 	/**
-	 * 
 	 * @param {TxBody} body 
 	 * @returns {ConstrData}
 	 */
@@ -26213,6 +26313,19 @@ class MintingRedeemer extends Redeemer {
 		return new ConstrData(0, [
 			new ByteArrayData(mph.bytes),
 		]);
+	}
+
+	/**
+	 * @param {TxBody} body 
+	 */
+	updateIndex(body) {
+		if (this.#mph === null) {
+			throw new Error("can't have null mph at this point");
+		} else {
+			this.#mphIndex = body.minted.mintingPolicies.findIndex(mph => mph.eq(this.#mph));
+
+			assert(this.#mphIndex != -1);
+		}
 	}
 }
 
@@ -26281,6 +26394,13 @@ export class Datum extends CborData {
 	 */
 	static inline(data) {
 		return new InlineDatum(UplcDataValue.unwrap(data))
+	}
+
+	/**
+	 * @type {?UplcData}
+	 */
+	get data() {
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -26385,7 +26505,7 @@ export class InlineDatum extends Datum {
 	}
 
 	/**
-	 * @type {?UplcData}
+	 * @type {UplcData}
 	 */
 	get data() {
 		return this.#data;
