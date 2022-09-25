@@ -255,8 +255,8 @@ function spendingScriptContextParam(useInlineDatum) {
         const VALUE_OUT_1: Value = Value::lovelace(QTY_1)
         const VALUE_OUT_2: Value = Value::lovelace(QTY_2)
 
-        const DATUM_HASH_1: DatumHash = DatumHash::new(#1234)
         const DATUM_1: Int = 42
+        const DATUM_HASH_1: DatumHash = DatumHash::new(DATUM_1.serialize().blake2b())
         const OUTPUT_DATUM: OutputDatum = ${useInlineDatum ? "OutputDatum::new_inline(DATUM_1)" : "OutputDatum::new_hash(DATUM_HASH_1)"}
 
         const CURRENT_TX_ID: TxId = TxId::CURRENT

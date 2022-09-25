@@ -193,12 +193,20 @@ TransactionHash ::= Hash(32)
 
 TransactionIndex ::= BigInt
 
+// babbage-era
 TransactionOutput ::= { // object
     address: Address, // 0
     amount: Value, // 1
     ?datum: DatumEnum, // 2
     ?script_ref: ScriptRef // 3
 }
+
+// pre-babbage-era (used by eternl wallet when possible (ie. no inline datum and no ref script)
+TransactionOutput ::= [
+	address: Address,
+	amount: Value,
+    datum: Option[Hash]
+]
 
 Address ::= bytearray
 

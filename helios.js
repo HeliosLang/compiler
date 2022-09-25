@@ -88,7 +88,7 @@
 //     3. Plutus-core builtins              NetworkParams, CostModel, ConstCost, LinearCost, 
 //                                          ArgSizeCost, MinArgSizeCost, MaxArgSizeCost, 
 //                                          SumArgSizesCost, ArgSizeDiffCost, ArgSizeProdCost, 
-//                                          ArgSizeDiagCost, UplcBuiltinInfo, Uplc_BUILTINS
+//                                          ArgSizeDiagCost, UplcBuiltinInfo, UPLC_BUILTINS
 //
 //     4. Plutus-core AST objects           UplcValue, DEFAULT_UPLC_RTE_CALLBACKS,
 //                                          UplcRte, UplcStack, UplcAnon, UplcInt, UplcByteArray, 
@@ -187,6 +187,7 @@
 //    18. Transaction objects               Tx, TxBody, TxWitnesses, TxInput, TxOutput, DCert, 
 //                                          Address, Assets, Value, Hash, PubKeyHash, 
 //                                          ValidatorHash, MintingPolicyHash, Signature, 
+//                                          RedeemerCostTracker,
 //                                          Redeemer, SpendingRedeemer, MintingRedeemer, 
 //                                          Datum, HashedDatum, InlineDatum
 //
@@ -3051,6 +3052,13 @@ class CostModel {
 	calc(args) {
 		throw new Error("not yet implemented");
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		throw new Error("not yet implemented");
+	}
 }
 
 class ConstCost extends CostModel {
@@ -3081,6 +3089,13 @@ class ConstCost extends CostModel {
 	 */
 	calc(args) {
 		return this.#constant;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		return `const: ${this.#constant.toString()}`;
 	}
 }
 
@@ -3117,6 +3132,13 @@ class LinearCost extends CostModel {
 	 */
 	calcInternal(size) {
 		return this.#a + this.#b*BigInt(size);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		return `intercept: ${this.#a.toString()}, slope: ${this.#b.toString()}`;
 	}
 }
 
@@ -3158,7 +3180,7 @@ class Arg0SizeCost extends ArgSizeCost {
 	 * @param {string} baseName - eg. addInteger-cpu-arguments
 	 * @returns {Arg0SizeCost}
 	 */
-	 static fromParams(params, baseName) {
+	static fromParams(params, baseName) {
 		let [a, b] = LinearCost.getParams(params, baseName);
 
 		return new Arg0SizeCost(a, b);
@@ -3177,9 +3199,9 @@ class Arg1SizeCost extends ArgSizeCost {
 	/**
 	 * @param {NetworkParams} params 
 	 * @param {string} baseName - eg. addInteger-cpu-arguments
-	 * @returns {Arg0SizeCost}
+	 * @returns {Arg1SizeCost}
 	 */
-	 static fromParams(params, baseName) {
+	static fromParams(params, baseName) {
 		let [a, b] = LinearCost.getParams(params, baseName);
 
 		return new Arg1SizeCost(a, b);
@@ -3198,9 +3220,9 @@ class Arg2SizeCost extends ArgSizeCost {
 	/**
 	 * @param {NetworkParams} params 
 	 * @param {string} baseName - eg. addInteger-cpu-arguments
-	 * @returns {Arg0SizeCost}
+	 * @returns {Arg2SizeCost}
 	 */
-	 static fromParams(params, baseName) {
+	static fromParams(params, baseName) {
 		let [a, b] = LinearCost.getParams(params, baseName);
 
 		return new Arg2SizeCost(a, b);
@@ -3232,13 +3254,7 @@ class MinArgSizeCost extends LinearCost {
 	 * @returns {bigint}
 	 */
 	calc(args) {
-		let min = args[0];
-
-		for (let arg of args) {
-			min = Math.min(arg, min);
-		}
-
-		return this.calcInternal(min);
+		return this.calcInternal(Math.min(...args));
 	}
 }
 
@@ -3268,13 +3284,7 @@ class MaxArgSizeCost extends LinearCost {
 	 * @returns {bigint}
 	 */
 	calc(args) {
-		let max = args[0];
-
-		for (let arg of args) {
-			max = Math.max(arg, max);
-		}
-
-		return this.calcInternal(max);
+		return this.calcInternal(Math.max(...args));
 	}
 }
 
@@ -3349,6 +3359,13 @@ class ArgSizeDiffCost extends LinearCost {
 
 		return this.calcInternal(Math.max(x - y, this.#min));
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		return super.dump() + `, minimum: ${this.#min.toString()}`;
+	}
 }
 
 class ArgSizeProdCost extends LinearCost {
@@ -3392,6 +3409,13 @@ class ArgSizeProdCost extends LinearCost {
 			return this.calcInternal(x*y);
 		}
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		return super.dump() + `, constant: ${this.#constant.toString()}`;
+	}
 }
 
 class ArgSizeDiagCost extends LinearCost {
@@ -3430,6 +3454,13 @@ class ArgSizeDiagCost extends LinearCost {
 		} else {
 			return this.#constant;
 		}
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		return super.dump() + `, constant: ${this.#constant.toString()}`;
 	}
 }
 
@@ -3494,13 +3525,22 @@ class UplcBuiltinInfo {
 
 		return {mem: memCost, cpu: cpuCost};
 	}
+
+	/**
+	 * @param {NetworkParams} params
+	 */
+	dumpCostModel(params) {
+		let [memCostModel, cpuCostModel] = this.instantiateCostModels(params);
+
+		console.log(`${this.name}-memory-arguments={${memCostModel.dump()},\n${this.name}-cpu-arguments={${cpuCostModel.dump()}}`);
+	}
 }
 
 /** 
  * A list of all PlutusScript builins, with associated costmodels (actual costmodel parameters are loaded from NetworkParams during runtime)
  * @type {UplcBuiltinInfo[]} 
  */
-const Uplc_BUILTINS = (
+const UPLC_BUILTINS = (
 	/**
 	 * @returns {UplcBuiltinInfo[]}
 	 */
@@ -3576,6 +3616,16 @@ const Uplc_BUILTINS = (
 		];
 	}
 )();
+
+/**
+ * Use this function to check cost-model parameters
+ * @param {NetworkParams} networkParams
+ */
+export function dumpCostModels(networkParams) {
+	for (let builtin of UPLC_BUILTINS) {
+		builtin.dumpCostModel(networkParams);
+	}
+}
 
 
 /////////////////////////////////////
@@ -3848,6 +3898,10 @@ class UplcRte {
 	 * @param {Cost} cost 
 	 */
 	incrCost(cost) {
+		if (cost.mem <= 0n || cost.cpu <= 0n) {
+			throw new Error("cost not increasing");
+		}
+
 		if (this.#callbacks.onIncrCost !== undefined) {
 			this.#callbacks.onIncrCost(cost);
 		}
@@ -4852,7 +4906,7 @@ class UplcPair extends UplcValue {
 	 * @type {number}
 	 */
 	get memSize() {
-		return 1 + this.#first.memSize + this.#second.memSize;
+		return this.#first.memSize + this.#second.memSize;
 	}
 
 	/**
@@ -4931,7 +4985,7 @@ class UplcMapItem extends UplcValue {
 	 * @type {number}
 	 */
 	get memSize() {
-		return 1 + (new UplcDataValue(this.site, this.#key)).memSize + 
+		return (new UplcDataValue(this.site, this.#key)).memSize + 
 			(new UplcDataValue(this.site, this.#value)).memSize;
 	}
 
@@ -5629,7 +5683,7 @@ class UplcBuiltin extends UplcTerm {
 		let i;
 
 		if (typeof this.#name == "string") {
-			i = Uplc_BUILTINS.findIndex(info => info.name == this.#name);
+			i = UPLC_BUILTINS.findIndex(info => info.name == this.#name);
 		} else {
 			i = this.#name;
 		}
@@ -5645,9 +5699,15 @@ class UplcBuiltin extends UplcTerm {
 	 * @returns {Cost}
 	 */
 	calcCost(params, ...args) {
-		let i = Uplc_BUILTINS.findIndex(info => info.name == this.#name);
+		let i = UPLC_BUILTINS.findIndex(info => info.name == this.#name);
 
-		return Uplc_BUILTINS[i].calcCost(params, args.map(a => a.memSize));
+		let argSizes = args.map(a => a.memSize);
+
+		if (!argSizes.every(size => !Number.isNaN(size) && size >= 0)) {
+			throw new Error("invalid arg size");
+		}
+
+		return UPLC_BUILTINS[i].calcCost(params, argSizes);
 	}
 
 	/**
@@ -5859,7 +5919,7 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UplcByteArray(callSite, Crypto.blake2b(a.bytes))
+					return new UplcByteArray(callSite, Crypto.blake2b(a.bytes)); 
 				});
 			case "verifyEd25519Signature":
 				return new UplcAnon(this.site, rte, 3, (callSite, _, key, msg, signature) => {
@@ -5884,6 +5944,7 @@ class UplcBuiltin extends UplcTerm {
 			case "ifThenElse":
 				return new UplcAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
 					rte.calcAndIncrCost(this, a, b, c);
+
 					return a.bool ? b.copy(callSite) : c.copy(callSite);
 				});
 			case "chooseUnit":
@@ -5936,10 +5997,12 @@ class UplcBuiltin extends UplcTerm {
 						let item = a.data;
 						let lst = b.list;
 						lst.unshift(item);
+
 						return new UplcList(callSite, lst);
 					} else if (b.isMap()) {
 						let pairs = b.map;
 						pairs.unshift(new UplcMapItem(callSite, a.key, a.value));
+
 						return new UplcMap(callSite, pairs);
 					} else {
 						throw callSite.typeError(`expected list or map for second arg, got '${b.toString()}'`);
@@ -6125,7 +6188,6 @@ class UplcBuiltin extends UplcTerm {
 						throw callSite.typeError(`expected data, got ${b.toString()}`);
 					}
 
-					// just compare the schema jsons for now
 					return new UplcBool(callSite, a.data.isSame(b.data));
 				});
 			case "mkPairData":
@@ -6194,6 +6256,13 @@ class UplcProgram {
 		this.#version = version;
 		this.#expr = expr;
 		this.#purpose = purpose;
+	}
+
+	/**
+	 * @type {UplcTerm}
+	 */
+	get expr() {
+		return this.#expr;
 	}
 
 	/**
@@ -6341,6 +6410,7 @@ class UplcProgram {
 	 * @property {bigint} mem  - in 8 byte words (i.e. 1 mem unit is 64 bits)
 	 * @property {bigint} cpu  - in reference cpu microseconds
 	 * @property {number} size - in bytes
+	 * @property {UserError | UplcValue} res - result 
 	 */
 
 	/**
@@ -6363,11 +6433,12 @@ class UplcProgram {
 		};
 
 		let res = await this.run(args, callbacks, networkParams);
-		
+
 		return {
 			mem: memCost,
 			cpu: cpuCost,
 			size: this.calcSize(),
+			res: res,
 		};
 	}
 
@@ -7088,6 +7159,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * Compares the schema jsons
 	 * @param {UplcData} other 
 	 * @returns {boolean}
 	 */
@@ -18591,6 +18663,10 @@ function makeRawFunctions() {
 		__core__mkCons(${first}, __helios__common__list_${(i-1).toString()}(${woFirst.join(", ")}))
 	}`));
 	}
+	add(new RawFunc("__helios__common__hash_datum_data", 
+	`(data) -> {
+	    __core__bData(__core__blake2b_256(__core__serialiseData(data)))
+	}`));
 
 
 	// Int builtins
@@ -19798,7 +19874,7 @@ function makeRawFunctions() {
 					)
 				}
 			)
-		}(__helios__tx__find_datum_hash(self)(datum))
+		}(__helios__common__hash_datum_data(datum))
 	}`));
 	add(new RawFunc("__helios__tx__outputs_sent_to_inline_datum",
 	`(self, pubKeyHash, datum) -> {
@@ -19854,7 +19930,7 @@ function makeRawFunctions() {
 					)
 				}
 			)
-		}(__helios__tx__find_datum_hash(self)(datum))
+		}(__helios__common__hash_datum_data(datum))
 	}`));
 	add(new RawFunc("__helios__tx__outputs_locked_by_inline_datum",
 	`(self, validatorHash, datum) -> {
@@ -20897,7 +20973,7 @@ class IRScope {
 	 * @returns 
 	 */
 	static findBuiltin(name) {
-		let i = Uplc_BUILTINS.findIndex(info => { return "__core__" + info.name == name });
+		let i = UPLC_BUILTINS.findIndex(info => { return "__core__" + info.name == name });
 		assert(i != -1, `${name} is not a real builtin`);
 		return i;
 	}
@@ -22406,7 +22482,7 @@ class IRCoreCallExpr extends IRCallExpr {
 		 */
 		 let term = new UplcBuiltin(site, name.slice("__core__".length));
 
-		 let nForce = Uplc_BUILTINS[IRScope.findBuiltin(name)].forceCount;
+		 let nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
  
 		 for (let i = 0; i < nForce; i++) {
 			 term = new UplcForce(site, term);
@@ -22782,7 +22858,7 @@ class UplcDeserializer extends BitReader {
 	 * @returns {string | number}
 	 */
 	builtinName(id) {
-		let all = Uplc_BUILTINS;
+		let all = UPLC_BUILTINS;
 
 		if (id >= 0 && id < all.length) {
 			return all[id].name;
@@ -23374,6 +23450,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Calculates tx fee (including script execution)
 	 * @param {NetworkParams} networkParams
 	 * @returns {bigint}
 	 */
@@ -23444,10 +23521,11 @@ export class Tx extends CborData {
 
 	/**
 	 * @param {NetworkParams} networkParams 
+	 * @param {RedeemerCostTracker} redeemerCostTracker
 	 * @returns {Promise<void>}
 	 */
-	async executeRedeemers(networkParams) {
-		await this.#witnesses.executeRedeemers(networkParams, this.#body);
+	async executeRedeemers(networkParams, redeemerCostTracker) {
+		await this.#witnesses.executeRedeemers(networkParams, this.#body, redeemerCostTracker);
 	}
 
 	/**
@@ -23459,6 +23537,9 @@ export class Tx extends CborData {
 	 * @param {TxInput[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
 	 */
 	balance(networkParams, spareUtxos) {
+		// remove any pre-existing ChangeTxOutput
+		this.#body.removeChangeOutputs();
+
 		let fee = this.setFee(networkParams, this.estimateFee(networkParams));
 		
 		let inputValue = this.#body.sumInputAndMintedValue();
@@ -23496,7 +23577,7 @@ export class Tx extends CborData {
 		// use the change address to create a change utxo
 		let diff = inputValue.sub(totalOutputValue);
 
-		let changeOutput = new TxOutput(this.#changeAddress, diff); // also includes any minted change
+		let changeOutput = new ChangeTxOutput(this.#changeAddress, diff); // also includes any minted change
 
 		this.#body.addOutput(changeOutput);
 
@@ -23594,16 +23675,26 @@ export class Tx extends CborData {
 		this.checkScripts();
 
 		// now do everything that might increase the size of the transaction	
-
 		this.#body.correctOutputs(networkParams);
 
-		// the scripts executed at this point will not see the correct txHash, and will not see a balanced tx with the correct fees
-		await this.executeRedeemers(networkParams);
-
+		// dummy scriptDataHash, but at least this way the tx has correct size
 		this.syncScriptDataHash(networkParams);
 
-		this.balance(networkParams, spareUtxos.slice());
+		// the scripts executed at this point will not see the correct txHash, but they see a properly balanced tx
+		let redeemerCostTracker = new RedeemerCostTracker();
 
+		while (redeemerCostTracker.dirty) {
+			redeemerCostTracker.clean();
+
+			this.balance(networkParams, spareUtxos.slice());
+
+			await this.executeRedeemers(networkParams, redeemerCostTracker);
+
+			// we can only sync scriptDataHash after the redeemer execution costs have been estimated
+			this.syncScriptDataHash(networkParams);
+		}
+
+		// a bunch of checks
 		this.#body.checkOutputs(networkParams);
 
 		this.checkCollateral(networkParams);
@@ -23924,12 +24015,12 @@ class TxBody extends CborData {
 	toTxData(networkParams, redeemers, datums, txId) {
 		return new ConstrData(0, [
 			new ListData(this.#inputs.map(input => input.toData())),
+			new ListData(this.#refInputs.map(input => input.toData())),
 			new ListData(this.#outputs.map(output => output.toData())),
 			(new Value(this.#fee)).toData(),
 			this.#minted.toData(),
 			new ListData(this.#certs.map(cert => cert.toData())),
 			new MapData(Array.from(this.#withdrawals.entries()).map(w => [w[0].toStakingData(), new IntData(w[1])])),
-			new MapData([]), // TODO: staking withdrawals
 			this.toValidTimeRangeData(networkParams),
 			new ListData(this.#requiredSigners.map(rs => new ByteArrayData(rs.bytes))),
 			new MapData(redeemers.map(r => [r.toScriptPurposeData(this), r.data])),
@@ -23937,6 +24028,7 @@ class TxBody extends CborData {
 				new ByteArrayData(Crypto.blake2b(d.toCbor())), 
 				d
 			])),
+			// DEBUG extra data to see if it influences the ex budget
 			new ConstrData(0, [new ByteArrayData(txId.bytes)]),
 		]);
 	}
@@ -24041,6 +24133,10 @@ class TxBody extends CborData {
 		output.value.assertAllPositive();
 
 		this.#outputs.push(output);
+	}
+
+	removeChangeOutputs() {
+		this.#outputs = this.#outputs.filter(output => !output.isChange());
 	}
 
 	/**
@@ -24424,9 +24520,10 @@ export class TxWitnesses extends CborData {
 	 * Executes the redeemers in order to calculate the necessary ex units
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body - needed in order to create correct ScriptContexts
+	 * @param {RedeemerCostTracker} redeemerCostTracker
 	 * @returns {Promise<void>}
 	 */
-	async executeRedeemers(networkParams, body) {
+	async executeRedeemers(networkParams, body, redeemerCostTracker) {
 		for (let i = 0; i < this.#redeemers.length; i++) {
 			let redeemer = this.#redeemers[i];
 
@@ -24449,13 +24546,21 @@ export class TxWitnesses extends CborData {
 					} else {
 						let script = this.getScript(validatorHash);
 
-						let profile = await script.profile([
+						let args = [
 							new UplcDataValue(Site.dummy(), datumData), 
 							new UplcDataValue(Site.dummy(), redeemer.data), 
 							new UplcDataValue(Site.dummy(), scriptContext),
-						], networkParams);
+						];
 
-						redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
+						let profile = await script.profile(args, networkParams);
+
+						if (profile.res instanceof UserError) {
+							throw profile.res;
+						} else {
+							const cost = {mem: profile.mem, cpu: profile.cpu};
+							redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
+							redeemerCostTracker.setCost(i, cost);
+						}
 					}
 				}
 			} else if (redeemer instanceof MintingRedeemer) {
@@ -24463,12 +24568,20 @@ export class TxWitnesses extends CborData {
 
 				let script = this.getScript(mph);
 
-				let profile = await script.profile([
+				let args = [
 					new UplcDataValue(Site.dummy(), redeemer.data),
 					new UplcDataValue(Site.dummy(), scriptContext),
-				], networkParams);
+				];
 
-				redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
+				let profile = await script.profile(args, networkParams);
+
+				if (profile.res instanceof UserError) {
+					throw profile.res;
+				} else {
+					const cost = {mem: profile.mem, cpu: profile.cpu};
+					redeemer.setCost(cost);
+					redeemerCostTracker.setCost(i, cost);
+				}
 			} else {
 				throw new Error("unhandled redeemer type");
 			}
@@ -24738,6 +24851,13 @@ export class TxOutput extends CborData {
 		this.#refScript = refScript;
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
+	isChange() {
+		return false;
+	}
+
 	get address() {
 		return this.#address;
 	}
@@ -24794,14 +24914,24 @@ export class TxOutput extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		if (this.#datum === null && this.#refScript === null) {
+		if ((this.#datum === null || this.#datum instanceof HashedDatum) && this.#refScript === null) {
 			// this is needed to match eternl wallet (de)serialization (annoyingly eternl deserializes the tx and then signs its own serialization)
 			// hopefully cardano-cli signs whatever serialization we choose (so we use the eternl variant in order to be compatible with both)
 
-			return CborData.encodeTuple([
+			let fields = [
 				this.#address.toCbor(),
 				this.#value.toCbor()
-			]);
+			];
+
+			if (this.#datum !== null) {
+				if (this.#datum instanceof HashedDatum) {
+					fields.push(this.#datum.hash.toCbor());
+				} else {
+					throw new Error("unexpected");
+				}
+			}
+
+			return CborData.encodeTuple(fields);
 		} else {
 			/** @type {Map<number, number[]>} */
 			let object = new Map();
@@ -24867,6 +24997,9 @@ export class TxOutput extends CborData {
 					case 1:
 						value = Value.fromCbor(fieldBytes);
 						break;
+					case 2:
+						outputDatum = new HashedDatum(Hash.fromCbor(fieldBytes));
+						break;
 					default:
 						throw new Error("unrecognized field");
 				}
@@ -24907,6 +25040,7 @@ export class TxOutput extends CborData {
 			this.#address.toData(),
 			this.#value.toData(),
 			datum,
+			new ConstrData(1, []), // TODO: how to include the ref script
 		]);
 	}
 
@@ -24941,6 +25075,23 @@ export class TxOutput extends CborData {
 
 			minLovelace = this.calcMinLovelace(networkParams);
 		}
+	}
+}
+
+export class ChangeTxOutput extends TxOutput {
+	/**
+	 * @param {Address} address 
+	 * @param {Value} value
+	 */
+	constructor(address, value) {
+		super(address, value, null, null);
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isChange() {
+		return true;
 	}
 }
 
@@ -25694,7 +25845,7 @@ export class Value extends CborData {
 		let map = this.#assets.toData();
 
 		if (this.#lovelace != 0n) {
-			let inner = map.map;
+			let inner = map.map; 
 
 			inner.unshift([
 				new ByteArrayData([]),
@@ -25702,6 +25853,9 @@ export class Value extends CborData {
 					[new ByteArrayData([]), new IntData(this.#lovelace)]
 				]),
 			]);
+
+			// 'inner' is copy, so mutating won't change the original
+			map = new MapData(inner);
 		}
 
 		return map;
@@ -26009,6 +26163,35 @@ export class Signature extends CborData {
 	}
 }
 
+class RedeemerCostTracker {
+	constructor() {
+		/** @type {Cost[]} */
+		this.costs = [];
+		this.dirty = true;
+	}
+
+	clean() {
+		this.dirty = false;
+	}
+
+	/**
+	 * 
+	 * @param {number} i 
+	 * @param {Cost} cost 
+	 */
+	setCost(i, cost) {
+		let cur = this.costs[i];
+
+		if (cur === undefined || cur === null) {
+			this.dirty = true;
+		} else if (cur.mem !== cost.mem || cur.cpu !== cost.cpu) {
+			this.dirty = true;
+		}
+
+		this.costs[i] = cost;
+	}
+}
+
 class Redeemer extends CborData {
 	/** @type {UplcData} */
 	#data;
@@ -26194,8 +26377,8 @@ class Redeemer extends CborData {
 	 * @returns {bigint}
 	 */
 	estimateFee(networkParams) {
-		assert(this.#exUnits.mem != 0n && this.#exUnits.cpu != 0n);
-
+		// this.#exUnits.mem and this.#exUnits can be 0 if we are estimating the fee for an initial balance
+		
 		let [memFee, cpuFee] = networkParams.exFeeParams;
 
 		return BigInt(Math.ceil(Number(this.#exUnits.mem)*memFee + Number(this.#exUnits.cpu)*cpuFee));
@@ -26454,6 +26637,13 @@ export class HashedDatum extends Datum {
 		if (this.#origData !== null) {
 			assert(eq(this.#hash.bytes, Crypto.blake2b(this.#origData.toCbor())));
 		}
+	}
+
+	/**
+	 * @type {Hash}
+	 */
+	get hash() {
+		return this.#hash;
 	}
 
 	/**
