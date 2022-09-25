@@ -4584,7 +4584,12 @@ class UplcByteArray extends UplcValue {
 	 * @type {number}
 	 */
 	get memSize() {
-		return Math.floor((this.#bytes.length - 1)/8) + 1;
+		let n = this.#bytes.length;
+		if (n === 0) {
+			return 1; // this is so annoying: haskell reference implementation says it should be 0, but current (20220925) testnet and mainnet settings say it's 1
+		} else {
+			return Math.floor((this.#bytes.length - 1)/8) + 1;
+		}
 	}
 
 	/**
@@ -6242,7 +6247,7 @@ class UplcBuiltin extends UplcTerm {
 /**
  * Plutus-core program class
  */
-class UplcProgram {
+export class UplcProgram {
 	#version;
 	#expr;
 	#purpose;
