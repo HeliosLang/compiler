@@ -25604,7 +25604,7 @@ export class Assets extends CborData {
 		let ms = new Assets();
 
 		CborData.decodeMap(bytes, pairBytes => {
-			let mph = Hash.fromCbor(pairBytes);
+			let mph = MintingPolicyHash.fromCbor(pairBytes);
 
 			/**
 			 * @type {[number[], bigint][]}
@@ -26054,7 +26054,7 @@ export class MintingPolicyHash extends Hash {
 	 * @param {number[]} bytes 
 	 * @returns {MintingPolicyHash}
 	 */
-	 static fromCbor(bytes) {
+	static fromCbor(bytes) {
 		return new MintingPolicyHash(CborData.decodeBytes(bytes));
 	}
 
@@ -26064,6 +26064,14 @@ export class MintingPolicyHash extends Hash {
 	 */
 	static fromHex(str) {
 		return new MintingPolicyHash(hexToBytes(str));
+	}
+
+	/**
+	 * Encodes as bech32 string using 'asset' as human readable part
+	 * @returns {string}
+	 */
+	toBech32() {
+		return Crypto.encodeBech32("asset", Crypto.blake2b(this.bytes, 20));
 	}
 }
 
