@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.6.4
+// Version:     0.6.5
 // Last update: September 2022
 // License:     Unlicense
 //
@@ -201,7 +201,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.6.4"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.6.5"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -6257,7 +6257,7 @@ export class UplcProgram {
 	 * @param {UplcInt[]} version
 	 * @param {?number} purpose // TODO: enum type
 	 */
-	constructor(expr, version = UPLC_VERSION_COMPONENTS.map(v => new UplcInt(expr.site, v, false)), purpose = null) {
+	constructor(expr, purpose = null, version = UPLC_VERSION_COMPONENTS.map(v => new UplcInt(expr.site, v, false))) {
 		this.#version = version;
 		this.#expr = expr;
 		this.#purpose = purpose;
@@ -10255,6 +10255,13 @@ class GlobalScope {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isStrict() {
+		throw new Error("should've been returned be TopScope");
+	}
+
+	/**
 	 * Initialize the GlobalScope with all the builtins
 	 * @param {number} purpose
 	 * @returns {GlobalScope}
@@ -10395,13 +10402,24 @@ class Scope {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isStrict() {
+		return this.#parent.isStrict();
+	}
+
+	/**
 	 * Asserts that all named values are user.
 	 * Throws an error if some are unused.
+	 * Check is only run if we are in strict mode
+	 * @param {boolean} onlyIfStrict
 	 */
-	assertAllUsed() {
-		for (let pair of this.#values) {
-			if (!pair[1].isUsed()) {
-				throw pair[0].referenceError(`'${pair[0].toString()}' unused`);
+	assertAllUsed(onlyIfStrict = true) {
+		if (!onlyIfStrict || this.isStrict()) {
+			for (let pair of this.#values) {
+				if (!pair[1].isUsed()) {
+					throw pair[0].referenceError(`'${pair[0].toString()}' unused`);
+				}
 			}
 		}
 	}
@@ -10411,11 +10429,15 @@ class Scope {
  * TopScope is a special scope that can contain UserTypes
  */
 class TopScope extends Scope {
+	#strict;
+
 	/**
 	 * @param {GlobalScope} parent 
+	 * @param {boolean} strict
 	 */
-	constructor(parent) {
+	constructor(parent, strict = true) {
 		super(parent);
+		this.#strict = strict;
 	}
 
 	/**
@@ -10424,6 +10446,20 @@ class TopScope extends Scope {
 	 */
 	set(name, value) {
 		super.set(name, value);
+	}
+
+	/**
+	 * @param {boolean} s 
+	 */
+	setStrict(s) {
+		this.#strict = s;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isStrict() {
+		return this.#strict;
 	}
 }
 
@@ -12851,6 +12887,10 @@ class StructStatement extends DataDefinition {
 	 * @param {TopScope} scope 
 	 */
 	eval(scope) {
+		if (scope.isStrict() && this.fields.length == 0) {
+			throw this.syntaxError("expected at least 1 struct field");
+		}
+
 		scope.set(this.name, this.evalInternal(scope));
 
 		// check the types of the member methods
@@ -13582,6 +13622,7 @@ export class Program {
 				}
 
 				globalScope.allowMacros();
+				scope.setStrict(false);
 			}
 		}
 
@@ -13645,7 +13686,6 @@ export class Program {
 		return res;
 	}
 
-
 	/**
 	 * @param {IR} ir
 	 * @returns {IR}
@@ -13700,7 +13740,7 @@ export class Program {
 
 		ir = wrapWithRawFunctions(Program.wrapWithDefinitions(ir, map));
 
-		let irProgram = IRProgram.new(ir, true);
+		let irProgram = IRProgram.new(ir, this.#purpose, true);
 
 		return new UplcDataValue(irProgram.site, irProgram.data);
 	}
@@ -13712,7 +13752,7 @@ export class Program {
 	compile(simplify = false) {
 		let ir = this.toIR();
 
-		let irProgram = IRProgram.new(ir, simplify);
+		let irProgram = IRProgram.new(ir, this.#purpose, simplify);
 
 		//console.log(irProgram.site.src.pretty());
 		
@@ -14168,10 +14208,6 @@ function buildStructStatement(site, ts) {
 			let braces = maybeBraces.assertGroup("{", 1);
 
 			let [tsFields, tsImpl] = splitDataImpl(braces.fields[0]);
-
-			if (tsFields.length == 0) {
-				throw braces.syntaxError("expected at least one struct field");
-			}
 
 			let fields = buildDataFields(tsFields);
 
@@ -15182,10 +15218,6 @@ function buildStructLiteralExpr(ts) {
 	let braces = assertDefined(ts.shift()).assertGroup("{");
 
 	let nFields = braces.fields.length;
-
-	if (nFields == 0) {
-		throw braces.syntaxError(`expected at least one field in '${typeExpr.toString()}{...}'`);
-	}
 
 	let fields = braces.fields.map(fts => buildStructLiteralField(braces.site, fts, nFields > 1));
 
@@ -22584,20 +22616,24 @@ class IRErrorCallExpr extends IRExpr {
  */
 class IRProgram {
 	#expr;
+	#purpose;
 
 	/**
 	 * @param {IRFuncExpr | IRCallExpr | IRLiteral} expr
+	 * @param {?number} purpose
 	 */
-	constructor(expr) {
+	constructor(expr, purpose) {
 		this.#expr = expr;
+		this.#purpose = purpose;
 	}
 
 	/**
 	 * @param {IR} ir 
+	 * @param {?number} purpose
 	 * @param {boolean} simplify
 	 * @returns {IRProgram}
 	 */
-	static new(ir, simplify = false) {
+	static new(ir, purpose, simplify = false) {
 		let [irSrc, codeMap] = ir.generateSource();
 
 		let irTokens = tokenizeIR(irSrc, codeMap);
@@ -22613,7 +22649,7 @@ class IRProgram {
 				expr.resolveNames();
 			}
 
-			let program = new IRProgram(expr);
+			let program = new IRProgram(expr, purpose);
 
 			if (simplify) {
 				program.simplify();
@@ -22672,7 +22708,7 @@ class IRProgram {
 	 * @returns {UplcProgram}
 	 */
 	toUplc() {
-		return new UplcProgram(this.#expr.toUplc());
+		return new UplcProgram(this.#expr.toUplc(), this.#purpose);
 	}
 
 	/**
@@ -23185,7 +23221,7 @@ export function deserializeUplcBytes(bytes) {
 
 	reader.finalize();
 
-	return new UplcProgram(expr, version);
+	return new UplcProgram(expr, null, version);
 }
 
 /**
