@@ -6,8 +6,8 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.6.5
-// Last update: September 2022
+// Version:     0.6.6
+// Last update: October 2022
 // License:     Unlicense
 //
 //
@@ -201,7 +201,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.6.5"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.6.6"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -2514,6 +2514,41 @@ class Source {
 	getChar(pos) {
 		return this.#raw[pos];
 	}
+	
+	/**
+	 * Returns word under pos
+	 * @param {number} pos 
+	 * @returns {?string}
+	 */
+	getWord(pos) {
+		/** @type {[]string} */
+		let chars = [];
+
+		/**
+		 * @param {string | undefined} c 
+		 * @returns {boolean}
+		 */
+		function isWordChar(c) {
+			if (c === undefined) {
+				return false;
+			} else {
+				return (c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'));
+			}
+		}
+
+		let c = this.#raw[pos];
+		while (isWordChar(c)) {
+			chars.push(c);
+			pos += 1;
+			c = this.#raw[pos];
+		}
+
+		if (chars.length == 0) {
+			return null;
+		} else {
+			return chars.join("");
+		}
+	}
 
 	get length() {
 		return this.#raw.length;
@@ -2584,15 +2619,25 @@ class Source {
 export class UserError extends Error {
 	#pos;
 	#src;
-	#info;
 
 	/**
-	 * @param {string} type 
+	 * @param {string} msg
+	 * @param {Source} src 
+	 * @param {number} pos 
+	 */
+	constructor(msg, src, pos) {
+		super(msg);
+		this.#pos = pos;
+		this.#src = src;
+	}
+
+	/**
+	 * @param {string} type
 	 * @param {Source} src 
 	 * @param {number} pos 
 	 * @param {string} info 
 	 */
-	constructor(type, src, pos, info = "") {
+	static new(type, src, pos, info = "") {
 		let line = src.posToLine(pos);
 
 		let msg = `${type} on line ${line + 1}`;
@@ -2600,10 +2645,7 @@ export class UserError extends Error {
 			msg += `: ${info}`;
 		}
 
-		super(msg);
-		this.#pos = pos;
-		this.#src = src;
-		this.#info = info;
+		return new UserError(msg, src, pos);
 	}
 
 	get src() {
@@ -2618,18 +2660,19 @@ export class UserError extends Error {
 	 * @returns {UserError}
 	 */
 	static syntaxError(src, pos, info = "") {
-		return new UserError("SyntaxError", src, pos, info);
+		return UserError.new("SyntaxError", src, pos, info);
 	}
 
 	/**
 	 * Constructs a TypeError
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 
+	* @param {number} pos 
 	 * @param {string} info 
 	 * @returns {UserError}
 	 */
 	static typeError(src, pos, info = "") {
-		return new UserError("TypeError", src, pos, info);
+		return UserError.new("TypeError", src, pos, info);
 	}
 
 	/**
@@ -2640,25 +2683,7 @@ export class UserError extends Error {
 	 * @returns {UserError}
 	 */
 	static referenceError(src, pos, info = "") {
-		return new UserError("ReferenceError", src, pos, info);
-	}
-
-	/**
-	 * Constructs a RuntimeError (i.e. when UplcError is called)
-	 * @param {Source} src 
-	 * @param {number} pos 
-	 * @param {string} info 
-	 * @returns {UserError}
-	 */
-	static runtimeError(src, pos, info = "") {
-		return new UserError("RuntimeError", src, pos, info);
-	}
-
-	/**
-	 * @type {string}
-	 */
-	get info() {
-		return this.#info;
+		return UserError.new("ReferenceError", src, pos, info);
 	}
 
 	/**
@@ -2669,11 +2694,10 @@ export class UserError extends Error {
 	}
 
 	/**
-	 * @param {string} info 
-	 * @returns {boolean}
+	 * @type {number}
 	 */
-	isError(info = "") {
-		return this.info == info;
+	get pos() {
+		return this.#pos;
 	}
 
 	/**
@@ -2723,6 +2747,73 @@ export class UserError extends Error {
 				throw error;
 			}
 		}
+	}
+}
+
+class RuntimeError extends UserError {
+	#isIR; // last trace added
+
+	/**
+	 * @param {string} msg 
+	 * @param {Source} src 
+	 * @param {number} pos 
+	 * @param {boolean} isIR 
+	 */
+	constructor(msg, src, pos, isIR) {
+		super(msg, src, pos);
+		this.#isIR = isIR;
+	}
+
+	/**
+	 * @param {Source} src 
+	 * @param {number} pos 
+	 * @param {boolean} isIR
+	 * @param {string} info
+	 * @returns {RuntimeError}
+	 */
+	static new(src, pos, isIR, info = "") {
+		let line = src.posToLine(pos);
+
+		let msg = `RuntimeError on line ${line + 1}${isIR ? " of IR" : ""}`;
+		if (info != "") {
+			msg += `: ${info}`;
+		}
+
+		return new RuntimeError(msg, src, pos, isIR);
+	}
+
+	/**
+	 * @param {Source} src 
+	 * @param {number} pos 
+	 * @param {boolean} isIR 
+	 * @param {string} info 
+	 * @returns {RuntimeError}
+	 */
+	addTrace(src, pos, isIR, info = "") {
+		if (isIR && !this.#isIR) {
+			return this;
+		}
+
+		let line = src.posToLine(pos);
+
+		let msg = `Trace${info == "" ? ":" : ","} line ${line + 1}`;
+		if (isIR) {
+			msg += " of IR";
+		} 
+
+		let word = src.getWord(pos);
+		if (word !== null && word !== "print") {
+			msg += ` in '${word}'`;
+		}
+
+		if (info != "") {
+			msg += `: ${info}`;
+		}
+
+		
+		msg += "\n" + this.message;
+
+		return new RuntimeError(msg, this.src, this.pos, isIR);
 	}
 }
 
@@ -2777,6 +2868,9 @@ export class Site {
 		this.#endSite = site;
 	}
 
+	/**
+	 * @type {?Site} 
+	 */
 	get codeMapSite() {
 		return this.#codeMapSite;
 	}
@@ -2821,7 +2915,13 @@ export class Site {
 	 * @returns {UserError}
 	 */
 	runtimeError(info = "") {
-		return UserError.runtimeError(this.#src, this.#pos, info);
+		console.log(this.#src.pretty());
+		if (this.#codeMapSite !== null) {
+			let site = this.#codeMapSite;
+			return RuntimeError.new(site.#src, site.#pos, false, info);
+		} else {
+			return RuntimeError.new(this.#src, this.#pos, true, info);
+		}
 	}
 
 	/**
@@ -3004,7 +3104,7 @@ export class NetworkParams {
 		let secondsPerSlot = assertNumber(this.#raw?.shelleyGenesis?.slotLength);
 
 		let lastSlot = BigInt(assertNumber(this.#raw?.latestTip?.slot));
-		let lastTime = BigInt(assertNumber(this.#raw?.latestTip?.time)); // in ms
+		let lastTime = BigInt(assertNumber(this.#raw?.latestTip?.time)*1000); // in ms
 
 		let slotDiff = slot - lastSlot;
 
@@ -3017,10 +3117,11 @@ export class NetworkParams {
 	 * @returns {bigint}
 	 */
 	timeToSlot(time) {
-		let secondsPerSlot = assertNumber(this.#raw?.shelleyGenesis?.slotLength);
+		let rawSecondsPerSlot = this.#raw?.shelleyGenesis?.slotLength;
+		let secondsPerSlot = assertNumber(rawSecondsPerSlot);
 
 		let lastSlot = BigInt(assertNumber(this.#raw?.latestTip?.slot));
-		let lastTime = BigInt(assertNumber(this.#raw?.latestTip?.time));
+		let lastTime = BigInt(assertNumber(this.#raw?.latestTip?.time)*1000);
 
 		let timeDiff = lastTime - time;
 
@@ -4334,7 +4435,15 @@ class UplcAnon extends UplcValue {
 	
 				return result.copy(callSite);
 			} catch(e) {
-				// TODO: a trace can be added to the error here
+				// TODO: better trace
+				if (e instanceof RuntimeError) {
+					if (callSite.codeMapSite === null) {
+						e = e.addTrace(callSite.src, callSite.pos, true);
+					} else {
+						e = e.addTrace(callSite.codeMapSite.src, callSite.codeMapSite.pos, false);
+					}
+				}
+
 				throw e;
 			}
 		} else {
@@ -15255,7 +15364,7 @@ function buildStructLiteralField(bracesSite, ts, isNamed) {
 		}
 	} else {
 		if (ts.length > 1 && ts[0].isWord() && ts[1].isSymbol(":")) {
-			throw ts[0].syntaxError("unexpected key for struct literal constructor with 1 field");
+			throw ts[0].syntaxError(`unexpected key '${ts[0].toString()}' (struct literals with only 1 field don't use keys)`);
 		} else {
 			let valueExpr = buildValueExpr(ts);
 
@@ -23363,10 +23472,22 @@ export class Tx extends CborData {
 	 * @param {bigint} slot
 	 * @returns {Tx}
 	 */
-	setInvalidBefore(slot) {
+	validFrom(slot) {
 		assert(!this.#valid);
 
-		this.#body.setInvalidBefore(slot);
+		this.#body.validFrom(slot);
+
+		return this;
+	}
+
+	/**
+	 * @param {bigint} slot
+	 * @returns {Tx}
+	 */
+	validTo(slot) {
+		assert(!this.#valid);
+
+		this.#body.validTo(slot);
 
 		return this;
 	}
@@ -24127,14 +24248,14 @@ class TxBody extends CborData {
 	/**
 	 * @param {bigint} slot
 	 */
-	setInvalidBefore(slot) {
+	validFrom(slot) {
 		this.#firstValidSlot = slot;
 	}
 
 	/**
 	 * @param {bigint} slot
 	 */
-	setInvalidAfter(slot) {
+	validTo(slot) {
 		this.#lastValidSlot = slot;
 	}
 
@@ -24885,6 +25006,7 @@ export class TxOutput extends CborData {
 	 * @param {?number[]} refScript 
 	 */
 	constructor(address, value, datum = null, refScript = null) {
+		assert(datum === null || datum instanceof Datum); // check this explicitely because caller might be using this constructor without proper type-checking
 		super();
 		this.#address = address;
 		this.#value = value;

@@ -197,9 +197,19 @@ function constrIndex(value) {
 }
 
 
+/**
+ * Throws an error if 'err' isn't en Error
+ * @param {any} err 
+ * @param {string} info 
+ * @returns {boolean}
+ */
 function isError(err, info) {
     if (err instanceof helios.UserError) {
-        if (err.message.split(":")[1].trim() == info) {
+        let parts = err.message.split(":");
+        let n = parts.length;
+        if (n < 2) {
+            return false;
+        } else if (parts[n-1].trim() == info) {
             return true
         } else {
             return false;
@@ -4209,7 +4219,8 @@ async function runIntegrationTests() {
         function checkResult(result_) {
             let resStr = result_.toString();
             if (result_ instanceof Error) {
-                resStr = resStr.split(":")[1].trim();
+                let parts = resStr.split(":");
+                resStr = parts[parts.length-1].trim();
             } 
         
             if (resStr != expectedResult) {
