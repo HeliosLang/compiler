@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.6.6
+// Version:     0.6.7
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -201,7 +201,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.6.6"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.6.7"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -2521,7 +2521,7 @@ class Source {
 	 * @returns {?string}
 	 */
 	getWord(pos) {
-		/** @type {[]string} */
+		/** @type {string[]} */
 		let chars = [];
 
 		/**
@@ -2771,7 +2771,7 @@ class RuntimeError extends UserError {
 	 * @param {string} info
 	 * @returns {RuntimeError}
 	 */
-	static new(src, pos, isIR, info = "") {
+	static newRuntimeError(src, pos, isIR, info = "") {
 		let line = src.posToLine(pos);
 
 		let msg = `RuntimeError on line ${line + 1}${isIR ? " of IR" : ""}`;
@@ -2918,9 +2918,9 @@ export class Site {
 		console.log(this.#src.pretty());
 		if (this.#codeMapSite !== null) {
 			let site = this.#codeMapSite;
-			return RuntimeError.new(site.#src, site.#pos, false, info);
+			return RuntimeError.newRuntimeError(site.#src, site.#pos, false, info);
 		} else {
-			return RuntimeError.new(this.#src, this.#pos, true, info);
+			return RuntimeError.newRuntimeError(this.#src, this.#pos, true, info);
 		}
 	}
 
