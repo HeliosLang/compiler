@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.6.7
+// Version:     0.6.8
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -201,7 +201,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.6.7"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.6.8"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -2676,6 +2676,14 @@ export class UserError extends Error {
 	}
 
 	/**
+	 * @param {Error} e 
+	 * @returns {boolean}
+	 */
+	static isTypeError(e) {
+		return (e instanceof UserError) && e.message.startsWith("TypeError");
+	}
+
+	/**
 	 * Constructs a ReferenceError (i.e. name undefined, or name unused)
 	 * @param {Source} src 
 	 * @param {number} pos 
@@ -2684,6 +2692,14 @@ export class UserError extends Error {
 	 */
 	static referenceError(src, pos, info = "") {
 		return UserError.new("ReferenceError", src, pos, info);
+	}
+
+	/**
+	 * @param {Error} e 
+	 * @returns {boolean}
+	 */
+	static isReferenceError(e) {
+		return (e instanceof UserError) && e.message.startsWith("ReferenceError");
 	}
 
 	/**
@@ -2915,7 +2931,6 @@ export class Site {
 	 * @returns {UserError}
 	 */
 	runtimeError(info = "") {
-		console.log(this.#src.pretty());
 		if (this.#codeMapSite !== null) {
 			let site = this.#codeMapSite;
 			return RuntimeError.newRuntimeError(site.#src, site.#pos, false, info);
@@ -11973,6 +11988,8 @@ class BinaryExpr extends ValueExpr {
 	#op;
 	#a;
 	#b;
+	#swap; // swap a and b for commutative ops
+	#alt; // use alt (each operator can have one overload)
 
 	/**
 	 * @param {Symbol} op 
@@ -11984,6 +12001,22 @@ class BinaryExpr extends ValueExpr {
 		this.#op = op;
 		this.#a = a;
 		this.#b = b;
+		this.#swap = false;
+		this.#alt = false;
+	}
+
+	/** 
+	 * @type {ValueExpr}
+	 */
+	get first() {
+		return this.#swap ? this.#b : this.#a;
+	}
+
+	/**
+	 * @type {ValueExpr} 
+	 */
+	get second() {
+		return this.#swap ? this.#a : this.#b;
 	}
 
 	toString() {
@@ -11992,9 +12025,10 @@ class BinaryExpr extends ValueExpr {
 
 	/**
 	 * Turns op symbol into internal name
+	 * @param {boolean} alt
 	 * @returns {Word}
 	 */
-	translateOp() {
+	translateOp(alt = false) {
 		let op = this.#op.toString();
 		let site = this.#op.site;
 		let name;
@@ -12029,7 +12063,16 @@ class BinaryExpr extends ValueExpr {
 			throw new Error("unhandled");
 		}
 
+		if (alt) {
+			name += "_alt";
+		}
+
 		return new Word(site, name);
+	}
+
+	isCommutative() {
+		let op = this.#op.toString();
+		return op == "+" || op == "*";
 	}
 
 	/**
@@ -12042,9 +12085,37 @@ class BinaryExpr extends ValueExpr {
 
 		assert(a.isValue() && b.isValue());
 
-		let fnVal = a.getInstanceMember(this.translateOp());
+		/**
+		 * @type {UserError}
+		 */
+		let lastError;
 
-		return fnVal.call(this.#op.site, [b]);
+		for (let swap of (this.isCommutative() ? [false, true] : [false])) {
+			for (let alt of [false, true]) {
+				let first  = swap ? b : a;
+				let second = swap ? a : b;
+
+				try {
+					let fnVal = first.getInstanceMember(this.translateOp(alt));
+
+					let res = fnVal.call(this.#op.site, [second]);
+
+					this.#swap = swap;
+					this.#alt  = alt;
+
+					return res;
+				} catch (e) {
+					if (e instanceof UserError) {
+						lastError = e;
+						continue;
+					} else {
+						throw e;
+					}
+				}
+			}
+		}
+
+		throw lastError;
 	}
 
 	/**
@@ -12052,24 +12123,24 @@ class BinaryExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let path = this.#a.type.path;
+		let path = this.first.type.path;
 
-		let op = this.translateOp().value;
+		let op = this.translateOp(this.#alt).value;
 
 		if (op == "__and" || op == "__or") {
 			return new IR([
 				new IR(`${path}${op}`, this.site), new IR(`(\n${indent}${TAB}() -> {`),
-				this.#a.toIR(indent + TAB),
+				this.first.toIR(indent + TAB),
 				new IR(`},\n${indent}${TAB}() -> {`),
-				this.#b.toIR(indent + TAB),
+				this.second.toIR(indent + TAB),
 				new IR(`}\n${indent})`)
 			]);
 		} else {
 			return new IR([
-				new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
-				this.#a.toIR(indent),
+				new IR(`${path}__${op}`, this.site), new IR("("),
+				this.first.toIR(indent),
 				new IR(")("),
-				this.#b.toIR(indent),
+				this.second.toIR(indent),
 				new IR(")")
 			]);
 		}
@@ -18102,6 +18173,8 @@ class DurationType extends BuiltinType {
 			case "__mul":
 			case "__div":
 				return Instance.new(new FuncType([new IntType()], new DurationType()));
+			case "__div_alt":
+				return Instance.new(new FuncType([new DurationType()], new IntType()));
 			case "__geq":
 			case "__gt":
 			case "__leq":
@@ -20369,6 +20442,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__duration____sub", `__helios__int____sub`));
 	add(new RawFunc("__helios__duration____mul", `__helios__int____mul`));
 	add(new RawFunc("__helios__duration____div", `__helios__int____div`));
+	add(new RawFunc("__helios__duration____div_alt", `__helios__int____div`));
 	add(new RawFunc("__helios__duration____mod", `__helios__int____mod`));
 	add(new RawFunc("__helios__duration____geq", `__helios__int____geq`));
 	add(new RawFunc("__helios__duration____gt", `__helios__int____gt`));

@@ -383,7 +383,6 @@ const certifyingScriptContextParam = `
 
 async function runPropertyTests() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
-
   
     ////////////
     // Int tests
@@ -3916,15 +3915,33 @@ async function runPropertyTests() {
     }`, ([_], res) => 0n === asInt(res));
 
     await ft.test([ft.int()], `
+    testing duration_mul_0_swap
+    func main(a: Int) -> Duration {
+        0*Duration::new(a)
+    }`, ([_], res) => 0n === asInt(res));
+
+    await ft.test([ft.int()], `
     testing duration_mul_1
     func main(a: Int) -> Duration {
         Duration::new(a)*1
+    }`, ([a], res) => asInt(a) === asInt(res));
+
+    await ft.test([ft.int()], `
+    testing duration_mul_1_swap
+    func main(a: Int) -> Duration {
+        1*Duration::new(a)
     }`, ([a], res) => asInt(a) === asInt(res));
 
     await ft.test([ft.int(), ft.int()], `
     testing duration_mul_2
     func main(a: Int, b: Int) -> Duration {
         Duration::new(a) * b
+    }`, ([a, b], res) => asInt(a) * asInt(b) === asInt(res));
+
+    await ft.test([ft.int(), ft.int()], `
+    testing duration_mul_2_swap
+    func main(a: Int, b: Int) -> Duration {
+        b*Duration::new(a)
     }`, ([a, b], res) => asInt(a) * asInt(b) === asInt(res));
 
     await ft.test([ft.int()], `
@@ -3943,6 +3960,16 @@ async function runPropertyTests() {
     testing duration_div_1_self
     func main(a: Int) -> Duration {
         Duration::new(a) / a
+    }`, ([a], res) => 
+        asInt(a) === 0n ?
+        isError(res, "division by zero") :
+        1n === asInt(res)
+    );
+
+    await ft.test([ft.int(-20, 20)], `
+    testing duration_div_1_self_alt
+    func main(a: Int) -> Int {
+        Duration::new(a) / Duration::new(a)
     }`, ([a], res) => 
         asInt(a) === 0n ?
         isError(res, "division by zero") :
