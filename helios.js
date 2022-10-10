@@ -14740,11 +14740,26 @@ function buildListTypeExpr(ts) {
 function buildMapTypeExpr(ts) {
 	let kw = assertDefined(ts.shift()).assertWord("Map");
 
-	let keyTypeExpr = buildTypeExpr(assertDefined(ts.shift()).assertGroup("[", 1).fields[0]);
+	let maybeKeyTypeExpr = ts.shift();
 
-	let valueTypeExpr = buildTypeExpr(ts);
+	if (maybeKeyTypeExpr === undefined) {
+		throw kw.syntaxError("missing Map key-type");
+	} else {
+		let keyTypeTs = maybeKeyTypeExpr.assertGroup("[", 1).fields[0];
+		if (keyTypeTs.length == 0) {
+			throw kw.syntaxError("missing Map key-type (brackets can't be empty)");
+		} else {
+			let keyTypeExpr = buildTypeExpr(keyTypeTs);
 
-	return new MapTypeExpr(kw.site, keyTypeExpr, valueTypeExpr);
+			if (ts.length == 0) {
+				throw kw.syntaxError("missing Map value-type");
+			} else {
+				let valueTypeExpr = buildTypeExpr(ts);
+
+				return new MapTypeExpr(kw.site, keyTypeExpr, valueTypeExpr);
+			}
+		}
+	}
 }
 
 /**
