@@ -12086,9 +12086,9 @@ class BinaryExpr extends ValueExpr {
 		assert(a.isValue() && b.isValue());
 
 		/**
-		 * @type {UserError}
+		 * @type {?UserError}
 		 */
-		let lastError;
+		let firstError = null;
 
 		for (let swap of (this.isCommutative() ? [false, true] : [false])) {
 			for (let alt of [false, true]) {
@@ -12106,7 +12106,9 @@ class BinaryExpr extends ValueExpr {
 					return res;
 				} catch (e) {
 					if (e instanceof UserError) {
-						lastError = e;
+						if (firstError === null) {
+							firstError = e;
+						}
 						continue;
 					} else {
 						throw e;
@@ -12115,7 +12117,11 @@ class BinaryExpr extends ValueExpr {
 			}
 		}
 
-		throw lastError;
+		if (firstError !== null) {
+			throw firstError;
+		} else {
+			throw new Error("unexpected");
+		}
 	}
 
 	/**
