@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.6.9
+// Version:     0.7.0
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -151,8 +151,7 @@
 //                                          buildLiteralExprFromValue
 //
 //    13. Builtin types                     IntType, BoolType, StringType, ByteArrayType, 
-//                                          ListType, FoldListFuncValue, MapListFuncValue,
-//                                          MapType, FoldMapFuncValue,
+//                                          ListType, MapType, ParamType, ParamFuncValue,
 //                                          OptionType, OptionSomeType, OptionNoneType,
 //                                          HashType, PubKeyHashType, ValidatorHashType, 
 //                                          MintingPolicyHashType, DatumHashType, 
@@ -201,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.6.9"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.7.0"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -3091,6 +3090,13 @@ export class NetworkParams {
 	 */
 	get minCollateralPct() {
 		return assertNumber(this.#raw?.latestParams?.collateralPercentage);
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get maxCollateralInputs() {
+		return assertNumber(this.#raw?.latestParams?.maxCollateralInputs);
 	}
 
 	/**
@@ -9673,6 +9679,17 @@ class DataType extends Type {
 	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
+		if (type instanceof ParamType) {
+			let origType = type.type;
+
+			if (origType === null) {
+				type.setType(site, this);
+				return true;
+			} else {
+				type = origType;
+			}
+		}
+
 		return Object.getPrototypeOf(this) == Object.getPrototypeOf(type);
 	}
 }
@@ -9995,8 +10012,13 @@ class FuncType extends Type {
 				return false;
 			} else {
 				for (let i = 0; i < this.nArgs; i++) {
-					if (!type.#argTypes[i].isBaseOf(site, this.#argTypes[i])) { // note the reversal of the check
-						return false;
+					let thisArgType = this.#argTypes[i];
+					if (thisArgType instanceof ParamType) {
+						thisArgType.setType(site, type.#argTypes[i]);
+					} else {
+						if (!type.#argTypes[i].isBaseOf(site, thisArgType)) { // note the reversal of the check
+							return false;
+						}
 					}
 				}
 
@@ -11960,10 +11982,10 @@ class UnaryExpr extends ValueExpr {
 	evalInternal(scope) {
 		let a = this.#a.eval(scope);
 
-		this.fnVal_ = a.assertValue(this.#a.site).getInstanceMember(this.translateOp());
+		let fnVal = a.assertValue(this.#a.site).getInstanceMember(this.translateOp());
 
 		// ops are immediately applied
-		return this.fnVal_.call(this.#op.site, []);
+		return fnVal.call(this.#op.site, []);
 	}
 
 	/**
@@ -12250,7 +12272,7 @@ class MemberExpr extends ValueExpr {
 	/**
 	 * @param {Site} site 
 	 * @param {ValueExpr} objExpr 
-	 * @param {*} memberName 
+	 * @param {Word} memberName 
 	 */
 	constructor(site, objExpr, memberName) {
 		super(site);
@@ -12291,7 +12313,12 @@ class MemberExpr extends ValueExpr {
 		// if we are getting the member of an enum member we should check if it a field or method, because for a method we have to use the parent type
 		if ((this.#objExpr.type instanceof StatementType) && (this.#objExpr.type.statement instanceof EnumMember) && (!this.#objExpr.type.statement.hasField(this.#memberName))) {
 			objPath = this.#objExpr.type.statement.parent.path;
-		} 
+		}
+
+		// if the memberVal was a ParamFuncValue then the member name might need to be modified if the output type of some callbacks is a Bool
+		if (this.value instanceof ParamFuncValue && this.value.correctMemberName !== null) {
+			this.#memberName = new Word(this.#memberName.site, this.value.correctMemberName());
+		}
 
 		let ir = new IR(`${objPath}__${this.#memberName.toString()}`, this.site);
 
@@ -15986,10 +16013,25 @@ class ListType extends BuiltinType {
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], this.#itemType));
 			case "filter":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new ListType(this.#itemType)));
-			case "fold":
-				return new FoldListFuncValue(this.#itemType);
-			case "map":
-				return new MapListFuncValue(this.#itemType);
+			case "fold": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#itemType], a), a], a));
+			}
+			case "map": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([new FuncType([this.#itemType], a)], new ListType(a)), () => {
+					let type = a.type;
+					if (type === null) {
+						throw new Error("should've been inferred by now");
+					} else {
+						if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
+							return "map_to_bool";
+ 						} else {
+							return "map";
+						}
+					}
+				});
+			}
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -15997,131 +16039,6 @@ class ListType extends BuiltinType {
 
 	get path() {
 		return `__helios__${this.#itemType instanceof BoolType ? "bool" : ""}list`;
-	}
-}
-
-/**
- * A special func value with parametric arg types, returned by list.fold
- * Instead of creating special support for parametric function types we can just created these special classes (parametric types aren't expected to be needed a lot anyway)
- */
-class FoldListFuncValue extends FuncInstance {
-	#itemType;
-
-	/**
-	 * @param {Type} itemType 
-	 */
-	constructor(itemType) {
-		super(new FuncType([new AnyType(), itemType], new AnyType())); // dummy FuncType
-		this.#itemType = itemType;
-	}
-
-	toString() {
-		return `[a](a, (a, ${this.#itemType.toString()}) -> a) -> a`;
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {Type}
-	 */
-	getType(site) {
-		throw site.typeError("can't get type of type parametric function");
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isInstanceOf(site, type) {
-		throw site.typeError("can't determine if type parametric function is instanceof a type");
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @param {Instance[]} args 
-	 * @returns {Instance}
-	 */
-	call(site, args) {
-		if (args.length != 2) {
-			throw site.typeError(`expected 2 arg(s), got ${args.length}`);
-		}
-
-		let zType = args[1].getType(site);
-
-		let fnType = new FuncType([zType, this.#itemType], zType);
-
-		if (!args[0].isInstanceOf(site, fnType)) {
-			throw site.typeError("wrong function type for list.fold");
-		}
-
-		return Instance.new(zType);
-	}
-}
-
-/**
- * A special func value with parametric arg types, returned by list.map
- */
-class MapListFuncValue extends FuncInstance {
-	#itemType;
-
-	/**
-	 * @param {Type} itemType 
-	 */
-	constructor(itemType) {
-		super(new FuncType([itemType], new AnyType())); // dummy
-		this.#itemType = itemType;
-	}
-
-	toString() {
-		return `[a]((${this.#itemType.toString()}) -> a) -> []a`;
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {Type}
-	 */
-	getType(site) {
-		throw site.typeError("can't get type of type parametric function");
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isInstanceOf(site, type) {
-		throw site.typeError("can't determine if type parametric function is instanceof a type");
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @param {Instance[]} args 
-	 * @returns {Instance}
-	 */
-	call(site, args) {
-		if (args.length != 1) {
-			throw site.typeError(`map expects 1 arg(s), got ${args.length})`);
-		}
-
-		let fnType = args[0].getType(site);
-
-		if (!(fnType instanceof FuncType)) {
-			throw site.typeError("arg is not a func type");
-		} else {
-
-			if (fnType.nArgs != 1) {
-				throw site.typeError("func arg takes wrong number of args");
-			}
-
-			let retItemType = fnType.retType;
-			let testFuncType = new FuncType([this.#itemType], retItemType);
-
-			if (!fnType.isBaseOf(site, testFuncType)) {
-				throw site.typeError("bad map func");
-			}
-
-			return Instance.new(new ListType(retItemType));
-		}
 	}
 }
 
@@ -16198,12 +16115,52 @@ class MapType extends BuiltinType {
 				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], this));
 			case "filter_by_value":
 				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], this));
-			case "fold":
-				return new FoldMapFuncValue(this.#keyType, this.#valueType);
-			case "fold_keys":
-				return new FoldListFuncValue(this.#keyType);
-			case "fold_values":
-				return new FoldListFuncValue(this.#valueType);
+			case "fold": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#keyType, this.#valueType], a), a], a));
+			}
+			case "fold_keys": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#keyType], a), a], a));
+			}	
+			case "fold_values": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#valueType], a), a], a));
+			}
+			case "map_keys": {
+				let a = new ParamType("a", (site, type) => {
+					if ((new BoolType()).isBaseOf(site, type)) {
+						throw site.typeError("Map keys can't be of 'Bool' type");
+					}
+				});
+				return new ParamFuncValue([a], new FuncType([new FuncType([this.#keyType], a)], new MapType(a, this.#valueType)), () => {
+					let type = a.type;
+					if (type === null) {
+						throw new Error("should've been inferred by now");
+					} else {
+						if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
+							throw new Error("should've been checked before");
+						} else {
+							return "map_keys";
+						}
+					}
+				});
+			}
+			case "map_values": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([new FuncType([this.#valueType], a)], new MapType(this.#keyType, a)), () => {
+					let type = a.type;
+					if (type === null) {
+						throw new Error("should've been inferred by now");
+					} else {
+						if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
+							return "map_values_to_bool";
+						} else {
+							return "map_values";
+						}
+					}
+				});
+			}
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -16214,25 +16171,172 @@ class MapType extends BuiltinType {
 	}
 }
 
-/**
- * A special func value with parametric arg types, returned by map.fold.
- */
- class FoldMapFuncValue extends FuncInstance {
-	#keyType;
-	#valueType;
+class ParamType extends Type {
+	/** @type {?Type} */
+	#type;
+
+	/** @type {string} */
+	#name;
+
+	#checkType;
 
 	/**
-	 * @param {Type} keyType 
-	 * @param {Type} valueType
+	 * @param {string} name - typically "a" or "b"
+	 * @param {?(site: Site, type: Type) => void} checkType
 	 */
-	constructor(keyType, valueType) {
-		super(new FuncType([new AnyType(), keyType, valueType], new AnyType())); // dummy FuncType
-		this.#keyType = keyType;
-		this.#valueType = valueType;
+	constructor(name, checkType = null) {
+		super();
+		this.#type = null;
+		this.#name = name;
+		this.#checkType = checkType;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isInferred() {
+		return this.#type !== null;
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {Type} type 
+	 */
+	setType(site, type) {
+		if (this.#checkType !== null) {
+			this.#checkType(site, type);
+		}
+
+		this.#type = type;
+	}
+
+	/**
+	 * @type {?Type}
+	 */
+	get type() {
+		return this.#type;
 	}
 
 	toString() {
-		return `[a](a, (a, ${this.#keyType.toString()}, ${this.#valueType.toString()}) -> a) -> a`;
+		if (this.#type === null) {
+			return this.#name;
+		} else {
+			return this.#type.toString();
+		}
+	}
+
+	/**
+	 * Returns number of members of an enum type
+	 * Throws an error if not an enum type
+	 * @param {Site} site
+	 * @returns {number}
+	 */
+	nEnumMembers(site) {
+		if (this.#type === null) {
+			throw new Error("param type not yet infered");
+		} else {
+			return this.#type.nEnumMembers(site);
+		}
+	}
+
+	/**
+	 * Returns the number of fields of a struct, enum member, or builtin type.
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	nFields(site) {
+		if (this.#type === null) {
+			throw new Error("should've been set");
+		} else {
+			return this.#type.nFields(site);
+		}
+	}
+
+	/**
+	 * Returns the i-th field of a Struct or an EnumMember
+	 * @param {Site} site
+	 * @param {number} i
+	 * @returns {Type}
+	 */
+	getFieldType(site, i) {
+		if (this.#type === null) {
+			throw new Error("should've been set");
+		} else {
+			return this.#type.getFieldType(site, i);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		if (this.#type === null) {
+			throw new Error("should've been set");
+		} else {
+			return this.#type.getInstanceMember(name);
+		}
+	}
+	
+	/**
+	 * Returns 'true' if 'this' is a base-type of 'type'. Throws an error if 'this' isn't a Type.
+	 * @param {Site} site
+	 * @param {Type} type
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		if (this.#type === null) {
+			this.setType(site, type);
+			return true;
+		} else {
+			return this.#type.isBaseOf(site, type);
+		}
+	}
+
+	/**
+	 * Returns the base path of type (eg. __helios__bool).
+	 * This is used extensively in the Intermediate Representation.
+	 * @type {string}
+	 */
+	get path() {
+		if (this.#type === null) {
+			throw new Error("param type not yet infered");
+		} else {
+			return this.#type.path;
+		}
+	}
+}
+
+class ParamFuncValue extends FuncInstance {
+	#params;
+	#fnType;
+	#correctMemberName;
+
+	/**
+	 * @param {ParamType[]} params
+	 * @param {FuncType} fnType 
+	 * @param {?() => string} correctMemberName
+	 */
+	constructor(params, fnType, correctMemberName = null) {
+		super(fnType);
+		this.#params = params;
+		this.#fnType = fnType;
+		this.#correctMemberName = correctMemberName;
+	}
+
+	get correctMemberName() {
+		return this.#correctMemberName;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	allInferred() {
+		return this.#params.every(p => p.isInferred());
+	}
+
+	toString() {
+		return this.#fnType.toString();
 	}
 
 	/**
@@ -16240,7 +16344,11 @@ class MapType extends BuiltinType {
 	 * @returns {Type}
 	 */
 	getType(site) {
-		throw site.typeError("can't get type of type parametric function");
+		if (this.allInferred()) {
+			return this.#fnType;
+		} else {
+			throw site.typeError("can't get type of type parametric function");
+		}
 	}
 
 	/**
@@ -16249,7 +16357,11 @@ class MapType extends BuiltinType {
 	 * @returns {boolean}
 	 */
 	isInstanceOf(site, type) {
-		throw site.typeError("can't determine if type parametric function is instanceof a type");
+		if (this.allInferred()) {
+			return (new FuncInstance(this.#fnType)).isInstanceOf(site, type);
+		} else {
+			throw site.typeError("can't determine if type parametric function is instanceof a type");
+		}
 	}
 
 	/**
@@ -16258,19 +16370,7 @@ class MapType extends BuiltinType {
 	 * @returns {Instance}
 	 */
 	call(site, args) {
-		if (args.length != 2) {
-			throw site.typeError(`expected 3 arg(s), got ${args.length}`);
-		}
-
-		let zType = args[1].getType(site);
-
-		let fnType = new FuncType([zType, this.#keyType, this.#valueType], zType);
-
-		if (!args[0].isInstanceOf(site, fnType)) {
-			throw site.typeError("wrong function type for map.fold");
-		}
-
-		return Instance.new(zType);
+		return (new FuncInstance(this.#fnType)).call(site, args);
 	}
 }
 
@@ -17334,8 +17434,6 @@ class TxType extends BuiltinType {
 				return Instance.new(new ListType(new PubKeyHashType()));
 			case "id":
 				return Instance.new(new TxIdType());
-			case "now":
-				return Instance.new(new FuncType([], new TimeType()));
 			case "find_datum_hash":
 				return Instance.new(new FuncType([new AnyDataType()], new DatumHashType()));
 			case "outputs_sent_to":
@@ -18143,6 +18241,8 @@ class TimeType extends BuiltinType {
 				return Instance.new(new FuncType([new DurationType()], new TimeType()));
 			case "__sub":
 				return Instance.new(new FuncType([new TimeType()], new DurationType()));
+			case "__sub_alt":
+				return Instance.new(new FuncType([new DurationType()], new TimeType()));
 			case "__geq":
 			case "__gt":
 			case "__leq":
@@ -18249,8 +18349,9 @@ class TimeRangeType extends BuiltinType {
 			case "is_after": // is_after condition never overlaps with contains
 			case "contains":
 				return Instance.new(new FuncType([new TimeType()], new BoolType()));
-			case "get_start":
-				return Instance.new(new FuncType([], new TimeType()));
+			case "start":
+			case "end":
+				return Instance.new(new TimeType());
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -18614,9 +18715,9 @@ function makeRawFunctions() {
 		)
 	}`));
 	add(new RawFunc("__helios__common__map",
-	`(self, fn) -> {
+	`(self, fn, init) -> {
 		(recurse) -> {
-			__core__listData(recurse(recurse, self, __core__mkNilData(())))
+			recurse(recurse, self, init)
 		}(
 			(recurse, rem, lst) -> {
 				__core__ifThenElse(
@@ -19392,9 +19493,19 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
-				__helios__common__map(self, fn)
+				__core__listData(__helios__common__map(self, fn, __core__mkNilData(())))
 			}
 		}(__core__unListData(self))
+	}`));
+	add(new RawFunc("__helios__list__map_to_bool",
+	`(self) -> {
+		(fn) -> {
+			__helios__list__map(self)(
+				(item) -> {
+					__helios__common__boolData(fn(item))
+				}
+			)
+		}
 	}`));
 	add(new RawFunc("__helios__boollist__new", 
 	`(n, fn) -> {
@@ -19492,6 +19603,16 @@ function makeRawFunctions() {
 			__helios__list__map(self)(
 				(item) -> {
 					fn(__helios__common__unBoolData(item))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__map_to_bool",
+	`(self) -> {
+		(fn) -> {
+			__helios__list__map(self)(
+				(item) -> {
+					__helios__common__boolData(fn(__helios__common__unBoolData(item)))
 				}
 			)
 		}
@@ -19674,7 +19795,7 @@ function makeRawFunctions() {
 		(self) -> {
 			(fn) -> {
 				(fn) -> {
-					__helios__common__map(self, fn)
+					__core__mapData(__helios__common__map(self, fn, __core__mkNilPairData(())))
 				}(
 					(pair) -> {
 						fn(__core__fstPair(pair), __core__sndPair(pair))
@@ -19682,7 +19803,37 @@ function makeRawFunctions() {
 				)
 			}
 		}(__core__unMapData(self))
-	}`))
+	}`));
+	add(new RawFunc("__helios__map__map_keys",
+	`(self) -> {
+		(fn) -> {
+			__helios__map__map(self)(
+				(key, value) -> {
+					__core__mkPairData(fn(key), value)
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__map__map_values",
+	`(self) -> {
+		(fn) -> {
+			__helios__map__map(self)(
+				(key, value) -> {
+					__core__mkPairData(key, fn(value))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__map__map_values_to_bool",
+	`(self) -> {
+		(fn) -> {
+			__helios__map__map(self)(
+				(key, value) -> {
+					__core__mkPairData(key, __helios__common__boolData(fn(value)))
+				}
+			)
+		}
+	}`));
 	add(new RawFunc("__helios__map__fold",
 	`(self) -> {
 		(self) -> {
@@ -19810,6 +19961,27 @@ function makeRawFunctions() {
 			__helios__map__map(self)(
 				(key, value) -> {
 					fn(key, __helios__common__unBoolData(value))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__map_keys", "__helios__map__map_keys"));
+	add(new RawFunc("__helios__boolmap__map_values",
+	`(self) -> {
+		(fn) -> {
+			__helios__boolmap__map(self)(
+				(key, value) -> {
+					__core__mkPairData(key, fn(value))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__map_values_to_bool",
+	`(self) -> {
+		(fn) -> {
+			__helios__boolmap__map(self)(
+				(key, value) -> {
+					__core__mkPairData(key, __helios__common__boolData(fn(value)))
 				}
 			)
 		}
@@ -20051,12 +20223,6 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__tx__redeemers", "__helios__common__field_9"));
 	add(new RawFunc("__helios__tx__datums", "__helios__common__field_10"));// hidden getter, used by __helios__tx__find_datum_hash
 	add(new RawFunc("__helios__tx__id", "__helios__common__field_11"));
-	add(new RawFunc("__helios__tx__now",
-	`(self) -> {
-		() -> {
-			__helios__timerange__get_start(__helios__tx__time_range(self))()
-		}
-	}`));
 	add(new RawFunc("__helios__tx__find_datum_hash",
 	`(self) -> {
 		(datum) -> {
@@ -20449,6 +20615,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__time__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__time____add", `__helios__int____add`));
 	add(new RawFunc("__helios__time____sub", `__helios__int____sub`));
+	add(new RawFunc("__helios__time____sub_alt", `__helios__int____sub`));
 	add(new RawFunc("__helios__time____geq", `__helios__int____geq`));
 	add(new RawFunc("__helios__time____gt", `__helios__int____gt`));
 	add(new RawFunc("__helios__time____leq", `__helios__int____leq`));
@@ -20650,11 +20817,13 @@ function makeRawFunctions() {
 			}(__helios__common__field_0(self))
 		}
 	}`));
-	add(new RawFunc("__helios__timerange__get_start",
+	add(new RawFunc("__helios__timerange__start",
 	`(self) -> {
-		() -> {
-			__helios__common__field_0(__helios__common__field_0(__helios__common__field_0(self)))
-		}
+		__helios__common__field_0(__helios__common__field_0(__helios__common__field_0(self)))
+	}`));
+	add(new RawFunc("__helios__timerange__end",
+	`(self) -> {
+		__helios__common__field_0(__helios__common__field_0(__helios__common__field_1(self)))
 	}`));
 
 
@@ -22459,14 +22628,22 @@ class IRCoreCallExpr extends IRCallExpr {
 		if (this.builtinName == "ifThenElse") {
 			assert(argExprs.length == 3);
 			let cond = argExprs[0];
+			let a = argExprs[1];
+			let b = argExprs[2];
 
 			if (cond instanceof IRLiteral && cond.value instanceof UplcBool) {
 				if (cond.value.bool) {
-					return argExprs[1];
+					return a;
 				} else {
-					return argExprs[2];
+					return b;
 				}
-			} 
+			} else if (a instanceof IRLiteral && a.value instanceof UplcBool && b instanceof IRLiteral && b.value instanceof UplcBool) {
+				if (a.value.bool && !b.value.bool) {
+					return cond;
+				} else if (cond instanceof IRUserCallExpr && cond.fnExpr instanceof IRNameExpr && cond.fnExpr.name === "__helios__common__not") {
+					return cond.argExprs[0];
+				}	
+			}
 		} else if (this.builtinName == "trace") {
 			assert(argExprs.length == 2);
 			return argExprs[1];
@@ -23467,17 +23644,28 @@ export class Tx extends CborData {
 	#valid;
 
 	// the following field(s) aren't used by the serialization (only for building)
-	/** @type {?Address} */
-	#changeAddress;
+	/**
+	 * Upon finalization the slot is calculated and stored in the body
+	 * @type {?Date} 
+	 */
+	#validTo;
+
+	/**
+	 * Upon finalization the slot is calculated and stored in the body 
+	 *  @type {?Date} 
+	 */
+	#validFrom;
 
 	constructor() {
 		super();
 		this.#body = new TxBody();
 		this.#witnesses = new TxWitnesses();
 		this.#valid = false; // building is only possible if valid==false
+
 		// no auxiliary data for now
 
-		this.#changeAddress = null;
+		this.#validTo   = null;
+		this.#validFrom = null;
 	}
 
 	/**
@@ -23552,51 +23740,46 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {Address} address 
+	 * @param {Date} t
 	 * @returns {Tx}
 	 */
-	setChangeAddress(address) {
+	validFrom(t) {
 		assert(!this.#valid);
 
-		this.#changeAddress = address;
+		this.#validFrom = t;
 
 		return this;
 	}
 
 	/**
-	 * @param {bigint} slot
+	 * @param {Date} t
 	 * @returns {Tx}
 	 */
-	validFrom(slot) {
+	validTo(t) {
 		assert(!this.#valid);
 
-		this.#body.validFrom(slot);
+		this.#validTo = t;
 
 		return this;
 	}
 
 	/**
-	 * @param {bigint} slot
-	 * @returns {Tx}
-	 */
-	validTo(slot) {
-		assert(!this.#valid);
-
-		this.#body.validTo(slot);
-
-		return this;
-	}
-
-	/**
+	 * Throws error if assets of given mph are already being minted in this transaction
 	 * @param {MintingPolicyHash} mph 
-	 * @param {[number[], bigint][]} tokens - list of pairs of [tokenName, quantity]
+	 * @param {[number[] | string, bigint][]} tokens - list of pairs of [tokenName, quantity], tokenName can be list of bytes or hex-string
 	 * @param {UplcDataValue | UplcData} redeemer
 	 * @returns {Tx}
 	 */
-	addMint(mph, tokens, redeemer) {
+	mintTokens(mph, tokens, redeemer) {
 		assert(!this.#valid);
 
-		this.#body.addMint(mph, tokens);
+		this.#body.addMint(mph, tokens.map(([name, amount]) => {
+			if (typeof name == "string" ) {
+				return [hexToBytes(name), amount];
+			} else {
+				return [name, amount];
+			}
+		}));
 
 		this.#witnesses.addMintingRedeemer(mph, UplcDataValue.unwrap(redeemer));
 
@@ -23672,42 +23855,45 @@ export class Tx extends CborData {
 	 * @param {PubKeyHash} hash
 	 * @returns {Tx}
 	 */
-	addRequiredSigner(hash) {
+	addSigner(hash) {
 		assert(!this.#valid);
 
-		this.#body.addRequiredSigner(hash);
+		this.#body.addSigner(hash);
 
 		return this;
 	}
 
 	/**
 	 * Unused scripts are detected during build(), in which case an error is thrown
+	 * Throws error if script was already added before
 	 * @param {UplcProgram} program
 	 * @returns {Tx}
 	 */
-	addScript(program) {
+	attachScript(program) {
 		assert(!this.#valid);
 
-		this.#witnesses.addScript(program);
+		this.#witnesses.attachScript(program);
 
 		return this;
 	}
 
 	/**
-	 * Only one collateral input is required
+	 * Usually adding only one collateral input is enough
+	 * Must be less than the limit in networkParams (eg. 3), or else an error is thrown during finalization
 	 * @param {TxInput} input 
 	 * @returns {Tx}
 	 */
-	setCollateralInput(input) {
+	addCollateral(input) {
 		assert(!this.#valid);
 
-		this.#body.setCollateralInput(input);
+		this.#body.addCollateral(input);
 
 		return this;
 	}
 
 	/**
 	 * Calculates tx fee (including script execution)
+	 * Shouldn't be used directly
 	 * @param {NetworkParams} networkParams
 	 * @returns {bigint}
 	 */
@@ -23736,6 +23922,7 @@ export class Tx extends CborData {
 
 	/**
 	 * Iterates until fee is exact
+	 * Shouldn't be used directly
 	 * @param {NetworkParams} networkParams
 	 * @param {bigint} fee
 	 * @returns {bigint}
@@ -23756,6 +23943,7 @@ export class Tx extends CborData {
 
 	/**
 	 * Checks that all necessary scripts are included, and that all included scripts are used
+	 * Shouldn't be used directly
 	 */
 	checkScripts() {
 		let scripts = this.#witnesses.scripts;
@@ -23790,10 +23978,12 @@ export class Tx extends CborData {
 	 * First assumes that change output isn't needed, and if that assumption doesn't result in a balanced transaction the change output is created.
 	 * Iteratively increments the fee because the fee increase the tx size which in turn increases the fee (always converges within two steps though).
 	 * Throws error if transaction can't be balanced.
+	 * Shouldn't be used directly
 	 * @param {NetworkParams} networkParams 
+	 * @param {Address} changeAddress
 	 * @param {TxInput[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
 	 */
-	balance(networkParams, spareUtxos) {
+	balance(networkParams, changeAddress, spareUtxos) {
 		// remove any pre-existing ChangeTxOutput
 		this.#body.removeChangeOutputs();
 
@@ -23814,7 +24004,7 @@ export class Tx extends CborData {
 		}
 		
 		// if transaction isn't balanced there must be a change address
-		if (this.#changeAddress === null) {
+		if (changeAddress === null) {
 			throw new Error("change address not specified");
 		}
 
@@ -23834,7 +24024,7 @@ export class Tx extends CborData {
 		// use the change address to create a change utxo
 		let diff = inputValue.sub(totalOutputValue);
 
-		let changeOutput = new ChangeTxOutput(this.#changeAddress, diff); // also includes any minted change
+		let changeOutput = new ChangeTxOutput(changeAddress, diff); // also includes any minted change
 
 		this.#body.addOutput(changeOutput);
 
@@ -23874,7 +24064,8 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {NetworkParams} networkParams 
+	 * Shouldn't be used directly
+	 * @param {NetworkParams} networkParams
 	 */
 	syncScriptDataHash(networkParams) {
 		let hash = this.#witnesses.calcScriptDataHash(networkParams);
@@ -23887,21 +24078,22 @@ export class Tx extends CborData {
 	/**
 	 * Throws an error if there isn't enough collateral
 	 * Also throws an error if the script doesn't require collateral, but collateral was actually included
+	 * Shouldn't be used directly
 	 * @param {NetworkParams} networkParams 
 	 */
 	checkCollateral(networkParams) {
 		if (this.#witnesses.scripts.length > 0) {
-
 			let minCollateralPct = networkParams.minCollateralPct;
 
-			this.#body.checkCollateral(BigInt(Math.ceil(minCollateralPct*Number(this.#body.fee)/100.0)));
+			this.#body.checkCollateral(networkParams, BigInt(Math.ceil(minCollateralPct*Number(this.#body.fee)/100.0)));
 		} else {
-			this.#body.checkCollateral(null);
+			this.#body.checkCollateral(networkParams, null);
 		}
 	}
 
 	/**
 	 * Throws error if tx is too big
+	 * Shouldn't be used directly
 	 * @param {NetworkParams} networkParams 
 	 */
 	checkSize(networkParams) {
@@ -23914,14 +24106,23 @@ export class Tx extends CborData {
 
 	/**
 	 * Assumes transaction hasn't yet been signed by anyone (i.e. witnesses.signatures is empty)
-	 * Mutates
+	 * Mutates 'this'
 	 * Note: this is an async function so that a debugger can optionally be attached in the future
 	 * @param {NetworkParams} networkParams
-	 * @param {TxInput[]} spareUtxos - might be used during balancing if there currently aren't enough inputs
+	 * @param {Address}       changeAddress
+	 * @param {TxInput[]}     spareUtxos - might be used during balancing if there currently aren't enough inputs
 	 * @returns {Promise<void>}
 	 */
-	async finalize(networkParams, spareUtxos = []) {
+	async finalize(networkParams, changeAddress, spareUtxos = []) {
 		assert(!this.#valid);
+
+		if (this.#validTo !== null) {
+			this.#body.validTo(networkParams.timeToSlot(BigInt(this.#validTo.getTime())));
+		}
+
+		if (this.#validFrom !== null) {
+			this.#body.validFrom(networkParams.timeToSlot(BigInt(this.#validFrom.getTime())));
+		}
 
 		// inputs, minted assets, and withdrawals must all be in a particular order
 		this.#body.sort();
@@ -23937,13 +24138,13 @@ export class Tx extends CborData {
 		// dummy scriptDataHash, but at least this way the tx has correct size
 		this.syncScriptDataHash(networkParams);
 
-		// the scripts executed at this point will not see the correct txHash, but they see a properly balanced tx
+		// the scripts executed at this point will not see the correct txHash, but they should at least see a properly balanced tx
 		let redeemerCostTracker = new RedeemerCostTracker();
 
 		while (redeemerCostTracker.dirty) {
 			redeemerCostTracker.clean();
 
-			this.balance(networkParams, spareUtxos.slice());
+			this.balance(networkParams, changeAddress, spareUtxos.slice());
 
 			await this.executeRedeemers(networkParams, redeemerCostTracker);
 
@@ -23964,9 +24165,10 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Throws an error if signature is invalid (might a bit slow for many utxos though)
-	 * TODO: prevent too many signatures from being added
+	 * Throws an error if verify==true and signature is invalid 
+	 * Adding many signatures might be a bit slow
 	 * @param {Signature} signature 
+	 * @param {boolean} verify
 	 * @returns {Tx}
 	 */
 	addSignature(signature, verify = true) {
@@ -23977,6 +24179,21 @@ export class Tx extends CborData {
 		}
 
 		this.#witnesses.addSignature(signature);
+
+		return this;
+	}
+
+	/**
+	 * Throws an error if verify==true and any of the signatures is invalid
+	 * Adding many signatures might be a bit slow
+	 * @param {Signature[]} signatures 
+	 * @param {boolean} verify 
+	 * @returns {Tx}
+	 */
+	addSignatures(signatures, verify = true) {
+		for (let s of signatures) {
+			this.addSignature(s, verify);
+		}
 
 		return this;
 	}
@@ -24029,7 +24246,7 @@ class TxBody extends CborData {
 	#collateral;
 
 	/** @type {PubKeyHash[]} */
-	#requiredSigners;
+	#signers;
 
 	/** @type {?TxOutput} */
 	#collateralReturn;
@@ -24053,7 +24270,7 @@ class TxBody extends CborData {
 		this.#minted = new Assets(); // starts as zero value (i.e. empty map)
 		this.#scriptDataHash = null; // calculated upon finalization
 		this.#collateral = [];
-		this.#requiredSigners = [];
+		this.#signers = [];
 		this.#collateralReturn = null; // doesn't seem to be used anymore
 		this.#totalCollateral = 0n; // doesn't seem to be used anymore
 		this.#refInputs = [];
@@ -24119,8 +24336,8 @@ class TxBody extends CborData {
 			object.set(13, CborData.encodeDefList(this.#collateral));
 		}
 
-		if (this.#requiredSigners.length != 0) {
-			object.set(14, CborData.encodeDefList(this.#requiredSigners));
+		if (this.#signers.length != 0) {
+			object.set(14, CborData.encodeDefList(this.#signers));
 		}
 
 		// what is NetworkId used for?
@@ -24197,7 +24414,7 @@ class TxBody extends CborData {
 					break;
 				case 14:
 					CborData.decodeList(fieldBytes, itemBytes => {
-						txBody.#requiredSigners.push(PubKeyHash.fromCbor(itemBytes));
+						txBody.#signers.push(PubKeyHash.fromCbor(itemBytes));
 					});
 					break;
 				case 15:
@@ -24237,7 +24454,7 @@ class TxBody extends CborData {
 			minted: this.#minted.isZero() ? null : this.#minted.dump(),
 			scriptDataHash: this.#scriptDataHash === null ? null : this.#scriptDataHash.dump(),
 			collateral: this.#collateral.length == 0 ? null : this.#collateral.map(c => c.dump()),
-			requiredSigners: this.#requiredSigners.length == 0 ? null : this.#requiredSigners.map(rs => rs.dump()),
+			signers: this.#signers.length == 0 ? null : this.#signers.map(rs => rs.dump()),
 			//collateralReturn: this.#collateralReturn === null ? null : this.#collateralReturn.dump(), // doesn't seem to be used anymore
 			//totalCollateral: this.#totalCollateral.toString(), // doesn't seem to be used anymore
 			refInputs: this.#refInputs.map(ri => ri.dump()),
@@ -24279,7 +24496,7 @@ class TxBody extends CborData {
 			new ListData(this.#certs.map(cert => cert.toData())),
 			new MapData(Array.from(this.#withdrawals.entries()).map(w => [w[0].toStakingData(), new IntData(w[1])])),
 			this.toValidTimeRangeData(networkParams),
-			new ListData(this.#requiredSigners.map(rs => new ByteArrayData(rs.bytes))),
+			new ListData(this.#signers.map(rs => new ByteArrayData(rs.bytes))),
 			new MapData(redeemers.map(r => [r.toScriptPurposeData(this), r.data])),
 			new MapData(datums.list.map(d => [
 				new ByteArrayData(Crypto.blake2b(d.toCbor())), 
@@ -24399,15 +24616,15 @@ class TxBody extends CborData {
 	/**
 	 * @param {PubKeyHash} hash 
 	 */
-	addRequiredSigner(hash) {
-		this.#requiredSigners.push(hash);
+	addSigner(hash) {
+		this.#signers.push(hash);
 	}
 
 	/**
 	 * @param {TxInput} input 
 	 */
-	setCollateralInput(input) {
-		this.#collateral = [input];
+	addCollateral(input) {
+		this.#collateral.push(input);
 	}
 	
 	/**
@@ -24417,6 +24634,10 @@ class TxBody extends CborData {
 		this.#scriptDataHash = scriptDataHash;
 	}
 
+	/**
+	 * Calculates the number of dummy signatures needed to get precisely the right tx size
+	 * @returns {number}
+	 */
 	countUniqueSigners() {
 		/** @type {Set<PubKeyHash>} */
 		let set = new Set();
@@ -24433,7 +24654,7 @@ class TxBody extends CborData {
 			}
 		}
 
-		for (let rs of this.#requiredSigners) {
+		for (let rs of this.#signers) {
 			set.add(rs);
 		}
 
@@ -24485,9 +24706,12 @@ class TxBody extends CborData {
 	}
 	
 	/**
+	 * @param {NetworkParams} networkParams
 	 * @param {?bigint} minCollateral 
 	 */
-	checkCollateral(minCollateral) {
+	checkCollateral(networkParams, minCollateral) {
+		assert(this.#collateral.length <= networkParams.maxCollateralInputs);
+
 		if (minCollateral === null) {
 			assert(this.#collateral.length == 0, "unnecessary collateral included");
 		} else {
@@ -24724,9 +24948,11 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * Throws error if script was already added before
 	 * @param {UplcProgram} program 
 	 */
-	addScript(program) {
+	attachScript(program) {
+		assert(this.#scripts.every(s => !eq(s.hash(), program.hash())));
 		this.#scripts.push(program);
 	}
 
@@ -25133,7 +25359,7 @@ export class TxOutput extends CborData {
 	}
 
 	/**
-	 * Mutation is handy when correctin the quantity of lovelace in a utxo
+	 * Mutation is handy when correcting the quantity of lovelace in a utxo
 	 * @param {Value} val
 	 */
 	setValue(val) {
@@ -25572,7 +25798,7 @@ export class Address extends CborData {
 	 * @return {number}
 	 */
 	static compStakingHashes(a, b) {
-		return Hash.comp(a.stakingHash, b.stakingHash);
+		return Hash.compare(a.stakingHash, b.stakingHash);
 	}
 }
 
@@ -25639,7 +25865,7 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * Mutates
+	 * Mutates 'this'
 	 */
 	removeZeroes() {
 		for (let asset of this.#assets) {
@@ -25650,7 +25876,7 @@ export class Assets extends CborData {
  	}
 
 	/**
-	 * Mutates
+	 * Mutates 'this'
 	 * @param {MintingPolicyHash} mph
 	 * @param {number[]} tokenName 
 	 * @param {bigint} quantity
@@ -25717,7 +25943,8 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * Mutates. Throws error if mph is already contained in this
+	 * Mutates 'this'
+	 * Throws error if mph is already contained in 'this'
 	 * @param {MintingPolicyHash} mph
 	 * @param {[number[], bigint][]} tokens
 	 */
@@ -25827,7 +26054,7 @@ export class Assets extends CborData {
 	 * Throws an error if any contained quantity <= 0n
 	 */
 	assertAllPositive() {
-		assert(this.allPositive());
+		assert(this.allPositive(), "non-positive token amounts detected");
 	}
 
 	/**
@@ -25926,11 +26153,12 @@ export class Assets extends CborData {
 
 	/**
 	 * Makes sure minting policies are in correct order
-	 * Mutates
+	 * Mutates 'this'
+	 * Order of tokens per mintingPolicyHash isn't changed
 	 */
 	sort() {
 		this.#assets.sort((a, b) => {
-			return Hash.comp(a[0], b[0]);
+			return Hash.compare(a[0], b[0]);
 		});
 	}
 }
@@ -26155,9 +26383,6 @@ export class Value extends CborData {
 	}
 }
 
-/**
- * TODO: make a distinction between different kinds of hashes
- */
 export class Hash extends CborData {
 	/** @type {number[]} */
 	#bytes;
@@ -26237,7 +26462,7 @@ export class Hash extends CborData {
 	 * @param {Hash} b 
 	 * @returns {number}
 	 */
-	static comp(a, b) {
+	static compare(a, b) {
 		return ByteArrayData.comp(a.#bytes, b.#bytes);
 	}
 }
@@ -26429,6 +26654,9 @@ export class Signature extends CborData {
 	}
 }
 
+/**
+ * Used during the transaction balance iterations
+ */
 class RedeemerCostTracker {
 	constructor() {
 		/** @type {Cost[]} */

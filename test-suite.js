@@ -73,6 +73,18 @@ async function runUnitTests() {
 function asBool(value) {
     if (value instanceof helios_.UplcBool) {
         return value.bool;
+    } else if (value instanceof helios_.ConstrData) {
+        if (value.fields.length == 0) {
+            if (value.index == 0) {
+                return false;
+            } else if (value.index == 1) {
+                return true;
+            } else {
+                throw new Error(`unexpected ConstrData index ${value.index} (expected 0 or 1 for Bool)`);
+            }
+        } else {
+            throw new Error(`expected ConstrData with 0 fields (Bool)`);
+        }
     }
 
     throw new Error(`expected UplcBool, got ${value.toString()}`);
@@ -286,7 +298,7 @@ function spendingScriptContextParam(useInlineDatum) {
             Value::ZERO,
             []DCert{},
             Map[StakingCredential]Int{},
-            TimeRange::from(Time::new(0)),
+            TimeRange::new(Time::new(0), Time::new(100)),
             []PubKeyHash{PubKeyHash::new(PUB_KEY_HASH_BYTES)},
             Map[DatumHash]Int{${useInlineDatum ? "" : "DATUM_HASH_1: DATUM_1"}}
         )
@@ -383,7 +395,8 @@ const certifyingScriptContextParam = `
 
 async function runPropertyTests() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
-  
+
+
     ////////////
     // Int tests
     ////////////
@@ -1601,6 +1614,19 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
+        testing list_map_to_bool
+        func main(a: []Int) -> []Bool {
+            a.map((x: Int) -> Bool {
+                x >= 0
+            })
+        }`, ([a], res) => {
+            let la = asIntList(a);
+            let lRes = asBoolList(res);
+
+            return la.every((v, i) => (v >= 0n) === lRes[i]);
+        });
+
+        await ft.test([ft.list(ft.int())], `
         testing list_from_data
         func main(a: Data) -> []Int {
             []Int::from_data(a)
@@ -1799,6 +1825,14 @@ async function runPropertyTests() {
         }`, ([a], res) => equalsList(asBoolList(a).map(b => b ? 1n : 0n), asIntList(res)));
 
         await ft.test([ft.list(ft.bool())], `
+        testing boollist_map_to_bool
+        func main(a: []Bool) -> []Bool {
+            a.map((x: Bool) -> Bool {
+                !x
+            })
+        }`, ([a], res) => equalsList(asBoolList(a).map(b => !b), asBoolList(res)));
+
+        await ft.test([ft.list(ft.bool())], `
         testing boollist_from_data
         func main(a: Data) -> []Bool {
             []Bool::from_data(a)
@@ -1990,6 +2024,48 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_map_keys
+        func main(a: Map[Int]Int) -> Map[Int]Int {
+            a.map_keys((key: Int) -> Int {
+                key*2
+            })
+        }`, ([a], res) => {
+            let lRes = res.data.map;
+
+            return a.data.map.every(([k, _], i) => {
+                return asInt(k)*2n === asInt(lRes[i][0]);
+            });
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_map_values
+        func main(a: Map[Int]Int) -> Map[Int]Int {
+            a.map_values((value: Int) -> Int {
+                value*2
+            })
+        }`, ([a], res) => {
+            let lRes = res.data.map;
+
+            return a.data.map.every(([_, v], i) => {
+                return asInt(v)*2n === asInt(lRes[i][1]);
+            });
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_map_values_to_bool
+        func main(a: Map[Int]Int) -> Map[Int]Bool {
+            a.map_values((value: Int) -> Bool {
+                value >= 0
+            })
+        }`, ([a], res) => {
+            let lRes = res.data.map;
+
+            return a.data.map.every(([_, v], i) => {
+                return (asInt(v) >= 0n) === asBool(lRes[i][1]);
+            });
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_from_data
         func main(a: Data) -> Map[Int]Int {
             Map[Int]Int::from_data(a)
@@ -2166,6 +2242,48 @@ async function runPropertyTests() {
             Map[Int]Bool::from_data(a)
         }`, ([a], res) => {
             return a.data.map.length == res.data.map.length && a.data.map.every((pair, i) => pair[0] === res.data.map[i][0] && pair[1] === res.data.map[i][1]);
+        });
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_map_keys
+        func main(a: Map[Int]Bool) -> Map[Int]Bool {
+            a.map_keys((key: Int) -> Int {
+                key*2
+            })
+        }`, ([a], res) => {
+            let lRes = res.data.map;
+
+            return a.data.map.every(([k, _], i) => {
+                return asInt(k)*2n === asInt(lRes[i][0]);
+            });
+        });
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_map_values
+        func main(a: Map[Int]Bool) -> Map[Int]Int {
+            a.map_values((value: Bool) -> Int {
+                if (value) {1} else {0}
+            })
+        }`, ([a], res) => {
+            let lRes = res.data.map;
+
+            return a.data.map.every(([_, v], i) => {
+                return (asBool(v) ? 1n : 0n) === asInt(lRes[i][1]);
+            });
+        });
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_map_values_to_bool
+        func main(a: Map[Int]Bool) -> Map[Int]Bool {
+            a.map_values((value: Bool) -> Bool {
+                !value
+            })
+        }`, ([a], res) => {
+            let lRes = res.data.map;
+
+            return a.data.map.every(([_, v], i) => {
+                return (!asBool(v)) === asBool(lRes[i][1]);
+            });
         });
 
         await ft.test([ft.map(ft.int(), ft.bool())], `
@@ -3004,7 +3122,15 @@ async function runPropertyTests() {
         await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
         testing tx_time_range
         func main(ctx: ScriptContext) -> Bool {
-            ctx.tx.time_range.contains(ctx.tx.now() + Duration::new(10))
+            ctx.tx.time_range.contains(ctx.tx.time_range.start + Duration::new(10))
+        }
+        ${spendingScriptContextParam(false)}
+        `, ([_], res) => asBool(res), 10);
+
+        await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
+        testing tx_time_range
+        func main(ctx: ScriptContext) -> Bool {
+            ctx.tx.time_range.contains(ctx.tx.time_range.end - Duration::new(10))
         }
         ${spendingScriptContextParam(false)}
         `, ([_], res) => asBool(res), 10);
@@ -4568,11 +4694,11 @@ async function main() {
         }
     });
 
-    await runUnitTests();
+    //await runUnitTests();
 
     await runPropertyTests();
 
-    await runIntegrationTests();
+    //await runIntegrationTests();
 
     // print statistics
     console.log("helios builtin coverage:");

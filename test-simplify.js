@@ -13,8 +13,8 @@ function simplify(src) {
 
     let ir = program.toIR();
 
-    let irProgram0 = helios_.IRProgram.new(ir);
-    let irProgram1 = helios_.IRProgram.new(ir, true);
+    let irProgram0 = helios_.IRProgram.new(ir, helios_.ScriptPurpose.Testing);
+    let irProgram1 = helios_.IRProgram.new(ir, helios_.ScriptPurpose.Testing, true);
 
 	console.log(`ORIG (${irProgram0.calcSize()} bytes):`);
 	console.log(new helios_.Source(irProgram0.toString()).pretty());

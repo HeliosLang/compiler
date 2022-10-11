@@ -1,5 +1,13 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/10/11
+* removed tx.now() (in favor of tx.time_range.start and tx.time_range.end)
+* changed time_range.get_start() to time_range.start (is a getter!)
+* added time_range.end (is a getter!)
+* added map.map_keys(), map.map_values()
+* support for operator overloading (internally), with `Time - Duration -> Time` and `Duration/Duration -> Int` as new overloads
+* `+` and `*` operators are now commutative in case left and right types differ
+
 # 2022/09/19
 * toSchemaJSON renamed to toSchemaJson
 * tx.outputs_sent_to_datum, tx.value_sent_to_datum, tx.outputs_locked_by_datum, tx.value_locked_by_datum: now take 'isInline' as a third boolean argument

@@ -60,9 +60,9 @@ async function testBasic() {
         new helios.Value(10n*1000n*1000n),
     ));
 
-    tx.setChangeAddress(helios.Address.fromBech32("addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w"));
+	let changeAddr = helios.Address.fromBech32("addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w");
 
-    await tx.finalize(networkParams);
+    await tx.finalize(networkParams, changeAddr);
 
     console.log(JSON.stringify(tx.dump(), undefined, "    "));
 
@@ -130,27 +130,25 @@ async function testMinting(optimized = false) {
 
 	heliosTx.addInput(mainInput);
 
-	let mph = new helios.Hash(program.hash());
+	let mph = program.mintingPolicyHash;
 
 	/**
 	 * @type {[number[], bigint][]}
 	 */
 	let tokens = [[[], 1n]];
 
-	heliosTx.addMint(mph, tokens, new helios.IntData(42n));
+	heliosTx.mintTokens(mph, tokens, new helios.IntData(42n));
 
 	heliosTx.addOutput(new helios.TxOutput(
 		addr,
 		new helios.Value(2n*1000n*1000n, new helios.Assets([[mph, tokens]]))
 	));
 
-	heliosTx.setChangeAddress(addr);
+	heliosTx.addCollateral(mainInput);
 
-	heliosTx.setCollateralInput(mainInput);
+	heliosTx.attachScript(program);
 
-	heliosTx.addScript(program);
-
-	await heliosTx.finalize(networkParams);
+	await heliosTx.finalize(networkParams, addr);
 
 	console.log(`BUILT_BY_HELIOS (${heliosTx.toCbor().length}):`, JSON.stringify(heliosTx.dump(), undefined, 4));
 }
