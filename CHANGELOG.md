@@ -1,10 +1,11 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
 # 2022/10/11
-* removed tx.now() (in favor of tx.time_range.start and tx.time_range.end)
-* changed time_range.get_start() to time_range.start (is a getter!)
-* added time_range.end (is a getter!)
-* added map.map_keys(), map.map_values()
+* added `Value::from_map`
+* removed `tx.now()` (in favor of `tx.time_range.start` and `tx.time_range.end`)
+* changed `time_range.get_start()` to `time_range.start` (is a getter!)
+* added `time_range.end` (is a getter!)
+* added `map.map_keys()` and `map.map_values()`
 * support for operator overloading (internally), with `Time - Duration -> Time` and `Duration/Duration -> Int` as new overloads
 * `+` and `*` operators are now commutative in case left and right types differ
 

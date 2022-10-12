@@ -2751,6 +2751,12 @@ async function runPropertyTests() {
             Value::from_data(a)
         }`, ([a], res) => a.data.isSame(res.data));
 
+        await ft.test([ft.map(ft.bytes(), ft.map(ft.bytes(), ft.int()))], `
+        testing value_from_map
+        func main(a: Map[MintingPolicyHash]Map[ByteArray]Int) -> Value {
+            Value::from_map(a)
+        }`, ([a], res) => a.data.isSame(res.data));
+
         await ft.test([ft.int(), ft.bytes(), ft.bytes()], `
         testing value_serialize
         func main(qty: Int, mph: ByteArray, name: ByteArray) -> ByteArray {

@@ -35,7 +35,7 @@ associated:  from_data
 operators:   __eq, __neq, __add
 getters:     length
 methods:     serialize, is_empty, get, get_safe, all, all_keys, all_values, any, any_key, any_value, 
-             filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values
+             filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values, map_keys, map_values
 internal ns: __helios__map
 
 # Option
@@ -133,7 +133,7 @@ associated:  from_data
 operators:   __eq, __neq
 getters:     inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, time_range, 
              signatories, id
-methods:     serialize, now, find_datum_hash, 
+methods:     serialize, find_datum_hash, 
              outputs_sent_to, outputs_sent_to_datum, 
              outputs_locked_by, outputs_locked_by_datum,
              value_sent_to, value_sent_to_dataum,
@@ -251,20 +251,21 @@ internal ns: __helios__stakingcredential__ptr
 
 # Time
 associated: new, from_data
-operators:  __eq, __neq, __add, __sub, __geq, __gt, __leq, __lt
+operators:  __eq, __neq, __add, __sub, __sub_alt, __geq, __gt, __leq, __lt
 methods:     serialize, show
 internal ns: __helios__time
 
 # Duration
 associated: new, from_data
-operators:  __eq, __neq, __add, __sub, __mul, __div, __mod, __geq, __gt, __leq, __lt
+operators:  __eq, __neq, __add, __sub, __mul, __div, __div_alt, __mod, __geq, __gt, __leq, __lt
 methods:    serialize
 internal ns: __helios__duration
 
 # TimeRange
 associated: new, to, from, ALWAYS, NEVER, from_data
 operators:  __eq, __neq
-methods:    serialize, get_start, contains, is_before, is_after
+getters:    start, end
+methods:    serialize, contains, is_before, is_after
 internal ns: __helios__timerange
 
 # AssetClass
@@ -274,7 +275,7 @@ methods:    serialize
 internal ns: __helios__assetclass
 
 # Value
-associated:  ZERO, lovelace, new, from_data
+associated:  ZERO, lovelace, new, from_data, from_map
 operators:   __eq, __neq, __add, __sub, __geq, __gt, __leq, __lt
 methods:     serialize, is_zero, get, contains, get_policy
 hidden:      get_map_keys, merge_map_keys, get_inner_map, get_inner_map_int, add_or_subtract_inner, add_or_subtract, compare_inner, compare
