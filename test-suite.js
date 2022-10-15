@@ -4700,11 +4700,11 @@ async function main() {
         }
     });
 
-    //await runUnitTests();
+    await runUnitTests();
 
     await runPropertyTests();
 
-    //await runIntegrationTests();
+    await runIntegrationTests();
 
     // print statistics
     console.log("helios builtin coverage:");

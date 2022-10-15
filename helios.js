@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.7.1
+// Version:     0.7.2
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -83,7 +83,7 @@
 //                                          bytesToHex, stringToBytes, bytesToString, replaceTabs, 
 //                                          unwrapCborBytes, wrapCborBytes, BitReader, BitWriter, 
 //                                          UInt64, DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
-//                                          Crypto, IR, Source, UserError, Site
+//                                          Crypto, IR, Source, UserError, Site, hl
 //
 //     3. Plutus-core builtins              NetworkParams, CostModel, ConstCost, LinearCost, 
 //                                          ArgSizeCost, MinArgSizeCost, MaxArgSizeCost, 
@@ -200,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.7.1"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.7.2"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -2945,6 +2945,25 @@ export class Site {
 	getFilePos() {
 		return this.#src.posToColAndLine(this.#pos);
 	}
+}
+
+/**
+ * A tag function for a helios source.
+ * Is just a marker so IDE support can work on literal helios sources inside javascript/typescript files.
+ * @example
+ * hl`hello ${"world"}!` => "hello world!"
+ * @param {string[]} a 
+ * @param  {...any} b 
+ * @returns {string}
+ */
+export function hl(a, ...b) {
+	return a.map((part, i) => {
+		if (i < b.length) {
+			return part + b[i].toString();
+		} else {
+			return part;
+		}
+	}).join("");
 }
 
 
@@ -12599,7 +12618,7 @@ class SwitchDefault extends Token {
 class SwitchExpr extends ValueExpr {
 	#controlExpr;
 	#cases;
-	#default;
+	#defaultCase;
 
 	/** 
 	 * @param {Site} site
@@ -12611,11 +12630,11 @@ class SwitchExpr extends ValueExpr {
 		super(site);
 		this.#controlExpr = controlExpr;
 		this.#cases = cases;
-		this.#default = defaultCase;
+		this.#defaultCase = defaultCase;
 	}
 
 	toString() {
-		return `${this.#controlExpr.toString()}.switch{${this.#cases.map(c => c.toString()).join(", ")}${this.#default === null ? "" : ", " + this.#default.toString()}}`;
+		return `${this.#controlExpr.toString()}.switch{${this.#cases.map(c => c.toString()).join(", ")}${this.#defaultCase === null ? "" : ", " + this.#defaultCase.toString()}}`;
 	}
 
 	/**
@@ -12628,7 +12647,7 @@ class SwitchExpr extends ValueExpr {
 		let nEnumMembers = enumType.nEnumMembers(this.#controlExpr.site);
 
 		// check that we have enough cases to cover the enum members
-		if (this.#default === null && nEnumMembers > this.#cases.length) {
+		if (this.#defaultCase === null && nEnumMembers > this.#cases.length) {
 			throw this.typeError(`insufficient coverage of '${enumType.toString()}' in switch expression`);
 		}
 
@@ -12641,10 +12660,10 @@ class SwitchExpr extends ValueExpr {
 			branchType = IfElseExpr.reduceBranchType(c.site, branchType, branchVal.getType(c.site));
 		}
 
-		if (this.#default !== null) {
-			let defaultVal = this.#default.eval(scope);
+		if (this.#defaultCase !== null) {
+			let defaultVal = this.#defaultCase.eval(scope);
 
-			branchType = IfElseExpr.reduceBranchType(this.#default.site, branchType, defaultVal.getType(this.#default.site));
+			branchType = IfElseExpr.reduceBranchType(this.#defaultCase.site, branchType, defaultVal.getType(this.#defaultCase.site));
 		} else {
 			if (enumType.nEnumMembers(this.site) > this.#cases.length) {
 				throw this.typeError("insufficient coverage in switch expression");
@@ -12667,8 +12686,8 @@ class SwitchExpr extends ValueExpr {
 
 		/** @type {SwitchCase | SwitchDefault} */
 		let last;
-		if (this.#default !== null) {
-			last = this.#default;
+		if (this.#defaultCase !== null) {
+			last = this.#defaultCase;
 		} else {
 			last = assertDefined(cases.pop());
 		}
