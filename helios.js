@@ -9313,6 +9313,7 @@ export function highlight(src) {
 							break;
 						case "testing":
 						case "spending":
+						case "staking":
 						case "minting":
 							if (i0 == 0) {
 								type = SyntaxCategory.Keyword;
@@ -14356,12 +14357,14 @@ function buildScriptPurpose(ts) {
 		purpose = ScriptPurpose.Spending;
 	} else if (purposeWord.isWord("minting")) {
 		purpose = ScriptPurpose.Minting;
+	} else if (purposeWord.isWord("staking")) {
+		purpose = ScriptPurpose.Staking;
 	} else if (purposeWord.isWord("testing")) { // 'test' is not reserved as a keyword though
 		purpose = ScriptPurpose.Testing;
 	} else if (purposeWord.isKeyword()) {
 		throw purposeWord.syntaxError(`script purpose missing`);
 	} else {
-		throw purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending' or 'minting')`);
+		throw purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking' or 'minting')`);
 	}
 
 	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
