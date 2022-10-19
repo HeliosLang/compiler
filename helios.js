@@ -20108,13 +20108,15 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__scriptcontext__purpose", "__helios__common__field_1"));
 	add(new RawFunc("__helios__scriptcontext__get_current_input",
 	`(self) -> {
-		(id) -> {
-			__helios__list__find(__helios__tx__inputs(__helios__scriptcontext__tx(self)))(
-				(input) -> {
-					__core__equalsData(__helios__txinput__output_id(input), id)
-				}
-			)
-		}(__helios__scriptcontext__get_spending_purpose_output_id(self)())
+		() -> {
+			(id) -> {
+				__helios__list__find(__helios__tx__inputs(__helios__scriptcontext__tx(self)))(
+					(input) -> {
+						__core__equalsData(__helios__txinput__output_id(input), id)
+					}
+				)
+			}(__helios__scriptcontext__get_spending_purpose_output_id(self)())
+		}
 	}`));
 	add(new RawFunc("__helios__scriptcontext__get_spending_purpose_output_id",
 	`(self) -> {
@@ -20130,7 +20132,7 @@ function makeRawFunctions() {
 					__helios__address__credential(
 						__helios__txoutput__address(
 							__helios__txinput__output(
-								__helios__scriptcontext__get_current_input(self)
+								__helios__scriptcontext__get_current_input(self)()
 							)
 						)
 					)
