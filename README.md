@@ -12,7 +12,7 @@ The Helios language and Helios API are covered extensively by the online [book](
 
 ## Online playground
 
-There is an online coding [playground](http://helios-playground.s3-website.us-east-2.amazonaws.com?share=bd071424ebb752c3bbb2e2e45074c195).
+There is an online coding [playground](https://www.hyperion-bt.org/Helios-Playground?share=bd071424ebb752c3bbb2e2e45074c195).
 
 ## Example
 
@@ -75,7 +75,7 @@ console.log(helios.Program.new(src).compile().serialize());
 // the output can be saved to a file, and that file can be used directly by cardano-cli
 ```
 
-You can explore this example on the [Helios playground](http://helios-playground.s3-website.us-east-2.amazonaws.com/?share=7860030a9fc194f87488ad8273fcadde).
+You can explore this example on the [Helios playground](https://www.hyperion-bt.org/Helios-Playground?share=7860030a9fc194f87488ad8273fcadde).
 
 ## Acknowledgements
 
