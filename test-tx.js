@@ -46,7 +46,7 @@ async function testBasic() {
     // build same transaction using helios only:
     let tx = new helios.Tx();
 
-    tx.addInput(new helios.TxInput(
+    tx.addInput(new helios.UTxO(
         helios.Hash.fromHex("d4b22d33611fb2b3764080cb349b3f12d353aef1d4319ee33e44594bbebe5e83"),
         0n,
         new helios.TxOutput(
@@ -119,7 +119,7 @@ async function testMinting(optimized = false) {
 	const addr = helios.Address.fromBech32("addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w");
 	let heliosTx = new helios.Tx();
 
-	let mainInput = new helios.TxInput(
+	let mainInput = new helios.UTxO(
 		helios.Hash.fromHex("d4b22d33611fb2b3764080cb349b3f12d353aef1d4319ee33e44594bbebe5e83"),
 		0n,
 		new helios.TxOutput(
