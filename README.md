@@ -55,7 +55,7 @@ const PARAMS: VestingParams = VestingParams{
 // the compiler is smart enough to add an empty Datum and empty Redeemer as arguments to the actual main entrypoint function
 func main(ctx: ScriptContext) -> Bool {
     tx: Tx = ctx.tx;
-    now: Time = tx.now();
+    now: Time = tx.time_range.start;
     remaining_actual: Value = tx.value_locked_by(ctx.get_current_validator_hash());
     remaining_expected: Value = PARAMS.remaining_from(now);
     remaining_actual >= remaining_expected && tx.is_signed_by(PARAMS.owner)
@@ -75,7 +75,7 @@ console.log(helios.Program.new(src).compile().serialize());
 // the output can be saved to a file, and that file can be used directly by cardano-cli
 ```
 
-You can explore this example on the [Helios playground](https://www.hyperion-bt.org/Helios-Playground?share=7860030a9fc194f87488ad8273fcadde).
+You can explore this example on the [Helios playground](https://www.hyperion-bt.org/Helios-Playground?share=3f2f31a38b1e80d8858cfea3fbc9dde1).
 
 ## Acknowledgements
 
