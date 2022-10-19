@@ -2823,7 +2823,7 @@ async function runPropertyTests() {
         }
         ${spendingScriptContextParam(false)}
         `, ([ctx], res) => asBool(res), 10);
-        
+
         await ft.testParams({"CURRENT_VALIDATOR_BYTES": ft.bytes()}, ["CURRENT_VALIDATOR", "SCRIPT_CONTEXT"], `
         testing scriptcontext_get_current_validator_hash
         func main(hash: ValidatorHash, ctx: ScriptContext) -> Bool {
@@ -3624,14 +3624,6 @@ async function runPropertyTests() {
     }
     const DATA = 0
     `, ([_], res) => !asBool(res), 10);
-
-    await ft.testParams({"DATA": ft.int()}, ["DATA"], `
-    testing data_from_data
-    func main(data: Data) -> Bool {
-        data == Data::from_data(data)
-    }
-    const DATA = 0
-    `, ([_], res) => asBool(res), 10);
 
     await ft.testParams({"DATA": ft.int()}, ["DATA"], `
     testing data_serialize
