@@ -6,31 +6,18 @@ Helios is purely functional, strongly typed, and has a simple curly braces synta
 
 The Helios library contains a reference compiler for the Helios language, as well as transaction building functions. Everything is written in Javascript.
 
-Use the following tutorial to learn how to use Helios with cardano-cli:
-  1. [Cardano-node setup](doc/tutorial_01-environment_setup.md)
-  2. [Wallet setup and funding](doc/tutorial_02-wallet_setup.md)
-  3. [*Always Succeeds* contract](doc/tutorial_03-always_succeeds.md)
-  4. [*Time Lock* contract](doc/tutorial_04-time_lock.md)
-  5. [*Subscription* contract](doc/tutorial_05-subscription_contract.md)
-  6. [Minting policy scripts](doc/tutorial_06-minting.md)
-  7. [*English Auction* contract](doc/tutorial_07-english_auction.md)
+## User guide and language reference
 
-We are in the process of migrating these tutorials [here](https://hyperion-bt.github.io/Helios-Book/).
+The Helios language and Helios API are covered extensively by the online [book](https://hyperion-bt.github.io/Helios-Book).
+
+## Online playground
+
 There is an online coding [playground](http://helios-playground.s3-website.us-east-2.amazonaws.com?share=bd071424ebb752c3bbb2e2e45074c195).
 
+## Example
 
-## Acknowledgements
-
-* [Ch1n3du](https://github.com/Ch1n3du): improved syntax, documentation
-* [Tanyalouise](https://github.com/tanthehack): designs
-* [Cnftacademy](https://cnftacademy.com/): testing
-* [mikky-j](https://github.com/mikky-j): documentation
-
-
-## Quick start examples
-
-### 1. Vesting contract example
 The following Helios example is equivalent to the Plutus vesting contract from the Plutus playground:
+
 ```golang
 spending vesting
 
@@ -90,16 +77,9 @@ console.log(helios.Program.new(src).compile().serialize());
 
 You can explore this example on the [Helios playground](http://helios-playground.s3-website.us-east-2.amazonaws.com/?share=7860030a9fc194f87488ad8273fcadde).
 
-### 2. Deserialize Plutus-Core
-```javascript
-import * as helios from "helios.js"
+## Acknowledgements
 
-const plutusCoreJson = `{"type": "PlutusScriptV1", ...}`;
-
-// dump Plutus-Core AST
-console.log(helios.deserializePlutusCore(plutusCoreJson));
-```
-
-## Helios user guide and language reference
-
-Can be found [here](https://hyperion-bt.github.io/Helios-Book/).
+* [Ch1n3du](https://github.com/Ch1n3du): improved syntax, documentation
+* [Tanyalouise](https://github.com/tanthehack): designs
+* [Cnftacademy](https://cnftacademy.com/): testing
+* [mikky-j](https://github.com/mikky-j): documentation
