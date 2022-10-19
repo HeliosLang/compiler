@@ -9,7 +9,7 @@ spending time_lock
 struct Datum {
     lockUntil: Time
     owner:     PubKeyHash // can't get this info from the ScriptContext
-    nonce:     Integer // doesn't actually need be checked here
+    nonce:     Int // doesn't actually need be checked here
 }
 
 func main(datum: Datum, ctx: ScriptContext) -> Bool {

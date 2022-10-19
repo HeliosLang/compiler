@@ -2816,6 +2816,14 @@ async function runPropertyTests() {
         ${spendingScriptContextParam(false)}
         `, ([ctx], res) => ctx.data.fields[1].fields[0].isSame(res.data), 10);
 
+        await ft.testParams({"TX_ID_IN_BYTES": ft.bytes()}, ["FIRST_TX_INPUT", "SCRIPT_CONTEXT"], `
+        testing scriptcontext_get_current_input
+        func main(input: TxInput, ctx: ScriptContext) -> Bool {
+            ctx.get_current_input() == input
+        }
+        ${spendingScriptContextParam(false)}
+        `, ([ctx], res) => asBool(res), 10);
+        
         await ft.testParams({"CURRENT_VALIDATOR_BYTES": ft.bytes()}, ["CURRENT_VALIDATOR", "SCRIPT_CONTEXT"], `
         testing scriptcontext_get_current_validator_hash
         func main(hash: ValidatorHash, ctx: ScriptContext) -> Bool {

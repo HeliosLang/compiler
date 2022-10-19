@@ -2835,7 +2835,7 @@ class RuntimeError extends UserError {
 /**
  * Each Token/Expression/Statement has a Site, which encapsulates a position in a Source
  */
-export class Site {
+class Site {
 	#src;
 	#pos;
 
@@ -3762,7 +3762,7 @@ const UPLC_BUILTINS = (
  * Use this function to check cost-model parameters
  * @param {NetworkParams} networkParams
  */
-export function dumpCostModels(networkParams) {
+function dumpCostModels(networkParams) {
 	for (let builtin of UPLC_BUILTINS) {
 		builtin.dumpCostModel(networkParams);
 	}
@@ -5442,7 +5442,7 @@ export class UplcDataValue extends UplcValue {
 /**
  * Base class of Plutus-core terms
  */
-export class UplcTerm {
+class UplcTerm {
 	#site;
 	#type;
 
@@ -13879,12 +13879,13 @@ export class Program {
 	 * Change the literal value of a const statements  
 	 * @param {string} name 
 	 * @param {string | UplcValue} value 
+	 * @returns {Program} - returns 'this' so that changeParam calls can be chained
 	 */
 	changeParam(name, value) {
 		for (let s of this.#statements) {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValue(value);
-				return;
+				return this;
 			}
 		}
 
@@ -17613,6 +17614,7 @@ class TxOutputType extends BuiltinType {
 		return "__helios__txoutput";
 	}
 }
+
 class OutputDatumType extends BuiltinType {
 	toString() {
 		return "OutputDatum";
@@ -17834,6 +17836,19 @@ class InlineOutputDatumType extends BuiltinEnumMember {
 class RawDataType extends BuiltinType {
 	toString() {
 		return "Data";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`calling Data::from_data(data) is useless`);
+			default:
+				return super.getTypeMember(name);
+		}
 	}
 
 	get path() {
@@ -23849,6 +23864,19 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @param {TxInput[]} inputs
+	 * @param {?(UplcDataValue | UplcData)} redeemer
+	 * @returns {Tx}
+	 */
+	addInputs(inputs, redeemer = null) {
+		for (let input of inputs) {
+			this.addInput(input, redeemer);
+		}
+
+		return this;
+	}
+
+	/**
 	 * @param {TxInput} input 
 	 * @returns {Tx}
 	 */
@@ -23856,6 +23884,18 @@ export class Tx extends CborData {
 		assert(!this.#valid);
 
 		this.#body.addRefInput(input);
+
+		return this;
+	}
+
+	/**
+	 * @param {TxInput[]} inputs
+	 * @returns {Tx}
+	 */
+	addRefInputs(inputs) {
+		for (let input of inputs) {
+			this.addRefInput(input);
+		}
 
 		return this;
 	}
@@ -23869,6 +23909,18 @@ export class Tx extends CborData {
 		
 		// min lovelace is checked during build, because 
 		this.#body.addOutput(output);
+
+		return this;
+	}
+
+	/**
+	 * @param {TxOutput[]} outputs 
+	 * @returns {Tx}
+	 */
+	addOutputs(outputs) {
+		for (let output of outputs) {
+			this.addOutput(output);
+		}
 
 		return this;
 	}
@@ -24133,7 +24185,7 @@ export class Tx extends CborData {
 	 * @param {NetworkParams} networkParams
 	 * @param {Address}       changeAddress
 	 * @param {TxInput[]}     spareUtxos - might be used during balancing if there currently aren't enough inputs
-	 * @returns {Promise<void>}
+	 * @returns {Promise<Tx>}
 	 */
 	async finalize(networkParams, changeAddress, spareUtxos = []) {
 		assert(!this.#valid);
@@ -24184,6 +24236,8 @@ export class Tx extends CborData {
 		this.checkSize(networkParams);
 
 		this.#valid = true;
+
+		return this;
 	}
 
 	/**
@@ -25118,7 +25172,7 @@ export class TxWitnesses extends CborData {
 	}
 }
 
-export class TxInput extends CborData {
+class TxInput extends CborData {
 	/** @type {Hash} */
 	#txId;
 
@@ -25584,7 +25638,7 @@ export class TxOutput extends CborData {
 	}
 }
 
-export class ChangeTxOutput extends TxOutput {
+class ChangeTxOutput extends TxOutput {
 	/**
 	 * @param {Address} address 
 	 * @param {Value} value
@@ -27725,6 +27779,7 @@ export const exportedForTesting = {
 	bytesToString: bytesToString,
 	wrapCborBytes: wrapCborBytes,
 	unwrapCborBytes: unwrapCborBytes,
+	dumpCostModels: dumpCostModels,
 	Site: Site,
 	Source: Source,
 	Crypto: Crypto,
