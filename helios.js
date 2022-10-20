@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.7.5
+// Version:     0.7.6
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -200,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.7.5"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.7.6"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -12784,7 +12784,7 @@ class Statement extends Token {
 	/**
 	 * @param {TopScope} scope 
 	 */
-	 eval(scope) {
+	eval(scope) {
 		throw new Error("not yet implemented");
 	}
 
@@ -12827,8 +12827,6 @@ class ConstStatement extends Statement {
 			return this.#typeExpr.type;
 		}
 	}
-
-
 
 	/**
 	 * @param {string | UplcValue} value 
@@ -12917,9 +12915,6 @@ class DataField extends NameTypePair {
 class DataDefinition extends Statement {
 	#fields;
 
-	/** @type {Set<string>} - all fields must be used */
-	#fieldsUsed;
-
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
@@ -12928,7 +12923,6 @@ class DataDefinition extends Statement {
 	constructor(site, name, fields) {
 		super(site, name);
 		this.#fields = fields;
-		this.#fieldsUsed = new Set();
 	}
 
 	get fields() {
@@ -13046,19 +13040,13 @@ class DataDefinition extends Statement {
 		if (i == -1) {
 			throw name.referenceError(`'${this.name.toString()}.${name.toString()}' undefined`);
 		} else {
-			if (!dryRun) {
-				this.#fieldsUsed.add(name.toString());
-			}
 			return Instance.new(this.#fields[i].type);
 		}
 	}
 
 	assertAllMembersUsed() {
-		for (let f of this.#fields) {
-			if (!this.#fieldsUsed.has(f.name.toString())) {
-				throw f.name.referenceError(`field '${this.name.toString()}.${f.name.toString()}' unused`);
-			}
-		}
+		// Old: used to check if all fields where referenced
+    	// New: due to potential interactions with on-chain data of other smart contracts scripts this restriction has been lifted
 	}
 
 	get path() {
@@ -13413,9 +13401,6 @@ class EnumStatement extends Statement {
 	#members;
 	#impl;
 
-	/** @type {Set<string>} */
-	#membersUsed;	
-
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
@@ -13426,9 +13411,7 @@ class EnumStatement extends Statement {
 		super(site, name);
 		this.#members = members;
 		this.#impl = impl;
-		this.#membersUsed = new Set();
 		
-
 		for (let i = 0; i < this.#members.length; i++) {
 			this.#members[i].registerParent(this, i);
 		}
@@ -13524,10 +13507,6 @@ class EnumStatement extends Statement {
 		if (i == -1) {
 			return this.#impl.getTypeMember(name, dryRun);
 		} else {
-			if (!dryRun) {
-				this.#membersUsed.add(name.toString());
-			}
-
 			return this.#members[i].type;
 		}
 	}
@@ -13549,11 +13528,10 @@ class EnumStatement extends Statement {
 	}
 
 	assertAllMembersUsed() {
-		for (let m of this.#members) {
-			if (!this.#membersUsed.has(m.name.toString())) {
-				throw m.name.referenceError(`'${this.toString()}::${m.name.toString}' unused`);
-			}
+		// Old: used to assert if all members where being used
+		// New: due to potential interactions with data from other smart contracts this restriction has been lifted
 
+		for (let m of this.#members) {
 			m.assertAllMembersUsed();
 		}
 

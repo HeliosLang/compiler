@@ -24,7 +24,7 @@ Our Cardano address is the same one where the `helioslang` [adahandle](https://a
 addr1qxyd3shxugqkrkdpwgjq522cu7h4lkr8qnz9uemd4w68p970n6h44fq8ujuyu807vll9atjpc8z6zl0pyv6n2neezysqv5rjvd
 ```
 
-Please join our [Discord](https://discord.gg/XTwPrvB25q) and tell us what you'd like the sponsorship to be used for before sending funds.
+Please join our [Discord](https://discord.gg/XTwPrvB25q) and tell us what you'd like your sponsorship to be used for before sending funds.
 
 ## Example
 
