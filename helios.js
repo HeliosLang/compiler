@@ -4504,6 +4504,22 @@ class UplcAnon extends UplcValue {
 	toString() {
 		return "fn";
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	typeBits() {
+		throw new Error("a UplcAnon value doesn't have a literal representation");
+	}
+
+	/**
+	 * Encodes value with plutus flat encoding.
+	 * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
+		throw new Error("a UplcAnon value doesn't have a literal representation");
+	}
 }
 
 /**
@@ -6516,8 +6532,8 @@ export class UplcProgram {
 
 	/**
 	 * Wrap the top-level term with consecutive UplcCall terms
-	 * No checks are performed whether this makes sense, so beware
-	 * Throws are if trying to wrap with anon func.
+	 * No checks are performed whether this makes sense or not, so beware
+	 * Throws an error if you are trying to apply an  with anon func.
 	 * @param {UplcValue[]} args
 	 * @returns {UplcProgram} - a new UplcProgram instance
 	 */
@@ -6525,6 +6541,10 @@ export class UplcProgram {
 		let expr = this.expr;
 
 		for (let arg of args) {
+			if (arg instanceof UplcAnon) {
+				throw new Error("UplcAnon cannot be applied to UplcProgram");
+			}
+			
 			expr = new UplcCall(arg.site, expr, new UplcConst(arg));
 		}
 
@@ -10104,6 +10124,8 @@ class Instance extends EvalEntity {
 	static new(type) {
 		if (type instanceof FuncType) {
 			return new FuncInstance(type);
+		} else if (type instanceof ParamType) {
+			return new DataInstance(type.type);
 		} else {
 			return new DataInstance(type);
 		}
@@ -16254,7 +16276,11 @@ class ParamType extends Type {
 	 * @type {?Type}
 	 */
 	get type() {
-		return this.#type;
+		if (this.#type instanceof ParamType) {
+			return this.#type.type;
+		} else {
+			return this.#type;
+		}
 	}
 
 	toString() {
