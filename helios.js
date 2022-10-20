@@ -6403,8 +6403,8 @@ export class UplcProgram {
 
 	/**
 	 * @param {UplcTerm} expr 
-	 * @param {UplcInt[]} version
 	 * @param {?number} purpose // TODO: enum type
+	 * @param {UplcInt[]} version
 	 */
 	constructor(expr, purpose = null, version = UPLC_VERSION_COMPONENTS.map(v => new UplcInt(expr.site, v, false))) {
 		this.#version = version;
