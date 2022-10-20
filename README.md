@@ -14,6 +14,18 @@ The Helios language and Helios API are covered extensively by the online [book](
 
 There is an online coding [playground](https://www.hyperion-bt.org/Helios-Playground?share=bd071424ebb752c3bbb2e2e45074c195).
 
+## Sponsoring
+
+For sponsoring we prefer using the Cardano blockchain itself (instead of Patreon or Github's sponsor system).
+
+Our Cardano address is the same one where the `helioslang` [adahandle](https://adahandle.com/) is located:
+
+```
+addr1qxyd3shxugqkrkdpwgjq522cu7h4lkr8qnz9uemd4w68p970n6h44fq8ujuyu807vll9atjpc8z6zl0pyv6n2neezysqv5rjvd
+```
+
+Please join our [Discord](https://discord.gg/XTwPrvB25q) and tell us what you'd like the sponsorship to be used for before sending funds.
+
 ## Example
 
 The following Helios example is equivalent to the Plutus vesting contract from the Plutus playground:
