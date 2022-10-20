@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.7.3
+// Version:     0.7.4
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -200,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.7.3"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.7.4"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -6512,6 +6512,23 @@ export class UplcProgram {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Wrap the top-level term with consecutive UplcCall terms
+	 * No checks are performed whether this makes sense, so beware
+	 * Throws are if trying to wrap with anon func.
+	 * @param {UplcValue[]} args
+	 * @returns {UplcProgram} - a new UplcProgram instance
+	 */
+	apply(args) {
+		let expr = this.expr;
+
+		for (let arg of args) {
+			expr = new UplcCall(arg.site, expr, new UplcConst(arg));
+		}
+
+		return new UplcProgram(expr, this.#purpose, this.#version);
 	}
 
 	/**
