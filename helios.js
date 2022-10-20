@@ -155,7 +155,7 @@
 //                                          OptionType, OptionSomeType, OptionNoneType,
 //                                          HashType, PubKeyHashType, ValidatorHashType, 
 //                                          MintingPolicyHashType, DatumHashType, 
-//                                          ScriptContextType, StakingPurposeType,
+//                                          ScriptContextType, StakingPurposeType, ScriptPurposeType,
 //                                          StakingRewardingPurposeType, StakingCertifyingPurposeType,
 //                                          DCertType, RegisterDCertType, DeregisterDCertType,
 //                                          DelegateDCertType, RegisterPoolDCertType,
@@ -10487,6 +10487,7 @@ class GlobalScope {
 		scope.set("DatumHash", new DatumHashType());
 		scope.set("ScriptContext", new ScriptContextType(purpose));
 		scope.set("StakingPurpose", new StakingPurposeType());
+		scope.set("ScriptPurpose", new ScriptPurposeType());
 		scope.set("DCert", new DCertType());
 		scope.set("Tx", new TxType());
 		scope.set("TxId", new TxIdType());
@@ -16919,6 +16920,8 @@ class ScriptContextType extends BuiltinType {
 				} else {
 					return Instance.new(new FuncType([], new StakingPurposeType()));
 				}
+			case "get_script_purpose":
+				return Instance.new(new FuncType([], new ScriptPurposeType()));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -17083,6 +17086,277 @@ class StakingCertifyingPurposeType extends BuiltinEnumMember {
 
 	get path() {
 		return "__helios__stakingpurpose__certifying";
+	}
+}
+
+/**
+ * Builtin ScriptPurpose type (Minting| Spending| Rewarding | Certifying)
+ */
+ class ScriptPurposeType extends BuiltinType {
+	toString() {
+		return "ScriptPurpose";
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		let b = super.isBaseOf(site, type) ||
+				(new MintingScriptPurposeType()).isBaseOf(site, type) || 
+				(new SpendingScriptPurposeType()).isBaseOf(site, type) || 
+				(new RewardingScriptPurposeType()).isBaseOf(site, type) || 
+				(new CertifyingScriptPurposeType()).isBaseOf(site, type); 
+
+		return b;
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "Minting":
+				return new MintingScriptPurposeType();
+			case "Spending":
+				return new SpendingScriptPurposeType();
+			case "Rewarding":
+				return new RewardingScriptPurposeType();
+			case "Certifying":
+				return new CertifyingScriptPurposeType();
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	nEnumMembers(site) {
+		return 4;
+	}
+
+	get path() {
+		return "__helios__scriptpurpose";
+	}
+}
+
+/**
+ * Builtin ScriptPurpose::Minting
+ */
+class MintingScriptPurposeType extends BuiltinEnumMember {
+	constructor() {
+		super(new ScriptPurposeType());
+	}
+
+	toString() {
+		return "ScriptPurpose::Minting";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Instance.new(new FuncType([new ScriptPurposeType()], new BoolType()));
+			case "policy_hash":
+				return Instance.new(new MintingPolicyHashType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 0;
+	}
+
+	get path() {
+		return "__helios__scriptpurpose__minting";
+	}
+}
+
+/**
+ * Builtin ScriptPurpose::Spending
+ */
+class SpendingScriptPurposeType extends BuiltinEnumMember {
+	constructor() {
+		super(new ScriptPurposeType());
+	}
+
+	toString() {
+		return "ScriptPurpose::Spending";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Instance.new(new FuncType([new ScriptPurposeType()], new BoolType()));
+			case "output_id":
+				return Instance.new(new TxOutputIdType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 1;
+	}
+
+	get path() {
+		return "__helios__scriptpurpose__spending";
+	}
+}
+
+/**
+ * Builtin ScriptPurpose::Rewarding
+ */
+class RewardingScriptPurposeType extends BuiltinEnumMember {
+	constructor() {
+		super(new ScriptPurposeType());
+	}
+
+	toString() {
+		return "ScriptPurpose::Rewarding";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Instance.new(new FuncType([new ScriptPurposeType()], new BoolType()));
+			case "credential":
+				return Instance.new(new StakingCredentialType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 2;
+	}
+
+	get path() {
+		return "__helios__scriptpurpose__rewarding";
+	}
+}
+
+/**
+ * Builtin ScriptPurpose::Certifying type
+ */
+class CertifyingScriptPurposeType extends BuiltinEnumMember {
+	constructor() {
+		super(new ScriptPurposeType());
+	}
+
+	toString() {
+		return "ScriptPurpose::Certifying";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Instance.new(new FuncType([new ScriptPurposeType()], new BoolType()));
+			case "dcert":
+				return Instance.new(new DCertType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		return 3;
+	}
+
+	get path() {
+		return "__helios__scriptpurpose__certifying";
 	}
 }
 
@@ -17476,6 +17750,8 @@ class TxType extends BuiltinType {
 				return Instance.new(new TimeRangeType());
 			case "signatories":
 				return Instance.new(new ListType(new PubKeyHashType()));
+			case "redeemers":
+				return Instance.new(new MapType(new ScriptPurposeType(), new RawDataType()));
 			case "id":
 				return Instance.new(new TxIdType());
 			case "find_datum_hash":
@@ -20186,6 +20462,12 @@ function makeRawFunctions() {
 			__helios__scriptcontext__purpose(self)
 		}
 	}`));
+	add(new RawFunc("__helios__scriptcontext__get_script_purpose", 
+	`(self) -> {
+		() -> {
+			__helios__scriptcontext__purpose(self)
+		}
+	}`));
 
 
 	// StakingPurpose builtins
@@ -20200,6 +20482,29 @@ function makeRawFunctions() {
 	// StakingPurpose::Certifying builtins
 	addEnumDataFuncs("__helios__stakingpurpose__certifying");
 	add(new RawFunc("__helios__stakingpurpose__certifying__dcert", "__helios__common__field_0"));
+
+	// ScriptPurpose builtins
+	addDataFuncs("__helios__scriptpurpose");
+
+
+	// ScriptPurpose::Minting builtins
+	addEnumDataFuncs("__helios__scriptpurpose__minting");
+	add(new RawFunc("__helios__scriptpurpose__minting__policy_hash", "__helios__common__field_0"));
+
+	
+	// ScriptPurpose::Spending builtins
+	addEnumDataFuncs("__helios__scriptpurpose__spending");
+	add(new RawFunc("__helios__scriptpurpose__spending__output_id", "__helios__common__field_0"));
+
+	
+	// ScriptPurpose::Rewarding builtins
+	addEnumDataFuncs("__helios__scriptpurpose__rewarding");
+	add(new RawFunc("__helios__scriptpurpose__rewarding__credential", "__helios__common__field_0"));
+
+	
+	// ScriptPurpose::Certifying builtins
+	addEnumDataFuncs("__helios__scriptpurpose__certifying");
+	add(new RawFunc("__helios__scriptpurpose__certifying__dcert", "__helios__common__field_0"));
 
 
 	// DCert builtins
