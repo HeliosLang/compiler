@@ -667,6 +667,12 @@ async function runPropertyTests() {
     }`, ([a], res) => asInt(a).toString() === asString(res));
 
     await ft.test([ft.int()], `
+    testing int_parse
+    func main(a: Int) -> Bool {
+        Int::parse(a.show()) == a
+    }`, ([a], res) => asBool(res));
+
+    await ft.test([ft.int()], `
     testing int_from_data
     func main(a: Data) -> Int {
         Int::from_data(a)

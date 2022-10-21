@@ -15806,6 +15806,19 @@ class IntType extends BuiltinType {
 
 	/**
 	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	 getTypeMember(name) {
+		switch (name.value) {
+			case "parse":
+				return Instance.new(new FuncType([new StringType()], new IntType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
@@ -19223,6 +19236,84 @@ function makeRawFunctions() {
 				))
 			}
 		}(__core__unIData(self))
+	}`));
+	add(new RawFunc("__helios__int__parse_digit",
+	`(digit) -> {
+		__core__ifThenElse(
+			__core__lessThanEqualsInteger(digit, 57),
+			() -> {
+				__core__ifThenElse(
+					__core__lessThanEqualsInteger(48, digit),
+					() -> {
+						__core__subtractInteger(digit, 48)
+					},
+					() -> {
+						__core__error("not a digit")
+					}
+				)()
+			},
+			() -> {
+				__core__error("not a digit")
+			}
+		)()
+	}`));
+	add(new RawFunc("__helios__int__parse",
+	`(string) -> {
+		(bytes) -> {
+			__core__iData(
+				(n, b0) -> {
+					(recurse) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(b0, 48),
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(n, 1),
+									() -> {
+										0
+									},
+									() -> {
+										__core__error("zero padded integer can't be parsed")
+									}
+								)()
+							},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(b0, 45),
+									() -> {
+										__core__multiplyInteger(
+											recurse(recurse, 0, 1),
+											-1
+										)
+									},
+									() -> {
+										recurse(recurse, 0, 0)
+									}
+								)()
+							}
+						)()
+					}(
+						(recurse, acc, i) -> {
+							__core__ifThenElse(
+								__core__equalsInteger(i, n),
+								() -> {
+									acc
+								},
+								() -> {
+									(new_acc) -> {
+										recurse(recurse, new_acc, __core__addInteger(i, 1))
+									}(
+										__core__addInteger(
+											__core__multiplyInteger(acc, 10), 
+											__helios__int__parse_digit(__core__indexByteString(bytes, i))
+										)
+									)
+								}
+							)()
+						}
+					)
+				}(__core__lengthOfByteString(bytes), __core__indexByteString(bytes, 0))
+			)
+		}(__core__unBData(string))
 	}`));
 
 
