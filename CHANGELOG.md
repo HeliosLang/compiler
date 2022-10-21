@@ -6,6 +6,7 @@ This Changelog only applies to notable changes of `helios.js` on the main branch
 * `Tx.redeemers`
 * `Int::parse`
 * unused struct/enum fields, and unused enum variants, are now allowed
+* `Option.unwrap()`
 
 # 2022/10/11
 * added `Value::from_map`

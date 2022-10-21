@@ -2362,6 +2362,18 @@ async function runPropertyTests() {
     });
 
     await ft.test([ft.option(ft.int())], `
+    testing option_unwrap
+    func main(a: Option[Int]) -> Int {
+        a.unwrap()
+    }`, ([a], res) => {
+        if (a.data.index == 1) {
+            return isError(res, "empty list");
+        } else {
+            return asInt(a.data.fields[0]) === asInt(res);
+        }
+    });
+
+    await ft.test([ft.option(ft.int())], `
     testing option_from_data
     func main(a: Data) -> Option[Int] {
         Option[Int]::from_data(a)

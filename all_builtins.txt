@@ -41,7 +41,7 @@ internal ns: __helios__map
 # Option
 associated:  from_data
 operators:   __eq, __neq
-methods:     serialize
+methods:     serialize, unwrap
 internal ns: __helios__option
 
 ## Option::Some

@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.7.7
+// Version:     0.7.8
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -200,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.7.7"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.7.8"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -16520,13 +16520,15 @@ class OptionType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
+			case "unwrap":
+				return Instance.new(new FuncType([], this.#someType));
 			default:
 				return super.getInstanceMember(name);
 		}
 	}
 
 	get path() {
-		return `__helios__option`;
+		return `__helios__${this.#someType instanceof BoolType ? "bool" : ""}option`;
 	}
 }
 
@@ -16600,7 +16602,7 @@ class OptionSomeType extends BuiltinEnumMember {
 	}
 
 	get path() {
-		return `__helios__option__${this.#someType instanceof BoolType ? "bool" : ""}some`;
+		return `__helios__${this.#someType instanceof BoolType ? "bool" : ""}option__some`;
 	}
 }
 
@@ -16644,7 +16646,7 @@ class OptionNoneType extends BuiltinEnumMember {
 	}
 
 	get path() {
-		return "__helios__option__none";
+		return `__helios__${this.#someType instanceof BoolType ? "bool" : ""}option__none`;
 	}
 
 	/**
@@ -19194,10 +19196,18 @@ function makeRawFunctions() {
 								__core__ifThenElse(
 									__core__equalsInteger(b0, 45),
 									() -> {
-										__core__multiplyInteger(
-											recurse(recurse, 0, 1),
-											-1
-										)
+										__core__ifThenElse(
+											__core__equalsInteger(__core__indexByteString(bytes, 1), 48),
+											() -> {
+												__core__error("-0 not allowed")
+											},
+											() -> {
+												__core__multiplyInteger(
+													recurse(recurse, 0, 1),
+													-1
+												)
+											}
+										)()
 									},
 									() -> {
 										recurse(recurse, 0, 0)
@@ -20076,8 +20086,17 @@ function makeRawFunctions() {
 	}`));
 
 
-	// Option builtins
+	// Option[T] builtins
 	addDataFuncs("__helios__option");
+	add(new RawFunc("__helios__option__unwrap", `
+	(self) -> {
+		() -> {
+			__helios__common__field_0(self)
+		}
+	}`));
+
+
+	// Option[T]::Some
 	addEnumDataFuncs("__helios__option__some");
 	add(new RawFunc("__helios__option__some__new",
 	`(data) -> {
@@ -20088,18 +20107,9 @@ function makeRawFunctions() {
 		__helios__common__assert_constr_index(data, 0)
 	}`));
 	add(new RawFunc("__helios__option__some__some", "__helios__common__field_0"));
-	add(new RawFunc("__helios__option__boolsome____eq", "__helios__option__some____eq"));
-	add(new RawFunc("__helios__option__boolsome____neq", "__helios__option__some____neq"));
-	add(new RawFunc("__helios__option__boolsome__serialize", "__helios__option__some__serialize"));
-	add(new RawFunc("__helios__option__boolsome__new", 
-	`(b) -> {
-		__helios__option__some__new(__helios__common__boolData(b))
-	}`));
-	add(new RawFunc("__helios__option__boolsome__cast", "__helios__option__some__cast"));
-	add(new RawFunc("__helios__option__boolsome__some", 
-	`(self) -> {
-		__helios__common__unBoolData(__helios__option__some__some(self))
-	}`));
+	
+
+	// Option[T]::None
 	addEnumDataFuncs("__helios__option__none");
 	add(new RawFunc("__helios__option__none__new",
 	`() -> {
@@ -20111,6 +20121,42 @@ function makeRawFunctions() {
 	}`));
 
 
+	// Option[Bool]
+	add(new RawFunc("__helios__booloption____eq", "__helios__option____eq"));
+	add(new RawFunc("__helios__booloption____neq", "__helios__option____neq"));
+	add(new RawFunc("__helios__booloption__serialize", "__helios__option__serialize"));
+	add(new RawFunc("__helios__booloption__from_data", "__helios__option__from_data"));
+	add(new RawFunc("__helios__booloption__unwrap", `
+	(self) -> {
+		() -> {
+			__helios__common__unBoolData(__helios__common__field_0(self))
+		}
+	}`));
+
+	
+	// Option[Bool]::Some
+	add(new RawFunc("__helios__booloption__some____eq", "__helios__option__some____eq"));
+	add(new RawFunc("__helios__booloption__some____neq", "__helios__option__some____neq"));
+	add(new RawFunc("__helios__booloption__some__serialize", "__helios__option__some__serialize"));
+	add(new RawFunc("__helios__booloption__some__new", 
+	`(b) -> {
+		__helios__option__some__new(__helios__common__boolData(b))
+	}`));
+	add(new RawFunc("__helios__booloption__some__cast", "__helios__option__some__cast"));
+	add(new RawFunc("__helios__booloption__some__some", 
+	`(self) -> {
+		__helios__common__unBoolData(__helios__option__some__some(self))
+	}`));
+
+	
+	// Option[Bool]::None
+	add(new RawFunc("__helios__booloption__none____eq",      "__helios__option__none____eq"));
+	add(new RawFunc("__helios__booloption__none____neq",     "__helios__option__none____neq"));
+	add(new RawFunc("__helios__booloption__none__serialize", "__helios__option__none__serialize"));
+	add(new RawFunc("__helios__booloption__none__new",       "__helios__option__none__new"));
+	add(new RawFunc("__helios__booloption__none__cast",      "__helios__option__none__cast"));
+
+	
 	// Hash builtins
 	addDataFuncs("__helios__hash");
 	add(new RawFunc("__helios__hash__new", `__helios__common__identity`));
