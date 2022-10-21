@@ -1,5 +1,9 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/10/21
+* script script purpose
+* ScriptPurpose enum, with members Minting, Spending, Rewarding and Certifying, returned by ScriptContext.get_script_purpose() or ScriptContext.tx.redeemers
+
 # 2022/10/11
 * added `Value::from_map`
 * removed `tx.now()` (in favor of `tx.time_range.start` and `tx.time_range.end`)
