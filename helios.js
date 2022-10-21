@@ -9862,6 +9862,33 @@ class BuiltinEnumMember extends BuiltinType {
 	get parentType() {
 		return this.#parentType;
 	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "from_data":
+				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+	
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Instance.new(new FuncType([this.#parentType], new BoolType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
 }
 
 /**
@@ -16553,26 +16580,10 @@ class OptionSomeType extends BuiltinEnumMember {
 
 	/**
 	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq": // more generic than __eq/__neq defined in BuiltinType
-			case "__neq":
-				return Instance.new(new FuncType([new OptionType(this.#someType)], new BoolType()));
 			case "some":
 				return Instance.new(this.#someType);
 			default:
@@ -16621,33 +16632,6 @@ class OptionNoneType extends BuiltinEnumMember {
 			return this.#someType.isBaseOf(site, type.#someType);
 		} else {
 			return false;
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "__eq": // more generic than __eq/__neq defined in BuiltinType
-			case "__neq":
-				return Instance.new(new FuncType([new OptionType(this.#someType)], new BoolType()));
-			default:
-				return super.getInstanceMember(name);
 		}
 	}
 
@@ -16946,163 +16930,6 @@ class ScriptContextType extends BuiltinType {
 }
 
 /**
- * Builtin StakingPurpose type (Rewarding or Certifying)
- */
- class StakingPurposeType extends BuiltinType {
-	toString() {
-		return "StakingPurpose";
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(site, type) {
-		let b = super.isBaseOf(site, type) ||
-				(new StakingRewardingPurposeType()).isBaseOf(site, type) || 
-				(new StakingCertifyingPurposeType()).isBaseOf(site, type); 
-
-		return b;
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "Rewarding":
-				return new StakingRewardingPurposeType();
-			case "Certifying":
-				return new StakingCertifyingPurposeType();
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		return 2;
-	}
-
-	get path() {
-		return "__helios__stakingpurpose";
-	}
-}
-
-/**
- * Builtin StakingPurpose::Rewarding
- */
-class StakingRewardingPurposeType extends BuiltinEnumMember {
-	constructor() {
-		super(new StakingPurposeType());
-	}
-
-	toString() {
-		return "StakingPurpose::Rewarding";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new StakingPurposeType()], new BoolType()));
-			case "credential":
-				return Instance.new(new StakingCredentialType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 2;
-	}
-
-	get path() {
-		return "__helios__stakingpurpose__rewarding";
-	}
-}
-
-/**
- * Builtin StakingPurpose::Certifying type
- */
-class StakingCertifyingPurposeType extends BuiltinEnumMember {
-	constructor() {
-		super(new StakingPurposeType());
-	}
-
-	toString() {
-		return "StakingPurpose::Certifying";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new StakingPurposeType()], new BoolType()));
-			case "dcert":
-				return Instance.new(new DCertType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 3;
-	}
-
-	get path() {
-		return "__helios__stakingpurpose__certifying";
-	}
-}
-
-/**
  * Builtin ScriptPurpose type (Minting| Spending| Rewarding | Certifying)
  */
  class ScriptPurposeType extends BuiltinType {
@@ -17171,26 +16998,10 @@ class MintingScriptPurposeType extends BuiltinEnumMember {
 
 	/**
 	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new ScriptPurposeType()], new BoolType()));
 			case "policy_hash":
 				return Instance.new(new MintingPolicyHashType());
 			default:
@@ -17225,26 +17036,10 @@ class SpendingScriptPurposeType extends BuiltinEnumMember {
 
 	/**
 	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new ScriptPurposeType()], new BoolType()));
 			case "output_id":
 				return Instance.new(new TxOutputIdType());
 			default:
@@ -17269,8 +17064,11 @@ class SpendingScriptPurposeType extends BuiltinEnumMember {
  * Builtin ScriptPurpose::Rewarding
  */
 class RewardingScriptPurposeType extends BuiltinEnumMember {
-	constructor() {
-		super(new ScriptPurposeType());
+	/**
+	 * @param {?BuiltinType} parentType 
+	 */
+	constructor(parentType = null) {
+		super(parentType === null ? new ScriptPurposeType() : parentType);
 	}
 
 	toString() {
@@ -17279,26 +17077,10 @@ class RewardingScriptPurposeType extends BuiltinEnumMember {
 
 	/**
 	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new ScriptPurposeType()], new BoolType()));
 			case "credential":
 				return Instance.new(new StakingCredentialType());
 			default:
@@ -17323,25 +17105,15 @@ class RewardingScriptPurposeType extends BuiltinEnumMember {
  * Builtin ScriptPurpose::Certifying type
  */
 class CertifyingScriptPurposeType extends BuiltinEnumMember {
-	constructor() {
-		super(new ScriptPurposeType());
+	/**
+	 * @param {?BuiltinType} parentType
+	 */
+	constructor(parentType = null) {
+		super(parentType === null ? new ScriptPurposeType() : parentType);
 	}
 
 	toString() {
 		return "ScriptPurpose::Certifying";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
 	}
 	
 	/**
@@ -17350,9 +17122,6 @@ class CertifyingScriptPurposeType extends BuiltinEnumMember {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new ScriptPurposeType()], new BoolType()));
 			case "dcert":
 				return Instance.new(new DCertType());
 			default:
@@ -17370,6 +17139,89 @@ class CertifyingScriptPurposeType extends BuiltinEnumMember {
 
 	get path() {
 		return "__helios__scriptpurpose__certifying";
+	}
+}
+
+/**
+ * Builtin StakingPurpose type (Rewarding or Certifying)
+ */
+ class StakingPurposeType extends BuiltinType {
+	toString() {
+		return "StakingPurpose";
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		let b = super.isBaseOf(site, type) ||
+				(new StakingRewardingPurposeType()).isBaseOf(site, type) || 
+				(new StakingCertifyingPurposeType()).isBaseOf(site, type); 
+
+		return b;
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "Rewarding":
+				return new StakingRewardingPurposeType();
+			case "Certifying":
+				return new StakingCertifyingPurposeType();
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	nEnumMembers(site) {
+		return 2;
+	}
+
+	get path() {
+		return "__helios__stakingpurpose";
+	}
+}
+
+/**
+ * Builtin StakingPurpose::Rewarding
+ */
+class StakingRewardingPurposeType extends RewardingScriptPurposeType {
+	constructor() {
+		super(new StakingPurposeType());
+	}
+
+	toString() {
+		return "StakingPurpose::Rewarding";
+	}
+
+	get path() {
+		return "__helios__stakingpurpose__rewarding";
+	}
+}
+
+/**
+ * Builtin StakingPurpose::Certifying type
+ */
+class StakingCertifyingPurposeType extends CertifyingScriptPurposeType {
+	constructor() {
+		super(new StakingPurposeType());
+	}
+
+	toString() {
+		return "StakingPurpose::Certifying";
+	}
+
+	get path() {
+		return "__helios__stakingpurpose__certifying";
 	}
 }
 
@@ -17446,19 +17298,6 @@ class RegisterDCertType extends BuiltinEnumMember {
 	toString() {
 		return "DCert::Register";
 	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
 	
 	/**
 	 * @param {Word} name 
@@ -17466,9 +17305,6 @@ class RegisterDCertType extends BuiltinEnumMember {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new DCertType()], new BoolType()));
 			case "credential":
 				return Instance.new(new StakingCredentialType());
 			default:
@@ -17497,19 +17333,6 @@ class DeregisterDCertType extends BuiltinEnumMember {
 	toString() {
 		return "DCert::Deregister";
 	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
 	
 	/**
 	 * @param {Word} name 
@@ -17517,9 +17340,6 @@ class DeregisterDCertType extends BuiltinEnumMember {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new DCertType()], new BoolType()));
 			case "credential":
 				return Instance.new(new StakingCredentialType());
 			default:
@@ -17548,19 +17368,6 @@ class DelegateDCertType extends BuiltinEnumMember {
 	toString() {
 		return "DCert::Delegate";
 	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
 	
 	/**
 	 * @param {Word} name 
@@ -17568,9 +17375,6 @@ class DelegateDCertType extends BuiltinEnumMember {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new DCertType()], new BoolType()));
 			case "delegator":
 				return Instance.new(new StakingCredentialType());
 			case "pool_id":
@@ -17601,19 +17405,6 @@ class RegisterPoolDCertType extends BuiltinEnumMember {
 	toString() {
 		return "DCert::RegisterPool";
 	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
 	
 	/**
 	 * @param {Word} name 
@@ -17621,9 +17412,6 @@ class RegisterPoolDCertType extends BuiltinEnumMember {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new DCertType()], new BoolType()));
 			case "pool_id":
 				return Instance.new(new PubKeyHashType());
 			case "pool_vrf":
@@ -17654,19 +17442,6 @@ class RetirePoolDCertType extends BuiltinEnumMember {
 	toString() {
 		return "DCert::RetirePool";
 	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
 	
 	/**
 	 * @param {Word} name 
@@ -17674,9 +17449,6 @@ class RetirePoolDCertType extends BuiltinEnumMember {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new DCertType()], new BoolType()));
 			case "pool_id":
 				return Instance.new(new PubKeyHashType());
 			case "epoch":
@@ -18005,33 +17777,6 @@ class NoOutputDatumType extends BuiltinEnumMember {
 	}
 
 	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new OutputDatumType()], new BoolType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
 	 * @param {Site} site 
 	 * @returns {number}
 	 */
@@ -18052,19 +17797,6 @@ class HashedOutputDatumType extends BuiltinEnumMember {
 	toString() {
 		return "OutputDatum::Hash";
 	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
 	
 	/**
 	 * @param {Word} name 
@@ -18072,9 +17804,6 @@ class HashedOutputDatumType extends BuiltinEnumMember {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new OutputDatumType()], new BoolType()));
 			case "hash":
 				return Instance.new(new DatumHashType());
 			default:
@@ -18103,19 +17832,6 @@ class InlineOutputDatumType extends BuiltinEnumMember {
 	toString() {
 		return "OutputDatum::Inline";
 	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
 	
 	/**
 	 * @param {Word} name 
@@ -18123,9 +17839,6 @@ class InlineOutputDatumType extends BuiltinEnumMember {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new OutputDatumType()], new BoolType()));
 			case "data":
 				return Instance.new(new RawDataType());
 			default:
@@ -18303,19 +18016,6 @@ class CredentialPubKeyType extends BuiltinEnumMember {
 	toString() {
 		return "Credential::PubKey";
 	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
 	
 	/**
 	 * @param {Word} name 
@@ -18323,9 +18023,6 @@ class CredentialPubKeyType extends BuiltinEnumMember {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new CredentialType()], new BoolType()));
 			case "hash":
 				return Instance.new(new PubKeyHashType());
 			default:
@@ -18360,26 +18057,10 @@ class CredentialValidatorType extends BuiltinEnumMember {
 
 	/**
 	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-	
-	/**
-	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new CredentialType()], new BoolType()));
 			case "hash":
 				return Instance.new(new ValidatorHashType());
 			default:
@@ -18464,19 +18145,6 @@ class StakingCredentialType extends BuiltinType {
 	toString() {
 		return "StakingCredential::Hash";
 	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
 	
 	/**
 	 * @param {Word} name 
@@ -18484,9 +18152,6 @@ class StakingCredentialType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new StakingCredentialType()], new BoolType()));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -18515,33 +18180,6 @@ class StakingCredentialType extends BuiltinType {
 
 	toString() {
 		return "StakingCredential::Ptr";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([new StakingCredentialType()], new BoolType()));
-			default:
-				return super.getInstanceMember(name);
-		}
 	}
 
 	/**
