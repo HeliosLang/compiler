@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.7.6
+// Version:     0.7.7
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -200,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.7.6"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.7.7"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
