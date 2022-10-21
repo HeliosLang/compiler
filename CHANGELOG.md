@@ -1,8 +1,11 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
 # 2022/10/21
-* script script purpose
-* ScriptPurpose enum, with members Minting, Spending, Rewarding and Certifying, returned by ScriptContext.get_script_purpose() or ScriptContext.tx.redeemers
+* ScriptPurpose type, with members Minting, Spending, Rewarding and Certifying
+* `ScriptContext.get_script_purpose()`
+* `Tx.redeemers`
+* `Int::parse`
+* unused struct/enum fields, and unused enum variants, are now allowed
 
 # 2022/10/11
 * added `Value::from_map`
