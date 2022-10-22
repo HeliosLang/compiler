@@ -6720,7 +6720,7 @@ export class UplcProgram {
  */
 
 /**
- * Base case of any CBOR serializable data class
+ * Base class of any CBOR serializable data class
  * Also contains helper methods for (de)serializing data to/from CBOR
  */
 export class CborData {
