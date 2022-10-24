@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.7.8
+// Version:     0.8.0
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -200,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.7.8"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.0"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -10795,10 +10795,11 @@ class TypeRefExpr extends TypeExpr {
 	#name;
 
 	/**
-	 * @param {Word} name 
+	 * @param {Word} name
+	 * @param {?Type} cache
 	 */
-	constructor(name) {
-		super(name.site);
+	constructor(name, cache = null) {
+		super(name.site, cache);
 		this.#name = name;
 	}
 
@@ -15610,7 +15611,7 @@ function buildLiteralExprFromJson(site, type, value, path) {
 		} else {
 			throw site.typeError(`expected number for parameter '${path}', got '${value}'`);
 		}
-	} else if (type instanceof ByteArrayType) {
+	} else if (type instanceof ByteArrayType || type instanceof HashType) {
 		if (value instanceof Array) {
 			/**
 			 * @type {number[]}
@@ -15625,7 +15626,14 @@ function buildLiteralExprFromJson(site, type, value, path) {
 				}
 			}
 
-			return new PrimitiveLiteralExpr(new ByteArrayLiteral(site, bytes));
+			/** @type {ValueExpr} */
+			let litExpr = new PrimitiveLiteralExpr(new ByteArrayLiteral(site, bytes));
+
+			if (type instanceof HashType) {
+				litExpr = new CallExpr(site, new ValuePathExpr(new TypeRefExpr(new Word(site, type.toString()), type), new Word(site, "new")), [litExpr]);
+			}
+
+			return litExpr;
 		} else {
 			throw site.typeError(`expected array for parameter '${path}', got '${value}'`);
 		}
@@ -26565,7 +26573,7 @@ export class Value extends CborData {
 	}
 }
 
-export class Hash extends CborData {
+class Hash extends CborData {
 	/** @type {number[]} */
 	#bytes;
 
@@ -26649,6 +26657,57 @@ export class Hash extends CborData {
 	}
 }
 
+export class TxId extends Hash {
+	/**
+	 * @param {number[]} bytes 
+	 */
+	constructor(bytes) {
+		super(bytes);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {TxId}
+	 */
+	static fromCbor(bytes) {
+		return new TxId(CborData.decodeBytes(bytes));
+	}
+
+	/**
+	 * @param {string} str 
+	 * @returns {TxId}
+	 */
+	static fromHex(str) {
+		return new TxId(hexToBytes(str));
+	}
+}
+
+export class DatumHash extends Hash {
+	/**
+	 * @param {number[]} bytes 
+	 */
+	constructor(bytes) {
+		assert(bytes.length == 32);
+		super(bytes);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {TxId}
+	 */
+	static fromCbor(bytes) {
+		return new DatumHash(CborData.decodeBytes(bytes));
+	}
+
+	/**
+	 * @param {string} str 
+	 * @returns {TxId}
+	 */
+	static fromHex(str) {
+		return new DatumHash(hexToBytes(str));
+	}
+}
+
 export class PubKeyHash extends Hash {
 	/**
 	 * @param {number[]} bytes 
@@ -26662,7 +26721,7 @@ export class PubKeyHash extends Hash {
 	 * @param {number[]} bytes 
 	 * @returns {PubKeyHash}
 	 */
-	 static fromCbor(bytes) {
+	static fromCbor(bytes) {
 		return new PubKeyHash(CborData.decodeBytes(bytes));
 	}
 
@@ -27269,6 +27328,27 @@ export class Datum extends CborData {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isInline() {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isHashed() {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @type {DatumHash}
+	 */
+	get hash() {
+		throw new Error("not yet implemented");
+	}
+
+	/**
 	 * @type {?UplcData}
 	 */
 	get data() {
@@ -27294,15 +27374,15 @@ export class Datum extends CborData {
  * Inside helios this type is named OutputDatum::Hash in order to distinguish it from the user defined Datum,
  * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
  */
-export class HashedDatum extends Datum {
-	/** @type {Hash} */
+class HashedDatum extends Datum {
+	/** @type {DatumHash} */
 	#hash;
 
 	/** @type {?UplcData} */
 	#origData;
 
 	/**
-	 * @param {Hash} hash 
+	 * @param {DatumHash} hash 
 	 * @param {?UplcData} origData
 	 */
 	constructor(hash, origData = null) {
@@ -27316,7 +27396,21 @@ export class HashedDatum extends Datum {
 	}
 
 	/**
-	 * @type {Hash}
+	 * @returns {boolean}
+	 */
+	isInline() {
+		return false;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isHashed() {
+		return true;
+	}
+
+	/**
+	 * @type {DatumHash}
 	 */
 	get hash() {
 		return this.#hash;
@@ -27371,7 +27465,7 @@ export class HashedDatum extends Datum {
  * Inside helios this type is named OutputDatum::Inline in order to distinguish it from the user defined Datum,
  * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
  */
-export class InlineDatum extends Datum {
+class InlineDatum extends Datum {
 	/** @type {UplcData} */
 	#data;
 
@@ -27381,6 +27475,27 @@ export class InlineDatum extends Datum {
 	constructor(data) {
 		super();
 		this.#data = data;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isInline() {
+		return true;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isHashed() {
+		return false;
+	}
+
+	/**
+	 * @type {DatumHash}
+	 */
+	get hash() {
+		return new DatumHash(Crypto.blake2b(this.#data.toCbor()));
 	}
 
 	/**

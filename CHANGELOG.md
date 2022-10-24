@@ -1,5 +1,10 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/10/23
+* HashedDatum and InlineDatum no longer exported
+* TxId and DatumHash exported, `Hash` no longer exported
+* changeParam handles Hash type literals
+
 # 2022/10/21
 * ScriptPurpose type, with members Minting, Spending, Rewarding and Certifying
 * `ScriptContext.get_script_purpose()`
