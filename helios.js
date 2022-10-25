@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.0
+// Version:     0.8.1
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -200,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.0"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.1"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -2830,6 +2830,19 @@ class RuntimeError extends UserError {
 
 		return new RuntimeError(msg, this.src, this.pos, isIR);
 	}
+	
+	/**
+	 * @param {Site} site 
+	 * @param {string} info 
+	 * @returns {RuntimeError}
+	 */
+	addTraceSite(site, info = "") {
+		if (site.codeMapSite === null) {
+			return this.addTrace(site.src, site.pos, true, info);
+		} else {
+			return this.addTrace(site.codeMapSite.src, site.codeMapSite.pos, false, info);
+		}
+	}
 }
 
 /**
@@ -4477,11 +4490,7 @@ class UplcAnon extends UplcValue {
 			} catch(e) {
 				// TODO: better trace
 				if (e instanceof RuntimeError) {
-					if (callSite.codeMapSite === null) {
-						e = e.addTrace(callSite.src, callSite.pos, true);
-					} else {
-						e = e.addTrace(callSite.codeMapSite.src, callSite.codeMapSite.pos, false);
-					}
+					e = e.addTraceSite(callSite);
 				}
 
 				throw e;
@@ -14020,7 +14029,7 @@ export class Program {
 
 		ir = wrapWithRawFunctions(Program.wrapWithDefinitions(ir, map));
 
-		let irProgram = IRProgram.new(ir, this.#purpose, true);
+		let irProgram = IRProgram.new(ir, this.#purpose, true, true);
 
 		return new UplcDataValue(irProgram.site, irProgram.data);
 	}
@@ -21544,14 +21553,21 @@ class IRScope {
  * Map of variables to IRExpr
  */
 class IRExprStack {
+	#throwRTErrors;
 	#map;
 
 	/**
+	 * @param {boolean} throwRTErrors
 	 * Keeps order
 	 * @param {Map<IRVariable, IRExpr>} map
 	 */
-	constructor(map = new Map()) {
+	constructor(throwRTErrors, map = new Map()) {
+		this.#throwRTErrors = throwRTErrors;
 		this.#map = map;
+	}
+
+	get throwRTErrors() {
+		return this.#throwRTErrors;
 	}
 
 	/**
@@ -21572,7 +21588,7 @@ class IRExprStack {
 
 		map.set(ref, value);
 
-		return new IRExprStack(map);
+		return new IRExprStack(this.#throwRTErrors, map);
 	}
 
 	/**
@@ -21605,7 +21621,7 @@ class IRExprStack {
 	 * @returns {IRCallStack}
 	 */
 	initCallStack() {
-		let stack = new IRCallStack();
+		let stack = new IRCallStack(this.#throwRTErrors);
 
 		for (let [variable, expr] of this.#map) {
 			let val = expr.eval(stack);
@@ -21692,20 +21708,26 @@ class IRLiteralValue extends IRValue {
 }
 
 class IRCallStack {
+	#throwRTErrors;
 	#parent;
 	#variable;
 	#value;
 
 	/**
-	 * 
+	 * @param {boolean} throwRTErrors
 	 * @param {?IRCallStack} parent 
 	 * @param {?IRVariable} variable 
 	 * @param {?IRValue} value 
 	 */
-	constructor(parent = null, variable = null, value = null) {
+	constructor(throwRTErrors, parent = null, variable = null, value = null) {
+		this.#throwRTErrors = throwRTErrors;
 		this.#parent = parent;
 		this.#variable = variable;
 		this.#value = value;
+	}
+
+	get throwRTErrors() {
+		return this.#throwRTErrors;
 	}
 
 	/**
@@ -21728,7 +21750,7 @@ class IRCallStack {
 	 * @returns {IRCallStack}
 	 */
 	set(variable, value) {
-		return new IRCallStack(this, variable, value);
+		return new IRCallStack(this.#throwRTErrors, this, variable, value);
 	}
 }
 
@@ -21968,7 +21990,7 @@ class IRExpr extends Token {
 	eval(stack) {
 		if (this.name.startsWith("__core")) {
 			return new IRFuncValue((args) => {
-				return IRCoreCallExpr.evalValues(this.#name.value, args);
+				return IRCoreCallExpr.evalValues(this.site, stack.throwRTErrors, this.#name.value, args);
 			});
 		} else if (this.#variable === null) {
 			throw new Error("variable should be set");
@@ -22221,7 +22243,7 @@ class IRFuncExpr extends IRExpr {
 	 * @param {IRExprStack} stack
 	 * @returns {IRFuncExpr}
 	 */
-	simplify(stack = new IRExprStack()) {
+	simplify(stack) {
 		return new IRFuncExpr(this.site, this.#args, this.#body.simplify(stack));
 	}
 
@@ -22420,7 +22442,19 @@ class IRCallExpr extends IRExpr {
 			if (fn === null) {
 				return null;
 			} else {
-				return fn.call(args);
+				try {
+					return fn.call(args);
+				} catch (e) {
+					if (e instanceof RuntimeError) {
+						if (!stack.throwRTErrors) {
+							return null;
+						} else {
+							throw e.addTraceSite(this.site);
+						}
+					} else {
+						throw e;
+					}
+				}
 			}
 		}
 	}
@@ -22454,7 +22488,7 @@ class IRCallExpr extends IRExpr {
 			 */
 			let remArgExprs = [];
 
-			let inlineStack = new IRExprStack();
+			let inlineStack = new IRExprStack(stack.throwRTErrors);
 
 			for (let i = 0; i < fnExpr.args.length; i++) {
 				let variable = fnExpr.args[i];
@@ -22493,7 +22527,7 @@ class IRCallExpr extends IRExpr {
 	 */
 	inlineLiteralArgs(stack, fnExpr, argExprs) {
 		if (fnExpr instanceof IRFuncExpr) {
-			let inlineStack = new IRExprStack();
+			let inlineStack = new IRExprStack(stack.throwRTErrors);
 
 			/**
 			 * @type {IRVariable[]}
@@ -22605,7 +22639,7 @@ class IRCallExpr extends IRExpr {
 	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
-	simplify(stack = new IRExprStack()) {
+	simplify(stack) {
 		let argExprs = this.simplifyArgs(stack);
 
 		{
@@ -22710,11 +22744,13 @@ class IRCoreCallExpr extends IRCallExpr {
 	}
 
 	/**
+	 * @param {Site} site
+	 * @param {boolean} throwRTErrors
 	 * @param {string} builtinName
 	 * @param {IRValue[]} args 
 	 * @returns {?IRValue}
 	 */
-	static evalValues(builtinName, args) {
+	static evalValues(site, throwRTErrors, builtinName, args) {
 		if (builtinName == "ifThenElse") {
 			let cond = args[0].value;
 			if (cond !== null && cond.value instanceof UplcBool) {
@@ -22747,9 +22783,13 @@ class IRCoreCallExpr extends IRCallExpr {
 
 				return new IRLiteralValue(new IRLiteral(result));
 			} catch(e) {
-				// runtime errors like division by zero are allowed
-				if (e instanceof UserError && e.message.startsWith("RuntimeError")) {
-					return null;
+				// runtime errors like division by zero are allowed if throwRTErrors is false
+				if (e instanceof RuntimeError) {
+					if (!throwRTErrors) {
+						return null;
+					} else {
+						throw e.addTraceSite(site);
+					}
 				} else {
 					throw e;
 				}
@@ -22765,17 +22805,18 @@ class IRCoreCallExpr extends IRCallExpr {
 		let args = this.evalArgs(stack);
 
 		if (args !== null) {
-			return IRCoreCallExpr.evalValues(this.builtinName, args);
+			return IRCoreCallExpr.evalValues(this.site, stack.throwRTErrors, this.builtinName, args);
 		}
 		
 		return null;
 	}
 
 	/**
+	 * @param {boolean} throwRTErrors
 	 * @param {IRExpr[]} argExprs
 	 * @returns {?IRExpr}
 	 */
-	simplifyLiteralArgs(argExprs) {
+	simplifyLiteralArgs(throwRTErrors, argExprs) {
 		if (this.builtinName == "ifThenElse") {
 			assert(argExprs.length == 3);
 			let cond = argExprs[0];
@@ -22819,7 +22860,13 @@ class IRCoreCallExpr extends IRCallExpr {
 
 				return new IRLiteral(result);
 			} catch(e) {
-				if (!(e instanceof UserError)) { 
+				if (e instanceof RuntimeError) {
+					if (!throwRTErrors) {
+						return null;
+					} else {
+						throw e.addTraceSite(this.site);
+					}
+				} else {
 					throw e;
 				}
 			}
@@ -23020,11 +23067,11 @@ class IRCoreCallExpr extends IRCallExpr {
 	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
-	simplify(stack = new IRExprStack()) {
+	simplify(stack) {
 		let argExprs = super.simplifyArgs(stack);
 
 		{
-			let maybeBetter = this.simplifyLiteralArgs(argExprs);
+			let maybeBetter = this.simplifyLiteralArgs(stack.throwRTErrors, argExprs);
 			if (maybeBetter !== null) {
 				return maybeBetter;
 			}
@@ -23116,7 +23163,11 @@ class IRErrorCallExpr extends IRExpr {
 	 * @returns {?IRValue}
 	 */
 	eval(stack) {
-		return null;
+		if (stack.throwRTErrors) {
+			throw this.site.runtimeError(this.#msg);
+		} else {
+			return null;
+		}
 	}
 
 	/**
@@ -23163,15 +23214,15 @@ class IRProgram {
 	 * @param {IR} ir 
 	 * @param {?number} purpose
 	 * @param {boolean} simplify
+	 * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
 	 * @returns {IRProgram}
 	 */
-	static new(ir, purpose, simplify = false) {
+	static new(ir, purpose, simplify = false, throwSimplifyRTErrors = false) {
 		let [irSrc, codeMap] = ir.generateSource();
 
 		let irTokens = tokenizeIR(irSrc, codeMap);
 
 		let expr = buildIRExpr(irTokens);
-
 		
 		/**
 		 * @type {IRProgram}
@@ -23184,7 +23235,7 @@ class IRProgram {
 			let program = new IRProgram(expr, purpose);
 
 			if (simplify) {
-				program.simplify();
+				program.simplify(throwSimplifyRTErrors);
 			}
 
 			return program;
@@ -23215,14 +23266,17 @@ class IRProgram {
 		return this.#expr.toString();
 	}
 
-	simplify() {
+	/**
+	 * @param {boolean} throwSimplifyRTErrors
+	 */
+	simplify(throwSimplifyRTErrors = false) {
 		let dirty = true;
 	
 		//console.log(new Source(program.toString()).pretty());	
 	
 		while(dirty && (this.#expr instanceof IRFuncExpr || this.#expr instanceof IRUserCallExpr || this.#expr instanceof IRCoreCallExpr)) {
 			dirty = false;
-			let newExpr = this.#expr.simplify();
+			let newExpr = this.#expr.simplify(new IRExprStack(throwSimplifyRTErrors));
 	
 			if (newExpr instanceof IRFuncExpr || newExpr instanceof IRUserCallExpr || newExpr instanceof IRCoreCallExpr || newExpr instanceof IRLiteral) {
 				dirty = newExpr.toString() != this.#expr.toString();
