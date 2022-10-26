@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.1
+// Version:     0.8.2
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -200,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.1"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.2"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -17520,6 +17520,7 @@ class TxType extends BuiltinType {
 						new MapType(new StakingCredentialType(), new IntType()), // 6
 						new TimeRangeType(), // 7
 						new ListType(new PubKeyHashType()), // 8
+						new MapType(new ScriptPurposeType(), new AnyDataType()), // 9
 						new MapType(new DatumHashType(), new AnyDataType()) // 10
 					], this));
 				} else {
@@ -20354,7 +20355,7 @@ function makeRawFunctions() {
 	// Tx builtins
 	addDataFuncs("__helios__tx");
 	add(new RawFunc("__helios__tx__new",
-	`(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, datums) -> {
+	`(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
 		__core__constrData(0, __helios__common__list_12(
 			inputs,
 			ref_inputs,
@@ -20365,7 +20366,7 @@ function makeRawFunctions() {
 			withdrawals,
 			validity,
 			signatories,
-			__core__mapData(__core__mkNilPairData(())),
+			redeemers,
 			datums,
 			__helios__txid__CURRENT
 		))

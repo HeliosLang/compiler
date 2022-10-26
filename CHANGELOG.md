@@ -1,5 +1,8 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/10/26
+* `redeemers` field added to `Tx::new` constructor
+
 # 2022/10/25
 * Better error message when catching `RuntimeError` inside `evalParam`
 

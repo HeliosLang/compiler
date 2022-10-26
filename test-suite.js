@@ -300,6 +300,7 @@ function spendingScriptContextParam(useInlineDatum) {
             Map[StakingCredential]Int{},
             TimeRange::new(Time::new(0), Time::new(100)),
             []PubKeyHash{PubKeyHash::new(PUB_KEY_HASH_BYTES)},
+            Map[ScriptPurpose]Int{},
             Map[DatumHash]Int{${useInlineDatum ? "" : "DATUM_HASH_1: DATUM_1"}}
         )
         const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
@@ -327,6 +328,7 @@ const mintingScriptContextParam = `
         Map[StakingCredential]Int{},
         TimeRange::ALWAYS,
         []PubKeyHash{},
+        Map[ScriptPurpose]Int{},
         Map[DatumHash]Data{}
     ), CURRENT_MPH)
 `;
@@ -354,6 +356,7 @@ const rewardingScriptContextParam = `
         },
         TimeRange::ALWAYS,
         []PubKeyHash{},
+        Map[ScriptPurpose]Int{},
         Map[DatumHash]Data{}
     ), CURRENT_STAKING_CRED)
 
@@ -388,6 +391,7 @@ const certifyingScriptContextParam = `
         Map[StakingCredential]Int{},
         TimeRange::ALWAYS,
         []PubKeyHash{},
+        Map[ScriptPurpose]Int{},
         Map[DatumHash]Data{}
     ), CURRENT_DCERT)
     const STAKING_PURPOSE: StakingPurpose = SCRIPT_CONTEXT.get_staking_purpose()
