@@ -1,5 +1,9 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/10/27
+* Added `new` constructor for `SpendingScriptPurposeType`, `MintingScriptPurposeType`, 
+`RewardingScriptPurposeType`, and `CertifyingScriptPurposeType`
+
 # 2022/10/26
 * `redeemers` field added to `Tx::new` constructor
 

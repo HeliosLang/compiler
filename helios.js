@@ -17017,6 +17017,19 @@ class MintingScriptPurposeType extends BuiltinEnumMember {
 
 	/**
 	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	 getTypeMember(name) {
+		switch (name.value) {
+			case "new":
+				return Instance.new(new FuncType([new MintingPolicyHashType()], this));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
@@ -17051,6 +17064,19 @@ class SpendingScriptPurposeType extends BuiltinEnumMember {
 
 	toString() {
 		return "ScriptPurpose::Spending";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	 getTypeMember(name) {
+		switch (name.value) {
+			case "new":
+				return Instance.new(new FuncType([new TxOutputIdType()], this));
+			default:
+				return super.getTypeMember(name);
+		}
 	}
 
 	/**
@@ -17096,6 +17122,19 @@ class RewardingScriptPurposeType extends BuiltinEnumMember {
 
 	/**
 	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	 getTypeMember(name) {
+		switch (name.value) {
+			case "new":
+				return Instance.new(new FuncType([new StakingCredentialType()], this));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
@@ -17134,7 +17173,20 @@ class CertifyingScriptPurposeType extends BuiltinEnumMember {
 	toString() {
 		return "ScriptPurpose::Certifying";
 	}
-	
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	 getTypeMember(name) {
+		switch (name.value) {
+			case "new":
+				return Instance.new(new FuncType([new DCertType()], this));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
 	/**
 	 * @param {Word} name 
 	 * @returns {Instance}
@@ -20283,22 +20335,45 @@ function makeRawFunctions() {
 	// ScriptPurpose::Minting builtins
 	addEnumDataFuncs("__helios__scriptpurpose__minting");
 	add(new RawFunc("__helios__scriptpurpose__minting__policy_hash", "__helios__common__field_0"));
+	add(new RawFunc("__helios__scriptpurpose__minting__new",
+	`(mintingPolicyHash) -> {
+		__core__constrData(0, __helios__common__list_1(mintingPolicyHash))
+	}
+	`
+	));
 
 	
 	// ScriptPurpose::Spending builtins
 	addEnumDataFuncs("__helios__scriptpurpose__spending");
 	add(new RawFunc("__helios__scriptpurpose__spending__output_id", "__helios__common__field_0"));
+	add(new RawFunc("__helios__scriptpurpose__spending__new",
+	`(output_id) -> {
+		__core__constrData(1, __helios__common__list_1(output_id))
+	}
+	`
+	));
 
 	
 	// ScriptPurpose::Rewarding builtins
 	addEnumDataFuncs("__helios__scriptpurpose__rewarding");
 	add(new RawFunc("__helios__scriptpurpose__rewarding__credential", "__helios__common__field_0"));
+	add(new RawFunc("__helios__scriptpurpose__rewarding__new",
+	`(cred) -> {
+		__core__constrData(2, __helios__common__list_1(cred))
+	}
+	`
+	));
 
 	
 	// ScriptPurpose::Certifying builtins
 	addEnumDataFuncs("__helios__scriptpurpose__certifying");
 	add(new RawFunc("__helios__scriptpurpose__certifying__dcert", "__helios__common__field_0"));
-
+	add(new RawFunc("__helios__scriptpurpose__certifying__new",
+	`(dcert) -> {
+		__core__constrData(3, __helios__common__list_1(dcert))
+	}
+	`
+	));
 
 	// DCert builtins
 	addDataFuncs("__helios__dcert");
