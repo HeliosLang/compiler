@@ -16976,6 +16976,14 @@ class ScriptContextType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "new_minting":
+				return Instance.new(new FuncType([new MintingPolicyHashType()], new MintingScriptPurposeType()));
+			case "new_spending":
+				return Instance.new(new FuncType([new TxOutputIdType()], new SpendingScriptPurposeType()));
+			case "new_rewarding":
+				return Instance.new(new FuncType([new StakingCredentialType()], new RewardingScriptPurposeType()));
+			case "new_certifying":
+				return Instance.new(new FuncType([new DCertType()], new CertifyingScriptPurposeType()));
 			case "Minting":
 				return new MintingScriptPurposeType();
 			case "Spending":
@@ -17133,7 +17141,8 @@ class CertifyingScriptPurposeType extends BuiltinEnumMember {
 	toString() {
 		return "ScriptPurpose::Certifying";
 	}
-	
+
+
 	/**
 	 * @param {Word} name 
 	 * @returns {Instance}
@@ -20277,6 +20286,22 @@ function makeRawFunctions() {
 
 	// ScriptPurpose builtins
 	addDataFuncs("__helios__scriptpurpose");
+	add(new RawFunc("__helios__scriptpurpose__new_minting",
+	`(mintingPolicyHash) -> {
+		__core__constrData(0, __helios__common__list_1(mintingPolicyHash))
+	}`));
+	add(new RawFunc("__helios__scriptpurpose__new_spending",
+	`(output_id) -> {
+		__core__constrData(1, __helios__common__list_1(output_id))
+	}`));
+	add(new RawFunc("__helios__scriptpurpose__new_rewarding",
+	`(cred) -> {
+		__core__constrData(2, __helios__common__list_1(cred))
+	}`));
+	add(new RawFunc("__helios__scriptpurpose__new_certifying",
+	`(dcert) -> {
+		__core__constrData(3, __helios__common__list_1(dcert))
+	}`));
 
 
 	// ScriptPurpose::Minting builtins
