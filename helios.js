@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.2
+// Version:     0.8.3
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -200,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.2"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.3"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -3157,7 +3157,7 @@ export class NetworkParams {
 		let secondsPerSlot = assertNumber(this.#raw?.shelleyGenesis?.slotLength);
 
 		let lastSlot = BigInt(assertNumber(this.#raw?.latestTip?.slot));
-		let lastTime = BigInt(assertNumber(this.#raw?.latestTip?.time)*1000); // in ms
+		let lastTime = BigInt(assertNumber(this.#raw?.latestTip?.time));
 
 		let slotDiff = slot - lastSlot;
 
@@ -3170,13 +3170,12 @@ export class NetworkParams {
 	 * @returns {bigint}
 	 */
 	timeToSlot(time) {
-		let rawSecondsPerSlot = this.#raw?.shelleyGenesis?.slotLength;
-		let secondsPerSlot = assertNumber(rawSecondsPerSlot);
+		let secondsPerSlot = assertNumber(this.#raw?.shelleyGenesis?.slotLength);
 
 		let lastSlot = BigInt(assertNumber(this.#raw?.latestTip?.slot));
-		let lastTime = BigInt(assertNumber(this.#raw?.latestTip?.time)*1000);
+		let lastTime = BigInt(assertNumber(this.#raw?.latestTip?.time));
 
-		let timeDiff = lastTime - time;
+		let timeDiff = time - lastTime;
 
 		return lastSlot + BigInt(Math.round(Number(timeDiff)/(1000*secondsPerSlot)));
 	}
@@ -24107,7 +24106,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Unused scripts are detected during build(), in which case an error is thrown
+	 * Unused scripts are detected during finalize(), in which case an error is thrown
 	 * Throws error if script was already added before
 	 * @param {UplcProgram} program
 	 * @returns {Tx}
@@ -24353,7 +24352,7 @@ export class Tx extends CborData {
 	 * Note: this is an async function so that a debugger can optionally be attached in the future
 	 * @param {NetworkParams} networkParams
 	 * @param {Address}       changeAddress
-	 * @param {TxInput[]}     spareUtxos - might be used during balancing if there currently aren't enough inputs
+	 * @param {UTxO[]}     spareUtxos - might be used during balancing if there currently aren't enough inputs
 	 * @returns {Promise<Tx>}
 	 */
 	async finalize(networkParams, changeAddress, spareUtxos = []) {
@@ -25497,7 +25496,7 @@ class TxInput extends CborData {
  */
 export class UTxO extends TxInput {
 	/**
-	 * @param {Hash} txId 
+	 * @param {TxId} txId 
 	 * @param {bigint} utxoIdx 
 	 * @param {TxOutput} origOutput
 	 */
