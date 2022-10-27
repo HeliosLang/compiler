@@ -93,34 +93,30 @@ methods:     serialize,
 internal ns: __helios__stakingpurpose__certifying
 
 # ScriptPurpose
-associated:  from_data
+associated:  from_data, new_minting, new_spending, new_rewarding, new_certifying
 operators:   __eq, __neq
 methods:     serialize
 internal ns: __helios__scriptpurpose
 
 # ScriptPurpose::Minting
-associated:  new
 operators:   __eq, __neq
 getters:     policy_hash
 methods:     serialize
 internal ns: __helios__scriptpurpose__minting
 
 # ScriptPurpose::Spending
-associated:  new
 operators:   __eq, __neq
 getters:     output_id
 methods:     serialize
 internal ns: __helios__scriptpurpose__spending
 
 # ScriptPurpose::Rewarding
-associated:  new
 operators:   __eq, __neq
 getters:     credential
 methods:     serialize
 internal ns: __helios__scriptpurpose__rewarding
 
 # ScriptPurpose::Certifying
-associated:  new
 operator:    __eq, __neq
 getters:     dcert,
 methods:     serialize,
