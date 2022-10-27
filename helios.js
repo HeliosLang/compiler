@@ -20375,6 +20375,7 @@ function makeRawFunctions() {
 	`
 	));
 
+
 	// DCert builtins
 	addDataFuncs("__helios__dcert");
 	add(new RawFunc("__helios__dcert__new_register",
