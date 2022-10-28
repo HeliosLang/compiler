@@ -25921,9 +25921,13 @@ export class Address extends CborData {
 	 * Simple payment address without a staking part
 	 * @param {boolean} isTestnet
 	 * @param {PubKeyHash} hash
+	 * @param {?Hash} stakingHash
 	 * @returns {Address}
 	 */
-	static fromPubKeyHash(isTestnet, hash) {
+	static fromPubKeyHash(isTestnet, hash, stakingHash) {
+		if (stakingHash) {
+			return new Address([isTestnet ? 0x00 : 0x01].concat(hash.bytes).concat(stakingHash.bytes));	
+		}
 		return new Address([isTestnet ? 0x60 : 0x61].concat(hash.bytes));
 	}
 
@@ -25932,9 +25936,14 @@ export class Address extends CborData {
 	 * Only relevant for validator scripts
 	 * @param {boolean} isTestnet
 	 * @param {ValidatorHash} hash
+	 * @param {?Hash} stakingHash
 	 * @returns {Address}
 	 */
-	static fromValidatorHash(isTestnet, hash) {
+	static fromValidatorHash(isTestnet, hash, stakingHash) {
+		if (stakingHash) {
+			return new Address([isTestnet ? 0x10 : 0x11].concat(hash.bytes).concat(stakingHash.bytes));
+		}
+
 		return new Address([isTestnet ? 0x70 : 0x71].concat(hash.bytes));
 	}
 
