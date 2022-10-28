@@ -2897,6 +2897,17 @@ class Site {
 	}
 
 	/**
+	 * @type {string}
+	 */
+	get part() {
+		if (this.#endSite === null) {
+			return this.#src.raw.slice(this.#pos);
+		} else {
+			return this.#src.raw.slice(this.#pos, this.#endSite.pos);
+		}
+	}
+
+	/**
 	 * @type {?Site} 
 	 */
 	get codeMapSite() {
@@ -8980,9 +8991,13 @@ class Tokenizer {
 			/** @type {?Symbol} */
 			let lastComma = null;
 
+			/** @type {?Site} */
+			let endSite = null;
+
 			while (stack.length > 0 && ts.length > 0) {
 				let t = ts.shift();
 				let prev = stack.pop();
+				endSite = t.site;
 
 				if (t != undefined && prev != undefined) {
 					if (!t.isSymbol(Group.matchSymbol(prev))) {
@@ -9030,7 +9045,10 @@ class Tokenizer {
 
 			fields = fields.map(f => Tokenizer.nestGroups(f));
 
-			return new Group(tOpen.site, open.value, fields, firstComma);
+			let site = tOpen.site;
+			site.setEndSite(endSite);
+
+			return new Group(site, open.value, fields, firstComma);
 		}
 	}
 
@@ -10663,6 +10681,20 @@ class Scope {
 				}
 			}
 		}
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {boolean}
+	 */
+	isUsed(name) {
+		for (let pair of this.#values) {
+			if (pair[0].value == name.value) {
+				return pair[1].isUsed();
+			}
+		}
+
+		throw new Error(`${name.value} not found`);
 	}
 }
 
@@ -12804,6 +12836,7 @@ class SwitchExpr extends ValueExpr {
  */
 class Statement extends Token {
 	#name;
+	#used;
 
 	/**
 	 * @param {Site} site 
@@ -12812,8 +12845,12 @@ class Statement extends Token {
 	constructor(site, name) {
 		super(site);
 		this.#name = name;
+		this.#used = false;
 	}
 
+	/**
+	 * @type {Word}
+	 */
 	get name() {
 		return this.#name;
 	}
@@ -12826,6 +12863,28 @@ class Statement extends Token {
 	}
 
 	assertAllMembersUsed() {
+	}
+
+	/**
+	 * @param {TopScope} scope 
+	 */
+	markIfUsed(scope) {
+		if (scope.isUsed(this.#name)) {
+			this.#used = true;
+		}
+	}
+
+	/**
+	 * @param {Uint8Array} mask
+	 */
+	hideUnused(mask) {
+		if (!this.#used) {
+			if (this.site.endSite === null) {
+				mask.fill(0, this.site.pos);
+			} else {
+				mask.fill(0, this.site.pos, this.site.endSite.pos);
+			}
+		}
 	}
 
 	/**
@@ -13227,6 +13286,15 @@ class StructStatement extends DataDefinition {
 	}
 
 	/**
+	 * @param {Uint8Array} mask
+	 */
+	hideUnused(mask) {
+		super.hideUnused(mask);
+
+		this.#impl.hideUnused(mask);
+	}
+
+	/**
 	 * @param {IRDefinitions} map
 	 */
 	toIR(map) {
@@ -13575,6 +13643,15 @@ class EnumStatement extends Statement {
 		this.#impl.assertAllMembersUsed();
 	}
 
+	/**
+	 * @param {Uint8Array} mask
+	 */
+	hideUnused(mask) {
+		super.hideUnused(mask);
+
+		this.#impl.hideUnused(mask);
+	}
+
 	get path() {
 		return `__user__${this.name.toString()}`;
 	}
@@ -13722,6 +13799,23 @@ class ImplDefinition {
 					throw s.name.referenceError(`'${this.#selfTypeExpr.toString()}.${s.name.toString()}' unused`);
 				} else {
 					throw s.name.referenceError(`'${this.#selfTypeExpr.toString()}::${s.name.toString()}' unused`);
+				}
+			}
+		}
+	}
+
+	/**
+	 * @param {Uint8Array} mask
+	 */
+	hideUnused(mask) {
+		for (let s of this.#statements) {
+			if (!this.#usedStatements.has(s.name.toString())) {
+				let site = s.site;
+
+				if (site.endSite === null) {
+					mask.fill(0, site.pos);
+				} else {
+					mask.fill(0, site.pos, site.endSite.pos);
 				}
 			}
 		}
@@ -13898,9 +13992,9 @@ export class Program {
 			s.eval(scope);
 
 			if (s.name.value == "main") {
-				void scope.get(new Word(Site.dummy(), "main"));
+				void scope.get(new Word(Site.dummy(), "main")); // 'use' main
 
-				scope.assertAllUsed();
+				//scope.assertAllUsed(); // remove unused instead
 
 				mainFound = true;
 
@@ -13918,12 +14012,56 @@ export class Program {
 		}
 
 		for (let s of this.#statements) {
-			s.assertAllMembersUsed();
+			s.markIfUsed(scope);
+
+			//s.assertAllMembersUsed(); // remove unused instead
 
 			if (s.name.value == "main") {
 				break;
 			}
 		}
+	}
+
+	/**
+	 * Cleans the program by removing everything that is unecessary for the smart contract (easier to audit)
+	 * @returns {string}
+	 */
+	cleanSource() {
+		let raw = this.#name.site.src.raw;
+		let n = raw.length;
+
+		let mask = new Uint8Array(n);
+
+		mask.fill(1); // hide the unused parts by setting to 0
+
+		for (let s of this.#statements) {
+			s.hideUnused(mask);
+		}
+
+		/**
+		 * @type {string[]}
+		 */
+		let parts = [];
+
+		let state = mask[0];
+		let prev = 0;
+
+		for (let i = 1; i < n; i++) {
+			if (mask[i] != state) {
+				state = mask[i];
+				if (mask[i] == 1) {
+					prev = i;
+				} else if (prev < i) {
+					parts.push(raw.slice(prev, i));
+				}
+			}
+		}
+
+		if (mask[mask.length - 1] == 1) {
+			parts.push(raw.slice(prev, n));
+		}
+
+		return parts.join("");
 	}
 
 	evalTypes() {
@@ -14460,6 +14598,10 @@ function buildConstStatement(site, ts) {
 
 		let valueExpr = buildValueExpr(tsValue);
 
+		if (ts.length > 0) {
+			site.setEndSite(ts[0].site);
+		}
+
 		return new ConstStatement(site, name, typeExpr, valueExpr);
 	}
 }
@@ -14501,7 +14643,11 @@ function buildStructStatement(site, ts) {
 
 			let fields = buildDataFields(tsFields);
 
-			let impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), fields.map(f => f.name));
+			let impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), fields.map(f => f.name), braces.site.endSite);
+
+			if (ts.length > 0) {
+				site.setEndSite(ts[0].site);
+			}
 
 			return new StructStatement(site, name, fields, impl);
 		}
@@ -14578,7 +14724,13 @@ function buildDataFields(ts) {
 function buildFuncStatement(site, ts, methodOf = null) {
 	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
-	return new FuncStatement(site, name, buildFuncLiteralExpr(ts, methodOf));
+	let fnExpr = buildFuncLiteralExpr(ts, methodOf);
+
+	if (ts.length > 0) {
+		site.setEndSite(ts[0].site);
+	}
+
+	return new FuncStatement(site, name, fnExpr);
 }
 
 /**
@@ -14697,7 +14849,11 @@ function buildEnumStatement(site, ts) {
 				members.push(buildEnumMember(tsMembers));
 			}
 
-			let impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), members.map(m => m.name));
+			let impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), members.map(m => m.name), braces.site.endSite);
+
+			if (ts.length > 0) {
+				site.setEndSite(ts[0].site);
+			}
 
 			return new EnumStatement(site, name, members, impl);
 		}
@@ -14726,9 +14882,10 @@ function buildEnumMember(ts) {
  * @param {Token[]} ts 
  * @param {TypeRefExpr} selfTypeExpr - reference to parent type
  * @param {Word[]} fieldNames - to check if impl statements have a unique name
+ * @param {?Site} endSite
  * @returns {ImplDefinition}
  */
-function buildImplDefinition(ts, selfTypeExpr, fieldNames) {
+function buildImplDefinition(ts, selfTypeExpr, fieldNames, endSite) {
 	/**
 	 * @param {Word} name 
 	 */
@@ -14765,8 +14922,14 @@ function buildImplDefinition(ts, selfTypeExpr, fieldNames) {
 		}
 	}
 
-	for (let i = 0; i < statements.length; i++) {
+	let n = statements.length;
+
+	for (let i = 0; i < n; i++) {
 		assertUnique(i);
+	}
+
+	if (n > 0 && endSite !== null) {
+		statements[n-1].site.setEndSite(endSite);
 	}
 
 	return new ImplDefinition(selfTypeExpr, statements);

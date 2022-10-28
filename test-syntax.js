@@ -32,10 +32,17 @@ function test2() {
       disbursements : Map[PubKeyHash]Int
       amount : Int
       tradeOwner: PubKeyHash
-    
+
+      
       func tradeOwnerSigned(self, tx: Tx) -> Bool {
         tx.is_signed_by(self.tradeOwner)
       }
+
+      func unusedMember() -> Int {
+        1
+      }
+
+      const BLA = "123"
     }
     
     func main(datum: Datum, ctx: ScriptContext) -> Bool {
@@ -58,6 +65,8 @@ function test2() {
     program.changeParam("DISBURSEMENTS", JSON.stringify([[[1,2,3], 100]]));
 
     console.log(program.evalParam("DISBURSEMENTS").toString());
+
+    console.log(program.cleanSource());
 }
 
 function main() {
