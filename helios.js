@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.4
+// Version:     0.8.5
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -200,7 +200,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.4"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.5"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -16108,6 +16108,8 @@ class ListType extends BuiltinType {
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new BoolType()));
 			case "find":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], this.#itemType));
+			case "find_safe":
+				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new OptionType(this.#itemType)));
 			case "filter":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new ListType(this.#itemType)));
 			case "fold": {
@@ -18796,6 +18798,26 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
+	add(new RawFunc("__helios__common__find_safe",
+	`(self, fn) -> {
+		(recurse) -> {
+			recurse(recurse, self, fn)
+		}(
+			(recurse, self, fn) -> {
+				__core__ifThenElse(
+					__core__nullList(self), 
+					() -> {__core__constrData(1, __helios__common__list_0)}, 
+					() -> {
+						__core__ifThenElse(
+							fn(__core__headList(self)), 
+							() -> {__core__constrData(0, __helios__common__list_1(__core__headList(self)))}, 
+							() -> {recurse(recurse, __core__tailList(self), fn)}
+						)()
+					}
+				)()
+			}
+		)
+	}`));
 	add(new RawFunc("__helios__common__fold",
 	`(self, fn, z) -> {
 		(recurse) -> {
@@ -19574,6 +19596,14 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
+	add(new RawFunc("__helios__list__find_safe",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				__helios__common__find_safe(self, fn)
+			}
+		}(__core__unListData(self))
+	}`))
 	add(new RawFunc("__helios__list__filter",
 	`(self) -> {
 		(self) -> {
@@ -19674,6 +19704,16 @@ function makeRawFunctions() {
 						fn(__helios__common__unBoolData(item))
 					}
 				)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__find_safe",
+	`(self) -> {
+		(fn) -> {
+			__helios__list__find_safe(self)(
+				(item) -> {
+					fn(__helios__common__unBoolData(item))
+				}
 			)
 		}
 	}`));
