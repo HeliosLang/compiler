@@ -25924,11 +25924,12 @@ export class Address extends CborData {
 	 * @param {?Hash} stakingHash
 	 * @returns {Address}
 	 */
-	static fromPubKeyHash(isTestnet, hash, stakingHash) {
-		if (stakingHash) {
+	static fromPubKeyHash(isTestnet, hash, stakingHash = null) {
+		if (stakingHash !== null) {
 			return new Address([isTestnet ? 0x00 : 0x01].concat(hash.bytes).concat(stakingHash.bytes));	
+		} else {
+			return new Address([isTestnet ? 0x60 : 0x61].concat(hash.bytes));
 		}
-		return new Address([isTestnet ? 0x60 : 0x61].concat(hash.bytes));
 	}
 
 	/**
@@ -25939,12 +25940,13 @@ export class Address extends CborData {
 	 * @param {?Hash} stakingHash
 	 * @returns {Address}
 	 */
-	static fromValidatorHash(isTestnet, hash, stakingHash) {
-		if (stakingHash) {
+	static fromValidatorHash(isTestnet, hash, stakingHash = null) {
+		if (stakingHash !== null) {
 			return new Address([isTestnet ? 0x10 : 0x11].concat(hash.bytes).concat(stakingHash.bytes));
+		} else {
+			return new Address([isTestnet ? 0x70 : 0x71].concat(hash.bytes));
 		}
 
-		return new Address([isTestnet ? 0x70 : 0x71].concat(hash.bytes));
 	}
 
 	/**
