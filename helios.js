@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.5
+// Version:     0.8.6
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -183,9 +183,10 @@
 //    17. Plutus-core deserialization       UplcDeserializer, deserializeUplcBytes, 
 //                                          deserializeUplc
 //
-//    18. Transaction objects               Tx, TxBody, TxWitnesses, TxInput, TxOutput, DCert, 
+//    18. Transaction objects               Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput,
+//                                          TxOutput, DCert, 
 //                                          Address, Assets, Value, Hash, PubKeyHash, 
-//                                          ValidatorHash, MintingPolicyHash, Signature, 
+//                                          ValidatorHash, MintingPolicyHash, TxId, Signature, 
 //                                          RedeemerCostTracker,
 //                                          Redeemer, SpendingRedeemer, MintingRedeemer, 
 //                                          Datum, HashedDatum, InlineDatum
@@ -200,7 +201,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.5"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.6"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -24057,7 +24058,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {TxInput} input
+	 * @param {UTxO} input
 	 * @param {?(UplcDataValue | UplcData)} redeemer
 	 * @returns {Tx}
 	 */
@@ -24097,7 +24098,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {TxInput[]} inputs
+	 * @param {UTxO[]} inputs
 	 * @param {?(UplcDataValue | UplcData)} redeemer
 	 * @returns {Tx}
 	 */
@@ -24110,7 +24111,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {TxInput} input 
+	 * @param {TxRefInput} input 
 	 * @returns {Tx}
 	 */
 	addRefInput(input) {
@@ -24122,7 +24123,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {TxInput[]} inputs
+	 * @param {TxRefInput[]} inputs
 	 * @returns {Tx}
 	 */
 	addRefInputs(inputs) {
@@ -24187,7 +24188,7 @@ export class Tx extends CborData {
 	/**
 	 * Usually adding only one collateral input is enough
 	 * Must be less than the limit in networkParams (eg. 3), or else an error is thrown during finalization
-	 * @param {TxInput} input 
+	 * @param {UTxO} input 
 	 * @returns {Tx}
 	 */
 	addCollateral(input) {
@@ -24288,7 +24289,7 @@ export class Tx extends CborData {
 	 * Shouldn't be used directly
 	 * @param {NetworkParams} networkParams 
 	 * @param {Address} changeAddress
-	 * @param {TxInput[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
+	 * @param {UTxO[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
 	 */
 	balance(networkParams, changeAddress, spareUtxos) {
 		// remove any pre-existing ChangeTxOutput
@@ -24417,7 +24418,7 @@ export class Tx extends CborData {
 	 * Note: this is an async function so that a debugger can optionally be attached in the future
 	 * @param {NetworkParams} networkParams
 	 * @param {Address}       changeAddress
-	 * @param {UTxO[]}     spareUtxos - might be used during balancing if there currently aren't enough inputs
+	 * @param {UTxO[]}        spareUtxos - might be used during balancing if there currently aren't enough inputs
 	 * @returns {Promise<Tx>}
 	 */
 	async finalize(networkParams, changeAddress, spareUtxos = []) {
@@ -25613,6 +25614,16 @@ export class UTxO extends TxInput {
 		}
 
 		return sum;
+	}
+}
+
+export class TxRefInput extends TxInput {
+	/**
+	 * @param {TxId} txId 
+	 * @param {bigint} utxoId 
+	 */
+	constructor(txId, utxoId) {
+		super(txId, utxoId, null);
 	}
 }
 
