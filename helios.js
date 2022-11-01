@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.7
+// Version:     0.8.8
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -201,7 +201,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.7"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.8"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -25658,14 +25658,14 @@ export class TxOutput extends CborData {
 	/** @type {?Datum} */
 	#datum;
 
-	/** @type {?number[]} */
+	/** @type {?UplcProgram} */
 	#refScript;
 
 	/**
 	 * @param {Address} address 
 	 * @param {Value} value 
 	 * @param {?Datum} datum 
-	 * @param {?number[]} refScript 
+	 * @param {?UplcProgram} refScript 
 	 */
 	constructor(address, value, datum = null, refScript = null) {
 		assert(datum === null || datum instanceof Datum); // check this explicitely because caller might be using this constructor without proper type-checking
@@ -25769,7 +25769,7 @@ export class TxOutput extends CborData {
 			}
 
 			if (this.#refScript !== null) {
-				object.set(3, CborData.encodeBytes(this.#refScript));
+				object.set(3, CborData.encodeBytes(wrapCborBytes(this.#refScript.serializeBytes())));
 			}
 
 			return CborData.encodeObject(object);
@@ -25790,7 +25790,7 @@ export class TxOutput extends CborData {
 		/** @type {?Datum} */
 		let outputDatum = null;
 
-		/** @type {?number[]} */
+		/** @type {?UplcProgram} */
 		let refScript = null;
 
 		if (CborData.isObject(bytes)) {
@@ -25806,10 +25806,10 @@ export class TxOutput extends CborData {
 						outputDatum = Datum.fromCbor(fieldBytes);
 						break;
 					case 3:
-						refScript = CborData.decodeBytes(fieldBytes);
+						refScript = deserializeUplcBytes(unwrapCborBytes(CborData.decodeBytes(fieldBytes)));
 						break;
 					default:
-						throw new Error("unreconginzed field");
+						throw new Error("unrecognized field");
 				}
 			});
 		} else if (CborData.isTuple(bytes)) {
@@ -25848,7 +25848,7 @@ export class TxOutput extends CborData {
 			address: this.#address.dump(),
 			value: this.#value.dump(),
 			datum: this.#datum === null ? null : this.#datum.dump(),
-			refScript: this.#refScript === null ? null : bytesToHex(this.#refScript),
+			refScript: this.#refScript === null ? null : bytesToHex(wrapCborBytes(this.#refScript.serializeBytes())),
 		};
 	}
 
