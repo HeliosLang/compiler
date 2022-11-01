@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.6
+// Version:     0.8.7
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -201,7 +201,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.6"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.7"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -24111,13 +24111,18 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {TxRefInput} input 
+	 * @param {TxRefInput} input
+	 * @param {?UplcProgram} refScript
 	 * @returns {Tx}
 	 */
-	addRefInput(input) {
+	addRefInput(input, refScript = null) {
 		assert(!this.#valid);
 
 		this.#body.addRefInput(input);
+
+		if (refScript !== null) {
+			this.#witnesses.attachScript(refScript, true);
+		}
 
 		return this;
 	}
@@ -25073,12 +25078,16 @@ export class TxWitnesses extends CborData {
 	/** @type {UplcProgram[]} */
 	#scripts;
 
+	/** @type {UplcProgram[]} */
+	#refScripts;
+
 	constructor() {
 		super();
 		this.#signatures = [];
 		this.#datums = new ListData([]);
 		this.#redeemers = [];
 		this.#scripts = [];
+		this.#refScripts = [];
 	}
 
 	/**
@@ -25089,10 +25098,11 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * Returns all the scripts, including the reference scripts
 	 * @type {UplcProgram[]}
 	 */
 	get scripts() {
-		return this.#scripts.slice();
+		return this.#scripts.slice().concat(this.#refScripts.slice());
 	}
 
 	/**
@@ -25186,6 +25196,7 @@ export class TxWitnesses extends CborData {
 			datums: this.#datums.list.map(datum => datum.toString()),
 			redeemers: this.#redeemers.map(redeemer => redeemer.dump()),
 			scripts: this.#scripts.map(script => bytesToHex(wrapCborBytes(script.serializeBytes()))),
+			refScripts: this.#refScripts.map(script => bytesToHex(wrapCborBytes(script.serializeBytes()))),
 		};
 	}
 
@@ -25260,18 +25271,28 @@ export class TxWitnesses extends CborData {
 	/**
 	 * Throws error if script was already added before
 	 * @param {UplcProgram} program 
+	 * @param {boolean} isRef
 	 */
-	attachScript(program) {
-		assert(this.#scripts.every(s => !eq(s.hash(), program.hash())));
-		this.#scripts.push(program);
+	attachScript(program, isRef = false) {
+		let h = program.hash();
+
+		assert(this.#scripts.every(s => !eq(s.hash(), h)));
+		assert(this.#refScripts.every(s => !eq(s.hash(), h)));
+
+		if (isRef) {
+			this.#refScripts.push(program);
+		} else {
+			this.#scripts.push(program);
+		}
 	}
 
 	/**
+	 * Retrieves either a regular script or a reference script
 	 * @param {Hash} scriptHash - can be ValidatorHash or MintingPolicyHash
 	 * @returns {UplcProgram}
 	 */
 	getScript(scriptHash) {
-		return assertDefined(this.#scripts.find(s => eq(s.hash(), scriptHash.bytes)));
+		return assertDefined(this.scripts.find(s => eq(s.hash(), scriptHash.bytes)));
 	}
 
 	/**
