@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.4
+// Version:     0.8.8
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -183,9 +183,10 @@
 //    17. Plutus-core deserialization       UplcDeserializer, deserializeUplcBytes, 
 //                                          deserializeUplc
 //
-//    18. Transaction objects               Tx, TxBody, TxWitnesses, TxInput, TxOutput, DCert, 
+//    18. Transaction objects               Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput,
+//                                          TxOutput, DCert, 
 //                                          Address, Assets, Value, Hash, PubKeyHash, 
-//                                          ValidatorHash, MintingPolicyHash, Signature, 
+//                                          ValidatorHash, MintingPolicyHash, TxId, Signature, 
 //                                          RedeemerCostTracker,
 //                                          Redeemer, SpendingRedeemer, MintingRedeemer, 
 //                                          Datum, HashedDatum, InlineDatum
@@ -200,7 +201,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.4"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.8"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -16271,6 +16272,8 @@ class ListType extends BuiltinType {
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new BoolType()));
 			case "find":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], this.#itemType));
+			case "find_safe":
+				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new OptionType(this.#itemType)));
 			case "filter":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new ListType(this.#itemType)));
 			case "fold": {
@@ -18959,6 +18962,26 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
+	add(new RawFunc("__helios__common__find_safe",
+	`(self, fn) -> {
+		(recurse) -> {
+			recurse(recurse, self, fn)
+		}(
+			(recurse, self, fn) -> {
+				__core__ifThenElse(
+					__core__nullList(self), 
+					() -> {__core__constrData(1, __helios__common__list_0)}, 
+					() -> {
+						__core__ifThenElse(
+							fn(__core__headList(self)), 
+							() -> {__core__constrData(0, __helios__common__list_1(__core__headList(self)))}, 
+							() -> {recurse(recurse, __core__tailList(self), fn)}
+						)()
+					}
+				)()
+			}
+		)
+	}`));
 	add(new RawFunc("__helios__common__fold",
 	`(self, fn, z) -> {
 		(recurse) -> {
@@ -19737,6 +19760,14 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
+	add(new RawFunc("__helios__list__find_safe",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				__helios__common__find_safe(self, fn)
+			}
+		}(__core__unListData(self))
+	}`))
 	add(new RawFunc("__helios__list__filter",
 	`(self) -> {
 		(self) -> {
@@ -19837,6 +19868,16 @@ function makeRawFunctions() {
 						fn(__helios__common__unBoolData(item))
 					}
 				)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__find_safe",
+	`(self) -> {
+		(fn) -> {
+			__helios__list__find_safe(self)(
+				(item) -> {
+					fn(__helios__common__unBoolData(item))
+				}
 			)
 		}
 	}`));
@@ -24180,7 +24221,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {TxInput} input
+	 * @param {UTxO} input
 	 * @param {?(UplcDataValue | UplcData)} redeemer
 	 * @returns {Tx}
 	 */
@@ -24220,7 +24261,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {TxInput[]} inputs
+	 * @param {UTxO[]} inputs
 	 * @param {?(UplcDataValue | UplcData)} redeemer
 	 * @returns {Tx}
 	 */
@@ -24233,19 +24274,24 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {TxInput} input 
+	 * @param {TxRefInput} input
+	 * @param {?UplcProgram} refScript
 	 * @returns {Tx}
 	 */
-	addRefInput(input) {
+	addRefInput(input, refScript = null) {
 		assert(!this.#valid);
 
 		this.#body.addRefInput(input);
+
+		if (refScript !== null) {
+			this.#witnesses.attachScript(refScript, true);
+		}
 
 		return this;
 	}
 
 	/**
-	 * @param {TxInput[]} inputs
+	 * @param {TxRefInput[]} inputs
 	 * @returns {Tx}
 	 */
 	addRefInputs(inputs) {
@@ -24310,7 +24356,7 @@ export class Tx extends CborData {
 	/**
 	 * Usually adding only one collateral input is enough
 	 * Must be less than the limit in networkParams (eg. 3), or else an error is thrown during finalization
-	 * @param {TxInput} input 
+	 * @param {UTxO} input 
 	 * @returns {Tx}
 	 */
 	addCollateral(input) {
@@ -24411,7 +24457,7 @@ export class Tx extends CborData {
 	 * Shouldn't be used directly
 	 * @param {NetworkParams} networkParams 
 	 * @param {Address} changeAddress
-	 * @param {TxInput[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
+	 * @param {UTxO[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
 	 */
 	balance(networkParams, changeAddress, spareUtxos) {
 		// remove any pre-existing ChangeTxOutput
@@ -24540,7 +24586,7 @@ export class Tx extends CborData {
 	 * Note: this is an async function so that a debugger can optionally be attached in the future
 	 * @param {NetworkParams} networkParams
 	 * @param {Address}       changeAddress
-	 * @param {UTxO[]}     spareUtxos - might be used during balancing if there currently aren't enough inputs
+	 * @param {UTxO[]}        spareUtxos - might be used during balancing if there currently aren't enough inputs
 	 * @returns {Promise<Tx>}
 	 */
 	async finalize(networkParams, changeAddress, spareUtxos = []) {
@@ -25195,12 +25241,16 @@ export class TxWitnesses extends CborData {
 	/** @type {UplcProgram[]} */
 	#scripts;
 
+	/** @type {UplcProgram[]} */
+	#refScripts;
+
 	constructor() {
 		super();
 		this.#signatures = [];
 		this.#datums = new ListData([]);
 		this.#redeemers = [];
 		this.#scripts = [];
+		this.#refScripts = [];
 	}
 
 	/**
@@ -25211,10 +25261,11 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * Returns all the scripts, including the reference scripts
 	 * @type {UplcProgram[]}
 	 */
 	get scripts() {
-		return this.#scripts.slice();
+		return this.#scripts.slice().concat(this.#refScripts.slice());
 	}
 
 	/**
@@ -25308,6 +25359,7 @@ export class TxWitnesses extends CborData {
 			datums: this.#datums.list.map(datum => datum.toString()),
 			redeemers: this.#redeemers.map(redeemer => redeemer.dump()),
 			scripts: this.#scripts.map(script => bytesToHex(wrapCborBytes(script.serializeBytes()))),
+			refScripts: this.#refScripts.map(script => bytesToHex(wrapCborBytes(script.serializeBytes()))),
 		};
 	}
 
@@ -25382,18 +25434,28 @@ export class TxWitnesses extends CborData {
 	/**
 	 * Throws error if script was already added before
 	 * @param {UplcProgram} program 
+	 * @param {boolean} isRef
 	 */
-	attachScript(program) {
-		assert(this.#scripts.every(s => !eq(s.hash(), program.hash())));
-		this.#scripts.push(program);
+	attachScript(program, isRef = false) {
+		let h = program.hash();
+
+		assert(this.#scripts.every(s => !eq(s.hash(), h)));
+		assert(this.#refScripts.every(s => !eq(s.hash(), h)));
+
+		if (isRef) {
+			this.#refScripts.push(program);
+		} else {
+			this.#scripts.push(program);
+		}
 	}
 
 	/**
+	 * Retrieves either a regular script or a reference script
 	 * @param {Hash} scriptHash - can be ValidatorHash or MintingPolicyHash
 	 * @returns {UplcProgram}
 	 */
 	getScript(scriptHash) {
-		return assertDefined(this.#scripts.find(s => eq(s.hash(), scriptHash.bytes)));
+		return assertDefined(this.scripts.find(s => eq(s.hash(), scriptHash.bytes)));
 	}
 
 	/**
@@ -25739,6 +25801,16 @@ export class UTxO extends TxInput {
 	}
 }
 
+export class TxRefInput extends TxInput {
+	/**
+	 * @param {TxId} txId 
+	 * @param {bigint} utxoId 
+	 */
+	constructor(txId, utxoId) {
+		super(txId, utxoId, null);
+	}
+}
+
 export class TxOutput extends CborData {
 	/** @type {Address} */
 	#address;
@@ -25749,14 +25821,14 @@ export class TxOutput extends CborData {
 	/** @type {?Datum} */
 	#datum;
 
-	/** @type {?number[]} */
+	/** @type {?UplcProgram} */
 	#refScript;
 
 	/**
 	 * @param {Address} address 
 	 * @param {Value} value 
 	 * @param {?Datum} datum 
-	 * @param {?number[]} refScript 
+	 * @param {?UplcProgram} refScript 
 	 */
 	constructor(address, value, datum = null, refScript = null) {
 		assert(datum === null || datum instanceof Datum); // check this explicitely because caller might be using this constructor without proper type-checking
@@ -25860,7 +25932,7 @@ export class TxOutput extends CborData {
 			}
 
 			if (this.#refScript !== null) {
-				object.set(3, CborData.encodeBytes(this.#refScript));
+				object.set(3, CborData.encodeBytes(wrapCborBytes(this.#refScript.serializeBytes())));
 			}
 
 			return CborData.encodeObject(object);
@@ -25881,7 +25953,7 @@ export class TxOutput extends CborData {
 		/** @type {?Datum} */
 		let outputDatum = null;
 
-		/** @type {?number[]} */
+		/** @type {?UplcProgram} */
 		let refScript = null;
 
 		if (CborData.isObject(bytes)) {
@@ -25897,10 +25969,10 @@ export class TxOutput extends CborData {
 						outputDatum = Datum.fromCbor(fieldBytes);
 						break;
 					case 3:
-						refScript = CborData.decodeBytes(fieldBytes);
+						refScript = deserializeUplcBytes(unwrapCborBytes(CborData.decodeBytes(fieldBytes)));
 						break;
 					default:
-						throw new Error("unreconginzed field");
+						throw new Error("unrecognized field");
 				}
 			});
 		} else if (CborData.isTuple(bytes)) {
@@ -25939,7 +26011,7 @@ export class TxOutput extends CborData {
 			address: this.#address.dump(),
 			value: this.#value.dump(),
 			datum: this.#datum === null ? null : this.#datum.dump(),
-			refScript: this.#refScript === null ? null : bytesToHex(this.#refScript),
+			refScript: this.#refScript === null ? null : bytesToHex(wrapCborBytes(this.#refScript.serializeBytes())),
 		};
 	}
 
@@ -26084,10 +26156,15 @@ export class Address extends CborData {
 	 * Simple payment address without a staking part
 	 * @param {boolean} isTestnet
 	 * @param {PubKeyHash} hash
+	 * @param {?Hash} stakingHash
 	 * @returns {Address}
 	 */
-	static fromPubKeyHash(isTestnet, hash) {
-		return new Address([isTestnet ? 0x60 : 0x61].concat(hash.bytes));
+	static fromPubKeyHash(isTestnet, hash, stakingHash = null) {
+		if (stakingHash !== null) {
+			return new Address([isTestnet ? 0x00 : 0x01].concat(hash.bytes).concat(stakingHash.bytes));	
+		} else {
+			return new Address([isTestnet ? 0x60 : 0x61].concat(hash.bytes));
+		}
 	}
 
 	/**
@@ -26095,10 +26172,16 @@ export class Address extends CborData {
 	 * Only relevant for validator scripts
 	 * @param {boolean} isTestnet
 	 * @param {ValidatorHash} hash
+	 * @param {?Hash} stakingHash
 	 * @returns {Address}
 	 */
-	static fromValidatorHash(isTestnet, hash) {
-		return new Address([isTestnet ? 0x70 : 0x71].concat(hash.bytes));
+	static fromValidatorHash(isTestnet, hash, stakingHash = null) {
+		if (stakingHash !== null) {
+			return new Address([isTestnet ? 0x10 : 0x11].concat(hash.bytes).concat(stakingHash.bytes));
+		} else {
+			return new Address([isTestnet ? 0x70 : 0x71].concat(hash.bytes));
+		}
+
 	}
 
 	/**

@@ -1590,6 +1590,20 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
+        testing list_find_safe
+        func main(a: []Int) -> Option[Int] {
+            a.find_safe((x: Int) -> Bool {x > 0})
+        }`, ([a], res) => {
+            let la = asIntList(a);
+
+            if (la.every(i => i <= 0n)) {
+                return res.data.index == 1;
+            } else {
+                return res.data.index == 0 && (asInt(res.data.fields[0]) == la.find(i => i > 0n));
+            }
+        });
+
+        await ft.test([ft.list(ft.int())], `
         testing list_filter
         func main(a: []Int) -> []Int {
             a.filter((x: Int) -> Bool {x > 0})
@@ -1811,6 +1825,20 @@ async function runPropertyTests() {
                 return isError(res, "not found");
             } else {
                 return asBool(res);
+            }
+        });
+
+        await ft.test([ft.list(ft.bool())], `
+        testing boollist_find_safe
+        func main(a: []Bool) -> Option[Bool] {
+            a.find_safe((x: Bool) -> Bool {x})
+        }`, ([a], res) => {
+            let la = asBoolList(a);
+
+            if (la.every(i => !i)) {
+                return res.data.index == 1;
+            } else {
+                return res.data.index == 0 && (res.data.fields[0].index == 1);
             }
         });
 
