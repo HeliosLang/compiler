@@ -43,6 +43,10 @@ function test2() {
       }
 
       const BLA = "123"
+
+      func unused2() -> Int {
+        Datum::unusedMember()
+      }
     }
     
     func main(datum: Datum, ctx: ScriptContext) -> Bool {

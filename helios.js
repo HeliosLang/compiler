@@ -10307,6 +10307,26 @@ class DataInstance extends Instance {
 	}
 }
 
+class ConstStatementInstance extends DataInstance {
+	#statement;
+
+	/**
+	 * @param {DataType} type 
+	 * @param {ConstStatement} statement
+	 */
+	constructor(type, statement) {
+		super(type);
+		this.#statement = statement;
+	}
+
+	/**
+	 * @type {ConstStatement}
+	 */
+	get statement() {
+		return this.#statement
+	}
+}
+
 /**
  * A callable Instance.
  */
@@ -10426,6 +10446,13 @@ class FuncStatementInstance extends FuncInstance {
 	constructor(type, statement) {
 		super(type);
 		this.#statement = statement;
+	}
+
+	/**
+	 * @type {FuncStatement}
+	 */
+	get statement() {
+		return this.#statement;
 	}
 
 	/**
@@ -10782,6 +10809,10 @@ class Expr extends Token {
 	constructor(site) {
 		super(site);
 	}
+
+	use() {
+		throw new Error("not yet implemented");
+	}
 }
 
 /**
@@ -10864,6 +10895,14 @@ class TypeRefExpr extends TypeExpr {
 	get path() {
 		return this.type.path;
 	}
+
+	use() {
+		let t = this.type;
+
+		if (t instanceof StatementType) {
+			t.statement.use();
+		}
+	}
 }
 
 /**
@@ -10903,6 +10942,10 @@ class TypePathExpr extends TypeExpr {
 	get path() {
 		return this.type.path;
 	}
+
+	use() {
+		this.#baseExpr.use();
+	}
 }
 
 class ListTypeExpr extends TypeExpr {
@@ -10933,6 +10976,10 @@ class ListTypeExpr extends TypeExpr {
 		}
 
 		return new ListType(itemType);
+	}
+
+	use() {
+		this.#itemTypeExpr.use();
 	}
 }
 
@@ -10979,6 +11026,11 @@ class MapTypeExpr extends TypeExpr {
 
 		return new MapType(keyType, valueType);
 	}
+
+	use() {
+		this.#keyTypeExpr.use();
+		this.#valueTypeExpr.use();
+	}
 }
 
 /**
@@ -11012,6 +11064,10 @@ class OptionTypeExpr extends TypeExpr {
 		}
 
 		return new OptionType(someType);
+	}
+
+	use() {
+		this.#someTypeExpr.use();
 	}
 }
 
@@ -11051,6 +11107,14 @@ class FuncTypeExpr extends TypeExpr {
 
 		return new FuncType(argTypes, retType);
 	}
+
+	use() {
+		for (let arg of this.#argTypeExprs) {
+			arg.use();
+		}
+
+		this.#retTypeExpr.use();
+	}
 }
 
 /**
@@ -11069,6 +11133,9 @@ class ValueExpr extends Expr {
 		this.#cache = null;
 	}
 
+	/**
+	 * @type {Instance}
+	 */
 	get value() {
 		if (this.#cache === null) {
 			throw new Error("type not yet evaluated");
@@ -11184,6 +11251,15 @@ class AssignExpr extends ValueExpr {
 		return downstreamVal;
 	}
 
+	use() {
+		if (this.#typeExpr !== null) {
+			this.#typeExpr.use();
+		}
+
+		this.#upstreamExpr.use();
+		this.#downstreamExpr.use();
+	}
+
 	/**
 	 * 
 	 * @param {string} indent 
@@ -11243,6 +11319,11 @@ class PrintExpr extends ValueExpr {
 		let downstreamVal = this.#downstreamExpr.eval(scope);
 
 		return downstreamVal;
+	}
+
+	use() {
+		this.#msgExpr.use();
+		this.#downstreamExpr.use();
 	}
 
 	/**
@@ -11308,6 +11389,9 @@ class PrimitiveLiteralExpr extends ValueExpr {
 	 */
 	evalInternal(scope) {
 		return new DataInstance(this.type);
+	}
+
+	use() {
 	}
 
 	/**
@@ -11385,6 +11469,10 @@ class StructLiteralField {
 	 */
 	eval(scope) {
 		return this.#value.eval(scope);
+	}
+
+	use() {
+		this.#value.use();
 	}
 
 	/**
@@ -11468,6 +11556,14 @@ class StructLiteralExpr extends ValueExpr {
 		}
 
 		return instance;
+	}
+
+	use() {
+		this.#typeExpr.use();
+
+		for (let f of this.#fields) {
+			f.use();
+		}
 	}
 
 	/**
@@ -11566,6 +11662,14 @@ class ListLiteralExpr extends ValueExpr {
 		return Instance.new(new ListType(itemType));
 	}
 
+	use() {
+		this.#itemTypeExpr.use();
+
+		for (let item of this.#itemExprs) {
+			item.use();
+		}
+	}
+
 	/**
 	 * @param {string} indent 
 	 * @returns {IR}
@@ -11656,6 +11760,16 @@ class ListLiteralExpr extends ValueExpr {
 		}
 
 		return Instance.new(new MapType(keyType, valueType));
+	}
+
+	use() {
+		this.#keyTypeExpr.use();
+		this.#valueTypeExpr.use();
+
+		for (let [fst, snd] of this.#pairExprs) {
+			fst.use();
+			snd.use();
+		}
 	}
 
 	/**
@@ -11753,6 +11867,12 @@ class NameTypePair {
 			throw new Error("typeExpr not set");
 		} else {
 			return this.#typeExpr.eval(scope);
+		}
+	}
+
+	use() {
+		if (this.#typeExpr !== null) {
+			this.#typeExpr.use();
 		}
 	}
 
@@ -11857,6 +11977,15 @@ class FuncLiteralExpr extends ValueExpr {
 
 	isMethod() {
 		return this.#args.length > 0 && this.#args[0].name.toString() == "self";
+	}
+
+	use() {
+		for (let arg of this.#args) {
+			arg.use();
+		}
+
+		this.#retTypeExpr.use();
+		this.#bodyExpr.use();
 	}
 
 	/**
@@ -11974,6 +12103,14 @@ class ValueRefExpr extends ValueExpr {
 		return val.assertValue(this.#name.site);
 	}
 
+	use() {
+		if (this.value instanceof FuncStatementInstance) {
+			this.value.statement.use();
+		} else if (this.value instanceof ConstStatementInstance) {
+			this.value.statement.use();
+		}
+	}
+
 	/**
 	 * @param {string} indent 
 	 * @returns {IR}
@@ -12032,6 +12169,16 @@ class ValuePathExpr extends ValueExpr {
 		}
 
 		return memberVal.assertValue(this.#memberName.site);
+	}
+
+	use() {
+		this.#baseTypeExpr.use();
+
+		if (this.value instanceof ConstStatementInstance) {
+			this.value.statement.use();
+		} else if (this.value instanceof FuncStatementInstance) {
+			this.value.statement.use();
+		}
 	}
 
 	/**
@@ -12115,6 +12262,10 @@ class UnaryExpr extends ValueExpr {
 
 		// ops are immediately applied
 		return fnVal.call(this.#op.site, []);
+	}
+
+	use() {
+		this.#a.use();
 	}
 
 	/**
@@ -12275,6 +12426,11 @@ class BinaryExpr extends ValueExpr {
 		}
 	}
 
+	use() {
+		this.#a.use();
+		this.#b.use();
+	}
+
 	/**
 	 * @param {string} indent 
 	 * @returns {IR}
@@ -12331,6 +12487,10 @@ class ParensExpr extends ValueExpr {
 		return this.#expr.eval(scope);
 	}
 
+	use() {
+		this.#expr.use();
+	}
+
 	/**
 	 * @param {string} indent 
 	 * @returns {IR}
@@ -12372,6 +12532,14 @@ class CallExpr extends ValueExpr {
 		let argVals = this.#argExprs.map(argExpr => argExpr.eval(scope));
 
 		return fnVal.call(this.site, argVals);
+	}
+
+	use() {
+		this.#fnExpr.use();
+
+		for (let arg of this.#argExprs) {
+			arg.use();
+		}
 	}
 
 	/**
@@ -12428,6 +12596,16 @@ class MemberExpr extends ValueExpr {
 		}
 
 		return memberVal;
+	}
+
+	use() {
+		this.#objExpr.use();
+
+		if (this.value instanceof FuncStatementInstance) {
+			this.value.statement.use();
+		} else if (this.value instanceof ConstStatementInstance) {
+			this.value.statement.use();
+		}
 	}
 
 	/**
@@ -12563,6 +12741,16 @@ class IfElseExpr extends ValueExpr {
 		}
 	}
 
+	use() {
+		for (let c of this.#conditions) {
+			c.use();
+		}
+
+		for (let b of this.#branches) {
+			b.use();
+		}
+	}
+
 	/**
 	 * @param {string} indent 
 	 * @returns {IR}
@@ -12669,6 +12857,10 @@ class SwitchCase extends Token {
 		}
 	}
 
+	use() {
+		this.#bodyExpr.use();
+	}
+
 	/**
 	 * @param {string} indent 
 	 * @returns {IR}
@@ -12707,6 +12899,10 @@ class SwitchDefault extends Token {
 	 */
 	eval(scope) {
 		return this.#bodyExpr.eval(scope);
+	}
+
+	use() {
+		this.#bodyExpr.use();
 	}
 
 	/**
@@ -12787,6 +12983,18 @@ class SwitchExpr extends ValueExpr {
 		}
 	}
 
+	use() {
+		this.#controlExpr.use();
+
+		for (let c of this.#cases) {
+			c.use();
+		}
+
+		if (this.#defaultCase !== null) {
+			this.#defaultCase.use();
+		}
+	}
+
 	/**
 	 * @param {string} indent 
 	 * @returns {IR}
@@ -12857,22 +13065,25 @@ class Statement extends Token {
 	}
 
 	/**
+	 * @type {boolean}
+	 */
+	get used() {
+		return this.#used;
+	}
+
+	/**
 	 * @param {TopScope} scope 
 	 */
 	eval(scope) {
 		throw new Error("not yet implemented");
 	}
 
-	assertAllMembersUsed() {
-	}
-
-	/**
-	 * @param {TopScope} scope 
-	 */
-	markIfUsed(scope) {
-		if (scope.isUsed(this.#name)) {
-			this.#used = true;
+	use() {
+		if (!this.#used) {
+			console.log("using " + this.toString());
 		}
+
+		this.#used = true;
 	}
 
 	/**
@@ -12967,7 +13178,7 @@ class ConstStatement extends Statement {
 			}
 		}
 
-		return Instance.new(type);
+		return new ConstStatementInstance(type, this);
 	}
 
 	/**
@@ -12976,6 +13187,15 @@ class ConstStatement extends Statement {
 	 */
 	eval(scope) {
 		scope.set(this.name, this.evalInternal(scope));
+	}
+
+	use() {
+		if (!this.used) {
+			super.use();
+
+			this.#valueExpr.use();
+			this.#typeExpr.use();
+		}
 	}
 
 	/**
@@ -13141,9 +13361,14 @@ class DataDefinition extends Statement {
 		}
 	}
 
-	assertAllMembersUsed() {
-		// Old: used to check if all fields where referenced
-    	// New: due to potential interactions with on-chain data of other smart contracts scripts this restriction has been lifted
+	use() {
+		if (!this.used) {
+			super.use();
+			
+			for (let f of this.#fields) {
+				f.use();
+			}
+		}
 	}
 
 	get path() {
@@ -13278,15 +13503,6 @@ class StructStatement extends DataDefinition {
 	}
 
 	/**
-	 * Throws error if some fields or some impl statements aren't used.
-	 */
-	assertAllMembersUsed() {
-		super.assertAllMembersUsed();
-
-		this.#impl.assertAllMembersUsed();
-	}
-
-	/**
 	 * @param {Uint8Array} mask
 	 */
 	hideUnused(mask) {
@@ -13353,6 +13569,14 @@ class FuncStatement extends Statement {
 	 */
 	evalType(scope) {
 		return this.#funcExpr.evalType(scope);
+	}
+
+	use() {
+		if (!this.used) {
+			super.use();
+
+			this.#funcExpr.use();
+		}
 	}
 
 	isRecursive() {
@@ -13573,6 +13797,16 @@ class EnumStatement extends Statement {
 		this.#impl.eval(scope);
 	}
 
+	use() {
+		if (!this.used) {
+			super.use();
+
+			for (let m of this.#members) {
+				m.use();
+			}
+		}
+	}
+
 	/**
 	 * @param {Site} site 
 	 * @returns {number}
@@ -13633,17 +13867,6 @@ class EnumStatement extends Statement {
 		return this.#members.length;
 	}
 
-	assertAllMembersUsed() {
-		// Old: used to assert if all members where being used
-		// New: due to potential interactions with data from other smart contracts this restriction has been lifted
-
-		for (let m of this.#members) {
-			m.assertAllMembersUsed();
-		}
-
-		this.#impl.assertAllMembersUsed();
-	}
-
 	/**
 	 * @param {Uint8Array} mask
 	 */
@@ -13690,7 +13913,7 @@ class ImplDefinition {
 		this.#selfTypeExpr = selfTypeExpr;
 		this.#statements = statements;
 		this.#statementValues = [];
-		this.#usedStatements = new Set();
+		this.#usedStatements = new Set(); // used for code-generation, but not for cleanSource filtering
 	}
 
 	toString() {
@@ -13791,26 +14014,11 @@ class ImplDefinition {
 	}
 
 	/**
-	 * Throws error if some statements not used
-	 */
-	assertAllMembersUsed() {
-		for (let s of this.#statements) {
-			if (!this.#usedStatements.has(s.name.toString())) {
-				if (FuncStatement.isMethod(s)) {
-					throw s.name.referenceError(`'${this.#selfTypeExpr.toString()}.${s.name.toString()}' unused`);
-				} else {
-					throw s.name.referenceError(`'${this.#selfTypeExpr.toString()}::${s.name.toString()}' unused`);
-				}
-			}
-		}
-	}
-
-	/**
 	 * @param {Uint8Array} mask
 	 */
 	hideUnused(mask) {
 		for (let s of this.#statements) {
-			if (!this.#usedStatements.has(s.name.toString())) {
+			if (!s.used) {
 				let site = s.site;
 
 				if (site.endSite === null) {
@@ -13987,40 +14195,30 @@ export class Program {
 	evalTypesInternal(globalScope) {
 		let scope = new TopScope(globalScope);
 
-		let mainFound = false;
+		/**
+		 * @type {?FuncStatement}
+		 */
+		let main = null;
 
 		for (let s of this.#statements) {
 			s.eval(scope);
 
 			if (s.name.value == "main") {
-				void scope.get(new Word(Site.dummy(), "main")); // 'use' main
-
-				//scope.assertAllUsed(); // remove unused instead
-
-				mainFound = true;
-
 				if (!(s instanceof FuncStatement)) {
 					throw s.typeError("'main' isn't a function statement");
+				} else {
+					main = s
+					globalScope.allowMacros();
+					scope.setStrict(false);
 				}
-
-				globalScope.allowMacros();
-				scope.setStrict(false);
 			}
 		}
 
-		if (!mainFound) {
+		if (main === null) {
 			throw this.#name.referenceError("'main' not found");
 		}
 
-		for (let s of this.#statements) {
-			s.markIfUsed(scope);
-
-			//s.assertAllMembersUsed(); // remove unused instead
-
-			if (s.name.value == "main") {
-				break;
-			}
-		}
+		main.use();
 	}
 
 	/**
@@ -14039,30 +14237,43 @@ export class Program {
 			s.hideUnused(mask);
 		}
 
+		/** @type {string[]} */
+		let chars = [];
+
+		for (let i = 0; i < n; i++) {
+			let c = raw.charAt(i);
+
+			if (c == '\n' || c == ' ') {
+				chars.push(c);
+			} else if (mask[i] == 1) {
+				chars.push(c);
+			} else {
+				chars.push(' ');
+			}
+		}
+
+		let lines = chars.join("").split("\n").map(l => {
+			if (l.trim().length == 0) {
+				return "";
+			} else {
+				return l;
+			}
+		});
+
+		// remove more than one consecutive empty line
+
 		/**
 		 * @type {string[]}
 		 */
 		let parts = [];
 
-		let state = mask[0];
-		let prev = 0;
-
-		for (let i = 1; i < n; i++) {
-			if (mask[i] != state) {
-				state = mask[i];
-				if (mask[i] == 1) {
-					prev = i;
-				} else if (prev < i) {
-					parts.push(raw.slice(prev, i));
-				}
+		for (let i = 0; i < lines.length; i++) {
+			if (!(i > 0 && lines[i-1].length == 0 && lines[i].length == 0)) {
+				parts.push(lines[i]);
 			}
 		}
 
-		if (mask[mask.length - 1] == 1) {
-			parts.push(raw.slice(prev, n));
-		}
-
-		return parts.join("");
+		return parts.join("\n");
 	}
 
 	evalTypes() {
