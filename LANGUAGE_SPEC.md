@@ -3,9 +3,15 @@ Program ::= ProgramType Statement (Statement)*
 
 ProgramType ::= ('test' | 'minting_policy' | 'validator') Word
 
-Statement ::= ConstStatement | StructStatement | FuncStatement | EnumStatement
+Statement ::= ImportStatement | ConstStatement | StructStatement | FuncStatement | EnumStatement
 
 Comment ::= 'regexp://.*\n' | 'regexp:/\*(.*|\n)\*/'
+
+ImportStatement ::= 'import' '{' ImportField (',' ImportField)* '}' 'from' ModuleName
+
+ModuleName ::= Word
+
+ImportField ::= Word ['as' Word]
 
 StructStatement ::= 'struct' Word '{' DataDefinition [ImplDefinition] '}'
 

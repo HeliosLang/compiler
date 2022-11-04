@@ -237,6 +237,7 @@ const ScriptPurpose = {
 	Minting: 0,
 	Spending: 1,
 	Staking: 2,
+	Module: 3,
 };
 
 /**
@@ -8132,6 +8133,7 @@ class Word extends Token {
 			case "func":
 			case "struct":
 			case "enum":
+			case "import":
 			case "if":
 			case "else":
 			case "switch":
@@ -9121,6 +9123,8 @@ function tokenizeIR(rawSrc, codeMap) {
 			return "spending";
 		case ScriptPurpose.Staking:
 			return "staking";
+		case ScriptPurpose.Module:
+			return "module";
 		default:
 			throw new Error(`unhandled ScriptPurpose ${id}`);
 	}
@@ -9371,6 +9375,7 @@ export function highlight(src) {
 						case "const":
 						case "struct":
 						case "enum":
+						case "import":
 						case "print":
 						case "self":
 							type = SyntaxCategory.Keyword;
@@ -9379,6 +9384,7 @@ export function highlight(src) {
 						case "spending":
 						case "staking":
 						case "minting":
+						case "module":
 							if (i0 == 0) {
 								type = SyntaxCategory.Keyword;
 							} else {
@@ -13110,6 +13116,27 @@ class Statement extends Token {
 }
 
 /**
+ * Each field is given a separate ImportStatement
+ */
+class ImportStatement extends Statement {
+	#origName;
+	#moduleName;
+
+	/**
+	 * 
+	 * @param {Site} site 
+	 * @param {Word} name
+	 * @param {Word} origName
+	 * @param {Word} moduleName
+	 */
+	constructor(site, name, origName, moduleName) {
+		super(site, name);
+		this.#origName = origName;
+		this.#moduleName = moduleName;
+	}
+}
+
+/**
  * Const value statement
  */
 class ConstStatement extends Statement {
@@ -14083,106 +14110,31 @@ class ImplDefinition {
  * @typedef {Map<string, IR>} IRDefinitions
  */
 
-/**
- * Helios root object
- */
-export class Program {
+class Module {
 	#name;
 	#statements;
-	#purpose;
 
 	/**
-	 * @param {Word} name
+	 * @param {Word} name 
 	 * @param {Statement[]} statements
-	 * @param {number} purpose
 	 */
-	constructor(name, statements, purpose) {
+	constructor(name, statements) {
 		this.#name = name;
 		this.#statements = statements;
-		this.#purpose = purpose;
 	}
 
 	/**
-	 * Creates  a new program.
-	 * @param {string} rawSrc 
-	 * @returns {Program}
-	 */
-	static new(rawSrc) {
-		let src = new Source(rawSrc);
-
-		let ts = tokenize(src);
-
-		if (ts.length == 0) {
-			throw UserError.syntaxError(src, 0, "empty script");
-		}
-
-		let [purpose, name] = buildScriptPurpose(ts);
-
-		let statements = buildProgramStatements(ts);
-	
-		/**
-		 * @type {Program}
-		 */
-		let program;
-
-		switch (purpose) {
-			case ScriptPurpose.Testing:
-				program = new TestingProgram(name, statements);
-				break;
-			case ScriptPurpose.Spending:
-				program = new SpendingProgram(name, statements);
-				break;
-			case ScriptPurpose.Minting:
-				program = new MintingProgram(name, statements);
-				break
-			case ScriptPurpose.Staking:
-				program = new StakingProgram(name, statements);
-				break;
-			default:
-				throw new Error("unhandled script purpose");
-		}
-
-		program.evalTypes();
-
-		return program;
-	}
-
-	/**
-	 * @type {string}
+	 * @type {Word}
 	 */
 	get name() {
-		return this.#name.value;
+		return this.#name;
 	}
 
 	/**
-	 * @type {FuncStatement}
+	 * @type {Statement[]}
 	 */
-	get main() {
-		for (let s of this.#statements) {
-			if (s.name.value == "main" && s instanceof FuncStatement) {	
-				return s;
-			}
-		}
-
-		throw new Error("should've been caught before");
-	}
-
-	/**
-	 * @type {Object.<string, Type>}
-	 */
-	get paramTypes() {
-		/**
-		 * @type {Object.<string, Type>}
-		 */
-		let res = {};
-
-		for (let s of this.#statements) {
-			if (s instanceof ConstStatement) {
-				res[s.name.value] = s.type;
-			}
-		}
-
-		return res;
+	get statements() {
+		return this.#statements;
 	}
 
 	toString() {
@@ -14192,33 +14144,12 @@ export class Program {
 	/**
 	 * @param {GlobalScope} globalScope 
 	 */
-	evalTypesInternal(globalScope) {
+	evalTypes(globalScope) {
 		let scope = new TopScope(globalScope);
 
-		/**
-		 * @type {?FuncStatement}
-		 */
-		let main = null;
-
-		for (let s of this.#statements) {
+		for (let s of this.statements) {
 			s.eval(scope);
-
-			if (s.name.value == "main") {
-				if (!(s instanceof FuncStatement)) {
-					throw s.typeError("'main' isn't a function statement");
-				} else {
-					main = s
-					globalScope.allowMacros();
-					scope.setStrict(false);
-				}
-			}
 		}
-
-		if (main === null) {
-			throw this.#name.referenceError("'main' not found");
-		}
-
-		main.use();
 	}
 
 	/**
@@ -14226,7 +14157,7 @@ export class Program {
 	 * @returns {string}
 	 */
 	cleanSource() {
-		let raw = this.#name.site.src.raw;
+		let raw = this.name.site.src.raw;
 		let n = raw.length;
 
 		let mask = new Uint8Array(n);
@@ -14275,6 +14206,273 @@ export class Program {
 
 		return parts.join("\n");
 	}
+}
+
+class MainModule extends Module {
+	/**
+	 * @param {Word} name 
+	 * @param {Statement[]} statements 
+	 */
+	constructor(name, statements) {
+		super(name, statements);
+	}
+
+	/**
+	 * @type {FuncStatement}
+	 */
+	get main() {
+		for (let s of this.statements) {
+			if (s.name.value == "main" && s instanceof FuncStatement) {	
+				return s;
+			}
+		}
+
+		throw new Error("'main' not found (is a module being used as an entrypoint?)");
+	}
+
+	/**
+	 * @type {Object.<string, Type>}
+	 */
+	get paramTypes() {
+		/**
+		 * @type {Object.<string, Type>}
+		 */
+		let res = {};
+
+		for (let s of this.statements) {
+			if (s instanceof ConstStatement) {
+				res[s.name.value] = s.type;
+			}
+		}
+
+		return res;
+	}
+
+	toStringPre() {
+		let parts = [];
+
+		for (let s of this.statements) {
+			parts.push(s.toString());
+
+			if (s.name.value === "main") {
+				break;
+			}
+		}
+
+		return parts.join("\n");
+	}
+
+	toStringPost() {
+		let mainFound = false;
+
+		let parts = [];
+
+		for (let s of this.statements) {
+			if (mainFound) {
+				parts.push(s.toString());
+			} else {
+				if (s.name.value === "main") {
+					mainFound = true;
+				}
+			}
+		}
+
+		return parts.join("\n");
+	}
+
+	/**
+	 * @param {GlobalScope} globalScope 
+	 */
+	evalTypes(globalScope) {
+		let scope = new TopScope(globalScope);
+
+		/**
+		 * @type {?FuncStatement}
+		 */
+		let main = null;
+
+		for (let s of this.statements) {
+			s.eval(scope);
+
+			if (s.name.value == "main") {
+				if (!(s instanceof FuncStatement)) {
+					throw s.typeError("'main' isn't a function statement");
+				} else {
+					main = s
+
+					globalScope.allowMacros();
+					scope.setStrict(false);
+				}
+			}
+		}
+
+		if (main === null) {
+			throw this.name.site.referenceError("'main' not found");
+		}
+
+		main.use();
+	}
+
+	/**
+	 * Change the literal value of a const statements  
+	 * @param {string} name 
+	 * @param {string | UplcValue} value 
+	 */
+	 changeParam(name, value) {
+		for (let s of this.statements) {
+			if (s instanceof ConstStatement && s.name.value == name) {
+				s.changeValue(value);
+			}
+		}
+
+		throw this.main.referenceError(`param '${name}' not found`);
+	}
+
+	/**
+	 * Doesn't use wrapEntryPoint
+	 * @param {string} name
+	 * @param {number} purpose 
+	 * @returns {UplcValue}
+	 */
+	evalParam(name, purpose) {
+		/**
+		 * @type {Map<string, IR>}
+		 */
+		let map = new Map();
+
+		for (let s of this.statements) {
+			s.toIR(map);
+			if (s.name.value == name) {
+				break;
+			}
+		}
+
+		let ir = assertDefined(map.get(name));
+
+		map.delete(name);
+
+		ir = wrapWithRawFunctions(Program.wrapWithDefinitions(ir, map));
+
+		let irProgram = IRProgram.new(ir, purpose, true, true);
+
+		return new UplcDataValue(irProgram.site, irProgram.data);
+	}
+}
+
+/**
+ * Helios root object
+ */
+export class Program {
+	#preModules;
+	#main;
+	#postModules;
+	#purpose;
+
+	/**
+	 * @param {Module[]} preModules
+	 * @param {MainModule} main
+	 * @param {Module[]} postModules
+	 * @param {number} purpose
+	 */
+	constructor(preModules, main, postModules, purpose) {
+		this.#preModules = preModules;
+		this.#main = main;
+		this.#postModules = postModules;
+		this.#purpose = purpose;
+	}
+
+	/**
+	 * Creates  a new program.
+	 * @param {string} rawSrc 
+	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
+	 * @returns {Program}
+	 */
+	static new(rawSrc, moduleSrcs = []) {
+		let src = new Source(rawSrc);
+
+		let ts = tokenize(src);
+
+		if (ts.length == 0) {
+			throw UserError.syntaxError(src, 0, "empty script");
+		}
+
+		let [purpose, name] = buildScriptPurpose(ts);
+
+		let statements = buildProgramStatements(ts);
+	
+		/**
+		 * @type {Program}
+		 */
+		let program;
+
+		switch (purpose) {
+			case ScriptPurpose.Testing:
+				program = new TestingProgram(name, statements);
+				break;
+			case ScriptPurpose.Spending:
+				program = new SpendingProgram(name, statements);
+				break;
+			case ScriptPurpose.Minting:
+				program = new MintingProgram(name, statements);
+				break
+			case ScriptPurpose.Staking:
+				program = new StakingProgram(name, statements);
+				break;
+			default:
+				throw new Error("unhandled script purpose");
+		}
+
+		program.evalTypes();
+
+		return program;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#main.name.value;
+	}
+
+	/**
+	 * @type {FuncStatement}
+	 */
+	get main() {
+		return this.#main.main;
+	}
+
+	/**
+	 * @type {Object.<string, Type>}
+	 */
+	get paramTypes() {
+		return this.#main.paramTypes;
+	}
+
+	toString() {
+		let parts = this.#preModules.map(m => m.toString());
+
+		parts.push(this.#main.toStringPre());
+
+		parts = parts.concat(this.#postModules.map(m => m.toString()));
+
+		parts.push(this.#main.toStringPost());
+
+		return parts.join("\n");
+	}
+
+	/**
+	 * @param {GlobalScope} globalScope 
+	 */
+	evalTypesInternal(globalScope) {
+		this.#main.evalTypes(globalScope);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	cleanSource() {
+		return this.#main.cleanSource();
+	}
 
 	evalTypes() {
 		throw new Error("not yet implemeneted");
@@ -14287,14 +14485,8 @@ export class Program {
 	 * @returns {Program} - returns 'this' so that changeParam calls can be chained
 	 */
 	changeParam(name, value) {
-		for (let s of this.#statements) {
-			if (s instanceof ConstStatement && s.name.value == name) {
-				s.changeValue(value);
-				return this;
-			}
-		}
-
-		throw this.main.referenceError(`param '${name}' not found`);
+		this.#main.changeParam(name, value);
+		return this;
 	}
 
 	/**
@@ -14360,27 +14552,7 @@ export class Program {
 	 * @returns {UplcValue}
 	 */
 	evalParam(name) {
-		/**
-		 * @type {Map<string, IR>}
-		 */
-		let map = new Map();
-
-		for (let s of this.#statements) {
-			s.toIR(map);
-			if (s.name.value == name) {
-				break;
-			}
-		}
-
-		let ir = assertDefined(map.get(name));
-
-		map.delete(name);
-
-		ir = wrapWithRawFunctions(Program.wrapWithDefinitions(ir, map));
-
-		let irProgram = IRProgram.new(ir, this.#purpose, true, true);
-
-		return new UplcDataValue(irProgram.site, irProgram.data);
+		return this.#main.evalParam(name, this.#purpose);
 	}
 
 	/**
@@ -14726,21 +14898,20 @@ function buildProgramStatements(ts) {
 	while (ts.length != 0) {
 		let t = assertDefined(ts.shift()).assertWord();
 		let kw = t.value;
-		let s;
 
 		if (kw == "const") {
-			s = buildConstStatement(t.site, ts);
+			statements.push(buildConstStatement(t.site, ts));
 		} else if (kw == "struct") {
-			s = buildStructStatement(t.site, ts);
+			statements.push(buildStructStatement(t.site, ts));
 		} else if (kw == "func") {
-			s = buildFuncStatement(t.site, ts);
+			statements.push(buildFuncStatement(t.site, ts));
 		} else if (kw == "enum") {
-			s = buildEnumStatement(t.site, ts);
+			statements.push(buildEnumStatement(t.site, ts));
+		} else if (kw == "import") {
+			statements = statements.concat(buildImportStatements(t.site, ts));
 		} else {
 			throw t.syntaxError(`invalid top-level keyword '${kw}'`);
 		}
-
-		statements.push(s);
 	}
 
 	return statements;
@@ -14766,10 +14937,12 @@ function buildScriptPurpose(ts) {
 		purpose = ScriptPurpose.Staking;
 	} else if (purposeWord.isWord("testing")) { // 'test' is not reserved as a keyword though
 		purpose = ScriptPurpose.Testing;
+	} else if (purposeWord.isWord("module")) {
+		purpose = ScriptPurpose.Module;
 	} else if (purposeWord.isKeyword()) {
 		throw purposeWord.syntaxError(`script purpose missing`);
 	} else {
-		throw purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking' or 'minting')`);
+		throw purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking', 'minting' or 'module')`);
 	}
 
 	let name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
@@ -14804,7 +14977,7 @@ function buildConstStatement(site, ts) {
 	} else {
 		void maybeEquals.assertSymbol("=");
 
-		let nextStatementPos = Word.find(ts, ["const", "func", "struct", "enum"]);
+		let nextStatementPos = Word.find(ts, ["const", "func", "struct", "enum", "import"]);
 
 		let tsValue = nextStatementPos == -1 ? ts.splice(0) : ts.splice(0, nextStatementPos);
 
@@ -15068,6 +15241,78 @@ function buildEnumStatement(site, ts) {
 			}
 
 			return new EnumStatement(site, name, members, impl);
+		}
+	}
+}
+
+/**
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {ImportStatement[]}
+ */
+function buildImportStatements(site, ts) {
+	let maybeBraces = ts.shift();
+
+	if (maybeBraces === undefined) {
+		throw site.syntaxError("expected '{...}' after 'import'");
+	} else {
+		let braces = maybeBraces.assertGroup("{");
+
+		let maybeFrom = ts.shift();
+
+		if (maybeFrom === undefined) {
+			throw maybeBraces.syntaxError("expected 'from' after 'import {...}'");
+		} else {
+			let maybeModuleName = ts.shift();
+
+			if (maybeModuleName === undefined) {
+				throw maybeFrom.syntaxError("expected module name after 'import {...} from'");
+			} else {
+				maybeFrom.assertWord("from");
+				let moduleName = maybeModuleName.assertWord().assertNotKeyword();
+
+				if (braces.fields.length === 0) {
+					throw braces.syntaxError("expected at least 1 import field");
+				}
+
+				return braces.fields.map(fts => {
+					let ts = fts.slice();
+					let maybeOrigName = ts.shift();
+
+					if (maybeOrigName === undefined) {
+						throw braces.syntaxError("empty import field");
+					} else {
+						let origName = maybeOrigName.assertWord();
+						if (ts.length === 0) {
+							return new ImportStatement(site, origName, origName, moduleName);
+						} else {
+						
+							let maybeAs = ts.shift();
+
+							if (maybeAs === undefined) {
+								throw maybeOrigName.syntaxError(`expected 'as' or nothing after '${origName.value}'`);
+							} else {
+								maybeAs.assertWord("as");
+
+								let maybeNewName = ts.shift();
+
+								if (maybeNewName === undefined) {
+									throw maybeAs.syntaxError("expected word after 'as'");
+								} else {
+									let newName = maybeNewName.assertWord();
+
+									let rem = ts.shift();
+									if (rem !== undefined) {
+										throw rem.syntaxError("unexpected");
+									} else {
+										return new ImportStatement(site, newName, origName, moduleName);
+									}
+								}
+							}
+						}
+					}
+				})
+			}
 		}
 	}
 }
@@ -15572,7 +15817,7 @@ function buildChainStartValueExpr(ts) {
 	} else if (Symbol.find(ts, "::") != -1) {
 		return buildValuePathExpr(ts);
 	} else if (ts[0].isWord()) {
-		if (ts[0].isWord("const") || ts[0].isWord("struct") || ts[0].isWord("enum") || ts[0].isWord("func")) {
+		if (ts[0].isWord("const") || ts[0].isWord("struct") || ts[0].isWord("enum") || ts[0].isWord("func") || ts[0].isWord("import")) {
 			throw ts[0].syntaxError(`invalid use of '${ts[0].assertWord().value}', can only be used as top-level statement`);
 		} else {
 			let name = assertDefined(ts.shift()).assertWord();
