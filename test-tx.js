@@ -244,6 +244,49 @@ async function swapSimplified() {
 	console.log(JSON.stringify(tx.dump(), undefined, 4));
 }
 
+async function balanceAssets() {
+	let tx = new helios.Tx();
+
+	tx.addInput(
+		new helios.UTxO(
+			helios.TxId.fromHex("a7090340bd529929043c0d96814bd3f8200e798e194f91f500e500dcad948394"), 1n,
+			new helios.TxOutput(
+				helios.Address.fromHex("00d006eb7783e8c93160b2bab287bc8a6f069e9e690cd82bc0b52a8c31730d805b6a2cf67998f0fcd070ce0b6e85957fd758cf0ae348d265eb"),
+				new helios.Value(9939708590n, new helios.Assets([
+					[
+						helios.MintingPolicyHash.fromHex("1cd7eb4b8635854f55bfaa2651d272264bb82dccdfe67dfb59345520"),
+						[[helios.hexToBytes("47485431"), 99985n]]
+					], [
+						helios.MintingPolicyHash.fromHex("b40c323876955eb432f4360d47d10e647fa6b41081204b0a691cfb89"),
+						[[helios.hexToBytes("544e4331"), 1n]]
+					]
+				]))
+			)
+		)
+	);
+
+	tx.addInput(
+		new helios.UTxO(
+			helios.TxId.fromHex("43cd25ddc7bdb9bf823bb3552713935a79353585ddb67ab89458c2257800ae8b"), 0n,
+			new helios.TxOutput(
+				helios.Address.fromHex("00d006eb7783e8c93160b2bab287bc8a6f069e9e690cd82bc0b52a8c31730d805b6a2cf67998f0fcd070ce0b6e85957fd758cf0ae348d265eb"),
+				new helios.Value(2763219n, new helios.Assets([
+					[
+						helios.MintingPolicyHash.fromHex("b40c323876955eb432f4360d47d10e647fa6b41081204b0a691cfb89"),
+						[[helios.hexToBytes("544e4330"), 1n]]
+					]
+				]))
+			)
+		)
+	);
+
+	let changeAddress = helios.Address.fromHex("10b316d8aa101fc0546af6e00ed0b75050e550dda4442346a8a1239b21730d805b6a2cf67998f0fcd070ce0b6e85957fd758cf0ae348d265eb");
+
+	await tx.finalize(networkParams, changeAddress);
+
+	console.log(JSON.stringify(tx.dump(), undefined, 4));
+}
+
 async function main() {
     await testBasic();
 
@@ -262,6 +305,8 @@ async function main() {
 	await testCancelSwap();
 
 	await swapSimplified();
+
+	await balanceAssets();
 }
 
 main();

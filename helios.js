@@ -2487,6 +2487,32 @@ class IR {
 
 		return [partSrcs.join(""), codeMap];
 	}
+
+	/**
+	 * Wraps 'inner' IR source with some definitions (used for top-level statements and for builtins)
+	 * @param {IR} inner 
+	 * @param {IRDefinitions} definitions - name -> definition
+	 * @returns {IR}
+	 */
+	static wrapWithDefinitions(inner, definitions) {
+		let keys = Array.from(definitions.keys()).reverse();
+
+		let res = inner;
+		for (let key of keys) {
+			let definition = definitions.get(key);
+
+			if (definition === undefined) {
+				throw new Error("unexpected");
+			} else {
+
+				res = new IR([new IR("("), new IR(key), new IR(") -> {\n"),
+					res, new IR(`\n}(\n${TAB}/*${key}*/\n${TAB}`), definition,
+				new IR("\n)")]);
+			}
+		}
+
+		return res;
+	}
 }
 
 /**
@@ -10611,7 +10637,10 @@ class Scope {
 	/** @type {GlobalScope | Scope} */
 	#parent;
 
-	/** @type {[Word, EvalEntity][]} */
+	/** 
+	 * TopScope can elverage the #values to store ModuleScopes
+	 * @type {[Word, (EvalEntity | Scope)][]} 
+	 */
 	#values;
 
 	/**
@@ -10651,7 +10680,7 @@ class Scope {
 	/**
 	 * Sets a named value. Throws an error if not unique
 	 * @param {Word} name 
-	 * @param {EvalEntity} value 
+	 * @param {EvalEntity | Scope} value 
 	 */
 	set(name, value) {
 		if (this.has(name)) {
@@ -10664,17 +10693,20 @@ class Scope {
 	/**
 	 * Gets a named value from the scope. Throws an error if not found
 	 * @param {Word} name 
-	 * @returns {EvalEntity}
+	 * @returns {EvalEntity | Scope}
 	 */
 	get(name) {
 		if (!(name instanceof Word)) {
 			name = Word.new(name);
 		}
 
-		for (let pair of this.#values) {
-			if (pair[0].toString() == name.toString()) {
-				pair[1].markAsUsed();
-				return pair[1];
+		for (let [key, entity] of this.#values) {
+			if (key.toString() == name.toString()) {
+				if (entity instanceof EvalEntity) {
+					entity.markAsUsed();
+				}
+
+				return entity;
 			}
 		}
 
@@ -10709,9 +10741,9 @@ class Scope {
 	 */
 	assertAllUsed(onlyIfStrict = true) {
 		if (!onlyIfStrict || this.isStrict()) {
-			for (let pair of this.#values) {
-				if (!pair[1].isUsed()) {
-					throw pair[0].referenceError(`'${pair[0].toString()}' unused`);
+			for (let [name, entity] of this.#values) {
+				if (entity instanceof EvalEntity && !entity.isUsed()) {
+					throw name.referenceError(`'${name.toString()}' unused`);
 				}
 			}
 		}
@@ -10722,13 +10754,29 @@ class Scope {
 	 * @returns {boolean}
 	 */
 	isUsed(name) {
-		for (let pair of this.#values) {
-			if (pair[0].value == name.value) {
-				return pair[1].isUsed();
+		for (let [name, entity] of this.#values) {
+			if (name.value == name.value && entity instanceof EvalEntity) {
+				return entity.isUsed();
 			}
 		}
 
 		throw new Error(`${name.value} not found`);
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
+	assertType(site) {
+		throw site.typeError("expected a type, got a module");
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {Instance}
+	 */
+	assertValue(site) {
+		throw site.typeError("expected a value, got a module");
 	}
 }
 
@@ -10749,7 +10797,7 @@ class TopScope extends Scope {
 
 	/**
 	 * @param {Word} name 
-	 * @param {EvalEntity} value 
+	 * @param {EvalEntity | Scope} value 
 	 */
 	set(name, value) {
 		super.set(name, value);
@@ -10768,6 +10816,9 @@ class TopScope extends Scope {
 	isStrict() {
 		return this.#strict;
 	}
+}
+
+class ModuleScope extends Scope {
 }
 
 /**
@@ -12122,7 +12173,13 @@ class ValueRefExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let ir = new IR(this.toString(), this.site);
+		let path = this.toString();
+
+		if (this.value instanceof FuncStatementInstance || this.value instanceof ConstStatementInstance) {
+			path = this.value.statement.path;
+		}
+
+		let ir = new IR(path, this.site);
 
 		if (this.#isRecursiveFunc) {
 			ir = new IR([
@@ -13052,6 +13109,7 @@ class SwitchExpr extends ValueExpr {
 class Statement extends Token {
 	#name;
 	#used;
+	#basePath; // set by the parent Module
 
 	/**
 	 * @param {Site} site 
@@ -13061,6 +13119,18 @@ class Statement extends Token {
 		super(site);
 		this.#name = name;
 		this.#used = false;
+		this.#basePath = "__user";
+	}
+
+	/**
+	 * @param {string} basePath 
+	 */
+	setBasePath(basePath) {
+		this.#basePath = basePath;
+	}
+
+	get path() {
+		return `${this.#basePath}__${this.name.toString()}`;
 	}
 
 	/**
@@ -13078,17 +13148,13 @@ class Statement extends Token {
 	}
 
 	/**
-	 * @param {TopScope} scope 
+	 * @param {ModuleScope} scope 
 	 */
 	eval(scope) {
 		throw new Error("not yet implemented");
 	}
 
 	use() {
-		if (!this.#used) {
-			console.log("using " + this.toString());
-		}
-
 		this.#used = true;
 	}
 
@@ -13122,6 +13188,11 @@ class ImportStatement extends Statement {
 	#origName;
 	#moduleName;
 
+	/** 
+	 * @type {?Statement} 
+	 */
+	#origStatement;
+
 	/**
 	 * 
 	 * @param {Site} site 
@@ -13133,6 +13204,66 @@ class ImportStatement extends Statement {
 		super(site, name);
 		this.#origName = origName;
 		this.#moduleName = moduleName;
+		this.#origStatement = null;
+	}
+
+	/**
+	 * @type {Word}
+	 */
+	get moduleName() {
+		return this.#moduleName;
+	}
+
+	/**
+	 * @param {ModuleScope} scope
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		let importedScope = scope.get(this.#moduleName);
+
+		if (importedScope instanceof Scope) {
+			let importedEntity = importedScope.get(this.#origName);
+
+			if (importedEntity instanceof Scope) {
+				throw this.#origName.typeError(`can't import a module from a module`);
+			} else {
+				return importedEntity;
+			}
+		} else {
+			throw this.#moduleName.typeError(`${this.name.toString()} isn't a module`);
+		}
+	}
+
+	/**
+	 * @param {ModuleScope} scope 
+	 */
+	eval(scope) {
+		let v = this.evalInternal(scope);
+
+		if (v instanceof FuncStatementInstance || v instanceof ConstStatementInstance || v instanceof StatementType) {
+			this.#origStatement = v.statement;
+		} else {
+			throw new Error("unexpected import entity");
+		}
+
+		scope.set(this.name, v);
+	}
+
+	use() {
+		super.use();
+
+		if (this.#origStatement === null) {
+			throw new Error("should be set");
+		} else {
+			this.#origStatement.use();
+		}
+	}
+
+	/**
+	 * @param {IRDefinitions} map 
+	 */
+	toIR(map) {
+		// import statements only have a scoping function and don't do anything to the IR
 	}
 }
 
@@ -13140,7 +13271,14 @@ class ImportStatement extends Statement {
  * Const value statement
  */
 class ConstStatement extends Statement {
+	/**
+	 * @type {?TypeExpr}
+	 */
 	#typeExpr;
+
+	/**
+	 * @type {ValueExpr}
+	 */
 	#valueExpr;
 
 	/**
@@ -13221,7 +13359,10 @@ class ConstStatement extends Statement {
 			super.use();
 
 			this.#valueExpr.use();
-			this.#typeExpr.use();
+
+			if (this.#typeExpr !== null) {
+				this.#typeExpr.use();
+			}
 		}
 	}
 
@@ -13236,7 +13377,7 @@ class ConstStatement extends Statement {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		map.set(this.name.toString(), this.toIRInternal());
+		map.set(this.path, this.toIRInternal());
 	}
 }
 
@@ -13396,10 +13537,6 @@ class DataDefinition extends Statement {
 				f.use();
 			}
 		}
-	}
-
-	get path() {
-		return `__user__${this.name.toString()}`;
 	}
 
 	/**
@@ -13635,9 +13772,9 @@ class FuncStatement extends Statement {
 	/**
 	 * Returns IR of function.
 	 * @param {string} fullName - fullName has been prefixed with a type path for impl members
-	 * @returns 
+	 * @returns {IR}
 	 */
-	toIRInternal(fullName = this.name.toString()) {
+	toIRInternal(fullName = this.path) {
 		if (this.#recursive) {
 			return this.#funcExpr.toIRRecursive(fullName, TAB);
 		} else {
@@ -13649,7 +13786,7 @@ class FuncStatement extends Statement {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		map.set(this.name.toString(), this.toIRInternal());
+		map.set(this.path, this.toIRInternal());
 	}
 
 	/**
@@ -13903,10 +14040,6 @@ class EnumStatement extends Statement {
 		this.#impl.hideUnused(mask);
 	}
 
-	get path() {
-		return `__user__${this.name.toString()}`;
-	}
-
 	/**
 	 * @param {IRDefinitions} map 
 	 */
@@ -14110,6 +14243,9 @@ class ImplDefinition {
  * @typedef {Map<string, IR>} IRDefinitions
  */
 
+/**
+ * A Module is a collection of statements
+ */
 class Module {
 	#name;
 	#statements;
@@ -14121,6 +14257,34 @@ class Module {
 	constructor(name, statements) {
 		this.#name = name;
 		this.#statements = statements;
+
+		this.#statements.forEach(s => s.setBasePath(`__module__${this.#name.toString()}`));
+	}
+
+	/**
+	 * @param {string} rawSrc
+	 * @returns {Module}
+	 */
+	static new(rawSrc) {
+		let src = new Source(rawSrc);
+
+		let ts = tokenize(src);
+
+		if (ts.length == 0) {
+			throw UserError.syntaxError(src, 0, "empty script");
+		}
+
+		let [purpose, name] = buildScriptPurpose(ts);
+
+		if (purpose != ScriptPurpose.Module) {
+			throw name.syntaxError("expected 'module' script purpose");
+		} else if (name.value == "main") {
+			throw name.syntaxError("name of 'module' can't be 'main'");
+		}
+
+		let statements = buildProgramStatements(ts);
+
+		return new Module(name, statements);
 	}
 
 	/**
@@ -14134,7 +14298,7 @@ class Module {
 	 * @type {Statement[]}
 	 */
 	get statements() {
-		return this.#statements;
+		return this.#statements.slice();
 	}
 
 	toString() {
@@ -14206,8 +14370,57 @@ class Module {
 
 		return parts.join("\n");
 	}
+
+	/**
+	 * This module can depend on other modules
+	 * TODO: detect circular dependencies
+	 * @param {Module[]} modules 
+	 * @param {Module[]} stack
+	 * @returns {Module[]}
+	 */
+	filterDependencies(modules, stack = []) {
+		/**
+		 * @type {Module[]}
+		 */
+		let deps = [];
+
+		/** @type {Module[]} */
+		let newStack = [this];
+		newStack = newStack.concat(stack);
+
+		for (let s of this.#statements) {
+			if (s instanceof ImportStatement) {
+				let mn = s.moduleName.value;
+
+				if (mn == this.name.value) {
+					throw s.syntaxError("can't import self");
+				} else if (stack.some(d => d.name.value == mn)) {
+					throw s.syntaxError("circular import detected");
+				}
+
+				// if already in deps, then don't add (because it will have been added before along with all its dependencies)
+				if (!deps.some(d => d.name.value == mn)) {
+					let m = modules.find(m => m.name.value == mn);
+
+					if (m === undefined) {
+						throw s.referenceError(`module '${mn}' not found`);
+					} else {
+						// only add deps that weren't added before
+						let newDeps = m.filterDependencies(modules, newStack).concat([m]).filter(d => !deps.some(d_ => d_.name.value == d.name.value));
+
+						deps = deps.concat(newDeps);
+					}
+				}
+			}
+		}
+
+		return deps;
+	}
 }
 
+/**
+ * The entrypoint module
+ */
 class MainModule extends Module {
 	/**
 	 * @param {Word} name 
@@ -14220,142 +14433,18 @@ class MainModule extends Module {
 	/**
 	 * @type {FuncStatement}
 	 */
-	get main() {
+	get mainFunc() {
 		for (let s of this.statements) {
-			if (s.name.value == "main" && s instanceof FuncStatement) {	
-				return s;
+			if (s.name.value == "main") {
+				if (!(s instanceof FuncStatement)) {	
+					throw s.typeError("'main' isn't a function statement");
+				} else {
+					return s;
+				}
 			}
 		}
 
 		throw new Error("'main' not found (is a module being used as an entrypoint?)");
-	}
-
-	/**
-	 * @type {Object.<string, Type>}
-	 */
-	get paramTypes() {
-		/**
-		 * @type {Object.<string, Type>}
-		 */
-		let res = {};
-
-		for (let s of this.statements) {
-			if (s instanceof ConstStatement) {
-				res[s.name.value] = s.type;
-			}
-		}
-
-		return res;
-	}
-
-	toStringPre() {
-		let parts = [];
-
-		for (let s of this.statements) {
-			parts.push(s.toString());
-
-			if (s.name.value === "main") {
-				break;
-			}
-		}
-
-		return parts.join("\n");
-	}
-
-	toStringPost() {
-		let mainFound = false;
-
-		let parts = [];
-
-		for (let s of this.statements) {
-			if (mainFound) {
-				parts.push(s.toString());
-			} else {
-				if (s.name.value === "main") {
-					mainFound = true;
-				}
-			}
-		}
-
-		return parts.join("\n");
-	}
-
-	/**
-	 * @param {GlobalScope} globalScope 
-	 */
-	evalTypes(globalScope) {
-		let scope = new TopScope(globalScope);
-
-		/**
-		 * @type {?FuncStatement}
-		 */
-		let main = null;
-
-		for (let s of this.statements) {
-			s.eval(scope);
-
-			if (s.name.value == "main") {
-				if (!(s instanceof FuncStatement)) {
-					throw s.typeError("'main' isn't a function statement");
-				} else {
-					main = s
-
-					globalScope.allowMacros();
-					scope.setStrict(false);
-				}
-			}
-		}
-
-		if (main === null) {
-			throw this.name.site.referenceError("'main' not found");
-		}
-
-		main.use();
-	}
-
-	/**
-	 * Change the literal value of a const statements  
-	 * @param {string} name 
-	 * @param {string | UplcValue} value 
-	 */
-	 changeParam(name, value) {
-		for (let s of this.statements) {
-			if (s instanceof ConstStatement && s.name.value == name) {
-				s.changeValue(value);
-			}
-		}
-
-		throw this.main.referenceError(`param '${name}' not found`);
-	}
-
-	/**
-	 * Doesn't use wrapEntryPoint
-	 * @param {string} name
-	 * @param {number} purpose 
-	 * @returns {UplcValue}
-	 */
-	evalParam(name, purpose) {
-		/**
-		 * @type {Map<string, IR>}
-		 */
-		let map = new Map();
-
-		for (let s of this.statements) {
-			s.toIR(map);
-			if (s.name.value == name) {
-				break;
-			}
-		}
-
-		let ir = assertDefined(map.get(name));
-
-		map.delete(name);
-
-		ir = wrapWithRawFunctions(Program.wrapWithDefinitions(ir, map));
-
-		let irProgram = IRProgram.new(ir, purpose, true, true);
-
-		return new UplcDataValue(irProgram.site, irProgram.data);
 	}
 }
 
@@ -14363,31 +14452,23 @@ class MainModule extends Module {
  * Helios root object
  */
 export class Program {
-	#preModules;
-	#main;
-	#postModules;
 	#purpose;
-
+	#modules;
+	
 	/**
-	 * @param {Module[]} preModules
-	 * @param {MainModule} main
-	 * @param {Module[]} postModules
 	 * @param {number} purpose
+	 * @param {Module[]} modules
 	 */
-	constructor(preModules, main, postModules, purpose) {
-		this.#preModules = preModules;
-		this.#main = main;
-		this.#postModules = postModules;
+	constructor(purpose, modules) {
 		this.#purpose = purpose;
+		this.#modules = modules;
 	}
 
 	/**
-	 * Creates  a new program.
 	 * @param {string} rawSrc 
-	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
-	 * @returns {Program}
+	 * @returns {[purpose, Module[]]}
 	 */
-	static new(rawSrc, moduleSrcs = []) {
+	static parseMain(rawSrc) {
 		let src = new Source(rawSrc);
 
 		let ts = tokenize(src);
@@ -14398,7 +14479,81 @@ export class Program {
 
 		let [purpose, name] = buildScriptPurpose(ts);
 
+		if (name.value === "main") {
+			throw name.site.syntaxError("script can't be named 'main'");
+		}
+
 		let statements = buildProgramStatements(ts);
+
+		let mainIdx = statements.findIndex(s => s.name.value === "main");
+
+		if (mainIdx == -1) {
+			throw name.site.syntaxError("'main' not found");
+		}
+
+		/**
+		 * @type {Module[]}
+		 */
+		let modules = [new MainModule(name, statements.slice(0, mainIdx+1))];
+
+		if (mainIdx < statements.length - 1) {
+			modules.push(new Module(name, statements.slice(mainIdx+1)));
+		}
+
+		return [purpose, modules];
+	}
+
+	/**
+	 * 
+	 * @param {string} mainName 
+	 * @param {string[]} moduleSrcs
+	 * @returns {Module[]}
+	 */
+	static parseImports(mainName, moduleSrcs = []) {
+		let imports = moduleSrcs.map(src => Module.new(src));
+
+		/**
+		 * @type {Set<string>}
+		 */
+		let names = new Set();
+
+		names.add(mainName);
+
+		for (let m of imports) {
+			if (names.has(m.name.value)) {
+				throw m.name.syntaxError(`non-unique module name ${m.name.value}`);
+			}
+
+			names.add(m.name.value);
+		}
+
+		return imports;
+	}
+
+	/**
+	 * Creates  a new program.
+	 * @param {string} mainSrc 
+	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
+	 * @returns {Program}
+	 */
+	static new(mainSrc, moduleSrcs = []) {
+		let [purpose, modules] = Program.parseMain(mainSrc);
+
+		let site = modules[0].name.site;
+
+		let imports = Program.parseImports(modules[0].name.value, moduleSrcs);
+		
+		let mainImports = modules[0].filterDependencies(imports);
+
+		/** @type {Module[]} */
+		let postImports = [];
+
+		if (modules.length > 1) {
+			postImports = modules[modules.length - 1].filterDependencies(imports).filter(m => !mainImports.some(d => d.name.value == m.name.value));
+		}
+
+		// create the final order of all the modules (this is the order in which statements will be added to the IR)
+		modules = mainImports.concat([modules[0]]).concat(postImports).concat(modules.slice(1));
 	
 		/**
 		 * @type {Program}
@@ -14407,17 +14562,19 @@ export class Program {
 
 		switch (purpose) {
 			case ScriptPurpose.Testing:
-				program = new TestingProgram(name, statements);
+				program = new TestingProgram(modules);
 				break;
 			case ScriptPurpose.Spending:
-				program = new SpendingProgram(name, statements);
+				program = new SpendingProgram(modules);
 				break;
 			case ScriptPurpose.Minting:
-				program = new MintingProgram(name, statements);
+				program = new MintingProgram(modules);
 				break
 			case ScriptPurpose.Staking:
-				program = new StakingProgram(name, statements);
-				break;
+				program = new StakingProgram(modules);
+				break
+			case ScriptPurpose.Module:
+				throw site.syntaxError("can't use module for main");
 			default:
 				throw new Error("unhandled script purpose");
 		}
@@ -14427,55 +14584,179 @@ export class Program {
 		return program;
 	}
 
+	/** 
+	 * @type {Module[]} 
+	 */
+	get mainImportedModules() {
+		/** @type {Module[]} */
+		let ms = [];
+
+		for (let m of this.#modules) {
+			if (m instanceof MainModule) {
+				break;
+			} else {
+				ms.push(m);
+			}
+		}
+
+		return ms;
+	}
+
+	/**
+	 * @type {MainModule}
+	 */
+	get mainModule() {
+		for (let m of this.#modules) {
+			if (m instanceof MainModule) {
+				return m;
+			}
+		}
+
+		throw new Error("MainModule not found");
+	}
+
+	/**
+	 * @type {?Module}
+	 */
+	get postModule() {
+		let m = this.#modules[this.#modules.length - 1];
+
+		if (m instanceof MainModule) {
+			return null;
+		} else {
+			return m;
+		}
+	}
+
 	/**
 	 * @type {string}
 	 */
 	get name() {
-		return this.#main.name.value;
+		return this.mainModule.name.value;
 	}
 
 	/**
 	 * @type {FuncStatement}
 	 */
-	get main() {
-		return this.#main.main;
+	get mainFunc() {
+		return this.mainModule.mainFunc;
 	}
 
 	/**
-	 * @type {Object.<string, Type>}
+	 * @type {string}
 	 */
-	get paramTypes() {
-		return this.#main.paramTypes;
+	get mainPath() {
+		return this.mainFunc.path;
 	}
 
+	/**
+	 * Needed to list the paramTypes, and to call changeParam
+	 * @type {Statement[]}
+	 */
+	get mainAndPostStatements() {
+		let statements = this.mainModule.statements;
+
+		if (this.postModule != null) {
+			statements = statements.concat(this.postModule.statements);
+		}
+
+		return statements;
+	}
+
+	/**
+	 * @type {[Statement, boolean][]} - boolean value marks if statement is import or not
+	 */
+	get allStatements() {
+		/**
+		 * @type {[Statement, boolean][]}
+		 */
+		let statements = [];
+
+		for (let i = 0; i < this.#modules.length; i++) {
+			let m = this.#modules[i];
+
+			let isImport = !(m instanceof MainModule || (i == this.#modules.length - 1));
+
+			statements = statements.concat(m.statements.map(s => [s, isImport]));
+		}
+
+		return statements;
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		let parts = this.#preModules.map(m => m.toString());
+		return this.#modules.map(m => m.toString()).join("\n");
+	}
 
-		parts.push(this.#main.toStringPre());
-
-		parts = parts.concat(this.#postModules.map(m => m.toString()));
-
-		parts.push(this.#main.toStringPost());
-
-		return parts.join("\n");
+	/**
+	 * @returns {[string[], string]}
+	 */
+	cleanSource() {
+		return [this.mainImportedModules.map(m => m.cleanSource()), this.mainModule.cleanSource()];
 	}
 
 	/**
 	 * @param {GlobalScope} globalScope 
 	 */
 	evalTypesInternal(globalScope) {
-		this.#main.evalTypes(globalScope);
-	}
+		let topScope = new TopScope(globalScope);
 
-	/**
-	 * @returns {string}
-	 */
-	cleanSource() {
-		return this.#main.cleanSource();
+		// loop through the modules
+
+		for (let i = 0; i < this.#modules.length; i++) {
+			let m = this.#modules[i];
+			let moduleScope = new ModuleScope(topScope);
+
+			// resuse main ModuleScope for post module
+			if (m ===  this.postModule) {
+				let maybeModuleScope = topScope.get(this.mainModule.name);
+				if (maybeModuleScope instanceof ModuleScope) {
+					moduleScope = maybeModuleScope;
+				} else {
+					throw new Error("unexpected");
+				}
+			}
+
+			for (let s of m.statements) {
+				s.eval(moduleScope);
+			}
+
+			if (m instanceof MainModule) {
+				globalScope.allowMacros();
+				topScope.setStrict(false);
+			}
+
+			// don't add the last module as it won't be used
+			if (i < this.#modules.length - 1) {
+				topScope.set(m.name, moduleScope);
+			}
+		}
+
+		this.mainFunc.use();
 	}
 
 	evalTypes() {
 		throw new Error("not yet implemeneted");
+	}
+
+	/**
+	 * @type {Object.<string, Type>}
+	 */
+	 get paramTypes() {
+		/**
+		 * @type {Object.<string, Type>}
+		 */
+		let res = {};
+
+		for (let s of this.mainAndPostStatements) {
+			if (s instanceof ConstStatement) {
+				res[s.name.value] = s.type;
+			}
+		}
+
+		return res;
 	}
 
 	/**
@@ -14485,35 +14766,53 @@ export class Program {
 	 * @returns {Program} - returns 'this' so that changeParam calls can be chained
 	 */
 	changeParam(name, value) {
-		this.#main.changeParam(name, value);
-		return this;
-	}
-
-	/**
-	 * Wraps 'inner' IR source with some definitions (used for top-level statements and for builtins)
-	 * @param {IR} inner 
-	 * @param {IRDefinitions} definitions - name -> definition
-	 * @returns {IR}
-	 */
-	// map: name -> definition
-	static wrapWithDefinitions(inner, definitions) {
-		let keys = Array.from(definitions.keys()).reverse();
-
-		let res = inner;
-		for (let key of keys) {
-			let definition = definitions.get(key);
-
-			if (definition === undefined) {
-				throw new Error("unexpected");
-			} else {
-
-				res = new IR([new IR("("), new IR(key), new IR(") -> {\n"),
-					res, new IR(`\n}(\n${TAB}/*${key}*/\n${TAB}`), definition,
-				new IR("\n)")]);
+		for (let s of this.mainAndPostStatements) {
+			if (s instanceof ConstStatement && s.name.value == name) {
+				s.changeValue(value);
+				return;
 			}
 		}
 
-		return res;
+		throw this.mainFunc.referenceError(`param '${name}' not found`);
+	}
+
+	/**
+	 * Doesn't use wrapEntryPoint
+	 * @param {string} name 
+	 * @returns {UplcValue}
+	 */
+	evalParam(name) {
+		/**
+		 * @type {Map<string, IR>}
+		 */
+		let map = new Map();
+
+		/** @type {?ConstStatement} */
+		let constStatement = null;
+
+		for (let [s, isImport] of this.allStatements) {
+			s.toIR(map);
+			if (s.name.value == name && s instanceof ConstStatement && !isImport) {
+				constStatement = s;
+				break;
+			}
+		}
+
+		if (constStatement === null) {
+			throw new Error(`param '${name}' not found`);
+		} else {
+			let path = constStatement.path;
+
+			let ir = assertDefined(map.get(path));
+
+			map.delete(path);
+
+			ir = wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
+
+			let irProgram = IRProgram.new(ir, this.#purpose, true, true);
+
+			return new UplcDataValue(irProgram.site, irProgram.data);
+		}
 	}
 
 	/**
@@ -14526,7 +14825,7 @@ export class Program {
 		 */
 		 let map = new Map();
 
-		 for (let statement of this.#statements) {
+		 for (let [statement, _] of this.allStatements) {
 			 statement.toIR(map);
 
 			 if (statement.name.value == "main") {
@@ -14536,7 +14835,7 @@ export class Program {
  
 		 // builtin functions are added when the IR program is built
 		 // also replace all tabs with four spaces
-		 return wrapWithRawFunctions(Program.wrapWithDefinitions(ir, map));
+		 return wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
 	}
 
 	/**
@@ -14547,12 +14846,14 @@ export class Program {
 	}
 
 	/**
-	 * Doesn't use wrapEntryPoint
-	 * @param {string} name 
-	 * @returns {UplcValue}
+	 * @returns {string}
 	 */
-	evalParam(name) {
-		return this.#main.evalParam(name, this.#purpose);
+	prettyIR(simplify = false) {
+		let ir = this.toIR();
+
+		let irProgram = IRProgram.new(ir, this.#purpose, simplify);
+
+		return new Source(irProgram.toString()).pretty();
 	}
 
 	/**
@@ -14572,12 +14873,11 @@ export class Program {
 
 class RedeemerProgram extends Program {
 	/**
-	 * @param {Word} name 
-	 * @param {Statement[]} statements 
 	 * @param {number} purpose
+	 * @param {Module[]} modules 
 	 */
-	constructor(name, statements, purpose) {
-		super(name, statements, purpose);
+	constructor(purpose, modules) {
+		super(purpose, modules);
 	}
 
 	/**
@@ -14588,7 +14888,7 @@ class RedeemerProgram extends Program {
 
 		// check the 'main' function
 
-		let main = this.main;
+		let main = this.mainFunc;
 		let argTypes = main.argTypes;
 		let retType = main.retType;
 		let haveRedeemer = false;
@@ -14632,7 +14932,7 @@ class RedeemerProgram extends Program {
 		/** @type {IR[]} */
 		let innerArgs = [];
 
-		for (let t of this.main.argTypes) {
+		for (let t of this.mainFunc.argTypes) {
 			if (t.toString() == "Redeemer") {
 				innerArgs.push(new IR("redeemer"));
 				outerArgs.push(new IR("redeemer"));
@@ -14655,7 +14955,7 @@ class RedeemerProgram extends Program {
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}main(`),
+			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
@@ -14667,12 +14967,11 @@ class RedeemerProgram extends Program {
 
 class DatumRedeemerProgram extends Program {
 	/**
-	 * @param {Word} name 
-	 * @param {Statement[]} statements 
 	 * @param {number} purpose
+	 * @param {Module[]} modules
 	 */
-	constructor(name, statements, purpose) {
-		super(name, statements, purpose);
+	constructor(purpose, modules) {
+		super(purpose, modules);
 	}
 
 	/**
@@ -14683,7 +14982,7 @@ class DatumRedeemerProgram extends Program {
 
 		// check the 'main' function
 
-		let main = this.main;
+		let main = this.mainFunc;
 		let argTypes = main.argTypes;
 		let retType = main.retType;
 		let haveDatum = false;
@@ -14738,7 +15037,7 @@ class DatumRedeemerProgram extends Program {
 		/** @type {IR[]} */
 		let innerArgs = [];
 
-		for (let t of this.main.argTypes) {
+		for (let t of this.mainFunc.argTypes) {
 			if (t.toString() == "Datum") {
 				innerArgs.push(new IR("datum"));
 				outerArgs.push(new IR("datum"));
@@ -14767,7 +15066,7 @@ class DatumRedeemerProgram extends Program {
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}main(`),
+			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
@@ -14779,11 +15078,10 @@ class DatumRedeemerProgram extends Program {
 
 class TestingProgram extends Program {
 	/**
-	 * @param {Word} name 
-	 * @param {Statement[]} statements 
+	 * @param {Module[]} modules 
 	 */
-	constructor(name, statements) {
-		super(name, statements, ScriptPurpose.Testing);
+	constructor(modules) {
+		super(ScriptPurpose.Testing, modules);
 	}
 
 	toString() {
@@ -14802,14 +15100,14 @@ class TestingProgram extends Program {
 	 * @returns {IR}
 	 */
 	toIR() {
-		let args = this.main.argTypes.map((_, i) => new IR(`arg${i}`));
+		let args = this.mainFunc.argTypes.map((_, i) => new IR(`arg${i}`));
 
 		let ir = new IR([
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(args).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
 			new IR([
-				new IR("main("),
+				new IR(`${this.mainPath}(`),
 				new IR(args).join(", "),
 				new IR(")"),
 			]),
@@ -14822,11 +15120,10 @@ class TestingProgram extends Program {
 
 class SpendingProgram extends DatumRedeemerProgram {
 	/**
-	 * @param {Word} name 
-	 * @param {Statement[]} statements 
+	 * @param {Module[]} modules
 	 */
-	constructor(name, statements) {
-		super(name, statements, ScriptPurpose.Spending);
+	constructor(modules) {
+		super(ScriptPurpose.Spending, modules);
 	}
 
 	toString() {
@@ -14842,11 +15139,10 @@ class SpendingProgram extends DatumRedeemerProgram {
 
 class MintingProgram extends RedeemerProgram {
 	/**
-	 * @param {Word} name 
-	 * @param {Statement[]} statements 
+	 * @param {Module[]} modules 
 	 */
-	constructor(name, statements) {
-		super(name, statements, ScriptPurpose.Minting);
+	constructor(modules) {
+		super(ScriptPurpose.Minting, modules);
 	}
 
 	toString() {
@@ -14862,11 +15158,10 @@ class MintingProgram extends RedeemerProgram {
 
 class StakingProgram extends RedeemerProgram {
 	/**
-	 * @param {Word} name 
-	 * @param {Statement[]} statements 
+	 * @param {Module[]} modules 
 	 */
-	constructor(name, statements) {
-		super(name, statements, ScriptPurpose.Staking);
+	constructor(modules) {
+		super(ScriptPurpose.Staking, modules);
 	}
 
 	toString() {
@@ -22152,7 +22447,7 @@ function wrapWithRawFunctions(ir) {
 		}
 	}
 
-	return Program.wrapWithDefinitions(ir, map);
+	return IR.wrapWithDefinitions(ir, map);
 }
 
 
