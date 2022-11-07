@@ -1,5 +1,8 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/11/06
+* Modules functionality with `import`
+
 # 2022/10/30
 * Added `TxRefInput` export
 

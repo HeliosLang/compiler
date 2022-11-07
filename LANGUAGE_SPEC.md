@@ -1,7 +1,7 @@
 # Grammar
-Program ::= ProgramType Statement (Statement)*
+Program ::= ScriptPurpose Statement (Statement)*
 
-ProgramType ::= ('test' | 'minting_policy' | 'validator') Word
+ScriptPurpose ::= ('testing' | 'minting' | 'spending' | 'staking' | 'module') Word
 
 Statement ::= ImportStatement | ConstStatement | StructStatement | FuncStatement | EnumStatement
 
