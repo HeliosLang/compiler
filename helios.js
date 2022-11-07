@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.8
+// Version:     0.8.9
 // Last update: October 2022
 // License:     Unlicense
 //
@@ -201,7 +201,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.8"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.9"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -11887,16 +11887,23 @@ class NameTypePair {
 		this.#typeExpr = typeExpr;
 	}
 
+	/**
+	 * @type {Site}
+	 */
 	get site() {
 		return this.#name.site;
 	}
 
+	/**
+	 * @type {Word}
+	 */
 	get name() {
 		return this.#name;
 	}
 
 	/**
 	 * Throws an error if called before evalType()
+	 * @type {Type}
 	 */
 	get type() {
 		if (this.#typeExpr === null) {
@@ -11904,6 +11911,13 @@ class NameTypePair {
 		} else {
 			return this.#typeExpr.type;
 		}
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get typeName() {
+		return this.#typeExpr.toString();
 	}
 
 	toString() {
@@ -11972,18 +11986,37 @@ class FuncLiteralExpr extends ValueExpr {
 		this.#bodyExpr = bodyExpr;
 	}
 
+	/**
+	 * @type {Type[]}
+	 */
 	get argTypes() {
 		return this.#args.map(a => a.type);
 	}
 
+	/**
+	 * @type {string[]}
+	 */
+	get argTypeNames() {
+		return this.#args.map(a => a.typeName)
+	}
+
+	/**
+	 * @type {Type}
+	 */
 	get retType() {
 		return this.#retTypeExpr.type;
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isLiteral() {
 		return true;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `(${this.#args.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
 	}
@@ -13704,10 +13737,23 @@ class FuncStatement extends Statement {
 		this.#recursive = false;
 	}
 
+	/**
+	 * @type {Type[]}
+	 */
 	get argTypes() {
 		return this.#funcExpr.argTypes;
 	}
 
+	/**
+	 * @type {string[]}
+	 */
+	get argTypeNames() {
+		return this.#funcExpr.argTypeNames;
+	}
+
+	/**
+	 * @type {Type}
+	 */
 	get retType() {
 		return this.#funcExpr.retType;
 	}
@@ -14889,18 +14935,16 @@ class RedeemerProgram extends Program {
 		// check the 'main' function
 
 		let main = this.mainFunc;
-		let argTypes = main.argTypes;
+		let argTypeNames = main.argTypeNames;
 		let retType = main.retType;
 		let haveRedeemer = false;
 		let haveScriptContext = false;
 
-		if (argTypes.length > 2) {
+		if (argTypeNames.length > 2) {
 			throw main.typeError("too many arguments for main");
 		}
 
-		for (let arg of argTypes) {
-			let t = arg.toString();
-
+		for (let t of argTypeNames) {
 			if (t == "Redeemer") {
 				if (haveRedeemer) {
 					throw main.typeError(`duplicate 'Redeemer' argument`);
@@ -14916,7 +14960,7 @@ class RedeemerProgram extends Program {
 					haveScriptContext = true;
 				}
 			} else {
-				throw main.typeError(`illegal argument type, must be 'Redeemer' or 'ScriptContext'`);
+				throw main.typeError(`illegal argument type, must be 'Redeemer' or 'ScriptContext', got '${t}'`);
 			}
 		}
 
@@ -14932,11 +14976,11 @@ class RedeemerProgram extends Program {
 		/** @type {IR[]} */
 		let innerArgs = [];
 
-		for (let t of this.mainFunc.argTypes) {
-			if (t.toString() == "Redeemer") {
+		for (let t of this.mainFunc.argTypeNames) {
+			if (t == "Redeemer") {
 				innerArgs.push(new IR("redeemer"));
 				outerArgs.push(new IR("redeemer"));
-			} else if (t.toString() == "ScriptContext") {
+			} else if (t == "ScriptContext") {
 				innerArgs.push(new IR("ctx"));
 				if (outerArgs.length == 0) {
 					outerArgs.push(new IR("_"));
@@ -14983,19 +15027,17 @@ class DatumRedeemerProgram extends Program {
 		// check the 'main' function
 
 		let main = this.mainFunc;
-		let argTypes = main.argTypes;
+		let argTypeNames = main.argTypeNames;
 		let retType = main.retType;
 		let haveDatum = false;
 		let haveRedeemer = false;
 		let haveScriptContext = false;
 
-		if (argTypes.length > 3) {
+		if (argTypeNames.length > 3) {
 			throw main.typeError("too many arguments for main");
 		}
 
-		for (let arg of argTypes) {
-			let t = arg.toString();
-			
+		for (let t of argTypeNames) {
 			if (t == "Datum") {
 				if (haveDatum) {
 					throw main.typeError("duplicate 'Datum' argument");
@@ -15021,7 +15063,7 @@ class DatumRedeemerProgram extends Program {
 					haveScriptContext = true;
 				}
 			} else {
-				throw main.typeError("illegal argument type, must be 'Datum', 'Redeemer' or 'ScriptContext'");
+				throw main.typeError(`illegal argument type, must be 'Datum', 'Redeemer' or 'ScriptContext', got '${t}'`);
 			}
 		}
 
@@ -15037,17 +15079,17 @@ class DatumRedeemerProgram extends Program {
 		/** @type {IR[]} */
 		let innerArgs = [];
 
-		for (let t of this.mainFunc.argTypes) {
-			if (t.toString() == "Datum") {
+		for (let t of this.mainFunc.argTypeNames) {
+			if (t == "Datum") {
 				innerArgs.push(new IR("datum"));
 				outerArgs.push(new IR("datum"));
-			} else if (t.toString() == "Redeemer") {
+			} else if (t == "Redeemer") {
 				innerArgs.push(new IR("redeemer"));
 				if (outerArgs.length == 0) {
 					outerArgs.push(new IR("_"));
 				}
 				outerArgs.push(new IR("redeemer"));
-			} else if (t.toString() == "ScriptContext") {
+			} else if (t == "ScriptContext") {
 				innerArgs.push(new IR("ctx"));
 				while (outerArgs.length < 2) {
 					outerArgs.push(new IR("_"));
