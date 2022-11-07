@@ -31,7 +31,7 @@ ImplMember ::= ConstStatement | FuncStatement
 
 ConstStatement ::= 'const' Identifier [':' TypeExpr] '=' ValueExpr
 
-FuncStatement ::= 'func' Identifier '(' [FuncArg (',' FuncArg)*] ')' '->' TypeExpr '{' ValueExpr '}'
+FuncStatement ::= 'func' Identifier '(' [('self' | FuncArg) (',' FuncArg)*] ')' '->' TypeExpr '{' ValueExpr '}'
 
 FuncArg ::= NameTypePair
 
