@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as helios from "./helios.js";
 
-function test1() {
+async function test1() {
     const src = `spending always_true
     func bytearrayToAddress(bytes: ByteArray) -> Address {   // bytes = #... must be 28 bytes long
         Address::new(Credential::new_pubkey(PubKeyHash::new(bytes)), Option[StakingCredential]::None)
@@ -25,7 +25,7 @@ function test1() {
     helios.Program.new(src);
 }
 
-function test2() {
+async function test2() {
     const src = `spending testing
 
     struct Datum {
@@ -73,10 +73,32 @@ function test2() {
     console.log(program.cleanSource());
 }
 
-function main() {
-    test1();
+async function test3() {
+  const src = `
+  testing bool_struct
 
-    test2();
+  struct MyStruct {
+    b: Bool
+    s: String
+  }
+
+  func main() -> Bool {
+    s = MyStruct{b: true, s: "asdasd"};
+    s.b
+  } 
+  `
+
+  let program = helios.Program.new(src).compile();
+
+  console.log((await program.run([])).toString());
+}
+
+async function main() {
+    await test1();
+
+    await test2();
+
+    await test3();
 }
 
 main();

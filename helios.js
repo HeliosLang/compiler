@@ -6,8 +6,8 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.9
-// Last update: October 2022
+// Version:     0.8.10
+// Last update: November 2022
 // License:     Unlicense
 //
 //
@@ -201,7 +201,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.9"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.10"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -11630,11 +11630,11 @@ class StructLiteralExpr extends ValueExpr {
 	toIR(indent = "") {
 		let res = new IR("__core__mkNilData(())");
 
-		let fields = this.#fields.slice().reverse();
+		let fields = this.#fields.slice();
 
 		let instance = Instance.new(this.#typeExpr.type);
 
-		for (let i = 0; i < fields.length; i++) {
+		for (let i = fields.length - 1; i >= 0; i--) {
 			let f = fields[i];
 
 			let isBool = instance.getFieldType(f.site, i) instanceof BoolType;
