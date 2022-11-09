@@ -6543,7 +6543,7 @@ export class UplcProgram {
 	 * Returns 1 for PlutusScriptV1, 2 for PlutusScriptV2
 	 * @returns {number}
 	 */
-	 versionTag() {
+	versionTag() {
 		let v = this.plutusScriptVersion();
 
 		switch (v) {
@@ -6747,7 +6747,7 @@ export class UplcProgram {
 	 * Returns the Cbor encoding of a script (flat bytes wrapped twice in Cbor bytearray)
 	 * @returns {number[]}
 	 */
-	 toCbor() {
+	toCbor() {
 		return CborData.encodeBytes(CborData.encodeBytes(this.serializeBytes()));
 	}
 
@@ -6795,7 +6795,7 @@ export class UplcProgram {
 	 * @param {number[]} bytes 
 	 * @returns {UplcProgram}
 	 */
-	 static fromCbor(bytes) {
+	static fromCbor(bytes) {
 		return deserializeUplcBytes(CborData.decodeBytes(CborData.decodeBytes(bytes)));
 	}
 }

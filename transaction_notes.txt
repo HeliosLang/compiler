@@ -18,7 +18,7 @@ TransactionBody ::= { // object
     ?certs: Certificates, // 4, not yet implemented
     ?withdrawals: Withdrawals, // 5, not yet implemented
     ?update: Update, // 6, probably not needed
-    ?auxiliary_data_hash: AuxiliaryDataHash, // 7, probably not needed
+    ?auxiliary_data_hash: AuxiliaryDataHash,
     ?validity_start_interval: Slot, // 8, time range start? neg inf if ommited?
     ?mint: Mint, // 9, same as Value map? appears yes
     ?script_data_hash: ScriptDataHash, // 11, ??
