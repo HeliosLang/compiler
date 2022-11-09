@@ -24891,8 +24891,8 @@ export class Tx extends CborData {
 	 */
 	#validFrom;
 
-  /** @type {?TxMetadata} */
-  #metadata;
+	/** @type {?TxMetadata} */
+	#metadata;
 
 	constructor() {
 		super();
@@ -24961,8 +24961,8 @@ export class Tx extends CborData {
 		assert(n == 4);
 		assert(bytes.length == 0);
 
-    return tx;
-  }
+		return tx;
+	}
 
 	/**
 	 * @returns {Object}
@@ -25395,18 +25395,18 @@ export class Tx extends CborData {
 	async finalize(networkParams, changeAddress, spareUtxos = []) {
 		assert(!this.#valid);
 
-    if (this.#metadata !== null) {
-      // Calculate the AuxData hash and add to the TxBody
-      this.#body.setAuxiliaryDataHash(
-        new Hash(Crypto.blake2b(this.#metadata.toCbor()))
-      );
-    }
+		if (this.#metadata !== null) {
+			// Calculate the AuxData hash and add to the TxBody
+			this.#body.setAuxiliaryDataHash(
+				new Hash(Crypto.blake2b(this.#metadata.toCbor()))
+			);
+		}
 
-    if (this.#validTo !== null) {
-      this.#body.validTo(
-        networkParams.timeToSlot(BigInt(this.#validTo.getTime()))
-      );
-    }
+		if (this.#validTo !== null) {
+			this.#body.validTo(
+				networkParams.timeToSlot(BigInt(this.#validTo.getTime()))
+			);
+		}
 
 		if (this.#validFrom !== null) {
 			this.#body.validFrom(networkParams.timeToSlot(BigInt(this.#validFrom.getTime())));
@@ -25703,7 +25703,7 @@ class TxBody extends CborData {
 				case 6:
 					throw new Error("not yet implemented");
 				case 7:
-          txBody.#auxiliaryDataHash = Hash.fromCbor(fieldBytes);
+					txBody.#auxiliaryDataHash = Hash.fromCbor(fieldBytes);
 				case 8:
 					txBody.#firstValidSlot = CborData.decodeInteger(fieldBytes);
 					break;
@@ -25762,7 +25762,7 @@ class TxBody extends CborData {
 			lastValidSlot: this.#lastValidSlot === null ? null : this.#lastValidSlot.toString(),
 			firstValidSlot: this.#firstValidSlot === null ? null : this.#firstValidSlot.toString(),
 			minted: this.#minted.isZero() ? null : this.#minted.dump(),
-      auxDataHash:
+			auxDataHash:
 				this.#auxiliaryDataHash === null
 					? null
 					: this.#auxiliaryDataHash.dump(),
@@ -25948,20 +25948,20 @@ class TxBody extends CborData {
 		this.#scriptDataHash = scriptDataHash;
 	}
 
-  /**
-   * @param {Hash} metadataHash
-   */
-  setAuxiliaryDataHash(metadataHash) {
-    this.#auxiliaryDataHash = metadataHash;
-  }
+	/**
+	 * @param {Hash} metadataHash
+	 */
+	setAuxiliaryDataHash(metadataHash) {
+		this.#auxiliaryDataHash = metadataHash;
+	}
 
-  /**
-   * Calculates the number of dummy signatures needed to get precisely the right tx size
-   * @returns {number}
-   */
-  countUniqueSigners() {
-    /** @type {Set<PubKeyHash>} */
-    let set = new Set();
+	/**
+	 * Calculates the number of dummy signatures needed to get precisely the right tx size
+	 * @returns {number}
+	 */
+	countUniqueSigners() {
+		/** @type {Set<PubKeyHash>} */
+		let set = new Set();
 
 		for (let input of this.#inputs) {
 			let origOutput = input.origOutput;
@@ -26986,21 +26986,21 @@ export class Address extends CborData {
 		return new Address(bytes);
 	}
 
-  /**
-   * Doesn't check validity
-   * @param {string} hex
-   * @returns {Address}
-   */
-  static fromHex(hex) {
-    return new Address(hexToBytes(hex));
-  }
-  
-  /**
-   * Returns the Address, hex encoded. This is RAW
-   */
-   toHex() {
-    return bytesToHex(this.toCbor()).substring(4);
-  }
+	/**
+	 * Doesn't check validity
+	 * @param {string} hex
+	 * @returns {Address}
+	 */
+	static fromHex(hex) {
+		return new Address(hexToBytes(hex));
+	}
+	
+	/**
+	 * Returns the Address, hex encoded. This is RAW
+	 */
+	toHex() {
+		return bytesToHex(this.toCbor()).substring(4);
+	}
 
 	/**
 	 * Simple payment address without a staking part
