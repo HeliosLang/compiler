@@ -7002,6 +7002,14 @@ export class CborData {
 		}
 	}
 
+  /**
+   *
+   * @param {number[]} bytes
+   */
+  static encodeUtf8(bytes) {
+    return [120, bytes.length].concat(bytes);
+  }
+
 	/**
 	 * @param {bigint} n
 	 * @returns {number[]} - cbor bytes
@@ -24883,17 +24891,18 @@ export class Tx extends CborData {
 	 */
 	#validFrom;
 
-	constructor() {
-		super();
-		this.#body = new TxBody();
-		this.#witnesses = new TxWitnesses();
-		this.#valid = false; // building is only possible if valid==false
+  /** @type {?TxMetadata} */
+  #metadata;
 
-		// no auxiliary data for now
-
-		this.#validTo   = null;
-		this.#validFrom = null;
-	}
+  constructor() {
+    super();
+    this.#body = new TxBody();
+    this.#witnesses = new TxWitnesses();
+    this.#valid = false; // building is only possible if valid==false
+    this.#validTo = null;
+    this.#validFrom = null;
+    this.#metadata = null;
+  }
 
 	/**
 	 * @type {TxBody}
@@ -24917,7 +24926,7 @@ export class Tx extends CborData {
 			this.#body.toCbor(),
 			this.#witnesses.toCbor(),
 			CborData.encodeBool(this.#valid),
-			CborData.encodeNull(),
+      this.#metadata === null ? CborData.encodeNull() : this.#metadata.toCbor(),
 		]);
 	}
 
@@ -24952,19 +24961,20 @@ export class Tx extends CborData {
 		assert(n == 4);
 		assert(bytes.length == 0);
 
-		return tx;
-	}
-	
-	/**
-	 * @returns {Object}
-	 */
-	dump() {
-		return {
-			body: this.#body.dump(),
-			witnesses: this.#witnesses.dump(),
-			valid: this.#valid,
-		};
-	}
+    return tx;
+  }
+
+  /**
+   * @returns {Object}
+   */
+  dump() {
+    return {
+      body: this.#body.dump(),
+      witnesses: this.#witnesses.dump(),
+      valid: this.#valid,
+			metadata: this.#metadata !== null ? this.#metadata.dump() : null
+    };
+  }
 
 	/**
 	 * @param {Date} t
@@ -25385,9 +25395,18 @@ export class Tx extends CborData {
 	async finalize(networkParams, changeAddress, spareUtxos = []) {
 		assert(!this.#valid);
 
-		if (this.#validTo !== null) {
-			this.#body.validTo(networkParams.timeToSlot(BigInt(this.#validTo.getTime())));
-		}
+    if (this.#metadata !== null) {
+      // Calculate the AuxData hash and add to the TxBody
+      this.#body.setAuxiliaryDataHash(
+        new Hash(Crypto.blake2b(this.#metadata.toCbor()))
+      );
+    }
+
+    if (this.#validTo !== null) {
+      this.#body.validTo(
+        networkParams.timeToSlot(BigInt(this.#validTo.getTime()))
+      );
+    }
 
 		if (this.#validFrom !== null) {
 			this.#body.validFrom(networkParams.timeToSlot(BigInt(this.#validFrom.getTime())));
@@ -25466,8 +25485,20 @@ export class Tx extends CborData {
 			this.addSignature(s, verify);
 		}
 
-		return this;
-	}
+    return this;
+  }
+
+  /**
+   * @param {number} tag
+   * @param {MetadataString} data
+   */
+  addMetadata(tag, data) {
+    if (this.#metadata === null) {
+      this.#metadata = new TxMetadata();
+    }
+
+    this.#metadata.add(tag, data);
+  }
 }
 
 /**
@@ -25528,24 +25559,28 @@ class TxBody extends CborData {
 	/** @type {TxInput[]} */
 	#refInputs;
 
-	constructor() {
-		super();
+  /** @type {?Hash} */
+  #auxiliaryDataHash;
 
-		this.#inputs = [];
-		this.#outputs = [];
-		this.#fee = 0n;
-		this.#lastValidSlot = null;
-		this.#certs	= [];
-		this.#withdrawals = new Map();
-		this.#firstValidSlot = null;
-		this.#minted = new Assets(); // starts as zero value (i.e. empty map)
-		this.#scriptDataHash = null; // calculated upon finalization
-		this.#collateral = [];
-		this.#signers = [];
-		this.#collateralReturn = null; // doesn't seem to be used anymore
-		this.#totalCollateral = 0n; // doesn't seem to be used anymore
-		this.#refInputs = [];
-	}
+  constructor() {
+    super();
+
+    this.#inputs = [];
+    this.#outputs = [];
+    this.#fee = 0n;
+    this.#lastValidSlot = null;
+    this.#certs = [];
+    this.#withdrawals = new Map();
+    this.#firstValidSlot = null;
+    this.#minted = new Assets(); // starts as zero value (i.e. empty map)
+    this.#scriptDataHash = null; // calculated upon finalization
+    this.#collateral = [];
+    this.#signers = [];
+    this.#collateralReturn = null; // doesn't seem to be used anymore
+    this.#totalCollateral = 0n; // doesn't seem to be used anymore
+    this.#refInputs = [];
+    this.#auxiliaryDataHash = null;
+  }
 
 	get inputs() {
 		return this.#inputs.slice();
@@ -25591,9 +25626,13 @@ class TxBody extends CborData {
 			throw new Error("not yet implemented");
 		}
 
-		if (this.#firstValidSlot !== null) {
-			object.set(8, CborData.encodeInteger(this.#firstValidSlot));
-		}
+    if (this.#auxiliaryDataHash !== null) {
+      object.set(7, this.#auxiliaryDataHash.toCbor());
+    }
+
+    if (this.#firstValidSlot !== null) {
+      object.set(8, CborData.encodeInteger(this.#firstValidSlot));
+    }
 
 		if (!this.#minted.isZero()) {
 			object.set(9, this.#minted.toCbor());
@@ -25664,7 +25703,7 @@ class TxBody extends CborData {
 				case 6:
 					throw new Error("not yet implemented");
 				case 7:
-					throw new Error("not yet implemented");
+          txBody.#auxiliaryDataHash = Hash.fromCbor(fieldBytes);
 				case 8:
 					txBody.#firstValidSlot = CborData.decodeInteger(fieldBytes);
 					break;
@@ -25723,6 +25762,10 @@ class TxBody extends CborData {
 			lastValidSlot: this.#lastValidSlot === null ? null : this.#lastValidSlot.toString(),
 			firstValidSlot: this.#firstValidSlot === null ? null : this.#firstValidSlot.toString(),
 			minted: this.#minted.isZero() ? null : this.#minted.dump(),
+      auxDataHash:
+        this.#auxiliaryDataHash === null
+          ? null
+          : this.#auxiliaryDataHash.dump(),
 			scriptDataHash: this.#scriptDataHash === null ? null : this.#scriptDataHash.dump(),
 			collateral: this.#collateral.length == 0 ? null : this.#collateral.map(c => c.dump()),
 			signers: this.#signers.length == 0 ? null : this.#signers.map(rs => rs.dump()),
@@ -25905,13 +25948,20 @@ class TxBody extends CborData {
 		this.#scriptDataHash = scriptDataHash;
 	}
 
-	/**
-	 * Calculates the number of dummy signatures needed to get precisely the right tx size
-	 * @returns {number}
-	 */
-	countUniqueSigners() {
-		/** @type {Set<PubKeyHash>} */
-		let set = new Set();
+  /**
+   * @param {Hash} metadataHash
+   */
+  setAuxiliaryDataHash(metadataHash) {
+    this.#auxiliaryDataHash = metadataHash;
+  }
+
+  /**
+   * Calculates the number of dummy signatures needed to get precisely the right tx size
+   * @returns {number}
+   */
+  countUniqueSigners() {
+    /** @type {Set<PubKeyHash>} */
+    let set = new Set();
 
 		for (let input of this.#inputs) {
 			let origOutput = input.origOutput;
@@ -26936,14 +26986,21 @@ export class Address extends CborData {
 		return new Address(bytes);
 	}
 
-	/**
-	 * Doesn't check validity
-	 * @param {string} hex 
-	 * @returns {Address}
-	 */
-	static fromHex(hex) {
-		return new Address(hexToBytes(hex));
-	}
+  /**
+   * Doesn't check validity
+   * @param {string} hex
+   * @returns {Address}
+   */
+  static fromHex(hex) {
+    return new Address(hexToBytes(hex));
+  }
+  
+  /**
+   * Returns the Address, hex encoded. This is RAW
+   */
+   toHex() {
+    return bytesToHex(this.toCbor()).substring(4);
+  }
 
 	/**
 	 * Simple payment address without a staking part
@@ -28652,6 +28709,98 @@ class InlineDatum extends Datum {
 	}
 }
 
+/**
+ * Encoding for Transcation Matadatum
+ */
+export class MetadataString extends CborData {
+  /** @type {number[]} */
+  #bytes;
+
+  /**
+   * @param {number[]} bytes
+   */
+  constructor(bytes) {
+    super();
+    this.#bytes = bytes;
+  }
+
+  /**
+   * Applies utf-8 encoding
+   * @param {string} s
+   * @returns {MetadataString}
+   */
+  static fromString(s) {
+    let bytes = stringToBytes(s);
+
+    return new MetadataString(bytes);
+  }
+
+  get bytes() {
+    return this.#bytes.slice();
+  }
+
+  /**
+   * @returns {string}
+   */
+  toHex() {
+    return bytesToHex(this.#bytes);
+  }
+
+  toString() {
+    return `#${this.toHex()}`;
+  }
+
+  /**
+   * @returns {number[]}
+   */
+  toCbor() {
+    // If the data is >64 bytes then split into List
+
+    if (this.#bytes.length > 64) {
+      const chunks = [];
+      for (let i = 0; i < this.#bytes.length; i = i + 64) {
+        chunks.push(CborData.encodeUtf8(this.#bytes.slice(i, i + 64)));
+      }
+      return CborData.encodeDefList(chunks);
+    }
+
+    return CborData.encodeUtf8(this.#bytes);
+  }
+}
+
+class TxMetadata {
+  /**@type {Record<number, number[]>} */
+  #metadata;
+
+  constructor() {
+    this.#metadata = {};
+  }
+
+  /**
+   *
+   * @param {number} tag
+   * @param {MetadataString} data
+   */
+  add(tag, data) {
+    this.#metadata[tag] = data.toCbor();
+  }
+
+	dump() {
+		return Object.keys(this.#metadata).map((key) => ({
+      [key]: bytesToHex(this.#metadata[key]),
+    }))
+	}
+
+  toCbor() {
+    //  [CborData | number[], CborData | number[]][]
+    const data = Object.keys(this.#metadata).map((key) => [
+      CborData.encodeInteger(BigInt(key)),
+      this.#metadata[key],
+    ]);
+    // @ts-ignore - FIXME: I don't know how to make this happy yet!
+    return CborData.encodeMap(data);
+  }
+}
 
 ///////////////////////////////////////////////
 // Section 19. Property based testing framework
