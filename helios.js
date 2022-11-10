@@ -28760,6 +28760,9 @@ class TxMetadata {
 	 * #param {number[]} data
 	 */
 	static fromCbor(data) {
+		const cborMap = CborData.decodeMap(data, (pairBytes) => {
+			
+		});
 
 	}
 }
