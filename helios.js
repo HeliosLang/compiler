@@ -26929,7 +26929,7 @@ export class UTxO extends TxInput {
 export class TxRefInput extends TxInput {
 	/**
 	 * @param {TxId} txId 
-	 * @param {bigint} utxoId 
+	 * @param {bigint} utxoId
 	 * @param {TxOutput} origOutput
 	 */
 	constructor(txId, utxoId, origOutput) {
