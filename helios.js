@@ -7028,6 +7028,20 @@ export class CborData {
 	}
 
 	/**
+	* @param {number[]} bytes
+	* @returns {string}
+	*/
+	static decodeUtf8(bytes) {
+		assert(bytes.length > 0);
+
+		assert(bytes.shift() === 120);
+
+		const length = bytes.shift();
+
+		return bytesToString(bytes.splice(0, length));
+	}
+
+	/**
 	 * @param {bigint} n
 	 * @returns {number[]} - cbor bytes
 	 */
@@ -24968,7 +24982,7 @@ export class Tx extends CborData {
 					tx.#valid = CborData.decodeBool(fieldBytes);
 					break;
 				case 3:
-					CborData.decodeNull(fieldBytes);
+					tx.#metadata = TxMetadata.fromCbor(fieldBytes);
 					break;
 				default:
 					throw new Error("bad tuple size");
@@ -25721,6 +25735,7 @@ class TxBody extends CborData {
 					throw new Error("not yet implemented");
 				case 7:
 					txBody.#metadataHash = Hash.fromCbor(fieldBytes);
+					break;
 				case 8:
 					txBody.#firstValidSlot = CborData.decodeInteger(fieldBytes);
 					break;
@@ -28757,13 +28772,30 @@ class TxMetadata {
 	}
 
 	/**
-	 * #param {number[]} data
-	 */
+	* TxMetadata decoder.
+	* This is currently limited to only UTF8 encoded metadata.
+	* @param {number[]} data
+	* @returns {TxMetadata}
+	*/
 	static fromCbor(data) {
-		const cborMap = CborData.decodeMap(data, (pairBytes) => {
-			
+		const txMetadata = new TxMetadata();
+
+		CborData.decodeMap(data, (pairBytes) => {
+			let i = Number(CborData.decodeInteger(pairBytes));
+			let result = "";
+
+			if (CborData.isDefList(pairBytes)) {
+				CborData.decodeList(pairBytes, (b) => {
+					result += CborData.decodeUtf8(b);
+				});
+			} else {
+				result = CborData.decodeUtf8(pairBytes);
+			}
+
+			txMetadata.add(i, result);
 		});
 
+		return txMetadata;
 	}
 }
 

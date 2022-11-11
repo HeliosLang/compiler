@@ -17,29 +17,6 @@ import {
 } from "./helios.js";
 import fs from "fs";
 
-// /**
-//  * @typedef {string | number[] | Object.<string | number, string | number | Date>} Metadata
-//  */
-
-// /**
-//  * @param {Metadata} x
-//  * */
-// function xyz(x) {
-
-//   if (typeof x === 'string') {
-//     // do string stuff
-//   }
-//   if (typeof x === 'object') {
-//     // Convert to string and handle like a string
-//     // JSON.stringify(x)
-//   }
-
-//   if (Array.isArray(x)) {
-//     // Convert x fromCbor
-//   }
-
-// }
-
 const address = Address.fromBech32(
   "addr_test1qrgqd6mhs05vjvtqk2at9pau3fhsd857dyxds27qk54gcvtnpkq9k63v7eue3u8u6pcvuzmwsk2hl46ceu9wxjxjvh4sj4drgd"
 );
@@ -59,6 +36,7 @@ const txIn1 = UTxO.fromCbor(hexToBytes(walletUTXOs[0]));
 
 const txIn2 = UTxO.fromCbor(hexToBytes(walletUTXOs[1]));
 
+// @ts-ignore
 tx.addInputs([txIn1, txIn2]);
 
 tx.addOutput(
@@ -93,3 +71,7 @@ await tx.finalize(
 
 console.log(JSON.stringify(tx.dump(), null, 2));
 console.log(bytesToHex(tx.toCbor()));
+
+const tx2 = Tx.fromCbor(tx.toCbor());
+
+console.log(tx2.dump());

@@ -1,6 +1,6 @@
 log.*
 *.swp
 node_modules
-# helios.d.ts
-# helios.d.ts.map
+helios.d.ts
+helios.d.ts.map
 network-parameters/**
