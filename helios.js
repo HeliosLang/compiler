@@ -7031,14 +7031,29 @@ export class CborData {
 	* @param {number[]} bytes
 	* @returns {string}
 	*/
+	static decodeUtf8Internal(bytes) {
+		assert(bytes.shift() === 120);
+		const length = bytes.shift();
+		return bytesToString(bytes.splice(0, length));
+	}
+
+	/**
+	* @param {number[]} bytes
+	* @returns {string}
+	*/
 	static decodeUtf8(bytes) {
 		assert(bytes.length > 0);
 
-		assert(bytes.shift() === 120);
+		let result = "";
+		if (CborData.isDefList(bytes)) {
+			CborData.decodeList(bytes, (b) => {
+				result += CborData.decodeUtf8Internal(b);
+			});
+		} else {
+			result = CborData.decodeUtf8Internal(bytes);
+		}
 
-		const length = bytes.shift();
-
-		return bytesToString(bytes.splice(0, length));
+		return result;
 	}
 
 	/**
@@ -28782,15 +28797,7 @@ class TxMetadata {
 
 		CborData.decodeMap(data, (pairBytes) => {
 			let i = Number(CborData.decodeInteger(pairBytes));
-			let result = "";
-
-			if (CborData.isDefList(pairBytes)) {
-				CborData.decodeList(pairBytes, (b) => {
-					result += CborData.decodeUtf8(b);
-				});
-			} else {
-				result = CborData.decodeUtf8(pairBytes);
-			}
+			let result = CborData.decodeUtf8(pairBytes);
 
 			txMetadata.add(i, result);
 		});
