@@ -7003,6 +7003,60 @@ export class CborData {
 	}
 
 	/**
+	 * Take a UTF8 String and produces CBOR, if you want to Split the string 
+	 * (Cardano TX 64 bytes limit) then will provide a CBOR Encoded DefList 
+	 * of the string.
+	 * 
+	 * @param {string} str
+	 * @param {boolean} split
+	 * @returns {number[]}
+	 */
+	static encodeUtf8(str, split = false) {
+
+		const bytes = stringToBytes(str);
+		
+		if (split && bytes.length > 64) {
+			const chunks = [];
+			for (let i = 0; i < bytes.length; i = i + 64) {
+				const chunk = bytes.slice(i, i + 64);
+				chunks.push([120, chunk.length].concat(chunk));
+			}
+			return CborData.encodeDefList(chunks);
+		}
+
+		return [120, bytes.length].concat(bytes);
+	}
+
+	/**
+	* @param {number[]} bytes
+	* @returns {string}
+	*/
+	static decodeUtf8Internal(bytes) {
+		assert(bytes.shift() === 120);
+		const length = bytes.shift();
+		return bytesToString(bytes.splice(0, length));
+	}
+
+	/**
+	* @param {number[]} bytes
+	* @returns {string}
+	*/
+	static decodeUtf8(bytes) {
+		assert(bytes.length > 0);
+
+		let result = "";
+		if (CborData.isDefList(bytes)) {
+			CborData.decodeList(bytes, (b) => {
+				result += CborData.decodeUtf8Internal(b);
+			});
+		} else {
+			result = CborData.decodeUtf8Internal(bytes);
+		}
+
+		return result;
+	}
+
+	/**
 	 * @param {bigint} n
 	 * @returns {number[]} - cbor bytes
 	 */
@@ -24870,6 +24924,9 @@ export class Tx extends CborData {
 	#witnesses;
 	#valid;
 
+	/** @type {?TxMetadata} */
+	#metadata;
+
 	// the following field(s) aren't used by the serialization (only for building)
 	/**
 	 * Upon finalization the slot is calculated and stored in the body
@@ -24888,10 +24945,8 @@ export class Tx extends CborData {
 		this.#body = new TxBody();
 		this.#witnesses = new TxWitnesses();
 		this.#valid = false; // building is only possible if valid==false
-
-		// no auxiliary data for now
-
-		this.#validTo   = null;
+		this.#metadata = null;
+		this.#validTo = null;
 		this.#validFrom = null;
 	}
 
@@ -24917,7 +24972,7 @@ export class Tx extends CborData {
 			this.#body.toCbor(),
 			this.#witnesses.toCbor(),
 			CborData.encodeBool(this.#valid),
-			CborData.encodeNull(),
+			this.#metadata === null ? CborData.encodeNull() : this.#metadata.toCbor(),
 		]);
 	}
 
@@ -24942,7 +24997,7 @@ export class Tx extends CborData {
 					tx.#valid = CborData.decodeBool(fieldBytes);
 					break;
 				case 3:
-					CborData.decodeNull(fieldBytes);
+					tx.#metadata = TxMetadata.fromCbor(fieldBytes);
 					break;
 				default:
 					throw new Error("bad tuple size");
@@ -24954,7 +25009,7 @@ export class Tx extends CborData {
 
 		return tx;
 	}
-	
+
 	/**
 	 * @returns {Object}
 	 */
@@ -24963,6 +25018,7 @@ export class Tx extends CborData {
 			body: this.#body.dump(),
 			witnesses: this.#witnesses.dump(),
 			valid: this.#valid,
+			metadata: this.#metadata !== null ? this.#metadata.dump() : null
 		};
 	}
 
@@ -25385,8 +25441,17 @@ export class Tx extends CborData {
 	async finalize(networkParams, changeAddress, spareUtxos = []) {
 		assert(!this.#valid);
 
+		if (this.#metadata !== null) {
+			// Calculate the AuxData hash and add to the TxBody
+			this.#body.setMetadataHash(
+				new Hash(Crypto.blake2b(this.#metadata.toCbor()))
+			);
+		}
+
 		if (this.#validTo !== null) {
-			this.#body.validTo(networkParams.timeToSlot(BigInt(this.#validTo.getTime())));
+			this.#body.validTo(
+				networkParams.timeToSlot(BigInt(this.#validTo.getTime()))
+			);
 		}
 
 		if (this.#validFrom !== null) {
@@ -25468,6 +25533,18 @@ export class Tx extends CborData {
 
 		return this;
 	}
+
+	/**
+	 * @param {number} tag
+	 * @param {Object | string} data
+	 */
+	addMetadata(tag, data) {
+		if (this.#metadata === null) {
+			this.#metadata = new TxMetadata();
+		}
+
+		this.#metadata.add(tag, data);
+	}
 }
 
 /**
@@ -25528,6 +25605,9 @@ class TxBody extends CborData {
 	/** @type {TxInput[]} */
 	#refInputs;
 
+	/** @type {?Hash} */
+	#metadataHash;
+
 	constructor() {
 		super();
 
@@ -25535,7 +25615,7 @@ class TxBody extends CborData {
 		this.#outputs = [];
 		this.#fee = 0n;
 		this.#lastValidSlot = null;
-		this.#certs	= [];
+		this.#certs = [];
 		this.#withdrawals = new Map();
 		this.#firstValidSlot = null;
 		this.#minted = new Assets(); // starts as zero value (i.e. empty map)
@@ -25545,6 +25625,7 @@ class TxBody extends CborData {
 		this.#collateralReturn = null; // doesn't seem to be used anymore
 		this.#totalCollateral = 0n; // doesn't seem to be used anymore
 		this.#refInputs = [];
+		this.#metadataHash = null;
 	}
 
 	get inputs() {
@@ -25589,6 +25670,10 @@ class TxBody extends CborData {
 
 		if (this.#withdrawals.size != 0) {
 			throw new Error("not yet implemented");
+		}
+
+		if (this.#metadataHash !== null) {
+			object.set(7, this.#metadataHash.toCbor());
 		}
 
 		if (this.#firstValidSlot !== null) {
@@ -25664,7 +25749,8 @@ class TxBody extends CborData {
 				case 6:
 					throw new Error("not yet implemented");
 				case 7:
-					throw new Error("not yet implemented");
+					txBody.#metadataHash = Hash.fromCbor(fieldBytes);
+					break;
 				case 8:
 					txBody.#firstValidSlot = CborData.decodeInteger(fieldBytes);
 					break;
@@ -25723,6 +25809,10 @@ class TxBody extends CborData {
 			lastValidSlot: this.#lastValidSlot === null ? null : this.#lastValidSlot.toString(),
 			firstValidSlot: this.#firstValidSlot === null ? null : this.#firstValidSlot.toString(),
 			minted: this.#minted.isZero() ? null : this.#minted.dump(),
+			auxDataHash:
+				this.#metadataHash === null
+					? null
+					: this.#metadataHash.dump(),
 			scriptDataHash: this.#scriptDataHash === null ? null : this.#scriptDataHash.dump(),
 			collateral: this.#collateral.length == 0 ? null : this.#collateral.map(c => c.dump()),
 			signers: this.#signers.length == 0 ? null : this.#signers.map(rs => rs.dump()),
@@ -25903,6 +25993,13 @@ class TxBody extends CborData {
 	 */
 	setScriptDataHash(scriptDataHash) {
 		this.#scriptDataHash = scriptDataHash;
+	}
+
+	/**
+	 * @param {Hash} metadataHash
+	 */
+	setMetadataHash(metadataHash) {
+		this.#metadataHash = metadataHash;
 	}
 
 	/**
@@ -26902,212 +26999,217 @@ class DCert extends CborData {
  * See CIP19 for formatting of first byte
  */
 export class Address extends CborData {
-	/** @type {number[]} */
-	#bytes;
+  /** @type {number[]} */
+  #bytes;
 
-	/**
-	 * @param {number[]} bytes 
-	 */
-	constructor(bytes) {
-		super();
-		this.#bytes = bytes;
-	}
+  /**
+   * @param {number[]} bytes
+   */
+  constructor(bytes) {
+    super();
+    this.#bytes = bytes;
+  }
 
-	toCbor() {
-		return CborData.encodeBytes(this.#bytes);
-	}
+  toCbor() {
+    return CborData.encodeBytes(this.#bytes);
+  }
 
-	/**
-	 * @param {number[]} bytes 
-	 * @returns {Address}
-	 */
-	static fromCbor(bytes) {
-		return new Address(CborData.decodeBytes(bytes));
-	}
+  /**
+   * @param {number[]} bytes
+   * @returns {Address}
+   */
+  static fromCbor(bytes) {
+    return new Address(CborData.decodeBytes(bytes));
+  }
 
-	/**
-	 * @param {string} str 
-	 * @returns {Address}
-	 */
-	static fromBech32(str) {
-		// ignore the prefix (encoded in the bytes anyway)
-		let [_, bytes] = Crypto.decodeBech32(str);
+  /**
+   * @param {string} str
+   * @returns {Address}
+   */
+  static fromBech32(str) {
+    // ignore the prefix (encoded in the bytes anyway)
+    let [_, bytes] = Crypto.decodeBech32(str);
 
-		return new Address(bytes);
-	}
+    return new Address(bytes);
+  }
 
-	/**
-	 * Doesn't check validity
-	 * @param {string} hex 
-	 * @returns {Address}
-	 */
-	static fromHex(hex) {
-		return new Address(hexToBytes(hex));
-	}
+  /**
+   * Doesn't check validity
+   * @param {string} hex
+   * @returns {Address}
+   */
+  static fromHex(hex) {
+    return new Address(hexToBytes(hex));
+  }
 
-	/**
-	 * Simple payment address without a staking part
-	 * @param {boolean} isTestnet
-	 * @param {PubKeyHash} hash
-	 * @param {?Hash} stakingHash
-	 * @returns {Address}
-	 */
-	static fromPubKeyHash(isTestnet, hash, stakingHash = null) {
-		if (stakingHash !== null) {
-			return new Address([isTestnet ? 0x00 : 0x01].concat(hash.bytes).concat(stakingHash.bytes));	
-		} else {
-			return new Address([isTestnet ? 0x60 : 0x61].concat(hash.bytes));
-		}
-	}
+  /**
+   * Returns the Address, hex encoded. This is RAW
+   * @returns {string}
+   */
+  toHex() {
+    return bytesToHex(this.#bytes);
+  }
 
-	/**
-	 * Simple script address without a staking part
-	 * Only relevant for validator scripts
-	 * @param {boolean} isTestnet
-	 * @param {ValidatorHash} hash
-	 * @param {?Hash} stakingHash
-	 * @returns {Address}
-	 */
-	static fromValidatorHash(isTestnet, hash, stakingHash = null) {
-		if (stakingHash !== null) {
-			return new Address([isTestnet ? 0x10 : 0x11].concat(hash.bytes).concat(stakingHash.bytes));
-		} else {
-			return new Address([isTestnet ? 0x70 : 0x71].concat(hash.bytes));
-		}
+  /**
+   * Simple payment address without a staking part
+   * @param {boolean} isTestnet
+   * @param {PubKeyHash} hash
+   * @param {?Hash} stakingHash
+   * @returns {Address}
+   */
+  static fromPubKeyHash(isTestnet, hash, stakingHash = null) {
+    if (stakingHash !== null) {
+      return new Address(
+        [isTestnet ? 0x00 : 0x01].concat(hash.bytes).concat(stakingHash.bytes)
+      );
+    } else {
+      return new Address([isTestnet ? 0x60 : 0x61].concat(hash.bytes));
+    }
+  }
 
-	}
+  /**
+   * Simple script address without a staking part
+   * Only relevant for validator scripts
+   * @param {boolean} isTestnet
+   * @param {ValidatorHash} hash
+   * @param {?Hash} stakingHash
+   * @returns {Address}
+   */
+  static fromValidatorHash(isTestnet, hash, stakingHash = null) {
+    if (stakingHash !== null) {
+      return new Address(
+        [isTestnet ? 0x10 : 0x11].concat(hash.bytes).concat(stakingHash.bytes)
+      );
+    } else {
+      return new Address([isTestnet ? 0x70 : 0x71].concat(hash.bytes));
+    }
+  }
 
-	/**
-	 * @returns {string}
-	 */
-	toBech32() {
-		return Crypto.encodeBech32(this.isForTestnet() ? "addr_test" : "addr", this.#bytes);
-	}
+  /**
+   * @returns {string}
+   */
+  toBech32() {
+    return Crypto.encodeBech32(
+      this.isForTestnet() ? "addr_test" : "addr",
+      this.#bytes
+    );
+  }
 
-	/**
-	 * @returns {Object}
-	 */
-	dump() {
-		return {
-			hex: bytesToHex(this.#bytes),
-			bech32: this.toBech32(),
-		};
-	}
+  /**
+   * @returns {Object}
+   */
+  dump() {
+    return {
+      hex: bytesToHex(this.#bytes),
+      bech32: this.toBech32(),
+    };
+  }
 
-	/**
-	 * @returns {boolean}
-	 */
-	isForTestnet() {
-		let type = this.#bytes[0] & 0b00001111;
+  /**
+   * @returns {boolean}
+   */
+  isForTestnet() {
+    let type = this.#bytes[0] & 0b00001111;
 
-		return type == 0;
-	}
-		
-	/**
-	 * @returns {ConstrData}
-	 */
-	toCredentialData() {
-		let vh = this.validatorHash;
+    return type == 0;
+  }
 
-		if (vh !== null) {
-			return new ConstrData(1, [
-				new ByteArrayData(vh.bytes)
-			]);
-		} else {
-			let pkh = this.pubKeyHash;
+  /**
+   * @returns {ConstrData}
+   */
+  toCredentialData() {
+    let vh = this.validatorHash;
 
-			if (pkh === null) {
-				throw new Error("unexpected");
-			} else {
-				return new ConstrData(0, [
-					new ByteArrayData(pkh.bytes)
-				]);
-			}
-		}
-	}
+    if (vh !== null) {
+      return new ConstrData(1, [new ByteArrayData(vh.bytes)]);
+    } else {
+      let pkh = this.pubKeyHash;
 
-	/**
-	 * @returns {ConstrData}
-	 */
-	toStakingData() {
-		let sh = this.stakingHash;
+      if (pkh === null) {
+        throw new Error("unexpected");
+      } else {
+        return new ConstrData(0, [new ByteArrayData(pkh.bytes)]);
+      }
+    }
+  }
 
-		if (sh == null) {
-			return new ConstrData(1, []); // none
-		} else {
-			// some
-			return new ConstrData(0, [
-				// staking credential
-				new ConstrData(0, [
-					// credential (TODO: also allow script and pointer)
-					new ConstrData(0, [
-						new ByteArrayData(sh.bytes),
-					]),
-				])
-			]); // some
-		}
-	}
+  /**
+   * @returns {ConstrData}
+   */
+  toStakingData() {
+    let sh = this.stakingHash;
 
-	/**
-	 * @returns {ConstrData}
-	 */
-	toData() {
-		return new ConstrData(0, [
-			this.toCredentialData(),
-			this.toStakingData(),
-		]);
-	}
+    if (sh == null) {
+      return new ConstrData(1, []); // none
+    } else {
+      // some
+      return new ConstrData(0, [
+        // staking credential
+        new ConstrData(0, [
+          // credential (TODO: also allow script and pointer)
+          new ConstrData(0, [new ByteArrayData(sh.bytes)]),
+        ]),
+      ]); // some
+    }
+  }
 
-	/**
-	 * @type {?PubKeyHash}
-	 */
-	get pubKeyHash() {
-		let type = this.#bytes[0] >> 4;
+  /**
+   * @returns {ConstrData}
+   */
+  toData() {
+    return new ConstrData(0, [this.toCredentialData(), this.toStakingData()]);
+  }
 
-		if (type % 2 == 0) {
-			return new PubKeyHash(this.#bytes.slice(1, 29));
-		} else {
-			return null;
-		}
-	}
+  /**
+   * @type {?PubKeyHash}
+   */
+  get pubKeyHash() {
+    let type = this.#bytes[0] >> 4;
 
-	/**
-	 * @type {?ValidatorHash}
-	 */
-	get validatorHash() {
-		let type = this.#bytes[0] >> 4;
+    if (type % 2 == 0) {
+      return new PubKeyHash(this.#bytes.slice(1, 29));
+    } else {
+      return null;
+    }
+  }
 
-		if (type % 2 == 1) {
-			return new ValidatorHash(this.#bytes.slice(1, 29));
-		} else {
-			return null;
-		}
-	}
+  /**
+   * @type {?ValidatorHash}
+   */
+  get validatorHash() {
+    let type = this.#bytes[0] >> 4;
 
-	/**
-	 * @type {?Hash}
-	 */
-	get stakingHash() {
-		let type = (this.#bytes[0] >> 4);
+    if (type % 2 == 1) {
+      return new ValidatorHash(this.#bytes.slice(1, 29));
+    } else {
+      return null;
+    }
+  }
 
-		if (type < 4) {
-			let bytes = this.#bytes.slice(29);
-			assert(bytes.length == 28);
-			return new Hash(bytes);
-		} else {
-			return null;
-		}
-	}
+  /**
+   * @type {?Hash}
+   */
+  get stakingHash() {
+    let type = this.#bytes[0] >> 4;
 
-	/**
-	 * Used to sort txbody withdrawals
-	 * @param {Address} a
-	 * @param {Address} b
-	 * @return {number}
-	 */
-	static compStakingHashes(a, b) {
-		return Hash.compare(a.stakingHash, b.stakingHash);
-	}
+    if (type < 4) {
+      let bytes = this.#bytes.slice(29);
+      assert(bytes.length == 28);
+      return new Hash(bytes);
+    } else {
+      return null;
+    }
+  }
+
+  /**
+   * Used to sort txbody withdrawals
+   * @param {Address} a
+   * @param {Address} b
+   * @return {number}
+   */
+  static compStakingHashes(a, b) {
+    return Hash.compare(a.stakingHash, b.stakingHash);
+  }
 }
 
 export class Assets extends CborData {
@@ -28652,6 +28754,57 @@ class InlineDatum extends Datum {
 	}
 }
 
+class TxMetadata {
+	/**@type {Object.<number, Object.<string, any> | string>} */
+	#metadata;
+
+	constructor() {
+		this.#metadata = {};
+	}
+
+	/**
+	 *
+	 * @param {number} tag
+	 * @param {Object.<string, any> | string} data
+	 */
+	add(tag, data) {
+		this.#metadata[tag] = data;
+	}
+
+	dump() {
+		return Object.keys(this.#metadata).map((key) => ({
+			[key]: typeof this.#metadata[key] === 'string' ? this.#metadata[key]: JSON.stringify(this.#metadata[key]),
+		}))
+	}
+
+	toCbor() {
+		const data = Object.keys(this.#metadata).map((key) => [
+			CborData.encodeInteger(BigInt(key)),
+			CborData.encodeUtf8(typeof this.#metadata[key] === 'string' ? this.#metadata[key]: JSON.stringify(this.#metadata[key]), true),
+		]);
+		// @ts-ignore - FIXME: I don't know how to make this happy yet!
+		return CborData.encodeMap(data);
+	}
+
+	/**
+	* TxMetadata decoder.
+	* This is currently limited to only UTF8 encoded metadata.
+	* @param {number[]} data
+	* @returns {TxMetadata}
+	*/
+	static fromCbor(data) {
+		const txMetadata = new TxMetadata();
+
+		CborData.decodeMap(data, (pairBytes) => {
+			let i = Number(CborData.decodeInteger(pairBytes));
+			let result = CborData.decodeUtf8(pairBytes);
+
+			txMetadata.add(i, result);
+		});
+
+		return txMetadata;
+	}
+}
 
 ///////////////////////////////////////////////
 // Section 19. Property based testing framework
