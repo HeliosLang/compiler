@@ -24,7 +24,7 @@ const address = Address.fromBech32(
 const tx = new Tx();
 
 tx.addMetadata(406, address.toHex());
-tx.addMetadata(409, { a: 1234, other: "this is a test" });
+tx.addMetadata(409, {"map": [["a", 1234], ["other", "this is a test"]]});
 
 // Simulate CIP30 `getUtxos()`
 const walletUTXOs = [
