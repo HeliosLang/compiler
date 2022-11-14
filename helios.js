@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.11
+// Version:     0.8.12
 // Last update: November 2022
 // License:     Unlicense
 //
@@ -81,7 +81,7 @@
 //                                          imask, imod32, imod8, posMod, irotr, bigIntToBytes, 
 //                                          bytesToBigInt, padZeroes, byteToBitString, hexToBytes, 
 //                                          bytesToHex, stringToBytes, bytesToString, replaceTabs, 
-//                                          unwrapCborBytes, wrapCborBytes, BitReader, BitWriter, 
+//                                          BitReader, BitWriter, 
 //                                          UInt64, DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
 //                                          Crypto, IR, Source, UserError, Site, hl
 //
@@ -202,7 +202,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.11"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.12"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -609,35 +609,6 @@ function bytesToString(bytes) {
  */
 function replaceTabs(str) {
 	return str.replace(new RegExp("\t", "g"), TAB);
-}
-
-/**
- * Unwraps cbor byte arrays. Returns a list of uint8 bytes without the cbor tag.
- * This function unwraps one level, so must be called twice to unwrap the text envelopes of plutus scripts.
- *  (for some reason the text envelopes is cbor wrapped in cbor)
- * @example
- * bytesToHex(unwrapCborBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
- * @param {number[]} bytes 
- * @returns {number[]}
- */
-function unwrapCborBytes(bytes) {
-	if (bytes.length == 0) {
-		throw new Error("expected at least one cbor byte");
-	}
-
-	return CborData.decodeBytes(bytes);
-}
-
-/**
- * Wraps byte arrays with a cbor tag so they become valid cbor byte arrays.
- * Roughly the inverse of unwrapCborBytes.
- * @example
- * bytesToHex(wrapCborBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
- * @param {number[]} bytes 
- * @returns {number[]}
- */
-function wrapCborBytes(bytes) {
-	return CborData.encodeBytes(bytes);
 }
 
 /**
@@ -2048,30 +2019,6 @@ class Crypto {
 		}
 
 		return hash.slice(0, digestSize);
-	}
-
-	/**
-	 * Hashes a serialized Plutus-core script. 
-	 * Result is the ValidatorHash for validator scripts, and MintingPolicyHash for minting_policy scripts.
-	 * @param {number[]} cborBytes - serialized Plutus-core program (2x wrapped CBOR Bytearray)
-	 * @param {string} plutusScriptVersion - defaults to "PlutusScriptV2"
-	 * @returns {number[]}
-	 */
-	static hashScript(cborBytes, plutusScriptVersion = PLUTUS_SCRIPT_VERSION) {
-		let bytes = wrapCborBytes(cborBytes);
-
-		switch (plutusScriptVersion) {
-			case "PlutusScriptV1":
-				bytes.unshift(0x01);
-				break;
-			case "PlutusScriptV2":
-				bytes.unshift(0x02);
-				break;
-			default:
-				throw new Error("unhandled plutus core version");
-		}
-
-		return Crypto.blake2b(bytes, 28);
 	}
 
 	/**
@@ -6515,6 +6462,23 @@ export class UplcProgram {
 	}
 
 	/**
+	 * Returns 1 for PlutusScriptV1, 2 for PlutusScriptV2
+	 * @returns {number}
+	 */
+	 versionTag() {
+		let v = this.plutusScriptVersion();
+
+		switch (v) {
+			case "PlutusScriptV1":
+				return 1;
+			case "PlutusScriptV2":
+				return 2;
+			default:
+				throw new Error(`unhandled script version '${v}'`);
+		}
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
@@ -6702,13 +6666,19 @@ export class UplcProgram {
 	}
 
 	/**
+	 * Returns the Cbor encoding of a script (flat bytes wrapped twice in Cbor bytearray)
+	 * @returns {number[]}
+	 */
+	 toCbor() {
+		return CborData.encodeBytes(CborData.encodeBytes(this.serializeBytes()));
+	}
+
+	/**
 	 * Returns Plutus-core script in JSON format (as string, not as object!)
 	 * @returns {string}
 	 */
 	serialize() {
-		let bytes = this.serializeBytes();
-
-		let cborHex = bytesToHex(wrapCborBytes(wrapCborBytes(bytes)));
+		let cborHex = bytesToHex(this.toCbor());
 
 		return `{"type": "${this.plutusScriptVersion()}", "description": "", "cborHex": "${cborHex}"}`;
 	}
@@ -6717,19 +6687,9 @@ export class UplcProgram {
 	 * @returns {number[]} - 28 byte hash
 	 */
 	hash() {
-		let innerBytes = wrapCborBytes(this.serializeBytes());
+		let innerBytes = CborData.encodeBytes(this.serializeBytes());
 
-		let v = this.plutusScriptVersion();
-		switch (v) {
-			case "PlutusScriptV1":
-				innerBytes.unshift(1);
-				break;
-			case "PlutusScriptV2":
-				innerBytes.unshift(2);
-				break;
-			default:
-				throw new Error(`unhandled script version '${v}'`);
-		}
+		innerBytes.unshift(this.versionTag());
 
 		// used for both script addresses and minting policy hashes
 		return Crypto.blake2b(innerBytes, 28);
@@ -6751,6 +6711,14 @@ export class UplcProgram {
 		assert(this.#purpose === null || this.#purpose === ScriptPurpose.Minting);
 
 		return new MintingPolicyHash(this.hash());
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {UplcProgram}
+	 */
+	 static fromCbor(bytes) {
+		return deserializeUplcBytes(CborData.decodeBytes(CborData.decodeBytes(bytes)));
 	}
 }
 
@@ -6941,6 +6909,8 @@ export class CborData {
 	}
 
 	/**
+	 * @example
+ 	 * bytesToHex(CborData.encodeBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
 	 * @param {number[]} bytes 
 	 * @param {boolean} splitInChunks
 	 * @returns {number[]} - cbor bytes
@@ -6968,6 +6938,8 @@ export class CborData {
 
 	/**
 	 * Decodes both an indef array of bytes, and a bytearray of specified length
+	 * @example
+ 	 * bytesToHex(CborData.decodeBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
 	 * @param {number[]} bytes - cborbytes, mutated to form remaining
 	 * @returns {number[]} - byteArray
 	 */
@@ -24936,9 +24908,7 @@ export function deserializeUplc(jsonString) {
 		}
 	}
 
-	let bytes = unwrapCborBytes(unwrapCborBytes(hexToBytes(cborHex)));
-
-	return deserializeUplcBytes(bytes);
+	return UplcProgram.fromCbor(hexToBytes(cborHex));
 }
 
 //////////////////////////
@@ -26212,7 +26182,7 @@ export class TxWitnesses extends CborData {
 			/**
 			 * @type {number[][]}
 			 */
-			let scriptBytes = this.#scripts.map(s => CborData.encodeBytes(wrapCborBytes(s.serializeBytes())));
+			let scriptBytes = this.#scripts.map(s => s.toCbor());
 
 			object.set(6, CborData.encodeDefList(scriptBytes));
 		}
@@ -26248,7 +26218,7 @@ export class TxWitnesses extends CborData {
 					break;
 				case 6:
 					CborData.decodeList(fieldBytes, itemBytes => {
-						txWitnesses.#scripts.push(deserializeUplcBytes(unwrapCborBytes(CborData.decodeBytes(itemBytes))));
+						txWitnesses.#scripts.push(UplcProgram.fromCbor(itemBytes));
 					});
 					break;
 				default:
@@ -26277,8 +26247,8 @@ export class TxWitnesses extends CborData {
 			signatures: this.#signatures.map(pkw => pkw.dump()),
 			datums: this.#datums.list.map(datum => datum.toString()),
 			redeemers: this.#redeemers.map(redeemer => redeemer.dump()),
-			scripts: this.#scripts.map(script => bytesToHex(wrapCborBytes(script.serializeBytes()))),
-			refScripts: this.#refScripts.map(script => bytesToHex(wrapCborBytes(script.serializeBytes()))),
+			scripts: this.#scripts.map(script => bytesToHex(script.toCbor())),
+			refScripts: this.#refScripts.map(script => bytesToHex(script.toCbor())),
 		};
 	}
 
@@ -26724,9 +26694,10 @@ export class TxRefInput extends TxInput {
 	/**
 	 * @param {TxId} txId 
 	 * @param {bigint} utxoId 
+	 * @param {TxOutput} origOutput
 	 */
-	constructor(txId, utxoId) {
-		super(txId, utxoId, null);
+	constructor(txId, utxoId, origOutput) {
+		super(txId, utxoId, origOutput);
 	}
 }
 
@@ -26851,7 +26822,12 @@ export class TxOutput extends CborData {
 			}
 
 			if (this.#refScript !== null) {
-				object.set(3, CborData.encodeBytes(wrapCborBytes(this.#refScript.serializeBytes())));
+				object.set(3, CborData.encodeTag(24n).concat(CborData.encodeBytes(
+					CborData.encodeTuple([
+						CborData.encodeInteger(BigInt(this.#refScript.versionTag())),
+						this.#refScript.toCbor()
+					])
+				)));
 			}
 
 			return CborData.encodeObject(object);
@@ -26888,7 +26864,25 @@ export class TxOutput extends CborData {
 						outputDatum = Datum.fromCbor(fieldBytes);
 						break;
 					case 3:
-						refScript = deserializeUplcBytes(unwrapCborBytes(CborData.decodeBytes(fieldBytes)));
+						assert(CborData.decodeTag(fieldBytes) == 24n);
+
+						let tupleBytes = CborData.decodeBytes(fieldBytes);
+
+						CborData.decodeTuple(tupleBytes, (tupleIdx, innerTupleBytes) => {
+							assert(refScript === null);
+
+							switch(tupleIdx) {
+								case 0:
+									throw new Error("native refScript unhandled");
+								case 1:
+									throw new Error("plutuScriptV1 as refScript unhandled");
+								case 2:
+									refScript = UplcProgram.fromCbor(innerTupleBytes);
+								default:
+									throw new Error("unhandled script type for refScript");
+							}
+						});
+
 						break;
 					default:
 						throw new Error("unrecognized field");
@@ -26930,7 +26924,7 @@ export class TxOutput extends CborData {
 			address: this.#address.dump(),
 			value: this.#value.dump(),
 			datum: this.#datum === null ? null : this.#datum.dump(),
-			refScript: this.#refScript === null ? null : bytesToHex(wrapCborBytes(this.#refScript.serializeBytes())),
+			refScript: this.#refScript === null ? null : bytesToHex(this.#refScript.toCbor()),
 		};
 	}
 
@@ -28536,7 +28530,7 @@ export class Datum extends CborData {
 					break;
 				case 1:
 					if (type == 0) {
-						res = new HashedDatum(Hash.fromCbor(fieldBytes));
+						res = new HashedDatum(DatumHash.fromCbor(fieldBytes));
 					} else if (type == 1) {
 						assert(CborData.decodeTag(fieldBytes) == 24n);
 
@@ -29399,8 +29393,6 @@ export const exportedForTesting = {
 	bytesToHex: bytesToHex,
 	stringToBytes: stringToBytes,
 	bytesToString: bytesToString,
-	wrapCborBytes: wrapCborBytes,
-	unwrapCborBytes: unwrapCborBytes,
 	dumpCostModels: dumpCostModels,
 	Site: Site,
 	Source: Source,
