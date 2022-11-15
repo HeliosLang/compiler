@@ -123,6 +123,11 @@ const RANDOM = "aksjdkjasd"
 const LIST: []Int = []Int{1,2,3} + []Int{5,6,7}
 `);
 
+simplify(`testing equals
+func main(a: Int) -> Bool {
+    a+1 == a+2
+}`);
+
 profile(`
 testing profile
 

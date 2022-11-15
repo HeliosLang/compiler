@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.15
+// Version:     0.9.0
 // Last update: November 2022
 // License:     Unlicense
 //
@@ -202,7 +202,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.15"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.9.0"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -3940,6 +3940,13 @@ export class UplcValue {
 	}
 
 	/**
+	 * @returns {Promise<UplcValue>}
+	 */
+	force() {
+		throw this.site.typeError(`expected delayed value, got '${this.toString()}'`);
+	}
+
+	/**
 	 * @returns {UplcUnit}
 	 */
 	assertUnit() {
@@ -4514,6 +4521,66 @@ class UplcAnon extends UplcValue {
 	 */
 	toFlatValue(bitWriter) {
 		throw new Error("a UplcAnon value doesn't have a literal representation");
+	}
+}
+
+class UplcDelayedValue extends UplcValue {
+	#evaluator;
+
+	/**
+	 * @param {Site} site
+	 * @param {() => (UplcValue | Promise<UplcValue>)} evaluator
+	 */
+	constructor(site, evaluator) {
+		super(site);
+		this.#evaluator = evaluator;
+	}
+
+	get memSize() {
+		return 1;
+	}
+
+	/**
+	 * @param {Site} newSite 
+	 * @returns {UplcValue}
+	 */
+	copy(newSite) {
+		return new UplcDelayedValue(newSite, this.#evaluator);
+	}
+
+	/**
+	 * @return {Promise<UplcValue>}
+	 */
+	force() {
+		let res = this.#evaluator();
+
+		if (res instanceof Promise) {
+			return res;
+		} else {
+			return new Promise((resolve, _) => {
+				resolve(res);
+			});
+		}
+	}
+
+	toString() {
+		return `delay`;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	 typeBits() {
+		throw new Error("a UplcDelayedValue value doesn't have a literal representation");
+	}
+
+	/**
+	 * Encodes value with plutus flat encoding.
+	 * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
+	 * @param {BitWriter} bitWriter
+	 */
+	toFlatValue(bitWriter) {
+		throw new Error("a UplcDelayedValue value doesn't have a literal representation");
 	}
 }
 
@@ -5657,7 +5724,7 @@ class UplcDelay extends UplcTerm {
 	async eval(rte) {
 		rte.incrDelayCost();
 
-		return await this.#expr.eval(rte);
+		return new UplcDelayedValue(this.site, () =>  this.#expr.eval(rte));
 	}
 }
 
@@ -5845,7 +5912,7 @@ class UplcForce extends UplcTerm {
 	async eval(rte) {
 		rte.incrForceCost();
 
-		return await this.#expr.eval(rte);
+		return await (await this.#expr.eval(rte)).force();
 	}
 }
 
@@ -5983,7 +6050,7 @@ class UplcBuiltin extends UplcTerm {
 	 */
 	evalInternal(rte = new UplcRte()) {
 		if (typeof this.#name == "number") {
-			throw new Error("can't evaluate unknow Plutus-core builtin");
+			throw new Error("can't evaluate unknown Plutus-core builtin");
 		}
 
 		switch (this.#name) {
@@ -6478,7 +6545,22 @@ class UplcBuiltin extends UplcTerm {
 	async eval(rte) {
 		rte.incrBuiltinCost();
 
-		return this.evalInternal(rte);
+		/**
+		 * @type {UplcValue}
+		 */
+		let v = this.evalInternal(rte);
+
+		if  (typeof this.#name === 'string') {
+			let nForce = UPLC_BUILTINS[IRScope.findBuiltin("__core__" + this.#name)].forceCount;
+
+			for  (let i = 0; i < nForce; i++) {
+				const vPrev = v;
+
+				v = new UplcDelayedValue(this.site, () => vPrev);
+			}
+		}
+ 
+		return v;
 	}
 }
 
@@ -6608,12 +6690,16 @@ export class UplcProgram {
 		let result = fn;
 
 		if (args !== null) {
-			for (let arg of args) {
-				// each call also adds to the total cost
-				rte.incrCallCost();
-				rte.incrConstCost();
+			if (args.length === 0 && fn instanceof UplcDelayedValue) {
+				result = await fn.force();
+			} else {
+				for (let arg of args) {
+					// each call also adds to the total cost
+					rte.incrCallCost();
+					rte.incrConstCost();
 
-				result = await result.call(rte, globalCallSite, arg);
+					result = await result.call(rte, globalCallSite, arg);
+				}
 			}
 		}
 
@@ -6649,10 +6735,6 @@ export class UplcProgram {
 	 */
 	async run(args, callbacks = DEFAULT_UPLC_RTE_CALLBACKS, networkParams = null) {
 		let globalCallSite = new Site(this.site.src, this.site.src.length);
-
-		if (args !== null && args.length == 0) {
-			args = [new UplcUnit(globalCallSite)];
-		}
 
 		try {
 			return await this.runInternal(args, callbacks, networkParams);
@@ -23399,13 +23481,10 @@ class IRFuncExpr extends IRExpr {
 	 * @param {IRScope} scope 
 	 */
 	resolveNames(scope = new IRScope(null, null)) {
-		if (this.#args.length == 0) {
-			// in the zero-arg case a unit-value needs to be added to the scope (to assure correct DeBruijn index calculation)
-			scope = new IRScope(scope, null);
-		} else {
-			for (let arg of this.#args) {
-				scope = new IRScope(scope, arg);
-			}
+		// in the zero-arg case no Debruijn indices need to be added because we use Delay/Force
+
+		for (let arg of this.#args) {
+			scope = new IRScope(scope, arg);
 		}
 
 		this.#body.resolveNames(scope);
@@ -23465,8 +23544,8 @@ class IRFuncExpr extends IRExpr {
 		let term = this.#body.toUplc();
 
 		if (this.#args.length == 0) {
-			// must wrap at least once, even if there are no args
-			term = new UplcLambda(this.site, term);
+			// a zero-arg func is turned into a UplcDelay term
+			term = new UplcDelay(this.site, term);
 		} else {
 			for (let i = this.#args.length - 1; i >= 0; i--) {
 				term = new UplcLambda(this.site, term, this.#args[i].toString());
@@ -23576,8 +23655,8 @@ class IRCallExpr extends IRExpr {
 	 */
 	toUplcCall(term) {
 		if (this.#argExprs.length == 0) {
-			// a Plutus-core function call (aka function application) always requires a argument. In the zero-args case this is the unit value
-			term = new UplcCall(this.site, term, UplcUnit.newTerm(this.#parensSite));
+			// assuming underlying zero-arg function has been converted into a UplcDelay term
+			term = new UplcForce(this.site, term);
 		} else {
 			for (let argExpr of this.#argExprs) {
 				term = new UplcCall(this.site, term, argExpr.toUplc());
@@ -24307,15 +24386,15 @@ class IRCoreCallExpr extends IRCallExpr {
 		/**
 		 * @type {UplcTerm}
 		 */
-		 let term = new UplcBuiltin(site, name.slice("__core__".length));
+		let term = new UplcBuiltin(site, name.slice("__core__".length));
 
-		 let nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
+		let nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
  
-		 for (let i = 0; i < nForce; i++) {
-			 term = new UplcForce(site, term);
-		 }
+		for (let i = 0; i < nForce; i++) {
+			term = new UplcForce(site, term);
+		}
  
-		 return term;
+		return term;
 	}
 
 	/**

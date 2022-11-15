@@ -98,9 +98,9 @@ function asInt(value) {
         if (data instanceof helios_.IntData) {
             return data.value;
         }
+    } else {
+        throw new Error(`expected IntData, got ${value.toString()}`);
     }
-
-    throw new Error(`expected IntData, got ${value.toString()}`);
 }
 
 function asBytes(value) {
@@ -399,7 +399,6 @@ const certifyingScriptContextParam = `
 
 async function runPropertyTests() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
-
 
     ////////////
     // Int tests
