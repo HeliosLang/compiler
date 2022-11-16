@@ -139,3 +139,12 @@ const A = 1
 const B = 1
 const C: Int = main(A, B)
 `, ["A", "B"]);
+
+simplify(`testing one_field
+struct Datum {
+    b: Bool
+}
+
+func main(a: Bool) -> Bool {
+    Datum{a}.b
+}`);

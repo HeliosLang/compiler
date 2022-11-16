@@ -11861,6 +11861,11 @@ class StructLiteralExpr extends ValueExpr {
 				]);
 			}
 
+			// in case of a struct with only one field, return that field directly 
+			if (fields.length == 1 && this.#typeExpr.type instanceof StatementType && this.#typeExpr.type.statement instanceof StructStatement) {
+				return fIR;
+			}
+
 			res = new IR([
 				new IR("__core__mkCons("),
 				fIR,
@@ -13924,7 +13929,19 @@ class StructStatement extends DataDefinition {
 	 * @param {IRDefinitions} map
 	 */
 	toIR(map) {
-		super.toIR(map);
+		if (this.fields.length == 1) {
+			let f = this.fields[0];
+			let key = `${this.path}__${f.name.toString()}`;
+			let isBool = f.type instanceof BoolType;
+
+			if (isBool) {
+				map.set(key, new IR("__helios__common__unBoolData", f.site));
+			} else {
+				map.set(key, new IR("__helios__common__identity", f.site));
+			}
+		} else {
+			super.toIR(map);
+		}
 
 		this.#impl.toIR(map);
 	}
