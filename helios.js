@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.12
+// Version:     0.8.13
 // Last update: November 2022
 // License:     Unlicense
 //
@@ -80,7 +80,7 @@
 //     2. Utilities                         assert, assertDefined, equals, assertEq, idiv, ipow2, 
 //                                          imask, imod32, imod8, posMod, irotr, bigIntToBytes, 
 //                                          bytesToBigInt, padZeroes, byteToBitString, hexToBytes, 
-//                                          bytesToHex, stringToBytes, bytesToText, replaceTabs,
+//                                          bytesToHex, textToBytes, bytesToText, replaceTabs,
 //                                          BitReader, BitWriter, 
 //                                          UInt64, DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
 //                                          Crypto, IR, Source, UserError, Site, hl
@@ -202,7 +202,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.12"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.13"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -580,11 +580,11 @@ export function bytesToHex(bytes) {
 /**
  * Encodes a string into a list of uint8 bytes using UTF-8 encoding.
  * @example
- * stringToBytes("hello world") => [104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]
+ * textToBytes("hello world") => [104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]
  * @param {string} str 
  * @returns {number[]}
  */
-function stringToBytes(str) {
+export function textToBytes(str) {
 	return Array.from((new TextEncoder()).encode(str));
 }
 
@@ -1037,17 +1037,17 @@ class Crypto {
 	/**
 	 * Encode bytes in special base32.
 	 * @example
-	 * Crypto.encodeBase32(stringToBytes("f")) => "my"
+	 * Crypto.encodeBase32(textToBytes("f")) => "my"
 	 * @example
-	 * Crypto.encodeBase32(stringToBytes("fo")) => "mzxq"
+	 * Crypto.encodeBase32(textToBytes("fo")) => "mzxq"
 	 * @example
-	 * Crypto.encodeBase32(stringToBytes("foo")) => "mzxw6"
+	 * Crypto.encodeBase32(textToBytes("foo")) => "mzxw6"
 	 * @example
-	 * Crypto.encodeBase32(stringToBytes("foob")) => "mzxw6yq"
+	 * Crypto.encodeBase32(textToBytes("foob")) => "mzxw6yq"
 	 * @example
-	 * Crypto.encodeBase32(stringToBytes("fooba")) => "mzxw6ytb"
+	 * Crypto.encodeBase32(textToBytes("fooba")) => "mzxw6ytb"
 	 * @example
-	 * Crypto.encodeBase32(stringToBytes("foobar")) => "mzxw6ytboi"
+	 * Crypto.encodeBase32(textToBytes("foobar")) => "mzxw6ytboi"
 	 * @param {number[]} bytes - uint8 numbers
 	 * @param {string} alphabet - list of chars
 	 * @return {string}
@@ -1187,7 +1187,7 @@ class Crypto {
 	/**
 	 * Creates a bech32 checksummed string (used to represent Cardano addresses)
 	 * @example
-	 * Crypto.encodeBech32("foo", stringToBytes("foobar")) => "foo1vehk7cnpwgry9h96"
+	 * Crypto.encodeBech32("foo", textToBytes("foobar")) => "foo1vehk7cnpwgry9h96"
 	 * @example
 	 * Crypto.encodeBech32("addr_test", hexToBytes("70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539")) => "addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld"
 	 * @param {string} hrp 
@@ -1289,7 +1289,7 @@ class Crypto {
 	 * @example 
 	 * bytesToHex(Crypto.sha2_256([0x61, 0x62, 0x63])) => "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 	 * @example
-	 * Crypto.sha2_256(stringToBytes("Hello, World!")) => [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
+	 * Crypto.sha2_256(textToBytes("Hello, World!")) => [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
 	 * @param {number[]} bytes - list of uint8 numbers
 	 * @returns {number[]} - list of uint8 numbers
 	 */
@@ -1656,7 +1656,7 @@ class Crypto {
 	 * Result is also a list of uint8 number.
 	 * Sha3 only bit-wise operations, so 64-bit operations can easily be replicated using 2 32-bit operations instead
 	 * @example
-	 * bytesToHex(Crypto.sha3(stringToBytes("abc"))) => "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
+	 * bytesToHex(Crypto.sha3(textToBytes("abc"))) => "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
 	 * @example
 	 * bytesToHex(Crypto.sha3((new Array(136)).fill(1))) => "b36dc2167c4d9dda1a58b87046c8d76a6359afe3612c4de8a38857e09117b2db"
 	 * @example
@@ -1854,7 +1854,7 @@ class Crypto {
 	 * @example                                        
 	 * bytesToHex(Crypto.blake2b([0, 1])) => "01cf79da4945c370c68b265ef70641aaa65eaa8f5953e3900d97724c2c5aa095"
 	 * @example
-	 * bytesToHex(Crypto.blake2b(stringToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
+	 * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
 	 * @param {number[]} bytes 
 	 * @param {number} digestSize - 32 or 64
 	 * @returns {number[]}
@@ -3775,7 +3775,7 @@ function dumpCostModels(networkParams) {
 /** 
  * a UplcValue is passed around by Plutus-core expressions.
  */
-class UplcValue {
+export class UplcValue {
 	#site;
 
 	/**
@@ -4520,20 +4520,34 @@ class UplcAnon extends UplcValue {
 /**
  * Plutus-core Integer class
  */
-class UplcInt extends UplcValue {
+export class UplcInt extends UplcValue {
 	#value;
 	#signed;
 
 	/**
 	 * @param {Site} site
 	 * @param {bigint} value - supposed to be arbitrary precision
-	 * @param {boolean} signed
+	 * @param {boolean} signed - unsigned is only for internal use
 	 */
 	constructor(site, value, signed = true) {
 		super(site);
 		assert(typeof value == 'bigint', "not a bigint");
 		this.#value = value;
 		this.#signed = signed;
+	}
+
+	/**
+	 * Constructs a UplcInt without requiring a Site
+	 * @param {bigint | number} value
+	 * @returns {UplcInt} 
+	 */
+	static new(value) {
+		if (typeof value == 'number') {
+			assert(value % 1.0 == 0.0, "must be whole number");
+			return new UplcInt(Site.dummy(), BigInt(value));
+		} else {
+			return new UplcInt(Site.dummy(), value);
+		}
 	}
 
 	get signed() {
@@ -4714,7 +4728,7 @@ class UplcInt extends UplcValue {
  * Plutus-core ByteArray value class
  * Wraps a regular list of uint8 numbers (so not Uint8Array)
  */
-class UplcByteArray extends UplcValue {
+export class UplcByteArray extends UplcValue {
 	#bytes;
 
 	/**
@@ -4728,6 +4742,15 @@ class UplcByteArray extends UplcValue {
 		for (let b of this.#bytes) {
 			assert(typeof b == 'number');
 		}
+	}
+
+	/**
+	 * Construct a UplcByteArray without requiring a Site
+	 * @param {number[]} bytes 
+	 * @returns {UplcByteArray}
+	 */
+	static new(bytes) {
+		return new UplcByteArray(Site.dummy(), bytes);
 	}
 
 	/**
@@ -4829,7 +4852,7 @@ class UplcByteArray extends UplcValue {
 /**
  * Plutus-core string value class
  */
-class UplcString extends UplcValue {
+export class UplcString extends UplcValue {
 	#value;
 
 	/**
@@ -4839,6 +4862,15 @@ class UplcString extends UplcValue {
 	constructor(site, value) {
 		super(site);
 		this.#value = value;
+	}
+
+	/**
+	 * Constructs a UplcStrin without requiring a Site
+	 * @param {string} value 
+	 * @returns {UplcString}
+	 */
+	static new(value) {
+		return new UplcString(Site.dummy(), value);
 	}
 
 	/**
@@ -4900,12 +4932,20 @@ class UplcString extends UplcValue {
 /**
  * Plutus-core unit value class
  */
- class UplcUnit extends UplcValue {
+export class UplcUnit extends UplcValue {
 	/**
 	 * @param {Site} site 
 	 */
 	constructor(site) {
 		super(site);
+	}
+
+	/**
+	 * Constructs a UplcUnit without requiring a Site
+	 * @returns {UplcUnit}
+	 */
+	static new () {
+		return new UplcUnit(Site.dummy());
 	}
 
 	/**
@@ -4960,7 +5000,7 @@ class UplcString extends UplcValue {
 /**
  * Plutus-core boolean value class
  */
-class UplcBool extends UplcValue {
+export class UplcBool extends UplcValue {
 	#value;
 
 	/**
@@ -4970,6 +5010,15 @@ class UplcBool extends UplcValue {
 	constructor(site, value) {
 		super(site);
 		this.#value = value;
+	}
+
+	/**
+	 * Constructs a UplcBool without requiring a Site
+	 * @param {boolean} value 
+	 * @returns {UplcBool}
+	 */
+	static new(value) {
+		return new UplcBool(Site.dummy(), value);
 	}
 
 	/**
@@ -5041,7 +5090,7 @@ class UplcBool extends UplcValue {
  * Plutus-core pair value class
  * Can contain any other value type.
  */
-class UplcPair extends UplcValue {
+export class UplcPair extends UplcValue {
 	#first;
 	#second;
 
@@ -5054,6 +5103,16 @@ class UplcPair extends UplcValue {
 		super(site);
 		this.#first = first;
 		this.#second = second;
+	}
+
+	/**
+	 * Constructs a UplcPair without requiring a Site
+	 * @param {UplcValue} first 
+	 * @param {UplcValue} second 
+	 * @returns {UplcPair}
+	 */
+	static new(first, second) {
+		return new UplcPair(Site.dummy(), first, second);
 	}
 
 	/**
@@ -5211,7 +5270,7 @@ class UplcMapItem extends UplcValue {
  * Plutus-core list value class.
  * Only used during evaluation.
 */
-class UplcList extends UplcValue {
+export class UplcList extends UplcValue {
 	#items;
 
 	/**
@@ -5221,6 +5280,14 @@ class UplcList extends UplcValue {
 	constructor(site, items) {
 		super(site);
 		this.#items = items;
+	}
+
+	/**
+	 * Constructs a UplcList without requiring a Site
+	 * @param {UplcData[]} items 
+	 */
+	static new(items) {
+		return new UplcList(Site.dummy(), items);
 	}
 
 	/**
@@ -5293,7 +5360,7 @@ class UplcList extends UplcValue {
  * Plutus-core map value class.
  * Only used during evaluation.
  */
-class UplcMap extends UplcValue {
+export class UplcMap extends UplcValue {
 	#pairs;
 
 	/**
@@ -5303,6 +5370,17 @@ class UplcMap extends UplcValue {
 	constructor(site, pairs) {
 		super(site);
 		this.#pairs = pairs;
+	}
+
+	/**
+	 * Constructs a UplcMap without requiring a Site
+	 * @param {[UplcData, UplcData][]} pairs 
+	 * @returns {UplcMap}
+	 */
+	static new(pairs) {
+		const site = Site.dummy();
+
+		return new UplcMap(site, pairs.map(([key, val]) => new UplcMapItem(site, key, val)));
 	}
 
 	/**
@@ -6056,7 +6134,7 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UplcByteArray(callSite, stringToBytes(a.string));
+					return new UplcByteArray(callSite, textToBytes(a.string));
 				});
 			case "decodeUtf8":
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
@@ -6996,7 +7074,7 @@ export class CborData {
 	 * @returns {number[]}
 	 */
 	static encodeUtf8(str, split = false) {
-		const bytes = stringToBytes(str);
+		const bytes = textToBytes(str);
 		
 		if (split && bytes.length > 64) {
 			/** @type {number[][]} */
@@ -7640,7 +7718,7 @@ export class ByteArrayData extends UplcData {
 	 * @returns {ByteArrayData}
 	 */
 	static fromString(s) {
-		let bytes = stringToBytes(s);
+		let bytes = textToBytes(s);
 
 		return new ByteArrayData(bytes);
 	}
@@ -29389,9 +29467,6 @@ export const exportedForTesting = {
 	setRawUsageNotifier: setRawUsageNotifier,
 	debug: debug,
 	setBlake2bDigestSize: setBlake2bDigestSize,
-	hexToBytes: hexToBytes,
-	bytesToHex: bytesToHex,
-	stringToBytes: stringToBytes,
 	dumpCostModels: dumpCostModels,
 	Site: Site,
 	Source: Source,

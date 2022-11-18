@@ -18,9 +18,9 @@ async function testBasic() {
 
     const signedHex= "84a30081825820d4b22d33611fb2b3764080cb349b3f12d353aef1d4319ee33e44594bbebe5e83000182a200581d6085842b5f34a2b74e6639cbf1cf4f0826f146db513b7bc04f4b024337011b000000025370c627a200581d6005746ec08108232ef6f3046caeaa3c5c63b9c4470b303d85aedbf69a011a00989680021a00028759a10081825820a0e006bbd52e9db2dcd904e90c335212d2968fcae92ee9dd01204543c314359b584073afc3d75355883cd9a83140ed6480354578148f861f905d65a75b773d004eca5869f7f2a580c6d9cc7d54da3b307aa6cb1b8d4eb57603e37eff83ca56ec620cf5f6";
 
-    const unsignedBytes = helios_.hexToBytes(unsignedHex);
+    const unsignedBytes = helios.hexToBytes(unsignedHex);
 
-    const signedBytes = helios_.hexToBytes(signedHex);
+    const signedBytes = helios.hexToBytes(signedHex);
 
     const unsignedTx = helios.Tx.fromCbor(unsignedBytes);
 
@@ -39,7 +39,7 @@ async function testBasic() {
     console.log("SIGNED SIZE:", signedBytes.length.toString());
     console.log("ESTIMATED TX SIZE:", signedTx.estimateFee(networkParams));
 
-    console.log("CBOR ENCODING:", helios_.bytesToHex(signedTx.toCbor()));
+    console.log("CBOR ENCODING:", helios.bytesToHex(signedTx.toCbor()));
 
     console.log("INV:", JSON.stringify(helios_.Tx.fromCbor(signedTx.toCbor()).dump(), undefined, "    "));
 
@@ -82,7 +82,7 @@ async function testMinting(optimized = false) {
 
 	const hash = program.hash();
 
-	console.log("MINTING_POLICY_HASH:", helios_.bytesToHex(hash));
+	console.log("MINTING_POLICY_HASH:", helios.bytesToHex(hash));
 
 	// wallet1 address: addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w
 	// submit minting transaction:
@@ -107,9 +107,9 @@ async function testMinting(optimized = false) {
 
 	const cliSignedTxHex = (!optimized) ? "84a60081825820d4b22d33611fb2b3764080cb349b3f12d353aef1d4319ee33e44594bbebe5e83000d81825820d4b22d33611fb2b3764080cb349b3f12d353aef1d4319ee33e44594bbebe5e83000182a200581d6085842b5f34a2b74e6639cbf1cf4f0826f146db513b7bc04f4b024337011b0000000253eaa6cca200581d6085842b5f34a2b74e6639cbf1cf4f0826f146db513b7bc04f4b02433701821a001e8480a1581c0b61cc751e9512fef62362f00e6db61e70d719a567c6d4eb68095957a14001021a0002b8b409a1581c0b61cc751e9512fef62362f00e6db61e70d719a567c6d4eb68095957a140010b5820af267b4418b11a9faa827f80301849ec4bd4565dbd95bae23f73918444eab395a30081825820a0e006bbd52e9db2dcd904e90c335212d2968fcae92ee9dd01204543c314359b5840684649bbe18d47cc58963877e777da9c7dab6206b4833c676f6301d974418b574f0d169723d7cedbd33e2cbcc07fac4a8cf32769816f8dc3153f5bdf6e510c0406815453010000322233335734600693124c4c931251010581840100182a821909611a00094d78f5f6" : "84a60081825820d4b22d33611fb2b3764080cb349b3f12d353aef1d4319ee33e44594bbebe5e83000d81825820d4b22d33611fb2b3764080cb349b3f12d353aef1d4319ee33e44594bbebe5e83000182a200581d6085842b5f34a2b74e6639cbf1cf4f0826f146db513b7bc04f4b024337011b0000000253eaa985a200581d6085842b5f34a2b74e6639cbf1cf4f0826f146db513b7bc04f4b02433701821a001e8480a1581c919d4c2c9455016289341b1a14dedf697687af31751170d56a31466ea14001021a0002b5fb09a1581c919d4c2c9455016289341b1a14dedf697687af31751170d56a31466ea140010b5820686829109fc5e6342d9223537b91f804107c4dbfa8ba3288f80657be843acd51a30081825820a0e006bbd52e9db2dcd904e90c335212d2968fcae92ee9dd01204543c314359b58409b4267e7691d160414f774f82942f08bbc3c64a19259a09b92350fe11ced5f73b64d99aa05f70cb68c730dc0d6ae718f739e5c2932eb843f2a9dcd69ff3c160c068147460100002249810581840100182a821903201a0002754cf5f6"
 
-	console.log("SIGNED SIZE:", helios_.hexToBytes(cliSignedTxHex).length);
+	console.log("SIGNED SIZE:", helios.hexToBytes(cliSignedTxHex).length);
 
-	const cliTxBytes = helios_.hexToBytes(cliTxHex);
+	const cliTxBytes = helios.hexToBytes(cliTxHex);
 
 	const cliTx = helios.Tx.fromCbor(cliTxBytes);
 

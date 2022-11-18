@@ -1044,20 +1044,20 @@ function main() {
 
         let fields = line.split(":");
 
-        let privateKey = helios_.hexToBytes(fields[0].slice(0, 64));
-        let expectedPublicKey = helios_.hexToBytes(fields[1]);
-        let message = helios_.hexToBytes(fields[2]);
-        let expectedSignature = helios_.hexToBytes(fields[3].slice(0, 128));
+        let privateKey = helios.hexToBytes(fields[0].slice(0, 64));
+        let expectedPublicKey = helios.hexToBytes(fields[1]);
+        let message = helios.hexToBytes(fields[2]);
+        let expectedSignature = helios.hexToBytes(fields[3].slice(0, 128));
 
         let derivedPublicKey = Ed25519.derivePublicKey(privateKey);
-        if (helios_.bytesToHex(derivedPublicKey) != helios_.bytesToHex(expectedPublicKey)) {
-            console.log(`${helios_.bytesToHex(derivedPublicKey)}\nvs\n${expectedPublicKey}`);
+        if (helios.bytesToHex(derivedPublicKey) != helios.bytesToHex(expectedPublicKey)) {
+            console.log(`${helios.bytesToHex(derivedPublicKey)}\nvs\n${expectedPublicKey}`);
             throw new Error("public key doesn't match");
         }
         
         let calculatedSignature = Ed25519.sign(message, privateKey);
-        if (helios_.bytesToHex(calculatedSignature) != helios_.bytesToHex(expectedSignature)) {
-            console.log(`${helios_.bytesToHex(calculatedSignature)}\nvs\n${expectedSignature}`);
+        if (helios.bytesToHex(calculatedSignature) != helios.bytesToHex(expectedSignature)) {
+            console.log(`${helios.bytesToHex(calculatedSignature)}\nvs\n${expectedSignature}`);
             throw new Error("signature doesn't match");
         }
 
