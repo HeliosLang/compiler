@@ -25772,6 +25772,7 @@ export class Tx extends CborData {
 	/**
 	 * @param {number} tag
 	 * @param {Metadata} data
+	 * @returns {Tx}
 	 */
 	addMetadata(tag, data) {
 		if (this.#metadata === null) {
@@ -25779,6 +25780,8 @@ export class Tx extends CborData {
 		}
 
 		this.#metadata.add(tag, data);
+
+		return this;
 	}
 }
 
