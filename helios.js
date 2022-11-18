@@ -80,7 +80,7 @@
 //     2. Utilities                         assert, assertDefined, equals, assertEq, idiv, ipow2, 
 //                                          imask, imod32, imod8, posMod, irotr, bigIntToBytes, 
 //                                          bytesToBigInt, padZeroes, byteToBitString, hexToBytes, 
-//                                          bytesToHex, stringToBytes, bytesToString, replaceTabs, 
+//                                          bytesToHex, stringToBytes, bytesToText, replaceTabs,
 //                                          BitReader, BitWriter, 
 //                                          UInt64, DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
 //                                          Crypto, IR, Source, UserError, Site, hl
@@ -591,11 +591,11 @@ function stringToBytes(str) {
 /**
  * Decodes a list of uint8 bytes into a string using UTF-8 encoding.
  * @example
- * bytesToString([104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]) => "hello world"
+ * bytesToText([104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]) => "hello world"
  * @param {number[]} bytes 
  * @returns {string}
  */
-function bytesToString(bytes) {
+export function bytesToText(bytes) {
 	return (new TextDecoder("utf-8", {fatal: true})).decode((new Uint8Array(bytes)).buffer);
 }
 
@@ -1076,17 +1076,17 @@ class Crypto {
 	/**
 	 * Decode base32 string into bytes.
 	 * @example
-	 * bytesToString(Crypto.decodeBase32("my")) => "f"
+	 * bytesToText(Crypto.decodeBase32("my")) => "f"
 	 * @example
-	 * bytesToString(Crypto.decodeBase32("mzxq")) => "fo"
+	 * bytesToText(Crypto.decodeBase32("mzxq")) => "fo"
 	 * @example
-	 * bytesToString(Crypto.decodeBase32("mzxw6")) => "foo"
+	 * bytesToText(Crypto.decodeBase32("mzxw6")) => "foo"
 	 * @example
-	 * bytesToString(Crypto.decodeBase32("mzxw6yq")) => "foob"
+	 * bytesToText(Crypto.decodeBase32("mzxw6yq")) => "foob"
 	 * @example
-	 * bytesToString(Crypto.decodeBase32("mzxw6ytb")) => "fooba"
+	 * bytesToText(Crypto.decodeBase32("mzxw6ytb")) => "fooba"
 	 * @example
-	 * bytesToString(Crypto.decodeBase32("mzxw6ytboi")) => "foobar"
+	 * bytesToText(Crypto.decodeBase32("mzxw6ytboi")) => "foobar"
 	 * @param {string} encoded
 	 * @param {string} alphabet
 	 * @return {number[]}
@@ -6063,7 +6063,7 @@ class UplcBuiltin extends UplcTerm {
 					rte.calcAndIncrCost(this, a);
 
 					try {
-						return new UplcString(callSite, bytesToString(a.bytes));
+						return new UplcString(callSite, bytesToText(a.bytes));
 					} catch(_) {
 						throw callSite.runtimeError("invalid utf-8");
 					}
@@ -7023,7 +7023,7 @@ export class CborData {
 
 		const length = bytes.shift();
 
-		return bytesToString(bytes.splice(0, length));
+		return bytesToText(bytes.splice(0, length));
 	}
 
 	/**
@@ -16755,7 +16755,7 @@ function buildLiteralExprFromValue(site, type, value, path) {
 		}
 	} else if (type instanceof StringType) {
 		if (value instanceof UplcDataValue && value.data instanceof ByteArrayData) {
-			return new PrimitiveLiteralExpr(new StringLiteral(site, bytesToString(value.data.bytes)));
+			return new PrimitiveLiteralExpr(new StringLiteral(site, bytesToText(value.data.bytes)));
 		} else {
 			throw site.typeError(`expected ByteArrayData for parameter '${path}', got '${value}'`);
 		}
@@ -24683,7 +24683,7 @@ class UplcDeserializer extends BitReader {
 	readString() {
 		let bytes = this.readBytes();
 
-		let s = bytesToString(bytes);
+		let s = bytesToText(bytes);
 
 		return new UplcString(Site.dummy(), s);
 	}
@@ -29392,7 +29392,6 @@ export const exportedForTesting = {
 	hexToBytes: hexToBytes,
 	bytesToHex: bytesToHex,
 	stringToBytes: stringToBytes,
-	bytesToString: bytesToString,
 	dumpCostModels: dumpCostModels,
 	Site: Site,
 	Source: Source,

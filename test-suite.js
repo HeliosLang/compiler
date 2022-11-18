@@ -130,7 +130,7 @@ function isValidString(value) {
         let data = value.data;
         if (data instanceof helios_.ByteArrayData) {
             try {
-                void helios_.bytesToString(data.bytes);
+                void helios.bytesToText(data.bytes);
     
                 return true;
             } catch(_) {
@@ -146,7 +146,7 @@ function asString(value) {
     if (value instanceof helios_.UplcDataValue) {
         let data = value.data;
         if (data instanceof helios_.ByteArrayData) {
-            return helios_.bytesToString(data.bytes);
+            return helios.bytesToText(data.bytes);
         }
     }
 
@@ -1295,7 +1295,7 @@ async function runPropertyTests() {
             let bsa = helios_.Crypto.blake2b(asBytes(a));
 
             try {
-                let aString = helios_.bytesToString(bsa);
+                let aString = helios.bytesToText(bsa);
 
                 return aString == asString(res);
             } catch (_) {
