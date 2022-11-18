@@ -2985,7 +2985,7 @@ export class NetworkParams {
 	}
 	
 	get costModel() {
-		return assertDefined(this.#raw?.costModels?.PlutusScriptV2, "'obj.costModels.PlutusScriptV2' undefined");
+		return assertDefined(this.#raw?.latestParams?.costModels?.PlutusScriptV2, "'obj.latestParams.costModels.PlutusScriptV2' undefined");
 	}
 	/**
 	 * @param {string} key 
@@ -3070,8 +3070,8 @@ export class NetworkParams {
 	 */
 	get txFeeParams() {
 		return [
-			assertNumber(this.#raw?.txFeeFixed),
-			assertNumber(this.#raw?.txFeePerByte),
+			assertNumber(this.#raw?.latestParams?.txFeeFixed),
+			assertNumber(this.#raw?.latestParams?.txFeePerByte),
 		];
 	}
 
@@ -3080,8 +3080,8 @@ export class NetworkParams {
 	 */
 	get exFeeParams() {
 		return [
-			assertNumber(this.#raw?.executionUnitPrices?.priceMemory),
-			assertNumber(this.#raw?.executionUnitPrices?.priceSteps),
+			assertNumber(this.#raw?.latestParams?.executionUnitPrices?.priceMemory),
+			assertNumber(this.#raw?.latestParams?.executionUnitPrices?.priceSteps),
 		];
 	}
 	
@@ -3089,7 +3089,7 @@ export class NetworkParams {
 	 * @type {number[]}
 	 */
 	get sortedCostParams() {
-		let baseObj = this.#raw?.costModels?.PlutusScriptV2;
+		let baseObj = this.#raw?.latestParams?.costModels?.PlutusScriptV2;
 		let keys = Object.keys(baseObj);
 
 		keys.sort();
@@ -3101,21 +3101,21 @@ export class NetworkParams {
 	 * @type {number}
 	 */
 	get lovelacePerUTXOByte() {
-		return assertNumber(this.#raw?.utxoCostPerByte);
+		return assertNumber(this.#raw?.latestParams?.utxoCostPerByte);
 	}
 
 	/**
 	 * @type {number}
 	 */
 	get minCollateralPct() {
-		return assertNumber(this.#raw?.collateralPercentage);
+		return assertNumber(this.#raw?.latestParams?.collateralPercentage);
 	}
 
 	/**
 	 * @type {number}
 	 */
 	get maxCollateralInputs() {
-		return assertNumber(this.#raw?.maxCollateralInputs);
+		return assertNumber(this.#raw?.latestParams?.maxCollateralInputs);
 	}
 
 	/**
@@ -3123,8 +3123,8 @@ export class NetworkParams {
 	 */
 	get txExecutionBudget() {
 		return [
-			assertNumber(this.#raw?.maxTxExecutionUnits?.memory),
-			assertNumber(this.#raw?.maxTxExecutionUnits?.steps),
+			assertNumber(this.#raw?.latestParams?.maxTxExecutionUnits?.memory),
+			assertNumber(this.#raw?.latestParams?.maxTxExecutionUnits?.steps),
 		];
 	}
 
@@ -3132,7 +3132,7 @@ export class NetworkParams {
 	 * @type {number}
 	 */
 	get maxTxSize() {
-		return assertNumber(this.#raw?.maxTxSize);
+		return assertNumber(this.#raw?.latestParams?.maxTxSize);
 	}
 
 	/**
