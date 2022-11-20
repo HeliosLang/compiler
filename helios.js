@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.13
+// Version:     0.8.14
 // Last update: November 2022
 // License:     Unlicense
 //
@@ -202,7 +202,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.13"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.14"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -19543,6 +19543,8 @@ class ValueType extends BuiltinType {
 				return Instance.new(new FuncType([new AssetClassType()], new IntType()));
 			case "get_policy":
 				return Instance.new(new FuncType([new MintingPolicyHashType()], new MapType(new ByteArrayType(), new IntType())));
+			case "contains_policy":
+				return Instance.new(new FuncType([new MintingPolicyHashType()], new BoolType()));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -22576,6 +22578,30 @@ function makeRawFunctions() {
 				)
 			}(__core__unMapData(self))
 		} 
+	}`));
+	add(new RawFunc("__helios__value__contains_policy",
+	`(self) -> {
+		(mph) -> {
+			(map) -> {
+				(recurse) -> {
+					recurse(recurse, map)
+				}(
+					(recurse, map) -> {
+						__core__ifThenElse(
+							__core__nullList(map),
+							() -> {false},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsData(__core__fstPair(__core__headList(map)), mph),
+									() -> {true},
+									() -> {recurse(recurse, __core__tailList(map))}
+								)()
+							}
+						)()
+					}
+				)
+			}(__core__unMapData(self))
+		}
 	}`));
 
 	return db;

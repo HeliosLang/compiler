@@ -2795,6 +2795,14 @@ async function runPropertyTests() {
             sum.get_policy(MintingPolicyHash::new(mph_bytes)) == Map[ByteArray]Int{tn_a: qty_a, tn_b: qty_b}
         }`, ([_], res) => asBool(res));
 
+        await ft.test([ft.bool(), ft.bytes(11, 11), ft.bytes(10, 10), ft.string(5,5), ft.int(), ft.string(3,3), ft.int()], `
+        testing value_contains_policy
+        func main(pick1: Bool, mph_bytes1: ByteArray, mph_bytes2: ByteArray, tn_a: ByteArray, qty_a: Int, tn_b: ByteArray, qty_b: Int) -> Bool {
+            mph_bytes: ByteArray = if (pick1) {mph_bytes1} else {mph_bytes2};
+            sum: Value = Value::new(AssetClass::new(MintingPolicyHash::new(mph_bytes1), tn_a), qty_a) + Value::new(AssetClass::new(MintingPolicyHash::new(mph_bytes1), tn_b), qty_b);
+            sum.contains_policy(MintingPolicyHash::new(mph_bytes))
+        }`, ([pick1, _], res) => asBool(pick1) === asBool(res));
+
         await ft.test([ft.map(ft.bytes(), ft.map(ft.bytes(), ft.int()))], `
         testing value_from_data
         func main(a: Data) -> Value {
