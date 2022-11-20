@@ -24000,6 +24000,10 @@ class IRCallExpr extends IRExpr {
 			}
 		}
 
+		// TODO: another optimization could be extracting functions like __core__iData from IRFuncExpr args, and inserting it in IRFuncExpr fnExpr, and then running inner simplify methods
+		// this could also work on the arg side, where if all instances of an arg of an arg are wrapped with such a function, that function can be extracted and placed inside calls to that arg instead
+		// IRUserCalExpr.simplify might need to be split into two methods for this
+
 		return new IRUserCallExpr(fnExpr, argExprs, this.parensSite);
 	}
 
