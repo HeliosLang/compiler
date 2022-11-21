@@ -23316,7 +23316,7 @@ class IRExpr extends Token {
 	eval(stack) {
 		if (this.name.startsWith("__core")) {
 			return new IRFuncValue((args) => {
-				return IRCoreCallExpr.evalValues(this.site, stack.throwRTErrors, this.#name.value, args);
+				return IRCoreCallExpr.evalValues(this.site, stack.throwRTErrors, this.#name.value.slice("__core__".length), args);
 			});
 		} else if (this.#variable === null) {
 			throw new Error("variable should be set");
@@ -23348,7 +23348,9 @@ class IRExpr extends Token {
 	 * @returns {?IRExpr}
 	 */
 	flattenCall(ref) {
-		if (ref === this.variable) {
+		if (this.name.startsWith("__core")) {
+			return this;
+		} else if (ref === this.variable) {
 			return null;
 		} else {
 			return this;
@@ -23633,12 +23635,32 @@ class IRFuncExpr extends IRExpr {
 
 	/**
 	 * Simplify body
-	 * (Checking of unused args is done by caller)
 	 * @param {IRExprStack} stack
 	 * @returns {IRFuncExpr}
 	 */
-	simplify(stack) {
+	simplifyBody(stack) {
 		return new IRFuncExpr(this.site, this.#args, this.#body.simplify(stack));
+	}
+
+	/**
+	 * Simplify body
+	 * (Checking of unused args is done by caller)
+	 * @param {IRExprStack} stack
+	 * @returns {IRExpr}
+	 */
+	simplify(stack) {
+		// a IRFuncExpr that wraps a Call with the same arguments, in the same order, can simply return that function
+		if (this.#body instanceof IRCallExpr && this.#body.argExprs.length == this.#args.length && this.#body.argExprs.every((a, i) => {
+			return (a instanceof IRNameExpr) && (this.#args[i] === a.variable);
+		})) {
+			if (this.#body instanceof IRCoreCallExpr) {
+				return new IRNameExpr(new Word(this.site, `__core__${this.#body.builtinName}`));
+			} else if (this.#body instanceof IRUserCallExpr && this.#body.fnExpr instanceof IRNameExpr) {
+				return this.#body.fnExpr;
+			} 
+		}
+
+		return this.simplifyBody(stack);
 	}
 
 	/** 
@@ -24021,9 +24043,9 @@ class IRCallExpr extends IRExpr {
 
 			if (remArgExprs.length < argExprs.length || remArgExprs.length == 0) {
 				if (remArgExprs.length == 0) {
-					return fnExpr.inline(inlineStack).simplify(stack).body;
+					return fnExpr.inline(inlineStack).simplifyBody(stack).body;
 				} else {
-					return new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.inline(inlineStack).simplify(stack).body), remArgExprs, this.parensSite);
+					return new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.inline(inlineStack).simplifyBody(stack).body), remArgExprs, this.parensSite);
 				}
 			}
 		}
@@ -24269,19 +24291,26 @@ class IRCallExpr extends IRExpr {
 				let a = this.argExprs[i];
 
 				if (a instanceof IRFuncExpr) {
-					if (a.body instanceof IRCoreCallExpr && a.body.builtinName == "iData") { // TODO: other functions as well
-						// unwrap the inner expr core call
-						let betterA = new IRFuncExpr(a.site, a.args, a.body.argExprs[0]);
+					
+					if (a.body instanceof IRCoreCallExpr) {
+						let name = a.body.builtinName;
 
-						// and add the core call the wherever the variable is called
-						let maybeBetterFnExpr = this.fnExpr.wrapCall(this.fnExpr.args[i], "iData");
+						if (name == "iData" || name == "bData" || name == "unIData" || name == "unBData" || name == "mapData" || name == "unMapData" || name == "listData" || name == "unListData") { // TODO: other functions as well
+							// unwrap the inner expr core call
+							let betterA = new IRFuncExpr(a.site, a.args, a.body.argExprs[0]);
 
-						if (maybeBetterFnExpr !== null && maybeBetterFnExpr instanceof IRFuncExpr) {
-							betterFnExpr = maybeBetterFnExpr;
-							betterArgs.push(betterA);
-							someInlined = true;
+							// and add the core call the wherever the variable is called
+							let maybeBetterFnExpr = this.fnExpr.wrapCall(this.fnExpr.args[i], name);
+
+							if (maybeBetterFnExpr !== null && maybeBetterFnExpr instanceof IRFuncExpr) {
+								betterFnExpr = maybeBetterFnExpr;
+								betterArgs.push(betterA);
+								someInlined = true;
+							} else {
+								betterArgs.push(a);	
+							}
 						} else {
-							betterArgs.push(a);	
+							betterArgs.push(a);
 						}
 					} else {
 						betterArgs.push(a);
@@ -24312,10 +24341,13 @@ class IRCallExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
-		let better = this.simplifyWithoutPartialInlining(stack);
+		/**
+		 * @type {IRExpr}
+		 */
+		let better = this.simplifyFlatten();
 
 		if (better instanceof IRUserCallExpr) {
-			better = better.simplifyFlatten();
+			better = better.simplifyWithoutPartialInlining(stack);
 		}
 
 		if (better instanceof IRUserCallExpr) {
@@ -24768,10 +24800,13 @@ class IRCoreCallExpr extends IRCallExpr {
 	 * @returns {UplcTerm}
 	 */
 	static newUplcBuiltin(site, name) {
+		let builtinName = name.slice("__core__".length);
+		assert(!builtinName.startsWith("__core__"));
+
 		/**
 		 * @type {UplcTerm}
 		 */
-		let term = new UplcBuiltin(site, name.slice("__core__".length));
+		let term = new UplcBuiltin(site, builtinName);
 
 		let nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
  
