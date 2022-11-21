@@ -225,10 +225,10 @@ function setBlake2bDigestSize(s) {
 
 /**
  * A tab used for indenting of the IR.
- * 4 spaces.
+ * 2 spaces.
  * @type {string}
  */
-const TAB = "    ";
+const TAB = "  ";
 
 /**
  * A Helios Program can have different purposes
@@ -23547,8 +23547,10 @@ class IRFuncExpr extends IRExpr {
 	 * @returns {string}
 	 */
 	toString(indent = "") {
-		let s = "(" + this.#args.map(n => n.toString()).join(", ") + ") -> {\n" + indent + "  ";
-		s += this.#body.toString(indent + "  ");
+		let innerIndent = (this.#body instanceof IRUserCallExpr && this.#body.argExprs.length == 1 && this.#body.fnExpr instanceof IRFuncExpr && this.#body.fnExpr.args[0].name.startsWith("__")) ? indent : indent + TAB;
+
+		let s = "(" + this.#args.map(n => n.toString()).join(", ") + ") -> {\n" + innerIndent;
+		s += this.#body.toString(innerIndent);
 		s += "\n" + indent + "}";
 
 		return s;
@@ -23870,7 +23872,9 @@ class IRCallExpr extends IRExpr {
 	 * @returns {string}
 	 */
 	toString(indent = "") {
-		return `${this.#fnExpr.toString(indent)}(${this.argsToString(indent)})`;
+		let comment = (this.#fnExpr instanceof IRFuncExpr && this.#fnExpr.args.length == 1 && this.#fnExpr.args[0].name.startsWith("__")) ? `/*${this.#fnExpr.args[0].name}*/` : "";
+
+		return `${this.#fnExpr.toString(indent)}(${comment}${this.argsToString(indent)})`;
 	}
 
 	/**
@@ -24394,7 +24398,11 @@ class IRCoreCallExpr extends IRCallExpr {
 	 * @returns {string}
 	 */
 	toString(indent = "") {
-		return `${this.#name.toString()}(${this.argsToString()})`;
+		if (this.builtinName == "ifThenElse") {
+			return `${this.#name.toString()}(\n${indent}${TAB}${this.argExprs[0].toString(indent + TAB)},\n${indent}${TAB}${this.argExprs[1].toString(indent + TAB)},\n${indent}${TAB}${this.argExprs[2].toString(indent+TAB)}\n${indent})`;
+		} else {
+			return `${this.#name.toString()}(${this.argsToString(indent)})`;
+		}
 	}
 
 	/**
