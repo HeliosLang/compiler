@@ -27,7 +27,11 @@ async function profile(src, argNames) {
     let program = helios.Program.new(src);
 
     let args = argNames.map(name => program.evalParam(name));
-	
+
+    let irProgram1 = helios_.IRProgram.new(program.toIR(), helios_.ScriptPurpose.Testing, true);
+    console.log(`\nSIMPLIFIED (${irProgram1.calcSize()} bytes):`);
+	console.log(new helios_.Source(irProgram1.toString()).pretty(), "\n\n");
+
     console.log(await program.compile(true).profile(args, networkParams));//, program.evalParam("C").toString());
 }
 

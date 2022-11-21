@@ -15139,8 +15139,6 @@ export class Program {
 		let ir = this.toIR();
 
 		let irProgram = IRProgram.new(ir, this.#purpose, simplify);
-
-		//console.log(irProgram.site.src.pretty());
 		
 		return irProgram.toUplc();
 	}
@@ -23158,6 +23156,25 @@ class IRExpr extends Token {
 	}
 
 	/**
+	 * Returns non-null expr if ok
+	 * @param {IRVariable} ref
+	 * @param {string} builtinName
+	 * @param {number} level
+	 * @returns {?IRExpr}
+	 */
+	wrapCall(ref, builtinName, level) {
+		throw new Error("not yet implemented")
+	}
+
+	/**
+	 * @param {IRVariable} ref 
+	 * @returns {?IRExpr}
+	 */
+	flattenCall(ref) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
 	 * Evaluates an expression to something (hopefully) literal
 	 * Returns null if it the result would be worse than the current expression
 	 * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
@@ -23315,6 +23332,32 @@ class IRExpr extends Token {
 	}
 
 	/**
+	 * @param {IRVariable} ref 
+	 * @param {string} builtinName 
+	 * @param {number} level
+	 * @returns {?IRExpr}
+	 */
+	wrapCall(ref, builtinName, level) {
+		if (ref === this.variable) {
+			return null;
+		} else {
+			return this;
+		}
+	}
+
+	/**
+	 * @param {IRVariable} ref 
+	 * @returns {?IRExpr}
+	 */
+	flattenCall(ref) {
+		if (ref === this.variable) {
+			return null;
+		} else {
+			return this;
+		}
+	}
+
+	/**
 	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
@@ -23417,6 +23460,24 @@ class IRExpr extends Token {
 	inline(stack) {
 		return this;
 	}
+
+	/**
+	 * @param {IRVariable} ref 
+	 * @param {string} builtinName 
+	 * @param {number} level
+	 * @returns {?IRExpr}
+	 */
+	wrapCall(ref, builtinName, level) {
+		return this;
+	}
+
+	/**
+	 * @param {IRVariable} ref 
+	 * @returns {?IRExpr}
+	 */
+	flattenCall(ref) {
+		return this;
+	}
 	
 	/**
 	 * @param {IRCallStack} stack
@@ -23467,7 +23528,7 @@ class IRFuncExpr extends IRExpr {
 	constructor(site, args, body) {
 		super(site);
 		this.#args = args;
-		this.#body = body;
+		this.#body = assertDefined(body);
 	}
 
 	get args() {
@@ -23497,7 +23558,7 @@ class IRFuncExpr extends IRExpr {
 	/**
 	 * @param {IRScope} scope 
 	 */
-	resolveNames(scope = new IRScope(null, null)) {
+	resolveNames(scope) {
 		// in the zero-arg case no Debruijn indices need to be added because we use Delay/Force
 
 		for (let arg of this.#args) {
@@ -23523,6 +23584,36 @@ class IRFuncExpr extends IRExpr {
 	 */
 	inline(stack) {
 		return new IRFuncExpr(this.site, this.#args, this.#body.inline(stack));
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @param {string} builtinName 
+	 * @param {number} level
+	 * @returns {?IRExpr}
+	 */
+	wrapCall(ref, builtinName, level) {
+		let body = this.body.wrapCall(ref, builtinName, level);
+
+		if (body !== null) {
+			return new IRFuncExpr(this.site, this.args, body);
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * @param {IRVariable} ref 
+	 * @returns {?IRExpr}
+	 */
+	flattenCall(ref) {
+		let body = this.body.flattenCall(ref);
+
+		if (body !== null) {
+			return new IRFuncExpr(this.site, this.args, body);
+		} else {
+			return null;
+		}
 	}
 
 	/**
@@ -23631,6 +23722,54 @@ class IRCallExpr extends IRExpr {
 		return count;
 	}
 
+	/**
+	 * @param {IRVariable} ref 
+	 * @param {string} builtinName 
+	 * @param {number} level
+	 * @returns {?IRExpr[]}
+	 */
+	wrapCallArgs(ref, builtinName, level) {
+		/**
+		 * @type {IRExpr[]}
+		 */
+		let wrapped = [];
+
+		for (let argExpr of this.#argExprs) {
+			let newArgExpr = argExpr.wrapCall(ref, builtinName, level);
+
+			if (newArgExpr === null) {
+				return null;
+			} else {
+				wrapped.push(newArgExpr);
+			}
+		}
+
+		return wrapped;
+	}
+
+	/**
+	 * @param {IRVariable} ref 
+	 * @returns {?IRExpr[]}
+	 */
+	flattenCallArgs(ref) {
+		/**
+		 * @type {IRExpr[]}
+		 */
+		let args = [];
+
+		for (let argExpr of this.#argExprs) {
+			let arg = argExpr.flattenCall(ref);
+
+			if (arg === null) {
+				return null;
+			} else {
+				args.push(arg);
+			}
+		}
+
+		return args;
+	}
+
 	/** 
 	 * @param {IRCallStack} stack
 	 * @returns {?IRValue[]} 
@@ -23720,7 +23859,7 @@ class IRCallExpr extends IRExpr {
 	/**
 	 * @param {IRScope} scope 
 	 */
-	resolveNames(scope = new IRScope(null, null)) {
+	resolveNames(scope) {
 		this.#fnExpr.resolveNames(scope);
 
 		super.resolveNames(scope);
@@ -23772,6 +23911,105 @@ class IRCallExpr extends IRExpr {
 	 */
 	inline(stack) {
 		return new IRUserCallExpr(this.#fnExpr.inline(stack), super.simplifyArgs(stack, true), this.parensSite);
+	}
+
+	/**
+	 * 
+	 * @param {IRVariable} ref 
+	 * @param {string} builtinName 
+	 * @param {number} level
+	 * @returns {?IRExpr}
+	 */
+	wrapCall(ref, builtinName, level) {
+		let args = super.wrapCallArgs(ref, builtinName, level);
+
+		if (args !== null) {
+			if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.variable === ref) {
+				if (level == 0) {
+					let res = new IRCoreCallExpr(
+						new Word(this.parensSite, `__core__${builtinName}`), 
+						[new IRUserCallExpr(this.#fnExpr, args, this.parensSite)], 
+						this.parensSite
+					);
+
+					return res;
+				} else {
+					return null;
+				}
+			} else if (level == 1 && this.#fnExpr instanceof IRUserCallExpr && this.#fnExpr.fnExpr instanceof IRNameExpr && this.#fnExpr.fnExpr.variable == ref) {
+				// TODO: flatten functions and get rid of level
+				/**
+				 * @type {IRExpr}
+				 */
+				let inner = this.#fnExpr;
+				
+				if (this.#fnExpr.fnExpr instanceof IRUserCallExpr) {
+					inner = this.#fnExpr.wrapCall(ref, builtinName, level);
+				}
+
+				if (inner !== null) {
+					let res = new IRCoreCallExpr(
+						new Word(this.parensSite, `__core__${builtinName}`), 
+						[(new IRUserCallExpr(inner, args, this.parensSite))], 
+						this.parensSite
+					);
+
+					return res;
+				} else {
+					return null;
+				}
+			} else {
+				let fnExpr = this.#fnExpr.wrapCall(ref, builtinName, level);
+
+				if (fnExpr === null) {
+					return null;
+				} else {
+					return new IRUserCallExpr(fnExpr, args, this.parensSite);
+				}
+			}		
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {?IRExpr}
+	 */
+	flattenCall(ref) {
+		if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.variable === ref) {
+			return null;
+		} else if (this.#fnExpr instanceof IRUserCallExpr && this.#fnExpr.fnExpr instanceof IRNameExpr && this.#fnExpr.fnExpr.variable === ref) {
+			let allArgs = this.#fnExpr.argExprs.concat(this.argExprs);
+
+			let argsf = [];
+
+			for (let arg of allArgs) {
+				let argf = arg.flattenCall(ref);
+
+				if (argf === null) {
+					return null;
+				} else {
+					argsf.push(argf);
+				}
+			}
+			
+			return new IRUserCallExpr(this.#fnExpr.fnExpr, argsf, this.parensSite);
+		} else {
+			let fnExpr = this.#fnExpr.flattenCall(ref);
+
+			if (fnExpr !== null) {
+				let args = this.flattenCallArgs(ref);
+
+				if (args !== null) {
+					return new IRUserCallExpr(fnExpr, args, this.parensSite);
+				} else {
+					return null;
+				}
+			} else {
+				return null;
+			}
+		}
 	}
 
 	/**
@@ -23942,11 +24180,49 @@ class IRCallExpr extends IRExpr {
 		}
 	}
 
+	simplifyFlatten() {
+		if (this.fnExpr instanceof IRFuncExpr && this.argExprs.some(e => e instanceof IRFuncExpr)) {
+			/** @type {IRExpr[]} */
+			let args = [];
+
+			/** @type {IRFuncExpr} */
+			let that = this.fnExpr;
+			let someFlattened = false;
+
+			for (let i = 0; i < this.argExprs.length; i++) {
+				let a = this.argExprs[i];
+
+				if (a instanceof IRFuncExpr && a.body instanceof IRFuncExpr) {
+					// try to flatten
+					let aBetter = new IRFuncExpr(a.site, a.args.concat(a.body.args), a.body.body);
+
+					let maybeThat = that.flattenCall(this.fnExpr.args[i]);
+
+					if (maybeThat !== null && maybeThat instanceof IRFuncExpr) {
+						args.push(aBetter);
+						that = maybeThat;
+						someFlattened = true;
+					} else {
+						args.push(a);
+					}
+				} else {
+					args.push(a);
+				}
+			}
+
+			if (someFlattened) {
+				return new IRUserCallExpr(that, args, this.parensSite);
+			}
+		}
+
+		return this;
+	}
+
 	/**
 	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
-	simplify(stack) {
+	simplifyWithoutPartialInlining(stack) {
 		let argExprs = this.simplifyArgs(stack);
 
 		{
@@ -24000,11 +24276,86 @@ class IRCallExpr extends IRExpr {
 			}
 		}
 
+
+		return new IRUserCallExpr(fnExpr, argExprs, this.parensSite);
+	}
+
+	/**
+	 * @param {IRExprStack} stack
+	 * @returns {IRExpr}
+	 */
+	simplify(stack) {
+		let better = this.simplifyWithoutPartialInlining(stack);
+
+		if (better instanceof IRUserCallExpr) {
+			better = better.simplifyFlatten();
+		}
+
 		// TODO: another optimization could be extracting functions like __core__iData from IRFuncExpr args, and inserting it in IRFuncExpr fnExpr, and then running inner simplify methods
 		// this could also work on the arg side, where if all instances of an arg of an arg are wrapped with such a function, that function can be extracted and placed inside calls to that arg instead
 		// IRUserCalExpr.simplify might need to be split into two methods for this
 
-		return new IRUserCallExpr(fnExpr, argExprs, this.parensSite);
+		if (better instanceof IRUserCallExpr && better.fnExpr instanceof IRFuncExpr && better.argExprs.some(e => e instanceof IRFuncExpr)) {
+			/** @type {IRExpr[]} */
+			let betterArgs = [];
+
+			let betterFnExpr = better.fnExpr;
+
+			let someInlined = false;
+
+			for (let i = 0; i < better.argExprs.length; i++) {
+				let a = better.argExprs[i];
+
+				if (a instanceof IRFuncExpr) {
+					if (a.body instanceof IRCoreCallExpr && a.body.builtinName == "iData") { // TODO: other functions as well
+						// unwrap the inner expr core call
+						let betterA = new IRFuncExpr(a.site, a.args, a.body.argExprs[0]);
+
+						// and add the core call the wherever the variable is called
+						let maybeBetterFnExpr = better.fnExpr.wrapCall(better.fnExpr.args[i], "iData", 0);
+
+						if (maybeBetterFnExpr !== null && maybeBetterFnExpr instanceof IRFuncExpr) {
+							betterFnExpr = maybeBetterFnExpr;
+							betterArgs.push(betterA);
+							someInlined = true;
+						} else {
+							betterArgs.push(a);	
+						}
+					} else if (a.body instanceof IRFuncExpr && a.body.body instanceof IRCoreCallExpr && a.body.body.builtinName == "iData") {
+						let betterA = new IRFuncExpr(a.site, a.args, new IRFuncExpr(a.body.site, a.body.args, a.body.body.argExprs[0]));
+
+						// and add the core call the wherever the variable is called
+						let maybeBetterFnExpr = better.fnExpr.wrapCall(better.fnExpr.args[i], "iData", 1);
+
+						if (maybeBetterFnExpr !== null && maybeBetterFnExpr instanceof IRFuncExpr) {
+							betterFnExpr = maybeBetterFnExpr;
+							betterArgs.push(betterA);
+							someInlined = true;
+						} else {
+							betterArgs.push(a);	
+						}
+					} else {
+						betterArgs.push(a);
+					}
+				} else {
+					betterArgs.push(a);
+				}
+			}
+
+			if (someInlined) {
+				assert(betterArgs.length == better.argExprs.length);
+				
+				let betterCall = new IRUserCallExpr(betterFnExpr, betterArgs, better.parensSite)
+				
+				let simplifiedBetterCall = betterCall.simplifyWithoutPartialInlining(stack);
+
+				if (simplifiedBetterCall.calcSize() <= better.calcSize()) {
+					better = simplifiedBetterCall;
+				}
+			}
+		}
+
+		return better;
 	}
 
 	/**
@@ -24050,7 +24401,7 @@ class IRCoreCallExpr extends IRCallExpr {
 	/**
 	 * @param {IRScope} scope 
 	 */
-	resolveNames(scope = new IRScope(null, null)) {
+	resolveNames(scope) {
 		super.resolveNames(scope);
 	}
 
@@ -24105,6 +24456,37 @@ class IRCoreCallExpr extends IRCallExpr {
 					throw e;
 				}
 			}
+		}
+	}
+
+	/**
+	 * @param {IRVariable} ref 
+	 * @param {string} builtinName 
+	 * @param {number} level
+	 * @returns {?IRExpr}
+	 */
+	wrapCall(ref, builtinName, level) {
+		let args = this.wrapCallArgs(ref, builtinName, level);
+
+		if (args !== null) {
+			return new IRCoreCallExpr(this.#name, args, this.parensSite);
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * 
+	 * @param {IRVariable} ref 
+	 * @returns {?IRExpr}
+	 */
+	flattenCall(ref) {
+		let args = this.flattenCallArgs(ref);
+
+		if (args !== null) {
+			return new IRCoreCallExpr(this.#name, args, this.parensSite);
+		} else {
+			return null
 		}
 	}
 
@@ -24295,6 +24677,20 @@ class IRCoreCallExpr extends IRCallExpr {
 					}
 				}
 				break;
+			case "equalsData": {
+				let a = argExprs[0];
+				let b = argExprs[1];
+
+				if (a instanceof IRCoreCallExpr && b instanceof IRCoreCallExpr) {
+					if (a.builtinName === "iData" && b.builtinName === "iData") {
+						return new IRCoreCallExpr(new Word(this.site, "__core__equalsInteger"), [a.argExprs[0], b.argExprs[0]], this.parensSite);	
+					} else if (a.builtinName === "bData" && b.builtinName == "bData") {
+						return new IRCoreCallExpr(new Word(this.site, "__core__equalsByteString"), [a.argExprs[0], b.argExprs[0]], this.parensSite);	
+					}
+				}
+
+				break;
+			}
 			case "trace":
 				return argExprs[1];
 			case "unIData": {
@@ -24470,6 +24866,24 @@ class IRErrorCallExpr extends IRExpr {
 	}
 
 	/**
+	 * @param {IRVariable} ref
+	 * @param {string} builtinName
+	 * @param {number} level
+	 * @returns {?IRExpr}
+	 */
+	wrapCall(ref, builtinName, level) {
+		return this;
+	}
+
+	/**
+	 * @param {IRVariable} ref 
+	 * @returns {?IRExpr}
+	 */
+	flattenCall(ref) {
+		return this;
+	}
+
+	/**
 	 * @param {IRCallStack} stack
 	 * @returns {?IRValue}
 	 */
@@ -24540,7 +24954,7 @@ class IRProgram {
 		 */
 		if (expr instanceof IRFuncExpr || expr instanceof IRCallExpr || expr instanceof IRLiteral) {
 			if (expr instanceof IRFuncExpr || expr instanceof IRUserCallExpr || expr instanceof IRCoreCallExpr) {
-				expr.resolveNames();
+				expr.resolveNames(new IRScope(null, null));
 			}
 
 			let program = new IRProgram(expr, purpose);
@@ -24597,7 +25011,7 @@ class IRProgram {
 	
 		if (this.#expr instanceof IRFuncExpr || this.#expr instanceof IRUserCallExpr || this.#expr instanceof IRCoreCallExpr) {
 			// recalculate the Debruijn indices
-			this.#expr.resolveNames();
+			this.#expr.resolveNames(new IRScope(null, null));
 		}
 	}
 
