@@ -23108,10 +23108,11 @@ class IRExpr extends Token {
 	}
 
 	/**
-	 * Calc size of equivalent Plutus-core expression
+	 * Score is size of equivalent Plutus-core expression
+	 * Optimizing signifies minimizing score
 	 * @returns {number} - number of bits (not bytes!)
 	 */
-	calcSize() {
+	score() {
 		let term = this.toUplc();
 
 		let bitWriter = new BitWriter(); 
@@ -23371,7 +23372,7 @@ class IRExpr extends Token {
 			if (stack.has(this.#variable)) {
 				let that = stack.get(this.#variable);
 
-				if (that.calcSize() <= this.calcSize()) {
+				if (that.score() <= this.score()) {
 					return that;
 				} else {
 					return this;
@@ -24094,7 +24095,7 @@ class IRCallExpr extends IRExpr {
 			if (remVars.length < argVariables.length) {
 				let that = new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.body.inline(inlineStack).simplify(stack)), remArgs, this.parensSite);
 
-				if (that.calcSize() <= this.calcSize()) {
+				if (that.score() <= this.score()) {
 					return that;
 				}
 			}
@@ -24221,7 +24222,7 @@ class IRCallExpr extends IRExpr {
 
 		{
 			let maybeBetter = this.simplifyLiteral(stack, this.#fnExpr, this.argExprs);
-			if (maybeBetter !== null && maybeBetter.calcSize() < this.calcSize()) {
+			if (maybeBetter !== null && maybeBetter.score() <= this.score()) {
 				return maybeBetter;
 			}
 		}
@@ -24244,7 +24245,7 @@ class IRCallExpr extends IRExpr {
 
 		{
 			let maybeBetter = this.simplifyLiteral(stack, fnExpr, argExprs);
-			if (maybeBetter !== null && maybeBetter.calcSize() < this.calcSize()) {
+			if (maybeBetter !== null && maybeBetter.score() <= this.score()) {
 				return maybeBetter;
 			}
 		}
@@ -24275,19 +24276,19 @@ class IRCallExpr extends IRExpr {
 	}
 
 	/**
+	 * Extract functions like __core__iData from IRFuncExpr args, and inserting it in IRFuncExpr fnExpr, and then run inner simplify methods
 	 * @param {IRExprStack} stack 
 	 * @returns {IRExpr}
 	 */
 	simplifyPartialInline(stack) {
-		// TODO: another optimization could be extracting functions like __core__iData from IRFuncExpr args, and inserting it in IRFuncExpr fnExpr, and then running inner simplify methods
-		// this could also work on the arg side, where if all instances of an arg of an arg are wrapped with such a function, that function can be extracted and placed inside calls to that arg instead
+		// TODO: this could also work on the arg side, where if all instances of an arg of an arg are wrapped with such a function, that function can be extracted and placed inside calls to that arg instead
 		// IRUserCalExpr.simplify might need to be split into two methods for this
 
 		if (this.fnExpr instanceof IRFuncExpr && this.argExprs.some(e => e instanceof IRFuncExpr)) {
 			/** @type {IRExpr[]} */
-			let betterArgs = [];
+			let args = [];
 
-			let betterFnExpr = this.fnExpr;
+			let fnExpr = this.fnExpr;
 
 			let someInlined = false;
 
@@ -24301,39 +24302,35 @@ class IRCallExpr extends IRExpr {
 
 						if (name == "iData" || name == "bData" || name == "unIData" || name == "unBData" || name == "mapData" || name == "unMapData" || name == "listData" || name == "unListData") { // TODO: other functions as well
 							// unwrap the inner expr core call
-							let betterA = new IRFuncExpr(a.site, a.args, a.body.argExprs[0]);
+							let argWithInline = new IRFuncExpr(a.site, a.args, a.body.argExprs[0]);
 
 							// and add the core call the wherever the variable is called
-							let maybeBetterFnExpr = this.fnExpr.wrapCall(this.fnExpr.args[i], name);
+							let maybeFnExpr = this.fnExpr.wrapCall(this.fnExpr.args[i], name);
 
-							if (maybeBetterFnExpr !== null && maybeBetterFnExpr instanceof IRFuncExpr) {
-								betterFnExpr = maybeBetterFnExpr;
-								betterArgs.push(betterA);
+							if (maybeFnExpr !== null && maybeFnExpr instanceof IRFuncExpr) {
+								fnExpr = maybeFnExpr;
+								args.push(argWithInline);
 								someInlined = true;
 							} else {
-								betterArgs.push(a);	
+								args.push(a);	
 							}
 						} else {
-							betterArgs.push(a);
+							args.push(a);
 						}
 					} else {
-						betterArgs.push(a);
+						args.push(a);
 					}
 				} else {
-					betterArgs.push(a);
+					args.push(a);
 				}
 			}
 
 			if (someInlined) {
-				assert(betterArgs.length == this.argExprs.length);
+				assert(args.length == this.argExprs.length);
 				
-				let betterCall = new IRUserCallExpr(betterFnExpr, betterArgs, this.parensSite)
+				let callWithInline = new IRUserCallExpr(fnExpr, args, this.parensSite)
 				
-				let simplifiedBetterCall = betterCall.simplifyWithoutPartialInlining(stack);
-
-				if (simplifiedBetterCall.calcSize() <= this.calcSize()) {
-					return simplifiedBetterCall;
-				}
+				return callWithInline.simplifyWithoutPartialInlining(stack);
 			}
 		}
 
