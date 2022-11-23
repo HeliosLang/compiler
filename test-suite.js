@@ -676,6 +676,17 @@ async function runPropertyTests() {
         Int::parse(a.show()) == a
     }`, ([a], res) => asBool(res));
 
+    await ft.test([ft.bytes(0, 10)], `
+    testing int_from_little_endian
+    func main(bytes: ByteArray) -> Int {
+        Int::from_little_endian(bytes)
+    }`, ([bytes], res) => {
+        let sum = 0n;
+        asBytes(bytes).forEach((b, i) => {sum += BigInt(b)*(1n << BigInt(i*8))});
+
+        return asInt(res) === sum;
+    });
+
     await ft.test([ft.int()], `
     testing int_from_data
     func main(a: Data) -> Int {

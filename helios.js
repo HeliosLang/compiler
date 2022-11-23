@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.8.14
+// Version:     0.8.15
 // Last update: November 2022
 // License:     Unlicense
 //
@@ -202,7 +202,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.8.14"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.8.15"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -16943,6 +16943,8 @@ class IntType extends BuiltinType {
 		switch (name.value) {
 			case "parse":
 				return Instance.new(new FuncType([new StringType()], new IntType()));
+			case "from_little_endian":
+				return Instance.new(new FuncType([new ByteArrayType()], new IntType()));
 			default:
 				return super.getTypeMember(name);
 		}
@@ -20375,6 +20377,37 @@ function makeRawFunctions() {
 				}(__core__lengthOfByteString(bytes), __core__indexByteString(bytes, 0))
 			)
 		}(__core__unBData(string))
+	}`));
+	add(new RawFunc("__helios__int__from_little_endian", 
+	`(bytes) -> {
+		(bytes) -> {
+			__core__iData(
+				(n) -> {
+					(recurse) -> {
+						recurse(recurse, 0, 1, 0)
+					}(
+						(recurse, acc, pow, i) -> {
+							__core__ifThenElse(
+								__core__equalsInteger(i, n),
+								() -> {
+									acc
+								},
+								() -> {
+									(new_acc) -> {
+										recurse(recurse, new_acc, __core__multiplyInteger(pow, 256), __core__addInteger(i, 1))
+									}(
+										__core__addInteger(
+											acc,
+											__core__multiplyInteger(__core__indexByteString(bytes, i), pow)
+										)
+									)
+								}
+							)()
+						}
+					)
+				}(__core__lengthOfByteString(bytes))
+			)
+		}(__core__unBData(bytes))
 	}`));
 
 
