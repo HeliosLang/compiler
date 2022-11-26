@@ -8376,6 +8376,7 @@ class Word extends Token {
 			case "else":
 			case "switch":
 			case "print":
+			case "error":
 			case "self":
 				return true;
 			default:
@@ -9615,6 +9616,7 @@ export function highlight(src) {
 						case "enum":
 						case "import":
 						case "print":
+						case "error":
 						case "self":
 							type = SyntaxCategory.Keyword;
 							break;
@@ -10460,6 +10462,12 @@ class Instance extends EvalEntity {
 	isBaseOf(site, type) {
 		throw site.typeError("not a type");
 	}
+}
+
+/**
+ * Returned by an ErrorExpr
+ */
+class ErrorInstance extends Instance {
 }
 
 /**
@@ -11606,6 +11614,58 @@ class PrintExpr extends ValueExpr {
 			new IR(`), () -> {\n${indent}${TAB}`),
 			this.#downstreamExpr.toIR(indent + TAB),
 			new IR(`\n${indent}})()`)
+		]);
+	}
+}
+
+/**
+ * ... ; error(...)
+ */
+class ErrorExpr extends ValueExpr {
+	#msgExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {ValueExpr} msgExpr 
+	 */
+	constructor(site, msgExpr) {
+		super(site);
+		this.#msgExpr = msgExpr;
+	}
+
+	toString() {
+		return `error(${this.#msgExpr.toString()})`;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Instance}
+	 */
+	evalInternal(scope) {
+		let msgVal = this.#msgExpr.eval(scope);
+
+		assert(msgVal.isValue());
+
+		if (!msgVal.isInstanceOf(this.#msgExpr.site, StringType)) {
+			throw this.#msgExpr.typeError("expected string arg for error");
+		}
+
+		return new ErrorInstance();
+	}
+
+	use() {
+		this.#msgExpr.use();
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		return new IR([
+			new IR("__core__trace", this.site), new IR("("), new IR("__helios__common__unStringData("),
+			this.#msgExpr.toIR(indent),
+			new IR(`), () -> {__core__error("error thrown by user-code")})()`)
 		]);
 	}
 }
@@ -13048,7 +13108,9 @@ class IfElseExpr extends ValueExpr {
 		for (let b of this.#branches) {
 			let branchVal = b.eval(scope);
 
-			branchType = IfElseExpr.reduceBranchType(b.site, branchType, branchVal.getType(b.site));
+			if (!(branchVal instanceof ErrorInstance)) {
+				branchType = IfElseExpr.reduceBranchType(b.site, branchType, branchVal.getType(b.site));
+			}
 		}
 
 		if (branchType === null) {
@@ -13122,6 +13184,10 @@ class SwitchCase extends Token {
 		this.#memberName = memberName;
 		this.#bodyExpr = bodyExpr;
 		this.#constrIndex = null;
+	}
+
+	isError() {
+		return this.#bodyExpr instanceof ErrorExpr;
 	}
 
 	/**
@@ -13209,6 +13275,10 @@ class SwitchDefault extends Token {
 		this.#bodyExpr = bodyExpr;
 	}
 
+	isError() {
+		return this.#bodyExpr instanceof ErrorExpr;
+	}
+
 	toString() {
 		return `else => ${this.#bodyExpr.toString()}`;
 	}
@@ -13283,13 +13353,17 @@ class SwitchExpr extends ValueExpr {
 		for (let c of this.#cases) {
 			let branchVal = c.eval(scope, enumType);
 
-			branchType = IfElseExpr.reduceBranchType(c.site, branchType, branchVal.getType(c.site));
+			if (!(branchVal instanceof ErrorInstance)) {
+				branchType = IfElseExpr.reduceBranchType(c.site, branchType, branchVal.getType(c.site));
+			}
 		}
 
 		if (this.#defaultCase !== null) {
 			let defaultVal = this.#defaultCase.eval(scope);
 
-			branchType = IfElseExpr.reduceBranchType(this.#defaultCase.site, branchType, defaultVal.getType(this.#defaultCase.site));
+			if (!(defaultVal instanceof ErrorInstance)) {
+				branchType = IfElseExpr.reduceBranchType(this.#defaultCase.site, branchType, defaultVal.getType(this.#defaultCase.site));
+			}
 		} else {
 			if (enumType.nEnumMembers(this.site) > this.#cases.length) {
 				throw this.typeError("insufficient coverage in switch expression");
@@ -16285,6 +16359,31 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 }
 
 /**
+ * 
+ * @param {Token[]} ts 
+ * @returns {ValueExpr}
+ */
+function buildMaybeErrorExpr(ts) {
+	let n = ts.length;
+
+	if (n >= 2 && ts[n-1].isGroup("(") && ts[n-2].isWord("error")) {
+		let parens = ts[n-1].assertGroup("(", 1);
+
+		if (n > 2) {
+			ts[n-3].assertSymbol(";");
+		}
+
+		let tsCombined = ts.slice(0, n-2).concat(parens.fields[0].slice());
+
+		let inner = buildValueExpr(tsCombined);
+
+		return new ErrorExpr(ts[n-2].site, inner);
+	} else {
+		return buildValueExpr(ts);
+	}
+}
+
+/**
  * @param {string | string[]} symbol 
  * @returns {(ts: Token[], prec: number) => ValueExpr}
  */
@@ -16422,7 +16521,10 @@ function buildCallArgs(parens) {
 function buildIfElseExpr(ts) {
 	let site = assertDefined(ts.shift()).assertWord("if").site;
 
+	/** @type {ValueExpr[]} */
 	let conditions = [];
+
+	/** @type {ValueExpr[]} */
 	let branches = [];
 	while (true) {
 		let parens = assertDefined(ts.shift()).assertGroup("(");
@@ -16437,7 +16539,7 @@ function buildIfElseExpr(ts) {
 		}
 
 		conditions.push(buildValueExpr(parens.fields[0]));
-		branches.push(buildValueExpr(braces.fields[0]));
+		branches.push(buildMaybeErrorExpr(braces.fields[0]));
 
 		assertDefined(ts.shift()).assertWord("else");
 
@@ -16448,13 +16550,17 @@ function buildIfElseExpr(ts) {
 			if (braces.fields.length != 1) {
 				throw braces.syntaxError("expected single expession for if-else branch");
 			}
-			branches.push(buildValueExpr(braces.fields[0]));
+			branches.push(buildMaybeErrorExpr(braces.fields[0]));
 			break;
 		} else if (next.isWord("if")) {
 			continue;
 		} else {
 			throw next.syntaxError("unexpected token");
 		}
+	}
+
+	if (branches.every(b => b instanceof ErrorExpr)) {
+		throw site.syntaxError("every if-else branch throws an error");
 	}
 
 	return new IfElseExpr(site, conditions, branches);
@@ -16506,6 +16612,10 @@ function buildSwitchExpr(controlExpr, ts) {
 
 	if (cases.length < 1) {
 		throw site.syntaxError("expected at least one switch case");
+	}
+
+	if (cases.every(c => c.isError()) && (def === null || def.isError())) {
+		throw site.syntaxError("every switch case throws an error");
 	}
 
 	return new SwitchExpr(site, controlExpr, cases, def);
@@ -16583,9 +16693,9 @@ function buildSwitchCase(ts) {
 				}
 
 				let tsBody = ts[0].assertGroup("{", 1).fields[0];
-				bodyExpr = buildValueExpr(tsBody);
+				bodyExpr = buildMaybeErrorExpr(tsBody);
 			} else {
-				bodyExpr = buildValueExpr(ts);
+				bodyExpr = buildMaybeErrorExpr(ts);
 			}
 
 			if (bodyExpr === null) {
@@ -16618,10 +16728,10 @@ function buildSwitchDefault(ts) {
 			if (ts.length > 1) {
 				throw ts[1].syntaxError("unexpected token");
 			} else {
-				bodyExpr = buildValueExpr(ts[0].assertGroup("{", 1).fields[0]);
+				bodyExpr = buildMaybeErrorExpr(ts[0].assertGroup("{", 1).fields[0]);
 			}
 		} else {
-			bodyExpr = buildValueExpr(ts);
+			bodyExpr = buildMaybeErrorExpr(ts);
 		}
 
 		if (bodyExpr === null) {

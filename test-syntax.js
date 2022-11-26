@@ -93,12 +93,33 @@ async function test3() {
   console.log((await program.run([])).toString());
 }
 
+async function test4() {
+  const src = `
+  testing hello_error
+
+  func main() -> Bool {
+    if (1 > 2) {
+      a = "123";
+      error("not true" + a)
+    } else {
+      true
+    }
+  }
+  `;
+
+  let program = helios.Program.new(src).compile();
+
+  console.log((await program.runWithPrint([])).toString());
+}
+
 async function main() {
     await test1();
 
     await test2();
 
     await test3();
+
+    await test4();
 }
 
 main();

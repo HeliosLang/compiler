@@ -91,13 +91,17 @@ AssignExpr ::= Identifier [':' TypeExpr] '=' ValueExpr ';' ValueExpr
 
 PrintExpr ::= 'print' '(' ValueExpr ')' ';' ValueExpr
 
-IfElseExpr ::= 'if' '(' ValueExpr ')' '{' ValueExpr '}' ('else' 'if' '(' ValueExpr ')' '{' ValueExpr '}')* 'else' '{' ValueExpr '}'
+ErrorExpr ::= [ValueExpr ';'] 'error' '(' ValueExpr ')'
+
+BranchExpr ::= ValueExpr | ErrorExpr
+
+IfElseExpr ::= 'if' '(' ValueExpr ')' '{' BranchExpr '}' ('else' 'if' '(' ValueExpr ')' '{' BranchExpr '}')* 'else' '{' BranchExpr '}'
 
 SwitchExpr ::= ValueExpr '.' 'switch' '{' SwitchCase (',' SwitchCase)* [SwitchDefault] '}'
 
-SwitchCase ::= (Word | (Identifier ':' Word)) '=>' (ValueExpr | ('{' ValueExpr '}'))
+SwitchCase ::= (Word | (Identifier ':' Word)) '=>' (BranchExpr | ('{' BranchExpr '}'))
 
-SwitchDefault ::= 'else' '=>' (ValueExpr | ('{' ValueExpr '}'))
+SwitchDefault ::= 'else' '=>' (BranchExpr | ('{' BranchExpr '}'))
 
 CallExpr ::= ValueExpr '(' [ValueExpr (',' ValueExpr)*] ')';
 

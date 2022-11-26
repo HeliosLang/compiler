@@ -1,5 +1,13 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/11/25
+* Structs with 1 field are represented directly by their contained field in Uplc
+* Structs with more than 1 field are represented as a list of data in Uplc (no longer as ConstrData)
+* IR functions with zero arguments become Delay terms in Uplc
+* IR calls with zero arguments become Force terms in Uplc
+* Core cast functions are extracted as high up as possible
+* Special syntax for throwing errors inside switch/if-else branches: `error("...")` 
+
 # 2022/11/22
 * Added `Int::from_little_endian()`
 
