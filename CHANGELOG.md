@@ -1,5 +1,8 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/11/22
+* Added `Int::from_little_endian()`
+
 # 2022/11/20
 * Added `Value.contains_policy()` method
 

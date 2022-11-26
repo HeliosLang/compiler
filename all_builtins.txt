@@ -1,5 +1,5 @@
 # Int
-associated:  from_data, parse
+associated:  from_data, parse, from_little_endian
 operators:   __eq, __neq, __neg, __pos, __add, __sub, __mul, __div, __mod, __geq, __gt, __leq, __lt
 methods:     serialize, to_bool, to_hex, show
 internal ns: __helios__int
