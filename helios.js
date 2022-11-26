@@ -11879,6 +11879,8 @@ class StructLiteralExpr extends ValueExpr {
 
 		if (index === null) {
 			throw new Error("constrIndex not yet set");
+		} else if (index == -1) {
+			return res; // regular struct
 		} else {
 			return new IR([
 				new IR("__core__constrData", this.site), new IR(`(${index.toString()}, `),
@@ -12504,6 +12506,8 @@ class ValuePathExpr extends ValueExpr {
 
 		if (((memberVal instanceof StatementType) && (memberVal.statement instanceof EnumMember)) || (memberVal instanceof OptionNoneType)) {
 			let cId = memberVal.getConstrIndex(this.#memberName.site);
+
+			assert(cId >= 0);
 
 			return new IR(`__core__constrData(${cId.toString()}, __core__mkNilData(()))`, this.site)
 		} else {
@@ -13153,7 +13157,10 @@ class SwitchCase extends Token {
 	 */
 	eval(scope, enumType) {
 		let caseType = enumType.getTypeMember(this.#memberName).assertType(this.#memberName.site);
+
 		this.#constrIndex = caseType.getConstrIndex(this.#memberName.site);
+
+		assert(this.#constrIndex >= 0);
 
 		if (this.#varName !== null) {
 			let caseScope = new Scope(scope);
@@ -13791,8 +13798,11 @@ class DataDefinition extends Statement {
 
 	/**
 	 * @param {IRDefinitions} map
+	 * @param {boolean} isConstr
 	 */
-	toIR(map) {
+	toIR(map, isConstr = true) {
+		const getterBaseName = isConstr ? "__helios__common__field" : "__helios__common__tuple_field";
+
 		// add a getter for each field
 		for (let i = 0; i < this.#fields.length; i++) {
 			let f = this.#fields[i];
@@ -13805,19 +13815,20 @@ class DataDefinition extends Statement {
 			let getter;
 
 			if (i < 20) {
-				getter = new IR(`__helios__common__field_${i}`, f.site);
+				getter = new IR(`${getterBaseName}_${i}`, f.site);
 
 				if (isBool) {
 					getter = new IR([
 						new IR("(self) "), new IR("->", f.site), new IR(" {"),
-						new IR(`__helios__common__unBoolData(__helios__common__field_${i}(self))`),
+						new IR(`__helios__common__unBoolData(${getterBaseName}_${i}(self))`),
 						new IR("}"),
 					]);
 				} else {
-					getter = new IR(`__helios__common__field_${i}`, f.site);
+					getter = new IR(`${getterBaseName}_${i}`, f.site);
 				}
 			} else {
-				let inner = new IR("__core__sndPair(__core__unConstrData(self))");
+				let inner = isConstr ? new IR("__core__sndPair(__core__unConstrData(self))") : new IR("self");
+
 				for (let j = 0; j < i; j++) {
 					inner = new IR([new IR("__core__tailList("), inner, new IR(")")]);
 				}
@@ -13871,11 +13882,12 @@ class StructStatement extends DataDefinition {
 	}
 
 	/**
+	 * Returns -1, which means -> don't use ConstrData, but use []Data directly
 	 * @param {Site} site 
 	 * @returns {number}
 	 */
 	getConstrIndex(site) {
-		return 0;
+		return -1;
 	}
 
 	/**
@@ -13940,7 +13952,7 @@ class StructStatement extends DataDefinition {
 				map.set(key, new IR("__helios__common__identity", f.site));
 			}
 		} else {
-			super.toIR(map);
+			super.toIR(map, false);
 		}
 
 		this.#impl.toIR(map);
@@ -20207,6 +20219,18 @@ function makeRawFunctions() {
 		__core__tailList(__helios__common__fields_after_${(i-1).toString()}(self))
 	}`));
 	}
+	add(new RawFunc("__helios__common__tuple_field_0", "__core__headList"));
+	add(new RawFunc("__helios__common__tuple_fields_after_0", "__core__tailList"));
+	for (let i = 1; i < 20; i++) {
+		add(new RawFunc(`__helios__common__tuple_field_${i.toString()}`,
+	`(self) -> {
+		__core__headList(__helios__common__tuple_fields_after_${(i-1).toString()}(self))
+	}`));
+		add(new RawFunc(`__helios__common__tuple_fields_after_${i.toString()}`,
+	`(self) -> {
+		__core__tailList(__helios__common__tuple_fields_after_${(i-1).toString()}(self))
+	}`));
+	}
 	add(new RawFunc("__helios__common__list_0", "__core__mkNilData(())"));
 	add(new RawFunc("__helios__common__list_1", 
 	`(a) -> {
@@ -23695,13 +23719,13 @@ class IRFuncExpr extends IRExpr {
 	simplify(stack) {
 		// a IRFuncExpr that wraps a Call with the same arguments, in the same order, can simply return that function
 		if (this.#body instanceof IRCallExpr && this.#body.argExprs.length == this.#args.length && this.#body.argExprs.every((a, i) => {
-			return (a instanceof IRNameExpr) && (this.#args[i] === a.variable);
+			return (a instanceof IRNameExpr) && (!a.name.startsWith("__core")) && (this.#args[i] === a.variable);
 		})) {
 			if (this.#body instanceof IRCoreCallExpr) {
 				return new IRNameExpr(new Word(this.site, `__core__${this.#body.builtinName}`));
 			} else if (this.#body instanceof IRUserCallExpr && this.#body.fnExpr instanceof IRNameExpr) {
 				return this.#body.fnExpr;
-			} 
+			}
 		}
 
 		return this.simplifyBody(stack);
