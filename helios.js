@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.9.1
+// Version:     0.9.2
 // Last update: November 2022
 // License:     Unlicense
 //
@@ -202,7 +202,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.9.1"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.9.2"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -14566,33 +14566,19 @@ class ImplDefinition {
 		let site = this.#selfTypeExpr.site;
 
 		if (this.#usedStatements.has("__eq")) {
-			map.set(`${path}____eq`, new IR([
-				new IR("(self) "), new IR("->", site), new IR(" {\n"),
-				new IR(`${TAB}(other) -> {__core__equalsData(self, other)}\n`),
-				new IR("}"),
-			]));
+			map.set(`${path}____eq`, new IR("__helios__common____eq", site));
 		}
 
 		if (this.#usedStatements.has("__neq")) {
-			map.set(`${path}____neq`, new IR([
-				new IR("(self) "), new IR("->", site), new IR(" {\n"),
-				new IR(`${TAB}(other) -> {__helios__bool____not(__core__equalsData(self, other))}\n`),
-				new IR("}"),
-			]));
+			map.set(`${path}____neq`, new IR("__helios__common____neq", site));
 		}
 
 		if (this.#usedStatements.has("serialize")) {
-			map.set(`${path}__serialize`, new IR([
-				new IR("(self) "), new IR("->", site), new IR(" {\n"),
-				new IR(`${TAB}() -> {__core__serialiseData(self)}\n`),
-				new IR("}"),
-			]));
+			map.set(`${path}__serialize`, new IR("__helios__common__serialize", site));
 		}
 
 		if (this.#usedStatements.has("from_data")) {
-			map.set(`${path}__from_data`, new IR([
-				new IR("(self) "), new IR("->", site), new IR(" {self}")
-			]));
+			map.set(`${path}__from_data`, new IR("__helios__common__identity", site));
 		}
 
 		for (let s of this.#statements) {

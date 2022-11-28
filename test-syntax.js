@@ -113,6 +113,76 @@ async function test4() {
   console.log((await program.runWithPrint([])).toString());
 }
 
+async function test5() {
+  const src = `
+  testing redeemer
+
+  enum Redeemer{
+    Bid
+  }
+  
+  const r: Redeemer = Redeemer::Bid
+
+  func main() -> Bool {
+    print(r.serialize().show());
+    true
+  }`;
+
+  let program = helios.Program.new(src);
+
+  let uplcProgram = program.compile();
+
+  console.log((await uplcProgram.runWithPrint([])).toString());
+
+  console.log(program.evalParam("r").toString());
+}
+
+async function test6() {
+  const src = `testing app
+
+  enum Redeemer {
+     Bid
+  }
+  
+  const r: Redeemer = Redeemer::Bid
+  
+  func main() -> Bool {
+     redeemer_serialized: ByteArray = r.serialize();
+     print(redeemer_serialized.show());
+     print("Test");
+     true
+  }`;
+
+  const program = helios.Program.new(src);
+
+  console.log(program.paramTypes);
+
+  console.log(await program.compile().runWithPrint([]));
+}
+
+async function test7() {
+  const src = `testing app
+
+  struct Datum {
+    deadline: Int
+  }
+  
+  const d: Datum = Datum{5}
+  
+  func main() -> Bool {
+     print(d.serialize().show());
+     print(d.deadline.show());
+     print("Test");
+     true
+  }`;
+
+  const program = helios.Program.new(src);
+
+  console.log(program.paramTypes);
+
+  console.log(await program.compile().runWithPrint([]));
+}
+
 async function main() {
     await test1();
 
@@ -121,6 +191,12 @@ async function main() {
     await test3();
 
     await test4();
+    
+    await test5();
+
+    await test6();
+
+    await test7();
 }
 
 main();
