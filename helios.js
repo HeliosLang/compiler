@@ -11940,7 +11940,7 @@ class StructLiteralExpr extends ValueExpr {
 		if (index === null) {
 			throw new Error("constrIndex not yet set");
 		} else if (index == -1) {
-			 // regular struct
+			// regular struct
 			return new IR([
 				new IR("__core__listData", this.site),
 				new IR("("), 
