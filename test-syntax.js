@@ -69,6 +69,7 @@ async function test2() {
     program.changeParam("DISBURSEMENTS", JSON.stringify([[[1,2,3], 100]]));
 
     console.log(program.evalParam("DISBURSEMENTS").toString());
+    console.log(program.evalParam("DATUM").toString());
 
     console.log(program.cleanSource());
 }

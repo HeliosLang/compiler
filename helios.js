@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.9.0
+// Version:     0.9.1
 // Last update: November 2022
 // License:     Unlicense
 //
@@ -202,7 +202,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.9.0"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.9.1"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -11940,7 +11940,13 @@ class StructLiteralExpr extends ValueExpr {
 		if (index === null) {
 			throw new Error("constrIndex not yet set");
 		} else if (index == -1) {
-			return res; // regular struct
+			 // regular struct
+			return new IR([
+				new IR("__core__listData", this.site),
+				new IR("("), 
+				res,
+				new IR(")")
+			 ]);
 		} else {
 			return new IR([
 				new IR("__core__constrData", this.site), new IR(`(${index.toString()}, `),
@@ -13901,7 +13907,7 @@ class DataDefinition extends Statement {
 					getter = new IR(`${getterBaseName}_${i}`, f.site);
 				}
 			} else {
-				let inner = isConstr ? new IR("__core__sndPair(__core__unConstrData(self))") : new IR("self");
+				let inner = isConstr ? new IR("__core__sndPair(__core__unConstrData(self))") : new IR("__core__unListData(self)");
 
 				for (let j = 0; j < i; j++) {
 					inner = new IR([new IR("__core__tailList("), inner, new IR(")")]);
@@ -20329,8 +20335,14 @@ function makeRawFunctions() {
 		__core__tailList(__helios__common__fields_after_${(i-1).toString()}(self))
 	}`));
 	}
-	add(new RawFunc("__helios__common__tuple_field_0", "__core__headList"));
-	add(new RawFunc("__helios__common__tuple_fields_after_0", "__core__tailList"));
+	add(new RawFunc("__helios__common__tuple_field_0",
+	`(self) -> {
+		__core__headList(__core__unListData(self))
+	}`));
+	add(new RawFunc("__helios__common__tuple_fields_after_0", 
+	`(self) -> {
+		__core__tailList(__core__unListData(self))
+	}`));
 	for (let i = 1; i < 20; i++) {
 		add(new RawFunc(`__helios__common__tuple_field_${i.toString()}`,
 	`(self) -> {
