@@ -10815,6 +10815,7 @@ class GlobalScope {
 		scope.set("String", new StringType());
 		scope.set("ByteArray", new ByteArrayType());
 		scope.set("PubKeyHash", new PubKeyHashType());
+		scope.set("PubKey", new PubKeyType());
 		scope.set("ValidatorHash", new ValidatorHashType(purpose));
 		scope.set("MintingPolicyHash", new MintingPolicyHashType(purpose));
 		scope.set("DatumHash", new DatumHashType());
@@ -18027,6 +18028,47 @@ class PubKeyHashType extends HashType {
 }
 
 /**
+ * Builtin PubKey type
+ */
+ class PubKeyType extends BuiltinType {
+	toString() {
+		return "PubKey";
+	}
+
+	get path() {
+		return "__helios__pubkey";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "new":
+				return Instance.new(new FuncType([new ByteArrayType()], this));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "show":
+				return Instance.new(new FuncType([], new StringType()));
+			case "verify":
+				return Instance.new(new FuncType([new ByteArrayType(), new ByteArrayType()], new BoolType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+}
+
+/**
  * Builtin ValidatorHash type
  */
 class ValidatorHashType extends HashType {
@@ -21580,6 +21622,18 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__hash__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__hash__show", "__helios__bytearray__show"));
 	add(new RawFunc("__helios__hash__CURRENT", "__core__bData(#0000000000000000000000000000000000000000000000000000000000000000)"));
+
+
+	// PubKey builtin
+	addDataFuncs("__helios__pubkey");
+	add(new RawFunc("__helios__pubkey__new", "__helios__common__identity"));
+	add(new RawFunc("__helios__pubkey__show", "__helios__bytearray__show"));
+	add(new RawFunc("__helios__pubkey__verify", 
+	`(self) -> {
+		(message, signature) -> {
+			__core__verifyEd25519Signature(__core__unBData(self), __core__unBData(message), __core__unBData(signature))
+		}
+	}`));
 
 
 	// ScriptContext builtins
