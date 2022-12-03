@@ -12555,6 +12555,20 @@ class ValuePathExpr extends ValueExpr {
 	}
 
 	/**
+	 * Returns true if ValuePathExpr constructs a literal enum member with zero fields
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		let type = this.value.getType(this.site);
+
+		if (type instanceof StatementType && type.statement instanceof EnumMember) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+	
+	/**
 	 * @param {Scope} scope 
 	 * @returns {Instance}
 	 */
