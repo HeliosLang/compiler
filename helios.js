@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.9.2
+// Version:     0.9.3
 // Last update: November 2022
 // License:     Unlicense
 //
@@ -144,7 +144,7 @@
 //                                          makeBinaryExprBuilder, makeUnaryExprBuilder, 
 //                                          buildChainedValueExpr, buildChainStartValueExpr, 
 //                                          buildCallArgs, buildIfElseExpr, buildSwitchExpr, 
-//                                          buildSwitchCase, buildSwitchDefault, 
+//                                          buildSwitchCaseName, buildSwitchCase, buildSwitchDefault, 
 //                                          buildListLiteralExpr, buildMapLiteralExpr, 
 //                                          buildStructLiteralExpr, buildStructLiteralField, 
 //                                          buildValuePathExpr, buildLiteralExprFromJson,
@@ -202,7 +202,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.9.2"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.9.3"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -12567,7 +12567,7 @@ class ValuePathExpr extends ValueExpr {
 			return false;
 		}
 	}
-	
+
 	/**
 	 * @param {Scope} scope 
 	 * @returns {Instance}

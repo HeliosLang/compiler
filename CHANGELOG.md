@@ -1,5 +1,9 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/12/03
+* Switch expression works over Data
+* Type inference for literal enum member constructors that have zero fields
+
 # 2022/11/25
 * Structs with 1 field are represented directly by their contained field in Uplc
 * Structs with more than 1 field are represented as a list of data in Uplc (no longer as ConstrData)
