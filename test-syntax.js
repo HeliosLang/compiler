@@ -183,6 +183,44 @@ async function test7() {
   console.log(await program.compile().runWithPrint([]));
 }
 
+async function test8() {
+  const src = `testing data_switch
+  
+  enum MyEnum {
+    One
+    Two
+    Three
+  }
+
+  func main(d: Data) -> String {
+    d.switch{
+      Int => "int",
+      m: MyEnum => {
+        m.switch {
+          One => "One",
+          Two => "Two",
+          Three => "Three"
+        }
+      },
+      ByteArray => "bytearray",
+      else => "other"
+    }
+  }
+
+  const DATA = MyEnum::Three
+  `;
+
+  const program = helios.Program.new(src);
+
+  const data = program.evalParam("DATA");
+
+  console.log(program.prettyIR(true));
+
+  let res = await program.compile(true).run([data]);
+
+  console.log(helios.bytesToText(res.data.bytes));
+}
+
 async function main() {
     await test1();
 
@@ -197,6 +235,8 @@ async function main() {
     await test6();
 
     await test7();
+
+    await test8();
 }
 
 main();

@@ -121,8 +121,8 @@
 //                                          StructLiteralExpr, ListLiteralExpr, MapLiteralExpr, 
 //                                          NameTypePair, FuncArg, FuncLiteralExpr, ValueRefExpr, 
 //                                          ValuePathExpr, UnaryExpr, BinaryExpr, ParensExpr, 
-//                                          CallExpr, MemberExpr, IfElseExpr, 
-//                                          SwitchCase, SwitchDefault, SwitchExpr
+//                                          CallExpr, MemberExpr, IfElseExpr, SwitchCase, 
+//                                          SwitchDefault, EnumSwitchExpr, DataSwitchExpr
 //
 //    11. AST statement objects             Statement, ConstStatement, DataField, 
 //                                          DataDefinition, StructStatement, FuncStatement, 
@@ -6375,7 +6375,25 @@ class UplcBuiltin extends UplcTerm {
 					}
 				});
 			case "chooseData":
-				throw new Error("no immediate need, so don't bother yet");
+				return new UplcAnon(this.site, rte, 6, (callSite, _, a, b, c, d, e, f) => {
+					rte.calcAndIncrCost(this, a, b, c, d, e, f);
+
+					let data = a.data;
+
+					if (data instanceof ConstrData) {
+						return b;
+					} else if (data instanceof MapData) {
+						return c;
+					} else if (data instanceof ListData) {
+						return d;
+					} else if (data instanceof IntData) {
+						return e;
+					} else if (data instanceof ByteArrayData) {
+						return f;
+					} else {
+						throw new Error("unexpected");
+					}
+				});
 			case "constrData":
 				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
@@ -13205,6 +13223,18 @@ class SwitchCase extends Token {
 		return this.#memberName;
 	}
 
+	isDataMember() {
+		switch (this.#memberName.value) {
+			case "Int":
+			case "[]Data":
+			case "ByteArray":
+			case "Map[Data]Data":
+				return true;
+			default:
+				return false;
+		}
+	}
+
 	get constrIndex() {
 		if (this.#constrIndex === null) {
 			throw new Error("constrIndex not yet set");
@@ -13228,7 +13258,7 @@ class SwitchCase extends Token {
 	 * @param {Type} enumType
 	 * @returns {Instance}
 	 */
-	eval(scope, enumType) {
+	evalEnumMember(scope, enumType) {
 		let caseType = enumType.getTypeMember(this.#memberName).assertType(this.#memberName.site);
 
 		this.#constrIndex = caseType.getConstrIndex(this.#memberName.site);
@@ -13250,11 +13280,63 @@ class SwitchCase extends Token {
 		}
 	}
 
+	/**
+	 * Evaluates the switch type and body value of a case.
+	 * Evaluated switch type is only used if #varName !== null
+	 * @param {Scope} scope
+	 * @returns {Instance}
+	 */
+	evalDataMember(scope) {
+		/** @type {Type} */
+		let memberType;
+
+		switch (this.#memberName.value) {
+			case "Int":
+				memberType = new IntType();
+				break;
+			case "ByteArray":
+				memberType = new ByteArrayType();
+				break;
+			case "[]Data":
+				memberType = new ListType(new RawDataType());
+				break;
+			case "Map[Data]Data":
+				memberType = new MapType(new RawDataType(), new RawDataType());
+				break;
+			default:
+				let maybeMemberType = scope.get(this.#memberName);
+				if (maybeMemberType instanceof Type) {
+					memberType = maybeMemberType;
+
+					if (!(memberType instanceof StatementType && memberType.statement instanceof EnumStatement)) {
+						throw this.#memberName.typeError("expected an enum type");
+					}
+				} else {
+					throw this.#memberName.typeError("expected a type");
+				}
+		}
+
+		if (this.#varName !== null) {
+			let caseScope = new Scope(scope);
+
+			caseScope.set(this.#varName, Instance.new(memberType));
+
+			let bodyVal = this.#bodyExpr.eval(caseScope);
+
+			caseScope.assertAllUsed();
+
+			return bodyVal;
+		} else {
+			return this.#bodyExpr.eval(scope);
+		}
+	}
+
 	use() {
 		this.#bodyExpr.use();
 	}
 
 	/**
+	 * Accept an arg because will be called with the result of the controlexpr
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
@@ -13316,7 +13398,7 @@ class SwitchDefault extends Token {
 }
 
 /**
- * Switch expression, with SwitchCases and SwitchDefault as children
+ * Parent class of EnumSwitchExpr and DataSwitchExpr
  */
 class SwitchExpr extends ValueExpr {
 	#controlExpr;
@@ -13336,52 +13418,20 @@ class SwitchExpr extends ValueExpr {
 		this.#defaultCase = defaultCase;
 	}
 
-	toString() {
-		return `${this.#controlExpr.toString()}.switch{${this.#cases.map(c => c.toString()).join(", ")}${this.#defaultCase === null ? "" : ", " + this.#defaultCase.toString()}}`;
+	get controlExpr() {
+		return this.#controlExpr;
 	}
 
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
-	 */
-	evalInternal(scope) {
-		let controlVal = this.#controlExpr.eval(scope);
-		let enumType = controlVal.getType(this.#controlExpr.site);
-		let nEnumMembers = enumType.nEnumMembers(this.#controlExpr.site);
+	get cases() {
+		return this.#cases;
+	}
 
-		// check that we have enough cases to cover the enum members
-		if (this.#defaultCase === null && nEnumMembers > this.#cases.length) {
-			throw this.typeError(`insufficient coverage of '${enumType.toString()}' in switch expression`);
-		}
+	get defaultCase() {
+		return this.#defaultCase;
+	}
 
-		/** @type {?Type} */
-		let branchType = null;
-
-		for (let c of this.#cases) {
-			let branchVal = c.eval(scope, enumType);
-
-			if (!(branchVal instanceof ErrorInstance)) {
-				branchType = IfElseExpr.reduceBranchType(c.site, branchType, branchVal.getType(c.site));
-			}
-		}
-
-		if (this.#defaultCase !== null) {
-			let defaultVal = this.#defaultCase.eval(scope);
-
-			if (!(defaultVal instanceof ErrorInstance)) {
-				branchType = IfElseExpr.reduceBranchType(this.#defaultCase.site, branchType, defaultVal.getType(this.#defaultCase.site));
-			}
-		} else {
-			if (enumType.nEnumMembers(this.site) > this.#cases.length) {
-				throw this.typeError("insufficient coverage in switch expression");
-			}
-		}
-
-		if (branchType === null) {
-			throw new Error("unexpected");
-		} else {
-			return Instance.new(branchType);
-		}
+	toString() {
+		return `${this.#controlExpr.toString()}.switch{${this.#cases.map(c => c.toString()).join(", ")}${this.#defaultCase === null ? "" : ", " + this.#defaultCase.toString()}}`;
 	}
 
 	use() {
@@ -13395,18 +13445,63 @@ class SwitchExpr extends ValueExpr {
 			this.#defaultCase.use();
 		}
 	}
+}
+
+/**
+ * Switch expression for Enum, with SwitchCases and SwitchDefault as children
+ */
+class EnumSwitchExpr extends SwitchExpr {
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Instance}
+	 */
+	evalInternal(scope) {
+		let controlVal = this.controlExpr.eval(scope);
+		let enumType = controlVal.getType(this.controlExpr.site);
+		let nEnumMembers = enumType.nEnumMembers(this.controlExpr.site);
+
+		// check that we have enough cases to cover the enum members
+		if (this.defaultCase === null && nEnumMembers > this.cases.length) {
+			throw this.typeError(`insufficient coverage of '${enumType.toString()}' in switch expression`);
+		}
+
+		/** @type {?Type} */
+		let branchType = null;
+
+		for (let c of this.cases) {
+			let branchVal = c.evalEnumMember(scope, enumType);
+
+			if (!(branchVal instanceof ErrorInstance)) {
+				branchType = IfElseExpr.reduceBranchType(c.site, branchType, branchVal.getType(c.site));
+			}
+		}
+
+		if (this.defaultCase !== null) {
+			let defaultVal = this.defaultCase.eval(scope);
+
+			if (!(defaultVal instanceof ErrorInstance)) {
+				branchType = IfElseExpr.reduceBranchType(this.defaultCase.site, branchType, defaultVal.getType(this.defaultCase.site));
+			}
+		}
+
+		if (branchType === null) {
+			throw new Error("unexpected");
+		} else {
+			return Instance.new(branchType);
+		}
+	}
 
 	/**
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let cases = this.#cases.slice();
+		let cases = this.cases.slice();
 
 		/** @type {SwitchCase | SwitchDefault} */
 		let last;
-		if (this.#defaultCase !== null) {
-			last = this.#defaultCase;
+		if (this.defaultCase !== null) {
+			last = this.defaultCase;
 		} else {
 			last = assertDefined(cases.pop());
 		}
@@ -13429,9 +13524,123 @@ class SwitchExpr extends ValueExpr {
 			new IR(`(e) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}(\n${indent}${TAB}${TAB}(i) -> {\n${indent}${TAB}${TAB}${TAB}`),
 			res,
 			new IR(`\n${indent}${TAB}${TAB}}(__core__fstPair(__core__unConstrData(e)))\n${indent}${TAB})(e)\n${indent}}(`),
-			this.#controlExpr.toIR(indent),
+			this.controlExpr.toIR(indent),
 			new IR(")"),
 		]);
+	}
+}
+
+/**
+ * Switch expression for Data
+ */
+ class DataSwitchExpr extends SwitchExpr {
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Instance}
+	 */
+	evalInternal(scope) {
+		let controlVal = this.controlExpr.eval(scope);
+		let dataType = controlVal.getType(this.controlExpr.site);
+
+		let controlSite = this.controlExpr.site;
+		if (!dataType.isBaseOf(controlSite, new RawDataType())) {
+			throw this.controlExpr.typeError(`expected Data type, got ${controlVal.getType(controlSite).toString()}`);
+		}
+
+		// check that we have enough cases to cover the enum members
+		if (this.defaultCase === null && this.cases.length < 5) {
+			throw this.typeError(`insufficient coverage of 'Data' in switch expression`);
+		}
+
+		/** @type {?Type} */
+		let branchType = null;
+
+		for (let c of this.cases) {
+			let branchVal = c.evalDataMember(scope);
+
+			if (!(branchVal instanceof ErrorInstance)) {
+				branchType = IfElseExpr.reduceBranchType(c.site, branchType, branchVal.getType(c.site));
+			}
+		}
+
+		if (this.defaultCase !== null) {
+			let defaultVal = this.defaultCase.eval(scope);
+
+			if (!(defaultVal instanceof ErrorInstance)) {
+				branchType = IfElseExpr.reduceBranchType(this.defaultCase.site, branchType, defaultVal.getType(this.defaultCase.site));
+			}
+		}
+
+		if (branchType === null) {
+			throw new Error("unexpected");
+		} else {
+			return Instance.new(branchType);
+		}
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		/** @type {[?IR, ?IR, ?IR, ?IR, ?IR]} */
+		let cases = [null, null, null, null, null]; // constr, map, list, int, byteArray
+
+		for (let c of this.cases) {
+			let ir = c.toIR(indent + TAB + TAB);
+
+			switch (c.memberName.value) {
+				case "ByteArray":
+					cases[4] = ir;
+					break;
+				case "Int":
+					cases[3] = ir;
+					break;
+				case "[]Data":
+					cases[2] = ir;
+					break;
+				case "Map[Data]Data":
+					cases[1] = ir;
+					break;
+				default:
+					cases[0] = ir;
+			}
+		}
+
+		if (this.defaultCase !== null) {
+			for (let i = 0; i < 5; i++) {
+				if (cases[i] === null) {
+					cases[i] = new IR(`${indent}${TAB}def`);
+				}
+			}
+		}
+
+		let res = new IR([
+			new IR(`${indent}__core__chooseData(e, `, this.site),
+			new IR(cases).join(", "),
+			new IR(`${indent})`)
+		]);
+
+		if (this.defaultCase !== null) {
+			res = new IR([
+				new IR(`${indent}(def) -> {\n`),
+				res,
+				new IR(`\n${indent}}(`),
+				this.defaultCase.toIR(indent),
+				new IR(`)`)
+			]);
+		}
+
+		res = new IR([
+			new IR(`${indent}(e) -> {\n`),
+			res,
+			new IR("(e)"),
+			new IR(`${indent}}(`),
+			this.controlExpr.toIR(indent),
+			new IR(")")
+		]);
+
+		return res;
 	}
 }
 
@@ -16562,7 +16771,7 @@ function buildIfElseExpr(ts) {
 /**
  * @param {ValueExpr} controlExpr
  * @param {Token[]} ts 
- * @returns {SwitchExpr}
+ * @returns {ValueExpr} - EnumSwitchExpr or DataSwitchExpr
  */
 function buildSwitchExpr(controlExpr, ts) {
 	let site = assertDefined(ts.shift()).assertWord("switch").site;
@@ -16611,7 +16820,99 @@ function buildSwitchExpr(controlExpr, ts) {
 		throw site.syntaxError("every switch case throws an error");
 	}
 
-	return new SwitchExpr(site, controlExpr, cases, def);
+	if (cases.some(c => c.isDataMember())) {
+		if (cases.length + (def === null ? 0 : 1) > 5) {
+			throw site.syntaxError(`too many cases for data switch, expected 5 or less, got ${cases.length.toString()}`);
+		} else {
+			let count = 0;
+			cases.forEach(c => {if (!c.isDataMember()){count++}});
+
+			if (count > 1) {
+				throw site.syntaxError(`expected at most 1 enum case in data switch, got ${count}`);
+			} else {
+				return new DataSwitchExpr(site, controlExpr, cases, def);
+			}
+		}
+	} else {
+		return new EnumSwitchExpr(site, controlExpr, cases, def);
+	}
+}
+
+/**
+ * @param {Site} site
+ * @param {Token[]} ts
+ * @param {boolean} isAfterColon
+ * @returns {Word} 
+ */
+function buildSwitchCaseName(site, ts, isAfterColon) {
+	let first = ts.shift();
+
+	if (first === undefined) {
+		if (isAfterColon) {
+			throw site.syntaxError("invalid switch case syntax, expected member name after ':'");
+		} else {
+			throw site.syntaxError("invalid switch case syntax");
+		}
+	}
+		
+	if (first.isWord("Map")) {
+		let second = ts.shift();
+
+		if (second === undefined) {
+			throw site.syntaxError("expected token after 'Map'");
+		}
+
+		let keyTs = second.assertGroup("[]", 1).fields[0];
+
+		let key = keyTs.shift();
+
+		if (key === undefined) {
+			throw second.syntaxError("expected 'Map[Data]Data'");
+		}
+
+		key.assertWord("Data");
+
+		if (keyTs.length > 0) {
+			throw keyTs[0].syntaxError("unexpected token after 'Data'");
+		}
+
+		let third = ts.shift();
+
+		if (third === undefined) {
+			throw site.syntaxError("expected token after 'Map[Data]")
+		}
+
+		third.assertWord("Data");
+
+		if (ts.length > 0) {
+			throw ts[0].syntaxError("unexpected token after 'Map[Data]Data'");
+		}
+
+		return new Word(first.site, "Map[Data]Data");
+	} else if (first.isWord()) {
+		if (ts.length > 0) {
+			throw ts[0].syntaxError("unexpected token");
+		}
+
+		return first.assertWord().assertNotKeyword();
+	} else if (first.isGroup("[")) {
+		// list 
+		first.assertGroup("[", 0);
+
+		let second = ts.shift();
+
+		if (second === undefined) {
+			throw site.syntaxError("expected token after '[]'");
+		} else if (ts.length > 0) {
+			throw ts[0].syntaxError("unexpected token");
+		}
+
+		second.assertWord("Data");
+
+		return new Word(first.site, "[]Data");
+	} else {
+		throw first.syntaxError("invalid switch case name syntax");
+	}
 }
 
 /**
@@ -16646,23 +16947,10 @@ function buildSwitchCase(ts) {
 		} else {
 			void maybeColon.assertSymbol(":");
 
-			let maybeMemberName = tsLeft.shift();
-			if (maybeMemberName === undefined) {
-				throw maybeColon.syntaxError("invalid switch case syntax, expected member name after ':'");
-			}
-
-			memberName = maybeMemberName.assertWord().assertNotKeyword();
-
-			if (tsLeft.length > 0) {
-				throw tsLeft[0].syntaxError("unexpected token");
-			}
+			memberName = buildSwitchCaseName(maybeColon.site, tsLeft, true);
 		}
 	} else {
-		memberName = assertDefined(tsLeft.shift()).assertWord().assertNotKeyword();
-
-		if (tsLeft.length > 0) {
-			throw tsLeft[0].syntaxError("unexpected token");
-		}
+		memberName = buildSwitchCaseName(tsLeft[0].site, tsLeft, false);
 	}
 
 	if (memberName === null) {
