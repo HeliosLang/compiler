@@ -6337,7 +6337,7 @@ class UplcBuiltin extends UplcTerm {
 
 						return lst[0].copy(callSite);
 					} else {
-						throw callSite.typeError(`expected list or map, got '${a.toString()}'`);
+						throw callSite.typeError(`__core__head expects list or map, got '${a.toString()}'`);
 					}
 				});
 			case "tailList":
@@ -6359,7 +6359,7 @@ class UplcBuiltin extends UplcTerm {
 
 						return new UplcMap(callSite, lst.slice(1));
 					} else {
-						throw callSite.typeError(`expected list or map, got '${a.toString()}'`);
+						throw callSite.typeError(`__core__tail expects list or map, got '${a.toString()}'`);
 					}
 				});
 			case "nullList":
@@ -6371,7 +6371,7 @@ class UplcBuiltin extends UplcTerm {
 					} else if (a.isMap()) {
 						return new UplcBool(callSite, a.map.length == 0);
 					} else {
-						throw callSite.typeError(`expected list or map, got '${a.toString()}'`);
+						throw callSite.typeError(`__core__nullList expects list or map, got '${a.toString()}'`);
 					}
 				});
 			case "chooseData":
@@ -24581,8 +24581,6 @@ class IRCallExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	extractUpstreamCasts() {
-		// TODO: this could also work on the arg side, where if all instances of an arg of an arg are wrapped with such a function, that function can be extracted and placed inside calls to that arg instead
-		// IRUserCalExpr.simplify might need to be split into two methods for this
 		if (this.fnExpr instanceof IRFuncExpr && this.argExprs.some(e => e instanceof IRFuncExpr)) {
 			/** @type {IRExpr[]} */
 			let args = [];
@@ -24606,7 +24604,10 @@ class IRCallExpr extends IRExpr {
 						let ok = true;
 						let castName = "";
 
-						/** @type {Set<IRNameExpr>} */
+						/** 
+						 * Make sure eahc relevant IRNameExpr is actually wrapped by a cast call and doesn't appear by itself
+						 * This is done like this to circumvent the limitations of 'walk'
+						 * @type {Set<IRNameExpr>} */
 						let okList = new Set();
 						/** @type {IRNameExpr[]} */
 						let verify = [];
@@ -24631,9 +24632,18 @@ class IRCallExpr extends IRExpr {
 							}
 						});
 
-						verify.forEach(v => {if (!okList.has(v)) {ok = false}});
+						ok = ok && verify.every(v => okList.has(v));
 
+						// wrap the call args in the current body
 						if (ok && castName != "") {
+							/**
+							 * Make sure each relevant IRNameExpr is actually part of IRUserCallExpr and doesn't appear by itself
+							 * This is done like this to circumvent the limitations of 'walk' 
+							 * @type {Set<IRNameExpr>} */
+							let okList = new Set();
+							/** @type {IRNameExpr[]} */
+							let verify = [];
+
 							// now try to replace every jth arg of a call to fn
 							let fnExpr_ = fnExpr.walk((expr) => {
 								if (expr instanceof IRUserCallExpr && expr.fnExpr instanceof IRNameExpr && expr.fnExpr.variable === refs[i]) {
@@ -24641,14 +24651,23 @@ class IRCallExpr extends IRExpr {
 									let callArgs = expr.argExprs.slice();
 									callArgs[j] = new IRCoreCallExpr(new Word(callArgs[j].site, `__core__${castName}`), [callArgs[j]], callArgs[j].site);
 
+									okList.add(expr.fnExpr);
+
 									return new IRUserCallExpr(expr.fnExpr, callArgs, expr.parensSite);
+								} else if (expr instanceof IRNameExpr && !expr.name.startsWith("__core") && expr.variable === refs[i]) {
+									verify.push(expr);
+									return expr;
 								} else {
 									return expr;
 								}
 							});
 
-							fnBody = fnBody_;
-							fnExpr = fnExpr_;
+							ok = ok && verify.every(v => okList.has(v));
+
+							if (ok) {
+								fnBody = fnBody_;
+								fnExpr = fnExpr_;
+							}
 						}
 					}
 

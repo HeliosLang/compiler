@@ -4431,7 +4431,7 @@ async function runPropertyTests() {
 
 async function runIntegrationTests() {
     
-    async function runTestScript(src, expectedResult, expectedMessages) {
+    async function runTestScriptWithArgs(src, argNames, expectedResult, expectedMessages) {
         let purposeName = helios.extractScriptPurposeAndName(src);
 
         if (purposeName == null) {
@@ -4459,7 +4459,9 @@ async function runIntegrationTests() {
         try {
             let program = helios.Program.new(src);
 
-            let [result, messages] = await program.compile().runWithPrint([]);
+            let args = argNames.map(n => program.evalParam(n));
+
+            let [result, messages] = await program.compile().runWithPrint(args);
         
             checkResult(result);
         
@@ -4477,7 +4479,7 @@ async function runIntegrationTests() {
 
             // also try the simplified version (don't check for the message though because all trace calls will've been eliminated)
 
-            [result, messages] = await program.compile(true).runWithPrint([]);
+            [result, messages] = await program.compile(true).runWithPrint(args);
 
             if (messages.length != 0) {
                 throw new Error("unexpected messages");
@@ -4494,7 +4496,10 @@ async function runIntegrationTests() {
 
         console.log(`integration test '${name}' succeeded (simplified)`);
     }
-    
+
+    async function runTestScript(src, expectedResult, expectedMessages) {
+        await runTestScriptWithArgs(src, [], expectedResult, expectedMessages);
+    }
    
 
     // start of integration tests
@@ -4754,6 +4759,130 @@ async function runIntegrationTests() {
         print(fib.calc(5).show());
         Fib::Two{a: 0, b: 1}.calc(6)
     }`, "data(21)", ["13"]);
+
+	await runTestScriptWithArgs(`testing nestNFT
+	enum Redeemer{
+		Convert {
+			mph: MintingPolicyHash
+			policyConverted: MintingPolicyHash 
+		}
+	}
+	
+	func main(redeemer: Redeemer, ctx: ScriptContext) -> Bool {
+		tx: Tx = ctx.tx;
+
+		datums: Int = tx.inputs.map((x: TxInput) -> Int{
+			x.output.datum.switch{None => 0, else => 1}
+		}).fold((sum:Int,x:Int) -> Int {sum+x}, 0);
+
+		nothing: Value = Value::lovelace(0);
+
+		valueInputSC:Value=tx.inputs.map((x:TxInput) -> Value {
+			x.output.datum.switch{
+				Inline=> {x.output.value},
+				else=>nothing    
+			}
+		}).fold((sum:Value,x:Value) -> Value {sum+x}, nothing);
+	
+	
+		redeemer.switch{
+			x: Convert => {
+				assetName: ByteArray = valueInputSC.get_policy(x.mph).fold_keys((sum:ByteArray,y:ByteArray) -> ByteArray {y+sum}, (#));
+
+				mintedTotal:Value=tx.minted;
+
+				userNFT: AssetClass = AssetClass::new(
+					x.policyConverted, 
+					(#000de140)+assetName
+				);
+
+				referenceNFT: AssetClass = AssetClass::new(
+					x.policyConverted, 
+					(#000643b0)+assetName
+				);
+
+				lockedNFT: AssetClass = AssetClass::new(
+					x.mph, 
+					assetName
+				);
+				
+				valueToBurn: Value = Value::lovelace(0) - Value::new(userNFT, 1) - Value::new(referenceNFT, 1);
+
+				(
+					valueInputSC.contains(Value::new(referenceNFT, 1) + Value::new(lockedNFT, 1)) && 
+					valueToBurn == mintedTotal &&
+					datums == 1
+				)
+			}
+		}
+	}
+	
+	// a script context with a single input and a single output
+	const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
+	const TX_ID_IN_BYTES = #0123456789012345678901234567890123456789012345678901234567891234
+	const TX_ID_IN: TxId = TxId::new(TX_ID_IN_BYTES)
+	const CURRENT_VALIDATOR_BYTES = #01234567890123456789012345678901234567890123456789012346
+	const CURRENT_VALIDATOR: ValidatorHash = ValidatorHash::new(CURRENT_VALIDATOR_BYTES)
+	const MPH: MintingPolicyHash = MintingPolicyHash::new(CURRENT_VALIDATOR_BYTES)
+	const HAS_STAKING_CRED_IN = false
+	const STAKING_CRED_TYPE = false
+	const SOME_STAKING_CRED_IN: StakingCredential = if (STAKING_CRED_TYPE) {
+		StakingCredential::new_ptr(0, 0, 0)
+	} else {
+		StakingCredential::new_hash(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)))
+	}
+	const STAKING_CRED_IN: Option[StakingCredential] = if (HAS_STAKING_CRED_IN) {
+		Option[StakingCredential]::Some{SOME_STAKING_CRED_IN}
+	} else {
+		Option[StakingCredential]::None
+	}
+	const CURRENT_VALIDATOR_CRED: Credential = Credential::new_validator(CURRENT_VALIDATOR)
+	const ADDRESS_IN: Address = Address::new(CURRENT_VALIDATOR_CRED, STAKING_CRED_IN)
+	const TX_OUTPUT_ID_IN: TxOutputId = TxOutputId::new(TX_ID_IN, 0)
+	const ADDRESS_OUT: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+	const ADDRESS_OUT_1: Address = Address::new(Credential::new_validator(CURRENT_VALIDATOR), Option[StakingCredential]::None)
+	const QTY = 200000
+	const QTY_1 = 100000
+	const QTY_2 = 100000
+
+	const FEE = 160000
+	const VALUE_IN: Value = Value::lovelace(QTY + QTY_1 + QTY_2)
+	const VALUE_OUT: Value = Value::lovelace(QTY - FEE)
+	const VALUE_OUT_1: Value = Value::lovelace(QTY_1)
+	const VALUE_OUT_2: Value = Value::lovelace(QTY_2)
+
+	const DATUM_1: Int = 42
+	const DATUM_HASH_1: DatumHash = DatumHash::new(DATUM_1.serialize().blake2b())
+	const OUTPUT_DATUM: OutputDatum = OutputDatum::new_hash(DATUM_HASH_1)
+
+	const CURRENT_TX_ID: TxId = TxId::CURRENT
+
+	const FIRST_TX_INPUT: TxInput = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN + Value::new(AssetClass::new(MPH, #), 1), OutputDatum::new_inline(42)))
+	const REF_INPUT: TxInput = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0) + Value::new(AssetClass::new(MPH, #), 1), OutputDatum::new_inline(42)))
+	const FIRST_TX_OUTPUT: TxOutput = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
+	const TX: Tx = Tx::new(
+		[]TxInput{FIRST_TX_INPUT},
+		[]TxInput{REF_INPUT},
+		[]TxOutput{
+			FIRST_TX_OUTPUT,
+			TxOutput::new(ADDRESS_OUT, VALUE_OUT_1, OUTPUT_DATUM),
+			TxOutput::new(ADDRESS_OUT_1, VALUE_OUT_2, OUTPUT_DATUM)
+		},
+		Value::lovelace(FEE),
+		Value::ZERO,
+		[]DCert{},
+		Map[StakingCredential]Int{},
+		TimeRange::new(Time::new(0), Time::new(100)),
+		[]PubKeyHash{PubKeyHash::new(PUB_KEY_HASH_BYTES)},
+		Map[ScriptPurpose]Int{},
+		Map[DatumHash]Int{}
+	)
+	const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
+
+	const REDEEMER = Redeemer::Convert{
+		mph: MPH,
+		policyConverted: MPH
+	}`, ["REDEEMER", "SCRIPT_CONTEXT"], "false", []);
 }
 
 async function main() {
