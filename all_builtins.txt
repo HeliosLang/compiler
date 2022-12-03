@@ -64,6 +64,12 @@ methods:     serialize, show
 macros:      CURRENT (only ValidatorHash and MintingPolicyHash)
 internal ns: __helios__hash
 
+# PubKey
+associated:  new, from_data
+operators:   __eq, __neq
+methods:     serialize, show, verify
+internal ns: __helios__pubkey
+
 # ScriptContext
 associated:  from_data
 operators:   __eq, __neq
