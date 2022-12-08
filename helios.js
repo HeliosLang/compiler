@@ -20103,6 +20103,8 @@ class ValueType extends BuiltinType {
 				return Instance.new(new FuncType([new MintingPolicyHashType()], new MapType(new ByteArrayType(), new IntType())));
 			case "contains_policy":
 				return Instance.new(new FuncType([new MintingPolicyHashType()], new BoolType()));
+			case "to_map":
+				return Instance.new(new FuncType([], new MapType(new MintingPolicyHashType(), new MapType(new ByteArrayType(), new IntType()))));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -22804,6 +22806,7 @@ function makeRawFunctions() {
 		)()
 	}`));
 	add(new RawFunc("__helios__value__from_map", "__helios__common__identity"));
+	add(new RawFunc("__helios__value__to_map", "__helios__common__identity"));
 	add(new RawFunc("__helios__value__get_map_keys",
 	`(map) -> {
 		(recurse) -> {

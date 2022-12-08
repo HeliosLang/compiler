@@ -398,7 +398,6 @@ async function tokencheck() {
 	console.log(JSON.stringify(tx2.dump(), undefined, 4));
 }
 
-
 async function main() {
     await testBasic();
 

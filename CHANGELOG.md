@@ -1,5 +1,8 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/12/08
+* `Value.to_map()`
+
 # 2022/12/03
 * Switch expression works over Data
 * Type inference for literal enum member constructors that have zero fields

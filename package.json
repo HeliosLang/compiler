@@ -20,5 +20,16 @@
   },
   "homepage": "https://www.hyperion-bt.org/Helios-Book",
   "devDependencies": {
-  }
+  },
+  "keywords": [
+	 "blockchain",
+	 "cardano",
+	 "smart contracts",
+	 "domain specific language",
+	 "dsl",
+	 "compiler",
+	 "transaction builder",
+	 "on-chain",
+	 "off-chain"
+  ]
 }
