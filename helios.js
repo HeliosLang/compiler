@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.9.3
+// Version:     0.9.4
 // Last update: November 2022
 // License:     Unlicense
 //
@@ -202,7 +202,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.9.3"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.9.4"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -2468,16 +2468,23 @@ class IR {
  */
 class Source {
 	#raw;
+	#fileIndex;
 
 	/**
 	 * @param {string} raw 
+	 * @param {?number} fileIndex
 	 */
-	constructor(raw) {
+	constructor(raw, fileIndex = null) {
 		this.#raw = assertDefined(raw);
+		this.#fileIndex = fileIndex;
 	}
 
 	get raw() {
 		return this.#raw;
+	}
+
+	get fileIndex() {
+		return this.#fileIndex;
 	}
 
 	/**
@@ -2623,6 +2630,9 @@ export class UserError extends Error {
 		return new UserError(msg, src, pos);
 	}
 
+	/**
+	 * @type {Source}
+	 */
 	get src() {
 		return this.#src;
 	}
@@ -14840,10 +14850,11 @@ class Module {
 
 	/**
 	 * @param {string} rawSrc
+	 * @param {?number} fileIndex - a unique optional index passed in from outside that makes it possible to associate a UserError with a specific file
 	 * @returns {Module}
 	 */
-	static new(rawSrc) {
-		let src = new Source(rawSrc);
+	static new(rawSrc, fileIndex = null) {
+		let src = new Source(rawSrc, fileIndex);
 
 		let ts = tokenize(src);
 
@@ -15046,7 +15057,7 @@ export class Program {
 	 * @returns {[purpose, Module[]]}
 	 */
 	static parseMain(rawSrc) {
-		let src = new Source(rawSrc);
+		let src = new Source(rawSrc, 0);
 
 		let ts = tokenize(src);
 
@@ -15087,7 +15098,7 @@ export class Program {
 	 * @returns {Module[]}
 	 */
 	static parseImports(mainName, moduleSrcs = []) {
-		let imports = moduleSrcs.map(src => Module.new(src));
+		let imports = moduleSrcs.map((src, i) => Module.new(src, i+1));
 
 		/**
 		 * @type {Set<string>}
