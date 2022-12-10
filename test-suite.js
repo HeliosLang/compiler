@@ -255,7 +255,7 @@ function spendingScriptContextParam(useInlineDatum) {
         const SOME_STAKING_CRED_IN: StakingCredential = if (STAKING_CRED_TYPE) {
             StakingCredential::new_ptr(0, 0, 0)
         } else {
-            StakingCredential::new_hash(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)))
+            StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(PUB_KEY_HASH_BYTES)))
         }
         const STAKING_CRED_IN: Option[StakingCredential] = if (HAS_STAKING_CRED_IN) {
             Option[StakingCredential]::Some{SOME_STAKING_CRED_IN}
@@ -338,7 +338,7 @@ const rewardingScriptContextParam = `
     const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
     const TX_ID_IN: TxId = TxId::CURRENT
     const CURRENT_STAKING_CRED_BYTES = #01234567890123456789012345678901234567890123456789012346
-    const CURRENT_STAKING_CRED: StakingCredential = StakingCredential::new_hash(Credential::new_pubkey(PubKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
+    const CURRENT_STAKING_CRED: StakingCredential = StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
     const REWARD_QTY = 2000
     const ADDRESS_IN: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
     const ADDRESS_OUT: Address = ADDRESS_IN
@@ -368,7 +368,7 @@ const certifyingScriptContextParam = `
     const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
     const TX_ID_IN: TxId = TxId::CURRENT
     const CURRENT_STAKING_CRED_BYTES = #01234567890123456789012345678901234567890123456789012346
-    const CURRENT_STAKING_CRED: StakingCredential = StakingCredential::new_hash(Credential::new_pubkey(PubKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
+    const CURRENT_STAKING_CRED: StakingCredential = StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
     const ADDRESS_IN: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
     const ADDRESS_OUT: Address = ADDRESS_IN
     const QTY_IN = 1000
@@ -399,7 +399,6 @@ const certifyingScriptContextParam = `
 
 async function runPropertyTests() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
-    
 
     ////////////
     // Int tests
@@ -4829,7 +4828,7 @@ async function runIntegrationTests() {
 	const SOME_STAKING_CRED_IN: StakingCredential = if (STAKING_CRED_TYPE) {
 		StakingCredential::new_ptr(0, 0, 0)
 	} else {
-		StakingCredential::new_hash(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)))
+		StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(PUB_KEY_HASH_BYTES)))
 	}
 	const STAKING_CRED_IN: Option[StakingCredential] = if (HAS_STAKING_CRED_IN) {
 		Option[StakingCredential]::Some{SOME_STAKING_CRED_IN}

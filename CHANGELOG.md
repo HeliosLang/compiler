@@ -1,5 +1,12 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/12/10
+* Addition of `ScriptHash`, `StakingHash`, `StakingHash::StakeKey`, `StakingHash::Validator`, `StakeKeyHash`, `StakingValidatorHash` (on-chain)
+* `TxOutput.ref_script_hash -> Option[ScriptHash]` getter (on-chain)
+* `(ValidatorHash|MintingPolicyHash|StakingValidatorHash).from_script_hash()` (on-chain)
+* Addition StakeAddress, StakeKeyHash and StakingValidatorHash (off-chain)
+* Address construction distinguishes between StakeKeyHash and StakingValidatorHash
+
 # 2022/12/08
 * `Value.to_map()`
 
