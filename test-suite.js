@@ -2804,6 +2804,12 @@ async function runPropertyTests() {
             Value::lovelace(a).get(AssetClass::ADA)
         }`, ([a], res) => asInt(a) === asInt(res));
 
+        await ft.test([ft.int()], `
+        testing value_get_safe
+        func main(a: Int) -> Int {
+            Value::new(AssetClass::new(MintingPolicyHash::new(#1234), #1234), a).get_safe(AssetClass::ADA)
+        }`, ([a], res) => 0n === asInt(res));
+
         await ft.test([ft.bytes(10, 10), ft.string(5,5), ft.int(), ft.string(3,3), ft.int()], `
         testing value_get_policy
         func main(mph_bytes: ByteArray, tn_a: ByteArray, qty_a: Int, tn_b: ByteArray, qty_b: Int) -> Bool {
