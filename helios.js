@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.9.5
+// Version:     0.9.6
 // Last update: November 2022
 // License:     Unlicense
 //
@@ -202,7 +202,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.9.5"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.9.6"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -11555,14 +11555,30 @@ class AssignExpr extends ValueExpr {
 			if (!upstreamVal.isInstanceOf(this.#upstreamExpr.site, type)) {
 				throw this.#upstreamExpr.typeError(`expected ${type.toString()}, got ${upstreamVal.toString()}`);
 			}
-		} else {
-			if (!(this.#upstreamExpr.isLiteral())) {
-				throw this.typeError("unable to infer type of assignment rhs");
+
+			upstreamVal = Instance.new(type);
+		} else if (this.#upstreamExpr.isLiteral()) {
+			let upstreamType = upstreamVal.getType(this.#upstreamExpr.site);
+
+			// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
+			if ((this.#upstreamExpr instanceof CallExpr &&
+				this.#upstreamExpr.fnExpr instanceof ValuePathExpr) || 
+				this.#upstreamExpr instanceof ValuePathExpr) 
+			{
+				if (upstreamType instanceof StatementType && 
+					upstreamType.statement instanceof EnumMember) 
+				{
+					upstreamVal = Instance.new(new StatementType(upstreamType.statement.parent));
+				} else if (upstreamType instanceof BuiltinEnumMember) {
+					upstreamVal = Instance.new(upstreamType.parentType);
+				}
 			}
+		} else {
+			throw this.typeError("unable to infer type of assignment rhs");
 		}
 
 		subScope.set(this.#name, upstreamVal);
-
+		
 		let downstreamVal = this.#downstreamExpr.eval(subScope);
 
 		subScope.assertAllUsed();
@@ -12573,21 +12589,33 @@ class ValuePathExpr extends ValueExpr {
 		this.#isRecursiveFunc = false;
 	}
 
+	/**
+	 * @type {Type}
+	 */
+	get baseType() {
+		return this.#baseTypeExpr.type;
+	}
+
 	toString() {
 		return `${this.#baseTypeExpr.toString()}::${this.#memberName.toString()}`;
 	}
 
 	/**
-	 * Returns true if ValuePathExpr constructs a literal enum member with zero fields
+	 * Returns true if ValuePathExpr constructs a literal enum member with zero field or
+	 * if this baseType is also a baseType of the returned value
 	 * @returns {boolean}
 	 */
 	isLiteral() {
-		let type = this.value.getType(this.site);
+		let type = this.type;
 
 		if (type instanceof StatementType && type.statement instanceof EnumMember) {
 			return true;
 		} else {
-			return false;
+			if (this.baseType.isBaseOf(this.site, type)) {
+				return true;
+			} else {
+				return false;
+			}
 		}
 	}
 
@@ -12957,8 +12985,20 @@ class CallExpr extends ValueExpr {
 		this.#argExprs = argExprs;
 	}
 
+	get fnExpr() {
+		return this.#fnExpr;
+	}
+
 	toString() {
 		return `${this.#fnExpr.toString()}(${this.#argExprs.map(a => a.toString()).join(", ")})`;
+	}
+
+	isLiteral() {
+		if (this.#fnExpr instanceof ValuePathExpr && this.#fnExpr.baseType.isBaseOf(this.site, this.type)) {
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	/**
@@ -14445,6 +14485,9 @@ class EnumMember extends DataDefinition {
 		this.#constrIndex = i;
 	}
 	
+	/**
+	 * @type {EnumStatement}
+	 */
 	get parent() {
 		if (this.#parent === null) {
 			throw new Error("parent not yet registered");
@@ -17565,6 +17608,8 @@ class BoolType extends BuiltinType {
 				return Instance.new(new FuncType([], new IntType()));
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
+			case "trace":
+				return Instance.new(new FuncType([new StringType()], new BoolType()));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -21265,6 +21310,19 @@ function makeRawFunctions() {
 	`(self) -> {
 		() -> {
 			__helios__common__stringData(__core__ifThenElse(self, "true", "false"))
+		}
+	}`));
+	add(new RawFunc("__helios__bool__trace",
+	`(self) -> {
+		(prefix) -> {
+			__core__trace(
+				__helios__common__unStringData(
+					__helios__string____add(prefix)(
+						__helios__bool__show(self)()
+					)
+				), 
+				self
+			)
 		}
 	}`));
 

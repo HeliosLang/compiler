@@ -245,11 +245,11 @@ const serializeProp = ([a], res) => {
 function spendingScriptContextParam(useInlineDatum) {
     return `
         // a script context with a single input and a single output
-        const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
+        const PUB_KEY_HASH_BYTES = #01234567890123456789012345678901234567890123456789012345
         const TX_ID_IN_BYTES = #0123456789012345678901234567890123456789012345678901234567891234
         const TX_ID_IN: TxId = TxId::new(TX_ID_IN_BYTES)
         const CURRENT_VALIDATOR_BYTES = #01234567890123456789012345678901234567890123456789012346
-        const CURRENT_VALIDATOR: ValidatorHash = ValidatorHash::new(CURRENT_VALIDATOR_BYTES)
+        const CURRENT_VALIDATOR = ValidatorHash::new(CURRENT_VALIDATOR_BYTES)
         const HAS_STAKING_CRED_IN = false
         const STAKING_CRED_TYPE = false
         const SOME_STAKING_CRED_IN: StakingCredential = if (STAKING_CRED_TYPE) {
@@ -262,31 +262,31 @@ function spendingScriptContextParam(useInlineDatum) {
         } else {
             Option[StakingCredential]::None
         }
-        const CURRENT_VALIDATOR_CRED: Credential = Credential::new_validator(CURRENT_VALIDATOR)
-        const ADDRESS_IN: Address = Address::new(CURRENT_VALIDATOR_CRED, STAKING_CRED_IN)
-        const TX_OUTPUT_ID_IN: TxOutputId = TxOutputId::new(TX_ID_IN, 0)
-        const ADDRESS_OUT: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
-        const ADDRESS_OUT_1: Address = Address::new(Credential::new_validator(CURRENT_VALIDATOR), Option[StakingCredential]::None)
+        const CURRENT_VALIDATOR_CRED = Credential::new_validator(CURRENT_VALIDATOR)
+        const ADDRESS_IN = Address::new(CURRENT_VALIDATOR_CRED, STAKING_CRED_IN)
+        const TX_OUTPUT_ID_IN = TxOutputId::new(TX_ID_IN, 0)
+        const ADDRESS_OUT = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+        const ADDRESS_OUT_1 = Address::new(Credential::new_validator(CURRENT_VALIDATOR), Option[StakingCredential]::None)
         const QTY = 200000
         const QTY_1 = 100000
         const QTY_2 = 100000
 
         const FEE = 160000
-        const VALUE_IN: Value = Value::lovelace(QTY + QTY_1 + QTY_2)
-        const VALUE_OUT: Value = Value::lovelace(QTY - FEE)
-        const VALUE_OUT_1: Value = Value::lovelace(QTY_1)
-        const VALUE_OUT_2: Value = Value::lovelace(QTY_2)
+        const VALUE_IN = Value::lovelace(QTY + QTY_1 + QTY_2)
+        const VALUE_OUT = Value::lovelace(QTY - FEE)
+        const VALUE_OUT_1 = Value::lovelace(QTY_1)
+        const VALUE_OUT_2 = Value::lovelace(QTY_2)
 
-        const DATUM_1: Int = 42
-        const DATUM_HASH_1: DatumHash = DatumHash::new(DATUM_1.serialize().blake2b())
-        const OUTPUT_DATUM: OutputDatum = ${useInlineDatum ? "OutputDatum::new_inline(DATUM_1)" : "OutputDatum::new_hash(DATUM_HASH_1)"}
+        const DATUM_1 = 42
+        const DATUM_HASH_1 = DatumHash::new(DATUM_1.serialize().blake2b())
+        const OUTPUT_DATUM = ${useInlineDatum ? "OutputDatum::new_inline(DATUM_1)" : "OutputDatum::new_hash(DATUM_HASH_1)"}
 
-        const CURRENT_TX_ID: TxId = TxId::CURRENT
+        const CURRENT_TX_ID = TxId::CURRENT
 
-        const FIRST_TX_INPUT: TxInput = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN, OutputDatum::new_none()))
-        const REF_INPUT: TxInput = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0), OutputDatum::new_inline(42)))
-        const FIRST_TX_OUTPUT: TxOutput = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
-        const TX: Tx = Tx::new(
+        const FIRST_TX_INPUT = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN, OutputDatum::new_none()))
+        const REF_INPUT = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0), OutputDatum::new_inline(42)))
+        const FIRST_TX_OUTPUT = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
+        const TX = Tx::new(
             []TxInput{FIRST_TX_INPUT},
             []TxInput{REF_INPUT},
             []TxOutput{
@@ -303,22 +303,22 @@ function spendingScriptContextParam(useInlineDatum) {
             Map[ScriptPurpose]Int{},
             Map[DatumHash]Int{${useInlineDatum ? "" : "DATUM_HASH_1: DATUM_1"}}
         )
-        const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
+        const SCRIPT_CONTEXT = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
     `;
 }
 
 const mintingScriptContextParam = `
     // a script context with a single input and a single output
-    const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
-    const TX_ID_IN: TxId = TxId::CURRENT
+    const PUB_KEY_HASH_BYTES = #01234567890123456789012345678901234567890123456789012345
+    const TX_ID_IN = TxId::CURRENT
     const CURRENT_MPH_BYTES = #01234567890123456789012345678901234567890123456789012346
-    const CURRENT_MPH: MintingPolicyHash = MintingPolicyHash::new(CURRENT_MPH_BYTES)
-    const ADDRESS_IN: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+    const CURRENT_MPH = MintingPolicyHash::new(CURRENT_MPH_BYTES)
+    const ADDRESS_IN = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
     const ADDRESS_OUT: Address = ADDRESS_IN
     const QTY = 1000
-    const VALUE: Value = Value::lovelace(QTY)
-    const MINTED: Value = Value::new(AssetClass::new(CURRENT_MPH, #abcd), 1)
-    const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_minting(Tx::new(
+    const VALUE = Value::lovelace(QTY)
+    const MINTED = Value::new(AssetClass::new(CURRENT_MPH, #abcd), 1)
+    const SCRIPT_CONTEXT = ScriptContext::new_minting(Tx::new(
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE + MINTED, OutputDatum::new_none())},
@@ -335,16 +335,16 @@ const mintingScriptContextParam = `
 
 const rewardingScriptContextParam = `
     // a script context with a single input and a single output
-    const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
-    const TX_ID_IN: TxId = TxId::CURRENT
+    const PUB_KEY_HASH_BYTES = #01234567890123456789012345678901234567890123456789012345
+    const TX_ID_IN = TxId::CURRENT
     const CURRENT_STAKING_CRED_BYTES = #01234567890123456789012345678901234567890123456789012346
-    const CURRENT_STAKING_CRED: StakingCredential = StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
+    const CURRENT_STAKING_CRED = StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
     const REWARD_QTY = 2000
-    const ADDRESS_IN: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+    const ADDRESS_IN = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
     const ADDRESS_OUT: Address = ADDRESS_IN
     const QTY = 1000
-    const VALUE: Value = Value::lovelace(QTY)
-    const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_rewarding(Tx::new(
+    const VALUE = Value::lovelace(QTY)
+    const SCRIPT_CONTEXT = ScriptContext::new_rewarding(Tx::new(
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE + Value::lovelace(REWARD_QTY), OutputDatum::new_none())},
@@ -365,23 +365,23 @@ const rewardingScriptContextParam = `
 
 const certifyingScriptContextParam = `
     // a script context with a single input and a single output
-    const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
-    const TX_ID_IN: TxId = TxId::CURRENT
+    const PUB_KEY_HASH_BYTES = #01234567890123456789012345678901234567890123456789012345
+    const TX_ID_IN = TxId::CURRENT
     const CURRENT_STAKING_CRED_BYTES = #01234567890123456789012345678901234567890123456789012346
-    const CURRENT_STAKING_CRED: StakingCredential = StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
-    const ADDRESS_IN: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+    const CURRENT_STAKING_CRED = StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
+    const ADDRESS_IN = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
     const ADDRESS_OUT: Address = ADDRESS_IN
     const QTY_IN = 1000
-    const VALUE: Value = Value::lovelace(QTY_IN)
-    const CURRENT_DCERT: DCert = DCert::new_register(CURRENT_STAKING_CRED)
-    const DCERT_DEREGISTER: DCert = DCert::new_deregister(CURRENT_STAKING_CRED)
-    const POOL_ID: PubKeyHash = PubKeyHash::new(#1253751235)
-    const POOL_VFR: PubKeyHash = PubKeyHash::new(#125375123598)
+    const VALUE = Value::lovelace(QTY_IN)
+    const CURRENT_DCERT = DCert::new_register(CURRENT_STAKING_CRED)
+    const DCERT_DEREGISTER = DCert::new_deregister(CURRENT_STAKING_CRED)
+    const POOL_ID = PubKeyHash::new(#1253751235)
+    const POOL_VFR = PubKeyHash::new(#125375123598)
     const EPOCH = 370
-    const DCERT_DELEGATE: DCert = DCert::new_delegate(CURRENT_STAKING_CRED, POOL_ID)
-    const DCERT_REGISTER_POOL: DCert = DCert::new_register_pool(POOL_ID, POOL_VFR)
-    const DCERT_RETIRE_POOL: DCert = DCert::new_retire_pool(POOL_ID, EPOCH)
-    const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_certifying(Tx::new(
+    const DCERT_DELEGATE = DCert::new_delegate(CURRENT_STAKING_CRED, POOL_ID)
+    const DCERT_REGISTER_POOL = DCert::new_register_pool(POOL_ID, POOL_VFR)
+    const DCERT_RETIRE_POOL = DCert::new_retire_pool(POOL_ID, EPOCH)
+    const SCRIPT_CONTEXT = ScriptContext::new_certifying(Tx::new(
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE, OutputDatum::new_none())},
@@ -806,6 +806,12 @@ async function runPropertyTests() {
     func main(a: Bool) -> ByteArray {
         a.serialize()
     }`, serializeProp);
+
+    await ft.test([ft.bool()], `
+    testing bool_trace
+    func main(a: Bool) -> Bool {
+        a.trace("prefix")
+    }`, ([a], res) => asBool(a) === asBool(res));
 
 
     ///////////////
