@@ -11558,13 +11558,14 @@ class AssignExpr extends ValueExpr {
 
 			upstreamVal = Instance.new(type);
 		} else if (this.#upstreamExpr.isLiteral()) {
-			let upstreamType = upstreamVal.getType(this.#upstreamExpr.site);
-
 			// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
 			if ((this.#upstreamExpr instanceof CallExpr &&
 				this.#upstreamExpr.fnExpr instanceof ValuePathExpr) || 
-				this.#upstreamExpr instanceof ValuePathExpr) 
+				(this.#upstreamExpr instanceof ValuePathExpr && 
+				!this.#upstreamExpr.isZeroFieldConstructor())) 
 			{
+				let upstreamType = upstreamVal.getType(this.#upstreamExpr.site);
+
 				if (upstreamType instanceof StatementType && 
 					upstreamType.statement instanceof EnumMember) 
 				{
@@ -12600,17 +12601,27 @@ class ValuePathExpr extends ValueExpr {
 		return `${this.#baseTypeExpr.toString()}::${this.#memberName.toString()}`;
 	}
 
+	isZeroFieldConstructor() {
+		let type = this.type;
+
+		if (type instanceof StatementType && type.statement instanceof EnumMember && type.statement.name.value === this.#memberName.value) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
 	/**
 	 * Returns true if ValuePathExpr constructs a literal enum member with zero field or
 	 * if this baseType is also a baseType of the returned value
 	 * @returns {boolean}
 	 */
 	isLiteral() {
-		let type = this.type;
-
-		if (type instanceof StatementType && type.statement instanceof EnumMember) {
+		if (this.isZeroFieldConstructor()) {
 			return true;
 		} else {
+			let type = this.type;
+
 			if (this.baseType.isBaseOf(this.site, type)) {
 				return true;
 			} else {
@@ -20369,6 +20380,8 @@ class ValueType extends BuiltinType {
 				return Instance.new(new FuncType([], new BoolType()));
 			case "get":
 				return Instance.new(new FuncType([new AssetClassType()], new IntType()));
+			case "get_safe":
+				return Instance.new(new FuncType([new AssetClassType()], new IntType()));
 			case "get_policy":
 				return Instance.new(new FuncType([new MintingPolicyHashType()], new MapType(new ByteArrayType(), new IntType())));
 			case "contains_policy":
@@ -23474,6 +23487,42 @@ function makeRawFunctions() {
 						__core__ifThenElse(
 							__core__nullList(map), 
 							() -> {__core__error("tokenName not found")}, 
+							() -> {
+								__core__ifThenElse(
+									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
+									() -> {__core__sndPair(__core__headList(map))},
+									() -> {inner(inner, __core__tailList(map))}
+								)()
+							}
+						)()
+					}
+				)
+			}(__core__unMapData(self), __helios__common__field_0(assetClass), __helios__common__field_1(assetClass))
+		}
+	}`));
+	add(new RawFunc("__helios__value__get_safe",
+	`(self) -> {
+		(assetClass) -> {
+			(map, mintingPolicyHash, tokenName) -> {
+				(outer, inner) -> {
+					outer(outer, inner, map)
+				}(
+					(outer, inner, map) -> {
+						__core__ifThenElse(
+							__core__nullList(map), 
+							() -> {__core__iData(0)}, 
+							() -> {
+								__core__ifThenElse(
+									__core__equalsData(__core__fstPair(__core__headList(map)), mintingPolicyHash), 
+									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList(map))))}, 
+									() -> {outer(outer, inner, __core__tailList(map))}
+								)()
+							}
+						)()
+					}, (inner, map) -> {
+						__core__ifThenElse(
+							__core__nullList(map), 
+							() -> {__core__iData(0)}, 
 							() -> {
 								__core__ifThenElse(
 									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
