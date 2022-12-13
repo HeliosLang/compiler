@@ -10001,7 +10001,7 @@ class Type extends EvalEntity {
 	 * @returns {number}
 	 */
 	nEnumMembers(site) {
-		throw site.typeError("not an enum type");
+		throw site.typeError(`'${this.toString()}' isn't an enum type`);
 	}
 
 	/**
@@ -14132,7 +14132,7 @@ class DataDefinition extends Statement {
 	 * @returns {number}
 	 */
 	nEnumMembers(site) {
-		throw site.typeError("not an enum type");
+		throw site.typeError(`'${this.name.value}' isn't an enum type`);
 	}
 
 	/**
@@ -18468,6 +18468,9 @@ class ScriptHashType extends BuiltinType {
 		super();
 	}
 
+	toString() {
+		return "ScriptHash";
+	}
 
 	get path() {
 		return "__helios__scripthash";
@@ -20108,6 +20111,8 @@ class StakingHashCredentialType extends BuiltinEnumMember {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
+			case "hash":
+				return Instance.new(new StakingHashType());
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -22861,6 +22866,7 @@ function makeRawFunctions() {
 	
 	// StakingCredential::Hash builtins
 	addEnumDataFuncs("__helios__stakingcredential__hash");
+	add(new RawFunc("__helios__stakingcredential__hash__hash", "__helios__common__field_0"));
 
 
 	// StakingCredential::Ptr builtins

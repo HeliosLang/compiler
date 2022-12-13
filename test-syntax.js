@@ -222,6 +222,18 @@ async function test8() {
   console.log(helios.bytesToText(res.data.bytes));
 }
 
+async function test9() {
+  const src = `
+  testing staking_credential
+
+  func main(sc: StakingCredential) -> StakingValidatorHash {
+    sc.switch{h: Hash => h.hash.switch{v: Validator => v.hash, else => error("no StakingValidatorHash")}, else => error("not StakingHash")}
+  }
+  `;
+
+  helios.Program.new(src);
+}
+
 async function main() {
     await test1();
 
@@ -238,6 +250,8 @@ async function main() {
     await test7();
 
     await test8();
+
+    await test9();
 }
 
 main();
