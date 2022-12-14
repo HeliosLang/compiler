@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.9.6
+// Version:     0.9.7
 // Last update: November 2022
 // License:     Unlicense
 //
@@ -202,7 +202,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.9.6"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.9.7"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -17815,6 +17815,8 @@ class ListType extends BuiltinType {
 					}
 				});
 			}
+			case "sort":
+				return Instance.new(new FuncType([new FuncType([this.#itemType, this.#itemType], new BoolType())], new ListType(this.#itemType)));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -17898,6 +17900,30 @@ class MapType extends BuiltinType {
 				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], this));
 			case "filter_by_value":
 				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], this));
+			/*case "find": { // the following functions won't work well as long as unused vars aren't allowed
+				let a = new ParamType("a");
+
+				return new ParamFuncValue([a], new FuncType([
+					new FuncType([this.#keyType, this.#valueType], new BoolType()), 
+					new FuncType([this.#keyType, this.#valueType], a)
+				], a));
+			}
+			case "find_safe": {
+				let a = new ParamType("a");
+
+				return new ParamFuncValue([a], new FuncType([
+					new FuncType([this.#keyType, this.#valueType], new BoolType()), 
+					new FuncType([this.#keyType, this.#valueType], a)
+				], new OptionType(a)));
+			}*/
+			case "find_key":
+				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], this.#keyType));
+			case "find_key_safe":
+				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], new OptionType(this.#keyType)));
+			case "find_value":
+				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], this.#valueType));
+			case "find_value_safe":
+				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], new OptionType(this.#valueType)));
 			case "fold": {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#keyType, this.#valueType], a), a], a));
@@ -17944,6 +17970,12 @@ class MapType extends BuiltinType {
 					}
 				});
 			}
+			case "sort":
+				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType, this.#keyType, this.#valueType], new BoolType())], new MapType(this.#keyType, this.#valueType)));
+			case "sort_by_key":
+				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#keyType], new BoolType())], new MapType(this.#keyType, this.#valueType)));
+			case "sort_by_value":
+				return Instance.new(new FuncType([new FuncType([this.#valueType, this.#valueType], new BoolType())], new MapType(this.#keyType, this.#valueType)));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -20716,7 +20748,7 @@ function makeRawFunctions() {
 		__helios__common__filter(self, fn, __core__mkNilPairData(()))
 	}`));
 	add(new RawFunc("__helios__common__find",
-	`(self, fn) -> {
+	`(self, fn, callback) -> {
 		(recurse) -> {
 			recurse(recurse, self, fn)
 		}(
@@ -20727,7 +20759,7 @@ function makeRawFunctions() {
 					() -> {
 						__core__ifThenElse(
 							fn(__core__headList(self)), 
-							() -> {__core__headList(self)}, 
+							() -> {callback(__core__headList(self))}, 
 							() -> {recurse(recurse, __core__tailList(self), fn)}
 						)()
 					}
@@ -20736,7 +20768,7 @@ function makeRawFunctions() {
 		)
 	}`));
 	add(new RawFunc("__helios__common__find_safe",
-	`(self, fn) -> {
+	`(self, fn, callback) -> {
 		(recurse) -> {
 			recurse(recurse, self, fn)
 		}(
@@ -20747,7 +20779,7 @@ function makeRawFunctions() {
 					() -> {
 						__core__ifThenElse(
 							fn(__core__headList(self)), 
-							() -> {__core__constrData(0, __helios__common__list_1(__core__headList(self)))}, 
+							() -> {__core__constrData(0, __helios__common__list_1(callback(__core__headList(self))))}, 
 							() -> {recurse(recurse, __core__tailList(self), fn)}
 						)()
 					}
@@ -20765,6 +20797,46 @@ function makeRawFunctions() {
 					__core__nullList(self), 
 					() -> {z}, 
 					() -> {recurse(recurse, __core__tailList(self), fn, fn(z, __core__headList(self)))}
+				)()
+			}
+		)
+	}`));
+	add(new RawFunc("__helios__common__insert_in_sorted",
+	`(x, lst, comp) -> {
+		(recurse) -> {
+			recurse(recurse, lst)
+		}(
+			(recurse, lst) -> {
+				__core__ifThenElse(
+					__core__nullList(lst),
+					() -> {__core__mkCons(x, lst)},
+					() -> {
+						(head) -> {
+							__core__ifThenElse(
+								comp(x, head),
+								() -> {__core__mkCons(x, lst)},
+								() -> {__core__mkCons(head, recurse(recurse, __core__tailList(lst)))}
+							)()
+						}(__core__headList(lst))
+					}
+				)()
+			}
+		)
+	}`));
+	add(new RawFunc("__helios__common__sort", 
+	`(lst, comp) -> {
+		(recurse) -> {
+			recurse(recurse, lst)
+		}(
+			(recurse, lst) -> {
+				__core__ifThenElse(
+					__core__nullList(lst),
+					() -> {lst},
+					() -> {
+						(head, tail) -> {
+							__helios__common__insert_in_sorted(head, tail, comp)
+						}(__core__headList(lst), recurse(recurse, __core__tailList(lst)))
+					}
 				)()
 			}
 		)
@@ -21590,8 +21662,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
-				__helios__common__find(self, fn)
-				
+				__helios__common__find(self, fn, __helios__common__identity)
 			}
 		}(__core__unListData(self))
 	}`));
@@ -21599,10 +21670,10 @@ function makeRawFunctions() {
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
-				__helios__common__find_safe(self, fn)
+				__helios__common__find_safe(self, fn, __helios__common__identity)
 			}
 		}(__core__unListData(self))
-	}`))
+	}`));
 	add(new RawFunc("__helios__list__filter",
 	`(self) -> {
 		(self) -> {
@@ -21636,6 +21707,14 @@ function makeRawFunctions() {
 				}
 			)
 		}
+	}`));
+	add(new RawFunc("__helios__list__sort",
+	`(self) -> {
+		(self) -> {
+			(comp) -> {
+				__core__listData(__helios__common__sort(self, comp))
+			}
+		}(__core__unListData(self))
 	}`));
 	add(new RawFunc("__helios__boollist__new", 
 	`(n, fn) -> {
@@ -21756,6 +21835,20 @@ function makeRawFunctions() {
 				}
 			)
 		}
+	}`));
+	add(new RawFunc("__helios__boollist__sort",
+	`(self) -> {
+		(self) -> {
+			(comp) -> {
+				(comp) -> {
+					__core__listData(__helios__common__sort(self, comp))
+				}(
+					(a, b) -> {
+						comp(__helios__common__unBoolData(a), __helios__common__unBoolData(b))
+					}
+				)
+			}
+		}(__core__unListData(self))
 	}`));
 
 
@@ -21930,6 +22023,118 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
+	add(new RawFunc("__helios__map__find",
+	`(self) -> {
+		(self) -> {
+			(fn, callback) -> {
+				(fn) -> {
+					__helios__common__find(
+						self, 
+						fn,
+						(result) -> {
+							callback(__core__fstPair(result), __core__sndPair(result))
+						}	
+					)
+				}(
+					(pair) -> {
+						fn(__core__fstPair(pair), __core__sndPair(pair))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__find_safe",
+	`(self) -> {
+		(self) -> {
+			(fn, callback) -> {
+				(fn) -> {
+					__helios__common__find_safe(
+						self,
+						fn,
+						(result) -> {
+							callback(__core__fstPair(result), __core__sndPair(result))
+						}
+					)
+				}(
+					(pair) -> {
+						fn(__core__fstPair(pair), __core__sndPair(pair))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__find_key",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__find(
+						self, 
+						fn,
+						__core__fstPair
+					)
+				}(
+					(pair) -> {
+						fn(__core__fstPair(pair))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__find_key_safe",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__find_safe(
+						self,
+						fn,
+						__core__fstPair
+					)
+				}(
+					(pair) -> {
+						fn(__core__fstPair(pair))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__find_value",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__find(
+						self, 
+						fn,
+						__core__sndPair
+					)
+				}(
+					(pair) -> {
+						fn(__core__sndPair(pair))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__find_value_safe",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__find_safe(
+						self,
+						fn,
+						__core__sndPair
+					)
+				}(
+					(pair) -> {
+						fn(__core__sndPair(pair))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
 	add(new RawFunc("__helios__map__map",
 	`(self) -> {
 		(self) -> {
@@ -22019,6 +22224,48 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
+	add(new RawFunc("__helios__map__sort",
+	`(self) -> {
+		(self) -> {
+			(comp) -> {
+				(comp) -> {
+					__core__mapData(__helios__common__sort(self, comp))
+				}(
+					(a, b) -> {
+						comp(__core__fstPair(a), __core__sndPair(a), __core__fstPair(b), __core__sndPair(b))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__sort_by_key",
+	`(self) -> {
+		(self) -> {
+			(comp) -> {
+				(comp) -> {
+					__core__mapData(__helios__common__sort(self, comp))
+				}(
+					(a, b) -> {
+						comp(__core__fstPair(a), __core__fstPair(b))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__sort_by_value",
+	`(self) -> {
+		(self) -> {
+			(comp) -> {
+				(comp) -> {
+					__core__mapData(__helios__common__sort(self, comp))
+				}(
+					(a, b) -> {
+						comp(__core__sndPair(a), __core__sndPair(b))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
 	add(new RawFunc("__helios__boolmap____eq", "__helios__map____eq"));
 	add(new RawFunc("__helios__boolmap____neq", "__helios__map____neq"));
 	add(new RawFunc("__helios__boolmap__serialize", "__helios__map__serialize"));
@@ -22095,6 +22342,78 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
+	add(new RawFunc("__helios__boolmap__find",
+	`(self) -> {
+		(fn, callback) -> {
+			(fn, callback) -> {
+				__helios__map__find(self)(fn, callback)
+			}(
+				(a, b) -> {
+					fn(a, __helios__common__unBoolData(b))
+				},
+				(a, b) -> {
+					callback(a, __helios__common__unBoolData(b))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__find_safe",
+	`(self) -> {
+		(fn, callback) -> {
+			(fn, callback) -> {
+				__helios__map__find_safe(self)(fn, callback)
+			}(
+				(a, b) -> {
+					fn(a, __helios__common__unBoolData(b))
+				},
+				(a, b) -> {
+					callback(a, __helios__common__unBoolData(b))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__find_key", "__helios__map__find_key"));
+	add(new RawFunc("__helios__boolmap__find_key_safe", "__helios__map__find_key_safe"));
+	add(new RawFunc("__helios__boolmap__find_value",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__find(
+						self, 
+						fn,
+						(result) -> {
+							__helios__common__unBoolData(__core__sndPair(result))
+						}	
+					)
+				}(
+					(pair) -> {
+						fn(__helios__common__unBoolData(__core__sndPair(pair)))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__boolmap__find_value_safe",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__helios__common__find_safe(
+						self, 
+						fn,
+						(result) -> {
+							__core__sndPair(result)
+						}	
+					)
+				}(
+					(pair) -> {
+						fn(__helios__common__unBoolData(__core__sndPair(pair)))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
 	add(new RawFunc("__helios__boolmap__map",
 	`(self) -> {
 		(fn) -> {
@@ -22146,6 +22465,31 @@ function makeRawFunctions() {
 					fn(prev, __helios__common__unBoolData(value))
 				},
 				z
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__sort",
+	`(self) -> {
+		(comp) -> {
+			(comp) -> {
+				__helios__map__sort(self)(comp)
+			}(
+				(ak, av, bk, bv) -> {
+					comp(ak, __helios__common__unBoolData(av), bk, __helios__common__unBoolData(bv))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__sort_by_key", "__helios__map__sort_by_key"));
+	add(new RawFunc("__helios__boolmap__sort_by_value",
+	`(self) -> {
+		(comp) -> {
+			(comp) -> {
+				__helios__map__sort_by_value(self)(comp)
+			}(
+				(a, b) -> {
+					comp(__helios__common__unBoolData(a), __helios__common__unBoolData(b))
+				}
 			)
 		}
 	}`));
@@ -22467,10 +22811,12 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__tx__find_datum_hash",
 	`(self) -> {
 		(datum) -> {
-			__core__fstPair(__helios__common__find(__core__unMapData(__helios__tx__datums(self)),
+			__core__fstPair(__helios__common__find(
+				__core__unMapData(__helios__tx__datums(self)),
 				(pair) -> {
 					__core__equalsData(__core__sndPair(pair), datum)
-				}
+				},
+				__helios__common__identity
 			))
 		}
 	}`));

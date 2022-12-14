@@ -1,5 +1,13 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/12/13
+* Addition of `List.sort`
+* Addition of `Map.find_key`, `Map.find_key_safe`, `Map.find_value`, `Map.find_value_safe`
+* Addition of `Map.sort`, `Map.sort_by_key`, `Map.sort_by_value`
+
+# 2022/12/12
+* Addition of `Value.get_safe`.
+
 # 2022/12/10
 * Addition of `ScriptHash`, `StakingHash`, `StakingHash::StakeKey`, `StakingHash::Validator`, `StakeKeyHash`, `StakingValidatorHash` (on-chain)
 * `TxOutput.ref_script_hash -> Option[ScriptHash]` getter (on-chain)

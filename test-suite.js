@@ -400,6 +400,7 @@ const certifyingScriptContextParam = `
 async function runPropertyTests() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
 
+
     ////////////
     // Int tests
     ////////////
@@ -1667,6 +1668,19 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
+        testing list_sort
+        func main(lst: []Int) -> []Int {
+            lst.sort((a: Int, b: Int) -> Bool {a < b})
+        }`, ([a], res) => {
+            let la = asIntList(a);
+            let lRes = asIntList(res);
+
+            la.sort((a, b) => Number(a - b));
+
+            return la.every((v, i) => (v === lRes[i]));
+        });
+
+        await ft.test([ft.list(ft.int())], `
         testing list_from_data
         func main(a: Data) -> []Int {
             []Int::from_data(a)
@@ -2077,6 +2091,82 @@ async function runPropertyTests() {
             return sum === asInt(res);
         });
 
+        await ft.test([ft.map(ft.int(0, 10), ft.int())], `
+        testing map_find_key
+        func main(a: Map[Int]Int) -> Int {
+            a.find_key((k: Int) -> Bool {k == 0})
+        }`, ([a], res) => {
+            let found = false;
+            a.data.map.forEach(([k, _]) => {
+                if (asInt(k) == 0n) {
+                    found = true;
+                }
+            });
+
+            if (found) {
+                return asInt(res) === 0n;
+            } else {
+                return isError(res, "not found");
+            }
+        });
+
+        await ft.test([ft.map(ft.int(0, 10), ft.int())], `
+        testing map_find_key_safe
+        func main(a: Map[Int]Int) -> Option[Int] {
+            a.find_key_safe((k: Int) -> Bool {k == 0})
+        }`, ([a], res) => {
+            let found = false;
+            a.data.map.forEach(([k, _]) => {
+                if (asInt(k) == 0n) {
+                    found = true;
+                }
+            });
+            
+            if (found) {
+                return res.data.index == 0 && asInt(res.data.fields[0]) === 0n;
+            } else {
+                return res.data.index == 1;
+            }
+        });
+
+        await ft.test([ft.map(ft.int(0, 10), ft.int())], `
+        testing map_find_value
+        func main(a: Map[Int]Int) -> Int {
+            a.find_value((v: Int) -> Bool {v == 0})
+        }`, ([a], res) => {
+            let found = false;
+            a.data.map.forEach(([_, v]) => {
+                if (asInt(v) == 0n) {
+                    found = true;
+                }
+            });
+
+            if (found) {
+                return asInt(res) === 0n;
+            } else {
+                return isError(res, "not found");
+            }
+        });
+
+        await ft.test([ft.map(ft.int(0, 10), ft.int())], `
+        testing map_find_value_safe
+        func main(a: Map[Int]Int) -> Option[Int] {
+            a.find_value_safe((v: Int) -> Bool {v == 0})
+        }`, ([a], res) => {
+            let found = false;
+            a.data.map.forEach(([_, v]) => {
+                if (asInt(v) == 0n) {
+                    found = true;
+                }
+            });
+            
+            if (found) {
+                return res.data.index == 0 && asInt(res.data.fields[0]) === 0n;
+            } else {
+                return res.data.index == 1;
+            }
+        });
+
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_map_keys
         func main(a: Map[Int]Int) -> Map[Int]Int {
@@ -2116,6 +2206,60 @@ async function runPropertyTests() {
 
             return a.data.map.every(([_, v], i) => {
                 return (asInt(v) >= 0n) === asBool(lRes[i][1]);
+            });
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_sort
+        func main(m: Map[Int]Int) -> Map[Int]Int {
+            m.sort((ak: Int, av: Int, bk: Int, bv: Int) -> Bool {
+                ak + av < bk + bv
+            })
+        }`, ([_], res) => {
+            return res.data.map.every(([k, v], i) => {
+                if (i > 0) {
+                    let [kPrev, vPrev] = res.data.map[i-1];
+
+                    return (asInt(kPrev) + asInt(vPrev)) <= (asInt(k) + asInt(v));
+                } else {
+                    return true;
+                }
+            });
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_sort_by_key
+        func main(m: Map[Int]Int) -> Map[Int]Int {
+            m.sort_by_key((a: Int, b: Int) -> Bool {
+                a < b
+            })
+        }`, ([_], res) => {
+            return res.data.map.every(([k, _], i) => {
+                if (i > 0) {
+                    let [kPrev, _] = res.data.map[i-1];
+
+                    return asInt(kPrev) <= asInt(k);
+                } else {
+                    return true;
+                }
+            });
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_sort_by_value
+        func main(m: Map[Int]Int) -> Map[Int]Int {
+            m.sort_by_value((a: Int, b: Int) -> Bool {
+                a < b
+            })
+        }`, ([_], res) => {
+            return res.data.map.every(([_, v], i) => {
+                if (i > 0) {
+                    let [_, vPrev] = res.data.map[i-1];
+
+                    return asInt(vPrev) <= asInt(v);
+                } else {
+                    return true;
+                }
             });
         });
 
