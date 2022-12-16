@@ -6822,6 +6822,15 @@ export class UplcProgram {
 			memCost += cost.mem;
 			cpuCost += cost.cpu;
 		};
+		
+		let messages = [];
+
+		/**
+		 * @type {(msg: string) => void}
+		 */
+		callbacks.onPrint = async function(msg) {
+			messages.push(msg);
+		};
 
 		let res = await this.run(args, callbacks, networkParams);
 
@@ -6830,6 +6839,7 @@ export class UplcProgram {
 			cpu: cpuCost,
 			size: this.calcSize(),
 			res: res,
+			msg: messages,
 		};
 	}
 
@@ -28485,6 +28495,7 @@ export class TxWitnesses extends CborData {
 						let profile = await script.profile(args, networkParams);
 
 						if (profile.res instanceof UserError) {
+							console.log(profile.msg);
 							throw profile.res;
 						} else {
 							const cost = {mem: profile.mem, cpu: profile.cpu};
@@ -28506,6 +28517,7 @@ export class TxWitnesses extends CborData {
 				let profile = await script.profile(args, networkParams);
 
 				if (profile.res instanceof UserError) {
+					console.log(profile.msg);
 					throw profile.res;
 				} else {
 					const cost = {mem: profile.mem, cpu: profile.cpu};
