@@ -704,7 +704,7 @@ function replaceTabs(str) {
 	 * Dumps remaining bits we #pos isn't yet at end.
 	 * This is intended for debugging use.
 	 */
-	 dumpRemainingBits() {
+	dumpRemainingBits() {
 		if (!this.eof()) {
 			console.log("remaining bytes:");
 			for (let first = true, i = idiv(this.#pos, 8); i < this.#view.length; first = false, i++) {
@@ -855,7 +855,7 @@ class UInt64 {
 		if (littleEndian) {
 			low  = (bytes[0] << 0) | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24);
 			high = (bytes[4] << 0) | (bytes[5] << 8) | (bytes[6] << 16) | (bytes[7] << 24);
- 		} else {
+		} else {
 			high = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | (bytes[3] << 0);
 			low  = (bytes[4] << 24) | (bytes[5] << 16) | (bytes[6] << 8) | (bytes[7] << 0);
 		}
@@ -1159,7 +1159,7 @@ class Crypto {
 					chk ^= GEN[i];
 				}
 			}
- 		}
+		}
 
 		return chk;
 	}
@@ -1333,7 +1333,7 @@ class Crypto {
 		/**
 		 * @type {number[]} - 64 uint32 numbers
 		 */
-		 const k = [
+		const k = [
 			0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
 			0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
 			0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
@@ -1371,7 +1371,7 @@ class Crypto {
 		 * @param {number} x
 		 * @returns {number}
 		 */
-		 function sigma0(x) {
+		function sigma0(x) {
 			return irotr(x, 7) ^ irotr(x, 18) ^ (x >>> 3);
 		}
 
@@ -1468,7 +1468,7 @@ class Crypto {
 	 * @param {number[]} bytes - list of uint8 numbers
 	 * @returns {number[]} - list of uint8 numbers
 	 */
-	 static sha2_512(bytes) {
+	static sha2_512(bytes) {
 		/**
 		 * Pad a bytearray so its size is a multiple of 128 (1024 bits).
 		 * Internal method.
@@ -1543,11 +1543,11 @@ class Crypto {
 			new UInt64(0xbef9a3f7, 0xb2c67915), new UInt64(0xc67178f2, 0xe372532b),
 			new UInt64(0xca273ece, 0xea26619c), new UInt64(0xd186b8c7, 0x21c0c207), 
 			new UInt64(0xeada7dd6, 0xcde0eb1e), new UInt64(0xf57d4f7f, 0xee6ed178),
-            new UInt64(0x06f067aa, 0x72176fba), new UInt64(0x0a637dc5, 0xa2c898a6), 
+			new UInt64(0x06f067aa, 0x72176fba), new UInt64(0x0a637dc5, 0xa2c898a6), 
 			new UInt64(0x113f9804, 0xbef90dae), new UInt64(0x1b710b35, 0x131c471b),
-            new UInt64(0x28db77f5, 0x23047d84), new UInt64(0x32caab7b, 0x40c72493), 
+			new UInt64(0x28db77f5, 0x23047d84), new UInt64(0x32caab7b, 0x40c72493), 
 			new UInt64(0x3c9ebe0a, 0x15c9bebc), new UInt64(0x431d67c4, 0x9c100d4c),
-            new UInt64(0x4cc5d4be, 0xcb3e42b6), new UInt64(0x597f299c, 0xfc657e2a), 
+			new UInt64(0x4cc5d4be, 0xcb3e42b6), new UInt64(0x597f299c, 0xfc657e2a), 
 			new UInt64(0x5fcb6fab, 0x3ad6faec), new UInt64(0x6c44198c, 0x4a475817),
 		];
 
@@ -1776,7 +1776,7 @@ class Crypto {
 			for (let round = 0; round < 24; round++) {
 				for (let i = 0; i < 5; i++) {
 					c[i] = s[i].xor(s[i+5]).xor(s[i+10]).xor(s[i+15]).xor(s[i+20]);
- 				}
+				}
 
 				for (let i = 0; i < 5; i++) {
 					let i1 = (i+1)%5;
@@ -1939,7 +1939,7 @@ class Crypto {
 		 * @param {UInt64[]} chunk
 		 * @param {number} t - chunkEnd (expected to fit in uint32)
 		 * @param {boolean} last
- 		 */
+		 */
 		function compress(h, chunk, t, last) {
 			// work vectors
 			let v = h.slice().concat(IV.slice());
@@ -2173,7 +2173,7 @@ class Crypto {
 		 * @param {number[]} s 
 		 * @returns {bigint}
 		 */
-		 function decodeInt(s) {
+		function decodeInt(s) {
 			return bytesToBigInt(s.reverse());
 		}
 
@@ -2198,7 +2198,7 @@ class Crypto {
 		 * @param {number} i - bit index
 		 * @returns {number} - 0 or 1
 		 */
-		 function getBit(bytes, i) {
+		function getBit(bytes, i) {
 			return (bytes[Math.floor(i/8)] >> i%8) & 1
 		}
 
@@ -2217,7 +2217,7 @@ class Crypto {
 		/**
 		 * @param {number[]} s 
 		 */
-		 function decodePoint(s) {
+		function decodePoint(s) {
 			assert(s.length == 32);
 
 			let bytes = s.slice();
@@ -2651,8 +2651,7 @@ export class UserError extends Error {
 	/**
 	 * Constructs a TypeError
 	 * @param {Source} src 
-	 
-	* @param {number} pos 
+	 * @param {number} pos 
 	 * @param {string} info 
 	 * @returns {UserError}
 	 */
@@ -3300,10 +3299,10 @@ class ArgSizeCost extends LinearCost {
 	 * @param {bigint} b
 	 * @param {number} i - index of the arg
 	 */
-    constructor(a, b, i) {
-	   	super(a, b);
+	constructor(a, b, i) {
+		super(a, b);
 		this.#i = i;
-    }
+	}
 
 	/**
 	 * @param {number[]} args
@@ -3444,7 +3443,7 @@ class SumArgSizesCost extends LinearCost {
 	 * @param {bigint} a - intercept
 	 * @param {bigint} b - slope
 	 */
-	 constructor(a, b) {
+	constructor(a, b) {
 		super(a, b);
 	}
 
@@ -3526,7 +3525,7 @@ class ArgSizeProdCost extends LinearCost {
 	 * @param {bigint} a
 	 * @param {bigint} b
 	 * @param {bigint} constant
- 	 */
+	 */
 	constructor(a, b, constant) {
 		super(a, b);
 		this.#constant = constant;
@@ -4580,7 +4579,7 @@ class UplcDelayedValue extends UplcValue {
 	/**
 	 * @returns {string}
 	 */
-	 typeBits() {
+	typeBits() {
 		throw new Error("a UplcDelayedValue value doesn't have a literal representation");
 	}
 
@@ -5199,7 +5198,7 @@ export class UplcPair extends UplcValue {
 	 * @param {UplcValue} second
 	 * @returns {UplcConst}
 	 */
- 	static newTerm(site, first, second) {
+	static newTerm(site, first, second) {
 		return new UplcConst(new UplcPair(site, first, second));
 	}
 
@@ -7117,7 +7116,7 @@ export class CborData {
 
 	/**
 	 * @example
- 	 * bytesToHex(CborData.encodeBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
+	 * bytesToHex(CborData.encodeBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
 	 * @param {number[]} bytes 
 	 * @param {boolean} splitInChunks
 	 * @returns {number[]} - cbor bytes
@@ -7146,7 +7145,7 @@ export class CborData {
 	/**
 	 * Decodes both an indef array of bytes, and a bytearray of specified length
 	 * @example
- 	 * bytesToHex(CborData.decodeBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
+	 * bytesToHex(CborData.decodeBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
 	 * @param {number[]} bytes - cborbytes, mutated to form remaining
 	 * @returns {number[]} - byteArray
 	 */
@@ -12015,7 +12014,7 @@ class StructLiteralExpr extends ValueExpr {
 				new IR("("), 
 				res,
 				new IR(")")
-			 ]);
+			]);
 		} else {
 			return new IR([
 				new IR("__core__constrData", this.site), new IR(`(${index.toString()}, `),
@@ -14490,7 +14489,7 @@ class EnumMember extends DataDefinition {
 	/**
 	 * @param {Word} name
 	 * @param {DataField[]} fields
- 	 */
+	 */
 	constructor(name, fields) {
 		super(name.site, name, fields);
 		this.#parent = null; // registered later
@@ -15409,7 +15408,7 @@ export class Program {
 	/**
 	 * @type {Object.<string, Type>}
 	 */
-	 get paramTypes() {
+	get paramTypes() {
 		/**
 		 * @type {Object.<string, Type>}
 		 */
@@ -15488,19 +15487,19 @@ export class Program {
 		/**
 		 * @type {Map<string, IR>}
 		 */
-		 let map = new Map();
+		let map = new Map();
 
-		 for (let [statement, _] of this.allStatements) {
-			 statement.toIR(map);
+		for (let [statement, _] of this.allStatements) {
+			statement.toIR(map);
 
-			 if (statement.name.value == "main") {
+			if (statement.name.value == "main") {
 				break;
-			 }
-		 }
+			}
+		}
  
-		 // builtin functions are added when the IR program is built
-		 // also replace all tabs with four spaces
-		 return wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
+		// builtin functions are added when the IR program is built
+		// also replace all tabs with four spaces
+		return wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
 	}
 
 	/**
@@ -17354,7 +17353,7 @@ function buildLiteralExprFromJson(site, type, value, path) {
 		/**
 		 * @type {[ValueExpr, ValueExpr][]}
 		 */
-   		let pairs = [];
+		let pairs = [];
 
 		if (value instanceof Object && type.keyType instanceof StringType) {
 			for (let key in value) {
@@ -17542,7 +17541,7 @@ class IntType extends BuiltinType {
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
-	 getTypeMember(name) {
+	getTypeMember(name) {
 		switch (name.value) {
 			case "parse":
 				return Instance.new(new FuncType([new StringType()], new IntType()));
@@ -17810,6 +17809,10 @@ class ListType extends BuiltinType {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#itemType], a), a], a));
 			}
+			case "lazy_fold": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([new FuncType([this.#itemType, new FuncType([], a)], a), a], a));
+			}
 			case "map": {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([this.#itemType], a)], new ListType(a)), () => {
@@ -17819,7 +17822,7 @@ class ListType extends BuiltinType {
 					} else {
 						if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
 							return "map_to_bool";
- 						} else {
+						} else {
 							return "map";
 						}
 					}
@@ -17871,7 +17874,7 @@ class MapType extends BuiltinType {
 	 * @param {Type} type 
 	 * @returns 
 	 */
-	 isBaseOf(site, type) {
+	isBaseOf(site, type) {
 		if (type instanceof MapType) {
 			return this.#keyType.isBaseOf(site, type.#keyType) && this.#valueType.isBaseOf(site, type.#valueType);
 		} else {
@@ -17945,6 +17948,18 @@ class MapType extends BuiltinType {
 			case "fold_values": {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#valueType], a), a], a));
+			}
+			case "lazy_fold": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([new FuncType([this.#keyType, this.#valueType, new FuncType([], a)], a), a], a));
+			}
+			case "lazy_fold_keys": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([new FuncType([this.#keyType, new FuncType([], a)], a), a], a));
+			}	
+			case "lazy_fold_values": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([new FuncType([this.#valueType, new FuncType([], a)], a), a], a));
 			}
 			case "map_keys": {
 				let a = new ParamType("a", (site, type) => {
@@ -18579,7 +18594,7 @@ class MintingPolicyHashType extends HashType {
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
-	 getTypeMember(name) {
+	getTypeMember(name) {
 		switch (name.value) {
 			case "CURRENT":
 				if (this.macrosAllowed) {
@@ -18621,7 +18636,7 @@ class StakingValidatorHashType extends HashType {
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
-	 getTypeMember(name) {
+	getTypeMember(name) {
 		switch (name.value) {
 			case "CURRENT":
 				if (this.macrosAllowed) {
@@ -18676,7 +18691,7 @@ class ScriptContextType extends BuiltinType {
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
- 	getTypeMember(name) {
+	getTypeMember(name) {
 		switch (name.value) {
 			case "new_spending":
 				if (this.macrosAllowed) {
@@ -19455,7 +19470,7 @@ class TxIdType extends BuiltinType {
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
-	 getTypeMember(name) {
+	getTypeMember(name) {
 		switch (name.value) {
 			case "new":
 				return Instance.new(new FuncType([new ByteArrayType()], this));
@@ -20126,7 +20141,7 @@ class StakingCredentialType extends BuiltinType {
 	 * @param {Site} site 
 	 * @returns {number}
 	 */
- 	nEnumMembers(site) {
+	nEnumMembers(site) {
 		return 2;
 	}
 
@@ -20310,7 +20325,7 @@ class TimeRangeType extends BuiltinType {
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
- 	getTypeMember(name) {
+	getTypeMember(name) {
 		switch (name.value) {
 			case "new":
 				return Instance.new(new FuncType([new TimeType(), new TimeType()], new TimeRangeType()));
@@ -20811,6 +20826,20 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
+	add(new RawFunc("__helios__common__lazy_fold",
+	`(self, fn, z) -> {
+		(recurse) -> {
+			recurse(recurse, self, fn, z)
+		}(
+			(recurse, self, fn, z) -> {
+				__core__ifThenElse(
+					__core__nullList(self), 
+					() -> {z}, 
+					() -> {fn(__core__headList(self), () -> {recurse(recurse, __core__tailList(self), fn, z)})}
+				)()
+			}
+		)
+	}`));
 	add(new RawFunc("__helios__common__insert_in_sorted",
 	`(x, lst, comp) -> {
 		(recurse) -> {
@@ -21080,7 +21109,7 @@ function makeRawFunctions() {
 	}
 	add(new RawFunc("__helios__common__hash_datum_data", 
 	`(data) -> {
-	    __core__bData(__core__blake2b_256(__core__serialiseData(data)))
+		__core__bData(__core__blake2b_256(__core__serialiseData(data)))
 	}`));
 
 
@@ -21700,6 +21729,14 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
+	add(new RawFunc("__helios__list__lazy_fold",
+	`(self) -> {
+		(self) -> {
+			(fn, z) -> {
+				__helios__common__lazy_fold(self, fn, z)
+			}
+		}(__core__unListData(self))
+	}`));
 	add(new RawFunc("__helios__list__map",
 	`(self) -> {
 		(self) -> {
@@ -21821,6 +21858,17 @@ function makeRawFunctions() {
 			__helios__list__fold(self)(
 				(prev, item) -> {
 					fn(prev, __helios__common__unBoolData(item))
+				},
+				z
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__lazy_fold",
+	`(self) -> {
+		(fn, z) -> {
+			__helios__list__lazy_fold(self)(
+				(item, next) -> {
+					fn(__helios__common__unBoolData(item), next)
 				},
 				z
 			)
@@ -22228,6 +22276,51 @@ function makeRawFunctions() {
 				}(
 					(z, pair) -> {
 						fn(z, __core__sndPair(pair))
+					}
+				)
+				
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__lazy_fold",
+	`(self) -> {
+		(self) -> {
+			(fn, z) -> {
+				(fn) -> {
+					__helios__common__lazy_fold(self, fn, z)
+				}(
+					(pair, z) -> {
+						fn(__core__fstPair(pair), __core__sndPair(pair), z)
+					}
+				)
+				
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__lazy_fold_keys",
+	`(self) -> {
+		(self) -> {
+			(fn, z) -> {
+				(fn) -> {
+					__helios__common__lazy_fold(self, fn, z)
+				}(
+					(pair, z) -> {
+						fn(__core__fstPair(pair), z)
+					}
+				)
+				
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__lazy_fold_values",
+	`(self) -> {
+		(self) -> {
+			(fn, z) -> {
+				(fn) -> {
+					__helios__common__lazy_fold(self, fn, z)
+				}(
+					(z, pair) -> {
+						fn(__core__sndPair(pair), z)
 					}
 				)
 				
@@ -24117,7 +24210,7 @@ class IRExprStack {
 	 * @param {IRVariable} variable
 	 * @param {IRExpr} expr
 	 */
- 	setInline(variable, expr) {
+	setInline(variable, expr) {
 		this.#map.set(variable, expr);
 	}
 
@@ -24398,7 +24491,7 @@ class IRExpr extends Token {
 	 * @param {string} builtinName
 	 * @returns {?IRExpr}
 	 */
-	 wrapCall(ref, builtinName) {
+	wrapCall(ref, builtinName) {
 		throw new Error("not yet implemented")
 	}
 
@@ -24710,17 +24803,17 @@ class IRExpr extends Token {
 	 * @param {string} builtinName 
 	 * @returns {?IRExpr}
 	 */
-   	wrapCall(ref, builtinName) {
-	   return this;
-   	}
+	wrapCall(ref, builtinName) {
+		return this;
+	}
 
-   	/**
+	/**
 	 * @param {IRVariable} ref 
 	 * @returns {?IRExpr}
 	 */
-   	flattenCall(ref) {
-	   return this;
-   	}
+	flattenCall(ref) {
+		return this;
+	}
 
 	/**
 	 * @param {IRWalkFn} fn 
@@ -24865,7 +24958,7 @@ class IRFuncExpr extends IRExpr {
 	 * @param {string} builtinName 
 	 * @returns {?IRExpr}
 	 */
-	 wrapCall(ref, builtinName) {
+	wrapCall(ref, builtinName) {
 		let body = this.body.wrapCall(ref, builtinName);
 
 		if (body !== null) {
@@ -25005,7 +25098,7 @@ class IRCallExpr extends IRExpr {
 		/**
 		 * @type {IRValue[]}
 		 */
- 		let args = [];
+		let args = [];
 
 		for (let argExpr of this.argExprs) {
 			let argVal = argExpr.eval(stack);
@@ -26178,7 +26271,7 @@ class IRCoreCallExpr extends IRCallExpr {
 	 * @param {IRExprStack} stack
 	 * @returns {IRExpr}
 	 */
- 	inline(stack) {
+	inline(stack) {
 		return new IRCoreCallExpr(this.#name, super.simplifyArgs(stack, true), this.parensSite);
 	}
 
@@ -28238,7 +28331,7 @@ export class TxWitnesses extends CborData {
 		/**
 		 * @type {Map<number, number[]>}
 		 */
- 		let object = new Map();
+		let object = new Map();
 
 		if (this.#signatures.length != 0) {
 			object.set(0, CborData.encodeDefList(this.#signatures));
@@ -29483,7 +29576,7 @@ export class Assets extends CborData {
 		}
 
 		this.#assets = this.#assets.filter(asset => asset[1].length != 0);
- 	}
+	}
 
 	/**
 	 * Mutates 'this'
@@ -30183,7 +30276,7 @@ export class ScriptHash extends Hash {
 	/**
 	 * @param {number[]} bytes 
 	 */
-	 constructor(bytes) {
+	constructor(bytes) {
 		assert(bytes.length == 28);
 		super(bytes);
 	}
@@ -30194,7 +30287,7 @@ export class ValidatorHash extends ScriptHash {
 	 * @param {number[]} bytes 
 	 * @returns {ValidatorHash}
 	 */
-	 static fromCbor(bytes) {
+	static fromCbor(bytes) {
 		return new ValidatorHash(CborData.decodeBytes(bytes));
 	}
 

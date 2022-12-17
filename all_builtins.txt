@@ -27,7 +27,7 @@ internal ns: __helios__bytearray
 associated:  new, new_const, from_data
 operators:   __eq, __neq, __add
 getters:     length, head, tail
-methods:     serialize, is_empty, get, prepend, any, all, find, find_safe, filter, fold, map, sort
+methods:     serialize, is_empty, get, prepend, any, all, find, find_safe, filter, fold, lazy_fold, map, sort
 internal ns: __helios__list
 
 # Map
@@ -35,7 +35,8 @@ associated:  from_data
 operators:   __eq, __neq, __add
 getters:     length
 methods:     serialize, is_empty, get, get_safe, all, all_keys, all_values, any, any_key, any_value, 
-             filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values, map_keys, map_values,
+             filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values, 
+             lazy_fold, lazy_fold_keys, lazy_fold_values, map_keys, map_values, 
              sort, sort_by_key, sort_by_value, find_key, find_value, find_key_safe, find_value_safe
 internal ns: __helios__map
 

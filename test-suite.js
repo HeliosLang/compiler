@@ -1641,6 +1641,15 @@ async function runPropertyTests() {
             return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
         });
 
+        // This would break with .fold
+        await ft.test([ft.list(ft.int(0, 0))], `
+        testing list_lazy_fold
+        func main(a: []Int) -> Int {
+            a.lazy_fold((x: Int, next: () -> Int) -> Int { if (x == 0) { 0 } else { x / next() } }, 0)
+        }`, (_, res) => {
+            return 0n === asInt(res);
+        });
+
         await ft.test([ft.list(ft.int())], `
         testing list_map
         func main(a: []Int) -> []Int {
