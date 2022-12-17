@@ -1651,6 +1651,27 @@ async function runPropertyTests() {
         });
 
         await ft.test([ft.list(ft.int())], `
+        testing list_fold_lazy
+        func main(a: []Int) -> Int {
+            a.fold_lazy((item: Int, sum: () -> Int) -> Int {item + sum()}, 0)
+        }`, ([a], res) => {
+            let la = asIntList(a);
+
+            return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
+        });
+
+        await ft.test([ft.list(ft.int())], `
+        testing list_fold_lazy2
+        func main(a: []Int) -> []Int {
+            a.fold_lazy((item: Int, next: () -> []Int) -> []Int {next().prepend(item)}, []Int{})
+        }`, ([a], res) => {
+            let la = asIntList(a);
+            let lRes = asIntList(res);
+
+            return la.every((x, i) => lRes[i] === x);
+        });
+
+        await ft.test([ft.list(ft.int())], `
         testing list_map
         func main(a: []Int) -> []Int {
             a.map((x: Int) -> Int {
@@ -1891,6 +1912,17 @@ async function runPropertyTests() {
         testing boollist_fold
         func main(a: []Bool) -> Int {
             a.fold((sum: Int, x: Bool) -> Int {sum + x.to_int()}, 0)
+        }`, ([a], res) => asBoolList(a).reduce((sum, b) => sum + (b ? 1n : 0n), 0n) === asInt(res));
+
+        await ft.test([ft.list(ft.bool())], `
+        testing boollist_fold_lazy
+        func main(a: []Bool) -> Int {
+            a.fold_lazy(
+                (item: Bool, sum: () -> Int) -> Int {
+                    sum() + item.to_int()
+                }, 
+                0
+            )
         }`, ([a], res) => asBoolList(a).reduce((sum, b) => sum + (b ? 1n : 0n), 0n) === asInt(res));
 
         await ft.test([ft.list(ft.bool())], `

@@ -9,6 +9,9 @@
     "doc": "doc",
     "examples": "examples"
   },
+  "scripts": {
+    "test": "npx tsc --noEmit --emitDeclarationOnly false && node ./test/index.js"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hyperion-bt/helios.git"

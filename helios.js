@@ -10055,16 +10055,7 @@ class DataType extends Type {
 	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
-		if (type instanceof ParamType) {
-			let origType = type.type;
-
-			if (origType === null) {
-				type.setType(site, this);
-				return true;
-			} else {
-				type = origType;
-			}
-		}
+		type = ParamType.unwrap(type, this);
 
 		return Object.getPrototypeOf(this) == Object.getPrototypeOf(type);
 	}
@@ -10081,11 +10072,11 @@ class AnyDataType extends Type {
 
 	/**
 	 * @param {Site} site
-	 * @param {Type} other
+	 * @param {Type} type
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, other) {
-		return !(other instanceof FuncType);
+	isBaseOf(site, type) {
+		return !(type instanceof FuncType);
 	}
 }
 
@@ -10237,6 +10228,8 @@ class StatementType extends DataType {
 	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
+		type = ParamType.unwrap(type, this);
+
 		if (type instanceof StatementType) {
 			return type.path.startsWith(this.path);
 		} else {
@@ -17754,6 +17747,8 @@ class ListType extends BuiltinType {
 	 * @returns 
 	 */
 	isBaseOf(site, type) {
+		type = ParamType.unwrap(type, this);
+
 		if (type instanceof ListType) {
 			return this.#itemType.isBaseOf(site, type.itemType);
 		} else {
@@ -17809,7 +17804,7 @@ class ListType extends BuiltinType {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#itemType], a), a], a));
 			}
-			case "lazy_fold": {
+			case "fold_lazy": {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([this.#itemType, new FuncType([], a)], a), a], a));
 			}
@@ -17875,6 +17870,8 @@ class MapType extends BuiltinType {
 	 * @returns 
 	 */
 	isBaseOf(site, type) {
+		type = ParamType.unwrap(type, this);
+
 		if (type instanceof MapType) {
 			return this.#keyType.isBaseOf(site, type.#keyType) && this.#valueType.isBaseOf(site, type.#valueType);
 		} else {
@@ -18048,6 +18045,30 @@ class ParamType extends Type {
 		}
 
 		this.#type = type;
+	}
+
+	/**
+	 * @param {Type} type 
+	 * @param {?Type} expected
+	 * @returns {Type}
+	 */
+	static unwrap(type, expected = null) {
+		if (type instanceof ParamType) {
+			let origType = type.type;
+
+			if (origType === null) {
+				if (expected !== null) {
+					type.setType(Site.dummy(), expected);
+					return expected;
+				} else {
+					throw new Error("unable to infer ParamType")
+				}
+			} else {
+				return origType;
+			}
+		} else {
+			return type;
+		}
 	}
 
 	/**
@@ -18250,6 +18271,8 @@ class OptionType extends BuiltinType {
 	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
+		type = ParamType.unwrap(type, this);
+
 		if (type instanceof OptionType) {
 			return this.#someType.isBaseOf(site, type.#someType);
 		} else {
@@ -18315,6 +18338,8 @@ class OptionSomeType extends BuiltinEnumMember {
 	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
+		type = ParamType.unwrap(type, this);
+
 		if (type instanceof OptionSomeType) {
 			return this.#someType.isBaseOf(site, type.#someType);
 		} else {
@@ -18389,6 +18414,8 @@ class OptionNoneType extends BuiltinEnumMember {
 	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
+		type = ParamType.unwrap(type, this);
+
 		if (type instanceof OptionNoneType) {
 			return this.#someType.isBaseOf(site, type.#someType);
 		} else {
