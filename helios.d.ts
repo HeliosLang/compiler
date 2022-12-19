@@ -66,7 +66,7 @@ export function deserializeUplcBytes(bytes: number[]): UplcProgram;
  * @returns {UplcProgram}
  */
 export function deserializeUplc(jsonString: string): UplcProgram;
-export const VERSION: "0.9.8";
+export const VERSION: "0.9.9";
 /**
  * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
  * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
