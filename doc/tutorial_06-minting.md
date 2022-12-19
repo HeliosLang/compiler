@@ -1,1 +1,0 @@
-Moved [here](https://www.hyperion-bt.org/Helios-Book/advanced-concepts/minting/index.html)

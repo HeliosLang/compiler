@@ -1,7 +1,15 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/12/18
+* Addition of `Map.delete`, `Map.set`, `Map.find`, `Map.find_by_key`, `Map.find_by_value`
+
+# 2022/12/17
+* Addition of `List.fold_lazy`, `Map.fold_lazy`, `Map.fold_keys_lazy`, `Map.fold_values_lazy`
+* Printing of messages when redemption computation throws an error
+
 # 2022/12/13
 * Addition of `List.sort`
+* Addition of `StakingHash::Validator.hash` and `StakingHash::StakeKey.hash`
 * Addition of `Map.find_key`, `Map.find_key_safe`, `Map.find_value`, `Map.find_value_safe`
 * Addition of `Map.sort`, `Map.sort_by_key`, `Map.sort_by_value`
 

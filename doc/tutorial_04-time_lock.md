@@ -1,1 +1,0 @@
-Moved [here](https://www.hyperion-bt.org/Helios-Book/cli/example-time-lock.html)

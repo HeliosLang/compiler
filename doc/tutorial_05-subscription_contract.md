@@ -1,1 +1,0 @@
-Moved [here](https://github.com/Hyperion-BT/cardano-subscription-manager)

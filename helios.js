@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.9.7
+// Version:     0.9.8
 // Last update: November 2022
 // License:     Unlicense
 //
@@ -29,40 +29,7 @@
 //     > console.log(helios.Program.new("validator my_validator ...").compile().serialize());
 //
 //
-// Exports:
-//   * Program
-//   	Helios program object. 
-//       	* Program.new(src: string) -> Program
-//         	* program.compile(simplify: boolean = false) -> UplcProgram (Uplc is acronym for Untyped PLutus Core)
-//       	* program.paramTypes -> Object.<name: string, type: Type>
-//       	* program.changeParam(name: string, value: string | UplcValue)
-//              value can be a valid JSON string or a UplcValue result from program.evalParam()
-//       	* program.evalParam(name: string) -> UplcValue  
-//          	result can be used as an arg when running a UplcProgram
-//
-//   * UplcProgram
-//		Plutus-core program object
-//      	* async program.run(args: UplcValue[]) -> UplcValue | UserError
-//          * async program.profile(args: UplcValue[]) -> {mem: number, cpu: number, size: number}
-//          * program.serialize() -> string
-//          	json string which can be used as a file by cardano-cli to submit a transaction
-//		
-//   * UserError
-//       Special error object used for syntax, type, reference and runtime errors.
-//       Contains a reference to the script location were the error occured.
-//
-//   * FuzzyTest(seed: number)
-//       Fuzzy testing class which can be used for propery based testing of test scripts.
-//       See ./test-suite.js for examples of how to use this.
-//
-//   * extractScriptPurposeAndName(src: string) -> [string, string]
-//       Parses Helios quickly to extract the script purpose header.
-//
-//   * highlight(src: string) -> Uint8Array
-//       Returns one marker byte per src character.
-//
-//   * Tx
-//       Tx class which can also be used for building transactions.
+// Documentation: https://www.hyperion-bt.org/Helios-Book
 //
 //
 // Note: the Helios library is a single file, doesn't use TypeScript, and should stay 
@@ -202,7 +169,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.9.7"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.9.8"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -2645,6 +2612,7 @@ export class UserError extends Error {
 	 * @returns {UserError}
 	 */
 	static syntaxError(src, pos, info = "") {
+		console.log(src.pretty());
 		return UserError.new("SyntaxError", src, pos, info);
 	}
 
@@ -3934,7 +3902,7 @@ export class UplcValue {
 	 * @type {UplcMapItem[]}
 	 */
 	get map() {
-		throw this.site.typeError(`expected a Plutus-core map '${this.toString()}'`);
+		throw this.site.typeError(`expected a Plutus-core map, got '${this.toString()}'`);
 	}
 
 	isData() {
@@ -6800,7 +6768,8 @@ export class UplcProgram {
 	 * @property {bigint} mem  - in 8 byte words (i.e. 1 mem unit is 64 bits)
 	 * @property {bigint} cpu  - in reference cpu microseconds
 	 * @property {number} size - in bytes
-	 * @property {UserError | UplcValue} res - result 
+	 * @property {UserError | UplcValue} result - result
+	 * @property {string[]} messages - printed messages (can be helpful when debugging)
 	 */
 
 	/**
@@ -6822,23 +6791,24 @@ export class UplcProgram {
 			cpuCost += cost.cpu;
 		};
 		
+		/** @type {string[]} */
 		let messages = [];
 
 		/**
-		 * @type {(msg: string) => void}
+		 * @type {(msg: string) => Promise<void>}
 		 */
 		callbacks.onPrint = async function(msg) {
 			messages.push(msg);
 		};
 
-		let res = await this.run(args, callbacks, networkParams);
+		let result = await this.run(args, callbacks, networkParams);
 
 		return {
 			mem: memCost,
 			cpu: cpuCost,
 			size: this.calcSize(),
-			res: res,
-			msg: messages,
+			result: result,
+			messages: messages,
 		};
 	}
 
@@ -17887,14 +17857,6 @@ class MapType extends BuiltinType {
 		switch (name.value) {
 			case "__add":
 				return Instance.new(new FuncType([this], this));
-			case "length":
-				return Instance.new(new IntType());
-			case "is_empty":
-				return Instance.new(new FuncType([], new BoolType()));
-			case "get":
-				return Instance.new(new FuncType([this.#keyType], this.#valueType));
-			case "get_safe":
-				return Instance.new(new FuncType([this.#keyType], new OptionType(this.#valueType)));
 			case "all":
 			case "any":
 				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], new BoolType()));
@@ -17904,28 +17866,20 @@ class MapType extends BuiltinType {
 			case "all_values":
 			case "any_value":
 				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], new BoolType()));
+			case "delete":
+				return Instance.new(new FuncType([this.#keyType], this));
 			case "filter":
 				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], this));
 			case "filter_by_key":
 				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], this));
 			case "filter_by_value":
 				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], this));
-			/*case "find": { // the following functions won't work well as long as unused vars aren't allowed
-				let a = new ParamType("a");
-
-				return new ParamFuncValue([a], new FuncType([
-					new FuncType([this.#keyType, this.#valueType], new BoolType()), 
-					new FuncType([this.#keyType, this.#valueType], a)
-				], a));
-			}
-			case "find_safe": {
-				let a = new ParamType("a");
-
-				return new ParamFuncValue([a], new FuncType([
-					new FuncType([this.#keyType, this.#valueType], new BoolType()), 
-					new FuncType([this.#keyType, this.#valueType], a)
-				], new OptionType(a)));
-			}*/
+			case "find":
+				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], this));
+			case "find_by_key":
+				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], this));
+			case "find_by_value":
+				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], this));
 			case "find_key":
 				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], this.#keyType));
 			case "find_key_safe":
@@ -17946,18 +17900,30 @@ class MapType extends BuiltinType {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#valueType], a), a], a));
 			}
-			case "lazy_fold": {
+			case "fold_lazy": {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([this.#keyType, this.#valueType, new FuncType([], a)], a), a], a));
 			}
-			case "lazy_fold_keys": {
+			case "fold_keys_lazy": {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([this.#keyType, new FuncType([], a)], a), a], a));
 			}	
-			case "lazy_fold_values": {
+			case "fold_values_lazy": {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([this.#valueType, new FuncType([], a)], a), a], a));
 			}
+			case "get":
+				return Instance.new(new FuncType([this.#keyType], this.#valueType));
+			case "get_safe":
+				return Instance.new(new FuncType([this.#keyType], new OptionType(this.#valueType)));
+			case "head_key":
+				return Instance.new(this.#keyType);
+			case "head_value":
+				return Instance.new(this.#valueType);
+			case "is_empty":
+				return Instance.new(new FuncType([], new BoolType()));
+			case "length":
+				return Instance.new(new IntType());
 			case "map_keys": {
 				let a = new ParamType("a", (site, type) => {
 					if ((new BoolType()).isBaseOf(site, type)) {
@@ -17992,6 +17958,8 @@ class MapType extends BuiltinType {
 					}
 				});
 			}
+			case "set":
+				return Instance.new(new FuncType([this.#keyType, this.#valueType], this));
 			case "sort":
 				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType, this.#keyType, this.#valueType], new BoolType())], new MapType(this.#keyType, this.#valueType)));
 			case "sort_by_key":
@@ -20853,7 +20821,7 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
-	add(new RawFunc("__helios__common__lazy_fold",
+	add(new RawFunc("__helios__common__fold_lazy",
 	`(self, fn, z) -> {
 		(recurse) -> {
 			recurse(recurse, self, fn, z)
@@ -21756,11 +21724,11 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__lazy_fold",
+	add(new RawFunc("__helios__list__fold_lazy",
 	`(self) -> {
 		(self) -> {
 			(fn, z) -> {
-				__helios__common__lazy_fold(self, fn, z)
+				__helios__common__fold_lazy(self, fn, z)
 			}
 		}(__core__unListData(self))
 	}`));
@@ -21890,10 +21858,10 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__boollist__lazy_fold",
+	add(new RawFunc("__helios__boollist__fold_lazy",
 	`(self) -> {
 		(fn, z) -> {
-			__helios__list__lazy_fold(self)(
+			__helios__list__fold_lazy(self)(
 				(item, next) -> {
 					fn(__helios__common__unBoolData(item), next)
 				},
@@ -22066,6 +22034,32 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
+	add(new RawFunc("__helios__map__delete",
+	`(self) -> {
+		(self) -> {
+			(key) -> {
+				(recurse) -> {
+					__core__mapData(recurse(recurse, self))
+				}(
+					(recurse, self) -> {
+						__core__ifThenElse(
+							__core__nullList(self),
+							() -> {self},
+							() -> {
+								(head, tail) -> {
+									__core__ifThenElse(
+										__core__equalsData(key, __core__fstPair(head)),
+										() -> {recurse(recurse, tail)},
+										() -> {__core__mkCons(head, recurse(recurse, tail))}
+									)()
+								}(__core__headList(self), __core__tailList(self))
+							}
+						)()
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
 	add(new RawFunc("__helios__map__filter",
 	`(self) -> {
 		(self) -> {
@@ -22111,42 +22105,52 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__map__find",
 	`(self) -> {
 		(self) -> {
-			(fn, callback) -> {
-				(fn) -> {
-					__helios__common__find(
-						self, 
-						fn,
-						(result) -> {
-							callback(__core__fstPair(result), __core__sndPair(result))
-						}	
-					)
+			(fn) -> {
+				(recurse) -> {
+					__core__mapData(recurse(recurse, self, fn))
 				}(
-					(pair) -> {
-						fn(__core__fstPair(pair), __core__sndPair(pair))
+					(recurse, self, fn) -> {
+						__core__ifThenElse(
+							__core__nullList(self), 
+							() -> {__core__mkNilPairData(())}, 
+							() -> {
+								(head) -> {
+									__core__ifThenElse(
+										fn(__core__fstPair(head), __core__sndPair(head)), 
+										() -> {__core__mkCons(head, __core__mkNilPairData(()))}, 
+										() -> {recurse(recurse, __core__tailList(self), fn)}
+									)()
+								}(__core__headList(self))
+							}
+						)()
 					}
 				)
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__find_safe",
+	add(new RawFunc("__helios__map__find_by_key", 
 	`(self) -> {
-		(self) -> {
-			(fn, callback) -> {
-				(fn) -> {
-					__helios__common__find_safe(
-						self,
-						fn,
-						(result) -> {
-							callback(__core__fstPair(result), __core__sndPair(result))
-						}
-					)
-				}(
-					(pair) -> {
-						fn(__core__fstPair(pair), __core__sndPair(pair))
-					}
-				)
-			}
-		}(__core__unMapData(self))
+		(fn) -> {
+			(fn) -> {
+				__helios__map__find(self)(fn)
+			}(
+				(fst, _) -> {
+					fn(fst)
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__map__find_by_value", 
+	`(self) -> {
+		(fn) -> {
+			(fn) -> {
+				__helios__map__find(self)(fn)
+			}(
+				(_, snd) -> {
+					fn(snd)
+				}
+			)
+		}
 	}`));
 	add(new RawFunc("__helios__map__find_key",
 	`(self) -> {
@@ -22309,48 +22313,80 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__lazy_fold",
+	add(new RawFunc("__helios__map__fold_lazy",
 	`(self) -> {
 		(self) -> {
 			(fn, z) -> {
 				(fn) -> {
-					__helios__common__lazy_fold(self, fn, z)
+					__helios__common__fold_lazy(self, fn, z)
 				}(
-					(pair, z) -> {
-						fn(__core__fstPair(pair), __core__sndPair(pair), z)
+					(pair, next) -> {
+						fn(__core__fstPair(pair), __core__sndPair(pair), next)
 					}
 				)
 				
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__lazy_fold_keys",
+	add(new RawFunc("__helios__map__fold_keys_lazy",
 	`(self) -> {
 		(self) -> {
 			(fn, z) -> {
 				(fn) -> {
-					__helios__common__lazy_fold(self, fn, z)
+					__helios__common__fold_lazy(self, fn, z)
 				}(
-					(pair, z) -> {
-						fn(__core__fstPair(pair), z)
+					(pair, next) -> {
+						fn(__core__fstPair(pair), next)
 					}
 				)
 				
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__lazy_fold_values",
+	add(new RawFunc("__helios__map__fold_values_lazy",
 	`(self) -> {
 		(self) -> {
 			(fn, z) -> {
 				(fn) -> {
-					__helios__common__lazy_fold(self, fn, z)
+					__helios__common__fold_lazy(self, fn, z)
 				}(
-					(z, pair) -> {
-						fn(__core__sndPair(pair), z)
+					(pair, next) -> {
+						fn(__core__sndPair(pair), next)
 					}
 				)
 				
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__set", 
+	`(self) -> {
+		(self) -> {
+			(key, value) -> {
+				(recurse) -> {
+					__core__mapData(recurse(recurse, self))
+				}(
+					(recurse, self) -> {
+						__core__ifThenElse(
+							__core__nullList(self),
+							() -> {
+								__core__mkCons(__core__mkPairData(key, value), __core__mkNilPairData(()))
+							},
+							() -> {
+								(head, tail) -> {
+									__core__ifThenElse(
+										__core__equalsData(key, __core__fstPair(head)),
+										() -> {
+											__core__mkCons(__core__mkPairData(key, value), tail)
+										},
+										() -> {
+											__core__mkCons(head, recurse(recurse, tail))
+										}
+									)()
+								}(__core__headList(self), __core__tailList(self))
+							}
+						)()
+					}
+				)
 			}
 		}(__core__unMapData(self))
 	}`));
@@ -22451,6 +22487,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
+	add(new RawFunc("__helios__boolmap__delete", "__helios__map__delete"));
 	add(new RawFunc("__helios__boolmap__filter",
 	`(self) -> {
 		(fn) -> {
@@ -22474,30 +22511,25 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__boolmap__find",
 	`(self) -> {
-		(fn, callback) -> {
-			(fn, callback) -> {
-				__helios__map__find(self)(fn, callback)
+		(fn) -> {
+			(fn) -> {
+				__helios__map__find(self)(fn)
 			}(
-				(a, b) -> {
-					fn(a, __helios__common__unBoolData(b))
-				},
-				(a, b) -> {
-					callback(a, __helios__common__unBoolData(b))
+				(fst, snd) -> {
+					fn(fst, __helios__common__unBoolData(snd))
 				}
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__boolmap__find_safe",
+	add(new RawFunc("__helios__boolmap__find_by_key", "__helios__map__find_by_key"));
+	add(new RawFunc("__helios__boolmap__find_by_value", 
 	`(self) -> {
-		(fn, callback) -> {
-			(fn, callback) -> {
-				__helios__map__find_safe(self)(fn, callback)
+		(fn) -> {
+			(fn) -> {
+				__helios__map__find_by_value(self)(fn)
 			}(
-				(a, b) -> {
-					fn(a, __helios__common__unBoolData(b))
-				},
-				(a, b) -> {
-					callback(a, __helios__common__unBoolData(b))
+				(snd) -> {
+					fn(__helios__common__unBoolData(snd))
 				}
 			)
 		}
@@ -22596,6 +22628,35 @@ function makeRawFunctions() {
 				},
 				z
 			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__fold_lazy",
+	`(self) -> {
+		(fn, z) -> {
+			__helios__map__fold_lazy(self)(
+				(key, value, next) -> {
+					fn(key, __helios__common__unBoolData(value), next)
+				},
+				z
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__fold_keys_lazy", "__helios__map__fold_keys_lazy"));
+	add(new RawFunc("__helios__boolmap__fold_values_lazy",
+	`(self) -> {
+		(fn, z) -> {
+			__helios__map__fold_values_lazy(self)(
+				(value, next) -> {
+					fn(__helios__common__unBoolData(value), next)
+				},
+				z
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__set", 
+	`(self) -> {
+		(key, value) -> {
+			__helios__map__set(self)(key, __helios__common__boolData(value))
 		}
 	}`));
 	add(new RawFunc("__helios__boolmap__sort",
@@ -28614,9 +28675,9 @@ export class TxWitnesses extends CborData {
 
 						let profile = await script.profile(args, networkParams);
 
-						if (profile.res instanceof UserError) {
-							console.log(profile.msg);
-							throw profile.res;
+						if (profile.result instanceof UserError) {
+							profile.messages.forEach(m => console.log(m));
+							throw profile.result;
 						} else {
 							const cost = {mem: profile.mem, cpu: profile.cpu};
 							redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
@@ -28636,9 +28697,9 @@ export class TxWitnesses extends CborData {
 
 				let profile = await script.profile(args, networkParams);
 
-				if (profile.res instanceof UserError) {
-					console.log(profile.msg);
-					throw profile.res;
+				if (profile.result instanceof UserError) {
+					profile.messages.forEach(m => console.log(m));
+					throw profile.result;
 				} else {
 					const cost = {mem: profile.mem, cpu: profile.cpu};
 					redeemer.setCost(cost);
