@@ -6,8 +6,7 @@
   "main": "helios.js",
   "types": "helios.d.ts",
   "scripts": {
-    "test": "npx tsc --noEmit --emitDeclarationOnly false && node ./test/index.js",
-	"prebuild": "",
+    "test": "node ./test/index.js",
 	"build": "npm install && npx tsc && npm test",
 	"publish": "node ./test/check-version.js && aws s3 cp ./helios.js s3://helios-library/$(node ./test/latest-version.js)/ && npm publish ."
   },
