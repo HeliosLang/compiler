@@ -15395,7 +15395,7 @@ export class Program {
 		for (let s of this.mainAndPostStatements) {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValue(value);
-				return;
+				return this;
 			}
 		}
 
