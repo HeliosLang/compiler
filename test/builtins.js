@@ -1924,10 +1924,51 @@ async function testBuiltins() {
         }`, ([a, b], res) => res.data.isSame(new helios_.MapData(a.data.map.concat(b.data.map))));
 
         await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_head_key
+        func main(a: Map[Int]Int) -> Int {
+            a.head_key
+        }
+        `, ([a], res) => {
+            if (a.data.map.length == 0) {
+                return isError(res, "empty map");
+            } else {
+                return asInt(res) === asInt(a.data.map[0][0]);
+            }
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_head_value
+        func main(a: Map[Int]Int) -> Int {
+            a.head_value
+        }
+        `, ([a], res) => {
+            if (a.data.map.length == 0) {
+                return isError(res, "empty map");
+            } else {
+                return asInt(res) === asInt(a.data.map[0][1]);
+            }
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_length
         func main(a: Map[Int]Int) -> Int {
             a.length
         }`, ([a], res) => a.data.map.length == Number(asInt(res)));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_tail
+        func main(a: Map[Int]Int) -> Map[Int]Int {
+            a.tail
+        }`, ([a], res) => {
+            if (a.data.map.length == 0) {
+                return isError(res, "empty map");
+            } else {
+                let la = a.data.map.slice(1);
+                let lRes = res.data.map.slice();
+
+                return la.length == lRes.length && la.every(([k,v], i) => asInt(k) === asInt(lRes[i][0]) && asInt(v) === asInt(lRes[i][1]));
+            }
+        });
 
         await ft.test([ft.map(ft.int(), ft.int(), 0, 10)], `
         testing map_is_empty
@@ -2342,10 +2383,51 @@ async function testBuiltins() {
         }`, ([a, b], res) => res.data.isSame(new helios_.MapData(a.data.map.concat(b.data.map))));
 
         await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_head_key
+        func main(a: Map[Int]Bool) -> Int {
+            a.head_key
+        }
+        `, ([a], res) => {
+            if (a.data.map.length == 0) {
+                return isError(res, "empty map");
+            } else {
+                return asInt(res) === asInt(a.data.map[0][0]);
+            }
+        });
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_head_value
+        func main(a: Map[Int]Bool) -> Bool {
+            a.head_value
+        }
+        `, ([a], res) => {
+            if (a.data.map.length == 0) {
+                return isError(res, "empty map");
+            } else {
+                return asBool(res) === asBool(a.data.map[0][1]);
+            }
+        });
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_length
         func main(a: Map[Int]Bool) -> Int {
             a.length
         }`, ([a], res) => a.data.map.length == Number(asInt(res)));
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_tail
+        func main(a: Map[Int]Bool) -> Map[Int]Bool {
+            a.tail
+        }`, ([a], res) => {
+            if (a.data.map.length == 0) {
+                return isError(res, "empty map");
+            } else {
+                let la = a.data.map.slice(1);
+                let lRes = res.data.map.slice();
+
+                return la.length == lRes.length && la.every(([k,v], i) => asInt(k) === asInt(lRes[i][0]) && asBool(v) === asBool(lRes[i][1]));
+            }
+        });
 
         await ft.test([ft.map(ft.int(), ft.bool(), 0, 10)], `
         testing boolmap_is_empty

@@ -207,7 +207,7 @@ internal ns: __helios__list
 ```
 associated:  from_data
 operators:   __eq, __neq, __add
-getters:     length
+getters:     length, head_key, head_value, tail
 methods:     serialize, is_empty, get, get_safe, set, delete, all, all_keys, all_values, any, any_key, any_value, 
              filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values, 
              fold_lazy, fold_keys_lazy, fold_values_lazy, map_keys, map_values, 

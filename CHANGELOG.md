@@ -2,6 +2,7 @@ This Changelog only applies to notable changes of `helios.js` on the main branch
 
 # 2022/12/18
 * Addition of `Map.delete`, `Map.set`, `Map.find`, `Map.find_by_key`, `Map.find_by_value`
+* Addition of `Map.head_key`, `Map.head_value`, `Map.tail`
 
 # 2022/12/17
 * Addition of `List.fold_lazy`, `Map.fold_lazy`, `Map.fold_keys_lazy`, `Map.fold_values_lazy`

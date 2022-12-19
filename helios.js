@@ -6,8 +6,8 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.9.9
-// Last update: November 2022
+// Version:     0.9.10
+// Last update: December 2022
 // License:     Unlicense
 //
 //
@@ -169,7 +169,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.9.9"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.9.10"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -2612,7 +2612,6 @@ export class UserError extends Error {
 	 * @returns {UserError}
 	 */
 	static syntaxError(src, pos, info = "") {
-		console.log(src.pretty());
 		return UserError.new("SyntaxError", src, pos, info);
 	}
 
@@ -17966,6 +17965,8 @@ class MapType extends BuiltinType {
 				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#keyType], new BoolType())], new MapType(this.#keyType, this.#valueType)));
 			case "sort_by_value":
 				return Instance.new(new FuncType([new FuncType([this.#valueType, this.#valueType], new BoolType())], new MapType(this.#keyType, this.#valueType)));
+			case "tail":
+				return Instance.new(this);
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -21917,9 +21918,21 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
+	add(new RawFunc("__helios__map__head_key",
+	`(self) -> {
+		__core__fstPair(__core__headList(__core__unMapData(self)))
+	}`));
+	add(new RawFunc("__helios__map__head_value",
+	`(self) -> {
+		__core__sndPair(__core__headList(__core__unMapData(self)))
+	}`));
 	add(new RawFunc("__helios__map__length",
 	`(self) -> {
 		__helios__common__length(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__tail",
+	`(self) -> {
+		__core__mapData(__core__tailList(__core__unMapData(self)))
 	}`));
 	add(new RawFunc("__helios__map__is_empty",
 	`(self) -> {
@@ -22437,7 +22450,13 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__boolmap__serialize", "__helios__map__serialize"));
 	add(new RawFunc("__helios__boolmap__from_data", "__helios__map__from_data"));
 	add(new RawFunc("__helios__boolmap____add", "__helios__map____add"));
+	add(new RawFunc("__helios__boolmap__head_key", "__helios__map__head_key"));
+	add(new RawFunc("__helios__boolmap__head_value",
+	`(self) -> {
+		__helios__common__unBoolData(__helios__map__head_value(self))
+	}`));
 	add(new RawFunc("__helios__boolmap__length", "__helios__map__length"));
+	add(new RawFunc("__helios__boolmap__tail", "__helios__map__tail"));
 	add(new RawFunc("__helios__boolmap__is_empty", "__helios__map__is_empty"));
 	add(new RawFunc("__helios__boolmap__get", 
 	`(self) -> {
