@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.9.10
+// Version:     0.9.11
 // Last update: December 2022
 // License:     Unlicense
 //
@@ -169,7 +169,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.9.10"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.9.11"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -4675,12 +4675,22 @@ export class UplcInt extends UplcValue {
 
 	/**
 	 * Applies zigzag encoding
+	 * @example
+	 * (new UplcInt(Site.dummy(), -1n, true)).toUnsigned().int => 1n
+	 * @example
+	 * (new UplcInt(Site.dummy(), -1n, true)).toUnsigned().toSigned().int => -1n
+	 * @example
+	 * (new UplcInt(Site.dummy(), -2n, true)).toUnsigned().toSigned().int => -2n
+	 * @example
+	 * (new UplcInt(Site.dummy(), -3n, true)).toUnsigned().toSigned().int => -3n
+	 * @example
+	 * (new UplcInt(Site.dummy(), -4n, true)).toUnsigned().toSigned().int => -4n
 	 * @returns {UplcInt}
 	 */
 	toUnsigned() {
 		if (this.#signed) {
 			if (this.#value < 0n) {
-				return new UplcInt(this.site, 1n - this.#value * 2n, false);
+				return new UplcInt(this.site, -this.#value*2n - 1n, false);
 			} else {
 				return new UplcInt(this.site, this.#value * 2n, false);
 			}
@@ -4691,6 +4701,8 @@ export class UplcInt extends UplcValue {
 
 	/** 
 	 * Unapplies zigzag encoding 
+	 * @example
+	 * (new UplcInt(Site.dummy(), 1n, false)).toSigned().int => -1n
 	 * @returns {UplcInt}
 	*/
 	toSigned() {
