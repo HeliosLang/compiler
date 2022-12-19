@@ -66,7 +66,7 @@ export function deserializeUplcBytes(bytes: number[]): UplcProgram;
  * @returns {UplcProgram}
  */
 export function deserializeUplc(jsonString: string): UplcProgram;
-export const VERSION: "0.9.10";
+export const VERSION: "0.9.11";
 /**
  * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
  * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
@@ -426,11 +426,23 @@ export class UplcInt extends UplcValue {
     copy(newSite: Site): UplcInt;
     /**
      * Applies zigzag encoding
+     * @example
+     * (new UplcInt(Site.dummy(), -1n, true)).toUnsigned().int => 1n
+     * @example
+     * (new UplcInt(Site.dummy(), -1n, true)).toUnsigned().toSigned().int => -1n
+     * @example
+     * (new UplcInt(Site.dummy(), -2n, true)).toUnsigned().toSigned().int => -2n
+     * @example
+     * (new UplcInt(Site.dummy(), -3n, true)).toUnsigned().toSigned().int => -3n
+     * @example
+     * (new UplcInt(Site.dummy(), -4n, true)).toUnsigned().toSigned().int => -4n
      * @returns {UplcInt}
      */
     toUnsigned(): UplcInt;
     /**
      * Unapplies zigzag encoding
+     * @example
+     * (new UplcInt(Site.dummy(), 1n, false)).toSigned().int => -1n
      * @returns {UplcInt}
     */
     toSigned(): UplcInt;
