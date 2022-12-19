@@ -15,7 +15,6 @@ struct Datum {
     lockUntil:   Time
     owner:       PubKeyHash // the owner can always unlock the assets
     beneficiary: PubKeyHash // beneficiary can only unlock the assets after 'lockUntil'
-    nonce:       Int        // protect against double-satisfaction
 }
 
 func main(datum: Datum, ctx: ScriptContext) -> Bool {
