@@ -1923,6 +1923,16 @@ async function testBuiltins() {
             a + b
         }`, ([a, b], res) => res.data.isSame(new helios_.MapData(a.data.map.concat(b.data.map))));
 
+        await ft.test([ft.map(ft.int(), ft.int(), 0, 10), ft.int(), ft.int()], `
+        testing map_prepend
+        func main(a: Map[Int]Int, k: Int, v: Int) -> Map[Int]Int {
+            a.prepend(k, v)
+        }`, ([a, k, v], res) => {
+            let expected = a.data.map;
+            expected.unshift([new helios.IntData(asInt(k)), new helios.IntData(asInt(v))]);
+            return res.data.isSame(new helios_.MapData(expected));
+        });
+
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_head_key
         func main(a: Map[Int]Int) -> Int {
@@ -2381,6 +2391,16 @@ async function testBuiltins() {
         func main(a: Map[Int]Bool, b: Map[Int]Bool) -> Map[Int]Bool {
             a + b
         }`, ([a, b], res) => res.data.isSame(new helios_.MapData(a.data.map.concat(b.data.map))));
+
+        await ft.test([ft.map(ft.int(), ft.bool(), 0, 10), ft.int(), ft.bool()], `
+        testing boolmap_prepend
+        func main(a: Map[Int]Bool, k: Int, v: Bool) -> Map[Int]Bool {
+            a.prepend(k, v)
+        }`, ([a, k, v], res) => {
+            let expected = a.data.map;
+            expected.unshift([new helios.IntData(asInt(k)), new helios.ConstrData(asBool(v) ? 1 : 0, [])]);
+            return res.data.isSame(new helios_.MapData(expected));
+        });
 
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_head_key
