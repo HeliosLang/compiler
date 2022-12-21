@@ -179,6 +179,11 @@ var DEBUG = false;
  */
 function debug(b) { DEBUG = b };
 
+/**
+ * Set this to true if you want to experiment with Tx serialized using the strict babbage cddl format
+ */
+var STRICT_BABBAGE = false;
+
 var BLAKE2B_DIGEST_SIZE = 32; // bytes
 
 /**
@@ -27305,7 +27310,7 @@ export class Tx extends CborData {
 		return this.#witnesses;
 	}
 
-	/**
+	/** 
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -29148,7 +29153,7 @@ export class TxOutput extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		if ((this.#datum === null || this.#datum instanceof HashedDatum) && this.#refScript === null) {
+		if ((this.#datum === null || this.#datum instanceof HashedDatum) && this.#refScript === null && !STRICT_BABBAGE) {
 			// this is needed to match eternl wallet (de)serialization (annoyingly eternl deserializes the tx and then signs its own serialization)
 			// hopefully cardano-cli signs whatever serialization we choose (so we use the eternl variant in order to be compatible with both)
 
