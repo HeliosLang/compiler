@@ -17974,6 +17974,8 @@ class MapType extends BuiltinType {
 					}
 				});
 			}
+			case "prepend":
+				return Instance.new(new FuncType([this.#keyType, this.#valueType], this));
 			case "set":
 				return Instance.new(new FuncType([this.#keyType, this.#valueType], this));
 			case "sort":
@@ -21967,6 +21969,14 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
+	add(new RawFunc("__helios__map__prepend",
+	`(self) -> {
+		(self) -> {
+			(key, value) -> {
+				__core__mapData(__core__mkCons(__core__mkPairData(key, value), self))
+			}
+		}(__core__unMapData(self))
+	}`));
 	add(new RawFunc("__helios__map__head_key",
 	`(self) -> {
 		__core__fstPair(__core__headList(__core__unMapData(self)))
@@ -22499,6 +22509,19 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__boolmap__serialize", "__helios__map__serialize"));
 	add(new RawFunc("__helios__boolmap__from_data", "__helios__map__from_data"));
 	add(new RawFunc("__helios__boolmap____add", "__helios__map____add"));
+	add(new RawFunc("__helios__boolmap__prepend",
+	`(self) -> {
+		(self) -> {
+			(key, value) -> {
+				__core__mapData(
+					__core__mkCons(
+						__core__mkPairData(key, __helios__common__boolData(value)),
+						self
+					)
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
 	add(new RawFunc("__helios__boolmap__head_key", "__helios__map__head_key"));
 	add(new RawFunc("__helios__boolmap__head_value",
 	`(self) -> {
