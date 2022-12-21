@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.9.12
+// Version:     0.9.13
 // Last update: December 2022
 // License:     Unlicense
 //
@@ -38,8 +38,9 @@
 //
 //
 // Overview of internals:
-//     1. Global constants and vars         VERSION, DEBUG, debug, BLAKE2B_DIGEST_SIZE, 
-//                                          setBlake2bDigestSize, TAB, ScriptPurpose, 
+//     1. Global constants and vars         VERSION, DEBUG, debug, STRICT_BABBAGE, 
+//                                          BLAKE2B_DIGEST_SIZE, setBlake2bDigestSize, 
+//                                          TAB, ScriptPurpose, 
 //                                          UPLC_VERSION_COMPONENTS, UPLC_VERSION, 
 //                                          PLUTUS_SCRIPT_VERSION, UPLC_TAG_WIDTH, 
 //                                          UPLC_DATA_NODE_MEM_SIZE
@@ -169,7 +170,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.9.12"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.9.13"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -7895,21 +7896,13 @@ export class ByteArrayData extends UplcData {
 	static comp(a, b) {
 		/** @return {boolean} */
 		function lessThan() {
-			if (a.length == 0) {
-				return b.length != 0;
-			} else if (b.length == 0) {
-				return false;
-			} else {
-				for (let i = 0; i < Math.min(a.length, b.length); i++) {
-					if (a[i] < b[i]) {
-						return true;
-					} else if (a[i] > b[i]) {
-						return false;
-					}
-				}
-
-				return false;
+			for (let i = 0; i < Math.min(a.length, b.length); i++) {
+				if (a[i] != b[i]) {
+					return a[i] < b[i];
+				} 
 			}
+
+			return a.length < b.length;
 		}
 
 		/** @return {number} */
@@ -12249,7 +12242,11 @@ class NameTypePair {
 	 * @type {string}
 	 */
 	get typeName() {
-		return this.#typeExpr.toString();
+		if (this.#typeExpr === null) {
+			return "";
+		} else {
+			return this.#typeExpr.toString();
+		}
 	}
 
 	toString() {
@@ -12294,6 +12291,33 @@ class FuncArg extends NameTypePair {
 	 */
 	constructor(name, typeExpr) {
 		super(name, typeExpr);
+	}
+
+	isIgnored() {
+		return this.name.value === "_";
+	}
+
+	/**
+	 * @type {Type}
+	 */
+	get type() {
+		if (this.isIgnored()) {
+			return new AnyType();
+		} else {
+			return super.type;
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
+	evalType(scope) {
+		if (this.isIgnored()) {
+			return new AnyType();
+		} else {
+			return super.evalType(scope);
+		}
 	}
 }
 
@@ -12383,7 +12407,9 @@ class FuncLiteralExpr extends ValueExpr {
 
 		let subScope = new Scope(scope);
 		argTypes.forEach((a, i) => {
-			subScope.set(this.#args[i].name, Instance.new(a));
+			if (!this.#args[i].isIgnored()) {
+				subScope.set(this.#args[i].name, Instance.new(a));
+			}
 		});
 
 		let bodyVal = this.#bodyExpr.eval(subScope);
@@ -16086,6 +16112,8 @@ function buildFuncArgs(parens, methodOf = null) {
 	/** @type {FuncArg[]} */
 	let args = [];
 
+	let someNoneUnderscore = parens.fields.length == 0;
+
 	for (let i = 0; i < parens.fields.length; i++) {
 		let f = parens.fields[i];
 		let ts = f.slice();
@@ -16093,6 +16121,8 @@ function buildFuncArgs(parens, methodOf = null) {
 		let name = assertDefined(ts.shift()).assertWord();
 
 		if (name.toString() == "self") {
+			someNoneUnderscore = true;
+
 			if (i != 0 || methodOf === null) {
 				throw name.syntaxError("'self' is reserved");
 			} else {
@@ -16106,7 +16136,19 @@ function buildFuncArgs(parens, methodOf = null) {
 					args.push(new FuncArg(name, methodOf));
 				}
 			}
+		} else if (name.toString() == "_") {
+			if (ts.length > 0) {
+				if (ts[0].isSymbol(":")) {
+					throw ts[0].syntaxError("unexpected type expression after '_'");
+				} else {
+					throw ts[0].syntaxError("unexpected token");
+				}
+			} else {
+				args.push(new FuncArg(name, methodOf));
+			}
 		} else {
+			someNoneUnderscore = true;
+
 			name = name.assertNotKeyword();
 
 			for (let prev of args) {
@@ -16130,6 +16172,10 @@ function buildFuncArgs(parens, methodOf = null) {
 				args.push(new FuncArg(name, typeExpr));
 			}
 		}
+	}
+
+	if (!someNoneUnderscore) {
+		throw parens.syntaxError("expected at least one non-underscore function argument");
 	}
 
 	return args;
@@ -18046,7 +18092,13 @@ class ParamType extends Type {
 	 * @returns {Type}
 	 */
 	static unwrap(type, expected = null) {
-		if (type instanceof ParamType) {
+		if (type instanceof AnyType) {
+			if (expected !== null) {
+				return expected;
+			} else {
+				throw new Error("unable to infer type of AnyType");
+			}
+		} else if (type instanceof ParamType) {
 			let origType = type.type;
 
 			if (origType === null) {
@@ -18054,7 +18106,7 @@ class ParamType extends Type {
 					type.setType(Site.dummy(), expected);
 					return expected;
 				} else {
-					throw new Error("unable to infer ParamType")
+					throw new Error("unable to infer ParamType");
 				}
 			} else {
 				return origType;

@@ -921,6 +921,18 @@ async function testBuiltins() {
             a + b
         }`, ([a, b], res) => equalsList(asBytes(a).concat(asBytes(b)), asBytes(res)));
 
+		await ft.test([ft.bytes(0, 5), ft.bytes(0, 5)], `
+		testing bytearray_lt
+		func main(a: ByteArray, b: ByteArray) -> Bool {
+			(a < b) == !(a >= b)
+		}`, ([a, b], res) => asBool(res));
+
+		await ft.test([ft.bytes(0, 5), ft.bytes(0, 5)], `
+		testing bytearray_gt
+		func main(a: ByteArray, b: ByteArray) -> Bool {
+			(a > b) == !(a <= b)
+		}`, ([a, b], res) => asBool(res));
+
         await ft.test([ft.bytes()], `
         testing bytearray_length
         func main(a: ByteArray) -> Int {
@@ -2325,6 +2337,24 @@ async function testBuiltins() {
         testing map_sort_by_key
         func main(m: Map[Int]Int) -> Map[Int]Int {
             m.sort_by_key((a: Int, b: Int) -> Bool {
+                a < b
+            })
+        }`, ([_], res) => {
+            return res.data.map.every(([k, _], i) => {
+                if (i > 0) {
+                    let [kPrev, _] = res.data.map[i-1];
+
+                    return asInt(kPrev) <= asInt(k);
+                } else {
+                    return true;
+                }
+            });
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_sort_by_key_alt
+        func main(m: Map[Int]Int) -> Map[Int]Int {
+            m.sort((a: Int, _, b: Int, _) -> Bool {
                 a < b
             })
         }`, ([_], res) => {
