@@ -2,7 +2,7 @@
 
 Helios is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Helios is a non-Haskell alternative to Plutus.
 
-Helios is purely functional, strongly typed, and has a simple curly braces syntax. It notably supports closures, compile-time evaluation, and enums as tagged unions.
+Helios is purely functional, strongly typed, and has a simple curly braces syntax. It notably supports closures, functions with multiple return values, OOP-like methods, and enums as tagged unions.
 
 The Helios library is written in Javascript, and lets you compile Helios scripts and build Cardano transactions. This library is all you need to build 100% client-side DApps for Cardano.
 

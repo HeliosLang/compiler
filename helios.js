@@ -12517,7 +12517,9 @@ class FuncLiteralExpr extends ValueExpr {
 		let bodyVal = this.#bodyExpr.eval(subScope);
 
 		if (this.#retTypeExprs.length === 1) {
-			if (!bodyVal.isInstanceOf(this.#retTypeExprs[0].site, fnType.retTypes[0])) {
+			if (bodyVal instanceof MultiInstance) {
+				throw this.#retTypeExprs[0].typeError("unexpected multi-value body");
+			} else if (!bodyVal.isInstanceOf(this.#retTypeExprs[0].site, fnType.retTypes[0])) {
 				throw this.#retTypeExprs[0].typeError(`wrong return type, expected ${fnType.retTypes[0].toString()} but got ${this.#bodyExpr.type.toString()}`);
 			}
 		} else {
@@ -13406,6 +13408,21 @@ class IfElseExpr extends ValueExpr {
 	}
 
 	/**
+	 * @param {Site} site
+	 * @param {?Type[]} prevTypes
+	 * @param {Type[]} newTypes
+	 */
+	static reduceBranchMultiType(site, prevTypes, newTypes) {
+		if (prevTypes === null) {
+			return newTypes
+		} else if (prevTypes.length !== newTypes.length) {
+			throw site.typeError("inconsistent number of multi-value types");
+		} else {
+			return prevTypes.map((pt, i) => IfElseExpr.reduceBranchType(site, pt, newTypes[i]));
+		}
+	}
+
+	/**
 	 * @param {Scope} scope 
 	 * @returns {Instance}
 	 */
@@ -13418,21 +13435,29 @@ class IfElseExpr extends ValueExpr {
 		}
 
 		/**
-		 * @type {?Type}
+		 * Supports multiple return values
+		 * @type {?Type[]}
 		 */
-		let branchType = null;
+		let branchMultiType = null;
+
 		for (let b of this.#branches) {
 			let branchVal = b.eval(scope);
 
 			if (!(branchVal instanceof ErrorInstance)) {
-				branchType = IfElseExpr.reduceBranchType(b.site, branchType, branchVal.getType(b.site));
+				branchMultiType = IfElseExpr.reduceBranchMultiType(
+					b.site, 
+					branchMultiType, 
+					(branchVal instanceof MultiInstance) ? 
+						branchVal.values.map(v => v.getType(b.site)) : 
+						[branchVal.getType(b.site)]
+				);
 			}
 		}
 
-		if (branchType === null) {
+		if (branchMultiType === null) {
 			throw new Error("unexpected");
-		} else {
-			return Instance.new(branchType);
+		} else  {
+			return Instance.new(branchMultiType);
 		}
 	}
 
@@ -13756,14 +13781,20 @@ class EnumSwitchExpr extends SwitchExpr {
 			throw this.typeError(`insufficient coverage of '${enumType.toString()}' in switch expression`);
 		}
 
-		/** @type {?Type} */
-		let branchType = null;
+		/** @type {?Type[]} */
+		let branchMultiType = null;
 
 		for (let c of this.cases) {
 			let branchVal = c.evalEnumMember(scope, enumType);
 
-			if (!(branchVal instanceof ErrorInstance)) {
-				branchType = IfElseExpr.reduceBranchType(c.site, branchType, branchVal.getType(c.site));
+			if (!(branchVal instanceof ErrorInstance)) {	
+				branchMultiType = IfElseExpr.reduceBranchMultiType(
+					c.site, 
+					branchMultiType, 
+					(branchVal instanceof MultiInstance) ? 
+						branchVal.values.map(v => v.getType(c.site)) :
+						[branchVal.getType(c.site)]
+				);
 			}
 		}
 
@@ -13771,14 +13802,20 @@ class EnumSwitchExpr extends SwitchExpr {
 			let defaultVal = this.defaultCase.eval(scope);
 
 			if (!(defaultVal instanceof ErrorInstance)) {
-				branchType = IfElseExpr.reduceBranchType(this.defaultCase.site, branchType, defaultVal.getType(this.defaultCase.site));
+				branchMultiType = IfElseExpr.reduceBranchMultiType(
+					this.defaultCase.site, 
+					branchMultiType, 
+					(defaultVal instanceof MultiInstance) ?
+						defaultVal.values.map(v => v.getType(this.defaultCase.site)) :
+						[defaultVal.getType(this.defaultCase.site)]
+				);
 			}
 		}
 
-		if (branchType === null) {
+		if (branchMultiType === null) {
 			throw new Error("unexpected");
 		} else {
-			return Instance.new(branchType);
+			return Instance.new(branchMultiType);
 		}
 	}
 
@@ -13843,14 +13880,20 @@ class EnumSwitchExpr extends SwitchExpr {
 			throw this.typeError(`insufficient coverage of 'Data' in switch expression`);
 		}
 
-		/** @type {?Type} */
-		let branchType = null;
+		/** @type {?Type[]} */
+		let branchMultiType = null;
 
 		for (let c of this.cases) {
 			let branchVal = c.evalDataMember(scope);
 
 			if (!(branchVal instanceof ErrorInstance)) {
-				branchType = IfElseExpr.reduceBranchType(c.site, branchType, branchVal.getType(c.site));
+				branchMultiType = IfElseExpr.reduceBranchMultiType(
+					c.site, 
+					branchMultiType, 
+					(branchVal instanceof MultiInstance) ?
+						branchVal.values.map(v => v.getType(c.site)) :
+						[branchVal.getType(c.site)]
+				);
 			}
 		}
 
@@ -13858,14 +13901,20 @@ class EnumSwitchExpr extends SwitchExpr {
 			let defaultVal = this.defaultCase.eval(scope);
 
 			if (!(defaultVal instanceof ErrorInstance)) {
-				branchType = IfElseExpr.reduceBranchType(this.defaultCase.site, branchType, defaultVal.getType(this.defaultCase.site));
+				branchMultiType = IfElseExpr.reduceBranchMultiType(
+					this.defaultCase.site, 
+					branchMultiType, 
+					(defaultVal instanceof MultiInstance) ?
+						defaultVal.values.map(v => v.getType(this.defaultCase.site)) :
+						[defaultVal.getType(this.defaultCase.site)]
+				);
 			}
 		}
 
-		if (branchType === null) {
+		if (branchMultiType === null) {
 			throw new Error("unexpected");
 		} else {
-			return Instance.new(branchType);
+			return Instance.new(branchMultiType);
 		}
 	}
 
@@ -18246,26 +18295,14 @@ class MapType extends BuiltinType {
 			case "all":
 			case "any":
 				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], new BoolType()));
-			case "all_keys":
-			case "any_key":
-				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], new BoolType()));
-			case "all_values":
-			case "any_value":
-				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], new BoolType()));
 			case "delete":
 				return Instance.new(new FuncType([this.#keyType], this));
 			case "filter":
 				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], this));
-			case "filter_by_key":
-				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], this));
-			case "filter_by_value":
-				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], this));
 			case "find":
-				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], this));
-			case "find_by_key":
-				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], this));
-			case "find_by_value":
-				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], this));
+				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], [this.#keyType, this.#valueType]));
+			case "find_safe":
+				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], [new FuncType([], [this.#keyType, this.#valueType]), new BoolType()]))
 			case "find_key":
 				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], this.#keyType));
 			case "find_key_safe":
@@ -18278,30 +18315,16 @@ class MapType extends BuiltinType {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#keyType, this.#valueType], a), a], a));
 			}
-			case "fold_keys": {
-				let a = new ParamType("a");
-				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#keyType], a), a], a));
-			}	
-			case "fold_values": {
-				let a = new ParamType("a");
-				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#valueType], a), a], a));
-			}
 			case "fold_lazy": {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([this.#keyType, this.#valueType, new FuncType([], a)], a), a], a));
-			}
-			case "fold_keys_lazy": {
-				let a = new ParamType("a");
-				return new ParamFuncValue([a], new FuncType([new FuncType([this.#keyType, new FuncType([], a)], a), a], a));
-			}	
-			case "fold_values_lazy": {
-				let a = new ParamType("a");
-				return new ParamFuncValue([a], new FuncType([new FuncType([this.#valueType, new FuncType([], a)], a), a], a));
 			}
 			case "get":
 				return Instance.new(new FuncType([this.#keyType], this.#valueType));
 			case "get_safe":
 				return Instance.new(new FuncType([this.#keyType], new OptionType(this.#valueType)));
+			case "head":
+				return Instance.new(new FuncType([], [this.#keyType, this.#valueType]));
 			case "head_key":
 				return Instance.new(this.#keyType);
 			case "head_value":
@@ -18310,36 +18333,24 @@ class MapType extends BuiltinType {
 				return Instance.new(new FuncType([], new BoolType()));
 			case "length":
 				return Instance.new(new IntType());
-			case "map_keys": {
+			case "map": {
 				let a = new ParamType("a", (site, type) => {
 					if ((new BoolType()).isBaseOf(site, type)) {
 						throw site.typeError("Map keys can't be of 'Bool' type");
 					}
 				});
-				return new ParamFuncValue([a], new FuncType([new FuncType([this.#keyType], a)], new MapType(a, this.#valueType)), () => {
-					let type = a.type;
+
+				let b = new ParamType("b");
+
+				return new ParamFuncValue([a, b], new FuncType([new FuncType([this.#keyType, this.#valueType], [a, b])], new MapType(a, b)), () => {
+					let type = b.type;
 					if (type === null) {
 						throw new Error("should've been inferred by now");
 					} else {
 						if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
-							throw new Error("should've been checked before");
+							return "map_to_bool";
 						} else {
-							return "map_keys";
-						}
-					}
-				});
-			}
-			case "map_values": {
-				let a = new ParamType("a");
-				return new ParamFuncValue([a], new FuncType([new FuncType([this.#valueType], a)], new MapType(this.#keyType, a)), () => {
-					let type = a.type;
-					if (type === null) {
-						throw new Error("should've been inferred by now");
-					} else {
-						if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
-							return "map_values_to_bool";
-						} else {
-							return "map_values";
+							return "map";
 						}
 					}
 				});
@@ -18350,10 +18361,6 @@ class MapType extends BuiltinType {
 				return Instance.new(new FuncType([this.#keyType, this.#valueType], this));
 			case "sort":
 				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType, this.#keyType, this.#valueType], new BoolType())], new MapType(this.#keyType, this.#valueType)));
-			case "sort_by_key":
-				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#keyType], new BoolType())], new MapType(this.#keyType, this.#valueType)));
-			case "sort_by_value":
-				return Instance.new(new FuncType([new FuncType([this.#valueType, this.#valueType], new BoolType())], new MapType(this.#keyType, this.#valueType)));
 			case "tail":
 				return Instance.new(this);
 			default:
@@ -18836,6 +18843,11 @@ class HashType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this], new BoolType()));
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
 			default:
@@ -19875,6 +19887,22 @@ class TxIdType extends BuiltinType {
 				return super.getTypeMember(name);
 		}
 	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	 getInstanceMember(name) {
+		switch (name.value) {
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this], new BoolType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
 }
 
 /**
@@ -20178,6 +20206,26 @@ class TxOutputIdType extends BuiltinType {
 				return Instance.new(new FuncType([new TxIdType(), new IntType()], new TxOutputIdType()));
 			default:
 				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "__lt":
+			case "__leq":
+			case "__gt":
+			case "__geq":
+				return Instance.new(new FuncType([new TxOutputIdType()], new BoolType()));
+			case "tx_id":
+				return Instance.new(new TxIdType());
+			case "index":
+				return Instance.new(new IntType());
+			default:
+				return super.getInstanceMember(name);
 		}
 	}
 
@@ -22555,17 +22603,62 @@ function makeRawFunctions() {
 		(self) -> {
 			(fn) -> {
 				(recurse) -> {
-					__core__mapData(recurse(recurse, self, fn))
+					recurse(recurse, self, fn)
 				}(
 					(recurse, self, fn) -> {
 						__core__ifThenElse(
 							__core__nullList(self), 
-							() -> {__core__mkNilPairData(())}, 
+							() -> {__core__error("not found")}, 
 							() -> {
 								(head) -> {
 									__core__ifThenElse(
 										fn(__core__fstPair(head), __core__sndPair(head)), 
-										() -> {__core__mkCons(head, __core__mkNilPairData(()))}, 
+										() -> {
+											(callback) -> {
+												callback(__core__fstPair(head), __core__sndPair(head))
+											}
+										}, 
+										() -> {recurse(recurse, __core__tailList(self), fn)}
+									)()
+								}(__core__headList(self))
+							}
+						)()
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__find_safe",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(recurse) -> {
+					recurse(recurse, self, fn)
+				}(
+					(recurse, self, fn) -> {
+						__core__ifThenElse(
+							__core__nullList(self), 
+							() -> {
+								(callback) -> {
+									callback(() -> {__core__error("not found")}, false)
+								}
+							}, 
+							() -> {
+								(head) -> {
+									__core__ifThenElse(
+										fn(__core__fstPair(head), __core__sndPair(head)), 
+										() -> {
+											(callback) -> {
+												callback(
+													() -> {
+														(callback) -> {
+															callback(__core__fstPair(head), __core__sndPair(head))
+														}
+													},
+													true
+												)
+											}
+										}, 
 										() -> {recurse(recurse, __core__tailList(self), fn)}
 									)()
 								}(__core__headList(self))
@@ -22680,7 +22773,33 @@ function makeRawFunctions() {
 					__core__mapData(__helios__common__map(self, fn, __core__mkNilPairData(())))
 				}(
 					(pair) -> {
-						fn(__core__fstPair(pair), __core__sndPair(pair))
+						(mapped_pair) -> {
+							mapped_pair(
+								(key, value) -> {
+									__core__mkPairData(key, value)
+								}
+							)
+						}(fn(__core__fstPair(pair), __core__sndPair(pair)))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__map__map_to_bool",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__core__mapData(__helios__common__map(self, fn, __core__mkNilPairData(())))
+				}(
+					(pair) -> {
+						(mapped_pair) -> {
+							mapped_pair(
+								(key, value) -> {
+									__core__mkPairData(key, __helios__common__boolData(value))
+								}
+							)
+						}(fn(__core__fstPair(pair), __core__sndPair(pair)))
 					}
 				)
 			}
@@ -22980,7 +23099,42 @@ function makeRawFunctions() {
 	`(self) -> {
 		(fn) -> {
 			(fn) -> {
-				__helios__map__find(self)(fn)
+				(result) -> {
+					(callback) -> {
+						result((key, value) -> {
+							callback(key, __helios__common__unBoolData(value))
+						})
+					}
+				}(__helios__map__find(self)(fn))
+			}(
+				(fst, snd) -> {
+					fn(fst, __helios__common__unBoolData(snd))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__find_safe",
+	`(self) -> {
+		(fn) -> {
+			(fn) -> {
+				(resultok) -> {
+					(callback) -> {
+						resultok((result, ok) -> {
+							callback(
+								() -> {
+									(inner_callback) -> {
+										result()(
+											(key, value) -> {
+												inner_callback(key, __helios__common__unBoolData(value))
+											}
+										)
+									}
+								}, 
+								ok
+							)
+						})
+					}
+				}(__helios__map__find_safe(self)(fn))
 			}(
 				(fst, snd) -> {
 					fn(fst, __helios__common__unBoolData(snd))
@@ -23045,13 +23199,43 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__boolmap__map",
 	`(self) -> {
-		(fn) -> {
-			__helios__map__map(self)(
-				(key, value) -> {
-					fn(key, __helios__common__unBoolData(value))
-				}
-			)
-		}
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__core__mapData(__helios__common__map(self, fn, __core__mkNilPairData(())))
+				}(
+					(pair) -> {
+						(mapped_pair) -> {
+							mapped_pair(
+								(key, value) -> {
+									__core__mkPairData(key, value)
+								}
+							)
+						}(fn(__core__fstPair(pair), __helios__common__unBoolData(__core__sndPair(pair))))
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__boolmap__map_to_bool",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(fn) -> {
+					__core__mapData(__helios__common__map(self, fn, __core__mkNilPairData(())))
+				}(
+					(pair) -> {
+						(mapped_pair) -> {
+							mapped_pair(
+								(key, value) -> {
+									__core__mkPairData(key, __helios__common__boolData(value))
+								}
+							)
+						}(fn(__core__fstPair(pair), __helios__common__unBoolData(__core__sndPair(pair))))
+					}
+				)
+			}
+		}(__core__unMapData(self))
 	}`));
 	add(new RawFunc("__helios__boolmap__map_keys", "__helios__map__map_keys"));
 	add(new RawFunc("__helios__boolmap__map_values",
@@ -23226,6 +23410,10 @@ function makeRawFunctions() {
 	
 	// Hash builtins
 	addDataFuncs("__helios__hash");
+	add(new RawFunc("__helios__hash____lt", "__helios__bytearray____lt"));
+	add(new RawFunc("__helios__hash____leq", "__helios__bytearray____leq"));
+	add(new RawFunc("__helios__hash____gt", "__helios__bytearray____gt"));
+	add(new RawFunc("__helios__hash____geq", "__helios__bytearray____geq"));
 	add(new RawFunc("__helios__hash__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__hash__show", "__helios__bytearray__show"));
 	add(new RawFunc("__helios__hash__CURRENT", "__core__bData(#0000000000000000000000000000000000000000000000000000000000000000)"));
@@ -23638,6 +23826,34 @@ function makeRawFunctions() {
 
 	// TxId builtins
 	addDataFuncs("__helios__txid");
+	add(new RawFunc("__helios__txid__bytes",
+	`(self) -> {
+		__core__headList(__core__sndPair(__core__unConstrData(self)))
+	}`));
+	add(new RawFunc("__helios__txid____lt", 
+	`(self) -> {
+		(other) -> {
+			__helios__bytearray____lt(__helios__txid__bytes(self))(__helios__txid__bytes(other))
+		}
+	}`));
+	add(new RawFunc("__helios__txid____leq", 
+	`(self) -> {
+		(other) -> {
+			__helios__bytearray____leq(__helios__txid__bytes(self))(__helios__txid__bytes(other))
+		}
+	}`));
+	add(new RawFunc("__helios__txid____gt", 
+	`(self) -> {
+		(other) -> {
+			__helios__bytearray____gt(__helios__txid__bytes(self))(__helios__txid__bytes(other))
+		}
+	}`));
+	add(new RawFunc("__helios__txid____geq", 
+	`(self) -> {
+		(other) -> {
+			__helios__bytearray____geq(__helios__txid__bytes(self))(__helios__txid__bytes(other))
+		}
+	}`));
 	add(new RawFunc("__helios__txid__new",
 	`(bytes) -> {
 		__core__constrData(0, __helios__common__list_1(bytes)) 
@@ -23776,6 +23992,56 @@ function makeRawFunctions() {
 
 	// TxOutputId
 	addDataFuncs("__helios__txoutputid");
+	add(new RawFunc("__helios__txoutputid__txid", "__helios__common__field_0"));
+	add(new RawFunc("__helios__txoutputid__index", "__helios__common__field_1"));
+	add(new RawFunc("__helios__txoutputid__comp", 
+	`(self, other, comp_txid, comp_index) -> {
+		(a_txid, a_index) -> {
+			(b_txid, b_index) -> {
+				__core__ifThenElse(
+					comp_txid(a_txid)(b_txid),
+					() -> {
+						true
+					},
+					() -> {
+						__core__ifThenElse(
+							__core__equalsData(a_txid, b_txid),
+							() -> {
+								comp_index(a_index)(b_index)
+							},
+							() -> {
+								false
+							}
+						)()
+					}
+				)()
+			}(__helios__txoutputid__txid(other), __helios__txoutputid__index(other))
+		}(__helios__txoutputid__txid(self), __helios__txoutputid__index(self))
+	}`));
+	add(new RawFunc("__helios__txoutputid____lt", 
+	`(self) -> {
+		(other) -> {
+			__helios__txoutputid__comp(self, other, __helios__txid____lt, __helios__int____lt)
+		}
+	}`));
+	add(new RawFunc("__helios__txoutputid____leq", 
+	`(self) -> {
+		(other) -> {
+			__helios__txoutputid__comp(self, other, __helios__txid____leq, __helios__int____leq)
+		}
+	}`));
+	add(new RawFunc("__helios__txoutputid____gt", 
+	`(self) -> {
+		(other) -> {
+			__helios__txoutputid__comp(self, other, __helios__txid____gt, __helios__int____gt)
+		}
+	}`));
+	add(new RawFunc("__helios__txoutputid____geq", 
+	`(self) -> {
+		(other) -> {
+			__helios__txoutputid__comp(self, other, __helios__txid____geq, __helios__int____geq)
+		}
+	}`));
 	add(new RawFunc("__helios__txoutputid__new",
 	`(tx_id, idx) -> {
 		__core__constrData(0, __helios__common__list_2(tx_id, idx))
@@ -25112,6 +25378,7 @@ class IRExpr extends Token {
 	}
 
 	/**
+	 * isVariable() should be used to check if a IRNameExpr.variable is equal to a IRVariable (includes special handling of "__core*")
 	 * @type {IRVariable}
 	 */
 	get variable() {
@@ -25119,6 +25386,18 @@ class IRExpr extends Token {
 			throw new Error("variable should be set");
 		} else {
 			return this.#variable;
+		}
+	}
+
+	/**
+	 * @param {IRVariable} ref 
+	 * @returns {boolean}
+	 */
+	isVariable(ref) {
+		if (this.#name.value.startsWith("__core")) {
+			return false;
+		} else {
+			return this.variable === ref;
 		}
 	}
 
@@ -25152,17 +25431,7 @@ class IRExpr extends Token {
 	 * @returns {number}
 	 */
 	countRefs(ref) {
-		if (this.name.startsWith("__core")) {
-			return 0;
-		} else if (this.#variable === null) {
-			throw new Error("variable should be set");
-		} else {
-			if (ref === this.#variable) {
-				return 1;
-			} else {
-				return 0;
-			}
-		}
+		return this.isVariable(ref) ? 1 : 0;
 	}
 
 	/**
@@ -25218,13 +25487,7 @@ class IRExpr extends Token {
 	 * @returns {?IRExpr}
 	 */
 	wrapCall(ref, builtinName) {
-		if (this.name.startsWith("__core")) {
-			return this;
-		} else if (ref === this.variable) {
-			return null;
-		} else {
-			return this;
-		}
+		return this.isVariable(ref) ? null : this;
 	}
 
 	/**
@@ -25232,13 +25495,7 @@ class IRExpr extends Token {
 	 * @returns {?IRExpr}
 	 */
 	flattenCall(ref) {
-		if (this.name.startsWith("__core")) {
-			return this;
-		} else if (ref === this.variable) {
-			return null;
-		} else {
-			return this;
-		}
+		return this.isVariable(ref) ? null : this;
 	}
 
 	/**
@@ -25867,7 +26124,7 @@ class IRCallExpr extends IRExpr {
 		let args = super.wrapCallArgs(ref, builtinName);
 
 		if (args !== null) {
-			if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.variable === ref) {
+			if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.isVariable(ref)) {
 				let res = new IRCoreCallExpr(
 					new Word(this.parensSite, `__core__${builtinName}`), 
 					[new IRUserCallExpr(this.#fnExpr, args, this.parensSite)], 
@@ -25894,9 +26151,9 @@ class IRCallExpr extends IRExpr {
 	 * @returns {?IRExpr}
 	 */
 	flattenCall(ref) {
-		if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.variable === ref) {
+		if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.isVariable(ref)) {
 			return null;
-		} else if (this.#fnExpr instanceof IRUserCallExpr && this.#fnExpr.fnExpr instanceof IRNameExpr && this.#fnExpr.fnExpr.variable === ref) {
+		} else if (this.#fnExpr instanceof IRUserCallExpr && this.#fnExpr.fnExpr instanceof IRNameExpr && this.#fnExpr.fnExpr.isVariable(ref)) {
 			let allArgs = this.#fnExpr.argExprs.concat(this.argExprs);
 
 			let argsf = [];
@@ -26289,7 +26546,7 @@ class IRCallExpr extends IRExpr {
 						let verify = [];
 
 						let fnBody_ = fnBody.walk((expr) => {
-							if (expr instanceof IRCoreCallExpr && expr.isCast() && expr.argExprs[0] instanceof IRNameExpr && expr.argExprs[0].variable === a) {
+							if (expr instanceof IRCoreCallExpr && expr.isCast() && expr.argExprs[0] instanceof IRNameExpr && expr.argExprs[0].isVariable(a)) {
 								if (castName == "" || castName == expr.builtinName) {
 									castName = expr.builtinName;
 									okList.add(expr.argExprs[0]);
@@ -26298,7 +26555,7 @@ class IRCallExpr extends IRExpr {
 									ok = false; // different casts, don't extract  anything for this arg
 									return expr;
 								}
-							} else if (expr instanceof IRNameExpr && !expr.name.startsWith("__core") && expr.variable === a) {
+							} else if (expr instanceof IRNameExpr && expr.isVariable(a)) {
 								// make sure that expr is surrounded by IRCoreCallExpr
 								verify.push(expr);
 
@@ -26322,7 +26579,7 @@ class IRCallExpr extends IRExpr {
 
 							// now try to replace every jth arg of a call to fn
 							let fnExpr_ = fnExpr.walk((expr) => {
-								if (expr instanceof IRUserCallExpr && expr.fnExpr instanceof IRNameExpr && expr.fnExpr.variable === refs[i]) {
+								if (expr instanceof IRUserCallExpr && expr.fnExpr instanceof IRNameExpr && expr.fnExpr.isVariable(refs[i])) {
 									// replace the j arg with castName(...)
 									let callArgs = expr.argExprs.slice();
 									callArgs[j] = new IRCoreCallExpr(new Word(callArgs[j].site, `__core__${castName}`), [callArgs[j]], callArgs[j].site);
@@ -26330,7 +26587,7 @@ class IRCallExpr extends IRExpr {
 									okList.add(expr.fnExpr);
 
 									return new IRUserCallExpr(expr.fnExpr, callArgs, expr.parensSite);
-								} else if (expr instanceof IRNameExpr && !expr.name.startsWith("__core") && expr.variable === refs[i]) {
+								} else if (expr instanceof IRNameExpr && expr.isVariable(refs[i])) {
 									verify.push(expr);
 									return expr;
 								} else {

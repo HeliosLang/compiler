@@ -2030,7 +2030,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_all_keys
         func main(a: Map[Int]Int) -> Bool {
-            a.all_keys((k: Int) -> Bool {
+            a.all((k: Int, _) -> Bool {
                 k > 0
             })
         }`, ([a], res) => (a.data.map.every(([k, _]) => asInt(k) > 0n)) === asBool(res));
@@ -2038,7 +2038,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_all_values
         func main(a: Map[Int]Int) -> Bool {
-            a.all_values((v: Int) -> Bool {
+            a.all((_, v: Int) -> Bool {
                 v > 0
             })
         }`, ([a], res) => (a.data.map.every(([_, v]) => asInt(v) > 0n)) === asBool(res));
@@ -2054,7 +2054,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_any_key
         func main(a: Map[Int]Int) -> Bool {
-            a.any_key((k: Int) -> Bool {
+            a.any((k: Int, _) -> Bool {
                 k > 0
             })
         }`, ([a], res) => (a.data.map.some(([k, _]) => asInt(k) > 0n)) === asBool(res));
@@ -2062,7 +2062,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_any_value
         func main(a: Map[Int]Int) -> Bool {
-            a.any_value((v: Int) -> Bool {
+            a.any((_, v: Int) -> Bool {
                 v > 0
             })
         }`, ([a], res) => (a.data.map.some(([_, v]) => asInt(v) > 0n)) === asBool(res));
@@ -2078,7 +2078,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_filter_by_key
         func main(a: Map[Int]Int) -> Map[Int]Int {
-            a.filter_by_key((k: Int) -> Bool {
+            a.filter((k: Int, _) -> Bool {
                 k > 0
             })
         }`, ([_], res) => res.data.map.every(([k, _]) => asInt(k) > 0n));
@@ -2086,7 +2086,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_filter_by_value
         func main(a: Map[Int]Int) -> Map[Int]Int {
-            a.filter_by_value((v: Int) -> Bool {
+            a.filter((_, v: Int) -> Bool {
                 v > 0
             })
         }`, ([_], res) => res.data.map.every(([_, v]) => asInt(v) > 0n));
@@ -2109,7 +2109,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_fold_keys
         func main(a: Map[Int]Int) -> Int {
-            a.fold_keys((prev: Int, k: Int) -> Int {
+            a.fold((prev: Int, k: Int, _) -> Int {
                 prev + k
             }, 0)
         }`, ([a], res) => {
@@ -2124,7 +2124,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_fold_values
         func main(a: Map[Int]Int) -> Int {
-            a.fold_values((prev: Int, v: Int) -> Int {
+            a.fold((prev: Int, _, v: Int) -> Int {
                 prev + v
             }, 0)
         }`, ([a], res) => {
@@ -2154,7 +2154,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_fold_keys_lazy
         func main(a: Map[Int]Int) -> Int {
-            a.fold_keys_lazy((k: Int, next: () -> Int) -> Int {
+            a.fold_lazy((k: Int, _, next: () -> Int) -> Int {
                 k + next()
             }, 0)
         }`, ([a], res) => {
@@ -2169,7 +2169,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_fold_values_lazy
         func main(a: Map[Int]Int) -> Int {
-            a.fold_values_lazy((v: Int, next: () -> Int) -> Int {
+            a.fold_lazy((_, v: Int, next: () -> Int) -> Int {
                 v + next()
             }, 0)
         }`, ([a], res) => {
@@ -2208,19 +2208,19 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(0, 10), ft.int())], `
         testing map_find_by_key
         func main(a: Map[Int]Int) -> Map[Int]Int {
-            a.find_by_key((k: Int) -> Bool {k == 0})
+            (k: Int, v: Int) = a.find((k: Int, _) -> Bool {k == 0}); Map[Int]Int{k: v}
         }`, ([a], res) => {
             if (a.data.map.some(([k, _]) => asInt(k) == 0n)) {
                 return res.data.map.length == 1 && asInt(res.data.map[0][0]) === 0n;
             } else {
-                return res.data.map.length == 0;
+                return isError(res, "not found");
             }
         });
 
         await ft.test([ft.map(ft.int(0, 10), ft.int())], `
         testing map_find_value
         func main(a: Map[Int]Int) -> Int {
-            a.find_value((v: Int) -> Bool {v == 0})
+            (_, v: Int) = a.find((_, v: Int) -> Bool {v == 0}); v
         }`, ([a], res) => {
             if (a.data.map.some(([_, v]) => asInt(v) == 0n)) {
                 return asInt(res) === 0n;
@@ -2232,7 +2232,13 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(0, 10), ft.int())], `
         testing map_find_value_safe
         func main(a: Map[Int]Int) -> Option[Int] {
-            a.find_value_safe((v: Int) -> Bool {v == 0})
+            (result: () -> (Int, Int), ok: Bool) = a.find_safe((_, v: Int) -> Bool {v == 0}); 
+            if (ok) {
+                (_, v: Int) = result(); 
+                Option[Int]::Some{v}
+            } else {
+                Option[Int]::None
+            }
         }`, ([a], res) => {            
             if (a.data.map.some(([_, v]) => asInt(v) == 0n)) {
                 return res.data.index == 0 && asInt(res.data.fields[0]) === 0n;
@@ -2244,7 +2250,13 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(0, 10), ft.int())], `
         testing map_find_by_value
         func main(a: Map[Int]Int) -> Map[Int]Int {
-            a.find_by_value((v: Int) -> Bool {v == 0})
+            (result: () -> (Int, Int), ok: Bool) = a.find_safe((_, v: Int) -> Bool {v == 0});
+            if (ok) {
+                (k: Int, v: Int) = result();
+                Map[Int]Int{k: v}
+            } else {
+                Map[Int]Int{}
+            }
         }`, ([a], res) => {
             if (a.data.map.some(([_, v]) => asInt(v) == 0n)) {
                 return res.data.map.length == 1 && asInt(res.data.map[0][1]) === 0n;
@@ -2256,8 +2268,8 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_map_keys
         func main(a: Map[Int]Int) -> Map[Int]Int {
-            a.map_keys((key: Int) -> Int {
-                key*2
+            a.map((key: Int, value: Int) -> (Int, Int) {
+                (key*2, value)
             })
         }`, ([a], res) => {
             let lRes = res.data.map;
@@ -2270,8 +2282,8 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_map_values
         func main(a: Map[Int]Int) -> Map[Int]Int {
-            a.map_values((value: Int) -> Int {
-                value*2
+            a.map((key: Int, value: Int) -> (Int, Int) {
+                (key, value*2)
             })
         }`, ([a], res) => {
             let lRes = res.data.map;
@@ -2284,8 +2296,8 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_map_values_to_bool
         func main(a: Map[Int]Int) -> Map[Int]Bool {
-            a.map_values((value: Int) -> Bool {
-                value >= 0
+            a.map((key: Int, value: Int) -> (Int, Bool) {
+                (key, value >= 0)
             })
         }`, ([a], res) => {
             let lRes = res.data.map;
@@ -2336,24 +2348,6 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_sort_by_key
         func main(m: Map[Int]Int) -> Map[Int]Int {
-            m.sort_by_key((a: Int, b: Int) -> Bool {
-                a < b
-            })
-        }`, ([_], res) => {
-            return res.data.map.every(([k, _], i) => {
-                if (i > 0) {
-                    let [kPrev, _] = res.data.map[i-1];
-
-                    return asInt(kPrev) <= asInt(k);
-                } else {
-                    return true;
-                }
-            });
-        });
-
-        await ft.test([ft.map(ft.int(), ft.int())], `
-        testing map_sort_by_key_alt
-        func main(m: Map[Int]Int) -> Map[Int]Int {
             m.sort((a: Int, _, b: Int, _) -> Bool {
                 a < b
             })
@@ -2372,7 +2366,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_sort_by_value
         func main(m: Map[Int]Int) -> Map[Int]Int {
-            m.sort_by_value((a: Int, b: Int) -> Bool {
+            m.sort((_, a: Int, _, b: Int) -> Bool {
                 a < b
             })
         }`, ([_], res) => {
@@ -2503,7 +2497,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_all_keys
         func main(a: Map[Int]Bool) -> Bool {
-            a.all_keys((k: Int) -> Bool {
+            a.all((k: Int, _) -> Bool {
                 k > 0
             })
         }`, ([a], res) => (a.data.map.every(([k, _]) => asInt(k) > 0n)) === asBool(res));
@@ -2511,7 +2505,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_all_values
         func main(a: Map[Int]Bool) -> Bool {
-            a.all_values((v: Bool) -> Bool {
+            a.all((_, v: Bool) -> Bool {
                 v.to_int() > 0
             })
         }`, ([a], res) => (a.data.map.every(([_, v]) => constrIndex(v) > 0)) === asBool(res));
@@ -2527,7 +2521,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_any_key
         func main(a: Map[Int]Bool) -> Bool {
-            a.any_key((k: Int) -> Bool {
+            a.any((k: Int, _) -> Bool {
                 k > 0
             })
         }`, ([a], res) => (a.data.map.some(([k, _]) => asInt(k) > 0n)) === asBool(res));
@@ -2535,7 +2529,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_any_value
         func main(a: Map[Int]Bool) -> Bool {
-            a.any_value((v: Bool) -> Bool {
+            a.any((_, v: Bool) -> Bool {
                 v.to_int() > 0
             })
         }`, ([a], res) => (a.data.map.some(([_, v]) => constrIndex(v) > 0)) === asBool(res));
@@ -2551,7 +2545,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_filter_by_key
         func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.filter_by_key((k: Int) -> Bool {
+            a.filter((k: Int, _) -> Bool {
                 k > 0
             })
         }`, ([_], res) => res.data.map.every(([k, _]) => asInt(k) > 0n));
@@ -2559,7 +2553,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_filter_by_value
         func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.filter_by_value((v: Bool) -> Bool {
+            a.filter((_, v: Bool) -> Bool {
                 v.to_int() > 0
             })
         }`, ([_], res) => res.data.map.every(([_, v]) => constrIndex(v) > 0));
@@ -2567,23 +2561,30 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_find
         func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.find((k: Int, v: Bool) -> Bool {
+            (k: Int, v: Bool) = a.find((k: Int, v: Bool) -> Bool {
                 k < v.to_int()
-            })
+            }); 
+            Map[Int]Bool{k: v}
         }`, ([a], res) => {
             if (a.data.map.some(([k, v]) => asInt(k) < BigInt(constrIndex(v)))) {
                 return res.data.map.length == 1;
             } else {
-                return res.data.map.length == 0;
+                return isError(res, "not found");
             }
         });
 
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_find_by_key
         func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.find_by_key((k: Int) -> Bool {
+            (result: () -> (Int, Bool), ok: Bool) = a.find_safe((k: Int, _) -> Bool {
                 k > 0
-            })
+            });
+            if (ok) {
+                (k: Int, v: Bool) = result();
+                Map[Int]Bool{k: v}
+            } else {
+                Map[Int]Bool{}
+            }
         }`, ([a], res) => {
             if (a.data.map.some(([k, _]) => asInt(k) > 0n)) {
                 return res.data.map.length == 1;
@@ -2619,9 +2620,15 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_find_by_value
         func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.find_by_value((v: Bool) -> Bool {
+            (result: () -> (Int, Bool), ok: Bool) = a.find_safe((_, v: Bool) -> Bool {
                 v.to_int() > 0
-            })
+            });
+            if (ok) {
+                (k: Int, v: Bool) = result();
+                Map[Int]Bool{k: v}
+            } else {
+                Map[Int]Bool{}
+            }
         }`, ([a], res) => {
             if (a.data.map.some(([_, v]) => constrIndex(v) > 0)) {
                 return res.data.map.length == 1;
@@ -2672,7 +2679,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_fold_keys
         func main(a: Map[Int]Bool) -> Int {
-            a.fold_keys((prev: Int, k: Int) -> Int {
+            a.fold((prev: Int, k: Int, _) -> Int {
                 prev + k
             }, 0)
         }`, ([a], res) => {
@@ -2687,7 +2694,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_fold_values
         func main(a: Map[Int]Bool) -> Int {
-            a.fold_values((prev: Int, v: Bool) -> Int {
+            a.fold((prev: Int, _, v: Bool) -> Int {
                 prev + v.to_int()
             }, 0)
         }`, ([a], res) => {
@@ -2717,7 +2724,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_fold_keys_lazy
         func main(a: Map[Int]Bool) -> Int {
-            a.fold_keys_lazy((k: Int, next: () -> Int) -> Int {
+            a.fold_lazy((k: Int, _, next: () -> Int) -> Int {
                 k + next()
             }, 0)
         }`, ([a], res) => {
@@ -2732,7 +2739,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_fold_values_lazy
         func main(a: Map[Int]Bool) -> Int {
-            a.fold_values_lazy((v: Bool, next: () -> Int) -> Int {
+            a.fold_lazy((_, v: Bool, next: () -> Int) -> Int {
                 v.to_int() + next()
             }, 0)
         }`, ([a], res) => {
@@ -2755,8 +2762,8 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_map_keys
         func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.map_keys((key: Int) -> Int {
-                key*2
+            a.map((key: Int, value: Bool) -> (Int, Bool) {
+                (key*2, value)
             })
         }`, ([a], res) => {
             let lRes = res.data.map;
@@ -2769,8 +2776,8 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_map_values
         func main(a: Map[Int]Bool) -> Map[Int]Int {
-            a.map_values((value: Bool) -> Int {
-                if (value) {1} else {0}
+            a.map((key: Int, value: Bool) -> (Int, Int) {
+                (key, if (value) {1} else {0})
             })
         }`, ([a], res) => {
             let lRes = res.data.map;
@@ -2783,8 +2790,8 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_map_values_to_bool
         func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.map_values((value: Bool) -> Bool {
-                !value
+            a.map((key: Int, value: Bool) -> (Int, Bool) {
+                (key, !value)
             })
         }`, ([a], res) => {
             let lRes = res.data.map;
