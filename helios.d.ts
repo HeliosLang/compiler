@@ -66,7 +66,7 @@ export function deserializeUplcBytes(bytes: number[]): UplcProgram;
  * @returns {UplcProgram}
  */
 export function deserializeUplc(jsonString: string): UplcProgram;
-export const VERSION: "0.9.12";
+export const VERSION: "0.9.13";
 /**
  * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
  * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
@@ -2786,9 +2786,9 @@ declare class FuncStatement extends Statement {
      */
     get argTypeNames(): string[];
     /**
-     * @type {Type}
+     * @type {Type[]}
      */
-    get retType(): Type;
+    get retTypes(): Type[];
     /**
      * Evaluates a function and returns a func value
      * @param {Scope} scope
@@ -3745,10 +3745,10 @@ declare class Scope {
  */
 declare class Instance extends EvalEntity {
     /**
-     * @param {Type} type
+     * @param {Type | Type[]} type
      * @returns {Instance}
      */
-    static new(type: Type): Instance;
+    static new(type: Type | Type[]): Instance;
 }
 /**
  * Function type with arg types and a return type
@@ -3756,12 +3756,12 @@ declare class Instance extends EvalEntity {
 declare class FuncType extends Type {
     /**
      * @param {Type[]} argTypes
-     * @param {Type} retType
+     * @param {Type | Type[]} retTypes
      */
-    constructor(argTypes: Type[], retType: Type);
+    constructor(argTypes: Type[], retTypes: Type | Type[]);
     get nArgs(): number;
     get argTypes(): Type[];
-    get retType(): Type;
+    get retTypes(): Type[];
     /**
      * Checks if the type of the first arg is the same as 'type'
      * Also returns false if there are no args.
@@ -3784,9 +3784,9 @@ declare class FuncType extends Type {
      * Throws errors if not valid. Returns the return type if valid.
      * @param {Site} site
      * @param {Instance[]} args
-     * @returns {Type}
+     * @returns {Type[]}
      */
-    checkCall(site: Site, args: Instance[]): Type;
+    checkCall(site: Site, args: Instance[]): Type[];
     #private;
 }
 /**
@@ -3796,10 +3796,10 @@ declare class FuncLiteralExpr extends ValueExpr {
     /**
      * @param {Site} site
      * @param {FuncArg[]} args
-     * @param {TypeExpr} retTypeExpr
+     * @param {TypeExpr[]} retTypeExprs
      * @param {ValueExpr} bodyExpr
      */
-    constructor(site: Site, args: FuncArg[], retTypeExpr: TypeExpr, bodyExpr: ValueExpr);
+    constructor(site: Site, args: FuncArg[], retTypeExprs: TypeExpr[], bodyExpr: ValueExpr);
     /**
      * @type {Type[]}
      */
@@ -3809,9 +3809,9 @@ declare class FuncLiteralExpr extends ValueExpr {
      */
     get argTypeNames(): string[];
     /**
-     * @type {Type}
+     * @type {Type[]}
      */
-    get retType(): Type;
+    get retTypes(): Type[];
     /**
      * @param {Scope} scope
      * @returns
@@ -4523,6 +4523,11 @@ declare class NameTypePair {
      * @type {Word}
      */
     get name(): Word;
+    isIgnored(): boolean;
+    /**
+     * @returns {boolean}
+     */
+    hasType(): boolean;
     /**
      * Throws an error if called before evalType()
      * @type {Type}
