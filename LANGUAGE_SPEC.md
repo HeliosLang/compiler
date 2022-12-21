@@ -26,9 +26,9 @@ StructStatement ::= 'struct' Word '{' DataDefinition [ImplDefinition] '}'
 
 DataDefinition ::= DataField (DataField)*
 
-DataField ::= NameTypePair
+DataField ::= Word ':' TypeExpr
 
-NameTypePair ::= Word ':' TypeExpr
+NameTypePair ::= (Identifier [':' TypeExpr]) | '_'
 
 EnumStatement ::= 'enum' Identifier '{' EnumMember (EnumMember)* [ImplDefinition] '}'
 
@@ -40,15 +40,17 @@ ImplMember ::= ConstStatement | FuncStatement
 
 ConstStatement ::= 'const' Identifier [':' TypeExpr] '=' ValueExpr
 
-FuncStatement ::= 'func' Identifier '(' [('self' | FuncArg) (',' FuncArg)*] ')' '->' TypeExpr '{' ValueExpr '}'
+FuncStatement ::= 'func' Identifier '(' [('self' | FuncArg) (',' FuncArg)*] ')' '->' RetTypeExpr '{' ValueExpr '}'
 
 FuncArg ::= NameTypePair
 
 TypeExpr ::= NonFuncTypeExpr | FuncTypeExpr
 
+RetTypeExpr ::= TypeExpr | ( '(' TypeExpr ',' TypeExpr (',' TypeExpr)* ')' )
+
 NonFuncTypeExpr ::= TypeRefExpr | TypePathExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr
 
-FuncTypeExpr ::= '(' [TypeExpr (',' TypeExpr)*] ')' '->' TypeExpr
+FuncTypeExpr ::= '(' [TypeExpr (',' TypeExpr)*] ')' '->' RetTypeExpr
 
 TypeRefExpr ::= Identifier
 
@@ -60,7 +62,7 @@ MapTypeExpr ::= 'Map' '[' NonFuncTypeExpr ']' NonFuncTypeExpr
 
 OptionTypeExpr ::= 'Option' '[' NonFuncTypeExpr ']'
 
-ValueExpr ::= AssignExpr | PrintExpr | LiteralExpr | ValueRefExpr | ValuePathExpr | UnaryExpr | BinaryExpr | ParensExpr | CallExpr | MemberExpr | IfElseExpr | SwitchExpr
+ValueExpr ::= AssignExpr | MultiAssignExpr | PrintExpr | LiteralExpr | ValueRefExpr | ValuePathExpr | UnaryExpr | BinaryExpr | ParensExpr | CallExpr | MemberExpr | IfElseExpr | SwitchExpr
 
 LiteralExpr ::= PrimitiveLiteralExpr | StructLiteralExpr | ListLiteralExpr | MapLiteralExpr | FuncLiteralExpr
 
@@ -96,7 +98,9 @@ UnaryExpr ::= UnaryOp ValueExpr
 
 UnaryOp ::= '-' | '+' | '!'
 
-AssignExpr ::= Identifier [':' TypeExpr] '=' ValueExpr ';' ValueExpr
+AssignExpr ::= (Identifier [':' TypeExpr] '=' ValueExpr ';' ValueExpr
+
+MultiAssignExpr ::= '(' NameTypePair ',' NameTypePair (',' NameTypePair)* ')' '=' ValueExpr ';' ValueExpr
 
 PrintExpr ::= 'print' '(' ValueExpr ')' ';' ValueExpr
 
@@ -116,7 +120,7 @@ CallExpr ::= ValueExpr '(' [ValueExpr (',' ValueExpr)*] ')';
 
 MemberExpr ::= ValueExpr '.' Word
 
-ParensExpr ::= '(' ValueExpr ')'
+ParensExpr ::= '(' [ValueExpr (',' ValueExpr)*] ')'
 
 ValuePathExpr ::= NonFuncTypeExpr '::' Word
 
@@ -188,7 +192,7 @@ internal ns: __helios__string
 ## ByteArray
 ```
 associated:  from_data
-operators:   __eq, __neq, __add
+operators:   __eq, __neq, __add, __lt, __leq, __gt, __geq
 getters:     length
 methods:     serialize, slice, starts_with, ends_with, sha2, sha3, blake2b, decode_utf8, show
 internal ns: __helios__bytearray
@@ -210,7 +214,7 @@ operators:   __eq, __neq, __add
 getters:     length, head_key, head_value, tail
 methods:     serialize, is_empty, get, get_safe, set, delete, all, all_keys, all_values, any, any_key, any_value, 
              filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values, 
-             fold_lazy, fold_keys_lazy, fold_values_lazy, map_keys, map_values, 
+             fold_lazy, fold_keys_lazy, fold_values_lazy, map_keys, map_values, prepend
              sort, sort_by_key, sort_by_value, find, find_key, find_key_safe, find_by_key, find_value, find_value_safe, find_by_value
 internal ns: __helios__map
 ```

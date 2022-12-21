@@ -78,7 +78,7 @@
 //     8. Type evaluation entities          EvalEntity, Type, AnyType, DataType, AnyDataType, 
 //                                          BuiltinType, BuiltinEnumMember, 
 //                                          StatementType, FuncType, Instance, DataInstance, 
-//                                          FuncInstance, FuncStatementInstance
+//                                          FuncInstance, FuncStatementInstance, MultiInstance
 //
 //     9. Scopes                            GlobalScope, Scope, TopScope, FuncStatementScope
 //
@@ -106,9 +106,9 @@
 //                                          buildEnumStatement, buildEnumMember, 
 //                                          buildImplDefinition, buildImplMembers, buildTypeExpr, 
 //                                          buildListTypeExpr, buildMapTypeExpr, 
-//                                          buildOptionTypeExpr, buildFuncTypeExpr, 
-//                                          buildTypePathExpr, buildTypeRefExpr, 
-//                                          buildValueExpr, buildMaybeAssignOrPrintExpr, 
+//                                          buildOptionTypeExpr, buildFuncTypeExpr, buildFuncRetTypeExprs,
+//                                          buildTypePathExpr, buildTypeRefExpr, buildParensExpr,
+//                                          buildValueExpr, buildMaybeAssignOrPrintExpr, buildAssignLhs,
 //                                          makeBinaryExprBuilder, makeUnaryExprBuilder, 
 //                                          buildChainedValueExpr, buildChainStartValueExpr, 
 //                                          buildCallArgs, buildIfElseExpr, buildSwitchExpr, 
@@ -10304,16 +10304,21 @@ class StatementType extends DataType {
  */
 class FuncType extends Type {
 	#argTypes;
-	#retType;
+	#retTypes;
 
 	/**
 	 * @param {Type[]} argTypes 
-	 * @param {Type} retType 
+	 * @param {Type | Type[]} retTypes 
 	 */
-	constructor(argTypes, retType) {
+	constructor(argTypes, retTypes) {
 		super();
 		this.#argTypes = argTypes;
-		this.#retType = retType;
+
+		if (!Array.isArray(retTypes)) {
+			retTypes = [retTypes];
+		}
+
+		this.#retTypes = retTypes;
 	}
 
 	get nArgs() {
@@ -10324,15 +10329,19 @@ class FuncType extends Type {
 		return this.#argTypes.slice();
 	}
 
-	get retType() {
-		return this.#retType;
+	get retTypes() {
+		return this.#retTypes;
 	}
 
 	/**
 	 * @returns {string}
 	 */
 	toString() {
-		return `(${this.#argTypes.map(a => a.toString()).join(", ")}) -> ${this.#retType.toString()}`;
+		if (this.#retTypes.length === 1) {
+			return `(${this.#argTypes.map(a => a.toString()).join(", ")}) -> ${this.#retTypes.toString()}`;
+		} else {
+			return `(${this.#argTypes.map(a => a.toString()).join(", ")}) -> (${this.#retTypes.map(t => t.toString()).join(", ")})`;
+		}
 	}
 
 	/**
@@ -10365,11 +10374,13 @@ class FuncType extends Type {
 			}
 		}
 
-		if (Type.same(site, type, this.#retType)) {
-			return true;
-		} else {
-			return false;
+		for (let rt of this.#retTypes) {
+			if (Type.same(site, type, rt)) {
+				return true;
+			}
 		}
+
+		return false;
 	}
 
 	/**
@@ -10397,7 +10408,17 @@ class FuncType extends Type {
 					}
 				}
 
-				return this.#retType.isBaseOf(site, type.#retType);
+				if (this.#retTypes.length === type.#retTypes.length) {
+					for (let i = 0; i < this.#retTypes.length; i++) {
+						if (!this.#retTypes[i].isBaseOf(site, type.#retTypes[i])) {
+							return false;
+						}
+					}
+
+					return true;
+				} else {
+					return false;
+				}
 			}
 
 		} else {
@@ -10410,7 +10431,7 @@ class FuncType extends Type {
 	 * Throws errors if not valid. Returns the return type if valid. 
 	 * @param {Site} site 
 	 * @param {Instance[]} args 
-	 * @returns {Type}
+	 * @returns {Type[]}
 	 */
 	checkCall(site, args) {
 		if (this.nArgs != args.length) {
@@ -10423,7 +10444,7 @@ class FuncType extends Type {
 			}
 		}
 
-		return this.#retType;
+		return this.#retTypes;
 	}
 }
 
@@ -10436,11 +10457,17 @@ class Instance extends EvalEntity {
 	}
 
 	/**
-	 * @param {Type} type 
+	 * @param {Type | Type[]} type 
 	 * @returns {Instance}
 	 */
 	static new(type) {
-		if (type instanceof FuncType) {
+		if (Array.isArray(type)) {
+			if (type.length === 1) {
+				return Instance.new(type[0]);
+			} else {
+				return new MultiInstance(type.map(t => Instance.new(t)));
+			}
+		} else if (type instanceof FuncType) {
 			return new FuncInstance(type);
 		} else if (type instanceof ParamType) {
 			return new DataInstance(type.type);
@@ -10735,6 +10762,50 @@ class FuncStatementInstance extends FuncInstance {
 		} else {
 			return scope.isRecursive(this.#statement);
 		}
+	}
+}
+
+class MultiInstance extends Instance {
+	#values;
+
+	/**
+	 * @param {Instance[]} values 
+	 */
+	constructor(values) {
+		super();
+		this.#values = values;
+	}
+
+	get values() {
+		return this.#values;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `(${this.#values.map(v => v.toString()).join(", ")})`;
+	}
+
+	/**
+	 * @param {Instance[]} vals
+	 * @returns {Instance[]}
+	 */
+	static flatten(vals) {
+		/**
+		 * @type {Instance[]}
+		 */
+		let result = [];
+
+		for (let v of vals) {
+			if (v instanceof MultiInstance) {
+				result = result.concat(v.values);
+			} else {
+				result.push(v);
+			}
+		}
+
+		return result;
 	}
 }
 
@@ -11376,24 +11447,28 @@ class OptionTypeExpr extends TypeExpr {
  */
 class FuncTypeExpr extends TypeExpr {
 	#argTypeExprs;
-	#retTypeExpr;
+	#retTypeExprs;
 
 	/**
 	 * @param {Site} site 
 	 * @param {TypeExpr[]} argTypeExprs 
-	 * @param {TypeExpr} retTypeExpr 
+	 * @param {TypeExpr[]} retTypeExprs 
 	 */
-	constructor(site, argTypeExprs, retTypeExpr) {
+	constructor(site, argTypeExprs, retTypeExprs) {
 		super(site);
 		this.#argTypeExprs = argTypeExprs;
-		this.#retTypeExpr = retTypeExpr;
+		this.#retTypeExprs = retTypeExprs;
 	}
 
 	/**
 	 * @returns {string}
 	 */
 	toString() {
-		return `(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExpr.toString()}`;
+		if (this.#retTypeExprs.length === 1) {
+			return `(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExprs.toString()}`;
+		} else {
+			return `(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => e.toString()).join(", ")})`;
+		}
 	}
 
 	/**
@@ -11403,17 +11478,14 @@ class FuncTypeExpr extends TypeExpr {
 	evalInternal(scope) {
 		let argTypes = this.#argTypeExprs.map(a => a.eval(scope));
 
-		let retType = this.#retTypeExpr.eval(scope);
+		let retTypes = this.#retTypeExprs.map(e => e.eval(scope));
 
-		return new FuncType(argTypes, retType);
+		return new FuncType(argTypes, retTypes);
 	}
 
 	use() {
-		for (let arg of this.#argTypeExprs) {
-			arg.use();
-		}
-
-		this.#retTypeExpr.use();
+		this.#argTypeExprs.forEach(arg => arg.use());
+		this.#retTypeExprs.forEach(e => e.use());
 	}
 }
 
@@ -11483,22 +11555,20 @@ class ValueExpr extends Expr {
  * '... = ... ; ...' expression
  */
 class AssignExpr extends ValueExpr {
-	#name;
-	#typeExpr;
+	#nameTypes;
 	#upstreamExpr;
 	#downstreamExpr;
 
 	/**
 	 * @param {Site} site 
-	 * @param {Word} name 
-	 * @param {?TypeExpr} typeExpr - typeExpr can null for type inference (only works for literal rhs though)
+	 * @param {NameTypePair[]} nameTypes 
 	 * @param {ValueExpr} upstreamExpr 
 	 * @param {ValueExpr} downstreamExpr 
 	 */
-	constructor(site, name, typeExpr, upstreamExpr, downstreamExpr) {
+	constructor(site, nameTypes, upstreamExpr, downstreamExpr) {
 		super(site);
-		this.#name = name;
-		this.#typeExpr = typeExpr; // optionally can be null for type inference
+		assert(nameTypes.length > 0);
+		this.#nameTypes = nameTypes;
 		this.#upstreamExpr = assertDefined(upstreamExpr);
 		this.#downstreamExpr = assertDefined(downstreamExpr);
 	}
@@ -11510,11 +11580,11 @@ class AssignExpr extends ValueExpr {
 		let downstreamStr = this.#downstreamExpr.toString();
 		assert(downstreamStr != undefined);
 
-		let typeStr = "";
-		if (this.#typeExpr !== null) {
-			typeStr = `: ${this.#typeExpr.toString()}`;
+		if (this.#nameTypes.length === 1) {
+			return `${this.#nameTypes.toString()} = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
+		} else {
+			return `(${this.#nameTypes.map(nt => nt.toString()).join(", ")}) = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
 		}
-		return `${this.#name.toString()}${typeStr} = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
 	}
 
 	/**
@@ -11526,41 +11596,73 @@ class AssignExpr extends ValueExpr {
 
 		let upstreamVal = this.#upstreamExpr.eval(scope);
 
-		assert(upstreamVal.isValue());
+		if (this.#nameTypes.length > 1) {
+			if (!(upstreamVal instanceof MultiInstance)) {
+				throw this.typeError("rhs ins't a multi-value");
+			} else {
+				let types = this.#nameTypes.map(nt => nt.evalType(scope));
 
-		if (this.#typeExpr !== null) {
-			let type = this.#typeExpr.eval(scope);
+				let vals = upstreamVal.values;
 
-			assert(type.isType());
+				if (types.length != vals.length) {
+					throw this.typeError(`expected ${types.length} rhs in multi-assign, got ${vals.length}`);
+				} else {
+					types.forEach((t, i) => {
+						if (!vals[i].isInstanceOf(this.#upstreamExpr.site, t)) {
+							throw this.#upstreamExpr.typeError(`expected ${t.toString()} for rhs ${i+1}, got ${vals[i].toString()}`);
+						}
+					});
 
-			if (!upstreamVal.isInstanceOf(this.#upstreamExpr.site, type)) {
-				throw this.#upstreamExpr.typeError(`expected ${type.toString()}, got ${upstreamVal.toString()}`);
-			}
+					vals.forEach((v, i) => {
+						if (!this.#nameTypes[i].isIgnored()) {
+							// TODO: take into account ghost type parameters
+							v = Instance.new(types[i]);
 
-			upstreamVal = Instance.new(type);
-		} else if (this.#upstreamExpr.isLiteral()) {
-			// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
-			if ((this.#upstreamExpr instanceof CallExpr &&
-				this.#upstreamExpr.fnExpr instanceof ValuePathExpr) || 
-				(this.#upstreamExpr instanceof ValuePathExpr && 
-				!this.#upstreamExpr.isZeroFieldConstructor())) 
-			{
-				let upstreamType = upstreamVal.getType(this.#upstreamExpr.site);
-
-				if (upstreamType instanceof StatementType && 
-					upstreamType.statement instanceof EnumMember) 
-				{
-					upstreamVal = Instance.new(new StatementType(upstreamType.statement.parent));
-				} else if (upstreamType instanceof BuiltinEnumMember) {
-					upstreamVal = Instance.new(upstreamType.parentType);
+							subScope.set(this.#nameTypes[i].name, v);
+						}
+					});
 				}
 			}
 		} else {
-			throw this.typeError("unable to infer type of assignment rhs");
+			if (!upstreamVal.isValue()) {
+				throw this.typeError("rhs isn't a value");
+			}
+
+			if (this.#nameTypes[0].hasType()) {
+				let type = this.#nameTypes[0].evalType(scope);
+
+				assert(type.isType());
+
+				if (!upstreamVal.isInstanceOf(this.#upstreamExpr.site, type)) {
+					throw this.#upstreamExpr.typeError(`expected ${type.toString()}, got ${upstreamVal.toString()}`);
+				}
+
+				// TODO: take into account ghost type parameters
+				upstreamVal = Instance.new(type);
+			} else if (this.#upstreamExpr.isLiteral()) {
+				// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
+				if ((this.#upstreamExpr instanceof CallExpr &&
+					this.#upstreamExpr.fnExpr instanceof ValuePathExpr) || 
+					(this.#upstreamExpr instanceof ValuePathExpr && 
+					!this.#upstreamExpr.isZeroFieldConstructor())) 
+				{
+					let upstreamType = upstreamVal.getType(this.#upstreamExpr.site);
+
+					if (upstreamType instanceof StatementType && 
+						upstreamType.statement instanceof EnumMember) 
+					{
+						upstreamVal = Instance.new(new StatementType(upstreamType.statement.parent));
+					} else if (upstreamType instanceof BuiltinEnumMember) {
+						upstreamVal = Instance.new(upstreamType.parentType);
+					}
+				}
+			} else {
+				throw this.typeError("unable to infer type of assignment rhs");
+			}
+
+			subScope.set(this.#nameTypes[0].name, upstreamVal);
 		}
 
-		subScope.set(this.#name, upstreamVal);
-		
 		let downstreamVal = this.#downstreamExpr.eval(subScope);
 
 		subScope.assertAllUsed();
@@ -11569,10 +11671,7 @@ class AssignExpr extends ValueExpr {
 	}
 
 	use() {
-		if (this.#typeExpr !== null) {
-			this.#typeExpr.use();
-		}
-
+		this.#nameTypes.forEach(nt => nt.use());
 		this.#upstreamExpr.use();
 		this.#downstreamExpr.use();
 	}
@@ -11583,13 +11682,24 @@ class AssignExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		return new IR([
-			new IR(`(${this.#name.toString()}) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
-			this.#downstreamExpr.toIR(indent + TAB),
-			new IR(`\n${indent}}(`),
-			this.#upstreamExpr.toIR(indent),
-			new IR(")")
-		]);
+		if (this.#nameTypes.length === 1) {
+			return new IR([
+				new IR(`(${this.#nameTypes[0].name.toString()}) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
+				this.#downstreamExpr.toIR(indent + TAB),
+				new IR(`\n${indent}}(`),
+				this.#upstreamExpr.toIR(indent),
+				new IR(")")
+			]);
+		} else {
+			let ir = new IR([
+				this.#upstreamExpr.toIR(indent),
+				new IR(`(\n${indent + TAB}(`), new IR(this.#nameTypes.map(nt => new IR(nt.name.toString()))).join(", "), new IR(") ->", this.site), new IR(` {\n${indent}${TAB}${TAB}`),
+				this.#downstreamExpr.toIR(indent + TAB + TAB),
+				new IR(`\n${indent + TAB}}\n${indent})`)
+			]);
+
+			return ir;
+		}
 	}
 }
 
@@ -12226,12 +12336,25 @@ class NameTypePair {
 		return this.#name;
 	}
 
+	isIgnored() {
+		return this.name.value === "_";
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	hasType() {
+		return this.#typeExpr !== null;
+	}
+
 	/**
 	 * Throws an error if called before evalType()
 	 * @type {Type}
 	 */
 	get type() {
-		if (this.#typeExpr === null) {
+		if (this.isIgnored()) {
+			return new AnyType();
+		} else if (this.#typeExpr === null) {
 			throw new Error("typeExpr not set");
 		} else {
 			return this.#typeExpr.type;
@@ -12263,7 +12386,9 @@ class NameTypePair {
 	 * @returns {Type}
 	 */
 	evalType(scope) {
-		if (this.#typeExpr === null) {
+		if (this.isIgnored()) {
+			return new AnyType();
+		} else if (this.#typeExpr === null) {
 			throw new Error("typeExpr not set");
 		} else {
 			return this.#typeExpr.eval(scope);
@@ -12292,33 +12417,6 @@ class FuncArg extends NameTypePair {
 	constructor(name, typeExpr) {
 		super(name, typeExpr);
 	}
-
-	isIgnored() {
-		return this.name.value === "_";
-	}
-
-	/**
-	 * @type {Type}
-	 */
-	get type() {
-		if (this.isIgnored()) {
-			return new AnyType();
-		} else {
-			return super.type;
-		}
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	evalType(scope) {
-		if (this.isIgnored()) {
-			return new AnyType();
-		} else {
-			return super.evalType(scope);
-		}
-	}
 }
 
 /**
@@ -12326,19 +12424,19 @@ class FuncArg extends NameTypePair {
  */
 class FuncLiteralExpr extends ValueExpr {
 	#args;
-	#retTypeExpr;
+	#retTypeExprs;
 	#bodyExpr;
 
 	/**
 	 * @param {Site} site 
 	 * @param {FuncArg[]} args 
-	 * @param {TypeExpr} retTypeExpr 
+	 * @param {TypeExpr[]} retTypeExprs 
 	 * @param {ValueExpr} bodyExpr 
 	 */
-	constructor(site, args, retTypeExpr, bodyExpr) {
+	constructor(site, args, retTypeExprs, bodyExpr) {
 		super(site);
 		this.#args = args;
-		this.#retTypeExpr = retTypeExpr;
+		this.#retTypeExprs = retTypeExprs;
 		this.#bodyExpr = bodyExpr;
 	}
 
@@ -12357,10 +12455,10 @@ class FuncLiteralExpr extends ValueExpr {
 	}
 
 	/**
-	 * @type {Type}
+	 * @type {Type[]}
 	 */
-	get retType() {
-		return this.#retTypeExpr.type;
+	get retTypes() {
+		return this.#retTypeExprs.map(e => e.type);
 	}
 
 	/**
@@ -12374,7 +12472,11 @@ class FuncLiteralExpr extends ValueExpr {
 	 * @returns {string}
 	 */
 	toString() {
-		return `(${this.#args.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
+		if (this.#retTypeExprs.length === 1) {
+			return `(${this.#args.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExprs[0].toString()} {${this.#bodyExpr.toString()}}`;
+		} else {
+			return `(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => e.toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
+		}
 	}
 
 	/**
@@ -12388,9 +12490,9 @@ class FuncLiteralExpr extends ValueExpr {
 		}
 
 		let argTypes = args.map(a => a.evalType(scope));
-		let retType = this.#retTypeExpr.eval(scope);
+		let retTypes = this.#retTypeExprs.map(e => e.eval(scope));
 
-		return new FuncType(argTypes, retType);
+		return new FuncType(argTypes, retTypes);
 	}
 
 	/**
@@ -12414,8 +12516,29 @@ class FuncLiteralExpr extends ValueExpr {
 
 		let bodyVal = this.#bodyExpr.eval(subScope);
 
-		if (!bodyVal.isInstanceOf(this.#retTypeExpr.site, fnType.retType)) {
-			throw this.#retTypeExpr.typeError(`wrong return type, expected ${fnType.retType.toString()} but got ${this.#bodyExpr.type.toString()}`);
+		if (this.#retTypeExprs.length === 1) {
+			if (!bodyVal.isInstanceOf(this.#retTypeExprs[0].site, fnType.retTypes[0])) {
+				throw this.#retTypeExprs[0].typeError(`wrong return type, expected ${fnType.retTypes[0].toString()} but got ${this.#bodyExpr.type.toString()}`);
+			}
+		} else {
+			if (bodyVal instanceof MultiInstance) {
+				/** @type {Instance[]} */
+				let bodyVals = bodyVal.values;
+
+				if (bodyVals.length !== this.#retTypeExprs.length) {
+					throw this.#bodyExpr.typeError(`expected multi-value function body with ${this.#retTypeExprs.length} values, but got ${bodyVals.length} values`);
+				} else {
+					for (let i = 0; i < bodyVals.length; i++) {
+						let v = bodyVals[i];
+
+						if (!v.isInstanceOf(this.#retTypeExprs[i].site, fnType.retTypes[i])) {
+							throw this.#retTypeExprs[i].typeError(`wrong return type for value ${i}, expected ${fnType.retTypes[i].toString()} but got ${v.getType(this.#bodyExpr.site).toString()}`);
+						}
+					}
+				}
+			} else {
+				throw this.#bodyExpr.typeError(`expected multi-value function body, but got ${this.#bodyExpr.type.toString()}`);
+			}
 		}
 
 		subScope.assertAllUsed();
@@ -12432,7 +12555,7 @@ class FuncLiteralExpr extends ValueExpr {
 			arg.use();
 		}
 
-		this.#retTypeExpr.use();
+		this.#retTypeExprs.forEach(e => e.use());
 		this.#bodyExpr.use();
 	}
 
@@ -12466,8 +12589,6 @@ class FuncLiteralExpr extends ValueExpr {
 			innerIndent += TAB;
 			methodIndent += TAB;
 		}
-
-		
 
 		let ir = new IR([
 			new IR("("),
@@ -12956,19 +13077,19 @@ class BinaryExpr extends ValueExpr {
  * Parentheses expression
  */
 class ParensExpr extends ValueExpr {
-	#expr;
+	#exprs;
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr} expr 
+	 * @param {ValueExpr[]} exprs
 	 */
-	constructor(site, expr) {
+	constructor(site, exprs) {
 		super(site);
-		this.#expr = expr;
+		this.#exprs = exprs;
 	}
 
 	toString() {
-		return `(${this.#expr.toString()})`;
+		return `(${this.#exprs.map(e => e.toString()).join(", ")})`;
 	}
 
 	/**
@@ -12976,11 +13097,15 @@ class ParensExpr extends ValueExpr {
 	 * @returns {Instance}
 	 */
 	evalInternal(scope) {
-		return this.#expr.eval(scope);
+		if (this.#exprs.length === 1) {
+			return this.#exprs[0].eval(scope);
+		} else {
+			return new MultiInstance(this.#exprs.map(e => e.eval(scope)));
+		}
 	}
 
 	use() {
-		this.#expr.use();
+		this.#exprs.forEach(e => e.use());
 	}
 
 	/**
@@ -12988,7 +13113,15 @@ class ParensExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		return this.#expr.toIR(indent);
+		if (this.#exprs.length === 1) {
+			return this.#exprs[0].toIR(indent);
+		} else {
+			return new IR(
+				[new IR(`(callback) -> {\n${indent + TAB}callback(\n${indent + TAB + TAB}`, this.site)]
+				.concat(new IR(this.#exprs.map(e => e.toIR(indent + TAB + TAB))).join(`,\n${indent + TAB + TAB}`))
+				.concat([new IR(`\n${indent + TAB})\n${indent}}`)])
+			);
+		}
 	}
 }
 
@@ -13035,6 +13168,8 @@ class CallExpr extends ValueExpr {
 
 		let argVals = this.#argExprs.map(argExpr => argExpr.eval(scope));
 
+		argVals = MultiInstance.flatten(argVals);
+
 		return fnVal.call(this.site, argVals);
 	}
 
@@ -13051,14 +13186,68 @@ class CallExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let args = this.#argExprs.map(a => a.toIR(indent));
+		if (this.#argExprs.some(e => (!e.isLiteral()) && (e.value instanceof MultiInstance))) {
+			// count the number of final args
+			let n = 0;
+			this.#argExprs.forEach(e => {
+				if ((!e.isLiteral()) && (e.value instanceof MultiInstance)) {
+					n += e.value.values.length;
+				} else {
+					n += 1;
+				}
+			});
 
-		return new IR([
-			this.#fnExpr.toIR(indent),
-			new IR("("),
-			(new IR(args)).join(", "),
-			new IR(")", this.site)
-		]);
+			let names = [];
+
+			for (let i = 0; i < n; i++) {
+				names.push(`x${i}`);
+			}
+
+			let ir = new IR([
+				this.#fnExpr.toIR(),
+				new IR("("),
+				new IR(names.map(n => new IR(n))).join(", "),
+				new IR(")", this.site)
+			]);
+
+			let exprs = this.#argExprs.slice().reverse();
+
+			for (let e of exprs) {
+				if ((!e.isLiteral()) && (e.value instanceof MultiInstance)) {
+					let mNames = names.splice(names.length - e.value.values.length);
+
+					ir = new IR([
+						e.toIR(),
+						new IR("(("),
+						new IR(mNames.map(n => new IR(n))).join(", "),
+						new IR(") -> {"),
+						ir,
+						new IR("})")
+					]);
+				} else {
+					ir = new IR([
+						new IR("("),
+						new IR(names.pop()),
+						new IR(") -> {"),
+						ir,
+						new IR("}("),
+						e.toIR(),
+						new IR(")")
+					]);
+				}
+			}
+
+			return ir;
+		} else {
+			let args = this.#argExprs.map(a => a.toIR(indent));
+
+			return new IR([
+				this.#fnExpr.toIR(indent),
+				new IR("("),
+				(new IR(args)).join(", "),
+				new IR(")", this.site)
+			]);
+		}
 	}
 }
 
@@ -14385,10 +14574,10 @@ class FuncStatement extends Statement {
 	}
 
 	/**
-	 * @type {Type}
+	 * @type {Type[]}
 	 */
-	get retType() {
-		return this.#funcExpr.retType;
+	get retTypes() {
+		return this.#funcExpr.retTypes;
 	}
 
 	toString() {
@@ -15558,7 +15747,7 @@ class RedeemerProgram extends Program {
 
 		let main = this.mainFunc;
 		let argTypeNames = main.argTypeNames;
-		let retType = main.retType;
+		let retTypes = main.retTypes;
 		let haveRedeemer = false;
 		let haveScriptContext = false;
 
@@ -15586,8 +15775,10 @@ class RedeemerProgram extends Program {
 			}
 		}
 
-		if (!(retType instanceof BoolType)) {
-			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retType.toString()}'`);
+		if (retTypes.length !== 1) {
+			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
+		} else if (!(retTypes[0] instanceof BoolType)) {
+			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retTypes[0].toString()}'`);
 		}
 	}
 
@@ -15650,7 +15841,7 @@ class DatumRedeemerProgram extends Program {
 
 		let main = this.mainFunc;
 		let argTypeNames = main.argTypeNames;
-		let retType = main.retType;
+		let retTypes = main.retTypes;
 		let haveDatum = false;
 		let haveRedeemer = false;
 		let haveScriptContext = false;
@@ -15689,8 +15880,10 @@ class DatumRedeemerProgram extends Program {
 			}
 		}
 
-		if (!(retType instanceof BoolType)) {
-			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retType.toString()}'`);
+		if (retTypes.length !== 1) {
+			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
+		} else if (!(retTypes[0] instanceof BoolType)) {
+			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retTypes[0].toString()}'`);
 		}
 	}
 
@@ -15758,6 +15951,10 @@ class TestingProgram extends Program {
 		this.evalTypesInternal(scope);
 
 		// main can have any arg types, and any return type 
+
+		if (this.mainFunc.retTypes.length > 1) {
+			throw this.mainFunc.typeError("program entry-point can only return one value");
+		}
 	}
 
 	/**
@@ -16087,7 +16284,7 @@ function buildFuncLiteralExpr(ts, methodOf = null) {
 	let site = parens.site;
 	let args = buildFuncArgs(parens, methodOf);
 
-	assertDefined(ts.shift()).assertSymbol("->");
+	const arrow = assertDefined(ts.shift()).assertSymbol("->");
 
 	let bodyPos = Group.find(ts, "{");
 
@@ -16097,10 +16294,10 @@ function buildFuncLiteralExpr(ts, methodOf = null) {
 		throw site.syntaxError("no return type specified");
 	}
 
-	let retTypeExpr = buildTypeExpr(ts.splice(0, bodyPos));
+	let retTypeExprs = buildFuncRetTypeExprs(arrow.site, ts.splice(0, bodyPos));
 	let bodyExpr = buildValueExpr(assertDefined(ts.shift()).assertGroup("{", 1).fields[0]);
 
-	return new FuncLiteralExpr(site, args, retTypeExpr, bodyExpr);
+	return new FuncLiteralExpr(site, args, retTypeExprs, bodyExpr);
 }
 
 /**
@@ -16499,11 +16696,39 @@ function buildFuncTypeExpr(ts) {
 
 	let argTypes = parens.fields.map(f => buildTypeExpr(f.slice()));
 
-	assertDefined(ts.shift()).assertSymbol("->");
+	let arrow = assertDefined(ts.shift()).assertSymbol("->");
 
-	let retType = buildTypeExpr(ts);
+	let retTypes = buildFuncRetTypeExprs(arrow.site, ts);
 
-	return new FuncTypeExpr(parens.site, argTypes, retType);
+	return new FuncTypeExpr(parens.site, argTypes, retTypes);
+}
+
+/**
+ * 
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {TypeExpr[]}
+ */
+function buildFuncRetTypeExprs(site, ts) {
+	if (ts.length === 0) {
+		throw site.syntaxError("expected type expression after '->'");
+	} else {
+		if (ts[0].isGroup("(")) {
+			let group = assertDefined(ts.shift()).assertGroup("(");
+
+			if (group.fields.length < 2) {
+				throw group.syntaxError("expected 2 or more types in multi return type");
+			} else {
+				return group.fields.map(fts => {
+					fts = fts.slice();
+
+					return buildTypeExpr(fts);
+				});
+			}
+		} else {
+			return [buildTypeExpr(ts)];
+		}
+	}
 }
 
 /**
@@ -16613,45 +16838,29 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 
 			let lts = ts.splice(0, equalsPos);
 
-			let maybeName = lts.shift();
-			if (maybeName === undefined) {
-				throw equalsSite.syntaxError("expected a name before '='");
-			} else {
-				let name = maybeName.assertWord().assertNotKeyword();
+			let lhs = buildAssignLhs(equalsSite, lts);
+			
+			assertDefined(ts.shift()).assertSymbol("=");
 
-				let typeExpr = null;
-				if (lts.length > 0) {
-					let colon = assertDefined(lts.shift()).assertSymbol(":");
+			semicolonPos = Symbol.find(ts, ";");
+			assert(semicolonPos != -1);
 
-					if (lts.length == 0) {
-						colon.syntaxError("expected type expression after ':'");
-					} else {
-						typeExpr = buildTypeExpr(lts);
-					}
-				}
-
-				assertDefined(ts.shift()).assertSymbol("=");
-
-				semicolonPos = Symbol.find(ts, ";");
-				assert(semicolonPos != -1);
-
-				let upstreamTs = ts.splice(0, semicolonPos);
-				if (upstreamTs.length == 0) {
-					throw equalsSite.syntaxError("expected expression between '=' and ';'");
-				}
-
-				let upstreamExpr = buildValueExpr(upstreamTs, prec + 1);
-
-				let semicolonSite = assertDefined(ts.shift()).assertSymbol(";").site;
-
-				if (ts.length == 0) {
-					throw semicolonSite.syntaxError("expected expression after ';'");
-				}
-
-				let downstreamExpr = buildValueExpr(ts, prec);
-
-				return new AssignExpr(equalsSite, name, typeExpr, upstreamExpr, downstreamExpr);
+			let upstreamTs = ts.splice(0, semicolonPos);
+			if (upstreamTs.length == 0) {
+				throw equalsSite.syntaxError("expected expression between '=' and ';'");
 			}
+
+			let upstreamExpr = buildValueExpr(upstreamTs, prec + 1);
+
+			let semicolonSite = assertDefined(ts.shift()).assertSymbol(";").site;
+
+			if (ts.length == 0) {
+				throw semicolonSite.syntaxError("expected expression after ';'");
+			}
+
+			let downstreamExpr = buildValueExpr(ts, prec);
+
+			return new AssignExpr(equalsSite, lhs, upstreamExpr, downstreamExpr);
 		} else if (printPos != -1 && printPos < semicolonPos) {
 			if (equalsPos != -1) {
 				if (equalsPos <= semicolonPos) {
@@ -16683,6 +16892,101 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 		} else {
 			throw new Error("unhandled");
 		}
+	}
+}
+
+/**
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {NameTypePair[]}
+ */
+function buildAssignLhs(site, ts) {
+	let maybeName = ts.shift();
+	if (maybeName === undefined) {
+		throw site.syntaxError("expected a name before '='");
+	} else {
+		/**
+		 * @type {NameTypePair[]}
+		 */
+		let pairs = [];
+
+		if (maybeName.isWord()) {
+			let name = maybeName.assertWord().assertNotKeyword();
+
+			if (ts.length > 0) {
+				let colon = assertDefined(ts.shift()).assertSymbol(":");
+
+				if (ts.length == 0) {
+					throw colon.syntaxError("expected type expression after ':'");
+				} else {
+					let typeExpr = buildTypeExpr(ts);
+
+					pairs.push(new NameTypePair(name, typeExpr));
+				}
+			} else {
+				pairs.push(new NameTypePair(name, null));
+			}
+		} else if (maybeName.isGroup("(")) {
+			let group = maybeName.assertGroup("(");
+
+			if (group.fields.length < 2) {
+				throw group.syntaxError("expected at least 2 lhs' for multi-assign");
+			}
+
+			let someNoneUnderscore = false;
+			for (let fts of group.fields) {
+				if (fts.length == 0) {
+					throw group.syntaxError("unexpected empty field for multi-assign");
+				}
+
+				fts = fts.slice();
+
+				let name = fts.shift().assertWord();
+
+				if (name.value === "_") {
+					if (fts.length !== 0) {
+						throw fts[0].syntaxError("unexpected token after '_' in multi-assign");
+					}
+
+					pairs.push(new NameTypePair(name, null));
+				} else {
+					someNoneUnderscore = true;
+
+					name.assertNotKeyword();
+
+					let maybeColon = fts.shift();
+					
+					if (maybeColon === undefined) {
+						throw name.syntaxError(`expected ':' after '${name.toString()}'`);
+					}
+					
+					let colon = maybeColon.assertSymbol(":");
+
+					if (fts.length === 0) {
+						throw colon.syntaxError("expected type expression after ':'");
+					}
+
+					let typeExpr = buildTypeExpr(fts);
+
+					// check that name is unique
+					pairs.forEach(p => {
+						if (p.name.value === name.value) {
+							throw name.syntaxError(`duplicate name '${name.value}' in lhs of multi-assign`);
+						}
+					});
+
+					pairs.push(new NameTypePair(name, typeExpr));
+				}
+			}
+
+			if (!someNoneUnderscore) {
+				throw group.syntaxError("expected at least one non-underscore in lhs of multi-assign");
+			}
+		} else {
+			throw maybeName.syntaxError("unexpected syntax for lhs of =");
+		}
+
+		return pairs;
 	}
 }
 
@@ -16800,7 +17104,7 @@ function buildChainStartValueExpr(ts) {
 	} else if (ts[0].isLiteral()) {
 		return new PrimitiveLiteralExpr(assertDefined(ts.shift())); // can simply be reused
 	} else if (ts[0].isGroup("(")) {
-		return new ParensExpr(ts[0].site, buildValueExpr(assertDefined(ts.shift()).assertGroup("(", 1).fields[0]));
+		return buildParensExpr(ts);
 	} else if (Group.find(ts, "{") != -1) {
 		if (ts[0].isGroup("[")) {
 			return buildListLiteralExpr(ts);
@@ -16831,6 +17135,21 @@ function buildChainStartValueExpr(ts) {
 		}
 	} else {
 		throw ts[0].syntaxError("invalid syntax");
+	}
+}
+
+/**
+ * @param {Token[]} ts
+ * @returns {ValueExpr}
+ */
+function buildParensExpr(ts) {
+	let group = ts.shift().assertGroup("(");
+	let site = group.site;
+
+	if (group.fields.length === 0) {
+		throw group.syntaxError("expected at least one expr in parens");
+	} else {
+		return new ParensExpr(site, group.fields.map(fts => buildValueExpr(fts)));
 	}
 }
 

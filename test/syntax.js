@@ -18,11 +18,13 @@ async function test1() {
         init = Map[Address]Int{};
 
         shareholders: Map[Address]Int =  shareholder_indexes.fold(
-            (acc: Map[Address]Int, idx: Int) -> Map[Address]Int {
-            acc + Map[Address]Int{bytearrayToAddress(shareholder_pkhs.get(idx-1)): shareholder_shares.get(idx-1)}
-            }, 
-            init
-            );
+          (acc: Map[Address]Int, idx: Int) -> Map[Address]Int {
+            acc + Map[Address]Int{
+              bytearrayToAddress(shareholder_pkhs.get(idx-1)): shareholder_shares.get(idx-1)
+            }
+          },
+          init
+        );
         shareholders.length == 1
     }`;
 
@@ -247,26 +249,46 @@ async function test10() {
 	helios.Program.new(src).compile();
 }
 
+async function test11() {
+  const src = `testing swap
+  func swap(a: Int, b: Int, _) -> (Int, Int) {
+    (c: Int, d: Int) = (b, a); (c, d)
+  }
+
+  func main(a: Int, b: Int) -> Int {
+    (c: Int, _) = swap(swap(a, b, b), b); c
+  }`;
+
+  const program = helios.Program.new(src);
+
+  console.log(program.prettyIR(false));
+  console.log(program.prettyIR(true));
+
+  program.compile();
+}
+
 export default async function main() {
-    await test1();
+  await test1();
 
-    await test2();
+  await test2();
 
-    await test3();
+  await test3();
 
-    await test4();
-    
-    await test5();
+  await test4();
+  
+  await test5();
 
-    await test6();
+  await test6();
 
-    await test7();
+  await test7();
 
-    await test8();
+  await test8();
 
-    await test9();
+  await test9();
 
 	await test10();
+
+  await test11();
 }
 
 runIfEntryPoint(main, "syntax.js");

@@ -1,5 +1,11 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/12/21
+* Addition of `Map.prepend`
+* Addition of comparisons for ByteArray: `<`, `>`, `<=` and `>=`
+* Function definitions can ignore (all but one) argument with `_`
+* Functions can returns multiple values, assignments can assign multi-value rhs to multiple variables (not `const` though), and multi-value expressions are automatically flattened when used in a call
+
 # 2022/12/18
 * Addition of `Map.delete`, `Map.set`, `Map.find`, `Map.find_by_key`, `Map.find_by_value`
 * Addition of `Map.head_key`, `Map.head_value`, `Map.tail`
