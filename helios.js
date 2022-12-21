@@ -17676,6 +17676,11 @@ class ByteArrayType extends BuiltinType {
 		switch (name.value) {
 			case "__add":
 				return Instance.new(new FuncType([new ByteArrayType()], new ByteArrayType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([new ByteArrayType()], new BoolType()));
 			case "length":
 				return Instance.new(new IntType());
 			case "slice":
@@ -21493,6 +21498,38 @@ function makeRawFunctions() {
 		(a) -> {
 			(b) -> {
 				__core__bData(__core__appendByteString(a, __core__unBData(b)))
+			}
+		}(__core__unBData(self))
+	}`));
+	add(new RawFunc("__helios__bytearray____geq",
+	`(self) -> {
+		(a) -> {
+			(b) -> {
+				__helios__common__not(__core__lessThanByteString(a, __core__unBData(b)))
+			}
+		}(__core__unBData(self))
+	}`));
+	add(new RawFunc("__helios__bytearray____gt",
+	`(self) -> {
+		(a) -> {
+			(b) -> {
+				__helios__common__not(__core__lessThanEqualsByteString(a, __core__unBData(b)))
+			}
+		}(__core__unBData(self))
+	}`));
+	add(new RawFunc("__helios__bytearray____leq",
+	`(self) -> {
+		(a) -> {
+			(b) -> {
+				__core__lessThanEqualsByteString(a, __core__unBData(b))
+			}
+		}(__core__unBData(self))
+	}`));
+	add(new RawFunc("__helios__bytearray____lt",
+	`(self) -> {
+		(a) -> {
+			(b) -> {
+				__core__lessThanByteString(a, __core__unBData(b))
 			}
 		}(__core__unBData(self))
 	}`));
