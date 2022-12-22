@@ -362,7 +362,7 @@ export default async function main() {
 	
 		redeemer.switch{
 			x: Convert => {
-				assetName: ByteArray = valueInputSC.get_policy(x.mph).fold_keys((sum:ByteArray,y:ByteArray) -> ByteArray {y+sum}, (#));
+				assetName: ByteArray = valueInputSC.get_policy(x.mph).fold((sum:ByteArray, y:ByteArray, _) -> ByteArray {y+sum}, (#));
 
 				mintedTotal:Value=tx.minted;
 

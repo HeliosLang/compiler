@@ -117,7 +117,7 @@ export default async function main() {
 
 		redeemer.switch { 
 			Burn => {
-				tx.minted.get_policy(mph).all_values((qty: Int) -> Bool {
+				tx.minted.get_policy(mph).all((_, qty: Int) -> Bool {
 					qty == -1
 				})
 			},
@@ -142,7 +142,7 @@ export default async function main() {
 	const RANDOM = "aksjdkjasd"
 
 	const LIST: []Int = []Int{1,2,3} + []Int{5,6,7}
-	`, 367);
+	`, 370);
 
 	simplify(`testing equals
 	func main(a: Int) -> Bool {

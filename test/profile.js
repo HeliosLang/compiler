@@ -48,7 +48,7 @@ export default async function main() {
 
 		redeemer.switch { 
 			Burn => {
-				tx.minted.get_policy(mph).all_values((qty: Int) -> Bool {
+				tx.minted.get_policy(mph).all((_, qty: Int) -> Bool {
 					qty == -1
 				})
 			},
@@ -104,7 +104,9 @@ export default async function main() {
 		[]PubKeyHash{},
 		Map[ScriptPurpose]Int{},
 		Map[DatumHash]Data{}
-	), MintingPolicyHash::CURRENT)`, ["REDEEMER", "SCRIPT_CONTEXT"], {mem: 51795n, cpu: 31933326n, size: 367});
+	), MintingPolicyHash::CURRENT)`, ["REDEEMER", "SCRIPT_CONTEXT"], {mem: 52395n, cpu: 32071326n, size: 370});
+
+	// exbudget/size used to be: {mem: 51795n, cpu: 31933326n, size: 367} (when get_policy().all_values(...) was being used). TODO: figure out why optimization doesn't make it exactly the same.
 }
 
 runIfEntryPoint(main, "profile.js");
