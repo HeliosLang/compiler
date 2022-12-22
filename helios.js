@@ -22401,6 +22401,16 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
+	add(new RawFunc("__helios__map__head",
+	`(self) -> {
+		(head) -> {
+			() -> {
+				(callback) -> {
+					callback(__core__fstPair(head), __core__sndPair(head))
+				}
+			}
+		}(__core__headList(__core__unMapData(self)))
+	}`));
 	add(new RawFunc("__helios__map__head_key",
 	`(self) -> {
 		__core__fstPair(__core__headList(__core__unMapData(self)))
@@ -22460,34 +22470,6 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__all_keys",
-	`(self) -> {
-		(self) -> {
-			(fn) -> {
-				(fn) -> {
-					__helios__common__all(self, fn)
-				}(
-					(pair) -> {
-						fn(__core__fstPair(pair))
-					}
-				)
-			}
-		}(__core__unMapData(self))
-	}`));
-	add(new RawFunc("__helios__map__all_values",
-	`(self) -> {
-		(self) -> {
-			(fn) -> {
-				(fn) -> {
-					__helios__common__all(self, fn)
-				}(
-					(pair) -> {
-						fn(__core__sndPair(pair))
-					}
-				)
-			}
-		}(__core__unMapData(self))
-	}`));
 	add(new RawFunc("__helios__map__any",
 	`(self) -> {
 		(self) -> {
@@ -22497,34 +22479,6 @@ function makeRawFunctions() {
 				}(
 					(pair) -> {
 						fn(__core__fstPair(pair), __core__sndPair(pair))
-					}
-				)
-			}
-		}(__core__unMapData(self))
-	}`));
-	add(new RawFunc("__helios__map__any_key",
-	`(self) -> {
-		(self) -> {
-			(fn) -> {
-				(fn) -> {
-					__helios__common__any(self, fn)
-				}(
-					(pair) -> {
-						fn(__core__fstPair(pair))
-					}
-				)
-			}
-		}(__core__unMapData(self))
-	}`));
-	add(new RawFunc("__helios__map__any_value",
-	`(self) -> {
-		(self) -> {
-			(fn) -> {
-				(fn) -> {
-					__helios__common__any(self, fn)
-				}(
-					(pair) -> {
-						fn(__core__sndPair(pair))
 					}
 				)
 			}
@@ -22565,34 +22519,6 @@ function makeRawFunctions() {
 				}(
 					(pair) -> {
 						fn(__core__fstPair(pair), __core__sndPair(pair))
-					}
-				)
-			}
-		}(__core__unMapData(self))
-	}`));
-	add(new RawFunc("__helios__map__filter_by_key",
-	`(self) -> {
-		(self) -> {
-			(fn) -> {
-				(fn) -> {
-					__core__mapData(__helios__common__filter_map(self, fn))
-				}(
-					(pair) -> {
-						fn(__core__fstPair(pair))
-					}
-				)
-			}
-		}(__core__unMapData(self))
-	}`));
-	add(new RawFunc("__helios__map__filter_by_value",
-	`(self) -> {
-		(self) -> {
-			(fn) -> {
-				(fn) -> {
-					__core__mapData(__helios__common__filter_map(self, fn))
-				}(
-					(pair) -> {
-						fn(__core__sndPair(pair))
 					}
 				)
 			}
@@ -22668,30 +22594,6 @@ function makeRawFunctions() {
 				)
 			}
 		}(__core__unMapData(self))
-	}`));
-	add(new RawFunc("__helios__map__find_by_key", 
-	`(self) -> {
-		(fn) -> {
-			(fn) -> {
-				__helios__map__find(self)(fn)
-			}(
-				(fst, _) -> {
-					fn(fst)
-				}
-			)
-		}
-	}`));
-	add(new RawFunc("__helios__map__find_by_value", 
-	`(self) -> {
-		(fn) -> {
-			(fn) -> {
-				__helios__map__find(self)(fn)
-			}(
-				(_, snd) -> {
-					fn(snd)
-				}
-			)
-		}
 	}`));
 	add(new RawFunc("__helios__map__find_key",
 	`(self) -> {
@@ -22805,36 +22707,6 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__map_keys",
-	`(self) -> {
-		(fn) -> {
-			__helios__map__map(self)(
-				(key, value) -> {
-					__core__mkPairData(fn(key), value)
-				}
-			)
-		}
-	}`));
-	add(new RawFunc("__helios__map__map_values",
-	`(self) -> {
-		(fn) -> {
-			__helios__map__map(self)(
-				(key, value) -> {
-					__core__mkPairData(key, fn(value))
-				}
-			)
-		}
-	}`));
-	add(new RawFunc("__helios__map__map_values_to_bool",
-	`(self) -> {
-		(fn) -> {
-			__helios__map__map(self)(
-				(key, value) -> {
-					__core__mkPairData(key, __helios__common__boolData(fn(value)))
-				}
-			)
-		}
-	}`));
 	add(new RawFunc("__helios__map__fold",
 	`(self) -> {
 		(self) -> {
@@ -22850,36 +22722,6 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__fold_keys",
-	`(self) -> {
-		(self) -> {
-			(fn, z) -> {
-				(fn) -> {
-					__helios__common__fold(self, fn, z)
-				}(
-					(z, pair) -> {
-						fn(z, __core__fstPair(pair))
-					}
-				)
-				
-			}
-		}(__core__unMapData(self))
-	}`));
-	add(new RawFunc("__helios__map__fold_values",
-	`(self) -> {
-		(self) -> {
-			(fn, z) -> {
-				(fn) -> {
-					__helios__common__fold(self, fn, z)
-				}(
-					(z, pair) -> {
-						fn(z, __core__sndPair(pair))
-					}
-				)
-				
-			}
-		}(__core__unMapData(self))
-	}`));
 	add(new RawFunc("__helios__map__fold_lazy",
 	`(self) -> {
 		(self) -> {
@@ -22889,36 +22731,6 @@ function makeRawFunctions() {
 				}(
 					(pair, next) -> {
 						fn(__core__fstPair(pair), __core__sndPair(pair), next)
-					}
-				)
-				
-			}
-		}(__core__unMapData(self))
-	}`));
-	add(new RawFunc("__helios__map__fold_keys_lazy",
-	`(self) -> {
-		(self) -> {
-			(fn, z) -> {
-				(fn) -> {
-					__helios__common__fold_lazy(self, fn, z)
-				}(
-					(pair, next) -> {
-						fn(__core__fstPair(pair), next)
-					}
-				)
-				
-			}
-		}(__core__unMapData(self))
-	}`));
-	add(new RawFunc("__helios__map__fold_values_lazy",
-	`(self) -> {
-		(self) -> {
-			(fn, z) -> {
-				(fn) -> {
-					__helios__common__fold_lazy(self, fn, z)
-				}(
-					(pair, next) -> {
-						fn(__core__sndPair(pair), next)
 					}
 				)
 				
@@ -22971,34 +22783,6 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__sort_by_key",
-	`(self) -> {
-		(self) -> {
-			(comp) -> {
-				(comp) -> {
-					__core__mapData(__helios__common__sort(self, comp))
-				}(
-					(a, b) -> {
-						comp(__core__fstPair(a), __core__fstPair(b))
-					}
-				)
-			}
-		}(__core__unMapData(self))
-	}`));
-	add(new RawFunc("__helios__map__sort_by_value",
-	`(self) -> {
-		(self) -> {
-			(comp) -> {
-				(comp) -> {
-					__core__mapData(__helios__common__sort(self, comp))
-				}(
-					(a, b) -> {
-						comp(__core__sndPair(a), __core__sndPair(b))
-					}
-				)
-			}
-		}(__core__unMapData(self))
-	}`));
 	add(new RawFunc("__helios__boolmap____eq", "__helios__map____eq"));
 	add(new RawFunc("__helios__boolmap____neq", "__helios__map____neq"));
 	add(new RawFunc("__helios__boolmap__serialize", "__helios__map__serialize"));
@@ -23016,6 +22800,16 @@ function makeRawFunctions() {
 				)
 			}
 		}(__core__unMapData(self))
+	}`));
+	add(new RawFunc("__helios__boolmap__head",
+	`(self) -> {
+		(head) -> {
+			() -> {
+				(callback) -> {
+					callback(__core__fstPair(head), __helios__common__unBoolData(__core__sndPair(head)))
+				}
+			}
+		}(__core__headList(__core__unMapData(self)))
 	}`));
 	add(new RawFunc("__helios__boolmap__head_key", "__helios__map__head_key"));
 	add(new RawFunc("__helios__boolmap__head_value",
@@ -23041,34 +22835,12 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__boolmap__all_keys", "__helios__map__all_keys"));
-	add(new RawFunc("__helios__boolmap__all_values", 
-	`(self) -> {
-		(fn) -> {
-			__helios__map__all_values(self)(
-				(value) -> {
-					fn(__helios__common__unBoolData(value))
-				}
-			)
-		}
-	}`));
 	add(new RawFunc("__helios__boolmap__any",
 	`(self) -> {
 		(fn) -> {
 			__helios__map__any(self)(
 				(key, value) -> {
 					fn(key, __helios__common__unBoolData(value))
-				}
-			)
-		}
-	}`));
-	add(new RawFunc("__helios__boolmap__any_key", "__helios__map__any_key"));
-	add(new RawFunc("__helios__boolmap__any_value", 
-	`(self) -> {
-		(fn) -> {
-			__helios__map__any_value(self)(
-				(value) -> {
-					fn(__helios__common__unBoolData(value))
 				}
 			)
 		}
@@ -23080,17 +22852,6 @@ function makeRawFunctions() {
 			__helios__map__filter(self)(
 				(key, value) -> {
 					fn(key, __helios__common__unBoolData(value))
-				}
-			)
-		}
-	}`));
-	add(new RawFunc("__helios__boolmap__filter_by_key", "__helios__map__filter_by_key"));
-	add(new RawFunc("__helios__boolmap__filter_by_value", 
-	`(self) -> {
-		(fn) -> {
-			__helios__map__filter_by_value(self)(
-				(value) -> {
-					fn(__helios__common__unBoolData(value))
 				}
 			)
 		}
@@ -23138,19 +22899,6 @@ function makeRawFunctions() {
 			}(
 				(fst, snd) -> {
 					fn(fst, __helios__common__unBoolData(snd))
-				}
-			)
-		}
-	}`));
-	add(new RawFunc("__helios__boolmap__find_by_key", "__helios__map__find_by_key"));
-	add(new RawFunc("__helios__boolmap__find_by_value", 
-	`(self) -> {
-		(fn) -> {
-			(fn) -> {
-				__helios__map__find_by_value(self)(fn)
-			}(
-				(snd) -> {
-					fn(__helios__common__unBoolData(snd))
 				}
 			)
 		}
@@ -23237,27 +22985,6 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__boolmap__map_keys", "__helios__map__map_keys"));
-	add(new RawFunc("__helios__boolmap__map_values",
-	`(self) -> {
-		(fn) -> {
-			__helios__boolmap__map(self)(
-				(key, value) -> {
-					__core__mkPairData(key, fn(value))
-				}
-			)
-		}
-	}`));
-	add(new RawFunc("__helios__boolmap__map_values_to_bool",
-	`(self) -> {
-		(fn) -> {
-			__helios__boolmap__map(self)(
-				(key, value) -> {
-					__core__mkPairData(key, __helios__common__boolData(fn(value)))
-				}
-			)
-		}
-	}`));
 	add(new RawFunc("__helios__boolmap__fold",
 	`(self) -> {
 		(fn, z) -> {
@@ -23269,36 +22996,12 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__boolmap__fold_keys", "__helios__map__fold_keys"));
-	add(new RawFunc("__helios__boolmap__fold_values", 
-	`(self) -> {
-		(fn, z) -> {
-			__helios__map__fold_values(self)(
-				(prev, value) -> {
-					fn(prev, __helios__common__unBoolData(value))
-				},
-				z
-			)
-		}
-	}`));
 	add(new RawFunc("__helios__boolmap__fold_lazy",
 	`(self) -> {
 		(fn, z) -> {
 			__helios__map__fold_lazy(self)(
 				(key, value, next) -> {
 					fn(key, __helios__common__unBoolData(value), next)
-				},
-				z
-			)
-		}
-	}`));
-	add(new RawFunc("__helios__boolmap__fold_keys_lazy", "__helios__map__fold_keys_lazy"));
-	add(new RawFunc("__helios__boolmap__fold_values_lazy",
-	`(self) -> {
-		(fn, z) -> {
-			__helios__map__fold_values_lazy(self)(
-				(value, next) -> {
-					fn(__helios__common__unBoolData(value), next)
 				},
 				z
 			)
@@ -23318,19 +23021,6 @@ function makeRawFunctions() {
 			}(
 				(ak, av, bk, bv) -> {
 					comp(ak, __helios__common__unBoolData(av), bk, __helios__common__unBoolData(bv))
-				}
-			)
-		}
-	}`));
-	add(new RawFunc("__helios__boolmap__sort_by_key", "__helios__map__sort_by_key"));
-	add(new RawFunc("__helios__boolmap__sort_by_value",
-	`(self) -> {
-		(comp) -> {
-			(comp) -> {
-				__helios__map__sort_by_value(self)(comp)
-			}(
-				(a, b) -> {
-					comp(__helios__common__unBoolData(a), __helios__common__unBoolData(b))
 				}
 			)
 		}
@@ -23992,7 +23682,7 @@ function makeRawFunctions() {
 
 	// TxOutputId
 	addDataFuncs("__helios__txoutputid");
-	add(new RawFunc("__helios__txoutputid__txid", "__helios__common__field_0"));
+	add(new RawFunc("__helios__txoutputid__tx_id", "__helios__common__field_0"));
 	add(new RawFunc("__helios__txoutputid__index", "__helios__common__field_1"));
 	add(new RawFunc("__helios__txoutputid__comp", 
 	`(self, other, comp_txid, comp_index) -> {
@@ -24015,8 +23705,8 @@ function makeRawFunctions() {
 						)()
 					}
 				)()
-			}(__helios__txoutputid__txid(other), __helios__txoutputid__index(other))
-		}(__helios__txoutputid__txid(self), __helios__txoutputid__index(self))
+			}(__helios__txoutputid__tx_id(other), __helios__txoutputid__index(other))
+		}(__helios__txoutputid__tx_id(self), __helios__txoutputid__index(self))
 	}`));
 	add(new RawFunc("__helios__txoutputid____lt", 
 	`(self) -> {

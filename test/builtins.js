@@ -1959,9 +1959,35 @@ async function testBuiltins() {
         });
 
         await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_head_key_alt
+        func main(a: Map[Int]Int) -> Int {
+            (k: Int, _) = a.head(); k
+        }
+        `, ([a], res) => {
+            if (a.data.map.length == 0) {
+                return isError(res, "empty map");
+            } else {
+                return asInt(res) === asInt(a.data.map[0][0]);
+            }
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_head_value
         func main(a: Map[Int]Int) -> Int {
             a.head_value
+        }
+        `, ([a], res) => {
+            if (a.data.map.length == 0) {
+                return isError(res, "empty map");
+            } else {
+                return asInt(res) === asInt(a.data.map[0][1]);
+            }
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_head_value_alt
+        func main(a: Map[Int]Int) -> Int {
+            (_, v: Int) = a.head(); v
         }
         `, ([a], res) => {
             if (a.data.map.length == 0) {
@@ -2440,9 +2466,35 @@ async function testBuiltins() {
         });
 
         await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_head_key_alt
+        func main(a: Map[Int]Bool) -> Int {
+            (k: Int, _) = a.head(); k
+        }
+        `, ([a], res) => {
+            if (a.data.map.length == 0) {
+                return isError(res, "empty map");
+            } else {
+                return asInt(res) === asInt(a.data.map[0][0]);
+            }
+        });
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_head_value
         func main(a: Map[Int]Bool) -> Bool {
             a.head_value
+        }
+        `, ([a], res) => {
+            if (a.data.map.length == 0) {
+                return isError(res, "empty map");
+            } else {
+                return asBool(res) === asBool(a.data.map[0][1]);
+            }
+        });
+
+        await ft.test([ft.map(ft.int(), ft.bool())], `
+        testing boolmap_head_value_alt
+        func main(a: Map[Int]Bool) -> Bool {
+            (_, v: Bool) = a.head(); v
         }
         `, ([a], res) => {
             if (a.data.map.length == 0) {
@@ -3046,6 +3098,18 @@ async function testBuiltins() {
     func main(a: PubKeyHash, b: PubKeyHash) -> Bool {
         a != b
     }`, ([a, b], res) => equalsList(asBytes(a), asBytes(b)) === !asBool(res));
+
+    await ft.test([ft.bytes(0, 5), ft.bytes(0, 5)], `
+    testing hash_lt_geq
+    func main(a: PubKeyHash, b: PubKeyHash) -> Bool {
+        (a < b) != (a >= b)
+    }`, ([a, b], res) => asBool(res));
+
+    await ft.test([ft.bytes(0, 5), ft.bytes(0, 5)], `
+    testing hash_gt_leq
+    func main(a: PubKeyHash, b: PubKeyHash) -> Bool {
+        (a > b) != (a <= b)
+    }`, ([a, b], res) => asBool(res));
 
     await ft.test([ft.bytes(0, 10)], `
     testing hash_show
@@ -3960,6 +4024,22 @@ async function testBuiltins() {
     ${spendingScriptContextParam(false)}
     `, ([_], res) => !asBool(res), 2);
 
+    await ft.test([ft.bytes(0, 3), ft.bytes(0, 3)], `
+    testing txid_lt_geq
+    func main(as: ByteArray, bs: ByteArray) -> Bool {
+        a = TxId::new(as);
+        b = TxId::new(bs);
+        (a < b) != (a >= b)
+    }`, ([a, b], res) => asBool(res));
+
+    await ft.test([ft.bytes(0, 3), ft.bytes(0, 3)], `
+    testing txid_gt_leq
+    func main(as: ByteArray, bs: ByteArray) -> Bool {
+        a = TxId::new(as);
+        b = TxId::new(bs);
+        (a > b) != (a <= b)
+    }`, ([a, b], res) => asBool(res));
+
     await ft.testParams({"QTY": ft.int()}, ["CURRENT_TX_ID"], `
     testing txid_from_data
     func main(tx_id: Data) -> TxId {
@@ -4205,6 +4285,36 @@ async function testBuiltins() {
     }
     ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 5);
+
+    await ft.test([ft.bytes(0, 3), ft.int(0, 1)], `
+    testing txoutputid_txid
+    func main(as: ByteArray, ai: Int) -> Bool {
+        a = TxOutputId::new(TxId::new(as), ai);
+        TxId::new(as) == a.tx_id
+    }`, ([a, b], res) => asBool(res));
+
+    await ft.test([ft.bytes(0, 3), ft.int(0, 1)], `
+    testing txoutputid_index
+    func main(as: ByteArray, ai: Int) -> Bool {
+        a = TxOutputId::new(TxId::new(as), ai);
+        ai == a.index
+    }`, ([a, b], res) => asBool(res));
+
+    await ft.test([ft.bytes(0, 3), ft.int(0, 1), ft.bytes(0, 3), ft.int(0, 1)], `
+    testing txoutputid_lt_geq
+    func main(as: ByteArray, ai: Int, bs: ByteArray, bi: Int) -> Bool {
+        a = TxOutputId::new(TxId::new(as), ai);
+        b = TxOutputId::new(TxId::new(bs), bi);
+        (a < b) != (a >= b)
+    }`, ([a, b], res) => asBool(res));
+
+    await ft.test([ft.bytes(0, 3), ft.int(0, 1), ft.bytes(0, 3), ft.int(0, 1)], `
+    testing txoutputid_gt_leq
+    func main(as: ByteArray, ai: Int, bs: ByteArray, bi: Int) -> Bool {
+        a = TxOutputId::new(TxId::new(as), ai);
+        b = TxOutputId::new(TxId::new(bs), bi);
+        (a > b) != (a <= b)
+    }`, ([a, b], res) => asBool(res));
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing txoutputid_new
