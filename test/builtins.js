@@ -4040,6 +4040,13 @@ async function testBuiltins() {
         (a > b) != (a <= b)
     }`, ([a, b], res) => asBool(res));
 
+    await ft.test([ft.bytes()], `
+    testing txid_show
+    func main(bs: ByteArray) -> String {
+        TxId::new(bs).show()
+    }`, ([a], res) => {
+        return helios.bytesToHex(asBytes(a)) === asString(res);
+    });
     await ft.testParams({"QTY": ft.int()}, ["CURRENT_TX_ID"], `
     testing txid_from_data
     func main(tx_id: Data) -> TxId {

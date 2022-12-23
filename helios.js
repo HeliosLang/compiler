@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.10.1
+// Version:     0.10.2
 // Last update: December 2022
 // License:     Unlicense
 //
@@ -170,7 +170,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.10.1"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.10.2"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -13527,13 +13527,20 @@ class SwitchCase extends Token {
 		this.#constrIndex = null;
 	}
 
+	/**
+	 * @type {ValueExpr}
+	 */
+	get body() {
+		return this.#bodyExpr;
+	}
+
 	isError() {
 		return this.#bodyExpr instanceof ErrorExpr;
 	}
 
 	/**
-	 * Returns typeExpr.
 	 * Used by parser to check if typeExpr reference the same base enum
+	 * @type {Word} - word representation of type
 	 */
 	get memberName() {
 		return this.#memberName;
@@ -13560,11 +13567,7 @@ class SwitchCase extends Token {
 	}
 
 	toString() {
-		if (this.#varName === null) {
-			return `${this.#memberName.toString()} => ${this.#bodyExpr.toString()}`
-		} else {
-			return `(${this.#varName.toString()}: ${this.#memberName.toString()}) => ${this.#bodyExpr.toString()}`;
-		}
+		return `${this.#varName !== null ? this.#varName.toString() + ": " : ""}${this.#memberName.toString()} => ${this.#bodyExpr.toString()}`;
 	}
 
 	/**
@@ -13661,6 +13664,86 @@ class SwitchCase extends Token {
 			new IR(`(${this.#varName !== null ? this.#varName.toString() : "_"}) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
 			this.#bodyExpr.toIR(indent + TAB),
 			new IR(`\n${indent}}`),
+		]);
+	}
+}
+
+class UnconstrDataSwitchCase extends SwitchCase {
+	#intVarName;
+	#lstVarName;
+
+	/**
+	 * @param {Site} site 
+	 * @param {?Word} intVarName 
+	 * @param {?Word} lstVarName 
+	 * @param {ValueExpr} bodyExpr 
+	 */
+	constructor(site, intVarName, lstVarName, bodyExpr) {
+		super(site, null, new Word(site, "(Int, []Data)"), bodyExpr);
+
+		this.#intVarName = intVarName;
+		this.#lstVarName = lstVarName;
+	}
+
+	isDataMember() {
+		return true;
+	}
+
+	toString() {
+		return `(${this.#intVarName === null ? "" : this.#intVarName.value + ": "}Int, ${this.#lstVarName === null ? "" : this.#lstVarName.value + ": "} []Data) => ${this.body.toString()}`;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @param {Type} enumType
+	 * @returns {Instance}
+	 */
+	evalEnumMember(scope, enumType) {
+		throw new Error("not available");
+	}
+
+	/**
+	 * Evaluates the switch type and body value of a case.
+	 * Evaluated switch type is only used if #varName !== null
+	 * @param {Scope} scope
+	 * @returns {Instance}
+	 */
+	 evalDataMember(scope) {
+		if (this.#intVarName !== null || this.#lstVarName !== null) {
+			let caseScope = new Scope(scope);
+
+			if (this.#intVarName !== null) {
+				caseScope.set(this.#intVarName, Instance.new(new IntType()));
+			}
+
+			if (this.#lstVarName !== null) {
+				caseScope.set(this.#lstVarName, Instance.new(new ListType(new RawDataType())));
+			}
+
+			let bodyVal = this.body.eval(caseScope);
+
+			caseScope.assertAllUsed();
+
+			return bodyVal;
+		} else {
+			return this.body.eval(scope);
+		}
+	}
+
+	/**
+	 * Accepts two args
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	 toIR(indent = "") {
+		return new IR([
+			new IR(`(data) -> {\n${indent}${TAB}`),
+			new IR(`(pair) -> {\n${indent}${TAB}${TAB}`),
+			new IR(`(${this.#intVarName !== null ? this.#intVarName.toString() : "_"}, ${this.#lstVarName !== null ? this.#lstVarName.toString() : "_"}) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}${TAB}${TAB}`),
+			this.body.toIR(indent + TAB + TAB + TAB),
+			new IR(`\n${indent}${TAB}${TAB}}(__core__iData(__core__fstPair(pair)), __core__listData(__core__sndPair(pair)))`),
+			new IR(`\n${indent}${TAB}}(__core__unConstrData(data))`),
+			new IR(`\n${indent}}`)
 		]);
 	}
 }
@@ -13942,7 +14025,14 @@ class EnumSwitchExpr extends SwitchExpr {
 				case "Map[Data]Data":
 					cases[1] = ir;
 					break;
+				case "(Int, []Data)":
+					cases[0] = ir;
+					break;
 				default:
+					if (cases[0] !== null) {
+						throw new Error("should've been caught before");
+					}
+
 					cases[0] = ir;
 			}
 		}
@@ -17324,7 +17414,11 @@ function buildSwitchExpr(controlExpr, ts) {
 			if (count > 1) {
 				throw site.syntaxError(`expected at most 1 enum case in data switch, got ${count}`);
 			} else {
-				return new DataSwitchExpr(site, controlExpr, cases, def);
+				if (count === 1 && cases.some(c => c instanceof UnconstrDataSwitchCase)) {
+					throw site.syntaxError(`can't have both enum and (Int, []Data) in data switch`);
+				} else {
+					return new DataSwitchExpr(site, controlExpr, cases, def);
+				}
 			}
 		}
 	} else {
@@ -17414,12 +17508,6 @@ function buildSwitchCaseName(site, ts, isAfterColon) {
  * @returns {SwitchCase}
  */
 function buildSwitchCase(ts) {
-	/** @type {?Word} */
-	let varName = null;
-
-	/** @type {?Word} */
-	let memberName = null;
-
 	let arrowPos = Symbol.find(ts, "=>");
 
 	if (arrowPos == -1) {
@@ -17430,55 +17518,146 @@ function buildSwitchCase(ts) {
 
 	let tsLeft = ts.splice(0, arrowPos);
 
-	let colonPos = Symbol.find(tsLeft, ":");
+	if (tsLeft.length === 1 && tsLeft[0].isGroup("(")) {
+		return buildMultiArgSwitchCase(tsLeft, ts);
+	} else {
+		return buildSingleArgSwitchCase(tsLeft, ts);
+	}
+
+	/** @type {[?Word, Word]} */
+	let [varName, memberName] = buildSwitchCaseNameType(tsLeft);
+
+	let maybeArrow = ts.shift();
+
+	if (maybeArrow === undefined) {
+		throw memberName.syntaxError("expected '=>'");
+	} else {
+		let arrow = maybeArrow.assertSymbol("=>");
+
+		let bodyExpr = buildSwitchCaseBody(arrow.site, ts);
+
+		return new SwitchCase(arrow.site, varName, memberName, bodyExpr);
+	}
+}
+
+/**
+ * @param {Token[]} ts 
+ * @returns {[?Word, Word]} - varName is optional
+ */
+function buildSwitchCaseNameType(ts) {
+	let colonPos = Symbol.find(ts, ":");
+
+	/** @type {?Word} */
+	let varName = null;
+
+	/** @type {?Word} */
+	let memberName = null;
 
 	if (colonPos != -1) {
-		varName = assertDefined(tsLeft.shift()).assertWord().assertNotKeyword();
+		varName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 		
-		let maybeColon = tsLeft.shift();
+		let maybeColon = ts.shift();
 		if (maybeColon === undefined) {
 			throw varName.syntaxError("invalid switch case syntax, expected '(<name>: <enum-member>)', got '(<name>)'");
 		} else {
 			void maybeColon.assertSymbol(":");
 
-			memberName = buildSwitchCaseName(maybeColon.site, tsLeft, true);
+			memberName = buildSwitchCaseName(maybeColon.site, ts, true);
 		}
 	} else {
-		memberName = buildSwitchCaseName(tsLeft[0].site, tsLeft, false);
+		memberName = buildSwitchCaseName(ts[0].site, ts, false);
+	}
+
+	if (ts.length !== 0) {
+		throw new Error("unexpected");
 	}
 
 	if (memberName === null) {
 		throw new Error("unexpected");
 	} else {
+		return [varName, memberName];
+	}
+}
+
+/**
+ * @param {Token[]} tsLeft
+ * @param {Token[]} ts
+ * @returns {SwitchCase}
+ */
+function buildMultiArgSwitchCase(tsLeft, ts) {
+	let parens = assertDefined(tsLeft.shift()).assertGroup("(");
+
+	let pairs = parens.fields.map(fts => buildSwitchCaseNameType(fts));
+
+	assert(tsLeft.length === 0);
+
+	if (pairs.length !== 2) {
+		throw parens.syntaxError(`expected (Int, []Data) case, got (${pairs.map(p => p[1].value).join(", ")}`);
+	} else if (pairs[0][1].value != "Int" || pairs[1][1].value != "[]Data") {
+		throw parens.syntaxError(`expected (Int, []Data) case, got (${pairs[0][1].value}, ${pairs[1][1].value})`);
+	} else {
 		let maybeArrow = ts.shift();
 
 		if (maybeArrow === undefined) {
-			throw memberName.syntaxError("expected '=>'");
+			throw parens.syntaxError("expected '=>'");
 		} else {
 			let arrow = maybeArrow.assertSymbol("=>");
 
-			/** @type {?ValueExpr} */
-			let bodyExpr = null;
+			let bodyExpr = buildSwitchCaseBody(arrow.site, ts);
 
-			if (ts.length == 0) {
-				throw arrow.syntaxError("expected expression after '=>'");
-			} else if (ts[0].isGroup("{")) {
-				if (ts.length > 1) {
-					throw ts[1].syntaxError("unexpected token");
-				}
-
-				let tsBody = ts[0].assertGroup("{", 1).fields[0];
-				bodyExpr = buildMaybeErrorExpr(tsBody);
-			} else {
-				bodyExpr = buildMaybeErrorExpr(ts);
-			}
-
-			if (bodyExpr === null) {
-				throw arrow.syntaxError("empty switch case body");
-			} else {
-				return new SwitchCase(arrow.site, varName, memberName, bodyExpr);
-			}
+			return new UnconstrDataSwitchCase(arrow.site, pairs[0][0], pairs[1][0], bodyExpr);
 		}
+	}
+}
+
+/**
+ * @param {Token[]} tsLeft 
+ * @param {Token[]} ts 
+ * @returns {SwitchCase}
+ */
+function buildSingleArgSwitchCase(tsLeft, ts) {
+	/** @type {[?Word, Word]} */
+	let [varName, memberName] = buildSwitchCaseNameType(tsLeft);
+	
+	let maybeArrow = ts.shift();
+
+	if (maybeArrow === undefined) {
+		throw memberName.syntaxError("expected '=>'");
+	} else {
+		let arrow = maybeArrow.assertSymbol("=>");
+
+		let bodyExpr = buildSwitchCaseBody(arrow.site, ts);
+
+		return new SwitchCase(arrow.site, varName, memberName, bodyExpr);
+	}
+}
+
+/**
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {ValueExpr}
+ */
+function buildSwitchCaseBody(site, ts) {
+	/** @type {?ValueExpr} */
+	let bodyExpr = null;
+
+	if (ts.length == 0) {
+		throw site.syntaxError("expected expression after '=>'");
+	} else if (ts[0].isGroup("{")) {
+		if (ts.length > 1) {
+			throw ts[1].syntaxError("unexpected token");
+		}
+
+		let tsBody = ts[0].assertGroup("{", 1).fields[0];
+		bodyExpr = buildMaybeErrorExpr(tsBody);
+	} else {
+		bodyExpr = buildMaybeErrorExpr(ts);
+	}
+
+	if (bodyExpr === null) {
+		throw site.syntaxError("empty switch case body");
+	} else {
+		return bodyExpr;
 	}
 }
 
@@ -19899,6 +20078,8 @@ class TxIdType extends BuiltinType {
 			case "__leq":
 			case "__lt":
 				return Instance.new(new FuncType([this], new BoolType()));
+			case "show":
+				return Instance.new(new FuncType([], new StringType()));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -23549,6 +23730,10 @@ function makeRawFunctions() {
 		__core__constrData(0, __helios__common__list_1(bytes)) 
 	}`));
 	add(new RawFunc("__helios__txid__CURRENT", "__helios__txid__new(__core__bData(#0000000000000000000000000000000000000000000000000000000000000000))"));
+	add(new RawFunc("__helios__txid__show",
+	`(self) -> {
+		__helios__bytearray__show(__helios__txid__bytes(self))
+	}`));
 
 
 	// TxInput builtins

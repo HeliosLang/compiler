@@ -267,6 +267,38 @@ async function test11() {
   program.compile();
 }
 
+async function test12() {
+  const src = `testing data_switch
+  
+  func main(d: Data) -> String {
+    d.switch{
+      Int => "int",
+      (i: Int, dl: []Data) => i.show() + ", " + dl.length.show(),
+      ByteArray => "bytearray",
+      else => "other"
+    }
+  }
+
+  enum MyEnum {
+    One
+    Two
+    Three{x: Int}
+  }
+
+  const DATA = MyEnum::Three{10}
+  `;
+
+  const program = helios.Program.new(src);
+
+  const data = program.evalParam("DATA");
+
+  console.log(program.prettyIR(true));
+
+  let res = await program.compile(true).run([data]);
+
+  console.log(helios.bytesToText(res.data.bytes));
+}
+
 export default async function main() {
   await test1();
 
@@ -289,6 +321,8 @@ export default async function main() {
 	await test10();
 
   await test11();
+  
+  await test12();
 }
 
 runIfEntryPoint(main, "syntax.js");
