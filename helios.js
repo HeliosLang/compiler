@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.10.2
+// Version:     0.10.3
 // Last update: December 2022
 // License:     Unlicense
 //
@@ -170,7 +170,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.10.2"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.10.3"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -24280,7 +24280,12 @@ function makeRawFunctions() {
 		)()
 	}`));
 	add(new RawFunc("__helios__value__from_map", "__helios__common__identity"));
-	add(new RawFunc("__helios__value__to_map", "__helios__common__identity"));
+	add(new RawFunc("__helios__value__to_map", 
+	`(self) -> {
+		() -> {
+			self
+		}
+	}`));
 	add(new RawFunc("__helios__value__get_map_keys",
 	`(map) -> {
 		(recurse) -> {

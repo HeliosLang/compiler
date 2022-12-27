@@ -3382,6 +3382,12 @@ async function testBuiltins() {
             Value::from_map(a)
         }`, ([a], res) => a.data.isSame(res.data));
 
+        await ft.test([ft.map(ft.bytes(), ft.map(ft.bytes(), ft.int()))], `
+        testing value_to_map
+        func main(a: Value) -> Int {
+            a.to_map().length
+        }`, ([a], res) => a.data.map.length === Number(asInt(res)));
+
         await ft.test([ft.int(), ft.bytes(), ft.bytes()], `
         testing value_serialize
         func main(qty: Int, mph: ByteArray, name: ByteArray) -> ByteArray {
