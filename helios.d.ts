@@ -66,7 +66,7 @@ export function deserializeUplcBytes(bytes: number[]): UplcProgram;
  * @returns {UplcProgram}
  */
 export function deserializeUplc(jsonString: string): UplcProgram;
-export const VERSION: "0.10.3";
+export const VERSION: "0.10.4";
 /**
  * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
  * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
@@ -2920,8 +2920,7 @@ declare class Type extends EvalEntity {
      */
     nEnumMembers(site: Site): number;
     /**
-     * Returns the base path of type (eg. __helios__bool).
-     * This is used extensively in the Intermediate Representation.
+     * Returns the base path in the IR (eg. __helios__bool, __helios__error, etc.)
      * @type {string}
      */
     get path(): string;
@@ -3743,7 +3742,7 @@ declare class Scope {
 /**
  * Base class for DataInstance and FuncInstance
  */
-declare class Instance extends EvalEntity {
+declare class Instance extends NotType {
     /**
      * @param {Type | Type[]} type
      * @returns {Instance}
@@ -4343,6 +4342,8 @@ declare class IRValue {
      * @type {?IRLiteral}
      */
     get value(): IRLiteral;
+}
+declare class NotType extends EvalEntity {
 }
 /**
  * Base class of expression that evaluate to Values.
