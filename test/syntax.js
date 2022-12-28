@@ -114,9 +114,13 @@ async function test4() {
   }
   `;
 
-  let program = helios.Program.new(src).compile();
+  let program = helios.Program.new(src);
 
-  console.log((await program.runWithPrint([])).toString());
+  console.log(program.prettyIR());
+
+  let uplcProgram = program.compile();
+
+  console.log((await uplcProgram.runWithPrint([])).toString());
 }
 
 async function test5() {
@@ -299,6 +303,35 @@ async function test12() {
   console.log(helios.bytesToText(res.data.bytes));
 }
 
+async function test13() {
+  const src = `testing void_func
+  func nestedAssert(cond: Bool, msg: String) -> () {
+    assert(cond, msg)
+  }
+
+  func customAssert(cond: Bool, msg: String) -> () {
+    if (!cond) {
+      error(msg)
+    }
+  }
+
+  func main() -> Bool {
+    nestedAssert(false, "assert failed");
+    customAssert(false, "assert failed");
+    false
+  }`;
+
+  let program = helios.Program.new(src);
+
+  console.log(program.prettyIR(false));
+
+  let [res, messages] = await program.compile(false).runWithPrint([]);
+
+  messages.forEach(m => console.log(m));
+
+  console.log(res.toString());
+}
+
 export default async function main() {
   await test1();
 
@@ -323,6 +356,8 @@ export default async function main() {
   await test11();
   
   await test12();
+
+  await test13();
 }
 
 runIfEntryPoint(main, "syntax.js");

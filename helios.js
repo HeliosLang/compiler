@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.10.3
+// Version:     0.10.4
 // Last update: December 2022
 // License:     Unlicense
 //
@@ -170,7 +170,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.10.3"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.10.4"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -6253,7 +6253,13 @@ class UplcBuiltin extends UplcTerm {
 				});
 			case "chooseUnit":
 				// what is the point of this function?
-				throw new Error("no immediate need, so don't bother yet");
+				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
+					rte.calcAndIncrCost(this, a, b);
+
+					a.assertUnit();
+
+					return b.copy(callSite);
+				});
 			case "trace":
 				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
@@ -8400,8 +8406,6 @@ class Word extends Token {
 			case "if":
 			case "else":
 			case "switch":
-			case "print":
-			case "error":
 			case "self":
 				return true;
 			default:
@@ -9993,8 +9997,7 @@ class Type extends EvalEntity {
 	}
 
 	/**
-	 * Returns the base path of type (eg. __helios__bool).
-	 * This is used extensively in the Intermediate Representation.
+	 * Returns the base path in the IR (eg. __helios__bool, __helios__error, etc.)
 	 * @type {string}
 	 */
 	get path() {
@@ -10448,10 +10451,41 @@ class FuncType extends Type {
 	}
 }
 
+class NotType extends EvalEntity {
+	constructor() {
+		super();
+	}
+	
+	/**
+	 * @returns {boolean}
+	 */
+	isType() {
+		return false;
+	}
+
+	/**
+	 * Throws an error because NotType can't be a base-Type of anything.
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		throw site.typeError("not a type");
+	}
+
+	/**
+	 * @param {Word} name
+	 * @returns {EvalEntity} - can be Instance or Type
+	 */
+	getTypeMember(name) {
+		throw new Error("not a type");
+	}
+}
+
 /**
  * Base class for DataInstance and FuncInstance
  */
-class Instance extends EvalEntity {
+class Instance extends NotType {
 	constructor() {
 		super();
 	}
@@ -10471,16 +10505,13 @@ class Instance extends EvalEntity {
 			return new FuncInstance(type);
 		} else if (type instanceof ParamType) {
 			return new DataInstance(type.type);
+		} else if (type instanceof ErrorType) {
+			return new ErrorInstance();
+		} else if (type instanceof VoidType) {
+			return new VoidInstance();
 		} else {
 			return new DataInstance(type);
 		}
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isType() {
-		return false;
 	}
 
 	/**
@@ -10497,23 +10528,8 @@ class Instance extends EvalEntity {
 	assertValue(site) {
 		return this;
 	}
-
-	/**
-	 * Throws an error because an Instance isn't a Type, and thus can't be a base-Type of anything.
-	 * @param {Site} site 
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(site, type) {
-		throw site.typeError("not a type");
-	}
 }
 
-/**
- * Returned by an ErrorExpr
- */
-class ErrorInstance extends Instance {
-}
 
 /**
  * A regular non-Func Instance. DataValues can always be compared, serialized, used in containers.
@@ -10809,6 +10825,131 @@ class MultiInstance extends Instance {
 	}
 }
 
+class VoidInstance extends Instance {
+	constructor() {
+		super();
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "()"
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type | TypeClass} type 
+	 * @returns {boolean}
+	 */
+	isInstanceOf(site, type) {
+		return type instanceof VoidType;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
+	getType(site) {
+		return new VoidType();
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Instance[]} args
+	 * @returns {Instance}
+	 */
+	call(site, args) {
+		throw new Error("can't call void");
+	}
+
+	/**
+	 * @param {Word} name
+	 * @returns {Instance} - can be FuncInstance or DataInstance
+	 */
+	getInstanceMember(name) {
+		throw new Error("can't get member of void");
+	}
+
+	/**
+	 * @param {Site} site
+	 * @returns {number}
+	 */
+	nFields(site) {
+		throw new Error("can't get nFields of void");
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {number} i
+	 * @returns {Type}
+	 */
+	getFieldType(site, i) {
+		throw new Error("can't get field-type of void");
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		throw new Error("can't get constr index of void");
+	}
+}
+
+/**
+ * Returned by an error()
+ */
+class ErrorInstance extends VoidInstance {
+	/**
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
+	 getType(site) {
+		return new ErrorType();
+	}
+}
+
+class BuiltinFuncInstance extends FuncInstance {
+	/**
+	 * Returns the base path in the IR (eg. __helios__bool, __helios__error, etc.)
+	 * @type {string}
+	 */
+	get path() {
+		throw new Error("not implemented")
+	}
+}
+
+class PrintFunc extends BuiltinFuncInstance {
+	constructor() {
+		super(new FuncType([new StringType()], new VoidType()));
+	}
+
+	get path() {
+		return "__helios__print";
+	}
+}
+
+class ErrorFunc extends BuiltinFuncInstance {
+	constructor() {
+		super(new FuncType([new StringType()], new ErrorType()));
+	}
+
+	get path() {
+		return "__helios__error";
+	}
+}
+
+class AssertFunc extends BuiltinFuncInstance {
+	constructor() {
+		super(new FuncType([new BoolType(), new StringType()], new VoidType()));
+	}
+
+	get path() {
+		return "__helios__assert";
+	}
+}
+
 
 ////////////////////
 // Section 9: Scopes
@@ -10931,6 +11072,9 @@ class GlobalScope {
 		scope.set("TimeRange", new TimeRangeType());
 		scope.set("AssetClass", new AssetClassType());
 		scope.set("Value", new ValueType());
+		scope.set("print", new PrintFunc());
+		scope.set("error", new ErrorFunc());
+		scope.set("assert", new AssertFunc());
 
 		return scope;
 	}
@@ -11443,6 +11587,30 @@ class OptionTypeExpr extends TypeExpr {
 }
 
 /**
+ * '()' which can only be used as return type of func
+ */
+class VoidTypeExpr extends TypeExpr {
+	constructor(site) {
+		super(site);
+	}
+
+	toString() {
+		return "()";
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
+	evalInternal(scope) {
+		return new VoidType();
+	}
+	
+	use() {
+	}
+}
+
+/**
  * (ArgType1, ...) -> RetType expression
  */
 class FuncTypeExpr extends TypeExpr {
@@ -11768,23 +11936,16 @@ class PrintExpr extends ValueExpr {
 	}
 }
 
-/**
- * ... ; error(...)
- */
-class ErrorExpr extends ValueExpr {
-	#msgExpr;
-
+class VoidExpr extends ValueExpr {
 	/**
-	 * @param {Site} site 
-	 * @param {ValueExpr} msgExpr 
+	 * @param {Site} site
 	 */
-	constructor(site, msgExpr) {
+	constructor(site) {
 		super(site);
-		this.#msgExpr = msgExpr;
 	}
 
 	toString() {
-		return `error(${this.#msgExpr.toString()})`;
+		return "()";
 	}
 
 	/**
@@ -11792,19 +11953,55 @@ class ErrorExpr extends ValueExpr {
 	 * @returns {Instance}
 	 */
 	evalInternal(scope) {
-		let msgVal = this.#msgExpr.eval(scope);
-
-		assert(msgVal.isValue());
-
-		if (!msgVal.isInstanceOf(this.#msgExpr.site, StringType)) {
-			throw this.#msgExpr.typeError("expected string arg for error");
-		}
-
-		return new ErrorInstance();
+		return new VoidInstance();
 	}
 
 	use() {
-		this.#msgExpr.use();
+	}
+
+	toIR() {
+		return new IR("()", this.site);
+	}
+}
+
+class ChainExpr extends ValueExpr {
+	#upstreamExpr;
+	#downstreamExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {ValueExpr} upstreamExpr 
+	 * @param {ValueExpr} downstreamExpr 
+	 */
+	constructor(site, upstreamExpr, downstreamExpr) {
+		super(site);
+		this.#upstreamExpr = upstreamExpr;
+		this.#downstreamExpr = downstreamExpr;
+	}
+
+	toString() {
+		return `${this.#upstreamExpr.toString()}; ${this.#downstreamExpr.toString()}`;
+	}
+
+	/**
+	 * @param {Scope} scope
+	 * @returns {Instance}
+	 */
+	evalInternal(scope) {
+		let upstreamVal = this.#upstreamExpr.eval(scope);
+
+		if (upstreamVal instanceof ErrorInstance) {
+			throw this.#downstreamExpr.typeError("unreachable code (upstream always throws error)");
+		} else if (!(upstreamVal instanceof VoidInstance)) {
+			throw this.#upstreamExpr.typeError("unexpected return value (hint: use '='");
+		}
+
+		return this.#downstreamExpr.eval(scope);
+	}
+
+	use() {
+		this.#upstreamExpr.use();
+		this.#downstreamExpr.use();
 	}
 
 	/**
@@ -11813,9 +12010,11 @@ class ErrorExpr extends ValueExpr {
 	 */
 	toIR(indent = "") {
 		return new IR([
-			new IR("__core__trace", this.site), new IR("("), new IR("__helios__common__unStringData("),
-			this.#msgExpr.toIR(indent),
-			new IR(`), () -> {__core__error("error thrown by user-code")})()`)
+			new IR("__core__chooseUnit(", this.site),
+			this.#upstreamExpr.toIR(indent),
+			new IR(", "),
+			this.#downstreamExpr.toIR(indent),
+			new IR(")")
 		]);
 	}
 }
@@ -12691,6 +12890,8 @@ class ValueRefExpr extends ValueExpr {
 
 		if (this.value instanceof FuncStatementInstance || this.value instanceof ConstStatementInstance) {
 			path = this.value.statement.path;
+		} else if (this.value instanceof BuiltinFuncInstance) {
+			path = this.value.path;
 		}
 
 		let ir = new IR(path, this.site);
@@ -13379,8 +13580,10 @@ class IfElseExpr extends ValueExpr {
 	 * @param {Type} newType
 	 */
 	static reduceBranchType(site, prevType, newType) {
-		if (prevType === null) {
+		if (prevType === null || prevType instanceof ErrorType) {
 			return newType;
+		} else if (newType instanceof ErrorType) {
+			return prevType;
 		} else if (!prevType.isBaseOf(site, newType)) {
 			if (newType.isBaseOf(site, prevType)) {
 				return newType;
@@ -13443,15 +13646,13 @@ class IfElseExpr extends ValueExpr {
 		for (let b of this.#branches) {
 			let branchVal = b.eval(scope);
 
-			if (!(branchVal instanceof ErrorInstance)) {
-				branchMultiType = IfElseExpr.reduceBranchMultiType(
-					b.site, 
-					branchMultiType, 
-					(branchVal instanceof MultiInstance) ? 
-						branchVal.values.map(v => v.getType(b.site)) : 
-						[branchVal.getType(b.site)]
-				);
-			}
+			branchMultiType = IfElseExpr.reduceBranchMultiType(
+				b.site, 
+				branchMultiType, 
+				(branchVal instanceof MultiInstance) ? 
+					branchVal.values.map(v => v.getType(b.site)) : 
+					[branchVal.getType(b.site)]
+			);
 		}
 
 		if (branchMultiType === null) {
@@ -13532,10 +13733,6 @@ class SwitchCase extends Token {
 	 */
 	get body() {
 		return this.#bodyExpr;
-	}
-
-	isError() {
-		return this.#bodyExpr instanceof ErrorExpr;
 	}
 
 	/**
@@ -13763,10 +13960,6 @@ class SwitchDefault extends Token {
 		this.#bodyExpr = bodyExpr;
 	}
 
-	isError() {
-		return this.#bodyExpr instanceof ErrorExpr;
-	}
-
 	toString() {
 		return `else => ${this.#bodyExpr.toString()}`;
 	}
@@ -13869,30 +14062,26 @@ class EnumSwitchExpr extends SwitchExpr {
 
 		for (let c of this.cases) {
 			let branchVal = c.evalEnumMember(scope, enumType);
-
-			if (!(branchVal instanceof ErrorInstance)) {	
-				branchMultiType = IfElseExpr.reduceBranchMultiType(
-					c.site, 
-					branchMultiType, 
-					(branchVal instanceof MultiInstance) ? 
-						branchVal.values.map(v => v.getType(c.site)) :
-						[branchVal.getType(c.site)]
-				);
-			}
+	
+			branchMultiType = IfElseExpr.reduceBranchMultiType(
+				c.site, 
+				branchMultiType, 
+				(branchVal instanceof MultiInstance) ? 
+					branchVal.values.map(v => v.getType(c.site)) :
+					[branchVal.getType(c.site)]
+			);
 		}
 
 		if (this.defaultCase !== null) {
 			let defaultVal = this.defaultCase.eval(scope);
 
-			if (!(defaultVal instanceof ErrorInstance)) {
-				branchMultiType = IfElseExpr.reduceBranchMultiType(
-					this.defaultCase.site, 
-					branchMultiType, 
-					(defaultVal instanceof MultiInstance) ?
-						defaultVal.values.map(v => v.getType(this.defaultCase.site)) :
-						[defaultVal.getType(this.defaultCase.site)]
-				);
-			}
+			branchMultiType = IfElseExpr.reduceBranchMultiType(
+				this.defaultCase.site, 
+				branchMultiType, 
+				(defaultVal instanceof MultiInstance) ?
+					defaultVal.values.map(v => v.getType(this.defaultCase.site)) :
+					[defaultVal.getType(this.defaultCase.site)]
+			);
 		}
 
 		if (branchMultiType === null) {
@@ -13969,29 +14158,25 @@ class EnumSwitchExpr extends SwitchExpr {
 		for (let c of this.cases) {
 			let branchVal = c.evalDataMember(scope);
 
-			if (!(branchVal instanceof ErrorInstance)) {
-				branchMultiType = IfElseExpr.reduceBranchMultiType(
-					c.site, 
-					branchMultiType, 
-					(branchVal instanceof MultiInstance) ?
-						branchVal.values.map(v => v.getType(c.site)) :
-						[branchVal.getType(c.site)]
-				);
-			}
+			branchMultiType = IfElseExpr.reduceBranchMultiType(
+				c.site, 
+				branchMultiType, 
+				(branchVal instanceof MultiInstance) ?
+					branchVal.values.map(v => v.getType(c.site)) :
+					[branchVal.getType(c.site)]
+			);
 		}
 
 		if (this.defaultCase !== null) {
 			let defaultVal = this.defaultCase.eval(scope);
 
-			if (!(defaultVal instanceof ErrorInstance)) {
-				branchMultiType = IfElseExpr.reduceBranchMultiType(
-					this.defaultCase.site, 
-					branchMultiType, 
-					(defaultVal instanceof MultiInstance) ?
-						defaultVal.values.map(v => v.getType(this.defaultCase.site)) :
-						[defaultVal.getType(this.defaultCase.site)]
-				);
-			}
+			branchMultiType = IfElseExpr.reduceBranchMultiType(
+				this.defaultCase.site, 
+				branchMultiType, 
+				(defaultVal instanceof MultiInstance) ?
+					defaultVal.values.map(v => v.getType(this.defaultCase.site)) :
+					[defaultVal.getType(this.defaultCase.site)]
+			);
 		}
 
 		if (branchMultiType === null) {
@@ -16855,8 +17040,10 @@ function buildFuncRetTypeExprs(site, ts) {
 		if (ts[0].isGroup("(")) {
 			let group = assertDefined(ts.shift()).assertGroup("(");
 
-			if (group.fields.length < 2) {
-				throw group.syntaxError("expected 2 or more types in multi return type");
+			if (group.fields.length == 0) {
+				return [new VoidTypeExpr(group.site)];
+			} else if (group.fields.length == 1) {
+				throw group.syntaxError("expected 0 or 2 or more types in multi return type");
 			} else {
 				return group.fields.map(fts => {
 					fts = fts.slice();
@@ -16963,10 +17150,17 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 		}
 	} else {
 		if (equalsPos == -1 && printPos == -1) {
-			throw ts[semicolonPos].syntaxError("expected '=', or 'print', before ';'");
-		}
+			const upstreamExpr = buildValueExpr(ts.splice(0, semicolonPos), prec+1);
+			const site = assertDefined(ts.shift()).site;
 
-		if (equalsPos != -1 && equalsPos < semicolonPos) {
+			if (ts.length == 0) {
+				throw site.syntaxError("expected expression after ';'");
+			} else {
+				const downstreamExpr = buildValueExpr(ts, prec);
+
+				return new ChainExpr(site, upstreamExpr, downstreamExpr);
+			}
+		} else if (equalsPos != -1 && equalsPos < semicolonPos) {
 			if (printPos != -1) {
 				if (printPos <= semicolonPos) {
 					throw ts[printPos].syntaxError("expected ';' after 'print(...)'");
@@ -17126,31 +17320,6 @@ function buildAssignLhs(site, ts) {
 		}
 
 		return pairs;
-	}
-}
-
-/**
- * 
- * @param {Token[]} ts 
- * @returns {ValueExpr}
- */
-function buildMaybeErrorExpr(ts) {
-	let n = ts.length;
-
-	if (n >= 2 && ts[n-1].isGroup("(") && ts[n-2].isWord("error")) {
-		let parens = ts[n-1].assertGroup("(", 1);
-
-		if (n > 2) {
-			ts[n-3].assertSymbol(";");
-		}
-
-		let tsCombined = ts.slice(0, n-2).concat(parens.fields[0].slice());
-
-		let inner = buildValueExpr(tsCombined);
-
-		return new ErrorExpr(ts[n-2].site, inner);
-	} else {
-		return buildValueExpr(ts);
 	}
 }
 
@@ -17320,33 +17489,39 @@ function buildIfElseExpr(ts) {
 			throw parens.syntaxError("expected single if-else condition");
 		}
 
-		if (braces.fields.length != 1) {
+		if (braces.fields.length == 0) {
+			throw braces.syntaxError("branch body can't be empty");
+		} else if (braces.fields.length != 1) {
 			throw braces.syntaxError("expected single if-else branch expession");
 		}
 
 		conditions.push(buildValueExpr(parens.fields[0]));
-		branches.push(buildMaybeErrorExpr(braces.fields[0]));
+		branches.push(buildValueExpr(braces.fields[0]));
 
-		assertDefined(ts.shift()).assertWord("else");
+		let maybeElse = ts.shift();
 
-		let next = assertDefined(ts.shift());
-		if (next.isGroup("{")) {
-			// last group
-			let braces = next.assertGroup();
-			if (braces.fields.length != 1) {
-				throw braces.syntaxError("expected single expession for if-else branch");
-			}
-			branches.push(buildMaybeErrorExpr(braces.fields[0]));
+		if (maybeElse === undefined ) {
+			// add a void else branch
+			branches.push(new VoidExpr(braces.site));
 			break;
-		} else if (next.isWord("if")) {
-			continue;
 		} else {
-			throw next.syntaxError("unexpected token");
-		}
-	}
+			maybeElse.assertWord("else");
 
-	if (branches.every(b => b instanceof ErrorExpr)) {
-		throw site.syntaxError("every if-else branch throws an error");
+			let next = assertDefined(ts.shift());
+			if (next.isGroup("{")) {
+				// last group
+				let braces = next.assertGroup();
+				if (braces.fields.length != 1) {
+					throw braces.syntaxError("expected single expession for if-else branch");
+				}
+				branches.push(buildValueExpr(braces.fields[0]));
+				break;
+			} else if (next.isWord("if")) {
+				continue;
+			} else {
+				throw next.syntaxError("unexpected token");
+			}
+		}
 	}
 
 	return new IfElseExpr(site, conditions, branches);
@@ -17398,10 +17573,6 @@ function buildSwitchExpr(controlExpr, ts) {
 
 	if (cases.length < 1) {
 		throw site.syntaxError("expected at least one switch case");
-	}
-
-	if (cases.every(c => c.isError()) && (def === null || def.isError())) {
-		throw site.syntaxError("every switch case throws an error");
 	}
 
 	if (cases.some(c => c.isDataMember())) {
@@ -17649,9 +17820,9 @@ function buildSwitchCaseBody(site, ts) {
 		}
 
 		let tsBody = ts[0].assertGroup("{", 1).fields[0];
-		bodyExpr = buildMaybeErrorExpr(tsBody);
+		bodyExpr = buildValueExpr(tsBody);
 	} else {
-		bodyExpr = buildMaybeErrorExpr(ts);
+		bodyExpr = buildValueExpr(ts);
 	}
 
 	if (bodyExpr === null) {
@@ -17682,10 +17853,10 @@ function buildSwitchDefault(ts) {
 			if (ts.length > 1) {
 				throw ts[1].syntaxError("unexpected token");
 			} else {
-				bodyExpr = buildMaybeErrorExpr(ts[0].assertGroup("{", 1).fields[0]);
+				bodyExpr = buildValueExpr(ts[0].assertGroup("{", 1).fields[0]);
 			}
 		} else {
-			bodyExpr = buildMaybeErrorExpr(ts);
+			bodyExpr = buildValueExpr(ts);
 		}
 
 		if (bodyExpr === null) {
@@ -18096,6 +18267,40 @@ function buildLiteralExprFromValue(site, type, value, path) {
 ////////////////////////////
 // Section 13: Builtin types
 ////////////////////////////
+
+class VoidType extends Type {
+	constructor() {
+		super();
+	}
+
+	toString() {
+		return "()";
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		return type instanceof VoidType;
+	}
+}
+
+class ErrorType extends VoidType {
+	constructor() {
+		super();
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		return type instanceof ErrorType;
+	}
+}
 
 /**
  * Builtin Int type
@@ -21730,6 +21935,39 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__common__hash_datum_data", 
 	`(data) -> {
 		__core__bData(__core__blake2b_256(__core__serialiseData(data)))
+	}`));
+
+
+	// Global builtin functions
+	add(new RawFunc("__helios__print", 
+	`(msg) -> {
+		__core__trace(__helios__common__unStringData(msg), ())
+	}`));
+	add(new RawFunc("__helios__error",
+	`(msg) -> {
+		__core__trace(
+			__helios__common__unStringData(msg), 
+			() -> {
+				__core__error("error thrown by user-code")
+			}
+		)()
+	}`));
+	add(new RawFunc("__helios__assert",
+	`(cond, msg) -> {
+		__core__ifThenElse(
+			cond,
+			() -> {
+				()
+			},
+			() -> {
+				__core__trace(
+					__helios__common__unStringData(msg),
+					() -> {
+						__core__error("assert failed")
+					}
+				)()
+			}
+		)()
 	}`));
 
 
