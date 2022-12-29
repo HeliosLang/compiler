@@ -332,6 +332,45 @@ async function test13() {
   console.log(res.toString());
 }
 
+async function test14() {
+  const srcHelpers = `module helpers
+  
+  func is_tx_authorized_by(tx: Tx, _) -> Bool {
+    tx.is_signed_by(PubKeyHash::new(#))
+  }`;
+
+  const src = `minting sample_migrate_token_policy
+
+  import { is_tx_authorized_by } from helpers
+
+  const CRED: Credential =
+    Credential::new_pubkey(
+      PubKeyHash::new(#1234567890123456789012345678)
+    )
+
+  func main(ctx: ScriptContext) -> Bool {
+    tx: Tx = ctx.tx;
+
+    assert( 1== 1, "error");
+
+    test_option: Option[Int] = Option[Int]::Some{1};
+
+    test: Int = test_option.switch {
+      None => error("invalid int"),
+      else => {
+        assert(1 == 1, "error");
+        1
+      }
+    };
+
+    assert(test == 1, "wrong option");
+
+    is_tx_authorized_by(tx, CRED)
+  }`;
+
+  const program = helios.Program.new(src, [srcHelpers]);
+}
+
 export default async function main() {
   await test1();
 
@@ -358,6 +397,8 @@ export default async function main() {
   await test12();
 
   await test13();
+
+  await test14();
 }
 
 runIfEntryPoint(main, "syntax.js");

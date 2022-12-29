@@ -6,7 +6,7 @@
 // Author:      Christian Schmitz
 // Email:       cschmitz398@gmail.com
 // Website:     github.com/hyperion-bt/helios
-// Version:     0.10.4
+// Version:     0.10.5
 // Last update: December 2022
 // License:     Unlicense
 //
@@ -170,7 +170,7 @@
 // Section 1: Global constants and vars
 ///////////////////////////////////////
 
-export const VERSION = "0.10.4"; // don't forget to change to version number at the top of this file, and in package.json
+export const VERSION = "0.10.5"; // don't forget to change to version number at the top of this file, and in package.json
 
 var DEBUG = false;
 
@@ -17143,13 +17143,11 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 	if (semicolonPos == -1) {
 		if (equalsPos != -1) {
 			throw ts[equalsPos].syntaxError("invalid assignment syntax, expected ';' after '...=...'");
-		} else if (printPos != -1) {
-			throw ts[printPos].syntaxError("invalid print expression, expected ';' after 'print(...)'");
 		} else {
 			return buildValueExpr(ts, prec + 1);
 		}
 	} else {
-		if (equalsPos == -1 && printPos == -1) {
+		if ((equalsPos == -1 || equalsPos > semicolonPos) && (printPos == -1 || printPos > semicolonPos)) {
 			const upstreamExpr = buildValueExpr(ts.splice(0, semicolonPos), prec+1);
 			const site = assertDefined(ts.shift()).site;
 
