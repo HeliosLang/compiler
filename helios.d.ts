@@ -1,4 +1,13 @@
 /**
+ * Divides two integers. Assumes a and b are whole numbers. Rounds down the result.
+ * @example
+ * idiv(355, 113) => 3
+ * @package
+ * @param {number} a
+ * @param {number} b
+ * */
+export function idiv(a: number, b: number): number;
+/**
  * Converts a hexadecimal representation of bytes into an actual list of uint8 bytes.
  * @example
  * hexToBytes("00ff34") => [0, 255, 52]
@@ -41,6 +50,48 @@ export function bytesToText(bytes: number[]): string;
  */
 export function hl(a: string[], ...b: any[]): string;
 /**
+ * Dynamically constructs a new List class, depending on the item type.
+ * @param {HeliosDataClass} ItemClass
+ * @returns {HeliosDataClass}
+ */
+export function List(ItemClass: HeliosDataClass): HeliosDataClass;
+/**
+ * @param {HeliosDataClass} KeyClass
+ * @param {HeliosDataClass} ValueClass
+ * @returns {HeliosDataClass}
+ */
+export function HeliosMap(KeyClass: HeliosDataClass, ValueClass: HeliosDataClass): HeliosDataClass;
+/**
+ * @param {HeliosDataClass} SomeClass
+ * @returns {HeliosDataClass}
+ */
+export function Option(SomeClass: HeliosDataClass): HeliosDataClass;
+/**
+ * Returns index of a named builtin
+ * Throws an error if builtin doesn't exist
+ * @param {string} name
+ * @returns
+ */
+export function findUplcBuiltin(name: string): number;
+/**
+ * Checks if a named builtin exists
+ * @param {string} name
+ * @param {boolean} strict - if true then throws an error if builtin doesn't exist
+ * @returns {boolean}
+ */
+export function isUplcBuiltin(name: string, strict?: boolean): boolean;
+/**
+ * @param {number[]} bytes
+ * @returns {UplcProgram}
+ */
+export function deserializeUplcBytes(bytes: number[]): UplcProgram;
+/**
+ * Parses a plutus core program. Returns a UplcProgram object
+ * @param {string} jsonString
+ * @returns {UplcProgram}
+ */
+export function deserializeUplc(jsonString: string): UplcProgram;
+/**
  * Parses Helios quickly to extract the script purpose header.
  * Returns null if header is missing or incorrectly formed (instead of throwing an error)
  * @param {string} rawSrc
@@ -56,17 +107,9 @@ export function extractScriptPurposeAndName(rawSrc: string): [string, string] | 
  */
 export function highlight(src: string): Uint8Array;
 /**
- * @param {number[]} bytes
- * @returns {UplcProgram}
+ * Version of the Helios library.
  */
-export function deserializeUplcBytes(bytes: number[]): UplcProgram;
-/**
- * Parses a plutus core program. Returns a UplcProgram object
- * @param {string} jsonString
- * @returns {UplcProgram}
- */
-export function deserializeUplc(jsonString: string): UplcProgram;
-export const VERSION: "0.10.5";
+export const VERSION: "0.10.6";
 /**
  * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
  * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
@@ -132,10 +175,7 @@ export class UserError extends Error {
      * @type {Source}
      */
     get src(): Source;
-    /**
-     * @type {UplcData}
-     */
-    get data(): UplcData;
+    get data(): void;
     /**
      * @type {number}
      */
@@ -154,6 +194,765 @@ export class UserError extends Error {
     #private;
 }
 /**
+ * Token is the base class of all Expressions and Statements
+ */
+export class Token {
+    /**
+     * @param {Site} site
+     */
+    constructor(site: Site);
+    get site(): Site;
+    /**
+     * @returns {string}
+     */
+    toString(): string;
+    /**
+     * Returns 'true' if 'this' is a literal primitive, a literal struct constructor, or a literal function expression.
+     * @returns {boolean}
+     */
+    isLiteral(): boolean;
+    /**
+     * Returns 'true' if 'this' is a Word token.
+     * @param {?(string | string[])} value
+     * @returns {boolean}
+     */
+    isWord(value?: (string | string[]) | null): boolean;
+    /**
+     * Returns 'true' if 'this' is a Symbol token (eg. '+', '(' etc.)
+     * @param {?(string | string[])} value
+     * @returns {boolean}
+     */
+    isSymbol(value?: (string | string[]) | null): boolean;
+    /**
+     * Returns 'true' if 'this' is a group (eg. '(...)').
+     * @param {?string} value
+     * @returns {boolean}
+     */
+    isGroup(value: string | null): boolean;
+    /**
+     * Returns a SyntaxError at the current Site.
+     * @param {string} msg
+     * @returns {UserError}
+     */
+    syntaxError(msg: string): UserError;
+    /**
+     * Returns a TypeError at the current Site.
+     * @param {string} msg
+     * @returns {UserError}
+     */
+    typeError(msg: string): UserError;
+    /**
+     * Returns a ReferenceError at the current Site.
+     * @param {string} msg
+     * @returns {UserError}
+     */
+    referenceError(msg: string): UserError;
+    /**
+     * Throws a SyntaxError if 'this' isn't a Word.
+     * @param {?(string | string[])} value
+     * @returns {Word}
+     */
+    assertWord(value?: (string | string[]) | null): Word;
+    /**
+     * Throws a SyntaxError if 'this' isn't a Symbol.
+     * @param {?(string | string[])} value
+     * @returns {SymbolToken}
+     */
+    assertSymbol(value?: (string | string[]) | null): SymbolToken;
+    /**
+     * Throws a SyntaxError if 'this' isn't a Group.
+     * @param {?string} type
+     * @param {?number} nFields
+     * @returns {Group}
+     */
+    assertGroup(type?: string | null, nFields?: number | null): Group;
+    #private;
+}
+/**
+ * @typedef {(bytes: number[]) => void} Decoder
+ */
+/**
+ * @typedef {(i: number, bytes: number[]) => void} IDecoder
+ */
+/**
+ * Base class of any Cbor serializable data class
+ * Also contains helper methods for (de)serializing data to/from Cbor
+ */
+export class CborData {
+    /**
+     * @param {number} m - major type
+     * @param {bigint} n - size parameter
+     * @returns {number[]} - uint8 bytes
+     */
+    static encodeHead(m: number, n: bigint): number[];
+    /**
+     * @param {number[]} bytes - mutated to contain the rest
+     * @returns {[number, bigint]} - [majorType, n]
+     */
+    static decodeHead(bytes: number[]): [number, bigint];
+    /**
+     * @param {number} m
+     * @returns {number[]}
+     */
+    static encodeIndefHead(m: number): number[];
+    /**
+     * @param {number[]} bytes - cbor bytes
+     * @returns {number} - majorType
+     */
+    static decodeIndefHead(bytes: number[]): number;
+    /**
+     * @param {number[]} bytes
+     * @returns {boolean}
+     */
+    static isNull(bytes: number[]): boolean;
+    /**
+     * @returns {number[]}
+     */
+    static encodeNull(): number[];
+    /**
+     * Throws error if not null
+     * @param {number[]} bytes
+     */
+    static decodeNull(bytes: number[]): void;
+    /**
+     * @param {boolean} b
+     * @returns {number[]}
+     */
+    static encodeBool(b: boolean): number[];
+    /**
+     * @param {number[]} bytes
+     * @returns {boolean}
+     */
+    static decodeBool(bytes: number[]): boolean;
+    /**
+     * @param {number[]} bytes
+     * @returns {boolean}
+     */
+    static isDefBytes(bytes: number[]): boolean;
+    /**
+     * @param {number[]} bytes
+     * @returns {boolean}
+     */
+    static isIndefBytes(bytes: number[]): boolean;
+    /**
+     * @example
+     * bytesToHex(CborData.encodeBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
+     * @param {number[]} bytes
+     * @param {boolean} splitInChunks
+     * @returns {number[]} - cbor bytes
+     */
+    static encodeBytes(bytes: number[], splitInChunks?: boolean): number[];
+    /**
+     * Decodes both an indef array of bytes, and a bytearray of specified length
+     * @example
+     * bytesToHex(CborData.decodeBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
+     * @param {number[]} bytes - cborbytes, mutated to form remaining
+     * @returns {number[]} - byteArray
+     */
+    static decodeBytes(bytes: number[]): number[];
+    /**
+     * @param {number[]} bytes
+     * @returns {boolean}
+     */
+    static isUtf8(bytes: number[]): boolean;
+    /**
+     * Encodes a Utf8 string into Cbor bytes.
+     * Strings longer than 64 bytes are split into lists with 64 byte chunks
+     * Note: string splitting isn't reversible
+     * @param {string} str
+     * @param {boolean} split
+     * @returns {number[]}
+     */
+    static encodeUtf8(str: string, split?: boolean): number[];
+    /**
+    * @param {number[]} bytes
+    * @returns {string}
+    */
+    static decodeUtf8Internal(bytes: number[]): string;
+    /**
+    * @param {number[]} bytes
+    * @returns {string}
+    */
+    static decodeUtf8(bytes: number[]): string;
+    /**
+     * @param {bigint} n
+     * @returns {number[]} - cbor bytes
+     */
+    static encodeInteger(n: bigint): number[];
+    /**
+     * @param {number[]} bytes
+     * @returns {bigint}
+     */
+    static decodeInteger(bytes: number[]): bigint;
+    /**
+     * @param {number[]} bytes
+     * @returns {boolean}
+     */
+    static isIndefList(bytes: number[]): boolean;
+    /**
+     * @returns {number[]}
+     */
+    static encodeIndefListStart(): number[];
+    /**
+     * @param {CborData[] | number[][]} list
+     * @returns {number[]}
+     */
+    static encodeListInternal(list: CborData[] | number[][]): number[];
+    /**
+     * @returns {number[]}
+     */
+    static encodeIndefListEnd(): number[];
+    /**
+     * @param {CborData[] | number[][]} list
+     * @returns {number[]}
+     */
+    static encodeIndefList(list: CborData[] | number[][]): number[];
+    /**
+     * @param {number[]} bytes
+     * @returns {boolean}
+     */
+    static isDefList(bytes: number[]): boolean;
+    /**
+     * @param {bigint} n
+     * @returns {number[]}
+     */
+    static encodeDefListStart(n: bigint): number[];
+    /**
+     * @param {CborData[] | number[][]} list
+     * @returns {number[]}
+     */
+    static encodeDefList(list: CborData[] | number[][]): number[];
+    /**
+     * @param {number[]} bytes
+     * @returns {boolean}
+     */
+    static isList(bytes: number[]): boolean;
+    /**
+     * @param {number[]} bytes
+     * @param {Decoder} itemDecoder
+     */
+    static decodeList(bytes: number[], itemDecoder: Decoder): void;
+    /**
+     * @param {number[]} bytes
+     * @returns {boolean}
+     */
+    static isTuple(bytes: number[]): boolean;
+    /**
+     * @param {number[][]} tuple
+     * @returns {number[]}
+     */
+    static encodeTuple(tuple: number[][]): number[];
+    /**
+     * @param {number[]} bytes
+     * @param {IDecoder} tupleDecoder
+     * @returns {number} - returns the size of the tuple
+     */
+    static decodeTuple(bytes: number[], tupleDecoder: IDecoder): number;
+    /**
+     * @param {number[]} bytes
+     * @returns {boolean}
+     */
+    static isMap(bytes: number[]): boolean;
+    /**
+     * @param {[CborData | number[], CborData | number[]][]} pairList
+     * @returns {number[]}
+     */
+    static encodeMapInternal(pairList: [CborData | number[], CborData | number[]][]): number[];
+    /**
+     * A decode map method doesn't exist because it specific for the requested type
+     * @param {[CborData | number[], CborData | number[]][]} pairList
+     * @returns {number[]}
+     */
+    static encodeMap(pairList: [CborData | number[], CborData | number[]][]): number[];
+    /**
+     * @param {number[]} bytes
+     * @param {Decoder} pairDecoder
+     */
+    static decodeMap(bytes: number[], pairDecoder: Decoder): void;
+    /**
+     * @param {number[]} bytes
+     * @returns {boolean}
+     */
+    static isObject(bytes: number[]): boolean;
+    /**
+     * @param {Map<number, CborData | number[]>} object
+     * @returns {number[]}
+     */
+    static encodeObject(object: Map<number, CborData | number[]>): number[];
+    /**
+     * @param {number[]} bytes
+     * @param {IDecoder} fieldDecoder
+     * @returns {Set<number>}
+     */
+    static decodeObject(bytes: number[], fieldDecoder: IDecoder): Set<number>;
+    /**
+     * Unrelated to constructor
+     * @param {bigint} tag
+     * @returns {number[]}
+     */
+    static encodeTag(tag: bigint): number[];
+    /**
+     * @param {number[]} bytes
+     * @returns {bigint}
+     */
+    static decodeTag(bytes: number[]): bigint;
+    /**
+     * @param {number[]} bytes
+     * @returns {boolean}
+     */
+    static isConstr(bytes: number[]): boolean;
+    /**
+     * Encode a constructor tag of a ConstrData type
+     * @param {number} tag
+     * @returns {number[]}
+     */
+    static encodeConstrTag(tag: number): number[];
+    /**
+     * @param {number} tag
+     * @param {CborData[] | number[][]} fields
+     * @returns {number[]}
+     */
+    static encodeConstr(tag: number, fields: CborData[] | number[][]): number[];
+    /**
+     * @param {number[]} bytes
+     * @returns {number}
+     */
+    static decodeConstrTag(bytes: number[]): number;
+    /**
+     * Returns the tag
+     * @param {number[]} bytes
+     * @param {Decoder} fieldDecoder
+     * @returns {number}
+     */
+    static decodeConstr(bytes: number[], fieldDecoder: Decoder): number;
+    /**
+     * @returns {number[]}
+     */
+    toCbor(): number[];
+}
+/**
+ * Base class for Plutus-core data classes (not the same as Plutus-core value classes!)
+ */
+export class UplcData extends CborData {
+    /**
+     * @param {string | number[]} bytes
+     * @returns {UplcData}
+     */
+    static fromCbor(bytes: string | number[]): UplcData;
+    /**
+     * Estimate of memory usage during validation
+     * @type {number}
+     */
+    get memSize(): number;
+    /**
+     * Compares the schema jsons
+     * @param {UplcData} other
+     * @returns {boolean}
+     */
+    isSame(other: UplcData): boolean;
+    /**
+     * @type {number[]}
+     */
+    get bytes(): number[];
+    /**
+     * @type {bigint}
+     */
+    get int(): bigint;
+    /**
+     * @type {number}
+     */
+    get index(): number;
+    /**
+     * @type {UplcData[]}
+     */
+    get fields(): UplcData[];
+    /**
+     * @type {UplcData[]}
+     */
+    get list(): UplcData[];
+    /**
+     * @type {[UplcData, UplcData][]}
+     */
+    get map(): [UplcData, UplcData][];
+    /**
+     * @returns {IR}
+     */
+    toIR(): IR;
+    /**
+     * @returns {string}
+     */
+    toSchemaJson(): string;
+}
+/**
+ * Plutus-core int data class
+ */
+export class IntData extends UplcData {
+    /**
+     * Calculate the mem size of a integer (without the DATA_NODE overhead)
+     * @param {bigint} value
+     * @returns {number}
+     */
+    static memSizeInternal(value: bigint): number;
+    /**
+     * @param {number[]} bytes
+     * @returns {IntData}
+     */
+    static fromCbor(bytes: number[]): IntData;
+    /**
+     * @param {bigint} value
+     */
+    constructor(value: bigint);
+    /**
+     * @type {bigint}
+     */
+    get value(): bigint;
+    #private;
+}
+/**
+ * Plutus-core bytearray data class.
+ * Wraps a regular list of uint8 numbers (so not Uint8Array)
+ */
+export class ByteArrayData extends UplcData {
+    /**
+     * Applies utf-8 encoding
+     * @param {string} s
+     * @returns {ByteArrayData}
+     */
+    static fromString(s: string): ByteArrayData;
+    /**
+     * Calculates the mem size of a byte array without the DATA_NODE overhead.
+     * @param {number[]} bytes
+     * @returns {number}
+     */
+    static memSizeInternal(bytes: number[]): number;
+    /**
+     * @param {number[]} bytes
+     * @returns {ByteArrayData}
+     */
+    static fromCbor(bytes: number[]): ByteArrayData;
+    /**
+     * Bytearray comparison, which can be used for sorting bytearrays
+     * @param {number[]} a
+     * @param {number[]} b
+     * @returns {number} - 0 -> equals, 1 -> gt, -1 -> lt
+     */
+    static comp(a: number[], b: number[]): number;
+    /**
+     * @param {number[]} bytes
+     */
+    constructor(bytes: number[]);
+    /**
+     * @returns {string}
+     */
+    toHex(): string;
+    #private;
+}
+/**
+ * Plutus-core list data class
+ */
+export class ListData extends UplcData {
+    /**
+     * @param {number[]} bytes
+     * @returns {ListData}
+     */
+    static fromCbor(bytes: number[]): ListData;
+    /**
+     * @param {UplcData[]} items
+     */
+    constructor(items: UplcData[]);
+    #private;
+}
+/**
+ * Plutus-core map data class
+ */
+export class MapData extends UplcData {
+    /**
+     * @param {number[]} bytes
+     * @returns {MapData}
+     */
+    static fromCbor(bytes: number[]): MapData;
+    /**
+     * @param {[UplcData, UplcData][]} pairs
+     */
+    constructor(pairs: [UplcData, UplcData][]);
+    #private;
+}
+/**
+ * Plutus-core constructed data class
+ */
+export class ConstrData extends UplcData {
+    /**
+     * @param {number[]} bytes
+     * @returns {ConstrData}
+     */
+    static fromCbor(bytes: number[]): ConstrData;
+    /**
+     * @param {number} index
+     * @param {UplcData[]} fields
+     */
+    constructor(index: number, fields: UplcData[]);
+    #private;
+}
+/**
+ * Base-type of all data-types that exist both on- and off-chain, and map directly to Helios instances.
+ */
+export class HeliosData extends CborData {
+    /**
+     * @param {UplcData} data
+     */
+    constructor(data: UplcData);
+    /**
+     * Name begins with underscore so it can never conflict with structure field names.
+     * @returns {UplcData}
+     */
+    _getUplcData(): UplcData;
+    /**
+     * @returns {string}
+     */
+    toSchemaJson(): string;
+    #private;
+}
+/**
+ * @typedef {{
+ *   new(...args: any[]): HeliosData;
+ *   fromUplcCbor: (bytes: (string | number[])) => HeliosData,
+ *   fromUplcData: (data: UplcData) => HeliosData
+ * }} HeliosDataClass
+ */
+/**
+ * Helios Int type
+ */
+export class Int extends HeliosData {
+    /**
+     * @param {UplcData} data
+     * @returns {Int}
+     */
+    static fromUplcData(data: UplcData): Int;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {Int}
+     */
+    static fromUplcCbor(bytes: string | number[]): Int;
+    /**
+     * @param {number | bigint | string} rawValue
+     */
+    constructor(rawValue: number | bigint | string);
+    /**
+     * @type {bigint}
+     */
+    get int(): bigint;
+    #private;
+}
+/**
+ * Helios Bool type
+ */
+export class Bool extends HeliosData {
+    /**
+     * @param {UplcData} data
+     * @returns {Bool}
+     */
+    static fromUplcData(data: UplcData): Bool;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {Bool}
+     */
+    static fromUplcCbor(bytes: string | number[]): Bool;
+    /**
+     * @param {boolean | string} rawValue
+     */
+    constructor(rawValue: boolean | string);
+    get bool(): boolean;
+    #private;
+}
+/**
+ * Helios String type.
+ * Can't be named 'String' because that would interfere with the javascript 'String'-type
+ */
+export class HeliosString extends HeliosData {
+    /**
+     * @param {UplcData} data
+     * @returns {HeliosString}
+     */
+    static fromUplcData(data: UplcData): HeliosString;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {HeliosString}
+     */
+    static fromUplcCbor(bytes: string | number[]): HeliosString;
+    /**
+     * @param {string} value
+     */
+    constructor(value: string);
+    get string(): string;
+    #private;
+}
+/**
+ * Helios ByteArray type
+ */
+export class ByteArray extends HeliosData {
+    /**
+     * @param {UplcData} data
+     * @returns {ByteArray}
+     */
+    static fromUplcData(data: UplcData): ByteArray;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {ByteArray}
+     */
+    static fromUplcCbor(bytes: string | number[]): ByteArray;
+    /**
+     * @param {string | number[]} rawValue
+     */
+    constructor(rawValue: string | number[]);
+    get bytes(): number[];
+    get hex(): string;
+    #private;
+}
+export class DatumHash extends Hash {
+    /**
+     * @param {UplcData} data
+     * @returns {DatumHash}
+     */
+    static fromUplcData(data: UplcData): DatumHash;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {DatumHash}
+     */
+    static fromUplcCbor(bytes: string | number[]): DatumHash;
+}
+export class PubKeyHash extends Hash {
+    /**
+     * @param {UplcData} data
+     * @returns {PubKeyHash}
+     */
+    static fromUplcData(data: UplcData): PubKeyHash;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {PubKeyHash}
+     */
+    static fromUplcCbor(bytes: string | number[]): PubKeyHash;
+}
+export class ScriptHash extends Hash {
+}
+export class MintingPolicyHash extends ScriptHash {
+    /**
+     * @param {number[]} bytes
+     * @returns {MintingPolicyHash}
+     */
+    static fromCbor(bytes: number[]): MintingPolicyHash;
+    /**
+     * @param {UplcData} data
+     * @returns {MintingPolicyHash}
+     */
+    static fromUplcData(data: UplcData): MintingPolicyHash;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {MintingPolicyHash}
+     */
+    static fromUplcCbor(bytes: string | number[]): MintingPolicyHash;
+    /**
+     * @param {string} str
+     * @returns {MintingPolicyHash}
+     */
+    static fromHex(str: string): MintingPolicyHash;
+    /**
+     * Encodes as bech32 string using 'asset' as human readable part
+     * @returns {string}
+     */
+    toBech32(): string;
+}
+export class StakeKeyHash extends Hash {
+    /**
+     * @param {UplcData} data
+     * @returns {StakeKeyHash}
+     */
+    static fromUplcData(data: UplcData): StakeKeyHash;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {StakeKeyHash}
+     */
+    static fromUplcCbor(bytes: string | number[]): StakeKeyHash;
+}
+export class StakingValidatorHash extends ScriptHash {
+    /**
+     * @param {UplcData} data
+     * @returns {StakingValidatorHash}
+     */
+    static fromUplcData(data: UplcData): StakingValidatorHash;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {StakingValidatorHash}
+     */
+    static fromUplcCbor(bytes: string | number[]): StakingValidatorHash;
+}
+export class ValidatorHash extends ScriptHash {
+    /**
+     * @param {UplcData} data
+     * @returns {ValidatorHash}
+     */
+    static fromUplcData(data: UplcData): ValidatorHash;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {ValidatorHash}
+     */
+    static fromUplcCbor(bytes: string | number[]): ValidatorHash;
+}
+/**
+ * Hash of a transaction
+ */
+export class TxId extends Hash {
+    /**
+     * @param {UplcData} data
+     * @returns {TxId}
+     */
+    static fromUplcData(data: UplcData): TxId;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {TxId}
+     */
+    static fromUplcCbor(bytes: string | number[]): TxId;
+    /**
+     * @returns {TxId}
+     */
+    static dummy(): TxId;
+    /**
+     * @param {string | number[]} rawBytes
+     */
+    constructor(rawBytes: string | number[]);
+}
+/**
+ * Id of a Utxo
+ */
+export class TxOutputId extends HeliosData {
+    /**
+     * @param  {...any} args
+     * @returns {[any, any]}
+     */
+    static cleanConstructorArgs(...args: any[]): [any, any];
+    /**
+     * @param {UplcData} data
+     * @returns {HeliosData}
+     */
+    static fromUplcData(data: UplcData): HeliosData;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {HeliosData}
+     */
+    static fromUplcCbor(bytes: string | number[]): HeliosData;
+    /**
+     * @param {...any} args
+     */
+    constructor(...args: any[]);
+    get txId(): TxId;
+    get utxoIdx(): Int;
+    #private;
+}
+/**
+ * @typedef {Object} Cost
+ * @property {bigint} mem
+ * @property {bigint} cpu
+ */
+/**
  * NetworkParams contains all protocol parameters. These are needed to do correct, up-to-date, cost calculations.
  */
 export class NetworkParams {
@@ -161,89 +960,113 @@ export class NetworkParams {
      * @param {Object} raw
      */
     constructor(raw: any);
+    /**
+     * @package
+     * @type {Object}
+     */
     get costModel(): any;
     /**
+     * @package
      * @param {string} key
      * @returns {number}
      */
     getCostModelParameter(key: string): number;
     /**
+     * @package
      * @param {string} name
      * @returns {Cost}
      */
     getTermCost(name: string): Cost;
     /**
+     * @package
      * @type {Cost}
      */
     get plutusCoreStartupCost(): Cost;
     /**
+     * @package
      * @type {Cost}
      */
     get plutusCoreVariableCost(): Cost;
     /**
+     * @package
      * @type {Cost}
      */
     get plutusCoreLambdaCost(): Cost;
     /**
+     * @package
      * @type {Cost}
      */
     get plutusCoreDelayCost(): Cost;
     /**
+     * @package
      * @type {Cost}
      */
     get plutusCoreCallCost(): Cost;
     /**
+     * @package
      * @type {Cost}
      */
     get plutusCoreConstCost(): Cost;
     /**
+     * @package
      * @type {Cost}
      */
     get plutusCoreForceCost(): Cost;
     /**
+     * @package
      * @type {Cost}
      */
     get plutusCoreBuiltinCost(): Cost;
     /**
+     * @package
      * @type {[number, number]} - a + b*size
      */
     get txFeeParams(): [number, number];
     /**
+     * @package
      * @type {[number, number]} - [memFee, cpuFee]
      */
     get exFeeParams(): [number, number];
     /**
+     * @package
      * @type {number[]}
      */
     get sortedCostParams(): number[];
     /**
+     * @package
      * @type {number}
      */
     get lovelacePerUTXOByte(): number;
     /**
+     * @package
      * @type {number}
      */
     get minCollateralPct(): number;
     /**
+     * @package
      * @type {number}
      */
     get maxCollateralInputs(): number;
     /**
+     * @package
      * @type {[number, number]} - [mem, cpu]
      */
     get txExecutionBudget(): [number, number];
     /**
+     * @package
      * @type {number}
      */
     get maxTxSize(): number;
     /**
-     * Use the latest slot in networkParameters to determine time
+     * Use the latest slot in networkParameters to determine time.
+     * @package
      * @param {bigint} slot
      * @returns {bigint}
      */
     slotToTime(slot: bigint): bigint;
     /**
-     * Use the latest slot in network parameters to determine slot
+     * Use the latest slot in network parameters to determine slot.
+     * @package
      * @param {bigint} time - milliseconds since 1970
      * @returns {bigint}
      */
@@ -260,18 +1083,25 @@ export class UplcValue {
     constructor(site: Site);
     /**
      * Return a copy of the UplcValue at a different Site.
+     * @package
      * @param {Site} newSite
      * @returns {UplcValue}
      */
     copy(newSite: Site): UplcValue;
+    /**
+     * @package
+     * @type {Site}
+     */
     get site(): Site;
     /**
      * Size in words (8 bytes, 64 bits) occupied in target node
+     * @package
      * @type {number}
      */
     get memSize(): number;
     /**
      * Throws an error because most values can't be called (overridden by UplcAnon)
+     * @package
      * @param {UplcRte | UplcStack} rte
      * @param {Site} site
      * @param {UplcValue} value
@@ -279,6 +1109,7 @@ export class UplcValue {
      */
     call(rte: UplcRte | UplcStack, site: Site, value: UplcValue): Promise<UplcValue>;
     /**
+     * @package
      * @param {UplcRte | UplcStack} rte
      * @returns {Promise<UplcValue>}
      */
@@ -343,16 +1174,21 @@ export class UplcValue {
      * @type {UplcMapItem[]}
      */
     get map(): UplcMapItem[];
+    /**
+     * @returns {boolean}
+     */
     isData(): boolean;
     /**
      * @type {UplcData}
      */
     get data(): UplcData;
     /**
+     * @package
      * @returns {Promise<UplcValue>}
      */
     force(): Promise<UplcValue>;
     /**
+     * @package
      * @returns {UplcUnit}
      */
     assertUnit(): UplcUnit;
@@ -361,22 +1197,40 @@ export class UplcValue {
      */
     toString(): string;
     /**
+     * @package
      * @returns {string}
      */
     typeBits(): string;
     /**
      * Encodes value without type header
+     * @package
      * @param {BitWriter} bitWriter
      */
     toFlatValueInternal(bitWriter: BitWriter): void;
     /**
      * Encodes value with plutus flat encoding.
      * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
+     * @package
      * @param {BitWriter} bitWriter
      */
     toFlatValue(bitWriter: BitWriter): void;
     #private;
 }
+/**
+ * @package
+ * @typedef {[?string, UplcValue][]} UplcRawStack
+ */
+/**
+* @typedef {object} UplcRTECallbacks
+* @property {(msg: string) => Promise<void>} [onPrint]
+* @property {(site: Site, rawStack: UplcRawStack) => Promise<boolean>} [onStartCall]
+* @property {(site: Site, rawStack: UplcRawStack) => Promise<void>} [onEndCall]
+* @property {(cost: Cost) => void} [onIncrCost]
+*/
+/**
+ * @type {UplcRTECallbacks}
+ */
+export const DEFAULT_UPLC_RTE_CALLBACKS: UplcRTECallbacks;
 /**
  * Plutus-core Integer class
  */
@@ -407,7 +1261,8 @@ export class UplcInt extends UplcValue {
      */
     static rawByteIsLast(b: number): boolean;
     /**
-     * Combines a list of Plutus-core bytes into a bigint (leading bit of each byte is ignored)
+     * Combines a list of Plutus-core bytes into a bigint (leading bit of each byte is ignored).
+     * Differs from bytesToBigInt in utils.js because only 7 bits are used from each byte.
      * @param {number[]} bytes
      * @returns {bigint}
      */
@@ -828,418 +1683,134 @@ export class UplcProgram {
     get stakingValidatorHash(): StakingValidatorHash;
     #private;
 }
-/**
- * @typedef {(bytes: number[]) => void} Decoder
- */
-/**
- * @typedef {(i: number, bytes: number[]) => void} IDecoder
- */
-/**
- * Base class of any CBOR serializable data class
- * Also contains helper methods for (de)serializing data to/from CBOR
- */
-export class CborData {
+export class Tokenizer {
     /**
-     * @param {number} m - major type
-     * @param {bigint} n - size parameter
-     * @returns {number[]} - uint8 bytes
+     * Separates tokens in fields (separted by commas)
+     * @param {Token[]} ts
+     * @returns {Group}
      */
-    static encodeHead(m: number, n: bigint): number[];
+    static buildGroup(ts: Token[]): Group;
     /**
-     * @param {number[]} bytes - mutated to contain the rest
-     * @returns {[number, bigint]} - [majorType, n]
+     * Match group open with group close symbols in order to form groups.
+     * This is recursively applied to nested groups.
+     * @param {Token[]} ts
+     * @returns {Token[]}
      */
-    static decodeHead(bytes: number[]): [number, bigint];
+    static nestGroups(ts: Token[]): Token[];
     /**
-     * @param {number} m
-     * @returns {number[]}
+     * @param {Source} src
+     * @param {?CodeMap} codeMap
      */
-    static encodeIndefHead(m: number): number[];
+    constructor(src: Source, codeMap?: CodeMap | null);
+    incrPos(): void;
+    decrPos(): void;
+    get currentSite(): Site;
     /**
-     * @param {number[]} bytes - cbor bytes
-     * @returns {number} - majorType
+     * @param {Token} t
      */
-    static decodeIndefHead(bytes: number[]): number;
+    pushToken(t: Token): void;
     /**
-     * @param {number[]} bytes
-     * @returns {boolean}
-     */
-    static isNull(bytes: number[]): boolean;
-    /**
-     * @returns {number[]}
-     */
-    static encodeNull(): number[];
-    /**
-     * Throws error if not null
-     * @param {number[]} bytes
-     */
-    static decodeNull(bytes: number[]): void;
-    /**
-     * @param {boolean} b
-     * @returns {number[]}
-     */
-    static encodeBool(b: boolean): number[];
-    /**
-     * @param {number[]} bytes
-     * @returns {boolean}
-     */
-    static decodeBool(bytes: number[]): boolean;
-    /**
-     * @param {number[]} bytes
-     * @returns {boolean}
-     */
-    static isDefBytes(bytes: number[]): boolean;
-    /**
-     * @param {number[]} bytes
-     * @returns {boolean}
-     */
-    static isIndefBytes(bytes: number[]): boolean;
-    /**
-     * @example
-     * bytesToHex(CborData.encodeBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
-     * @param {number[]} bytes
-     * @param {boolean} splitInChunks
-     * @returns {number[]} - cbor bytes
-     */
-    static encodeBytes(bytes: number[], splitInChunks?: boolean): number[];
-    /**
-     * Decodes both an indef array of bytes, and a bytearray of specified length
-     * @example
-     * bytesToHex(CborData.decodeBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
-     * @param {number[]} bytes - cborbytes, mutated to form remaining
-     * @returns {number[]} - byteArray
-     */
-    static decodeBytes(bytes: number[]): number[];
-    /**
-     * @param {number[]} bytes
-     * @returns {boolean}
-     */
-    static isUtf8(bytes: number[]): boolean;
-    /**
-     * Encodes a Utf8 string into Cbor bytes.
-     * Strings longer than 64 bytes are split into lists with 64 byte chunks
-     * Note: string splitting isn't reversible
-     * @param {string} str
-     * @param {boolean} split
-     * @returns {number[]}
-     */
-    static encodeUtf8(str: string, split?: boolean): number[];
-    /**
-    * @param {number[]} bytes
-    * @returns {string}
-    */
-    static decodeUtf8Internal(bytes: number[]): string;
-    /**
-    * @param {number[]} bytes
-    * @returns {string}
-    */
-    static decodeUtf8(bytes: number[]): string;
-    /**
-     * @param {bigint} n
-     * @returns {number[]} - cbor bytes
-     */
-    static encodeInteger(n: bigint): number[];
-    /**
-     * @param {number[]} bytes
-     * @returns {bigint}
-     */
-    static decodeInteger(bytes: number[]): bigint;
-    /**
-     * @param {number[]} bytes
-     * @returns {boolean}
-     */
-    static isIndefList(bytes: number[]): boolean;
-    /**
-     * @returns {number[]}
-     */
-    static encodeIndefListStart(): number[];
-    /**
-     * @param {CborData[] | number[][]} list
-     * @returns {number[]}
-     */
-    static encodeListInternal(list: CborData[] | number[][]): number[];
-    /**
-     * @returns {number[]}
-     */
-    static encodeIndefListEnd(): number[];
-    /**
-     * @param {CborData[] | number[][]} list
-     * @returns {number[]}
-     */
-    static encodeIndefList(list: CborData[] | number[][]): number[];
-    /**
-     * @param {number[]} bytes
-     * @returns {boolean}
-     */
-    static isDefList(bytes: number[]): boolean;
-    /**
-     * @param {bigint} n
-     * @returns {number[]}
-     */
-    static encodeDefListStart(n: bigint): number[];
-    /**
-     * @param {CborData[] | number[][]} list
-     * @returns {number[]}
-     */
-    static encodeDefList(list: CborData[] | number[][]): number[];
-    /**
-     * @param {number[]} bytes
-     * @returns {boolean}
-     */
-    static isList(bytes: number[]): boolean;
-    /**
-     * @param {number[]} bytes
-     * @param {Decoder} itemDecoder
-     */
-    static decodeList(bytes: number[], itemDecoder: Decoder): void;
-    /**
-     * @param {number[]} bytes
-     * @returns {boolean}
-     */
-    static isTuple(bytes: number[]): boolean;
-    /**
-     * @param {number[][]} tuple
-     * @returns {number[]}
-     */
-    static encodeTuple(tuple: number[][]): number[];
-    /**
-     * @param {number[]} bytes
-     * @param {IDecoder} tupleDecoder
-     * @returns {number} - returns the size of the tuple
-     */
-    static decodeTuple(bytes: number[], tupleDecoder: IDecoder): number;
-    /**
-     * @param {number[]} bytes
-     * @returns {boolean}
-     */
-    static isMap(bytes: number[]): boolean;
-    /**
-     * @param {[CborData | number[], CborData | number[]][]} pairList
-     * @returns {number[]}
-     */
-    static encodeMapInternal(pairList: [CborData | number[], CborData | number[]][]): number[];
-    /**
-     * A decode map method doesn't exist because it specific for the requested type
-     * @param {[CborData | number[], CborData | number[]][]} pairList
-     * @returns {number[]}
-     */
-    static encodeMap(pairList: [CborData | number[], CborData | number[]][]): number[];
-    /**
-     * @param {number[]} bytes
-     * @param {Decoder} pairDecoder
-     */
-    static decodeMap(bytes: number[], pairDecoder: Decoder): void;
-    /**
-     * @param {number[]} bytes
-     * @returns {boolean}
-     */
-    static isObject(bytes: number[]): boolean;
-    /**
-     * @param {Map<number, CborData | number[]>} object
-     * @returns {number[]}
-     */
-    static encodeObject(object: Map<number, CborData | number[]>): number[];
-    /**
-     * @param {number[]} bytes
-     * @param {IDecoder} fieldDecoder
-     * @returns {Set<number>}
-     */
-    static decodeObject(bytes: number[], fieldDecoder: IDecoder): Set<number>;
-    /**
-     * Unrelated to constructor
-     * @param {bigint} tag
-     * @returns {number[]}
-     */
-    static encodeTag(tag: bigint): number[];
-    /**
-     * @param {number[]} bytes
-     * @returns {bigint}
-     */
-    static decodeTag(bytes: number[]): bigint;
-    /**
-     * @param {number[]} bytes
-     * @returns {boolean}
-     */
-    static isConstr(bytes: number[]): boolean;
-    /**
-     * Encode a constructor tag of a ConstrData type
-     * @param {number} tag
-     * @returns {number[]}
-     */
-    static encodeConstrTag(tag: number): number[];
-    /**
-     * @param {number} tag
-     * @param {CborData[] | number[][]} fields
-     * @returns {number[]}
-     */
-    static encodeConstr(tag: number, fields: CborData[] | number[][]): number[];
-    /**
-     * @param {number[]} bytes
-     * @returns {number}
-     */
-    static decodeConstrTag(bytes: number[]): number;
-    /**
-     * Returns the tag
-     * @param {number[]} bytes
-     * @param {Decoder} fieldDecoder
-     * @returns {number}
-     */
-    static decodeConstr(bytes: number[], fieldDecoder: Decoder): number;
-    /**
-     * @returns {number[]}
-     */
-    toCbor(): number[];
-}
-/**
- * Base class for Plutus-core data classes (not the same as Plutus-core value classes!)
- */
-export class UplcData extends CborData {
-    /**
-     * @param {number[]} bytes
-     * @returns {UplcData}
-     */
-    static fromCbor(bytes: number[]): UplcData;
-    /**
-     * Estimate of memory usage during validation
-     * @type {number}
-     */
-    get memSize(): number;
-    /**
-     * Compares the schema jsons
-     * @param {UplcData} other
-     * @returns {boolean}
-     */
-    isSame(other: UplcData): boolean;
-    /**
-     * @type {number[]}
-     */
-    get bytes(): number[];
-    /**
-     * @type {bigint}
-     */
-    get int(): bigint;
-    /**
-     * @type {number}
-     */
-    get index(): number;
-    /**
-     * @type {UplcData[]}
-     */
-    get fields(): UplcData[];
-    /**
-     * @type {UplcData[]}
-     */
-    get list(): UplcData[];
-    /**
-     * @type {[UplcData, UplcData][]}
-     */
-    get map(): [UplcData, UplcData][];
-    /**
-     * @returns {IR}
-     */
-    toIR(): IR;
-    /**
+     * Reads a single char from the source and advances #pos by one
      * @returns {string}
      */
-    toSchemaJson(): string;
-}
-/**
- * Plutus-core int data class
- */
-export class IntData extends UplcData {
+    readChar(): string;
     /**
-     * @param {number[]} bytes
-     * @returns {IntData}
+     * Decreases #pos by one
      */
-    static fromCbor(bytes: number[]): IntData;
+    unreadChar(): void;
     /**
-     * @param {bigint} value
+     * Start reading precisely one token
+     * @param {Site} site
+     * @param {string} c
      */
-    constructor(value: bigint);
+    readToken(site: Site, c: string): void;
     /**
-     * @type {bigint}
+     * Tokenize the complete source.
+     * Nests groups before returning a list of tokens
+     * @returns {Token[]}
      */
-    get value(): bigint;
+    tokenize(): Token[];
+    /**
+     * Returns a generator
+     * Use gen.next().value to access to the next Token
+     * Doesn't perform any grouping
+     * Used for quickly parsing the ScriptPurpose header of a script
+     * @returns {Generator<Token>}
+     */
+    streamTokens(): Generator<Token>;
+    /**
+     * Reads one word token.
+     * Immediately turns "true" or "false" into a BoolLiteral instead of keeping it as Word
+     * @param {Site} site
+     * @param {string} c0 - first character
+     */
+    readWord(site: Site, c0: string): void;
+    /**
+     * Reads and discards a comment if current '/' char is followed by '/' or '*'.
+     * Otherwise pushes Symbol('/') onto #ts
+     * @param {Site} site
+     */
+    readMaybeComment(site: Site): void;
+    /**
+     * Reads and discards a single line comment (from '//' to end-of-line)
+     */
+    readSingleLineComment(): void;
+    /**
+     * Reads and discards a multi-line comment (from '/' '*' to '*' '/')
+     * @param {Site} site
+     */
+    readMultiLineComment(site: Site): void;
+    /**
+     * REads a literal integer
+     * @param {Site} site
+     */
+    readSpecialInteger(site: Site): void;
+    /**
+     * @param {Site} site
+     */
+    readBinaryInteger(site: Site): void;
+    /**
+     * @param {Site} site
+     */
+    readOctalInteger(site: Site): void;
+    /**
+     * @param {Site} site
+     */
+    readHexInteger(site: Site): void;
+    /**
+     * @param {Site} site
+     * @param {string} c0 - first character
+     */
+    readDecimalInteger(site: Site, c0: string): void;
+    /**
+     * @param {Site} site
+     * @param {string} prefix
+     * @param {(c: string) => boolean} valid - checks if character is valid as part of the radix
+     */
+    readRadixInteger(site: Site, prefix: string, valid: (c: string) => boolean): void;
+    /**
+     * Reads literal hexadecimal representation of ByteArray
+     * @param {Site} site
+     */
+    readByteArray(site: Site): void;
+    /**
+     * Reads literal string delimited by double quotes.
+     * Allows for three escape character: '\\', '\n' and '\t'
+     * @param {Site} site
+     */
+    readString(site: Site): void;
+    /**
+     * Reads single or double character symbols
+     * @param {Site} site
+     * @param {string} c0 - first character
+     */
+    readSymbol(site: Site, c0: string): void;
     #private;
 }
 /**
- * Plutus-core bytearray data class.
- * Wraps a regular list of uint8 numbers (so not Uint8Array)
+ * Builtin Time type. Opaque alias of Int representing milliseconds since 1970
  */
-export class ByteArrayData extends UplcData {
-    /**
-     * Applies utf-8 encoding
-     * @param {string} s
-     * @returns {ByteArrayData}
-     */
-    static fromString(s: string): ByteArrayData;
-    /**
-     * @param {number[]} bytes
-     * @returns {ByteArrayData}
-     */
-    static fromCbor(bytes: number[]): ByteArrayData;
-    /**
-     * Bytearray comparison, which can be used for sorting bytearrays
-     * @param {number[]} a
-     * @param {number[]} b
-     * @returns {number} - 0 -> equals, 1 -> gt, -1 -> lt
-     */
-    static comp(a: number[], b: number[]): number;
-    /**
-     * @param {number[]} bytes
-     */
-    constructor(bytes: number[]);
-    /**
-     * @returns {string}
-     */
-    toHex(): string;
-    #private;
-}
-/**
- * Plutus-core list data class
- */
-export class ListData extends UplcData {
-    /**
-     * @param {number[]} bytes
-     * @returns {ListData}
-     */
-    static fromCbor(bytes: number[]): ListData;
-    /**
-     * @param {UplcData[]} items
-     */
-    constructor(items: UplcData[]);
-    #private;
-}
-/**
- * Plutus-core map data class
- */
-export class MapData extends UplcData {
-    /**
-     * @param {number[]} bytes
-     * @returns {MapData}
-     */
-    static fromCbor(bytes: number[]): MapData;
-    /**
-     * @param {[UplcData, UplcData][]} pairs
-     */
-    constructor(pairs: [UplcData, UplcData][]);
-    #private;
-}
-/**
- * Plutus-core constructed data class
- */
-export class ConstrData extends UplcData {
-    /**
-     * @param {number[]} bytes
-     * @returns {ConstrData}
-     */
-    static fromCbor(bytes: number[]): ConstrData;
-    /**
-     * @param {number} index
-     * @param {UplcData[]} fields
-     */
-    constructor(index: number, fields: UplcData[]);
-    #private;
+export class TimeType extends BuiltinType {
 }
 /**
  * Helios root object
@@ -1312,9 +1883,22 @@ export class Program {
     cleanSource(): [string[], string];
     /**
      * @param {GlobalScope} globalScope
+     * @returns {TopScope}
      */
-    evalTypesInternal(globalScope: GlobalScope): void;
-    evalTypes(): void;
+    evalTypesInternal(globalScope: GlobalScope): TopScope;
+    /**
+     * @returns {TopScope}
+     */
+    evalTypes(): TopScope;
+    /**
+     * @type {Object}
+     */
+    get types(): any;
+    /**
+     * Fill #types with convenient javascript equivalents of Int, ByteArray etc.
+     * @param {TopScope} topScope
+     */
+    fillTypes(topScope: TopScope): void;
     /**
      * @type {Object.<string, Type>}
      */
@@ -2012,41 +2596,6 @@ export class Value extends CborData {
     toData(): MapData;
     #private;
 }
-export class TxId extends Hash {
-    /**
-     * @returns {TxId}
-     */
-    static dummy(): TxId;
-}
-export class DatumHash extends Hash {
-}
-export class PubKeyHash extends Hash {
-}
-export class StakeKeyHash extends Hash {
-}
-export class ScriptHash extends Hash {
-}
-export class ValidatorHash extends ScriptHash {
-}
-export class MintingPolicyHash extends ScriptHash {
-    /**
-     * @param {number[]} bytes
-     * @returns {MintingPolicyHash}
-     */
-    static fromCbor(bytes: number[]): MintingPolicyHash;
-    /**
-     * @param {string} str
-     * @returns {MintingPolicyHash}
-     */
-    static fromHex(str: string): MintingPolicyHash;
-    /**
-     * Encodes as bech32 string using 'asset' as human readable part
-     * @returns {string}
-     */
-    toBech32(): string;
-}
-export class StakingValidatorHash extends ScriptHash {
-}
 export class Signature extends CborData {
     /**
      * @returns {Signature}
@@ -2307,33 +2856,87 @@ export namespace exportedForTesting {
 export type Metadata = {
     map: [any, any][];
 } | any[] | string | number;
-export type Cost = {
-    mem: bigint;
-    cpu: bigint;
-};
 /**
  * Function that generates a random number between 0 and 1
  */
 export type NumberGenerator = () => number;
+export type CodeMap = [number, Site][];
+export type IRDefinitions = Map<string, IR>;
+export type Decoder = (bytes: number[]) => void;
+export type IDecoder = (i: number, bytes: number[]) => void;
+export type HeliosDataClass = {
+    new (...args: any[]): HeliosData;
+    fromUplcCbor: (bytes: (string | number[])) => HeliosData;
+    fromUplcData: (data: UplcData) => HeliosData;
+};
+export type Cost = {
+    mem: bigint;
+    cpu: bigint;
+};
 export type CostModelClass = {
     fromParams: (params: NetworkParams, baseName: string) => CostModel;
 };
+export type UplcRawStack = [string | null, UplcValue][];
 export type UplcRTECallbacks = {
     onPrint?: (msg: string) => Promise<void>;
-    onStartCall?: (site: Site, rawStack: [string, UplcValue][]) => Promise<boolean>;
-    onEndCall?: (site: Site, rawStack: [string, UplcValue][]) => Promise<void>;
+    onStartCall?: (site: Site, rawStack: import("./helios").UplcRawStack) => Promise<boolean>;
+    onEndCall?: (site: Site, rawStack: import("./helios").UplcRawStack) => Promise<void>;
     onIncrCost?: (cost: Cost) => void;
 };
-export type Decoder = (bytes: number[]) => void;
-export type IDecoder = (i: number, bytes: number[]) => void;
-export type IRDefinitions = Map<string, IR>;
+/**
+ * We can't use StructStatement etc. directly because that would give circular dependencies
+ */
+export type UserTypeStatement = {
+    name: Word;
+    getTypeMember(key: Word): EvalEntity;
+    getInstanceMember(key: Word): Instance;
+    nFields(site: Site): number;
+    hasField(key: Word): boolean;
+    getFieldType(site: Site, i: number): Type;
+    getFieldName(i: number): string;
+    getConstrIndex(site: Site): number;
+    nEnumMembers(site: Site): number;
+    path: string;
+    use: () => void;
+};
+/**
+ * We can't use ConstStatement directly because that would give a circular dependency
+ */
+export type ConstTypeStatement = {
+    name: Word;
+    path: string;
+    use: () => void;
+};
+/**
+ * We can't use EnumMember directly because that would give a circular dependency
+ */
+export type EnumMemberTypeStatement = UserTypeStatement & {
+    parent: UserTypeStatement;
+};
+/**
+ * We can't use FuncStatement directly because that would give a circular dependency
+ */
+export type RecurseableStatement = {
+    path: string;
+    use: () => void;
+    setRecursive: () => void;
+    isRecursive: () => boolean;
+};
+export type RecursivenessChecker = {
+    isRecursive: (statement: RecurseableStatement) => boolean;
+};
 export type IRWalkFn = (expr: IRExpr) => IRExpr;
 export type ValueGenerator = () => UplcValue;
 export type PropertyTest = (args: UplcValue[], res: (UplcValue | UserError)) => (boolean | {
     [x: string]: boolean;
 });
 /**
+ * Function that generates a random number between 0 and 1
+ * @typedef {() => number} NumberGenerator
+ */
+/**
  * A Source instance wraps a string so we can use it cheaply as a reference inside a Site.
+ * @package
  */
 declare class Source {
     /**
@@ -2341,30 +2944,46 @@ declare class Source {
      * @param {?number} fileIndex
      */
     constructor(raw: string, fileIndex?: number | null);
+    /**
+     * @package
+     * @type {string}
+     */
     get raw(): string;
+    /**
+     * @package
+     * @type {?number}
+     */
     get fileIndex(): number;
     /**
      * Get char from the underlying string.
      * Should work fine utf-8 runes.
+     * @package
      * @param {number} pos
      * @returns {string}
      */
     getChar(pos: number): string;
     /**
      * Returns word under pos
+     * @package
      * @param {number} pos
      * @returns {?string}
      */
     getWord(pos: number): string | null;
+    /**
+     * @package
+     * @type {number}
+     */
     get length(): number;
     /**
      * Calculates the line number of the line where the given character is located (0-based).
+     * @package
      * @param {number} pos
      * @returns {number}
      */
     posToLine(pos: number): number;
     /**
      * Calculates the column and line number where the given character is located (0-based).
+     * @package
      * @param {number} pos
      * @returns {[number, number]}
      */
@@ -2374,6 +2993,7 @@ declare class Source {
      * The line-numbers are at least two digits.
      * @example
      * (new Source("hello\nworld")).pretty() => "01  hello\n02  world"
+     * @package
      * @returns {string}
      */
     pretty(): string;
@@ -2381,6 +3001,7 @@ declare class Source {
 }
 /**
  * Each Token/Expression/Statement has a Site, which encapsulates a position in a Source
+ * @package
  */
 declare class Site {
     static dummy(): Site;
@@ -2394,9 +3015,9 @@ declare class Site {
     get line(): number;
     get endSite(): Site;
     /**
-     * @param {Site} site
+     * @param {?Site} site
      */
-    setEndSite(site: Site): void;
+    setEndSite(site: Site | null): void;
     /**
      * @type {string}
      */
@@ -2441,7 +3062,229 @@ declare class Site {
     #private;
 }
 /**
+ * A Word token represents a token that matches /[A-Za-z_][A-Za-z_0-9]/
+ * @package
+ */
+declare class Word extends Token {
+    /**
+     * @param {string} value
+     * @returns {Word}
+     */
+    static new(value: string): Word;
+    /**
+     * Finds the index of the first Word(value) in a list of tokens
+     * Returns -1 if none found
+     * @param {Token[]} ts
+     * @param {string | string[]} value
+     * @returns {number}
+     */
+    static find(ts: Token[], value: string | string[]): number;
+    /**
+     * @param {Site} site
+     * @param {string} value
+     */
+    constructor(site: Site, value: string);
+    get value(): string;
+    /**
+     * @returns {Word}
+     */
+    assertNotInternal(): Word;
+    /**
+     * @returns {boolean}
+     */
+    isKeyword(): boolean;
+    /**
+     * @returns {Word}
+     */
+    assertNotKeyword(): Word;
+    #private;
+}
+/**
+ * Symbol token represent anything non alphanumeric
+ * @package
+ */
+declare class SymbolToken extends Token {
+    /**
+     * Finds the index of the first Symbol(value) in a list of tokens.
+     * Returns -1 if none found.
+     * @param {Token[]} ts
+     * @param {string | string[]} value
+     * @returns {number}
+     */
+    static find(ts: Token[], value: string | string[]): number;
+    /**
+     * Finds the index of the last Symbol(value) in a list of tokens.
+     * Returns -1 if none found.
+     * @param {Token[]} ts
+     * @param {string | string[]} value
+     * @returns {number}
+     */
+    static findLast(ts: Token[], value: string | string[]): number;
+    /**
+     * @param {Site} site
+     * @param {string} value
+     */
+    constructor(site: Site, value: string);
+    get value(): string;
+    /**
+     * @param {?(string | string[])} value
+     * @returns {SymbolToken}
+     */
+    assertSymbol(value: (string | string[]) | null): SymbolToken;
+    #private;
+}
+/**
+ * Group token can '(...)', '[...]' or '{...}' and can contain comma separated fields.
+ * @package
+ */
+declare class Group extends Token {
+    /**
+     * @param {Token} t
+     * @returns {boolean}
+     */
+    static isOpenSymbol(t: Token): boolean;
+    /**
+     * @param {Token} t
+     * @returns {boolean}
+     */
+    static isCloseSymbol(t: Token): boolean;
+    /**
+     * Returns the corresponding closing bracket, parenthesis or brace.
+     * Throws an error if not a group symbol.
+     * @example
+     * Group.matchSymbol("(") => ")"
+     * @param {string | SymbolToken} t
+     * @returns {string}
+     */
+    static matchSymbol(t: string | SymbolToken): string;
+    /**
+     * Finds the index of first Group(type) in list of tokens
+     * Returns -1 if none found.
+     * @param {Token[]} ts
+     * @param {string} type
+     * @returns {number}
+     */
+    static find(ts: Token[], type: string): number;
+    /**
+     * @param {Site} site
+     * @param {string} type - "(", "[" or "{"
+     * @param {Token[][]} fields
+     * @param {?SymbolToken} firstComma
+     */
+    constructor(site: Site, type: string, fields: Token[][], firstComma?: SymbolToken | null);
+    get fields(): Token[][];
+    /**
+     * @param {?string} type
+     * @returns {boolean}
+     */
+    isGroup(type?: string | null): boolean;
+    #private;
+}
+/**
+ * @package
+ * @typedef {[number, Site][]} CodeMap
+ */
+/**
+ * @package
+ * @typedef {Map<string, IR>} IRDefinitions
+ */
+/**
+ * The IR class combines a string of intermediate representation sourcecode with an optional site.
+ * The site is used for mapping IR code to the original source code.
+ * @package
+ */
+declare class IR {
+    /**
+     * Wraps 'inner' IR source with some definitions (used for top-level statements and for builtins)
+     * @package
+     * @param {IR} inner
+     * @param {IRDefinitions} definitions - name -> definition
+     * @returns {IR}
+     */
+    static wrapWithDefinitions(inner: IR, definitions: IRDefinitions): IR;
+    /**
+     * @param {string | IR[]} content
+     * @param {?Site} site
+     */
+    constructor(content: string | IR[], site?: Site | null);
+    /**
+     * @package
+     * @type {string | IR[]}
+     */
+    get content(): string | IR[];
+    /**
+     * @package
+     * @type {?Site}
+     */
+    get site(): Site;
+    /**
+     * Returns a list containing IR instances that themselves only contain strings
+     * @package
+     * @returns {IR[]}
+     */
+    flatten(): IR[];
+    /**
+     * Intersperse nested IR content with a separator
+     * @package
+     * @param {string} sep
+     * @returns {IR}
+     */
+    join(sep: string): IR;
+    /**
+     * @package
+     * @returns {[string, CodeMap]}
+     */
+    generateSource(): [string, CodeMap];
+    #private;
+}
+/**
+ * Base class of all hash-types
+ * @package
+ */
+declare class Hash extends HeliosData {
+    /**
+     * Used internally for metadataHash and scriptDataHash
+     * @param {number[]} bytes
+     * @returns {Hash}
+     */
+    static fromCbor(bytes: number[]): Hash;
+    /**
+     * Might be needed for internal use
+     * @param {string} str
+     * @returns {Hash}
+     */
+    static fromHex(str: string): Hash;
+    /**
+     * @param {Hash} a
+     * @param {Hash} b
+     * @returns {number}
+     */
+    static compare(a: Hash, b: Hash): number;
+    /**
+     * @param {number[]} bytes
+     */
+    constructor(bytes: number[]);
+    /**
+     * @returns {number[]}
+     */
+    get bytes(): number[];
+    /**
+     * @returns {string}
+     */
+    get hex(): string;
+    /**
+     * @returns {string}
+     */
+    dump(): string;
+    /**
+     * @param {Hash} other
+     */
+    eq(other: Hash): boolean;
+    #private;
+}
+/**
  * Plutus-core Runtime Environment is used for controlling the programming evaluation (eg. by a debugger)
+ * @package
  */
 declare class UplcRte {
     /**
@@ -2494,7 +3337,7 @@ declare class UplcRte {
      * @param {UplcRawStack} rawStack
      * @returns {Promise<void>}
      */
-    startCall(site: Site, rawStack: [string, UplcValue][]): Promise<void>;
+    startCall(site: Site, rawStack: import("./helios").UplcRawStack): Promise<void>;
     /**
      * Calls the onEndCall callback if '#notifyCalls == true'.
      * '#notifyCalls' is set to true if 'rawStack == #marker'.
@@ -2503,11 +3346,11 @@ declare class UplcRte {
      * @param {UplcValue} result
      * @returns {Promise<void>}
      */
-    endCall(site: Site, rawStack: [string, UplcValue][], result: UplcValue): Promise<void>;
+    endCall(site: Site, rawStack: import("./helios").UplcRawStack, result: UplcValue): Promise<void>;
     /**
      * @returns {UplcRawStack}
      */
-    toList(): [string, UplcValue][];
+    toList(): import("./helios").UplcRawStack;
     #private;
 }
 /**
@@ -2559,7 +3402,7 @@ declare class UplcStack {
      * @param {UplcRawStack} rawStack
      * @returns {Promise<void>}
      */
-    startCall(site: Site, rawStack: [string, UplcValue][]): Promise<void>;
+    startCall(site: Site, rawStack: import("./helios").UplcRawStack): Promise<void>;
     /**
      * Calls the onEndCall callback in the RTE (root of stack).
      * @param {Site} site
@@ -2567,16 +3410,17 @@ declare class UplcStack {
      * @param {UplcValue} result
      * @returns {Promise<void>}
     */
-    endCall(site: Site, rawStack: [string, UplcValue][], result: UplcValue): Promise<void>;
+    endCall(site: Site, rawStack: import("./helios").UplcRawStack, result: UplcValue): Promise<void>;
     /**
      * @returns {UplcRawStack}
     */
-    toList(): [string, UplcValue][];
+    toList(): import("./helios").UplcRawStack;
     #private;
 }
 /**
  * Plutus-core pair value class that only contains data
  * Only used during evaluation.
+ * @package
  */
 declare class UplcMapItem extends UplcValue {
     /**
@@ -2595,29 +3439,35 @@ declare class UplcMapItem extends UplcValue {
 /**
  * BitWriter turns a string of '0's and '1's into a list of bytes.
  * Finalization pads the bits using '0*1' if not yet aligned with the byte boundary.
+ * @package
  */
 declare class BitWriter {
     /**
+     * @package
      * @type {number}
      */
     get length(): number;
     /**
      * Write a string of '0's and '1's to the BitWriter.
+     * @package
      * @param {string} bitChars
      */
     write(bitChars: string): void;
     /**
+     * @package
      * @param {number} byte
      */
     writeByte(byte: number): void;
     /**
      * Add padding to the BitWriter in order to align with the byte boundary.
      * If 'force == true' then 8 bits are added if the BitWriter is already aligned.
+     * @package
      * @param {boolean} force
      */
     padToByteBoundary(force?: boolean): void;
     /**
      * Pads the BitWriter to align with the byte boundary and returns the resulting bytes.
+     * @package
      * @param {boolean} force - force padding (will add one byte if already aligned)
      * @returns {number[]}
      */
@@ -2626,6 +3476,7 @@ declare class BitWriter {
 }
 /**
  * Plutus-core const term (i.e. a literal in conventional sense)
+ * @package
  */
 declare class UplcConst extends UplcTerm {
     /**
@@ -2640,6 +3491,7 @@ declare class UplcConst extends UplcTerm {
 }
 /**
  * Base class of Plutus-core terms
+ * @package
  */
 declare class UplcTerm {
     /**
@@ -2670,45 +3522,19 @@ declare class UplcTerm {
     #private;
 }
 /**
- * The IR class combines a string of intermediate representation sourcecode with an optional site.
- * The site is used for mapping IR code to the original source code.
+ * Base class of all builtin types (eg. IntType)
+ * Note: any builtin type that inherits from BuiltinType must implement get path()
+ * @package
  */
-declare class IR {
+declare class BuiltinType extends DataType {
+    allowMacros(): void;
+    get macrosAllowed(): boolean;
     /**
-     * Wraps 'inner' IR source with some definitions (used for top-level statements and for builtins)
-     * @param {IR} inner
-     * @param {IRDefinitions} definitions - name -> definition
-     * @returns {IR}
+     * Use 'path' getter instead of 'toIR()' in order to get the base path.
      */
-    static wrapWithDefinitions(inner: IR, definitions: IRDefinitions): IR;
-    /**
-     * @param {string | IR[]} content
-     * @param {?Site} site
-     */
-    constructor(content: string | IR[], site?: Site | null);
-    get content(): string | IR[];
-    get site(): Site;
-    /**
-     * Returns a list containing IR instances that themselves only contain strings
-     * @returns {IR[]}
-     */
-    flatten(): IR[];
-    /**
-     * Intersperse nested IR content with a separator
-     * @param {string} sep
-     * @returns {IR}
-     */
-    join(sep: string): IR;
-    /**
-     * @typedef {[number, Site][]} CodeMap
-     * @returns {[string, CodeMap]}
-     */
-    generateSource(): [string, [number, Site][]];
+    toIR(): void;
     #private;
 }
-/**
- * @typedef {Map<string, IR>} IRDefinitions
- */
 /**
  * A Module is a collection of statements
  */
@@ -2734,9 +3560,9 @@ declare class Module {
     get statements(): Statement[];
     toString(): string;
     /**
-     * @param {GlobalScope} globalScope
+     * @param {ModuleScope} scope
      */
-    evalTypes(globalScope: GlobalScope): void;
+    evalTypes(scope: ModuleScope): void;
     /**
      * Cleans the program by removing everything that is unecessary for the smart contract (easier to audit)
      * @returns {string}
@@ -2764,6 +3590,7 @@ declare class MainModule extends Module {
 /**
  * Function statement
  * (basically just a named FuncLiteralExpr)
+ * @package
  */
 declare class FuncStatement extends Statement {
     /**
@@ -2818,6 +3645,7 @@ declare class FuncStatement extends Statement {
 /**
  * Base class for all statements
  * Doesn't return a value upon calling eval(scope)
+ * @package
  */
 declare class Statement extends Token {
     /**
@@ -2857,6 +3685,7 @@ declare class Statement extends Token {
 }
 /**
  * GlobalScope sits above the top-level scope and contains references to all the builtin Values and Types
+ * @package
  */
 declare class GlobalScope {
     /**
@@ -2887,19 +3716,45 @@ declare class GlobalScope {
     get(name: Word): EvalEntity;
     /**
      * Check if funcstatement is called recursively (always false here)
-     * @param {FuncStatement} statement
+     * @param {RecurseableStatement} statement
      * @returns {boolean}
      */
-    isRecursive(statement: FuncStatement): boolean;
+    isRecursive(statement: RecurseableStatement): boolean;
     /**
      * @returns {boolean}
      */
     isStrict(): boolean;
     allowMacros(): void;
+    /**
+     * @param {(type: Type) => void} callback
+     */
+    loopTypes(callback: (type: Type) => void): void;
+    #private;
+}
+/**
+ * TopScope is a special scope that can contain UserTypes
+ * @package
+ */
+declare class TopScope extends Scope {
+    /**
+     * @param {GlobalScope} parent
+     * @param {boolean} strict
+     */
+    constructor(parent: GlobalScope, strict?: boolean);
+    /**
+     * @param {boolean} s
+     */
+    setStrict(s: boolean): void;
+    /**
+     * @param {Word} name
+     * @returns {ModuleScope}
+     */
+    getModuleScope(name: Word): ModuleScope;
     #private;
 }
 /**
  * Types are used during type-checking of Helios
+ * @package
  */
 declare class Type extends EvalEntity {
     /**
@@ -3125,47 +3980,6 @@ declare class TxInput extends CborData {
     dump(): any;
     #private;
 }
-declare class Hash extends CborData {
-    /**
-     * Used internally for metadataHash and scriptDataHash
-     * @param {number[]} bytes
-     * @returns {Hash}
-     */
-    static fromCbor(bytes: number[]): Hash;
-    /**
-     * Might be needed for internal use
-     * @param {string} str
-     * @returns {Hash}
-     */
-    static fromHex(str: string): Hash;
-    /**
-     * @param {Hash} a
-     * @param {Hash} b
-     * @returns {number}
-     */
-    static compare(a: Hash, b: Hash): number;
-    /**
-     * @param {number[]} bytes
-     */
-    constructor(bytes: number[]);
-    /**
-     * @returns {number[]}
-     */
-    get bytes(): number[];
-    /**
-     * @returns {string}
-     */
-    get hex(): string;
-    /**
-     * @returns {string}
-     */
-    dump(): string;
-    /**
-     * @param {Hash} other
-     */
-    eq(other: Hash): boolean;
-    #private;
-}
 /**
  * Inside helios this type is named OutputDatum::Hash in order to distinguish it from the user defined Datum,
  * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
@@ -3201,24 +4015,25 @@ declare class InlineDatum extends Datum {
 declare function setRawUsageNotifier(callback: (name: string, count: number) => void): void;
 /**
  * Changes the value of DEBUG
+ * @package
  * @param {boolean} b
  */
 declare function debug(b: boolean): void;
 /**
- * Changes the value of BLAKE2B_DIGEST_SIZE (because nodjes crypto module only supports blake2b-512 and not blake2b-256,
- *  and we want to avoid non-standard dependencies in the test-suite)
+ * Changes the value of BLAKE2B_DIGEST_SIZE
+ *  (because the nodejs crypto module only supports
+ *   blake2b-512 and not blake2b-256, and we want to avoid non-standard dependencies in the
+ *   test-suite)
+ * @package
  * @param {number} s - 32 or 64
  */
 declare function setBlake2bDigestSize(s: number): void;
 /**
  * Use this function to check cost-model parameters
+ * @package
  * @param {NetworkParams} networkParams
  */
 declare function dumpCostModels(networkParams: NetworkParams): void;
-/**
- * Function that generates a random number between 0 and 1
- * @typedef {() => number} NumberGenerator
- */
 /**
  * A collection of cryptography primitives are included here in order to avoid external dependencies
  *     mulberry32: random number generator
@@ -3226,16 +4041,19 @@ declare function dumpCostModels(networkParams: NetworkParams): void;
  *     bech32 encoding, checking, and decoding
  *     sha2_256, sha2_512, sha3 and blake2b hashing
  *     ed25519 pubkey generation, signing, and signature verification (NOTE: the current implementation is very slow)
+ * @package
  */
 declare class Crypto {
     /**
      * Returns a simple random number generator
+     * @package
      * @param {number} seed
      * @returns {NumberGenerator} - a random number generator
      */
     static mulberry32(seed: number): NumberGenerator;
     /**
      * Alias for rand generator of choice
+     * @package
      * @param {number} seed
      * @returns {NumberGenerator} - the random number generator function
      */
@@ -3254,6 +4072,7 @@ declare class Crypto {
      * Crypto.encodeBase32(textToBytes("fooba")) => "mzxw6ytb"
      * @example
      * Crypto.encodeBase32(textToBytes("foobar")) => "mzxw6ytboi"
+     * @package
      * @param {number[]} bytes - uint8 numbers
      * @param {string} alphabet - list of chars
      * @return {string}
@@ -3261,6 +4080,7 @@ declare class Crypto {
     static encodeBase32(bytes: number[], alphabet?: string): string;
     /**
      * Internal method
+     * @package
      * @param {number[]} bytes
      * @returns {number[]} - list of numbers between 0 and 32
      */
@@ -3279,6 +4099,7 @@ declare class Crypto {
      * bytesToText(Crypto.decodeBase32("mzxw6ytb")) => "fooba"
      * @example
      * bytesToText(Crypto.decodeBase32("mzxw6ytboi")) => "foobar"
+     * @package
      * @param {string} encoded
      * @param {string} alphabet
      * @return {number[]}
@@ -3287,6 +4108,7 @@ declare class Crypto {
     /**
      * Expand human readable prefix of the bech32 encoding so it can be used in the checkSum
      * Internal method.
+     * @package
      * @param {string} hrp
      * @returns {number[]}
      */
@@ -3294,6 +4116,7 @@ declare class Crypto {
     /**
      * Used as part of the bech32 checksum.
      * Internal method.
+     * @package
      * @param {number[]} bytes
      * @returns {number}
      */
@@ -3301,6 +4124,7 @@ declare class Crypto {
     /**
      * Generate the bech32 checksum
      * Internal method
+     * @package
      * @param {string} hrp
      * @param {number[]} data - numbers between 0 and 32
      * @returns {number[]} - 6 numbers between 0 and 32
@@ -3312,6 +4136,7 @@ declare class Crypto {
      * Crypto.encodeBech32("foo", textToBytes("foobar")) => "foo1vehk7cnpwgry9h96"
      * @example
      * Crypto.encodeBech32("addr_test", hexToBytes("70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539")) => "addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld"
+     * @package
      * @param {string} hrp
      * @param {number[]} data - uint8 0 - 256
      * @returns {string}
@@ -3322,6 +4147,7 @@ declare class Crypto {
      * Throws an error if checksum is invalid.
      * @example
      * bytesToHex(Crypto.decodeBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld")[1]) => "70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539"
+     * @package
      * @param {string} addr
      * @returns {[string, number[]]}
      */
@@ -3344,6 +4170,7 @@ declare class Crypto {
      * Crypto.verifyBech32("?1ezyfcl") => true
      * @example
      * Crypto.verifyBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld") => true
+     * @package
      * @param {string} addr
      * @returns {boolean}
      */
@@ -3355,6 +4182,7 @@ declare class Crypto {
      * bytesToHex(Crypto.sha2_256([0x61, 0x62, 0x63])) => "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
      * @example
      * Crypto.sha2_256(textToBytes("Hello, World!")) => [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
+     * @package
      * @param {number[]} bytes - list of uint8 numbers
      * @returns {number[]} - list of uint8 numbers
      */
@@ -3366,6 +4194,7 @@ declare class Crypto {
      * bytesToHex(Crypto.sha2_512([0x61, 0x62, 0x63])) => "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
      * @example
      * bytesToHex(Crypto.sha2_512([])) => "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+     * @package
      * @param {number[]} bytes - list of uint8 numbers
      * @returns {number[]} - list of uint8 numbers
      */
@@ -3384,6 +4213,7 @@ declare class Crypto {
      * bytesToHex(Crypto.sha3((new Array(134)).fill(3))) => "8e6575663dfb75a88f94a32c5b363c410278b65020734560d968aadd6896a621"
      * @example
      * bytesToHex(Crypto.sha3((new Array(137)).fill(4))) => "f10b39c3e455006aa42120b9751faa0f35c821211c9d086beb28bf3c4134c6c6"
+     * @package
      * @param {number[]} bytes - list of uint8 numbers
      * @returns {number[]} - list of uint8 numbers
      */
@@ -3396,6 +4226,7 @@ declare class Crypto {
      * bytesToHex(Crypto.blake2b([0, 1])) => "01cf79da4945c370c68b265ef70641aaa65eaa8f5953e3900d97724c2c5aa095"
      * @example
      * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
+     * @package
      * @param {number[]} bytes
      * @param {number} digestSize - 32 or 64
      * @returns {number[]}
@@ -3410,6 +4241,7 @@ declare class Crypto {
      * This is implementation is slow (~0.5s per verification), but should be good enough for simple client-side usage
      *
      * Ported from: https://ed25519.cr.yp.to/python/ed25519.py
+     * @package
      */
     static get Ed25519(): {
         /**
@@ -3442,6 +4274,7 @@ declare namespace ScriptPurpose {
 }
 /**
  * Plutus-core lambda term
+ * @package
  */
 declare class UplcLambda extends UplcTerm {
     /**
@@ -3454,6 +4287,7 @@ declare class UplcLambda extends UplcTerm {
 }
 /**
  * Plutus-core function application term (i.e. function call)
+ * @package
  */
 declare class UplcCall extends UplcTerm {
     /**
@@ -3466,6 +4300,7 @@ declare class UplcCall extends UplcTerm {
 }
 /**
  * Plutus-core builtin function ref term
+ * @package
  */
 declare class UplcBuiltin extends UplcTerm {
     /**
@@ -3495,6 +4330,7 @@ declare class UplcBuiltin extends UplcTerm {
 }
 /**
  * Plutus-core variable ref term (index is a Debruijn index)
+ * @package
  */
 declare class UplcVariable extends UplcTerm {
     /**
@@ -3506,6 +4342,7 @@ declare class UplcVariable extends UplcTerm {
 }
 /**
  * Wrapper for IRFuncExpr, IRCallExpr or IRLiteral
+ * @package
  */
 declare class IRProgram {
     /**
@@ -3544,6 +4381,7 @@ declare class IRProgram {
 /**
  * Each builtin has an associated CostModel.
  * The CostModel calculates the execution cost of a builtin, depending on the byte-size of the inputs.
+ * @package
  */
 declare class CostModel {
     /**
@@ -3563,363 +4401,53 @@ declare class CostModel {
     dump(): string;
 }
 /**
- * @typedef {(expr: IRExpr) => IRExpr} IRWalkFn
+ * We can't use StructStatement etc. directly because that would give circular dependencies
+ * @typedef {{
+ *   name: Word,
+ *   getTypeMember(key: Word): EvalEntity,
+ *   getInstanceMember(key: Word): Instance,
+ *   nFields(site: Site): number,
+ *   hasField(key: Word): boolean,
+ *   getFieldType(site: Site, i: number): Type,
+ *   getFieldName(i: number): string,
+ *   getConstrIndex(site: Site): number,
+ *   nEnumMembers(site: Site): number,
+ *   path: string,
+ *   use: () => void
+ * }} UserTypeStatement
  */
 /**
- * Base class of all Intermediate Representation expressions
+ * We can't use ConstStatement directly because that would give a circular dependency
+ * @typedef {{
+ *   name: Word,
+ *   path: string,
+ *   use: () => void
+ * }} ConstTypeStatement
  */
-declare class IRExpr extends Token {
-    /**
-     * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the index
-     * @returns {IRExpr}
-     */
-    copy(): IRExpr;
-    /**
-     * Score is size of equivalent Plutus-core expression
-     * Optimizing signifies minimizing score
-     * @returns {number} - number of bits (not bytes!)
-     */
-    score(): number;
-    /**
-     * @param {string} indent
-     * @returns {string}
-     */
-    toString(indent?: string): string;
-    /**
-     * Link IRNameExprs to variables
-     * @param {IRScope} scope
-     */
-    resolveNames(scope: IRScope): void;
-    /**
-     * Counts the number of times a variable is referenced inside the current expression
-     * @param {IRVariable} ref
-     * @returns {number}
-     */
-    countRefs(ref: IRVariable): number;
-    /**
-     * Inline every variable that can be found in the stack.
-     * @param {IRExprStack} stack
-     * @returns {IRExpr}
-     */
-    inline(stack: IRExprStack): IRExpr;
-    /**
-     * Evaluates an expression to something (hopefully) literal
-     * Returns null if it the result would be worse than the current expression
-     * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
-     * @param {IRCallStack} stack
-     * @returns {?IRValue}
-     */
-    eval(stack: IRCallStack): IRValue | null;
-    /**
-     * @param {IRWalkFn} fn
-     * @returns {IRExpr}
-     */
-    walk(fn: IRWalkFn): IRExpr;
-    /**
-     * Returns non-null expr if ok
-     * @param {IRVariable} ref
-     * @param {string} builtinName
-     * @returns {?IRExpr}
-     */
-    wrapCall(ref: IRVariable, builtinName: string): IRExpr | null;
-    /**
-     * @param {IRVariable} ref
-     * @returns {?IRExpr}
-     */
-    flattenCall(ref: IRVariable): IRExpr | null;
-    /**
-     * Simplify 'this' by returning something smaller (doesn't mutate)
-     * @param {IRExprStack} stack - contains some global definitions that might be useful for simplification
-     * @returns {IRExpr}
-     */
-    simplify(stack: IRExprStack): IRExpr;
-    /**
-     * @returns {UplcTerm}
-     */
-    toUplc(): UplcTerm;
-}
 /**
- * A Word token represents a token that matches /[A-Za-z_][A-Za-z_0-9]/
+ * We can't use EnumMember directly because that would give a circular dependency
+ * @typedef {UserTypeStatement & {
+ * 	 parent: UserTypeStatement
+ * }} EnumMemberTypeStatement
  */
-declare class Word extends Token {
-    /**
-     * @param {string} value
-     * @returns {Word}
-     */
-    static new(value: string): Word;
-    /**
-     * Finds the index of the first Word(value) in a list of tokens
-     * Returns -1 if none found
-     * @param {Token[]} ts
-     * @param {string | string[]} value
-     * @returns {number}
-     */
-    static find(ts: Token[], value: string | string[]): number;
-    /**
-     * @param {Site} site
-     * @param {string} value
-     */
-    constructor(site: Site, value: string);
-    get value(): string;
-    /**
-     * @returns {Word}
-     */
-    assertNotInternal(): Word;
-    /**
-     * @returns {boolean}
-     */
-    isKeyword(): boolean;
-    /**
-     * @returns {Word}
-     */
-    assertNotKeyword(): Word;
-    #private;
-}
 /**
- * User scope
+ * We can't use FuncStatement directly because that would give a circular dependency
+ * @typedef {{
+ *   path: string,
+ *   use: () => void,
+ *   setRecursive: () => void,
+ *   isRecursive: () => boolean
+ * }} RecurseableStatement
  */
-declare class Scope {
-    /**
-     * @param {GlobalScope | Scope} parent
-     */
-    constructor(parent: GlobalScope | Scope);
-    /**
-     * Used by top-scope to loop over all the statements
-     */
-    get values(): [Word, EvalEntity | Scope][];
-    /**
-     * Checks if scope contains a name
-     * @param {Word} name
-     * @returns {boolean}
-     */
-    has(name: Word): boolean;
-    /**
-     * Sets a named value. Throws an error if not unique
-     * @param {Word} name
-     * @param {EvalEntity | Scope} value
-     */
-    set(name: Word, value: EvalEntity | Scope): void;
-    /**
-     * Gets a named value from the scope. Throws an error if not found
-     * @param {Word} name
-     * @returns {EvalEntity | Scope}
-     */
-    get(name: Word): EvalEntity | Scope;
-    /**
-     * Check if function statement is called recursively
-     * @param {FuncStatement} statement
-     * @returns {boolean}
-     */
-    isRecursive(statement: FuncStatement): boolean;
-    /**
-     * @returns {boolean}
-     */
-    isStrict(): boolean;
-    /**
-     * Asserts that all named values are user.
-     * Throws an error if some are unused.
-     * Check is only run if we are in strict mode
-     * @param {boolean} onlyIfStrict
-     */
-    assertAllUsed(onlyIfStrict?: boolean): void;
-    /**
-     * @param {Word} name
-     * @returns {boolean}
-     */
-    isUsed(name: Word): boolean;
-    /**
-     * @param {Site} site
-     * @returns {Type}
-     */
-    assertType(site: Site): Type;
-    /**
-     * @param {Site} site
-     * @returns {Instance}
-     */
-    assertValue(site: Site): Instance;
-    #private;
-}
 /**
- * Base class for DataInstance and FuncInstance
+ * @typedef {{
+ *   isRecursive: (statement: RecurseableStatement) => boolean
+ * }} RecursivenessChecker
  */
-declare class Instance extends NotType {
-    /**
-     * @param {Type | Type[]} type
-     * @returns {Instance}
-     */
-    static new(type: Type | Type[]): Instance;
-}
-/**
- * Function type with arg types and a return type
- */
-declare class FuncType extends Type {
-    /**
-     * @param {Type[]} argTypes
-     * @param {Type | Type[]} retTypes
-     */
-    constructor(argTypes: Type[], retTypes: Type | Type[]);
-    get nArgs(): number;
-    get argTypes(): Type[];
-    get retTypes(): Type[];
-    /**
-     * Checks if the type of the first arg is the same as 'type'
-     * Also returns false if there are no args.
-     * For a method to be a valid instance member its first argument must also be named 'self', but that is checked elsewhere
-     * @param {Site} site
-     * @param {Type} type
-     * @returns {boolean}
-     */
-    isMaybeMethod(site: Site, type: Type): boolean;
-    /**
-     * Checks if any of 'this' argTypes or retType is same as Type.
-     * Only if this checks return true is the association allowed.
-     * @param {Site} site
-     * @param {Type} type
-     * @returns {boolean}
-     */
-    isAssociated(site: Site, type: Type): boolean;
-    /**
-     * Checks if arg types are valid.
-     * Throws errors if not valid. Returns the return type if valid.
-     * @param {Site} site
-     * @param {Instance[]} args
-     * @returns {Type[]}
-     */
-    checkCall(site: Site, args: Instance[]): Type[];
-    #private;
-}
-/**
- * (..) -> RetTypeExpr {...} expression
- */
-declare class FuncLiteralExpr extends ValueExpr {
-    /**
-     * @param {Site} site
-     * @param {FuncArg[]} args
-     * @param {TypeExpr[]} retTypeExprs
-     * @param {ValueExpr} bodyExpr
-     */
-    constructor(site: Site, args: FuncArg[], retTypeExprs: TypeExpr[], bodyExpr: ValueExpr);
-    /**
-     * @type {Type[]}
-     */
-    get argTypes(): Type[];
-    /**
-     * @type {string[]}
-     */
-    get argTypeNames(): string[];
-    /**
-     * @type {Type[]}
-     */
-    get retTypes(): Type[];
-    /**
-     * @param {Scope} scope
-     * @returns
-     */
-    evalType(scope: Scope): FuncType;
-    /**
-     * @param {Scope} scope
-     * @returns {FuncInstance}
-     */
-    evalInternal(scope: Scope): FuncInstance;
-    isMethod(): boolean;
-    /**
-     * @returns {IR}
-     */
-    argsToIR(): IR;
-    /**
-     * @param {?string} recursiveName
-     * @param {string} indent
-     * @returns {IR}
-     */
-    toIRInternal(recursiveName: string | null, indent?: string): IR;
-    /**
-     * @param {string} recursiveName
-     * @param {string} indent
-     * @returns {IR}
-     */
-    toIRRecursive(recursiveName: string, indent?: string): IR;
-    #private;
-}
-/**
- * Token is the base class of all Expressions and Statements
- */
-declare class Token {
-    /**
-     * @param {Site} site
-     */
-    constructor(site: Site);
-    get site(): Site;
-    /**
-     * @returns {string}
-     */
-    toString(): string;
-    /**
-     * Returns 'true' if 'this' is a literal primitive, a literal struct constructor, or a literal function expression.
-     * @returns {boolean}
-     */
-    isLiteral(): boolean;
-    /**
-     * Returns 'true' if 'this' is a Word token.
-     * @param {?(string | string[])} value
-     * @returns {boolean}
-     */
-    isWord(value?: (string | string[]) | null): boolean;
-    /**
-     * Returns 'true' if 'this' is a Symbol token (eg. '+', '(' etc.)
-     * @param {?(string | string[])} value
-     * @returns {boolean}
-     */
-    isSymbol(value?: (string | string[]) | null): boolean;
-    /**
-     * Returns 'true' if 'this' is a group (eg. '(...)').
-     * @param {?string} value
-     * @returns {boolean}
-     */
-    isGroup(value: string | null): boolean;
-    /**
-     * Returns a SyntaxError at the current Site.
-     * @param {string} msg
-     * @returns {UserError}
-     */
-    syntaxError(msg: string): UserError;
-    /**
-     * Returns a TypeError at the current Site.
-     * @param {string} msg
-     * @returns {UserError}
-     */
-    typeError(msg: string): UserError;
-    /**
-     * Returns a ReferenceError at the current Site.
-     * @param {string} msg
-     * @returns {UserError}
-     */
-    referenceError(msg: string): UserError;
-    /**
-     * Throws a SyntaxError if 'this' isn't a Word.
-     * @param {?(string | string[])} value
-     * @returns {Word}
-     */
-    assertWord(value?: (string | string[]) | null): Word;
-    /**
-     * Throws a SyntaxError if 'this' isn't a Symbol.
-     * @param {?(string | string[])} value
-     * @returns {Symbol}
-     */
-    assertSymbol(value?: (string | string[]) | null): Symbol;
-    /**
-     * Throws a SyntaxError if 'this' isn't a Group.
-     * @param {?string} type
-     * @param {?number} nFields
-     * @returns {Group}
-     */
-    assertGroup(type?: string | null, nFields?: number | null): Group;
-    #private;
-}
-declare class ModuleScope extends Scope {
-}
 /**
  * Base class of Instance and Type.
  * Any member function that takes 'site' as its first argument throws a TypeError if used incorrectly (eg. calling a non-FuncType).
+ * @package
  */
 declare class EvalEntity {
     used_: boolean;
@@ -4019,6 +4547,267 @@ declare class EvalEntity {
      */
     getConstrIndex(site: Site): number;
 }
+/**
+ * Base class for DataInstance and FuncInstance
+ * @package
+ */
+declare class Instance extends NotType {
+    /**
+     * @param {Type | Type[]} type
+     * @returns {Instance}
+     */
+    static new(type: Type | Type[]): Instance;
+}
+/**
+ * @typedef {(expr: IRExpr) => IRExpr} IRWalkFn
+ */
+/**
+ * Base class of all Intermediate Representation expressions
+ * @package
+ */
+declare class IRExpr extends Token {
+    /**
+     * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the index
+     * @returns {IRExpr}
+     */
+    copy(): IRExpr;
+    /**
+     * Score is size of equivalent Plutus-core expression
+     * Optimizing signifies minimizing score
+     * @returns {number} - number of bits (not bytes!)
+     */
+    score(): number;
+    /**
+     * @param {string} indent
+     * @returns {string}
+     */
+    toString(indent?: string): string;
+    /**
+     * Link IRNameExprs to variables
+     * @param {IRScope} scope
+     */
+    resolveNames(scope: IRScope): void;
+    /**
+     * Counts the number of times a variable is referenced inside the current expression
+     * @param {IRVariable} ref
+     * @returns {number}
+     */
+    countRefs(ref: IRVariable): number;
+    /**
+     * Inline every variable that can be found in the stack.
+     * @param {IRExprStack} stack
+     * @returns {IRExpr}
+     */
+    inline(stack: IRExprStack): IRExpr;
+    /**
+     * Evaluates an expression to something (hopefully) literal
+     * Returns null if it the result would be worse than the current expression
+     * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
+     * @param {IRCallStack} stack
+     * @returns {?IRValue}
+     */
+    eval(stack: IRCallStack): IRValue | null;
+    /**
+     * @param {IRWalkFn} fn
+     * @returns {IRExpr}
+     */
+    walk(fn: IRWalkFn): IRExpr;
+    /**
+     * Returns non-null expr if ok
+     * @param {IRVariable} ref
+     * @param {string} builtinName
+     * @returns {?IRExpr}
+     */
+    wrapCall(ref: IRVariable, builtinName: string): IRExpr | null;
+    /**
+     * @param {IRVariable} ref
+     * @returns {?IRExpr}
+     */
+    flattenCall(ref: IRVariable): IRExpr | null;
+    /**
+     * Simplify 'this' by returning something smaller (doesn't mutate)
+     * @param {IRExprStack} stack - contains some global definitions that might be useful for simplification
+     * @returns {IRExpr}
+     */
+    simplify(stack: IRExprStack): IRExpr;
+    /**
+     * @returns {UplcTerm}
+     */
+    toUplc(): UplcTerm;
+}
+/**
+ * Base class of non-FuncTypes.
+ */
+declare class DataType extends Type {
+}
+/**
+ * @package
+ */
+declare class ModuleScope extends Scope {
+}
+/**
+ * User scope
+ * @package
+ */
+declare class Scope {
+    /**
+     * @param {GlobalScope | Scope} parent
+     */
+    constructor(parent: GlobalScope | Scope);
+    /**
+     * Used by top-scope to loop over all the statements
+     */
+    get values(): [Word, EvalEntity | Scope][];
+    /**
+     * Checks if scope contains a name
+     * @param {Word} name
+     * @returns {boolean}
+     */
+    has(name: Word): boolean;
+    /**
+     * Sets a named value. Throws an error if not unique
+     * @param {Word} name
+     * @param {EvalEntity | Scope} value
+     */
+    set(name: Word, value: EvalEntity | Scope): void;
+    /**
+     * Gets a named value from the scope. Throws an error if not found
+     * @param {Word} name
+     * @returns {EvalEntity | Scope}
+     */
+    get(name: Word): EvalEntity | Scope;
+    /**
+     * Check if function statement is called recursively
+     * @param {RecurseableStatement} statement
+     * @returns {boolean}
+     */
+    isRecursive(statement: RecurseableStatement): boolean;
+    /**
+     * @returns {boolean}
+     */
+    isStrict(): boolean;
+    /**
+     * Asserts that all named values are user.
+     * Throws an error if some are unused.
+     * Check is only run if we are in strict mode
+     * @param {boolean} onlyIfStrict
+     */
+    assertAllUsed(onlyIfStrict?: boolean): void;
+    /**
+     * @param {Word} name
+     * @returns {boolean}
+     */
+    isUsed(name: Word): boolean;
+    /**
+     * @param {Site} site
+     * @returns {Type}
+     */
+    assertType(site: Site): Type;
+    /**
+     * @param {Site} site
+     * @returns {Instance}
+     */
+    assertValue(site: Site): Instance;
+    dump(): void;
+    /**
+     * @param {(type: Type) => void} callback
+     */
+    loopTypes(callback: (type: Type) => void): void;
+    #private;
+}
+/**
+ * Function type with arg types and a return type
+ * @package
+ */
+declare class FuncType extends Type {
+    /**
+     * @param {Type[]} argTypes
+     * @param {Type | Type[]} retTypes
+     */
+    constructor(argTypes: Type[], retTypes: Type | Type[]);
+    get nArgs(): number;
+    get argTypes(): Type[];
+    get retTypes(): Type[];
+    /**
+     * Checks if the type of the first arg is the same as 'type'
+     * Also returns false if there are no args.
+     * For a method to be a valid instance member its first argument must also be named 'self', but that is checked elsewhere
+     * @param {Site} site
+     * @param {Type} type
+     * @returns {boolean}
+     */
+    isMaybeMethod(site: Site, type: Type): boolean;
+    /**
+     * Checks if any of 'this' argTypes or retType is same as Type.
+     * Only if this checks return true is the association allowed.
+     * @param {Site} site
+     * @param {Type} type
+     * @returns {boolean}
+     */
+    isAssociated(site: Site, type: Type): boolean;
+    /**
+     * Checks if arg types are valid.
+     * Throws errors if not valid. Returns the return type if valid.
+     * @param {Site} site
+     * @param {Instance[]} args
+     * @returns {Type[]}
+     */
+    checkCall(site: Site, args: Instance[]): Type[];
+    #private;
+}
+/**
+ * (..) -> RetTypeExpr {...} expression
+ * @package
+ */
+declare class FuncLiteralExpr extends ValueExpr {
+    /**
+     * @param {Site} site
+     * @param {FuncArg[]} args
+     * @param {TypeExpr[]} retTypeExprs
+     * @param {ValueExpr} bodyExpr
+     */
+    constructor(site: Site, args: FuncArg[], retTypeExprs: TypeExpr[], bodyExpr: ValueExpr);
+    /**
+     * @type {Type[]}
+     */
+    get argTypes(): Type[];
+    /**
+     * @type {string[]}
+     */
+    get argTypeNames(): string[];
+    /**
+     * @type {Type[]}
+     */
+    get retTypes(): Type[];
+    /**
+     * @param {Scope} scope
+     * @returns
+     */
+    evalType(scope: Scope): FuncType;
+    /**
+     * @param {Scope} scope
+     * @returns {FuncInstance}
+     */
+    evalInternal(scope: Scope): FuncInstance;
+    isMethod(): boolean;
+    /**
+     * @returns {IR}
+     */
+    argsToIR(): IR;
+    /**
+     * @param {?string} recursiveName
+     * @param {string} indent
+     * @returns {IR}
+     */
+    toIRInternal(recursiveName: string | null, indent?: string): IR;
+    /**
+     * @param {string} recursiveName
+     * @param {string} indent
+     * @returns {IR}
+     */
+    toIRRecursive(recursiveName: string, indent?: string): IR;
+    #private;
+}
 declare class Redeemer extends CborData {
     /**
      * @param {number[]} bytes
@@ -4084,6 +4873,7 @@ declare class Redeemer extends CborData {
 /**
  * Anonymous Plutus-core function.
  * Returns a new UplcAnon whenever it is called/applied (args are 'accumulated'), except final application, when the function itself is evaluated.
+ * @package
  */
 declare class UplcAnon extends UplcValue {
     /**
@@ -4112,6 +4902,7 @@ declare class UplcAnon extends UplcValue {
 }
 /**
  * IR function expression with some args, that act as the header, and a body expression
+ * @package
  */
 declare class IRFuncExpr extends IRExpr {
     /**
@@ -4140,6 +4931,7 @@ declare class IRFuncExpr extends IRExpr {
 }
 /**
  * Base class of IRUserCallExpr and IRCoreCallExpr
+ * @package
  */
 declare class IRCallExpr extends IRExpr {
     /**
@@ -4191,6 +4983,7 @@ declare class IRCallExpr extends IRExpr {
 }
 /**
  * IR wrapper for UplcValues, representing literals
+ * @package
  */
 declare class IRLiteral extends IRExpr {
     /**
@@ -4211,9 +5004,12 @@ declare class IRLiteral extends IRExpr {
     toUplc(): UplcConst;
     #private;
 }
+declare class NotType extends EvalEntity {
+}
 /**
  * Scope for IR names.
  * Works like a stack of named values from which a Debruijn index can be derived
+ * @package
  */
 declare class IRScope {
     /**
@@ -4252,6 +5048,7 @@ declare class IRScope {
 }
 /**
  * IR class that represents function arguments
+ * @package
  */
 declare class IRVariable extends Token {
     /**
@@ -4266,6 +5063,7 @@ declare class IRVariable extends Token {
 }
 /**
  * Map of variables to IRExpr
+ * @package
  */
 declare class IRExprStack {
     /**
@@ -4343,10 +5141,9 @@ declare class IRValue {
      */
     get value(): IRLiteral;
 }
-declare class NotType extends EvalEntity {
-}
 /**
  * Base class of expression that evaluate to Values.
+ * @package
  */
 declare class ValueExpr extends Expr {
     /**
@@ -4375,6 +5172,7 @@ declare class ValueExpr extends Expr {
 }
 /**
  * A callable Instance.
+ * @package
  */
 declare class FuncInstance extends Instance {
     /**
@@ -4383,10 +5181,10 @@ declare class FuncInstance extends Instance {
     constructor(type: FuncType);
     get nArgs(): number;
     /**
-     * @param {Scope} scope
+     * @param {RecursivenessChecker} scope
      * @returns {boolean}
      */
-    isRecursive(scope: Scope): boolean;
+    isRecursive(scope: RecursivenessChecker): boolean;
     /**
      * Returns the underlying FuncType directly.
      * @returns {FuncType}
@@ -4396,12 +5194,14 @@ declare class FuncInstance extends Instance {
 }
 /**
  * Function argument class
+ * @package
  */
 declare class FuncArg extends NameTypePair {
 }
 /**
  * Base class of every Type expression
  * Caches evaluated Type.
+ * @package
  */
 declare class TypeExpr extends Expr {
     /**
@@ -4423,85 +5223,6 @@ declare class TypeExpr extends Expr {
     #private;
 }
 /**
- * Symbol token represent anything non alphanumeric
- */
-declare class Symbol extends Token {
-    /**
-     * Finds the index of the first Symbol(value) in a list of tokens.
-     * Returns -1 if none found.
-     * @param {Token[]} ts
-     * @param {string | string[]} value
-     * @returns {number}
-     */
-    static find(ts: Token[], value: string | string[]): number;
-    /**
-     * Finds the index of the last Symbol(value) in a list of tokens.
-     * Returns -1 if none found.
-     * @param {Token[]} ts
-     * @param {string | string[]} value
-     * @returns {number}
-     */
-    static findLast(ts: Token[], value: string | string[]): number;
-    /**
-     * @param {Site} site
-     * @param {string} value
-     */
-    constructor(site: Site, value: string);
-    get value(): string;
-    /**
-     * @param {?(string | string[])} value
-     * @returns {Symbol}
-     */
-    assertSymbol(value: (string | string[]) | null): Symbol;
-    #private;
-}
-/**
- * Group token can '(...)', '[...]' or '{...}' and can contain comma separated fields.
- */
-declare class Group extends Token {
-    /**
-     * @param {Token} t
-     * @returns {boolean}
-     */
-    static isOpenSymbol(t: Token): boolean;
-    /**
-     * @param {Token} t
-     * @returns {boolean}
-     */
-    static isCloseSymbol(t: Token): boolean;
-    /**
-     * Returns the corresponding closing bracket, parenthesis or brace.
-     * Throws an error if not a group symbol.
-     * @example
-     * Group.matchSymbol("(") => ")"
-     * @param {string | Symbol} t
-     * @returns {string}
-     */
-    static matchSymbol(t: string | Symbol): string;
-    /**
-     * Finds the index of first Group(type) in list of tokens
-     * Returns -1 if none found.
-     * @param {Token[]} ts
-     * @param {string} type
-     * @returns {number}
-     */
-    static find(ts: Token[], type: string): number;
-    /**
-     * @param {Site} site
-     * @param {string} type - "(", "[" or "{"
-     * @param {Token[][]} fields
-     * @param {?Symbol} firstComma
-     */
-    constructor(site: Site, type: string, fields: Token[][], firstComma?: Symbol | null);
-    get fields(): Token[][];
-    /**
-     * @param {?string} type
-     * @returns {boolean}
-     */
-    isGroup(type?: string | null): boolean;
-    #private;
-}
-/**
  * Base class of every Type and Instance expression.
  */
 declare class Expr extends Token {
@@ -4509,6 +5230,7 @@ declare class Expr extends Token {
 }
 /**
  * NameTypePair is base class of FuncArg and DataField (differs from StructLiteralField)
+ * @package
  */
 declare class NameTypePair {
     /**

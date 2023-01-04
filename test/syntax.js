@@ -343,6 +343,11 @@ async function test14() {
 
   import { is_tx_authorized_by } from helpers
 
+  struct MyStruct {
+  	a: Int
+	b: Int
+  }
+
   const CRED: Credential =
     Credential::new_pubkey(
       PubKeyHash::new(#1234567890123456789012345678)
@@ -369,6 +374,31 @@ async function test14() {
   }`;
 
   const program = helios.Program.new(src, [srcHelpers]);
+
+  console.log(program.types);
+
+  const {Int, HeliosString, List, HeliosMap} = helios;
+
+  const myInt = new Int(10);
+
+
+  console.log(myInt.int);
+
+  console.log(myInt.toSchemaJson());
+
+  console.log(myInt._getUplcData().toString());
+
+  console.log((Int.fromUplcCbor([10])).int);
+
+  console.log(Int.name);
+
+  console.log ((new HeliosString("ajshdj")).toSchemaJson());
+
+  console.log((new (List(HeliosString))(["a", "b"])).toSchemaJson());
+
+  console.log(new (HeliosMap(HeliosString, Int))(["a", "b"], [1, 2]).toSchemaJson());
+
+  return;
 }
 
 export default async function main() {
@@ -390,7 +420,7 @@ export default async function main() {
 
   await test9();
 
-	await test10();
+  await test10();
 
   await test11();
   
