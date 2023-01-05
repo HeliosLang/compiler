@@ -6,7 +6,7 @@ import {
 } from "./constants.js";
 
 import {
-    assertClass
+    assertClass, assertDefined
 } from "./utils.js";
 
 /**
@@ -14,12 +14,20 @@ import {
  */
 
 import {
+	BoolLiteral,
     IR,
     Site,
     Token,
     Word
 } from "./tokens.js";
 
+import {
+	UplcData
+} from "./uplc-data.js";
+
+import {
+	UplcValue
+} from "./uplc-ast.js";
 
 import {
     BoolType,
@@ -46,7 +54,9 @@ import {
 
 import {
     FuncLiteralExpr,
+    LiteralDataExpr,
     NameTypePair,
+    PrimitiveLiteralExpr,
     TypeExpr,
     TypeRefExpr,
     ValueExpr
@@ -269,7 +279,7 @@ export class ConstStatement extends Statement {
 		}
 	}
 
-	/*
+	/**
 	 * @param {string | UplcValue} value 
 	 */
 	changeValue(value) {
@@ -283,6 +293,24 @@ export class ConstStatement extends Statement {
 		}
 	}
 
+	/**
+	 * Use this to change a value of something that is already typechecked.
+	 * @param {UplcData} data
+	 */
+	changeValueSafe(data) {
+		const type = this.type;
+		const site = this.#valueExpr.site;
+
+		if ((new BoolType()).isBaseOf(site, type)) {
+			this.#valueExpr = new PrimitiveLiteralExpr(new BoolLiteral(site, data.index == 1));
+		} else {
+			this.#valueExpr = new LiteralDataExpr(site, type, data);
+		}
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `const ${this.name.toString()}${this.#typeExpr === null ? "" : ": " + this.#typeExpr.toString()} = ${this.#valueExpr.toString()};`;
 	}
@@ -943,6 +971,15 @@ export class EnumStatement extends Statement {
 		}
 
 		return found;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {number} i
+	 * @returns {EnumMember}
+	 */
+	getEnumMember(site, i) {
+		return assertDefined(this.#members[i]);
 	}
 
 	/**

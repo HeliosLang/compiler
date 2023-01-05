@@ -1,5 +1,5 @@
 //@ts-check
-// Literal building functions
+// Literal functions
 
 import {
     bytesToText

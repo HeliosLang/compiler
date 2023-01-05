@@ -122,7 +122,7 @@ export function assertEq(a, b, msg) {
  * @package
  * @param {number} a
  * @param {number} b 
- * */
+ */
 export function idiv(a, b) {
 	return Math.floor(a / b);
 	// alternatively: (a - a%b)/b

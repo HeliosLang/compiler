@@ -1,13 +1,4 @@
 /**
- * Divides two integers. Assumes a and b are whole numbers. Rounds down the result.
- * @example
- * idiv(355, 113) => 3
- * @package
- * @param {number} a
- * @param {number} b
- * */
-export function idiv(a: number, b: number): number;
-/**
  * Converts a hexadecimal representation of bytes into an actual list of uint8 bytes.
  * @example
  * hexToBytes("00ff34") => [0, 255, 52]
@@ -51,21 +42,106 @@ export function bytesToText(bytes: number[]): string;
 export function hl(a: string[], ...b: any[]): string;
 /**
  * Dynamically constructs a new List class, depending on the item type.
- * @param {HeliosDataClass} ItemClass
- * @returns {HeliosDataClass}
+ * @template {HeliosData} T
+ * @param {HeliosDataClass<T>} ItemClass
+ * @returns {HeliosDataClass<List>}
  */
-export function List(ItemClass: HeliosDataClass): HeliosDataClass;
+export function List<T extends HeliosData>(ItemClass: HeliosDataClass<T>): HeliosDataClass<{
+    /**
+     * @type {T[]}
+     */
+    "__#1@#items": T[];
+    /**
+     * @package
+     * @type {string}
+     */
+    readonly _listTypeName: string;
+    /**
+     * @type {T[]}
+     */
+    readonly items: T[];
+    /**
+     * @package
+     * @returns {UplcData}
+     */
+    _toUplcData(): UplcData;
+    /**
+     * @returns {string}
+     */
+    toSchemaJson(): string;
+    /**
+     * @returns {number[]}
+     */
+    toCbor(): number[];
+}>;
 /**
- * @param {HeliosDataClass} KeyClass
- * @param {HeliosDataClass} ValueClass
- * @returns {HeliosDataClass}
+ * @template {HeliosData} TKey
+ * @template {HeliosData} TValue
+ * @param {HeliosDataClass<TKey>} KeyClass
+ * @param {HeliosDataClass<TValue>} ValueClass
+ * @returns {HeliosDataClass<HeliosMap>}
  */
-export function HeliosMap(KeyClass: HeliosDataClass, ValueClass: HeliosDataClass): HeliosDataClass;
+export function HeliosMap<TKey extends HeliosData, TValue extends HeliosData>(KeyClass: HeliosDataClass<TKey>, ValueClass: HeliosDataClass<TValue>): HeliosDataClass<{
+    /**
+     * @type {[TKey, TValue][]}
+     */
+    "__#2@#pairs": [TKey, TValue][];
+    /**
+     * @package
+     * @type {string}
+     */
+    readonly _mapTypeName: string;
+    /**
+     * @type {[TKey, TValue][]}
+     */
+    readonly pairs: [TKey, TValue][];
+    /**
+     * @package
+     * @returns {UplcData}
+     */
+    _toUplcData(): UplcData;
+    /**
+     * @returns {string}
+     */
+    toSchemaJson(): string;
+    /**
+     * @returns {number[]}
+     */
+    toCbor(): number[];
+}>;
 /**
- * @param {HeliosDataClass} SomeClass
- * @returns {HeliosDataClass}
+ * @template {HeliosData} T
+ * @param {HeliosDataClass<T>} SomeClass
+ * @returns {HeliosDataClass<Option>}
  */
-export function Option(SomeClass: HeliosDataClass): HeliosDataClass;
+export function Option<T extends HeliosData>(SomeClass: HeliosDataClass<T>): HeliosDataClass<{
+    /**
+     * @type {?T}
+     */
+    "__#3@#value": T;
+    /**
+     * @package
+     * @type {string}
+     */
+    readonly _optionTypeName: string;
+    /**
+     * @type {?T}
+     */
+    readonly some: T;
+    /**
+     * @package
+     * @returns {UplcData}
+     */
+    _toUplcData(): UplcData;
+    /**
+     * @returns {string}
+     */
+    toSchemaJson(): string;
+    /**
+     * @returns {number[]}
+     */
+    toCbor(): number[];
+}>;
 /**
  * Returns index of a named builtin
  * Throws an error if builtin doesn't exist
@@ -110,6 +186,11 @@ export function highlight(src: string): Uint8Array;
  * Version of the Helios library.
  */
 export const VERSION: "0.10.6";
+/**
+ * Set to false if using the library for mainnet (impacts Addresses)
+ * @type {boolean}
+ */
+export const IS_TESTNET: boolean;
 /**
  * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
  * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
@@ -698,31 +779,34 @@ export class ConstrData extends UplcData {
  */
 export class HeliosData extends CborData {
     /**
-     * @param {UplcData} data
-     */
-    constructor(data: UplcData);
-    /**
      * Name begins with underscore so it can never conflict with structure field names.
+     * @package
      * @returns {UplcData}
      */
-    _getUplcData(): UplcData;
+    _toUplcData(): UplcData;
     /**
      * @returns {string}
      */
     toSchemaJson(): string;
-    #private;
 }
 /**
+ * @template {HeliosData} T
  * @typedef {{
- *   new(...args: any[]): HeliosData;
- *   fromUplcCbor: (bytes: (string | number[])) => HeliosData,
- *   fromUplcData: (data: UplcData) => HeliosData
+ *   new(...args: any[]): T;
+ *   fromUplcCbor: (bytes: (string | number[])) => T,
+ *   fromUplcData: (data: UplcData) => T
  * }} HeliosDataClass
  */
 /**
  * Helios Int type
  */
 export class Int extends HeliosData {
+    /**
+     * @package
+     * @param {number | bigint | string} rawValue
+     * @returns {bigint}
+     */
+    static cleanConstructorArg(rawValue: number | bigint | string): bigint;
     /**
      * @param {UplcData} data
      * @returns {Int}
@@ -740,13 +824,39 @@ export class Int extends HeliosData {
     /**
      * @type {bigint}
      */
-    get int(): bigint;
+    get value(): bigint;
     #private;
+}
+/**
+ * Milliseconds since 1 jan 1970
+ */
+export class Time extends Int {
+    /**
+    * @package
+    * @param {number | bigint | string | Date} rawValue
+    * @returns {bigint}
+    */
+    static cleanConstructorArg(rawValue: number | bigint | string | Date): bigint;
+    /**
+     * @param {number | bigint | string | Date} rawValue
+     */
+    constructor(rawValue: number | bigint | string | Date);
+}
+/**
+ * Difference between two time values in milliseconds.
+ */
+export class Duration extends Int {
 }
 /**
  * Helios Bool type
  */
 export class Bool extends HeliosData {
+    /**
+     * @package
+     * @param {boolean | string} rawValue
+     * @returns {boolean}
+     */
+    static cleanConstructorArg(rawValue: boolean | string): boolean;
     /**
      * @param {UplcData} data
      * @returns {Bool}
@@ -791,6 +901,11 @@ export class HeliosString extends HeliosData {
  */
 export class ByteArray extends HeliosData {
     /**
+     * @package
+     * @param {string | number[]} rawValue
+     */
+    static cleanConstructorArg(rawValue: string | number[]): number[];
+    /**
      * @param {UplcData} data
      * @returns {ByteArray}
      */
@@ -804,7 +919,13 @@ export class ByteArray extends HeliosData {
      * @param {string | number[]} rawValue
      */
     constructor(rawValue: string | number[]);
+    /**
+     * @type {number[]}
+     */
     get bytes(): number[];
+    /**
+     * @type {string}
+     */
     get hex(): string;
     #private;
 }
@@ -931,20 +1052,333 @@ export class TxOutputId extends HeliosData {
     static cleanConstructorArgs(...args: any[]): [any, any];
     /**
      * @param {UplcData} data
-     * @returns {HeliosData}
+     * @returns {TxOutputId}
      */
-    static fromUplcData(data: UplcData): HeliosData;
+    static fromUplcData(data: UplcData): TxOutputId;
     /**
      * @param {string | number[]} bytes
-     * @returns {HeliosData}
+     * @returns {TxOutputId}
      */
-    static fromUplcCbor(bytes: string | number[]): HeliosData;
+    static fromUplcCbor(bytes: string | number[]): TxOutputId;
     /**
      * @param {...any} args
      */
     constructor(...args: any[]);
     get txId(): TxId;
     get utxoIdx(): Int;
+    #private;
+}
+/**
+ * See CIP19 for formatting of first byte
+ */
+export class Address extends HeliosData {
+    /**
+     * @param {number[] | string} rawValue
+     */
+    static cleanConstructorArg(rawValue: number[] | string): number[];
+    /**
+     * @param {number[]} bytes
+     * @returns {Address}
+     */
+    static fromCbor(bytes: number[]): Address;
+    /**
+     * @param {string} str
+     * @returns {Address}
+     */
+    static fromBech32(str: string): Address;
+    /**
+     * Doesn't check validity
+     * @param {string} hex
+     * @returns {Address}
+     */
+    static fromHex(hex: string): Address;
+    /**
+     * @param {PubKeyHash | ValidatorHash} hash
+     * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {boolean} isTestnet
+     * @returns {Address}
+     */
+    static fromHashes(hash: PubKeyHash | ValidatorHash, stakingHash?: (StakeKeyHash | StakingValidatorHash) | null, isTestnet?: boolean): Address;
+    /**
+     * Simple payment address without a staking part
+     * @param {PubKeyHash} hash
+     * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {boolean} isTestnet
+     * @returns {Address}
+     */
+    static fromPubKeyHash(hash: PubKeyHash, stakingHash?: (StakeKeyHash | StakingValidatorHash) | null, isTestnet?: boolean): Address;
+    /**
+     * Simple script address without a staking part
+     * Only relevant for validator scripts
+     * @param {ValidatorHash} hash
+     * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {boolean} isTestnet
+     * @returns {Address}
+     */
+    static fromValidatorHash(hash: ValidatorHash, stakingHash?: (StakeKeyHash | StakingValidatorHash) | null, isTestnet?: boolean): Address;
+    /**
+     * @param {UplcData} data
+     * @param {boolean} isTestnet
+     * @returns {Address}
+     */
+    static fromUplcData(data: UplcData, isTestnet?: boolean): Address;
+    /**
+     * @param {string | number[]} bytes
+     * @param {boolean} isTestnet
+     * @returns {Address}
+     */
+    static fromUplcCbor(bytes: string | number[], isTestnet?: boolean): Address;
+    /**
+     * Used to sort txbody withdrawals
+     * @param {Address} a
+     * @param {Address} b
+     * @return {number}
+     */
+    static compStakingHashes(a: Address, b: Address): number;
+    /**
+     * @param {string | number[]} rawValue
+     */
+    constructor(rawValue: string | number[]);
+    get bytes(): number[];
+    /**
+     * Returns the raw Address bytes as a hex encoded string
+     * @returns {string}
+     */
+    toHex(): string;
+    /**
+     * @returns {string}
+     */
+    toBech32(): string;
+    /**
+     * @returns {Object}
+     */
+    dump(): any;
+    /**
+     * @returns {boolean}
+     */
+    isForTestnet(): boolean;
+    /**
+     *
+     * @private
+     * @returns {ConstrData}
+     */
+    private toCredentialData;
+    /**
+     * @returns {ConstrData}
+     */
+    toStakingData(): ConstrData;
+    /**
+     * @type {?PubKeyHash}
+     */
+    get pubKeyHash(): PubKeyHash;
+    /**
+     * @type {?ValidatorHash}
+     */
+    get validatorHash(): ValidatorHash;
+    /**
+     * @type {?(StakeKeyHash | StakingValidatorHash)}
+     */
+    get stakingHash(): StakeKeyHash | StakingValidatorHash;
+    #private;
+}
+/**
+ * Collection of non-lovelace assets
+ */
+export class Assets extends CborData {
+    /**
+     * @param {number[]} bytes
+     * @returns {Assets}
+     */
+    static fromCbor(bytes: number[]): Assets;
+    /**
+     * @param {[MintingPolicyHash, [number[], bigint][]][]} assets
+     */
+    constructor(assets?: [MintingPolicyHash, [number[], bigint][]][]);
+    /**
+     * @type {MintingPolicyHash[]}
+     */
+    get mintingPolicies(): MintingPolicyHash[];
+    /**
+     * @returns {boolean}
+     */
+    isZero(): boolean;
+    /**
+     * @param {MintingPolicyHash} mph
+     * @param {number[]} tokenName
+     * @returns {boolean}
+     */
+    has(mph: MintingPolicyHash, tokenName: number[]): boolean;
+    /**
+     * @param {MintingPolicyHash} mph
+     * @param {number[]} tokenName
+     * @returns {bigint}
+     */
+    get(mph: MintingPolicyHash, tokenName: number[]): bigint;
+    /**
+     * Mutates 'this'
+     */
+    removeZeroes(): void;
+    /**
+     * Mutates 'this'
+     * @param {MintingPolicyHash} mph
+     * @param {number[]} tokenName
+     * @param {bigint} quantity
+     */
+    addComponent(mph: MintingPolicyHash, tokenName: number[], quantity: bigint): void;
+    /**
+     * @param {Assets} other
+     * @param {(a: bigint, b: bigint) => bigint} op
+     * @returns {Assets}
+     */
+    applyBinOp(other: Assets, op: (a: bigint, b: bigint) => bigint): Assets;
+    /**
+     * @param {Assets} other
+     * @returns {Assets}
+     */
+    add(other: Assets): Assets;
+    /**
+     * @param {Assets} other
+     * @returns {Assets}
+     */
+    sub(other: Assets): Assets;
+    /**
+     * Mutates 'this'
+     * Throws error if mph is already contained in 'this'
+     * @param {MintingPolicyHash} mph
+     * @param {[number[], bigint][]} tokens
+     */
+    addTokens(mph: MintingPolicyHash, tokens: [number[], bigint][]): void;
+    /**
+     * @param {MintingPolicyHash} mph
+     * @returns {number[][]}
+     */
+    getTokenNames(mph: MintingPolicyHash): number[][];
+    /**
+     * @param {Assets} other
+     * @returns {boolean}
+     */
+    eq(other: Assets): boolean;
+    /**
+     * Strict gt, if other contains assets this one doesn't contain => return false
+     * @param {Assets} other
+     * @returns {boolean}
+     */
+    gt(other: Assets): boolean;
+    /**
+     * @param {Assets} other
+     * @returns {boolean}
+     */
+    ge(other: Assets): boolean;
+    /**
+     * @returns {boolean}
+     */
+    allPositive(): boolean;
+    /**
+     * Throws an error if any contained quantity <= 0n
+     */
+    assertAllPositive(): void;
+    /**
+     * @returns {Object}
+     */
+    dump(): any;
+    /**
+     * Used when generating script contexts for running programs
+     * @returns {MapData}
+     */
+    _toUplcData(): MapData;
+    /**
+     * Makes sure minting policies are in correct order
+     * Mutates 'this'
+     * Order of tokens per mintingPolicyHash isn't changed
+     */
+    sort(): void;
+    #private;
+}
+export class Value extends HeliosData {
+    /**
+     * @param {MintingPolicyHash} mph
+     * @param {number[]} tokenName
+     * @param {bigint} quantity
+     * @returns {Value}
+     */
+    static asset(mph: MintingPolicyHash, tokenName: number[], quantity: bigint): Value;
+    /**
+     * @param {number[]} bytes
+     * @returns {Value}
+     */
+    static fromCbor(bytes: number[]): Value;
+    /**
+     * Useful when deserializing inline datums
+     * @param {UplcData} data
+     * @returns {Value}
+     */
+    static fromUplcData(data: UplcData): Value;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {Value}
+     */
+    static fromUplcCbor(bytes: string | number[]): Value;
+    /**
+     * @param {bigint} lovelace
+     * @param {Assets} assets
+     */
+    constructor(lovelace?: bigint, assets?: Assets);
+    /**
+     * @type {bigint}
+     */
+    get lovelace(): bigint;
+    /**
+     * Setter for lovelace
+     * Note: mutation is handy when balancing transactions
+     * @param {bigint} lovelace
+     */
+    setLovelace(lovelace: bigint): void;
+    /**
+     * @type {Assets}
+     */
+    get assets(): Assets;
+    /**
+     * @param {Value} other
+     * @returns {Value}
+     */
+    add(other: Value): Value;
+    /**
+     * @param {Value} other
+     * @returns {Value}
+     */
+    sub(other: Value): Value;
+    /**
+     * @param {Value} other
+     * @returns {boolean}
+     */
+    eq(other: Value): boolean;
+    /**
+     * Strictly greater than. Returns false if any asset is missing
+     * @param {Value} other
+     * @returns {boolean}
+     */
+    gt(other: Value): boolean;
+    /**
+     * Strictly >=
+     * @param {Value} other
+     * @returns {boolean}
+     */
+    ge(other: Value): boolean;
+    /**
+     * Throws an error if any contained quantity is negative
+     * Used when building transactions because transactions can't contain negative values
+     * @returns {Value} - returns this
+     */
+    assertAllPositive(): Value;
+    /**
+     * @returns {Object}
+     */
+    dump(): any;
+    /**
+     * Used when building script context
+     * @returns {MapData}
+     */
+    _toUplcData(): MapData;
     #private;
 }
 /**
@@ -1813,6 +2247,9 @@ export class Tokenizer {
 export class TimeType extends BuiltinType {
 }
 /**
+ * @typedef {Object.<string, HeliosDataClass<HeliosData>>} UserTypes
+ */
+/**
  * Helios root object
  */
 export class Program {
@@ -1891,9 +2328,11 @@ export class Program {
      */
     evalTypes(): TopScope;
     /**
-     * @type {Object}
+     * @type {UserTypes}
      */
-    get types(): any;
+    get types(): {
+        [x: string]: HeliosDataClass<HeliosData>;
+    };
     /**
      * Fill #types with convenient javascript equivalents of Int, ByteArray etc.
      * @param {TopScope} topScope
@@ -1913,11 +2352,31 @@ export class Program {
      */
     changeParam(name: string, value: string | UplcValue): Program;
     /**
+     * Change the literal value of a const statements
+     * @package
+     * @param {string} name
+     * @param {UplcData} data
+     */
+    changeParamSafe(name: string, data: UplcData): Program;
+    /**
      * Doesn't use wrapEntryPoint
      * @param {string} name
      * @returns {UplcValue}
      */
     evalParam(name: string): UplcValue;
+    /**
+     * @param {Object.<string, HeliosData>} values
+     */
+    set parameters(arg: {
+        [x: string]: HeliosData;
+    });
+    /**
+     * Alternative way to get the parameters as HeliosData instances
+     * @returns {Object.<string, HeliosData>}
+     */
+    get parameters(): {
+        [x: string]: HeliosData;
+    };
     /**
      * @param {IR} ir
      * @returns {IR}
@@ -2291,99 +2750,7 @@ export class TxOutput extends CborData {
     #private;
 }
 /**
- * See CIP19 for formatting of first byte
- */
-export class Address extends CborData {
-    /**
-     * @param {number[]} bytes
-     * @returns {Address}
-     */
-    static fromCbor(bytes: number[]): Address;
-    /**
-     * @param {string} str
-     * @returns {Address}
-     */
-    static fromBech32(str: string): Address;
-    /**
-     * Doesn't check validity
-     * @param {string} hex
-     * @returns {Address}
-     */
-    static fromHex(hex: string): Address;
-    /**
-     * Simple payment address without a staking part
-     * @param {boolean} isTestnet
-     * @param {PubKeyHash} hash
-     * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
-     * @returns {Address}
-     */
-    static fromPubKeyHash(isTestnet: boolean, hash: PubKeyHash, stakingHash?: (StakeKeyHash | StakingValidatorHash) | null): Address;
-    /**
-     * Simple script address without a staking part
-     * Only relevant for validator scripts
-     * @param {boolean} isTestnet
-     * @param {ValidatorHash} hash
-     * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
-     * @returns {Address}
-     */
-    static fromValidatorHash(isTestnet: boolean, hash: ValidatorHash, stakingHash?: (StakeKeyHash | StakingValidatorHash) | null): Address;
-    /**
-     * Used to sort txbody withdrawals
-     * @param {Address} a
-     * @param {Address} b
-     * @return {number}
-     */
-    static compStakingHashes(a: Address, b: Address): number;
-    /**
-     * @param {number[]} bytes
-     */
-    constructor(bytes: number[]);
-    get bytes(): number[];
-    /**
-     * Returns the raw Address bytes as a hex encoded string
-     * @returns {string}
-     */
-    toHex(): string;
-    /**
-     * @returns {string}
-     */
-    toBech32(): string;
-    /**
-     * @returns {Object}
-     */
-    dump(): any;
-    /**
-     * @returns {boolean}
-     */
-    isForTestnet(): boolean;
-    /**
-     * @returns {ConstrData}
-     */
-    toCredentialData(): ConstrData;
-    /**
-     * @returns {ConstrData}
-     */
-    toStakingData(): ConstrData;
-    /**
-     * @returns {ConstrData}
-     */
-    toData(): ConstrData;
-    /**
-     * @type {?PubKeyHash}
-     */
-    get pubKeyHash(): PubKeyHash;
-    /**
-     * @type {?ValidatorHash}
-     */
-    get validatorHash(): ValidatorHash;
-    /**
-     * @type {?Hash}
-     */
-    get stakingHash(): Hash;
-    #private;
-}
-/**
- * Convenience address that is to query all assets controlled by a given StakeHash (can be scriptHash or regular stakeHash)
+ * Convenience address that is used to query all assets controlled by a given StakeHash (can be scriptHash or regular stakeHash)
  */
 export class StakeAddress extends Address {
     /**
@@ -2400,201 +2767,6 @@ export class StakeAddress extends Address {
      * @returns {StakeAddress}
      */
     static fromStakingValidatorHash(isTestnet: boolean, hash: StakingValidatorHash): StakeAddress;
-}
-/**
- * Collection of non-lovelace assets
- */
-export class Assets extends CborData {
-    /**
-     * @param {number[]} bytes
-     * @returns {Assets}
-     */
-    static fromCbor(bytes: number[]): Assets;
-    /**
-     * @param {[MintingPolicyHash, [number[], bigint][]][]} assets
-     */
-    constructor(assets?: [MintingPolicyHash, [number[], bigint][]][]);
-    /**
-     * @type {MintingPolicyHash[]}
-     */
-    get mintingPolicies(): MintingPolicyHash[];
-    /**
-     * @returns {boolean}
-     */
-    isZero(): boolean;
-    /**
-     * @param {MintingPolicyHash} mph
-     * @param {number[]} tokenName
-     * @returns {boolean}
-     */
-    has(mph: MintingPolicyHash, tokenName: number[]): boolean;
-    /**
-     * @param {MintingPolicyHash} mph
-     * @param {number[]} tokenName
-     * @returns {bigint}
-     */
-    get(mph: MintingPolicyHash, tokenName: number[]): bigint;
-    /**
-     * Mutates 'this'
-     */
-    removeZeroes(): void;
-    /**
-     * Mutates 'this'
-     * @param {MintingPolicyHash} mph
-     * @param {number[]} tokenName
-     * @param {bigint} quantity
-     */
-    addComponent(mph: MintingPolicyHash, tokenName: number[], quantity: bigint): void;
-    /**
-     * @param {Assets} other
-     * @param {(a: bigint, b: bigint) => bigint} op
-     * @returns {Assets}
-     */
-    applyBinOp(other: Assets, op: (a: bigint, b: bigint) => bigint): Assets;
-    /**
-     * @param {Assets} other
-     * @returns {Assets}
-     */
-    add(other: Assets): Assets;
-    /**
-     * @param {Assets} other
-     * @returns {Assets}
-     */
-    sub(other: Assets): Assets;
-    /**
-     * Mutates 'this'
-     * Throws error if mph is already contained in 'this'
-     * @param {MintingPolicyHash} mph
-     * @param {[number[], bigint][]} tokens
-     */
-    addTokens(mph: MintingPolicyHash, tokens: [number[], bigint][]): void;
-    /**
-     * @param {MintingPolicyHash} mph
-     * @returns {number[][]}
-     */
-    getTokenNames(mph: MintingPolicyHash): number[][];
-    /**
-     * @param {Assets} other
-     * @returns {boolean}
-     */
-    eq(other: Assets): boolean;
-    /**
-     * Strict gt, if other contains assets this one doesn't contain => return false
-     * @param {Assets} other
-     * @returns {boolean}
-     */
-    gt(other: Assets): boolean;
-    /**
-     * @param {Assets} other
-     * @returns {boolean}
-     */
-    ge(other: Assets): boolean;
-    /**
-     * @returns {boolean}
-     */
-    allPositive(): boolean;
-    /**
-     * Throws an error if any contained quantity <= 0n
-     */
-    assertAllPositive(): void;
-    /**
-     * @returns {Object}
-     */
-    dump(): any;
-    /**
-     * Used when generating script contexts for running programs
-     * @returns {MapData}
-     */
-    toData(): MapData;
-    /**
-     * Makes sure minting policies are in correct order
-     * Mutates 'this'
-     * Order of tokens per mintingPolicyHash isn't changed
-     */
-    sort(): void;
-    #private;
-}
-export class Value extends CborData {
-    /**
-     * @param {MintingPolicyHash} mph
-     * @param {number[]} tokenName
-     * @param {bigint} quantity
-     * @returns {Value}
-     */
-    static asset(mph: MintingPolicyHash, tokenName: number[], quantity: bigint): Value;
-    /**
-     * @param {number[]} bytes
-     * @returns {Value}
-     */
-    static fromCbor(bytes: number[]): Value;
-    /**
-     * Useful when deserializing inline datums
-     * @param {UplcData} data
-     * @returns {Value}
-     */
-    static fromData(data: UplcData): Value;
-    /**
-     * @param {bigint} lovelace
-     * @param {Assets} assets
-     */
-    constructor(lovelace?: bigint, assets?: Assets);
-    /**
-     * @type {bigint}
-     */
-    get lovelace(): bigint;
-    /**
-     * Setter for lovelace
-     * Note: mutation is handy when balancing transactions
-     * @param {bigint} lovelace
-     */
-    setLovelace(lovelace: bigint): void;
-    /**
-     * @type {Assets}
-     */
-    get assets(): Assets;
-    /**
-     * @param {Value} other
-     * @returns {Value}
-     */
-    add(other: Value): Value;
-    /**
-     * @param {Value} other
-     * @returns {Value}
-     */
-    sub(other: Value): Value;
-    /**
-     * @param {Value} other
-     * @returns {boolean}
-     */
-    eq(other: Value): boolean;
-    /**
-     * Strictly greater than. Returns false if any asset is missing
-     * @param {Value} other
-     * @returns {boolean}
-     */
-    gt(other: Value): boolean;
-    /**
-     * Strictly >=
-     * @param {Value} other
-     * @returns {boolean}
-     */
-    ge(other: Value): boolean;
-    /**
-     * Throws an error if any contained quantity is negative
-     * Used when building transactions because transactions can't contain negative values
-     * @returns {Value} - returns this
-     */
-    assertAllPositive(): Value;
-    /**
-     * @returns {Object}
-     */
-    dump(): any;
-    /**
-     * Used when building script context
-     * @returns {MapData}
-     */
-    toData(): MapData;
-    #private;
 }
 export class Signature extends CborData {
     /**
@@ -2864,10 +3036,10 @@ export type CodeMap = [number, Site][];
 export type IRDefinitions = Map<string, IR>;
 export type Decoder = (bytes: number[]) => void;
 export type IDecoder = (i: number, bytes: number[]) => void;
-export type HeliosDataClass = {
-    new (...args: any[]): HeliosData;
-    fromUplcCbor: (bytes: (string | number[])) => HeliosData;
-    fromUplcData: (data: UplcData) => HeliosData;
+export type HeliosDataClass<T extends HeliosData> = {
+    new (...args: any[]): T;
+    fromUplcCbor: (bytes: (string | number[])) => T;
+    fromUplcData: (data: UplcData) => T;
 };
 export type Cost = {
     mem: bigint;
@@ -2911,7 +3083,15 @@ export type ConstTypeStatement = {
  * We can't use EnumMember directly because that would give a circular dependency
  */
 export type EnumMemberTypeStatement = UserTypeStatement & {
-    parent: UserTypeStatement;
+    parent: EnumTypeStatement;
+    getConstrIndex(site: Site): number;
+};
+/**
+ * We can't use EnumStatement directly because that would give a circular dependency
+ */
+export type EnumTypeStatement = UserTypeStatement & {
+    nEnumMembers(site: Site): number;
+    getEnumMember(site: Site, i: number): EnumMemberTypeStatement;
 };
 /**
  * We can't use FuncStatement directly because that would give a circular dependency
@@ -2922,10 +3102,16 @@ export type RecurseableStatement = {
     setRecursive: () => void;
     isRecursive: () => boolean;
 };
+/**
+ * We can't use Scope directly because that would give a circular dependency
+ */
 export type RecursivenessChecker = {
     isRecursive: (statement: RecurseableStatement) => boolean;
 };
 export type IRWalkFn = (expr: IRExpr) => IRExpr;
+export type UserTypes = {
+    [x: string]: HeliosDataClass<HeliosData>;
+};
 export type ValueGenerator = () => UplcValue;
 export type PropertyTest = (args: UplcValue[], res: (UplcValue | UserError)) => (boolean | {
     [x: string]: boolean;
@@ -3779,6 +3965,10 @@ declare class Type extends EvalEntity {
      * @type {string}
      */
     get path(): string;
+    /**
+     * @type {HeliosDataClass<HeliosData>}
+     */
+    get userType(): HeliosDataClass<HeliosData>;
 }
 /**
  * inputs, minted assets, and withdrawals need to be sorted in order to form a valid transaction
@@ -4427,8 +4617,16 @@ declare class CostModel {
 /**
  * We can't use EnumMember directly because that would give a circular dependency
  * @typedef {UserTypeStatement & {
- * 	 parent: UserTypeStatement
+ * 	 parent: EnumTypeStatement,
+ *   getConstrIndex(site: Site): number
  * }} EnumMemberTypeStatement
+ */
+/**
+ * We can't use EnumStatement directly because that would give a circular dependency
+ * @typedef {UserTypeStatement & {
+ *   nEnumMembers(site: Site): number,
+ *   getEnumMember(site: Site, i: number): EnumMemberTypeStatement
+ * }} EnumTypeStatement
  */
 /**
  * We can't use FuncStatement directly because that would give a circular dependency
@@ -4440,6 +4638,7 @@ declare class CostModel {
  * }} RecurseableStatement
  */
 /**
+ * We can't use Scope directly because that would give a circular dependency
  * @typedef {{
  *   isRecursive: (statement: RecurseableStatement) => boolean
  * }} RecursivenessChecker

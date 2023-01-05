@@ -38,7 +38,7 @@
 //
 // 
 // Overview of internals:
-//    Section 1: Global constants            VERSION, DEBUG, debug, STRICT_BABBAGE, TAB
+//    Section 1: Global constants            VERSION, DEBUG, debug, STRICT_BABBAGE, TAB, IS_TESTNET
 //
 //    Section 2: Utilities                   assert, assertDefined, assertClass, assertNumber, eq, 
 //                                           assertEq, idiv, ipow2, imask, imod8, bigIntToBytes, 
@@ -59,10 +59,11 @@
 //    Section 6: Uplc data types             UPLC_DATA_NODE_MEM_SIZE, UplcData, IntData, 
 //                                           ByteArrayData, ListData, MapData, ConstrData
 //
-//    Section 7: Helios data objects         HeliosData, Int, Bool, HeliosString, ByteArray, List, 
-//                                           HeliosMap, Option, Hash, DatumHash, PubKeyHash, 
-//                                           ScriptHash, MintingPolicyHash, StakeKeyHash, 
-//                                           StakingValidatorHash, ValidatorHash, TxId, TxOutputId
+//    Section 7: Helios data objects         HeliosData, Int, Time, Duration, Bool, HeliosString, 
+//                                           ByteArray, List, HeliosMap, Option, Hash, DatumHash, 
+//                                           PubKeyHash, ScriptHash, MintingPolicyHash, 
+//                                           StakeKeyHash, StakingValidatorHash, ValidatorHash, 
+//                                           TxId, TxOutputId, Address, Value
 //
 //    Section 8: Uplc cost-models            NetworkParams, CostModel, ConstCost, LinearCost, 
 //                                           ArgSizeCost, Arg0SizeCost, Arg1SizeCost, 
@@ -126,15 +127,15 @@
 //                                           ListTypeExpr, MapTypeExpr, OptionTypeExpr, 
 //                                           VoidTypeExpr, FuncTypeExpr, ValueExpr, AssignExpr, 
 //                                           PrintExpr, VoidExpr, ChainExpr, PrimitiveLiteralExpr, 
-//                                           StructLiteralField, StructLiteralExpr, 
-//                                           ListLiteralExpr, MapLiteralExpr, NameTypePair, 
-//                                           FuncArg, FuncLiteralExpr, ValueRefExpr, 
+//                                           LiteralDataExpr, StructLiteralField, 
+//                                           StructLiteralExpr, ListLiteralExpr, MapLiteralExpr, 
+//                                           NameTypePair, FuncArg, FuncLiteralExpr, ValueRefExpr, 
 //                                           ValuePathExpr, UnaryExpr, BinaryExpr, ParensExpr, 
 //                                           CallExpr, MemberExpr, IfElseExpr, SwitchCase, 
 //                                           UnconstrDataSwitchCase, SwitchDefault, SwitchExpr, 
 //                                           EnumSwitchExpr, DataSwitchExpr
 //
-//    Section 16: Literal building functions buildLiteralExprFromJson, buildLiteralExprFromValue
+//    Section 16: Literal functions          buildLiteralExprFromJson, buildLiteralExprFromValue
 //
 //    Section 17: Helios AST statements      Statement, ImportStatement, ConstStatement, 
 //                                           DataField, DataDefinition, StructStatement, 
@@ -172,20 +173,20 @@
 //                                           IRLiteral, IRFuncExpr, IRCallExpr, IRUserCallExpr, 
 //                                           IRCoreCallExpr, IRErrorCallExpr
 //
-//    Section 21: IR AST building functions  buildIRExpr, buildIRFuncExpr
+//    Section 21: IR AST build functions     buildIRExpr, buildIRFuncExpr
 //
 //    Section 22: IR Program                 IRProgram
 //
-//    Section 23: Helios Program and Module typesModule, MainModule, RedeemerProgram, 
+//    Section 23: Helios program             Module, MainModule, RedeemerProgram, 
 //                                           DatumRedeemerProgram, TestingProgram, 
 //                                           SpendingProgram, MintingProgram, StakingProgram
 //
 //    Section 24: Tx types                   Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
-//                                           TxOutput, ChangeTxOutput, DCert, Address, 
-//                                           StakeAddress, Assets, Value, Signature, 
-//                                           RedeemerCostTracker, Redeemer, SpendingRedeemer, 
-//                                           MintingRedeemer, Datum, HashedDatum, InlineDatum, 
-//                                           encodeMetadata, decodeMetadata, TxMetadata
+//                                           TxOutput, ChangeTxOutput, DCert, StakeAddress, 
+//                                           Signature, RedeemerCostTracker, Redeemer, 
+//                                           SpendingRedeemer, MintingRedeemer, Datum, 
+//                                           HashedDatum, InlineDatum, encodeMetadata, 
+//                                           decodeMetadata, TxMetadata
 //
 //    Section 25: Highlighting function      SyntaxCategory, highlight
 //
@@ -230,6 +231,13 @@ var STRICT_BABBAGE = false;
  * @type {string}
  */
 const TAB = "  ";
+
+
+/**
+ * Set to false if using the library for mainnet (impacts Addresses)
+ * @type {boolean}
+ */
+export var IS_TESTNET = true;
 
 
 ///////////////////////
@@ -355,8 +363,8 @@ function assertEq(a, b, msg) {
  * @package
  * @param {number} a
  * @param {number} b 
- * */
-export function idiv(a, b) {
+ */
+function idiv(a, b) {
 	return Math.floor(a / b);
 	// alternatively: (a - a%b)/b
 }
@@ -5011,37 +5019,33 @@ export class ConstrData extends UplcData {
  * Base-type of all data-types that exist both on- and off-chain, and map directly to Helios instances.
  */
 export class HeliosData extends CborData {
-	#data;
-
-	/**
-	 * @param {UplcData} data
-	 */
-	constructor(data) {
+	constructor() {
         super();
-		this.#data = data;
 	}
 
     /**
      * Name begins with underscore so it can never conflict with structure field names.
+     * @package
      * @returns {UplcData}
      */
-	_getUplcData() {
-		return this.#data;
+	_toUplcData() {
+        throw new Error("not yet implemented");
 	}
 
     /**
      * @returns {string}
      */
 	toSchemaJson() {
-		return this.#data.toSchemaJson();
+		return this._toUplcData().toSchemaJson();
 	}
 }
 
 /**
+ * @template {HeliosData} T
  * @typedef {{
- *   new(...args: any[]): HeliosData;
- *   fromUplcCbor: (bytes: (string | number[])) => HeliosData,
- *   fromUplcData: (data: UplcData) => HeliosData
+ *   new(...args: any[]): T;
+ *   fromUplcCbor: (bytes: (string | number[])) => T,
+ *   fromUplcData: (data: UplcData) => T
  * }} HeliosDataClass
  */
 
@@ -5055,25 +5059,42 @@ export class Int extends HeliosData {
     #value;
 
     /**
+     * @package
      * @param {number | bigint | string} rawValue
+     * @returns {bigint}
      */
-    constructor(rawValue) {
+    static cleanConstructorArg(rawValue) {
         const value = BigInt(rawValue);
 
         if (value.toString() != rawValue.toString()) {
-            throw new Error("not an integer");
+            throw new Error("not a valid integer");
         }
 
-        super(new IntData(value));
+        return value;
+    }
 
-        this.#value = value;
+    /**
+     * @param {number | bigint | string} rawValue
+     */
+    constructor(rawValue) {
+        super();
+
+        this.#value = Int.cleanConstructorArg(rawValue);
     }
 
     /**
      * @type {bigint}
      */
-    get int() {
+    get value() {
         return this.#value;
+    }
+
+    /**
+     * @package
+     * @returns {UplcData}
+     */
+    _toUplcData() {
+        return new IntData(this.#value);
     }
 
     /**
@@ -5094,6 +5115,75 @@ export class Int extends HeliosData {
 }
 
 /**
+ * Milliseconds since 1 jan 1970
+ */
+export class Time extends Int {
+     /**
+     * @package
+     * @param {number | bigint | string | Date} rawValue
+     * @returns {bigint}
+     */
+      static cleanConstructorArg(rawValue) {
+
+        if (rawValue instanceof Date) {
+            return BigInt(rawValue.getTime());
+        } else {
+            const value = BigInt(rawValue);
+
+            if (value.toString() != rawValue.toString()) {
+                throw new Error("not a valid integer");
+            } else {
+                return value;
+            }
+        }
+    }
+
+    /**
+     * @param {number | bigint | string | Date} rawValue
+     */
+    constructor(rawValue) {
+        super(Time.cleanConstructorArg(rawValue));
+    }
+
+    /**
+     * @param {UplcData} data
+     * @returns {Time}
+     */
+    static fromUplcData(data) {
+        return new Time(data.int);
+    }
+
+    /**
+     * @param {string | number[]} bytes
+     * @returns {Time}
+     */
+    static fromUplcCbor(bytes) {
+        return Time.fromUplcData(UplcData.fromCbor(bytes));
+    }
+}
+
+/**
+ * Difference between two time values in milliseconds.
+ */
+export class Duration extends Int {
+    /**
+     * @param {UplcData} data
+     * @returns {Duration}
+     */
+    static fromUplcData(data) {
+        return new Duration(data.int);
+    }
+
+    /**
+     * @param {string | number[]} bytes
+     * @returns {Duration}
+     */
+    static fromUplcCbor(bytes) {
+        return Duration.fromUplcData(UplcData.fromCbor(bytes));
+    }
+}
+
+/**
  * Helios Bool type
  */
 export class Bool extends HeliosData {
@@ -5103,34 +5193,47 @@ export class Bool extends HeliosData {
     #value;
 
     /**
+     * @package
+     * @param {boolean | string} rawValue 
+     * @returns {boolean}
+     */
+    static cleanConstructorArg(rawValue) {
+        if (typeof rawValue == "string") {
+            if (rawValue == "false") {
+                return false;
+            } else if (rawValue == "true") {
+                return true;
+            } else {
+                throw new Error("not a valid string representation of a Bool");
+            }
+        } else if (typeof rawValue == "boolean") {
+            return rawValue;
+        } else {
+            throw new Error("can't convert to boolean");
+        }
+    }
+
+    /**
      * @param {boolean | string} rawValue 
      */
     constructor(rawValue) {
-        const value = function() {
-            if (typeof rawValue == "string") {
-                if (rawValue == "false") {
-                    return false;
-                } else if (rawValue == "true") {
-                    return true;
-                } else {
-                    throw new Error("not a valid string representation of a Bool");
-                }
-            } else if (typeof rawValue == "boolean") {
-                return rawValue;
-            } else {
-                throw new Error("can't convert to boolean");
-            }
-        }();
+        super();
 
-        super(new ConstrData(value ? 1 : 0, []));
-
-        this.#value = value;
+        this.#value = Bool.cleanConstructorArg(rawValue);
     }
 
     get bool() {
         return this.#value;
     }
     
+    /**
+     * @package
+     * @returns {UplcData}
+     */
+    _toUplcData() {
+        return new ConstrData(this.#value ? 1 : 0, []);
+    }
+
     /** 
      * @param {UplcData} data
      * @returns {Bool}
@@ -5170,13 +5273,21 @@ export class HeliosString extends HeliosData {
      * @param {string} value 
      */
     constructor(value) {
-        super(new ByteArrayData(textToBytes(value)));
+        super();
 
         this.#value = value;
     }
 
     get string() {
         return this.#value;
+    }
+
+    /**
+     * @package
+     * @returns {UplcData}
+     */
+    _toUplcData() {
+        return new ByteArrayData(textToBytes(this.#value));
     }
 
     /**
@@ -5206,34 +5317,52 @@ export class ByteArray extends HeliosData {
     #bytes;
 
     /**
+     * @package
+     * @param {string | number[]} rawValue 
+     */
+    static cleanConstructorArg(rawValue) {
+        if (Array.isArray(rawValue)) {
+            return rawValue;
+        } else if (typeof rawValue == "string") {
+            if (rawValue.startsWith("#")) {
+                rawValue = rawValue.slice(1);
+            }
+
+            return hexToBytes(rawValue);
+        } else {
+            throw new Error("unexpected bytes type");
+        }
+    }
+
+    /**
      * @param {string | number[]} rawValue 
      */
     constructor(rawValue) {
-        const bytes = function() {
-            if (Array.isArray(rawValue)) {
-                return rawValue;
-            } else if (typeof rawValue == "string") {
-                if (rawValue.startsWith("#")) {
-                    rawValue = rawValue.slice(1);
-                }
+        super();
 
-                return hexToBytes(rawValue);
-            } else {
-                throw new Error("unexpected bytes type");
-            }
-        }();
-
-        super(new ByteArrayData(bytes));
-
-        this.#bytes = bytes;
+        this.#bytes = ByteArray.cleanConstructorArg(rawValue);
     }
 
+    /**
+     * @type {number[]}
+     */
     get bytes() {
         return this.#bytes;
     }
 
+    /**
+     * @type {string}
+     */
     get hex() {
         return bytesToHex(this.#bytes);
+    }
+
+    /**
+     * @package
+     * @returns {UplcData}
+     */
+    _toUplcData() {
+        return new ByteArrayData(this.#bytes);
     }
 
     /**
@@ -5255,8 +5384,9 @@ export class ByteArray extends HeliosData {
 
 /**
  * Dynamically constructs a new List class, depending on the item type.
- * @param {HeliosDataClass} ItemClass
- * @returns {HeliosDataClass}
+ * @template {HeliosData} T
+ * @param {HeliosDataClass<T>} ItemClass
+ * @returns {HeliosDataClass<List>}
  */
 export function List(ItemClass) {
     assert(!new.target, "List can't be called with new");
@@ -5266,7 +5396,7 @@ export function List(ItemClass) {
 
     class List extends HeliosData {
         /** 
-         * @type {HeliosData[]} 
+         * @type {T[]} 
          */
         #items;
 
@@ -5274,33 +5404,48 @@ export function List(ItemClass) {
          * @param {any[]} rawList 
          */
         constructor(rawList) {
-            const list = rawList.map(item => {
+            super();
+
+            this.#items = rawList.map(item => {
                 if (item instanceof ItemClass) {
                     return item;
                 } else {
                     return new ItemClass(item);
                 }
             });
+        }
 
-            super(new ListData(list.map(item => item._getUplcData())));
-
-            this.#items = list;
+        /**
+         * @package
+         * @type {string}
+         */
+        get _listTypeName() {
+            return typeName;
         }
 
         /**
          * Overload 'instanceof' operator
+         * @package
          * @param {any} other 
          * @returns {boolean}
          */
         static [Symbol.hasInstance](other) {
-            return Object.getPrototypeOf(other).name == typeName;
+            return (other._listTypeName === typeName) && (other instanceof HeliosData);
         }
 
         /**
-         * @type {HeliosData[]}
+         * @type {T[]}
          */
         get items() {
             return this.#items;
+        }
+
+        /**
+         * @package
+         * @returns {UplcData}
+         */
+        _toUplcData() {
+            return new ListData(this.#items.map(item => item._toUplcData()))
         }
 
         /**
@@ -5329,9 +5474,11 @@ export function List(ItemClass) {
 }
 
 /**
- * @param {HeliosDataClass} KeyClass 
- * @param {HeliosDataClass} ValueClass
- * @returns {HeliosDataClass}
+ * @template {HeliosData} TKey
+ * @template {HeliosData} TValue
+ * @param {HeliosDataClass<TKey>} KeyClass 
+ * @param {HeliosDataClass<TValue>} ValueClass
+ * @returns {HeliosDataClass<HeliosMap>}
  */
 export function HeliosMap(KeyClass, ValueClass) {
     assert(!new.target, "HeliosMap can't be called with new");
@@ -5342,11 +5489,12 @@ export function HeliosMap(KeyClass, ValueClass) {
 
     class HeliosMap extends HeliosData {
         /**
-         * @type {[HeliosData, HeliosData][]}
+         * @type {[TKey, TValue][]}
          */
         #pairs;
 
         /**
+         * @package
          * @param {...any} args
          * @returns {[any, any][]}
          */
@@ -5404,7 +5552,7 @@ export function HeliosMap(KeyClass, ValueClass) {
             const rawPairs = HeliosMap.cleanConstructorArgs(...args);
 
             /**
-             * @type {[HeliosData, HeliosData][]}
+             * @type {[TKey, TValue][]}
              */
             const pairs = rawPairs.map(([rawKey, rawValue]) => {
                 const key = function() {
@@ -5426,30 +5574,47 @@ export function HeliosMap(KeyClass, ValueClass) {
                 return [key, value];
             });
 
-            super(new MapData(pairs.map(([key, value]) => [key._getUplcData(), value._getUplcData()])));
+            super();
 
             this.#pairs = pairs;
         }
 
         /**
+         * @package
+         * @type {string}
+         */
+        get _mapTypeName() {
+            return typeName;
+        }
+
+        /**
          * Overload 'instanceof' operator
+         * @package
          * @param {any} other 
          * @returns {boolean}
          */
         static [Symbol.hasInstance](other) {
-            return Object.getPrototypeOf(other).name == typeName;
+            return (other._mapTypeName === typeName) && (other instanceof HeliosData);
         }
 
         /**
-         * @type {[HeliosData, HeliosData][]}
+         * @type {[TKey, TValue][]}
          */
         get pairs() {
             return this.#pairs;
         }
 
         /**
+         * @package
+         * @returns {UplcData}
+         */
+        _toUplcData() {
+            return new MapData(this.#pairs.map(([key, value]) => [key._toUplcData(), value._toUplcData()]));
+        }
+
+        /**
          * @param {UplcData} data 
-         * @returns {HeliosData}
+         * @returns {HeliosMap}
          */
         static fromUplcData(data) {
             return new HeliosMap(data.map.map(([kd, vd]) => [KeyClass.fromUplcData(kd), ValueClass.fromUplcData(vd)]));
@@ -5457,14 +5622,14 @@ export function HeliosMap(KeyClass, ValueClass) {
 
         /**
          * @param {string | number[]} bytes 
-         * @returns {HeliosData}
+         * @returns {HeliosMap}
          */
         static fromUplcCbor(bytes) {
             return HeliosMap.fromUplcData(UplcData.fromCbor(bytes));
         }
     }
 
-    Object.defineProperty(List, "name", {
+    Object.defineProperty(HeliosMap, "name", {
         value: typeName,
         writable: false
     });
@@ -5473,8 +5638,9 @@ export function HeliosMap(KeyClass, ValueClass) {
 }
 
 /**
- * @param {HeliosDataClass} SomeClass
- * @returns {HeliosDataClass}
+ * @template {HeliosData} T
+ * @param {HeliosDataClass<T>} SomeClass
+ * @returns {HeliosDataClass<Option>}
  */
 export function Option(SomeClass) {
     assert(!new.target, "Option can't be called with new");
@@ -5484,43 +5650,65 @@ export function Option(SomeClass) {
 
     class Option extends HeliosData {
         /**
-         * @type {?HeliosData}
+         * @type {?T}
          */
         #value;
+
+        /**
+         * @package
+         * @param {?any} rawValue 
+         * @returns {?T}
+         */
+        static cleanConstructorArg(rawValue) {
+            if (rawValue == null) {
+                return null;
+            } else if (!(rawValue instanceof SomeClass)) {
+                return new SomeClass(rawValue);
+            } else {
+                return rawValue;
+            }
+        }
 
         /** 
          * @param {?any} rawValue
          */
         constructor(rawValue = null) {
-            const value = function() {
-                if (rawValue == null) {
-                    return null;
-                } else if (!(rawValue instanceof SomeClass)) {
-                    return new SomeClass(rawValue);
-                } else {
-                    return rawValue;
-                }
-            }();
+            super();
 
-            super(new ConstrData(value === null ? 1 : 0, value === null ? [] : [value._getUplcData()]));
+            this.#value = Option.cleanConstructorArg(rawValue);
+        }
 
-            this.#value = value;
+        /**
+         * @package
+         * @type {string}
+         */
+        get _optionTypeName() {
+            return typeName;
         }
 
         /**
          * Overload 'instanceof' operator
+         * @package
          * @param {any} other 
          * @returns {boolean}
          */
         static [Symbol.hasInstance](other) {
-            return Object.getPrototypeOf(other).name == typeName;
+            return (other._optionTypeName === typeName) && (other instanceof HeliosData);
         }
 
         /**
-         * @type {?HeliosData}
+         * @type {?T}
          */
         get some() {
             return this.#value;
+        }
+
+        /**
+         * @package
+         * @returns {UplcData}
+         */
+        _toUplcData() {
+            return new ConstrData(this.#value === null ? 1 : 0, this.#value === null ? [] : [this.#value._toUplcData()]);
         }
 
         /**
@@ -5543,7 +5731,7 @@ export function Option(SomeClass) {
 
         /**
          * @param {string | number[]} bytes
-         * @returns {HeliosData}
+         * @returns {Option}
          */
         static fromUplcCbor(bytes) {
             return Option.fromUplcData(UplcData.fromCbor(bytes));
@@ -5571,7 +5759,7 @@ class Hash extends HeliosData {
 	 * @param {number[]} bytes 
 	 */
 	constructor(bytes) {
-		super(new ByteArrayData(bytes));
+		super();
 		this.#bytes = bytes;
 	}
 
@@ -5595,6 +5783,13 @@ class Hash extends HeliosData {
 	toCbor() {
 		return CborData.encodeBytes(this.#bytes);
 	}
+
+    /**
+     * @returns {UplcData}
+     */
+    _toUplcData() {
+        return new ByteArrayData(this.#bytes);
+    }
 
 	/**
 	 * Used internally for metadataHash and scriptDataHash
@@ -5900,7 +6095,7 @@ export class TxId extends Hash {
     /**
      * @returns {UplcData}
      */
-    _getUplcData() {
+    _toUplcData() {
         return new ConstrData(0, [new ByteArrayData(this.bytes)]);
     }
 
@@ -5990,7 +6185,7 @@ export class TxOutputId extends HeliosData {
         const txId = (rawTxId instanceof TxId) ? rawTxId : new TxId(rawTxId);
         const utxoIdx = (rawUtxoIdx instanceof Int) ? rawUtxoIdx : new Int(rawUtxoIdx);
 
-        super(new ConstrData(0, [txId._getUplcData(), utxoIdx._getUplcData()]));
+        super();
 
         this.#txId = txId;
         this.#utxoIdx = utxoIdx;
@@ -6005,8 +6200,15 @@ export class TxOutputId extends HeliosData {
     }
 
     /**
+     * @returns {UplcData}
+     */
+    _toUplcData() {
+        return new ConstrData(0, [this.#txId._toUplcData(), this.#utxoIdx._toUplcData()])
+    }
+
+    /**
      * @param {UplcData} data
-     * @returns {HeliosData}
+     * @returns {TxOutputId}
      */
     static fromUplcData(data) {
         assert(data.index == 0);
@@ -6017,11 +6219,971 @@ export class TxOutputId extends HeliosData {
 
     /**
      * @param {string | number[]} bytes 
-     * @returns {HeliosData}
+     * @returns {TxOutputId}
      */
     static fromUplcCbor(bytes) {
         return TxOutputId.fromUplcData(UplcData.fromCbor(bytes));
     }
+}
+
+/**
+ * See CIP19 for formatting of first byte
+ */
+export class Address extends HeliosData {
+	/** @type {number[]} */
+	#bytes;
+
+    /**
+	 * @param {number[] | string} rawValue
+	 */
+    static cleanConstructorArg(rawValue) {
+        if (typeof rawValue == "string") {
+            if (rawValue.startsWith("addr")) {
+                return Address.fromBech32(rawValue).bytes;
+            } else {
+                if (rawValue.startsWith("#")) {
+                    rawValue = rawValue.slice(1);
+                }
+
+                return hexToBytes(rawValue);
+            }
+        } else {
+            return rawValue;
+        }
+    }
+
+	/**
+	 * @param {string | number[]} rawValue
+	 */
+	constructor(rawValue) {
+		super();
+		this.#bytes = Address.cleanConstructorArg(rawValue);
+
+        assert(this.#bytes.length == 29 || this.#bytes.length == 57);
+	}
+
+	get bytes() {
+		return this.#bytes.slice();
+	}
+
+	toCbor() {
+		return CborData.encodeBytes(this.#bytes);
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @returns {Address}
+	 */
+	static fromCbor(bytes) {
+		return new Address(CborData.decodeBytes(bytes));
+	}
+
+	/**
+	 * @param {string} str
+	 * @returns {Address}
+	 */
+	static fromBech32(str) {
+		// ignore the prefix (encoded in the bytes anyway)
+		let [prefix, bytes] = Crypto.decodeBech32(str);
+
+		let result = new Address(bytes);
+
+		assert(prefix == (result.isForTestnet() ? "addr_test" : "addr"), "invalid Address prefix");
+
+		return result;
+	}
+
+	/**
+	 * Doesn't check validity
+	 * @param {string} hex
+	 * @returns {Address}
+	 */
+	static fromHex(hex) {
+		return new Address(hexToBytes(hex));
+	}
+
+	/**
+	 * Returns the raw Address bytes as a hex encoded string
+	 * @returns {string}
+	 */
+	toHex() {
+		return bytesToHex(this.#bytes);
+	}
+
+    /**
+     * @param {PubKeyHash | ValidatorHash} hash 
+     * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash 
+     * @param {boolean} isTestnet
+     * @returns {Address}
+     */
+    static fromHashes(hash, stakingHash = null, isTestnet = IS_TESTNET) {
+        if (hash instanceof PubKeyHash) {
+            return Address.fromPubKeyHash(hash, stakingHash, isTestnet);
+        } else if (hash instanceof ValidatorHash) {
+            return Address.fromValidatorHash(hash, stakingHash, isTestnet);
+        } else {
+            throw new Error("unexpected");
+        }
+    }
+
+	/**
+	 * Simple payment address without a staking part
+	 * @param {PubKeyHash} hash
+	 * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {boolean} isTestnet
+	 * @returns {Address}
+	 */
+	static fromPubKeyHash(hash, stakingHash = null, isTestnet = IS_TESTNET) {
+		if (stakingHash !== null) {
+			if (stakingHash instanceof StakeKeyHash) {
+				return new Address(
+					[isTestnet ? 0x00 : 0x01].concat(hash.bytes).concat(stakingHash.bytes)
+				);
+			} else {
+				assert(stakingHash instanceof StakingValidatorHash);
+				return new Address(
+					[isTestnet ? 0x20 : 0x21].concat(hash.bytes).concat(stakingHash.bytes)
+				);
+			}
+		} else {
+			return new Address([isTestnet ? 0x60 : 0x61].concat(hash.bytes));
+		}
+	}
+
+	/**
+	 * Simple script address without a staking part
+	 * Only relevant for validator scripts
+	 * @param {ValidatorHash} hash
+	 * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {boolean} isTestnet
+	 * @returns {Address}
+	 */
+	static fromValidatorHash(hash, stakingHash = null, isTestnet = IS_TESTNET) {
+		if (stakingHash !== null) {
+			if (stakingHash instanceof StakeKeyHash) {
+				return new Address(
+					[isTestnet ? 0x10 : 0x11].concat(hash.bytes).concat(stakingHash.bytes)
+				);
+			} else {
+				assert(stakingHash instanceof StakingValidatorHash);
+				return new Address(
+					[isTestnet ? 0x30 : 0x31].concat(hash.bytes).concat(stakingHash.bytes)
+				);
+			}
+		} else {
+			return new Address([isTestnet ? 0x70 : 0x71].concat(hash.bytes));
+		}
+	}
+
+
+	/**
+	 * @returns {string}
+	 */
+	toBech32() {
+		return Crypto.encodeBech32(
+			this.isForTestnet() ? "addr_test" : "addr",
+			this.#bytes
+		);
+	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			hex: bytesToHex(this.#bytes),
+			bech32: this.toBech32(),
+		};
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isForTestnet() {
+		let type = this.#bytes[0] & 0b00001111;
+
+		return type == 0;
+	}
+
+	/**
+     * 
+     * @private
+	 * @returns {ConstrData}
+	 */
+	toCredentialData() {
+		let vh = this.validatorHash;
+
+		if (vh !== null) {
+			return new ConstrData(1, [new ByteArrayData(vh.bytes)]);
+		} else {
+			let pkh = this.pubKeyHash;
+
+			if (pkh === null) {
+				throw new Error("unexpected");
+			} else {
+				return new ConstrData(0, [new ByteArrayData(pkh.bytes)]);
+			}
+		}
+	}
+
+	/**
+	 * @returns {ConstrData}
+	 */
+	toStakingData() {
+        const type = this.#bytes[0] >> 4;
+		const sh = this.stakingHash;
+
+		if (sh == null) {
+			return new ConstrData(1, []); // none
+		} else {
+            if (type == 4 || type == 5) {
+                throw new Error("not yet implemented");
+            } else if (type == 3 || type == 2) {
+                // some
+                return new ConstrData(0, [
+                    // staking credential -> 0, 1 -> pointer
+                    new ConstrData(0, [
+                        // StakingValidator credential
+                        new ConstrData(1, [new ByteArrayData(sh.bytes)]),
+                    ]),
+                ]);
+            } else if (type == 0 || type == 1) {
+                // some
+                return new ConstrData(0, [
+                    // staking credential -> 0, 1 -> pointer
+                    new ConstrData(0, [
+                        // StakeKeyHash credential
+                        new ConstrData(0, [new ByteArrayData(sh.bytes)]),
+                    ]),
+                ]);
+            } else {
+                throw new Error("unexpected");
+            }
+		}
+	}
+
+	/**
+	 * @returns {UplcData}
+	 */
+	_toUplcData() {
+		return new ConstrData(0, [this.toCredentialData(), this.toStakingData()]);
+	}
+
+    /**
+     * @param {UplcData} data 
+     * @param {boolean} isTestnet
+     * @returns {Address}
+     */
+    static fromUplcData(data, isTestnet = IS_TESTNET) {
+        assert(data.index == 0);
+        assert(data.fields.length == 2);
+        
+        const credData = data.fields[0];
+        const stakData = data.fields[1];
+
+        assert(credData.fields.length == 1);
+
+        /**
+         * @type {?(StakeKeyHash | StakingValidatorHash)}
+         */
+        let sh;
+
+        if (stakData.index == 0) {
+            sh = null;
+        } else if (stakData.index == 1) {
+            assert(stakData.fields.length == 1);
+
+            const inner = stakData.fields[0];
+            assert(inner.fields.length == 1);
+
+            if (inner.index == 0) {
+                const innerInner = inner.fields[0];
+                assert(innerInner.fields.length == 1);
+
+                if (innerInner.index == 0) {
+                    sh = new StakeKeyHash(innerInner.fields[0].bytes);
+                } else if (innerInner.index == 1) {
+                    sh = new StakingValidatorHash(innerInner.fields[0].bytes);
+                } else {
+                    throw new Error("unexpected");
+                }
+            } else if (inner.index == 1) {
+                throw new Error("staking pointer not yet handled");
+            } else {
+                throw new Error("unexpected");
+            }
+        } else {
+            throw new Error("unexpected");
+        }
+
+        if (credData.index == 0) {
+            return Address.fromPubKeyHash(new PubKeyHash(credData.fields[0].bytes), sh, isTestnet);
+        } else if (credData.index == 1) {
+            return Address.fromValidatorHash(new ValidatorHash(credData.fields[0].bytes), sh, isTestnet);
+        } else {
+            throw new Error("unexpected");
+        }
+    }
+
+    /**
+     * @param {string | number[]} bytes 
+     * @param {boolean} isTestnet
+     * @returns {Address}
+     */
+    static fromUplcCbor(bytes, isTestnet = IS_TESTNET) {
+        return Address.fromUplcData(UplcData.fromCbor(bytes), isTestnet);
+    }
+
+	/**
+	 * @type {?PubKeyHash}
+	 */
+	get pubKeyHash() {
+		let type = this.#bytes[0] >> 4;
+
+		if (type % 2 == 0) {
+			return new PubKeyHash(this.#bytes.slice(1, 29));
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * @type {?ValidatorHash}
+	 */
+	get validatorHash() {
+		let type = this.#bytes[0] >> 4;
+
+		if (type % 2 == 1) {
+			return new ValidatorHash(this.#bytes.slice(1, 29));
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * @type {?(StakeKeyHash | StakingValidatorHash)}
+	 */
+	get stakingHash() {
+		let type = this.#bytes[0] >> 4;
+
+        let bytes = this.#bytes.slice(29);
+        
+
+        if (type == 0 || type == 1) {
+            assert(bytes.length == 28);
+            return new StakeKeyHash(bytes);
+        } else if (type == 2 || type == 3) {
+            assert(bytes.length == 28);
+            return new StakingValidatorHash(bytes);
+        } else if (type == 4 || type == 5) {
+            throw new Error("staking pointer not yet supported");
+        } else {
+			return null;
+		}
+	}
+
+	/**
+	 * Used to sort txbody withdrawals
+	 * @param {Address} a
+	 * @param {Address} b
+	 * @return {number}
+	 */
+	static compStakingHashes(a, b) {
+		return Hash.compare(assertDefined(a.stakingHash), assertDefined(b.stakingHash));
+	}
+}
+
+
+/**
+ * Collection of non-lovelace assets
+ */
+ export class Assets extends CborData {
+	/** @type {[MintingPolicyHash, [number[], bigint][]][]} */
+	#assets;
+
+	/**
+	 * @param {[MintingPolicyHash, [number[], bigint][]][]} assets 
+	 */
+	constructor(assets = []) {
+		super();
+		this.#assets = assets;
+	}
+
+	/**
+	 * @type {MintingPolicyHash[]}
+	 */
+	get mintingPolicies() {
+		return this.#assets.map(([mph, _]) => mph);
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isZero() {
+		return this.#assets.length == 0;
+	}
+
+	/**
+	 * @param {MintingPolicyHash} mph
+	 * @param {number[]} tokenName 
+	 * @returns {boolean}
+	 */
+	has(mph, tokenName) {
+		let inner = this.#assets.find(asset => mph.eq(asset[0]));
+
+		if (inner !== undefined) {
+			return inner[1].findIndex(pair => eq(pair[0], tokenName)) != -1;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * @param {MintingPolicyHash} mph
+	 * @param {number[]} tokenName 
+	 * @returns {bigint}
+	 */
+	get(mph, tokenName) {
+		let inner = this.#assets.find(asset => mph.eq(asset[0]));
+
+		if (inner !== undefined) {
+			let token = inner[1].find(pair => eq(pair[0], tokenName));
+
+			if (token !== undefined) {
+				return token[1];
+			} else {
+				return 0n;
+			}
+		} else {
+			return 0n;
+		}
+	}
+
+	/**
+	 * Mutates 'this'
+	 */
+	removeZeroes() {
+		for (let asset of this.#assets) {
+			asset[1] = asset[1].filter(token => token[1] != 0n);
+		}
+
+		this.#assets = this.#assets.filter(asset => asset[1].length != 0);
+	}
+
+	/**
+	 * Mutates 'this'
+	 * @param {MintingPolicyHash} mph
+	 * @param {number[]} tokenName 
+	 * @param {bigint} quantity
+	 */
+	addComponent(mph, tokenName, quantity) {
+		if (quantity == 0n) {
+			return;
+		}
+
+		let inner = this.#assets.find(asset => mph.eq(asset[0]));
+
+		if (inner === undefined) {
+			this.#assets.push([mph, [[tokenName, quantity]]]);
+		} else {
+			let token = inner[1].find(pair => eq(pair[0], tokenName));
+
+			if (token === undefined) {
+				inner[1].push([tokenName, quantity]);
+			} else {
+				token[1] += quantity;
+			}
+		}
+
+		this.removeZeroes();
+	}
+
+	/**
+	 * @param {Assets} other 
+	 * @param {(a: bigint, b: bigint) => bigint} op 
+	 * @returns {Assets}
+	 */
+	applyBinOp(other, op) {
+		let res = new Assets();
+
+		for (let [mph, tokens] of this.#assets) {
+			for (let [tokenName, quantity] of tokens) {
+				res.addComponent(mph, tokenName, op(quantity, 0n));
+			}
+		}
+
+		for (let [mph, tokens] of other.#assets) {
+			for (let [tokenName, quantity] of tokens) {
+				res.addComponent(mph, tokenName, op(0n, quantity));
+			}
+		}
+
+		return res;
+	}
+
+	/**
+	 * @param {Assets} other 
+	 * @returns {Assets}
+	 */
+	add(other) {
+		return this.applyBinOp(other, (a, b) => a + b);
+	}
+
+	/**
+	 * @param {Assets} other 
+	 * @returns {Assets}
+	 */
+	sub(other) {
+		return this.applyBinOp(other, (a, b) => a - b);
+	}
+
+	/**
+	 * Mutates 'this'
+	 * Throws error if mph is already contained in 'this'
+	 * @param {MintingPolicyHash} mph
+	 * @param {[number[], bigint][]} tokens
+	 */
+	addTokens(mph, tokens) {
+		for (let asset of this.#assets) {
+			if (asset[0].eq(mph)) {
+				throw new Error(`MultiAsset already contains ${bytesToHex(mph.bytes)}`);
+			}
+		}
+
+		this.#assets.push([mph, tokens.slice()]);
+	}
+
+	/**
+	 * @param {MintingPolicyHash} mph
+	 * @returns {number[][]}
+	 */
+	getTokenNames(mph) {
+		for (let [otherMph, tokens] of this.#assets) {
+			if (otherMph.eq(mph)) {
+				return tokens.map(([tokenName, _]) => tokenName);
+			}
+		}
+
+		return [];
+	}
+
+	/**
+	 * @param {Assets} other 
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		for (let asset of this.#assets) {
+			for (let token of asset[1]) {
+				if (token[1] != other.get(asset[0], token[0])) {
+					return false;
+				}
+			}
+		}
+
+		for (let asset of other.#assets) {
+			for (let token of asset[1]) {
+				if (token[1] != this.get(asset[0], token[0])) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Strict gt, if other contains assets this one doesn't contain => return false
+	 * @param {Assets} other 
+	 * @returns {boolean}
+	 */
+	gt(other) {
+		if (this.isZero()) {
+			return false;
+		}
+
+		for (let asset of this.#assets) {
+			for (let token of asset[1]) {
+				if (token[1] <= other.get(asset[0], token[0])) {
+					return false;
+				}
+			}
+		}
+
+		for (let asset of other.#assets) {
+			for (let token of asset[1]) {
+				if (!this.has(asset[0], token[0])) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param {Assets} other 
+	 * @returns {boolean}
+	 */
+	ge(other) {
+		return this.gt(other) || this.eq(other);
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	allPositive() {
+		for (let asset of this.#assets) {
+			for (let pair of asset[1]) {
+				if (pair[1] < 0n) {
+					return false;
+				} else if (pair[1] == 0n) {
+					throw new Error("unexpected");
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Throws an error if any contained quantity <= 0n
+	 */
+	assertAllPositive() {
+		assert(this.allPositive(), "non-positive token amounts detected");
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return CborData.encodeMap(
+			this.#assets.map(
+				outerPair => {
+					return [outerPair[0].toCbor(), CborData.encodeMap(outerPair[1].map(
+						innerPair => {
+							return [
+								CborData.encodeBytes(innerPair[0]), CborData.encodeInteger(innerPair[1])
+							]
+						}
+					))]
+				}
+			)
+		)
+	}
+
+	/**
+	 * @param {number[]} bytes
+	 * @returns {Assets}
+	 */
+	static fromCbor(bytes) {
+		let ms = new Assets();
+
+		CborData.decodeMap(bytes, pairBytes => {
+			let mph = MintingPolicyHash.fromCbor(pairBytes);
+
+			/**
+			 * @type {[number[], bigint][]}
+			 */
+			let innerMap = [];
+			
+			CborData.decodeMap(pairBytes, innerPairBytes => {
+				innerMap.push([
+					CborData.decodeBytes(innerPairBytes),
+					CborData.decodeInteger(innerPairBytes),
+				]);
+			});
+
+			ms.#assets.push([mph, innerMap]);
+		});
+
+		return ms;
+	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		let obj = {};
+
+		for (let [mph, tokens] of this.#assets) {
+			let innerObj = {};
+
+			for (let [tokenName, quantity] of tokens) {
+				innerObj[bytesToHex(tokenName)] = quantity.toString();
+			}
+
+			obj[mph.dump()] = innerObj;
+		}
+
+		return obj;
+	}
+
+	/**
+	 * Used when generating script contexts for running programs
+	 * @returns {MapData}
+	 */
+	_toUplcData() {
+		/** @type {[UplcData, UplcData][]} */
+		let pairs = [];
+
+		for (let asset of this.#assets) {
+			/** @type {[UplcData, UplcData][]} */
+			let innerPairs = [];
+
+			for (let token of asset[1]) {
+				innerPairs.push([
+					new ByteArrayData(token[0]),
+					new IntData(token[1]),
+				]);
+			}
+
+			pairs.push([
+				new ByteArrayData(asset[0].bytes),
+				new MapData(innerPairs),
+			])
+		}
+
+		return new MapData(pairs);
+	}
+
+	/**
+	 * Makes sure minting policies are in correct order
+	 * Mutates 'this'
+	 * Order of tokens per mintingPolicyHash isn't changed
+	 */
+	sort() {
+		this.#assets.sort((a, b) => {
+			return Hash.compare(a[0], b[0]);
+		});
+	}
+}
+
+export class Value extends HeliosData {
+	/** @type {bigint} */
+	#lovelace;
+
+	/** @type {Assets} */
+	#assets;
+	
+	/**
+	 * @param {bigint} lovelace 
+	 * @param {Assets} assets 
+	 */
+	constructor(lovelace = 0n, assets = new Assets()) {
+		super();
+		this.#lovelace = lovelace;
+		this.#assets = assets;
+	}
+
+	/**
+	 * @param {MintingPolicyHash} mph 
+	 * @param {number[]} tokenName 
+	 * @param {bigint} quantity 
+	 * @returns {Value}
+	 */
+	static asset(mph, tokenName, quantity) {
+		return new Value(0n, new Assets([
+			[mph, [
+				[tokenName, quantity]
+			]]
+		]));
+	}
+
+	/**
+	 * @type {bigint}
+	 */
+	get lovelace() {
+		return this.#lovelace;
+	}
+
+	/**
+	 * Setter for lovelace
+	 * Note: mutation is handy when balancing transactions
+	 * @param {bigint} lovelace
+	 */
+	setLovelace(lovelace) {
+		this.#lovelace = lovelace;
+	}
+
+	/**
+	 * @type {Assets}
+	 */
+	get assets() {
+		return this.#assets;
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		if (this.#assets.isZero()) {
+			return CborData.encodeInteger(this.#lovelace);
+		} else {
+			return CborData.encodeTuple([
+				CborData.encodeInteger(this.#lovelace),
+				this.#assets.toCbor()
+			]);
+		}
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {Value}
+	 */
+	static fromCbor(bytes) {
+		let mv = new Value();
+
+		if (CborData.isTuple(bytes)) {
+			CborData.decodeTuple(bytes, (i, fieldBytes) => {
+				switch(i) {
+					case 0:
+						mv.#lovelace = CborData.decodeInteger(fieldBytes);
+						break;
+					case 1:
+						mv.#assets = Assets.fromCbor(fieldBytes);
+						break;
+					default:
+						throw new Error("unrecognized field");
+				}
+			});
+		} else {
+			mv.#lovelace = CborData.decodeInteger(bytes);
+		}
+
+		return mv;
+	}
+
+	/**
+	 * @param {Value} other 
+	 * @returns {Value}
+	 */
+	add(other) {
+		return new Value(this.#lovelace + other.#lovelace, this.#assets.add(other.#assets));
+	}
+
+	/**
+	 * @param {Value} other 
+	 * @returns {Value}
+	 */
+	sub(other) {
+		return new Value(this.#lovelace - other.#lovelace, this.#assets.sub(other.#assets));
+	}
+
+	/**
+	 * @param {Value} other 
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return (this.#lovelace == other.#lovelace) && (this.#assets.eq(other.#assets));
+	}
+
+	/**
+	 * Strictly greater than. Returns false if any asset is missing 
+	 * @param {Value} other 
+	 * @returns {boolean}
+	 */
+	gt(other) {
+		return (this.#lovelace > other.#lovelace) && (this.#assets.gt(other.#assets));
+	}
+
+	/**
+	 * Strictly >= 
+	 * @param {Value} other 
+	 * @returns {boolean}
+	 */
+	ge(other) {
+		return (this.#lovelace >= other.#lovelace) && (this.#assets.ge(other.#assets));
+	}
+
+	/**
+	 * Throws an error if any contained quantity is negative
+	 * Used when building transactions because transactions can't contain negative values
+	 * @returns {Value} - returns this
+	 */
+	assertAllPositive() {
+		assert(this.#lovelace >= 0n);
+
+		this.#assets.assertAllPositive();
+
+		return this;
+	}
+
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			lovelace: this.#lovelace.toString(),
+			assets: this.#assets.dump()
+		};
+	}
+
+	/**
+	 * Used when building script context
+	 * @returns {MapData}
+	 */
+	_toUplcData() {
+		let map = this.#assets._toUplcData();
+
+		if (this.#lovelace != 0n) {
+			let inner = map.map; 
+
+			inner.unshift([
+				new ByteArrayData([]),
+				new MapData([
+					[new ByteArrayData([]), new IntData(this.#lovelace)]
+				]),
+			]);
+
+			// 'inner' is copy, so mutating won't change the original
+			map = new MapData(inner);
+		}
+
+		return map;
+	}
+
+	/**
+	 * Useful when deserializing inline datums
+	 * @param {UplcData} data
+	 * @returns {Value}
+	 */
+	static fromUplcData(data) {
+		let sum = new Value();
+
+		let outerMap = data.map;
+
+		for (let [mphData, tokensData] of outerMap) {
+			let mphBytes = mphData.bytes;
+
+			let innerMap = tokensData.map;
+
+			if (mphBytes.length == 0) {
+				//lovelace
+				assert(innerMap.length == 1 && innerMap[0][0].bytes.length == 0); 
+				sum = sum.add(new Value(innerMap[0][1].int));
+			} else {
+				// other assets
+				let mph = new MintingPolicyHash(mphBytes);
+
+				for (let [tokenNameData, quantityData] of innerMap) {
+					let tokenName = tokenNameData.bytes;
+					let quantity = quantityData.int;
+
+					sum = sum.add(Value.asset(mph, tokenName, quantity));
+				}
+			}
+		}
+
+		return sum;
+	}
+
+	/**
+	 * @param {string | number[]} bytes 
+	 * @returns {Value}
+	 */
+	static fromUplcCbor(bytes) {
+		return Value.fromUplcData(UplcData.fromCbor(bytes));
+	}
 }
 
 
@@ -11229,8 +12391,17 @@ function tokenizeIR(rawSrc, codeMap) {
 /**
  * We can't use EnumMember directly because that would give a circular dependency
  * @typedef {UserTypeStatement & {
- * 	 parent: UserTypeStatement
+ * 	 parent: EnumTypeStatement,
+ *   getConstrIndex(site: Site): number
  * }} EnumMemberTypeStatement
+ */
+
+/**
+ * We can't use EnumStatement directly because that would give a circular dependency
+ * @typedef {UserTypeStatement & {
+ *   nEnumMembers(site: Site): number,
+ *   getEnumMember(site: Site, i: number): EnumMemberTypeStatement
+ * }} EnumTypeStatement
  */
 
 /**
@@ -11244,6 +12415,7 @@ function tokenizeIR(rawSrc, codeMap) {
  */
 
 /**
+ * We can't use Scope directly because that would give a circular dependency
  * @typedef {{
  *   isRecursive: (statement: RecurseableStatement) => boolean
  * }} RecursivenessChecker
@@ -11493,6 +12665,13 @@ class Type extends EvalEntity {
 	get path() {
 		throw new Error("not yet implemented");
 	}
+
+	/**
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		throw new Error(`${this.toString()} doesn't have a corresponding userType`);
+	}
 }
 
 
@@ -11696,6 +12875,13 @@ class StatementType extends DataType {
 	}
 
 	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#statement.name.value;
+	}
+
+	/**
 	 * @returns {T}
 	 */
 	get statement() {
@@ -11803,18 +12989,193 @@ class StructStatementType extends StatementType {
 	constructor(statement) {
 		super(statement);
 	}
+
+	/**
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		const statement = this.statement;
+
+		const nFields = this.nFields(Site.dummy());
+
+		/**
+		 * @type {[string, Type][]} - [name, type]
+		 */
+		const fields = [];
+
+		for (let i = 0; i < nFields; i++) {
+			fields.push([statement.getFieldName(i), statement.getFieldType(Site.dummy(), i)]);
+		}
+
+		class Struct extends HeliosData {
+			/**
+			 * So we can access fields by index
+			 * @type {HeliosData[]}
+			 */
+			#fields;
+
+			/**
+			 * @param  {...any} args
+			 */
+			constructor(...args) {
+				super();
+				if (args.length != nFields) {
+					throw new Error(`expected ${nFields} args, got ${args.length}`);
+				}
+
+				this.#fields = [];
+
+				args.forEach((arg, i) => {
+					const [fieldName, fieldType] = fields[i];
+					const FieldClass = fieldType.userType;
+
+					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+
+					this.#fields.push(instance);
+					this[fieldName] = instance;
+				});
+			}
+
+			/**
+			 * Overload 'instanceof' operator
+			 * @param {any} other 
+			 * @returns {boolean}
+			 */
+			static [Symbol.hasInstance](other) {
+				return (other._structStatement === statement) && (other instanceof HeliosData);
+			}
+
+			/**
+			 * @type {UserTypeStatement}
+			 */
+			get _structStatement() {
+				return statement;
+			}
+
+			/**
+			 * @returns {UplcData}
+			 */
+			_toUplcData() {
+				if (this.#fields.length == 1) {
+					return this.#fields[0]._toUplcData();
+				} else {
+					return new ListData(this.#fields.map(f => f._toUplcData()));
+				}
+			}
+
+			/**
+			 * @param {string | number[]} bytes 
+			 * @returns {Struct}
+			 */
+			static fromUplcCbor(bytes) {
+				return Struct.fromUplcData(UplcData.fromCbor(bytes));
+			}
+
+			/**
+			 * @param {UplcData} data 
+			 * @returns {Struct}
+			 */
+			static fromUplcData(data) {
+				const dataItems = data.list;
+
+				if (dataItems.length != nFields) {
+					throw new Error("unexpected number of fields");
+				}
+
+				const args = dataItems.map((item, i) => {
+					return fields[i][1].userType.fromUplcData(item);
+				});
+
+				return new Struct(...args);
+			}
+		}
+
+		Object.defineProperty(Struct, "name", {value: this.name, writable: false});		
+
+		return Struct;
+	}
 }
 
 /**
  * @package
- * @extends {StatementType<UserTypeStatement>}
+ * @extends {StatementType<EnumTypeStatement>}
  */
 class EnumStatementType extends StatementType {
 	/**
-	 * @param {UserTypeStatement} statement - can't use EnumStatement because that would give a circular dependency
+	 * @param {EnumTypeStatement} statement - can't use EnumStatement because that would give a circular dependency
 	 */
 	constructor(statement) {
 		super(statement);
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		const statement = this.statement;
+
+		const nVariants = statement.nEnumMembers(Site.dummy());
+
+		/**
+		 * @type {HeliosDataClass<HeliosData>[]}
+		 */
+		const variants = [];
+
+		for (let i = 0; i < nVariants; i++) {
+			variants.push(
+				(new EnumMemberStatementType(statement.getEnumMember(Site.dummy(), i))).userType
+			);
+		}
+
+		class Enum extends HeliosData {
+			constructor() {
+				super();
+				throw new Error("can't be constructed (hint: construct an enum)");
+			}
+
+			/**
+			 * Overload 'instanceof' operator
+			 * @param {any} other 
+			 * @returns {boolean}
+			 */
+			static [Symbol.hasInstance](other) {
+				return (other._enumStatement === statement) && (other instanceof HeliosData);
+			}
+
+			/**
+			 * @type {EnumTypeStatement}
+			 */
+			get _enumStatement() {
+				return statement;
+			}
+
+			/**
+			 * @param {string | number[]} bytes
+			 * @returns {HeliosData}
+			 */
+			static fromUplcCbor(bytes) {
+				return Enum.fromUplcData(UplcData.fromCbor(bytes));
+			}
+
+			/**
+			 * @param {UplcData} data 
+			 * @returns {HeliosData}
+			 */
+			static fromUplcData(data) {
+				const variant = assertDefined(variants[data.index], "index out of range");
+
+				return variant.fromUplcData(data);
+			}
+		}
+
+		Object.defineProperty(Enum, "name", {value: this.name, writable: false});
+
+		for (let v of variants) {
+			Object.defineProperty(Enum, v.name, {value: v, writable: false});
+		}
+
+		return Enum;
 	}
 }
 
@@ -11832,6 +13193,7 @@ class EnumMemberStatementType extends StatementType {
 
     /**
 	 * A StatementType can instantiate itself if the underlying statement is an enum member with no fields
+	 * @package
 	 * @param {Site} site
 	 * @returns {Instance}
 	 */
@@ -11842,6 +13204,123 @@ class EnumMemberStatementType extends StatementType {
             throw site.typeError(`expected '{...}' after '${this.statement.name.toString()}'`);
         }
     }
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		const statement = this.statement;
+
+		const enumStatement = statement.parent;
+
+		const index = statement.getConstrIndex(Site.dummy());
+
+		const nFields = this.nFields(Site.dummy());
+
+		/**
+		 * @type {[string, Type][]} - [name, type]
+		 */
+		const fields = [];
+
+		for (let i = 0; i < nFields; i++) {
+			fields.push([statement.getFieldName(i), statement.getFieldType(Site.dummy(), i)]);
+		}
+
+		// similar to Struct
+		class EnumVariant extends HeliosData {
+			/**
+			 * So we can access fields by index
+			 * @type {HeliosData[]}
+			 */
+			#fields;
+
+			/**
+			 * @param  {...any} args
+			 */
+			constructor(...args) {
+				super();
+				if (args.length != nFields) {
+					throw new Error(`expected ${nFields} args, got ${args.length}`);
+				}
+ 
+				this.#fields = [];
+ 
+				args.forEach((arg, i) => {
+					const [fieldName, fieldType] = fields[i];
+					const FieldClass = fieldType.userType;
+ 
+					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+
+ 					this.#fields.push(instance);
+					this[fieldName] = instance;
+
+				});
+			}
+ 
+			/**
+			 * Overload 'instanceof' operator
+			 * @param {any} other 
+			 * @returns {boolean}
+			 */
+			static [Symbol.hasInstance](other) {
+				return (other._enumVariantStatement === statement) && (other instanceof HeliosData);
+			}
+ 
+			/**
+			 * @type {EnumTypeStatement}
+			 */
+			get _enumStatement() {
+				return enumStatement;
+			}
+
+			/**
+			 * @type {EnumMemberTypeStatement}
+			 */
+			get _enumVariantStatement() {
+				return statement;
+			}
+ 
+			/**
+			 * @returns {UplcData}
+			 */
+			_toUplcData() {
+				return new ConstrData(index, this.#fields.map(f => f._toUplcData()));
+			}
+ 
+			/**
+			 * @param {string | number[]} bytes 
+			 * @returns {EnumVariant}
+			 */
+			static fromUplcCbor(bytes) {
+				return EnumVariant.fromUplcData(UplcData.fromCbor(bytes));
+			}
+ 
+			/**
+			 * @param {UplcData} data 
+			 * @returns {EnumVariant}
+			 */
+			static fromUplcData(data) {
+				assert(data.index == index, "wrong index");
+
+				const dataItems = data.list;
+ 
+				if (dataItems.length != nFields) {
+					throw new Error("unexpected number of fields");
+				}
+ 
+				const args = dataItems.map((item, i) => {
+					return fields[i][1].userType.fromUplcData(item);
+				});
+ 
+				return new EnumVariant(...args);
+			}
+		}
+
+		Object.defineProperty(EnumVariant, "name", {value: this.name, writable: false});
+
+		return EnumVariant;
+	}
 }
 
 /**
@@ -12629,6 +14108,10 @@ class IntType extends BuiltinType {
 	get path() {
 		return "__helios__int";
 	}
+
+	get userType() {
+		return Int;
+	}
 }
 
 /**
@@ -12692,6 +14175,14 @@ class BoolType extends BuiltinType {
 	get path() {
 		return "__helios__bool";
 	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return Bool;
+	}
 }
 
 /**
@@ -12708,6 +14199,7 @@ class StringType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -12725,8 +14217,19 @@ class StringType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return "__helios__string";
+	}
+
+	/**
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return HeliosString;
 	}
 }
 
@@ -12782,8 +14285,20 @@ class ByteArrayType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return `__helios__bytearray${this.#size === null ? "" : this.#size}`;
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return ByteArray;
 	}
 }
 
@@ -13058,6 +14573,10 @@ class ListType extends BuiltinType {
 		this.#itemType = itemType;
 	}
 
+	/**
+	 * @package
+	 * @type {Type}
+	 */
 	get itemType() {
 		return this.#itemType;
 	}
@@ -13067,9 +14586,10 @@ class ListType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
 	 * @param {Type} type 
-	 * @returns 
+	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
 		type = ParamType.unwrap(type, this);
@@ -13082,6 +14602,7 @@ class ListType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -13097,6 +14618,7 @@ class ListType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -13155,8 +14677,20 @@ class ListType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return `__helios__${this.#itemType instanceof BoolType ? "bool" : ""}list`;
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return List(this.#itemType.userType);
 	}
 }
 
@@ -13178,10 +14712,18 @@ class MapType extends BuiltinType {
 		this.#valueType = valueType;
 	}
 
+	/**
+	 * @package
+	 * @type {Type}
+	 */
 	get keyType() {
 		return this.#keyType;
 	}
 
+	/**
+	 * @package
+	 * @type {Type}
+	 */
 	get valueType() {
 		return this.#valueType;
 	}
@@ -13191,9 +14733,10 @@ class MapType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
 	 * @param {Type} type 
-	 * @returns 
+	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
 		type = ParamType.unwrap(type, this);
@@ -13206,6 +14749,7 @@ class MapType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -13289,8 +14833,20 @@ class MapType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return `__helios__${this.#valueType instanceof BoolType ? "bool" : ""}map`;
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return HeliosMap(this.#keyType.userType, this.#valueType.userType);
 	}
 }
 
@@ -13314,6 +14870,7 @@ class OptionType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
 	 * @returns {number}
 	 */
@@ -13322,6 +14879,7 @@ class OptionType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
@@ -13338,6 +14896,7 @@ class OptionType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -13353,6 +14912,7 @@ class OptionType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -13365,8 +14925,20 @@ class OptionType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return `__helios__${this.#someType instanceof BoolType ? "bool" : ""}option`;
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return Option(this.#someType.userType);
 	}
 }
 
@@ -13555,6 +15127,14 @@ class PubKeyHashType extends HashType {
 	toString() {
 		return "PubKeyHash";
 	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return PubKeyHash;
+	}
 }
 
 /**
@@ -13564,6 +15144,14 @@ class PubKeyHashType extends HashType {
 class StakeKeyHashType extends HashType {
 	toString() {
 		return "StakeKeyHash";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return StakeKeyHash;
 	}
 }
 
@@ -13576,11 +15164,8 @@ class PubKeyType extends BuiltinType {
 		return "PubKey";
 	}
 
-	get path() {
-		return "__helios__pubkey";
-	}
-
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -13594,6 +15179,7 @@ class PubKeyType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name
 	 * @returns {Instance}
 	 */
@@ -13606,6 +15192,14 @@ class PubKeyType extends BuiltinType {
 			default:
 				return super.getInstanceMember(name);
 		}
+	}
+
+	/**
+	 * @package
+	 * @type {string}
+	 */
+	get path() {
+		return "__helios__pubkey";
 	}
 }
 
@@ -13644,6 +15238,7 @@ class ValidatorHashType extends HashType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -13669,6 +15264,14 @@ class ValidatorHashType extends HashType {
 	toString() {
 		return "ValidatorHash";
 	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return ValidatorHash;
+	}
 }
 
 /**
@@ -13687,6 +15290,7 @@ class MintingPolicyHashType extends HashType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -13712,6 +15316,14 @@ class MintingPolicyHashType extends HashType {
 	toString() {
 		return "MintingPolicyHash";
 	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return MintingPolicyHash;
+	}
 }
 
 /**
@@ -13730,6 +15342,7 @@ class StakingValidatorHashType extends HashType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -13755,6 +15368,14 @@ class StakingValidatorHashType extends HashType {
 	toString() {
 		return "StakingValidatorHash";
 	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return StakingValidatorHash;
+	}
 }
 
 /**
@@ -13764,6 +15385,14 @@ class StakingValidatorHashType extends HashType {
 class DatumHashType extends HashType {
 	toString() {
 		return "DatumHash";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return DatumHash;
 	}
 }
 
@@ -14570,11 +16199,8 @@ class TxIdType extends BuiltinType {
 		return "TxId";
 	}
 
-	get path() {
-		return "__helios__txid";
-	}
-
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -14594,10 +16220,11 @@ class TxIdType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
-	 getInstanceMember(name) {
+	getInstanceMember(name) {
 		switch (name.value) {
 			case "__geq":
 			case "__gt":
@@ -14609,6 +16236,22 @@ class TxIdType extends BuiltinType {
 			default:
 				return super.getInstanceMember(name);
 		}
+	}
+
+	/**
+	 * @package
+	 * @type {string}
+	 */
+	get path() {
+		return "__helios__txid";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return TxId;
 	}
 }
 
@@ -14924,6 +16567,7 @@ class TxOutputIdType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -14937,6 +16581,7 @@ class TxOutputIdType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -14956,8 +16601,20 @@ class TxOutputIdType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return "__helios__txoutputid";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return TxOutputId;
 	}
 }
 
@@ -14971,6 +16628,7 @@ class AddressType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -14987,6 +16645,7 @@ class AddressType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -15001,8 +16660,20 @@ class AddressType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return "__helios__address";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return Address;
 	}
 }
 
@@ -15016,6 +16687,7 @@ class CredentialType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
@@ -15029,6 +16701,7 @@ class CredentialType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -15048,6 +16721,7 @@ class CredentialType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
 	 * @returns {number}
 	 */
@@ -15055,6 +16729,10 @@ class CredentialType extends BuiltinType {
 		return 2;
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return "__helios__credential";
 	}
@@ -15576,6 +17254,7 @@ class ValueType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -15595,6 +17274,7 @@ class ValueType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -15629,8 +17309,20 @@ class ValueType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return "__helios__value";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return Value;
 	}
 }
 
@@ -16850,6 +18542,60 @@ class PrimitiveLiteralExpr extends ValueExpr {
 		} else {
 			throw new Error("unhandled primitive type");
 		}
+	}
+}
+
+/**
+ * Literal UplcData which is the result of parameter substitutions.
+ * @package
+ */
+class LiteralDataExpr extends ValueExpr {
+	#type;
+	#data;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type
+	 * @param {UplcData} data
+	 */
+	constructor(site, type, data) {
+		super(site);
+		this.#type = type;
+		this.#data = data;
+	}
+
+	/**
+	 * @package
+	 * @type {Type}
+	 */
+	get type() {
+		return this.#type;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return true;
+	}
+
+	toString() {
+		return `##${bytesToHex(this.#data.toCbor())}`;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Instance}
+	 */
+	evalInternal(scope) {
+		return Instance.new(this.#type);
+	}
+
+	use() {
+	}
+
+	toIR(indent = "") {
+		return new IR(this.toString(), this.site);
 	}
 }
 
@@ -19041,9 +20787,9 @@ class DataSwitchExpr extends SwitchExpr {
 }
 
 
-/////////////////////////////////////////
-// Section 16: Literal building functions
-/////////////////////////////////////////
+////////////////////////////////
+// Section 16: Literal functions
+////////////////////////////////
 
 /**
  * @package
@@ -19509,7 +21255,7 @@ class ConstStatement extends Statement {
 		}
 	}
 
-	/*
+	/**
 	 * @param {string | UplcValue} value 
 	 */
 	changeValue(value) {
@@ -19523,6 +21269,24 @@ class ConstStatement extends Statement {
 		}
 	}
 
+	/**
+	 * Use this to change a value of something that is already typechecked.
+	 * @param {UplcData} data
+	 */
+	changeValueSafe(data) {
+		const type = this.type;
+		const site = this.#valueExpr.site;
+
+		if ((new BoolType()).isBaseOf(site, type)) {
+			this.#valueExpr = new PrimitiveLiteralExpr(new BoolLiteral(site, data.index == 1));
+		} else {
+			this.#valueExpr = new LiteralDataExpr(site, type, data);
+		}
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `const ${this.name.toString()}${this.#typeExpr === null ? "" : ": " + this.#typeExpr.toString()} = ${this.#valueExpr.toString()};`;
 	}
@@ -20183,6 +21947,15 @@ class EnumStatement extends Statement {
 		}
 
 		return found;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {number} i
+	 * @returns {EnumMember}
+	 */
+	getEnumMember(site, i) {
+		return assertDefined(this.#members[i]);
 	}
 
 	/**
@@ -28310,9 +30083,9 @@ class IRErrorCallExpr extends IRExpr {
 }
 
 
-////////////////////////////////////////
-// Section 21: IR AST building functions
-////////////////////////////////////////
+/////////////////////////////////////
+// Section 21: IR AST build functions
+/////////////////////////////////////
 
 /**
  * Build an Intermediate Representation expression
@@ -28379,7 +30152,18 @@ function buildIRExpr(ts) {
 				expr = new IRLiteral(new UplcInt(t.site, t.value));
 			} else if (t instanceof ByteArrayLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(new UplcByteArray(t.site, t.bytes));
+				if (t.bytes.length == 0 && ts[0] != undefined && ts[0] instanceof ByteArrayLiteral) {
+					// literal data is ##<...>
+					const next = assertDefined(ts.shift());
+
+					if (next instanceof ByteArrayLiteral) {
+						expr = new IRLiteral(new UplcDataValue(next.site, UplcData.fromCbor(next.bytes)));
+					} else {
+						throw new Error("unexpected");
+					}
+				} else {
+					expr = new IRLiteral(new UplcByteArray(t.site, t.bytes));
+				}
 			} else if (t instanceof StringLiteral) {
 				assert(expr === null);
 				expr = new IRLiteral(new UplcString(t.site, t.value));
@@ -28572,9 +30356,9 @@ class IRProgram {
 }
 
 
-//////////////////////////////////////////////
-// Section 23: Helios Program and Module types
-//////////////////////////////////////////////
+/////////////////////////////
+// Section 23: Helios program
+/////////////////////////////
 
 /**
  * A Module is a collection of statements
@@ -28781,13 +30565,17 @@ class MainModule extends Module {
 }
 
 /**
+ * @typedef {Object.<string, HeliosDataClass<HeliosData>>} UserTypes
+ */
+
+/**
  * Helios root object
  */
  export class Program {
 	#purpose;
 	#modules;
 
-	/** @type {Object} */
+	/** @type {UserTypes} */
 	#types;
 	
 	/**
@@ -29075,7 +30863,7 @@ class MainModule extends Module {
 	}
 
 	/**
-	 * @type {Object}
+	 * @type {UserTypes}
 	 */
 	get types() {
 		return this.#types;
@@ -29086,84 +30874,19 @@ class MainModule extends Module {
 	 * @param {TopScope} topScope
 	 */
 	fillTypes(topScope) {
-		/*const addStruct = (name, s) => {
-			console.log("Adding: ", name);
-			this.#types[name] = function() {
-				const Struct = function(...args) {
-					if (args.length != s.nFields(Site.dummy())) {
-						throw new Error(`number of args doesn't match number of field in ${name} constructor`);
-					}
+		const mainModuleScope = topScope.getModuleScope(this.mainModule.name);
 
-					const dataValues = [];
+		mainModuleScope.loopTypes((type) => {
+			if (type instanceof StructStatementType || type instanceof EnumStatementType) {
+				const key = type.name;
 
-					args.forEach((arg, i) => {
-						const fName = s.getFieldName(i);
-						const fType = s.getFieldType(Site.dummy(), i);
-						
-						const sType = findType(fType);
+				if (key in this.#types) {
+					throw new Error("unexpected");
+				}
 
-						const fInstance = function() {
-							if (arg instanceof sType) {
-								return arg;
-							} else {
-								return new sType(arg);
-							}
-						}();
-
-						dataValues.push(fInstance.__getUplcValue().data);
-						
-						this[fName] = fInstance;
-					});
-
-					const value = function() {
-						if (dataValues.length == 1) {
-							return new UplcDataValue(Site.dummy(), dataValues[0]);
-						} else {
-							return new UplcDataValue(Site.dummy(), new ListData(dataValues));
-						}
-					}();
-
-					this.__getUplcValue = () => value;
-
-					this.toSchemaJson = () => value.data.toSchemaJson();
-
-					Object.freeze(this);
-				};
-
-				Object.setPrototypeOf(Struct, {
-					name_: name,
-					type: new StatementType(s),
-					// does fromCbor only make sense for fully typed things?
-					fromCbor: (bytes) => {
-						const actualBytes = (typeof bytes == "string") ? hexToBytes(bytes) : bytes;
-	
-						// TODO: do fromCbor properly
-						const data = function() {
-							if (s.nFields(Site.dummy()) == 1) {
-								return UplcData.fromCbor(actualBytes);
-							} else {
-								return ListData.fromCbor(actualBytes);
-							}
-						}();
-					}
-				});
-
-				Object.defineProperty(Struct, "name", {value: "[]Int", writable: false});
-
-				return Struct;
-			}();
-		}
-
-		// loop over the mainModule scope instead
-		for (let s of this.mainAndPostStatements) {
-			if (s instanceof StructStatement) {
-				addStruct(s.name.value, s);
-			} else if (s instanceof ImportStatement && s.origStatement instanceof StructStatement) {
-				addStruct(s.name.value, s.origStatement);
+				this.#types[key] = type.userType;;
 			}
-		}
-
-		Object.freeze(this.#types);*/
+		});
 	}
 
 	/**
@@ -29194,6 +30917,23 @@ class MainModule extends Module {
 		for (let s of this.mainAndPostStatements) {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValue(value);
+				return this;
+			}
+		}
+
+		throw this.mainFunc.referenceError(`param '${name}' not found`);
+	}
+
+	/**
+	 * Change the literal value of a const statements  
+	 * @package
+	 * @param {string} name 
+	 * @param {UplcData} data
+	 */
+	 changeParamSafe(name, data) {
+		for (let s of this.mainAndPostStatements) {
+			if (s instanceof ConstStatement && s.name.value == name) {
+				s.changeValueSafe(data);
 				return this;
 			}
 		}
@@ -29237,6 +30977,52 @@ class MainModule extends Module {
 			let irProgram = IRProgram.new(ir, this.#purpose, true, true);
 
 			return new UplcDataValue(irProgram.site, irProgram.data);
+		}
+	}
+	
+	/**
+	 * Alternative way to get the parameters as HeliosData instances
+	 * @returns {Object.<string, HeliosData>}
+	 */
+	get parameters() {
+		const types = this.paramTypes;
+
+		/**
+		 * @type {Object.<string, HeliosData>}
+		 */
+		const values = {};
+
+		for (let k in types) {
+			const type = types[k];
+
+			try {
+				const uplcValue = this.evalParam(k);
+
+				const value = (uplcValue instanceof UplcBool) ? new Bool(uplcValue.bool) : type.userType.fromUplcData(uplcValue.data);
+					
+				values[k] = value;
+			} catch(_) {
+			}
+		}
+
+		return values;
+	}
+
+	/**
+	 * @param {Object.<string, HeliosData>} values
+	 */
+	set parameters(values) {
+		const types = this.paramTypes;
+		for (let k in values) {
+			assert(k in types, `invalid param name ${k}`);
+
+			const v_ = values[k];
+
+			const U = types[k].userType;
+
+			const v = v_ instanceof U ? v_ : new U(v_);
+
+			this.changeParamSafe(k, v_._toUplcData());
 		}
 	}
 
@@ -30588,8 +32374,8 @@ class TxBody extends CborData {
 			new ListData(this.#inputs.map(input => input.toData())),
 			new ListData(this.#refInputs.map(input => input.toData())),
 			new ListData(this.#outputs.map(output => output.toData())),
-			(new Value(this.#fee)).toData(),
-			this.#minted.toData(),
+			(new Value(this.#fee))._toUplcData(),
+			this.#minted._toUplcData(),
 			new ListData(this.#certs.map(cert => cert.toData())),
 			new MapData(Array.from(this.#withdrawals.entries()).map(w => [w[0].toStakingData(), new IntData(w[1])])),
 			this.toValidTimeRangeData(networkParams),
@@ -31686,8 +33472,8 @@ export class TxOutput extends CborData {
 		}
 
 		return new ConstrData(0, [
-			this.#address.toData(),
-			this.#value.toData(),
+			this.#address._toUplcData(),
+			this.#value._toUplcData(),
 			datum,
 			new ConstrData(1, []), // TODO: how to include the ref script
 		]);
@@ -31767,246 +33553,7 @@ class DCert extends CborData {
 }
 
 /**
- * See CIP19 for formatting of first byte
- */
-export class Address extends CborData {
-	/** @type {number[]} */
-	#bytes;
-
-	/**
-	 * @param {number[]} bytes
-	 */
-	constructor(bytes) {
-		super();
-		this.#bytes = bytes;
-	}
-
-	get bytes() {
-		return this.#bytes.slice();
-	}
-
-	toCbor() {
-		return CborData.encodeBytes(this.#bytes);
-	}
-
-	/**
-	 * @param {number[]} bytes
-	 * @returns {Address}
-	 */
-	static fromCbor(bytes) {
-		return new Address(CborData.decodeBytes(bytes));
-	}
-
-	/**
-	 * @param {string} str
-	 * @returns {Address}
-	 */
-	static fromBech32(str) {
-		// ignore the prefix (encoded in the bytes anyway)
-		let [prefix, bytes] = Crypto.decodeBech32(str);
-
-		let result = new Address(bytes);
-
-		assert(prefix == (result.isForTestnet() ? "addr_test" : "addr"), "invalid Address prefix");
-
-		return result;
-	}
-
-	/**
-	 * Doesn't check validity
-	 * @param {string} hex
-	 * @returns {Address}
-	 */
-	static fromHex(hex) {
-		return new Address(hexToBytes(hex));
-	}
-
-	/**
-	 * Returns the raw Address bytes as a hex encoded string
-	 * @returns {string}
-	 */
-	toHex() {
-		return bytesToHex(this.#bytes);
-	}
-
-	/**
-	 * Simple payment address without a staking part
-	 * @param {boolean} isTestnet
-	 * @param {PubKeyHash} hash
-	 * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
-	 * @returns {Address}
-	 */
-	static fromPubKeyHash(isTestnet, hash, stakingHash = null) {
-		if (stakingHash !== null) {
-			if (stakingHash instanceof StakeKeyHash) {
-				return new Address(
-					[isTestnet ? 0x00 : 0x01].concat(hash.bytes).concat(stakingHash.bytes)
-				);
-			} else {
-				assert(stakingHash instanceof StakingValidatorHash);
-				return new Address(
-					[isTestnet ? 0x20 : 0x21].concat(hash.bytes).concat(stakingHash.bytes)
-				);
-			}
-		} else {
-			return new Address([isTestnet ? 0x60 : 0x61].concat(hash.bytes));
-		}
-	}
-
-	/**
-	 * Simple script address without a staking part
-	 * Only relevant for validator scripts
-	 * @param {boolean} isTestnet
-	 * @param {ValidatorHash} hash
-	 * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
-	 * @returns {Address}
-	 */
-	static fromValidatorHash(isTestnet, hash, stakingHash = null) {
-		if (stakingHash !== null) {
-			if (stakingHash instanceof StakeKeyHash) {
-				return new Address(
-					[isTestnet ? 0x10 : 0x11].concat(hash.bytes).concat(stakingHash.bytes)
-				);
-			} else {
-				assert(stakingHash instanceof StakingValidatorHash);
-				return new Address(
-					[isTestnet ? 0x30 : 0x31].concat(hash.bytes).concat(stakingHash.bytes)
-				);
-			}
-		} else {
-			return new Address([isTestnet ? 0x70 : 0x71].concat(hash.bytes));
-		}
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toBech32() {
-		return Crypto.encodeBech32(
-			this.isForTestnet() ? "addr_test" : "addr",
-			this.#bytes
-		);
-	}
-
-	/**
-	 * @returns {Object}
-	 */
-	dump() {
-		return {
-			hex: bytesToHex(this.#bytes),
-			bech32: this.toBech32(),
-		};
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isForTestnet() {
-		let type = this.#bytes[0] & 0b00001111;
-
-		return type == 0;
-	}
-
-	/**
-	 * @returns {ConstrData}
-	 */
-	toCredentialData() {
-		let vh = this.validatorHash;
-
-		if (vh !== null) {
-			return new ConstrData(1, [new ByteArrayData(vh.bytes)]);
-		} else {
-			let pkh = this.pubKeyHash;
-
-			if (pkh === null) {
-				throw new Error("unexpected");
-			} else {
-				return new ConstrData(0, [new ByteArrayData(pkh.bytes)]);
-			}
-		}
-	}
-
-	/**
-	 * @returns {ConstrData}
-	 */
-	toStakingData() {
-		let sh = this.stakingHash;
-
-		if (sh == null) {
-			return new ConstrData(1, []); // none
-		} else {
-			// some
-			return new ConstrData(0, [
-				// staking credential
-				new ConstrData(0, [
-					// credential (TODO: also allow script and pointer)
-					new ConstrData(0, [new ByteArrayData(sh.bytes)]),
-				]),
-			]); // some
-		}
-	}
-
-	/**
-	 * @returns {ConstrData}
-	 */
-	toData() {
-		return new ConstrData(0, [this.toCredentialData(), this.toStakingData()]);
-	}
-
-	/**
-	 * @type {?PubKeyHash}
-	 */
-	get pubKeyHash() {
-		let type = this.#bytes[0] >> 4;
-
-		if (type % 2 == 0) {
-			return new PubKeyHash(this.#bytes.slice(1, 29));
-		} else {
-			return null;
-		}
-	}
-
-	/**
-	 * @type {?ValidatorHash}
-	 */
-	get validatorHash() {
-		let type = this.#bytes[0] >> 4;
-
-		if (type % 2 == 1) {
-			return new ValidatorHash(this.#bytes.slice(1, 29));
-		} else {
-			return null;
-		}
-	}
-
-	/**
-	 * @type {?Hash}
-	 */
-	get stakingHash() {
-		let type = this.#bytes[0] >> 4;
-
-		if (type < 4) {
-			let bytes = this.#bytes.slice(29);
-			assert(bytes.length == 28);
-			return new Hash(bytes);
-		} else {
-			return null;
-		}
-	}
-
-	/**
-	 * Used to sort txbody withdrawals
-	 * @param {Address} a
-	 * @param {Address} b
-	 * @return {number}
-	 */
-	static compStakingHashes(a, b) {
-		return Hash.compare(assertDefined(a.stakingHash), assertDefined(b.stakingHash));
-	}
-}
-
-/**
- * Convenience address that is to query all assets controlled by a given StakeHash (can be scriptHash or regular stakeHash)
+ * Convenience address that is used to query all assets controlled by a given StakeHash (can be scriptHash or regular stakeHash)
  */
 export class StakeAddress extends Address {
 	/**
@@ -32072,590 +33619,6 @@ export class StakeAddress extends Address {
 			this.isForTestnet() ? "stake_test" : "stake",
 			this.bytes
 		);
-	}
-}
-
-/**
- * Collection of non-lovelace assets
- */
-export class Assets extends CborData {
-	/** @type {[MintingPolicyHash, [number[], bigint][]][]} */
-	#assets;
-
-	/**
-	 * @param {[MintingPolicyHash, [number[], bigint][]][]} assets 
-	 */
-	constructor(assets = []) {
-		super();
-		this.#assets = assets;
-	}
-
-	/**
-	 * @type {MintingPolicyHash[]}
-	 */
-	get mintingPolicies() {
-		return this.#assets.map(([mph, _]) => mph);
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isZero() {
-		return this.#assets.length == 0;
-	}
-
-	/**
-	 * @param {MintingPolicyHash} mph
-	 * @param {number[]} tokenName 
-	 * @returns {boolean}
-	 */
-	has(mph, tokenName) {
-		let inner = this.#assets.find(asset => mph.eq(asset[0]));
-
-		if (inner !== undefined) {
-			return inner[1].findIndex(pair => eq(pair[0], tokenName)) != -1;
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * @param {MintingPolicyHash} mph
-	 * @param {number[]} tokenName 
-	 * @returns {bigint}
-	 */
-	get(mph, tokenName) {
-		let inner = this.#assets.find(asset => mph.eq(asset[0]));
-
-		if (inner !== undefined) {
-			let token = inner[1].find(pair => eq(pair[0], tokenName));
-
-			if (token !== undefined) {
-				return token[1];
-			} else {
-				return 0n;
-			}
-		} else {
-			return 0n;
-		}
-	}
-
-	/**
-	 * Mutates 'this'
-	 */
-	removeZeroes() {
-		for (let asset of this.#assets) {
-			asset[1] = asset[1].filter(token => token[1] != 0n);
-		}
-
-		this.#assets = this.#assets.filter(asset => asset[1].length != 0);
-	}
-
-	/**
-	 * Mutates 'this'
-	 * @param {MintingPolicyHash} mph
-	 * @param {number[]} tokenName 
-	 * @param {bigint} quantity
-	 */
-	addComponent(mph, tokenName, quantity) {
-		if (quantity == 0n) {
-			return;
-		}
-
-		let inner = this.#assets.find(asset => mph.eq(asset[0]));
-
-		if (inner === undefined) {
-			this.#assets.push([mph, [[tokenName, quantity]]]);
-		} else {
-			let token = inner[1].find(pair => eq(pair[0], tokenName));
-
-			if (token === undefined) {
-				inner[1].push([tokenName, quantity]);
-			} else {
-				token[1] += quantity;
-			}
-		}
-
-		this.removeZeroes();
-	}
-
-	/**
-	 * @param {Assets} other 
-	 * @param {(a: bigint, b: bigint) => bigint} op 
-	 * @returns {Assets}
-	 */
-	applyBinOp(other, op) {
-		let res = new Assets();
-
-		for (let [mph, tokens] of this.#assets) {
-			for (let [tokenName, quantity] of tokens) {
-				res.addComponent(mph, tokenName, op(quantity, 0n));
-			}
-		}
-
-		for (let [mph, tokens] of other.#assets) {
-			for (let [tokenName, quantity] of tokens) {
-				res.addComponent(mph, tokenName, op(0n, quantity));
-			}
-		}
-
-		return res;
-	}
-
-	/**
-	 * @param {Assets} other 
-	 * @returns {Assets}
-	 */
-	add(other) {
-		return this.applyBinOp(other, (a, b) => a + b);
-	}
-
-	/**
-	 * @param {Assets} other 
-	 * @returns {Assets}
-	 */
-	sub(other) {
-		return this.applyBinOp(other, (a, b) => a - b);
-	}
-
-	/**
-	 * Mutates 'this'
-	 * Throws error if mph is already contained in 'this'
-	 * @param {MintingPolicyHash} mph
-	 * @param {[number[], bigint][]} tokens
-	 */
-	addTokens(mph, tokens) {
-		for (let asset of this.#assets) {
-			if (asset[0].eq(mph)) {
-				throw new Error(`MultiAsset already contains ${bytesToHex(mph.bytes)}`);
-			}
-		}
-
-		this.#assets.push([mph, tokens.slice()]);
-	}
-
-	/**
-	 * @param {MintingPolicyHash} mph
-	 * @returns {number[][]}
-	 */
-	getTokenNames(mph) {
-		for (let [otherMph, tokens] of this.#assets) {
-			if (otherMph.eq(mph)) {
-				return tokens.map(([tokenName, _]) => tokenName);
-			}
-		}
-
-		return [];
-	}
-
-	/**
-	 * @param {Assets} other 
-	 * @returns {boolean}
-	 */
-	eq(other) {
-		for (let asset of this.#assets) {
-			for (let token of asset[1]) {
-				if (token[1] != other.get(asset[0], token[0])) {
-					return false;
-				}
-			}
-		}
-
-		for (let asset of other.#assets) {
-			for (let token of asset[1]) {
-				if (token[1] != this.get(asset[0], token[0])) {
-					return false;
-				}
-			}
-		}
-
-		return true;
-	}
-
-	/**
-	 * Strict gt, if other contains assets this one doesn't contain => return false
-	 * @param {Assets} other 
-	 * @returns {boolean}
-	 */
-	gt(other) {
-		if (this.isZero()) {
-			return false;
-		}
-
-		for (let asset of this.#assets) {
-			for (let token of asset[1]) {
-				if (token[1] <= other.get(asset[0], token[0])) {
-					return false;
-				}
-			}
-		}
-
-		for (let asset of other.#assets) {
-			for (let token of asset[1]) {
-				if (!this.has(asset[0], token[0])) {
-					return false;
-				}
-			}
-		}
-
-		return true;
-	}
-
-	/**
-	 * @param {Assets} other 
-	 * @returns {boolean}
-	 */
-	ge(other) {
-		return this.gt(other) || this.eq(other);
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	allPositive() {
-		for (let asset of this.#assets) {
-			for (let pair of asset[1]) {
-				if (pair[1] < 0n) {
-					return false;
-				} else if (pair[1] == 0n) {
-					throw new Error("unexpected");
-				}
-			}
-		}
-
-		return true;
-	}
-
-	/**
-	 * Throws an error if any contained quantity <= 0n
-	 */
-	assertAllPositive() {
-		assert(this.allPositive(), "non-positive token amounts detected");
-	}
-
-	/**
-	 * @returns {number[]}
-	 */
-	toCbor() {
-		return CborData.encodeMap(
-			this.#assets.map(
-				outerPair => {
-					return [outerPair[0].toCbor(), CborData.encodeMap(outerPair[1].map(
-						innerPair => {
-							return [
-								CborData.encodeBytes(innerPair[0]), CborData.encodeInteger(innerPair[1])
-							]
-						}
-					))]
-				}
-			)
-		)
-	}
-
-	/**
-	 * @param {number[]} bytes
-	 * @returns {Assets}
-	 */
-	static fromCbor(bytes) {
-		let ms = new Assets();
-
-		CborData.decodeMap(bytes, pairBytes => {
-			let mph = MintingPolicyHash.fromCbor(pairBytes);
-
-			/**
-			 * @type {[number[], bigint][]}
-			 */
-			let innerMap = [];
-			
-			CborData.decodeMap(pairBytes, innerPairBytes => {
-				innerMap.push([
-					CborData.decodeBytes(innerPairBytes),
-					CborData.decodeInteger(innerPairBytes),
-				]);
-			});
-
-			ms.#assets.push([mph, innerMap]);
-		});
-
-		return ms;
-	}
-
-	/**
-	 * @returns {Object}
-	 */
-	dump() {
-		let obj = {};
-
-		for (let [mph, tokens] of this.#assets) {
-			let innerObj = {};
-
-			for (let [tokenName, quantity] of tokens) {
-				innerObj[bytesToHex(tokenName)] = quantity.toString();
-			}
-
-			obj[mph.dump()] = innerObj;
-		}
-
-		return obj;
-	}
-
-	/**
-	 * Used when generating script contexts for running programs
-	 * @returns {MapData}
-	 */
-	toData() {
-		/** @type {[UplcData, UplcData][]} */
-		let pairs = [];
-
-		for (let asset of this.#assets) {
-			/** @type {[UplcData, UplcData][]} */
-			let innerPairs = [];
-
-			for (let token of asset[1]) {
-				innerPairs.push([
-					new ByteArrayData(token[0]),
-					new IntData(token[1]),
-				]);
-			}
-
-			pairs.push([
-				new ByteArrayData(asset[0].bytes),
-				new MapData(innerPairs),
-			])
-		}
-
-		return new MapData(pairs);
-	}
-
-	/**
-	 * Makes sure minting policies are in correct order
-	 * Mutates 'this'
-	 * Order of tokens per mintingPolicyHash isn't changed
-	 */
-	sort() {
-		this.#assets.sort((a, b) => {
-			return Hash.compare(a[0], b[0]);
-		});
-	}
-}
-
-export class Value extends CborData {
-	/** @type {bigint} */
-	#lovelace;
-
-	/** @type {Assets} */
-	#assets;
-	
-	/**
-	 * @param {bigint} lovelace 
-	 * @param {Assets} assets 
-	 */
-	constructor(lovelace = 0n, assets = new Assets()) {
-		super();
-		this.#lovelace = lovelace;
-		this.#assets = assets;
-	}
-
-	/**
-	 * @param {MintingPolicyHash} mph 
-	 * @param {number[]} tokenName 
-	 * @param {bigint} quantity 
-	 * @returns {Value}
-	 */
-	static asset(mph, tokenName, quantity) {
-		return new Value(0n, new Assets([
-			[mph, [
-				[tokenName, quantity]
-			]]
-		]));
-	}
-
-	/**
-	 * @type {bigint}
-	 */
-	get lovelace() {
-		return this.#lovelace;
-	}
-
-	/**
-	 * Setter for lovelace
-	 * Note: mutation is handy when balancing transactions
-	 * @param {bigint} lovelace
-	 */
-	setLovelace(lovelace) {
-		this.#lovelace = lovelace;
-	}
-
-	/**
-	 * @type {Assets}
-	 */
-	get assets() {
-		return this.#assets;
-	}
-
-	/**
-	 * @returns {number[]}
-	 */
-	toCbor() {
-		if (this.#assets.isZero()) {
-			return CborData.encodeInteger(this.#lovelace);
-		} else {
-			return CborData.encodeTuple([
-				CborData.encodeInteger(this.#lovelace),
-				this.#assets.toCbor()
-			]);
-		}
-	}
-
-	/**
-	 * @param {number[]} bytes 
-	 * @returns {Value}
-	 */
-	static fromCbor(bytes) {
-		let mv = new Value();
-
-		if (CborData.isTuple(bytes)) {
-			CborData.decodeTuple(bytes, (i, fieldBytes) => {
-				switch(i) {
-					case 0:
-						mv.#lovelace = CborData.decodeInteger(fieldBytes);
-						break;
-					case 1:
-						mv.#assets = Assets.fromCbor(fieldBytes);
-						break;
-					default:
-						throw new Error("unrecognized field");
-				}
-			});
-		} else {
-			mv.#lovelace = CborData.decodeInteger(bytes);
-		}
-
-		return mv;
-	}
-
-	/**
-	 * @param {Value} other 
-	 * @returns {Value}
-	 */
-	add(other) {
-		return new Value(this.#lovelace + other.#lovelace, this.#assets.add(other.#assets));
-	}
-
-	/**
-	 * @param {Value} other 
-	 * @returns {Value}
-	 */
-	sub(other) {
-		return new Value(this.#lovelace - other.#lovelace, this.#assets.sub(other.#assets));
-	}
-
-	/**
-	 * @param {Value} other 
-	 * @returns {boolean}
-	 */
-	eq(other) {
-		return (this.#lovelace == other.#lovelace) && (this.#assets.eq(other.#assets));
-	}
-
-	/**
-	 * Strictly greater than. Returns false if any asset is missing 
-	 * @param {Value} other 
-	 * @returns {boolean}
-	 */
-	gt(other) {
-		return (this.#lovelace > other.#lovelace) && (this.#assets.gt(other.#assets));
-	}
-
-	/**
-	 * Strictly >= 
-	 * @param {Value} other 
-	 * @returns {boolean}
-	 */
-	ge(other) {
-		return (this.#lovelace >= other.#lovelace) && (this.#assets.ge(other.#assets));
-	}
-
-	/**
-	 * Throws an error if any contained quantity is negative
-	 * Used when building transactions because transactions can't contain negative values
-	 * @returns {Value} - returns this
-	 */
-	assertAllPositive() {
-		assert(this.#lovelace >= 0n);
-
-		this.#assets.assertAllPositive();
-
-		return this;
-	}
-
-	/**
-	 * @returns {Object}
-	 */
-	dump() {
-		return {
-			lovelace: this.#lovelace.toString(),
-			assets: this.#assets.dump()
-		};
-	}
-
-	/**
-	 * Used when building script context
-	 * @returns {MapData}
-	 */
-	toData() {
-		let map = this.#assets.toData();
-
-		if (this.#lovelace != 0n) {
-			let inner = map.map; 
-
-			inner.unshift([
-				new ByteArrayData([]),
-				new MapData([
-					[new ByteArrayData([]), new IntData(this.#lovelace)]
-				]),
-			]);
-
-			// 'inner' is copy, so mutating won't change the original
-			map = new MapData(inner);
-		}
-
-		return map;
-	}
-
-	/**
-	 * Useful when deserializing inline datums
-	 * @param {UplcData} data
-	 * @returns {Value}
-	 */
-	static fromData(data) {
-		let sum = new Value();
-
-		let outerMap = data.map;
-
-		for (let [mphData, tokensData] of outerMap) {
-			let mphBytes = mphData.bytes;
-
-			let innerMap = tokensData.map;
-
-			if (mphBytes.length == 0) {
-				//lovelace
-				assert(innerMap.length == 1 && innerMap[0][0].bytes.length == 0); 
-				sum = sum.add(new Value(innerMap[0][1].int));
-			} else {
-				// other assets
-				let mph = new MintingPolicyHash(mphBytes);
-
-				for (let [tokenNameData, quantityData] of innerMap) {
-					let tokenName = tokenNameData.bytes;
-					let quantity = quantityData.int;
-
-					sum = sum.add(Value.asset(mph, tokenName, quantity));
-				}
-			}
-		}
-
-		return sum;
 	}
 }
 
@@ -34362,5 +35325,5 @@ export const exportedForTesting = {
 	UplcInt: UplcInt,
 	IRProgram: IRProgram,
 	Tx: Tx,
-	TxBody: TxBody
-}
+	TxBody: TxBody,
+};

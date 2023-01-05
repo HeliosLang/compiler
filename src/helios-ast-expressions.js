@@ -7,7 +7,8 @@ import {
 
 import {
 	assert,
-	assertDefined
+	assertDefined,
+	bytesToHex
 } from "./utils.js";
 
 import { 
@@ -23,6 +24,10 @@ import {
 	UserError,
 	Word
 } from "./tokens.js";
+
+import {
+	UplcData
+} from "./uplc-data.js";
 
 import {
 	AnyType,
@@ -858,6 +863,60 @@ export class PrimitiveLiteralExpr extends ValueExpr {
 		} else {
 			throw new Error("unhandled primitive type");
 		}
+	}
+}
+
+/**
+ * Literal UplcData which is the result of parameter substitutions.
+ * @package
+ */
+export class LiteralDataExpr extends ValueExpr {
+	#type;
+	#data;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type} type
+	 * @param {UplcData} data
+	 */
+	constructor(site, type, data) {
+		super(site);
+		this.#type = type;
+		this.#data = data;
+	}
+
+	/**
+	 * @package
+	 * @type {Type}
+	 */
+	get type() {
+		return this.#type;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return true;
+	}
+
+	toString() {
+		return `##${bytesToHex(this.#data.toCbor())}`;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Instance}
+	 */
+	evalInternal(scope) {
+		return Instance.new(this.#type);
+	}
+
+	use() {
+	}
+
+	toIR(indent = "") {
+		return new IR(this.toString(), this.site);
 	}
 }
 

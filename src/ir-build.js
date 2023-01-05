@@ -1,5 +1,5 @@
 //@ts-check
-// IR AST building functions
+// IR AST build functions
 
 import {
     assert,
@@ -16,8 +16,13 @@ import {
 } from "./tokens.js";
 
 import {
+	UplcData
+} from "./uplc-data.js";
+
+import {
     UplcBool,
     UplcByteArray,
+	UplcDataValue,
     UplcInt,
     UplcString,
     UplcUnit
@@ -100,7 +105,18 @@ export function buildIRExpr(ts) {
 				expr = new IRLiteral(new UplcInt(t.site, t.value));
 			} else if (t instanceof ByteArrayLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(new UplcByteArray(t.site, t.bytes));
+				if (t.bytes.length == 0 && ts[0] != undefined && ts[0] instanceof ByteArrayLiteral) {
+					// literal data is ##<...>
+					const next = assertDefined(ts.shift());
+
+					if (next instanceof ByteArrayLiteral) {
+						expr = new IRLiteral(new UplcDataValue(next.site, UplcData.fromCbor(next.bytes)));
+					} else {
+						throw new Error("unexpected");
+					}
+				} else {
+					expr = new IRLiteral(new UplcByteArray(t.site, t.bytes));
+				}
 			} else if (t instanceof StringLiteral) {
 				assert(expr === null);
 				expr = new IRLiteral(new UplcString(t.site, t.value));

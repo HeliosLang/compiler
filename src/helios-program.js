@@ -1,5 +1,5 @@
 //@ts-check
-// Helios Program and Module types
+// Helios program
 
 import {
     TAB
@@ -7,23 +7,40 @@ import {
 
 import {
     Source,
-    assertDefined
+    assertDefined,
+	assert
 } from "./utils.js";
 
 import {
     IR,
+	Site,
     UserError,
     Word
 } from "./tokens.js";
 
 import {
+	UplcData
+} from "./uplc-data.js";
+
+/**
+ * @template T
+ * @typedef {import("./helios-data.js").HeliosDataClass<T>} HeliosDataClass
+ */
+
+import {
+	Bool,
+	HeliosData
+} from "./helios-data.js";
+
+import {
     ScriptPurpose,
+	UplcBool,
     UplcDataValue,
     UplcValue
 } from "./uplc-ast.js";
 
 import {
-    UplcProgram
+	UplcProgram
 } from "./uplc-program.js";
 
 import {
@@ -32,6 +49,8 @@ import {
 
 import {
     BoolType,
+    EnumStatementType,
+    StructStatementType,
     Type
 } from "./helios-eval-entities.js";
 
@@ -266,13 +285,17 @@ class MainModule extends Module {
 }
 
 /**
+ * @typedef {Object.<string, HeliosDataClass<HeliosData>>} UserTypes
+ */
+
+/**
  * Helios root object
  */
  export class Program {
 	#purpose;
 	#modules;
 
-	/** @type {Object} */
+	/** @type {UserTypes} */
 	#types;
 	
 	/**
@@ -560,7 +583,7 @@ class MainModule extends Module {
 	}
 
 	/**
-	 * @type {Object}
+	 * @type {UserTypes}
 	 */
 	get types() {
 		return this.#types;
@@ -571,84 +594,19 @@ class MainModule extends Module {
 	 * @param {TopScope} topScope
 	 */
 	fillTypes(topScope) {
-		/*const addStruct = (name, s) => {
-			console.log("Adding: ", name);
-			this.#types[name] = function() {
-				const Struct = function(...args) {
-					if (args.length != s.nFields(Site.dummy())) {
-						throw new Error(`number of args doesn't match number of field in ${name} constructor`);
-					}
+		const mainModuleScope = topScope.getModuleScope(this.mainModule.name);
 
-					const dataValues = [];
+		mainModuleScope.loopTypes((type) => {
+			if (type instanceof StructStatementType || type instanceof EnumStatementType) {
+				const key = type.name;
 
-					args.forEach((arg, i) => {
-						const fName = s.getFieldName(i);
-						const fType = s.getFieldType(Site.dummy(), i);
-						
-						const sType = findType(fType);
+				if (key in this.#types) {
+					throw new Error("unexpected");
+				}
 
-						const fInstance = function() {
-							if (arg instanceof sType) {
-								return arg;
-							} else {
-								return new sType(arg);
-							}
-						}();
-
-						dataValues.push(fInstance.__getUplcValue().data);
-						
-						this[fName] = fInstance;
-					});
-
-					const value = function() {
-						if (dataValues.length == 1) {
-							return new UplcDataValue(Site.dummy(), dataValues[0]);
-						} else {
-							return new UplcDataValue(Site.dummy(), new ListData(dataValues));
-						}
-					}();
-
-					this.__getUplcValue = () => value;
-
-					this.toSchemaJson = () => value.data.toSchemaJson();
-
-					Object.freeze(this);
-				};
-
-				Object.setPrototypeOf(Struct, {
-					name_: name,
-					type: new StatementType(s),
-					// does fromCbor only make sense for fully typed things?
-					fromCbor: (bytes) => {
-						const actualBytes = (typeof bytes == "string") ? hexToBytes(bytes) : bytes;
-	
-						// TODO: do fromCbor properly
-						const data = function() {
-							if (s.nFields(Site.dummy()) == 1) {
-								return UplcData.fromCbor(actualBytes);
-							} else {
-								return ListData.fromCbor(actualBytes);
-							}
-						}();
-					}
-				});
-
-				Object.defineProperty(Struct, "name", {value: "[]Int", writable: false});
-
-				return Struct;
-			}();
-		}
-
-		// loop over the mainModule scope instead
-		for (let s of this.mainAndPostStatements) {
-			if (s instanceof StructStatement) {
-				addStruct(s.name.value, s);
-			} else if (s instanceof ImportStatement && s.origStatement instanceof StructStatement) {
-				addStruct(s.name.value, s.origStatement);
+				this.#types[key] = type.userType;;
 			}
-		}
-
-		Object.freeze(this.#types);*/
+		});
 	}
 
 	/**
@@ -679,6 +637,23 @@ class MainModule extends Module {
 		for (let s of this.mainAndPostStatements) {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValue(value);
+				return this;
+			}
+		}
+
+		throw this.mainFunc.referenceError(`param '${name}' not found`);
+	}
+
+	/**
+	 * Change the literal value of a const statements  
+	 * @package
+	 * @param {string} name 
+	 * @param {UplcData} data
+	 */
+	 changeParamSafe(name, data) {
+		for (let s of this.mainAndPostStatements) {
+			if (s instanceof ConstStatement && s.name.value == name) {
+				s.changeValueSafe(data);
 				return this;
 			}
 		}
@@ -722,6 +697,52 @@ class MainModule extends Module {
 			let irProgram = IRProgram.new(ir, this.#purpose, true, true);
 
 			return new UplcDataValue(irProgram.site, irProgram.data);
+		}
+	}
+	
+	/**
+	 * Alternative way to get the parameters as HeliosData instances
+	 * @returns {Object.<string, HeliosData>}
+	 */
+	get parameters() {
+		const types = this.paramTypes;
+
+		/**
+		 * @type {Object.<string, HeliosData>}
+		 */
+		const values = {};
+
+		for (let k in types) {
+			const type = types[k];
+
+			try {
+				const uplcValue = this.evalParam(k);
+
+				const value = (uplcValue instanceof UplcBool) ? new Bool(uplcValue.bool) : type.userType.fromUplcData(uplcValue.data);
+					
+				values[k] = value;
+			} catch(_) {
+			}
+		}
+
+		return values;
+	}
+
+	/**
+	 * @param {Object.<string, HeliosData>} values
+	 */
+	set parameters(values) {
+		const types = this.paramTypes;
+		for (let k in values) {
+			assert(k in types, `invalid param name ${k}`);
+
+			const v_ = values[k];
+
+			const U = types[k].userType;
+
+			const v = v_ instanceof U ? v_ : new U(v_);
+
+			this.changeParamSafe(k, v_._toUplcData());
 		}
 	}
 

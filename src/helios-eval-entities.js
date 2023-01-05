@@ -2,13 +2,46 @@
 // Helios eval entities
 
 import {
-    assert
+    assert,
+	assertDefined
 } from "./utils.js";
 
 import {
     Site,
     Word
 } from "./tokens.js";
+
+import {
+	ConstrData,
+	ListData,
+	UplcData
+} from "./uplc-data.js";
+
+/**
+ * @template T
+ * @typedef {import("./helios-data.js").HeliosDataClass<T>} HeliosDataClass
+ */
+
+import {
+	Address,
+	Bool,
+	ByteArray,
+	DatumHash,
+	HeliosData,
+	HeliosMap,
+	HeliosString,
+	Int,
+	List,
+	MintingPolicyHash,
+	Option,
+	PubKeyHash,
+	StakeKeyHash,
+	StakingValidatorHash,
+	TxId,
+	TxOutputId,
+	ValidatorHash,
+	Value
+} from "./helios-data.js"
 
 import {
     ScriptPurpose
@@ -43,8 +76,17 @@ import {
 /**
  * We can't use EnumMember directly because that would give a circular dependency
  * @typedef {UserTypeStatement & {
- * 	 parent: UserTypeStatement
+ * 	 parent: EnumTypeStatement,
+ *   getConstrIndex(site: Site): number
  * }} EnumMemberTypeStatement
+ */
+
+/**
+ * We can't use EnumStatement directly because that would give a circular dependency
+ * @typedef {UserTypeStatement & {
+ *   nEnumMembers(site: Site): number,
+ *   getEnumMember(site: Site, i: number): EnumMemberTypeStatement
+ * }} EnumTypeStatement
  */
 
 /**
@@ -58,6 +100,7 @@ import {
  */
 
 /**
+ * We can't use Scope directly because that would give a circular dependency
  * @typedef {{
  *   isRecursive: (statement: RecurseableStatement) => boolean
  * }} RecursivenessChecker
@@ -307,6 +350,13 @@ export class Type extends EvalEntity {
 	get path() {
 		throw new Error("not yet implemented");
 	}
+
+	/**
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		throw new Error(`${this.toString()} doesn't have a corresponding userType`);
+	}
 }
 
 
@@ -510,6 +560,13 @@ export class StatementType extends DataType {
 	}
 
 	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#statement.name.value;
+	}
+
+	/**
 	 * @returns {T}
 	 */
 	get statement() {
@@ -617,18 +674,193 @@ export class StructStatementType extends StatementType {
 	constructor(statement) {
 		super(statement);
 	}
+
+	/**
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		const statement = this.statement;
+
+		const nFields = this.nFields(Site.dummy());
+
+		/**
+		 * @type {[string, Type][]} - [name, type]
+		 */
+		const fields = [];
+
+		for (let i = 0; i < nFields; i++) {
+			fields.push([statement.getFieldName(i), statement.getFieldType(Site.dummy(), i)]);
+		}
+
+		class Struct extends HeliosData {
+			/**
+			 * So we can access fields by index
+			 * @type {HeliosData[]}
+			 */
+			#fields;
+
+			/**
+			 * @param  {...any} args
+			 */
+			constructor(...args) {
+				super();
+				if (args.length != nFields) {
+					throw new Error(`expected ${nFields} args, got ${args.length}`);
+				}
+
+				this.#fields = [];
+
+				args.forEach((arg, i) => {
+					const [fieldName, fieldType] = fields[i];
+					const FieldClass = fieldType.userType;
+
+					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+
+					this.#fields.push(instance);
+					this[fieldName] = instance;
+				});
+			}
+
+			/**
+			 * Overload 'instanceof' operator
+			 * @param {any} other 
+			 * @returns {boolean}
+			 */
+			static [Symbol.hasInstance](other) {
+				return (other._structStatement === statement) && (other instanceof HeliosData);
+			}
+
+			/**
+			 * @type {UserTypeStatement}
+			 */
+			get _structStatement() {
+				return statement;
+			}
+
+			/**
+			 * @returns {UplcData}
+			 */
+			_toUplcData() {
+				if (this.#fields.length == 1) {
+					return this.#fields[0]._toUplcData();
+				} else {
+					return new ListData(this.#fields.map(f => f._toUplcData()));
+				}
+			}
+
+			/**
+			 * @param {string | number[]} bytes 
+			 * @returns {Struct}
+			 */
+			static fromUplcCbor(bytes) {
+				return Struct.fromUplcData(UplcData.fromCbor(bytes));
+			}
+
+			/**
+			 * @param {UplcData} data 
+			 * @returns {Struct}
+			 */
+			static fromUplcData(data) {
+				const dataItems = data.list;
+
+				if (dataItems.length != nFields) {
+					throw new Error("unexpected number of fields");
+				}
+
+				const args = dataItems.map((item, i) => {
+					return fields[i][1].userType.fromUplcData(item);
+				});
+
+				return new Struct(...args);
+			}
+		}
+
+		Object.defineProperty(Struct, "name", {value: this.name, writable: false});		
+
+		return Struct;
+	}
 }
 
 /**
  * @package
- * @extends {StatementType<UserTypeStatement>}
+ * @extends {StatementType<EnumTypeStatement>}
  */
 export class EnumStatementType extends StatementType {
 	/**
-	 * @param {UserTypeStatement} statement - can't use EnumStatement because that would give a circular dependency
+	 * @param {EnumTypeStatement} statement - can't use EnumStatement because that would give a circular dependency
 	 */
 	constructor(statement) {
 		super(statement);
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		const statement = this.statement;
+
+		const nVariants = statement.nEnumMembers(Site.dummy());
+
+		/**
+		 * @type {HeliosDataClass<HeliosData>[]}
+		 */
+		const variants = [];
+
+		for (let i = 0; i < nVariants; i++) {
+			variants.push(
+				(new EnumMemberStatementType(statement.getEnumMember(Site.dummy(), i))).userType
+			);
+		}
+
+		class Enum extends HeliosData {
+			constructor() {
+				super();
+				throw new Error("can't be constructed (hint: construct an enum)");
+			}
+
+			/**
+			 * Overload 'instanceof' operator
+			 * @param {any} other 
+			 * @returns {boolean}
+			 */
+			static [Symbol.hasInstance](other) {
+				return (other._enumStatement === statement) && (other instanceof HeliosData);
+			}
+
+			/**
+			 * @type {EnumTypeStatement}
+			 */
+			get _enumStatement() {
+				return statement;
+			}
+
+			/**
+			 * @param {string | number[]} bytes
+			 * @returns {HeliosData}
+			 */
+			static fromUplcCbor(bytes) {
+				return Enum.fromUplcData(UplcData.fromCbor(bytes));
+			}
+
+			/**
+			 * @param {UplcData} data 
+			 * @returns {HeliosData}
+			 */
+			static fromUplcData(data) {
+				const variant = assertDefined(variants[data.index], "index out of range");
+
+				return variant.fromUplcData(data);
+			}
+		}
+
+		Object.defineProperty(Enum, "name", {value: this.name, writable: false});
+
+		for (let v of variants) {
+			Object.defineProperty(Enum, v.name, {value: v, writable: false});
+		}
+
+		return Enum;
 	}
 }
 
@@ -646,6 +878,7 @@ export class EnumMemberStatementType extends StatementType {
 
     /**
 	 * A StatementType can instantiate itself if the underlying statement is an enum member with no fields
+	 * @package
 	 * @param {Site} site
 	 * @returns {Instance}
 	 */
@@ -656,6 +889,123 @@ export class EnumMemberStatementType extends StatementType {
             throw site.typeError(`expected '{...}' after '${this.statement.name.toString()}'`);
         }
     }
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		const statement = this.statement;
+
+		const enumStatement = statement.parent;
+
+		const index = statement.getConstrIndex(Site.dummy());
+
+		const nFields = this.nFields(Site.dummy());
+
+		/**
+		 * @type {[string, Type][]} - [name, type]
+		 */
+		const fields = [];
+
+		for (let i = 0; i < nFields; i++) {
+			fields.push([statement.getFieldName(i), statement.getFieldType(Site.dummy(), i)]);
+		}
+
+		// similar to Struct
+		class EnumVariant extends HeliosData {
+			/**
+			 * So we can access fields by index
+			 * @type {HeliosData[]}
+			 */
+			#fields;
+
+			/**
+			 * @param  {...any} args
+			 */
+			constructor(...args) {
+				super();
+				if (args.length != nFields) {
+					throw new Error(`expected ${nFields} args, got ${args.length}`);
+				}
+ 
+				this.#fields = [];
+ 
+				args.forEach((arg, i) => {
+					const [fieldName, fieldType] = fields[i];
+					const FieldClass = fieldType.userType;
+ 
+					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+
+ 					this.#fields.push(instance);
+					this[fieldName] = instance;
+
+				});
+			}
+ 
+			/**
+			 * Overload 'instanceof' operator
+			 * @param {any} other 
+			 * @returns {boolean}
+			 */
+			static [Symbol.hasInstance](other) {
+				return (other._enumVariantStatement === statement) && (other instanceof HeliosData);
+			}
+ 
+			/**
+			 * @type {EnumTypeStatement}
+			 */
+			get _enumStatement() {
+				return enumStatement;
+			}
+
+			/**
+			 * @type {EnumMemberTypeStatement}
+			 */
+			get _enumVariantStatement() {
+				return statement;
+			}
+ 
+			/**
+			 * @returns {UplcData}
+			 */
+			_toUplcData() {
+				return new ConstrData(index, this.#fields.map(f => f._toUplcData()));
+			}
+ 
+			/**
+			 * @param {string | number[]} bytes 
+			 * @returns {EnumVariant}
+			 */
+			static fromUplcCbor(bytes) {
+				return EnumVariant.fromUplcData(UplcData.fromCbor(bytes));
+			}
+ 
+			/**
+			 * @param {UplcData} data 
+			 * @returns {EnumVariant}
+			 */
+			static fromUplcData(data) {
+				assert(data.index == index, "wrong index");
+
+				const dataItems = data.list;
+ 
+				if (dataItems.length != nFields) {
+					throw new Error("unexpected number of fields");
+				}
+ 
+				const args = dataItems.map((item, i) => {
+					return fields[i][1].userType.fromUplcData(item);
+				});
+ 
+				return new EnumVariant(...args);
+			}
+		}
+
+		Object.defineProperty(EnumVariant, "name", {value: this.name, writable: false});
+
+		return EnumVariant;
+	}
 }
 
 /**
@@ -1443,6 +1793,10 @@ export class IntType extends BuiltinType {
 	get path() {
 		return "__helios__int";
 	}
+
+	get userType() {
+		return Int;
+	}
 }
 
 /**
@@ -1506,6 +1860,14 @@ export class BoolType extends BuiltinType {
 	get path() {
 		return "__helios__bool";
 	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return Bool;
+	}
 }
 
 /**
@@ -1522,6 +1884,7 @@ export class StringType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -1539,8 +1902,19 @@ export class StringType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return "__helios__string";
+	}
+
+	/**
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return HeliosString;
 	}
 }
 
@@ -1596,8 +1970,20 @@ export class ByteArrayType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return `__helios__bytearray${this.#size === null ? "" : this.#size}`;
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return ByteArray;
 	}
 }
 
@@ -1872,6 +2258,10 @@ export class ListType extends BuiltinType {
 		this.#itemType = itemType;
 	}
 
+	/**
+	 * @package
+	 * @type {Type}
+	 */
 	get itemType() {
 		return this.#itemType;
 	}
@@ -1881,9 +2271,10 @@ export class ListType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
 	 * @param {Type} type 
-	 * @returns 
+	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
 		type = ParamType.unwrap(type, this);
@@ -1896,6 +2287,7 @@ export class ListType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -1911,6 +2303,7 @@ export class ListType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -1969,8 +2362,20 @@ export class ListType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return `__helios__${this.#itemType instanceof BoolType ? "bool" : ""}list`;
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return List(this.#itemType.userType);
 	}
 }
 
@@ -1992,10 +2397,18 @@ export class MapType extends BuiltinType {
 		this.#valueType = valueType;
 	}
 
+	/**
+	 * @package
+	 * @type {Type}
+	 */
 	get keyType() {
 		return this.#keyType;
 	}
 
+	/**
+	 * @package
+	 * @type {Type}
+	 */
 	get valueType() {
 		return this.#valueType;
 	}
@@ -2005,9 +2418,10 @@ export class MapType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
 	 * @param {Type} type 
-	 * @returns 
+	 * @returns {boolean}
 	 */
 	isBaseOf(site, type) {
 		type = ParamType.unwrap(type, this);
@@ -2020,6 +2434,7 @@ export class MapType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -2103,8 +2518,20 @@ export class MapType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return `__helios__${this.#valueType instanceof BoolType ? "bool" : ""}map`;
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return HeliosMap(this.#keyType.userType, this.#valueType.userType);
 	}
 }
 
@@ -2128,6 +2555,7 @@ export class OptionType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
 	 * @returns {number}
 	 */
@@ -2136,6 +2564,7 @@ export class OptionType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
@@ -2152,6 +2581,7 @@ export class OptionType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -2167,6 +2597,7 @@ export class OptionType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -2179,8 +2610,20 @@ export class OptionType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return `__helios__${this.#someType instanceof BoolType ? "bool" : ""}option`;
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return Option(this.#someType.userType);
 	}
 }
 
@@ -2369,6 +2812,14 @@ export class PubKeyHashType extends HashType {
 	toString() {
 		return "PubKeyHash";
 	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return PubKeyHash;
+	}
 }
 
 /**
@@ -2378,6 +2829,14 @@ export class PubKeyHashType extends HashType {
 export class StakeKeyHashType extends HashType {
 	toString() {
 		return "StakeKeyHash";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return StakeKeyHash;
 	}
 }
 
@@ -2390,11 +2849,8 @@ export class PubKeyType extends BuiltinType {
 		return "PubKey";
 	}
 
-	get path() {
-		return "__helios__pubkey";
-	}
-
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -2408,6 +2864,7 @@ export class PubKeyType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name
 	 * @returns {Instance}
 	 */
@@ -2420,6 +2877,14 @@ export class PubKeyType extends BuiltinType {
 			default:
 				return super.getInstanceMember(name);
 		}
+	}
+
+	/**
+	 * @package
+	 * @type {string}
+	 */
+	get path() {
+		return "__helios__pubkey";
 	}
 }
 
@@ -2458,6 +2923,7 @@ export class ValidatorHashType extends HashType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -2483,6 +2949,14 @@ export class ValidatorHashType extends HashType {
 	toString() {
 		return "ValidatorHash";
 	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return ValidatorHash;
+	}
 }
 
 /**
@@ -2501,6 +2975,7 @@ export class MintingPolicyHashType extends HashType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -2526,6 +3001,14 @@ export class MintingPolicyHashType extends HashType {
 	toString() {
 		return "MintingPolicyHash";
 	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return MintingPolicyHash;
+	}
 }
 
 /**
@@ -2544,6 +3027,7 @@ export class StakingValidatorHashType extends HashType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -2569,6 +3053,14 @@ export class StakingValidatorHashType extends HashType {
 	toString() {
 		return "StakingValidatorHash";
 	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return StakingValidatorHash;
+	}
 }
 
 /**
@@ -2578,6 +3070,14 @@ export class StakingValidatorHashType extends HashType {
 export class DatumHashType extends HashType {
 	toString() {
 		return "DatumHash";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return DatumHash;
 	}
 }
 
@@ -3384,11 +3884,8 @@ export class TxIdType extends BuiltinType {
 		return "TxId";
 	}
 
-	get path() {
-		return "__helios__txid";
-	}
-
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -3408,10 +3905,11 @@ export class TxIdType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
-	 getInstanceMember(name) {
+	getInstanceMember(name) {
 		switch (name.value) {
 			case "__geq":
 			case "__gt":
@@ -3423,6 +3921,22 @@ export class TxIdType extends BuiltinType {
 			default:
 				return super.getInstanceMember(name);
 		}
+	}
+
+	/**
+	 * @package
+	 * @type {string}
+	 */
+	get path() {
+		return "__helios__txid";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return TxId;
 	}
 }
 
@@ -3738,6 +4252,7 @@ export class TxOutputIdType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -3751,6 +4266,7 @@ export class TxOutputIdType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -3770,8 +4286,20 @@ export class TxOutputIdType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return "__helios__txoutputid";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return TxOutputId;
 	}
 }
 
@@ -3785,6 +4313,7 @@ export class AddressType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -3801,6 +4330,7 @@ export class AddressType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -3815,8 +4345,20 @@ export class AddressType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return "__helios__address";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return Address;
 	}
 }
 
@@ -3830,6 +4372,7 @@ export class CredentialType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
@@ -3843,6 +4386,7 @@ export class CredentialType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -3862,6 +4406,7 @@ export class CredentialType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
 	 * @returns {number}
 	 */
@@ -3869,6 +4414,10 @@ export class CredentialType extends BuiltinType {
 		return 2;
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return "__helios__credential";
 	}
@@ -4390,6 +4939,7 @@ export class ValueType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
 	 */
@@ -4409,6 +4959,7 @@ export class ValueType extends BuiltinType {
 	}
 
 	/**
+	 * @package
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -4443,7 +4994,19 @@ export class ValueType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {string}
+	 */
 	get path() {
 		return "__helios__value";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return Value;
 	}
 }

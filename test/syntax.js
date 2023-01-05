@@ -345,13 +345,14 @@ async function test14() {
 
   struct MyStruct {
   	a: Int
-	b: Int
+	  b: Int
   }
 
-  const CRED: Credential =
-    Credential::new_pubkey(
-      PubKeyHash::new(#1234567890123456789012345678)
-    )
+  const CRED = Credential::new_pubkey(
+    PubKeyHash::new(#1234567890123456789012345678)
+  )
+
+  const VALUE = Value::lovelace(100)
 
   func main(ctx: ScriptContext) -> Bool {
     tx: Tx = ctx.tx;
@@ -377,16 +378,17 @@ async function test14() {
 
   console.log(program.types);
 
-  const {Int, HeliosString, List, HeliosMap} = helios;
+  const {MyStruct} = program.types;
+
+  const {Int, HeliosString, List, HeliosMap, Value} = helios;
 
   const myInt = new Int(10);
-
 
   console.log(myInt.int);
 
   console.log(myInt.toSchemaJson());
 
-  console.log(myInt._getUplcData().toString());
+  console.log(myInt._toUplcData().toString());
 
   console.log((Int.fromUplcCbor([10])).int);
 
@@ -394,11 +396,23 @@ async function test14() {
 
   console.log ((new HeliosString("ajshdj")).toSchemaJson());
 
-  console.log((new (List(HeliosString))(["a", "b"])).toSchemaJson());
+  const list = new (List(HeliosString))(["a", "b"]);
 
-  console.log(new (HeliosMap(HeliosString, Int))(["a", "b"], [1, 2]).toSchemaJson());
+  console.log(list.toSchemaJson());
 
-  return;
+  const map = new (HeliosMap(HeliosString, Int))(["a", "b"], [1, 2]);
+
+  console.log(map.toSchemaJson(), map instanceof (HeliosMap(HeliosString, Int)));
+
+  const myStruct = new MyStruct(1, 2);
+
+  console.log(myStruct.toSchemaJson());
+
+  console.log(program.parameters.VALUE.toSchemaJson());
+
+  program.parameters = {VALUE: new Value(200n)};
+
+  console.log(program.parameters.VALUE.toSchemaJson());
 }
 
 export default async function main() {
