@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.10.7
+// Version:       0.10.8
 // Last update:   January 2023
 // License:       Unlicense
 //
@@ -203,7 +203,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.10.7";
+export const VERSION = "0.10.8";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -5402,7 +5402,7 @@ export class ByteArray extends HeliosData {
  * Dynamically constructs a new List class, depending on the item type.
  * @template {HeliosData} T
  * @param {HeliosDataClass<T>} ItemClass
- * @returns {HeliosDataClass<List>}
+ * @returns {HeliosDataClass<List_>}
  */
 export function List(ItemClass) {
     assert(!new.target, "List can't be called with new");
@@ -5410,7 +5410,7 @@ export function List(ItemClass) {
 
     const typeName = `[]${ItemClass.name}`;
 
-    class List extends HeliosData {
+    class List_ extends HeliosData {
         /** 
          * @type {T[]} 
          */
@@ -5466,27 +5466,27 @@ export function List(ItemClass) {
 
         /**
          * @param {UplcData} data 
-         * @returns {List}
+         * @returns {List_}
          */
         static fromUplcData(data) {
-            return new List(data.list.map(d => ItemClass.fromUplcData(d)));
+            return new List_(data.list.map(d => ItemClass.fromUplcData(d)));
         }
 
         /**
          * @param {string | number[]} bytes 
-         * @returns {List}
+         * @returns {List_}
          */
         static fromUplcCbor(bytes) {
-            return List.fromUplcData(UplcData.fromCbor(bytes));
+            return List_.fromUplcData(UplcData.fromCbor(bytes));
         }
     }
 
-    Object.defineProperty(List, "name", {
+    Object.defineProperty(List_, "name", {
         value: typeName,
         writable: false
     });
 
-    return List;
+    return List_;
 }
 
 /**
@@ -5494,7 +5494,7 @@ export function List(ItemClass) {
  * @template {HeliosData} TValue
  * @param {HeliosDataClass<TKey>} KeyClass 
  * @param {HeliosDataClass<TValue>} ValueClass
- * @returns {HeliosDataClass<HeliosMap>}
+ * @returns {HeliosDataClass<HeliosMap_>}
  */
 export function HeliosMap(KeyClass, ValueClass) {
     assert(!new.target, "HeliosMap can't be called with new");
@@ -5503,7 +5503,7 @@ export function HeliosMap(KeyClass, ValueClass) {
     
     const typeName = `Map[${KeyClass.name}]${ValueClass.name}`;
 
-    class HeliosMap extends HeliosData {
+    class HeliosMap_ extends HeliosData {
         /**
          * @type {[TKey, TValue][]}
          */
@@ -5522,7 +5522,7 @@ export function HeliosMap(KeyClass, ValueClass) {
                 const arg = args[0];
 
                 if (arg instanceof Map) {
-                    return HeliosMap.cleanConstructorArgs(Array.from(arg.entries()));
+                    return HeliosMap_.cleanConstructorArgs(Array.from(arg.entries()));
                 } else if (!Array.isArray(arg)) {
                     throw new Error("expected array or Map arg");
                 } else {
@@ -5565,7 +5565,7 @@ export function HeliosMap(KeyClass, ValueClass) {
          * @param  {...any} args
          */
         constructor(...args) {
-            const rawPairs = HeliosMap.cleanConstructorArgs(...args);
+            const rawPairs = HeliosMap_.cleanConstructorArgs(...args);
 
             /**
              * @type {[TKey, TValue][]}
@@ -5630,33 +5630,33 @@ export function HeliosMap(KeyClass, ValueClass) {
 
         /**
          * @param {UplcData} data 
-         * @returns {HeliosMap}
+         * @returns {HeliosMap_}
          */
         static fromUplcData(data) {
-            return new HeliosMap(data.map.map(([kd, vd]) => [KeyClass.fromUplcData(kd), ValueClass.fromUplcData(vd)]));
+            return new HeliosMap_(data.map.map(([kd, vd]) => [KeyClass.fromUplcData(kd), ValueClass.fromUplcData(vd)]));
         }
 
         /**
          * @param {string | number[]} bytes 
-         * @returns {HeliosMap}
+         * @returns {HeliosMap_}
          */
         static fromUplcCbor(bytes) {
-            return HeliosMap.fromUplcData(UplcData.fromCbor(bytes));
+            return HeliosMap_.fromUplcData(UplcData.fromCbor(bytes));
         }
     }
 
-    Object.defineProperty(HeliosMap, "name", {
+    Object.defineProperty(HeliosMap_, "name", {
         value: typeName,
         writable: false
     });
 
-    return HeliosMap;
+    return HeliosMap_;
 }
 
 /**
  * @template {HeliosData} T
  * @param {HeliosDataClass<T>} SomeClass
- * @returns {HeliosDataClass<Option>}
+ * @returns {HeliosDataClass<Option_>}
  */
 export function Option(SomeClass) {
     assert(!new.target, "Option can't be called with new");
@@ -5664,7 +5664,7 @@ export function Option(SomeClass) {
 
     const typeName = `Option[${SomeClass.name}]`;
 
-    class Option extends HeliosData {
+    class Option_ extends HeliosData {
         /**
          * @type {?T}
          */
@@ -5691,7 +5691,7 @@ export function Option(SomeClass) {
         constructor(rawValue = null) {
             super();
 
-            this.#value = Option.cleanConstructorArg(rawValue);
+            this.#value = Option_.cleanConstructorArg(rawValue);
         }
 
         /**
@@ -5729,17 +5729,17 @@ export function Option(SomeClass) {
 
         /**
          * @param {UplcData} data 
-         * @returns {Option}
+         * @returns {Option_}
          */
         static fromUplcData(data) {
             if (data.index == 1) {
                 assert(data.fields.length == 0);
 
-                return new Option(null);
+                return new Option_(null);
             } else if (data.index == 0) {
                 assert(data.fields.length == 1);
 
-                return new Option(SomeClass.fromUplcData(data.fields[0]))
+                return new Option_(SomeClass.fromUplcData(data.fields[0]))
             } else {
                 throw new Error("unexpected option constr index");
             }
@@ -5747,10 +5747,10 @@ export function Option(SomeClass) {
 
         /**
          * @param {string | number[]} bytes
-         * @returns {Option}
+         * @returns {Option_}
          */
         static fromUplcCbor(bytes) {
-            return Option.fromUplcData(UplcData.fromCbor(bytes));
+            return Option_.fromUplcData(UplcData.fromCbor(bytes));
         }
     }
 
@@ -5759,7 +5759,7 @@ export function Option(SomeClass) {
         writable: false
     });
 
-    return Option;
+    return Option_;
 }
 
 
@@ -30593,6 +30593,12 @@ class MainModule extends Module {
 
 	/** @type {UserTypes} */
 	#types;
+
+	/**
+	 * Cache of const values
+	 * @type {Object.<string, HeliosData>}
+	 */
+	#parameters;
 	
 	/**
 	 * @param {number} purpose
@@ -30602,6 +30608,7 @@ class MainModule extends Module {
 		this.#purpose = purpose;
 		this.#modules = modules;
 		this.#types = {};
+		this.#parameters = {};
 	}
 
 	/**
@@ -30999,44 +31006,54 @@ class MainModule extends Module {
 	 * @returns {Object.<string, HeliosData>}
 	 */
 	get parameters() {
+		const that = this;
+
+		// not expensive, so doesn't need to be evaluated on-demand
 		const types = this.paramTypes;
 
-		/**
-		 * @type {Object.<string, HeliosData>}
-		 */
-		const values = {};
-
-		for (let k in types) {
-			const type = types[k];
-
-			try {
-				const uplcValue = this.evalParam(k);
-
-				const value = (uplcValue instanceof UplcBool) ? new Bool(uplcValue.bool) : type.userType.fromUplcData(uplcValue.data);
+		const handler = {
+			/**
+			 * Return from this.#parameters if available, or calculate
+			 * @param {Object.<string, HeliosData>} target 
+			 * @param {string} name
+			 * @returns 
+			 */
+			get(target, name) {
+				if (name in target) {
+					return target[name];
+				} else {
+					const type = assertDefined(types[name], `invalid param name '${name}'`);
 					
-				values[k] = value;
-			} catch(_) {
-			}
-		}
+					const uplcValue = that.evalParam(name);
 
-		return values;
+					const value = (uplcValue instanceof UplcBool) ? new Bool(uplcValue.bool) : type.userType.fromUplcData(uplcValue.data);
+						
+					target[name] = value;
+
+					return value;
+				}
+			},
+		};
+
+		return new Proxy(this.#parameters, handler);
 	}
 
 	/**
-	 * @param {Object.<string, HeliosData>} values
+	 * @param {Object.<string, HeliosData | any>} values
 	 */
 	set parameters(values) {
 		const types = this.paramTypes;
-		for (let k in values) {
-			assert(k in types, `invalid param name ${k}`);
 
-			const v_ = values[k];
+		for (let name in values) {
+			const rawValue = values[name];
 
-			const U = types[k].userType;
+			const UserType = assertDefined(types[name], `invalid param name '${name}'`).userType;
 
-			const v = v_ instanceof U ? v_ : new U(v_);
+			const value = rawValue instanceof UserType ? rawValue : new UserType(rawValue);
 
-			this.changeParamSafe(k, v_._toUplcData());
+			this.#parameters[name] = value;
+
+			this.changeParamSafe(name, rawValue._toUplcData());
 		}
 	}
 

@@ -44,7 +44,7 @@ export function hl(a: string[], ...b: any[]): string;
  * Dynamically constructs a new List class, depending on the item type.
  * @template {HeliosData} T
  * @param {HeliosDataClass<T>} ItemClass
- * @returns {HeliosDataClass<List>}
+ * @returns {HeliosDataClass<List_>}
  */
 export function List<T extends HeliosData>(ItemClass: HeliosDataClass<T>): HeliosDataClass<{
     /**
@@ -79,7 +79,7 @@ export function List<T extends HeliosData>(ItemClass: HeliosDataClass<T>): Helio
  * @template {HeliosData} TValue
  * @param {HeliosDataClass<TKey>} KeyClass
  * @param {HeliosDataClass<TValue>} ValueClass
- * @returns {HeliosDataClass<HeliosMap>}
+ * @returns {HeliosDataClass<HeliosMap_>}
  */
 export function HeliosMap<TKey extends HeliosData, TValue extends HeliosData>(KeyClass: HeliosDataClass<TKey>, ValueClass: HeliosDataClass<TValue>): HeliosDataClass<{
     /**
@@ -112,7 +112,7 @@ export function HeliosMap<TKey extends HeliosData, TValue extends HeliosData>(Ke
 /**
  * @template {HeliosData} T
  * @param {HeliosDataClass<T>} SomeClass
- * @returns {HeliosDataClass<Option>}
+ * @returns {HeliosDataClass<Option_>}
  */
 export function Option<T extends HeliosData>(SomeClass: HeliosDataClass<T>): HeliosDataClass<{
     /**
@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.10.7";
+export const VERSION: "0.10.8";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -483,6 +483,11 @@ export class CborData {
      * @returns {number[]}
      */
     static encodeIndefListEnd(): number[];
+    /**
+     * @param {CborData[] | number[][]} list
+     * @returns {number[]}
+     */
+    static encodeList(list: CborData[] | number[][]): number[];
     /**
      * @param {CborData[] | number[][]} list
      * @returns {number[]}
@@ -2365,7 +2370,7 @@ export class Program {
      */
     evalParam(name: string): UplcValue;
     /**
-     * @param {Object.<string, HeliosData>} values
+     * @param {Object.<string, HeliosData | any>} values
      */
     set parameters(arg: {
         [x: string]: HeliosData;

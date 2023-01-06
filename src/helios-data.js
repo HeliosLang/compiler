@@ -403,7 +403,7 @@ export class ByteArray extends HeliosData {
  * Dynamically constructs a new List class, depending on the item type.
  * @template {HeliosData} T
  * @param {HeliosDataClass<T>} ItemClass
- * @returns {HeliosDataClass<List>}
+ * @returns {HeliosDataClass<List_>}
  */
 export function List(ItemClass) {
     assert(!new.target, "List can't be called with new");
@@ -411,7 +411,7 @@ export function List(ItemClass) {
 
     const typeName = `[]${ItemClass.name}`;
 
-    class List extends HeliosData {
+    class List_ extends HeliosData {
         /** 
          * @type {T[]} 
          */
@@ -467,27 +467,27 @@ export function List(ItemClass) {
 
         /**
          * @param {UplcData} data 
-         * @returns {List}
+         * @returns {List_}
          */
         static fromUplcData(data) {
-            return new List(data.list.map(d => ItemClass.fromUplcData(d)));
+            return new List_(data.list.map(d => ItemClass.fromUplcData(d)));
         }
 
         /**
          * @param {string | number[]} bytes 
-         * @returns {List}
+         * @returns {List_}
          */
         static fromUplcCbor(bytes) {
-            return List.fromUplcData(UplcData.fromCbor(bytes));
+            return List_.fromUplcData(UplcData.fromCbor(bytes));
         }
     }
 
-    Object.defineProperty(List, "name", {
+    Object.defineProperty(List_, "name", {
         value: typeName,
         writable: false
     });
 
-    return List;
+    return List_;
 }
 
 /**
@@ -495,7 +495,7 @@ export function List(ItemClass) {
  * @template {HeliosData} TValue
  * @param {HeliosDataClass<TKey>} KeyClass 
  * @param {HeliosDataClass<TValue>} ValueClass
- * @returns {HeliosDataClass<HeliosMap>}
+ * @returns {HeliosDataClass<HeliosMap_>}
  */
 export function HeliosMap(KeyClass, ValueClass) {
     assert(!new.target, "HeliosMap can't be called with new");
@@ -504,7 +504,7 @@ export function HeliosMap(KeyClass, ValueClass) {
     
     const typeName = `Map[${KeyClass.name}]${ValueClass.name}`;
 
-    class HeliosMap extends HeliosData {
+    class HeliosMap_ extends HeliosData {
         /**
          * @type {[TKey, TValue][]}
          */
@@ -523,7 +523,7 @@ export function HeliosMap(KeyClass, ValueClass) {
                 const arg = args[0];
 
                 if (arg instanceof Map) {
-                    return HeliosMap.cleanConstructorArgs(Array.from(arg.entries()));
+                    return HeliosMap_.cleanConstructorArgs(Array.from(arg.entries()));
                 } else if (!Array.isArray(arg)) {
                     throw new Error("expected array or Map arg");
                 } else {
@@ -566,7 +566,7 @@ export function HeliosMap(KeyClass, ValueClass) {
          * @param  {...any} args
          */
         constructor(...args) {
-            const rawPairs = HeliosMap.cleanConstructorArgs(...args);
+            const rawPairs = HeliosMap_.cleanConstructorArgs(...args);
 
             /**
              * @type {[TKey, TValue][]}
@@ -631,33 +631,33 @@ export function HeliosMap(KeyClass, ValueClass) {
 
         /**
          * @param {UplcData} data 
-         * @returns {HeliosMap}
+         * @returns {HeliosMap_}
          */
         static fromUplcData(data) {
-            return new HeliosMap(data.map.map(([kd, vd]) => [KeyClass.fromUplcData(kd), ValueClass.fromUplcData(vd)]));
+            return new HeliosMap_(data.map.map(([kd, vd]) => [KeyClass.fromUplcData(kd), ValueClass.fromUplcData(vd)]));
         }
 
         /**
          * @param {string | number[]} bytes 
-         * @returns {HeliosMap}
+         * @returns {HeliosMap_}
          */
         static fromUplcCbor(bytes) {
-            return HeliosMap.fromUplcData(UplcData.fromCbor(bytes));
+            return HeliosMap_.fromUplcData(UplcData.fromCbor(bytes));
         }
     }
 
-    Object.defineProperty(HeliosMap, "name", {
+    Object.defineProperty(HeliosMap_, "name", {
         value: typeName,
         writable: false
     });
 
-    return HeliosMap;
+    return HeliosMap_;
 }
 
 /**
  * @template {HeliosData} T
  * @param {HeliosDataClass<T>} SomeClass
- * @returns {HeliosDataClass<Option>}
+ * @returns {HeliosDataClass<Option_>}
  */
 export function Option(SomeClass) {
     assert(!new.target, "Option can't be called with new");
@@ -665,7 +665,7 @@ export function Option(SomeClass) {
 
     const typeName = `Option[${SomeClass.name}]`;
 
-    class Option extends HeliosData {
+    class Option_ extends HeliosData {
         /**
          * @type {?T}
          */
@@ -692,7 +692,7 @@ export function Option(SomeClass) {
         constructor(rawValue = null) {
             super();
 
-            this.#value = Option.cleanConstructorArg(rawValue);
+            this.#value = Option_.cleanConstructorArg(rawValue);
         }
 
         /**
@@ -730,17 +730,17 @@ export function Option(SomeClass) {
 
         /**
          * @param {UplcData} data 
-         * @returns {Option}
+         * @returns {Option_}
          */
         static fromUplcData(data) {
             if (data.index == 1) {
                 assert(data.fields.length == 0);
 
-                return new Option(null);
+                return new Option_(null);
             } else if (data.index == 0) {
                 assert(data.fields.length == 1);
 
-                return new Option(SomeClass.fromUplcData(data.fields[0]))
+                return new Option_(SomeClass.fromUplcData(data.fields[0]))
             } else {
                 throw new Error("unexpected option constr index");
             }
@@ -748,10 +748,10 @@ export function Option(SomeClass) {
 
         /**
          * @param {string | number[]} bytes
-         * @returns {Option}
+         * @returns {Option_}
          */
         static fromUplcCbor(bytes) {
-            return Option.fromUplcData(UplcData.fromCbor(bytes));
+            return Option_.fromUplcData(UplcData.fromCbor(bytes));
         }
     }
 
@@ -760,7 +760,7 @@ export function Option(SomeClass) {
         writable: false
     });
 
-    return Option;
+    return Option_;
 }
 
 

@@ -7,8 +7,7 @@ import {
 
 import {
     Source,
-    assertDefined,
-	assert
+    assertDefined
 } from "./utils.js";
 
 import {
@@ -297,6 +296,12 @@ class MainModule extends Module {
 
 	/** @type {UserTypes} */
 	#types;
+
+	/**
+	 * Cache of const values
+	 * @type {Object.<string, HeliosData>}
+	 */
+	#parameters;
 	
 	/**
 	 * @param {number} purpose
@@ -306,6 +311,7 @@ class MainModule extends Module {
 		this.#purpose = purpose;
 		this.#modules = modules;
 		this.#types = {};
+		this.#parameters = {};
 	}
 
 	/**
@@ -703,44 +709,54 @@ class MainModule extends Module {
 	 * @returns {Object.<string, HeliosData>}
 	 */
 	get parameters() {
+		const that = this;
+
+		// not expensive, so doesn't need to be evaluated on-demand
 		const types = this.paramTypes;
 
-		/**
-		 * @type {Object.<string, HeliosData>}
-		 */
-		const values = {};
-
-		for (let k in types) {
-			const type = types[k];
-
-			try {
-				const uplcValue = this.evalParam(k);
-
-				const value = (uplcValue instanceof UplcBool) ? new Bool(uplcValue.bool) : type.userType.fromUplcData(uplcValue.data);
+		const handler = {
+			/**
+			 * Return from this.#parameters if available, or calculate
+			 * @param {Object.<string, HeliosData>} target 
+			 * @param {string} name
+			 * @returns 
+			 */
+			get(target, name) {
+				if (name in target) {
+					return target[name];
+				} else {
+					const type = assertDefined(types[name], `invalid param name '${name}'`);
 					
-				values[k] = value;
-			} catch(_) {
-			}
-		}
+					const uplcValue = that.evalParam(name);
 
-		return values;
+					const value = (uplcValue instanceof UplcBool) ? new Bool(uplcValue.bool) : type.userType.fromUplcData(uplcValue.data);
+						
+					target[name] = value;
+
+					return value;
+				}
+			},
+		};
+
+		return new Proxy(this.#parameters, handler);
 	}
 
 	/**
-	 * @param {Object.<string, HeliosData>} values
+	 * @param {Object.<string, HeliosData | any>} values
 	 */
 	set parameters(values) {
 		const types = this.paramTypes;
-		for (let k in values) {
-			assert(k in types, `invalid param name ${k}`);
 
-			const v_ = values[k];
+		for (let name in values) {
+			const rawValue = values[name];
 
-			const U = types[k].userType;
+			const UserType = assertDefined(types[name], `invalid param name '${name}'`).userType;
 
-			const v = v_ instanceof U ? v_ : new U(v_);
+			const value = rawValue instanceof UserType ? rawValue : new UserType(rawValue);
 
-			this.changeParamSafe(k, v_._toUplcData());
+			this.#parameters[name] = value;
+
+			this.changeParamSafe(name, rawValue._toUplcData());
 		}
 	}
 

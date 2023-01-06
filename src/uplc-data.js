@@ -9,7 +9,7 @@ import {
 
 import {
     IR
-} from "./ir.js";
+} from "./tokens.js";
 
 import {
     CborData
