@@ -8060,7 +8060,7 @@ const UPLC_BUILTINS = (
 			builtinConfig("headList",                 1, ConstCost, ConstCost),
 			builtinConfig("tailList",                 1, ConstCost, ConstCost),
 			builtinConfig("nullList",                 1, ConstCost, ConstCost),
-			builtinConfig("chooseData",               0, ConstCost, ConstCost),
+			builtinConfig("chooseData",               1, ConstCost, ConstCost),
 			builtinConfig("constrData",               0, ConstCost, ConstCost),
 			builtinConfig("mapData",                  0, ConstCost, ConstCost),
 			builtinConfig("listData",                 0, ConstCost, ConstCost),
