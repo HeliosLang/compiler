@@ -189,12 +189,12 @@ export class GlobalScope {
 	}
 
 	/**
-	 * @param {(type: Type) => void} callback 
+	 * @param {(name: string, type: Type) => void} callback 
 	 */
 	loopTypes(callback) {
-		for (let [_, v] of this.#values) {
+		for (let [k, v] of this.#values) {
 			if (v instanceof Type) {
-				callback(v);
+				callback(k.value, v);
 			}
 		}
 	}
@@ -358,14 +358,14 @@ export class Scope {
 	}
 
 	/**
-	 * @param {(type: Type) => void} callback 
+	 * @param {(name: string, type: Type) => void} callback 
 	 */
 	loopTypes(callback) {
 		this.#parent.loopTypes(callback);
 
-		for (let [_, v] of this.#values) {
+		for (let [k, v] of this.#values) {
 			if (v instanceof Type) {
-				callback(v);
+				callback(k.value, v);
 			}
 		}
 	}

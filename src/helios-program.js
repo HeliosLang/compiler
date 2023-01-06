@@ -596,15 +596,13 @@ class MainModule extends Module {
 	fillTypes(topScope) {
 		const mainModuleScope = topScope.getModuleScope(this.mainModule.name);
 
-		mainModuleScope.loopTypes((type) => {
+		mainModuleScope.loopTypes((name, type) => {
 			if (type instanceof StructStatementType || type instanceof EnumStatementType) {
-				const key = type.name;
-
-				if (key in this.#types) {
-					throw new Error("unexpected");
+				if (name in this.#types) {
+					throw new Error(`unexpected duplicate type name ${name} in main program scope`);
 				}
 
-				this.#types[key] = type.userType;;
+				this.#types[name] = type.userType;;
 			}
 		});
 	}

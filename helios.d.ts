@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.10.6";
+export const VERSION: "0.10.7";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -3912,9 +3912,9 @@ declare class GlobalScope {
     isStrict(): boolean;
     allowMacros(): void;
     /**
-     * @param {(type: Type) => void} callback
+     * @param {(name: string, type: Type) => void} callback
      */
-    loopTypes(callback: (type: Type) => void): void;
+    loopTypes(callback: (name: string, type: Type) => void): void;
     #private;
 }
 /**
@@ -4909,9 +4909,9 @@ declare class Scope {
     assertValue(site: Site): Instance;
     dump(): void;
     /**
-     * @param {(type: Type) => void} callback
+     * @param {(name: string, type: Type) => void} callback
      */
-    loopTypes(callback: (type: Type) => void): void;
+    loopTypes(callback: (name: string, type: Type) => void): void;
     #private;
 }
 /**

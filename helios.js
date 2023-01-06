@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.10.6
+// Version:       0.10.7
 // Last update:   January 2023
 // License:       Unlicense
 //
@@ -203,7 +203,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.10.6";
+export const VERSION = "0.10.7";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -17468,12 +17468,12 @@ class GlobalScope {
 	}
 
 	/**
-	 * @param {(type: Type) => void} callback 
+	 * @param {(name: string, type: Type) => void} callback 
 	 */
 	loopTypes(callback) {
-		for (let [_, v] of this.#values) {
+		for (let [k, v] of this.#values) {
 			if (v instanceof Type) {
-				callback(v);
+				callback(k.value, v);
 			}
 		}
 	}
@@ -17637,14 +17637,14 @@ class Scope {
 	}
 
 	/**
-	 * @param {(type: Type) => void} callback 
+	 * @param {(name: string, type: Type) => void} callback 
 	 */
 	loopTypes(callback) {
 		this.#parent.loopTypes(callback);
 
-		for (let [_, v] of this.#values) {
+		for (let [k, v] of this.#values) {
 			if (v instanceof Type) {
-				callback(v);
+				callback(k.value, v);
 			}
 		}
 	}
@@ -30876,15 +30876,13 @@ class MainModule extends Module {
 	fillTypes(topScope) {
 		const mainModuleScope = topScope.getModuleScope(this.mainModule.name);
 
-		mainModuleScope.loopTypes((type) => {
+		mainModuleScope.loopTypes((name, type) => {
 			if (type instanceof StructStatementType || type instanceof EnumStatementType) {
-				const key = type.name;
-
-				if (key in this.#types) {
-					throw new Error("unexpected");
+				if (name in this.#types) {
+					throw new Error(`unexpected duplicate type name ${name} in main program scope`);
 				}
 
-				this.#types[key] = type.userType;;
+				this.#types[name] = type.userType;;
 			}
 		});
 	}

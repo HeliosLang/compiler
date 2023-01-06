@@ -348,6 +348,15 @@ async function test14() {
 	  b: Int
   }
 
+  enum MyEnum {
+    One
+    Two
+    Three{
+      a: Int
+      b: Int
+    }
+  }
+
   const CRED = Credential::new_pubkey(
     PubKeyHash::new(#1234567890123456789012345678)
   )
@@ -378,7 +387,7 @@ async function test14() {
 
   console.log(program.types);
 
-  const {MyStruct} = program.types;
+  const {MyStruct, MyEnum} = program.types;
 
   const {Int, HeliosString, List, HeliosMap, Value} = helios;
 
@@ -413,6 +422,10 @@ async function test14() {
   program.parameters = {VALUE: new Value(200n)};
 
   console.log(program.parameters.VALUE.toSchemaJson());
+
+  const myEnum = new MyEnum.Three(1, 2);
+
+  console.log(myEnum.toSchemaJson(), myEnum instanceof MyEnum);
 }
 
 export default async function main() {
