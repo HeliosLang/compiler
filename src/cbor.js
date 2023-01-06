@@ -92,7 +92,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number} m 
+	 * @param {number} m
 	 * @returns {number[]}
 	 */
 	static encodeIndefHead(m) {
@@ -107,7 +107,7 @@ export class CborData {
 		let first = assertDefined(bytes.shift());
 
 		let m = idiv(first - 31, 32);
-		
+
 		return m;
 	}
 
@@ -128,7 +128,7 @@ export class CborData {
 
 	/**
 	 * Throws error if not null
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 */
 	static decodeNull(bytes) {
 		let b = assertDefined(bytes.shift());
@@ -151,7 +151,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
 	static decodeBool(bytes) {
@@ -167,8 +167,8 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
-	 * @returns {boolean} 
+	 * @param {number[]} bytes
+	 * @returns {boolean}
 	 */
 	static isDefBytes(bytes) {
 		if (bytes.length == 0) {
@@ -195,7 +195,7 @@ export class CborData {
 	/**
 	 * @example
 	 * bytesToHex(CborData.encodeBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @param {boolean} splitInChunks
 	 * @returns {number[]} - cbor bytes
 	 */
@@ -260,7 +260,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
 	static isUtf8(bytes) {
@@ -274,14 +274,14 @@ export class CborData {
 	/**
 	 * Encodes a Utf8 string into Cbor bytes.
 	 * Strings longer than 64 bytes are split into lists with 64 byte chunks
-	 * Note: string splitting isn't reversible 
+	 * Note: string splitting isn't reversible
 	 * @param {string} str
 	 * @param {boolean} split
 	 * @returns {number[]}
 	 */
 	static encodeUtf8(str, split = false) {
 		const bytes = textToBytes(str);
-		
+
 		if (split && bytes.length > 64) {
 			/** @type {number[][]} */
 			const chunks = [];
@@ -316,7 +316,7 @@ export class CborData {
 	*/
 	static decodeUtf8(bytes) {
 		assert(bytes.length > 0);
-		
+
 		if (CborData.isDefList(bytes)) {
 			let result = "";
 
@@ -394,7 +394,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {CborData[] | number[][]} list 
+	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
 	static encodeListInternal(list) {
@@ -421,7 +421,17 @@ export class CborData {
 	}
 
 	/**
-	 * @param {CborData[] | number[][]} list 
+	 * @param {CborData[] | number[][]} list
+	 * @returns {number[]}
+	 */
+	static encodeList(list) {
+		// This follows the serialization format that the Haskell input-output-hk/plutus UPLC evaluator
+		// https://github.com/well-typed/cborg/blob/4bdc818a1f0b35f38bc118a87944630043b58384/serialise/src/Codec/Serialise/Class.hs#L181
+		return list.length ? CborData.encodeIndefList(list) : CborData.encodeDefList(list);
+	}
+
+	/**
+	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
 	static encodeIndefList(list) {
@@ -429,13 +439,17 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
 	static isDefList(bytes) {
-		let [m, _] = CborData.decodeHead(bytes.slice(0, 9));
-
-		return m == 4;
+		try {
+			let [m, _] = CborData.decodeHead(bytes.slice(0, 9));
+			return m == 4;
+		} catch (error) {
+			if (error.message.includes("bad header")) return false;
+			throw error;
+		}
 	}
 
 	/**
@@ -447,7 +461,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {CborData[] | number[][]} list 
+	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
 	static encodeDefList(list) {
@@ -455,7 +469,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
 	static isList(bytes) {
@@ -473,7 +487,7 @@ export class CborData {
 			while(bytes[0] != 255) {
 				itemDecoder(bytes);
 			}
-	
+
 			assert(bytes.shift() == 255);
 		} else {
 			let [m, n] = CborData.decodeHead(bytes);
@@ -504,8 +518,8 @@ export class CborData {
 
 
 	/**
-	 * @param {number[]} bytes 
-	 * @param {IDecoder} tupleDecoder 
+	 * @param {number[]} bytes
+	 * @param {IDecoder} tupleDecoder
 	 * @returns {number} - returns the size of the tuple
 	 */
 	static decodeTuple(bytes, tupleDecoder) {
@@ -520,7 +534,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
 	static isMap(bytes) {
@@ -561,7 +575,7 @@ export class CborData {
 
 	/**
 	 * A decode map method doesn't exist because it specific for the requested type
-	 * @param {[CborData | number[], CborData | number[]][]} pairList 
+	 * @param {[CborData | number[], CborData | number[]][]} pairList
 	 * @returns {number[]}
 	 */
 	static encodeMap(pairList) {
@@ -657,7 +671,7 @@ export class CborData {
 
 	/**
 	 * Encode a constructor tag of a ConstrData type
-	 * @param {number} tag 
+	 * @param {number} tag
 	 * @returns {number[]}
 	 */
 	static encodeConstrTag(tag) {
@@ -671,12 +685,12 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number} tag 
-	 * @param {CborData[] | number[][]} fields 
+	 * @param {number} tag
+	 * @param {CborData[] | number[][]} fields
 	 * @returns {number[]}
 	 */
 	static encodeConstr(tag, fields) {
-		return CborData.encodeConstrTag(tag).concat(CborData.encodeIndefList(fields));
+		return CborData.encodeConstrTag(tag).concat(CborData.encodeList(fields));
 	}
 
 	/**
@@ -703,8 +717,8 @@ export class CborData {
 
 	/**
 	 * Returns the tag
-	 * @param {number[]} bytes 
-	 * @param {Decoder} fieldDecoder 
+	 * @param {number[]} bytes
+	 * @param {Decoder} fieldDecoder
 	 * @returns {number}
 	 */
 	static decodeConstr(bytes, fieldDecoder) {
