@@ -40,7 +40,7 @@ export class UplcData extends CborData {
 
 	/**
 	 * Compares the schema jsons
-	 * @param {UplcData} other 
+	 * @param {UplcData} other
 	 * @returns {boolean}
 	 */
 	isSame(other) {
@@ -111,15 +111,15 @@ export class UplcData extends CborData {
 	}
 
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {UplcData}
 	 */
 	static fromCbor(bytes) {
 		if (typeof bytes == "string") {
 			return UplcData.fromCbor(hexToBytes(bytes));
 		} else {
-			if (CborData.isIndefList(bytes)) {	
-				return ListData.fromCbor(bytes);		
+			if (CborData.isList(bytes)) {
+				return ListData.fromCbor(bytes);
 			} else if (CborData.isIndefBytes(bytes)) {
 				return ByteArrayData.fromCbor(bytes);
 			} else {
@@ -145,7 +145,7 @@ export class IntData extends UplcData {
 	#value;
 
 	/**
-	 * @param {bigint} value 
+	 * @param {bigint} value
 	 */
 	constructor(value) {
 		super();
@@ -166,10 +166,10 @@ export class IntData extends UplcData {
 	get int() {
 		return this.#value;
 	}
-	
+
     /**
      * Calculate the mem size of a integer (without the DATA_NODE overhead)
-     * @param {bigint} value 
+     * @param {bigint} value
      * @returns {number}
      */
     static memSizeInternal(value) {
@@ -205,7 +205,7 @@ export class IntData extends UplcData {
 	}
 
 	/**
-	 * Returns string, not js object, because of unbounded integers 
+	 * Returns string, not js object, because of unbounded integers
 	 * @returns {string}
 	 */
 	toSchemaJson() {
@@ -236,7 +236,7 @@ export class ByteArrayData extends UplcData {
 	#bytes;
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 */
 	constructor(bytes) {
 		super();
@@ -245,7 +245,7 @@ export class ByteArrayData extends UplcData {
 
 	/**
 	 * Applies utf-8 encoding
-	 * @param {string} s 
+	 * @param {string} s
 	 * @returns {ByteArrayData}
 	 */
 	static fromString(s) {
@@ -260,7 +260,7 @@ export class ByteArrayData extends UplcData {
 
     /**
      * Calculates the mem size of a byte array without the DATA_NODE overhead.
-     * @param {number[]} bytes 
+     * @param {number[]} bytes
      * @returns {number}
      */
     static memSizeInternal(bytes) {
@@ -310,7 +310,7 @@ export class ByteArrayData extends UplcData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {ByteArrayData}
 	 */
 	static fromCbor(bytes) {
@@ -329,7 +329,7 @@ export class ByteArrayData extends UplcData {
 			for (let i = 0; i < Math.min(a.length, b.length); i++) {
 				if (a[i] != b[i]) {
 					return a[i] < b[i];
-				} 
+				}
 			}
 
 			return a.length < b.length;
@@ -337,7 +337,7 @@ export class ByteArrayData extends UplcData {
 
 		/** @return {number} */
 		function lessOrGreater() {
-			return lessThan() ? -1 : 1;	
+			return lessThan() ? -1 : 1;
 		}
 
 		if (a.length != b.length) {
@@ -361,7 +361,7 @@ export class ListData extends UplcData {
 	#items;
 
 	/**
-	 * @param {UplcData[]} items 
+	 * @param {UplcData[]} items
 	 */
 	constructor(items) {
 		super();
@@ -415,11 +415,11 @@ export class ListData extends UplcData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeIndefList(this.#items);
+		return CborData.encodeList(this.#items);
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {ListData}
 	 */
 	static fromCbor(bytes) {
@@ -443,7 +443,7 @@ export class MapData extends UplcData {
 	#pairs;
 
 	/**
-	 * @param {[UplcData, UplcData][]} pairs 
+	 * @param {[UplcData, UplcData][]} pairs
 	 */
 	constructor(pairs) {
 		super();
@@ -502,7 +502,7 @@ export class MapData extends UplcData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {MapData}
 	 */
 	static fromCbor(bytes) {
@@ -527,8 +527,8 @@ export class ConstrData extends UplcData {
 	#fields;
 
 	/**
-	 * @param {number} index 
-	 * @param {UplcData[]} fields 
+	 * @param {number} index
+	 * @param {UplcData[]} fields
 	 */
 	constructor(index, fields) {
 		super();
@@ -598,7 +598,7 @@ export class ConstrData extends UplcData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {ConstrData}
 	 */
 	static fromCbor(bytes) {

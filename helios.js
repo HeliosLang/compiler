@@ -3781,7 +3781,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number} m 
+	 * @param {number} m
 	 * @returns {number[]}
 	 */
 	static encodeIndefHead(m) {
@@ -3796,7 +3796,7 @@ export class CborData {
 		let first = assertDefined(bytes.shift());
 
 		let m = idiv(first - 31, 32);
-		
+
 		return m;
 	}
 
@@ -3817,7 +3817,7 @@ export class CborData {
 
 	/**
 	 * Throws error if not null
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 */
 	static decodeNull(bytes) {
 		let b = assertDefined(bytes.shift());
@@ -3840,7 +3840,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
 	static decodeBool(bytes) {
@@ -3856,8 +3856,8 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
-	 * @returns {boolean} 
+	 * @param {number[]} bytes
+	 * @returns {boolean}
 	 */
 	static isDefBytes(bytes) {
 		if (bytes.length == 0) {
@@ -3884,7 +3884,7 @@ export class CborData {
 	/**
 	 * @example
 	 * bytesToHex(CborData.encodeBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @param {boolean} splitInChunks
 	 * @returns {number[]} - cbor bytes
 	 */
@@ -3949,7 +3949,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
 	static isUtf8(bytes) {
@@ -3963,14 +3963,14 @@ export class CborData {
 	/**
 	 * Encodes a Utf8 string into Cbor bytes.
 	 * Strings longer than 64 bytes are split into lists with 64 byte chunks
-	 * Note: string splitting isn't reversible 
+	 * Note: string splitting isn't reversible
 	 * @param {string} str
 	 * @param {boolean} split
 	 * @returns {number[]}
 	 */
 	static encodeUtf8(str, split = false) {
 		const bytes = textToBytes(str);
-		
+
 		if (split && bytes.length > 64) {
 			/** @type {number[][]} */
 			const chunks = [];
@@ -4005,7 +4005,7 @@ export class CborData {
 	*/
 	static decodeUtf8(bytes) {
 		assert(bytes.length > 0);
-		
+
 		if (CborData.isDefList(bytes)) {
 			let result = "";
 
@@ -4083,7 +4083,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {CborData[] | number[][]} list 
+	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
 	static encodeListInternal(list) {
@@ -4110,7 +4110,17 @@ export class CborData {
 	}
 
 	/**
-	 * @param {CborData[] | number[][]} list 
+	 * @param {CborData[] | number[][]} list
+	 * @returns {number[]}
+	 */
+	static encodeList(list) {
+		// This follows the serialization format that the Haskell input-output-hk/plutus UPLC evaluator
+		// https://github.com/well-typed/cborg/blob/4bdc818a1f0b35f38bc118a87944630043b58384/serialise/src/Codec/Serialise/Class.hs#L181
+		return list.length ? CborData.encodeIndefList(list) : CborData.encodeDefList(list);
+	}
+
+	/**
+	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
 	static encodeIndefList(list) {
@@ -4118,13 +4128,17 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
 	static isDefList(bytes) {
-		let [m, _] = CborData.decodeHead(bytes.slice(0, 9));
-
-		return m == 4;
+		try {
+			let [m, _] = CborData.decodeHead(bytes.slice(0, 9));
+			return m == 4;
+		} catch (error) {
+			if (error.message.includes("bad header")) return false;
+			throw error;
+		}
 	}
 
 	/**
@@ -4136,7 +4150,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {CborData[] | number[][]} list 
+	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
 	static encodeDefList(list) {
@@ -4144,7 +4158,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
 	static isList(bytes) {
@@ -4162,7 +4176,7 @@ export class CborData {
 			while(bytes[0] != 255) {
 				itemDecoder(bytes);
 			}
-	
+
 			assert(bytes.shift() == 255);
 		} else {
 			let [m, n] = CborData.decodeHead(bytes);
@@ -4193,8 +4207,8 @@ export class CborData {
 
 
 	/**
-	 * @param {number[]} bytes 
-	 * @param {IDecoder} tupleDecoder 
+	 * @param {number[]} bytes
+	 * @param {IDecoder} tupleDecoder
 	 * @returns {number} - returns the size of the tuple
 	 */
 	static decodeTuple(bytes, tupleDecoder) {
@@ -4209,7 +4223,7 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
 	static isMap(bytes) {
@@ -4250,7 +4264,7 @@ export class CborData {
 
 	/**
 	 * A decode map method doesn't exist because it specific for the requested type
-	 * @param {[CborData | number[], CborData | number[]][]} pairList 
+	 * @param {[CborData | number[], CborData | number[]][]} pairList
 	 * @returns {number[]}
 	 */
 	static encodeMap(pairList) {
@@ -4346,7 +4360,7 @@ export class CborData {
 
 	/**
 	 * Encode a constructor tag of a ConstrData type
-	 * @param {number} tag 
+	 * @param {number} tag
 	 * @returns {number[]}
 	 */
 	static encodeConstrTag(tag) {
@@ -4360,12 +4374,12 @@ export class CborData {
 	}
 
 	/**
-	 * @param {number} tag 
-	 * @param {CborData[] | number[][]} fields 
+	 * @param {number} tag
+	 * @param {CborData[] | number[][]} fields
 	 * @returns {number[]}
 	 */
 	static encodeConstr(tag, fields) {
-		return CborData.encodeConstrTag(tag).concat(CborData.encodeIndefList(fields));
+		return CborData.encodeConstrTag(tag).concat(CborData.encodeList(fields));
 	}
 
 	/**
@@ -4392,8 +4406,8 @@ export class CborData {
 
 	/**
 	 * Returns the tag
-	 * @param {number[]} bytes 
-	 * @param {Decoder} fieldDecoder 
+	 * @param {number[]} bytes
+	 * @param {Decoder} fieldDecoder
 	 * @returns {number}
 	 */
 	static decodeConstr(bytes, fieldDecoder) {
@@ -4404,6 +4418,7 @@ export class CborData {
 		return tag;
 	}
 }
+
 
 
 /////////////////////////////
@@ -4435,7 +4450,7 @@ export class UplcData extends CborData {
 
 	/**
 	 * Compares the schema jsons
-	 * @param {UplcData} other 
+	 * @param {UplcData} other
 	 * @returns {boolean}
 	 */
 	isSame(other) {
@@ -4506,15 +4521,15 @@ export class UplcData extends CborData {
 	}
 
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {UplcData}
 	 */
 	static fromCbor(bytes) {
 		if (typeof bytes == "string") {
 			return UplcData.fromCbor(hexToBytes(bytes));
 		} else {
-			if (CborData.isIndefList(bytes)) {	
-				return ListData.fromCbor(bytes);		
+			if (CborData.isList(bytes)) {
+				return ListData.fromCbor(bytes);
 			} else if (CborData.isIndefBytes(bytes)) {
 				return ByteArrayData.fromCbor(bytes);
 			} else {
@@ -4540,7 +4555,7 @@ export class IntData extends UplcData {
 	#value;
 
 	/**
-	 * @param {bigint} value 
+	 * @param {bigint} value
 	 */
 	constructor(value) {
 		super();
@@ -4561,10 +4576,10 @@ export class IntData extends UplcData {
 	get int() {
 		return this.#value;
 	}
-	
+
     /**
      * Calculate the mem size of a integer (without the DATA_NODE overhead)
-     * @param {bigint} value 
+     * @param {bigint} value
      * @returns {number}
      */
     static memSizeInternal(value) {
@@ -4600,7 +4615,7 @@ export class IntData extends UplcData {
 	}
 
 	/**
-	 * Returns string, not js object, because of unbounded integers 
+	 * Returns string, not js object, because of unbounded integers
 	 * @returns {string}
 	 */
 	toSchemaJson() {
@@ -4631,7 +4646,7 @@ export class ByteArrayData extends UplcData {
 	#bytes;
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 */
 	constructor(bytes) {
 		super();
@@ -4640,7 +4655,7 @@ export class ByteArrayData extends UplcData {
 
 	/**
 	 * Applies utf-8 encoding
-	 * @param {string} s 
+	 * @param {string} s
 	 * @returns {ByteArrayData}
 	 */
 	static fromString(s) {
@@ -4655,7 +4670,7 @@ export class ByteArrayData extends UplcData {
 
     /**
      * Calculates the mem size of a byte array without the DATA_NODE overhead.
-     * @param {number[]} bytes 
+     * @param {number[]} bytes
      * @returns {number}
      */
     static memSizeInternal(bytes) {
@@ -4705,7 +4720,7 @@ export class ByteArrayData extends UplcData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {ByteArrayData}
 	 */
 	static fromCbor(bytes) {
@@ -4724,7 +4739,7 @@ export class ByteArrayData extends UplcData {
 			for (let i = 0; i < Math.min(a.length, b.length); i++) {
 				if (a[i] != b[i]) {
 					return a[i] < b[i];
-				} 
+				}
 			}
 
 			return a.length < b.length;
@@ -4732,7 +4747,7 @@ export class ByteArrayData extends UplcData {
 
 		/** @return {number} */
 		function lessOrGreater() {
-			return lessThan() ? -1 : 1;	
+			return lessThan() ? -1 : 1;
 		}
 
 		if (a.length != b.length) {
@@ -4756,7 +4771,7 @@ export class ListData extends UplcData {
 	#items;
 
 	/**
-	 * @param {UplcData[]} items 
+	 * @param {UplcData[]} items
 	 */
 	constructor(items) {
 		super();
@@ -4810,11 +4825,11 @@ export class ListData extends UplcData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeIndefList(this.#items);
+		return CborData.encodeList(this.#items);
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {ListData}
 	 */
 	static fromCbor(bytes) {
@@ -4838,7 +4853,7 @@ export class MapData extends UplcData {
 	#pairs;
 
 	/**
-	 * @param {[UplcData, UplcData][]} pairs 
+	 * @param {[UplcData, UplcData][]} pairs
 	 */
 	constructor(pairs) {
 		super();
@@ -4897,7 +4912,7 @@ export class MapData extends UplcData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {MapData}
 	 */
 	static fromCbor(bytes) {
@@ -4922,8 +4937,8 @@ export class ConstrData extends UplcData {
 	#fields;
 
 	/**
-	 * @param {number} index 
-	 * @param {UplcData[]} fields 
+	 * @param {number} index
+	 * @param {UplcData[]} fields
 	 */
 	constructor(index, fields) {
 		super();
@@ -4993,7 +5008,7 @@ export class ConstrData extends UplcData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {ConstrData}
 	 */
 	static fromCbor(bytes) {
@@ -5009,6 +5024,7 @@ export class ConstrData extends UplcData {
 		return new ConstrData(tag, fields);
 	}
 }
+
 
 
 /////////////////////////////////
