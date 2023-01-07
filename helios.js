@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.10.8
+// Version:       0.10.9
 // Last update:   January 2023
 // License:       Unlicense
 //
@@ -203,7 +203,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.10.8";
+export const VERSION = "0.10.9";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -16432,6 +16432,19 @@ class OutputDatumType extends BuiltinType {
 	}
 
 	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "get_inline_data":
+				return Instance.new(new FuncType([], new RawDataType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
 	 * @param {Site} site 
 	 * @returns {number}
 	 */
@@ -26801,6 +26814,22 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__outputdatum__new_inline",
 	`(data) -> {
 		__core__constrData(2, __helios__common__list_1(data))
+	}`));
+	add(new RawFunc("__helios__outputdatum__get_inline_data",
+	`(self) -> {
+		(pair) -> {
+			(index, fields) -> {
+				__core__ifThenElse(
+					__core__equalsInteger(index, 2),
+					() -> {
+						__core__headList(fields)
+					},
+					() -> {
+						__core__error("not an inline datum")
+					}
+				)()
+			}(__core__fstPair(pair), __core__sndPair(pair))
+		}(__core__unConstrData(self))
 	}`));
 
 

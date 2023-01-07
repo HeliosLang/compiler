@@ -4101,6 +4101,19 @@ export class OutputDatumType extends BuiltinType {
 	}
 
 	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "get_inline_data":
+				return Instance.new(new FuncType([], new RawDataType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	/**
 	 * @param {Site} site 
 	 * @returns {number}
 	 */

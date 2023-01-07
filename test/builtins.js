@@ -4232,7 +4232,7 @@ async function testBuiltins() {
             od.switch{
                 n: None => n == n,
                 dh: Hash => dh == dh && dh.hash == datum_hash,
-                in: Inline => in == in && in.data == inline_data
+                in: Inline => in == in && in.data == inline_data && inline_data == od.get_inline_data()
             }
         }
         ${outputDatumParam}

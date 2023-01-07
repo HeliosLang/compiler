@@ -2808,6 +2808,22 @@ function makeRawFunctions() {
 	`(data) -> {
 		__core__constrData(2, __helios__common__list_1(data))
 	}`));
+	add(new RawFunc("__helios__outputdatum__get_inline_data",
+	`(self) -> {
+		(pair) -> {
+			(index, fields) -> {
+				__core__ifThenElse(
+					__core__equalsInteger(index, 2),
+					() -> {
+						__core__headList(fields)
+					},
+					() -> {
+						__core__error("not an inline datum")
+					}
+				)()
+			}(__core__fstPair(pair), __core__sndPair(pair))
+		}(__core__unConstrData(self))
+	}`));
 
 
 	// OutputDatum::None
