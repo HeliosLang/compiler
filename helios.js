@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.10.9
+// Version:       0.10.10
 // Last update:   January 2023
 // License:       Unlicense
 //
@@ -63,7 +63,7 @@
 //                                           ByteArray, List, HeliosMap, Option, Hash, DatumHash, 
 //                                           PubKeyHash, ScriptHash, MintingPolicyHash, 
 //                                           StakeKeyHash, StakingValidatorHash, ValidatorHash, 
-//                                           TxId, TxOutputId, Address, Value
+//                                           TxId, TxOutputId, Address, Assets, Value
 //
 //    Section 8: Uplc cost-models            NetworkParams, CostModel, ConstCost, LinearCost, 
 //                                           ArgSizeCost, Arg0SizeCost, Arg1SizeCost, 
@@ -203,7 +203,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.10.9";
+export const VERSION = "0.10.10";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -5935,9 +5935,11 @@ export class PubKeyHash extends Hash {
 
 export class ScriptHash extends Hash {
 	/**
-	 * @param {number[]} bytes 
+	 * @param {string | number[]} rawBytes
 	 */
-	constructor(bytes) {
+	constructor(rawBytes) {
+		const bytes = (typeof rawBytes == "string") ? hexToBytes(rawBytes) : rawBytes;
+
 		assert(bytes.length == 28);
 		super(bytes);
 	}
@@ -6613,7 +6615,7 @@ export class Address extends HeliosData {
 /**
  * Collection of non-lovelace assets
  */
- export class Assets extends CborData {
+export class Assets extends CborData {
 	/** @type {[MintingPolicyHash, [number[], bigint][]][]} */
 	#assets;
 
@@ -6841,7 +6843,27 @@ export class Address extends HeliosData {
 	 * @returns {boolean}
 	 */
 	ge(other) {
-		return this.gt(other) || this.eq(other);
+		if (this.isZero()) {
+			return other.isZero();
+		}
+
+		for (let asset of this.#assets) {
+			for (let token of asset[1]) {
+				if (token[1] < other.get(asset[0], token[0])) {
+					return false;
+				}
+			}
+		}
+
+		for (let asset of other.#assets) {
+			for (let token of asset[1]) {
+				if (!this.has(asset[0], token[0])) {
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 
 	/**
@@ -19170,7 +19192,7 @@ class FuncLiteralExpr extends ValueExpr {
 	/**
 	 * @param {Site} site 
 	 * @param {FuncArg[]} args 
-	 * @param {TypeExpr[]} retTypeExprs 
+	 * @param {(?TypeExpr)[]} retTypeExprs 
 	 * @param {ValueExpr} bodyExpr 
 	 */
 	constructor(site, args, retTypeExprs, bodyExpr) {
@@ -19198,7 +19220,13 @@ class FuncLiteralExpr extends ValueExpr {
 	 * @type {Type[]}
 	 */
 	get retTypes() {
-		return this.#retTypeExprs.map(e => e.type);
+		return this.#retTypeExprs.map(e => {
+			if (e == null) {
+				return new AnyType();
+			} else {
+				return e.type
+			}
+		});
 	}
 
 	/**
@@ -19213,9 +19241,14 @@ class FuncLiteralExpr extends ValueExpr {
 	 */
 	toString() {
 		if (this.#retTypeExprs.length === 1) {
-			return `(${this.#args.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExprs[0].toString()} {${this.#bodyExpr.toString()}}`;
+			let retTypeExpr = this.#retTypeExprs[0];
+			if (retTypeExpr == null) {
+				return `(${this.#args.map(a => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`;
+			} else {
+				return `(${this.#args.map(a => a.toString()).join(", ")}) -> ${retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
+			}
 		} else {
-			return `(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => e.toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
+			return `(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => assertDefined(e).toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
 		}
 	}
 
@@ -19230,7 +19263,13 @@ class FuncLiteralExpr extends ValueExpr {
 		}
 
 		let argTypes = args.map(a => a.evalType(scope));
-		let retTypes = this.#retTypeExprs.map(e => e.eval(scope));
+		let retTypes = this.#retTypeExprs.map(e => {
+			if (e == null) {
+				return new AnyType();
+			} else {
+				return e.eval(scope)
+			}
+		});
 
 		return new FuncType(argTypes, retTypes);
 	}
@@ -19257,7 +19296,13 @@ class FuncLiteralExpr extends ValueExpr {
 		let bodyVal = this.#bodyExpr.eval(subScope);
 
 		if (this.#retTypeExprs.length === 1) {
-			if (bodyVal instanceof MultiInstance) {
+			if (this.#retTypeExprs[0] == null) {
+				if (bodyVal instanceof MultiInstance) {
+					return new FuncInstance(new FuncType(fnType.argTypes, bodyVal.values.map(v => v.getType(this.site))));
+				} else {
+					return new FuncInstance(new FuncType(fnType.argTypes, bodyVal.getType(this.site)));
+				}
+			} else if (bodyVal instanceof MultiInstance) {
 				throw this.#retTypeExprs[0].typeError("unexpected multi-value body");
 			} else if (!bodyVal.isInstanceOf(this.#retTypeExprs[0].site, fnType.retTypes[0])) {
 				throw this.#retTypeExprs[0].typeError(`wrong return type, expected ${fnType.retTypes[0].toString()} but got ${this.#bodyExpr.type.toString()}`);
@@ -19273,8 +19318,9 @@ class FuncLiteralExpr extends ValueExpr {
 					for (let i = 0; i < bodyVals.length; i++) {
 						let v = bodyVals[i];
 
-						if (!v.isInstanceOf(this.#retTypeExprs[i].site, fnType.retTypes[i])) {
-							throw this.#retTypeExprs[i].typeError(`wrong return type for value ${i}, expected ${fnType.retTypes[i].toString()} but got ${v.getType(this.#bodyExpr.site).toString()}`);
+						let retTypeExpr = assertDefined(this.#retTypeExprs[i]);
+						if (!v.isInstanceOf(retTypeExpr.site, fnType.retTypes[i])) {
+							throw retTypeExpr.typeError(`wrong return type for value ${i}, expected ${fnType.retTypes[i].toString()} but got ${v.getType(this.#bodyExpr.site).toString()}`);
 						}
 					}
 				}
@@ -19297,7 +19343,11 @@ class FuncLiteralExpr extends ValueExpr {
 			arg.use();
 		}
 
-		this.#retTypeExprs.forEach(e => e.use());
+		this.#retTypeExprs.forEach(e => {
+			if (e !== null) {
+				e.use();
+			}
+		});
 		this.#bodyExpr.use();
 	}
 
@@ -22568,7 +22618,7 @@ function buildDataFields(ts) {
 function buildFuncStatement(site, ts, methodOf = null) {
 	const name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
-	const fnExpr = buildFuncLiteralExpr(ts, methodOf);
+	const fnExpr = buildFuncLiteralExpr(ts, methodOf, false);
 
 	if (ts.length > 0) {
 		site.setEndSite(ts[0].site);
@@ -22581,9 +22631,10 @@ function buildFuncStatement(site, ts, methodOf = null) {
  * @package
  * @param {Token[]} ts 
  * @param {?TypeExpr} methodOf - methodOf !== null then first arg can be named 'self'
+ * @param {boolean} allowInferredRetType
  * @returns {FuncLiteralExpr}
  */
-function buildFuncLiteralExpr(ts, methodOf = null) {
+function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false) {
 	const parens = assertDefined(ts.shift()).assertGroup("(");
 	const site = parens.site;
 	const args = buildFuncArgs(parens, methodOf);
@@ -22594,11 +22645,11 @@ function buildFuncLiteralExpr(ts, methodOf = null) {
 
 	if (bodyPos == -1) {
 		throw site.syntaxError("no function body");
-	} else if (bodyPos == 0) {
+	} else if (bodyPos == 0 && !allowInferredRetType) {
 		throw site.syntaxError("no return type specified");
 	}
 
-	const retTypeExprs = buildFuncRetTypeExprs(arrow.site, ts.splice(0, bodyPos));
+	const retTypeExprs = buildFuncRetTypeExprs(arrow.site, ts.splice(0, bodyPos), allowInferredRetType);
 	const bodyExpr = buildValueExpr(assertDefined(ts.shift()).assertGroup("{", 1).fields[0]);
 
 	return new FuncLiteralExpr(site, args, retTypeExprs, bodyExpr);
@@ -23012,20 +23063,25 @@ function buildFuncTypeExpr(ts) {
 
 	const arrow = assertDefined(ts.shift()).assertSymbol("->");
 
-	const retTypes = buildFuncRetTypeExprs(arrow.site, ts);
+	const retTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
 
-	return new FuncTypeExpr(parens.site, argTypes, retTypes);
+	return new FuncTypeExpr(parens.site, argTypes, retTypes.map(t => assertDefined(t)));
 }
 
 /**
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {TypeExpr[]}
+ * @param {boolean} allowInferredRetType
+ * @returns {(?TypeExpr)[]}
  */
-function buildFuncRetTypeExprs(site, ts) {
+function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 	if (ts.length === 0) {
-		throw site.syntaxError("expected type expression after '->'");
+		if (allowInferredRetType) {
+			return [null];
+		} else {
+			throw site.syntaxError("expected type expression after '->'");
+		}
 	} else {
 		if (ts[0].isGroup("(")) {
 			const group = assertDefined(ts.shift()).assertGroup("(");
@@ -23401,7 +23457,7 @@ function buildChainedValueExpr(ts, prec) {
  */
 function buildChainStartValueExpr(ts) {
 	if (ts.length > 1 && ts[0].isGroup("(") && ts[1].isSymbol("->")) {
-		return buildFuncLiteralExpr(ts);
+		return buildFuncLiteralExpr(ts, null, true);
 	} else if (ts[0].isWord("if")) {
 		return buildIfElseExpr(ts);
 	} else if (ts[0].isWord("switch")) {
@@ -35357,6 +35413,7 @@ export class FuzzyTest {
  * intended to be used by regular users of this library.
  */
 export const exportedForTesting = {
+	assert: assert,
 	setRawUsageNotifier: setRawUsageNotifier,
 	debug: debug,
 	setBlake2bDigestSize: setBlake2bDigestSize,

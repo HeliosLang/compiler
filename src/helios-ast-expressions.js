@@ -1462,7 +1462,7 @@ export class FuncLiteralExpr extends ValueExpr {
 	/**
 	 * @param {Site} site 
 	 * @param {FuncArg[]} args 
-	 * @param {TypeExpr[]} retTypeExprs 
+	 * @param {(?TypeExpr)[]} retTypeExprs 
 	 * @param {ValueExpr} bodyExpr 
 	 */
 	constructor(site, args, retTypeExprs, bodyExpr) {
@@ -1490,7 +1490,13 @@ export class FuncLiteralExpr extends ValueExpr {
 	 * @type {Type[]}
 	 */
 	get retTypes() {
-		return this.#retTypeExprs.map(e => e.type);
+		return this.#retTypeExprs.map(e => {
+			if (e == null) {
+				return new AnyType();
+			} else {
+				return e.type
+			}
+		});
 	}
 
 	/**
@@ -1505,9 +1511,14 @@ export class FuncLiteralExpr extends ValueExpr {
 	 */
 	toString() {
 		if (this.#retTypeExprs.length === 1) {
-			return `(${this.#args.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExprs[0].toString()} {${this.#bodyExpr.toString()}}`;
+			let retTypeExpr = this.#retTypeExprs[0];
+			if (retTypeExpr == null) {
+				return `(${this.#args.map(a => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`;
+			} else {
+				return `(${this.#args.map(a => a.toString()).join(", ")}) -> ${retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
+			}
 		} else {
-			return `(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => e.toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
+			return `(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => assertDefined(e).toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
 		}
 	}
 
@@ -1522,7 +1533,13 @@ export class FuncLiteralExpr extends ValueExpr {
 		}
 
 		let argTypes = args.map(a => a.evalType(scope));
-		let retTypes = this.#retTypeExprs.map(e => e.eval(scope));
+		let retTypes = this.#retTypeExprs.map(e => {
+			if (e == null) {
+				return new AnyType();
+			} else {
+				return e.eval(scope)
+			}
+		});
 
 		return new FuncType(argTypes, retTypes);
 	}
@@ -1549,7 +1566,13 @@ export class FuncLiteralExpr extends ValueExpr {
 		let bodyVal = this.#bodyExpr.eval(subScope);
 
 		if (this.#retTypeExprs.length === 1) {
-			if (bodyVal instanceof MultiInstance) {
+			if (this.#retTypeExprs[0] == null) {
+				if (bodyVal instanceof MultiInstance) {
+					return new FuncInstance(new FuncType(fnType.argTypes, bodyVal.values.map(v => v.getType(this.site))));
+				} else {
+					return new FuncInstance(new FuncType(fnType.argTypes, bodyVal.getType(this.site)));
+				}
+			} else if (bodyVal instanceof MultiInstance) {
 				throw this.#retTypeExprs[0].typeError("unexpected multi-value body");
 			} else if (!bodyVal.isInstanceOf(this.#retTypeExprs[0].site, fnType.retTypes[0])) {
 				throw this.#retTypeExprs[0].typeError(`wrong return type, expected ${fnType.retTypes[0].toString()} but got ${this.#bodyExpr.type.toString()}`);
@@ -1565,8 +1588,9 @@ export class FuncLiteralExpr extends ValueExpr {
 					for (let i = 0; i < bodyVals.length; i++) {
 						let v = bodyVals[i];
 
-						if (!v.isInstanceOf(this.#retTypeExprs[i].site, fnType.retTypes[i])) {
-							throw this.#retTypeExprs[i].typeError(`wrong return type for value ${i}, expected ${fnType.retTypes[i].toString()} but got ${v.getType(this.#bodyExpr.site).toString()}`);
+						let retTypeExpr = assertDefined(this.#retTypeExprs[i]);
+						if (!v.isInstanceOf(retTypeExpr.site, fnType.retTypes[i])) {
+							throw retTypeExpr.typeError(`wrong return type for value ${i}, expected ${fnType.retTypes[i].toString()} but got ${v.getType(this.#bodyExpr.site).toString()}`);
 						}
 					}
 				}
@@ -1589,7 +1613,11 @@ export class FuncLiteralExpr extends ValueExpr {
 			arg.use();
 		}
 
-		this.#retTypeExprs.forEach(e => e.use());
+		this.#retTypeExprs.forEach(e => {
+			if (e !== null) {
+				e.use();
+			}
+		});
 		this.#bodyExpr.use();
 	}
 

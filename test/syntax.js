@@ -428,6 +428,20 @@ async function test14() {
   console.log(myEnum.toSchemaJson(), myEnum instanceof MyEnum);
 }
 
+async function test15() {
+  const src = `
+  spending inferred_ret_type
+
+  func main(ctx: ScriptContext) -> Bool {
+    ctx.tx.outputs.fold((prev: Int, output: TxOutput) -> {
+      prev + output.value.get(AssetClass::new(MintingPolicyHash::new(#), #))
+    }, 0) > 0
+  }
+  `;
+
+  helios.Program.new(src);
+}
+
 export default async function main() {
   await test1();
 
@@ -456,6 +470,8 @@ export default async function main() {
   await test13();
 
   await test14();
+
+  await test15();
 }
 
 runIfEntryPoint(main, "syntax.js");

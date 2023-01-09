@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.10.9";
+export const VERSION: "0.10.10";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -959,6 +959,10 @@ export class PubKeyHash extends Hash {
     static fromUplcCbor(bytes: string | number[]): PubKeyHash;
 }
 export class ScriptHash extends Hash {
+    /**
+     * @param {string | number[]} rawBytes
+     */
+    constructor(rawBytes: string | number[]);
 }
 export class MintingPolicyHash extends ScriptHash {
     /**
@@ -2996,6 +3000,7 @@ export class FuzzyTest {
     #private;
 }
 export namespace exportedForTesting {
+    export { assert };
     export { setRawUsageNotifier };
     export { debug };
     export { setBlake2bDigestSize };
@@ -4204,6 +4209,13 @@ declare class InlineDatum extends Datum {
     #private;
 }
 /**
+ * Throws an error if 'cond' is false.
+ * @package
+ * @param {boolean} cond
+ * @param {string} msg
+ */
+declare function assert(cond: boolean, msg?: string): void;
+/**
  * Set the statistics collector (used by the test-suite)
  * @param {(name: string, count: number) => void} callback
  */
@@ -4967,10 +4979,10 @@ declare class FuncLiteralExpr extends ValueExpr {
     /**
      * @param {Site} site
      * @param {FuncArg[]} args
-     * @param {TypeExpr[]} retTypeExprs
+     * @param {(?TypeExpr)[]} retTypeExprs
      * @param {ValueExpr} bodyExpr
      */
-    constructor(site: Site, args: FuncArg[], retTypeExprs: TypeExpr[], bodyExpr: ValueExpr);
+    constructor(site: Site, args: FuncArg[], retTypeExprs: (TypeExpr | null)[], bodyExpr: ValueExpr);
     /**
      * @type {Type[]}
      */

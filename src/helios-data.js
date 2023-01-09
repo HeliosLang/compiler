@@ -936,9 +936,11 @@ export class PubKeyHash extends Hash {
 
 export class ScriptHash extends Hash {
 	/**
-	 * @param {number[]} bytes 
+	 * @param {string | number[]} rawBytes
 	 */
-	constructor(bytes) {
+	constructor(rawBytes) {
+		const bytes = (typeof rawBytes == "string") ? hexToBytes(rawBytes) : rawBytes;
+
 		assert(bytes.length == 28);
 		super(bytes);
 	}
@@ -1614,7 +1616,7 @@ export class Address extends HeliosData {
 /**
  * Collection of non-lovelace assets
  */
- export class Assets extends CborData {
+export class Assets extends CborData {
 	/** @type {[MintingPolicyHash, [number[], bigint][]][]} */
 	#assets;
 
@@ -1842,7 +1844,27 @@ export class Address extends HeliosData {
 	 * @returns {boolean}
 	 */
 	ge(other) {
-		return this.gt(other) || this.eq(other);
+		if (this.isZero()) {
+			return other.isZero();
+		}
+
+		for (let asset of this.#assets) {
+			for (let token of asset[1]) {
+				if (token[1] < other.get(asset[0], token[0])) {
+					return false;
+				}
+			}
+		}
+
+		for (let asset of other.#assets) {
+			for (let token of asset[1]) {
+				if (!this.has(asset[0], token[0])) {
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 
 	/**

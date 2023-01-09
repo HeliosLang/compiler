@@ -126,6 +126,7 @@ function buildFooter() {
  * intended to be used by regular users of this library.
  */
 export const exportedForTesting = {
+	assert: assert,
 	setRawUsageNotifier: setRawUsageNotifier,
 	debug: debug,
 	setBlake2bDigestSize: setBlake2bDigestSize,

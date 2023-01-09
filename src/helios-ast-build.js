@@ -373,7 +373,7 @@ function buildDataFields(ts) {
 function buildFuncStatement(site, ts, methodOf = null) {
 	const name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
 
-	const fnExpr = buildFuncLiteralExpr(ts, methodOf);
+	const fnExpr = buildFuncLiteralExpr(ts, methodOf, false);
 
 	if (ts.length > 0) {
 		site.setEndSite(ts[0].site);
@@ -386,9 +386,10 @@ function buildFuncStatement(site, ts, methodOf = null) {
  * @package
  * @param {Token[]} ts 
  * @param {?TypeExpr} methodOf - methodOf !== null then first arg can be named 'self'
+ * @param {boolean} allowInferredRetType
  * @returns {FuncLiteralExpr}
  */
-function buildFuncLiteralExpr(ts, methodOf = null) {
+function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false) {
 	const parens = assertDefined(ts.shift()).assertGroup("(");
 	const site = parens.site;
 	const args = buildFuncArgs(parens, methodOf);
@@ -399,11 +400,11 @@ function buildFuncLiteralExpr(ts, methodOf = null) {
 
 	if (bodyPos == -1) {
 		throw site.syntaxError("no function body");
-	} else if (bodyPos == 0) {
+	} else if (bodyPos == 0 && !allowInferredRetType) {
 		throw site.syntaxError("no return type specified");
 	}
 
-	const retTypeExprs = buildFuncRetTypeExprs(arrow.site, ts.splice(0, bodyPos));
+	const retTypeExprs = buildFuncRetTypeExprs(arrow.site, ts.splice(0, bodyPos), allowInferredRetType);
 	const bodyExpr = buildValueExpr(assertDefined(ts.shift()).assertGroup("{", 1).fields[0]);
 
 	return new FuncLiteralExpr(site, args, retTypeExprs, bodyExpr);
@@ -817,20 +818,25 @@ function buildFuncTypeExpr(ts) {
 
 	const arrow = assertDefined(ts.shift()).assertSymbol("->");
 
-	const retTypes = buildFuncRetTypeExprs(arrow.site, ts);
+	const retTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
 
-	return new FuncTypeExpr(parens.site, argTypes, retTypes);
+	return new FuncTypeExpr(parens.site, argTypes, retTypes.map(t => assertDefined(t)));
 }
 
 /**
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {TypeExpr[]}
+ * @param {boolean} allowInferredRetType
+ * @returns {(?TypeExpr)[]}
  */
-function buildFuncRetTypeExprs(site, ts) {
+function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 	if (ts.length === 0) {
-		throw site.syntaxError("expected type expression after '->'");
+		if (allowInferredRetType) {
+			return [null];
+		} else {
+			throw site.syntaxError("expected type expression after '->'");
+		}
 	} else {
 		if (ts[0].isGroup("(")) {
 			const group = assertDefined(ts.shift()).assertGroup("(");
@@ -1206,7 +1212,7 @@ function buildChainedValueExpr(ts, prec) {
  */
 function buildChainStartValueExpr(ts) {
 	if (ts.length > 1 && ts[0].isGroup("(") && ts[1].isSymbol("->")) {
-		return buildFuncLiteralExpr(ts);
+		return buildFuncLiteralExpr(ts, null, true);
 	} else if (ts[0].isWord("if")) {
 		return buildIfElseExpr(ts);
 	} else if (ts[0].isWord("switch")) {

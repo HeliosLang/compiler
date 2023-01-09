@@ -10,6 +10,8 @@ const networkParams = new helios.NetworkParams(JSON.parse(fs.readFileSync("./net
 
 const helios_ = helios.exportedForTesting;
 
+const assert = helios_.assert;
+
 async function testBasic() {
     // send 10 tAda on preview net from wallet1 to wallet 2
     // wallet1 address: addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w
@@ -401,7 +403,40 @@ async function tokencheck() {
 	console.log(JSON.stringify(tx2.dump(), undefined, 4));
 }
 
+async function assetsCompare() {
+	const mphA = new helios.MintingPolicyHash("00000000000000000000000000000000000000000000000000000000");
+	const tnA = helios.hexToBytes("");
+
+	const mphB = new helios.MintingPolicyHash("00000000000000000000000000000000000000000000000000000001");
+	const tnB = helios.hexToBytes("");
+
+	const mphC = new helios.MintingPolicyHash("00000000000000000000000000000000000000000000000000000002");
+	const tnC = helios.hexToBytes("");
+
+	const mphD = new helios.MintingPolicyHash("00000000000000000000000000000000000000000000000000000003");
+	const tnD = helios.hexToBytes("");
+
+	const mphE = new helios.MintingPolicyHash("00000000000000000000000000000000000000000000000000000004");
+	const tnE = helios.hexToBytes("");
+
+	const assets1 = new helios.Assets([
+		[mphA, [[tnA, 1n]]],
+		[mphB, [[tnB, 1n]]],
+		[mphC, [[tnC, 1n]]],
+		[mphD, [[tnD, 1n]]],
+		[mphE, [[tnE, 1n]]]
+	]);
+
+	const assets2 = new helios.Assets([
+		[mphA, [[tnA, 1n]]]
+	]);
+
+	assert(assets1.ge(assets2), "not ge");
+}
+
 export default async function main() {
+	await assetsCompare();
+
     await testBasic();
 
     await testMinting();
