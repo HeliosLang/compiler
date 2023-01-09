@@ -31,6 +31,7 @@ import {
 } from "./uplc-data.js";
 
 import {
+	HeliosData,
     MintingPolicyHash,
     StakingValidatorHash,
     ValidatorHash
@@ -255,18 +256,22 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 * Wrap the top-level term with consecutive UplcCall terms
 	 * No checks are performed whether this makes sense or not, so beware
 	 * Throws an error if you are trying to apply an  with anon func.
-	 * @param {UplcValue[]} args
+	 * @param {(UplcValue | HeliosData)[]} args
 	 * @returns {UplcProgram} - a new UplcProgram instance
 	 */
 	apply(args) {
 		let expr = this.expr;
 
 		for (let arg of args) {
-			if (arg instanceof UplcAnon) {
-				throw new Error("UplcAnon cannot be applied to UplcProgram");
+			if (arg instanceof UplcValue) {
+				if (arg instanceof UplcAnon) {
+					throw new Error("UplcAnon cannot be applied to UplcProgram");
+				}
+				
+				expr = new UplcCall(arg.site, expr, new UplcConst(arg));
+			} else if (arg instanceof HeliosData) {
+				expr = new UplcCall(Site.dummy(), expr, new UplcConst(new UplcDataValue(Site.dummy(), arg._toUplcData())));
 			}
-			
-			expr = new UplcCall(arg.site, expr, new UplcConst(arg));
 		}
 
 		return new UplcProgram(expr, this.#purpose, this.#version);
@@ -279,8 +284,6 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 * @returns {Promise<UplcValue | UserError>}
 	 */
 	async run(args, callbacks = DEFAULT_UPLC_RTE_CALLBACKS, networkParams = null) {
-		let globalCallSite = new Site(this.site.src, this.site.src.length);
-
 		try {
 			return await this.runInternal(args, callbacks, networkParams);
 		} catch (e) {
@@ -300,15 +303,15 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 		/**
 		 * @type {string[]}
 		 */
-		let messages = [];
+		const messages = [];
 
-		let callbacks = Object.assign({}, DEFAULT_UPLC_RTE_CALLBACKS);
+		const callbacks = Object.assign({}, DEFAULT_UPLC_RTE_CALLBACKS);
 
 		callbacks.onPrint = async function(msg) {
 			messages.push(msg);
 		};
 
-		let res = await this.run(args, callbacks);
+		const res = await this.run(args, callbacks);
 
 		return [res, messages];
 	}

@@ -1100,6 +1100,15 @@ export class StringLiteral extends PrimitiveLiteral {
 	}
 
 	/**
+	 * @returns {string}
+	 */
+	pretty() {
+		const [src, _] = this.generateSource();
+
+		return (new Source(src)).pretty();
+	}
+
+	/**
 	 * Wraps 'inner' IR source with some definitions (used for top-level statements and for builtins)
      * @package
 	 * @param {IR} inner 

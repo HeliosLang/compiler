@@ -444,6 +444,21 @@ async function test15() {
   helios.Program.new(src);
 }
 
+async function test16() {
+  const src = `
+  spending parametric
+  
+  const OWNER = PubKeyHash::new(#)
+
+  func main(ctx: ScriptContext) -> Bool {
+    ctx.tx.is_signed_by(OWNER)
+  }`;
+
+  const program = helios.Program.new(src);
+
+  program.compileParametric(["OWNER"], true);
+}
+
 export default async function main() {
   await test1();
 
@@ -474,6 +489,8 @@ export default async function main() {
   await test14();
 
   await test15();
+
+  await test16();
 }
 
 runIfEntryPoint(main, "syntax.js");

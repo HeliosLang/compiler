@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.10.14
+// Version:       0.10.15
 // Last update:   January 2023
 // License:       Unlicense
 //
@@ -168,14 +168,14 @@
 //    Section 19: IR definitions             onNotifyRawUsage, setRawUsageNotifier, RawFunc, 
 //                                           makeRawFunctions, wrapWithRawFunctions
 //
-//    Section 20: IR AST objects             IRExprStack, IRValue, IRFuncValue, IRLiteralValue, 
-//                                           IRCallStack, IRVariable, IRExpr, IRNameExpr, 
-//                                           IRLiteral, IRFuncExpr, IRCallExpr, IRUserCallExpr, 
-//                                           IRCoreCallExpr, IRErrorCallExpr
+//    Section 20: IR AST objects             IRScope, IRExprStack, IRValue, IRFuncValue, 
+//                                           IRLiteralValue, IRCallStack, IRVariable, IRExpr, 
+//                                           IRNameExpr, IRLiteral, IRFuncExpr, IRCallExpr, 
+//                                           IRUserCallExpr, IRCoreCallExpr, IRErrorCallExpr
 //
 //    Section 21: IR AST build functions     buildIRExpr, buildIRFuncExpr
 //
-//    Section 22: IR Program                 IRProgram
+//    Section 22: IR Program                 IRProgram, IRParametricProgram
 //
 //    Section 23: Helios program             Module, MainModule, RedeemerProgram, 
 //                                           DatumRedeemerProgram, TestingProgram, 
@@ -203,7 +203,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.10.14";
+export const VERSION = "0.10.15";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -2060,6 +2060,15 @@ class StringLiteral extends PrimitiveLiteral {
 		}
 
 		return [partSrcs.join(""), codeMap];
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	pretty() {
+		const [src, _] = this.generateSource();
+
+		return (new Source(src)).pretty();
 	}
 
 	/**
@@ -11243,18 +11252,22 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 * Wrap the top-level term with consecutive UplcCall terms
 	 * No checks are performed whether this makes sense or not, so beware
 	 * Throws an error if you are trying to apply an  with anon func.
-	 * @param {UplcValue[]} args
+	 * @param {(UplcValue | HeliosData)[]} args
 	 * @returns {UplcProgram} - a new UplcProgram instance
 	 */
 	apply(args) {
 		let expr = this.expr;
 
 		for (let arg of args) {
-			if (arg instanceof UplcAnon) {
-				throw new Error("UplcAnon cannot be applied to UplcProgram");
+			if (arg instanceof UplcValue) {
+				if (arg instanceof UplcAnon) {
+					throw new Error("UplcAnon cannot be applied to UplcProgram");
+				}
+				
+				expr = new UplcCall(arg.site, expr, new UplcConst(arg));
+			} else if (arg instanceof HeliosData) {
+				expr = new UplcCall(Site.dummy(), expr, new UplcConst(new UplcDataValue(Site.dummy(), arg._toUplcData())));
 			}
-			
-			expr = new UplcCall(arg.site, expr, new UplcConst(arg));
 		}
 
 		return new UplcProgram(expr, this.#purpose, this.#version);
@@ -11267,8 +11280,6 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 * @returns {Promise<UplcValue | UserError>}
 	 */
 	async run(args, callbacks = DEFAULT_UPLC_RTE_CALLBACKS, networkParams = null) {
-		let globalCallSite = new Site(this.site.src, this.site.src.length);
-
 		try {
 			return await this.runInternal(args, callbacks, networkParams);
 		} catch (e) {
@@ -11288,15 +11299,15 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 		/**
 		 * @type {string[]}
 		 */
-		let messages = [];
+		const messages = [];
 
-		let callbacks = Object.assign({}, DEFAULT_UPLC_RTE_CALLBACKS);
+		const callbacks = Object.assign({}, DEFAULT_UPLC_RTE_CALLBACKS);
 
 		callbacks.onPrint = async function(msg) {
 			messages.push(msg);
 		};
 
-		let res = await this.run(args, callbacks);
+		const res = await this.run(args, callbacks);
 
 		return [res, messages];
 	}
@@ -27870,7 +27881,7 @@ function wrapWithRawFunctions(ir) {
  * Works like a stack of named values from which a Debruijn index can be derived
  * @package
  */
- class IRScope {
+class IRScope {
 	#parent;
 	/** variable name (can be empty if no usable variable defined at this level) */
 	#variable;
@@ -28350,11 +28361,21 @@ class IRNameExpr extends IRExpr {
 	}
 
 	/**
+	 * @package
+	 * @returns {boolean}
+	 */
+	isCore() {
+		const name = this.name;
+
+		return name.startsWith("__core");
+	}
+
+	/**
 	 * @param {IRVariable} ref 
 	 * @returns {boolean}
 	 */
 	isVariable(ref) {
-		if (this.#name.value.startsWith("__core")) {
+		if (this.isCore()) {
 			return false;
 		} else {
 			return this.variable === ref;
@@ -28374,11 +28395,11 @@ class IRNameExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRScope} scope 
+	 * @param {IRScope} scope
 	 */
 	resolveNames(scope) {
 		if (!this.name.startsWith("__core")) {
-			if (this.#variable == null) {
+			if (this.#variable == null || this.name.startsWith("__PARAM")) {
 				[this.#index, this.#variable] = scope.get(this.#name);
 			} else {
 				[this.#index, this.#variable] = scope.get(this.#variable);
@@ -28399,7 +28420,7 @@ class IRNameExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	inline(stack) {
-		if (this.name.startsWith("__core")) {
+		if (this.isCore()) {
 			return this;
 		} else if (this.#variable === null) {
 			throw new Error("variable should be set");
@@ -28417,7 +28438,7 @@ class IRNameExpr extends IRExpr {
 	 * @returns {?IRValue}
 	 */
 	eval(stack) {
-		if (this.name.startsWith("__core")) {
+		if (this.isCore()) {
 			return new IRFuncValue((args) => {
 				return IRCoreCallExpr.evalValues(this.site, stack.throwRTErrors, this.#name.value.slice("__core__".length), args);
 			});
@@ -28463,7 +28484,7 @@ class IRNameExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
-		if (this.name.startsWith("__core")) {
+		if (this.isCore()) {
 			return this;
 		} else if (this.#variable === null) {
 			throw new Error("variable should be set");
@@ -28776,7 +28797,7 @@ class IRFuncExpr extends IRExpr {
 	simplify(stack) {
 		// a IRFuncExpr that wraps a Call with the same arguments, in the same order, can simply return that function
 		if (this.#body instanceof IRCallExpr && this.#body.argExprs.length == this.#args.length && this.#body.argExprs.every((a, i) => {
-			return (a instanceof IRNameExpr) && (!a.name.startsWith("__core")) && (this.#args[i] === a.variable);
+			return (a instanceof IRNameExpr) && (!a.isCore()) && (this.#args[i] === a.variable);
 		})) {
 			if (this.#body instanceof IRCoreCallExpr) {
 				return new IRNameExpr(new Word(this.site, `__core__${this.#body.builtinName}`));
@@ -30377,6 +30398,7 @@ function buildIRFuncExpr(ts) {
 // Section 22: IR Program
 /////////////////////////
 
+
 /**
  * Wrapper for IRFuncExpr, IRCallExpr or IRLiteral
  * @package
@@ -30395,13 +30417,15 @@ class IRProgram {
 	}
 
 	/**
+	 * @package
 	 * @param {IR} ir 
 	 * @param {?number} purpose
 	 * @param {boolean} simplify
 	 * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
+	 * @param {IRScope} scope
 	 * @returns {IRProgram}
 	 */
-	static new(ir, purpose, simplify = false, throwSimplifyRTErrors = false) {
+	static new(ir, purpose, simplify = false, throwSimplifyRTErrors = false, scope = new IRScope(null, null)) {
 		let [irSrc, codeMap] = ir.generateSource();
 
 		let irTokens = tokenizeIR(irSrc, codeMap);
@@ -30413,13 +30437,13 @@ class IRProgram {
 		 */
 		if (expr instanceof IRFuncExpr || expr instanceof IRCallExpr || expr instanceof IRLiteral) {
 			if (expr instanceof IRFuncExpr || expr instanceof IRUserCallExpr || expr instanceof IRCoreCallExpr) {
-				expr.resolveNames(new IRScope(null, null));
+				expr.resolveNames(scope);
 			}
 
 			let program = new IRProgram(expr, purpose);
 
 			if (simplify) {
-				program.simplify(throwSimplifyRTErrors);
+				program.simplify(throwSimplifyRTErrors, scope);
 			}
 
 			return program;
@@ -30428,6 +30452,26 @@ class IRProgram {
 		}
 	}
 
+	/**
+	 * @package
+	 * @type {IRFuncExpr | IRCallExpr | IRLiteral}
+	 */
+	get expr() {
+		return this.#expr;
+	}
+
+	/**
+	 * @package
+	 * @type {?number}
+	 */
+	get purpose() {
+		return this.#purpose;
+	}
+
+	/**
+	 * @package
+	 * @type {Site}
+	 */
 	get site() {
 		return this.#expr.site;
 	}
@@ -30452,8 +30496,9 @@ class IRProgram {
 
 	/**
 	 * @param {boolean} throwSimplifyRTErrors
+	 * @param {IRScope} scope
 	 */
-	simplify(throwSimplifyRTErrors = false) {
+	simplify(throwSimplifyRTErrors = false, scope = new IRScope(null, null)) {
 		let dirty = true;
 	
 		while(dirty && (this.#expr instanceof IRFuncExpr || this.#expr instanceof IRUserCallExpr || this.#expr instanceof IRCoreCallExpr)) {
@@ -30468,7 +30513,7 @@ class IRProgram {
 	
 		if (this.#expr instanceof IRFuncExpr || this.#expr instanceof IRUserCallExpr || this.#expr instanceof IRCoreCallExpr) {
 			// recalculate the Debruijn indices
-			this.#expr.resolveNames(new IRScope(null, null));
+			this.#expr.resolveNames(scope);
 		}
 	}
 
@@ -30484,6 +30529,55 @@ class IRProgram {
 	 */
 	calcSize() {
 		return this.toUplc().calcSize();
+	}
+}
+
+export class IRParametricProgram {
+	#irProgram;
+	#parameters;
+
+	/**
+	 * @param {IRProgram} irProgram
+	 * @param {string[]} parameters
+	 */
+	constructor(irProgram, parameters) {
+		this.#irProgram = irProgram;
+		this.#parameters = parameters;
+	}
+
+	/**
+	 * @package
+	 * @param {IR} ir 
+	 * @param {?number} purpose
+	 * @param {string[]} parameters
+	 * @param {boolean} simplify
+	 * @returns {IRParametricProgram}
+	 */
+	static new(ir, purpose, parameters, simplify = false) {
+		let scope = new IRScope(null, null);
+
+		parameters.forEach((p, i) => {
+			const internalName = `__PARAM_${i}`;
+
+			scope = new IRScope(scope, new IRVariable(new Word(Site.dummy(), internalName)));
+		});
+
+		const irProgram = IRProgram.new(ir, purpose, simplify, false, scope);
+
+		return new IRParametricProgram(irProgram, parameters);
+	}
+
+	/**
+	 * @returns {UplcProgram}
+	 */
+	toUplc() {
+		let exprUplc = this.#irProgram.expr.toUplc();
+
+		this.#parameters.forEach(p => {
+			exprUplc = new UplcLambda(Site.dummy(), exprUplc, p);
+		});
+
+		return new UplcProgram(exprUplc, this.#irProgram.purpose);
 	}
 }
 
@@ -30915,6 +31009,13 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @type {Statement[]}
+	 */
+	get mainStatements() {
+		return this.mainModule.statements;
+	}
+
+	/**
 	 * Needed to list the paramTypes, and to call changeParam
 	 * @type {Statement[]}
 	 */
@@ -31189,16 +31290,58 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @package
 	 * @param {IR} ir
+	 * @param {string[]} parameters
 	 * @returns {IR}
 	 */
-	wrapEntryPoint(ir) {
+	wrapEntryPoint(ir, parameters) {
+		// find the constStatements associated with the parameters
+		/**
+		 * @type {(ConstStatement | null)[]}
+		 */
+		const parameterStatements = new Array(parameters.length).fill(null);
+
+		if (parameters.length > 0) {
+			for (let statement of this.mainStatements) {
+				if (statement instanceof ConstStatement) {
+					const i = parameters.findIndex(p => statement.name.value == p);
+
+					if (i != -1) {
+						parameterStatements[i] = statement;
+					}
+				} else if (statement instanceof ImportStatement && statement.origStatement instanceof ConstStatement) {
+					const i = parameters.findIndex(p => statement.name.value == p);
+
+					if (i != -1) {
+						parameterStatements[i] = statement.origStatement;
+					}
+				}
+			}
+
+			parameters.forEach((p, i) => {
+				if (parameterStatements[i] == null) {
+					throw new Error(`parameter ${p} not found (hint: must come before main)`);
+				}
+			});
+		}		
+
 		/**
 		 * @type {Map<string, IR>}
 		 */
-		let map = new Map();
+		const map = new Map();
 
 		for (let [statement, _] of this.allStatements) {
+			if (parameters.length > 0 && statement instanceof ConstStatement) {
+				const i = parameterStatements.findIndex(cs => cs === statement);
+
+				if (i != -1) {
+					map.set(statement.path, new IR(`__PARAM_${i}`));
+
+					continue;
+				}
+			}
+
 			statement.toIR(map);
 
 			if (statement.name.value == "main") {
@@ -31212,9 +31355,11 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @package
+	 * @param {string[]}  parameters
 	 * @returns {IR}
 	 */
-	toIR() {
+	toIR(parameters) {
 		throw new Error("not yet implemented");
 	}
 
@@ -31222,9 +31367,9 @@ class MainModule extends Module {
 	 * @returns {string}
 	 */
 	prettyIR(simplify = false) {
-		let ir = this.toIR();
+		const ir = this.toIR([]);
 
-		let irProgram = IRProgram.new(ir, this.#purpose, simplify);
+		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 
 		return new Source(irProgram.toString()).pretty();
 	}
@@ -31234,11 +31379,28 @@ class MainModule extends Module {
 	 * @returns {UplcProgram}
 	 */
 	compile(simplify = false) {
-		let ir = this.toIR();
+		const ir = this.toIR([]);
 
-		let irProgram = IRProgram.new(ir, this.#purpose, simplify);
+		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 		
 		//console.log(new Source(irProgram.toString()).pretty());
+		return irProgram.toUplc();
+	}
+
+	/**
+	 * Compile a special Uplc
+	 * @param {string[]} parameters
+	 * @param {boolean} simplify
+	 * @returns {UplcProgram}
+	 */
+	compileParametric(parameters, simplify = false) {
+		assert(parameters.length > 0, "expected at least 1 parameter (hint: use program.compile() instead)");
+
+		const ir = this.toIR(parameters);
+
+		const irProgram = IRParametricProgram.new(ir, this.#purpose, parameters, simplify);
+
+		// TODO: UplcParametricProgram
 		return irProgram.toUplc();
 	}
 }
@@ -31303,9 +31465,10 @@ class RedeemerProgram extends Program {
 
 	/**
 	 * @package
+	 * @param {string[]} parameters
 	 * @returns {IR} 
 	 */
-	toIR() {
+	toIR(parameters = []) {
 		/** @type {IR[]} */
 		const outerArgs = [];
 
@@ -31341,7 +31504,7 @@ class RedeemerProgram extends Program {
 			new IR(`\n${TAB}}`),
 		]);
 
-		return this.wrapEntryPoint(ir);
+		return this.wrapEntryPoint(ir, parameters);
 	}
 }
 
@@ -31416,9 +31579,10 @@ class DatumRedeemerProgram extends Program {
 
 	/**
 	 * @package
+	 * @param {string[]} parameters
 	 * @returns {IR}
 	 */
-	toIR() {
+	toIR(parameters = []) {
 		/** @type {IR[]} */
 		const outerArgs = [];
 
@@ -31460,7 +31624,7 @@ class DatumRedeemerProgram extends Program {
 			new IR(`\n${TAB}}`),
 		]);
 
-		return this.wrapEntryPoint(ir);
+		return this.wrapEntryPoint(ir, parameters);
 	}
 }
 
@@ -31499,9 +31663,10 @@ class TestingProgram extends Program {
 
 	/**
 	 * @package
+	 * @param {string[]} parameters
 	 * @returns {IR}
 	 */
-	toIR() {
+	toIR(parameters = []) {
 		let args = this.mainFunc.argTypes.map((_, i) => new IR(`arg${i}`));
 
 		let ir = new IR([
@@ -31516,7 +31681,7 @@ class TestingProgram extends Program {
 			new IR(`\n${TAB}}`),
 		]);
 
-		return this.wrapEntryPoint(ir);
+		return this.wrapEntryPoint(ir, parameters);
 	}
 }
 

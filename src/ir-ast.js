@@ -47,7 +47,7 @@ import {
  * Works like a stack of named values from which a Debruijn index can be derived
  * @package
  */
-export  class IRScope {
+export class IRScope {
 	#parent;
 	/** variable name (can be empty if no usable variable defined at this level) */
 	#variable;
@@ -527,11 +527,21 @@ export class IRNameExpr extends IRExpr {
 	}
 
 	/**
+	 * @package
+	 * @returns {boolean}
+	 */
+	isCore() {
+		const name = this.name;
+
+		return name.startsWith("__core");
+	}
+
+	/**
 	 * @param {IRVariable} ref 
 	 * @returns {boolean}
 	 */
 	isVariable(ref) {
-		if (this.#name.value.startsWith("__core")) {
+		if (this.isCore()) {
 			return false;
 		} else {
 			return this.variable === ref;
@@ -551,11 +561,11 @@ export class IRNameExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRScope} scope 
+	 * @param {IRScope} scope
 	 */
 	resolveNames(scope) {
 		if (!this.name.startsWith("__core")) {
-			if (this.#variable == null) {
+			if (this.#variable == null || this.name.startsWith("__PARAM")) {
 				[this.#index, this.#variable] = scope.get(this.#name);
 			} else {
 				[this.#index, this.#variable] = scope.get(this.#variable);
@@ -576,7 +586,7 @@ export class IRNameExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	inline(stack) {
-		if (this.name.startsWith("__core")) {
+		if (this.isCore()) {
 			return this;
 		} else if (this.#variable === null) {
 			throw new Error("variable should be set");
@@ -594,7 +604,7 @@ export class IRNameExpr extends IRExpr {
 	 * @returns {?IRValue}
 	 */
 	eval(stack) {
-		if (this.name.startsWith("__core")) {
+		if (this.isCore()) {
 			return new IRFuncValue((args) => {
 				return IRCoreCallExpr.evalValues(this.site, stack.throwRTErrors, this.#name.value.slice("__core__".length), args);
 			});
@@ -640,7 +650,7 @@ export class IRNameExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	simplify(stack) {
-		if (this.name.startsWith("__core")) {
+		if (this.isCore()) {
 			return this;
 		} else if (this.#variable === null) {
 			throw new Error("variable should be set");
@@ -953,7 +963,7 @@ export class IRFuncExpr extends IRExpr {
 	simplify(stack) {
 		// a IRFuncExpr that wraps a Call with the same arguments, in the same order, can simply return that function
 		if (this.#body instanceof IRCallExpr && this.#body.argExprs.length == this.#args.length && this.#body.argExprs.every((a, i) => {
-			return (a instanceof IRNameExpr) && (!a.name.startsWith("__core")) && (this.#args[i] === a.variable);
+			return (a instanceof IRNameExpr) && (!a.isCore()) && (this.#args[i] === a.variable);
 		})) {
 			if (this.#body instanceof IRCoreCallExpr) {
 				return new IRNameExpr(new Word(this.site, `__core__${this.#body.builtinName}`));

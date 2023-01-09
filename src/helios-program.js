@@ -7,7 +7,8 @@ import {
 
 import {
     Source,
-    assertDefined
+    assertDefined,
+	assert
 } from "./utils.js";
 
 import {
@@ -76,7 +77,8 @@ import {
 } from "./ir-defs.js";
 
 import {
-    IRProgram
+    IRProgram,
+	IRParametricProgram
 } from "./ir-program.js";
 
 /**
@@ -502,6 +504,13 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @type {Statement[]}
+	 */
+	get mainStatements() {
+		return this.mainModule.statements;
+	}
+
+	/**
 	 * Needed to list the paramTypes, and to call changeParam
 	 * @type {Statement[]}
 	 */
@@ -776,16 +785,58 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @package
 	 * @param {IR} ir
+	 * @param {string[]} parameters
 	 * @returns {IR}
 	 */
-	wrapEntryPoint(ir) {
+	wrapEntryPoint(ir, parameters) {
+		// find the constStatements associated with the parameters
+		/**
+		 * @type {(ConstStatement | null)[]}
+		 */
+		const parameterStatements = new Array(parameters.length).fill(null);
+
+		if (parameters.length > 0) {
+			for (let statement of this.mainStatements) {
+				if (statement instanceof ConstStatement) {
+					const i = parameters.findIndex(p => statement.name.value == p);
+
+					if (i != -1) {
+						parameterStatements[i] = statement;
+					}
+				} else if (statement instanceof ImportStatement && statement.origStatement instanceof ConstStatement) {
+					const i = parameters.findIndex(p => statement.name.value == p);
+
+					if (i != -1) {
+						parameterStatements[i] = statement.origStatement;
+					}
+				}
+			}
+
+			parameters.forEach((p, i) => {
+				if (parameterStatements[i] == null) {
+					throw new Error(`parameter ${p} not found (hint: must come before main)`);
+				}
+			});
+		}		
+
 		/**
 		 * @type {Map<string, IR>}
 		 */
-		let map = new Map();
+		const map = new Map();
 
 		for (let [statement, _] of this.allStatements) {
+			if (parameters.length > 0 && statement instanceof ConstStatement) {
+				const i = parameterStatements.findIndex(cs => cs === statement);
+
+				if (i != -1) {
+					map.set(statement.path, new IR(`__PARAM_${i}`));
+
+					continue;
+				}
+			}
+
 			statement.toIR(map);
 
 			if (statement.name.value == "main") {
@@ -799,9 +850,11 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @package
+	 * @param {string[]}  parameters
 	 * @returns {IR}
 	 */
-	toIR() {
+	toIR(parameters) {
 		throw new Error("not yet implemented");
 	}
 
@@ -809,9 +862,9 @@ class MainModule extends Module {
 	 * @returns {string}
 	 */
 	prettyIR(simplify = false) {
-		let ir = this.toIR();
+		const ir = this.toIR([]);
 
-		let irProgram = IRProgram.new(ir, this.#purpose, simplify);
+		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 
 		return new Source(irProgram.toString()).pretty();
 	}
@@ -821,11 +874,28 @@ class MainModule extends Module {
 	 * @returns {UplcProgram}
 	 */
 	compile(simplify = false) {
-		let ir = this.toIR();
+		const ir = this.toIR([]);
 
-		let irProgram = IRProgram.new(ir, this.#purpose, simplify);
+		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 		
 		//console.log(new Source(irProgram.toString()).pretty());
+		return irProgram.toUplc();
+	}
+
+	/**
+	 * Compile a special Uplc
+	 * @param {string[]} parameters
+	 * @param {boolean} simplify
+	 * @returns {UplcProgram}
+	 */
+	compileParametric(parameters, simplify = false) {
+		assert(parameters.length > 0, "expected at least 1 parameter (hint: use program.compile() instead)");
+
+		const ir = this.toIR(parameters);
+
+		const irProgram = IRParametricProgram.new(ir, this.#purpose, parameters, simplify);
+
+		// TODO: UplcParametricProgram
 		return irProgram.toUplc();
 	}
 }
@@ -890,9 +960,10 @@ class RedeemerProgram extends Program {
 
 	/**
 	 * @package
+	 * @param {string[]} parameters
 	 * @returns {IR} 
 	 */
-	toIR() {
+	toIR(parameters = []) {
 		/** @type {IR[]} */
 		const outerArgs = [];
 
@@ -928,7 +999,7 @@ class RedeemerProgram extends Program {
 			new IR(`\n${TAB}}`),
 		]);
 
-		return this.wrapEntryPoint(ir);
+		return this.wrapEntryPoint(ir, parameters);
 	}
 }
 
@@ -1003,9 +1074,10 @@ class DatumRedeemerProgram extends Program {
 
 	/**
 	 * @package
+	 * @param {string[]} parameters
 	 * @returns {IR}
 	 */
-	toIR() {
+	toIR(parameters = []) {
 		/** @type {IR[]} */
 		const outerArgs = [];
 
@@ -1047,7 +1119,7 @@ class DatumRedeemerProgram extends Program {
 			new IR(`\n${TAB}}`),
 		]);
 
-		return this.wrapEntryPoint(ir);
+		return this.wrapEntryPoint(ir, parameters);
 	}
 }
 
@@ -1086,9 +1158,10 @@ class TestingProgram extends Program {
 
 	/**
 	 * @package
+	 * @param {string[]} parameters
 	 * @returns {IR}
 	 */
-	toIR() {
+	toIR(parameters = []) {
 		let args = this.mainFunc.argTypes.map((_, i) => new IR(`arg${i}`));
 
 		let ir = new IR([
@@ -1103,7 +1176,7 @@ class TestingProgram extends Program {
 			new IR(`\n${TAB}}`),
 		]);
 
-		return this.wrapEntryPoint(ir);
+		return this.wrapEntryPoint(ir, parameters);
 	}
 }
 

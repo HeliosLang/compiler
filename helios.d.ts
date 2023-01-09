@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.10.14";
+export const VERSION: "0.10.15";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -2045,10 +2045,10 @@ export class UplcProgram {
      * Wrap the top-level term with consecutive UplcCall terms
      * No checks are performed whether this makes sense or not, so beware
      * Throws an error if you are trying to apply an  with anon func.
-     * @param {UplcValue[]} args
+     * @param {(UplcValue | HeliosData)[]} args
      * @returns {UplcProgram} - a new UplcProgram instance
      */
-    apply(args: UplcValue[]): UplcProgram;
+    apply(args: (UplcValue | HeliosData)[]): UplcProgram;
     /**
      * @param {?UplcValue[]} args - if null the top-level term is returned as a value
      * @param {UplcRTECallbacks} callbacks
@@ -2263,6 +2263,27 @@ export class Tokenizer {
  */
 export class TimeType extends BuiltinType {
 }
+export class IRParametricProgram {
+    /**
+     * @package
+     * @param {IR} ir
+     * @param {?number} purpose
+     * @param {string[]} parameters
+     * @param {boolean} simplify
+     * @returns {IRParametricProgram}
+     */
+    static new(ir: IR, purpose: number | null, parameters: string[], simplify?: boolean): IRParametricProgram;
+    /**
+     * @param {IRProgram} irProgram
+     * @param {string[]} parameters
+     */
+    constructor(irProgram: IRProgram, parameters: string[]);
+    /**
+     * @returns {UplcProgram}
+     */
+    toUplc(): UplcProgram;
+    #private;
+}
 /**
  * @typedef {Object.<string, HeliosDataClass<HeliosData>>} UserTypes
  */
@@ -2318,6 +2339,10 @@ export class Program {
      * @type {string}
      */
     get mainPath(): string;
+    /**
+     * @type {Statement[]}
+     */
+    get mainStatements(): Statement[];
     /**
      * Needed to list the paramTypes, and to call changeParam
      * @type {Statement[]}
@@ -2395,14 +2420,18 @@ export class Program {
         [x: string]: HeliosData;
     };
     /**
+     * @package
      * @param {IR} ir
+     * @param {string[]} parameters
      * @returns {IR}
      */
-    wrapEntryPoint(ir: IR): IR;
+    wrapEntryPoint(ir: IR, parameters: string[]): IR;
     /**
+     * @package
+     * @param {string[]}  parameters
      * @returns {IR}
      */
-    toIR(): IR;
+    toIR(parameters: string[]): IR;
     /**
      * @returns {string}
      */
@@ -2412,6 +2441,13 @@ export class Program {
      * @returns {UplcProgram}
      */
     compile(simplify?: boolean): UplcProgram;
+    /**
+     * Compile a special Uplc
+     * @param {string[]} parameters
+     * @param {boolean} simplify
+     * @returns {UplcProgram}
+     */
+    compileParametric(parameters: string[], simplify?: boolean): UplcProgram;
     #private;
 }
 export class Tx extends CborData {
@@ -3439,6 +3475,10 @@ declare class IR {
      * @returns {[string, CodeMap]}
      */
     generateSource(): [string, CodeMap];
+    /**
+     * @returns {string}
+     */
+    pretty(): string;
     #private;
 }
 /**
@@ -3742,6 +3782,61 @@ declare class BuiltinType extends DataType {
      * Use 'path' getter instead of 'toIR()' in order to get the base path.
      */
     toIR(): void;
+    #private;
+}
+/**
+ * Wrapper for IRFuncExpr, IRCallExpr or IRLiteral
+ * @package
+ */
+declare class IRProgram {
+    /**
+     * @package
+     * @param {IR} ir
+     * @param {?number} purpose
+     * @param {boolean} simplify
+     * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
+     * @param {IRScope} scope
+     * @returns {IRProgram}
+     */
+    static new(ir: IR, purpose: number | null, simplify?: boolean, throwSimplifyRTErrors?: boolean, scope?: IRScope): IRProgram;
+    /**
+     * @param {IRFuncExpr | IRCallExpr | IRLiteral} expr
+     * @param {?number} purpose
+     */
+    constructor(expr: IRFuncExpr | IRCallExpr | IRLiteral, purpose: number | null);
+    /**
+     * @package
+     * @type {IRFuncExpr | IRCallExpr | IRLiteral}
+     */
+    get expr(): IRLiteral | IRCallExpr | IRFuncExpr;
+    /**
+     * @package
+     * @type {?number}
+     */
+    get purpose(): number;
+    /**
+     * @package
+     * @type {Site}
+     */
+    get site(): Site;
+    /**
+     * @type {UplcData}
+     */
+    get data(): UplcData;
+    toString(): string;
+    /**
+     * @param {boolean} throwSimplifyRTErrors
+     * @param {IRScope} scope
+     */
+    simplify(throwSimplifyRTErrors?: boolean, scope?: IRScope): void;
+    /**
+     * @returns {UplcProgram}
+     */
+    toUplc(): UplcProgram;
+    /**
+     * @returns {number}
+     */
+    calcSize(): number;
     #private;
 }
 /**
@@ -4561,44 +4656,6 @@ declare class UplcVariable extends UplcTerm {
     #private;
 }
 /**
- * Wrapper for IRFuncExpr, IRCallExpr or IRLiteral
- * @package
- */
-declare class IRProgram {
-    /**
-     * @param {IR} ir
-     * @param {?number} purpose
-     * @param {boolean} simplify
-     * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
-     * @returns {IRProgram}
-     */
-    static new(ir: IR, purpose: number | null, simplify?: boolean, throwSimplifyRTErrors?: boolean): IRProgram;
-    /**
-     * @param {IRFuncExpr | IRCallExpr | IRLiteral} expr
-     * @param {?number} purpose
-     */
-    constructor(expr: IRFuncExpr | IRCallExpr | IRLiteral, purpose: number | null);
-    get site(): Site;
-    /**
-     * @type {UplcData}
-     */
-    get data(): UplcData;
-    toString(): string;
-    /**
-     * @param {boolean} throwSimplifyRTErrors
-     */
-    simplify(throwSimplifyRTErrors?: boolean): void;
-    /**
-     * @returns {UplcProgram}
-     */
-    toUplc(): UplcProgram;
-    /**
-     * @returns {number}
-     */
-    calcSize(): number;
-    #private;
-}
-/**
  * Each builtin has an associated CostModel.
  * The CostModel calculates the execution cost of a builtin, depending on the byte-size of the inputs.
  * @package
@@ -4870,6 +4927,150 @@ declare class IRExpr extends Token {
 declare class DataType extends Type {
 }
 /**
+ * IR wrapper for UplcValues, representing literals
+ * @package
+ */
+declare class IRLiteral extends IRExpr {
+    /**
+     * @param {UplcValue} value
+     */
+    constructor(value: UplcValue);
+    get value(): UplcValue;
+    copy(): IRLiteral;
+    /**
+     * @param {IRExprStack} stack
+     * @param {IRLiteral[]} args
+     * @returns {?IRExpr}
+     */
+    call(stack: IRExprStack, args: IRLiteral[]): IRExpr | null;
+    /**
+     * @returns {UplcConst}
+     */
+    toUplc(): UplcConst;
+    #private;
+}
+/**
+ * Base class of IRUserCallExpr and IRCoreCallExpr
+ * @package
+ */
+declare class IRCallExpr extends IRExpr {
+    /**
+     * @param {Site} site
+     * @param {IRExpr[]} argExprs
+     * @param {Site} parensSite
+     */
+    constructor(site: Site, argExprs: IRExpr[], parensSite: Site);
+    get argExprs(): IRExpr[];
+    get parensSite(): Site;
+    /**
+     * @param {string} indent
+     * @returns {string}
+     */
+    argsToString(indent?: string): string;
+    /**
+     * @param {IRCallStack} stack
+     * @returns {?IRValue[]}
+     */
+    evalArgs(stack: IRCallStack): IRValue[] | null;
+    /**
+     * @param {IRWalkFn} fn
+     * @returns {IRExpr[]}
+     */
+    walkArgs(fn: IRWalkFn): IRExpr[];
+    /**
+     * @param {IRVariable} ref
+     * @param {string} builtinName
+     * @returns {?IRExpr[]}
+     */
+    wrapCallArgs(ref: IRVariable, builtinName: string): IRExpr[] | null;
+    /**
+     * @param {IRVariable} ref
+     * @returns {?IRExpr[]}
+     */
+    flattenCallArgs(ref: IRVariable): IRExpr[] | null;
+    /**
+     * @param {IRExprStack} stack
+     * @param {boolean} inline
+     * @returns {IRExpr[]}
+     */
+    simplifyArgs(stack: IRExprStack, inline?: boolean): IRExpr[];
+    /**
+     * @param {UplcTerm} term
+     * @returns {UplcTerm}
+     */
+    toUplcCall(term: UplcTerm): UplcTerm;
+    #private;
+}
+/**
+ * IR function expression with some args, that act as the header, and a body expression
+ * @package
+ */
+declare class IRFuncExpr extends IRExpr {
+    /**
+     * @param {Site} site
+     * @param {IRVariable[]} args
+     * @param {IRExpr} body
+     */
+    constructor(site: Site, args: IRVariable[], body: IRExpr);
+    get args(): IRVariable[];
+    get body(): IRExpr;
+    copy(): IRFuncExpr;
+    /**
+     * Inline expressions in the body
+     * Checking of unused args is done by caller
+     * @param {IRExprStack} stack
+     * @returns {IRFuncExpr}
+     */
+    inline(stack: IRExprStack): IRFuncExpr;
+    /**
+     * Simplify body
+     * @param {IRExprStack} stack
+     * @returns {IRFuncExpr}
+     */
+    simplifyBody(stack: IRExprStack): IRFuncExpr;
+    #private;
+}
+/**
+ * Scope for IR names.
+ * Works like a stack of named values from which a Debruijn index can be derived
+ * @package
+ */
+declare class IRScope {
+    /**
+     * Checks if a named builtin exists
+     * @param {string} name
+     * @param {boolean} strict - if true then throws an error if builtin doesn't exist
+     * @returns {boolean}
+     */
+    static isBuiltin(name: string, strict?: boolean): boolean;
+    /**
+     * Returns index of a named builtin
+     * Throws an error if builtin doesn't exist
+     * @param {string} name
+     * @returns
+     */
+    static findBuiltin(name: string): number;
+    /**
+     * @param {?IRScope} parent
+     * @param {?IRVariable} variable
+     */
+    constructor(parent: IRScope | null, variable: IRVariable | null);
+    /**
+     * Calculates the Debruijn index of a named value. Internal method
+     * @param {Word | IRVariable} name
+     * @param {number} index
+     * @returns {[number, IRVariable]}
+     */
+    getInternal(name: Word | IRVariable, index: number): [number, IRVariable];
+    /**
+     * Calculates the Debruijn index.
+     * @param {Word | IRVariable} name
+     * @returns {[number, IRVariable]}
+     */
+    get(name: Word | IRVariable): [number, IRVariable];
+    #private;
+}
+/**
  * @package
  */
 declare class ModuleScope extends Scope {
@@ -5129,151 +5330,7 @@ declare class UplcAnon extends UplcValue {
     callSync(callSite: Site, subStack: UplcStack, args: UplcValue[]): UplcValue | Promise<UplcValue>;
     #private;
 }
-/**
- * IR function expression with some args, that act as the header, and a body expression
- * @package
- */
-declare class IRFuncExpr extends IRExpr {
-    /**
-     * @param {Site} site
-     * @param {IRVariable[]} args
-     * @param {IRExpr} body
-     */
-    constructor(site: Site, args: IRVariable[], body: IRExpr);
-    get args(): IRVariable[];
-    get body(): IRExpr;
-    copy(): IRFuncExpr;
-    /**
-     * Inline expressions in the body
-     * Checking of unused args is done by caller
-     * @param {IRExprStack} stack
-     * @returns {IRFuncExpr}
-     */
-    inline(stack: IRExprStack): IRFuncExpr;
-    /**
-     * Simplify body
-     * @param {IRExprStack} stack
-     * @returns {IRFuncExpr}
-     */
-    simplifyBody(stack: IRExprStack): IRFuncExpr;
-    #private;
-}
-/**
- * Base class of IRUserCallExpr and IRCoreCallExpr
- * @package
- */
-declare class IRCallExpr extends IRExpr {
-    /**
-     * @param {Site} site
-     * @param {IRExpr[]} argExprs
-     * @param {Site} parensSite
-     */
-    constructor(site: Site, argExprs: IRExpr[], parensSite: Site);
-    get argExprs(): IRExpr[];
-    get parensSite(): Site;
-    /**
-     * @param {string} indent
-     * @returns {string}
-     */
-    argsToString(indent?: string): string;
-    /**
-     * @param {IRCallStack} stack
-     * @returns {?IRValue[]}
-     */
-    evalArgs(stack: IRCallStack): IRValue[] | null;
-    /**
-     * @param {IRWalkFn} fn
-     * @returns {IRExpr[]}
-     */
-    walkArgs(fn: IRWalkFn): IRExpr[];
-    /**
-     * @param {IRVariable} ref
-     * @param {string} builtinName
-     * @returns {?IRExpr[]}
-     */
-    wrapCallArgs(ref: IRVariable, builtinName: string): IRExpr[] | null;
-    /**
-     * @param {IRVariable} ref
-     * @returns {?IRExpr[]}
-     */
-    flattenCallArgs(ref: IRVariable): IRExpr[] | null;
-    /**
-     * @param {IRExprStack} stack
-     * @param {boolean} inline
-     * @returns {IRExpr[]}
-     */
-    simplifyArgs(stack: IRExprStack, inline?: boolean): IRExpr[];
-    /**
-     * @param {UplcTerm} term
-     * @returns {UplcTerm}
-     */
-    toUplcCall(term: UplcTerm): UplcTerm;
-    #private;
-}
-/**
- * IR wrapper for UplcValues, representing literals
- * @package
- */
-declare class IRLiteral extends IRExpr {
-    /**
-     * @param {UplcValue} value
-     */
-    constructor(value: UplcValue);
-    get value(): UplcValue;
-    copy(): IRLiteral;
-    /**
-     * @param {IRExprStack} stack
-     * @param {IRLiteral[]} args
-     * @returns {?IRExpr}
-     */
-    call(stack: IRExprStack, args: IRLiteral[]): IRExpr | null;
-    /**
-     * @returns {UplcConst}
-     */
-    toUplc(): UplcConst;
-    #private;
-}
 declare class NotType extends EvalEntity {
-}
-/**
- * Scope for IR names.
- * Works like a stack of named values from which a Debruijn index can be derived
- * @package
- */
-declare class IRScope {
-    /**
-     * Checks if a named builtin exists
-     * @param {string} name
-     * @param {boolean} strict - if true then throws an error if builtin doesn't exist
-     * @returns {boolean}
-     */
-    static isBuiltin(name: string, strict?: boolean): boolean;
-    /**
-     * Returns index of a named builtin
-     * Throws an error if builtin doesn't exist
-     * @param {string} name
-     * @returns
-     */
-    static findBuiltin(name: string): number;
-    /**
-     * @param {?IRScope} parent
-     * @param {?IRVariable} variable
-     */
-    constructor(parent: IRScope | null, variable: IRVariable | null);
-    /**
-     * Calculates the Debruijn index of a named value. Internal method
-     * @param {Word | IRVariable} name
-     * @param {number} index
-     * @returns {[number, IRVariable]}
-     */
-    getInternal(name: Word | IRVariable, index: number): [number, IRVariable];
-    /**
-     * Calculates the Debruijn index.
-     * @param {Word | IRVariable} name
-     * @returns {[number, IRVariable]}
-     */
-    get(name: Word | IRVariable): [number, IRVariable];
-    #private;
 }
 /**
  * IR class that represents function arguments
