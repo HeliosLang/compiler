@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.10.10
+// Version:       0.10.11
 // Last update:   January 2023
 // License:       Unlicense
 //
@@ -203,7 +203,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.10.10";
+export const VERSION = "0.10.11";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -31007,6 +31007,8 @@ class MainModule extends Module {
 		for (let s of this.mainAndPostStatements) {
 			if (s instanceof ConstStatement) {
 				res[s.name.value] = s.type;
+			} else if (s instanceof ImportStatement && s.origStatement instanceof ConstStatement) {
+				res[s.name.value] = s.origStatement.type;
 			}
 		}
 
@@ -31024,6 +31026,9 @@ class MainModule extends Module {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValue(value);
 				return this;
+			} else if (s instanceof ImportStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
+				s.origStatement.changeValue(value);
+				return this;
 			}
 		}
 
@@ -31036,10 +31041,13 @@ class MainModule extends Module {
 	 * @param {string} name 
 	 * @param {UplcData} data
 	 */
-	 changeParamSafe(name, data) {
+	changeParamSafe(name, data) {
 		for (let s of this.mainAndPostStatements) {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValueSafe(data);
+				return this;
+			} else if (s instanceof ImportStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
+				s.origStatement.changeValueSafe(data);
 				return this;
 			}
 		}
@@ -31138,7 +31146,7 @@ class MainModule extends Module {
 
 			this.#parameters[name] = value;
 
-			this.changeParamSafe(name, rawValue._toUplcData());
+			this.changeParamSafe(name, value._toUplcData());
 		}
 	}
 

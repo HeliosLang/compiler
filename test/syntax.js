@@ -335,13 +335,15 @@ async function test13() {
 async function test14() {
   const srcHelpers = `module helpers
   
+  const SOME_PARAM = 0
+
   func is_tx_authorized_by(tx: Tx, _) -> Bool {
     tx.is_signed_by(PubKeyHash::new(#))
   }`;
 
   const src = `minting sample_migrate_token_policy
 
-  import { is_tx_authorized_by } from helpers
+  import { is_tx_authorized_by, SOME_PARAM } from helpers
 
   struct MyStruct {
   	a: Int
@@ -419,7 +421,7 @@ async function test14() {
 
   console.log(program.parameters.VALUE.toSchemaJson());
 
-  program.parameters = {VALUE: new Value(200n)};
+  program.parameters = {VALUE: new Value(200n), SOME_PARAM: 2};
 
   console.log(program.parameters.VALUE.toSchemaJson());
 
