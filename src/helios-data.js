@@ -897,7 +897,7 @@ export class PubKeyHash extends Hash {
 	 * @param {number[]} bytes 
 	 */
 	constructor(bytes) {
-		assert(bytes.length == 28);
+		assert(bytes.length == 28, `expected 28 bytes for PubKeyHash, got ${bytes.length}`);
 		super(bytes);
 	}
 
@@ -941,7 +941,7 @@ export class ScriptHash extends Hash {
 	constructor(rawBytes) {
 		const bytes = (typeof rawBytes == "string") ? hexToBytes(rawBytes) : rawBytes;
 
-		assert(bytes.length == 28);
+		assert(bytes.length == 28, `expected 28 bytes for ScriptHash, got ${bytes.length}`);
 		super(bytes);
 	}
 }
@@ -993,7 +993,7 @@ export class StakeKeyHash extends Hash {
 	 * @param {number[]} bytes 
 	 */
 	constructor(bytes) {
-		assert(bytes.length == 28);
+		assert(bytes.length == 28, `expected 28 bytes for StakeKeyHash, got ${bytes.length}`);
 		super(bytes);
 	}
 
@@ -1107,7 +1107,7 @@ export class TxId extends Hash {
 	 */
 	constructor(rawBytes) {
         const bytes = (typeof rawBytes == "string") ? hexToBytes(rawBytes): rawBytes;
-		assert(bytes.length == 32);
+		assert(bytes.length == 32, `expected 32 bytes for TxId, got ${bytes.length}`);
 		super(bytes);
 	}
 
@@ -1278,7 +1278,7 @@ export class Address extends HeliosData {
 		super();
 		this.#bytes = Address.cleanConstructorArg(rawValue);
 
-        assert(this.#bytes.length == 29 || this.#bytes.length == 57);
+        assert(this.#bytes.length == 29 || this.#bytes.length == 57, `expected 29 or 57 bytes for Address, got ${this.#bytes.length}`);
 	}
 
 	get bytes() {

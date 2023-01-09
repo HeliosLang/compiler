@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.10.12
+// Version:       0.10.13
 // Last update:   January 2023
 // License:       Unlicense
 //
@@ -203,7 +203,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.10.12";
+export const VERSION = "0.10.13";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -5896,7 +5896,7 @@ export class PubKeyHash extends Hash {
 	 * @param {number[]} bytes 
 	 */
 	constructor(bytes) {
-		assert(bytes.length == 28);
+		assert(bytes.length == 28, `expected 28 bytes for PubKeyHash, got ${bytes.length}`);
 		super(bytes);
 	}
 
@@ -5940,7 +5940,7 @@ export class ScriptHash extends Hash {
 	constructor(rawBytes) {
 		const bytes = (typeof rawBytes == "string") ? hexToBytes(rawBytes) : rawBytes;
 
-		assert(bytes.length == 28);
+		assert(bytes.length == 28, `expected 28 bytes for ScriptHash, got ${bytes.length}`);
 		super(bytes);
 	}
 }
@@ -5992,7 +5992,7 @@ export class StakeKeyHash extends Hash {
 	 * @param {number[]} bytes 
 	 */
 	constructor(bytes) {
-		assert(bytes.length == 28);
+		assert(bytes.length == 28, `expected 28 bytes for StakeKeyHash, got ${bytes.length}`);
 		super(bytes);
 	}
 
@@ -6106,7 +6106,7 @@ export class TxId extends Hash {
 	 */
 	constructor(rawBytes) {
         const bytes = (typeof rawBytes == "string") ? hexToBytes(rawBytes): rawBytes;
-		assert(bytes.length == 32);
+		assert(bytes.length == 32, `expected 32 bytes for TxId, got ${bytes.length}`);
 		super(bytes);
 	}
 
@@ -6277,7 +6277,7 @@ export class Address extends HeliosData {
 		super();
 		this.#bytes = Address.cleanConstructorArg(rawValue);
 
-        assert(this.#bytes.length == 29 || this.#bytes.length == 57);
+        assert(this.#bytes.length == 29 || this.#bytes.length == 57, `expected 29 or 57 bytes for Address, got ${this.#bytes.length}`);
 	}
 
 	get bytes() {
@@ -17160,6 +17160,13 @@ export class TimeType extends BuiltinType {
 	get path() {
 		return "__helios__time";
 	}
+
+	/**
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return Time;
+	}
 }
 
 /**
@@ -17211,6 +17218,10 @@ class DurationType extends BuiltinType {
 
 	get path() {
 		return "__helios__duration";
+	}
+
+	get userType() {
+		return Duration;
 	}
 }
 

@@ -27,6 +27,7 @@ import {
 	Bool,
 	ByteArray,
 	DatumHash,
+	Duration,
 	HeliosData,
 	HeliosMap,
 	HeliosString,
@@ -37,6 +38,7 @@ import {
 	PubKeyHash,
 	StakeKeyHash,
 	StakingValidatorHash,
+	Time,
 	TxId,
 	TxOutputId,
 	ValidatorHash,
@@ -4807,6 +4809,13 @@ export class TimeType extends BuiltinType {
 	get path() {
 		return "__helios__time";
 	}
+
+	/**
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return Time;
+	}
 }
 
 /**
@@ -4858,6 +4867,10 @@ export class DurationType extends BuiltinType {
 
 	get path() {
 		return "__helios__duration";
+	}
+
+	get userType() {
+		return Duration;
 	}
 }
 
