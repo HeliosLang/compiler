@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.10.11
+// Version:       0.10.12
 // Last update:   January 2023
 // License:       Unlicense
 //
@@ -203,7 +203,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.10.11";
+export const VERSION = "0.10.12";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -31069,9 +31069,16 @@ class MainModule extends Module {
 		/** @type {?ConstStatement} */
 		let constStatement = null;
 
+		for (let s of this.mainAndPostStatements) {
+			if (s instanceof ImportStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
+				constStatement = s.origStatement;
+				break;
+			}
+		}
+
 		for (let [s, isImport] of this.allStatements) {
 			s.toIR(map);
-			if (s.name.value == name && s instanceof ConstStatement && !isImport) {
+			if (s instanceof ConstStatement && ((s.name.value == name && !isImport) || s === constStatement)) {
 				constStatement = s;
 				break;
 			}

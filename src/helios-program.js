@@ -687,9 +687,16 @@ class MainModule extends Module {
 		/** @type {?ConstStatement} */
 		let constStatement = null;
 
+		for (let s of this.mainAndPostStatements) {
+			if (s instanceof ImportStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
+				constStatement = s.origStatement;
+				break;
+			}
+		}
+
 		for (let [s, isImport] of this.allStatements) {
 			s.toIR(map);
-			if (s.name.value == name && s instanceof ConstStatement && !isImport) {
+			if (s instanceof ConstStatement && ((s.name.value == name && !isImport) || s === constStatement)) {
 				constStatement = s;
 				break;
 			}

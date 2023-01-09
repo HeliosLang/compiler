@@ -423,7 +423,7 @@ async function test14() {
 
   program.parameters = {VALUE: new Value(200n), SOME_PARAM: 2};
 
-  console.log(program.parameters.VALUE.toSchemaJson());
+  console.log(program.parameters.VALUE.toSchemaJson(), program.parameters.SOME_PARAM.toSchemaJson());
 
   const myEnum = new MyEnum.Three(1, 2);
 
