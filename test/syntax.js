@@ -450,13 +450,15 @@ async function test16() {
   
   const OWNER = PubKeyHash::new(#)
 
+  const BOOL = false
+
   func main(ctx: ScriptContext) -> Bool {
-    ctx.tx.is_signed_by(OWNER)
+    ctx.tx.is_signed_by(OWNER) && BOOL
   }`;
 
   const program = helios.Program.new(src);
 
-  program.compileParametric(["OWNER"], true);
+  program.compileParametric(["OWNER", "BOOL"], true);
 }
 
 export default async function main() {

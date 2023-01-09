@@ -31336,7 +31336,17 @@ class MainModule extends Module {
 				const i = parameterStatements.findIndex(cs => cs === statement);
 
 				if (i != -1) {
-					map.set(statement.path, new IR(`__PARAM_${i}`));
+					let ir = new IR(`__PARAM_${i}`);
+
+					if (statement.type instanceof BoolType) {
+						ir = new IR([
+							new IR("__helios__common__unBoolData("),
+							ir,
+							new IR(")")
+						]);
+					}
+
+					map.set(statement.path, ir); 
 
 					continue;
 				}
