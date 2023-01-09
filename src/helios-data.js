@@ -773,6 +773,18 @@ export class Hash extends HeliosData {
 	#bytes;
 
 	/**
+	 * @param {string | number[]} rawValue 
+	 * @returns {number[]}
+	 */
+	static cleanConstructorArg(rawValue) {
+		if (typeof rawValue == "string") {
+			return hexToBytes(rawValue);
+		} else {
+			return rawValue;
+		}
+	}
+
+	/**
 	 * @param {number[]} bytes 
 	 */
 	constructor(bytes) {
@@ -852,9 +864,11 @@ export class Hash extends HeliosData {
 
 export class DatumHash extends Hash {
 	/**
-	 * @param {number[]} bytes 
+	 * @param {string | number[]} rawValue
 	 */
-	constructor(bytes) {
+	constructor(rawValue) {
+		const bytes = Hash.cleanConstructorArg(rawValue);
+
 		assert(bytes.length == 32);
 		super(bytes);
 	}
@@ -893,10 +907,13 @@ export class DatumHash extends Hash {
 }
 
 export class PubKeyHash extends Hash {
+	
 	/**
-	 * @param {number[]} bytes 
+	 * @param {string | number[]} rawValue 
 	 */
-	constructor(bytes) {
+	constructor(rawValue) {
+		const bytes = Hash.cleanConstructorArg(rawValue);
+
 		assert(bytes.length == 28, `expected 28 bytes for PubKeyHash, got ${bytes.length}`);
 		super(bytes);
 	}
@@ -936,10 +953,10 @@ export class PubKeyHash extends Hash {
 
 export class ScriptHash extends Hash {
 	/**
-	 * @param {string | number[]} rawBytes
+	 * @param {string | number[]} rawValue
 	 */
-	constructor(rawBytes) {
-		const bytes = (typeof rawBytes == "string") ? hexToBytes(rawBytes) : rawBytes;
+	constructor(rawValue) {
+		const bytes = Hash.cleanConstructorArg(rawValue);
 
 		assert(bytes.length == 28, `expected 28 bytes for ScriptHash, got ${bytes.length}`);
 		super(bytes);
@@ -990,9 +1007,11 @@ export class MintingPolicyHash extends ScriptHash {
 
 export class StakeKeyHash extends Hash {
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} rawValue
 	 */
-	constructor(bytes) {
+	constructor(rawValue) {
+		const bytes = Hash.cleanConstructorArg(rawValue);
+		
 		assert(bytes.length == 28, `expected 28 bytes for StakeKeyHash, got ${bytes.length}`);
 		super(bytes);
 	}
@@ -1103,10 +1122,11 @@ export class ValidatorHash extends ScriptHash {
  */
 export class TxId extends Hash {
 	/**
-	 * @param {string | number[]} rawBytes 
+	 * @param {string | number[]} rawValue 
 	 */
-	constructor(rawBytes) {
-        const bytes = (typeof rawBytes == "string") ? hexToBytes(rawBytes): rawBytes;
+	constructor(rawValue) {
+        const bytes = Hash.cleanConstructorArg(rawValue);
+
 		assert(bytes.length == 32, `expected 32 bytes for TxId, got ${bytes.length}`);
 		super(bytes);
 	}

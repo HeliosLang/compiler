@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.10.13";
+export const VERSION: "0.10.14";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -945,6 +945,10 @@ export class DatumHash extends Hash {
      * @returns {DatumHash}
      */
     static fromUplcCbor(bytes: string | number[]): DatumHash;
+    /**
+     * @param {string | number[]} rawValue
+     */
+    constructor(rawValue: string | number[]);
 }
 export class PubKeyHash extends Hash {
     /**
@@ -957,12 +961,16 @@ export class PubKeyHash extends Hash {
      * @returns {PubKeyHash}
      */
     static fromUplcCbor(bytes: string | number[]): PubKeyHash;
+    /**
+     * @param {string | number[]} rawValue
+     */
+    constructor(rawValue: string | number[]);
 }
 export class ScriptHash extends Hash {
     /**
-     * @param {string | number[]} rawBytes
+     * @param {string | number[]} rawValue
      */
-    constructor(rawBytes: string | number[]);
+    constructor(rawValue: string | number[]);
 }
 export class MintingPolicyHash extends ScriptHash {
     /**
@@ -1046,9 +1054,9 @@ export class TxId extends Hash {
      */
     static dummy(): TxId;
     /**
-     * @param {string | number[]} rawBytes
+     * @param {string | number[]} rawValue
      */
-    constructor(rawBytes: string | number[]);
+    constructor(rawValue: string | number[]);
 }
 /**
  * Id of a Utxo
@@ -3438,6 +3446,11 @@ declare class IR {
  * @package
  */
 declare class Hash extends HeliosData {
+    /**
+     * @param {string | number[]} rawValue
+     * @returns {number[]}
+     */
+    static cleanConstructorArg(rawValue: string | number[]): number[];
     /**
      * Used internally for metadataHash and scriptDataHash
      * @param {number[]} bytes
