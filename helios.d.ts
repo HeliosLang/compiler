@@ -3043,6 +3043,95 @@ export class FuzzyTest {
     }, paramArgs: string[], src: string, propTest: PropertyTest, nRuns?: number, simplify?: boolean): Promise<void>;
     #private;
 }
+/**
+ * @typedef {{
+ *   usedAddresses: Promise<Address[]>,
+ *   unusedAddresses: Promise<Address[]>,
+ *   utxos: Promise<UTxO[]>
+ * }} Wallet
+ */
+/**
+ * @typedef {{
+ *   getNetworkId(): Promise<number>,
+ *   getUsedAddresses(): Promise<string[]>,
+ *   getUnusedAddresses(): Promise<string[]>,
+ *   getUtxos(): Promise<string[]>,
+ *   signTx(txHex: string, partialSign: boolean): Promise<string>,
+ *   submitTx(txHex: string): Promise<string>
+ * }} Cip30
+ */
+/**
+ * @implements {Wallet}
+ */
+export class Cip30Wallet implements Wallet {
+    /**
+     * @param {Cip30} fullApi
+     */
+    constructor(fullApi: Cip30);
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get usedAddresses(): Promise<Address[]>;
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get unusedAddresses(): Promise<Address[]>;
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get utxos(): Promise<UTxO[]>;
+    #private;
+}
+export class WalletHelper {
+    /**
+     * @param {Wallet} wallet
+     */
+    constructor(wallet: Wallet);
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get allAddresses(): Promise<Address[]>;
+    /**
+     * @returns {Promise<Value>}
+     */
+    calcBalance(): Promise<Value>;
+    /**
+     * @type {Promise<Address>}
+     */
+    get baseAddress(): Promise<Address>;
+    /**
+     * @type {Promise<Address>}
+     */
+    get changeAddress(): Promise<Address>;
+    /**
+     * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
+     * @type {Promise<?UTxO>}
+     */
+    get refUtxo(): Promise<UTxO>;
+    /**
+     * @param {Value} amount
+     * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
+     */
+    pickUtxos(amount: Value): Promise<[UTxO[], UTxO[]]>;
+    /**
+     * Returned collateral can't contain an native assets (pure lovelace)
+     * TODO: combine UTxOs if a single UTxO isn't enough
+     * @param {bigint} amount - 2 Ada should cover most things
+     * @returns {Promise<UTxO>}
+     */
+    pickCollateral(amount?: bigint): Promise<UTxO>;
+    /**
+     * @param {Address} addr
+     * @returns {Promise<boolean>}
+     */
+    isOwnAddress(addr: Address): Promise<boolean>;
+    /**
+ * @param {PubKeyHash} pkh
+ * @returns {Promise<boolean>}
+ */
+    isOwnPubKeyHash(pkh: PubKeyHash): Promise<boolean>;
+    #private;
+}
 export namespace exportedForTesting {
     export { assert };
     export { setRawUsageNotifier };
@@ -3170,6 +3259,19 @@ export type ValueGenerator = () => UplcValue;
 export type PropertyTest = (args: UplcValue[], res: (UplcValue | UserError)) => (boolean | {
     [x: string]: boolean;
 });
+export type Wallet = {
+    usedAddresses: Promise<Address[]>;
+    unusedAddresses: Promise<Address[]>;
+    utxos: Promise<UTxO[]>;
+};
+export type Cip30 = {
+    getNetworkId(): Promise<number>;
+    getUsedAddresses(): Promise<string[]>;
+    getUnusedAddresses(): Promise<string[]>;
+    getUtxos(): Promise<string[]>;
+    signTx(txHex: string, partialSign: boolean): Promise<string>;
+    submitTx(txHex: string): Promise<string>;
+};
 /**
  * Function that generates a random number between 0 and 1
  * @typedef {() => number} NumberGenerator

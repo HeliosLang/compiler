@@ -31,7 +31,8 @@ const FILES = [
 	"helios-program.js",
 	"tx-builder.js",
 	"highlight.js",
-	"fuzzy-test.js"
+	"fuzzy-test.js",
+	"wallets.js"
 ];
 
 // build script that bundles all constituents of helios.js // goal: helios.js should be auditable
