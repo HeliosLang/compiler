@@ -3055,9 +3055,22 @@ export class CoinSelection {
     /**
      * @param {UTxO[]} utxos
      * @param {Value} amount
+     * @param {boolean} largestFirst
      * @returns {[UTxO[], UTxO[]]} - [picked, not picked that can be used as spares]
      */
-    static pickSmallest(utxos: UTxO[], amount: Value): [UTxO[], UTxO[]];
+    static selectExtremumFirst(utxos: UTxO[], amount: Value, largestFirst: boolean): [UTxO[], UTxO[]];
+    /**
+     * @param {UTxO[]} utxos
+     * @param {Value} amount
+     * @returns {[UTxO[], UTxO[]]} - [selected, not selected]
+     */
+    static selectSmallestFirst(utxos: UTxO[], amount: Value): [UTxO[], UTxO[]];
+    /**
+     * @param {UTxO[]} utxos
+     * @param {Value} amount
+     * @returns {[UTxO[], UTxO[]]} - [selected, not selected]
+     */
+    static selectLargestFirst(utxos: UTxO[], amount: Value): [UTxO[], UTxO[]];
 }
 /**
  * @typedef {{

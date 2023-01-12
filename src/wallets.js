@@ -167,7 +167,7 @@ export class WalletHelper {
      * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
      */ 
     async pickUtxos(amount) {
-        return CoinSelection.pickSmallest(await this.#wallet.utxos, amount);
+        return CoinSelection.selectSmallestFirst(await this.#wallet.utxos, amount);
     }
 
     /**
