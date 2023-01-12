@@ -2908,6 +2908,10 @@ function makeRawFunctions() {
 	`(cred, staking_cred) -> {
 		__core__constrData(0, __helios__common__list_2(cred, staking_cred))
 	}`));
+	add(new RawFunc("__helios__address__new_empty",
+	`() -> {
+		__core__constrData(0, __helios__common__list_2(__helios__credential__new_pubkey(__core__bData(#)), __helios__option__none__new()))
+	}`))
 	add(new RawFunc("__helios__address__credential", "__helios__common__field_0"));
 	add(new RawFunc("__helios__address__staking_credential", "__helios__common__field_1"));
 	add(new RawFunc("__helios__address__is_staked",

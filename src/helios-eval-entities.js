@@ -4339,6 +4339,8 @@ export class AddressType extends BuiltinType {
 					new CredentialType(), // 0
 					new OptionType(new StakingCredentialType()), // 1
 				], this));
+			case "new_empty":
+				return Instance.new(new FuncType([], this));
 			default:
 				return super.getTypeMember(name);
 		}

@@ -32,7 +32,9 @@ const FILES = [
 	"tx-builder.js",
 	"highlight.js",
 	"fuzzy-test.js",
-	"wallets.js"
+	"coinselection.js",
+	"wallets.js",
+	"network.js"
 ];
 
 // build script that bundles all constituents of helios.js // goal: helios.js should be auditable

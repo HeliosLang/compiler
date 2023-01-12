@@ -2179,12 +2179,13 @@ export class Value extends HeliosData {
 
 	/**
 	 * Used when building script context
+	 * @param {boolean} isInScriptContext
 	 * @returns {MapData}
 	 */
-	_toUplcData() {
+	_toUplcData(isInScriptContext = false) {
 		let map = this.#assets._toUplcData();
 
-		if (this.#lovelace != 0n) {
+		if (this.#lovelace != 0n || isInScriptContext) {
 			let inner = map.map; 
 
 			inner.unshift([

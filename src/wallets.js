@@ -3,25 +3,36 @@
 
 import {
     assertDefined,
+    bytesToHex,
     hexToBytes
 } from "./utils.js";
 
 import {
     Address,
     PubKeyHash,
+    TxId,
     Value
 } from "./helios-data.js";
 
 import {
+    Signature,
+    Tx,
+    TxWitnesses,
     UTxO
 } from "./tx-builder.js";
+
+import {
+    CoinSelection
+} from "./coinselection.js";
 
 
 /**
  * @typedef {{
  *   usedAddresses: Promise<Address[]>,
  *   unusedAddresses: Promise<Address[]>,
- *   utxos: Promise<UTxO[]>
+ *   utxos: Promise<UTxO[]>,
+ *   signTx(tx: Tx): Promise<Signature[]>,
+ *   submitTx(tx: Tx): Promise<TxId>
  * }} Wallet
  */
 
@@ -33,41 +44,61 @@ import {
  *   getUtxos(): Promise<string[]>,
  *   signTx(txHex: string, partialSign: boolean): Promise<string>,
  *   submitTx(txHex: string): Promise<string>
- * }} Cip30
+ * }} Cip30Handle
  */
 
 /**
  * @implements {Wallet}
  */
 export class Cip30Wallet {
-    #fullApi;
+    #handle;
 
     /**
-     * @param {Cip30} fullApi 
+     * @param {Cip30Handle} handle 
      */
-    constructor(fullApi) {
-        this.#fullApi = fullApi;
+    constructor(handle) {
+        this.#handle = handle;
     }
 
     /**
      * @type {Promise<Address[]>}
      */
     get usedAddresses() {
-        return this.#fullApi.getUsedAddresses().then(addresses => addresses.map(a => new Address(a)));
+        return this.#handle.getUsedAddresses().then(addresses => addresses.map(a => new Address(a)));
     }
 
     /**
      * @type {Promise<Address[]>}
      */
     get unusedAddresses() {
-        return this.#fullApi.getUnusedAddresses().then(addresses => addresses.map(a => new Address(a)));
+        return this.#handle.getUnusedAddresses().then(addresses => addresses.map(a => new Address(a)));
     }
 
     /**
      * @type {Promise<UTxO[]>}
      */
     get utxos() {
-        return this.#fullApi.getUtxos().then(utxos => utxos.map(u => UTxO.fromCbor(hexToBytes(u))));
+        return this.#handle.getUtxos().then(utxos => utxos.map(u => UTxO.fromCbor(hexToBytes(u))));
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<Signature[]>}
+     */
+    async signTx(tx) {
+        const res = await this.#handle.signTx(bytesToHex(tx.toCbor()), true);
+        
+        return TxWitnesses.fromCbor(hexToBytes(res)).signatures;
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        const responseText = await this.#handle.submitTx(bytesToHex(tx.toCbor()));
+
+        return new TxId(responseText);
     }
 }
 
@@ -136,78 +167,7 @@ export class WalletHelper {
      * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
      */ 
     async pickUtxos(amount) {
-        let sum = new Value();
-
-        /** @type {UTxO[]} */
-        let notYetPicked = await this.#wallet.utxos;
-
-        /** @type {UTxO[]} */
-        const picked = [];
-
-        const mphs = amount.assets.mintingPolicies;
-
-        /**
-         * Picks smallest utxos until 'needed' is reached
-         * @param {bigint} neededQuantity
-         * @param {(utxo: UTxO) => bigint} getQuantity
-         */
-        function picker(neededQuantity, getQuantity) {
-            // first sort notYetPicked in ascending order
-            notYetPicked.sort((a, b) => {
-                return Number(getQuantity(a) - getQuantity(b));
-            });
-
-
-            let count = 0n;
-            const remaining = [];
-
-            while (count < neededQuantity) {
-                const utxo = notYetPicked.shift();
-
-                if (utxo === undefined) {
-                    throw new Error("not enough utxos to cover amount");
-                } else {
-                    const qty = getQuantity(utxo);
-
-                    if (qty > 0n) {
-                        count += qty;
-                        picked.push(utxo);
-                        sum = sum.add(utxo.value);
-                    } else {
-                        remaining.push(utxo)
-                    }
-                }
-            }
-
-            notYetPicked = remaining;
-        }
-
-        for (const mph of mphs) {
-            const tokenNames = amount.assets.getTokenNames(mph);
-
-            for (const tokenName of tokenNames) {
-                const need = amount.assets.get(mph, tokenName);
-                const have = sum.assets.get(mph, tokenName);
-
-                if (have < need) {
-                    const diff = need - have;
-
-                    picker(diff, (utxo) => utxo.value.assets.get(mph, tokenName));
-                }
-            }
-        }
-
-        // now use the same strategy for lovelace
-        const need = amount.lovelace;
-        const have = sum.lovelace;
-
-        if (have < need) {
-            const diff = need - have;
-
-            picker(diff, (utxo) => utxo.value.lovelace);
-        }
-
-        return [picked, notYetPicked];
+        return CoinSelection.pickSmallest(await this.#wallet.utxos, amount);
     }
 
     /**

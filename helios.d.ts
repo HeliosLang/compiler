@@ -1393,9 +1393,10 @@ export class Value extends HeliosData {
     dump(): any;
     /**
      * Used when building script context
+     * @param {boolean} isInScriptContext
      * @returns {MapData}
      */
-    _toUplcData(): MapData;
+    _toUplcData(isInScriptContext?: boolean): MapData;
     #private;
 }
 /**
@@ -2625,6 +2626,10 @@ export class Tx extends CborData {
      * @returns {Tx}
      */
     addMetadata(tag: number, data: Metadata): Tx;
+    /**
+     * @returns {TxId}
+     */
+    id(): TxId;
     #private;
 }
 export class TxWitnesses extends CborData {
@@ -3044,10 +3049,23 @@ export class FuzzyTest {
     #private;
 }
 /**
+ * Collection of coin selection algorithms
+ */
+export class CoinSelection {
+    /**
+     * @param {UTxO[]} utxos
+     * @param {Value} amount
+     * @returns {[UTxO[], UTxO[]]} - [picked, not picked that can be used as spares]
+     */
+    static pickSmallest(utxos: UTxO[], amount: Value): [UTxO[], UTxO[]];
+}
+/**
  * @typedef {{
  *   usedAddresses: Promise<Address[]>,
  *   unusedAddresses: Promise<Address[]>,
- *   utxos: Promise<UTxO[]>
+ *   utxos: Promise<UTxO[]>,
+ *   signTx(tx: Tx): Promise<Signature[]>,
+ *   submitTx(tx: Tx): Promise<TxId>
  * }} Wallet
  */
 /**
@@ -3058,16 +3076,16 @@ export class FuzzyTest {
  *   getUtxos(): Promise<string[]>,
  *   signTx(txHex: string, partialSign: boolean): Promise<string>,
  *   submitTx(txHex: string): Promise<string>
- * }} Cip30
+ * }} Cip30Handle
  */
 /**
  * @implements {Wallet}
  */
 export class Cip30Wallet implements Wallet {
     /**
-     * @param {Cip30} fullApi
+     * @param {Cip30Handle} handle
      */
-    constructor(fullApi: Cip30);
+    constructor(handle: Cip30Handle);
     /**
      * @type {Promise<Address[]>}
      */
@@ -3080,6 +3098,16 @@ export class Cip30Wallet implements Wallet {
      * @type {Promise<UTxO[]>}
      */
     get utxos(): Promise<UTxO[]>;
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<Signature[]>}
+     */
+    signTx(tx: Tx): Promise<Signature[]>;
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<TxId>}
+     */
+    submitTx(tx: Tx): Promise<TxId>;
     #private;
 }
 export class WalletHelper {
@@ -3130,6 +3158,27 @@ export class WalletHelper {
  * @returns {Promise<boolean>}
  */
     isOwnPubKeyHash(pkh: PubKeyHash): Promise<boolean>;
+    #private;
+}
+/**
+ * @typedef {{
+ *   submitTx(tx: Tx): Promise<TxId>
+ * }} Network
+ */
+/**
+ * @implements {Network}
+ */
+export class BlockfrostV0 implements Network {
+    /**
+     * @param {string} networkName - "preview", "preprod" or "mainnet"
+     * @param {string} projectId
+     */
+    constructor(networkName: string, projectId: string);
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<TxId>}
+     */
+    submitTx(tx: Tx): Promise<TxId>;
     #private;
 }
 export namespace exportedForTesting {
@@ -3263,14 +3312,19 @@ export type Wallet = {
     usedAddresses: Promise<Address[]>;
     unusedAddresses: Promise<Address[]>;
     utxos: Promise<UTxO[]>;
+    signTx(tx: Tx): Promise<Signature[]>;
+    submitTx(tx: Tx): Promise<TxId>;
 };
-export type Cip30 = {
+export type Cip30Handle = {
     getNetworkId(): Promise<number>;
     getUsedAddresses(): Promise<string[]>;
     getUnusedAddresses(): Promise<string[]>;
     getUtxos(): Promise<string[]>;
     signTx(txHex: string, partialSign: boolean): Promise<string>;
     submitTx(txHex: string): Promise<string>;
+};
+export type Network = {
+    submitTx(tx: Tx): Promise<TxId>;
 };
 /**
  * Function that generates a random number between 0 and 1
@@ -4205,6 +4259,9 @@ declare class TxBody extends CborData {
      * @param {bigint} fee
      */
     setFee(fee: bigint): void;
+    /**
+     * @type {Assets}
+     */
     get minted(): Assets;
     /**
      * @returns {Object}

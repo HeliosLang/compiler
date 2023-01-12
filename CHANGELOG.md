@@ -1,5 +1,18 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/01/11
+* TxId, TxOutputId and hash-type comparison operators and `show`
+* Functions can return void `()` by using `print`, `error` or `assert` as final expressions
+* Function expressions return type is optional `(...) -> {...}`
+* `OutputDataum.inline_data`
+* `Address::new_empty`
+* `Wallet`, `Cip30Wallet`, `WalletHelper`, `Network` and `BlockfrostV0` for interacting with browser wallets and the blockchain
+* `CoinSelection` class with static method `pickSmallest`
+* `HeliosData` instances which can be assigned directly to `Program.parameters`
+* Builtin `HeliosData` types: `Int`, `Bool`, `ByteArray`, `HeliosString`, `Address`, `TxId`, hash-types, `Time`, `Duration`, `TxOutputId`, `Value`
+* Builtin `List`, `HeliosMap` and `Option` `HeliosData`-type generators.
+* Helios structs and enums are avaible as `HeliosData` types through `program.types`
+
 # 2022/12/21
 * Addition of `Map.prepend`
 * Addition of comparisons for ByteArray: `<`, `>`, `<=` and `>=`

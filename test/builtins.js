@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 //@ts-check
-import fs from "fs";
 import crypto from "crypto";
 import * as helios from "../helios.js";
 import { runIfEntryPoint } from "./util.js";
@@ -135,6 +134,14 @@ function asBoolList(value) {
     }
 
     throw new Error(`expected ListData, got ${value.toString()}`);
+}
+
+function asData(value) {
+    if (value instanceof helios_.UplcDataValue) {
+        return value.data;
+    } else {
+        throw new Error("expected UplcDataValue");
+    }
 }
 
 function constrIndex(value) {
@@ -1568,9 +1575,9 @@ async function testBuiltins() {
             let la = asIntList(a);
 
             if (la.every(i => i <= 0n)) {
-                return res.data.index == 1;
+                return asData(res).index == 1;
             } else {
-                return res.data.index == 0 && (asInt(res.data.fields[0]) == la.find(i => i > 0n));
+                return asData(res).index == 0 && (asInt(asData(res).fields[0]) == la.find(i => i > 0n));
             }
         });
 
@@ -1849,9 +1856,9 @@ async function testBuiltins() {
             let la = asBoolList(a);
 
             if (la.every(i => !i)) {
-                return res.data.index == 1;
+                return asData(res).index == 1;
             } else {
-                return res.data.index == 0 && (res.data.fields[0].index == 1);
+                return asData(res).index == 0 && (asData(res).fields[0].index == 1);
             }
         });
 
@@ -1933,7 +1940,7 @@ async function testBuiltins() {
         testing map_add
         func main(a: Map[Int]Int, b: Map[Int]Int) -> Map[Int]Int {
             a + b
-        }`, ([a, b], res) => res.data.isSame(new helios_.MapData(a.data.map.concat(b.data.map))));
+        }`, ([a, b], res) => asData(res).isSame(new helios_.MapData(a.data.map.concat(b.data.map))));
 
         await ft.test([ft.map(ft.int(), ft.int(), 0, 10), ft.int(), ft.int()], `
         testing map_prepend
@@ -1942,7 +1949,7 @@ async function testBuiltins() {
         }`, ([a, k, v], res) => {
             let expected = a.data.map;
             expected.unshift([new helios.IntData(asInt(k)), new helios.IntData(asInt(v))]);
-            return res.data.isSame(new helios_.MapData(expected));
+            return asData(res).isSame(new helios_.MapData(expected));
         });
 
         await ft.test([ft.map(ft.int(), ft.int())], `
@@ -2012,7 +2019,7 @@ async function testBuiltins() {
                 return isError(res, "empty map");
             } else {
                 let la = a.data.map.slice(1);
-                let lRes = res.data.map.slice();
+                let lRes = asData(res).map.slice();
 
                 return la.length == lRes.length && la.every(([k,v], i) => asInt(k) === asInt(lRes[i][0]) && asInt(v) === asInt(lRes[i][1]));
             }
@@ -2099,7 +2106,7 @@ async function testBuiltins() {
             a.filter((k: Int, v: Int) -> Bool {
                 k < v
             })
-        }`, ([_], res) => res.data.map.every(([k, v]) => asInt(k) < asInt(v)));
+        }`, ([_], res) => asData(res).map.every(([k, v]) => asInt(k) < asInt(v)));
 
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_filter_by_key
@@ -2107,7 +2114,7 @@ async function testBuiltins() {
             a.filter((k: Int, _) -> Bool {
                 k > 0
             })
-        }`, ([_], res) => res.data.map.every(([k, _]) => asInt(k) > 0n));
+        }`, ([_], res) => asData(res).map.every(([k, _]) => asInt(k) > 0n));
 
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_filter_by_value
@@ -2115,7 +2122,7 @@ async function testBuiltins() {
             a.filter((_, v: Int) -> Bool {
                 v > 0
             })
-        }`, ([_], res) => res.data.map.every(([_, v]) => asInt(v) > 0n));
+        }`, ([_], res) => asData(res).map.every(([_, v]) => asInt(v) > 0n));
 
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_fold
@@ -2225,9 +2232,9 @@ async function testBuiltins() {
             a.find_key_safe((k: Int) -> Bool {k == 0})
         }`, ([a], res) => {            
             if (a.data.map.some(([k, _]) => asInt(k) == 0n)) {
-                return res.data.index == 0 && asInt(res.data.fields[0]) === 0n;
+                return asData(res).index == 0 && asInt(asData(res).fields[0]) === 0n;
             } else {
-                return res.data.index == 1;
+                return asData(res).index == 1;
             }
         });
 
@@ -2237,7 +2244,7 @@ async function testBuiltins() {
             (k: Int, v: Int) = a.find((k: Int, _) -> Bool {k == 0}); Map[Int]Int{k: v}
         }`, ([a], res) => {
             if (a.data.map.some(([k, _]) => asInt(k) == 0n)) {
-                return res.data.map.length == 1 && asInt(res.data.map[0][0]) === 0n;
+                return asData(res).map.length == 1 && asInt(asData(res).map[0][0]) === 0n;
             } else {
                 return isError(res, "not found");
             }
@@ -2267,9 +2274,9 @@ async function testBuiltins() {
             }
         }`, ([a], res) => {            
             if (a.data.map.some(([_, v]) => asInt(v) == 0n)) {
-                return res.data.index == 0 && asInt(res.data.fields[0]) === 0n;
+                return asData(res).index == 0 && asInt(asData(res).fields[0]) === 0n;
             } else {
-                return res.data.index == 1;
+                return asData(res).index == 1;
             }
         });
 
@@ -2285,9 +2292,9 @@ async function testBuiltins() {
             }
         }`, ([a], res) => {
             if (a.data.map.some(([_, v]) => asInt(v) == 0n)) {
-                return res.data.map.length == 1 && asInt(res.data.map[0][1]) === 0n;
+                return asData(res).map.length == 1 && asInt(asData(res).map[0][1]) === 0n;
             } else {
-                return res.data.map.length == 0;
+                return asData(res).map.length == 0;
             }
         });
 
@@ -2298,7 +2305,7 @@ async function testBuiltins() {
                 (key*2, value)
             })
         }`, ([a], res) => {
-            let lRes = res.data.map;
+            let lRes = asData(res).map;
 
             return a.data.map.every(([k, _], i) => {
                 return asInt(k)*2n === asInt(lRes[i][0]);
@@ -2312,7 +2319,7 @@ async function testBuiltins() {
                 (key, value*2)
             })
         }`, ([a], res) => {
-            let lRes = res.data.map;
+            let lRes = asData(res).map;
 
             return a.data.map.every(([_, v], i) => {
                 return asInt(v)*2n === asInt(lRes[i][1]);
@@ -2326,7 +2333,7 @@ async function testBuiltins() {
                 (key, value >= 0)
             })
         }`, ([a], res) => {
-            let lRes = res.data.map;
+            let lRes = asData(res).map;
 
             return a.data.map.every(([_, v], i) => {
                 return (asInt(v) >= 0n) === asBool(lRes[i][1]);
@@ -2338,7 +2345,7 @@ async function testBuiltins() {
         func main(m: Map[Int]Int, key: Int) -> Map[Int]Int {
             m.delete(key)
         }`, ([_, key], res) => {
-            return res.data.map.every((pair) => {
+            return asData(res).map.every((pair) => {
                 return asInt(pair[0]) !== asInt(key);
             });
         });
@@ -2348,7 +2355,7 @@ async function testBuiltins() {
         func main(m: Map[Int]Int, key: Int, value: Int) -> Map[Int]Int {
             m.delete(key).set(key, value)
         }`, ([_, key, value], res) => {
-            return res.data.map.some((pair) => {
+            return asData(res).map.some((pair) => {
                 return (asInt(pair[0]) === asInt(key)) && (asInt(pair[1]) === asInt(value));
             });
         });
@@ -2360,9 +2367,9 @@ async function testBuiltins() {
                 ak + av < bk + bv
             })
         }`, ([_], res) => {
-            return res.data.map.every(([k, v], i) => {
+            return asData(res).map.every(([k, v], i) => {
                 if (i > 0) {
-                    let [kPrev, vPrev] = res.data.map[i-1];
+                    let [kPrev, vPrev] = asData(res).map[i-1];
 
                     return (asInt(kPrev) + asInt(vPrev)) <= (asInt(k) + asInt(v));
                 } else {
@@ -2378,9 +2385,9 @@ async function testBuiltins() {
                 a < b
             })
         }`, ([_], res) => {
-            return res.data.map.every(([k, _], i) => {
+            return asData(res).map.every(([k, _], i) => {
                 if (i > 0) {
-                    let [kPrev, _] = res.data.map[i-1];
+                    let [kPrev, _] = asData(res).map[i-1];
 
                     return asInt(kPrev) <= asInt(k);
                 } else {
@@ -2396,9 +2403,9 @@ async function testBuiltins() {
                 a < b
             })
         }`, ([_], res) => {
-            return res.data.map.every(([_, v], i) => {
+            return asData(res).map.every(([_, v], i) => {
                 if (i > 0) {
-                    let [_, vPrev] = res.data.map[i-1];
+                    let [_, vPrev] = asData(res).map[i-1];
 
                     return asInt(vPrev) <= asInt(v);
                 } else {
@@ -2411,7 +2418,7 @@ async function testBuiltins() {
         testing map_from_data
         func main(a: Data) -> Map[Int]Int {
             Map[Int]Int::from_data(a)
-        }`, ([a], res) => a.data.isSame(res.data));
+        }`, ([a], res) => a.data.isSame(asData(res)));
 
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_serialize
@@ -2440,7 +2447,7 @@ async function testBuiltins() {
         testing boolmap_add
         func main(a: Map[Int]Bool, b: Map[Int]Bool) -> Map[Int]Bool {
             a + b
-        }`, ([a, b], res) => res.data.isSame(new helios_.MapData(a.data.map.concat(b.data.map))));
+        }`, ([a, b], res) => asData(res).isSame(new helios_.MapData(a.data.map.concat(b.data.map))));
 
         await ft.test([ft.map(ft.int(), ft.bool(), 0, 10), ft.int(), ft.bool()], `
         testing boolmap_prepend
@@ -2449,7 +2456,7 @@ async function testBuiltins() {
         }`, ([a, k, v], res) => {
             let expected = a.data.map;
             expected.unshift([new helios.IntData(asInt(k)), new helios.ConstrData(asBool(v) ? 1 : 0, [])]);
-            return res.data.isSame(new helios_.MapData(expected));
+            return asData(res).isSame(new helios_.MapData(expected));
         });
 
         await ft.test([ft.map(ft.int(), ft.bool())], `
@@ -2519,7 +2526,7 @@ async function testBuiltins() {
                 return isError(res, "empty map");
             } else {
                 let la = a.data.map.slice(1);
-                let lRes = res.data.map.slice();
+                let lRes = asData(res).map.slice();
 
                 return la.length == lRes.length && la.every(([k,v], i) => asInt(k) === asInt(lRes[i][0]) && asBool(v) === asBool(lRes[i][1]));
             }
@@ -2592,7 +2599,7 @@ async function testBuiltins() {
             a.filter((k: Int, v: Bool) -> Bool {
                 k < v.to_int()
             })
-        }`, ([_], res) => res.data.map.every(([k, v]) => asInt(k) < BigInt(constrIndex(v))));
+        }`, ([_], res) => asData(res).map.every(([k, v]) => asInt(k) < BigInt(constrIndex(v))));
 
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_filter_by_key
@@ -2600,7 +2607,7 @@ async function testBuiltins() {
             a.filter((k: Int, _) -> Bool {
                 k > 0
             })
-        }`, ([_], res) => res.data.map.every(([k, _]) => asInt(k) > 0n));
+        }`, ([_], res) => asData(res).map.every(([k, _]) => asInt(k) > 0n));
 
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_filter_by_value
@@ -2608,7 +2615,7 @@ async function testBuiltins() {
             a.filter((_, v: Bool) -> Bool {
                 v.to_int() > 0
             })
-        }`, ([_], res) => res.data.map.every(([_, v]) => constrIndex(v) > 0));
+        }`, ([_], res) => asData(res).map.every(([_, v]) => constrIndex(v) > 0));
 
         await ft.test([ft.map(ft.int(), ft.bool())], `
         testing boolmap_find
@@ -2619,7 +2626,7 @@ async function testBuiltins() {
             Map[Int]Bool{k: v}
         }`, ([a], res) => {
             if (a.data.map.some(([k, v]) => asInt(k) < BigInt(constrIndex(v)))) {
-                return res.data.map.length == 1;
+                return asData(res).map.length == 1;
             } else {
                 return isError(res, "not found");
             }
@@ -2639,9 +2646,9 @@ async function testBuiltins() {
             }
         }`, ([a], res) => {
             if (a.data.map.some(([k, _]) => asInt(k) > 0n)) {
-                return res.data.map.length == 1;
+                return asData(res).map.length == 1;
             } else {
-                return res.data.map.length == 0;
+                return asData(res).map.length == 0;
             }
         });
 
@@ -2663,9 +2670,9 @@ async function testBuiltins() {
             a.find_key_safe((k: Int) -> Bool {k == 0})
         }`, ([a], res) => {            
             if (a.data.map.some(([k, _]) => asInt(k) == 0n)) {
-                return res.data.index == 0 && asInt(res.data.fields[0]) === 0n;
+                return asData(res).index == 0 && asInt(asData(res).fields[0]) === 0n;
             } else {
-                return res.data.index == 1;
+                return asData(res).index == 1;
             }
         });
 
@@ -2683,9 +2690,9 @@ async function testBuiltins() {
             }
         }`, ([a], res) => {
             if (a.data.map.some(([_, v]) => constrIndex(v) > 0)) {
-                return res.data.map.length == 1;
+                return asData(res).map.length == 1;
             } else {
-                return res.data.map.length == 0;
+                return asData(res).map.length == 0;
             }
         });
 
@@ -2707,9 +2714,9 @@ async function testBuiltins() {
             a.find_value_safe((v: Bool) -> Bool {v})
         }`, ([a], res) => {            
             if (a.data.map.some(([_, v]) => asBool(v))) {
-                return res.data.index == 0 && asBool(res.data.fields[0]);
+                return asData(res).index == 0 && asBool(asData(res).fields[0]);
             } else {
-                return res.data.index == 1;
+                return asData(res).index == 1;
             }
         });
 
@@ -2808,7 +2815,7 @@ async function testBuiltins() {
         func main(a: Data) -> Map[Int]Bool {
             Map[Int]Bool::from_data(a)
         }`, ([a], res) => {
-            return a.data.map.length == res.data.map.length && a.data.map.every((pair, i) => pair[0] === res.data.map[i][0] && pair[1] === res.data.map[i][1]);
+            return a.data.map.length == asData(res).map.length && a.data.map.every((pair, i) => pair[0] === asData(res).map[i][0] && pair[1] === asData(res).map[i][1]);
         });
 
         await ft.test([ft.map(ft.int(), ft.bool())], `
@@ -2818,7 +2825,7 @@ async function testBuiltins() {
                 (key*2, value)
             })
         }`, ([a], res) => {
-            let lRes = res.data.map;
+            let lRes = asData(res).map;
 
             return a.data.map.every(([k, _], i) => {
                 return asInt(k)*2n === asInt(lRes[i][0]);
@@ -2832,7 +2839,7 @@ async function testBuiltins() {
                 (key, if (value) {1} else {0})
             })
         }`, ([a], res) => {
-            let lRes = res.data.map;
+            let lRes = asData(res).map;
 
             return a.data.map.every(([_, v], i) => {
                 return (asBool(v) ? 1n : 0n) === asInt(lRes[i][1]);
@@ -2846,7 +2853,7 @@ async function testBuiltins() {
                 (key, !value)
             })
         }`, ([a], res) => {
-            let lRes = res.data.map;
+            let lRes = asData(res).map;
 
             return a.data.map.every(([_, v], i) => {
                 return (!asBool(v)) === asBool(lRes[i][1]);
@@ -2858,7 +2865,7 @@ async function testBuiltins() {
         func main(m: Map[Int]Bool, key: Int) -> Map[Int]Bool {
             m.delete(key)
         }`, ([_, key], res) => {
-            return res.data.map.every((pair) => {
+            return asData(res).map.every((pair) => {
                 return asInt(pair[0]) !== asInt(key);
             });
         });
@@ -2868,7 +2875,7 @@ async function testBuiltins() {
         func main(m: Map[Int]Bool, key: Int, value: Bool) -> Map[Int]Bool {
             m.delete(key).set(key, value)
         }`, ([_, key, value], res) => {
-            return res.data.map.some((pair) => {
+            return asData(res).map.some((pair) => {
                 return (asInt(pair[0]) === asInt(key)) && (asBool(pair[1]) === asBool(value));
             });
         });
@@ -2958,7 +2965,7 @@ async function testBuiltins() {
     testing option_from_data
     func main(a: Data) -> Option[Int] {
         Option[Int]::from_data(a)
-    }`, ([a], res) => a.data.isSame(res.data));
+    }`, ([a], res) => a.data.isSame(asData(res)));
 
     await ft.test([ft.option(ft.int())], `
     testing option_serialize
@@ -3041,7 +3048,7 @@ async function testBuiltins() {
     testing booloption_from_data
     func main(a: Data) -> Option[Bool] {
         Option[Bool]::from_data(a)
-    }`, ([a], res) => a.data.isSame(res.data));
+    }`, ([a], res) => a.data.isSame(asData(res)));
 
     await ft.test([ft.option(ft.bool())], `
     testing booloption_serialize
@@ -3125,7 +3132,7 @@ async function testBuiltins() {
     testing hash_from_data
     func main(a: Data) -> PubKeyHash {
         PubKeyHash::from_data(a)
-    }`, ([a], res) => a.data.isSame(res.data));
+    }`, ([a], res) => a.data.isSame(asData(res)));
 
     await ft.test([ft.bytes()], `
     testing hash_serialize
@@ -3154,7 +3161,7 @@ async function testBuiltins() {
     testing assetclass_from_data
     func main(a: Data) -> AssetClass {
         AssetClass::from_data(a)
-    }`, ([a], res) => a.data.isSame(res.data));
+    }`, ([a], res) => a.data.isSame(asData(res)));
 
     await ft.test([ft.bytes(), ft.bytes()], `
     testing assetclass_serialize
@@ -3374,13 +3381,13 @@ async function testBuiltins() {
         testing value_from_data
         func main(a: Data) -> Value {
             Value::from_data(a)
-        }`, ([a], res) => a.data.isSame(res.data));
+        }`, ([a], res) => a.data.isSame(asData(res)));
 
         await ft.test([ft.map(ft.bytes(), ft.map(ft.bytes(), ft.int()))], `
         testing value_from_map
         func main(a: Map[MintingPolicyHash]Map[ByteArray]Int) -> Value {
             Value::from_map(a)
-        }`, ([a], res) => a.data.isSame(res.data));
+        }`, ([a], res) => a.data.isSame(asData(res)));
 
         await ft.test([ft.map(ft.bytes(), ft.map(ft.bytes(), ft.int()))], `
         testing value_to_map
@@ -3437,7 +3444,7 @@ async function testBuiltins() {
             ctx.tx
         }
         ${spendingScriptContextParam(false)}
-        `, ([ctx], res) => ctx.data.fields[0].isSame(res.data), 10);
+        `, ([ctx], res) => ctx.data.fields[0].isSame(asData(res)), 10);
 
         await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `
         testing scriptcontext_get_spending_purpose_output_id
@@ -3445,7 +3452,7 @@ async function testBuiltins() {
             ctx.get_spending_purpose_output_id()
         }
         ${spendingScriptContextParam(false)}
-        `, ([ctx], res) => ctx.data.fields[1].fields[0].isSame(res.data), 10);
+        `, ([ctx], res) => ctx.data.fields[1].fields[0].isSame(asData(res)), 10);
 
         await ft.testParams({"TX_ID_IN_BYTES": ft.bytes()}, ["FIRST_TX_INPUT", "SCRIPT_CONTEXT"], `
         testing scriptcontext_get_current_input
@@ -3488,7 +3495,7 @@ async function testBuiltins() {
             ScriptContext::from_data(ctx)
         }
         ${spendingScriptContextParam(false)}
-        `, ([ctx], res) => res.data.isSame(ctx.data), 10);
+        `, ([ctx], res) => asData(res).isSame(ctx.data), 10);
 
         await ft.testParams({"CURRENT_VALIDATOR_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
         testing scriptcontext_serialize
@@ -3526,7 +3533,7 @@ async function testBuiltins() {
             StakingPurpose::from_data(sp)
         }
         ${rewardingScriptContextParam}
-        `, ([sp], res) => sp.data.isSame(res.data), 5);
+        `, ([sp], res) => sp.data.isSame(asData(res)), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
         testing stakingpurpose_serialize
@@ -3620,7 +3627,7 @@ async function testBuiltins() {
             DCert::from_data(dcert)
         }
         ${certifyingScriptContextParam}
-        `, ([a], res) => a.data.isSame(res.data), 5);
+        `, ([a], res) => a.data.isSame(asData(res)), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
         testing dcert_serialize
@@ -3693,7 +3700,7 @@ async function testBuiltins() {
         }
         ${certifyingScriptContextParam}
         `, ([ctx], res) => {
-            return res.data.list.every((d, i) => {
+            return asData(res).list.every((d, i) => {
                 let ref = ctx.data.fields[0].fields[5].list[i];
                 return decodeCbor(asBytes(d)).isSame(ref);
             });
@@ -4001,7 +4008,7 @@ async function testBuiltins() {
             Tx::from_data(tx)
         }
         ${spendingScriptContextParam(false)}
-        `, ([tx], res) => res.data.isSame(tx.data), 5);
+        `, ([tx], res) => asData(res).isSame(tx.data), 5);
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
         testing tx_serialize
@@ -4059,7 +4066,7 @@ async function testBuiltins() {
         TxId::from_data(tx_id)
     }
     ${spendingScriptContextParam(false)}
-    `, ([txId], res) => res.data.isSame(txId.data), 2);
+    `, ([txId], res) => asData(res).isSame(txId.data), 2);
 
     await ft.testParams({"QTY": ft.int()}, ["CURRENT_TX_ID"], `
     testing txid_serialize
@@ -4087,7 +4094,7 @@ async function testBuiltins() {
         TxInput::from_data(txinput)
     }
     ${spendingScriptContextParam(false)}
-    `, ([a], res) => a.data.isSame(res.data), 5);
+    `, ([a], res) => a.data.isSame(asData(res)), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing txinput_serialize
@@ -4141,7 +4148,7 @@ async function testBuiltins() {
         TxOutput::from_data(data)
     }
     ${spendingScriptContextParam(false)}
-    `, ([a], res) => a.data.isSame(res.data), 5);
+    `, ([a], res) => a.data.isSame(asData(res)), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing txoutput_serialize
@@ -4200,7 +4207,7 @@ async function testBuiltins() {
         const INLINE_DATUM = 0
 
         const OUTPUT_DATUM: OutputDatum = OutputDatum::new_inline(INLINE_DATUM)
-        `, ([a], res) => a.data.isSame(res.data), 5);
+        `, ([a], res) => a.data.isSame(asData(res)), 5);
 
         await ft.testParams({"INLINE_DATUM": ft.int()}, ["OUTPUT_DATUM"], `
         testing outputdatum_serialize
@@ -4343,7 +4350,7 @@ async function testBuiltins() {
         TxOutputId::from_data(data)
     }
     ${spendingScriptContextParam(false)}
-    `, ([a], res) => a.data.isSame(res.data), 5);
+    `, ([a], res) => a.data.isSame(asData(res)), 5);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing txoutputid_serialize
@@ -4354,6 +4361,20 @@ async function testBuiltins() {
     `, ([ctx], res) => {
         return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0].fields[0].list[0].fields[0]);
     }, 5);
+
+    await ft.test([], `
+    testing address_new_empty
+    func main() -> Bool {
+        a = Address::new_empty();
+        a.credential.switch{
+            pk: PubKey => pk.hash == PubKeyHash::new(#),
+            else => error("unexpected")
+        } &&
+        a.staking_credential.switch{
+            None => true,
+            else => error("unexpected")
+        }
+    }`, ([], res) => asBool(res), 1);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing address_eq
@@ -4386,7 +4407,7 @@ async function testBuiltins() {
     }
     const PUB_KEY_HASH_BYTES = #
     const ADDRESS: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
-    `, ([a], res) => a.data.isSame(res.data), 10);
+    `, ([a], res) => a.data.isSame(asData(res)), 10);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing address_serialize
@@ -4420,7 +4441,7 @@ async function testBuiltins() {
         Credential::from_data(data)
     }
     ${spendingScriptContextParam(false)}
-    `, ([a], res) => a.data.isSame(res.data), 3);
+    `, ([a], res) => a.data.isSame(asData(res)), 3);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing credential_serialize
@@ -4495,7 +4516,7 @@ async function testBuiltins() {
         StakingCredential::from_data(data)
     }
     ${spendingScriptContextParam(false)}
-    `, ([a], res) => a.data.isSame(res.data), 2);
+    `, ([a], res) => a.data.isSame(asData(res)), 2);
 
     await ft.testParams({"HAS_STAKING_CRED_IN": ft.bool()}, ["SCRIPT_CONTEXT"], `
     testing staking_credential_serialize
@@ -5032,7 +5053,7 @@ async function testBuiltins() {
     const DUR = 100
 
     const TR: TimeRange = TimeRange::new(Time::new(START), Time::new(START + DUR))
-    `, ([a], res) => a.data.isSame(res.data));
+    `, ([a], res) => a.data.isSame(asData(res)));
 
 
     await ft.test([ft.int(), ft.int()], `

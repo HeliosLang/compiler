@@ -267,6 +267,8 @@ export function byteToBitString(b, n = 8) {
  * @returns {number[]}
  */
 export function hexToBytes(hex) {
+	hex = hex.trim();
+	
 	const bytes = [];
 
 	for (let i = 0; i < hex.length; i += 2) {

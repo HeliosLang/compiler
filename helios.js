@@ -192,7 +192,11 @@
 //
 //    Section 26: Fuzzy testing framework    FuzzyTest
 //
-//    Section 27: Wallets                    Cip30Wallet, WalletHelper
+//    Section 27: CoinSelection              CoinSelection
+//
+//    Section 28: Wallets                    Cip30Wallet, WalletHelper
+//
+//    Section 29: Network                    BlockfrostV0
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -510,6 +514,8 @@ function byteToBitString(b, n = 8) {
  * @returns {number[]}
  */
 export function hexToBytes(hex) {
+	hex = hex.trim();
+	
 	const bytes = [];
 
 	for (let i = 0; i < hex.length; i += 2) {
@@ -7189,12 +7195,13 @@ export class Value extends HeliosData {
 
 	/**
 	 * Used when building script context
+	 * @param {boolean} isInScriptContext
 	 * @returns {MapData}
 	 */
-	_toUplcData() {
+	_toUplcData(isInScriptContext = false) {
 		let map = this.#assets._toUplcData();
 
-		if (this.#lovelace != 0n) {
+		if (this.#lovelace != 0n || isInScriptContext) {
 			let inner = map.map; 
 
 			inner.unshift([
@@ -16723,6 +16730,8 @@ class AddressType extends BuiltinType {
 					new CredentialType(), // 0
 					new OptionType(new StakingCredentialType()), // 1
 				], this));
+			case "new_empty":
+				return Instance.new(new FuncType([], this));
 			default:
 				return super.getTypeMember(name);
 		}
@@ -27015,6 +27024,10 @@ function makeRawFunctions() {
 	`(cred, staking_cred) -> {
 		__core__constrData(0, __helios__common__list_2(cred, staking_cred))
 	}`));
+	add(new RawFunc("__helios__address__new_empty",
+	`() -> {
+		__core__constrData(0, __helios__common__list_2(__helios__credential__new_pubkey(__core__bData(#)), __helios__option__none__new()))
+	}`))
 	add(new RawFunc("__helios__address__credential", "__helios__common__field_0"));
 	add(new RawFunc("__helios__address__staking_credential", "__helios__common__field_1"));
 	add(new RawFunc("__helios__address__is_staked",
@@ -32409,6 +32422,14 @@ export class Tx extends CborData {
 
 		return this;
 	}
+
+	/**
+	 * @returns {TxId}
+	 */
+	id() {
+		assert(this.#valid, "can't get TxId of unfinalized Tx");
+		return new TxId(Crypto.blake2b(this.#body.toCbor(), 32));
+	}
 }
 
 /**
@@ -32507,6 +32528,9 @@ class TxBody extends CborData {
 		this.#fee = fee;
 	}
 
+	/**
+	 * @type {Assets}
+	 */
 	get minted() {
 		return this.#minted;
 	}
@@ -32714,7 +32738,8 @@ class TxBody extends CborData {
 			new ListData(this.#refInputs.map(input => input.toData())),
 			new ListData(this.#outputs.map(output => output.toData())),
 			(new Value(this.#fee))._toUplcData(),
-			this.#minted._toUplcData(),
+			// NOTE: all other Value instances in ScriptContext contain some lovelace, but #minted can never contain any lovelace, yet cardano-node always prepends 0 lovelace to the #minted MapData
+			(new Value(0n, this.#minted))._toUplcData(true), 
 			new ListData(this.#certs.map(cert => cert.toData())),
 			new MapData(Array.from(this.#withdrawals.entries()).map(w => [w[0].toStakingData(), new IntData(w[1])])),
 			this.toValidTimeRangeData(networkParams),
@@ -35632,134 +35657,24 @@ export class FuzzyTest {
 }
 
 
-//////////////////////
-// Section 27: Wallets
-//////////////////////
-
-
-/**
- * @typedef {{
- *   usedAddresses: Promise<Address[]>,
- *   unusedAddresses: Promise<Address[]>,
- *   utxos: Promise<UTxO[]>
- * }} Wallet
- */
+////////////////////////////
+// Section 27: CoinSelection
+////////////////////////////
 
 /**
- * @typedef {{
- *   getNetworkId(): Promise<number>,
- *   getUsedAddresses(): Promise<string[]>,
- *   getUnusedAddresses(): Promise<string[]>,
- *   getUtxos(): Promise<string[]>,
- *   signTx(txHex: string, partialSign: boolean): Promise<string>,
- *   submitTx(txHex: string): Promise<string>
- * }} Cip30
+ * Collection of coin selection algorithms
  */
-
-/**
- * @implements {Wallet}
- */
-export class Cip30Wallet {
-    #fullApi;
-
+export class CoinSelection {
     /**
-     * @param {Cip30} fullApi 
-     */
-    constructor(fullApi) {
-        this.#fullApi = fullApi;
-    }
-
-    /**
-     * @type {Promise<Address[]>}
-     */
-    get usedAddresses() {
-        return this.#fullApi.getUsedAddresses().then(addresses => addresses.map(a => new Address(a)));
-    }
-
-    /**
-     * @type {Promise<Address[]>}
-     */
-    get unusedAddresses() {
-        return this.#fullApi.getUnusedAddresses().then(addresses => addresses.map(a => new Address(a)));
-    }
-
-    /**
-     * @type {Promise<UTxO[]>}
-     */
-    get utxos() {
-        return this.#fullApi.getUtxos().then(utxos => utxos.map(u => UTxO.fromCbor(hexToBytes(u))));
-    }
-}
-
-export class WalletHelper {
-    #wallet;
-
-    /**
-     * @param {Wallet} wallet 
-     */
-    constructor(wallet) {
-        this.#wallet = wallet;
-    }
-
-    /**
-     * @type {Promise<Address[]>}
-     */
-    get allAddresses() {
-        return this.#wallet.usedAddresses.then(usedAddress => this.#wallet.unusedAddresses.then(unusedAddresses => usedAddress.concat(unusedAddresses)));
-    }
-
-    /**
-     * @returns {Promise<Value>}
-     */
-    async calcBalance() {
-        let sum = new Value();
-
-        const utxos = await this.#wallet.utxos;
-
-        for (const utxo of utxos) {
-            sum = sum.add(utxo.value);
-        }
-
-        return sum;
-    }
-
-    /**
-     * @type {Promise<Address>}
-     */
-    get baseAddress() {
-        return this.allAddresses.then(addresses => assertDefined(addresses[0]));
-    }
-
-    /**
-     * @type {Promise<Address>}
-     */
-    get changeAddress() {
-        return this.#wallet.unusedAddresses.then(addresses => assertDefined(addresses[0]));
-    }
-
-    /**
-     * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
-     * @type {Promise<?UTxO>}
-     */
-    get refUtxo() {
-        return this.#wallet.utxos.then(utxos => {
-            if(utxos.length == 0) {
-                return null;
-            } else {
-                return assertDefined(utxos[0])
-            }
-        });
-    }
-
-    /**
+     * @param {UTxO[]} utxos 
      * @param {Value} amount 
-     * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
-     */ 
-    async pickUtxos(amount) {
+     * @returns {[UTxO[], UTxO[]]} - [picked, not picked that can be used as spares]
+     */
+    static pickSmallest(utxos, amount) {
         let sum = new Value();
 
         /** @type {UTxO[]} */
-        let notYetPicked = await this.#wallet.utxos;
+        let notYetPicked = utxos.slice();
 
         /** @type {UTxO[]} */
         const picked = [];
@@ -35829,6 +35744,157 @@ export class WalletHelper {
 
         return [picked, notYetPicked];
     }
+}
+
+
+//////////////////////
+// Section 28: Wallets
+//////////////////////
+
+
+/**
+ * @typedef {{
+ *   usedAddresses: Promise<Address[]>,
+ *   unusedAddresses: Promise<Address[]>,
+ *   utxos: Promise<UTxO[]>,
+ *   signTx(tx: Tx): Promise<Signature[]>,
+ *   submitTx(tx: Tx): Promise<TxId>
+ * }} Wallet
+ */
+
+/**
+ * @typedef {{
+ *   getNetworkId(): Promise<number>,
+ *   getUsedAddresses(): Promise<string[]>,
+ *   getUnusedAddresses(): Promise<string[]>,
+ *   getUtxos(): Promise<string[]>,
+ *   signTx(txHex: string, partialSign: boolean): Promise<string>,
+ *   submitTx(txHex: string): Promise<string>
+ * }} Cip30Handle
+ */
+
+/**
+ * @implements {Wallet}
+ */
+export class Cip30Wallet {
+    #handle;
+
+    /**
+     * @param {Cip30Handle} handle 
+     */
+    constructor(handle) {
+        this.#handle = handle;
+    }
+
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get usedAddresses() {
+        return this.#handle.getUsedAddresses().then(addresses => addresses.map(a => new Address(a)));
+    }
+
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get unusedAddresses() {
+        return this.#handle.getUnusedAddresses().then(addresses => addresses.map(a => new Address(a)));
+    }
+
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get utxos() {
+        return this.#handle.getUtxos().then(utxos => utxos.map(u => UTxO.fromCbor(hexToBytes(u))));
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<Signature[]>}
+     */
+    async signTx(tx) {
+        const res = await this.#handle.signTx(bytesToHex(tx.toCbor()), true);
+        
+        return TxWitnesses.fromCbor(hexToBytes(res)).signatures;
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        const responseText = await this.#handle.submitTx(bytesToHex(tx.toCbor()));
+
+        return new TxId(responseText);
+    }
+}
+
+export class WalletHelper {
+    #wallet;
+
+    /**
+     * @param {Wallet} wallet 
+     */
+    constructor(wallet) {
+        this.#wallet = wallet;
+    }
+
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get allAddresses() {
+        return this.#wallet.usedAddresses.then(usedAddress => this.#wallet.unusedAddresses.then(unusedAddresses => usedAddress.concat(unusedAddresses)));
+    }
+
+    /**
+     * @returns {Promise<Value>}
+     */
+    async calcBalance() {
+        let sum = new Value();
+
+        const utxos = await this.#wallet.utxos;
+
+        for (const utxo of utxos) {
+            sum = sum.add(utxo.value);
+        }
+
+        return sum;
+    }
+
+    /**
+     * @type {Promise<Address>}
+     */
+    get baseAddress() {
+        return this.allAddresses.then(addresses => assertDefined(addresses[0]));
+    }
+
+    /**
+     * @type {Promise<Address>}
+     */
+    get changeAddress() {
+        return this.#wallet.unusedAddresses.then(addresses => assertDefined(addresses[0]));
+    }
+
+    /**
+     * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
+     * @type {Promise<?UTxO>}
+     */
+    get refUtxo() {
+        return this.#wallet.utxos.then(utxos => {
+            if(utxos.length == 0) {
+                return null;
+            } else {
+                return assertDefined(utxos[0])
+            }
+        });
+    }
+
+    /**
+     * @param {Value} amount 
+     * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
+     */ 
+    async pickUtxos(amount) {
+        return CoinSelection.pickSmallest(await this.#wallet.utxos, amount);
+    }
 
     /**
      * Returned collateral can't contain an native assets (pure lovelace)
@@ -35885,6 +35951,63 @@ export class WalletHelper {
 
         return false;
     }
+}
+
+
+//////////////////////
+// Section 29: Network
+//////////////////////
+
+/**
+ * @typedef {{
+ *   submitTx(tx: Tx): Promise<TxId>
+ * }} Network
+ */
+
+/**
+ * @implements {Network}
+ */
+export class BlockfrostV0 {
+    #networkName;
+    #projectId;
+
+    /**
+     * @param {string} networkName - "preview", "preprod" or "mainnet"
+     * @param {string} projectId
+     */
+    constructor(networkName, projectId) {
+        this.#networkName = networkName;
+        this.#projectId = projectId
+    }
+
+    /** 
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        const data = new Uint8Array(tx.toCbor());
+        const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/tx/submit`;
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "content-type": "application/cbor",
+                "project_id": this.#projectId
+            },
+            body: data
+        }).catch(e => {
+            console.error(e);
+            throw e;
+        });
+
+        const responseText = await response.text();
+
+        if (response.status != 200) {
+            throw new Error(responseText);
+        } else {
+            return new TxId(JSON.parse(responseText));  
+        }
+    }   
 }
 
 /**

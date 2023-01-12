@@ -703,6 +703,14 @@ export class Tx extends CborData {
 
 		return this;
 	}
+
+	/**
+	 * @returns {TxId}
+	 */
+	id() {
+		assert(this.#valid, "can't get TxId of unfinalized Tx");
+		return new TxId(Crypto.blake2b(this.#body.toCbor(), 32));
+	}
 }
 
 /**
@@ -801,6 +809,9 @@ class TxBody extends CborData {
 		this.#fee = fee;
 	}
 
+	/**
+	 * @type {Assets}
+	 */
 	get minted() {
 		return this.#minted;
 	}
@@ -1008,7 +1019,8 @@ class TxBody extends CborData {
 			new ListData(this.#refInputs.map(input => input.toData())),
 			new ListData(this.#outputs.map(output => output.toData())),
 			(new Value(this.#fee))._toUplcData(),
-			this.#minted._toUplcData(),
+			// NOTE: all other Value instances in ScriptContext contain some lovelace, but #minted can never contain any lovelace, yet cardano-node always prepends 0 lovelace to the #minted MapData
+			(new Value(0n, this.#minted))._toUplcData(true), 
 			new ListData(this.#certs.map(cert => cert.toData())),
 			new MapData(Array.from(this.#withdrawals.entries()).map(w => [w[0].toStakingData(), new IntData(w[1])])),
 			this.toValidTimeRangeData(networkParams),

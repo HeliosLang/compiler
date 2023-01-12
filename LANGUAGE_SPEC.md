@@ -255,7 +255,7 @@ internal ns: __helios__scripthash
 ## PubKeyHash, StakeKeyHash, DatumHash
 ```
 associated:  new, from_data
-operators:   __eq, __neq
+operators:   __eq, __neq, __lt, __leq, __gt, __geq
 methods:     serialize, show
 internal ns: __helios__hash
 ```
@@ -263,7 +263,7 @@ internal ns: __helios__hash
 ## ValidatorHash, MintingPolicyHash, StakingValidatorHash
 ```
 associated:  new, from_data, from_script_hash
-operators:   __eq, __neq
+operators:   __eq, __neq, __lt, __leq, __gt, __geq
 methods:     serialize, show
 macros:      CURRENT
 internal ns: __helios__hash
@@ -421,8 +421,8 @@ internal ns: __helios__tx
 ## TxId
 ```
 associated:  new, from_data
-operators:   __eq, __neq
-methods:     serialize
+operators:   __eq, __neq, __lt, __leq, __gt, __geq
+methods:     serialize, show
 macros:      CURRENT
 internal ns: __helios__txid
 ```
@@ -453,7 +453,7 @@ internal ns: __helios__txoutput
 associated:  from_data
 operators:   __eq, __neq
 macros:      new_none, new_hash, new_inline
-methods:     serialize
+methods:     inline_data, serialize
 internal ns: __helios__outputdatum
 ```
 
@@ -491,14 +491,14 @@ internal ns: __helios__data
 ## TxOutputId
 ```
 associated:  new, from_data
-operators:   __eq, __neq
+operators:   __eq, __neq, __lt, __leq, __gt, __geq
 methods:     serialize
 internal ns: __helios__txoutputid
 ```
 
 ## Address
 ```
-associated:  new, from_data
+associated:  new, new_empty, from_data
 operators:   __eq, __neq
 getters:     credential, staking_credential
 methods:     serialize
