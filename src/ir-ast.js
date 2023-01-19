@@ -946,7 +946,7 @@ export class IRFuncExpr extends IRExpr {
 	}
 
 	/**
-	 * Simplify body
+	 * Simplify body, returning a IRFuncExpr with the same args
 	 * @param {IRExprStack} stack
 	 * @returns {IRFuncExpr}
 	 */
@@ -1378,9 +1378,9 @@ export class IRUserCallExpr extends IRCallExpr {
 
 			if (remArgExprs.length < argExprs.length || remArgExprs.length == 0) {
 				if (remArgExprs.length == 0) {
-					return fnExpr.inline(inlineStack).simplifyBody(stack).body;
+					return fnExpr.inline(inlineStack).body;
 				} else {
-					return new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.inline(inlineStack).simplifyBody(stack).body), remArgExprs, this.parensSite);
+					return new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.inline(inlineStack).body), remArgExprs, this.parensSite);
 				}
 			}
 		}
@@ -1423,7 +1423,7 @@ export class IRUserCallExpr extends IRCallExpr {
 			}
 
 			if (remVars.length < argVariables.length) {
-				let that = new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.body.inline(inlineStack).simplify(stack)), remArgs, this.parensSite);
+				let that = new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.body.inline(inlineStack)), remArgs, this.parensSite);
 
 				if (that.score() <= this.score()) {
 					return that;

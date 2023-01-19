@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.10.15
+// Version:       0.11.1
 // Last update:   January 2023
 // License:       Unlicense
 //
@@ -209,7 +209,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.10.15";
+export const VERSION = "0.11.1";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -28795,7 +28795,7 @@ class IRFuncExpr extends IRExpr {
 	}
 
 	/**
-	 * Simplify body
+	 * Simplify body, returning a IRFuncExpr with the same args
 	 * @param {IRExprStack} stack
 	 * @returns {IRFuncExpr}
 	 */
@@ -29227,9 +29227,9 @@ class IRUserCallExpr extends IRCallExpr {
 
 			if (remArgExprs.length < argExprs.length || remArgExprs.length == 0) {
 				if (remArgExprs.length == 0) {
-					return fnExpr.inline(inlineStack).simplifyBody(stack).body;
+					return fnExpr.inline(inlineStack).body;
 				} else {
-					return new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.inline(inlineStack).simplifyBody(stack).body), remArgExprs, this.parensSite);
+					return new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.inline(inlineStack).body), remArgExprs, this.parensSite);
 				}
 			}
 		}
@@ -29272,7 +29272,7 @@ class IRUserCallExpr extends IRCallExpr {
 			}
 
 			if (remVars.length < argVariables.length) {
-				let that = new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.body.inline(inlineStack).simplify(stack)), remArgs, this.parensSite);
+				let that = new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.body.inline(inlineStack)), remArgs, this.parensSite);
 
 				if (that.score() <= this.score()) {
 					return that;

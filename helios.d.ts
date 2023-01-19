@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.10.15";
+export const VERSION: "0.11.1";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -5195,7 +5195,7 @@ declare class IRFuncExpr extends IRExpr {
      */
     inline(stack: IRExprStack): IRFuncExpr;
     /**
-     * Simplify body
+     * Simplify body, returning a IRFuncExpr with the same args
      * @param {IRExprStack} stack
      * @returns {IRFuncExpr}
      */

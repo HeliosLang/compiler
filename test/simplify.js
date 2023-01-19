@@ -27,7 +27,7 @@ function simplify(src, expectedSize = null) {
 	console.log(new helios_.Source(irProgram1.toString()).pretty(), "\n\n");
 
 	if (expectedSize !== null) {
-		assert(size === expectedSize, "unexpected size")
+		assert(size === expectedSize, `unexpected size, expected ${expectedSize} but got ${size}`)
 	}
 }
 
@@ -85,7 +85,7 @@ export default async function main() {
 	func main(a: Int) -> []Int {
 		[]Int{a,1,2} + []Int{}
 	}
-	`, 21)
+	`, 57)
 
 	simplify(`
 	testing value_is_zero
