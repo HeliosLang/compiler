@@ -30,11 +30,15 @@ func main(datum: Datum, ctx: ScriptContext) -> Bool {
 
 ## User guide
 
-The Helios language and Helios API are covered extensively by the online [book](https://hyperion-bt.github.io/Helios-Book).
+The Helios language and Helios API are covered extensively by the online [book](https://www.hyperion-bt.org/helios-book).
 
 ## Online playground
 
-There is an online coding [playground](https://www.hyperion-bt.org/Helios-Playground?share=bd071424ebb752c3bbb2e2e45074c195).
+There is an online coding [playground](https://www.hyperion-bt.org/helios-playground?share=bd071424ebb752c3bbb2e2e45074c195).
+
+## VSCode plugin
+
+There is a VSCode plugin called *Helios* that can be installed through the extensions marketplace. Currently it only supports syntax highlighting. Please help us improve this extension by contributing to the [*helios-ide-plugins* repository](https://github.com/hyperion-bt/helios-ide-plugins).
 
 ## Sponsoring
 
