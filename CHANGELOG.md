@@ -1,5 +1,8 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/01/18
+* IR: Removed simplify calls from inline methods. Slight decrease in optimization performance, huge increase in compiler speed.
+
 # 2022/01/11
 * TxId, TxOutputId and hash-type comparison operators and `show`
 * Functions can return void `()` by using `print`, `error` or `assert` as final expressions
