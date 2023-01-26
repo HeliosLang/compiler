@@ -145,7 +145,19 @@ export class WalletHelper {
      * @type {Promise<Address>}
      */
     get changeAddress() {
-        return this.#wallet.unusedAddresses.then(addresses => assertDefined(addresses[0]));
+        return this.#wallet.unusedAddresses.then(addresses => {
+            if (addresses.length == 0) {
+                return this.#wallet.usedAddresses.then(addresses => {
+                    if (addresses.length == 0) {
+                        throw new Error("no addresses found")
+                    } else {
+                        return addresses[addresses.length-1];
+                    }
+                })
+            } else {
+                return addresses[0];
+            }
+        });
     }
 
     /**

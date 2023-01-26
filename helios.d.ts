@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.11.1";
+export const VERSION: "0.11.2";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}

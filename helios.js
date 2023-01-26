@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.11.1
+// Version:       0.11.2
 // Last update:   January 2023
 // License:       Unlicense
 //
@@ -209,7 +209,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.11.1";
+export const VERSION = "0.11.2";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -35893,7 +35893,19 @@ export class WalletHelper {
      * @type {Promise<Address>}
      */
     get changeAddress() {
-        return this.#wallet.unusedAddresses.then(addresses => assertDefined(addresses[0]));
+        return this.#wallet.unusedAddresses.then(addresses => {
+            if (addresses.length == 0) {
+                return this.#wallet.usedAddresses.then(addresses => {
+                    if (addresses.length == 0) {
+                        throw new Error("no addresses found")
+                    } else {
+                        return addresses[addresses.length-1];
+                    }
+                })
+            } else {
+                return addresses[0];
+            }
+        });
     }
 
     /**
