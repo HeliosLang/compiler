@@ -7,8 +7,8 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.11.2
-// Last update:   January 2023
+// Version:       0.11.3
+// Last update:   February 2023
 // License:       Unlicense
 //
 //
@@ -209,7 +209,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.11.2";
+export const VERSION = "0.11.3";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -8464,7 +8464,7 @@ export class UplcValue {
 * @property {(msg: string) => Promise<void>} [onPrint]
 * @property {(site: Site, rawStack: UplcRawStack) => Promise<boolean>} [onStartCall]
 * @property {(site: Site, rawStack: UplcRawStack) => Promise<void>} [onEndCall]
-* @property {(cost: Cost) => void} [onIncrCost]
+* @property {(name: string, isTerm: boolean, cost: Cost) => void} [onIncrCost]
 */
 
 /**
@@ -8474,7 +8474,7 @@ export const DEFAULT_UPLC_RTE_CALLBACKS = {
 	onPrint: async function (/** @type {string} */ msg) {return},
 	onStartCall: async function(/** @type {Site} */ site, /** @type {UplcRawStack} */ rawStack) {return false},
 	onEndCall: async function(/** @type {Site} */ site, /** @type {UplcRawStack} */ rawStack) {return},
-	onIncrCost: function(/** @type {Cost} */ cost) {return},
+	onIncrCost: function(/** @type {string} */ name, /** @type {boolean} */ isTerm, /** @type {Cost} */ cost) {return},
 }
 
 /**
@@ -8515,63 +8515,65 @@ class UplcRte {
 	}
 
 	/**
+	 * @param {string} name - for breakdown
+	 * @param {boolean} isTerm
 	 * @param {Cost} cost 
 	 */
-	incrCost(cost) {
+	incrCost(name, isTerm, cost) {
 		if (cost.mem <= 0n || cost.cpu <= 0n) {
 			throw new Error("cost not increasing");
 		}
 
 		if (this.#callbacks.onIncrCost !== undefined) {
-			this.#callbacks.onIncrCost(cost);
+			this.#callbacks.onIncrCost(name, isTerm, cost);
 		}
 	}
 
 	incrStartupCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreStartupCost);
+			this.incrCost("startup", true, this.#networkParams.plutusCoreStartupCost);
 		}
 	}
 
 	incrVariableCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreVariableCost);
+			this.incrCost("variable", true, this.#networkParams.plutusCoreVariableCost);
 		}
 	}
 
 	incrLambdaCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreLambdaCost);
+			this.incrCost("lambda", true, this.#networkParams.plutusCoreLambdaCost);
 		}
 	}
 
 	incrDelayCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreDelayCost);
+			this.incrCost("delay", true, this.#networkParams.plutusCoreDelayCost);
 		}
 	}
 
 	incrCallCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreCallCost);
+			this.incrCost("call", true, this.#networkParams.plutusCoreCallCost);
 		}
 	}
 
 	incrConstCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreConstCost);
+			this.incrCost("const", true, this.#networkParams.plutusCoreConstCost);
 		}
 	}
 
 	incrForceCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreForceCost);
+			this.incrCost("force", true, this.#networkParams.plutusCoreForceCost);
 		}
 	}
 
 	incrBuiltinCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreBuiltinCost);
+			this.incrCost("builtin", true, this.#networkParams.plutusCoreBuiltinCost);
 		}
 	}
 
@@ -8583,7 +8585,7 @@ class UplcRte {
 		if (this.#networkParams !== null) {
 			let cost = fn.calcCost(this.#networkParams, ...args);
 
-			this.incrCost(cost);
+			this.incrCost(fn.name, false, cost);
 		}
 	}
 
@@ -10462,6 +10464,13 @@ class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#name.toString();
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
@@ -11322,12 +11331,22 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	}
 
 	/**
-	 * @typedef {Object} Profile
-	 * @property {bigint} mem  - in 8 byte words (i.e. 1 mem unit is 64 bits)
-	 * @property {bigint} cpu  - in reference cpu microseconds
-	 * @property {number} size - in bytes
-	 * @property {UserError | UplcValue} result - result
-	 * @property {string[]} messages - printed messages (can be helpful when debugging)
+	 * @typedef {{
+	 *   mem: bigint, 
+	 *   cpu: bigint,
+	 *   size: number,
+	 *   builtins: {[name: string]: Cost},
+	 *   terms: {[name: string]: Cost},
+	 *   result: UserError | UplcValue,
+	 *   messages: string[]
+	 * }} Profile
+	 * mem:  in 8 byte words (i.e. 1 mem unit is 64 bits)
+	 * cpu:  in reference cpu microseconds
+	 * size: in bytes
+	 * builtins: breakdown per builtin
+	 * terms: breakdown per termtype
+	 * result: result of evaluation
+	 * messages: printed messages (can be helpful when debugging)
 	 */
 
 	/**
@@ -11342,11 +11361,46 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 		let cpuCost = 0n;
 
 		/**
-		 * @type {(cost: Cost) => void}
+		 * @type {{[name: string]: Cost}}
 		 */
-		callbacks.onIncrCost = (cost) => {
+		const builtins = {};
+
+		/**
+		 * @type {{[name: string]: Cost}}
+		 */
+		const terms = {};
+		
+		/**
+		 * @type {(name: string, isTerm: boolean, cost: Cost) => void}
+		 */
+		callbacks.onIncrCost = (name, isTerm, cost) => {
 			memCost += cost.mem;
 			cpuCost += cost.cpu;
+
+			if (name !== undefined) {
+				if (isTerm) {
+					const prev = terms[name];
+					if (prev !== undefined) {
+						terms[name] = {
+							mem: prev.mem + cost.mem,
+							cpu: prev.cpu + cost.cpu
+						};
+					} else {
+						terms[name] = cost;
+					}
+				} else {
+					const prev = builtins[name];
+
+					if (prev !== undefined) {
+						builtins[name] = {
+							mem: prev.mem + cost.mem,
+							cpu: prev.cpu + cost.cpu
+						};
+					} else {
+						builtins[name] = cost;
+					}
+				}
+			}
 		};
 		
 		/** @type {string[]} */
@@ -11365,8 +11419,10 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 			mem: memCost,
 			cpu: cpuCost,
 			size: this.calcSize(),
+			builtins: builtins,
+			terms: terms,
 			result: result,
-			messages: messages,
+			messages: messages
 		};
 	}
 
@@ -21553,8 +21609,7 @@ class DataDefinition extends Statement {
 	}
 
 	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
+	 * @param {Scope} scope
 	 */
 	evalInternal(scope) {
 		for (let f of this.#fields) {
@@ -21563,15 +21618,6 @@ class DataDefinition extends Statement {
 			if (fieldType instanceof FuncType) {
 				throw f.site.typeError("field can't be function type");
 			}
-		}
-
-		// the following assertion is needed for vscode typechecking
-		if (this instanceof StructStatement) {
-            return new StructStatementType(this);
-        } else if (this instanceof EnumMember) {
-			return new EnumMemberStatementType(this);
-		} else {
-			throw new Error("unhandled implementations");
 		}
 	}
 
@@ -21751,7 +21797,10 @@ class StructStatement extends DataDefinition {
 			throw this.syntaxError("expected at least 1 struct field");
 		}
 
-		scope.set(this.name, this.evalInternal(scope));
+		// add before so recursive types are possible
+		scope.set(this.name, this.type);
+
+		this.evalInternal(scope);
 
 		// check the types of the member methods
 		this.#impl.eval(scope);
@@ -22007,7 +22056,7 @@ class EnumMember extends DataDefinition {
 			throw new Error("parent should've been registered");
 		}
 
-		void super.evalInternal(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
+		super.evalInternal(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
 	}
 
 	/**
@@ -22106,11 +22155,11 @@ class EnumStatement extends Statement {
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
+		scope.set(this.name, this.type);
+
 		this.#members.forEach(m => {
 			m.eval(scope);
 		});
-
-		scope.set(this.name, this.type);
 
 		this.#impl.eval(scope);
 	}
@@ -35776,6 +35825,7 @@ export class CoinSelection {
 
 /**
  * @typedef {{
+ *   isMainnet(): Promise<boolean>,
  *   usedAddresses: Promise<Address[]>,
  *   unusedAddresses: Promise<Address[]>,
  *   utxos: Promise<UTxO[]>,
@@ -35806,6 +35856,13 @@ export class Cip30Wallet {
      */
     constructor(handle) {
         this.#handle = handle;
+    }
+
+    /**
+     * @returns {Promise<boolean>}
+     */
+    async isMainnet() {
+        return (await this.#handle.getNetworkId()) == 1;
     }
 
     /**
@@ -36012,6 +36069,76 @@ export class BlockfrostV0 {
     constructor(networkName, projectId) {
         this.#networkName = networkName;
         this.#projectId = projectId
+    }
+
+    /**
+     * Determine the network which the wallet is connected to.
+     * @param {Wallet} wallet 
+     * @param {{
+     *   preview?: string,
+     *   preprod?: string,
+     *   mainnet?: string
+     * }} projectIds 
+     * @returns {Promise<BlockfrostV0>}
+     */
+    static async resolve(wallet, projectIds) {
+        if (await wallet.isMainnet()) {
+            return new BlockfrostV0("mainnet", assertDefined(projectIds["mainnet"]));
+        } else {
+            const helper = new WalletHelper(wallet);
+
+            const refUtxo = await helper.refUtxo;
+
+            if (refUtxo === null) {
+                throw new Error("empty wallet, can't determine which testnet you are connecting to");
+            } else {
+                const preprodProjectId = projectIds["preprod"];
+                const previewProjectId = projectIds["preview"];
+
+                if (preprodProjectId !== undefined) {
+                    const preprodNetwork = new BlockfrostV0("preprod", preprodProjectId);
+
+                    if (await preprodNetwork.hasUtxo(refUtxo)) {
+                        return preprodNetwork;
+                    }
+                } 
+                
+                if (previewProjectId !== undefined) {
+                    const previewNetwork = new BlockfrostV0("preview", previewProjectId);
+
+                    if (!(await previewNetwork.hasUtxo(refUtxo))) {
+                        throw new Error("not preview network (hint: provide project id for preprod");
+                    } else {
+                        return previewNetwork;
+                    }
+                } else {
+                    if (preprodProjectId === undefined) {
+                        throw new Error("no project ids for testnets");
+                    } else {
+                        throw new Error("no project id for preview testnet");
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @param {UTxO} utxo
+     * @returns {Promise<boolean>}
+     */
+    async hasUtxo(utxo) {
+        const txId = utxo.txId;
+
+        const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/txs/${txId.hex}/utxos`;
+
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "project_id": this.#projectId
+            }
+        });
+
+        return response.ok;
     }
 
     /** 

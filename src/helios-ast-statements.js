@@ -445,8 +445,7 @@ export class DataDefinition extends Statement {
 	}
 
 	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
+	 * @param {Scope} scope
 	 */
 	evalInternal(scope) {
 		for (let f of this.#fields) {
@@ -455,15 +454,6 @@ export class DataDefinition extends Statement {
 			if (fieldType instanceof FuncType) {
 				throw f.site.typeError("field can't be function type");
 			}
-		}
-
-		// the following assertion is needed for vscode typechecking
-		if (this instanceof StructStatement) {
-            return new StructStatementType(this);
-        } else if (this instanceof EnumMember) {
-			return new EnumMemberStatementType(this);
-		} else {
-			throw new Error("unhandled implementations");
 		}
 	}
 
@@ -643,7 +633,10 @@ export class StructStatement extends DataDefinition {
 			throw this.syntaxError("expected at least 1 struct field");
 		}
 
-		scope.set(this.name, this.evalInternal(scope));
+		// add before so recursive types are possible
+		scope.set(this.name, this.type);
+
+		this.evalInternal(scope);
 
 		// check the types of the member methods
 		this.#impl.eval(scope);
@@ -899,7 +892,7 @@ export class EnumMember extends DataDefinition {
 			throw new Error("parent should've been registered");
 		}
 
-		void super.evalInternal(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
+		super.evalInternal(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
 	}
 
 	/**
@@ -998,11 +991,11 @@ export class EnumStatement extends Statement {
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
+		scope.set(this.name, this.type);
+
 		this.#members.forEach(m => {
 			m.eval(scope);
 		});
-
-		scope.set(this.name, this.type);
 
 		this.#impl.eval(scope);
 	}

@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.11.2";
+export const VERSION: "0.11.3";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -1677,7 +1677,7 @@ export class UplcValue {
 * @property {(msg: string) => Promise<void>} [onPrint]
 * @property {(site: Site, rawStack: UplcRawStack) => Promise<boolean>} [onStartCall]
 * @property {(site: Site, rawStack: UplcRawStack) => Promise<void>} [onEndCall]
-* @property {(cost: Cost) => void} [onIncrCost]
+* @property {(name: string, isTerm: boolean, cost: Cost) => void} [onIncrCost]
 */
 /**
  * @type {UplcRTECallbacks}
@@ -2063,12 +2063,22 @@ export class UplcProgram {
      */
     runWithPrint(args: UplcValue[] | null): Promise<[(UplcValue | UserError), string[]]>;
     /**
-     * @typedef {Object} Profile
-     * @property {bigint} mem  - in 8 byte words (i.e. 1 mem unit is 64 bits)
-     * @property {bigint} cpu  - in reference cpu microseconds
-     * @property {number} size - in bytes
-     * @property {UserError | UplcValue} result - result
-     * @property {string[]} messages - printed messages (can be helpful when debugging)
+     * @typedef {{
+     *   mem: bigint,
+     *   cpu: bigint,
+     *   size: number,
+     *   builtins: {[name: string]: Cost},
+     *   terms: {[name: string]: Cost},
+     *   result: UserError | UplcValue,
+     *   messages: string[]
+     * }} Profile
+     * mem:  in 8 byte words (i.e. 1 mem unit is 64 bits)
+     * cpu:  in reference cpu microseconds
+     * size: in bytes
+     * builtins: breakdown per builtin
+     * terms: breakdown per termtype
+     * result: result of evaluation
+     * messages: printed messages (can be helpful when debugging)
      */
     /**
      * @param {UplcValue[]} args
@@ -2076,25 +2086,16 @@ export class UplcProgram {
      * @returns {Promise<Profile>}
      */
     profile(args: UplcValue[], networkParams: NetworkParams): Promise<{
-        /**
-         * - in 8 byte words (i.e. 1 mem unit is 64 bits)
-         */
         mem: bigint;
-        /**
-         * - in reference cpu microseconds
-         */
         cpu: bigint;
-        /**
-         * - in bytes
-         */
         size: number;
-        /**
-         * - result
-         */
+        builtins: {
+            [name: string]: Cost;
+        };
+        terms: {
+            [name: string]: Cost;
+        };
         result: UserError | UplcValue;
-        /**
-         * - printed messages (can be helpful when debugging)
-         */
         messages: string[];
     }>;
     /**
@@ -3074,6 +3075,7 @@ export class CoinSelection {
 }
 /**
  * @typedef {{
+ *   isMainnet(): Promise<boolean>,
  *   usedAddresses: Promise<Address[]>,
  *   unusedAddresses: Promise<Address[]>,
  *   utxos: Promise<UTxO[]>,
@@ -3099,6 +3101,10 @@ export class Cip30Wallet implements Wallet {
      * @param {Cip30Handle} handle
      */
     constructor(handle: Cip30Handle);
+    /**
+     * @returns {Promise<boolean>}
+     */
+    isMainnet(): Promise<boolean>;
     /**
      * @type {Promise<Address[]>}
      */
@@ -3183,10 +3189,30 @@ export class WalletHelper {
  */
 export class BlockfrostV0 implements Network {
     /**
+     * Determine the network which the wallet is connected to.
+     * @param {Wallet} wallet
+     * @param {{
+     *   preview?: string,
+     *   preprod?: string,
+     *   mainnet?: string
+     * }} projectIds
+     * @returns {Promise<BlockfrostV0>}
+     */
+    static resolve(wallet: Wallet, projectIds: {
+        preview?: string;
+        preprod?: string;
+        mainnet?: string;
+    }): Promise<BlockfrostV0>;
+    /**
      * @param {string} networkName - "preview", "preprod" or "mainnet"
      * @param {string} projectId
      */
     constructor(networkName: string, projectId: string);
+    /**
+     * @param {UTxO} utxo
+     * @returns {Promise<boolean>}
+     */
+    hasUtxo(utxo: UTxO): Promise<boolean>;
     /**
      * @param {Tx} tx
      * @returns {Promise<TxId>}
@@ -3258,7 +3284,7 @@ export type UplcRTECallbacks = {
     onPrint?: (msg: string) => Promise<void>;
     onStartCall?: (site: Site, rawStack: import("./helios").UplcRawStack) => Promise<boolean>;
     onEndCall?: (site: Site, rawStack: import("./helios").UplcRawStack) => Promise<void>;
-    onIncrCost?: (cost: Cost) => void;
+    onIncrCost?: (name: string, isTerm: boolean, cost: Cost) => void;
 };
 /**
  * We can't use StructStatement etc. directly because that would give circular dependencies
@@ -3322,6 +3348,7 @@ export type PropertyTest = (args: UplcValue[], res: (UplcValue | UserError)) => 
     [x: string]: boolean;
 });
 export type Wallet = {
+    isMainnet(): Promise<boolean>;
     usedAddresses: Promise<Address[]>;
     unusedAddresses: Promise<Address[]>;
     utxos: Promise<UTxO[]>;
@@ -3714,9 +3741,11 @@ declare class UplcRte {
      */
     constructor(callbacks?: UplcRTECallbacks, networkParams?: NetworkParams | null);
     /**
+     * @param {string} name - for breakdown
+     * @param {boolean} isTerm
      * @param {Cost} cost
      */
-    incrCost(cost: Cost): void;
+    incrCost(name: string, isTerm: boolean, cost: Cost): void;
     incrStartupCost(): void;
     incrVariableCost(): void;
     incrLambdaCost(): void;
@@ -4802,6 +4831,10 @@ declare class UplcBuiltin extends UplcTerm {
      * @param {string | number} name
      */
     constructor(site: Site, name: string | number);
+    /**
+     * @type {string}
+     */
+    get name(): string;
     /**
      * @param {NetworkParams} params
      * @param  {...UplcValue} args

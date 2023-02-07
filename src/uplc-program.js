@@ -49,6 +49,9 @@ import {
     UPLC_BUILTINS
 } from "./uplc-builtins.js";
 
+/**
+ * @typedef {import("./uplc-ast.js").UplcRTECallbacks} UplcRTECallbacks
+ */
 import {
     DEFAULT_UPLC_RTE_CALLBACKS,
     ScriptPurpose,
@@ -70,7 +73,6 @@ import {
     UplcMapItem,
     UplcPair,
     UplcRte,
-    UplcRTECallbacks,
     UplcString,
     UplcTerm,
     UplcUnit,
@@ -317,12 +319,22 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	}
 
 	/**
-	 * @typedef {Object} Profile
-	 * @property {bigint} mem  - in 8 byte words (i.e. 1 mem unit is 64 bits)
-	 * @property {bigint} cpu  - in reference cpu microseconds
-	 * @property {number} size - in bytes
-	 * @property {UserError | UplcValue} result - result
-	 * @property {string[]} messages - printed messages (can be helpful when debugging)
+	 * @typedef {{
+	 *   mem: bigint, 
+	 *   cpu: bigint,
+	 *   size: number,
+	 *   builtins: {[name: string]: Cost},
+	 *   terms: {[name: string]: Cost},
+	 *   result: UserError | UplcValue,
+	 *   messages: string[]
+	 * }} Profile
+	 * mem:  in 8 byte words (i.e. 1 mem unit is 64 bits)
+	 * cpu:  in reference cpu microseconds
+	 * size: in bytes
+	 * builtins: breakdown per builtin
+	 * terms: breakdown per termtype
+	 * result: result of evaluation
+	 * messages: printed messages (can be helpful when debugging)
 	 */
 
 	/**
@@ -337,11 +349,46 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 		let cpuCost = 0n;
 
 		/**
-		 * @type {(cost: Cost) => void}
+		 * @type {{[name: string]: Cost}}
 		 */
-		callbacks.onIncrCost = (cost) => {
+		const builtins = {};
+
+		/**
+		 * @type {{[name: string]: Cost}}
+		 */
+		const terms = {};
+		
+		/**
+		 * @type {(name: string, isTerm: boolean, cost: Cost) => void}
+		 */
+		callbacks.onIncrCost = (name, isTerm, cost) => {
 			memCost += cost.mem;
 			cpuCost += cost.cpu;
+
+			if (name !== undefined) {
+				if (isTerm) {
+					const prev = terms[name];
+					if (prev !== undefined) {
+						terms[name] = {
+							mem: prev.mem + cost.mem,
+							cpu: prev.cpu + cost.cpu
+						};
+					} else {
+						terms[name] = cost;
+					}
+				} else {
+					const prev = builtins[name];
+
+					if (prev !== undefined) {
+						builtins[name] = {
+							mem: prev.mem + cost.mem,
+							cpu: prev.cpu + cost.cpu
+						};
+					} else {
+						builtins[name] = cost;
+					}
+				}
+			}
 		};
 		
 		/** @type {string[]} */
@@ -360,8 +407,10 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 			mem: memCost,
 			cpu: cpuCost,
 			size: this.calcSize(),
+			builtins: builtins,
+			terms: terms,
 			result: result,
-			messages: messages,
+			messages: messages
 		};
 	}
 

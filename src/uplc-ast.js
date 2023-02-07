@@ -321,7 +321,7 @@ export class UplcValue {
 * @property {(msg: string) => Promise<void>} [onPrint]
 * @property {(site: Site, rawStack: UplcRawStack) => Promise<boolean>} [onStartCall]
 * @property {(site: Site, rawStack: UplcRawStack) => Promise<void>} [onEndCall]
-* @property {(cost: Cost) => void} [onIncrCost]
+* @property {(name: string, isTerm: boolean, cost: Cost) => void} [onIncrCost]
 */
 
 /**
@@ -331,7 +331,7 @@ export const DEFAULT_UPLC_RTE_CALLBACKS = {
 	onPrint: async function (/** @type {string} */ msg) {return},
 	onStartCall: async function(/** @type {Site} */ site, /** @type {UplcRawStack} */ rawStack) {return false},
 	onEndCall: async function(/** @type {Site} */ site, /** @type {UplcRawStack} */ rawStack) {return},
-	onIncrCost: function(/** @type {Cost} */ cost) {return},
+	onIncrCost: function(/** @type {string} */ name, /** @type {boolean} */ isTerm, /** @type {Cost} */ cost) {return},
 }
 
 /**
@@ -372,63 +372,65 @@ export class UplcRte {
 	}
 
 	/**
+	 * @param {string} name - for breakdown
+	 * @param {boolean} isTerm
 	 * @param {Cost} cost 
 	 */
-	incrCost(cost) {
+	incrCost(name, isTerm, cost) {
 		if (cost.mem <= 0n || cost.cpu <= 0n) {
 			throw new Error("cost not increasing");
 		}
 
 		if (this.#callbacks.onIncrCost !== undefined) {
-			this.#callbacks.onIncrCost(cost);
+			this.#callbacks.onIncrCost(name, isTerm, cost);
 		}
 	}
 
 	incrStartupCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreStartupCost);
+			this.incrCost("startup", true, this.#networkParams.plutusCoreStartupCost);
 		}
 	}
 
 	incrVariableCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreVariableCost);
+			this.incrCost("variable", true, this.#networkParams.plutusCoreVariableCost);
 		}
 	}
 
 	incrLambdaCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreLambdaCost);
+			this.incrCost("lambda", true, this.#networkParams.plutusCoreLambdaCost);
 		}
 	}
 
 	incrDelayCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreDelayCost);
+			this.incrCost("delay", true, this.#networkParams.plutusCoreDelayCost);
 		}
 	}
 
 	incrCallCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreCallCost);
+			this.incrCost("call", true, this.#networkParams.plutusCoreCallCost);
 		}
 	}
 
 	incrConstCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreConstCost);
+			this.incrCost("const", true, this.#networkParams.plutusCoreConstCost);
 		}
 	}
 
 	incrForceCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreForceCost);
+			this.incrCost("force", true, this.#networkParams.plutusCoreForceCost);
 		}
 	}
 
 	incrBuiltinCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost(this.#networkParams.plutusCoreBuiltinCost);
+			this.incrCost("builtin", true, this.#networkParams.plutusCoreBuiltinCost);
 		}
 	}
 
@@ -440,7 +442,7 @@ export class UplcRte {
 		if (this.#networkParams !== null) {
 			let cost = fn.calcCost(this.#networkParams, ...args);
 
-			this.incrCost(cost);
+			this.incrCost(fn.name, false, cost);
 		}
 	}
 
@@ -2316,6 +2318,13 @@ export class UplcBuiltin extends UplcTerm {
 	constructor(site, name) {
 		super(site, 7);
 		this.#name = name;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#name.toString();
 	}
 
 	/**

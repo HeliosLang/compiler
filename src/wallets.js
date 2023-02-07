@@ -28,6 +28,7 @@ import {
 
 /**
  * @typedef {{
+ *   isMainnet(): Promise<boolean>,
  *   usedAddresses: Promise<Address[]>,
  *   unusedAddresses: Promise<Address[]>,
  *   utxos: Promise<UTxO[]>,
@@ -58,6 +59,13 @@ export class Cip30Wallet {
      */
     constructor(handle) {
         this.#handle = handle;
+    }
+
+    /**
+     * @returns {Promise<boolean>}
+     */
+    async isMainnet() {
+        return (await this.#handle.getNetworkId()) == 1;
     }
 
     /**

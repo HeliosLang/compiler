@@ -461,6 +461,71 @@ async function test16() {
   program.compileParametric(["OWNER", "BOOL"], true);
 }
 
+async function test17() {
+  const mintingSrc = `
+  minting redeemer_only
+
+  struct Redeemer {
+    value: Int
+  }
+
+  func main(redeemer: Redeemer) -> Bool {
+    redeemer.value == 42
+  }
+  `;
+
+  helios.Program.new(mintingSrc);
+
+  const spendingSrc = `
+  spending redeemer_only
+
+  struct Redeemer {
+    value: Int
+  }
+
+  func main(redeemer: Redeemer) -> Bool {
+    redeemer.value == 42
+  }
+  `;
+
+  helios.Program.new(spendingSrc);
+}
+
+// recursive type test
+async function test18() {
+  const src = `
+  testing merkle_trees
+
+  enum MerkleTree {
+    // represents no value (null object pattern)
+    MerkleEmpty
+  
+    MerkleLeaf { hash: ByteArray }
+  
+    MerkleNode {
+      hash: ByteArray
+      left: MerkleTree
+      right: MerkleTree
+    }
+  }
+  
+  func main() -> Bool {
+      a = MerkleTree::MerkleEmpty;
+      b = MerkleTree::MerkleLeaf{#abcd};
+      c = MerkleTree::MerkleNode{hash: #1234, left: a, right: b};
+      (c.left == a).trace("left equal to a: ")
+  }`;
+
+  for (const simplify of [true, false]) {
+    console.log(simplify)
+    const program = helios.Program.new(src).compile(simplify);
+
+    const [result, messages] = await program.runWithPrint([]);
+
+    console.log(result.toString(), messages);
+  }
+}
+
 export default async function main() {
   await test1();
 
@@ -493,6 +558,10 @@ export default async function main() {
   await test15();
 
   await test16();
+
+  await test17();
+
+  await test18();
 }
 
 runIfEntryPoint(main, "syntax.js");
