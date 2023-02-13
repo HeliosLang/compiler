@@ -1641,11 +1641,22 @@ export class Assets extends CborData {
 	#assets;
 
 	/**
-	 * @param {[MintingPolicyHash, [number[], bigint][]][]} assets 
+	 * @param {[MintingPolicyHash | number[] | string, [number[] | string, bigint | number][]][]} assets 
 	 */
 	constructor(assets = []) {
 		super();
-		this.#assets = assets;
+		this.#assets = assets.map(([rawMph, tokens]) => {
+			const mph = rawMph instanceof MintingPolicyHash ? rawMph : new MintingPolicyHash(rawMph);
+
+			return [
+				mph,
+				tokens.map(([rawName, amount]) => {
+					const name = Array.isArray(rawName) ? rawName : hexToBytes(rawName);
+
+					return [name, BigInt(amount)];
+				})
+			];
+		});
 	}
 
 	/**

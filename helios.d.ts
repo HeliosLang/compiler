@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.11.3";
+export const VERSION: "0.11.4";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -348,6 +348,235 @@ export class Token {
      */
     assertGroup(type?: string | null, nFields?: number | null): Group;
     #private;
+}
+/**
+ * A collection of cryptography primitives are included here in order to avoid external dependencies
+ *     mulberry32: random number generator
+ *     base32 encoding and decoding
+ *     bech32 encoding, checking, and decoding
+ *     sha2_256, sha2_512, sha3 and blake2b hashing
+ *     ed25519 pubkey generation, signing, and signature verification (NOTE: the current implementation is very slow)
+ */
+export class Crypto {
+    /**
+     * Returns a simple random number generator
+     * @package
+     * @param {number} seed
+     * @returns {NumberGenerator} - a random number generator
+     */
+    static mulberry32(seed: number): NumberGenerator;
+    /**
+     * Alias for rand generator of choice
+     * @package
+     * @param {number} seed
+     * @returns {NumberGenerator} - the random number generator function
+     */
+    static rand(seed: number): NumberGenerator;
+    /**
+     * Encode bytes in special base32.
+     * @example
+     * Crypto.encodeBase32(textToBytes("f")) => "my"
+     * @example
+     * Crypto.encodeBase32(textToBytes("fo")) => "mzxq"
+     * @example
+     * Crypto.encodeBase32(textToBytes("foo")) => "mzxw6"
+     * @example
+     * Crypto.encodeBase32(textToBytes("foob")) => "mzxw6yq"
+     * @example
+     * Crypto.encodeBase32(textToBytes("fooba")) => "mzxw6ytb"
+     * @example
+     * Crypto.encodeBase32(textToBytes("foobar")) => "mzxw6ytboi"
+     * @package
+     * @param {number[]} bytes - uint8 numbers
+     * @param {string} alphabet - list of chars
+     * @return {string}
+     */
+    static encodeBase32(bytes: number[], alphabet?: string): string;
+    /**
+     * Internal method
+     * @package
+     * @param {number[]} bytes
+     * @returns {number[]} - list of numbers between 0 and 32
+     */
+    static encodeBase32Bytes(bytes: number[]): number[];
+    /**
+     * Decode base32 string into bytes.
+     * @example
+     * bytesToText(Crypto.decodeBase32("my")) => "f"
+     * @example
+     * bytesToText(Crypto.decodeBase32("mzxq")) => "fo"
+     * @example
+     * bytesToText(Crypto.decodeBase32("mzxw6")) => "foo"
+     * @example
+     * bytesToText(Crypto.decodeBase32("mzxw6yq")) => "foob"
+     * @example
+     * bytesToText(Crypto.decodeBase32("mzxw6ytb")) => "fooba"
+     * @example
+     * bytesToText(Crypto.decodeBase32("mzxw6ytboi")) => "foobar"
+     * @package
+     * @param {string} encoded
+     * @param {string} alphabet
+     * @return {number[]}
+     */
+    static decodeBase32(encoded: string, alphabet?: string): number[];
+    /**
+     * Expand human readable prefix of the bech32 encoding so it can be used in the checkSum
+     * Internal method.
+     * @package
+     * @param {string} hrp
+     * @returns {number[]}
+     */
+    static expandBech32HumanReadablePart(hrp: string): number[];
+    /**
+     * Used as part of the bech32 checksum.
+     * Internal method.
+     * @package
+     * @param {number[]} bytes
+     * @returns {number}
+     */
+    static calcBech32Polymod(bytes: number[]): number;
+    /**
+     * Generate the bech32 checksum
+     * Internal method
+     * @package
+     * @param {string} hrp
+     * @param {number[]} data - numbers between 0 and 32
+     * @returns {number[]} - 6 numbers between 0 and 32
+     */
+    static calcBech32Checksum(hrp: string, data: number[]): number[];
+    /**
+     * Creates a bech32 checksummed string (used to represent Cardano addresses)
+     * @example
+     * Crypto.encodeBech32("foo", textToBytes("foobar")) => "foo1vehk7cnpwgry9h96"
+     * @example
+     * Crypto.encodeBech32("addr_test", hexToBytes("70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539")) => "addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld"
+     * @package
+     * @param {string} hrp
+     * @param {number[]} data - uint8 0 - 256
+     * @returns {string}
+     */
+    static encodeBech32(hrp: string, data: number[]): string;
+    /**
+     * Decomposes a bech32 checksummed string (i.e. Cardano address), and returns the human readable part and the original bytes
+     * Throws an error if checksum is invalid.
+     * @example
+     * bytesToHex(Crypto.decodeBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld")[1]) => "70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539"
+     * @package
+     * @param {string} addr
+     * @returns {[string, number[]]}
+     */
+    static decodeBech32(addr: string): [string, number[]];
+    /**
+     * Verify a bech32 checksum
+     * @example
+     * Crypto.verifyBech32("foo1vehk7cnpwgry9h96") => true
+     * @example
+     * Crypto.verifyBech32("foo1vehk7cnpwgry9h97") => false
+     * @example
+     * Crypto.verifyBech32("a12uel5l") => true
+     * @example
+     * Crypto.verifyBech32("mm1crxm3i") => false
+     * @example
+     * Crypto.verifyBech32("A1G7SGD8") => false
+     * @example
+     * Crypto.verifyBech32("abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw") => true
+     * @example
+     * Crypto.verifyBech32("?1ezyfcl") => true
+     * @example
+     * Crypto.verifyBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld") => true
+     * @package
+     * @param {string} addr
+     * @returns {boolean}
+     */
+    static verifyBech32(addr: string): boolean;
+    /**
+     * Calculates sha2-256 (32bytes) hash of a list of uint8 numbers.
+     * Result is also a list of uint8 number.
+     * @example
+     * bytesToHex(Crypto.sha2_256([0x61, 0x62, 0x63])) => "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+     * @example
+     * Crypto.sha2_256(textToBytes("Hello, World!")) => [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
+     * @package
+     * @param {number[]} bytes - list of uint8 numbers
+     * @returns {number[]} - list of uint8 numbers
+     */
+    static sha2_256(bytes: number[]): number[];
+    /**
+     * Calculates sha2-512 (64bytes) hash of a list of uint8 numbers.
+     * Result is also a list of uint8 number.
+     * @example
+     * bytesToHex(Crypto.sha2_512([0x61, 0x62, 0x63])) => "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
+     * @example
+     * bytesToHex(Crypto.sha2_512([])) => "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+     * @package
+     * @param {number[]} bytes - list of uint8 numbers
+     * @returns {number[]} - list of uint8 numbers
+     */
+    static sha2_512(bytes: number[]): number[];
+    /**
+     * Calculates sha3-256 (32bytes) hash of a list of uint8 numbers.
+     * Result is also a list of uint8 number.
+     * Sha3 only bit-wise operations, so 64-bit operations can easily be replicated using 2 32-bit operations instead
+     * @example
+     * bytesToHex(Crypto.sha3(textToBytes("abc"))) => "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
+     * @example
+     * bytesToHex(Crypto.sha3((new Array(136)).fill(1))) => "b36dc2167c4d9dda1a58b87046c8d76a6359afe3612c4de8a38857e09117b2db"
+     * @example
+     * bytesToHex(Crypto.sha3((new Array(135)).fill(2))) => "5bdf5d815d29a9d7161c66520efc17c2edd7898f2b99a029e8d2e4ff153407f4"
+     * @example
+     * bytesToHex(Crypto.sha3((new Array(134)).fill(3))) => "8e6575663dfb75a88f94a32c5b363c410278b65020734560d968aadd6896a621"
+     * @example
+     * bytesToHex(Crypto.sha3((new Array(137)).fill(4))) => "f10b39c3e455006aa42120b9751faa0f35c821211c9d086beb28bf3c4134c6c6"
+     * @package
+     * @param {number[]} bytes - list of uint8 numbers
+     * @returns {number[]} - list of uint8 numbers
+     */
+    static sha3(bytes: number[]): number[];
+    /**
+     * Calculates blake2-256 (32 bytes) hash of a list of uint8 numbers.
+     * Result is also a list of uint8 number.
+     * Blake2b is a 64bit algorithm, so we need to be careful when replicating 64-bit operations with 2 32-bit numbers (low-word overflow must spill into high-word, and shifts must go over low/high boundary)
+     * @example
+     * bytesToHex(Crypto.blake2b([0, 1])) => "01cf79da4945c370c68b265ef70641aaa65eaa8f5953e3900d97724c2c5aa095"
+     * @example
+     * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
+     * @package
+     * @param {number[]} bytes
+     * @param {number} digestSize - 32 or 64
+     * @returns {number[]}
+     */
+    static blake2b(bytes: number[], digestSize?: number): number[];
+    /**
+     * Crypto.Ed25519 exports the following functions:
+     *  * Crypto.Ed25519.derivePublicKey(privateKey)
+     *  * Crypto.Ed25519.sign(message, privateKey)
+     *  * Crypto.Ed25519.verify(message, signature, publicKey)
+     *
+     * This is implementation is slow (~0.5s per verification), but should be good enough for simple client-side usage
+     *
+     * Ported from: https://ed25519.cr.yp.to/python/ed25519.py
+     * @package
+     */
+    static get Ed25519(): {
+        /**
+         * @param {number[]} privateKey
+         * @returns {number[]}
+         */
+        derivePublicKey: (privateKey: number[]) => number[];
+        /**
+         * @param {number[]} message
+         * @param {number[]} privateKey
+         * @returns {number[]}
+         */
+        sign: (message: number[], privateKey: number[]) => number[];
+        /**
+         * @param {number[]} signature
+         * @param {number[]} message
+         * @param {number[]} publicKey
+         * @returns {boolean}
+         */
+        verify: (signature: number[], message: number[], publicKey: number[]) => boolean;
+    };
 }
 /**
  * @typedef {(bytes: number[]) => void} Decoder
@@ -1208,9 +1437,9 @@ export class Assets extends CborData {
      */
     static fromCbor(bytes: number[]): Assets;
     /**
-     * @param {[MintingPolicyHash, [number[], bigint][]][]} assets
+     * @param {[MintingPolicyHash | number[] | string, [number[] | string, bigint | number][]][]} assets
      */
-    constructor(assets?: [MintingPolicyHash, [number[], bigint][]][]);
+    constructor(assets?: [MintingPolicyHash | number[] | string, [number[] | string, bigint | number][]][]);
     /**
      * @type {MintingPolicyHash[]}
      */
@@ -2265,6 +2494,116 @@ export class Tokenizer {
  */
 export class TimeType extends BuiltinType {
 }
+/**
+ * @typedef {(expr: IRExpr) => IRExpr} IRWalkFn
+ */
+/**
+ * @typedef {Map<IRVariable, IRLiteralExpr>} IRLiteralRegistry
+ */
+export class IRNameExprRegistry {
+    /**
+     * @param {Map<IRVariable, Set<IRNameExpr>>} map
+     */
+    constructor(map?: Map<IRVariable, Set<IRNameExpr>>, maybeInsideLoop?: Set<any>);
+    /**
+     * @param {IRNameExpr} nameExpr
+     */
+    register(nameExpr: IRNameExpr): void;
+    /**
+     * Used to prevent inlining upon recursion
+     * @param {IRVariable} variable
+     */
+    registerVariable(variable: IRVariable): void;
+    /**
+     * @param {IRVariable} variable
+     * @returns {number}
+     */
+    countReferences(variable: IRVariable): number;
+    /**
+     * @param {IRVariable} variable
+     * @returns {boolean}
+     */
+    maybeInsideLoop(variable: IRVariable): boolean;
+    /**
+     * Called whenever recursion is detected
+     * @returns {IRNameExprRegistry}
+     */
+    resetVariables(): IRNameExprRegistry;
+    #private;
+}
+export class IRExprRegistry {
+    /**
+     * @param {IRNameExprRegistry} nameExprs
+     */
+    constructor(nameExprs: IRNameExprRegistry);
+    /**
+     * @param {IRVariable} variable
+     * @returns {number}
+     */
+    countReferences(variable: IRVariable): number;
+    /**
+     * @param {IRVariable} variable
+     * @returns {boolean}
+     */
+    maybeInsideLoop(variable: IRVariable): boolean;
+    /**
+     * @param {IRVariable} variable
+     * @returns {boolean}
+     */
+    isInlineable(variable: IRVariable): boolean;
+    /**
+     * @param {IRVariable} variable
+     * @returns {IRExpr}
+     */
+    getInlineable(variable: IRVariable): IRExpr;
+    /**
+     * @param {IRVariable} variable
+     * @param {IRExpr} expr
+     */
+    addInlineable(variable: IRVariable, expr: IRExpr): void;
+    #private;
+}
+export class IRAnonCallExpr extends IRUserCallExpr {
+    /**
+     * @param {IRFuncExpr} fnExpr
+     * @param {IRExpr[]} argExprs
+     * @param {Site} parensSite
+     */
+    constructor(fnExpr: IRFuncExpr, argExprs: IRExpr[], parensSite: Site);
+    /**
+     * Internal function
+     * @type {IRFuncExpr}
+     */
+    get anon(): IRFuncExpr;
+    /**
+     * @type {IRVariable[]}
+     */
+    get argVariables(): IRVariable[];
+    /**
+     * Add args to the stack as IRDeferredValue instances
+     * @param {IRCallStack} stack
+     */
+    evalConstants(stack: IRCallStack): IRLiteralExpr | IRUserCallExpr;
+    #private;
+}
+export class IRNestedAnonCallExpr extends IRUserCallExpr {
+    /**
+     * @param {IRAnonCallExpr} anon
+     * @param {IRExpr[]} outerArgExprs
+     * @param {Site} parensSite
+     */
+    constructor(anon: IRAnonCallExpr, outerArgExprs: IRExpr[], parensSite: Site);
+    #private;
+}
+export class IRFuncDefExpr extends IRAnonCallExpr {
+    /**
+     * @param {IRFuncExpr} fnExpr
+     * @param {IRFuncExpr} defExpr
+     * @param {Site} parensSite
+     */
+    constructor(fnExpr: IRFuncExpr, defExpr: IRFuncExpr, parensSite: Site);
+    #private;
+}
 export class IRParametricProgram {
     /**
      * @package
@@ -2433,7 +2772,7 @@ export class Program {
      * @param {string[]}  parameters
      * @returns {IR}
      */
-    toIR(parameters: string[]): IR;
+    toIR(parameters?: string[]): IR;
     /**
      * @returns {string}
      */
@@ -2463,9 +2802,19 @@ export class Tx extends CborData {
      */
     get body(): TxBody;
     /**
+     * @type {number[]}
+     */
+    get bodyHash(): number[];
+    /**
      * @type {TxWitnesses}
      */
     get witnesses(): TxWitnesses;
+    /**
+     * Used by emulator to check if tx is valid.
+     * @param {bigint} slot
+     * @returns {boolean}
+     */
+    isValid(slot: bigint): boolean;
     /**
      * @returns {Object}
      */
@@ -2903,6 +3252,23 @@ export class Datum extends CborData {
     toData(): ConstrData;
 }
 /**
+ * Inside helios this type is named OutputDatum::Hash in order to distinguish it from the user defined Datum,
+ * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
+ */
+export class HashedDatum extends Datum {
+    /**
+     * @param {UplcData} data
+     * @returns {HashedDatum}
+     */
+    static fromData(data: UplcData): HashedDatum;
+    /**
+     * @param {DatumHash} hash
+     * @param {?UplcData} origData
+     */
+    constructor(hash: DatumHash, origData?: UplcData | null);
+    #private;
+}
+/**
  * @typedef {() => UplcValue} ValueGenerator
  */
 /**
@@ -3075,22 +3441,22 @@ export class CoinSelection {
 }
 /**
  * @typedef {{
- *   isMainnet(): Promise<boolean>,
- *   usedAddresses: Promise<Address[]>,
- *   unusedAddresses: Promise<Address[]>,
- *   utxos: Promise<UTxO[]>,
- *   signTx(tx: Tx): Promise<Signature[]>,
- *   submitTx(tx: Tx): Promise<TxId>
+ *     isMainnet(): Promise<boolean>,
+ *     usedAddresses: Promise<Address[]>,
+ *     unusedAddresses: Promise<Address[]>,
+ *     utxos: Promise<UTxO[]>,
+ *     signTx(tx: Tx): Promise<Signature[]>,
+ *     submitTx(tx: Tx): Promise<TxId>
  * }} Wallet
  */
 /**
  * @typedef {{
- *   getNetworkId(): Promise<number>,
- *   getUsedAddresses(): Promise<string[]>,
- *   getUnusedAddresses(): Promise<string[]>,
- *   getUtxos(): Promise<string[]>,
- *   signTx(txHex: string, partialSign: boolean): Promise<string>,
- *   submitTx(txHex: string): Promise<string>
+ *     getNetworkId(): Promise<number>,
+ *     getUsedAddresses(): Promise<string[]>,
+ *     getUnusedAddresses(): Promise<string[]>,
+ *     getUtxos(): Promise<string[]>,
+ *     signTx(txHex: string, partialSign: boolean): Promise<string>,
+ *     submitTx(txHex: string): Promise<string>
  * }} Cip30Handle
  */
 /**
@@ -3181,7 +3547,8 @@ export class WalletHelper {
 }
 /**
  * @typedef {{
- *   submitTx(tx: Tx): Promise<TxId>
+ *     getUtxos(address: Address): Promise<UTxO[]>,
+ *     submitTx(tx: Tx): Promise<TxId>
  * }} Network
  */
 /**
@@ -3192,9 +3559,9 @@ export class BlockfrostV0 implements Network {
      * Determine the network which the wallet is connected to.
      * @param {Wallet} wallet
      * @param {{
-     *   preview?: string,
-     *   preprod?: string,
-     *   mainnet?: string
+     *     preview?: string,
+     *     preprod?: string,
+     *     mainnet?: string
      * }} projectIds
      * @returns {Promise<BlockfrostV0>}
      */
@@ -3204,15 +3571,111 @@ export class BlockfrostV0 implements Network {
         mainnet?: string;
     }): Promise<BlockfrostV0>;
     /**
+     * @param {any} obj
+     * @returns
+     */
+    static parseValue(obj: any): Value;
+    /**
      * @param {string} networkName - "preview", "preprod" or "mainnet"
      * @param {string} projectId
      */
     constructor(networkName: string, projectId: string);
     /**
+     * Used by BlockfrostV0.resolve()
      * @param {UTxO} utxo
      * @returns {Promise<boolean>}
      */
     hasUtxo(utxo: UTxO): Promise<boolean>;
+    /**
+     * Returns oldest UTxOs first, newest last.
+     * TODO: pagination
+     * @param {Address} address
+     * @returns {Promise<UTxO[]>}
+     */
+    getUtxos(address: Address): Promise<UTxO[]>;
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<TxId>}
+     */
+    submitTx(tx: Tx): Promise<TxId>;
+    #private;
+}
+/**
+ * Single address wallet emulator.
+ * @implements {Wallet}
+ */
+export class WalletEmulator implements Wallet {
+    /**
+     * Generate a private key from a random number generator (not cryptographically secure!)
+     * @param {NumberGenerator} random
+     * @returns {number[]} - Ed25519 private key is 32 bytes long
+     */
+    static genPrivateKey(random: NumberGenerator): number[];
+    /**
+     * @param {Network} network
+     * @param {NumberGenerator} random - used to generate the private key
+     */
+    constructor(network: Network, random: NumberGenerator);
+    /**
+     * @type {PubKeyHash}
+     */
+    get pubKeyHash(): PubKeyHash;
+    get address(): Address;
+    /**
+     * @returns {Promise<boolean>}
+     */
+    isMainnet(): Promise<boolean>;
+    /**
+     * Assumed wallet was initiated with at least 1 UTxO at the pubkeyhash address.
+     * @returns {Promise<Address[]>}
+     */
+    get usedAddresses(): Promise<Address[]>;
+    get unusedAddresses(): Promise<any>;
+    get utxos(): Promise<any>;
+    /**
+     * Simply assumed the tx needs to by signed by this wallet without checking.
+     * @param {Tx} tx
+     * @returns {Promise<Signature[]>}
+     */
+    signTx(tx: Tx): Promise<Signature[]>;
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<TxId>}
+     */
+    submitTx(tx: Tx): Promise<TxId>;
+    #private;
+}
+/**
+ * @implements {Network}
+ */
+export class NetworkEmulator implements Network {
+    /**
+     * @param {number} seed
+     */
+    constructor(seed?: number);
+    /**
+     * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
+     * @param {bigint} lovelace
+     * @param {Assets} assets
+     * @returns {Wallet}
+     */
+    createWallet(lovelace: bigint, assets: Assets): Wallet;
+    /**
+     * Mint a block with the current mempool, and advance the slot.
+     * @param {bigint} nSlots
+     */
+    tick(nSlots: bigint): void;
+    /**
+     * @param {Address} address
+     * @returns {Promise<UTxO[]>}
+     */
+    getUtxos(address: Address): Promise<UTxO[]>;
+    /**
+     * @param {TxId} txId
+     * @param {bigint} utxoIdx
+     * @returns {boolean}
+     */
+    isConsumed(txId: TxId, utxoIdx: bigint): boolean;
     /**
      * @param {Tx} tx
      * @returns {Promise<TxId>}
@@ -3296,6 +3759,7 @@ export type UserTypeStatement = {
     nFields(site: Site): number;
     hasField(key: Word): boolean;
     getFieldType(site: Site, i: number): Type;
+    getFieldIndex(site: Site, name: string): number;
     getFieldName(i: number): string;
     getConstrIndex(site: Site): number;
     nEnumMembers(site: Site): number;
@@ -3340,6 +3804,7 @@ export type RecursivenessChecker = {
     isRecursive: (statement: RecurseableStatement) => boolean;
 };
 export type IRWalkFn = (expr: IRExpr) => IRExpr;
+export type IRLiteralRegistry = Map<IRVariable, IRLiteralExpr>;
 export type UserTypes = {
     [x: string]: HeliosDataClass<HeliosData>;
 };
@@ -3364,7 +3829,16 @@ export type Cip30Handle = {
     submitTx(txHex: string): Promise<string>;
 };
 export type Network = {
+    getUtxos(address: Address): Promise<UTxO[]>;
     submitTx(tx: Tx): Promise<TxId>;
+};
+/**
+ * collectUtxos removes tx inputs from the list, and appends txoutputs sent to the address to the end.
+ */
+export type EmulatorTx = {
+    id(): TxId;
+    consumes(txId: TxId, utxoIdx: bigint): boolean;
+    collectUtxos(address: Address, utxos: UTxO[]): UTxO[];
 };
 /**
  * Function that generates a random number between 0 and 1
@@ -3983,10 +4457,316 @@ declare class BuiltinType extends DataType {
     #private;
 }
 /**
- * Wrapper for IRFuncExpr, IRCallExpr or IRLiteral
+ * Intermediate Representation variable reference expression
+ * @package
+ */
+declare class IRNameExpr extends IRExpr {
+    /**
+     * @param {Word} name
+     * @param {?IRVariable} variable
+     */
+    constructor(name: Word, variable?: IRVariable | null);
+    /**
+     * @type {string}
+     */
+    get name(): string;
+    /**
+     * isVariable() should be used to check if a IRNameExpr.variable is equal to a IRVariable (includes special handling of "__core*")
+     * @type {IRVariable}
+     */
+    get variable(): IRVariable;
+    /**
+     * @package
+     * @returns {boolean}
+     */
+    isCore(): boolean;
+    /**
+     * @param {IRVariable} ref
+     * @returns {boolean}
+     */
+    isVariable(ref: IRVariable): boolean;
+    copy(): IRNameExpr;
+    #private;
+}
+/**
+ * IR class that represents function arguments
+ * @package
+ */
+declare class IRVariable extends Token {
+    /**
+     * @param {Word} name
+     */
+    constructor(name: Word);
+    /**
+     * @type {string}
+     */
+    get name(): string;
+    #private;
+}
+/**
+ * Base class of all Intermediate Representation expressions
+ * @package
+ */
+declare class IRExpr extends Token {
+    /**
+     * For pretty printing the IR
+     * @param {string} indent
+     * @returns {string}
+     */
+    toString(indent?: string): string;
+    /**
+     * Link IRNameExprs to variables
+     * @param {IRScope} scope
+     */
+    resolveNames(scope: IRScope): void;
+    /**
+     * Turns all IRConstExpr istances into IRLiteralExpr instances
+     * @param {IRCallStack} stack
+     * @returns {IRExpr}
+     */
+    evalConstants(stack: IRCallStack): IRExpr;
+    /**
+     * Evaluates an expression to something (hopefully) literal
+     * Returns null if it the result would be worse than the current expression
+     * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
+     * @param {IRCallStack} stack
+     * @returns {?IRValue}
+     */
+    eval(stack: IRCallStack): IRValue | null;
+    /**
+     * Used to inline literals and to evaluate IRCoreCallExpr instances with only literal args.
+     * @param {IRLiteralRegistry} literals
+     * @returns {IRExpr}
+     */
+    simplifyLiterals(literals: IRLiteralRegistry): IRExpr;
+    /**
+     * Used before simplifyTopology
+     * @param {IRNameExprRegistry} nameExprs
+     */
+    registerNameExprs(nameExprs: IRNameExprRegistry): void;
+    /**
+     * @param {IRExprRegistry} registry
+     * @returns {IRExpr}
+     */
+    simplifyTopology(registry: IRExprRegistry): IRExpr;
+    /**
+     * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the index
+     * @returns {IRExpr}
+     */
+    copy(): IRExpr;
+    /**
+     * Counts the number of times a variable is referenced inside the current expression
+     * @param {IRVariable} ref
+     * @returns {number}
+     */
+    countRefs(ref: IRVariable): number;
+    /**
+     * Inline every variable that can be found in the stack.
+     * @param {IRExprStack} stack
+     * @returns {IRExpr}
+     */
+    inline(stack: IRExprStack): IRExpr;
+    /**
+     * @param {IRWalkFn} fn
+     * @returns {IRExpr}
+     */
+    walk(fn: IRWalkFn): IRExpr;
+    /**
+     * Returns non-null expr if ok
+     * @param {IRVariable} ref
+     * @param {string} builtinName
+     * @returns {?IRExpr}
+     */
+    wrapCall(ref: IRVariable, builtinName: string): IRExpr | null;
+    /**
+     * @param {IRVariable} ref
+     * @returns {?IRExpr}
+     */
+    flattenCall(ref: IRVariable): IRExpr | null;
+    /**
+     * Simplify 'this' by returning something smaller (doesn't mutate)
+     * @param {IRExprStack} stack - contains some global definitions that might be useful for simplification
+     * @returns {IRExpr}
+     */
+    simplify(stack: IRExprStack): IRExpr;
+    /**
+     * @returns {UplcTerm}
+     */
+    toUplc(): UplcTerm;
+}
+/**
+ * IR function call of non-core function
+ * @package
+ */
+declare class IRUserCallExpr extends IRCallExpr {
+    /**
+     * @param {IRExpr} fnExpr
+     * @param {IRExpr[]} argExprs
+     * @param {Site} parensSite
+     * @returns {IRUserCallExpr}
+     */
+    static new(fnExpr: IRExpr, argExprs: IRExpr[], parensSite: Site): IRUserCallExpr;
+    /**
+     * @param {IRExpr} fnExpr
+     * @param {IRExpr[]} argExprs
+     * @param {Site} parensSite
+     */
+    constructor(fnExpr: IRExpr, argExprs: IRExpr[], parensSite: Site);
+    get fnExpr(): IRExpr;
+    copy(): IRUserCallExpr;
+    /**
+     * Inlines arguments that are only used once in fnExpr.
+     * Also eliminates unused arguments
+     * @param {IRExprStack} stack
+     * @param {IRExpr} fnExpr - already simplified
+     * @param {IRExpr[]} argExprs - already simplified
+     * @returns {?IRExpr} - returns null if it isn't simpler
+     */
+    inlineArgs(stack: IRExprStack, fnExpr: IRExpr, argExprs: IRExpr[]): IRExpr | null;
+    /**
+     * Inline all literal args if the resulting expression is an improvement over the current expression
+     * @param {IRExprStack} stack
+     * @param {IRExpr} fnExpr - already simplified
+     * @param {IRExpr[]} argExprs - already simplified
+     * @returns {?IRExpr} - returns null if it isn't simpler
+     */
+    inlineLiteralArgs(stack: IRExprStack, fnExpr: IRExpr, argExprs: IRExpr[]): IRExpr | null;
+    /**
+     * Simplify some specific builtin functions
+     * @param {IRExprStack} stack
+     * @param {IRExpr} fnExpr
+     * @param {IRExpr[]} argExprs
+     * @returns {?IRExpr}
+     */
+    simplifyTopology_(stack: IRExprStack, fnExpr: IRExpr, argExprs: IRExpr[]): IRExpr | null;
+    /**
+     * Evaluates fnExpr if all args are literals
+     * Otherwise returns null
+     * @param {IRExprStack} stack
+     * @param {IRExpr} fnExpr
+     * @param {IRExpr[]} argExprs
+     * @returns {?IRExpr}
+     */
+    simplifyLiteral(stack: IRExprStack, fnExpr: IRExpr, argExprs: IRExpr[]): IRExpr | null;
+    simplifyFlatten(): IRUserCallExpr;
+    /**
+     * @param {IRExprStack} stack
+     * @returns {IRExpr}
+     */
+    simplifyWithoutExtractingCasts(stack: IRExprStack): IRExpr;
+    /**
+     * Extract functions like __core__iData from IRFuncExpr args, and inserting it in IRFuncExpr fnExpr, and then run inner simplify methods
+     * @returns {IRExpr}
+     */
+    extractDownstreamCasts(): IRExpr;
+    /**
+     * @returns {IRExpr}
+     */
+    extractUpstreamCasts(): IRExpr;
+    /**
+     * @returns {IRExpr}
+     */
+    extractCasts(): IRExpr;
+    #private;
+}
+/**
+ * IR function expression with some args, that act as the header, and a body expression
+ * @package
+ */
+declare class IRFuncExpr extends IRExpr {
+    /**
+     * @param {Site} site
+     * @param {IRVariable[]} args
+     * @param {IRExpr} body
+     */
+    constructor(site: Site, args: IRVariable[], body: IRExpr);
+    get args(): IRVariable[];
+    get body(): IRExpr;
+    /**
+     * @param {IRCallStack} stack
+     */
+    evalConstants(stack: IRCallStack): IRFuncExpr;
+    copy(): IRFuncExpr;
+    /**
+     * Inline expressions in the body
+     * Checking of unused args is done by caller
+     * @param {IRExprStack} stack
+     * @returns {IRFuncExpr}
+     */
+    inline(stack: IRExprStack): IRFuncExpr;
+    /**
+     * Simplify body, returning a IRFuncExpr with the same args
+     * @param {IRExprStack} stack
+     * @returns {IRFuncExpr}
+     */
+    simplifyBody(stack: IRExprStack): IRFuncExpr;
+    #private;
+}
+/**
+ * @package
+ */
+declare class IRCallStack {
+    /**
+     * @param {boolean} throwRTErrors
+     * @param {?IRCallStack} parent
+     * @param {?IRVariable} variable
+     * @param {?IRValue} value
+     */
+    constructor(throwRTErrors: boolean, parent?: IRCallStack | null, variable?: IRVariable | null, value?: IRValue | null);
+    get throwRTErrors(): boolean;
+    /**
+     * @param {IRVariable} variable
+     * @returns {?IRValue}
+     */
+    get(variable: IRVariable): IRValue | null;
+    /**
+     * @param {IRVariable} variable
+     * @param {IRValue} value
+     * @returns {IRCallStack}
+     */
+    set(variable: IRVariable, value: IRValue): IRCallStack;
+    #private;
+}
+/**
+ * IR wrapper for UplcValues, representing literals
+ * @package
+ */
+declare class IRLiteralExpr extends IRExpr {
+    /**
+     * @param {UplcValue} value
+     */
+    constructor(value: UplcValue);
+    /**
+     * @type {UplcValue}
+     */
+    get value(): UplcValue;
+    copy(): IRLiteralExpr;
+    /**
+     * @param {IRCallStack} stack
+     */
+    evalConstants(stack: IRCallStack): IRLiteralExpr;
+    /**
+     * @param {IRExprStack} stack
+     * @param {IRLiteralExpr[]} args
+     * @returns {?IRExpr}
+     */
+    call(stack: IRExprStack, args: IRLiteralExpr[]): IRExpr | null;
+    /**
+     * @returns {UplcConst}
+     */
+    toUplc(): UplcConst;
+    #private;
+}
+/**
+ * Wrapper for IRFuncExpr, IRCallExpr or IRLiteralExpr
  * @package
  */
 declare class IRProgram {
+    /**
+     * @param {IRExpr} expr
+     * @returns {IRFuncExpr | IRCallExpr | IRLiteralExpr}
+     */
+    static assertValidRoot(expr: IRExpr): IRFuncExpr | IRCallExpr | IRLiteralExpr;
     /**
      * @package
      * @param {IR} ir
@@ -3998,15 +4778,20 @@ declare class IRProgram {
      */
     static new(ir: IR, purpose: number | null, simplify?: boolean, throwSimplifyRTErrors?: boolean, scope?: IRScope): IRProgram;
     /**
-     * @param {IRFuncExpr | IRCallExpr | IRLiteral} expr
+     * @param {IRExpr} expr
+     * @returns {IRExpr}
+     */
+    static simplify(expr: IRExpr): IRExpr;
+    /**
+     * @param {IRFuncExpr | IRCallExpr | IRLiteralExpr} expr
      * @param {?number} purpose
      */
-    constructor(expr: IRFuncExpr | IRCallExpr | IRLiteral, purpose: number | null);
+    constructor(expr: IRFuncExpr | IRCallExpr | IRLiteralExpr, purpose: number | null);
     /**
      * @package
-     * @type {IRFuncExpr | IRCallExpr | IRLiteral}
+     * @type {IRFuncExpr | IRCallExpr | IRLiteralExpr}
      */
-    get expr(): IRLiteral | IRCallExpr | IRFuncExpr;
+    get expr(): IRLiteralExpr | IRCallExpr | IRFuncExpr;
     /**
      * @package
      * @type {?number}
@@ -4022,11 +4807,6 @@ declare class IRProgram {
      */
     get data(): UplcData;
     toString(): string;
-    /**
-     * @param {boolean} throwSimplifyRTErrors
-     * @param {IRScope} scope
-     */
-    simplify(throwSimplifyRTErrors?: boolean, scope?: IRScope): void;
     /**
      * @returns {UplcProgram}
      */
@@ -4296,6 +5076,7 @@ declare class TxBody extends CborData {
      */
     static fromCbor(bytes: number[]): TxBody;
     get inputs(): TxInput[];
+    get outputs(): TxOutput[];
     get fee(): bigint;
     /**
      * @param {bigint} fee
@@ -4416,6 +5197,11 @@ declare class TxBody extends CborData {
      * Mutates
      */
     sort(): void;
+    /**
+     * Used by (indirectly) by emulator to check if slot range is valid.
+     * @param {bigint} slot
+     */
+    isValid(slot: bigint): boolean;
     #private;
 }
 /**
@@ -4490,23 +5276,6 @@ declare class TxInput extends CborData {
     #private;
 }
 /**
- * Inside helios this type is named OutputDatum::Hash in order to distinguish it from the user defined Datum,
- * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
- */
-declare class HashedDatum extends Datum {
-    /**
-     * @param {UplcData} data
-     * @returns {HashedDatum}
-     */
-    static fromData(data: UplcData): HashedDatum;
-    /**
-     * @param {DatumHash} hash
-     * @param {?UplcData} origData
-     */
-    constructor(hash: DatumHash, origData?: UplcData | null);
-    #private;
-}
-/**
  * Inside helios this type is named OutputDatum::Inline in order to distinguish it from the user defined Datum,
  * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
  */
@@ -4550,236 +5319,6 @@ declare function setBlake2bDigestSize(s: number): void;
  * @param {NetworkParams} networkParams
  */
 declare function dumpCostModels(networkParams: NetworkParams): void;
-/**
- * A collection of cryptography primitives are included here in order to avoid external dependencies
- *     mulberry32: random number generator
- *     base32 encoding and decoding
- *     bech32 encoding, checking, and decoding
- *     sha2_256, sha2_512, sha3 and blake2b hashing
- *     ed25519 pubkey generation, signing, and signature verification (NOTE: the current implementation is very slow)
- * @package
- */
-declare class Crypto {
-    /**
-     * Returns a simple random number generator
-     * @package
-     * @param {number} seed
-     * @returns {NumberGenerator} - a random number generator
-     */
-    static mulberry32(seed: number): NumberGenerator;
-    /**
-     * Alias for rand generator of choice
-     * @package
-     * @param {number} seed
-     * @returns {NumberGenerator} - the random number generator function
-     */
-    static rand(seed: number): NumberGenerator;
-    /**
-     * Encode bytes in special base32.
-     * @example
-     * Crypto.encodeBase32(textToBytes("f")) => "my"
-     * @example
-     * Crypto.encodeBase32(textToBytes("fo")) => "mzxq"
-     * @example
-     * Crypto.encodeBase32(textToBytes("foo")) => "mzxw6"
-     * @example
-     * Crypto.encodeBase32(textToBytes("foob")) => "mzxw6yq"
-     * @example
-     * Crypto.encodeBase32(textToBytes("fooba")) => "mzxw6ytb"
-     * @example
-     * Crypto.encodeBase32(textToBytes("foobar")) => "mzxw6ytboi"
-     * @package
-     * @param {number[]} bytes - uint8 numbers
-     * @param {string} alphabet - list of chars
-     * @return {string}
-     */
-    static encodeBase32(bytes: number[], alphabet?: string): string;
-    /**
-     * Internal method
-     * @package
-     * @param {number[]} bytes
-     * @returns {number[]} - list of numbers between 0 and 32
-     */
-    static encodeBase32Bytes(bytes: number[]): number[];
-    /**
-     * Decode base32 string into bytes.
-     * @example
-     * bytesToText(Crypto.decodeBase32("my")) => "f"
-     * @example
-     * bytesToText(Crypto.decodeBase32("mzxq")) => "fo"
-     * @example
-     * bytesToText(Crypto.decodeBase32("mzxw6")) => "foo"
-     * @example
-     * bytesToText(Crypto.decodeBase32("mzxw6yq")) => "foob"
-     * @example
-     * bytesToText(Crypto.decodeBase32("mzxw6ytb")) => "fooba"
-     * @example
-     * bytesToText(Crypto.decodeBase32("mzxw6ytboi")) => "foobar"
-     * @package
-     * @param {string} encoded
-     * @param {string} alphabet
-     * @return {number[]}
-     */
-    static decodeBase32(encoded: string, alphabet?: string): number[];
-    /**
-     * Expand human readable prefix of the bech32 encoding so it can be used in the checkSum
-     * Internal method.
-     * @package
-     * @param {string} hrp
-     * @returns {number[]}
-     */
-    static expandBech32HumanReadablePart(hrp: string): number[];
-    /**
-     * Used as part of the bech32 checksum.
-     * Internal method.
-     * @package
-     * @param {number[]} bytes
-     * @returns {number}
-     */
-    static calcBech32Polymod(bytes: number[]): number;
-    /**
-     * Generate the bech32 checksum
-     * Internal method
-     * @package
-     * @param {string} hrp
-     * @param {number[]} data - numbers between 0 and 32
-     * @returns {number[]} - 6 numbers between 0 and 32
-     */
-    static calcBech32Checksum(hrp: string, data: number[]): number[];
-    /**
-     * Creates a bech32 checksummed string (used to represent Cardano addresses)
-     * @example
-     * Crypto.encodeBech32("foo", textToBytes("foobar")) => "foo1vehk7cnpwgry9h96"
-     * @example
-     * Crypto.encodeBech32("addr_test", hexToBytes("70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539")) => "addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld"
-     * @package
-     * @param {string} hrp
-     * @param {number[]} data - uint8 0 - 256
-     * @returns {string}
-     */
-    static encodeBech32(hrp: string, data: number[]): string;
-    /**
-     * Decomposes a bech32 checksummed string (i.e. Cardano address), and returns the human readable part and the original bytes
-     * Throws an error if checksum is invalid.
-     * @example
-     * bytesToHex(Crypto.decodeBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld")[1]) => "70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539"
-     * @package
-     * @param {string} addr
-     * @returns {[string, number[]]}
-     */
-    static decodeBech32(addr: string): [string, number[]];
-    /**
-     * Verify a bech32 checksum
-     * @example
-     * Crypto.verifyBech32("foo1vehk7cnpwgry9h96") => true
-     * @example
-     * Crypto.verifyBech32("foo1vehk7cnpwgry9h97") => false
-     * @example
-     * Crypto.verifyBech32("a12uel5l") => true
-     * @example
-     * Crypto.verifyBech32("mm1crxm3i") => false
-     * @example
-     * Crypto.verifyBech32("A1G7SGD8") => false
-     * @example
-     * Crypto.verifyBech32("abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw") => true
-     * @example
-     * Crypto.verifyBech32("?1ezyfcl") => true
-     * @example
-     * Crypto.verifyBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld") => true
-     * @package
-     * @param {string} addr
-     * @returns {boolean}
-     */
-    static verifyBech32(addr: string): boolean;
-    /**
-     * Calculates sha2-256 (32bytes) hash of a list of uint8 numbers.
-     * Result is also a list of uint8 number.
-     * @example
-     * bytesToHex(Crypto.sha2_256([0x61, 0x62, 0x63])) => "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-     * @example
-     * Crypto.sha2_256(textToBytes("Hello, World!")) => [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
-     * @package
-     * @param {number[]} bytes - list of uint8 numbers
-     * @returns {number[]} - list of uint8 numbers
-     */
-    static sha2_256(bytes: number[]): number[];
-    /**
-     * Calculates sha2-512 (64bytes) hash of a list of uint8 numbers.
-     * Result is also a list of uint8 number.
-     * @example
-     * bytesToHex(Crypto.sha2_512([0x61, 0x62, 0x63])) => "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
-     * @example
-     * bytesToHex(Crypto.sha2_512([])) => "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
-     * @package
-     * @param {number[]} bytes - list of uint8 numbers
-     * @returns {number[]} - list of uint8 numbers
-     */
-    static sha2_512(bytes: number[]): number[];
-    /**
-     * Calculates sha3-256 (32bytes) hash of a list of uint8 numbers.
-     * Result is also a list of uint8 number.
-     * Sha3 only bit-wise operations, so 64-bit operations can easily be replicated using 2 32-bit operations instead
-     * @example
-     * bytesToHex(Crypto.sha3(textToBytes("abc"))) => "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
-     * @example
-     * bytesToHex(Crypto.sha3((new Array(136)).fill(1))) => "b36dc2167c4d9dda1a58b87046c8d76a6359afe3612c4de8a38857e09117b2db"
-     * @example
-     * bytesToHex(Crypto.sha3((new Array(135)).fill(2))) => "5bdf5d815d29a9d7161c66520efc17c2edd7898f2b99a029e8d2e4ff153407f4"
-     * @example
-     * bytesToHex(Crypto.sha3((new Array(134)).fill(3))) => "8e6575663dfb75a88f94a32c5b363c410278b65020734560d968aadd6896a621"
-     * @example
-     * bytesToHex(Crypto.sha3((new Array(137)).fill(4))) => "f10b39c3e455006aa42120b9751faa0f35c821211c9d086beb28bf3c4134c6c6"
-     * @package
-     * @param {number[]} bytes - list of uint8 numbers
-     * @returns {number[]} - list of uint8 numbers
-     */
-    static sha3(bytes: number[]): number[];
-    /**
-     * Calculates blake2-256 (32 bytes) hash of a list of uint8 numbers.
-     * Result is also a list of uint8 number.
-     * Blake2b is a 64bit algorithm, so we need to be careful when replicating 64-bit operations with 2 32-bit numbers (low-word overflow must spill into high-word, and shifts must go over low/high boundary)
-     * @example
-     * bytesToHex(Crypto.blake2b([0, 1])) => "01cf79da4945c370c68b265ef70641aaa65eaa8f5953e3900d97724c2c5aa095"
-     * @example
-     * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
-     * @package
-     * @param {number[]} bytes
-     * @param {number} digestSize - 32 or 64
-     * @returns {number[]}
-     */
-    static blake2b(bytes: number[], digestSize?: number): number[];
-    /**
-     * Crypto.Ed25519 exports the following functions:
-     *  * Crypto.Ed25519.derivePublicKey(privateKey)
-     *  * Crypto.Ed25519.sign(message, privateKey)
-     *  * Crypto.Ed25519.verify(message, signature, publicKey)
-     *
-     * This is implementation is slow (~0.5s per verification), but should be good enough for simple client-side usage
-     *
-     * Ported from: https://ed25519.cr.yp.to/python/ed25519.py
-     * @package
-     */
-    static get Ed25519(): {
-        /**
-         * @param {number[]} privateKey
-         * @returns {number[]}
-         */
-        derivePublicKey: (privateKey: number[]) => number[];
-        /**
-         * @param {number[]} message
-         * @param {number[]} privateKey
-         * @returns {number[]}
-         */
-        sign: (message: number[], privateKey: number[]) => number[];
-        /**
-         * @param {number[]} signature
-         * @param {number[]} message
-         * @param {number[]} publicKey
-         * @returns {boolean}
-         */
-        verify: (signature: number[], message: number[], publicKey: number[]) => boolean;
-    };
-}
 declare namespace ScriptPurpose {
     export const Testing: number;
     export const Minting: number;
@@ -4891,6 +5430,7 @@ declare class CostModel {
  *   nFields(site: Site): number,
  *   hasField(key: Word): boolean,
  *   getFieldType(site: Site, i: number): Type,
+ * 	 getFieldIndex(site: Site, name: string): number,
  *   getFieldName(i: number): string,
  *   getConstrIndex(site: Site): number,
  *   nEnumMembers(site: Site): number,
@@ -5032,6 +5572,14 @@ declare class EvalEntity {
      */
     getFieldType(site: Site, i: number): Type;
     /**
+     * Returns the index of struct or enumMember fields.
+     * Used to order literal struct fields.
+     * @param {Site} site
+     * @param {string} name
+     * @returns {number}
+     */
+    getFieldIndex(site: Site, name: string): number;
+    /**
      * Returns the constructor index so Plutus-core data can be created correctly.
      * @param {Site} site
      * @returns {number}
@@ -5050,190 +5598,9 @@ declare class Instance extends NotType {
     static new(type: Type | Type[]): Instance;
 }
 /**
- * @typedef {(expr: IRExpr) => IRExpr} IRWalkFn
- */
-/**
- * Base class of all Intermediate Representation expressions
- * @package
- */
-declare class IRExpr extends Token {
-    /**
-     * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the index
-     * @returns {IRExpr}
-     */
-    copy(): IRExpr;
-    /**
-     * Score is size of equivalent Plutus-core expression
-     * Optimizing signifies minimizing score
-     * @returns {number} - number of bits (not bytes!)
-     */
-    score(): number;
-    /**
-     * @param {string} indent
-     * @returns {string}
-     */
-    toString(indent?: string): string;
-    /**
-     * Link IRNameExprs to variables
-     * @param {IRScope} scope
-     */
-    resolveNames(scope: IRScope): void;
-    /**
-     * Counts the number of times a variable is referenced inside the current expression
-     * @param {IRVariable} ref
-     * @returns {number}
-     */
-    countRefs(ref: IRVariable): number;
-    /**
-     * Inline every variable that can be found in the stack.
-     * @param {IRExprStack} stack
-     * @returns {IRExpr}
-     */
-    inline(stack: IRExprStack): IRExpr;
-    /**
-     * Evaluates an expression to something (hopefully) literal
-     * Returns null if it the result would be worse than the current expression
-     * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
-     * @param {IRCallStack} stack
-     * @returns {?IRValue}
-     */
-    eval(stack: IRCallStack): IRValue | null;
-    /**
-     * @param {IRWalkFn} fn
-     * @returns {IRExpr}
-     */
-    walk(fn: IRWalkFn): IRExpr;
-    /**
-     * Returns non-null expr if ok
-     * @param {IRVariable} ref
-     * @param {string} builtinName
-     * @returns {?IRExpr}
-     */
-    wrapCall(ref: IRVariable, builtinName: string): IRExpr | null;
-    /**
-     * @param {IRVariable} ref
-     * @returns {?IRExpr}
-     */
-    flattenCall(ref: IRVariable): IRExpr | null;
-    /**
-     * Simplify 'this' by returning something smaller (doesn't mutate)
-     * @param {IRExprStack} stack - contains some global definitions that might be useful for simplification
-     * @returns {IRExpr}
-     */
-    simplify(stack: IRExprStack): IRExpr;
-    /**
-     * @returns {UplcTerm}
-     */
-    toUplc(): UplcTerm;
-}
-/**
  * Base class of non-FuncTypes.
  */
 declare class DataType extends Type {
-}
-/**
- * IR wrapper for UplcValues, representing literals
- * @package
- */
-declare class IRLiteral extends IRExpr {
-    /**
-     * @param {UplcValue} value
-     */
-    constructor(value: UplcValue);
-    get value(): UplcValue;
-    copy(): IRLiteral;
-    /**
-     * @param {IRExprStack} stack
-     * @param {IRLiteral[]} args
-     * @returns {?IRExpr}
-     */
-    call(stack: IRExprStack, args: IRLiteral[]): IRExpr | null;
-    /**
-     * @returns {UplcConst}
-     */
-    toUplc(): UplcConst;
-    #private;
-}
-/**
- * Base class of IRUserCallExpr and IRCoreCallExpr
- * @package
- */
-declare class IRCallExpr extends IRExpr {
-    /**
-     * @param {Site} site
-     * @param {IRExpr[]} argExprs
-     * @param {Site} parensSite
-     */
-    constructor(site: Site, argExprs: IRExpr[], parensSite: Site);
-    get argExprs(): IRExpr[];
-    get parensSite(): Site;
-    /**
-     * @param {string} indent
-     * @returns {string}
-     */
-    argsToString(indent?: string): string;
-    /**
-     * @param {IRCallStack} stack
-     * @returns {?IRValue[]}
-     */
-    evalArgs(stack: IRCallStack): IRValue[] | null;
-    /**
-     * @param {IRWalkFn} fn
-     * @returns {IRExpr[]}
-     */
-    walkArgs(fn: IRWalkFn): IRExpr[];
-    /**
-     * @param {IRVariable} ref
-     * @param {string} builtinName
-     * @returns {?IRExpr[]}
-     */
-    wrapCallArgs(ref: IRVariable, builtinName: string): IRExpr[] | null;
-    /**
-     * @param {IRVariable} ref
-     * @returns {?IRExpr[]}
-     */
-    flattenCallArgs(ref: IRVariable): IRExpr[] | null;
-    /**
-     * @param {IRExprStack} stack
-     * @param {boolean} inline
-     * @returns {IRExpr[]}
-     */
-    simplifyArgs(stack: IRExprStack, inline?: boolean): IRExpr[];
-    /**
-     * @param {UplcTerm} term
-     * @returns {UplcTerm}
-     */
-    toUplcCall(term: UplcTerm): UplcTerm;
-    #private;
-}
-/**
- * IR function expression with some args, that act as the header, and a body expression
- * @package
- */
-declare class IRFuncExpr extends IRExpr {
-    /**
-     * @param {Site} site
-     * @param {IRVariable[]} args
-     * @param {IRExpr} body
-     */
-    constructor(site: Site, args: IRVariable[], body: IRExpr);
-    get args(): IRVariable[];
-    get body(): IRExpr;
-    copy(): IRFuncExpr;
-    /**
-     * Inline expressions in the body
-     * Checking of unused args is done by caller
-     * @param {IRExprStack} stack
-     * @returns {IRFuncExpr}
-     */
-    inline(stack: IRExprStack): IRFuncExpr;
-    /**
-     * Simplify body, returning a IRFuncExpr with the same args
-     * @param {IRExprStack} stack
-     * @returns {IRFuncExpr}
-     */
-    simplifyBody(stack: IRExprStack): IRFuncExpr;
-    #private;
 }
 /**
  * Scope for IR names.
@@ -5273,6 +5640,142 @@ declare class IRScope {
      * @returns {[number, IRVariable]}
      */
     get(name: Word | IRVariable): [number, IRVariable];
+    #private;
+}
+/**
+ * @package
+ */
+declare class IRValue {
+    /**
+     * @param {IRValue[]} args
+     * @returns {?IRValue}
+     */
+    call(args: IRValue[]): IRValue | null;
+    /**
+     * @type {UplcValue}
+     */
+    get value(): UplcValue;
+}
+/**
+ * Map of variables to IRExpr
+ * @package
+ */
+declare class IRExprStack {
+    /**
+     * @param {boolean} throwRTErrors
+     * Keeps order
+     * @param {Map<IRVariable, IRExpr>} map
+     */
+    constructor(throwRTErrors: boolean, map?: Map<IRVariable, IRExpr>);
+    get throwRTErrors(): boolean;
+    /**
+     * Doesn't mutate, returns a new stack
+     * @param {IRVariable} ref
+     * @param {IRExpr} value
+     * @returns {IRExprStack}
+     */
+    set(ref: IRVariable, value: IRExpr): IRExprStack;
+    /**
+     * Mutates
+     * @param {IRVariable} variable
+     * @param {IRExpr} expr
+     */
+    setInline(variable: IRVariable, expr: IRExpr): void;
+    /**
+     * @param {IRVariable} ref
+     * @returns {boolean}
+     */
+    has(ref: IRVariable): boolean;
+    /**
+     * Returns null if not found
+     * @param {IRVariable} ref
+     * @returns {IRExpr}
+     */
+    get(ref: IRVariable): IRExpr;
+    /**
+     * @returns {IRCallStack}
+     */
+    initCallStack(): IRCallStack;
+    /**
+     * Returns a list of the names in the stack
+     * @returns {string}
+     */
+    dump(): string;
+    #private;
+}
+/**
+ * Base class of IRUserCallExpr and IRCoreCallExpr
+ * @package
+ */
+declare class IRCallExpr extends IRExpr {
+    /**
+     * @param {Site} site
+     * @param {IRExpr[]} argExprs
+     * @param {Site} parensSite
+     */
+    constructor(site: Site, argExprs: IRExpr[], parensSite: Site);
+    get argExprs(): IRExpr[];
+    get parensSite(): Site;
+    /**
+     * @param {string} indent
+     * @returns {string}
+     */
+    argsToString(indent?: string): string;
+    /**
+     * @param {IRScope} scope
+     */
+    resolveNamesInArgs(scope: IRScope): void;
+    /**
+     * @param {IRCallStack} stack
+     * @returns {IRExpr[]}
+     */
+    evalConstantsInArgs(stack: IRCallStack): IRExpr[];
+    /**
+     * @param {IRCallStack} stack
+     * @returns {?IRValue[]}
+     */
+    evalArgs(stack: IRCallStack): IRValue[] | null;
+    /**
+     * @param {IRLiteralRegistry} literals
+     * @returns {IRExpr[]}
+     */
+    simplifyLiteralsInArgs(literals: IRLiteralRegistry): IRExpr[];
+    /**
+     * @param {IRNameExprRegistry} nameExprs
+     */
+    registerNameExprsInArgs(nameExprs: IRNameExprRegistry): void;
+    /**
+     * @param {IRExprRegistry} registry
+     * @returns {IRExpr[]}
+     */
+    simplifyTopologyInArgs(registry: IRExprRegistry): IRExpr[];
+    /**
+     * @param {IRWalkFn} fn
+     * @returns {IRExpr[]}
+     */
+    walkArgs(fn: IRWalkFn): IRExpr[];
+    /**
+     * @param {IRVariable} ref
+     * @param {string} builtinName
+     * @returns {?IRExpr[]}
+     */
+    wrapCallArgs(ref: IRVariable, builtinName: string): IRExpr[] | null;
+    /**
+     * @param {IRVariable} ref
+     * @returns {?IRExpr[]}
+     */
+    flattenCallArgs(ref: IRVariable): IRExpr[] | null;
+    /**
+     * @param {IRExprStack} stack
+     * @param {boolean} inline
+     * @returns {IRExpr[]}
+     */
+    simplifyArgs(stack: IRExprStack, inline?: boolean): IRExpr[];
+    /**
+     * @param {UplcTerm} term
+     * @returns {UplcTerm}
+     */
+    toUplcCall(term: UplcTerm): UplcTerm;
     #private;
 }
 /**
@@ -5536,101 +6039,6 @@ declare class UplcAnon extends UplcValue {
     #private;
 }
 declare class NotType extends EvalEntity {
-}
-/**
- * IR class that represents function arguments
- * @package
- */
-declare class IRVariable extends Token {
-    /**
-     * @param {Word} name
-     */
-    constructor(name: Word);
-    /**
-     * @type {string}
-     */
-    get name(): string;
-    #private;
-}
-/**
- * Map of variables to IRExpr
- * @package
- */
-declare class IRExprStack {
-    /**
-     * @param {boolean} throwRTErrors
-     * Keeps order
-     * @param {Map<IRVariable, IRExpr>} map
-     */
-    constructor(throwRTErrors: boolean, map?: Map<IRVariable, IRExpr>);
-    get throwRTErrors(): boolean;
-    /**
-     * Doesn't mutate, returns a new stack
-     * @param {IRVariable} ref
-     * @param {IRExpr} value
-     * @returns {IRExprStack}
-     */
-    set(ref: IRVariable, value: IRExpr): IRExprStack;
-    /**
-     * Mutates
-     * @param {IRVariable} variable
-     * @param {IRExpr} expr
-     */
-    setInline(variable: IRVariable, expr: IRExpr): void;
-    /**
-     * @param {IRVariable} ref
-     * @returns {boolean}
-     */
-    has(ref: IRVariable): boolean;
-    /**
-     * Returns null if not found
-     * @param {IRVariable} ref
-     * @returns {IRExpr}
-     */
-    get(ref: IRVariable): IRExpr;
-    /**
-     * @returns {IRCallStack}
-     */
-    initCallStack(): IRCallStack;
-    /**
-     * Returns a list of the names in the stack
-     * @returns {string}
-     */
-    dump(): string;
-    #private;
-}
-declare class IRCallStack {
-    /**
-     * @param {boolean} throwRTErrors
-     * @param {?IRCallStack} parent
-     * @param {?IRVariable} variable
-     * @param {?IRValue} value
-     */
-    constructor(throwRTErrors: boolean, parent?: IRCallStack | null, variable?: IRVariable | null, value?: IRValue | null);
-    get throwRTErrors(): boolean;
-    /**
-     * @param {IRVariable} variable
-     * @returns {?IRValue}
-     */
-    get(variable: IRVariable): IRValue | null;
-    /**
-     * @param {IRVariable} variable
-     * @param {IRValue} value
-     * @returns {IRCallStack}
-     */
-    set(variable: IRVariable, value: IRValue): IRCallStack;
-    #private;
-}
-declare class IRValue {
-    /**
-     * @param {IRValue[]} args
-     * @returns {?IRValue}
-     */
-    call(args: IRValue[]): IRValue | null;
-    /**
-     * @type {?IRLiteral}
-     */
-    get value(): IRLiteral;
 }
 /**
  * Base class of expression that evaluate to Values.

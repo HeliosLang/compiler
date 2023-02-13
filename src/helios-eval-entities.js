@@ -58,6 +58,7 @@ import {
  *   nFields(site: Site): number,
  *   hasField(key: Word): boolean,
  *   getFieldType(site: Site, i: number): Type,
+ * 	 getFieldIndex(site: Site, name: string): number,
  *   getFieldName(i: number): string,
  *   getConstrIndex(site: Site): number,
  *   nEnumMembers(site: Site): number,
@@ -249,6 +250,17 @@ export class EvalEntity {
 	 * @returns {Type}
 	 */
 	getFieldType(site, i) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Returns the index of struct or enumMember fields.
+	 * Used to order literal struct fields.
+	 * @param {Site} site
+	 * @param {string} name
+	 * @returns {number}
+	 */
+	getFieldIndex(site, name) {
 		throw new Error("not yet implemented");
 	}
 
@@ -631,6 +643,16 @@ export class StatementType extends DataType {
 	 */
 	getFieldType(site, i) {
 		return this.#statement.getFieldType(site, i);
+	}
+
+	/**
+	 * Returns the index of a named field of a Struct or an EnumMember
+	 * @param {Site} site
+	 * @param {string} name
+	 * @returns {number}
+	 */
+	getFieldIndex(site, name) {
+		return this.#statement.getFieldIndex(site, name);
 	}
 
 	/**
@@ -1313,6 +1335,16 @@ export class DataInstance extends Instance {
 	}
 
 	/**
+	 * Returns the index of a named field
+	 * @param {Site} site 
+	 * @param {string} name 
+	 * @returns {number}
+	 */
+	getFieldIndex(site, name) {
+		return this.#type.getFieldIndex(site, name);
+	}
+
+	/**
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
@@ -1442,12 +1474,22 @@ export class FuncInstance extends Instance {
 	}
 
 	/**
-	 * Throws an error because a function value doens't have any fields.
+	 * Throws an error because a function value doesn't have any fields.
 	 * @param {Site} site
 	 * @param {number} i
 	 * @returns {Type}
 	 */
 	getFieldType(site, i) {
+		throw site.typeError("a function doesn't have fields");
+	}
+
+	/**
+	 * Throws an error because a function value have any fields.
+	 * @param {Site} site 
+	 * @param {string} name 
+	 * @returns {number}
+	 */
+	getFieldIndex(site, name) {
 		throw site.typeError("a function doesn't have fields");
 	}
 
@@ -1609,6 +1651,15 @@ export class VoidInstance extends Instance {
 	 * @returns {Type}
 	 */
 	getFieldType(site, i) {
+		throw new Error("can't get field-type of void");
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {string} name
+	 * @returns {number}
+	 */
+	getFieldIndex(site, name) {
 		throw new Error("can't get field-type of void");
 	}
 
@@ -2131,6 +2182,20 @@ class ParamType extends Type {
 			throw new Error("should've been set");
 		} else {
 			return this.#type.getFieldType(site, i);
+		}
+	}
+
+	/**
+	 * Returns the i-th field of a Struct or an EnumMember
+	 * @param {Site} site
+	 * @param {string} name
+	 * @returns {number}
+	 */
+	getFieldIndex(site, name) {
+		if (this.#type === null) {
+			throw new Error("should've been set");
+		} else {
+			return this.#type.getFieldIndex(site, name);
 		}
 	}
 
@@ -2676,7 +2741,18 @@ class OptionSomeType extends BuiltinEnumMember {
 	 * @returns {Type}
 	 */
 	getFieldType(site, i) {
+		assert(i == 0);
 		return this.#someType;
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {string} name
+	 * @returns {number}
+	 */
+	getFieldIndex(site, name) {
+		assert(name == "some");
+		return 0;
 	}
 
 	/**

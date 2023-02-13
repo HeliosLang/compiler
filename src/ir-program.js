@@ -24,14 +24,21 @@ import {
 } from "./tokenization.js";
 
 import {
+	IRCallStack,
+	IRScope,
+	IRVariable
+} from "./ir-context.js";
+
+import {
+	IRExpr,
     IRCallExpr,
     IRCoreCallExpr,
     IRExprStack,
     IRFuncExpr,
-    IRLiteral,
-    IRScope,
+    IRLiteralExpr,
+	IRNameExprRegistry,
     IRUserCallExpr,
-	IRVariable
+	IRExprRegistry
 } from "./ir-ast.js";
 
 import {
@@ -40,7 +47,7 @@ import {
 
 
 /**
- * Wrapper for IRFuncExpr, IRCallExpr or IRLiteral
+ * Wrapper for IRFuncExpr, IRCallExpr or IRLiteralExpr
  * @package
  */
 export class IRProgram {
@@ -48,12 +55,24 @@ export class IRProgram {
 	#purpose;
 
 	/**
-	 * @param {IRFuncExpr | IRCallExpr | IRLiteral} expr
+	 * @param {IRFuncExpr | IRCallExpr | IRLiteralExpr} expr
 	 * @param {?number} purpose
 	 */
 	constructor(expr, purpose) {
 		this.#expr = expr;
 		this.#purpose = purpose;
+	}
+
+	/**
+	 * @param {IRExpr} expr 
+	 * @returns {IRFuncExpr | IRCallExpr | IRLiteralExpr}
+	 */
+	static assertValidRoot(expr) {
+		if (expr instanceof IRFuncExpr || expr instanceof IRCallExpr || expr instanceof IRLiteralExpr) {
+			return expr;
+		} else {
+			throw new Error("invalid IRExpr type for IRProgram");
+		}
 	}
 
 	/**
@@ -72,29 +91,55 @@ export class IRProgram {
 
 		let expr = buildIRExpr(irTokens);
 		
-		/**
-		 * @type {IRProgram}
-		 */
-		if (expr instanceof IRFuncExpr || expr instanceof IRCallExpr || expr instanceof IRLiteral) {
-			if (expr instanceof IRFuncExpr || expr instanceof IRUserCallExpr || expr instanceof IRCoreCallExpr) {
-				expr.resolveNames(scope);
-			}
+		expr.resolveNames(scope);
 
-			let program = new IRProgram(expr, purpose);
+		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
 
-			if (simplify) {
-				program.simplify(throwSimplifyRTErrors, scope);
-			}
+		if (simplify) {
+			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
+			expr = this.simplify(expr);
 
-			return program;
-		} else {
-			throw new Error("expected IRFuncExpr or IRUserCallExpr or IRLiteral as result of IRProgram.new");
+			// make sure the debruijn indices are correct
+			expr.resolveNames(scope);
 		}
+
+		const program = new IRProgram(IRProgram.assertValidRoot(expr), purpose);
+
+		return program;
+	}
+
+	/**
+	 * @param {IRExpr} expr 
+	 * @returns {IRExpr}
+	 */
+	static simplify(expr) {
+		let dirty = true;
+		let oldState = expr.toString();
+
+		while (dirty) {
+			dirty = false;
+
+			expr = expr.simplifyLiterals(new Map());
+
+			const nameExprs = new IRNameExprRegistry();
+
+			expr.registerNameExprs(nameExprs);
+
+			expr = expr.simplifyTopology(new IRExprRegistry(nameExprs));
+
+			const newState = expr.toString();
+			if (newState != oldState) {
+				dirty = true;
+				oldState = newState;
+			}
+		}
+
+		return expr;
 	}
 
 	/**
 	 * @package
-	 * @type {IRFuncExpr | IRCallExpr | IRLiteral}
+	 * @type {IRFuncExpr | IRCallExpr | IRLiteralExpr}
 	 */
 	get expr() {
 		return this.#expr;
@@ -120,7 +165,7 @@ export class IRProgram {
 	 * @type {UplcData}
 	 */
 	get data() {
-		if (this.#expr instanceof IRLiteral) {
+		if (this.#expr instanceof IRLiteralExpr) {
 			let v = this.#expr.value;
 
 			return v.data;
@@ -132,29 +177,6 @@ export class IRProgram {
 
 	toString() {
 		return this.#expr.toString();
-	}
-
-	/**
-	 * @param {boolean} throwSimplifyRTErrors
-	 * @param {IRScope} scope
-	 */
-	simplify(throwSimplifyRTErrors = false, scope = new IRScope(null, null)) {
-		let dirty = true;
-	
-		while(dirty && (this.#expr instanceof IRFuncExpr || this.#expr instanceof IRUserCallExpr || this.#expr instanceof IRCoreCallExpr)) {
-			dirty = false;
-			let newExpr = this.#expr.simplify(new IRExprStack(throwSimplifyRTErrors));
-	
-			if (newExpr instanceof IRFuncExpr || newExpr instanceof IRUserCallExpr || newExpr instanceof IRCoreCallExpr || newExpr instanceof IRLiteral) {
-				dirty = newExpr.toString() != this.#expr.toString();
-				this.#expr = newExpr;
-			}
-		}
-	
-		if (this.#expr instanceof IRFuncExpr || this.#expr instanceof IRUserCallExpr || this.#expr instanceof IRCoreCallExpr) {
-			// recalculate the Debruijn indices
-			this.#expr.resolveNames(scope);
-		}
 	}
 
 	/**

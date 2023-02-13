@@ -25,6 +25,7 @@ const FILES = [
 	"helios-ast-statements.js",
 	"helios-ast-build.js",
 	"ir-defs.js",
+	"ir-context.js",
 	"ir-ast.js",
 	"ir-build.js",
 	"ir-program.js",
@@ -34,7 +35,8 @@ const FILES = [
 	"fuzzy-test.js",
 	"coinselection.js",
 	"wallets.js",
-	"network.js"
+	"network.js",
+	"emulator.js"
 ];
 
 // build script that bundles all constituents of helios.js // goal: helios.js should be auditable

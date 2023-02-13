@@ -28,23 +28,23 @@ import {
 
 /**
  * @typedef {{
- *   isMainnet(): Promise<boolean>,
- *   usedAddresses: Promise<Address[]>,
- *   unusedAddresses: Promise<Address[]>,
- *   utxos: Promise<UTxO[]>,
- *   signTx(tx: Tx): Promise<Signature[]>,
- *   submitTx(tx: Tx): Promise<TxId>
+ *     isMainnet(): Promise<boolean>,
+ *     usedAddresses: Promise<Address[]>,
+ *     unusedAddresses: Promise<Address[]>,
+ *     utxos: Promise<UTxO[]>,
+ *     signTx(tx: Tx): Promise<Signature[]>,
+ *     submitTx(tx: Tx): Promise<TxId>
  * }} Wallet
  */
 
 /**
  * @typedef {{
- *   getNetworkId(): Promise<number>,
- *   getUsedAddresses(): Promise<string[]>,
- *   getUnusedAddresses(): Promise<string[]>,
- *   getUtxos(): Promise<string[]>,
- *   signTx(txHex: string, partialSign: boolean): Promise<string>,
- *   submitTx(txHex: string): Promise<string>
+ *     getNetworkId(): Promise<number>,
+ *     getUsedAddresses(): Promise<string[]>,
+ *     getUnusedAddresses(): Promise<string[]>,
+ *     getUtxos(): Promise<string[]>,
+ *     signTx(txHex: string, partialSign: boolean): Promise<string>,
+ *     submitTx(txHex: string): Promise<string>
  * }} Cip30Handle
  */
 

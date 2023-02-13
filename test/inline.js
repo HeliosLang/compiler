@@ -8,7 +8,7 @@ import { correctDir, runIfEntryPoint } from "./util.js";
 correctDir();
 
 /**
- * @typedef {import('./helios.js').PropertyTest} PropertyTest
+ * @typedef {import('../helios.js').PropertyTest} PropertyTest
  */
 
 const helios_ = helios.exportedForTesting;

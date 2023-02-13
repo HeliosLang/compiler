@@ -2662,7 +2662,7 @@ export class UplcBuiltin extends UplcTerm {
 
 					if (b.isList()) {
 						if (!a.isData()) {
-							throw callSite.typeError(`expected data, got ${a.toString()}`);
+							throw callSite.typeError(`expected data for 2nd arg of mkCons, got ${a.toString()}`);
 						}
 
 						let item = a.data;
@@ -2795,7 +2795,7 @@ export class UplcBuiltin extends UplcTerm {
 					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
-						throw callSite.typeError(`expected data, got ${a.toString()}`);
+						throw callSite.typeError(`expected data for arg of unConstrData, got ${a.toString()}`);
 					}
 
 					let data = a.data;
@@ -2810,7 +2810,7 @@ export class UplcBuiltin extends UplcTerm {
 					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
-						throw callSite.typeError(`expected data, got ${a.toString()}`);
+						throw callSite.typeError(`expected data for arg of unMapData, got ${a.toString()}`);
 					}
 
 					let data = a.data;
@@ -2825,7 +2825,7 @@ export class UplcBuiltin extends UplcTerm {
 					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
-						throw callSite.typeError(`expected data, got ${a.toString()}`);
+						throw callSite.typeError(`expected data for arg of unListData, got ${a.toString()}`);
 					}
 
 					let data = a.data;
@@ -2840,7 +2840,7 @@ export class UplcBuiltin extends UplcTerm {
 					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
-						throw callSite.typeError(`expected data, got ${a.toString()}`);
+						throw callSite.typeError(`expected data for arg of unIData, got ${a.toString()}`);
 					}
 
 					let data = a.data;
@@ -2855,7 +2855,7 @@ export class UplcBuiltin extends UplcTerm {
 					rte.calcAndIncrCost(this, a);
 
 					if (!a.isData()) {
-						throw callSite.typeError(`expected data, got ${a.toString()}`);
+						throw callSite.typeError(`expected data for arg of unBData, got ${a.toString()}`);
 					}
 
 					let data = a.data;
@@ -2870,11 +2870,11 @@ export class UplcBuiltin extends UplcTerm {
 					rte.calcAndIncrCost(this, a, b);
 
 					if (!a.isData()) {
-						throw callSite.typeError(`expected data, got ${a.toString()}`);
+						throw callSite.typeError(`expected data for 1st arg of equalsData, got ${a.toString()}`);
 					}
 
 					if (!b.isData()) {
-						throw callSite.typeError(`expected data, got ${b.toString()}`);
+						throw callSite.typeError(`expected data for 2nd arg of equalsData, got ${b.toString()}`);
 					}
 
 					return new UplcBool(callSite, a.data.isSame(b.data));

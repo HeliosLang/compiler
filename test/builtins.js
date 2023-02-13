@@ -349,7 +349,6 @@ const certifyingScriptContextParam = `
 async function testBuiltins() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
 
-
     ////////////
     // Int tests
     ////////////

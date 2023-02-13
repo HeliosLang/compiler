@@ -864,7 +864,7 @@ class MainModule extends Module {
 	 * @param {string[]}  parameters
 	 * @returns {IR}
 	 */
-	toIR(parameters) {
+	toIR(parameters = []) {
 		throw new Error("not yet implemented");
 	}
 
@@ -1005,7 +1005,7 @@ class RedeemerProgram extends Program {
 			new IR(`) -> {\n${TAB}${TAB}`),
 			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
-			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error("transaction rejected")}\n${TAB}${TAB})()`),
+			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
 		]);
 
@@ -1125,7 +1125,7 @@ class DatumRedeemerProgram extends Program {
 			new IR(`) -> {\n${TAB}${TAB}`),
 			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
-			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__core__error("transaction rejected")}\n${TAB}${TAB})()`),
+			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
 		]);
 

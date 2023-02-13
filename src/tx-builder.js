@@ -60,8 +60,7 @@ import {
 } from "./uplc-costmodels.js";
 
 import {
-    UplcDataValue,
-    UplcValue
+    UplcDataValue
 } from "./uplc-ast.js";
 
 import {
@@ -107,10 +106,30 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @type {number[]}
+	 */
+	get bodyHash() {
+		return Crypto.blake2b(this.#body.toCbor());
+	}
+
+	/**
 	 * @type {TxWitnesses}
 	 */
 	get witnesses() {
 		return this.#witnesses;
+	}
+
+	/**
+	 * Used by emulator to check if tx is valid.
+	 * @param {bigint} slot
+	 * @returns {boolean}
+	 */
+	isValid(slot) {
+		if (!this.#valid) {
+			return false;
+		} else {
+			return this.#body.isValid(slot);
+		}
 	}
 
 	/** 
@@ -666,7 +685,7 @@ export class Tx extends CborData {
 		assert(this.#valid);
 
 		if (verify) {
-			signature.verify(Crypto.blake2b(this.#body.toCbor()));
+			signature.verify(this.bodyHash);
 		}
 
 		this.#witnesses.addSignature(signature);
@@ -709,7 +728,7 @@ export class Tx extends CborData {
 	 */
 	id() {
 		assert(this.#valid, "can't get TxId of unfinalized Tx");
-		return new TxId(Crypto.blake2b(this.#body.toCbor(), 32));
+		return new TxId(this.bodyHash);
 	}
 }
 
@@ -796,6 +815,10 @@ class TxBody extends CborData {
 
 	get inputs() {
 		return this.#inputs.slice();
+	}
+
+	get outputs() {
+		return this.#outputs.slice();
 	}
 
 	get fee() {
@@ -1282,6 +1305,26 @@ class TxBody extends CborData {
 		}));
 
 		this.#minted.sort();
+	}
+
+	/**
+	 * Used by (indirectly) by emulator to check if slot range is valid.
+	 * @param {bigint} slot
+	 */
+	isValid(slot) {
+		if (this.#lastValidSlot != null) {
+			if (slot > this.#lastValidSlot) {
+				return false;
+			}
+		}
+
+		if (this.#firstValidSlot != null) {
+			if (slot < this.#firstValidSlot) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }
 
@@ -2847,7 +2890,7 @@ export class Datum extends CborData {
  * Inside helios this type is named OutputDatum::Hash in order to distinguish it from the user defined Datum,
  * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
  */
-class HashedDatum extends Datum {
+export class HashedDatum extends Datum {
 	/** @type {DatumHash} */
 	#hash;
 

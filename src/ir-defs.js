@@ -142,7 +142,7 @@ function makeRawFunctions() {
 	 * @param {string} errorExpr 
 	 * @returns {string}
 	 */
-	function unData(dataExpr, iConstr, iField, errorExpr = "__core__error(\"unexpected constructor index\")") {
+	function unData(dataExpr, iConstr, iField, errorExpr = "error(\"unexpected constructor index\")") {
 		let inner = "__core__sndPair(pair)";
 		for (let i = 0; i < iField; i++) {
 			inner = `__core__tailList(${inner})`;
@@ -195,14 +195,14 @@ function makeRawFunctions() {
 	// Common builtins
 	add(new RawFunc("__helios__common__verbose_error",
 	`(msg) -> {
-		__core__trace(msg, () -> {__core__error("")})()
+		__core__trace(msg, () -> {error("")})()
 	}`));
 	add(new RawFunc("__helios__common__assert_constr_index",
 	`(data, i) -> {
 		__core__ifThenElse(
 			__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), i),
 			() -> {data},
-			() -> {__core__error("unexpected constructor index")}
+			() -> {error("unexpected constructor index")}
 		)()
 	}`));
 	add(new RawFunc("__helios__common____identity",
@@ -330,7 +330,7 @@ function makeRawFunctions() {
 			(recurse, self, fn) -> {
 				__core__ifThenElse(
 					__core__nullList(self), 
-					() -> {__core__error("not found")}, 
+					() -> {error("not found")}, 
 					() -> {
 						__core__ifThenElse(
 							fn(__core__headList(self)), 
@@ -673,7 +673,7 @@ function makeRawFunctions() {
 		__core__trace(
 			__helios__common__unStringData(msg), 
 			() -> {
-				__core__error("error thrown by user-code")
+				error("error thrown by user-code")
 			}
 		)()
 	}`));
@@ -688,7 +688,7 @@ function makeRawFunctions() {
 				__core__trace(
 					__helios__common__unStringData(msg),
 					() -> {
-						__core__error("assert failed")
+						error("assert failed")
 					}
 				)()
 			}
@@ -861,12 +861,12 @@ function makeRawFunctions() {
 						__core__subtractInteger(digit, 48)
 					},
 					() -> {
-						__core__error("not a digit")
+						error("not a digit")
 					}
 				)()
 			},
 			() -> {
-				__core__error("not a digit")
+				error("not a digit")
 			}
 		)()
 	}`));
@@ -885,7 +885,7 @@ function makeRawFunctions() {
 										0
 									},
 									() -> {
-										__core__error("zero padded integer can't be parsed")
+										error("zero padded integer can't be parsed")
 									}
 								)()
 							},
@@ -896,7 +896,7 @@ function makeRawFunctions() {
 										__core__ifThenElse(
 											__core__equalsInteger(__core__indexByteString(bytes, 1), 48),
 											() -> {
-												__core__error("-0 not allowed")
+												error("-0 not allowed")
 											},
 											() -> {
 												__core__multiplyInteger(
@@ -1270,10 +1270,10 @@ function makeRawFunctions() {
 					(recurse, self, index) -> {
 						__core__ifThenElse(
 							__core__nullList(self), 
-							() -> {__core__error("index out of range")}, 
+							() -> {error("index out of range")}, 
 							() -> {__core__ifThenElse(
 								__core__lessThanInteger(index, 0), 
-								() -> {__core__error("index out of range")}, 
+								() -> {error("index out of range")}, 
 								() -> {
 									__core__ifThenElse(
 										__core__equalsInteger(index, 0), 
@@ -1582,7 +1582,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__map__get",
 	`(self) -> {
 		(key) -> {
-			__helios__common__map_get(self, key, (x) -> {x}, () -> {__core__error("key not found")})
+			__helios__common__map_get(self, key, (x) -> {x}, () -> {error("key not found")})
 		}
 	}`));
 	add(new RawFunc("__helios__map__get_safe",
@@ -1678,7 +1678,7 @@ function makeRawFunctions() {
 					(recurse, self, fn) -> {
 						__core__ifThenElse(
 							__core__nullList(self), 
-							() -> {__core__error("not found")}, 
+							() -> {error("not found")}, 
 							() -> {
 								(head) -> {
 									__core__ifThenElse(
@@ -1710,7 +1710,7 @@ function makeRawFunctions() {
 							__core__nullList(self), 
 							() -> {
 								(callback) -> {
-									callback(() -> {__core__error("not found")}, false)
+									callback(() -> {error("not found")}, false)
 								}
 							}, 
 							() -> {
@@ -2818,7 +2818,7 @@ function makeRawFunctions() {
 						__core__headList(fields)
 					},
 					() -> {
-						__core__error("not an inline datum")
+						error("not an inline datum")
 					}
 				)()
 			}(__core__fstPair(pair), __core__sndPair(pair))
@@ -3613,7 +3613,7 @@ function makeRawFunctions() {
 					(outer, inner, map) -> {
 						__core__ifThenElse(
 							__core__nullList(map), 
-							() -> {__core__error("policy not found")}, 
+							() -> {error("policy not found")}, 
 							() -> {
 								__core__ifThenElse(
 									__core__equalsData(__core__fstPair(__core__headList(map)), mintingPolicyHash), 
@@ -3625,7 +3625,7 @@ function makeRawFunctions() {
 					}, (inner, map) -> {
 						__core__ifThenElse(
 							__core__nullList(map), 
-							() -> {__core__error("tokenName not found")}, 
+							() -> {error("tokenName not found")}, 
 							() -> {
 								__core__ifThenElse(
 									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
@@ -3685,7 +3685,7 @@ function makeRawFunctions() {
 					(recurse, map) -> {
 						__core__ifThenElse(
 							__core__nullList(map),
-							() -> {__core__error("policy not found")},
+							() -> {error("policy not found")},
 							() -> {
 								__core__ifThenElse(
 									__core__equalsData(__core__fstPair(__core__headList(map)), mph),

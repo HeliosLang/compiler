@@ -1018,6 +1018,11 @@ export class StructLiteralExpr extends ValueExpr {
 		return `${this.#typeExpr.toString()}{${this.#fields.map(f => f.toString()).join(", ")}}`;
 	}
 
+	isNamed() {
+		// the expression builder already checked that all fields are named or all or positional (i.e. not mixed)
+		return this.#fields.length > 0 && this.#fields[0].isNamed();
+	}
+
 	/**
 	 * @param {Scope} scope 
 	 * @returns 
@@ -1032,7 +1037,7 @@ export class StructLiteralExpr extends ValueExpr {
 		let instance = Instance.new(type);
 
 		if (instance.nFields(this.site) != this.#fields.length) {
-			throw this.typeError("wrong number of fields");
+			throw this.typeError(`wrong number of fields for ${type.toString()}, expected ${instance.nFields(this.site)}, got ${this.#fields.length}`);
 		}
 
 		for (let i = 0; i < this.#fields.length; i++) {
@@ -1045,18 +1050,14 @@ export class StructLiteralExpr extends ValueExpr {
 				let memberType = instance.getInstanceMember(f.name).getType(f.name.site);
 
 				if (!fieldVal.isInstanceOf(f.site, memberType)) {
-					throw f.site.typeError(`wrong field type for '${f.name.toString()}'`);
+					throw f.site.typeError(`wrong field type for '${f.name.toString()}', expected ${memberType.toString()}, got ${fieldVal.getType(Site.dummy()).toString()}`);
 				}
-			}
-			
-			// check the positional type
-			let memberType = instance.getFieldType(f.site, i);
-			
-			if (!fieldVal.isInstanceOf(f.site, memberType)) {
-				if (f.isNamed()) {
-					throw f.site.typeError("wrond field order");
-				} else {
-					throw f.site.typeError("wrong field type");
+			} else {
+				// check the positional type
+				let memberType = instance.getFieldType(f.site, i);
+				
+				if (!fieldVal.isInstanceOf(f.site, memberType)) {
+					throw f.site.typeError(`wrong field type for field ${i.toString()}, expected ${memberType.toString()}, got ${fieldVal.getType(Site.dummy()).toString()}`);
 				}
 			}
 		}
@@ -1079,14 +1080,21 @@ export class StructLiteralExpr extends ValueExpr {
 	toIR(indent = "") {
 		let res = new IR("__core__mkNilData(())");
 
-		let fields = this.#fields.slice();
+		const type = this.#typeExpr.type;
 
-		let instance = Instance.new(this.#typeExpr.type);
+		const instance = Instance.new(type);
+
+		const fields = this.#fields.slice();
+
+		// sort fields by correct name
+		if (this.isNamed()) {
+			fields.sort((a, b) => type.getFieldIndex(this.site, a.name.value) - type.getFieldIndex(this.site, b.name.value));
+		}
 
 		for (let i = fields.length - 1; i >= 0; i--) {
-			let f = fields[i];
+			const f = fields[i];
 
-			let isBool = instance.getFieldType(f.site, i) instanceof BoolType;
+			const isBool = instance.getFieldType(f.site, i) instanceof BoolType;
 
 			let fIR = f.toIR(indent);
 

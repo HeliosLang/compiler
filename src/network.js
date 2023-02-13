@@ -2,15 +2,26 @@
 // Network
 
 import {
-    assertDefined
+    assertDefined,
+    hexToBytes
 } from "./utils.js";
 
 import {
-    TxId
+    ConstrData
+} from "./uplc-data.js";
+
+import {
+    Address,
+    Assets,
+    MintingPolicyHash,
+    TxId,
+    Value
 } from "./helios-data.js";
 
 import {
+    Datum,
     Tx,
+    TxOutput,
     UTxO
 } from "./tx-builder.js";
 
@@ -24,7 +35,8 @@ import {
 
 /**
  * @typedef {{
- *   submitTx(tx: Tx): Promise<TxId>
+ *     getUtxos(address: Address): Promise<UTxO[]>,
+ *     submitTx(tx: Tx): Promise<TxId>
  * }} Network
  */
 
@@ -48,9 +60,9 @@ export class BlockfrostV0 {
      * Determine the network which the wallet is connected to.
      * @param {Wallet} wallet 
      * @param {{
-     *   preview?: string,
-     *   preprod?: string,
-     *   mainnet?: string
+     *     preview?: string,
+     *     preprod?: string,
+     *     mainnet?: string
      * }} projectIds 
      * @returns {Promise<BlockfrostV0>}
      */
@@ -96,6 +108,36 @@ export class BlockfrostV0 {
     }
 
     /**
+     * @param {any} obj 
+     * @returns 
+     */
+    static parseValue(obj) {
+        let value = new Value();
+
+        for (let item of obj) {
+            let qty = BigInt(item.quantity);
+
+            if (item.unit == "lovelace") {
+                value = value.add(new Value(qty));
+            } else {
+                let policyID = item.unit.substring(0, 56);
+                let mph = MintingPolicyHash.fromHex(policyID);
+
+                let token = hexToBytes(item.unit.substring(56));
+
+                value = value.add(new Value(0n, new Assets([
+                    [mph, [
+                        [token, qty]
+                    ]]
+                ])));
+            }
+        }
+
+        return value;
+    }
+
+    /**
+     * Used by BlockfrostV0.resolve()
      * @param {UTxO} utxo
      * @returns {Promise<boolean>}
      */
@@ -113,6 +155,43 @@ export class BlockfrostV0 {
 
         return response.ok;
     }
+
+    /**
+     * Returns oldest UTxOs first, newest last.
+     * TODO: pagination
+     * @param {Address} address 
+     * @returns {Promise<UTxO[]>}
+     */
+    async getUtxos(address) {
+        const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/addresses/${address.toBech32()}/utxos?order=asc`;
+
+        const response = await fetch(url, {
+            headers: {
+                "project_id": this.#projectId
+            }
+        });
+
+        /** 
+         * @type {any} 
+         */
+        let all = await response.json();
+
+        if (all?.status_code >= 300) {
+            all = []; 
+        }
+
+        return all.map(obj => {
+            return new UTxO(
+                TxId.fromHex(obj.tx_hash),
+                BigInt(obj.output_index),
+                new TxOutput(
+                    address,
+                    BlockfrostV0.parseValue(obj.amount),
+                    Datum.inline(ConstrData.fromCbor(hexToBytes(obj.inline_datum)))
+                )
+            );
+        });
+    }  
 
     /** 
      * @param {Tx} tx 

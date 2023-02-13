@@ -6,7 +6,6 @@ import {
 } from "./constants.js";
 
 import {
-    BitWriter,
     assert,
     assertClass,
     assertDefined
@@ -42,80 +41,16 @@ import {
     UplcVariable
 } from "./uplc-ast.js";
 
-/**
- * Scope for IR names.
- * Works like a stack of named values from which a Debruijn index can be derived
- * @package
- */
-export class IRScope {
-	#parent;
-	/** variable name (can be empty if no usable variable defined at this level) */
-	#variable;
-
-	/**
-	 * @param {?IRScope} parent 
-	 * @param {?IRVariable} variable
-	 */
-	constructor(parent, variable) {
-		this.#parent = parent;
-		this.#variable = variable;
-	}
-
-	/**
-	 * Calculates the Debruijn index of a named value. Internal method
-	 * @param {Word | IRVariable} name 
-	 * @param {number} index 
-	 * @returns {[number, IRVariable]}
-	 */
-	getInternal(name, index) {
-		if (this.#variable !== null && (name instanceof Word && this.#variable.toString() == name.toString()) || (name instanceof IRVariable && this.#variable == name)) {
-			return [index, this.#variable];
-		} else if (this.#parent === null) {
-			throw assertClass(name, Word).referenceError(`variable ${name.toString()} not found`);
-		} else {
-			return this.#parent.getInternal(name, index + 1);
-		}
-	}
-
-	/**
-	 * Calculates the Debruijn index.
-	 * @param {Word | IRVariable} name 
-	 * @returns {[number, IRVariable]}
-	 */
-	get(name) {
-		// one-based
-		return this.getInternal(name, 1);
-	}
-
-	/**
-	 * Checks if a named builtin exists
-	 * @param {string} name 
-	 * @param {boolean} strict - if true then throws an error if builtin doesn't exist
-	 * @returns {boolean}
-	 */
-	static isBuiltin(name, strict = false) {
-		if (name.startsWith("__core")) {
-			if (strict) {
-				void this.findBuiltin(name); // assert that builtin exists
-			}
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * Returns index of a named builtin
-	 * Throws an error if builtin doesn't exist
-	 * @param {string} name 
-	 * @returns 
-	 */
-	static findBuiltin(name) {
-		let i = UPLC_BUILTINS.findIndex(info => { return "__core__" + info.name == name });
-		assert(i != -1, `${name} is not a real builtin`);
-		return i;
-	}
-}
+import {
+	IRCallStack,
+	IRDeferredValue,
+	IRFuncValue,
+	IRLiteralValue,
+	IRScope,
+	IRValue,
+	IRVariable
+} from "./ir-context.js";
+import { buildLiteralExprFromJson } from "./helios-param.js";
 
 /**
  * Map of variables to IRExpr
@@ -217,142 +152,155 @@ export class IRExprStack {
 	}
 }
 
-class IRValue {
-	constructor() {
+/**
+ * @typedef {(expr: IRExpr) => IRExpr} IRWalkFn
+ */
+
+/**
+ * @typedef {Map<IRVariable, IRLiteralExpr>} IRLiteralRegistry
+ */
+
+export class IRNameExprRegistry {
+	/**
+	 * @type {Map<IRVariable, Set<IRNameExpr>>}
+	 */
+	#map;
+
+	/**
+	 * @type {Set<IRVariable>}
+	 */
+	#maybeInsideLoop;
+
+	/**
+	 * Reset whenever recursion is detected.
+	 * @type {Set<IRVariable>}
+	 */
+	#variables;
+
+	/**
+	 * @param {Map<IRVariable, Set<IRNameExpr>>} map
+	 */
+	constructor(map = new Map(), maybeInsideLoop = new Set()) {
+		this.#map = map;
+		this.#maybeInsideLoop = maybeInsideLoop;
+		this.#variables = new Set();
 	}
 
 	/**
-	 * @param {IRValue[]} args 
-	 * @returns {?IRValue}
+	 * @param {IRNameExpr} nameExpr 
 	 */
-	call(args) {
-		throw new Error("not a function");
+	register(nameExpr) {
+		if (!nameExpr.isCore()) {
+			const variable = nameExpr.variable;
+
+			if (!this.#map.has(variable)) {
+				this.#map.set(variable, new Set([nameExpr]));
+			} else {
+				assertDefined(this.#map.get(variable)).add(nameExpr);
+			}
+
+			// add another reference in case of recursion
+			if (!this.#variables.has(variable)) {
+				this.#maybeInsideLoop.add(variable);
+			}
+		}
 	}
 
 	/**
-	 * @type {?IRLiteral}
+	 * Used to prevent inlining upon recursion
+	 * @param {IRVariable} variable
 	 */
-	get value() {
-		return null;
-	}
-}
-
-class IRFuncValue extends IRValue {
-	#callback;
-
-	/**
-	 * @param {(args: IRValue[]) => ?IRValue} callback
-	 */
-	constructor(callback) {
-		super();
-		this.#callback = callback;
-	}
-
-	/**
-	 * @param {IRValue[]} args 
-	 * @returns {?IRValue}
-	 */
-	call(args) {
-		return this.#callback(args);
-	}
-}
-
-class IRLiteralValue extends IRValue {
-	#literal;
-
-	/**
-	 * @param {IRLiteral} literal 
-	 */
-	constructor(literal) {
-		super();
-		this.#literal = literal;
-	}
-
-	/**
-	 * @type {?IRLiteral}
-	 */
-	get value() {
-		return this.#literal;
-	}
-}
-
-class IRCallStack {
-	#throwRTErrors;
-	#parent;
-	#variable;
-	#value;
-
-	/**
-	 * @param {boolean} throwRTErrors
-	 * @param {?IRCallStack} parent 
-	 * @param {?IRVariable} variable 
-	 * @param {?IRValue} value 
-	 */
-	constructor(throwRTErrors, parent = null, variable = null, value = null) {
-		this.#throwRTErrors = throwRTErrors;
-		this.#parent = parent;
-		this.#variable = variable;
-		this.#value = value;
-	}
-
-	get throwRTErrors() {
-		return this.#throwRTErrors;
+	registerVariable(variable) {
+		this.#variables.add(variable)
 	}
 
 	/**
 	 * @param {IRVariable} variable 
-	 * @returns {?IRValue}
+	 * @returns {number}
 	 */
-	get(variable) {
-		if (this.#variable !== null && this.#variable === variable) {
-			return this.#value;
-		} else if (this.#parent !== null) {
-			return this.#parent.get(variable);
+	countReferences(variable) {
+		const set = this.#map.get(variable);
+
+		if (set == undefined) {
+			return 0;
 		} else {
-			return null;
+			return set.size;
 		}
 	}
 
 	/**
 	 * @param {IRVariable} variable 
-	 * @param {IRValue} value 
-	 * @returns {IRCallStack}
+	 * @returns {boolean}
 	 */
-	set(variable, value) {
-		return new IRCallStack(this.#throwRTErrors, this, variable, value);
-	}
-}
-
-/**
- * IR class that represents function arguments
- * @package
- */
-export class IRVariable extends Token {
-	#name;
-
-	/**
-	 * @param {Word} name
-	 */
-	constructor(name) {
-		super(name.site);
-		this.#name = name;
+	maybeInsideLoop(variable) {
+		return this.#maybeInsideLoop.has(variable);
 	}
 
 	/**
-	 * @type {string}
+	 * Called whenever recursion is detected
+	 * @returns {IRNameExprRegistry}
 	 */
-	get name() {
-		return this.#name.toString();
-	}
-
-	toString() {
-		return this.name;
+	resetVariables() {
+		return new IRNameExprRegistry(this.#map, this.#maybeInsideLoop);
 	}
 }
 
-/**
- * @typedef {(expr: IRExpr) => IRExpr} IRWalkFn
- */
+export class IRExprRegistry {
+	#nameExprs;
+
+	/**
+	 * @type {Map<IRVariable, IRExpr>}
+	 */
+	#inline;
+
+	/**
+	 * @param {IRNameExprRegistry} nameExprs 
+	 */
+	constructor(nameExprs) {
+		this.#nameExprs = nameExprs;
+		this.#inline = new Map();
+	}
+
+	/**
+	 * @param {IRVariable} variable 
+	 * @returns {number}
+	 */
+	countReferences(variable) {
+		return this.#nameExprs.countReferences(variable);
+	}
+
+	/**
+	 * @param {IRVariable} variable 
+	 * @returns {boolean}
+	 */
+	maybeInsideLoop(variable) {
+		return this.#nameExprs.maybeInsideLoop(variable);
+	}
+
+	/**
+	 * @param {IRVariable} variable
+	 * @returns {boolean}
+	 */
+	isInlineable(variable) {
+		return this.#inline.has(variable);
+	}
+
+	/**
+	 * @param {IRVariable} variable
+	 * @returns {IRExpr}
+	 */
+	getInlineable(variable) {
+		return assertDefined(this.#inline.get(variable)).copy();
+	}
+
+	/**
+	 * @param {IRVariable} variable 
+	 * @param {IRExpr} expr 
+	 */
+	addInlineable(variable, expr) {
+		this.#inline.set(variable, expr);
+	}
+}
 
 /**
  * Base class of all Intermediate Representation expressions
@@ -367,29 +315,7 @@ export class IRExpr extends Token {
 	}
 
 	/**
-	 * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the index
-	 * @returns {IRExpr}
-	 */
-	copy() {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Score is size of equivalent Plutus-core expression
-	 * Optimizing signifies minimizing score
-	 * @returns {number} - number of bits (not bytes!)
-	 */
-	score() {
-		let term = this.toUplc();
-
-		let bitWriter = new BitWriter(); 
-
-		term.toFlat(bitWriter);
-
-		return bitWriter.length;
-	}
-
-	/**
+	 * For pretty printing the IR
 	 * @param {string} indent 
 	 * @returns {string}
 	 */
@@ -402,6 +328,59 @@ export class IRExpr extends Token {
 	 * @param {IRScope} scope 
 	 */
 	resolveNames(scope) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Turns all IRConstExpr istances into IRLiteralExpr instances
+	 * @param {IRCallStack} stack 
+	 * @returns {IRExpr}
+	 */
+	evalConstants(stack) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Evaluates an expression to something (hopefully) literal
+	 * Returns null if it the result would be worse than the current expression
+	 * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
+	 * @param {IRCallStack} stack
+	 * @returns {?IRValue}
+	 */
+	eval(stack) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Used to inline literals and to evaluate IRCoreCallExpr instances with only literal args.
+	 * @param {IRLiteralRegistry} literals
+	 * @returns {IRExpr}
+	 */
+	simplifyLiterals(literals) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Used before simplifyTopology
+	 * @param {IRNameExprRegistry} nameExprs
+	 */
+	registerNameExprs(nameExprs) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyTopology(registry) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the index
+	 * @returns {IRExpr}
+	 */
+	copy() {
 		throw new Error("not yet implemented");
 	}
 
@@ -423,16 +402,7 @@ export class IRExpr extends Token {
 		throw new Error("not yet implemented");
 	}
 
-	/**
-	 * Evaluates an expression to something (hopefully) literal
-	 * Returns null if it the result would be worse than the current expression
-	 * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
-	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
-	 */
-	eval(stack) {
-		throw new Error("not yet implemented");
-	}
+	
 
 	/**
 	 * @param {IRWalkFn} fn 
@@ -520,7 +490,7 @@ export class IRNameExpr extends IRExpr {
 	 */
 	get variable() {
 		if (this.#variable === null) {
-			throw new Error("variable should be set");
+			throw new Error(`variable should be set (name: ${this.name})`);
 		} else {
 			return this.#variable;
 		}
@@ -548,10 +518,6 @@ export class IRNameExpr extends IRExpr {
 		}
 	}
 
-	copy() {
-		return new IRNameExpr(this.#name, this.#variable);
-	}
-
 	/**
 	 * @param {string} indent 
 	 * @returns {string}
@@ -571,6 +537,65 @@ export class IRNameExpr extends IRExpr {
 				[this.#index, this.#variable] = scope.get(this.#variable);
 			}
 		}
+	}
+
+	/**
+	 * @param {IRCallStack} stack 
+	 * @returns {IRExpr}
+	 */
+	evalConstants(stack) {
+		return this;
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {?IRValue}
+	 */
+	eval(stack) {
+		if (this.isCore()) {
+			return new IRFuncValue((args) => {
+				return IRCoreCallExpr.evalValues(this.site, stack.throwRTErrors, this.#name.value.slice("__core__".length), args);
+			});
+		} else if (this.#variable === null) {
+			throw new Error("variable should be set");
+		} else {
+			return stack.get(this.#variable);
+		}
+	}
+
+	/**
+	 * @param {IRLiteralRegistry} literals
+	 * @returns {IRExpr}
+	 */
+	simplifyLiterals(literals) {
+		if (this.#variable !== null && literals.has(this.#variable)) {
+			return assertDefined(literals.get(this.#variable));
+		} else {
+			return this;
+		}
+	}
+
+	/**
+	 * @param {IRNameExprRegistry} nameExprs
+	 */
+	registerNameExprs(nameExprs) {
+		nameExprs.register(this);
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyTopology(registry) {
+		if (!this.isCore() && registry.isInlineable(this.variable)) {
+			return registry.getInlineable(this.variable);
+		} else {
+			return this;
+		}
+	}
+
+	copy() {
+		return new IRNameExpr(this.#name, this.#variable);
 	}
 
 	/**
@@ -595,27 +620,6 @@ export class IRNameExpr extends IRExpr {
 				return stack.get(this.#variable).inline(stack);
 			} else {
 				return this;
-			}
-		}
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
-	 */
-	eval(stack) {
-		if (this.isCore()) {
-			return new IRFuncValue((args) => {
-				return IRCoreCallExpr.evalValues(this.site, stack.throwRTErrors, this.#name.value.slice("__core__".length), args);
-			});
-		} else if (this.#variable === null) {
-			throw new Error("variable should be set");
-		} else {
-			let v = stack.get(this.#variable);
-			if (v !== null) {
-				return v;
-			} else {
-				return null;
 			}
 		}
 	}
@@ -659,11 +663,8 @@ export class IRNameExpr extends IRExpr {
 			if (stack.has(this.#variable)) {
 				let that = stack.get(this.#variable);
 
-				if (that.score() <= this.score()) {
-					return that;
-				} else {
-					return this;
-				}
+				
+				return that;
 			} else {
 				return this;
 			}
@@ -695,7 +696,7 @@ export class IRNameExpr extends IRExpr {
  * IR wrapper for UplcValues, representing literals
  * @package
  */
-export class IRLiteral extends IRExpr {
+export class IRLiteralExpr extends IRExpr {
 	/**
 	 * @type {UplcValue}
 	 */
@@ -710,12 +711,15 @@ export class IRLiteral extends IRExpr {
 		this.#value = value;
 	}
 
+	/**
+	 * @type {UplcValue}
+	 */
 	get value() {
 		return this.#value;
 	}
 
 	copy() {
-		return new IRLiteral(this.#value);
+		return new IRLiteralExpr(this.#value);
 	}
 
 	/**
@@ -734,6 +738,43 @@ export class IRLiteral extends IRExpr {
 	}
 
 	/**
+	 * @param {IRCallStack} stack
+	 */
+	evalConstants(stack) {
+		return this;
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {?IRValue}
+	 */
+	eval(stack) {
+		return new IRLiteralValue(this.value);
+	}
+
+	/**
+	 * @param {IRLiteralRegistry} literals
+	 * @returns {IRExpr}
+	 */
+	simplifyLiterals(literals) {
+		return this;
+	}
+
+	/**
+	 * @param {IRNameExprRegistry} nameExprs
+	 */
+	registerNameExprs(nameExprs) {
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyTopology(registry) {
+		return this;
+	}
+
+	/**
 	 * @param {IRVariable} ref
 	 * @returns {number}
 	 */
@@ -748,16 +789,6 @@ export class IRLiteral extends IRExpr {
 	 */
 	inline(stack) {
 		return this;
-	}
-
-
-	
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
-	 */
-	eval(stack) {
-		return new IRLiteralValue(this);
 	}
 	
 	/**
@@ -787,7 +818,7 @@ export class IRLiteral extends IRExpr {
 
 	/**
 	 * @param {IRExprStack} stack
-	 * @param {IRLiteral[]} args
+	 * @param {IRLiteralExpr[]} args
 	 * @returns {?IRExpr}
 	 */
 	call(stack, args) {
@@ -808,6 +839,56 @@ export class IRLiteral extends IRExpr {
 	 */
 	toUplc() {
 		return new UplcConst(this.#value);
+	}
+}
+
+/**
+ * The IRExpr simplify methods aren't implemented because any IRConstExpr instances should've been eliminated during evalConstants.
+ * @package
+ */
+export class IRConstExpr extends IRExpr {
+	#expr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {IRExpr} expr 
+	 */
+	constructor(site, expr) {
+		super(site);
+		this.#expr = expr;
+	}
+
+	toString(indent = "") {
+		return `const(${this.#expr.toString(indent)})`;
+	}
+
+	/**
+	 * @param {IRScope} scope 
+	 */
+	resolveNames(scope) {
+		this.#expr.resolveNames(scope);
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
+	 */
+	evalConstants(stack) {
+		const result = this.#expr.eval(stack);
+
+		if (result != null) {
+			return new IRLiteralExpr(result.value);
+		} else {
+			throw new Error("unable to evaluate const");
+		}
+	}
+
+	/**
+	 * @param {IRCallStack} stack 
+	 * @returns {?IRValue}
+	 */
+	eval(stack) {
+		return this.#expr.eval(stack);
 	}
 }
 
@@ -838,10 +919,6 @@ export class IRFuncExpr extends IRExpr {
 		return this.#body;
 	}
 
-	copy() {
-		return new IRFuncExpr(this.site, this.args, this.#body.copy());
-	}
-
 	/**
 	 * @param {string} indent 
 	 * @returns {string}
@@ -870,6 +947,62 @@ export class IRFuncExpr extends IRExpr {
 	}
 
 	/**
+	 * @param {IRCallStack} stack 
+	 */
+	evalConstants(stack) {
+		return new IRFuncExpr(this.site, this.args, this.#body.evalConstants(stack));
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {?IRValue}
+	 */
+	eval(stack) {
+		return new IRFuncValue((args) => {
+			if (args.length != this.#args.length) {
+				throw this.site.syntaxError(`expected ${this.#args.length} arg(s), got ${args.length} arg(s)`);
+			}
+
+			for (let i = 0; i < args.length; i++) {
+				stack = stack.set(this.#args[i], args[i]);
+			}
+
+			return this.#body.eval(stack);
+		});
+	}
+
+	/**
+	 * @param {IRLiteralRegistry} literals 
+	 * @returns {IRExpr}
+	 */
+	simplifyLiterals(literals) {
+		return new IRFuncExpr(this.site, this.args, this.#body.simplifyLiterals(literals));
+	}
+	
+	/**
+	 * @param {IRNameExprRegistry} nameExprs
+	 */
+	registerNameExprs(nameExprs) {
+		nameExprs = nameExprs.resetVariables();
+
+		this.#args.forEach(a => nameExprs.registerVariable(a));
+
+		this.#body.registerNameExprs(nameExprs);
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyTopology(registry) {
+		return new IRFuncExpr(this.site, this.args, this.#body.simplifyTopology(registry));
+	}
+
+	copy() {
+		return new IRFuncExpr(this.site, this.args, this.#body.copy());
+	}
+
+	/**
 	 * @param {IRVariable} ref
 	 * @returns {number}
 	 */
@@ -885,25 +1018,6 @@ export class IRFuncExpr extends IRExpr {
 	 */
 	inline(stack) {
 		return new IRFuncExpr(this.site, this.#args, this.#body.inline(stack));
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
-	 */
-	eval(stack) {
-		return new IRFuncValue((args) => {
-			if (args.length != this.#args.length) {
-				throw this.site.syntaxError(`expected ${this.#args.length} arg(s), got ${args.length} arg(s)`);
-			}
-
-			for (let i = 0; i < args.length; i++) {
-				let v = this.#args[i];
-				stack = stack.set(v, args[i]);
-			}
-
-			return this.#body.eval(stack);
-		});
 	}
 
 	/**
@@ -1034,25 +1148,19 @@ export class IRCallExpr extends IRExpr {
 	/**
 	 * @param {IRScope} scope 
 	 */
-	resolveNames(scope) {
+	resolveNamesInArgs(scope) {
 		for (let argExpr of this.#argExprs) {
 			argExpr.resolveNames(scope);
 		}
 	}
 
 	/**
-	 * @param {IRVariable} ref
-	 * @returns {number}
+	 * @param {IRCallStack} stack 
+	 * @returns {IRExpr[]}
 	 */
-	countRefs(ref) {
-		let count = 0;
-		for (let argExpr of this.#argExprs) {
-			count += argExpr.countRefs(ref);
-		}
-
-		return count;
+	evalConstantsInArgs(stack) {
+		return this.#argExprs.map(a => a.evalConstants(stack));
 	}
-
 
 	/** 
 	 * @param {IRCallStack} stack
@@ -1074,6 +1182,42 @@ export class IRCallExpr extends IRExpr {
 		}
 
 		return args;
+	}
+
+	/**
+	 * @param {IRLiteralRegistry} literals
+	 * @returns {IRExpr[]}
+	 */
+	simplifyLiteralsInArgs(literals) {
+		return this.#argExprs.map(a => a.simplifyLiterals(literals));
+	}
+
+	/**
+	 * @param {IRNameExprRegistry} nameExprs 
+	 */
+	registerNameExprsInArgs(nameExprs) {
+		this.#argExprs.forEach(a => a.registerNameExprs(nameExprs));
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr[]}
+	 */
+	simplifyTopologyInArgs(registry) {
+		return this.#argExprs.map(a => a.simplifyTopology(registry));
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {number}
+	 */
+	countRefs(ref) {
+		let count = 0;
+		for (let argExpr of this.#argExprs) {
+			count += argExpr.countRefs(ref);
+		}
+
+		return count;
 	}
 
 	/**
@@ -1163,6 +1307,739 @@ export class IRCallExpr extends IRExpr {
 }
 
 /**
+ * IR function call of core functions
+ * @package
+ */
+export class IRCoreCallExpr extends IRCallExpr {
+	#name;
+
+	/**
+	 * @param {Word} name 
+	 * @param {IRExpr[]} argExprs 
+	 * @param {Site} parensSite 
+	 */
+	constructor(name, argExprs, parensSite) {
+		super(name.site, argExprs, parensSite);
+		assert(name.value !== "" && name.value !== "error");
+		this.#name = name;
+
+		assert(this.builtinName !== "", name.value);
+	}
+
+	get builtinName() {
+		return this.#name.toString().slice(8);
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isCast() {
+		let name = this.builtinName;
+
+		return name == "iData" || name == "bData" || name == "unIData" || name == "unBData" || name == "mapData" || name == "unMapData" || name == "listData" || name == "unListData";
+	}
+
+	/**
+	 * @param {string} indent
+	 * @returns {string}
+	 */
+	toString(indent = "") {
+		if (this.builtinName == "ifThenElse") {
+			return `${this.#name.toString()}(\n${indent}${TAB}${this.argExprs[0].toString(indent + TAB)},\n${indent}${TAB}${this.argExprs[1].toString(indent + TAB)},\n${indent}${TAB}${this.argExprs[2].toString(indent+TAB)}\n${indent})`;
+		} else {
+			return `${this.#name.toString()}(${this.argsToString(indent)})`;
+		}
+	}
+
+	/**
+	 * @param {IRScope} scope 
+	 */
+	resolveNames(scope) {
+		this.resolveNamesInArgs(scope);
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {boolean} throwRTErrors
+	 * @param {string} builtinName
+	 * @param {IRValue[]} args 
+	 * @returns {?IRValue}
+	 */
+	static evalValues(site, throwRTErrors, builtinName, args) {
+		if (builtinName == "ifThenElse") {
+			let cond = args[0].value;
+			if (cond !== null && cond instanceof UplcBool) {
+				if (cond.bool) {
+					return args[1];
+				} else {
+					return args[2];
+				}
+			} else {
+				return null;
+			}
+		} else if (builtinName == "trace") {
+			return args[1];
+		} else {
+			/**
+			 * @type {UplcValue[]}
+			 */
+			let argValues = [];
+
+			for (let arg of args) {
+				if (arg.value !== null) {
+					argValues.push(arg.value);
+				} else {
+					return null;
+				}
+			}
+
+			try {
+				let result = UplcBuiltin.evalStatic(new Word(Site.dummy(), builtinName), argValues);
+
+				return new IRLiteralValue(result);
+			} catch(e) {
+				// runtime errors like division by zero are allowed if throwRTErrors is false
+				if (e instanceof RuntimeError) {
+					if (!throwRTErrors) {
+						return null;
+					} else {
+						throw e.addTraceSite(site);
+					}
+				} else {
+					throw e;
+				}
+			}
+		}
+	}
+
+	/**
+	 * @param {IRCallStack} stack 
+	 * @returns {IRExpr}
+	 */
+	evalConstants(stack) {
+		return new IRCoreCallExpr(this.#name, this.evalConstantsInArgs(stack), this.parensSite);
+	}
+	
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {?IRValue}
+	 */
+	eval(stack) {
+		let args = this.evalArgs(stack);
+
+		if (args !== null) {
+			return IRCoreCallExpr.evalValues(this.site, stack.throwRTErrors, this.builtinName, args);
+		}
+		
+		return null;
+	}
+
+	/**
+	 * @param {IRLiteralRegistry} literals
+	 * @returns {IRExpr}
+	 */
+	simplifyLiterals(literals) {
+		const args = this.simplifyLiteralsInArgs(literals);
+
+		switch(this.builtinName) {
+			case "addInteger": {
+					// check if first or second arg evaluates to 0
+					const [a, b] = args;
+
+					if (a instanceof IRLiteralExpr && a.value instanceof UplcInt && a.value.int == 0n) {
+						return b;
+					} else if (b instanceof IRLiteralExpr && b.value instanceof UplcInt && b.value.int == 0n) {
+						return a;
+					}
+				}
+				break;
+			case "appendByteString": {
+					// check if either 1st or 2nd arg is the empty bytearray
+					const [a, b] = args;
+					if (a instanceof IRLiteralExpr && a.value instanceof UplcByteArray && a.value.bytes.length == 0) {
+						return b;
+					} else if (b instanceof IRLiteralExpr && b.value instanceof UplcByteArray && b.value.bytes.length == 0) {
+						return a;
+					}
+				}
+				break;
+			case "appendString": {
+					// check if either 1st or 2nd arg is the empty string
+					const [a, b] = args;
+					if (a instanceof IRLiteralExpr && a.value instanceof UplcString && a.value.string.length == 0) {
+						return b;
+					} else if (b instanceof IRLiteralExpr && b.value instanceof UplcString && b.value.string.length == 0) {
+						return a;
+					}
+				}
+				break;
+			case "divideInteger": {
+					// check if second arg is 1
+					const [a, b] = args;
+					if (b instanceof IRLiteralExpr && b.value instanceof UplcInt) {
+						if (b.value.int == 1n) {
+							return a;
+						} else if (b.value.int == 0n) {
+							return new IRCoreCallExpr(this.#name, args, this.parensSite);
+						}
+					}
+				}
+				break;
+			case "ifThenElse": {
+					const [cond, a, b] = args;
+
+					if (cond instanceof IRLiteralExpr && cond.value instanceof UplcBool) {
+						// if the condition is a literal, one the branches can be returned
+						if (cond.value.bool) {
+							return a;
+						} else {
+							return b;
+						}
+					} else if (a instanceof IRLiteralExpr && a.value instanceof UplcBool && b instanceof IRLiteralExpr && b.value instanceof UplcBool) {
+						if (a.value.bool && !b.value.bool) {
+							return cond;
+						} else if (
+							!a.value.bool && 
+							b.value.bool && 
+							cond instanceof IRUserCallExpr && 
+							cond.fnExpr instanceof IRNameExpr && 
+							cond.fnExpr.name === "__helios__common__not"
+						) {
+							return cond.argExprs[0];
+						}	
+					}
+				}
+				break;
+			case "modInteger": {
+					// check if second arg is 1
+					const [a, b] = args;
+					if (b instanceof IRLiteralExpr && b.value instanceof UplcInt && b.value.int == 1n) {
+						return new IRLiteralExpr(new UplcInt(this.site, 0n));
+					}
+				}
+				break;
+			case "multiplyInteger": {
+					// check if first arg is 0 or 1
+					const [a, b] = args;
+					if (a instanceof IRLiteralExpr && a.value instanceof UplcInt) {
+						if (a.value.int == 0n) {
+							return a;
+						} else if (a.value.int == 1n) {
+							return b;
+						}
+					} else if (b instanceof IRLiteralExpr && b.value instanceof UplcInt) {
+						if (b.value.int == 0n) {
+							return b;
+						} else if (b.value.int == 1n) {
+							return a;
+						}
+					}
+				}
+				break;
+			case "subtractInteger": {
+					// check if second arg evaluates to 0
+					const [a, b] = args;
+					if (b instanceof IRLiteralExpr && b.value instanceof UplcInt && b.value.int == 0n) {
+						return a;
+					}
+				}
+				break;
+		}
+
+		if (args.every(a => a instanceof IRLiteralExpr)) {
+			return new IRLiteralExpr(
+				UplcBuiltin.evalStatic(
+					new Word(this.#name.site, this.builtinName),
+					args.map(a => assertClass(a, IRLiteralExpr).value)
+				)
+			);
+		} else {
+			return new IRCoreCallExpr(this.#name, args, this.parensSite);
+		}
+	}
+
+	/**
+	 * @param {IRNameExprRegistry} nameExprs
+	 */
+	registerNameExprs(nameExprs) {
+		this.registerNameExprsInArgs(nameExprs);
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyTopology(registry) {
+		const args = this.simplifyTopologyInArgs(registry);
+
+		switch(this.builtinName) {
+			case "encodeUtf8":
+				// we can't eliminate a call to decodeUtf8, as it might throw some errors
+				break;
+			case "decodeUtf8": {
+					// check if arg is a call to encodeUtf8
+					const [arg] = args;
+					if (arg instanceof IRCoreCallExpr && arg.builtinName == "encodeUtf8") {
+						return arg.argExprs[0];
+					}
+				}
+				break;			
+			case "equalsData": {
+				const [a, b] = args;
+
+				if (a instanceof IRCoreCallExpr && b instanceof IRCoreCallExpr) {
+					if (a.builtinName === "iData" && b.builtinName === "iData") {
+						return new IRCoreCallExpr(new Word(this.site, "__core__equalsInteger"), [a.argExprs[0], b.argExprs[0]], this.parensSite);	
+					} else if (a.builtinName === "bData" && b.builtinName === "bData") {
+						return new IRCoreCallExpr(new Word(this.site, "__core__equalsByteString"), [a.argExprs[0], b.argExprs[0]], this.parensSite);	
+					} else if (a.builtinName === "decodeUtf8" && b.builtinName === "decodeUtf8") {
+						return new IRCoreCallExpr(new Word(this.site, "__core__equalsString"), [a.argExprs[0], b.argExprs[0]], this.parensSite);
+					}
+				}
+
+				break;
+			}
+			case "trace":
+				return args[1];
+			case "unIData": {
+					// check if arg is a call to iData
+					const a = args[0];
+					if (a instanceof IRCoreCallExpr && a.builtinName == "iData") {
+						return a.argExprs[0];
+					}
+				}
+				break;
+			case "iData": {
+					// check if arg is a call to unIData
+					const a = args[0];
+					if (a instanceof IRCoreCallExpr && a.builtinName == "unIData") {
+						return a.argExprs[0];
+					}
+				}
+				break;
+			case "unBData": {
+					// check if arg is a call to bData
+					const a = args[0];
+					if (a instanceof IRCoreCallExpr && a.builtinName == "bData") {
+						return a.argExprs[0];
+					}
+				}
+				break;
+			case "bData": {
+					// check if arg is a call to unBData
+					const a = args[0];
+					if (a instanceof IRCoreCallExpr && a.builtinName == "unBData") {
+						return a.argExprs[0];
+					}
+				}
+				break;
+			case "unMapData": {
+					// check if arg is call to mapData
+					const a = args[0];
+					if (a instanceof IRCoreCallExpr && a.builtinName == "mapData") {
+						return a.argExprs[0];
+					}
+				}
+				break;
+			case "mapData": {
+					// check if arg is call to unMapData
+					const a = args[0];
+					if (a instanceof IRCoreCallExpr && a.builtinName == "unMapData") {
+						return a.argExprs[0];
+					}
+				}
+				break;
+			case "listData": {
+					// check if arg is call to unListData
+					const a = args[0];
+					if (a instanceof IRCoreCallExpr && a.builtinName == "unListData") {
+						return a.argExprs[0];
+					}
+				}
+				break;
+			case "unListData": {
+					// check if arg is call to listData
+					const a = args[0];
+					if (a instanceof IRCoreCallExpr && a.builtinName == "listData") {
+						return a.argExprs[0];
+					}
+				}
+				break;
+		}
+
+		return new IRCoreCallExpr(this.#name, args, this.parensSite);
+	}
+
+	copy() {
+		return new IRCoreCallExpr(this.#name, this.argExprs.map(a => a.copy()), this.parensSite);
+	}
+
+	/**
+	 * @param {IRWalkFn} fn 
+	 * @returns {IRExpr}
+	 */
+	walk(fn) {
+		let args = this.walkArgs(fn);
+
+		return fn(new IRCoreCallExpr(this.#name, args, this.parensSite));
+	}
+
+	/**
+	 * @param {IRVariable} ref 
+	 * @param {string} builtinName
+	 * @returns {?IRExpr}
+	 */
+	wrapCall(ref, builtinName) {
+		let args = this.wrapCallArgs(ref, builtinName);
+
+		if (args !== null) {
+			return new IRCoreCallExpr(this.#name, args, this.parensSite);
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * 
+	 * @param {IRVariable} ref 
+	 * @returns {?IRExpr}
+	 */
+	flattenCall(ref) {
+		let args = this.flattenCallArgs(ref);
+
+		if (args !== null) {
+			return new IRCoreCallExpr(this.#name, args, this.parensSite);
+		} else {
+			return null
+		}
+	}
+
+	/**
+	 * @param {boolean} throwRTErrors
+	 * @param {IRExpr[]} argExprs
+	 * @returns {?IRExpr}
+	 */
+	simplifyLiteralArgs(throwRTErrors, argExprs) {
+		if (this.builtinName == "ifThenElse") {
+			assert(argExprs.length == 3);
+			let cond = argExprs[0];
+			let a = argExprs[1];
+			let b = argExprs[2];
+
+			if (cond instanceof IRLiteralExpr && cond.value instanceof UplcBool) {
+				if (cond.value.bool) {
+					return a;
+				} else {
+					return b;
+				}
+			} else if (a instanceof IRLiteralExpr && a.value instanceof UplcBool && b instanceof IRLiteralExpr && b.value instanceof UplcBool) {
+				if (a.value.bool && !b.value.bool) {
+					return cond;
+				} else if (cond instanceof IRUserCallExpr && cond.fnExpr instanceof IRNameExpr && cond.fnExpr.name === "__helios__common__not") {
+					return cond.argExprs[0];
+				}	
+			}
+		} else if (this.builtinName == "trace") {
+			assert(argExprs.length == 2);
+			return argExprs[1];
+		} else {
+			// if all the args are literals -> return the result
+
+			/**
+			 * @type {UplcValue[]}
+			 */
+			let argValues = [];
+
+			for (let arg of argExprs) {
+				if (arg instanceof IRLiteralExpr) {
+					argValues.push(arg.value);
+				} else {
+					return null;
+				}
+			}
+
+			try {
+				let result = UplcBuiltin.evalStatic(new Word(this.#name.site, this.builtinName), argValues);
+
+				return new IRLiteralExpr(result);
+			} catch(e) {
+				if (e instanceof RuntimeError) {
+					if (!throwRTErrors) {
+						return null;
+					} else {
+						throw e.addTraceSite(this.site);
+					}
+				} else {
+					throw e;
+				}
+			}
+		}
+		
+		return null;
+	}
+
+	/**
+	 * @param {IRExpr[]} argExprs
+	 * @returns {?IRExpr}
+	 */
+	simplifyTopology_(argExprs) {
+		switch (this.builtinName) {			
+			case "encodeUtf8":
+				// we can't eliminate a call to decodeUtf8, as it might throw some errors
+				break;
+			case "decodeUtf8": {
+					// check if arg is a call to encodeUtf8
+					let argExpr = argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "encodeUtf8") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "ifThenElse": {
+					// check if first arg evaluates to constant condition
+					let cond = argExprs[0];
+					if (cond instanceof IRLiteralExpr && cond.value instanceof UplcBool) {
+						return cond.value.bool ? argExprs[1] : argExprs[2];
+					}
+				}
+				break;
+			case "addInteger": {
+					// check if first or second arg evaluates to 0
+					let a = argExprs[0];
+					if (a instanceof IRLiteralExpr && a.value instanceof UplcInt && a.value.int == 0n) {
+						return argExprs[1];
+					} else {
+						let b = argExprs[1];
+						if (b instanceof IRLiteralExpr && b.value instanceof UplcInt && b.value.int == 0n) {
+							return argExprs[0];
+						}
+					}
+				}
+				break;
+			case "subtractInteger": {
+					// check if second arg evaluates to 0
+					let b = argExprs[1];
+					if (b instanceof IRLiteralExpr && b.value instanceof UplcInt && b.value.int == 0n) {
+						return argExprs[0];
+					}
+				}
+				break;
+			case "multiplyInteger": {
+					// check if first arg is 0 or 1
+					let a = argExprs[0];
+					if (a instanceof IRLiteralExpr && a.value instanceof UplcInt) {
+						if (a.value.int == 0n) {
+							return a;
+						} else if (a.value.int == 1n) {
+							return argExprs[1];
+						}
+					} else {
+						let b = argExprs[1];
+						if (b instanceof IRLiteralExpr && b.value instanceof UplcInt) {
+							if (b.value.int == 0n) {
+								return b;
+							} else if (b.value.int == 1n) {
+								return argExprs[0];
+							}
+						}
+					}
+				}
+				break;
+			case "divideInteger": {
+					// check if second arg is 1
+					let b = argExprs[1];
+					if (b instanceof IRLiteralExpr && b.value instanceof UplcInt && b.value.int == 1n) {
+						return argExprs[0];
+					}
+				}
+				break;
+			case "modInteger": {
+					// check if second arg is 1
+					let b = argExprs[1];
+					if (b instanceof IRLiteralExpr && b.value instanceof UplcInt && b.value.int == 1n) {
+						return new IRLiteralExpr(new UplcInt(this.site, 0n));
+					}
+				}
+				break;
+			case "appendByteString": {
+					// check if either 1st or 2nd arg is the empty bytearray
+					let a = argExprs[0];
+					if (a instanceof IRLiteralExpr && a.value instanceof UplcByteArray && a.value.bytes.length == 0) {
+						return argExprs[1];
+					} else {
+						let b = argExprs[1];
+						if (b instanceof IRLiteralExpr && b.value instanceof UplcByteArray && b.value.bytes.length == 0) {
+							return argExprs[0];
+						}
+					}
+				}
+				break;
+			case "appendString": {
+					// check if either 1st or 2nd arg is the empty string
+					let a = argExprs[0];
+					if (a instanceof IRLiteralExpr && a.value instanceof UplcString && a.value.string.length == 0) {
+						return argExprs[1];
+					} else {
+						let b = argExprs[1];
+						if (b instanceof IRLiteralExpr && b.value instanceof UplcString && b.value.string.length == 0) {
+							return argExprs[0];
+						}
+					}
+				}
+				break;
+			case "equalsData": {
+				let a = argExprs[0];
+				let b = argExprs[1];
+
+				if (a instanceof IRCoreCallExpr && b instanceof IRCoreCallExpr) {
+					if (a.builtinName === "iData" && b.builtinName === "iData") {
+						return new IRCoreCallExpr(new Word(this.site, "__core__equalsInteger"), [a.argExprs[0], b.argExprs[0]], this.parensSite);	
+					} else if (a.builtinName === "bData" && b.builtinName === "bData") {
+						return new IRCoreCallExpr(new Word(this.site, "__core__equalsByteString"), [a.argExprs[0], b.argExprs[0]], this.parensSite);	
+					} else if (a.builtinName === "decodeUtf8" && b.builtinName === "decodeUtf8") {
+						return new IRCoreCallExpr(new Word(this.site, "__core__equalsString"), [a.argExprs[0], b.argExprs[0]], this.parensSite);
+					}
+				}
+
+				break;
+			}
+			case "trace":
+				return argExprs[1];
+			case "unIData": {
+					// check if arg is a call to iData
+					let argExpr = argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "iData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "iData": {
+					// check if arg is a call to unIData
+					let argExpr = argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unIData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "unBData": {
+					// check if arg is a call to bData
+					let argExpr = argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "bData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "bData": {
+					// check if arg is a call to unBData
+					let argExpr = argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unBData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "unMapData": {
+					// check if arg is call to mapData
+					let argExpr = argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "mapData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "mapData": {
+					// check if arg is call to unMapData
+					let argExpr = argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unMapData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "listData": {
+					// check if arg is call to unListData
+					let argExpr = argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unListData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+			case "unListData": {
+					// check if arg is call to listData
+					let argExpr = argExprs[0];
+					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "listData") {
+						return argExpr.argExprs[0];
+					}
+				}
+				break;
+		}
+
+		return null;
+	}
+
+	/**
+	 * @param {IRExprStack} stack
+	 * @returns {IRExpr}
+	 */
+	inline(stack) {
+		return new IRCoreCallExpr(this.#name, super.simplifyArgs(stack, true), this.parensSite);
+	}
+
+	/**
+	 * @param {IRExprStack} stack
+	 * @returns {IRExpr}
+	 */
+	simplify(stack) {
+		let argExprs = super.simplifyArgs(stack);
+
+		{
+			let maybeBetter = this.simplifyLiteralArgs(stack.throwRTErrors, argExprs);
+			if (maybeBetter !== null) {
+				return maybeBetter;
+			}
+		}
+
+		{
+			let maybeBetter = this.simplifyTopology_(argExprs);
+			if (maybeBetter !== null) {
+				return maybeBetter;
+			}
+		}
+		
+		return new IRCoreCallExpr(this.#name, argExprs, this.parensSite);
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {string} name - full name of builtin, including prefix
+	 * @returns {UplcTerm}
+	 */
+	static newUplcBuiltin(site, name) {
+		let builtinName = name.slice("__core__".length);
+		assert(!builtinName.startsWith("__core__"));
+
+		/**
+		 * @type {UplcTerm}
+		 */
+		let term = new UplcBuiltin(site, builtinName);
+
+		let nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
+ 
+		for (let i = 0; i < nForce; i++) {
+			term = new UplcForce(site, term);
+		}
+ 
+		return term;
+	}
+
+	/**
+	 * @returns {UplcTerm}
+	 */
+	toUplc() {
+		let term = IRCoreCallExpr.newUplcBuiltin(this.site, this.#name.value);
+
+		return this.toUplcCall(term);
+	}
+}
+
+/**
  * IR function call of non-core function
  * @package
  */
@@ -1180,12 +2057,32 @@ export class IRUserCallExpr extends IRCallExpr {
 		this.#fnExpr = fnExpr;
 	}
 
-	get fnExpr() {
-		return this.#fnExpr;
+	/**
+	 * @param {IRExpr} fnExpr 
+	 * @param {IRExpr[]} argExprs 
+	 * @param {Site} parensSite 
+	 * @returns {IRUserCallExpr}
+	 */
+	static new(fnExpr, argExprs, parensSite) {
+		if (fnExpr instanceof IRAnonCallExpr) {
+			return new IRNestedAnonCallExpr(fnExpr, argExprs, parensSite);
+		} else if (fnExpr instanceof IRFuncExpr) {
+			if (argExprs.length == 1 && argExprs[0] instanceof IRFuncExpr) {
+				const argExpr = argExprs[0];
+
+				if (argExpr instanceof IRFuncExpr) {
+					return new IRFuncDefExpr(fnExpr, argExpr, parensSite);
+				}
+			}
+
+			return new IRAnonCallExpr(fnExpr, argExprs, parensSite);
+		} else {
+			return new IRUserCallExpr(fnExpr, argExprs, parensSite);
+		}
 	}
 
-	copy() {
-		return new IRUserCallExpr(this.#fnExpr.copy(), this.argExprs.map(a => a.copy()), this.parensSite);
+	get fnExpr() {
+		return this.#fnExpr;
 	}
 
 	/**
@@ -1204,15 +2101,19 @@ export class IRUserCallExpr extends IRCallExpr {
 	resolveNames(scope) {
 		this.#fnExpr.resolveNames(scope);
 
-		super.resolveNames(scope);
+		super.resolveNamesInArgs(scope);
 	}
 
 	/**
-	 * @param {IRVariable} ref
-	 * @returns {number}
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
 	 */
-	countRefs(ref) {
-		return this.#fnExpr.countRefs(ref) + super.countRefs(ref);
+	evalConstants(stack) {
+		return IRUserCallExpr.new(
+			this.#fnExpr.evalConstants(stack),
+			this.evalConstantsInArgs(stack),
+			this.parensSite
+		);
 	}
 
 	/**
@@ -1245,6 +2146,103 @@ export class IRUserCallExpr extends IRCallExpr {
 				}
 			}
 		}
+	}
+
+	/**
+	 * @param {IRLiteralRegistry} literals
+	 * @returns {IRExpr}
+	 */
+	simplifyLiterals(literals) {
+		const args = this.simplifyLiteralsInArgs(literals);
+
+		return IRUserCallExpr.new(
+			this.#fnExpr.simplifyLiterals(literals),
+			args, 
+			this.parensSite
+		);
+	}
+
+	/**
+	 * @param {IRNameExprRegistry} nameExprs 
+	 */
+	registerNameExprs(nameExprs) {
+		this.registerNameExprsInArgs(nameExprs);
+		
+		this.#fnExpr.registerNameExprs(nameExprs);
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyTopology(registry) {
+		const args = this.simplifyTopologyInArgs(registry);
+
+		if (this.#fnExpr instanceof IRNameExpr) {
+			if (this.#fnExpr.isCore()) {
+				return new IRCoreCallExpr(new Word(this.#fnExpr.site, this.#fnExpr.name), args, this.parensSite);
+			} else {
+				switch (this.#fnExpr.name) {
+					case "__helios__common__boolData": {
+							// check if arg is a call to __helios__common__unBoolData
+							const a = args[0];
+							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__common__unBoolData") {
+								return a.argExprs[0];
+							}
+						}
+						break;
+					case "__helios__common__unBoolData": {
+							// check if arg is a call to __helios__common__boolData
+							const a = args[0];
+							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__common__boolData") {
+								return a.argExprs[0];
+							}
+						}
+						break;
+					case "__helios__common__not": {
+							const a = args[0];
+							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__common__not") {
+								return a.argExprs[0];
+							}
+						}
+						break;
+					case "__helios__common__concat": {
+							// check if either 1st or 2nd arg is the empty list
+							const [a, b] = args;
+							if (a instanceof IRLiteralExpr && a.value instanceof UplcList && a.value.list.length == 0) {
+								return b;
+							} else if (a instanceof IRLiteralExpr && a.value instanceof UplcMap && a.value.map.length == 0) {
+								return b;
+							} else {
+								if (b instanceof IRLiteralExpr && b.value instanceof UplcList && b.value.list.length == 0) {
+									return a;
+								} else if (b instanceof IRLiteralExpr && b.value instanceof UplcMap && b.value.map.length == 0) {
+									return a;
+								}
+							}
+						}
+						break;
+				}
+			}
+		}
+
+		return IRUserCallExpr.new(
+			this.#fnExpr.simplifyTopology(registry),
+			args,
+			this.parensSite
+		);
+	}
+
+	copy() {
+		return new IRUserCallExpr(this.#fnExpr.copy(), this.argExprs.map(a => a.copy()), this.parensSite);
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {number}
+	 */
+	countRefs(ref) {
+		return this.#fnExpr.countRefs(ref) + super.countRefs(ref);
 	}
 
 	/**
@@ -1414,7 +2412,7 @@ export class IRUserCallExpr extends IRCallExpr {
 			for (let i = 0; i < argVariables.length; i++) {
 				let v = argVariables[i];
 				let argExpr = argExprs[i];
-				if (argExpr instanceof IRLiteral) {
+				if (argExpr instanceof IRLiteralExpr) {
 					inlineStack.setInline(v, argExpr);
 				} else {
 					remVars.push(v);
@@ -1425,9 +2423,7 @@ export class IRUserCallExpr extends IRCallExpr {
 			if (remVars.length < argVariables.length) {
 				let that = new IRUserCallExpr(new IRFuncExpr(fnExpr.site, remVars, fnExpr.body.inline(inlineStack)), remArgs, this.parensSite);
 
-				if (that.score() <= this.score()) {
-					return that;
-				}
+				return that;
 			}
 		}
 		
@@ -1441,7 +2437,7 @@ export class IRUserCallExpr extends IRCallExpr {
 	 * @param {IRExpr[]} argExprs
 	 * @returns {?IRExpr}
 	 */
-	simplifyTopology(stack, fnExpr, argExprs) {
+	simplifyTopology_(stack, fnExpr, argExprs) {
 		if (fnExpr instanceof IRNameExpr) {
 			switch (fnExpr.name) {
 				case "__helios__common__boolData": {
@@ -1463,15 +2459,15 @@ export class IRUserCallExpr extends IRCallExpr {
 				case "__helios__common__concat": {
 						// check if either 1st or 2nd arg is the empty list
 						let a = argExprs[0];
-						if (a instanceof IRLiteral && a.value instanceof UplcList && a.value.list.length == 0) {
+						if (a instanceof IRLiteralExpr && a.value instanceof UplcList && a.value.list.length == 0) {
 							return argExprs[1];
-						} else if (a instanceof IRLiteral && a.value instanceof UplcMap && a.value.map.length == 0) {
+						} else if (a instanceof IRLiteralExpr && a.value instanceof UplcMap && a.value.map.length == 0) {
 							return argExprs[1];
 						} else {
 							let b = argExprs[1];
-							if (b instanceof IRLiteral && b.value instanceof UplcList && b.value.list.length == 0) {
+							if (b instanceof IRLiteralExpr && b.value instanceof UplcList && b.value.list.length == 0) {
 								return argExprs[0];
-							} else if (b instanceof IRLiteral && b.value instanceof UplcMap && b.value.map.length == 0) {
+							} else if (b instanceof IRLiteralExpr && b.value instanceof UplcMap && b.value.map.length == 0) {
 								return argExprs[0];
 							}
 						}
@@ -1501,7 +2497,7 @@ export class IRUserCallExpr extends IRCallExpr {
 		if (res === null) {
 			return null;
 		} else {
-			return res.value;
+			return new IRLiteralExpr(res.value);
 		}
 	}
 
@@ -1552,7 +2548,7 @@ export class IRUserCallExpr extends IRCallExpr {
 
 		{
 			let maybeBetter = this.simplifyLiteral(stack, this.#fnExpr, this.argExprs);
-			if (maybeBetter !== null && maybeBetter.score() <= this.score()) {
+			if (maybeBetter !== null) {
 				return maybeBetter;
 			}
 		}
@@ -1575,16 +2571,16 @@ export class IRUserCallExpr extends IRCallExpr {
 
 		{
 			let maybeBetter = this.simplifyLiteral(stack, fnExpr, argExprs);
-			if (maybeBetter !== null && maybeBetter.score() <= this.score()) {
+			if (maybeBetter !== null) {
 				return maybeBetter;
 			}
 		}
 
 		{
-			let maybeBetter = this.inlineArgs(stack, fnExpr, argExprs);
+			/*let maybeBetter = this.inlineArgs(stack, fnExpr, argExprs);
 			if (maybeBetter !== null) {
 				return maybeBetter;
-			}
+			}*/
 		}
 
 		{
@@ -1595,7 +2591,7 @@ export class IRUserCallExpr extends IRCallExpr {
 		}
 
 		{
-			let maybeBetter = this.simplifyTopology(stack, fnExpr, argExprs);
+			let maybeBetter = this.simplifyTopology_(stack, fnExpr, argExprs);
 			if (maybeBetter !== null) {
 				return maybeBetter;
 			}
@@ -1809,492 +2805,212 @@ export class IRUserCallExpr extends IRCallExpr {
 	}
 }
 
-/**
- * IR function call of core functions
- * @package
- */
-export class IRCoreCallExpr extends IRCallExpr {
-	#name;
+export class IRAnonCallExpr extends IRUserCallExpr {
+	#anon;
 
 	/**
-	 * @param {Word} name 
+	 * @param {IRFuncExpr} fnExpr 
 	 * @param {IRExpr[]} argExprs 
 	 * @param {Site} parensSite 
 	 */
-	constructor(name, argExprs, parensSite) {
-		super(name.site, argExprs, parensSite);
-		assert(name.value !== "");
-		this.#name = name;
+	constructor(fnExpr, argExprs, parensSite) {
+		super(fnExpr, argExprs, parensSite)
 
-		assert(this.builtinName !== "", name.value);
-	}
-
-	get builtinName() {
-		return this.#name.toString().slice(8);
+		this.#anon = fnExpr;
 	}
 
 	/**
-	 * @returns {boolean}
+	 * Internal function
+	 * @type {IRFuncExpr}
 	 */
-	isCast() {
-		let name = this.builtinName;
-
-		return name == "iData" || name == "bData" || name == "unIData" || name == "unBData" || name == "mapData" || name == "unMapData" || name == "listData" || name == "unListData";
-	}
-
-	copy() {
-		return new IRCoreCallExpr(this.#name, this.argExprs.map(a => a.copy()), this.parensSite);
+	get anon() {
+		return this.#anon;
 	}
 
 	/**
-	 * @param {string} indent
-	 * @returns {string}
+	 * @type {IRVariable[]}
 	 */
-	toString(indent = "") {
-		if (this.builtinName == "ifThenElse") {
-			return `${this.#name.toString()}(\n${indent}${TAB}${this.argExprs[0].toString(indent + TAB)},\n${indent}${TAB}${this.argExprs[1].toString(indent + TAB)},\n${indent}${TAB}${this.argExprs[2].toString(indent+TAB)}\n${indent})`;
-		} else {
-			return `${this.#name.toString()}(${this.argsToString(indent)})`;
-		}
+	get argVariables() {
+		return this.#anon.args;
 	}
 
 	/**
-	 * @param {IRScope} scope 
-	 */
-	resolveNames(scope) {
-		super.resolveNames(scope);
-	}
-
-	/**
-	 * @param {Site} site
-	 * @param {boolean} throwRTErrors
-	 * @param {string} builtinName
-	 * @param {IRValue[]} args 
-	 * @returns {?IRValue}
-	 */
-	static evalValues(site, throwRTErrors, builtinName, args) {
-		if (builtinName == "ifThenElse") {
-			let cond = args[0].value;
-			if (cond !== null && cond.value instanceof UplcBool) {
-				if (cond.value.bool) {
-					return args[1];
-				} else {
-					return args[2];
-				}
-			} else {
-				return null;
-			}
-		} else if (builtinName == "trace") {
-			return args[1];
-		} else {
-			/**
-			 * @type {UplcValue[]}
-			 */
-			let argValues = [];
-
-			for (let arg of args) {
-				if (arg.value !== null) {
-					argValues.push(arg.value.value);
-				} else {
-					return null;
-				}
-			}
-
-			try {
-				let result = UplcBuiltin.evalStatic(new Word(Site.dummy(), builtinName), argValues);
-
-				return new IRLiteralValue(new IRLiteral(result));
-			} catch(e) {
-				// runtime errors like division by zero are allowed if throwRTErrors is false
-				if (e instanceof RuntimeError) {
-					if (!throwRTErrors) {
-						return null;
-					} else {
-						throw e.addTraceSite(site);
-					}
-				} else {
-					throw e;
-				}
-			}
-		}
-	}
-
-	/**
-	 * @param {IRWalkFn} fn 
-	 * @returns {IRExpr}
-	 */
-	walk(fn) {
-		let args = this.walkArgs(fn);
-
-		return fn(new IRCoreCallExpr(this.#name, args, this.parensSite));
-	}
-
-	/**
-	 * @param {IRVariable} ref 
-	 * @param {string} builtinName
-	 * @returns {?IRExpr}
-	 */
-	wrapCall(ref, builtinName) {
-		let args = this.wrapCallArgs(ref, builtinName);
-
-		if (args !== null) {
-			return new IRCoreCallExpr(this.#name, args, this.parensSite);
-		} else {
-			return null;
-		}
-	}
-
-	/**
-	 * 
-	 * @param {IRVariable} ref 
-	 * @returns {?IRExpr}
-	 */
-	flattenCall(ref) {
-		let args = this.flattenCallArgs(ref);
-
-		if (args !== null) {
-			return new IRCoreCallExpr(this.#name, args, this.parensSite);
-		} else {
-			return null
-		}
-	}
-
-	/**
+	 * Add args to the stack as IRDeferredValue instances
 	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
 	 */
-	eval(stack) {
-		let args = this.evalArgs(stack);
+	evalConstants(stack) {
+		const argExprs = this.evalConstantsInArgs(stack);
 
-		if (args !== null) {
-			return IRCoreCallExpr.evalValues(this.site, stack.throwRTErrors, this.builtinName, args);
-		}
-		
-		return null;
-	}
+		const parentStack = stack;
 
-	/**
-	 * @param {boolean} throwRTErrors
-	 * @param {IRExpr[]} argExprs
-	 * @returns {?IRExpr}
-	 */
-	simplifyLiteralArgs(throwRTErrors, argExprs) {
-		if (this.builtinName == "ifThenElse") {
-			assert(argExprs.length == 3);
-			let cond = argExprs[0];
-			let a = argExprs[1];
-			let b = argExprs[2];
+		argExprs.forEach((argExpr, i) => {
+			stack = stack.set(this.argVariables[i], new IRDeferredValue(() => argExpr.eval(parentStack)));
+		});
 
-			if (cond instanceof IRLiteral && cond.value instanceof UplcBool) {
-				if (cond.value.bool) {
-					return a;
-				} else {
-					return b;
-				}
-			} else if (a instanceof IRLiteral && a.value instanceof UplcBool && b instanceof IRLiteral && b.value instanceof UplcBool) {
-				if (a.value.bool && !b.value.bool) {
-					return cond;
-				} else if (cond instanceof IRUserCallExpr && cond.fnExpr instanceof IRNameExpr && cond.fnExpr.name === "__helios__common__not") {
-					return cond.argExprs[0];
-				}	
-			}
-		} else if (this.builtinName == "trace") {
-			assert(argExprs.length == 2);
-			return argExprs[1];
+		const anonBody = this.#anon.body.evalConstants(stack);
+
+		if (anonBody instanceof IRLiteralExpr) {
+			return anonBody;
 		} else {
-			// if all the args are literals -> return the result
-
-			/**
-			 * @type {UplcValue[]}
-			 */
-			let argValues = [];
-
-			for (let arg of argExprs) {
-				if (arg instanceof IRLiteral) {
-					argValues.push(arg.value);
-				} else {
-					return null;
-				}
-			}
-
-			try {
-				let result = UplcBuiltin.evalStatic(new Word(this.#name.site, this.builtinName), argValues);
-
-				return new IRLiteral(result);
-			} catch(e) {
-				if (e instanceof RuntimeError) {
-					if (!throwRTErrors) {
-						return null;
-					} else {
-						throw e.addTraceSite(this.site);
-					}
-				} else {
-					throw e;
-				}
-			}
+			return IRUserCallExpr.new(
+				new IRFuncExpr(
+					this.#anon.site,
+					this.#anon.args,
+					anonBody
+				),
+				argExprs,
+				this.parensSite
+			);
 		}
-		
-		return null;
 	}
 
 	/**
-	 * @param {IRExpr[]} argExprs
-	 * @returns {?IRExpr}
-	 */
-	simplifyTopology(argExprs) {
-		switch (this.builtinName) {			
-			case "encodeUtf8":
-				// we can't eliminate a call to decodeUtf8, as it might throw some errors
-				break;
-			case "decodeUtf8": {
-					// check if arg is a call to encodeUtf8
-					let argExpr = argExprs[0];
-					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "encodeUtf8") {
-						return argExpr.argExprs[0];
-					}
-				}
-				break;
-			case "ifThenElse": {
-					// check if first arg evaluates to constant condition
-					let cond = argExprs[0];
-					if (cond instanceof IRLiteral && cond.value instanceof UplcBool) {
-						return cond.value.bool ? argExprs[1] : argExprs[2];
-					}
-				}
-				break;
-			case "addInteger": {
-					// check if first or second arg evaluates to 0
-					let a = argExprs[0];
-					if (a instanceof IRLiteral && a.value instanceof UplcInt && a.value.int == 0n) {
-						return argExprs[1];
-					} else {
-						let b = argExprs[1];
-						if (b instanceof IRLiteral && b.value instanceof UplcInt && b.value.int == 0n) {
-							return argExprs[0];
-						}
-					}
-				}
-				break;
-			case "subtractInteger": {
-					// check if second arg evaluates to 0
-					let b = argExprs[1];
-					if (b instanceof IRLiteral && b.value instanceof UplcInt && b.value.int == 0n) {
-						return argExprs[0];
-					}
-				}
-				break;
-			case "multiplyInteger": {
-					// check if first arg is 0 or 1
-					let a = argExprs[0];
-					if (a instanceof IRLiteral && a.value instanceof UplcInt) {
-						if (a.value.int == 0n) {
-							return a;
-						} else if (a.value.int == 1n) {
-							return argExprs[1];
-						}
-					} else {
-						let b = argExprs[1];
-						if (b instanceof IRLiteral && b.value instanceof UplcInt) {
-							if (b.value.int == 0n) {
-								return b;
-							} else if (b.value.int == 1n) {
-								return argExprs[0];
-							}
-						}
-					}
-				}
-				break;
-			case "divideInteger": {
-					// check if second arg is 1
-					let b = argExprs[1];
-					if (b instanceof IRLiteral && b.value instanceof UplcInt && b.value.int == 1n) {
-						return argExprs[0];
-					}
-				}
-				break;
-			case "modInteger": {
-					// check if second arg is 1
-					let b = argExprs[1];
-					if (b instanceof IRLiteral && b.value instanceof UplcInt && b.value.int == 1n) {
-						return new IRLiteral(new UplcInt(this.site, 0n));
-					}
-				}
-				break;
-			case "appendByteString": {
-					// check if either 1st or 2nd arg is the empty bytearray
-					let a = argExprs[0];
-					if (a instanceof IRLiteral && a.value instanceof UplcByteArray && a.value.bytes.length == 0) {
-						return argExprs[1];
-					} else {
-						let b = argExprs[1];
-						if (b instanceof IRLiteral && b.value instanceof UplcByteArray && b.value.bytes.length == 0) {
-							return argExprs[0];
-						}
-					}
-				}
-				break;
-			case "appendString": {
-					// check if either 1st or 2nd arg is the empty string
-					let a = argExprs[0];
-					if (a instanceof IRLiteral && a.value instanceof UplcString && a.value.string.length == 0) {
-						return argExprs[1];
-					} else {
-						let b = argExprs[1];
-						if (b instanceof IRLiteral && b.value instanceof UplcString && b.value.string.length == 0) {
-							return argExprs[0];
-						}
-					}
-				}
-				break;
-			case "equalsData": {
-				let a = argExprs[0];
-				let b = argExprs[1];
-
-				if (a instanceof IRCoreCallExpr && b instanceof IRCoreCallExpr) {
-					if (a.builtinName === "iData" && b.builtinName === "iData") {
-						return new IRCoreCallExpr(new Word(this.site, "__core__equalsInteger"), [a.argExprs[0], b.argExprs[0]], this.parensSite);	
-					} else if (a.builtinName === "bData" && b.builtinName === "bData") {
-						return new IRCoreCallExpr(new Word(this.site, "__core__equalsByteString"), [a.argExprs[0], b.argExprs[0]], this.parensSite);	
-					} else if (a.builtinName === "decodeUtf8" && b.builtinName === "decodeUtf8") {
-						return new IRCoreCallExpr(new Word(this.site, "__core__equalsString"), [a.argExprs[0], b.argExprs[0]], this.parensSite);
-					}
-				}
-
-				break;
-			}
-			case "trace":
-				return argExprs[1];
-			case "unIData": {
-					// check if arg is a call to iData
-					let argExpr = argExprs[0];
-					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "iData") {
-						return argExpr.argExprs[0];
-					}
-				}
-				break;
-			case "iData": {
-					// check if arg is a call to unIData
-					let argExpr = argExprs[0];
-					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unIData") {
-						return argExpr.argExprs[0];
-					}
-				}
-				break;
-			case "unBData": {
-					// check if arg is a call to bData
-					let argExpr = argExprs[0];
-					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "bData") {
-						return argExpr.argExprs[0];
-					}
-				}
-				break;
-			case "bData": {
-					// check if arg is a call to unBData
-					let argExpr = argExprs[0];
-					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unBData") {
-						return argExpr.argExprs[0];
-					}
-				}
-				break;
-			case "unMapData": {
-					// check if arg is call to mapData
-					let argExpr = argExprs[0];
-					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "mapData") {
-						return argExpr.argExprs[0];
-					}
-				}
-				break;
-			case "mapData": {
-					// check if arg is call to unMapData
-					let argExpr = argExprs[0];
-					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unMapData") {
-						return argExpr.argExprs[0];
-					}
-				}
-				break;
-			case "listData": {
-					// check if arg is call to unListData
-					let argExpr = argExprs[0];
-					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "unListData") {
-						return argExpr.argExprs[0];
-					}
-				}
-				break;
-			case "unListData": {
-					// check if arg is call to listData
-					let argExpr = argExprs[0];
-					if (argExpr instanceof IRCoreCallExpr && argExpr.builtinName == "listData") {
-						return argExpr.argExprs[0];
-					}
-				}
-				break;
-		}
-
-		return null;
-	}
-
-	/**
-	 * @param {IRExprStack} stack
+	 * Add literal args to the map
+	 * @param {IRLiteralRegistry} literals
 	 * @returns {IRExpr}
 	 */
-	inline(stack) {
-		return new IRCoreCallExpr(this.#name, super.simplifyArgs(stack, true), this.parensSite);
+	simplifyLiterals(literals) {
+		const args = this.simplifyLiteralsInArgs(literals);
+
+		args.forEach((arg, i) => {
+			if (arg instanceof IRLiteralExpr) {
+				literals.set(this.argVariables[i], arg);
+			}
+		});
+
+		const anonBody = this.#anon.body.simplifyLiterals(literals);
+
+		if (anonBody instanceof IRLiteralExpr) {
+			return anonBody;
+		} else {
+			return new IRAnonCallExpr(
+				new IRFuncExpr(
+					this.#anon.site,
+					this.#anon.args,
+					anonBody
+				),
+				args,
+				this.parensSite
+			);
+		}
 	}
 
 	/**
-	 * @param {IRExprStack} stack
+	 * @param {IRNameExprRegistry} nameExprs 
+	 */
+	registerNameExprs(nameExprs) {
+		this.registerNameExprsInArgs(nameExprs);
+
+		this.argVariables.forEach(a => nameExprs.registerVariable(a));
+
+		this.#anon.body.registerNameExprs(nameExprs);
+	}
+	
+	/**
+	 * @param {IRExprRegistry} registry 
 	 * @returns {IRExpr}
 	 */
-	simplify(stack) {
-		let argExprs = super.simplifyArgs(stack);
+	simplifyTopology(registry) {
+		const args = this.simplifyTopologyInArgs(registry);
 
-		{
-			let maybeBetter = this.simplifyLiteralArgs(stack.throwRTErrors, argExprs);
-			if (maybeBetter !== null) {
-				return maybeBetter;
-			}
-		}
+		// remove unused args, inline args that are only referenced once
+		const remainingIds = this.argVariables.map((variable, i) => {
+			const n = registry.countReferences(variable);
 
-		{
-			let maybeBetter = this.simplifyTopology(argExprs);
-			if (maybeBetter !== null) {
-				return maybeBetter;
+			if (n == 0 || (n == 1 && (!registry.maybeInsideLoop(variable) || args[i] instanceof IRFuncExpr)) || args[i] instanceof IRNameExpr) {
+				if (n > 0) {
+					// inline
+					registry.addInlineable(variable, args[i]);
+				}
+
+				return -1;
+			} else {
+				return i;
 			}
+		}).filter(i => i != -1);
+
+		const remainingVars = remainingIds.map(i => this.argVariables[i]);
+		const remainingExprs = remainingIds.map(i => args[i]);
+
+		const anonBody = this.#anon.body.simplifyTopology(registry);
+
+		if (anonBody instanceof IRLiteralExpr || remainingExprs.length == 0) {
+			return anonBody;
+		} else {
+			return new IRAnonCallExpr(
+				new IRFuncExpr(
+					this.#anon.site,
+					remainingVars,
+					anonBody
+				),
+				remainingExprs,
+				this.parensSite
+			);
 		}
-		
-		return new IRCoreCallExpr(this.#name, argExprs, this.parensSite);
+	}
+}
+
+export class IRNestedAnonCallExpr extends IRUserCallExpr {
+	#anon;
+
+	/**
+	 * @param {IRAnonCallExpr} anon
+	 * @param {IRExpr[]} outerArgExprs
+	 * @param {Site} parensSite
+	 */
+	constructor(anon, outerArgExprs, parensSite) {
+		super(anon, outerArgExprs, parensSite);
+
+		this.#anon = anon;
 	}
 
 	/**
-	 * @param {Site} site
-	 * @param {string} name - full name of builtin, including prefix
-	 * @returns {UplcTerm}
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
 	 */
-	static newUplcBuiltin(site, name) {
-		let builtinName = name.slice("__core__".length);
-		assert(!builtinName.startsWith("__core__"));
+	simplifyTopology(registry) {
+		const anon = this.#anon.simplifyTopology(registry);
 
-		/**
-		 * @type {UplcTerm}
-		 */
-		let term = new UplcBuiltin(site, builtinName);
+		const args = this.simplifyTopologyInArgs(registry);
 
-		let nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
- 
-		for (let i = 0; i < nForce; i++) {
-			term = new UplcForce(site, term);
+		if (anon instanceof IRAnonCallExpr && anon.anon.body instanceof IRFuncExpr) {
+			// flatten
+			const allArgs = anon.argExprs.slice().concat(args);
+			const allVars = anon.argVariables.slice().concat(anon.anon.body.args.slice());
+
+			assert(allArgs.length == allVars.length);
+
+			return IRUserCallExpr.new(
+				new IRFuncExpr(
+					anon.anon.body.site,
+					allVars,
+					anon.anon.body.body
+				),
+				allArgs,
+				this.parensSite
+			);
+		} else {
+			return IRUserCallExpr.new(
+				anon,
+				args,
+				this.parensSite
+			);
 		}
- 
-		return term;
 	}
+}
+
+export class IRFuncDefExpr extends IRAnonCallExpr {
+	#def;
 
 	/**
-	 * @returns {UplcTerm}
+	 * @param {IRFuncExpr} fnExpr 
+	 * @param {IRFuncExpr} defExpr 
+	 * @param {Site} parensSite
 	 */
-	toUplc() {
-		let term = IRCoreCallExpr.newUplcBuiltin(this.site, this.#name.value);
+	constructor(fnExpr, defExpr, parensSite) {
+		super(fnExpr, [defExpr], parensSite);
 
-		return this.toUplcCall(term);
+		this.#def = defExpr;
 	}
 }
 
@@ -2314,10 +3030,6 @@ export class IRErrorCallExpr extends IRExpr {
 		this.#msg = msg;
 	}
 
-	copy() {
-		return new IRErrorCallExpr(this.site, this.#msg);
-	}
-
 	/**
 	 * @param {string} indent 
 	 * @returns {string}
@@ -2333,11 +3045,11 @@ export class IRErrorCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRVariable} ref
-	 * @returns {number}
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
 	 */
-	countRefs(ref) {
-		return 0;
+	evalConstants(stack) {
+		return this;
 	}
 
 	/**
@@ -2350,6 +3062,40 @@ export class IRErrorCallExpr extends IRExpr {
 		} else {
 			return null;
 		}
+	}
+
+	/**
+	 * @param {IRLiteralRegistry} literals 
+	 * @returns {IRExpr}
+	 */
+	simplifyLiterals(literals) {
+		return this;
+	}
+
+	/**
+	 * @param {IRNameExprRegistry} nameExprs
+	 */
+	registerNameExprs(nameExprs) {
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
+	 */
+	simplifyTopology(registry) {
+		return this;
+	}
+
+	copy() {
+		return new IRErrorCallExpr(this.site, this.#msg);
+	}
+
+	/**
+	 * @param {IRVariable} ref
+	 * @returns {number}
+	 */
+	countRefs(ref) {
+		return 0;
 	}
 
 	/**

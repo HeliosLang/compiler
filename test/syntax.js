@@ -526,6 +526,32 @@ async function test18() {
   }
 }
 
+async function test19() {
+  const src = `
+  testing named_struct_fields
+
+  struct Pair {
+    a: Int
+    b: ByteArray
+  }
+
+  func main() -> Bool {
+    p0 = Pair{1, #2};
+    p1 = Pair{b: #2, a: 1};
+
+    p0.a == p1.a && p0.b == p1.b
+  }
+  `
+
+  for (const simplify of [true, false]) {
+    const program = helios.Program.new(src).compile(simplify);
+
+    const result = await program.run([]);
+
+    console.log(result.toString());
+  }
+}
+
 export default async function main() {
   await test1();
 
@@ -562,6 +588,8 @@ export default async function main() {
   await test17();
 
   await test18();
+
+  await test19();
 }
 
 runIfEntryPoint(main, "syntax.js");

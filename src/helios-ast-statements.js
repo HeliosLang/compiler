@@ -6,6 +6,7 @@ import {
 } from "./constants.js";
 
 import {
+	assert,
     assertClass, assertDefined
 } from "./utils.js";
 
@@ -366,7 +367,12 @@ export class ConstStatement extends Statement {
 	 * @returns {IR}
 	 */
 	toIRInternal() {
-		return this.#valueExpr.toIR();
+		return new IR([
+			new IR("const(", this.site),
+			this.#valueExpr.toIR(),
+			new IR(")")
+		])
+		
 	}
 
 	/**
@@ -472,6 +478,21 @@ export class DataDefinition extends Statement {
 	 */
 	getFieldType(site, i) {
 		return this.#fields[i].type;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {string} name 
+	 * @returns {number}
+	 */
+	getFieldIndex(site, name) {
+		const i = this.findField(new Word(Site.dummy(), name));
+
+		if (i == -1) {
+			throw site.typeError(`field ${name} not find in ${this.toString()}`);
+		} else {
+			return i;
+		}
 	}
 
 	/**
@@ -1024,6 +1045,15 @@ export class EnumStatement extends Statement {
 	 * @returns {Type}
 	 */
 	getFieldType(site, i) {
+		throw site.typeError("enum doesn't have fields");
+	}
+
+	/**f
+	 * @param {Site} site 
+	 * @param {string} name 
+	 * @returns {number}
+	 */
+	getFieldIndex(site, name) {
 		throw site.typeError("enum doesn't have fields");
 	}
 

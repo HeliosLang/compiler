@@ -276,7 +276,6 @@ class UInt64 {
  *     bech32 encoding, checking, and decoding
  *     sha2_256, sha2_512, sha3 and blake2b hashing
  *     ed25519 pubkey generation, signing, and signature verification (NOTE: the current implementation is very slow)
- * @package
  */
 export class Crypto {
 	/**

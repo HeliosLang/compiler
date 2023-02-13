@@ -29,15 +29,19 @@ import {
 } from "./uplc-ast.js";
 
 import {
+	IRScope,
+	IRVariable
+} from "./ir-context.js";
+
+import {
+	IRConstExpr,
     IRCoreCallExpr,
     IRErrorCallExpr,
     IRExpr,
     IRFuncExpr,
-    IRLiteral,
+    IRLiteralExpr,
     IRNameExpr,
-    IRScope,
-    IRUserCallExpr,
-    IRVariable
+    IRUserCallExpr
 } from "./ir-ast.js";
 
 /**
@@ -69,7 +73,7 @@ export function buildIRExpr(ts) {
 					if (group.fields.length == 1) {
 						expr = buildIRExpr(group.fields[0])
 					} else if (group.fields.length == 0) {
-						expr = new IRLiteral(new UplcUnit(t.site));
+						expr = new IRLiteralExpr(new UplcUnit(t.site));
 					} else {
 						group.syntaxError("unexpected parentheses with multiple fields");
 					}
@@ -86,23 +90,23 @@ export function buildIRExpr(ts) {
 
 						expr = new IRCoreCallExpr(new Word(expr.site, expr.name), args, t.site);
 					} else {
-						expr = new IRUserCallExpr(expr, args, t.site);
+						expr = IRUserCallExpr.new(expr, args, t.site);
 					}
 				}
 			} else if (t.isSymbol("-")) {
 				// only makes sense next to IntegerLiterals
 				let int = assertDefined(ts.shift());
 				if (int instanceof IntLiteral) {
-					expr = new IRLiteral(new UplcInt(int.site, int.value * (-1n)));
+					expr = new IRLiteralExpr(new UplcInt(int.site, int.value * (-1n)));
 				} else {
 					throw int.site.typeError(`expected literal int, got ${int}`);
 				}
 			} else if (t instanceof BoolLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(new UplcBool(t.site, t.value));
+				expr = new IRLiteralExpr(new UplcBool(t.site, t.value));
 			} else if (t instanceof IntLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(new UplcInt(t.site, t.value));
+				expr = new IRLiteralExpr(new UplcInt(t.site, t.value));
 			} else if (t instanceof ByteArrayLiteral) {
 				assert(expr === null);
 				if (t.bytes.length == 0 && ts[0] != undefined && ts[0] instanceof ByteArrayLiteral) {
@@ -110,22 +114,34 @@ export function buildIRExpr(ts) {
 					const next = assertDefined(ts.shift());
 
 					if (next instanceof ByteArrayLiteral) {
-						expr = new IRLiteral(new UplcDataValue(next.site, UplcData.fromCbor(next.bytes)));
+						expr = new IRLiteralExpr(new UplcDataValue(next.site, UplcData.fromCbor(next.bytes)));
 					} else {
 						throw new Error("unexpected");
 					}
 				} else {
-					expr = new IRLiteral(new UplcByteArray(t.site, t.bytes));
+					expr = new IRLiteralExpr(new UplcByteArray(t.site, t.bytes));
 				}
 			} else if (t instanceof StringLiteral) {
 				assert(expr === null);
-				expr = new IRLiteral(new UplcString(t.site, t.value));
-			} else if (t.isWord("__core__error")) {
+				expr = new IRLiteralExpr(new UplcString(t.site, t.value));
+			} else if (t.isWord("const")) {
 				assert(expr === null);
 
 				let maybeGroup = ts.shift();
 				if (maybeGroup === undefined) {
-					throw t.site.syntaxError("expected parens after __core__error");
+					throw t.site.syntaxError("expected parens after const");
+				} else {
+					let parens = maybeGroup.assertGroup("(", 1);
+					let pts = parens.fields[0];
+
+					expr = new IRConstExpr(t.site, buildIRExpr(pts));
+				}
+			} else if (t.isWord("error")) {
+				assert(expr === null);
+
+				let maybeGroup = ts.shift();
+				if (maybeGroup === undefined) {
+					throw t.site.syntaxError("expected parens after error");
 				} else {
 					let parens = maybeGroup.assertGroup("(", 1);
 					let pts = parens.fields[0];

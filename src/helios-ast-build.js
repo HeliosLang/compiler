@@ -4,17 +4,12 @@
 import {
     Source,
     assert,
-    assertDefined,
-    bytesToText
+    assertDefined
 } from "./utils.js";
 
 import {
-    BoolLiteral,
-    ByteArrayLiteral,
     Group,
-    IntLiteral,
     Site,
-    StringLiteral,
     SymbolToken,
     Token,
     UserError,
@@ -22,36 +17,13 @@ import {
 } from "./tokens.js";
 
 import {
-    ByteArrayData,
-    ConstrData,
-    IntData,
-    ListData,
-    MapData
-} from "./uplc-data.js";
-
-import {
     ScriptPurpose,
-    UplcBool,
-    UplcDataValue,
-    UplcValue,
     getPurposeName
 } from "./uplc-ast.js";
 
 import {
     Tokenizer
 } from "./tokenization.js";
-
-import {
-    BoolType,
-    ByteArrayType,
-    HashType,
-    IntType,
-    ListType,
-    MapType,
-    StatementType,
-    StringType,
-    Type
-} from "./helios-eval-entities.js";
 
 import {
     AssignExpr,
@@ -92,7 +64,6 @@ import {
 
 import {
     ConstStatement,
-    DataDefinition,
     DataField,
     EnumMember,
     EnumStatement,
@@ -1761,22 +1732,23 @@ function buildStructLiteralExpr(ts) {
 
 	const braces = assertDefined(ts.shift()).assertGroup("{");
 
-	const nFields = braces.fields.length;
+	const fields = braces.fields.map(fts => buildStructLiteralField(braces.site, fts));
 
-	const fields = braces.fields.map(fts => buildStructLiteralField(braces.site, fts, nFields > 1));
-
-	return new StructLiteralExpr(typeExpr, fields);
+	if (fields.every(f => f.isNamed()) || fields.every(f => !f.isNamed())) {
+		return new StructLiteralExpr(typeExpr, fields);
+	} else {
+		throw braces.site.syntaxError("mangled literal struct (hint: specify all fields positionally or all with keys)");
+	}
 }
 
 /**
  * @package
  * @param {Site} bracesSite
- * @param {Token[]} ts 
- * @param {boolean} isNamed
+ * @param {Token[]} ts
  * @returns {StructLiteralField}
  */
-function buildStructLiteralField(bracesSite, ts, isNamed) {
-	if (isNamed) {
+function buildStructLiteralField(bracesSite, ts) {
+	if (ts.length > 2 && ts[0].isWord() && ts[1].isSymbol(":")) {
 		const maybeName = ts.shift();
 		if (maybeName === undefined) {
 			throw bracesSite.syntaxError("empty struct literal field");
@@ -1799,13 +1771,9 @@ function buildStructLiteralField(bracesSite, ts, isNamed) {
 			}
 		}
 	} else {
-		if (ts.length > 1 && ts[0].isWord() && ts[1].isSymbol(":")) {
-			throw ts[0].syntaxError(`unexpected key '${ts[0].toString()}' (struct literals with only 1 field don't use keys)`);
-		} else {
-			const valueExpr = buildValueExpr(ts);
+		const valueExpr = buildValueExpr(ts);
 
-			return new StructLiteralField(null, valueExpr);
-		}
+		return new StructLiteralField(null, valueExpr);
 	}
 }
 
