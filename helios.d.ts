@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.11.4";
+export const VERSION: "0.12.0";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -2495,9 +2495,6 @@ export class Tokenizer {
 export class TimeType extends BuiltinType {
 }
 /**
- * @typedef {(expr: IRExpr) => IRExpr} IRWalkFn
- */
-/**
  * @typedef {Map<IRVariable, IRLiteralExpr>} IRLiteralRegistry
  */
 export class IRNameExprRegistry {
@@ -3803,7 +3800,6 @@ export type RecurseableStatement = {
 export type RecursivenessChecker = {
     isRecursive: (statement: RecurseableStatement) => boolean;
 };
-export type IRWalkFn = (expr: IRExpr) => IRExpr;
 export type IRLiteralRegistry = Map<IRVariable, IRLiteralExpr>;
 export type UserTypes = {
     [x: string]: HeliosDataClass<HeliosData>;
@@ -4545,50 +4541,15 @@ declare class IRExpr extends Token {
      */
     registerNameExprs(nameExprs: IRNameExprRegistry): void;
     /**
-     * @param {IRExprRegistry} registry
-     * @returns {IRExpr}
-     */
-    simplifyTopology(registry: IRExprRegistry): IRExpr;
-    /**
-     * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the index
+     * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the Debruijn index
      * @returns {IRExpr}
      */
     copy(): IRExpr;
     /**
-     * Counts the number of times a variable is referenced inside the current expression
-     * @param {IRVariable} ref
-     * @returns {number}
-     */
-    countRefs(ref: IRVariable): number;
-    /**
-     * Inline every variable that can be found in the stack.
-     * @param {IRExprStack} stack
+     * @param {IRExprRegistry} registry
      * @returns {IRExpr}
      */
-    inline(stack: IRExprStack): IRExpr;
-    /**
-     * @param {IRWalkFn} fn
-     * @returns {IRExpr}
-     */
-    walk(fn: IRWalkFn): IRExpr;
-    /**
-     * Returns non-null expr if ok
-     * @param {IRVariable} ref
-     * @param {string} builtinName
-     * @returns {?IRExpr}
-     */
-    wrapCall(ref: IRVariable, builtinName: string): IRExpr | null;
-    /**
-     * @param {IRVariable} ref
-     * @returns {?IRExpr}
-     */
-    flattenCall(ref: IRVariable): IRExpr | null;
-    /**
-     * Simplify 'this' by returning something smaller (doesn't mutate)
-     * @param {IRExprStack} stack - contains some global definitions that might be useful for simplification
-     * @returns {IRExpr}
-     */
-    simplify(stack: IRExprStack): IRExpr;
+    simplifyTopology(registry: IRExprRegistry): IRExpr;
     /**
      * @returns {UplcTerm}
      */
@@ -4614,59 +4575,6 @@ declare class IRUserCallExpr extends IRCallExpr {
     constructor(fnExpr: IRExpr, argExprs: IRExpr[], parensSite: Site);
     get fnExpr(): IRExpr;
     copy(): IRUserCallExpr;
-    /**
-     * Inlines arguments that are only used once in fnExpr.
-     * Also eliminates unused arguments
-     * @param {IRExprStack} stack
-     * @param {IRExpr} fnExpr - already simplified
-     * @param {IRExpr[]} argExprs - already simplified
-     * @returns {?IRExpr} - returns null if it isn't simpler
-     */
-    inlineArgs(stack: IRExprStack, fnExpr: IRExpr, argExprs: IRExpr[]): IRExpr | null;
-    /**
-     * Inline all literal args if the resulting expression is an improvement over the current expression
-     * @param {IRExprStack} stack
-     * @param {IRExpr} fnExpr - already simplified
-     * @param {IRExpr[]} argExprs - already simplified
-     * @returns {?IRExpr} - returns null if it isn't simpler
-     */
-    inlineLiteralArgs(stack: IRExprStack, fnExpr: IRExpr, argExprs: IRExpr[]): IRExpr | null;
-    /**
-     * Simplify some specific builtin functions
-     * @param {IRExprStack} stack
-     * @param {IRExpr} fnExpr
-     * @param {IRExpr[]} argExprs
-     * @returns {?IRExpr}
-     */
-    simplifyTopology_(stack: IRExprStack, fnExpr: IRExpr, argExprs: IRExpr[]): IRExpr | null;
-    /**
-     * Evaluates fnExpr if all args are literals
-     * Otherwise returns null
-     * @param {IRExprStack} stack
-     * @param {IRExpr} fnExpr
-     * @param {IRExpr[]} argExprs
-     * @returns {?IRExpr}
-     */
-    simplifyLiteral(stack: IRExprStack, fnExpr: IRExpr, argExprs: IRExpr[]): IRExpr | null;
-    simplifyFlatten(): IRUserCallExpr;
-    /**
-     * @param {IRExprStack} stack
-     * @returns {IRExpr}
-     */
-    simplifyWithoutExtractingCasts(stack: IRExprStack): IRExpr;
-    /**
-     * Extract functions like __core__iData from IRFuncExpr args, and inserting it in IRFuncExpr fnExpr, and then run inner simplify methods
-     * @returns {IRExpr}
-     */
-    extractDownstreamCasts(): IRExpr;
-    /**
-     * @returns {IRExpr}
-     */
-    extractUpstreamCasts(): IRExpr;
-    /**
-     * @returns {IRExpr}
-     */
-    extractCasts(): IRExpr;
     #private;
 }
 /**
@@ -4687,19 +4595,6 @@ declare class IRFuncExpr extends IRExpr {
      */
     evalConstants(stack: IRCallStack): IRFuncExpr;
     copy(): IRFuncExpr;
-    /**
-     * Inline expressions in the body
-     * Checking of unused args is done by caller
-     * @param {IRExprStack} stack
-     * @returns {IRFuncExpr}
-     */
-    inline(stack: IRExprStack): IRFuncExpr;
-    /**
-     * Simplify body, returning a IRFuncExpr with the same args
-     * @param {IRExprStack} stack
-     * @returns {IRFuncExpr}
-     */
-    simplifyBody(stack: IRExprStack): IRFuncExpr;
     #private;
 }
 /**
@@ -4740,17 +4635,11 @@ declare class IRLiteralExpr extends IRExpr {
      * @type {UplcValue}
      */
     get value(): UplcValue;
-    copy(): IRLiteralExpr;
     /**
      * @param {IRCallStack} stack
      */
     evalConstants(stack: IRCallStack): IRLiteralExpr;
-    /**
-     * @param {IRExprStack} stack
-     * @param {IRLiteralExpr[]} args
-     * @returns {?IRExpr}
-     */
-    call(stack: IRExprStack, args: IRLiteralExpr[]): IRExpr | null;
+    copy(): IRLiteralExpr;
     /**
      * @returns {UplcConst}
      */
@@ -5657,53 +5546,6 @@ declare class IRValue {
     get value(): UplcValue;
 }
 /**
- * Map of variables to IRExpr
- * @package
- */
-declare class IRExprStack {
-    /**
-     * @param {boolean} throwRTErrors
-     * Keeps order
-     * @param {Map<IRVariable, IRExpr>} map
-     */
-    constructor(throwRTErrors: boolean, map?: Map<IRVariable, IRExpr>);
-    get throwRTErrors(): boolean;
-    /**
-     * Doesn't mutate, returns a new stack
-     * @param {IRVariable} ref
-     * @param {IRExpr} value
-     * @returns {IRExprStack}
-     */
-    set(ref: IRVariable, value: IRExpr): IRExprStack;
-    /**
-     * Mutates
-     * @param {IRVariable} variable
-     * @param {IRExpr} expr
-     */
-    setInline(variable: IRVariable, expr: IRExpr): void;
-    /**
-     * @param {IRVariable} ref
-     * @returns {boolean}
-     */
-    has(ref: IRVariable): boolean;
-    /**
-     * Returns null if not found
-     * @param {IRVariable} ref
-     * @returns {IRExpr}
-     */
-    get(ref: IRVariable): IRExpr;
-    /**
-     * @returns {IRCallStack}
-     */
-    initCallStack(): IRCallStack;
-    /**
-     * Returns a list of the names in the stack
-     * @returns {string}
-     */
-    dump(): string;
-    #private;
-}
-/**
  * Base class of IRUserCallExpr and IRCoreCallExpr
  * @package
  */
@@ -5749,28 +5591,6 @@ declare class IRCallExpr extends IRExpr {
      * @returns {IRExpr[]}
      */
     simplifyTopologyInArgs(registry: IRExprRegistry): IRExpr[];
-    /**
-     * @param {IRWalkFn} fn
-     * @returns {IRExpr[]}
-     */
-    walkArgs(fn: IRWalkFn): IRExpr[];
-    /**
-     * @param {IRVariable} ref
-     * @param {string} builtinName
-     * @returns {?IRExpr[]}
-     */
-    wrapCallArgs(ref: IRVariable, builtinName: string): IRExpr[] | null;
-    /**
-     * @param {IRVariable} ref
-     * @returns {?IRExpr[]}
-     */
-    flattenCallArgs(ref: IRVariable): IRExpr[] | null;
-    /**
-     * @param {IRExprStack} stack
-     * @param {boolean} inline
-     * @returns {IRExpr[]}
-     */
-    simplifyArgs(stack: IRExprStack, inline?: boolean): IRExpr[];
     /**
      * @param {UplcTerm} term
      * @returns {UplcTerm}

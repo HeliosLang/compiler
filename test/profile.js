@@ -16,7 +16,10 @@ async function profile(src, argNames, expected = null) {
 
     console.log("ARGS: ", args.map(a => a.toString()));
 	
+	console.log("IR: ", program.prettyIR(true));
+	
 	let profileResult = await program.compile(true).profile(args, networkParams);
+
     console.log(profileResult);
 
 	if (expected != null) {

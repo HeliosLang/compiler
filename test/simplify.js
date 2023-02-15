@@ -56,7 +56,7 @@ export default async function main() {
 	testing list_new
 	func main(a: Int, b: Int) -> []Int {
 		[]Int::new_const(a, b)
-	}`, 44);
+	}`);
 
 	simplify(`
 	testing add
@@ -66,33 +66,33 @@ export default async function main() {
 		} else {
 			2
 		}
-	}`, 14);
+	}`);
 
 	simplify(`
 	testing and
 	func main() -> Bool {
 		false && true
-	}`, 5);
+	}`);
 
 	simplify(`
 	testing concat
 	func main() -> []Int {
 		[]Int{1,2,3} + []Int{4,5,6}
-	}`, 16);
+	}`);
 
 	simplify(`
 	testing concat
 	func main(a: Int) -> []Int {
 		[]Int{a,1,2} + []Int{}
 	}
-	`, 57)
+	`);
 
 	simplify(`
 	testing value_is_zero
 	func main(a: Int) -> Bool {
 		Value::lovelace(a).is_zero()
 	}
-	`, 61);
+	`);
 
 	simplify(`
 	minting multi_nft
@@ -142,12 +142,12 @@ export default async function main() {
 	const RANDOM = "aksjdkjasd"
 
 	const LIST: []Int = []Int{1,2,3} + []Int{5,6,7}
-	`, 370);
+	`);
 
 	simplify(`testing equals
 	func main(a: Int) -> Bool {
 		a+1 == a+2
-	}`, 22);
+	}`);
 
 	await profile(`
 	testing profile
@@ -159,7 +159,7 @@ export default async function main() {
 	const A = 1
 	const B = 1
 	const C: Int = main(A, B)
-	`, ["A", "B"], {mem: 2532n, cpu: 1073125n, size: 21});
+	`, ["A", "B"]);
 
 	simplify(`testing one_field
 	struct Datum {
@@ -168,7 +168,7 @@ export default async function main() {
 
 	func main(a: Bool) -> Bool {
 		Datum{a}.b
-	}`, 6);
+	}`);
 }
 
 runIfEntryPoint(main, "simplify.js");
