@@ -2842,6 +2842,10 @@ function makeRawFunctions() {
 
 	// RawData
 	addDataFuncs("__helios__data");
+	add(new RawFunc("__helios__data__tag", 
+	`(self) -> {
+		__core__iData(__core__fstPair(__core__unConstrData(self)))
+	}`));
 
 
 	// TxOutputId

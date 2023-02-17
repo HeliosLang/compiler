@@ -16791,6 +16791,19 @@ class RawDataType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "tag":
+				return Instance.new(new IntType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
 	get path() {
 		return "__helios__data";
 	}
@@ -27133,6 +27146,10 @@ function makeRawFunctions() {
 
 	// RawData
 	addDataFuncs("__helios__data");
+	add(new RawFunc("__helios__data__tag", 
+	`(self) -> {
+		__core__iData(__core__fstPair(__core__unConstrData(self)))
+	}`));
 
 
 	// TxOutputId
@@ -35398,15 +35415,17 @@ export class FuzzyTest {
 
 	/**
 	 * Returns a generator for tagged constr
-	 * @param {number} tag
+	 * @param {number | NumberGenerator} tag
 	 * @param {...ValueGenerator} fieldGenerators
 	 * @returns {ValueGenerator}
 	 */
 	constr(tag, ...fieldGenerators) {
 		return function() {
-			let fields = fieldGenerators.map(g => g().data);
+			const fields = fieldGenerators.map(g => g().data);
 
-			return new UplcDataValue(Site.dummy(), new ConstrData(tag, fields));
+			const finalTag = (typeof tag == "number") ? tag : Math.round(tag()*100);
+			
+			return new UplcDataValue(Site.dummy(), new ConstrData(finalTag, fields));
 		}
 	}
 
@@ -35555,7 +35574,7 @@ export class CoinSelection {
             let count = 0n;
             const remaining = [];
 
-            while (count < neededQuantity) {
+            while (count < neededQuantity || count == 0n) { // must select at least one utxo if neededQuantity == 0n
                 const utxo = notSelected.shift();
 
                 if (utxo === undefined) {
@@ -35605,6 +35624,8 @@ export class CoinSelection {
 
             select(diff, (utxo) => utxo.value.lovelace);
         }
+
+        assert(selected.length + notSelected.length == utxos.length, "internal error: select algorithm doesn't conserve utxos");
 
         return [selected, notSelected];
     }

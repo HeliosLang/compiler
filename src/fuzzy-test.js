@@ -366,15 +366,17 @@ export class FuzzyTest {
 
 	/**
 	 * Returns a generator for tagged constr
-	 * @param {number} tag
+	 * @param {number | NumberGenerator} tag
 	 * @param {...ValueGenerator} fieldGenerators
 	 * @returns {ValueGenerator}
 	 */
 	constr(tag, ...fieldGenerators) {
 		return function() {
-			let fields = fieldGenerators.map(g => g().data);
+			const fields = fieldGenerators.map(g => g().data);
 
-			return new UplcDataValue(Site.dummy(), new ConstrData(tag, fields));
+			const finalTag = (typeof tag == "number") ? tag : Math.round(tag()*100);
+			
+			return new UplcDataValue(Site.dummy(), new ConstrData(finalTag, fields));
 		}
 	}
 

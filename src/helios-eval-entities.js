@@ -4328,6 +4328,19 @@ export class RawDataType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "tag":
+				return Instance.new(new IntType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
 	get path() {
 		return "__helios__data";
 	}

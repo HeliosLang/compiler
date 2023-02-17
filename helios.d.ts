@@ -3383,11 +3383,11 @@ export class FuzzyTest {
     object(...itemGenerators: ValueGenerator[]): ValueGenerator;
     /**
      * Returns a generator for tagged constr
-     * @param {number} tag
+     * @param {number | NumberGenerator} tag
      * @param {...ValueGenerator} fieldGenerators
      * @returns {ValueGenerator}
      */
-    constr(tag: number, ...fieldGenerators: ValueGenerator[]): ValueGenerator;
+    constr(tag: number | NumberGenerator, ...fieldGenerators: ValueGenerator[]): ValueGenerator;
     /**
      * Run a test
      * @param {ValueGenerator[]} argGens

@@ -8,6 +8,7 @@ import {
 import {
     UTxO
 } from "./tx-builder.js";
+import { assert } from "./utils.js";
 
 /**
  * Collection of coin selection algorithms
@@ -43,7 +44,7 @@ export class CoinSelection {
             let count = 0n;
             const remaining = [];
 
-            while (count < neededQuantity) {
+            while (count < neededQuantity || count == 0n) { // must select at least one utxo if neededQuantity == 0n
                 const utxo = notSelected.shift();
 
                 if (utxo === undefined) {
@@ -93,6 +94,8 @@ export class CoinSelection {
 
             select(diff, (utxo) => utxo.value.lovelace);
         }
+
+        assert(selected.length + notSelected.length == utxos.length, "internal error: select algorithm doesn't conserve utxos");
 
         return [selected, notSelected];
     }

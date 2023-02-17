@@ -349,6 +349,18 @@ const certifyingScriptContextParam = `
 async function testBuiltins() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
 
+
+    /////////////
+    // Data tests
+    /////////////
+
+    await ft.test([ft.constr(ft.newRand())], `
+    testing data_tag
+    func main(a: Data) -> Int {
+        a.tag
+    }`, ([a], res) => BigInt(a.data.index) == asInt(res));
+
+
     ////////////
     // Int tests
     ////////////
