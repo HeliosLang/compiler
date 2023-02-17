@@ -1,5 +1,9 @@
 This Changelog only applies to notable changes of `helios.js` on the main branch.
 
+# 2022/02/17
+* Addition of `Data.tag`
+* Addition of `List.for_each`
+
 # 2022/01/18
 * IR: Removed simplify calls from inline methods. Slight decrease in optimization performance, huge increase in compiler speed.
 
