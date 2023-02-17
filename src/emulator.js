@@ -312,22 +312,34 @@ export class NetworkEmulator {
      * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
      * @param {bigint} lovelace
      * @param {Assets} assets
-     * @returns {Wallet}
+     * @returns {WalletEmulator}
      */
-    createWallet(lovelace, assets) {
+    createWallet(lovelace = 0n, assets = new Assets([])) {
         const wallet = new WalletEmulator(this, this.#random);
 
-        const tx = new GenesisTx(
-            this.#genesis.length,
-            wallet.address,
-            lovelace,
-            assets
-        );
-
-        this.#genesis.push(tx);
-        this.#mempool.push(tx);
+        this.createUtxo(wallet, lovelace, assets);
 
         return wallet;
+    }
+
+    /**
+     * Creates a UTxO using a GenesisTx.
+     * @param {WalletEmulator} wallet 
+     * @param {bigint} lovelace 
+     * @param {Assets} assets 
+     */
+    createUtxo(wallet, lovelace, assets = new Assets([])) {
+        if (lovelace != 0n || !assets.isZero()) {
+            const tx = new GenesisTx(
+                this.#genesis.length,
+                wallet.address,
+                lovelace,
+                assets
+            );
+
+            this.#genesis.push(tx);
+            this.#mempool.push(tx);
+        }
     }
 
     /**
@@ -352,11 +364,11 @@ export class NetworkEmulator {
         /**
          * @type {UTxO[]}
          */
-        const utxos = [];
+        let utxos = [];
 
         for (let block of this.#blocks) {
             for (let tx of block) {
-                tx.collectUtxos(address, utxos);
+                utxos = tx.collectUtxos(address, utxos);
             }
         }
 

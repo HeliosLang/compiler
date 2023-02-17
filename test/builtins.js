@@ -1604,6 +1604,23 @@ async function testBuiltins() {
         });
 
         await ft.test([ft.list(ft.int())], `
+        testing list_for_each
+        func main(a: []Int) -> Bool {
+            a.for_each((x: Int) -> {
+                assert(x >= 0, "neg x found")
+            });
+            true
+        }`, ([a], res) => {
+            let la = asIntList(a);
+
+            if (la.every(i => i >= 0n)) {
+                return asBool(res);
+            } else {
+                return isError(res, "assert failed");
+            }
+        });
+
+        await ft.test([ft.list(ft.int())], `
         testing list_fold
         func main(a: []Int) -> Int {
             a.fold((sum: Int, x: Int) -> Int {sum + x}, 0)
@@ -1878,6 +1895,23 @@ async function testBuiltins() {
         func main(a: []Bool) -> []Bool {
             a.filter((x: Bool) -> Bool {x})
         }`, ([a], res) => equalsList(asBoolList(a).filter(b => b), asBoolList(res)));
+
+        await ft.test([ft.list(ft.bool())], `
+        testing boollist_for_each
+        func main(a: []Bool) -> Bool {
+            a.for_each((x: Bool) -> () {
+                assert(x, "false found")
+            });
+            true
+        }`, ([a], res) => {
+            let la = asBoolList(a);
+
+            if (la.every(b => b)) {
+                return asBool(res);
+            } else {
+                return isError(res, "assert failed");
+            }
+        });
 
         await ft.test([ft.list(ft.bool())], `
         testing boollist_fold

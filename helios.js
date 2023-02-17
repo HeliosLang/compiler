@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.12.0
+// Version:       0.12.1
 // Last update:   February 2023
 // License:       Unlicense
 //
@@ -215,7 +215,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.12.0";
+export const VERSION = "0.12.1";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -14862,6 +14862,8 @@ class ListType extends BuiltinType {
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new OptionType(this.#itemType)));
 			case "filter":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new ListType(this.#itemType)));
+			case "for_each":
+				return Instance.new(new FuncType([new FuncType([this.#itemType], new VoidType())], new VoidType()));
 			case "fold": {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#itemType], a), a], a));
@@ -25640,6 +25642,31 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
+	add(new RawFunc("__helios__list__for_each",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(recurse) -> {
+					recurse(recurse, self)
+				}(
+					(recurse, lst) -> {
+						__core__ifThenElse(
+							__core__nullList(lst),
+							() -> {
+								()
+							},
+							() -> {
+								__core__chooseUnit(
+									fn(__core__headList(lst)),
+									recurse(recurse, __core__tailList(lst))
+								)
+							}
+						)()
+					}
+				)
+			}
+		}(__core__unListData(self))
+	}`));
 	add(new RawFunc("__helios__list__fold",
 	`(self) -> {
 		(self) -> {
@@ -25765,6 +25792,16 @@ function makeRawFunctions() {
 	`(self) -> {
 		(fn) -> {
 			__helios__list__filter(self)(
+				(item) -> {
+					fn(__helios__common__unBoolData(item))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__for_each",
+	`(self) -> {
+		(fn) -> {
+			__helios__list__for_each(self)(
 				(item) -> {
 					fn(__helios__common__unBoolData(item))
 				}
@@ -35592,7 +35629,7 @@ export class CoinSelection {
                 }
             }
 
-            notSelected = remaining;
+            notSelected = notSelected.concat(remaining);
         }
 
         /**
@@ -35813,10 +35850,11 @@ export class WalletHelper {
 
     /**
      * @param {Value} amount 
+     * @param {(allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]} algorithm
      * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
      */ 
-    async pickUtxos(amount) {
-        return CoinSelection.selectSmallestFirst(await this.#wallet.utxos, amount);
+    async pickUtxos(amount, algorithm = CoinSelection.selectSmallestFirst) {
+        return algorithm(await this.#wallet.utxos, amount);
     }
 
     /**
@@ -36349,22 +36387,34 @@ export class NetworkEmulator {
      * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
      * @param {bigint} lovelace
      * @param {Assets} assets
-     * @returns {Wallet}
+     * @returns {WalletEmulator}
      */
-    createWallet(lovelace, assets) {
+    createWallet(lovelace = 0n, assets = new Assets([])) {
         const wallet = new WalletEmulator(this, this.#random);
 
-        const tx = new GenesisTx(
-            this.#genesis.length,
-            wallet.address,
-            lovelace,
-            assets
-        );
-
-        this.#genesis.push(tx);
-        this.#mempool.push(tx);
+        this.createUtxo(wallet, lovelace, assets);
 
         return wallet;
+    }
+
+    /**
+     * Creates a UTxO using a GenesisTx.
+     * @param {WalletEmulator} wallet 
+     * @param {bigint} lovelace 
+     * @param {Assets} assets 
+     */
+    createUtxo(wallet, lovelace, assets = new Assets([])) {
+        if (lovelace != 0n || !assets.isZero()) {
+            const tx = new GenesisTx(
+                this.#genesis.length,
+                wallet.address,
+                lovelace,
+                assets
+            );
+
+            this.#genesis.push(tx);
+            this.#mempool.push(tx);
+        }
     }
 
     /**
@@ -36389,11 +36439,11 @@ export class NetworkEmulator {
         /**
          * @type {UTxO[]}
          */
-        const utxos = [];
+        let utxos = [];
 
         for (let block of this.#blocks) {
             for (let tx of block) {
-                tx.collectUtxos(address, utxos);
+                utxos = tx.collectUtxos(address, utxos);
             }
         }
 

@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.12.0";
+export const VERSION: "0.12.1";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -3520,9 +3520,10 @@ export class WalletHelper {
     get refUtxo(): Promise<UTxO>;
     /**
      * @param {Value} amount
+     * @param {(allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]} algorithm
      * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
      */
-    pickUtxos(amount: Value): Promise<[UTxO[], UTxO[]]>;
+    pickUtxos(amount: Value, algorithm?: (allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]): Promise<[UTxO[], UTxO[]]>;
     /**
      * Returned collateral can't contain an native assets (pure lovelace)
      * TODO: combine UTxOs if a single UTxO isn't enough
@@ -3654,9 +3655,16 @@ export class NetworkEmulator implements Network {
      * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
      * @param {bigint} lovelace
      * @param {Assets} assets
-     * @returns {Wallet}
+     * @returns {WalletEmulator}
      */
-    createWallet(lovelace: bigint, assets: Assets): Wallet;
+    createWallet(lovelace?: bigint, assets?: Assets): WalletEmulator;
+    /**
+     * Creates a UTxO using a GenesisTx.
+     * @param {WalletEmulator} wallet
+     * @param {bigint} lovelace
+     * @param {Assets} assets
+     */
+    createUtxo(wallet: WalletEmulator, lovelace: bigint, assets?: Assets): void;
     /**
      * Mint a block with the current mempool, and advance the slot.
      * @param {bigint} nSlots

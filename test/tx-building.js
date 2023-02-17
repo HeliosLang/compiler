@@ -434,6 +434,61 @@ async function assetsCompare() {
 	assert(assets1.ge(assets2), "not ge");
 }
 
+async function pickUtxos() {
+	const emulator = new helios.NetworkEmulator();
+
+	const wallet = emulator.createWallet(246034872n, new helios.Assets([]));
+
+	const mph0 = new helios.MintingPolicyHash("00000000000000000000000000000000000000000000000000000000");
+	const mph1 = new helios.MintingPolicyHash("00000000000000000000000000000000000000000000000000000001");
+	const mph2 = new helios.MintingPolicyHash("00000000000000000000000000000000000000000000000000000002");
+
+	emulator.createUtxo(wallet, 1262830n, new helios.Assets([
+		[
+			mph0, [
+				[helios.textToBytes("Bing #1"), 1n],
+				[helios.textToBytes("Bing #2"), 1n],
+				[helios.textToBytes("Bing #3"), 1n],
+				[helios.textToBytes("Bing #4"), 1n],
+				[helios.textToBytes("Bing #5"), 1n]
+			]
+		]
+	]));
+
+	emulator.createUtxo(wallet, 25000000n);
+
+	emulator.createUtxo(wallet, 1120600n, new helios.Assets([
+		[
+			mph1, [
+				["", 1n]
+			]
+		]
+	]));
+
+	emulator.createUtxo(wallet, 1150770n, new helios.Assets([
+		[
+			mph2, [
+				[helios.textToBytes("bdbdxw #2"), 1n]
+			]
+		]
+	]));
+
+	emulator.createUtxo(wallet, 2452630122n);
+
+	emulator.createUtxo(wallet, 4929965941n);
+
+	emulator.tick(1n);
+
+	const walletHelper = new helios.WalletHelper(wallet);
+
+	const [picked1, notPicked1] = await walletHelper.pickUtxos(new helios.Value(0n));
+
+	const [picked2, notPicked2] = await walletHelper.pickUtxos(new helios.Value(3500000n));
+
+	console.log(picked1, notPicked1);
+	console.log(picked2, notPicked2);
+}
+
 export default async function main() {
 	await assetsCompare();
 
@@ -458,6 +513,8 @@ export default async function main() {
 	await balanceAssets();
 
 	await tokencheck();
+
+	await pickUtxos();
 }
 
 runIfEntryPoint(main, "tx-building.js");

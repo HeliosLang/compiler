@@ -62,7 +62,7 @@ export class CoinSelection {
                 }
             }
 
-            notSelected = remaining;
+            notSelected = notSelected.concat(remaining);
         }
 
         /**

@@ -2399,6 +2399,8 @@ export class ListType extends BuiltinType {
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new OptionType(this.#itemType)));
 			case "filter":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new ListType(this.#itemType)));
+			case "for_each":
+				return Instance.new(new FuncType([new FuncType([this.#itemType], new VoidType())], new VoidType()));
 			case "fold": {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#itemType], a), a], a));

@@ -1336,6 +1336,31 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
+	add(new RawFunc("__helios__list__for_each",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(recurse) -> {
+					recurse(recurse, self)
+				}(
+					(recurse, lst) -> {
+						__core__ifThenElse(
+							__core__nullList(lst),
+							() -> {
+								()
+							},
+							() -> {
+								__core__chooseUnit(
+									fn(__core__headList(lst)),
+									recurse(recurse, __core__tailList(lst))
+								)
+							}
+						)()
+					}
+				)
+			}
+		}(__core__unListData(self))
+	}`));
 	add(new RawFunc("__helios__list__fold",
 	`(self) -> {
 		(self) -> {
@@ -1461,6 +1486,16 @@ function makeRawFunctions() {
 	`(self) -> {
 		(fn) -> {
 			__helios__list__filter(self)(
+				(item) -> {
+					fn(__helios__common__unBoolData(item))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__for_each",
+	`(self) -> {
+		(fn) -> {
+			__helios__list__for_each(self)(
 				(item) -> {
 					fn(__helios__common__unBoolData(item))
 				}
