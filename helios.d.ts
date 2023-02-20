@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.12.1";
+export const VERSION: "0.12.2";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -1774,6 +1774,11 @@ export class UplcValue {
      * @type {Site}
      */
     get site(): Site;
+    /**
+     * @package
+     * @type {number}
+     */
+    get length(): number;
     /**
      * Size in words (8 bytes, 64 bits) occupied in target node
      * @package

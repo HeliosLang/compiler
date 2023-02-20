@@ -113,6 +113,14 @@ export class UplcValue {
 	}
 
 	/**
+	 * @package
+	 * @type {number}
+	 */
+	get length() {
+		throw new Error("not a list nor a map");
+	}
+
+	/**
 	 * Size in words (8 bytes, 64 bits) occupied in target node
      * @package
 	 * @type {number}
@@ -1699,6 +1707,13 @@ export class UplcList extends UplcValue {
 	/**
 	 * @type {number}
 	 */
+	get length() {
+		return this.#items.length;
+	}
+
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		let sum = 0;
 
@@ -1787,6 +1802,13 @@ export class UplcMap extends UplcValue {
 		const site = Site.dummy();
 
 		return new UplcMap(site, pairs.map(([key, val]) => new UplcMapItem(site, key, val)));
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get length() {
+		return this.#pairs.length;
 	}
 
 	/**
@@ -2654,7 +2676,19 @@ export class UplcBuiltin extends UplcTerm {
 					}
 				});
 			case "chooseList":
-				throw new Error("no immediate need, so don't bother yet");
+				return new UplcAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
+					rte.calcAndIncrCost(this, a, b, c);
+
+					if ((a.isList() || a.isMap())) {
+						if (a.length == 0) {
+							return b.copy(callSite);
+						} else {
+							return c.copy(callSite);
+						}
+					} else {
+						throw callSite.typeError(`expected list or map first arg, got '${a.toString()}'`);
+					}
+				});
 			case "mkCons":
 				// only allow data items in list
 				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
