@@ -809,7 +809,7 @@ function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 			throw site.syntaxError("expected type expression after '->'");
 		}
 	} else {
-		if (ts[0].isGroup("(")) {
+		if (ts[0].isGroup("(") && (ts.length == 1 || !ts[1].isSymbol("->"))) {
 			const group = assertDefined(ts.shift()).assertGroup("(");
 
 			if (group.fields.length == 0) {

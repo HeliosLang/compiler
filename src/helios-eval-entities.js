@@ -1236,7 +1236,12 @@ export class Instance extends NotType {
 		} else if (type instanceof FuncType) {
 			return new FuncInstance(type);
 		} else if (type instanceof ParamType) {
-			return new DataInstance(type.dataType);
+			const t = type.type;
+			if (t == null) {
+				throw new Error("expected non-null type");
+			} else {
+				return Instance.new(t);
+			}
 		} else if (type instanceof ErrorType) {
 			return new ErrorInstance();
 		} else if (type instanceof VoidType) {
@@ -2120,21 +2125,6 @@ class ParamType extends Type {
 			return this.#type;
 		}
 	}
-
-    /**
-     * @type {DataType}
-     */
-    get dataType() {
-        const t = this.type;
-
-        if (t == null) {
-            throw new Error("expected non-null type");
-        } else if (t instanceof DataType) {
-            return t;
-        } else {
-            throw new Error("expected a dataType");
-        }
-    }
 
 	toString() {
 		if (this.#type === null) {

@@ -1630,6 +1630,21 @@ async function testBuiltins() {
             return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
         });
 
+        await ft.test([ft.list(ft.int())], `
+        testing list_fold_2
+        func main(a: []Int) -> Int {
+            (sa: Int, sb: Int) = a.fold((sum: () -> (Int, Int), x: Int) -> () -> (Int, Int) {
+                (sa_: Int, sb_: Int) = sum();
+                () -> {(sa_ + x, sb_ + x)}
+            }, () -> {(0, 0)})();
+            (sa + sb)/2
+        }
+        `, ([a], res) => {
+            let la = asIntList(a);
+
+            return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
+        });
+
         await ft.test([ft.list(ft.int(0, 0))], `
         testing list_fold_lazy_0
         func main(a: []Int) -> Int {

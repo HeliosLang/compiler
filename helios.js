@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.12.2
+// Version:       0.12.3
 // Last update:   February 2023
 // License:       Unlicense
 //
@@ -215,7 +215,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.12.2";
+export const VERSION = "0.12.3";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -13733,7 +13733,12 @@ class Instance extends NotType {
 		} else if (type instanceof FuncType) {
 			return new FuncInstance(type);
 		} else if (type instanceof ParamType) {
-			return new DataInstance(type.dataType);
+			const t = type.type;
+			if (t == null) {
+				throw new Error("expected non-null type");
+			} else {
+				return Instance.new(t);
+			}
 		} else if (type instanceof ErrorType) {
 			return new ErrorInstance();
 		} else if (type instanceof VoidType) {
@@ -14617,21 +14622,6 @@ class ParamType extends Type {
 			return this.#type;
 		}
 	}
-
-    /**
-     * @type {DataType}
-     */
-    get dataType() {
-        const t = this.type;
-
-        if (t == null) {
-            throw new Error("expected non-null type");
-        } else if (t instanceof DataType) {
-            return t;
-        } else {
-            throw new Error("expected a dataType");
-        }
-    }
 
 	toString() {
 		if (this.#type === null) {
@@ -23363,7 +23353,7 @@ function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 			throw site.syntaxError("expected type expression after '->'");
 		}
 	} else {
-		if (ts[0].isGroup("(")) {
+		if (ts[0].isGroup("(") && (ts.length == 1 || !ts[1].isSymbol("->"))) {
 			const group = assertDefined(ts.shift()).assertGroup("(");
 
 			if (group.fields.length == 0) {
