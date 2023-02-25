@@ -2160,7 +2160,7 @@ export class UplcPair extends UplcValue {
 */
 export class UplcDataList extends UplcValue {
     /**
-     * Constructs a UplcList without requiring a Site
+     * Constructs a UplcDataList without requiring a Site
      * @param {UplcData[]} items
      */
     static new(items: UplcData[]): UplcDataList;

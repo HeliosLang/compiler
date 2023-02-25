@@ -1712,7 +1712,7 @@ export class UplcDataList extends UplcValue {
 	}
 
 	/**
-	 * Constructs a UplcList without requiring a Site
+	 * Constructs a UplcDataList without requiring a Site
 	 * @param {UplcData[]} items 
 	 */
 	static new(items) {
@@ -1874,7 +1874,7 @@ export class UplcList extends UplcValue {
 	 */
 	typeBits() {
 		// 7 (5) (type bits of content)
-		return ["0111", "0101"].concat(this.#type.typeBits()).join("1");
+		return ["0111", "0101", this.#type.typeBits()].join("1");
 	}
 
 	/**
