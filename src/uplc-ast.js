@@ -1873,8 +1873,7 @@ export class UplcList extends UplcValue {
 	 * @returns {string}
 	 */
 	typeBits() {
-		// 7 (5) (8)
-		// TODO
+		// 7 (5) (type bits of content)
 		return ["0111", "0101"].concat(this.#type.typeBits()).join("1");
 	}
 
