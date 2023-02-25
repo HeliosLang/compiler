@@ -1584,6 +1584,13 @@ export class UplcPair extends UplcValue {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isMapItem() {
+		return this.#first.isData() && this.#second.isData();
+	}
+
+	/**
 	 * @type {UplcValue}
 	 */
 	get first() {
@@ -1595,6 +1602,20 @@ export class UplcPair extends UplcValue {
 	 */
 	get second() {
 		return this.#second;
+	}
+
+	/**
+	 * @type {UplcData}
+	 */
+	get key() {
+		return this.#first.data;
+	}
+
+	/**
+	 * @type {UplcData}
+	 */
+	get value() {
+		return this.#second.data;
 	}
 
 	/**
@@ -1851,8 +1872,22 @@ export class UplcList extends UplcValue {
 	/**
 	 * @returns {boolean}
 	 */
+	isDataList() {
+		return this.#type.isData();
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
 	isList() {
 		return true;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isMap() {
+		return this.#type.isMapItem();
 	}
 
 	/**
@@ -1860,6 +1895,20 @@ export class UplcList extends UplcValue {
 	 */
 	get list() {
 		return this.#items.slice();
+	}
+
+	/**
+	 * @type {UplcData[]}
+	 */
+	get dataList() {
+		return this.#items.map((x) => (x.data));
+	}
+
+	/**
+	 * @type {UplcMapItem[]}
+	 */
+	get map() {
+		return this.#items.map((x) => (new UplcMapItem(this.site, x.key, x.value)));
 	}
 
 	/**
