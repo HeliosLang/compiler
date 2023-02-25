@@ -661,6 +661,7 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	}
 
 	/**
+	 * @param {() => UplcValue} typeReader 
 	 * @returns {UplcValue[]}
 	 */
 	readList(typeReader) {
