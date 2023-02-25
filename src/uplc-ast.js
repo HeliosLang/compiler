@@ -2842,7 +2842,7 @@ export class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
 					rte.calcAndIncrCost(this, a, b, c);
 
-					if ((a.isDataList() || a.isMap())) {
+					if ((a.isDataList() || a.isMap() || a.isList())) {
 						if (a.length == 0) {
 							return b.copy(callSite);
 						} else {
@@ -2872,6 +2872,12 @@ export class UplcBuiltin extends UplcTerm {
 						pairs.unshift(new UplcMapItem(callSite, a.key, a.value));
 
 						return new UplcMap(callSite, pairs);
+					} else if (b.isList()) {
+						// TODO check types recursively
+						let list = b.list;
+						list.unshift(a);
+
+						return new UplcList(callSite, a, list);
 					} else {
 						throw callSite.typeError(`expected list or map for second arg, got '${b.toString()}'`);
 					}
@@ -2891,6 +2897,13 @@ export class UplcBuiltin extends UplcTerm {
 						let lst = a.map;
 						if (lst.length == 0) {
 							throw callSite.runtimeError("empty map");
+						}
+
+						return lst[0].copy(callSite);
+					} else if (a.isList()) {
+						let lst = a.list;
+						if (lst.length == 0) {
+							throw callSite.runtimeError("empty list");
 						}
 
 						return lst[0].copy(callSite);
@@ -2916,6 +2929,13 @@ export class UplcBuiltin extends UplcTerm {
 						}
 
 						return new UplcMap(callSite, lst.slice(1));
+					} else if (a.isList()) {
+						let lst = a.list;
+						if (lst.length == 0) {
+							throw callSite.runtimeError("empty list");
+						}
+
+						return new UplcList(callSite, lst[0], lst.slice(1));
 					} else {
 						throw callSite.typeError(`__core__tail expects list or map, got '${a.toString()}'`);
 					}
@@ -2928,6 +2948,8 @@ export class UplcBuiltin extends UplcTerm {
 						return new UplcBool(callSite, a.dataList.length == 0);
 					} else if (a.isMap()) {
 						return new UplcBool(callSite, a.map.length == 0);
+					} else if (a.isList()) {
+						return new UplcBool(callSite, a.list.length == 0);
 					} else {
 						throw callSite.typeError(`__core__nullList expects list or map, got '${a.toString()}'`);
 					}
