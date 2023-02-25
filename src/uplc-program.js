@@ -68,7 +68,7 @@ import {
     UplcForce,
     UplcInt,
     UplcLambda,
-    UplcList,
+    UplcDataList,
     UplcMap,
     UplcMapItem,
     UplcPair,
@@ -766,7 +766,7 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 				throw new Error("unexpected type tag without type application");
 			case 7:
 				if (eq(typeList, [5, 8])) {
-					return new UplcList(Site.dummy(), this.readDataList());
+					return new UplcDataList(Site.dummy(), this.readDataList());
 				} else if (eq(typeList, [5, 7, 7, 6, 8, 8])) {
 					// map of (data, data)
 					return new UplcMap(Site.dummy(), this.readDataPairList());
@@ -775,7 +775,7 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 					return new UplcMapItem(Site.dummy(), this.readData(), this.readData());
 				} else if (eq(typeList, [7, 6, 0, 7, 5, 8])) {
 					// constr
-					return new UplcPair(Site.dummy(), this.readInteger(true), new UplcList(Site.dummy(), this.readDataList()));
+					return new UplcPair(Site.dummy(), this.readInteger(true), new UplcDataList(Site.dummy(), this.readDataList()));
 				} else {
 					console.log(typeList);
 					throw new Error("unhandled container type")
