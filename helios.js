@@ -77,10 +77,10 @@
 //    Section 10: Uplc AST                   ScriptPurpose, UplcValue, DEFAULT_UPLC_RTE_CALLBACKS, 
 //                                           UplcRte, UplcStack, UplcAnon, UplcDelayedValue, 
 //                                           UplcInt, UplcByteArray, UplcString, UplcUnit, 
-//                                           UplcBool, UplcPair, UplcMapItem, UplcList, UplcMap, 
-//                                           UplcDataValue, UplcTerm, UplcVariable, UplcDelay, 
-//                                           UplcLambda, UplcCall, UplcConst, UplcForce, 
-//                                           UplcError, UplcBuiltin
+//                                           UplcBool, UplcPair, UplcMapItem, UplcDataList, 
+//                                           UplcList, UplcMap, UplcDataValue, UplcTerm, 
+//                                           UplcVariable, UplcDelay, UplcLambda, UplcCall, 
+//                                           UplcConst, UplcForce, UplcError, UplcBuiltin
 //
 //    Section 11: Uplc program               UPLC_VERSION_COMPONENTS, UPLC_VERSION, 
 //                                           PLUTUS_SCRIPT_VERSION, deserializeUplcBytes, 
@@ -8385,6 +8385,14 @@ export class UplcValue {
 	 * Distinguishes a list from a map
 	 * @returns {boolean}
 	 */
+	isDataList() {
+		return false;
+	}
+
+	/**
+	 * Distinguishes a list from a map
+	 * @returns {boolean}
+	 */
 	isList() {
 		return false;
 	}
@@ -8399,6 +8407,13 @@ export class UplcValue {
 
 	/**
 	 * @type {UplcData[]}
+	 */
+	get dataList() {
+		throw this.site.typeError(`expected a Plutus-core list, got '${this.toString()}'`);
+	}
+
+	/**
+	 * @type {UplcValue[]}
 	 */
 	get list() {
 		throw this.site.typeError(`expected a Plutus-core list, got '${this.toString()}'`);
@@ -9840,10 +9855,10 @@ class UplcMapItem extends UplcValue {
 }
 
 /** 
- * Plutus-core list value class.
+ * Plutus-core data list value class.
  * Only used during evaluation.
 */
-export class UplcList extends UplcValue {
+export class UplcDataList extends UplcValue {
 	#items;
 
 	/**
@@ -9860,7 +9875,7 @@ export class UplcList extends UplcValue {
 	 * @param {UplcData[]} items 
 	 */
 	static new(items) {
-		return new UplcList(Site.dummy(), items);
+		return new UplcDataList(Site.dummy(), items);
 	}
 
 	/**
@@ -9887,23 +9902,23 @@ export class UplcList extends UplcValue {
 
 	/**
 	 * @param {Site} newSite
-	 * @returns {UplcList}
+	 * @returns {UplcDataList}
 	 */
 	copy(newSite) {
-		return new UplcList(newSite, this.#items.slice());
+		return new UplcDataList(newSite, this.#items.slice());
 	}
 
 	/**
 	 * @returns {boolean}
 	 */
-	isList() {
+	isDataList() {
 		return true;
 	}
 
 	/**
 	 * @type {UplcData[]}
 	 */
-	get list() {
+	get dataList() {
 		return this.#items.slice();
 	}
 
@@ -9930,6 +9945,106 @@ export class UplcList extends UplcValue {
 			bitWriter.write('1');
 
 			(new UplcDataValue(this.site, item)).toFlatValueInternal(bitWriter);
+		}
+
+		bitWriter.write('0');
+	}
+}
+
+/** 
+ * Plutus-core list value class.
+ * Only used during evaluation.
+*/
+export class UplcList extends UplcValue {
+	#type;
+	#items;
+
+	/**
+	 * @param {Site} site 
+	 * @param {UplcValue} type 
+	 * @param {UplcValue[]} items 
+	 */
+	constructor(site, type, items) {
+		super(site);
+		this.#type = type;
+		this.#items = items;
+	}
+
+	/**
+	 * Constructs a UplcList without requiring a Site
+	 * @param {UplcValue} type 
+	 * @param {UplcValue[]} items 
+	 */
+	static new(type, items) {
+		return new UplcList(Site.dummy(), type, items);
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get length() {
+		return this.#items.length;
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get memSize() {
+		let sum = 0;
+
+		for (let item of this.#items) {
+			sum += item.copy(this.site).memSize;
+		}
+
+		return sum;
+	}
+
+	/**
+	 * @param {Site} newSite
+	 * @returns {UplcList}
+	 */
+	copy(newSite) {
+		return new UplcList(newSite, this.#type, this.#items.slice());
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isList() {
+		return true;
+	}
+
+	/**
+	 * @type {UplcValue[]}
+	 */
+	get list() {
+		return this.#items.slice();
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `[${this.#items.map(item => item.toString()).join(", ")}]`;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	typeBits() {
+		// 7 (5) (8)
+		// TODO
+		return ["0111", "0101"].concat(this.#type.typeBits()).join("1");
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter 
+	 */
+	toFlatValueInternal(bitWriter) {
+		for (let item of this.#items) {
+			bitWriter.write('1');
+
+			item.copy(this.site).toFlatValueInternal(bitWriter);
 		}
 
 		bitWriter.write('0');
@@ -10838,7 +10953,7 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
 					rte.calcAndIncrCost(this, a, b, c);
 
-					if ((a.isList() || a.isMap())) {
+					if ((a.isDataList() || a.isMap())) {
 						if (a.length == 0) {
 							return b.copy(callSite);
 						} else {
@@ -10853,16 +10968,16 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					if (b.isList()) {
+					if (b.isDataList()) {
 						if (!a.isData()) {
 							throw callSite.typeError(`expected data for 2nd arg of mkCons, got ${a.toString()}`);
 						}
 
 						let item = a.data;
-						let lst = b.list;
+						let lst = b.dataList;
 						lst.unshift(item);
 
-						return new UplcList(callSite, lst);
+						return new UplcDataList(callSite, lst);
 					} else if (b.isMap()) {
 						let pairs = b.map;
 						pairs.unshift(new UplcMapItem(callSite, a.key, a.value));
@@ -10876,8 +10991,8 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					if (a.isList()) {
-						let lst = a.list;
+					if (a.isDataList()) {
+						let lst = a.dataList;
 						if (lst.length == 0) {
 							throw callSite.runtimeError("empty list");
 						}
@@ -10898,13 +11013,13 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					if (a.isList()) {
-						let lst = a.list;
+					if (a.isDataList()) {
+						let lst = a.dataList;
 						if (lst.length == 0) {
 							throw callSite.runtimeError("empty list");
 						}
 
-						return new UplcList(callSite, lst.slice(1));
+						return new UplcDataList(callSite, lst.slice(1));
 					} else if (a.isMap()) {
 						let lst = a.map;
 						if (lst.length == 0) {
@@ -10920,8 +11035,8 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					if (a.isList()) {
-						return new UplcBool(callSite, a.list.length == 0);
+					if (a.isDataList()) {
+						return new UplcBool(callSite, a.dataList.length == 0);
 					} else if (a.isMap()) {
 						return new UplcBool(callSite, a.map.length == 0);
 					} else {
@@ -10954,7 +11069,7 @@ class UplcBuiltin extends UplcTerm {
 
 					let i = a.int;
 					assert(i >= 0);
-					let lst = b.list;
+					let lst = b.dataList;
 					return new UplcDataValue(callSite, new ConstrData(Number(i), lst));
 				});
 			case "mapData":
@@ -10969,7 +11084,7 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UplcDataValue(callSite, new ListData(a.list));
+					return new UplcDataValue(callSite, new ListData(a.dataList));
 				});
 			case "iData":
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
@@ -10995,7 +11110,7 @@ class UplcBuiltin extends UplcTerm {
 					if (!(data instanceof ConstrData)) {
 						throw callSite.runtimeError(`unexpected unConstrData argument '${data.toString()}'`);
 					} else {
-						return new UplcPair(callSite, new UplcInt(callSite, BigInt(data.index)), new UplcList(callSite, data.fields));
+						return new UplcPair(callSite, new UplcInt(callSite, BigInt(data.index)), new UplcDataList(callSite, data.fields));
 					}
 				});
 			case "unMapData":
@@ -11025,7 +11140,7 @@ class UplcBuiltin extends UplcTerm {
 					if (!(data instanceof ListData)) {
 						throw callSite.runtimeError(`unexpected unListData argument '${data.toString()}'`);
 					} else {
-						return new UplcList(callSite, data.list);
+						return new UplcDataList(callSite, data.list);
 					}
 				});
 			case "unIData":
@@ -11084,7 +11199,7 @@ class UplcBuiltin extends UplcTerm {
 
 					a.assertUnit();
 
-					return new UplcList(callSite, []);
+					return new UplcDataList(callSite, []);
 				});
 			case "mkNilPairData":
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
@@ -11721,6 +11836,20 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	}
 
 	/**
+	 * @returns {UplcValue[]}
+	 */
+	readList(typeReader) {
+		/** @type {UplcValue[]} */
+		let items = [];
+
+		while (this.readBits(1) == 1) {
+			items.push(typeReader());
+		}
+
+		return items;
+	}
+
+	/**
 	 * Reads a data object
 	 * @returns {UplcData}
 	 */
@@ -11803,47 +11932,100 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	}
 
 	/**
-	 * Reads a single constant (recursive types not yet handled)
+	 * Reads a single constant
 	 * @param {number[]} typeList 
 	 * @returns {UplcValue}
 	 */
 	readTypedValue(typeList) {
+		return this.constructTypeReader(typeList)()
+	}
+
+	/**
+	 * Constructs a sample value recursively
+	 * @param {number[]} typeList 
+	 * @returns {UplcValue}
+	 */
+	constructSampleValue(typeList){
 		let type = assertDefined(typeList.shift());
 
 		assert(type == 7 || typeList.length == 0);
 
 		switch (type) {
 			case 0: // signed Integer
-				return this.readInteger(true);
+				return UplcInt.new(0n);
 			case 1: // bytearray
-				return this.readByteArray();
+				return UplcByteArray.new([]);
 			case 2: // utf8-string
-				return this.readString();
+				return UplcString.new("");
 			case 3:
 				return new UplcUnit(Site.dummy()); // no reading needed
 			case 4: // Bool
-				return new UplcBool(Site.dummy(), this.readBits(1) == 1);
+				return new UplcBool(Site.dummy(), false);
+			case 5:
+			case 6:
+				throw new Error("unexpected type tag without type application");
+			case 7:
+				let containerType = assertDefined(typeList.shift());
+				if (containerType == 5) {
+					return UplcList.new(this.constructSampleValue(typeList), []);
+				}
+				if (containerType == 6) {
+					return UplcPair.new(this.constructSampleValue(typeList), this.constructSampleValue(typeList));
+				}
+			case 8:
+				return new UplcDataValue(Site.dummy(), new UplcData());
+			default:
+				throw new Error(`unhandled constant type ${type.toString()}`);
+		}
+	}
+
+	/**
+	 * Constructs a reader for a single construct recursively
+	 * @param {number[]} typeList 
+	 * @returns {() => UplcValue}
+	 */
+	constructTypeReader(typeList){
+		let type = assertDefined(typeList.shift());
+
+		assert(type == 7 || typeList.length == 0);
+
+		switch (type) {
+			case 0: // signed Integer
+				return () => this.readInteger(true);
+			case 1: // bytearray
+				return () => this.readByteArray();
+			case 2: // utf8-string
+				return () => this.readString();
+			case 3:
+				return () => new UplcUnit(Site.dummy()); // no reading needed
+			case 4: // Bool
+				return () => new UplcBool(Site.dummy(), this.readBits(1) == 1);
 			case 5:
 			case 6:
 				throw new Error("unexpected type tag without type application");
 			case 7:
 				if (eq(typeList, [5, 8])) {
-					return new UplcList(Site.dummy(), this.readDataList());
+					return () => new UplcDataList(Site.dummy(), this.readDataList());
 				} else if (eq(typeList, [5, 7, 7, 6, 8, 8])) {
 					// map of (data, data)
-					return new UplcMap(Site.dummy(), this.readDataPairList());
+					return () => new UplcMap(Site.dummy(), this.readDataPairList());
 				} else if (eq(typeList, [7, 6, 8, 8])) {
 					// pair of (data, data)
-					return new UplcMapItem(Site.dummy(), this.readData(), this.readData());
+					return () => new UplcMapItem(Site.dummy(), this.readData(), this.readData());
 				} else if (eq(typeList, [7, 6, 0, 7, 5, 8])) {
 					// constr
-					return new UplcPair(Site.dummy(), this.readInteger(true), new UplcList(Site.dummy(), this.readDataList()));
+					return () => new UplcPair(Site.dummy(), this.readInteger(true), new UplcDataList(Site.dummy(), this.readDataList()));
 				} else {
-					console.log(typeList);
-					throw new Error("unhandled container type")
+					let containerType = assertDefined(typeList.shift());
+					if (containerType == 5) {
+						return () => new UplcList(Site.dummy(), this.constructSampleValue(typeList.slice()), this.readList(this.constructTypeReader(typeList)));
+					}
+					if (containerType == 6) {
+						return () => new UplcPair(Site.dummy(), this.constructTypeReader(typeList)(), this.constructTypeReader(typeList)())
+					}
 				}
 			case 8:
-				return new UplcDataValue(Site.dummy(), this.readData());
+				return () => new UplcDataValue(Site.dummy(), this.readData());
 			default:
 				throw new Error(`unhandled constant type ${type.toString()}`);
 		}

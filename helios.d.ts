@@ -1846,6 +1846,11 @@ export class UplcValue {
      * Distinguishes a list from a map
      * @returns {boolean}
      */
+    isDataList(): boolean;
+    /**
+     * Distinguishes a list from a map
+     * @returns {boolean}
+     */
     isList(): boolean;
     /**
      * DIstinguishes a map from a list
@@ -1855,7 +1860,11 @@ export class UplcValue {
     /**
      * @type {UplcData[]}
      */
-    get list(): UplcData[];
+    get dataList(): UplcData[];
+    /**
+     * @type {UplcValue[]}
+     */
+    get list(): UplcValue[];
     /**
      * @type {UplcMapItem[]}
      */
@@ -2146,20 +2155,44 @@ export class UplcPair extends UplcValue {
     #private;
 }
 /**
+ * Plutus-core data list value class.
+ * Only used during evaluation.
+*/
+export class UplcDataList extends UplcValue {
+    /**
+     * Constructs a UplcList without requiring a Site
+     * @param {UplcData[]} items
+     */
+    static new(items: UplcData[]): UplcDataList;
+    /**
+     * @param {Site} site
+     * @param {UplcData[]} items
+     */
+    constructor(site: Site, items: UplcData[]);
+    /**
+     * @param {Site} newSite
+     * @returns {UplcDataList}
+     */
+    copy(newSite: Site): UplcDataList;
+    #private;
+}
+/**
  * Plutus-core list value class.
  * Only used during evaluation.
 */
 export class UplcList extends UplcValue {
     /**
      * Constructs a UplcList without requiring a Site
-     * @param {UplcData[]} items
+     * @param {UplcValue} type
+     * @param {UplcValue[]} items
      */
-    static new(items: UplcData[]): UplcList;
+    static new(type: UplcValue, items: UplcValue[]): UplcList;
     /**
      * @param {Site} site
-     * @param {UplcData[]} items
+     * @param {UplcValue} type
+     * @param {UplcValue[]} items
      */
-    constructor(site: Site, items: UplcData[]);
+    constructor(site: Site, type: UplcValue, items: UplcValue[]);
     /**
      * @param {Site} newSite
      * @returns {UplcList}

@@ -68,6 +68,7 @@ import {
     UplcForce,
     UplcInt,
     UplcLambda,
+    UplcList,
     UplcDataList,
     UplcMap,
     UplcMapItem,
@@ -79,7 +80,6 @@ import {
     UplcValue,
     UplcVariable
 } from "./uplc-ast.js";
-import { UplcList } from "../helios.js";
 
 /**
  * This library uses version "1.0.0" of Plutus-core
@@ -667,7 +667,7 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 		let items = [];
 
 		while (this.readBits(1) == 1) {
-			items.push(typeReader);
+			items.push(typeReader());
 		}
 
 		return items;
@@ -842,7 +842,7 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 				} else {
 					let containerType = assertDefined(typeList.shift());
 					if (containerType == 5) {
-						return () => new UplcList(Site.dummy(), this.constructSampleValue(typeList.slice()), this.readList(this.constructTypeReader(typeList))())
+						return () => new UplcList(Site.dummy(), this.constructSampleValue(typeList.slice()), this.readList(this.constructTypeReader(typeList)));
 					}
 					if (containerType == 6) {
 						return () => new UplcPair(Site.dummy(), this.constructTypeReader(typeList)(), this.constructTypeReader(typeList)())

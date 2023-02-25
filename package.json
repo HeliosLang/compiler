@@ -6,10 +6,10 @@
   "main": "helios.js",
   "types": "helios.d.ts",
   "scripts": {
-	"prebuild": "node ./src/index.js && npm install && npx tsc",
+    "prebuild": "node ./src/index.js && npm install && npx tsc",
     "test": "node ./test/index.js",
     "build": "npm test",
-	"pub": "node ./test/check-version.js && aws s3 cp ./helios.js s3://helios-library/$(node ./test/latest-version.js)/ && npm publish ."
+    "pub": "node ./test/check-version.js && aws s3 cp ./helios.js s3://helios-library/$(node ./test/latest-version.js)/ && npm publish ."
   },
   "repository": {
     "type": "git",
@@ -22,17 +22,20 @@
   },
   "homepage": "https://www.hyperion-bt.org/Helios-Book",
   "keywords": [
-	 "blockchain",
-	 "crypto",
-	 "cryptocurrency",
-	 "cardano",
-	 "plutus",
-	 "smart contracts",
-	 "domain specific language",
-	 "dsl",
-	 "compiler",
-	 "transaction builder",
-	 "on-chain",
-	 "off-chain"
-  ]
+    "blockchain",
+    "crypto",
+    "cryptocurrency",
+    "cardano",
+    "plutus",
+    "smart contracts",
+    "domain specific language",
+    "dsl",
+    "compiler",
+    "transaction builder",
+    "on-chain",
+    "off-chain"
+  ],
+  "dependencies": {
+    "typescript": "^4.9.5"
+  }
 }
