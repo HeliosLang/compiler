@@ -74,13 +74,13 @@
 //    Section 9: Uplc built-in functions     UPLC_BUILTINS, dumpCostModels, findUplcBuiltin, 
 //                                           isUplcBuiltin
 //
-//    Section 10: Uplc AST                   ScriptPurpose, UplcValue, DEFAULT_UPLC_RTE_CALLBACKS, 
-//                                           UplcRte, UplcStack, UplcAnon, UplcDelayedValue, 
-//                                           UplcInt, UplcByteArray, UplcString, UplcUnit, 
-//                                           UplcBool, UplcPair, UplcMapItem, UplcDataList, 
-//                                           UplcList, UplcMap, UplcDataValue, UplcTerm, 
-//                                           UplcVariable, UplcDelay, UplcLambda, UplcCall, 
-//                                           UplcConst, UplcForce, UplcError, UplcBuiltin
+//    Section 10: Uplc AST                   ScriptPurpose, getPurposeName, UplcValue, UplcType, 
+//                                           DEFAULT_UPLC_RTE_CALLBACKS, UplcRte, UplcStack, 
+//                                           UplcAnon, UplcDelayedValue, UplcInt, UplcByteArray, 
+//                                           UplcString, UplcUnit, UplcBool, UplcPair, UplcList, 
+//                                           UplcDataValue, UplcTerm, UplcVariable, UplcDelay, 
+//                                           UplcLambda, UplcCall, UplcConst, UplcForce, 
+//                                           UplcError, UplcBuiltin
 //
 //    Section 11: Uplc program               UPLC_VERSION_COMPONENTS, UPLC_VERSION, 
 //                                           PLUTUS_SCRIPT_VERSION, deserializeUplcBytes, 
@@ -497,19 +497,24 @@ function padZeroes(bits, n) {
 }
 
 /**
- * Converts a 8 bit integer number into a bit string with a "0b" prefix.
+ * Converts a 8 bit integer number into a bit string with an optional "0b" prefix.
  * The result is padded with leading zeroes to become 'n' chars long ('2 + n' chars long if you count the "0b" prefix). 
  * @example
  * byteToBitString(7) => "0b00000111"
  * @package
  * @param {number} b 
- * @param {number} n 
+ * @param {number} n
+ * @param {boolean} prefix
  * @returns {string}
  */
-function byteToBitString(b, n = 8) {
+function byteToBitString(b, n = 8, prefix = true) {
 	const s = padZeroes(b.toString(2), n);
 
-	return "0b" + s;
+	if (prefix) {
+		return "0b" + s;
+	} else {
+		return s;
+	}
 }
 
 /**
@@ -8221,7 +8226,7 @@ const ScriptPurpose = {
  * @param {number} id
  * @returns {string}
  */
- function getPurposeName(id) {
+function getPurposeName(id) {
 	switch (id) {
 		case ScriptPurpose.Testing:
 			return "testing";
@@ -8360,36 +8365,6 @@ export class UplcValue {
 	}
 
 	/**
-	 * Distinguishes a mapItem from a pair
-	 * @returns {boolean}
-	 */
-	isMapItem() {
-		return false;
-	}
-
-	/**
-	 * @type {UplcData}
-	 */
-	get key() {
-		throw this.site.typeError(`expected a Plutus-core data-pair, got '${this.toString()}'`);
-	}
-
-	/**
-	 * @type {UplcData}
-	 */
-	get value() {
-		throw this.site.typeError(`expected a Plutus-core data-pair_, got '${this.toString()}'`);
-	}
-
-	/**
-	 * Distinguishes a list from a map
-	 * @returns {boolean}
-	 */
-	isDataList() {
-		return false;
-	}
-
-	/**
 	 * Distinguishes a list from a map
 	 * @returns {boolean}
 	 */
@@ -8398,18 +8373,10 @@ export class UplcValue {
 	}
 
 	/**
-	 * DIstinguishes a map from a list
-	 * @returns {boolean}
+	 * @type {UplcType}
 	 */
-	isMap() {
-		return false;
-	}
-
-	/**
-	 * @type {UplcData[]}
-	 */
-	get dataList() {
-		throw this.site.typeError(`expected a Plutus-core list, got '${this.toString()}'`);
+	get itemType() {
+		throw this.site.typeError("not a list");
 	}
 
 	/**
@@ -8417,13 +8384,6 @@ export class UplcValue {
 	 */
 	get list() {
 		throw this.site.typeError(`expected a Plutus-core list, got '${this.toString()}'`);
-	}
-
-	/**
-	 * @type {UplcMapItem[]}
-	 */
-	get map() {
-		throw this.site.typeError(`expected a Plutus-core map, got '${this.toString()}'`);
 	}
 
     /**
@@ -8490,6 +8450,54 @@ export class UplcValue {
 		bitWriter.write('1' + this.typeBits() + '0');
 		
 		this.toFlatValueInternal(bitWriter);
+	}
+}
+
+export class UplcType {
+	#typeBits;
+
+	/**
+	 * @param {string} typeBits 
+	 */
+	constructor(typeBits) {
+		this.#typeBits = typeBits;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	typeBits() {
+		return this.#typeBits;
+	}
+
+	/**
+	 * @param {UplcValue} value 
+	 * @returns {boolean}
+	 */
+	isSameType(value) {
+		return this.#typeBits == value.typeBits();
+	}
+
+	/**
+	 * @returns {UplcType}
+	 */
+	static newDataType() {
+		return new UplcType("1000");
+	}
+
+	/**
+	 * @returns {UplcType}
+	 */
+	static newDataPairType() {
+		return new UplcType(["0111", "0111", "0110", "1000", "1000"].join("1"));
+	}
+
+	/**
+	 * @param {number[]} lst
+	 * @returns {UplcType}
+	 */
+	static fromNumbers(lst) {
+		return new UplcType(lst.map(x => byteToBitString(x, 4, false)).join("1"));
 	}
 }
 
@@ -9743,13 +9751,6 @@ export class UplcPair extends UplcValue {
 	}
 
 	/**
-	 * @returns {boolean}
-	 */
-	isMapItem() {
-		return this.#first.isData() && this.#second.isData();
-	}
-
-	/**
 	 * @type {UplcValue}
 	 */
 	get first() {
@@ -9794,206 +9795,28 @@ export class UplcPair extends UplcValue {
 	}
 }
 
-/**
- * Plutus-core pair value class that only contains data
- * Only used during evaluation.
- * @package
- */
-class UplcMapItem extends UplcValue {
-	#key;
-	#value;
-
-	/**
-	 * @param {Site} site 
-	 * @param {UplcData} key 
-	 * @param {UplcData} value 
-	 */
-	constructor(site, key, value) {
-		super(site);
-		this.#key = key;
-		this.#value = value;
-	}
-
-	/**
-	 * @type {number}
-	 */
-	get memSize() {
-		return (new UplcDataValue(this.site, this.#key)).memSize + 
-			(new UplcDataValue(this.site, this.#value)).memSize;
-	}
-
-	/**
-	 * @param {Site} newSite 
-	 * @returns {UplcMapItem}
-	 */
-	copy(newSite) {
-		return new UplcMapItem(newSite, this.#key, this.#value);
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `(${this.#key.toString()}: ${this.#value.toString()})`;
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isMapItem() {
-		return true;
-	}
-
-	/**
-	 * @type {UplcData}
-	 */
-	get key() {
-		return this.#key;
-	}
-
-	/**
-	 * @type {UplcData}
-	 */
-	get value() {
-		return this.#value;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	typeBits() {
-		// 7 (7 (6) (8)) (8)
-		return ["0111", "0111", "0110", "1000", "1000"].join("1");
-	}
-
-	/**
-	 * @param {BitWriter} bitWriter
-	 */
-	toFlatValueInternal(bitWriter) {
-		(new UplcDataValue(this.site, this.#key)).toFlatValueInternal(bitWriter);
-		(new UplcDataValue(this.site, this.#value)).toFlatValueInternal(bitWriter);
-	}
-}
-
-/** 
- * Plutus-core data list value class.
- * Only used during evaluation.
-*/
-export class UplcDataList extends UplcValue {
-	#items;
-
-	/**
-	 * @param {Site} site 
-	 * @param {UplcData[]} items 
-	 */
-	constructor(site, items) {
-		super(site);
-		this.#items = items;
-	}
-
-	/**
-	 * Constructs a UplcDataList without requiring a Site
-	 * @param {UplcData[]} items 
-	 */
-	static new(items) {
-		return new UplcDataList(Site.dummy(), items);
-	}
-
-	/**
-	 * @type {number}
-	 */
-	get length() {
-		return this.#items.length;
-	}
-
-	/**
-	 * @type {number}
-	 */
-	get memSize() {
-		let sum = 0;
-
-		for (let item of this.#items) {
-			let data = new UplcDataValue(this.site, item);
-
-			sum += data.memSize;
-		}
-
-		return sum;
-	}
-
-	/**
-	 * @param {Site} newSite
-	 * @returns {UplcDataList}
-	 */
-	copy(newSite) {
-		return new UplcDataList(newSite, this.#items.slice());
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isDataList() {
-		return true;
-	}
-
-	/**
-	 * @type {UplcData[]}
-	 */
-	get dataList() {
-		return this.#items.slice();
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `[${this.#items.map(item => item.toString()).join(", ")}]`;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	typeBits() {
-		// 7 (5) (8)
-		return ["0111", "0101", "1000"].join("1");
-	}
-
-	/**
-	 * @param {BitWriter} bitWriter 
-	 */
-	toFlatValueInternal(bitWriter) {
-		for (let item of this.#items) {
-			bitWriter.write('1');
-
-			(new UplcDataValue(this.site, item)).toFlatValueInternal(bitWriter);
-		}
-
-		bitWriter.write('0');
-	}
-}
-
 /** 
  * Plutus-core list value class.
  * Only used during evaluation.
 */
 export class UplcList extends UplcValue {
-	#type;
+	#itemType;
 	#items;
 
 	/**
 	 * @param {Site} site 
-	 * @param {UplcValue} type 
+	 * @param {UplcType} itemType 
 	 * @param {UplcValue[]} items 
 	 */
-	constructor(site, type, items) {
+	constructor(site, itemType, items) {
 		super(site);
-		this.#type = type;
+		this.#itemType = itemType;
 		this.#items = items;
 	}
 
 	/**
 	 * Constructs a UplcList without requiring a Site
-	 * @param {UplcValue} type 
+	 * @param {UplcType} type 
 	 * @param {UplcValue[]} items 
 	 */
 	static new(type, items) {
@@ -10020,19 +9843,16 @@ export class UplcList extends UplcValue {
 		return sum;
 	}
 
+	get itemType() {
+		return this.#itemType;
+	}
+
 	/**
 	 * @param {Site} newSite
 	 * @returns {UplcList}
 	 */
 	copy(newSite) {
-		return new UplcList(newSite, this.#type, this.#items.slice());
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isDataList() {
-		return this.#type.isData();
+		return new UplcList(newSite, this.#itemType, this.#items.slice());
 	}
 
 	/**
@@ -10043,31 +9863,10 @@ export class UplcList extends UplcValue {
 	}
 
 	/**
-	 * @returns {boolean}
-	 */
-	isMap() {
-		return this.#type.isMapItem();
-	}
-
-	/**
 	 * @type {UplcValue[]}
 	 */
 	get list() {
 		return this.#items.slice();
-	}
-
-	/**
-	 * @type {UplcData[]}
-	 */
-	get dataList() {
-		return this.#items.map((x) => (x.data));
-	}
-
-	/**
-	 * @type {UplcMapItem[]}
-	 */
-	get map() {
-		return this.#items.map((x) => (new UplcMapItem(this.site, x.key, x.value)));
 	}
 
 	/**
@@ -10082,7 +9881,7 @@ export class UplcList extends UplcValue {
 	 */
 	typeBits() {
 		// 7 (5) (type bits of content)
-		return ["0111", "0101", this.#type.typeBits()].join("1");
+		return ["0111", "0101", this.#itemType.typeBits()].join("1");
 	}
 
 	/**
@@ -10093,106 +9892,6 @@ export class UplcList extends UplcValue {
 			bitWriter.write('1');
 
 			item.copy(this.site).toFlatValueInternal(bitWriter);
-		}
-
-		bitWriter.write('0');
-	}
-}
-
-/**
- * Plutus-core map value class.
- * Only used during evaluation.
- */
-export class UplcMap extends UplcValue {
-	#pairs;
-
-	/**
-	 * @param {Site} site 
-	 * @param {UplcMapItem[]} pairs 
-	 */
-	constructor(site, pairs) {
-		super(site);
-		this.#pairs = pairs;
-	}
-
-	/**
-	 * Constructs a UplcMap without requiring a Site
-	 * @param {[UplcData, UplcData][]} pairs 
-	 * @returns {UplcMap}
-	 */
-	static new(pairs) {
-		const site = Site.dummy();
-
-		return new UplcMap(site, pairs.map(([key, val]) => new UplcMapItem(site, key, val)));
-	}
-
-	/**
-	 * @type {number}
-	 */
-	get length() {
-		return this.#pairs.length;
-	}
-
-	/**
-	 * @type {number}
-	 */
-	get memSize() {
-		let sum = 0;
-
-		for (let pair of this.#pairs) {
-
-			sum += pair.memSize;
-		}
-
-		return sum;
-	}
-
-	/**
-	 * @param {Site} newSite 
-	 * @returns {UplcMap}
-	 */
-	copy(newSite) {
-		return new UplcMap(newSite, this.#pairs.slice());
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isMap() {
-		return true;
-	}
-
-	/**
-	 * @type {UplcMapItem[]}
-	 */
-	get map() {
-		return this.#pairs.slice();
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `{${this.#pairs.map((pair) => `${pair.key.toString()}: ${pair.value.toString()}`).join(", ")}}`;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	typeBits() {
-		// 7 (5) (7 (7 (6) (8)) (8))
-		return ["0111", "0101", "0111", "0111", "0110", "1000", "1000"].join("1");
-	}
-
-	/**
-	 * @param {BitWriter} bitWriter 
-	 */
-	toFlatValueInternal(bitWriter) {
-
-		for (let pair of this.#pairs) {
-			bitWriter.write('1');
-
-			pair.toFlatValueInternal(bitWriter);
 		}
 
 		bitWriter.write('0');
@@ -10255,7 +9954,7 @@ export class UplcDataValue extends UplcValue {
 	 * @returns {string}
 	 */
 	typeBits() {
-		return '1000';
+		return UplcType.newDataType().typeBits();
 	}
 
 	/**
@@ -10979,8 +10678,6 @@ class UplcBuiltin extends UplcTerm {
 
 					if (a.isPair()) {
 						return a.first.copy(callSite);
-					} else if (a.isMapItem()) {
-						return new UplcDataValue(callSite, a.key);
 					} else {
 						throw callSite.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
 					}
@@ -10991,8 +10688,6 @@ class UplcBuiltin extends UplcTerm {
 
 					if (a.isPair()) {
 						return a.second.copy(callSite);
-					} else if (a.isMapItem()) {
-						return new UplcDataValue(callSite, a.value);
 					} else {
 						throw callSite.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
 					}
@@ -11001,7 +10696,7 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
 					rte.calcAndIncrCost(this, a, b, c);
 
-					if ((a.isDataList() || a.isMap() || a.isList())) {
+					if (a.isList()) {
 						if (a.length == 0) {
 							return b.copy(callSite);
 						} else {
@@ -11016,27 +10711,15 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					if (b.isDataList()) {
-						if (!a.isData()) {
-							throw callSite.typeError(`expected data for 2nd arg of mkCons, got ${a.toString()}`);
+					if (b.isList()) {
+						if (!b.itemType.isSameType(a)) {
+							throw callSite.typeError(`wrong type for 2nd arg of mkCons`);
 						}
 
-						let item = a.data;
-						let lst = b.dataList;
-						lst.unshift(item);
+						let lst = b.list;
+						lst.unshift(a);
 
-						return new UplcDataList(callSite, lst);
-					} else if (b.isMap()) {
-						let pairs = b.map;
-						pairs.unshift(new UplcMapItem(callSite, a.key, a.value));
-
-						return new UplcMap(callSite, pairs);
-					} else if (b.isList()) {
-						// TODO check types recursively
-						let list = b.list;
-						list.unshift(a);
-
-						return new UplcList(callSite, a, list);
+						return new UplcList(callSite, b.itemType, lst);
 					} else {
 						throw callSite.typeError(`expected list or map for second arg, got '${b.toString()}'`);
 					}
@@ -11045,22 +10728,8 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					if (a.isDataList()) {
-						let lst = a.dataList;
-						if (lst.length == 0) {
-							throw callSite.runtimeError("empty list");
-						}
-
-						return new UplcDataValue(callSite, lst[0]);
-					} else if (a.isMap()) {
-						let lst = a.map;
-						if (lst.length == 0) {
-							throw callSite.runtimeError("empty map");
-						}
-
-						return lst[0].copy(callSite);
-					} else if (a.isList()) {
-						let lst = a.list;
+					if (a.isList()) {
+						const lst = a.list;
 						if (lst.length == 0) {
 							throw callSite.runtimeError("empty list");
 						}
@@ -11074,27 +10743,13 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					if (a.isDataList()) {
-						let lst = a.dataList;
-						if (lst.length == 0) {
-							throw callSite.runtimeError("empty list");
-						}
-
-						return new UplcDataList(callSite, lst.slice(1));
-					} else if (a.isMap()) {
-						let lst = a.map;
-						if (lst.length == 0) {
-							throw callSite.runtimeError("empty map");
-						}
-
-						return new UplcMap(callSite, lst.slice(1));
-					} else if (a.isList()) {
+					if (a.isList()) {
 						let lst = a.list;
 						if (lst.length == 0) {
 							throw callSite.runtimeError("empty list");
 						}
 
-						return new UplcList(callSite, lst[0], lst.slice(1));
+						return new UplcList(callSite, a.itemType, lst.slice(1));
 					} else {
 						throw callSite.typeError(`__core__tail expects list or map, got '${a.toString()}'`);
 					}
@@ -11103,11 +10758,7 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					if (a.isDataList()) {
-						return new UplcBool(callSite, a.dataList.length == 0);
-					} else if (a.isMap()) {
-						return new UplcBool(callSite, a.map.length == 0);
-					} else if (a.isList()) {
+					if (a.isList()) {
 						return new UplcBool(callSite, a.list.length == 0);
 					} else {
 						throw callSite.typeError(`__core__nullList expects list or map, got '${a.toString()}'`);
@@ -11137,24 +10788,26 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					let i = a.int;
+					const i = a.int;
 					assert(i >= 0);
-					let lst = b.dataList;
-					return new UplcDataValue(callSite, new ConstrData(Number(i), lst));
+
+					const lst = b.list;
+
+					return new UplcDataValue(callSite, new ConstrData(Number(i), lst.map(item => item.data)));
 				});
 			case "mapData":
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UplcDataValue(callSite, new MapData(a.map.map(pair => {
-						return [pair.key, pair.value];
+					return new UplcDataValue(callSite, new MapData(a.list.map(pair => {
+						return [pair.first.data, pair.second.data];
 					})));
 				});
 			case "listData":
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
 					rte.calcAndIncrCost(this, a);
 
-					return new UplcDataValue(callSite, new ListData(a.dataList));
+					return new UplcDataValue(callSite, new ListData(a.list.map(item => item.data)));
 				});
 			case "iData":
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
@@ -11180,7 +10833,7 @@ class UplcBuiltin extends UplcTerm {
 					if (!(data instanceof ConstrData)) {
 						throw callSite.runtimeError(`unexpected unConstrData argument '${data.toString()}'`);
 					} else {
-						return new UplcPair(callSite, new UplcInt(callSite, BigInt(data.index)), new UplcDataList(callSite, data.fields));
+						return new UplcPair(callSite, new UplcInt(callSite, BigInt(data.index)), new UplcList(callSite, UplcType.newDataType(), data.fields.map(f => new UplcDataValue(callSite, f))));
 					}
 				});
 			case "unMapData":
@@ -11195,7 +10848,7 @@ class UplcBuiltin extends UplcTerm {
 					if (!(data instanceof MapData)) {
 						throw callSite.runtimeError(`unexpected unMapData argument '${data.toString()}'`);
 					} else {
-						return new UplcMap(callSite, data.map.map(([fst, snd]) => new UplcMapItem(callSite, fst, snd)));
+						return new UplcList(callSite, UplcType.newDataPairType(), data.map.map(([fst, snd]) => new UplcPair(callSite, new UplcDataValue(callSite, fst), new UplcDataValue(callSite, snd))));
 					}
 				});
 			case "unListData":
@@ -11210,7 +10863,7 @@ class UplcBuiltin extends UplcTerm {
 					if (!(data instanceof ListData)) {
 						throw callSite.runtimeError(`unexpected unListData argument '${data.toString()}'`);
 					} else {
-						return new UplcDataList(callSite, data.list);
+						return new UplcList(callSite, UplcType.newDataType(), data.list.map(item => new UplcDataValue(callSite, item)));
 					}
 				});
 			case "unIData":
@@ -11261,7 +10914,7 @@ class UplcBuiltin extends UplcTerm {
 				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
 					rte.calcAndIncrCost(this, a, b);
 
-					return new UplcMapItem(callSite, a.data, b.data);
+					return new UplcPair(callSite, new UplcDataValue(callSite, a.data), new UplcDataValue(callSite, b.data));
 				});
 			case "mkNilData":
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
@@ -11269,7 +10922,7 @@ class UplcBuiltin extends UplcTerm {
 
 					a.assertUnit();
 
-					return new UplcDataList(callSite, []);
+					return new UplcList(callSite, UplcType.newDataType(), []);
 				});
 			case "mkNilPairData":
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
@@ -11277,7 +10930,7 @@ class UplcBuiltin extends UplcTerm {
 
 					a.assertUnit();
 
-					return new UplcMap(callSite, []);
+					return new UplcList(callSite, UplcType.newDataPairType(), []);
 				});
 			case "serialiseData":
 				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
@@ -11906,15 +11559,15 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	}
 
 	/**
-	 * @param {() => UplcValue} typeReader 
+	 * @param {() => UplcValue} typedReader 
 	 * @returns {UplcValue[]}
 	 */
-	readList(typeReader) {
+	readList(typedReader) {
 		/** @type {UplcValue[]} */
 		let items = [];
 
 		while (this.readBits(1) == 1) {
-			items.push(typeReader());
+			items.push(typedReader());
 		}
 
 		return items;
@@ -11928,35 +11581,6 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 		let bytes = this.readBytes();
 
 		return UplcData.fromCbor(bytes);
-	}
-
-	/**
-	 * @returns {UplcData[]}
-	 */
-	readDataList() {
-		/** @type {UplcData[]} */
-		let items = [];
-
-		while (this.readBits(1) == 1) {
-			items.push(this.readData());
-		}
-
-		return items;
-	}
-
-	/**
-	 * @returns {UplcMapItem[]}
-	 */
-	readDataPairList() {
-		/** @type {UplcMapItem[]} */
-		let pairs = [];
-
-		while (this.readBits(1) == 1) {
-			pairs.push(new UplcMapItem(Site.dummy(), this.readData(), this.readData()));
-		}
-
-
-		return pairs;
 	}
 
 	/**
@@ -12008,50 +11632,11 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 * @returns {UplcValue}
 	 */
 	readTypedValue(typeList) {
-		const typeReader = this.constructTypeReader(typeList);
+		const typedReader = this.constructTypedReader(typeList);
+
 		assertEq(typeList.length, 0, "Did not consume all type parameters");
-		return typeReader();
-	}
 
-	/**
-	 * Constructs a sample value recursively
-	 * @param {number[]} typeList 
-	 * NOTE: the implicit assumption is that this functions modifies the typeList
-	 * by removing all elements that it "consumed" to define a type
-	 * @returns {UplcValue}
-	 */
-	constructSampleValue(typeList){
-		let type = assertDefined(typeList.shift());
-
-		switch (type) {
-			case 0: // signed Integer
-				return UplcInt.new(0n);
-			case 1: // bytearray
-				return UplcByteArray.new([]);
-			case 2: // utf8-string
-				return UplcString.new("");
-			case 3:
-				return new UplcUnit(Site.dummy()); // no reading needed
-			case 4: // Bool
-				return new UplcBool(Site.dummy(), false);
-			case 5:
-			case 6:
-				throw new Error("unexpected type tag without type application");
-			case 7:
-				let containerType = assertDefined(typeList.shift());
-				if (eq(containerType,5)) {
-					return UplcList.new(this.constructSampleValue(typeList), []);
-				}
-				assertEq(containerType, 7, "Unexpected type tag");
-				containerType = assertDefined(typeList.shift());
-				if (eq(containerType,6)) {
-					return UplcPair.new(this.constructSampleValue(typeList), this.constructSampleValue(typeList));
-				}
-			case 8:
-				return new UplcDataValue(Site.dummy(), new UplcData());
-			default:
-				throw new Error(`unhandled constant type ${type.toString()}`);
-		}
+		return typedReader();
 	}
 
 	/**
@@ -12061,8 +11646,8 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 * by removing all elements that it "consumed" to define a type
 	 * @returns {() => UplcValue}
 	 */
-	constructTypeReader(typeList){
-		let type = assertDefined(typeList.shift());
+	constructTypedReader(typeList){
+		const type = assertDefined(typeList.shift());
 
 		switch (type) {
 			case 0: // signed Integer
@@ -12079,38 +11664,18 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 			case 6:
 				throw new Error("unexpected type tag without type application");
 			case 7:
-				if (eq(typeList, [5, 8])) {
-					// consume parameters
-					[5, 8].map(() => typeList.shift());
-					return () => new UplcDataList(Site.dummy(), this.readDataList());
-				} else if (eq(typeList, [5, 7, 7, 6, 8, 8])) {
-					// consume parameters
-					[5, 7, 7, 6, 8, 8].map(() => typeList.shift());
-					// map of (data, data)
-					return () => new UplcMap(Site.dummy(), this.readDataPairList());
-				} else if (eq(typeList, [7, 6, 8, 8])) {
-					// consume parameters
-					[7, 6, 8, 8].map(() => typeList.shift());
-					// pair of (data, data)
-					return () => new UplcMapItem(Site.dummy(), this.readData(), this.readData());
-				} else if (eq(typeList, [7, 6, 0, 7, 5, 8])) {
-					// consume parameters
-					[7, 6, 0, 7, 5, 8].map(() => typeList.shift());
-					// constr
-					return () => new UplcPair(Site.dummy(), this.readInteger(true), new UplcDataList(Site.dummy(), this.readDataList()));
+				let containerType = assertDefined(typeList.shift());
+				if (containerType == 5) {
+					const typeReader = this.constructTypedReader(typeList);
+
+					return () => new UplcList(Site.dummy(), UplcType.fromNumbers(typeList), this.readList(typeReader));
 				} else {
-					let containerType = assertDefined(typeList.shift());
-					if (eq(containerType, 5)) {
-						const sampleValue = this.constructSampleValue(typeList.slice());
-						const typeReader = this.constructTypeReader(typeList);
-						return () => new UplcList(Site.dummy(), sampleValue, this.readList(typeReader));
-					}
 					assertEq(containerType, 7, "Unexpected type tag");
 					containerType = assertDefined(typeList.shift());
-					if (eq(containerType,6)) {
-						const typeReaderLeft = this.constructTypeReader(typeList);
-						const typeReaderRight = this.constructTypeReader(typeList);
-						return () => new UplcPair(Site.dummy(), typeReaderLeft(), typeReaderRight())
+					if (containerType == 6) {
+						const leftReader = this.constructTypedReader(typeList);
+						const rightReader = this.constructTypedReader(typeList);
+						return () => new UplcPair(Site.dummy(), leftReader(), rightReader())
 					}
 				}
 			case 8:
@@ -30060,14 +29625,10 @@ class IRUserCallExpr extends IRCallExpr {
 					case "__helios__common__concat": {
 							// check if either 1st or 2nd arg is the empty list
 							const [a, b] = args;
-							if (a instanceof IRLiteralExpr && a.value instanceof UplcList && a.value.list.length == 0) {
-								return b;
-							} else if (a instanceof IRLiteralExpr && a.value instanceof UplcMap && a.value.map.length == 0) {
+							if (a instanceof IRLiteralExpr && a.value instanceof UplcList && a.value.length == 0) {
 								return b;
 							} else {
-								if (b instanceof IRLiteralExpr && b.value instanceof UplcList && b.value.list.length == 0) {
-									return a;
-								} else if (b instanceof IRLiteralExpr && b.value instanceof UplcMap && b.value.map.length == 0) {
+								if (b instanceof IRLiteralExpr && b.value instanceof UplcList && b.value.length == 0) {
 									return a;
 								}
 							}

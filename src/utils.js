@@ -244,19 +244,24 @@ export function padZeroes(bits, n) {
 }
 
 /**
- * Converts a 8 bit integer number into a bit string with a "0b" prefix.
+ * Converts a 8 bit integer number into a bit string with an optional "0b" prefix.
  * The result is padded with leading zeroes to become 'n' chars long ('2 + n' chars long if you count the "0b" prefix). 
  * @example
  * byteToBitString(7) => "0b00000111"
  * @package
  * @param {number} b 
- * @param {number} n 
+ * @param {number} n
+ * @param {boolean} prefix
  * @returns {string}
  */
-export function byteToBitString(b, n = 8) {
+export function byteToBitString(b, n = 8, prefix = true) {
 	const s = padZeroes(b.toString(2), n);
 
-	return "0b" + s;
+	if (prefix) {
+		return "0b" + s;
+	} else {
+		return s;
+	}
 }
 
 /**

@@ -2019,7 +2019,7 @@ async function testBuiltins() {
         }
         `, ([a], res) => {
             if (a.data.map.length == 0) {
-                return isError(res, "empty map");
+                return isError(res, "empty list");
             } else {
                 return asInt(res) === asInt(a.data.map[0][0]);
             }
@@ -2032,7 +2032,7 @@ async function testBuiltins() {
         }
         `, ([a], res) => {
             if (a.data.map.length == 0) {
-                return isError(res, "empty map");
+                return isError(res, "empty list");
             } else {
                 return asInt(res) === asInt(a.data.map[0][0]);
             }
@@ -2045,7 +2045,7 @@ async function testBuiltins() {
         }
         `, ([a], res) => {
             if (a.data.map.length == 0) {
-                return isError(res, "empty map");
+                return isError(res, "empty list");
             } else {
                 return asInt(res) === asInt(a.data.map[0][1]);
             }
@@ -2058,7 +2058,7 @@ async function testBuiltins() {
         }
         `, ([a], res) => {
             if (a.data.map.length == 0) {
-                return isError(res, "empty map");
+                return isError(res, "empty list");
             } else {
                 return asInt(res) === asInt(a.data.map[0][1]);
             }
@@ -2076,7 +2076,7 @@ async function testBuiltins() {
             a.tail
         }`, ([a], res) => {
             if (a.data.map.length == 0) {
-                return isError(res, "empty map");
+                return isError(res, "empty list");
             } else {
                 let la = a.data.map.slice(1);
                 let lRes = asData(res).map.slice();
@@ -2526,7 +2526,7 @@ async function testBuiltins() {
         }
         `, ([a], res) => {
             if (a.data.map.length == 0) {
-                return isError(res, "empty map");
+                return isError(res, "empty list");
             } else {
                 return asInt(res) === asInt(a.data.map[0][0]);
             }
@@ -2539,7 +2539,7 @@ async function testBuiltins() {
         }
         `, ([a], res) => {
             if (a.data.map.length == 0) {
-                return isError(res, "empty map");
+                return isError(res, "empty list");
             } else {
                 return asInt(res) === asInt(a.data.map[0][0]);
             }
@@ -2552,7 +2552,7 @@ async function testBuiltins() {
         }
         `, ([a], res) => {
             if (a.data.map.length == 0) {
-                return isError(res, "empty map");
+                return isError(res, "empty list");
             } else {
                 return asBool(res) === asBool(a.data.map[0][1]);
             }
@@ -2565,7 +2565,7 @@ async function testBuiltins() {
         }
         `, ([a], res) => {
             if (a.data.map.length == 0) {
-                return isError(res, "empty map");
+                return isError(res, "empty list");
             } else {
                 return asBool(res) === asBool(a.data.map[0][1]);
             }
@@ -2583,7 +2583,7 @@ async function testBuiltins() {
             a.tail
         }`, ([a], res) => {
             if (a.data.map.length == 0) {
-                return isError(res, "empty map");
+                return isError(res, "empty list");
             } else {
                 let la = a.data.map.slice(1);
                 let lRes = asData(res).map.slice();

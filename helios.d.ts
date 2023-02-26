@@ -1830,45 +1830,18 @@ export class UplcValue {
      */
     get second(): UplcValue;
     /**
-     * Distinguishes a mapItem from a pair
-     * @returns {boolean}
-     */
-    isMapItem(): boolean;
-    /**
-     * @type {UplcData}
-     */
-    get key(): UplcData;
-    /**
-     * @type {UplcData}
-     */
-    get value(): UplcData;
-    /**
-     * Distinguishes a list from a map
-     * @returns {boolean}
-     */
-    isDataList(): boolean;
-    /**
      * Distinguishes a list from a map
      * @returns {boolean}
      */
     isList(): boolean;
     /**
-     * DIstinguishes a map from a list
-     * @returns {boolean}
+     * @type {UplcType}
      */
-    isMap(): boolean;
-    /**
-     * @type {UplcData[]}
-     */
-    get dataList(): UplcData[];
+    get itemType(): UplcType;
     /**
      * @type {UplcValue[]}
      */
     get list(): UplcValue[];
-    /**
-     * @type {UplcMapItem[]}
-     */
-    get map(): UplcMapItem[];
     /**
      * @returns {boolean}
      */
@@ -1909,6 +1882,35 @@ export class UplcValue {
      * @param {BitWriter} bitWriter
      */
     toFlatValue(bitWriter: BitWriter): void;
+    #private;
+}
+export class UplcType {
+    /**
+     * @returns {UplcType}
+     */
+    static newDataType(): UplcType;
+    /**
+     * @returns {UplcType}
+     */
+    static newDataPairType(): UplcType;
+    /**
+     * @param {number[]} lst
+     * @returns {UplcType}
+     */
+    static fromNumbers(lst: number[]): UplcType;
+    /**
+     * @param {string} typeBits
+     */
+    constructor(typeBits: string);
+    /**
+     * @returns {string}
+     */
+    typeBits(): string;
+    /**
+     * @param {UplcValue} value
+     * @returns {boolean}
+     */
+    isSameType(value: UplcValue): boolean;
     #private;
 }
 /**
@@ -2152,28 +2154,14 @@ export class UplcPair extends UplcValue {
      * @returns {UplcPair}
      */
     copy(newSite: Site): UplcPair;
-    #private;
-}
-/**
- * Plutus-core data list value class.
- * Only used during evaluation.
-*/
-export class UplcDataList extends UplcValue {
     /**
-     * Constructs a UplcDataList without requiring a Site
-     * @param {UplcData[]} items
+     * @type {UplcData}
      */
-    static new(items: UplcData[]): UplcDataList;
+    get key(): UplcData;
     /**
-     * @param {Site} site
-     * @param {UplcData[]} items
+     * @type {UplcData}
      */
-    constructor(site: Site, items: UplcData[]);
-    /**
-     * @param {Site} newSite
-     * @returns {UplcDataList}
-     */
-    copy(newSite: Site): UplcDataList;
+    get value(): UplcData;
     #private;
 }
 /**
@@ -2183,44 +2171,21 @@ export class UplcDataList extends UplcValue {
 export class UplcList extends UplcValue {
     /**
      * Constructs a UplcList without requiring a Site
-     * @param {UplcValue} type
+     * @param {UplcType} type
      * @param {UplcValue[]} items
      */
-    static new(type: UplcValue, items: UplcValue[]): UplcList;
+    static new(type: UplcType, items: UplcValue[]): UplcList;
     /**
      * @param {Site} site
-     * @param {UplcValue} type
+     * @param {UplcType} itemType
      * @param {UplcValue[]} items
      */
-    constructor(site: Site, type: UplcValue, items: UplcValue[]);
+    constructor(site: Site, itemType: UplcType, items: UplcValue[]);
     /**
      * @param {Site} newSite
      * @returns {UplcList}
      */
     copy(newSite: Site): UplcList;
-    #private;
-}
-/**
- * Plutus-core map value class.
- * Only used during evaluation.
- */
-export class UplcMap extends UplcValue {
-    /**
-     * Constructs a UplcMap without requiring a Site
-     * @param {[UplcData, UplcData][]} pairs
-     * @returns {UplcMap}
-     */
-    static new(pairs: [UplcData, UplcData][]): UplcMap;
-    /**
-     * @param {Site} site
-     * @param {UplcMapItem[]} pairs
-     */
-    constructor(site: Site, pairs: UplcMapItem[]);
-    /**
-     * @param {Site} newSite
-     * @returns {UplcMap}
-     */
-    copy(newSite: Site): UplcMap;
     #private;
 }
 /**
@@ -4378,25 +4343,6 @@ declare class UplcStack {
      * @returns {UplcRawStack}
     */
     toList(): import("./helios").UplcRawStack;
-    #private;
-}
-/**
- * Plutus-core pair value class that only contains data
- * Only used during evaluation.
- * @package
- */
-declare class UplcMapItem extends UplcValue {
-    /**
-     * @param {Site} site
-     * @param {UplcData} key
-     * @param {UplcData} value
-     */
-    constructor(site: Site, key: UplcData, value: UplcData);
-    /**
-     * @param {Site} newSite
-     * @returns {UplcMapItem}
-     */
-    copy(newSite: Site): UplcMapItem;
     #private;
 }
 /**

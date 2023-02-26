@@ -34,7 +34,6 @@ import {
     UplcInt,
     UplcLambda,
     UplcList,
-    UplcMap,
     UplcString,
     UplcTerm,
     UplcValue,
@@ -1419,14 +1418,10 @@ export class IRUserCallExpr extends IRCallExpr {
 					case "__helios__common__concat": {
 							// check if either 1st or 2nd arg is the empty list
 							const [a, b] = args;
-							if (a instanceof IRLiteralExpr && a.value instanceof UplcList && a.value.list.length == 0) {
-								return b;
-							} else if (a instanceof IRLiteralExpr && a.value instanceof UplcMap && a.value.map.length == 0) {
+							if (a instanceof IRLiteralExpr && a.value instanceof UplcList && a.value.length == 0) {
 								return b;
 							} else {
-								if (b instanceof IRLiteralExpr && b.value instanceof UplcList && b.value.list.length == 0) {
-									return a;
-								} else if (b instanceof IRLiteralExpr && b.value instanceof UplcMap && b.value.map.length == 0) {
+								if (b instanceof IRLiteralExpr && b.value instanceof UplcList && b.value.length == 0) {
 									return a;
 								}
 							}
