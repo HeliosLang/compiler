@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 //@ts-check
 import * as helios from "../helios.js";
+import { assertEq } from "../src/utils.js";
 import { runIfEntryPoint } from "./util.js";
 
 // CONST_1. Equivalent to text envelope of following bytes: [0b00001011, 0b00010110, 0b00100001, 0b01001000, 0b00000101, 0b10000001]
-const CONST_1         = "4e4d0b1621480581" 
+const CONST_1         = "47460b1621480581" 
 const ALWAYS_FAILS    = "581e581c01000033223232222350040071235002353003001498498480048005";
 const ALWAYS_SUCCEEDS = "4e4d01000033222220051200120011";
 const HELLO_WORLD     = "585e585c01000033322232323233223232322223335300c333500b00a0033004120012009235007009008230024830af38f1ab664908dd3800891a8021a9801000a4c24002400224c44666ae54cdd70010008030028900089100109100090009";
@@ -26,9 +27,17 @@ const SWAP = "59043159042e01000032323232323232323232323232323222233335734646666a
 function testCbor(name, cborHex) {
 	console.log("Deserializing program " + name + "...");
 
-	let program = helios.deserializeUplc(`{"type": "PlutusScriptV1", "cborHex": "${cborHex}"}`);
+	let program = helios.deserializeUplc(`{"type": "PlutusScriptV2", "cborHex": "${cborHex}"}`);
 
 	console.log(program.toString() + "\n");
+
+	let seralizedCborHex = JSON.parse(program.serialize()).cborHex;
+
+	assertEq(
+		cborHex,
+		seralizedCborHex,
+		`Deserialization - Serialization roundtrip produced different result in ${name}`
+	);
 }
 
 
