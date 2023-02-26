@@ -10,7 +10,8 @@ import {
     bytesToHex,
     bytesToText,
     eq,
-    hexToBytes
+    hexToBytes,
+	assertEq
 } from "./utils.js";
 
 import {
@@ -69,6 +70,7 @@ import {
     UplcInt,
     UplcLambda,
     UplcList,
+    UplcDataList,
     UplcMap,
     UplcMapItem,
     UplcPair,
@@ -659,6 +661,21 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	}
 
 	/**
+	 * @param {() => UplcValue} typeReader 
+	 * @returns {UplcValue[]}
+	 */
+	readList(typeReader) {
+		/** @type {UplcValue[]} */
+		let items = [];
+
+		while (this.readBits(1) == 1) {
+			items.push(typeReader());
+		}
+
+		return items;
+	}
+
+	/**
 	 * Reads a data object
 	 * @returns {UplcData}
 	 */
@@ -741,47 +758,118 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	}
 
 	/**
-	 * Reads a single constant (recursive types not yet handled)
+	 * Reads a single constant
 	 * @param {number[]} typeList 
 	 * @returns {UplcValue}
 	 */
 	readTypedValue(typeList) {
-		let type = assertDefined(typeList.shift());
+		const typeReader = this.constructTypeReader(typeList);
+		assertEq(typeList.length, 0, "Did not consume all type parameters");
+		return typeReader();
+	}
 
-		assert(type == 7 || typeList.length == 0);
+	/**
+	 * Constructs a sample value recursively
+	 * @param {number[]} typeList 
+	 * NOTE: the implicit assumption is that this functions modifies the typeList
+	 * by removing all elements that it "consumed" to define a type
+	 * @returns {UplcValue}
+	 */
+	constructSampleValue(typeList){
+		let type = assertDefined(typeList.shift());
 
 		switch (type) {
 			case 0: // signed Integer
-				return this.readInteger(true);
+				return UplcInt.new(0n);
 			case 1: // bytearray
-				return this.readByteArray();
+				return UplcByteArray.new([]);
 			case 2: // utf8-string
-				return this.readString();
+				return UplcString.new("");
 			case 3:
 				return new UplcUnit(Site.dummy()); // no reading needed
 			case 4: // Bool
-				return new UplcBool(Site.dummy(), this.readBits(1) == 1);
+				return new UplcBool(Site.dummy(), false);
+			case 5:
+			case 6:
+				throw new Error("unexpected type tag without type application");
+			case 7:
+				let containerType = assertDefined(typeList.shift());
+				if (eq(containerType,5)) {
+					return UplcList.new(this.constructSampleValue(typeList), []);
+				}
+				assertEq(containerType, 7, "Unexpected type tag");
+				containerType = assertDefined(typeList.shift());
+				if (eq(containerType,6)) {
+					return UplcPair.new(this.constructSampleValue(typeList), this.constructSampleValue(typeList));
+				}
+			case 8:
+				return new UplcDataValue(Site.dummy(), new UplcData());
+			default:
+				throw new Error(`unhandled constant type ${type.toString()}`);
+		}
+	}
+
+	/**
+	 * Constructs a reader for a single construct recursively
+	 * @param {number[]} typeList 
+	 * NOTE: the implicit assumption is that this functions modifies the typeList
+	 * by removing all elements that it "consumed" to define a type
+	 * @returns {() => UplcValue}
+	 */
+	constructTypeReader(typeList){
+		let type = assertDefined(typeList.shift());
+
+		switch (type) {
+			case 0: // signed Integer
+				return () => this.readInteger(true);
+			case 1: // bytearray
+				return () => this.readByteArray();
+			case 2: // utf8-string
+				return () => this.readString();
+			case 3:
+				return () => new UplcUnit(Site.dummy()); // no reading needed
+			case 4: // Bool
+				return () => new UplcBool(Site.dummy(), this.readBits(1) == 1);
 			case 5:
 			case 6:
 				throw new Error("unexpected type tag without type application");
 			case 7:
 				if (eq(typeList, [5, 8])) {
-					return new UplcList(Site.dummy(), this.readDataList());
+					// consume parameters
+					[5, 8].map(() => typeList.shift());
+					return () => new UplcDataList(Site.dummy(), this.readDataList());
 				} else if (eq(typeList, [5, 7, 7, 6, 8, 8])) {
+					// consume parameters
+					[5, 7, 7, 6, 8, 8].map(() => typeList.shift());
 					// map of (data, data)
-					return new UplcMap(Site.dummy(), this.readDataPairList());
+					return () => new UplcMap(Site.dummy(), this.readDataPairList());
 				} else if (eq(typeList, [7, 6, 8, 8])) {
+					// consume parameters
+					[7, 6, 8, 8].map(() => typeList.shift());
 					// pair of (data, data)
-					return new UplcMapItem(Site.dummy(), this.readData(), this.readData());
+					return () => new UplcMapItem(Site.dummy(), this.readData(), this.readData());
 				} else if (eq(typeList, [7, 6, 0, 7, 5, 8])) {
+					// consume parameters
+					[7, 6, 0, 7, 5, 8].map(() => typeList.shift());
 					// constr
-					return new UplcPair(Site.dummy(), this.readInteger(true), new UplcList(Site.dummy(), this.readDataList()));
+					return () => new UplcPair(Site.dummy(), this.readInteger(true), new UplcDataList(Site.dummy(), this.readDataList()));
 				} else {
-					console.log(typeList);
-					throw new Error("unhandled container type")
+					let containerType = assertDefined(typeList.shift());
+					if (eq(containerType, 5)) {
+						const sampleValue = this.constructSampleValue(typeList.slice());
+						const typeReader = this.constructTypeReader(typeList);
+						return () => new UplcList(Site.dummy(), sampleValue, this.readList(typeReader));
+					}
+					assertEq(containerType, 7, "Unexpected type tag");
+					containerType = assertDefined(typeList.shift());
+					if (eq(containerType,6)) {
+						const typeReaderLeft = this.constructTypeReader(typeList);
+						const typeReaderRight = this.constructTypeReader(typeList);
+						return () => new UplcPair(Site.dummy(), typeReaderLeft(), typeReaderRight())
+					}
 				}
 			case 8:
-				return new UplcDataValue(Site.dummy(), this.readData());
+				return () => new UplcDataValue(Site.dummy(), this.readData());
 			default:
 				throw new Error(`unhandled constant type ${type.toString()}`);
 		}
