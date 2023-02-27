@@ -11666,13 +11666,16 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 			case 7:
 				let containerType = assertDefined(typeList.shift());
 				if (containerType == 5) {
+					// typeList is consumed by the construct call, so make sure to read it before!
+					const listType = UplcType.fromNumbers(typeList);
 					const typeReader = this.constructTypedReader(typeList);
 
-					return () => new UplcList(Site.dummy(), UplcType.fromNumbers(typeList), this.readList(typeReader));
+					return () => new UplcList(Site.dummy(), listType, this.readList(typeReader));
 				} else {
 					assertEq(containerType, 7, "Unexpected type tag");
 					containerType = assertDefined(typeList.shift());
 					if (containerType == 6) {
+						// typeList is consumed by the construct call, so make sure to read it in correct order!
 						const leftReader = this.constructTypedReader(typeList);
 						const rightReader = this.constructTypedReader(typeList);
 						return () => new UplcPair(Site.dummy(), leftReader(), rightReader())
