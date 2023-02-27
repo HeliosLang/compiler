@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.12.4
+// Version:       0.12.5
 // Last update:   February 2023
 // License:       Unlicense
 //
@@ -215,7 +215,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.12.4";
+export const VERSION = "0.12.5";
 
 /**
  * Global debug flag. Not currently used for anything though.
