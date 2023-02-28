@@ -2968,6 +2968,11 @@ export class Tx extends CborData {
      */
     checkSize(networkParams: NetworkParams): void;
     /**
+     * Final check that fee is big enough
+     * @param {NetworkParams} networkParams
+     */
+    checkFee(networkParams: NetworkParams): void;
+    /**
      * Assumes transaction hasn't yet been signed by anyone (i.e. witnesses.signatures is empty)
      * Mutates 'this'
      * Note: this is an async function so that a debugger can optionally be attached in the future
@@ -3094,9 +3099,15 @@ export class TxWitnesses extends CborData {
     #private;
 }
 /**
- * UTxO is an alias for TxInput
+ * UTxO wraps TxInput
  */
-export class UTxO extends TxInput {
+export class UTxO {
+    /**
+     * Deserializes UTxO format used by wallet connector
+     * @param {number[]} bytes
+     * @returns {UTxO}
+     */
+    static fromCbor(bytes: number[]): UTxO;
     /**
      * @param {UTxO[]} utxos
      * @returns {Value}
@@ -3108,6 +3119,31 @@ export class UTxO extends TxInput {
      * @param {TxOutput} origOutput
      */
     constructor(txId: TxId, utxoIdx: bigint, origOutput: TxOutput);
+    /**
+     * @type {TxId}
+     */
+    get txId(): TxId;
+    /**
+     * @type {bigint}
+     */
+    get utxoIdx(): bigint;
+    /**
+     * @type {TxInput}
+     */
+    get asTxInput(): TxInput;
+    /**
+     * @type {Value}
+     */
+    get value(): Value;
+    /**
+     * @type {TxOutput}
+     */
+    get origOutput(): TxOutput;
+    /**
+     * @returns {number[]}
+     */
+    toCbor(): number[];
+    #private;
 }
 export class TxRefInput extends TxInput {
     /**

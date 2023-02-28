@@ -31740,12 +31740,12 @@ export class Tx extends CborData {
 		if (input.origOutput === null) {
 			throw new Error("TxInput.origOutput must be set when building transaction");
 		} else {
-			void this.#body.addInput(input);
+			void this.#body.addInput(input.asTxInput);
 
 			if (redeemer !== null) {
 				assert(input.origOutput.address.validatorHash !== null, "input isn't locked by a script");
 
-				this.#witnesses.addSpendingRedeemer(input, UplcDataValue.unwrap(redeemer));
+				this.#witnesses.addSpendingRedeemer(input.asTxInput, UplcDataValue.unwrap(redeemer));
 
 				if (input.origOutput.datum === null) {
 					throw new Error("expected non-null datum");
@@ -31871,7 +31871,7 @@ export class Tx extends CborData {
 	addCollateral(input) {
 		assert(!this.#valid);
 
-		this.#body.addCollateral(input);
+		this.#body.addCollateral(input.asTxInput);
 
 		return this;
 	}
@@ -31895,6 +31895,7 @@ export class Tx extends CborData {
 		let size = this.toCbor().length;
 
 		if (!this.#valid) {
+			// clean up the dummy signatures
 			this.#witnesses.removeDummySignatures();
 		}
 
@@ -32020,7 +32021,7 @@ export class Tx extends CborData {
 		
 		addInputs(this.#body.inputs.slice());
 
-		addInputs(spareUtxos);
+		addInputs(spareUtxos.map(utxo => utxo.asTxInput));
 
 		// create the collateral return output if there is enough lovelace
 		const changeOutput = new TxOutput(changeAddress, new Value(0n));
@@ -32086,7 +32087,7 @@ export class Tx extends CborData {
 			if (spare === undefined) {
 				throw new Error("transaction outputs more than it inputs");
 			} else {
-				this.#body.addInput(spare);
+				this.#body.addInput(spare.asTxInput);
 
 				inputValue = inputValue.add(spare.value);
 			}
@@ -32116,7 +32117,7 @@ export class Tx extends CborData {
 				if (spare === undefined) {
 					throw new Error("not enough clean inputs to cover fees");
 				} else {
-					this.#body.addInput(spare);
+					this.#body.addInput(spare.asTxInput);
 
 					inputValue = inputValue.add(spare.value);
 
@@ -32183,6 +32184,14 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Final check that fee is big enough
+	 * @param {NetworkParams} networkParams 
+	 */
+	checkFee(networkParams) {
+		assert(this.estimateFee(networkParams) <= this.#body.fee, "fee too small");
+	}
+
+	/**
 	 * Assumes transaction hasn't yet been signed by anyone (i.e. witnesses.signatures is empty)
 	 * Mutates 'this'
 	 * Note: this is an async function so that a debugger can optionally be attached in the future
@@ -32245,6 +32254,8 @@ export class Tx extends CborData {
 		this.#witnesses.checkExecutionBudget(networkParams);
 
 		this.checkSize(networkParams);
+
+		this.checkFee(networkParams);
 
 		this.#valid = true;
 
@@ -33456,22 +33467,59 @@ class TxInput extends CborData {
 }
 
 /**
- * UTxO is an alias for TxInput
+ * UTxO wraps TxInput
  */
-export class UTxO extends TxInput {
+export class UTxO {
+	#input;
+
 	/**
 	 * @param {TxId} txId 
 	 * @param {bigint} utxoIdx 
 	 * @param {TxOutput} origOutput
 	 */
 	constructor(txId, utxoIdx, origOutput) {
-		super(txId, utxoIdx, origOutput);
+		this.#input = new TxInput(txId, utxoIdx, origOutput);
+	}
+
+	/**
+	 * @type {TxId}
+	 */
+	get txId() {
+		return this.#input.txId;
+	}
+
+	/**
+	 * @type {bigint}
+	 */
+	get utxoIdx() {
+		return this.#input.utxoIdx;
+	}
+
+	/**
+	 * @type {TxInput}
+	 */
+	get asTxInput() {
+		return this.#input;
+	}
+
+	/**
+	 * @type {Value}
+	 */
+	get value() {
+		return this.#input.value;
+	}
+
+	/**
+	 * @type {TxOutput}
+	 */
+	get origOutput() {
+		return this.#input.origOutput;
 	}
 
 	/**
 	 * Deserializes UTxO format used by wallet connector
 	 * @param {number[]} bytes
-	 * @returns {TxInput}
+	 * @returns {UTxO}
 	 */
 	static fromCbor(bytes) {
 		/** @type {?TxInput} */
@@ -33497,10 +33545,20 @@ export class UTxO extends TxInput {
             /** @type {TxInput} */
             const txInput = maybeTxInput;
             
-			return new TxInput(txInput.txId, txInput.utxoIdx, origOutput);
+			return new UTxO(txInput.txId, txInput.utxoIdx, origOutput);
 		} else {
 			throw new Error("unexpected");
 		}
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return CborData.encodeTuple([
+			this.#input.toCbor(),
+			this.#input.origOutput.toCbor()
+		]);
 	}
 
 	/**
