@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.12.5
+// Version:       0.12.6
 // Last update:   February 2023
 // License:       Unlicense
 //
@@ -214,7 +214,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.12.5";
+export const VERSION = "0.12.6";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -32096,6 +32096,8 @@ export class Tx extends CborData {
 		// use the change address to create a change utxo
 		let diff = inputValue.sub(totalOutputValue);
 
+		assert(diff.assets.isZero(), "unexpected unbalanced assets");
+
 		let changeOutput = new TxOutput(changeAddress, diff); // also includes any minted change
 
 		this.#body.addOutput(changeOutput);
@@ -33309,6 +33311,9 @@ export class TxWitnesses extends CborData {
 	}
 }
 
+/**
+ * @package
+ */
 class TxInput extends CborData {
 	/** @type {TxId} */
 	#txId;

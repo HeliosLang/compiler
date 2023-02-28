@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.12.5";
+export const VERSION: "0.12.6";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -5155,6 +5155,9 @@ declare class TxBody extends CborData {
     isValid(slot: bigint): boolean;
     #private;
 }
+/**
+ * @package
+ */
 declare class TxInput extends CborData {
     /**
      * @param {number[]} bytes

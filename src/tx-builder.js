@@ -623,6 +623,8 @@ export class Tx extends CborData {
 		// use the change address to create a change utxo
 		let diff = inputValue.sub(totalOutputValue);
 
+		assert(diff.assets.isZero(), "unexpected unbalanced assets");
+
 		let changeOutput = new TxOutput(changeAddress, diff); // also includes any minted change
 
 		this.#body.addOutput(changeOutput);
