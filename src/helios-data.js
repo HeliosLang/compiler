@@ -2124,6 +2124,20 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * @param {Value[]} values 
+	 * @returns {Value}
+	 */
+	static sum(values) {
+		let s = new Value(0n);
+
+		values.forEach(v => {
+			s = s.add(v);
+		});
+
+		return s;
+	}
+	
+	/**
 	 * @param {Value} other 
 	 * @returns {Value}
 	 */

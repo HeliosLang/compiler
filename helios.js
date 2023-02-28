@@ -186,8 +186,7 @@
 //                                           SpendingProgram, MintingProgram, StakingProgram
 //
 //    Section 25: Tx types                   Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
-//                                           TxOutput, ChangeTxOutput, DCert, StakeAddress, 
-//                                           Signature, RedeemerCostTracker, Redeemer, 
+//                                           TxOutput, DCert, StakeAddress, Signature, Redeemer, 
 //                                           SpendingRedeemer, MintingRedeemer, Datum, 
 //                                           HashedDatum, InlineDatum, encodeMetadata, 
 //                                           decodeMetadata, TxMetadata
@@ -7150,6 +7149,20 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * @param {Value[]} values 
+	 * @returns {Value}
+	 */
+	static sum(values) {
+		let s = new Value(0n);
+
+		values.forEach(v => {
+			s = s.add(v);
+		});
+
+		return s;
+	}
+	
+	/**
 	 * @param {Value} other 
 	 * @returns {Value}
 	 */
@@ -7466,7 +7479,7 @@ export class NetworkParams {
      * @package
 	 * @type {[number, number]} - [mem, cpu]
 	 */
-	get txExecutionBudget() {
+	get maxTxExecutionBudget() {
 		return [
 			assertNumber(this.#raw?.latestParams?.maxTxExecutionUnits?.memory),
 			assertNumber(this.#raw?.latestParams?.maxTxExecutionUnits?.steps),
@@ -7479,6 +7492,18 @@ export class NetworkParams {
 	 */
 	get maxTxSize() {
 		return assertNumber(this.#raw?.latestParams?.maxTxSize);
+	}
+
+	/**
+	 * @package
+	 * @type {bigint}
+	 */
+	get maxTxFee() {
+		const [a, b] = this.txFeeParams;
+		const [feePerMem, feePerCpu] = this.exFeeParams;
+		const [maxMem, maxCpu] = this.maxTxExecutionBudget;
+
+		return BigInt(a) + BigInt(Math.ceil(b*this.maxTxSize)) + BigInt(Math.ceil(feePerMem*maxMem)) + BigInt(Math.ceil(feePerCpu*maxCpu));
 	}
 
 	/**
@@ -31516,11 +31541,24 @@ class StakingProgram extends RedeemerProgram {
 ///////////////////////
 
 export class Tx extends CborData {
+	/**
+	 * @type {TxBody}
+	 */
 	#body;
+
+	/**
+	 * @type {TxWitnesses}
+	 */
 	#witnesses;
+
+	/**
+	 * @type {boolean}
+	 */
 	#valid;
 
-	/** @type {?TxMetadata} */
+	/** 
+	 * @type {?TxMetadata} 
+	 */
 	#metadata;
 
 	// the following field(s) aren't used by the serialization (only for building)
@@ -31913,11 +31951,99 @@ export class Tx extends CborData {
 
 	/**
 	 * @param {NetworkParams} networkParams 
-	 * @param {RedeemerCostTracker} redeemerCostTracker
 	 * @returns {Promise<void>}
 	 */
-	async executeRedeemers(networkParams, redeemerCostTracker) {
-		await this.#witnesses.executeRedeemers(networkParams, this.#body, redeemerCostTracker);
+	async executeRedeemers(networkParams) {
+		await this.#witnesses.executeRedeemers(networkParams, this.#body);
+	}
+
+	/**
+	 * @param {Address} changeAddress 
+	 */
+	balanceAssets(changeAddress) {
+		const inputAssets = this.#body.sumInputAndMintedAssets();
+
+		const outputAssets = this.#body.sumOutputAssets();
+
+		if (inputAssets.eq(outputAssets)) {
+			return;
+		} else if (outputAssets.ge(inputAssets)) {
+			throw new Error("not enough input assets");
+		} else {
+			const diff = inputAssets.sub(outputAssets);
+
+			const changeOutput = new TxOutput(changeAddress, new Value(0n, diff));
+
+			this.#body.addOutput(changeOutput);
+		}
+	}
+
+	/**
+	 * @param {NetworkParams} networkParams
+	 * @param {Address} changeAddress
+	 * @param {UTxO[]} spareUtxos
+	 */
+	balanceCollateral(networkParams, changeAddress, spareUtxos) {
+		// don't do this step if collateral was already added explicitly
+		if (this.#body.collateral.length > 0 || !this.isSmart()) {
+			return;
+		}
+
+		const minCollateral = ((this.#witnesses.estimateFee(networkParams)*BigInt(networkParams.minCollateralPct)) + 100n - 1n)/100n; // integer division that rounds up
+
+		let collateral = 0n;
+		/**
+		 * @type {TxInput[]}
+		 */
+		const collateralInputs = [];
+
+		/**
+		 * @param {TxInput[]} inputs 
+		 */
+		function addInputs(inputs) {
+			// first try using the UTxOs that already form the inputs
+			const cleanInputs = inputs.filter(utxo => utxo.value.assets.isZero()).sort((a, b) => Number(a.value.lovelace - b.value.lovelace));
+
+			for (let input of cleanInputs) {
+				if (collateral > minCollateral) {
+					break;
+				}
+
+				while (collateralInputs.length >= networkParams.maxCollateralInputs) {
+					collateralInputs.shift();
+				}
+	
+				collateralInputs.push(input);
+				collateral += input.value.lovelace;
+			}
+		}
+		
+		addInputs(this.#body.inputs.slice());
+
+		addInputs(spareUtxos);
+
+		// create the collateral return output if there is enough lovelace
+		const changeOutput = new TxOutput(changeAddress, new Value(0n));
+
+		changeOutput.correctLovelace(networkParams);
+
+		if (collateral < minCollateral) {
+			throw new Error("unable to find enough collateral input");
+		} else {
+			if (collateral > minCollateral + changeOutput.value.lovelace) {
+				changeOutput.setValue(new Value(collateral - minCollateral));
+
+				changeOutput.correctLovelace(networkParams);
+
+				if (collateral > minCollateral + changeOutput.value.lovelace) {
+					this.#body.setCollateralReturn(changeOutput);
+				}
+			}
+		}
+
+		collateralInputs.forEach(utxo => {
+			this.#body.addCollateral(utxo);
+		});
 	}
 
 	/**
@@ -31930,10 +32056,7 @@ export class Tx extends CborData {
 	 * @param {Address} changeAddress
 	 * @param {UTxO[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
 	 */
-	balance(networkParams, changeAddress, spareUtxos) {
-		// remove any pre-existing ChangeTxOutput
-		this.#body.removeChangeOutputs();
-
+	balanceLovelace(networkParams, changeAddress, spareUtxos) {
 		let fee = this.setFee(networkParams, this.estimateFee(networkParams));
 		
 		let inputValue = this.#body.sumInputAndMintedValue();
@@ -31944,6 +32067,7 @@ export class Tx extends CborData {
 
 		let totalOutputValue = feeValue.add(outputValue);
 
+		spareUtxos = spareUtxos.filter(utxo => utxo.value.assets.isZero());
 
 		// check if transaction is already perfectly balanced (very unlikely though)
 		if (totalOutputValue.eq(inputValue)) {
@@ -31971,7 +32095,7 @@ export class Tx extends CborData {
 		// use the change address to create a change utxo
 		let diff = inputValue.sub(totalOutputValue);
 
-		let changeOutput = new ChangeTxOutput(changeAddress, diff); // also includes any minted change
+		let changeOutput = new TxOutput(changeAddress, diff); // also includes any minted change
 
 		this.#body.addOutput(changeOutput);
 
@@ -31990,7 +32114,7 @@ export class Tx extends CborData {
 				let spare = spareUtxos.pop();
 
 				if (spare === undefined) {
-					throw new Error("not enough inputs to cover fees");
+					throw new Error("not enough clean inputs to cover fees");
 				} else {
 					this.#body.addInput(spare);
 
@@ -32023,13 +32147,20 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isSmart() {
+		return this.#witnesses.scripts.length > 0;
+	}
+
+	/**
 	 * Throws an error if there isn't enough collateral
 	 * Also throws an error if the script doesn't require collateral, but collateral was actually included
 	 * Shouldn't be used directly
 	 * @param {NetworkParams} networkParams 
 	 */
 	checkCollateral(networkParams) {
-		if (this.#witnesses.scripts.length > 0) {
+		if (this.isSmart()) {
 			let minCollateralPct = networkParams.minCollateralPct;
 
 			this.#body.checkCollateral(networkParams, BigInt(Math.ceil(minCollateralPct*Number(this.#body.fee)/100.0)));
@@ -32088,25 +32219,23 @@ export class Tx extends CborData {
 
 		this.checkScripts();
 
-		// now do everything that might increase the size of the transaction	
+		// balance the non-ada assets
+		this.balanceAssets(changeAddress)
+
+		// make sure that each output contains the necessary minimum amount of lovelace	
 		this.#body.correctOutputs(networkParams);
 
-		// dummy scriptDataHash, but at least this way the tx has correct size
+		// the scripts executed at this point will not see the correct txHash nor the correct fee
+		await this.executeRedeemers(networkParams);
+
+		// we can only sync scriptDataHash after the redeemer execution costs have been estimated
 		this.syncScriptDataHash(networkParams);
 
-		// the scripts executed at this point will not see the correct txHash, but they should at least see a properly balanced tx
-		let redeemerCostTracker = new RedeemerCostTracker();
+		// balance collateral (if collateral wasn't already set manually)
+		this.balanceCollateral(networkParams, changeAddress, spareUtxos.slice());
 
-		while (redeemerCostTracker.dirty) {
-			redeemerCostTracker.clean();
-
-			this.balance(networkParams, changeAddress, spareUtxos.slice());
-
-			await this.executeRedeemers(networkParams, redeemerCostTracker);
-
-			// we can only sync scriptDataHash after the redeemer execution costs have been estimated
-			this.syncScriptDataHash(networkParams);
-		}
+		// balance the lovelace
+		this.balanceLovelace(networkParams, changeAddress, spareUtxos.slice());
 
 		// a bunch of checks
 		this.#body.checkOutputs(networkParams);
@@ -32285,6 +32414,13 @@ class TxBody extends CborData {
 	 */
 	get minted() {
 		return this.#minted;
+	}
+
+	/**
+	 * @type {TxInput[]}
+	 */
+	get collateral() {
+		return this.#collateral;
 	}
 
 	/**
@@ -32538,9 +32674,17 @@ class TxBody extends CborData {
 
 	/**
 	 * Throws error if any part of the sum is negative (i.e. more is burned than input)
+	 * @returns {Value}
 	 */
 	sumInputAndMintedValue() {
 		return this.sumInputValue().add(new Value(0n, this.#minted)).assertAllPositive();
+	}
+
+	/**
+	 * @returns {Assets}
+	 */
+	sumInputAndMintedAssets() {
+		return this.sumInputAndMintedValue().assets;
 	}
 
 	/**
@@ -32554,6 +32698,13 @@ class TxBody extends CborData {
 		}
 
 		return sum;
+	}
+
+	/**
+	 * @returns {Assets}
+	 */
+	sumOutputAssets() {
+		return this.sumOutputValue().assets;
 	}
 
 	/**
@@ -32608,10 +32759,6 @@ class TxBody extends CborData {
 		this.#outputs.push(output);
 	}
 
-	removeChangeOutputs() {
-		this.#outputs = this.#outputs.filter(output => !output.isChange());
-	}
-
 	/**
 	 * @param {PubKeyHash} hash 
 	 */
@@ -32641,6 +32788,13 @@ class TxBody extends CborData {
 	}
 
 	/**
+	 * @param {TxOutput} output 
+	 */
+	setCollateralReturn(output) {
+		this.#collateralReturn = output;
+	}
+
+	/**
 	 * Calculates the number of dummy signatures needed to get precisely the right tx size
 	 * @returns {number}
 	 */
@@ -32648,7 +32802,9 @@ class TxBody extends CborData {
 		/** @type {Set<PubKeyHash>} */
 		let set = new Set();
 
-		for (let input of this.#inputs) {
+		const inputs = this.#inputs.concat(this.#collateral);
+
+		for (let input of inputs) {
 			let origOutput = input.origOutput;
 
 			if (origOutput !== null) {
@@ -32731,6 +32887,10 @@ class TxBody extends CborData {
 				} else {
 					sum = sum.add(col.origOutput.value);
 				}
+			}
+
+			if (this.#collateralReturn != null) {
+				sum = sum.sub(this.#collateralReturn.value);
 			}
 
 			assert(sum.lovelace >= minCollateral, "not enough collateral");
@@ -33045,61 +33205,60 @@ export class TxWitnesses extends CborData {
 	 * Executes the redeemers in order to calculate the necessary ex units
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body - needed in order to create correct ScriptContexts
-	 * @param {RedeemerCostTracker} redeemerCostTracker
 	 * @returns {Promise<void>}
 	 */
-	async executeRedeemers(networkParams, body, redeemerCostTracker) {
-		for (let i = 0; i < this.#redeemers.length; i++) {
-			let redeemer = this.#redeemers[i];
+	async executeRedeemers(networkParams, body) {
+		body.setFee(networkParams.maxTxFee);
 
-			let scriptContext = body.toScriptContextData(networkParams, this.#redeemers, this.#datums, i);
+		for (let i = 0; i < this.#redeemers.length; i++) {
+			const redeemer = this.#redeemers[i];
+
+			const scriptContext = body.toScriptContextData(networkParams, this.#redeemers, this.#datums, i);
 
 			if (redeemer instanceof SpendingRedeemer) {
-				let idx = redeemer.inputIndex;
+				const idx = redeemer.inputIndex;
 
-				let origOutput = body.inputs[idx].origOutput;
+				const origOutput = body.inputs[idx].origOutput;
 
 				if (origOutput === null) {
 					throw new Error("expected origOutput to be non-null");
 				} else {
-					let datumData = origOutput.getDatumData();
+					const datumData = origOutput.getDatumData();
 
-					let validatorHash = origOutput.address.validatorHash;
+					const validatorHash = origOutput.address.validatorHash;
 
 					if (validatorHash === null || validatorHash === undefined) {
 						throw new Error("expected validatorHash to be non-null");
 					} else {
-						let script = this.getScript(validatorHash);
+						const script = this.getScript(validatorHash);
 
-						let args = [
+						const args = [
 							new UplcDataValue(Site.dummy(), datumData), 
 							new UplcDataValue(Site.dummy(), redeemer.data), 
 							new UplcDataValue(Site.dummy(), scriptContext),
 						];
 
-						let profile = await script.profile(args, networkParams);
+						const profile = await script.profile(args, networkParams);
 
 						if (profile.result instanceof UserError) {
 							profile.messages.forEach(m => console.log(m));
 							throw profile.result;
 						} else {
-							const cost = {mem: profile.mem, cpu: profile.cpu};
 							redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
-							redeemerCostTracker.setCost(i, cost);
 						}
 					}
 				}
 			} else if (redeemer instanceof MintingRedeemer) {
-				let mph = body.minted.mintingPolicies[redeemer.mphIndex];
+				const mph = body.minted.mintingPolicies[redeemer.mphIndex];
 
-				let script = this.getScript(mph);
+				const script = this.getScript(mph);
 
-				let args = [
+				const args = [
 					new UplcDataValue(Site.dummy(), redeemer.data),
 					new UplcDataValue(Site.dummy(), scriptContext),
 				];
 
-				let profile = await script.profile(args, networkParams);
+				const profile = await script.profile(args, networkParams);
 
 				if (profile.result instanceof UserError) {
 					profile.messages.forEach(m => console.log(m));
@@ -33107,7 +33266,6 @@ export class TxWitnesses extends CborData {
 				} else {
 					const cost = {mem: profile.mem, cpu: profile.cpu};
 					redeemer.setCost(cost);
-					redeemerCostTracker.setCost(i, cost);
 				}
 			} else {
 				throw new Error("unhandled redeemer type");
@@ -33128,7 +33286,7 @@ export class TxWitnesses extends CborData {
 			totalCpu += redeemer.cpuCost;
 		}
 
-		let [maxMem, maxCpu] = networkParams.txExecutionBudget;
+		let [maxMem, maxCpu] = networkParams.maxTxExecutionBudget;
 
 		if (totalMem >= BigInt(maxMem)) {
 			throw new Error("execution budget exceeded for mem");
@@ -33399,13 +33557,6 @@ export class TxOutput extends CborData {
 		this.#refScript = refScript;
 	}
 
-	/**
-	 * @returns {boolean}
-	 */
-	isChange() {
-		return false;
-	}
-
 	get address() {
 		return this.#address;
 	}
@@ -33649,23 +33800,6 @@ export class TxOutput extends CborData {
 	}
 }
 
-class ChangeTxOutput extends TxOutput {
-	/**
-	 * @param {Address} address 
-	 * @param {Value} value
-	 */
-	constructor(address, value) {
-		super(address, value, null, null);
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isChange() {
-		return true;
-	}
-}
-
 // TODO: enum members
 class DCert extends CborData {
 	constructor() {
@@ -33856,38 +33990,6 @@ export class Signature extends CborData {
 				}
 			}
 		}
-	}
-}
-
-/**
- * Used during the transaction balance iterations
- */
-class RedeemerCostTracker {
-	constructor() {
-		/** @type {Cost[]} */
-		this.costs = [];
-		this.dirty = true;
-	}
-
-	clean() {
-		this.dirty = false;
-	}
-
-	/**
-	 * 
-	 * @param {number} i 
-	 * @param {Cost} cost 
-	 */
-	setCost(i, cost) {
-		let cur = this.costs[i];
-
-		if (cur === undefined || cur === null) {
-			this.dirty = true;
-		} else if (cur.mem !== cost.mem || cur.cpu !== cost.cpu) {
-			this.dirty = true;
-		}
-
-		this.costs[i] = cost;
 	}
 }
 
@@ -35435,6 +35537,8 @@ export class FuzzyTest {
 ////////////////////////////
 // Section 28: CoinSelection
 ////////////////////////////
+
+
 
 /**
  * Collection of coin selection algorithms

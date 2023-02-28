@@ -149,7 +149,8 @@ async function testMinting(optimized = false) {
 		new helios.Value(2n*1000n*1000n, new helios.Assets([[mph, tokens]]))
 	));
 
-	heliosTx.addCollateral(mainInput);
+	// commenting this out allows automatic collateral selection
+	//heliosTx.addCollateral(mainInput);
 
 	heliosTx.attachScript(program);
 

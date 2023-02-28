@@ -185,7 +185,7 @@ export class NetworkParams {
      * @package
 	 * @type {[number, number]} - [mem, cpu]
 	 */
-	get txExecutionBudget() {
+	get maxTxExecutionBudget() {
 		return [
 			assertNumber(this.#raw?.latestParams?.maxTxExecutionUnits?.memory),
 			assertNumber(this.#raw?.latestParams?.maxTxExecutionUnits?.steps),
@@ -198,6 +198,18 @@ export class NetworkParams {
 	 */
 	get maxTxSize() {
 		return assertNumber(this.#raw?.latestParams?.maxTxSize);
+	}
+
+	/**
+	 * @package
+	 * @type {bigint}
+	 */
+	get maxTxFee() {
+		const [a, b] = this.txFeeParams;
+		const [feePerMem, feePerCpu] = this.exFeeParams;
+		const [maxMem, maxCpu] = this.maxTxExecutionBudget;
+
+		return BigInt(a) + BigInt(Math.ceil(b*this.maxTxSize)) + BigInt(Math.ceil(feePerMem*maxMem)) + BigInt(Math.ceil(feePerCpu*maxCpu));
 	}
 
 	/**

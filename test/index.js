@@ -27,7 +27,8 @@ async function main() {
 		"./script-addr.js",
 		"./simplify.js",
 		"./syntax.js",
-		"./tx-building.js"
+		"./tx-building.js",
+		"./user-types.js"
 	]);
 }
 

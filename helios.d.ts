@@ -1554,6 +1554,11 @@ export class Value extends HeliosData {
      */
     static fromCbor(bytes: number[]): Value;
     /**
+     * @param {Value[]} values
+     * @returns {Value}
+     */
+    static sum(values: Value[]): Value;
+    /**
      * Useful when deserializing inline datums
      * @param {UplcData} data
      * @returns {Value}
@@ -1732,12 +1737,17 @@ export class NetworkParams {
      * @package
      * @type {[number, number]} - [mem, cpu]
      */
-    get txExecutionBudget(): [number, number];
+    get maxTxExecutionBudget(): [number, number];
     /**
      * @package
      * @type {number}
      */
     get maxTxSize(): number;
+    /**
+     * @package
+     * @type {bigint}
+     */
+    get maxTxFee(): bigint;
     /**
      * Use the latest slot in networkParameters to determine time.
      * @package
@@ -2911,10 +2921,19 @@ export class Tx extends CborData {
     checkScripts(): void;
     /**
      * @param {NetworkParams} networkParams
-     * @param {RedeemerCostTracker} redeemerCostTracker
      * @returns {Promise<void>}
      */
-    executeRedeemers(networkParams: NetworkParams, redeemerCostTracker: RedeemerCostTracker): Promise<void>;
+    executeRedeemers(networkParams: NetworkParams): Promise<void>;
+    /**
+     * @param {Address} changeAddress
+     */
+    balanceAssets(changeAddress: Address): void;
+    /**
+     * @param {NetworkParams} networkParams
+     * @param {Address} changeAddress
+     * @param {UTxO[]} spareUtxos
+     */
+    balanceCollateral(networkParams: NetworkParams, changeAddress: Address, spareUtxos: UTxO[]): void;
     /**
      * Calculates fee and balances transaction by sending an output back to changeAddress
      * First assumes that change output isn't needed, and if that assumption doesn't result in a balanced transaction the change output is created.
@@ -2925,12 +2944,16 @@ export class Tx extends CborData {
      * @param {Address} changeAddress
      * @param {UTxO[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
      */
-    balance(networkParams: NetworkParams, changeAddress: Address, spareUtxos: UTxO[]): void;
+    balanceLovelace(networkParams: NetworkParams, changeAddress: Address, spareUtxos: UTxO[]): void;
     /**
      * Shouldn't be used directly
      * @param {NetworkParams} networkParams
      */
     syncScriptDataHash(networkParams: NetworkParams): void;
+    /**
+     * @returns {boolean}
+     */
+    isSmart(): boolean;
     /**
      * Throws an error if there isn't enough collateral
      * Also throws an error if the script doesn't require collateral, but collateral was actually included
@@ -3060,10 +3083,9 @@ export class TxWitnesses extends CborData {
      * Executes the redeemers in order to calculate the necessary ex units
      * @param {NetworkParams} networkParams
      * @param {TxBody} body - needed in order to create correct ScriptContexts
-     * @param {RedeemerCostTracker} redeemerCostTracker
      * @returns {Promise<void>}
      */
-    executeRedeemers(networkParams: NetworkParams, body: TxBody, redeemerCostTracker: RedeemerCostTracker): Promise<void>;
+    executeRedeemers(networkParams: NetworkParams, body: TxBody): Promise<void>;
     /**
      * Throws error if execution budget is exceeded
      * @param {NetworkParams} networkParams
@@ -3108,10 +3130,6 @@ export class TxOutput extends CborData {
      * @param {?UplcProgram} refScript
      */
     constructor(address: Address, value: Value, datum?: Datum | null, refScript?: UplcProgram | null);
-    /**
-     * @returns {boolean}
-     */
-    isChange(): boolean;
     get address(): Address;
     /**
      * Mutation is handy when correctin the quantity of lovelace in a utxo
@@ -4968,6 +4986,10 @@ declare class TxBody extends CborData {
      */
     get minted(): Assets;
     /**
+     * @type {TxInput[]}
+     */
+    get collateral(): TxInput[];
+    /**
      * @returns {Object}
      */
     dump(): any;
@@ -4999,12 +5021,21 @@ declare class TxBody extends CborData {
     sumInputValue(): Value;
     /**
      * Throws error if any part of the sum is negative (i.e. more is burned than input)
+     * @returns {Value}
      */
     sumInputAndMintedValue(): Value;
+    /**
+     * @returns {Assets}
+     */
+    sumInputAndMintedAssets(): Assets;
     /**
      * @returns {Value}
      */
     sumOutputValue(): Value;
+    /**
+     * @returns {Assets}
+     */
+    sumOutputAssets(): Assets;
     /**
      * @param {bigint} slot
      */
@@ -5031,7 +5062,6 @@ declare class TxBody extends CborData {
      * @param {TxOutput} output
      */
     addOutput(output: TxOutput): void;
-    removeChangeOutputs(): void;
     /**
      * @param {PubKeyHash} hash
      */
@@ -5048,6 +5078,10 @@ declare class TxBody extends CborData {
      * @param {Hash} metadataHash
      */
     setMetadataHash(metadataHash: Hash): void;
+    /**
+     * @param {TxOutput} output
+     */
+    setCollateralReturn(output: TxOutput): void;
     /**
      * Calculates the number of dummy signatures needed to get precisely the right tx size
      * @returns {number}
@@ -5084,21 +5118,6 @@ declare class TxBody extends CborData {
      */
     isValid(slot: bigint): boolean;
     #private;
-}
-/**
- * Used during the transaction balance iterations
- */
-declare class RedeemerCostTracker {
-    /** @type {Cost[]} */
-    costs: Cost[];
-    dirty: boolean;
-    clean(): void;
-    /**
-     *
-     * @param {number} i
-     * @param {Cost} cost
-     */
-    setCost(i: number, cost: Cost): void;
 }
 declare class TxInput extends CborData {
     /**

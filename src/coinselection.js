@@ -1,6 +1,10 @@
 //@ts-check
 // CoinSelection
 
+import { 
+    assert
+} from "./utils.js";
+
 import {
     Value
 } from "./helios-data.js";
@@ -8,7 +12,8 @@ import {
 import {
     UTxO
 } from "./tx-builder.js";
-import { assert } from "./utils.js";
+
+
 
 /**
  * Collection of coin selection algorithms
