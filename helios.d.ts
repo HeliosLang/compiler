@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.12.6";
+export const VERSION: "0.12.7";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -1279,6 +1279,7 @@ export class TxId extends Hash {
      */
     static fromUplcCbor(bytes: string | number[]): TxId;
     /**
+     * Filled with 255 so that the internal show() function has max execution budget cost
      * @returns {TxId}
      */
     static dummy(): TxId;
@@ -2921,9 +2922,10 @@ export class Tx extends CborData {
     checkScripts(): void;
     /**
      * @param {NetworkParams} networkParams
+     * @param {Address} changeAddress
      * @returns {Promise<void>}
      */
-    executeRedeemers(networkParams: NetworkParams): Promise<void>;
+    executeRedeemers(networkParams: NetworkParams, changeAddress: Address): Promise<void>;
     /**
      * @param {Address} changeAddress
      */
@@ -3088,9 +3090,10 @@ export class TxWitnesses extends CborData {
      * Executes the redeemers in order to calculate the necessary ex units
      * @param {NetworkParams} networkParams
      * @param {TxBody} body - needed in order to create correct ScriptContexts
+     * @param {Address} changeAddress - needed for dummy input and dummy output
      * @returns {Promise<void>}
      */
-    executeRedeemers(networkParams: NetworkParams, body: TxBody): Promise<void>;
+    executeRedeemers(networkParams: NetworkParams, body: TxBody, changeAddress: Address): Promise<void>;
     /**
      * Throws error if execution budget is exceeded
      * @param {NetworkParams} networkParams
@@ -5010,7 +5013,13 @@ declare class TxBody extends CborData {
      * @returns {TxBody}
      */
     static fromCbor(bytes: number[]): TxBody;
+    /**
+     * @type {TxInput[]}
+     */
     get inputs(): TxInput[];
+    /**
+     * @type {TxOutput[]}
+     */
     get outputs(): TxOutput[];
     get fee(): bigint;
     /**

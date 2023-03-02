@@ -479,10 +479,11 @@ export class Tx extends CborData {
 
 	/**
 	 * @param {NetworkParams} networkParams 
+	 * @param {Address} changeAddress
 	 * @returns {Promise<void>}
 	 */
-	async executeRedeemers(networkParams) {
-		await this.#witnesses.executeRedeemers(networkParams, this.#body);
+	async executeRedeemers(networkParams, changeAddress) {
+		await this.#witnesses.executeRedeemers(networkParams, this.#body, changeAddress);
 	}
 
 	/**
@@ -764,7 +765,7 @@ export class Tx extends CborData {
 		this.#body.correctOutputs(networkParams);
 
 		// the scripts executed at this point will not see the correct txHash nor the correct fee
-		await this.executeRedeemers(networkParams);
+		await this.executeRedeemers(networkParams, changeAddress);
 
 		// we can only sync scriptDataHash after the redeemer execution costs have been estimated
 		this.syncScriptDataHash(networkParams);
@@ -930,12 +931,18 @@ class TxBody extends CborData {
 		this.#metadataHash = null;
 	}
 
+	/**
+	 * @type {TxInput[]}
+	 */
 	get inputs() {
-		return this.#inputs.slice();
+		return this.#inputs;
 	}
 
+	/**
+	 * @type {TxOutput[]}
+	 */
 	get outputs() {
-		return this.#outputs.slice();
+		return this.#outputs;
 	}
 
 	get fee() {
@@ -1178,7 +1185,7 @@ class TxBody extends CborData {
 				d
 			])),
 			// DEBUG extra data to see if it influences the ex budget
-			new ConstrData(0, [new ByteArrayData(txId.bytes)]),
+			new ConstrData(0, [new ByteArrayData(txId.bytes)])
 		]);
 	}
 
@@ -1745,10 +1752,31 @@ export class TxWitnesses extends CborData {
 	 * Executes the redeemers in order to calculate the necessary ex units
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body - needed in order to create correct ScriptContexts
+	 * @param {Address} changeAddress - needed for dummy input and dummy output
 	 * @returns {Promise<void>}
 	 */
-	async executeRedeemers(networkParams, body) {
-		body.setFee(networkParams.maxTxFee);
+	async executeRedeemers(networkParams, body, changeAddress) {
+		// additional dummy input and dummy output to compensate for balancing inputs and outputs that might be added later
+		const fee = networkParams.maxTxFee;
+
+		// 1000 ADA should be enough as a dummy input/output
+		const dummyInput = new TxInput(
+			TxId.dummy(),
+			0n,
+			new TxOutput(
+				changeAddress,
+				new Value(fee + 1000000000n)
+			)
+		);
+
+		const dummyOutput = new TxOutput(
+			changeAddress,
+			new Value(1000000000n)
+		);
+
+		body.setFee(fee);
+		body.inputs.push(dummyInput);
+		body.outputs.push(dummyOutput);
 
 		for (let i = 0; i < this.#redeemers.length; i++) {
 			const redeemer = this.#redeemers[i];
@@ -1811,6 +1839,9 @@ export class TxWitnesses extends CborData {
 				throw new Error("unhandled redeemer type");
 			}
 		}
+
+		body.inputs.pop();
+		body.outputs.pop();
 	}
 
 	/**
