@@ -32060,34 +32060,35 @@ export class Tx extends CborData {
 	 * @param {UTxO[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
 	 */
 	balanceLovelace(networkParams, changeAddress, spareUtxos) {
+		// don't include the changeOutput in this value
+		let nonChangeOutputValue = this.#body.sumOutputValue();
+
+		// assume a change output is always needed
+		const changeOutput = new TxOutput(changeAddress, new Value(0n));
+
+		changeOutput.correctLovelace(networkParams);
+
+		this.#body.addOutput(changeOutput);
+		
+		const minLovelace = changeOutput.value.lovelace;
+
 		let fee = this.setFee(networkParams, this.estimateFee(networkParams));
 		
 		let inputValue = this.#body.sumInputAndMintedValue();
 
-		let outputValue = this.#body.sumOutputValue();
-
 		let feeValue = new Value(fee);
 
-		let totalOutputValue = feeValue.add(outputValue);
+		nonChangeOutputValue = feeValue.add(nonChangeOutputValue);
 
 		spareUtxos = spareUtxos.filter(utxo => utxo.value.assets.isZero());
-
-		// check if transaction is already perfectly balanced (very unlikely though)
-		if (totalOutputValue.eq(inputValue)) {
-			return;
-		}
 		
-		// if transaction isn't balanced there must be a change address
-		if (changeAddress === null) {
-			throw new Error("change address not specified");
-		}
-
 		// use some spareUtxos if the inputValue doesn't cover the outputs and fees
-		while (!inputValue.ge(totalOutputValue)) {
+
+		while (!inputValue.ge(nonChangeOutputValue.add(changeOutput.value))) {
 			let spare = spareUtxos.pop();
 
 			if (spare === undefined) {
-				throw new Error("transaction outputs more than it inputs");
+				throw new Error("transaction doesn't have enough inputs to cover the outputs + fees + minLovelace");
 			} else {
 				this.#body.addInput(spare.asTxInput);
 
@@ -32095,14 +32096,13 @@ export class Tx extends CborData {
 			}
 		}
 
-		// use the change address to create a change utxo
-		let diff = inputValue.sub(totalOutputValue);
+		// use to the exact diff, which is >= minLovelace
+		let diff = inputValue.sub(nonChangeOutputValue);
 
 		assert(diff.assets.isZero(), "unexpected unbalanced assets");
+		assert(diff.lovelace >= minLovelace);
 
-		let changeOutput = new TxOutput(changeAddress, diff); // also includes any minted change
-
-		this.#body.addOutput(changeOutput);
+		changeOutput.setValue(diff);
 
 		// we can mutate the lovelace value of 'changeOutput' until we have a balanced transaction with precisely the right fee
 
@@ -32115,7 +32115,7 @@ export class Tx extends CborData {
 			let diffFee = fee - oldFee;
 
 			// use some more spareUtxos
-			while (diffFee  > changeOutput.value.lovelace) {
+			while (diffFee  > (changeOutput.value.lovelace - minLovelace)) {
 				let spare = spareUtxos.pop();
 
 				if (spare === undefined) {
@@ -32132,6 +32132,8 @@ export class Tx extends CborData {
 			}
 
 			changeOutput.value.setLovelace(changeOutput.value.lovelace - diffFee);
+
+			// changeOutput.value.lovelace should still be >= minLovelace at this point
 
 			oldFee = fee;
 
