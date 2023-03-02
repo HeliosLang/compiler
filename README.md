@@ -52,6 +52,8 @@ addr1qxyd3shxugqkrkdpwgjq522cu7h4lkr8qnz9uemd4w68p970n6h44fq8ujuyu807vll9atjpc8z
 
 Please join our [Discord](https://discord.gg/XTwPrvB25q) and tell us what you'd like your sponsorship to be used for before sending funds.
 
+If you prefer to sponsor using staking, you can do so using the [Teiki protocol](https://alpha.teiki.network/projects/helios).
+
 ## Acknowledgements
 
 Early contributors who deserve special acknowledgement:
