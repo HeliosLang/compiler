@@ -42,8 +42,31 @@ export class CoinSelection {
         function select(neededQuantity, getQuantity) {
             // first sort notYetPicked in ascending order when picking smallest first,
             // and in descending order when picking largest first
+            // sort UTxOs that contain more assets last
             notSelected.sort((a, b) => {
-                return Number(getQuantity(a) - getQuantity(b)) * (largestFirst ? -1 : 1);
+                const qa = getQuantity(a);
+                const qb = getQuantity(b);
+
+                const sign = largestFirst ? -1 : 1;
+
+                if (qa != 0n && qb == 0n) {
+                    return sign;
+                } else if (qa == 0n && qb != 0n) {
+                    return -sign;
+                } else if (qa == 0n && qb == 0n) {
+                    return 0;
+                } else {
+                    const na = a.value.assets.nTokenTypes;
+                    const nb = b.value.assets.nTokenTypes;
+
+                    if (na == nb) {
+                        return Number(qa - qb)*sign;
+                    } else if (na < nb) {
+                        return sign;
+                    } else {
+                        return -sign
+                    }
+                }
             });
 
             let count = 0n;

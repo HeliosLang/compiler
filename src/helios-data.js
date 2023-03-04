@@ -1668,6 +1668,21 @@ export class Assets extends CborData {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get nTokenTypes() {
+		let count = 0;
+		
+		this.#assets.forEach(([mph, tokens]) => {
+			tokens.forEach(([tokenName, _]) => {
+				count += 1
+			})
+		})
+
+		return count;
+	}
+
+	/**
 	 * @returns {boolean}
 	 */
 	isZero() {

@@ -39,6 +39,7 @@ import {
 	Address,
 	Assets,
     DatumHash,
+	HeliosData,
     MintingPolicyHash,
     PubKeyHash,
     StakeKeyHash,
@@ -1810,8 +1811,9 @@ export class TxWitnesses extends CborData {
 
 						const profile = await script.profile(args, networkParams);
 
-						if (profile.result instanceof UserError) {
-							profile.messages.forEach(m => console.log(m));
+						profile.messages.forEach(m => console.log(m));
+
+						if (profile.result instanceof UserError) {	
 							throw profile.result;
 						} else {
 							redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
@@ -1830,8 +1832,9 @@ export class TxWitnesses extends CborData {
 
 				const profile = await script.profile(args, networkParams);
 
-				if (profile.result instanceof UserError) {
-					profile.messages.forEach(m => console.log(m));
+				profile.messages.forEach(m => console.log(m));
+
+				if (profile.result instanceof UserError) {	
 					throw profile.result;
 				} else {
 					const cost = {mem: profile.mem, cpu: profile.cpu};
@@ -3001,19 +3004,27 @@ export class Datum extends CborData {
 	}
 
 	/**
-	 * @param {UplcDataValue | UplcData} data
+	 * @param {UplcDataValue | UplcData | HeliosData} data
 	 * @returns {HashedDatum}
 	 */
 	static hashed(data) {
-		return HashedDatum.fromData(UplcDataValue.unwrap(data));
+		if (data instanceof HeliosData) {
+			return HashedDatum.fromData(data._toUplcData());
+		} else {
+			return HashedDatum.fromData(UplcDataValue.unwrap(data));
+		}
 	}
 
 	/**
-	 * @param {UplcDataValue | UplcData} data
+	 * @param {UplcDataValue | UplcData | HeliosData} data
 	 * @returns {InlineDatum}
 	 */
 	static inline(data) {
-		return new InlineDatum(UplcDataValue.unwrap(data))
+		if (data instanceof HeliosData) {
+			return new InlineDatum(data._toUplcData());
+		} else {
+			return new InlineDatum(UplcDataValue.unwrap(data));
+		}
 	}
 
 	/**

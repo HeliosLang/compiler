@@ -404,6 +404,58 @@ async function tokencheck() {
 	console.log(JSON.stringify(tx2.dump(), undefined, 4));
 }
 
+async function singleDatumEntry() {
+	console.log("TESTING SINGLE DATUM ENTRY");
+
+	const src = `spending single_datum_entry
+
+	struct Datum {
+		int: Int
+	}
+	
+	func main(datum: Datum) -> Bool {
+		print(datum.int.show());
+		true
+	}
+`;
+
+	const program = helios.Program.new(src);
+
+	const datum = new program.types.Datum(0n);
+
+	const uplcProgram = helios.Program.new(src).compile(false);
+
+	// lets try to rebuild the same tx
+	let tx = new helios.Tx();
+
+	const inlineDatum = helios.Datum.inline(datum._toUplcData())
+	// first add the script inputs
+	tx.addInput(
+		new helios.UTxO(
+			helios.TxId.fromHex("11b7cecd85d73fea6527b30dd5c9ac9c7c62f00b1c4e08c629b574394bd62be0"),
+			1n,
+			new helios.TxOutput(
+				helios.Address.fromHashes(uplcProgram.validatorHash),
+				new helios.Value(21000000n),
+				inlineDatum
+			)
+		),
+		new helios.IntData(42n)
+	);
+
+	tx.addOutput(new helios.TxOutput(
+		helios.Address.fromHashes(uplcProgram.validatorHash),
+		new helios.Value(4000000n),
+		inlineDatum
+	))
+
+	tx.attachScript(uplcProgram);
+
+	await tx.finalize(networkParams, helios.Address.fromBech32("addr_test1vrk907u2q3tnakfwvwmdl89jhlzy7tfqaqxwzwsch3afw0qqarpt4"));
+
+	console.log(JSON.stringify(tx.dump(), undefined, 4));
+}
+
 async function assetsCompare() {
 	const mphA = new helios.MintingPolicyHash("00000000000000000000000000000000000000000000000000000000");
 	const tnA = helios.hexToBytes("");
@@ -514,6 +566,8 @@ export default async function main() {
 	await balanceAssets();
 
 	await tokencheck();
+
+	await singleDatumEntry();
 
 	await pickUtxos();
 }

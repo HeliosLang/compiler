@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.12.7
+// Version:       0.12.8
 // Last update:   March 2023
 // License:       Unlicense
 //
@@ -214,7 +214,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.12.7";
+export const VERSION = "0.12.8";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -6690,6 +6690,21 @@ export class Assets extends CborData {
 	 */
 	get mintingPolicies() {
 		return this.#assets.map(([mph, _]) => mph);
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get nTokenTypes() {
+		let count = 0;
+		
+		this.#assets.forEach(([mph, tokens]) => {
+			tokens.forEach(([tokenName, _]) => {
+				count += 1
+			})
+		})
+
+		return count;
 	}
 
 	/**
@@ -33284,8 +33299,9 @@ export class TxWitnesses extends CborData {
 
 						const profile = await script.profile(args, networkParams);
 
-						if (profile.result instanceof UserError) {
-							profile.messages.forEach(m => console.log(m));
+						profile.messages.forEach(m => console.log(m));
+
+						if (profile.result instanceof UserError) {	
 							throw profile.result;
 						} else {
 							redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
@@ -33304,8 +33320,9 @@ export class TxWitnesses extends CborData {
 
 				const profile = await script.profile(args, networkParams);
 
-				if (profile.result instanceof UserError) {
-					profile.messages.forEach(m => console.log(m));
+				profile.messages.forEach(m => console.log(m));
+
+				if (profile.result instanceof UserError) {	
 					throw profile.result;
 				} else {
 					const cost = {mem: profile.mem, cpu: profile.cpu};
@@ -34475,19 +34492,27 @@ export class Datum extends CborData {
 	}
 
 	/**
-	 * @param {UplcDataValue | UplcData} data
+	 * @param {UplcDataValue | UplcData | HeliosData} data
 	 * @returns {HashedDatum}
 	 */
 	static hashed(data) {
-		return HashedDatum.fromData(UplcDataValue.unwrap(data));
+		if (data instanceof HeliosData) {
+			return HashedDatum.fromData(data._toUplcData());
+		} else {
+			return HashedDatum.fromData(UplcDataValue.unwrap(data));
+		}
 	}
 
 	/**
-	 * @param {UplcDataValue | UplcData} data
+	 * @param {UplcDataValue | UplcData | HeliosData} data
 	 * @returns {InlineDatum}
 	 */
 	static inline(data) {
-		return new InlineDatum(UplcDataValue.unwrap(data))
+		if (data instanceof HeliosData) {
+			return new InlineDatum(data._toUplcData());
+		} else {
+			return new InlineDatum(UplcDataValue.unwrap(data));
+		}
 	}
 
 	/**
@@ -35664,8 +35689,31 @@ export class CoinSelection {
         function select(neededQuantity, getQuantity) {
             // first sort notYetPicked in ascending order when picking smallest first,
             // and in descending order when picking largest first
+            // sort UTxOs that contain more assets last
             notSelected.sort((a, b) => {
-                return Number(getQuantity(a) - getQuantity(b)) * (largestFirst ? -1 : 1);
+                const qa = getQuantity(a);
+                const qb = getQuantity(b);
+
+                const sign = largestFirst ? -1 : 1;
+
+                if (qa != 0n && qb == 0n) {
+                    return sign;
+                } else if (qa == 0n && qb != 0n) {
+                    return -sign;
+                } else if (qa == 0n && qb == 0n) {
+                    return 0;
+                } else {
+                    const na = a.value.assets.nTokenTypes;
+                    const nb = b.value.assets.nTokenTypes;
+
+                    if (na == nb) {
+                        return Number(qa - qb)*sign;
+                    } else if (na < nb) {
+                        return sign;
+                    } else {
+                        return -sign
+                    }
+                }
             });
 
             let count = 0n;

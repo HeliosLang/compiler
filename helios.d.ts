@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.12.7";
+export const VERSION: "0.12.8";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -1445,6 +1445,10 @@ export class Assets extends CborData {
      * @type {MintingPolicyHash[]}
      */
     get mintingPolicies(): MintingPolicyHash[];
+    /**
+     * @type {number}
+     */
+    get nTokenTypes(): number;
     /**
      * @returns {boolean}
      */
@@ -3274,15 +3278,15 @@ export class Datum extends CborData {
      */
     static fromCbor(bytes: number[]): Datum;
     /**
-     * @param {UplcDataValue | UplcData} data
+     * @param {UplcDataValue | UplcData | HeliosData} data
      * @returns {HashedDatum}
      */
-    static hashed(data: UplcDataValue | UplcData): HashedDatum;
+    static hashed(data: UplcDataValue | UplcData | HeliosData): HashedDatum;
     /**
-     * @param {UplcDataValue | UplcData} data
+     * @param {UplcDataValue | UplcData | HeliosData} data
      * @returns {InlineDatum}
      */
-    static inline(data: UplcDataValue | UplcData): InlineDatum;
+    static inline(data: UplcDataValue | UplcData | HeliosData): InlineDatum;
     /**
      * @returns {boolean}
      */
