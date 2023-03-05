@@ -779,6 +779,40 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
+	add(new RawFunc("__helios__int__min",
+	`(a, b) -> {
+		__core__ifThenElse(
+			__core__lessThanInteger(__core__unIData(a), __core__unIData(b)),
+			a,
+			b
+		)
+	}`));
+	add(new RawFunc("__helios__int__max",
+	`(a, b) -> {
+		__core__ifThenElse(
+			__core__lessThanInteger(__core__unIData(a), __core__unIData(b)),
+			b,
+			a
+		)
+	}`));
+	add(new RawFunc("__helios__int__bound_min",
+	`(self) -> {
+		(other) -> {
+			__helios__int__max(self, other)
+		}
+	}`));
+	add(new RawFunc("__helios__int__bound_max",
+	`(self) -> {
+		(other) -> {
+			__helios__int__min(self, other)
+		}
+	}`));
+	add(new RawFunc("__helios__int__bound",
+	`(self) -> {
+		(min, max) -> {
+			__helios__int__max(__helios__int__min(self, max), min)
+		}
+	}`));
 	add(new RawFunc("__helios__int__to_bool",
 	`(self) -> {
 		(self) -> {
@@ -1916,6 +1950,33 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
+	add(new RawFunc("__helios__map__for_each",
+	`(self) -> {
+		(self) -> {
+			(fn) -> {
+				(recurse) -> {
+					recurse(recurse, self)
+				}(
+					(recurse, map) -> {
+						__core__ifThenElse(
+							__core__nullList(map),
+							() -> {
+								()
+							},
+							() -> {
+								(head) -> {
+									__core__chooseUnit(
+										fn(__core__fstPair(head), __core__sndPair(head)),
+										recurse(recurse, __core__tailList(map))
+									)
+								}(__core__headList(map))
+							}
+						)()
+					}
+				)
+			}
+		}(__core__unMapData(self))
+	}`));
 	add(new RawFunc("__helios__map__set", 
 	`(self) -> {
 		(self) -> {
@@ -2183,6 +2244,16 @@ function makeRawFunctions() {
 					fn(key, __helios__common__unBoolData(value), next)
 				},
 				z
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__boolmap__for_each",
+	`(self) -> {
+		(fn) -> {
+			__helios__map__for_each(self)(
+				(key, value) -> {
+					fn(key, __helios__common__unBoolData(value))
+				}
 			)
 		}
 	}`));
@@ -2521,7 +2592,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__tx__time_range", "__helios__common__field_7"));
 	add(new RawFunc("__helios__tx__signatories", "__helios__common__field_8"));
 	add(new RawFunc("__helios__tx__redeemers", "__helios__common__field_9"));
-	add(new RawFunc("__helios__tx__datums", "__helios__common__field_10"));// hidden getter, used by __helios__tx__find_datum_hash
+	add(new RawFunc("__helios__tx__datums", "__helios__common__field_10"));
 	add(new RawFunc("__helios__tx__id", "__helios__common__field_11"));
 	add(new RawFunc("__helios__tx__find_datum_hash",
 	`(self) -> {
@@ -2533,6 +2604,30 @@ function makeRawFunctions() {
 				},
 				__helios__common__identity
 			))
+		}
+	}`));
+	add(new RawFunc("__helios__tx__get_datum_data",
+	`(self) -> {
+		(output) -> {
+			(pair) -> {
+				(idx) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(idx, 1),
+						() -> {
+							__helios__map__get(__helios__tx__datums(self))(__core__headList(__core__sndPair(pair)))
+						},
+						() -> {
+							__core__ifThenElse(
+								__core__equalsInteger(idx, 2),
+								() -> {
+									__core__headList(__core__sndPair(pair))
+								},
+								() -> {error("output doesn't have a datum")}
+							)()
+						}
+					)()
+				}(__core__fstPair(pair))
+			}(__core__unConstrData(__helios__txoutput__datum(output)))
 		}
 	}`));
 	add(new RawFunc("__helios__tx__filter_outputs",
@@ -2748,7 +2843,7 @@ function makeRawFunctions() {
 	addDataFuncs("__helios__txoutput");
 	add(new RawFunc("__helios__txoutput__new", 
 	`(address, value, datum) -> {
-		__core__constrData(0, __helios__common__list_3(address, value, datum))
+		__core__constrData(0, __helios__common__list_4(address, value, datum, __helios__option__none__new()))
 	}`));
 	add(new RawFunc("__helios__txoutput__address", "__helios__common__field_0"));
 	add(new RawFunc("__helios__txoutput__value", "__helios__common__field_1"));
@@ -3714,6 +3809,12 @@ function makeRawFunctions() {
 			}(__core__unMapData(self), __helios__common__field_0(assetClass), __helios__common__field_1(assetClass))
 		}
 	}`));
+	add(new RawFunc("__helios__value__get_lovelace",
+	`(self) -> {
+		() -> {
+			__helios__value__get_safe(self)(__helios__assetclass__ADA)
+		}
+	}`))
 	add(new RawFunc("__helios__value__get_policy", 
 	`(self) -> {
 		(mph) -> {

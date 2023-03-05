@@ -1,13 +1,19 @@
-This Changelog only applies to notable changes of `helios.js` on the main branch.
+This Changelog only applies to notable changes of language related features in `helios.js` on the main branch.
 
-# 2022/02/17
+# 2023/03/05
+* Addition of `Map.for_each`
+* Addition of `Int::min`, `Int::max`, `int.bound()`, `int.bound_min()`, `int.bound_max()`
+* Addition of `tx.get_datum_data(output: TxOutput)`
+* Addition of `Value.get_lovelace()`
+
+# 2023/02/17
 * Addition of `Data.tag`
 * Addition of `List.for_each`
 
-# 2022/01/18
+# 2023/01/18
 * IR: Removed simplify calls from inline methods. Slight decrease in optimization performance, huge increase in compiler speed.
 
-# 2022/01/11
+# 2023/01/11
 * TxId, TxOutputId and hash-type comparison operators and `show`
 * Functions can return void `()` by using `print`, `error` or `assert` as final expressions
 * Function expressions return type is optional `(...) -> {...}`

@@ -349,7 +349,7 @@ const certifyingScriptContextParam = `
 async function testBuiltins() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
 
-
+    
     /////////////
     // Data tests
     /////////////
@@ -611,6 +611,71 @@ async function testBuiltins() {
     func main(a: Int, b: Int) -> Bool {
         a < b
     }`, ([a, b], res) => (asInt(a) < asInt(b)) === asBool(res));
+
+    await ft.test([ft.int(), ft.int()], `
+    testing int_min
+    func main(a: Int, b: Int) -> Int {
+        Int::min(a, b)
+    }`, ([a, b], res) => {
+        if (asInt(a) < asInt(b)) {
+            return asInt(a) == asInt(res);
+        } else {
+            return asInt(b) == asInt(res);
+        }
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    testing int_max
+    func main(a: Int, b: Int) -> Int {
+        Int::max(a, b)
+    }`, ([a, b], res) => {
+        if (asInt(a) > asInt(b)) {
+            return asInt(a) == asInt(res);
+        } else {
+            return asInt(b) == asInt(res);
+        }
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    testing int_bound_max
+    func main(a: Int, b: Int) -> Int {
+        a.bound_max(b)
+    }`, ([a, b], res) => {
+        if (asInt(a) < asInt(b)) {
+            return asInt(a) == asInt(res);
+        } else {
+            return asInt(b) == asInt(res);
+        }
+    });
+
+    await ft.test([ft.int(), ft.int()], `
+    testing int_bound_min
+    func main(a: Int, b: Int) -> Int {
+        a.bound_min(b)
+    }`, ([a, b], res) => {
+        if (asInt(a) > asInt(b)) {
+            return asInt(a) == asInt(res);
+        } else {
+            return asInt(b) == asInt(res);
+        }
+    });
+
+    await ft.test([ft.int(), ft.int(), ft.int()], `
+    testing int_bound
+    func main(a: Int, b: Int, c: Int) -> Int{
+        a.bound(Int::min(b, c), Int::max(b, c))
+    }`, ([a, b, c], res) => {
+        const lower = asInt(b) < asInt(c) ? asInt(b) : asInt(c);
+        const upper = asInt(b) > asInt(c) ? asInt(b) : asInt(c);
+
+        if (asInt(a) < lower) {
+            return lower == asInt(res)
+        } else if (asInt(a) > upper) {
+            return upper == asInt(res)
+        } else {
+            return asInt(a) == asInt(res);
+        }
+    });
 
     await ft.test([ft.int(-10, 10)], `
     testing int_to_bool
@@ -2274,6 +2339,29 @@ async function testBuiltins() {
             return sum === asInt(res);
         });
 
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_for_each
+        func main(a: Map[Int]Int) -> Bool {
+            a.for_each((key: Int, value: Int) -> {
+                assert(key >= 0 && value >= 0, "neg key or value found")
+            });
+            true
+        }`, ([a], res) => {
+            let failed = false;
+
+            a.data.map.forEach(([k, v]) => {
+                if (asInt(k) < 0n || asInt(v) < 0n) {
+                    failed = true;
+                }
+            });
+
+            if (failed) {
+                return isError(res, "assert failed");
+            } else {
+                return asBool(res);
+            }
+        });
+
         await ft.test([ft.map(ft.int(0, 10), ft.int())], `
         testing map_find_key
         func main(a: Map[Int]Int) -> Int {
@@ -3422,6 +3510,13 @@ async function testBuiltins() {
             Value::new(AssetClass::new(MintingPolicyHash::new(#1234), #1234), a).get_safe(AssetClass::ADA)
         }`, ([a], res) => 0n === asInt(res));
 
+        await ft.test([ft.int()], `
+        testing value_get_lovelace
+        func main(a: Int) -> Int {
+            v: Value = Value::new(AssetClass::new(MintingPolicyHash::new(#1234), #1234), a) + Value::lovelace(a*2);
+            v.get_lovelace()
+        }`, ([a], res) => asInt(a)*2n === asInt(res), 10);
+
         await ft.test([ft.bytes(10, 10), ft.string(5,5), ft.int(), ft.string(3,3), ft.int()], `
         testing value_get_policy
         func main(mph_bytes: ByteArray, tn_a: ByteArray, qty_a: Int, tn_b: ByteArray, qty_b: Int) -> Bool {
@@ -4079,6 +4174,26 @@ async function testBuiltins() {
         `, ([ctx], res) => {
             return decodeCbor(asBytes(res)).isSame(ctx.data.fields[0]);
         }, 5);
+
+        await ft.testParams({"DATUM_1": ft.int()}, ["DATUM_1", "SCRIPT_CONTEXT"], `
+        testing tx_get_datum_data_hash
+        func main(data: Data, ctx: ScriptContext) -> Bool {
+            ctx.tx.get_datum_data(ctx.tx.outputs.tail.head) == data
+        }
+        ${spendingScriptContextParam(false)}
+        `, ([d, ctx], res) => {
+            return asBool(res);
+        }, 2);
+
+        await ft.testParams({"DATUM_1": ft.int()}, ["DATUM_1", "SCRIPT_CONTEXT"], `
+        testing tx_get_datum_data_inline
+        func main(data: Data, ctx: ScriptContext) -> Bool {
+            ctx.tx.get_datum_data(ctx.tx.outputs.tail.head) == data
+        }
+        ${spendingScriptContextParam(true)}
+        `, ([d, ctx], res) => {
+            return asBool(res);
+        }, 2);
     }
 
     await ft.testParams({"QTY": ft.int()}, ["SCRIPT_CONTEXT"], `

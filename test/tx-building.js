@@ -307,7 +307,7 @@ async function tokencheck() {
 		if (tx.is_signed_by(datum.donor)) {
 			true
 		} else { 
-			if ( tx.value_sent_to(datum.beneficiary).get(AssetClass::new(datum.policy, #62656e)) == 1) { 
+			if (tx.value_sent_to(datum.beneficiary).get(AssetClass::new(datum.policy, #62656e)) == 1) { 
 				true
 			} else {
 				print("computer says no"); false

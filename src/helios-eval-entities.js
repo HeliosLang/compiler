@@ -1809,10 +1809,13 @@ export class IntType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
-			case "parse":
-				return Instance.new(new FuncType([new StringType()], new IntType()));
 			case "from_little_endian":
 				return Instance.new(new FuncType([new ByteArrayType()], new IntType()));
+			case "max":
+			case "min": 
+				return Instance.new(new FuncType([new IntType(), new IntType()], new IntType()));
+			case "parse":
+				return Instance.new(new FuncType([new StringType()], new IntType()));
 			default:
 				return super.getTypeMember(name);
 		}
@@ -1838,6 +1841,11 @@ export class IntType extends BuiltinType {
 			case "__leq":
 			case "__lt":
 				return Instance.new(new FuncType([new IntType()], new BoolType()));
+			case "bound":
+				return Instance.new(new FuncType([new IntType(), new IntType()], new IntType()));
+			case "bound_min":
+			case "bound_max":
+				return Instance.new(new FuncType([new IntType()], new IntType()));
 			case "to_bool":
 				return Instance.new(new FuncType([], new BoolType()));
 			case "to_hex":
@@ -2528,6 +2536,8 @@ export class MapType extends BuiltinType {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([this.#keyType, this.#valueType, new FuncType([], a)], a), a], a));
 			}
+			case "for_each":
+				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new VoidType())], new VoidType()));
 			case "get":
 				return Instance.new(new FuncType([this.#keyType], this.#valueType));
 			case "get_safe":
@@ -3913,10 +3923,14 @@ export class TxType extends BuiltinType {
 				return Instance.new(new ListType(new PubKeyHashType()));
 			case "redeemers":
 				return Instance.new(new MapType(new ScriptPurposeType(), new RawDataType()));
+			case "datums":
+				return Instance.new(new MapType(new DatumHashType(), new RawDataType()));
 			case "id":
 				return Instance.new(new TxIdType());
 			case "find_datum_hash":
 				return Instance.new(new FuncType([new AnyDataType()], new DatumHashType()));
+			case "get_datum_data":
+				return Instance.new(new FuncType([new TxOutputType()], new RawDataType()));
 			case "outputs_sent_to":
 				return Instance.new(new FuncType([new PubKeyHashType()], new ListType(new TxOutputType())));
 			case "outputs_sent_to_datum":
@@ -5092,6 +5106,8 @@ export class ValueType extends BuiltinType {
 				return Instance.new(new FuncType([new AssetClassType()], new IntType()));
 			case "get_safe":
 				return Instance.new(new FuncType([new AssetClassType()], new IntType()));
+			case "get_lovelace":
+				return Instance.new(new FuncType([], new IntType()));
 			case "get_policy":
 				return Instance.new(new FuncType([new MintingPolicyHashType()], new MapType(new ByteArrayType(), new IntType())));
 			case "contains_policy":
