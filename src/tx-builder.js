@@ -561,12 +561,15 @@ export class Tx extends CborData {
 			throw new Error("unable to find enough collateral input");
 		} else {
 			if (collateral > minCollateral + changeOutput.value.lovelace) {
-				changeOutput.setValue(new Value(collateral - minCollateral));
+				changeOutput.setValue(new Value(0n));
 
 				changeOutput.correctLovelace(networkParams);
 
 				if (collateral > minCollateral + changeOutput.value.lovelace) {
+					changeOutput.setValue(new Value(collateral - minCollateral));
 					this.#body.setCollateralReturn(changeOutput);
+				} else {
+					console.log(`not setting collateral return: collateral input too low (${collateral})`);
 				}
 			}
 		}
@@ -697,7 +700,11 @@ export class Tx extends CborData {
 		if (this.isSmart()) {
 			let minCollateralPct = networkParams.minCollateralPct;
 
-			this.#body.checkCollateral(networkParams, BigInt(Math.ceil(minCollateralPct*Number(this.#body.fee)/100.0)));
+			// only use the exBudget 
+
+			const exBudgetFee = this.#witnesses.estimateFee(networkParams);
+
+			this.#body.checkCollateral(networkParams, BigInt(Math.ceil(minCollateralPct*Number(exBudgetFee)/100.0)));
 		} else {
 			this.#body.checkCollateral(networkParams, null);
 		}
@@ -928,7 +935,7 @@ class TxBody extends CborData {
 		this.#scriptDataHash = null; // calculated upon finalization
 		this.#collateral = [];
 		this.#signers = [];
-		this.#collateralReturn = null; // doesn't seem to be used anymore
+		this.#collateralReturn = null;
 		this.#totalCollateral = 0n; // doesn't seem to be used anymore
 		this.#refInputs = [];
 		this.#metadataHash = null;
@@ -1139,7 +1146,7 @@ class TxBody extends CborData {
 			scriptDataHash: this.#scriptDataHash === null ? null : this.#scriptDataHash.dump(),
 			collateral: this.#collateral.length == 0 ? null : this.#collateral.map(c => c.dump()),
 			signers: this.#signers.length == 0 ? null : this.#signers.map(rs => rs.dump()),
-			//collateralReturn: this.#collateralReturn === null ? null : this.#collateralReturn.dump(), // doesn't seem to be used anymore
+			collateralReturn: this.#collateralReturn === null ? null : this.#collateralReturn.dump(),
 			//totalCollateral: this.#totalCollateral.toString(), // doesn't seem to be used anymore
 			refInputs: this.#refInputs.map(ri => ri.dump()),
 		};
@@ -1288,6 +1295,9 @@ class TxBody extends CborData {
 			throw new Error("TxInput.origOutput must be set when building transaction");
 		} else {
 			input.origOutput.value.assertAllPositive();
+			assert(this.#inputs.every(prevInput => {
+				return  !prevInput.txId.eq(input.txId) || prevInput.utxoIdx != input.utxoIdx
+			}), "input already added before");
 		}
 
 		this.#inputs.push(input);
