@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.12.10";
+export const VERSION: "0.12.11";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -2935,6 +2935,13 @@ export class Tx extends CborData {
      */
     balanceAssets(changeAddress: Address): void;
     /**
+     * Calculate the base fee which will be multiplied by the required min collateral percentage
+     * @param {NetworkParams} networkParams
+     * @param {Address} changeAddress
+     * @param {UTxO[]} spareUtxos
+     */
+    estimateCollateralBaseFee(networkParams: NetworkParams, changeAddress: Address, spareUtxos: UTxO[]): bigint;
+    /**
      * @param {NetworkParams} networkParams
      * @param {Address} changeAddress
      * @param {UTxO[]} spareUtxos
@@ -5101,8 +5108,9 @@ declare class TxBody extends CborData {
     addMint(mph: MintingPolicyHash, tokens: [number[], bigint][]): void;
     /**
      * @param {TxInput} input
+     * @param {boolean} checkUniqueness
      */
-    addInput(input: TxInput): void;
+    addInput(input: TxInput, checkUniqueness?: boolean): void;
     /**
      * @param {TxInput} input
      */
@@ -5128,9 +5136,9 @@ declare class TxBody extends CborData {
      */
     setMetadataHash(metadataHash: Hash): void;
     /**
-     * @param {TxOutput} output
+     * @param {TxOutput | null} output
      */
-    setCollateralReturn(output: TxOutput): void;
+    setCollateralReturn(output: TxOutput | null): void;
     /**
      * Calculates the number of dummy signatures needed to get precisely the right tx size
      * @returns {number}

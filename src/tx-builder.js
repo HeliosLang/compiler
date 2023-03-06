@@ -509,6 +509,39 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Calculate the base fee which will be multiplied by the required min collateral percentage 
+	 * @param {NetworkParams} networkParams 
+	 * @param {Address} changeAddress 
+	 * @param {UTxO[]} spareUtxos 
+	 */
+	estimateCollateralBaseFee(networkParams, changeAddress, spareUtxos) {
+		// create the collateral return output (might not actually be added if there isn't enough lovelace)
+		const dummyOutput = new TxOutput(changeAddress, new Value(0n));
+		dummyOutput.correctLovelace(networkParams);
+
+		// some dummy UTxOs on to be able to correctly calculate the collateral (assuming it uses full body fee)
+		const dummyInputs = spareUtxos.map(spare => spare.asTxInput).concat(this.#body.inputs).slice(0, 3);
+		dummyInputs.forEach(input => {
+			this.#body.collateral.push(input);
+		});
+		this.#body.setCollateralReturn(dummyOutput);
+		this.#body.addInput(dummyInputs[0], false);
+		this.#body.addOutput(dummyOutput);
+
+		const baseFee = this.estimateFee(networkParams);
+
+		// remove the dummy inputs and outputs
+		while(this.#body.collateral.length) {
+			this.#body.collateral.pop();
+		}
+		this.#body.setCollateralReturn(null);
+		this.#body.inputs.pop();
+		this.#body.outputs.pop();
+
+		return baseFee;
+	}
+	
+	/**
 	 * @param {NetworkParams} networkParams
 	 * @param {Address} changeAddress
 	 * @param {UTxO[]} spareUtxos
@@ -519,7 +552,9 @@ export class Tx extends CborData {
 			return;
 		}
 
-		const minCollateral = ((this.#witnesses.estimateFee(networkParams)*BigInt(networkParams.minCollateralPct)) + 100n - 1n)/100n; // integer division that rounds up
+		const baseFee = this.estimateCollateralBaseFee(networkParams, changeAddress, spareUtxos);
+
+		const minCollateral = ((baseFee*BigInt(networkParams.minCollateralPct)) + 100n)/100n; // integer division that rounds up
 
 		let collateral = 0n;
 		/**
@@ -554,7 +589,6 @@ export class Tx extends CborData {
 
 		// create the collateral return output if there is enough lovelace
 		const changeOutput = new TxOutput(changeAddress, new Value(0n));
-
 		changeOutput.correctLovelace(networkParams);
 
 		if (collateral < minCollateral) {
@@ -702,9 +736,9 @@ export class Tx extends CborData {
 
 			// only use the exBudget 
 
-			const exBudgetFee = this.#witnesses.estimateFee(networkParams);
+			const fee = this.#body.fee;
 
-			this.#body.checkCollateral(networkParams, BigInt(Math.ceil(minCollateralPct*Number(exBudgetFee)/100.0)));
+			this.#body.checkCollateral(networkParams, BigInt(Math.ceil(minCollateralPct*Number(fee)/100.0)));
 		} else {
 			this.#body.checkCollateral(networkParams, null);
 		}
@@ -1289,15 +1323,19 @@ class TxBody extends CborData {
 
 	/**
 	 * @param {TxInput} input 
+	 * @param {boolean} checkUniqueness
 	 */
-	addInput(input) {
+	addInput(input, checkUniqueness = true) {
 		if (input.origOutput === null) {
 			throw new Error("TxInput.origOutput must be set when building transaction");
 		} else {
 			input.origOutput.value.assertAllPositive();
-			assert(this.#inputs.every(prevInput => {
-				return  !prevInput.txId.eq(input.txId) || prevInput.utxoIdx != input.utxoIdx
-			}), "input already added before");
+
+			if (checkUniqueness) {
+				assert(this.#inputs.every(prevInput => {
+					return  !prevInput.txId.eq(input.txId) || prevInput.utxoIdx != input.utxoIdx
+				}), "input already added before");
+			}
 		}
 
 		this.#inputs.push(input);
@@ -1348,7 +1386,7 @@ class TxBody extends CborData {
 	}
 
 	/**
-	 * @param {TxOutput} output 
+	 * @param {TxOutput | null} output 
 	 */
 	setCollateralReturn(output) {
 		this.#collateralReturn = output;
