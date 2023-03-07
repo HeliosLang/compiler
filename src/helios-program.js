@@ -934,13 +934,25 @@ class RedeemerProgram extends Program {
 		let retTypes = main.retTypes;
 		let haveRedeemer = false;
 		let haveScriptContext = false;
+		let haveUnderscores = argTypeNames.some(name => name =="");
 
 		if (argTypeNames.length > 2) {
 			throw main.typeError("too many arguments for main");
+		} else if (haveUnderscores) {
+			// empty type name comes from an underscore
+			assert(argTypeNames.length == 2, "expected 2 arguments");
 		}
 
-		for (let t of argTypeNames) {
-			if (t == "Redeemer") {
+		for (let i = 0; i < argTypeNames.length; i++) {
+			const t = argTypeNames[i];
+
+			if (t == "") {
+				continue
+			} else if (t == "Redeemer") {
+				if (haveUnderscores && i != 0) {
+					throw main.typeError(`unexpected Redeemer type for arg ${i} of main`);
+				}
+
 				if (haveRedeemer) {
 					throw main.typeError(`duplicate 'Redeemer' argument`);
 				} else if (haveScriptContext) {
@@ -949,6 +961,10 @@ class RedeemerProgram extends Program {
 					haveRedeemer = true;
 				}
 			} else if (t == "ScriptContext") {
+				if (haveUnderscores && i != 1) {
+					throw main.typeError(`unexpected ScriptContext type for arg ${i} of main`);
+				}
+
 				if (haveScriptContext) {
 					throw main.typeError(`duplicate 'ScriptContext' argument`);
 				} else {
@@ -990,6 +1006,9 @@ class RedeemerProgram extends Program {
 					outerArgs.push(new IR("_"));
 				}
 				outerArgs.push(new IR("ctx"));
+			} else if (t == "") {
+				innerArgs.push(new IR("0")); // use a literal to make life easier for the optimizer
+				outerArgs.push(new IR("_"));
 			} else {
 				throw new Error("unexpected");
 			}
@@ -1035,16 +1054,27 @@ class DatumRedeemerProgram extends Program {
 		const main = this.mainFunc;
 		const argTypeNames = main.argTypeNames;
 		const retTypes = main.retTypes;
+		const haveUnderscores = argTypeNames.some(name => name == "");
 		let haveDatum = false;
 		let haveRedeemer = false;
 		let haveScriptContext = false;
 
 		if (argTypeNames.length > 3) {
 			throw main.typeError("too many arguments for main");
+		} else if (haveUnderscores) {
+			assert(argTypeNames.length == 3, "expected 3 args");
 		}
 
-		for (let t of argTypeNames) {
-			if (t == "Datum") {
+		for (let i = 0; i < argTypeNames.length; i++) {
+			const t = argTypeNames[i];
+
+			if (t == "") {
+				continue;
+			} else if (t == "Datum") {
+				if (haveUnderscores && i != 0) {
+					throw main.typeError(`unexpected Datum type for arg ${i} of main`);
+				}
+
 				if (haveDatum) {
 					throw main.typeError("duplicate 'Datum' argument");
 				} else if (haveRedeemer) {
@@ -1055,6 +1085,10 @@ class DatumRedeemerProgram extends Program {
 					haveDatum = true;
 				}
 			} else if (t == "Redeemer") {
+				if (haveUnderscores && i != 1) {
+					throw main.typeError(`unexpected Redeemer type for arg ${i} of main`);
+				}
+
 				if (haveRedeemer) {
 					throw main.typeError("duplicate 'Redeemer' argument");
 				} else if (haveScriptContext) {
@@ -1063,6 +1097,10 @@ class DatumRedeemerProgram extends Program {
 					haveRedeemer = true;
 				}
 			} else if (t == "ScriptContext") {
+				if (haveUnderscores && i != 2) {
+					throw main.typeError(`unexpected ScriptContext type for arg ${i} of main`);
+				}
+
 				if (haveScriptContext) {
 					throw main.typeError("duplicate 'ScriptContext' argument");
 				} else {
@@ -1110,6 +1148,9 @@ class DatumRedeemerProgram extends Program {
 					outerArgs.push(new IR("_"));
 				}
 				outerArgs.push(new IR("ctx"));
+			} else if (t == "") {
+				innerArgs.push(new IR("0")); // use a literal to make life easier for the optimizer
+				outerArgs.push(new IR("_"));
 			} else {
 				throw new Error("unexpected");
 			}

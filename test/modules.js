@@ -85,7 +85,7 @@ async function test3() {
     
     import {MyDatum as Datum} from my_module
 
-    func main(d: Datum) -> Bool {
+    func main(d: Datum, _, _) -> Bool {
         d.a == d.b
     }`;
 

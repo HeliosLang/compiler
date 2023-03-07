@@ -13,7 +13,7 @@ async function test1() {
 		hashes: []PubKeyHash
 	}
 
-	func main() -> Bool {
+	func main(_, _, _) -> Bool {
 		true
 	}
 	`;

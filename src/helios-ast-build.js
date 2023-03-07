@@ -391,8 +391,6 @@ function buildFuncArgs(parens, methodOf = null) {
 	/** @type {FuncArg[]} */
 	const args = [];
 
-	let someNoneUnderscore = parens.fields.length == 0;
-
 	for (let i = 0; i < parens.fields.length; i++) {
 		const f = parens.fields[i];
 		const ts = f.slice();
@@ -400,8 +398,6 @@ function buildFuncArgs(parens, methodOf = null) {
 		const name = assertDefined(ts.shift()).assertWord();
 
 		if (name.toString() == "self") {
-			someNoneUnderscore = true;
-
 			if (i != 0 || methodOf === null) {
 				throw name.syntaxError("'self' is reserved");
 			} else {
@@ -426,8 +422,6 @@ function buildFuncArgs(parens, methodOf = null) {
 				args.push(new FuncArg(name, methodOf));
 			}
 		} else {
-			someNoneUnderscore = true;
-
 			name.assertNotKeyword();
 
 			for (let prev of args) {
@@ -451,10 +445,6 @@ function buildFuncArgs(parens, methodOf = null) {
 				args.push(new FuncArg(name, typeExpr));
 			}
 		}
-	}
-
-	if (!someNoneUnderscore) {
-		throw parens.syntaxError("expected at least one non-underscore function argument");
 	}
 
 	return args;

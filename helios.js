@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.12.12
+// Version:       0.12.13
 // Last update:   March 2023
 // License:       Unlicense
 //
@@ -214,7 +214,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.12.12";
+export const VERSION = "0.12.13";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -22855,8 +22855,6 @@ function buildFuncArgs(parens, methodOf = null) {
 	/** @type {FuncArg[]} */
 	const args = [];
 
-	let someNoneUnderscore = parens.fields.length == 0;
-
 	for (let i = 0; i < parens.fields.length; i++) {
 		const f = parens.fields[i];
 		const ts = f.slice();
@@ -22864,8 +22862,6 @@ function buildFuncArgs(parens, methodOf = null) {
 		const name = assertDefined(ts.shift()).assertWord();
 
 		if (name.toString() == "self") {
-			someNoneUnderscore = true;
-
 			if (i != 0 || methodOf === null) {
 				throw name.syntaxError("'self' is reserved");
 			} else {
@@ -22890,8 +22886,6 @@ function buildFuncArgs(parens, methodOf = null) {
 				args.push(new FuncArg(name, methodOf));
 			}
 		} else {
-			someNoneUnderscore = true;
-
 			name.assertNotKeyword();
 
 			for (let prev of args) {
@@ -22915,10 +22909,6 @@ function buildFuncArgs(parens, methodOf = null) {
 				args.push(new FuncArg(name, typeExpr));
 			}
 		}
-	}
-
-	if (!someNoneUnderscore) {
-		throw parens.syntaxError("expected at least one non-underscore function argument");
 	}
 
 	return args;
@@ -31452,13 +31442,25 @@ class RedeemerProgram extends Program {
 		let retTypes = main.retTypes;
 		let haveRedeemer = false;
 		let haveScriptContext = false;
+		let haveUnderscores = argTypeNames.some(name => name =="");
 
 		if (argTypeNames.length > 2) {
 			throw main.typeError("too many arguments for main");
+		} else if (haveUnderscores) {
+			// empty type name comes from an underscore
+			assert(argTypeNames.length == 2, "expected 2 arguments");
 		}
 
-		for (let t of argTypeNames) {
-			if (t == "Redeemer") {
+		for (let i = 0; i < argTypeNames.length; i++) {
+			const t = argTypeNames[i];
+
+			if (t == "") {
+				continue
+			} else if (t == "Redeemer") {
+				if (haveUnderscores && i != 0) {
+					throw main.typeError(`unexpected Redeemer type for arg ${i} of main`);
+				}
+
 				if (haveRedeemer) {
 					throw main.typeError(`duplicate 'Redeemer' argument`);
 				} else if (haveScriptContext) {
@@ -31467,6 +31469,10 @@ class RedeemerProgram extends Program {
 					haveRedeemer = true;
 				}
 			} else if (t == "ScriptContext") {
+				if (haveUnderscores && i != 1) {
+					throw main.typeError(`unexpected ScriptContext type for arg ${i} of main`);
+				}
+
 				if (haveScriptContext) {
 					throw main.typeError(`duplicate 'ScriptContext' argument`);
 				} else {
@@ -31508,6 +31514,9 @@ class RedeemerProgram extends Program {
 					outerArgs.push(new IR("_"));
 				}
 				outerArgs.push(new IR("ctx"));
+			} else if (t == "") {
+				innerArgs.push(new IR("0")); // use a literal to make life easier for the optimizer
+				outerArgs.push(new IR("_"));
 			} else {
 				throw new Error("unexpected");
 			}
@@ -31553,16 +31562,27 @@ class DatumRedeemerProgram extends Program {
 		const main = this.mainFunc;
 		const argTypeNames = main.argTypeNames;
 		const retTypes = main.retTypes;
+		const haveUnderscores = argTypeNames.some(name => name == "");
 		let haveDatum = false;
 		let haveRedeemer = false;
 		let haveScriptContext = false;
 
 		if (argTypeNames.length > 3) {
 			throw main.typeError("too many arguments for main");
+		} else if (haveUnderscores) {
+			assert(argTypeNames.length == 3, "expected 3 args");
 		}
 
-		for (let t of argTypeNames) {
-			if (t == "Datum") {
+		for (let i = 0; i < argTypeNames.length; i++) {
+			const t = argTypeNames[i];
+
+			if (t == "") {
+				continue;
+			} else if (t == "Datum") {
+				if (haveUnderscores && i != 0) {
+					throw main.typeError(`unexpected Datum type for arg ${i} of main`);
+				}
+
 				if (haveDatum) {
 					throw main.typeError("duplicate 'Datum' argument");
 				} else if (haveRedeemer) {
@@ -31573,6 +31593,10 @@ class DatumRedeemerProgram extends Program {
 					haveDatum = true;
 				}
 			} else if (t == "Redeemer") {
+				if (haveUnderscores && i != 1) {
+					throw main.typeError(`unexpected Redeemer type for arg ${i} of main`);
+				}
+
 				if (haveRedeemer) {
 					throw main.typeError("duplicate 'Redeemer' argument");
 				} else if (haveScriptContext) {
@@ -31581,6 +31605,10 @@ class DatumRedeemerProgram extends Program {
 					haveRedeemer = true;
 				}
 			} else if (t == "ScriptContext") {
+				if (haveUnderscores && i != 2) {
+					throw main.typeError(`unexpected ScriptContext type for arg ${i} of main`);
+				}
+
 				if (haveScriptContext) {
 					throw main.typeError("duplicate 'ScriptContext' argument");
 				} else {
@@ -31628,6 +31656,9 @@ class DatumRedeemerProgram extends Program {
 					outerArgs.push(new IR("_"));
 				}
 				outerArgs.push(new IR("ctx"));
+			} else if (t == "") {
+				innerArgs.push(new IR("0")); // use a literal to make life easier for the optimizer
+				outerArgs.push(new IR("_"));
 			} else {
 				throw new Error("unexpected");
 			}
@@ -32179,20 +32210,41 @@ export class Tx extends CborData {
 	checkScripts() {
 		let scripts = this.#witnesses.scripts;
 
-		/** @type {Set<string>} */
-		let scriptHashSet = new Set();
+		/**
+		 * @type {Set<string>}
+		 */
+		const currentScripts = new Set();
+		scripts.forEach(script => {
+			currentScripts.add(bytesToHex(script.hash()))
+		})
 
-		this.#body.collectScriptHashes(scriptHashSet);
+		/** 
+		 * @type {Map<string, number>} 
+		 */
+		let wantedScripts = new Map();
 
-		if (scriptHashSet.size < scripts.length) {
+		this.#body.collectScriptHashes(wantedScripts);
+
+		if (wantedScripts.size < scripts.length) {
 			throw new Error("too many scripts included");
-		} else if (scriptHashSet.size > scripts.length) {
-			throw new Error("missing scripts");
+		} else if (wantedScripts.size > scripts.length) {
+			wantedScripts.forEach((value, key) => {
+				if (!currentScripts.has(key)) {
+					if (value >= 0) {
+						throw new Error(`missing script for input ${value}`);
+					} else if (value < 0) {
+						throw new Error(`missing script for minting policy ${-value-1}`);
+					}
+				}
+			});
 		}
 
-		for (let script of scripts) {
-			assert(scriptHashSet.has(bytesToHex(script.hash())), "missing script");
-		}
+		currentScripts.forEach((key) => {
+			if (!wantedScripts.has(key)) {
+				console.log(wantedScripts, currentScripts)
+				throw new Error("unused script");
+			}
+		});
 	}
 
 	/**
@@ -33150,23 +33202,35 @@ class TxBody extends CborData {
 
 	/**
 	 * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset
-	 * @param {Set<string>} set - hashes in hex format
+	 * @param {Map<string, number>} set - hashes in hex format
 	 */
 	collectScriptHashes(set) {
-		for (let input of this.#inputs) {
+		for (let i = 0; i < this.#inputs.length; i++) {
+			const input = this.#inputs[i];
+
 			if (input.origOutput !== null) {
 				let scriptHash = input.origOutput.address.validatorHash;
 
 				if (scriptHash !== null) {
-					set.add(bytesToHex(scriptHash.bytes));
+					const hash = bytesToHex(scriptHash.bytes);
+
+					if (!set.has(hash)) { 
+						set.set(hash, i);
+					}
 				}
 			}
 		}
 
 		let mphs = this.#minted.mintingPolicies;
 
-		for (let mph of mphs) {
-			set.add(bytesToHex(mph.bytes));
+		for (let i = 0; i < mphs.length; i++) {
+			const mph = mphs[i];
+
+			const hash = bytesToHex(mph.bytes);
+
+			if (!set.has(hash)) {
+				set.set(hash, -i-1);
+			}
 		}
 	}
 

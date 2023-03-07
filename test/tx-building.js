@@ -163,7 +163,7 @@ async function testInlineDatum() {
     const src = `
 	spending always_succeeds
 
-	func main() -> Bool {
+	func main(_, _, _) -> Bool {
 		true
 	}`;
 
@@ -302,7 +302,7 @@ async function tokencheck() {
 		policy:       MintingPolicyHash
 	}
 	
-	func main(datum: Datum, ctx: ScriptContext) -> Bool {
+	func main(datum: Datum, _, ctx: ScriptContext) -> Bool {
 		tx: Tx = ctx.tx;
 		if (tx.is_signed_by(datum.donor)) {
 			true
@@ -349,7 +349,7 @@ async function tokencheck() {
 			helios.TxId.fromHex("11b7cecd85d73fea6527b30dd5c9ac9c7c62f00b1c4e08c629b574394bd62be0"),
 			1n,
 			new helios.TxOutput(
-				helios.Address.fromBech32("addr_test1wp4m837vxa4n9jrxd4lek754499d4vgzn2npphyrzdqtuhg5xgd0z"),
+				helios.Address.fromHashes(uplcProgram.validatorHash),
 				new helios.Value(21000000n),
 				helios.Datum.hashed(datum.data)
 			)
@@ -362,7 +362,7 @@ async function tokencheck() {
 			helios.TxId.fromHex("610de7c0ffeb44229ae0a6174297f15116b3a4e4d2a04fb43c77cadc8b25e56b"),
 			1n,
 			new helios.TxOutput(
-				helios.Address.fromBech32("addr_test1wp4m837vxa4n9jrxd4lek754499d4vgzn2npphyrzdqtuhg5xgd0z"),
+				helios.Address.fromHashes(uplcProgram.validatorHash),
 				new helios.Value(13000000n),
 				helios.Datum.hashed(datum.data)
 			)
@@ -413,7 +413,7 @@ async function singleDatumEntry() {
 		int: Int
 	}
 	
-	func main(datum: Datum) -> Bool {
+	func main(datum: Datum, _, _) -> Bool {
 		print(datum.int.show());
 		true
 	}

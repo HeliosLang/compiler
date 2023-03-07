@@ -117,7 +117,7 @@ struct Datum {
 	int: Int
 }
 
-func main(datum: Datum) -> Bool {
+func main(datum: Datum, _, _) -> Bool {
 	print(datum.int.show());
 	true
 }

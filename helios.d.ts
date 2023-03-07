@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.12.12";
+export const VERSION: "0.12.13";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -5228,9 +5228,9 @@ declare class TxBody extends CborData {
     countUniqueSigners(): number;
     /**
      * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset
-     * @param {Set<string>} set - hashes in hex format
+     * @param {Map<string, number>} set - hashes in hex format
      */
-    collectScriptHashes(set: Set<string>): void;
+    collectScriptHashes(set: Map<string, number>): void;
     /**
      * Makes sure each output contains the necessary min lovelace
      * @param {NetworkParams} networkParams

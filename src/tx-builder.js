@@ -462,20 +462,41 @@ export class Tx extends CborData {
 	checkScripts() {
 		let scripts = this.#witnesses.scripts;
 
-		/** @type {Set<string>} */
-		let scriptHashSet = new Set();
+		/**
+		 * @type {Set<string>}
+		 */
+		const currentScripts = new Set();
+		scripts.forEach(script => {
+			currentScripts.add(bytesToHex(script.hash()))
+		})
 
-		this.#body.collectScriptHashes(scriptHashSet);
+		/** 
+		 * @type {Map<string, number>} 
+		 */
+		let wantedScripts = new Map();
 
-		if (scriptHashSet.size < scripts.length) {
+		this.#body.collectScriptHashes(wantedScripts);
+
+		if (wantedScripts.size < scripts.length) {
 			throw new Error("too many scripts included");
-		} else if (scriptHashSet.size > scripts.length) {
-			throw new Error("missing scripts");
+		} else if (wantedScripts.size > scripts.length) {
+			wantedScripts.forEach((value, key) => {
+				if (!currentScripts.has(key)) {
+					if (value >= 0) {
+						throw new Error(`missing script for input ${value}`);
+					} else if (value < 0) {
+						throw new Error(`missing script for minting policy ${-value-1}`);
+					}
+				}
+			});
 		}
 
-		for (let script of scripts) {
-			assert(scriptHashSet.has(bytesToHex(script.hash())), "missing script");
-		}
+		currentScripts.forEach((key) => {
+			if (!wantedScripts.has(key)) {
+				console.log(wantedScripts, currentScripts)
+				throw new Error("unused script");
+			}
+		});
 	}
 
 	/**
@@ -1433,23 +1454,35 @@ class TxBody extends CborData {
 
 	/**
 	 * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset
-	 * @param {Set<string>} set - hashes in hex format
+	 * @param {Map<string, number>} set - hashes in hex format
 	 */
 	collectScriptHashes(set) {
-		for (let input of this.#inputs) {
+		for (let i = 0; i < this.#inputs.length; i++) {
+			const input = this.#inputs[i];
+
 			if (input.origOutput !== null) {
 				let scriptHash = input.origOutput.address.validatorHash;
 
 				if (scriptHash !== null) {
-					set.add(bytesToHex(scriptHash.bytes));
+					const hash = bytesToHex(scriptHash.bytes);
+
+					if (!set.has(hash)) { 
+						set.set(hash, i);
+					}
 				}
 			}
 		}
 
 		let mphs = this.#minted.mintingPolicies;
 
-		for (let mph of mphs) {
-			set.add(bytesToHex(mph.bytes));
+		for (let i = 0; i < mphs.length; i++) {
+			const mph = mphs[i];
+
+			const hash = bytesToHex(mph.bytes);
+
+			if (!set.has(hash)) {
+				set.set(hash, -i-1);
+			}
 		}
 	}
 

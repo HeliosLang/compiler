@@ -11,7 +11,7 @@ async function test1() {
         Address::new(cred, Option[StakingCredential]::None)
     } 
 
-    func main() -> Bool {
+    func main(_, _, _) -> Bool {
         shareholder_pkhs = []ByteArray{#01234567890123456789012345678901234567890123456789012345}; 
         shareholder_shares = []Int{100};
         shareholder_indexes = []Int::new(shareholder_shares.length, (i: Int) -> Int {i}); // [1..shareholder_indexes.length]
@@ -55,7 +55,7 @@ async function test2() {
       }
     }
     
-    func main(datum: Datum, ctx: ScriptContext) -> Bool {
+    func main(datum: Datum, _, ctx: ScriptContext) -> Bool {
       tx: Tx = ctx.tx;
       datum.tradeOwnerSigned(tx)
     }
@@ -365,7 +365,7 @@ async function test14() {
 
   const VALUE = Value::lovelace(100)
 
-  func main(ctx: ScriptContext) -> Bool {
+  func main(_, ctx: ScriptContext) -> Bool {
     tx: Tx = ctx.tx;
 
     assert( 1== 1, "error");
@@ -434,7 +434,7 @@ async function test15() {
   const src = `
   spending inferred_ret_type
 
-  func main(ctx: ScriptContext) -> Bool {
+  func main(_, _, ctx: ScriptContext) -> Bool {
     ctx.tx.outputs.fold((prev: Int, output: TxOutput) -> {
       prev + output.value.get(AssetClass::new(MintingPolicyHash::new(#), #))
     }, 0) > 0
@@ -452,7 +452,7 @@ async function test16() {
 
   const BOOL = false
 
-  func main(ctx: ScriptContext) -> Bool {
+  func main(_, _, ctx: ScriptContext) -> Bool {
     ctx.tx.is_signed_by(OWNER) && BOOL
   }`;
 
@@ -469,7 +469,7 @@ async function test17() {
     value: Int
   }
 
-  func main(redeemer: Redeemer) -> Bool {
+  func main(redeemer: Redeemer, _) -> Bool {
     redeemer.value == 42
   }
   `;
@@ -483,7 +483,7 @@ async function test17() {
     value: Int
   }
 
-  func main(redeemer: Redeemer) -> Bool {
+  func main(_, redeemer: Redeemer, _) -> Bool {
     redeemer.value == 42
   }
   `;
