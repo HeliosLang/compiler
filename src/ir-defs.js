@@ -2279,8 +2279,36 @@ function makeRawFunctions() {
 
 	// Option[T] builtins
 	addDataFuncs("__helios__option");
-	add(new RawFunc("__helios__option__unwrap", `
-	(self) -> {
+	add(new RawFunc("__helios__option__map", 
+	`(self) -> {
+		(fn) -> {
+			(pair) -> {
+				__core__ifThenElse(
+					__core__equalsInteger(__core__fstPair(pair), 0),
+					() -> {
+						__helios__option__some__new(fn(__core__headList(__core__sndPair(pair))))
+					},
+					() -> {
+						__helios__option__none__new()
+					}
+				)()
+			}(__core__unConstrData(self))
+		}
+	}`));
+	add(new RawFunc("__helios__option__map_to_bool",
+	`(self) -> {
+		(fn) -> {
+			(fn) -> {
+				__helios__option__map(self)(fn)
+			}(
+				(data) -> {
+					__helios__common__boolData(fn(data))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__option__unwrap", 
+	`(self) -> {
 		() -> {
 			__helios__common__field_0(self)
 		}
@@ -2321,6 +2349,30 @@ function makeRawFunctions() {
 	(self) -> {
 		() -> {
 			__helios__common__unBoolData(__helios__common__field_0(self))
+		}
+	}`));
+	add(new RawFunc("__helios__booloption__map",
+	`(self) -> {
+		(fn) -> {
+			(fn) -> {
+				__helios__option__map(self)(fn)
+			}(
+				(data) -> {
+					fn(__helios__common__unBoolData(data))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__booloption__map_to_bool",
+	`(self) -> {
+		(fn) -> {
+			(fn) -> {
+				__helios__option__map(self)(fn)
+			}(
+				(data) -> {
+					__helios__common__boolData(fn(__helios__common__unBoolData(data)))
+				}
+			)
 		}
 	}`));
 
@@ -2418,6 +2470,32 @@ function makeRawFunctions() {
 					}
 				)
 			}(__helios__scriptcontext__get_spending_purpose_output_id(self)())
+		}
+	}`));
+	add(new RawFunc("__helios__scriptcontext__get_cont_outputs",
+	`(self) -> {
+		() -> {
+			(vh) -> {
+				(outputs) -> {
+					__helios__list__filter(outputs)(
+						(output) -> {
+							(credential) -> {
+								(pair) -> {
+									__core__ifThenElse(
+										__core__equalsInteger(__core__fstPair(pair), 0),
+										() -> {
+											false
+										},
+										() -> {
+											__core__equalsData(__core__headList(__core__sndPair(pair)), vh)
+										}
+									)()
+								}(__core__unConstrData(credential))
+							}(__helios__address__credential(__helios__txoutput__address(output)))
+						}
+					)
+				}(__helios__tx__outputs(__helios__scriptcontext__tx(self)))
+			}(__helios__scriptcontext__get_current_validator_hash(self)())
 		}
 	}`));
 	add(new RawFunc("__helios__scriptcontext__get_spending_purpose_output_id",
@@ -3814,7 +3892,17 @@ function makeRawFunctions() {
 		() -> {
 			__helios__value__get_safe(self)(__helios__assetclass__ADA)
 		}
-	}`))
+	}`));
+	add(new RawFunc("__helios__value__get_assets",
+	`(self) -> {
+		() -> {
+			__helios__map__filter(self)(
+				(key, _) -> {
+					__helios__common__not(__core__equalsByteString(__core__unBData(key), #))
+				}
+			)
+		}
+	}`));
 	add(new RawFunc("__helios__value__get_policy", 
 	`(self) -> {
 		(mph) -> {

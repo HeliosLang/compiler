@@ -132,6 +132,7 @@ function buildFooter() {
  */
 export const exportedForTesting = {
 	assert: assert,
+	assertClass: assertClass,
 	setRawUsageNotifier: setRawUsageNotifier,
 	debug: debug,
 	setBlake2bDigestSize: setBlake2bDigestSize,

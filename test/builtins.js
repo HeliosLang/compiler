@@ -349,7 +349,7 @@ const certifyingScriptContextParam = `
 async function testBuiltins() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
 
-    
+
     /////////////
     // Data tests
     /////////////
@@ -3110,6 +3110,30 @@ async function testBuiltins() {
     });
 
     await ft.test([ft.option(ft.int())], `
+    testing option_map
+    func main(a: Option[Int]) -> Option[Int] {
+        a.map((x: Int) -> {x*2})
+    }`, ([a], res) => {
+        if (a.data.index == 1) {
+            return helios_.assertClass(res, helios.UplcValue).data.index == 1;
+        } else {
+            return asInt(helios_.assertClass(res, helios.UplcValue).data.fields[0]) == 2n*asInt(a.data.fields[0])
+        }
+    });
+
+    await ft.test([ft.option(ft.int())], `
+    testing option_map_to_bool
+    func main(a: Option[Int]) -> Option[Bool] {
+        a.map((x: Int) -> {x > 0})
+    }`, ([a], res) => {
+        if (a.data.index == 1) {
+            return helios_.assertClass(res, helios.UplcValue).data.index == 1;
+        } else {
+            return asBool(helios_.assertClass(res, helios.UplcValue).data.fields[0]) == (asInt(a.data.fields[0]) > 0n)
+        }
+    });
+
+    await ft.test([ft.option(ft.int())], `
     testing option_from_data
     func main(a: Data) -> Option[Int] {
         Option[Int]::from_data(a)
@@ -3189,6 +3213,46 @@ async function testBuiltins() {
             return !asBool(res);
         } else {
             return constrIndex(a.data.fields[0]) === (asBool(res) ? 1 : 0);
+        }
+    });
+
+    await ft.test([ft.option(ft.bool())], `
+    testing booloption_unwrap
+    func main(a: Option[Bool]) -> Bool {
+        a.unwrap()
+    }`, ([a], res) => {
+        if (a.data.index == 1) {
+            return isError(res, "empty list");
+        } else {
+            return asBool(a.data.fields[0]) === asBool(res);
+        }
+    });
+
+    await ft.test([ft.option(ft.bool())], `
+    testing booloption_map
+    func main(a: Option[Bool]) -> Option[Int] {
+        a.map((x: Bool) -> {x.to_int()})
+    }`, ([a], res) => {
+        if (res instanceof helios.UserError) {
+            throw res;
+        } else {
+            if (a.data.index == 1) {
+                return res.data.index == 1;
+            } else {
+                return (asInt(res.data.fields[0]) == 1n) == asBool(a.data.fields[0])
+            }
+        }
+    });
+
+    await ft.test([ft.option(ft.bool())], `
+    testing booloption_map_to_bool
+    func main(a: Option[Bool]) -> Option[Bool] {
+        a.map((x: Bool) -> {!x})
+    }`, ([a], res) => {
+        if (a.data.index == 1) {
+            return helios_.assertClass(res, helios.UplcValue).data.index == 1;
+        } else {
+            return asBool(helios_.assertClass(res, helios.UplcValue).data.fields[0]) != asBool(a.data.fields[0]);
         }
     });
 
@@ -3517,6 +3581,19 @@ async function testBuiltins() {
             v.get_lovelace()
         }`, ([a], res) => asInt(a)*2n === asInt(res), 10);
 
+        await ft.test([ft.int()], `
+        testing value_get_assets
+        func main(a: Int) -> Value {
+            v: Value = Value::new(AssetClass::new(MintingPolicyHash::new(#1234), #1234), a) + Value::lovelace(a*2);
+            v.get_assets()
+        }`, ([a], res) => {
+            if (res instanceof helios.UplcValue) {
+                return res.data.map.length == 1 && res.data.map[0][1].map[0][1].int == asInt(a);
+            } else {
+                return false;
+            }
+        });
+
         await ft.test([ft.bytes(10, 10), ft.string(5,5), ft.int(), ft.string(3,3), ft.int()], `
         testing value_get_policy
         func main(mph_bytes: ByteArray, tn_a: ByteArray, qty_a: Int, tn_b: ByteArray, qty_b: Int) -> Bool {
@@ -3616,6 +3693,15 @@ async function testBuiltins() {
         }
         ${spendingScriptContextParam(false)}
         `, ([ctx], res) => asBool(res), 10);
+
+        await ft.testParams({"CURRENT_VALIDATOR_BYTES": ft.bytes(), "QTY_2": ft.int()}, ["QTY_2", "SCRIPT_CONTEXT"], `
+        testing scriptcontext_get_cont_outputs
+        func main(lovelace: Int, ctx: ScriptContext) -> Bool {
+            outputs: []TxOutput = ctx.get_cont_outputs();
+            outputs.length == 1 && outputs.head.value == Value::lovelace(lovelace)
+        }
+        ${spendingScriptContextParam(false)}
+        `, ([ctx], res) => asBool(res), 5);
 
         await ft.testParams({"CURRENT_VALIDATOR_BYTES": ft.bytes()}, ["CURRENT_VALIDATOR", "SCRIPT_CONTEXT"], `
         testing scriptcontext_get_current_validator_hash

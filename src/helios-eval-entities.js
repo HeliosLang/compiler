@@ -2672,6 +2672,21 @@ export class OptionType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
+			case "map": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([new FuncType([this.#someType], a)], new OptionType(a)), () => {
+					let type = a.type;
+					if (type === null) {
+						throw new Error("should've been inferred by now");
+					} else {
+						if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
+							return "map_to_bool";
+						} else {
+							return "map";
+						}
+					}
+				});
+			}
 			case "unwrap":
 				return Instance.new(new FuncType([], this.#someType));
 			default:
@@ -3257,31 +3272,37 @@ export class ScriptContextType extends BuiltinType {
 				return Instance.new(new TxType());
 			case "get_spending_purpose_output_id":
 				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in minting script");
+					throw name.referenceError("not available in minting/staking script");
 				} else {
 					return Instance.new(new FuncType([], new TxOutputIdType()));
 				}
 			case "get_current_validator_hash":
 				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in minting script");
+					throw name.referenceError("not available in minting/staking script");
 				} else {
 					return Instance.new(new FuncType([], new ValidatorHashType(this.#purpose)));
 				}
 			case "get_current_minting_policy_hash":
 				if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in minting script");
+					throw name.referenceError("not available in spending/staking script");
 				} else {
 					return Instance.new(new FuncType([], new MintingPolicyHashType(this.#purpose)));
 				}
 			case "get_current_input":
 				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in spending script");
+					throw name.referenceError("not available in minting/staking script");
 				} else {
 					return Instance.new(new FuncType([], new TxInputType()));
 				}
+			case "get_cont_outputs":
+				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
+					throw name.referenceError("not available in minting/staking script");
+				} else {
+					return Instance.new(new FuncType([], new ListType(new TxOutputType())));
+				}
 			case "get_staking_purpose":
 				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Spending) {
-					throw name.referenceError("not available in staking script");
+					throw name.referenceError("not available in minting/spending script");
 				} else {
 					return Instance.new(new FuncType([], new StakingPurposeType()));
 				}
@@ -5108,6 +5129,8 @@ export class ValueType extends BuiltinType {
 				return Instance.new(new FuncType([new AssetClassType()], new IntType()));
 			case "get_lovelace":
 				return Instance.new(new FuncType([], new IntType()));
+			case "get_assets":
+				return Instance.new(new FuncType([], new ValueType()));
 			case "get_policy":
 				return Instance.new(new FuncType([new MintingPolicyHashType()], new MapType(new ByteArrayType(), new IntType())));
 			case "contains_policy":

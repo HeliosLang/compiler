@@ -1328,7 +1328,7 @@ export class Address extends HeliosData {
 
 		let result = new Address(bytes);
 
-		assert(prefix == (result.isForTestnet() ? "addr_test" : "addr"), "invalid Address prefix");
+		assert(prefix == (Address.isForTestnet(result) ? "addr_test" : "addr"), "invalid Address prefix");
 
 		return result;
 	}
@@ -1421,7 +1421,7 @@ export class Address extends HeliosData {
 	 */
 	toBech32() {
 		return Crypto.encodeBech32(
-			this.isForTestnet() ? "addr_test" : "addr",
+			Address.isForTestnet(this) ? "addr_test" : "addr",
 			this.#bytes
 		);
 	}
@@ -1437,10 +1437,11 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * @param {Address} address
 	 * @returns {boolean}
 	 */
-	isForTestnet() {
-		let type = this.#bytes[0] & 0b00001111;
+	static isForTestnet(address) {
+		let type = address.bytes[0] & 0b00001111;
 
 		return type == 0;
 	}

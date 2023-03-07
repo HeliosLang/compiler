@@ -167,9 +167,9 @@ Comments are removed immediately.
 
 ## Int
 ```
-associated:  from_data, parse, from_little_endian
+associated:  from_data, parse, from_little_endian, min, max
 operators:   __eq, __neq, __neg, __pos, __add, __sub, __mul, __div, __mod, __geq, __gt, __leq, __lt
-methods:     serialize, to_bool, to_hex, show
+methods:     serialize, to_bool, to_hex, show, bound, bound_min, bound_max
 internal ns: __helios__int
 ```
 
@@ -203,7 +203,7 @@ internal ns: __helios__bytearray
 associated:  new, new_const, from_data
 operators:   __eq, __neq, __add
 getters:     length, head, tail
-methods:     serialize, is_empty, get, prepend, any, all, find, find_safe, filter, fold, fold_lazy, map, sort
+methods:     serialize, is_empty, get, prepend, any, all, find, find_safe, filter, fold, fold_lazy, map, sort, for_each
 internal ns: __helios__list
 ```
 
@@ -215,7 +215,7 @@ getters:     length, head_key, head_value, tail
 methods:     serialize, is_empty, get, get_safe, set, delete, all, all_keys, all_values, any, any_key, any_value, 
              filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values, 
              fold_lazy, fold_keys_lazy, fold_values_lazy, map_keys, map_values, prepend
-             sort, sort_by_key, sort_by_value, find, find_key, find_key_safe, find_by_key, find_value, find_value_safe, find_by_value
+             sort, sort_by_key, sort_by_value, find, find_key, find_key_safe, find_by_key, find_value, find_value_safe, find_by_value, for_each
 internal ns: __helios__map
 ```
 
@@ -223,7 +223,7 @@ internal ns: __helios__map
 ```
 associated:  from_data
 operators:   __eq, __neq
-methods:     serialize, unwrap
+methods:     serialize, unwrap, map
 internal ns: __helios__option
 ```
 
@@ -284,7 +284,7 @@ operators:   __eq, __neq
 getters:     tx
 methods:     serialize, get_spending_purpose_output_id, get_current_validator_hash,
              get_current_minting_policy_hash, get_current_input, get_staking_purpose, 
-             get_script_purpose
+             get_script_purpose, get_cont_outputs
 macros:      new_spending, new_minting, new_rewarding, new_certifying
 internal ns: __helios__scriptcontext
 ```
@@ -484,6 +484,7 @@ internal ns: __helios__outputdatum__inline
 ```
 associated:  from_data
 operators:   __eq, __neq
+getters:     tag
 methods:     serialize
 internal ns: __helios__data
 ```
@@ -623,7 +624,7 @@ internal ns: __helios__assetclass
 ```
 associated:  ZERO, lovelace, new, from_data, from_map
 operators:   __eq, __neq, __add, __sub, __geq, __gt, __leq, __lt
-methods:     serialize, is_zero, get, get_safe, contains, get_policy, contains_policy, to_map
+methods:     serialize, is_zero, get, get_safe, contains, get_policy, contains_policy, to_map, get_lovelace, get_assets
 hidden:      get_map_keys, merge_map_keys, get_inner_map, get_inner_map_int, add_or_subtract_inner, add_or_subtract, compare_inner, compare
 internal ns: __helios__value
 ```

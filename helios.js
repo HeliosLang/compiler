@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.12.11
+// Version:       0.12.12
 // Last update:   March 2023
 // License:       Unlicense
 //
@@ -214,7 +214,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.12.11";
+export const VERSION = "0.12.12";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -6353,7 +6353,7 @@ export class Address extends HeliosData {
 
 		let result = new Address(bytes);
 
-		assert(prefix == (result.isForTestnet() ? "addr_test" : "addr"), "invalid Address prefix");
+		assert(prefix == (Address.isForTestnet(result) ? "addr_test" : "addr"), "invalid Address prefix");
 
 		return result;
 	}
@@ -6446,7 +6446,7 @@ export class Address extends HeliosData {
 	 */
 	toBech32() {
 		return Crypto.encodeBech32(
-			this.isForTestnet() ? "addr_test" : "addr",
+			Address.isForTestnet(this) ? "addr_test" : "addr",
 			this.#bytes
 		);
 	}
@@ -6462,10 +6462,11 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * @param {Address} address
 	 * @returns {boolean}
 	 */
-	isForTestnet() {
-		let type = this.#bytes[0] & 0b00001111;
+	static isForTestnet(address) {
+		let type = address.bytes[0] & 0b00001111;
 
 		return type == 0;
 	}
@@ -15049,6 +15050,21 @@ class OptionType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
+			case "map": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([new FuncType([this.#someType], a)], new OptionType(a)), () => {
+					let type = a.type;
+					if (type === null) {
+						throw new Error("should've been inferred by now");
+					} else {
+						if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
+							return "map_to_bool";
+						} else {
+							return "map";
+						}
+					}
+				});
+			}
 			case "unwrap":
 				return Instance.new(new FuncType([], this.#someType));
 			default:
@@ -15634,31 +15650,37 @@ class ScriptContextType extends BuiltinType {
 				return Instance.new(new TxType());
 			case "get_spending_purpose_output_id":
 				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in minting script");
+					throw name.referenceError("not available in minting/staking script");
 				} else {
 					return Instance.new(new FuncType([], new TxOutputIdType()));
 				}
 			case "get_current_validator_hash":
 				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in minting script");
+					throw name.referenceError("not available in minting/staking script");
 				} else {
 					return Instance.new(new FuncType([], new ValidatorHashType(this.#purpose)));
 				}
 			case "get_current_minting_policy_hash":
 				if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in minting script");
+					throw name.referenceError("not available in spending/staking script");
 				} else {
 					return Instance.new(new FuncType([], new MintingPolicyHashType(this.#purpose)));
 				}
 			case "get_current_input":
 				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in spending script");
+					throw name.referenceError("not available in minting/staking script");
 				} else {
 					return Instance.new(new FuncType([], new TxInputType()));
 				}
+			case "get_cont_outputs":
+				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
+					throw name.referenceError("not available in minting/staking script");
+				} else {
+					return Instance.new(new FuncType([], new ListType(new TxOutputType())));
+				}
 			case "get_staking_purpose":
 				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Spending) {
-					throw name.referenceError("not available in staking script");
+					throw name.referenceError("not available in minting/spending script");
 				} else {
 					return Instance.new(new FuncType([], new StakingPurposeType()));
 				}
@@ -17485,6 +17507,8 @@ class ValueType extends BuiltinType {
 				return Instance.new(new FuncType([new AssetClassType()], new IntType()));
 			case "get_lovelace":
 				return Instance.new(new FuncType([], new IntType()));
+			case "get_assets":
+				return Instance.new(new FuncType([], new ValueType()));
 			case "get_policy":
 				return Instance.new(new FuncType([new MintingPolicyHashType()], new MapType(new ByteArrayType(), new IntType())));
 			case "contains_policy":
@@ -26505,8 +26529,36 @@ function makeRawFunctions() {
 
 	// Option[T] builtins
 	addDataFuncs("__helios__option");
-	add(new RawFunc("__helios__option__unwrap", `
-	(self) -> {
+	add(new RawFunc("__helios__option__map", 
+	`(self) -> {
+		(fn) -> {
+			(pair) -> {
+				__core__ifThenElse(
+					__core__equalsInteger(__core__fstPair(pair), 0),
+					() -> {
+						__helios__option__some__new(fn(__core__headList(__core__sndPair(pair))))
+					},
+					() -> {
+						__helios__option__none__new()
+					}
+				)()
+			}(__core__unConstrData(self))
+		}
+	}`));
+	add(new RawFunc("__helios__option__map_to_bool",
+	`(self) -> {
+		(fn) -> {
+			(fn) -> {
+				__helios__option__map(self)(fn)
+			}(
+				(data) -> {
+					__helios__common__boolData(fn(data))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__option__unwrap", 
+	`(self) -> {
 		() -> {
 			__helios__common__field_0(self)
 		}
@@ -26547,6 +26599,30 @@ function makeRawFunctions() {
 	(self) -> {
 		() -> {
 			__helios__common__unBoolData(__helios__common__field_0(self))
+		}
+	}`));
+	add(new RawFunc("__helios__booloption__map",
+	`(self) -> {
+		(fn) -> {
+			(fn) -> {
+				__helios__option__map(self)(fn)
+			}(
+				(data) -> {
+					fn(__helios__common__unBoolData(data))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__booloption__map_to_bool",
+	`(self) -> {
+		(fn) -> {
+			(fn) -> {
+				__helios__option__map(self)(fn)
+			}(
+				(data) -> {
+					__helios__common__boolData(fn(__helios__common__unBoolData(data)))
+				}
+			)
 		}
 	}`));
 
@@ -26644,6 +26720,32 @@ function makeRawFunctions() {
 					}
 				)
 			}(__helios__scriptcontext__get_spending_purpose_output_id(self)())
+		}
+	}`));
+	add(new RawFunc("__helios__scriptcontext__get_cont_outputs",
+	`(self) -> {
+		() -> {
+			(vh) -> {
+				(outputs) -> {
+					__helios__list__filter(outputs)(
+						(output) -> {
+							(credential) -> {
+								(pair) -> {
+									__core__ifThenElse(
+										__core__equalsInteger(__core__fstPair(pair), 0),
+										() -> {
+											false
+										},
+										() -> {
+											__core__equalsData(__core__headList(__core__sndPair(pair)), vh)
+										}
+									)()
+								}(__core__unConstrData(credential))
+							}(__helios__address__credential(__helios__txoutput__address(output)))
+						}
+					)
+				}(__helios__tx__outputs(__helios__scriptcontext__tx(self)))
+			}(__helios__scriptcontext__get_current_validator_hash(self)())
 		}
 	}`));
 	add(new RawFunc("__helios__scriptcontext__get_spending_purpose_output_id",
@@ -28040,7 +28142,17 @@ function makeRawFunctions() {
 		() -> {
 			__helios__value__get_safe(self)(__helios__assetclass__ADA)
 		}
-	}`))
+	}`));
+	add(new RawFunc("__helios__value__get_assets",
+	`(self) -> {
+		() -> {
+			__helios__map__filter(self)(
+				(key, _) -> {
+					__helios__common__not(__core__equalsByteString(__core__unBData(key), #))
+				}
+			)
+		}
+	}`));
 	add(new RawFunc("__helios__value__get_policy", 
 	`(self) -> {
 		(mph) -> {
@@ -32093,6 +32205,14 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @param {NetworkParams} networkParams 
+	 * @returns {Promise<void>}
+	 */
+	async checkExecutionBudgets(networkParams) {
+		await this.#witnesses.checkExecutionBudgets(networkParams, this.#body);
+	}
+
+	/**
 	 * @param {Address} changeAddress 
 	 */
 	balanceAssets(changeAddress) {
@@ -32430,7 +32550,9 @@ export class Tx extends CborData {
 
 		this.checkCollateral(networkParams);
 
-		this.#witnesses.checkExecutionBudget(networkParams);
+		await this.checkExecutionBudgets(networkParams);
+
+		this.#witnesses.checkExecutionBudgetLimits(networkParams);
 
 		this.checkSize(networkParams);
 
@@ -33405,6 +33527,73 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * 
+	 * @param {NetworkParams} networkParams 
+	 * @param {TxBody} body
+	 * @param {Redeemer} redeemer 
+	 * @param {UplcData} scriptContext
+	 * @returns {Promise<Cost>} 
+	 */
+	async executeRedeemer(networkParams, body, redeemer, scriptContext) {
+		if (redeemer instanceof SpendingRedeemer) {
+			const idx = redeemer.inputIndex;
+
+			const origOutput = body.inputs[idx].origOutput;
+
+			if (origOutput === null) {
+				throw new Error("expected origOutput to be non-null");
+			} else {
+				const datumData = origOutput.getDatumData();
+
+				const validatorHash = origOutput.address.validatorHash;
+
+				if (validatorHash === null || validatorHash === undefined) {
+					throw new Error("expected validatorHash to be non-null");
+				} else {
+					const script = this.getScript(validatorHash);
+
+					const args = [
+						new UplcDataValue(Site.dummy(), datumData), 
+						new UplcDataValue(Site.dummy(), redeemer.data), 
+						new UplcDataValue(Site.dummy(), scriptContext),
+					];
+
+					const profile = await script.profile(args, networkParams);
+
+					profile.messages.forEach(m => console.log(m));
+
+					if (profile.result instanceof UserError) {	
+						throw profile.result;
+					} else {
+						return {mem: profile.mem, cpu: profile.cpu};
+					}
+				}
+			}
+		} else if (redeemer instanceof MintingRedeemer) {
+			const mph = body.minted.mintingPolicies[redeemer.mphIndex];
+
+			const script = this.getScript(mph);
+
+			const args = [
+				new UplcDataValue(Site.dummy(), redeemer.data),
+				new UplcDataValue(Site.dummy(), scriptContext),
+			];
+
+			const profile = await script.profile(args, networkParams);
+
+			profile.messages.forEach(m => console.log(m));
+
+			if (profile.result instanceof UserError) {	
+				throw profile.result;
+			} else {
+				return {mem: profile.mem, cpu: profile.cpu};
+			}
+		} else {
+			throw new Error("unhandled redeemer type");
+		}
+	}
+
+	/**
 	 * Executes the redeemers in order to calculate the necessary ex units
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body - needed in order to create correct ScriptContexts
@@ -33439,63 +33628,9 @@ export class TxWitnesses extends CborData {
 
 			const scriptContext = body.toScriptContextData(networkParams, this.#redeemers, this.#datums, i);
 
-			if (redeemer instanceof SpendingRedeemer) {
-				const idx = redeemer.inputIndex;
+			const cost = await this.executeRedeemer(networkParams, body, redeemer, scriptContext);
 
-				const origOutput = body.inputs[idx].origOutput;
-
-				if (origOutput === null) {
-					throw new Error("expected origOutput to be non-null");
-				} else {
-					const datumData = origOutput.getDatumData();
-
-					const validatorHash = origOutput.address.validatorHash;
-
-					if (validatorHash === null || validatorHash === undefined) {
-						throw new Error("expected validatorHash to be non-null");
-					} else {
-						const script = this.getScript(validatorHash);
-
-						const args = [
-							new UplcDataValue(Site.dummy(), datumData), 
-							new UplcDataValue(Site.dummy(), redeemer.data), 
-							new UplcDataValue(Site.dummy(), scriptContext),
-						];
-
-						const profile = await script.profile(args, networkParams);
-
-						profile.messages.forEach(m => console.log(m));
-
-						if (profile.result instanceof UserError) {	
-							throw profile.result;
-						} else {
-							redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
-						}
-					}
-				}
-			} else if (redeemer instanceof MintingRedeemer) {
-				const mph = body.minted.mintingPolicies[redeemer.mphIndex];
-
-				const script = this.getScript(mph);
-
-				const args = [
-					new UplcDataValue(Site.dummy(), redeemer.data),
-					new UplcDataValue(Site.dummy(), scriptContext),
-				];
-
-				const profile = await script.profile(args, networkParams);
-
-				profile.messages.forEach(m => console.log(m));
-
-				if (profile.result instanceof UserError) {	
-					throw profile.result;
-				} else {
-					const cost = {mem: profile.mem, cpu: profile.cpu};
-					redeemer.setCost(cost);
-				}
-			} else {
-				throw new Error("unhandled redeemer type");
-			}
+			redeemer.setCost(cost);
 		}
 
 		body.inputs.pop();
@@ -33503,10 +33638,31 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * Reruns all the redeemers to make sure the ex budgets are still correct (can change due to outputs added during rebalancing)
+	 * @param {NetworkParams} networkParams 
+	 * @param {TxBody} body 
+	 */
+	async checkExecutionBudgets(networkParams, body) {
+		for (let i = 0; i < this.#redeemers.length; i++) {
+			const redeemer = this.#redeemers[i];
+
+			const scriptContext = body.toScriptContextData(networkParams, this.#redeemers, this.#datums, i);
+
+			const cost = await this.executeRedeemer(networkParams, body, redeemer, scriptContext);
+
+			if (redeemer.memCost < cost.mem) {
+				throw new Error("internal finalization error, redeemer mem budget too low");
+			} else if (redeemer.cpuCost < cost.cpu) {
+				throw new Error("internal finalization error, redeemer cpu budget too low");
+			}
+		}
+	}
+
+	/**
 	 * Throws error if execution budget is exceeded
 	 * @param {NetworkParams} networkParams
 	 */
-	checkExecutionBudget(networkParams) {
+	checkExecutionBudgetLimits(networkParams) {
 		let totalMem = 0n;
 		let totalCpu = 0n;
 
@@ -34104,13 +34260,72 @@ class DCert extends CborData {
 /**
  * Convenience address that is used to query all assets controlled by a given StakeHash (can be scriptHash or regular stakeHash)
  */
-export class StakeAddress extends Address {
+export class StakeAddress {
+	#bytes;
+
+	/**
+	 * @param {number[]} bytes 
+	 */
+	constructor(bytes) {
+		assert(bytes.length == 29);
+
+		this.#bytes = bytes;
+	}
+
+	/**
+	 * @type {number[]}
+	 */
+	get bytes() {
+		return this.#bytes;
+	}
+
+	/**
+	 * @param {StakeAddress} sa
+	 * @returns {boolean}
+	 */
+	static isForTestnet(sa) {
+		return Address.isForTestnet(new Address(sa.bytes));
+	}
+
+	/**
+	 * Convert regular Address into StakeAddress.
+	 * Throws an error if the given Address doesn't have a staking part.
+	 * @param {Address} addr 
+	 * @returns {StakeAddress}
+	 */
+	static fromAddress(addr) {
+		const sh = addr.stakingHash;
+
+		if (sh === null) {
+			throw new Error("address doesn't have a staking part");
+		} else {
+			return StakeAddress.fromHash(Address.isForTestnet(addr), sh);
+		}
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return CborData.encodeBytes(this.#bytes);
+	}
+
 	/**
 	 * @param {number[]} bytes
 	 * @returns {StakeAddress}
 	 */
 	static fromCbor(bytes) {
 		return new StakeAddress(CborData.decodeBytes(bytes));
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toBech32() {
+		return Crypto.encodeBech32(
+			StakeAddress.isForTestnet(this) ? "stake_test" : "stake",
+			this.bytes
+		);
 	}
 
 	/**
@@ -34122,9 +34337,17 @@ export class StakeAddress extends Address {
 
 		let result = new StakeAddress(bytes);
 
-		assert(prefix == (result.isForTestnet() ? "stake_test" : "stake"), "invalid StakeAddress prefix");
+		assert(prefix == (StakeAddress.isForTestnet(result) ? "stake_test" : "stake"), "invalid StakeAddress prefix");
 
 		return result;
+	}
+
+	/**
+	 * Returns the raw StakeAddress bytes as a hex encoded string
+	 * @returns {string}
+	 */
+	toHex() {
+		return bytesToHex(this.#bytes);
 	}
 
 	/**
@@ -34161,13 +34384,31 @@ export class StakeAddress extends Address {
 	}
 
 	/**
-	 * @returns {string}
+	 * @param {boolean} isTestnet
+	 * @param {StakeKeyHash | StakingValidatorHash} hash
+	 * @returns {StakeAddress}
 	 */
-	toBech32() {
-		return Crypto.encodeBech32(
-			this.isForTestnet() ? "stake_test" : "stake",
-			this.bytes
-		);
+	static fromHash(isTestnet, hash) {
+		if (hash instanceof StakeKeyHash) {
+			return StakeAddress.fromStakeKeyHash(isTestnet, hash);
+		} else {
+			return StakeAddress.fromStakingValidatorHash(isTestnet, hash);
+		}
+	}
+
+	/**
+	 * @returns {StakeKeyHash | StakingValidatorHash}
+	 */
+	get stakingHash() {
+		const type = this.bytes[0];
+
+		if (type == 0xe0 || type == 0xe1) {
+			return new StakeKeyHash(this.bytes.slice(1));
+		} else if (type == 0xf0 || type == 0xf1) {
+			return new StakingValidatorHash(this.bytes.slice(1));
+		} else {
+			throw new Error("bad StakeAddress header");
+		}
 	}
 }
 
@@ -36760,6 +37001,7 @@ export class NetworkEmulator {
  */
 export const exportedForTesting = {
 	assert: assert,
+	assertClass: assertClass,
 	setRawUsageNotifier: setRawUsageNotifier,
 	debug: debug,
 	setBlake2bDigestSize: setBlake2bDigestSize,

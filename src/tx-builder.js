@@ -488,6 +488,14 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @param {NetworkParams} networkParams 
+	 * @returns {Promise<void>}
+	 */
+	async checkExecutionBudgets(networkParams) {
+		await this.#witnesses.checkExecutionBudgets(networkParams, this.#body);
+	}
+
+	/**
 	 * @param {Address} changeAddress 
 	 */
 	balanceAssets(changeAddress) {
@@ -825,7 +833,9 @@ export class Tx extends CborData {
 
 		this.checkCollateral(networkParams);
 
-		this.#witnesses.checkExecutionBudget(networkParams);
+		await this.checkExecutionBudgets(networkParams);
+
+		this.#witnesses.checkExecutionBudgetLimits(networkParams);
 
 		this.checkSize(networkParams);
 
@@ -1800,6 +1810,73 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * 
+	 * @param {NetworkParams} networkParams 
+	 * @param {TxBody} body
+	 * @param {Redeemer} redeemer 
+	 * @param {UplcData} scriptContext
+	 * @returns {Promise<Cost>} 
+	 */
+	async executeRedeemer(networkParams, body, redeemer, scriptContext) {
+		if (redeemer instanceof SpendingRedeemer) {
+			const idx = redeemer.inputIndex;
+
+			const origOutput = body.inputs[idx].origOutput;
+
+			if (origOutput === null) {
+				throw new Error("expected origOutput to be non-null");
+			} else {
+				const datumData = origOutput.getDatumData();
+
+				const validatorHash = origOutput.address.validatorHash;
+
+				if (validatorHash === null || validatorHash === undefined) {
+					throw new Error("expected validatorHash to be non-null");
+				} else {
+					const script = this.getScript(validatorHash);
+
+					const args = [
+						new UplcDataValue(Site.dummy(), datumData), 
+						new UplcDataValue(Site.dummy(), redeemer.data), 
+						new UplcDataValue(Site.dummy(), scriptContext),
+					];
+
+					const profile = await script.profile(args, networkParams);
+
+					profile.messages.forEach(m => console.log(m));
+
+					if (profile.result instanceof UserError) {	
+						throw profile.result;
+					} else {
+						return {mem: profile.mem, cpu: profile.cpu};
+					}
+				}
+			}
+		} else if (redeemer instanceof MintingRedeemer) {
+			const mph = body.minted.mintingPolicies[redeemer.mphIndex];
+
+			const script = this.getScript(mph);
+
+			const args = [
+				new UplcDataValue(Site.dummy(), redeemer.data),
+				new UplcDataValue(Site.dummy(), scriptContext),
+			];
+
+			const profile = await script.profile(args, networkParams);
+
+			profile.messages.forEach(m => console.log(m));
+
+			if (profile.result instanceof UserError) {	
+				throw profile.result;
+			} else {
+				return {mem: profile.mem, cpu: profile.cpu};
+			}
+		} else {
+			throw new Error("unhandled redeemer type");
+		}
+	}
+
+	/**
 	 * Executes the redeemers in order to calculate the necessary ex units
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body - needed in order to create correct ScriptContexts
@@ -1834,63 +1911,9 @@ export class TxWitnesses extends CborData {
 
 			const scriptContext = body.toScriptContextData(networkParams, this.#redeemers, this.#datums, i);
 
-			if (redeemer instanceof SpendingRedeemer) {
-				const idx = redeemer.inputIndex;
+			const cost = await this.executeRedeemer(networkParams, body, redeemer, scriptContext);
 
-				const origOutput = body.inputs[idx].origOutput;
-
-				if (origOutput === null) {
-					throw new Error("expected origOutput to be non-null");
-				} else {
-					const datumData = origOutput.getDatumData();
-
-					const validatorHash = origOutput.address.validatorHash;
-
-					if (validatorHash === null || validatorHash === undefined) {
-						throw new Error("expected validatorHash to be non-null");
-					} else {
-						const script = this.getScript(validatorHash);
-
-						const args = [
-							new UplcDataValue(Site.dummy(), datumData), 
-							new UplcDataValue(Site.dummy(), redeemer.data), 
-							new UplcDataValue(Site.dummy(), scriptContext),
-						];
-
-						const profile = await script.profile(args, networkParams);
-
-						profile.messages.forEach(m => console.log(m));
-
-						if (profile.result instanceof UserError) {	
-							throw profile.result;
-						} else {
-							redeemer.setCost({mem: profile.mem, cpu: profile.cpu});
-						}
-					}
-				}
-			} else if (redeemer instanceof MintingRedeemer) {
-				const mph = body.minted.mintingPolicies[redeemer.mphIndex];
-
-				const script = this.getScript(mph);
-
-				const args = [
-					new UplcDataValue(Site.dummy(), redeemer.data),
-					new UplcDataValue(Site.dummy(), scriptContext),
-				];
-
-				const profile = await script.profile(args, networkParams);
-
-				profile.messages.forEach(m => console.log(m));
-
-				if (profile.result instanceof UserError) {	
-					throw profile.result;
-				} else {
-					const cost = {mem: profile.mem, cpu: profile.cpu};
-					redeemer.setCost(cost);
-				}
-			} else {
-				throw new Error("unhandled redeemer type");
-			}
+			redeemer.setCost(cost);
 		}
 
 		body.inputs.pop();
@@ -1898,10 +1921,31 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * Reruns all the redeemers to make sure the ex budgets are still correct (can change due to outputs added during rebalancing)
+	 * @param {NetworkParams} networkParams 
+	 * @param {TxBody} body 
+	 */
+	async checkExecutionBudgets(networkParams, body) {
+		for (let i = 0; i < this.#redeemers.length; i++) {
+			const redeemer = this.#redeemers[i];
+
+			const scriptContext = body.toScriptContextData(networkParams, this.#redeemers, this.#datums, i);
+
+			const cost = await this.executeRedeemer(networkParams, body, redeemer, scriptContext);
+
+			if (redeemer.memCost < cost.mem) {
+				throw new Error("internal finalization error, redeemer mem budget too low");
+			} else if (redeemer.cpuCost < cost.cpu) {
+				throw new Error("internal finalization error, redeemer cpu budget too low");
+			}
+		}
+	}
+
+	/**
 	 * Throws error if execution budget is exceeded
 	 * @param {NetworkParams} networkParams
 	 */
-	checkExecutionBudget(networkParams) {
+	checkExecutionBudgetLimits(networkParams) {
 		let totalMem = 0n;
 		let totalCpu = 0n;
 
@@ -2499,13 +2543,72 @@ class DCert extends CborData {
 /**
  * Convenience address that is used to query all assets controlled by a given StakeHash (can be scriptHash or regular stakeHash)
  */
-export class StakeAddress extends Address {
+export class StakeAddress {
+	#bytes;
+
+	/**
+	 * @param {number[]} bytes 
+	 */
+	constructor(bytes) {
+		assert(bytes.length == 29);
+
+		this.#bytes = bytes;
+	}
+
+	/**
+	 * @type {number[]}
+	 */
+	get bytes() {
+		return this.#bytes;
+	}
+
+	/**
+	 * @param {StakeAddress} sa
+	 * @returns {boolean}
+	 */
+	static isForTestnet(sa) {
+		return Address.isForTestnet(new Address(sa.bytes));
+	}
+
+	/**
+	 * Convert regular Address into StakeAddress.
+	 * Throws an error if the given Address doesn't have a staking part.
+	 * @param {Address} addr 
+	 * @returns {StakeAddress}
+	 */
+	static fromAddress(addr) {
+		const sh = addr.stakingHash;
+
+		if (sh === null) {
+			throw new Error("address doesn't have a staking part");
+		} else {
+			return StakeAddress.fromHash(Address.isForTestnet(addr), sh);
+		}
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return CborData.encodeBytes(this.#bytes);
+	}
+
 	/**
 	 * @param {number[]} bytes
 	 * @returns {StakeAddress}
 	 */
 	static fromCbor(bytes) {
 		return new StakeAddress(CborData.decodeBytes(bytes));
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toBech32() {
+		return Crypto.encodeBech32(
+			StakeAddress.isForTestnet(this) ? "stake_test" : "stake",
+			this.bytes
+		);
 	}
 
 	/**
@@ -2517,9 +2620,17 @@ export class StakeAddress extends Address {
 
 		let result = new StakeAddress(bytes);
 
-		assert(prefix == (result.isForTestnet() ? "stake_test" : "stake"), "invalid StakeAddress prefix");
+		assert(prefix == (StakeAddress.isForTestnet(result) ? "stake_test" : "stake"), "invalid StakeAddress prefix");
 
 		return result;
+	}
+
+	/**
+	 * Returns the raw StakeAddress bytes as a hex encoded string
+	 * @returns {string}
+	 */
+	toHex() {
+		return bytesToHex(this.#bytes);
 	}
 
 	/**
@@ -2556,13 +2667,31 @@ export class StakeAddress extends Address {
 	}
 
 	/**
-	 * @returns {string}
+	 * @param {boolean} isTestnet
+	 * @param {StakeKeyHash | StakingValidatorHash} hash
+	 * @returns {StakeAddress}
 	 */
-	toBech32() {
-		return Crypto.encodeBech32(
-			this.isForTestnet() ? "stake_test" : "stake",
-			this.bytes
-		);
+	static fromHash(isTestnet, hash) {
+		if (hash instanceof StakeKeyHash) {
+			return StakeAddress.fromStakeKeyHash(isTestnet, hash);
+		} else {
+			return StakeAddress.fromStakingValidatorHash(isTestnet, hash);
+		}
+	}
+
+	/**
+	 * @returns {StakeKeyHash | StakingValidatorHash}
+	 */
+	get stakingHash() {
+		const type = this.bytes[0];
+
+		if (type == 0xe0 || type == 0xe1) {
+			return new StakeKeyHash(this.bytes.slice(1));
+		} else if (type == 0xf0 || type == 0xf1) {
+			return new StakingValidatorHash(this.bytes.slice(1));
+		} else {
+			throw new Error("bad StakeAddress header");
+		}
 	}
 }
 

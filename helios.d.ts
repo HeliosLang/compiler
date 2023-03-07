@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.12.11";
+export const VERSION: "0.12.12";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -1364,6 +1364,11 @@ export class Address extends HeliosData {
      */
     static fromValidatorHash(hash: ValidatorHash, stakingHash?: (StakeKeyHash | StakingValidatorHash) | null, isTestnet?: boolean): Address;
     /**
+     * @param {Address} address
+     * @returns {boolean}
+     */
+    static isForTestnet(address: Address): boolean;
+    /**
      * @param {UplcData} data
      * @param {boolean} isTestnet
      * @returns {Address}
@@ -1400,10 +1405,6 @@ export class Address extends HeliosData {
      * @returns {Object}
      */
     dump(): any;
-    /**
-     * @returns {boolean}
-     */
-    isForTestnet(): boolean;
     /**
      *
      * @private
@@ -2931,6 +2932,11 @@ export class Tx extends CborData {
      */
     executeRedeemers(networkParams: NetworkParams, changeAddress: Address): Promise<void>;
     /**
+     * @param {NetworkParams} networkParams
+     * @returns {Promise<void>}
+     */
+    checkExecutionBudgets(networkParams: NetworkParams): Promise<void>;
+    /**
      * @param {Address} changeAddress
      */
     balanceAssets(changeAddress: Address): void;
@@ -3098,6 +3104,15 @@ export class TxWitnesses extends CborData {
      */
     calcScriptDataHash(networkParams: NetworkParams): Hash | null;
     /**
+     *
+     * @param {NetworkParams} networkParams
+     * @param {TxBody} body
+     * @param {Redeemer} redeemer
+     * @param {UplcData} scriptContext
+     * @returns {Promise<Cost>}
+     */
+    executeRedeemer(networkParams: NetworkParams, body: TxBody, redeemer: Redeemer, scriptContext: UplcData): Promise<Cost>;
+    /**
      * Executes the redeemers in order to calculate the necessary ex units
      * @param {NetworkParams} networkParams
      * @param {TxBody} body - needed in order to create correct ScriptContexts
@@ -3106,10 +3121,16 @@ export class TxWitnesses extends CborData {
      */
     executeRedeemers(networkParams: NetworkParams, body: TxBody, changeAddress: Address): Promise<void>;
     /**
+     * Reruns all the redeemers to make sure the ex budgets are still correct (can change due to outputs added during rebalancing)
+     * @param {NetworkParams} networkParams
+     * @param {TxBody} body
+     */
+    checkExecutionBudgets(networkParams: NetworkParams, body: TxBody): Promise<void>;
+    /**
      * Throws error if execution budget is exceeded
      * @param {NetworkParams} networkParams
      */
-    checkExecutionBudget(networkParams: NetworkParams): void;
+    checkExecutionBudgetLimits(networkParams: NetworkParams): void;
     #private;
 }
 /**
@@ -3228,7 +3249,35 @@ export class TxOutput extends CborData {
 /**
  * Convenience address that is used to query all assets controlled by a given StakeHash (can be scriptHash or regular stakeHash)
  */
-export class StakeAddress extends Address {
+export class StakeAddress {
+    /**
+     * @param {StakeAddress} sa
+     * @returns {boolean}
+     */
+    static isForTestnet(sa: StakeAddress): boolean;
+    /**
+     * Convert regular Address into StakeAddress.
+     * Throws an error if the given Address doesn't have a staking part.
+     * @param {Address} addr
+     * @returns {StakeAddress}
+     */
+    static fromAddress(addr: Address): StakeAddress;
+    /**
+     * @param {number[]} bytes
+     * @returns {StakeAddress}
+     */
+    static fromCbor(bytes: number[]): StakeAddress;
+    /**
+     * @param {string} str
+     * @returns {StakeAddress}
+     */
+    static fromBech32(str: string): StakeAddress;
+    /**
+     * Doesn't check validity
+     * @param {string} hex
+     * @returns {StakeAddress}
+     */
+    static fromHex(hex: string): StakeAddress;
     /**
      * Address with only staking part (regular StakeKeyHash)
      * @param {boolean} isTestnet
@@ -3243,6 +3292,38 @@ export class StakeAddress extends Address {
      * @returns {StakeAddress}
      */
     static fromStakingValidatorHash(isTestnet: boolean, hash: StakingValidatorHash): StakeAddress;
+    /**
+     * @param {boolean} isTestnet
+     * @param {StakeKeyHash | StakingValidatorHash} hash
+     * @returns {StakeAddress}
+     */
+    static fromHash(isTestnet: boolean, hash: StakeKeyHash | StakingValidatorHash): StakeAddress;
+    /**
+     * @param {number[]} bytes
+     */
+    constructor(bytes: number[]);
+    /**
+     * @type {number[]}
+     */
+    get bytes(): number[];
+    /**
+     * @returns {number[]}
+     */
+    toCbor(): number[];
+    /**
+     * @returns {string}
+     */
+    toBech32(): string;
+    /**
+     * Returns the raw StakeAddress bytes as a hex encoded string
+     * @returns {string}
+     */
+    toHex(): string;
+    /**
+     * @returns {StakeKeyHash | StakingValidatorHash}
+     */
+    get stakingHash(): StakeKeyHash | StakingValidatorHash;
+    #private;
 }
 export class Signature extends CborData {
     /**
@@ -3761,6 +3842,7 @@ export class NetworkEmulator implements Network {
 }
 export namespace exportedForTesting {
     export { assert };
+    export { assertClass };
     export { setRawUsageNotifier };
     export { debug };
     export { setBlake2bDigestSize };
@@ -5235,6 +5317,68 @@ declare class TxInput extends CborData {
     dump(): any;
     #private;
 }
+declare class Redeemer extends CborData {
+    /**
+     * @param {number[]} bytes
+     * @returns {Redeemer}
+     */
+    static fromCbor(bytes: number[]): Redeemer;
+    /**
+     * @param {UplcData} data
+     * @param {Cost} exUnits
+     */
+    constructor(data: UplcData, exUnits?: Cost);
+    /**
+     * @type {UplcData}
+     */
+    get data(): UplcData;
+    /**
+     * @type {bigint}
+     */
+    get memCost(): bigint;
+    /**
+     * @type {bigint}
+     */
+    get cpuCost(): bigint;
+    /**
+     * type:
+     *   0 -> spending
+     *   1 -> minting
+     *   2 -> certifying
+     *   3 -> rewarding
+     * @param {number} type
+     * @param {number} index
+     * @returns {number[]}
+     */
+    toCborInternal(type: number, index: number): number[];
+    /**
+     * @returns {Object}
+     */
+    dumpInternal(): any;
+    /**
+     * @returns {Object}
+     */
+    dump(): any;
+    /**
+     * @param {TxBody} body
+     * @returns {ConstrData}
+     */
+    toScriptPurposeData(body: TxBody): ConstrData;
+    /**
+     * @param {TxBody} body
+     */
+    updateIndex(body: TxBody): void;
+    /**
+     * @param {Cost} cost
+     */
+    setCost(cost: Cost): void;
+    /**
+     * @param {NetworkParams} networkParams
+     * @returns {bigint}
+     */
+    estimateFee(networkParams: NetworkParams): bigint;
+    #private;
+}
 /**
  * Inside helios this type is named OutputDatum::Inline in order to distinguish it from the user defined Datum,
  * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
@@ -5253,6 +5397,14 @@ declare class InlineDatum extends Datum {
  * @param {string} msg
  */
 declare function assert(cond: boolean, msg?: string): void;
+/**
+ * @package
+ * @template Tin, Tout
+ * @param {Tin} obj
+ * @param {{new(...any): Tout}} C
+ * @returns {Tout}
+ */
+declare function assertClass<Tin, Tout>(obj: Tin, C: new (...any: any[]) => Tout, msg?: string): Tout;
 /**
  * Set the statistics collector (used by the test-suite)
  * @param {(name: string, count: number) => void} callback
@@ -5835,68 +5987,6 @@ declare class FuncLiteralExpr extends ValueExpr {
      * @returns {IR}
      */
     toIRRecursive(recursiveName: string, indent?: string): IR;
-    #private;
-}
-declare class Redeemer extends CborData {
-    /**
-     * @param {number[]} bytes
-     * @returns {Redeemer}
-     */
-    static fromCbor(bytes: number[]): Redeemer;
-    /**
-     * @param {UplcData} data
-     * @param {Cost} exUnits
-     */
-    constructor(data: UplcData, exUnits?: Cost);
-    /**
-     * @type {UplcData}
-     */
-    get data(): UplcData;
-    /**
-     * @type {bigint}
-     */
-    get memCost(): bigint;
-    /**
-     * @type {bigint}
-     */
-    get cpuCost(): bigint;
-    /**
-     * type:
-     *   0 -> spending
-     *   1 -> minting
-     *   2 -> certifying
-     *   3 -> rewarding
-     * @param {number} type
-     * @param {number} index
-     * @returns {number[]}
-     */
-    toCborInternal(type: number, index: number): number[];
-    /**
-     * @returns {Object}
-     */
-    dumpInternal(): any;
-    /**
-     * @returns {Object}
-     */
-    dump(): any;
-    /**
-     * @param {TxBody} body
-     * @returns {ConstrData}
-     */
-    toScriptPurposeData(body: TxBody): ConstrData;
-    /**
-     * @param {TxBody} body
-     */
-    updateIndex(body: TxBody): void;
-    /**
-     * @param {Cost} cost
-     */
-    setCost(cost: Cost): void;
-    /**
-     * @param {NetworkParams} networkParams
-     * @returns {bigint}
-     */
-    estimateFee(networkParams: NetworkParams): bigint;
     #private;
 }
 /**

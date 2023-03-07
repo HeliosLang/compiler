@@ -1,5 +1,10 @@
 This Changelog only applies to notable changes of language related features in `helios.js` on the main branch.
 
+# 2023/03/06
+* Addition of `ctx.get_cont_outputs()`
+* Addition of `value.get_assets()`
+* Addition of `option.map()`
+
 # 2023/03/05
 * Addition of `Map.for_each`
 * Addition of `Int::min`, `Int::max`, `int.bound()`, `int.bound_min()`, `int.bound_max()`
@@ -8,7 +13,7 @@ This Changelog only applies to notable changes of language related features in `
 
 # 2023/02/17
 * Addition of `Data.tag`
-* Addition of `List.for_each`
+* Addition of `List.for_each()`
 
 # 2023/01/18
 * IR: Removed simplify calls from inline methods. Slight decrease in optimization performance, huge increase in compiler speed.
