@@ -299,9 +299,14 @@ export class IRNameExpr extends IRExpr {
 	#index;
 
 	/**
-	 * @type {?IRVariable} - cached variable (note that core functions can be referenced as variables (yet))
+	 * @type {?IRVariable} - cached variable
 	 */
 	#variable;
+
+	/**
+	 * @type {?IRValue} - cached eval result (reused when eval is called within simplifyLiterals)
+	 */
+	#result;
 
 	/**
 	 * @param {Word} name 
@@ -314,6 +319,7 @@ export class IRNameExpr extends IRExpr {
 		this.#name = name;
 		this.#index = null;
 		this.#variable = variable;
+		this.#result = null;
 	}
 
 	/**
@@ -383,6 +389,10 @@ export class IRNameExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	evalConstants(stack) {
+		if (this.#variable != null) {
+			this.#result = stack.get(this.#variable);
+		}
+
 		return this;
 	}
 
@@ -398,7 +408,14 @@ export class IRNameExpr extends IRExpr {
 		} else if (this.#variable === null) {
 			throw new Error("variable should be set");
 		} else {
-			return stack.get(this.#variable);
+			// prefer result from stack, and use cached result as backup
+			const result = stack.get(this.#variable);
+
+			if (result == null) {
+				return this.#result;
+			} else {
+				return result;
+			}
 		}
 	}
 
@@ -409,6 +426,8 @@ export class IRNameExpr extends IRExpr {
 	simplifyLiterals(literals) {
 		if (this.#variable !== null && literals.has(this.#variable)) {
 			return assertDefined(literals.get(this.#variable));
+		} else if (this.#result instanceof IRLiteralExpr) {
+			return this.#result;
 		} else {
 			return this;
 		}
@@ -623,6 +642,23 @@ export class IRFuncExpr extends IRExpr {
 
 	get body() {
 		return this.#body;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	hasOptArgs() {
+		const b = this.#args.some(a => a.name.startsWith("__useopt__"));
+
+		if (b) {
+			return b;
+		}
+
+		if (this.#body instanceof IRFuncExpr) {
+			return this.#body.hasOptArgs();
+		} else {
+			return false;
+		}
 	}
 
 	/**
@@ -977,6 +1013,22 @@ export class IRCoreCallExpr extends IRCallExpr {
 	 */
 	simplifyLiterals(literals) {
 		const args = this.simplifyLiteralsInArgs(literals);
+
+		if (args.length > 0 && args.every(a => a instanceof IRLiteralExpr)) {
+			try {
+				const res = IRCoreCallExpr.evalValues(
+					this.site,
+					false,
+					this.builtinName,
+					args.map(a => new IRLiteralValue(assertClass(a, IRLiteralExpr).value))
+				);
+
+				if (res != null) {
+					return new IRLiteralExpr(res.value);
+				}
+			} catch (e) {
+			}
+		}
 
 		switch(this.builtinName) {
 			case "addInteger": {
@@ -1355,16 +1407,49 @@ export class IRUserCallExpr extends IRCallExpr {
 
 	/**
 	 * @param {IRLiteralRegistry} literals
+	 * @returns {(IRExpr[] | IRLiteralExpr)}
+	 */
+	simplifyLiteralsInArgsAndTryEval(literals) {
+		const args = this.simplifyLiteralsInArgs(literals);
+
+		if (args.length > 0 && args.every(a => a instanceof IRLiteralExpr)) {
+			try {
+				const fn = this.#fnExpr.eval(new IRCallStack(false));
+
+				if (fn != null) {
+					const res = fn.call(
+						args.map(a => new IRLiteralValue(assertClass(a, IRLiteralExpr).value))
+					);
+
+					if (res != null) {
+						return new IRLiteralExpr(res.value);
+					}
+				}
+			} catch(e) {
+			}
+		}
+
+		return args;
+	}
+
+	/**
+	 * @param {IRLiteralRegistry} literals
 	 * @returns {IRExpr}
 	 */
 	simplifyLiterals(literals) {
-		const args = this.simplifyLiteralsInArgs(literals);
+		const argsOrLiteral = this.simplifyLiteralsInArgs(literals);
 
-		return IRUserCallExpr.new(
-			this.#fnExpr.simplifyLiterals(literals),
-			args, 
-			this.parensSite
-		);
+		if (argsOrLiteral instanceof IRLiteralExpr) {
+			return argsOrLiteral;
+		} else {
+			const args = argsOrLiteral;
+
+			return IRUserCallExpr.new(
+				this.#fnExpr.simplifyLiterals(literals),
+				args, 
+				this.parensSite
+			);
+		}
 	}
 
 	/**
@@ -1511,28 +1596,34 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 	 * @returns {IRExpr}
 	 */
 	simplifyLiterals(literals) {
-		const args = this.simplifyLiteralsInArgs(literals);
+		const argsOrLiteral = super.simplifyLiteralsInArgsAndTryEval(literals);
 
-		args.forEach((arg, i) => {
-			if (arg instanceof IRLiteralExpr) {
-				literals.set(this.argVariables[i], arg);
-			}
-		});
-
-		const anonBody = this.#anon.body.simplifyLiterals(literals);
-
-		if (anonBody instanceof IRLiteralExpr) {
-			return anonBody;
+		if (argsOrLiteral instanceof IRLiteralExpr) {
+			return argsOrLiteral;
 		} else {
-			return new IRAnonCallExpr(
-				new IRFuncExpr(
-					this.#anon.site,
-					this.#anon.args,
-					anonBody
-				),
-				args,
-				this.parensSite
-			);
+			const args = argsOrLiteral;
+
+			args.forEach((arg, i) => {
+				if (arg instanceof IRLiteralExpr) {
+					literals.set(this.argVariables[i], arg);
+				}
+			});
+
+			const anonBody = this.#anon.body.simplifyLiterals(literals);
+
+			if (anonBody instanceof IRLiteralExpr) {
+				return anonBody;
+			} else {
+				return new IRAnonCallExpr(
+					new IRFuncExpr(
+						this.#anon.site,
+						this.#anon.args,
+						anonBody
+					),
+					args,
+					this.parensSite
+				);
+			}
 		}
 	}
 
@@ -1554,14 +1645,21 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 	simplifyTopology(registry) {
 		const args = this.simplifyTopologyInArgs(registry);
 
-		// remove unused args, inline args that are only referenced once
+		// remove unused args, inline args that are only referenced once, inline all IRNameExprs, inline function with default args 
 		const remainingIds = this.argVariables.map((variable, i) => {
 			const n = registry.countReferences(variable);
 
-			if (n == 0 || (n == 1 && (!registry.maybeInsideLoop(variable) || args[i] instanceof IRFuncExpr)) || args[i] instanceof IRNameExpr) {
+			const arg = args[i];
+
+			if (
+				n == 0 || 
+				(n == 1 && (!registry.maybeInsideLoop(variable) || arg instanceof IRFuncExpr)) || 
+				arg instanceof IRNameExpr ||
+				(arg instanceof IRFuncExpr && arg.hasOptArgs())
+			) {
 				if (n > 0) {
 					// inline
-					registry.addInlineable(variable, args[i]);
+					registry.addInlineable(variable, arg);
 				}
 
 				return -1;

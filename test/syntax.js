@@ -72,7 +72,11 @@ async function test2() {
 
     let program = helios.Program.new(src);
 
-    program.changeParam("DISBURSEMENTS", JSON.stringify([[[1,2,3], 100]]));
+    program.parameters = {
+      DISBURSEMENTS: new (helios.HMap(helios.PubKeyHash, helios.HInt))([
+        [new helios.PubKeyHash("01020304050607080910111213141516171819202122232425262728"), new helios.HInt(100)]
+      ])
+    };
 
     console.log(program.evalParam("DISBURSEMENTS").toString());
     console.log(program.evalParam("DATUM").toString());
@@ -391,9 +395,9 @@ async function test14() {
 
   const {MyStruct, MyEnum} = program.types;
 
-  const {Int, HeliosString, List, HeliosMap, Value} = helios;
+  const {HInt, HString, HList, HMap, Value} = helios;
 
-  const myInt = new Int(10);
+  const myInt = new HInt(10);
 
   console.log(myInt.int);
 
@@ -401,19 +405,19 @@ async function test14() {
 
   console.log(myInt._toUplcData().toString());
 
-  console.log((Int.fromUplcCbor([10])).int);
+  console.log((HInt.fromUplcCbor([10])).int);
 
-  console.log(Int.name);
+  console.log(HInt.name);
 
-  console.log ((new HeliosString("ajshdj")).toSchemaJson());
+  console.log ((new HString("ajshdj")).toSchemaJson());
 
-  const list = new (List(HeliosString))(["a", "b"]);
+  const list = new (HList(HString))(["a", "b"]);
 
   console.log(list.toSchemaJson());
 
-  const map = new (HeliosMap(HeliosString, Int))(["a", "b"], [1, 2]);
+  const map = new (HMap(HString, HInt))(["a", "b"], [1, 2]);
 
-  console.log(map.toSchemaJson(), map instanceof (HeliosMap(HeliosString, Int)));
+  console.log(map.toSchemaJson(), map instanceof (HMap(HString, HInt)));
 
   const myStruct = new MyStruct(1, 2);
 

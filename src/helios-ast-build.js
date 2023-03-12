@@ -28,11 +28,13 @@ import {
 import {
     AssignExpr,
     BinaryExpr,
+    CallArgExpr,
     CallExpr,
     ChainExpr,
     DataSwitchExpr,
     EnumSwitchExpr,
     FuncArg,
+	FuncArgTypeExpr,
     FuncLiteralExpr,
     FuncTypeExpr,
     IfElseExpr,
@@ -73,6 +75,14 @@ import {
     Statement,
     StructStatement
 } from "./helios-ast-statements.js";
+
+const AUTOMATIC_METHODS = [
+	"__eq",
+	"__neq",
+	"copy",
+	"from_data",
+	"serialize"
+];
 
 /**
  * @package
@@ -391,6 +401,8 @@ function buildFuncArgs(parens, methodOf = null) {
 	/** @type {FuncArg[]} */
 	const args = [];
 
+	let hasDefaultArgs = false;
+
 	for (let i = 0; i < parens.fields.length; i++) {
 		const f = parens.fields[i];
 		const ts = f.slice();
@@ -436,13 +448,38 @@ function buildFuncArgs(parens, methodOf = null) {
 			} else {
 				const colon = maybeColon.assertSymbol(":");
 
+				const equalsPos = SymbolToken.find(ts, "=");
+
+				/**
+				 * @type {null | ValueExpr}
+				 */
+				let defaultValueExpr = null;
+
+				if (equalsPos != -1) {
+					if (equalsPos == ts.length-1) {
+						throw ts[equalsPos].syntaxError("expected expression after '='");
+					}
+
+					const vts = ts.splice(equalsPos);
+
+					vts.shift()?.assertSymbol("=");
+					
+					defaultValueExpr = buildValueExpr(vts);
+
+					hasDefaultArgs = true;
+				} else {
+					if (hasDefaultArgs) {
+						throw name.syntaxError("positional args must come before default args");
+					}
+				}
+
 				if (ts.length == 0) {
 					throw colon.syntaxError("expected type expression after ':'");
 				}
 
 				const typeExpr = buildTypeExpr(ts);
 
-				args.push(new FuncArg(name, typeExpr));
+				args.push(new FuncArg(name, typeExpr, defaultValueExpr));
 			}
 		}
 	}
@@ -598,7 +635,7 @@ function buildImplDefinition(ts, selfTypeExpr, fieldNames, endSite) {
 	 * @param {Word} name 
 	 */
 	function assertNonAuto(name) {
-		if (name.toString() == "serialize" || name.toString() == "__eq" || name.toString() == "__neq" || name.toString() == "from_data") {
+		if (AUTOMATIC_METHODS.findIndex(n => n == name.toString()) != -1) {
 			throw name.syntaxError(`'${name.toString()}' is a reserved member`);
 		}
 	}
@@ -775,13 +812,74 @@ function buildOptionTypeExpr(ts) {
 function buildFuncTypeExpr(ts) {
 	const parens = assertDefined(ts.shift()).assertGroup("(");
 
-	const argTypes = parens.fields.map(f => buildTypeExpr(f.slice()));
+	let hasOptArgs = false;
+
+	const argTypes = parens.fields.map(f => {
+		const fts = f.slice();
+
+		if (fts.length == 0) {
+			throw parens.syntaxError("expected func arg type");
+		}
+
+		const funcArgTypeExpr = buildFuncArgTypeExpr(fts);
+		if (hasOptArgs) {
+			if (!funcArgTypeExpr.isOptional()) {
+				throw funcArgTypeExpr.syntaxError("optional arguments must come last");
+			}
+		} else {
+			if (funcArgTypeExpr.isOptional()) {
+				hasOptArgs = true;
+			}
+		}
+
+		return funcArgTypeExpr;
+	});
+
+	if (argTypes.some(at => at.isNamed()) && argTypes.some(at => !at.isNamed())) {
+		throw argTypes[0].syntaxError("can't mix named and unnamed args in func type");
+	}
 
 	const arrow = assertDefined(ts.shift()).assertSymbol("->");
 
 	const retTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
 
 	return new FuncTypeExpr(parens.site, argTypes, retTypes.map(t => assertDefined(t)));
+}
+
+/**
+ * 
+ * @param {Token[]} ts 
+ * @returns {FuncArgTypeExpr}
+ */
+function buildFuncArgTypeExpr(ts) {
+	const colonPos = SymbolToken.find(ts, ":");
+
+	if (colonPos != -1 && colonPos != 1) {
+		throw ts[0].syntaxError("invalid syntax");
+	}
+
+	const name = colonPos != -1 ? assertDefined(ts.shift()).assertWord().assertNotKeyword() : null;
+
+	if (colonPos != -1) {
+		const colon = assertDefined(ts.shift());
+
+		if (ts.length == 0) {
+			throw colon.syntaxError("expected type expression after ':'");
+		}
+	}
+
+	const hasDefault = ts[0].isSymbol("?");
+	if (hasDefault) {
+		const opt = assertDefined(ts.shift());
+
+		if (ts.length == 0) {
+			throw opt.syntaxError("invalid type expression after '?'");
+		}
+	}
+
+	const typeExpr = buildTypeExpr(ts);
+
+	return new FuncArgTypeExpr(name !== null ? name.site : typeExpr.site, name, typeExpr, hasDefault);
 }
 
 /**
@@ -1145,7 +1243,7 @@ function buildChainedValueExpr(ts, prec) {
 		const t = assertDefined(ts.shift());
 
 		if (t.isGroup("(")) {
-			expr = new CallExpr(t.site, expr, buildCallArgs(t.assertGroup()));
+			expr = buildCallExpr(t.site, expr, t.assertGroup());
 		} else if (t.isGroup("[")) {
 			throw t.syntaxError("invalid expression '[...]'");
 		} else if (t.isSymbol(".") && ts.length > 0 && ts[0].isWord("switch")) {
@@ -1164,6 +1262,18 @@ function buildChainedValueExpr(ts, prec) {
 	}
 
 	return expr;
+}
+
+/**
+ * @param {Site} site 
+ * @param {ValueExpr} fnExpr 
+ * @param {Group} parens
+ * @returns {CallExpr}
+ */
+function buildCallExpr(site, fnExpr, parens) {
+	const callArgs = buildCallArgs(parens);
+
+	return new CallExpr(site, fnExpr, callArgs);
 }
 
 /**
@@ -1234,10 +1344,63 @@ function buildParensExpr(ts) {
 /**
  * @package
  * @param {Group} parens 
- * @returns {ValueExpr[]}
+ * @returns {CallArgExpr[]}
  */
 function buildCallArgs(parens) {
-	return parens.fields.map(fts => buildValueExpr(fts));
+	/**
+	 * @type {Set<string>}
+	 */
+	const names = new Set();
+
+	const callArgs = parens.fields.map(fts => {
+		const callArg = buildCallArgExpr(parens.site, fts);
+
+		if (callArg.isNamed()) {
+			if (names.has(callArg.name)) {
+				throw callArg.syntaxError(`duplicate named call arg ${callArg.name}`);
+			} else {
+				names.add(callArg.name);
+			}
+		}
+
+		return callArg;
+	});
+
+	if (callArgs.some(ca => ca.isNamed()) && callArgs.some(ca => !ca.isNamed())) {
+		throw callArgs[0].syntaxError("can't mix positional and named args");
+	}
+
+	return callArgs;
+}
+
+/**
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {CallArgExpr}
+ */
+function buildCallArgExpr(site, ts) {
+	if (ts.length == 0) {
+		throw site.syntaxError("invalid syntax");
+	}
+
+	/**
+	 * @type {null | Word}
+	 */
+	let name = null;
+
+	if (ts.length >= 2 && ts[0].isWord() && ts[1].isSymbol(":")) {
+		name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+
+		const colon = assertDefined(ts.shift());
+
+		if (ts.length == 0) {
+			throw colon.syntaxError("expected value expressions after ':'");
+		}
+	}
+
+	const value = buildValueExpr(ts);
+
+	return new CallArgExpr(name != null ? name.site : value.site, name, value);
 }
 
 /**

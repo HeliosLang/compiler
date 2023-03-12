@@ -44,9 +44,9 @@ export function hl(a: string[], ...b: any[]): string;
  * Dynamically constructs a new List class, depending on the item type.
  * @template {HeliosData} T
  * @param {HeliosDataClass<T>} ItemClass
- * @returns {HeliosDataClass<List_>}
+ * @returns {HeliosDataClass<HList_>}
  */
-export function List<T extends HeliosData>(ItemClass: HeliosDataClass<T>): HeliosDataClass<{
+export function HList<T extends HeliosData>(ItemClass: HeliosDataClass<T>): HeliosDataClass<{
     /**
      * @type {T[]}
      */
@@ -79,9 +79,9 @@ export function List<T extends HeliosData>(ItemClass: HeliosDataClass<T>): Helio
  * @template {HeliosData} TValue
  * @param {HeliosDataClass<TKey>} KeyClass
  * @param {HeliosDataClass<TValue>} ValueClass
- * @returns {HeliosDataClass<HeliosMap_>}
+ * @returns {HeliosDataClass<HMap_>}
  */
-export function HeliosMap<TKey extends HeliosData, TValue extends HeliosData>(KeyClass: HeliosDataClass<TKey>, ValueClass: HeliosDataClass<TValue>): HeliosDataClass<{
+export function HMap<TKey extends HeliosData, TValue extends HeliosData>(KeyClass: HeliosDataClass<TKey>, ValueClass: HeliosDataClass<TValue>): HeliosDataClass<{
     /**
      * @type {[TKey, TValue][]}
      */
@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.12.13";
+export const VERSION: "0.13.0";
 /**
  * Set to false if using the library for mainnet (impacts Addresses)
  * @type {boolean}
@@ -1034,7 +1034,7 @@ export class HeliosData extends CborData {
 /**
  * Helios Int type
  */
-export class Int extends HeliosData {
+export class HInt extends HeliosData {
     /**
      * @package
      * @param {number | bigint | string} rawValue
@@ -1043,14 +1043,14 @@ export class Int extends HeliosData {
     static cleanConstructorArg(rawValue: number | bigint | string): bigint;
     /**
      * @param {UplcData} data
-     * @returns {Int}
+     * @returns {HInt}
      */
-    static fromUplcData(data: UplcData): Int;
+    static fromUplcData(data: UplcData): HInt;
     /**
      * @param {string | number[]} bytes
-     * @returns {Int}
+     * @returns {HInt}
      */
-    static fromUplcCbor(bytes: string | number[]): Int;
+    static fromUplcCbor(bytes: string | number[]): HInt;
     /**
      * @param {number | bigint | string} rawValue
      */
@@ -1064,7 +1064,7 @@ export class Int extends HeliosData {
 /**
  * Milliseconds since 1 jan 1970
  */
-export class Time extends Int {
+export class Time extends HInt {
     /**
     * @package
     * @param {number | bigint | string | Date} rawValue
@@ -1079,7 +1079,7 @@ export class Time extends Int {
 /**
  * Difference between two time values in milliseconds.
  */
-export class Duration extends Int {
+export class Duration extends HInt {
 }
 /**
  * Helios Bool type
@@ -1112,17 +1112,17 @@ export class Bool extends HeliosData {
  * Helios String type.
  * Can't be named 'String' because that would interfere with the javascript 'String'-type
  */
-export class HeliosString extends HeliosData {
+export class HString extends HeliosData {
     /**
      * @param {UplcData} data
-     * @returns {HeliosString}
+     * @returns {HString}
      */
-    static fromUplcData(data: UplcData): HeliosString;
+    static fromUplcData(data: UplcData): HString;
     /**
      * @param {string | number[]} bytes
-     * @returns {HeliosString}
+     * @returns {HString}
      */
-    static fromUplcCbor(bytes: string | number[]): HeliosString;
+    static fromUplcCbor(bytes: string | number[]): HString;
     /**
      * @param {string} value
      */
@@ -1312,7 +1312,7 @@ export class TxOutputId extends HeliosData {
      */
     constructor(...args: any[]);
     get txId(): TxId;
-    get utxoIdx(): Int;
+    get utxoIdx(): HInt;
     #private;
 }
 /**
@@ -4716,6 +4716,11 @@ declare class IRUserCallExpr extends IRCallExpr {
      */
     constructor(fnExpr: IRExpr, argExprs: IRExpr[], parensSite: Site);
     get fnExpr(): IRExpr;
+    /**
+     * @param {IRLiteralRegistry} literals
+     * @returns {(IRExpr[] | IRLiteralExpr)}
+     */
+    simplifyLiteralsInArgsAndTryEval(literals: IRLiteralRegistry): (IRExpr[] | IRLiteralExpr);
     copy(): IRUserCallExpr;
     #private;
 }
@@ -4732,6 +4737,10 @@ declare class IRFuncExpr extends IRExpr {
     constructor(site: Site, args: IRVariable[], body: IRExpr);
     get args(): IRVariable[];
     get body(): IRExpr;
+    /**
+     * @returns {boolean}
+     */
+    hasOptArgs(): boolean;
     /**
      * @param {IRCallStack} stack
      */
@@ -4810,9 +4819,11 @@ declare class IRProgram {
     static new(ir: IR, purpose: number | null, simplify?: boolean, throwSimplifyRTErrors?: boolean, scope?: IRScope): IRProgram;
     /**
      * @param {IRExpr} expr
+     * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
+     * @param {IRScope} scope
      * @returns {IRExpr}
      */
-    static simplify(expr: IRExpr): IRExpr;
+    static simplify(expr: IRExpr, throwSimplifyRTErrors: boolean, scope: IRScope): IRExpr;
     /**
      * @param {IRFuncExpr | IRCallExpr | IRLiteralExpr} expr
      * @param {?number} purpose
@@ -5651,9 +5662,12 @@ declare class EvalEntity {
      * Throws an error if 'this' isn't a function value, or if the args don't correspond.
      * @param {Site} site
      * @param {Instance[]} args
+     * @param {{[name: string]: Instance}} namedArgs
      * @returns {Instance}
      */
-    call(site: Site, args: Instance[]): Instance;
+    call(site: Site, args: Instance[], namedArgs?: {
+        [name: string]: Instance;
+    }): Instance;
     /**
      * Gets a member of a Type (i.e. the '::' operator).
      * Throws an error if the member doesn't exist or if 'this' isn't a DataType.
@@ -5902,12 +5916,29 @@ declare class Scope {
  */
 declare class FuncType extends Type {
     /**
-     * @param {Type[]} argTypes
+     * @param {Type[] | ArgType[]} argTypes
      * @param {Type | Type[]} retTypes
      */
-    constructor(argTypes: Type[], retTypes: Type | Type[]);
+    constructor(argTypes: Type[] | ArgType[], retTypes: Type | Type[]);
+    /**
+     * @type {number}
+     */
     get nArgs(): number;
+    /**
+     * @type {number}
+     */
+    get nNonOptArgs(): number;
+    /**
+     * @type {number}
+     */
+    get nOptArgs(): number;
+    /**
+     * @type {Type[]}
+     */
     get argTypes(): Type[];
+    /**
+     * @type {Type[]}
+     */
     get retTypes(): Type[];
     /**
      * Checks if the type of the first arg is the same as 'type'
@@ -5927,13 +5958,23 @@ declare class FuncType extends Type {
      */
     isAssociated(site: Site, type: Type): boolean;
     /**
+     * Throws an error if name isn't found
+     * @param {Site} site
+     * @param {string} name
+     * @returns {number}
+     */
+    getNamedIndex(site: Site, name: string): number;
+    /**
      * Checks if arg types are valid.
      * Throws errors if not valid. Returns the return type if valid.
      * @param {Site} site
-     * @param {Instance[]} args
+     * @param {Instance[]} posArgs
+     * @param {{[name: string]: Instance}} namedArgs
      * @returns {Type[]}
      */
-    checkCall(site: Site, args: Instance[]): Type[];
+    checkCall(site: Site, posArgs: Instance[], namedArgs?: {
+        [name: string]: Instance;
+    }): Type[];
     #private;
 }
 /**
@@ -5975,6 +6016,12 @@ declare class FuncLiteralExpr extends ValueExpr {
      * @returns {IR}
      */
     argsToIR(): IR;
+    /**
+     * In reverse order, because later opt args might depend on earlier args
+     * @param {IR} innerIR
+     * @returns {IR}
+     */
+    wrapWithDefaultArgs(innerIR: IR): IR;
     /**
      * @param {?string} recursiveName
      * @param {string} indent
@@ -6022,6 +6069,45 @@ declare class UplcAnon extends UplcValue {
 declare class NotType extends EvalEntity {
 }
 /**
+ * @package
+ */
+declare class ArgType {
+    /**
+     *
+     * @param {null | Word} name
+     * @param {Type} type
+     * @param {boolean} optional
+     */
+    constructor(name: null | Word, type: Type, optional?: boolean);
+    /**
+     * @type {string}
+     */
+    get name(): string;
+    /**
+     * @type {Type}
+     */
+    get type(): Type;
+    /**
+     * @returns {boolean}
+     */
+    isNamed(): boolean;
+    /**
+     * @returns {boolean}
+     */
+    isOptional(): boolean;
+    /**
+     * @returns {string}
+     */
+    toString(): string;
+    /**
+     * @param {Site} site
+     * @param {ArgType} other
+     * @returns {boolean}
+     */
+    isBaseOf(site: Site, other: ArgType): boolean;
+    #private;
+}
+/**
  * Base class of expression that evaluate to Values.
  * @package
  */
@@ -6059,7 +6145,6 @@ declare class FuncInstance extends Instance {
      * @param {FuncType} type
      */
     constructor(type: FuncType);
-    get nArgs(): number;
     /**
      * @param {RecursivenessChecker} scope
      * @returns {boolean}
@@ -6077,6 +6162,48 @@ declare class FuncInstance extends Instance {
  * @package
  */
 declare class FuncArg extends NameTypePair {
+    /**
+     * @param {IR} bodyIR
+     * @param {string} name
+     * @param {IR} defaultIR
+     * @returns {IR}
+     */
+    static wrapWithDefaultInternal(bodyIR: IR, name: string, defaultIR: IR): IR;
+    /**
+     * @param {Word} name
+     * @param {?TypeExpr} typeExpr
+     * @param {null | ValueExpr} defaultValueExpr
+     */
+    constructor(name: Word, typeExpr: TypeExpr | null, defaultValueExpr?: null | ValueExpr);
+    /**
+     * @param {Scope} scope
+     */
+    evalDefault(scope: Scope): void;
+    /**
+     * @param {Scope} scope
+     * @returns {ArgType}
+     */
+    evalArgType(scope: Scope): ArgType;
+    /**
+     * (argName) -> {
+     *   <bodyIR>
+     * }(
+     *   ifThenElse(
+     * 		__useoptarg__argName,
+     *  	() -> {
+     *        argName
+     *      },
+     *      () -> {
+     *        <defaultValueExpr>
+     *      }
+     *   )()
+     * )
+     * TODO: indentation
+     * @param {IR} bodyIR
+     * @returns {IR}
+     */
+    wrapWithDefault(bodyIR: IR): IR;
+    #private;
 }
 /**
  * Base class of every Type expression
@@ -6148,6 +6275,9 @@ declare class NameTypePair {
      */
     evalType(scope: Scope): Type;
     use(): void;
+    /**
+     * @returns {IR}
+     */
     toIR(): IR;
     #private;
 }

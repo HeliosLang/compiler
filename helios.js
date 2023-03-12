@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.12.13
+// Version:       0.13.0
 // Last update:   March 2023
 // License:       Unlicense
 //
@@ -30,7 +30,7 @@
 //     > console.log(helios.Program.new("spending my_validator ...").compile().serialize());
 //     
 //
-// Documentation: https://www.hyperion-bt.org/Helios-Book
+// Documentation: https://www.hyperion-bt.org/helios-book
 //
 //
 // Note: I recommend keeping the Helios library as a single unminified file for optimal 
@@ -59,8 +59,8 @@
 //    Section 6: Uplc data types             UPLC_DATA_NODE_MEM_SIZE, UplcData, IntData, 
 //                                           ByteArrayData, ListData, MapData, ConstrData
 //
-//    Section 7: Helios data objects         HeliosData, Int, Time, Duration, Bool, HeliosString, 
-//                                           ByteArray, List, HeliosMap, Option, Hash, DatumHash, 
+//    Section 7: Helios data objects         HeliosData, HInt, Time, Duration, Bool, HString, 
+//                                           ByteArray, HList, HMap, Option, Hash, DatumHash, 
 //                                           PubKeyHash, ScriptHash, MintingPolicyHash, 
 //                                           StakeKeyHash, StakingValidatorHash, ValidatorHash, 
 //                                           TxId, TxOutputId, Address, Assets, Value
@@ -91,17 +91,18 @@
 //    Section 13: Helios eval entities       EvalEntity, Type, AnyType, DataType, AnyDataType, 
 //                                           BuiltinType, BuiltinEnumMember, StatementType, 
 //                                           StructStatementType, EnumStatementType, 
-//                                           EnumMemberStatementType, FuncType, NotType, Instance, 
-//                                           DataInstance, ConstStatementInstance, FuncInstance, 
-//                                           FuncStatementInstance, MultiInstance, VoidInstance, 
-//                                           ErrorInstance, BuiltinFuncInstance, PrintFunc, 
-//                                           VoidType, ErrorType, IntType, BoolType, StringType, 
-//                                           ByteArrayType, ParamType, ParamFuncValue, ListType, 
-//                                           MapType, OptionType, OptionSomeType, OptionNoneType, 
-//                                           HashType, PubKeyHashType, StakeKeyHashType, 
-//                                           PubKeyType, ScriptHashType, ValidatorHashType, 
-//                                           MintingPolicyHashType, StakingValidatorHashType, 
-//                                           DatumHashType, ScriptContextType, ScriptPurposeType, 
+//                                           EnumMemberStatementType, ArgType, FuncType, NotType, 
+//                                           Instance, DataInstance, ConstStatementInstance, 
+//                                           FuncInstance, FuncStatementInstance, MultiInstance, 
+//                                           VoidInstance, ErrorInstance, BuiltinFuncInstance, 
+//                                           PrintFunc, VoidType, ErrorType, IntType, BoolType, 
+//                                           StringType, ByteArrayType, ParamType, ParamFuncValue, 
+//                                           ListType, MapType, OptionType, OptionSomeType, 
+//                                           OptionNoneType, HashType, PubKeyHashType, 
+//                                           StakeKeyHashType, PubKeyType, ScriptHashType, 
+//                                           ValidatorHashType, MintingPolicyHashType, 
+//                                           StakingValidatorHashType, DatumHashType, 
+//                                           ScriptContextType, ScriptPurposeType, 
 //                                           MintingScriptPurposeType, SpendingScriptPurposeType, 
 //                                           RewardingScriptPurposeType, 
 //                                           CertifyingScriptPurposeType, StakingPurposeType, 
@@ -125,15 +126,16 @@
 //
 //    Section 15: Helios AST expressions     Expr, TypeExpr, TypeRefExpr, TypePathExpr, 
 //                                           ListTypeExpr, MapTypeExpr, OptionTypeExpr, 
-//                                           VoidTypeExpr, FuncTypeExpr, ValueExpr, AssignExpr, 
-//                                           PrintExpr, VoidExpr, ChainExpr, PrimitiveLiteralExpr, 
-//                                           LiteralDataExpr, StructLiteralField, 
-//                                           StructLiteralExpr, ListLiteralExpr, MapLiteralExpr, 
-//                                           NameTypePair, FuncArg, FuncLiteralExpr, ValueRefExpr, 
+//                                           VoidTypeExpr, FuncArgTypeExpr, FuncTypeExpr, 
+//                                           ValueExpr, AssignExpr, PrintExpr, VoidExpr, 
+//                                           ChainExpr, PrimitiveLiteralExpr, LiteralDataExpr, 
+//                                           StructLiteralField, StructLiteralExpr, 
+//                                           ListLiteralExpr, MapLiteralExpr, NameTypePair, 
+//                                           FuncArg, FuncLiteralExpr, ValueRefExpr, 
 //                                           ValuePathExpr, UnaryExpr, BinaryExpr, ParensExpr, 
-//                                           CallExpr, MemberExpr, IfElseExpr, SwitchCase, 
-//                                           UnconstrDataSwitchCase, SwitchDefault, SwitchExpr, 
-//                                           EnumSwitchExpr, DataSwitchExpr
+//                                           CallArgExpr, CallExpr, MemberExpr, IfElseExpr, 
+//                                           SwitchCase, UnconstrDataSwitchCase, SwitchDefault, 
+//                                           SwitchExpr, EnumSwitchExpr, DataSwitchExpr
 //
 //    Section 16: Literal functions          buildLiteralExprFromJson, buildLiteralExprFromValue
 //
@@ -142,21 +144,23 @@
 //                                           FuncStatement, EnumMember, EnumStatement, 
 //                                           ImplDefinition
 //
-//    Section 18: Helios AST building        buildProgramStatements, buildScriptPurpose, 
-//                                           extractScriptPurposeAndName, buildConstStatement, 
-//                                           splitDataImpl, buildStructStatement, buildDataFields, 
+//    Section 18: Helios AST building        AUTOMATIC_METHODS, buildProgramStatements, 
+//                                           buildScriptPurpose, extractScriptPurposeAndName, 
+//                                           buildConstStatement, splitDataImpl, 
+//                                           buildStructStatement, buildDataFields, 
 //                                           buildFuncStatement, buildFuncLiteralExpr, 
 //                                           buildFuncArgs, buildEnumStatement, 
 //                                           buildImportStatements, buildEnumMember, 
 //                                           buildImplDefinition, buildImplMembers, buildTypeExpr, 
 //                                           buildListTypeExpr, buildMapTypeExpr, 
 //                                           buildOptionTypeExpr, buildFuncTypeExpr, 
-//                                           buildFuncRetTypeExprs, buildTypePathExpr, 
-//                                           buildTypeRefExpr, buildValueExpr, 
+//                                           buildFuncArgTypeExpr, buildFuncRetTypeExprs, 
+//                                           buildTypePathExpr, buildTypeRefExpr, buildValueExpr, 
 //                                           buildMaybeAssignOrPrintExpr, buildAssignLhs, 
 //                                           makeBinaryExprBuilder, makeUnaryExprBuilder, 
-//                                           buildChainedValueExpr, buildChainStartValueExpr, 
-//                                           buildParensExpr, buildCallArgs, buildIfElseExpr, 
+//                                           buildChainedValueExpr, buildCallExpr, 
+//                                           buildChainStartValueExpr, buildParensExpr, 
+//                                           buildCallArgs, buildCallArgExpr, buildIfElseExpr, 
 //                                           buildSwitchExpr, buildSwitchCaseName, 
 //                                           buildSwitchCase, buildSwitchCaseNameType, 
 //                                           buildMultiArgSwitchCase, buildSingleArgSwitchCase, 
@@ -214,7 +218,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.12.13";
+export const VERSION = "0.13.0";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -1975,6 +1979,7 @@ class StringLiteral extends PrimitiveLiteral {
 	 * @param {?Site} site 
 	 */
 	constructor(content, site = null) {
+		assert(!(Array.isArray(content) && content.some(item => item == undefined)), "some items undefined");
 		this.#content = content;
 		this.#site = site;
 	}
@@ -5094,7 +5099,7 @@ export class HeliosData extends CborData {
 /**
  * Helios Int type
  */
-export class Int extends HeliosData {
+export class HInt extends HeliosData {
     /** 
      * @type {bigint} 
      */
@@ -5121,7 +5126,7 @@ export class Int extends HeliosData {
     constructor(rawValue) {
         super();
 
-        this.#value = Int.cleanConstructorArg(rawValue);
+        this.#value = HInt.cleanConstructorArg(rawValue);
     }
 
     /**
@@ -5141,25 +5146,25 @@ export class Int extends HeliosData {
 
     /**
      * @param {UplcData} data
-     * @returns {Int}
+     * @returns {HInt}
      */
     static fromUplcData(data) {
-        return new Int(data.int);
+        return new HInt(data.int);
     }
 
     /**
      * @param {string | number[]} bytes
-     * @returns {Int}
+     * @returns {HInt}
      */
     static fromUplcCbor(bytes) {
-        return Int.fromUplcData(UplcData.fromCbor(bytes));
+        return HInt.fromUplcData(UplcData.fromCbor(bytes));
     }
 }
 
 /**
  * Milliseconds since 1 jan 1970
  */
-export class Time extends Int {
+export class Time extends HInt {
      /**
      * @package
      * @param {number | bigint | string | Date} rawValue
@@ -5207,7 +5212,7 @@ export class Time extends Int {
 /**
  * Difference between two time values in milliseconds.
  */
-export class Duration extends Int {
+export class Duration extends HInt {
     /**
      * @param {UplcData} data
      * @returns {Duration}
@@ -5305,7 +5310,7 @@ export class Bool extends HeliosData {
  * Helios String type.
  * Can't be named 'String' because that would interfere with the javascript 'String'-type
  */
-export class HeliosString extends HeliosData {
+export class HString extends HeliosData {
     /**
      * @type {string}
      */
@@ -5334,18 +5339,18 @@ export class HeliosString extends HeliosData {
 
     /**
      * @param {UplcData} data 
-     * @returns {HeliosString}
+     * @returns {HString}
      */
     static fromUplcData(data) {
-        return new HeliosString(bytesToText(data.bytes));
+        return new HString(bytesToText(data.bytes));
     }
 
     /**
      * @param {string | number[]} bytes 
-     * @returns {HeliosString}
+     * @returns {HString}
      */
     static fromUplcCbor(bytes) {
-        return HeliosString.fromUplcData(UplcData.fromCbor(bytes));
+        return HString.fromUplcData(UplcData.fromCbor(bytes));
     }
 }
 
@@ -5428,15 +5433,15 @@ export class ByteArray extends HeliosData {
  * Dynamically constructs a new List class, depending on the item type.
  * @template {HeliosData} T
  * @param {HeliosDataClass<T>} ItemClass
- * @returns {HeliosDataClass<List_>}
+ * @returns {HeliosDataClass<HList_>}
  */
-export function List(ItemClass) {
+export function HList(ItemClass) {
     assert(!new.target, "List can't be called with new");
     assert(ItemClass.prototype instanceof HeliosData);
 
     const typeName = `[]${ItemClass.name}`;
 
-    class List_ extends HeliosData {
+    class HList_ extends HeliosData {
         /** 
          * @type {T[]} 
          */
@@ -5492,27 +5497,27 @@ export function List(ItemClass) {
 
         /**
          * @param {UplcData} data 
-         * @returns {List_}
+         * @returns {HList_}
          */
         static fromUplcData(data) {
-            return new List_(data.list.map(d => ItemClass.fromUplcData(d)));
+            return new HList_(data.list.map(d => ItemClass.fromUplcData(d)));
         }
 
         /**
          * @param {string | number[]} bytes 
-         * @returns {List_}
+         * @returns {HList_}
          */
         static fromUplcCbor(bytes) {
-            return List_.fromUplcData(UplcData.fromCbor(bytes));
+            return HList_.fromUplcData(UplcData.fromCbor(bytes));
         }
     }
 
-    Object.defineProperty(List_, "name", {
+    Object.defineProperty(HList_, "name", {
         value: typeName,
         writable: false
     });
 
-    return List_;
+    return HList_;
 }
 
 /**
@@ -5520,16 +5525,16 @@ export function List(ItemClass) {
  * @template {HeliosData} TValue
  * @param {HeliosDataClass<TKey>} KeyClass 
  * @param {HeliosDataClass<TValue>} ValueClass
- * @returns {HeliosDataClass<HeliosMap_>}
+ * @returns {HeliosDataClass<HMap_>}
  */
-export function HeliosMap(KeyClass, ValueClass) {
-    assert(!new.target, "HeliosMap can't be called with new");
+export function HMap(KeyClass, ValueClass) {
+    assert(!new.target, "HMap can't be called with new");
     assert(KeyClass.prototype instanceof HeliosData);
     assert(ValueClass.prototype instanceof HeliosData);
     
     const typeName = `Map[${KeyClass.name}]${ValueClass.name}`;
 
-    class HeliosMap_ extends HeliosData {
+    class HMap_ extends HeliosData {
         /**
          * @type {[TKey, TValue][]}
          */
@@ -5548,7 +5553,7 @@ export function HeliosMap(KeyClass, ValueClass) {
                 const arg = args[0];
 
                 if (arg instanceof Map) {
-                    return HeliosMap_.cleanConstructorArgs(Array.from(arg.entries()));
+                    return HMap_.cleanConstructorArgs(Array.from(arg.entries()));
                 } else if (!Array.isArray(arg)) {
                     throw new Error("expected array or Map arg");
                 } else {
@@ -5591,7 +5596,7 @@ export function HeliosMap(KeyClass, ValueClass) {
          * @param  {...any} args
          */
         constructor(...args) {
-            const rawPairs = HeliosMap_.cleanConstructorArgs(...args);
+            const rawPairs = HMap_.cleanConstructorArgs(...args);
 
             /**
              * @type {[TKey, TValue][]}
@@ -5656,27 +5661,27 @@ export function HeliosMap(KeyClass, ValueClass) {
 
         /**
          * @param {UplcData} data 
-         * @returns {HeliosMap_}
+         * @returns {HMap_}
          */
         static fromUplcData(data) {
-            return new HeliosMap_(data.map.map(([kd, vd]) => [KeyClass.fromUplcData(kd), ValueClass.fromUplcData(vd)]));
+            return new HMap_(data.map.map(([kd, vd]) => [KeyClass.fromUplcData(kd), ValueClass.fromUplcData(vd)]));
         }
 
         /**
          * @param {string | number[]} bytes 
-         * @returns {HeliosMap_}
+         * @returns {HMap_}
          */
         static fromUplcCbor(bytes) {
-            return HeliosMap_.fromUplcData(UplcData.fromCbor(bytes));
+            return HMap_.fromUplcData(UplcData.fromCbor(bytes));
         }
     }
 
-    Object.defineProperty(HeliosMap_, "name", {
+    Object.defineProperty(HMap_, "name", {
         value: typeName,
         writable: false
     });
 
-    return HeliosMap_;
+    return HMap_;
 }
 
 /**
@@ -5780,7 +5785,7 @@ export function Option(SomeClass) {
         }
     }
 
-    Object.defineProperty(List, "name", {
+    Object.defineProperty(HList, "name", {
         value: typeName,
         writable: false
     });
@@ -6214,7 +6219,7 @@ export class TxOutputId extends HeliosData {
     /** @type {TxId} */
     #txId;
 
-    /** @type {Int} */
+    /** @type {HInt} */
     #utxoIdx;
 
     /**
@@ -6248,7 +6253,7 @@ export class TxOutputId extends HeliosData {
         const [rawTxId, rawUtxoIdx] = TxOutputId.cleanConstructorArgs(...args);
 
         const txId = (rawTxId instanceof TxId) ? rawTxId : new TxId(rawTxId);
-        const utxoIdx = (rawUtxoIdx instanceof Int) ? rawUtxoIdx : new Int(rawUtxoIdx);
+        const utxoIdx = (rawUtxoIdx instanceof HInt) ? rawUtxoIdx : new HInt(rawUtxoIdx);
 
         super();
 
@@ -6279,7 +6284,7 @@ export class TxOutputId extends HeliosData {
         assert(data.index == 0);
         assert(data.fields.length == 2);
 
-        return new TxOutputId(TxId.fromUplcData(data.fields[0]), Int.fromUplcData(data.fields[1]));
+        return new TxOutputId(TxId.fromUplcData(data.fields[0]), HInt.fromUplcData(data.fields[1]));
     }
 
     /**
@@ -11928,7 +11933,7 @@ export class Tokenizer {
 			this.readByteArray(site);
 		} else if (c == '"') {
 			this.readString(site);
-		} else if (c == '!' || c == '%' || c == '&' || (c >= '(' && c <= '.') || (c >= ':' && c <= '>') || c == '[' || c == ']' || (c >= '{' && c <= '}')) {
+		} else if (c == '?' || c == '!' || c == '%' || c == '&' || (c >= '(' && c <= '.') || (c >= ':' && c <= '>') || c == '[' || c == ']' || (c >= '{' && c <= '}')) {
 			this.readSymbol(site, c);
 		} else if (!(c == ' ' || c == '\n' || c == '\t' || c == '\r')) {
 			throw site.syntaxError(`invalid source character '${c}' (utf-8 not yet supported outside string literals)`);
@@ -12584,9 +12589,10 @@ class EvalEntity {
 	 * Throws an error if 'this' isn't a function value, or if the args don't correspond.
 	 * @param {Site} site 
 	 * @param {Instance[]} args
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Instance}
 	 */
-	call(site, args) {
+	call(site, args, namedArgs = {}) {
 		throw new Error("not yet implemented");
 	}
 
@@ -12719,9 +12725,10 @@ class Type extends EvalEntity {
 	 * Throws an error because a Type isn't callable.
 	 * @param {Site} site 
 	 * @param {Instance[]} args 
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Instance}
 	 */
-	call(site, args) {
+	call(site, args, namedArgs = {}) {
 		throw site.typeError("not callable");
 	}
 
@@ -13411,20 +13418,123 @@ class EnumMemberStatementType extends StatementType {
 }
 
 /**
+ * @package
+ */
+class ArgType {
+	#name;
+	#type;
+	#optional;
+
+	/**
+	 * 
+	 * @param {null | Word} name 
+	 * @param {Type} type 
+	 * @param {boolean} optional 
+	 */
+	constructor(name, type, optional = false) {
+		this.#name = name;
+		this.#type = type;
+		this.#optional = optional;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		if (this.#name === null) {
+			return "";
+		} else {
+			return this.#name.toString();
+		}
+	}
+	/**
+	 * @type {Type}
+	 */
+	get type() {
+		return this.#type;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isNamed() {
+		return this.#name !== null;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isOptional() {
+		return this.#optional;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return [
+			this.#name != null ? `${this.#name.toString()}: ` : "",
+			this.#optional ? "?" : "",
+			this.#type.toString()
+		].join("");
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {ArgType} other 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, other) {
+		// if this arg has a default value, the other arg must also have a default value
+		if (this.#optional && !other.#optional) {
+			return false;
+		}
+
+		// if this is named, the other must be named as well
+		if (this.#name != null) {
+			return this.#name.toString() == (other.#name?.toString() ?? "");
+		}
+
+		if (this.#type instanceof ParamType) {
+			this.#type.setType(site, other.#type);
+		} else {
+			if (!other.#type.isBaseOf(site, this.#type)) { // note the reversal of the check
+				return false;
+			}
+		}
+
+		return true;
+	}
+}
+
+/**
  * Function type with arg types and a return type
  * @package
  */
 class FuncType extends Type {
+	/**
+	 * @type {ArgType[]}
+	 */
 	#argTypes;
+
+	/**
+	 * @type {Type[]}
+	 */
 	#retTypes;
 
 	/**
-	 * @param {Type[]} argTypes 
+	 * @param {Type[] | ArgType[]} argTypes 
 	 * @param {Type | Type[]} retTypes 
 	 */
 	constructor(argTypes, retTypes) {
 		super();
-		this.#argTypes = argTypes;
+		this.#argTypes = argTypes.map(at => {
+			if (at instanceof Type) {
+				return new ArgType(null, at);
+			} else {
+				return at;
+			}
+		});
 
 		if (!Array.isArray(retTypes)) {
 			retTypes = [retTypes];
@@ -13433,14 +13543,37 @@ class FuncType extends Type {
 		this.#retTypes = retTypes;
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get nArgs() {
 		return this.#argTypes.length;
 	}
 
-	get argTypes() {
-		return this.#argTypes.slice();
+	/**
+	 * @type {number}
+	 */
+	get nNonOptArgs() {
+		return this.#argTypes.filter(at => !at.isOptional()).length;
 	}
 
+	/**
+	 * @type {number}
+	 */
+	get nOptArgs() {
+		return this.#argTypes.filter(at => at.isOptional()).length;
+	}
+
+	/**
+	 * @type {Type[]}
+	 */
+	get argTypes() {
+		return this.#argTypes.slice().map(at => at.type);
+	}
+
+	/**
+	 * @type {Type[]}
+	 */
 	get retTypes() {
 		return this.#retTypes;
 	}
@@ -13466,7 +13599,7 @@ class FuncType extends Type {
 	 */
 	isMaybeMethod(site, type) {
 		if (this.#argTypes.length > 0) {
-			return Type.same(site, this.#argTypes[0], type);
+			return Type.same(site, this.#argTypes[0].type, type);
 		} else {
 			return false;
 		}
@@ -13481,7 +13614,7 @@ class FuncType extends Type {
 	 */
 	isAssociated(site, type) {
 		for (let arg of this.#argTypes) {
-			if (Type.same(site, arg, type)) {
+			if (Type.same(site, arg.type, type)) {
 				return true;
 			}
 		}
@@ -13501,28 +13634,23 @@ class FuncType extends Type {
 	 * Each argType of the FuncType we are checking against needs to be the same or less specific (i.e. isBaseOf(this.#argTypes[i]))
 	 * The retType of 'this' needs to be the same or more specific
 	 * @param {Site} site 
-	 * @param {Type} type 
+	 * @param {Type} other 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		if (type instanceof FuncType) {
-			if (this.nArgs != type.nArgs) {
+	isBaseOf(site, other) {
+		if (other instanceof FuncType) {
+			if (this.nNonOptArgs != other.nNonOptArgs) {
 				return false;
 			} else {
-				for (let i = 0; i < this.nArgs; i++) {
-					let thisArgType = this.#argTypes[i];
-					if (thisArgType instanceof ParamType) {
-						thisArgType.setType(site, type.#argTypes[i]);
-					} else {
-						if (!type.#argTypes[i].isBaseOf(site, thisArgType)) { // note the reversal of the check
-							return false;
-						}
+				for (let i = 0; i < this.nNonOptArgs; i++) {
+					if (!this.#argTypes[i].isBaseOf(site, other.#argTypes[i])) {
+						return false;
 					}
 				}
 
-				if (this.#retTypes.length === type.#retTypes.length) {
+				if (this.#retTypes.length === other.#retTypes.length) {
 					for (let i = 0; i < this.#retTypes.length; i++) {
-						if (!this.#retTypes[i].isBaseOf(site, type.#retTypes[i])) {
+						if (!this.#retTypes[i].isBaseOf(site, other.#retTypes[i])) {
 							return false;
 						}
 					}
@@ -13539,20 +13667,67 @@ class FuncType extends Type {
 	}
 	
 	/**
+	 * Throws an error if name isn't found
+	 * @param {Site} site 
+	 * @param {string} name 
+	 * @returns {number}
+	 */
+	getNamedIndex(site, name) {
+		const i = this.#argTypes.findIndex(at => at.name == name);
+
+		if (i == -1) {
+			throw site.typeError(`arg name ${name} not found`);
+		} else {
+			return i;
+		}
+	}
+
+	/**
 	 * Checks if arg types are valid.
 	 * Throws errors if not valid. Returns the return type if valid. 
 	 * @param {Site} site 
-	 * @param {Instance[]} args 
+	 * @param {Instance[]} posArgs
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Type[]}
 	 */
-	checkCall(site, args) {
-		if (this.nArgs != args.length) {
-			throw site.typeError(`expected ${this.nArgs} arg(s), got ${args.length} arg(s)`);
+	checkCall(site, posArgs, namedArgs = {}) {
+		if (posArgs.length < this.nNonOptArgs) {
+			// check if each nonOptArg is covered by the named args
+			for (let i = 0; i < this.nNonOptArgs; i++) {
+				if (!this.#argTypes[i].isNamed()) {
+					throw site.typeError(`expected at least ${this.#argTypes.filter(at => !at.isNamed()).length} positional arg(s), got ${posArgs.length} positional arg(s)`);
+				} else {
+					if (!(this.#argTypes[i].name in namedArgs)) {
+						throw site.typeError(`named arg ${this.#argTypes[i].name} missing from call`);
+					}
+				}
+			}
+
+		} else if (posArgs.length > this.#argTypes.length) {
+			throw site.typeError(`expected at most ${this.#argTypes.length} arg(s), got ${posArgs.length} arg(s)`);
 		}
 
-		for (let i = 0; i < this.nArgs; i++) {
-			if (!args[i].isInstanceOf(site, this.#argTypes[i])) {
-				throw site.typeError(`expected '${this.#argTypes[i].toString()}' for arg ${i + 1}, got '${args[i].toString()}'`);
+		for (let i = 0; i < posArgs.length; i++) {
+			if (!posArgs[i].isInstanceOf(site, this.#argTypes[i].type)) {
+				throw site.typeError(`expected '${this.#argTypes[i].type.toString()}' for arg ${i + 1}, got '${posArgs[i].toString()}'`);
+			}
+		}
+
+		for (let key in namedArgs) {
+			const i = this.#argTypes.findIndex(at => at.name == key);
+
+			if (i == -1) {
+				throw site.typeError(`arg named ${key} not found in function type ${this.toString()}`);
+			}
+
+			if (i < posArgs.length) {
+				throw site.typeError(`named arg '${key}' already covered by positional arg ${i+1}`);
+			}
+
+			const thisArg = this.#argTypes[i];
+
+			if (!namedArgs[key].isInstanceOf(site, thisArg.type)) {
+				throw site.typeError(`expected '${thisArg.type.toString()}' for arg '${key}', got '${namedArgs[key].toString()}`);
 			}
 		}
 
@@ -13739,9 +13914,10 @@ class DataInstance extends Instance {
 	 * Throws an error bec
 	 * @param {Site} site 
 	 * @param {Instance[]} args 
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Instance}
 	 */
-	call(site, args) {
+	call(site, args, namedArgs = {}) {
 		throw site.typeError("not callable");
 	}
 }
@@ -13784,10 +13960,6 @@ class FuncInstance extends Instance {
 
 		super();
 		this.#type = type;
-	}
-
-	get nArgs() {
-		return this.#type.nArgs;
 	}
 
 	/**
@@ -13841,10 +14013,11 @@ class FuncInstance extends Instance {
 	/**
 	 * @param {Site} site 
 	 * @param {Instance[]} args 
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Instance}
 	 */
-	call(site, args) {
-		return Instance.new(this.#type.checkCall(site, args));
+	call(site, args, namedArgs = {}) {
+		return Instance.new(this.#type.checkCall(site, args, namedArgs));
 	}
 
 	/**
@@ -14006,9 +14179,10 @@ class VoidInstance extends Instance {
 	/**
 	 * @param {Site} site 
 	 * @param {Instance[]} args
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Instance}
 	 */
-	call(site, args) {
+	call(site, args, namedArgs = {}) {
 		throw new Error("can't call void");
 	}
 
@@ -14239,7 +14413,7 @@ class IntType extends BuiltinType {
 	}
 
 	get userType() {
-		return Int;
+		return HInt;
 	}
 }
 
@@ -14358,7 +14532,7 @@ class StringType extends BuiltinType {
 	 * @type {HeliosDataClass<HeliosData>}
 	 */
 	get userType() {
-		return HeliosString;
+		return HString;
 	}
 }
 
@@ -14678,11 +14852,12 @@ class ParamFuncValue extends FuncInstance {
 
 	/**
 	 * @param {Site} site 
-	 * @param {Instance[]} args 
+	 * @param {Instance[]} args
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Instance}
 	 */
-	call(site, args) {
-		return (new FuncInstance(this.#fnType)).call(site, args);
+	call(site, args, namedArgs = {}) {
+		return (new FuncInstance(this.#fnType)).call(site, args, namedArgs);
 	}
 }
 
@@ -14820,7 +14995,7 @@ class ListType extends BuiltinType {
 	 * @type {HeliosDataClass<HeliosData>}
 	 */
 	get userType() {
-		return List(this.#itemType.userType);
+		return HList(this.#itemType.userType);
 	}
 }
 
@@ -14978,7 +15153,7 @@ class MapType extends BuiltinType {
 	 * @type {HeliosDataClass<HeliosData>}
 	 */
 	get userType() {
-		return HeliosMap(this.#keyType.userType, this.#valueType.userType);
+		return HMap(this.#keyType.userType, this.#valueType.userType);
 	}
 }
 
@@ -18262,6 +18437,65 @@ class VoidTypeExpr extends TypeExpr {
 }
 
 /**
+ * @package
+ */
+class FuncArgTypeExpr extends Token {
+	#name;
+	#typeExpr;
+	optional;
+
+	/**
+	 * @param {Site} site 
+	 * @param {null | Word} name 
+	 * @param {TypeExpr} typeExpr 
+	 * @param {boolean} optional 
+	 */
+	constructor(site, name, typeExpr, optional) {
+		super(site);
+		this.#name = name;
+		this.#typeExpr = typeExpr;
+		this.optional = optional;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isNamed() {
+		return this.#name == null;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isOptional() {
+		return this.optional;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return [
+			this.#name != null ? `${this.#name.toString()}: ` : "",
+			this.optional ? "?" : "",
+			this.#typeExpr.toString()
+		].join("");
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {ArgType}
+	 */
+	eval(scope) {
+		return new ArgType(this.#name, this.#typeExpr.eval(scope), this.optional);
+	}
+
+	use() {
+		this.#typeExpr.use();
+	}
+}
+
+/**
  * (ArgType1, ...) -> RetType expression
  * @package
  */
@@ -18271,7 +18505,7 @@ class FuncTypeExpr extends TypeExpr {
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr[]} argTypeExprs 
+	 * @param {FuncArgTypeExpr[]} argTypeExprs 
 	 * @param {TypeExpr[]} retTypeExprs 
 	 */
 	constructor(site, argTypeExprs, retTypeExprs) {
@@ -18964,15 +19198,68 @@ class StructLiteralExpr extends ValueExpr {
 	}
 
 	/**
+	 * @param {Site} site
+	 * @param {Type} type
+	 * @param {IR[]} fields
+	 * @param {number | null} constrIndex
+	 */
+	static toIRInternal(site, type, fields, constrIndex) {
+		let ir = new IR("__core__mkNilData(())");
+
+		const instance = Instance.new(type);
+
+		for (let i = fields.length - 1; i >= 0; i--) {
+			let f = fields[i];
+
+			const isBool = instance.getFieldType(site, i) instanceof BoolType;
+
+			if (isBool) {
+				f = new IR([
+					new IR("__helios__common__boolData("),
+					f,
+					new IR(")"),
+				]);
+			}
+
+			// in case of a struct with only one field, return that field directly 
+			if (fields.length == 1 && type instanceof StructStatementType) {
+				return f;
+			}
+
+			ir = new IR([
+				new IR("__core__mkCons("),
+				f,
+				new IR(", "),
+				ir,
+				new IR(")")
+			]);
+		}
+
+		if (constrIndex === null) {
+			throw new Error("constrIndex not yet set");
+		} else if (constrIndex == -1) {
+			// regular struct
+			return new IR([
+				new IR("__core__listData", site),
+				new IR("("), 
+				ir,
+				new IR(")")
+			]);
+		} else {
+			return new IR([
+				new IR("__core__constrData", site), new IR(`(${constrIndex.toString()}, `),
+				ir,
+				new IR(")")
+			]);
+		}
+	}
+
+	/**
 	 * @param {string} indent
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let res = new IR("__core__mkNilData(())");
-
 		const type = this.#typeExpr.type;
-
-		const instance = Instance.new(type);
 
 		const fields = this.#fields.slice();
 
@@ -18981,54 +19268,9 @@ class StructLiteralExpr extends ValueExpr {
 			fields.sort((a, b) => type.getFieldIndex(this.site, a.name.value) - type.getFieldIndex(this.site, b.name.value));
 		}
 
-		for (let i = fields.length - 1; i >= 0; i--) {
-			const f = fields[i];
+		const irFields = fields.map(f => f.toIR(indent));
 
-			const isBool = instance.getFieldType(f.site, i) instanceof BoolType;
-
-			let fIR = f.toIR(indent);
-
-			if (isBool) {
-				fIR = new IR([
-					new IR("__helios__common__boolData("),
-					fIR,
-					new IR(")"),
-				]);
-			}
-
-			// in case of a struct with only one field, return that field directly 
-			if (fields.length == 1 && this.#typeExpr.type instanceof StructStatementType) {
-				return fIR;
-			}
-
-			res = new IR([
-				new IR("__core__mkCons("),
-				fIR,
-				new IR(", "),
-				res,
-				new IR(")")
-			]);
-		}
-
-		let index = this.#constrIndex;
-
-		if (index === null) {
-			throw new Error("constrIndex not yet set");
-		} else if (index == -1) {
-			// regular struct
-			return new IR([
-				new IR("__core__listData", this.site),
-				new IR("("), 
-				res,
-				new IR(")")
-			]);
-		} else {
-			return new IR([
-				new IR("__core__constrData", this.site), new IR(`(${index.toString()}, `),
-				res,
-				new IR(")")
-			]);
-		}
+		return StructLiteralExpr.toIRInternal(this.site, type, irFields, this.#constrIndex);
 	}
 }
 
@@ -19329,6 +19571,9 @@ class NameTypePair {
 		}
 	}
 
+	/**
+	 * @returns {IR}
+	 */
 	toIR() {
 		return new IR(this.#name.toString(), this.#name.site);
 	}
@@ -19339,12 +19584,105 @@ class NameTypePair {
  * @package
  */
 class FuncArg extends NameTypePair {
+	#defaultValueExpr;
+
 	/**
 	 * @param {Word} name 
-	 * @param {?TypeExpr} typeExpr 
+	 * @param {?TypeExpr} typeExpr
+	 * @param {null | ValueExpr} defaultValueExpr
 	 */
-	constructor(name, typeExpr) {
+	constructor(name, typeExpr, defaultValueExpr = null) {
 		super(name, typeExpr);
+
+		this.#defaultValueExpr = defaultValueExpr;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 */
+	evalDefault(scope) {
+		if (this.#defaultValueExpr != null) {
+			const v = this.#defaultValueExpr.eval(scope);
+
+			const t = this.evalType(scope);
+
+			if (!v.isInstanceOf(this.#defaultValueExpr.site, t)) {
+				throw this.#defaultValueExpr.site.typeError(`expected ${t.toString()}, got ${v.getType(Site.dummy()).toString()}`);
+			}
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {ArgType}
+	 */
+	evalArgType(scope) {
+		const t = super.evalType(scope);
+
+		return new ArgType(this.name, t, this.#defaultValueExpr != null);
+	}
+
+	/**
+	 * @returns {IR}
+	 */
+	toIR() {
+		const name = super.toIR();
+
+		if (this.#defaultValueExpr == null) {
+			return name;
+		} else {
+			return new IR([
+				new IR(`__useopt__${this.name.toString()}`),
+				new IR(", "),
+				name
+			]);
+		}
+	}
+
+	/**
+	 * @param {IR} bodyIR 
+	 * @param {string} name 
+	 * @param {IR} defaultIR 
+	 * @returns {IR}
+	 */
+	static wrapWithDefaultInternal(bodyIR, name, defaultIR) {
+		return new IR([
+			new IR(`(${name}) -> {`),
+			bodyIR,
+			new IR([
+				new IR(`}(__core__ifThenElse(__useopt__${name}, () -> {${name}}, () -> {`),
+				defaultIR, 
+				new IR("})())")
+			])
+		]);
+	}
+
+	/**
+	 * (argName) -> {
+	 *   <bodyIR>
+	 * }(
+	 *   ifThenElse(
+	 * 		__useoptarg__argName,
+	 *  	() -> {
+	 *        argName
+	 *      },
+	 *      () -> {
+	 *        <defaultValueExpr>
+	 *      }
+	 *   )()
+	 * )
+	 * TODO: indentation
+	 * @param {IR} bodyIR 
+	 * @returns {IR}
+	 */
+	wrapWithDefault(bodyIR) {
+		if (this.#defaultValueExpr == null) {
+			return bodyIR;
+		} else {
+			const name = this.name.toString();
+
+			return FuncArg.wrapWithDefaultInternal(bodyIR, name, this.#defaultValueExpr.toIR(""));
+		}
 	}
 }
 
@@ -19430,7 +19768,8 @@ class FuncLiteralExpr extends ValueExpr {
 			args = args.slice(1);
 		}
 
-		let argTypes = args.map(a => a.evalType(scope));
+		let argTypes = args.map(a => a.evalArgType(scope));
+
 		let retTypes = this.#retTypeExprs.map(e => {
 			if (e == null) {
 				return new AnyType();
@@ -19457,6 +19796,8 @@ class FuncLiteralExpr extends ValueExpr {
 		let subScope = new Scope(scope);
 		argTypes.forEach((a, i) => {
 			if (!this.#args[i].isIgnored()) {
+				this.#args[i].evalDefault(subScope);
+
 				subScope.set(this.#args[i].name, Instance.new(a));
 			}
 		});
@@ -19532,6 +19873,21 @@ class FuncLiteralExpr extends ValueExpr {
 	}
 
 	/**
+	 * In reverse order, because later opt args might depend on earlier args
+	 * @param {IR} innerIR 
+	 * @returns {IR}
+	 */
+	wrapWithDefaultArgs(innerIR) {
+		const args = this.#args.slice().reverse();
+
+		for (let arg of args) {
+			innerIR = arg.wrapWithDefault(innerIR);
+		}
+
+		return innerIR;
+	}
+
+	/**
 	 * @param {?string} recursiveName 
 	 * @param {string} indent 
 	 * @returns {IR}
@@ -19550,11 +19906,15 @@ class FuncLiteralExpr extends ValueExpr {
 			methodIndent += TAB;
 		}
 
+		let innerIR = this.#bodyExpr.toIR(innerIndent + TAB);
+
+		innerIR = this.wrapWithDefaultArgs(innerIR);
+
 		let ir = new IR([
 			new IR("("),
 			argsWithCommas,
 			new IR(") "), new IR("->", this.site), new IR(` {\n${innerIndent}${TAB}`),
-			this.#bodyExpr.toIR(innerIndent + TAB),
+			innerIR,
 			new IR(`\n${innerIndent}}`),
 		]);
 
@@ -20093,6 +20453,83 @@ class ParensExpr extends ValueExpr {
 }
 
 /**
+ * @package
+ */
+class CallArgExpr extends Token {
+	#name;
+	#valueExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {null | Word} name 
+	 * @param {ValueExpr} valueExpr 
+	 */
+	constructor(site, name, valueExpr) {
+		super(site);
+
+		this.#name = name;
+		this.#valueExpr = valueExpr;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#name?.toString() ?? "";
+	}
+
+	/**
+	 * @type {ValueExpr}
+	 */
+	get valueExpr() {
+		return this.#valueExpr;
+	}
+
+	/**
+	 * @type {Instance}
+	 */
+	get value() {
+		return this.#valueExpr.value;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isNamed() {
+		return this.#name != null;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return this.#valueExpr.isLiteral();
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return [
+			this.#name != null ? `${this.#name.toString()}: `: "",
+			this.#valueExpr.toString()
+		].join("");
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Instance}
+	 */
+	eval(scope) {
+		return this.#valueExpr.eval(scope);
+	}
+
+	use() {
+		this.#valueExpr.use();
+	}
+}
+
+/**
  * ...(...) expression
  * @package
  */
@@ -20103,7 +20540,7 @@ class CallExpr extends ValueExpr {
 	/**
 	 * @param {Site} site 
 	 * @param {ValueExpr} fnExpr 
-	 * @param {ValueExpr[]} argExprs 
+	 * @param {CallArgExpr[]} argExprs 
 	 */
 	constructor(site, fnExpr, argExprs) {
 		super(site);
@@ -20132,13 +20569,44 @@ class CallExpr extends ValueExpr {
 	 * @returns {Instance}
 	 */
 	evalInternal(scope) {
-		let fnVal = this.#fnExpr.eval(scope);
+		const fnVal = this.#fnExpr.eval(scope);
 
-		let argVals = this.#argExprs.map(argExpr => argExpr.eval(scope));
+		const argVals = this.#argExprs.map(ae => ae.eval(scope));
 
-		argVals = MultiInstance.flatten(argVals);
+		/**
+		 * @type {Instance[]}
+		 */
+		let posArgVals = [];
 
-		return fnVal.call(this.site, argVals);
+		this.#argExprs.forEach((argExpr, i) => {
+			if (!argExpr.isNamed()) {
+				posArgVals.push(argVals[i]);
+			}
+		});
+
+		posArgVals = MultiInstance.flatten(posArgVals);
+
+		/**
+		 * @type {{[name: string]: Instance}}
+		 */
+		const namedArgVals = {};
+
+		this.#argExprs.forEach((argExpr, i) => {
+			if (argExpr.isNamed()) {
+				const val = argVals[i];
+
+				// can't be multi instance
+				if (val instanceof MultiInstance) {
+					throw argExpr.typeError("can't use multiple return values as named argument");
+				}
+
+				namedArgVals[argExpr.name] = val;
+			}
+		});
+
+		assert(posArgVals.every(pav => pav != undefined));
+
+		return fnVal.call(this.site, posArgVals, namedArgVals);
 	}
 
 	use() {
@@ -20150,14 +20618,83 @@ class CallExpr extends ValueExpr {
 	}
 
 	/**
+	 * Don't call this inside eval() because param types won't yet be complete.
+	 * @type {FuncType}
+	 */
+	get fn() {
+		return assertClass(this.#fnExpr.value.getType(this.#fnExpr.site), FuncType);
+	}
+
+	/**
+	 * @returns {[ValueExpr[], IR[]]} - first list are positional args, second list named args and remaining opt args
+	 */
+	expandArgs() {
+		const fn = this.fn;
+		const nNonOptArgs = fn.nNonOptArgs;
+
+		/**
+		 * @type {ValueExpr[]}
+		 */
+		const positional = [];
+
+		this.#argExprs.forEach(ae => {
+			if (!ae.isNamed()) {
+				positional.push(ae.valueExpr);
+			}
+		});
+
+		/**
+		 * @type {IR[]}
+		 */
+		const namedOptional = [];
+
+		this.#argExprs.forEach(ae => {
+			if (ae.isNamed()) {
+				const i = fn.getNamedIndex(ae.site, ae.name);
+
+				if (i < nNonOptArgs) {
+					positional[i] = ae.valueExpr;
+				} else {
+					namedOptional[i - nNonOptArgs] = new IR([
+						new IR("true"),
+						new IR(", "),
+						ae.valueExpr.toIR()
+					]);
+				}
+			}
+		});
+
+		for (let i = nNonOptArgs; i < fn.nArgs; i++) {
+			if (namedOptional[i - nNonOptArgs] == undefined) {
+				namedOptional[i - nNonOptArgs] = new IR([
+					new IR("false"),
+					new IR(", "),
+					new IR("()")
+				]);
+			}
+		}
+
+		return [positional.filter(p => p != undefined), namedOptional];
+	}
+
+	/**
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		if (this.#argExprs.some(e => (!e.isLiteral()) && (e.value instanceof MultiInstance))) {
+		const fn = this.fn;
+
+		/**
+		 * First step is to eliminate the named args
+		 * @type {[ValueExpr[], IR[]]}
+		 */
+		const [positional, namedOptional] = this.expandArgs();
+
+		if (positional.some(e => (!e.isLiteral()) && (e.value instanceof MultiInstance))) {
 			// count the number of final args
 			let n = 0;
-			this.#argExprs.forEach(e => {
+
+			positional.forEach((e, i) => {
 				if ((!e.isLiteral()) && (e.value instanceof MultiInstance)) {
 					n += e.value.values.length;
 				} else {
@@ -20165,9 +20702,19 @@ class CallExpr extends ValueExpr {
 				}
 			});
 
+			n += namedOptional.length;
+
+			if (n > fn.nArgs) {
+				namedOptional.splice(0, n - fn.nArgs);
+			}
+
 			let names = [];
 
-			for (let i = 0; i < n; i++) {
+			for (let i = 0; i < fn.nArgs; i++) {
+				if (i >= fn.nNonOptArgs) {
+					names.push(`__useopt__x${i}`);
+				}
+
 				names.push(`x${i}`);
 			}
 
@@ -20178,24 +20725,75 @@ class CallExpr extends ValueExpr {
 				new IR(")", this.site)
 			]);
 
-			let exprs = this.#argExprs.slice().reverse();
+			for (let namedIR of namedOptional.slice().reverse()) {
+				const n2 = assertDefined(names.pop());
+				const n1 = assertDefined(names.pop());
+				assert(n1.startsWith("__useopt__"));
 
-			for (let e of exprs) {
+				ir = new IR([
+					new IR("("),
+					new IR(n1),
+					new IR(", "),
+					new IR(n2),
+					new IR(") -> {"),
+					ir,
+					new IR("}("),
+					assertDefined(namedIR), // bool - val pair
+					new IR(")")
+				]);
+			}
+
+			for (let i = positional.length - 1; i >= 0; i--) {
+				const e = positional[i];
+
 				if ((!e.isLiteral()) && (e.value instanceof MultiInstance)) {
-					let mNames = names.splice(names.length - e.value.values.length);
+					const nMulti = e.value.values.length;
+					const multiNames = [];
+					const multiOpt = [];
+
+					while (multiNames.length < nMulti) {
+						multiNames.unshift(assertDefined(names.pop()));
+
+						if (names.length > 0 && names[names.length-1] == `__useopt__${multiNames[0]}`) {
+							multiOpt.unshift(assertDefined(names.pop()));
+						}
+					}
+
+					if (multiOpt.length > 0) {
+						ir = new IR([
+							new IR("("),
+							new IR(multiOpt.map(n => new IR(n))).join(", "),
+							new IR(") -> {"),
+							ir,
+							new IR("}("),
+							new IR(multiOpt.map(n => new IR("true"))).join(", "),
+							new IR(")")
+						])
+					}
 
 					ir = new IR([
 						e.toIR(),
 						new IR("(("),
-						new IR(mNames.map(n => new IR(n))).join(", "),
+						new IR(multiNames.map(n => new IR(n))).join(", "),
 						new IR(") -> {"),
 						ir,
 						new IR("})")
 					]);
 				} else {
+					const name = assertDefined(names.pop());
+
+					if (names.length > 0 && names[names.length - 1] == `__useopt__${name}`) {
+						ir = new IR([
+							new IR("("),
+							new IR(assertDefined(names.pop())),
+							new IR(") -> {"),
+							new IR("}(true)")
+						]);
+					}
+
 					ir = new IR([
 						new IR("("),
-						new IR(assertDefined(names.pop())),
+						new IR(name),
 						new IR(") -> {"),
 						ir,
 						new IR("}("),
@@ -20207,7 +20805,22 @@ class CallExpr extends ValueExpr {
 
 			return ir;
 		} else {
-			let args = this.#argExprs.map(a => a.toIR(indent));
+			if (positional.length + namedOptional.length > fn.nArgs) {
+				namedOptional.splice(0, positional.length + namedOptional.length - fn.nArgs);
+			}
+
+			let args = positional.map((a, i) => {
+				let ir = a.toIR(indent);
+
+				if (i >= fn.nNonOptArgs) {
+					ir = new IR([
+						new IR("true, "),
+						ir
+					]);
+				}
+
+				return ir;
+			}).concat(namedOptional);
 
 			return new IR([
 				this.#fnExpr.toIR(indent),
@@ -21090,7 +21703,7 @@ function buildLiteralExprFromJson(site, type, value, path) {
 			let litExpr = new PrimitiveLiteralExpr(new ByteArrayLiteral(site, bytes));
 
 			if (type instanceof HashType) {
-				litExpr = new CallExpr(site, new ValuePathExpr(new TypeRefExpr(new Word(site, type.toString()), type), new Word(site, "new")), [litExpr]);
+				litExpr = new CallExpr(site, new ValuePathExpr(new TypeRefExpr(new Word(site, type.toString()), type), new Word(site, "new")), [new CallArgExpr(litExpr.site, null, litExpr)]);
 			}
 
 			return litExpr;
@@ -21626,6 +22239,9 @@ class DataField extends NameTypePair {
 class DataDefinition extends Statement {
 	#fields;
 
+	/** @type {Set<string>} */
+	#usedAutoMethods;
+
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
@@ -21634,10 +22250,26 @@ class DataDefinition extends Statement {
 	constructor(site, name, fields) {
 		super(site, name);
 		this.#fields = fields;
+		this.#usedAutoMethods = new Set();
+	}
+
+	/**
+	 * @type {Type}
+	 */
+	get type() {
+		throw new Error("not yet implemented");
 	}
 
 	get fields() {
 		return this.#fields.slice();
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -21666,6 +22298,14 @@ class DataDefinition extends Statement {
 	 */
 	hasField(name) {
 		return this.findField(name) != -1;
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {boolean}
+	 */
+	hasMember(name) {
+		return this.hasField(name) || name.value == "copy";
 	}
 
 	toString() {
@@ -21753,13 +22393,20 @@ class DataDefinition extends Statement {
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name, dryRun = false) {
-		let i = this.findField(name);
+		switch (name.value) {
+			case "copy":
+				this.#usedAutoMethods.add(name.value);
+				return Instance.new(new FuncType(this.#fields.map(f => new ArgType(f.name, f.type, true)), this.type));
+			default:
+				let i = this.findField(name);
 
-		if (i == -1) {
-			throw name.referenceError(`'${this.name.toString()}.${name.toString()}' undefined`);
-		} else {
-			return Instance.new(this.#fields[i].type);
+				if (i == -1) {
+					throw name.referenceError(`'${this.name.toString()}.${name.toString()}' undefined`);
+				} else {
+					return Instance.new(this.#fields[i].type);
+				}
 		}
+		
 	}
 
 	use() {
@@ -21773,16 +22420,58 @@ class DataDefinition extends Statement {
 	}
 
 	/**
+	 * @package
+	 * @param {IRDefinitions} map 
+	 * @param {string[]} getterNames
+	 */
+	copyToIR(map, getterNames) {
+		const key = `${this.path}__copy`;
+
+		// using existing IR generators as much as possible
+
+		let ir = StructLiteralExpr.toIRInternal(this.site, this.type, this.#fields.map(df => new IR(df.name.value)), this.getConstrIndex(this.site));
+
+		// wrap with defaults
+
+		for (let i = getterNames.length - 1; i >= 0; i--) {
+			const fieldName = this.#fields[i].name.toString();
+
+			ir = FuncArg.wrapWithDefaultInternal(ir, fieldName, new IR([
+				new IR(getterNames[i]),
+				new IR("(self)")
+			]))
+		}
+
+		ir = new IR([
+			new IR("(self) -> {"),
+			new IR("("),
+			new IR(this.#fields.map(f => new IR(`__useopt__${f.name.toString()}, ${f.name.toString()}`))).join(", "),
+			new IR(") -> {"),
+			ir,
+			new IR("}}")
+		]);
+
+		map.set(key, ir);
+	}
+
+	/**
+	 * Doesn't return anything, but sets its IRdef in the map
 	 * @param {IRDefinitions} map
 	 * @param {boolean} isConstr
 	 */
 	toIR(map, isConstr = true) {
 		const getterBaseName = isConstr ? "__helios__common__field" : "__helios__common__tuple_field";
 
+		/**
+		 * @type {string[]}
+		 */
+		const getterNames = [];
+
 		// add a getter for each field
 		for (let i = 0; i < this.#fields.length; i++) {
 			let f = this.#fields[i];
 			let key = `${this.path}__${f.name.toString()}`;
+			getterNames.push(key);
 			let isBool = f.type instanceof BoolType;
 
 			/**
@@ -21791,6 +22480,7 @@ class DataDefinition extends Statement {
 			let getter;
 
 			if (i < 20) {
+
 				getter = new IR(`${getterBaseName}_${i}`, f.site);
 
 				if (isBool) {
@@ -21799,8 +22489,6 @@ class DataDefinition extends Statement {
 						new IR(`__helios__common__unBoolData(${getterBaseName}_${i}(self))`),
 						new IR("}"),
 					]);
-				} else {
-					getter = new IR(`${getterBaseName}_${i}`, f.site);
 				}
 			} else {
 				let inner = isConstr ? new IR("__core__sndPair(__core__unConstrData(self))") : new IR("__core__unListData(self)");
@@ -21827,6 +22515,10 @@ class DataDefinition extends Statement {
 			}
 
 			map.set(key, getter)
+		}
+
+		if (this.#usedAutoMethods.has("copy")) {
+			this.copyToIR(map, getterNames);
 		}
 	}
 }
@@ -21891,7 +22583,7 @@ class StructStatement extends DataDefinition {
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name, dryRun = false) {
-		if (this.hasField(name)) {
+		if (super.hasMember(name)) {
 			return super.getInstanceMember(name, dryRun);
 		} else {
 			return this.#impl.getInstanceMember(name, dryRun);
@@ -22538,6 +23230,14 @@ class ImplDefinition {
 // Section 18: Helios AST building
 //////////////////////////////////
 
+const AUTOMATIC_METHODS = [
+	"__eq",
+	"__neq",
+	"copy",
+	"from_data",
+	"serialize"
+];
+
 /**
  * @package
  * @param {Token[]} ts
@@ -22855,6 +23555,8 @@ function buildFuncArgs(parens, methodOf = null) {
 	/** @type {FuncArg[]} */
 	const args = [];
 
+	let hasDefaultArgs = false;
+
 	for (let i = 0; i < parens.fields.length; i++) {
 		const f = parens.fields[i];
 		const ts = f.slice();
@@ -22900,13 +23602,38 @@ function buildFuncArgs(parens, methodOf = null) {
 			} else {
 				const colon = maybeColon.assertSymbol(":");
 
+				const equalsPos = SymbolToken.find(ts, "=");
+
+				/**
+				 * @type {null | ValueExpr}
+				 */
+				let defaultValueExpr = null;
+
+				if (equalsPos != -1) {
+					if (equalsPos == ts.length-1) {
+						throw ts[equalsPos].syntaxError("expected expression after '='");
+					}
+
+					const vts = ts.splice(equalsPos);
+
+					vts.shift()?.assertSymbol("=");
+					
+					defaultValueExpr = buildValueExpr(vts);
+
+					hasDefaultArgs = true;
+				} else {
+					if (hasDefaultArgs) {
+						throw name.syntaxError("positional args must come before default args");
+					}
+				}
+
 				if (ts.length == 0) {
 					throw colon.syntaxError("expected type expression after ':'");
 				}
 
 				const typeExpr = buildTypeExpr(ts);
 
-				args.push(new FuncArg(name, typeExpr));
+				args.push(new FuncArg(name, typeExpr, defaultValueExpr));
 			}
 		}
 	}
@@ -23062,7 +23789,7 @@ function buildImplDefinition(ts, selfTypeExpr, fieldNames, endSite) {
 	 * @param {Word} name 
 	 */
 	function assertNonAuto(name) {
-		if (name.toString() == "serialize" || name.toString() == "__eq" || name.toString() == "__neq" || name.toString() == "from_data") {
+		if (AUTOMATIC_METHODS.findIndex(n => n == name.toString()) != -1) {
 			throw name.syntaxError(`'${name.toString()}' is a reserved member`);
 		}
 	}
@@ -23239,13 +23966,74 @@ function buildOptionTypeExpr(ts) {
 function buildFuncTypeExpr(ts) {
 	const parens = assertDefined(ts.shift()).assertGroup("(");
 
-	const argTypes = parens.fields.map(f => buildTypeExpr(f.slice()));
+	let hasOptArgs = false;
+
+	const argTypes = parens.fields.map(f => {
+		const fts = f.slice();
+
+		if (fts.length == 0) {
+			throw parens.syntaxError("expected func arg type");
+		}
+
+		const funcArgTypeExpr = buildFuncArgTypeExpr(fts);
+		if (hasOptArgs) {
+			if (!funcArgTypeExpr.isOptional()) {
+				throw funcArgTypeExpr.syntaxError("optional arguments must come last");
+			}
+		} else {
+			if (funcArgTypeExpr.isOptional()) {
+				hasOptArgs = true;
+			}
+		}
+
+		return funcArgTypeExpr;
+	});
+
+	if (argTypes.some(at => at.isNamed()) && argTypes.some(at => !at.isNamed())) {
+		throw argTypes[0].syntaxError("can't mix named and unnamed args in func type");
+	}
 
 	const arrow = assertDefined(ts.shift()).assertSymbol("->");
 
 	const retTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
 
 	return new FuncTypeExpr(parens.site, argTypes, retTypes.map(t => assertDefined(t)));
+}
+
+/**
+ * 
+ * @param {Token[]} ts 
+ * @returns {FuncArgTypeExpr}
+ */
+function buildFuncArgTypeExpr(ts) {
+	const colonPos = SymbolToken.find(ts, ":");
+
+	if (colonPos != -1 && colonPos != 1) {
+		throw ts[0].syntaxError("invalid syntax");
+	}
+
+	const name = colonPos != -1 ? assertDefined(ts.shift()).assertWord().assertNotKeyword() : null;
+
+	if (colonPos != -1) {
+		const colon = assertDefined(ts.shift());
+
+		if (ts.length == 0) {
+			throw colon.syntaxError("expected type expression after ':'");
+		}
+	}
+
+	const hasDefault = ts[0].isSymbol("?");
+	if (hasDefault) {
+		const opt = assertDefined(ts.shift());
+
+		if (ts.length == 0) {
+			throw opt.syntaxError("invalid type expression after '?'");
+		}
+	}
+
+	const typeExpr = buildTypeExpr(ts);
+
+	return new FuncArgTypeExpr(name !== null ? name.site : typeExpr.site, name, typeExpr, hasDefault);
 }
 
 /**
@@ -23609,7 +24397,7 @@ function buildChainedValueExpr(ts, prec) {
 		const t = assertDefined(ts.shift());
 
 		if (t.isGroup("(")) {
-			expr = new CallExpr(t.site, expr, buildCallArgs(t.assertGroup()));
+			expr = buildCallExpr(t.site, expr, t.assertGroup());
 		} else if (t.isGroup("[")) {
 			throw t.syntaxError("invalid expression '[...]'");
 		} else if (t.isSymbol(".") && ts.length > 0 && ts[0].isWord("switch")) {
@@ -23628,6 +24416,18 @@ function buildChainedValueExpr(ts, prec) {
 	}
 
 	return expr;
+}
+
+/**
+ * @param {Site} site 
+ * @param {ValueExpr} fnExpr 
+ * @param {Group} parens
+ * @returns {CallExpr}
+ */
+function buildCallExpr(site, fnExpr, parens) {
+	const callArgs = buildCallArgs(parens);
+
+	return new CallExpr(site, fnExpr, callArgs);
 }
 
 /**
@@ -23698,10 +24498,63 @@ function buildParensExpr(ts) {
 /**
  * @package
  * @param {Group} parens 
- * @returns {ValueExpr[]}
+ * @returns {CallArgExpr[]}
  */
 function buildCallArgs(parens) {
-	return parens.fields.map(fts => buildValueExpr(fts));
+	/**
+	 * @type {Set<string>}
+	 */
+	const names = new Set();
+
+	const callArgs = parens.fields.map(fts => {
+		const callArg = buildCallArgExpr(parens.site, fts);
+
+		if (callArg.isNamed()) {
+			if (names.has(callArg.name)) {
+				throw callArg.syntaxError(`duplicate named call arg ${callArg.name}`);
+			} else {
+				names.add(callArg.name);
+			}
+		}
+
+		return callArg;
+	});
+
+	if (callArgs.some(ca => ca.isNamed()) && callArgs.some(ca => !ca.isNamed())) {
+		throw callArgs[0].syntaxError("can't mix positional and named args");
+	}
+
+	return callArgs;
+}
+
+/**
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {CallArgExpr}
+ */
+function buildCallArgExpr(site, ts) {
+	if (ts.length == 0) {
+		throw site.syntaxError("invalid syntax");
+	}
+
+	/**
+	 * @type {null | Word}
+	 */
+	let name = null;
+
+	if (ts.length >= 2 && ts[0].isWord() && ts[1].isSymbol(":")) {
+		name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+
+		const colon = assertDefined(ts.shift());
+
+		if (ts.length == 0) {
+			throw colon.syntaxError("expected value expressions after ':'");
+		}
+	}
+
+	const value = buildValueExpr(ts);
+
+	return new CallArgExpr(name != null ? name.site : value.site, name, value);
 }
 
 /**
@@ -24949,75 +25802,57 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__int____pos", "__helios__common____identity"));
 	add(new RawFunc("__helios__int____add",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__iData(__core__addInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__iData(__core__addInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____sub",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__iData(__core__subtractInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__iData(__core__subtractInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____mul",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__iData(__core__multiplyInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__iData(__core__multiplyInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____div",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__iData(__core__divideInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__iData(__core__divideInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____mod",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__iData(__core__modInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__iData(__core__modInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____geq",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__helios__common__not(__core__lessThanInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__helios__common__not(__core__lessThanInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____gt",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__helios__common__not(__core__lessThanEqualsInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__helios__common__not(__core__lessThanEqualsInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____leq",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__lessThanEqualsInteger(a, __core__unIData(b))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__lessThanEqualsInteger(__core__unIData(self), __core__unIData(other))
+		}
 	}`));
 	add(new RawFunc("__helios__int____lt",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__lessThanInteger(a, __core__unIData(b))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__lessThanInteger(__core__unIData(self), __core__unIData(other))
+		}
 	}`));
 	add(new RawFunc("__helios__int__min",
 	`(a, b) -> {
@@ -25055,11 +25890,9 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__int__to_bool",
 	`(self) -> {
-		(self) -> {
-			() -> {
-				__core__ifThenElse(__core__equalsInteger(self, 0), false, true)
-			}
-		}(__core__unIData(self))
+		() -> {
+			__core__ifThenElse(__core__equalsInteger(__core__unIData(self), 0), false, true)
+		}
 	}`));
 	add(new RawFunc("__helios__int__to_hex",
 	`(self) -> {
@@ -28769,9 +29602,14 @@ class IRNameExpr extends IRExpr {
 	#index;
 
 	/**
-	 * @type {?IRVariable} - cached variable (note that core functions can be referenced as variables (yet))
+	 * @type {?IRVariable} - cached variable
 	 */
 	#variable;
+
+	/**
+	 * @type {?IRValue} - cached eval result (reused when eval is called within simplifyLiterals)
+	 */
+	#result;
 
 	/**
 	 * @param {Word} name 
@@ -28784,6 +29622,7 @@ class IRNameExpr extends IRExpr {
 		this.#name = name;
 		this.#index = null;
 		this.#variable = variable;
+		this.#result = null;
 	}
 
 	/**
@@ -28853,6 +29692,10 @@ class IRNameExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	evalConstants(stack) {
+		if (this.#variable != null) {
+			this.#result = stack.get(this.#variable);
+		}
+
 		return this;
 	}
 
@@ -28868,7 +29711,14 @@ class IRNameExpr extends IRExpr {
 		} else if (this.#variable === null) {
 			throw new Error("variable should be set");
 		} else {
-			return stack.get(this.#variable);
+			// prefer result from stack, and use cached result as backup
+			const result = stack.get(this.#variable);
+
+			if (result == null) {
+				return this.#result;
+			} else {
+				return result;
+			}
 		}
 	}
 
@@ -28879,6 +29729,8 @@ class IRNameExpr extends IRExpr {
 	simplifyLiterals(literals) {
 		if (this.#variable !== null && literals.has(this.#variable)) {
 			return assertDefined(literals.get(this.#variable));
+		} else if (this.#result instanceof IRLiteralExpr) {
+			return this.#result;
 		} else {
 			return this;
 		}
@@ -29093,6 +29945,23 @@ class IRFuncExpr extends IRExpr {
 
 	get body() {
 		return this.#body;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	hasOptArgs() {
+		const b = this.#args.some(a => a.name.startsWith("__useopt__"));
+
+		if (b) {
+			return b;
+		}
+
+		if (this.#body instanceof IRFuncExpr) {
+			return this.#body.hasOptArgs();
+		} else {
+			return false;
+		}
 	}
 
 	/**
@@ -29447,6 +30316,22 @@ class IRCoreCallExpr extends IRCallExpr {
 	 */
 	simplifyLiterals(literals) {
 		const args = this.simplifyLiteralsInArgs(literals);
+
+		if (args.length > 0 && args.every(a => a instanceof IRLiteralExpr)) {
+			try {
+				const res = IRCoreCallExpr.evalValues(
+					this.site,
+					false,
+					this.builtinName,
+					args.map(a => new IRLiteralValue(assertClass(a, IRLiteralExpr).value))
+				);
+
+				if (res != null) {
+					return new IRLiteralExpr(res.value);
+				}
+			} catch (e) {
+			}
+		}
 
 		switch(this.builtinName) {
 			case "addInteger": {
@@ -29825,16 +30710,49 @@ class IRUserCallExpr extends IRCallExpr {
 
 	/**
 	 * @param {IRLiteralRegistry} literals
+	 * @returns {(IRExpr[] | IRLiteralExpr)}
+	 */
+	simplifyLiteralsInArgsAndTryEval(literals) {
+		const args = this.simplifyLiteralsInArgs(literals);
+
+		if (args.length > 0 && args.every(a => a instanceof IRLiteralExpr)) {
+			try {
+				const fn = this.#fnExpr.eval(new IRCallStack(false));
+
+				if (fn != null) {
+					const res = fn.call(
+						args.map(a => new IRLiteralValue(assertClass(a, IRLiteralExpr).value))
+					);
+
+					if (res != null) {
+						return new IRLiteralExpr(res.value);
+					}
+				}
+			} catch(e) {
+			}
+		}
+
+		return args;
+	}
+
+	/**
+	 * @param {IRLiteralRegistry} literals
 	 * @returns {IRExpr}
 	 */
 	simplifyLiterals(literals) {
-		const args = this.simplifyLiteralsInArgs(literals);
+		const argsOrLiteral = this.simplifyLiteralsInArgs(literals);
 
-		return IRUserCallExpr.new(
-			this.#fnExpr.simplifyLiterals(literals),
-			args, 
-			this.parensSite
-		);
+		if (argsOrLiteral instanceof IRLiteralExpr) {
+			return argsOrLiteral;
+		} else {
+			const args = argsOrLiteral;
+
+			return IRUserCallExpr.new(
+				this.#fnExpr.simplifyLiterals(literals),
+				args, 
+				this.parensSite
+			);
+		}
 	}
 
 	/**
@@ -29981,28 +30899,34 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 	 * @returns {IRExpr}
 	 */
 	simplifyLiterals(literals) {
-		const args = this.simplifyLiteralsInArgs(literals);
+		const argsOrLiteral = super.simplifyLiteralsInArgsAndTryEval(literals);
 
-		args.forEach((arg, i) => {
-			if (arg instanceof IRLiteralExpr) {
-				literals.set(this.argVariables[i], arg);
-			}
-		});
-
-		const anonBody = this.#anon.body.simplifyLiterals(literals);
-
-		if (anonBody instanceof IRLiteralExpr) {
-			return anonBody;
+		if (argsOrLiteral instanceof IRLiteralExpr) {
+			return argsOrLiteral;
 		} else {
-			return new IRAnonCallExpr(
-				new IRFuncExpr(
-					this.#anon.site,
-					this.#anon.args,
-					anonBody
-				),
-				args,
-				this.parensSite
-			);
+			const args = argsOrLiteral;
+
+			args.forEach((arg, i) => {
+				if (arg instanceof IRLiteralExpr) {
+					literals.set(this.argVariables[i], arg);
+				}
+			});
+
+			const anonBody = this.#anon.body.simplifyLiterals(literals);
+
+			if (anonBody instanceof IRLiteralExpr) {
+				return anonBody;
+			} else {
+				return new IRAnonCallExpr(
+					new IRFuncExpr(
+						this.#anon.site,
+						this.#anon.args,
+						anonBody
+					),
+					args,
+					this.parensSite
+				);
+			}
 		}
 	}
 
@@ -30024,14 +30948,21 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 	simplifyTopology(registry) {
 		const args = this.simplifyTopologyInArgs(registry);
 
-		// remove unused args, inline args that are only referenced once
+		// remove unused args, inline args that are only referenced once, inline all IRNameExprs, inline function with default args 
 		const remainingIds = this.argVariables.map((variable, i) => {
 			const n = registry.countReferences(variable);
 
-			if (n == 0 || (n == 1 && (!registry.maybeInsideLoop(variable) || args[i] instanceof IRFuncExpr)) || args[i] instanceof IRNameExpr) {
+			const arg = args[i];
+
+			if (
+				n == 0 || 
+				(n == 1 && (!registry.maybeInsideLoop(variable) || arg instanceof IRFuncExpr)) || 
+				arg instanceof IRNameExpr ||
+				(arg instanceof IRFuncExpr && arg.hasOptArgs())
+			) {
 				if (n > 0) {
 					// inline
-					registry.addInlineable(variable, args[i]);
+					registry.addInlineable(variable, arg);
 				}
 
 				return -1;
@@ -30437,7 +31368,7 @@ class IRProgram {
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
-			expr = this.simplify(expr);
+			expr = this.simplify(expr, throwSimplifyRTErrors, scope);
 
 			// make sure the debruijn indices are correct
 			expr.resolveNames(scope);
@@ -30449,10 +31380,12 @@ class IRProgram {
 	}
 
 	/**
-	 * @param {IRExpr} expr 
+	 * @param {IRExpr} expr
+	 * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
+	 * @param {IRScope} scope
 	 * @returns {IRExpr}
 	 */
-	static simplify(expr) {
+	static simplify(expr, throwSimplifyRTErrors, scope) {
 		let dirty = true;
 		let oldState = expr.toString();
 
@@ -30468,6 +31401,7 @@ class IRProgram {
 			expr = expr.simplifyTopology(new IRExprRegistry(nameExprs));
 
 			const newState = expr.toString();
+
 			if (newState != oldState) {
 				dirty = true;
 				oldState = newState;
@@ -31397,6 +32331,7 @@ class MainModule extends Module {
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 		
 		//console.log(new Source(irProgram.toString()).pretty());
+		
 		return irProgram.toUplc();
 	}
 

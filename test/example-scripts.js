@@ -335,6 +335,67 @@ export default async function main() {
         Fib::Two{a: 0, b: 1}.calc(6)
     }`, "data(21)", ["13"]);
 
+    await runTestScript(`
+    testing opt_args_wrong_syntax
+
+    func opt_args(a: Int, b: Int, c: Int = 0) -> Int {
+            a*b + c
+    }
+
+    func main() -> Int {
+        opt_args(a: 10, 10)
+    }
+    `, "can't mix positional and named args", []);
+
+    await runTestScript(`
+    testing opt_args_wrong_syntax
+
+    func opt_args(a: Int, b: Int, c: Int = 0) -> Int {
+            a*b + c
+    }
+
+    func main() -> Int {
+        fn: (a: Int, Int, ?Int) -> Int = opt_args;
+        fn(10, 10)
+    }
+    `, "can't mix named and unnamed args in func type", []);
+
+    await runTestScript(`
+    testing mix_opt_and_multi
+
+    func multi() -> (Int, Int) {
+        (1, 2)
+    }
+
+    func opt(a: Int, b: Int = 3, c: Int = a*b) -> Int {
+        b*a + c
+    }
+
+    func main() -> Int {
+        fn: (Int, ?Int, ?Int) -> Int = opt;
+        fn(multi()) + fn(2, multi()) + opt(a: 1, c: 10)
+    }`, "data(21)", []);
+
+    await runTestScript(`
+    testing copy_1
+
+    struct Datum {
+        a: Int
+        b: Int
+        c: Int
+
+        func sum(self) -> Int {
+            self.a + self.b + self.c
+        }
+    }
+
+    func main() -> Int {
+        d = Datum{1, 2, 3};
+        d0: Datum = d.copy(2);
+        d1: Datum = d.copy(c: 10);
+        d0.sum() + d1.sum()
+    }`, "data(20)", []);
+
 	await runTestScriptWithArgs(`testing nestNFT
 	enum Redeemer{
 		Convert {

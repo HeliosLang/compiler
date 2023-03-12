@@ -43,6 +43,7 @@ import {
 
 import {
     CallExpr,
+	CallArgExpr,
     ListLiteralExpr,
     MapLiteralExpr,
     PrimitiveLiteralExpr,
@@ -106,7 +107,7 @@ export function buildLiteralExprFromJson(site, type, value, path) {
 			let litExpr = new PrimitiveLiteralExpr(new ByteArrayLiteral(site, bytes));
 
 			if (type instanceof HashType) {
-				litExpr = new CallExpr(site, new ValuePathExpr(new TypeRefExpr(new Word(site, type.toString()), type), new Word(site, "new")), [litExpr]);
+				litExpr = new CallExpr(site, new ValuePathExpr(new TypeRefExpr(new Word(site, type.toString()), type), new Word(site, "new")), [new CallArgExpr(litExpr.site, null, litExpr)]);
 			}
 
 			return litExpr;

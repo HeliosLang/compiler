@@ -709,75 +709,57 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__int____pos", "__helios__common____identity"));
 	add(new RawFunc("__helios__int____add",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__iData(__core__addInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__iData(__core__addInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____sub",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__iData(__core__subtractInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__iData(__core__subtractInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____mul",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__iData(__core__multiplyInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__iData(__core__multiplyInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____div",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__iData(__core__divideInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__iData(__core__divideInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____mod",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__iData(__core__modInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__iData(__core__modInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____geq",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__helios__common__not(__core__lessThanInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__helios__common__not(__core__lessThanInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____gt",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__helios__common__not(__core__lessThanEqualsInteger(a, __core__unIData(b)))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__helios__common__not(__core__lessThanEqualsInteger(__core__unIData(self), __core__unIData(other)))
+		}
 	}`));
 	add(new RawFunc("__helios__int____leq",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__lessThanEqualsInteger(a, __core__unIData(b))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__lessThanEqualsInteger(__core__unIData(self), __core__unIData(other))
+		}
 	}`));
 	add(new RawFunc("__helios__int____lt",
 	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__lessThanInteger(a, __core__unIData(b))
-			}
-		}(__core__unIData(self))
+		(other) -> {
+			__core__lessThanInteger(__core__unIData(self), __core__unIData(other))
+		}
 	}`));
 	add(new RawFunc("__helios__int__min",
 	`(a, b) -> {
@@ -815,11 +797,9 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__int__to_bool",
 	`(self) -> {
-		(self) -> {
-			() -> {
-				__core__ifThenElse(__core__equalsInteger(self, 0), false, true)
-			}
-		}(__core__unIData(self))
+		() -> {
+			__core__ifThenElse(__core__equalsInteger(__core__unIData(self), 0), false, true)
+		}
 	}`));
 	add(new RawFunc("__helios__int__to_hex",
 	`(self) -> {

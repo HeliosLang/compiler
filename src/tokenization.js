@@ -123,7 +123,7 @@ export class Tokenizer {
 			this.readByteArray(site);
 		} else if (c == '"') {
 			this.readString(site);
-		} else if (c == '!' || c == '%' || c == '&' || (c >= '(' && c <= '.') || (c >= ':' && c <= '>') || c == '[' || c == ']' || (c >= '{' && c <= '}')) {
+		} else if (c == '?' || c == '!' || c == '%' || c == '&' || (c >= '(' && c <= '.') || (c >= ':' && c <= '>') || c == '[' || c == ']' || (c >= '{' && c <= '}')) {
 			this.readSymbol(site, c);
 		} else if (!(c == ' ' || c == '\n' || c == '\t' || c == '\r')) {
 			throw site.syntaxError(`invalid source character '${c}' (utf-8 not yet supported outside string literals)`);

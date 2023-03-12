@@ -994,6 +994,7 @@ export class StringLiteral extends PrimitiveLiteral {
 	 * @param {?Site} site 
 	 */
 	constructor(content, site = null) {
+		assert(!(Array.isArray(content) && content.some(item => item == undefined)), "some items undefined");
 		this.#content = content;
 		this.#site = site;
 	}

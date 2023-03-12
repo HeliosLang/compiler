@@ -7,6 +7,7 @@ import {
 
 import {
 	assert,
+	assertClass,
 	assertDefined,
 	bytesToHex
 } from "./utils.js";
@@ -31,6 +32,7 @@ import {
 
 import {
 	AnyType,
+	ArgType,
 	BoolType,
 	BuiltinEnumMember,
 	BuiltinFuncInstance,
@@ -372,6 +374,65 @@ export class VoidTypeExpr extends TypeExpr {
 }
 
 /**
+ * @package
+ */
+export class FuncArgTypeExpr extends Token {
+	#name;
+	#typeExpr;
+	optional;
+
+	/**
+	 * @param {Site} site 
+	 * @param {null | Word} name 
+	 * @param {TypeExpr} typeExpr 
+	 * @param {boolean} optional 
+	 */
+	constructor(site, name, typeExpr, optional) {
+		super(site);
+		this.#name = name;
+		this.#typeExpr = typeExpr;
+		this.optional = optional;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isNamed() {
+		return this.#name == null;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isOptional() {
+		return this.optional;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return [
+			this.#name != null ? `${this.#name.toString()}: ` : "",
+			this.optional ? "?" : "",
+			this.#typeExpr.toString()
+		].join("");
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {ArgType}
+	 */
+	eval(scope) {
+		return new ArgType(this.#name, this.#typeExpr.eval(scope), this.optional);
+	}
+
+	use() {
+		this.#typeExpr.use();
+	}
+}
+
+/**
  * (ArgType1, ...) -> RetType expression
  * @package
  */
@@ -381,7 +442,7 @@ export class FuncTypeExpr extends TypeExpr {
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr[]} argTypeExprs 
+	 * @param {FuncArgTypeExpr[]} argTypeExprs 
 	 * @param {TypeExpr[]} retTypeExprs 
 	 */
 	constructor(site, argTypeExprs, retTypeExprs) {
@@ -1074,15 +1135,68 @@ export class StructLiteralExpr extends ValueExpr {
 	}
 
 	/**
+	 * @param {Site} site
+	 * @param {Type} type
+	 * @param {IR[]} fields
+	 * @param {number | null} constrIndex
+	 */
+	static toIRInternal(site, type, fields, constrIndex) {
+		let ir = new IR("__core__mkNilData(())");
+
+		const instance = Instance.new(type);
+
+		for (let i = fields.length - 1; i >= 0; i--) {
+			let f = fields[i];
+
+			const isBool = instance.getFieldType(site, i) instanceof BoolType;
+
+			if (isBool) {
+				f = new IR([
+					new IR("__helios__common__boolData("),
+					f,
+					new IR(")"),
+				]);
+			}
+
+			// in case of a struct with only one field, return that field directly 
+			if (fields.length == 1 && type instanceof StructStatementType) {
+				return f;
+			}
+
+			ir = new IR([
+				new IR("__core__mkCons("),
+				f,
+				new IR(", "),
+				ir,
+				new IR(")")
+			]);
+		}
+
+		if (constrIndex === null) {
+			throw new Error("constrIndex not yet set");
+		} else if (constrIndex == -1) {
+			// regular struct
+			return new IR([
+				new IR("__core__listData", site),
+				new IR("("), 
+				ir,
+				new IR(")")
+			]);
+		} else {
+			return new IR([
+				new IR("__core__constrData", site), new IR(`(${constrIndex.toString()}, `),
+				ir,
+				new IR(")")
+			]);
+		}
+	}
+
+	/**
 	 * @param {string} indent
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let res = new IR("__core__mkNilData(())");
-
 		const type = this.#typeExpr.type;
-
-		const instance = Instance.new(type);
 
 		const fields = this.#fields.slice();
 
@@ -1091,54 +1205,9 @@ export class StructLiteralExpr extends ValueExpr {
 			fields.sort((a, b) => type.getFieldIndex(this.site, a.name.value) - type.getFieldIndex(this.site, b.name.value));
 		}
 
-		for (let i = fields.length - 1; i >= 0; i--) {
-			const f = fields[i];
+		const irFields = fields.map(f => f.toIR(indent));
 
-			const isBool = instance.getFieldType(f.site, i) instanceof BoolType;
-
-			let fIR = f.toIR(indent);
-
-			if (isBool) {
-				fIR = new IR([
-					new IR("__helios__common__boolData("),
-					fIR,
-					new IR(")"),
-				]);
-			}
-
-			// in case of a struct with only one field, return that field directly 
-			if (fields.length == 1 && this.#typeExpr.type instanceof StructStatementType) {
-				return fIR;
-			}
-
-			res = new IR([
-				new IR("__core__mkCons("),
-				fIR,
-				new IR(", "),
-				res,
-				new IR(")")
-			]);
-		}
-
-		let index = this.#constrIndex;
-
-		if (index === null) {
-			throw new Error("constrIndex not yet set");
-		} else if (index == -1) {
-			// regular struct
-			return new IR([
-				new IR("__core__listData", this.site),
-				new IR("("), 
-				res,
-				new IR(")")
-			]);
-		} else {
-			return new IR([
-				new IR("__core__constrData", this.site), new IR(`(${index.toString()}, `),
-				res,
-				new IR(")")
-			]);
-		}
+		return StructLiteralExpr.toIRInternal(this.site, type, irFields, this.#constrIndex);
 	}
 }
 
@@ -1439,6 +1508,9 @@ export class NameTypePair {
 		}
 	}
 
+	/**
+	 * @returns {IR}
+	 */
 	toIR() {
 		return new IR(this.#name.toString(), this.#name.site);
 	}
@@ -1449,12 +1521,105 @@ export class NameTypePair {
  * @package
  */
 export class FuncArg extends NameTypePair {
+	#defaultValueExpr;
+
 	/**
 	 * @param {Word} name 
-	 * @param {?TypeExpr} typeExpr 
+	 * @param {?TypeExpr} typeExpr
+	 * @param {null | ValueExpr} defaultValueExpr
 	 */
-	constructor(name, typeExpr) {
+	constructor(name, typeExpr, defaultValueExpr = null) {
 		super(name, typeExpr);
+
+		this.#defaultValueExpr = defaultValueExpr;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 */
+	evalDefault(scope) {
+		if (this.#defaultValueExpr != null) {
+			const v = this.#defaultValueExpr.eval(scope);
+
+			const t = this.evalType(scope);
+
+			if (!v.isInstanceOf(this.#defaultValueExpr.site, t)) {
+				throw this.#defaultValueExpr.site.typeError(`expected ${t.toString()}, got ${v.getType(Site.dummy()).toString()}`);
+			}
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {ArgType}
+	 */
+	evalArgType(scope) {
+		const t = super.evalType(scope);
+
+		return new ArgType(this.name, t, this.#defaultValueExpr != null);
+	}
+
+	/**
+	 * @returns {IR}
+	 */
+	toIR() {
+		const name = super.toIR();
+
+		if (this.#defaultValueExpr == null) {
+			return name;
+		} else {
+			return new IR([
+				new IR(`__useopt__${this.name.toString()}`),
+				new IR(", "),
+				name
+			]);
+		}
+	}
+
+	/**
+	 * @param {IR} bodyIR 
+	 * @param {string} name 
+	 * @param {IR} defaultIR 
+	 * @returns {IR}
+	 */
+	static wrapWithDefaultInternal(bodyIR, name, defaultIR) {
+		return new IR([
+			new IR(`(${name}) -> {`),
+			bodyIR,
+			new IR([
+				new IR(`}(__core__ifThenElse(__useopt__${name}, () -> {${name}}, () -> {`),
+				defaultIR, 
+				new IR("})())")
+			])
+		]);
+	}
+
+	/**
+	 * (argName) -> {
+	 *   <bodyIR>
+	 * }(
+	 *   ifThenElse(
+	 * 		__useoptarg__argName,
+	 *  	() -> {
+	 *        argName
+	 *      },
+	 *      () -> {
+	 *        <defaultValueExpr>
+	 *      }
+	 *   )()
+	 * )
+	 * TODO: indentation
+	 * @param {IR} bodyIR 
+	 * @returns {IR}
+	 */
+	wrapWithDefault(bodyIR) {
+		if (this.#defaultValueExpr == null) {
+			return bodyIR;
+		} else {
+			const name = this.name.toString();
+
+			return FuncArg.wrapWithDefaultInternal(bodyIR, name, this.#defaultValueExpr.toIR(""));
+		}
 	}
 }
 
@@ -1540,7 +1705,8 @@ export class FuncLiteralExpr extends ValueExpr {
 			args = args.slice(1);
 		}
 
-		let argTypes = args.map(a => a.evalType(scope));
+		let argTypes = args.map(a => a.evalArgType(scope));
+
 		let retTypes = this.#retTypeExprs.map(e => {
 			if (e == null) {
 				return new AnyType();
@@ -1567,6 +1733,8 @@ export class FuncLiteralExpr extends ValueExpr {
 		let subScope = new Scope(scope);
 		argTypes.forEach((a, i) => {
 			if (!this.#args[i].isIgnored()) {
+				this.#args[i].evalDefault(subScope);
+
 				subScope.set(this.#args[i].name, Instance.new(a));
 			}
 		});
@@ -1642,6 +1810,21 @@ export class FuncLiteralExpr extends ValueExpr {
 	}
 
 	/**
+	 * In reverse order, because later opt args might depend on earlier args
+	 * @param {IR} innerIR 
+	 * @returns {IR}
+	 */
+	wrapWithDefaultArgs(innerIR) {
+		const args = this.#args.slice().reverse();
+
+		for (let arg of args) {
+			innerIR = arg.wrapWithDefault(innerIR);
+		}
+
+		return innerIR;
+	}
+
+	/**
 	 * @param {?string} recursiveName 
 	 * @param {string} indent 
 	 * @returns {IR}
@@ -1660,11 +1843,15 @@ export class FuncLiteralExpr extends ValueExpr {
 			methodIndent += TAB;
 		}
 
+		let innerIR = this.#bodyExpr.toIR(innerIndent + TAB);
+
+		innerIR = this.wrapWithDefaultArgs(innerIR);
+
 		let ir = new IR([
 			new IR("("),
 			argsWithCommas,
 			new IR(") "), new IR("->", this.site), new IR(` {\n${innerIndent}${TAB}`),
-			this.#bodyExpr.toIR(innerIndent + TAB),
+			innerIR,
 			new IR(`\n${innerIndent}}`),
 		]);
 
@@ -2203,6 +2390,83 @@ export class ParensExpr extends ValueExpr {
 }
 
 /**
+ * @package
+ */
+export class CallArgExpr extends Token {
+	#name;
+	#valueExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {null | Word} name 
+	 * @param {ValueExpr} valueExpr 
+	 */
+	constructor(site, name, valueExpr) {
+		super(site);
+
+		this.#name = name;
+		this.#valueExpr = valueExpr;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#name?.toString() ?? "";
+	}
+
+	/**
+	 * @type {ValueExpr}
+	 */
+	get valueExpr() {
+		return this.#valueExpr;
+	}
+
+	/**
+	 * @type {Instance}
+	 */
+	get value() {
+		return this.#valueExpr.value;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isNamed() {
+		return this.#name != null;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return this.#valueExpr.isLiteral();
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return [
+			this.#name != null ? `${this.#name.toString()}: `: "",
+			this.#valueExpr.toString()
+		].join("");
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Instance}
+	 */
+	eval(scope) {
+		return this.#valueExpr.eval(scope);
+	}
+
+	use() {
+		this.#valueExpr.use();
+	}
+}
+
+/**
  * ...(...) expression
  * @package
  */
@@ -2213,7 +2477,7 @@ export class CallExpr extends ValueExpr {
 	/**
 	 * @param {Site} site 
 	 * @param {ValueExpr} fnExpr 
-	 * @param {ValueExpr[]} argExprs 
+	 * @param {CallArgExpr[]} argExprs 
 	 */
 	constructor(site, fnExpr, argExprs) {
 		super(site);
@@ -2242,13 +2506,44 @@ export class CallExpr extends ValueExpr {
 	 * @returns {Instance}
 	 */
 	evalInternal(scope) {
-		let fnVal = this.#fnExpr.eval(scope);
+		const fnVal = this.#fnExpr.eval(scope);
 
-		let argVals = this.#argExprs.map(argExpr => argExpr.eval(scope));
+		const argVals = this.#argExprs.map(ae => ae.eval(scope));
 
-		argVals = MultiInstance.flatten(argVals);
+		/**
+		 * @type {Instance[]}
+		 */
+		let posArgVals = [];
 
-		return fnVal.call(this.site, argVals);
+		this.#argExprs.forEach((argExpr, i) => {
+			if (!argExpr.isNamed()) {
+				posArgVals.push(argVals[i]);
+			}
+		});
+
+		posArgVals = MultiInstance.flatten(posArgVals);
+
+		/**
+		 * @type {{[name: string]: Instance}}
+		 */
+		const namedArgVals = {};
+
+		this.#argExprs.forEach((argExpr, i) => {
+			if (argExpr.isNamed()) {
+				const val = argVals[i];
+
+				// can't be multi instance
+				if (val instanceof MultiInstance) {
+					throw argExpr.typeError("can't use multiple return values as named argument");
+				}
+
+				namedArgVals[argExpr.name] = val;
+			}
+		});
+
+		assert(posArgVals.every(pav => pav != undefined));
+
+		return fnVal.call(this.site, posArgVals, namedArgVals);
 	}
 
 	use() {
@@ -2260,14 +2555,83 @@ export class CallExpr extends ValueExpr {
 	}
 
 	/**
+	 * Don't call this inside eval() because param types won't yet be complete.
+	 * @type {FuncType}
+	 */
+	get fn() {
+		return assertClass(this.#fnExpr.value.getType(this.#fnExpr.site), FuncType);
+	}
+
+	/**
+	 * @returns {[ValueExpr[], IR[]]} - first list are positional args, second list named args and remaining opt args
+	 */
+	expandArgs() {
+		const fn = this.fn;
+		const nNonOptArgs = fn.nNonOptArgs;
+
+		/**
+		 * @type {ValueExpr[]}
+		 */
+		const positional = [];
+
+		this.#argExprs.forEach(ae => {
+			if (!ae.isNamed()) {
+				positional.push(ae.valueExpr);
+			}
+		});
+
+		/**
+		 * @type {IR[]}
+		 */
+		const namedOptional = [];
+
+		this.#argExprs.forEach(ae => {
+			if (ae.isNamed()) {
+				const i = fn.getNamedIndex(ae.site, ae.name);
+
+				if (i < nNonOptArgs) {
+					positional[i] = ae.valueExpr;
+				} else {
+					namedOptional[i - nNonOptArgs] = new IR([
+						new IR("true"),
+						new IR(", "),
+						ae.valueExpr.toIR()
+					]);
+				}
+			}
+		});
+
+		for (let i = nNonOptArgs; i < fn.nArgs; i++) {
+			if (namedOptional[i - nNonOptArgs] == undefined) {
+				namedOptional[i - nNonOptArgs] = new IR([
+					new IR("false"),
+					new IR(", "),
+					new IR("()")
+				]);
+			}
+		}
+
+		return [positional.filter(p => p != undefined), namedOptional];
+	}
+
+	/**
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		if (this.#argExprs.some(e => (!e.isLiteral()) && (e.value instanceof MultiInstance))) {
+		const fn = this.fn;
+
+		/**
+		 * First step is to eliminate the named args
+		 * @type {[ValueExpr[], IR[]]}
+		 */
+		const [positional, namedOptional] = this.expandArgs();
+
+		if (positional.some(e => (!e.isLiteral()) && (e.value instanceof MultiInstance))) {
 			// count the number of final args
 			let n = 0;
-			this.#argExprs.forEach(e => {
+
+			positional.forEach((e, i) => {
 				if ((!e.isLiteral()) && (e.value instanceof MultiInstance)) {
 					n += e.value.values.length;
 				} else {
@@ -2275,9 +2639,19 @@ export class CallExpr extends ValueExpr {
 				}
 			});
 
+			n += namedOptional.length;
+
+			if (n > fn.nArgs) {
+				namedOptional.splice(0, n - fn.nArgs);
+			}
+
 			let names = [];
 
-			for (let i = 0; i < n; i++) {
+			for (let i = 0; i < fn.nArgs; i++) {
+				if (i >= fn.nNonOptArgs) {
+					names.push(`__useopt__x${i}`);
+				}
+
 				names.push(`x${i}`);
 			}
 
@@ -2288,24 +2662,75 @@ export class CallExpr extends ValueExpr {
 				new IR(")", this.site)
 			]);
 
-			let exprs = this.#argExprs.slice().reverse();
+			for (let namedIR of namedOptional.slice().reverse()) {
+				const n2 = assertDefined(names.pop());
+				const n1 = assertDefined(names.pop());
+				assert(n1.startsWith("__useopt__"));
 
-			for (let e of exprs) {
+				ir = new IR([
+					new IR("("),
+					new IR(n1),
+					new IR(", "),
+					new IR(n2),
+					new IR(") -> {"),
+					ir,
+					new IR("}("),
+					assertDefined(namedIR), // bool - val pair
+					new IR(")")
+				]);
+			}
+
+			for (let i = positional.length - 1; i >= 0; i--) {
+				const e = positional[i];
+
 				if ((!e.isLiteral()) && (e.value instanceof MultiInstance)) {
-					let mNames = names.splice(names.length - e.value.values.length);
+					const nMulti = e.value.values.length;
+					const multiNames = [];
+					const multiOpt = [];
+
+					while (multiNames.length < nMulti) {
+						multiNames.unshift(assertDefined(names.pop()));
+
+						if (names.length > 0 && names[names.length-1] == `__useopt__${multiNames[0]}`) {
+							multiOpt.unshift(assertDefined(names.pop()));
+						}
+					}
+
+					if (multiOpt.length > 0) {
+						ir = new IR([
+							new IR("("),
+							new IR(multiOpt.map(n => new IR(n))).join(", "),
+							new IR(") -> {"),
+							ir,
+							new IR("}("),
+							new IR(multiOpt.map(n => new IR("true"))).join(", "),
+							new IR(")")
+						])
+					}
 
 					ir = new IR([
 						e.toIR(),
 						new IR("(("),
-						new IR(mNames.map(n => new IR(n))).join(", "),
+						new IR(multiNames.map(n => new IR(n))).join(", "),
 						new IR(") -> {"),
 						ir,
 						new IR("})")
 					]);
 				} else {
+					const name = assertDefined(names.pop());
+
+					if (names.length > 0 && names[names.length - 1] == `__useopt__${name}`) {
+						ir = new IR([
+							new IR("("),
+							new IR(assertDefined(names.pop())),
+							new IR(") -> {"),
+							new IR("}(true)")
+						]);
+					}
+
 					ir = new IR([
 						new IR("("),
-						new IR(assertDefined(names.pop())),
+						new IR(name),
 						new IR(") -> {"),
 						ir,
 						new IR("}("),
@@ -2317,7 +2742,22 @@ export class CallExpr extends ValueExpr {
 
 			return ir;
 		} else {
-			let args = this.#argExprs.map(a => a.toIR(indent));
+			if (positional.length + namedOptional.length > fn.nArgs) {
+				namedOptional.splice(0, positional.length + namedOptional.length - fn.nArgs);
+			}
+
+			let args = positional.map((a, i) => {
+				let ir = a.toIR(indent);
+
+				if (i >= fn.nNonOptArgs) {
+					ir = new IR([
+						new IR("true, "),
+						ir
+					]);
+				}
+
+				return ir;
+			}).concat(namedOptional);
 
 			return new IR([
 				this.#fnExpr.toIR(indent),

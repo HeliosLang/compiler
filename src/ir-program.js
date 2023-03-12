@@ -32,12 +32,9 @@ import {
 import {
 	IRExpr,
     IRCallExpr,
-    IRCoreCallExpr,
-    IRExprStack,
     IRFuncExpr,
     IRLiteralExpr,
 	IRNameExprRegistry,
-    IRUserCallExpr,
 	IRExprRegistry
 } from "./ir-ast.js";
 
@@ -109,7 +106,7 @@ export class IRProgram {
 	}
 
 	/**
-	 * @param {IRExpr} expr 
+	 * @param {IRExpr} expr
 	 * @returns {IRExpr}
 	 */
 	static simplify(expr) {
@@ -128,6 +125,7 @@ export class IRProgram {
 			expr = expr.simplifyTopology(new IRExprRegistry(nameExprs));
 
 			const newState = expr.toString();
+
 			if (newState != oldState) {
 				dirty = true;
 				oldState = newState;

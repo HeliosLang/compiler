@@ -31,6 +31,7 @@ import {
 } from "./uplc-ast.js";
 
 import {
+	ArgType,
     BoolType,
     ByteArrayType,
     EvalEntity,
@@ -54,10 +55,12 @@ import {
 } from "./helios-scopes.js";
 
 import {
+	FuncArg,
     FuncLiteralExpr,
     LiteralDataExpr,
     NameTypePair,
     PrimitiveLiteralExpr,
+    StructLiteralExpr,
     TypeExpr,
     TypeRefExpr,
     ValueExpr
@@ -404,6 +407,9 @@ export class DataField extends NameTypePair {
 export class DataDefinition extends Statement {
 	#fields;
 
+	/** @type {Set<string>} */
+	#usedAutoMethods;
+
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
@@ -412,10 +418,26 @@ export class DataDefinition extends Statement {
 	constructor(site, name, fields) {
 		super(site, name);
 		this.#fields = fields;
+		this.#usedAutoMethods = new Set();
+	}
+
+	/**
+	 * @type {Type}
+	 */
+	get type() {
+		throw new Error("not yet implemented");
 	}
 
 	get fields() {
 		return this.#fields.slice();
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {number}
+	 */
+	getConstrIndex(site) {
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -444,6 +466,14 @@ export class DataDefinition extends Statement {
 	 */
 	hasField(name) {
 		return this.findField(name) != -1;
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {boolean}
+	 */
+	hasMember(name) {
+		return this.hasField(name) || name.value == "copy";
 	}
 
 	toString() {
@@ -531,13 +561,20 @@ export class DataDefinition extends Statement {
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name, dryRun = false) {
-		let i = this.findField(name);
+		switch (name.value) {
+			case "copy":
+				this.#usedAutoMethods.add(name.value);
+				return Instance.new(new FuncType(this.#fields.map(f => new ArgType(f.name, f.type, true)), this.type));
+			default:
+				let i = this.findField(name);
 
-		if (i == -1) {
-			throw name.referenceError(`'${this.name.toString()}.${name.toString()}' undefined`);
-		} else {
-			return Instance.new(this.#fields[i].type);
+				if (i == -1) {
+					throw name.referenceError(`'${this.name.toString()}.${name.toString()}' undefined`);
+				} else {
+					return Instance.new(this.#fields[i].type);
+				}
 		}
+		
 	}
 
 	use() {
@@ -551,16 +588,58 @@ export class DataDefinition extends Statement {
 	}
 
 	/**
+	 * @package
+	 * @param {IRDefinitions} map 
+	 * @param {string[]} getterNames
+	 */
+	copyToIR(map, getterNames) {
+		const key = `${this.path}__copy`;
+
+		// using existing IR generators as much as possible
+
+		let ir = StructLiteralExpr.toIRInternal(this.site, this.type, this.#fields.map(df => new IR(df.name.value)), this.getConstrIndex(this.site));
+
+		// wrap with defaults
+
+		for (let i = getterNames.length - 1; i >= 0; i--) {
+			const fieldName = this.#fields[i].name.toString();
+
+			ir = FuncArg.wrapWithDefaultInternal(ir, fieldName, new IR([
+				new IR(getterNames[i]),
+				new IR("(self)")
+			]))
+		}
+
+		ir = new IR([
+			new IR("(self) -> {"),
+			new IR("("),
+			new IR(this.#fields.map(f => new IR(`__useopt__${f.name.toString()}, ${f.name.toString()}`))).join(", "),
+			new IR(") -> {"),
+			ir,
+			new IR("}}")
+		]);
+
+		map.set(key, ir);
+	}
+
+	/**
+	 * Doesn't return anything, but sets its IRdef in the map
 	 * @param {IRDefinitions} map
 	 * @param {boolean} isConstr
 	 */
 	toIR(map, isConstr = true) {
 		const getterBaseName = isConstr ? "__helios__common__field" : "__helios__common__tuple_field";
 
+		/**
+		 * @type {string[]}
+		 */
+		const getterNames = [];
+
 		// add a getter for each field
 		for (let i = 0; i < this.#fields.length; i++) {
 			let f = this.#fields[i];
 			let key = `${this.path}__${f.name.toString()}`;
+			getterNames.push(key);
 			let isBool = f.type instanceof BoolType;
 
 			/**
@@ -569,6 +648,7 @@ export class DataDefinition extends Statement {
 			let getter;
 
 			if (i < 20) {
+
 				getter = new IR(`${getterBaseName}_${i}`, f.site);
 
 				if (isBool) {
@@ -577,8 +657,6 @@ export class DataDefinition extends Statement {
 						new IR(`__helios__common__unBoolData(${getterBaseName}_${i}(self))`),
 						new IR("}"),
 					]);
-				} else {
-					getter = new IR(`${getterBaseName}_${i}`, f.site);
 				}
 			} else {
 				let inner = isConstr ? new IR("__core__sndPair(__core__unConstrData(self))") : new IR("__core__unListData(self)");
@@ -605,6 +683,10 @@ export class DataDefinition extends Statement {
 			}
 
 			map.set(key, getter)
+		}
+
+		if (this.#usedAutoMethods.has("copy")) {
+			this.copyToIR(map, getterNames);
 		}
 	}
 }
@@ -669,7 +751,7 @@ export class StructStatement extends DataDefinition {
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name, dryRun = false) {
-		if (this.hasField(name)) {
+		if (super.hasMember(name)) {
 			return super.getInstanceMember(name, dryRun);
 		} else {
 			return this.#impl.getInstanceMember(name, dryRun);

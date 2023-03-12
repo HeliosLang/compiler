@@ -29,10 +29,10 @@ import {
 	DatumHash,
 	Duration,
 	HeliosData,
-	HeliosMap,
-	HeliosString,
-	Int,
-	List,
+	HMap,
+	HString,
+	HInt,
+	HList,
 	MintingPolicyHash,
 	Option,
 	PubKeyHash,
@@ -206,9 +206,10 @@ export class EvalEntity {
 	 * Throws an error if 'this' isn't a function value, or if the args don't correspond.
 	 * @param {Site} site 
 	 * @param {Instance[]} args
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Instance}
 	 */
-	call(site, args) {
+	call(site, args, namedArgs = {}) {
 		throw new Error("not yet implemented");
 	}
 
@@ -341,9 +342,10 @@ export class Type extends EvalEntity {
 	 * Throws an error because a Type isn't callable.
 	 * @param {Site} site 
 	 * @param {Instance[]} args 
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Instance}
 	 */
-	call(site, args) {
+	call(site, args, namedArgs = {}) {
 		throw site.typeError("not callable");
 	}
 
@@ -1033,20 +1035,123 @@ export class EnumMemberStatementType extends StatementType {
 }
 
 /**
+ * @package
+ */
+export class ArgType {
+	#name;
+	#type;
+	#optional;
+
+	/**
+	 * 
+	 * @param {null | Word} name 
+	 * @param {Type} type 
+	 * @param {boolean} optional 
+	 */
+	constructor(name, type, optional = false) {
+		this.#name = name;
+		this.#type = type;
+		this.#optional = optional;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		if (this.#name === null) {
+			return "";
+		} else {
+			return this.#name.toString();
+		}
+	}
+	/**
+	 * @type {Type}
+	 */
+	get type() {
+		return this.#type;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isNamed() {
+		return this.#name !== null;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isOptional() {
+		return this.#optional;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return [
+			this.#name != null ? `${this.#name.toString()}: ` : "",
+			this.#optional ? "?" : "",
+			this.#type.toString()
+		].join("");
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {ArgType} other 
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, other) {
+		// if this arg has a default value, the other arg must also have a default value
+		if (this.#optional && !other.#optional) {
+			return false;
+		}
+
+		// if this is named, the other must be named as well
+		if (this.#name != null) {
+			return this.#name.toString() == (other.#name?.toString() ?? "");
+		}
+
+		if (this.#type instanceof ParamType) {
+			this.#type.setType(site, other.#type);
+		} else {
+			if (!other.#type.isBaseOf(site, this.#type)) { // note the reversal of the check
+				return false;
+			}
+		}
+
+		return true;
+	}
+}
+
+/**
  * Function type with arg types and a return type
  * @package
  */
 export class FuncType extends Type {
+	/**
+	 * @type {ArgType[]}
+	 */
 	#argTypes;
+
+	/**
+	 * @type {Type[]}
+	 */
 	#retTypes;
 
 	/**
-	 * @param {Type[]} argTypes 
+	 * @param {Type[] | ArgType[]} argTypes 
 	 * @param {Type | Type[]} retTypes 
 	 */
 	constructor(argTypes, retTypes) {
 		super();
-		this.#argTypes = argTypes;
+		this.#argTypes = argTypes.map(at => {
+			if (at instanceof Type) {
+				return new ArgType(null, at);
+			} else {
+				return at;
+			}
+		});
 
 		if (!Array.isArray(retTypes)) {
 			retTypes = [retTypes];
@@ -1055,14 +1160,37 @@ export class FuncType extends Type {
 		this.#retTypes = retTypes;
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get nArgs() {
 		return this.#argTypes.length;
 	}
 
-	get argTypes() {
-		return this.#argTypes.slice();
+	/**
+	 * @type {number}
+	 */
+	get nNonOptArgs() {
+		return this.#argTypes.filter(at => !at.isOptional()).length;
 	}
 
+	/**
+	 * @type {number}
+	 */
+	get nOptArgs() {
+		return this.#argTypes.filter(at => at.isOptional()).length;
+	}
+
+	/**
+	 * @type {Type[]}
+	 */
+	get argTypes() {
+		return this.#argTypes.slice().map(at => at.type);
+	}
+
+	/**
+	 * @type {Type[]}
+	 */
 	get retTypes() {
 		return this.#retTypes;
 	}
@@ -1088,7 +1216,7 @@ export class FuncType extends Type {
 	 */
 	isMaybeMethod(site, type) {
 		if (this.#argTypes.length > 0) {
-			return Type.same(site, this.#argTypes[0], type);
+			return Type.same(site, this.#argTypes[0].type, type);
 		} else {
 			return false;
 		}
@@ -1103,7 +1231,7 @@ export class FuncType extends Type {
 	 */
 	isAssociated(site, type) {
 		for (let arg of this.#argTypes) {
-			if (Type.same(site, arg, type)) {
+			if (Type.same(site, arg.type, type)) {
 				return true;
 			}
 		}
@@ -1123,28 +1251,23 @@ export class FuncType extends Type {
 	 * Each argType of the FuncType we are checking against needs to be the same or less specific (i.e. isBaseOf(this.#argTypes[i]))
 	 * The retType of 'this' needs to be the same or more specific
 	 * @param {Site} site 
-	 * @param {Type} type 
+	 * @param {Type} other 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		if (type instanceof FuncType) {
-			if (this.nArgs != type.nArgs) {
+	isBaseOf(site, other) {
+		if (other instanceof FuncType) {
+			if (this.nNonOptArgs != other.nNonOptArgs) {
 				return false;
 			} else {
-				for (let i = 0; i < this.nArgs; i++) {
-					let thisArgType = this.#argTypes[i];
-					if (thisArgType instanceof ParamType) {
-						thisArgType.setType(site, type.#argTypes[i]);
-					} else {
-						if (!type.#argTypes[i].isBaseOf(site, thisArgType)) { // note the reversal of the check
-							return false;
-						}
+				for (let i = 0; i < this.nNonOptArgs; i++) {
+					if (!this.#argTypes[i].isBaseOf(site, other.#argTypes[i])) {
+						return false;
 					}
 				}
 
-				if (this.#retTypes.length === type.#retTypes.length) {
+				if (this.#retTypes.length === other.#retTypes.length) {
 					for (let i = 0; i < this.#retTypes.length; i++) {
-						if (!this.#retTypes[i].isBaseOf(site, type.#retTypes[i])) {
+						if (!this.#retTypes[i].isBaseOf(site, other.#retTypes[i])) {
 							return false;
 						}
 					}
@@ -1161,20 +1284,67 @@ export class FuncType extends Type {
 	}
 	
 	/**
+	 * Throws an error if name isn't found
+	 * @param {Site} site 
+	 * @param {string} name 
+	 * @returns {number}
+	 */
+	getNamedIndex(site, name) {
+		const i = this.#argTypes.findIndex(at => at.name == name);
+
+		if (i == -1) {
+			throw site.typeError(`arg name ${name} not found`);
+		} else {
+			return i;
+		}
+	}
+
+	/**
 	 * Checks if arg types are valid.
 	 * Throws errors if not valid. Returns the return type if valid. 
 	 * @param {Site} site 
-	 * @param {Instance[]} args 
+	 * @param {Instance[]} posArgs
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Type[]}
 	 */
-	checkCall(site, args) {
-		if (this.nArgs != args.length) {
-			throw site.typeError(`expected ${this.nArgs} arg(s), got ${args.length} arg(s)`);
+	checkCall(site, posArgs, namedArgs = {}) {
+		if (posArgs.length < this.nNonOptArgs) {
+			// check if each nonOptArg is covered by the named args
+			for (let i = 0; i < this.nNonOptArgs; i++) {
+				if (!this.#argTypes[i].isNamed()) {
+					throw site.typeError(`expected at least ${this.#argTypes.filter(at => !at.isNamed()).length} positional arg(s), got ${posArgs.length} positional arg(s)`);
+				} else {
+					if (!(this.#argTypes[i].name in namedArgs)) {
+						throw site.typeError(`named arg ${this.#argTypes[i].name} missing from call`);
+					}
+				}
+			}
+
+		} else if (posArgs.length > this.#argTypes.length) {
+			throw site.typeError(`expected at most ${this.#argTypes.length} arg(s), got ${posArgs.length} arg(s)`);
 		}
 
-		for (let i = 0; i < this.nArgs; i++) {
-			if (!args[i].isInstanceOf(site, this.#argTypes[i])) {
-				throw site.typeError(`expected '${this.#argTypes[i].toString()}' for arg ${i + 1}, got '${args[i].toString()}'`);
+		for (let i = 0; i < posArgs.length; i++) {
+			if (!posArgs[i].isInstanceOf(site, this.#argTypes[i].type)) {
+				throw site.typeError(`expected '${this.#argTypes[i].type.toString()}' for arg ${i + 1}, got '${posArgs[i].toString()}'`);
+			}
+		}
+
+		for (let key in namedArgs) {
+			const i = this.#argTypes.findIndex(at => at.name == key);
+
+			if (i == -1) {
+				throw site.typeError(`arg named ${key} not found in function type ${this.toString()}`);
+			}
+
+			if (i < posArgs.length) {
+				throw site.typeError(`named arg '${key}' already covered by positional arg ${i+1}`);
+			}
+
+			const thisArg = this.#argTypes[i];
+
+			if (!namedArgs[key].isInstanceOf(site, thisArg.type)) {
+				throw site.typeError(`expected '${thisArg.type.toString()}' for arg '${key}', got '${namedArgs[key].toString()}`);
 			}
 		}
 
@@ -1361,9 +1531,10 @@ export class DataInstance extends Instance {
 	 * Throws an error bec
 	 * @param {Site} site 
 	 * @param {Instance[]} args 
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Instance}
 	 */
-	call(site, args) {
+	call(site, args, namedArgs = {}) {
 		throw site.typeError("not callable");
 	}
 }
@@ -1406,10 +1577,6 @@ export class FuncInstance extends Instance {
 
 		super();
 		this.#type = type;
-	}
-
-	get nArgs() {
-		return this.#type.nArgs;
 	}
 
 	/**
@@ -1463,10 +1630,11 @@ export class FuncInstance extends Instance {
 	/**
 	 * @param {Site} site 
 	 * @param {Instance[]} args 
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Instance}
 	 */
-	call(site, args) {
-		return Instance.new(this.#type.checkCall(site, args));
+	call(site, args, namedArgs = {}) {
+		return Instance.new(this.#type.checkCall(site, args, namedArgs));
 	}
 
 	/**
@@ -1628,9 +1796,10 @@ export class VoidInstance extends Instance {
 	/**
 	 * @param {Site} site 
 	 * @param {Instance[]} args
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Instance}
 	 */
-	call(site, args) {
+	call(site, args, namedArgs = {}) {
 		throw new Error("can't call void");
 	}
 
@@ -1861,7 +2030,7 @@ export class IntType extends BuiltinType {
 	}
 
 	get userType() {
-		return Int;
+		return HInt;
 	}
 }
 
@@ -1980,7 +2149,7 @@ export class StringType extends BuiltinType {
 	 * @type {HeliosDataClass<HeliosData>}
 	 */
 	get userType() {
-		return HeliosString;
+		return HString;
 	}
 }
 
@@ -2300,11 +2469,12 @@ export class ParamFuncValue extends FuncInstance {
 
 	/**
 	 * @param {Site} site 
-	 * @param {Instance[]} args 
+	 * @param {Instance[]} args
+	 * @param {{[name: string]: Instance}} namedArgs
 	 * @returns {Instance}
 	 */
-	call(site, args) {
-		return (new FuncInstance(this.#fnType)).call(site, args);
+	call(site, args, namedArgs = {}) {
+		return (new FuncInstance(this.#fnType)).call(site, args, namedArgs);
 	}
 }
 
@@ -2442,7 +2612,7 @@ export class ListType extends BuiltinType {
 	 * @type {HeliosDataClass<HeliosData>}
 	 */
 	get userType() {
-		return List(this.#itemType.userType);
+		return HList(this.#itemType.userType);
 	}
 }
 
@@ -2600,7 +2770,7 @@ export class MapType extends BuiltinType {
 	 * @type {HeliosDataClass<HeliosData>}
 	 */
 	get userType() {
-		return HeliosMap(this.#keyType.userType, this.#valueType.userType);
+		return HMap(this.#keyType.userType, this.#valueType.userType);
 	}
 }
 

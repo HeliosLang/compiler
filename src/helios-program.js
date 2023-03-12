@@ -889,6 +889,7 @@ class MainModule extends Module {
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 		
 		//console.log(new Source(irProgram.toString()).pretty());
+		
 		return irProgram.toUplc();
 	}
 
