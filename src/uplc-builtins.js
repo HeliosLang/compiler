@@ -152,7 +152,7 @@ export const UPLC_BUILTINS = (
 			builtinConfig("trace",                    1, ConstCost, ConstCost),
 			builtinConfig("fstPair",                  2, ConstCost, ConstCost),
 			builtinConfig("sndPair",                  2, ConstCost, ConstCost), // 30
-			builtinConfig("chooseList",               1, ConstCost, ConstCost),
+			builtinConfig("chooseList",               2, ConstCost, ConstCost),
 			builtinConfig("mkCons",                   1, ConstCost, ConstCost),
 			builtinConfig("headList",                 1, ConstCost, ConstCost),
 			builtinConfig("tailList",                 1, ConstCost, ConstCost),

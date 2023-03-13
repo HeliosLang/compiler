@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.0
+// Version:       0.13.1
 // Last update:   March 2023
 // License:       Unlicense
 //
@@ -219,7 +219,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.0";
+export const VERSION = "0.13.1";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -8203,7 +8203,7 @@ const UPLC_BUILTINS = (
 			builtinConfig("trace",                    1, ConstCost, ConstCost),
 			builtinConfig("fstPair",                  2, ConstCost, ConstCost),
 			builtinConfig("sndPair",                  2, ConstCost, ConstCost), // 30
-			builtinConfig("chooseList",               1, ConstCost, ConstCost),
+			builtinConfig("chooseList",               2, ConstCost, ConstCost),
 			builtinConfig("mkCons",                   1, ConstCost, ConstCost),
 			builtinConfig("headList",                 1, ConstCost, ConstCost),
 			builtinConfig("tailList",                 1, ConstCost, ConstCost),
