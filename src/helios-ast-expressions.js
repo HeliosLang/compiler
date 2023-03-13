@@ -2133,10 +2133,10 @@ export class UnaryExpr extends ValueExpr {
 	evalInternal(scope) {
 		let a = this.#a.eval(scope);
 
-		let fnVal = a.assertValue(this.#a.site).getInstanceMember(this.translateOp());
+		let fnVal = a.assertValue(this.#a.site).getType(this.site).getTypeMember(this.translateOp());
 
 		// ops are immediately applied
-		return fnVal.call(this.#op.site, []);
+		return fnVal.call(this.#op.site, [a]);
 	}
 
 	use() {
@@ -2153,7 +2153,7 @@ export class UnaryExpr extends ValueExpr {
 		return new IR([
 			new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
 			this.#a.toIR(indent),
-			new IR(")()")
+			new IR(")")
 		]);
 	}
 }
@@ -2274,9 +2274,9 @@ export class BinaryExpr extends ValueExpr {
 				let second = swap ? a : b;
 
 				try {
-					let fnVal = first.getInstanceMember(this.translateOp(alt));
+					let fnVal = first.getType(this.site).getTypeMember(this.translateOp(alt));
 
-					let res = fnVal.call(this.#op.site, [second]);
+					let res = fnVal.call(this.#op.site, [first, second]);
 
 					this.#swap = swap;
 					this.#alt  = alt;
@@ -2328,7 +2328,7 @@ export class BinaryExpr extends ValueExpr {
 			return new IR([
 				new IR(`${path}__${op}`, this.site), new IR("("),
 				this.first.toIR(indent),
-				new IR(")("),
+				new IR(", "),
 				this.second.toIR(indent),
 				new IR(")")
 			]);

@@ -30,7 +30,7 @@
 //     > console.log(helios.Program.new("spending my_validator ...").compile().serialize());
 //     
 //
-// Documentation: https://www.hyperion-bt.org/helios-book
+// Documentation: https://www.hyperion-bt.org/Helios-Book
 //
 //
 // Note: I recommend keeping the Helios library as a single unminified file for optimal 
@@ -12845,6 +12845,9 @@ class BuiltinType extends DataType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Instance.new(new FuncType([this, this], new BoolType()));
 			case "from_data":
 				return Instance.new(new FuncType([new RawDataType()], this));
 			default:
@@ -12861,9 +12864,6 @@ class BuiltinType extends DataType {
 		switch (name.value) {
 			case "serialize":
 				return Instance.new(new FuncType([], new ByteArrayType()));
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([this], new BoolType()));
 			default:
 				throw name.referenceError(`${this.toString()}.${name.value} undefined`);
 		}
@@ -12920,6 +12920,9 @@ class BuiltinEnumMember extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Instance.new(new FuncType([this.#parentType, this.#parentType], new BoolType()));
 			case "from_data":
 				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
 			default:
@@ -12933,9 +12936,6 @@ class BuiltinEnumMember extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([this.#parentType], new BoolType()));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -14361,6 +14361,20 @@ class IntType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__neg":
+			case "__pos":
+				return Instance.new(new FuncType([this], new IntType()));
+			case "__add":
+			case "__sub":
+			case "__mul":
+			case "__div":
+			case "__mod":
+				return Instance.new(new FuncType([this, new IntType()], new IntType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, new IntType()], new BoolType()));
 			case "from_little_endian":
 				return Instance.new(new FuncType([new ByteArrayType()], new IntType()));
 			case "max":
@@ -14379,20 +14393,6 @@ class IntType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__neg":
-			case "__pos":
-				return Instance.new(new FuncType([], new IntType()));
-			case "__add":
-			case "__sub":
-			case "__mul":
-			case "__div":
-			case "__mod":
-				return Instance.new(new FuncType([new IntType()], new IntType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([new IntType()], new BoolType()));
 			case "bound":
 				return Instance.new(new FuncType([new IntType(), new IntType()], new IntType()));
 			case "bound_min":
@@ -14440,6 +14440,11 @@ class BoolType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__not":
+				return Instance.new(new FuncType([this], new BoolType()));
+			case "__and":
+			case "__or":
+				return Instance.new(new FuncType([this, new BoolType()], new BoolType()));
 			case "and":
 			case "or":
 				return Instance.new(new FuncType([new FuncType([], new BoolType()), new FuncType([], new BoolType())], new BoolType()));
@@ -14455,11 +14460,6 @@ class BoolType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__not":
-				return Instance.new(new FuncType([], new BoolType()));
-			case "__and":
-			case "__or":
-				return Instance.new(new FuncType([new BoolType()], new BoolType()));
 			case "to_int":
 				return Instance.new(new FuncType([], new IntType()));
 			case "show":
@@ -14504,12 +14504,24 @@ class StringType extends BuiltinType {
 	/**
 	 * @package
 	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "__add":
+				return Instance.new(new FuncType([this, new StringType()], new StringType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @package
+	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([new StringType()], new StringType()));
 			case "starts_with":
 			case "ends_with":
 				return Instance.new(new FuncType([new StringType()], new BoolType()));
@@ -14557,18 +14569,30 @@ class ByteArrayType extends BuiltinType {
 	}
 
 	/**
+	 * @package
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "__add":
+				return Instance.new(new FuncType([this, new ByteArrayType()], new ByteArrayType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, new ByteArrayType()], new BoolType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([new ByteArrayType()], new ByteArrayType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([new ByteArrayType()], new BoolType()));
 			case "length":
 				return Instance.new(new IntType());
 			case "slice":
@@ -14911,6 +14935,8 @@ class ListType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__add":
+				return Instance.new(new FuncType([this, this], this));
 			case "new":
 				return Instance.new(new FuncType([new IntType(), new FuncType([new IntType()], this.#itemType)], this));
 			case "new_const":
@@ -14927,8 +14953,6 @@ class ListType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([this], this));
 			case "length":
 				return Instance.new(new IntType());
 			case "head":
@@ -15056,12 +15080,24 @@ class MapType extends BuiltinType {
 	/**
 	 * @package
 	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "__add":
+				return Instance.new(new FuncType([this, this], this));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @package
+	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([this], this));
 			case "all":
 			case "any":
 				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], new BoolType()));
@@ -15422,6 +15458,11 @@ class HashType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, this], new BoolType()));
 			case "new":
 				return Instance.new(new FuncType([new ByteArrayType()], this));
 			default:
@@ -15435,11 +15476,6 @@ class HashType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([this], new BoolType()));
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
 			default:
@@ -16549,6 +16585,11 @@ class TxIdType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, this], new BoolType()));
 			case "new":
 				return Instance.new(new FuncType([new ByteArrayType()], this));
 			case "CURRENT":
@@ -16569,11 +16610,6 @@ class TxIdType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([this], new BoolType()));
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
 			default:
@@ -16942,6 +16978,11 @@ class TxOutputIdType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__lt":
+			case "__leq":
+			case "__gt":
+			case "__geq":
+				return Instance.new(new FuncType([this, new TxOutputIdType()], new BoolType()));
 			case "new":
 				return Instance.new(new FuncType([new TxIdType(), new IntType()], new TxOutputIdType()));
 			default:
@@ -16956,11 +16997,6 @@ class TxOutputIdType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__lt":
-			case "__leq":
-			case "__gt":
-			case "__geq":
-				return Instance.new(new FuncType([new TxOutputIdType()], new BoolType()));
 			case "tx_id":
 				return Instance.new(new TxIdType());
 			case "index":
@@ -17446,6 +17482,17 @@ export class TimeType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__add":
+				return Instance.new(new FuncType([this, new DurationType()], new TimeType()));
+			case "__sub":
+				return Instance.new(new FuncType([this, new TimeType()], new DurationType()));
+			case "__sub_alt":
+				return Instance.new(new FuncType([this, new DurationType()], new TimeType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, new TimeType()], new BoolType()));
 			case "new":
 				return Instance.new(new FuncType([new IntType()], this));
 			default:
@@ -17459,17 +17506,6 @@ export class TimeType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([new DurationType()], new TimeType()));
-			case "__sub":
-				return Instance.new(new FuncType([new TimeType()], new DurationType()));
-			case "__sub_alt":
-				return Instance.new(new FuncType([new DurationType()], new TimeType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([new TimeType()], new BoolType()));
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
 			default:
@@ -17504,6 +17540,20 @@ class DurationType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__add":
+			case "__sub":
+			case "__mod":
+				return Instance.new(new FuncType([this, new DurationType()], new DurationType()));
+			case "__mul":
+			case "__div":
+				return Instance.new(new FuncType([this, new IntType()], new DurationType()));
+			case "__div_alt":
+				return Instance.new(new FuncType([this, new DurationType()], new IntType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, new DurationType()], new BoolType()));
 			case "new":
 				return Instance.new(new FuncType([new IntType()], this));
 			default:
@@ -17517,20 +17567,6 @@ class DurationType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-			case "__sub":
-			case "__mod":
-				return Instance.new(new FuncType([new DurationType()], new DurationType()));
-			case "__mul":
-			case "__div":
-				return Instance.new(new FuncType([new IntType()], new DurationType()));
-			case "__div_alt":
-				return Instance.new(new FuncType([new DurationType()], new IntType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([new DurationType()], new BoolType()));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -17642,6 +17678,17 @@ class ValueType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__add":
+			case "__sub":
+				return Instance.new(new FuncType([this, new ValueType()], new ValueType()));
+			case "__mul":
+			case "__div":
+				return Instance.new(new FuncType([this, new IntType()], new ValueType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, new ValueType()], new BoolType()));
 			case "ZERO":
 				return Instance.new(new ValueType());
 			case "lovelace":
@@ -17662,16 +17709,6 @@ class ValueType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-			case "__sub":
-				return Instance.new(new FuncType([new ValueType()], new ValueType()));
-			case "__mul":
-			case "__div":
-				return Instance.new(new FuncType([new IntType()], new ValueType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
 			case "contains":
 				return Instance.new(new FuncType([new ValueType()], new BoolType()));
 			case "is_zero":
@@ -20196,10 +20233,10 @@ class UnaryExpr extends ValueExpr {
 	evalInternal(scope) {
 		let a = this.#a.eval(scope);
 
-		let fnVal = a.assertValue(this.#a.site).getInstanceMember(this.translateOp());
+		let fnVal = a.assertValue(this.#a.site).getType(this.site).getTypeMember(this.translateOp());
 
 		// ops are immediately applied
-		return fnVal.call(this.#op.site, []);
+		return fnVal.call(this.#op.site, [a]);
 	}
 
 	use() {
@@ -20216,7 +20253,7 @@ class UnaryExpr extends ValueExpr {
 		return new IR([
 			new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
 			this.#a.toIR(indent),
-			new IR(")()")
+			new IR(")")
 		]);
 	}
 }
@@ -20337,9 +20374,9 @@ class BinaryExpr extends ValueExpr {
 				let second = swap ? a : b;
 
 				try {
-					let fnVal = first.getInstanceMember(this.translateOp(alt));
+					let fnVal = first.getType(this.site).getTypeMember(this.translateOp(alt));
 
-					let res = fnVal.call(this.#op.site, [second]);
+					let res = fnVal.call(this.#op.site, [first, second]);
 
 					this.#swap = swap;
 					this.#alt  = alt;
@@ -20391,7 +20428,7 @@ class BinaryExpr extends ValueExpr {
 			return new IR([
 				new IR(`${path}__${op}`, this.site), new IR("("),
 				this.first.toIR(indent),
-				new IR(")("),
+				new IR(", "),
 				this.second.toIR(indent),
 				new IR(")")
 			]);
@@ -23116,10 +23153,7 @@ class ImplDefinition {
 			case "serialize":
 				this.#usedStatements.add(name.toString());
 				return Instance.new(new FuncType([], new ByteArrayType()));
-			case "__eq":
-			case "__neq":
-				this.#usedStatements.add(name.toString());
-				return Instance.new(new FuncType([this.#selfTypeExpr.type], new BoolType()));
+			
 			default:
 				// loop the contained statements to find one with name 'name'
 				for (let i = 0; i < this.#statementValues.length; i++) {
@@ -23149,6 +23183,10 @@ class ImplDefinition {
 	 */
 	getTypeMember(name, dryRun = false) {
 		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				this.#usedStatements.add(name.toString());
+				return Instance.new(new FuncType([this.#selfTypeExpr.type, this.#selfTypeExpr.type], new BoolType()));
 			case "from_data":
 				this.#usedStatements.add(name.toString());
 				return Instance.new(new FuncType([new RawDataType()], this.#selfTypeExpr.type));
@@ -25298,29 +25336,16 @@ function makeRawFunctions() {
 			() -> {error("unexpected constructor index")}
 		)()
 	}`));
-	add(new RawFunc("__helios__common____identity",
-	`(self) -> {
-		() -> {
-			self
-		}
-	}`))
 	add(new RawFunc("__helios__common__identity",
 	`(self) -> {self}`));
 	add(new RawFunc("__helios__common__not",
 	`(b) -> {
 		__core__ifThenElse(b, false, true)
 	}`));
-	add(new RawFunc("__helios__common____eq",
-	`(self) -> {
-		(other) -> {
-			__core__equalsData(self, other)
-		}
-	}`));
+	add(new RawFunc("__helios__common____eq", "__core__equalsData"));
 	add(new RawFunc("__helios__common____neq",
-	`(self) -> {
-		(other) -> {
-			__helios__common__not(__core__equalsData(self, other))
-		}
+	`(a, b) -> {
+		__helios__common__not(__core__equalsData(a, b))
 	}`));
 	add(new RawFunc("__helios__common__serialize",
 	`(self) -> {
@@ -25334,8 +25359,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn)
 		}(
 			(recurse, self, fn) -> {
-				__core__ifThenElse(
-					__core__nullList(self), 
+				__core__chooseList(
+					self, 
 					() -> {false}, 
 					() -> {
 						__core__ifThenElse(
@@ -25354,8 +25379,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn)
 		}(
 			(recurse, self, fn) -> {
-				__core__ifThenElse(
-					__core__nullList(self),
+				__core__chooseList(
+					self,
 					() -> {true},
 					() -> {
 						__core__ifThenElse(
@@ -25374,8 +25399,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, init)
 		}(
 			(recurse, rem, lst) -> {
-				__core__ifThenElse(
-					__core__nullList(rem),
+				__core__chooseList(
+					rem,
 					() -> {lst},
 					() -> {
 						__core__mkCons(
@@ -25393,8 +25418,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn)
 		}(
 			(recurse, self, fn) -> {
-				__core__ifThenElse(
-					__core__nullList(self), 
+				__core__chooseList(
+					self, 
 					() -> {nil}, 
 					() -> {
 						__core__ifThenElse(
@@ -25421,8 +25446,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn)
 		}(
 			(recurse, self, fn) -> {
-				__core__ifThenElse(
-					__core__nullList(self), 
+				__core__chooseList(
+					self, 
 					() -> {error("not found")}, 
 					() -> {
 						__core__ifThenElse(
@@ -25441,8 +25466,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn)
 		}(
 			(recurse, self, fn) -> {
-				__core__ifThenElse(
-					__core__nullList(self), 
+				__core__chooseList(
+					self, 
 					() -> {__core__constrData(1, __helios__common__list_0)}, 
 					() -> {
 						__core__ifThenElse(
@@ -25461,8 +25486,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn, z)
 		}(
 			(recurse, self, fn, z) -> {
-				__core__ifThenElse(
-					__core__nullList(self), 
+				__core__chooseList(
+					self, 
 					() -> {z}, 
 					() -> {recurse(recurse, __core__tailList(self), fn, fn(z, __core__headList(self)))}
 				)()
@@ -25475,8 +25500,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn, z)
 		}(
 			(recurse, self, fn, z) -> {
-				__core__ifThenElse(
-					__core__nullList(self), 
+				__core__chooseList(
+					self, 
 					() -> {z}, 
 					() -> {fn(__core__headList(self), () -> {recurse(recurse, __core__tailList(self), fn, z)})}
 				)()
@@ -25489,8 +25514,8 @@ function makeRawFunctions() {
 			recurse(recurse, lst)
 		}(
 			(recurse, lst) -> {
-				__core__ifThenElse(
-					__core__nullList(lst),
+				__core__chooseList(
+					lst,
 					() -> {__core__mkCons(x, lst)},
 					() -> {
 						(head) -> {
@@ -25511,8 +25536,8 @@ function makeRawFunctions() {
 			recurse(recurse, lst)
 		}(
 			(recurse, lst) -> {
-				__core__ifThenElse(
-					__core__nullList(lst),
+				__core__chooseList(
+					lst,
 					() -> {lst},
 					() -> {
 						(head, tail) -> {
@@ -25530,8 +25555,8 @@ function makeRawFunctions() {
 				recurse(recurse, self, key)
 			}(
 				(recurse, self, key) -> {
-					__core__ifThenElse(
-						__core__nullList(self), 
+					__core__chooseList(
+						self, 
 						fnNotFound, 
 						() -> {
 							__core__ifThenElse(
@@ -25575,8 +25600,8 @@ function makeRawFunctions() {
 			__core__iData(recurse(recurse, lst))
 		}(
 			(recurse, lst) -> {
-				__core__ifThenElse(
-					__core__nullList(lst), 
+				__core__chooseList(
+					lst, 
 					() -> {0}, 
 					() -> {__core__addInteger(recurse(recurse, __core__tailList(lst)), 1)}
 				)()
@@ -25605,8 +25630,8 @@ function makeRawFunctions() {
 			recurse(recurse, b, a)
 		}(
 			(recurse, lst, rem) -> {
-				__core__ifThenElse(
-					__core__nullList(rem),
+				__core__chooseList(
+					rem,
 					() -> {lst},
 					() -> {__core__mkCons(__core__headList(rem), recurse(recurse, lst, __core__tailList(rem)))}
 				)()
@@ -25793,66 +25818,44 @@ function makeRawFunctions() {
 	addDataFuncs("__helios__int");
 	add(new RawFunc("__helios__int____neg",
 	`(self) -> {
-		(self) -> {
-			() -> {
-				__core__iData(__core__multiplyInteger(self, -1))
-			}
-		}(__core__unIData(self))
+		__core__iData(__core__multiplyInteger(__core__unIData(self), -1))	
 	}`));
-	add(new RawFunc("__helios__int____pos", "__helios__common____identity"));
+	add(new RawFunc("__helios__int____pos", "__helios__common__identity"));
 	add(new RawFunc("__helios__int____add",
-	`(self) -> {
-		(other) -> {
-			__core__iData(__core__addInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__core__iData(__core__addInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____sub",
-	`(self) -> {
-		(other) -> {
-			__core__iData(__core__subtractInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__core__iData(__core__subtractInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____mul",
-	`(self) -> {
-		(other) -> {
-			__core__iData(__core__multiplyInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__core__iData(__core__multiplyInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____div",
-	`(self) -> {
-		(other) -> {
-			__core__iData(__core__divideInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__core__iData(__core__divideInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____mod",
-	`(self) -> {
-		(other) -> {
-			__core__iData(__core__modInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__core__iData(__core__modInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____geq",
-	`(self) -> {
-		(other) -> {
-			__helios__common__not(__core__lessThanInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__helios__common__not(__core__lessThanInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____gt",
-	`(self) -> {
-		(other) -> {
-			__helios__common__not(__core__lessThanEqualsInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__helios__common__not(__core__lessThanEqualsInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____leq",
-	`(self) -> {
-		(other) -> {
-			__core__lessThanEqualsInteger(__core__unIData(self), __core__unIData(other))
-		}
+	`(a, b) -> {
+		__core__lessThanEqualsInteger(__core__unIData(a), __core__unIData(b))
 	}`));
 	add(new RawFunc("__helios__int____lt",
-	`(self) -> {
-		(other) -> {
-			__core__lessThanInteger(__core__unIData(self), __core__unIData(other))
-		}
+	`(a, b) -> {
+		__core__lessThanInteger(__core__unIData(a), __core__unIData(b))
 	}`));
 	add(new RawFunc("__helios__int__min",
 	`(a, b) -> {
@@ -26078,16 +26081,12 @@ function makeRawFunctions() {
 
 	// Bool builtins
 	add(new RawFunc(`__helios__bool____eq`, 
-	`(a) -> {
-		(b) -> {
-			__core__ifThenElse(a, b, __helios__common__not(b))
-		}
+	`(a, b) -> {
+		__core__ifThenElse(a, b, __helios__common__not(b))
 	}`));
 	add(new RawFunc(`__helios__bool____neq`,
-	`(a) -> {
-		(b) -> {
-			__core__ifThenElse(a, __helios__common__not(b), b)
-		}
+	`(a, b) -> {
+		__core__ifThenElse(a, __helios__common__not(b), b)
 	}`));
 	add(new RawFunc(`__helios__bool__serialize`, 
 	`(self) -> {
@@ -26113,12 +26112,7 @@ function makeRawFunctions() {
 			() -> {b()}
 		)()
 	}`));
-	add(new RawFunc("__helios__bool____not",
-	`(self) -> {
-		() -> {
-			__helios__common__not(self)
-		}
-	}`));
+	add(new RawFunc("__helios__bool____not", "__helios__common__not"));
 	add(new RawFunc("__helios__bool__to_int",
 	`(self) -> {
 		() -> {
@@ -26136,7 +26130,8 @@ function makeRawFunctions() {
 		(prefix) -> {
 			__core__trace(
 				__helios__common__unStringData(
-					__helios__string____add(prefix)(
+					__helios__string____add(
+						prefix,
 						__helios__bool__show(self)()
 					)
 				), 
@@ -26149,12 +26144,8 @@ function makeRawFunctions() {
 	// String builtins
 	addDataFuncs("__helios__string");
 	add(new RawFunc("__helios__string____add",
-	`(self) -> {
-		(self) -> {
-			(other) -> {
-				__helios__common__stringData(__core__appendString(self, __helios__common__unStringData(other)))
-			}
-		}(__helios__common__unStringData(self))
+	`(a, b) -> {
+		__helios__common__stringData(__core__appendString(__helios__common__unStringData(a), __helios__common__unStringData(b)))	
 	}`));
 	add(new RawFunc("__helios__string__starts_with", "__helios__bytearray__starts_with"));
 	add(new RawFunc("__helios__string__ends_with", "__helios__bytearray__ends_with"));
@@ -26171,44 +26162,24 @@ function makeRawFunctions() {
 	// ByteArray builtins
 	addDataFuncs("__helios__bytearray");
 	add(new RawFunc("__helios__bytearray____add",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__bData(__core__appendByteString(a, __core__unBData(b)))
-			}
-		}(__core__unBData(self))
+	`(a, b) -> {
+		__core__bData(__core__appendByteString(__core__unBData(a), __core__unBData(b)))
 	}`));
 	add(new RawFunc("__helios__bytearray____geq",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__helios__common__not(__core__lessThanByteString(a, __core__unBData(b)))
-			}
-		}(__core__unBData(self))
+	`(a, b) -> {
+		__helios__common__not(__core__lessThanByteString(__core__unBData(a), __core__unBData(b)))
 	}`));
 	add(new RawFunc("__helios__bytearray____gt",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__helios__common__not(__core__lessThanEqualsByteString(a, __core__unBData(b)))
-			}
-		}(__core__unBData(self))
+	`(a, b) -> {
+		__helios__common__not(__core__lessThanEqualsByteString(__core__unBData(a), __core__unBData(b)))
 	}`));
 	add(new RawFunc("__helios__bytearray____leq",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__lessThanEqualsByteString(a, __core__unBData(b))
-			}
-		}(__core__unBData(self))
+	`(a, b) -> {
+		__core__lessThanEqualsByteString(__core__unBData(a), __core__unBData(b))
 	}`));
 	add(new RawFunc("__helios__bytearray____lt",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__lessThanByteString(a, __core__unBData(b))
-			}
-		}(__core__unBData(self))
+	`(a, b) -> {
+		__core__lessThanByteString(__core__unBData(a), __core__unBData(b))
 	}`));
 	add(new RawFunc("__helios__bytearray__length",
 	`(self) -> {
@@ -26338,14 +26309,8 @@ function makeRawFunctions() {
 		__helios__list__new(n, (i) -> {item})
 	}`));
 	add(new RawFunc("__helios__list____add",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				(b) -> {
-					__core__listData(__helios__common__concat(a, b))
-				}(__core__unListData(b))
-			}
-		}(__core__unListData(self))
+	`(a, b) -> {
+		__core__listData(__helios__common__concat(__core__unListData(a), __core__unListData(b)))
 	}`));
 	add(new RawFunc("__helios__list__length",
 	`(self) -> {
@@ -26375,8 +26340,8 @@ function makeRawFunctions() {
 					recurse(recurse, self, __core__unIData(index))
 				}(
 					(recurse, self, index) -> {
-						__core__ifThenElse(
-							__core__nullList(self), 
+						__core__chooseList(
+							self, 
 							() -> {error("index out of range")}, 
 							() -> {__core__ifThenElse(
 								__core__lessThanInteger(index, 0), 
@@ -26451,8 +26416,8 @@ function makeRawFunctions() {
 					recurse(recurse, self)
 				}(
 					(recurse, lst) -> {
-						__core__ifThenElse(
-							__core__nullList(lst),
+						__core__chooseList(
+							lst,
 							() -> {
 								()
 							},
@@ -26670,14 +26635,8 @@ function makeRawFunctions() {
 	// Map builtins
 	addDataFuncs("__helios__map");
 	add(new RawFunc("__helios__map____add",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				(b) -> {
-					__core__mapData(__helios__common__concat(a, b))
-				}(__core__unMapData(b))
-			}
-		}(__core__unMapData(self))
+	`(a, b) -> {
+		__core__mapData(__helios__common__concat(__core__unMapData(a), __core__unMapData(b)))
 	}`));
 	add(new RawFunc("__helios__map__prepend",
 	`(self) -> {
@@ -26778,8 +26737,8 @@ function makeRawFunctions() {
 					__core__mapData(recurse(recurse, self))
 				}(
 					(recurse, self) -> {
-						__core__ifThenElse(
-							__core__nullList(self),
+						__core__chooseList(
+							self,
 							() -> {self},
 							() -> {
 								(head, tail) -> {
@@ -26818,8 +26777,8 @@ function makeRawFunctions() {
 					recurse(recurse, self, fn)
 				}(
 					(recurse, self, fn) -> {
-						__core__ifThenElse(
-							__core__nullList(self), 
+						__core__chooseList(
+							self, 
 							() -> {error("not found")}, 
 							() -> {
 								(head) -> {
@@ -26848,8 +26807,8 @@ function makeRawFunctions() {
 					recurse(recurse, self, fn)
 				}(
 					(recurse, self, fn) -> {
-						__core__ifThenElse(
-							__core__nullList(self), 
+						__core__chooseList(
+							self, 
 							() -> {
 								(callback) -> {
 									callback(() -> {error("not found")}, false)
@@ -27031,8 +26990,8 @@ function makeRawFunctions() {
 					recurse(recurse, self)
 				}(
 					(recurse, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map),
+						__core__chooseList(
+							map,
 							() -> {
 								()
 							},
@@ -27058,8 +27017,8 @@ function makeRawFunctions() {
 					__core__mapData(recurse(recurse, self))
 				}(
 					(recurse, self) -> {
-						__core__ifThenElse(
-							__core__nullList(self),
+						__core__chooseList(
+							self,
 							() -> {
 								__core__mkCons(__core__mkPairData(key, value), __core__mkNilPairData(()))
 							},
@@ -27946,28 +27905,20 @@ function makeRawFunctions() {
 		__core__headList(__core__sndPair(__core__unConstrData(self)))
 	}`));
 	add(new RawFunc("__helios__txid____lt", 
-	`(self) -> {
-		(other) -> {
-			__helios__bytearray____lt(__helios__txid__bytes(self))(__helios__txid__bytes(other))
-		}
+	`(a, b) -> {
+		__helios__bytearray____lt(__helios__txid__bytes(a), __helios__txid__bytes(b))
 	}`));
 	add(new RawFunc("__helios__txid____leq", 
-	`(self) -> {
-		(other) -> {
-			__helios__bytearray____leq(__helios__txid__bytes(self))(__helios__txid__bytes(other))
-		}
+	`(a, b) -> {
+		__helios__bytearray____leq(__helios__txid__bytes(a), __helios__txid__bytes(b))
 	}`));
 	add(new RawFunc("__helios__txid____gt", 
-	`(self) -> {
-		(other) -> {
-			__helios__bytearray____gt(__helios__txid__bytes(self))(__helios__txid__bytes(other))
-		}
+	`(a, b) -> {
+		__helios__bytearray____gt(__helios__txid__bytes(a), __helios__txid__bytes(b))
 	}`));
 	add(new RawFunc("__helios__txid____geq", 
-	`(self) -> {
-		(other) -> {
-			__helios__bytearray____geq(__helios__txid__bytes(self))(__helios__txid__bytes(other))
-		}
+	`(a, b) -> {
+		__helios__bytearray____geq(__helios__txid__bytes(a), __helios__txid__bytes(b))
 	}`));
 	add(new RawFunc("__helios__txid__new",
 	`(bytes) -> {
@@ -28068,7 +28019,10 @@ function makeRawFunctions() {
 	`(outputs) -> {
 		__helios__list__fold(outputs)(
 			(prev, txOutput) -> {
-				__helios__value____add(prev)(__helios__txoutput__value(txOutput))
+				__helios__value____add(
+					prev,
+					__helios__txoutput__value(txOutput)
+				)
 			}, 
 			__helios__value__ZERO
 		)	
@@ -28134,11 +28088,11 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__txoutputid__tx_id", "__helios__common__field_0"));
 	add(new RawFunc("__helios__txoutputid__index", "__helios__common__field_1"));
 	add(new RawFunc("__helios__txoutputid__comp", 
-	`(self, other, comp_txid, comp_index) -> {
+	`(a, b, comp_txid, comp_index) -> {
 		(a_txid, a_index) -> {
 			(b_txid, b_index) -> {
 				__core__ifThenElse(
-					comp_txid(a_txid)(b_txid),
+					comp_txid(a_txid, b_txid),
 					() -> {
 						true
 					},
@@ -28146,7 +28100,7 @@ function makeRawFunctions() {
 						__core__ifThenElse(
 							__core__equalsData(a_txid, b_txid),
 							() -> {
-								comp_index(a_index)(b_index)
+								comp_index(a_index, b_index)
 							},
 							() -> {
 								false
@@ -28154,32 +28108,24 @@ function makeRawFunctions() {
 						)()
 					}
 				)()
-			}(__helios__txoutputid__tx_id(other), __helios__txoutputid__index(other))
-		}(__helios__txoutputid__tx_id(self), __helios__txoutputid__index(self))
+			}(__helios__txoutputid__tx_id(b), __helios__txoutputid__index(b))
+		}(__helios__txoutputid__tx_id(a), __helios__txoutputid__index(a))
 	}`));
 	add(new RawFunc("__helios__txoutputid____lt", 
-	`(self) -> {
-		(other) -> {
-			__helios__txoutputid__comp(self, other, __helios__txid____lt, __helios__int____lt)
-		}
+	`(a, b) -> {
+		__helios__txoutputid__comp(a, b, __helios__txid____lt, __helios__int____lt)
 	}`));
 	add(new RawFunc("__helios__txoutputid____leq", 
-	`(self) -> {
-		(other) -> {
-			__helios__txoutputid__comp(self, other, __helios__txid____leq, __helios__int____leq)
-		}
+	`(a, b) -> {
+		__helios__txoutputid__comp(a, b, __helios__txid____leq, __helios__int____leq)
 	}`));
 	add(new RawFunc("__helios__txoutputid____gt", 
-	`(self) -> {
-		(other) -> {
-			__helios__txoutputid__comp(self, other, __helios__txid____gt, __helios__int____gt)
-		}
+	`(a, b) -> {
+		__helios__txoutputid__comp(a, b, __helios__txid____gt, __helios__int____gt)
 	}`));
 	add(new RawFunc("__helios__txoutputid____geq", 
-	`(self) -> {
-		(other) -> {
-			__helios__txoutputid__comp(self, other, __helios__txid____geq, __helios__int____geq)
-		}
+	`(a, b) -> {
+		__helios__txoutputid__comp(a, b, __helios__txid____geq, __helios__int____geq)
 	}`));
 	add(new RawFunc("__helios__txoutputid__new",
 	`(tx_id, idx) -> {
@@ -28560,8 +28506,8 @@ function makeRawFunctions() {
 			recurse(recurse, map)
 		}(
 			(recurse, map) -> {
-				__core__ifThenElse(
-					__core__nullList(map), 
+				__core__chooseList(
+					map, 
 					() -> {__helios__common__list_0}, 
 					() -> {__core__mkCons(__core__fstPair(__core__headList(map)), recurse(recurse, __core__tailList(map)))}
 				)()
@@ -28577,8 +28523,8 @@ function makeRawFunctions() {
 				}(recurse(recurse, aKeys, b))
 			}(
 				(recurse, keys, map) -> {
-					__core__ifThenElse(
-						__core__nullList(map), 
+					__core__chooseList(
+						map, 
 						() -> {__helios__common__list_0}, 
 						() -> {
 							(key) -> {
@@ -28601,8 +28547,8 @@ function makeRawFunctions() {
 			recurse(recurse, map)
 		}(
 			(recurse, map) -> {
-				__core__ifThenElse(
-					__core__nullList(map), 
+				__core__chooseList(
+					map, 
 					() -> {__core__mkNilPairData(())},
 					() -> {
 						__core__ifThenElse(
@@ -28621,8 +28567,8 @@ function makeRawFunctions() {
 			recurse(recurse, map, key)
 		}(
 			(recurse, map, key) -> {
-				__core__ifThenElse(
-					__core__nullList(map), 
+				__core__chooseList(
+					map, 
 					() -> {0}, 
 					() -> {
 						__core__ifThenElse(
@@ -28642,8 +28588,8 @@ function makeRawFunctions() {
 				recurse(recurse, __helios__value__merge_map_keys(a, b), __core__mkNilPairData(()))
 			}(
 				(recurse, keys, result) -> {
-					__core__ifThenElse(
-						__core__nullList(keys), 
+					__core__chooseList(
+						keys, 
 						() -> {result}, 
 						() -> {
 							(key, tail) -> {
@@ -28668,14 +28614,14 @@ function makeRawFunctions() {
 				__core__mapData(recurse(recurse, __helios__value__merge_map_keys(a, b), __core__mkNilPairData(())))
 			}(
 				(recurse, keys, result) -> {
-					__core__ifThenElse(
-						__core__nullList(keys), 
+					__core__chooseList(
+						keys, 
 						() -> {result}, 
 						() -> {
 							(key, tail) -> {
 								(item) -> {
-									__core__ifThenElse(
-										__core__nullList(item), 
+									__core__chooseList(
+										item, 
 										() -> {tail}, 
 										() -> {__core__mkCons(__core__mkPairData(key, __core__mapData(item)), tail)}
 									)()
@@ -28695,8 +28641,8 @@ function makeRawFunctions() {
 					__core__mapData(recurseOuter(recurseOuter, self))
 				}(
 					(recurseOuter, outer) -> {
-						__core__ifThenElse(
-							__core__nullList(outer),
+						__core__chooseList(
+							outer,
 							() -> {__core__mkNilPairData(())},
 							() -> {
 								(head) -> {
@@ -28714,8 +28660,8 @@ function makeRawFunctions() {
 				)
 			}(
 				(recurseInner, inner) -> {
-					__core__ifThenElse(
-						__core__nullList(inner),
+					__core__chooseList(
+						inner,
 						() -> {__core__mkNilPairData(())},
 						() -> {
 							(head) -> {
@@ -28739,8 +28685,8 @@ function makeRawFunctions() {
 			recurse(recurse, __helios__value__merge_map_keys(a, b))
 		}(
 			(recurse, keys) -> {
-				__core__ifThenElse(
-					__core__nullList(keys), 
+				__core__chooseList(
+					keys, 
 					() -> {true}, 
 					() -> {
 						(key) -> {
@@ -28762,8 +28708,8 @@ function makeRawFunctions() {
 				recurse(recurse, __helios__value__merge_map_keys(a, b))
 			}(
 				(recurse, keys) -> {
-					__core__ifThenElse(
-						__core__nullList(keys), 
+					__core__chooseList(
+						keys, 
 						() -> {true}, 
 						() -> {
 							(key) -> {
@@ -28786,101 +28732,90 @@ function makeRawFunctions() {
 		}(__core__unMapData(a), __core__unMapData(b))
 	}`));
 	add(new RawFunc("__helios__value____eq",
-	`(self) -> {
-		(other) -> {
-			__helios__value__compare((a, b) -> {__core__equalsInteger(a, b)}, self, other)
-		}
+	`(a, b) -> {
+		__helios__value__compare(__core__equalsInteger, a, b)
 	}`));
 	add(new RawFunc("__helios__value____neq",
-	`(self) -> {
-		(other) -> {
-			__helios__bool____not(__helios__value____eq(self)(other))()
-		}
+	`(a, b) -> {
+		__helios__common__not(__helios__value____eq(a, b))
 	}`));
 	add(new RawFunc("__helios__value____add",
-	`(self) -> {
-		(other) -> {
-			__helios__value__add_or_subtract((a, b) -> {__core__addInteger(a, b)}, self, other)
-		}
+	`(a, b) -> {
+		__helios__value__add_or_subtract(__core__addInteger, a, b)
 	}`));
 	add(new RawFunc("__helios__value____sub",
-	`(self) -> {
-		(other) -> {
-			__helios__value__add_or_subtract((a, b) -> {__core__subtractInteger(a, b)}, self, other)
-		}
+	`(a, b) -> {
+		__helios__value__add_or_subtract(__core__subtractInteger, a, b)
 	}`));
 	add(new RawFunc("__helios__value____mul",
-	`(self) -> {
+	`(a, b) -> {
 		(scale) -> {
-			(scale) -> {
-				__helios__value__map_quantities(self, (qty) -> {__core__multiplyInteger(qty, scale)})
-			}(__core__unIData(scale))
-		}
+			__helios__value__map_quantities(a, (qty) -> {__core__multiplyInteger(qty, scale)})
+		}(__core__unIData(b))
 	}`));
 	add(new RawFunc("__helios__value____div",
-	`(self) -> {
+	`(a, b) -> {
 		(den) -> {
-			(den) -> {
-				__helios__value__map_quantities(self, (qty) -> {__core__divideInteger(qty, den)})
-			}(__core__unIData(den))
-		}
+			__helios__value__map_quantities(a, (qty) -> {__core__divideInteger(qty, den)})
+		}(__core__unIData(b))
 	}`));
 	add(new RawFunc("__helios__value____geq",
-	`(self) -> {
-		(other) -> {
-			__helios__value__compare((a, b) -> {__helios__common__not(__core__lessThanInteger(a, b))}, self, other)
+	`(a, b) -> {
+		__helios__value__compare((a_qty, b_qty) -> {__helios__common__not(__core__lessThanInteger(a_qty, b_qty))}, a, b)
+	}`));
+	add(new RawFunc("__helios__value__contains", `
+	(self) -> {
+		(value) -> {
+			__helios__value____geq(self, value)
 		}
 	}`));
-	add(new RawFunc("__helios__value__contains", "__helios__value____geq"));
 	add(new RawFunc("__helios__value____gt",
-	`(self) -> {
-		(other) -> {
-			__helios__bool__and(
-				__helios__bool____not(
+	`(a, b) -> {
+		__helios__bool__and(
+			() -> {
+				__helios__common__not(
 					__helios__bool__and(
-						__helios__value__is_zero(self),
-						__helios__value__is_zero(other)
+						__helios__value__is_zero(a),
+						__helios__value__is_zero(b)
 					)
-				),
-				() -> {
-					__helios__value__compare(
-						(a, b) -> {
-							__helios__common__not(__core__lessThanEqualsInteger(a, b))
-						}, 
-						self, 
-						other
-					)
-				}
-			)
-		}
+				)
+			},
+			() -> {
+				__helios__value__compare(
+					(a_qty, b_qty) -> {
+						__helios__common__not(__core__lessThanEqualsInteger(a_qty, b_qty))
+					}, 
+					a, 
+					b
+				)
+			}
+		)
 	}`));
 	add(new RawFunc("__helios__value____leq",
-	`(self) -> {
-		(other) -> {
-			__helios__value__compare((a, b) -> {__core__lessThanEqualsInteger(a, b)}, self, other)
-		}
+	`(a, b) -> {
+		__helios__value__compare(__core__lessThanEqualsInteger, a, b)
 	}`));
 	add(new RawFunc("__helios__value____lt",
-	`(self) -> {
-		(other) -> {
-			__helios__bool__and(
-				__helios__bool____not(
+	`(a, b) -> {
+		__helios__bool__and(
+			() -> {
+				__helios__common__not(
 					__helios__bool__and(
-						__helios__value__is_zero(self),
-						__helios__value__is_zero(other)
+						__helios__value__is_zero(a),
+						__helios__value__is_zero(b)
 					)
-				),
-				() -> {
-					__helios__value__compare(
-						(a, b) -> {
-							__core__lessThanInteger(a, b)
-						}, 
-						self, 
-						other
-					)
-				}
-			)
-		}
+				)
+			},
+			() -> {
+				__helios__value__compare(
+					(a_qty, b_qty) -> {
+						__core__lessThanInteger(a_qty, b_qty)
+					}, 
+					a, 
+					b
+				)
+			}
+		)
 	}`));
 	add(new RawFunc("__helios__value__is_zero",
 	`(self) -> {
@@ -28896,8 +28831,8 @@ function makeRawFunctions() {
 					outer(outer, inner, map)
 				}(
 					(outer, inner, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map), 
+						__core__chooseList(
+							map, 
 							() -> {error("policy not found")}, 
 							() -> {
 								__core__ifThenElse(
@@ -28908,8 +28843,8 @@ function makeRawFunctions() {
 							}
 						)()
 					}, (inner, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map), 
+						__core__chooseList(
+							map, 
 							() -> {error("tokenName not found")}, 
 							() -> {
 								__core__ifThenElse(
@@ -28932,8 +28867,8 @@ function makeRawFunctions() {
 					outer(outer, inner, map)
 				}(
 					(outer, inner, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map), 
+						__core__chooseList(
+							map, 
 							() -> {__core__iData(0)}, 
 							() -> {
 								__core__ifThenElse(
@@ -28944,8 +28879,8 @@ function makeRawFunctions() {
 							}
 						)()
 					}, (inner, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map), 
+						__core__chooseList(
+							map, 
 							() -> {__core__iData(0)}, 
 							() -> {
 								__core__ifThenElse(
@@ -28984,8 +28919,8 @@ function makeRawFunctions() {
 					recurse(recurse, map)
 				}(
 					(recurse, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map),
+						__core__chooseList(
+							map,
 							() -> {error("policy not found")},
 							() -> {
 								__core__ifThenElse(
@@ -29008,8 +28943,8 @@ function makeRawFunctions() {
 					recurse(recurse, map)
 				}(
 					(recurse, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map),
+						__core__chooseList(
+							map,
 							() -> {false},
 							() -> {
 								__core__ifThenElse(
@@ -29105,7 +29040,7 @@ class IRScope {
 		if (this.#variable !== null && (name instanceof Word && this.#variable.toString() == name.toString()) || (name instanceof IRVariable && this.#variable == name)) {
 			return [index, this.#variable];
 		} else if (this.#parent === null) {
-			throw assertClass(name, Word).referenceError(`variable ${name.toString()} not found`);
+			throw name.referenceError(`variable ${name.toString()} not found`);
 		} else {
 			return this.#parent.getInternal(name, index + 1);
 		}
@@ -29175,6 +29110,18 @@ class IRVariable extends Token {
 
 	toString() {
 		return this.name;
+	}
+
+	/**
+	 * @param {Map<IRVariable, IRVariable>} newVars 
+	 * @returns {IRVariable}
+	 */
+	copy(newVars) {
+		const newVar = new IRVariable(this.#name);
+
+		newVars.set(this, newVar);
+
+		return newVar;
 	}
 }
 
@@ -29487,7 +29434,7 @@ export class IRExprRegistry {
 	 * @returns {IRExpr}
 	 */
 	getInlineable(variable) {
-		return assertDefined(this.#inline.get(variable)).copy();
+		return assertDefined(this.#inline.get(variable)).copy(new Map());
 	}
 
 	/**
@@ -29567,9 +29514,10 @@ class IRExpr extends Token {
 
 	/**
 	 * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the Debruijn index
+	 * @param {Map<IRVariable, IRVariable>} newVars
 	 * @returns {IRExpr}
 	 */
-	copy() {
+	copy(newVars) {
 		throw new Error("not yet implemented");
 	}
 
@@ -29609,20 +29557,21 @@ class IRNameExpr extends IRExpr {
 	/**
 	 * @type {?IRValue} - cached eval result (reused when eval is called within simplifyLiterals)
 	 */
-	#result;
+	#value;
 
 	/**
 	 * @param {Word} name 
 	 * @param {?IRVariable} variable
+	 * @param {?IRValue} value
 	 */
-	constructor(name, variable = null) {
+	constructor(name, variable = null, value = null) {
 		super(name.site);
 		assert(name.toString() != "_");
 		assert(!name.toString().startsWith("undefined"));
 		this.#name = name;
 		this.#index = null;
 		this.#variable = variable;
-		this.#result = null;
+		this.#value = value;
 	}
 
 	/**
@@ -29693,7 +29642,7 @@ class IRNameExpr extends IRExpr {
 	 */
 	evalConstants(stack) {
 		if (this.#variable != null) {
-			this.#result = stack.get(this.#variable);
+			this.#value = stack.get(this.#variable);
 		}
 
 		return this;
@@ -29715,7 +29664,7 @@ class IRNameExpr extends IRExpr {
 			const result = stack.get(this.#variable);
 
 			if (result == null) {
-				return this.#result;
+				return this.#value;
 			} else {
 				return result;
 			}
@@ -29729,8 +29678,8 @@ class IRNameExpr extends IRExpr {
 	simplifyLiterals(literals) {
 		if (this.#variable !== null && literals.has(this.#variable)) {
 			return assertDefined(literals.get(this.#variable));
-		} else if (this.#result instanceof IRLiteralExpr) {
-			return this.#result;
+		} else if (this.#value instanceof IRLiteralExpr) {
+			return this.#value;
 		} else {
 			return this;
 		}
@@ -29743,8 +29692,22 @@ class IRNameExpr extends IRExpr {
 		nameExprs.register(this);
 	}
 
-	copy() {
-		return new IRNameExpr(this.#name, this.#variable);
+	/**
+	 * @param {Map<IRVariable, IRVariable>} newVars
+	 * @returns {IRExpr}
+	 */
+	copy(newVars) {
+		let v = this.#variable;
+
+		if (v != null) {
+			const maybeNewVar = newVars.get(v);
+
+			if (maybeNewVar != undefined) {
+				v = maybeNewVar;
+			}
+		}
+
+		return new IRNameExpr(this.#name, v, this.#value);
 	}
 
 	/**
@@ -29850,7 +29813,11 @@ class IRLiteralExpr extends IRExpr {
 	registerNameExprs(nameExprs) {
 	}
 
-	copy() {
+	/**
+	 * @param {Map<IRVariable, IRVariable>} newVars
+	 * @returns {IRExpr}
+	 */
+	copy(newVars) {
 		return new IRLiteralExpr(this.#value);
 	}
 
@@ -30035,8 +30002,12 @@ class IRFuncExpr extends IRExpr {
 		this.#body.registerNameExprs(nameExprs);
 	}
 
-	copy() {
-		return new IRFuncExpr(this.site, this.args, this.#body.copy());
+	/**
+	 * @param {Map<IRVariable, IRVariable>} newVars
+	 * @returns {IRExpr}
+	 */
+	copy(newVars) {
+		return new IRFuncExpr(this.site, this.args.map(oldArg => oldArg.copy(newVars)), this.#body.copy(newVars));
 	}
 
 	/**
@@ -30253,6 +30224,18 @@ class IRCoreCallExpr extends IRCallExpr {
 			} else {
 				return null;
 			}
+		} else if (builtinName == "chooseList") {
+			const lst = args[0].value;
+
+			if (lst !== null && lst instanceof UplcList) {
+				if (lst.length == 0) {
+					return args[1];
+				} else {
+					return args[2];
+				}
+			} else {
+				return null;
+			}
 		} else if (builtinName == "trace") {
 			return args[1];
 		} else {
@@ -30457,8 +30440,12 @@ class IRCoreCallExpr extends IRCallExpr {
 		this.registerNameExprsInArgs(nameExprs);
 	}
 
-	copy() {
-		return new IRCoreCallExpr(this.#name, this.argExprs.map(a => a.copy()), this.parensSite);
+	/**
+	 * @param {Map<IRVariable, IRVariable>} newVars
+	 * @returns {IRExpr}
+	 */
+	copy(newVars) {
+		return new IRCoreCallExpr(this.#name, this.argExprs.map(a => a.copy(newVars)), this.parensSite);
 	}
 
 	/**
@@ -30473,13 +30460,14 @@ class IRCoreCallExpr extends IRCallExpr {
 				// we can't eliminate a call to decodeUtf8, as it might throw some errors
 				break;
 			case "decodeUtf8": {
-					// check if arg is a call to encodeUtf8
-					const [arg] = args;
-					if (arg instanceof IRCoreCallExpr && arg.builtinName == "encodeUtf8") {
-						return arg.argExprs[0];
-					}
+				// check if arg is a call to encodeUtf8
+				const [arg] = args;
+				if (arg instanceof IRCoreCallExpr && arg.builtinName == "encodeUtf8") {
+					return arg.argExprs[0];
 				}
-				break;			
+				
+				break;
+			}		
 			case "equalsData": {
 				const [a, b] = args;
 
@@ -30495,72 +30483,89 @@ class IRCoreCallExpr extends IRCallExpr {
 
 				break;
 			}
+			case "ifThenElse": {
+				const [cond, a, b] = args;
+
+				if (cond instanceof IRCoreCallExpr && cond.builtinName === "nullList") {
+					return new IRCoreCallExpr(new Word(this.site, "__core__chooseList"), [cond.argExprs[0], a, b], this.parensSite);
+				}
+
+				break;
+			}
 			case "trace":
 				return args[1];
 			case "unIData": {
-					// check if arg is a call to iData
-					const a = args[0];
-					if (a instanceof IRCoreCallExpr && a.builtinName == "iData") {
-						return a.argExprs[0];
-					}
+				// check if arg is a call to iData
+				const a = args[0];
+				if (a instanceof IRCoreCallExpr && a.builtinName == "iData") {
+					return a.argExprs[0];
 				}
+
 				break;
+			}
 			case "iData": {
-					// check if arg is a call to unIData
-					const a = args[0];
-					if (a instanceof IRCoreCallExpr && a.builtinName == "unIData") {
-						return a.argExprs[0];
-					}
+				// check if arg is a call to unIData
+				const a = args[0];
+				if (a instanceof IRCoreCallExpr && a.builtinName == "unIData") {
+					return a.argExprs[0];
 				}
+
 				break;
+			}
 			case "unBData": {
-					// check if arg is a call to bData
-					const a = args[0];
-					if (a instanceof IRCoreCallExpr && a.builtinName == "bData") {
-						return a.argExprs[0];
-					}
+				// check if arg is a call to bData
+				const a = args[0];
+				if (a instanceof IRCoreCallExpr && a.builtinName == "bData") {
+					return a.argExprs[0];
 				}
+
 				break;
+			}
 			case "bData": {
-					// check if arg is a call to unBData
-					const a = args[0];
-					if (a instanceof IRCoreCallExpr && a.builtinName == "unBData") {
-						return a.argExprs[0];
-					}
+				// check if arg is a call to unBData
+				const a = args[0];
+				if (a instanceof IRCoreCallExpr && a.builtinName == "unBData") {
+					return a.argExprs[0];
 				}
+
 				break;
+			}
 			case "unMapData": {
-					// check if arg is call to mapData
-					const a = args[0];
-					if (a instanceof IRCoreCallExpr && a.builtinName == "mapData") {
-						return a.argExprs[0];
-					}
+				// check if arg is call to mapData
+				const a = args[0];
+				if (a instanceof IRCoreCallExpr && a.builtinName == "mapData") {
+					return a.argExprs[0];
 				}
+				
 				break;
+			}
 			case "mapData": {
-					// check if arg is call to unMapData
-					const a = args[0];
-					if (a instanceof IRCoreCallExpr && a.builtinName == "unMapData") {
-						return a.argExprs[0];
-					}
+				// check if arg is call to unMapData
+				const a = args[0];
+				if (a instanceof IRCoreCallExpr && a.builtinName == "unMapData") {
+					return a.argExprs[0];
 				}
+
 				break;
+			}
 			case "listData": {
-					// check if arg is call to unListData
-					const a = args[0];
-					if (a instanceof IRCoreCallExpr && a.builtinName == "unListData") {
-						return a.argExprs[0];
-					}
+				// check if arg is call to unListData
+				const a = args[0];
+				if (a instanceof IRCoreCallExpr && a.builtinName == "unListData") {
+					return a.argExprs[0];
 				}
+
 				break;
+			}
 			case "unListData": {
-					// check if arg is call to listData
-					const a = args[0];
-					if (a instanceof IRCoreCallExpr && a.builtinName == "listData") {
-						return a.argExprs[0];
-					}
+				// check if arg is call to listData
+				const a = args[0];
+				if (a instanceof IRCoreCallExpr && a.builtinName == "listData") {
+					return a.argExprs[0];
 				}
+				
 				break;
+			}		
 		}
 
 		return new IRCoreCallExpr(this.#name, args, this.parensSite);
@@ -30715,13 +30720,22 @@ class IRUserCallExpr extends IRCallExpr {
 	simplifyLiteralsInArgsAndTryEval(literals) {
 		const args = this.simplifyLiteralsInArgs(literals);
 
-		if (args.length > 0 && args.every(a => a instanceof IRLiteralExpr)) {
+		if (args.length > 0 && args.every(a => ((a instanceof IRLiteralExpr) || (a instanceof IRFuncExpr)))) {
 			try {
 				const fn = this.#fnExpr.eval(new IRCallStack(false));
 
 				if (fn != null) {
 					const res = fn.call(
-						args.map(a => new IRLiteralValue(assertClass(a, IRLiteralExpr).value))
+						args.map(a => {
+							const v = a.eval(new IRCallStack(false));
+
+							if (v == null) {
+								// caught by outer catch
+								throw new Error("null eval sub-result");
+							} else {
+								return v;
+							}
+						})
 					);
 
 					if (res != null) {
@@ -30740,7 +30754,7 @@ class IRUserCallExpr extends IRCallExpr {
 	 * @returns {IRExpr}
 	 */
 	simplifyLiterals(literals) {
-		const argsOrLiteral = this.simplifyLiteralsInArgs(literals);
+		const argsOrLiteral = this.simplifyLiteralsInArgsAndTryEval(literals);
 
 		if (argsOrLiteral instanceof IRLiteralExpr) {
 			return argsOrLiteral;
@@ -30764,8 +30778,12 @@ class IRUserCallExpr extends IRCallExpr {
 		this.#fnExpr.registerNameExprs(nameExprs);
 	}
 
-	copy() {
-		return new IRUserCallExpr(this.#fnExpr.copy(), this.argExprs.map(a => a.copy()), this.parensSite);
+	/**
+	 * @param {Map<IRVariable, IRVariable>} newVars 
+	 * @returns {IRExpr}
+	 */
+	copy(newVars) {
+		return new IRUserCallExpr(this.#fnExpr.copy(newVars), this.argExprs.map(a => a.copy(newVars)), this.parensSite);
 	}
 
 	/**
@@ -30955,10 +30973,10 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 			const arg = args[i];
 
 			if (
-				n == 0 || 
-				(n == 1 && (!registry.maybeInsideLoop(variable) || arg instanceof IRFuncExpr)) || 
-				arg instanceof IRNameExpr ||
-				(arg instanceof IRFuncExpr && arg.hasOptArgs())
+				n == 0 
+				|| (n == 1 && (!registry.maybeInsideLoop(variable) || arg instanceof IRFuncExpr)) 
+				|| arg instanceof IRNameExpr 
+				|| (arg instanceof IRFuncExpr && arg.hasOptArgs())
 			) {
 				if (n > 0) {
 					// inline
@@ -31121,7 +31139,11 @@ class IRErrorCallExpr extends IRExpr {
 	registerNameExprs(nameExprs) {
 	}
 
-	copy() {
+	/**
+	 * @param {Map<IRVariable, IRVariable>} newVars 
+	 * @returns {IRExpr}
+	 */
+	copy(newVars) {
 		return new IRErrorCallExpr(this.site, this.#msg);
 	}
 
@@ -31361,14 +31383,14 @@ class IRProgram {
 		let irTokens = tokenizeIR(irSrc, codeMap);
 
 		let expr = buildIRExpr(irTokens);
-		
+	
 		expr.resolveNames(scope);
 
 		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
-			expr = this.simplify(expr, throwSimplifyRTErrors, scope);
+			expr = this.simplify(expr);
 
 			// make sure the debruijn indices are correct
 			expr.resolveNames(scope);
@@ -31381,11 +31403,9 @@ class IRProgram {
 
 	/**
 	 * @param {IRExpr} expr
-	 * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
-	 * @param {IRScope} scope
 	 * @returns {IRExpr}
 	 */
-	static simplify(expr, throwSimplifyRTErrors, scope) {
+	static simplify(expr) {
 		let dirty = true;
 		let oldState = expr.toString();
 

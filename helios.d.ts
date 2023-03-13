@@ -4602,8 +4602,9 @@ declare class IRNameExpr extends IRExpr {
     /**
      * @param {Word} name
      * @param {?IRVariable} variable
+     * @param {?IRValue} value
      */
-    constructor(name: Word, variable?: IRVariable | null);
+    constructor(name: Word, variable?: IRVariable | null, value?: IRValue | null);
     /**
      * @type {string}
      */
@@ -4623,7 +4624,6 @@ declare class IRNameExpr extends IRExpr {
      * @returns {boolean}
      */
     isVariable(ref: IRVariable): boolean;
-    copy(): IRNameExpr;
     #private;
 }
 /**
@@ -4639,6 +4639,11 @@ declare class IRVariable extends Token {
      * @type {string}
      */
     get name(): string;
+    /**
+     * @param {Map<IRVariable, IRVariable>} newVars
+     * @returns {IRVariable}
+     */
+    copy(newVars: Map<IRVariable, IRVariable>): IRVariable;
     #private;
 }
 /**
@@ -4684,9 +4689,10 @@ declare class IRExpr extends Token {
     registerNameExprs(nameExprs: IRNameExprRegistry): void;
     /**
      * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the Debruijn index
+     * @param {Map<IRVariable, IRVariable>} newVars
      * @returns {IRExpr}
      */
-    copy(): IRExpr;
+    copy(newVars: Map<IRVariable, IRVariable>): IRExpr;
     /**
      * @param {IRExprRegistry} registry
      * @returns {IRExpr}
@@ -4721,7 +4727,6 @@ declare class IRUserCallExpr extends IRCallExpr {
      * @returns {(IRExpr[] | IRLiteralExpr)}
      */
     simplifyLiteralsInArgsAndTryEval(literals: IRLiteralRegistry): (IRExpr[] | IRLiteralExpr);
-    copy(): IRUserCallExpr;
     #private;
 }
 /**
@@ -4745,7 +4750,6 @@ declare class IRFuncExpr extends IRExpr {
      * @param {IRCallStack} stack
      */
     evalConstants(stack: IRCallStack): IRFuncExpr;
-    copy(): IRFuncExpr;
     #private;
 }
 /**
@@ -4790,7 +4794,6 @@ declare class IRLiteralExpr extends IRExpr {
      * @param {IRCallStack} stack
      */
     evalConstants(stack: IRCallStack): IRLiteralExpr;
-    copy(): IRLiteralExpr;
     /**
      * @returns {UplcConst}
      */
@@ -4819,11 +4822,9 @@ declare class IRProgram {
     static new(ir: IR, purpose: number | null, simplify?: boolean, throwSimplifyRTErrors?: boolean, scope?: IRScope): IRProgram;
     /**
      * @param {IRExpr} expr
-     * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
-     * @param {IRScope} scope
      * @returns {IRExpr}
      */
-    static simplify(expr: IRExpr, throwSimplifyRTErrors: boolean, scope: IRScope): IRExpr;
+    static simplify(expr: IRExpr): IRExpr;
     /**
      * @param {IRFuncExpr | IRCallExpr | IRLiteralExpr} expr
      * @param {?number} purpose
@@ -5729,6 +5730,20 @@ declare class Instance extends NotType {
 declare class DataType extends Type {
 }
 /**
+ * @package
+ */
+declare class IRValue {
+    /**
+     * @param {IRValue[]} args
+     * @returns {?IRValue}
+     */
+    call(args: IRValue[]): IRValue | null;
+    /**
+     * @type {UplcValue}
+     */
+    get value(): UplcValue;
+}
+/**
  * Scope for IR names.
  * Works like a stack of named values from which a Debruijn index can be derived
  * @package
@@ -5767,20 +5782,6 @@ declare class IRScope {
      */
     get(name: Word | IRVariable): [number, IRVariable];
     #private;
-}
-/**
- * @package
- */
-declare class IRValue {
-    /**
-     * @param {IRValue[]} args
-     * @returns {?IRValue}
-     */
-    call(args: IRValue[]): IRValue | null;
-    /**
-     * @type {UplcValue}
-     */
-    get value(): UplcValue;
 }
 /**
  * Base class of IRUserCallExpr and IRCoreCallExpr

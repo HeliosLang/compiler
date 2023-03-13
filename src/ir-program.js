@@ -87,7 +87,7 @@ export class IRProgram {
 		let irTokens = tokenizeIR(irSrc, codeMap);
 
 		let expr = buildIRExpr(irTokens);
-		
+	
 		expr.resolveNames(scope);
 
 		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));

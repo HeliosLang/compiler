@@ -1284,10 +1284,7 @@ export class ImplDefinition {
 			case "serialize":
 				this.#usedStatements.add(name.toString());
 				return Instance.new(new FuncType([], new ByteArrayType()));
-			case "__eq":
-			case "__neq":
-				this.#usedStatements.add(name.toString());
-				return Instance.new(new FuncType([this.#selfTypeExpr.type], new BoolType()));
+			
 			default:
 				// loop the contained statements to find one with name 'name'
 				for (let i = 0; i < this.#statementValues.length; i++) {
@@ -1317,6 +1314,10 @@ export class ImplDefinition {
 	 */
 	getTypeMember(name, dryRun = false) {
 		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				this.#usedStatements.add(name.toString());
+				return Instance.new(new FuncType([this.#selfTypeExpr.type, this.#selfTypeExpr.type], new BoolType()));
 			case "from_data":
 				this.#usedStatements.add(name.toString());
 				return Instance.new(new FuncType([new RawDataType()], this.#selfTypeExpr.type));

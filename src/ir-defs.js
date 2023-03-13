@@ -205,29 +205,16 @@ function makeRawFunctions() {
 			() -> {error("unexpected constructor index")}
 		)()
 	}`));
-	add(new RawFunc("__helios__common____identity",
-	`(self) -> {
-		() -> {
-			self
-		}
-	}`))
 	add(new RawFunc("__helios__common__identity",
 	`(self) -> {self}`));
 	add(new RawFunc("__helios__common__not",
 	`(b) -> {
 		__core__ifThenElse(b, false, true)
 	}`));
-	add(new RawFunc("__helios__common____eq",
-	`(self) -> {
-		(other) -> {
-			__core__equalsData(self, other)
-		}
-	}`));
+	add(new RawFunc("__helios__common____eq", "__core__equalsData"));
 	add(new RawFunc("__helios__common____neq",
-	`(self) -> {
-		(other) -> {
-			__helios__common__not(__core__equalsData(self, other))
-		}
+	`(a, b) -> {
+		__helios__common__not(__core__equalsData(a, b))
 	}`));
 	add(new RawFunc("__helios__common__serialize",
 	`(self) -> {
@@ -241,8 +228,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn)
 		}(
 			(recurse, self, fn) -> {
-				__core__ifThenElse(
-					__core__nullList(self), 
+				__core__chooseList(
+					self, 
 					() -> {false}, 
 					() -> {
 						__core__ifThenElse(
@@ -261,8 +248,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn)
 		}(
 			(recurse, self, fn) -> {
-				__core__ifThenElse(
-					__core__nullList(self),
+				__core__chooseList(
+					self,
 					() -> {true},
 					() -> {
 						__core__ifThenElse(
@@ -281,8 +268,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, init)
 		}(
 			(recurse, rem, lst) -> {
-				__core__ifThenElse(
-					__core__nullList(rem),
+				__core__chooseList(
+					rem,
 					() -> {lst},
 					() -> {
 						__core__mkCons(
@@ -300,8 +287,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn)
 		}(
 			(recurse, self, fn) -> {
-				__core__ifThenElse(
-					__core__nullList(self), 
+				__core__chooseList(
+					self, 
 					() -> {nil}, 
 					() -> {
 						__core__ifThenElse(
@@ -328,8 +315,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn)
 		}(
 			(recurse, self, fn) -> {
-				__core__ifThenElse(
-					__core__nullList(self), 
+				__core__chooseList(
+					self, 
 					() -> {error("not found")}, 
 					() -> {
 						__core__ifThenElse(
@@ -348,8 +335,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn)
 		}(
 			(recurse, self, fn) -> {
-				__core__ifThenElse(
-					__core__nullList(self), 
+				__core__chooseList(
+					self, 
 					() -> {__core__constrData(1, __helios__common__list_0)}, 
 					() -> {
 						__core__ifThenElse(
@@ -368,8 +355,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn, z)
 		}(
 			(recurse, self, fn, z) -> {
-				__core__ifThenElse(
-					__core__nullList(self), 
+				__core__chooseList(
+					self, 
 					() -> {z}, 
 					() -> {recurse(recurse, __core__tailList(self), fn, fn(z, __core__headList(self)))}
 				)()
@@ -382,8 +369,8 @@ function makeRawFunctions() {
 			recurse(recurse, self, fn, z)
 		}(
 			(recurse, self, fn, z) -> {
-				__core__ifThenElse(
-					__core__nullList(self), 
+				__core__chooseList(
+					self, 
 					() -> {z}, 
 					() -> {fn(__core__headList(self), () -> {recurse(recurse, __core__tailList(self), fn, z)})}
 				)()
@@ -396,8 +383,8 @@ function makeRawFunctions() {
 			recurse(recurse, lst)
 		}(
 			(recurse, lst) -> {
-				__core__ifThenElse(
-					__core__nullList(lst),
+				__core__chooseList(
+					lst,
 					() -> {__core__mkCons(x, lst)},
 					() -> {
 						(head) -> {
@@ -418,8 +405,8 @@ function makeRawFunctions() {
 			recurse(recurse, lst)
 		}(
 			(recurse, lst) -> {
-				__core__ifThenElse(
-					__core__nullList(lst),
+				__core__chooseList(
+					lst,
 					() -> {lst},
 					() -> {
 						(head, tail) -> {
@@ -437,8 +424,8 @@ function makeRawFunctions() {
 				recurse(recurse, self, key)
 			}(
 				(recurse, self, key) -> {
-					__core__ifThenElse(
-						__core__nullList(self), 
+					__core__chooseList(
+						self, 
 						fnNotFound, 
 						() -> {
 							__core__ifThenElse(
@@ -482,8 +469,8 @@ function makeRawFunctions() {
 			__core__iData(recurse(recurse, lst))
 		}(
 			(recurse, lst) -> {
-				__core__ifThenElse(
-					__core__nullList(lst), 
+				__core__chooseList(
+					lst, 
 					() -> {0}, 
 					() -> {__core__addInteger(recurse(recurse, __core__tailList(lst)), 1)}
 				)()
@@ -512,8 +499,8 @@ function makeRawFunctions() {
 			recurse(recurse, b, a)
 		}(
 			(recurse, lst, rem) -> {
-				__core__ifThenElse(
-					__core__nullList(rem),
+				__core__chooseList(
+					rem,
 					() -> {lst},
 					() -> {__core__mkCons(__core__headList(rem), recurse(recurse, lst, __core__tailList(rem)))}
 				)()
@@ -700,66 +687,44 @@ function makeRawFunctions() {
 	addDataFuncs("__helios__int");
 	add(new RawFunc("__helios__int____neg",
 	`(self) -> {
-		(self) -> {
-			() -> {
-				__core__iData(__core__multiplyInteger(self, -1))
-			}
-		}(__core__unIData(self))
+		__core__iData(__core__multiplyInteger(__core__unIData(self), -1))	
 	}`));
-	add(new RawFunc("__helios__int____pos", "__helios__common____identity"));
+	add(new RawFunc("__helios__int____pos", "__helios__common__identity"));
 	add(new RawFunc("__helios__int____add",
-	`(self) -> {
-		(other) -> {
-			__core__iData(__core__addInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__core__iData(__core__addInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____sub",
-	`(self) -> {
-		(other) -> {
-			__core__iData(__core__subtractInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__core__iData(__core__subtractInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____mul",
-	`(self) -> {
-		(other) -> {
-			__core__iData(__core__multiplyInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__core__iData(__core__multiplyInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____div",
-	`(self) -> {
-		(other) -> {
-			__core__iData(__core__divideInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__core__iData(__core__divideInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____mod",
-	`(self) -> {
-		(other) -> {
-			__core__iData(__core__modInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__core__iData(__core__modInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____geq",
-	`(self) -> {
-		(other) -> {
-			__helios__common__not(__core__lessThanInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__helios__common__not(__core__lessThanInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____gt",
-	`(self) -> {
-		(other) -> {
-			__helios__common__not(__core__lessThanEqualsInteger(__core__unIData(self), __core__unIData(other)))
-		}
+	`(a, b) -> {
+		__helios__common__not(__core__lessThanEqualsInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
 	add(new RawFunc("__helios__int____leq",
-	`(self) -> {
-		(other) -> {
-			__core__lessThanEqualsInteger(__core__unIData(self), __core__unIData(other))
-		}
+	`(a, b) -> {
+		__core__lessThanEqualsInteger(__core__unIData(a), __core__unIData(b))
 	}`));
 	add(new RawFunc("__helios__int____lt",
-	`(self) -> {
-		(other) -> {
-			__core__lessThanInteger(__core__unIData(self), __core__unIData(other))
-		}
+	`(a, b) -> {
+		__core__lessThanInteger(__core__unIData(a), __core__unIData(b))
 	}`));
 	add(new RawFunc("__helios__int__min",
 	`(a, b) -> {
@@ -985,16 +950,12 @@ function makeRawFunctions() {
 
 	// Bool builtins
 	add(new RawFunc(`__helios__bool____eq`, 
-	`(a) -> {
-		(b) -> {
-			__core__ifThenElse(a, b, __helios__common__not(b))
-		}
+	`(a, b) -> {
+		__core__ifThenElse(a, b, __helios__common__not(b))
 	}`));
 	add(new RawFunc(`__helios__bool____neq`,
-	`(a) -> {
-		(b) -> {
-			__core__ifThenElse(a, __helios__common__not(b), b)
-		}
+	`(a, b) -> {
+		__core__ifThenElse(a, __helios__common__not(b), b)
 	}`));
 	add(new RawFunc(`__helios__bool__serialize`, 
 	`(self) -> {
@@ -1020,12 +981,7 @@ function makeRawFunctions() {
 			() -> {b()}
 		)()
 	}`));
-	add(new RawFunc("__helios__bool____not",
-	`(self) -> {
-		() -> {
-			__helios__common__not(self)
-		}
-	}`));
+	add(new RawFunc("__helios__bool____not", "__helios__common__not"));
 	add(new RawFunc("__helios__bool__to_int",
 	`(self) -> {
 		() -> {
@@ -1043,7 +999,8 @@ function makeRawFunctions() {
 		(prefix) -> {
 			__core__trace(
 				__helios__common__unStringData(
-					__helios__string____add(prefix)(
+					__helios__string____add(
+						prefix,
 						__helios__bool__show(self)()
 					)
 				), 
@@ -1056,12 +1013,8 @@ function makeRawFunctions() {
 	// String builtins
 	addDataFuncs("__helios__string");
 	add(new RawFunc("__helios__string____add",
-	`(self) -> {
-		(self) -> {
-			(other) -> {
-				__helios__common__stringData(__core__appendString(self, __helios__common__unStringData(other)))
-			}
-		}(__helios__common__unStringData(self))
+	`(a, b) -> {
+		__helios__common__stringData(__core__appendString(__helios__common__unStringData(a), __helios__common__unStringData(b)))	
 	}`));
 	add(new RawFunc("__helios__string__starts_with", "__helios__bytearray__starts_with"));
 	add(new RawFunc("__helios__string__ends_with", "__helios__bytearray__ends_with"));
@@ -1078,44 +1031,24 @@ function makeRawFunctions() {
 	// ByteArray builtins
 	addDataFuncs("__helios__bytearray");
 	add(new RawFunc("__helios__bytearray____add",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__bData(__core__appendByteString(a, __core__unBData(b)))
-			}
-		}(__core__unBData(self))
+	`(a, b) -> {
+		__core__bData(__core__appendByteString(__core__unBData(a), __core__unBData(b)))
 	}`));
 	add(new RawFunc("__helios__bytearray____geq",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__helios__common__not(__core__lessThanByteString(a, __core__unBData(b)))
-			}
-		}(__core__unBData(self))
+	`(a, b) -> {
+		__helios__common__not(__core__lessThanByteString(__core__unBData(a), __core__unBData(b)))
 	}`));
 	add(new RawFunc("__helios__bytearray____gt",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__helios__common__not(__core__lessThanEqualsByteString(a, __core__unBData(b)))
-			}
-		}(__core__unBData(self))
+	`(a, b) -> {
+		__helios__common__not(__core__lessThanEqualsByteString(__core__unBData(a), __core__unBData(b)))
 	}`));
 	add(new RawFunc("__helios__bytearray____leq",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__lessThanEqualsByteString(a, __core__unBData(b))
-			}
-		}(__core__unBData(self))
+	`(a, b) -> {
+		__core__lessThanEqualsByteString(__core__unBData(a), __core__unBData(b))
 	}`));
 	add(new RawFunc("__helios__bytearray____lt",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				__core__lessThanByteString(a, __core__unBData(b))
-			}
-		}(__core__unBData(self))
+	`(a, b) -> {
+		__core__lessThanByteString(__core__unBData(a), __core__unBData(b))
 	}`));
 	add(new RawFunc("__helios__bytearray__length",
 	`(self) -> {
@@ -1245,14 +1178,8 @@ function makeRawFunctions() {
 		__helios__list__new(n, (i) -> {item})
 	}`));
 	add(new RawFunc("__helios__list____add",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				(b) -> {
-					__core__listData(__helios__common__concat(a, b))
-				}(__core__unListData(b))
-			}
-		}(__core__unListData(self))
+	`(a, b) -> {
+		__core__listData(__helios__common__concat(__core__unListData(a), __core__unListData(b)))
 	}`));
 	add(new RawFunc("__helios__list__length",
 	`(self) -> {
@@ -1282,8 +1209,8 @@ function makeRawFunctions() {
 					recurse(recurse, self, __core__unIData(index))
 				}(
 					(recurse, self, index) -> {
-						__core__ifThenElse(
-							__core__nullList(self), 
+						__core__chooseList(
+							self, 
 							() -> {error("index out of range")}, 
 							() -> {__core__ifThenElse(
 								__core__lessThanInteger(index, 0), 
@@ -1358,8 +1285,8 @@ function makeRawFunctions() {
 					recurse(recurse, self)
 				}(
 					(recurse, lst) -> {
-						__core__ifThenElse(
-							__core__nullList(lst),
+						__core__chooseList(
+							lst,
 							() -> {
 								()
 							},
@@ -1577,14 +1504,8 @@ function makeRawFunctions() {
 	// Map builtins
 	addDataFuncs("__helios__map");
 	add(new RawFunc("__helios__map____add",
-	`(self) -> {
-		(a) -> {
-			(b) -> {
-				(b) -> {
-					__core__mapData(__helios__common__concat(a, b))
-				}(__core__unMapData(b))
-			}
-		}(__core__unMapData(self))
+	`(a, b) -> {
+		__core__mapData(__helios__common__concat(__core__unMapData(a), __core__unMapData(b)))
 	}`));
 	add(new RawFunc("__helios__map__prepend",
 	`(self) -> {
@@ -1685,8 +1606,8 @@ function makeRawFunctions() {
 					__core__mapData(recurse(recurse, self))
 				}(
 					(recurse, self) -> {
-						__core__ifThenElse(
-							__core__nullList(self),
+						__core__chooseList(
+							self,
 							() -> {self},
 							() -> {
 								(head, tail) -> {
@@ -1725,8 +1646,8 @@ function makeRawFunctions() {
 					recurse(recurse, self, fn)
 				}(
 					(recurse, self, fn) -> {
-						__core__ifThenElse(
-							__core__nullList(self), 
+						__core__chooseList(
+							self, 
 							() -> {error("not found")}, 
 							() -> {
 								(head) -> {
@@ -1755,8 +1676,8 @@ function makeRawFunctions() {
 					recurse(recurse, self, fn)
 				}(
 					(recurse, self, fn) -> {
-						__core__ifThenElse(
-							__core__nullList(self), 
+						__core__chooseList(
+							self, 
 							() -> {
 								(callback) -> {
 									callback(() -> {error("not found")}, false)
@@ -1938,8 +1859,8 @@ function makeRawFunctions() {
 					recurse(recurse, self)
 				}(
 					(recurse, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map),
+						__core__chooseList(
+							map,
 							() -> {
 								()
 							},
@@ -1965,8 +1886,8 @@ function makeRawFunctions() {
 					__core__mapData(recurse(recurse, self))
 				}(
 					(recurse, self) -> {
-						__core__ifThenElse(
-							__core__nullList(self),
+						__core__chooseList(
+							self,
 							() -> {
 								__core__mkCons(__core__mkPairData(key, value), __core__mkNilPairData(()))
 							},
@@ -2853,28 +2774,20 @@ function makeRawFunctions() {
 		__core__headList(__core__sndPair(__core__unConstrData(self)))
 	}`));
 	add(new RawFunc("__helios__txid____lt", 
-	`(self) -> {
-		(other) -> {
-			__helios__bytearray____lt(__helios__txid__bytes(self))(__helios__txid__bytes(other))
-		}
+	`(a, b) -> {
+		__helios__bytearray____lt(__helios__txid__bytes(a), __helios__txid__bytes(b))
 	}`));
 	add(new RawFunc("__helios__txid____leq", 
-	`(self) -> {
-		(other) -> {
-			__helios__bytearray____leq(__helios__txid__bytes(self))(__helios__txid__bytes(other))
-		}
+	`(a, b) -> {
+		__helios__bytearray____leq(__helios__txid__bytes(a), __helios__txid__bytes(b))
 	}`));
 	add(new RawFunc("__helios__txid____gt", 
-	`(self) -> {
-		(other) -> {
-			__helios__bytearray____gt(__helios__txid__bytes(self))(__helios__txid__bytes(other))
-		}
+	`(a, b) -> {
+		__helios__bytearray____gt(__helios__txid__bytes(a), __helios__txid__bytes(b))
 	}`));
 	add(new RawFunc("__helios__txid____geq", 
-	`(self) -> {
-		(other) -> {
-			__helios__bytearray____geq(__helios__txid__bytes(self))(__helios__txid__bytes(other))
-		}
+	`(a, b) -> {
+		__helios__bytearray____geq(__helios__txid__bytes(a), __helios__txid__bytes(b))
 	}`));
 	add(new RawFunc("__helios__txid__new",
 	`(bytes) -> {
@@ -2975,7 +2888,10 @@ function makeRawFunctions() {
 	`(outputs) -> {
 		__helios__list__fold(outputs)(
 			(prev, txOutput) -> {
-				__helios__value____add(prev)(__helios__txoutput__value(txOutput))
+				__helios__value____add(
+					prev,
+					__helios__txoutput__value(txOutput)
+				)
 			}, 
 			__helios__value__ZERO
 		)	
@@ -3041,11 +2957,11 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__txoutputid__tx_id", "__helios__common__field_0"));
 	add(new RawFunc("__helios__txoutputid__index", "__helios__common__field_1"));
 	add(new RawFunc("__helios__txoutputid__comp", 
-	`(self, other, comp_txid, comp_index) -> {
+	`(a, b, comp_txid, comp_index) -> {
 		(a_txid, a_index) -> {
 			(b_txid, b_index) -> {
 				__core__ifThenElse(
-					comp_txid(a_txid)(b_txid),
+					comp_txid(a_txid, b_txid),
 					() -> {
 						true
 					},
@@ -3053,7 +2969,7 @@ function makeRawFunctions() {
 						__core__ifThenElse(
 							__core__equalsData(a_txid, b_txid),
 							() -> {
-								comp_index(a_index)(b_index)
+								comp_index(a_index, b_index)
 							},
 							() -> {
 								false
@@ -3061,32 +2977,24 @@ function makeRawFunctions() {
 						)()
 					}
 				)()
-			}(__helios__txoutputid__tx_id(other), __helios__txoutputid__index(other))
-		}(__helios__txoutputid__tx_id(self), __helios__txoutputid__index(self))
+			}(__helios__txoutputid__tx_id(b), __helios__txoutputid__index(b))
+		}(__helios__txoutputid__tx_id(a), __helios__txoutputid__index(a))
 	}`));
 	add(new RawFunc("__helios__txoutputid____lt", 
-	`(self) -> {
-		(other) -> {
-			__helios__txoutputid__comp(self, other, __helios__txid____lt, __helios__int____lt)
-		}
+	`(a, b) -> {
+		__helios__txoutputid__comp(a, b, __helios__txid____lt, __helios__int____lt)
 	}`));
 	add(new RawFunc("__helios__txoutputid____leq", 
-	`(self) -> {
-		(other) -> {
-			__helios__txoutputid__comp(self, other, __helios__txid____leq, __helios__int____leq)
-		}
+	`(a, b) -> {
+		__helios__txoutputid__comp(a, b, __helios__txid____leq, __helios__int____leq)
 	}`));
 	add(new RawFunc("__helios__txoutputid____gt", 
-	`(self) -> {
-		(other) -> {
-			__helios__txoutputid__comp(self, other, __helios__txid____gt, __helios__int____gt)
-		}
+	`(a, b) -> {
+		__helios__txoutputid__comp(a, b, __helios__txid____gt, __helios__int____gt)
 	}`));
 	add(new RawFunc("__helios__txoutputid____geq", 
-	`(self) -> {
-		(other) -> {
-			__helios__txoutputid__comp(self, other, __helios__txid____geq, __helios__int____geq)
-		}
+	`(a, b) -> {
+		__helios__txoutputid__comp(a, b, __helios__txid____geq, __helios__int____geq)
 	}`));
 	add(new RawFunc("__helios__txoutputid__new",
 	`(tx_id, idx) -> {
@@ -3467,8 +3375,8 @@ function makeRawFunctions() {
 			recurse(recurse, map)
 		}(
 			(recurse, map) -> {
-				__core__ifThenElse(
-					__core__nullList(map), 
+				__core__chooseList(
+					map, 
 					() -> {__helios__common__list_0}, 
 					() -> {__core__mkCons(__core__fstPair(__core__headList(map)), recurse(recurse, __core__tailList(map)))}
 				)()
@@ -3484,8 +3392,8 @@ function makeRawFunctions() {
 				}(recurse(recurse, aKeys, b))
 			}(
 				(recurse, keys, map) -> {
-					__core__ifThenElse(
-						__core__nullList(map), 
+					__core__chooseList(
+						map, 
 						() -> {__helios__common__list_0}, 
 						() -> {
 							(key) -> {
@@ -3508,8 +3416,8 @@ function makeRawFunctions() {
 			recurse(recurse, map)
 		}(
 			(recurse, map) -> {
-				__core__ifThenElse(
-					__core__nullList(map), 
+				__core__chooseList(
+					map, 
 					() -> {__core__mkNilPairData(())},
 					() -> {
 						__core__ifThenElse(
@@ -3528,8 +3436,8 @@ function makeRawFunctions() {
 			recurse(recurse, map, key)
 		}(
 			(recurse, map, key) -> {
-				__core__ifThenElse(
-					__core__nullList(map), 
+				__core__chooseList(
+					map, 
 					() -> {0}, 
 					() -> {
 						__core__ifThenElse(
@@ -3549,8 +3457,8 @@ function makeRawFunctions() {
 				recurse(recurse, __helios__value__merge_map_keys(a, b), __core__mkNilPairData(()))
 			}(
 				(recurse, keys, result) -> {
-					__core__ifThenElse(
-						__core__nullList(keys), 
+					__core__chooseList(
+						keys, 
 						() -> {result}, 
 						() -> {
 							(key, tail) -> {
@@ -3575,14 +3483,14 @@ function makeRawFunctions() {
 				__core__mapData(recurse(recurse, __helios__value__merge_map_keys(a, b), __core__mkNilPairData(())))
 			}(
 				(recurse, keys, result) -> {
-					__core__ifThenElse(
-						__core__nullList(keys), 
+					__core__chooseList(
+						keys, 
 						() -> {result}, 
 						() -> {
 							(key, tail) -> {
 								(item) -> {
-									__core__ifThenElse(
-										__core__nullList(item), 
+									__core__chooseList(
+										item, 
 										() -> {tail}, 
 										() -> {__core__mkCons(__core__mkPairData(key, __core__mapData(item)), tail)}
 									)()
@@ -3602,8 +3510,8 @@ function makeRawFunctions() {
 					__core__mapData(recurseOuter(recurseOuter, self))
 				}(
 					(recurseOuter, outer) -> {
-						__core__ifThenElse(
-							__core__nullList(outer),
+						__core__chooseList(
+							outer,
 							() -> {__core__mkNilPairData(())},
 							() -> {
 								(head) -> {
@@ -3621,8 +3529,8 @@ function makeRawFunctions() {
 				)
 			}(
 				(recurseInner, inner) -> {
-					__core__ifThenElse(
-						__core__nullList(inner),
+					__core__chooseList(
+						inner,
 						() -> {__core__mkNilPairData(())},
 						() -> {
 							(head) -> {
@@ -3646,8 +3554,8 @@ function makeRawFunctions() {
 			recurse(recurse, __helios__value__merge_map_keys(a, b))
 		}(
 			(recurse, keys) -> {
-				__core__ifThenElse(
-					__core__nullList(keys), 
+				__core__chooseList(
+					keys, 
 					() -> {true}, 
 					() -> {
 						(key) -> {
@@ -3669,8 +3577,8 @@ function makeRawFunctions() {
 				recurse(recurse, __helios__value__merge_map_keys(a, b))
 			}(
 				(recurse, keys) -> {
-					__core__ifThenElse(
-						__core__nullList(keys), 
+					__core__chooseList(
+						keys, 
 						() -> {true}, 
 						() -> {
 							(key) -> {
@@ -3693,101 +3601,90 @@ function makeRawFunctions() {
 		}(__core__unMapData(a), __core__unMapData(b))
 	}`));
 	add(new RawFunc("__helios__value____eq",
-	`(self) -> {
-		(other) -> {
-			__helios__value__compare((a, b) -> {__core__equalsInteger(a, b)}, self, other)
-		}
+	`(a, b) -> {
+		__helios__value__compare(__core__equalsInteger, a, b)
 	}`));
 	add(new RawFunc("__helios__value____neq",
-	`(self) -> {
-		(other) -> {
-			__helios__bool____not(__helios__value____eq(self)(other))()
-		}
+	`(a, b) -> {
+		__helios__common__not(__helios__value____eq(a, b))
 	}`));
 	add(new RawFunc("__helios__value____add",
-	`(self) -> {
-		(other) -> {
-			__helios__value__add_or_subtract((a, b) -> {__core__addInteger(a, b)}, self, other)
-		}
+	`(a, b) -> {
+		__helios__value__add_or_subtract(__core__addInteger, a, b)
 	}`));
 	add(new RawFunc("__helios__value____sub",
-	`(self) -> {
-		(other) -> {
-			__helios__value__add_or_subtract((a, b) -> {__core__subtractInteger(a, b)}, self, other)
-		}
+	`(a, b) -> {
+		__helios__value__add_or_subtract(__core__subtractInteger, a, b)
 	}`));
 	add(new RawFunc("__helios__value____mul",
-	`(self) -> {
+	`(a, b) -> {
 		(scale) -> {
-			(scale) -> {
-				__helios__value__map_quantities(self, (qty) -> {__core__multiplyInteger(qty, scale)})
-			}(__core__unIData(scale))
-		}
+			__helios__value__map_quantities(a, (qty) -> {__core__multiplyInteger(qty, scale)})
+		}(__core__unIData(b))
 	}`));
 	add(new RawFunc("__helios__value____div",
-	`(self) -> {
+	`(a, b) -> {
 		(den) -> {
-			(den) -> {
-				__helios__value__map_quantities(self, (qty) -> {__core__divideInteger(qty, den)})
-			}(__core__unIData(den))
-		}
+			__helios__value__map_quantities(a, (qty) -> {__core__divideInteger(qty, den)})
+		}(__core__unIData(b))
 	}`));
 	add(new RawFunc("__helios__value____geq",
-	`(self) -> {
-		(other) -> {
-			__helios__value__compare((a, b) -> {__helios__common__not(__core__lessThanInteger(a, b))}, self, other)
+	`(a, b) -> {
+		__helios__value__compare((a_qty, b_qty) -> {__helios__common__not(__core__lessThanInteger(a_qty, b_qty))}, a, b)
+	}`));
+	add(new RawFunc("__helios__value__contains", `
+	(self) -> {
+		(value) -> {
+			__helios__value____geq(self, value)
 		}
 	}`));
-	add(new RawFunc("__helios__value__contains", "__helios__value____geq"));
 	add(new RawFunc("__helios__value____gt",
-	`(self) -> {
-		(other) -> {
-			__helios__bool__and(
-				__helios__bool____not(
+	`(a, b) -> {
+		__helios__bool__and(
+			() -> {
+				__helios__common__not(
 					__helios__bool__and(
-						__helios__value__is_zero(self),
-						__helios__value__is_zero(other)
+						__helios__value__is_zero(a),
+						__helios__value__is_zero(b)
 					)
-				),
-				() -> {
-					__helios__value__compare(
-						(a, b) -> {
-							__helios__common__not(__core__lessThanEqualsInteger(a, b))
-						}, 
-						self, 
-						other
-					)
-				}
-			)
-		}
+				)
+			},
+			() -> {
+				__helios__value__compare(
+					(a_qty, b_qty) -> {
+						__helios__common__not(__core__lessThanEqualsInteger(a_qty, b_qty))
+					}, 
+					a, 
+					b
+				)
+			}
+		)
 	}`));
 	add(new RawFunc("__helios__value____leq",
-	`(self) -> {
-		(other) -> {
-			__helios__value__compare((a, b) -> {__core__lessThanEqualsInteger(a, b)}, self, other)
-		}
+	`(a, b) -> {
+		__helios__value__compare(__core__lessThanEqualsInteger, a, b)
 	}`));
 	add(new RawFunc("__helios__value____lt",
-	`(self) -> {
-		(other) -> {
-			__helios__bool__and(
-				__helios__bool____not(
+	`(a, b) -> {
+		__helios__bool__and(
+			() -> {
+				__helios__common__not(
 					__helios__bool__and(
-						__helios__value__is_zero(self),
-						__helios__value__is_zero(other)
+						__helios__value__is_zero(a),
+						__helios__value__is_zero(b)
 					)
-				),
-				() -> {
-					__helios__value__compare(
-						(a, b) -> {
-							__core__lessThanInteger(a, b)
-						}, 
-						self, 
-						other
-					)
-				}
-			)
-		}
+				)
+			},
+			() -> {
+				__helios__value__compare(
+					(a_qty, b_qty) -> {
+						__core__lessThanInteger(a_qty, b_qty)
+					}, 
+					a, 
+					b
+				)
+			}
+		)
 	}`));
 	add(new RawFunc("__helios__value__is_zero",
 	`(self) -> {
@@ -3803,8 +3700,8 @@ function makeRawFunctions() {
 					outer(outer, inner, map)
 				}(
 					(outer, inner, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map), 
+						__core__chooseList(
+							map, 
 							() -> {error("policy not found")}, 
 							() -> {
 								__core__ifThenElse(
@@ -3815,8 +3712,8 @@ function makeRawFunctions() {
 							}
 						)()
 					}, (inner, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map), 
+						__core__chooseList(
+							map, 
 							() -> {error("tokenName not found")}, 
 							() -> {
 								__core__ifThenElse(
@@ -3839,8 +3736,8 @@ function makeRawFunctions() {
 					outer(outer, inner, map)
 				}(
 					(outer, inner, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map), 
+						__core__chooseList(
+							map, 
 							() -> {__core__iData(0)}, 
 							() -> {
 								__core__ifThenElse(
@@ -3851,8 +3748,8 @@ function makeRawFunctions() {
 							}
 						)()
 					}, (inner, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map), 
+						__core__chooseList(
+							map, 
 							() -> {__core__iData(0)}, 
 							() -> {
 								__core__ifThenElse(
@@ -3891,8 +3788,8 @@ function makeRawFunctions() {
 					recurse(recurse, map)
 				}(
 					(recurse, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map),
+						__core__chooseList(
+							map,
 							() -> {error("policy not found")},
 							() -> {
 								__core__ifThenElse(
@@ -3915,8 +3812,8 @@ function makeRawFunctions() {
 					recurse(recurse, map)
 				}(
 					(recurse, map) -> {
-						__core__ifThenElse(
-							__core__nullList(map),
+						__core__chooseList(
+							map,
 							() -> {false},
 							() -> {
 								__core__ifThenElse(

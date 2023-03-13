@@ -2,8 +2,7 @@
 // IR Context objects
 
 import {
-    assert,
-    assertClass
+    assert
 } from "./utils.js";
 
 import {
@@ -48,7 +47,7 @@ export class IRScope {
 		if (this.#variable !== null && (name instanceof Word && this.#variable.toString() == name.toString()) || (name instanceof IRVariable && this.#variable == name)) {
 			return [index, this.#variable];
 		} else if (this.#parent === null) {
-			throw assertClass(name, Word).referenceError(`variable ${name.toString()} not found`);
+			throw name.referenceError(`variable ${name.toString()} not found`);
 		} else {
 			return this.#parent.getInternal(name, index + 1);
 		}
@@ -118,6 +117,18 @@ export class IRVariable extends Token {
 
 	toString() {
 		return this.name;
+	}
+
+	/**
+	 * @param {Map<IRVariable, IRVariable>} newVars 
+	 * @returns {IRVariable}
+	 */
+	copy(newVars) {
+		const newVar = new IRVariable(this.#name);
+
+		newVars.set(this, newVar);
+
+		return newVar;
 	}
 }
 

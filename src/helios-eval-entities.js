@@ -462,6 +462,9 @@ export class BuiltinType extends DataType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Instance.new(new FuncType([this, this], new BoolType()));
 			case "from_data":
 				return Instance.new(new FuncType([new RawDataType()], this));
 			default:
@@ -478,9 +481,6 @@ export class BuiltinType extends DataType {
 		switch (name.value) {
 			case "serialize":
 				return Instance.new(new FuncType([], new ByteArrayType()));
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([this], new BoolType()));
 			default:
 				throw name.referenceError(`${this.toString()}.${name.value} undefined`);
 		}
@@ -537,6 +537,9 @@ export class BuiltinEnumMember extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__eq":
+			case "__neq":
+				return Instance.new(new FuncType([this.#parentType, this.#parentType], new BoolType()));
 			case "from_data":
 				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
 			default:
@@ -550,9 +553,6 @@ export class BuiltinEnumMember extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([this.#parentType], new BoolType()));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -1978,6 +1978,20 @@ export class IntType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__neg":
+			case "__pos":
+				return Instance.new(new FuncType([this], new IntType()));
+			case "__add":
+			case "__sub":
+			case "__mul":
+			case "__div":
+			case "__mod":
+				return Instance.new(new FuncType([this, new IntType()], new IntType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, new IntType()], new BoolType()));
 			case "from_little_endian":
 				return Instance.new(new FuncType([new ByteArrayType()], new IntType()));
 			case "max":
@@ -1996,20 +2010,6 @@ export class IntType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__neg":
-			case "__pos":
-				return Instance.new(new FuncType([], new IntType()));
-			case "__add":
-			case "__sub":
-			case "__mul":
-			case "__div":
-			case "__mod":
-				return Instance.new(new FuncType([new IntType()], new IntType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([new IntType()], new BoolType()));
 			case "bound":
 				return Instance.new(new FuncType([new IntType(), new IntType()], new IntType()));
 			case "bound_min":
@@ -2057,6 +2057,11 @@ export class BoolType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__not":
+				return Instance.new(new FuncType([this], new BoolType()));
+			case "__and":
+			case "__or":
+				return Instance.new(new FuncType([this, new BoolType()], new BoolType()));
 			case "and":
 			case "or":
 				return Instance.new(new FuncType([new FuncType([], new BoolType()), new FuncType([], new BoolType())], new BoolType()));
@@ -2072,11 +2077,6 @@ export class BoolType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__not":
-				return Instance.new(new FuncType([], new BoolType()));
-			case "__and":
-			case "__or":
-				return Instance.new(new FuncType([new BoolType()], new BoolType()));
 			case "to_int":
 				return Instance.new(new FuncType([], new IntType()));
 			case "show":
@@ -2121,12 +2121,24 @@ export class StringType extends BuiltinType {
 	/**
 	 * @package
 	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "__add":
+				return Instance.new(new FuncType([this, new StringType()], new StringType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @package
+	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([new StringType()], new StringType()));
 			case "starts_with":
 			case "ends_with":
 				return Instance.new(new FuncType([new StringType()], new BoolType()));
@@ -2174,18 +2186,30 @@ export class ByteArrayType extends BuiltinType {
 	}
 
 	/**
+	 * @package
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "__add":
+				return Instance.new(new FuncType([this, new ByteArrayType()], new ByteArrayType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, new ByteArrayType()], new BoolType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
 	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([new ByteArrayType()], new ByteArrayType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([new ByteArrayType()], new BoolType()));
 			case "length":
 				return Instance.new(new IntType());
 			case "slice":
@@ -2528,6 +2552,8 @@ export class ListType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__add":
+				return Instance.new(new FuncType([this, this], this));
 			case "new":
 				return Instance.new(new FuncType([new IntType(), new FuncType([new IntType()], this.#itemType)], this));
 			case "new_const":
@@ -2544,8 +2570,6 @@ export class ListType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([this], this));
 			case "length":
 				return Instance.new(new IntType());
 			case "head":
@@ -2673,12 +2697,24 @@ export class MapType extends BuiltinType {
 	/**
 	 * @package
 	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "__add":
+				return Instance.new(new FuncType([this, this], this));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @package
+	 * @param {Word} name 
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([this], this));
 			case "all":
 			case "any":
 				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], new BoolType()));
@@ -3039,6 +3075,11 @@ export class HashType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, this], new BoolType()));
 			case "new":
 				return Instance.new(new FuncType([new ByteArrayType()], this));
 			default:
@@ -3052,11 +3093,6 @@ export class HashType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([this], new BoolType()));
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
 			default:
@@ -4166,6 +4202,11 @@ export class TxIdType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, this], new BoolType()));
 			case "new":
 				return Instance.new(new FuncType([new ByteArrayType()], this));
 			case "CURRENT":
@@ -4186,11 +4227,6 @@ export class TxIdType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([this], new BoolType()));
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
 			default:
@@ -4559,6 +4595,11 @@ export class TxOutputIdType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__lt":
+			case "__leq":
+			case "__gt":
+			case "__geq":
+				return Instance.new(new FuncType([this, new TxOutputIdType()], new BoolType()));
 			case "new":
 				return Instance.new(new FuncType([new TxIdType(), new IntType()], new TxOutputIdType()));
 			default:
@@ -4573,11 +4614,6 @@ export class TxOutputIdType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__lt":
-			case "__leq":
-			case "__gt":
-			case "__geq":
-				return Instance.new(new FuncType([new TxOutputIdType()], new BoolType()));
 			case "tx_id":
 				return Instance.new(new TxIdType());
 			case "index":
@@ -5063,6 +5099,17 @@ export class TimeType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__add":
+				return Instance.new(new FuncType([this, new DurationType()], new TimeType()));
+			case "__sub":
+				return Instance.new(new FuncType([this, new TimeType()], new DurationType()));
+			case "__sub_alt":
+				return Instance.new(new FuncType([this, new DurationType()], new TimeType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, new TimeType()], new BoolType()));
 			case "new":
 				return Instance.new(new FuncType([new IntType()], this));
 			default:
@@ -5076,17 +5123,6 @@ export class TimeType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([new DurationType()], new TimeType()));
-			case "__sub":
-				return Instance.new(new FuncType([new TimeType()], new DurationType()));
-			case "__sub_alt":
-				return Instance.new(new FuncType([new DurationType()], new TimeType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([new TimeType()], new BoolType()));
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
 			default:
@@ -5121,6 +5157,20 @@ export class DurationType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__add":
+			case "__sub":
+			case "__mod":
+				return Instance.new(new FuncType([this, new DurationType()], new DurationType()));
+			case "__mul":
+			case "__div":
+				return Instance.new(new FuncType([this, new IntType()], new DurationType()));
+			case "__div_alt":
+				return Instance.new(new FuncType([this, new DurationType()], new IntType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, new DurationType()], new BoolType()));
 			case "new":
 				return Instance.new(new FuncType([new IntType()], this));
 			default:
@@ -5134,20 +5184,6 @@ export class DurationType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-			case "__sub":
-			case "__mod":
-				return Instance.new(new FuncType([new DurationType()], new DurationType()));
-			case "__mul":
-			case "__div":
-				return Instance.new(new FuncType([new IntType()], new DurationType()));
-			case "__div_alt":
-				return Instance.new(new FuncType([new DurationType()], new IntType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([new DurationType()], new BoolType()));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -5259,6 +5295,17 @@ export class ValueType extends BuiltinType {
 	 */
 	getTypeMember(name) {
 		switch (name.value) {
+			case "__add":
+			case "__sub":
+				return Instance.new(new FuncType([this, new ValueType()], new ValueType()));
+			case "__mul":
+			case "__div":
+				return Instance.new(new FuncType([this, new IntType()], new ValueType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, new ValueType()], new BoolType()));
 			case "ZERO":
 				return Instance.new(new ValueType());
 			case "lovelace":
@@ -5279,16 +5326,6 @@ export class ValueType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "__add":
-			case "__sub":
-				return Instance.new(new FuncType([new ValueType()], new ValueType()));
-			case "__mul":
-			case "__div":
-				return Instance.new(new FuncType([new IntType()], new ValueType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
 			case "contains":
 				return Instance.new(new FuncType([new ValueType()], new BoolType()));
 			case "is_zero":
