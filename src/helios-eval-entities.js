@@ -5342,6 +5342,8 @@ export class ValueType extends BuiltinType {
 				return Instance.new(new FuncType([new MintingPolicyHashType()], new MapType(new ByteArrayType(), new IntType())));
 			case "contains_policy":
 				return Instance.new(new FuncType([new MintingPolicyHashType()], new BoolType()));
+			case "show":
+				return Instance.new(new FuncType([], new StringType()));
 			case "to_map":
 				return Instance.new(new FuncType([], new MapType(new MintingPolicyHashType(), new MapType(new ByteArrayType(), new IntType()))));
 			default:

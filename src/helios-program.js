@@ -8,12 +8,12 @@ import {
 import {
     Source,
     assertDefined,
-	assert
+	assert,
+	deprecationWarning
 } from "./utils.js";
 
 import {
     IR,
-	Site,
     UserError,
     Word
 } from "./tokens.js";
@@ -649,6 +649,8 @@ class MainModule extends Module {
 	 * @returns {Program} - returns 'this' so that changeParam calls can be chained
 	 */
 	changeParam(name, value) {
+		deprecationWarning("program.changeParam", "0.14.0", "use program.parameters instead", "https://www.hyperion-bt.org/helios-book/api/reference/program.html#parameters-1");
+
 		for (let s of this.mainAndPostStatements) {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValue(value);
@@ -942,6 +944,8 @@ class RedeemerProgram extends Program {
 		} else if (haveUnderscores) {
 			// empty type name comes from an underscore
 			assert(argTypeNames.length == 2, "expected 2 arguments");
+		} else if (argTypeNames.length != 2) {
+			deprecationWarning("main with variable arguments", "0.14.0", "use underscores instead", "https://www.hyperion-bt.org/helios-book/lang/script-structure.html#main-function-4");
 		}
 
 		for (let i = 0; i < argTypeNames.length; i++) {
@@ -1064,6 +1068,8 @@ class DatumRedeemerProgram extends Program {
 			throw main.typeError("too many arguments for main");
 		} else if (haveUnderscores) {
 			assert(argTypeNames.length == 3, "expected 3 args");
+		} else if (argTypeNames.length != 3) {
+			deprecationWarning("main with variable arguments", "0.14.0", "use underscores instead", "https://www.hyperion-bt.org/helios-book/lang/script-structure.html#main-function-4");
 		}
 
 		for (let i = 0; i < argTypeNames.length; i++) {
@@ -1214,17 +1220,35 @@ class TestingProgram extends Program {
 	 * @returns {IR}
 	 */
 	toIR(parameters = []) {
-		let args = this.mainFunc.argTypes.map((_, i) => new IR(`arg${i}`));
+		const innerArgs = this.mainFunc.argTypes.map((t, i) => {
+			if (t instanceof BoolType) {
+				return new IR(`__helios__common__unBoolData(arg${i})`);
+			} else {
+				return new IR(`arg${i}`);
+			}
+		});
 
 		let ir = new IR([
+			new IR(`${this.mainPath}(`),
+			new IR(innerArgs).join(", "),
+			new IR(")"),
+		]);
+
+		if (this.mainFunc.retTypes[0] instanceof BoolType) {
+			ir = new IR([
+				new IR("__helios__common__boolData("),
+				ir,
+				new IR(")")
+			]);
+		}
+
+		const outerArgs = this.mainFunc.argTypes.map((_, i) => new IR(`arg${i}`));
+
+		ir = new IR([
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
-			new IR(args).join(", "),
+			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR([
-				new IR(`${this.mainPath}(`),
-				new IR(args).join(", "),
-				new IR(")"),
-			]),
+			ir,
 			new IR(`\n${TAB}}`),
 		]);
 

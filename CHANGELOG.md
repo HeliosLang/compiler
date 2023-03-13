@@ -1,5 +1,10 @@
 This Changelog only applies to notable changes of language related features in `helios.js` on the main branch.
 
+# 2023/03/13
+* Functions can have optional arguments
+* `Value.show`
+* `copy` automatically defined on all user structs and user enum variants
+
 # 2023/03/06
 * Addition of `ctx.get_cont_outputs()`
 * Addition of `value.get_assets()`

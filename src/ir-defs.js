@@ -3828,6 +3828,54 @@ function makeRawFunctions() {
 			}(__core__unMapData(self))
 		}
 	}`));
+	add(new RawFunc("__helios__value__show",
+	`(self) -> {
+		() -> {
+			__helios__map__fold(self)(
+				(prev, mph, tokens) -> {
+					__helios__map__fold(tokens)(
+						(prev, token_name, qty) -> {
+							__helios__string____add(
+								prev,
+								__core__ifThenElse(
+									__helios__bytearray____eq(mph, __core__bData(#)),
+									() -> {
+										__helios__string____add(
+											__helios__common__stringData("lovelace: "),
+											__helios__string____add(
+												__helios__int__show(qty)(),
+												__helios__common__stringData("\\n")
+											)
+										)
+									},
+									() -> {
+										__helios__string____add(
+											__helios__bytearray__show(mph)(),
+											__helios__string____add(
+												__helios__common__stringData("."),
+												__helios__string____add(
+													__helios__bytearray__show(token_name)(),
+													__helios__string____add(
+														__helios__common__stringData(": "),
+														__helios__string____add(
+															__helios__int__show(qty)(),
+															__helios__common__stringData("\\n")
+														)
+													)
+												)
+											)
+										)
+									}
+								)()
+							)
+						},
+						prev
+					)
+				},
+				__helios__common__stringData("")
+			)
+		}
+	}`))
 
 	return db;
 }

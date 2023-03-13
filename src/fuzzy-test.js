@@ -38,7 +38,7 @@ import {
 } from "./helios-program.js";
 
 /**
- * @typedef {() => UplcValue} ValueGenerator
+ * @typedef {() => UplcData} ValueGenerator
  */
 
 /**
@@ -104,7 +104,7 @@ export class FuzzyTest {
 		let rand = this.rawInt(min, max);
 
 		return function() {
-			return new UplcDataValue(Site.dummy(), new IntData(rand()));
+			return new IntData(rand());
 		}
 	}
 
@@ -128,7 +128,7 @@ export class FuzzyTest {
 				chars.push(String.fromCodePoint(Math.round(rand()*1112064)));
 			}
 			
-			return new UplcDataValue(Site.dummy(), ByteArrayData.fromString(chars.join("")));
+			return ByteArrayData.fromString(chars.join(""));
 		}
 	}
 
@@ -152,7 +152,7 @@ export class FuzzyTest {
 				chars.push(String.fromCharCode(Math.round(rand()*94 + 32)));
 			}
 			
-			return new UplcDataValue(Site.dummy(), ByteArrayData.fromString(chars.join("")));
+			return ByteArrayData.fromString(chars.join(""));
 		}
 	}
 
@@ -176,7 +176,7 @@ export class FuzzyTest {
 				bytes.push(Math.floor(rand()*94 + 32));
 			}
 
-			return new UplcDataValue(Site.dummy(), new ByteArrayData(bytes));
+			return new ByteArrayData(bytes);
 		}
 	}
 
@@ -226,7 +226,7 @@ export class FuzzyTest {
 		return function() {
 			let bytes = rand();
 
-			return new UplcDataValue(Site.dummy(), new ByteArrayData(bytes));
+			return new ByteArrayData(bytes);
 		}
 	}
 	/**
@@ -251,7 +251,7 @@ export class FuzzyTest {
 		let rand = this.rawBool();
 
 		return function() {
-			return new UplcBool(Site.dummy(), rand());
+			return new ConstrData(rand() ? 1 : 0, []);
 		}
 	}
 
@@ -268,9 +268,9 @@ export class FuzzyTest {
 			let x = rand();
 
 			if (x < noneProbability) {
-				return new UplcDataValue(Site.dummy(), new ConstrData(1, []));
+				return new ConstrData(1, []);
 			} else {
-				return new UplcDataValue(Site.dummy(), new ConstrData(0, [someGenerator().data]));
+				return new ConstrData(0, [someGenerator()]);
 			}
 		}
 	}
@@ -305,10 +305,10 @@ export class FuzzyTest {
 			let items = [];
 
 			for (let i = 0; i < n; i++) {
-				items.push(itemGenerator().data);
+				items.push(itemGenerator());
 			}
 
-			return new UplcDataValue(Site.dummy(), new ListData(items));
+			return new ListData(items);
 		}
 	}
 
@@ -344,10 +344,10 @@ export class FuzzyTest {
 			let pairs = [];
 
 			for (let i = 0; i < n; i++) {
-				pairs.push([keyGenerator().data, valueGenerator().data]);
+				pairs.push([keyGenerator(), valueGenerator()]);
 			}
 
-			return new UplcDataValue(Site.dummy(), new MapData(pairs));
+			return new MapData(pairs);
 		};
 	}
 
@@ -358,9 +358,9 @@ export class FuzzyTest {
 	 */
 	object(...itemGenerators) {
 		return function() {
-			let items = itemGenerators.map(g => g().data);
+			let items = itemGenerators.map(g => g());
 
-			return new UplcDataValue(Site.dummy(), new ConstrData(0, items));
+			return new ConstrData(0, items);
 		}
 	}
 
@@ -372,11 +372,11 @@ export class FuzzyTest {
 	 */
 	constr(tag, ...fieldGenerators) {
 		return function() {
-			const fields = fieldGenerators.map(g => g().data);
+			const fields = fieldGenerators.map(g => g());
 
 			const finalTag = (typeof tag == "number") ? tag : Math.round(tag()*100);
 			
-			return new UplcDataValue(Site.dummy(), new ConstrData(finalTag, fields));
+			return new ConstrData(finalTag, fields);
 		}
 	}
 
@@ -402,7 +402,7 @@ export class FuzzyTest {
 			let program = Program.new(src).compile(simplify);
 
 			for (let it = 0; it < nRuns; it++) {
-				let args = argGens.map(gen => gen());
+				let args = argGens.map(gen => new UplcDataValue(Site.dummy(), gen()));
 			
 				let result = await program.run(args);
 
@@ -452,7 +452,7 @@ export class FuzzyTest {
 			for (let it = 0; it < nRuns; it++) {
 
 				for (let key in paramGenerators) {
-					program.changeParam(key, paramGenerators[key]())
+					program.changeParamSafe(key, paramGenerators[key]())
 				}
 
 				let args = paramArgs.map(paramArg => program.evalParam(paramArg));

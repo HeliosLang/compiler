@@ -26,6 +26,8 @@ function asBool(value) {
         } else {
             throw new Error(`expected ConstrData with 0 fields (Bool)`);
         }
+    } else if (value instanceof helios_.UplcDataValue) {
+        return asBool(value.data);
     }
 
     throw new Error(`expected UplcBool, got ${value.toString()}`);
@@ -67,16 +69,18 @@ function decodeCbor(bs) {
 }
 
 function isValidString(value) {
-    if (value instanceof helios_.UplcDataValue) {
+    if (value instanceof helios_.ByteArrayData) {
+        try {
+            void helios.bytesToText(value.bytes);
+
+            return true;
+        } catch(_) {
+            return false;
+        }
+    } else if (value instanceof helios_.UplcDataValue) {
         let data = value.data;
         if (data instanceof helios_.ByteArrayData) {
-            try {
-                void helios.bytesToText(data.bytes);
-    
-                return true;
-            } catch(_) {
-                return false;
-            }
+            return isValidString(data);
         }
     }
 
@@ -84,7 +88,9 @@ function isValidString(value) {
 }
 
 function asString(value) {
-    if (value instanceof helios_.UplcDataValue) {
+    if (value instanceof helios_.ByteArrayData) {
+        return helios.bytesToText(value.bytes);
+    } else if (value instanceof helios_.UplcDataValue) {
         let data = value.data;
         if (data instanceof helios_.ByteArrayData) {
             return helios.bytesToText(data.bytes);
@@ -95,41 +101,44 @@ function asString(value) {
 }
 
 function asIntList(value) {
-    if (value instanceof helios_.UplcDataValue) {
-        let data = value.data;
-        if (data instanceof helios_.ListData) {
-            let items = [];
+    if (value instanceof helios_.ListData) {
+        let items = [];
 
-            for (let item of data.list) {
-                if (item instanceof helios_.IntData) {
-                    items.push(item.value);
-                } else {
-                    throw new Error(`expected ListData of IntData, got ${value.toString()}`);
-                }
+        for (let item of value.list) {
+            if (item instanceof helios_.IntData) {
+                items.push(item.value);
+            } else {
+                throw new Error(`expected ListData of IntData, got ${value.toString()}`);
             }
-
-            return items;
         }
+
+        return items;
+    } else if (value instanceof helios_.UplcDataValue) {
+        let data = value.data;
+        
+        return asIntList(data);
     }
 
     throw new Error(`expected ListData, got ${value.toString()}`);
 }
 
 function asBoolList(value) {
-    if (value instanceof helios_.UplcDataValue) {
+    if (value instanceof helios_.ListData) {
+        let items = [];
+
+        for (let item of value.list) {
+            if (item instanceof helios_.ConstrData && item.fields.length == 0 && (item.index == 0 || item.index == 1)) {
+                items.push(item.index == 1);
+            } else {
+                throw new Error(`expected ListData of bool-like ConstrData, got ${value.toString()}`);
+            }
+        }
+
+        return items;
+    } else if (value instanceof helios_.UplcDataValue) {
         let data = value.data;
         if (data instanceof helios_.ListData) {
-            let items = [];
-
-            for (let item of data.list) {
-                if (item instanceof helios_.ConstrData && item.fields.length == 0 && (item.index == 0 || item.index == 1)) {
-                    items.push(item.index == 1);
-                } else {
-                    throw new Error(`expected ListData of bool-like ConstrData, got ${value.toString()}`);
-                }
-            }
-
-            return items;
+           return asBoolList(data);
         }
     }
 
@@ -137,10 +146,12 @@ function asBoolList(value) {
 }
 
 function asData(value) {
-    if (value instanceof helios_.UplcDataValue) {
+    if (value instanceof helios_.UplcData) {
+        return value;
+    } else if (value instanceof helios_.UplcDataValue) {
         return value.data;
     } else {
-        throw new Error("expected UplcDataValue");
+        throw new Error("expected UplcDataValue or UplcData");
     }
 }
 
@@ -818,10 +829,8 @@ async function testBuiltins() {
     func main(a: Bool) -> String {
         a.show()
     }`, ([a], res) => (asBool(a) ? "true": "false") === asString(res));
-    
-    const boolGen = ft.bool();
 
-    await ft.test([() => new helios_.UplcDataValue(helios_.Site.dummy(), new helios_.ConstrData(boolGen() ? 1 : 0, []))], `
+    await ft.test([ft.bool()], `
     testing bool_from_data
     func main(a: Data) -> Bool {
         Bool::from_data(a)
@@ -3608,6 +3617,22 @@ async function testBuiltins() {
             sum: Value = Value::new(AssetClass::new(MintingPolicyHash::new(mph_bytes1), tn_a), qty_a) + Value::new(AssetClass::new(MintingPolicyHash::new(mph_bytes1), tn_b), qty_b);
             sum.contains_policy(MintingPolicyHash::new(mph_bytes))
         }`, ([pick1, _], res) => asBool(pick1) === asBool(res));
+
+        await ft.test([ft.bytes(11, 11), ft.bytes(10, 10), ft.string(5,5), ft.int(), ft.string(3,3), ft.int()], `
+        testing value_show
+        func main(mph_bytes1: ByteArray, mph_bytes2: ByteArray, tn_a: ByteArray, qty_a: Int, tn_b: ByteArray, qty_b: Int) -> String {
+            sum: Value = Value::new(AssetClass::new(MintingPolicyHash::new(mph_bytes1), tn_a), qty_a) + Value::new(AssetClass::new(MintingPolicyHash::new(mph_bytes2), tn_b), qty_b);
+            sum.show()
+        }`, ([mph1, mph2, tn_a, qty_a, tn_b, qty_b], res) => {
+            const expected = [
+                `${helios.bytesToHex(asBytes(mph1))}.${helios.bytesToHex(asBytes(tn_a))}: ${asInt(qty_a)}`,
+                `${helios.bytesToHex(asBytes(mph2))}.${helios.bytesToHex(asBytes(tn_b))}: ${asInt(qty_b)}`
+            ].join("\n");
+            
+            const got = helios.bytesToText(asBytes(res));
+
+            return got.trim() == expected.trim();
+        }, 5);
 
         await ft.test([ft.map(ft.bytes(), ft.map(ft.bytes(), ft.int()))], `
         testing value_from_data

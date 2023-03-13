@@ -85,7 +85,7 @@ export default async function main() {
     func main() -> Bool {
         print("hello world");
         true
-    }`, "true", ["hello world"]);
+    }`, "data(1{})", ["hello world"]);
 
     // 2. hello_world_false
     await runTestScript(`
@@ -93,7 +93,7 @@ export default async function main() {
     func main() -> Bool {
         print("hello world");
         !true
-    }`, "false", ["hello world"]);
+    }`, "data(0{})", ["hello world"]);
 
     // 3. hello_number
     // * non-main function statement
@@ -105,7 +105,7 @@ export default async function main() {
     func main() -> Bool {
         print(print_message(0) + "");
         !true
-    }`, "false", ["hello number 0"]);
+    }`, "data(0{})", ["hello number 0"]);
 
     // 4. my_struct
     // * struct statement
@@ -139,7 +139,7 @@ export default async function main() {
         };
         print(d.owner.show());
         d.value > Value::ZERO
-    }`, "true", ["1234"]);
+    }`, "data(1{})", ["1234"]);
 
     // 5. fibonacci
     // * recursive function statement
@@ -179,7 +179,7 @@ export default async function main() {
         x: []Int = []Int{1, 2, 3};
         print(x.get(0).show());
         x.get(2) == 3
-    }`, "true", "1");
+    }`, "data(1{})", "1");
 
     // 8. list_get nok
     // * error thrown by builtin
@@ -201,7 +201,7 @@ export default async function main() {
     func main() -> Bool {
         print(concat("hello ", "world"));
         true
-    }`, "true", ["hello world"]);
+    }`, "data(1{})", ["hello world"]);
 
     // 10. collatz recursion
     // * recursion
@@ -231,7 +231,7 @@ export default async function main() {
     }
     func main() -> Bool {
         main_inner([]Int{1,2,3,4,5,6,10}.any)
-    }`, "true", []);
+    }`, "data(1{})", []);
     
     // 12. value_get
     await runTestScript(`
@@ -267,7 +267,7 @@ export default async function main() {
         print(main_internal(Redeemer::Reward).show());
         print(main_internal(Redeemer::Migrate).show());
         true
-    }`, "true", ["false", "true", "false"]);
+    }`, "data(1{})", ["false", "true", "false"]);
 
     // 14. struct method recursion
     await runTestScript(`
@@ -518,7 +518,7 @@ export default async function main() {
 	const REDEEMER = Redeemer::Convert{
 		mph: MPH,
 		policyConverted: MPH
-	}`, ["REDEEMER", "SCRIPT_CONTEXT"], "false", []);
+	}`, ["REDEEMER", "SCRIPT_CONTEXT"], "data(0{})", []);
 }
 
 runIfEntryPoint(main, "example-scripts.js");

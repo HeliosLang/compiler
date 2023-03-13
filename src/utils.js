@@ -736,3 +736,22 @@ export function hl(a, ...b) {
 		}
 	}).join("");
 }
+
+/**
+ * Display a warning message that a certain feature will be deprecated at some point in the future.
+ * @package
+ * @param {string} feature
+ * @param {string} futureVersion
+ * @param {string} alternative
+ * @param {string} docUrl
+ */
+export function deprecationWarning(feature, futureVersion, alternative, docUrl = "") {
+	let msg = `${feature} is DEPRECATED, and will be removed from version ${futureVersion} onwards!
+${alternative}`;
+
+	if (docUrl != "") {
+		msg += `\n(for more information: ${docUrl})`;
+	}
+
+	console.warn(msg);
+}

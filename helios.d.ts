@@ -3418,7 +3418,7 @@ export class HashedDatum extends Datum {
     #private;
 }
 /**
- * @typedef {() => UplcValue} ValueGenerator
+ * @typedef {() => UplcData} ValueGenerator
  */
 /**
  * @typedef {(args: UplcValue[], res: (UplcValue | UserError)) => (boolean | Object.<string, boolean>)} PropertyTest
@@ -3965,7 +3965,7 @@ export type IRLiteralRegistry = Map<IRVariable, IRLiteralExpr>;
 export type UserTypes = {
     [x: string]: HeliosDataClass<HeliosData>;
 };
-export type ValueGenerator = () => UplcValue;
+export type ValueGenerator = () => UplcData;
 export type PropertyTest = (args: UplcValue[], res: (UplcValue | UserError)) => (boolean | {
     [x: string]: boolean;
 });

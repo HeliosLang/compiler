@@ -44,7 +44,8 @@
 //                                           assertEq, idiv, ipow2, imask, imod8, bigIntToBytes, 
 //                                           bytesToBigInt, padZeroes, byteToBitString, 
 //                                           hexToBytes, bytesToHex, textToBytes, bytesToText, 
-//                                           replaceTabs, BitReader, BitWriter, Source, hl
+//                                           replaceTabs, BitReader, BitWriter, Source, hl, 
+//                                           deprecationWarning
 //
 //    Section 3: Tokens                      Site, RuntimeError, Token, Word, SymbolToken, Group, 
 //                                           PrimitiveLiteral, IntLiteral, BoolLiteral, 
@@ -991,6 +992,25 @@ export function hl(a, ...b) {
 			return part;
 		}
 	}).join("");
+}
+
+/**
+ * Display a warning message that a certain feature will be deprecated at some point in the future.
+ * @package
+ * @param {string} feature
+ * @param {string} futureVersion
+ * @param {string} alternative
+ * @param {string} docUrl
+ */
+function deprecationWarning(feature, futureVersion, alternative, docUrl = "") {
+	let msg = `${feature} is DEPRECATED, and will be removed from version ${futureVersion} onwards!
+${alternative}`;
+
+	if (docUrl != "") {
+		msg += `\n(for more information: ${docUrl})`;
+	}
+
+	console.warn(msg);
 }
 
 
@@ -17725,6 +17745,8 @@ class ValueType extends BuiltinType {
 				return Instance.new(new FuncType([new MintingPolicyHashType()], new MapType(new ByteArrayType(), new IntType())));
 			case "contains_policy":
 				return Instance.new(new FuncType([new MintingPolicyHashType()], new BoolType()));
+			case "show":
+				return Instance.new(new FuncType([], new StringType()));
 			case "to_map":
 				return Instance.new(new FuncType([], new MapType(new MintingPolicyHashType(), new MapType(new ByteArrayType(), new IntType()))));
 			default:
@@ -28959,6 +28981,54 @@ function makeRawFunctions() {
 			}(__core__unMapData(self))
 		}
 	}`));
+	add(new RawFunc("__helios__value__show",
+	`(self) -> {
+		() -> {
+			__helios__map__fold(self)(
+				(prev, mph, tokens) -> {
+					__helios__map__fold(tokens)(
+						(prev, token_name, qty) -> {
+							__helios__string____add(
+								prev,
+								__core__ifThenElse(
+									__helios__bytearray____eq(mph, __core__bData(#)),
+									() -> {
+										__helios__string____add(
+											__helios__common__stringData("lovelace: "),
+											__helios__string____add(
+												__helios__int__show(qty)(),
+												__helios__common__stringData("\\n")
+											)
+										)
+									},
+									() -> {
+										__helios__string____add(
+											__helios__bytearray__show(mph)(),
+											__helios__string____add(
+												__helios__common__stringData("."),
+												__helios__string____add(
+													__helios__bytearray__show(token_name)(),
+													__helios__string____add(
+														__helios__common__stringData(": "),
+														__helios__string____add(
+															__helios__int__show(qty)(),
+															__helios__common__stringData("\\n")
+														)
+													)
+												)
+											)
+										)
+									}
+								)()
+							)
+						},
+						prev
+					)
+				},
+				__helios__common__stringData("")
+			)
+		}
+	}`))
 
 	return db;
 }
@@ -32111,6 +32181,8 @@ class MainModule extends Module {
 	 * @returns {Program} - returns 'this' so that changeParam calls can be chained
 	 */
 	changeParam(name, value) {
+		deprecationWarning("program.changeParam", "0.14.0", "use program.parameters instead", "https://www.hyperion-bt.org/helios-book/api/reference/program.html#parameters-1");
+
 		for (let s of this.mainAndPostStatements) {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValue(value);
@@ -32404,6 +32476,8 @@ class RedeemerProgram extends Program {
 		} else if (haveUnderscores) {
 			// empty type name comes from an underscore
 			assert(argTypeNames.length == 2, "expected 2 arguments");
+		} else if (argTypeNames.length != 2) {
+			deprecationWarning("main with variable arguments", "0.14.0", "use underscores instead", "https://www.hyperion-bt.org/helios-book/lang/script-structure.html#main-function-4");
 		}
 
 		for (let i = 0; i < argTypeNames.length; i++) {
@@ -32526,6 +32600,8 @@ class DatumRedeemerProgram extends Program {
 			throw main.typeError("too many arguments for main");
 		} else if (haveUnderscores) {
 			assert(argTypeNames.length == 3, "expected 3 args");
+		} else if (argTypeNames.length != 3) {
+			deprecationWarning("main with variable arguments", "0.14.0", "use underscores instead", "https://www.hyperion-bt.org/helios-book/lang/script-structure.html#main-function-4");
 		}
 
 		for (let i = 0; i < argTypeNames.length; i++) {
@@ -32676,17 +32752,35 @@ class TestingProgram extends Program {
 	 * @returns {IR}
 	 */
 	toIR(parameters = []) {
-		let args = this.mainFunc.argTypes.map((_, i) => new IR(`arg${i}`));
+		const innerArgs = this.mainFunc.argTypes.map((t, i) => {
+			if (t instanceof BoolType) {
+				return new IR(`__helios__common__unBoolData(arg${i})`);
+			} else {
+				return new IR(`arg${i}`);
+			}
+		});
 
 		let ir = new IR([
+			new IR(`${this.mainPath}(`),
+			new IR(innerArgs).join(", "),
+			new IR(")"),
+		]);
+
+		if (this.mainFunc.retTypes[0] instanceof BoolType) {
+			ir = new IR([
+				new IR("__helios__common__boolData("),
+				ir,
+				new IR(")")
+			]);
+		}
+
+		const outerArgs = this.mainFunc.argTypes.map((_, i) => new IR(`arg${i}`));
+
+		ir = new IR([
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
-			new IR(args).join(", "),
+			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR([
-				new IR(`${this.mainPath}(`),
-				new IR(args).join(", "),
-				new IR(")"),
-			]),
+			ir,
 			new IR(`\n${TAB}}`),
 		]);
 
@@ -36632,7 +36726,7 @@ export function highlight(src) {
 //////////////////////////////////////
 
 /**
- * @typedef {() => UplcValue} ValueGenerator
+ * @typedef {() => UplcData} ValueGenerator
  */
 
 /**
@@ -36698,7 +36792,7 @@ export class FuzzyTest {
 		let rand = this.rawInt(min, max);
 
 		return function() {
-			return new UplcDataValue(Site.dummy(), new IntData(rand()));
+			return new IntData(rand());
 		}
 	}
 
@@ -36722,7 +36816,7 @@ export class FuzzyTest {
 				chars.push(String.fromCodePoint(Math.round(rand()*1112064)));
 			}
 			
-			return new UplcDataValue(Site.dummy(), ByteArrayData.fromString(chars.join("")));
+			return ByteArrayData.fromString(chars.join(""));
 		}
 	}
 
@@ -36746,7 +36840,7 @@ export class FuzzyTest {
 				chars.push(String.fromCharCode(Math.round(rand()*94 + 32)));
 			}
 			
-			return new UplcDataValue(Site.dummy(), ByteArrayData.fromString(chars.join("")));
+			return ByteArrayData.fromString(chars.join(""));
 		}
 	}
 
@@ -36770,7 +36864,7 @@ export class FuzzyTest {
 				bytes.push(Math.floor(rand()*94 + 32));
 			}
 
-			return new UplcDataValue(Site.dummy(), new ByteArrayData(bytes));
+			return new ByteArrayData(bytes);
 		}
 	}
 
@@ -36820,7 +36914,7 @@ export class FuzzyTest {
 		return function() {
 			let bytes = rand();
 
-			return new UplcDataValue(Site.dummy(), new ByteArrayData(bytes));
+			return new ByteArrayData(bytes);
 		}
 	}
 	/**
@@ -36845,7 +36939,7 @@ export class FuzzyTest {
 		let rand = this.rawBool();
 
 		return function() {
-			return new UplcBool(Site.dummy(), rand());
+			return new ConstrData(rand() ? 1 : 0, []);
 		}
 	}
 
@@ -36862,9 +36956,9 @@ export class FuzzyTest {
 			let x = rand();
 
 			if (x < noneProbability) {
-				return new UplcDataValue(Site.dummy(), new ConstrData(1, []));
+				return new ConstrData(1, []);
 			} else {
-				return new UplcDataValue(Site.dummy(), new ConstrData(0, [someGenerator().data]));
+				return new ConstrData(0, [someGenerator()]);
 			}
 		}
 	}
@@ -36899,10 +36993,10 @@ export class FuzzyTest {
 			let items = [];
 
 			for (let i = 0; i < n; i++) {
-				items.push(itemGenerator().data);
+				items.push(itemGenerator());
 			}
 
-			return new UplcDataValue(Site.dummy(), new ListData(items));
+			return new ListData(items);
 		}
 	}
 
@@ -36938,10 +37032,10 @@ export class FuzzyTest {
 			let pairs = [];
 
 			for (let i = 0; i < n; i++) {
-				pairs.push([keyGenerator().data, valueGenerator().data]);
+				pairs.push([keyGenerator(), valueGenerator()]);
 			}
 
-			return new UplcDataValue(Site.dummy(), new MapData(pairs));
+			return new MapData(pairs);
 		};
 	}
 
@@ -36952,9 +37046,9 @@ export class FuzzyTest {
 	 */
 	object(...itemGenerators) {
 		return function() {
-			let items = itemGenerators.map(g => g().data);
+			let items = itemGenerators.map(g => g());
 
-			return new UplcDataValue(Site.dummy(), new ConstrData(0, items));
+			return new ConstrData(0, items);
 		}
 	}
 
@@ -36966,11 +37060,11 @@ export class FuzzyTest {
 	 */
 	constr(tag, ...fieldGenerators) {
 		return function() {
-			const fields = fieldGenerators.map(g => g().data);
+			const fields = fieldGenerators.map(g => g());
 
 			const finalTag = (typeof tag == "number") ? tag : Math.round(tag()*100);
 			
-			return new UplcDataValue(Site.dummy(), new ConstrData(finalTag, fields));
+			return new ConstrData(finalTag, fields);
 		}
 	}
 
@@ -36996,7 +37090,7 @@ export class FuzzyTest {
 			let program = Program.new(src).compile(simplify);
 
 			for (let it = 0; it < nRuns; it++) {
-				let args = argGens.map(gen => gen());
+				let args = argGens.map(gen => new UplcDataValue(Site.dummy(), gen()));
 			
 				let result = await program.run(args);
 
@@ -37046,7 +37140,7 @@ export class FuzzyTest {
 			for (let it = 0; it < nRuns; it++) {
 
 				for (let key in paramGenerators) {
-					program.changeParam(key, paramGenerators[key]())
+					program.changeParamSafe(key, paramGenerators[key]())
 				}
 
 				let args = paramArgs.map(paramArg => program.evalParam(paramArg));
