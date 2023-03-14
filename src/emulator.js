@@ -65,7 +65,13 @@ export class WalletEmulator {
      * @returns {number[]} - Ed25519 private key is 32 bytes long
      */
     static genPrivateKey(random) {
-        return (new Array(32)).map(() => random()%256);
+        const key = [];
+
+        for (let i = 0; i < 32; i++) {
+            key.push(Math.floor(random()*256)%256);
+        }
+
+        return key;
     }
 
     /**

@@ -542,6 +542,27 @@ async function pickUtxos() {
 	console.log(picked2, notPicked2);
 }
 
+async function testEmulatorPrivateKeyGen() {
+	const emulator = new helios.NetworkEmulator(10);
+
+	const wallets = [10n, 11n, 12n].map(l => emulator.createWallet(l));
+
+	const pkhs = new Set();
+
+	for (let wallet of wallets) {
+		let pkh = wallet.pubKeyHash.hex;
+
+		if (pkhs.has(pkh)) {
+			throw new Error("wallet not unique");
+		}
+
+		console.log("wallet pkh: ", pkh);
+		pkhs.add(pkh);
+	}
+
+	console.log("all emulated wallets unique");
+}
+
 export default async function main() {
 	await assetsCompare();
 
@@ -570,6 +591,8 @@ export default async function main() {
 	await singleDatumEntry();
 
 	await pickUtxos();
+
+	await testEmulatorPrivateKeyGen();
 }
 
 runIfEntryPoint(main, "tx-building.js");

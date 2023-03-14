@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.2
+// Version:       0.13.3
 // Last update:   March 2023
 // License:       Unlicense
 //
@@ -219,7 +219,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.2";
+export const VERSION = "0.13.3";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -37761,7 +37761,13 @@ export class WalletEmulator {
      * @returns {number[]} - Ed25519 private key is 32 bytes long
      */
     static genPrivateKey(random) {
-        return (new Array(32)).map(() => random()%256);
+        const key = [];
+
+        for (let i = 0; i < 32; i++) {
+            key.push(Math.floor(random()*256)%256);
+        }
+
+        return key;
     }
 
     /**
