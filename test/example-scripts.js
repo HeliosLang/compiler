@@ -519,6 +519,85 @@ export default async function main() {
 		mph: MPH,
 		policyConverted: MPH
 	}`, ["REDEEMER", "SCRIPT_CONTEXT"], "data(0{})", []);
+
+    await runTestScriptWithArgs(`
+    testing handles_personalization
+
+    enum Redeemer {
+        UPDATE_NFT_HANDLE { 
+            handle: String
+        }
+    }
+    struct PzSettings {
+        treasury_fee: Int
+    }
+
+    struct Datum {
+        answer: Int
+    }
+
+    func loadSettings(ctx: ScriptContext) -> PzSettings {
+        pz_input: TxInput = ctx.tx.ref_inputs.get(0);
+        PzSettings::from_data(pz_input.output.datum.get_inline_data())
+    }
+
+    func main(datum: Datum, redeemer: Redeemer, ctx: ScriptContext) -> Bool {
+        redeemer.switch {
+            UPDATE_NFT_HANDLE => {
+                settings: PzSettings = loadSettings(ctx);
+                settings == settings
+            },
+            else => {
+                datum == datum
+            }
+        }
+    }
+
+    const update_nft_redeemer_good = Redeemer::UPDATE_NFT_HANDLE { "xar12345" }
+
+    const good_datum = Datum { 42 }
+
+    const pz_settings = PzSettings {
+        treasury_fee: 1
+    }
+
+    const good_owner_input: TxInput = TxInput::new(TxOutputId::new(TxId::new(#0123456789012345678901234567890123456789012345678901234567891235), 0),
+        TxOutput::new(
+            Address::new(Credential::new_validator(ValidatorHash::new(#01234567890123456789012345678901234567890123456789000002)), Option[StakingCredential]::None)
+            , Value::lovelace(10000000)
+            , OutputDatum::new_none()
+        )
+    )
+
+    const good_ref_input_pz: TxInput = TxInput::new(TxOutputId::new(TxId::new(#0123456789012345678901234567890123456789012345678901234567891234), 0),
+        TxOutput::new(
+            Address::new(Credential::new_validator(ValidatorHash::new(#01234567890123456789012345678901234567890123456789000003)), Option[StakingCredential]::None)
+            , Value::lovelace(10000000)
+            , OutputDatum::new_inline(pz_settings)
+        )
+    )
+    const good_owner_output: TxOutput = TxOutput::new(
+        Address::new(Credential::new_validator(ValidatorHash::new(#01234567890123456789012345678901234567890123456789000003)), Option[StakingCredential]::None)
+        , Value::lovelace(10000000)
+        , OutputDatum::new_none()
+    )
+
+    const ctx_good_default: ScriptContext = ScriptContext::new_spending(
+        Tx::new(
+            []TxInput{good_owner_input},
+            []TxInput{good_ref_input_pz},
+            []TxOutput{good_owner_output},
+            Value::lovelace(160000),
+            Value::ZERO,
+            []DCert{},
+            Map[StakingCredential]Int{},
+            TimeRange::from(Time::new(1001)),
+            []PubKeyHash{PubKeyHash::new(#9876543210012345678901234567890123456789012345678901234567891234)},
+            Map[ScriptPurpose]Data{},
+            Map[DatumHash]Data{}
+        ),
+        TxOutputId::new(TxId::new(#0123456789012345678901234567890123456789012345678901234567891234), 0)
+    )`, ["good_datum", "update_nft_redeemer_good", "ctx_good_default"], "data(1{})", []);
 }
 
 runIfEntryPoint(main, "example-scripts.js");

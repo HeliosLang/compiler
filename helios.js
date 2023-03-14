@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.1
+// Version:       0.13.2
 // Last update:   March 2023
 // License:       Unlicense
 //
@@ -219,7 +219,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.1";
+export const VERSION = "0.13.2";
 
 /**
  * Global debug flag. Not currently used for anything though.
@@ -28067,19 +28067,21 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__outputdatum__get_inline_data",
 	`(self) -> {
-		(pair) -> {
-			(index, fields) -> {
-				__core__ifThenElse(
-					__core__equalsInteger(index, 2),
-					() -> {
-						__core__headList(fields)
-					},
-					() -> {
-						error("not an inline datum")
-					}
-				)()
-			}(__core__fstPair(pair), __core__sndPair(pair))
-		}(__core__unConstrData(self))
+		() -> {
+			(pair) -> {
+				(index, fields) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(index, 2),
+						() -> {
+							__core__headList(fields)
+						},
+						() -> {
+							error("not an inline datum")
+						}
+					)()
+				}(__core__fstPair(pair), __core__sndPair(pair))
+			}(__core__unConstrData(self))
+		}
 	}`));
 
 
@@ -28114,20 +28116,12 @@ function makeRawFunctions() {
 		(a_txid, a_index) -> {
 			(b_txid, b_index) -> {
 				__core__ifThenElse(
-					comp_txid(a_txid, b_txid),
+					__core__equalsData(a_txid, b_txid),
 					() -> {
-						true
+						comp_index(a_index, b_index)
 					},
 					() -> {
-						__core__ifThenElse(
-							__core__equalsData(a_txid, b_txid),
-							() -> {
-								comp_index(a_index, b_index)
-							},
-							() -> {
-								false
-							}
-						)()
+						comp_txid(a_txid, b_txid)
 					}
 				)()
 			}(__helios__txoutputid__tx_id(b), __helios__txoutputid__index(b))

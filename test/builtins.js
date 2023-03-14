@@ -1719,7 +1719,7 @@ async function testBuiltins() {
             return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
         });
 
-        await ft.test([ft.list(ft.int(0, 0))], `
+        await ft.test([ft.list(ft.int(0, 1))], `
         testing list_fold_lazy_0
         func main(a: []Int) -> Int {
             a.fold_lazy((x: Int, next: () -> Int) -> Int { if (x == 0) { 0 } else { x / next() } }, 0)
@@ -4519,7 +4519,7 @@ async function testBuiltins() {
             OutputDatum::new_inline(INLINE_DATA)
         }`;
 
-        await ft.testParams({"CONSTR_INDEX": ft.int(0, 2), "INLINE_DATA": ft.int(), "DATUM_HASH_BYTES": ft.bytes()}, ["DATUM_HASH", "INLINE_DATA", "OUTPUT_DATUM"], `
+        await ft.testParams({"CONSTR_INDEX": ft.int(0, 3), "INLINE_DATA": ft.int(), "DATUM_HASH_BYTES": ft.bytes()}, ["DATUM_HASH", "INLINE_DATA", "OUTPUT_DATUM"], `
         testing outputdatum_eq
         func main(datum_hash: DatumHash, inline_data: Data, od: OutputDatum) -> Bool {
             od.switch{
@@ -4531,7 +4531,7 @@ async function testBuiltins() {
         ${outputDatumParam}
         `, ([_], res) => asBool(res), 10);
 
-        await ft.testParams({"CONSTR_INDEX": ft.int(0, 2), "INLINE_DATA": ft.int(), "DATUM_HASH_BYTES": ft.bytes()}, ["OUTPUT_DATUM"], `
+        await ft.testParams({"CONSTR_INDEX": ft.int(0, 3), "INLINE_DATA": ft.int(), "DATUM_HASH_BYTES": ft.bytes()}, ["OUTPUT_DATUM"], `
         testing outputdatum_neq
         func main(od: OutputDatum) -> Bool {
             od.switch{
@@ -4543,7 +4543,7 @@ async function testBuiltins() {
         ${outputDatumParam}
         `, ([_], res) => !asBool(res), 10);
 
-        await ft.testParams({"CONSTR_INDEX": ft.int(0, 2), "INLINE_DATA": ft.int(), "DATUM_HASH_BYTES": ft.bytes()}, ["OUTPUT_DATUM"], `
+        await ft.testParams({"CONSTR_INDEX": ft.int(0, 3), "INLINE_DATA": ft.int(), "DATUM_HASH_BYTES": ft.bytes()}, ["OUTPUT_DATUM"], `
         testing outputdatum_serialize
         func main(od: OutputDatum) -> ByteArray {
             od.switch{
@@ -4592,21 +4592,21 @@ async function testBuiltins() {
     ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 5);
 
-    await ft.test([ft.bytes(0, 3), ft.int(0, 1)], `
+    await ft.test([ft.bytes(0, 3), ft.int(0, 2)], `
     testing txoutputid_txid
     func main(as: ByteArray, ai: Int) -> Bool {
         a = TxOutputId::new(TxId::new(as), ai);
         TxId::new(as) == a.tx_id
     }`, ([a, b], res) => asBool(res));
 
-    await ft.test([ft.bytes(0, 3), ft.int(0, 1)], `
+    await ft.test([ft.bytes(0, 3), ft.int(0, 2)], `
     testing txoutputid_index
     func main(as: ByteArray, ai: Int) -> Bool {
         a = TxOutputId::new(TxId::new(as), ai);
         ai == a.index
     }`, ([a, b], res) => asBool(res));
 
-    await ft.test([ft.bytes(0, 3), ft.int(0, 1), ft.bytes(0, 3), ft.int(0, 1)], `
+    await ft.test([ft.bytes(0, 3), ft.int(0, 2), ft.bytes(0, 3), ft.int(0, 2)], `
     testing txoutputid_lt_geq
     func main(as: ByteArray, ai: Int, bs: ByteArray, bi: Int) -> Bool {
         a = TxOutputId::new(TxId::new(as), ai);
@@ -4614,7 +4614,7 @@ async function testBuiltins() {
         (a < b) != (a >= b)
     }`, ([a, b], res) => asBool(res));
 
-    await ft.test([ft.bytes(0, 3), ft.int(0, 1), ft.bytes(0, 3), ft.int(0, 1)], `
+    await ft.test([ft.bytes(0, 3), ft.int(0, 2), ft.bytes(0, 3), ft.int(0, 2)], `
     testing txoutputid_gt_leq
     func main(as: ByteArray, ai: Int, bs: ByteArray, bi: Int) -> Bool {
         a = TxOutputId::new(TxId::new(as), ai);
