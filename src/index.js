@@ -6,7 +6,7 @@ import { dirname } from "path";
 
 // constituent source files in correct order
 const FILES = [
-	"constants.js",
+	"config.js",
 	"utils.js",
 	"tokens.js",
 	"crypto.js",
@@ -106,7 +106,7 @@ function buildHeader(version) {
 //     > console.log(helios.Program.new("spending my_validator ...").compile().serialize());
 //     
 //
-// Documentation: https://www.hyperion-bt.org/Helios-Book
+// Documentation: https://www.hyperion-bt.org/helios-book
 //
 //
 // Note: I recommend keeping the Helios library as a single unminified file for optimal 
@@ -127,14 +127,13 @@ export const VERSION = "${version}";`;
 function buildFooter() {
 	return `
 /**
- * The following functions are used in ./test-suite.js and ./test-script-addr.js and aren't (yet) 
+ * The following functions are used for some tests in ./test/, and aren't
  * intended to be used by regular users of this library.
  */
 export const exportedForTesting = {
 	assert: assert,
 	assertClass: assertClass,
 	setRawUsageNotifier: setRawUsageNotifier,
-	debug: debug,
 	setBlake2bDigestSize: setBlake2bDigestSize,
 	dumpCostModels: dumpCostModels,
 	Site: Site,

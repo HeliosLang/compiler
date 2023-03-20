@@ -6,7 +6,7 @@ import { assert, runIfEntryPoint } from "./util.js";
 
 const helios_ = helios.exportedForTesting;
 
-export default async function main() {
+async function scriptAddress() {
 	const cborHex1 = "4d01000033222220051200120011";
 	//const cborHex = "581358110100002223333573464945262498992601";
 
@@ -34,6 +34,22 @@ export default async function main() {
 	cborBytes2.unshift(1);
 
 	console.log(helios.bytesToHex(helios_.Crypto.blake2b(cborBytes2, 28)));
+}
+
+async function nonTestnetAddress() {
+	helios.config.IS_TESTNET = false;
+
+	const addr = helios.Address.fromHashes(new helios.PubKeyHash("01020304050607080910111213141516171819202122232425262728"))
+
+	console.log(addr.toBech32());
+
+	assert(addr.toBech32().startsWith("addr1"));
+}
+
+export default async function main() {
+	await scriptAddress();
+
+	await nonTestnetAddress();
 }
 
 runIfEntryPoint(main, "script-addr.js");

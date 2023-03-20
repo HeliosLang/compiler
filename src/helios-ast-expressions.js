@@ -3,7 +3,7 @@
 
 import {
 	TAB
-} from "./constants.js";
+} from "./config.js";
 
 import {
 	assert,

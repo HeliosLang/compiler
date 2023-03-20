@@ -24,7 +24,7 @@ async function main() {
 		"./metadata.js",
 		"./modules.js",
 		"./profile.js",
-		"./script-addr.js",
+		"./addresses.js",
 		"./simplify.js",
 		"./syntax.js",
 		"./tx-building.js",

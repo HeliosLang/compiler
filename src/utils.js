@@ -1,7 +1,7 @@
 //@ts-check
 // Utilities
 
-import { TAB } from "./constants.js";
+import { TAB } from "./config.js";
 
 /**
  * Throws an error if 'cond' is false.

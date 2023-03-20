@@ -185,12 +185,12 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.3";
-/**
- * Set to false if using the library for mainnet (impacts Addresses)
- * @type {boolean}
- */
-export const IS_TESTNET: boolean;
+export const VERSION: "0.13.4";
+export namespace config {
+    const DEBUG: boolean;
+    const STRICT_BABBAGE: boolean;
+    const IS_TESTNET: boolean;
+}
 /**
  * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
  * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
@@ -3844,7 +3844,6 @@ export namespace exportedForTesting {
     export { assert };
     export { assertClass };
     export { setRawUsageNotifier };
-    export { debug };
     export { setBlake2bDigestSize };
     export { dumpCostModels };
     export { Site };
@@ -5422,12 +5421,6 @@ declare function assertClass<Tin, Tout>(obj: Tin, C: new (...any: any[]) => Tout
  * @param {(name: string, count: number) => void} callback
  */
 declare function setRawUsageNotifier(callback: (name: string, count: number) => void): void;
-/**
- * Changes the value of DEBUG
- * @package
- * @param {boolean} b
- */
-declare function debug(b: boolean): void;
 /**
  * Changes the value of BLAKE2B_DIGEST_SIZE
  *  (because the nodejs crypto module only supports

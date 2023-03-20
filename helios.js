@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.3
+// Version:       0.13.4
 // Last update:   March 2023
 // License:       Unlicense
 //
@@ -30,7 +30,7 @@
 //     > console.log(helios.Program.new("spending my_validator ...").compile().serialize());
 //     
 //
-// Documentation: https://www.hyperion-bt.org/Helios-Book
+// Documentation: https://www.hyperion-bt.org/helios-book
 //
 //
 // Note: I recommend keeping the Helios library as a single unminified file for optimal 
@@ -38,7 +38,7 @@
 //
 // 
 // Overview of internals:
-//    Section 1: Global constants            VERSION, DEBUG, debug, STRICT_BABBAGE, TAB, IS_TESTNET
+//    Section 1: Config                      VERSION, TAB, config
 //
 //    Section 2: Utilities                   assert, assertDefined, assertClass, assertNumber, eq, 
 //                                           assertEq, idiv, ipow2, imask, imod8, bigIntToBytes, 
@@ -212,33 +212,14 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-//////////////////////////////
-// Section 1: Global constants
-//////////////////////////////
+////////////////////
+// Section 1: Config
+////////////////////
 
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.3";
-
-/**
- * Global debug flag. Not currently used for anything though.
- * @package
- */
-var DEBUG = false;
-
-/**
- * Changes the value of DEBUG
- * @package
- * @param {boolean} b
- */
-function debug(b) { DEBUG = b };
-
-/**
- * Set this to true if you want to experiment with transactions serialized using the strict babbage cddl format
- * @package
- */
-var STRICT_BABBAGE = false;
+export const VERSION = "0.13.4";
 
 /**
  * A tab used for indenting of the IR.
@@ -248,12 +229,26 @@ var STRICT_BABBAGE = false;
  */
 const TAB = "  ";
 
-
 /**
- * Set to false if using the library for mainnet (impacts Addresses)
- * @type {boolean}
+ * Modifiable config vars
  */
-export var IS_TESTNET = true;
+export const config = {
+    /**
+     * Global debug flag. Not currently used for anything though.
+     */
+    DEBUG: false,
+
+    /**
+     * Set this to true if you want to experiment with transactions serialized using the strict babbage cddl format
+     */
+    STRICT_BABBAGE: false,
+
+    /**
+     * Set to false if using the library for mainnet (impacts Addresses)
+     */
+    IS_TESTNET: true
+}
+
 
 
 ///////////////////////
@@ -6406,7 +6401,7 @@ export class Address extends HeliosData {
      * @param {boolean} isTestnet
      * @returns {Address}
      */
-    static fromHashes(hash, stakingHash = null, isTestnet = IS_TESTNET) {
+    static fromHashes(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
         if (hash instanceof PubKeyHash) {
             return Address.fromPubKeyHash(hash, stakingHash, isTestnet);
         } else if (hash instanceof ValidatorHash) {
@@ -6423,7 +6418,7 @@ export class Address extends HeliosData {
      * @param {boolean} isTestnet
 	 * @returns {Address}
 	 */
-	static fromPubKeyHash(hash, stakingHash = null, isTestnet = IS_TESTNET) {
+	static fromPubKeyHash(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
 		if (stakingHash !== null) {
 			if (stakingHash instanceof StakeKeyHash) {
 				return new Address(
@@ -6448,7 +6443,7 @@ export class Address extends HeliosData {
      * @param {boolean} isTestnet
 	 * @returns {Address}
 	 */
-	static fromValidatorHash(hash, stakingHash = null, isTestnet = IS_TESTNET) {
+	static fromValidatorHash(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
 		if (stakingHash !== null) {
 			if (stakingHash instanceof StakeKeyHash) {
 				return new Address(
@@ -6565,7 +6560,7 @@ export class Address extends HeliosData {
      * @param {boolean} isTestnet
      * @returns {Address}
      */
-    static fromUplcData(data, isTestnet = IS_TESTNET) {
+    static fromUplcData(data, isTestnet = config.IS_TESTNET) {
         assert(data.index == 0);
         assert(data.fields.length == 2);
         
@@ -6621,7 +6616,7 @@ export class Address extends HeliosData {
      * @param {boolean} isTestnet
      * @returns {Address}
      */
-    static fromUplcCbor(bytes, isTestnet = IS_TESTNET) {
+    static fromUplcCbor(bytes, isTestnet = config.IS_TESTNET) {
         return Address.fromUplcData(UplcData.fromCbor(bytes), isTestnet);
     }
 
@@ -25307,7 +25302,7 @@ function makeRawFunctions() {
 
 	/**
 	 * Generates verbose IR for unwrapping a Plutus-core constrData.
-	 * If DEBUG === false then returns IR without print statement
+	 * If config.DEBUG === false then returns IR without print statement
 	 * @param {string} dataExpr
 	 * @param {string} constrName
 	 * @param {number} iConstr
@@ -25315,7 +25310,7 @@ function makeRawFunctions() {
 	 * @returns {string}
 	 */
 	function unDataVerbose(dataExpr, constrName, iConstr, iField) {
-		if (!DEBUG) {
+		if (!config.DEBUG) {
 			return unData(dataExpr, iConstr, iField);
 		} else {
 			return unData(dataExpr, iConstr, iField, `__helios__common__verbose_error(__core__appendString("bad constr for ${constrName}, want ${iConstr.toString()} but got ", __helios__int__show(__core__fstPair(pair))()))`)
@@ -34050,7 +34045,6 @@ class TxBody extends CborData {
 				new ByteArrayData(Crypto.blake2b(d.toCbor())), 
 				d
 			])),
-			// DEBUG extra data to see if it influences the ex budget
 			new ConstrData(0, [new ByteArrayData(txId.bytes)])
 		]);
 	}
@@ -35155,7 +35149,7 @@ export class TxOutput extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		if ((this.#datum === null || this.#datum instanceof HashedDatum) && this.#refScript === null && !STRICT_BABBAGE) {
+		if ((this.#datum === null || this.#datum instanceof HashedDatum) && this.#refScript === null && !config.STRICT_BABBAGE) {
 			// this is needed to match eternl wallet (de)serialization (annoyingly eternl deserializes the tx and then signs its own serialization)
 			// hopefully cardano-cli signs whatever serialization we choose (so we use the eternl variant in order to be compatible with both)
 
@@ -38109,14 +38103,13 @@ export class NetworkEmulator {
 }
 
 /**
- * The following functions are used in ./test-suite.js and ./test-script-addr.js and aren't (yet) 
+ * The following functions are used for some tests in ./test/, and aren't
  * intended to be used by regular users of this library.
  */
 export const exportedForTesting = {
 	assert: assert,
 	assertClass: assertClass,
 	setRawUsageNotifier: setRawUsageNotifier,
-	debug: debug,
 	setBlake2bDigestSize: setBlake2bDigestSize,
 	dumpCostModels: dumpCostModels,
 	Site: Site,

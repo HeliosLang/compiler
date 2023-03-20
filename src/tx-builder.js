@@ -2,8 +2,8 @@
 // Tx types
 
 import {
-    STRICT_BABBAGE
-} from "./constants.js";
+	config
+} from "./config.js";
 
 import {
     assert,
@@ -1259,7 +1259,6 @@ class TxBody extends CborData {
 				new ByteArrayData(Crypto.blake2b(d.toCbor())), 
 				d
 			])),
-			// DEBUG extra data to see if it influences the ex budget
 			new ConstrData(0, [new ByteArrayData(txId.bytes)])
 		]);
 	}
@@ -2364,7 +2363,7 @@ export class TxOutput extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		if ((this.#datum === null || this.#datum instanceof HashedDatum) && this.#refScript === null && !STRICT_BABBAGE) {
+		if ((this.#datum === null || this.#datum instanceof HashedDatum) && this.#refScript === null && !config.STRICT_BABBAGE) {
 			// this is needed to match eternl wallet (de)serialization (annoyingly eternl deserializes the tx and then signs its own serialization)
 			// hopefully cardano-cli signs whatever serialization we choose (so we use the eternl variant in order to be compatible with both)
 

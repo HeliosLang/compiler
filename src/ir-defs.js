@@ -2,8 +2,8 @@
 // IR definitions
 
 import {
-	DEBUG
-} from "./constants.js";
+	config
+} from "./config.js";
 
 import {
     assert,
@@ -154,7 +154,7 @@ function makeRawFunctions() {
 
 	/**
 	 * Generates verbose IR for unwrapping a Plutus-core constrData.
-	 * If DEBUG === false then returns IR without print statement
+	 * If config.DEBUG === false then returns IR without print statement
 	 * @param {string} dataExpr
 	 * @param {string} constrName
 	 * @param {number} iConstr
@@ -162,7 +162,7 @@ function makeRawFunctions() {
 	 * @returns {string}
 	 */
 	function unDataVerbose(dataExpr, constrName, iConstr, iField) {
-		if (!DEBUG) {
+		if (!config.DEBUG) {
 			return unData(dataExpr, iConstr, iField);
 		} else {
 			return unData(dataExpr, iConstr, iField, `__helios__common__verbose_error(__core__appendString("bad constr for ${constrName}, want ${iConstr.toString()} but got ", __helios__int__show(__core__fstPair(pair))()))`)

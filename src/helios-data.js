@@ -2,8 +2,8 @@
 // Helios data objects
 
 import {
-    IS_TESTNET
-} from "./constants.js";
+    config
+} from "./config.js";
 
 import {
     assert,
@@ -1356,7 +1356,7 @@ export class Address extends HeliosData {
      * @param {boolean} isTestnet
      * @returns {Address}
      */
-    static fromHashes(hash, stakingHash = null, isTestnet = IS_TESTNET) {
+    static fromHashes(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
         if (hash instanceof PubKeyHash) {
             return Address.fromPubKeyHash(hash, stakingHash, isTestnet);
         } else if (hash instanceof ValidatorHash) {
@@ -1373,7 +1373,7 @@ export class Address extends HeliosData {
      * @param {boolean} isTestnet
 	 * @returns {Address}
 	 */
-	static fromPubKeyHash(hash, stakingHash = null, isTestnet = IS_TESTNET) {
+	static fromPubKeyHash(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
 		if (stakingHash !== null) {
 			if (stakingHash instanceof StakeKeyHash) {
 				return new Address(
@@ -1398,7 +1398,7 @@ export class Address extends HeliosData {
      * @param {boolean} isTestnet
 	 * @returns {Address}
 	 */
-	static fromValidatorHash(hash, stakingHash = null, isTestnet = IS_TESTNET) {
+	static fromValidatorHash(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
 		if (stakingHash !== null) {
 			if (stakingHash instanceof StakeKeyHash) {
 				return new Address(
@@ -1515,7 +1515,7 @@ export class Address extends HeliosData {
      * @param {boolean} isTestnet
      * @returns {Address}
      */
-    static fromUplcData(data, isTestnet = IS_TESTNET) {
+    static fromUplcData(data, isTestnet = config.IS_TESTNET) {
         assert(data.index == 0);
         assert(data.fields.length == 2);
         
@@ -1571,7 +1571,7 @@ export class Address extends HeliosData {
      * @param {boolean} isTestnet
      * @returns {Address}
      */
-    static fromUplcCbor(bytes, isTestnet = IS_TESTNET) {
+    static fromUplcCbor(bytes, isTestnet = config.IS_TESTNET) {
         return Address.fromUplcData(UplcData.fromCbor(bytes), isTestnet);
     }
 
