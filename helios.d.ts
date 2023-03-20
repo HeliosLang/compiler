@@ -186,11 +186,19 @@ export function highlight(src: string): Uint8Array;
  * Version of the Helios library.
  */
 export const VERSION: "0.13.4";
-export namespace config {
-    const DEBUG: boolean;
-    const STRICT_BABBAGE: boolean;
-    const IS_TESTNET: boolean;
-}
+/**
+ * Modifiable config vars
+ * @type {{
+ *   DEBUG: boolean,
+ *   STRICT_BABBAGE: boolean,
+ *   IS_TESTNET: boolean
+ * }}
+ */
+export const config: {
+    DEBUG: boolean;
+    STRICT_BABBAGE: boolean;
+    IS_TESTNET: boolean;
+};
 /**
  * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
  * or when the user of Helios throws an explicit error inside a script (eg. division by zero).

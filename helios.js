@@ -231,6 +231,11 @@ const TAB = "  ";
 
 /**
  * Modifiable config vars
+ * @type {{
+ *   DEBUG: boolean,
+ *   STRICT_BABBAGE: boolean,
+ *   IS_TESTNET: boolean
+ * }}
  */
 export const config = {
     /**
