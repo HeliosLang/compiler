@@ -3314,6 +3314,62 @@ function makeRawFunctions() {
 	`(self) -> {
 		__helios__common__field_0(__helios__common__field_0(__helios__common__field_1(self)))
 	}`));
+	add(new RawFunc("__helios__timerange__show",
+	`(self) -> {
+		() -> {
+			(show_extended) -> {
+				__helios__string____add(
+					(lower) -> {
+						(extended, closed) -> {
+							__helios__string____add(
+								__core__ifThenElse(
+									closed,
+									() -> {__helios__common__stringData("[")},
+									() -> {__helios__common__stringData("(")}
+								)(),
+								show_extended(extended)
+							)
+						}(__helios__common__field_0(lower), __helios__common__unBoolData(__helios__common__field_1(lower)))
+					}(__helios__common__field_0(self)),
+					__helios__string____add(
+						__helios__common__stringData(","),
+						(upper) -> {
+							(extended, closed) -> {
+								__helios__string____add(
+									show_extended(extended),
+									__core__ifThenElse(
+										closed,
+										() -> {__helios__common__stringData("]")},
+										() -> {__helios__common__stringData(")")}
+									)()
+								)
+							}(__helios__common__field_0(upper), __helios__common__unBoolData(__helios__common__field_1(upper)))
+						}(__helios__common__field_1(self))
+					)
+				)
+			}(
+				(extended) -> {
+					(extType) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(extType, 0),
+							() -> {__helios__common__stringData("-inf")},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(extType, 2),
+									() -> {__helios__common__stringData("+inf")},
+									() -> {
+										(fields) -> {
+											__helios__int__show(__core__headList(fields))()
+										}(__core__sndPair(__core__unConstrData(extended)))
+									}
+								)()
+							}
+						)()
+					}(__core__fstPair(__core__unConstrData(extended)))
+				}
+			)
+		}
+	}`))
 
 
 	// AssetClass builtins

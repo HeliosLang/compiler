@@ -1,5 +1,8 @@
 This Changelog only applies to notable changes of language related features in `helios.js` on the main branch.
 
+# 2023/03/27
+* `TimeRange.show`
+
 # 2023/03/13
 * Functions can have optional arguments
 * `Value.show`

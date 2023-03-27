@@ -5239,6 +5239,8 @@ export class TimeRangeType extends BuiltinType {
 			case "start":
 			case "end":
 				return Instance.new(new TimeType());
+			case "show":
+				return Instance.new(new FuncType([], new StringType()));
 			default:
 				return super.getInstanceMember(name);
 		}

@@ -5329,6 +5329,32 @@ async function testBuiltins() {
         TimeRange::new(Time::new(a), Time::new(b)).is_before(Time::new(c))
     }`, ([_, b, c], res) => (asInt(b) < asInt(c)) === asBool(res));
 
+    await ft.test([ft.int(), ft.int()], `
+    testing timerange_show
+    func main(a: Int, b: Int) -> String {
+        TimeRange::new(Time::new(a), Time::new(b)).show()
+    }`, ([a, b], res) => {
+        return asString(res) == `[${asInt(a).toString()},${asInt(b).toString()}]`
+    }, 5);
+
+    await ft.test([ft.int()], `
+    testing timerange_show_from
+    func main(a: Int) -> String {
+        TimeRange::from(Time::new(a)).show()
+    }`, ([a], res) => asString(res) == `[${asInt(a).toString()},+inf]`, 5);
+
+    await ft.test([ft.int()], `
+    testing timerange_show_to
+    func main(a: Int) -> String {
+        TimeRange::to(Time::new(a)).show()
+    }`, ([a], res) => asString(res) == `[-inf,${asInt(a).toString()}]`, 5);
+
+    await ft.test([], `
+    testing timerange_show_inf
+    func main() -> Bool {
+        TimeRange::NEVER.show() == "[+inf,-inf]" &&
+        TimeRange::ALWAYS.show() == "[-inf,+inf]"
+    }`, ([_], res) => asBool(res), 1);
 
     await ft.testParams({"START": ft.int(), "DUR": ft.int()}, ["TR"], `
     testing timerange_from_data

@@ -608,7 +608,7 @@ internal ns: __helios__duration
 associated: new, to, from, ALWAYS, NEVER, from_data
 operators:  __eq, __neq
 getters:    start, end
-methods:    serialize, contains, is_before, is_after
+methods:    serialize, contains, is_before, is_after, show
 internal ns: __helios__timerange
 ```
 
@@ -624,7 +624,7 @@ internal ns: __helios__assetclass
 ```
 associated:  ZERO, lovelace, new, from_data, from_map
 operators:   __eq, __neq, __add, __sub, __geq, __gt, __leq, __lt
-methods:     serialize, is_zero, get, get_safe, contains, get_policy, contains_policy, to_map, get_lovelace, get_assets
+methods:     serialize, is_zero, get, get_safe, contains, get_policy, contains_policy, to_map, get_lovelace, get_assets, show
 hidden:      get_map_keys, merge_map_keys, get_inner_map, get_inner_map_int, add_or_subtract_inner, add_or_subtract, compare_inner, compare
 internal ns: __helios__value
 ```
