@@ -4379,23 +4379,26 @@ export class OutputDatumType extends BuiltinType {
 	getTypeMember(name) {
 		switch (name.value) {
 			case "new_none":
-				if (this.macrosAllowed) {
-					return Instance.new(new FuncType([], new NoOutputDatumType()));
-				} else {
-					throw name.referenceError("'OutputDatum::new_none' only allowed after 'main'");
-				}
+				return Instance.new(new FuncType([], new NoOutputDatumType()));
 			case "new_hash":
-				if (this.macrosAllowed) {
-					return Instance.new(new FuncType([new DatumHashType()], new HashedOutputDatumType()));
-				} else {
-					throw name.referenceError("'OutputDatum::new_hash' only allowed after 'main'");
-				}
-			case "new_inline":
-				if (this.macrosAllowed) {
-					return Instance.new(new FuncType([new AnyDataType()], new InlineOutputDatumType()));
-				} else {
-					throw name.referenceError("'OutputDatum::new_inline' only allowed after 'main'");
-				}
+				return Instance.new(new FuncType([new DatumHashType()], new HashedOutputDatumType()));
+			case "new_inline": {
+				let a = new ParamType("a");
+				return new ParamFuncValue([a], new FuncType([a], new InlineOutputDatumType()), () => {
+					let type = a.type;
+					if (type === null) {
+						throw new Error("should've been inferred by now");
+					} else {
+						if (a.type instanceof FuncType) {
+							throw name.site.typeError("can't use function as argument to OutputDatum::new_inline()");
+						} else if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
+							return "new_inline_from_bool";
+						} else {
+							return "new_inline";
+						}
+					}
+				});
+			}
 			case "None":
 				return new NoOutputDatumType();
 			case "Hash":

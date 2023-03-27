@@ -2912,6 +2912,10 @@ function makeRawFunctions() {
 	`(data) -> {
 		__core__constrData(2, __helios__common__list_1(data))
 	}`));
+	add(new RawFunc("__helios__outputdatum__new_inline_from_bool",
+	`(b) -> {
+		__helios__outputdatum__new_inline(_helios__common__boolData(b))
+	}`));
 	add(new RawFunc("__helios__outputdatum__get_inline_data",
 	`(self) -> {
 		() -> {
