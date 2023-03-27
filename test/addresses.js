@@ -44,12 +44,48 @@ async function nonTestnetAddress() {
 	console.log(addr.toBech32());
 
 	assert(addr.toBech32().startsWith("addr1"));
+
+	helios.config.IS_TESTNET = true;
+}
+
+async function addressInDatum() {
+	const TEST_PROG = `
+    spending test
+
+    struct Datum {
+      addr: Address
+    }
+
+    func main(_, _, _) -> Bool {
+      true
+    }
+    `;
+
+    const program = helios.Program.new(TEST_PROG);
+
+    const { Datum } = program.types;
+
+    const addr = "addr_test1qrgqd6mhs05vjvtqk2at9pau3fhsd857dyxds27qk54gcvtnpkq9k63v7eue3u8u6pcvuzmwsk2hl46ceu9wxjxjvh4sj4drgd";
+
+    const a = helios.Address.fromBech32(addr);
+
+    const datum = new Datum(a);
+
+    const inline = helios.Datum.inline(datum);
+
+    const uplcData = inline.data;
+
+    const addrFromUplcData = helios.Address.fromUplcData(uplcData)
+
+    assert(addrFromUplcData.toBech32() == a.toBech32());
 }
 
 export default async function main() {
 	await scriptAddress();
 
 	await nonTestnetAddress();
+
+	await addressInDatum();
 }
 
-runIfEntryPoint(main, "script-addr.js");
+runIfEntryPoint(main, "addresses.js");

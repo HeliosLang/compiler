@@ -1529,9 +1529,10 @@ export class Address extends HeliosData {
          */
         let sh;
 
-        if (stakData.index == 0) {
+		// for some weird reason Option::None has index 1
+        if (stakData.index == 1) {
             sh = null;
-        } else if (stakData.index == 1) {
+        } else if (stakData.index == 0) {
             assert(stakData.fields.length == 1);
 
             const inner = stakData.fields[0];

@@ -4316,15 +4316,11 @@ export class TxOutputType extends BuiltinType {
 	getTypeMember(name) {
 		switch (name.value) {
 			case "new":
-				if (this.macrosAllowed) {
-					return Instance.new(new FuncType([
-						new AddressType(), // 0
-						new ValueType(), // 1
-						new OutputDatumType(), // 2
-					], this));
-				} else {
-					throw name.referenceError("'TxOutput::new' can only be used after 'main'");
-				}
+				return Instance.new(new FuncType([
+					new AddressType(), // 0
+					new ValueType(), // 1
+					new OutputDatumType(), // 2
+				], this));
 			default:
 				return super.getTypeMember(name);
 		}

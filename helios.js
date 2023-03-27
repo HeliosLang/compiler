@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.4
+// Version:       0.13.5
 // Last update:   March 2023
 // License:       Unlicense
 //
@@ -219,7 +219,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.4";
+export const VERSION = "0.13.5";
 
 /**
  * A tab used for indenting of the IR.
@@ -6579,9 +6579,10 @@ export class Address extends HeliosData {
          */
         let sh;
 
-        if (stakData.index == 0) {
+		// for some weird reason Option::None has index 1
+        if (stakData.index == 1) {
             sh = null;
-        } else if (stakData.index == 1) {
+        } else if (stakData.index == 0) {
             assert(stakData.fields.length == 1);
 
             const inner = stakData.fields[0];
@@ -16719,15 +16720,11 @@ class TxOutputType extends BuiltinType {
 	getTypeMember(name) {
 		switch (name.value) {
 			case "new":
-				if (this.macrosAllowed) {
-					return Instance.new(new FuncType([
-						new AddressType(), // 0
-						new ValueType(), // 1
-						new OutputDatumType(), // 2
-					], this));
-				} else {
-					throw name.referenceError("'TxOutput::new' can only be used after 'main'");
-				}
+				return Instance.new(new FuncType([
+					new AddressType(), // 0
+					new ValueType(), // 1
+					new OutputDatumType(), // 2
+				], this));
 			default:
 				return super.getTypeMember(name);
 		}
