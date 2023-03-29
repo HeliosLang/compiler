@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.7
+// Version:       0.13.8
 // Last update:   March 2023
 // License:       Unlicense
 //
@@ -219,7 +219,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.7";
+export const VERSION = "0.13.8";
 
 /**
  * A tab used for indenting of the IR.
@@ -12068,7 +12068,7 @@ export class Tokenizer {
 	readSingleLineComment() {
 		let c = this.readChar();
 
-		while (c != '\n') {
+		while (c != '\n' && c != '\0') {
 			c = this.readChar();
 		}
 	}

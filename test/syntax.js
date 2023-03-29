@@ -556,6 +556,13 @@ async function test19() {
   }
 }
 
+async function test20() {
+  // no newlines
+  const src = `testing no_newlines func main()->Bool{true}//`
+
+  helios.Program.new(src).compile(true)
+}
+
 export default async function main() {
   await test1();
 
@@ -594,6 +601,8 @@ export default async function main() {
   await test18();
 
   await test19();
+
+  await test20();
 }
 
 runIfEntryPoint(main, "syntax.js");

@@ -237,7 +237,7 @@ export class Tokenizer {
 	readSingleLineComment() {
 		let c = this.readChar();
 
-		while (c != '\n') {
+		while (c != '\n' && c != '\0') {
 			c = this.readChar();
 		}
 	}
