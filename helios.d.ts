@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.8";
+export const VERSION: "0.13.9";
 /**
  * Modifiable config vars
  * @type {{
@@ -955,6 +955,8 @@ export class ByteArrayData extends UplcData {
     static fromCbor(bytes: number[]): ByteArrayData;
     /**
      * Bytearray comparison, which can be used for sorting bytearrays
+     * @example
+     * ByteArrayData.comp(hexToBytes("0101010101010101010101010101010101010101010101010101010101010101"), hexToBytes("0202020202020202020202020202020202020202020202020202020202020202")) => -1
      * @param {number[]} a
      * @param {number[]} b
      * @returns {number} - 0 -> equals, 1 -> gt, -1 -> lt
@@ -1552,6 +1554,7 @@ export class Assets extends CborData {
      * Order of tokens per mintingPolicyHash isn't changed
      */
     sort(): void;
+    assertSorted(): void;
     #private;
 }
 export class Value extends HeliosData {
@@ -3878,6 +3881,7 @@ export namespace exportedForTesting {
     export { UplcInt };
     export { IRProgram };
     export { Tx };
+    export { TxInput };
     export { TxBody };
 }
 /**
@@ -5213,6 +5217,14 @@ declare class TxBody extends CborData {
      */
     addInput(input: TxInput, checkUniqueness?: boolean): void;
     /**
+     * Used to remove dummy inputs
+     * Dummy inputs are needed to be able to correctly estimate fees
+     * Throws an error if input doesn't exist in list of inputs
+     * Internal use only!
+     * @param {TxInput} input
+     */
+    removeInput(input: TxInput): void;
+    /**
      * @param {TxInput} input
      */
     addRefInput(input: TxInput): void;
@@ -5220,6 +5232,14 @@ declare class TxBody extends CborData {
      * @param {TxOutput} output
      */
     addOutput(output: TxOutput): void;
+    /**
+     * Used to remove dummy outputs
+     * Dummy outputs are needed to be able to correctly estimate fees
+     * Throws an error if the output doesn't exist in list of outputs
+     * Internal use only!
+     * @param {TxOutput} output
+     */
+    removeOutput(output: TxOutput): void;
     /**
      * @param {PubKeyHash} hash
      */

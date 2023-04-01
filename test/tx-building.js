@@ -563,6 +563,45 @@ async function testEmulatorPrivateKeyGen() {
 	console.log("all emulated wallets unique");
 }
 
+async function sortInputs() {
+	const input1 = new helios.UTxO(
+		new helios.TxId("a66564e90416a3c3ed89350108799ab122bdbfd098624d0f43f955207ace8eda"),
+		1n,
+		new helios.TxOutput(
+			new helios.Address("addr_test1wpcwnce7k66ldmduhkqdrgamxmnytekhr2hyp8ncsdcg0aqufrga4"),
+			new helios.Value(2000000n, new helios.Assets([[
+				"324bcb5a0968a69ddc8c6b12bbd0d301d166852f23deb3e88bc2891d", [["304b61747a", 1n]]
+			]]))
+		)
+	);
+
+	const input2 = new helios.UTxO(
+		new helios.TxId("fed1bb855c77efd1fa209a1b35c447b13d4b09671f7d682263b9f3af1089f58c"),
+		1n,
+		new helios.TxOutput(
+			new helios.Address("addr_test1qruk42fdnsvvyuha6z23dagxq5966h68ta8d42cdsa6e05muqmq4j86269r4ckhjsvmapapl24fazrtl22yg9sn9pvfsz4vr2h"),
+			new helios.Value(1172320n, new helios.Assets([[
+				"5e2f416b455dc4e5f9a7c7e58919e9a12a1db15e14ed08f8776b7594", [["48656c6c6f20776f726c6421", 1n]]
+			]]))
+		)
+	);
+
+	const input3 = new helios.UTxO(
+		new helios.TxId("45991e08acd7be985161ddc58a3fd5885221d4a4b8a65d1e9f0c6af4f38efe22"),
+		1n,
+		new helios.TxOutput(
+			new helios.Address("addr_test1qruk42fdnsvvyuha6z23dagxq5966h68ta8d42cdsa6e05muqmq4j86269r4ckhjsvmapapl24fazrtl22yg9sn9pvfsz4vr2h"),
+			new helios.Value(6846240194n)
+		)
+	);
+
+	const inputs = [input1, input2, input3];
+
+	inputs.sort((a, b) => helios_.TxInput.comp(a.asTxInput, b.asTxInput));
+
+	console.log(inputs.map(i => i.txId.hex));
+}
+
 export default async function main() {
 	await assetsCompare();
 
@@ -593,6 +632,8 @@ export default async function main() {
 	await pickUtxos();
 
 	await testEmulatorPrivateKeyGen();
+
+	await sortInputs();
 }
 
 runIfEntryPoint(main, "tx-building.js");

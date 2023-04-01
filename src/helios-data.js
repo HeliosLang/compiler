@@ -1819,6 +1819,9 @@ export class Assets extends CborData {
 		}
 
 		this.#assets.push([mph, tokens.slice()]);
+
+		// sort immediately
+		this.sort();
 	}
 
 	/**
@@ -2043,6 +2046,16 @@ export class Assets extends CborData {
 		this.#assets.sort((a, b) => {
 			return Hash.compare(a[0], b[0]);
 		});
+	}
+
+	assertSorted() {
+		this.#assets.forEach((b, i) => {
+			if (i > 0) {
+				const a = this.#assets[i-1];
+
+				assert(Hash.compare(a[0], b[0]) == -1, "assets not sorted")
+			}
+		})
 	}
 }
 

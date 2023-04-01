@@ -319,6 +319,8 @@ export class ByteArrayData extends UplcData {
 
 	/**
 	 * Bytearray comparison, which can be used for sorting bytearrays
+	 * @example
+	 * ByteArrayData.comp(hexToBytes("0101010101010101010101010101010101010101010101010101010101010101"), hexToBytes("0202020202020202020202020202020202020202020202020202020202020202")) => -1
 	 * @param {number[]} a
 	 * @param {number[]} b
 	 * @returns {number} - 0 -> equals, 1 -> gt, -1 -> lt

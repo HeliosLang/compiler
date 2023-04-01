@@ -564,8 +564,8 @@ export class Tx extends CborData {
 			this.#body.collateral.pop();
 		}
 		this.#body.setCollateralReturn(null);
-		this.#body.inputs.pop();
-		this.#body.outputs.pop();
+		this.#body.removeInput(dummyInputs[0]);
+		this.#body.removeOutput(dummyOutput);
 
 		return baseFee;
 	}
@@ -594,7 +594,7 @@ export class Tx extends CborData {
 		/**
 		 * @param {TxInput[]} inputs 
 		 */
-		function addInputs(inputs) {
+		function addCollateralInputs(inputs) {
 			// first try using the UTxOs that already form the inputs
 			const cleanInputs = inputs.filter(utxo => utxo.value.assets.isZero()).sort((a, b) => Number(a.value.lovelace - b.value.lovelace));
 
@@ -612,9 +612,9 @@ export class Tx extends CborData {
 			}
 		}
 		
-		addInputs(this.#body.inputs.slice());
+		addCollateralInputs(this.#body.inputs.slice());
 
-		addInputs(spareUtxos.map(utxo => utxo.asTxInput));
+		addCollateralInputs(spareUtxos.map(utxo => utxo.asTxInput));
 
 		// create the collateral return output if there is enough lovelace
 		const changeOutput = new TxOutput(changeAddress, new Value(0n));
@@ -1358,17 +1358,46 @@ class TxBody extends CborData {
 	addInput(input, checkUniqueness = true) {
 		if (input.origOutput === null) {
 			throw new Error("TxInput.origOutput must be set when building transaction");
-		} else {
-			input.origOutput.value.assertAllPositive();
+		}
 
-			if (checkUniqueness) {
-				assert(this.#inputs.every(prevInput => {
-					return  !prevInput.txId.eq(input.txId) || prevInput.utxoIdx != input.utxoIdx
-				}), "input already added before");
+		input.origOutput.value.assertAllPositive();
+
+		if (checkUniqueness) {
+			assert(this.#inputs.every(prevInput => {
+				return  !prevInput.txId.eq(input.txId) || prevInput.utxoIdx != input.utxoIdx
+			}), "input already added before");
+		}
+
+		// push, then sort immediately
+		this.#inputs.push(input);
+		this.#inputs.sort(TxInput.comp);
+	}
+
+	/**
+	 * Used to remove dummy inputs
+	 * Dummy inputs are needed to be able to correctly estimate fees
+	 * Throws an error if input doesn't exist in list of inputs
+	 * Internal use only!
+	 * @param {TxInput} input
+	 */
+	removeInput(input) {
+		let idx = -1;
+
+		// search from end, so removal is exact inverse of addition
+		for (let i = this.#inputs.length - 1; i >= 0; i--) {
+			if (this.#inputs[i] == input) {
+				idx = i;
+				break;
 			}
 		}
 
-		this.#inputs.push(input);
+		const n = this.#inputs.length;
+
+		assert(idx != -1, "input not found");
+
+		this.#inputs = this.#inputs.filter((_, i) => i != idx);
+
+		assert(this.#inputs.length == n - 1, "input not removed");
 	}
 
 	/**
@@ -1385,6 +1414,33 @@ class TxBody extends CborData {
 		output.value.assertAllPositive();
 
 		this.#outputs.push(output);
+	}
+
+	/**
+	 * Used to remove dummy outputs
+	 * Dummy outputs are needed to be able to correctly estimate fees
+	 * Throws an error if the output doesn't exist in list of outputs
+	 * Internal use only!
+	 * @param {TxOutput} output 
+	 */
+	removeOutput(output) {
+		let idx = -1;
+
+		// search from end, so removal is exact inverse of addition
+		for (let i = this.#outputs.length - 1; i >= 0; i--) {
+			if (this.#outputs[i] == output) {
+				idx = i;
+				break;
+			}
+		}
+
+		const n = this.#outputs.length;
+
+		assert(idx != -1, "output not found");
+
+		this.#outputs = this.#outputs.filter((_, i) => i != idx);
+
+		assert(this.#outputs.length == n - 1, "output not removed");
 	}
 
 	/**
@@ -1546,13 +1602,22 @@ class TxBody extends CborData {
 	 * Mutates
 	 */
 	sort() {
-		this.#inputs.sort(TxInput.comp);
+		// inputs should've been added in sorted manner, so this is just a check
+		this.#inputs.forEach((input, i) => {
+			if (i > 0) {
+				const prev = this.#inputs[i-1];
 
+				assert(TxInput.comp(prev, input) == -1, "inputs not sorted");
+			}
+		});
+
+		// TODO: also add withdrawals in sorted manner
 		this.#withdrawals = new Map(Array.from(this.#withdrawals.entries()).sort((a, b) => {
 			return Address.compStakingHashes(a[0], b[0]);
 		}));
 
-		this.#minted.sort();
+		// minted assets should've been added in sorted manner, so this is just a check
+		this.#minted.assertSorted();
 	}
 
 	/**
@@ -1935,8 +2000,8 @@ export class TxWitnesses extends CborData {
 		);
 
 		body.setFee(fee);
-		body.inputs.push(dummyInput);
-		body.outputs.push(dummyOutput);
+		body.addInput(dummyInput, false);
+		body.addOutput(dummyOutput);
 
 		for (let i = 0; i < this.#redeemers.length; i++) {
 			const redeemer = this.#redeemers[i];
@@ -1948,8 +2013,8 @@ export class TxWitnesses extends CborData {
 			redeemer.setCost(cost);
 		}
 
-		body.inputs.pop();
-		body.outputs.pop();
+		body.removeInput(dummyInput);
+		body.removeOutput(dummyOutput);
 	}
 
 	/**

@@ -160,7 +160,8 @@ export const exportedForTesting = {
 	UplcInt: UplcInt,
 	IRProgram: IRProgram,
 	Tx: Tx,
-	TxBody: TxBody,
+	TxInput: TxInput,
+	TxBody: TxBody
 };`
 }
 
