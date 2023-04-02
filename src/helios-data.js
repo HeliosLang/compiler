@@ -1175,10 +1175,11 @@ export class TxId extends Hash {
 
 	/**
 	 * Filled with 255 so that the internal show() function has max execution budget cost
+	 * @param {number} fill
 	 * @returns {TxId}
 	 */
-	static dummy() {
-		return new TxId((new Array(32)).fill(255));
+	static dummy(fill = 255) {
+		return new TxId((new Array(32)).fill(fill));
 	}
 }
 

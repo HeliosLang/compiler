@@ -14,7 +14,8 @@ export const TAB = "  ";
  * @type {{
  *   DEBUG: boolean,
  *   STRICT_BABBAGE: boolean,
- *   IS_TESTNET: boolean
+ *   IS_TESTNET: boolean,
+ *   N_DUMMY_INPUTS: number
  * }}
  */
 export const config = {
@@ -31,5 +32,15 @@ export const config = {
     /**
      * Set to false if using the library for mainnet (impacts Addresses)
      */
-    IS_TESTNET: true
+    IS_TESTNET: true,
+
+    /**
+     * Calculating the execution budget during tx building requires knowing all the inputs beforehand,
+     *   which is very difficult because balancing is done after the budget is calculated.
+     * Instead we use at least 1 dummy input, which should act as a representative balancing input.
+     * For increased robustness we use 2 dummy inputs, one with Txid 0 and other with TxId ffff...,
+     *   because eg. there are case where the TxId is being printed, and a Txid of ffff... would overestimate the fee
+     * This value must be '1' or '2'
+     */
+    N_DUMMY_INPUTS: 2
 }

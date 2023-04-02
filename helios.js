@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.9
+// Version:       0.13.10
 // Last update:   April 2023
 // License:       Unlicense
 //
@@ -219,7 +219,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.9";
+export const VERSION = "0.13.10";
 
 /**
  * A tab used for indenting of the IR.
@@ -234,7 +234,8 @@ const TAB = "  ";
  * @type {{
  *   DEBUG: boolean,
  *   STRICT_BABBAGE: boolean,
- *   IS_TESTNET: boolean
+ *   IS_TESTNET: boolean,
+ *   N_DUMMY_INPUTS: number
  * }}
  */
 export const config = {
@@ -251,7 +252,17 @@ export const config = {
     /**
      * Set to false if using the library for mainnet (impacts Addresses)
      */
-    IS_TESTNET: true
+    IS_TESTNET: true,
+
+    /**
+     * Calculating the execution budget during tx building requires knowing all the inputs beforehand,
+     *   which is very difficult because balancing is done after the budget is calculated.
+     * Instead we use at least 1 dummy input, which should act as a representative balancing input.
+     * For increased robustness we use 2 dummy inputs, one with Txid 0 and other with TxId ffff...,
+     *   because eg. there are case where the TxId is being printed, and a Txid of ffff... would overestimate the fee
+     * This value must be '1' or '2'
+     */
+    N_DUMMY_INPUTS: 2
 }
 
 
@@ -6227,10 +6238,11 @@ export class TxId extends Hash {
 
 	/**
 	 * Filled with 255 so that the internal show() function has max execution budget cost
+	 * @param {number} fill
 	 * @returns {TxId}
 	 */
-	static dummy() {
-		return new TxId((new Array(32)).fill(255));
+	static dummy(fill = 255) {
+		return new TxId((new Array(32)).fill(fill));
 	}
 }
 
@@ -33412,17 +33424,22 @@ export class Tx extends CborData {
 	 * @param {UTxO[]} spareUtxos 
 	 */
 	estimateCollateralBaseFee(networkParams, changeAddress, spareUtxos) {
+		assert(config.N_DUMMY_INPUTS == 1 || config.N_DUMMY_INPUTS == 2, "expected N_DUMMY_INPUTs == 1 or N_DUMMY_INPUTS == 2");
+
 		// create the collateral return output (might not actually be added if there isn't enough lovelace)
 		const dummyOutput = new TxOutput(changeAddress, new Value(0n));
 		dummyOutput.correctLovelace(networkParams);
 
 		// some dummy UTxOs on to be able to correctly calculate the collateral (assuming it uses full body fee)
-		const dummyInputs = spareUtxos.map(spare => spare.asTxInput).concat(this.#body.inputs).slice(0, 3);
-		dummyInputs.forEach(input => {
+		const dummyCollateral = spareUtxos.map(spare => spare.asTxInput).concat(this.#body.inputs).slice(0, 3);
+		dummyCollateral.forEach(input => {
 			this.#body.collateral.push(input);
 		});
+
+		const dummyInputs = dummyCollateral.slice(0, config.N_DUMMY_INPUTS);
+
 		this.#body.setCollateralReturn(dummyOutput);
-		this.#body.addInput(dummyInputs[0], false);
+		dummyInputs.forEach(dummyInput => this.#body.addInput(dummyInput, false));
 		this.#body.addOutput(dummyOutput);
 
 		const baseFee = this.estimateFee(networkParams);
@@ -33432,7 +33449,7 @@ export class Tx extends CborData {
 			this.#body.collateral.pop();
 		}
 		this.#body.setCollateralReturn(null);
-		this.#body.removeInput(dummyInputs[0]);
+		dummyInputs.forEach(dummyInput => this.#body.removeInput(dummyInput));
 		this.#body.removeOutput(dummyOutput);
 
 		return baseFee;
@@ -34849,27 +34866,48 @@ export class TxWitnesses extends CborData {
 	 * @returns {Promise<void>}
 	 */
 	async executeRedeemers(networkParams, body, changeAddress) {
-		// additional dummy input and dummy output to compensate for balancing inputs and outputs that might be added later
+		assert(config.N_DUMMY_INPUTS == 1 || config.N_DUMMY_INPUTS == 2, "expected N_DUMMY_INPUTS==1 or N_DUMMY_INPUTS==2");
+		const twoDummyInputs = config.N_DUMMY_INPUTS == 2;
+
 		const fee = networkParams.maxTxFee;
 
+		// Additional 2 dummy inputs and 1 dummy output to compensate for balancing inputs and outputs that might be added later
+		// The reason for needing 2 dummy inputs is that one needs to be at the beginning of the body.inputs list (TxId 0000...), and the other needs TxId ffffff (at the end of the list)
+		// TxId ffffff overestimates the cost of printing the TxIds, and the dummy TxId 00000 overestimates iterating over body.inputs
+		// We can't just prepend a dummy input with TxId ffffff, because some scripts might be relying on the order of the inputs (eg. counting votes in DAOs)
+
 		// 1000 ADA should be enough as a dummy input/output
-		const dummyInput = new TxInput(
-			TxId.dummy(),
+		const dummyInput1 = new TxInput(
+			TxId.dummy(0),
 			0n,
 			new TxOutput(
 				changeAddress,
-				new Value(fee + 1000000000n)
+				new Value(fee + 1000_000_000n)
+			)
+		);
+		
+		const dummyInput2 = new TxInput(
+			TxId.dummy(255),
+			999n,
+			new TxOutput(
+				changeAddress,
+				new Value(1000_000_000n)
 			)
 		);
 
 		const dummyOutput = new TxOutput(
 			changeAddress,
-			new Value(1000000000n)
+			new Value(twoDummyInputs ? 2000_000_000n : 1000_000_000n)
 		);
 
 		body.setFee(fee);
-		body.addInput(dummyInput, false);
+		body.addInput(dummyInput1, false);
+		if (twoDummyInputs) {
+			body.addInput(dummyInput2, false);
+		}
 		body.addOutput(dummyOutput);
+
+		this.updateRedeemerIndices(body);
 
 		for (let i = 0; i < this.#redeemers.length; i++) {
 			const redeemer = this.#redeemers[i];
@@ -34881,8 +34919,13 @@ export class TxWitnesses extends CborData {
 			redeemer.setCost(cost);
 		}
 
-		body.removeInput(dummyInput);
+		body.removeInput(dummyInput1);
+		if (twoDummyInputs) {
+			body.removeInput(dummyInput2);
+		}
 		body.removeOutput(dummyOutput);
+
+		this.updateRedeemerIndices(body);
 	}
 
 	/**

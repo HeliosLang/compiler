@@ -185,19 +185,21 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.9";
+export const VERSION: "0.13.10";
 /**
  * Modifiable config vars
  * @type {{
  *   DEBUG: boolean,
  *   STRICT_BABBAGE: boolean,
- *   IS_TESTNET: boolean
+ *   IS_TESTNET: boolean,
+ *   N_DUMMY_INPUTS: number
  * }}
  */
 export const config: {
     DEBUG: boolean;
     STRICT_BABBAGE: boolean;
     IS_TESTNET: boolean;
+    N_DUMMY_INPUTS: number;
 };
 /**
  * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
@@ -1290,9 +1292,10 @@ export class TxId extends Hash {
     static fromUplcCbor(bytes: string | number[]): TxId;
     /**
      * Filled with 255 so that the internal show() function has max execution budget cost
+     * @param {number} fill
      * @returns {TxId}
      */
-    static dummy(): TxId;
+    static dummy(fill?: number): TxId;
     /**
      * @param {string | number[]} rawValue
      */
