@@ -430,7 +430,7 @@ export class ListData extends UplcData {
 		 */
 		let list = [];
 
-		CborData.decodeList(bytes, (itemBytes) => {
+		CborData.decodeList(bytes, (_, itemBytes) => {
 			list.push(UplcData.fromCbor(itemBytes));
 		});
 
@@ -513,7 +513,7 @@ export class MapData extends UplcData {
 		 */
 		let pairs = [];
 
-		CborData.decodeMap(bytes, pairBytes => {
+		CborData.decodeMap(bytes, (_, pairBytes) => {
 			pairs.push([UplcData.fromCbor(pairBytes), UplcData.fromCbor(pairBytes)]);
 		});
 
@@ -609,7 +609,7 @@ export class ConstrData extends UplcData {
 		 */
 		let fields = [];
 
-		let tag = CborData.decodeConstr(bytes, (fieldBytes) => {
+		let tag = CborData.decodeConstr(bytes, (_, fieldBytes) => {
 			fields.push(UplcData.fromCbor(fieldBytes));
 		});
 

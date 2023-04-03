@@ -759,6 +759,7 @@ class MainModule extends Module {
 						
 					target[name] = value;
 
+					// TODO: return Proxy instead?
 					return value;
 				}
 			},

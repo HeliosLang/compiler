@@ -1127,12 +1127,12 @@ class TxBody extends CborData {
 		let done = CborData.decodeObject(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#inputs.push(TxInput.fromCbor(itemBytes));
 					});
 					break;
 				case 1:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#outputs.push(TxOutput.fromCbor(itemBytes));
 					})
 					break;
@@ -1143,7 +1143,7 @@ class TxBody extends CborData {
 					txBody.#lastValidSlot = CborData.decodeInteger(fieldBytes);
 					break;
 				case 4:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#certs.push(DCert.fromCbor(itemBytes));
 					});
 					break;
@@ -1168,12 +1168,12 @@ class TxBody extends CborData {
 				case 12:
 					throw new Error("unhandled field");
 				case 13:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#collateral.push(TxInput.fromCbor(itemBytes));
 					});
 					break;
 				case 14:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#signers.push(PubKeyHash.fromCbor(itemBytes));
 					});
 					break;
@@ -1729,7 +1729,7 @@ export class TxWitnesses extends CborData {
 		CborData.decodeObject(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#signatures.push(Signature.fromCbor(itemBytes));
 					});
 					break;
@@ -1741,12 +1741,12 @@ export class TxWitnesses extends CborData {
 					txWitnesses.#datums = ListData.fromCbor(fieldBytes);
 					break;
 				case 5:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#redeemers.push(Redeemer.fromCbor(itemBytes));
 					});
 					break;
 				case 6:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#scripts.push(UplcProgram.fromCbor(itemBytes));
 					});
 					break;
@@ -3594,7 +3594,7 @@ function decodeMetadata(bytes) {
 		 */
 		let items = [];
 
-		CborData.decodeList(bytes, itemBytes => {
+		CborData.decodeList(bytes, (_, itemBytes) => {
 			items.push(decodeMetadata(itemBytes));
 		});
 
@@ -3605,7 +3605,7 @@ function decodeMetadata(bytes) {
 		 */
 		let pairs = [];
 
-		CborData.decodeMap(bytes, pairBytes => {
+		CborData.decodeMap(bytes, (_, pairBytes) => {
 			pairs.push([
 				decodeMetadata(pairBytes),
 				decodeMetadata(pairBytes)
@@ -3680,7 +3680,7 @@ class TxMetadata {
 	static fromCbor(data) {
 		const txMetadata = new TxMetadata();
 
-		CborData.decodeMap(data, (pairBytes) => {
+		CborData.decodeMap(data, (_, pairBytes) => {
 			txMetadata.add(
 				Number(CborData.decodeInteger(pairBytes)), 
 				decodeMetadata(pairBytes)

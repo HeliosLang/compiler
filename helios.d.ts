@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.11";
+export const VERSION: "0.13.12";
 /**
  * Modifiable config vars
  * @type {{
@@ -589,10 +589,7 @@ export class Crypto {
     };
 }
 /**
- * @typedef {(bytes: number[]) => void} Decoder
- */
-/**
- * @typedef {(i: number, bytes: number[]) => void} IDecoder
+ * @typedef {(i: number, bytes: number[]) => void} Decoder
  */
 /**
  * Base class of any Cbor serializable data class
@@ -769,10 +766,10 @@ export class CborData {
     static encodeTuple(tuple: number[][]): number[];
     /**
      * @param {number[]} bytes
-     * @param {IDecoder} tupleDecoder
+     * @param {Decoder} tupleDecoder
      * @returns {number} - returns the size of the tuple
      */
-    static decodeTuple(bytes: number[], tupleDecoder: IDecoder): number;
+    static decodeTuple(bytes: number[], tupleDecoder: Decoder): number;
     /**
      * @param {number[]} bytes
      * @returns {boolean}
@@ -806,10 +803,10 @@ export class CborData {
     static encodeObject(object: Map<number, CborData | number[]>): number[];
     /**
      * @param {number[]} bytes
-     * @param {IDecoder} fieldDecoder
+     * @param {Decoder} fieldDecoder
      * @returns {Set<number>}
      */
-    static decodeObject(bytes: number[], fieldDecoder: IDecoder): Set<number>;
+    static decodeObject(bytes: number[], fieldDecoder: Decoder): Set<number>;
     /**
      * Unrelated to constructor
      * @param {bigint} tag
@@ -1334,6 +1331,7 @@ export class TxOutputId extends HeliosData {
 export class Address extends HeliosData {
     /**
      * @param {number[] | string} rawValue
+     * @returns {number[]}
      */
     static cleanConstructorArg(rawValue: number[] | string): number[];
     /**
@@ -1440,6 +1438,39 @@ export class Address extends HeliosData {
      * @type {?(StakeKeyHash | StakingValidatorHash)}
      */
     get stakingHash(): StakeKeyHash | StakingValidatorHash;
+    #private;
+}
+export class AssetClass extends HeliosData {
+    /**
+     * @param {any[]} args
+     * @returns {[MintingPolicyHash, number[]]}
+     */
+    static cleanConstructorArgs(args: any[]): [MintingPolicyHash, number[]];
+    /**
+     *
+     * @param {UplcData} data
+     * @returns {AssetClass}
+     */
+    static fromUplcData(data: UplcData): AssetClass;
+    /**
+     * @param {number[]} bytes
+     */
+    static fromCbor(bytes: number[]): AssetClass;
+    /**
+     * @param {string | number[]} bytes
+     * @returns {AssetClass}
+     */
+    static fromUplcCbor(bytes: string | number[]): AssetClass;
+    /**
+     *
+     * @param {any[]} args
+     */
+    constructor(...args: any[]);
+    /**
+     * Used when generating script contexts for running programs
+     * @returns {ConstrData}
+     */
+    _toUplcData(): ConstrData;
     #private;
 }
 /**
@@ -3900,8 +3931,7 @@ export type Metadata = {
 export type NumberGenerator = () => number;
 export type CodeMap = [number, Site][];
 export type IRDefinitions = Map<string, IR>;
-export type Decoder = (bytes: number[]) => void;
-export type IDecoder = (i: number, bytes: number[]) => void;
+export type Decoder = (i: number, bytes: number[]) => void;
 export type HeliosDataClass<T extends HeliosData> = {
     new (...args: any[]): T;
     fromUplcCbor: (bytes: (string | number[])) => T;

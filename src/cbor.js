@@ -12,11 +12,7 @@ import {
 } from "./utils.js";
 
 /**
- * @typedef {(bytes: number[]) => void} Decoder
- */
-
-/**
- * @typedef {(i: number, bytes: number[]) => void} IDecoder
+ * @typedef {(i: number, bytes: number[]) => void} Decoder
  */
 
 /**
@@ -320,7 +316,7 @@ export class CborData {
 		if (CborData.isDefList(bytes)) {
 			let result = "";
 
-			CborData.decodeList(bytes, itemBytes => {
+			CborData.decodeList(bytes, (_, itemBytes) => {
 				result += CborData.decodeUtf8Internal(itemBytes);
 			});
 
@@ -484,8 +480,10 @@ export class CborData {
 		if (CborData.isIndefList(bytes)) {
 			assert(CborData.decodeIndefHead(bytes) == 4);
 
+			let i = 0;
 			while(bytes[0] != 255) {
-				itemDecoder(bytes);
+				itemDecoder(i, bytes);
+				i++;
 			}
 
 			assert(bytes.shift() == 255);
@@ -495,7 +493,7 @@ export class CborData {
 			assert(m == 4);
 
 			for (let i = 0; i < Number(n); i++) {
-				itemDecoder(bytes);
+				itemDecoder(i, bytes);
 			}
 		}
 	}
@@ -519,13 +517,13 @@ export class CborData {
 
 	/**
 	 * @param {number[]} bytes
-	 * @param {IDecoder} tupleDecoder
+	 * @param {Decoder} tupleDecoder
 	 * @returns {number} - returns the size of the tuple
 	 */
 	static decodeTuple(bytes, tupleDecoder) {
 		let count = 0;
 
-		CborData.decodeList(bytes, (itemBytes) => {
+		CborData.decodeList(bytes, (_, itemBytes) => {
 			tupleDecoder(count, itemBytes);
 			count++;
 		});
@@ -592,7 +590,7 @@ export class CborData {
 		assert(m == 5);
 
 		for (let i = 0; i < n; i++) {
-			pairDecoder(bytes);
+			pairDecoder(i, bytes);
 		}
 	}
 
@@ -617,17 +615,18 @@ export class CborData {
 
 	/**
 	 * @param {number[]} bytes
-	 * @param {IDecoder} fieldDecoder
+	 * @param {Decoder} fieldDecoder
 	 * @returns {Set<number>}
 	 */
 	static decodeObject(bytes, fieldDecoder) {
 		/** @type {Set<number>} */
 		let done = new Set();
 
-		CborData.decodeMap(bytes, pairBytes => {
+		CborData.decodeMap(bytes, (_, pairBytes) => {
 			let i = Number(CborData.decodeInteger(pairBytes));
 
 			fieldDecoder(i, pairBytes);
+			
 			done.add(i);
 		});
 

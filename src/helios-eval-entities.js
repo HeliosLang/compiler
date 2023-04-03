@@ -24,6 +24,7 @@ import {
 
 import {
 	Address,
+	AssetClass,
 	Bool,
 	ByteArray,
 	DatumHash,
@@ -5292,6 +5293,14 @@ export class AssetClassType extends BuiltinType {
 
 	get path() {
 		return "__helios__assetclass";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return AssetClass;
 	}
 }
 

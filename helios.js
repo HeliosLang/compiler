@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.11
+// Version:       0.13.12
 // Last update:   April 2023
 // License:       Unlicense
 //
@@ -64,7 +64,7 @@
 //                                           ByteArray, HList, HMap, Option, Hash, DatumHash, 
 //                                           PubKeyHash, ScriptHash, MintingPolicyHash, 
 //                                           StakeKeyHash, StakingValidatorHash, ValidatorHash, 
-//                                           TxId, TxOutputId, Address, Assets, Value
+//                                           TxId, TxOutputId, Address, AssetClass, Assets, Value
 //
 //    Section 8: Uplc cost-models            NetworkParams, CostModel, ConstCost, LinearCost, 
 //                                           ArgSizeCost, Arg0SizeCost, Arg1SizeCost, 
@@ -219,7 +219,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.11";
+export const VERSION = "0.13.12";
 
 /**
  * A tab used for indenting of the IR.
@@ -3763,11 +3763,7 @@ export class Crypto {
 //////////////////////////////////
 
 /**
- * @typedef {(bytes: number[]) => void} Decoder
- */
-
-/**
- * @typedef {(i: number, bytes: number[]) => void} IDecoder
+ * @typedef {(i: number, bytes: number[]) => void} Decoder
  */
 
 /**
@@ -4071,7 +4067,7 @@ export class CborData {
 		if (CborData.isDefList(bytes)) {
 			let result = "";
 
-			CborData.decodeList(bytes, itemBytes => {
+			CborData.decodeList(bytes, (_, itemBytes) => {
 				result += CborData.decodeUtf8Internal(itemBytes);
 			});
 
@@ -4235,8 +4231,10 @@ export class CborData {
 		if (CborData.isIndefList(bytes)) {
 			assert(CborData.decodeIndefHead(bytes) == 4);
 
+			let i = 0;
 			while(bytes[0] != 255) {
-				itemDecoder(bytes);
+				itemDecoder(i, bytes);
+				i++;
 			}
 
 			assert(bytes.shift() == 255);
@@ -4246,7 +4244,7 @@ export class CborData {
 			assert(m == 4);
 
 			for (let i = 0; i < Number(n); i++) {
-				itemDecoder(bytes);
+				itemDecoder(i, bytes);
 			}
 		}
 	}
@@ -4270,13 +4268,13 @@ export class CborData {
 
 	/**
 	 * @param {number[]} bytes
-	 * @param {IDecoder} tupleDecoder
+	 * @param {Decoder} tupleDecoder
 	 * @returns {number} - returns the size of the tuple
 	 */
 	static decodeTuple(bytes, tupleDecoder) {
 		let count = 0;
 
-		CborData.decodeList(bytes, (itemBytes) => {
+		CborData.decodeList(bytes, (_, itemBytes) => {
 			tupleDecoder(count, itemBytes);
 			count++;
 		});
@@ -4343,7 +4341,7 @@ export class CborData {
 		assert(m == 5);
 
 		for (let i = 0; i < n; i++) {
-			pairDecoder(bytes);
+			pairDecoder(i, bytes);
 		}
 	}
 
@@ -4368,17 +4366,18 @@ export class CborData {
 
 	/**
 	 * @param {number[]} bytes
-	 * @param {IDecoder} fieldDecoder
+	 * @param {Decoder} fieldDecoder
 	 * @returns {Set<number>}
 	 */
 	static decodeObject(bytes, fieldDecoder) {
 		/** @type {Set<number>} */
 		let done = new Set();
 
-		CborData.decodeMap(bytes, pairBytes => {
+		CborData.decodeMap(bytes, (_, pairBytes) => {
 			let i = Number(CborData.decodeInteger(pairBytes));
 
 			fieldDecoder(i, pairBytes);
+			
 			done.add(i);
 		});
 
@@ -4902,7 +4901,7 @@ export class ListData extends UplcData {
 		 */
 		let list = [];
 
-		CborData.decodeList(bytes, (itemBytes) => {
+		CborData.decodeList(bytes, (_, itemBytes) => {
 			list.push(UplcData.fromCbor(itemBytes));
 		});
 
@@ -4985,7 +4984,7 @@ export class MapData extends UplcData {
 		 */
 		let pairs = [];
 
-		CborData.decodeMap(bytes, pairBytes => {
+		CborData.decodeMap(bytes, (_, pairBytes) => {
 			pairs.push([UplcData.fromCbor(pairBytes), UplcData.fromCbor(pairBytes)]);
 		});
 
@@ -5081,7 +5080,7 @@ export class ConstrData extends UplcData {
 		 */
 		let fields = [];
 
-		let tag = CborData.decodeConstr(bytes, (fieldBytes) => {
+		let tag = CborData.decodeConstr(bytes, (_, fieldBytes) => {
 			fields.push(UplcData.fromCbor(fieldBytes));
 		});
 
@@ -6339,6 +6338,7 @@ export class Address extends HeliosData {
 
     /**
 	 * @param {number[] | string} rawValue
+	 * @returns {number[]}
 	 */
     static cleanConstructorArg(rawValue) {
         if (typeof rawValue == "string") {
@@ -6699,6 +6699,140 @@ export class Address extends HeliosData {
 	}
 }
 
+export class AssetClass extends HeliosData {
+	/**
+	 * @type {MintingPolicyHash}
+	 */
+	#mph;
+
+	/**
+	 * @type {number[]}
+	 */
+	#tokenName;
+
+	/**
+	 * @param {any[]} args
+	 * @returns {[MintingPolicyHash, number[]]}
+	 */
+	static cleanConstructorArgs(args) {
+		if (args.length == 1) {
+			const arg = args[0];	
+
+			if (typeof arg == "string") {
+				const fields = arg.split(".")
+
+				assert(fields.length == 2, "expected '.' in hex encoded AssetClass");
+
+				return [new MintingPolicyHash(fields[0]), hexToBytes(fields[1])];
+			} else {
+				throw new Error("unexpected AssetClass arg type");
+			}
+		} else if (args.length == 2) {
+			const arg0 = args[0];
+			const arg1 = args[1];
+
+			return [
+				arg0 instanceof MintingPolicyHash ? arg0 : new MintingPolicyHash(arg0),
+				Array.isArray(arg1) ? arg1 : hexToBytes(arg1)
+			];
+		} else {
+			throw new Error("unexpected number of AssetClass args");
+		}
+	}
+
+	/**
+	 * 
+	 * @param {any[]} args 
+	 */
+	constructor(...args) {
+		super();
+		const [mph, tokenName] = AssetClass.cleanConstructorArgs(args);
+
+		this.#mph = mph;
+		this.#tokenName = tokenName;
+	}
+
+	/**
+	 * Used when generating script contexts for running programs
+	 * @returns {ConstrData}
+	 */
+	_toUplcData() {
+		return new ConstrData(0, [
+			this.#mph._toUplcData(),
+			new ByteArrayData(this.#tokenName)
+		])
+	}
+
+	/**
+	 * 
+	 * @param {UplcData} data 
+	 * @returns {AssetClass}
+	 */
+	static fromUplcData(data) {
+		assert(data.index == 0);
+		assert(data.fields.length == 2);
+
+		const mph = MintingPolicyHash.fromUplcData(data.fields[0]);
+		const tokenName = data.fields[1].bytes;
+
+		return new AssetClass(mph, tokenName);
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return CborData.encodeConstr(0, [
+			this.#mph.toCbor(),
+			CborData.encodeBytes(this.#tokenName)
+		]);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 */
+	static fromCbor(bytes) {
+		/**
+		 * @type {MintingPolicyHash | null}
+		 */
+		let mph = null;
+
+		/**
+		 * @type {number[] | null}
+		 */
+		let tokenName = null;
+
+		const tag = CborData.decodeConstr(bytes, (i, fieldBytes) => {
+			switch (i) {
+				case 0:
+					mph = MintingPolicyHash.fromCbor(fieldBytes);
+					break;
+				case 1:
+					tokenName = CborData.decodeBytes(fieldBytes);
+					break;
+				default:
+					throw new Error("unexpected field");
+			} 
+		});
+
+		assert(tag == 0);
+
+		if (mph == null || tokenName == null) {
+			throw new Error("insufficient fields");
+		} else {
+			return new AssetClass(mph, tokenName);
+		}
+	}
+
+    /**
+     * @param {string | number[]} bytes
+     * @returns {AssetClass}
+     */
+    static fromUplcCbor(bytes) {
+        return AssetClass.fromUplcData(UplcData.fromCbor(bytes));
+    }
+}
+
 
 /**
  * Collection of non-lovelace assets
@@ -7033,7 +7167,7 @@ export class Assets extends CborData {
 	static fromCbor(bytes) {
 		let ms = new Assets();
 
-		CborData.decodeMap(bytes, pairBytes => {
+		CborData.decodeMap(bytes, (_, pairBytes) => {
 			let mph = MintingPolicyHash.fromCbor(pairBytes);
 
 			/**
@@ -7041,7 +7175,7 @@ export class Assets extends CborData {
 			 */
 			let innerMap = [];
 			
-			CborData.decodeMap(pairBytes, innerPairBytes => {
+			CborData.decodeMap(pairBytes, (_, innerPairBytes) => {
 				innerMap.push([
 					CborData.decodeBytes(innerPairBytes),
 					CborData.decodeInteger(innerPairBytes),
@@ -17723,6 +17857,14 @@ class AssetClassType extends BuiltinType {
 
 	get path() {
 		return "__helios__assetclass";
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get userType() {
+		return AssetClass;
 	}
 }
 
@@ -32391,6 +32533,7 @@ class MainModule extends Module {
 						
 					target[name] = value;
 
+					// TODO: return Proxy instead?
 					return value;
 				}
 			},
@@ -34024,12 +34167,12 @@ class TxBody extends CborData {
 		let done = CborData.decodeObject(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#inputs.push(TxInput.fromCbor(itemBytes));
 					});
 					break;
 				case 1:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#outputs.push(TxOutput.fromCbor(itemBytes));
 					})
 					break;
@@ -34040,7 +34183,7 @@ class TxBody extends CborData {
 					txBody.#lastValidSlot = CborData.decodeInteger(fieldBytes);
 					break;
 				case 4:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#certs.push(DCert.fromCbor(itemBytes));
 					});
 					break;
@@ -34065,12 +34208,12 @@ class TxBody extends CborData {
 				case 12:
 					throw new Error("unhandled field");
 				case 13:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#collateral.push(TxInput.fromCbor(itemBytes));
 					});
 					break;
 				case 14:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#signers.push(PubKeyHash.fromCbor(itemBytes));
 					});
 					break;
@@ -34626,7 +34769,7 @@ export class TxWitnesses extends CborData {
 		CborData.decodeObject(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#signatures.push(Signature.fromCbor(itemBytes));
 					});
 					break;
@@ -34638,12 +34781,12 @@ export class TxWitnesses extends CborData {
 					txWitnesses.#datums = ListData.fromCbor(fieldBytes);
 					break;
 				case 5:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#redeemers.push(Redeemer.fromCbor(itemBytes));
 					});
 					break;
 				case 6:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#scripts.push(UplcProgram.fromCbor(itemBytes));
 					});
 					break;
@@ -36491,7 +36634,7 @@ function decodeMetadata(bytes) {
 		 */
 		let items = [];
 
-		CborData.decodeList(bytes, itemBytes => {
+		CborData.decodeList(bytes, (_, itemBytes) => {
 			items.push(decodeMetadata(itemBytes));
 		});
 
@@ -36502,7 +36645,7 @@ function decodeMetadata(bytes) {
 		 */
 		let pairs = [];
 
-		CborData.decodeMap(bytes, pairBytes => {
+		CborData.decodeMap(bytes, (_, pairBytes) => {
 			pairs.push([
 				decodeMetadata(pairBytes),
 				decodeMetadata(pairBytes)
@@ -36577,7 +36720,7 @@ class TxMetadata {
 	static fromCbor(data) {
 		const txMetadata = new TxMetadata();
 
-		CborData.decodeMap(data, (pairBytes) => {
+		CborData.decodeMap(data, (_, pairBytes) => {
 			txMetadata.add(
 				Number(CborData.decodeInteger(pairBytes)), 
 				decodeMetadata(pairBytes)
