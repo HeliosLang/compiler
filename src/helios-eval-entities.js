@@ -5275,6 +5275,21 @@ export class AssetClassType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "mph":
+				return Instance.new(new MintingPolicyHashType());
+			case "token_name":
+				return Instance.new(new ByteArrayType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
 	get path() {
 		return "__helios__assetclass";
 	}

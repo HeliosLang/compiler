@@ -616,6 +616,7 @@ internal ns: __helios__timerange
 ```
 associated: ADA, new, from_data
 operators:  __eq, __neq
+getters:    mph, token_name
 methods:    serialize
 internal ns: __helios__assetclass
 ```

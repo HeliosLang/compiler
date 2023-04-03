@@ -3376,9 +3376,11 @@ function makeRawFunctions() {
 	addDataFuncs("__helios__assetclass");
 	add(new RawFunc("__helios__assetclass__ADA", `__helios__assetclass__new(__core__bData(#), __core__bData(#))`));
 	add(new RawFunc("__helios__assetclass__new",
-	`(mintingPolicyHash, tokenName) -> {
-		__core__constrData(0, __helios__common__list_2(mintingPolicyHash, tokenName))
+	`(mph, token_name) -> {
+		__core__constrData(0, __helios__common__list_2(mph, token_name))
 	}`));
+	add(new RawFunc("__helios__assetclass__mph", "__helios__common__field_0"));
+	add(new RawFunc("__helios__assetclass__token_name", "__helios__common__field_1"));
 
 
 	// Value builtins

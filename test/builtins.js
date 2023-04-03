@@ -3378,6 +3378,18 @@ async function testBuiltins() {
         AssetClass::new(MintingPolicyHash::new(a), b) != AssetClass::ADA
     }`, ([a, b], res) => (asBytes(a).length == 0 && asBytes(b).length == 0) === !asBool(res));
 
+    await ft.test([ft.bytes(), ft.bytes()], `
+    testing assetclass_mph
+    func main(a: MintingPolicyHash, b: ByteArray) -> Bool {
+        AssetClass::new(a, b).mph == a
+    }`, (_, res) => asBool(res));
+
+    await ft.test([ft.bytes(), ft.bytes()], `
+    testing assetclass_token_name
+    func main(a: MintingPolicyHash, b: ByteArray) -> Bool {
+        AssetClass::new(a, b).token_name == b
+    }`, (_, res) => asBool(res));
+
     await ft.test([ft.constr(0, ft.bytes(), ft.bytes())], `
     testing assetclass_from_data
     func main(a: Data) -> AssetClass {

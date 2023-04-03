@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.10
+// Version:       0.13.11
 // Last update:   April 2023
 // License:       Unlicense
 //
@@ -219,7 +219,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.10";
+export const VERSION = "0.13.11";
 
 /**
  * A tab used for indenting of the IR.
@@ -17706,6 +17706,21 @@ class AssetClassType extends BuiltinType {
 		}
 	}
 
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "mph":
+				return Instance.new(new MintingPolicyHashType());
+			case "token_name":
+				return Instance.new(new ByteArrayType());
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
 	get path() {
 		return "__helios__assetclass";
 	}
@@ -28558,9 +28573,11 @@ function makeRawFunctions() {
 	addDataFuncs("__helios__assetclass");
 	add(new RawFunc("__helios__assetclass__ADA", `__helios__assetclass__new(__core__bData(#), __core__bData(#))`));
 	add(new RawFunc("__helios__assetclass__new",
-	`(mintingPolicyHash, tokenName) -> {
-		__core__constrData(0, __helios__common__list_2(mintingPolicyHash, tokenName))
+	`(mph, token_name) -> {
+		__core__constrData(0, __helios__common__list_2(mph, token_name))
 	}`));
+	add(new RawFunc("__helios__assetclass__mph", "__helios__common__field_0"));
+	add(new RawFunc("__helios__assetclass__token_name", "__helios__common__field_1"));
 
 
 	// Value builtins
