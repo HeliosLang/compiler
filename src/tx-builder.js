@@ -1612,7 +1612,8 @@ class TxBody extends CborData {
 			if (i > 0) {
 				const prev = this.#inputs[i-1];
 
-				assert(TxInput.comp(prev, input) == -1, "inputs not sorted");
+				// can be less than -1 if utxoIds aren't consecutive
+				assert(TxInput.comp(prev, input) <= -1, "inputs not sorted");
 			}
 		});
 

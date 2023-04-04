@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.12
+// Version:       0.13.13
 // Last update:   April 2023
 // License:       Unlicense
 //
@@ -219,7 +219,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.12";
+export const VERSION = "0.13.13";
 
 /**
  * A tab used for indenting of the IR.
@@ -34652,7 +34652,8 @@ class TxBody extends CborData {
 			if (i > 0) {
 				const prev = this.#inputs[i-1];
 
-				assert(TxInput.comp(prev, input) == -1, "inputs not sorted");
+				// can be less than -1 if utxoIds aren't consecutive
+				assert(TxInput.comp(prev, input) <= -1, "inputs not sorted");
 			}
 		});
 
