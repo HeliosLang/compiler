@@ -5173,6 +5173,12 @@ export class DurationType extends BuiltinType {
 				return Instance.new(new FuncType([this, new DurationType()], new BoolType()));
 			case "new":
 				return Instance.new(new FuncType([new IntType()], this));
+			case "SECOND":
+			case "MINUTE":
+			case "HOUR":
+			case "DAY":
+			case "WEEK":
+				return Instance.new(this)
 			default:
 				return super.getTypeMember(name);
 		}

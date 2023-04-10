@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.13
+// Version:       0.13.14
 // Last update:   April 2023
 // License:       Unlicense
 //
@@ -219,7 +219,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.13";
+export const VERSION = "0.13.14";
 
 /**
  * A tab used for indenting of the IR.
@@ -17737,6 +17737,12 @@ class DurationType extends BuiltinType {
 				return Instance.new(new FuncType([this, new DurationType()], new BoolType()));
 			case "new":
 				return Instance.new(new FuncType([new IntType()], this));
+			case "SECOND":
+			case "MINUTE":
+			case "HOUR":
+			case "DAY":
+			case "WEEK":
+				return Instance.new(this)
 			default:
 				return super.getTypeMember(name);
 		}
@@ -28464,6 +28470,11 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__duration____gt", `__helios__int____gt`));
 	add(new RawFunc("__helios__duration____leq", `__helios__int____leq`));
 	add(new RawFunc("__helios__duration____lt", `__helios__int____lt`));
+	add(new RawFunc("__helios__duration__SECOND", "__core__iData(1000)"));
+	add(new RawFunc("__helios__duration__MINUTE", "__core__iData(60000)"));
+	add(new RawFunc("__helios__duration__HOUR", "__core__iData(3600000)"));
+	add(new RawFunc("__helios__duration__DAY", "__core__iData(86400000)"));
+	add(new RawFunc("__helios__duration__WEEK", "__core__iData(604800000)"));
 
 
 	// TimeRange builtins

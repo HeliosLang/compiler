@@ -3125,6 +3125,11 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__duration____gt", `__helios__int____gt`));
 	add(new RawFunc("__helios__duration____leq", `__helios__int____leq`));
 	add(new RawFunc("__helios__duration____lt", `__helios__int____lt`));
+	add(new RawFunc("__helios__duration__SECOND", "__core__iData(1000)"));
+	add(new RawFunc("__helios__duration__MINUTE", "__core__iData(60000)"));
+	add(new RawFunc("__helios__duration__HOUR", "__core__iData(3600000)"));
+	add(new RawFunc("__helios__duration__DAY", "__core__iData(86400000)"));
+	add(new RawFunc("__helios__duration__WEEK", "__core__iData(604800000)"));
 
 
 	// TimeRange builtins

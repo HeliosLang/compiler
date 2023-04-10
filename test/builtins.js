@@ -360,7 +360,6 @@ const certifyingScriptContextParam = `
 async function testBuiltins() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
 
-
     /////////////
     // Data tests
     /////////////
@@ -5226,6 +5225,37 @@ async function testBuiltins() {
     func main(a: Int) -> ByteArray {
         Duration::new(a).serialize()
     }`, serializeProp);
+
+    await ft.test([ft.int()], `
+    testing duration_SECOND
+    func main(a: Int) -> Duration {
+        Duration::SECOND*a
+    }`, ([a], res) => asInt(a)*1000n == asInt(res), 5);
+
+    await ft.test([ft.int()], `
+    testing duration_MINUTE
+    func main(a: Int) -> Duration {
+        Duration::MINUTE*a
+    }`, ([a], res) => asInt(a)*1000n*60n == asInt(res), 5);
+
+    await ft.test([ft.int()], `
+    testing duration_HOUR
+    func main(a: Int) -> Duration {
+        Duration::HOUR*a
+    }`, ([a], res) => asInt(a)*1000n*60n*60n == asInt(res), 5);
+
+    await ft.test([ft.int()], `
+    testing duration_DAY
+    func main(a: Int) -> Duration {
+        Duration::DAY*a
+    }`, ([a], res) => asInt(a)*1000n*60n*60n*24n == asInt(res), 5);
+
+
+    await ft.test([ft.int()], `
+    testing duration_WEEK
+    func main(a: Int) -> Duration {
+        Duration::WEEK*a
+    }`, ([a], res) => asInt(a)*1000n*60n*60n*24n*7n == asInt(res), 5);
 
     await ft.test([ft.int()], `
     testing timerange_always
