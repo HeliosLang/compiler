@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.14
+// Version:       0.13.15
 // Last update:   April 2023
 // License:       Unlicense
 //
@@ -219,7 +219,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.14";
+export const VERSION = "0.13.15";
 
 /**
  * A tab used for indenting of the IR.
@@ -11621,11 +11621,15 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[] | string} bytes 
 	 * @returns {UplcProgram}
 	 */
 	static fromCbor(bytes) {
-		return deserializeUplcBytes(CborData.decodeBytes(CborData.decodeBytes(bytes)));
+		if (typeof bytes == "string") {
+			return UplcProgram.fromCbor(hexToBytes(bytes))
+		} else {
+			return deserializeUplcBytes(CborData.decodeBytes(CborData.decodeBytes(bytes)));
+		}
 	}
 }
 
@@ -25287,6 +25291,10 @@ function buildStructLiteralExpr(ts) {
 
 	assert(bracesPos != -1);
 
+	if (bracesPos == 0) {
+		throw ts[bracesPos].syntaxError("expected struct type before braces");
+	}
+	
 	const typeExpr = buildTypeExpr(ts.splice(0, bracesPos));
 
 	const braces = assertDefined(ts.shift()).assertGroup("{");

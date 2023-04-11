@@ -492,11 +492,15 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[] | string} bytes 
 	 * @returns {UplcProgram}
 	 */
 	static fromCbor(bytes) {
-		return deserializeUplcBytes(CborData.decodeBytes(CborData.decodeBytes(bytes)));
+		if (typeof bytes == "string") {
+			return UplcProgram.fromCbor(hexToBytes(bytes))
+		} else {
+			return deserializeUplcBytes(CborData.decodeBytes(CborData.decodeBytes(bytes)));
+		}
 	}
 }
 

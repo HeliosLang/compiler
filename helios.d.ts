@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.14";
+export const VERSION: "0.13.15";
 /**
  * Modifiable config vars
  * @type {{
@@ -2275,10 +2275,10 @@ export class UplcDataValue extends UplcValue {
  */
 export class UplcProgram {
     /**
-     * @param {number[]} bytes
+     * @param {number[] | string} bytes
      * @returns {UplcProgram}
      */
-    static fromCbor(bytes: number[]): UplcProgram;
+    static fromCbor(bytes: number[] | string): UplcProgram;
     /**
      * @param {UplcTerm} expr
      * @param {?number} purpose // TODO: enum type

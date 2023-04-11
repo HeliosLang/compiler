@@ -1881,6 +1881,10 @@ function buildStructLiteralExpr(ts) {
 
 	assert(bracesPos != -1);
 
+	if (bracesPos == 0) {
+		throw ts[bracesPos].syntaxError("expected struct type before braces");
+	}
+	
 	const typeExpr = buildTypeExpr(ts.splice(0, bracesPos));
 
 	const braces = assertDefined(ts.shift()).assertGroup("{");

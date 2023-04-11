@@ -2,7 +2,7 @@
 //@ts-check
 
 import * as helios from "../helios.js";
-import { runIfEntryPoint } from "./util.js";
+import { assert, runIfEntryPoint } from "./util.js";
 
 async function test1() {
     const src = `spending always_true
@@ -563,6 +563,29 @@ async function test20() {
   helios.Program.new(src).compile(true)
 }
 
+async function test21() {
+  const src = `testing bad_constructor
+  
+  struct MyStruct {
+    a: Int
+    b: Int
+    c: Int
+  }
+  
+  func main() -> Bool {
+    my_struct: MyStruct = {a: 1, b: 2, c: 3};
+
+    my_struct.a == my_struct.b
+  }
+  `
+
+  try {
+    helios.Program.new(src)
+  } catch (e) {
+    assert(e.message.includes("expected struct type before braces"))
+  }
+}
+
 export default async function main() {
   await test1();
 
@@ -603,6 +626,8 @@ export default async function main() {
   await test19();
 
   await test20();
+
+  await test21();
 }
 
 runIfEntryPoint(main, "syntax.js");
