@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.15";
+export const VERSION: "0.13.16";
 /**
  * Modifiable config vars
  * @type {{
@@ -365,7 +365,7 @@ export class Token {
  *     base32 encoding and decoding
  *     bech32 encoding, checking, and decoding
  *     sha2_256, sha2_512, sha3 and blake2b hashing
- *     ed25519 pubkey generation, signing, and signature verification (NOTE: the current implementation is very slow)
+ *     ed25519 pubkey generation, signing, and signature verification (NOTE: the current implementation is simple but slow)
  */
 export class Crypto {
     /**
@@ -382,6 +382,16 @@ export class Crypto {
      * @returns {NumberGenerator} - the random number generator function
      */
     static rand(seed: number): NumberGenerator;
+    /**
+     * Rfc 4648 base32 alphabet
+     * @type {string}
+     */
+    static get DEFAULT_BASE32_ALPHABET(): string;
+    /**
+     * Bech32 base32 alphabet
+     * @type {string}
+     */
+    static get BECH32_BASE32_ALPHABET(): string;
     /**
      * Encode bytes in special base32.
      * @example
@@ -543,7 +553,7 @@ export class Crypto {
      */
     static sha3(bytes: number[]): number[];
     /**
-     * Calculates blake2-256 (32 bytes) hash of a list of uint8 numbers.
+     * Calculates blake2b hash of a list of uint8 numbers (variable digest size).
      * Result is also a list of uint8 number.
      * Blake2b is a 64bit algorithm, so we need to be careful when replicating 64-bit operations with 2 32-bit numbers (low-word overflow must spill into high-word, and shifts must go over low/high boundary)
      * @example
@@ -552,7 +562,7 @@ export class Crypto {
      * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
      * @package
      * @param {number[]} bytes
-     * @param {number} digestSize - 32 or 64
+     * @param {number} digestSize - at most 64
      * @returns {number[]}
      */
     static blake2b(bytes: number[], digestSize?: number): number[];

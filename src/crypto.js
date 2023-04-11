@@ -32,20 +32,6 @@ var BLAKE2B_DIGEST_SIZE = 32; // bytes
 export function setBlake2bDigestSize(s) {
     BLAKE2B_DIGEST_SIZE = s;
 }
-
-/**
- * Rfc 4648 base32 alphabet
- * @package
- * @type {string}
- */
-const DEFAULT_BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
-
-/**
- * Bech32 base32 alphabet
- * @package
- * @type {string}
- */
-const BECH32_BASE32_ALPHABET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
  
 /**
  * Make sure resulting number fits in uint32
@@ -275,7 +261,7 @@ class UInt64 {
  *     base32 encoding and decoding
  *     bech32 encoding, checking, and decoding
  *     sha2_256, sha2_512, sha3 and blake2b hashing
- *     ed25519 pubkey generation, signing, and signature verification (NOTE: the current implementation is very slow)
+ *     ed25519 pubkey generation, signing, and signature verification (NOTE: the current implementation is simple but slow)
  */
 export class Crypto {
 	/**
@@ -305,6 +291,22 @@ export class Crypto {
 	static rand(seed) {
 		return this.mulberry32(seed);
 	}
+
+	/**
+	 * Rfc 4648 base32 alphabet
+	 * @type {string}
+	 */
+	static get DEFAULT_BASE32_ALPHABET() {
+		return "abcdefghijklmnopqrstuvwxyz234567";
+	}
+
+	/**
+	 * Bech32 base32 alphabet
+	 * @type {string}
+	 */
+	static get BECH32_BASE32_ALPHABET() {
+		return "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+	}
 	
 	/**
 	 * Encode bytes in special base32.
@@ -325,7 +327,7 @@ export class Crypto {
 	 * @param {string} alphabet - list of chars
 	 * @return {string}
 	 */
-	static encodeBase32(bytes, alphabet = DEFAULT_BASE32_ALPHABET) {
+	static encodeBase32(bytes, alphabet = Crypto.DEFAULT_BASE32_ALPHABET) {
 		return Crypto.encodeBase32Bytes(bytes).map(c => alphabet[c]).join("");
 	}
 
@@ -366,7 +368,7 @@ export class Crypto {
 	 * @param {string} alphabet
 	 * @return {number[]}
 	 */
-	static decodeBase32(encoded, alphabet = DEFAULT_BASE32_ALPHABET) {
+	static decodeBase32(encoded, alphabet = Crypto.DEFAULT_BASE32_ALPHABET) {
 		const writer = new BitWriter();
 
 		const n = encoded.length;
@@ -481,7 +483,7 @@ export class Crypto {
 
 		const chkSum = Crypto.calcBech32Checksum(hrp, data);
 
-		return hrp + "1" + data.concat(chkSum).map(i => BECH32_BASE32_ALPHABET[i]).join("");
+		return hrp + "1" + data.concat(chkSum).map(i => Crypto.BECH32_BASE32_ALPHABET[i]).join("");
 	}
 
 	/**
@@ -504,7 +506,7 @@ export class Crypto {
 
 		addr = addr.slice(i+1);
 
-		const data = Crypto.decodeBase32(addr.slice(0, addr.length - 6), BECH32_BASE32_ALPHABET);
+		const data = Crypto.decodeBase32(addr.slice(0, addr.length - 6), Crypto.BECH32_BASE32_ALPHABET);
 
 		return [hrp, data];
 	}
@@ -545,7 +547,7 @@ export class Crypto {
 		addr = addr.slice(i + 1);
 
 		for (let c of addr) {
-			const j = BECH32_BASE32_ALPHABET.indexOf(c);
+			const j = Crypto.BECH32_BASE32_ALPHABET.indexOf(c);
 			if (j == -1) {
 				return false;
 			}
@@ -1133,7 +1135,7 @@ export class Crypto {
 	}
 
 	/**
-	 * Calculates blake2-256 (32 bytes) hash of a list of uint8 numbers.
+	 * Calculates blake2b hash of a list of uint8 numbers (variable digest size).
 	 * Result is also a list of uint8 number.
 	 * Blake2b is a 64bit algorithm, so we need to be careful when replicating 64-bit operations with 2 32-bit numbers (low-word overflow must spill into high-word, and shifts must go over low/high boundary)
 	 * @example                                        
@@ -1142,7 +1144,7 @@ export class Crypto {
 	 * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
      * @package
 	 * @param {number[]} bytes 
-	 * @param {number} digestSize - 32 or 64
+	 * @param {number} digestSize - at most 64
 	 * @returns {number[]}
 	 */
 	static blake2b(bytes, digestSize = BLAKE2B_DIGEST_SIZE) {
@@ -1296,7 +1298,7 @@ export class Crypto {
 			}
 		}
 
-		// extract lowest BLAKE2B_DIGEST_SIZE (32 or 64) bytes from h
+		// extract lowest BLAKE2B_DIGEST_SIZE bytes from h
 
 		/** @type {number[]} */
 		let hash = [];
