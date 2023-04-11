@@ -28,7 +28,11 @@ DataDefinition ::= DataField (DataField)*
 
 DataField ::= Word ':' TypeExpr
 
-NameTypePair ::= (Identifier [':' TypeExpr]) | '_'
+LhsExpr ::= NameTypePair | SinkExpr
+
+NameTypePair ::= Identifier [':' TypeExpr]
+
+SinkExpr ::= '_'
 
 EnumStatement ::= 'enum' Identifier '{' EnumMember (EnumMember)* [ImplDefinition] '}'
 
@@ -42,7 +46,7 @@ ConstStatement ::= 'const' Identifier [':' TypeExpr] '=' ValueExpr
 
 FuncStatement ::= 'func' Identifier '(' [('self' | FuncArg) (',' FuncArg)*] ')' '->' RetTypeExpr '{' ValueExpr '}'
 
-FuncArg ::= NameTypePair
+FuncArg ::= NameTypePair | SinkExpr
 
 TypeExpr ::= NonFuncTypeExpr | FuncTypeExpr
 
@@ -50,7 +54,9 @@ RetTypeExpr ::= TypeExpr | ( '(' TypeExpr ',' TypeExpr (',' TypeExpr)* ')' )
 
 NonFuncTypeExpr ::= TypeRefExpr | TypePathExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr
 
-FuncTypeExpr ::= '(' [TypeExpr (',' TypeExpr)*] ')' '->' RetTypeExpr
+FuncTypeExpr ::= '(' [FuncArgTypeExpr (',' FuncArgTypeExpr)*] ')' '->' RetTypeExpr
+
+FuncArgTypeExpr ::= [Identifier ':'] ['?'] TypeExpr
 
 TypeRefExpr ::= Identifier
 
@@ -98,11 +104,11 @@ UnaryExpr ::= UnaryOp ValueExpr
 
 UnaryOp ::= '-' | '+' | '!'
 
-AssignExpr ::= (Identifier [':' TypeExpr] '=' ValueExpr ';' ValueExpr
+AssignExpr ::= Identifier [':' TypeExpr] '=' ValueExpr ';' ValueExpr
 
 MultiAssignExpr ::= '(' NameTypePair ',' NameTypePair (',' NameTypePair)* ')' '=' ValueExpr ';' ValueExpr
 
-PrintExpr ::= 'print' '(' ValueExpr ')' ';' ValueExpr
+PrintExpr ::= 'print' '(' ValueExpr ')'
 
 ErrorExpr ::= [ValueExpr ';'] 'error' '(' ValueExpr ')'
 
@@ -597,7 +603,7 @@ internal ns: __helios__time
 
 ## Duration
 ```
-associated: new, from_data
+associated: new, from_data, SECOND, MINUTE, HOUR, DAY, WEEK
 operators:  __eq, __neq, __add, __sub, __mul, __div, __div_alt, __mod, __geq, __gt, __leq, __lt
 methods:    serialize
 internal ns: __helios__duration

@@ -1,5 +1,8 @@
 This Changelog only applies to notable changes of language related features in `helios.js` on the main branch.
 
+# 2023/04/10
+* `Duration::SECOND`, `MINUTE`, `HOUR`, `DAY`, `WEEK`
+
 # 2023/04/03
 * `AssetClass.mph` and `AssetClass.token_name`
 
