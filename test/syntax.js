@@ -3,8 +3,91 @@
 
 import * as helios from "../helios.js";
 import { assert, runIfEntryPoint } from "./util.js";
+const helios_ = helios.exportedForTesting;
+
+function asBool(value) {
+  if (value instanceof helios_.UplcBool) {
+      return value.bool;
+  } else if (value instanceof helios_.ConstrData) {
+      if (value.fields.length == 0) {
+          if (value.index == 0) {
+              return false;
+          } else if (value.index == 1) {
+              return true;
+          } else {
+              throw new Error(`unexpected ConstrData index ${value.index} (expected 0 or 1 for Bool)`);
+          }
+      } else {
+          throw new Error(`expected ConstrData with 0 fields (Bool)`);
+      }
+  } else if (value instanceof helios_.UplcDataValue) {
+      return asBool(value.data);
+  }
+
+  throw new Error(`expected UplcBool, got ${value.toString()}`);
+}
+
+/**
+ * Throws an error if 'err' isn't en Error
+ * @param {any} err 
+ * @param {string} info 
+ * @returns {boolean}
+ */
+function isError(err, info) {
+  if (err instanceof helios.UserError) {
+      let parts = err.message.split(":");
+      let n = parts.length;
+      if (n < 2) {
+          return false;
+      } else if (parts[n-1].trim().includes(info)) {
+          return true
+      } else {
+          return false;
+      }
+  } else {
+      throw new Error(`expected UserError, got ${err.toString()}`);
+  }
+}
+
+async function testTrue(src, simplify = false) {
+  let program = helios.Program.new(src).compile(simplify);
+
+  let result = await program.run([]);
+
+  const [_, name] = helios.extractScriptPurposeAndName(src) ?? ["", ""];
+
+  helios_.assert(asBool(result), `test ${name} failed`);
+
+  console.log(`test ${name} succeeded${simplify ? " (simplified)" : ""}`);
+
+  if (!simplify) {
+      await testTrue(src, true);
+  }
+}
+
+async function testError(src, expectedError, simplify = false) {
+  const [_, name] = helios.extractScriptPurposeAndName(src) ?? ["", ""];
+
+  try {
+      let program = helios.Program.new(src).compile(simplify);
+
+      let result = await program.run([]);
+
+      helios_.assert(isError(result, expectedError), `test ${name} failed (${result.toString()})`);
+  } catch (e) {
+      helios_.assert(isError(e,  expectedError), `test ${name} failed (${e.message})`);
+  }
+
+  console.log(`test ${name} succeeded${simplify ? " (simplified)" : ""}`);
+
+  if (!simplify) {
+      await testError(src, expectedError, true);
+  }
+}
 
 async function test1() {
+  console.log("TEST 1");
+
     const src = `spending always_true
     func bytearrayToAddress(bytes: ByteArray) -> Address {   // bytes = #... must be 28 bytes long
         cred: Credential = Credential::new_pubkey(PubKeyHash::new(bytes));
@@ -32,6 +115,8 @@ async function test1() {
 }
 
 async function test2() {
+  console.log("TEST 2");
+  
     const src = `spending testing
 
     struct Datum {
@@ -85,6 +170,8 @@ async function test2() {
 }
 
 async function test3() {
+  console.log("TEST 3");
+
   const src = `
   testing bool_struct
 
@@ -105,6 +192,8 @@ async function test3() {
 }
 
 async function test4() {
+  console.log("TEST 4");
+
   const src = `
   testing hello_error
 
@@ -128,6 +217,8 @@ async function test4() {
 }
 
 async function test5() {
+  console.log("TEST 5");
+
   const src = `
   testing redeemer
 
@@ -152,6 +243,8 @@ async function test5() {
 }
 
 async function test6() {
+  console.log("TEST 6");
+
   const src = `testing app
 
   enum Redeemer {
@@ -175,6 +268,8 @@ async function test6() {
 }
 
 async function test7() {
+  console.log("TEST 7");
+
   const src = `testing app
 
   struct Datum {
@@ -198,6 +293,8 @@ async function test7() {
 }
 
 async function test8() {
+  console.log("TEST 8");
+
   const src = `testing data_switch
   
   enum MyEnum {
@@ -236,6 +333,8 @@ async function test8() {
 }
 
 async function test9() {
+  console.log("TEST 9");
+
   const src = `
   testing staking_credential
 
@@ -248,8 +347,10 @@ async function test9() {
 }
 
 async function test10() {
+  console.log("TEST 10");
+
 	const src = `spending always_true
-	func main(ctx: ScriptContext) -> Bool {
+	func main(_, _, ctx: ScriptContext) -> Bool {
 		ctx.get_script_purpose().serialize().length > 0
 			&& ctx.tx.redeemers.length == 1
 	}`;
@@ -258,6 +359,8 @@ async function test10() {
 }
 
 async function test11() {
+  console.log("TEST 11");
+
   const src = `testing swap
   func swap(a: Int, b: Int, _) -> (Int, Int) {
     (c: Int, d: Int) = (b, a); (c, d)
@@ -276,6 +379,8 @@ async function test11() {
 }
 
 async function test12() {
+  console.log("TEST 12");
+
   const src = `testing data_switch
   
   func main(d: Data) -> String {
@@ -308,6 +413,8 @@ async function test12() {
 }
 
 async function test13() {
+  console.log("TEST 13");
+
   const src = `testing void_func
   func nestedAssert(cond: Bool, msg: String) -> () {
     assert(cond, msg)
@@ -337,6 +444,8 @@ async function test13() {
 }
 
 async function test14() {
+  console.log("TEST 14");
+
   const srcHelpers = `module helpers
   
   const SOME_PARAM = 0
@@ -435,6 +544,8 @@ async function test14() {
 }
 
 async function test15() {
+  console.log("TEST 15");
+
   const src = `
   spending inferred_ret_type
 
@@ -449,6 +560,8 @@ async function test15() {
 }
 
 async function test16() {
+  console.log("TEST 16");
+
   const src = `
   spending parametric
   
@@ -466,6 +579,8 @@ async function test16() {
 }
 
 async function test17() {
+  console.log("TEST 17");
+
   const mintingSrc = `
   minting redeemer_only
 
@@ -497,6 +612,8 @@ async function test17() {
 
 // recursive type test
 async function test18() {
+  console.log("TEST 18");
+
   const src = `
   testing merkle_trees
 
@@ -531,6 +648,8 @@ async function test18() {
 }
 
 async function test19() {
+  console.log("TEST 19");
+
   const src = `
   testing named_struct_fields
 
@@ -557,6 +676,8 @@ async function test19() {
 }
 
 async function test20() {
+  console.log("TEST 20");
+
   // no newlines
   const src = `testing no_newlines func main()->Bool{true}//`
 
@@ -564,6 +685,8 @@ async function test20() {
 }
 
 async function test21() {
+  console.log("TEST 21");
+
   const src = `testing bad_constructor
   
   struct MyStruct {
@@ -584,6 +707,205 @@ async function test21() {
   } catch (e) {
     assert(e.message.includes("expected struct type before braces"))
   }
+}
+
+async function test22() {
+  console.log("TEST 22");
+
+  const src = `testing destruct_pair
+
+  struct Pair {
+    first: Int
+    second: Int
+  }
+  
+  func main() -> Bool {
+    p = Pair{1, 2};
+    Pair{a, _} = p;
+    a == 1
+  }
+  `
+
+  console.log(helios.Program.new(src).prettyIR(false))
+}
+
+async function test23() {
+  await testTrue(`testing destruct_pair
+
+  struct Pair {
+      a: Int
+      b: Int
+  }
+
+  func main() -> Bool {
+      p = Pair{1, 1};
+
+      Pair{a, b} = p;
+
+      a == b
+  }`);
+
+  await testTrue(`testing destruct_pair_ignore_1
+  
+  struct Pair {
+      a: Int
+      b: Int
+  }
+  
+  func main() -> Bool {
+      p = Pair{1, 2};
+
+      Pair{a, _} = p;
+
+      a == 1
+  }`);
+
+  await testTrue(`testing destruct_pair_optional_typed
+  
+  struct Pair {
+      a: Int
+      b: Int
+  }
+  
+  func main() -> Bool {
+      p = Pair{1, 2};
+
+      Pair{a: Int, _} = p;
+
+      a == 1
+  }`);
+
+  await testError(`testing destruct_pair_optional_wrong_typed
+  
+  struct Pair {
+      a: Int
+      b: Int
+  }
+  
+  func main() -> Bool {
+      p = Pair{1, 2};
+
+      Pair{a: Bool, _} = p;
+
+      a
+  }`, "expected Bool for destructure field 1, got Int");
+
+  await testTrue(`testing nested_destruct
+  
+  struct Pair {
+      a: Int
+      b: Int
+  }
+
+  struct PP {
+      a: Pair
+      b: Pair
+  }
+  
+  func main() -> Bool {
+      pp = PP{Pair{1, 2}, Pair{1, 2}};
+
+      PP{p0: Pair{_, b}, p1: Pair{_, c}} = pp;
+
+      b == c && p0 == p1
+  }
+  `);
+
+  await testTrue(`testing destruct_enum
+  
+  struct Price {
+      p: Int
+  }
+
+  enum Action {
+      Sell
+      Buy{p: Price}
+  }
+  
+  func main() -> Bool {
+      e: Action = Action::Buy{Price{10}};
+
+      e.switch{
+          Sell => false,
+          Buy{Price{p}} => p == 10
+      }
+  }`);
+
+  await testError(`testing destruct_enum_duplicate_name_error
+  
+  struct Price {
+      p: Int
+  }
+
+  enum Action {
+      Sell
+      Buy{p: Price}
+  }
+  
+  func main() -> Bool {
+      e: Action = Action::Buy{Price{10}};
+
+      e.switch{
+          Sell => false,
+          Buy{p: Price{p}} => p == 10
+      }
+  }`, "'p' already defined");
+
+  await testTrue(`testing destruct_enum_interm_obj_too
+  
+  struct Price {
+      p: Int
+  }
+
+  enum Action {
+      Sell
+      Buy{p: Price}
+  }
+  
+  func main() -> Bool {
+      e: Action = Action::Buy{Price{10}};
+
+      e.switch{
+          Sell => false,
+          Buy{pp: Price{p}} => p == 10 && pp.p == 10
+      }
+  }`);
+
+  await testTrue(`testing destruct_enum_all_levels
+  
+  struct Price {
+      p: Int
+  }
+
+  enum Action {
+      Sell
+      Buy{p: Price}
+  }
+  
+  func main() -> Bool {
+      e: Action = Action::Buy{Price{10}};
+
+      e.switch{
+          Sell => false,
+          b: Buy{pp: Price{p}} => p == 10 && pp.p == 10 && b.p.p == 10
+      }
+  }`);
+
+  await testTrue(`testing destruct_option
+
+  struct Pair {
+    a: Int
+    b: Int
+  }
+  
+  func main() -> Bool {
+    o: Option[Pair] = Option[Pair]::Some{Pair{0, 10}};
+
+    o.switch{
+        None => false,
+        Some{Pair{_, b}} => b == 10
+    }
+  }`);
 }
 
 export default async function main() {
@@ -628,6 +950,10 @@ export default async function main() {
   await test20();
 
   await test21();
+
+  await test22();
+
+  await test23();
 }
 
 runIfEntryPoint(main, "syntax.js");

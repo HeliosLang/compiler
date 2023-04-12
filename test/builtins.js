@@ -181,7 +181,7 @@ function isError(err, info) {
         let n = parts.length;
         if (n < 2) {
             return false;
-        } else if (parts[n-1].trim() == info) {
+        } else if (parts[n-1].trim().includes(info)) {
             return true
         } else {
             return false;
@@ -357,8 +357,11 @@ const certifyingScriptContextParam = `
     const STAKING_PURPOSE: StakingPurpose = SCRIPT_CONTEXT.get_staking_purpose()
 `;
 
+
+
 async function testBuiltins() {
     const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
+
 
     /////////////
     // Data tests

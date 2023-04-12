@@ -28,11 +28,7 @@ DataDefinition ::= DataField (DataField)*
 
 DataField ::= Word ':' TypeExpr
 
-LhsExpr ::= NameTypePair | SinkExpr
-
-NameTypePair ::= Identifier [':' TypeExpr]
-
-SinkExpr ::= '_'
+DestructExpr ::= '_' | (Identifier [':' TypeExpr ['{' DestructExpr (',' DestructExpr)* '}']]) | (TypeExpr ['{' DestructExpr (',' DestructExpr)* '}'])
 
 EnumStatement ::= 'enum' Identifier '{' EnumMember (EnumMember)* [ImplDefinition] '}'
 
@@ -46,7 +42,7 @@ ConstStatement ::= 'const' Identifier [':' TypeExpr] '=' ValueExpr
 
 FuncStatement ::= 'func' Identifier '(' [('self' | FuncArg) (',' FuncArg)*] ')' '->' RetTypeExpr '{' ValueExpr '}'
 
-FuncArg ::= NameTypePair | SinkExpr
+FuncArg ::= '_' | ( Identifier ':' TypeExpr )
 
 TypeExpr ::= NonFuncTypeExpr | FuncTypeExpr
 
@@ -104,9 +100,9 @@ UnaryExpr ::= UnaryOp ValueExpr
 
 UnaryOp ::= '-' | '+' | '!'
 
-AssignExpr ::= Identifier [':' TypeExpr] '=' ValueExpr ';' ValueExpr
+AssignExpr ::= DestructExpr '=' ValueExpr ';' ValueExpr
 
-MultiAssignExpr ::= '(' NameTypePair ',' NameTypePair (',' NameTypePair)* ')' '=' ValueExpr ';' ValueExpr
+MultiAssignExpr ::= '(' DestructExpr ',' DestructExpr (',' DestructExpr)* ')' '=' ValueExpr ';' ValueExpr
 
 PrintExpr ::= 'print' '(' ValueExpr ')'
 
@@ -118,7 +114,7 @@ IfElseExpr ::= 'if' '(' ValueExpr ')' '{' BranchExpr '}' ('else' 'if' '(' ValueE
 
 SwitchExpr ::= ValueExpr '.' 'switch' '{' SwitchCase (',' SwitchCase)* [SwitchDefault] '}'
 
-SwitchCase ::= (Word | (Identifier ':' Word)) '=>' (BranchExpr | ('{' BranchExpr '}'))
+SwitchCase ::= DestructExpr '=>' (BranchExpr | ('{' BranchExpr '}'))
 
 SwitchDefault ::= 'else' '=>' (BranchExpr | ('{' BranchExpr '}'))
 

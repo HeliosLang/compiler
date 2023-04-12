@@ -394,6 +394,13 @@ export class AnyType extends Type {
 	isBaseOf(site, other) {
 		return true;
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "Any";
+	}
 }
 
 /**

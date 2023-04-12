@@ -38,12 +38,12 @@ import {
     FuncLiteralExpr,
     FuncTypeExpr,
     IfElseExpr,
+    DestructExpr,
     ListLiteralExpr,
     ListTypeExpr,
     MapLiteralExpr,
     MapTypeExpr,
     MemberExpr,
-    NameTypePair,
     OptionTypeExpr,
     ParensExpr,
     PrimitiveLiteralExpr,
@@ -1092,9 +1092,93 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 
 /**
  * @package
+ * @param {Site} site
+ * @param {Token[]} ts 
+ * @param {boolean} isSwitchCase
+ * @returns {DestructExpr}
+ */
+function buildDestructExpr(site, ts, isSwitchCase = false) {
+	if (ts.length == 0) {
+		throw site.syntaxError("expected token inside destructuring braces");
+	}
+
+	const maybeName = assertDefined(ts.shift());
+
+	if (maybeName.isWord("_")) {
+		if (ts.length != 0) {
+			throw maybeName.syntaxError("unexpected tokens after '_'");
+		}
+
+		return new DestructExpr(new Word(maybeName.site, "_"), null);
+	} else {
+		let name = new Word(maybeName.site, "_");
+
+		if (ts.length >= 1 && ts[0].isSymbol(":")) {
+			name = maybeName.assertWord().assertNotKeyword();
+
+			const colon = assertDefined(ts.shift()).assertSymbol(":");
+
+			if (ts.length == 0) {
+				throw colon.syntaxError("expected type expression after ':'");
+			} else {
+				const destructExprs = buildDestructExprs(ts);
+	
+				const typeExpr = buildTypeExpr(ts);
+	
+				return new DestructExpr(name, typeExpr, destructExprs);
+			}
+		} else if (ts.length == 0) {
+			if (isSwitchCase) {
+				const typeExpr = new TypeRefExpr(maybeName.assertWord().assertNotKeyword());
+
+				return new DestructExpr(name, typeExpr);
+			} else {
+				name = maybeName.assertWord().assertNotKeyword();
+
+				return new DestructExpr(name, null);
+			}
+		} else {
+			ts.unshift(maybeName);
+
+			const destructExprs = buildDestructExprs(ts);
+	
+			const typeExpr = buildTypeExpr(ts);
+	
+			return new DestructExpr(name, typeExpr, destructExprs);
+		}
+	}
+}
+
+/**
+ * Pops the last element of ts if it is a braces group
+ * @param {Token[]} ts
+ * @returns {DestructExpr[]}
+ */
+function buildDestructExprs(ts) {
+	if (ts.length == 0) {
+		return [];
+	} else if (ts[ts.length -1].isGroup("{")) {
+		const group = assertDefined(ts.pop()).assertGroup("{");
+
+		const destructExprs = group.fields.map(fts => {
+			return buildDestructExpr(group.site, fts);
+		});
+	
+		if (destructExprs.every(le => le.isIgnored() && !le.hasDestructExprs())) {
+			throw group.syntaxError("expected at least one used field while destructuring")
+		}
+	
+		return destructExprs;
+	} else {
+		return [];
+	}	
+}
+
+/**
+ * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {NameTypePair[]}
+ * @returns {DestructExpr[]}
  */
 function buildAssignLhs(site, ts) {
 	const maybeName = ts.shift();
@@ -1102,26 +1186,20 @@ function buildAssignLhs(site, ts) {
 		throw site.syntaxError("expected a name before '='");
 	} else {
 		/**
-		 * @type {NameTypePair[]}
+		 * @type {DestructExpr[]}
 		 */
 		const pairs = [];
 
 		if (maybeName.isWord()) {
-			const name = maybeName.assertWord().assertNotKeyword();
+			ts.unshift(maybeName);
 
-			if (ts.length > 0) {
-				const colon = assertDefined(ts.shift()).assertSymbol(":");
+			const lhs = buildDestructExpr(maybeName.site, ts);
 
-				if (ts.length == 0) {
-					throw colon.syntaxError("expected type expression after ':'");
-				} else {
-					const typeExpr = buildTypeExpr(ts);
-
-					pairs.push(new NameTypePair(name, typeExpr));
-				}
-			} else {
-				pairs.push(new NameTypePair(name, null));
+			if (lhs.isIgnored() && !lhs.hasDestructExprs()) {
+				throw maybeName.syntaxError(`unused assignment ${maybeName.toString()}`);
 			}
+
+			pairs.push(lhs);
 		} else if (maybeName.isGroup("(")) {
 			const group = maybeName.assertGroup("(");
 
@@ -1137,42 +1215,20 @@ function buildAssignLhs(site, ts) {
 
 				fts = fts.slice();
 
-				const name = assertDefined(fts.shift()).assertWord();
+				const lhs = buildDestructExpr(group.site, fts);
 
-				if (name.value === "_") {
-					if (fts.length !== 0) {
-						throw fts[0].syntaxError("unexpected token after '_' in multi-assign");
-					}
-
-					pairs.push(new NameTypePair(name, null));
-				} else {
+				if (!lhs.isIgnored() || lhs.hasDestructExprs()) {
 					someNoneUnderscore = true;
-
-					name.assertNotKeyword();
-
-					const maybeColon = fts.shift();
-					
-					if (maybeColon === undefined) {
-						throw name.syntaxError(`expected ':' after '${name.toString()}'`);
-					}
-					
-					const colon = maybeColon.assertSymbol(":");
-
-					if (fts.length === 0) {
-						throw colon.syntaxError("expected type expression after ':'");
-					}
-
-					const typeExpr = buildTypeExpr(fts);
-
-					// check that name is unique
-					pairs.forEach(p => {
-						if (p.name.value === name.value) {
-							throw name.syntaxError(`duplicate name '${name.value}' in lhs of multi-assign`);
-						}
-					});
-
-					pairs.push(new NameTypePair(name, typeExpr));
 				}
+
+				// check that name is unique
+				pairs.forEach(p => {
+					if (!lhs.isIgnored() && p.name.value === lhs.name.value) {
+						throw lhs.name.syntaxError(`duplicate name '${lhs.name.value}' in lhs of multi-assign`);
+					}
+				});
+
+				pairs.push(lhs);
 			}
 
 			if (!someNoneUnderscore) {
@@ -1713,19 +1769,24 @@ function buildMultiArgSwitchCase(tsLeft, ts) {
  * @returns {SwitchCase}
  */
 function buildSingleArgSwitchCase(tsLeft, ts) {
-	/** @type {[?Word, Word]} */
-	const [varName, memberName] = buildSwitchCaseNameType(tsLeft);
+	const site = tsLeft[tsLeft.length-1].site;
+
+	const destructExpr = buildDestructExpr(site, tsLeft, true);
+
+	if (!destructExpr.hasType()) {
+		throw destructExpr.site.syntaxError("invalid switch case syntax");
+	}
 	
 	const maybeArrow = ts.shift();
 
 	if (maybeArrow === undefined) {
-		throw memberName.syntaxError("expected '=>'");
+		throw site.syntaxError("expected '=>'");
 	} else {
 		const arrow = maybeArrow.assertSymbol("=>");
 
 		const bodyExpr = buildSwitchCaseBody(arrow.site, ts);
 
-		return new SwitchCase(arrow.site, varName, memberName, bodyExpr);
+		return new SwitchCase(arrow.site, destructExpr, bodyExpr);
 	}
 }
 

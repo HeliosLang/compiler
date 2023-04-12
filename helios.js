@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.16
+// Version:       0.13.17
 // Last update:   April 2023
 // License:       Unlicense
 //
@@ -134,8 +134,9 @@
 //                                           FuncArg, FuncLiteralExpr, ValueRefExpr, 
 //                                           ValuePathExpr, UnaryExpr, BinaryExpr, ParensExpr, 
 //                                           CallArgExpr, CallExpr, MemberExpr, IfElseExpr, 
-//                                           SwitchCase, UnconstrDataSwitchCase, SwitchDefault, 
-//                                           SwitchExpr, EnumSwitchExpr, DataSwitchExpr
+//                                           DestructExpr, SwitchCase, UnconstrDataSwitchCase, 
+//                                           SwitchDefault, SwitchExpr, EnumSwitchExpr, 
+//                                           DataSwitchExpr
 //
 //    Section 16: Literal functions          buildLiteralExprFromJson, buildLiteralExprFromValue
 //
@@ -156,7 +157,8 @@
 //                                           buildOptionTypeExpr, buildFuncTypeExpr, 
 //                                           buildFuncArgTypeExpr, buildFuncRetTypeExprs, 
 //                                           buildTypePathExpr, buildTypeRefExpr, buildValueExpr, 
-//                                           buildMaybeAssignOrPrintExpr, buildAssignLhs, 
+//                                           buildMaybeAssignOrPrintExpr, buildDestructExpr, 
+//                                           buildDestructExprs, buildAssignLhs, 
 //                                           makeBinaryExprBuilder, makeUnaryExprBuilder, 
 //                                           buildChainedValueExpr, buildCallExpr, 
 //                                           buildChainStartValueExpr, buildParensExpr, 
@@ -218,7 +220,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.16";
+export const VERSION = "0.13.17";
 
 /**
  * A tab used for indenting of the IR.
@@ -12963,6 +12965,13 @@ class AnyType extends Type {
 	isBaseOf(site, other) {
 		return true;
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "Any";
+	}
 }
 
 /**
@@ -18873,7 +18882,7 @@ class AssignExpr extends ValueExpr {
 
 	/**
 	 * @param {Site} site 
-	 * @param {NameTypePair[]} nameTypes 
+	 * @param {DestructExpr[]} nameTypes 
 	 * @param {ValueExpr} upstreamExpr 
 	 * @param {ValueExpr} downstreamExpr 
 	 */
@@ -18912,27 +18921,12 @@ class AssignExpr extends ValueExpr {
 			if (!(upstreamVal instanceof MultiInstance)) {
 				throw this.typeError("rhs ins't a multi-value");
 			} else {
-				let types = this.#nameTypes.map(nt => nt.evalType(scope));
-
 				let vals = upstreamVal.values;
 
-				if (types.length != vals.length) {
-					throw this.typeError(`expected ${types.length} rhs in multi-assign, got ${vals.length}`);
+				if (this.#nameTypes.length != vals.length) {
+					throw this.typeError(`expected ${this.#nameTypes.length} rhs in multi-assign, got ${vals.length}`);
 				} else {
-					types.forEach((t, i) => {
-						if (!vals[i].isInstanceOf(this.#upstreamExpr.site, t)) {
-							throw this.#upstreamExpr.typeError(`expected ${t.toString()} for rhs ${i+1}, got ${vals[i].toString()}`);
-						}
-					});
-
-					vals.forEach((v, i) => {
-						if (!this.#nameTypes[i].isIgnored()) {
-							// TODO: take into account ghost type parameters
-							v = Instance.new(types[i]);
-
-							subScope.set(this.#nameTypes[i].name, v);
-						}
-					});
+					this.#nameTypes.forEach((nt, i) => nt.evalInAssignExpr(subScope, vals[i].getType(nt.site), i));
 				}
 			}
 		} else {
@@ -18941,16 +18935,7 @@ class AssignExpr extends ValueExpr {
 			}
 
 			if (this.#nameTypes[0].hasType()) {
-				let type = this.#nameTypes[0].evalType(scope);
-
-				assert(type.isType());
-
-				if (!upstreamVal.isInstanceOf(this.#upstreamExpr.site, type)) {
-					throw this.#upstreamExpr.typeError(`expected ${type.toString()}, got ${upstreamVal.toString()}`);
-				}
-
-				// TODO: take into account ghost type parameters
-				upstreamVal = Instance.new(type);
+				this.#nameTypes[0].evalInAssignExpr(subScope, upstreamVal.getType(this.#nameTypes[0].site), 0);
 			} else if (this.#upstreamExpr.isLiteral()) {
 				// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
 				if ((this.#upstreamExpr instanceof CallExpr &&
@@ -18966,14 +18951,14 @@ class AssignExpr extends ValueExpr {
 						upstreamVal = Instance.new(upstreamType.parentType);
 					}
 				}
+
+				subScope.set(this.#nameTypes[0].name, upstreamVal);
 			} else {
 				throw this.typeError("unable to infer type of assignment rhs");
 			}
-
-			subScope.set(this.#nameTypes[0].name, upstreamVal);
 		}
 
-		let downstreamVal = this.#downstreamExpr.eval(subScope);
+		const downstreamVal = this.#downstreamExpr.eval(subScope);
 
 		subScope.assertAllUsed();
 
@@ -18992,19 +18977,33 @@ class AssignExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
+		
 		if (this.#nameTypes.length === 1) {
+			let inner = this.#downstreamExpr.toIR(indent + TAB);
+
+			inner = this.#nameTypes[0].wrapDestructIR(indent, inner, 0);
+
 			return new IR([
-				new IR(`(${this.#nameTypes[0].name.toString()}) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
-				this.#downstreamExpr.toIR(indent + TAB),
+				new IR("("),
+				this.#nameTypes[0].toNameIR(0),
+				new IR(") "),
+				new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
+				inner,
 				new IR(`\n${indent}}(`),
 				this.#upstreamExpr.toIR(indent),
 				new IR(")")
 			]);
 		} else {
-			let ir = new IR([
+			let inner = this.#downstreamExpr.toIR(indent + TAB + TAB);
+
+			for (let i = this.#nameTypes.length - 1; i >= 0; i--) {
+				inner = this.#nameTypes[i].wrapDestructIR(indent, inner, i);
+			}
+
+			const ir = new IR([
 				this.#upstreamExpr.toIR(indent),
-				new IR(`(\n${indent + TAB}(`), new IR(this.#nameTypes.map(nt => new IR(nt.name.toString()))).join(", "), new IR(") ->", this.site), new IR(` {\n${indent}${TAB}${TAB}`),
-				this.#downstreamExpr.toIR(indent + TAB + TAB),
+				new IR(`(\n${indent + TAB}(`), new IR(this.#nameTypes.map((nt, i) => nt.toNameIR(i))).join(", "), new IR(") ->", this.site), new IR(` {\n${indent}${TAB}${TAB}`),
+				inner,
 				new IR(`\n${indent + TAB}}\n${indent})`)
 			]);
 
@@ -21340,12 +21339,316 @@ class IfElseExpr extends ValueExpr {
 }
 
 /**
+ * DestructExpr is for the lhs-side of assignments and for switch cases
+ * @package
+ */
+class DestructExpr {
+	#name;
+	#typeExpr;
+	#destructExprs;
+
+	/**
+	 * @param {Word} name - use an underscore as a sink
+	 * @param {?TypeExpr} typeExpr 
+	 * @param {DestructExpr[]} destructExprs
+	 */
+	constructor(name, typeExpr, destructExprs = []) {
+		this.#name = name;
+		this.#typeExpr = typeExpr;
+		this.#destructExprs = destructExprs;
+
+		assert (!(this.#typeExpr == null && this.#destructExprs.length > 0));
+	}
+
+	/**
+	 * @type {Site}
+	 */
+	get site() {
+		return this.#name.site;
+	}
+
+	/**
+	 * @type {Word}
+	 */
+	get name() {
+		return this.#name;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	hasDestructExprs() {
+		return this.#destructExprs.length > 0;
+	}
+
+	isIgnored() {
+		return this.name.value === "_";
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	hasType() {
+		return this.#typeExpr !== null;
+	}
+
+	/**
+	 * Throws an error if called before evalType()
+	 * @type {Type}
+	 */
+	get type() {
+		if (this.#typeExpr === null) {
+			if (this.isIgnored()) {
+				return new AnyType();
+			} else {
+				throw new Error("typeExpr not set");
+			}
+		} else {
+			return this.#typeExpr.type;
+		}
+	}
+
+	/**
+	 * @type {Word}
+	 */
+	get typeName() {
+		if (this.#typeExpr === null) {
+			return new Word(this.site, "");
+		} else {
+			return new Word(this.#typeExpr.site, this.#typeExpr.toString());
+		}
+	}
+
+	toString() {
+		if (this.#typeExpr === null) {
+			return this.name.toString();
+		} else {
+			let destructStr = "";
+
+			if (this.#destructExprs.length > 0) {
+				destructStr = `{${this.#destructExprs.map(de => de.toString()).join(", ")}}`;
+			}
+
+			if (this.isIgnored()) {
+				return `${this.#typeExpr.toString()}${destructStr}`;
+			} else {
+				return `${this.name.toString()}: ${this.#typeExpr.toString()}${destructStr}`;
+			}
+		}
+	}
+
+	/**
+	 * Evaluates the type, used by FuncLiteralExpr and DataDefinition
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
+	evalType(scope) {
+		if (this.#typeExpr === null) {
+			if (this.isIgnored()) {
+				return new AnyType();
+			} else {
+				throw new Error("typeExpr not set");
+			}
+		} else {
+			return this.#typeExpr.eval(scope);
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @param {Type} upstreamType 
+	 */
+	evalDestructExprs(scope, upstreamType) {
+		if (this.#destructExprs.length > 0) {
+			if (!(upstreamType instanceof AnyType) && upstreamType.nFields(this.site) != this.#destructExprs.length) {
+				throw this.site.typeError(`wrong number of destruct fields, expected ${upstreamType.nFields(this.site)}, got ${this.#destructExprs.length}`);
+			}
+
+			for (let i = 0; i < this.#destructExprs.length; i++) {
+
+				this.#destructExprs[i].evalInternal(
+					scope, 
+					upstreamType.getFieldType(this.site, i), 
+					i
+				);
+			}
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @param {Type} upstreamType
+	 * @param {number} i
+	 */
+	evalInternal(scope, upstreamType, i) {
+		if (this.hasType()) {
+			const t = this.evalType(scope)
+
+			assert(t.isType());
+
+			if (!Instance.new(upstreamType).isInstanceOf(this.site, t)) {
+				throw this.site.typeError(`expected ${t.toString()} for destructure field ${i+1}, got ${upstreamType.toString()}`);
+			}
+
+			if (!this.isIgnored()) {
+				// TODO: take into account ghost type parameters
+				scope.set(this.name, Instance.new(t));
+			}
+
+			this.evalDestructExprs(scope, t);
+		} else {
+			if (!this.isIgnored()) {
+				// TODO: take into account ghost type parameters
+				scope.set(this.name, Instance.new(upstreamType));
+			}
+
+			this.evalDestructExprs(scope, upstreamType);
+		}
+	}
+
+	/**
+	 * @param {Scope} scope
+	 * @param {Type} caseType
+	 */
+	evalInSwitchCase(scope, caseType) {
+		if (!this.isIgnored()) {
+			scope.set(this.#name, Instance.new(caseType));
+		}
+
+		this.evalDestructExprs(scope, caseType)
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @param {Type} upstreamType
+	 * @param {number} i
+	 */
+	evalInAssignExpr(scope, upstreamType, i) {
+		const t = this.evalType(scope)
+
+		assert(t.isType());
+
+		if (!Instance.new(upstreamType).isInstanceOf(this.site, t)) {
+			throw this.site.typeError(`expected ${t.toString()} for rhs ${i+1}, got ${upstreamType.toString()}`);
+		}
+
+		if (!this.isIgnored()) {
+			// TODO: take into account ghost type parameters
+			scope.set(this.name, Instance.new(t));
+		}
+
+		this.evalDestructExprs(scope, t);
+	}
+
+	use() {
+		if (this.#typeExpr !== null) {
+			this.#typeExpr.use();
+		}
+	}
+
+	/**
+	 * @param {number} argIndex 
+	 * @returns {IR}
+	 */
+	toNameIR(argIndex) {
+		if (this.isIgnored()) {
+			return new IR(`__lhs_${argIndex}`);
+		} else {
+			return new IR(this.#name.toString(), this.#name.site)
+		}
+	}
+
+	/**
+	 * @param {number} fieldIndex
+	 * @param {boolean} isSwitchCase
+	 * @returns {string}
+	 */
+	getFieldFn(fieldIndex, isSwitchCase = false) {
+		if (isSwitchCase) {
+			return `__helios__common__field_${fieldIndex}`;
+		}
+
+		const type = this.type;
+
+		if (type instanceof EnumMemberStatementType || type instanceof BuiltinEnumMember) {
+			return `__helios__common__field_${fieldIndex}`;
+		} else if (type instanceof StructStatementType) {
+			if (type.nFields(Site.dummy()) == 1) {
+				return "";
+			} else {
+				return `__helios__common__tuple_field_${fieldIndex}`;
+			}
+		} else {
+			return "";
+		}
+	}
+
+	/**
+	 * @param {string} indent
+	 * @param {IR} inner 
+	 * @param {string} objName 
+	 * @param {number} fieldIndex 
+	 * @param {string} fieldFn
+	 * @returns {IR}
+	 */
+	wrapDestructIRInternal(indent, inner, objName, fieldIndex, fieldFn) {
+		if (this.isIgnored() && this.#destructExprs.length == 0) {
+			return inner;
+		} else {
+			const baseName = this.isIgnored() ? `${objName}_${fieldIndex}` : this.#name.toString();
+
+			for (let i = this.#destructExprs.length - 1; i >= 0; i--) {
+				inner = this.#destructExprs[i].wrapDestructIRInternal(indent + TAB, inner, baseName, i, this.getFieldFn(i));
+			}
+			
+			return new IR([
+				new IR("("),
+				new IR(baseName, this.#name.site),
+				new IR(") "),
+				new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
+				inner,
+				new IR(`\n${indent}}(${fieldFn}(${objName}))`),
+			]);
+		}
+	}
+
+	/**
+	 * @param {string} indent
+	 * @param {IR} inner 
+	 * @param {number} argIndex 
+	 * @param {boolean} isSwitchCase
+	 * @returns {IR}
+	 */
+	wrapDestructIR(indent, inner, argIndex, isSwitchCase = false) {
+		if (this.#destructExprs.length == 0) {
+			return inner;
+		} else {
+			const baseName = this.isIgnored() ? `__lhs_${argIndex}` : this.#name.toString();
+
+			for (let i = this.#destructExprs.length - 1; i >= 0; i--) {
+				const de = this.#destructExprs[i];
+
+				inner = de.wrapDestructIRInternal(indent + TAB, inner, baseName, i, this.getFieldFn(i, isSwitchCase));
+			}
+
+			return inner;
+		}
+	}
+
+	/**
+	 * @returns {IR}
+	 */
+	toIR() {
+		return new IR(this.#name.toString(), this.#name.site);
+	}
+}
+
+/**
  * Switch case for a switch expression
  * @package
  */
 class SwitchCase extends Token {
-	#varName;
-	#memberName;
+	#lhs;
 	#bodyExpr;
 
 	/** @type {?number} */
@@ -21353,14 +21656,12 @@ class SwitchCase extends Token {
 
 	/**
 	 * @param {Site} site 
-	 * @param {?Word} varName - optional
-	 * @param {Word} memberName - not optional
+	 * @param {DestructExpr} lhs
 	 * @param {ValueExpr} bodyExpr 
 	 */
-	constructor(site, varName, memberName, bodyExpr) {
+	constructor(site, lhs, bodyExpr) {
 		super(site);
-		this.#varName = varName;
-		this.#memberName = memberName;
+		this.#lhs = lhs;
 		this.#bodyExpr = bodyExpr;
 		this.#constrIndex = null;
 	}
@@ -21377,11 +21678,11 @@ class SwitchCase extends Token {
 	 * @type {Word} - word representation of type
 	 */
 	get memberName() {
-		return this.#memberName;
+		return this.#lhs.typeName;
 	}
 
 	isDataMember() {
-		switch (this.#memberName.value) {
+		switch (this.memberName.value) {
 			case "Int":
 			case "[]Data":
 			case "ByteArray":
@@ -21401,41 +21702,35 @@ class SwitchCase extends Token {
 	}
 
 	toString() {
-		return `${this.#varName !== null ? this.#varName.toString() + ": " : ""}${this.#memberName.toString()} => ${this.#bodyExpr.toString()}`;
+		return `${this.#lhs.toString()} => ${this.#bodyExpr.toString()}`;
 	}
 
 	/**
 	 * Evaluates the switch type and body value of a case.
-	 * Evaluated switch type is only used if #varName !== null
 	 * @param {Scope} scope 
 	 * @param {Type} enumType
 	 * @returns {Instance}
 	 */
 	evalEnumMember(scope, enumType) {
-		let caseType = enumType.getTypeMember(this.#memberName).assertType(this.#memberName.site);
+		const caseType = enumType.getTypeMember(this.memberName).assertType(this.memberName.site);
 
-		this.#constrIndex = caseType.getConstrIndex(this.#memberName.site);
+		this.#constrIndex = caseType.getConstrIndex(this.memberName.site);
 
 		assert(this.#constrIndex >= 0);
 
-		if (this.#varName !== null) {
-			let caseScope = new Scope(scope);
+		const caseScope = new Scope(scope);
 
-			caseScope.set(this.#varName, Instance.new(caseType));
+		this.#lhs.evalInSwitchCase(caseScope, caseType);
 
-			let bodyVal = this.#bodyExpr.eval(caseScope);
+		const bodyVal = this.#bodyExpr.eval(caseScope);
 
-			caseScope.assertAllUsed();
+		caseScope.assertAllUsed();
 
-			return bodyVal;
-		} else {
-			return this.#bodyExpr.eval(scope);
-		}
+		return bodyVal;
 	}
 
 	/**
 	 * Evaluates the switch type and body value of a case.
-	 * Evaluated switch type is only used if #varName !== null
 	 * @param {Scope} scope
 	 * @returns {Instance}
 	 */
@@ -21443,7 +21738,7 @@ class SwitchCase extends Token {
 		/** @type {Type} */
 		let memberType;
 
-		switch (this.#memberName.value) {
+		switch (this.memberName.value) {
 			case "Int":
 				memberType = new IntType();
 				break;
@@ -21457,31 +21752,27 @@ class SwitchCase extends Token {
 				memberType = new MapType(new RawDataType(), new RawDataType());
 				break;
 			default:
-				let maybeMemberType = scope.get(this.#memberName);
+				let maybeMemberType = scope.get(this.memberName);
 				if (maybeMemberType instanceof Type) {
 					memberType = maybeMemberType;
 
 					if (!(memberType instanceof EnumStatementType)) {
-						throw this.#memberName.typeError("expected an enum type");
+						throw this.memberName.typeError("expected an enum type");
 					}
 				} else {
-					throw this.#memberName.typeError("expected a type");
+					throw this.memberName.typeError("expected a type");
 				}
 		}
 
-		if (this.#varName !== null) {
-			let caseScope = new Scope(scope);
+		const caseScope = new Scope(scope);
 
-			caseScope.set(this.#varName, Instance.new(memberType));
+		this.#lhs.evalInSwitchCase(caseScope, memberType);
 
-			let bodyVal = this.#bodyExpr.eval(caseScope);
+		const bodyVal = this.#bodyExpr.eval(caseScope);
 
-			caseScope.assertAllUsed();
+		caseScope.assertAllUsed();
 
-			return bodyVal;
-		} else {
-			return this.#bodyExpr.eval(scope);
-		}
+		return bodyVal;
 	}
 
 	use() {
@@ -21494,9 +21785,16 @@ class SwitchCase extends Token {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
+		let inner = this.#bodyExpr.toIR(indent + TAB);
+
+		inner = this.#lhs.wrapDestructIR(indent, inner, 0, true);
+
 		return new IR([
-			new IR(`(${this.#varName !== null ? this.#varName.toString() : "_"}) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
-			this.#bodyExpr.toIR(indent + TAB),
+			new IR("("),
+			this.#lhs.toNameIR(0), 
+			new IR(") "),
+			new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
+			inner,
 			new IR(`\n${indent}}`),
 		]);
 	}
@@ -21516,7 +21814,7 @@ class UnconstrDataSwitchCase extends SwitchCase {
 	 * @param {ValueExpr} bodyExpr 
 	 */
 	constructor(site, intVarName, lstVarName, bodyExpr) {
-		super(site, null, new Word(site, "(Int, []Data)"), bodyExpr);
+		super(site, new DestructExpr(new Word(site, "_"), new TypeRefExpr(new Word(site, "(Int, []Data)"))), bodyExpr);
 
 		this.#intVarName = intVarName;
 		this.#lstVarName = lstVarName;
@@ -21541,11 +21839,10 @@ class UnconstrDataSwitchCase extends SwitchCase {
 
 	/**
 	 * Evaluates the switch type and body value of a case.
-	 * Evaluated switch type is only used if #varName !== null
 	 * @param {Scope} scope
 	 * @returns {Instance}
 	 */
-	 evalDataMember(scope) {
+	evalDataMember(scope) {
 		if (this.#intVarName !== null || this.#lstVarName !== null) {
 			let caseScope = new Scope(scope);
 
@@ -21572,7 +21869,7 @@ class UnconstrDataSwitchCase extends SwitchCase {
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
-	 toIR(indent = "") {
+	toIR(indent = "") {
 		return new IR([
 			new IR(`(data) -> {\n${indent}${TAB}`),
 			new IR(`(pair) -> {\n${indent}${TAB}${TAB}`),
@@ -24503,9 +24800,93 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 
 /**
  * @package
+ * @param {Site} site
+ * @param {Token[]} ts 
+ * @param {boolean} isSwitchCase
+ * @returns {DestructExpr}
+ */
+function buildDestructExpr(site, ts, isSwitchCase = false) {
+	if (ts.length == 0) {
+		throw site.syntaxError("expected token inside destructuring braces");
+	}
+
+	const maybeName = assertDefined(ts.shift());
+
+	if (maybeName.isWord("_")) {
+		if (ts.length != 0) {
+			throw maybeName.syntaxError("unexpected tokens after '_'");
+		}
+
+		return new DestructExpr(new Word(maybeName.site, "_"), null);
+	} else {
+		let name = new Word(maybeName.site, "_");
+
+		if (ts.length >= 1 && ts[0].isSymbol(":")) {
+			name = maybeName.assertWord().assertNotKeyword();
+
+			const colon = assertDefined(ts.shift()).assertSymbol(":");
+
+			if (ts.length == 0) {
+				throw colon.syntaxError("expected type expression after ':'");
+			} else {
+				const destructExprs = buildDestructExprs(ts);
+	
+				const typeExpr = buildTypeExpr(ts);
+	
+				return new DestructExpr(name, typeExpr, destructExprs);
+			}
+		} else if (ts.length == 0) {
+			if (isSwitchCase) {
+				const typeExpr = new TypeRefExpr(maybeName.assertWord().assertNotKeyword());
+
+				return new DestructExpr(name, typeExpr);
+			} else {
+				name = maybeName.assertWord().assertNotKeyword();
+
+				return new DestructExpr(name, null);
+			}
+		} else {
+			ts.unshift(maybeName);
+
+			const destructExprs = buildDestructExprs(ts);
+	
+			const typeExpr = buildTypeExpr(ts);
+	
+			return new DestructExpr(name, typeExpr, destructExprs);
+		}
+	}
+}
+
+/**
+ * Pops the last element of ts if it is a braces group
+ * @param {Token[]} ts
+ * @returns {DestructExpr[]}
+ */
+function buildDestructExprs(ts) {
+	if (ts.length == 0) {
+		return [];
+	} else if (ts[ts.length -1].isGroup("{")) {
+		const group = assertDefined(ts.pop()).assertGroup("{");
+
+		const destructExprs = group.fields.map(fts => {
+			return buildDestructExpr(group.site, fts);
+		});
+	
+		if (destructExprs.every(le => le.isIgnored() && !le.hasDestructExprs())) {
+			throw group.syntaxError("expected at least one used field while destructuring")
+		}
+	
+		return destructExprs;
+	} else {
+		return [];
+	}	
+}
+
+/**
+ * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {NameTypePair[]}
+ * @returns {DestructExpr[]}
  */
 function buildAssignLhs(site, ts) {
 	const maybeName = ts.shift();
@@ -24513,26 +24894,20 @@ function buildAssignLhs(site, ts) {
 		throw site.syntaxError("expected a name before '='");
 	} else {
 		/**
-		 * @type {NameTypePair[]}
+		 * @type {DestructExpr[]}
 		 */
 		const pairs = [];
 
 		if (maybeName.isWord()) {
-			const name = maybeName.assertWord().assertNotKeyword();
+			ts.unshift(maybeName);
 
-			if (ts.length > 0) {
-				const colon = assertDefined(ts.shift()).assertSymbol(":");
+			const lhs = buildDestructExpr(maybeName.site, ts);
 
-				if (ts.length == 0) {
-					throw colon.syntaxError("expected type expression after ':'");
-				} else {
-					const typeExpr = buildTypeExpr(ts);
-
-					pairs.push(new NameTypePair(name, typeExpr));
-				}
-			} else {
-				pairs.push(new NameTypePair(name, null));
+			if (lhs.isIgnored() && !lhs.hasDestructExprs()) {
+				throw maybeName.syntaxError(`unused assignment ${maybeName.toString()}`);
 			}
+
+			pairs.push(lhs);
 		} else if (maybeName.isGroup("(")) {
 			const group = maybeName.assertGroup("(");
 
@@ -24548,42 +24923,20 @@ function buildAssignLhs(site, ts) {
 
 				fts = fts.slice();
 
-				const name = assertDefined(fts.shift()).assertWord();
+				const lhs = buildDestructExpr(group.site, fts);
 
-				if (name.value === "_") {
-					if (fts.length !== 0) {
-						throw fts[0].syntaxError("unexpected token after '_' in multi-assign");
-					}
-
-					pairs.push(new NameTypePair(name, null));
-				} else {
+				if (!lhs.isIgnored() || lhs.hasDestructExprs()) {
 					someNoneUnderscore = true;
-
-					name.assertNotKeyword();
-
-					const maybeColon = fts.shift();
-					
-					if (maybeColon === undefined) {
-						throw name.syntaxError(`expected ':' after '${name.toString()}'`);
-					}
-					
-					const colon = maybeColon.assertSymbol(":");
-
-					if (fts.length === 0) {
-						throw colon.syntaxError("expected type expression after ':'");
-					}
-
-					const typeExpr = buildTypeExpr(fts);
-
-					// check that name is unique
-					pairs.forEach(p => {
-						if (p.name.value === name.value) {
-							throw name.syntaxError(`duplicate name '${name.value}' in lhs of multi-assign`);
-						}
-					});
-
-					pairs.push(new NameTypePair(name, typeExpr));
 				}
+
+				// check that name is unique
+				pairs.forEach(p => {
+					if (!lhs.isIgnored() && p.name.value === lhs.name.value) {
+						throw lhs.name.syntaxError(`duplicate name '${lhs.name.value}' in lhs of multi-assign`);
+					}
+				});
+
+				pairs.push(lhs);
 			}
 
 			if (!someNoneUnderscore) {
@@ -25124,19 +25477,24 @@ function buildMultiArgSwitchCase(tsLeft, ts) {
  * @returns {SwitchCase}
  */
 function buildSingleArgSwitchCase(tsLeft, ts) {
-	/** @type {[?Word, Word]} */
-	const [varName, memberName] = buildSwitchCaseNameType(tsLeft);
+	const site = tsLeft[tsLeft.length-1].site;
+
+	const destructExpr = buildDestructExpr(site, tsLeft, true);
+
+	if (!destructExpr.hasType()) {
+		throw destructExpr.site.syntaxError("invalid switch case syntax");
+	}
 	
 	const maybeArrow = ts.shift();
 
 	if (maybeArrow === undefined) {
-		throw memberName.syntaxError("expected '=>'");
+		throw site.syntaxError("expected '=>'");
 	} else {
 		const arrow = maybeArrow.assertSymbol("=>");
 
 		const bodyExpr = buildSwitchCaseBody(arrow.site, ts);
 
-		return new SwitchCase(arrow.site, varName, memberName, bodyExpr);
+		return new SwitchCase(arrow.site, destructExpr, bodyExpr);
 	}
 }
 
