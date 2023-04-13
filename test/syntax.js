@@ -790,7 +790,7 @@ async function test23() {
       a
   }`, "expected Bool for destructure field 1, got Int");
 
-  await testTrue(`testing nested_destruct
+  await testTrue(`testing destruct_nested
   
   struct Pair {
       a: Int
@@ -810,6 +810,16 @@ async function test23() {
       b == c && p0 == p1
   }
   `);
+
+  await testTrue(`testing destruct_option_assigment
+  
+  func main() -> Bool {
+    o = Option[Int]::Some{10};
+
+    Option[Int]::Some{a} = o;
+
+    a == 10
+  }`);
 
   await testTrue(`testing destruct_enum
   

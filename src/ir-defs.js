@@ -760,6 +760,66 @@ function makeRawFunctions() {
 			__helios__int__max(__helios__int__min(self, max), min)
 		}
 	}`));
+	add(new RawFunc("__helios__int__abs",
+	`(self) -> {
+		() -> {
+			(i) -> {
+				__core__ifThenElse(
+					__core__lessThanInteger(i, 0),
+					() -> {
+						__core__iData(__core__multiplyInteger(i, -1))
+					},
+					() -> {
+						self
+					}
+				)()
+			}(__core__unIData(self))
+		}
+	}`));
+	add(new RawFunc("__helios__int__encode_zigzag",
+	`(self) -> {
+		() -> {
+			(i) -> {
+				__core__iData(
+					__core__ifThenElse(
+						__core__lessThanInteger(i, 0),
+						() -> {
+							__core__subtractInteger(__core__multiplyInteger(i, -2), 1)
+						},
+						() -> {
+							__core__multiplyInteger(i, 2)
+						}
+					)()
+				)
+			}(__core__unIData(self))
+		}
+	}`));
+	add(new RawFunc("__helios__int__decode_zigzag",
+	`(self) -> {
+		() -> {
+			(i) -> {
+				__core__ifThenElse(
+					__core__lessThanInteger(i, 0),
+					() -> {
+						error("expected positive int")
+					},
+					() -> {
+						__core__iData(
+							__core__ifThenElse(
+								__core__equalsInteger(__core__modInteger(i, 2), 0),
+								() -> {
+									__core__divideInteger(i, 2)
+								},
+								() -> {
+									__core__divideInteger(__core__addInteger(i, 1), -2)
+								}
+							)()
+						)
+					}
+				)()
+			}(__core__unIData(self))
+		}
+	}`));
 	add(new RawFunc("__helios__int__to_bool",
 	`(self) -> {
 		() -> {
@@ -774,18 +834,27 @@ function makeRawFunctions() {
 					__core__bData(
 						__core__ifThenElse(
 							__core__lessThanInteger(self, 0),
-							() -> {__core__consByteString(45, recurse(recurse, __core__multiplyInteger(self, -1)))},
-							() -> {recurse(recurse, self)}
+							() -> {
+								__core__consByteString(
+									45,
+									recurse(recurse, __core__multiplyInteger(self, -1), #)
+								)
+							},
+							() -> {
+								recurse(recurse, self, #)
+							}
 						)()
 					)
 				}(
-					(recurse, self) -> {
+					(recurse, self, bytes) -> {
 						(partial) -> {
 							(bytes) -> {
 								__core__ifThenElse(
 									__core__lessThanInteger(self, 16),
 									() -> {bytes},
-									() -> {__core__appendByteString(recurse(recurse, __core__divideInteger(self, 16)), bytes)}
+									() -> {
+										recurse(recurse, __core__divideInteger(self, 16), bytes)
+									}
 								)()
 							}(
 								__core__consByteString(
@@ -794,7 +863,7 @@ function makeRawFunctions() {
 										__core__addInteger(partial, 48), 
 										__core__addInteger(partial, 87)
 									), 
-									#
+									bytes
 								)
 							)
 						}(__core__modInteger(self, 16))
@@ -915,6 +984,37 @@ function makeRawFunctions() {
 			)
 		}(__core__unBData(string))
 	}`));
+	add(new RawFunc("__helios__int__from_big_endian",
+	`(bytes) -> {
+		(bytes) -> {
+			__core__iData(
+				(n) -> {
+					(recurse) -> {
+						recurse(recurse, 0, 1, __core__subtractInteger(n, 1))
+					}(
+						(recurse, acc, pow, i) -> {
+							__core__ifThenElse(
+								__core__equalsInteger(i, -1),
+								() -> {
+									acc
+								},
+								() -> {
+									(new_acc) -> {
+										recurse(recurse, new_acc, __core__multiplyInteger(pow, 256), __core__subtractInteger(i, 1))
+									}(
+										__core__addInteger(
+											acc,
+											__core__multiplyInteger(__core__indexByteString(bytes, i), pow)
+										)
+									)
+								}
+							)()
+						}
+					)
+				}(__core__lengthOfByteString(bytes))
+			)
+		}(__core__unBData(bytes))
+	}`));
 	add(new RawFunc("__helios__int__from_little_endian", 
 	`(bytes) -> {
 		(bytes) -> {
@@ -946,6 +1046,74 @@ function makeRawFunctions() {
 			)
 		}(__core__unBData(bytes))
 	}`));
+	add(new RawFunc("__helios__int__to_big_endian",
+	`(self) -> {
+		(self) -> {
+			() -> {
+				__core__ifThenElse(
+					__core__lessThanInteger(self, 0),
+					() -> {
+						error("can't convert negative number to big endian bytearray")
+					},
+					() -> {
+						(recurse) -> {
+							__core__bData(recurse(recurse, self, #))
+						}(
+							(recurse, self, bytes) -> {
+								(bytes) -> {
+									__core__ifThenElse(
+										__core__lessThanInteger(self, 256),
+										() -> {
+											bytes
+										},
+										() -> {
+											recurse(
+												recurse,
+												__core__divideInteger(self, 256),
+												bytes
+											)
+										}
+									)()
+								}(__core__consByteString(self, bytes))
+							}
+						)
+					}
+				)()
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new RawFunc("__helios__int__to_little_endian",
+	`(self) -> {
+		(self) -> {
+			() -> {
+				__core__ifThenElse(
+					__core__lessThanInteger(self, 0),
+					() -> {
+						error("can't convert negative number to big endian bytearray")
+					},
+					() -> {
+						(recurse) -> {
+							__core__bData(recurse(recurse, self))
+						}(
+							(recurse, self) -> {
+								__core__consByteString(self,
+									__core__ifThenElse(
+										__core__lessThanInteger(self, 256),
+										() -> {
+											#
+										},
+										() -> {
+											recurse(recurse, __core__divideInteger(self, 256))
+										}
+									)()
+								)
+							}
+						)
+					}
+				)()
+			}
+		}(__core__unIData(self))
+	}`))
 
 
 	// Bool builtins
@@ -1065,6 +1233,17 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__bytearray__ends_with",
 	`(self) -> {
 		__helios__common__ends_with(self, __core__lengthOfByteString)
+	}`));
+	add(new RawFunc("__helios__bytearray__prepend", 
+	`(self) -> {
+		(byte) -> {
+			__core__bData(
+				__core__consByteString(
+					__core__unIData(byte),
+					__core__unBData(self)
+				)
+			)
+		}
 	}`));
 	add(new RawFunc("__helios__bytearray__sha2",
 	`(self) -> {

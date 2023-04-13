@@ -169,9 +169,9 @@ Comments are removed immediately.
 
 ## Int
 ```
-associated:  from_data, parse, from_little_endian, min, max
+associated:  from_data, parse, from_little_endian, from_big_endian, min, max
 operators:   __eq, __neq, __neg, __pos, __add, __sub, __mul, __div, __mod, __geq, __gt, __leq, __lt
-methods:     serialize, to_bool, to_hex, show, bound, bound_min, bound_max
+methods:     serialize, to_bool, to_hex, to_little_endian, to_big_endian, show, bound, bound_min, bound_max, abs, encode_zigzag, decode_zigzag
 internal ns: __helios__int
 ```
 
@@ -196,7 +196,7 @@ internal ns: __helios__string
 associated:  from_data
 operators:   __eq, __neq, __add, __lt, __leq, __gt, __geq
 getters:     length
-methods:     serialize, slice, starts_with, ends_with, sha2, sha3, blake2b, decode_utf8, show
+methods:     serialize, slice, starts_with, ends_with, sha2, sha3, blake2b, decode_utf8, show, prepend
 internal ns: __helios__bytearray
 ```
 

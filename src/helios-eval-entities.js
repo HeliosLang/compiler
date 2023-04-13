@@ -2000,6 +2000,7 @@ export class IntType extends BuiltinType {
 			case "__leq":
 			case "__lt":
 				return Instance.new(new FuncType([this, new IntType()], new BoolType()));
+			case "from_big_endian":
 			case "from_little_endian":
 				return Instance.new(new FuncType([new ByteArrayType()], new IntType()));
 			case "max":
@@ -2018,6 +2019,10 @@ export class IntType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
+			case "decode_zigzag":
+			case "encode_zigzag":
+			case "abs":
+				return Instance.new(new FuncType([], new IntType()));
 			case "bound":
 				return Instance.new(new FuncType([new IntType(), new IntType()], new IntType()));
 			case "bound_min":
@@ -2025,6 +2030,9 @@ export class IntType extends BuiltinType {
 				return Instance.new(new FuncType([new IntType()], new IntType()));
 			case "to_bool":
 				return Instance.new(new FuncType([], new BoolType()));
+			case "to_big_endian":
+			case "to_little_endian":
+				return Instance.new(new FuncType([], new ByteArrayType()));
 			case "to_hex":
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
@@ -2225,6 +2233,8 @@ export class ByteArrayType extends BuiltinType {
 			case "starts_with":
 			case "ends_with":
 				return Instance.new(new FuncType([new ByteArrayType()], new BoolType()));
+			case "prepend":
+				return Instance.new(new FuncType([new IntType()], new ByteArrayType()));
 			case "sha2":
 			case "sha3":
 			case "blake2b":

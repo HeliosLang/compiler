@@ -67,13 +67,15 @@ function correctDir() {
 	process.chdir(dirname(process.argv[1]));
 }
 
-function getVersion() {
-	const packageJson = JSON.parse(fs.readFileSync("../package.json").toString());
-
-	return packageJson.version;
+function getPackageJson() {
+	return JSON.parse(fs.readFileSync("../package.json").toString());
 }
 
-function buildHeader(version) {
+function getLicense() {
+	return fs.readFileSync("../LICENSE").toString();
+}
+
+function buildHeader(version, licenseType, licenseBody) {
 	return `//@ts-check
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////      Helios      /////////////////////////////////////////
@@ -85,7 +87,7 @@ function buildHeader(version) {
 // Repository:    https://github.com/hyperion-bt/helios
 // Version:       ${version}
 // Last update:   ${(new Date()).toLocaleDateString("en-US", {year: 'numeric', month: 'long'})}
-// License:       Unlicense
+// License type:  ${licenseType}
 //
 //
 // About: Helios is a smart contract DSL for Cardano.
@@ -113,6 +115,10 @@ function buildHeader(version) {
 //     auditability.
 //
 // 
+// License text:
+//     ${licenseBody.split("\n").join("\n//     ")}
+//
+//
 // Overview of internals:`;
 }
 
@@ -133,6 +139,8 @@ function buildFooter() {
 export const exportedForTesting = {
 	assert: assert,
 	assertClass: assertClass,
+	bigIntToBytes: bigIntToBytes,
+	bytesToBigInt: bytesToBigInt,
 	setRawUsageNotifier: setRawUsageNotifier,
 	setBlake2bDigestSize: setBlake2bDigestSize,
 	dumpCostModels: dumpCostModels,
@@ -217,7 +225,7 @@ function buildIndex(id, src) {
 		return m.match(RE_LAST_WORD)[0];
 	});
 
-	const writer = new IndexWriter("//    ", `Section ${id+1}: ${title}`);
+	const writer = new IndexWriter("//     ", `Section ${id+1}: ${title}`);
 
 	names.forEach((name, i) => {
 		if (i < names.length - 1) {
@@ -300,9 +308,12 @@ function main() {
 
 	assertAllFilesUsed(files);
 
-	const version = getVersion();
+	const packageJson = getPackageJson();
+	const version = packageJson.version;
+	const licenseType = packageJson.license;
+	const licenseBody = getLicense();
 
-	const header = buildHeader(version);
+	const header = buildHeader(version, licenseType, licenseBody);
 
 	const indexParts = [];
 	const srcParts = [];

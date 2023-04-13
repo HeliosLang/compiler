@@ -690,6 +690,59 @@ async function testBuiltins() {
         }
     });
 
+    await ft.test([ft.int()], `
+    testing int_abs
+    
+    func main(a: Int) -> Int {
+        a.abs()
+    }`, ([a], res) => {
+        let ai = asInt(a);
+
+        if (ai < 0n) {
+            ai *= -1n;
+        }
+
+        return asInt(res) === ai
+    });
+
+    await ft.test([ft.int()], `
+    testing int_encode_zigzag
+    
+    func main(a: Int) -> Int {
+        a.encode_zigzag()
+    }`, ([a], res) => {
+        const ai = asInt(a);
+        const ri = asInt(res);
+        const expected = ai < 0n ? -2n*ai - 1n : 2n*ai;
+
+        return ri >= 0n && ri === expected;
+    });
+
+    await ft.test([ft.int()], `
+    testing int_decode_zigzag
+    
+    func main(a: Int) -> Int {
+        a.decode_zigzag()
+    }`, ([a], res) => {
+        const ai = asInt(a);
+
+        if (ai < 0n) {
+            return isError(res, "expected positive int");
+        } else {
+            const ri = asInt(res);
+            const expected = ai % 2n == 0n ? ai/2n : (ai + 1n)/(-2n);
+
+            return ri === expected;
+        }
+    });
+
+    await ft.test([ft.int()], `
+    testing int_encode_decode_zigzag
+
+    func main(a: Int) -> Bool {
+        a.encode_zigzag().decode_zigzag() == a
+    }`, ([_], res) => asBool(res));
+
     await ft.test([ft.int(-10, 10)], `
     testing int_to_bool
     func main(a: Int) -> Bool {
@@ -701,6 +754,38 @@ async function testBuiltins() {
     func main(a: Int) -> String {
         a.to_hex()
     }`, ([a], res) => (asInt(a).toString(16) === asString(res)));
+
+    await ft.test([ft.int(0)], `
+    testing int_to_little_endian
+    func main(a: Int) -> ByteArray {
+        a.to_little_endian()
+    }`, ([a], res) => {
+        const bs = asBytes(res);
+        
+        return helios_.bytesToBigInt(bs.reverse()) === asInt(a);
+    });
+
+    await ft.test([ft.int(0)], `
+    testing int_to_big_endian
+    func main(a: Int) -> ByteArray {
+        a.to_big_endian()
+    }`, ([a], res) => {
+        const bs = asBytes(res);
+
+        return helios_.bytesToBigInt(bs) == asInt(a);
+    });
+
+    await ft.test([ft.int(0)], `
+    testing int_to_from_little_endian
+    func main(a: Int) -> Bool {
+        Int::from_little_endian(a.to_little_endian()) == a
+    }`, ([_], res) => asBool(res));
+
+    await ft.test([ft.int(0)], `
+    testing int_to_from_big_endian
+    func main(a: Int) -> Bool {
+        Int::from_big_endian(a.to_big_endian()) == a
+    }`, ([_], res) => asBool(res));
 
     await ft.test([ft.int()], `
     testing int_show
@@ -721,6 +806,17 @@ async function testBuiltins() {
     }`, ([bytes], res) => {
         let sum = 0n;
         asBytes(bytes).forEach((b, i) => {sum += BigInt(b)*(1n << BigInt(i*8))});
+
+        return asInt(res) === sum;
+    });
+
+    await ft.test([ft.bytes(0, 10)], `
+    testing int_from_big_endian
+    func main(bytes: ByteArray) -> Int {
+        Int::from_big_endian(bytes)
+    }`, ([bytes], res) => {
+        let sum = 0n;
+        asBytes(bytes).reverse().forEach((b, i) => {sum += BigInt(b)*(1n << BigInt(i*8))});
 
         return asInt(res) === sum;
     });
@@ -1128,6 +1224,17 @@ async function testBuiltins() {
             }
 
             return asBool(res);
+        });
+
+        await ft.test([ft.int(), ft.bytes(0, 10)], `
+        testing bytearray_prepend
+        func main(byte: Int, b: ByteArray) -> ByteArray {
+            b.prepend(byte)
+        }`, ([a, b], res) => {
+            const bi = asBytes(b);
+            bi.unshift(Number(asInt(a) % 256n));
+
+            return equalsList(bi, asBytes(res));
         });
 
         await ft.test([ft.utf8Bytes()], `

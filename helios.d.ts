@@ -185,7 +185,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.17";
+export const VERSION: "0.13.18";
 /**
  * Modifiable config vars
  * @type {{
@@ -3898,6 +3898,8 @@ export class NetworkEmulator implements Network {
 export namespace exportedForTesting {
     export { assert };
     export { assertClass };
+    export { bigIntToBytes };
+    export { bytesToBigInt };
     export { setRawUsageNotifier };
     export { setBlake2bDigestSize };
     export { dumpCostModels };
@@ -5487,6 +5489,22 @@ declare function assert(cond: boolean, msg?: string): void;
  * @returns {Tout}
  */
 declare function assertClass<Tin, Tout>(obj: Tin, C: new (...any: any[]) => Tout, msg?: string): Tout;
+/**
+ * Converts an unbounded integer into a list of uint8 numbers (big endian)
+ * Used by the CBOR encoding of data structures, and by Ed25519
+ * @package
+ * @param {bigint} x
+ * @returns {number[]}
+ */
+declare function bigIntToBytes(x: bigint): number[];
+/**
+ * Converts a list of uint8 numbers into an unbounded int (big endian)
+ * Used by the CBOR decoding of data structures.
+ * @package
+ * @param {number[]} b
+ * @return {bigint}
+ */
+declare function bytesToBigInt(b: number[]): bigint;
 /**
  * Set the statistics collector (used by the test-suite)
  * @param {(name: string, count: number) => void} callback

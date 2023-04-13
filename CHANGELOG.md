@@ -1,5 +1,13 @@
 This Changelog only applies to notable changes of language related features in `helios.js` on the main branch.
 
+# 2023/04/13
+* `Int` methods: `abs`, `encode_zigzag`, `decode_zigzag`, `to_little_endian`, `to_big_endian`
+* `Int::from_big_endian` associated function
+* `ByteArray.prepend`
+
+# 2023/04/12
+* Destructuring syntax for assignments and for switch cases
+
 # 2023/04/10
 * `Duration::SECOND`, `MINUTE`, `HOUR`, `DAY`, `WEEK`
 

@@ -7,9 +7,9 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.17
+// Version:       0.13.18
 // Last update:   April 2023
-// License:       Unlicense
+// License type:  BSD-3-Clause
 //
 //
 // About: Helios is a smart contract DSL for Cardano.
@@ -37,44 +37,74 @@
 //     auditability.
 //
 // 
-// Overview of internals:
-//    Section 1: Config                      VERSION, TAB, config
+// License text:
+//     Copyright 2023 Christian Schmitz
+//     
+//     Redistribution and use in source and binary forms, with or without 
+//     modification, are permitted provided that the following conditions are met:
+//     
+//     1. Redistributions of source code must retain the above copyright notice, this 
+//     list of conditions and the following disclaimer.
+//     
+//     2. Redistributions in binary form must reproduce the above copyright notice, 
+//     this list of conditions and the following disclaimer in the documentation 
+//     and/or other materials provided with the distribution.
+//     
+//     3. Neither the name of the copyright holder nor the names of its contributors 
+//     may be used to endorse or promote products derived from this software without 
+//     specific prior written permission.
+//     
+//     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS” 
+//     AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+//     IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+//     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE 
+//     FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL 
+//     DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
+//     SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER 
+//     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+//     OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+//     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//     
 //
-//    Section 2: Utilities                   assert, assertDefined, assertClass, assertNumber, eq, 
+//
+// Overview of internals:
+//     Section 1: Config                     VERSION, TAB, config
+//
+//     Section 2: Utilities                  assert, assertDefined, assertClass, assertNumber, eq, 
 //                                           assertEq, idiv, ipow2, imask, imod8, bigIntToBytes, 
 //                                           bytesToBigInt, padZeroes, byteToBitString, 
 //                                           hexToBytes, bytesToHex, textToBytes, bytesToText, 
 //                                           replaceTabs, BitReader, BitWriter, Source, hl, 
 //                                           deprecationWarning
 //
-//    Section 3: Tokens                      Site, RuntimeError, Token, Word, SymbolToken, Group, 
+//     Section 3: Tokens                     Site, RuntimeError, Token, Word, SymbolToken, Group, 
 //                                           PrimitiveLiteral, IntLiteral, BoolLiteral, 
 //                                           ByteArrayLiteral, StringLiteral
 //
-//    Section 4: Cryptography functions      BLAKE2B_DIGEST_SIZE, setBlake2bDigestSize, imod32, 
+//     Section 4: Cryptography functions     BLAKE2B_DIGEST_SIZE, setBlake2bDigestSize, imod32, 
 //                                           irotr, posMod, UInt64, Crypto
 //
-//    Section 5: Cbor encoder/decoder        CborData
+//     Section 5: Cbor encoder/decoder       CborData
 //
-//    Section 6: Uplc data types             UPLC_DATA_NODE_MEM_SIZE, UplcData, IntData, 
+//     Section 6: Uplc data types            UPLC_DATA_NODE_MEM_SIZE, UplcData, IntData, 
 //                                           ByteArrayData, ListData, MapData, ConstrData
 //
-//    Section 7: Helios data objects         HeliosData, HInt, Time, Duration, Bool, HString, 
+//     Section 7: Helios data objects        HeliosData, HInt, Time, Duration, Bool, HString, 
 //                                           ByteArray, HList, HMap, Option, Hash, DatumHash, 
 //                                           PubKeyHash, ScriptHash, MintingPolicyHash, 
 //                                           StakeKeyHash, StakingValidatorHash, ValidatorHash, 
 //                                           TxId, TxOutputId, Address, AssetClass, Assets, Value
 //
-//    Section 8: Uplc cost-models            NetworkParams, CostModel, ConstCost, LinearCost, 
+//     Section 8: Uplc cost-models           NetworkParams, CostModel, ConstCost, LinearCost, 
 //                                           ArgSizeCost, Arg0SizeCost, Arg1SizeCost, 
 //                                           Arg2SizeCost, MinArgSizeCost, MaxArgSizeCost, 
 //                                           SumArgSizesCost, ArgSizeDiffCost, ArgSizeProdCost, 
 //                                           ArgSizeDiagCost
 //
-//    Section 9: Uplc built-in functions     UPLC_BUILTINS, dumpCostModels, findUplcBuiltin, 
+//     Section 9: Uplc built-in functions    UPLC_BUILTINS, dumpCostModels, findUplcBuiltin, 
 //                                           isUplcBuiltin
 //
-//    Section 10: Uplc AST                   ScriptPurpose, getPurposeName, UplcValue, UplcType, 
+//     Section 10: Uplc AST                  ScriptPurpose, getPurposeName, UplcValue, UplcType, 
 //                                           DEFAULT_UPLC_RTE_CALLBACKS, UplcRte, UplcStack, 
 //                                           UplcAnon, UplcDelayedValue, UplcInt, UplcByteArray, 
 //                                           UplcString, UplcUnit, UplcBool, UplcPair, UplcList, 
@@ -82,13 +112,13 @@
 //                                           UplcLambda, UplcCall, UplcConst, UplcForce, 
 //                                           UplcError, UplcBuiltin
 //
-//    Section 11: Uplc program               UPLC_VERSION_COMPONENTS, UPLC_VERSION, 
+//     Section 11: Uplc program              UPLC_VERSION_COMPONENTS, UPLC_VERSION, 
 //                                           PLUTUS_SCRIPT_VERSION, deserializeUplcBytes, 
 //                                           deserializeUplc
 //
-//    Section 12: Tokenization               Tokenizer, tokenize, tokenizeIR
+//     Section 12: Tokenization              Tokenizer, tokenize, tokenizeIR
 //
-//    Section 13: Helios eval entities       EvalEntity, Type, AnyType, DataType, AnyDataType, 
+//     Section 13: Helios eval entities      EvalEntity, Type, AnyType, DataType, AnyDataType, 
 //                                           BuiltinType, BuiltinEnumMember, StatementType, 
 //                                           StructStatementType, EnumStatementType, 
 //                                           EnumMemberStatementType, ArgType, FuncType, NotType, 
@@ -121,10 +151,10 @@
 //                                           StakingPtrCredentialType, TimeType, DurationType, 
 //                                           TimeRangeType, AssetClassType, ValueType
 //
-//    Section 14: Scopes                     GlobalScope, Scope, TopScope, ModuleScope, 
+//     Section 14: Scopes                    GlobalScope, Scope, TopScope, ModuleScope, 
 //                                           FuncStatementScope
 //
-//    Section 15: Helios AST expressions     Expr, TypeExpr, TypeRefExpr, TypePathExpr, 
+//     Section 15: Helios AST expressions    Expr, TypeExpr, TypeRefExpr, TypePathExpr, 
 //                                           ListTypeExpr, MapTypeExpr, OptionTypeExpr, 
 //                                           VoidTypeExpr, FuncArgTypeExpr, FuncTypeExpr, 
 //                                           ValueExpr, AssignExpr, PrintExpr, VoidExpr, 
@@ -138,14 +168,14 @@
 //                                           SwitchDefault, SwitchExpr, EnumSwitchExpr, 
 //                                           DataSwitchExpr
 //
-//    Section 16: Literal functions          buildLiteralExprFromJson, buildLiteralExprFromValue
+//     Section 16: Literal functions         buildLiteralExprFromJson, buildLiteralExprFromValue
 //
-//    Section 17: Helios AST statements      Statement, ImportStatement, ConstStatement, 
+//     Section 17: Helios AST statements     Statement, ImportStatement, ConstStatement, 
 //                                           DataField, DataDefinition, StructStatement, 
 //                                           FuncStatement, EnumMember, EnumStatement, 
 //                                           ImplDefinition
 //
-//    Section 18: Helios AST building        AUTOMATIC_METHODS, buildProgramStatements, 
+//     Section 18: Helios AST building       AUTOMATIC_METHODS, buildProgramStatements, 
 //                                           buildScriptPurpose, extractScriptPurposeAndName, 
 //                                           buildConstStatement, splitDataImpl, 
 //                                           buildStructStatement, buildDataFields, 
@@ -171,43 +201,43 @@
 //                                           buildStructLiteralExpr, buildStructLiteralField, 
 //                                           buildValuePathExpr
 //
-//    Section 19: IR definitions             onNotifyRawUsage, setRawUsageNotifier, RawFunc, 
+//     Section 19: IR definitions            onNotifyRawUsage, setRawUsageNotifier, RawFunc, 
 //                                           makeRawFunctions, wrapWithRawFunctions
 //
-//    Section 20: IR Context objects         IRScope, IRVariable, IRValue, IRFuncValue, 
+//     Section 20: IR Context objects        IRScope, IRVariable, IRValue, IRFuncValue, 
 //                                           IRLiteralValue, IRDeferredValue, IRCallStack
 //
-//    Section 21: IR AST objects             IRNameExprRegistry, IRExprRegistry, IRExpr, 
+//     Section 21: IR AST objects            IRNameExprRegistry, IRExprRegistry, IRExpr, 
 //                                           IRNameExpr, IRLiteralExpr, IRConstExpr, IRFuncExpr, 
 //                                           IRCallExpr, IRCoreCallExpr, IRUserCallExpr, 
 //                                           IRAnonCallExpr, IRNestedAnonCallExpr, IRFuncDefExpr, 
 //                                           IRErrorCallExpr
 //
-//    Section 22: IR AST build functions     buildIRExpr, buildIRFuncExpr
+//     Section 22: IR AST build functions    buildIRExpr, buildIRFuncExpr
 //
-//    Section 23: IR Program                 IRProgram, IRParametricProgram
+//     Section 23: IR Program                IRProgram, IRParametricProgram
 //
-//    Section 24: Helios program             Module, MainModule, RedeemerProgram, 
+//     Section 24: Helios program            Module, MainModule, RedeemerProgram, 
 //                                           DatumRedeemerProgram, TestingProgram, 
 //                                           SpendingProgram, MintingProgram, StakingProgram
 //
-//    Section 25: Tx types                   Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
+//     Section 25: Tx types                  Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
 //                                           TxOutput, DCert, StakeAddress, Signature, Redeemer, 
 //                                           SpendingRedeemer, MintingRedeemer, Datum, 
 //                                           HashedDatum, InlineDatum, encodeMetadata, 
 //                                           decodeMetadata, TxMetadata
 //
-//    Section 26: Highlighting function      SyntaxCategory, highlight
+//     Section 26: Highlighting function     SyntaxCategory, highlight
 //
-//    Section 27: Fuzzy testing framework    FuzzyTest
+//     Section 27: Fuzzy testing framework   FuzzyTest
 //
-//    Section 28: CoinSelection              CoinSelection
+//     Section 28: CoinSelection             CoinSelection
 //
-//    Section 29: Wallets                    Cip30Wallet, WalletHelper
+//     Section 29: Wallets                   Cip30Wallet, WalletHelper
 //
-//    Section 30: Network                    BlockfrostV0
+//     Section 30: Network                   BlockfrostV0
 //
-//    Section 31: Emulator                   WalletEmulator, GenesisTx, RegularTx, NetworkEmulator
+//     Section 31: Emulator                  WalletEmulator, GenesisTx, RegularTx, NetworkEmulator
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -220,7 +250,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.17";
+export const VERSION = "0.13.18";
 
 /**
  * A tab used for indenting of the IR.
@@ -14571,6 +14601,7 @@ class IntType extends BuiltinType {
 			case "__leq":
 			case "__lt":
 				return Instance.new(new FuncType([this, new IntType()], new BoolType()));
+			case "from_big_endian":
 			case "from_little_endian":
 				return Instance.new(new FuncType([new ByteArrayType()], new IntType()));
 			case "max":
@@ -14589,6 +14620,10 @@ class IntType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
+			case "decode_zigzag":
+			case "encode_zigzag":
+			case "abs":
+				return Instance.new(new FuncType([], new IntType()));
 			case "bound":
 				return Instance.new(new FuncType([new IntType(), new IntType()], new IntType()));
 			case "bound_min":
@@ -14596,6 +14631,9 @@ class IntType extends BuiltinType {
 				return Instance.new(new FuncType([new IntType()], new IntType()));
 			case "to_bool":
 				return Instance.new(new FuncType([], new BoolType()));
+			case "to_big_endian":
+			case "to_little_endian":
+				return Instance.new(new FuncType([], new ByteArrayType()));
 			case "to_hex":
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
@@ -14796,6 +14834,8 @@ class ByteArrayType extends BuiltinType {
 			case "starts_with":
 			case "ends_with":
 				return Instance.new(new FuncType([new ByteArrayType()], new BoolType()));
+			case "prepend":
+				return Instance.new(new FuncType([new IntType()], new ByteArrayType()));
 			case "sha2":
 			case "sha3":
 			case "blake2b":
@@ -26472,6 +26512,66 @@ function makeRawFunctions() {
 			__helios__int__max(__helios__int__min(self, max), min)
 		}
 	}`));
+	add(new RawFunc("__helios__int__abs",
+	`(self) -> {
+		() -> {
+			(i) -> {
+				__core__ifThenElse(
+					__core__lessThanInteger(i, 0),
+					() -> {
+						__core__iData(__core__multiplyInteger(i, -1))
+					},
+					() -> {
+						self
+					}
+				)()
+			}(__core__unIData(self))
+		}
+	}`));
+	add(new RawFunc("__helios__int__encode_zigzag",
+	`(self) -> {
+		() -> {
+			(i) -> {
+				__core__iData(
+					__core__ifThenElse(
+						__core__lessThanInteger(i, 0),
+						() -> {
+							__core__subtractInteger(__core__multiplyInteger(i, -2), 1)
+						},
+						() -> {
+							__core__multiplyInteger(i, 2)
+						}
+					)()
+				)
+			}(__core__unIData(self))
+		}
+	}`));
+	add(new RawFunc("__helios__int__decode_zigzag",
+	`(self) -> {
+		() -> {
+			(i) -> {
+				__core__ifThenElse(
+					__core__lessThanInteger(i, 0),
+					() -> {
+						error("expected positive int")
+					},
+					() -> {
+						__core__iData(
+							__core__ifThenElse(
+								__core__equalsInteger(__core__modInteger(i, 2), 0),
+								() -> {
+									__core__divideInteger(i, 2)
+								},
+								() -> {
+									__core__divideInteger(__core__addInteger(i, 1), -2)
+								}
+							)()
+						)
+					}
+				)()
+			}(__core__unIData(self))
+		}
+	}`));
 	add(new RawFunc("__helios__int__to_bool",
 	`(self) -> {
 		() -> {
@@ -26486,18 +26586,27 @@ function makeRawFunctions() {
 					__core__bData(
 						__core__ifThenElse(
 							__core__lessThanInteger(self, 0),
-							() -> {__core__consByteString(45, recurse(recurse, __core__multiplyInteger(self, -1)))},
-							() -> {recurse(recurse, self)}
+							() -> {
+								__core__consByteString(
+									45,
+									recurse(recurse, __core__multiplyInteger(self, -1), #)
+								)
+							},
+							() -> {
+								recurse(recurse, self, #)
+							}
 						)()
 					)
 				}(
-					(recurse, self) -> {
+					(recurse, self, bytes) -> {
 						(partial) -> {
 							(bytes) -> {
 								__core__ifThenElse(
 									__core__lessThanInteger(self, 16),
 									() -> {bytes},
-									() -> {__core__appendByteString(recurse(recurse, __core__divideInteger(self, 16)), bytes)}
+									() -> {
+										recurse(recurse, __core__divideInteger(self, 16), bytes)
+									}
 								)()
 							}(
 								__core__consByteString(
@@ -26506,7 +26615,7 @@ function makeRawFunctions() {
 										__core__addInteger(partial, 48), 
 										__core__addInteger(partial, 87)
 									), 
-									#
+									bytes
 								)
 							)
 						}(__core__modInteger(self, 16))
@@ -26627,6 +26736,37 @@ function makeRawFunctions() {
 			)
 		}(__core__unBData(string))
 	}`));
+	add(new RawFunc("__helios__int__from_big_endian",
+	`(bytes) -> {
+		(bytes) -> {
+			__core__iData(
+				(n) -> {
+					(recurse) -> {
+						recurse(recurse, 0, 1, __core__subtractInteger(n, 1))
+					}(
+						(recurse, acc, pow, i) -> {
+							__core__ifThenElse(
+								__core__equalsInteger(i, -1),
+								() -> {
+									acc
+								},
+								() -> {
+									(new_acc) -> {
+										recurse(recurse, new_acc, __core__multiplyInteger(pow, 256), __core__subtractInteger(i, 1))
+									}(
+										__core__addInteger(
+											acc,
+											__core__multiplyInteger(__core__indexByteString(bytes, i), pow)
+										)
+									)
+								}
+							)()
+						}
+					)
+				}(__core__lengthOfByteString(bytes))
+			)
+		}(__core__unBData(bytes))
+	}`));
 	add(new RawFunc("__helios__int__from_little_endian", 
 	`(bytes) -> {
 		(bytes) -> {
@@ -26658,6 +26798,74 @@ function makeRawFunctions() {
 			)
 		}(__core__unBData(bytes))
 	}`));
+	add(new RawFunc("__helios__int__to_big_endian",
+	`(self) -> {
+		(self) -> {
+			() -> {
+				__core__ifThenElse(
+					__core__lessThanInteger(self, 0),
+					() -> {
+						error("can't convert negative number to big endian bytearray")
+					},
+					() -> {
+						(recurse) -> {
+							__core__bData(recurse(recurse, self, #))
+						}(
+							(recurse, self, bytes) -> {
+								(bytes) -> {
+									__core__ifThenElse(
+										__core__lessThanInteger(self, 256),
+										() -> {
+											bytes
+										},
+										() -> {
+											recurse(
+												recurse,
+												__core__divideInteger(self, 256),
+												bytes
+											)
+										}
+									)()
+								}(__core__consByteString(self, bytes))
+							}
+						)
+					}
+				)()
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new RawFunc("__helios__int__to_little_endian",
+	`(self) -> {
+		(self) -> {
+			() -> {
+				__core__ifThenElse(
+					__core__lessThanInteger(self, 0),
+					() -> {
+						error("can't convert negative number to big endian bytearray")
+					},
+					() -> {
+						(recurse) -> {
+							__core__bData(recurse(recurse, self))
+						}(
+							(recurse, self) -> {
+								__core__consByteString(self,
+									__core__ifThenElse(
+										__core__lessThanInteger(self, 256),
+										() -> {
+											#
+										},
+										() -> {
+											recurse(recurse, __core__divideInteger(self, 256))
+										}
+									)()
+								)
+							}
+						)
+					}
+				)()
+			}
+		}(__core__unIData(self))
+	}`))
 
 
 	// Bool builtins
@@ -26777,6 +26985,17 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__bytearray__ends_with",
 	`(self) -> {
 		__helios__common__ends_with(self, __core__lengthOfByteString)
+	}`));
+	add(new RawFunc("__helios__bytearray__prepend", 
+	`(self) -> {
+		(byte) -> {
+			__core__bData(
+				__core__consByteString(
+					__core__unIData(byte),
+					__core__unBData(self)
+				)
+			)
+		}
 	}`));
 	add(new RawFunc("__helios__bytearray__sha2",
 	`(self) -> {
@@ -38838,6 +39057,8 @@ export class NetworkEmulator {
 export const exportedForTesting = {
 	assert: assert,
 	assertClass: assertClass,
+	bigIntToBytes: bigIntToBytes,
+	bytesToBigInt: bytesToBigInt,
 	setRawUsageNotifier: setRawUsageNotifier,
 	setBlake2bDigestSize: setBlake2bDigestSize,
 	dumpCostModels: dumpCostModels,
