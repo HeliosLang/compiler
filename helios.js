@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.18
+// Version:       0.13.19
 // Last update:   April 2023
 // License type:  BSD-3-Clause
 //
@@ -250,7 +250,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.18";
+export const VERSION = "0.13.19";
 
 /**
  * A tab used for indenting of the IR.
@@ -12335,7 +12335,7 @@ export class Tokenizer {
 	 */
 	readHexInteger(site) {
 		this.readRadixInteger(site, "0x",
-			c => ((c >= '0' && c <= '9') || (c >= 'a' || c <= 'f')));
+			c => ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')));
 	}
 
 	/**
@@ -14607,6 +14607,7 @@ class IntType extends BuiltinType {
 			case "max":
 			case "min": 
 				return Instance.new(new FuncType([new IntType(), new IntType()], new IntType()));
+			case "from_base58":
 			case "parse":
 				return Instance.new(new FuncType([new StringType()], new IntType()));
 			default:
@@ -14634,6 +14635,7 @@ class IntType extends BuiltinType {
 			case "to_big_endian":
 			case "to_little_endian":
 				return Instance.new(new FuncType([], new ByteArrayType()));
+			case "to_base58":
 			case "to_hex":
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
@@ -26599,7 +26601,7 @@ function makeRawFunctions() {
 					)
 				}(
 					(recurse, self, bytes) -> {
-						(partial) -> {
+						(digit) -> {
 							(bytes) -> {
 								__core__ifThenElse(
 									__core__lessThanInteger(self, 16),
@@ -26611,9 +26613,9 @@ function makeRawFunctions() {
 							}(
 								__core__consByteString(
 									__core__ifThenElse(
-										__core__lessThanInteger(partial, 10), 
-										__core__addInteger(partial, 48), 
-										__core__addInteger(partial, 87)
+										__core__lessThanInteger(digit, 10), 
+										__core__addInteger(digit, 48), 
+										__core__addInteger(digit, 87)
 									), 
 									bytes
 								)
@@ -26623,6 +26625,121 @@ function makeRawFunctions() {
 				)
 			}
 		}(__core__unIData(self))
+	}`));
+	add(new RawFunc("__helios__common__BASE58_ALPHABET", "#31323334353637383941424344454647484a4b4c4d4e505152535455565758595a6162636465666768696a6b6d6e6f707172737475767778797a"))
+	add(new RawFunc("__helios__int__to_base58",
+	`(self) -> {
+		(self) -> {
+			() -> {
+				__core__bData(
+					__core__ifThenElse(
+						__core__lessThanInteger(self, 0),
+						() -> {
+							error("expected positive number")
+						},
+						() -> {
+							(recurse) -> {
+								recurse(recurse, self, #)
+							}(
+								(recurse, self, bytes) -> {
+									(digit) -> {
+										(bytes) -> {
+											__core__ifThenElse(
+												__core__lessThanInteger(self, 58),
+												() -> {
+													bytes
+												},
+												() -> {
+													recurse(recurse, __core__divideInteger(self, 58), bytes)
+												}
+											)()
+										}(
+											__core__consByteString(
+												__core__indexByteString(__helios__common__BASE58_ALPHABET, digit),
+												bytes
+											)
+										)
+									}(__core__modInteger(self, 58))
+								}
+							)
+						}
+					)()
+				)
+			}
+		}(__core__unIData(self))
+	}`));
+	add(new RawFunc("__helios__int__BASE58_INVERSE_ALPHABET_1", "#ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000102030405060708ffffffffffff"));
+	add(new RawFunc("__helios__int__BASE58_INVERSE_ALPHABET_2", "#ff090a0b0c0d0e0f10ff1112131415ff161718191a1b1c1d1e1f20ffffffffffff2122232425262728292a2bff2c2d2e2f30313233343536373839ffffffffff"));
+	add(new RawFunc("__helios__int__invert_base58_char", 
+	`(char) -> {
+		(digit) -> {
+			__core__ifThenElse(
+				__core__equalsInteger(digit, 0xff),
+				() -> {
+					error("invalid base58 character")
+				},
+				() -> {
+					digit
+				}
+			)()
+		}(
+			__core__ifThenElse(
+				__core__lessThanInteger(char, 64),
+				() -> {
+					__core__indexByteString(__helios__int__BASE58_INVERSE_ALPHABET_1, char)
+				},
+				() -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(char, 128),
+						() -> {
+							__core__indexByteString(
+								__helios__int__BASE58_INVERSE_ALPHABET_2,
+								__core__subtractInteger(char, 64)
+							)
+						},
+						() -> {
+							0xff
+						}
+					)()
+				}
+			)()
+		)
+	}`));
+	add(new RawFunc("__helios__int__from_base58",
+	`(str) -> {
+		(bytes) -> {
+			__core__iData(
+				(n) -> {
+					(recurse) -> {
+						recurse(recurse, 0, 1, __core__subtractInteger(n, 1))
+					}(
+						(recurse, acc, pow, i) -> {
+							__core__ifThenElse(
+								__core__equalsInteger(i, -1),
+								() -> {
+									acc
+								},
+								() -> {
+									(new_acc) -> {
+										recurse(recurse, new_acc, __core__multiplyInteger(pow, 58), __core__subtractInteger(i, 1))
+									}(
+										__core__addInteger(
+											acc,
+											__core__multiplyInteger(
+												__helios__int__invert_base58_char(
+													__core__indexByteString(bytes, i)
+												),
+												pow
+											)
+										)
+									)
+								}
+							)()
+						}
+					)
+				}(__core__lengthOfByteString(bytes))
+			)
+		}(__core__unBData(str))
 	}`));
 	add(new RawFunc("__helios__int__show",
 	`(self) -> {

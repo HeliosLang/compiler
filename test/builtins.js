@@ -787,6 +787,26 @@ async function testBuiltins() {
         Int::from_big_endian(a.to_big_endian()) == a
     }`, ([_], res) => asBool(res));
 
+    await ft.test([], `
+    testing int_to_base58
+    func main() -> String {
+        a = 0x287fb4cd;
+        a.to_base58()
+    }`, ([_], res) => asString(res) == "233QC4", 1);
+
+    await ft.test([], `
+    testing int_from_base58
+    func main() -> Int {
+        a = "233QC4";
+        Int::from_base58(a)
+    }`, ([_], res) => asInt(res) == BigInt(0x287fb4cd), 1);
+
+    await ft.test([ft.int(0)], `
+    testing int_to_from_base58
+    func main(a: Int) -> Bool {
+        Int::from_base58(a.to_base58()) == a
+    }`, ([_], res) => asBool(res));
+
     await ft.test([ft.int()], `
     testing int_show
     func main(a: Int) -> String {

@@ -2006,6 +2006,7 @@ export class IntType extends BuiltinType {
 			case "max":
 			case "min": 
 				return Instance.new(new FuncType([new IntType(), new IntType()], new IntType()));
+			case "from_base58":
 			case "parse":
 				return Instance.new(new FuncType([new StringType()], new IntType()));
 			default:
@@ -2033,6 +2034,7 @@ export class IntType extends BuiltinType {
 			case "to_big_endian":
 			case "to_little_endian":
 				return Instance.new(new FuncType([], new ByteArrayType()));
+			case "to_base58":
 			case "to_hex":
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));

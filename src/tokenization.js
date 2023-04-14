@@ -306,7 +306,7 @@ export class Tokenizer {
 	 */
 	readHexInteger(site) {
 		this.readRadixInteger(site, "0x",
-			c => ((c >= '0' && c <= '9') || (c >= 'a' || c <= 'f')));
+			c => ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')));
 	}
 
 	/**

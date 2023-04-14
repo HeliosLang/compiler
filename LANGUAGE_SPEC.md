@@ -169,9 +169,9 @@ Comments are removed immediately.
 
 ## Int
 ```
-associated:  from_data, parse, from_little_endian, from_big_endian, min, max
+associated:  from_data, parse, from_little_endian, from_big_endian, min, max, from_base58
 operators:   __eq, __neq, __neg, __pos, __add, __sub, __mul, __div, __mod, __geq, __gt, __leq, __lt
-methods:     serialize, to_bool, to_hex, to_little_endian, to_big_endian, show, bound, bound_min, bound_max, abs, encode_zigzag, decode_zigzag
+methods:     serialize, to_bool, to_hex, to_little_endian, to_big_endian, show, bound, bound_min, bound_max, abs, encode_zigzag, decode_zigzag, to_base58
 internal ns: __helios__int
 ```
 

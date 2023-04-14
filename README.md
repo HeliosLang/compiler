@@ -4,7 +4,7 @@ Helios is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano 
 
 Helios is purely functional, strongly typed, and has a simple curly braces syntax. It notably supports closures, functions with multiple return values, OOP-like methods, and enums as tagged unions.
 
-The Helios library is written in Javascript, and lets you compile Helios scripts and create Cardano transactions. This library is all you need to build 100% client-side dApps for Cardano.
+The Helios library is written in Javascript, with complete Typescript type-coverage through JSDoc comments. This library lets you compile Cardano smart contracts and create Cardano transactions. Helios is all you need to build 100% client-side dApps for Cardano.
 
 ## Example: time-lock
 
@@ -17,7 +17,7 @@ struct Datum {
     beneficiary: PubKeyHash // beneficiary can only unlock the assets after 'lockUntil'
 }
 
-func main(datum: Datum, ctx: ScriptContext) -> Bool {
+func main(datum: Datum, _, ctx: ScriptContext) -> Bool {
     tx: Tx = ctx.tx;
     now: Time = tx.time_range.start;
 
@@ -51,8 +51,6 @@ addr1qxyd3shxugqkrkdpwgjq522cu7h4lkr8qnz9uemd4w68p970n6h44fq8ujuyu807vll9atjpc8z
 ```
 
 Please join our [Discord](https://discord.gg/XTwPrvB25q) and tell us what you'd like your sponsorship to be used for before sending funds.
-
-If you prefer to sponsor using staking, you can do so using the [Teiki protocol](https://alpha.teiki.network/projects/helios).
 
 ## Acknowledgements
 
