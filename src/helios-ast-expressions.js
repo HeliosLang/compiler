@@ -2354,7 +2354,15 @@ export class ParensExpr extends ValueExpr {
 		if (this.#exprs.length === 1) {
 			return this.#exprs[0].eval(scope);
 		} else {
-			return new MultiInstance(this.#exprs.map(e => e.eval(scope)));
+			return new MultiInstance(this.#exprs.map(e => {
+				const v = e.eval(scope);
+
+				if (v.getType(e.site) instanceof ErrorType) {
+					throw e.site.typeError("unexpected error call in multi-valued expression");
+				}
+
+				return v;
+			}));
 		}
 	}
 
@@ -2920,11 +2928,20 @@ export class IfElseExpr extends ValueExpr {
 	/**
 	 * @param {Site} site
 	 * @param {?Type[]} prevTypes
-	 * @param {Type[]} newTypes
+	 * @param {Instance} newValue
+	 * @returns {?Type[]}
 	 */
-	static reduceBranchMultiType(site, prevTypes, newTypes) {
+	static reduceBranchMultiType(site, prevTypes, newValue) {
+		if (!(newValue instanceof MultiInstance) && newValue.getType(site) instanceof ErrorType) {
+			return prevTypes;
+		}
+
+		const newTypes = (newValue instanceof MultiInstance) ?
+			newValue.values.map(v => v.getType(site)) :
+			[newValue.getType(site)];
+
 		if (prevTypes === null) {
-			return newTypes
+			return newTypes;
 		} else if (prevTypes.length !== newTypes.length) {
 			throw site.typeError("inconsistent number of multi-value types");
 		} else {
@@ -2956,14 +2973,13 @@ export class IfElseExpr extends ValueExpr {
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				b.site, 
 				branchMultiType, 
-				(branchVal instanceof MultiInstance) ? 
-					branchVal.values.map(v => v.getType(b.site)) : 
-					[branchVal.getType(b.site)]
+				branchVal
 			);
 		}
 
 		if (branchMultiType === null) {
-			throw new Error("unexpected");
+			// i.e. every branch throws an error
+			return Instance.new(new ErrorType());
 		} else  {
 			return Instance.new(branchMultiType);
 		}
@@ -3632,6 +3648,13 @@ class SwitchExpr extends ValueExpr {
 		return this.#defaultCase;
 	}
 
+	/**
+	 * If there isn't enough coverage then we can simply set the default case to void, so the other branches can be error, print or assert
+	 */
+	setDefaultCaseToVoid() {
+		this.#defaultCase = new SwitchDefault(this.site, new VoidExpr(this.site));
+	}
+
 	toString() {
 		return `${this.#controlExpr.toString()}.switch{${this.#cases.map(c => c.toString()).join(", ")}${this.#defaultCase === null ? "" : ", " + this.#defaultCase.toString()}}`;
 	}
@@ -3665,7 +3688,8 @@ export class EnumSwitchExpr extends SwitchExpr {
 
 		// check that we have enough cases to cover the enum members
 		if (this.defaultCase === null && nEnumMembers > this.cases.length) {
-			throw this.typeError(`insufficient coverage of '${enumType.toString()}' in switch expression`);
+			// mutate defaultCase to VoidExpr
+			this.setDefaultCaseToVoid();
 		}
 
 		/** @type {?Type[]} */
@@ -3677,9 +3701,7 @@ export class EnumSwitchExpr extends SwitchExpr {
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				c.site, 
 				branchMultiType, 
-				(branchVal instanceof MultiInstance) ? 
-					branchVal.values.map(v => v.getType(c.site)) :
-					[branchVal.getType(c.site)]
+				branchVal
 			);
 		}
 
@@ -3689,14 +3711,12 @@ export class EnumSwitchExpr extends SwitchExpr {
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				this.defaultCase.site,
 				branchMultiType, 
-				(defaultVal instanceof MultiInstance) ?
-					defaultVal.values.map(v => v.getType(assertDefined(this.defaultCase).site)) :
-					[defaultVal.getType(this.defaultCase.site)]
+				defaultVal
 			);
 		}
 
 		if (branchMultiType === null) {
-			throw new Error("unexpected");
+			return Instance.new(new ErrorType());
 		} else {
 			return Instance.new(branchMultiType);
 		}
@@ -3761,7 +3781,8 @@ export class DataSwitchExpr extends SwitchExpr {
 
 		// check that we have enough cases to cover the enum members
 		if (this.defaultCase === null && this.cases.length < 5) {
-			throw this.typeError(`insufficient coverage of 'Data' in switch expression`);
+			// mutate defaultCase to VoidExpr
+			this.setDefaultCaseToVoid();
 		}
 
 		/** @type {?Type[]} */
@@ -3773,9 +3794,7 @@ export class DataSwitchExpr extends SwitchExpr {
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				c.site, 
 				branchMultiType, 
-				(branchVal instanceof MultiInstance) ?
-					branchVal.values.map(v => v.getType(c.site)) :
-					[branchVal.getType(c.site)]
+				branchVal
 			);
 		}
 
@@ -3785,14 +3804,13 @@ export class DataSwitchExpr extends SwitchExpr {
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				this.defaultCase.site, 
 				branchMultiType, 
-				(defaultVal instanceof MultiInstance) ?
-					defaultVal.values.map(v => v.getType(assertDefined(this.defaultCase).site)) :
-					[defaultVal.getType(this.defaultCase.site)]
+				defaultVal
 			);
 		}
 
 		if (branchMultiType === null) {
-			throw new Error("unexpected");
+			// only possible if each branch is an error
+			return Instance.new(new ErrorType());
 		} else {
 			return Instance.new(branchMultiType);
 		}

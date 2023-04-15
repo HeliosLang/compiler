@@ -918,6 +918,81 @@ async function test23() {
   }`);
 }
 
+// error expr tests
+async function test24() {
+
+  await testTrue(`testing if_error
+  
+  func main() -> Bool {
+    if (false) {
+      error("never called")
+    };
+    true
+  }
+  `);
+
+  await testError(`testing if_error
+  
+  func main() -> Bool {
+    if (false) {
+      error("never called")
+    } else {
+      error("error")
+    };
+    true
+  }
+  `, "error");
+
+  await testTrue(`testing switch_error
+  
+  func main() -> Bool {
+    opt: Option[Int] = Option[Int]::Some{10};
+
+    opt.switch{
+      None => error("unexpected")
+    };
+
+    true
+  }`);
+
+  await testTrue(`testing multi_value_if_error
+  
+  func multiv() -> (Int, Int) { 
+    if (true) {
+      (1, 2)
+    } else {
+      error("unexpected")
+    }
+  }
+
+  func main() -> Bool {
+    (a: Int, _) = multiv();
+    a == 1
+  }`)
+
+  await testError(`testing multi_value_if_error
+  
+  func multiv() -> (Int, Int) { 
+    if (true) {
+      (1, 2)
+    } else {
+      (error("unexpected"), error("unexpected"))
+    }
+  }
+
+  func main() -> Bool {
+    (a: Int, _) = multiv();
+    a == 1
+  }`, "unexpected error call");
+
+  await testError(`testing deadcode
+
+  func main() -> Bool {
+    error("error");
+    true
+  }`, "unreachable code");
+}
+
 export default async function main() {
   await test1();
 
@@ -964,6 +1039,8 @@ export default async function main() {
   await test22();
 
   await test23();
+
+  await test24();
 }
 
 runIfEntryPoint(main, "syntax.js");
