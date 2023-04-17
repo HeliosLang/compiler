@@ -505,6 +505,30 @@ export class Token {
 }
 
 /**
+ * Generated during PERMISSIVE tokenization
+ * @package
+ */
+export class SyntaxErrorToken extends Token {
+	#msg;
+
+	/**
+	 * @param {Site} site
+	 * @param {string} msg
+	 */
+	constructor(site, msg) {
+		super(site);
+		this.#msg = msg;
+	}
+
+	/**
+	 * @returns {UserError}
+	 */
+	toError() {
+		return this.site.syntaxError(this.#msg);
+	}
+}
+
+/**
  * A Word token represents a token that matches /[A-Za-z_][A-Za-z_0-9]/
  * @package
  */

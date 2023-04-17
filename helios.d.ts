@@ -2441,19 +2441,6 @@ export class UplcProgram {
 }
 export class Tokenizer {
     /**
-     * Separates tokens in fields (separted by commas)
-     * @param {Token[]} ts
-     * @returns {Group}
-     */
-    static buildGroup(ts: Token[]): Group;
-    /**
-     * Match group open with group close symbols in order to form groups.
-     * This is recursively applied to nested groups.
-     * @param {Token[]} ts
-     * @returns {Token[]}
-     */
-    static nestGroups(ts: Token[]): Token[];
-    /**
      * @param {Source} src
      * @param {?CodeMap} codeMap
      */
@@ -2483,9 +2470,9 @@ export class Tokenizer {
     /**
      * Tokenize the complete source.
      * Nests groups before returning a list of tokens
-     * @returns {Token[]}
+     * @returns {[Token[], SyntaxErrorToken[]]}
      */
-    tokenize(): Token[];
+    tokenize(): [Token[], SyntaxErrorToken[]];
     /**
      * Returns a generator
      * Use gen.next().value to access to the next Token
@@ -2561,6 +2548,19 @@ export class Tokenizer {
      * @param {string} c0 - first character
      */
     readSymbol(site: Site, c0: string): void;
+    /**
+     * Separates tokens in fields (separted by commas)
+     * @param {Token[]} ts
+     * @returns {Group}
+     */
+    buildGroup(ts: Token[]): Group;
+    /**
+     * Match group open with group close symbols in order to form groups.
+     * This is recursively applied to nested groups.
+     * @param {Token[]} ts
+     * @returns {Token[]}
+     */
+    nestGroups(ts: Token[]): Token[];
     #private;
 }
 /**
@@ -4634,6 +4634,22 @@ declare class UplcTerm {
      * @param {BitWriter} bitWriter
      */
     toFlat(bitWriter: BitWriter): void;
+    #private;
+}
+/**
+ * Generated during PERMISSIVE tokenization
+ * @package
+ */
+declare class SyntaxErrorToken extends Token {
+    /**
+     * @param {Site} site
+     * @param {string} msg
+     */
+    constructor(site: Site, msg: string);
+    /**
+     * @returns {UserError}
+     */
+    toError(): UserError;
     #private;
 }
 /**

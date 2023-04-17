@@ -5,7 +5,8 @@ import {
     Source,
     assert,
     assertDefined,
-    hexToBytes
+    hexToBytes,
+	assertClass
 } from "./utils.js";
 
 /**
@@ -21,7 +22,8 @@ import {
     Site,
     SymbolToken,
     Token,
-    Word
+    Word,
+	SyntaxErrorToken
 } from "./tokens.js";
 
 export class Tokenizer {
@@ -126,14 +128,14 @@ export class Tokenizer {
 		} else if (c == '?' || c == '!' || c == '%' || c == '&' || (c >= '(' && c <= '.') || (c >= ':' && c <= '>') || c == '[' || c == ']' || (c >= '{' && c <= '}')) {
 			this.readSymbol(site, c);
 		} else if (!(c == ' ' || c == '\n' || c == '\t' || c == '\r')) {
-			throw site.syntaxError(`invalid source character '${c}' (utf-8 not yet supported outside string literals)`);
+			this.pushToken(new SyntaxErrorToken(site, `invalid source character '${c}' (utf-8 not yet supported outside string literals)`));
 		}
 	}
 
 	/**
 	 * Tokenize the complete source.
 	 * Nests groups before returning a list of tokens
-	 * @returns {Token[]}
+	 * @returns {[Token[], SyntaxErrorToken[]]}
 	 */
 	tokenize() {
 		// reset #ts
@@ -149,7 +151,10 @@ export class Tokenizer {
 			c = this.readChar();
 		}
 
-		return Tokenizer.nestGroups(this.#ts);
+		return [
+			this.nestGroups(this.#ts.filter(t => !(t instanceof SyntaxErrorToken))),
+			this.#ts.filter(t => t instanceof SyntaxErrorToken).map(t => assertClass(t, SyntaxErrorToken))
+		];
 	}
 
 	/** 
@@ -257,7 +262,8 @@ export class Tokenizer {
 			if (c == '/' && prev == '*') {
 				break;
 			} else if (c == '\0') {
-				throw site.syntaxError("unterminated multiline comment");
+				this.pushToken(new SyntaxErrorToken(site, "unterminated multiline comment"));
+				return;
 			}
 		}
 	}
@@ -278,7 +284,7 @@ export class Tokenizer {
 		} else if (c == 'x') {
 			this.readHexInteger(site);
 		} else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-			throw site.syntaxError(`bad literal integer type 0${c}`);
+			this.pushToken(new SyntaxErrorToken(site, `bad literal integer type 0${c}`));
 		} else if (c >= '0' && c <= '9') {
 			this.readDecimalInteger(site, c);
 		} else {
@@ -320,9 +326,11 @@ export class Tokenizer {
 		while (c != '\0') {
 			if (c >= '0' && c <= '9') {
 				chars.push(c);
-			} else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-				throw site.syntaxError("invalid syntax for decimal integer literal");
 			} else {
+				if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+					this.pushToken(new SyntaxErrorToken(site, "invalid syntax for decimal integer literal"));
+				}
+
 				this.unreadChar();
 				break;
 			}
@@ -344,15 +352,20 @@ export class Tokenizer {
 		let chars = [];
 
 		if (!(valid(c))) {
-			throw site.syntaxError(`expected at least one char for ${prefix} integer literal`);
+			this.pushToken(new SyntaxErrorToken(site, `expected at least one char for ${prefix} integer literal`));
+
+			this.unreadChar();
+			return;
 		}
 
 		while (c != '\0') {
 			if (valid(c)) {
 				chars.push(c);
-			} else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-				throw site.syntaxError(`invalid syntax for ${prefix} integer literal`);
 			} else {
+				if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+					this.pushToken(new SyntaxErrorToken(site, `invalid syntax for ${prefix} integer literal`));
+				}
+
 				this.unreadChar();
 				break;
 			}
@@ -404,7 +417,8 @@ export class Tokenizer {
 
 		while (!(!escaping && c == '"')) {
 			if (c == '\0') {
-				throw site.syntaxError("unmatched '\"'");
+				this.pushToken(new SyntaxErrorToken(site, "unmatched '\"'"));
+				break;
 			}
 
 			if (escaping) {
@@ -417,12 +431,13 @@ export class Tokenizer {
 				} else if (c == '"') {
 					chars.push(c);
 				} else if (escapeSite !== null) {
-					throw escapeSite.syntaxError(`invalid escape sequence ${c}`)
+					this.pushToken(new SyntaxErrorToken(escapeSite, `invalid escape sequence ${c}`));
 				} else {
 					throw new Error("escape site should be non-null");
 				}
 
 				escaping = false;
+				escapeSite = null;
 			} else {
 				if (c == '\\') {
 					escapeSite = this.currentSite;
@@ -483,7 +498,7 @@ export class Tokenizer {
 	 * @param {Token[]} ts 
 	 * @returns {Group}
 	 */
-	static buildGroup(ts) {
+	buildGroup(ts) {
 		let tOpen = ts.shift();
 		if (tOpen === undefined) {
 			throw new Error("unexpected");
@@ -513,7 +528,7 @@ export class Tokenizer {
 						stack.push(prev);
 
 						if (Group.isCloseSymbol(t)) {
-							throw t.syntaxError(`unmatched '${t.assertSymbol().value}'`);
+							this.pushToken(new SyntaxErrorToken(t.site, `unmatched '${t.assertSymbol().value}'`));
 						} else if (Group.isOpenSymbol(t)) {
 							stack.push(t.assertSymbol());
 							curField.push(t);
@@ -524,7 +539,7 @@ export class Tokenizer {
 
 							lastComma = t.assertSymbol();
 							if (curField.length == 0) {
-								throw t.syntaxError("empty field");
+								this.pushToken(new SyntaxErrorToken(t.site, "empty field"));
 							} else {
 								fields.push(curField);
 								curField = [];
@@ -542,17 +557,17 @@ export class Tokenizer {
 
 			let last = stack.pop();
 			if (last != undefined) {
-				throw last.syntaxError(`EOF while matching '${last.value}'`);
+				this.pushToken(new SyntaxErrorToken(last.site, `EOF while matching '${last.value}'`));
 			}
 
 			if (curField.length > 0) {
 				// add removing field
 				fields.push(curField);
 			} else if (lastComma !== null) {
-				throw lastComma.syntaxError(`trailing comma`);
+				this.pushToken(new SyntaxErrorToken(lastComma.site, `trailing comma`));
 			}
 
-			fields = fields.map(f => Tokenizer.nestGroups(f));
+			fields = fields.map(f => this.nestGroups(f));
 
 			let site = tOpen.site;
 			site.setEndSite(endSite);
@@ -567,7 +582,7 @@ export class Tokenizer {
 	 * @param {Token[]} ts 
 	 * @returns {Token[]}
 	 */
-	static nestGroups(ts) {
+	nestGroups(ts) {
 		let res = [];
 
 		let t = ts.shift();
@@ -575,9 +590,9 @@ export class Tokenizer {
 			if (Group.isOpenSymbol(t)) {
 				ts.unshift(t);
 
-				res.push(Tokenizer.buildGroup(ts));
+				res.push(this.buildGroup(ts));
 			} else if (Group.isCloseSymbol(t)) {
-				throw t.syntaxError(`unmatched '${t.assertSymbol().value}'`);
+				this.pushToken(new SyntaxErrorToken(t.site, `unmatched '${t.assertSymbol().value}'`));
 			} else {
 				res.push(t);
 			}
@@ -593,7 +608,7 @@ export class Tokenizer {
  * Tokenizes a string (wrapped in Source)
  * @package
  * @param {Source} src 
- * @returns {Token[]}
+ * @returns {[Token[], SyntaxErrorToken[]]}
  */
 export function tokenize(src) {
 	let tokenizer = new Tokenizer(src);
@@ -614,5 +629,11 @@ export function tokenizeIR(rawSrc, codeMap) {
 	// the Tokenizer for Helios can simply be reused for the IR
 	let tokenizer = new Tokenizer(src, codeMap);
 
-	return tokenizer.tokenize();
+	const [ts, errors] = tokenizer.tokenize();
+
+	if (errors.length > 0) {
+		throw errors[0].toError();
+	}
+
+	return ts;
 }

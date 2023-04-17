@@ -105,15 +105,19 @@ class Module {
 	 * @returns {Module}
 	 */
 	static new(rawSrc, fileIndex = null) {
-		let src = new Source(rawSrc, fileIndex);
+		const src = new Source(rawSrc, fileIndex);
 
-		let ts = tokenize(src);
+		const [ts, errors] = tokenize(src);
+
+		if (errors.length > 0) {
+			throw errors[0].toError();
+		}
 
 		if (ts.length == 0) {
 			throw UserError.syntaxError(src, 0, "empty script");
 		}
 
-		let [purpose, name] = buildScriptPurpose(ts);
+		const [purpose, name] = buildScriptPurpose(ts);
 
 		if (purpose != ScriptPurpose.Module) {
 			throw name.syntaxError("expected 'module' script purpose");
@@ -121,7 +125,7 @@ class Module {
 			throw name.syntaxError("name of 'module' can't be 'main'");
 		}
 
-		let statements = buildProgramStatements(ts);
+		const statements = buildProgramStatements(ts);
 
 		return new Module(name, statements);
 	}
@@ -321,23 +325,27 @@ class MainModule extends Module {
 	 * @returns {[purpose, Module[]]}
 	 */
 	static parseMain(rawSrc) {
-		let src = new Source(rawSrc, 0);
+		const src = new Source(rawSrc, 0);
 
-		let ts = tokenize(src);
+		const [ts, errors] = tokenize(src);
+
+		if (errors.length > 0) {
+			throw errors[0].toError();
+		}
 
 		if (ts.length == 0) {
 			throw UserError.syntaxError(src, 0, "empty script");
 		}
 
-		let [purpose, name] = buildScriptPurpose(ts);
+		const [purpose, name] = buildScriptPurpose(ts);
 
 		if (name.value === "main") {
 			throw name.site.syntaxError("script can't be named 'main'");
 		}
 
-		let statements = buildProgramStatements(ts);
+		const statements = buildProgramStatements(ts);
 
-		let mainIdx = statements.findIndex(s => s.name.value === "main");
+		const mainIdx = statements.findIndex(s => s.name.value === "main");
 
 		if (mainIdx == -1) {
 			throw name.site.syntaxError("'main' not found");
@@ -346,7 +354,7 @@ class MainModule extends Module {
 		/**
 		 * @type {Module[]}
 		 */
-		let modules = [new MainModule(name, statements.slice(0, mainIdx+1))];
+		const modules = [new MainModule(name, statements.slice(0, mainIdx+1))];
 
 		if (mainIdx < statements.length - 1) {
 			modules.push(new Module(name, statements.slice(mainIdx+1)));
