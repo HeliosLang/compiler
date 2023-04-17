@@ -854,6 +854,9 @@ export class Tx extends CborData {
 		// balance the lovelace
 		this.balanceLovelace(networkParams, changeAddress, spareUtxos.slice());
 
+		// run updateRedeemerIndices again because new inputs may have been added and sorted
+		this.#witnesses.updateRedeemerIndices(this.#body);
+
 		// a bunch of checks
 		this.#body.checkOutputs(networkParams);
 
