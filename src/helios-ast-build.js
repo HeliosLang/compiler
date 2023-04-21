@@ -828,7 +828,6 @@ function buildImportStatements(site, ts) {
 
 			moduleName = new Word(maybeModuleName.site, translated);
 		} else {
-			console.log("import path translator not set");
 			moduleName = maybeModuleName.assertWord()?.assertNotKeyword();
 		}
 
