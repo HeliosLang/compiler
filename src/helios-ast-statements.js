@@ -134,9 +134,9 @@ export class Statement extends Token {
 	hideUnused(mask) {
 		if (!this.#used) {
 			if (this.site.endSite === null) {
-				mask.fill(0, this.site.pos);
+				mask.fill(0, this.site.startPos);
 			} else {
-				mask.fill(0, this.site.pos, this.site.endSite.pos);
+				mask.fill(0, this.site.startPos, this.site.endSite.startPos);
 			}
 		}
 	}
@@ -1351,9 +1351,9 @@ export class ImplDefinition {
 				let site = s.site;
 
 				if (site.endSite === null) {
-					mask.fill(0, site.pos);
+					mask.fill(0, site.startPos);
 				} else {
-					mask.fill(0, site.pos, site.endSite.pos);
+					mask.fill(0, site.startPos, site.endSite.startPos);
 				}
 			}
 		}

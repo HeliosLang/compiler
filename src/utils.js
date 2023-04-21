@@ -3,6 +3,7 @@
 
 import { TAB } from "./config.js";
 
+
 /**
  * Throws an error if 'cond' is false.
  * @package
@@ -59,6 +60,64 @@ export function assertNumber(obj, msg = "expected a number") {
 		return obj;
 	} else {
 		throw new Error(msg);
+	}
+}
+
+/**
+ * @package
+ * @template T
+ * @param {(T | null)[]} lst
+ * @returns {null | (T[])}
+ */
+export function reduceNull(lst) {
+	/**
+	 * @type {T[]}
+	 */
+	const nonNullLst = [];
+
+	let someNull = false;
+
+	lst.forEach(item => {
+		if (item !== null && !someNull) {
+			nonNullLst.push(item);
+		} else {
+			someNull = true;
+		}
+	});
+
+	if (someNull) {
+		return null;
+	} else {
+		return nonNullLst;
+	}
+}
+
+/**
+ * @template Ta
+ * @template Tb
+ * @param {[Ta | null, Tb | null][]} pairs
+ * @returns {null | [Ta, Tb][]}
+ */
+export function reduceNullPairs(pairs) {
+	/**
+	 * @type {[Ta, Tb][]}
+	 */
+	const nonNullPairs = [];
+
+	let someNull = false;
+
+	pairs.forEach(([a, b]) => {
+		if (a === null || b === null) {
+			someNull = true;
+		} else if (!someNull) {
+			nonNullPairs.push([a, b]);
+		}
+	});
+
+	if (someNull) {
+		return null;
+	} else {
+		return nonNullPairs;
 	}
 }
 
@@ -571,11 +630,12 @@ export class BitWriter {
 
 /**
  * A Source instance wraps a string so we can use it cheaply as a reference inside a Site.
- * @package
+ * Also used by VSCode plugin
  */
 export class Source {
 	#raw;
 	#fileIndex;
+	#errors; // errors are collected into this object
 
 	/**
 	 * @param {string} raw 
@@ -584,6 +644,7 @@ export class Source {
 	constructor(raw, fileIndex = null) {
 		this.#raw = assertDefined(raw);
 		this.#fileIndex = fileIndex;
+		this.#errors = [];
 	}
 
     /**
@@ -600,6 +661,19 @@ export class Source {
      */
 	get fileIndex() {
 		return this.#fileIndex;
+	}
+
+	/**
+	 * @type {Error[]}
+	 */
+	get errors() {
+		return this.#errors;
+	}
+
+	throwErrors() {
+		if (this.#errors.length > 0) {
+			throw this.#errors[0];
+		}
 	}
 
 	/**
@@ -681,7 +755,7 @@ export class Source {
 	 * @returns {[number, number]}
 	 */
 	// returns [col, line]
-	posToColAndLine(pos) {
+	posToLineAndCol(pos) {
 		let col = 0;
 		let line = 0;
 		for (let i = 0; i < pos; i++) {
@@ -693,7 +767,7 @@ export class Source {
 			}
 		}
 
-		return [col, line];
+		return [line, col];
 	}
 
 	/**

@@ -19,9 +19,10 @@ import {
  */
 export class Site {
 	#src;
-	#pos;
+	#startPos;
+	#endPos;
 
-	/** @type {?Site} - end of token, exclusive */
+	/** @type {?Site} - end of token, exclusive, TODO: replace with endPos */
 	#endSite;
 
 	/**@type {?Site} */
@@ -29,11 +30,13 @@ export class Site {
 
 	/**
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 * @param {number} startPos
+	 * @param {number} endPos 
 	 */
-	constructor(src, pos) {
+	constructor(src, startPos, endPos = startPos + 1) {
 		this.#src = src;
-		this.#pos = pos;
+		this.#startPos = startPos;
+		this.#endPos = endPos;
 		this.#endSite = null;
 		this.#codeMapSite = null;
 	}
@@ -46,12 +49,12 @@ export class Site {
 		return this.#src;
 	}
 
-	get pos() {
-		return this.#pos;
+	get startPos() {
+		return this.#startPos;
 	}
 
-	get line() {
-		return this.#src.posToLine(this.#pos);
+	get endPos() {
+		return this.#endPos;
 	}
 	
 	get endSite() {
@@ -59,21 +62,18 @@ export class Site {
 	}
 
 	/**
+	 * @param {Site} other 
+	 * @returns {Site}
+	 */
+	merge(other) {
+		return new Site(this.#src, this.#startPos, other.#endPos);
+	}
+
+	/**
 	 * @param {?Site} site
 	 */
 	setEndSite(site) {
 		this.#endSite = site;
-	}
-
-	/**
-	 * @type {string}
-	 */
-	get part() {
-		if (this.#endSite === null) {
-			return this.#src.raw.slice(this.#pos);
-		} else {
-			return this.#src.raw.slice(this.#pos, this.#endSite.pos);
-		}
 	}
 
 	/**
@@ -96,7 +96,7 @@ export class Site {
 	 * @returns {UserError}
 	 */
 	syntaxError(info = "") {
-		return UserError.syntaxError(this.#src, this.#pos, info);
+		return UserError.syntaxError(this.#src, this.#startPos, this.#endPos, info);
 	}
 
 	/**
@@ -105,7 +105,7 @@ export class Site {
 	 * @returns {UserError}
 	 */
 	typeError(info = "") {
-		return UserError.typeError(this.#src, this.#pos, info);
+		return UserError.typeError(this.#src, this.#startPos, this.#endPos, info);
 	}
 
 	/**
@@ -114,7 +114,7 @@ export class Site {
 	 * @returns {UserError}
 	 */
 	referenceError(info = "") {
-		return UserError.referenceError(this.#src, this.#pos, info);
+		return UserError.referenceError(this.#src, this.#startPos, this.#endPos, info);
 	}
 
 	/**
@@ -125,18 +125,22 @@ export class Site {
 	runtimeError(info = "") {
 		if (this.#codeMapSite !== null) {
 			let site = this.#codeMapSite;
-			return RuntimeError.newRuntimeError(site.#src, site.#pos, false, info);
+			return RuntimeError.newRuntimeError(site.#src, site.#startPos, false, info);
 		} else {
-			return RuntimeError.newRuntimeError(this.#src, this.#pos, true, info);
+			return RuntimeError.newRuntimeError(this.#src, this.#startPos, true, info);
 		}
 	}
 
 	/**
 	 * Calculates the column,line position in 'this.#src'
-	 * @returns {[number, number]}
+	 * @returns {[number, number, number, number]} - [startLine, startCol, endLine, endCol]
 	 */
 	getFilePos() {
-		return this.#src.posToColAndLine(this.#pos);
+		const [startLine, startCol] = this.#src.posToLineAndCol(this.#startPos);
+
+		const [endLine, endCol] = this.#src.posToLineAndCol(this.#endPos);
+
+		return [startLine, startCol, endLine, endCol];
 	}
 }
 
@@ -146,35 +150,39 @@ export class Site {
  * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
  */
  export class UserError extends Error {
-	#pos;
 	#src;
+	#startPos;
+	#endPos;
 
 	/**
 	 * @param {string} msg
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 * @param {number} startPos 
+	 * @param {number} endPos
 	 */
-	constructor(msg, src, pos) {
+	constructor(msg, src, startPos, endPos = startPos + 1) {
 		super(msg);
-		this.#pos = pos;
 		this.#src = src;
+		this.#startPos = startPos;
+		this.#endPos = endPos;
 	}
 
 	/**
 	 * @param {string} type
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 * @param {number} startPos 
+	 * @param {number} endPos
 	 * @param {string} info 
 	 */
-	static new(type, src, pos, info = "") {
-		let line = src.posToLine(pos);
+	static new(type, src, startPos, endPos, info = "") {
+		let line = src.posToLine(startPos);
 
 		let msg = `${type} on line ${line + 1}`;
 		if (info != "") {
 			msg += `: ${info}`;
 		}
 
-		return new UserError(msg, src, pos);
+		return new UserError(msg, src, startPos, endPos);
 	}
 
 	/**
@@ -187,23 +195,33 @@ export class Site {
 	/**
 	 * Constructs a SyntaxError
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 * @param {number} startPos 
+	 * @param {number} endPos
 	 * @param {string} info 
 	 * @returns {UserError}
 	 */
-	static syntaxError(src, pos, info = "") {
-		return UserError.new("SyntaxError", src, pos, info);
+	static syntaxError(src, startPos, endPos, info = "") {
+		const error = UserError.new("SyntaxError", src, startPos, endPos, info);
+
+		src.errors.push(error);
+
+		return error;
 	}
 
 	/**
 	 * Constructs a TypeError
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 * @param {number} startPos 
+	 * @param {number} endPos
 	 * @param {string} info 
 	 * @returns {UserError}
 	 */
-	static typeError(src, pos, info = "") {
-		return UserError.new("TypeError", src, pos, info);
+	static typeError(src, startPos, endPos, info = "") {
+		const error = UserError.new("TypeError", src, startPos, endPos, info);
+
+		src.errors.push(error);
+
+		return error;
 	}
 
 	/**
@@ -217,12 +235,17 @@ export class Site {
 	/**
 	 * Constructs a ReferenceError (i.e. name undefined, or name unused)
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 * @param {number} startPos 
+	 * @param {number} endPos
 	 * @param {string} info 
 	 * @returns {UserError}
 	 */
-	static referenceError(src, pos, info = "") {
-		return UserError.new("ReferenceError", src, pos, info);
+	static referenceError(src, startPos, endPos, info = "") {
+		const error = UserError.new("ReferenceError", src, startPos, endPos, info);
+
+		src.errors.push(error);
+
+		return error;
 	}
 
 	/**
@@ -240,16 +263,19 @@ export class Site {
 	/**
 	 * @type {number}
 	 */
-	get pos() {
-		return this.#pos;
+	get startPos() {
+		return this.#startPos;
 	}
 
 	/**
 	 * Calculates column/line position in 'this.src'.
-	 * @returns {[number, number]}
+	 * @returns {[number, number, number, number]} - [startLine, startCol, endLine, endCol]
 	 */
 	getFilePos() {
-		return this.#src.posToColAndLine(this.#pos);
+		const [startLine, startCol] = this.#src.posToLineAndCol(this.#startPos);
+		const [endLine, endCol] = this.#src.posToLineAndCol(this.#endPos);
+
+		return [startLine, startCol, endLine, endCol];
 	}
 
 	/**
@@ -293,6 +319,10 @@ export class Site {
 		}
 	}
 }
+
+/**
+ * @typedef {(error: UserError) => void} Throw
+ */
 
 /**
  * @package
@@ -360,7 +390,7 @@ export class RuntimeError extends UserError {
 		
 		msg += "\n" + this.message;
 
-		return new RuntimeError(msg, this.src, this.pos, isIR);
+		return new RuntimeError(msg, this.src, this.startPos, isIR);
 	}
 	
 	/**
@@ -370,9 +400,9 @@ export class RuntimeError extends UserError {
 	 */
 	addTraceSite(site, info = "") {
 		if (site.codeMapSite === null) {
-			return this.addTrace(site.src, site.pos, true, info);
+			return this.addTrace(site.src, site.startPos, true, info);
 		} else {
-			return this.addTrace(site.codeMapSite.src, site.codeMapSite.pos, false, info);
+			return this.addTrace(site.codeMapSite.src, site.codeMapSite.startPos, false, info);
 		}
 	}
 }
@@ -419,6 +449,13 @@ export class Token {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isKeyword() {
+		return false;
+	}
+
+	/**
 	 * Returns 'true' if 'this' is a Symbol token (eg. '+', '(' etc.)
 	 * @param {?(string | string[])} value
 	 * @returns {boolean}
@@ -430,9 +467,10 @@ export class Token {
 	/**
 	 * Returns 'true' if 'this' is a group (eg. '(...)').
 	 * @param {?string} value
+	 * @param {number | null} nFields
 	 * @returns {boolean}
 	 */
-	isGroup(value) {
+	isGroup(value, nFields = null) {
 		return false;
 	}
 
@@ -466,65 +504,63 @@ export class Token {
 	/**
 	 * Throws a SyntaxError if 'this' isn't a Word.
 	 * @param {?(string | string[])} value 
-	 * @returns {Word}
+	 * @returns {Word | null}
 	 */
 	assertWord(value = null) {
 		if (value !== null) {
-			throw this.syntaxError(`expected \'${value}\', got \'${this.toString()}\'`);
+			this.syntaxError(`expected \'${value}\', got \'${this.toString()}\'`);
 		} else {
-			throw this.syntaxError(`expected word, got ${this.toString()}`);
+			this.syntaxError(`expected word, got ${this.toString()}`);
 		}
+
+		return null;
 	}
 
 	/**
 	 * Throws a SyntaxError if 'this' isn't a Symbol.
 	 * @param {?(string | string[])} value 
-	 * @returns {SymbolToken}
+	 * @returns {SymbolToken | null}
 	 */
 	assertSymbol(value = null) {
 		if (value !== null) {
-			throw this.syntaxError(`expected '${value}', got '${this.toString()}'`);
+			this.syntaxError(`expected '${value}', got '${this.toString()}'`);
 		} else {
-			throw this.syntaxError(`expected symbol, got '${this.toString()}'`);
+			this.syntaxError(`expected symbol, got '${this.toString()}'`);
 		}
+
+		return null;
 	}
 
 	/**
 	 * Throws a SyntaxError if 'this' isn't a Group.
 	 * @param {?string} type 
 	 * @param {?number} nFields
-	 * @returns {Group}
+	 * @returns {Group | null}
 	 */
 	assertGroup(type = null, nFields = null) {
 		if (type !== null) {
-			throw this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}'`)
+			this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}'`);
 		} else {
-			throw this.syntaxError(`invalid syntax: expected group`);
+			this.syntaxError(`invalid syntax: expected group`);
 		}
+
+		return null;
 	}
 }
 
 /**
- * Generated during PERMISSIVE tokenization
  * @package
+ * @param {undefined | null | Token} t
+ * @param {Site} site
+ * @param {string} msg
+ * @returns {null | Token}
  */
-export class SyntaxErrorToken extends Token {
-	#msg;
-
-	/**
-	 * @param {Site} site
-	 * @param {string} msg
-	 */
-	constructor(site, msg) {
-		super(site);
-		this.#msg = msg;
-	}
-
-	/**
-	 * @returns {UserError}
-	 */
-	toError() {
-		return this.site.syntaxError(this.#msg);
+export function assertToken(t, site, msg = "expected token") {
+	if (!t) {
+		site.syntaxError(msg);
+		return null;
+	} else {
+		return t;
 	}
 }
 
@@ -620,13 +656,14 @@ export class Word extends Token {
 	}
 
 	/**
-	 * @returns {Word}
+	 * @returns {Word | null}
 	 */
 	assertNotKeyword() {
 		this.assertNotInternal();
 
 		if (this.isKeyword()) {
-			throw this.syntaxError(`'${this.#value}' is a reserved word`);
+			this.syntaxError(`'${this.#value}' is a reserved word`);
+			return null;
 		}
 
 		return this;
@@ -765,33 +802,40 @@ export class Group extends Token {
 
 	/**
 	 * @param {?string} type 
+	 * @param {number | null} nFields
 	 * @returns {boolean}
 	 */
-	isGroup(type = null) {
+	isGroup(type = null, nFields = null) {
+		const nFieldsOk = (nFields === null) || (nFields == this.#fields.length);
+
 		if (type !== null) {
-			return this.#type == type;
+			return this.#type == type && nFieldsOk;
 		} else {
-			return true;
+			return nFieldsOk;
 		}
 	}
 
 	/**
 	 * @param {?string} type 
 	 * @param {?number} nFields 
-	 * @returns {Group}
+	 * @returns {Group | null}
 	 */
 	assertGroup(type = null, nFields = null) {
 		if (type !== null && this.#type != type) {
-			throw this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}', got '${this.#type}...${Group.matchSymbol(this.#type)}'`);
+			this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}', got '${this.#type}...${Group.matchSymbol(this.#type)}'`);
+
+			return null;
 		} else if (type !== null && nFields !== null && nFields != this.#fields.length) {
 			if (this.#fields.length > 1 && nFields <= 1 && this.#firstComma !== null) {
-				throw this.#firstComma.syntaxError(`invalid syntax, unexpected ','`);
+				this.#firstComma.syntaxError(`invalid syntax, unexpected ','`);
 			} else {
-				throw this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}' with ${nFields} field(s), got '${type}...${Group.matchSymbol(type)}' with ${this.#fields.length} fields`);
+				this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}' with ${nFields} field(s), got '${type}...${Group.matchSymbol(type)}' with ${this.#fields.length} fields`);
 			}
-		}
 
-		return this;
+			return null;
+		} else {
+			return this;
+		}
 	}
 
 	/**

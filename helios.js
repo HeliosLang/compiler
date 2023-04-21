@@ -70,14 +70,14 @@
 // Overview of internals:
 //     Section 1: Config                     VERSION, TAB, config
 //
-//     Section 2: Utilities                  assert, assertDefined, assertClass, assertNumber, eq, 
-//                                           assertEq, idiv, ipow2, imask, imod8, bigIntToBytes, 
-//                                           bytesToBigInt, padZeroes, byteToBitString, 
-//                                           hexToBytes, bytesToHex, textToBytes, bytesToText, 
-//                                           replaceTabs, BitReader, BitWriter, Source, hl, 
-//                                           deprecationWarning
+//     Section 2: Utilities                  assert, assertDefined, assertClass, assertNumber, 
+//                                           reduceNull, reduceNullPairs, eq, assertEq, idiv, 
+//                                           ipow2, imask, imod8, bigIntToBytes, bytesToBigInt, 
+//                                           padZeroes, byteToBitString, hexToBytes, bytesToHex, 
+//                                           textToBytes, bytesToText, replaceTabs, BitReader, 
+//                                           BitWriter, Source, hl, deprecationWarning
 //
-//     Section 3: Tokens                     Site, RuntimeError, Token, SyntaxErrorToken, Word, 
+//     Section 3: Tokens                     Site, RuntimeError, Token, assertToken, Word, 
 //                                           SymbolToken, Group, PrimitiveLiteral, IntLiteral, 
 //                                           BoolLiteral, ByteArrayLiteral, StringLiteral
 //
@@ -175,10 +175,11 @@
 //                                           FuncStatement, EnumMember, EnumStatement, 
 //                                           ImplDefinition
 //
-//     Section 18: Helios AST building       AUTOMATIC_METHODS, buildProgramStatements, 
-//                                           buildScriptPurpose, extractScriptPurposeAndName, 
-//                                           buildConstStatement, splitDataImpl, 
-//                                           buildStructStatement, buildDataFields, 
+//     Section 18: Helios AST building       AUTOMATIC_METHODS, importPathTranslator, 
+//                                           setImportPathTranslator, buildProgramStatements, 
+//                                           buildScriptPurpose, buildScript, 
+//                                           extractScriptPurposeAndName, buildConstStatement, 
+//                                           splitDataImpl, buildStructStatement, buildDataFields, 
 //                                           buildFuncStatement, buildFuncLiteralExpr, 
 //                                           buildFuncArgs, buildEnumStatement, 
 //                                           buildImportStatements, buildEnumMember, 
@@ -199,7 +200,8 @@
 //                                           buildSwitchCaseBody, buildSwitchDefault, 
 //                                           buildListLiteralExpr, buildMapLiteralExpr, 
 //                                           buildStructLiteralExpr, buildStructLiteralField, 
-//                                           buildValuePathExpr
+//                                           buildStructLiteralNamedField, 
+//                                           buildStructLiteralUnnamedField, buildValuePathExpr
 //
 //     Section 19: IR definitions            onNotifyRawUsage, setRawUsageNotifier, RawFunc, 
 //                                           makeRawFunctions, wrapWithRawFunctions
@@ -302,6 +304,7 @@ export const config = {
 // Section 2: Utilities
 ///////////////////////
 
+
 /**
  * Throws an error if 'cond' is false.
  * @package
@@ -358,6 +361,64 @@ function assertNumber(obj, msg = "expected a number") {
 		return obj;
 	} else {
 		throw new Error(msg);
+	}
+}
+
+/**
+ * @package
+ * @template T
+ * @param {(T | null)[]} lst
+ * @returns {null | (T[])}
+ */
+function reduceNull(lst) {
+	/**
+	 * @type {T[]}
+	 */
+	const nonNullLst = [];
+
+	let someNull = false;
+
+	lst.forEach(item => {
+		if (item !== null && !someNull) {
+			nonNullLst.push(item);
+		} else {
+			someNull = true;
+		}
+	});
+
+	if (someNull) {
+		return null;
+	} else {
+		return nonNullLst;
+	}
+}
+
+/**
+ * @template Ta
+ * @template Tb
+ * @param {[Ta | null, Tb | null][]} pairs
+ * @returns {null | [Ta, Tb][]}
+ */
+export function reduceNullPairs(pairs) {
+	/**
+	 * @type {[Ta, Tb][]}
+	 */
+	const nonNullPairs = [];
+
+	let someNull = false;
+
+	pairs.forEach(([a, b]) => {
+		if (a === null || b === null) {
+			someNull = true;
+		} else if (!someNull) {
+			nonNullPairs.push([a, b]);
+		}
+	});
+
+	if (someNull) {
+		return null;
+	} else {
+		return nonNullPairs;
 	}
 }
 
@@ -870,11 +931,12 @@ class BitWriter {
 
 /**
  * A Source instance wraps a string so we can use it cheaply as a reference inside a Site.
- * @package
+ * Also used by VSCode plugin
  */
-class Source {
+export class Source {
 	#raw;
 	#fileIndex;
+	#errors; // errors are collected into this object
 
 	/**
 	 * @param {string} raw 
@@ -883,6 +945,7 @@ class Source {
 	constructor(raw, fileIndex = null) {
 		this.#raw = assertDefined(raw);
 		this.#fileIndex = fileIndex;
+		this.#errors = [];
 	}
 
     /**
@@ -899,6 +962,19 @@ class Source {
      */
 	get fileIndex() {
 		return this.#fileIndex;
+	}
+
+	/**
+	 * @type {Error[]}
+	 */
+	get errors() {
+		return this.#errors;
+	}
+
+	throwErrors() {
+		if (this.#errors.length > 0) {
+			throw this.#errors[0];
+		}
 	}
 
 	/**
@@ -980,7 +1056,7 @@ class Source {
 	 * @returns {[number, number]}
 	 */
 	// returns [col, line]
-	posToColAndLine(pos) {
+	posToLineAndCol(pos) {
 		let col = 0;
 		let line = 0;
 		for (let i = 0; i < pos; i++) {
@@ -992,7 +1068,7 @@ class Source {
 			}
 		}
 
-		return [col, line];
+		return [line, col];
 	}
 
 	/**
@@ -1056,6 +1132,7 @@ ${alternative}`;
 }
 
 
+
 ////////////////////
 // Section 3: Tokens
 ////////////////////
@@ -1066,9 +1143,10 @@ ${alternative}`;
  */
 class Site {
 	#src;
-	#pos;
+	#startPos;
+	#endPos;
 
-	/** @type {?Site} - end of token, exclusive */
+	/** @type {?Site} - end of token, exclusive, TODO: replace with endPos */
 	#endSite;
 
 	/**@type {?Site} */
@@ -1076,11 +1154,13 @@ class Site {
 
 	/**
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 * @param {number} startPos
+	 * @param {number} endPos 
 	 */
-	constructor(src, pos) {
+	constructor(src, startPos, endPos = startPos + 1) {
 		this.#src = src;
-		this.#pos = pos;
+		this.#startPos = startPos;
+		this.#endPos = endPos;
 		this.#endSite = null;
 		this.#codeMapSite = null;
 	}
@@ -1093,12 +1173,12 @@ class Site {
 		return this.#src;
 	}
 
-	get pos() {
-		return this.#pos;
+	get startPos() {
+		return this.#startPos;
 	}
 
-	get line() {
-		return this.#src.posToLine(this.#pos);
+	get endPos() {
+		return this.#endPos;
 	}
 	
 	get endSite() {
@@ -1106,21 +1186,18 @@ class Site {
 	}
 
 	/**
+	 * @param {Site} other 
+	 * @returns {Site}
+	 */
+	merge(other) {
+		return new Site(this.#src, this.#startPos, other.#endPos);
+	}
+
+	/**
 	 * @param {?Site} site
 	 */
 	setEndSite(site) {
 		this.#endSite = site;
-	}
-
-	/**
-	 * @type {string}
-	 */
-	get part() {
-		if (this.#endSite === null) {
-			return this.#src.raw.slice(this.#pos);
-		} else {
-			return this.#src.raw.slice(this.#pos, this.#endSite.pos);
-		}
 	}
 
 	/**
@@ -1143,7 +1220,7 @@ class Site {
 	 * @returns {UserError}
 	 */
 	syntaxError(info = "") {
-		return UserError.syntaxError(this.#src, this.#pos, info);
+		return UserError.syntaxError(this.#src, this.#startPos, this.#endPos, info);
 	}
 
 	/**
@@ -1152,7 +1229,7 @@ class Site {
 	 * @returns {UserError}
 	 */
 	typeError(info = "") {
-		return UserError.typeError(this.#src, this.#pos, info);
+		return UserError.typeError(this.#src, this.#startPos, this.#endPos, info);
 	}
 
 	/**
@@ -1161,7 +1238,7 @@ class Site {
 	 * @returns {UserError}
 	 */
 	referenceError(info = "") {
-		return UserError.referenceError(this.#src, this.#pos, info);
+		return UserError.referenceError(this.#src, this.#startPos, this.#endPos, info);
 	}
 
 	/**
@@ -1172,18 +1249,22 @@ class Site {
 	runtimeError(info = "") {
 		if (this.#codeMapSite !== null) {
 			let site = this.#codeMapSite;
-			return RuntimeError.newRuntimeError(site.#src, site.#pos, false, info);
+			return RuntimeError.newRuntimeError(site.#src, site.#startPos, false, info);
 		} else {
-			return RuntimeError.newRuntimeError(this.#src, this.#pos, true, info);
+			return RuntimeError.newRuntimeError(this.#src, this.#startPos, true, info);
 		}
 	}
 
 	/**
 	 * Calculates the column,line position in 'this.#src'
-	 * @returns {[number, number]}
+	 * @returns {[number, number, number, number]} - [startLine, startCol, endLine, endCol]
 	 */
 	getFilePos() {
-		return this.#src.posToColAndLine(this.#pos);
+		const [startLine, startCol] = this.#src.posToLineAndCol(this.#startPos);
+
+		const [endLine, endCol] = this.#src.posToLineAndCol(this.#endPos);
+
+		return [startLine, startCol, endLine, endCol];
 	}
 }
 
@@ -1193,35 +1274,39 @@ class Site {
  * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
  */
  export class UserError extends Error {
-	#pos;
 	#src;
+	#startPos;
+	#endPos;
 
 	/**
 	 * @param {string} msg
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 * @param {number} startPos 
+	 * @param {number} endPos
 	 */
-	constructor(msg, src, pos) {
+	constructor(msg, src, startPos, endPos = startPos + 1) {
 		super(msg);
-		this.#pos = pos;
 		this.#src = src;
+		this.#startPos = startPos;
+		this.#endPos = endPos;
 	}
 
 	/**
 	 * @param {string} type
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 * @param {number} startPos 
+	 * @param {number} endPos
 	 * @param {string} info 
 	 */
-	static new(type, src, pos, info = "") {
-		let line = src.posToLine(pos);
+	static new(type, src, startPos, endPos, info = "") {
+		let line = src.posToLine(startPos);
 
 		let msg = `${type} on line ${line + 1}`;
 		if (info != "") {
 			msg += `: ${info}`;
 		}
 
-		return new UserError(msg, src, pos);
+		return new UserError(msg, src, startPos, endPos);
 	}
 
 	/**
@@ -1234,23 +1319,33 @@ class Site {
 	/**
 	 * Constructs a SyntaxError
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 * @param {number} startPos 
+	 * @param {number} endPos
 	 * @param {string} info 
 	 * @returns {UserError}
 	 */
-	static syntaxError(src, pos, info = "") {
-		return UserError.new("SyntaxError", src, pos, info);
+	static syntaxError(src, startPos, endPos, info = "") {
+		const error = UserError.new("SyntaxError", src, startPos, endPos, info);
+
+		src.errors.push(error);
+
+		return error;
 	}
 
 	/**
 	 * Constructs a TypeError
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 * @param {number} startPos 
+	 * @param {number} endPos
 	 * @param {string} info 
 	 * @returns {UserError}
 	 */
-	static typeError(src, pos, info = "") {
-		return UserError.new("TypeError", src, pos, info);
+	static typeError(src, startPos, endPos, info = "") {
+		const error = UserError.new("TypeError", src, startPos, endPos, info);
+
+		src.errors.push(error);
+
+		return error;
 	}
 
 	/**
@@ -1264,12 +1359,17 @@ class Site {
 	/**
 	 * Constructs a ReferenceError (i.e. name undefined, or name unused)
 	 * @param {Source} src 
-	 * @param {number} pos 
+	 * @param {number} startPos 
+	 * @param {number} endPos
 	 * @param {string} info 
 	 * @returns {UserError}
 	 */
-	static referenceError(src, pos, info = "") {
-		return UserError.new("ReferenceError", src, pos, info);
+	static referenceError(src, startPos, endPos, info = "") {
+		const error = UserError.new("ReferenceError", src, startPos, endPos, info);
+
+		src.errors.push(error);
+
+		return error;
 	}
 
 	/**
@@ -1287,16 +1387,19 @@ class Site {
 	/**
 	 * @type {number}
 	 */
-	get pos() {
-		return this.#pos;
+	get startPos() {
+		return this.#startPos;
 	}
 
 	/**
 	 * Calculates column/line position in 'this.src'.
-	 * @returns {[number, number]}
+	 * @returns {[number, number, number, number]} - [startLine, startCol, endLine, endCol]
 	 */
 	getFilePos() {
-		return this.#src.posToColAndLine(this.#pos);
+		const [startLine, startCol] = this.#src.posToLineAndCol(this.#startPos);
+		const [endLine, endCol] = this.#src.posToLineAndCol(this.#endPos);
+
+		return [startLine, startCol, endLine, endCol];
 	}
 
 	/**
@@ -1340,6 +1443,10 @@ class Site {
 		}
 	}
 }
+
+/**
+ * @typedef {(error: UserError) => void} Throw
+ */
 
 /**
  * @package
@@ -1407,7 +1514,7 @@ class RuntimeError extends UserError {
 		
 		msg += "\n" + this.message;
 
-		return new RuntimeError(msg, this.src, this.pos, isIR);
+		return new RuntimeError(msg, this.src, this.startPos, isIR);
 	}
 	
 	/**
@@ -1417,9 +1524,9 @@ class RuntimeError extends UserError {
 	 */
 	addTraceSite(site, info = "") {
 		if (site.codeMapSite === null) {
-			return this.addTrace(site.src, site.pos, true, info);
+			return this.addTrace(site.src, site.startPos, true, info);
 		} else {
-			return this.addTrace(site.codeMapSite.src, site.codeMapSite.pos, false, info);
+			return this.addTrace(site.codeMapSite.src, site.codeMapSite.startPos, false, info);
 		}
 	}
 }
@@ -1466,6 +1573,13 @@ export class Token {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isKeyword() {
+		return false;
+	}
+
+	/**
 	 * Returns 'true' if 'this' is a Symbol token (eg. '+', '(' etc.)
 	 * @param {?(string | string[])} value
 	 * @returns {boolean}
@@ -1477,9 +1591,10 @@ export class Token {
 	/**
 	 * Returns 'true' if 'this' is a group (eg. '(...)').
 	 * @param {?string} value
+	 * @param {number | null} nFields
 	 * @returns {boolean}
 	 */
-	isGroup(value) {
+	isGroup(value, nFields = null) {
 		return false;
 	}
 
@@ -1513,65 +1628,63 @@ export class Token {
 	/**
 	 * Throws a SyntaxError if 'this' isn't a Word.
 	 * @param {?(string | string[])} value 
-	 * @returns {Word}
+	 * @returns {Word | null}
 	 */
 	assertWord(value = null) {
 		if (value !== null) {
-			throw this.syntaxError(`expected \'${value}\', got \'${this.toString()}\'`);
+			this.syntaxError(`expected \'${value}\', got \'${this.toString()}\'`);
 		} else {
-			throw this.syntaxError(`expected word, got ${this.toString()}`);
+			this.syntaxError(`expected word, got ${this.toString()}`);
 		}
+
+		return null;
 	}
 
 	/**
 	 * Throws a SyntaxError if 'this' isn't a Symbol.
 	 * @param {?(string | string[])} value 
-	 * @returns {SymbolToken}
+	 * @returns {SymbolToken | null}
 	 */
 	assertSymbol(value = null) {
 		if (value !== null) {
-			throw this.syntaxError(`expected '${value}', got '${this.toString()}'`);
+			this.syntaxError(`expected '${value}', got '${this.toString()}'`);
 		} else {
-			throw this.syntaxError(`expected symbol, got '${this.toString()}'`);
+			this.syntaxError(`expected symbol, got '${this.toString()}'`);
 		}
+
+		return null;
 	}
 
 	/**
 	 * Throws a SyntaxError if 'this' isn't a Group.
 	 * @param {?string} type 
 	 * @param {?number} nFields
-	 * @returns {Group}
+	 * @returns {Group | null}
 	 */
 	assertGroup(type = null, nFields = null) {
 		if (type !== null) {
-			throw this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}'`)
+			this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}'`);
 		} else {
-			throw this.syntaxError(`invalid syntax: expected group`);
+			this.syntaxError(`invalid syntax: expected group`);
 		}
+
+		return null;
 	}
 }
 
 /**
- * Generated during PERMISSIVE tokenization
  * @package
+ * @param {undefined | null | Token} t
+ * @param {Site} site
+ * @param {string} msg
+ * @returns {null | Token}
  */
-class SyntaxErrorToken extends Token {
-	#msg;
-
-	/**
-	 * @param {Site} site
-	 * @param {string} msg
-	 */
-	constructor(site, msg) {
-		super(site);
-		this.#msg = msg;
-	}
-
-	/**
-	 * @returns {UserError}
-	 */
-	toError() {
-		return this.site.syntaxError(this.#msg);
+function assertToken(t, site, msg = "expected token") {
+	if (!t) {
+		site.syntaxError(msg);
+		return null;
+	} else {
+		return t;
 	}
 }
 
@@ -1667,13 +1780,14 @@ class Word extends Token {
 	}
 
 	/**
-	 * @returns {Word}
+	 * @returns {Word | null}
 	 */
 	assertNotKeyword() {
 		this.assertNotInternal();
 
 		if (this.isKeyword()) {
-			throw this.syntaxError(`'${this.#value}' is a reserved word`);
+			this.syntaxError(`'${this.#value}' is a reserved word`);
+			return null;
 		}
 
 		return this;
@@ -1812,33 +1926,40 @@ class Group extends Token {
 
 	/**
 	 * @param {?string} type 
+	 * @param {number | null} nFields
 	 * @returns {boolean}
 	 */
-	isGroup(type = null) {
+	isGroup(type = null, nFields = null) {
+		const nFieldsOk = (nFields === null) || (nFields == this.#fields.length);
+
 		if (type !== null) {
-			return this.#type == type;
+			return this.#type == type && nFieldsOk;
 		} else {
-			return true;
+			return nFieldsOk;
 		}
 	}
 
 	/**
 	 * @param {?string} type 
 	 * @param {?number} nFields 
-	 * @returns {Group}
+	 * @returns {Group | null}
 	 */
 	assertGroup(type = null, nFields = null) {
 		if (type !== null && this.#type != type) {
-			throw this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}', got '${this.#type}...${Group.matchSymbol(this.#type)}'`);
+			this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}', got '${this.#type}...${Group.matchSymbol(this.#type)}'`);
+
+			return null;
 		} else if (type !== null && nFields !== null && nFields != this.#fields.length) {
 			if (this.#fields.length > 1 && nFields <= 1 && this.#firstComma !== null) {
-				throw this.#firstComma.syntaxError(`invalid syntax, unexpected ','`);
+				this.#firstComma.syntaxError(`invalid syntax, unexpected ','`);
 			} else {
-				throw this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}' with ${nFields} field(s), got '${type}...${Group.matchSymbol(type)}' with ${this.#fields.length} fields`);
+				this.syntaxError(`invalid syntax: expected '${type}...${Group.matchSymbol(type)}' with ${nFields} field(s), got '${type}...${Group.matchSymbol(type)}' with ${this.#fields.length} fields`);
 			}
-		}
 
-		return this;
+			return null;
+		} else {
+			return this;
+		}
 	}
 
 	/**
@@ -2207,6 +2328,7 @@ class StringLiteral extends PrimitiveLiteral {
 		return res;
 	}
 }
+
 
 
 ////////////////////////////////////
@@ -12054,7 +12176,7 @@ export function deserializeUplc(jsonString) {
 	let obj = JSON.parse(jsonString);
 
 	if (!("cborHex" in obj)) {
-		throw UserError.syntaxError(new Source(jsonString), 0, "cborHex field not in json")
+		throw UserError.syntaxError(new Source(jsonString), 0, 1, "cborHex field not in json")
 	}
 
 	let cborHex = obj.cborHex;
@@ -12063,9 +12185,10 @@ export function deserializeUplc(jsonString) {
 		let re = /cborHex/;
 		let cborHexMatch = jsonString.match(re);
 		if (cborHexMatch === null) {
-			throw UserError.syntaxError(src, 0, "'cborHex' key not found");
+			throw UserError.syntaxError(src, 0, 1, "'cborHex' key not found");
 		} else {
-			throw UserError.syntaxError(src, jsonString.search(re), "cborHex not a string");
+			const pos = jsonString.search(re)
+			throw UserError.syntaxError(src, pos, pos+1, "cborHex not a string");
 		}
 	}
 
@@ -12125,7 +12248,7 @@ export class Tokenizer {
 		if (this.#codeMap !== null && this.#codeMapPos < this.#codeMap.length) {
 			let pair = (this.#codeMap[this.#codeMapPos]);
 
-			if (pair[0] == t.site.pos) {
+			if (pair[0] == t.site.startPos) {
 				t.site.setCodeMapSite(pair[1]);
 				this.#codeMapPos += 1;
 			}
@@ -12179,14 +12302,14 @@ export class Tokenizer {
 		} else if (c == '?' || c == '!' || c == '%' || c == '&' || (c >= '(' && c <= '.') || (c >= ':' && c <= '>') || c == '[' || c == ']' || (c >= '{' && c <= '}')) {
 			this.readSymbol(site, c);
 		} else if (!(c == ' ' || c == '\n' || c == '\t' || c == '\r')) {
-			this.pushToken(new SyntaxErrorToken(site, `invalid source character '${c}' (utf-8 not yet supported outside string literals)`));
+			site.syntaxError(`invalid source character '${c}' (utf-8 not yet supported outside string literals)`);
 		}
 	}
 
 	/**
 	 * Tokenize the complete source.
 	 * Nests groups before returning a list of tokens
-	 * @returns {[Token[], SyntaxErrorToken[]]}
+	 * @returns {Token[] | null}
 	 */
 	tokenize() {
 		// reset #ts
@@ -12202,10 +12325,7 @@ export class Tokenizer {
 			c = this.readChar();
 		}
 
-		return [
-			this.nestGroups(this.#ts.filter(t => !(t instanceof SyntaxErrorToken))),
-			this.#ts.filter(t => t instanceof SyntaxErrorToken).map(t => assertClass(t, SyntaxErrorToken))
-		];
+		return this.nestGroups(this.#ts);
 	}
 
 	/** 
@@ -12260,9 +12380,19 @@ export class Tokenizer {
 		let value = chars.join('');
 
 		if (value == "true" || value == "false") {
-			this.pushToken(new BoolLiteral(site, value == "true"));
+			this.pushToken(
+				new BoolLiteral(
+					new Site(site.src, site.startPos, this.currentSite.startPos),
+					value == "true"
+				)
+			);
 		} else {
-			this.pushToken(new Word(site, value));
+			this.pushToken(
+				new Word(
+					new Site(site.src, site.startPos, this.currentSite.startPos),
+					value
+				)
+			);
 		}
 	}
 
@@ -12313,7 +12443,8 @@ export class Tokenizer {
 			if (c == '/' && prev == '*') {
 				break;
 			} else if (c == '\0') {
-				this.pushToken(new SyntaxErrorToken(site, "unterminated multiline comment"));
+				const errorSite = new Site(site.src, site.startPos, this.currentSite.startPos);
+				errorSite.syntaxError("unterminated multiline comment");
 				return;
 			}
 		}
@@ -12335,7 +12466,7 @@ export class Tokenizer {
 		} else if (c == 'x') {
 			this.readHexInteger(site);
 		} else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-			this.pushToken(new SyntaxErrorToken(site, `bad literal integer type 0${c}`));
+			site.syntaxError(`bad literal integer type 0${c}`);
 		} else if (c >= '0' && c <= '9') {
 			this.readDecimalInteger(site, c);
 		} else {
@@ -12379,7 +12510,9 @@ export class Tokenizer {
 				chars.push(c);
 			} else {
 				if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-					this.pushToken(new SyntaxErrorToken(site, "invalid syntax for decimal integer literal"));
+					const errorSite = new Site(site.src, site.startPos, this.currentSite.startPos);
+
+					errorSite.syntaxError("invalid syntax for decimal integer literal");
 				}
 
 				this.unreadChar();
@@ -12389,7 +12522,12 @@ export class Tokenizer {
 			c = this.readChar();
 		}
 
-		this.pushToken(new IntLiteral(site, BigInt(chars.join(''))));
+		this.pushToken(
+			new IntLiteral(
+				new Site(site.src, site.startPos, this.currentSite.startPos),
+				BigInt(chars.join(''))
+			)
+		);
 	}
 
 	/**
@@ -12403,7 +12541,9 @@ export class Tokenizer {
 		let chars = [];
 
 		if (!(valid(c))) {
-			this.pushToken(new SyntaxErrorToken(site, `expected at least one char for ${prefix} integer literal`));
+			const errorSite = new Site(site.src, site.startPos, this.currentSite.startPos);
+
+			errorSite.syntaxError(`expected at least one char for ${prefix} integer literal`);
 
 			this.unreadChar();
 			return;
@@ -12414,7 +12554,9 @@ export class Tokenizer {
 				chars.push(c);
 			} else {
 				if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-					this.pushToken(new SyntaxErrorToken(site, `invalid syntax for ${prefix} integer literal`));
+					const errorSite = new Site(site.src, site.startPos, this.currentSite.startPos);
+
+					errorSite.syntaxError(`invalid syntax for ${prefix} integer literal`);
 				}
 
 				this.unreadChar();
@@ -12424,7 +12566,12 @@ export class Tokenizer {
 			c = this.readChar();
 		}
 
-		this.pushToken(new IntLiteral(site, BigInt(prefix + chars.join(''))));
+		this.pushToken(
+			new IntLiteral(
+				new Site(site.src, site.startPos, this.currentSite.startPos),
+				BigInt(prefix + chars.join(''))
+			)
+		);
 	}
 
 	/**
@@ -12449,7 +12596,12 @@ export class Tokenizer {
 
 		let bytes = hexToBytes(chars.join(''));
 
-		this.pushToken(new ByteArrayLiteral(site, bytes));
+		this.pushToken(
+			new ByteArrayLiteral(
+				new Site(site.src, site.startPos, this.currentSite.startPos),
+				bytes
+			)
+		);
 	}
 
 	/**
@@ -12468,7 +12620,7 @@ export class Tokenizer {
 
 		while (!(!escaping && c == '"')) {
 			if (c == '\0') {
-				this.pushToken(new SyntaxErrorToken(site, "unmatched '\"'"));
+				site.syntaxError("unmatched '\"'");
 				break;
 			}
 
@@ -12482,7 +12634,9 @@ export class Tokenizer {
 				} else if (c == '"') {
 					chars.push(c);
 				} else if (escapeSite !== null) {
-					this.pushToken(new SyntaxErrorToken(escapeSite, `invalid escape sequence ${c}`));
+					const errorSite = new Site(escapeSite.src, escapeSite.startPos, this.currentSite.startPos);
+
+					errorSite.syntaxError(`invalid escape sequence ${c}`);
 				} else {
 					throw new Error("escape site should be non-null");
 				}
@@ -12501,7 +12655,12 @@ export class Tokenizer {
 			c = this.readChar();
 		}
 
-		this.pushToken(new StringLiteral(site, chars.join('')));
+		this.pushToken(
+			new StringLiteral(
+				new Site(site.src, site.startPos, this.currentSite.startPos),
+				chars.join('')
+			)
+		);
 	}
 
 	/**
@@ -12541,99 +12700,123 @@ export class Tokenizer {
 			parseSecondChar('>');
 		}
 
-		this.pushToken(new SymbolToken(site, chars.join('')));
+		this.pushToken(
+			new SymbolToken(
+				new Site(site.src, site.startPos, site.endPos),
+				chars.join('')
+			)
+		);
 	}
 
 	/**
 	 * Separates tokens in fields (separted by commas)
 	 * @param {Token[]} ts 
-	 * @returns {Group}
+	 * @returns {Group | null}
 	 */
 	buildGroup(ts) {
-		let tOpen = ts.shift();
-		if (tOpen === undefined) {
-			throw new Error("unexpected");
-		} else {
-			let open = tOpen.assertSymbol();
+		const open = assertDefined(ts.shift()).assertSymbol();
 
-			let stack = [open]; // stack of symbols
-			let curField = [];
-			let fields = [];
+		if (!open) {
+			return null;
+		}
 
-			/** @type {?SymbolToken} */
-			let firstComma = null;
+		const stack = [open]; // stack of symbols
+		let curField = [];
+		let fields = [];
 
-			/** @type {?SymbolToken} */
-			let lastComma = null;
+		/** @type {?SymbolToken} */
+		let firstComma = null;
 
-			/** @type {?Site} */
-			let endSite = null;
+		/** @type {?SymbolToken} */
+		let lastComma = null;
 
-			while (stack.length > 0 && ts.length > 0) {
-				let t = assertDefined(ts.shift());
-				let prev = stack.pop();
-				endSite = t.site;
+		/** @type {?Site} */
+		let endSite = null;
 
-				if (t != undefined && prev != undefined) {
-					if (!t.isSymbol(Group.matchSymbol(prev))) {
-						stack.push(prev);
+		while (stack.length > 0 && ts.length > 0) {
+			const t = assertToken(ts.shift(), open.site);
 
-						if (Group.isCloseSymbol(t)) {
-							this.pushToken(new SyntaxErrorToken(t.site, `unmatched '${t.assertSymbol().value}'`));
-						} else if (Group.isOpenSymbol(t)) {
-							stack.push(t.assertSymbol());
-							curField.push(t);
-						} else if (t.isSymbol(",") && stack.length == 1) {
-							if (firstComma === null) {
-								firstComma = t.assertSymbol();
-							}
+			if (!t) {
+				return null;
+			}
 
-							lastComma = t.assertSymbol();
-							if (curField.length == 0) {
-								this.pushToken(new SyntaxErrorToken(t.site, "empty field"));
-							} else {
-								fields.push(curField);
-								curField = [];
-							}
-						} else {
-							curField.push(t);
+			const prev = stack.pop();
+
+			endSite = t.site;
+
+			if (t != undefined && prev != undefined) {
+				if (!t.isSymbol(Group.matchSymbol(prev))) {
+					stack.push(prev);
+
+					if (Group.isCloseSymbol(t)) {
+						t.site.syntaxError(`unmatched '${assertDefined(t.assertSymbol()).value}'`);
+						return null;
+					} else if (Group.isOpenSymbol(t)) {
+						stack.push(assertDefined(t.assertSymbol()));
+						curField.push(t);
+					} else if (t.isSymbol(",") && stack.length == 1) {
+						if (firstComma === null) {
+							firstComma = t.assertSymbol();
 						}
-					} else if (stack.length > 0) {
+
+						lastComma = t.assertSymbol();
+						if (curField.length == 0) {
+							t.site.syntaxError("empty field");
+							return null;
+						} else {
+							fields.push(curField);
+							curField = [];
+						}
+					} else {
 						curField.push(t);
 					}
-				} else {
-					throw new Error("unexpected");
+				} else if (stack.length > 0) {
+					curField.push(t);
 				}
+			} else {
+				throw new Error("unexpected");
 			}
-
-			let last = stack.pop();
-			if (last != undefined) {
-				this.pushToken(new SyntaxErrorToken(last.site, `EOF while matching '${last.value}'`));
-			}
-
-			if (curField.length > 0) {
-				// add removing field
-				fields.push(curField);
-			} else if (lastComma !== null) {
-				this.pushToken(new SyntaxErrorToken(lastComma.site, `trailing comma`));
-			}
-
-			fields = fields.map(f => this.nestGroups(f));
-
-			let site = tOpen.site;
-			site.setEndSite(endSite);
-
-			return new Group(site, open.value, fields, firstComma);
 		}
+
+		let last = stack.pop();
+		if (last != undefined) {
+			last.syntaxError(`EOF while matching '${last.value}'`);
+			return null;
+		}
+
+		if (curField.length > 0) {
+			// add removing field
+			fields.push(curField);
+		} else if (lastComma !== null) {
+			lastComma.syntaxError(`trailing comma`);
+			return null;
+		}
+
+		const groupedFields = reduceNull(fields.map(f => this.nestGroups(f)));
+
+		if (!groupedFields) {
+			return null;
+		}
+
+		let site = open.site;
+
+		if (endSite) {
+			site = site.merge(endSite);
+		}
+
+		return new Group(site, open.value, groupedFields, firstComma);
 	}
 
 	/**
 	 * Match group open with group close symbols in order to form groups.
 	 * This is recursively applied to nested groups.
 	 * @param {Token[]} ts 
-	 * @returns {Token[]}
+	 * @returns {Token[] | null}
 	 */
 	nestGroups(ts) {
+		/**
+		 * @type {(Token | null)[]}
+		 */
 		let res = [];
 
 		let t = ts.shift();
@@ -12643,7 +12826,7 @@ export class Tokenizer {
 
 				res.push(this.buildGroup(ts));
 			} else if (Group.isCloseSymbol(t)) {
-				this.pushToken(new SyntaxErrorToken(t.site, `unmatched '${t.assertSymbol().value}'`));
+				t.syntaxError(`unmatched '${assertDefined(t.assertSymbol()).value}'`);
 			} else {
 				res.push(t);
 			}
@@ -12651,17 +12834,17 @@ export class Tokenizer {
 			t = ts.shift();
 		}
 
-		return res;
+		return reduceNull(res);
 	}
 }
 
 /**
  * Tokenizes a string (wrapped in Source)
- * @package
+ * Also used by VSCode plugin
  * @param {Source} src 
- * @returns {[Token[], SyntaxErrorToken[]]}
+ * @returns {Token[] | null}
  */
-function tokenize(src) {
+export function tokenize(src) {
 	let tokenizer = new Tokenizer(src);
 
 	return tokenizer.tokenize();
@@ -12680,14 +12863,17 @@ function tokenizeIR(rawSrc, codeMap) {
 	// the Tokenizer for Helios can simply be reused for the IR
 	let tokenizer = new Tokenizer(src, codeMap);
 
-	const [ts, errors] = tokenizer.tokenize();
+	const ts = tokenizer.tokenize();
 
-	if (errors.length > 0) {
-		throw errors[0].toError();
+	if (src.errors.length > 0) {
+		throw src.errors[0];
+	} else if (ts === null) {
+		throw new Error("should've been thrown above");
 	}
 
 	return ts;
 }
+
 
 
 ///////////////////////////////////
@@ -22622,9 +22808,9 @@ class Statement extends Token {
 	hideUnused(mask) {
 		if (!this.#used) {
 			if (this.site.endSite === null) {
-				mask.fill(0, this.site.pos);
+				mask.fill(0, this.site.startPos);
 			} else {
-				mask.fill(0, this.site.pos, this.site.endSite.pos);
+				mask.fill(0, this.site.startPos, this.site.endSite.startPos);
 			}
 		}
 	}
@@ -23839,9 +24025,9 @@ class ImplDefinition {
 				let site = s.site;
 
 				if (site.endSite === null) {
-					mask.fill(0, site.pos);
+					mask.fill(0, site.startPos);
 				} else {
-					mask.fill(0, site.pos, site.endSite.pos);
+					mask.fill(0, site.startPos, site.endSite.startPos);
 				}
 			}
 		}
@@ -23896,6 +24082,19 @@ const AUTOMATIC_METHODS = [
 ];
 
 /**
+ * @type {null | ((path: StringLiteral) => (string | null))}
+ */
+let importPathTranslator = null
+
+/**
+ * Used by VSCode plugin
+ * @param {(path: StringLiteral) => (string | null)} fn 
+ */
+export function setImportPathTranslator(fn) {
+	importPathTranslator = fn
+}
+
+/**
  * @package
  * @param {Token[]} ts
  * @returns {Statement[]}
@@ -23907,21 +24106,43 @@ function buildProgramStatements(ts) {
 	let statements = [];
 
 	while (ts.length != 0) {
-		const t = assertDefined(ts.shift()).assertWord();
+		const t = ts.shift()?.assertWord();
+
+		if (!t) {
+			continue;
+		}
+
 		const kw = t.value;
 
+		/**
+		 * @type {Statement | (Statement | null)[] | null}
+		 */
+		let s = null;
+
 		if (kw == "const") {
-			statements.push(buildConstStatement(t.site, ts));
+			s = buildConstStatement(t.site, ts);
 		} else if (kw == "struct") {
-			statements.push(buildStructStatement(t.site, ts));
+			s = buildStructStatement(t.site, ts);
 		} else if (kw == "func") {
-			statements.push(buildFuncStatement(t.site, ts));
+			s = buildFuncStatement(t.site, ts);
 		} else if (kw == "enum") {
-			statements.push(buildEnumStatement(t.site, ts));
+			s = buildEnumStatement(t.site, ts);
 		} else if (kw == "import") {
-			statements = statements.concat(buildImportStatements(t.site, ts));
+			s = buildImportStatements(t.site, ts);
 		} else {
-			throw t.syntaxError(`invalid top-level keyword '${kw}'`);
+			t.syntaxError(`invalid top-level keyword '${kw}'`);
+		}
+
+		if (s) {
+			if (Array.isArray(s)) {
+				for (let s_ of s) {
+					if (s_) {
+						statements.push(s_);
+					}
+				}
+			} else {
+				statements.push(s);
+			}
 		}
 	}
 
@@ -23930,19 +24151,36 @@ function buildProgramStatements(ts) {
 
 /**
  * @package
- * @param {Token[]} ts 
- * @returns {[number, Word]} - [purpose, name] (ScriptPurpose is an integer)
+ * @param {Token[]} ts
+ * @param {null | number} expectedPurpose
+ * @returns {[number, Word] | null} - [purpose, name] (ScriptPurpose is an integer)
  * @package
  */
-function buildScriptPurpose(ts) {
+function buildScriptPurpose(ts, expectedPurpose = null) {
 	// need at least 2 tokens for the script purpose
 	if (ts.length < 2) {
-		throw ts[0].syntaxError("invalid script purpose syntax");
+
+		if (ts.length == 0) {
+			Site.dummy().syntaxError("invalid script purpose syntax");
+		} else {
+			ts[0].syntaxError("invalid script purpose syntax");
+			ts.splice(0);
+		}
+
+		return null;
 	}
 
-	const purposeWord = assertDefined(ts.shift()).assertWord();
+	const purposeWord = ts.shift()?.assertWord();
 
-	let purpose;
+	if (!purposeWord) {
+		return null;
+	}
+
+	/**
+	 * @type {number | null}
+	 */
+	let purpose = null;
+
 	if (purposeWord.isWord("spending")) {
 		purpose = ScriptPurpose.Spending;
 	} else if (purposeWord.isWord("minting")) {
@@ -23954,14 +24192,65 @@ function buildScriptPurpose(ts) {
 	} else if (purposeWord.isWord("module")) {
 		purpose = ScriptPurpose.Module;
 	} else if (purposeWord.isKeyword()) {
-		throw purposeWord.syntaxError(`script purpose missing`);
+		purposeWord.syntaxError(`script purpose missing`);
+
+		ts.unshift(purposeWord);
+
+		return null;
 	} else {
-		throw purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking', 'minting' or 'module')`);
+		purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking', 'minting' or 'module')`);
+		purpose = -1;
 	}
 
-	const name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	if (expectedPurpose !== null && purpose !== null) {
+		if (expectedPurpose != purpose) {
+			purposeWord.syntaxError(`expected '${getPurposeName(purpose)}' script purpose`);
+		}
+	}
+
+	const name = assertToken(ts.shift(), purposeWord.site)?.assertWord()?.assertNotKeyword();
+
+	if (!name) {
+		return null;
+	}
+
+	if (name.value === "main") {
+		name.syntaxError(`${purposeWord.value} script can't be named 'main'`);
+	}
 
 	return [purpose, name];
+}
+
+/**
+ * Also used by VSCode plugin
+ * @param {Token[]} ts 
+ * @param {number | null} expectedPurpose 
+ * @returns {[number | null, Word | null, Statement[], number]}
+ */
+export function buildScript(ts, expectedPurpose = null) {
+	const first = ts[0];
+
+	const purposeName = buildScriptPurpose(ts, expectedPurpose);
+
+	const statements = buildProgramStatements(ts);
+
+	let mainIdx = -1;
+
+	const [purpose, name] = purposeName !== null ? purposeName : [null, null];
+
+	if (purpose != ScriptPurpose.Module) {
+		mainIdx = statements.findIndex(s => s.name.value === "main");
+
+		if (mainIdx == -1) {
+			if (name !== null) {
+				first.site.merge(name.site).syntaxError("entrypoint 'main' not found");
+			} else {
+				first.site.syntaxError("entrypoint 'main' not found");
+			}
+		}
+	}
+
+	return [purpose, name, statements, mainIdx];
 }
 
 /**
@@ -23989,9 +24278,17 @@ export function extractScriptPurposeAndName(rawSrc) {
 			ts.push(yielded.value);
 		}
 
-		let [purposeId, nameWord] = buildScriptPurpose(ts);
+		const purposeName = buildScriptPurpose(ts);
 
-		return [getPurposeName(purposeId), nameWord.value];
+		src.throwErrors();
+
+		if (purposeName !== null) {
+			const [purpose, name] = purposeName;
+
+			return [getPurposeName(purpose), name.value];
+		} else {
+			throw new Error("unexpected"); // should've been caught above by calling src.throwErrors()
+		}
 	} catch (e) {
 		if (!(e instanceof UserError)) {
 			throw e;
@@ -24005,41 +24302,75 @@ export function extractScriptPurposeAndName(rawSrc) {
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {ConstStatement}
+ * @returns {ConstStatement | null}
  */
 function buildConstStatement(site, ts) {
-	const name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	if (ts.length == 0) {
+		site.syntaxError("invalid syntax (expected name after 'const')");
+		return null;
+	}
+
+	const name = assertToken(ts.shift(), site)?.assertWord()?.assertNotKeyword();
+
+	if (!name) {
+		return null;
+	}
 
 	let typeExpr = null;
-	if (ts[0].isSymbol(":")) {
-		ts.shift();
+
+	if (ts.length > 0 && ts[0].isSymbol(":")) {
+		const colon = assertDefined(ts.shift());
 
 		const equalsPos = SymbolToken.find(ts, "=");
 
 		if (equalsPos == -1) {
-			throw site.syntaxError("invalid syntax");
+			ts.unshift(colon);
+			site.merge(ts[ts.length-1].site).syntaxError("invalid syntax (expected '=' after 'const')");
+			ts.splice(0);
+			return null;
+		} else if (equalsPos == 0) {
+			colon.site.merge(ts[0].site).syntaxError("expected type expression between ':' and '='");
+			ts.shift();
+			return null;
 		}
 
-		typeExpr = buildTypeExpr(ts.splice(0, equalsPos));
+		typeExpr = buildTypeExpr(colon.site, ts.splice(0, equalsPos));
 	}
 
 	const maybeEquals = ts.shift();
+
 	if (maybeEquals === undefined) {
-		throw site.syntaxError("expected '=' after 'consts'");
+		site.merge(name.site).syntaxError("expected '=' after 'const'");
+		ts.splice(0);
+		return null;
+	} else if (!maybeEquals.isSymbol("=")) {
+		site.merge(maybeEquals.site).syntaxError("expected '=' after 'const'");
+		return null;
 	} else {
-		void maybeEquals.assertSymbol("=");
+		const equals = maybeEquals.assertSymbol("=");
+
+		if (!equals) {
+			return null;
+		}
 
 		const nextStatementPos = Word.find(ts, ["const", "func", "struct", "enum", "import"]);
 
 		const tsValue = nextStatementPos == -1 ? ts.splice(0) : ts.splice(0, nextStatementPos);
 
-		const valueExpr = buildValueExpr(tsValue);
+		if (tsValue.length == 0) {
+			equals.syntaxError("expected expression after '='");
+			return null;
+		} else {
+			const endSite = tsValue[tsValue.length-1].site;
 
-		if (ts.length > 0) {
-			site.setEndSite(ts[0].site);
+			const valueExpr = buildValueExpr(tsValue);
+
+			if (valueExpr === null) {
+				return null;
+			} else {
+				return new ConstStatement(site.merge(endSite), name, typeExpr, valueExpr);
+			}
 		}
-
-		return new ConstStatement(site, name, typeExpr, valueExpr);
 	}
 }
 
@@ -24062,21 +24393,44 @@ function splitDataImpl(ts) {
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {StructStatement}
+ * @returns {StructStatement | null}
  */
 function buildStructStatement(site, ts) {
 	const maybeName = ts.shift();
 
 	if (maybeName === undefined) {
-		throw site.syntaxError("expected name after 'struct'");
+		site.syntaxError("expected name after 'struct'");
+		return null;
 	} else {
-		const name = maybeName.assertWord().assertNotKeyword();
+		if (!maybeName.isWord()) {
+			maybeName.syntaxError("expected name after 'struct'");
+			return null;
+		} else if (maybeName.isKeyword()) {
+			maybeName.syntaxError("unexpected keyword after 'struct'");
+		}
+
+		const name = maybeName?.assertWord();
+
+		if (!name) {
+			return null;
+		}
 
 		const maybeBraces = ts.shift();
+
 		if (maybeBraces === undefined) {
-			throw name.syntaxError(`expected '{...}' after 'struct ${name.toString()}'`);
+			name.syntaxError(`expected '{...}' after 'struct ${name.toString()}'`);
+			return null;
 		} else {
+			if (!maybeBraces.isGroup("{", 1)) {
+				maybeBraces.syntaxError("expected non-empty '{..}' without separators");
+				return null;
+			}
+
 			const braces = maybeBraces.assertGroup("{", 1);
+
+			if (!braces) {
+				return null;
+			}
 
 			const [tsFields, tsImpl] = splitDataImpl(braces.fields[0]);
 
@@ -24084,11 +24438,11 @@ function buildStructStatement(site, ts) {
 
 			const impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), fields.map(f => f.name), braces.site.endSite);
 
-			if (ts.length > 0) {
-				site.setEndSite(ts[0].site);
+			if (impl === null) {
+				return null;
+			} else {
+				return new StructStatement(site.merge(braces.site), name, fields, impl);
 			}
-
-			return new StructStatement(site, name, fields, impl);
 		}
 	}
 }
@@ -24107,7 +24461,7 @@ function buildDataFields(ts) {
 	 */
 	function assertUnique(fieldName) {
 		if (fields.findIndex(f => f.name.toString() == fieldName.toString()) != -1) {
-			throw fieldName.typeError(`duplicate field \'${fieldName.toString()}\'`);
+			fieldName.typeError(`duplicate field \'${fieldName.toString()}\'`);
 		}
 	}
 
@@ -24115,28 +24469,37 @@ function buildDataFields(ts) {
 		const colonPos = SymbolToken.find(ts, ":");
 
 		if (colonPos == -1) {
-			throw ts[0].syntaxError("expected ':' in data field");
+			ts[0].site.merge(ts[ts.length-1].site).syntaxError("expected ':' in data field");
+			return fields;
 		}
 
+		const colon = ts[colonPos];
 		const tsBef = ts.slice(0, colonPos);
 		const tsAft = ts.slice(colonPos+1);
 		const maybeFieldName = tsBef.shift();
 		if (maybeFieldName === undefined) {
-			throw ts[colonPos].syntaxError("expected word before ':'");
+			colon.syntaxError("expected word before ':'");
+			continue;
 		} else {
-			const fieldName = maybeFieldName.assertWord().assertNotKeyword();
+			const fieldName = maybeFieldName?.assertWord()?.assertNotKeyword();
+
+			if (!fieldName) {
+				return fields;
+			}
 
 			assertUnique(fieldName);
 
 			if (tsAft.length == 0) {
-				throw ts[colonPos].syntaxError("expected type expression after ':'");
+				colon.syntaxError("expected type expression after ':'");
+				return fields;
 			}
 
 			const nextColonPos = SymbolToken.find(tsAft, ":");
 
 			if (nextColonPos != -1) {
 				if (nextColonPos == 0) {
-					throw tsAft[nextColonPos].syntaxError("expected word before ':'");
+					tsAft[nextColonPos].syntaxError("expected word before ':'");
+					return fields;
 				}
 
 				void tsAft[nextColonPos-1].assertWord();
@@ -24146,7 +24509,11 @@ function buildDataFields(ts) {
 				ts = [];
 			}
 
-			const typeExpr = buildTypeExpr(tsAft);
+			const typeExpr = buildTypeExpr(colon.site, tsAft);
+
+			if (!typeExpr) {
+				return fields;
+			}
 
 			fields.push(new DataField(fieldName, typeExpr));
 		}
@@ -24160,18 +24527,27 @@ function buildDataFields(ts) {
  * @param {Site} site 
  * @param {Token[]} ts 
  * @param {?TypeExpr} methodOf - methodOf !== null then first arg can be named 'self'
- * @returns {FuncStatement}
+ * @returns {FuncStatement | null}
  */
 function buildFuncStatement(site, ts, methodOf = null) {
-	const name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	const name = assertToken(ts.shift(), site)?.assertWord()?.assertNotKeyword();
+
+	if (!name) {
+		return null;
+	}
+
+	if (ts.length == 0) {
+		name.site.syntaxError("invalid syntax");
+		return null;
+	}
 
 	const fnExpr = buildFuncLiteralExpr(ts, methodOf, false);
 
-	if (ts.length > 0) {
-		site.setEndSite(ts[0].site);
+	if (!fnExpr) {
+		return null;
 	}
 
-	return new FuncStatement(site, name, fnExpr);
+	return new FuncStatement(site.merge(fnExpr.site), name, fnExpr);
 }
 
 /**
@@ -24179,25 +24555,50 @@ function buildFuncStatement(site, ts, methodOf = null) {
  * @param {Token[]} ts 
  * @param {?TypeExpr} methodOf - methodOf !== null then first arg can be named 'self'
  * @param {boolean} allowInferredRetType
- * @returns {FuncLiteralExpr}
+ * @returns {FuncLiteralExpr | null}
  */
 function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false) {
 	const parens = assertDefined(ts.shift()).assertGroup("(");
+
+	if (!parens) {
+		return null;
+	}
+
 	const site = parens.site;
 	const args = buildFuncArgs(parens, methodOf);
 
-	const arrow = assertDefined(ts.shift()).assertSymbol("->");
+	const arrow = assertToken(ts.shift(), site)?.assertSymbol("->");
+
+	if (!arrow) {
+		return null;
+	}
 
 	const bodyPos = Group.find(ts, "{");
 
 	if (bodyPos == -1) {
-		throw site.syntaxError("no function body");
+		site.syntaxError("no function body");
+		return null;
 	} else if (bodyPos == 0 && !allowInferredRetType) {
-		throw site.syntaxError("no return type specified");
+		site.syntaxError("no return type specified");
 	}
 
 	const retTypeExprs = buildFuncRetTypeExprs(arrow.site, ts.splice(0, bodyPos), allowInferredRetType);
-	const bodyExpr = buildValueExpr(assertDefined(ts.shift()).assertGroup("{", 1).fields[0]);
+
+	if (retTypeExprs === null) {
+		return null;
+	}
+
+	const bodyGroup = assertToken(ts.shift(), site)?.assertGroup("{", 1)
+
+	if (!bodyGroup) {
+		return null;
+	}
+
+	const bodyExpr = buildValueExpr(bodyGroup.fields[0]);
+
+	if (!bodyExpr) {
+		return null;
+	}
 
 	return new FuncLiteralExpr(site, args, retTypeExprs, bodyExpr);
 }
@@ -24218,17 +24619,21 @@ function buildFuncArgs(parens, methodOf = null) {
 		const f = parens.fields[i];
 		const ts = f.slice();
 
-		const name = assertDefined(ts.shift()).assertWord();
+		const name = assertToken(ts.shift(), parens.site)?.assertWord();
+
+		if (!name) {
+			continue;
+		}
 
 		if (name.toString() == "self") {
 			if (i != 0 || methodOf === null) {
-				throw name.syntaxError("'self' is reserved");
+				name.syntaxError("'self' is reserved");
 			} else {
 				if (ts.length > 0) {
 					if (ts[0].isSymbol(":")) {
-						throw ts[0].syntaxError("unexpected type expression after 'self'");
+						ts[0].syntaxError("unexpected type expression after 'self'");
 					} else {
-						throw ts[0].syntaxError("unexpected token");
+						ts[0].syntaxError("unexpected token");
 					}
 				} else {
 					args.push(new FuncArg(name, methodOf));
@@ -24237,27 +24642,33 @@ function buildFuncArgs(parens, methodOf = null) {
 		} else if (name.toString() == "_") {
 			if (ts.length > 0) {
 				if (ts[0].isSymbol(":")) {
-					throw ts[0].syntaxError("unexpected type expression after '_'");
+					ts[0].syntaxError("unexpected type expression after '_'");
 				} else {
-					throw ts[0].syntaxError("unexpected token");
+					ts[0].syntaxError("unexpected token");
 				}
 			} else {
 				args.push(new FuncArg(name, methodOf));
 			}
 		} else {
-			name.assertNotKeyword();
+			if (name.isKeyword()) {
+				name.syntaxError("unexpected keyword");
+			}
 
 			for (let prev of args) {
 				if (prev.name.toString() == name.toString()) {
-					throw name.syntaxError(`duplicate argument '${name.toString()}'`);
+					name.syntaxError(`duplicate argument '${name.toString()}'`);
 				}
 			}
 
 			const maybeColon = ts.shift();
 			if (maybeColon === undefined) {
-				throw name.syntaxError(`expected ':' after '${name.toString()}'`);
+				name.syntaxError(`expected ':' after '${name.toString()}'`);
 			} else {
 				const colon = maybeColon.assertSymbol(":");
+
+				if (!colon) {
+					continue;
+				}
 
 				const equalsPos = SymbolToken.find(ts, "=");
 
@@ -24268,27 +24679,32 @@ function buildFuncArgs(parens, methodOf = null) {
 
 				if (equalsPos != -1) {
 					if (equalsPos == ts.length-1) {
-						throw ts[equalsPos].syntaxError("expected expression after '='");
+						ts[equalsPos].syntaxError("expected expression after '='");
+					} else {
+						const vts = ts.splice(equalsPos);
+
+						vts.shift()?.assertSymbol("=");
+						
+						defaultValueExpr = buildValueExpr(vts);
+
+						hasDefaultArgs = true;
 					}
-
-					const vts = ts.splice(equalsPos);
-
-					vts.shift()?.assertSymbol("=");
-					
-					defaultValueExpr = buildValueExpr(vts);
-
-					hasDefaultArgs = true;
 				} else {
 					if (hasDefaultArgs) {
-						throw name.syntaxError("positional args must come before default args");
+						name.syntaxError("positional args must come before default args");
 					}
 				}
 
-				if (ts.length == 0) {
-					throw colon.syntaxError("expected type expression after ':'");
-				}
+				/**
+				 * @type {TypeExpr | null}
+				 */
+				let typeExpr = null;
 
-				const typeExpr = buildTypeExpr(ts);
+				if (ts.length == 0) {
+					colon.syntaxError("expected type expression after ':'");
+				} else {
+					typeExpr = buildTypeExpr(colon.site, ts);
+				}
 
 				args.push(new FuncArg(name, typeExpr, defaultValueExpr));
 			}
@@ -24302,42 +24718,59 @@ function buildFuncArgs(parens, methodOf = null) {
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {EnumStatement}
+ * @returns {EnumStatement | null}
  */
 function buildEnumStatement(site, ts) {
 	const maybeName = ts.shift();
 
 	if (maybeName === undefined) {
-		throw site.syntaxError("expected word after 'enum'");
+		site.syntaxError("expected word after 'enum'");
+		return null
 	} else {
-		const name = maybeName.assertWord().assertNotKeyword();
+		const name = maybeName.assertWord()?.assertNotKeyword();
+
+		if (!name) {
+			return null;
+		}
 
 		const maybeBraces = ts.shift();
+
 		if (maybeBraces === undefined) {
-			throw name.syntaxError(`expected '{...}' after 'enum ${name.toString()}'`);
+			name.syntaxError(`expected '{...}' after 'enum ${name.toString()}'`);
+			return null;
 		} else {
 			const braces = maybeBraces.assertGroup("{", 1);
+
+			if (!braces) {
+				return null;
+			}
 
 			const [tsMembers, tsImpl] = splitDataImpl(braces.fields[0]);
 
 			if (tsMembers.length == 0) {
-				throw braces.syntaxError("expected at least one enum member");
+				braces.syntaxError("expected at least one enum member");
 			}
 
 			/** @type {EnumMember[]} */
 			const members = [];
 
 			while (tsMembers.length > 0) {
-				members.push(buildEnumMember(tsMembers));
+				const member = buildEnumMember(tsMembers);
+
+				if (!member) {
+					continue;
+				}
+
+				members.push(member);
 			}
 
 			const impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), members.map(m => m.name), braces.site.endSite);
 
-			if (ts.length > 0) {
-				site.setEndSite(ts[0].site);
+			if (!impl) {
+				return null;
 			}
 
-			return new EnumStatement(site, name, members, impl);
+			return new EnumStatement(site.merge(braces.site), name, members, impl);
 		}
 	}
 }
@@ -24346,90 +24779,129 @@ function buildEnumStatement(site, ts) {
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {ImportStatement[]}
+ * @returns {(ImportStatement | null)[] | null}
  */
 function buildImportStatements(site, ts) {
 	const maybeBraces = ts.shift();
 
 	if (maybeBraces === undefined) {
-		throw site.syntaxError("expected '{...}' after 'import'");
+		site.syntaxError("expected '{...}' after 'import'");
+		return null;
 	} else {
 		const braces = maybeBraces.assertGroup("{");
+		if (!braces) {
+			return null;
+		}
 
-		const maybeFrom = ts.shift();
+		const maybeFrom = assertToken(ts.shift(), maybeBraces.site, "expected 'from' after 'import {...}'")?.assertWord("from");
+		if (!maybeFrom) {
+			return null;
+		}
 
-		if (maybeFrom === undefined) {
-			throw maybeBraces.syntaxError("expected 'from' after 'import {...}'");
+		const maybeModuleName = assertToken(ts.shift(), maybeFrom.site, "expected module name after 'import {...} from'");
+		if (!maybeModuleName) {
+			return null;
+		}
+
+		/**
+		 * @type {null | undefined | Word}
+		 */
+		let moduleName = null;
+
+		if (maybeModuleName instanceof StringLiteral && importPathTranslator) {
+			let translated = importPathTranslator(maybeModuleName);
+
+			if (!translated) {
+				return null;
+			}
+
+			moduleName = new Word(maybeModuleName.site, translated);
 		} else {
-			const maybeModuleName = ts.shift();
+			moduleName = maybeModuleName.assertWord()?.assertNotKeyword();
+		}
 
-			if (maybeModuleName === undefined) {
-				throw maybeFrom.syntaxError("expected module name after 'import {...} from'");
+		if (!moduleName) {
+			return null;
+		}
+
+		const mName = moduleName;
+
+		if (braces.fields.length === 0) {
+			braces.syntaxError("expected at least 1 import field");
+		}
+
+		return braces.fields.map(fts => {
+			const ts = fts.slice();
+			const maybeOrigName = ts.shift();
+
+			if (maybeOrigName === undefined) {
+				braces.syntaxError("empty import field");
+				return null;
 			} else {
-				maybeFrom.assertWord("from");
-				const moduleName = maybeModuleName.assertWord().assertNotKeyword();
+				const origName = maybeOrigName.assertWord();
 
-				if (braces.fields.length === 0) {
-					throw braces.syntaxError("expected at least 1 import field");
-				}
+				if (!origName) {
+					return null;
+				} else if (ts.length === 0) {
+					return new ImportStatement(site, origName, origName, mName);
+				} else {
+					const maybeAs = ts.shift();
 
-				return braces.fields.map(fts => {
-					const ts = fts.slice();
-					const maybeOrigName = ts.shift();
-
-					if (maybeOrigName === undefined) {
-						throw braces.syntaxError("empty import field");
+					if (maybeAs === undefined) {
+						maybeOrigName.syntaxError(`expected 'as' or nothing after '${origName.value}'`);
+						return null;
 					} else {
-						const origName = maybeOrigName.assertWord();
-						if (ts.length === 0) {
-							return new ImportStatement(site, origName, origName, moduleName);
+						maybeAs.assertWord("as");
+
+						const maybeNewName = ts.shift();
+
+						if (maybeNewName === undefined) {
+							maybeAs.syntaxError("expected word after 'as'");
+							return null;
 						} else {
-							const maybeAs = ts.shift();
+							const newName = maybeNewName.assertWord();
 
-							if (maybeAs === undefined) {
-								throw maybeOrigName.syntaxError(`expected 'as' or nothing after '${origName.value}'`);
+							if (!newName) {
+								return null;
+							}
+
+							const rem = ts.shift();
+							if (rem !== undefined) {
+								rem.syntaxError("unexpected token");
+								return null;
 							} else {
-								maybeAs.assertWord("as");
-
-								const maybeNewName = ts.shift();
-
-								if (maybeNewName === undefined) {
-									throw maybeAs.syntaxError("expected word after 'as'");
-								} else {
-									const newName = maybeNewName.assertWord();
-
-									const rem = ts.shift();
-									if (rem !== undefined) {
-										throw rem.syntaxError("unexpected");
-									} else {
-										return new ImportStatement(site, newName, origName, moduleName);
-									}
-								}
+								return new ImportStatement(site, newName, origName, mName);
 							}
 						}
 					}
-				})
+				}
 			}
-		}
+		}).filter(f => f !== null)
 	}
 }
 
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {EnumMember}
+ * @returns {EnumMember | null}
  */
 function buildEnumMember(ts) {
-	const name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	const name = assertDefined(ts.shift()).assertWord()?.assertNotKeyword();
 
-	if (ts.length == 0 || ts[0].isWord()) {
+	if (!name) {
+		return null;
+	} else if (ts.length == 0 || ts[0].isWord()) {
 		return new EnumMember(name, []);
 	} else {
-		const braces = assertDefined(ts.shift()).assertGroup("{", 1);
+		const braces = assertToken(ts.shift(), name.site)?.assertGroup("{", 1);
 
-		const fields = buildDataFields(braces.fields[0]);
+		if (!braces) {
+			return null;
+		} else {
+			const fields = buildDataFields(braces.fields[0]);
 
-		return new EnumMember(name, fields);
+			return new EnumMember(name, fields);
+		}
 	}
 }
 
@@ -24439,49 +24911,62 @@ function buildEnumMember(ts) {
  * @param {TypeRefExpr} selfTypeExpr - reference to parent type
  * @param {Word[]} fieldNames - to check if impl statements have a unique name
  * @param {?Site} endSite
- * @returns {ImplDefinition}
+ * @returns {ImplDefinition | null}
  */
 function buildImplDefinition(ts, selfTypeExpr, fieldNames, endSite) {
 	/**
-	 * @param {Word} name 
+	 * @param {Word} name
+	 * @returns {boolean}
 	 */
-	function assertNonAuto(name) {
+	function isNonAuto(name) {
 		if (AUTOMATIC_METHODS.findIndex(n => n == name.toString()) != -1) {
-			throw name.syntaxError(`'${name.toString()}' is a reserved member`);
+			name.syntaxError(`'${name.toString()}' is a reserved member`);
+			return false;
+		} else {
+			return true;
 		}
 	}
 
 	for (let fieldName of fieldNames) {
-		assertNonAuto(fieldName);
+		if (!isNonAuto(fieldName)) {
+			return null;
+		}
 	}
 
 	const statements = buildImplMembers(ts, selfTypeExpr);
 
 	/** 
-	 * @param {number} i 
+	 * @param {number} i
+	 * @returns {boolean} - ok
 	 */
-	function assertUnique(i) {
+	function isUnique(i) {
 		let s = statements[i];
 
-		assertNonAuto(s.name);
+		isNonAuto(s.name);
 
 		for (let fieldName of fieldNames) {
 			if (fieldName.toString() == s.name.toString()) {
-				throw s.name.syntaxError(`'${s.name.toString()}' is duplicate`);
+				s.name.syntaxError(`'${s.name.toString()}' is duplicate`);
+				return false;
 			}
 		}
 
 		for (let j = i+1; j < statements.length; j++) {
 			if (statements[j].name.toString() == s.name.toString()) {
-				throw statements[j].name.syntaxError(`'${s.name.toString()}' is duplicate`);
+				statements[j].name.syntaxError(`'${s.name.toString()}' is duplicate`);
+				return false;
 			}
 		}
+
+		return true;
 	}
 
 	const n = statements.length;
 
 	for (let i = 0; i < n; i++) {
-		assertUnique(i);
+		if (!isUnique(i)) {
+			return null;
+		}
 	}
 
 	if (n > 0 && endSite !== null) {
@@ -24503,19 +24988,29 @@ function buildImplMembers(ts, methodOf) {
 
 	while (ts.length != 0) {
 		const t = assertDefined(ts.shift()).assertWord();
+
+		if (!t) {
+			continue;
+		}
+
 		const kw = t.value;
 
-		let s;
+		/**
+		 * @type {null | ConstStatement | FuncStatement}
+		 */
+		let s = null;
 
 		if (kw == "const") {
 			s = buildConstStatement(t.site, ts);
 		} else if (kw == "func") {
 			s = buildFuncStatement(t.site, ts, methodOf);
 		} else {
-			throw t.syntaxError("invalid impl syntax");
+			t.syntaxError("invalid impl syntax");
 		}
 
-		statements.push(s);
+		if (s) {
+			statements.push(s);
+		}
 	}
 
 	return statements
@@ -24523,11 +25018,15 @@ function buildImplMembers(ts, methodOf) {
 
 /**
  * @package
+ * @param {Site} site
  * @param {Token[]} ts 
- * @returns {TypeExpr}
+ * @returns {TypeExpr | null}
  */
-function buildTypeExpr(ts) {
-	assert(ts.length > 0);
+function buildTypeExpr(site, ts) {
+	if (ts.length == 0) {
+		site.syntaxError("expected token");
+		return null;
+	}
 
 	if (ts[0].isGroup("[")) {
 		return buildListTypeExpr(ts);
@@ -24542,19 +25041,28 @@ function buildTypeExpr(ts) {
 	} else if (ts[0].isWord()) {
 		return buildTypeRefExpr(ts);
 	} else {
-		throw ts[0].syntaxError("invalid type syntax")
+		ts[0].syntaxError("invalid type syntax");
+		return null;
 	}
 }
 
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {ListTypeExpr}
+ * @returns {ListTypeExpr | null}
  */
 function buildListTypeExpr(ts) {
 	const brackets = assertDefined(ts.shift()).assertGroup("[", 0);
 
-	const itemTypeExpr = buildTypeExpr(ts);
+	if (!brackets) {
+		return null
+	}
+
+	const itemTypeExpr = buildTypeExpr(brackets.site, ts);
+
+	if (!itemTypeExpr) {
+		return null;
+	}
 
 	return new ListTypeExpr(brackets.site, itemTypeExpr);
 }
@@ -24562,53 +25070,89 @@ function buildListTypeExpr(ts) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {MapTypeExpr}
+ * @returns {MapTypeExpr | null}
  */
 function buildMapTypeExpr(ts) {
 	const kw = assertDefined(ts.shift()).assertWord("Map");
 
-	const maybeKeyTypeExpr = ts.shift();
-
-	if (maybeKeyTypeExpr === undefined) {
-		throw kw.syntaxError("missing Map key-type");
-	} else {
-		const keyTypeTs = maybeKeyTypeExpr.assertGroup("[", 1).fields[0];
-		if (keyTypeTs.length == 0) {
-			throw kw.syntaxError("missing Map key-type (brackets can't be empty)");
-		} else {
-			const keyTypeExpr = buildTypeExpr(keyTypeTs);
-
-			if (ts.length == 0) {
-				throw kw.syntaxError("missing Map value-type");
-			} else {
-				const valueTypeExpr = buildTypeExpr(ts);
-
-				return new MapTypeExpr(kw.site, keyTypeExpr, valueTypeExpr);
-			}
-		}
+	if (!kw) {
+		return null;
 	}
+
+	const maybeKeyTypeExpr = assertToken(ts.shift(), kw.site, "missing Map key-type");
+
+	if (!maybeKeyTypeExpr) {
+		return null;
+	}
+
+	const keyTypeTs = maybeKeyTypeExpr.assertGroup("[", 1)?.fields[0];
+	if (keyTypeTs === null || keyTypeTs === undefined) {
+		return null;
+	} else if (keyTypeTs.length == 0) {
+		kw.syntaxError("missing Map key-type (brackets can't be empty)");
+		return null;
+	} 
+
+	const keyTypeExpr = buildTypeExpr(kw.site, keyTypeTs);
+	if (!keyTypeExpr) {
+		return null;
+	}
+
+	if (ts.length == 0) {
+		kw.syntaxError("missing Map value-type");
+		return null;
+	} 
+
+	const valueTypeExpr = buildTypeExpr(kw.site, ts);
+
+	if (!valueTypeExpr) {
+		return null;
+	}
+
+	return new MapTypeExpr(kw.site, keyTypeExpr, valueTypeExpr);
 }
 
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {TypeExpr}
+ * @returns {TypeExpr | null}
  */
 function buildOptionTypeExpr(ts) {
 	const kw = assertDefined(ts.shift()).assertWord("Option");
 
-	const someTypeExpr = buildTypeExpr(assertDefined(ts.shift()).assertGroup("[", 1).fields[0]);
+	if (!kw) {
+		return null;
+	}
+
+	const typeTs = assertToken(ts.shift(), kw.site)?.assertGroup("[", 1)?.fields[0];
+
+	if (!typeTs) {
+		return null;
+	}
+
+	const someTypeExpr = buildTypeExpr(kw.site, typeTs);
+	if (!someTypeExpr) {
+		return null;
+	}
 
 	const typeExpr = new OptionTypeExpr(kw.site, someTypeExpr);
 	if (ts.length > 0) {
 		if (ts[0].isSymbol("::") && ts[1].isWord(["Some", "None"])) {
 			if (ts.length > 2) {
-				throw ts[2].syntaxError("unexpected token");
-			}
+				ts[2].syntaxError("unexpected token");
+				return null;
+			} else {
+				const memberName = ts[1].assertWord()
 
-			return new TypePathExpr(ts[0].site, typeExpr, ts[1].assertWord());
+				if (!memberName) {
+					return null;
+				}
+
+				return new TypePathExpr(ts[0].site, typeExpr, memberName);
+			}
 		} else {
-			throw ts[0].syntaxError("invalid option type syntax");
+			ts[0].syntaxError("invalid option type syntax");
+			return null;
 		}
 	} else {
 		return typeExpr;
@@ -24618,24 +25162,35 @@ function buildOptionTypeExpr(ts) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {FuncTypeExpr}
+ * @returns {FuncTypeExpr | null}
  */
 function buildFuncTypeExpr(ts) {
 	const parens = assertDefined(ts.shift()).assertGroup("(");
 
+	if (!parens) {
+		return null;
+	}
+
 	let hasOptArgs = false;
 
-	const argTypes = parens.fields.map(f => {
+	const argTypes = reduceNull(parens.fields.map(f => {
 		const fts = f.slice();
 
 		if (fts.length == 0) {
-			throw parens.syntaxError("expected func arg type");
+			parens.syntaxError("expected func arg type");
+			return null;
 		}
 
 		const funcArgTypeExpr = buildFuncArgTypeExpr(fts);
+
+		if (!funcArgTypeExpr) {
+			return null;
+		}
+
 		if (hasOptArgs) {
 			if (!funcArgTypeExpr.isOptional()) {
-				throw funcArgTypeExpr.syntaxError("optional arguments must come last");
+				funcArgTypeExpr.syntaxError("optional arguments must come last");
+				return null;
 			}
 		} else {
 			if (funcArgTypeExpr.isOptional()) {
@@ -24644,51 +25199,85 @@ function buildFuncTypeExpr(ts) {
 		}
 
 		return funcArgTypeExpr;
-	});
+	}));
 
-	if (argTypes.some(at => at.isNamed()) && argTypes.some(at => !at.isNamed())) {
-		throw argTypes[0].syntaxError("can't mix named and unnamed args in func type");
+	if (!argTypes) {
+		return null;
+	} else {
+		if (argTypes.some(at => at.isNamed()) && argTypes.some(at => !at.isNamed())) {
+			argTypes[0].syntaxError("can't mix named and unnamed args in func type");
+			return null;
+		}
+	
+		const arrow = assertToken(ts.shift(), parens.site)?.assertSymbol("->");
+
+		if (!arrow) {
+			return null;
+		}
+	
+		const retTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
+
+		if (!retTypes) {
+			return null;
+		}
+
+		return new FuncTypeExpr(parens.site, argTypes, retTypes.map(t => assertDefined(t)));
 	}
-
-	const arrow = assertDefined(ts.shift()).assertSymbol("->");
-
-	const retTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
-
-	return new FuncTypeExpr(parens.site, argTypes, retTypes.map(t => assertDefined(t)));
 }
 
 /**
  * 
  * @param {Token[]} ts 
- * @returns {FuncArgTypeExpr}
+ * @returns {FuncArgTypeExpr | null}
  */
 function buildFuncArgTypeExpr(ts) {
 	const colonPos = SymbolToken.find(ts, ":");
 
 	if (colonPos != -1 && colonPos != 1) {
-		throw ts[0].syntaxError("invalid syntax");
+		ts[0].syntaxError("invalid syntax");
+		return null;
 	}
 
-	const name = colonPos != -1 ? assertDefined(ts.shift()).assertWord().assertNotKeyword() : null;
+	/**
+	 * @type {Word | null}
+	 */
+	let name = null;
 
 	if (colonPos != -1) {
-		const colon = assertDefined(ts.shift());
+		name = assertDefined(ts.shift()).assertWord()?.assertNotKeyword() ?? null;
 
+		if (!name) {
+			return null;
+		}
+
+		const colon = assertDefined(ts.shift()).assertSymbol(":");
+
+		if (!colon) {
+			return null;
+		}
+		
 		if (ts.length == 0) {
-			throw colon.syntaxError("expected type expression after ':'");
+			colon.syntaxError("expected type expression after ':'");
+			return null;
 		}
 	}
 
-	const hasDefault = ts[0].isSymbol("?");
+	const next = assertDefined(ts[0]);
+
+	const hasDefault = next.isSymbol("?");
 	if (hasDefault) {
 		const opt = assertDefined(ts.shift());
 
 		if (ts.length == 0) {
-			throw opt.syntaxError("invalid type expression after '?'");
+			opt.syntaxError("invalid type expression after '?'");
+			return null;
 		}
 	}
 
-	const typeExpr = buildTypeExpr(ts);
+	const typeExpr = buildTypeExpr(next.site, ts);
+	if (!typeExpr) {
+		return null;
+	}
 
 	return new FuncArgTypeExpr(name !== null ? name.site : typeExpr.site, name, typeExpr, hasDefault);
 }
@@ -24698,32 +25287,36 @@ function buildFuncArgTypeExpr(ts) {
  * @param {Site} site 
  * @param {Token[]} ts 
  * @param {boolean} allowInferredRetType
- * @returns {(?TypeExpr)[]}
+ * @returns {null | (null | TypeExpr)[]}
  */
 function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 	if (ts.length === 0) {
 		if (allowInferredRetType) {
 			return [null];
 		} else {
-			throw site.syntaxError("expected type expression after '->'");
+			site.syntaxError("expected type expression after '->'");
+			return null;
 		}
 	} else {
 		if (ts[0].isGroup("(") && (ts.length == 1 || !ts[1].isSymbol("->"))) {
-			const group = assertDefined(ts.shift()).assertGroup("(");
+			const group = assertToken(ts.shift(), site)?.assertGroup("(");
 
-			if (group.fields.length == 0) {
+			if (!group) {
+				return null;
+			} else if (group.fields.length == 0) {
 				return [new VoidTypeExpr(group.site)];
 			} else if (group.fields.length == 1) {
-				throw group.syntaxError("expected 0 or 2 or more types in multi return type");
+				group.syntaxError("expected 0 or 2 or more types in multi return type");
+				return null;
 			} else {
 				return group.fields.map(fts => {
 					fts = fts.slice();
 
-					return buildTypeExpr(fts);
+					return buildTypeExpr(group.site, fts);
 				});
 			}
 		} else {
-			return [buildTypeExpr(ts)];
+			return [buildTypeExpr(site, ts)];
 		}
 	}
 }
@@ -24731,32 +25324,50 @@ function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {TypePathExpr}
+ * @returns {null | TypePathExpr}
  */
 function buildTypePathExpr(ts) {
-	const baseName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	const baseName = assertDefined(ts.shift()).assertWord()?.assertNotKeyword();
 
-	const symbol = assertDefined(ts.shift()).assertSymbol("::");
-
-	const memberName = assertDefined(ts.shift()).assertWord();
-
-	if (ts.length > 0) {
-		throw ts[0].syntaxError("invalid type syntax");
+	if (!baseName) {
+		return null;
 	}
 
+	const symbol = assertToken(ts.shift(), baseName.site)?.assertSymbol("::");
+
+	if (!symbol) {
+		return null;
+	}
+
+	const memberName = assertToken(ts.shift(), symbol.site)?.assertWord();
+
+	if (!memberName) {
+		return null;
+	}
+
+	if (ts.length > 0) {
+		ts[0].syntaxError("invalid type syntax");
+		return null;
+	}
+	
 	return new TypePathExpr(symbol.site, new TypeRefExpr(baseName), memberName);
 }
 
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {TypeRefExpr}
+ * @returns {TypeRefExpr | null}
  */
 function buildTypeRefExpr(ts) {
-	const name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	const name = assertDefined(ts.shift()).assertWord()?.assertNotKeyword();
+
+	if (!name) {
+		return null;
+	}
 
 	if (ts.length > 0) {
-		throw ts[0].syntaxError("invalid type syntax");
+		ts[0].syntaxError("invalid type syntax");
+		return null;
 	}
 
 	return new TypeRefExpr(name);
@@ -24766,13 +25377,13 @@ function buildTypeRefExpr(ts) {
  * @package
  * @param {Token[]} ts 
  * @param {number} prec 
- * @returns {ValueExpr}
+ * @returns {ValueExpr | null}
  */
 function buildValueExpr(ts, prec = 0) {
 	assert(ts.length > 0);
 
 	// lower index in exprBuilders is lower precedence
-	/** @type {((ts: Token[], prev: number) => ValueExpr)[]} */
+	/** @type {((ts: Token[], prev: number) => (ValueExpr | null))[]} */
 	const exprBuilders = [
 		/**
 		 * 0: lowest precedence is assignment
@@ -24808,7 +25419,7 @@ function buildValueExpr(ts, prec = 0) {
  * @package
  * @param {Token[]} ts
  * @param {number} prec
- * @returns {ValueExpr}
+ * @returns {ValueExpr | null}
  */
 function buildMaybeAssignOrPrintExpr(ts, prec) {
 	let semicolonPos = SymbolToken.find(ts, ";");
@@ -24817,7 +25428,8 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 
 	if (semicolonPos == -1) {
 		if (equalsPos != -1) {
-			throw ts[equalsPos].syntaxError("invalid assignment syntax, expected ';' after '...=...'");
+			ts[equalsPos].syntaxError("invalid assignment syntax, expected ';' after '...=...'");
+			return null;
 		} else {
 			return buildValueExpr(ts, prec + 1);
 		}
@@ -24827,20 +25439,36 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 			const site = assertDefined(ts.shift()).site;
 
 			if (ts.length == 0) {
-				throw site.syntaxError("expected expression after ';'");
+				site.syntaxError("expected expression after ';'");
+				return null;
+			} else if (upstreamExpr === null) {
+				// error will already have been created
+				return null;
 			} else {
 				const downstreamExpr = buildValueExpr(ts, prec);
 
-				return new ChainExpr(site, upstreamExpr, downstreamExpr);
+				if (downstreamExpr === null) {
+					// error will already have been created
+					return null;
+				} else {
+					return new ChainExpr(site, upstreamExpr, downstreamExpr);
+				}
 			}
 		} else if (equalsPos != -1 && equalsPos < semicolonPos) {
 			if (printPos != -1) {
 				if (printPos <= semicolonPos) {
-					throw ts[printPos].syntaxError("expected ';' after 'print(...)'");
+					ts[printPos].syntaxError("expected ';' after 'print(...)'");
+					return null;
 				}
 			}
 
-			const equalsSite = ts[equalsPos].assertSymbol("=").site;
+			const equals = ts[equalsPos].assertSymbol("=");
+
+			if (!equals) {
+				return null;
+			}
+
+			const equalsSite = equals.site;
 
 			const lts = ts.splice(0, equalsPos);
 
@@ -24853,50 +25481,87 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 
 			let upstreamTs = ts.splice(0, semicolonPos);
 			if (upstreamTs.length == 0) {
-				throw equalsSite.syntaxError("expected expression between '=' and ';'");
+				equalsSite.syntaxError("expected expression between '=' and ';'");
+				return null;
 			}
 
 			const upstreamExpr = buildValueExpr(upstreamTs, prec + 1);
 
-			const semicolonSite = assertDefined(ts.shift()).assertSymbol(";").site;
+			const semicolon  = assertToken(ts.shift(), equalsSite)?.assertSymbol(";");
+
+			if (!semicolon) {
+				return null;
+			}
+
+			const semicolonSite = semicolon.site;
 
 			if (ts.length == 0) {
-				throw semicolonSite.syntaxError("expected expression after ';'");
+				semicolonSite.syntaxError("expected expression after ';'");
+				return null;
 			}
 
 			const downstreamExpr = buildValueExpr(ts, prec);
 
-			return new AssignExpr(equalsSite, lhs, upstreamExpr, downstreamExpr);
+			if (downstreamExpr === null || upstreamExpr === null || lhs === null) {
+				// error will already have been thrown internally
+				return null;
+			} else {
+				return new AssignExpr(equalsSite, lhs, upstreamExpr, downstreamExpr);
+			}
 		} else if (printPos != -1 && printPos < semicolonPos) {
 			if (equalsPos != -1) {
 				if (equalsPos <= semicolonPos) {
-					throw ts[equalsPos].syntaxError("expected ';' after '...=...'");
+					ts[equalsPos].syntaxError("expected ';' after '...=...'");
+					return null;
 				}
 			}
 
-			const printSite = assertDefined(ts.shift()).assertWord("print").site;
+			const print = assertDefined(ts.shift()).assertWord("print");
+
+			if (!print) {
+				return null;
+			}
+
+			const printSite = print.site;
 
 			const maybeParens = ts.shift();
 
 			if (maybeParens === undefined) {
-				throw ts[printPos].syntaxError("expected '(...)' after 'print'");
+				ts[printPos].syntaxError("expected '(...)' after 'print'");
+				return null;
 			} else {
 				const parens = maybeParens.assertGroup("(", 1);
 
+				if (!parens) {
+					return null;
+				}
+
 				const msgExpr = buildValueExpr(parens.fields[0]);
 
-				const semicolonSite = assertDefined(ts.shift()).assertSymbol(";").site;
+				const semicolon = assertToken(ts.shift(), parens.site)?.assertSymbol(";")
+
+				if (!semicolon) {
+					return null;
+				}
+
+				const semicolonSite = semicolon.site;
 
 				if (ts.length == 0) {
-					throw semicolonSite.syntaxError("expected expression after ';'");
+					semicolonSite.syntaxError("expected expression after ';'");
+					return null;
 				}
 
 				const downstreamExpr = buildValueExpr(ts, prec);
 
+				if (!downstreamExpr || !msgExpr) {
+					return null;
+				}
+
 				return new PrintExpr(printSite, msgExpr, downstreamExpr);
 			}
 		} else {
-			throw new Error("unhandled");
+			ts[0].syntaxError("unhandled");
+			return null;
 		}
 	}
 }
@@ -24906,45 +25571,84 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
  * @param {Site} site
  * @param {Token[]} ts 
  * @param {boolean} isSwitchCase
- * @returns {DestructExpr}
+ * @returns {DestructExpr | null}
  */
 function buildDestructExpr(site, ts, isSwitchCase = false) {
 	if (ts.length == 0) {
-		throw site.syntaxError("expected token inside destructuring braces");
+		site.syntaxError("expected token inside destructuring braces");
+		return null;
 	}
 
-	const maybeName = assertDefined(ts.shift());
+	let maybeName = assertToken(ts.shift(), site);
+
+	if (!maybeName) {
+		return null;
+	}
 
 	if (maybeName.isWord("_")) {
 		if (ts.length != 0) {
-			throw maybeName.syntaxError("unexpected tokens after '_'");
+			maybeName.syntaxError("unexpected tokens after '_'");
+			return null;
+		} else {
+			return new DestructExpr(new Word(maybeName.site, "_"), null);
 		}
-
-		return new DestructExpr(new Word(maybeName.site, "_"), null);
 	} else {
 		let name = new Word(maybeName.site, "_");
 
 		if (ts.length >= 1 && ts[0].isSymbol(":")) {
-			name = maybeName.assertWord().assertNotKeyword();
+			let name_ = maybeName.assertWord()?.assertNotKeyword();
 
-			const colon = assertDefined(ts.shift()).assertSymbol(":");
+			if (!name_) {
+				return null;
+			}
+
+			name = name_;
+
+			const colon = assertToken(ts.shift(), name.site)?.assertSymbol(":");
+
+			if (!colon) {
+				return null;
+			}
 
 			if (ts.length == 0) {
-				throw colon.syntaxError("expected type expression after ':'");
-			} else {
-				const destructExprs = buildDestructExprs(ts);
-	
-				const typeExpr = buildTypeExpr(ts);
-	
-				return new DestructExpr(name, typeExpr, destructExprs);
+				colon.syntaxError("expected type expression after ':'");
+				return null;
+			} 
+
+			const destructExprs = buildDestructExprs(ts);
+
+			if (destructExprs === null || destructExprs === undefined) {
+				return null
 			}
+
+			const typeExpr = buildTypeExpr(colon.site, ts);
+
+			if (!typeExpr) {
+				return null;
+			}
+
+			return new DestructExpr(name, typeExpr, destructExprs);
 		} else if (ts.length == 0) {
 			if (isSwitchCase) {
-				const typeExpr = new TypeRefExpr(maybeName.assertWord().assertNotKeyword());
+				const typeName = maybeName.assertWord()?.assertNotKeyword();
+
+				if (!typeName) {
+					return null;
+				}
+
+				const typeExpr = new TypeRefExpr(typeName);
+
+				if (!typeExpr) {
+					return null;
+				} 
 
 				return new DestructExpr(name, typeExpr);
 			} else {
-				name = maybeName.assertWord().assertNotKeyword();
+				const name = maybeName.assertWord()?.assertNotKeyword();
+
+				if (!name) {
+					return null;
+				}
 
 				return new DestructExpr(name, null);
 			}
@@ -24952,9 +25656,17 @@ function buildDestructExpr(site, ts, isSwitchCase = false) {
 			ts.unshift(maybeName);
 
 			const destructExprs = buildDestructExprs(ts);
+
+			if (destructExprs === null || destructExprs === undefined) {
+				return null;
+			}
 	
-			const typeExpr = buildTypeExpr(ts);
-	
+			const typeExpr = buildTypeExpr(site, ts);
+
+			if (!typeExpr) {
+				return null;
+			}
+
 			return new DestructExpr(name, typeExpr, destructExprs);
 		}
 	}
@@ -24963,7 +25675,7 @@ function buildDestructExpr(site, ts, isSwitchCase = false) {
 /**
  * Pops the last element of ts if it is a braces group
  * @param {Token[]} ts
- * @returns {DestructExpr[]}
+ * @returns {null | DestructExpr[]}
  */
 function buildDestructExprs(ts) {
 	if (ts.length == 0) {
@@ -24971,15 +25683,20 @@ function buildDestructExprs(ts) {
 	} else if (ts[ts.length -1].isGroup("{")) {
 		const group = assertDefined(ts.pop()).assertGroup("{");
 
+		if (!group) {
+			return null;
+		}
+
 		const destructExprs = group.fields.map(fts => {
 			return buildDestructExpr(group.site, fts);
 		});
 	
-		if (destructExprs.every(le => le.isIgnored() && !le.hasDestructExprs())) {
-			throw group.syntaxError("expected at least one used field while destructuring")
+		if (destructExprs.every(le => le !== null && le.isIgnored() && !le.hasDestructExprs())) {
+			group.syntaxError("expected at least one used field while destructuring")
+			return null;
 		}
-	
-		return destructExprs;
+
+		return reduceNull(destructExprs);
 	} else {
 		return [];
 	}	
@@ -24989,12 +25706,13 @@ function buildDestructExprs(ts) {
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {DestructExpr[]}
+ * @returns {null | DestructExpr[]}
  */
 function buildAssignLhs(site, ts) {
 	const maybeName = ts.shift();
 	if (maybeName === undefined) {
-		throw site.syntaxError("expected a name before '='");
+		site.syntaxError("expected a name before '='");
+		return null;
 	} else {
 		/**
 		 * @type {DestructExpr[]}
@@ -25006,28 +25724,41 @@ function buildAssignLhs(site, ts) {
 
 			const lhs = buildDestructExpr(maybeName.site, ts);
 
-			if (lhs.isIgnored() && !lhs.hasDestructExprs()) {
-				throw maybeName.syntaxError(`unused assignment ${maybeName.toString()}`);
+			if (lhs === null) {
+				return null;
+			} else if (lhs.isIgnored() && !lhs.hasDestructExprs()) {
+				maybeName.syntaxError(`unused assignment ${maybeName.toString()}`);
+				return null;
 			}
 
 			pairs.push(lhs);
 		} else if (maybeName.isGroup("(")) {
 			const group = maybeName.assertGroup("(");
 
+			if (!group) {
+				return null;
+			}
+
 			if (group.fields.length < 2) {
-				throw group.syntaxError("expected at least 2 lhs' for multi-assign");
+				group.syntaxError("expected at least 2 lhs' for multi-assign");
+				return null;
 			}
 
 			let someNoneUnderscore = false;
 			for (let fts of group.fields) {
 				if (fts.length == 0) {
-					throw group.syntaxError("unexpected empty field for multi-assign");
+					group.syntaxError("unexpected empty field for multi-assign");
+					return null;
 				}
 
 				fts = fts.slice();
 
 				const lhs = buildDestructExpr(group.site, fts);
 
+				if (!lhs) {
+					return null;
+				}
+				
 				if (!lhs.isIgnored() || lhs.hasDestructExprs()) {
 					someNoneUnderscore = true;
 				}
@@ -25035,7 +25766,7 @@ function buildAssignLhs(site, ts) {
 				// check that name is unique
 				pairs.forEach(p => {
 					if (!lhs.isIgnored() && p.name.value === lhs.name.value) {
-						throw lhs.name.syntaxError(`duplicate name '${lhs.name.value}' in lhs of multi-assign`);
+						lhs.name.syntaxError(`duplicate name '${lhs.name.value}' in lhs of multi-assign`);
 					}
 				});
 
@@ -25043,10 +25774,12 @@ function buildAssignLhs(site, ts) {
 			}
 
 			if (!someNoneUnderscore) {
-				throw group.syntaxError("expected at least one non-underscore in lhs of multi-assign");
+				group.syntaxError("expected at least one non-underscore in lhs of multi-assign");
+				return null;
 			}
 		} else {
-			throw maybeName.syntaxError("unexpected syntax for lhs of =");
+			maybeName.syntaxError("unexpected syntax for lhs of =");
+			return null;
 		}
 
 		return pairs;
@@ -25056,7 +25789,7 @@ function buildAssignLhs(site, ts) {
 /**
  * @package
  * @param {string | string[]} symbol 
- * @returns {(ts: Token[], prec: number) => ValueExpr}
+ * @returns {(ts: Token[], prec: number) => (ValueExpr | null)}
  */
 function makeBinaryExprBuilder(symbol) {
 	// default behaviour is left-to-right associative
@@ -25065,12 +25798,18 @@ function makeBinaryExprBuilder(symbol) {
 
 		if (iOp == ts.length - 1) {
 			// post-unary operator, which is invalid
-			throw ts[iOp].syntaxError(`invalid syntax, '${ts[iOp].toString()}' can't be used as a post-unary operator`);
+			ts[iOp].syntaxError(`invalid syntax, '${ts[iOp].toString()}' can't be used as a post-unary operator`);
+			return null;
 		} else if (iOp > 0) { // iOp == 0 means maybe a (pre)unary op, which is handled by a higher precedence
 			const a = buildValueExpr(ts.slice(0, iOp), prec);
 			const b = buildValueExpr(ts.slice(iOp + 1), prec + 1);
+			const op = ts[iOp].assertSymbol();
 
-			return new BinaryExpr(ts[iOp].assertSymbol(), a, b);
+			if (!a || !b || !op) {
+				return null;
+			}
+
+			return new BinaryExpr(op, a, b);
 		} else {
 			return buildValueExpr(ts, prec + 1);
 		}
@@ -25080,15 +25819,20 @@ function makeBinaryExprBuilder(symbol) {
 /**
  * @package
  * @param {string | string[]} symbol 
- * @returns {(ts: Token[], prec: number) => ValueExpr}
+ * @returns {(ts: Token[], prec: number) => (ValueExpr | null)}
  */
 function makeUnaryExprBuilder(symbol) {
 	// default behaviour is right-to-left associative
 	return function (ts, prec) {
 		if (ts[0].isSymbol(symbol)) {
 			const rhs = buildValueExpr(ts.slice(1), prec);
+			const op = ts[0].assertSymbol();
 
-			return new UnaryExpr(ts[0].assertSymbol(), rhs);
+			if (!rhs || !op) {
+				return null;
+			}
+
+			return new UnaryExpr(op, rhs);
 		} else {
 			return buildValueExpr(ts, prec + 1);
 		}
@@ -25099,32 +25843,44 @@ function makeUnaryExprBuilder(symbol) {
  * @package
  * @param {Token[]} ts 
  * @param {number} prec 
- * @returns {ValueExpr}
+ * @returns {ValueExpr | null}
  */
 function buildChainedValueExpr(ts, prec) {
-	/** @type {ValueExpr} */
+	/** @type {ValueExpr | null} */
 	let expr = buildChainStartValueExpr(ts);
 
 	// now we can parse the rest of the chaining
 	while (ts.length > 0) {
+		if (expr === null) {
+			return null;
+		}
+
 		const t = assertDefined(ts.shift());
 
 		if (t.isGroup("(")) {
-			expr = buildCallExpr(t.site, expr, t.assertGroup());
+			expr = buildCallExpr(t.site, expr, assertDefined(t.assertGroup()));
 		} else if (t.isGroup("[")) {
-			throw t.syntaxError("invalid expression '[...]'");
+			t.syntaxError("invalid expression '[...]'");
+			return null;
 		} else if (t.isSymbol(".") && ts.length > 0 && ts[0].isWord("switch")) {
 			expr = buildSwitchExpr(expr, ts);
 		} else if (t.isSymbol(".")) {
-			const name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+			const name = assertToken(ts.shift(), t.site)?.assertWord()?.assertNotKeyword();
+
+			if (!name) {
+				return null;
+			}
 
 			expr = new MemberExpr(t.site, expr, name);
 		} else if (t.isGroup("{")) {
-			throw t.syntaxError("invalid syntax");
+			t.syntaxError("invalid syntax");
+			return null;
 		} else if (t.isSymbol("::")) {
-			throw t.syntaxError("invalid syntax");
+			t.syntaxError("invalid syntax");
+			return null;
 		} else {
-			throw t.syntaxError(`invalid syntax '${t.toString()}'`);
+			t.syntaxError(`invalid syntax '${t.toString()}'`);
+			return null;
 		}
 	}
 
@@ -25135,18 +25891,22 @@ function buildChainedValueExpr(ts, prec) {
  * @param {Site} site 
  * @param {ValueExpr} fnExpr 
  * @param {Group} parens
- * @returns {CallExpr}
+ * @returns {CallExpr | null}
  */
 function buildCallExpr(site, fnExpr, parens) {
 	const callArgs = buildCallArgs(parens);
 
-	return new CallExpr(site, fnExpr, callArgs);
+	if (callArgs === null) {
+		return null;
+	} else {
+		return new CallExpr(site, fnExpr, callArgs);
+	}
 }
 
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {ValueExpr}
+ * @returns {ValueExpr | null}
  */
 function buildChainStartValueExpr(ts) {
 	if (ts.length > 1 && ts[0].isGroup("(") && ts[1].isSymbol("->")) {
@@ -25154,7 +25914,8 @@ function buildChainStartValueExpr(ts) {
 	} else if (ts[0].isWord("if")) {
 		return buildIfElseExpr(ts);
 	} else if (ts[0].isWord("switch")) {
-		throw ts[0].syntaxError("expected '... .switch' instead of 'switch'");
+		ts[0].syntaxError("expected '... .switch' instead of 'switch'");
+		return null;
 	} else if (ts[0].isLiteral()) {
 		return new PrimitiveLiteralExpr(assertDefined(ts.shift())); // can simply be reused
 	} else if (ts[0].isGroup("(")) {
@@ -25180,38 +25941,73 @@ function buildChainStartValueExpr(ts) {
 		return buildValuePathExpr(ts);
 	} else if (ts[0].isWord()) {
 		if (ts[0].isWord("const") || ts[0].isWord("struct") || ts[0].isWord("enum") || ts[0].isWord("func") || ts[0].isWord("import")) {
-			throw ts[0].syntaxError(`invalid use of '${ts[0].assertWord().value}', can only be used as top-level statement`);
+			ts[0].syntaxError(`invalid use of '${assertDefined(ts[0].assertWord()).value}', can only be used as top-level statement`);
+			return null;
 		} else {
-			const name = assertDefined(ts.shift()).assertWord();
+			const name = assertDefined(ts.shift()?.assertWord());
 
-			// only place where a word can be "self"
-			return new ValueRefExpr(name.value == "self" ? name : name.assertNotKeyword());
+			if (name.value == "self") {
+				return new ValueRefExpr(name);
+			} else {
+				const n = name.assertNotKeyword();
+
+				if (!n) {
+					return null;
+				}
+
+				return new ValueRefExpr(n);
+			}
 		}
 	} else {
-		throw ts[0].syntaxError("invalid syntax");
+		ts[0].syntaxError("invalid syntax");
+		return null;
 	}
 }
 
 /**
  * @package
  * @param {Token[]} ts
- * @returns {ValueExpr}
+ * @returns {ValueExpr | null}
  */
 function buildParensExpr(ts) {
 	const group = assertDefined(ts.shift()).assertGroup("(");
+
+	if (!group) {
+		return null;
+	}
+
 	const site = group.site;
 
 	if (group.fields.length === 0) {
-		throw group.syntaxError("expected at least one expr in parens");
+		group.syntaxError("expected at least one expr in parens");
+		return null;
 	} else {
-		return new ParensExpr(site, group.fields.map(fts => buildValueExpr(fts)));
+		const fields = group.fields.map(fts => buildValueExpr(fts));
+
+		/**
+		 * @type {ValueExpr[]}
+		 */
+		const nonNullFields = [];
+
+		fields.forEach(f => {
+			if (f !== null) {
+				nonNullFields.push(f);
+			}
+		});
+
+		if (nonNullFields.length == 0) {
+			// error will already have been thrown internally
+			return null;
+		} else {
+			return new ParensExpr(site, nonNullFields);
+		}
 	}
 }
 
 /**
  * @package
  * @param {Group} parens 
- * @returns {CallArgExpr[]}
+ * @returns {CallArgExpr[] | null}
  */
 function buildCallArgs(parens) {
 	/**
@@ -25219,53 +26015,68 @@ function buildCallArgs(parens) {
 	 */
 	const names = new Set();
 
-	const callArgs = parens.fields.map(fts => {
+	const callArgs = reduceNull(parens.fields.map(fts => {
 		const callArg = buildCallArgExpr(parens.site, fts);
 
-		if (callArg.isNamed()) {
+		if (callArg !== null && callArg.isNamed()) {
 			if (names.has(callArg.name)) {
-				throw callArg.syntaxError(`duplicate named call arg ${callArg.name}`);
-			} else {
-				names.add(callArg.name);
+				callArg.syntaxError(`duplicate named call arg ${callArg.name}`);
 			}
+
+			names.add(callArg.name);
 		}
 
 		return callArg;
-	});
+	}));
 
-	if (callArgs.some(ca => ca.isNamed()) && callArgs.some(ca => !ca.isNamed())) {
-		throw callArgs[0].syntaxError("can't mix positional and named args");
+	if (callArgs === null) {
+		return null;
+	} else {
+		if (callArgs.some(ca => ca.isNamed()) && callArgs.some(ca => !ca.isNamed())) {
+			callArgs[0].syntaxError("can't mix positional and named args");
+			return null;
+		}
+
+		return callArgs;
 	}
-
-	return callArgs;
 }
 
 /**
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {CallArgExpr}
+ * @returns {CallArgExpr | null}
  */
 function buildCallArgExpr(site, ts) {
 	if (ts.length == 0) {
-		throw site.syntaxError("invalid syntax");
+		site.syntaxError("invalid syntax");
+		return null;
 	}
 
 	/**
-	 * @type {null | Word}
+	 * @type {null | undefined | Word}
 	 */
 	let name = null;
 
 	if (ts.length >= 2 && ts[0].isWord() && ts[1].isSymbol(":")) {
-		name = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+		name = assertDefined(ts.shift()).assertWord()?.assertNotKeyword();
+
+		if (!name) {
+			return null;
+		}
 
 		const colon = assertDefined(ts.shift());
 
 		if (ts.length == 0) {
-			throw colon.syntaxError("expected value expressions after ':'");
+			colon.syntaxError("expected value expressions after ':'");
+			return null;
 		}
 	}
 
 	const value = buildValueExpr(ts);
+
+	if (!value) {
+		return null;
+	}
 
 	return new CallArgExpr(name != null ? name.site : value.site, name, value);
 }
@@ -25273,10 +26084,16 @@ function buildCallArgExpr(site, ts) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {IfElseExpr}
+ * @returns {IfElseExpr | null}
  */
 function buildIfElseExpr(ts) {
-	const site = assertDefined(ts.shift()).assertWord("if").site;
+	const ifWord = assertDefined(ts.shift()).assertWord("if");
+
+	if (!ifWord) {
+		return null;
+	}
+
+	const site = ifWord.site;
 
 	/** @type {ValueExpr[]} */
 	const conditions = [];
@@ -25284,21 +26101,40 @@ function buildIfElseExpr(ts) {
 	/** @type {ValueExpr[]} */
 	const branches = [];
 	while (true) {
-		const parens = assertDefined(ts.shift()).assertGroup("(");
-		const braces = assertDefined(ts.shift()).assertGroup("{");
+		const parens = assertToken(ts.shift(), site)?.assertGroup("(");
+
+		if (!parens) {
+			return null;
+		}
+
+		const braces = assertToken(ts.shift(), site)?.assertGroup("{");
+
+		if (!braces) {
+			return null;
+		}
 
 		if (parens.fields.length != 1) {
-			throw parens.syntaxError("expected single if-else condition");
+			parens.syntaxError("expected single if-else condition");
+			return null;
 		}
 
 		if (braces.fields.length == 0) {
-			throw braces.syntaxError("branch body can't be empty");
+			braces.syntaxError("branch body can't be empty");
+			return null;
 		} else if (braces.fields.length != 1) {
-			throw braces.syntaxError("expected single if-else branch expession");
+			braces.syntaxError("expected single if-else branch expession");
+			return null;
 		}
 
-		conditions.push(buildValueExpr(parens.fields[0]));
-		branches.push(buildValueExpr(braces.fields[0]));
+		const cond = buildValueExpr(parens.fields[0]);
+		const branch = buildValueExpr(braces.fields[0]);
+
+		if (cond === null || branch === null) {
+			continue;
+		}
+
+		conditions.push(cond);
+		branches.push(branch);
 
 		const maybeElse = ts.shift();
 
@@ -25313,15 +26149,29 @@ function buildIfElseExpr(ts) {
 			if (next.isGroup("{")) {
 				// last group
 				const braces = next.assertGroup();
-				if (braces.fields.length != 1) {
-					throw braces.syntaxError("expected single expession for if-else branch");
+
+				if (!braces) {
+					return null;
 				}
-				branches.push(buildValueExpr(braces.fields[0]));
+
+				if (braces.fields.length != 1) {
+					braces.syntaxError("expected single expession for if-else branch");
+					return null;
+				}
+
+				const elseBranch = buildValueExpr(braces.fields[0]);
+
+				if (elseBranch === null) {
+					return null;
+				} else {
+					branches.push(elseBranch);
+				}
 				break;
 			} else if (next.isWord("if")) {
 				continue;
 			} else {
-				throw next.syntaxError("unexpected token");
+				next.syntaxError("unexpected token");
+				return null;
 			}
 		}
 	}
@@ -25333,32 +26183,50 @@ function buildIfElseExpr(ts) {
  * @package
  * @param {ValueExpr} controlExpr
  * @param {Token[]} ts 
- * @returns {ValueExpr} - EnumSwitchExpr or DataSwitchExpr
+ * @returns {ValueExpr | null} - EnumSwitchExpr or DataSwitchExpr
  */
 function buildSwitchExpr(controlExpr, ts) {
-	const site = assertDefined(ts.shift()).assertWord("switch").site;
+	const switchWord = assertDefined(ts.shift()).assertWord("switch");
 
-	const braces = assertDefined(ts.shift()).assertGroup("{");
+	if (!switchWord) {
+		return null;
+	}
+
+	const site = switchWord.site;
+
+	const braces = assertToken(ts.shift(), site)?.assertGroup("{");
+
+	if (!braces) {
+		return null;
+	}
 
 	/** @type {SwitchCase[]} */
 	const cases = [];
 
-	/** @type {?SwitchDefault} */
+	/** @type {null | SwitchDefault} */
 	let def = null;
 
 	for (let tsInner of braces.fields) {
 		if (tsInner[0].isWord("else")) {
 			if (def !== null) {
-				throw def.syntaxError("duplicate 'else' in switch");
+				def.syntaxError("duplicate 'else' in switch");
+				return null;
 			}
 
 			def = buildSwitchDefault(tsInner);
 		} else {
 			if (def !== null) {
-				throw def.syntaxError("switch 'else' must come last");
+				def.syntaxError("switch 'else' must come last");
+				return null;
 			}
 
-			cases.push(buildSwitchCase(tsInner));
+			const c = buildSwitchCase(tsInner);
+
+			if (c === null) {
+				return null;
+			} else {
+				cases.push(c);
+			}
 		}
 	}
 
@@ -25368,28 +26236,33 @@ function buildSwitchExpr(controlExpr, ts) {
 	for (let c of cases) {
 		let t = c.memberName.toString();
 		if (set.has(t)) {
-			throw c.memberName.syntaxError(`duplicate switch case '${t}')`);
+			c.memberName.syntaxError(`duplicate switch case '${t}')`);
+			return null;
 		}
 
 		set.add(t);
 	}
 
 	if (cases.length < 1) {
-		throw site.syntaxError("expected at least one switch case");
+		site.syntaxError("expected at least one switch case");
+		return null;
 	}
 
 	if (cases.some(c => c.isDataMember())) {
 		if (cases.length + (def === null ? 0 : 1) > 5) {
-			throw site.syntaxError(`too many cases for data switch, expected 5 or less, got ${cases.length.toString()}`);
+			site.syntaxError(`too many cases for data switch, expected 5 or less, got ${cases.length.toString()}`);
+			return null;
 		} else {
 			let count = 0;
 			cases.forEach(c => {if (!c.isDataMember()){count++}});
 
 			if (count > 1) {
-				throw site.syntaxError(`expected at most 1 enum case in data switch, got ${count}`);
+				site.syntaxError(`expected at most 1 enum case in data switch, got ${count}`);
+				return null;
 			} else {
 				if (count === 1 && cases.some(c => c instanceof UnconstrDataSwitchCase)) {
-					throw site.syntaxError(`can't have both enum and (Int, []Data) in data switch`);
+					site.syntaxError(`can't have both enum and (Int, []Data) in data switch`);
+					return null;
 				} else {
 					return new DataSwitchExpr(site, controlExpr, cases, def);
 				}
@@ -25405,59 +26278,71 @@ function buildSwitchExpr(controlExpr, ts) {
  * @param {Site} site
  * @param {Token[]} ts
  * @param {boolean} isAfterColon
- * @returns {Word} 
+ * @returns {Word | null} 
  */
 function buildSwitchCaseName(site, ts, isAfterColon) {
 	const first = ts.shift();
 
 	if (first === undefined) {
 		if (isAfterColon) {
-			throw site.syntaxError("invalid switch case syntax, expected member name after ':'");
+			site.syntaxError("invalid switch case syntax, expected member name after ':'");
+			return null;
 		} else {
-			throw site.syntaxError("invalid switch case syntax");
+			site.syntaxError("invalid switch case syntax");
+			return null;
 		}
 	}
 		
 	if (first.isWord("Map")) {
 		const second = ts.shift();
 
-		if (second === undefined) {
-			throw site.syntaxError("expected token after 'Map'");
+		if (!second) {
+			site.syntaxError("expected token after 'Map'");
+			return null;
 		}
 
-		const keyTs = second.assertGroup("[]", 1).fields[0];
+		const keyTs = second.assertGroup("[]", 1)?.fields[0];
+
+		if (keyTs === undefined || keyTs === null) {
+			return null;
+		}
 
 		const key = keyTs.shift();
 
 		if (key === undefined) {
-			throw second.syntaxError("expected 'Map[Data]Data'");
+			second.syntaxError("expected 'Map[Data]Data'");
+			return null;
 		}
 
 		key.assertWord("Data");
 
 		if (keyTs.length > 0) {
-			throw keyTs[0].syntaxError("unexpected token after 'Data'");
+			keyTs[0].syntaxError("unexpected token after 'Data'");
+			return null;
 		}
 
 		const third = ts.shift();
 
 		if (third === undefined) {
-			throw site.syntaxError("expected token after 'Map[Data]")
+			site.syntaxError("expected token after 'Map[Data]");
+			return null;
 		}
 
 		third.assertWord("Data");
 
 		if (ts.length > 0) {
-			throw ts[0].syntaxError("unexpected token after 'Map[Data]Data'");
+			ts[0].syntaxError("unexpected token after 'Map[Data]Data'");
+			return null;
 		}
 
 		return new Word(first.site, "Map[Data]Data");
 	} else if (first.isWord()) {
 		if (ts.length > 0) {
-			throw ts[0].syntaxError("unexpected token");
+			ts[0].syntaxError("unexpected token");
+			return null;
 		}
 
-		return first.assertWord().assertNotKeyword();
+		return first?.assertWord()?.assertNotKeyword() ?? null;
 	} else if (first.isGroup("[")) {
 		// list 
 		first.assertGroup("[", 0);
@@ -25465,31 +26350,36 @@ function buildSwitchCaseName(site, ts, isAfterColon) {
 		const second = ts.shift();
 
 		if (second === undefined) {
-			throw site.syntaxError("expected token after '[]'");
+			site.syntaxError("expected token after '[]'");
+			return null;
 		} else if (ts.length > 0) {
-			throw ts[0].syntaxError("unexpected token");
+			ts[0].syntaxError("unexpected token");
+			return null;
 		}
 
 		second.assertWord("Data");
 
 		return new Word(first.site, "[]Data");
 	} else {
-		throw first.syntaxError("invalid switch case name syntax");
+		first.syntaxError("invalid switch case name syntax");
+		return null;
 	}
 }
 
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {SwitchCase}
+ * @returns {SwitchCase | null}
  */
 function buildSwitchCase(ts) {
 	const arrowPos = SymbolToken.find(ts, "=>");
 
 	if (arrowPos == -1) {
-		throw ts[0].syntaxError("expected '=>' in switch case");
+		ts[0].syntaxError("expected '=>' in switch case");
+		return null;
 	} else if (arrowPos == 0) {
-		throw ts[0].syntaxError("expected '<word>' or '<word>: <word>' to the left of '=>'");
+		ts[0].syntaxError("expected '<word>' or '<word>: <word>' to the left of '=>'");
+		return null;
 	}
 
 	const tsLeft = ts.splice(0, arrowPos);
@@ -25504,23 +26394,31 @@ function buildSwitchCase(ts) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {[?Word, Word]} - varName is optional
+ * @returns {null | [?Word, Word]} - varName is optional
  */
 function buildSwitchCaseNameType(ts) {
 	const colonPos = SymbolToken.find(ts, ":");
 
-	/** @type {?Word} */
+	/** @type {null | Word} */
 	let varName = null;
 
-	/** @type {?Word} */
+	/** @type {null | Word} */
 	let memberName = null;
 
 	if (colonPos != -1) {
-		varName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+		const maybeVarName = assertDefined(ts.shift()).assertWord()?.assertNotKeyword();
+
+		if (!maybeVarName) {
+			return null;
+		}
+
+		varName = maybeVarName;
 		
 		const maybeColon = ts.shift();
+
 		if (maybeColon === undefined) {
-			throw varName.syntaxError("invalid switch case syntax, expected '(<name>: <enum-member>)', got '(<name>)'");
+			varName.syntaxError("invalid switch case syntax, expected '(<name>: <enum-member>)', got '(<name>)'");
+			return null;
 		} else {
 			void maybeColon.assertSymbol(":");
 
@@ -25531,11 +26429,13 @@ function buildSwitchCaseNameType(ts) {
 	}
 
 	if (ts.length !== 0) {
-		throw new Error("unexpected");
+		ts[0].syntaxError("unexpected token");
+		return null;
 	}
 
 	if (memberName === null) {
-		throw new Error("unexpected");
+		// error will already have been thrown internally
+		return null;
 	} else {
 		return [varName, memberName];
 	}
@@ -25545,30 +26445,49 @@ function buildSwitchCaseNameType(ts) {
  * @package
  * @param {Token[]} tsLeft
  * @param {Token[]} ts
- * @returns {SwitchCase}
+ * @returns {SwitchCase | null}
  */
 function buildMultiArgSwitchCase(tsLeft, ts) {
 	const parens = assertDefined(tsLeft.shift()).assertGroup("(");
 
-	const pairs = parens.fields.map(fts => buildSwitchCaseNameType(fts));
+	if (!parens) {
+		return null;
+	}
+
+	const pairs = reduceNull(parens.fields.map(fts => buildSwitchCaseNameType(fts)));
+
+	if (pairs === null) {
+		return null;
+	}
 
 	assert(tsLeft.length === 0);
 
 	if (pairs.length !== 2) {
-		throw parens.syntaxError(`expected (Int, []Data) case, got (${pairs.map(p => p[1].value).join(", ")}`);
+		parens.syntaxError(`expected (Int, []Data) case, got (${pairs.map(p => p[1].value).join(", ")}`);
+		return null;
 	} else if (pairs[0][1].value != "Int" || pairs[1][1].value != "[]Data") {
-		throw parens.syntaxError(`expected (Int, []Data) case, got (${pairs[0][1].value}, ${pairs[1][1].value})`);
+		parens.syntaxError(`expected (Int, []Data) case, got (${pairs[0][1].value}, ${pairs[1][1].value})`);
+		return null;
 	} else {
 		const maybeArrow = ts.shift();
 
 		if (maybeArrow === undefined) {
-			throw parens.syntaxError("expected '=>'");
+			parens.syntaxError("expected '=>'");
+			return null;
 		} else {
 			const arrow = maybeArrow.assertSymbol("=>");
 
+			if (!arrow) {
+				return null;
+			}
+
 			const bodyExpr = buildSwitchCaseBody(arrow.site, ts);
 
-			return new UnconstrDataSwitchCase(arrow.site, pairs[0][0], pairs[1][0], bodyExpr);
+			if (bodyExpr === null) {
+				return null;
+			} else {
+				return new UnconstrDataSwitchCase(arrow.site, pairs[0][0], pairs[1][0], bodyExpr);
+			}
 		}
 	}
 }
@@ -25577,27 +26496,39 @@ function buildMultiArgSwitchCase(tsLeft, ts) {
  * @package
  * @param {Token[]} tsLeft 
  * @param {Token[]} ts 
- * @returns {SwitchCase}
+ * @returns {SwitchCase | null}
  */
 function buildSingleArgSwitchCase(tsLeft, ts) {
 	const site = tsLeft[tsLeft.length-1].site;
 
 	const destructExpr = buildDestructExpr(site, tsLeft, true);
 
-	if (!destructExpr.hasType()) {
-		throw destructExpr.site.syntaxError("invalid switch case syntax");
+	if (destructExpr === null) {
+		return null;
+	} else if (!destructExpr.hasType()) {
+		destructExpr.site.syntaxError("invalid switch case syntax");
+		return null;
 	}
 	
 	const maybeArrow = ts.shift();
 
 	if (maybeArrow === undefined) {
-		throw site.syntaxError("expected '=>'");
+		site.syntaxError("expected '=>'");
+		return null;
 	} else {
 		const arrow = maybeArrow.assertSymbol("=>");
 
+		if (!arrow) {
+			return null;
+		}
+
 		const bodyExpr = buildSwitchCaseBody(arrow.site, ts);
 
-		return new SwitchCase(arrow.site, destructExpr, bodyExpr);
+		if (bodyExpr === null) {
+			return null;
+		} else {
+			return new SwitchCase(arrow.site, destructExpr, bodyExpr);
+		}
 	}
 }
 
@@ -25605,62 +26536,86 @@ function buildSingleArgSwitchCase(tsLeft, ts) {
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {ValueExpr}
+ * @returns {ValueExpr | null}
  */
 function buildSwitchCaseBody(site, ts) {
 	/** @type {?ValueExpr} */
 	let bodyExpr = null;
 
 	if (ts.length == 0) {
-		throw site.syntaxError("expected expression after '=>'");
+		site.syntaxError("expected expression after '=>'");
+		return null;
 	} else if (ts[0].isGroup("{")) {
 		if (ts.length > 1) {
-			throw ts[1].syntaxError("unexpected token");
+			ts[1].syntaxError("unexpected token");
+			return null;
 		}
 
-		const tsBody = ts[0].assertGroup("{", 1).fields[0];
+		const tsBody = ts[0].assertGroup("{", 1)?.fields[0];
+
+		if (tsBody === undefined || tsBody === null) {
+			return null;
+		}
+
 		bodyExpr = buildValueExpr(tsBody);
 	} else {
 		bodyExpr = buildValueExpr(ts);
 	}
 
-	if (bodyExpr === null) {
-		throw site.syntaxError("empty switch case body");
-	} else {
-		return bodyExpr;
-	}
+	return bodyExpr;
 }
 
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {SwitchDefault}
+ * @returns {SwitchDefault | null}
  */
 function buildSwitchDefault(ts) {
-	const site = assertDefined(ts.shift()).assertWord("else").site;
+	const elseWord = assertDefined(ts.shift()).assertWord("else");
+
+	if (!elseWord) {
+		return null;
+	}
+
+	const site = elseWord.site;
 
 	const maybeArrow = ts.shift();
 	if (maybeArrow === undefined) {
-		throw site.syntaxError("expected '=>' after 'else'");
+		site.syntaxError("expected '=>' after 'else'");
+		return null;
 	} else {
 		const arrow = maybeArrow.assertSymbol("=>");
 
-		/** @type {?ValueExpr} */
+		if (!arrow) {
+			return null;
+		}
+
+		/** @type {null | ValueExpr} */
 		let bodyExpr = null;
+
 		if (ts.length == 0) {
-			throw arrow.syntaxError("expected expression after '=>'");
+			arrow.syntaxError("expected expression after '=>'");
+			return null;
 		} else if (ts[0].isGroup("{")) {
 			if (ts.length > 1) {
-				throw ts[1].syntaxError("unexpected token");
+				ts[1].syntaxError("unexpected token");
+				return null;
 			} else {
-				bodyExpr = buildValueExpr(ts[0].assertGroup("{", 1).fields[0]);
+				const bodyTs = ts[0].assertGroup("{", 1)?.fields[0];
+
+				if (bodyTs === undefined || bodyTs === null) {
+					return null;
+				}
+
+				bodyExpr = buildValueExpr(bodyTs);
 			}
 		} else {
 			bodyExpr = buildValueExpr(ts);
 		}
 
 		if (bodyExpr === null) {
-			throw arrow.syntaxError("empty else body");
+			arrow.syntaxError("empty else body");
+			return null;
 		} else {
 			return new SwitchDefault(arrow.site, bodyExpr);
 		}
@@ -25670,22 +26625,42 @@ function buildSwitchDefault(ts) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {ListLiteralExpr}
+ * @returns {ListLiteralExpr | null}
  */
 function buildListLiteralExpr(ts) {
-	const site = assertDefined(ts.shift()).assertGroup("[", 0).site;
+	const group = assertDefined(ts.shift()).assertGroup("[", 0);
+
+	if (!group) {
+		return null;
+	}
+
+	const site = group.site;
 
 	const bracesPos = Group.find(ts, "{");
 
 	if (bracesPos == -1) {
-		throw site.syntaxError("invalid list literal expression syntax");
+		site.syntaxError("invalid list literal expression syntax");
+		return null;
 	}
 
-	const itemTypeExpr = buildTypeExpr(ts.splice(0, bracesPos));
+	const itemTypeExpr = buildTypeExpr(site, ts.splice(0, bracesPos));
 
-	const braces = assertDefined(ts.shift()).assertGroup("{");
+	if (!itemTypeExpr) {
+		return null;
+	}
 
-	const itemExprs = braces.fields.map(fts => buildValueExpr(fts));
+	const braces = assertToken(ts.shift(), site)?.assertGroup("{");
+
+	if (!braces) {
+		return null;
+	}
+
+	const itemExprs = reduceNull(braces.fields.map(fts => buildValueExpr(fts)));
+
+	if (itemExprs === null) {
+		// error will have already been thrown internally
+		return null;
+	}
 
 	return new ListLiteralExpr(site, itemTypeExpr, itemExprs);
 }
@@ -25693,52 +26668,81 @@ function buildListLiteralExpr(ts) {
 /**
  * @package
  * @param {Token[]} ts
- * @returns {MapLiteralExpr}
+ * @returns {MapLiteralExpr | null}
  */
 function buildMapLiteralExpr(ts) {
-	const site = assertDefined(ts.shift()).assertWord("Map").site;
+	const mapWord = assertDefined(ts.shift()).assertWord("Map");
+
+	if (!mapWord) {
+		return null;
+	}
+
+	const site = mapWord.site;
 
 	const bracket = assertDefined(ts.shift()).assertGroup("[", 1);
 
-	const keyTypeExpr = buildTypeExpr(bracket.fields[0]);
+	if (!bracket) {
+		return null;
+	}
+
+	const keyTypeExpr = buildTypeExpr(site, bracket.fields[0]);
+
+	if (!keyTypeExpr) {
+		return null;
+	}
 
 	const bracesPos = Group.find(ts, "{");
 
 	if (bracesPos == -1) {
-		throw site.syntaxError("invalid map literal expression syntax");
+		site.syntaxError("invalid map literal expression syntax");
+		return null;
 	}
 
-	const valueTypeExpr = buildTypeExpr(ts.splice(0, bracesPos));
+	const valueTypeExpr = buildTypeExpr(site, ts.splice(0, bracesPos));
+
+	if (!valueTypeExpr) {
+		return null;
+	}
 
 	const braces = assertDefined(ts.shift()).assertGroup("{");
 
+	if (!braces) {
+		return null;
+	}
+
 	/**
-	 * @type {[ValueExpr, ValueExpr][]}
+	 * @type {null | [ValueExpr, ValueExpr][]}
 	 */
-	const pairs = braces.fields.map(fts => {
+	const pairs = reduceNullPairs(braces.fields.map(fts => {
 		const colonPos = SymbolToken.find(fts, ":");
 
 		if (colonPos == -1) {
 			if (fts.length == 0) {
-				throw braces.syntaxError("unexpected empty field");
+				braces.syntaxError("unexpected empty field");
 			} else {
-				throw fts[0].syntaxError("expected ':' in map literal field");
+				fts[0].syntaxError("expected ':' in map literal field");
 			}
 		} else if (colonPos == 0) {
-			throw fts[colonPos].syntaxError("expected expression before ':' in map literal field");
+			fts[colonPos].syntaxError("expected expression before ':' in map literal field");
 		} else if (colonPos == fts.length - 1) {
-			throw fts[colonPos].syntaxError("expected expression after ':' in map literal field");
+			fts[colonPos].syntaxError("expected expression after ':' in map literal field");
+		} else {
+			const keyExpr = buildValueExpr(fts.slice(0, colonPos));
+
+			const valueExpr = buildValueExpr(fts.slice(colonPos+1));
+
+			/**
+			 * @type {[ValueExpr | null, ValueExpr | null]}
+			 */
+			return [keyExpr, valueExpr];
 		}
 
-		const keyExpr = buildValueExpr(fts.slice(0, colonPos));
+		return [null, null];
+	}));
 
-		const valueExpr = buildValueExpr(fts.slice(colonPos+1));
-
-		/**
-		 * @type {[ValueExpr, ValueExpr]}
-		 */
-		return [keyExpr, valueExpr];
-	});
+	if (pairs === null) {
+		return null;
+	}
 
 	return new MapLiteralExpr(site, keyTypeExpr, valueTypeExpr, pairs);
 }
@@ -25746,81 +26750,131 @@ function buildMapLiteralExpr(ts) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {StructLiteralExpr}
+ * @returns {StructLiteralExpr | null}
  */
 function buildStructLiteralExpr(ts) {
 	const bracesPos = Group.find(ts, "{");
 
 	assert(bracesPos != -1);
 
+	const site = ts[bracesPos].site;
+
 	if (bracesPos == 0) {
-		throw ts[bracesPos].syntaxError("expected struct type before braces");
+		site.syntaxError("expected struct type before braces");
+		return null;
 	}
 	
-	const typeExpr = buildTypeExpr(ts.splice(0, bracesPos));
+	const typeExpr = buildTypeExpr(site, ts.splice(0, bracesPos));
+
+	if (!typeExpr) {
+		return null;
+	}
 
 	const braces = assertDefined(ts.shift()).assertGroup("{");
 
-	const fields = braces.fields.map(fts => buildStructLiteralField(braces.site, fts));
+	if (!braces) {
+		return null;
+	}
 
+	const fields = reduceNull(braces.fields.map(fts => buildStructLiteralField(braces.site, fts)));
+
+	if (fields === null) {
+		return null;
+	} 
+	
 	if (fields.every(f => f.isNamed()) || fields.every(f => !f.isNamed())) {
 		return new StructLiteralExpr(typeExpr, fields);
 	} else {
-		throw braces.site.syntaxError("mangled literal struct (hint: specify all fields positionally or all with keys)");
+		braces.site.syntaxError("mangled literal struct (hint: specify all fields positionally or all with keys)");
+		return null;
 	}
 }
 
 /**
  * @package
- * @param {Site} bracesSite
+ * @param {Site} site - site of the braces
  * @param {Token[]} ts
- * @returns {StructLiteralField}
+ * @returns {StructLiteralField | null}
  */
-function buildStructLiteralField(bracesSite, ts) {
+function buildStructLiteralField(site, ts) {
 	if (ts.length > 2 && ts[0].isWord() && ts[1].isSymbol(":")) {
-		const maybeName = ts.shift();
-		if (maybeName === undefined) {
-			throw bracesSite.syntaxError("empty struct literal field");
-		} else {
-			const name = maybeName.assertWord();
-
-			const maybeColon = ts.shift();
-			if (maybeColon === undefined) {
-				throw bracesSite.syntaxError("expected ':'");
-			} else {
-				const colon = maybeColon.assertSymbol(":");
-
-				if (ts.length == 0) {
-					throw colon.syntaxError("expected expression after ':'");
-				} else {
-					const valueExpr = buildValueExpr(ts);
-
-					return new StructLiteralField(name.assertNotKeyword(), valueExpr);
-				}
-			}
-		}
+		return buildStructLiteralNamedField(site, ts);
 	} else {
-		const valueExpr = buildValueExpr(ts);
-
-		return new StructLiteralField(null, valueExpr);
+		return buildStructLiteralUnnamedField(site, ts);
 	}
+}
+
+/**
+ * @package
+ * @param {Site} site
+ * @param {Token[]} ts
+ * @returns {StructLiteralField | null}
+ */
+function buildStructLiteralNamedField(site, ts) {
+	const name = assertToken(ts.shift(), site, "empty struct literal field")?.assertWord()?.assertNotKeyword();
+
+	if (!name) {
+		return null;
+	}
+
+	const colon = assertToken(ts.shift(), name.site, "expected ':' after struct field name")?.assertSymbol(":");
+
+	if (!colon) {
+		return null;
+	}
+
+	if (ts.length == 0) {
+		colon.syntaxError("expected expression after ':'");
+		return null;
+	}
+	const valueExpr = buildValueExpr(ts);
+
+	if (!valueExpr) {
+		return null;
+	}
+
+	return new StructLiteralField(name, valueExpr);
+}
+
+/**
+ * @package
+ * @param {Site} site
+ * @param {Token[]} ts
+ * @returns {StructLiteralField | null}
+ */
+function buildStructLiteralUnnamedField(site, ts) {
+	const valueExpr = buildValueExpr(ts);
+
+	if (!valueExpr) {
+		return null;
+	}
+
+	return new StructLiteralField(null, valueExpr);
 }
 
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {ValueExpr}
+ * @returns {ValueExpr | null}
  */
 function buildValuePathExpr(ts) {
 	const dcolonPos = SymbolToken.findLast(ts, "::");
 
 	assert(dcolonPos != -1);
 
-	const typeExpr = buildTypeExpr(ts.splice(0, dcolonPos));
+	const typeExpr = buildTypeExpr(ts[dcolonPos].site, ts.splice(0, dcolonPos));
 
-	assertDefined(ts.shift()).assertSymbol("::");
+	if (!typeExpr) {
+		return null;
+	}
 
-	const memberName = assertDefined(ts.shift()).assertWord().assertNotKeyword();
+	const dcolon = assertDefined(ts.shift()?.assertSymbol("::"));
+
+	const memberName = assertToken(ts.shift(), dcolon.site)?.assertWord()?.assertNotKeyword();
+
+	if (!memberName) {
+		return null;
+	}
 	
 	return new ValuePathExpr(typeExpr, memberName);
 }
@@ -32656,27 +33710,27 @@ class Module {
 	static new(rawSrc, fileIndex = null) {
 		const src = new Source(rawSrc, fileIndex);
 
-		const [ts, errors] = tokenize(src);
+		const ts = tokenize(src);
 
-		if (errors.length > 0) {
-			throw errors[0].toError();
+		src.throwErrors();
+
+		if (ts === null) {
+			throw new Error("should've been thrown above");
 		}
 
 		if (ts.length == 0) {
-			throw UserError.syntaxError(src, 0, "empty script");
+			throw UserError.syntaxError(src, 0, 1, "empty script");
 		}
 
-		const [purpose, name] = buildScriptPurpose(ts);
+		const [purpose, name, statements, mainIdx] = buildScript(ts, ScriptPurpose.Module);
 
-		if (purpose != ScriptPurpose.Module) {
-			throw name.syntaxError("expected 'module' script purpose");
-		} else if (name.value == "main") {
-			throw name.syntaxError("name of 'module' can't be 'main'");
+		src.throwErrors();
+
+		if (name !== null) {
+			return new Module(name, statements);
+		} else {
+			throw new Error("unexpected"); // should've been caught by calling src.throwErrors() above
 		}
-
-		const statements = buildProgramStatements(ts);
-
-		return new Module(name, statements);
 	}
 
 	/**
@@ -32876,40 +33930,36 @@ class MainModule extends Module {
 	static parseMain(rawSrc) {
 		const src = new Source(rawSrc, 0);
 
-		const [ts, errors] = tokenize(src);
+		const ts = tokenize(src);
 
-		if (errors.length > 0) {
-			throw errors[0].toError();
+		src.throwErrors();
+
+		if (ts === null) {
+			throw new Error("should've been thrown above");
 		}
 
 		if (ts.length == 0) {
-			throw UserError.syntaxError(src, 0, "empty script");
+			throw UserError.syntaxError(src, 0, 1, "empty script");
 		}
 
-		const [purpose, name] = buildScriptPurpose(ts);
+		const [purpose, name, statements, mainIdx] = buildScript(ts);
 
-		if (name.value === "main") {
-			throw name.site.syntaxError("script can't be named 'main'");
+		src.throwErrors();
+
+		if (purpose !== null && name !== null) {
+			/**
+			 * @type {Module[]}
+			 */
+			const modules = [new MainModule(name, statements.slice(0, mainIdx+1))];
+
+			if (mainIdx < statements.length - 1) {
+				modules.push(new Module(name, statements.slice(mainIdx+1)));
+			}
+
+			return [purpose, modules];
+		} else {
+			throw new Error("unexpected"); // should've been caught by calling src.throwErrors() above
 		}
-
-		const statements = buildProgramStatements(ts);
-
-		const mainIdx = statements.findIndex(s => s.name.value === "main");
-
-		if (mainIdx == -1) {
-			throw name.site.syntaxError("'main' not found");
-		}
-
-		/**
-		 * @type {Module[]}
-		 */
-		const modules = [new MainModule(name, statements.slice(0, mainIdx+1))];
-
-		if (mainIdx < statements.length - 1) {
-			modules.push(new Module(name, statements.slice(mainIdx+1)));
-		}
-
-		return [purpose, modules];
 	}
 
 	/**
@@ -37603,7 +38653,7 @@ export function highlight(src) {
 						} else if (c == Group.matchSymbol(prevGroup)) {
 							data[j++] = SyntaxCategory.Normal;
 						} else {
-							data[prevGroup.site.pos] = SyntaxCategory.Error;
+							data[prevGroup.site.startPos] = SyntaxCategory.Error;
 							data[j++] = SyntaxCategory.Error;
 						}
 					}
@@ -37836,7 +38886,7 @@ export function highlight(src) {
 	}
 
 	for (let s of groupStack) {
-		data[s.site.pos] = SyntaxCategory.Error;
+		data[s.site.startPos] = SyntaxCategory.Error;
 	}
 
 	return data;

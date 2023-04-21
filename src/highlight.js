@@ -93,7 +93,7 @@ export function highlight(src) {
 						} else if (c == Group.matchSymbol(prevGroup)) {
 							data[j++] = SyntaxCategory.Normal;
 						} else {
-							data[prevGroup.site.pos] = SyntaxCategory.Error;
+							data[prevGroup.site.startPos] = SyntaxCategory.Error;
 							data[j++] = SyntaxCategory.Error;
 						}
 					}
@@ -326,7 +326,7 @@ export function highlight(src) {
 	}
 
 	for (let s of groupStack) {
-		data[s.site.pos] = SyntaxCategory.Error;
+		data[s.site.startPos] = SyntaxCategory.Error;
 	}
 
 	return data;

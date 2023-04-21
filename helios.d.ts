@@ -1,4 +1,11 @@
 /**
+ * @template Ta
+ * @template Tb
+ * @param {[Ta | null, Tb | null][]} pairs
+ * @returns {null | [Ta, Tb][]}
+ */
+export function reduceNullPairs<Ta, Tb>(pairs: [Ta, Tb][]): [Ta, Tb][];
+/**
  * Converts a hexadecimal representation of bytes into an actual list of uint8 bytes.
  * @example
  * hexToBytes("00ff34") => [0, 255, 52]
@@ -168,6 +175,25 @@ export function deserializeUplcBytes(bytes: number[]): UplcProgram;
  */
 export function deserializeUplc(jsonString: string): UplcProgram;
 /**
+ * Tokenizes a string (wrapped in Source)
+ * Also used by VSCode plugin
+ * @param {Source} src
+ * @returns {Token[] | null}
+ */
+export function tokenize(src: Source): Token[] | null;
+/**
+ * Used by VSCode plugin
+ * @param {(path: StringLiteral) => (string | null)} fn
+ */
+export function setImportPathTranslator(fn: (path: StringLiteral) => (string | null)): void;
+/**
+ * Also used by VSCode plugin
+ * @param {Token[]} ts
+ * @param {number | null} expectedPurpose
+ * @returns {[number | null, Word | null, Statement[], number]}
+ */
+export function buildScript(ts: Token[], expectedPurpose?: number | null): [number | null, Word | null, Statement[], number];
+/**
  * Parses Helios quickly to extract the script purpose header.
  * Returns null if header is missing or incorrectly formed (instead of throwing an error)
  * @param {string} rawSrc
@@ -202,6 +228,80 @@ export const config: {
     N_DUMMY_INPUTS: number;
 };
 /**
+ * Function that generates a random number between 0 and 1
+ * @typedef {() => number} NumberGenerator
+ */
+/**
+ * A Source instance wraps a string so we can use it cheaply as a reference inside a Site.
+ * Also used by VSCode plugin
+ */
+export class Source {
+    /**
+     * @param {string} raw
+     * @param {?number} fileIndex
+     */
+    constructor(raw: string, fileIndex?: number | null);
+    /**
+     * @package
+     * @type {string}
+     */
+    get raw(): string;
+    /**
+     * @package
+     * @type {?number}
+     */
+    get fileIndex(): number;
+    /**
+     * @type {Error[]}
+     */
+    get errors(): Error[];
+    throwErrors(): void;
+    /**
+     * Get char from the underlying string.
+     * Should work fine utf-8 runes.
+     * @package
+     * @param {number} pos
+     * @returns {string}
+     */
+    getChar(pos: number): string;
+    /**
+     * Returns word under pos
+     * @package
+     * @param {number} pos
+     * @returns {?string}
+     */
+    getWord(pos: number): string | null;
+    /**
+     * @package
+     * @type {number}
+     */
+    get length(): number;
+    /**
+     * Calculates the line number of the line where the given character is located (0-based).
+     * @package
+     * @param {number} pos
+     * @returns {number}
+     */
+    posToLine(pos: number): number;
+    /**
+     * Calculates the column and line number where the given character is located (0-based).
+     * @package
+     * @param {number} pos
+     * @returns {[number, number]}
+     */
+    posToLineAndCol(pos: number): [number, number];
+    /**
+     * Creates a more human-readable version of the source by prepending the line-numbers to each line.
+     * The line-numbers are at least two digits.
+     * @example
+     * (new Source("hello\nworld")).pretty() => "01  hello\n02  world"
+     * @package
+     * @returns {string}
+     */
+    pretty(): string;
+    #private;
+}
+/**
  * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
  * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
  */
@@ -209,26 +309,29 @@ export class UserError extends Error {
     /**
      * @param {string} type
      * @param {Source} src
-     * @param {number} pos
+     * @param {number} startPos
+     * @param {number} endPos
      * @param {string} info
      */
-    static new(type: string, src: Source, pos: number, info?: string): UserError;
+    static new(type: string, src: Source, startPos: number, endPos: number, info?: string): UserError;
     /**
      * Constructs a SyntaxError
      * @param {Source} src
-     * @param {number} pos
+     * @param {number} startPos
+     * @param {number} endPos
      * @param {string} info
      * @returns {UserError}
      */
-    static syntaxError(src: Source, pos: number, info?: string): UserError;
+    static syntaxError(src: Source, startPos: number, endPos: number, info?: string): UserError;
     /**
      * Constructs a TypeError
      * @param {Source} src
-     * @param {number} pos
+     * @param {number} startPos
+     * @param {number} endPos
      * @param {string} info
      * @returns {UserError}
      */
-    static typeError(src: Source, pos: number, info?: string): UserError;
+    static typeError(src: Source, startPos: number, endPos: number, info?: string): UserError;
     /**
      * @param {Error} e
      * @returns {boolean}
@@ -237,11 +340,12 @@ export class UserError extends Error {
     /**
      * Constructs a ReferenceError (i.e. name undefined, or name unused)
      * @param {Source} src
-     * @param {number} pos
+     * @param {number} startPos
+     * @param {number} endPos
      * @param {string} info
      * @returns {UserError}
      */
-    static referenceError(src: Source, pos: number, info?: string): UserError;
+    static referenceError(src: Source, startPos: number, endPos: number, info?: string): UserError;
     /**
      * @param {Error} e
      * @returns {boolean}
@@ -259,9 +363,10 @@ export class UserError extends Error {
     /**
      * @param {string} msg
      * @param {Source} src
-     * @param {number} pos
+     * @param {number} startPos
+     * @param {number} endPos
      */
-    constructor(msg: string, src: Source, pos: number);
+    constructor(msg: string, src: Source, startPos: number, endPos?: number);
     /**
      * @type {Source}
      */
@@ -270,12 +375,12 @@ export class UserError extends Error {
     /**
      * @type {number}
      */
-    get pos(): number;
+    get startPos(): number;
     /**
      * Calculates column/line position in 'this.src'.
-     * @returns {[number, number]}
+     * @returns {[number, number, number, number]} - [startLine, startCol, endLine, endCol]
      */
-    getFilePos(): [number, number];
+    getFilePos(): [number, number, number, number];
     /**
      * Dumps the error without throwing.
      * If 'verbose == true' the Source is also pretty printed with line-numbers.
@@ -309,6 +414,10 @@ export class Token {
      */
     isWord(value?: (string | string[]) | null): boolean;
     /**
+     * @returns {boolean}
+     */
+    isKeyword(): boolean;
+    /**
      * Returns 'true' if 'this' is a Symbol token (eg. '+', '(' etc.)
      * @param {?(string | string[])} value
      * @returns {boolean}
@@ -317,9 +426,10 @@ export class Token {
     /**
      * Returns 'true' if 'this' is a group (eg. '(...)').
      * @param {?string} value
+     * @param {number | null} nFields
      * @returns {boolean}
      */
-    isGroup(value: string | null): boolean;
+    isGroup(value: string | null, nFields?: number | null): boolean;
     /**
      * Returns a SyntaxError at the current Site.
      * @param {string} msg
@@ -341,22 +451,22 @@ export class Token {
     /**
      * Throws a SyntaxError if 'this' isn't a Word.
      * @param {?(string | string[])} value
-     * @returns {Word}
+     * @returns {Word | null}
      */
-    assertWord(value?: (string | string[]) | null): Word;
+    assertWord(value?: (string | string[]) | null): Word | null;
     /**
      * Throws a SyntaxError if 'this' isn't a Symbol.
      * @param {?(string | string[])} value
-     * @returns {SymbolToken}
+     * @returns {SymbolToken | null}
      */
-    assertSymbol(value?: (string | string[]) | null): SymbolToken;
+    assertSymbol(value?: (string | string[]) | null): SymbolToken | null;
     /**
      * Throws a SyntaxError if 'this' isn't a Group.
      * @param {?string} type
      * @param {?number} nFields
-     * @returns {Group}
+     * @returns {Group | null}
      */
-    assertGroup(type?: string | null, nFields?: number | null): Group;
+    assertGroup(type?: string | null, nFields?: number | null): Group | null;
     #private;
 }
 /**
@@ -2470,9 +2580,9 @@ export class Tokenizer {
     /**
      * Tokenize the complete source.
      * Nests groups before returning a list of tokens
-     * @returns {[Token[], SyntaxErrorToken[]]}
+     * @returns {Token[] | null}
      */
-    tokenize(): [Token[], SyntaxErrorToken[]];
+    tokenize(): Token[] | null;
     /**
      * Returns a generator
      * Use gen.next().value to access to the next Token
@@ -2551,16 +2661,16 @@ export class Tokenizer {
     /**
      * Separates tokens in fields (separted by commas)
      * @param {Token[]} ts
-     * @returns {Group}
+     * @returns {Group | null}
      */
-    buildGroup(ts: Token[]): Group;
+    buildGroup(ts: Token[]): Group | null;
     /**
      * Match group open with group close symbols in order to form groups.
      * This is recursively applied to nested groups.
      * @param {Token[]} ts
-     * @returns {Token[]}
+     * @returns {Token[] | null}
      */
-    nestGroups(ts: Token[]): Token[];
+    nestGroups(ts: Token[]): Token[] | null;
     #private;
 }
 /**
@@ -3941,6 +4051,7 @@ export type Metadata = {
  * Function that generates a random number between 0 and 1
  */
 export type NumberGenerator = () => number;
+export type Throw = (error: UserError) => void;
 export type CodeMap = [number, Site][];
 export type IRDefinitions = Map<string, IR>;
 export type Decoder = (i: number, bytes: number[]) => void;
@@ -4054,72 +4165,91 @@ export type EmulatorTx = {
     collectUtxos(address: Address, utxos: UTxO[]): UTxO[];
 };
 /**
- * Function that generates a random number between 0 and 1
- * @typedef {() => number} NumberGenerator
- */
-/**
- * A Source instance wraps a string so we can use it cheaply as a reference inside a Site.
+ * String literal token (utf8)
  * @package
  */
-declare class Source {
+declare class StringLiteral extends PrimitiveLiteral {
     /**
-     * @param {string} raw
-     * @param {?number} fileIndex
+     * @param {Site} site
+     * @param {string} value
      */
-    constructor(raw: string, fileIndex?: number | null);
+    constructor(site: Site, value: string);
+    get value(): string;
+    #private;
+}
+/**
+ * A Word token represents a token that matches /[A-Za-z_][A-Za-z_0-9]/
+ * @package
+ */
+declare class Word extends Token {
     /**
-     * @package
-     * @type {string}
+     * @param {string} value
+     * @returns {Word}
      */
-    get raw(): string;
+    static new(value: string): Word;
     /**
-     * @package
-     * @type {?number}
-     */
-    get fileIndex(): number;
-    /**
-     * Get char from the underlying string.
-     * Should work fine utf-8 runes.
-     * @package
-     * @param {number} pos
-     * @returns {string}
-     */
-    getChar(pos: number): string;
-    /**
-     * Returns word under pos
-     * @package
-     * @param {number} pos
-     * @returns {?string}
-     */
-    getWord(pos: number): string | null;
-    /**
-     * @package
-     * @type {number}
-     */
-    get length(): number;
-    /**
-     * Calculates the line number of the line where the given character is located (0-based).
-     * @package
-     * @param {number} pos
+     * Finds the index of the first Word(value) in a list of tokens
+     * Returns -1 if none found
+     * @param {Token[]} ts
+     * @param {string | string[]} value
      * @returns {number}
      */
-    posToLine(pos: number): number;
+    static find(ts: Token[], value: string | string[]): number;
     /**
-     * Calculates the column and line number where the given character is located (0-based).
-     * @package
-     * @param {number} pos
-     * @returns {[number, number]}
+     * @param {Site} site
+     * @param {string} value
      */
-    posToColAndLine(pos: number): [number, number];
+    constructor(site: Site, value: string);
+    get value(): string;
     /**
-     * Creates a more human-readable version of the source by prepending the line-numbers to each line.
-     * The line-numbers are at least two digits.
-     * @example
-     * (new Source("hello\nworld")).pretty() => "01  hello\n02  world"
-     * @package
-     * @returns {string}
+     * @returns {Word}
      */
-    pretty(): string;
+    assertNotInternal(): Word;
+    /**
+     * @returns {Word | null}
+     */
+    assertNotKeyword(): Word | null;
+    #private;
+}
+/**
+ * Base class for all statements
+ * Doesn't return a value upon calling eval(scope)
+ * @package
+ */
+declare class Statement extends Token {
+    /**
+     * @param {Site} site
+     * @param {Word} name
+     */
+    constructor(site: Site, name: Word);
+    /**
+     * @param {string} basePath
+     */
+    setBasePath(basePath: string): void;
+    get path(): string;
+    /**
+     * @type {Word}
+     */
+    get name(): Word;
+    /**
+     * @type {boolean}
+     */
+    get used(): boolean;
+    /**
+     * @param {ModuleScope} scope
+     */
+    eval(scope: ModuleScope): void;
+    use(): void;
+    /**
+     * @param {Uint8Array} mask
+     */
+    hideUnused(mask: Uint8Array): void;
+    /**
+     * Returns IR of statement.
+     * No need to specify indent here, because all statements are top-level
+     * @param {IRDefinitions} map
+     */
+    toIR(map: IRDefinitions): void;
     #private;
 }
 /**
@@ -4130,21 +4260,23 @@ declare class Site {
     static dummy(): Site;
     /**
      * @param {Source} src
-     * @param {number} pos
+     * @param {number} startPos
+     * @param {number} endPos
      */
-    constructor(src: Source, pos: number);
+    constructor(src: Source, startPos: number, endPos?: number);
     get src(): Source;
-    get pos(): number;
-    get line(): number;
+    get startPos(): number;
+    get endPos(): number;
     get endSite(): Site;
+    /**
+     * @param {Site} other
+     * @returns {Site}
+     */
+    merge(other: Site): Site;
     /**
      * @param {?Site} site
      */
     setEndSite(site: Site | null): void;
-    /**
-     * @type {string}
-     */
-    get part(): string;
     /**
      * @type {?Site}
      */
@@ -4179,47 +4311,9 @@ declare class Site {
     runtimeError(info?: string): UserError;
     /**
      * Calculates the column,line position in 'this.#src'
-     * @returns {[number, number]}
+     * @returns {[number, number, number, number]} - [startLine, startCol, endLine, endCol]
      */
-    getFilePos(): [number, number];
-    #private;
-}
-/**
- * A Word token represents a token that matches /[A-Za-z_][A-Za-z_0-9]/
- * @package
- */
-declare class Word extends Token {
-    /**
-     * @param {string} value
-     * @returns {Word}
-     */
-    static new(value: string): Word;
-    /**
-     * Finds the index of the first Word(value) in a list of tokens
-     * Returns -1 if none found
-     * @param {Token[]} ts
-     * @param {string | string[]} value
-     * @returns {number}
-     */
-    static find(ts: Token[], value: string | string[]): number;
-    /**
-     * @param {Site} site
-     * @param {string} value
-     */
-    constructor(site: Site, value: string);
-    get value(): string;
-    /**
-     * @returns {Word}
-     */
-    assertNotInternal(): Word;
-    /**
-     * @returns {boolean}
-     */
-    isKeyword(): boolean;
-    /**
-     * @returns {Word}
-     */
-    assertNotKeyword(): Word;
+    getFilePos(): [number, number, number, number];
     #private;
 }
 /**
@@ -4298,9 +4392,10 @@ declare class Group extends Token {
     get fields(): Token[][];
     /**
      * @param {?string} type
+     * @param {number | null} nFields
      * @returns {boolean}
      */
-    isGroup(type?: string | null): boolean;
+    isGroup(type?: string | null, nFields?: number | null): boolean;
     #private;
 }
 /**
@@ -4634,22 +4729,6 @@ declare class UplcTerm {
      * @param {BitWriter} bitWriter
      */
     toFlat(bitWriter: BitWriter): void;
-    #private;
-}
-/**
- * Generated during PERMISSIVE tokenization
- * @package
- */
-declare class SyntaxErrorToken extends Token {
-    /**
-     * @param {Site} site
-     * @param {string} msg
-     */
-    constructor(site: Site, msg: string);
-    /**
-     * @returns {UserError}
-     */
-    toError(): UserError;
     #private;
 }
 /**
@@ -5037,47 +5116,6 @@ declare class FuncStatement extends Statement {
      * @returns {IR}
      */
     toIRInternal(fullName?: string): IR;
-    #private;
-}
-/**
- * Base class for all statements
- * Doesn't return a value upon calling eval(scope)
- * @package
- */
-declare class Statement extends Token {
-    /**
-     * @param {Site} site
-     * @param {Word} name
-     */
-    constructor(site: Site, name: Word);
-    /**
-     * @param {string} basePath
-     */
-    setBasePath(basePath: string): void;
-    get path(): string;
-    /**
-     * @type {Word}
-     */
-    get name(): Word;
-    /**
-     * @type {boolean}
-     */
-    get used(): boolean;
-    /**
-     * @param {ModuleScope} scope
-     */
-    eval(scope: ModuleScope): void;
-    use(): void;
-    /**
-     * @param {Uint8Array} mask
-     */
-    hideUnused(mask: Uint8Array): void;
-    /**
-     * Returns IR of statement.
-     * No need to specify indent here, because all statements are top-level
-     * @param {IRDefinitions} map
-     */
-    toIR(map: IRDefinitions): void;
     #private;
 }
 /**
@@ -5823,6 +5861,17 @@ declare class Instance extends NotType {
     static new(type: Type | Type[]): Instance;
 }
 /**
+ * Base class of literal tokens
+ * @package
+ */
+declare class PrimitiveLiteral extends Token {
+}
+/**
+ * @package
+ */
+declare class ModuleScope extends Scope {
+}
+/**
  * Base class of non-FuncTypes.
  */
 declare class DataType extends Type {
@@ -5933,11 +5982,6 @@ declare class IRCallExpr extends IRExpr {
      */
     toUplcCall(term: UplcTerm): UplcTerm;
     #private;
-}
-/**
- * @package
- */
-declare class ModuleScope extends Scope {
 }
 /**
  * User scope

@@ -68,6 +68,7 @@ import {
 } from "./helios-ast-statements.js";
 
 import {
+	buildScript,
     buildProgramStatements,
     buildScriptPurpose
 } from "./helios-ast-build.js";
@@ -107,27 +108,27 @@ class Module {
 	static new(rawSrc, fileIndex = null) {
 		const src = new Source(rawSrc, fileIndex);
 
-		const [ts, errors] = tokenize(src);
+		const ts = tokenize(src);
 
-		if (errors.length > 0) {
-			throw errors[0].toError();
+		src.throwErrors();
+
+		if (ts === null) {
+			throw new Error("should've been thrown above");
 		}
 
 		if (ts.length == 0) {
-			throw UserError.syntaxError(src, 0, "empty script");
+			throw UserError.syntaxError(src, 0, 1, "empty script");
 		}
 
-		const [purpose, name] = buildScriptPurpose(ts);
+		const [purpose, name, statements, mainIdx] = buildScript(ts, ScriptPurpose.Module);
 
-		if (purpose != ScriptPurpose.Module) {
-			throw name.syntaxError("expected 'module' script purpose");
-		} else if (name.value == "main") {
-			throw name.syntaxError("name of 'module' can't be 'main'");
+		src.throwErrors();
+
+		if (name !== null) {
+			return new Module(name, statements);
+		} else {
+			throw new Error("unexpected"); // should've been caught by calling src.throwErrors() above
 		}
-
-		const statements = buildProgramStatements(ts);
-
-		return new Module(name, statements);
 	}
 
 	/**
@@ -327,40 +328,36 @@ class MainModule extends Module {
 	static parseMain(rawSrc) {
 		const src = new Source(rawSrc, 0);
 
-		const [ts, errors] = tokenize(src);
+		const ts = tokenize(src);
 
-		if (errors.length > 0) {
-			throw errors[0].toError();
+		src.throwErrors();
+
+		if (ts === null) {
+			throw new Error("should've been thrown above");
 		}
 
 		if (ts.length == 0) {
-			throw UserError.syntaxError(src, 0, "empty script");
+			throw UserError.syntaxError(src, 0, 1, "empty script");
 		}
 
-		const [purpose, name] = buildScriptPurpose(ts);
+		const [purpose, name, statements, mainIdx] = buildScript(ts);
 
-		if (name.value === "main") {
-			throw name.site.syntaxError("script can't be named 'main'");
+		src.throwErrors();
+
+		if (purpose !== null && name !== null) {
+			/**
+			 * @type {Module[]}
+			 */
+			const modules = [new MainModule(name, statements.slice(0, mainIdx+1))];
+
+			if (mainIdx < statements.length - 1) {
+				modules.push(new Module(name, statements.slice(mainIdx+1)));
+			}
+
+			return [purpose, modules];
+		} else {
+			throw new Error("unexpected"); // should've been caught by calling src.throwErrors() above
 		}
-
-		const statements = buildProgramStatements(ts);
-
-		const mainIdx = statements.findIndex(s => s.name.value === "main");
-
-		if (mainIdx == -1) {
-			throw name.site.syntaxError("'main' not found");
-		}
-
-		/**
-		 * @type {Module[]}
-		 */
-		const modules = [new MainModule(name, statements.slice(0, mainIdx+1))];
-
-		if (mainIdx < statements.length - 1) {
-			modules.push(new Module(name, statements.slice(mainIdx+1)));
-		}
-
-		return [purpose, modules];
 	}
 
 	/**

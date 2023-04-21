@@ -868,7 +868,7 @@ export function deserializeUplc(jsonString) {
 	let obj = JSON.parse(jsonString);
 
 	if (!("cborHex" in obj)) {
-		throw UserError.syntaxError(new Source(jsonString), 0, "cborHex field not in json")
+		throw UserError.syntaxError(new Source(jsonString), 0, 1, "cborHex field not in json")
 	}
 
 	let cborHex = obj.cborHex;
@@ -877,9 +877,10 @@ export function deserializeUplc(jsonString) {
 		let re = /cborHex/;
 		let cborHexMatch = jsonString.match(re);
 		if (cborHexMatch === null) {
-			throw UserError.syntaxError(src, 0, "'cborHex' key not found");
+			throw UserError.syntaxError(src, 0, 1, "'cborHex' key not found");
 		} else {
-			throw UserError.syntaxError(src, jsonString.search(re), "cborHex not a string");
+			const pos = jsonString.search(re)
+			throw UserError.syntaxError(src, pos, pos+1, "cborHex not a string");
 		}
 	}
 
