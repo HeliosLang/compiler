@@ -845,9 +845,6 @@ export class Tx extends CborData {
 		// the scripts executed at this point will not see the correct txHash nor the correct fee
 		await this.executeRedeemers(networkParams, changeAddress);
 
-		// we can only sync scriptDataHash after the redeemer execution costs have been estimated
-		this.syncScriptDataHash(networkParams);
-
 		// balance collateral (if collateral wasn't already set manually)
 		this.balanceCollateral(networkParams, changeAddress, spareUtxos.slice());
 
@@ -856,6 +853,9 @@ export class Tx extends CborData {
 
 		// run updateRedeemerIndices again because new inputs may have been added and sorted
 		this.#witnesses.updateRedeemerIndices(this.#body);
+
+		// we can only sync scriptDataHash after the redeemer execution costs have been estimated, and final redeemer indices have been determined
+		this.syncScriptDataHash(networkParams);
 
 		// a bunch of checks
 		this.#body.checkOutputs(networkParams);
@@ -1005,7 +1005,7 @@ class TxBody extends CborData {
 		this.#withdrawals = new Map();
 		this.#firstValidSlot = null;
 		this.#minted = new Assets(); // starts as zero value (i.e. empty map)
-		this.#scriptDataHash = null; // calculated upon finalization
+		this.#scriptDataHash = new Hash((new Array(32)).fill(0)); // initially dummy for more correct body size, (re)calculated upon finalization
 		this.#collateral = [];
 		this.#signers = [];
 		this.#collateralReturn = null;
