@@ -35730,6 +35730,9 @@ export class Tx extends CborData {
 		// run updateRedeemerIndices again because new inputs may have been added and sorted
 		this.#witnesses.updateRedeemerIndices(this.#body);
 
+		// re-compute scriptDataHash because redeemer index may have changed
+		this.syncScriptDataHash(networkParams);
+
 		// a bunch of checks
 		this.#body.checkOutputs(networkParams);
 
