@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.24
+// Version:       0.13.25
 // Last update:   April 2023
 // License type:  BSD-3-Clause
 //
@@ -252,7 +252,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.24";
+export const VERSION = "0.13.25";
 
 /**
  * A tab used for indenting of the IR.
@@ -26143,10 +26143,17 @@ function buildIfElseExpr(ts) {
 			branches.push(new VoidExpr(braces.site));
 			break;
 		} else {
-			maybeElse.assertWord("else");
+			const elseWord = maybeElse.assertWord("else");
 
-			const next = assertDefined(ts.shift());
-			if (next.isGroup("{")) {
+			if (!elseWord) {
+				return null;
+			}
+
+			const next = assertToken(ts.shift(), elseWord.site);
+
+			if (!next) {
+				return null;
+			} else if (next.isGroup("{")) {
 				// last group
 				const braces = next.assertGroup();
 
@@ -26161,11 +26168,11 @@ function buildIfElseExpr(ts) {
 
 				const elseBranch = buildValueExpr(braces.fields[0]);
 
-				if (elseBranch === null) {
+				if (!elseBranch) {
 					return null;
-				} else {
-					branches.push(elseBranch);
 				}
+
+				branches.push(elseBranch);
 				break;
 			} else if (next.isWord("if")) {
 				continue;

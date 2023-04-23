@@ -2154,10 +2154,17 @@ function buildIfElseExpr(ts) {
 			branches.push(new VoidExpr(braces.site));
 			break;
 		} else {
-			maybeElse.assertWord("else");
+			const elseWord = maybeElse.assertWord("else");
 
-			const next = assertDefined(ts.shift());
-			if (next.isGroup("{")) {
+			if (!elseWord) {
+				return null;
+			}
+
+			const next = assertToken(ts.shift(), elseWord.site);
+
+			if (!next) {
+				return null;
+			} else if (next.isGroup("{")) {
 				// last group
 				const braces = next.assertGroup();
 
@@ -2172,11 +2179,11 @@ function buildIfElseExpr(ts) {
 
 				const elseBranch = buildValueExpr(braces.fields[0]);
 
-				if (elseBranch === null) {
+				if (!elseBranch) {
 					return null;
-				} else {
-					branches.push(elseBranch);
 				}
+
+				branches.push(elseBranch);
 				break;
 			} else if (next.isWord("if")) {
 				continue;

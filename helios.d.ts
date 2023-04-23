@@ -211,7 +211,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.24";
+export const VERSION: "0.13.25";
 /**
  * Modifiable config vars
  * @type {{
