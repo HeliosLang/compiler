@@ -314,7 +314,7 @@ async function test8() {
         }
       },
       ByteArray => "bytearray",
-      else => "other"
+      _ => "other"
     }
   }
 
@@ -339,7 +339,7 @@ async function test9() {
   testing staking_credential
 
   func main(sc: StakingCredential) -> StakingValidatorHash {
-    sc.switch{h: Hash => h.hash.switch{v: Validator => v.hash, else => error("no StakingValidatorHash")}, else => error("not StakingHash")}
+    sc.switch{h: Hash => h.hash.switch{v: Validator => v.hash, _ => error("no StakingValidatorHash")}, _ => error("not StakingHash")}
   }
   `;
 
@@ -388,7 +388,7 @@ async function test12() {
       Int => "int",
       (i: Int, dl: []Data) => i.show() + ", " + dl.length.show(),
       ByteArray => "bytearray",
-      else => "other"
+      _ => "other"
     }
   }
 
@@ -487,7 +487,7 @@ async function test14() {
 
     test: Int = test_option.switch {
       None => error("invalid int"),
-      else => {
+      _ => {
         assert(1 == 1, "error");
         1
       }

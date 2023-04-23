@@ -2218,16 +2218,16 @@ function buildSwitchExpr(controlExpr, ts) {
 	let def = null;
 
 	for (let tsInner of braces.fields) {
-		if (tsInner[0].isWord("else")) {
+		if (tsInner[0].isWord("else") || tsInner[0].isWord("_")) {
 			if (def !== null) {
-				def.syntaxError("duplicate 'else' in switch");
+				def.syntaxError("duplicate default case in switch");
 				return null;
 			}
 
 			def = buildSwitchDefault(tsInner);
 		} else {
 			if (def !== null) {
-				def.syntaxError("switch 'else' must come last");
+				def.syntaxError("switch default case must come last");
 				return null;
 			}
 
@@ -2582,9 +2582,12 @@ function buildSwitchCaseBody(site, ts) {
  * @returns {SwitchDefault | null}
  */
 function buildSwitchDefault(ts) {
-	const elseWord = assertDefined(ts.shift()).assertWord("else");
+	const elseWord = assertDefined(ts.shift()).assertWord();
 
 	if (!elseWord) {
+		return null;
+	} else if (!(elseWord.isWord("else") || elseWord.isWord("_"))) {
+		elseWord.syntaxError("expected 'else' or '_'");
 		return null;
 	}
 
@@ -2592,7 +2595,7 @@ function buildSwitchDefault(ts) {
 
 	const maybeArrow = ts.shift();
 	if (maybeArrow === undefined) {
-		site.syntaxError("expected '=>' after 'else'");
+		site.syntaxError(`expected '=>' after '${elseWord.value}'`);
 		return null;
 	} else {
 		const arrow = maybeArrow.assertSymbol("=>");
@@ -2624,12 +2627,12 @@ function buildSwitchDefault(ts) {
 			bodyExpr = buildValueExpr(ts);
 		}
 
-		if (bodyExpr === null) {
-			arrow.syntaxError("empty else body");
+		if (!bodyExpr) {
+			arrow.syntaxError("empty switch default case body");
 			return null;
-		} else {
-			return new SwitchDefault(arrow.site, bodyExpr);
 		}
+
+		return new SwitchDefault(arrow.site, bodyExpr);
 	}
 }
 
