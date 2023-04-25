@@ -1523,6 +1523,20 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
+	add(new RawFunc("__helios__list__single",
+	`(self) -> {
+		(self) -> {
+			() -> {
+				__core__chooseUnit(
+					__helios__assert(
+						__core__nullList(__core__tailList(self)),
+						__helios__common__stringData("not single")
+					),
+					__core__headList(self)
+				)
+			}
+		}(__core__unListData(self))
+	}`));
 	add(new RawFunc("__helios__list__any",
 	`(self) -> {
 		(self) -> {
@@ -1667,6 +1681,12 @@ function makeRawFunctions() {
 	`(self) -> {
 		(index) -> {
 			__helios__common__unBoolData(__helios__list__get(self)(index))
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__single",
+	`(self) -> {
+		() -> {
+			__helios__common__unBoolData(__helios__list__single(self)())
 		}
 	}`));
 	add(new RawFunc("__helios__boollist__any", 

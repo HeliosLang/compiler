@@ -34,7 +34,6 @@ import {
 	AnyType,
 	ArgType,
 	BoolType,
-	BuiltinEnumMember,
 	BuiltinFuncInstance,
 	ByteArrayType,
 	ConstStatementInstance,
@@ -617,10 +616,8 @@ export class AssignExpr extends ValueExpr {
 				{
 					let upstreamType = upstreamVal.getType(this.#upstreamExpr.site);
 
-					if (upstreamType instanceof EnumMemberStatementType) {
-						upstreamVal = Instance.new(new StatementType(upstreamType.statement.parent));
-					} else if (upstreamType instanceof BuiltinEnumMember) {
-						upstreamVal = Instance.new(upstreamType.parentType);
+					if (upstreamType.isEnumMember()) {
+						upstreamVal = Instance.new(upstreamType.parentType(Site.dummy()));
 					}
 				}
 
@@ -655,6 +652,21 @@ export class AssignExpr extends ValueExpr {
 
 			inner = this.#nameTypes[0].wrapDestructIR(indent, inner, 0);
 
+			let upstream = this.#upstreamExpr.toIR(indent);
+
+			// enum member run-time error IR
+			if (this.#nameTypes[0].hasType()) {
+				const t = this.#nameTypes[0].type;
+
+				if (t.isEnumMember()) {
+					upstream = new IR([
+						new IR("__helios__common__assert_constr_index("),
+						upstream,
+						new IR(`, ${t.getConstrIndex(this.#nameTypes[0].site)})`)
+					]);
+				}
+			}
+
 			return new IR([
 				new IR("("),
 				this.#nameTypes[0].toNameIR(0),
@@ -662,13 +674,14 @@ export class AssignExpr extends ValueExpr {
 				new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
 				inner,
 				new IR(`\n${indent}}(`),
-				this.#upstreamExpr.toIR(indent),
+				upstream,
 				new IR(")")
 			]);
 		} else {
 			let inner = this.#downstreamExpr.toIR(indent + TAB + TAB);
 
 			for (let i = this.#nameTypes.length - 1; i >= 0; i--) {
+				// internally generates enum-member error IR
 				inner = this.#nameTypes[i].wrapDestructIR(indent, inner, i);
 			}
 
@@ -2904,14 +2917,8 @@ export class IfElseExpr extends ValueExpr {
 				return newType;
 			} else {
 				// check if enumparent is base of newType and of prevType
-				if (newType instanceof EnumMemberStatementType) {
-					let parentType = new EnumStatementType(newType.statement.parent);
-
-					if (parentType.isBaseOf(site, prevType) && parentType.isBaseOf(site, newType)) {
-						return parentType;
-					}
-				} else if (newType instanceof BuiltinEnumMember) {
-					let parentType = newType.parentType;
+				if (newType.isEnumMember()) {
+					const parentType = newType.parentType(Site.dummy());
 
 					if (parentType.isBaseOf(site, prevType) && parentType.isBaseOf(site, newType)) {
 						return parentType;
@@ -3170,12 +3177,20 @@ export class DestructExpr {
 	 */
 	evalInternal(scope, upstreamType, i) {
 		if (this.hasType()) {
-			const t = this.evalType(scope)
+			let t = this.evalType(scope)
 
 			assert(t.isType());
 
-			if (!Instance.new(upstreamType).isInstanceOf(this.site, t)) {
-				throw this.site.typeError(`expected ${t.toString()} for destructure field ${i+1}, got ${upstreamType.toString()}`);
+			// differs from upstreamType because can be enum parent
+			let checkType = t;
+
+			// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
+			if (t.isEnumMember()) {
+				checkType = t.parentType(this.site);
+			}
+
+			if (!Instance.new(upstreamType).isInstanceOf(this.site, checkType)) {
+				throw this.site.typeError(`expected ${checkType.toString()} for destructure field ${i+1}, got ${upstreamType.toString()}`);
 			}
 
 			if (!this.isIgnored()) {
@@ -3212,12 +3227,20 @@ export class DestructExpr {
 	 * @param {number} i
 	 */
 	evalInAssignExpr(scope, upstreamType, i) {
-		const t = this.evalType(scope)
+		let t = this.evalType(scope)
 
 		assert(t.isType());
 
-		if (!Instance.new(upstreamType).isInstanceOf(this.site, t)) {
-			throw this.site.typeError(`expected ${t.toString()} for rhs ${i+1}, got ${upstreamType.toString()}`);
+		// differs from upstreamType because can be enum parent
+		let checkType = t;
+
+		// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
+		if (t.isEnumMember()) {
+			checkType = t.parentType(this.site);
+		}
+
+		if (!Instance.new(upstreamType).isInstanceOf(this.site, checkType)) {
+			throw this.site.typeError(`expected ${checkType.toString()} for rhs ${i+1}, got ${upstreamType.toString()}`);
 		}
 
 		if (!this.isIgnored()) {
@@ -3258,7 +3281,7 @@ export class DestructExpr {
 
 		const type = this.type;
 
-		if (type instanceof EnumMemberStatementType || type instanceof BuiltinEnumMember) {
+		if (type.isEnumMember()) {
 			return `__helios__common__field_${fieldIndex}`;
 		} else if (type instanceof StructStatementType) {
 			if (type.nFields(Site.dummy()) == 1) {
@@ -3288,6 +3311,15 @@ export class DestructExpr {
 			for (let i = this.#destructExprs.length - 1; i >= 0; i--) {
 				inner = this.#destructExprs[i].wrapDestructIRInternal(indent + TAB, inner, baseName, i, this.getFieldFn(i));
 			}
+
+			let getter = `${fieldFn}(${objName})`;
+
+			// assert correct constructor index
+			if (this.#typeExpr && this.type.isEnumMember()) {
+				const constrIdx = this.type.getConstrIndex(this.#typeExpr.site);
+
+				getter = `__helios__common__assert_constr_index(${getter}, ${constrIdx})`;
+			}
 			
 			return new IR([
 				new IR("("),
@@ -3295,7 +3327,7 @@ export class DestructExpr {
 				new IR(") "),
 				new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
 				inner,
-				new IR(`\n${indent}}(${fieldFn}(${objName}))`),
+				new IR(`\n${indent}}(${getter})`),
 			]);
 		}
 	}

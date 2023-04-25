@@ -1,5 +1,9 @@
 This Changelog only applies to notable changes of language related features in `helios.js` on the main branch.
 
+# 2023/04/25
+* `List.single()`
+* Destructuring enum instances into enum variants throws runtime errors instead of compile-time errors
+
 # 2023/04/13
 * `Int` methods: `abs`, `encode_zigzag`, `decode_zigzag`, `to_little_endian`, `to_big_endian`, `to_base58`
 * `Int::from_big_endian` and `from_base58` associated functions

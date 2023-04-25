@@ -211,7 +211,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.25";
+export const VERSION: "0.13.26";
 /**
  * Modifiable config vars
  * @type {{
@@ -4110,6 +4110,7 @@ export type EnumMemberTypeStatement = UserTypeStatement & {
  * We can't use EnumStatement directly because that would give a circular dependency
  */
 export type EnumTypeStatement = UserTypeStatement & {
+    type: Type;
     nEnumMembers(site: Site): number;
     getEnumMember(site: Site, i: number): EnumMemberTypeStatement;
 };
@@ -5203,6 +5204,16 @@ declare class Type extends EvalEntity {
      */
     static same(site: Site, a: Type, b: Type): boolean;
     /**
+     * @returns {boolean}
+     */
+    isEnumMember(): boolean;
+    /**
+     * Throws error for non-enum members
+     * @param {Site} site
+     * @returns {Type}
+     */
+    parentType(site: Site): Type;
+    /**
      * Returns number of members of an enum type
      * Throws an error if not an enum type
      * @param {Site} site
@@ -5711,11 +5722,12 @@ declare class CostModel {
  * @typedef {UserTypeStatement & {
  * 	 parent: EnumTypeStatement,
  *   getConstrIndex(site: Site): number
- * }} EnumMemberTypeStatement
+*  }} EnumMemberTypeStatement
  */
 /**
  * We can't use EnumStatement directly because that would give a circular dependency
  * @typedef {UserTypeStatement & {
+ *   type: Type,
  *   nEnumMembers(site: Site): number,
  *   getEnumMember(site: Site, i: number): EnumMemberTypeStatement
  * }} EnumTypeStatement

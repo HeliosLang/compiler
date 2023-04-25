@@ -901,7 +901,7 @@ async function test23() {
       }
   }`);
 
-  await testTrue(`testing destruct_option
+  await testTrue(`testing destruct_option_nested
 
   struct Pair {
     a: Int
@@ -916,6 +916,111 @@ async function test23() {
         Some{Pair{_, b}} => b == 10
     }
   }`);
+
+  await testTrue(`testing destruct_option_expect
+  
+  func main() -> Bool {
+    o: Option[Int] = Option[Int]::Some{10};
+
+    Option[Int]::Some{a} = o;
+
+    a == 10
+  }`);
+
+  await testError(`testing destruct_option_expect_error
+  
+  func main() -> Bool {
+    o: Option[Int] = Option[Int]::None;
+
+    Option[Int]::Some{a} = o;
+
+    a == 10
+  }`, "unexpected constructor index");
+
+  await testTrue(`testing destruct_option_multi_expect
+  
+  func main() -> Bool {
+    o: Option[Int] = Option[Int]::Some{10};
+
+    (Option[Int]::Some{a}, _) = (o, Option[Int]::None);
+
+    a == 10
+  }`);
+
+  await testTrue(`testing destruct_option_nested_expect
+  
+  struct Pair {
+    a: Option[Int]
+    b: Option[Int]
+  }
+
+  func main() -> Bool {
+    p = Pair{Option[Int]::Some{10}, Option[Int]::Some{11}};
+
+    Pair{Option[Int]::Some{a}, Option[Int]::Some{b}} = p;
+
+    a == 10 && b == 11
+  }`);
+
+
+  await testError(`testing destruct_option_nested_expect_error
+  
+  struct Pair {
+    a: Option[Int]
+    b: Option[Int]
+  }
+
+  func main() -> Bool {
+    p = Pair{Option[Int]::Some{10}, Option[Int]::None};
+
+    Pair{Option[Int]::Some{a}, Option[Int]::Some{b}} = p;
+
+    a == 10 && b == 11
+  }`, "unexpected constructor index");
+
+  await testTrue(`testing destruct_option_switch_expect
+  
+  enum Collection {
+    One {
+      a: Option[Int]
+    }
+
+    Two {
+      a: Option[Int]
+      b: Option[Int]
+    }
+  }
+
+  func main() -> Bool {
+    c: Collection = Collection::Two{Option[Int]::Some{10}, Option[Int]::Some{11}};
+
+    c.switch{
+      Two {Option[Int]::Some{a}, Option[Int]::Some{b}} => a == 10 && b == 11,
+      _ => true
+    }
+  }`);
+
+  await testError(`testing destruct_option_switch_expect_error
+  
+  enum Collection {
+    One {
+      a: Option[Int]
+    }
+
+    Two {
+      a: Option[Int]
+      b: Option[Int]
+    }
+  }
+
+  func main() -> Bool {
+    c: Collection = Collection::Two{Option[Int]::Some{10}, Option[Int]::None};
+
+    c.switch{
+      Two {Option[Int]::Some{a}, Option[Int]::Some{b}} => a == 10 && b == 11,
+      _ => false
+    }
+  }`, "unexpected constructor index");
 }
 
 // error expr tests

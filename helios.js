@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.25
+// Version:       0.13.26
 // Last update:   April 2023
 // License type:  BSD-3-Clause
 //
@@ -252,7 +252,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.25";
+export const VERSION = "0.13.26";
 
 /**
  * A tab used for indenting of the IR.
@@ -12912,12 +12912,13 @@ function tokenizeIR(rawSrc, codeMap) {
  * @typedef {UserTypeStatement & {
  * 	 parent: EnumTypeStatement,
  *   getConstrIndex(site: Site): number
- * }} EnumMemberTypeStatement
+*  }} EnumMemberTypeStatement
  */
 
 /**
  * We can't use EnumStatement directly because that would give a circular dependency
  * @typedef {UserTypeStatement & {
+ *   type: Type,
  *   nEnumMembers(site: Site): number,
  *   getEnumMember(site: Site, i: number): EnumMemberTypeStatement
  * }} EnumTypeStatement
@@ -13181,6 +13182,22 @@ class Type extends EvalEntity {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isEnumMember() {
+		return false;
+	}
+
+	/**
+	 * Throws error for non-enum members
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
+	parentType(site) {
+		throw site.typeError(`'${this.toString}' isn't an enum member`);
+	}
+
+	/**
 	 * Returns number of members of an enum type
 	 * Throws an error if not an enum type
 	 * @param {Site} site
@@ -13365,7 +13382,18 @@ class BuiltinEnumMember extends BuiltinType {
 		this.#parentType = parentType;
 	}
 
-	get parentType() {
+	/**
+	 * @returns {boolean}
+	 */
+	isEnumMember() {
+		return true;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
+	parentType(site) {
 		return this.#parentType;
 	}
 
@@ -13739,6 +13767,21 @@ class EnumMemberStatementType extends StatementType {
     constructor(statement) {
         super(statement);
     }
+
+	/**
+	 * @returns {boolean}
+	 */
+	isEnumMember() {
+		return true;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
+	parentType(site) {
+		return this.statement.parent.type;
+	}
 
     /**
 	 * A StatementType can instantiate itself if the underlying statement is an enum member with no fields
@@ -15466,6 +15509,8 @@ class ListType extends BuiltinType {
 					}
 				});
 			}
+			case "single":
+				return Instance.new(new FuncType([], this.#itemType));
 			case "sort":
 				return Instance.new(new FuncType([new FuncType([this.#itemType, this.#itemType], new BoolType())], new ListType(this.#itemType)));
 			default:
@@ -19216,10 +19261,8 @@ class AssignExpr extends ValueExpr {
 				{
 					let upstreamType = upstreamVal.getType(this.#upstreamExpr.site);
 
-					if (upstreamType instanceof EnumMemberStatementType) {
-						upstreamVal = Instance.new(new StatementType(upstreamType.statement.parent));
-					} else if (upstreamType instanceof BuiltinEnumMember) {
-						upstreamVal = Instance.new(upstreamType.parentType);
+					if (upstreamType.isEnumMember()) {
+						upstreamVal = Instance.new(upstreamType.parentType(Site.dummy()));
 					}
 				}
 
@@ -19254,6 +19297,21 @@ class AssignExpr extends ValueExpr {
 
 			inner = this.#nameTypes[0].wrapDestructIR(indent, inner, 0);
 
+			let upstream = this.#upstreamExpr.toIR(indent);
+
+			// enum member run-time error IR
+			if (this.#nameTypes[0].hasType()) {
+				const t = this.#nameTypes[0].type;
+
+				if (t.isEnumMember()) {
+					upstream = new IR([
+						new IR("__helios__common__assert_constr_index("),
+						upstream,
+						new IR(`, ${t.getConstrIndex(this.#nameTypes[0].site)})`)
+					]);
+				}
+			}
+
 			return new IR([
 				new IR("("),
 				this.#nameTypes[0].toNameIR(0),
@@ -19261,13 +19319,14 @@ class AssignExpr extends ValueExpr {
 				new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
 				inner,
 				new IR(`\n${indent}}(`),
-				this.#upstreamExpr.toIR(indent),
+				upstream,
 				new IR(")")
 			]);
 		} else {
 			let inner = this.#downstreamExpr.toIR(indent + TAB + TAB);
 
 			for (let i = this.#nameTypes.length - 1; i >= 0; i--) {
+				// internally generates enum-member error IR
 				inner = this.#nameTypes[i].wrapDestructIR(indent, inner, i);
 			}
 
@@ -21503,14 +21562,8 @@ class IfElseExpr extends ValueExpr {
 				return newType;
 			} else {
 				// check if enumparent is base of newType and of prevType
-				if (newType instanceof EnumMemberStatementType) {
-					let parentType = new EnumStatementType(newType.statement.parent);
-
-					if (parentType.isBaseOf(site, prevType) && parentType.isBaseOf(site, newType)) {
-						return parentType;
-					}
-				} else if (newType instanceof BuiltinEnumMember) {
-					let parentType = newType.parentType;
+				if (newType.isEnumMember()) {
+					const parentType = newType.parentType(Site.dummy());
 
 					if (parentType.isBaseOf(site, prevType) && parentType.isBaseOf(site, newType)) {
 						return parentType;
@@ -21769,12 +21822,20 @@ class DestructExpr {
 	 */
 	evalInternal(scope, upstreamType, i) {
 		if (this.hasType()) {
-			const t = this.evalType(scope)
+			let t = this.evalType(scope)
 
 			assert(t.isType());
 
-			if (!Instance.new(upstreamType).isInstanceOf(this.site, t)) {
-				throw this.site.typeError(`expected ${t.toString()} for destructure field ${i+1}, got ${upstreamType.toString()}`);
+			// differs from upstreamType because can be enum parent
+			let checkType = t;
+
+			// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
+			if (t.isEnumMember()) {
+				checkType = t.parentType(this.site);
+			}
+
+			if (!Instance.new(upstreamType).isInstanceOf(this.site, checkType)) {
+				throw this.site.typeError(`expected ${checkType.toString()} for destructure field ${i+1}, got ${upstreamType.toString()}`);
 			}
 
 			if (!this.isIgnored()) {
@@ -21811,12 +21872,20 @@ class DestructExpr {
 	 * @param {number} i
 	 */
 	evalInAssignExpr(scope, upstreamType, i) {
-		const t = this.evalType(scope)
+		let t = this.evalType(scope)
 
 		assert(t.isType());
 
-		if (!Instance.new(upstreamType).isInstanceOf(this.site, t)) {
-			throw this.site.typeError(`expected ${t.toString()} for rhs ${i+1}, got ${upstreamType.toString()}`);
+		// differs from upstreamType because can be enum parent
+		let checkType = t;
+
+		// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
+		if (t.isEnumMember()) {
+			checkType = t.parentType(this.site);
+		}
+
+		if (!Instance.new(upstreamType).isInstanceOf(this.site, checkType)) {
+			throw this.site.typeError(`expected ${checkType.toString()} for rhs ${i+1}, got ${upstreamType.toString()}`);
 		}
 
 		if (!this.isIgnored()) {
@@ -21857,7 +21926,7 @@ class DestructExpr {
 
 		const type = this.type;
 
-		if (type instanceof EnumMemberStatementType || type instanceof BuiltinEnumMember) {
+		if (type.isEnumMember()) {
 			return `__helios__common__field_${fieldIndex}`;
 		} else if (type instanceof StructStatementType) {
 			if (type.nFields(Site.dummy()) == 1) {
@@ -21887,6 +21956,15 @@ class DestructExpr {
 			for (let i = this.#destructExprs.length - 1; i >= 0; i--) {
 				inner = this.#destructExprs[i].wrapDestructIRInternal(indent + TAB, inner, baseName, i, this.getFieldFn(i));
 			}
+
+			let getter = `${fieldFn}(${objName})`;
+
+			// assert correct constructor index
+			if (this.#typeExpr && this.type.isEnumMember()) {
+				const constrIdx = this.type.getConstrIndex(this.#typeExpr.site);
+
+				getter = `__helios__common__assert_constr_index(${getter}, ${constrIdx})`;
+			}
 			
 			return new IR([
 				new IR("("),
@@ -21894,7 +21972,7 @@ class DestructExpr {
 				new IR(") "),
 				new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
 				inner,
-				new IR(`\n${indent}}(${fieldFn}(${objName}))`),
+				new IR(`\n${indent}}(${getter})`),
 			]);
 		}
 	}
@@ -28402,6 +28480,20 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
+	add(new RawFunc("__helios__list__single",
+	`(self) -> {
+		(self) -> {
+			() -> {
+				__core__chooseUnit(
+					__helios__assert(
+						__core__nullList(__core__tailList(self)),
+						__helios__common__stringData("not single")
+					),
+					__core__headList(self)
+				)
+			}
+		}(__core__unListData(self))
+	}`));
 	add(new RawFunc("__helios__list__any",
 	`(self) -> {
 		(self) -> {
@@ -28546,6 +28638,12 @@ function makeRawFunctions() {
 	`(self) -> {
 		(index) -> {
 			__helios__common__unBoolData(__helios__list__get(self)(index))
+		}
+	}`));
+	add(new RawFunc("__helios__boollist__single",
+	`(self) -> {
+		() -> {
+			__helios__common__unBoolData(__helios__list__single(self)())
 		}
 	}`));
 	add(new RawFunc("__helios__boollist__any", 

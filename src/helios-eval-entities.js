@@ -82,12 +82,13 @@ import {
  * @typedef {UserTypeStatement & {
  * 	 parent: EnumTypeStatement,
  *   getConstrIndex(site: Site): number
- * }} EnumMemberTypeStatement
+*  }} EnumMemberTypeStatement
  */
 
 /**
  * We can't use EnumStatement directly because that would give a circular dependency
  * @typedef {UserTypeStatement & {
+ *   type: Type,
  *   nEnumMembers(site: Site): number,
  *   getEnumMember(site: Site, i: number): EnumMemberTypeStatement
  * }} EnumTypeStatement
@@ -351,6 +352,22 @@ export class Type extends EvalEntity {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isEnumMember() {
+		return false;
+	}
+
+	/**
+	 * Throws error for non-enum members
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
+	parentType(site) {
+		throw site.typeError(`'${this.toString}' isn't an enum member`);
+	}
+
+	/**
 	 * Returns number of members of an enum type
 	 * Throws an error if not an enum type
 	 * @param {Site} site
@@ -535,7 +552,18 @@ export class BuiltinEnumMember extends BuiltinType {
 		this.#parentType = parentType;
 	}
 
-	get parentType() {
+	/**
+	 * @returns {boolean}
+	 */
+	isEnumMember() {
+		return true;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
+	parentType(site) {
 		return this.#parentType;
 	}
 
@@ -909,6 +937,21 @@ export class EnumMemberStatementType extends StatementType {
     constructor(statement) {
         super(statement);
     }
+
+	/**
+	 * @returns {boolean}
+	 */
+	isEnumMember() {
+		return true;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @returns {Type}
+	 */
+	parentType(site) {
+		return this.statement.parent.type;
+	}
 
     /**
 	 * A StatementType can instantiate itself if the underlying statement is an enum member with no fields
@@ -2636,6 +2679,8 @@ export class ListType extends BuiltinType {
 					}
 				});
 			}
+			case "single":
+				return Instance.new(new FuncType([], this.#itemType));
 			case "sort":
 				return Instance.new(new FuncType([new FuncType([this.#itemType, this.#itemType], new BoolType())], new ListType(this.#itemType)));
 			default:

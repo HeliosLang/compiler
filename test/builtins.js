@@ -100,6 +100,11 @@ function asString(value) {
     throw new Error(`expected ByteArrayData, got ${value.toString()}`);
 }
 
+/**
+ * 
+ * @param {any} value 
+ * @returns {bigint[]}
+ */
 function asIntList(value) {
     if (value instanceof helios_.ListData) {
         let items = [];
@@ -1738,6 +1743,22 @@ async function testBuiltins() {
         func main(a: []Int) -> Bool {
             a.is_empty() == (a.length == 0)
         }`, ([a], res) => asBool(res));
+
+        await ft.test([ft.list(ft.int(), 0, 2)], `
+        testing list_single
+        func main(a: []Int) -> Int {
+            a.single()
+        }`, ([a], res) => {
+            const lst = asIntList(a);
+
+            if (lst.length == 1) {
+                return asInt(res) == lst[0];
+            } else if (lst.length == 0) {
+                return isError(res, "empty list");
+            } else {
+                return isError(res, "assert failed");
+            }
+        });
 
         await ft.test([ft.list(ft.int()), ft.int()], `
         testing list_prepend
