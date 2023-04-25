@@ -1745,9 +1745,9 @@ async function testBuiltins() {
         }`, ([a], res) => asBool(res));
 
         await ft.test([ft.list(ft.int(), 0, 2)], `
-        testing list_single
+        testing list_get_singleton
         func main(a: []Int) -> Int {
-            a.single()
+            a.get_singleton()
         }`, ([a], res) => {
             const lst = asIntList(a);
 

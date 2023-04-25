@@ -1523,14 +1523,14 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__single",
+	add(new RawFunc("__helios__list__get_singleton",
 	`(self) -> {
 		(self) -> {
 			() -> {
 				__core__chooseUnit(
 					__helios__assert(
 						__core__nullList(__core__tailList(self)),
-						__helios__common__stringData("not single")
+						__helios__common__stringData("not a singleton list")
 					),
 					__core__headList(self)
 				)
@@ -1683,10 +1683,10 @@ function makeRawFunctions() {
 			__helios__common__unBoolData(__helios__list__get(self)(index))
 		}
 	}`));
-	add(new RawFunc("__helios__boollist__single",
+	add(new RawFunc("__helios__boollist__get_singleton",
 	`(self) -> {
 		() -> {
-			__helios__common__unBoolData(__helios__list__single(self)())
+			__helios__common__unBoolData(__helios__list__get_singleton(self)())
 		}
 	}`));
 	add(new RawFunc("__helios__boollist__any", 

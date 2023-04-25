@@ -205,7 +205,7 @@ internal ns: __helios__bytearray
 associated:  new, new_const, from_data
 operators:   __eq, __neq, __add
 getters:     length, head, tail
-methods:     serialize, is_empty, get, prepend, any, all, find, find_safe, filter, fold, fold_lazy, map, sort, for_each, single
+methods:     serialize, is_empty, get, prepend, any, all, find, find_safe, filter, fold, fold_lazy, map, sort, for_each, get_singleton
 internal ns: __helios__list
 ```
 

@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.26
+// Version:       0.13.27
 // Last update:   April 2023
 // License type:  BSD-3-Clause
 //
@@ -252,7 +252,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.26";
+export const VERSION = "0.13.27";
 
 /**
  * A tab used for indenting of the IR.
@@ -15509,7 +15509,7 @@ class ListType extends BuiltinType {
 					}
 				});
 			}
-			case "single":
+			case "get_singleton":
 				return Instance.new(new FuncType([], this.#itemType));
 			case "sort":
 				return Instance.new(new FuncType([new FuncType([this.#itemType, this.#itemType], new BoolType())], new ListType(this.#itemType)));
@@ -28480,14 +28480,14 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
-	add(new RawFunc("__helios__list__single",
+	add(new RawFunc("__helios__list__get_singleton",
 	`(self) -> {
 		(self) -> {
 			() -> {
 				__core__chooseUnit(
 					__helios__assert(
 						__core__nullList(__core__tailList(self)),
-						__helios__common__stringData("not single")
+						__helios__common__stringData("not a singleton list")
 					),
 					__core__headList(self)
 				)
@@ -28640,10 +28640,10 @@ function makeRawFunctions() {
 			__helios__common__unBoolData(__helios__list__get(self)(index))
 		}
 	}`));
-	add(new RawFunc("__helios__boollist__single",
+	add(new RawFunc("__helios__boollist__get_singleton",
 	`(self) -> {
 		() -> {
-			__helios__common__unBoolData(__helios__list__single(self)())
+			__helios__common__unBoolData(__helios__list__get_singleton(self)())
 		}
 	}`));
 	add(new RawFunc("__helios__boollist__any", 

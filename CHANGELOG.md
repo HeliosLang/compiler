@@ -1,7 +1,7 @@
 This Changelog only applies to notable changes of language related features in `helios.js` on the main branch.
 
 # 2023/04/25
-* `List.single()`
+* `List.get_singleton()`
 * Destructuring enum instances into enum variants throws runtime errors instead of compile-time errors
 
 # 2023/04/13

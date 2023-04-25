@@ -2679,7 +2679,7 @@ export class ListType extends BuiltinType {
 					}
 				});
 			}
-			case "single":
+			case "get_singleton":
 				return Instance.new(new FuncType([], this.#itemType));
 			case "sort":
 				return Instance.new(new FuncType([new FuncType([this.#itemType, this.#itemType], new BoolType())], new ListType(this.#itemType)));
