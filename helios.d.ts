@@ -211,7 +211,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.27";
+export const VERSION: "0.13.28";
 /**
  * Modifiable config vars
  * @type {{
@@ -3265,7 +3265,7 @@ export class TxWitnesses extends CborData {
     updateRedeemerIndices(body: TxBody): void;
     /**
      * @param {NetworkParams} networkParams
-     * @returns {?Hash} - returns null if there are no redeemers
+     * @returns {Hash | null} - returns null if there are no redeemers
      */
     calcScriptDataHash(networkParams: NetworkParams): Hash | null;
     /**
@@ -5359,9 +5359,9 @@ declare class TxBody extends CborData {
      */
     addCollateral(input: TxInput): void;
     /**
-     * @param {Hash} scriptDataHash
+     * @param {Hash | null} scriptDataHash
      */
-    setScriptDataHash(scriptDataHash: Hash): void;
+    setScriptDataHash(scriptDataHash: Hash | null): void;
     /**
      * @param {Hash} metadataHash
      */

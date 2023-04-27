@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.27
+// Version:       0.13.28
 // Last update:   April 2023
 // License type:  BSD-3-Clause
 //
@@ -252,7 +252,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.27";
+export const VERSION = "0.13.28";
 
 /**
  * A tab used for indenting of the IR.
@@ -21830,7 +21830,7 @@ class DestructExpr {
 			let checkType = t;
 
 			// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
-			if (t.isEnumMember()) {
+			if (t.isEnumMember() && !upstreamType.isEnumMember()) {
 				checkType = t.parentType(this.site);
 			}
 
@@ -21880,7 +21880,7 @@ class DestructExpr {
 		let checkType = t;
 
 		// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
-		if (t.isEnumMember()) {
+		if (t.isEnumMember() && !upstreamType.isEnumMember()) {
 			checkType = t.parentType(this.site);
 		}
 
@@ -35725,11 +35725,9 @@ export class Tx extends CborData {
 	 * @param {NetworkParams} networkParams
 	 */
 	syncScriptDataHash(networkParams) {
-		let hash = this.#witnesses.calcScriptDataHash(networkParams);
+		const hash = this.#witnesses.calcScriptDataHash(networkParams);
 
-		if (hash !== null) {
-			this.#body.setScriptDataHash(hash);
-		}
+		this.#body.setScriptDataHash(hash);
 	}
 
 	/**
@@ -36447,7 +36445,7 @@ class TxBody extends CborData {
 	}
 	
 	/**
-	 * @param {Hash} scriptDataHash
+	 * @param {Hash | null} scriptDataHash
 	 */
 	setScriptDataHash(scriptDataHash) {
 		this.#scriptDataHash = scriptDataHash;
@@ -36872,7 +36870,7 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * @param {NetworkParams} networkParams 
-	 * @returns {?Hash} - returns null if there are no redeemers
+	 * @returns {Hash | null} - returns null if there are no redeemers
 	 */
 	calcScriptDataHash(networkParams) {
 		if (this.#redeemers.length > 0) {

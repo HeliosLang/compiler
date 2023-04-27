@@ -744,11 +744,9 @@ export class Tx extends CborData {
 	 * @param {NetworkParams} networkParams
 	 */
 	syncScriptDataHash(networkParams) {
-		let hash = this.#witnesses.calcScriptDataHash(networkParams);
+		const hash = this.#witnesses.calcScriptDataHash(networkParams);
 
-		if (hash !== null) {
-			this.#body.setScriptDataHash(hash);
-		}
+		this.#body.setScriptDataHash(hash);
 	}
 
 	/**
@@ -1466,7 +1464,7 @@ class TxBody extends CborData {
 	}
 	
 	/**
-	 * @param {Hash} scriptDataHash
+	 * @param {Hash | null} scriptDataHash
 	 */
 	setScriptDataHash(scriptDataHash) {
 		this.#scriptDataHash = scriptDataHash;
@@ -1891,7 +1889,7 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * @param {NetworkParams} networkParams 
-	 * @returns {?Hash} - returns null if there are no redeemers
+	 * @returns {Hash | null} - returns null if there are no redeemers
 	 */
 	calcScriptDataHash(networkParams) {
 		if (this.#redeemers.length > 0) {

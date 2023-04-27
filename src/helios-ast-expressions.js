@@ -3185,7 +3185,7 @@ export class DestructExpr {
 			let checkType = t;
 
 			// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
-			if (t.isEnumMember()) {
+			if (t.isEnumMember() && !upstreamType.isEnumMember()) {
 				checkType = t.parentType(this.site);
 			}
 
@@ -3235,7 +3235,7 @@ export class DestructExpr {
 		let checkType = t;
 
 		// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
-		if (t.isEnumMember()) {
+		if (t.isEnumMember() && !upstreamType.isEnumMember()) {
 			checkType = t.parentType(this.site);
 		}
 

@@ -927,6 +927,16 @@ async function test23() {
     a == 10
   }`);
 
+  await testTrue(`testing destruct_option_expect_plain
+  
+  func main() -> Bool {
+    o: Option[Int] = Option[Int]::Some{10};
+
+    some: Option[Int]::Some = o;
+
+    some.some == 10
+  }`);
+
   await testError(`testing destruct_option_expect_error
   
   func main() -> Bool {
@@ -935,6 +945,16 @@ async function test23() {
     Option[Int]::Some{a} = o;
 
     a == 10
+  }`, "unexpected constructor index");
+
+  await testError(`testing destruct_option_expect_plain_error
+  
+  func main() -> Bool {
+    o: Option[Int] = Option[Int]::None;
+
+    some: Option[Int]::Some = o;
+
+    some.some == 10
   }`, "unexpected constructor index");
 
   await testTrue(`testing destruct_option_multi_expect

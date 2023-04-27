@@ -38,7 +38,7 @@ There is an online coding [playground](https://www.hyperion-bt.org/helios-playgr
 
 ## VSCode plugin
 
-There is a VSCode plugin called *Helios* that can be installed through the extensions marketplace. Currently it only supports syntax highlighting. Please help us improve this extension by contributing to the [*helios-ide-plugins* repository](https://github.com/hyperion-bt/helios-ide-plugins).
+There is a VSCode plugin called *Helios* that can be installed through the extensions marketplace. Currently it only supports syntax highlighting and syntax error diagnostics. Please help us improve this extension by contributing to the [*helios-ide-plugins* repository](https://github.com/hyperion-bt/helios-ide-plugins).
 
 ## Sponsoring
 
