@@ -2,6 +2,10 @@
 // Tokenization
 
 import {
+	REAL_PRECISION
+} from "./config.js"
+
+import {
     Source,
     assert,
     assertDefined,
@@ -18,6 +22,7 @@ import {
     ByteArrayLiteral,
     Group,
     IntLiteral,
+	RealLiteral,
     StringLiteral,
     Site,
     SymbolToken,
@@ -101,6 +106,19 @@ export class Tokenizer {
 	}
 
 	/**
+	 * @returns {string}
+	 */
+	peekChar() {
+		assert(this.#pos >= 0);
+
+		if (this.#pos < this.#src.length) {
+			return this.#src.getChar(this.#pos);
+		} else {
+			return '\0';
+		}
+	}
+
+	/**
 	 * Decreases #pos by one
 	 */
 	unreadChar() {
@@ -120,7 +138,7 @@ export class Tokenizer {
 		} else if (c == '0') {
 			this.readSpecialInteger(site);
 		} else if (c >= '1' && c <= '9') {
-			this.readDecimalInteger(site, c);
+			this.readDecimal(site, c);
 		} else if (c == '#') {
 			this.readByteArray(site);
 		} else if (c == '"') {
@@ -294,7 +312,9 @@ export class Tokenizer {
 		} else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
 			site.syntaxError(`bad literal integer type 0${c}`);
 		} else if (c >= '0' && c <= '9') {
-			this.readDecimalInteger(site, c);
+			this.readDecimal(site, c);
+		} else if (c == '.') {
+			this.readFixedPoint(site, ['0']);
 		} else {
 			this.pushToken(new IntLiteral(site, 0n));
 			this.unreadChar();
@@ -327,8 +347,11 @@ export class Tokenizer {
 	 * @param {Site} site 
 	 * @param {string} c0 - first character
 	 */
-	readDecimalInteger(site, c0) {
-		let chars = [];
+	readDecimal(site, c0) {
+		/**
+		 * @type {string[]}
+		 */
+		const chars = [];
 
 		let c = c0;
 		while (c != '\0') {
@@ -339,6 +362,14 @@ export class Tokenizer {
 					const errorSite = new Site(site.src, site.startPos, this.currentSite.startPos);
 
 					errorSite.syntaxError("invalid syntax for decimal integer literal");
+				} else if (c == '.') {
+					const cf = this.peekChar();
+
+					if (cf >= '0' && cf <= '9') {
+						this.readFixedPoint(site, chars);
+
+						return;
+					}
 				}
 
 				this.unreadChar();
@@ -396,6 +427,50 @@ export class Tokenizer {
 			new IntLiteral(
 				new Site(site.src, site.startPos, this.currentSite.startPos),
 				BigInt(prefix + chars.join(''))
+			)
+		);
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {string[]} leading 
+	 */
+	readFixedPoint(site, leading) {
+		/**
+		 * @type {string[]}
+		 */
+		const trailing = [];
+
+		let c = this.readChar();
+
+		while (c != '\0') {
+			if (c >= '0' && c <= '9') {
+				trailing.push(c);
+
+			} else {
+				this.unreadChar();
+				break;
+			}
+
+			c = this.readChar();
+		}
+
+		const tokenSite = new Site(site.src, site.startPos, this.currentSite.startPos);
+
+		if (trailing.length > REAL_PRECISION) {
+			tokenSite.syntaxError(`literal real decimal places overflow (max ${REAL_PRECISION} supported, but ${trailing.length} specified)`);
+
+			trailing.splice(REAL_PRECISION);
+		} 
+		
+		while (trailing.length < REAL_PRECISION) {
+			trailing.push('0');
+		}
+
+		this.pushToken(
+			new RealLiteral(
+				tokenSite,
+				BigInt(leading.concat(trailing).join(''))
 			)
 		);
 	}

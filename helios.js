@@ -68,7 +68,7 @@
 //
 //
 // Overview of internals:
-//     Section 1: Config                     VERSION, TAB, config
+//     Section 1: Config                     VERSION, TAB, REAL_PRECISION, config
 //
 //     Section 2: Utilities                  assert, assertDefined, assertClass, assertNumber, 
 //                                           reduceNull, reduceNullPairs, eq, assertEq, idiv, 
@@ -79,7 +79,8 @@
 //
 //     Section 3: Tokens                     Site, RuntimeError, Token, assertToken, Word, 
 //                                           SymbolToken, Group, PrimitiveLiteral, IntLiteral, 
-//                                           BoolLiteral, ByteArrayLiteral, StringLiteral
+//                                           RealLiteral, BoolLiteral, ByteArrayLiteral, 
+//                                           StringLiteral
 //
 //     Section 4: Cryptography functions     BLAKE2B_DIGEST_SIZE, setBlake2bDigestSize, imod32, 
 //                                           irotr, posMod, UInt64, Crypto
@@ -125,14 +126,14 @@
 //                                           Instance, DataInstance, ConstStatementInstance, 
 //                                           FuncInstance, FuncStatementInstance, MultiInstance, 
 //                                           VoidInstance, ErrorInstance, BuiltinFuncInstance, 
-//                                           PrintFunc, VoidType, ErrorType, IntType, BoolType, 
-//                                           StringType, ByteArrayType, ParamType, ParamFuncValue, 
-//                                           ListType, MapType, OptionType, OptionSomeType, 
-//                                           OptionNoneType, HashType, PubKeyHashType, 
-//                                           StakeKeyHashType, PubKeyType, ScriptHashType, 
-//                                           ValidatorHashType, MintingPolicyHashType, 
-//                                           StakingValidatorHashType, DatumHashType, 
-//                                           ScriptContextType, ScriptPurposeType, 
+//                                           PrintFunc, VoidType, ErrorType, IntType, RealType, 
+//                                           BoolType, StringType, ByteArrayType, ParamType, 
+//                                           ParamFuncValue, ListType, MapType, OptionType, 
+//                                           OptionSomeType, OptionNoneType, HashType, 
+//                                           PubKeyHashType, StakeKeyHashType, PubKeyType, 
+//                                           ScriptHashType, ValidatorHashType, 
+//                                           MintingPolicyHashType, StakingValidatorHashType, 
+//                                           DatumHashType, ScriptContextType, ScriptPurposeType, 
 //                                           MintingScriptPurposeType, SpendingScriptPurposeType, 
 //                                           RewardingScriptPurposeType, 
 //                                           CertifyingScriptPurposeType, StakingPurposeType, 
@@ -261,6 +262,13 @@ export const VERSION = "0.13.28";
  * @type {string}
  */
 const TAB = "  ";
+
+/**
+ * A Real in Helios is a fixed point number with REAL_PRECISION precision
+ * @package
+ * @type {number}
+ */
+const REAL_PRECISION = 6;
 
 /**
  * Modifiable config vars
@@ -2061,6 +2069,34 @@ class PrimitiveLiteral extends Token {
  * @package
  */
 class IntLiteral extends PrimitiveLiteral {
+	#value;
+
+	/**
+	 * @param {Site} site 
+	 * @param {bigint} value 
+	 */
+	constructor(site, value) {
+		super(site);
+		this.#value = value;
+	}
+
+	get value() {
+		return this.#value;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.#value.toString();
+	}
+}
+
+/**
+ * Fixed point number literal token
+ * @package
+ */
+class RealLiteral extends PrimitiveLiteral {
 	#value;
 
 	/**
@@ -12275,6 +12311,19 @@ export class Tokenizer {
 	}
 
 	/**
+	 * @returns {string}
+	 */
+	peekChar() {
+		assert(this.#pos >= 0);
+
+		if (this.#pos < this.#src.length) {
+			return this.#src.getChar(this.#pos);
+		} else {
+			return '\0';
+		}
+	}
+
+	/**
 	 * Decreases #pos by one
 	 */
 	unreadChar() {
@@ -12294,7 +12343,7 @@ export class Tokenizer {
 		} else if (c == '0') {
 			this.readSpecialInteger(site);
 		} else if (c >= '1' && c <= '9') {
-			this.readDecimalInteger(site, c);
+			this.readDecimal(site, c);
 		} else if (c == '#') {
 			this.readByteArray(site);
 		} else if (c == '"') {
@@ -12468,7 +12517,9 @@ export class Tokenizer {
 		} else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
 			site.syntaxError(`bad literal integer type 0${c}`);
 		} else if (c >= '0' && c <= '9') {
-			this.readDecimalInteger(site, c);
+			this.readDecimal(site, c);
+		} else if (c == '.') {
+			this.readFixedPoint(site, ['0']);
 		} else {
 			this.pushToken(new IntLiteral(site, 0n));
 			this.unreadChar();
@@ -12501,8 +12552,11 @@ export class Tokenizer {
 	 * @param {Site} site 
 	 * @param {string} c0 - first character
 	 */
-	readDecimalInteger(site, c0) {
-		let chars = [];
+	readDecimal(site, c0) {
+		/**
+		 * @type {string[]}
+		 */
+		const chars = [];
 
 		let c = c0;
 		while (c != '\0') {
@@ -12513,6 +12567,14 @@ export class Tokenizer {
 					const errorSite = new Site(site.src, site.startPos, this.currentSite.startPos);
 
 					errorSite.syntaxError("invalid syntax for decimal integer literal");
+				} else if (c == '.') {
+					const cf = this.peekChar();
+
+					if (cf >= '0' && cf <= '9') {
+						this.readFixedPoint(site, chars);
+
+						return;
+					}
 				}
 
 				this.unreadChar();
@@ -12570,6 +12632,50 @@ export class Tokenizer {
 			new IntLiteral(
 				new Site(site.src, site.startPos, this.currentSite.startPos),
 				BigInt(prefix + chars.join(''))
+			)
+		);
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {string[]} leading 
+	 */
+	readFixedPoint(site, leading) {
+		/**
+		 * @type {string[]}
+		 */
+		const trailing = [];
+
+		let c = this.readChar();
+
+		while (c != '\0') {
+			if (c >= '0' && c <= '9') {
+				trailing.push(c);
+
+			} else {
+				this.unreadChar();
+				break;
+			}
+
+			c = this.readChar();
+		}
+
+		const tokenSite = new Site(site.src, site.startPos, this.currentSite.startPos);
+
+		if (trailing.length > REAL_PRECISION) {
+			tokenSite.syntaxError(`literal real decimal places overflow (max ${REAL_PRECISION} supported, but ${trailing.length} specified)`);
+
+			trailing.splice(REAL_PRECISION);
+		} 
+		
+		while (trailing.length < REAL_PRECISION) {
+			trailing.push('0');
+		}
+
+		this.pushToken(
+			new RealLiteral(
+				tokenSite,
+				BigInt(leading.concat(trailing).join(''))
 			)
 		);
 	}
@@ -14868,6 +14974,11 @@ class IntType extends BuiltinType {
 			case "__div":
 			case "__mod":
 				return Instance.new(new FuncType([this, new IntType()], new IntType()));
+			case "__add1":
+			case "__sub1":
+			case "__mul1":
+			case "__div1":
+				return Instance.new(new FuncType([this, new RealType()], new RealType()));
 			case "__geq":
 			case "__gt":
 			case "__leq":
@@ -14911,6 +15022,8 @@ class IntType extends BuiltinType {
 			case "to_hex":
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
+			case "to_real":
+				return Instance.new(new FuncType([], new RealType()));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -14922,6 +15035,80 @@ class IntType extends BuiltinType {
 
 	get userType() {
 		return HInt;
+	}
+}
+
+/**
+ * Builtin Real fixed point number type
+ * @package
+ */
+class RealType extends BuiltinType {
+	constructor() {
+		super();
+	}
+
+	toString() {
+		return "Real";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "__neg":
+			case "__pos":
+				return Instance.new (new FuncType([this], new RealType()));
+			case "__add":
+			case "__sub":
+			case "__mul":
+			case "__div":
+				return Instance.new(new FuncType([this, new RealType()], new RealType()));
+			case "__add1":
+			case "__sub1":
+			case "__mul1":
+			case "__div1":
+				return Instance.new(new FuncType([this, new IntType()], new RealType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, new RealType()], new BoolType()));
+			case "__eq1":
+			case "__neq1":
+			case "__geq1":
+			case "__gt1":
+			case "__leq1":
+			case "__lt1":
+				return Instance.new(new FuncType([this, new IntType()], new BoolType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "abs":
+				return Instance.new(new FuncType([], new RealType()));
+			case "floor":
+			case "trunc":
+			case "ceil":
+			case "round":
+				return Instance.new(new FuncType([], new IntType()));
+			case "show":
+				return Instance.new(new FuncType([], new StringType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	get path() {
+		return "__helios__real";
 	}
 }
 
@@ -17997,7 +18184,7 @@ export class TimeType extends BuiltinType {
 				return Instance.new(new FuncType([this, new DurationType()], new TimeType()));
 			case "__sub":
 				return Instance.new(new FuncType([this, new TimeType()], new DurationType()));
-			case "__sub_alt":
+			case "__sub1":
 				return Instance.new(new FuncType([this, new DurationType()], new TimeType()));
 			case "__geq":
 			case "__gt":
@@ -18058,7 +18245,7 @@ class DurationType extends BuiltinType {
 			case "__mul":
 			case "__div":
 				return Instance.new(new FuncType([this, new IntType()], new DurationType()));
-			case "__div_alt":
+			case "__div1":
 				return Instance.new(new FuncType([this, new DurationType()], new IntType()));
 			case "__geq":
 			case "__gt":
@@ -18398,6 +18585,7 @@ class GlobalScope {
         scope.set("OutputDatum",          new OutputDatumType());
         scope.set("PubKey",               new PubKeyType());
 		scope.set("PubKeyHash",           new PubKeyHashType());
+		scope.set("Real",                 new RealType());
         scope.set("ScriptContext",        new ScriptContextType(purpose));
         scope.set("ScriptHash",           new ScriptHashType());
         scope.set("ScriptPurpose",        new ScriptPurposeType());
@@ -19531,6 +19719,8 @@ class PrimitiveLiteralExpr extends ValueExpr {
 	get type() {
 		if (this.#primitive instanceof IntLiteral) {
 			return new IntType();
+		} else if (this.#primitive instanceof RealLiteral) {
+			return new RealType();
 		} else if (this.#primitive instanceof BoolLiteral) {
 			return new BoolType();
 		} else if (this.#primitive instanceof StringLiteral) {
@@ -19561,7 +19751,7 @@ class PrimitiveLiteralExpr extends ValueExpr {
 		// all literals can be reused in their string-form in the IR
 		let inner = new IR(this.#primitive.toString(), this.#primitive.site);
 
-		if (this.#primitive instanceof IntLiteral) {
+		if (this.#primitive instanceof IntLiteral || this.#primitive instanceof RealLiteral) {
 			return new IR([new IR("__core__iData", this.site), new IR("("), inner, new IR(")")]);
 		} else if (this.#primitive instanceof BoolLiteral) {
 			return inner;
@@ -20828,7 +21018,7 @@ class BinaryExpr extends ValueExpr {
 		this.#a = a;
 		this.#b = b;
 		this.#swap = false;
-		this.#alt = false;
+		this.#alt = 0;
 	}
 
 	/** 
@@ -20851,10 +21041,10 @@ class BinaryExpr extends ValueExpr {
 
 	/**
 	 * Turns op symbol into internal name
-	 * @param {boolean} alt
+	 * @param {number} alt
 	 * @returns {Word}
 	 */
-	translateOp(alt = false) {
+	translateOp(alt = 0) {
 		let op = this.#op.toString();
 		let site = this.#op.site;
 		let name;
@@ -20889,16 +21079,26 @@ class BinaryExpr extends ValueExpr {
 			throw new Error("unhandled");
 		}
 
-		if (alt) {
-			name += "_alt";
+		if (alt > 0) {
+			name += alt.toString();
 		}
 
 		return new Word(site, name);
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isCommutative() {
-		let op = this.#op.toString();
-		return op == "+" || op == "*";
+		switch (this.#op.toString()) {
+			case "+":
+			case "*":
+			case "==":
+			case "!=":
+				return true;
+			default:
+				return false;
+		}
 	}
 
 	/**
@@ -20917,7 +21117,7 @@ class BinaryExpr extends ValueExpr {
 		let firstError = null;
 
 		for (let swap of (this.isCommutative() ? [false, true] : [false])) {
-			for (let alt of [false, true]) {
+			for (let alt of [0, 1, 2]) {
 				let first  = swap ? b : a;
 				let second = swap ? a : b;
 
@@ -27667,6 +27867,43 @@ function makeRawFunctions() {
 	`(a, b) -> {
 		__core__iData(__core__modInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
+	add(new RawFunc("__helios__int____add1",
+	`(a, b) -> {
+		__core__iData(
+			__core__addInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__helios__real__ONE
+				),
+				__core__unIData(b)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__int____sub1",
+	`(a, b) -> {
+		__core__iData(
+			__core__subtractInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__helios__real__ONE
+				),
+				__core__unIData(b)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__int____mul1", "__helios__int____mul"));
+	add(new RawFunc("__helios__int____div1",
+	`(a, b) -> {
+		__core__iData(
+			__core__divideInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__helios__real__ONESQ
+				),
+				__core__unIData(b)
+			)
+		)
+	}`));
 	add(new RawFunc("__helios__int____geq",
 	`(a, b) -> {
 		__helios__common__not(__core__lessThanInteger(__core__unIData(a), __core__unIData(b)))
@@ -27682,6 +27919,50 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__int____lt",
 	`(a, b) -> {
 		__core__lessThanInteger(__core__unIData(a), __core__unIData(b))
+	}`));
+	add(new RawFunc("__helios__int____geq1",
+	`(a, b) -> {
+		__helios__common__not(
+			__core__lessThanInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__helios__real__ONE
+				),
+				__core__unIData(b)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__int____gt1",
+	`(a, b) -> {
+		__helios__common__not(
+			__core__lessThanEqualsInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__helios__real__ONE
+				),
+				__core__unIData(b)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__int____leq1",
+	`(a, b) -> {
+		__core__lessThanEqualsInteger(
+			__core__multiplyInteger(
+				__core__unIData(a),
+				__helios__real__ONE
+			),
+			__core__unIData(b)
+		)
+	}`));
+	add(new RawFunc("__helios__int____lt1",
+	`(a, b) -> {
+		__core__lessThanInteger(
+			__core__multiplyInteger(
+				__core__unIData(a),
+				__helios__real__ONE
+			),
+			__core__unIData(b)
+		)
 	}`));
 	add(new RawFunc("__helios__int__min",
 	`(a, b) -> {
@@ -27781,6 +28062,17 @@ function makeRawFunctions() {
 	`(self) -> {
 		() -> {
 			__core__ifThenElse(__core__equalsInteger(__core__unIData(self), 0), false, true)
+		}
+	}`));
+	add(new RawFunc("__helios__int__to_real",
+	`(self) - {
+		() -> {
+			__core__iData(
+				__core__multiplyInteger(
+					__core__unIData(self), 
+					__helios__real__ONE
+				)
+			)
 		}
 	}`));
 	add(new RawFunc("__helios__int__to_hex",
@@ -27944,6 +28236,10 @@ function makeRawFunctions() {
 			)
 		}(__core__unBData(str))
 	}`));
+	add(new RawFunc("__helios__int__show_digit",
+	`(x) -> {
+		__core__addInteger(__core__modInteger(x, 10), 48)
+	}`));
 	add(new RawFunc("__helios__int__show",
 	`(self) -> {
 		(self) -> {
@@ -27952,24 +28248,68 @@ function makeRawFunctions() {
 					(recurse) -> {
 						__core__ifThenElse(
 							__core__lessThanInteger(self, 0),
-							() -> {__core__consByteString(45, recurse(recurse, __core__multiplyInteger(self, -1)))},
-							() -> {recurse(recurse, self)}
+							() -> {__core__consByteString(45, recurse(recurse, __core__multiplyInteger(self, -1), #))},
+							() -> {recurse(recurse, self, #)}
 						)()
 					}(
-						(recurse, i) -> {
+						(recurse, i, bytes) -> {
 							(bytes) -> {
 								__core__ifThenElse(
 									__core__lessThanInteger(i, 10),
-									() -> {bytes},
-									() -> {__core__appendByteString(recurse(recurse, __core__divideInteger(i, 10)), bytes)}
+									() -> {
+										bytes
+									},
+									() -> {
+										recurse(recurse, __core__divideInteger(i, 10), bytes)
+									}
 								)()
-							}(__core__consByteString(__core__addInteger(__core__modInteger(i, 10), 48), #))
+							}(__core__consByteString(__helios__int__show_digit(i), bytes))
 						}
 					)
 				))
 			}
 		}(__core__unIData(self))
 	}`));
+	// not exposed, assumes positive number
+	add(new RawFunc("__helios__int__show_padded",
+	`(self, n) -> {
+		(self) -> {
+			(recurse) -> {
+				recurse(recurse, self, 0, #)
+			}(
+				(recurse, x, pos, bytes) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(x, 10),
+						() -> {
+							__core__ifThenElse(
+								__core__lessThanEqualsInteger(n, pos),
+								() -> {
+									bytes
+								},
+								() -> {
+									recurse(
+										recurse,
+										0,
+										__core__addInteger(pos, 1),
+										__core__consByteString(48, bytes)
+									)
+								}
+							)()
+						},
+						() -> {
+							recurse(
+								recurse,
+								__core__divideInteger(x, 10),
+								__core__addInteger(pos, 1),
+								__core__consByteString(__helios__int__show_digit(x), bytes)
+							)
+						}
+					)()
+				}
+			)
+		}(__core__unIData(self))
+	}`));
+	
 	add(new RawFunc("__helios__int__parse_digit",
 	`(digit) -> {
 		__core__ifThenElse(
@@ -28185,23 +28525,240 @@ function makeRawFunctions() {
 				)()
 			}
 		}(__core__unIData(self))
-	}`))
+	}`));
+
+
+	// Real builtins
+	addDataFuncs("__helios__real");
+	add(new RawFunc("__helios__real__PRECISION", REAL_PRECISION.toString()));
+	add(new RawFunc("__helios__real__ONE", '1' + new Array(REAL_PRECISION).fill('0').join('')));
+	add(new RawFunc("__helios__real__HALF", '5' + new Array(REAL_PRECISION-1).fill('0').join('')));
+	add(new RawFunc("__helios__real__NEARLY_ONE", new Array(REAL_PRECISION).fill('9').join('')));
+	add(new RawFunc("__helios__real__ONESQ", '1' + new Array(REAL_PRECISION*2).fill('0').join('')));
+	add(new RawFunc("__helios__real____neg", "__helios__int____neg"));
+	add(new RawFunc("__helios__real____pos", "__helios__int____pos"));
+	add(new RawFunc("__helios__real____add", "__helios__int____add"));
+	add(new RawFunc("__helios__real____add1", 
+	`(a, b) -> {
+		__core__iData(
+			__core__addInteger(
+				__core__unIData(a),
+				__core__multiplyInteger(
+					__core__unIData(b),
+					__helios__real__ONE
+				)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____sub", "__helios__int____sub"));
+	add(new RawFunc("__helios__real____sub1", 
+	`(a, b) -> {
+		__core__iData(
+			__core__subtractInteger(
+				__core__unIData(a),
+				__core__multiplyInteger(
+					__core__unIData(b),
+					__helios__real__ONE
+				)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____mul",
+	`(a, b) -> {
+		__core__iData(
+			__core__divideInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__core__unIData(b)
+				),
+				__helios__real__ONE
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____mul1", "__helios__int____mul"));
+	add(new RawFunc("__helios__real____div",
+	`(a, b) -> {
+		__core__iData(
+			__core__divideInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__helios__real__ONE
+				),
+				__core__unIData(b)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____div1", "__helios__int____div"));
+	add(new RawFunc("__helios__real____geq", "__helios__int____geq"));
+	add(new RawFunc("__helios__real____gt", "__helios__int____gt"));
+	add(new RawFunc("__helios__real____leq", "__helios__int____leq"));
+	add(new RawFunc("__helios__real____lt", "__helios__int____lt"));
+	add(new RawFunc("__helios__real____eq1",
+	`(a, b) -> {
+		__core__integerEquals(
+			__core__unIData(a),
+			__core__multiplyInteger(
+				__core__unIData(b),
+				__helios__real__ONE
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____neq1",
+	`(a, b) -> {
+		__helios__commont__not(
+			__core__integerEquals(
+				__core__unIData(a),
+				__core__multiplyInteger(
+					__core__unIData(b),
+					__helios__real__ONE
+				)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____geq1", 
+	`(a, b) -> {
+		__helios__common__not(
+			__core__lessThanInteger(
+				__core__unIData(a),
+				__core__multiplyInteger(
+					__core__unIData(b),
+					__helios__real__ONE
+				)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____gt1", 
+	`(a, b) -> {
+		__helios__common__not(
+			__core__lessThanEqualsInteger(
+				__core__unIData(a), 
+				__core__multiplyInteger(
+					__core__unIData(b),
+					__helios__real__ONE
+				)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____leq1",
+	`(a, b) -> {
+		__core__lessThanEqualsInteger(
+			__core__unIData(a), 
+			__core__multiplyInteger(
+				__core__unIData(b),
+				__helios__real__ONE
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____lt1", 
+	`(a, b) -> {
+		__core__lessThanInteger(
+			__core__unIData(a),
+			__core__multiplyInteger(
+				__core__unIData(b),
+				__helios__real__ONE	
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real__abs", "__helios__int__abs"));
+	add(new RawFunc("__helios__real__floor", 
+	`(self) -> {
+		() -> {
+			__core__iData(
+				__core__divideInteger(
+					__core__unIData(self),
+					__helios__real__ONE
+				)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__real__trunc",
+	`(self) -> {
+		() -> {
+			__core__iData(
+				__core__quotientInteger(
+					__core__unIData(self),
+					__helios__real__ONE
+				)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__real__ceil",
+	`(self) -> {
+		() -> {
+			__core__iData(
+				__core__divideInteger(
+					__core__addInteger(
+						__core__unIData(self),
+						__helios__real__NEARLY_ONE
+					),
+					__helios__real__ONE
+				)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__real__round",
+	`(self) -> {
+		() -> {
+			__core__iData(
+				__core__divideInteger(
+					__core__addInteger(
+						__core__unIData(self),
+						__helios__real__HALF
+					),
+					__helios__real__ONE
+				)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__real__show",
+	`(self) -> {
+		() -> {
+			__helios__string____add(
+				__helios__string____add(
+					__core__ifThenElse(
+						__core__lessThanInteger(0, __core__unIData(self)),
+						() -> {
+							__helios__common__stringData("-")
+						},
+						() -> {
+							__helios__common__stringData("")
+						}
+					)(),
+					__helios__int__show(
+						__helios__real__floor(
+							__helios__real__abs(self)()
+						)()
+					)(),
+				),
+				__helios__string____add(
+					__helios__common__stringData("."),
+					__helios__int__show_padded(
+						__helios__int____mod(
+							self,
+							__core__iData(__helios__real__ONE)
+						),
+						__helios__real__PRECISION
+					)
+				)
+			)
+		}
+	}`));
 
 
 	// Bool builtins
-	add(new RawFunc(`__helios__bool____eq`, 
+	add(new RawFunc("__helios__bool____eq", 
 	`(a, b) -> {
 		__core__ifThenElse(a, b, __helios__common__not(b))
 	}`));
-	add(new RawFunc(`__helios__bool____neq`,
+	add(new RawFunc("__helios__bool____neq",
 	`(a, b) -> {
 		__core__ifThenElse(a, __helios__common__not(b), b)
 	}`));
-	add(new RawFunc(`__helios__bool__serialize`, 
+	add(new RawFunc("__helios__bool__serialize", 
 	`(self) -> {
 		__helios__common__serialize(__helios__common__boolData(self))
 	}`));
-	add(new RawFunc(`__helios__bool__from_data`,
+	add(new RawFunc("__helios__bool__from_data",
 	`(data) -> {
 		__helios__common__unBoolData(data)
 	}`));
@@ -30375,7 +30932,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__time__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__time____add", `__helios__int____add`));
 	add(new RawFunc("__helios__time____sub", `__helios__int____sub`));
-	add(new RawFunc("__helios__time____sub_alt", `__helios__int____sub`));
+	add(new RawFunc("__helios__time____sub1", `__helios__int____sub`));
 	add(new RawFunc("__helios__time____geq", `__helios__int____geq`));
 	add(new RawFunc("__helios__time____gt", `__helios__int____gt`));
 	add(new RawFunc("__helios__time____leq", `__helios__int____leq`));
@@ -30390,7 +30947,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__duration____sub", `__helios__int____sub`));
 	add(new RawFunc("__helios__duration____mul", `__helios__int____mul`));
 	add(new RawFunc("__helios__duration____div", `__helios__int____div`));
-	add(new RawFunc("__helios__duration____div_alt", `__helios__int____div`));
+	add(new RawFunc("__helios__duration____div1", `__helios__int____div`));
 	add(new RawFunc("__helios__duration____mod", `__helios__int____mod`));
 	add(new RawFunc("__helios__duration____geq", `__helios__int____geq`));
 	add(new RawFunc("__helios__duration____gt", `__helios__int____gt`));
@@ -39078,6 +39635,19 @@ export class FuzzyTest {
 	}
 
 	/**
+	 * @param {number} min 
+	 * @param {number} max 
+	 * @returns {ValueGenerator}
+	 */
+	real(min = -1000, max = 1000) {
+		let rand = this.newRand();
+
+		return function() {
+			return new IntData(BigInt(Math.floor(((rand()*(max - min)) + min)*1000000)))
+		}
+	}
+
+	/**
 	 * Returns a generator for strings containing any utf-8 character
 	 * @param {number} minLength
 	 * @param {number} maxLength
@@ -40432,5 +41002,6 @@ export const exportedForTesting = {
 	IRProgram: IRProgram,
 	Tx: Tx,
 	TxInput: TxInput,
-	TxBody: TxBody
+	TxBody: TxBody,
+	REAL_PRECISION: REAL_PRECISION
 };

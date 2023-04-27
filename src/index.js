@@ -169,7 +169,8 @@ export const exportedForTesting = {
 	IRProgram: IRProgram,
 	Tx: Tx,
 	TxInput: TxInput,
-	TxBody: TxBody
+	TxBody: TxBody,
+	REAL_PRECISION: REAL_PRECISION
 };`
 }
 

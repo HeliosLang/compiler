@@ -961,6 +961,34 @@ export class IntLiteral extends PrimitiveLiteral {
 }
 
 /**
+ * Fixed point number literal token
+ * @package
+ */
+export class RealLiteral extends PrimitiveLiteral {
+	#value;
+
+	/**
+	 * @param {Site} site 
+	 * @param {bigint} value 
+	 */
+	constructor(site, value) {
+		super(site);
+		this.#value = value;
+	}
+
+	get value() {
+		return this.#value;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.#value.toString();
+	}
+}
+
+/**
  * Bool literal token
  * @package
  */

@@ -2,6 +2,7 @@
 // IR definitions
 
 import {
+	REAL_PRECISION,
 	config
 } from "./config.js";
 
@@ -710,6 +711,43 @@ function makeRawFunctions() {
 	`(a, b) -> {
 		__core__iData(__core__modInteger(__core__unIData(a), __core__unIData(b)))
 	}`));
+	add(new RawFunc("__helios__int____add1",
+	`(a, b) -> {
+		__core__iData(
+			__core__addInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__helios__real__ONE
+				),
+				__core__unIData(b)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__int____sub1",
+	`(a, b) -> {
+		__core__iData(
+			__core__subtractInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__helios__real__ONE
+				),
+				__core__unIData(b)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__int____mul1", "__helios__int____mul"));
+	add(new RawFunc("__helios__int____div1",
+	`(a, b) -> {
+		__core__iData(
+			__core__divideInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__helios__real__ONESQ
+				),
+				__core__unIData(b)
+			)
+		)
+	}`));
 	add(new RawFunc("__helios__int____geq",
 	`(a, b) -> {
 		__helios__common__not(__core__lessThanInteger(__core__unIData(a), __core__unIData(b)))
@@ -725,6 +763,50 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__int____lt",
 	`(a, b) -> {
 		__core__lessThanInteger(__core__unIData(a), __core__unIData(b))
+	}`));
+	add(new RawFunc("__helios__int____geq1",
+	`(a, b) -> {
+		__helios__common__not(
+			__core__lessThanInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__helios__real__ONE
+				),
+				__core__unIData(b)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__int____gt1",
+	`(a, b) -> {
+		__helios__common__not(
+			__core__lessThanEqualsInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__helios__real__ONE
+				),
+				__core__unIData(b)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__int____leq1",
+	`(a, b) -> {
+		__core__lessThanEqualsInteger(
+			__core__multiplyInteger(
+				__core__unIData(a),
+				__helios__real__ONE
+			),
+			__core__unIData(b)
+		)
+	}`));
+	add(new RawFunc("__helios__int____lt1",
+	`(a, b) -> {
+		__core__lessThanInteger(
+			__core__multiplyInteger(
+				__core__unIData(a),
+				__helios__real__ONE
+			),
+			__core__unIData(b)
+		)
 	}`));
 	add(new RawFunc("__helios__int__min",
 	`(a, b) -> {
@@ -824,6 +906,17 @@ function makeRawFunctions() {
 	`(self) -> {
 		() -> {
 			__core__ifThenElse(__core__equalsInteger(__core__unIData(self), 0), false, true)
+		}
+	}`));
+	add(new RawFunc("__helios__int__to_real",
+	`(self) - {
+		() -> {
+			__core__iData(
+				__core__multiplyInteger(
+					__core__unIData(self), 
+					__helios__real__ONE
+				)
+			)
 		}
 	}`));
 	add(new RawFunc("__helios__int__to_hex",
@@ -987,6 +1080,10 @@ function makeRawFunctions() {
 			)
 		}(__core__unBData(str))
 	}`));
+	add(new RawFunc("__helios__int__show_digit",
+	`(x) -> {
+		__core__addInteger(__core__modInteger(x, 10), 48)
+	}`));
 	add(new RawFunc("__helios__int__show",
 	`(self) -> {
 		(self) -> {
@@ -995,24 +1092,68 @@ function makeRawFunctions() {
 					(recurse) -> {
 						__core__ifThenElse(
 							__core__lessThanInteger(self, 0),
-							() -> {__core__consByteString(45, recurse(recurse, __core__multiplyInteger(self, -1)))},
-							() -> {recurse(recurse, self)}
+							() -> {__core__consByteString(45, recurse(recurse, __core__multiplyInteger(self, -1), #))},
+							() -> {recurse(recurse, self, #)}
 						)()
 					}(
-						(recurse, i) -> {
+						(recurse, i, bytes) -> {
 							(bytes) -> {
 								__core__ifThenElse(
 									__core__lessThanInteger(i, 10),
-									() -> {bytes},
-									() -> {__core__appendByteString(recurse(recurse, __core__divideInteger(i, 10)), bytes)}
+									() -> {
+										bytes
+									},
+									() -> {
+										recurse(recurse, __core__divideInteger(i, 10), bytes)
+									}
 								)()
-							}(__core__consByteString(__core__addInteger(__core__modInteger(i, 10), 48), #))
+							}(__core__consByteString(__helios__int__show_digit(i), bytes))
 						}
 					)
 				))
 			}
 		}(__core__unIData(self))
 	}`));
+	// not exposed, assumes positive number
+	add(new RawFunc("__helios__int__show_padded",
+	`(self, n) -> {
+		(self) -> {
+			(recurse) -> {
+				recurse(recurse, self, 0, #)
+			}(
+				(recurse, x, pos, bytes) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(x, 10),
+						() -> {
+							__core__ifThenElse(
+								__core__lessThanEqualsInteger(n, pos),
+								() -> {
+									bytes
+								},
+								() -> {
+									recurse(
+										recurse,
+										0,
+										__core__addInteger(pos, 1),
+										__core__consByteString(48, bytes)
+									)
+								}
+							)()
+						},
+						() -> {
+							recurse(
+								recurse,
+								__core__divideInteger(x, 10),
+								__core__addInteger(pos, 1),
+								__core__consByteString(__helios__int__show_digit(x), bytes)
+							)
+						}
+					)()
+				}
+			)
+		}(__core__unIData(self))
+	}`));
+	
 	add(new RawFunc("__helios__int__parse_digit",
 	`(digit) -> {
 		__core__ifThenElse(
@@ -1228,23 +1369,240 @@ function makeRawFunctions() {
 				)()
 			}
 		}(__core__unIData(self))
-	}`))
+	}`));
+
+
+	// Real builtins
+	addDataFuncs("__helios__real");
+	add(new RawFunc("__helios__real__PRECISION", REAL_PRECISION.toString()));
+	add(new RawFunc("__helios__real__ONE", '1' + new Array(REAL_PRECISION).fill('0').join('')));
+	add(new RawFunc("__helios__real__HALF", '5' + new Array(REAL_PRECISION-1).fill('0').join('')));
+	add(new RawFunc("__helios__real__NEARLY_ONE", new Array(REAL_PRECISION).fill('9').join('')));
+	add(new RawFunc("__helios__real__ONESQ", '1' + new Array(REAL_PRECISION*2).fill('0').join('')));
+	add(new RawFunc("__helios__real____neg", "__helios__int____neg"));
+	add(new RawFunc("__helios__real____pos", "__helios__int____pos"));
+	add(new RawFunc("__helios__real____add", "__helios__int____add"));
+	add(new RawFunc("__helios__real____add1", 
+	`(a, b) -> {
+		__core__iData(
+			__core__addInteger(
+				__core__unIData(a),
+				__core__multiplyInteger(
+					__core__unIData(b),
+					__helios__real__ONE
+				)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____sub", "__helios__int____sub"));
+	add(new RawFunc("__helios__real____sub1", 
+	`(a, b) -> {
+		__core__iData(
+			__core__subtractInteger(
+				__core__unIData(a),
+				__core__multiplyInteger(
+					__core__unIData(b),
+					__helios__real__ONE
+				)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____mul",
+	`(a, b) -> {
+		__core__iData(
+			__core__divideInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__core__unIData(b)
+				),
+				__helios__real__ONE
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____mul1", "__helios__int____mul"));
+	add(new RawFunc("__helios__real____div",
+	`(a, b) -> {
+		__core__iData(
+			__core__divideInteger(
+				__core__multiplyInteger(
+					__core__unIData(a),
+					__helios__real__ONE
+				),
+				__core__unIData(b)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____div1", "__helios__int____div"));
+	add(new RawFunc("__helios__real____geq", "__helios__int____geq"));
+	add(new RawFunc("__helios__real____gt", "__helios__int____gt"));
+	add(new RawFunc("__helios__real____leq", "__helios__int____leq"));
+	add(new RawFunc("__helios__real____lt", "__helios__int____lt"));
+	add(new RawFunc("__helios__real____eq1",
+	`(a, b) -> {
+		__core__integerEquals(
+			__core__unIData(a),
+			__core__multiplyInteger(
+				__core__unIData(b),
+				__helios__real__ONE
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____neq1",
+	`(a, b) -> {
+		__helios__commont__not(
+			__core__integerEquals(
+				__core__unIData(a),
+				__core__multiplyInteger(
+					__core__unIData(b),
+					__helios__real__ONE
+				)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____geq1", 
+	`(a, b) -> {
+		__helios__common__not(
+			__core__lessThanInteger(
+				__core__unIData(a),
+				__core__multiplyInteger(
+					__core__unIData(b),
+					__helios__real__ONE
+				)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____gt1", 
+	`(a, b) -> {
+		__helios__common__not(
+			__core__lessThanEqualsInteger(
+				__core__unIData(a), 
+				__core__multiplyInteger(
+					__core__unIData(b),
+					__helios__real__ONE
+				)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____leq1",
+	`(a, b) -> {
+		__core__lessThanEqualsInteger(
+			__core__unIData(a), 
+			__core__multiplyInteger(
+				__core__unIData(b),
+				__helios__real__ONE
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real____lt1", 
+	`(a, b) -> {
+		__core__lessThanInteger(
+			__core__unIData(a),
+			__core__multiplyInteger(
+				__core__unIData(b),
+				__helios__real__ONE	
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__real__abs", "__helios__int__abs"));
+	add(new RawFunc("__helios__real__floor", 
+	`(self) -> {
+		() -> {
+			__core__iData(
+				__core__divideInteger(
+					__core__unIData(self),
+					__helios__real__ONE
+				)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__real__trunc",
+	`(self) -> {
+		() -> {
+			__core__iData(
+				__core__quotientInteger(
+					__core__unIData(self),
+					__helios__real__ONE
+				)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__real__ceil",
+	`(self) -> {
+		() -> {
+			__core__iData(
+				__core__divideInteger(
+					__core__addInteger(
+						__core__unIData(self),
+						__helios__real__NEARLY_ONE
+					),
+					__helios__real__ONE
+				)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__real__round",
+	`(self) -> {
+		() -> {
+			__core__iData(
+				__core__divideInteger(
+					__core__addInteger(
+						__core__unIData(self),
+						__helios__real__HALF
+					),
+					__helios__real__ONE
+				)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__real__show",
+	`(self) -> {
+		() -> {
+			__helios__string____add(
+				__helios__string____add(
+					__core__ifThenElse(
+						__core__lessThanInteger(0, __core__unIData(self)),
+						() -> {
+							__helios__common__stringData("-")
+						},
+						() -> {
+							__helios__common__stringData("")
+						}
+					)(),
+					__helios__int__show(
+						__helios__real__floor(
+							__helios__real__abs(self)()
+						)()
+					)(),
+				),
+				__helios__string____add(
+					__helios__common__stringData("."),
+					__helios__int__show_padded(
+						__helios__int____mod(
+							self,
+							__core__iData(__helios__real__ONE)
+						),
+						__helios__real__PRECISION
+					)
+				)
+			)
+		}
+	}`));
 
 
 	// Bool builtins
-	add(new RawFunc(`__helios__bool____eq`, 
+	add(new RawFunc("__helios__bool____eq", 
 	`(a, b) -> {
 		__core__ifThenElse(a, b, __helios__common__not(b))
 	}`));
-	add(new RawFunc(`__helios__bool____neq`,
+	add(new RawFunc("__helios__bool____neq",
 	`(a, b) -> {
 		__core__ifThenElse(a, __helios__common__not(b), b)
 	}`));
-	add(new RawFunc(`__helios__bool__serialize`, 
+	add(new RawFunc("__helios__bool__serialize", 
 	`(self) -> {
 		__helios__common__serialize(__helios__common__boolData(self))
 	}`));
-	add(new RawFunc(`__helios__bool__from_data`,
+	add(new RawFunc("__helios__bool__from_data",
 	`(data) -> {
 		__helios__common__unBoolData(data)
 	}`));
@@ -3418,7 +3776,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__time__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__time____add", `__helios__int____add`));
 	add(new RawFunc("__helios__time____sub", `__helios__int____sub`));
-	add(new RawFunc("__helios__time____sub_alt", `__helios__int____sub`));
+	add(new RawFunc("__helios__time____sub1", `__helios__int____sub`));
 	add(new RawFunc("__helios__time____geq", `__helios__int____geq`));
 	add(new RawFunc("__helios__time____gt", `__helios__int____gt`));
 	add(new RawFunc("__helios__time____leq", `__helios__int____leq`));
@@ -3433,7 +3791,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__duration____sub", `__helios__int____sub`));
 	add(new RawFunc("__helios__duration____mul", `__helios__int____mul`));
 	add(new RawFunc("__helios__duration____div", `__helios__int____div`));
-	add(new RawFunc("__helios__duration____div_alt", `__helios__int____div`));
+	add(new RawFunc("__helios__duration____div1", `__helios__int____div`));
 	add(new RawFunc("__helios__duration____mod", `__helios__int____mod`));
 	add(new RawFunc("__helios__duration____geq", `__helios__int____geq`));
 	add(new RawFunc("__helios__duration____gt", `__helios__int____gt`));

@@ -2038,6 +2038,11 @@ export class IntType extends BuiltinType {
 			case "__div":
 			case "__mod":
 				return Instance.new(new FuncType([this, new IntType()], new IntType()));
+			case "__add1":
+			case "__sub1":
+			case "__mul1":
+			case "__div1":
+				return Instance.new(new FuncType([this, new RealType()], new RealType()));
 			case "__geq":
 			case "__gt":
 			case "__leq":
@@ -2081,6 +2086,8 @@ export class IntType extends BuiltinType {
 			case "to_hex":
 			case "show":
 				return Instance.new(new FuncType([], new StringType()));
+			case "to_real":
+				return Instance.new(new FuncType([], new RealType()));
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -2092,6 +2099,80 @@ export class IntType extends BuiltinType {
 
 	get userType() {
 		return HInt;
+	}
+}
+
+/**
+ * Builtin Real fixed point number type
+ * @package
+ */
+export class RealType extends BuiltinType {
+	constructor() {
+		super();
+	}
+
+	toString() {
+		return "Real";
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {EvalEntity}
+	 */
+	getTypeMember(name) {
+		switch (name.value) {
+			case "__neg":
+			case "__pos":
+				return Instance.new (new FuncType([this], new RealType()));
+			case "__add":
+			case "__sub":
+			case "__mul":
+			case "__div":
+				return Instance.new(new FuncType([this, new RealType()], new RealType()));
+			case "__add1":
+			case "__sub1":
+			case "__mul1":
+			case "__div1":
+				return Instance.new(new FuncType([this, new IntType()], new RealType()));
+			case "__geq":
+			case "__gt":
+			case "__leq":
+			case "__lt":
+				return Instance.new(new FuncType([this, new RealType()], new BoolType()));
+			case "__eq1":
+			case "__neq1":
+			case "__geq1":
+			case "__gt1":
+			case "__leq1":
+			case "__lt1":
+				return Instance.new(new FuncType([this, new IntType()], new BoolType()));
+			default:
+				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Instance}
+	 */
+	getInstanceMember(name) {
+		switch (name.value) {
+			case "abs":
+				return Instance.new(new FuncType([], new RealType()));
+			case "floor":
+			case "trunc":
+			case "ceil":
+			case "round":
+				return Instance.new(new FuncType([], new IntType()));
+			case "show":
+				return Instance.new(new FuncType([], new StringType()));
+			default:
+				return super.getInstanceMember(name);
+		}
+	}
+
+	get path() {
+		return "__helios__real";
 	}
 }
 
@@ -5167,7 +5248,7 @@ export class TimeType extends BuiltinType {
 				return Instance.new(new FuncType([this, new DurationType()], new TimeType()));
 			case "__sub":
 				return Instance.new(new FuncType([this, new TimeType()], new DurationType()));
-			case "__sub_alt":
+			case "__sub1":
 				return Instance.new(new FuncType([this, new DurationType()], new TimeType()));
 			case "__geq":
 			case "__gt":
@@ -5228,7 +5309,7 @@ export class DurationType extends BuiltinType {
 			case "__mul":
 			case "__div":
 				return Instance.new(new FuncType([this, new IntType()], new DurationType()));
-			case "__div_alt":
+			case "__div1":
 				return Instance.new(new FuncType([this, new DurationType()], new IntType()));
 			case "__geq":
 			case "__gt":

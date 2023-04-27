@@ -10,6 +10,8 @@ import { runIfEntryPoint } from "./util.js";
 
 const helios_ = helios.exportedForTesting;
 
+const REAL_ONE = BigInt(Math.pow(10, helios_.REAL_PRECISION));
+
 // helper functions for script property tests
 function asBool(value) {
     if (value instanceof helios_.UplcBool) {
@@ -44,6 +46,10 @@ function asInt(value) {
     }
 
     throw new Error(`expected IntData, got ${value.toString()}`);
+}
+
+function asReal(value) {
+    return Number(asInt(value))/1000000;
 }
 
 function asBytes(value) {
@@ -857,6 +863,164 @@ async function testBuiltins() {
     func main(a: Int) -> ByteArray {
         a.serialize()
     }`, serializeProp);
+
+
+    ////////////
+    // Real tests
+    ////////////
+
+    await ft.test([ft.int(999999, 1000001)], `
+    testing real_eq_1_0
+    func main(a: Real) -> Bool {
+        a == 1.0
+    }`, ([a], res) => {
+        const b = asBool(res);
+
+        if (asInt(a) == 1000000n) {
+            return b;
+        } else {
+            return !b;
+        }
+    });
+
+    await ft.test([ft.real()], `
+    testing real_eq_1
+    func main(a: Real) -> Bool {
+        a == a
+    }`, ([_], res) => asBool(res));
+
+    await ft.test([ft.real(), ft.real()], `
+    testing real_eq_2
+    func main(a: Real, b: Real) -> Bool {
+        a == b
+    }`, ([a, b], res) => (asReal(a) === asReal(b)) === asBool(res));
+
+    await ft.test([ft.real()], `
+    testing real_neq_1
+    func main(a: Real) -> Bool {
+        a != a
+    }`, ([_], res) => !asBool(res));
+
+    await ft.test([ft.real(), ft.real()], `
+    testing real_neq_2
+    func main(a: Real, b: Real) -> Bool {
+        a != b
+    }`, ([a, b], res) => (asReal(a) === asReal(b)) === (!asBool(res)));
+
+    await ft.test([ft.real()], `
+    testing real_neg
+    func main(a: Real) -> Real {
+        -a
+    }`, ([a], res) => asReal(a) === -asReal(res));
+
+    await ft.test([ft.real()], `
+    testing real_pos
+    func main(a: Real) -> Real {
+        +a
+    }`, ([a], res) => asReal(a) === asReal(res));
+
+    
+    await ft.test([ft.real()], `
+    testing real_add_0
+    func main(a: Real) -> Real {
+        a + 0.0
+    }`, ([a], res) => asReal(a) === asReal(res));
+
+    await ft.test([ft.real(), ft.real()], `
+    testing real_add_2
+    func main(a: Real, b: Real) -> Real {
+        a + b
+    }`, ([a, b], res) => {
+        // use integers to avoid issues with rounding errors
+        return asInt(a) + asInt(b) === asInt(res)
+    });
+
+    await ft.test([ft.real()], `
+    testing real_sub_0
+    func main(a: Real) -> Real {
+        a - 0.0
+    }`, ([a], res) => asReal(a) === asReal(res));
+
+    await ft.test([ft.real()], `
+    testing real_sub_0_alt
+    func main(a: Real) -> Real {
+        0.0 - a
+    }`, ([a], res) => asReal(a) === -asReal(res));
+
+    await ft.test([ft.real()], `
+    testing real_sub_self
+    func main(a: Real) -> Real {
+        a - a
+    }`, ([_], res) => 0.0 === asReal(res));
+
+    await ft.test([ft.real(), ft.real()], `
+    testing real_sub_2
+    func main(a: Real, b: Real) -> Real {
+        a - b
+    }`, ([a, b], res) => {
+        // use integers to avoid issues with rounding errors
+        return asInt(a) - asInt(b) === asInt(res)
+    });
+
+    await ft.test([ft.real()], `
+    testing real_mul_0
+    func main(a: Real) -> Real {
+        a*0.0
+    }`, ([_], res) => 0.0 === asReal(res));
+
+    await ft.test([ft.real()], `
+    testing real_mul_1
+    func main(a: Real) -> Real {
+        a*1.0
+    }`, ([a], res) => {
+        return asReal(a) === asReal(res)
+    });
+
+    await ft.test([ft.real(), ft.real()], `
+    testing real_mul_2
+    func main(a: Real, b: Real) -> Real {
+        a * b
+    }`, ([a, b], res) => {
+        return asInt(a) * asInt(b) / REAL_ONE === asInt(res)
+    });
+
+    await ft.test([ft.real()], `
+    testing real_div_0
+    func main(a: Real) -> Real {
+        a / 0.0
+    }`, ([_], res) => isError(res, "division by zero"));
+
+    await ft.test([ft.real()], `
+    testing real_div_0_alt
+    func main(a: Real) -> Real {
+        0.0 / a
+    }`, ([_], res) => 0.0 === asReal(res));
+
+    await ft.test([ft.real()], `
+    testing real_div_1
+    func main(a: Real) -> Real {
+        a / 1.0
+    }`, ([a], res) => asReal(a) === asReal(res));
+
+    await ft.test([ft.real(-0.00002, 0.00002)], `
+    testing real_div_1_self
+    func main(a: Real) -> Real {
+        a / a
+    }`, ([a], res) => 
+        asInt(a) === 0n ?
+        isError(res, "division by zero") :
+        REAL_ONE === asInt(res)
+    );
+
+    await ft.test([ft.real(), ft.real()], `
+    testing real_div_2
+    func main(a: Real, b: Real) -> Real {
+        a / b
+    }`, ([a, b], res) => 
+        asInt(b) === 0n ? 
+        isError(res, "division by zero") :
+        asInt(a) * REAL_ONE / asInt(b) === asInt(res)
+    );
 
 
     /////////////

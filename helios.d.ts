@@ -2568,6 +2568,10 @@ export class Tokenizer {
      */
     readChar(): string;
     /**
+     * @returns {string}
+     */
+    peekChar(): string;
+    /**
      * Decreases #pos by one
      */
     unreadChar(): void;
@@ -2634,13 +2638,18 @@ export class Tokenizer {
      * @param {Site} site
      * @param {string} c0 - first character
      */
-    readDecimalInteger(site: Site, c0: string): void;
+    readDecimal(site: Site, c0: string): void;
     /**
      * @param {Site} site
      * @param {string} prefix
      * @param {(c: string) => boolean} valid - checks if character is valid as part of the radix
      */
     readRadixInteger(site: Site, prefix: string, valid: (c: string) => boolean): void;
+    /**
+     * @param {Site} site
+     * @param {string[]} leading
+     */
+    readFixedPoint(site: Site, leading: string[]): void;
     /**
      * Reads literal hexadecimal representation of ByteArray
      * @param {Site} site
@@ -3617,6 +3626,12 @@ export class FuzzyTest {
      */
     int(min?: number, max?: number): ValueGenerator;
     /**
+     * @param {number} min
+     * @param {number} max
+     * @returns {ValueGenerator}
+     */
+    real(min?: number, max?: number): ValueGenerator;
+    /**
      * Returns a generator for strings containing any utf-8 character
      * @param {number} minLength
      * @param {number} maxLength
@@ -4039,6 +4054,7 @@ export namespace exportedForTesting {
     export { Tx };
     export { TxInput };
     export { TxBody };
+    export { REAL_PRECISION };
 }
 /**
  * The inner 'any' is also Metadata, but jsdoc doesn't allow declaring recursive types
@@ -5670,6 +5686,12 @@ declare class UplcVariable extends UplcTerm {
     constructor(site: Site, index: UplcInt);
     #private;
 }
+/**
+ * A Real in Helios is a fixed point number with REAL_PRECISION precision
+ * @package
+ * @type {number}
+ */
+declare const REAL_PRECISION: number;
 /**
  * Each builtin has an associated CostModel.
  * The CostModel calculates the execution cost of a builtin, depending on the byte-size of the inputs.

@@ -109,6 +109,19 @@ export class FuzzyTest {
 	}
 
 	/**
+	 * @param {number} min 
+	 * @param {number} max 
+	 * @returns {ValueGenerator}
+	 */
+	real(min = -1000, max = 1000) {
+		let rand = this.newRand();
+
+		return function() {
+			return new IntData(BigInt(Math.floor(((rand()*(max - min)) + min)*1000000)))
+		}
+	}
+
+	/**
 	 * Returns a generator for strings containing any utf-8 character
 	 * @param {number} minLength
 	 * @param {number} maxLength

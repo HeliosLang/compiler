@@ -18,6 +18,7 @@ import {
 	IntLiteral,
 	IR,
 	PrimitiveLiteral,
+    RealLiteral,
     Site,
 	StringLiteral,
 	SymbolToken,
@@ -54,6 +55,7 @@ import {
 	OptionNoneType,
 	ParamFuncValue,
 	RawDataType,
+	RealType,
 	StatementType,
 	StringType,
 	StructStatementType,
@@ -886,6 +888,8 @@ export class PrimitiveLiteralExpr extends ValueExpr {
 	get type() {
 		if (this.#primitive instanceof IntLiteral) {
 			return new IntType();
+		} else if (this.#primitive instanceof RealLiteral) {
+			return new RealType();
 		} else if (this.#primitive instanceof BoolLiteral) {
 			return new BoolType();
 		} else if (this.#primitive instanceof StringLiteral) {
@@ -916,7 +920,7 @@ export class PrimitiveLiteralExpr extends ValueExpr {
 		// all literals can be reused in their string-form in the IR
 		let inner = new IR(this.#primitive.toString(), this.#primitive.site);
 
-		if (this.#primitive instanceof IntLiteral) {
+		if (this.#primitive instanceof IntLiteral || this.#primitive instanceof RealLiteral) {
 			return new IR([new IR("__core__iData", this.site), new IR("("), inner, new IR(")")]);
 		} else if (this.#primitive instanceof BoolLiteral) {
 			return inner;
@@ -2183,7 +2187,7 @@ export class BinaryExpr extends ValueExpr {
 		this.#a = a;
 		this.#b = b;
 		this.#swap = false;
-		this.#alt = false;
+		this.#alt = 0;
 	}
 
 	/** 
@@ -2206,10 +2210,10 @@ export class BinaryExpr extends ValueExpr {
 
 	/**
 	 * Turns op symbol into internal name
-	 * @param {boolean} alt
+	 * @param {number} alt
 	 * @returns {Word}
 	 */
-	translateOp(alt = false) {
+	translateOp(alt = 0) {
 		let op = this.#op.toString();
 		let site = this.#op.site;
 		let name;
@@ -2244,16 +2248,26 @@ export class BinaryExpr extends ValueExpr {
 			throw new Error("unhandled");
 		}
 
-		if (alt) {
-			name += "_alt";
+		if (alt > 0) {
+			name += alt.toString();
 		}
 
 		return new Word(site, name);
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isCommutative() {
-		let op = this.#op.toString();
-		return op == "+" || op == "*";
+		switch (this.#op.toString()) {
+			case "+":
+			case "*":
+			case "==":
+			case "!=":
+				return true;
+			default:
+				return false;
+		}
 	}
 
 	/**
@@ -2272,7 +2286,7 @@ export class BinaryExpr extends ValueExpr {
 		let firstError = null;
 
 		for (let swap of (this.isCommutative() ? [false, true] : [false])) {
-			for (let alt of [false, true]) {
+			for (let alt of [0, 1, 2]) {
 				let first  = swap ? b : a;
 				let second = swap ? a : b;
 

@@ -31,6 +31,7 @@ import {
     PubKeyType,
     PubKeyHashType,
     RawDataType,
+	RealType,
     ScriptContextType,
     ScriptHashType,
     ScriptPurposeType,
@@ -152,6 +153,7 @@ export class GlobalScope {
         scope.set("OutputDatum",          new OutputDatumType());
         scope.set("PubKey",               new PubKeyType());
 		scope.set("PubKeyHash",           new PubKeyHashType());
+		scope.set("Real",                 new RealType());
         scope.set("ScriptContext",        new ScriptContextType(purpose));
         scope.set("ScriptHash",           new ScriptHashType());
         scope.set("ScriptPurpose",        new ScriptPurposeType());

@@ -10,6 +10,13 @@
 export const TAB = "  ";
 
 /**
+ * A Real in Helios is a fixed point number with REAL_PRECISION precision
+ * @package
+ * @type {number}
+ */
+export const REAL_PRECISION = 6;
+
+/**
  * Modifiable config vars
  * @type {{
  *   DEBUG: boolean,
