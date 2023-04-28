@@ -798,6 +798,35 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @param {NetworkParams} networkParams 
+	 */
+	finalizeValidityTimeRange(networkParams) {
+		if(this.#witnesses.anyScriptCallsTxTimeRange() && config.AUTO_SET_VALIDITY_RANGE && this.#validFrom === null && this.#validTo === null) {
+			const now = new Date();
+
+			if (config.VALIDITY_RANGE_START_OFFSET !== null) {
+				this.#validFrom = new Date(now.getTime() - 1000*config.VALIDITY_RANGE_START_OFFSET);
+			}
+
+			if (config.VALIDITY_RANGE_END_OFFSET !== null) {
+				this.#validTo = new Date(now.getTime() + 1000*config.VALIDITY_RANGE_END_OFFSET);
+			}
+		}
+
+		if (this.#validTo !== null) {
+			this.#body.validTo(
+				networkParams.timeToSlot(BigInt(this.#validTo.getTime()))
+			);
+		}
+
+		if (this.#validFrom !== null) {
+			this.#body.validFrom(
+				networkParams.timeToSlot(BigInt(this.#validFrom.getTime()))
+			);
+		}
+	}
+
+	/**
 	 * Assumes transaction hasn't yet been signed by anyone (i.e. witnesses.signatures is empty)
 	 * Mutates 'this'
 	 * Note: this is an async function so that a debugger can optionally be attached in the future
@@ -816,15 +845,9 @@ export class Tx extends CborData {
 			);
 		}
 
-		if (this.#validTo !== null) {
-			this.#body.validTo(
-				networkParams.timeToSlot(BigInt(this.#validTo.getTime()))
-			);
-		}
-
-		if (this.#validFrom !== null) {
-			this.#body.validFrom(networkParams.timeToSlot(BigInt(this.#validFrom.getTime())));
-		}
+		// auto set the validity time range if the script call tx.time_range
+		//  and translate the time range dates to slots
+		this.finalizeValidityTimeRange(networkParams);
 
 		// inputs, minted assets, and withdrawals must all be in a particular order
 		this.#body.sort();
@@ -1686,6 +1709,13 @@ export class TxWitnesses extends CborData {
 	 */
 	get scripts() {
 		return this.#scripts.slice().concat(this.#refScripts.slice());
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	anyScriptCallsTxTimeRange() {
+		return this.scripts.some(p => p.properties.callsTxTimeRange);
 	}
 
 	/**

@@ -22,7 +22,10 @@ export const REAL_PRECISION = 6;
  *   DEBUG: boolean,
  *   STRICT_BABBAGE: boolean,
  *   IS_TESTNET: boolean,
- *   N_DUMMY_INPUTS: number
+ *   N_DUMMY_INPUTS: number,
+ *   AUTO_SET_VALIDITY_RANGE: boolean,
+ *   VALIDITY_RANGE_START_OFFSET: number | null,
+ *   VALIDITY_RANGE_END_OFFSET: number | null
  * }}
  */
 export const config = {
@@ -49,5 +52,13 @@ export const config = {
      *   because eg. there are case where the TxId is being printed, and a Txid of ffff... would overestimate the fee
      * This value must be '1' or '2'
      */
-    N_DUMMY_INPUTS: 2
+    N_DUMMY_INPUTS: 2,
+
+    /**
+     * The validatity time range can be set automatically if a call to tx.time_range is detected.
+     * Helios defines some reasonable defaults.
+     */
+    AUTO_SET_VALIDITY_RANGE: true,
+    VALIDITY_RANGE_START_OFFSET: 60, // seconds
+    VALIDITY_RANGE_END_OFFSET: 300 // seconds
 }

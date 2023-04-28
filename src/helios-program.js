@@ -721,7 +721,7 @@ class MainModule extends Module {
 		if (constStatement === null) {
 			throw new Error(`param '${name}' not found`);
 		} else {
-			let path = constStatement.path;
+			const path = constStatement.path;
 
 			let ir = assertDefined(map.get(path));
 
@@ -729,7 +729,7 @@ class MainModule extends Module {
 
 			ir = wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
 
-			let irProgram = IRProgram.new(ir, this.#purpose, true, true);
+			const irProgram = IRProgram.new(ir, this.#purpose, true, true);
 
 			return new UplcDataValue(irProgram.site, irProgram.data);
 		}

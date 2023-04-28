@@ -211,14 +211,17 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.28";
+export const VERSION: "0.13.29";
 /**
  * Modifiable config vars
  * @type {{
  *   DEBUG: boolean,
  *   STRICT_BABBAGE: boolean,
  *   IS_TESTNET: boolean,
- *   N_DUMMY_INPUTS: number
+ *   N_DUMMY_INPUTS: number,
+ *   AUTO_SET_VALIDITY_RANGE: boolean,
+ *   VALIDITY_RANGE_START_OFFSET: number | null,
+ *   VALIDITY_RANGE_END_OFFSET: number | null
  * }}
  */
 export const config: {
@@ -226,6 +229,9 @@ export const config: {
     STRICT_BABBAGE: boolean;
     IS_TESTNET: boolean;
     N_DUMMY_INPUTS: number;
+    AUTO_SET_VALIDITY_RANGE: boolean;
+    VALIDITY_RANGE_START_OFFSET: number | null;
+    VALIDITY_RANGE_END_OFFSET: number | null;
 };
 /**
  * Function that generates a random number between 0 and 1
@@ -2391,6 +2397,13 @@ export class UplcDataValue extends UplcValue {
     #private;
 }
 /**
+ * TODO: purpose as enum type
+ * @typedef {{
+ *   purpose: null | number
+ *   callsTxTimeRange: boolean
+ * }} ProgramProperties
+ */
+/**
  * Plutus-core program class
  */
 export class UplcProgram {
@@ -2401,10 +2414,10 @@ export class UplcProgram {
     static fromCbor(bytes: number[] | string): UplcProgram;
     /**
      * @param {UplcTerm} expr
-     * @param {?number} purpose // TODO: enum type
+     * @param {ProgramProperties} properties
      * @param {UplcInt[]} version
      */
-    constructor(expr: UplcTerm, purpose?: number | null, version?: UplcInt[]);
+    constructor(expr: UplcTerm, properties?: ProgramProperties, version?: UplcInt[]);
     /**
      * @type {UplcTerm}
      */
@@ -2418,6 +2431,10 @@ export class UplcProgram {
      * @type {string}
      */
     get src(): string;
+    /**
+     * @type {ProgramProperties}
+     */
+    get properties(): ProgramProperties;
     /**
      * Returns version of Plutus-core (!== Plutus script version!)
      * @type {string}
@@ -3166,6 +3183,10 @@ export class Tx extends CborData {
      */
     checkFee(networkParams: NetworkParams): void;
     /**
+     * @param {NetworkParams} networkParams
+     */
+    finalizeValidityTimeRange(networkParams: NetworkParams): void;
+    /**
      * Assumes transaction hasn't yet been signed by anyone (i.e. witnesses.signatures is empty)
      * Mutates 'this'
      * Note: this is an async function so that a debugger can optionally be attached in the future
@@ -3218,6 +3239,10 @@ export class TxWitnesses extends CborData {
      * @type {UplcProgram[]}
      */
     get scripts(): UplcProgram[];
+    /**
+     * @returns {boolean}
+     */
+    anyScriptCallsTxTimeRange(): boolean;
     /**
      * Throws error if signatures are incorrect
      * @param {number[]} bodyBytes
@@ -4089,6 +4114,13 @@ export type UplcRTECallbacks = {
     onStartCall?: (site: Site, rawStack: import("./helios").UplcRawStack) => Promise<boolean>;
     onEndCall?: (site: Site, rawStack: import("./helios").UplcRawStack) => Promise<void>;
     onIncrCost?: (name: string, isTerm: boolean, cost: Cost) => void;
+};
+/**
+ * TODO: purpose as enum type
+ */
+export type ProgramProperties = {
+    purpose: null | number;
+    callsTxTimeRange: boolean;
 };
 /**
  * We can't use StructStatement etc. directly because that would give circular dependencies
@@ -4995,9 +5027,9 @@ declare class IRProgram {
     static simplify(expr: IRExpr): IRExpr;
     /**
      * @param {IRFuncExpr | IRCallExpr | IRLiteralExpr} expr
-     * @param {?number} purpose
+     * @param {ProgramProperties} properties
      */
-    constructor(expr: IRFuncExpr | IRCallExpr | IRLiteralExpr, purpose: number | null);
+    constructor(expr: IRFuncExpr | IRCallExpr | IRLiteralExpr, properties: ProgramProperties);
     /**
      * @package
      * @type {IRFuncExpr | IRCallExpr | IRLiteralExpr}
@@ -5005,9 +5037,9 @@ declare class IRProgram {
     get expr(): IRLiteralExpr | IRCallExpr | IRFuncExpr;
     /**
      * @package
-     * @type {?number}
+     * @type {ProgramProperties}
      */
-    get purpose(): number;
+    get properties(): ProgramProperties;
     /**
      * @package
      * @type {Site}

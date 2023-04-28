@@ -1,5 +1,9 @@
 This Changelog only applies to notable changes of language related features in `helios.js` on the main branch.
 
+# 2023/04/27
+* `Real` fixed point number type with most basic math operators
+* auto-set tx validity time_range if tx.time_range is called in any of the scripts
+
 # 2023/04/25
 * `List.get_singleton()`
 * Destructuring enum instances into enum variants throws runtime errors instead of compile-time errors

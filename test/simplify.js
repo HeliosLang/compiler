@@ -16,8 +16,8 @@ function simplify(src, expectedSize = null) {
 
     let ir = program.toIR();
 
-    let irProgram0 = helios_.IRProgram.new(ir, helios_.ScriptPurpose.Testing);
-    let irProgram1 = helios_.IRProgram.new(ir, helios_.ScriptPurpose.Testing, true);
+    let irProgram0 = helios_.IRProgram.new(ir, {purpose: helios_.ScriptPurpose.Testing, callsTxTimeRange: false});
+    let irProgram1 = helios_.IRProgram.new(ir, {purpose: helios_.ScriptPurpose.Testing, callsTxTimeRange: false}, true);
 
 	console.log(`ORIG (${irProgram0.calcSize()} bytes):`);
 	console.log(new helios_.Source(irProgram0.toString()).pretty());
@@ -36,7 +36,7 @@ async function profile(src, argNames, expected = null) {
 
     let args = argNames.map(name => program.evalParam(name));
 
-    let irProgram1 = helios_.IRProgram.new(program.toIR(), helios_.ScriptPurpose.Testing, true);
+    let irProgram1 = helios_.IRProgram.new(program.toIR(), {purpose: helios_.ScriptPurpose.Testing, callsTxTimeRange: false}, true);
 	let size = irProgram1.calcSize();
     console.log(`\nSIMPLIFIED (${size} bytes):`);
 	console.log(new helios_.Source(irProgram1.toString()).pretty(), "\n\n");

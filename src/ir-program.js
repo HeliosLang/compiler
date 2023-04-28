@@ -15,6 +15,10 @@ import {
 	UplcLambda
 } from "./uplc-ast.js";
 
+/**
+ * @typedef {import("./uplc-program.js").ProgramProperties} ProgramProperties
+ */
+
 import {
     UplcProgram
 } from "./uplc-program.js";
@@ -42,22 +46,21 @@ import {
     buildIRExpr
 } from "./ir-build.js";
 
-
 /**
  * Wrapper for IRFuncExpr, IRCallExpr or IRLiteralExpr
  * @package
  */
 export class IRProgram {
 	#expr;
-	#purpose;
+	#properties;
 
 	/**
 	 * @param {IRFuncExpr | IRCallExpr | IRLiteralExpr} expr
-	 * @param {?number} purpose
+	 * @param {ProgramProperties} properties
 	 */
-	constructor(expr, purpose) {
+	constructor(expr, properties) {
 		this.#expr = expr;
-		this.#purpose = purpose;
+		this.#properties = properties;
 	}
 
 	/**
@@ -84,6 +87,8 @@ export class IRProgram {
 	static new(ir, purpose, simplify = false, throwSimplifyRTErrors = false, scope = new IRScope(null, null)) {
 		let [irSrc, codeMap] = ir.generateSource();
 
+		const callsTxTimeRange = irSrc.match(/\b__helios__tx__time_range\b/) !== null;
+
 		let irTokens = tokenizeIR(irSrc, codeMap);
 
 		let expr = buildIRExpr(irTokens);
@@ -100,7 +105,10 @@ export class IRProgram {
 			expr.resolveNames(scope);
 		}
 
-		const program = new IRProgram(IRProgram.assertValidRoot(expr), purpose);
+		const program = new IRProgram(IRProgram.assertValidRoot(expr), {
+			purpose: purpose,
+			callsTxTimeRange: callsTxTimeRange
+		});
 
 		return program;
 	}
@@ -145,10 +153,10 @@ export class IRProgram {
 
 	/**
 	 * @package
-	 * @type {?number}
+	 * @type {ProgramProperties}
 	 */
-	get purpose() {
-		return this.#purpose;
+	get properties() {
+		return this.#properties;
 	}
 
 	/**
@@ -181,7 +189,7 @@ export class IRProgram {
 	 * @returns {UplcProgram}
 	 */
 	toUplc() {
-		return new UplcProgram(this.#expr.toUplc(), this.#purpose);
+		return new UplcProgram(this.#expr.toUplc(), this.#properties);
 	}
 
 	/**
@@ -237,6 +245,6 @@ export class IRParametricProgram {
 			exprUplc = new UplcLambda(Site.dummy(), exprUplc, p);
 		});
 
-		return new UplcProgram(exprUplc, this.#irProgram.purpose);
+		return new UplcProgram(exprUplc, this.#irProgram.properties);
 	}
 }

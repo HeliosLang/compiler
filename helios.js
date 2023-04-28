@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.28
+// Version:       0.13.29
 // Last update:   April 2023
 // License type:  BSD-3-Clause
 //
@@ -114,8 +114,8 @@
 //                                           UplcError, UplcBuiltin
 //
 //     Section 11: Uplc program              UPLC_VERSION_COMPONENTS, UPLC_VERSION, 
-//                                           PLUTUS_SCRIPT_VERSION, deserializeUplcBytes, 
-//                                           deserializeUplc
+//                                           PLUTUS_SCRIPT_VERSION, UPLC_TAG_WIDTHS, 
+//                                           deserializeUplcBytes, deserializeUplc
 //
 //     Section 12: Tokenization              Tokenizer, tokenize, tokenizeIR
 //
@@ -253,7 +253,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.28";
+export const VERSION = "0.13.29";
 
 /**
  * A tab used for indenting of the IR.
@@ -276,7 +276,10 @@ const REAL_PRECISION = 6;
  *   DEBUG: boolean,
  *   STRICT_BABBAGE: boolean,
  *   IS_TESTNET: boolean,
- *   N_DUMMY_INPUTS: number
+ *   N_DUMMY_INPUTS: number,
+ *   AUTO_SET_VALIDITY_RANGE: boolean,
+ *   VALIDITY_RANGE_START_OFFSET: number | null,
+ *   VALIDITY_RANGE_END_OFFSET: number | null
  * }}
  */
 export const config = {
@@ -303,7 +306,15 @@ export const config = {
      *   because eg. there are case where the TxId is being printed, and a Txid of ffff... would overestimate the fee
      * This value must be '1' or '2'
      */
-    N_DUMMY_INPUTS: 2
+    N_DUMMY_INPUTS: 2,
+
+    /**
+     * The validatity time range can be set automatically if a call to tx.time_range is detected.
+     * Helios defines some reasonable defaults.
+     */
+    AUTO_SET_VALIDITY_RANGE: true,
+    VALIDITY_RANGE_START_OFFSET: 60, // seconds
+    VALIDITY_RANGE_END_OFFSET: 300 // seconds
 }
 
 
@@ -11447,7 +11458,7 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
  * @package
  * @type {Object.<string, number>}
  */
- const UPLC_TAG_WIDTHS = {
+const UPLC_TAG_WIDTHS = {
 	term:      4,
 	type:      3,
 	constType: 4,
@@ -11457,22 +11468,30 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 };
 
 /**
+ * TODO: purpose as enum type
+ * @typedef {{
+ *   purpose: null | number 
+ *   callsTxTimeRange: boolean
+ * }} ProgramProperties
+ */
+
+/**
  * Plutus-core program class
  */
  export class UplcProgram {
 	#version;
 	#expr;
-	#purpose;
+	#properties;
 
 	/**
 	 * @param {UplcTerm} expr 
-	 * @param {?number} purpose // TODO: enum type
+	 * @param {ProgramProperties} properties
 	 * @param {UplcInt[]} version
 	 */
-	constructor(expr, purpose = null, version = UPLC_VERSION_COMPONENTS.map(v => new UplcInt(expr.site, v, false))) {
+	constructor(expr, properties = {purpose: null, callsTxTimeRange: false}, version = UPLC_VERSION_COMPONENTS.map(v => new UplcInt(expr.site, v, false))) {
 		this.#version = version;
 		this.#expr = expr;
-		this.#purpose = purpose;
+		this.#properties = properties;
 	}
 
 	/**
@@ -11495,6 +11514,13 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 */
 	get src() {
 		return this.site.src.raw;
+	}
+
+	/**
+	 * @type {ProgramProperties}
+	 */
+	get properties() {
+		return this.#properties;
 	}
 
 	/**
@@ -11620,7 +11646,7 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 			}
 		}
 
-		return new UplcProgram(expr, this.#purpose, this.#version);
+		return new UplcProgram(expr, this.#properties, this.#version);
 	}
 
 	/**
@@ -11812,7 +11838,9 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 * @type {ValidatorHash}
 	 */
 	get validatorHash() {
-		assert(this.#purpose === null || this.#purpose === ScriptPurpose.Spending);
+		const purpose = this.#properties.purpose;
+
+		assert(purpose === null || purpose === ScriptPurpose.Spending);
 
 		return new ValidatorHash(this.hash());
 	}
@@ -11821,7 +11849,9 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 * @type {MintingPolicyHash}
 	 */
 	get mintingPolicyHash() {
-		assert(this.#purpose === null || this.#purpose === ScriptPurpose.Minting);
+		const purpose = this.#properties.purpose;
+
+		assert(purpose === null || purpose === ScriptPurpose.Minting);
 
 		return new MintingPolicyHash(this.hash());
 	}
@@ -11830,7 +11860,9 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 * @type {StakingValidatorHash}
 	 */
 	get stakingValidatorHash() {
-		assert(this.#purpose === null || this.#purpose === ScriptPurpose.Staking);
+		const purpose = this.#properties.purpose;
+
+		assert(purpose === null || purpose === ScriptPurpose.Staking);
 
 		return new StakingValidatorHash(this.hash());
 	}
@@ -12200,7 +12232,7 @@ export function deserializeUplcBytes(bytes) {
 
 	reader.finalize();
 
-	return new UplcProgram(expr, null, version);
+	return new UplcProgram(expr, {purpose: null, callsTxTimeRange: false}, version);
 }
 
 /**
@@ -34144,22 +34176,21 @@ function buildIRFuncExpr(ts) {
 // Section 23: IR Program
 /////////////////////////
 
-
 /**
  * Wrapper for IRFuncExpr, IRCallExpr or IRLiteralExpr
  * @package
  */
 class IRProgram {
 	#expr;
-	#purpose;
+	#properties;
 
 	/**
 	 * @param {IRFuncExpr | IRCallExpr | IRLiteralExpr} expr
-	 * @param {?number} purpose
+	 * @param {ProgramProperties} properties
 	 */
-	constructor(expr, purpose) {
+	constructor(expr, properties) {
 		this.#expr = expr;
-		this.#purpose = purpose;
+		this.#properties = properties;
 	}
 
 	/**
@@ -34186,6 +34217,8 @@ class IRProgram {
 	static new(ir, purpose, simplify = false, throwSimplifyRTErrors = false, scope = new IRScope(null, null)) {
 		let [irSrc, codeMap] = ir.generateSource();
 
+		const callsTxTimeRange = irSrc.match(/\b__helios__tx__time_range\b/) !== null;
+
 		let irTokens = tokenizeIR(irSrc, codeMap);
 
 		let expr = buildIRExpr(irTokens);
@@ -34202,7 +34235,10 @@ class IRProgram {
 			expr.resolveNames(scope);
 		}
 
-		const program = new IRProgram(IRProgram.assertValidRoot(expr), purpose);
+		const program = new IRProgram(IRProgram.assertValidRoot(expr), {
+			purpose: purpose,
+			callsTxTimeRange: callsTxTimeRange
+		});
 
 		return program;
 	}
@@ -34247,10 +34283,10 @@ class IRProgram {
 
 	/**
 	 * @package
-	 * @type {?number}
+	 * @type {ProgramProperties}
 	 */
-	get purpose() {
-		return this.#purpose;
+	get properties() {
+		return this.#properties;
 	}
 
 	/**
@@ -34283,7 +34319,7 @@ class IRProgram {
 	 * @returns {UplcProgram}
 	 */
 	toUplc() {
-		return new UplcProgram(this.#expr.toUplc(), this.#purpose);
+		return new UplcProgram(this.#expr.toUplc(), this.#properties);
 	}
 
 	/**
@@ -34339,7 +34375,7 @@ export class IRParametricProgram {
 			exprUplc = new UplcLambda(Site.dummy(), exprUplc, p);
 		});
 
-		return new UplcProgram(exprUplc, this.#irProgram.purpose);
+		return new UplcProgram(exprUplc, this.#irProgram.properties);
 	}
 }
 
@@ -34988,7 +35024,7 @@ class MainModule extends Module {
 		if (constStatement === null) {
 			throw new Error(`param '${name}' not found`);
 		} else {
-			let path = constStatement.path;
+			const path = constStatement.path;
 
 			let ir = assertDefined(map.get(path));
 
@@ -34996,7 +35032,7 @@ class MainModule extends Module {
 
 			ir = wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
 
-			let irProgram = IRProgram.new(ir, this.#purpose, true, true);
+			const irProgram = IRProgram.new(ir, this.#purpose, true, true);
 
 			return new UplcDataValue(irProgram.site, irProgram.data);
 		}
@@ -36336,6 +36372,35 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @param {NetworkParams} networkParams 
+	 */
+	finalizeValidityTimeRange(networkParams) {
+		if(this.#witnesses.anyScriptCallsTxTimeRange() && config.AUTO_SET_VALIDITY_RANGE && this.#validFrom === null && this.#validTo === null) {
+			const now = new Date();
+
+			if (config.VALIDITY_RANGE_START_OFFSET !== null) {
+				this.#validFrom = new Date(now.getTime() - 1000*config.VALIDITY_RANGE_START_OFFSET);
+			}
+
+			if (config.VALIDITY_RANGE_END_OFFSET !== null) {
+				this.#validTo = new Date(now.getTime() + 1000*config.VALIDITY_RANGE_END_OFFSET);
+			}
+		}
+
+		if (this.#validTo !== null) {
+			this.#body.validTo(
+				networkParams.timeToSlot(BigInt(this.#validTo.getTime()))
+			);
+		}
+
+		if (this.#validFrom !== null) {
+			this.#body.validFrom(
+				networkParams.timeToSlot(BigInt(this.#validFrom.getTime()))
+			);
+		}
+	}
+
+	/**
 	 * Assumes transaction hasn't yet been signed by anyone (i.e. witnesses.signatures is empty)
 	 * Mutates 'this'
 	 * Note: this is an async function so that a debugger can optionally be attached in the future
@@ -36354,15 +36419,9 @@ export class Tx extends CborData {
 			);
 		}
 
-		if (this.#validTo !== null) {
-			this.#body.validTo(
-				networkParams.timeToSlot(BigInt(this.#validTo.getTime()))
-			);
-		}
-
-		if (this.#validFrom !== null) {
-			this.#body.validFrom(networkParams.timeToSlot(BigInt(this.#validFrom.getTime())));
-		}
+		// auto set the validity time range if the script call tx.time_range
+		//  and translate the time range dates to slots
+		this.finalizeValidityTimeRange(networkParams);
 
 		// inputs, minted assets, and withdrawals must all be in a particular order
 		this.#body.sort();
@@ -37224,6 +37283,13 @@ export class TxWitnesses extends CborData {
 	 */
 	get scripts() {
 		return this.#scripts.slice().concat(this.#refScripts.slice());
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	anyScriptCallsTxTimeRange() {
+		return this.scripts.some(p => p.properties.callsTxTimeRange);
 	}
 
 	/**

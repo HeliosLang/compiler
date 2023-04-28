@@ -103,7 +103,7 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
  * @package
  * @type {Object.<string, number>}
  */
- const UPLC_TAG_WIDTHS = {
+const UPLC_TAG_WIDTHS = {
 	term:      4,
 	type:      3,
 	constType: 4,
@@ -113,22 +113,30 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 };
 
 /**
+ * TODO: purpose as enum type
+ * @typedef {{
+ *   purpose: null | number 
+ *   callsTxTimeRange: boolean
+ * }} ProgramProperties
+ */
+
+/**
  * Plutus-core program class
  */
  export class UplcProgram {
 	#version;
 	#expr;
-	#purpose;
+	#properties;
 
 	/**
 	 * @param {UplcTerm} expr 
-	 * @param {?number} purpose // TODO: enum type
+	 * @param {ProgramProperties} properties
 	 * @param {UplcInt[]} version
 	 */
-	constructor(expr, purpose = null, version = UPLC_VERSION_COMPONENTS.map(v => new UplcInt(expr.site, v, false))) {
+	constructor(expr, properties = {purpose: null, callsTxTimeRange: false}, version = UPLC_VERSION_COMPONENTS.map(v => new UplcInt(expr.site, v, false))) {
 		this.#version = version;
 		this.#expr = expr;
-		this.#purpose = purpose;
+		this.#properties = properties;
 	}
 
 	/**
@@ -151,6 +159,13 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 */
 	get src() {
 		return this.site.src.raw;
+	}
+
+	/**
+	 * @type {ProgramProperties}
+	 */
+	get properties() {
+		return this.#properties;
 	}
 
 	/**
@@ -276,7 +291,7 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 			}
 		}
 
-		return new UplcProgram(expr, this.#purpose, this.#version);
+		return new UplcProgram(expr, this.#properties, this.#version);
 	}
 
 	/**
@@ -468,7 +483,9 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 * @type {ValidatorHash}
 	 */
 	get validatorHash() {
-		assert(this.#purpose === null || this.#purpose === ScriptPurpose.Spending);
+		const purpose = this.#properties.purpose;
+
+		assert(purpose === null || purpose === ScriptPurpose.Spending);
 
 		return new ValidatorHash(this.hash());
 	}
@@ -477,7 +494,9 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 * @type {MintingPolicyHash}
 	 */
 	get mintingPolicyHash() {
-		assert(this.#purpose === null || this.#purpose === ScriptPurpose.Minting);
+		const purpose = this.#properties.purpose;
+
+		assert(purpose === null || purpose === ScriptPurpose.Minting);
 
 		return new MintingPolicyHash(this.hash());
 	}
@@ -486,7 +505,9 @@ const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 	 * @type {StakingValidatorHash}
 	 */
 	get stakingValidatorHash() {
-		assert(this.#purpose === null || this.#purpose === ScriptPurpose.Staking);
+		const purpose = this.#properties.purpose;
+
+		assert(purpose === null || purpose === ScriptPurpose.Staking);
 
 		return new StakingValidatorHash(this.hash());
 	}
@@ -856,7 +877,7 @@ export function deserializeUplcBytes(bytes) {
 
 	reader.finalize();
 
-	return new UplcProgram(expr, null, version);
+	return new UplcProgram(expr, {purpose: null, callsTxTimeRange: false}, version);
 }
 
 /**
