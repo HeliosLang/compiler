@@ -58,7 +58,7 @@ export const config = {
      * The validatity time range can be set automatically if a call to tx.time_range is detected.
      * Helios defines some reasonable defaults.
      */
-    AUTO_SET_VALIDITY_RANGE: true,
+    AUTO_SET_VALIDITY_RANGE: false,
     VALIDITY_RANGE_START_OFFSET: 60, // seconds
     VALIDITY_RANGE_END_OFFSET: 300 // seconds
 }

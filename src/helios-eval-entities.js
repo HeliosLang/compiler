@@ -2714,27 +2714,20 @@ export class ListType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "length":
-				return Instance.new(new IntType());
-			case "head":
-				return Instance.new(this.#itemType);
-			case "tail":
-				return Instance.new(new ListType(this.#itemType));
-			case "is_empty":
-				return Instance.new(new FuncType([], new BoolType()));
-			case "get":
-				return Instance.new(new FuncType([new IntType()], this.#itemType));
-			case "prepend":
-				return Instance.new(new FuncType([this.#itemType], new ListType(this.#itemType)));
-			case "any":
 			case "all":
+			case "any":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new BoolType()));
+			case "drop":
+			case "drop_end":
+			case "take":
+			case "take_end":
+				return Instance.new(new FuncType([new IntType()], this));
+			case "filter":
+				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], this));
 			case "find":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], this.#itemType));
 			case "find_safe":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new OptionType(this.#itemType)));
-			case "filter":
-				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new ListType(this.#itemType)));
 			case "for_each":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new VoidType())], new VoidType()));
 			case "fold": {
@@ -2745,6 +2738,16 @@ export class ListType extends BuiltinType {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([this.#itemType, new FuncType([], a)], a), a], a));
 			}
+			case "get":
+				return Instance.new(new FuncType([new IntType()], this.#itemType));
+			case "get_singleton":
+				return Instance.new(new FuncType([], this.#itemType));
+			case "head":
+				return Instance.new(this.#itemType);
+			case "is_empty":
+				return Instance.new(new FuncType([], new BoolType()));
+			case "length":
+				return Instance.new(new IntType());
 			case "map": {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([this.#itemType], a)], new ListType(a)), () => {
@@ -2760,10 +2763,12 @@ export class ListType extends BuiltinType {
 					}
 				});
 			}
-			case "get_singleton":
-				return Instance.new(new FuncType([], this.#itemType));
+			case "prepend":
+				return Instance.new(new FuncType([this.#itemType], this));
 			case "sort":
-				return Instance.new(new FuncType([new FuncType([this.#itemType, this.#itemType], new BoolType())], new ListType(this.#itemType)));
+				return Instance.new(new FuncType([new FuncType([this.#itemType, this.#itemType], new BoolType())], this));
+			case "tail":
+				return Instance.new(this);
 			default:
 				return super.getInstanceMember(name);
 		}

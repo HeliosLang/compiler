@@ -801,7 +801,7 @@ export class Tx extends CborData {
 	 * @param {NetworkParams} networkParams 
 	 */
 	finalizeValidityTimeRange(networkParams) {
-		if(this.#witnesses.anyScriptCallsTxTimeRange() && config.AUTO_SET_VALIDITY_RANGE && this.#validFrom === null && this.#validTo === null) {
+		if (this.#witnesses.anyScriptCallsTxTimeRange() && this.#validFrom === null && this.#validTo === null) {
 			const now = new Date();
 
 			if (config.VALIDITY_RANGE_START_OFFSET !== null) {
@@ -810,6 +810,10 @@ export class Tx extends CborData {
 
 			if (config.VALIDITY_RANGE_END_OFFSET !== null) {
 				this.#validTo = new Date(now.getTime() + 1000*config.VALIDITY_RANGE_END_OFFSET);
+			}
+
+			if (!config.AUTO_SET_VALIDITY_RANGE) {
+				console.error("Warning: validity interval is unset but detected usage of tx.time_range in one of the scripts. Setting the tx validity interval to a sane default (hint: set helios.config.AUTO_SET_VALIDITY_RANGE to true to avoid this warning)");
 			}
 		}
 

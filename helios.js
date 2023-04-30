@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.29
+// Version:       0.13.30
 // Last update:   April 2023
 // License type:  BSD-3-Clause
 //
@@ -253,7 +253,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.29";
+export const VERSION = "0.13.30";
 
 /**
  * A tab used for indenting of the IR.
@@ -312,7 +312,7 @@ export const config = {
      * The validatity time range can be set automatically if a call to tx.time_range is detected.
      * Helios defines some reasonable defaults.
      */
-    AUTO_SET_VALIDITY_RANGE: true,
+    AUTO_SET_VALIDITY_RANGE: false,
     VALIDITY_RANGE_START_OFFSET: 60, // seconds
     VALIDITY_RANGE_END_OFFSET: 300 // seconds
 }
@@ -15682,27 +15682,20 @@ class ListType extends BuiltinType {
 	 */
 	getInstanceMember(name) {
 		switch (name.value) {
-			case "length":
-				return Instance.new(new IntType());
-			case "head":
-				return Instance.new(this.#itemType);
-			case "tail":
-				return Instance.new(new ListType(this.#itemType));
-			case "is_empty":
-				return Instance.new(new FuncType([], new BoolType()));
-			case "get":
-				return Instance.new(new FuncType([new IntType()], this.#itemType));
-			case "prepend":
-				return Instance.new(new FuncType([this.#itemType], new ListType(this.#itemType)));
-			case "any":
 			case "all":
+			case "any":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new BoolType()));
+			case "drop":
+			case "drop_end":
+			case "take":
+			case "take_end":
+				return Instance.new(new FuncType([new IntType()], this));
+			case "filter":
+				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], this));
 			case "find":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], this.#itemType));
 			case "find_safe":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new OptionType(this.#itemType)));
-			case "filter":
-				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new ListType(this.#itemType)));
 			case "for_each":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new VoidType())], new VoidType()));
 			case "fold": {
@@ -15713,6 +15706,16 @@ class ListType extends BuiltinType {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([this.#itemType, new FuncType([], a)], a), a], a));
 			}
+			case "get":
+				return Instance.new(new FuncType([new IntType()], this.#itemType));
+			case "get_singleton":
+				return Instance.new(new FuncType([], this.#itemType));
+			case "head":
+				return Instance.new(this.#itemType);
+			case "is_empty":
+				return Instance.new(new FuncType([], new BoolType()));
+			case "length":
+				return Instance.new(new IntType());
 			case "map": {
 				let a = new ParamType("a");
 				return new ParamFuncValue([a], new FuncType([new FuncType([this.#itemType], a)], new ListType(a)), () => {
@@ -15728,10 +15731,12 @@ class ListType extends BuiltinType {
 					}
 				});
 			}
-			case "get_singleton":
-				return Instance.new(new FuncType([], this.#itemType));
+			case "prepend":
+				return Instance.new(new FuncType([this.#itemType], this));
 			case "sort":
-				return Instance.new(new FuncType([new FuncType([this.#itemType, this.#itemType], new BoolType())], new ListType(this.#itemType)));
+				return Instance.new(new FuncType([new FuncType([this.#itemType, this.#itemType], new BoolType())], this));
+			case "tail":
+				return Instance.new(this);
 			default:
 				return super.getInstanceMember(name);
 		}
@@ -29083,6 +29088,219 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
+	add(new RawFunc("__helios__list__drop",
+	`(self) -> {
+		(n) -> {
+			(n) -> {
+				(recurse) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(n, 0),
+						() -> {
+							error("negative n in drop")
+						},
+						() -> {
+							__core__listData(
+								recurse(
+									recurse,
+									__core__unListData(self),
+									n
+								)
+							)
+						}
+					)()
+				}(
+					(recurse, lst, n) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(n, 0),
+							() -> {
+								lst
+							},
+							() -> {
+								recurse(
+									recurse,
+									__core__tailList(lst),
+									__core__subtractInteger(n, 1)
+								)
+							}
+						)()
+					}
+				)
+			}(__core__unIData(n))
+		}
+	}`));
+	add(new RawFunc("__helios__list__drop_end",
+	`(self) -> {
+		(n) -> {
+			(n) -> {
+				(recurse) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(n, 0),
+						() -> {
+							error("negative n in drop_end")
+						},
+						() -> {
+							__core__listData(
+								recurse(recurse, __core__unListData(self))(
+									(count, result) -> {
+										__core__ifThenElse(
+											__core__lessThanInteger(count, n),
+											() -> {
+												error("list too short")
+											},
+											() -> {
+												result
+											}
+										)()
+									}
+								)
+							)
+						}
+					)()
+				}(
+					(recurse, lst) -> {
+						__core__chooseList(
+							lst,
+							() -> {
+								(callback) -> {callback(0, lst)}
+							},
+							() -> {
+								recurse(recurse, __core__tailList(lst))(
+									(count, result) -> {
+										__core__ifThenElse(
+											__core__equalsInteger(count, n),
+											() -> {
+												(callback) -> {
+													callback(
+														count,
+														__core__mkCons(
+															__core__headList(lst), 
+															result
+														)
+													)
+												}
+											},
+											() -> {
+												(callback) -> {
+													callback(
+														__core__addInteger(count, 1),
+														result
+													)
+												}
+											}
+										)()
+									}
+								)
+							}
+						)()
+					}
+				)
+			}(__core__unIData(n))
+		}
+	}`));
+	add(new RawFunc("__helios__list__take",
+	`(self) -> {
+		(n) -> {
+			(n) -> {
+				(recurse) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(n, 0),
+						() -> {
+							error("negative n in take")
+						},
+						() -> {
+							__core__listData(
+								recurse(
+									recurse,
+									__core__unListData(self),
+									n
+								)
+							)
+						}
+					)()
+				}(
+					(recurse, lst, n) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(n, 0),
+							() -> {
+								__core__mkNilData(())
+							},
+							() -> {
+								__core__mkCons(
+									__core__headList(lst),
+									recurse(
+										recurse,
+										__core__tailList(lst),
+										__core__subtractInteger(n, 1)
+									)
+								)
+							}
+						)()
+					}
+				)
+			}(__core__unIData(n))
+		}
+	}`));
+	add(new RawFunc("__helios__list__take_end",
+	`(self) -> {
+		(n) -> {
+			(n) -> {
+				(recurse) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(n, 0),
+						() -> {
+							error("negative n in take_end")
+						},
+						() -> {
+							__core__listData(
+								recurse(recurse, __core__unListData(self))(
+									(count, result) -> {
+										__core__ifThenElse(
+											__core__lessThanInteger(count, n),
+											() -> {
+												error("list too short")
+											},
+											() -> {
+												result
+											}
+										)()
+									}
+								)
+							)
+						}
+					)()
+				}(
+					(recurse, lst) -> {
+						__core__chooseList(
+							lst,
+							() -> {
+								(callback) -> {callback(0, lst)}
+							},
+							() -> {
+								recurse(recurse, __core__tailList(lst))(
+									(count, tail) -> {
+										__core__ifThenElse(
+											__core__equalsInteger(count, n),
+											() -> {
+												(callback) -> {callback(count, tail)}
+											},
+											() -> {
+												(callback) -> {
+													callback(
+														__core__addInteger(count, 1),
+														lst
+													)
+												}
+											}
+										)()
+									}
+								)
+							}
+						)()
+					}
+				)
+			}(__core__unIData(n))
+		}
+	}`));
 	add(new RawFunc("__helios__list__any",
 	`(self) -> {
 		(self) -> {
@@ -29235,6 +29453,10 @@ function makeRawFunctions() {
 			__helios__common__unBoolData(__helios__list__get_singleton(self)())
 		}
 	}`));
+	add(new RawFunc("__helios__boollist__drop", "__helios__list__drop"));
+	add(new RawFunc("__helios__boollist__drop_end", "__helios__list__drop_end"));
+	add(new RawFunc("__helios__boollist__take", "__helios__list__take"));
+	add(new RawFunc("__helios__boollist__take_end", "__helios__list__take_end"));
 	add(new RawFunc("__helios__boollist__any", 
 	`(self) -> {
 		(fn) -> {
@@ -36375,7 +36597,7 @@ export class Tx extends CborData {
 	 * @param {NetworkParams} networkParams 
 	 */
 	finalizeValidityTimeRange(networkParams) {
-		if(this.#witnesses.anyScriptCallsTxTimeRange() && config.AUTO_SET_VALIDITY_RANGE && this.#validFrom === null && this.#validTo === null) {
+		if (this.#witnesses.anyScriptCallsTxTimeRange() && this.#validFrom === null && this.#validTo === null) {
 			const now = new Date();
 
 			if (config.VALIDITY_RANGE_START_OFFSET !== null) {
@@ -36384,6 +36606,10 @@ export class Tx extends CborData {
 
 			if (config.VALIDITY_RANGE_END_OFFSET !== null) {
 				this.#validTo = new Date(now.getTime() + 1000*config.VALIDITY_RANGE_END_OFFSET);
+			}
+
+			if (!config.AUTO_SET_VALIDITY_RANGE) {
+				console.error("Warning: validity interval is unset but detected usage of tx.time_range in one of the scripts. Setting the tx validity interval to a sane default (hint: set helios.config.AUTO_SET_VALIDITY_RANGE to true to avoid this warning)");
 			}
 		}
 

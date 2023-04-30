@@ -1895,6 +1895,219 @@ function makeRawFunctions() {
 			}
 		}(__core__unListData(self))
 	}`));
+	add(new RawFunc("__helios__list__drop",
+	`(self) -> {
+		(n) -> {
+			(n) -> {
+				(recurse) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(n, 0),
+						() -> {
+							error("negative n in drop")
+						},
+						() -> {
+							__core__listData(
+								recurse(
+									recurse,
+									__core__unListData(self),
+									n
+								)
+							)
+						}
+					)()
+				}(
+					(recurse, lst, n) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(n, 0),
+							() -> {
+								lst
+							},
+							() -> {
+								recurse(
+									recurse,
+									__core__tailList(lst),
+									__core__subtractInteger(n, 1)
+								)
+							}
+						)()
+					}
+				)
+			}(__core__unIData(n))
+		}
+	}`));
+	add(new RawFunc("__helios__list__drop_end",
+	`(self) -> {
+		(n) -> {
+			(n) -> {
+				(recurse) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(n, 0),
+						() -> {
+							error("negative n in drop_end")
+						},
+						() -> {
+							__core__listData(
+								recurse(recurse, __core__unListData(self))(
+									(count, result) -> {
+										__core__ifThenElse(
+											__core__lessThanInteger(count, n),
+											() -> {
+												error("list too short")
+											},
+											() -> {
+												result
+											}
+										)()
+									}
+								)
+							)
+						}
+					)()
+				}(
+					(recurse, lst) -> {
+						__core__chooseList(
+							lst,
+							() -> {
+								(callback) -> {callback(0, lst)}
+							},
+							() -> {
+								recurse(recurse, __core__tailList(lst))(
+									(count, result) -> {
+										__core__ifThenElse(
+											__core__equalsInteger(count, n),
+											() -> {
+												(callback) -> {
+													callback(
+														count,
+														__core__mkCons(
+															__core__headList(lst), 
+															result
+														)
+													)
+												}
+											},
+											() -> {
+												(callback) -> {
+													callback(
+														__core__addInteger(count, 1),
+														result
+													)
+												}
+											}
+										)()
+									}
+								)
+							}
+						)()
+					}
+				)
+			}(__core__unIData(n))
+		}
+	}`));
+	add(new RawFunc("__helios__list__take",
+	`(self) -> {
+		(n) -> {
+			(n) -> {
+				(recurse) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(n, 0),
+						() -> {
+							error("negative n in take")
+						},
+						() -> {
+							__core__listData(
+								recurse(
+									recurse,
+									__core__unListData(self),
+									n
+								)
+							)
+						}
+					)()
+				}(
+					(recurse, lst, n) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(n, 0),
+							() -> {
+								__core__mkNilData(())
+							},
+							() -> {
+								__core__mkCons(
+									__core__headList(lst),
+									recurse(
+										recurse,
+										__core__tailList(lst),
+										__core__subtractInteger(n, 1)
+									)
+								)
+							}
+						)()
+					}
+				)
+			}(__core__unIData(n))
+		}
+	}`));
+	add(new RawFunc("__helios__list__take_end",
+	`(self) -> {
+		(n) -> {
+			(n) -> {
+				(recurse) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(n, 0),
+						() -> {
+							error("negative n in take_end")
+						},
+						() -> {
+							__core__listData(
+								recurse(recurse, __core__unListData(self))(
+									(count, result) -> {
+										__core__ifThenElse(
+											__core__lessThanInteger(count, n),
+											() -> {
+												error("list too short")
+											},
+											() -> {
+												result
+											}
+										)()
+									}
+								)
+							)
+						}
+					)()
+				}(
+					(recurse, lst) -> {
+						__core__chooseList(
+							lst,
+							() -> {
+								(callback) -> {callback(0, lst)}
+							},
+							() -> {
+								recurse(recurse, __core__tailList(lst))(
+									(count, tail) -> {
+										__core__ifThenElse(
+											__core__equalsInteger(count, n),
+											() -> {
+												(callback) -> {callback(count, tail)}
+											},
+											() -> {
+												(callback) -> {
+													callback(
+														__core__addInteger(count, 1),
+														lst
+													)
+												}
+											}
+										)()
+									}
+								)
+							}
+						)()
+					}
+				)
+			}(__core__unIData(n))
+		}
+	}`));
 	add(new RawFunc("__helios__list__any",
 	`(self) -> {
 		(self) -> {
@@ -2047,6 +2260,10 @@ function makeRawFunctions() {
 			__helios__common__unBoolData(__helios__list__get_singleton(self)())
 		}
 	}`));
+	add(new RawFunc("__helios__boollist__drop", "__helios__list__drop"));
+	add(new RawFunc("__helios__boollist__drop_end", "__helios__list__drop_end"));
+	add(new RawFunc("__helios__boollist__take", "__helios__list__take"));
+	add(new RawFunc("__helios__boollist__take_end", "__helios__list__take_end"));
 	add(new RawFunc("__helios__boollist__any", 
 	`(self) -> {
 		(fn) -> {
