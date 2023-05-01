@@ -151,7 +151,44 @@ async function test5() {
     let program = helios.Program.new(mainSrc, [moduleSrc]);
 
     console.log(program.evalParam("VH").toString())
-}``
+}
+
+async function test6() {
+    const module1 = `
+    module Module1
+    
+    const test = 1
+    `;
+
+    const module2 = `
+    module Module2
+
+    import Module1
+    `;
+
+    const main = `
+    testing my_script
+
+    import {Module1} from Module2
+    import Module2
+
+    func main() -> Int  {
+        Module1::test + Module2::Module1::test + 1_000_000.000.round()
+    }
+    `;
+
+    console.log("Testing namespace import");
+
+    let program = helios.Program.new(main, [module1, module2]);
+
+    console.log(program.prettyIR());
+    console.log(program.prettyIR(true));
+
+    let irProgram = program.compile(false);
+    let result = await irProgram.run([]);
+
+    console.log(result.toString());
+}
 
 export default async function main() {
     await test1();
@@ -163,6 +200,8 @@ export default async function main() {
     await test4();
 
     await test5();
+
+    await test6();
 }
 
 runIfEntryPoint(main, "modules.js");

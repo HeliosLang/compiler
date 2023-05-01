@@ -2,6 +2,10 @@
 // Scopes
 
 import {
+	assert
+} from "./utils.js";
+
+import {
     Site,
     Word
 } from "./tokens.js";
@@ -256,11 +260,31 @@ export class Scope {
 	 * @param {EvalEntity | Scope} value 
 	 */
 	set(name, value) {
+		if (value instanceof Scope) {
+			assert(name.value.startsWith("__scope__"));
+		}
+
 		if (this.has(name)) {
 			throw name.syntaxError(`'${name.toString()}' already defined`);
 		}
 
 		this.#values.push([name, value]);
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Scope}
+	 */
+	getScope(name) {
+		assert(!name.value.startsWith("__scope__"));
+
+		const entity = this.get(new Word(name.site, `__scope__${name.value}`));
+
+		if (entity instanceof Scope) {
+			return entity;
+		} else {
+			throw name.typeError(`expected Scope, got ${entity.toString()}`);
+		}
 	}
 
 	/**
@@ -390,10 +414,26 @@ export class TopScope extends Scope {
 	}
 
 	/**
+	 * Prepends "__scope__" to name before actually setting scope
+	 * @param {Word} name 
+	 * @param {Scope} value 
+	 */
+	setScope(name, value) {
+		assert(!name.value.startsWith("__scope__"));
+
+		this.set(new Word(name.site, `__scope__${name.value}`), value);
+	}
+
+
+	/**
 	 * @param {Word} name 
 	 * @param {EvalEntity | Scope} value 
 	 */
 	set(name, value) {
+		if (value instanceof Scope) {
+			assert(name.value.startsWith("__scope__"));
+		}
+
 		super.set(name, value);
 	}
 
@@ -416,7 +456,10 @@ export class TopScope extends Scope {
 	 * @returns {ModuleScope}
 	 */
 	getModuleScope(name) {
-		const maybeModuleScope = this.get(name);
+		assert(!name.value.startsWith("__scope__"));
+
+		const maybeModuleScope = this.get(new Word(name.site, `__scope__${name.value}`));
+
 		if (maybeModuleScope instanceof ModuleScope) {
 			return maybeModuleScope;
 		} else {

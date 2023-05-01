@@ -63,7 +63,8 @@ import {
 import {
     ConstStatement,
     FuncStatement,
-    ImportStatement,
+    ImportFromStatement,
+    ImportModuleStatement,
     Statement
 } from "./helios-ast-statements.js";
 
@@ -231,7 +232,7 @@ class Module {
 		newStack = newStack.concat(stack);
 
 		for (let s of this.#statements) {
-			if (s instanceof ImportStatement) {
+			if (s instanceof ImportFromStatement || s instanceof ImportModuleStatement) {
 				let mn = s.moduleName.value;
 
 				if (mn == this.name.value) {
@@ -586,7 +587,7 @@ class MainModule extends Module {
 			}
 
 			if (m !== this.postModule) {
-				topScope.set(m.name, moduleScope);
+				topScope.setScope(m.name, moduleScope);
 			}
 		}
 
@@ -639,7 +640,7 @@ class MainModule extends Module {
 		for (let s of this.mainAndPostStatements) {
 			if (s instanceof ConstStatement) {
 				res[s.name.value] = s.type;
-			} else if (s instanceof ImportStatement && s.origStatement instanceof ConstStatement) {
+			} else if (s instanceof ImportFromStatement && s.origStatement instanceof ConstStatement) {
 				res[s.name.value] = s.origStatement.type;
 			}
 		}
@@ -660,7 +661,7 @@ class MainModule extends Module {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValue(value);
 				return this;
-			} else if (s instanceof ImportStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
+			} else if (s instanceof ImportFromStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
 				s.origStatement.changeValue(value);
 				return this;
 			}
@@ -672,7 +673,7 @@ class MainModule extends Module {
 	/**
 	 * Change the literal value of a const statements  
 	 * @package
-	 * @param {string} name 
+	 * @param {string} name
 	 * @param {UplcData} data
 	 */
 	changeParamSafe(name, data) {
@@ -680,7 +681,7 @@ class MainModule extends Module {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValueSafe(data);
 				return this;
-			} else if (s instanceof ImportStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
+			} else if (s instanceof ImportFromStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
 				s.origStatement.changeValueSafe(data);
 				return this;
 			}
@@ -704,7 +705,7 @@ class MainModule extends Module {
 		let constStatement = null;
 
 		for (let s of this.mainAndPostStatements) {
-			if (s instanceof ImportStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
+			if (s instanceof ImportFromStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
 				constStatement = s.origStatement;
 				break;
 			}
@@ -813,7 +814,7 @@ class MainModule extends Module {
 					if (i != -1) {
 						parameterStatements[i] = statement;
 					}
-				} else if (statement instanceof ImportStatement && statement.origStatement instanceof ConstStatement) {
+				} else if (statement instanceof ImportFromStatement && statement.origStatement instanceof ConstStatement) {
 					const i = parameters.findIndex(p => statement.name.value == p);
 
 					if (i != -1) {

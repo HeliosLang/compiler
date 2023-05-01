@@ -79,7 +79,8 @@ import {
     EnumStatement,
     FuncStatement,
     ImplDefinition,
-    ImportStatement,
+    ImportFromStatement,
+    ImportModuleStatement,
     Statement,
     StructStatement
 } from "./helios-ast-statements.js";
@@ -790,105 +791,153 @@ function buildEnumStatement(site, ts) {
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {(ImportStatement | null)[] | null}
+ * @returns {(ImportFromStatement | ImportModuleStatement | null)[] | null}
  */
 function buildImportStatements(site, ts) {
-	const maybeBraces = ts.shift();
-
-	if (maybeBraces === undefined) {
-		site.syntaxError("expected '{...}' after 'import'");
+	const t = assertToken(ts.shift(), site, "expected '{...}' or Word after 'import'");
+	if (!t) {
 		return null;
+	}
+
+	if (t.isWord()) {
+		const statement = buildImportModuleStatement(site, t);
+
+		if (!statement) {
+			return null;
+		}
+
+		return [statement];
 	} else {
-		const braces = maybeBraces.assertGroup("{");
-		if (!braces) {
+		return buildImportFromStatements(site, t, ts);
+	}
+}
+
+/**
+ * @param {Site} site 
+ * @param {Token} maybeName 
+ * @returns {ImportModuleStatement | null}
+ */
+function buildImportModuleStatement(site, maybeName) {
+	/**
+	 * @type {Word | null}
+	 */
+	let moduleName = null;
+
+	if (maybeName instanceof StringLiteral && importPathTranslator) {
+		const translated = importPathTranslator(maybeName);
+		if (!translated) {
 			return null;
 		}
 
-		const maybeFrom = assertToken(ts.shift(), maybeBraces.site, "expected 'from' after 'import {...}'")?.assertWord("from");
-		if (!maybeFrom) {
+		moduleName = new Word(maybeName.site, translated);
+	} else {
+		moduleName = maybeName.assertWord()?.assertNotKeyword() ?? null;
+	}
+
+	if (!moduleName) {
+		return null;
+	}
+
+	return new ImportModuleStatement(site, moduleName);
+}
+
+/**
+ * 
+ * @param {Site} site 
+ * @param {Token} maybeBraces 
+ * @param {Token[]} ts 
+ * @returns {(ImportFromStatement | null)[] | null}
+ */
+function buildImportFromStatements(site, maybeBraces, ts) {
+	const braces = maybeBraces.assertGroup("{");
+	if (!braces) {
+		return null;
+	}
+
+	const maybeFrom = assertToken(ts.shift(), maybeBraces.site, "expected 'from' after 'import {...}'")?.assertWord("from");
+	if (!maybeFrom) {
+		return null;
+	}
+
+	const maybeModuleName = assertToken(ts.shift(), maybeFrom.site, "expected module name after 'import {...} from'");
+	if (!maybeModuleName) {
+		return null;
+	}
+
+	/**
+	 * @type {null | undefined | Word}
+	 */
+	let moduleName = null;
+
+	if (maybeModuleName instanceof StringLiteral && importPathTranslator) {
+		const translated = importPathTranslator(maybeModuleName);
+
+		if (!translated) {
 			return null;
 		}
 
-		const maybeModuleName = assertToken(ts.shift(), maybeFrom.site, "expected module name after 'import {...} from'");
-		if (!maybeModuleName) {
+		moduleName = new Word(maybeModuleName.site, translated);
+	} else {
+		moduleName = maybeModuleName.assertWord()?.assertNotKeyword();
+	}
+
+	if (!moduleName) {
+		return null;
+	}
+
+	const mName = moduleName;
+
+	if (braces.fields.length === 0) {
+		braces.syntaxError("expected at least 1 import field");
+	}
+
+	return braces.fields.map(fts => {
+		const ts = fts.slice();
+		const maybeOrigName = ts.shift();
+
+		if (maybeOrigName === undefined) {
+			braces.syntaxError("empty import field");
 			return null;
-		}
-
-		/**
-		 * @type {null | undefined | Word}
-		 */
-		let moduleName = null;
-
-		if (maybeModuleName instanceof StringLiteral && importPathTranslator) {
-			let translated = importPathTranslator(maybeModuleName);
-
-			if (!translated) {
-				return null;
-			}
-
-			moduleName = new Word(maybeModuleName.site, translated);
 		} else {
-			moduleName = maybeModuleName.assertWord()?.assertNotKeyword();
-		}
+			const origName = maybeOrigName.assertWord();
 
-		if (!moduleName) {
-			return null;
-		}
-
-		const mName = moduleName;
-
-		if (braces.fields.length === 0) {
-			braces.syntaxError("expected at least 1 import field");
-		}
-
-		return braces.fields.map(fts => {
-			const ts = fts.slice();
-			const maybeOrigName = ts.shift();
-
-			if (maybeOrigName === undefined) {
-				braces.syntaxError("empty import field");
+			if (!origName) {
 				return null;
+			} else if (ts.length === 0) {
+				return new ImportFromStatement(site, origName, origName, mName);
 			} else {
-				const origName = maybeOrigName.assertWord();
+				const maybeAs = ts.shift();
 
-				if (!origName) {
+				if (maybeAs === undefined) {
+					maybeOrigName.syntaxError(`expected 'as' or nothing after '${origName.value}'`);
 					return null;
-				} else if (ts.length === 0) {
-					return new ImportStatement(site, origName, origName, mName);
 				} else {
-					const maybeAs = ts.shift();
+					maybeAs.assertWord("as");
 
-					if (maybeAs === undefined) {
-						maybeOrigName.syntaxError(`expected 'as' or nothing after '${origName.value}'`);
+					const maybeNewName = ts.shift();
+
+					if (maybeNewName === undefined) {
+						maybeAs.syntaxError("expected word after 'as'");
 						return null;
 					} else {
-						maybeAs.assertWord("as");
+						const newName = maybeNewName.assertWord();
 
-						const maybeNewName = ts.shift();
+						if (!newName) {
+							return null;
+						}
 
-						if (maybeNewName === undefined) {
-							maybeAs.syntaxError("expected word after 'as'");
+						const rem = ts.shift();
+						if (rem !== undefined) {
+							rem.syntaxError("unexpected token");
 							return null;
 						} else {
-							const newName = maybeNewName.assertWord();
-
-							if (!newName) {
-								return null;
-							}
-
-							const rem = ts.shift();
-							if (rem !== undefined) {
-								rem.syntaxError("unexpected token");
-								return null;
-							} else {
-								return new ImportStatement(site, newName, origName, mName);
-							}
+							return new ImportFromStatement(site, newName, origName, mName);
 						}
 					}
 				}
 			}
-		}).filter(f => f !== null)
-	}
+		}
+	}).filter(f => f !== null)
 }
 
 /**

@@ -312,7 +312,7 @@ export class Tokenizer {
 		} else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
 			site.syntaxError(`bad literal integer type 0${c}`);
 		} else if (c >= '0' && c <= '9') {
-			this.readDecimal(site, c);
+			site.syntaxError("unexpected leading 0");
 		} else if (c == '.') {
 			this.readFixedPoint(site, ['0']);
 		} else {
@@ -345,17 +345,51 @@ export class Tokenizer {
 
 	/**
 	 * @param {Site} site 
+	 * @param {string[]} chars 
+	 * @param {boolean} reverse
+	 * @returns {string[]}
+	 */
+	static assertCorrectDecimalUnderscores(site, chars, reverse = false) {
+		if (chars.some(c => c == '_')) {
+			for (let i = 0; i < chars.length; i++) {
+				const c = reverse ? chars[chars.length - 1 - i] : chars[i];
+
+				if (i == chars.length - 1) {
+					if (c == '_') {
+						site.syntaxError("redundant decimal underscore");
+					}
+				}
+
+				if ((i+1)%4 == 0) {
+					if (c != '_') {
+						site.syntaxError("bad decimal underscore");
+					}
+				} else {
+					if (c == '_') {
+						site.syntaxError("bad decimal underscore");
+					}
+				}
+			}
+
+			return chars.filter(c => c != '_');
+		} else {
+			return chars;
+		}
+	}
+
+	/**
+	 * @param {Site} site 
 	 * @param {string} c0 - first character
 	 */
 	readDecimal(site, c0) {
 		/**
 		 * @type {string[]}
 		 */
-		const chars = [];
+		let chars = [];
 
 		let c = c0;
 		while (c != '\0') {
-			if (c >= '0' && c <= '9') {
+			if ((c >= '0' && c <= '9') || c == '_') {
 				chars.push(c);
 			} else {
 				if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
@@ -379,10 +413,14 @@ export class Tokenizer {
 			c = this.readChar();
 		}
 
+		const intSite = new Site(site.src, site.startPos, this.currentSite.startPos);
+
+		chars = Tokenizer.assertCorrectDecimalUnderscores(intSite, chars, true);
+
 		this.pushToken(
 			new IntLiteral(
-				new Site(site.src, site.startPos, this.currentSite.startPos),
-				BigInt(chars.join(''))
+				intSite,
+				BigInt(chars.filter(c => c != '_').join(''))
 			)
 		);
 	}
@@ -439,12 +477,12 @@ export class Tokenizer {
 		/**
 		 * @type {string[]}
 		 */
-		const trailing = [];
+		let trailing = [];
 
 		let c = this.readChar();
 
 		while (c != '\0') {
-			if (c >= '0' && c <= '9') {
+			if ((c >= '0' && c <= '9') || c == '_') {
 				trailing.push(c);
 
 			} else {
@@ -456,6 +494,10 @@ export class Tokenizer {
 		}
 
 		const tokenSite = new Site(site.src, site.startPos, this.currentSite.startPos);
+
+		leading = Tokenizer.assertCorrectDecimalUnderscores(tokenSite, leading, true);
+
+		trailing = Tokenizer.assertCorrectDecimalUnderscores(tokenSite, trailing, false);
 
 		if (trailing.length > REAL_PRECISION) {
 			tokenSite.syntaxError(`literal real decimal places overflow (max ${REAL_PRECISION} supported, but ${trailing.length} specified)`);

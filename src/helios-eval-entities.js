@@ -3,6 +3,7 @@
 
 import {
     assert,
+	assertClass,
 	assertDefined
 } from "./utils.js";
 
@@ -109,6 +110,13 @@ import {
  * @typedef {{
  *   isRecursive: (statement: RecurseableStatement) => boolean
  * }} RecursivenessChecker
+ */
+
+/**
+ * We can't use Scope directly because that would give a circular dependency
+ * @typedef {{
+ *   get: (name: Word) => EvalEntity
+ * }} ScopeLike
  */
 
 /**
@@ -277,6 +285,7 @@ export class EvalEntity {
 	}
 }
 
+
 /**
  * Types are used during type-checking of Helios
  * @package
@@ -393,6 +402,53 @@ export class Type extends EvalEntity {
 	}
 }
 
+/**
+ * Behaves similarly to a type (i.e. getTypeMember), but isn't actualy a Type
+ */
+export class Namespace extends Type {
+	#module;
+
+	/**
+	 * @param {ScopeLike} m
+	 */
+	constructor(m) {
+		super();
+		this.#module = m;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isType() {
+		return false;
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {Type} type
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		throw site.typeError("not a type");
+	}
+
+	/**
+	 * Gets a member of a Type (i.e. the '::' operator).
+	 * @param {Word} name
+	 * @returns {EvalEntity} - can be Instance or Type
+	 */
+	getTypeMember(name) {
+		return assertClass(this.#module.get(name), EvalEntity);
+	}
+
+	/**
+	 * Path of namespace is empty, because this part is already included in statements
+	 * @type {string}
+	 */
+	get path() {
+		return ""
+	}
+}
 
 /**
  * AnyType matches any other type in the type checker.
@@ -2057,6 +2113,8 @@ export class IntType extends BuiltinType {
 			case "from_base58":
 			case "parse":
 				return Instance.new(new FuncType([new StringType()], new IntType()));
+			case "sqrt":
+				return Instance.new(new FuncType([new IntType()], new IntType()));
 			default:
 				return super.getTypeMember(name);
 		}
@@ -2146,6 +2204,8 @@ export class RealType extends BuiltinType {
 			case "__leq1":
 			case "__lt1":
 				return Instance.new(new FuncType([this, new IntType()], new BoolType()));
+			case "sqrt":
+				return Instance.new(new FuncType([this], this));
 			default:
 				return super.getTypeMember(name);
 		}

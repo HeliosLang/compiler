@@ -41,6 +41,7 @@ import {
     FuncStatementInstance,
     FuncType,
     Instance,
+	Namespace,
     RawDataType,
     StatementType,
     Type,
@@ -152,15 +153,15 @@ export class Statement extends Token {
 }
 
 /**
- * Each field is given a separate ImportStatement
+ * Each field in `import {...} from <ModuleName>` is given a separate ImportFromStatement
  * @package
  */
-export class ImportStatement extends Statement {
+export class ImportFromStatement extends Statement {
 	#origName;
 	#moduleName;
 
 	/** 
-	 * @type {?Statement} 
+	 * @type {Statement | null} 
 	 */
 	#origStatement;
 
@@ -185,14 +186,11 @@ export class ImportStatement extends Statement {
 	}
 
 	/**
-	 * @type {Statement}
+	 * Returns null if import is another Namespace
+	 * @type {Statement | null}
 	 */
 	get origStatement() {
-		if (this.#origStatement == null) {
-			throw new Error("should be set");
-		} else {
-			return this.#origStatement;
-		}
+		return this.#origStatement;
 	}
 
 	/**
@@ -200,18 +198,14 @@ export class ImportStatement extends Statement {
 	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		let importedScope = scope.get(this.#moduleName);
+		let importedScope = scope.getScope(this.#moduleName);
 
-		if (importedScope instanceof Scope) {
-			let importedEntity = importedScope.get(this.#origName);
+		let importedEntity = importedScope.get(this.#origName);
 
-			if (importedEntity instanceof Scope) {
-				throw this.#origName.typeError(`can't import a module from a module`);
-			} else {
-				return importedEntity;
-			}
+		if (importedEntity instanceof Scope) {
+			throw this.#origName.typeError(`can't import a module from a module`);
 		} else {
-			throw this.#moduleName.typeError(`${this.name.toString()} isn't a module`);
+			return importedEntity;
 		}
 	}
 
@@ -223,8 +217,6 @@ export class ImportStatement extends Statement {
 
 		if (v instanceof FuncStatementInstance || v instanceof ConstStatementInstance || v instanceof StatementType) {
 			this.#origStatement = assertClass(v.statement, Statement);
-		} else {
-			throw new Error("unexpected import entity");
 		}
 
 		scope.set(this.name, v);
@@ -232,12 +224,81 @@ export class ImportStatement extends Statement {
 
 	use() {
 		super.use();
+	}
 
-		if (this.#origStatement === null) {
-			throw new Error("should be set");
-		} else {
-			this.#origStatement.use();
-		}
+	/**
+	 * @param {IRDefinitions} map 
+	 */
+	toIR(map) {
+		// import statements only have a scoping function and don't do anything to the IR
+	}
+}
+
+/**
+ * `import <ModuleName>`
+ * @package
+ */
+export class ImportModuleStatement extends Statement {
+	/**
+	 * @type {Map<string, EvalEntity>}
+	 */
+	#imported;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Word} moduleName
+	 */
+	constructor(site, moduleName) {
+		super(site, moduleName);
+		this.#imported = new Map();
+	}
+
+	/**
+	 * @type {Word}
+	 */
+	get moduleName() {
+		return this.name;
+	}
+
+	/**
+	 * @param {ModuleScope} scope
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		let importedScope = scope.getScope(this.name);
+
+		return new Namespace({
+			/**
+			 * @param {Word} name 
+			 * @returns {EvalEntity}
+			 */
+			get: (name) => {
+				const v = assertClass(importedScope, Scope).get(name);
+
+				if (v instanceof Scope)	{
+					throw name.typeError("unexpected scope");
+				} else {
+					this.#imported.set(name.value, v);
+					
+					return v;
+				}
+			}
+		});	
+	}
+
+	/**
+	 * @param {ModuleScope} scope 
+	 */
+	eval(scope) {
+		let v = this.evalInternal(scope);
+
+		scope.set(this.name, v);
+	}
+
+	use() {
+		super.use();
+
+		// actual use is handled by wherever imported variables/types are called/used
 	}
 
 	/**

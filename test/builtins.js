@@ -717,6 +717,21 @@ async function testBuiltins() {
     });
 
     await ft.test([ft.int()], `
+    testing int_sqrt
+    
+    func main(a: Int) -> Int {
+        Int::sqrt(a)
+    }`, ([a_], res) => {
+        const a = asInt(a_);
+
+        if (a < 0n) {
+            return isError(res, "negative number in sqrt");
+        } else {
+            return BigInt(Math.floor(Math.sqrt(Number(a)))) == asInt(res)
+        }
+    });
+
+    await ft.test([ft.int()], `
     testing int_encode_zigzag
     
     func main(a: Int) -> Int {
@@ -1021,6 +1036,21 @@ async function testBuiltins() {
         isError(res, "division by zero") :
         asInt(a) * REAL_ONE / asInt(b) === asInt(res)
     );
+
+    await ft.test([ft.real()], `
+    testing real_sqrt
+    
+    func main(x: Real) -> Real {
+        Real::sqrt(x)
+    }`, ([a_], res) => {
+        const a = asInt(a_);
+
+        if (a < 0n) {
+            return isError(res, "negative number in sqrt");
+        } else {
+            return Math.abs(Math.sqrt(Number(a)/1000000) - Number(asInt(res))/1000000) < 1e-5;
+        }
+    });
 
 
     /////////////

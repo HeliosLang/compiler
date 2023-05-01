@@ -179,8 +179,6 @@ async function test3() {
 	await profile(`
 	testing list_length_and_take
 
-	
-
 	func main(list: []Int) -> []Int {
 		n: Int = list.length;
 
@@ -189,6 +187,20 @@ async function test3() {
 
 	const LIST = ${LIST}
 	`, ["LIST"]);
+
+	console.log("profiling list.take combined with known list.length");
+
+	await profile(`
+	testing list_known_length_and_take
+
+	func main(list: []Int, n: Int) -> []Int {
+		list.take(n-2)
+	}
+
+	const LIST = ${LIST}
+
+	const N: Int = LIST.length
+	`, ["LIST", "N"]);
 
 	console.log("profiling list.drop_end");
 
@@ -214,6 +226,21 @@ async function test3() {
 
 	const LIST = ${LIST}
 	`, ["LIST"]);
+
+	console.log("profiling list.drop with known list.length");
+
+	await profile(`
+	testing list_known_length_and_drop
+
+	func main(list: []Int, n: Int) -> []Int {
+		
+		list.drop(n-2)
+	}
+
+	const LIST = ${LIST}
+
+	const N: Int = LIST.length
+	`, ["LIST", "N"]);
 
 	console.log("profiling list.take_end");
 

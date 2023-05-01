@@ -1370,6 +1370,62 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
+	add(new RawFunc("__helios__int__sqrt",
+	`(x) -> {
+		(x) -> {
+			__core__iData(
+				__core__ifThenElse(
+					__core__lessThanInteger(x, 2),
+					() -> {
+						__core__ifThenElse(
+							__core__equalsInteger(x, 1),
+							() -> {
+								1
+							},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(x, 0),
+									() -> {
+										0
+									},
+									() -> {
+										error("negative number in sqrt")
+									}
+								)()
+							}
+						)()
+					},
+					() -> {
+						(recurse) -> {
+							recurse(recurse, __core__divideInteger(x, 2))
+						}(
+							(recurse, x0) -> {
+								(x1) -> {
+									__core__ifThenElse(
+										__core__lessThanEqualsInteger(x0, x1),
+										() -> {
+											x0
+										},
+										() -> {
+											recurse(recurse, x1)
+										}
+									)()
+								}(
+									__core__divideInteger(
+										__core__addInteger(
+											x0,
+											__core__divideInteger(x, x0)
+										),
+										2
+									)
+								)
+							}
+						)
+					}
+				)()
+			)
+		}(__core__unIData(x))
+	}`));
 
 
 	// Real builtins
@@ -1504,6 +1560,10 @@ function makeRawFunctions() {
 		)
 	}`));
 	add(new RawFunc("__helios__real__abs", "__helios__int__abs"));
+	add(new RawFunc("__helios__real__sqrt", 
+	`(self) -> {
+		__helios__int__sqrt(__helios__int____mul(self, __core__iData(1000000)))
+	}`));
 	add(new RawFunc("__helios__real__floor", 
 	`(self) -> {
 		() -> {

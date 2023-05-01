@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.30
+// Version:       0.13.31
 // Last update:   April 2023
 // License type:  BSD-3-Clause
 //
@@ -119,21 +119,22 @@
 //
 //     Section 12: Tokenization              Tokenizer, tokenize, tokenizeIR
 //
-//     Section 13: Helios eval entities      EvalEntity, Type, AnyType, DataType, AnyDataType, 
-//                                           BuiltinType, BuiltinEnumMember, StatementType, 
-//                                           StructStatementType, EnumStatementType, 
-//                                           EnumMemberStatementType, ArgType, FuncType, NotType, 
-//                                           Instance, DataInstance, ConstStatementInstance, 
-//                                           FuncInstance, FuncStatementInstance, MultiInstance, 
-//                                           VoidInstance, ErrorInstance, BuiltinFuncInstance, 
-//                                           PrintFunc, VoidType, ErrorType, IntType, RealType, 
-//                                           BoolType, StringType, ByteArrayType, ParamType, 
-//                                           ParamFuncValue, ListType, MapType, OptionType, 
-//                                           OptionSomeType, OptionNoneType, HashType, 
-//                                           PubKeyHashType, StakeKeyHashType, PubKeyType, 
-//                                           ScriptHashType, ValidatorHashType, 
-//                                           MintingPolicyHashType, StakingValidatorHashType, 
-//                                           DatumHashType, ScriptContextType, ScriptPurposeType, 
+//     Section 13: Helios eval entities      EvalEntity, Type, Namespace, AnyType, DataType, 
+//                                           AnyDataType, BuiltinType, BuiltinEnumMember, 
+//                                           StatementType, StructStatementType, 
+//                                           EnumStatementType, EnumMemberStatementType, ArgType, 
+//                                           FuncType, NotType, Instance, DataInstance, 
+//                                           ConstStatementInstance, FuncInstance, 
+//                                           FuncStatementInstance, MultiInstance, VoidInstance, 
+//                                           ErrorInstance, BuiltinFuncInstance, PrintFunc, 
+//                                           VoidType, ErrorType, IntType, RealType, BoolType, 
+//                                           StringType, ByteArrayType, ParamType, ParamFuncValue, 
+//                                           ListType, MapType, OptionType, OptionSomeType, 
+//                                           OptionNoneType, HashType, PubKeyHashType, 
+//                                           StakeKeyHashType, PubKeyType, ScriptHashType, 
+//                                           ValidatorHashType, MintingPolicyHashType, 
+//                                           StakingValidatorHashType, DatumHashType, 
+//                                           ScriptContextType, ScriptPurposeType, 
 //                                           MintingScriptPurposeType, SpendingScriptPurposeType, 
 //                                           RewardingScriptPurposeType, 
 //                                           CertifyingScriptPurposeType, StakingPurposeType, 
@@ -171,10 +172,10 @@
 //
 //     Section 16: Literal functions         buildLiteralExprFromJson, buildLiteralExprFromValue
 //
-//     Section 17: Helios AST statements     Statement, ImportStatement, ConstStatement, 
-//                                           DataField, DataDefinition, StructStatement, 
-//                                           FuncStatement, EnumMember, EnumStatement, 
-//                                           ImplDefinition
+//     Section 17: Helios AST statements     Statement, ImportFromStatement, 
+//                                           ImportModuleStatement, ConstStatement, DataField, 
+//                                           DataDefinition, StructStatement, FuncStatement, 
+//                                           EnumMember, EnumStatement, ImplDefinition
 //
 //     Section 18: Helios AST building       AUTOMATIC_METHODS, importPathTranslator, 
 //                                           setImportPathTranslator, buildProgramStatements, 
@@ -183,7 +184,8 @@
 //                                           splitDataImpl, buildStructStatement, buildDataFields, 
 //                                           buildFuncStatement, buildFuncLiteralExpr, 
 //                                           buildFuncArgs, buildEnumStatement, 
-//                                           buildImportStatements, buildEnumMember, 
+//                                           buildImportStatements, buildImportModuleStatement, 
+//                                           buildImportFromStatements, buildEnumMember, 
 //                                           buildImplDefinition, buildImplMembers, buildTypeExpr, 
 //                                           buildListTypeExpr, buildMapTypeExpr, 
 //                                           buildOptionTypeExpr, buildFuncTypeExpr, 
@@ -253,7 +255,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.30";
+export const VERSION = "0.13.31";
 
 /**
  * A tab used for indenting of the IR.
@@ -12549,7 +12551,7 @@ export class Tokenizer {
 		} else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
 			site.syntaxError(`bad literal integer type 0${c}`);
 		} else if (c >= '0' && c <= '9') {
-			this.readDecimal(site, c);
+			site.syntaxError("unexpected leading 0");
 		} else if (c == '.') {
 			this.readFixedPoint(site, ['0']);
 		} else {
@@ -12582,17 +12584,51 @@ export class Tokenizer {
 
 	/**
 	 * @param {Site} site 
+	 * @param {string[]} chars 
+	 * @param {boolean} reverse
+	 * @returns {string[]}
+	 */
+	static assertCorrectDecimalUnderscores(site, chars, reverse = false) {
+		if (chars.some(c => c == '_')) {
+			for (let i = 0; i < chars.length; i++) {
+				const c = reverse ? chars[chars.length - 1 - i] : chars[i];
+
+				if (i == chars.length - 1) {
+					if (c == '_') {
+						site.syntaxError("redundant decimal underscore");
+					}
+				}
+
+				if ((i+1)%4 == 0) {
+					if (c != '_') {
+						site.syntaxError("bad decimal underscore");
+					}
+				} else {
+					if (c == '_') {
+						site.syntaxError("bad decimal underscore");
+					}
+				}
+			}
+
+			return chars.filter(c => c != '_');
+		} else {
+			return chars;
+		}
+	}
+
+	/**
+	 * @param {Site} site 
 	 * @param {string} c0 - first character
 	 */
 	readDecimal(site, c0) {
 		/**
 		 * @type {string[]}
 		 */
-		const chars = [];
+		let chars = [];
 
 		let c = c0;
 		while (c != '\0') {
-			if (c >= '0' && c <= '9') {
+			if ((c >= '0' && c <= '9') || c == '_') {
 				chars.push(c);
 			} else {
 				if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
@@ -12616,10 +12652,14 @@ export class Tokenizer {
 			c = this.readChar();
 		}
 
+		const intSite = new Site(site.src, site.startPos, this.currentSite.startPos);
+
+		chars = Tokenizer.assertCorrectDecimalUnderscores(intSite, chars, true);
+
 		this.pushToken(
 			new IntLiteral(
-				new Site(site.src, site.startPos, this.currentSite.startPos),
-				BigInt(chars.join(''))
+				intSite,
+				BigInt(chars.filter(c => c != '_').join(''))
 			)
 		);
 	}
@@ -12676,12 +12716,12 @@ export class Tokenizer {
 		/**
 		 * @type {string[]}
 		 */
-		const trailing = [];
+		let trailing = [];
 
 		let c = this.readChar();
 
 		while (c != '\0') {
-			if (c >= '0' && c <= '9') {
+			if ((c >= '0' && c <= '9') || c == '_') {
 				trailing.push(c);
 
 			} else {
@@ -12693,6 +12733,10 @@ export class Tokenizer {
 		}
 
 		const tokenSite = new Site(site.src, site.startPos, this.currentSite.startPos);
+
+		leading = Tokenizer.assertCorrectDecimalUnderscores(tokenSite, leading, true);
+
+		trailing = Tokenizer.assertCorrectDecimalUnderscores(tokenSite, trailing, false);
 
 		if (trailing.length > REAL_PRECISION) {
 			tokenSite.syntaxError(`literal real decimal places overflow (max ${REAL_PRECISION} supported, but ${trailing.length} specified)`);
@@ -13080,6 +13124,13 @@ function tokenizeIR(rawSrc, codeMap) {
  */
 
 /**
+ * We can't use Scope directly because that would give a circular dependency
+ * @typedef {{
+ *   get: (name: Word) => EvalEntity
+ * }} ScopeLike
+ */
+
+/**
  * Base class of Instance and Type.
  * Any member function that takes 'site' as its first argument throws a TypeError if used incorrectly (eg. calling a non-FuncType).
  * @package
@@ -13245,6 +13296,7 @@ class EvalEntity {
 	}
 }
 
+
 /**
  * Types are used during type-checking of Helios
  * @package
@@ -13361,6 +13413,53 @@ class Type extends EvalEntity {
 	}
 }
 
+/**
+ * Behaves similarly to a type (i.e. getTypeMember), but isn't actualy a Type
+ */
+export class Namespace extends Type {
+	#module;
+
+	/**
+	 * @param {ScopeLike} m
+	 */
+	constructor(m) {
+		super();
+		this.#module = m;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isType() {
+		return false;
+	}
+
+	/**
+	 * @param {Site} site
+	 * @param {Type} type
+	 * @returns {boolean}
+	 */
+	isBaseOf(site, type) {
+		throw site.typeError("not a type");
+	}
+
+	/**
+	 * Gets a member of a Type (i.e. the '::' operator).
+	 * @param {Word} name
+	 * @returns {EvalEntity} - can be Instance or Type
+	 */
+	getTypeMember(name) {
+		return assertClass(this.#module.get(name), EvalEntity);
+	}
+
+	/**
+	 * Path of namespace is empty, because this part is already included in statements
+	 * @type {string}
+	 */
+	get path() {
+		return ""
+	}
+}
 
 /**
  * AnyType matches any other type in the type checker.
@@ -15025,6 +15124,8 @@ class IntType extends BuiltinType {
 			case "from_base58":
 			case "parse":
 				return Instance.new(new FuncType([new StringType()], new IntType()));
+			case "sqrt":
+				return Instance.new(new FuncType([new IntType()], new IntType()));
 			default:
 				return super.getTypeMember(name);
 		}
@@ -15114,6 +15215,8 @@ class RealType extends BuiltinType {
 			case "__leq1":
 			case "__lt1":
 				return Instance.new(new FuncType([this, new IntType()], new BoolType()));
+			case "sqrt":
+				return Instance.new(new FuncType([this], this));
 			default:
 				return super.getTypeMember(name);
 		}
@@ -18725,11 +18828,31 @@ class Scope {
 	 * @param {EvalEntity | Scope} value 
 	 */
 	set(name, value) {
+		if (value instanceof Scope) {
+			assert(name.value.startsWith("__scope__"));
+		}
+
 		if (this.has(name)) {
 			throw name.syntaxError(`'${name.toString()}' already defined`);
 		}
 
 		this.#values.push([name, value]);
+	}
+
+	/**
+	 * @param {Word} name 
+	 * @returns {Scope}
+	 */
+	getScope(name) {
+		assert(!name.value.startsWith("__scope__"));
+
+		const entity = this.get(new Word(name.site, `__scope__${name.value}`));
+
+		if (entity instanceof Scope) {
+			return entity;
+		} else {
+			throw name.typeError(`expected Scope, got ${entity.toString()}`);
+		}
 	}
 
 	/**
@@ -18859,10 +18982,26 @@ class TopScope extends Scope {
 	}
 
 	/**
+	 * Prepends "__scope__" to name before actually setting scope
+	 * @param {Word} name 
+	 * @param {Scope} value 
+	 */
+	setScope(name, value) {
+		assert(!name.value.startsWith("__scope__"));
+
+		this.set(new Word(name.site, `__scope__${name.value}`), value);
+	}
+
+
+	/**
 	 * @param {Word} name 
 	 * @param {EvalEntity | Scope} value 
 	 */
 	set(name, value) {
+		if (value instanceof Scope) {
+			assert(name.value.startsWith("__scope__"));
+		}
+
 		super.set(name, value);
 	}
 
@@ -18885,7 +19024,10 @@ class TopScope extends Scope {
 	 * @returns {ModuleScope}
 	 */
 	getModuleScope(name) {
-		const maybeModuleScope = this.get(name);
+		assert(!name.value.startsWith("__scope__"));
+
+		const maybeModuleScope = this.get(new Word(name.site, `__scope__${name.value}`));
+
 		if (maybeModuleScope instanceof ModuleScope) {
 			return maybeModuleScope;
 		} else {
@@ -18962,7 +19104,7 @@ class TypeExpr extends Expr {
 
 	/**
 	 * @param {Site} site 
-	 * @param {?Type} cache
+	 * @param {Type | null} cache
 	 */
 	constructor(site, cache = null) {
 		super(site);
@@ -20906,10 +21048,9 @@ class ValuePathExpr extends ValueExpr {
 	 * @returns {Instance}
 	 */
 	evalInternal(scope) {
-		let baseType = this.#baseTypeExpr.eval(scope);
-		assert(baseType.isType());
+		const baseType = this.#baseTypeExpr.eval(scope);
 
-		let memberVal = baseType.getTypeMember(this.#memberName);
+		const memberVal = baseType.getTypeMember(this.#memberName);
 
 		if (memberVal instanceof FuncInstance && memberVal.isRecursive(scope)) {
 			this.#isRecursiveFunc = true;
@@ -20943,7 +21084,17 @@ class ValuePathExpr extends ValueExpr {
 
 			return new IR(`__core__constrData(${cId.toString()}, __core__mkNilData(()))`, this.site)
 		} else {
-			let ir = new IR(`${this.#baseTypeExpr.type.path}__${this.#memberName.toString()}`, this.site);
+			let path = `${this.#baseTypeExpr.type.path}__${this.#memberName.toString()}`;
+
+			if (this.#baseTypeExpr.type instanceof Namespace) {
+				if (memberVal instanceof StatementType || memberVal instanceof FuncStatementInstance || memberVal instanceof ConstStatementInstance) {
+					path = memberVal.statement.path;
+				} else {
+					throw new Error("expected statement");
+				}
+			}
+
+			let ir = new IR(path, this.site);
 
 			if (this.#isRecursiveFunc) {
 				ir = new IR([
@@ -23141,15 +23292,15 @@ class Statement extends Token {
 }
 
 /**
- * Each field is given a separate ImportStatement
+ * Each field in `import {...} from <ModuleName>` is given a separate ImportFromStatement
  * @package
  */
-class ImportStatement extends Statement {
+class ImportFromStatement extends Statement {
 	#origName;
 	#moduleName;
 
 	/** 
-	 * @type {?Statement} 
+	 * @type {Statement | null} 
 	 */
 	#origStatement;
 
@@ -23174,14 +23325,11 @@ class ImportStatement extends Statement {
 	}
 
 	/**
-	 * @type {Statement}
+	 * Returns null if import is another Namespace
+	 * @type {Statement | null}
 	 */
 	get origStatement() {
-		if (this.#origStatement == null) {
-			throw new Error("should be set");
-		} else {
-			return this.#origStatement;
-		}
+		return this.#origStatement;
 	}
 
 	/**
@@ -23189,18 +23337,14 @@ class ImportStatement extends Statement {
 	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		let importedScope = scope.get(this.#moduleName);
+		let importedScope = scope.getScope(this.#moduleName);
 
-		if (importedScope instanceof Scope) {
-			let importedEntity = importedScope.get(this.#origName);
+		let importedEntity = importedScope.get(this.#origName);
 
-			if (importedEntity instanceof Scope) {
-				throw this.#origName.typeError(`can't import a module from a module`);
-			} else {
-				return importedEntity;
-			}
+		if (importedEntity instanceof Scope) {
+			throw this.#origName.typeError(`can't import a module from a module`);
 		} else {
-			throw this.#moduleName.typeError(`${this.name.toString()} isn't a module`);
+			return importedEntity;
 		}
 	}
 
@@ -23212,8 +23356,6 @@ class ImportStatement extends Statement {
 
 		if (v instanceof FuncStatementInstance || v instanceof ConstStatementInstance || v instanceof StatementType) {
 			this.#origStatement = assertClass(v.statement, Statement);
-		} else {
-			throw new Error("unexpected import entity");
 		}
 
 		scope.set(this.name, v);
@@ -23221,12 +23363,81 @@ class ImportStatement extends Statement {
 
 	use() {
 		super.use();
+	}
 
-		if (this.#origStatement === null) {
-			throw new Error("should be set");
-		} else {
-			this.#origStatement.use();
-		}
+	/**
+	 * @param {IRDefinitions} map 
+	 */
+	toIR(map) {
+		// import statements only have a scoping function and don't do anything to the IR
+	}
+}
+
+/**
+ * `import <ModuleName>`
+ * @package
+ */
+class ImportModuleStatement extends Statement {
+	/**
+	 * @type {Map<string, EvalEntity>}
+	 */
+	#imported;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Word} moduleName
+	 */
+	constructor(site, moduleName) {
+		super(site, moduleName);
+		this.#imported = new Map();
+	}
+
+	/**
+	 * @type {Word}
+	 */
+	get moduleName() {
+		return this.name;
+	}
+
+	/**
+	 * @param {ModuleScope} scope
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		let importedScope = scope.getScope(this.name);
+
+		return new Namespace({
+			/**
+			 * @param {Word} name 
+			 * @returns {EvalEntity}
+			 */
+			get: (name) => {
+				const v = assertClass(importedScope, Scope).get(name);
+
+				if (v instanceof Scope)	{
+					throw name.typeError("unexpected scope");
+				} else {
+					this.#imported.set(name.value, v);
+					
+					return v;
+				}
+			}
+		});	
+	}
+
+	/**
+	 * @param {ModuleScope} scope 
+	 */
+	eval(scope) {
+		let v = this.evalInternal(scope);
+
+		scope.set(this.name, v);
+	}
+
+	use() {
+		super.use();
+
+		// actual use is handled by wherever imported variables/types are called/used
 	}
 
 	/**
@@ -25094,105 +25305,153 @@ function buildEnumStatement(site, ts) {
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {(ImportStatement | null)[] | null}
+ * @returns {(ImportFromStatement | ImportModuleStatement | null)[] | null}
  */
 function buildImportStatements(site, ts) {
-	const maybeBraces = ts.shift();
-
-	if (maybeBraces === undefined) {
-		site.syntaxError("expected '{...}' after 'import'");
+	const t = assertToken(ts.shift(), site, "expected '{...}' or Word after 'import'");
+	if (!t) {
 		return null;
+	}
+
+	if (t.isWord()) {
+		const statement = buildImportModuleStatement(site, t);
+
+		if (!statement) {
+			return null;
+		}
+
+		return [statement];
 	} else {
-		const braces = maybeBraces.assertGroup("{");
-		if (!braces) {
+		return buildImportFromStatements(site, t, ts);
+	}
+}
+
+/**
+ * @param {Site} site 
+ * @param {Token} maybeName 
+ * @returns {ImportModuleStatement | null}
+ */
+function buildImportModuleStatement(site, maybeName) {
+	/**
+	 * @type {Word | null}
+	 */
+	let moduleName = null;
+
+	if (maybeName instanceof StringLiteral && importPathTranslator) {
+		const translated = importPathTranslator(maybeName);
+		if (!translated) {
 			return null;
 		}
 
-		const maybeFrom = assertToken(ts.shift(), maybeBraces.site, "expected 'from' after 'import {...}'")?.assertWord("from");
-		if (!maybeFrom) {
+		moduleName = new Word(maybeName.site, translated);
+	} else {
+		moduleName = maybeName.assertWord()?.assertNotKeyword() ?? null;
+	}
+
+	if (!moduleName) {
+		return null;
+	}
+
+	return new ImportModuleStatement(site, moduleName);
+}
+
+/**
+ * 
+ * @param {Site} site 
+ * @param {Token} maybeBraces 
+ * @param {Token[]} ts 
+ * @returns {(ImportFromStatement | null)[] | null}
+ */
+function buildImportFromStatements(site, maybeBraces, ts) {
+	const braces = maybeBraces.assertGroup("{");
+	if (!braces) {
+		return null;
+	}
+
+	const maybeFrom = assertToken(ts.shift(), maybeBraces.site, "expected 'from' after 'import {...}'")?.assertWord("from");
+	if (!maybeFrom) {
+		return null;
+	}
+
+	const maybeModuleName = assertToken(ts.shift(), maybeFrom.site, "expected module name after 'import {...} from'");
+	if (!maybeModuleName) {
+		return null;
+	}
+
+	/**
+	 * @type {null | undefined | Word}
+	 */
+	let moduleName = null;
+
+	if (maybeModuleName instanceof StringLiteral && importPathTranslator) {
+		const translated = importPathTranslator(maybeModuleName);
+
+		if (!translated) {
 			return null;
 		}
 
-		const maybeModuleName = assertToken(ts.shift(), maybeFrom.site, "expected module name after 'import {...} from'");
-		if (!maybeModuleName) {
+		moduleName = new Word(maybeModuleName.site, translated);
+	} else {
+		moduleName = maybeModuleName.assertWord()?.assertNotKeyword();
+	}
+
+	if (!moduleName) {
+		return null;
+	}
+
+	const mName = moduleName;
+
+	if (braces.fields.length === 0) {
+		braces.syntaxError("expected at least 1 import field");
+	}
+
+	return braces.fields.map(fts => {
+		const ts = fts.slice();
+		const maybeOrigName = ts.shift();
+
+		if (maybeOrigName === undefined) {
+			braces.syntaxError("empty import field");
 			return null;
-		}
-
-		/**
-		 * @type {null | undefined | Word}
-		 */
-		let moduleName = null;
-
-		if (maybeModuleName instanceof StringLiteral && importPathTranslator) {
-			let translated = importPathTranslator(maybeModuleName);
-
-			if (!translated) {
-				return null;
-			}
-
-			moduleName = new Word(maybeModuleName.site, translated);
 		} else {
-			moduleName = maybeModuleName.assertWord()?.assertNotKeyword();
-		}
+			const origName = maybeOrigName.assertWord();
 
-		if (!moduleName) {
-			return null;
-		}
-
-		const mName = moduleName;
-
-		if (braces.fields.length === 0) {
-			braces.syntaxError("expected at least 1 import field");
-		}
-
-		return braces.fields.map(fts => {
-			const ts = fts.slice();
-			const maybeOrigName = ts.shift();
-
-			if (maybeOrigName === undefined) {
-				braces.syntaxError("empty import field");
+			if (!origName) {
 				return null;
+			} else if (ts.length === 0) {
+				return new ImportFromStatement(site, origName, origName, mName);
 			} else {
-				const origName = maybeOrigName.assertWord();
+				const maybeAs = ts.shift();
 
-				if (!origName) {
+				if (maybeAs === undefined) {
+					maybeOrigName.syntaxError(`expected 'as' or nothing after '${origName.value}'`);
 					return null;
-				} else if (ts.length === 0) {
-					return new ImportStatement(site, origName, origName, mName);
 				} else {
-					const maybeAs = ts.shift();
+					maybeAs.assertWord("as");
 
-					if (maybeAs === undefined) {
-						maybeOrigName.syntaxError(`expected 'as' or nothing after '${origName.value}'`);
+					const maybeNewName = ts.shift();
+
+					if (maybeNewName === undefined) {
+						maybeAs.syntaxError("expected word after 'as'");
 						return null;
 					} else {
-						maybeAs.assertWord("as");
+						const newName = maybeNewName.assertWord();
 
-						const maybeNewName = ts.shift();
+						if (!newName) {
+							return null;
+						}
 
-						if (maybeNewName === undefined) {
-							maybeAs.syntaxError("expected word after 'as'");
+						const rem = ts.shift();
+						if (rem !== undefined) {
+							rem.syntaxError("unexpected token");
 							return null;
 						} else {
-							const newName = maybeNewName.assertWord();
-
-							if (!newName) {
-								return null;
-							}
-
-							const rem = ts.shift();
-							if (rem !== undefined) {
-								rem.syntaxError("unexpected token");
-								return null;
-							} else {
-								return new ImportStatement(site, newName, origName, mName);
-							}
+							return new ImportFromStatement(site, newName, origName, mName);
 						}
 					}
 				}
 			}
-		}).filter(f => f !== null)
-	}
+		}
+	}).filter(f => f !== null)
 }
 
 /**
@@ -28563,6 +28822,62 @@ function makeRawFunctions() {
 			}
 		}(__core__unIData(self))
 	}`));
+	add(new RawFunc("__helios__int__sqrt",
+	`(x) -> {
+		(x) -> {
+			__core__iData(
+				__core__ifThenElse(
+					__core__lessThanInteger(x, 2),
+					() -> {
+						__core__ifThenElse(
+							__core__equalsInteger(x, 1),
+							() -> {
+								1
+							},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(x, 0),
+									() -> {
+										0
+									},
+									() -> {
+										error("negative number in sqrt")
+									}
+								)()
+							}
+						)()
+					},
+					() -> {
+						(recurse) -> {
+							recurse(recurse, __core__divideInteger(x, 2))
+						}(
+							(recurse, x0) -> {
+								(x1) -> {
+									__core__ifThenElse(
+										__core__lessThanEqualsInteger(x0, x1),
+										() -> {
+											x0
+										},
+										() -> {
+											recurse(recurse, x1)
+										}
+									)()
+								}(
+									__core__divideInteger(
+										__core__addInteger(
+											x0,
+											__core__divideInteger(x, x0)
+										),
+										2
+									)
+								)
+							}
+						)
+					}
+				)()
+			)
+		}(__core__unIData(x))
+	}`));
 
 
 	// Real builtins
@@ -28697,6 +29012,10 @@ function makeRawFunctions() {
 		)
 	}`));
 	add(new RawFunc("__helios__real__abs", "__helios__int__abs"));
+	add(new RawFunc("__helios__real__sqrt", 
+	`(self) -> {
+		__helios__int__sqrt(__helios__int____mul(self, __core__iData(1000000)))
+	}`));
 	add(new RawFunc("__helios__real__floor", 
 	`(self) -> {
 		() -> {
@@ -34756,7 +35075,7 @@ class Module {
 		newStack = newStack.concat(stack);
 
 		for (let s of this.#statements) {
-			if (s instanceof ImportStatement) {
+			if (s instanceof ImportFromStatement || s instanceof ImportModuleStatement) {
 				let mn = s.moduleName.value;
 
 				if (mn == this.name.value) {
@@ -35111,7 +35430,7 @@ class MainModule extends Module {
 			}
 
 			if (m !== this.postModule) {
-				topScope.set(m.name, moduleScope);
+				topScope.setScope(m.name, moduleScope);
 			}
 		}
 
@@ -35164,7 +35483,7 @@ class MainModule extends Module {
 		for (let s of this.mainAndPostStatements) {
 			if (s instanceof ConstStatement) {
 				res[s.name.value] = s.type;
-			} else if (s instanceof ImportStatement && s.origStatement instanceof ConstStatement) {
+			} else if (s instanceof ImportFromStatement && s.origStatement instanceof ConstStatement) {
 				res[s.name.value] = s.origStatement.type;
 			}
 		}
@@ -35185,7 +35504,7 @@ class MainModule extends Module {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValue(value);
 				return this;
-			} else if (s instanceof ImportStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
+			} else if (s instanceof ImportFromStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
 				s.origStatement.changeValue(value);
 				return this;
 			}
@@ -35197,7 +35516,7 @@ class MainModule extends Module {
 	/**
 	 * Change the literal value of a const statements  
 	 * @package
-	 * @param {string} name 
+	 * @param {string} name
 	 * @param {UplcData} data
 	 */
 	changeParamSafe(name, data) {
@@ -35205,7 +35524,7 @@ class MainModule extends Module {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValueSafe(data);
 				return this;
-			} else if (s instanceof ImportStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
+			} else if (s instanceof ImportFromStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
 				s.origStatement.changeValueSafe(data);
 				return this;
 			}
@@ -35229,7 +35548,7 @@ class MainModule extends Module {
 		let constStatement = null;
 
 		for (let s of this.mainAndPostStatements) {
-			if (s instanceof ImportStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
+			if (s instanceof ImportFromStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
 				constStatement = s.origStatement;
 				break;
 			}
@@ -35338,7 +35657,7 @@ class MainModule extends Module {
 					if (i != -1) {
 						parameterStatements[i] = statement;
 					}
-				} else if (statement instanceof ImportStatement && statement.origStatement instanceof ConstStatement) {
+				} else if (statement instanceof ImportFromStatement && statement.origStatement instanceof ConstStatement) {
 					const i = parameters.findIndex(p => statement.name.value == p);
 
 					if (i != -1) {

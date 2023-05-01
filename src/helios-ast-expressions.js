@@ -51,6 +51,7 @@ import {
 	ListType,
 	MapType,
 	MultiInstance,
+	Namespace,
 	OptionType,
 	OptionNoneType,
 	ParamFuncValue,
@@ -94,7 +95,7 @@ export class TypeExpr extends Expr {
 
 	/**
 	 * @param {Site} site 
-	 * @param {?Type} cache
+	 * @param {Type | null} cache
 	 */
 	constructor(site, cache = null) {
 		super(site);
@@ -2038,10 +2039,9 @@ export class ValuePathExpr extends ValueExpr {
 	 * @returns {Instance}
 	 */
 	evalInternal(scope) {
-		let baseType = this.#baseTypeExpr.eval(scope);
-		assert(baseType.isType());
+		const baseType = this.#baseTypeExpr.eval(scope);
 
-		let memberVal = baseType.getTypeMember(this.#memberName);
+		const memberVal = baseType.getTypeMember(this.#memberName);
 
 		if (memberVal instanceof FuncInstance && memberVal.isRecursive(scope)) {
 			this.#isRecursiveFunc = true;
@@ -2075,7 +2075,17 @@ export class ValuePathExpr extends ValueExpr {
 
 			return new IR(`__core__constrData(${cId.toString()}, __core__mkNilData(()))`, this.site)
 		} else {
-			let ir = new IR(`${this.#baseTypeExpr.type.path}__${this.#memberName.toString()}`, this.site);
+			let path = `${this.#baseTypeExpr.type.path}__${this.#memberName.toString()}`;
+
+			if (this.#baseTypeExpr.type instanceof Namespace) {
+				if (memberVal instanceof StatementType || memberVal instanceof FuncStatementInstance || memberVal instanceof ConstStatementInstance) {
+					path = memberVal.statement.path;
+				} else {
+					throw new Error("expected statement");
+				}
+			}
+
+			let ir = new IR(path, this.site);
 
 			if (this.#isRecursiveFunc) {
 				ir = new IR([

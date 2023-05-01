@@ -211,7 +211,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.30";
+export const VERSION: "0.13.31";
 /**
  * Modifiable config vars
  * @type {{
@@ -2568,6 +2568,13 @@ export class UplcProgram {
 }
 export class Tokenizer {
     /**
+     * @param {Site} site
+     * @param {string[]} chars
+     * @param {boolean} reverse
+     * @returns {string[]}
+     */
+    static assertCorrectDecimalUnderscores(site: Site, chars: string[], reverse?: boolean): string[];
+    /**
      * @param {Source} src
      * @param {?CodeMap} codeMap
      */
@@ -2697,6 +2704,16 @@ export class Tokenizer {
      * @returns {Token[] | null}
      */
     nestGroups(ts: Token[]): Token[] | null;
+    #private;
+}
+/**
+ * Behaves similarly to a type (i.e. getTypeMember), but isn't actualy a Type
+ */
+export class Namespace extends Type {
+    /**
+     * @param {ScopeLike} m
+     */
+    constructor(m: ScopeLike);
     #private;
 }
 /**
@@ -4177,6 +4194,12 @@ export type RecurseableStatement = {
 export type RecursivenessChecker = {
     isRecursive: (statement: RecurseableStatement) => boolean;
 };
+/**
+ * We can't use Scope directly because that would give a circular dependency
+ */
+export type ScopeLike = {
+    get: (name: Word) => EvalEntity;
+};
 export type IRLiteralRegistry = Map<IRVariable, IRLiteralExpr>;
 export type UserTypes = {
     [x: string]: HeliosDataClass<HeliosData>;
@@ -4781,6 +4804,48 @@ declare class UplcTerm {
     #private;
 }
 /**
+ * Types are used during type-checking of Helios
+ * @package
+ */
+declare class Type extends EvalEntity {
+    /**
+     * Compares two types. Throws an error if neither is a Type.
+     * @example
+     * Type.same(Site.dummy(), new IntType(), new IntType()) => true
+     * @param {Site} site
+     * @param {Type} a
+     * @param {Type} b
+     * @returns {boolean}
+     */
+    static same(site: Site, a: Type, b: Type): boolean;
+    /**
+     * @returns {boolean}
+     */
+    isEnumMember(): boolean;
+    /**
+     * Throws error for non-enum members
+     * @param {Site} site
+     * @returns {Type}
+     */
+    parentType(site: Site): Type;
+    /**
+     * Returns number of members of an enum type
+     * Throws an error if not an enum type
+     * @param {Site} site
+     * @returns {number}
+     */
+    nEnumMembers(site: Site): number;
+    /**
+     * Returns the base path in the IR (eg. __helios__bool, __helios__error, etc.)
+     * @type {string}
+     */
+    get path(): string;
+    /**
+     * @type {HeliosDataClass<HeliosData>}
+     */
+    get userType(): HeliosDataClass<HeliosData>;
+}
+/**
  * Base class of all builtin types (eg. IntType)
  * Note: any builtin type that inherits from BuiltinType must implement get path()
  * @package
@@ -5226,6 +5291,12 @@ declare class TopScope extends Scope {
      */
     constructor(parent: GlobalScope, strict?: boolean);
     /**
+     * Prepends "__scope__" to name before actually setting scope
+     * @param {Word} name
+     * @param {Scope} value
+     */
+    setScope(name: Word, value: Scope): void;
+    /**
      * @param {boolean} s
      */
     setStrict(s: boolean): void;
@@ -5235,48 +5306,6 @@ declare class TopScope extends Scope {
      */
     getModuleScope(name: Word): ModuleScope;
     #private;
-}
-/**
- * Types are used during type-checking of Helios
- * @package
- */
-declare class Type extends EvalEntity {
-    /**
-     * Compares two types. Throws an error if neither is a Type.
-     * @example
-     * Type.same(Site.dummy(), new IntType(), new IntType()) => true
-     * @param {Site} site
-     * @param {Type} a
-     * @param {Type} b
-     * @returns {boolean}
-     */
-    static same(site: Site, a: Type, b: Type): boolean;
-    /**
-     * @returns {boolean}
-     */
-    isEnumMember(): boolean;
-    /**
-     * Throws error for non-enum members
-     * @param {Site} site
-     * @returns {Type}
-     */
-    parentType(site: Site): Type;
-    /**
-     * Returns number of members of an enum type
-     * Throws an error if not an enum type
-     * @param {Site} site
-     * @returns {number}
-     */
-    nEnumMembers(site: Site): number;
-    /**
-     * Returns the base path in the IR (eg. __helios__bool, __helios__error, etc.)
-     * @type {string}
-     */
-    get path(): string;
-    /**
-     * @type {HeliosDataClass<HeliosData>}
-     */
-    get userType(): HeliosDataClass<HeliosData>;
 }
 /**
  * inputs, minted assets, and withdrawals need to be sorted in order to form a valid transaction
@@ -5802,6 +5831,12 @@ declare class CostModel {
  * }} RecursivenessChecker
  */
 /**
+ * We can't use Scope directly because that would give a circular dependency
+ * @typedef {{
+ *   get: (name: Word) => EvalEntity
+ * }} ScopeLike
+ */
+/**
  * Base class of Instance and Type.
  * Any member function that takes 'site' as its first argument throws a TypeError if used incorrectly (eg. calling a non-FuncType).
  * @package
@@ -6074,6 +6109,11 @@ declare class Scope {
      * @param {EvalEntity | Scope} value
      */
     set(name: Word, value: EvalEntity | Scope): void;
+    /**
+     * @param {Word} name
+     * @returns {Scope}
+     */
+    getScope(name: Word): Scope;
     /**
      * Gets a named value from the scope. Throws an error if not found
      * @param {Word} name
@@ -6422,7 +6462,7 @@ declare class FuncArg extends NameTypePair {
 declare class TypeExpr extends Expr {
     /**
      * @param {Site} site
-     * @param {?Type} cache
+     * @param {Type | null} cache
      */
     constructor(site: Site, cache?: Type | null);
     get type(): Type;
