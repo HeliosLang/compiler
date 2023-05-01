@@ -30,7 +30,7 @@ import { TAB } from "./config.js";
 *   transferUplcType: (typeBits: string) => any,
 *   transferUplcUnit: (site: any) => any,
 *   transferUplcVariable: (site: any, index: any) => any
-* }} Transferable
+* }} TransferUplcAst
 */
 
 /**
@@ -677,7 +677,7 @@ export class Source {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {

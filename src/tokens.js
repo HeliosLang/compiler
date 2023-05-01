@@ -14,7 +14,7 @@ import {
 } from "./utils.js";
 
 /**
- * @typedef {import("./utils.js").Transferable} Transferable
+ * @typedef {import("./utils.js").TransferUplcAst} TransferUplcAst
  */
 
 /**
@@ -47,7 +47,7 @@ export class Site {
 
 	/**
 	 * 
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 */
 	transfer(other) {
 		return other.transferSite(

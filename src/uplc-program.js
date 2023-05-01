@@ -14,7 +14,7 @@ import {
 } from "./utils.js";
 
 /**
- * @typedef {import("./utils.js").Transferable} Transferable
+ * @typedef {import("./utils.js").TransferUplcAst} TransferUplcAst
  */
 
 import {
@@ -131,9 +131,10 @@ const UPLC_TAG_WIDTHS = {
 
 /**
  * The constructor returns 'any' because it is an instance of TransferableUplcProgram, and the instance methods don't need to be defined here
+ * @template TInstance
  * @typedef {{
- *   new: (expr: any, properties: ProgramProperties, version: any[]) => any,
- *   transferFunctions: Transferable
+ *   transferUplcProgram: (expr: any, properties: ProgramProperties, version: any[]) => TInstance,
+ *   transferUplcAst: TransferUplcAst
  * }} TransferableUplcProgram
  */
 
@@ -154,23 +155,6 @@ const UPLC_TAG_WIDTHS = {
 		this.#version    = version;
 		this.#expr       = expr;
 		this.#properties = properties;
-	}
-
-	/**
-	 * Intended for transfer only
-	 * @param {any} expr 
-	 * @param {ProgramProperties} properties 
-	 * @param {any[]} version 
-	 * @returns {any}
-	 */
-	static new(expr, properties, version) {
-		if (!(expr instanceof UplcTerm)) {
-			throw new Error("program expr not transferred correctly");
-		} else if (!version.every(v => v instanceof UplcInt)) {
-			throw new Error("program version ints not transferred correctly");
-		} else {
-			return new UplcProgram(expr, properties, version);
-		}
 	}
 
 	/**
@@ -203,16 +187,16 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
-	 * @template {TransferableUplcProgram} T
-	 * @param {T} other
-	 * @returns {any}
+	 * @template TInstance
+	 * @param {TransferableUplcProgram<TInstance>} other
+	 * @returns {TInstance}
 	 */
 	transfer(other) {
-		return other.new(
-			this.#expr.transfer(other.transferFunctions),
+		return other.transferUplcProgram(
+			this.#expr.transfer(other.transferUplcAst),
 			this.#properties,
-			this.#version.map(i => i.transfer(other.transferFunctions))
-		)
+			this.#version.map(i => i.transfer(other.transferUplcAst))
+		);
 	}
 
 	/**
@@ -571,10 +555,28 @@ const UPLC_TAG_WIDTHS = {
 		}
 	}
 
+
 	/**
-	 * @type {Transferable}
+	 * Intended for transfer only
+	 * @param {any} expr 
+	 * @param {ProgramProperties} properties 
+	 * @param {any[]} version 
+	 * @returns {UplcProgram}
 	 */
-	static get transferFunctions() {
+	static transferUplcProgram(expr, properties, version) {
+		if (!(expr instanceof UplcTerm)) {
+			throw new Error("program expr not transferred correctly");
+		} else if (!version.every(v => v instanceof UplcInt)) {
+			throw new Error("program version ints not transferred correctly");
+		} else {
+			return new UplcProgram(expr, properties, version);
+		}
+	}
+
+	/**
+	 * @type {TransferUplcAst}
+	 */
+	static get transferUplcAst() {
 		return {
 			transferByteArrayData: (bytes) => new ByteArrayData(bytes),
 			transferConstrData:    (index, fields) => new ConstrData(index, fields),

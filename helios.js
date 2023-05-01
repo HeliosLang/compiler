@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.32
+// Version:       0.13.33
 // Last update:   May 2023
 // License type:  BSD-3-Clause
 //
@@ -255,7 +255,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.32";
+export const VERSION = "0.13.33";
 
 /**
  * A tab used for indenting of the IR.
@@ -352,7 +352,7 @@ export const config = {
 *   transferUplcType: (typeBits: string) => any,
 *   transferUplcUnit: (site: any) => any,
 *   transferUplcVariable: (site: any, index: any) => any
-* }} Transferable
+* }} TransferUplcAst
 */
 
 /**
@@ -999,7 +999,7 @@ export class Source {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -1228,7 +1228,7 @@ class Site {
 
 	/**
 	 * 
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 */
 	transfer(other) {
 		return other.transferSite(
@@ -4783,7 +4783,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -4913,7 +4913,7 @@ export class IntData extends UplcData {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -5023,7 +5023,7 @@ export class ByteArrayData extends UplcData {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -5158,7 +5158,7 @@ export class ListData extends UplcData {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 */
 	transfer(other) {
 		return other.transferListData(
@@ -5252,7 +5252,7 @@ export class MapData extends UplcData {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -5356,7 +5356,7 @@ export class ConstrData extends UplcData {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -8843,7 +8843,7 @@ export class UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -9056,7 +9056,7 @@ export class UplcType {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -9538,7 +9538,7 @@ class UplcAnon extends UplcValue {
 
 	/**
 	 * Should never be part of the uplc ast
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -9675,7 +9675,7 @@ class UplcDelayedValue extends UplcValue {
 
 	/**
 	 * Should never be part of ast
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -9764,7 +9764,7 @@ export class UplcInt extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -9996,7 +9996,7 @@ export class UplcByteArray extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -10122,7 +10122,7 @@ export class UplcString extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -10207,7 +10207,7 @@ export class UplcUnit extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -10291,7 +10291,7 @@ export class UplcBool extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -10397,7 +10397,7 @@ export class UplcPair extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -10511,7 +10511,7 @@ export class UplcList extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -10614,7 +10614,7 @@ export class UplcDataValue extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -10713,7 +10713,7 @@ class UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -10763,7 +10763,7 @@ class UplcVariable extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 */
 	transfer(other) {
 		return other.transferUplcVariable(
@@ -10816,7 +10816,7 @@ class UplcDelay extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -10872,7 +10872,7 @@ class UplcLambda extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -10932,7 +10932,7 @@ class UplcCall extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other
+	 * @param {TransferUplcAst} other
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -10994,7 +10994,7 @@ class UplcConst extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -11053,7 +11053,7 @@ class UplcForce extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -11107,7 +11107,7 @@ class UplcError extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -11159,7 +11159,7 @@ class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -11827,9 +11827,10 @@ const UPLC_TAG_WIDTHS = {
 
 /**
  * The constructor returns 'any' because it is an instance of TransferableUplcProgram, and the instance methods don't need to be defined here
+ * @template TInstance
  * @typedef {{
- *   new: (expr: any, properties: ProgramProperties, version: any[]) => any,
- *   transferFunctions: Transferable
+ *   transferUplcProgram: (expr: any, properties: ProgramProperties, version: any[]) => TInstance,
+ *   transferUplcAst: TransferUplcAst
  * }} TransferableUplcProgram
  */
 
@@ -11850,23 +11851,6 @@ const UPLC_TAG_WIDTHS = {
 		this.#version    = version;
 		this.#expr       = expr;
 		this.#properties = properties;
-	}
-
-	/**
-	 * Intended for transfer only
-	 * @param {any} expr 
-	 * @param {ProgramProperties} properties 
-	 * @param {any[]} version 
-	 * @returns {any}
-	 */
-	static new(expr, properties, version) {
-		if (!(expr instanceof UplcTerm)) {
-			throw new Error("program expr not transferred correctly");
-		} else if (!version.every(v => v instanceof UplcInt)) {
-			throw new Error("program version ints not transferred correctly");
-		} else {
-			return new UplcProgram(expr, properties, version);
-		}
 	}
 
 	/**
@@ -11899,16 +11883,16 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
-	 * @template {TransferableUplcProgram} T
-	 * @param {T} other
-	 * @returns {any}
+	 * @template TInstance
+	 * @param {TransferableUplcProgram<TInstance>} other
+	 * @returns {TInstance}
 	 */
 	transfer(other) {
-		return other.new(
-			this.#expr.transfer(other.transferFunctions),
+		return other.transferUplcProgram(
+			this.#expr.transfer(other.transferUplcAst),
 			this.#properties,
-			this.#version.map(i => i.transfer(other.transferFunctions))
-		)
+			this.#version.map(i => i.transfer(other.transferUplcAst))
+		);
 	}
 
 	/**
@@ -12267,10 +12251,28 @@ const UPLC_TAG_WIDTHS = {
 		}
 	}
 
+
 	/**
-	 * @type {Transferable}
+	 * Intended for transfer only
+	 * @param {any} expr 
+	 * @param {ProgramProperties} properties 
+	 * @param {any[]} version 
+	 * @returns {UplcProgram}
 	 */
-	static get transferFunctions() {
+	static transferUplcProgram(expr, properties, version) {
+		if (!(expr instanceof UplcTerm)) {
+			throw new Error("program expr not transferred correctly");
+		} else if (!version.every(v => v instanceof UplcInt)) {
+			throw new Error("program version ints not transferred correctly");
+		} else {
+			return new UplcProgram(expr, properties, version);
+		}
+	}
+
+	/**
+	 * @type {TransferUplcAst}
+	 */
+	static get transferUplcAst() {
 		return {
 			transferByteArrayData: (bytes) => new ByteArrayData(bytes),
 			transferConstrData:    (index, fields) => new ConstrData(index, fields),

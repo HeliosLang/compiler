@@ -211,7 +211,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.32";
+export const VERSION: "0.13.33";
 /**
  * Modifiable config vars
  * @type {{
@@ -248,10 +248,10 @@ export class Source {
      */
     constructor(raw: string, fileIndex?: null | number);
     /**
-     * @param {Transferable} other
+     * @param {TransferUplcAst} other
      * @returns {any}
      */
-    transfer(other: Transferable): any;
+    transfer(other: TransferUplcAst): any;
     /**
      * @package
      * @type {string}
@@ -993,10 +993,10 @@ export class UplcData extends CborData {
      */
     static fromCbor(bytes: string | number[]): UplcData;
     /**
-     * @param {Transferable} other
+     * @param {TransferUplcAst} other
      * @returns {any}
      */
-    transfer(other: Transferable): any;
+    transfer(other: TransferUplcAst): any;
     /**
      * Estimate of memory usage during validation
      * @type {number}
@@ -1960,10 +1960,10 @@ export class UplcValue {
      */
     constructor(site: Site);
     /**
-     * @param {Transferable} other
+     * @param {TransferUplcAst} other
      * @returns {any}
      */
-    transfer(other: Transferable): any;
+    transfer(other: TransferUplcAst): any;
     /**
      * Return a copy of the UplcValue at a different Site.
      * @package
@@ -2105,10 +2105,10 @@ export class UplcType {
      */
     constructor(typeBits: string);
     /**
-     * @param {Transferable} other
+     * @param {TransferUplcAst} other
      * @returns {any}
      */
-    transfer(other: Transferable): any;
+    transfer(other: TransferUplcAst): any;
     /**
      * @returns {string}
      */
@@ -2425,9 +2425,10 @@ export class UplcDataValue extends UplcValue {
  */
 /**
  * The constructor returns 'any' because it is an instance of TransferableUplcProgram, and the instance methods don't need to be defined here
+ * @template TInstance
  * @typedef {{
- *   new: (expr: any, properties: ProgramProperties, version: any[]) => any,
- *   transferFunctions: Transferable
+ *   transferUplcProgram: (expr: any, properties: ProgramProperties, version: any[]) => TInstance,
+ *   transferUplcAst: TransferUplcAst
  * }} TransferableUplcProgram
  */
 /**
@@ -2435,22 +2436,22 @@ export class UplcDataValue extends UplcValue {
  */
 export class UplcProgram {
     /**
-     * Intended for transfer only
-     * @param {any} expr
-     * @param {ProgramProperties} properties
-     * @param {any[]} version
-     * @returns {any}
-     */
-    static new(expr: any, properties: ProgramProperties, version: any[]): any;
-    /**
      * @param {number[] | string} bytes
      * @returns {UplcProgram}
      */
     static fromCbor(bytes: number[] | string): UplcProgram;
     /**
-     * @type {Transferable}
+     * Intended for transfer only
+     * @param {any} expr
+     * @param {ProgramProperties} properties
+     * @param {any[]} version
+     * @returns {UplcProgram}
      */
-    static get transferFunctions(): Transferable;
+    static transferUplcProgram(expr: any, properties: ProgramProperties, version: any[]): UplcProgram;
+    /**
+     * @type {TransferUplcAst}
+     */
+    static get transferUplcAst(): TransferUplcAst;
     /**
      * @param {UplcTerm} expr
      * @param {ProgramProperties} properties
@@ -2475,11 +2476,11 @@ export class UplcProgram {
      */
     get properties(): ProgramProperties;
     /**
-     * @template {TransferableUplcProgram} T
-     * @param {T} other
-     * @returns {any}
+     * @template TInstance
+     * @param {TransferableUplcProgram<TInstance>} other
+     * @returns {TInstance}
      */
-    transfer<T extends TransferableUplcProgram>(other: T): any;
+    transfer<TInstance>(other: TransferableUplcProgram<TInstance>): TInstance;
     /**
      * Returns version of Plutus-core (!== Plutus script version!)
      * @type {string}
@@ -4146,7 +4147,7 @@ export namespace exportedForTesting {
 /**
  * Needed by transfer() methods
  */
-export type Transferable = {
+export type TransferUplcAst = {
     transferByteArrayData: (bytes: number[]) => any;
     transferConstrData: (index: number, fields: any[]) => any;
     transferIntData: (value: bigint) => any;
@@ -4216,9 +4217,9 @@ export type ProgramProperties = {
 /**
  * The constructor returns 'any' because it is an instance of TransferableUplcProgram, and the instance methods don't need to be defined here
  */
-export type TransferableUplcProgram = {
-    new: (expr: any, properties: ProgramProperties, version: any[]) => any;
-    transferFunctions: Transferable;
+export type TransferableUplcProgram<TInstance> = {
+    transferUplcProgram: (expr: any, properties: ProgramProperties, version: any[]) => TInstance;
+    transferUplcAst: TransferUplcAst;
 };
 /**
  * We can't use StructStatement etc. directly because that would give circular dependencies
@@ -4419,9 +4420,9 @@ declare class Site {
     constructor(src: Source, startPos: number, endPos?: number, codeMapSite?: any);
     /**
      *
-     * @param {Transferable} other
+     * @param {TransferUplcAst} other
      */
-    transfer(other: Transferable): any;
+    transfer(other: TransferUplcAst): any;
     get src(): Source;
     get startPos(): number;
     get endPos(): number;
@@ -4872,10 +4873,10 @@ declare class UplcTerm {
      */
     get site(): Site;
     /**
-     * @param {Transferable} other
+     * @param {TransferUplcAst} other
      * @returns {any}
      */
-    transfer(other: Transferable): any;
+    transfer(other: TransferUplcAst): any;
     /**
      * Generic term toString method
      * @returns {string}
@@ -5734,7 +5735,7 @@ declare class InlineDatum extends Datum {
 *   transferUplcType: (typeBits: string) => any,
 *   transferUplcUnit: (site: any) => any,
 *   transferUplcVariable: (site: any, index: any) => any
-* }} Transferable
+* }} TransferUplcAst
 */
 /**
  * Throws an error if 'cond' is false.

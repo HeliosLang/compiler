@@ -14,7 +14,7 @@ import {
 } from "./utils.js";
 
 /**
- * @typedef {import("./utils.js").Transferable} Transferable
+ * @typedef {import("./utils.js").TransferUplcAst} TransferUplcAst
  */
 
 import {
@@ -99,7 +99,7 @@ export class UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -312,7 +312,7 @@ export class UplcType {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -794,7 +794,7 @@ export class UplcAnon extends UplcValue {
 
 	/**
 	 * Should never be part of the uplc ast
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -931,7 +931,7 @@ export class UplcDelayedValue extends UplcValue {
 
 	/**
 	 * Should never be part of ast
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -1020,7 +1020,7 @@ export class UplcInt extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -1252,7 +1252,7 @@ export class UplcByteArray extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -1378,7 +1378,7 @@ export class UplcString extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -1463,7 +1463,7 @@ export class UplcUnit extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -1547,7 +1547,7 @@ export class UplcBool extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -1653,7 +1653,7 @@ export class UplcPair extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -1767,7 +1767,7 @@ export class UplcList extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -1870,7 +1870,7 @@ export class UplcDataValue extends UplcValue {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -1969,7 +1969,7 @@ export class UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -2019,7 +2019,7 @@ export class UplcVariable extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 */
 	transfer(other) {
 		return other.transferUplcVariable(
@@ -2072,7 +2072,7 @@ export class UplcDelay extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -2128,7 +2128,7 @@ export class UplcLambda extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -2188,7 +2188,7 @@ export class UplcCall extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other
+	 * @param {TransferUplcAst} other
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -2250,7 +2250,7 @@ export class UplcConst extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -2309,7 +2309,7 @@ export class UplcForce extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -2363,7 +2363,7 @@ export class UplcError extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -2415,7 +2415,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {

@@ -8,7 +8,7 @@ import {
 } from "./utils.js";
 
 /**
- * @typedef {import("./utils.js").Transferable} Transferable
+ * @typedef {import("./utils.js").TransferUplcAst} TransferUplcAst
  */
 
 import {
@@ -35,7 +35,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -165,7 +165,7 @@ export class IntData extends UplcData {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -275,7 +275,7 @@ export class ByteArrayData extends UplcData {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -410,7 +410,7 @@ export class ListData extends UplcData {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 */
 	transfer(other) {
 		return other.transferListData(
@@ -504,7 +504,7 @@ export class MapData extends UplcData {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
@@ -608,7 +608,7 @@ export class ConstrData extends UplcData {
 	}
 
 	/**
-	 * @param {Transferable} other 
+	 * @param {TransferUplcAst} other 
 	 * @returns {any}
 	 */
 	transfer(other) {
