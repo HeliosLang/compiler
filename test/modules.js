@@ -27,8 +27,9 @@ async function test1() {
     console.log(program.prettyIR());
     console.log(program.prettyIR(true));
 
-    let irProgram = program.compile(false);
-    let result = await irProgram.run([]);
+    // also test the transfer() function
+    let uplcProgram = program.compile(false).transfer(helios.UplcProgram);
+    let result = await uplcProgram.run([]);
 
     console.log(result.toString());
 
@@ -64,8 +65,9 @@ async function test2() {
     console.log(program.prettyIR());
     console.log(program.prettyIR(true));
 
-    let irProgram = program.compile(false);
-    let result = await irProgram.run([]);
+    // also test transfer() function
+    let uplcProgram = program.compile(false).transfer(helios.UplcProgram);
+    let result = await uplcProgram.run([]);
 
     console.log(result.toString());
 }
@@ -169,11 +171,11 @@ async function test6() {
     const main = `
     testing my_script
 
-    import {Module1} from Module2
+    import {Module1 as RenamedModule1} from Module2
     import Module2
 
     func main() -> Int  {
-        Module1::test + Module2::Module1::test + 1_000_000.000.round()
+        RenamedModule1::test + Module2::Module1::test + 1_000_000.000.round()
     }
     `;
 
@@ -184,8 +186,9 @@ async function test6() {
     console.log(program.prettyIR());
     console.log(program.prettyIR(true));
 
-    let irProgram = program.compile(false);
-    let result = await irProgram.run([]);
+    // also test the transfer() function
+    let uplcProgram = program.compile(false).transfer(helios.UplcProgram);
+    let result = await uplcProgram.run([]);
 
     console.log(result.toString());
 }

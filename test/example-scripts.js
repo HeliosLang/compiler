@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 //@ts-check
-import fs from "fs";
-import crypto from "crypto";
 import * as helios from "../helios.js";
 import { runIfEntryPoint } from "./util.js";
 
@@ -36,7 +34,8 @@ export default async function main() {
 
             let args = argNames.map(n => program.evalParam(n));
 
-            let [result, messages] = await program.compile().runWithPrint(args);
+            // test the transfer() function as well
+            let [result, messages] = await program.compile().transfer(helios.UplcProgram).runWithPrint(args);
         
             checkResult(result);
         
@@ -54,7 +53,8 @@ export default async function main() {
 
             // also try the simplified version (don't check for the message though because all trace calls will've been eliminated)
 
-            [result, messages] = await program.compile(true).runWithPrint(args);
+            // test the transfer() function as well
+            [result, messages] = await program.compile(true).transfer(helios.UplcProgram).runWithPrint(args);
 
             if (messages.length != 0) {
                 throw new Error("unexpected messages");

@@ -7,6 +7,10 @@ import {
     textToBytes
 } from "./utils.js";
 
+/**
+ * @typedef {import("./utils.js").Transferable} Transferable
+ */
+
 import {
     IR
 } from "./tokens.js";
@@ -28,6 +32,14 @@ const UPLC_DATA_NODE_MEM_SIZE = 4;
 export class UplcData extends CborData {
 	constructor() {
 		super();
+	}
+
+	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -153,6 +165,14 @@ export class IntData extends UplcData {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferIntData(this.#value);
+	}
+
+	/**
 	 * @type {bigint}
 	 */
 	get value() {
@@ -254,6 +274,18 @@ export class ByteArrayData extends UplcData {
 		return new ByteArrayData(bytes);
 	}
 
+	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferByteArrayData(this.#bytes);
+	}
+
+	/**
+	 * Returns a copy of the underlying bytes.
+	 * @type {number[]}
+	 */
 	get bytes() {
 		return this.#bytes.slice();
 	}
@@ -264,14 +296,18 @@ export class ByteArrayData extends UplcData {
      * @returns {number}
      */
     static memSizeInternal(bytes) {
-        let n = bytes.length;
+        const n = bytes.length;
+
 		if (n === 0) {
 			return 1; // this is so annoying: haskell reference implementation says it should be 0, but current (20220925) testnet and mainnet settings say it's 1
 		} else {
-			return Math.floor((bytes.length - 1)/8) + 1;
+			return Math.floor((n - 1)/8) + 1;
 		}
     }
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		return UPLC_DATA_NODE_MEM_SIZE + ByteArrayData.memSizeInternal(this.#bytes);
 	}
@@ -283,6 +319,9 @@ export class ByteArrayData extends UplcData {
 		return bytesToHex(this.#bytes);
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `#${this.toHex()}`;
 	}
@@ -371,6 +410,15 @@ export class ListData extends UplcData {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 */
+	transfer(other) {
+		return other.transferListData(
+			this.#items.map(item => item.transfer(other))
+		);
+	}
+
+	/**
 	 * @type {UplcData[]}
 	 */
 	get list() {
@@ -390,6 +438,9 @@ export class ListData extends UplcData {
 		return sum;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `[${this.#items.map(item => item.toString()).join(", ")}]`;
 	}
@@ -453,12 +504,27 @@ export class MapData extends UplcData {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferMapData(
+			this.#pairs.map(([a, b]) => {
+				return [a.transfer(other), b.transfer(other)]
+			})
+		);
+	}
+
+	/**
 	 * @type {[UplcData, UplcData][]}
 	 */
 	get map() {
 		return this.#pairs.slice();
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		let sum = UPLC_DATA_NODE_MEM_SIZE;
 
@@ -469,6 +535,9 @@ export class MapData extends UplcData {
 		return sum;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `{${this.#pairs.map(([fst, snd]) => `${fst.toString()}: ${snd.toString()}`).join(", ")}}`;
 	}
@@ -480,8 +549,8 @@ export class MapData extends UplcData {
 		let ir = new IR("__core__mkNilPairData(())");
 
 		for (let i = this.#pairs.length - 1; i >= 0; i--) {
-			let a = this.#pairs[i][0].toIR();
-			let b = this.#pairs[i][1].toIR();
+			const a = this.#pairs[i][0].toIR();
+			const b = this.#pairs[i][1].toIR();
 
 			ir = new IR([new IR("__core__mkCons(__core__mkPairData("), a, new IR(", "), b, new IR(", "), new IR(")"), new IR(", "), ir, new IR(")")]);
 		}
@@ -536,6 +605,17 @@ export class ConstrData extends UplcData {
 		super();
 		this.#index = index;
 		this.#fields = fields;
+	}
+
+	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferConstrData(
+			this.#index,
+			this.#fields.map(f => f.transfer(other))
+		);
 	}
 
 	/**

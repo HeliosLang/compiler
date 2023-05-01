@@ -50,7 +50,8 @@ function isError(err, info) {
 }
 
 async function testTrue(src, simplify = false) {
-  let program = helios.Program.new(src).compile(simplify);
+  // also test the transfer() function
+  let program = helios.Program.new(src).compile(simplify).transfer(helios.UplcProgram);
 
   let result = await program.run([]);
 
@@ -69,7 +70,8 @@ async function testError(src, expectedError, simplify = false) {
   const [_, name] = helios.extractScriptPurposeAndName(src) ?? ["", ""];
 
   try {
-      let program = helios.Program.new(src).compile(simplify);
+      // also test the transfer() function
+      let program = helios.Program.new(src).compile(simplify).transfer(helios.UplcProgram);
 
       let result = await program.run([]);
 
@@ -186,7 +188,8 @@ async function test3() {
   } 
   `
 
-  let program = helios.Program.new(src).compile();
+  // also test the transfer() function
+  let program = helios.Program.new(src).compile().transfer(helios.UplcProgram);
 
   console.log((await program.run([])).toString());
 }
@@ -211,7 +214,8 @@ async function test4() {
 
   console.log(program.prettyIR());
 
-  let uplcProgram = program.compile();
+  // also test the transfer function
+  let uplcProgram = program.compile().transfer(helios.UplcProgram);
 
   console.log((await uplcProgram.runWithPrint([])).toString());
 }
@@ -235,7 +239,8 @@ async function test5() {
 
   let program = helios.Program.new(src);
 
-  let uplcProgram = program.compile();
+  // also test the transfer function
+  let uplcProgram = program.compile().transfer(helios.UplcProgram);
 
   console.log((await uplcProgram.runWithPrint([])).toString());
 

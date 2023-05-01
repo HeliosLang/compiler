@@ -9,10 +9,13 @@ import {
     assertDefined,
     bytesToHex,
     bytesToText,
-    eq,
     hexToBytes,
 	assertEq
 } from "./utils.js";
+
+/**
+ * @typedef {import("./utils.js").Transferable} Transferable
+ */
 
 import {
     Site,
@@ -28,6 +31,11 @@ import {
 } from "./cbor.js";
 
 import {
+	ByteArrayData,
+    ConstrData,
+	IntData,
+	ListData,
+    MapData,
     UplcData
 } from "./uplc-data.js";
 
@@ -53,6 +61,7 @@ import {
 /**
  * @typedef {import("./uplc-ast.js").UplcRTECallbacks} UplcRTECallbacks
  */
+
 import {
     DEFAULT_UPLC_RTE_CALLBACKS,
     ScriptPurpose,
@@ -121,6 +130,14 @@ const UPLC_TAG_WIDTHS = {
  */
 
 /**
+ * The constructor returns 'any' because it is an instance of TransferableUplcProgram, and the instance methods don't need to be defined here
+ * @typedef {{
+ *   new: (expr: any, properties: ProgramProperties, version: any[]) => any,
+ *   transferFunctions: Transferable
+ * }} TransferableUplcProgram
+ */
+
+/**
  * Plutus-core program class
  */
  export class UplcProgram {
@@ -134,9 +151,26 @@ const UPLC_TAG_WIDTHS = {
 	 * @param {UplcInt[]} version
 	 */
 	constructor(expr, properties = {purpose: null, callsTxTimeRange: false}, version = UPLC_VERSION_COMPONENTS.map(v => new UplcInt(expr.site, v, false))) {
-		this.#version = version;
-		this.#expr = expr;
+		this.#version    = version;
+		this.#expr       = expr;
 		this.#properties = properties;
+	}
+
+	/**
+	 * Intended for transfer only
+	 * @param {any} expr 
+	 * @param {ProgramProperties} properties 
+	 * @param {any[]} version 
+	 * @returns {any}
+	 */
+	static new(expr, properties, version) {
+		if (!(expr instanceof UplcTerm)) {
+			throw new Error("program expr not transferred correctly");
+		} else if (!version.every(v => v instanceof UplcInt)) {
+			throw new Error("program version ints not transferred correctly");
+		} else {
+			return new UplcProgram(expr, properties, version);
+		}
 	}
 
 	/**
@@ -166,6 +200,19 @@ const UPLC_TAG_WIDTHS = {
 	 */
 	get properties() {
 		return this.#properties;
+	}
+
+	/**
+	 * @template {TransferableUplcProgram} T
+	 * @param {T} other
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.new(
+			this.#expr.transfer(other.transferFunctions),
+			this.#properties,
+			this.#version.map(i => i.transfer(other.transferFunctions))
+		)
 	}
 
 	/**
@@ -522,6 +569,38 @@ const UPLC_TAG_WIDTHS = {
 		} else {
 			return deserializeUplcBytes(CborData.decodeBytes(CborData.decodeBytes(bytes)));
 		}
+	}
+
+	/**
+	 * @type {Transferable}
+	 */
+	static get transferFunctions() {
+		return {
+			transferByteArrayData: (bytes) => new ByteArrayData(bytes),
+			transferConstrData:    (index, fields) => new ConstrData(index, fields),
+			transferIntData:       (value) => new IntData(value),
+			transferListData:      (items) => new ListData(items),
+			transferMapData:       (pairs) => new MapData(pairs),
+			transferSite:          (src, startPos, endPos, codeMapSite = null) => new Site(src, startPos, endPos, codeMapSite),
+			transferSource:        (raw, fileIndex) => new Source(raw, fileIndex),
+			transferUplcBool:      (site, value) => new UplcBool(site, value),
+			transferUplcBuiltin:   (site, name) => new UplcBuiltin(site, name),
+			transferUplcByteArray: (site, bytes) => new UplcByteArray(site, bytes),
+			transferUplcCall:      (site, a, b) => new UplcCall(site, a, b),
+			transferUplcConst:     (value) => new UplcConst(value),
+			transferUplcDataValue: (site, data) => new UplcDataValue(site, data),
+			transferUplcDelay:     (site, expr) => new UplcDelay(site, expr),
+			transferUplcError:     (site, msg) => new UplcError(site, msg),
+			transferUplcForce:     (site, expr) => new UplcForce(site, expr),
+			transferUplcInt:       (site, value, signed) => new UplcInt(site, value, signed),
+			transferUplcLambda:    (site, rhs, name = null) => new UplcLambda(site, rhs, name),
+			transferUplcList:      (site, itemType, items) => new UplcList(site, itemType, items),
+			transferUplcPair:      (site, first, second) => new UplcPair(site, first, second),
+			transferUplcString:    (site, value) => new UplcString(site, value),
+			transferUplcType:      (typeBits) => new UplcType(typeBits),
+			transferUplcUnit:      (site) => new UplcUnit(site),
+			transferUplcVariable:  (site, index) => new UplcVariable(site, index)
+		};
 	}
 }
 

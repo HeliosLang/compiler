@@ -41,7 +41,8 @@ async function profile(src, argNames, expected = null) {
     console.log(`\nSIMPLIFIED (${size} bytes):`);
 	console.log(new helios_.Source(irProgram1.toString()).pretty(), "\n\n");
 
-	let profileResult = await program.compile(true).profile(args, networkParams);
+	// also test the transfer() function
+	let profileResult = await program.compile(true).transfer(helios.UplcProgram).profile(args, networkParams);
     console.log(profileResult);
 
 	if (expected !== null) {

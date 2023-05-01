@@ -81,7 +81,8 @@ async function testMinting(optimized = false) {
 		true
 	}`;
 
-	const program = helios.Program.new(src).compile(optimized)
+	// also test the transfer() function
+	const program = helios.Program.new(src).compile(optimized).transfer(helios.UplcProgram);
 
 	console.log("MINTING_PROGRAM:", program.serialize());
 
@@ -167,7 +168,8 @@ async function testInlineDatum() {
 		true
 	}`;
 
-	const program = helios.Program.new(src).compile(true);
+	// also test the transfer() function
+	const program = helios.Program.new(src).compile(true).transfer(helios.UplcProgram);
 
 	// wallet1 address: addr_test1vzzcg26lxj3twnnx889lrn60pqn0z3km2yahhsz0fvpyxdcj5qp8w
 	// submit minting transaction:
@@ -326,7 +328,8 @@ async function tokencheck() {
 
 	const datum = program.evalParam("MY_DATUM");
 
-	const uplcProgram = helios.Program.new(src).compile(false);
+	// also test the transfer() function
+	const uplcProgram = helios.Program.new(src).compile(false).transfer(helios.UplcProgram);
 
 	const programCbor = helios.bytesToHex(uplcProgram.serializeBytes());
 
@@ -423,7 +426,8 @@ async function singleDatumEntry() {
 
 	const datum = new program.types.Datum(0n);
 
-	const uplcProgram = helios.Program.new(src).compile(false);
+	// also test the transfer() function
+	const uplcProgram = helios.Program.new(src).compile(false).transfer(helios.UplcProgram);
 
 	// lets try to rebuild the same tx
 	let tx = new helios.Tx();

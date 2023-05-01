@@ -14,6 +14,10 @@ import {
 } from "./utils.js";
 
 /**
+ * @typedef {import("./utils.js").Transferable} Transferable
+ */
+
+/**
  * Each Token/Expression/Statement has a Site, which encapsulates a position in a Source
  * @package
  */
@@ -22,10 +26,10 @@ export class Site {
 	#startPos;
 	#endPos;
 
-	/** @type {?Site} - end of token, exclusive, TODO: replace with endPos */
+	/** @type {null | Site} - end of token, exclusive, TODO: replace with endPos */
 	#endSite;
 
-	/**@type {?Site} */
+	/** @type {null | Site} */
 	#codeMapSite;
 
 	/**
@@ -33,12 +37,25 @@ export class Site {
 	 * @param {number} startPos
 	 * @param {number} endPos 
 	 */
-	constructor(src, startPos, endPos = startPos + 1) {
+	constructor(src, startPos, endPos = startPos + 1, codeMapSite = null) {
 		this.#src = src;
 		this.#startPos = startPos;
 		this.#endPos = endPos;
 		this.#endSite = null;
-		this.#codeMapSite = null;
+		this.#codeMapSite = codeMapSite;
+	}
+
+	/**
+	 * 
+	 * @param {Transferable} other 
+	 */
+	transfer(other) {
+		return other.transferSite(
+			this.#src.transfer(other),
+			this.#startPos,
+			this.#endPos,
+			this.#codeMapSite?.transfer(other) ?? null
+		)
 	}
 
 	static dummy() {

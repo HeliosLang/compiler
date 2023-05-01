@@ -211,7 +211,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.31";
+export const VERSION: "0.13.32";
 /**
  * Modifiable config vars
  * @type {{
@@ -244,9 +244,14 @@ export const config: {
 export class Source {
     /**
      * @param {string} raw
-     * @param {?number} fileIndex
+     * @param {null | number} fileIndex
      */
-    constructor(raw: string, fileIndex?: number | null);
+    constructor(raw: string, fileIndex?: null | number);
+    /**
+     * @param {Transferable} other
+     * @returns {any}
+     */
+    transfer(other: Transferable): any;
     /**
      * @package
      * @type {string}
@@ -987,6 +992,11 @@ export class UplcData extends CborData {
      * @returns {UplcData}
      */
     static fromCbor(bytes: string | number[]): UplcData;
+    /**
+     * @param {Transferable} other
+     * @returns {any}
+     */
+    transfer(other: Transferable): any;
     /**
      * Estimate of memory usage during validation
      * @type {number}
@@ -1950,6 +1960,11 @@ export class UplcValue {
      */
     constructor(site: Site);
     /**
+     * @param {Transferable} other
+     * @returns {any}
+     */
+    transfer(other: Transferable): any;
+    /**
      * Return a copy of the UplcValue at a different Site.
      * @package
      * @param {Site} newSite
@@ -2089,6 +2104,11 @@ export class UplcType {
      * @param {string} typeBits
      */
     constructor(typeBits: string);
+    /**
+     * @param {Transferable} other
+     * @returns {any}
+     */
+    transfer(other: Transferable): any;
     /**
      * @returns {string}
      */
@@ -2404,14 +2424,33 @@ export class UplcDataValue extends UplcValue {
  * }} ProgramProperties
  */
 /**
+ * The constructor returns 'any' because it is an instance of TransferableUplcProgram, and the instance methods don't need to be defined here
+ * @typedef {{
+ *   new: (expr: any, properties: ProgramProperties, version: any[]) => any,
+ *   transferFunctions: Transferable
+ * }} TransferableUplcProgram
+ */
+/**
  * Plutus-core program class
  */
 export class UplcProgram {
+    /**
+     * Intended for transfer only
+     * @param {any} expr
+     * @param {ProgramProperties} properties
+     * @param {any[]} version
+     * @returns {any}
+     */
+    static new(expr: any, properties: ProgramProperties, version: any[]): any;
     /**
      * @param {number[] | string} bytes
      * @returns {UplcProgram}
      */
     static fromCbor(bytes: number[] | string): UplcProgram;
+    /**
+     * @type {Transferable}
+     */
+    static get transferFunctions(): Transferable;
     /**
      * @param {UplcTerm} expr
      * @param {ProgramProperties} properties
@@ -2435,6 +2474,12 @@ export class UplcProgram {
      * @type {ProgramProperties}
      */
     get properties(): ProgramProperties;
+    /**
+     * @template {TransferableUplcProgram} T
+     * @param {T} other
+     * @returns {any}
+     */
+    transfer<T extends TransferableUplcProgram>(other: T): any;
     /**
      * Returns version of Plutus-core (!== Plutus script version!)
      * @type {string}
@@ -4099,6 +4144,35 @@ export namespace exportedForTesting {
     export { REAL_PRECISION };
 }
 /**
+ * Needed by transfer() methods
+ */
+export type Transferable = {
+    transferByteArrayData: (bytes: number[]) => any;
+    transferConstrData: (index: number, fields: any[]) => any;
+    transferIntData: (value: bigint) => any;
+    transferListData: (items: any[]) => any;
+    transferMapData: (pairs: [any, any][]) => any;
+    transferSite: (src: any, startPos: number, endPos: number, codeMapSite: null | any) => any;
+    transferSource: (raw: string, fileIndex: null | number) => any;
+    transferUplcBool: (site: any, value: boolean) => any;
+    transferUplcBuiltin: (site: any, name: string | number) => any;
+    transferUplcByteArray: (site: any, bytes: number[]) => any;
+    transferUplcCall: (site: any, a: any, b: any) => any;
+    transferUplcConst: (value: any) => any;
+    transferUplcDataValue: (site: any, data: any) => any;
+    transferUplcDelay: (site: any, expr: any) => any;
+    transferUplcError: (site: any, msg: string) => any;
+    transferUplcForce: (site: any, expr: any) => any;
+    transferUplcInt: (site: any, value: bigint, signed: boolean) => any;
+    transferUplcLambda: (site: any, rhs: any, name: null | string) => any;
+    transferUplcList: (site: any, itemType: any, items: any[]) => any;
+    transferUplcPair: (site: any, first: any, second: any) => any;
+    transferUplcString: (site: any, value: string) => any;
+    transferUplcType: (typeBits: string) => any;
+    transferUplcUnit: (site: any) => any;
+    transferUplcVariable: (site: any, index: any) => any;
+};
+/**
  * The inner 'any' is also Metadata, but jsdoc doesn't allow declaring recursive types
  * Metadata is essentially a JSON schema object
  */
@@ -4138,6 +4212,13 @@ export type UplcRTECallbacks = {
 export type ProgramProperties = {
     purpose: null | number;
     callsTxTimeRange: boolean;
+};
+/**
+ * The constructor returns 'any' because it is an instance of TransferableUplcProgram, and the instance methods don't need to be defined here
+ */
+export type TransferableUplcProgram = {
+    new: (expr: any, properties: ProgramProperties, version: any[]) => any;
+    transferFunctions: Transferable;
 };
 /**
  * We can't use StructStatement etc. directly because that would give circular dependencies
@@ -4335,7 +4416,12 @@ declare class Site {
      * @param {number} startPos
      * @param {number} endPos
      */
-    constructor(src: Source, startPos: number, endPos?: number);
+    constructor(src: Source, startPos: number, endPos?: number, codeMapSite?: any);
+    /**
+     *
+     * @param {Transferable} other
+     */
+    transfer(other: Transferable): any;
     get src(): Source;
     get startPos(): number;
     get endPos(): number;
@@ -4785,6 +4871,11 @@ declare class UplcTerm {
      * @type {Site}
      */
     get site(): Site;
+    /**
+     * @param {Transferable} other
+     * @returns {any}
+     */
+    transfer(other: Transferable): any;
     /**
      * Generic term toString method
      * @returns {string}
@@ -5617,6 +5708,35 @@ declare class InlineDatum extends Datum {
     #private;
 }
 /**
+ * Needed by transfer() methods
+ * @typedef {{
+*   transferByteArrayData: (bytes: number[]) => any,
+*   transferConstrData: (index: number, fields: any[]) => any,
+*   transferIntData: (value: bigint) => any,
+*   transferListData: (items: any[]) => any,
+*   transferMapData: (pairs: [any, any][]) => any,
+* 	transferSite: (src: any, startPos: number, endPos: number, codeMapSite: null | any) => any,
+*   transferSource: (raw: string, fileIndex: null | number) => any,
+*   transferUplcBool: (site: any, value: boolean) => any,
+*   transferUplcBuiltin: (site: any, name: string | number) => any,
+*   transferUplcByteArray: (site: any, bytes: number[]) => any,
+*   transferUplcCall: (site: any, a: any, b: any) => any,
+*   transferUplcConst: (value: any) => any,
+*   transferUplcDataValue: (site: any, data: any) => any,
+*   transferUplcDelay: (site: any, expr: any) => any,
+*   transferUplcError: (site: any, msg: string) => any,
+*   transferUplcForce: (site: any, expr: any) => any,
+*   transferUplcInt: (site: any, value: bigint, signed: boolean) => any,
+*   transferUplcLambda: (site: any, rhs: any, name: null | string) => any,
+*   transferUplcList: (site: any, itemType: any, items: any[]) => any,
+*   transferUplcPair: (site: any, first: any, second: any) => any,
+*   transferUplcString: (site: any, value: string) => any,
+*   transferUplcType: (typeBits: string) => any,
+*   transferUplcUnit: (site: any) => any,
+*   transferUplcVariable: (site: any, index: any) => any
+* }} Transferable
+*/
+/**
  * Throws an error if 'cond' is false.
  * @package
  * @param {boolean} cond
@@ -5683,9 +5803,9 @@ declare class UplcLambda extends UplcTerm {
     /**
      * @param {Site} site
      * @param {UplcTerm} rhs
-     * @param {?string} argName
+     * @param {null | string} argName
      */
-    constructor(site: Site, rhs: UplcTerm, argName?: string | null);
+    constructor(site: Site, rhs: UplcTerm, argName?: null | string);
     #private;
 }
 /**

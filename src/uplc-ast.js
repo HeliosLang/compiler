@@ -13,6 +13,10 @@ import {
 	byteToBitString
 } from "./utils.js";
 
+/**
+ * @typedef {import("./utils.js").Transferable} Transferable
+ */
+
 import {
     RuntimeError,
     Site,
@@ -44,7 +48,6 @@ import {
     MapData,
     UplcData
 } from "./uplc-data.js";
-
 
 /**
  * A Helios/Uplc Program can have different purposes
@@ -93,6 +96,14 @@ export class UplcValue {
 	constructor(site) {
 		assert(site != undefined && (site instanceof Site));
 		this.#site = site;
+	}
+
+	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -298,6 +309,16 @@ export class UplcType {
 	 */
 	constructor(typeBits) {
 		this.#typeBits = typeBits;
+	}
+
+	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcType(
+			this.#typeBits
+		);
 	}
 
 	/**
@@ -771,6 +792,15 @@ export class UplcAnon extends UplcValue {
 		this.#callSite = callSite;
 	}
 
+	/**
+	 * Should never be part of the uplc ast
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		throw new Error("not expected to be part of uplc ast");
+	}
+
 	get memSize() {
 		return 1;
 	}
@@ -899,6 +929,15 @@ export class UplcDelayedValue extends UplcValue {
 		this.#evaluator = evaluator;
 	}
 
+	/**
+	 * Should never be part of ast
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		throw new Error("not expected to be part of uplc ast");
+	}
+
 	get memSize() {
 		return 1;
 	}
@@ -978,6 +1017,18 @@ export class UplcInt extends UplcValue {
 		} else {
 			return new UplcInt(Site.dummy(), value);
 		}
+	}
+
+	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcInt(
+			this.site.transfer(other),
+			this.#value,
+			this.#signed
+		);
 	}
 
 	get signed() {
@@ -1201,6 +1252,17 @@ export class UplcByteArray extends UplcValue {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcByteArray(
+			this.site.transfer(other),
+			this.#bytes
+		)
+	}
+
+	/**
 	 * @type {number}
 	 */
 	get memSize() {
@@ -1316,6 +1378,17 @@ export class UplcString extends UplcValue {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcString(
+			this.site.transfer(other),
+			this.#value
+		);
+	}
+
+	/**
 	 * @type {number}
 	 */
 	get memSize() {
@@ -1390,6 +1463,16 @@ export class UplcUnit extends UplcValue {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcUnit(
+			this.site.transfer(other)
+		);
+	}
+
+	/**
 	 * @type {number}
 	 */
 	get memSize() {
@@ -1461,6 +1544,17 @@ export class UplcBool extends UplcValue {
 	 */
 	static newTerm(site, value) {
 		return new UplcConst(new UplcBool(site, value));
+	}
+
+	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcBool(
+			this.site.transfer(other),
+			this.#value
+		);
 	}
 
 	/**
@@ -1556,6 +1650,18 @@ export class UplcPair extends UplcValue {
 	 */
 	static newTerm(site, first, second) {
 		return new UplcConst(new UplcPair(site, first, second));
+	}
+
+	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcPair(
+			this.site.transfer(other),
+			this.#first.transfer(other),
+			this.#second.transfer(other)
+		);
 	}
 
 	/**
@@ -1661,6 +1767,18 @@ export class UplcList extends UplcValue {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcList(
+			this.site.transfer(other),
+			this.#itemType.transfer(other),
+			this.#items.map(item => item.transfer(other))
+		);
+	}
+
+	/**
 	 * @type {number}
 	 */
 	get length() {
@@ -1752,6 +1870,17 @@ export class UplcDataValue extends UplcValue {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcDataValue(
+			this.site.transfer(other),
+			this.#data.transfer(other)
+		);
+	}
+
+	/**
 	 * @type {number}
 	 */
 	get memSize() {
@@ -1840,6 +1969,14 @@ export class UplcTerm {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
 	 * Generic term toString method
 	 * @returns {string}
 	 */
@@ -1879,6 +2016,16 @@ export class UplcVariable extends UplcTerm {
 	constructor(site, index) {
 		super(site, 0);
 		this.#index = index;
+	}
+
+	/**
+	 * @param {Transferable} other 
+	 */
+	transfer(other) {
+		return other.transferUplcVariable(
+			this.site.transfer(other),
+			this.#index.transfer(other)
+		);
 	}
 
 	/**
@@ -1925,6 +2072,17 @@ export class UplcDelay extends UplcTerm {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcDelay(
+			this.site.transfer(other),
+			this.#expr.transfer(other)
+		);
+	}
+
+	/**
 	 * @returns {string} 
 	 */
 	toString() {
@@ -1961,12 +2119,24 @@ export class UplcLambda extends UplcTerm {
 	/**
 	 * @param {Site} site
 	 * @param {UplcTerm} rhs
-	 * @param {?string} argName
+	 * @param {null | string} argName
 	 */
 	constructor(site, rhs, argName = null) {
 		super(site, 2);
 		this.#rhs = rhs;
 		this.#argName = argName;
+	}
+
+	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcLambda(
+			this.site.transfer(other),
+			this.#rhs.transfer(other),
+			this.#argName
+		);
 	}
 
 	/**
@@ -2015,6 +2185,18 @@ export class UplcCall extends UplcTerm {
 		super(site, 3);
 		this.#a = a;
 		this.#b = b;
+	}
+
+	/**
+	 * @param {Transferable} other
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcCall(
+			this.site.transfer(other),
+			this.#a.transfer(other),
+			this.#b.transfer(other)
+		);
 	}
 
 	/**
@@ -2068,6 +2250,16 @@ export class UplcConst extends UplcTerm {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcConst(
+			this.#value.transfer(other)
+		);
+	}
+
+	/**
 	 * @type {UplcValue}
 	 */
 	get value() {
@@ -2117,6 +2309,17 @@ export class UplcForce extends UplcTerm {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcForce(
+			this.site.transfer(other),
+			this.#expr.transfer(other)
+		);
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
@@ -2160,6 +2363,17 @@ export class UplcError extends UplcTerm {
 	}
 
 	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcError(
+			this.site.transfer(other),
+			this.#msg
+		);
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
@@ -2198,6 +2412,17 @@ export class UplcBuiltin extends UplcTerm {
 	constructor(site, name) {
 		super(site, 7);
 		this.#name = name;
+	}
+
+	/**
+	 * @param {Transferable} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		return other.transferUplcBuiltin(
+			this.site.transfer(other),
+			this.#name
+		);
 	}
 
 	/**
