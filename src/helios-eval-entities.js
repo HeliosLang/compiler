@@ -145,6 +145,21 @@ export class EvalEntity {
 	}
 
 	/**
+	 * @param {Site} site 
+	 * @returns {TypeClass}
+	 */
+	assertTypeClass(site) {
+		throw site.typeError("not a type class");
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isTypeClass() {
+		return false;
+	}
+
+	/**
 	 * @param {Site} site
 	 * @returns {Instance}
 	 */
@@ -204,7 +219,7 @@ export class EvalEntity {
 	 * Returns 'true' if 'this' is an instance of 'type'. Throws an error if 'this' isn't a Instance.
 	 * 'type' can be a class, or a class instance.
 	 * @param {Site} site 
-	 * @param {Type | TypeClass} type 
+	 * @param {Type | ClassOfType} type 
 	 * @returns {boolean}
 	 */
 	isInstanceOf(site, type) {
@@ -342,7 +357,7 @@ export class Type extends EvalEntity {
 	/**
 	 * Throws an error because a Type can't be an instance of another Type.
 	 * @param {Site} site 
-	 * @param {Type | TypeClass} type
+	 * @param {Type | ClassOfType} type
 	 * @returns {boolean}
 	 */
 	isInstanceOf(site, type) {
@@ -403,7 +418,30 @@ export class Type extends EvalEntity {
 }
 
 /**
+ * @package
+ */
+export class TypeClass extends EvalEntity {
+	// TODO
+
+	/**
+	 * @param {Site} site 
+	 * @returns {TypeClass}
+	 */
+	assertTypeClass(site) {
+		return this;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isTypeClass() {
+		return true;
+	}
+}
+
+/**
  * Behaves similarly to a type (i.e. getTypeMember), but isn't actualy a Type
+ * @package
  */
 export class Namespace extends Type {
 	#module;
@@ -1579,14 +1617,14 @@ export class DataInstance extends Instance {
 	}
 
 	/**
-	 * @typedef {new(...any) => Type} TypeClass
+	 * @typedef {new(...any) => Type} ClassOfType
 	 */
 
 	/**
 	 * Checks if 'this' is instance of 'type'.
 	 * 'type' can be a class, or a class instance.
 	 * @param {Site} site 
-	 * @param {Type | TypeClass} type 
+	 * @param {Type | ClassOfType} type 
 	 * @returns 
 	 */
 	isInstanceOf(site, type) {
@@ -1723,7 +1761,7 @@ export class FuncInstance extends Instance {
 	 * Checks if 'this' is an instance of 'type'.
 	 * Type can be a class or a class instance. 
 	 * @param {Site} site 
-	 * @param {Type | TypeClass} type 
+	 * @param {Type | ClassOfType} type 
 	 * @returns {boolean}
 	 */
 	isInstanceOf(site, type) {
@@ -1885,7 +1923,7 @@ export class VoidInstance extends Instance {
 
 	/**
 	 * @param {Site} site 
-	 * @param {Type | TypeClass} type 
+	 * @param {Type | ClassOfType} type 
 	 * @returns {boolean}
 	 */
 	isInstanceOf(site, type) {

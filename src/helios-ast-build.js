@@ -69,7 +69,12 @@ import {
     ValuePathExpr,
     ValueRefExpr,
     VoidExpr,
-    VoidTypeExpr
+    VoidTypeExpr,
+	TypeParameter,
+	TypeParameters,
+	TypeClassExpr,
+	ParametricValueExpr,
+	ParametricTypeExpr
 } from "./helios-ast-expressions.js";
 
 import {
@@ -387,6 +392,79 @@ function buildConstStatement(site, ts) {
 }
 
 /**
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {TypeClassExpr | null}
+ */
+function buildTypeClassExpr(site, ts) {
+	const name = assertToken(ts.shift(), site, "expected word")?.assertWord()?.assertNotKeyword();
+	if (!name) {
+		return null;
+	}
+
+	return new TypeClassExpr(name);
+}
+
+/**
+ * @param {Site} site 
+ * @param {Token[]} ts 
+ * @returns {null | TypeParameter}
+ */
+function buildTypeParameter(site, ts) {
+	const name = assertToken(ts.shift(), site, "expected type parameter name")?.assertWord()?.assertNotKeyword() ?? null;
+	if (!name) {
+		return null;
+	}
+
+	const maybeColon = ts.shift();
+	if (!maybeColon) {
+		return new TypeParameter(name, null);
+	}
+
+	const colon = maybeColon.assertSymbol(":");
+	if (!colon) {
+		return null;
+	}
+
+	const typeClassExpr = buildTypeClassExpr(site, ts);
+	if (!typeClassExpr) {
+		return null;
+	}
+
+	if (ts.length > 0) {
+		ts[0].syntaxError("unexpected token");
+		return null;
+	}
+
+	return new TypeParameter(name, typeClassExpr);
+}
+
+/**
+ * @param {Token[]} ts 
+ * @returns {TypeParameters}
+ */
+function buildTypeParameters(ts) {
+	if (ts.length > 0 && ts[0].isGroup("[")) {
+		const brackets = assertDefined(ts.shift()).assertGroup("[");
+
+		if (brackets) {
+			/**
+			 * @type {TypeParameter[] | null}
+			 */
+			const params = reduceNull(brackets.fields.map(fts => {
+				return buildTypeParameter(brackets.site, fts);
+			}));
+
+			if (params) {
+				return new TypeParameters(params);
+			}			
+		}
+	}
+
+	return new TypeParameters([]);
+}
+
+/**
  * @package
  * @param {Token[]} ts
  * @returns {[Token[], Token[]]}
@@ -401,6 +479,7 @@ function splitDataImpl(ts) {
 	}
 }
 
+
 /**
  * @package
  * @param {Site} site 
@@ -408,54 +487,44 @@ function splitDataImpl(ts) {
  * @returns {StructStatement | null}
  */
 function buildStructStatement(site, ts) {
-	const maybeName = ts.shift();
+	const maybeName = assertToken(ts.shift(), site, "expected name after 'struct'");
+	if (!maybeName) {
+		return null;
+	}
 
-	if (maybeName === undefined) {
-		site.syntaxError("expected name after 'struct'");
+	const name = maybeName.assertWord()?.assertNotKeyword();
+	if (!name) {
+		return null;
+	}
+
+	const parameters = buildTypeParameters(ts);
+
+	const maybeBraces = assertToken(ts.shift(), name.site, `expected '{...}' after 'struct ${name.toString()}'`);
+	if (!maybeBraces) {
+		return null;
+	}
+
+	if (!maybeBraces.isGroup("{", 1)) {
+		maybeBraces.syntaxError("expected non-empty '{..}' without separators");
+		return null;
+	}
+
+	const braces = maybeBraces.assertGroup("{", 1);
+
+	if (!braces) {
+		return null;
+	}
+
+	const [tsFields, tsImpl] = splitDataImpl(braces.fields[0]);
+
+	const fields = buildDataFields(tsFields);
+
+	const impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), fields.map(f => f.name), braces.site.endSite);
+
+	if (impl === null) {
 		return null;
 	} else {
-		if (!maybeName.isWord()) {
-			maybeName.syntaxError("expected name after 'struct'");
-			return null;
-		} else if (maybeName.isKeyword()) {
-			maybeName.syntaxError("unexpected keyword after 'struct'");
-		}
-
-		const name = maybeName?.assertWord();
-
-		if (!name) {
-			return null;
-		}
-
-		const maybeBraces = ts.shift();
-
-		if (maybeBraces === undefined) {
-			name.syntaxError(`expected '{...}' after 'struct ${name.toString()}'`);
-			return null;
-		} else {
-			if (!maybeBraces.isGroup("{", 1)) {
-				maybeBraces.syntaxError("expected non-empty '{..}' without separators");
-				return null;
-			}
-
-			const braces = maybeBraces.assertGroup("{", 1);
-
-			if (!braces) {
-				return null;
-			}
-
-			const [tsFields, tsImpl] = splitDataImpl(braces.fields[0]);
-
-			const fields = buildDataFields(tsFields);
-
-			const impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), fields.map(f => f.name), braces.site.endSite);
-
-			if (impl === null) {
-				return null;
-			} else {
-				return new StructStatement(site.merge(braces.site), name, fields, impl);
-			}
-		}
+		return new StructStatement(site.merge(braces.site), name, parameters, fields, impl);
 	}
 }
 
@@ -570,8 +639,9 @@ function buildFuncStatement(site, ts, methodOf = null) {
  * @returns {FuncLiteralExpr | null}
  */
 function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false) {
-	const parens = assertDefined(ts.shift()).assertGroup("(");
+	const parameters = buildTypeParameters(ts);
 
+	const parens = assertDefined(ts.shift()).assertGroup("(");
 	if (!parens) {
 		return null;
 	}
@@ -580,7 +650,6 @@ function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false)
 	const args = buildFuncArgs(parens, methodOf);
 
 	const arrow = assertToken(ts.shift(), site)?.assertSymbol("->");
-
 	if (!arrow) {
 		return null;
 	}
@@ -612,7 +681,7 @@ function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false)
 		return null;
 	}
 
-	return new FuncLiteralExpr(site, args, retTypeExprs, bodyExpr);
+	return new FuncLiteralExpr(site, parameters, args, retTypeExprs, bodyExpr);
 }
 
 /**
@@ -733,58 +802,45 @@ function buildFuncArgs(parens, methodOf = null) {
  * @returns {EnumStatement | null}
  */
 function buildEnumStatement(site, ts) {
-	const maybeName = ts.shift();
-
-	if (maybeName === undefined) {
-		site.syntaxError("expected word after 'enum'");
-		return null
-	} else {
-		const name = maybeName.assertWord()?.assertNotKeyword();
-
-		if (!name) {
-			return null;
-		}
-
-		const maybeBraces = ts.shift();
-
-		if (maybeBraces === undefined) {
-			name.syntaxError(`expected '{...}' after 'enum ${name.toString()}'`);
-			return null;
-		} else {
-			const braces = maybeBraces.assertGroup("{", 1);
-
-			if (!braces) {
-				return null;
-			}
-
-			const [tsMembers, tsImpl] = splitDataImpl(braces.fields[0]);
-
-			if (tsMembers.length == 0) {
-				braces.syntaxError("expected at least one enum member");
-			}
-
-			/** @type {EnumMember[]} */
-			const members = [];
-
-			while (tsMembers.length > 0) {
-				const member = buildEnumMember(tsMembers);
-
-				if (!member) {
-					continue;
-				}
-
-				members.push(member);
-			}
-
-			const impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), members.map(m => m.name), braces.site.endSite);
-
-			if (!impl) {
-				return null;
-			}
-
-			return new EnumStatement(site.merge(braces.site), name, members, impl);
-		}
+	const name = assertToken(ts.shift(), site, "expected word after 'enum'")?.assertWord()?.assertNotKeyword();
+	if (!name) {
+		return null;
 	}
+
+	const parameters = buildTypeParameters(ts);
+
+	const braces = assertToken(ts.shift(), name.site, `expected '{...}' after 'enum ${name.toString()}'`)?.assertGroup("{", 1);
+
+	if (!braces) {
+		return null;
+	}
+
+	const [tsMembers, tsImpl] = splitDataImpl(braces.fields[0]);
+
+	if (tsMembers.length == 0) {
+		braces.syntaxError("expected at least one enum member");
+	}
+
+	/** @type {EnumMember[]} */
+	const members = [];
+
+	while (tsMembers.length > 0) {
+		const member = buildEnumMember(tsMembers);
+
+		if (!member) {
+			continue;
+		}
+
+		members.push(member);
+	}
+
+	const impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), members.map(m => m.name), braces.site.endSite);
+
+	if (!impl) {
+		return null;
+	}
+
+	return new EnumStatement(site.merge(braces.site), name, parameters, members, impl);
 }
 
 /**
@@ -1077,6 +1133,7 @@ function buildImplMembers(ts, methodOf) {
 }
 
 /**
+ * TODO: chain like value
  * @package
  * @param {Site} site
  * @param {Token[]} ts 
@@ -1096,14 +1153,44 @@ function buildTypeExpr(site, ts) {
 		return buildOptionTypeExpr(ts);
 	} else if (ts.length > 1 && ts[0].isGroup("(") && ts[1].isSymbol("->")) {
 		return buildFuncTypeExpr(ts);
-	} else if (ts.length > 1 && ts[0].isWord() && ts[1].isSymbol("::")) {
+	} else if (ts.length > 2 && ts[0].isGroup("[") && ts[1].isGroup("(") && ts[2].isSymbol("->")) {
+		return buildFuncTypeExpr(ts);
+	} else if (SymbolToken.find(ts, "::") > Group.find(ts, "[")) {
 		return buildTypePathExpr(ts);
-	} else if (ts[0].isWord()) {
+	} else if (Group.find(ts, "[") > SymbolToken.find(ts, "::")) {
+		return buildParametricTypeExpr(ts);
+	} else if (ts.length == 1 && ts[0].isWord()) {
 		return buildTypeRefExpr(ts);
 	} else {
 		ts[0].syntaxError("invalid type syntax");
 		return null;
 	}
+}
+
+/**
+ * @param {Token[]} ts 
+ * @returns {ParametricTypeExpr | null}
+ */
+function buildParametricTypeExpr(ts) {
+	const brackets = assertDefined(ts.pop()).assertGroup("[");
+	if (!brackets) {
+		return null;
+	}
+
+	const baseExpr = buildTypeExpr(brackets.site, ts);
+	if (!baseExpr) {
+		return null;
+	}
+
+	const typeExprs = reduceNull(brackets.fields.map(fts => {
+		return buildTypeExpr(brackets.site, fts);
+	}));
+
+	if (!typeExprs) {
+		return null;
+	}
+
+	return new ParametricTypeExpr(brackets.site, baseExpr, typeExprs);
 }
 
 /**
@@ -1225,8 +1312,9 @@ function buildOptionTypeExpr(ts) {
  * @returns {FuncTypeExpr | null}
  */
 function buildFuncTypeExpr(ts) {
-	const parens = assertDefined(ts.shift()).assertGroup("(");
+	const parameters = buildTypeParameters(ts);
 
+	const parens = assertDefined(ts.shift()).assertGroup("(");
 	if (!parens) {
 		return null;
 	}
@@ -1263,26 +1351,26 @@ function buildFuncTypeExpr(ts) {
 
 	if (!argTypes) {
 		return null;
-	} else {
-		if (argTypes.some(at => at.isNamed()) && argTypes.some(at => !at.isNamed())) {
-			argTypes[0].syntaxError("can't mix named and unnamed args in func type");
-			return null;
-		}
-	
-		const arrow = assertToken(ts.shift(), parens.site)?.assertSymbol("->");
+	} 
 
-		if (!arrow) {
-			return null;
-		}
-	
-		const retTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
-
-		if (!retTypes) {
-			return null;
-		}
-
-		return new FuncTypeExpr(parens.site, argTypes, retTypes.map(t => assertDefined(t)));
+	if (argTypes.some(at => at.isNamed()) && argTypes.some(at => !at.isNamed())) {
+		argTypes[0].syntaxError("can't mix named and unnamed args in func type");
+		return null;
 	}
+
+	const arrow = assertToken(ts.shift(), parens.site)?.assertSymbol("->");
+
+	if (!arrow) {
+		return null;
+	}
+
+	const retTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
+
+	if (!retTypes) {
+		return null;
+	}
+
+	return new FuncTypeExpr(parens.site, parameters, argTypes, retTypes.map(t => assertDefined(t)));
 }
 
 /**
@@ -1387,30 +1475,26 @@ function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
  * @returns {null | TypePathExpr}
  */
 function buildTypePathExpr(ts) {
-	const baseName = assertDefined(ts.shift()).assertWord()?.assertNotKeyword();
+	const i = SymbolToken.findLast(ts, "::");
 
-	if (!baseName) {
+	assert(i != -1);
+
+	const baseExpr = buildTypeExpr(ts[0].site, ts.splice(0, i));
+	if (!baseExpr) {
 		return null;
 	}
 
-	const symbol = assertToken(ts.shift(), baseName.site)?.assertSymbol("::");
-
-	if (!symbol) {
+	const dcolon = assertDefined(ts.shift()).assertSymbol("::");
+	if (!dcolon) {
 		return null;
 	}
 
-	const memberName = assertToken(ts.shift(), symbol.site)?.assertWord();
-
+	const memberName = assertToken(ts.shift(), dcolon.site)?.assertWord()?.assertNotKeyword();
 	if (!memberName) {
 		return null;
 	}
-
-	if (ts.length > 0) {
-		ts[0].syntaxError("invalid type syntax");
-		return null;
-	}
 	
-	return new TypePathExpr(symbol.site, new TypeRefExpr(baseName), memberName);
+	return new TypePathExpr(dcolon.site, baseExpr, memberName);
 }
 
 /**
@@ -1920,8 +2004,7 @@ function buildChainedValueExpr(ts, prec) {
 		if (t.isGroup("(")) {
 			expr = buildCallExpr(t.site, expr, assertDefined(t.assertGroup()));
 		} else if (t.isGroup("[")) {
-			t.syntaxError("invalid expression '[...]'");
-			return null;
+			expr = buildParametricValueExpr(expr, assertDefined(t.assertGroup("[")));
 		} else if (t.isSymbol(".") && ts.length > 0 && ts[0].isWord("switch")) {
 			expr = buildSwitchExpr(expr, ts);
 		} else if (t.isSymbol(".")) {
@@ -1945,6 +2028,35 @@ function buildChainedValueExpr(ts, prec) {
 	}
 
 	return expr;
+}
+
+/**
+ * @param {ValueExpr} expr 
+ * @param {Group} brackets 
+ * @returns {ParametricValueExpr | null}
+ */
+function buildParametricValueExpr(expr, brackets) {
+	const typeExprs = reduceNull(brackets.fields.map(fts => {
+		if (fts.length == 0) {
+			brackets.site.syntaxError("unexpected empty field");
+			return null;
+		} else {
+			const typeExpr = buildTypeExpr(brackets.site, fts);
+
+			if (fts.length != 0) {
+				fts[0].syntaxError("unexpected token");
+				return null;
+			} else {
+				return typeExpr;
+			}
+		}
+	}));
+
+	if (!typeExprs) {
+		return null;
+	}
+
+	return new ParametricValueExpr(brackets.site, expr, typeExprs);
 }
 
 /**

@@ -6,8 +6,8 @@ import {
 } from "./config.js";
 
 import {
-	assert,
-    assertClass, assertDefined
+    assertClass,
+	assertDefined
 } from "./utils.js";
 
 /**
@@ -63,6 +63,7 @@ import {
     PrimitiveLiteralExpr,
     StructLiteralExpr,
     TypeExpr,
+	TypeParameters,
     TypeRefExpr,
     ValueExpr
 } from "./helios-ast-expressions.js";
@@ -537,8 +538,18 @@ export class DataDefinition extends Statement {
 		return this.hasField(name) || name.value == "copy";
 	}
 
+	/**
+	 * @returns {string}
+	 */
+	toStringFields() {
+		return `{${this.#fields.map(f => f.toString()).join(", ")}}`;
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return `${this.name.toString()} {${this.#fields.map(f => f.toString()).join(", ")}}`;
+		return `${this.name.toString()} ${this.toStringFields()}`;
 	}
 
 	/**
@@ -757,26 +768,35 @@ export class DataDefinition extends Statement {
  * @package
  */
 export class StructStatement extends DataDefinition {
+	#parameters;
 	#impl;
 
 	/**
-	 * @param {Site} site 
-	 * @param {Word} name 
+	 * @param {Site} site
+	 * @param {Word} name
+	 * @param {TypeParameters} parameters
 	 * @param {DataField[]} fields 
 	 * @param {ImplDefinition} impl
 	 */
-	constructor(site, name, fields, impl) {
+	constructor(site, name, parameters, fields, impl) {
 		super(site, name, fields);
 
+		this.#parameters = parameters;
 		this.#impl = impl;
 	}
 
+	/**
+	 * @type {StructStatementType}
+	 */
 	get type() {
 		return new StructStatementType(this);
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		return "struct " + super.toString();
+		return `struct ${this.name.toString()}${this.#parameters.toString()} ${this.toStringFields()}`;
 	}
 
 	/**
@@ -1086,17 +1106,20 @@ export class EnumMember extends DataDefinition {
  * @package
  */
 export class EnumStatement extends Statement {
+	#parameters;
 	#members;
 	#impl;
 
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
+	 * @param {TypeParameters} parameters
 	 * @param {EnumMember[]} members 
 	 * @param {ImplDefinition} impl
 	 */
-	constructor(site, name, members, impl) {
+	constructor(site, name, parameters, members, impl) {
 		super(site, name);
+		this.#parameters = parameters;
 		this.#members = members;
 		this.#impl = impl;
 		
@@ -1148,7 +1171,7 @@ export class EnumStatement extends Statement {
 	}
 
 	toString() {
-		return `enum ${this.name.toString()} {${this.#members.map(m => m.toString()).join(", ")}}`;
+		return `enum ${this.name.toString()}${this.#parameters.toString()} {${this.#members.map(m => m.toString()).join(", ")}}`;
 	}
 
 	/**

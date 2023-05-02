@@ -61,6 +61,7 @@ import {
 	StringType,
 	StructStatementType,
     Type,
+	TypeClass,
 	VoidInstance,
 	VoidType
 } from "./helios-eval-entities.js";
@@ -132,6 +133,54 @@ export class TypeExpr extends Expr {
 }
 
 /**
+ * @package
+ * TODO: rename to TypeClassRefExpr
+ */
+export class TypeClassExpr extends Expr {
+	#name;
+
+	/**
+	 * @type {null | TypeClass}
+	 */
+	#cache;
+
+	/**
+	 * @param {Word} name 
+	 */
+	constructor(name) {
+		super(name.site);
+		this.#name = name;
+		this.#cache = null;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {TypeClass}
+	 */
+	evalInternal(scope) {
+		const v = scope.get(this.#name);
+
+		if (v instanceof Scope) {
+			throw this.site.typeError("expected type class, got scope");
+		} else {
+			return v.assertTypeClass(this.site);
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {TypeClass}
+	 */
+	eval(scope) {
+		if (this.#cache === null) {
+			this.#cache = this.evalInternal(scope);
+		}
+
+		return this.#cache;
+	}
+}
+
+/**
  * Type reference class (i.e. using a Word)
  * @package
  */
@@ -178,6 +227,57 @@ export class TypeRefExpr extends TypeExpr {
 }
 
 /**
+ * Type[...] expression
+ * @package
+ */
+export class ParametricTypeExpr extends TypeExpr {
+	#baseExpr;
+	#parameters;
+
+	/**
+	 * @param {Site} site - site of brackets
+	 * @param {TypeExpr} baseExpr
+	 * @param {TypeExpr[]} parameters
+	 */
+	constructor(site, baseExpr, parameters) {
+		super(site);
+		this.#baseExpr = baseExpr;
+		this.#parameters = parameters;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#baseExpr.toString()}[${this.#parameters.map(p => p.toString()).join(", ")}]`;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
+	evalInternal(scope) {
+		const paramTypes = this.#parameters.map(p => p.eval(scope));
+
+		const baseType = this.#baseExpr.eval(scope);
+
+		// TODO: apply paramTypes
+
+		return baseType;
+	}
+
+	get path() {
+		return this.type.path;
+	}
+
+	use() {
+		this.#baseExpr.use();
+
+		this.#parameters.forEach(p => p.use());
+	}
+}
+
+/**
  * Type::Member expression
  * @package
  */
@@ -196,6 +296,9 @@ export class TypePathExpr extends TypeExpr {
 		this.#memberName = memberName;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `${this.#baseExpr.toString()}::${this.#memberName.toString()}`;
 	}
@@ -439,16 +542,19 @@ export class FuncArgTypeExpr extends Token {
  * @package
  */
 export class FuncTypeExpr extends TypeExpr {
+	#parameters;
 	#argTypeExprs;
 	#retTypeExprs;
 
 	/**
 	 * @param {Site} site 
+	 * @param {TypeParameters} parameters
 	 * @param {FuncArgTypeExpr[]} argTypeExprs 
 	 * @param {TypeExpr[]} retTypeExprs 
 	 */
-	constructor(site, argTypeExprs, retTypeExprs) {
+	constructor(site, parameters, argTypeExprs, retTypeExprs) {
 		super(site);
+		this.#parameters = parameters;
 		this.#argTypeExprs = argTypeExprs;
 		this.#retTypeExprs = retTypeExprs;
 	}
@@ -458,9 +564,9 @@ export class FuncTypeExpr extends TypeExpr {
 	 */
 	toString() {
 		if (this.#retTypeExprs.length === 1) {
-			return `(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExprs.toString()}`;
+			return `${this.#parameters.toString()}(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExprs.toString()}`;
 		} else {
-			return `(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => e.toString()).join(", ")})`;
+			return `${this.#parameters.toString()}(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => e.toString()).join(", ")})`;
 		}
 	}
 
@@ -1632,22 +1738,75 @@ export class FuncArg extends NameTypePair {
 }
 
 /**
+ * @package
+ */
+export class TypeParameter {
+	#name;
+	#typeClassExpr;
+
+	/**
+	 * @param {Word} name 
+	 * @param {null | TypeClassExpr} typeClassExpr 
+	 */
+	constructor(name, typeClassExpr) {
+		this.#name = name;
+		this.#typeClassExpr = typeClassExpr;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		if (this.#typeClassExpr) {
+			return `${this.#name}: ${this.#typeClassExpr.toString()}`;
+		} else {
+			return `${this.#name}`;
+		}
+	}
+}
+
+/**
+ * @package
+ */
+export class TypeParameters {
+	#parameters;
+
+	/**
+	 * @param {TypeParameter[]} parameters 
+	 */
+	constructor(parameters) {
+		this.#parameters = parameters;
+	}
+
+	toString() {
+		if (this.#parameters.length == 0) {
+			return "";
+		} else {
+			return `[${this.#parameters.map(p => p.toString()).join(", ")}]`;
+		}
+	}
+}
+
+/**
  * (..) -> RetTypeExpr {...} expression
  * @package
  */
 export class FuncLiteralExpr extends ValueExpr {
+	#parameters;
 	#args;
 	#retTypeExprs;
 	#bodyExpr;
 
 	/**
 	 * @param {Site} site 
+	 * @param {TypeParameters} parameters
 	 * @param {FuncArg[]} args 
 	 * @param {(?TypeExpr)[]} retTypeExprs 
 	 * @param {ValueExpr} bodyExpr 
 	 */
-	constructor(site, args, retTypeExprs, bodyExpr) {
+	constructor(site, parameters, args, retTypeExprs, bodyExpr) {
 		super(site);
+		this.#parameters = parameters;
 		this.#args = args;
 		this.#retTypeExprs = retTypeExprs;
 		this.#bodyExpr = bodyExpr;
@@ -1694,12 +1853,12 @@ export class FuncLiteralExpr extends ValueExpr {
 		if (this.#retTypeExprs.length === 1) {
 			let retTypeExpr = this.#retTypeExprs[0];
 			if (retTypeExpr == null) {
-				return `(${this.#args.map(a => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`;
+				return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`;
 			} else {
-				return `(${this.#args.map(a => a.toString()).join(", ")}) -> ${retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
+				return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> ${retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
 			}
 		} else {
-			return `(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => assertDefined(e).toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
+			return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => assertDefined(e).toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
 		}
 	}
 
@@ -1975,6 +2134,61 @@ export class ValueRefExpr extends ValueExpr {
 }
 
 /**
+ * value[...] expression
+ * @package
+ */
+export class ParametricValueExpr extends ValueExpr {
+	#baseExpr;
+	#parameters;
+
+	/**
+	 * @param {Site} site - site of brackets
+	 * @param {ValueExpr} baseExpr
+	 * @param {TypeExpr[]} parameters
+	 */
+	constructor(site, baseExpr, parameters) {
+		super(site);
+		this.#baseExpr = baseExpr;
+		this.#parameters = parameters;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#baseExpr.toString()}[${this.#parameters.map(p => p.toString()).join(", ")}]`;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Instance}
+	 */
+	evalInternal(scope) {
+		// TODO: apply types
+		const paramTypes = this.#parameters.map(p => p.eval(scope).assertType(this.site));
+
+		const baseVal = this.#baseExpr.eval(scope);
+
+		return baseVal;
+	}
+
+	use() {
+		this.#baseExpr.use();
+
+		this.#parameters.forEach(p => p.use());
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		// TODO: collect typeclass functions from parameters
+		return this.#baseExpr.toIR(indent);
+	}
+}
+
+/**
  * Word::Word::... expression
  * @package
  */
@@ -2001,10 +2215,16 @@ export class ValuePathExpr extends ValueExpr {
 		return this.#baseTypeExpr.type;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `${this.#baseTypeExpr.toString()}::${this.#memberName.toString()}`;
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isZeroFieldConstructor() {
 		let type = this.type;
 

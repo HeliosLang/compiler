@@ -1123,6 +1123,25 @@ async function test24() {
   }`, "unreachable code");
 }
 
+async function test25() {
+  await testTrue(`testing type_parameters
+  
+  struct Pair[A: Storable] {
+    a: Int
+    b: Int
+
+    func compare[B: Valuable](self) -> Bool {
+      self.a == 10 && self.b == 11
+    }
+  }
+
+  func main() -> Bool {
+    p = Pair[Int]{10, 11};
+
+    p.compare[Int]()
+  }`);
+}
+
 export default async function main() {
   await test1();
 
@@ -1171,6 +1190,8 @@ export default async function main() {
   await test23();
 
   await test24();
+
+  await test25();
 }
 
 runIfEntryPoint(main, "syntax.js");

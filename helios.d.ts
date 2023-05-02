@@ -2793,16 +2793,6 @@ export class Tokenizer {
     #private;
 }
 /**
- * Behaves similarly to a type (i.e. getTypeMember), but isn't actualy a Type
- */
-export class Namespace extends Type {
-    /**
-     * @param {ScopeLike} m
-     */
-    constructor(m: ScopeLike);
-    #private;
-}
-/**
  * Builtin Time type. Opaque alias of Int representing milliseconds since 1970
  */
 export class TimeType extends BuiltinType {
@@ -5026,48 +5016,6 @@ declare class UplcTerm {
     #private;
 }
 /**
- * Types are used during type-checking of Helios
- * @package
- */
-declare class Type extends EvalEntity {
-    /**
-     * Compares two types. Throws an error if neither is a Type.
-     * @example
-     * Type.same(Site.dummy(), new IntType(), new IntType()) => true
-     * @param {Site} site
-     * @param {Type} a
-     * @param {Type} b
-     * @returns {boolean}
-     */
-    static same(site: Site, a: Type, b: Type): boolean;
-    /**
-     * @returns {boolean}
-     */
-    isEnumMember(): boolean;
-    /**
-     * Throws error for non-enum members
-     * @param {Site} site
-     * @returns {Type}
-     */
-    parentType(site: Site): Type;
-    /**
-     * Returns number of members of an enum type
-     * Throws an error if not an enum type
-     * @param {Site} site
-     * @returns {number}
-     */
-    nEnumMembers(site: Site): number;
-    /**
-     * Returns the base path in the IR (eg. __helios__bool, __helios__error, etc.)
-     * @type {string}
-     */
-    get path(): string;
-    /**
-     * @type {HeliosDataClass<HeliosData>}
-     */
-    get userType(): HeliosDataClass<HeliosData>;
-}
-/**
  * Base class of all builtin types (eg. IntType)
  * Note: any builtin type that inherits from BuiltinType must implement get path()
  * @package
@@ -5559,6 +5507,47 @@ declare class NativeContext {
      */
     isSignedBy(key: PubKeyHash): boolean;
     #private;
+=======
+ * Types are used during type-checking of Helios
+ * @package
+ */
+declare class Type extends EvalEntity {
+    /**
+     * Compares two types. Throws an error if neither is a Type.
+     * @example
+     * Type.same(Site.dummy(), new IntType(), new IntType()) => true
+     * @param {Site} site
+     * @param {Type} a
+     * @param {Type} b
+     * @returns {boolean}
+     */
+    static same(site: Site, a: Type, b: Type): boolean;
+    /**
+     * @returns {boolean}
+     */
+    isEnumMember(): boolean;
+    /**
+     * Throws error for non-enum members
+     * @param {Site} site
+     * @returns {Type}
+     */
+    parentType(site: Site): Type;
+    /**
+     * Returns number of members of an enum type
+     * Throws an error if not an enum type
+     * @param {Site} site
+     * @returns {number}
+     */
+    nEnumMembers(site: Site): number;
+    /**
+     * Returns the base path in the IR (eg. __helios__bool, __helios__error, etc.)
+     * @type {string}
+     */
+    get path(): string;
+    /**
+     * @type {HeliosDataClass<HeliosData>}
+     */
+    get userType(): HeliosDataClass<HeliosData>;
 }
 /**
  * inputs, minted assets, and withdrawals need to be sorted in order to form a valid transaction
@@ -6149,6 +6138,15 @@ declare class EvalEntity {
     isType(): boolean;
     /**
      * @param {Site} site
+     * @returns {TypeClass}
+     */
+    assertTypeClass(site: Site): TypeClass;
+    /**
+     * @returns {boolean}
+     */
+    isTypeClass(): boolean;
+    /**
+     * @param {Site} site
      * @returns {Instance}
      */
     assertValue(site: Site): Instance;
@@ -6186,7 +6184,7 @@ declare class EvalEntity {
      * Returns 'true' if 'this' is an instance of 'type'. Throws an error if 'this' isn't a Instance.
      * 'type' can be a class, or a class instance.
      * @param {Site} site
-     * @param {Type | TypeClass} type
+     * @param {Type | ClassOfType} type
      * @returns {boolean}
      */
     isInstanceOf(site: Site, type: Type | (new (...any: any[]) => Type)): boolean;
@@ -6528,11 +6526,12 @@ declare class FuncType extends Type {
 declare class FuncLiteralExpr extends ValueExpr {
     /**
      * @param {Site} site
+     * @param {TypeParameters} parameters
      * @param {FuncArg[]} args
      * @param {(?TypeExpr)[]} retTypeExprs
      * @param {ValueExpr} bodyExpr
      */
-    constructor(site: Site, args: FuncArg[], retTypeExprs: (TypeExpr | null)[], bodyExpr: ValueExpr);
+    constructor(site: Site, parameters: TypeParameters, args: FuncArg[], retTypeExprs: (TypeExpr | null)[], bodyExpr: ValueExpr);
     /**
      * @type {Type[]}
      */
@@ -6609,6 +6608,11 @@ declare class UplcAnon extends UplcValue {
      */
     callSync(callSite: Site, subStack: UplcStack, args: UplcValue[]): UplcValue | Promise<UplcValue>;
     #private;
+}
+/**
+ * @package
+ */
+declare class TypeClass extends EvalEntity {
 }
 declare class NotType extends EvalEntity {
 }
@@ -6702,6 +6706,17 @@ declare class FuncInstance extends Instance {
     #private;
 }
 /**
+ * @package
+ */
+declare class TypeParameters {
+    /**
+     * @param {TypeParameter[]} parameters
+     */
+    constructor(parameters: TypeParameter[]);
+    toString(): string;
+    #private;
+}
+/**
  * Function argument class
  * @package
  */
@@ -6780,6 +6795,21 @@ declare class Expr extends Token {
     use(): void;
 }
 /**
+ * @package
+ */
+declare class TypeParameter {
+    /**
+     * @param {Word} name
+     * @param {null | TypeClassExpr} typeClassExpr
+     */
+    constructor(name: Word, typeClassExpr: null | TypeClassExpr);
+    /**
+     * @returns {string}
+     */
+    toString(): string;
+    #private;
+}
+/**
  * NameTypePair is base class of FuncArg and DataField (differs from StructLiteralField)
  * @package
  */
@@ -6823,6 +6853,27 @@ declare class NameTypePair {
      * @returns {IR}
      */
     toIR(): IR;
+    #private;
+}
+/**
+ * @package
+ * TODO: rename to TypeClassRefExpr
+ */
+declare class TypeClassExpr extends Expr {
+    /**
+     * @param {Word} name
+     */
+    constructor(name: Word);
+    /**
+     * @param {Scope} scope
+     * @returns {TypeClass}
+     */
+    evalInternal(scope: Scope): TypeClass;
+    /**
+     * @param {Scope} scope
+     * @returns {TypeClass}
+     */
+    eval(scope: Scope): TypeClass;
     #private;
 }
 export {};
