@@ -92,13 +92,13 @@ export class Tx extends CborData {
 	// the following field(s) aren't used by the serialization (only for building)
 	/**
 	 * Upon finalization the slot is calculated and stored in the body
-	 * @type {?Date} 
+	 * @type {null | bigint | Date} 
 	 */
 	#validTo;
 
 	/**
 	 * Upon finalization the slot is calculated and stored in the body 
-	 *  @type {?Date} 
+	 *  @type {null | bigint | Date} 
 	 */
 	#validFrom;
 
@@ -211,25 +211,25 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {Date} t
+	 * @param {bigint | Date } slotOrTime
 	 * @returns {Tx}
 	 */
-	validFrom(t) {
+	validFrom(slotOrTime) {
 		assert(!this.#valid);
 
-		this.#validFrom = t;
+		this.#validFrom = slotOrTime;
 
 		return this;
 	}
 
 	/**
-	 * @param {Date} t
+	 * @param {bigint | Date } slotOrTime
 	 * @returns {Tx}
 	 */
-	validTo(t) {
+	validTo(slotOrTime) {
 		assert(!this.#valid);
 
-		this.#validTo = t;
+		this.#validTo = slotOrTime;
 
 		return this;
 	}
@@ -813,19 +813,23 @@ export class Tx extends CborData {
 			}
 
 			if (!config.AUTO_SET_VALIDITY_RANGE) {
-				console.error("Warning: validity interval is unset but detected usage of tx.time_range in one of the scripts. Setting the tx validity interval to a sane default (hint: set helios.config.AUTO_SET_VALIDITY_RANGE to true to avoid this warning)");
+				console.error("Warning: validity interval is unset but detected usage of tx.time_range in one of the scripts.\nSetting the tx validity interval to a sane default\m(hint: set helios.config.AUTO_SET_VALIDITY_RANGE to true to avoid this warning,\nor, if you using the NetworkEmulator, use emulator.newTx() to init the transactions instead)");
 			}
 		}
 
 		if (this.#validTo !== null) {
 			this.#body.validTo(
-				networkParams.timeToSlot(BigInt(this.#validTo.getTime()))
+				(typeof this.#validTo === "bigint") ? 
+					this.#validTo : 
+					networkParams.timeToSlot(BigInt(this.#validTo.getTime()))
 			);
 		}
 
 		if (this.#validFrom !== null) {
 			this.#body.validFrom(
-				networkParams.timeToSlot(BigInt(this.#validFrom.getTime()))
+				(typeof this.#validFrom === "bigint") ?
+					this.#validFrom :
+					networkParams.timeToSlot(BigInt(this.#validFrom.getTime()))
 			);
 		}
 	}
@@ -1656,6 +1660,7 @@ class TxBody extends CborData {
 
 	/**
 	 * Used by (indirectly) by emulator to check if slot range is valid.
+	 * Note: firstValidSlot == lastValidSlot is allowed
 	 * @param {bigint} slot
 	 */
 	isValid(slot) {

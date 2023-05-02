@@ -140,8 +140,7 @@ export class Time extends HInt {
      * @param {number | bigint | string | Date} rawValue
      * @returns {bigint}
      */
-      static cleanConstructorArg(rawValue) {
-
+	static cleanConstructorArg(rawValue) {
         if (rawValue instanceof Date) {
             return BigInt(rawValue.getTime());
         } else {

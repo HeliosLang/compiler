@@ -211,7 +211,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.33";
+export const VERSION: "0.13.34";
 /**
  * Modifiable config vars
  * @type {{
@@ -3090,15 +3090,15 @@ export class Tx extends CborData {
      */
     dump(): any;
     /**
-     * @param {Date} t
+     * @param {bigint | Date } slotOrTime
      * @returns {Tx}
      */
-    validFrom(t: Date): Tx;
+    validFrom(slotOrTime: bigint | Date): Tx;
     /**
-     * @param {Date} t
+     * @param {bigint | Date } slotOrTime
      * @returns {Tx}
      */
-    validTo(t: Date): Tx;
+    validTo(slotOrTime: bigint | Date): Tx;
     /**
      * Throws error if assets of given mph are already being minted in this transaction
      * @param {MintingPolicyHash} mph
@@ -4071,6 +4071,10 @@ export class NetworkEmulator implements Network {
      * @param {number} seed
      */
     constructor(seed?: number);
+    /**
+     * @returns {Tx}
+     */
+    newTx(): Tx;
     /**
      * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
      * @param {bigint} lovelace
@@ -5571,6 +5575,7 @@ declare class TxBody extends CborData {
     sort(): void;
     /**
      * Used by (indirectly) by emulator to check if slot range is valid.
+     * Note: firstValidSlot == lastValidSlot is allowed
      * @param {bigint} slot
      */
     isValid(slot: bigint): boolean;

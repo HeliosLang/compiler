@@ -315,6 +315,18 @@ export class NetworkEmulator {
     }
 
     /**
+     * @returns {Tx}
+     */
+    newTx() {
+        const tx = new Tx();
+
+        tx.validFrom(this.#slot);
+        tx.validTo(this.#slot);
+
+        return tx;
+    }
+
+    /**
      * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
      * @param {bigint} lovelace
      * @param {Assets} assets

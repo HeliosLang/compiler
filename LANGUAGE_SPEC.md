@@ -22,7 +22,13 @@ ModuleName ::= Word
 
 ImportField ::= Word ['as' Word]
 
-StructStatement ::= 'struct' Word '{' DataDefinition [ImplDefinition] '}'
+TypeClassExpr ::= Identifier
+
+TypeParameters ::= '[' TypeParameter (',' TypeParameter )* ']'
+
+TypeParameter ::= Identifier [ ':' TypeClassExpr ]
+
+StructStatement ::= 'struct' Word [ TypeParameters ] '{' DataDefinition [ImplDefinition] '}'
 
 DataDefinition ::= DataField (DataField)*
 
@@ -30,9 +36,9 @@ DataField ::= Word ':' TypeExpr
 
 DestructExpr ::= '_' | (Identifier [':' TypeExpr ['{' DestructExpr (',' DestructExpr)* '}']]) | (TypeExpr ['{' DestructExpr (',' DestructExpr)* '}'])
 
-EnumStatement ::= 'enum' Identifier '{' EnumMember (EnumMember)* [ImplDefinition] '}'
+EnumStatement ::= 'enum' Identifier [ TypeParameters ] '{' EnumMember (EnumMember)* [ImplDefinition] '}'
 
-EnumMember ::= Word ['{' DataDefinition '}']
+EnumMember ::= Identifier ['{' DataDefinition '}']
 
 ImplDefinition ::= ImplMember (ImplMember)*
 
@@ -40,17 +46,17 @@ ImplMember ::= ConstStatement | FuncStatement
 
 ConstStatement ::= 'const' Identifier [':' TypeExpr] '=' ValueExpr
 
-FuncStatement ::= 'func' Identifier '(' [('self' | FuncArg) (',' FuncArg)*] ')' '->' RetTypeExpr '{' ValueExpr '}'
+FuncStatement ::= 'func' Identifier [ TypeParameters ] '(' [('self' | FuncArg) (',' FuncArg)*] ')' '->' RetTypeExpr '{' ValueExpr '}'
 
 FuncArg ::= '_' | ( Identifier ':' TypeExpr )
 
 TypeExpr ::= NonFuncTypeExpr | FuncTypeExpr
 
-RetTypeExpr ::= TypeExpr | ( '(' TypeExpr ',' TypeExpr (',' TypeExpr)* ')' )
+RetTypeExpr ::= '(' ')' | TypeExpr | ( '(' TypeExpr ',' TypeExpr (',' TypeExpr)* ')' )
 
-NonFuncTypeExpr ::= TypeRefExpr | TypePathExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr
+NonFuncTypeExpr ::= TypeRefExpr | TypePathExpr | ListTypeExpr | MapTypeExpr | OptionTypeExpr | ParametricTypeExpr
 
-FuncTypeExpr ::= '(' [FuncArgTypeExpr (',' FuncArgTypeExpr)*] ')' '->' RetTypeExpr
+FuncTypeExpr ::= [ TypeParameters ] '(' [FuncArgTypeExpr (',' FuncArgTypeExpr)*] ')' '->' RetTypeExpr
 
 FuncArgTypeExpr ::= [Identifier ':'] ['?'] TypeExpr
 
@@ -58,13 +64,15 @@ TypeRefExpr ::= Identifier
 
 TypePathExpr ::= NonFuncTypeExpr '::' Word
 
+ParametricTypeExpr ::= TypeExpr '[' TypeExpr (',' TypeExpr)* ']'
+
 ListTypeExpr ::= '[' ']' NonFuncTypeExpr
 
 MapTypeExpr ::= 'Map' '[' NonFuncTypeExpr ']' NonFuncTypeExpr
 
 OptionTypeExpr ::= 'Option' '[' NonFuncTypeExpr ']'
 
-ValueExpr ::= AssignExpr | MultiAssignExpr | PrintExpr | LiteralExpr | ValueRefExpr | ValuePathExpr | UnaryExpr | BinaryExpr | ParensExpr | CallExpr | MemberExpr | IfElseExpr | SwitchExpr
+ValueExpr ::= AssignExpr | MultiAssignExpr | PrintExpr | LiteralExpr | ValueRefExpr | ValuePathExpr | UnaryExpr | BinaryExpr | ParensExpr | CallExpr | MemberExpr | IfElseExpr | SwitchExpr | ParametricValueExpr
 
 LiteralExpr ::= PrimitiveLiteralExpr | StructLiteralExpr | ListLiteralExpr | MapLiteralExpr | FuncLiteralExpr
 
@@ -80,7 +88,7 @@ ListLiteralExpr ::= '[]' TypeExpr '{' [ValueExpr] (',' ValueExpr)* '}'
 
 MapLiteralExpr ::= 'Map' '[' TypeExpr ']' TypeExpr '{' [ValueExpr ':' ValueExpr] (',' ValueExpr ':' ValueExpr)* '}'
 
-FuncLiteralExpr ::= '(' [FuncArg (',' FuncArc)*] ')' '->' TypeExpr '{' ValueExpr '}'
+FuncLiteralExpr ::= [TypeParameters] '(' [FuncArg (',' FuncArc)*] ')' '->' TypeExpr '{' ValueExpr '}'
 
 IntLiteral ::= 'regexp:[0-9]+' | 'regexp:0b[0-1]+' | 'regexp:0o[0-7]+' | 'regexp:0x[0-9a-f]+'
 
@@ -127,6 +135,8 @@ ParensExpr ::= '(' [ValueExpr (',' ValueExpr)*] ')'
 ValuePathExpr ::= NonFuncTypeExpr '::' Word
 
 ValueRefExpr ::= Identifier
+
+ParametricValueExpr ::= ValueExpr '[' TypeExpr (',' TypeExpr)* ']'
 
 Identifier ::= Word
 
