@@ -24,11 +24,16 @@ import {
 } from "./helios-data.js";
 
 import {
+    NetworkParams
+} from "./uplc-costmodels.js";
+
+import {
     Signature,
     Tx,
     TxOutput,
     UTxO
 } from "./tx-builder.js";
+
 
 /**
  * @typedef {import("./wallets.js").Wallet} Wallet
@@ -315,15 +320,18 @@ export class NetworkEmulator {
     }
 
     /**
-     * @returns {Tx}
+     * Create a copy of networkParams that always has access to the current slot
+     *  (for setting the validity range automatically)
+     * @param {NetworkParams} networkParams 
+     * @returns {NetworkParams}
      */
-    newTx() {
-        const tx = new Tx();
-
-        tx.validFrom(this.#slot);
-        tx.validTo(this.#slot);
-
-        return tx;
+    initNetworkParams(networkParams) {
+        return new NetworkParams(
+            networkParams.raw,
+            () => {
+                return this.#slot;
+            }
+        );
     }
 
     /**

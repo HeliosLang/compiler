@@ -14,18 +14,48 @@ import {
  */
 
 /**
+ * @typedef {() => bigint} LiveSlotGetter
+ */
+
+/**
  * NetworkParams contains all protocol parameters. These are needed to do correct, up-to-date, cost calculations.
  */
 export class NetworkParams {
 	#raw;
 
 	/**
-	 * @param {Object} raw 
+	 * Should only be set by the network emulator
+	 * @type {null | LiveSlotGetter}
 	 */
-	constructor(raw) {
+	#liveSlotGetter;
+
+	/**
+	 * @param {Object} raw 
+	 * @param {null | LiveSlotGetter} liveSlotGetter
+	 */
+	constructor(raw, liveSlotGetter = null) {
 		this.#raw = raw;
+		this.#liveSlotGetter = liveSlotGetter;
+	}
+
+	/**
+	 * @type {Object}
+	 */
+	get raw() {
+		return this.#raw;
 	}
 	
+	/**
+	 * @type {null | bigint}
+	 */
+	get liveSlot() {
+		if (this.#liveSlotGetter) {
+			return this.#liveSlotGetter()
+		} else {
+			return null;
+		}
+	}
+
     /**
      * @package
      * @type {Object}

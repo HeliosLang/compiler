@@ -211,7 +211,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.34";
+export const VERSION: "0.13.35";
 /**
  * Modifiable config vars
  * @type {{
@@ -1826,13 +1826,25 @@ export class Value extends HeliosData {
  * @property {bigint} cpu
  */
 /**
+ * @typedef {() => bigint} LiveSlotGetter
+ */
+/**
  * NetworkParams contains all protocol parameters. These are needed to do correct, up-to-date, cost calculations.
  */
 export class NetworkParams {
     /**
      * @param {Object} raw
+     * @param {null | LiveSlotGetter} liveSlotGetter
      */
-    constructor(raw: any);
+    constructor(raw: any, liveSlotGetter?: null | LiveSlotGetter);
+    /**
+     * @type {Object}
+     */
+    get raw(): any;
+    /**
+     * @type {null | bigint}
+     */
+    get liveSlot(): bigint;
     /**
      * @package
      * @type {Object}
@@ -4072,9 +4084,12 @@ export class NetworkEmulator implements Network {
      */
     constructor(seed?: number);
     /**
-     * @returns {Tx}
+     * Create a copy of networkParams that always has access to the current slot
+     *  (for setting the validity range automatically)
+     * @param {NetworkParams} networkParams
+     * @returns {NetworkParams}
      */
-    newTx(): Tx;
+    initNetworkParams(networkParams: NetworkParams): NetworkParams;
     /**
      * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
      * @param {bigint} lovelace
@@ -4201,6 +4216,7 @@ export type Cost = {
     mem: bigint;
     cpu: bigint;
 };
+export type LiveSlotGetter = () => bigint;
 export type CostModelClass = {
     fromParams: (params: NetworkParams, baseName: string) => CostModel;
 };

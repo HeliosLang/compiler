@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.34
+// Version:       0.13.35
 // Last update:   May 2023
 // License type:  BSD-3-Clause
 //
@@ -255,7 +255,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.34";
+export const VERSION = "0.13.35";
 
 /**
  * A tab used for indenting of the IR.
@@ -7867,18 +7867,48 @@ export class Value extends HeliosData {
  */
 
 /**
+ * @typedef {() => bigint} LiveSlotGetter
+ */
+
+/**
  * NetworkParams contains all protocol parameters. These are needed to do correct, up-to-date, cost calculations.
  */
 export class NetworkParams {
 	#raw;
 
 	/**
-	 * @param {Object} raw 
+	 * Should only be set by the network emulator
+	 * @type {null | LiveSlotGetter}
 	 */
-	constructor(raw) {
+	#liveSlotGetter;
+
+	/**
+	 * @param {Object} raw 
+	 * @param {null | LiveSlotGetter} liveSlotGetter
+	 */
+	constructor(raw, liveSlotGetter = null) {
 		this.#raw = raw;
+		this.#liveSlotGetter = liveSlotGetter;
+	}
+
+	/**
+	 * @type {Object}
+	 */
+	get raw() {
+		return this.#raw;
 	}
 	
+	/**
+	 * @type {null | bigint}
+	 */
+	get liveSlot() {
+		if (this.#liveSlotGetter) {
+			return this.#liveSlotGetter()
+		} else {
+			return null;
+		}
+	}
+
     /**
      * @package
      * @type {Object}
@@ -37337,17 +37367,26 @@ export class Tx extends CborData {
 	finalizeValidityTimeRange(networkParams) {
 		if (this.#witnesses.anyScriptCallsTxTimeRange() && this.#validFrom === null && this.#validTo === null) {
 			const now = new Date();
+			const currentSlot = networkParams.liveSlot;
 
 			if (config.VALIDITY_RANGE_START_OFFSET !== null) {
-				this.#validFrom = new Date(now.getTime() - 1000*config.VALIDITY_RANGE_START_OFFSET);
+				if (currentSlot !== null) {
+					this.#validFrom = currentSlot;
+				} else {
+					this.#validFrom = new Date(now.getTime() - 1000*config.VALIDITY_RANGE_START_OFFSET);
+				}
 			}
 
 			if (config.VALIDITY_RANGE_END_OFFSET !== null) {
-				this.#validTo = new Date(now.getTime() + 1000*config.VALIDITY_RANGE_END_OFFSET);
+				if (currentSlot !== null) {
+					this.#validTo = currentSlot;
+				} else {
+					this.#validTo = new Date(now.getTime() + 1000*config.VALIDITY_RANGE_END_OFFSET);
+				}
 			}
 
 			if (!config.AUTO_SET_VALIDITY_RANGE) {
-				console.error("Warning: validity interval is unset but detected usage of tx.time_range in one of the scripts.\nSetting the tx validity interval to a sane default\m(hint: set helios.config.AUTO_SET_VALIDITY_RANGE to true to avoid this warning,\nor, if you using the NetworkEmulator, use emulator.newTx() to init the transactions instead)");
+				console.error("Warning: validity interval is unset but detected usage of tx.time_range in one of the scripts.\nSetting the tx validity interval to a sane default\m(hint: set helios.config.AUTO_SET_VALIDITY_RANGE to true to avoid this warning)");
 			}
 		}
 
@@ -41903,15 +41942,18 @@ export class NetworkEmulator {
     }
 
     /**
-     * @returns {Tx}
+     * Create a copy of networkParams that always has access to the current slot
+     *  (for setting the validity range automatically)
+     * @param {NetworkParams} networkParams 
+     * @returns {NetworkParams}
      */
-    newTx() {
-        const tx = new Tx();
-
-        tx.validFrom(this.#slot);
-        tx.validTo(this.#slot);
-
-        return tx;
+    initNetworkParams(networkParams) {
+        return new NetworkParams(
+            networkParams.raw,
+            () => {
+                return this.#slot;
+            }
+        );
     }
 
     /**
