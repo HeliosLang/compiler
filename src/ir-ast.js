@@ -280,6 +280,14 @@ export class IRExpr extends Token {
 	}
 
 	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
 	 * @returns {UplcTerm}
 	 */
 	toUplc() {
@@ -422,6 +430,15 @@ export class IRNameExpr extends IRExpr {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	removeUnusedCallArgs(fnVar, remaining) {
+		return this;
+	}
+	
+	/**
 	 * @param {IRLiteralRegistry} literals
 	 * @returns {IRExpr}
 	 */
@@ -470,6 +487,14 @@ export class IRNameExpr extends IRExpr {
 		} else {
 			return this;
 		}
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
+		return this;
 	}
 
 	/**
@@ -550,6 +575,15 @@ export class IRLiteralExpr extends IRExpr {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	removeUnusedCallArgs(fnVar, remaining) {
+		return this;
+	}
+
+	/**
 	 * @param {IRLiteralRegistry} literals
 	 * @returns {IRExpr}
 	 */
@@ -576,6 +610,14 @@ export class IRLiteralExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	simplifyTopology(registry) {
+		return this;
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
 		return this;
 	}
 
@@ -634,6 +676,22 @@ export class IRConstExpr extends IRExpr {
 	 */
 	eval(stack) {
 		return this.#expr.eval(stack);
+	}
+
+	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 */
+	removeUnusedCallArgs(fnVar, remaining) {
+		return new IRConstExpr(this.site, this.#expr.removeUnusedCallArgs(fnVar, remaining));
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
+		return new IRConstExpr(this.site, this.#expr.simplifyUnused(registry));
 	}
 }
 
@@ -734,6 +792,15 @@ export class IRFuncExpr extends IRExpr {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining
+	 * @returns {IRExpr} 
+	 */
+	removeUnusedCallArgs(fnVar, remaining) {
+		return new IRFuncExpr(this.site, this.args, this.#body.removeUnusedCallArgs(fnVar, remaining));
+	}
+
+	/**
 	 * @param {IRLiteralRegistry} literals 
 	 * @returns {IRExpr}
 	 */
@@ -766,6 +833,14 @@ export class IRFuncExpr extends IRExpr {
 	 */
 	simplifyTopology(registry) {
 		return new IRFuncExpr(this.site, this.args, this.#body.simplifyTopology(registry));
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRFuncExpr}
+	 */
+	simplifyUnused(registry) {
+		return new IRFuncExpr(this.site, this.args, this.#body.simplifyUnused(registry));
 	}
 
 	/** 
@@ -883,6 +958,14 @@ export class IRCallExpr extends IRExpr {
 	 */
 	simplifyTopologyInArgs(registry) {
 		return this.#argExprs.map(a => a.simplifyTopology(registry));
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr[]}
+	 */
+	simplifyUnusedInArgs(registry) {
+		return this.#argExprs.map(a => a.simplifyUnused(registry));
 	}
 
 	/**
@@ -1041,6 +1124,16 @@ export class IRCoreCallExpr extends IRCallExpr {
 		}
 		
 		return null;
+	}
+
+	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 */
+	removeUnusedCallArgs(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.removeUnusedCallArgs(fnVar, remaining));
+
+		return new IRCoreCallExpr(this.#name, argExprs, this.parensSite);
 	}
 
 	/**
@@ -1322,6 +1415,16 @@ export class IRCoreCallExpr extends IRCallExpr {
 	}
 
 	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
+		const args = this.simplifyUnusedInArgs(registry);
+
+		return new IRCoreCallExpr(this.#name, args, this.parensSite);
+	}
+
+	/**
 	 * @param {Site} site
 	 * @param {string} name - full name of builtin, including prefix
 	 * @returns {UplcTerm}
@@ -1464,6 +1567,30 @@ export class IRUserCallExpr extends IRCallExpr {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 */
+	removeUnusedCallArgs(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.removeUnusedCallArgs(fnVar, remaining));
+
+		if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.isVariable(fnVar)) {
+			return new IRUserCallExpr(
+				this.#fnExpr,
+				argExprs.filter((_, i) => remaining.some(i_ => i_ == i)),
+				this.parensSite
+			);
+		} else {
+			const fnExpr = this.#fnExpr.removeUnusedCallArgs(fnVar, remaining);
+
+			return new IRUserCallExpr(
+				fnExpr,
+				argExprs,
+				this.parensSite
+			)
+		}
+	}
+
+	/**
 	 * @param {IRLiteralRegistry} literals
 	 * @returns {(IRExpr[] | IRLiteralExpr)}
 	 */
@@ -1595,6 +1722,20 @@ export class IRUserCallExpr extends IRCallExpr {
 	}
 
 	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
+		const args = this.simplifyUnusedInArgs(registry);
+
+		return IRUserCallExpr.new(
+			this.#fnExpr.simplifyUnused(registry),
+			args,
+			this.parensSite
+		);
+	}
+
+	/**
 	 * @returns {UplcTerm}
 	 */
 	toUplc() {
@@ -1659,6 +1800,25 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 				this.parensSite
 			);
 		}
+	}
+
+	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	removeUnusedCallArgs(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.removeUnusedCallArgs(fnVar, remaining));
+
+		let anon = assertClass(this.#anon.removeUnusedCallArgs(fnVar, remaining), IRFuncExpr);
+
+		argExprs.forEach((ae, i) => {
+			if (ae instanceof IRNameExpr && ae.isVariable(fnVar)) {
+				anon = assertClass(anon.removeUnusedCallArgs(this.argVariables[i], remaining), IRFuncExpr);
+			}
+		});
+
+		return new IRAnonCallExpr(anon, argExprs, this.parensSite);
 	}
 
 	/**
@@ -1758,6 +1918,42 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 			);
 		}
 	}
+
+	/**
+	 * @param {IRExprRegistry} registry 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
+		const args = this.simplifyUnusedInArgs(registry);
+
+		// remove unused args
+		const remainingIds = this.argVariables.map((variable, i) => {
+			const n = registry.countReferences(variable);
+
+			console.log(variable.name, n);
+
+			if (n == 0) {
+				return -1;
+			} else {
+				return i;
+			}
+		}).filter(i => i != -1);
+
+		const remainingVars = remainingIds.map(i => this.argVariables[i]);
+		const remainingExprs = remainingIds.map(i => args[i]);
+
+		const anonBody = this.#anon.body.simplifyUnused(registry);
+
+		return new IRAnonCallExpr(
+			new IRFuncExpr(
+				this.#anon.site,
+				remainingVars,
+				anonBody
+			),
+			remainingExprs,
+			this.parensSite
+		);
+	}
 }
 
 export class IRNestedAnonCallExpr extends IRUserCallExpr {
@@ -1774,6 +1970,15 @@ export class IRNestedAnonCallExpr extends IRUserCallExpr {
 		this.#anon = anon;
 	}
 
+	/**
+	 * @param {IRVariable} fnVar
+	 * @param {number[]} remaining
+	 * @returns {IRExpr}
+	 */
+	removeUnusedCallArgs(fnVar, remaining) {
+
+	}
+		
 	/**
 	 * Flattens consecutive nested calls
 	 * @param {IRExprRegistry} registry
@@ -1808,20 +2013,99 @@ export class IRNestedAnonCallExpr extends IRUserCallExpr {
 			);
 		}
 	}
+
+	/**
+	 * Flattens consecutive nested calls
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
+		const anon = assertClass(this.#anon.simplifyUnused(registry), IRAnonCallExpr);
+
+		const args = this.simplifyUnusedInArgs(registry);
+
+		return new IRNestedAnonCallExpr(
+			anon,
+			args,
+			this.parensSite
+		);
+	}
 }
 
 export class IRFuncDefExpr extends IRAnonCallExpr {
 	#def;
 
 	/**
-	 * @param {IRFuncExpr} fnExpr 
+	 * @param {IRFuncExpr} anon 
 	 * @param {IRFuncExpr} defExpr 
 	 * @param {Site} parensSite
 	 */
-	constructor(fnExpr, defExpr, parensSite) {
-		super(fnExpr, [defExpr], parensSite);
+	constructor(anon, defExpr, parensSite) {
+		super(anon, [defExpr], parensSite);
 
 		this.#def = defExpr;
+	}
+
+	/**
+	 * Remove args that are unused in def
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
+	 */
+	simplifyTopology(registry) {
+		let anon = this.anon;
+		let def = this.#def;
+
+		const remainingArgIds = this.#def.args.map((variable, i) => {
+			const n = registry.countReferences(variable);
+
+			if (n == 0) {
+				return -1;
+			} else {
+				return i;
+			}
+		}).filter(i => i != -1);
+
+		if (remainingArgIds.length < this.#def.args.length) {
+			anon = new IRFuncExpr(
+				anon.site,
+				anon.args,
+				anon.body.removeUnusedCallArgs(anon.args[0], remainingArgIds)
+			);
+
+			def = new IRFuncExpr(
+				this.#def.site,
+				remainingArgIds.map(i => def.args[i]),
+				this.#def.body
+			);
+		}
+
+		const res = (new IRAnonCallExpr(anon, [def], this.parensSite)).simplifyTopology(registry);
+
+		if (res instanceof IRAnonCallExpr && res.argExprs.length == 0) {
+			const argExpr = res.argExprs[0];
+			
+			if (res.anon.args.length == 1 && argExpr instanceof IRFuncExpr) {
+				return new IRFuncDefExpr(
+					res.anon,
+					argExpr,
+					this.parensSite
+				)
+			}
+		}
+
+		return res;
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
+		return new IRFuncDefExpr(
+			this.anon.simplifyUnused(registry),
+			this.#def.simplifyUnused(registry),
+			this.parensSite
+		)
 	}
 }
 
@@ -1902,6 +2186,14 @@ export class IRErrorCallExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	simplifyTopology(registry) {
+		return this;
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
 		return this;
 	}
 

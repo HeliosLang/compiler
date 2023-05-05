@@ -95,11 +95,13 @@ export class IRProgram {
 	
 		expr.resolveNames(scope);
 
+		expr = IRProgram.simplifyUnused(expr);
+
 		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
-			expr = this.simplify(expr);
+			expr = IRProgram.simplify(expr);
 
 			// make sure the debruijn indices are correct
 			expr.resolveNames(scope);
@@ -124,13 +126,9 @@ export class IRProgram {
 		while (dirty) {
 			dirty = false;
 
-			expr = expr.simplifyLiterals(new Map());
+			expr = IRProgram.simplifyLiterals(expr);
 
-			const nameExprs = new IRNameExprRegistry();
-
-			expr.registerNameExprs(nameExprs);
-
-			expr = expr.simplifyTopology(new IRExprRegistry(nameExprs));
+			expr = IRProgram.simplifyTopology(expr);
 
 			const newState = expr.toString();
 
@@ -140,6 +138,54 @@ export class IRProgram {
 			}
 		}
 
+		return expr;
+	}
+
+	/**
+	 * @param {IRExpr} expr 
+	 * @returns {IRExpr}
+	 */
+	static simplifyLiterals(expr) {
+		return expr.simplifyLiterals(new Map());
+	}
+
+	/**
+	 * @param {IRExpr} expr 
+	 * @returns {IRExpr}
+	 */
+	static simplifyTopology(expr) {
+		const nameExprs = new IRNameExprRegistry();
+
+		expr.registerNameExprs(nameExprs);
+
+		return expr.simplifyTopology(new IRExprRegistry(nameExprs));
+	}
+
+	/**
+	 * @param {IRExpr} expr 
+	 * @returns {IRExpr}
+	 */
+	static simplifyUnused(expr) {
+		let dirty = true;
+		let oldState = expr.toString();
+
+		while (dirty) {
+			dirty = false;
+
+			const nameExprs = new IRNameExprRegistry();
+
+			expr.registerNameExprs(nameExprs);
+	
+			expr = expr.simplifyUnused(new IRExprRegistry(nameExprs));
+
+			const newState = expr.toString();
+
+			if (newState != oldState) {
+				dirty = true;
+				oldState = newState;
+			}
+		}
+		
 		return expr;
 	}
 

@@ -67,7 +67,7 @@ export function buildIRExpr(ts) {
 
 				expr = buildIRFuncExpr(ts);
 			} else if (t.isGroup("(")) {
-				let group = t.assertGroup();
+				let group = assertDefined(t.assertGroup());
 
 				if (expr === null) {
 					if (group.fields.length == 1) {
@@ -131,7 +131,7 @@ export function buildIRExpr(ts) {
 				if (maybeGroup === undefined) {
 					throw t.site.syntaxError("expected parens after const");
 				} else {
-					let parens = maybeGroup.assertGroup("(", 1);
+					let parens = assertDefined(maybeGroup.assertGroup("(", 1));
 					let pts = parens.fields[0];
 
 					expr = new IRConstExpr(t.site, buildIRExpr(pts));
@@ -143,7 +143,7 @@ export function buildIRExpr(ts) {
 				if (maybeGroup === undefined) {
 					throw t.site.syntaxError("expected parens after error");
 				} else {
-					let parens = maybeGroup.assertGroup("(", 1);
+					let parens = assertDefined(maybeGroup.assertGroup("(", 1));
 					let pts = parens.fields[0];
 
 					if (pts.length != 1) {
@@ -158,7 +158,7 @@ export function buildIRExpr(ts) {
 				}
 			} else if (t.isWord()) {
 				assert(expr === null);
-				expr = new IRNameExpr(t.assertWord());
+				expr = new IRNameExpr(assertDefined(t.assertWord()));
 			} else {
 				throw new Error("unhandled untyped token " + t.toString());
 			}
@@ -182,10 +182,10 @@ function buildIRFuncExpr(ts) {
 	if (maybeParens === undefined) {
 		throw new Error("empty func expr");
 	} else {
-		let parens = maybeParens.assertGroup("(");
+		let parens = assertDefined(maybeParens.assertGroup("("));
 
 		assertDefined(ts.shift()).assertSymbol("->");
-		let braces = assertDefined(ts.shift()).assertGroup("{");
+		let braces = assertDefined(assertDefined(ts.shift()).assertGroup("{"));
 
 		/**
 		 * @type {Word[]}
@@ -194,7 +194,7 @@ function buildIRFuncExpr(ts) {
 
 		for (let f of parens.fields) {
 			assert(f.length == 1, "expected single word per arg");
-			argNames.push(f[0].assertWord());
+			argNames.push(assertDefined(f[0].assertWord()));
 		}
 
 		if (braces.fields.length > 1) {

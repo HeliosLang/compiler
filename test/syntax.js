@@ -87,6 +87,32 @@ async function testError(src, expectedError, simplify = false) {
   }
 }
 
+async function test0() {
+  console.log("TEST 0");
+
+    const src = `testing bool_from_data
+
+    func unused2() -> Bool {
+      true
+    }
+    
+    func unused() -> Bool {
+      unused2()
+    }
+
+    func deserialize[A: Storable](a: Data) -> A {
+      A::from_data(a)
+    }
+
+    func main(d: Data) -> Bool {
+      deserialize[Bool](d).trace("hello")
+    }`;
+
+    const program = helios.Program.new(src);
+
+    console.log(program.prettyIR(false));
+}
+
 async function test1() {
   console.log("TEST 1");
 
@@ -113,7 +139,9 @@ async function test1() {
         shareholders.length == 1
     }`;
 
-    helios.Program.new(src);
+    const program = helios.Program.new(src);
+
+    
 }
 
 async function test2() {
@@ -1143,6 +1171,8 @@ async function test25() {
 }
 
 export default async function main() {
+  await test0();
+
   await test1();
 
   await test2();

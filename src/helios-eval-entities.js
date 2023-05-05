@@ -120,9 +120,18 @@ import {
  */
 
 /**
+ * @typedef {{
+ * 	 assertType(): (null | Type)
+ *   assertInstance(): (null | Instance)
+ *   assertTypeClass(): (null | TypeClass)
+ * }} EvalEntityI
+ */
+
+/**
  * Base class of Instance and Type.
  * Any member function that takes 'site' as its first argument throws a TypeError if used incorrectly (eg. calling a non-FuncType).
  * @package
+ * @implements {EvalEntityI}
  */
 export class EvalEntity {
 	constructor() {
@@ -130,48 +139,33 @@ export class EvalEntity {
 	}
 
 	/**
-	 * @param {Site} site
-	 * @returns {Type}
+	 * @returns {null | Type}
 	 */
-	assertType(site) {
-		throw site.typeError("not a type");
+	assertType() {
+		return null;
 	}
 
 	/**
-	 * @returns {boolean}
+	 * @returns {null | TypeClass}
 	 */
-	isType() {
-		throw new Error("not yet implemented");
+	assertTypeClass() {
+		return null;
+	}
+
+	/**
+	 * @returns {null | Instance}
+	 */
+	assertInstance() {
+		return null;
 	}
 
 	/**
 	 * @param {Site} site 
-	 * @returns {TypeClass}
+	 * @param {Type[]} types 
+	 * @returns {EvalEntity}
 	 */
-	assertTypeClass(site) {
-		throw site.typeError("not a type class");
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isTypeClass() {
-		return false;
-	}
-
-	/**
-	 * @param {Site} site
-	 * @returns {Instance}
-	 */
-	assertValue(site) {
-		throw site.typeError("not a value");
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isValue() {
-		throw new Error("not yet implemented");
+	applyTypes(site, types) {
+		throw site.typeError("not parametric");
 	}
 
 	/**
@@ -205,26 +199,6 @@ export class EvalEntity {
 		throw new Error("not yet implemented");
 	}
 
-	/**
-	 * Returns 'true' if 'this' is a base-type of 'type'. Throws an error if 'this' isn't a Type.
-	 * @param {Site} site
-	 * @param {Type} type
-	 * @returns {boolean}
-	 */
-	isBaseOf(site, type) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Returns 'true' if 'this' is an instance of 'type'. Throws an error if 'this' isn't a Instance.
-	 * 'type' can be a class, or a class instance.
-	 * @param {Site} site 
-	 * @param {Type | ClassOfType} type 
-	 * @returns {boolean}
-	 */
-	isInstanceOf(site, type) {
-		throw new Error("not yet implemented");
-	}
 
 	/**
 	 * Returns the return type of a function (wrapped as a Instance) if the args have the correct types. 
@@ -311,38 +285,31 @@ export class Type extends EvalEntity {
 	}
 
 	/**
+	 * Returns 'true' if 'this' is a base-type of 'type'. Throws an error if 'this' isn't a Type.
+	 * @param {Type} type
+	 * @returns {boolean}
+	 */
+	isBaseOf(type) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
 	 * Compares two types. Throws an error if neither is a Type.
 	 * @example
 	 * Type.same(Site.dummy(), new IntType(), new IntType()) => true
-	 * @param {Site} site 
 	 * @param {Type} a 
 	 * @param {Type} b 
 	 * @returns {boolean}
 	 */
-	static same(site, a, b) {
-		return a.isBaseOf(site, b) && b.isBaseOf(site, a);
+	static same(a, b) {
+		return a.isBaseOf(b) && b.isBaseOf(a);
 	}
 
 	/**
-	 * @returns {boolean}
+	 * @returns {null | Type}
 	 */
-	isType() {
-		return true;
-	}
-
-	/**
-	 * @param {Site} site
-	 * @returns {Type}
-	 */
-	assertType(site) {
+	assertType() {
 		return this;
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isValue() {
-		return false;
 	}
 
 	/**
@@ -415,32 +382,269 @@ export class Type extends EvalEntity {
 	get userType() {
 		throw new Error(`${this.toString()} doesn't have a corresponding userType`);
 	}
+
+	/**
+	 * @package
+	 * @param {Site} site
+	 * @param {Map<string, Type>} map 
+	 * @param {Type | null} type
+	 * @returns {Type} 
+	 */
+	infer(site, map, type) {
+		// most types don't have to do anything here
+		return this;
+	}
+
+	/**
+	 * @type {{[name: string]: EvalEntity}}
+	 */
+	get typeMembers() {
+		return {};
+	}
+
+	/**
+	 * @type {{[name: string]: Instance}}
+	 */
+	get instanceMembers() {
+		return {};
+	}
+}
+
+/**
+ * @package
+ */
+class ParamTypeRef extends Type {
+	#name
+
+	/**
+	 * @param {string} name 
+	 */
+	constructor(name) {
+		super();
+		this.#name = name;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#name;
+	}
+
+	/**
+	 * @package
+	 * @param {Site} site 
+	 * @param {Map<string, Type>} map 
+	 * @param {Type | null} type
+	 * @returns {Type}
+	 */
+	infer(site, map, type) {
+		console.log("INFERRING ", this.#name, Array.from(map.keys()));
+
+		const prev = map.get(this.#name);
+
+		if (!prev) {
+			if (type) {
+				map.set(this.#name, type);
+
+				return type;
+			} else {
+				throw new Error(`${this.#name} should be in map`);
+			}
+		} else {
+			console.log("HERE", prev.toString());
+			return prev;
+		}
+	}
+}
+
+/**
+ * @package
+ */
+export class TypeClassType extends ParamTypeRef {
+	#typeMembers;
+	#instanceMembers;
+
+	/**
+	 * @param {string} name
+	 * @param {TypeClass} typeClass
+	 */
+	constructor(name, typeClass) {
+		super(name);
+		this.#typeMembers = Instance.fromTypesObject(typeClass.genTypeMembers(this));
+		this.#instanceMembers = Instance.fromTypesObject(typeClass.genInstanceMembers(this));
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.name;
+	}
+
+	/**
+	 * Returns 'true' if 'this' is a base-type of 'type'. Throws an error if 'this' isn't a Type.
+	 * @param {Type} type
+	 * @returns {boolean}
+	 */
+	isBaseOf(type) {
+		if (type instanceof TypeClassType) {
+			// we cans simply use name because name-shadowing isn't allowed
+			return type.name == this.name;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * @param {string} name
+	 * @returns {string}
+	 */
+	static nameToPath(name) {
+		return `__${name}`;
+	}
+	
+	/**
+	 * @type {string}
+	 */
+	get path() {
+		return TypeClassType.nameToPath(this.name);
+	}
+
+	/**
+	 * @type {{[name: string]: Instance}}
+	 */
+	get typeMembers() {
+		return this.#typeMembers;
+	}
+
+	/**
+	 * @type {{[name: string]: Instance}}
+	 */
+	get instanceMembers() {
+		return this.#instanceMembers;
+	}
 }
 
 /**
  * @package
  */
 export class TypeClass extends EvalEntity {
-	// TODO
-
 	/**
-	 * @param {Site} site 
-	 * @returns {TypeClass}
+	 * @returns {null | TypeClass}
 	 */
-	assertTypeClass(site) {
+	assertTypeClass() {
 		return this;
 	}
 
 	/**
+	 * @param {Type} implementation
+	 * @returns {{[name: string]: Type}}
+	 */
+	genTypeMembers(implementation) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {Type} implementation
+	 * @returns {{[name: string]: Type}}
+	 */
+	genInstanceMembers(implementation) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get memberNames() {
+		const dummy = this.asType("");
+
+		const typeMemberNames = Object.keys(this.genTypeMembers(dummy)).sort();
+		const instanceMemberNames = Object.keys(this.genInstanceMembers(dummy)).sort();
+
+		return typeMemberNames.concat(instanceMemberNames);
+	}
+
+	/**
+	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isTypeClass() {
+	isImplementedBy(type) {
+		const typeMembers = this.genTypeMembers(type);
+
+		for (let k in typeMembers) {
+			if (!type.typeMembers[k]?.assertInstance()?.isInstanceOf(typeMembers[k])) {
+				return false;
+			}
+		}
+
+		const instanceMembers = this.genInstanceMembers(type);
+
+		for (let k in instanceMembers) {
+			if (!type.instanceMembers[k]?.assertInstance()?.isInstanceOf(instanceMembers[k])) {
+				return false;
+			}
+		}
+
 		return true;
+	}
+
+	/**
+	 * @param {string} name
+	 * @returns {Type}
+	 */
+	asType(name) {
+		return new TypeClassType(name, this);
+	}
+}
+
+export class AnyTypeClass extends TypeClass {
+	/**
+	 * @param {Type} implementation
+	 * @returns {{[name: string]: Type}}
+	 */
+	genTypeMembers(implementation) {
+		return {};
+	}
+
+	/**
+	 * @param {Type} implementation
+	 * @returns {{[name: string]: Type}}
+	 */
+	genInstanceMembers(implementation) {
+		return {};
+	}
+}
+
+/**
+ * A type with `from_data` type member and `
+ * @package
+ */
+export class StorableTypeClass extends TypeClass {
+	/**
+	 * @param {Type} implementation
+	 * @returns {{[name: string]: Type}}
+	 */
+	genTypeMembers(implementation) {
+		return {
+			from_data: new FuncType([new RawDataType()], implementation)
+		}
+	}
+
+	/**	
+	 * @param {Type} implementation
+	 * @returns {{[name: string]: Type}}
+	 */
+	genInstanceMembers(implementation) {
+		return {
+			__to_data: new FuncType([], new RawDataType())
+		}
 	}
 }
 
 /**
  * Behaves similarly to a type (i.e. getTypeMember), but isn't actualy a Type
+ * TODO: don't let this be a type
  * @package
  */
 export class Namespace extends Type {
@@ -455,19 +659,11 @@ export class Namespace extends Type {
 	}
 
 	/**
-	 * @returns {boolean}
-	 */
-	isType() {
-		return false;
-	}
-
-	/**
-	 * @param {Site} site
 	 * @param {Type} type
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		throw site.typeError("not a type");
+	isBaseOf(type) {
+		throw new Error("not a type");
 	}
 
 	/**
@@ -498,11 +694,10 @@ export class AnyType extends Type {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} other 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, other) {
+	isBaseOf(other) {
 		return true;
 	}
 
@@ -523,14 +718,34 @@ class DataType extends Type {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		type = ParamType.unwrap(type, this);
-
+	isBaseOf(type) {
 		return Object.getPrototypeOf(this) == Object.getPrototypeOf(type);
+	}
+
+	/**
+	 * @type {{[name: string]: EvalEntity}}
+	 */
+	get typeMembers() {
+		return {
+			...super.typeMembers,
+			__eq:      Instance.new(new FuncType([this, this], new BoolType())),
+			__neq:     Instance.new(new FuncType([this, this], new BoolType())),
+			from_data: Instance.new(new FuncType([new RawDataType()], this))
+		}
+	}
+
+	/**
+	 * @type {{[name: string]: Instance}}
+	 */
+	get instanceMembers() {
+		return {
+			...super.instanceMembers,
+			__to_data: Instance.new(new FuncType([], new RawDataType())),
+			serialize: Instance.new(new FuncType([], new ByteArrayType()))
+		}
 	}
 }
 
@@ -544,11 +759,10 @@ class AnyDataType extends Type {
 	}
 
 	/**
-	 * @param {Site} site
 	 * @param {Type} type
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
+	isBaseOf(type) {
 		return !(type instanceof FuncType);
 	}
 }
@@ -720,13 +934,10 @@ export class StatementType extends DataType {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		type = ParamType.unwrap(type, this);
-
+	isBaseOf(type) {
 		if (type instanceof StatementType) {
 			return type.path.startsWith(this.path);
 		} else {
@@ -810,12 +1021,10 @@ export class StatementType extends DataType {
 	}
 
 	/**
-	 * A StatementType can instantiate itself if the underlying statement is an enum member with no fields
-	 * @param {Site} site
-	 * @returns {Instance}
+	 * @returns {null | Instance}
 	 */
-	assertValue(site) {
-		throw site.typeError(`expected a value, got a type`);
+	assertInstance() {
+		return null;
 	}
 }
 
@@ -1050,14 +1259,13 @@ export class EnumMemberStatementType extends StatementType {
     /**
 	 * A StatementType can instantiate itself if the underlying statement is an enum member with no fields
 	 * @package
-	 * @param {Site} site
-	 * @returns {Instance}
+	 * @returns {null | Instance}
 	 */
-    assertValue(site) {
-        if (this.statement.nFields(site) == 0) {
+    assertInstance() {
+        if (this.statement.nFields(Site.dummy()) == 0) {
             return Instance.new(this);
         } else {
-            throw site.typeError(`expected '{...}' after '${this.statement.name.toString()}'`);
+			return null;
         }
     }
 
@@ -1242,11 +1450,25 @@ export class ArgType {
 	}
 
 	/**
+	 * @package
 	 * @param {Site} site 
+	 * @param {Map<string, Type>} map 
+	 * @param {Type | null} type 
+	 * @returns {ArgType}
+	 */
+	infer(site, map, type) {
+		return new ArgType(
+			this.#name,
+			this.#type.infer(site, map, type),
+			this.#optional
+		);
+	}
+
+	/**
 	 * @param {ArgType} other 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, other) {
+	isBaseOf(other) {
 		// if this arg has a default value, the other arg must also have a default value
 		if (this.#optional && !other.#optional) {
 			return false;
@@ -1257,12 +1479,8 @@ export class ArgType {
 			return this.#name.toString() == (other.#name?.toString() ?? "");
 		}
 
-		if (this.#type instanceof ParamType) {
-			this.#type.setType(site, other.#type);
-		} else {
-			if (!other.#type.isBaseOf(site, this.#type)) { // note the reversal of the check
-				return false;
-			}
+		if (!other.#type.isBaseOf(this.#type)) { // note the reversal of the check
+			return false;
 		}
 
 		return true;
@@ -1352,6 +1570,49 @@ export class FuncType extends Type {
 	}
 
 	/**
+	 * @package
+	 * @param {Site} site
+	 * @param {Map<string, Type>} map 
+	 * @param {Type | null} type 
+	 * @returns {Type}
+	 */
+	infer(site, map, type) {
+		if (!type) {
+			return new FuncType(
+				this.#argTypes.map(at => at.infer(site, map, null)),
+				this.#retTypes.map(rt=> rt.infer(site, map, null))
+			);
+		} else if (type instanceof FuncType) {
+			if (type.argTypes.length == this.#argTypes.length && type.retTypes.length != this.#retTypes.length) {
+				return new FuncType(
+					this.#argTypes.map((at, i) => at.infer(site, map, type.argTypes[i])),
+					this.#retTypes.map((rt, i) => rt.infer(site, map, type.retTypes[i]))
+				);
+			}
+		}
+
+		throw site.typeError("unable to infer type");
+	}
+
+	/**
+	 * @package
+	 * @param {Site} site 
+	 * @param {Map<string, Type>} map 
+	 * @param {Type[]} argTypes 
+	 * @returns {FuncType}
+	 */
+	inferArgs(site, map, argTypes) {
+		if (argTypes.length == this.argTypes.length) {
+			return new FuncType(
+				this.#argTypes.map((at, i) => at.infer(site, map, argTypes[i])),
+				this.#retTypes.map(rt => rt.infer(site, map, null))
+			)
+		}
+
+		throw site.typeError("unable to infer from args");
+	}
+
+	/**
 	 * Checks if the type of the first arg is the same as 'type'
 	 * Also returns false if there are no args.
 	 * For a method to be a valid instance member its first argument must also be named 'self', but that is checked elsewhere
@@ -1361,7 +1622,7 @@ export class FuncType extends Type {
 	 */
 	isMaybeMethod(site, type) {
 		if (this.#argTypes.length > 0) {
-			return Type.same(site, this.#argTypes[0].type, type);
+			return Type.same(this.#argTypes[0].type, type);
 		} else {
 			return false;
 		}
@@ -1376,13 +1637,13 @@ export class FuncType extends Type {
 	 */
 	isAssociated(site, type) {
 		for (let arg of this.#argTypes) {
-			if (Type.same(site, arg.type, type)) {
+			if (Type.same(arg.type, type)) {
 				return true;
 			}
 		}
 
 		for (let rt of this.#retTypes) {
-			if (Type.same(site, type, rt)) {
+			if (Type.same(type, rt)) {
 				return true;
 			}
 		}
@@ -1395,24 +1656,23 @@ export class FuncType extends Type {
 	 * The number of args needs to be the same.
 	 * Each argType of the FuncType we are checking against needs to be the same or less specific (i.e. isBaseOf(this.#argTypes[i]))
 	 * The retType of 'this' needs to be the same or more specific
-	 * @param {Site} site 
 	 * @param {Type} other 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, other) {
+	isBaseOf(other) {
 		if (other instanceof FuncType) {
 			if (this.nNonOptArgs != other.nNonOptArgs) {
 				return false;
 			} else {
 				for (let i = 0; i < this.nNonOptArgs; i++) {
-					if (!this.#argTypes[i].isBaseOf(site, other.#argTypes[i])) {
+					if (!this.#argTypes[i].isBaseOf(other.#argTypes[i])) {
 						return false;
 					}
 				}
 
 				if (this.#retTypes.length === other.#retTypes.length) {
 					for (let i = 0; i < this.#retTypes.length; i++) {
-						if (!this.#retTypes[i].isBaseOf(site, other.#retTypes[i])) {
+						if (!this.#retTypes[i].isBaseOf(other.#retTypes[i])) {
 							return false;
 						}
 					}
@@ -1470,7 +1730,7 @@ export class FuncType extends Type {
 		}
 
 		for (let i = 0; i < posArgs.length; i++) {
-			if (!posArgs[i].isInstanceOf(site, this.#argTypes[i].type)) {
+			if (!posArgs[i].isInstanceOf(this.#argTypes[i].type)) {
 				throw site.typeError(`expected '${this.#argTypes[i].type.toString()}' for arg ${i + 1}, got '${posArgs[i].toString()}'`);
 			}
 		}
@@ -1488,35 +1748,19 @@ export class FuncType extends Type {
 
 			const thisArg = this.#argTypes[i];
 
-			if (!namedArgs[key].isInstanceOf(site, thisArg.type)) {
+			if (!namedArgs[key].isInstanceOf(thisArg.type)) {
 				throw site.typeError(`expected '${thisArg.type.toString()}' for arg '${key}', got '${namedArgs[key].toString()}`);
 			}
 		}
 
 		return this.#retTypes;
 	}
+
 }
 
 class NotType extends EvalEntity {
 	constructor() {
 		super();
-	}
-	
-	/**
-	 * @returns {boolean}
-	 */
-	isType() {
-		return false;
-	}
-
-	/**
-	 * Throws an error because NotType can't be a base-Type of anything.
-	 * @param {Site} site 
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(site, type) {
-		throw site.typeError("not a type");
 	}
 
 	/**
@@ -1538,6 +1782,16 @@ export class Instance extends NotType {
 	}
 
 	/**
+	 * Returns 'true' if 'this' is an instance of 'type'. Throws an error if 'this' isn't a Instance.
+	 * 'type' can be a class, or a class instance.
+	 * @param {Type | ClassOfType} type 
+	 * @returns {boolean}
+	 */
+	isInstanceOf(type) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
 	 * @param {Type | Type[]} type 
 	 * @returns {Instance}
 	 */
@@ -1550,13 +1804,6 @@ export class Instance extends NotType {
 			}
 		} else if (type instanceof FuncType) {
 			return new FuncInstance(type);
-		} else if (type instanceof ParamType) {
-			const t = type.type;
-			if (t == null) {
-				throw new Error("expected non-null type");
-			} else {
-				return Instance.new(t);
-			}
 		} else if (type instanceof ErrorType) {
 			return new ErrorInstance();
 		} else if (type instanceof VoidType) {
@@ -1567,18 +1814,36 @@ export class Instance extends NotType {
 	}
 
 	/**
-	 * @returns {boolean}
+	 * @param {{[name: string]: Type}} types
+	 * @returns {{[name: string]: Instance}}
 	 */
-	isValue() {
-		return true;
+	static fromTypesObject(types) {
+		/**
+		 * @type {{[name: string]: Instance}}
+		 */
+		const obj = {};
+
+		for (let k in types) {
+			obj[k] = Instance.new(types[k]);
+		}
+
+		return obj;
 	}
 
 	/**
-	 * @param {Site} site
-	 * @returns {Instance}
+	 * @package
+	 * @returns {null | Instance}
 	 */
-	assertValue(site) {
+	assertInstance() {
 		return this;
+	}
+
+	/**
+	 * @package
+	 * @returns {null | ParametricInstance}
+	 */
+	assertParametric() {
+		return null;
 	}
 }
 
@@ -1622,16 +1887,15 @@ export class DataInstance extends Instance {
 
 	/**
 	 * Checks if 'this' is instance of 'type'.
-	 * 'type' can be a class, or a class instance.
-	 * @param {Site} site 
+	 * 'type' can be a class, or a class instance
 	 * @param {Type | ClassOfType} type 
 	 * @returns 
 	 */
-	isInstanceOf(site, type) {
+	isInstanceOf(type) {
 		if (typeof type == 'function') {
 			return this.#type instanceof type;
 		} else {
-			return type.isBaseOf(site, this.#type);
+			return type.isBaseOf(this.#type);
 		}
 	}
 
@@ -1669,7 +1933,7 @@ export class DataInstance extends Instance {
 	 * @returns {Instance}
 	 */
 	getInstanceMember(name) {
-		return this.#type.getInstanceMember(name);
+		return assertDefined(this.#type.instanceMembers[name.value]);
 	}
 
 	/**
@@ -1759,16 +2023,15 @@ export class FuncInstance extends Instance {
 
 	/**
 	 * Checks if 'this' is an instance of 'type'.
-	 * Type can be a class or a class instance. 
-	 * @param {Site} site 
+	 * Type can be a class or a class instance
 	 * @param {Type | ClassOfType} type 
 	 * @returns {boolean}
 	 */
-	isInstanceOf(site, type) {
+	isInstanceOf(type) {
 		if (typeof type == 'function') {
 			return this.#type instanceof type;
 		} else {
-			return type.isBaseOf(site, this.#type);
+			return type.isBaseOf(this.#type);
 		}
 	}
 
@@ -1857,6 +2120,7 @@ export class FuncStatementInstance extends FuncInstance {
 	}
 }
 
+
 /**
  * Wraps multiple return values
  * @package
@@ -1922,11 +2186,10 @@ export class VoidInstance extends Instance {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type | ClassOfType} type 
 	 * @returns {boolean}
 	 */
-	isInstanceOf(site, type) {
+	isInstanceOf(type) {
 		return type instanceof VoidType;
 	}
 
@@ -2076,11 +2339,10 @@ export class VoidType extends Type {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
+	isBaseOf(type) {
 		return type instanceof VoidType;
 	}
 }
@@ -2095,11 +2357,10 @@ export class ErrorType extends VoidType {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
+	isBaseOf(type) {
 		return type instanceof ErrorType;
 	}
 }
@@ -2291,6 +2552,21 @@ export class BoolType extends BuiltinType {
 	}
 
 	/**
+	 * @type {{[name: string]: EvalEntity}}
+	 */
+	get typeMembers() {
+		return {
+			...super.typeMembers,
+			__and: Instance.new(new FuncType([this, this], this)),
+			__not: Instance.new(new FuncType([this], this)),
+			__or:  Instance.new(new FuncType([this, this], this)),
+			and:   Instance.new(new FuncType([new FuncType([], this), new FuncType([], this)], this)),
+			or:    Instance.new(new FuncType([new FuncType([], this), new FuncType([], this)], this)),
+		};
+	}
+
+
+	/**
 	 * @package
 	 * @param {Word} name 
 	 * @returns {EvalEntity}
@@ -2307,6 +2583,18 @@ export class BoolType extends BuiltinType {
 				return Instance.new(new FuncType([new FuncType([], new BoolType()), new FuncType([], new BoolType())], new BoolType()));
 			default:
 				return super.getTypeMember(name);
+		}
+	}
+
+	/**
+	 * @type {{[name: string]: Instance}}
+	 */
+	get instanceMembers() {
+		return {
+			...super.instanceMembers,
+			show:   Instance.new(new FuncType([], new StringType())),
+			to_int: Instance.new(new FuncType([], new IntType())),
+			trace:  Instance.new(new FuncType([new StringType()], new BoolType()))
 		}
 	}
 
@@ -2488,201 +2776,72 @@ export class ByteArrayType extends BuiltinType {
 	}
 }
 
-
-class ParamType extends Type {
-	/** @type {?Type} */
-	#type;
-
-	/** @type {string} */
+/**
+ * @package
+ */
+export class Parameter {
+	/** 
+	 * @type {string} 
+	 */
 	#name;
 
-	#checkType;
+	/** 
+	 * @type {TypeClass}
+	 */
+	#typeClass;
 
 	/**
 	 * @param {string} name - typically "a" or "b"
-	 * @param {?(site: Site, type: Type) => void} checkType
+	 * @param {TypeClass} typeClass
 	 */
-	constructor(name, checkType = null) {
-		super();
-		this.#type = null;
+	constructor(name, typeClass = new AnyTypeClass()) {
 		this.#name = name;
-		this.#checkType = checkType;
+		this.#typeClass = typeClass
 	}
 
 	/**
-	 * @returns {boolean}
+	 * @type {string}
 	 */
-	isInferred() {
-		return this.#type !== null;
+	get name() {
+		return this.#name;
 	}
 
 	/**
-	 * @param {Site} site
-	 * @param {Type} type 
+	 * @type {ParamTypeRef}
 	 */
-	setType(site, type) {
-		if (this.#checkType !== null) {
-			this.#checkType(site, type);
-		}
-
-		this.#type = type;
+	get ref() {
+		return new ParamTypeRef(this.#name);
 	}
 
 	/**
-	 * @param {Type} type 
-	 * @param {?Type} expected
-	 * @returns {Type}
+	 * A null TypeClass matches any type
+	 * @type {TypeClass}
 	 */
-	static unwrap(type, expected = null) {
-		if (type instanceof AnyType) {
-			if (expected !== null) {
-				return expected;
-			} else {
-				throw new Error("unable to infer type of AnyType");
-			}
-		} else if (type instanceof ParamType) {
-			let origType = type.type;
-
-			if (origType === null) {
-				if (expected !== null) {
-					type.setType(Site.dummy(), expected);
-					return expected;
-				} else {
-					throw new Error("unable to infer ParamType");
-				}
-			} else {
-				return origType;
-			}
-		} else {
-			return type;
-		}
-	}
-
-	/**
-	 * @type {?Type}
-	 */
-	get type() {
-		if (this.#type instanceof ParamType) {
-			return this.#type.type;
-		} else {
-			return this.#type;
-		}
+	get typeClass() {
+		return this.#typeClass;
 	}
 
 	toString() {
-		if (this.#type === null) {
+		if (this.#typeClass) {
+			return `${this.#name}: ${this.#typeClass.toString()}`
+		} else {
 			return this.#name;
-		} else {
-			return this.#type.toString();
-		}
-	}
-
-	/**
-	 * Returns number of members of an enum type
-	 * Throws an error if not an enum type
-	 * @param {Site} site
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		if (this.#type === null) {
-			throw new Error("param type not yet infered");
-		} else {
-			return this.#type.nEnumMembers(site);
-		}
-	}
-
-	/**
-	 * Returns the number of fields of a struct, enum member, or builtin type.
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nFields(site) {
-		if (this.#type === null) {
-			throw new Error("should've been set");
-		} else {
-			return this.#type.nFields(site);
-		}
-	}
-
-	/**
-	 * Returns the i-th field of a Struct or an EnumMember
-	 * @param {Site} site
-	 * @param {number} i
-	 * @returns {Type}
-	 */
-	getFieldType(site, i) {
-		if (this.#type === null) {
-			throw new Error("should've been set");
-		} else {
-			return this.#type.getFieldType(site, i);
-		}
-	}
-
-	/**
-	 * Returns the i-th field of a Struct or an EnumMember
-	 * @param {Site} site
-	 * @param {string} name
-	 * @returns {number}
-	 */
-	getFieldIndex(site, name) {
-		if (this.#type === null) {
-			throw new Error("should've been set");
-		} else {
-			return this.#type.getFieldIndex(site, name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		if (this.#type === null) {
-			throw new Error("should've been set");
-		} else {
-			return this.#type.getInstanceMember(name);
-		}
-	}
-	
-	/**
-	 * Returns 'true' if 'this' is a base-type of 'type'. Throws an error if 'this' isn't a Type.
-	 * @param {Site} site
-	 * @param {Type} type
-	 * @returns {boolean}
-	 */
-	isBaseOf(site, type) {
-		if (this.#type === null) {
-			this.setType(site, type);
-			return true;
-		} else {
-			return this.#type.isBaseOf(site, type);
-		}
-	}
-
-	/**
-	 * Returns the base path of type (eg. __helios__bool).
-	 * This is used extensively in the Intermediate Representation.
-	 * @type {string}
-	 */
-	get path() {
-		if (this.#type === null) {
-			throw new Error("param type not yet infered");
-		} else {
-			return this.#type.path;
 		}
 	}
 }
 
 /**
+ * Only func instances can be parametrics instances,
+ *  there are no other kinds of parametric instances
  * @package
  */
-export class ParamFuncValue extends FuncInstance {
+export class ParametricInstance extends FuncInstance {
 	#params;
 	#fnType;
 	#correctMemberName;
 
 	/**
-	 * @param {ParamType[]} params
+	 * @param {Parameter[]} params
 	 * @param {FuncType} fnType 
 	 * @param {?() => string} correctMemberName
 	 */
@@ -2693,15 +2852,71 @@ export class ParamFuncValue extends FuncInstance {
 		this.#correctMemberName = correctMemberName;
 	}
 
-	get correctMemberName() {
-		return this.#correctMemberName;
+	get params() {
+		return this.#params;
+	}
+
+	get fnType() {
+		return this.#fnType;
 	}
 
 	/**
-	 * @returns {boolean}
+	 * @returns {null | ParametricInstance}
 	 */
-	allInferred() {
-		return this.#params.every(p => p.isInferred());
+	assertParametric() {
+		return this;
+	}
+
+	/**
+	 * null TypeClasses aren't included
+	 * @type {TypeClass[]}
+	 */
+	get typeClasses() {
+		/**
+		 * @type {TypeClass[]}
+		 */
+		const tcs = [];
+
+		this.#params.forEach(p => {
+			const tc = p.typeClass
+			if (tc !== null) {
+				tcs.push(tc);
+			}
+		});
+
+		return tcs;
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Type[]} types 
+	 * @returns {EvalEntity}
+	 */
+	applyTypes(site, types) {
+		if (types.length != this.#params.length) {
+			throw site.typeError("wrong number of parameter type arguments");
+		}
+
+		/**
+		 * @type {Map<string, Type>}
+		 */
+		const map = new Map();
+
+		this.#params.forEach((p, i) => {
+			if (!p.typeClass?.isImplementedBy(types[i]) ?? true) {
+				throw site.typeError("typeclass match failed")
+			}
+
+			map.set(p.name, types[i]);
+		});
+
+		console.log("MAP", map);
+
+		return new FuncInstance(assertClass(this.#fnType.infer(site, map, null), FuncType));
+	}
+
+	get correctMemberName() {
+		return this.#correctMemberName;
 	}
 
 	toString() {
@@ -2713,34 +2928,110 @@ export class ParamFuncValue extends FuncInstance {
 	 * @returns {Type}
 	 */
 	getType(site) {
-		if (this.allInferred()) {
-			return this.#fnType;
-		} else {
-			throw site.typeError("can't get type of type parametric function");
-		}
+		throw site.typeError("can't get type of type parametric function (must be fully applied to be a valid type)");
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isInstanceOf(site, type) {
-		if (this.allInferred()) {
-			return (new FuncInstance(this.#fnType)).isInstanceOf(site, type);
+	isInstanceOf(type) {
+		return false;
+	}
+
+	/**
+	 * Must infer before calling
+	 * @param {Site} site 
+	 * @param {Instance[]} args
+	 * @param {{[name: string]: Instance}} namedArgs
+	 * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
+	 * @returns {Instance}
+	 */
+	call(site, args, namedArgs = {}, paramTypes = []) {
+		/**
+		 * @type {Map<string, Type>}
+		 */
+		const map = new Map();
+
+		const fnType = this.#fnType.inferArgs(site, map, args.map(a => a.getType(site)));
+
+		// make sure that each parameter is defined in the map
+		this.#params.forEach(p => {
+			const pt = map.get(p.name);
+
+			if (!pt) {
+				throw site.typeError("failed to infer all type parameters (hint: apply directly using [...])");
+			}
+
+			paramTypes.push(pt);
+		});
+
+		return (new FuncInstance(fnType)).call(site, args, namedArgs);
+	}
+}
+
+/**
+ * Special function value class for top level functions because they can be used recursively.
+ * @package
+ */
+export class ParametricFuncStatementInstance extends ParametricInstance {
+	#statement
+
+	/**
+	 * @param {Parameter[]} params
+	 * @param {FuncType} type 
+	 * @param {RecurseableStatement} statement - can't use FuncStatement because that would give circular dependency
+	 */
+	constructor(params, type, statement) {
+		super(params, type);
+		this.#statement = statement;
+	}
+
+	/**
+	 * @type {RecurseableStatement}
+	 */
+	get statement() {
+		return this.#statement;
+	}
+
+	/**
+	 * @param {RecursivenessChecker} scope
+	 * @returns {boolean}
+	 */
+	isRecursive(scope) {
+		if (this.#statement.isRecursive()) {
+			return true;
 		} else {
-			throw site.typeError("can't determine if type parametric function is instanceof a type");
+			return scope.isRecursive(this.#statement);
 		}
 	}
 
 	/**
 	 * @param {Site} site 
-	 * @param {Instance[]} args
-	 * @param {{[name: string]: Instance}} namedArgs
-	 * @returns {Instance}
+	 * @param {Type[]} types 
+	 * @returns {EvalEntity}
 	 */
-	call(site, args, namedArgs = {}) {
-		return (new FuncInstance(this.#fnType)).call(site, args, namedArgs);
+	applyTypes(site, types) {
+		if (types.length != this.params.length) {
+			throw site.typeError("wrong number of parameter type arguments");
+		}
+
+		/**
+		 * @type {Map<string, Type>}
+		 */
+		const map = new Map();
+
+		this.params.forEach((p, i) => {
+			if (!p.typeClass?.isImplementedBy(types[i]) ?? true) {
+				throw site.typeError("typeclass match failed")
+			}
+
+			map.set(p.name, types[i]);
+		});
+
+		console.log("MAP", map);
+
+		return new FuncStatementInstance(assertClass(this.fnType.infer(site, map, null), FuncType), this.#statement);
 	}
 }
 
@@ -2773,18 +3064,31 @@ export class ListType extends BuiltinType {
 
 	/**
 	 * @package
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		type = ParamType.unwrap(type, this);
-
+	isBaseOf(type) {
 		if (type instanceof ListType) {
-			return this.#itemType.isBaseOf(site, type.itemType);
+			return this.#itemType.isBaseOf(type.itemType);
 		} else {
 			return false;
 		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Map<string, Type>} map 
+	 * @param {Type | null} type 
+	 * @returns {Type}
+	 */
+	infer(site, map, type) {
+		if (!type) {
+			return new ListType(this.#itemType.infer(site, map, null))
+		} else if (type instanceof ListType) {
+			return new ListType(this.#itemType.infer(site, map, type.itemType));
+		}
+
+		throw site.typeError("unable to infer type");
 	}
 
 	/**
@@ -2829,12 +3133,12 @@ export class ListType extends BuiltinType {
 			case "for_each":
 				return Instance.new(new FuncType([new FuncType([this.#itemType], new VoidType())], new VoidType()));
 			case "fold": {
-				let a = new ParamType("a");
-				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#itemType], a), a], a));
+				let a = new Parameter("a");
+				return new ParametricInstance([a], new FuncType([new FuncType([a.ref, this.#itemType], a.ref), a.ref], a.ref));
 			}
 			case "fold_lazy": {
-				let a = new ParamType("a");
-				return new ParamFuncValue([a], new FuncType([new FuncType([this.#itemType, new FuncType([], a)], a), a], a));
+				let a = new Parameter("a");
+				return new ParametricInstance([a], new FuncType([new FuncType([this.#itemType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
 			}
 			case "get":
 				return Instance.new(new FuncType([new IntType()], this.#itemType));
@@ -2847,19 +3151,8 @@ export class ListType extends BuiltinType {
 			case "length":
 				return Instance.new(new IntType());
 			case "map": {
-				let a = new ParamType("a");
-				return new ParamFuncValue([a], new FuncType([new FuncType([this.#itemType], a)], new ListType(a)), () => {
-					let type = a.type;
-					if (type === null) {
-						throw new Error("should've been inferred by now");
-					} else {
-						if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
-							return "map_to_bool";
-						} else {
-							return "map";
-						}
-					}
-				});
+				let a = new Parameter("a");
+				return new ParametricInstance([a], new FuncType([new FuncType([this.#itemType], a.ref)], new ListType(a.ref)));
 			}
 			case "prepend":
 				return Instance.new(new FuncType([this.#itemType], this));
@@ -2923,24 +3216,47 @@ export class MapType extends BuiltinType {
 		return this.#valueType;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `Map[${this.#keyType.toString()}]${this.#valueType.toString()}`;
 	}
 
 	/**
 	 * @package
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		type = ParamType.unwrap(type, this);
-
+	isBaseOf(type) {
 		if (type instanceof MapType) {
-			return this.#keyType.isBaseOf(site, type.#keyType) && this.#valueType.isBaseOf(site, type.#valueType);
+			return this.#keyType.isBaseOf(type.#keyType) && this.#valueType.isBaseOf(type.#valueType);
 		} else {
 			return false;
 		}
+	}
+
+	/**
+	 * @package
+	 * @param {Site} site 
+	 * @param {Map<string, Type>} map 
+	 * @param {Type | null} type 
+	 * @returns {Type}
+	 */
+	infer(site, map, type) {
+		if (!type) {
+			return new MapType(
+				this.#keyType.infer(site, map, null),
+				this.#valueType.infer(site, map, null)
+			);
+		} else if (type instanceof MapType) {
+			return new MapType(
+				this.#keyType.infer(site, map, type.keyType),
+				this.#valueType.infer(site, map, type.valueType)
+			);
+		}
+
+		throw site.typeError("unable to infer type");
 	}
 
 	/**
@@ -2984,12 +3300,12 @@ export class MapType extends BuiltinType {
 			case "find_value_safe":
 				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], new OptionType(this.#valueType)));
 			case "fold": {
-				let a = new ParamType("a");
-				return new ParamFuncValue([a], new FuncType([new FuncType([a, this.#keyType, this.#valueType], a), a], a));
+				let a = new Parameter("a");
+				return new ParametricInstance([a], new FuncType([new FuncType([a.ref, this.#keyType, this.#valueType], a.ref), a.ref], a.ref));
 			}
 			case "fold_lazy": {
-				let a = new ParamType("a");
-				return new ParamFuncValue([a], new FuncType([new FuncType([this.#keyType, this.#valueType, new FuncType([], a)], a), a], a));
+				let a = new Parameter("a");
+				return new ParametricInstance([a], new FuncType([new FuncType([this.#keyType, this.#valueType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
 			}
 			case "for_each":
 				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new VoidType())], new VoidType()));
@@ -3008,26 +3324,10 @@ export class MapType extends BuiltinType {
 			case "length":
 				return Instance.new(new IntType());
 			case "map": {
-				let a = new ParamType("a", (site, type) => {
-					if ((new BoolType()).isBaseOf(site, type)) {
-						throw site.typeError("Map keys can't be of 'Bool' type");
-					}
-				});
+				let a = new Parameter("a");
+				let b = new Parameter("b");
 
-				let b = new ParamType("b");
-
-				return new ParamFuncValue([a, b], new FuncType([new FuncType([this.#keyType, this.#valueType], [a, b])], new MapType(a, b)), () => {
-					let type = b.type;
-					if (type === null) {
-						throw new Error("should've been inferred by now");
-					} else {
-						if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
-							return "map_to_bool";
-						} else {
-							return "map";
-						}
-					}
-				});
+				return new ParametricInstance([a, b], new FuncType([new FuncType([this.#keyType, this.#valueType], [a.ref, b.ref])], new MapType(a.ref, b.ref)));
 			}
 			case "prepend":
 				return Instance.new(new FuncType([this.#keyType, this.#valueType], this));
@@ -3074,6 +3374,16 @@ export class OptionType extends BuiltinType {
 		this.#someType = someType;
 	}
 
+	/**
+	 * @type {Type}
+	 */
+	get someType() {
+		return this.#someType;
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `Option[${this.#someType.toString()}]`;
 	}
@@ -3089,19 +3399,37 @@ export class OptionType extends BuiltinType {
 
 	/**
 	 * @package
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		type = ParamType.unwrap(type, this);
-
+	isBaseOf(type) {
 		if (type instanceof OptionType) {
-			return this.#someType.isBaseOf(site, type.#someType);
+			return this.#someType.isBaseOf(type.#someType);
 		} else {
-			return (new OptionSomeType(this.#someType)).isBaseOf(site, type) || 
-				(new OptionNoneType(this.#someType)).isBaseOf(site, type);
+			return (new OptionSomeType(this.#someType)).isBaseOf(type) || 
+				(new OptionNoneType(this.#someType)).isBaseOf(type);
 		}
+	}
+
+	/**
+	 * @package
+	 * @param {Site} site 
+	 * @param {Map<string, Type>} map 
+	 * @param {Type | null} type 
+	 * @returns {Type}
+	 */
+	infer(site, map, type) {
+		if (!type) {
+			return new OptionType(
+				this.#someType.infer(site, map, null)
+			);
+		} else if (type instanceof OptionType || type instanceof OptionSomeType || type instanceof OptionNoneType) {
+			return new OptionType(
+				this.#someType.infer(site, map, type.someType)
+			);
+		}
+
+		throw site.typeError("unable to infer type");
 	}
 
 	/**
@@ -3128,19 +3456,9 @@ export class OptionType extends BuiltinType {
 	getInstanceMember(name) {
 		switch (name.value) {
 			case "map": {
-				let a = new ParamType("a");
-				return new ParamFuncValue([a], new FuncType([new FuncType([this.#someType], a)], new OptionType(a)), () => {
-					let type = a.type;
-					if (type === null) {
-						throw new Error("should've been inferred by now");
-					} else {
-						if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
-							return "map_to_bool";
-						} else {
-							return "map";
-						}
-					}
-				});
+				const a = new Parameter("a");
+
+				return new ParametricInstance([a], new FuncType([new FuncType([this.#someType], a.ref)], new OptionType(a.ref)));
 			}
 			case "unwrap":
 				return Instance.new(new FuncType([], this.#someType));
@@ -3180,23 +3498,50 @@ class OptionSomeType extends BuiltinEnumMember {
 		this.#someType = someType;
 	}
 
+	/**
+	 * @type {Type}
+	 */
+	get someType() {
+		return this.#someType;
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `Option[${this.#someType.toString()}]::Some`;
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		type = ParamType.unwrap(type, this);
-
+	isBaseOf(type) {
 		if (type instanceof OptionSomeType) {
-			return this.#someType.isBaseOf(site, type.#someType);
+			return this.#someType.isBaseOf(type.#someType);
 		} else {
 			return false;
 		}
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Map<string, Type>} map 
+	 * @param {Type | null} type 
+	 * @returns {Type}
+	 */
+	infer(site, map, type) {
+		if (!type) {
+			return new OptionSomeType(
+				this.#someType.infer(site, map, null)
+			);
+		} else if (type instanceof OptionSomeType) {
+			return new OptionSomeType(
+				this.#someType.infer(site, map, type.someType)
+			);
+		}
+
+		throw site.typeError("unable to infer type");
 	}
 
 	/**
@@ -3268,23 +3613,51 @@ export class OptionNoneType extends BuiltinEnumMember {
 		this.#someType = someType;
 	}
 
+	/**
+	 * @type {Type}
+	 */
+	get someType() {
+		return this.#someType;
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `Option[${this.#someType.toString()}]::None`;
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		type = ParamType.unwrap(type, this);
-
+	isBaseOf(type) {
 		if (type instanceof OptionNoneType) {
-			return this.#someType.isBaseOf(site, type.#someType);
+			return this.#someType.isBaseOf(type.#someType);
 		} else {
 			return false;
 		}
+	}
+
+	/**
+	 * @package
+	 * @param {Site} site 
+	 * @param {Map<string, Type>} map 
+	 * @param {Type | null} type 
+	 * @returns {Type}
+	 */
+	infer(site, map, type) {
+		if (!type) {
+			return new OptionNoneType(
+				this.#someType.infer(site, map, null)
+			);
+		} else if (type instanceof OptionNoneType) {
+			return new OptionNoneType(
+				this.#someType.infer(site, map, type.someType)
+			);
+		}
+
+		throw site.typeError("unable to infer type");
 	}
 
 	/**
@@ -3295,16 +3668,18 @@ export class OptionNoneType extends BuiltinEnumMember {
 		return 1;
 	}
 
+	/**
+	 * @type {string}
+	 */
 	get path() {
 		return `__helios__${this.#someType instanceof BoolType ? "bool" : ""}option__none`;
 	}
 
 	/**
 	 * Instantiates self as value
-	 * @param {Site} site
-	 * @returns {Instance}
+	 * @returns {Instance | null}
 	 */
-	assertValue(site) {
+	assertInstance() {
 		return Instance.new(this);
 	}
 }
@@ -3783,16 +4158,15 @@ export class ScriptPurposeType extends BuiltinType {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		let b = super.isBaseOf(site, type) ||
-				(new MintingScriptPurposeType()).isBaseOf(site, type) || 
-				(new SpendingScriptPurposeType()).isBaseOf(site, type) || 
-				(new RewardingScriptPurposeType()).isBaseOf(site, type) || 
-				(new CertifyingScriptPurposeType()).isBaseOf(site, type); 
+	isBaseOf(type) {
+		let b = super.isBaseOf(type) ||
+				(new MintingScriptPurposeType()).isBaseOf(type) || 
+				(new SpendingScriptPurposeType()).isBaseOf(type) || 
+				(new RewardingScriptPurposeType()).isBaseOf(type) || 
+				(new CertifyingScriptPurposeType()).isBaseOf(type); 
 
 		return b;
 	}
@@ -4006,14 +4380,13 @@ export class StakingPurposeType extends BuiltinType {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		let b = super.isBaseOf(site, type) ||
-				(new StakingRewardingPurposeType()).isBaseOf(site, type) || 
-				(new StakingCertifyingPurposeType()).isBaseOf(site, type); 
+	isBaseOf(type) {
+		let b = super.isBaseOf(type) ||
+				(new StakingRewardingPurposeType()).isBaseOf(type) || 
+				(new StakingCertifyingPurposeType()).isBaseOf(type); 
 
 		return b;
 	}
@@ -4091,17 +4464,16 @@ export class DCertType extends BuiltinType {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		let b = super.isBaseOf(site, type) ||
-				(new RegisterDCertType()).isBaseOf(site, type) || 
-				(new DeregisterDCertType()).isBaseOf(site, type) || 
-				(new DelegateDCertType()).isBaseOf(site, type) || 
-				(new RegisterPoolDCertType()).isBaseOf(site, type) ||
-				(new RetirePoolDCertType()).isBaseOf(site, type); 
+	isBaseOf(type) {
+		let b = super.isBaseOf(type) ||
+				(new RegisterDCertType()).isBaseOf(type) || 
+				(new DeregisterDCertType()).isBaseOf(type) || 
+				(new DelegateDCertType()).isBaseOf(type) || 
+				(new RegisterPoolDCertType()).isBaseOf(type) ||
+				(new RetirePoolDCertType()).isBaseOf(type); 
 
 		return b;
 	}
@@ -4608,15 +4980,14 @@ export class OutputDatumType extends BuiltinType {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		let b = super.isBaseOf(site, type) ||
-				(new NoOutputDatumType()).isBaseOf(site, type) || 
-				(new HashedOutputDatumType()).isBaseOf(site, type) || 
-				(new InlineOutputDatumType()).isBaseOf(site, type);; 
+	isBaseOf(type) {
+		let b = super.isBaseOf(type) ||
+				(new NoOutputDatumType()).isBaseOf(type) || 
+				(new HashedOutputDatumType()).isBaseOf(type) || 
+				(new InlineOutputDatumType()).isBaseOf(type);
 
 		return b;
 	}
@@ -4632,21 +5003,9 @@ export class OutputDatumType extends BuiltinType {
 			case "new_hash":
 				return Instance.new(new FuncType([new DatumHashType()], new HashedOutputDatumType()));
 			case "new_inline": {
-				let a = new ParamType("a");
-				return new ParamFuncValue([a], new FuncType([a], new InlineOutputDatumType()), () => {
-					let type = a.type;
-					if (type === null) {
-						throw new Error("should've been inferred by now");
-					} else {
-						if (a.type instanceof FuncType) {
-							throw name.site.typeError("can't use function as argument to OutputDatum::new_inline()");
-						} else if ((new BoolType()).isBaseOf(Site.dummy(), type)) {
-							return "new_inline_from_bool";
-						} else {
-							return "new_inline";
-						}
-					}
-				});
+				const a = new Parameter("a");
+
+				return new ParametricInstance([a], new FuncType([a.ref], new InlineOutputDatumType()));
 			}
 			case "None":
 				return new NoOutputDatumType();
@@ -4960,14 +5319,13 @@ export class CredentialType extends BuiltinType {
 
 	/**
 	 * @package
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		let b = super.isBaseOf(site, type) ||
-				(new CredentialPubKeyType()).isBaseOf(site, type) || 
-				(new CredentialValidatorType()).isBaseOf(site, type); 
+	isBaseOf(type) {
+		let b = super.isBaseOf(type) ||
+				(new CredentialPubKeyType()).isBaseOf(type) || 
+				(new CredentialValidatorType()).isBaseOf(type); 
 
 		return b;
 	}
@@ -5096,14 +5454,13 @@ export class StakingHashType extends BuiltinType {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		let b = super.isBaseOf(site, type) ||
-				(new StakingHashStakeKeyType()).isBaseOf(site, type) || 
-				(new StakingHashValidatorType()).isBaseOf(site, type); 
+	isBaseOf(type) {
+		let b = super.isBaseOf(type) ||
+				(new StakingHashStakeKeyType()).isBaseOf(type) || 
+				(new StakingHashValidatorType()).isBaseOf(type); 
 
 		return b;
 	}
@@ -5226,14 +5583,13 @@ export class StakingCredentialType extends BuiltinType {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isBaseOf(site, type) {
-		let b = super.isBaseOf(site, type) ||
-				(new StakingHashCredentialType()).isBaseOf(site, type) || 
-				(new StakingPtrCredentialType()).isBaseOf(site, type); 
+	isBaseOf(type) {
+		let b = super.isBaseOf(type) ||
+				(new StakingHashCredentialType()).isBaseOf(type) || 
+				(new StakingPtrCredentialType()).isBaseOf(type); 
 
 		return b;
 	}

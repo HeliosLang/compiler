@@ -54,8 +54,14 @@ import {
     TxOutputType,
     Type,
     ValidatorHashType,
-    ValueType
+    ValueType,
+	TypeClass,
+	StorableTypeClass
 } from "./helios-eval-entities.js";
+
+/**
+ * @typedef {import("./helios-eval-entities.js").EvalEntityI} EvalEntityI
+ */
 
 /**
  * GlobalScope sits above the top-level scope and contains references to all the builtin Values and Types
@@ -166,6 +172,7 @@ export class GlobalScope {
         scope.set("StakingHash",          new StakingHashType());
         scope.set("StakingPurpose",       new StakingPurposeType());
         scope.set("StakingValidatorHash", new StakingValidatorHashType(purpose));
+		scope.set("Storable",             new StorableTypeClass());
 		scope.set("String",               new StringType());
         scope.set("Time",                 new TimeType());
         scope.set("TimeRange",            new TimeRangeType());
@@ -209,6 +216,7 @@ export class GlobalScope {
 /**
  * User scope
  * @package
+ * @implements {EvalEntityI}
  */
 export class Scope {
 	/** @type {GlobalScope | Scope} */
@@ -361,19 +369,24 @@ export class Scope {
 	}
 
 	/**
-	 * @param {Site} site 
-	 * @returns {Type}
+	 * @returns {null | Instance}
 	 */
-	assertType(site) {
-		throw site.typeError("expected a type, got a module");
+	assertInstance() {
+		return null;
+	}
+	
+	/**
+	 * @returns {null | Type}
+	 */
+	assertType() {
+		return null;
 	}
 
 	/**
-	 * @param {Site} site 
-	 * @returns {Instance}
+	 * @returns {null | TypeClass}
 	 */
-	assertValue(site) {
-		throw site.typeError("expected a value, got a module");
+	assertTypeClass() {
+		return null;
 	}
 
 	dump() {

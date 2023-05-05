@@ -1666,6 +1666,12 @@ function makeRawFunctions() {
 	`(data) -> {
 		__helios__common__unBoolData(data)
 	}`));
+	add(new RawFunc("__helios__bool____to_data", 
+	`(self) -> {
+		() -> {
+			__helios__common__boolData(self)
+		}
+	}`));
 	add(new RawFunc("__helios__bool__and",
 	`(a, b) -> {
 		__core__ifThenElse(

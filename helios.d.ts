@@ -2792,6 +2792,8 @@ export class Tokenizer {
     nestGroups(ts: Token[]): Token[] | null;
     #private;
 }
+export class AnyTypeClass extends TypeClass {
+}
 /**
  * Builtin Time type. Opaque alias of Int representing milliseconds since 1970
  */
@@ -2884,6 +2886,11 @@ export class IRAnonCallExpr extends IRUserCallExpr {
      * @param {IRCallStack} stack
      */
     evalConstants(stack: IRCallStack): IRLiteralExpr | IRUserCallExpr;
+    /**
+     * @param {IRExprRegistry} registry
+     * @returns {IRAnonCallExpr}
+     */
+    simplifyUnused(registry: IRExprRegistry): IRAnonCallExpr;
     #private;
 }
 export class IRNestedAnonCallExpr extends IRUserCallExpr {
@@ -4402,6 +4409,11 @@ export type RecursivenessChecker = {
 export type ScopeLike = {
     get: (name: Word) => EvalEntity;
 };
+export type EvalEntityI = {
+    assertType(): (null | Type);
+    assertInstance(): (null | Instance);
+    assertTypeClass(): (null | TypeClass);
+};
 export type IRLiteralRegistry = Map<IRVariable, IRLiteralExpr>;
 export type UserTypes = {
     [x: string]: HeliosDataClass<HeliosData>;
@@ -5016,6 +5028,39 @@ declare class UplcTerm {
     #private;
 }
 /**
+ * @package
+ */
+declare class TypeClass extends EvalEntity {
+    /**
+     * @param {Type} implementation
+     * @returns {{[name: string]: Type}}
+     */
+    genTypeMembers(implementation: Type): {
+        [name: string]: Type;
+    };
+    /**
+     * @param {Type} implementation
+     * @returns {{[name: string]: Type}}
+     */
+    genInstanceMembers(implementation: Type): {
+        [name: string]: Type;
+    };
+    /**
+     * @type {string[]}
+     */
+    get memberNames(): string[];
+    /**
+     * @param {Type} type
+     * @returns {boolean}
+     */
+    isImplementedBy(type: Type): boolean;
+    /**
+     * @param {string} name
+     * @returns {Type}
+     */
+    asType(name: string): Type;
+}
+/**
  * Base class of all builtin types (eg. IntType)
  * Note: any builtin type that inherits from BuiltinType must implement get path()
  * @package
@@ -5133,6 +5178,11 @@ declare class IRExpr extends Token {
      * @returns {IRExpr}
      */
     simplifyTopology(registry: IRExprRegistry): IRExpr;
+    /**
+     * @param {IRExprRegistry} registry
+     * @returns {IRExpr}
+     */
+    simplifyUnused(registry: IRExprRegistry): IRExpr;
     /**
      * @returns {UplcTerm}
      */
@@ -5260,6 +5310,21 @@ declare class IRProgram {
      * @returns {IRExpr}
      */
     static simplify(expr: IRExpr): IRExpr;
+    /**
+     * @param {IRExpr} expr
+     * @returns {IRExpr}
+     */
+    static simplifyLiterals(expr: IRExpr): IRExpr;
+    /**
+     * @param {IRExpr} expr
+     * @returns {IRExpr}
+     */
+    static simplifyTopology(expr: IRExpr): IRExpr;
+    /**
+     * @param {IRExpr} expr
+     * @returns {IRExpr}
+     */
+    static simplifyUnused(expr: IRExpr): IRExpr;
     /**
      * @param {IRFuncExpr | IRCallExpr | IRLiteralExpr} expr
      * @param {ProgramProperties} properties
@@ -5516,12 +5581,24 @@ declare class Type extends EvalEntity {
      * Compares two types. Throws an error if neither is a Type.
      * @example
      * Type.same(Site.dummy(), new IntType(), new IntType()) => true
-     * @param {Site} site
      * @param {Type} a
      * @param {Type} b
      * @returns {boolean}
      */
-    static same(site: Site, a: Type, b: Type): boolean;
+    static same(a: Type, b: Type): boolean;
+    /**
+     * Returns 'true' if 'this' is a base-type of 'type'. Throws an error if 'this' isn't a Type.
+     * @param {Type} type
+     * @returns {boolean}
+     */
+    isBaseOf(type: Type): boolean;
+    /**
+     * Throws an error because a Type can't be an instance of another Type.
+     * @param {Site} site
+     * @param {Type | ClassOfType} type
+     * @returns {boolean}
+     */
+    isInstanceOf(site: Site, type: Type | (new (...any: any[]) => Type)): boolean;
     /**
      * @returns {boolean}
      */
@@ -5548,6 +5625,26 @@ declare class Type extends EvalEntity {
      * @type {HeliosDataClass<HeliosData>}
      */
     get userType(): HeliosDataClass<HeliosData>;
+    /**
+     * @package
+     * @param {Site} site
+     * @param {Map<string, Type>} map
+     * @param {Type | null} type
+     * @returns {Type}
+     */
+    infer(site: Site, map: Map<string, Type>, type: Type | null): Type;
+    /**
+     * @type {{[name: string]: EvalEntity}}
+     */
+    get typeMembers(): {
+        [name: string]: EvalEntity;
+    };
+    /**
+     * @type {{[name: string]: Instance}}
+     */
+    get instanceMembers(): {
+        [name: string]: Instance;
+    };
 }
 /**
  * inputs, minted assets, and withdrawals need to be sorted in order to form a valid transaction
@@ -6121,39 +6218,38 @@ declare class CostModel {
  * }} ScopeLike
  */
 /**
+ * @typedef {{
+ * 	 assertType(): (null | Type)
+ *   assertInstance(): (null | Instance)
+ *   assertTypeClass(): (null | TypeClass)
+ * }} EvalEntityI
+ */
+/**
  * Base class of Instance and Type.
  * Any member function that takes 'site' as its first argument throws a TypeError if used incorrectly (eg. calling a non-FuncType).
  * @package
+ * @implements {EvalEntityI}
  */
-declare class EvalEntity {
+declare class EvalEntity implements EvalEntityI {
     used_: boolean;
     /**
-     * @param {Site} site
-     * @returns {Type}
+     * @returns {null | Type}
      */
-    assertType(site: Site): Type;
+    assertType(): null | Type;
     /**
-     * @returns {boolean}
+     * @returns {null | TypeClass}
      */
-    isType(): boolean;
+    assertTypeClass(): null | TypeClass;
     /**
-     * @param {Site} site
-     * @returns {TypeClass}
+     * @returns {null | Instance}
      */
-    assertTypeClass(site: Site): TypeClass;
-    /**
-     * @returns {boolean}
-     */
-    isTypeClass(): boolean;
+    assertInstance(): null | Instance;
     /**
      * @param {Site} site
-     * @returns {Instance}
+     * @param {Type[]} types
+     * @returns {EvalEntity}
      */
-    assertValue(site: Site): Instance;
-    /**
-     * @returns {boolean}
-     */
-    isValue(): boolean;
+    applyTypes(site: Site, types: Type[]): EvalEntity;
     /**
      * @returns {boolean}
      */
@@ -6173,21 +6269,6 @@ declare class EvalEntity {
      * @returns {Type}
      */
     getType(site: Site): Type;
-    /**
-     * Returns 'true' if 'this' is a base-type of 'type'. Throws an error if 'this' isn't a Type.
-     * @param {Site} site
-     * @param {Type} type
-     * @returns {boolean}
-     */
-    isBaseOf(site: Site, type: Type): boolean;
-    /**
-     * Returns 'true' if 'this' is an instance of 'type'. Throws an error if 'this' isn't a Instance.
-     * 'type' can be a class, or a class instance.
-     * @param {Site} site
-     * @param {Type | ClassOfType} type
-     * @returns {boolean}
-     */
-    isInstanceOf(site: Site, type: Type | (new (...any: any[]) => Type)): boolean;
     /**
      * Returns the return type of a function (wrapped as a Instance) if the args have the correct types.
      * Throws an error if 'this' isn't a function value, or if the args don't correspond.
@@ -6253,6 +6334,27 @@ declare class Instance extends NotType {
      * @returns {Instance}
      */
     static new(type: Type | Type[]): Instance;
+    /**
+     * @param {{[name: string]: Type}} types
+     * @returns {{[name: string]: Instance}}
+     */
+    static fromTypesObject(types: {
+        [name: string]: Type;
+    }): {
+        [name: string]: Instance;
+    };
+    /**
+     * Returns 'true' if 'this' is an instance of 'type'. Throws an error if 'this' isn't a Instance.
+     * 'type' can be a class, or a class instance.
+     * @param {Type | ClassOfType} type
+     * @returns {boolean}
+     */
+    isInstanceOf(type: Type | (new (...any: any[]) => Type)): boolean;
+    /**
+     * @package
+     * @returns {null | ParametricInstance}
+     */
+    assertParametric(): null | ParametricInstance;
 }
 /**
  * Base class of literal tokens
@@ -6371,6 +6473,11 @@ declare class IRCallExpr extends IRExpr {
      */
     simplifyTopologyInArgs(registry: IRExprRegistry): IRExpr[];
     /**
+     * @param {IRExprRegistry} registry
+     * @returns {IRExpr[]}
+     */
+    simplifyUnusedInArgs(registry: IRExprRegistry): IRExpr[];
+    /**
      * @param {UplcTerm} term
      * @returns {UplcTerm}
      */
@@ -6380,8 +6487,9 @@ declare class IRCallExpr extends IRExpr {
 /**
  * User scope
  * @package
+ * @implements {EvalEntityI}
  */
-declare class Scope {
+declare class Scope implements EvalEntityI {
     /**
      * @param {GlobalScope | Scope} parent
      */
@@ -6436,15 +6544,17 @@ declare class Scope {
      */
     isUsed(name: Word): boolean;
     /**
-     * @param {Site} site
-     * @returns {Type}
+     * @returns {null | Instance}
      */
-    assertType(site: Site): Type;
+    assertInstance(): null | Instance;
     /**
-     * @param {Site} site
-     * @returns {Instance}
+     * @returns {null | Type}
      */
-    assertValue(site: Site): Instance;
+    assertType(): null | Type;
+    /**
+     * @returns {null | TypeClass}
+     */
+    assertTypeClass(): null | TypeClass;
     dump(): void;
     /**
      * @param {(name: string, type: Type) => void} callback
@@ -6482,6 +6592,14 @@ declare class FuncType extends Type {
      * @type {Type[]}
      */
     get retTypes(): Type[];
+    /**
+     * @package
+     * @param {Site} site
+     * @param {Map<string, Type>} map
+     * @param {Type[]} argTypes
+     * @returns {FuncType}
+     */
+    inferArgs(site: Site, map: Map<string, Type>, argTypes: Type[]): FuncType;
     /**
      * Checks if the type of the first arg is the same as 'type'
      * Also returns false if there are no args.
@@ -6545,15 +6663,23 @@ declare class FuncLiteralExpr extends ValueExpr {
      */
     get retTypes(): Type[];
     /**
-     * @param {Scope} scope
-     * @returns
+     * @returns {boolean}
      */
-    evalType(scope: Scope): FuncType;
+    hasParameters(): boolean;
+    /**
+     * @type {Parameter[]}
+     */
+    get parameters(): Parameter[];
     /**
      * @param {Scope} scope
-     * @returns {FuncInstance}
+     * @returns {FuncType}
      */
-    evalInternal(scope: Scope): FuncInstance;
+    evalTypeInternal(scope: Scope): FuncType;
+    /**
+     * @param {Scope} scope
+     * @returns {FuncType}
+     */
+    evalType(scope: Scope): FuncType;
     isMethod(): boolean;
     /**
      * @returns {IR}
@@ -6609,12 +6735,45 @@ declare class UplcAnon extends UplcValue {
     callSync(callSite: Site, subStack: UplcStack, args: UplcValue[]): UplcValue | Promise<UplcValue>;
     #private;
 }
+declare class NotType extends EvalEntity {
+}
 /**
+ * Only func instances can be parametrics instances,
+ *  there are no other kinds of parametric instances
  * @package
  */
-declare class TypeClass extends EvalEntity {
-}
-declare class NotType extends EvalEntity {
+declare class ParametricInstance extends FuncInstance {
+    /**
+     * @param {Parameter[]} params
+     * @param {FuncType} fnType
+     * @param {?() => string} correctMemberName
+     */
+    constructor(params: Parameter[], fnType: FuncType, correctMemberName?: (() => string) | null);
+    get params(): Parameter[];
+    get fnType(): FuncType;
+    /**
+     * null TypeClasses aren't included
+     * @type {TypeClass[]}
+     */
+    get typeClasses(): TypeClass[];
+    get correctMemberName(): () => string;
+    /**
+     * @param {Type} type
+     * @returns {boolean}
+     */
+    isInstanceOf(type: Type): boolean;
+    /**
+     * Must infer before calling
+     * @param {Site} site
+     * @param {Instance[]} args
+     * @param {{[name: string]: Instance}} namedArgs
+     * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
+     * @returns {Instance}
+     */
+    call(site: Site, args: Instance[], namedArgs?: {
+        [name: string]: Instance;
+    }, paramTypes?: Type[]): Instance;
+    #private;
 }
 /**
  * @package
@@ -6648,11 +6807,18 @@ declare class ArgType {
      */
     toString(): string;
     /**
+     * @package
      * @param {Site} site
+     * @param {Map<string, Type>} map
+     * @param {Type | null} type
+     * @returns {ArgType}
+     */
+    infer(site: Site, map: Map<string, Type>, type: Type | null): ArgType;
+    /**
      * @param {ArgType} other
      * @returns {boolean}
      */
-    isBaseOf(site: Site, other: ArgType): boolean;
+    isBaseOf(other: ArgType): boolean;
     #private;
 }
 /**
@@ -6685,24 +6851,28 @@ declare class ValueExpr extends Expr {
     #private;
 }
 /**
- * A callable Instance.
  * @package
  */
-declare class FuncInstance extends Instance {
+declare class Parameter {
     /**
-     * @param {FuncType} type
+     * @param {string} name - typically "a" or "b"
+     * @param {TypeClass} typeClass
      */
-    constructor(type: FuncType);
+    constructor(name: string, typeClass?: TypeClass);
     /**
-     * @param {RecursivenessChecker} scope
-     * @returns {boolean}
+     * @type {string}
      */
-    isRecursive(scope: RecursivenessChecker): boolean;
+    get name(): string;
     /**
-     * Returns the underlying FuncType directly.
-     * @returns {FuncType}
+     * @type {ParamTypeRef}
      */
-    getFuncType(): FuncType;
+    get ref(): ParamTypeRef;
+    /**
+     * A null TypeClass matches any type
+     * @type {TypeClass}
+     */
+    get typeClass(): TypeClass;
+    toString(): string;
     #private;
 }
 /**
@@ -6713,7 +6883,29 @@ declare class TypeParameters {
      * @param {TypeParameter[]} parameters
      */
     constructor(parameters: TypeParameter[]);
+    hasParameters(): boolean;
+    get parameters(): Parameter[];
+    /**
+     * @returns {string}
+     */
     toString(): string;
+    /**
+     * @param {Scope} scope
+     */
+    eval(scope: Scope): Scope;
+    /**
+     *
+     * @param {FuncType} fnType
+     * @returns {Instance}
+     */
+    createInstance(fnType: FuncType): Instance;
+    /**
+     * TODO: indent properly
+     * @param {string} indent
+     * @param {IR} ir
+     * @returns {IR}
+     */
+    wrapIR(indent: string, ir: IR): IR;
     #private;
 }
 /**
@@ -6789,10 +6981,45 @@ declare class TypeExpr extends Expr {
     #private;
 }
 /**
+ * A callable Instance.
+ * @package
+ */
+declare class FuncInstance extends Instance {
+    /**
+     * @param {FuncType} type
+     */
+    constructor(type: FuncType);
+    /**
+     * @param {RecursivenessChecker} scope
+     * @returns {boolean}
+     */
+    isRecursive(scope: RecursivenessChecker): boolean;
+    /**
+     * Returns the underlying FuncType directly.
+     * @returns {FuncType}
+     */
+    getFuncType(): FuncType;
+    #private;
+}
+/**
  * Base class of every Type and Instance expression.
  */
 declare class Expr extends Token {
     use(): void;
+}
+/**
+ * @package
+ */
+declare class ParamTypeRef extends Type {
+    /**
+     * @param {string} name
+     */
+    constructor(name: string);
+    /**
+     * @type {string}
+     */
+    get name(): string;
+    #private;
 }
 /**
  * @package
@@ -6804,9 +7031,25 @@ declare class TypeParameter {
      */
     constructor(name: Word, typeClassExpr: null | TypeClassExpr);
     /**
+     * @type {string}
+     */
+    get name(): string;
+    /**
+     * @type {TypeClass}
+     */
+    get typeClass(): TypeClass;
+    /**
      * @returns {string}
      */
     toString(): string;
+    /**
+     * @param {Scope} scope
+     */
+    eval(scope: Scope): void;
+    /**
+     * @returns {IR[]}
+     */
+    collectIR(): IR[];
     #private;
 }
 /**
@@ -6864,6 +7107,10 @@ declare class TypeClassExpr extends Expr {
      * @param {Word} name
      */
     constructor(name: Word);
+    /**
+     * @type {TypeClass}
+     */
+    get typeClass(): TypeClass;
     /**
      * @param {Scope} scope
      * @returns {TypeClass}

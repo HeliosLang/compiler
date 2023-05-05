@@ -45,7 +45,8 @@ import {
     RawDataType,
     StatementType,
     Type,
-    StructStatementType
+    StructStatementType,
+	ParametricFuncStatementInstance
 } from "./helios-eval-entities.js";
 
 import {
@@ -216,7 +217,7 @@ export class ImportFromStatement extends Statement {
 	eval(scope) {
 		let v = this.evalInternal(scope);
 
-		if (v instanceof FuncStatementInstance || v instanceof ConstStatementInstance || v instanceof StatementType) {
+		if (v instanceof FuncStatementInstance || v instanceof ParametricFuncStatementInstance || v instanceof ConstStatementInstance || v instanceof StatementType) {
 			this.#origStatement = assertClass(v.statement, Statement);
 		}
 
@@ -367,7 +368,7 @@ export class ConstStatement extends Statement {
 		const type = this.type;
 		const site = this.#valueExpr.site;
 
-		if ((new BoolType()).isBaseOf(site, type)) {
+		if ((new BoolType()).isBaseOf(type)) {
 			this.#valueExpr = new PrimitiveLiteralExpr(new BoolLiteral(site, data.index == 1));
 		} else {
 			this.#valueExpr = new LiteralDataExpr(site, type, data);
@@ -400,7 +401,7 @@ export class ConstStatement extends Statement {
 		} else {
 			type = this.#typeExpr.eval(scope);
 
-			if (!value.isInstanceOf(this.#valueExpr.site, type)) {
+			if (!value.isInstanceOf(type)) {
 				throw this.#valueExpr.typeError("wrong type");
 			}
 		}
@@ -971,7 +972,9 @@ export class FuncStatement extends Statement {
 
 		let fnType = this.evalType(scope);
 
-		let fnVal = new FuncStatementInstance(fnType, this);
+		let fnVal = this.#funcExpr.hasParameters() ?
+			new ParametricFuncStatementInstance(this.#funcExpr.parameters, fnType, this) :
+			new FuncStatementInstance(fnType, this);
 
 		scope.set(this.name, fnVal);
 
