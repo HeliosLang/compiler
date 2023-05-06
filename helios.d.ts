@@ -211,7 +211,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.35";
+export const VERSION: "0.13.36";
 /**
  * Modifiable config vars
  * @type {{
@@ -3073,6 +3073,50 @@ export class Program {
     compileParametric(parameters: string[], simplify?: boolean): UplcProgram;
     #private;
 }
+export class NativeScript extends CborData {
+    /**
+     * @param {string | number[]} raw
+     * @returns {NativeScript}
+     */
+    static fromCbor(raw: string | number[]): NativeScript;
+    /**
+     * @param {string | Object} json
+     * @returns {NativeScript}
+     */
+    static fromJson(json: string | any): NativeScript;
+    /**
+     * @param {number} type
+     */
+    constructor(type: number);
+    /**
+     * @returns {number[]}
+     */
+    typeToCbor(): number[];
+    /**
+     * @returns {Object}
+     */
+    toJson(): any;
+    /**
+     * @param {NativeContext} context
+     * @returns {boolean}
+     */
+    eval(context: NativeContext): boolean;
+    /**
+     * @returns {number[]}
+     */
+    hash(): number[];
+    /**
+     * A NativeScript can be used both as a Validator and as a MintingPolicy
+     * @returns {ValidatorHash}
+     */
+    validatorHash(): ValidatorHash;
+    /**
+     * A NativeScript can be used both as a Validator and as a MintingPolicy
+     * @returns {MintingPolicyHash}
+     */
+    mintingPolicyHash(): MintingPolicyHash;
+    #private;
+}
 export class Tx extends CborData {
     /**
      * @param {number[]} bytes
@@ -3115,10 +3159,10 @@ export class Tx extends CborData {
      * Throws error if assets of given mph are already being minted in this transaction
      * @param {MintingPolicyHash} mph
      * @param {[number[] | string, bigint][]} tokens - list of pairs of [tokenName, quantity], tokenName can be list of bytes or hex-string
-     * @param {UplcDataValue | UplcData} redeemer
+     * @param {UplcDataValue | UplcData | null} redeemer
      * @returns {Tx}
      */
-    mintTokens(mph: MintingPolicyHash, tokens: [number[] | string, bigint][], redeemer: UplcDataValue | UplcData): Tx;
+    mintTokens(mph: MintingPolicyHash, tokens: [number[] | string, bigint][], redeemer: UplcDataValue | UplcData | null): Tx;
     /**
      * @param {UTxO} input
      * @param {?(UplcDataValue | UplcData)} redeemer
@@ -3160,10 +3204,10 @@ export class Tx extends CborData {
     /**
      * Unused scripts are detected during finalize(), in which case an error is thrown
      * Throws error if script was already added before
-     * @param {UplcProgram} program
+     * @param {UplcProgram | NativeScript} program
      * @returns {Tx}
      */
-    attachScript(program: UplcProgram): Tx;
+    attachScript(program: UplcProgram | NativeScript): Tx;
     /**
      * Usually adding only one collateral input is enough
      * Must be less than the limit in networkParams (eg. 3), or else an error is thrown during finalization
@@ -3311,9 +3355,14 @@ export class TxWitnesses extends CborData {
     get signatures(): Signature[];
     /**
      * Returns all the scripts, including the reference scripts
-     * @type {UplcProgram[]}
+     * @type {(UplcProgram | NativeScript)[]}
      */
-    get scripts(): UplcProgram[];
+    get scripts(): (UplcProgram | NativeScript)[];
+    /**
+     * @param {ValidatorHash | MintingPolicyHash} h
+     * @returns {boolean}
+     */
+    isNativeScript(h: ValidatorHash | MintingPolicyHash): boolean;
     /**
      * @returns {boolean}
      */
@@ -3357,17 +3406,21 @@ export class TxWitnesses extends CborData {
      */
     addDatumData(data: UplcData): void;
     /**
+     * @param {NativeScript} script
+     */
+    attachNativeScript(script: NativeScript): void;
+    /**
      * Throws error if script was already added before
      * @param {UplcProgram} program
      * @param {boolean} isRef
      */
-    attachScript(program: UplcProgram, isRef?: boolean): void;
+    attachPlutusScript(program: UplcProgram, isRef?: boolean): void;
     /**
      * Retrieves either a regular script or a reference script
      * @param {Hash} scriptHash - can be ValidatorHash or MintingPolicyHash
      * @returns {UplcProgram}
      */
-    getScript(scriptHash: Hash): UplcProgram;
+    getUplcProgram(scriptHash: Hash): UplcProgram;
     /**
      * @param {TxBody} body
      */
@@ -3386,6 +3439,18 @@ export class TxWitnesses extends CborData {
      * @returns {Promise<Cost>}
      */
     executeRedeemer(networkParams: NetworkParams, body: TxBody, redeemer: Redeemer, scriptContext: UplcData): Promise<Cost>;
+    /**
+     * Executes the redeemers in order to calculate the necessary ex units
+     * @param {NetworkParams} networkParams
+     * @param {TxBody} body - needed in order to create correct ScriptContexts
+     * @param {Address} changeAddress - needed for dummy input and dummy output
+     * @returns {Promise<void>}
+     */
+    executeScripts(networkParams: NetworkParams, body: TxBody, changeAddress: Address): Promise<void>;
+    /**
+     * @param {TxBody} body
+     */
+    executeNativeScripts(body: TxBody): void;
     /**
      * Executes the redeemers in order to calculate the necessary ex units
      * @param {NetworkParams} networkParams
@@ -5420,6 +5485,37 @@ declare class TopScope extends Scope {
     #private;
 }
 /**
+ * @package
+ */
+declare class NativeContext {
+    /**
+     *
+     * @param {bigint | null} firstValidSlot
+     * @param {bigint | null} lastValidSlot
+     * @param {PubKeyHash[]} keys
+     */
+    constructor(firstValidSlot: bigint | null, lastValidSlot: bigint | null, keys: PubKeyHash[]);
+    /**
+     * Used by NativeAfter
+     * @param {bigint} slot
+     * @returns {boolean}
+     */
+    isAfter(slot: bigint): boolean;
+    /**
+     *
+     * @param {bigint} slot
+     * @returns {boolean}
+     */
+    isBefore(slot: bigint): boolean;
+    /**
+     *
+     * @param {PubKeyHash} key
+     * @returns {boolean}
+     */
+    isSignedBy(key: PubKeyHash): boolean;
+    #private;
+}
+/**
  * inputs, minted assets, and withdrawals need to be sorted in order to form a valid transaction
  */
 declare class TxBody extends CborData {
@@ -5449,6 +5545,18 @@ declare class TxBody extends CborData {
      * @type {TxInput[]}
      */
     get collateral(): TxInput[];
+    /**
+     * @type {bigint | null}
+     */
+    get firstValidSlot(): bigint;
+    /**
+     * @type {bigint | null}
+     */
+    get lastValidSlot(): bigint;
+    /**
+     * @type {PubKeyHash[]}
+     */
+    get signers(): PubKeyHash[];
     /**
      * @returns {Object}
      */

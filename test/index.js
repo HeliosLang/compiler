@@ -28,7 +28,8 @@ async function main() {
 		"./simplify.js",
 		"./syntax.js",
 		"./tx-building.js",
-		"./user-types.js"
+		"./user-types.js",
+		"./native.js"
 	]);
 }
 

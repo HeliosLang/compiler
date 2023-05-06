@@ -30,6 +30,7 @@ const FILES = [
 	"ir-build.js",
 	"ir-program.js",
 	"helios-program.js",
+	"native.js",
 	"tx-builder.js",
 	"highlight.js",
 	"fuzzy-test.js",

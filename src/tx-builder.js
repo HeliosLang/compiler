@@ -45,6 +45,7 @@ import {
     StakeKeyHash,
     StakingValidatorHash,
     TxId,
+	ValidatorHash,
 	Value
 } from "./helios-data.js";
 
@@ -67,6 +68,11 @@ import {
 import {
     UplcProgram
 } from "./uplc-program.js";
+
+import {
+	NativeContext,
+	NativeScript
+} from "./native.js";
 
 export class Tx extends CborData {
 	/**
@@ -238,7 +244,7 @@ export class Tx extends CborData {
 	 * Throws error if assets of given mph are already being minted in this transaction
 	 * @param {MintingPolicyHash} mph 
 	 * @param {[number[] | string, bigint][]} tokens - list of pairs of [tokenName, quantity], tokenName can be list of bytes or hex-string
-	 * @param {UplcDataValue | UplcData} redeemer
+	 * @param {UplcDataValue | UplcData | null} redeemer
 	 * @returns {Tx}
 	 */
 	mintTokens(mph, tokens, redeemer) {
@@ -252,7 +258,14 @@ export class Tx extends CborData {
 			}
 		}));
 
-		this.#witnesses.addMintingRedeemer(mph, UplcDataValue.unwrap(redeemer));
+		if (!redeemer) {
+			if (!this.#witnesses.isNativeScript(mph)) {
+				throw new Error("no redeemer specified for minted tokens (hint: if this policy is a NativeScript, attach that script before calling tx.mintTokens())");
+			}
+		} else {
+			this.#witnesses.addMintingRedeemer(mph, UplcDataValue.unwrap(redeemer));
+		}
+		
 
 		return this;
 	}
@@ -290,7 +303,11 @@ export class Tx extends CborData {
 					}
 				}
 			} else {
-				assert(input.origOutput.address.pubKeyHash !== null, "input is locked by a script, but redeemer isn't specified");
+				if (input.origOutput.address.pubKeyHash === null) {
+					if (!this.#witnesses.isNativeScript(assertDefined(input.origOutput.address.validatorHash))) {
+						throw new Error("input is locked by a script, but redeemer isn't specified (hint: if this is a NativeScript, attach that script before calling tx.addInput())");
+					}
+				}
 			}
 		}
 
@@ -321,7 +338,7 @@ export class Tx extends CborData {
 		this.#body.addRefInput(input);
 
 		if (refScript !== null) {
-			this.#witnesses.attachScript(refScript, true);
+			this.#witnesses.attachPlutusScript(refScript, true);
 		}
 
 		return this;
@@ -379,13 +396,17 @@ export class Tx extends CborData {
 	/**
 	 * Unused scripts are detected during finalize(), in which case an error is thrown
 	 * Throws error if script was already added before
-	 * @param {UplcProgram} program
+	 * @param {UplcProgram | NativeScript} program
 	 * @returns {Tx}
 	 */
 	attachScript(program) {
 		assert(!this.#valid);
 
-		this.#witnesses.attachScript(program);
+		if (program instanceof NativeScript) { 
+			this.#witnesses.attachNativeScript(program);
+		} else {
+			this.#witnesses.attachPlutusScript(program);
+		}
 
 		return this;
 	}
@@ -478,7 +499,7 @@ export class Tx extends CborData {
 		this.#body.collectScriptHashes(wantedScripts);
 
 		if (wantedScripts.size < scripts.length) {
-			throw new Error("too many scripts included");
+			throw new Error("too many scripts included, not all are needed");
 		} else if (wantedScripts.size > scripts.length) {
 			wantedScripts.forEach((value, key) => {
 				if (!currentScripts.has(key)) {
@@ -494,7 +515,7 @@ export class Tx extends CborData {
 		currentScripts.forEach((key) => {
 			if (!wantedScripts.has(key)) {
 				console.log(wantedScripts, currentScripts)
-				throw new Error("unused script");
+				throw new Error("detected unused script");
 			}
 		});
 	}
@@ -505,7 +526,7 @@ export class Tx extends CborData {
 	 * @returns {Promise<void>}
 	 */
 	async executeRedeemers(networkParams, changeAddress) {
-		await this.#witnesses.executeRedeemers(networkParams, this.#body, changeAddress);
+		await this.#witnesses.executeScripts(networkParams, this.#body, changeAddress);
 	}
 
 	/**
@@ -988,7 +1009,7 @@ class TxBody extends CborData {
 	/** @type {bigint} in lovelace */
 	#fee;
 
-	/** @type {?bigint} */
+	/** @type {null | bigint} */
 	#lastValidSlot;
 
 	/** @type {DCert[]} */
@@ -1001,7 +1022,7 @@ class TxBody extends CborData {
 	 */
 	#withdrawals;
 
-	/** @type {?bigint} */
+	/** @type {null | bigint} */
 	#firstValidSlot;
 
 	/**
@@ -1020,7 +1041,7 @@ class TxBody extends CborData {
 	/** @type {PubKeyHash[]} */
 	#signers;
 
-	/** @type {?TxOutput} */
+	/** @type {null | TxOutput} */
 	#collateralReturn;
 
 	/** @type {bigint} */
@@ -1089,6 +1110,27 @@ class TxBody extends CborData {
 	 */
 	get collateral() {
 		return this.#collateral;
+	}
+
+	/**
+	 * @type {bigint | null}
+	 */
+	get firstValidSlot() {
+		return this.#firstValidSlot;
+	}
+
+	/**
+	 * @type {bigint | null}
+	 */
+	get lastValidSlot() {
+		return this.#lastValidSlot;
+	}
+
+	/**
+	 * @type {PubKeyHash[]}
+	 */
+	get signers() {
+		return this.#signers.slice();
 	}
 
 	/**
@@ -1705,13 +1747,17 @@ export class TxWitnesses extends CborData {
 	/** @type {UplcProgram[]} */
 	#refScripts;
 
+	/** @type {NativeScript[]} */
+	#nativeScripts;
+
 	constructor() {
 		super();
 		this.#signatures = [];
 		this.#datums = new ListData([]);
 		this.#redeemers = [];
-		this.#scripts = [];
+		this.#scripts = []; // always plutus v2
 		this.#refScripts = [];
+		this.#nativeScripts = [];
 	}
 
 	/**
@@ -1723,17 +1769,32 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * Returns all the scripts, including the reference scripts
-	 * @type {UplcProgram[]}
+	 * @type {(UplcProgram | NativeScript)[]}
 	 */
 	get scripts() {
-		return this.#scripts.slice().concat(this.#refScripts.slice());
+		/**
+		 * @type {(UplcProgram | NativeScript)[]}
+		 */
+		let allScripts = this.#scripts.slice().concat(this.#refScripts.slice())
+		
+		allScripts = allScripts.concat(this.#nativeScripts.slice());
+
+		return allScripts;
+	}
+
+	/**
+	 * @param {ValidatorHash | MintingPolicyHash} h 
+	 * @returns {boolean}
+	 */
+	isNativeScript(h) {
+		return this.#nativeScripts.some(s => eq(s.hash(), h.bytes));
 	}
 
 	/**
 	 * @returns {boolean}
 	 */
 	anyScriptCallsTxTimeRange() {
-		return this.scripts.some(p => p.properties.callsTxTimeRange);
+		return this.scripts.some(s => (s instanceof UplcProgram) && s.properties.callsTxTimeRange);
 	}
 
 	/**
@@ -1745,19 +1806,23 @@ export class TxWitnesses extends CborData {
 		 */
 		let object = new Map();
 
-		if (this.#signatures.length != 0) {
+		if (this.#signatures.length > 0) {
 			object.set(0, CborData.encodeDefList(this.#signatures));
 		}
+		
+		if (this.#nativeScripts.length > 0) {
+			object.set(1, CborData.encodeDefList(this.#nativeScripts));
+		}
 
-		if (this.#datums.list.length != 0) {
+		if (this.#datums.list.length > 0) {
 			object.set(4, this.#datums.toCbor());
 		}
 
-		if (this.#redeemers.length != 0) {
+		if (this.#redeemers.length > 0) {
 			object.set(5, CborData.encodeDefList(this.#redeemers));
 		}
 
-		if (this.#scripts.length != 0) {
+		if (this.#scripts.length > 0) {
 			/**
 			 * @type {number[][]}
 			 */
@@ -1784,6 +1849,9 @@ export class TxWitnesses extends CborData {
 					});
 					break;
 				case 1:
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+						txWitnesses.#nativeScripts.push(NativeScript.fromCbor(itemBytes));
+					});
 				case 2:
 				case 3:
 					throw new Error("unhandled field");
@@ -1826,6 +1894,7 @@ export class TxWitnesses extends CborData {
 			signatures: this.#signatures.map(pkw => pkw.dump()),
 			datums: this.#datums.list.map(datum => datum.toString()),
 			redeemers: this.#redeemers.map(redeemer => redeemer.dump()),
+			nativeScripts: this.#nativeScripts.map(script => script.toJson()),
 			scripts: this.#scripts.map(script => bytesToHex(script.toCbor())),
 			refScripts: this.#refScripts.map(script => bytesToHex(script.toCbor())),
 		};
@@ -1900,12 +1969,23 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @param {NativeScript} script 
+	 */
+	attachNativeScript(script) {
+		const h = script.hash();
+
+		assert(this.#nativeScripts.every(other => !eq(h, other.hash())));
+
+		this.#nativeScripts.push(script);
+	}
+
+	/**
 	 * Throws error if script was already added before
 	 * @param {UplcProgram} program 
 	 * @param {boolean} isRef
 	 */
-	attachScript(program, isRef = false) {
-		let h = program.hash();
+	attachPlutusScript(program, isRef = false) {
+		const h = program.hash();
 
 		assert(this.#scripts.every(s => !eq(s.hash(), h)));
 		assert(this.#refScripts.every(s => !eq(s.hash(), h)));
@@ -1922,8 +2002,14 @@ export class TxWitnesses extends CborData {
 	 * @param {Hash} scriptHash - can be ValidatorHash or MintingPolicyHash
 	 * @returns {UplcProgram}
 	 */
-	getScript(scriptHash) {
-		return assertDefined(this.scripts.find(s => eq(s.hash(), scriptHash.bytes)));
+	getUplcProgram(scriptHash) {
+		const p = this.scripts.find(s => eq(s.hash(), scriptHash.bytes));
+
+		if (!(p instanceof UplcProgram)) {
+			throw new Error("not a uplc program");
+		}
+
+		return p;
 	}
 
 	/**
@@ -1985,7 +2071,7 @@ export class TxWitnesses extends CborData {
 				if (validatorHash === null || validatorHash === undefined) {
 					throw new Error("expected validatorHash to be non-null");
 				} else {
-					const script = this.getScript(validatorHash);
+					const script = this.getUplcProgram(validatorHash);
 
 					const args = [
 						new UplcDataValue(Site.dummy(), datumData), 
@@ -2007,7 +2093,7 @@ export class TxWitnesses extends CborData {
 		} else if (redeemer instanceof MintingRedeemer) {
 			const mph = body.minted.mintingPolicies[redeemer.mphIndex];
 
-			const script = this.getScript(mph);
+			const script = this.getUplcProgram(mph);
 
 			const args = [
 				new UplcDataValue(Site.dummy(), redeemer.data),
@@ -2026,6 +2112,32 @@ export class TxWitnesses extends CborData {
 		} else {
 			throw new Error("unhandled redeemer type");
 		}
+	}
+
+	/**
+	 * Executes the redeemers in order to calculate the necessary ex units
+	 * @param {NetworkParams} networkParams 
+	 * @param {TxBody} body - needed in order to create correct ScriptContexts
+	 * @param {Address} changeAddress - needed for dummy input and dummy output
+	 * @returns {Promise<void>}
+	 */
+	async executeScripts(networkParams, body, changeAddress) {
+		await this.executeRedeemers(networkParams, body, changeAddress);
+
+		this.executeNativeScripts(body);
+	}
+	
+	/**
+	 * @param {TxBody} body
+	 */
+	executeNativeScripts(body) {
+		const ctx = new NativeContext(body.firstValidSlot, body.lastValidSlot, body.signers);
+
+		this.#nativeScripts.forEach(s => {
+			if (!s.eval(ctx)) {
+				throw new Error("native script execution returned false");
+			}
+		});
 	}
 
 	/**

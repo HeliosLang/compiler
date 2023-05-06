@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.35
+// Version:       0.13.36
 // Last update:   May 2023
 // License type:  BSD-3-Clause
 //
@@ -226,23 +226,26 @@
 //                                           DatumRedeemerProgram, TestingProgram, 
 //                                           SpendingProgram, MintingProgram, StakingProgram
 //
-//     Section 25: Tx types                  Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
+//     Section 25: Native scripts            NativeContext, NativeScript, NativeSig, NativeAll, 
+//                                           NativeAny, NativeAtLeast, NativeAfter, NativeBefore
+//
+//     Section 26: Tx types                  Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
 //                                           TxOutput, DCert, StakeAddress, Signature, Redeemer, 
 //                                           SpendingRedeemer, MintingRedeemer, Datum, 
 //                                           HashedDatum, InlineDatum, encodeMetadata, 
 //                                           decodeMetadata, TxMetadata
 //
-//     Section 26: Highlighting function     SyntaxCategory, highlight
+//     Section 27: Highlighting function     SyntaxCategory, highlight
 //
-//     Section 27: Fuzzy testing framework   FuzzyTest
+//     Section 28: Fuzzy testing framework   FuzzyTest
 //
-//     Section 28: CoinSelection             CoinSelection
+//     Section 29: CoinSelection             CoinSelection
 //
-//     Section 29: Wallets                   Cip30Wallet, WalletHelper
+//     Section 30: Wallets                   Cip30Wallet, WalletHelper
 //
-//     Section 30: Network                   BlockfrostV0
+//     Section 31: Network                   BlockfrostV0
 //
-//     Section 31: Emulator                  WalletEmulator, GenesisTx, RegularTx, NetworkEmulator
+//     Section 32: Emulator                  WalletEmulator, GenesisTx, RegularTx, NetworkEmulator
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -255,7 +258,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.35";
+export const VERSION = "0.13.36";
 
 /**
  * A tab used for indenting of the IR.
@@ -36628,8 +36631,594 @@ class StakingProgram extends RedeemerProgram {
 }
 
 
+/////////////////////////////
+// Section 25: Native scripts
+/////////////////////////////
+
+/**
+ * @package
+ */
+class NativeContext {
+    #firstValidSlot;
+    #lastValidSlot;
+    #keys;
+
+    /**
+     * 
+     * @param {bigint | null} firstValidSlot 
+     * @param {bigint | null} lastValidSlot 
+     * @param {PubKeyHash[]} keys
+     */
+    constructor(firstValidSlot, lastValidSlot, keys) {
+        this.#firstValidSlot = firstValidSlot;
+        this.#lastValidSlot = lastValidSlot;
+        this.#keys = keys;
+    }
+
+    /**
+     * Used by NativeAfter
+     * @param {bigint} slot 
+     * @returns {boolean}
+     */
+    isAfter(slot) {
+        if (this.#firstValidSlot !== null) {
+            return this.#firstValidSlot >= slot;
+        } else {
+            console.error("Warning: tx validity time range start not set but checked in native script");
+            return false;
+        }
+    }
+
+    /**
+     * 
+     * @param {bigint} slot 
+     * @returns {boolean}
+     */
+    isBefore(slot) {
+        if (this.#lastValidSlot !== null) {
+            return this.#lastValidSlot < slot;
+        } else {
+            console.error("Warning: tx validity time range end not set but checked in native script");
+            return false;
+        }
+    }
+
+    /**
+     * 
+     * @param {PubKeyHash} key
+     * @returns {boolean}
+     */
+    isSignedBy(key) {
+        return this.#keys.some((k => k.eq(key)));
+    }
+}
+
+export class NativeScript extends CborData {
+    #type;
+
+    /**
+     * @param {number} type 
+     */
+    constructor(type) {
+        super();
+        this.#type = type;
+    }
+
+    /**
+     * @returns {number[]}
+     */
+    typeToCbor() {
+        return CborData.encodeInteger(BigInt(this.#type));
+    }
+
+    /**
+     * @param {string | number[]} raw 
+     * @returns {NativeScript}
+     */
+    static fromCbor(raw) {
+        const bytes = (typeof raw == "string") ? hexToBytes(raw) : raw;
+
+        if (bytes[0] == 0) {
+            bytes.shift();
+        }
+
+        let type = -1;
+
+        /**
+         * @type {bigint}
+         */
+        let nOrSlot = -1n;
+
+        /**
+         * @type {NativeScript | null}
+         */
+        let script = null;
+
+        CborData.decodeTuple(bytes, (i, fieldBytes) => {
+            if (i == 0) {
+                type = Number(CborData.decodeInteger(fieldBytes))
+            } else {
+                switch(type) {
+                    case 0:
+                        assert(i == 1);
+
+                        script = new NativeSig(PubKeyHash.fromCbor(fieldBytes));
+                        
+                        break;
+                    case 1:
+                    case 2: {
+                            assert(i == 1);
+
+                            /**
+                             * @type {NativeScript[]}
+                             */
+                            const children = [];
+
+                            CborData.decodeList(fieldBytes, (_, listBytes) => {
+                                children.push(NativeScript.fromCbor(listBytes))
+                            });
+
+                            switch (type) {
+                                case 1:
+                                    script = new NativeAll(children);
+                                    break;
+                                case 2:
+                                    script = new NativeAny(children);
+                                    break;
+                                default:
+                                    throw new Error("unexpected");
+                            }
+                        }
+
+                        break;
+                    case 3:
+                        if (i == 1) {
+                            nOrSlot = CborData.decodeInteger(fieldBytes);
+                        } else {
+                            assert(i == 2);
+
+                            /**
+                             * @type {NativeScript[]}
+                             */
+                            const children = [];
+
+                            CborData.decodeList(fieldBytes, (_, listBytes) => {
+                                children.push(NativeScript.fromCbor(listBytes))
+                            });
+
+                            script = new NativeAtLeast(Number(nOrSlot), children);
+                        }
+
+                        break;
+                    case 4:
+                    case 5:
+                        assert(i == 1);
+
+                        nOrSlot = CborData.decodeInteger(fieldBytes);
+
+                        switch(type) {
+                            case 4:
+                                script = new NativeAfter(nOrSlot);
+                                break;
+                            case 5:
+                                script = new NativeBefore(nOrSlot);
+                                break;
+                            default:
+                                throw new Error("unexpected");
+                        }
+
+                        break;
+                    default:
+                        throw new Error("unexpected");
+                }
+            }
+        });
+
+        if (!script) {
+            throw new Error("unable to deserialize native script");
+        } else {
+            return script;
+        }
+    }
+
+    /**
+     * @param {string | Object} json 
+     * @returns {NativeScript}
+     */
+    static fromJson(json) {
+        const obj = (typeof json == "string") ? JSON.parse(json) : json;
+
+        const type = obj.type;
+
+        if (!type) {
+            throw new Error("invalid Native script");
+        }
+
+        switch (type) {
+            case "sig": {
+                const keyHash = obj.keyHash;
+
+                if (!keyHash) {
+                    throw new Error("invalid NativeKey script");
+                }
+
+                return new NativeSig(PubKeyHash.fromHex(keyHash));
+            }
+            case "all": {
+                /**
+                 * @type {Object[]}
+                 */
+                const scripts = obj.scripts;
+
+                if (!scripts) {
+                    throw new Error("invalid NativeAll script");
+                }
+
+                return new NativeAll(scripts.map(s => NativeScript.fromJson(s)));
+            }
+            case "any": {
+                /**
+                 * @type {Object[]}
+                 */
+                const scripts = obj.scripts;
+
+                if (!scripts) {
+                    throw new Error("invalid NativeAny script");
+                }
+
+                return new NativeAny(scripts.map(s => NativeScript.fromJson(s)));
+            }
+            case "atLeast": {
+                const n = obj.required;
+
+                if (typeof n != "number") {
+                    throw new Error("invalid NativeAtLeast script");
+                }
+
+                /**
+                 * @type {Object[]}
+                 */
+                const scripts = obj.scripts;
+
+                if (!scripts) {
+                    throw new Error("invalid NativeAtLeast script");
+                }
+    
+
+                return new NativeAtLeast(n, scripts.map(s => NativeScript.fromJson(s)));
+            }
+            case "after": {
+                const slot = obj.slot;
+
+                if (typeof slot != "number") {
+                    throw new Error("invalid NativeAfter script");
+                }
+
+                return new NativeAfter(BigInt(slot));
+            }
+            case "before": {
+                const slot = obj.slot;
+
+                if (typeof slot != "number") {
+                    throw new Error("invalid NativeAfter script");
+                }
+
+                return new NativeBefore(BigInt(slot));
+            }
+            default:
+                throw new Error(`unrecognized NativeScript type '${type}'`);
+        }
+    }
+
+    /**
+     * @returns {Object}
+     */
+    toJson() {
+        throw new Error("not implemented");
+    }
+
+    /**
+     * @param {NativeContext} context 
+     * @returns {boolean}
+     */
+    eval(context) {
+       throw new Error("not implemented");
+    }
+
+    /**
+     * @returns {number[]}
+     */
+    hash() {
+        let innerBytes = this.toCbor();
+
+		innerBytes.unshift(0);
+
+		// used for both script addresses and minting policy hashes
+		return Crypto.blake2b(innerBytes, 28);
+    }
+
+    /**
+     * A NativeScript can be used both as a Validator and as a MintingPolicy
+     * @returns {ValidatorHash}
+     */
+    validatorHash() {
+        return new ValidatorHash(this.hash());
+    }
+
+    /**
+     * A NativeScript can be used both as a Validator and as a MintingPolicy
+     * @returns {MintingPolicyHash}
+     */
+    mintingPolicyHash() {
+        return new MintingPolicyHash(this.hash());
+    }
+}
+
+class NativeSig extends NativeScript {
+    #pkh;
+
+    /**
+     * @param {PubKeyHash} pkh 
+     */
+    constructor(pkh) {
+        super(0);
+        this.#pkh = pkh;
+    }
+
+    /**
+     * @returns {number[]}
+     */
+    toCbor() {
+        return CborData.encodeTuple([
+            this.typeToCbor(),
+            this.#pkh.toCbor()
+        ]);
+    }
+
+    /**
+     * @returns {Object}
+     */
+    toJson() {
+        return {
+            type: "sig",
+            keyHash: this.#pkh.hex
+        }
+    }
+
+    /**
+     * @param {NativeContext} context 
+     * @returns {boolean}
+     */
+    eval(context) {
+        return context.isSignedBy(this.#pkh);
+    }
+}
+
+class NativeAll extends NativeScript {
+    #scripts;
+
+    /**
+     * @param {NativeScript[]} scripts 
+     */
+    constructor(scripts) {
+        super(1);
+        assert(scripts.length > 0);
+        this.#scripts = scripts;
+    }
+
+    /**
+     * @returns {number[]}
+     */
+    toCbor() {
+        return CborData.encodeTuple([
+            this.typeToCbor(),
+            CborData.encodeDefList(this.#scripts)
+        ]);
+    }
+
+    /**
+     * @returns {Object}
+     */
+    toJson() {
+        return {
+            type: "all",
+            scripts: this.#scripts.map(s => s.toJson())
+        }
+    }
+
+    /**
+     * @param {NativeContext} context 
+     * @returns {boolean}
+     */
+    eval(context) {
+        return this.#scripts.every(s => s.eval(context));
+    }
+}
+
+class NativeAny extends NativeScript {
+    #scripts;
+
+    /**
+     * @param {NativeScript[]} scripts
+     */
+    constructor(scripts) {
+        super(2);
+        assert(scripts.length > 0);
+        this.#scripts = scripts;
+    }
+
+    /**
+     * @returns {number[]}
+     */
+    toCbor() {
+        return CborData.encodeTuple([
+            this.typeToCbor(),
+            CborData.encodeDefList(this.#scripts)
+        ]);
+    }
+
+    /**
+     * @returns {Object}
+     */
+    toJson() {
+        return {
+            type: "any",
+            scripts: this.#scripts.map(s => s.toJson())
+        }
+    }
+
+    /**
+     * @param {NativeContext} context
+     * @returns {boolean}
+     */
+    eval(context) {
+        return this.#scripts.some(s => s.eval(context));
+    }
+}
+
+class NativeAtLeast extends NativeScript {
+    #required;
+    #scripts;
+
+    /**
+     * @param {number} required
+     * @param {NativeScript[]} scripts
+     */
+    constructor(required, scripts) {
+        super(3);
+        assert(scripts.length >= required);
+        this.#required = required;
+        this.#scripts = scripts;
+    }
+
+    /**
+     * @returns {number[]}
+     */
+    toCbor() {
+        return CborData.encodeTuple([
+            this.typeToCbor(),
+            CborData.encodeInteger(BigInt(this.#required)),
+            CborData.encodeDefList(this.#scripts)
+        ]);
+    }
+
+    /**
+     * @returns {Object}
+     */
+    toJson() {
+        return {
+            type: "atLeast",
+            required: this.#required,
+            scripts: this.#scripts.map(s => s.toJson())
+        };
+    }
+
+    /**
+     * @param {NativeContext} context
+     * @returns {boolean}
+     */
+    eval(context) {
+        const count = this.#scripts.reduce((prev, s) => prev + (s.eval(context) ? 1 : 0), 0);
+
+        return count >= this.#required;
+    }
+}
+
+class NativeAfter extends NativeScript {
+    #slot;
+
+    /**
+     * @param {bigint} slot
+     */
+    constructor(slot) {
+        super(4);
+        this.#slot = slot;
+    }
+
+    /**
+     * @returns {number[]}
+     */
+    toCbor() {
+        return CborData.encodeTuple([
+            this.typeToCbor(),
+            CborData.encodeInteger(this.#slot)
+        ])
+    }
+
+    /**
+     * @returns {Object}
+     */
+    toJson() {
+        const slot = Number(this.#slot);
+
+        if (BigInt(slot) != this.#slot) {
+            console.error("Warning: slot overflow (not representable by Number in Native script Json)");
+        }
+
+        return {
+            type: "after",
+            slot: slot
+        };
+    }
+
+    /**
+     * @param {NativeContext} context
+     * @returns {boolean}
+     */
+    eval(context) {
+        return context.isAfter(this.#slot);
+    }
+}
+
+class NativeBefore extends NativeScript {
+    #slot;
+
+    /**
+     * @param {bigint} slot
+     */
+    constructor(slot) {
+        super(5);
+        this.#slot = slot;
+    }
+
+    /**
+     * @returns {number[]}
+     */
+    toCbor() {
+        return CborData.encodeTuple([
+            this.typeToCbor(),
+            CborData.encodeInteger(this.#slot)
+        ])
+    }
+
+    /**
+     * @returns {Object}
+     */
+    toJson() {
+        const slot = Number(this.#slot);
+
+        if (BigInt(slot) != this.#slot) {
+            console.error("Warning: slot overflow (not representable by Number in Native script Json)");
+        }
+
+        return {
+            type: "before",
+            slot: slot
+        };
+    }
+
+    /**
+     * @param {NativeContext} context
+     * @returns {boolean}
+     */
+    eval(context) {
+        return context.isBefore(this.#slot);
+    }
+}
+
+
 ///////////////////////
-// Section 25: Tx types
+// Section 26: Tx types
 ///////////////////////
 
 export class Tx extends CborData {
@@ -36802,7 +37391,7 @@ export class Tx extends CborData {
 	 * Throws error if assets of given mph are already being minted in this transaction
 	 * @param {MintingPolicyHash} mph 
 	 * @param {[number[] | string, bigint][]} tokens - list of pairs of [tokenName, quantity], tokenName can be list of bytes or hex-string
-	 * @param {UplcDataValue | UplcData} redeemer
+	 * @param {UplcDataValue | UplcData | null} redeemer
 	 * @returns {Tx}
 	 */
 	mintTokens(mph, tokens, redeemer) {
@@ -36816,7 +37405,14 @@ export class Tx extends CborData {
 			}
 		}));
 
-		this.#witnesses.addMintingRedeemer(mph, UplcDataValue.unwrap(redeemer));
+		if (!redeemer) {
+			if (!this.#witnesses.isNativeScript(mph)) {
+				throw new Error("no redeemer specified for minted tokens (hint: if this policy is a NativeScript, attach that script before calling tx.mintTokens())");
+			}
+		} else {
+			this.#witnesses.addMintingRedeemer(mph, UplcDataValue.unwrap(redeemer));
+		}
+		
 
 		return this;
 	}
@@ -36854,7 +37450,11 @@ export class Tx extends CborData {
 					}
 				}
 			} else {
-				assert(input.origOutput.address.pubKeyHash !== null, "input is locked by a script, but redeemer isn't specified");
+				if (input.origOutput.address.pubKeyHash === null) {
+					if (!this.#witnesses.isNativeScript(assertDefined(input.origOutput.address.validatorHash))) {
+						throw new Error("input is locked by a script, but redeemer isn't specified (hint: if this is a NativeScript, attach that script before calling tx.addInput())");
+					}
+				}
 			}
 		}
 
@@ -36885,7 +37485,7 @@ export class Tx extends CborData {
 		this.#body.addRefInput(input);
 
 		if (refScript !== null) {
-			this.#witnesses.attachScript(refScript, true);
+			this.#witnesses.attachPlutusScript(refScript, true);
 		}
 
 		return this;
@@ -36943,13 +37543,17 @@ export class Tx extends CborData {
 	/**
 	 * Unused scripts are detected during finalize(), in which case an error is thrown
 	 * Throws error if script was already added before
-	 * @param {UplcProgram} program
+	 * @param {UplcProgram | NativeScript} program
 	 * @returns {Tx}
 	 */
 	attachScript(program) {
 		assert(!this.#valid);
 
-		this.#witnesses.attachScript(program);
+		if (program instanceof NativeScript) { 
+			this.#witnesses.attachNativeScript(program);
+		} else {
+			this.#witnesses.attachPlutusScript(program);
+		}
 
 		return this;
 	}
@@ -37042,7 +37646,7 @@ export class Tx extends CborData {
 		this.#body.collectScriptHashes(wantedScripts);
 
 		if (wantedScripts.size < scripts.length) {
-			throw new Error("too many scripts included");
+			throw new Error("too many scripts included, not all are needed");
 		} else if (wantedScripts.size > scripts.length) {
 			wantedScripts.forEach((value, key) => {
 				if (!currentScripts.has(key)) {
@@ -37058,7 +37662,7 @@ export class Tx extends CborData {
 		currentScripts.forEach((key) => {
 			if (!wantedScripts.has(key)) {
 				console.log(wantedScripts, currentScripts)
-				throw new Error("unused script");
+				throw new Error("detected unused script");
 			}
 		});
 	}
@@ -37069,7 +37673,7 @@ export class Tx extends CborData {
 	 * @returns {Promise<void>}
 	 */
 	async executeRedeemers(networkParams, changeAddress) {
-		await this.#witnesses.executeRedeemers(networkParams, this.#body, changeAddress);
+		await this.#witnesses.executeScripts(networkParams, this.#body, changeAddress);
 	}
 
 	/**
@@ -37552,7 +38156,7 @@ class TxBody extends CborData {
 	/** @type {bigint} in lovelace */
 	#fee;
 
-	/** @type {?bigint} */
+	/** @type {null | bigint} */
 	#lastValidSlot;
 
 	/** @type {DCert[]} */
@@ -37565,7 +38169,7 @@ class TxBody extends CborData {
 	 */
 	#withdrawals;
 
-	/** @type {?bigint} */
+	/** @type {null | bigint} */
 	#firstValidSlot;
 
 	/**
@@ -37584,7 +38188,7 @@ class TxBody extends CborData {
 	/** @type {PubKeyHash[]} */
 	#signers;
 
-	/** @type {?TxOutput} */
+	/** @type {null | TxOutput} */
 	#collateralReturn;
 
 	/** @type {bigint} */
@@ -37653,6 +38257,27 @@ class TxBody extends CborData {
 	 */
 	get collateral() {
 		return this.#collateral;
+	}
+
+	/**
+	 * @type {bigint | null}
+	 */
+	get firstValidSlot() {
+		return this.#firstValidSlot;
+	}
+
+	/**
+	 * @type {bigint | null}
+	 */
+	get lastValidSlot() {
+		return this.#lastValidSlot;
+	}
+
+	/**
+	 * @type {PubKeyHash[]}
+	 */
+	get signers() {
+		return this.#signers.slice();
 	}
 
 	/**
@@ -38269,13 +38894,17 @@ export class TxWitnesses extends CborData {
 	/** @type {UplcProgram[]} */
 	#refScripts;
 
+	/** @type {NativeScript[]} */
+	#nativeScripts;
+
 	constructor() {
 		super();
 		this.#signatures = [];
 		this.#datums = new ListData([]);
 		this.#redeemers = [];
-		this.#scripts = [];
+		this.#scripts = []; // always plutus v2
 		this.#refScripts = [];
+		this.#nativeScripts = [];
 	}
 
 	/**
@@ -38287,17 +38916,32 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * Returns all the scripts, including the reference scripts
-	 * @type {UplcProgram[]}
+	 * @type {(UplcProgram | NativeScript)[]}
 	 */
 	get scripts() {
-		return this.#scripts.slice().concat(this.#refScripts.slice());
+		/**
+		 * @type {(UplcProgram | NativeScript)[]}
+		 */
+		let allScripts = this.#scripts.slice().concat(this.#refScripts.slice())
+		
+		allScripts = allScripts.concat(this.#nativeScripts.slice());
+
+		return allScripts;
+	}
+
+	/**
+	 * @param {ValidatorHash | MintingPolicyHash} h 
+	 * @returns {boolean}
+	 */
+	isNativeScript(h) {
+		return this.#nativeScripts.some(s => eq(s.hash(), h.bytes));
 	}
 
 	/**
 	 * @returns {boolean}
 	 */
 	anyScriptCallsTxTimeRange() {
-		return this.scripts.some(p => p.properties.callsTxTimeRange);
+		return this.scripts.some(s => (s instanceof UplcProgram) && s.properties.callsTxTimeRange);
 	}
 
 	/**
@@ -38309,19 +38953,23 @@ export class TxWitnesses extends CborData {
 		 */
 		let object = new Map();
 
-		if (this.#signatures.length != 0) {
+		if (this.#signatures.length > 0) {
 			object.set(0, CborData.encodeDefList(this.#signatures));
 		}
+		
+		if (this.#nativeScripts.length > 0) {
+			object.set(1, CborData.encodeDefList(this.#nativeScripts));
+		}
 
-		if (this.#datums.list.length != 0) {
+		if (this.#datums.list.length > 0) {
 			object.set(4, this.#datums.toCbor());
 		}
 
-		if (this.#redeemers.length != 0) {
+		if (this.#redeemers.length > 0) {
 			object.set(5, CborData.encodeDefList(this.#redeemers));
 		}
 
-		if (this.#scripts.length != 0) {
+		if (this.#scripts.length > 0) {
 			/**
 			 * @type {number[][]}
 			 */
@@ -38348,6 +38996,9 @@ export class TxWitnesses extends CborData {
 					});
 					break;
 				case 1:
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+						txWitnesses.#nativeScripts.push(NativeScript.fromCbor(itemBytes));
+					});
 				case 2:
 				case 3:
 					throw new Error("unhandled field");
@@ -38390,6 +39041,7 @@ export class TxWitnesses extends CborData {
 			signatures: this.#signatures.map(pkw => pkw.dump()),
 			datums: this.#datums.list.map(datum => datum.toString()),
 			redeemers: this.#redeemers.map(redeemer => redeemer.dump()),
+			nativeScripts: this.#nativeScripts.map(script => script.toJson()),
 			scripts: this.#scripts.map(script => bytesToHex(script.toCbor())),
 			refScripts: this.#refScripts.map(script => bytesToHex(script.toCbor())),
 		};
@@ -38464,12 +39116,23 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @param {NativeScript} script 
+	 */
+	attachNativeScript(script) {
+		const h = script.hash();
+
+		assert(this.#nativeScripts.every(other => !eq(h, other.hash())));
+
+		this.#nativeScripts.push(script);
+	}
+
+	/**
 	 * Throws error if script was already added before
 	 * @param {UplcProgram} program 
 	 * @param {boolean} isRef
 	 */
-	attachScript(program, isRef = false) {
-		let h = program.hash();
+	attachPlutusScript(program, isRef = false) {
+		const h = program.hash();
 
 		assert(this.#scripts.every(s => !eq(s.hash(), h)));
 		assert(this.#refScripts.every(s => !eq(s.hash(), h)));
@@ -38486,8 +39149,14 @@ export class TxWitnesses extends CborData {
 	 * @param {Hash} scriptHash - can be ValidatorHash or MintingPolicyHash
 	 * @returns {UplcProgram}
 	 */
-	getScript(scriptHash) {
-		return assertDefined(this.scripts.find(s => eq(s.hash(), scriptHash.bytes)));
+	getUplcProgram(scriptHash) {
+		const p = this.scripts.find(s => eq(s.hash(), scriptHash.bytes));
+
+		if (!(p instanceof UplcProgram)) {
+			throw new Error("not a uplc program");
+		}
+
+		return p;
 	}
 
 	/**
@@ -38549,7 +39218,7 @@ export class TxWitnesses extends CborData {
 				if (validatorHash === null || validatorHash === undefined) {
 					throw new Error("expected validatorHash to be non-null");
 				} else {
-					const script = this.getScript(validatorHash);
+					const script = this.getUplcProgram(validatorHash);
 
 					const args = [
 						new UplcDataValue(Site.dummy(), datumData), 
@@ -38571,7 +39240,7 @@ export class TxWitnesses extends CborData {
 		} else if (redeemer instanceof MintingRedeemer) {
 			const mph = body.minted.mintingPolicies[redeemer.mphIndex];
 
-			const script = this.getScript(mph);
+			const script = this.getUplcProgram(mph);
 
 			const args = [
 				new UplcDataValue(Site.dummy(), redeemer.data),
@@ -38590,6 +39259,32 @@ export class TxWitnesses extends CborData {
 		} else {
 			throw new Error("unhandled redeemer type");
 		}
+	}
+
+	/**
+	 * Executes the redeemers in order to calculate the necessary ex units
+	 * @param {NetworkParams} networkParams 
+	 * @param {TxBody} body - needed in order to create correct ScriptContexts
+	 * @param {Address} changeAddress - needed for dummy input and dummy output
+	 * @returns {Promise<void>}
+	 */
+	async executeScripts(networkParams, body, changeAddress) {
+		await this.executeRedeemers(networkParams, body, changeAddress);
+
+		this.executeNativeScripts(body);
+	}
+	
+	/**
+	 * @param {TxBody} body
+	 */
+	executeNativeScripts(body) {
+		const ctx = new NativeContext(body.firstValidSlot, body.lastValidSlot, body.signers);
+
+		this.#nativeScripts.forEach(s => {
+			if (!s.eval(ctx)) {
+				throw new Error("native script execution returned false");
+			}
+		});
 	}
 
 	/**
@@ -40308,7 +41003,7 @@ class TxMetadata {
 
 
 ////////////////////////////////////
-// Section 26: Highlighting function
+// Section 27: Highlighting function
 ////////////////////////////////////
 
 /**
@@ -40634,7 +41329,7 @@ export function highlight(src) {
 
 
 //////////////////////////////////////
-// Section 27: Fuzzy testing framework
+// Section 28: Fuzzy testing framework
 //////////////////////////////////////
 
 /**
@@ -41101,7 +41796,7 @@ export class FuzzyTest {
 
 
 ////////////////////////////
-// Section 28: CoinSelection
+// Section 29: CoinSelection
 ////////////////////////////
 
 
@@ -41240,7 +41935,7 @@ export class CoinSelection {
 
 
 //////////////////////
-// Section 29: Wallets
+// Section 30: Wallets
 //////////////////////
 
 
@@ -41468,7 +42163,7 @@ export class WalletHelper {
 
 
 //////////////////////
-// Section 30: Network
+// Section 31: Network
 //////////////////////
 
 /**
@@ -41663,7 +42358,7 @@ export class BlockfrostV0 {
 
 
 ///////////////////////
-// Section 31: Emulator
+// Section 32: Emulator
 ///////////////////////
 /**
  * Single address wallet emulator.
