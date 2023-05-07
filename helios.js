@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.36
+// Version:       0.13.37
 // Last update:   May 2023
 // License type:  BSD-3-Clause
 //
@@ -258,7 +258,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.36";
+export const VERSION = "0.13.37";
 
 /**
  * A tab used for indenting of the IR.
@@ -1356,6 +1356,11 @@ class Site {
 	#endPos;
 
 	/**
+	 * @type {Object}
+	 */
+	#context; // additional context
+
+	/**
 	 * @param {string} msg
 	 * @param {Source} src 
 	 * @param {number} startPos 
@@ -1366,6 +1371,7 @@ class Site {
 		this.#src = src;
 		this.#startPos = startPos;
 		this.#endPos = endPos;
+		this.#context = {};
 	}
 
 	/**
@@ -1391,6 +1397,13 @@ class Site {
 	 */
 	get src() {
 		return this.#src;
+	}
+
+	/**
+	 * @type {Object}
+	 */
+	get context() {
+		return this.#context;
 	}
 
 	/**
@@ -36939,17 +36952,17 @@ export class NativeScript extends CborData {
 
     /**
      * A NativeScript can be used both as a Validator and as a MintingPolicy
-     * @returns {ValidatorHash}
+     * @type {ValidatorHash}
      */
-    validatorHash() {
+    get validatorHash() {
         return new ValidatorHash(this.hash());
     }
 
     /**
      * A NativeScript can be used both as a Validator and as a MintingPolicy
-     * @returns {MintingPolicyHash}
+     * @type {MintingPolicyHash}
      */
-    mintingPolicyHash() {
+    get mintingPolicyHash() {
         return new MintingPolicyHash(this.hash());
     }
 }
@@ -37312,10 +37325,12 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[] | string} raw
 	 * @returns {Tx}
 	 */
-	static fromCbor(bytes) {
+	static fromCbor(raw) {
+		let bytes = (typeof raw == "string") ? hexToBytes(raw) : raw;
+
 		bytes = bytes.slice();
 
 		let tx = new Tx();
@@ -38999,9 +39014,10 @@ export class TxWitnesses extends CborData {
 					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#nativeScripts.push(NativeScript.fromCbor(itemBytes));
 					});
+					break;
 				case 2:
 				case 3:
-					throw new Error("unhandled field");
+					throw new Error(`unhandled TxWitnesses field ${i}`);
 				case 4:
 					txWitnesses.#datums = ListData.fromCbor(fieldBytes);
 					break;
@@ -39231,6 +39247,9 @@ export class TxWitnesses extends CborData {
 					profile.messages.forEach(m => console.log(m));
 
 					if (profile.result instanceof UserError) {	
+						profile.result.context["Datum"] = bytesToHex(datumData.toCbor());
+						profile.result.context["Redeemer"] = bytesToHex(redeemer.data.toCbor());
+						profile.result.context["ScriptContext"] = bytesToHex(scriptContext.toCbor());
 						throw profile.result;
 					} else {
 						return {mem: profile.mem, cpu: profile.cpu};
@@ -39251,7 +39270,9 @@ export class TxWitnesses extends CborData {
 
 			profile.messages.forEach(m => console.log(m));
 
-			if (profile.result instanceof UserError) {	
+			if (profile.result instanceof UserError) {
+				profile.result.context["Redeemer"] = bytesToHex(redeemer.data.toCbor());
+				profile.result.context["ScriptContext"] = bytesToHex(scriptContext.toCbor());
 				throw profile.result;
 			} else {
 				return {mem: profile.mem, cpu: profile.cpu};

@@ -172,6 +172,11 @@ export class Site {
 	#endPos;
 
 	/**
+	 * @type {Object}
+	 */
+	#context; // additional context
+
+	/**
 	 * @param {string} msg
 	 * @param {Source} src 
 	 * @param {number} startPos 
@@ -182,6 +187,7 @@ export class Site {
 		this.#src = src;
 		this.#startPos = startPos;
 		this.#endPos = endPos;
+		this.#context = {};
 	}
 
 	/**
@@ -207,6 +213,13 @@ export class Site {
 	 */
 	get src() {
 		return this.#src;
+	}
+
+	/**
+	 * @type {Object}
+	 */
+	get context() {
+		return this.#context;
 	}
 
 	/**

@@ -211,7 +211,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.36";
+export const VERSION: "0.13.37";
 /**
  * Modifiable config vars
  * @type {{
@@ -382,6 +382,10 @@ export class UserError extends Error {
      * @type {Source}
      */
     get src(): Source;
+    /**
+     * @type {Object}
+     */
+    get context(): any;
     get data(): void;
     /**
      * @type {number}
@@ -3107,22 +3111,22 @@ export class NativeScript extends CborData {
     hash(): number[];
     /**
      * A NativeScript can be used both as a Validator and as a MintingPolicy
-     * @returns {ValidatorHash}
+     * @type {ValidatorHash}
      */
-    validatorHash(): ValidatorHash;
+    get validatorHash(): ValidatorHash;
     /**
      * A NativeScript can be used both as a Validator and as a MintingPolicy
-     * @returns {MintingPolicyHash}
+     * @type {MintingPolicyHash}
      */
-    mintingPolicyHash(): MintingPolicyHash;
+    get mintingPolicyHash(): MintingPolicyHash;
     #private;
 }
 export class Tx extends CborData {
     /**
-     * @param {number[]} bytes
+     * @param {number[] | string} raw
      * @returns {Tx}
      */
-    static fromCbor(bytes: number[]): Tx;
+    static fromCbor(raw: number[] | string): Tx;
     /**
      * @type {TxBody}
      */

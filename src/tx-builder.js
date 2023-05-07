@@ -165,10 +165,12 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[] | string} raw
 	 * @returns {Tx}
 	 */
-	static fromCbor(bytes) {
+	static fromCbor(raw) {
+		let bytes = (typeof raw == "string") ? hexToBytes(raw) : raw;
+
 		bytes = bytes.slice();
 
 		let tx = new Tx();
@@ -1852,9 +1854,10 @@ export class TxWitnesses extends CborData {
 					CborData.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#nativeScripts.push(NativeScript.fromCbor(itemBytes));
 					});
+					break;
 				case 2:
 				case 3:
-					throw new Error("unhandled field");
+					throw new Error(`unhandled TxWitnesses field ${i}`);
 				case 4:
 					txWitnesses.#datums = ListData.fromCbor(fieldBytes);
 					break;
@@ -2084,6 +2087,9 @@ export class TxWitnesses extends CborData {
 					profile.messages.forEach(m => console.log(m));
 
 					if (profile.result instanceof UserError) {	
+						profile.result.context["Datum"] = bytesToHex(datumData.toCbor());
+						profile.result.context["Redeemer"] = bytesToHex(redeemer.data.toCbor());
+						profile.result.context["ScriptContext"] = bytesToHex(scriptContext.toCbor());
 						throw profile.result;
 					} else {
 						return {mem: profile.mem, cpu: profile.cpu};
@@ -2104,7 +2110,9 @@ export class TxWitnesses extends CborData {
 
 			profile.messages.forEach(m => console.log(m));
 
-			if (profile.result instanceof UserError) {	
+			if (profile.result instanceof UserError) {
+				profile.result.context["Redeemer"] = bytesToHex(redeemer.data.toCbor());
+				profile.result.context["ScriptContext"] = bytesToHex(scriptContext.toCbor());
 				throw profile.result;
 			} else {
 				return {mem: profile.mem, cpu: profile.cpu};

@@ -324,17 +324,17 @@ export class NativeScript extends CborData {
 
     /**
      * A NativeScript can be used both as a Validator and as a MintingPolicy
-     * @returns {ValidatorHash}
+     * @type {ValidatorHash}
      */
-    validatorHash() {
+    get validatorHash() {
         return new ValidatorHash(this.hash());
     }
 
     /**
      * A NativeScript can be used both as a Validator and as a MintingPolicy
-     * @returns {MintingPolicyHash}
+     * @type {MintingPolicyHash}
      */
-    mintingPolicyHash() {
+    get mintingPolicyHash() {
         return new MintingPolicyHash(this.hash());
     }
 }
