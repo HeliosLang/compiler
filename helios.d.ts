@@ -211,7 +211,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.13.37";
+export const VERSION: "0.13.38";
 /**
  * Modifiable config vars
  * @type {{
@@ -1327,6 +1327,30 @@ export class DatumHash extends Hash {
      * @param {string | number[]} rawValue
      */
     constructor(rawValue: string | number[]);
+}
+export class PubKey extends HeliosData {
+    /**
+     * @param {UplcData} data
+     * @returns {PubKey}
+     */
+    static fromUplcData(data: UplcData): PubKey;
+    /**
+     * @param {string | number[]} rawValue
+     */
+    constructor(rawValue: string | number[]);
+    /**
+     * @type {number[]}
+     */
+    get bytes(): number[];
+    /**
+     * @type {string}
+     */
+    get hex(): string;
+    /**
+     * @returns {PubKeyHash}
+     */
+    hash(): PubKeyHash;
+    #private;
 }
 export class PubKeyHash extends Hash {
     /**
@@ -3684,6 +3708,14 @@ export class Signature extends CborData {
      */
     constructor(pubKey: number[], signature: number[]);
     /**
+     * @type {PubKey}
+     */
+    get pubKey(): PubKey;
+    /**
+     * @type {PubKeyHash}
+     */
+    get pubKeyHash(): PubKeyHash;
+    /**
      * @returns {boolean}
      */
     isDummy(): boolean;
@@ -4119,6 +4151,9 @@ export class WalletEmulator implements Wallet {
      * @type {PubKeyHash}
      */
     get pubKeyHash(): PubKeyHash;
+    /**
+     * @type {Address}
+     */
     get address(): Address;
     /**
      * @returns {Promise<boolean>}
@@ -4126,11 +4161,17 @@ export class WalletEmulator implements Wallet {
     isMainnet(): Promise<boolean>;
     /**
      * Assumed wallet was initiated with at least 1 UTxO at the pubkeyhash address.
-     * @returns {Promise<Address[]>}
+     * @type {Promise<Address[]>}
      */
     get usedAddresses(): Promise<Address[]>;
-    get unusedAddresses(): Promise<any>;
-    get utxos(): Promise<any>;
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get unusedAddresses(): Promise<Address[]>;
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get utxos(): Promise<UTxO[]>;
     /**
      * Simply assumed the tx needs to by signed by this wallet without checking.
      * @param {Tx} tx

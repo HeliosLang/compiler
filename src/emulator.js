@@ -18,6 +18,7 @@ import {
 import {
     Address,
     Assets,
+    PubKey,
     PubKeyHash,
     TxId,
     Value
@@ -83,9 +84,12 @@ export class WalletEmulator {
      * @type {PubKeyHash}
      */
     get pubKeyHash() {
-        return new PubKeyHash(Crypto.blake2b(this.#publicKey, 28));
+        return (new PubKey(this.#publicKey)).hash();
     }
 
+    /**
+     * @type {Address}
+     */
     get address() {
         return Address.fromPubKeyHash(this.pubKeyHash);
     }
@@ -99,7 +103,7 @@ export class WalletEmulator {
 
     /**
      * Assumed wallet was initiated with at least 1 UTxO at the pubkeyhash address.
-     * @returns {Promise<Address[]>}
+     * @type {Promise<Address[]>}
      */
     get usedAddresses() {
         return new Promise((resolve, _) => {
@@ -107,12 +111,18 @@ export class WalletEmulator {
         });
     }
 
+    /**
+     * @type {Promise<Address[]>}
+     */
     get unusedAddresses() {
         return new Promise((resolve, _) => {
             resolve([])
         });
     }
 
+    /**
+     * @type {Promise<UTxO[]>}
+     */
     get utxos() {
         return new Promise((resolve, _) => {
             resolve(this.#network.getUtxos(this.address));

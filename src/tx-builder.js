@@ -41,6 +41,7 @@ import {
     DatumHash,
 	HeliosData,
     MintingPolicyHash,
+	PubKey,
     PubKeyHash,
     StakeKeyHash,
     StakingValidatorHash,
@@ -2994,7 +2995,10 @@ export class StakeAddress {
 }
 
 export class Signature extends CborData {
-	/** @type {number[]} */
+	/** 
+	 * TODO: use PubKey type instead
+	 * @type {number[]} 
+	 */
 	#pubKey;
 
 	/** @type {number[]} */
@@ -3011,6 +3015,20 @@ export class Signature extends CborData {
 	}
 
 	/**
+	 * @type {PubKey}
+	 */
+	get pubKey() {
+		return new PubKey(this.#pubKey);
+	}
+
+	/**
+	 * @type {PubKeyHash}
+	 */
+	get pubKeyHash() {
+		return this.pubKey.hash();
+	}
+
+	/**
 	 * @returns {Signature}
 	 */
 	static dummy() {
@@ -3024,6 +3042,9 @@ export class Signature extends CborData {
 		return this.#pubKey.every(b => b == 0) && this.#signature.every(b => b == 0);
 	}
 
+	/**
+	 * @returns {number[]}
+	 */
 	toCbor() {
 		return CborData.encodeTuple([
 			CborData.encodeBytes(this.#pubKey),

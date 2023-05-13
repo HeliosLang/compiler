@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.13.37
+// Version:       0.13.38
 // Last update:   May 2023
 // License type:  BSD-3-Clause
 //
@@ -92,7 +92,7 @@
 //
 //     Section 7: Helios data objects        HeliosData, HInt, Time, Duration, Bool, HString, 
 //                                           ByteArray, HList, HMap, Option, Hash, DatumHash, 
-//                                           PubKeyHash, ScriptHash, MintingPolicyHash, 
+//                                           PubKey, PubKeyHash, ScriptHash, MintingPolicyHash, 
 //                                           StakeKeyHash, StakingValidatorHash, ValidatorHash, 
 //                                           TxId, TxOutputId, Address, AssetClass, Assets, Value
 //
@@ -258,7 +258,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.13.37";
+export const VERSION = "0.13.38";
 
 /**
  * A tab used for indenting of the IR.
@@ -6336,6 +6336,57 @@ export class DatumHash extends Hash {
 	 */
 	static fromHex(str) {
 		return new DatumHash(hexToBytes(str));
+	}
+}
+
+export class PubKey extends HeliosData {
+	#bytes;
+
+	/**
+	 * @param {string | number[]} rawValue 
+	 */
+	constructor(rawValue) {
+		super();
+		const bytes = (typeof rawValue == "string") ? hexToBytes(rawValue) : rawValue;
+
+		assert(bytes.length == 32, `expected 32 for PubKey, got ${bytes.length}`);
+		this.#bytes = bytes;
+	}
+
+	/**
+	 * @type {number[]}
+	 */
+	get bytes() {
+		return this.#bytes;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get hex() {
+		return bytesToHex(this.#bytes);
+	}
+
+	/**
+	 * @param {UplcData} data 
+	 * @returns {PubKey}
+	 */
+	static fromUplcData(data) {
+		return new PubKey(data.bytes)
+	}
+
+	/**
+     * @returns {UplcData}
+     */
+    _toUplcData() {
+        return new ByteArrayData(this.#bytes);
+    }
+
+	/**
+	 * @returns {PubKeyHash}
+	 */
+	hash() {
+		return new PubKeyHash(Crypto.blake2b(this.#bytes, 28));
 	}
 }
 
@@ -40154,7 +40205,10 @@ export class StakeAddress {
 }
 
 export class Signature extends CborData {
-	/** @type {number[]} */
+	/** 
+	 * TODO: use PubKey type instead
+	 * @type {number[]} 
+	 */
 	#pubKey;
 
 	/** @type {number[]} */
@@ -40171,6 +40225,20 @@ export class Signature extends CborData {
 	}
 
 	/**
+	 * @type {PubKey}
+	 */
+	get pubKey() {
+		return new PubKey(this.#pubKey);
+	}
+
+	/**
+	 * @type {PubKeyHash}
+	 */
+	get pubKeyHash() {
+		return this.pubKey.hash();
+	}
+
+	/**
 	 * @returns {Signature}
 	 */
 	static dummy() {
@@ -40184,6 +40252,9 @@ export class Signature extends CborData {
 		return this.#pubKey.every(b => b == 0) && this.#signature.every(b => b == 0);
 	}
 
+	/**
+	 * @returns {number[]}
+	 */
 	toCbor() {
 		return CborData.encodeTuple([
 			CborData.encodeBytes(this.#pubKey),
@@ -42421,9 +42492,12 @@ export class WalletEmulator {
      * @type {PubKeyHash}
      */
     get pubKeyHash() {
-        return new PubKeyHash(Crypto.blake2b(this.#publicKey, 28));
+        return (new PubKey(this.#publicKey)).hash();
     }
 
+    /**
+     * @type {Address}
+     */
     get address() {
         return Address.fromPubKeyHash(this.pubKeyHash);
     }
@@ -42437,7 +42511,7 @@ export class WalletEmulator {
 
     /**
      * Assumed wallet was initiated with at least 1 UTxO at the pubkeyhash address.
-     * @returns {Promise<Address[]>}
+     * @type {Promise<Address[]>}
      */
     get usedAddresses() {
         return new Promise((resolve, _) => {
@@ -42445,12 +42519,18 @@ export class WalletEmulator {
         });
     }
 
+    /**
+     * @type {Promise<Address[]>}
+     */
     get unusedAddresses() {
         return new Promise((resolve, _) => {
             resolve([])
         });
     }
 
+    /**
+     * @type {Promise<UTxO[]>}
+     */
     get utxos() {
         return new Promise((resolve, _) => {
             resolve(this.#network.getUtxos(this.address));

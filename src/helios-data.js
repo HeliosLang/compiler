@@ -905,6 +905,57 @@ export class DatumHash extends Hash {
 	}
 }
 
+export class PubKey extends HeliosData {
+	#bytes;
+
+	/**
+	 * @param {string | number[]} rawValue 
+	 */
+	constructor(rawValue) {
+		super();
+		const bytes = (typeof rawValue == "string") ? hexToBytes(rawValue) : rawValue;
+
+		assert(bytes.length == 32, `expected 32 for PubKey, got ${bytes.length}`);
+		this.#bytes = bytes;
+	}
+
+	/**
+	 * @type {number[]}
+	 */
+	get bytes() {
+		return this.#bytes;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get hex() {
+		return bytesToHex(this.#bytes);
+	}
+
+	/**
+	 * @param {UplcData} data 
+	 * @returns {PubKey}
+	 */
+	static fromUplcData(data) {
+		return new PubKey(data.bytes)
+	}
+
+	/**
+     * @returns {UplcData}
+     */
+    _toUplcData() {
+        return new ByteArrayData(this.#bytes);
+    }
+
+	/**
+	 * @returns {PubKeyHash}
+	 */
+	hash() {
+		return new PubKeyHash(Crypto.blake2b(this.#bytes, 28));
+	}
+}
+
 export class PubKeyHash extends Hash {
 	
 	/**
