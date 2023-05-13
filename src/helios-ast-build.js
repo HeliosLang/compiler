@@ -41,6 +41,7 @@ import {
     ChainExpr,
     DataSwitchExpr,
     EnumSwitchExpr,
+	Expr,
     FuncArg,
 	FuncArgTypeExpr,
     FuncLiteralExpr,
@@ -54,27 +55,21 @@ import {
     MemberExpr,
     OptionTypeExpr,
     ParensExpr,
+	PathExpr,
     PrimitiveLiteralExpr,
     PrintExpr,
     StructLiteralExpr,
     StructLiteralField,
     SwitchCase,
     SwitchDefault,
-    TypeExpr,
-    TypePathExpr,
-    TypeRefExpr,
+    RefExpr,
     UnaryExpr,
     UnconstrDataSwitchCase,
-    ValueExpr,
-    ValuePathExpr,
-    ValueRefExpr,
     VoidExpr,
     VoidTypeExpr,
 	TypeParameter,
 	TypeParameters,
-	TypeClassExpr,
-	ParametricValueExpr,
-	ParametricTypeExpr
+	ParametricExpr
 } from "./helios-ast-expressions.js";
 
 import {
@@ -394,7 +389,7 @@ function buildConstStatement(site, ts) {
 /**
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {TypeClassExpr | null}
+ * @returns {RefExpr | null}
  */
 function buildTypeClassExpr(site, ts) {
 	const name = assertToken(ts.shift(), site, "expected word")?.assertWord()?.assertNotKeyword();
@@ -402,7 +397,7 @@ function buildTypeClassExpr(site, ts) {
 		return null;
 	}
 
-	return new TypeClassExpr(name);
+	return new RefExpr(name);
 }
 
 /**
@@ -519,7 +514,7 @@ function buildStructStatement(site, ts) {
 
 	const fields = buildDataFields(tsFields);
 
-	const impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), fields.map(f => f.name), braces.site.endSite);
+	const impl = buildImplDefinition(tsImpl, new RefExpr(name), fields.map(f => f.name), braces.site.endSite);
 
 	if (impl === null) {
 		return null;
@@ -607,7 +602,7 @@ function buildDataFields(ts) {
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @param {?TypeExpr} methodOf - methodOf !== null then first arg can be named 'self'
+ * @param {null | Expr} methodOf - methodOf !== null then first arg can be named 'self'
  * @returns {FuncStatement | null}
  */
 function buildFuncStatement(site, ts, methodOf = null) {
@@ -634,7 +629,7 @@ function buildFuncStatement(site, ts, methodOf = null) {
 /**
  * @package
  * @param {Token[]} ts 
- * @param {?TypeExpr} methodOf - methodOf !== null then first arg can be named 'self'
+ * @param {null | Expr} methodOf - methodOf !== null then first arg can be named 'self'
  * @param {boolean} allowInferredRetType
  * @returns {FuncLiteralExpr | null}
  */
@@ -687,7 +682,7 @@ function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false)
 /**
  * @package
  * @param {Group} parens 
- * @param {?TypeExpr} methodOf - methodOf !== nul then first arg can be named 'self'
+ * @param {null | Expr} methodOf - methodOf !== nul then first arg can be named 'self'
  * @returns {FuncArg[]}
  */
 function buildFuncArgs(parens, methodOf = null) {
@@ -754,7 +749,7 @@ function buildFuncArgs(parens, methodOf = null) {
 				const equalsPos = SymbolToken.find(ts, "=");
 
 				/**
-				 * @type {null | ValueExpr}
+				 * @type {null | Expr}
 				 */
 				let defaultValueExpr = null;
 
@@ -777,7 +772,7 @@ function buildFuncArgs(parens, methodOf = null) {
 				}
 
 				/**
-				 * @type {TypeExpr | null}
+				 * @type {null | Expr}
 				 */
 				let typeExpr = null;
 
@@ -834,7 +829,7 @@ function buildEnumStatement(site, ts) {
 		members.push(member);
 	}
 
-	const impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), members.map(m => m.name), braces.site.endSite);
+	const impl = buildImplDefinition(tsImpl, new RefExpr(name), members.map(m => m.name), braces.site.endSite);
 
 	if (!impl) {
 		return null;
@@ -1024,7 +1019,7 @@ function buildEnumMember(ts) {
 /** 
  * @package
  * @param {Token[]} ts 
- * @param {TypeRefExpr} selfTypeExpr - reference to parent type
+ * @param {RefExpr} selfTypeExpr - reference to parent type
  * @param {Word[]} fieldNames - to check if impl statements have a unique name
  * @param {?Site} endSite
  * @returns {ImplDefinition | null}
@@ -1095,7 +1090,7 @@ function buildImplDefinition(ts, selfTypeExpr, fieldNames, endSite) {
 /**
  * @package
  * @param {Token[]} ts 
- * @param {TypeExpr} methodOf
+ * @param {Expr} methodOf
  * @returns {(ConstStatement | FuncStatement)[]}
  */
 function buildImplMembers(ts, methodOf) {
@@ -1137,7 +1132,7 @@ function buildImplMembers(ts, methodOf) {
  * @package
  * @param {Site} site
  * @param {Token[]} ts 
- * @returns {TypeExpr | null}
+ * @returns {Expr | null}
  */
 function buildTypeExpr(site, ts) {
 	if (ts.length == 0) {
@@ -1169,7 +1164,7 @@ function buildTypeExpr(site, ts) {
 
 /**
  * @param {Token[]} ts 
- * @returns {ParametricTypeExpr | null}
+ * @returns {ParametricExpr | null}
  */
 function buildParametricTypeExpr(ts) {
 	const brackets = assertDefined(ts.pop()).assertGroup("[");
@@ -1190,7 +1185,7 @@ function buildParametricTypeExpr(ts) {
 		return null;
 	}
 
-	return new ParametricTypeExpr(brackets.site, baseExpr, typeExprs);
+	return new ParametricExpr(brackets.site, baseExpr, typeExprs);
 }
 
 /**
@@ -1262,7 +1257,7 @@ function buildMapTypeExpr(ts) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {TypeExpr | null}
+ * @returns {Expr | null}
  */
 function buildOptionTypeExpr(ts) {
 	const kw = assertDefined(ts.shift()).assertWord("Option");
@@ -1295,7 +1290,7 @@ function buildOptionTypeExpr(ts) {
 					return null;
 				}
 
-				return new TypePathExpr(ts[0].site, typeExpr, memberName);
+				return new PathExpr(ts[0].site, typeExpr, memberName);
 			}
 		} else {
 			ts[0].syntaxError("invalid option type syntax");
@@ -1435,7 +1430,7 @@ function buildFuncArgTypeExpr(ts) {
  * @param {Site} site 
  * @param {Token[]} ts 
  * @param {boolean} allowInferredRetType
- * @returns {null | (null | TypeExpr)[]}
+ * @returns {null | (null | Expr)[]}
  */
 function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 	if (ts.length === 0) {
@@ -1472,7 +1467,7 @@ function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {null | TypePathExpr}
+ * @returns {null | PathExpr}
  */
 function buildTypePathExpr(ts) {
 	const i = SymbolToken.findLast(ts, "::");
@@ -1494,13 +1489,13 @@ function buildTypePathExpr(ts) {
 		return null;
 	}
 	
-	return new TypePathExpr(dcolon.site, baseExpr, memberName);
+	return new PathExpr(dcolon.site, baseExpr, memberName);
 }
 
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {TypeRefExpr | null}
+ * @returns {RefExpr | null}
  */
 function buildTypeRefExpr(ts) {
 	const name = assertDefined(ts.shift()).assertWord()?.assertNotKeyword();
@@ -1514,20 +1509,20 @@ function buildTypeRefExpr(ts) {
 		return null;
 	}
 
-	return new TypeRefExpr(name);
+	return new RefExpr(name);
 }
 
 /**
  * @package
  * @param {Token[]} ts 
  * @param {number} prec 
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildValueExpr(ts, prec = 0) {
 	assert(ts.length > 0);
 
 	// lower index in exprBuilders is lower precedence
-	/** @type {((ts: Token[], prev: number) => (ValueExpr | null))[]} */
+	/** @type {((ts: Token[], prev: number) => (Expr | null))[]} */
 	const exprBuilders = [
 		/**
 		 * 0: lowest precedence is assignment
@@ -1563,7 +1558,7 @@ function buildValueExpr(ts, prec = 0) {
  * @package
  * @param {Token[]} ts
  * @param {number} prec
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildMaybeAssignOrPrintExpr(ts, prec) {
 	let semicolonPos = SymbolToken.find(ts, ";");
@@ -1780,7 +1775,7 @@ function buildDestructExpr(site, ts, isSwitchCase = false) {
 					return null;
 				}
 
-				const typeExpr = new TypeRefExpr(typeName);
+				const typeExpr = new RefExpr(typeName);
 
 				if (!typeExpr) {
 					return null;
@@ -1933,7 +1928,7 @@ function buildAssignLhs(site, ts) {
 /**
  * @package
  * @param {string | string[]} symbol 
- * @returns {(ts: Token[], prec: number) => (ValueExpr | null)}
+ * @returns {(ts: Token[], prec: number) => (Expr | null)}
  */
 function makeBinaryExprBuilder(symbol) {
 	// default behaviour is left-to-right associative
@@ -1963,7 +1958,7 @@ function makeBinaryExprBuilder(symbol) {
 /**
  * @package
  * @param {string | string[]} symbol 
- * @returns {(ts: Token[], prec: number) => (ValueExpr | null)}
+ * @returns {(ts: Token[], prec: number) => (Expr | null)}
  */
 function makeUnaryExprBuilder(symbol) {
 	// default behaviour is right-to-left associative
@@ -1987,10 +1982,10 @@ function makeUnaryExprBuilder(symbol) {
  * @package
  * @param {Token[]} ts 
  * @param {number} prec 
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildChainedValueExpr(ts, prec) {
-	/** @type {ValueExpr | null} */
+	/** @type {Expr | null} */
 	let expr = buildChainStartValueExpr(ts);
 
 	// now we can parse the rest of the chaining
@@ -2031,9 +2026,9 @@ function buildChainedValueExpr(ts, prec) {
 }
 
 /**
- * @param {ValueExpr} expr 
+ * @param {Expr} expr 
  * @param {Group} brackets 
- * @returns {ParametricValueExpr | null}
+ * @returns {ParametricExpr | null}
  */
 function buildParametricValueExpr(expr, brackets) {
 	const typeExprs = reduceNull(brackets.fields.map(fts => {
@@ -2056,12 +2051,12 @@ function buildParametricValueExpr(expr, brackets) {
 		return null;
 	}
 
-	return new ParametricValueExpr(brackets.site, expr, typeExprs);
+	return new ParametricExpr(brackets.site, expr, typeExprs);
 }
 
 /**
  * @param {Site} site 
- * @param {ValueExpr} fnExpr 
+ * @param {Expr} fnExpr 
  * @param {Group} parens
  * @returns {CallExpr | null}
  */
@@ -2078,7 +2073,7 @@ function buildCallExpr(site, fnExpr, parens) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildChainStartValueExpr(ts) {
 	if (ts.length > 1 && ts[0].isGroup("(") && ts[1].isSymbol("->")) {
@@ -2119,7 +2114,7 @@ function buildChainStartValueExpr(ts) {
 			const name = assertDefined(ts.shift()?.assertWord());
 
 			if (name.value == "self") {
-				return new ValueRefExpr(name);
+				return new RefExpr(name);
 			} else {
 				const n = name.assertNotKeyword();
 
@@ -2127,7 +2122,7 @@ function buildChainStartValueExpr(ts) {
 					return null;
 				}
 
-				return new ValueRefExpr(n);
+				return new RefExpr(n);
 			}
 		}
 	} else {
@@ -2139,7 +2134,7 @@ function buildChainStartValueExpr(ts) {
 /**
  * @package
  * @param {Token[]} ts
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildParensExpr(ts) {
 	const group = assertDefined(ts.shift()).assertGroup("(");
@@ -2157,7 +2152,7 @@ function buildParensExpr(ts) {
 		const fields = group.fields.map(fts => buildValueExpr(fts));
 
 		/**
-		 * @type {ValueExpr[]}
+		 * @type {Expr[]}
 		 */
 		const nonNullFields = [];
 
@@ -2267,10 +2262,10 @@ function buildIfElseExpr(ts) {
 
 	const site = ifWord.site;
 
-	/** @type {ValueExpr[]} */
+	/** @type {Expr[]} */
 	const conditions = [];
 
-	/** @type {ValueExpr[]} */
+	/** @type {Expr[]} */
 	const branches = [];
 	while (true) {
 		const parens = assertToken(ts.shift(), site)?.assertGroup("(");
@@ -2360,9 +2355,9 @@ function buildIfElseExpr(ts) {
 
 /**
  * @package
- * @param {ValueExpr} controlExpr
+ * @param {Expr} controlExpr
  * @param {Token[]} ts 
- * @returns {ValueExpr | null} - EnumSwitchExpr or DataSwitchExpr
+ * @returns {Expr | null} - EnumSwitchExpr or DataSwitchExpr
  */
 function buildSwitchExpr(controlExpr, ts) {
 	const switchWord = assertDefined(ts.shift()).assertWord("switch");
@@ -2715,10 +2710,10 @@ function buildSingleArgSwitchCase(tsLeft, ts) {
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildSwitchCaseBody(site, ts) {
-	/** @type {?ValueExpr} */
+	/** @type {null | Expr} */
 	let bodyExpr = null;
 
 	if (ts.length == 0) {
@@ -2772,7 +2767,7 @@ function buildSwitchDefault(ts) {
 			return null;
 		}
 
-		/** @type {null | ValueExpr} */
+		/** @type {null | Expr} */
 		let bodyExpr = null;
 
 		if (ts.length == 0) {
@@ -2893,7 +2888,7 @@ function buildMapLiteralExpr(ts) {
 	}
 
 	/**
-	 * @type {null | [ValueExpr, ValueExpr][]}
+	 * @type {null | [Expr, Expr][]}
 	 */
 	const pairs = reduceNullPairs(braces.fields.map(fts => {
 		const colonPos = SymbolToken.find(fts, ":");
@@ -2914,7 +2909,7 @@ function buildMapLiteralExpr(ts) {
 			const valueExpr = buildValueExpr(fts.slice(colonPos+1));
 
 			/**
-			 * @type {[ValueExpr | null, ValueExpr | null]}
+			 * @type {[Expr | null, Expr | null]}
 			 */
 			return [keyExpr, valueExpr];
 		}
@@ -3037,7 +3032,7 @@ function buildStructLiteralUnnamedField(site, ts) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildValuePathExpr(ts) {
 	const dcolonPos = SymbolToken.findLast(ts, "::");
@@ -3058,5 +3053,5 @@ function buildValuePathExpr(ts) {
 		return null;
 	}
 	
-	return new ValuePathExpr(typeExpr, memberName);
+	return new PathExpr(typeExpr.site, typeExpr, memberName);
 }

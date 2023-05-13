@@ -18,19 +18,23 @@ import {
     Word
 } from "./tokens.js";
 
+/**
+ * @typedef {import("./tokens.js").IRDefinitions} IRDefinitions
+ */
+
 import {
 	UplcData
 } from "./uplc-data.js";
-
-/**
- * @template T
- * @typedef {import("./helios-data.js").HeliosDataClass<T>} HeliosDataClass
- */
 
 import {
 	Bool,
 	HeliosData
 } from "./helios-data.js";
+
+/**
+ * @template {HeliosData} T
+ * @typedef {import("./helios-data.js").HeliosDataClass<T>} HeliosDataClass
+ */
 
 import {
     ScriptPurpose,
@@ -47,12 +51,17 @@ import {
     tokenize
 } from "./tokenization.js";
 
+/**
+ * @typedef {import("./eval-common.js").DataType} DataType
+ */
+
+/**
+ * @typedef {import("./eval-common.js").Type} Type
+ */
+
 import {
-    BoolType,
-    EnumStatementType,
-    StructStatementType,
-    Type
-} from "./helios-eval-entities.js";
+	BoolType
+} from "./eval-primitives.js";
 
 import {
     GlobalScope,
@@ -69,12 +78,11 @@ import {
 } from "./helios-ast-statements.js";
 
 import {
-	buildScript,
-    buildProgramStatements,
-    buildScriptPurpose
+	buildScript
 } from "./helios-ast-build.js";
 
 import {
+	fetchRawFunctions,
     wrapWithRawFunctions
 } from "./ir-defs.js";
 
@@ -157,61 +165,6 @@ class Module {
 		for (let s of this.statements) {
 			s.eval(scope);
 		}
-	}
-
-	/**
-	 * Cleans the program by removing everything that is unecessary for the smart contract (easier to audit)
-	 * @returns {string}
-	 */
-	cleanSource() {
-		let raw = this.name.site.src.raw;
-		let n = raw.length;
-
-		let mask = new Uint8Array(n);
-
-		mask.fill(1); // hide the unused parts by setting to 0
-
-		for (let s of this.#statements) {
-			s.hideUnused(mask);
-		}
-
-		/** @type {string[]} */
-		let chars = [];
-
-		for (let i = 0; i < n; i++) {
-			let c = raw.charAt(i);
-
-			if (c == '\n' || c == ' ') {
-				chars.push(c);
-			} else if (mask[i] == 1) {
-				chars.push(c);
-			} else {
-				chars.push(' ');
-			}
-		}
-
-		let lines = chars.join("").split("\n").map(l => {
-			if (l.trim().length == 0) {
-				return "";
-			} else {
-				return l;
-			}
-		});
-
-		// remove more than one consecutive empty line
-
-		/**
-		 * @type {string[]}
-		 */
-		let parts = [];
-
-		for (let i = 0; i < lines.length; i++) {
-			if (!(i > 0 && lines[i-1].length == 0 && lines[i].length == 0)) {
-				parts.push(lines[i]);
-			}
-		}
-
-		return parts.join("\n");
 	}
 
 	/**
@@ -558,13 +511,6 @@ class MainModule extends Module {
 	}
 
 	/**
-	 * @returns {[string[], string]}
-	 */
-	cleanSource() {
-		return [this.mainImportedModules.map(m => m.cleanSource()), this.mainModule.cleanSource()];
-	}
-
-	/**
 	 * @param {GlobalScope} globalScope
 	 * @returns {TopScope}
 	 */
@@ -582,7 +528,6 @@ class MainModule extends Module {
 			m.evalTypes(moduleScope);
 
 			if (m instanceof MainModule) {
-				globalScope.allowMacros();
 				topScope.setStrict(false);
 			}
 
@@ -590,8 +535,6 @@ class MainModule extends Module {
 				topScope.setScope(m.name, moduleScope);
 			}
 		}
-
-		this.mainFunc.use();
 		
 		return topScope;
 	}
@@ -618,56 +561,28 @@ class MainModule extends Module {
 		const mainModuleScope = topScope.getModuleScope(this.mainModule.name);
 
 		mainModuleScope.loopTypes((name, type) => {
-			if (type instanceof StructStatementType || type instanceof EnumStatementType) {
-				if (name in this.#types) {
-					throw new Error(`unexpected duplicate type name ${name} in main program scope`);
-				}
-
-				this.#types[name] = type.userType;;
+			if (type?.asDataType?.offChainType) {
+				this.#types[name] = type.asDataType.offChainType;
 			}
 		});
 	}
 
 	/**
-	 * @type {Object.<string, Type>}
+	 * @type {Object.<string, DataType>}
 	 */
 	get paramTypes() {
 		/**
-		 * @type {Object.<string, Type>}
+		 * @type {Object.<string, DataType>}
 		 */
 		let res = {};
 
 		for (let s of this.mainAndPostStatements) {
 			if (s instanceof ConstStatement) {
 				res[s.name.value] = s.type;
-			} else if (s instanceof ImportFromStatement && s.origStatement instanceof ConstStatement) {
-				res[s.name.value] = s.origStatement.type;
 			}
 		}
 
 		return res;
-	}
-
-	/**
-	 * Change the literal value of a const statements  
-	 * @param {string} name 
-	 * @param {string | UplcValue} value 
-	 * @returns {Program} - returns 'this' so that changeParam calls can be chained
-	 */
-	changeParam(name, value) {
-		deprecationWarning("program.changeParam", "0.14.0", "use program.parameters instead", "https://www.hyperion-bt.org/helios-book/api/reference/program.html#parameters-1");
-
-		for (let s of this.mainAndPostStatements) {
-			if (s instanceof ConstStatement && s.name.value == name) {
-				s.changeValue(value);
-				return this;
-			} else if (s instanceof ImportFromStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
-				s.origStatement.changeValue(value);
-				return this;
-			}
-		}
-
-		throw this.mainFunc.referenceError(`param '${name}' not found`);
 	}
 
 	/**
@@ -681,9 +596,6 @@ class MainModule extends Module {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValueSafe(data);
 				return this;
-			} else if (s instanceof ImportFromStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
-				s.origStatement.changeValueSafe(data);
-				return this;
 			}
 		}
 
@@ -696,44 +608,44 @@ class MainModule extends Module {
 	 * @returns {UplcValue}
 	 */
 	evalParam(name) {
-		/**
-		 * @type {Map<string, IR>}
+		/** 
+		 * @type {any} 
 		 */
-		let map = new Map();
-
-		/** @type {?ConstStatement} */
 		let constStatement = null;
 
-		for (let s of this.mainAndPostStatements) {
-			if (s instanceof ImportFromStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
-				constStatement = s.origStatement;
-				break;
-			}
-		}
-
-		for (let [s, isImport] of this.allStatements) {
-			s.toIR(map);
+		const map = this.fetchDefinitions(new IR(""), [], (s, isImport) => {
 			if (s instanceof ConstStatement && ((s.name.value == name && !isImport) || s === constStatement)) {
 				constStatement = s;
-				break;
+				return true;
+			} else {
+				return false;
 			}
-		}
+		});
 
 		if (constStatement === null) {
 			throw new Error(`param '${name}' not found`);
-		} else {
-			const path = constStatement.path;
+		} 
 
-			let ir = assertDefined(map.get(path));
+		const path = assertDefined(constStatement).path;
 
-			map.delete(path);
+		let ir = assertDefined(map.get(path));
 
-			ir = wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
+		map.delete(path);
 
-			const irProgram = IRProgram.new(ir, this.#purpose, true, true);
+		console.log("CONST IR:", ir.generateSource()[0])
+		ir = new IR([
+			ir,
+			new IR("(())")
+		])
 
-			return new UplcDataValue(irProgram.site, irProgram.data);
-		}
+		ir = wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
+
+		console.log(ir.generateSource()[0]);
+
+		const irProgram = IRProgram.new(ir, this.#purpose, true, true);
+
+		console.log("EVALUATED", name);
+		return new UplcDataValue(irProgram.site, irProgram.data);
 	}
 	
 	/**
@@ -761,7 +673,7 @@ class MainModule extends Module {
 					
 					const uplcValue = that.evalParam(name);
 
-					const value = (uplcValue instanceof UplcBool) ? new Bool(uplcValue.bool) : type.userType.fromUplcData(uplcValue.data);
+					const value = (uplcValue instanceof UplcBool) ? new Bool(uplcValue.bool) : assertDefined(type.offChainType).fromUplcData(uplcValue.data);
 						
 					target[name] = value;
 
@@ -783,7 +695,7 @@ class MainModule extends Module {
 		for (let name in values) {
 			const rawValue = values[name];
 
-			const UserType = assertDefined(types[name], `invalid param name '${name}'`).userType;
+			const UserType = assertDefined(types[name].offChainType, `invalid param name '${name}'`);
 
 			const value = rawValue instanceof UserType ? rawValue : new UserType(rawValue);
 
@@ -795,11 +707,11 @@ class MainModule extends Module {
 
 	/**
 	 * @package
-	 * @param {IR} ir
 	 * @param {string[]} parameters
-	 * @returns {IR}
+	 * @param {(s: Statement, isImport: boolean) => boolean} endCond
+	 * @returns {IRDefinitions} 
 	 */
-	wrapEntryPoint(ir, parameters) {
+	statementsToIR(parameters, endCond) {
 		// find the constStatements associated with the parameters
 		/**
 		 * @type {(ConstStatement | null)[]}
@@ -814,12 +726,6 @@ class MainModule extends Module {
 					if (i != -1) {
 						parameterStatements[i] = statement;
 					}
-				} else if (statement instanceof ImportFromStatement && statement.origStatement instanceof ConstStatement) {
-					const i = parameters.findIndex(p => statement.name.value == p);
-
-					if (i != -1) {
-						parameterStatements[i] = statement.origStatement;
-					}
 				}
 			}
 
@@ -831,18 +737,18 @@ class MainModule extends Module {
 		}		
 
 		/**
-		 * @type {Map<string, IR>}
+		 * @type {IRDefinitions}
 		 */
 		const map = new Map();
 
-		for (let [statement, _] of this.allStatements) {
+		for (let [statement, isImport] of this.allStatements) {
 			if (parameters.length > 0 && statement instanceof ConstStatement) {
 				const i = parameterStatements.findIndex(cs => cs === statement);
 
 				if (i != -1) {
 					let ir = new IR(`__PARAM_${i}`);
 
-					if (statement.type instanceof BoolType) {
+					if (BoolType.isBaseOf(statement.type)) {
 						ir = new IR([
 							new IR("__helios__common__unBoolData("),
 							ir,
@@ -858,14 +764,161 @@ class MainModule extends Module {
 
 			statement.toIR(map);
 
-			if (statement.name.value == "main") {
+			
+
+			if (endCond(statement, isImport)) {
+				console.log(map);
 				break;
 			}
 		}
+
+		return map;
+	}
+
+	/**
+	 * For top-level statements
+	 * @package
+	 * @param {IRDefinitions} map 
+	 */
+	static injectMutualRecursions(map) {
+		const keys = Array.from(map.keys());
+
+		for (let i = keys.length - 1; i >= 0; i--) {
+			const k = keys[i];
+
+			// including self
+			const others = keys.slice(i);
+
+			// do the actual replacing
+			for (let k_ of keys) {
+				map.set(k_, assertDefined(map.get(k_)).replace(new RegExp(`\\b${k}\\b`, "gm"), `${k}(${others.join(", ")})`));
+			}
+
+			const wrapped = new IR([
+				new IR(`(${others.join(", ")}) -> {`),
+				assertDefined(map.get(k)),
+				new IR("}")
+			]);
+
+			// wrap own definition
+			map.set(k, wrapped);
+		}
+	}
+
+	/**
+	 * Also merges builtins and map
+	 * @param {IRDefinitions} builtins 
+	 * @param {IRDefinitions} map 
+	 * @returns {IRDefinitions}
+	 */
+	static injectTypeParameters(builtins, map) {
+		const re = new RegExp("\\b__[a-zA-Z0-9_]*@[a-zA-Z0-9_@]*@[a-zA-Z0-9_]*\\b");
+
+		/**
+		 * @type {IRDefinitions}
+		 */
+		const added = new Map();
+
+		/**
+		 * @param {string} name 
+		 */
+		const add = (name) => {
+			console.log("matched", name);
+			if (builtins.has(name) || map.has(name) || added.has(name)) {
+				return;
+			}
+
+			const parts = name.split("@");
+			const prefix = parts.shift();
+			const suffix = parts.pop();
+
+			assert(parts.length > 0);
+
+			const genericName = `${prefix}@${parts.map((_, i) => `__T${i}`).join("@")}@${suffix}`;
+			console.log("generating: ", genericName);
+
+			let ir = builtins.get(genericName) ?? map.get(genericName);
+
+			if (!ir) {
+				throw new Error(`${genericName} undefined in ir`);
+			} else {
+				parts.forEach((newStr, i) => {
+					ir = assertDefined(ir).replace(new RegExp(`\\b__T${i}\\b`), newStr);
+				});
+
+				added.set(name, ir);
+
+				ir.search(re, add);
+			}
+		};
+
+		for (let [k, v] of map) {
+			v.search(re, add);
+		}
+
+		let entries = Array.from(builtins.entries()).concat(Array.from(map.entries()));
+
+		/**
+		 * @param {string} prefix
+		 * @returns {number}
+		 */
+		const findLast = (prefix) => {
+			for (let i = entries.length - 1; i >= 0; i--) {
+				if (entries[i][0].startsWith(prefix) || entries[i][0].startsWith("__helios")) {
+					return i;
+				}
+			}
+
+			return -1;
+		};
+
+		const addedEntries = Array.from(added.entries());
+
+		for (let i = addedEntries.length-1; i >= 0; i--) {
+			const [name, ir] = addedEntries[i];
+
+			const parts = name.split("@");
+			parts.shift();
+			parts.pop();
+
+			const j = parts.reduce((prev, part) => Math.max(prev, findLast(part)), -1);
+
+			entries = entries.slice(0, j+1).concat([[name, ir]]).concat(entries.slice(j+1));
+		}
+
+		return new Map(entries);
+	}
+
+	/**
+	 * @package
+	 * @param {IR} ir
+	 * @param {string[]} parameters
+	 * @param {(s: Statement) => boolean} endCond
+	 * @returns {IRDefinitions}
+	 */
+	fetchDefinitions(ir, parameters, endCond) {
+		let map = this.statementsToIR(parameters, endCond);
+
+		Program.injectMutualRecursions(map);
  
 		// builtin functions are added when the IR program is built
 		// also replace all tabs with four spaces
-		return wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
+
+		const builtins = fetchRawFunctions(IR.wrapWithDefinitions(ir, map));
+
+		return Program.injectTypeParameters(builtins, map);
+	}
+
+	/**
+	 * @package
+	 * @param {IR} ir
+	 * @param {string[]} parameters
+	 * @returns {IR}
+	 */
+	wrapEntryPoint(ir, parameters) {
+		const map = this.fetchDefinitions(ir, parameters, (s) => s.name.value == "main");
+
+		return IR.wrapWithDefinitions(ir, map);
 	}
 
 	/**
@@ -895,9 +948,10 @@ class MainModule extends Module {
 	compile(simplify = false) {
 		const ir = this.toIR([]);
 
+		console.log(ir.generateSource()[0]);
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 		
-		//console.log(new Source(irProgram.toString()).pretty());
+		console.log(new Source(irProgram.toString()).pretty());
 		
 		return irProgram.toUplc();
 	}
@@ -989,7 +1043,7 @@ class RedeemerProgram extends Program {
 
 		if (retTypes.length !== 1) {
 			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
-		} else if (!(retTypes[0] instanceof BoolType)) {
+		} else if (!(BoolType.isBaseOf(retTypes[0]))) {
 			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retTypes[0].toString()}'`);
 		}
 
@@ -1034,7 +1088,7 @@ class RedeemerProgram extends Program {
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
+			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(${this.mainPath})(`),
 			new IR(innerArgs).join(", "),
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
@@ -1127,7 +1181,7 @@ class DatumRedeemerProgram extends Program {
 
 		if (retTypes.length !== 1) {
 			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
-		} else if (!(retTypes[0] instanceof BoolType)) {
+		} else if (!(BoolType.isBaseOf(retTypes[0]))) {
 			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retTypes[0].toString()}'`);
 		}
 
@@ -1178,7 +1232,7 @@ class DatumRedeemerProgram extends Program {
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
+			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(${this.mainPath})(`),
 			new IR(innerArgs).join(", "),
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
@@ -1228,20 +1282,21 @@ class TestingProgram extends Program {
 	 */
 	toIR(parameters = []) {
 		const innerArgs = this.mainFunc.argTypes.map((t, i) => {
-			if (t instanceof BoolType) {
+			if (BoolType.isBaseOf(t)) {
 				return new IR(`__helios__common__unBoolData(arg${i})`);
 			} else {
 				return new IR(`arg${i}`);
 			}
 		});
 
+		// allow main to be called recursively
 		let ir = new IR([
-			new IR(`${this.mainPath}(`),
+			new IR(`${this.mainPath}(${this.mainPath})(`),
 			new IR(innerArgs).join(", "),
 			new IR(")"),
 		]);
 
-		if (this.mainFunc.retTypes[0] instanceof BoolType) {
+		if (BoolType.isBaseOf(this.mainFunc.retTypes[0])) {
 			ir = new IR([
 				new IR("__helios__common__boolData("),
 				ir,

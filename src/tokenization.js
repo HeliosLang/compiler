@@ -43,11 +43,14 @@ export class Tokenizer {
 	#codeMap;
 	#codeMapPos;
 
+	#irMode;
+
 	/**
 	 * @param {Source} src 
 	 * @param {?CodeMap} codeMap 
+	 * @param {boolean} irMode - if true '@' is treated as a regular character
 	 */
-	constructor(src, codeMap = null) {
+	constructor(src, codeMap = null, irMode = false) {
 		assert(src instanceof Source);
 
 		this.#src = src;
@@ -55,6 +58,7 @@ export class Tokenizer {
 		this.#ts = []; // reset to empty to list at start of tokenize()
 		this.#codeMap = codeMap; // can be a list of pairs [pos, site in another source]
 		this.#codeMapPos = 0; // not used if codeMap === null
+		this.#irMode = irMode;
 	}
 
 	incrPos() {
@@ -131,7 +135,7 @@ export class Tokenizer {
 	 * @param {string} c 
 	 */
 	readToken(site, c) {
-		if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+		if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && c == '@')) {
 			this.readWord(site, c);
 		} else if (c == '/') {
 			this.readMaybeComment(site);
@@ -212,7 +216,7 @@ export class Tokenizer {
 
 		let c = c0;
 		while (c != '\0') {
-			if (c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+			if (c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && c == '@')) {
 				chars.push(c);
 				c = this.readChar();
 			} else {
@@ -804,7 +808,7 @@ export function tokenizeIR(rawSrc, codeMap) {
 	let src = new Source(rawSrc);
 
 	// the Tokenizer for Helios can simply be reused for the IR
-	let tokenizer = new Tokenizer(src, codeMap);
+	let tokenizer = new Tokenizer(src, codeMap, true);
 
 	const ts = tokenizer.tokenize();
 

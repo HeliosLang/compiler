@@ -100,7 +100,7 @@ async function test0() {
       unused2()
     }
 
-    func deserialize[A: Storable](a: Data) -> A {
+    func deserialize[A: Serializable](a: Data) -> A {
       A::from_data(a)
     }
 
@@ -128,7 +128,7 @@ async function test1() {
         shareholder_indexes = []Int::new(shareholder_shares.length, (i: Int) -> Int {i}); // [1..shareholder_indexes.length]
         init = Map[Address]Int{};
 
-        shareholders: Map[Address]Int =  shareholder_indexes.fold(
+        shareholders: Map[Address]Int = shareholder_indexes.fold(
           (acc: Map[Address]Int, idx: Int) -> Map[Address]Int {
             acc + Map[Address]Int{
               bytearrayToAddress(shareholder_pkhs.get(idx-1)): shareholder_shares.get(idx-1)
@@ -154,7 +154,6 @@ async function test2() {
       amount : Int
       tradeOwner: PubKeyHash
 
-      
       func tradeOwnerSigned(self, tx: Tx) -> Bool {
         tx.is_signed_by(self.tradeOwner)
       }
@@ -187,6 +186,8 @@ async function test2() {
 
     let program = helios.Program.new(src);
 
+    console.log(program.prettyIR(false));
+    
     program.parameters = {
       DISBURSEMENTS: new (helios.HMap(helios.PubKeyHash, helios.HInt))([
         [new helios.PubKeyHash("01020304050607080910111213141516171819202122232425262728"), new helios.HInt(100)]
@@ -195,8 +196,6 @@ async function test2() {
 
     console.log(program.evalParam("DISBURSEMENTS").toString());
     console.log(program.evalParam("DATUM").toString());
-
-    console.log(program.cleanSource());
 }
 
 async function test3() {
@@ -269,9 +268,7 @@ async function test5() {
 
   // also test the transfer function
   let uplcProgram = program.compile().transfer(helios.UplcProgram);
-
   console.log((await uplcProgram.runWithPrint([])).toString());
-
   console.log(program.evalParam("r").toString());
 }
 
@@ -389,6 +386,8 @@ async function test10() {
 	}`;
 
 	helios.Program.new(src).compile();
+
+  
 }
 
 async function test11() {
@@ -408,7 +407,14 @@ async function test11() {
   console.log(program.prettyIR(false));
   console.log(program.prettyIR(true));
 
-  program.compile();
+  const uplcProgram = program.compile();
+
+  const arg0 = new helios.UplcDataValue(helios_.Site.dummy(), (new helios.HInt(2))._toUplcData());
+  const arg1 = new helios.UplcDataValue(helios_.Site.dummy(), (new helios.HInt(1))._toUplcData());
+
+  let res = await uplcProgram.run([arg0, arg1]);
+
+  console.log(res.toString())
 }
 
 async function test12() {

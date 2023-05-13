@@ -1117,7 +1117,7 @@ export class StringLiteral extends PrimitiveLiteral {
 
 	/**
 	 * @param {string | IR[]} content 
-	 * @param {?Site} site 
+	 * @param {null | Site} site 
 	 */
 	constructor(content, site = null) {
 		assert(!(Array.isArray(content) && content.some(item => item == undefined)), "some items undefined");
@@ -1233,6 +1233,38 @@ export class StringLiteral extends PrimitiveLiteral {
 		const [src, _] = this.generateSource();
 
 		return (new Source(src)).pretty();
+	}
+
+	/**
+	 * @param {RegExp} re 
+	 * @param {string} newStr
+	 * @returns {IR}
+	 */
+	replace(re, newStr) {
+		if (typeof this.#content == "string") {
+			return new IR(this.#content.replace(re, newStr), this.#site);
+		} else {
+			return new IR(this.#content.map(ir => ir.replace(re, newStr), this.#site));
+		}
+	}
+
+	/**
+	 * 
+	 * @param {RegExp} re 
+	 * @param {(match: string) => void} callback 
+	 */
+	search(re, callback) {
+		if (typeof this.#content == "string") {
+			const ms = this.#content.match(re);
+
+			if (ms) {
+				for (let m of ms) {
+					callback(m);
+				}
+			}
+		} else {
+			this.#content.forEach(ir => ir.search(re, callback));
+		}
 	}
 
 	/**

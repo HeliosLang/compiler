@@ -288,6 +288,15 @@ export class IRExpr extends Token {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar
+	 * @param {number[]} remaining
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
 	 * @returns {UplcTerm}
 	 */
 	toUplc() {
@@ -401,6 +410,15 @@ export class IRNameExpr extends IRExpr {
 	evalConstants(stack) {
 		if (this.#variable != null) {
 			this.#value = stack.get(this.#variable);
+
+			if (this.#value === null) {
+				console.log(stack.dump())
+				console.log("MAYBE UNDEFINED IN IR:", this.#variable.name)
+
+				if (this.#variable.name.startsWith("__module")) {
+					throw new Error("block");
+				}
+			}
 		}
 
 		return this;
@@ -487,6 +505,15 @@ export class IRNameExpr extends IRExpr {
 		} else {
 			return this;
 		}
+	}
+
+	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return this;
 	}
 
 	/**
@@ -622,6 +649,15 @@ export class IRLiteralExpr extends IRExpr {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return this;
+	}
+
+	/**
 	 * @returns {UplcConst}
 	 */
 	toUplc() {
@@ -645,8 +681,19 @@ export class IRConstExpr extends IRExpr {
 		this.#expr = expr;
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {string}
+	 */
 	toString(indent = "") {
 		return `const(${this.#expr.toString(indent)})`;
+	}
+
+	/**
+	 * @param {IRNameExprRegistry} nameExprs
+	 */
+	registerNameExprs(nameExprs) {
+		this.#expr.registerNameExprs(nameExprs);
 	}
 
 	/**
@@ -666,6 +713,7 @@ export class IRConstExpr extends IRExpr {
 		if (result != null) {
 			return new IRLiteralExpr(result.value);
 		} else {
+			console.log(this.toString());
 			throw new Error("unable to evaluate const");
 		}
 	}
@@ -682,8 +730,8 @@ export class IRConstExpr extends IRExpr {
 	 * @param {IRVariable} fnVar 
 	 * @param {number[]} remaining 
 	 */
-	removeUnusedCallArgs(fnVar, remaining) {
-		return new IRConstExpr(this.site, this.#expr.removeUnusedCallArgs(fnVar, remaining));
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return new IRConstExpr(this.site, this.#expr.simplifyUnusedTypeParams(fnVar, remaining));
 	}
 
 	/**
@@ -796,8 +844,8 @@ export class IRFuncExpr extends IRExpr {
 	 * @param {number[]} remaining
 	 * @returns {IRExpr} 
 	 */
-	removeUnusedCallArgs(fnVar, remaining) {
-		return new IRFuncExpr(this.site, this.args, this.#body.removeUnusedCallArgs(fnVar, remaining));
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return new IRFuncExpr(this.site, this.args, this.#body.simplifyUnusedTypeParams(fnVar, remaining));
 	}
 
 	/**
@@ -877,7 +925,7 @@ export class IRCallExpr extends IRExpr {
 	 */
 	constructor(site, argExprs, parensSite) {
 		super(site);
-		this.#argExprs = argExprs;
+		this.#argExprs = assertDefined(argExprs);
 		this.#parensSite = parensSite;
 		
 	}
@@ -912,7 +960,15 @@ export class IRCallExpr extends IRExpr {
 	 * @returns {IRExpr[]}
 	 */
 	evalConstantsInArgs(stack) {
+		try {
 		return this.#argExprs.map(a => a.evalConstants(stack));
+		} catch (e) {
+			if (e.message == "block") {
+				console.log("HERE:", this.toString())
+			}
+
+			throw e;
+		}
 	}
 
 	/** 
@@ -1130,8 +1186,8 @@ export class IRCoreCallExpr extends IRCallExpr {
 	 * @param {IRVariable} fnVar 
 	 * @param {number[]} remaining 
 	 */
-	removeUnusedCallArgs(fnVar, remaining) {
-		const argExprs = this.argExprs.map(ae => ae.removeUnusedCallArgs(fnVar, remaining));
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining));
 
 		return new IRCoreCallExpr(this.#name, argExprs, this.parensSite);
 	}
@@ -1569,9 +1625,10 @@ export class IRUserCallExpr extends IRCallExpr {
 	/**
 	 * @param {IRVariable} fnVar 
 	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
 	 */
-	removeUnusedCallArgs(fnVar, remaining) {
-		const argExprs = this.argExprs.map(ae => ae.removeUnusedCallArgs(fnVar, remaining));
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining));
 
 		if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.isVariable(fnVar)) {
 			return new IRUserCallExpr(
@@ -1580,7 +1637,7 @@ export class IRUserCallExpr extends IRCallExpr {
 				this.parensSite
 			);
 		} else {
-			const fnExpr = this.#fnExpr.removeUnusedCallArgs(fnVar, remaining);
+			const fnExpr = this.#fnExpr.simplifyUnusedTypeParams(fnVar, remaining);
 
 			return new IRUserCallExpr(
 				fnExpr,
@@ -1807,14 +1864,14 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 	 * @param {number[]} remaining 
 	 * @returns {IRExpr}
 	 */
-	removeUnusedCallArgs(fnVar, remaining) {
-		const argExprs = this.argExprs.map(ae => ae.removeUnusedCallArgs(fnVar, remaining));
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining));
 
-		let anon = assertClass(this.#anon.removeUnusedCallArgs(fnVar, remaining), IRFuncExpr);
+		let anon = assertClass(this.#anon.simplifyUnusedTypeParams(fnVar, remaining), IRFuncExpr);
 
 		argExprs.forEach((ae, i) => {
 			if (ae instanceof IRNameExpr && ae.isVariable(fnVar)) {
-				anon = assertClass(anon.removeUnusedCallArgs(this.argVariables[i], remaining), IRFuncExpr);
+				anon = assertClass(anon.simplifyUnusedTypeParams(this.argVariables[i], remaining), IRFuncExpr);
 			}
 		});
 
@@ -1930,8 +1987,6 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 		const remainingIds = this.argVariables.map((variable, i) => {
 			const n = registry.countReferences(variable);
 
-			console.log(variable.name, n);
-
 			if (n == 0) {
 				return -1;
 			} else {
@@ -1975,8 +2030,12 @@ export class IRNestedAnonCallExpr extends IRUserCallExpr {
 	 * @param {number[]} remaining
 	 * @returns {IRExpr}
 	 */
-	removeUnusedCallArgs(fnVar, remaining) {
-
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return new IRNestedAnonCallExpr(
+			assertClass(this.#anon.simplifyUnusedTypeParams(fnVar, remaining), IRAnonCallExpr),
+			this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining)),
+			this.parensSite
+		)
 	}
 		
 	/**
@@ -2047,38 +2106,50 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 	}
 
 	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {[IRFuncExpr, IRFuncExpr]}
+	 */
+	simplifyTypeParams(registry) {
+		let anon = this.anon;
+		let def = this.#def;
+
+		if (this.#def.args.some(a => a.name.startsWith("__typeparam"))) {
+			const usedTypeParams = this.#def.args.map((variable, i) => {
+				const n = registry.countReferences(variable);
+
+				if (n == 0) {
+					return -1;
+				} else {
+					return i;
+				}
+			}).filter(i => i != -1);
+
+			if (usedTypeParams.length < this.#def.args.length) {
+				anon = new IRFuncExpr(
+					anon.site,
+					anon.args,
+					anon.body.simplifyUnusedTypeParams(anon.args[0], usedTypeParams)
+				);
+
+				def = new IRFuncExpr(
+					this.#def.site,
+					usedTypeParams.map(i => def.args[i]),
+					this.#def.body
+				);
+			}
+		}
+
+		return [anon, def];
+	}
+
+	/**
 	 * Remove args that are unused in def
 	 * @param {IRExprRegistry} registry
 	 * @returns {IRExpr}
 	 */
 	simplifyTopology(registry) {
-		let anon = this.anon;
-		let def = this.#def;
-
-		const remainingArgIds = this.#def.args.map((variable, i) => {
-			const n = registry.countReferences(variable);
-
-			if (n == 0) {
-				return -1;
-			} else {
-				return i;
-			}
-		}).filter(i => i != -1);
-
-		if (remainingArgIds.length < this.#def.args.length) {
-			anon = new IRFuncExpr(
-				anon.site,
-				anon.args,
-				anon.body.removeUnusedCallArgs(anon.args[0], remainingArgIds)
-			);
-
-			def = new IRFuncExpr(
-				this.#def.site,
-				remainingArgIds.map(i => def.args[i]),
-				this.#def.body
-			);
-		}
-
+		const [anon, def] = this.simplifyTypeParams(registry);
+		
 		const res = (new IRAnonCallExpr(anon, [def], this.parensSite)).simplifyTopology(registry);
 
 		if (res instanceof IRAnonCallExpr && res.argExprs.length == 0) {
@@ -2097,15 +2168,34 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar
+	 * @param {number[]} remaining
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return new IRFuncDefExpr(
+			assertClass(this.anon.simplifyUnusedTypeParams(fnVar, remaining), IRFuncExpr),
+			assertClass(this.#def.simplifyUnusedTypeParams(fnVar, remaining), IRFuncExpr),
+			this.parensSite
+		);
+	}
+
+	/**
 	 * @param {IRExprRegistry} registry
 	 * @returns {IRExpr}
 	 */
 	simplifyUnused(registry) {
-		return new IRFuncDefExpr(
-			this.anon.simplifyUnused(registry),
-			this.#def.simplifyUnused(registry),
-			this.parensSite
-		)
+		if (registry.countReferences(this.anon.args[0]) == 0) {
+			return this.anon.body.simplifyUnused(registry);
+		} else {
+			const [anon, def] = this.simplifyTypeParams(registry);
+
+			return new IRFuncDefExpr(
+				anon.simplifyUnused(registry),
+				def.simplifyUnused(registry),
+				this.parensSite
+			);
+		}
 	}
 }
 
@@ -2194,6 +2284,15 @@ export class IRErrorCallExpr extends IRExpr {
 	 * @returns {IRExpr}
 	 */
 	simplifyUnused(registry) {
+		return this;
+	}
+
+	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
 		return this;
 	}
 

@@ -9,8 +9,7 @@ import {
 	assert,
 	assertClass,
 	assertDefined,
-	bytesToHex,
-	reduceNull
+	bytesToHex
 } from "./utils.js";
 
 import { 
@@ -35,40 +34,75 @@ import {
 import {
 	AnyType,
 	ArgType,
-	BoolType,
-	BuiltinFuncInstance,
-	ByteArrayType,
-	ConstStatementInstance,
-	DataInstance,
-	EnumMemberStatementType,
-	EnumStatementType,
-	ErrorInstance,
+	Common,
+	DataEntity,
+	ErrorEntity,
 	ErrorType,
-	FuncInstance,
-	FuncStatementInstance,
+	FuncEntity,
 	FuncType,
-	Instance,
+	MultiEntity,
+
+	VoidEntity,
+	VoidType
+
+} from "./eval-common.js";
+
+/**
+ * @typedef {import("./eval-common.js").DataType} DataType
+ */
+
+/**
+ * @typedef {import("./eval-common.js").EvalEntity} EvalEntity
+ */
+
+/**
+ * @typedef {import("./eval-common.js").Instance} Instance
+ */
+
+/**
+ * @typedef {import("./eval-common.js").Multi} Multi
+ */
+
+/**
+ * @typedef {import("./eval-common.js").Namespace} Namespace
+ */
+
+/**
+ * @typedef {import("./eval-common.js").Type} Type
+ */
+
+/**
+ * @typedef {import("./eval-common.js").Typed} Typed
+ */
+
+/**
+ * @typedef {import("./eval-common.js").TypeClass} TypeClass
+ */
+
+
+import {
+	BoolType,
+	ByteArrayType,
 	IntType,
-	ListType,
-	MapType,
-	MultiInstance,
-	Namespace,
-	OptionType,
-	OptionNoneType,
-	ParametricInstance,
 	RawDataType,
 	RealType,
-	StatementType,
-	StringType,
-	StructStatementType,
-    Type,
-	TypeClass,
-	VoidInstance,
-	VoidType,
+	StringType
+} from "./eval-primitives.js";
+
+import {
 	AnyTypeClass,
 	Parameter,
-	ParametricFuncStatementInstance
-} from "./helios-eval-entities.js";
+	ParametricFunc
+} from "./eval-parametric.js";
+
+import {
+	ListType,
+	ListType$,
+	MapType,
+	MapType$,
+	OptionType,
+	OptionType$
+} from "./eval-containers.js";
 
 import {
 	Scope
@@ -76,121 +110,39 @@ import {
 
 /**
  * Base class of every Type and Instance expression.
+ * @package
  */
-class Expr extends Token {
+export class Expr extends Token {
+	/**@type {null | EvalEntity} */
+	#cache;
+
 	/**
 	 * @param {Site} site 
+	 
 	 */
 	constructor(site) {
 		super(site);
-	}
-
-	use() {
-		throw new Error("not yet implemented");
-	}
-}
-
-/**
- * Base class of every Type expression
- * Caches evaluated Type.
- * @package
- */
-export class TypeExpr extends Expr {
-	#cache;
-
-	/**
-	 * @param {Site} site 
-	 * @param {Type | null} cache
-	 */
-	constructor(site, cache = null) {
-		super(site);
-		this.#cache = cache;
-	}
-
-	get type() {
-		if (this.#cache === null) {
-			throw new Error("type not yet evaluated");
-		} else {
-			return this.#cache;
-		}
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	evalInternal(scope) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	eval(scope) {
-		if (this.#cache === null) {
-			this.#cache = this.evalInternal(scope);
-		}
-
-		return this.#cache;
-	}
-}
-
-/**
- * @package
- * TODO: rename to TypeClassRefExpr
- */
-export class TypeClassExpr extends Expr {
-	#name;
-
-	/**
-	 * @type {null | TypeClass}
-	 */
-	#cache;
-
-	/**
-	 * @param {Word} name 
-	 */
-	constructor(name) {
-		super(name.site);
-		this.#name = name;
 		this.#cache = null;
 	}
 
 	/**
-	 * @type {TypeClass}
+	 * @type {null | EvalEntity}
 	 */
-	get typeClass() {
-		if (this.#cache === null) {
-			throw new Error("should be set (can't call this before type evaluation)");
-		} else {
-			return this.#cache;
-		}
+	get cache() {
+		return this.#cache;
 	}
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {TypeClass}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const v = scope.get(this.#name);
-
-		if (v instanceof Scope) {
-			throw this.site.typeError("expected type class, got scope");
-		} else {
-			const tc = v.assertTypeClass();
-
-			if (!tc) {
-				throw this.site.typeError("not a typeclass");
-			} else {
-				return tc;
-			}
-		}
+		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {TypeClass}
+	 * @returns {EvalEntity}
 	 */
 	eval(scope) {
 		if (this.#cache === null) {
@@ -199,22 +151,109 @@ export class TypeClassExpr extends Expr {
 
 		return this.#cache;
 	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {DataType}
+	 */
+	evalAsDataType(scope) {
+		const result = this.eval(scope).asDataType;
+
+		if (!result) {
+			throw this.typeError("not a data type");
+		}
+
+		return result;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
+	evalAsType(scope) {
+		const r = this.eval(scope);
+
+		const result = r.asType;
+
+		if (!result) {
+			throw this.typeError(`${r.toString()} isn't a type`);
+		}
+
+		return result;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Typed}
+	 */
+	evalAsTyped(scope) {
+		const r  = this.eval(scope);
+
+		const result = r.asTyped;
+
+		if (!result) {
+			throw this.typeError(`${r.toString()} isn't a value`);
+		}
+
+		return result;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return false;
+	}
+
+	/**
+	 * @param {string} indent
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		throw new Error("not yet implemented");
+	}
 }
 
 /**
- * Type reference class (i.e. using a Word)
+ * Simple reference class (i.e. using a Word)
  * @package
  */
-export class TypeRefExpr extends TypeExpr {
+export class RefExpr extends Expr {
 	#name;
 
 	/**
 	 * @param {Word} name
-	 * @param {?Type} cache
 	 */
-	constructor(name, cache = null) {
-		super(name.site, cache);
+	constructor(name) {
+		super(name.site);
 		this.#name = name;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		return scope.get(this.#name);
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		const path = this.cache?.asNamed ? this.cache.asNamed.path : this.#name.value;
+
+		let ir = new IR(path, this.site);
+		
+		return ir;
 	}
 
 	/**
@@ -223,95 +262,19 @@ export class TypeRefExpr extends TypeExpr {
 	toString() {
 		return this.#name.toString();
 	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	evalInternal(scope) {
-		const type = scope.get(this.#name).assertType();
-		if (!type) {
-			throw this.#name.site.typeError("not a type");
-		}
-
-		return type;
-	}
-
-	get path() {
-		return this.type.path;
-	}
-
-	use() {
-		let t = this.type;
-
-		if (t instanceof StatementType) {
-			t.statement.use();
-		}
-	}
 }
 
 /**
- * Type[...] expression
+ * Name::Member expression
  * @package
  */
-export class ParametricTypeExpr extends TypeExpr {
-	#baseExpr;
-	#parameters;
-
-	/**
-	 * @param {Site} site - site of brackets
-	 * @param {TypeExpr} baseExpr
-	 * @param {TypeExpr[]} parameters
-	 */
-	constructor(site, baseExpr, parameters) {
-		super(site);
-		this.#baseExpr = baseExpr;
-		this.#parameters = parameters;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `${this.#baseExpr.toString()}[${this.#parameters.map(p => p.toString()).join(", ")}]`;
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	evalInternal(scope) {
-		const paramTypes = this.#parameters.map(p => p.eval(scope));
-
-		const baseType = this.#baseExpr.eval(scope);
-
-		// TODO: apply paramTypes
-
-		return baseType;
-	}
-
-	get path() {
-		return this.type.path;
-	}
-
-	use() {
-		this.#baseExpr.use();
-
-		this.#parameters.forEach(p => p.use());
-	}
-}
-
-/**
- * Type::Member expression
- * @package
- */
-export class TypePathExpr extends TypeExpr {
+export class PathExpr extends Expr {
 	#baseExpr;
 	#memberName;
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr} baseExpr 
+	 * @param {Expr} baseExpr 
 	 * @param {Word} memberName
 	 */
 	constructor(site, baseExpr, memberName) {
@@ -321,33 +284,85 @@ export class TypePathExpr extends TypeExpr {
 	}
 
 	/**
+	 * @type {Expr}
+	 */
+	get baseExpr() {
+		return this.#baseExpr;
+	}
+	
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		const base = this.#baseExpr.eval(scope);
+
+		/**
+		 * @type {null | EvalEntity}
+		 */
+		let member = null;
+
+		if (base.asNamespace) {
+			member = base.asNamespace.namespaceMembers[this.#memberName.value];
+		} else if (base.asType) {
+			const typeMembers = base.asType.typeMembers;
+
+			console.log(typeMembers, base.asType.instanceMembers, base.asType.toString());
+
+			member = typeMembers[this.#memberName.value];
+		}
+
+		if (!member) {
+			throw this.#memberName.referenceError(`${base.toString()}::${this.#memberName.value} not found`);
+		}
+
+		if (member.asEnumMemberType && member.asEnumMemberType.fieldNames.length == 0) {
+			console.log("detected 0 fields in ", member.toString())
+			return new DataEntity(member.asEnumMemberType);
+		} else if(base.asNamespace) {
+			return member;
+		} else if (member.asType?.toTyped().asFunc) {
+			console.log("HERE2", member.toString());
+			return member.asType.toTyped();
+		} else {
+			console.log("HERE", member.toString());
+			return member;
+		}
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return (this.cache?.asTyped?.type.asEnumMemberType?.fieldNames?.length ?? -1) == 0;
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		const v = this.cache;
+
+		if (v?.asTyped?.type?.asEnumMemberType) {
+			return new IR([
+				new IR(`${v.asTyped.type.asEnumMemberType.path}____new`, this.site),
+				new IR("()")
+			]);
+		} else if (v?.asNamed) {
+			return new IR(`${v.asNamed.path}`, this.site);
+		} else if (this.#baseExpr.cache?.asNamed) {
+			return new IR(`${this.#baseExpr.cache.asNamed.path}__${this.#memberName.value}`, this.site);
+		} else {
+			throw new Error(`expected named value, ${v?.toString()}`);
+		}
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
 		return `${this.#baseExpr.toString()}::${this.#memberName.toString()}`;
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	evalInternal(scope) {
-		let enumType = this.#baseExpr.eval(scope);
-
-		const memberType = enumType.getTypeMember(this.#memberName).assertType();
-		if (!memberType) {
-			throw this.#memberName.site.typeError("not a type");
-		}
-
-		return memberType;
-	}
-
-	get path() {
-		return this.type.path;
-	}
-
-	use() {
-		this.#baseExpr.use();
 	}
 }
 
@@ -355,38 +370,37 @@ export class TypePathExpr extends TypeExpr {
  * []ItemType
  * @package
  */
-export class ListTypeExpr extends TypeExpr {
+export class ListTypeExpr extends Expr {
 	#itemTypeExpr;
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr} itemTypeExpr 
+	 * @param {Expr} itemTypeExpr 
 	 */
 	constructor(site, itemTypeExpr) {
 		super(site);
 		this.#itemTypeExpr = itemTypeExpr;
 	}
-
-	toString() {
-		return `[]${this.#itemTypeExpr.toString()}`;
-	}
-
+	
 	/**
 	 * @param {Scope} scope 
 	 * @returns {Type}
 	 */
 	evalInternal(scope) {
-		let itemType = this.#itemTypeExpr.eval(scope);
+		const itemType = this.#itemTypeExpr.eval(scope).asType;
 
-		if (itemType instanceof FuncType) {
-			throw this.#itemTypeExpr.typeError("list item type can't be function");
+		if (!itemType) {
+			throw this.#itemTypeExpr.typeError("not a type");
 		}
 
-		return new ListType(itemType);
+		return ListType$(itemType);
 	}
 
-	use() {
-		this.#itemTypeExpr.use();
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `[]${this.#itemTypeExpr.toString()}`;
 	}
 }
 
@@ -394,14 +408,14 @@ export class ListTypeExpr extends TypeExpr {
  * Map[KeyType]ValueType expression
  * @package
  */
-export class MapTypeExpr extends TypeExpr {
+export class MapTypeExpr extends Expr {
 	#keyTypeExpr;
 	#valueTypeExpr;
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr} keyTypeExpr 
-	 * @param {TypeExpr} valueTypeExpr 
+	 * @param {Expr} keyTypeExpr 
+	 * @param {Expr} valueTypeExpr 
 	 */
 	constructor(site, keyTypeExpr, valueTypeExpr) {
 		super(site);
@@ -409,35 +423,29 @@ export class MapTypeExpr extends TypeExpr {
 		this.#valueTypeExpr = valueTypeExpr;
 	}
 
-	toString() {
-		return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}`;
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		const keyType = this.#keyTypeExpr.eval(scope).asType;
+		if (!keyType) {
+			throw this.#keyTypeExpr.typeError("map key type not a type");
+		}
+
+		const valueType = this.#valueTypeExpr.eval(scope).asType;
+		if (!valueType) {
+			throw this.#valueTypeExpr.typeError("map value type not a type");
+		}
+
+		return MapType$(keyType, valueType);
 	}
 
 	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
+	 * @returns {string}
 	 */
-	evalInternal(scope) {
-		let keyType = this.#keyTypeExpr.eval(scope);
-
-		if (keyType instanceof FuncType) {
-			throw this.#keyTypeExpr.typeError("map key type can't be function");
-		} else if (keyType instanceof BoolType) {
-			throw this.#keyTypeExpr.typeError("map key type can't be a boolean");
-		}
-
-		let valueType = this.#valueTypeExpr.eval(scope);
-
-		if (valueType instanceof FuncType) {
-			throw this.#valueTypeExpr.typeError("map value type can't be function");
-		}
-
-		return new MapType(keyType, valueType);
-	}
-
-	use() {
-		this.#keyTypeExpr.use();
-		this.#valueTypeExpr.use();
+	toString() {
+		return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}`;
 	}
 }
 
@@ -445,20 +453,16 @@ export class MapTypeExpr extends TypeExpr {
  * Option[SomeType] expression
  * @package
  */
-export class OptionTypeExpr extends TypeExpr {
+export class OptionTypeExpr extends Expr {
 	#someTypeExpr;
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr} someTypeExpr 
+	 * @param {Expr} someTypeExpr 
 	 */
 	constructor(site, someTypeExpr) {
 		super(site);
 		this.#someTypeExpr = someTypeExpr;
-	}
-
-	toString() {
-		return `Option[${this.#someTypeExpr.toString()}]`;
 	}
 
 	/**
@@ -466,17 +470,19 @@ export class OptionTypeExpr extends TypeExpr {
 	 * @returns {Type}
 	 */
 	evalInternal(scope) {
-		let someType = this.#someTypeExpr.eval(scope);
-
-		if (someType instanceof FuncType) {
-			throw this.#someTypeExpr.typeError("option some type can't be function");
+		const someType = this.#someTypeExpr.eval(scope).asType;
+		if (!someType) {
+			throw this.#someTypeExpr.typeError("option some type not a type");
 		}
 
-		return new OptionType(someType);
+		return OptionType$(someType);
 	}
 
-	use() {
-		this.#someTypeExpr.use();
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `Option[${this.#someTypeExpr.toString()}]`;
 	}
 }
 
@@ -484,24 +490,27 @@ export class OptionTypeExpr extends TypeExpr {
  * '()' which can only be used as return type of func
  * @package
  */
-export class VoidTypeExpr extends TypeExpr {
+export class VoidTypeExpr extends Expr {
+	/**
+	 * @param {Site} site 
+	 */
 	constructor(site) {
 		super(site);
 	}
 
-	toString() {
-		return "()";
-	}
-
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Type}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		return new VoidType();
 	}
-	
-	use() {
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "()";
 	}
 }
 
@@ -516,7 +525,7 @@ export class FuncArgTypeExpr extends Token {
 	/**
 	 * @param {Site} site 
 	 * @param {null | Word} name 
-	 * @param {TypeExpr} typeExpr 
+	 * @param {Expr} typeExpr 
 	 * @param {boolean} optional 
 	 */
 	constructor(site, name, typeExpr, optional) {
@@ -541,6 +550,19 @@ export class FuncArgTypeExpr extends Token {
 	}
 
 	/**
+	 * @param {Scope} scope 
+	 * @returns {ArgType}
+	 */
+	eval(scope) {
+		const type = this.#typeExpr.eval(scope).asType;
+		if (!type) {
+			throw this.#typeExpr.typeError("not a type");
+		}
+
+		return new ArgType(this.#name, type, this.optional);
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
@@ -550,25 +572,13 @@ export class FuncArgTypeExpr extends Token {
 			this.#typeExpr.toString()
 		].join("");
 	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {ArgType}
-	 */
-	eval(scope) {
-		return new ArgType(this.#name, this.#typeExpr.eval(scope), this.optional);
-	}
-
-	use() {
-		this.#typeExpr.use();
-	}
 }
 
 /**
  * (ArgType1, ...) -> RetType expression
  * @package
  */
-export class FuncTypeExpr extends TypeExpr {
+export class FuncTypeExpr extends Expr {
 	#parameters;
 	#argTypeExprs;
 	#retTypeExprs;
@@ -577,13 +587,33 @@ export class FuncTypeExpr extends TypeExpr {
 	 * @param {Site} site 
 	 * @param {TypeParameters} parameters
 	 * @param {FuncArgTypeExpr[]} argTypeExprs 
-	 * @param {TypeExpr[]} retTypeExprs 
+	 * @param {Expr[]} retTypeExprs 
 	 */
 	constructor(site, parameters, argTypeExprs, retTypeExprs) {
 		super(site);
 		this.#parameters = parameters;
 		this.#argTypeExprs = argTypeExprs;
 		this.#retTypeExprs = retTypeExprs;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
+	evalInternal(scope) {
+		const argTypes = this.#argTypeExprs.map(a => a.eval(scope));
+
+		const retTypes = this.#retTypeExprs.map(e => {
+			const retType = e.eval(scope).asType;
+
+			if (!retType) {
+				throw e.typeError("return type isn't a type");
+			}
+
+			return retType;
+		});
+
+		return new FuncType(argTypes, retTypes);
 	}
 
 	/**
@@ -596,93 +626,13 @@ export class FuncTypeExpr extends TypeExpr {
 			return `${this.#parameters.toString()}(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => e.toString()).join(", ")})`;
 		}
 	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	evalInternal(scope) {
-		let argTypes = this.#argTypeExprs.map(a => a.eval(scope));
-
-		let retTypes = this.#retTypeExprs.map(e => e.eval(scope));
-
-		return new FuncType(argTypes, retTypes);
-	}
-
-	use() {
-		this.#argTypeExprs.forEach(arg => arg.use());
-		this.#retTypeExprs.forEach(e => e.use());
-	}
-}
-
-/**
- * Base class of expression that evaluate to Values.
- * @package
- */
-export class ValueExpr extends Expr {
-	/** @type {?Instance} */
-	#cache;
-
-	/**
-	 * @param {Site} site 
-	 */
-	constructor(site) {
-		super(site);
-
-		this.#cache = null;
-	}
-
-	/**
-	 * @type {Instance}
-	 */
-	get value() {
-		if (this.#cache === null) {
-			throw new Error("type not yet evaluated");
-		} else {
-			return this.#cache;
-		}
-	}
-
-	get type() {
-		return this.value.getType(this.site);
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
-	 */
-	evalInternal(scope) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
-	 */
-	eval(scope) {
-		if (this.#cache === null) {
-			this.#cache = this.evalInternal(scope);
-		}
-
-		return this.#cache;
-	}
-
-	/**
-	 * Returns Intermediate Representation of a value expression.
-	 * The IR should be indented to make debugging easier.
-	 * @param {string} indent 
-	 * @returns {IR}
-	 */
-	toIR(indent = "") {
-		throw new Error("not implemented");
-	}
 }
 
 /**
  * '... = ... ; ...' expression
  * @package
  */
-export class AssignExpr extends ValueExpr {
+export class AssignExpr extends Expr {
 	#nameTypes;
 	#upstreamExpr;
 	#downstreamExpr;
@@ -690,8 +640,8 @@ export class AssignExpr extends ValueExpr {
 	/**
 	 * @param {Site} site 
 	 * @param {DestructExpr[]} nameTypes 
-	 * @param {ValueExpr} upstreamExpr 
-	 * @param {ValueExpr} downstreamExpr 
+	 * @param {Expr} upstreamExpr 
+	 * @param {Expr} downstreamExpr 
 	 */
 	constructor(site, nameTypes, upstreamExpr, downstreamExpr) {
 		super(site);
@@ -702,57 +652,43 @@ export class AssignExpr extends ValueExpr {
 	}
 
 	/**
-	 * @returns {string}
-	 */
-	toString() {
-		let downstreamStr = this.#downstreamExpr.toString();
-		assert(downstreamStr != undefined);
-
-		if (this.#nameTypes.length === 1) {
-			return `${this.#nameTypes.toString()} = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
-		} else {
-			return `(${this.#nameTypes.map(nt => nt.toString()).join(", ")}) = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
-		}
-	}
-
-	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		const subScope = new Scope(scope);
 
-		let upstreamVal = this.#upstreamExpr.eval(scope).assertInstance();
-		if (!upstreamVal) {
-			throw this.typeError("rhs in't an instance");
-		}
+
+		let upstreamVal = this.#upstreamExpr.eval(scope);
 
 		if (this.#nameTypes.length > 1) {
-			if (!(upstreamVal instanceof MultiInstance)) {
+			if (!upstreamVal.asMulti) {
 				throw this.typeError("rhs ins't a multi-value");
-			} else {
-				let vals = upstreamVal.values;
-
-				if (this.#nameTypes.length != vals.length) {
-					throw this.typeError(`expected ${this.#nameTypes.length} rhs in multi-assign, got ${vals.length}`);
-				} else {
-					this.#nameTypes.forEach((nt, i) => nt.evalInAssignExpr(subScope, vals[i].getType(nt.site), i));
-				}
 			}
-		} else {
+
+			const vals = upstreamVal.asMulti.values;
+
+			if (this.#nameTypes.length != vals.length) {
+				throw this.typeError(`expected ${this.#nameTypes.length} rhs in multi-assign, got ${vals.length}`);
+			}
+
+			this.#nameTypes.forEach((nt, i) => {
+				nt.evalInAssignExpr(subScope, assertDefined(vals[i].type.asDataType), i)
+			});
+		} else if (upstreamVal.asTyped) {
 			if (this.#nameTypes[0].hasType()) {
-				this.#nameTypes[0].evalInAssignExpr(subScope, upstreamVal.getType(this.#nameTypes[0].site), 0);
+				this.#nameTypes[0].evalInAssignExpr(subScope, assertDefined(upstreamVal.asTyped.type.asDataType), 0);
 			} else if (this.#upstreamExpr.isLiteral()) {
 				// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
 				if ((this.#upstreamExpr instanceof CallExpr &&
-					this.#upstreamExpr.fnExpr instanceof ValuePathExpr) || 
-					(this.#upstreamExpr instanceof ValuePathExpr && 
-					!this.#upstreamExpr.isZeroFieldConstructor())) 
+					this.#upstreamExpr.fnExpr instanceof PathExpr) || 
+					(this.#upstreamExpr instanceof PathExpr && 
+					!this.#upstreamExpr.isLiteral())) 
 				{
-					let upstreamType = upstreamVal.getType(this.#upstreamExpr.site);
+					const upstreamType = upstreamVal.asTyped.type;
 
-					if (upstreamType.isEnumMember()) {
-						upstreamVal = Instance.new(upstreamType.parentType(Site.dummy()));
+					if (upstreamType.asEnumMemberType) {
+						upstreamVal = new DataEntity(upstreamType.asEnumMemberType.parentType);
 					}
 				}
 
@@ -760,6 +696,8 @@ export class AssignExpr extends ValueExpr {
 			} else {
 				throw this.typeError("unable to infer type of assignment rhs");
 			}
+		} else {
+			throw this.#upstreamExpr.typeError("not an instance");
 		}
 
 		const downstreamVal = this.#downstreamExpr.eval(subScope);
@@ -769,19 +707,12 @@ export class AssignExpr extends ValueExpr {
 		return downstreamVal;
 	}
 
-	use() {
-		this.#nameTypes.forEach(nt => nt.use());
-		this.#upstreamExpr.use();
-		this.#downstreamExpr.use();
-	}
-
 	/**
 	 * 
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		
 		if (this.#nameTypes.length === 1) {
 			let inner = this.#downstreamExpr.toIR(indent + TAB);
 
@@ -793,11 +724,11 @@ export class AssignExpr extends ValueExpr {
 			if (this.#nameTypes[0].hasType()) {
 				const t = this.#nameTypes[0].type;
 
-				if (t.isEnumMember()) {
+				if (t.asEnumMemberType) {
 					upstream = new IR([
 						new IR("__helios__common__assert_constr_index("),
 						upstream,
-						new IR(`, ${t.getConstrIndex(this.#nameTypes[0].site)})`)
+						new IR(`, ${t.asEnumMemberType.constrIndex})`)
 					]);
 				}
 			}
@@ -830,20 +761,34 @@ export class AssignExpr extends ValueExpr {
 			return ir;
 		}
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		let downstreamStr = this.#downstreamExpr.toString();
+		assert(downstreamStr != undefined);
+
+		if (this.#nameTypes.length === 1) {
+			return `${this.#nameTypes.toString()} = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
+		} else {
+			return `(${this.#nameTypes.map(nt => nt.toString()).join(", ")}) = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
+		}
+	}
 }
 
 /**
  * print(...); ... expression
  * @package
  */
-export class PrintExpr extends ValueExpr {
+export class PrintExpr extends Expr {
 	#msgExpr;
 	#downstreamExpr;
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr} msgExpr 
-	 * @param {ValueExpr} downstreamExpr 
+	 * @param {Expr} msgExpr 
+	 * @param {Expr} downstreamExpr 
 	 */
 	constructor(site, msgExpr, downstreamExpr) {
 		super(site);
@@ -852,34 +797,21 @@ export class PrintExpr extends ValueExpr {
 	}
 
 	/**
-	 * @returns {string}
-	 */
-	toString() {
-		let downstreamStr = this.#downstreamExpr.toString();
-		assert(downstreamStr != undefined);
-		return `print(${this.#msgExpr.toString()}); ${downstreamStr}`;
-	}
-
-	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const msgVal = this.#msgExpr.eval(scope).assertInstance();
+		const msgVal = this.#msgExpr.eval(scope).asInstance;
+
 		if (!msgVal) {
 			throw this.#msgExpr.typeError("not an instance");
 		}
 
-		if (!msgVal.isInstanceOf(StringType)) {
+		if (!StringType.isBaseOf(msgVal.type)) {
 			throw this.#msgExpr.typeError("expected string arg for print");
 		}
 
 		return this.#downstreamExpr.eval(scope);
-	}
-
-	use() {
-		this.#msgExpr.use();
-		this.#downstreamExpr.use();
 	}
 
 	/**
@@ -895,13 +827,24 @@ export class PrintExpr extends ValueExpr {
 			new IR(`\n${indent}})()`)
 		]);
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		const downstreamStr = this.#downstreamExpr.toString();
+
+		assert(downstreamStr != undefined);
+
+		return `print(${this.#msgExpr.toString()}); ${downstreamStr}`;
+	}
 }
 
 /**
  * Helios equivalent of unit
  * @package
  */
-export class VoidExpr extends ValueExpr {
+export class VoidExpr extends Expr {
 	/**
 	 * @param {Site} site
 	 */
@@ -909,23 +852,27 @@ export class VoidExpr extends ValueExpr {
 		super(site);
 	}
 
-	toString() {
-		return "()";
-	}
-
 	/**
 	 * @param {Scope} scope 
 	 * @returns {Instance}
 	 */
 	evalInternal(scope) {
-		return new VoidInstance();
+		return new VoidEntity();
 	}
 
-	use() {
-	}
-
-	toIR() {
+	/**
+	 * @param {string} indent
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
 		return new IR("()", this.site);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "()";
 	}
 }
 
@@ -933,14 +880,14 @@ export class VoidExpr extends ValueExpr {
  * expr(...); ...
  * @package
  */
-export class ChainExpr extends ValueExpr {
+export class ChainExpr extends Expr {
 	#upstreamExpr;
 	#downstreamExpr;
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr} upstreamExpr 
-	 * @param {ValueExpr} downstreamExpr 
+	 * @param {Expr} upstreamExpr 
+	 * @param {Expr} downstreamExpr 
 	 */
 	constructor(site, upstreamExpr, downstreamExpr) {
 		super(site);
@@ -954,23 +901,22 @@ export class ChainExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		let upstreamVal = this.#upstreamExpr.eval(scope);
+		const upstreamVal = this.#upstreamExpr.eval(scope).asTyped;
 
-		if (upstreamVal instanceof ErrorInstance) {
+		if (!upstreamVal) {
+			throw this.#upstreamExpr.typeError("upstream isn't typed");
+		}
+
+		if ((new ErrorType()).isBaseOf(upstreamVal.type)) {
 			throw this.#downstreamExpr.typeError("unreachable code (upstream always throws error)");
-		} else if (!(upstreamVal instanceof VoidInstance)) {
+		} else if (!((new VoidType()).isBaseOf(upstreamVal.type))) {
 			throw this.#upstreamExpr.typeError("unexpected return value (hint: use '='");
 		}
 
 		return this.#downstreamExpr.eval(scope);
-	}
-
-	use() {
-		this.#upstreamExpr.use();
-		this.#downstreamExpr.use();
 	}
 
 	/**
@@ -992,7 +938,7 @@ export class ChainExpr extends ValueExpr {
  * Literal expression class (wraps literal tokens)
  * @package
  */
-export class PrimitiveLiteralExpr extends ValueExpr {
+export class PrimitiveLiteralExpr extends Expr {
 	#primitive;
 
 	/**
@@ -1003,31 +949,20 @@ export class PrimitiveLiteralExpr extends ValueExpr {
 		this.#primitive = primitive;
 	}
 
-	isLiteral() {
-		return true;
-	}
-
 	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return this.#primitive.toString();
-	}
-
-	/**
-	 * @type {Type}
+	 * @type {DataType}
 	 */
 	get type() {
 		if (this.#primitive instanceof IntLiteral) {
-			return new IntType();
+			return IntType;
 		} else if (this.#primitive instanceof RealLiteral) {
-			return new RealType();
+			return RealType;
 		} else if (this.#primitive instanceof BoolLiteral) {
-			return new BoolType();
+			return BoolType;
 		} else if (this.#primitive instanceof StringLiteral) {
-			return new StringType();
+			return StringType;
 		} else if (this.#primitive instanceof ByteArrayLiteral) {
-			return new ByteArrayType(this.#primitive.bytes.length == 32 ? 32 : null);
+			return ByteArrayType;
 		} else {
 			throw new Error("unhandled primitive type");
 		}	
@@ -1035,13 +970,17 @@ export class PrimitiveLiteralExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		return new DataInstance(this.type);
+		return new DataEntity(this.type);
 	}
 
-	use() {
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return true;
 	}
 
 	/**
@@ -1064,19 +1003,26 @@ export class PrimitiveLiteralExpr extends ValueExpr {
 			throw new Error("unhandled primitive type");
 		}
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.#primitive.toString();
+	}
 }
 
 /**
  * Literal UplcData which is the result of parameter substitutions.
  * @package
  */
-export class LiteralDataExpr extends ValueExpr {
+export class LiteralDataExpr extends Expr {
 	#type;
 	#data;
 
 	/**
 	 * @param {Site} site 
-	 * @param {Type} type
+	 * @param {DataType} type
 	 * @param {UplcData} data
 	 */
 	constructor(site, type, data) {
@@ -1087,7 +1033,7 @@ export class LiteralDataExpr extends ValueExpr {
 
 	/**
 	 * @package
-	 * @type {Type}
+	 * @type {DataType}
 	 */
 	get type() {
 		return this.#type;
@@ -1100,23 +1046,27 @@ export class LiteralDataExpr extends ValueExpr {
 		return true;
 	}
 
-	toString() {
-		return `##${bytesToHex(this.#data.toCbor())}`;
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		return new DataEntity(this.#type);
 	}
 
 	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @param {string} indent 
+	 * @returns {IR}
 	 */
-	evalInternal(scope) {
-		return Instance.new(this.#type);
-	}
-
-	use() {
-	}
-
 	toIR(indent = "") {
 		return new IR(this.toString(), this.site);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `##${bytesToHex(this.#data.toCbor())}`;
 	}
 }
 
@@ -1129,12 +1079,23 @@ export class StructLiteralField {
 	#value;
 
 	/**
-	 * @param {?Word} name 
-	 * @param {ValueExpr} value 
+	 * @param {null | Word} name 
+	 * @param {Expr} value 
 	 */
 	constructor(name, value) {
 		this.#name = name;
 		this.#value = value;
+	}
+
+	/**
+	 * @type {Word}
+	 */
+	get name() {
+		if (this.#name === null) {
+			throw new Error("name of field not given");
+		} else {
+			return this.#name;
+		}
 	}
 
 	get site() {
@@ -1144,40 +1105,20 @@ export class StructLiteralField {
 			return this.#name.site;
 		}
 	}
+	
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	eval(scope) {
+		return this.#value.eval(scope);
+	}
 
 	/**
 	 * @returns {boolean}
 	 */
 	isNamed() {
 		return this.#name !== null;
-	}
-
-	get name() {
-		if (this.#name === null) {
-			throw new Error("name of field not given");
-		} else {
-			return this.#name;
-		}
-	}
-
-	toString() {
-		if (this.#name === null) {
-			return this.#value.toString();
-		} else {
-			return `${this.#name.toString()}: ${this.#value.toString()}`;
-		}
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
-	 */
-	eval(scope) {
-		return this.#value.eval(scope);
-	}
-
-	use() {
-		this.#value.use();
 	}
 
 	/**
@@ -1187,148 +1128,111 @@ export class StructLiteralField {
 	toIR(indent = "") {
 		return this.#value.toIR(indent);
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		if (this.#name === null) {
+			return this.#value.toString();
+		} else {
+			return `${this.#name.toString()}: ${this.#value.toString()}`;
+		}
+	}
 }
 
 /**
  * Struct literal constructor
  * @package
  */
-export class StructLiteralExpr extends ValueExpr {
+export class StructLiteralExpr extends Expr {
 	#typeExpr;
 	#fields;
-	/** @type {?number} - set during evaluation */
-	#constrIndex;
 
 	/**
-	 * @param {TypeExpr} typeExpr 
+	 * @param {Expr} typeExpr 
 	 * @param {StructLiteralField[]} fields 
 	 */
 	constructor(typeExpr, fields) {
 		super(typeExpr.site);
 		this.#typeExpr = typeExpr;
 		this.#fields = fields;
-		this.#constrIndex = null;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		const type = this.#typeExpr.eval(scope).asDataType;
+
+		if (!type) {
+			throw this.#typeExpr.typeError(`'${this.#typeExpr.toString()}' doesn't evaluate to a data type`);
+		}
+
+		if (type.fieldNames.length != this.#fields.length) {
+			throw this.typeError(`wrong number of fields for ${type.toString()}, expected ${type.fieldNames.length}, got ${this.#fields.length}`);
+		}
+
+		for (let i = 0; i < this.#fields.length; i++) {
+			const f = this.#fields[i];
+		
+			const fieldVal = f.eval(scope).asTyped;
+			if (!fieldVal) {
+				throw f.site.typeError("not typed");
+			}
+
+			if (f.isNamed()) {
+				if (type.fieldNames.findIndex(n => n == f.name.value) == -1) {
+					throw f.name.site.typeError("not a valid field");
+				}
+
+				// check the named type
+				const memberType = assertDefined(type.instanceMembers[f.name.value].asType);
+
+				if (!memberType.isBaseOf(fieldVal.type)) {
+					throw f.site.typeError(`wrong field type for '${f.name.toString()}', expected ${memberType.toString()}, got ${fieldVal.type.toString()}`);
+				}
+			} else {
+				// check the positional type
+				const memberType = assertDefined(type.instanceMembers[type.fieldNames[i]].asType);
+				
+				if (!memberType.isBaseOf(fieldVal.type)) {
+					throw f.site.typeError(`wrong field type for field ${i.toString()}, expected ${memberType.toString()}, got ${fieldVal.type.toString()}`);
+				}
+			}
+		}
+
+		return new DataEntity(type);
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
 	isLiteral() {
 		return true;
 	}
 
-	toString() {
-		return `${this.#typeExpr.toString()}{${this.#fields.map(f => f.toString()).join(", ")}}`;
-	}
-
+	/**
+	 * @returns {boolean}
+	 */
 	isNamed() {
 		// the expression builder already checked that all fields are named or all or positional (i.e. not mixed)
 		return this.#fields.length > 0 && this.#fields[0].isNamed();
 	}
 
 	/**
-	 * @param {Scope} scope 
-	 * @returns 
-	 */
-	evalInternal(scope) {
-		const type = this.#typeExpr.eval(scope).assertType();
-		if (!type) {
-			throw this.#typeExpr.typeError("not a type");
-		}
-
-		this.#constrIndex = type.getConstrIndex(this.site);
-
-		let instance = Instance.new(type);
-
-		if (instance.nFields(this.site) != this.#fields.length) {
-			throw this.typeError(`wrong number of fields for ${type.toString()}, expected ${instance.nFields(this.site)}, got ${this.#fields.length}`);
-		}
-
-		for (let i = 0; i < this.#fields.length; i++) {
-			let f = this.#fields[i];
-		
-			let fieldVal = f.eval(scope);
-
-			if (f.isNamed()) {
-				// check the named type
-				let memberType = instance.getInstanceMember(f.name).getType(f.name.site);
-
-				if (!fieldVal.isInstanceOf(memberType)) {
-					throw f.site.typeError(`wrong field type for '${f.name.toString()}', expected ${memberType.toString()}, got ${fieldVal.getType(Site.dummy()).toString()}`);
-				}
-			} else {
-				// check the positional type
-				let memberType = instance.getFieldType(f.site, i);
-				
-				if (!fieldVal.isInstanceOf(memberType)) {
-					throw f.site.typeError(`wrong field type for field ${i.toString()}, expected ${memberType.toString()}, got ${fieldVal.getType(Site.dummy()).toString()}`);
-				}
-			}
-		}
-
-		return instance;
-	}
-
-	use() {
-		this.#typeExpr.use();
-
-		for (let f of this.#fields) {
-			f.use();
-		}
-	}
-
-	/**
 	 * @param {Site} site
-	 * @param {Type} type
+	 * @param {string} path
 	 * @param {IR[]} fields
-	 * @param {number | null} constrIndex
 	 */
-	static toIRInternal(site, type, fields, constrIndex) {
-		let ir = new IR("__core__mkNilData(())");
-
-		const instance = Instance.new(type);
-
-		for (let i = fields.length - 1; i >= 0; i--) {
-			let f = fields[i];
-
-			const isBool = instance.getFieldType(site, i) instanceof BoolType;
-
-			if (isBool) {
-				f = new IR([
-					new IR("__helios__common__boolData("),
-					f,
-					new IR(")"),
-				]);
-			}
-
-			// in case of a struct with only one field, return that field directly 
-			if (fields.length == 1 && type instanceof StructStatementType) {
-				return f;
-			}
-
-			ir = new IR([
-				new IR("__core__mkCons("),
-				f,
-				new IR(", "),
-				ir,
-				new IR(")")
-			]);
-		}
-
-		if (constrIndex === null) {
-			throw new Error("constrIndex not yet set");
-		} else if (constrIndex == -1) {
-			// regular struct
-			return new IR([
-				new IR("__core__listData", site),
-				new IR("("), 
-				ir,
-				new IR(")")
-			]);
-		} else {
-			return new IR([
-				new IR("__core__constrData", site), new IR(`(${constrIndex.toString()}, `),
-				ir,
-				new IR(")")
-			]);
-		}
+	static toIRInternal(site, path, fields) {
+		return new IR([
+			new IR(`${path}____new`),
+			new IR("("),
+			new IR(fields).join(", "),
+			new IR(")")
+		], site);
 	}
 
 	/**
@@ -1336,18 +1240,25 @@ export class StructLiteralExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		const type = this.#typeExpr.type;
+		const type = assertDefined(this.#typeExpr.cache?.asDataType);
 
 		const fields = this.#fields.slice();
 
 		// sort fields by correct name
 		if (this.isNamed()) {
-			fields.sort((a, b) => type.getFieldIndex(this.site, a.name.value) - type.getFieldIndex(this.site, b.name.value));
+			fields.sort((a, b) => type.fieldNames.findIndex(n => n == a.name.value) - type.fieldNames.findIndex(n => n == b.name.value));
 		}
 
 		const irFields = fields.map(f => f.toIR(indent));
 
-		return StructLiteralExpr.toIRInternal(this.site, type, irFields, this.#constrIndex);
+		return StructLiteralExpr.toIRInternal(this.site, type.path, irFields);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#typeExpr.toString()}{${this.#fields.map(f => f.toString()).join(", ")}}`;
 	}
 }
 
@@ -1355,14 +1266,14 @@ export class StructLiteralExpr extends ValueExpr {
  * []{...} expression
  * @package
  */
-export class ListLiteralExpr extends ValueExpr {
+export class ListLiteralExpr extends Expr {
 	#itemTypeExpr;
 	#itemExprs;
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr} itemTypeExpr 
-	 * @param {ValueExpr[]} itemExprs 
+	 * @param {Expr} itemTypeExpr 
+	 * @param {Expr[]} itemExprs 
 	 */
 	constructor(site, itemTypeExpr, itemExprs) {
 		super(site);
@@ -1370,41 +1281,44 @@ export class ListLiteralExpr extends ValueExpr {
 		this.#itemExprs = itemExprs;
 	}
 
-	isLiteral() {
-		return true;
-	}
-
-	toString() {
-		return `[]${this.#itemTypeExpr.toString()}{${this.#itemExprs.map(itemExpr => itemExpr.toString()).join(', ')}}`;
+	/**
+	 * @type {DataType}
+	 */
+	get itemType() {
+		return assertDefined(this.#itemTypeExpr.cache?.asDataType);
 	}
 
 	/**
 	 * @param {Scope} scope
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		let itemType = this.#itemTypeExpr.eval(scope);
+		const itemType = this.#itemTypeExpr.eval(scope).asDataType;
 
-		if (itemType instanceof FuncType) {
+		if (!itemType) {
 			throw this.#itemTypeExpr.typeError("content of list can't be func");
 		}
 
 		for (let itemExpr of this.#itemExprs) {
-			let itemVal = itemExpr.eval(scope);
+			let itemVal = itemExpr.eval(scope).asTyped;
 
-			if (!itemVal.isInstanceOf(itemType)) {
-				throw itemExpr.typeError(`expected ${itemType.toString()}, got ${itemVal.toString()}`);
+			if (!itemVal) {
+				throw itemExpr.typeError("not typed");
+			}
+
+			if (!itemType.isBaseOf(itemVal.type)) {
+				throw itemExpr.typeError(`expected ${itemType.toString()}, got ${itemVal.type.toString()}`);
 			}
 		}
 
-		return Instance.new(new ListType(itemType));
+		return new DataEntity(ListType$(itemType));
 	}
 
-	use() {
-		this.#itemTypeExpr.use();
-
-		for (let item of this.#itemExprs) {
-			item.use();
-		}
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return true;
 	}
 
 	/**
@@ -1412,7 +1326,7 @@ export class ListLiteralExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let isBool = this.#itemTypeExpr.type instanceof BoolType;
+		const isBool = BoolType.isBaseOf(this.itemType);
 
 		// unsure if list literals in untyped Plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
 		let res = new IR("__core__mkNilData(())");
@@ -1441,22 +1355,29 @@ export class ListLiteralExpr extends ValueExpr {
 
 		return new IR([new IR("__core__listData", this.site), new IR("("), res, new IR(")")]);
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `[]${this.#itemTypeExpr.toString()}{${this.#itemExprs.map(itemExpr => itemExpr.toString()).join(', ')}}`;
+	}
 }
 
 /**
  * Map[...]...{... : ...} expression
  * @package
  */
-export class MapLiteralExpr extends ValueExpr {
+export class MapLiteralExpr extends Expr {
 	#keyTypeExpr;
 	#valueTypeExpr;
 	#pairExprs;
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr} keyTypeExpr 
-	 * @param {TypeExpr} valueTypeExpr
-	 * @param {[ValueExpr, ValueExpr][]} pairExprs 
+	 * @param {Expr} keyTypeExpr 
+	 * @param {Expr} valueTypeExpr
+	 * @param {[Expr, Expr][]} pairExprs 
 	 */
 	constructor(site, keyTypeExpr, valueTypeExpr, pairExprs) {
 		super(site);
@@ -1465,49 +1386,55 @@ export class MapLiteralExpr extends ValueExpr {
 		this.#pairExprs = pairExprs;
 	}
 
-	isLiteral() {
-		return true;
-	}
-
-	toString() {
-		return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}{${this.#pairExprs.map(([keyExpr, valueExpr]) => `${keyExpr.toString()}: ${valueExpr.toString()}`).join(', ')}}`;
+	/**
+	 * @type {DataType}
+	 */
+	get valueType() {
+		return assertDefined(this.#valueTypeExpr.cache?.asDataType);
 	}
 
 	/**
 	 * @param {Scope} scope
 	 */
 	evalInternal(scope) {
-		let keyType = this.#keyTypeExpr.eval(scope);
-		let valueType = this.#valueTypeExpr.eval(scope);
-
-		if (keyType instanceof FuncType) {
+		const keyType = this.#keyTypeExpr.eval(scope).asDataType;
+		if (!keyType) {
 			throw this.#keyTypeExpr.typeError("key-type of Map can't be func");
-		} else if (valueType instanceof FuncType) {
+		}
+
+		const valueType = this.#valueTypeExpr.eval(scope).asDataType;
+		if (!valueType) {
 			throw this.#valueTypeExpr.typeError("value-type of Map can't be func");
 		}
 
 		for (let [keyExpr, valueExpr] of this.#pairExprs) {
-			let keyVal = keyExpr.eval(scope);
-			let valueVal = valueExpr.eval(scope);
+			const keyVal = keyExpr.eval(scope).asTyped;
+			if (!keyVal) {
+				throw keyExpr.typeError("not typed");
+			}
 
-			if (!keyVal.isInstanceOf(keyType)) {
+			const valueVal = valueExpr.eval(scope).asTyped;
+			if (!valueVal) {
+				throw valueExpr.typeError("not typed");
+			}
+
+			if (!keyType.isBaseOf(keyVal.type)) {
 				throw keyExpr.typeError(`expected ${keyType.toString()} for map key, got ${keyVal.toString()}`);
-			} else if (!valueVal.isInstanceOf(valueType)) {
+			}
+			
+			if (!valueType.isBaseOf(valueVal.type)) {
 				throw valueExpr.typeError(`expected ${valueType.toString()} for map value, got ${valueVal.toString()}`);
 			}
 		}
 
-		return Instance.new(new MapType(keyType, valueType));
+		return new DataEntity(MapType$(keyType, valueType));
 	}
 
-	use() {
-		this.#keyTypeExpr.use();
-		this.#valueTypeExpr.use();
-
-		for (let [fst, snd] of this.#pairExprs) {
-			fst.use();
-			snd.use();
-		}
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return true;
 	}
 
 	/**
@@ -1515,7 +1442,7 @@ export class MapLiteralExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let isBoolValue = this.#valueTypeExpr.type instanceof BoolType;
+		const isBoolValue = BoolType.isBaseOf(this.valueType);
 
 		// unsure if list literals in untyped Plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
 		let res = new IR("__core__mkNilPairData(())");
@@ -1550,6 +1477,13 @@ export class MapLiteralExpr extends ValueExpr {
 
 		return new IR([new IR("__core__mapData", this.site), new IR("("), res, new IR(")")]);
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}{${this.#pairExprs.map(([keyExpr, valueExpr]) => `${keyExpr.toString()}: ${valueExpr.toString()}`).join(', ')}}`;
+	}
 }
 
 /**
@@ -1562,7 +1496,7 @@ export class NameTypePair {
 
 	/**
 	 * @param {Word} name 
-	 * @param {?TypeExpr} typeExpr 
+	 * @param {null | Expr} typeExpr 
 	 */
 	constructor(name, typeExpr) {
 		this.#name = name;
@@ -1583,17 +1517,6 @@ export class NameTypePair {
 		return this.#name;
 	}
 
-	isIgnored() {
-		return this.name.value === "_";
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	hasType() {
-		return this.#typeExpr !== null;
-	}
-
 	/**
 	 * Throws an error if called before evalType()
 	 * @type {Type}
@@ -1604,7 +1527,7 @@ export class NameTypePair {
 		} else if (this.#typeExpr === null) {
 			throw new Error("typeExpr not set");
 		} else {
-			return this.#typeExpr.type;
+			return assertDefined(this.#typeExpr.cache?.asType);
 		}
 	}
 
@@ -1619,12 +1542,18 @@ export class NameTypePair {
 		}
 	}
 
-	toString() {
-		if (this.#typeExpr === null) {
-			return this.name.toString();
-		} else {
-			return `${this.name.toString()}: ${this.#typeExpr.toString()}`;
-		}
+	/**
+	 * @returns {boolean}
+	 */
+	isIgnored() {
+		return this.name.value === "_";
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	hasType() {
+		return this.#typeExpr !== null;
 	}
 
 	/**
@@ -1638,13 +1567,7 @@ export class NameTypePair {
 		} else if (this.#typeExpr === null) {
 			throw new Error("typeExpr not set");
 		} else {
-			return this.#typeExpr.eval(scope);
-		}
-	}
-
-	use() {
-		if (this.#typeExpr !== null) {
-			this.#typeExpr.use();
+			return assertDefined(this.#typeExpr.eval(scope).asType);
 		}
 	}
 
@@ -1653,6 +1576,18 @@ export class NameTypePair {
 	 */
 	toIR() {
 		return new IR(this.#name.toString(), this.#name.site);
+	}
+
+	/**
+	 * 
+	 * @returns {string}
+	 */
+	toString() {
+		if (this.#typeExpr === null) {
+			return this.name.toString();
+		} else {
+			return `${this.name.toString()}: ${this.#typeExpr.toString()}`;
+		}
 	}
 }
 
@@ -1665,8 +1600,8 @@ export class FuncArg extends NameTypePair {
 
 	/**
 	 * @param {Word} name 
-	 * @param {?TypeExpr} typeExpr
-	 * @param {null | ValueExpr} defaultValueExpr
+	 * @param {null | Expr} typeExpr
+	 * @param {null | Expr} defaultValueExpr
 	 */
 	constructor(name, typeExpr, defaultValueExpr = null) {
 		super(name, typeExpr);
@@ -1679,12 +1614,15 @@ export class FuncArg extends NameTypePair {
 	 */
 	evalDefault(scope) {
 		if (this.#defaultValueExpr != null) {
-			const v = this.#defaultValueExpr.eval(scope);
+			const v = this.#defaultValueExpr.eval(scope).asTyped;
+			if (!v) {
+				throw this.#defaultValueExpr.typeError("not typed");
+			}
 
 			const t = this.evalType(scope);
 
-			if (!v.isInstanceOf(t)) {
-				throw this.#defaultValueExpr.site.typeError(`expected ${t.toString()}, got ${v.getType(Site.dummy()).toString()}`);
+			if (!t.isBaseOf(v.type)) {
+				throw this.#defaultValueExpr.site.typeError(`expected ${t.toString()}, got ${v.type.toString()}`);
 			}
 		}
 	}
@@ -1772,7 +1710,7 @@ export class TypeParameter {
 
 	/**
 	 * @param {Word} name 
-	 * @param {null | TypeClassExpr} typeClassExpr 
+	 * @param {null | Expr} typeClassExpr 
 	 */
 	constructor(name, typeClassExpr) {
 		this.#name = name;
@@ -1790,7 +1728,32 @@ export class TypeParameter {
 	 * @type {TypeClass}
 	 */
 	get typeClass() {
-		return this.#typeClassExpr?.typeClass ?? new AnyTypeClass();
+		if (this.#typeClassExpr) {
+			return assertDefined(this.#typeClassExpr.cache?.asTypeClass);
+		} else {
+			return new AnyTypeClass();
+		}
+	}
+
+	/**
+	 * @returns {IR[]}
+	 */
+	collectIR() {
+		const type = this.typeClass.toType(this.#name.value);
+
+		return Common.typeClassMembers(this.typeClass).map(m => new IR(`${type.path}__${m}`, this.#name.site))
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 */
+	eval(scope) {
+		const typeClass = this.#typeClassExpr ? this.#typeClassExpr.eval(scope).asTypeClass : new AnyTypeClass();
+		if (!typeClass ) {
+			throw this.#typeClassExpr?.typeError("not a typeclass");
+		}
+
+		scope.set(this.#name, typeClass.toType(this.#name.value));
 	}
 
 	/**
@@ -1802,24 +1765,6 @@ export class TypeParameter {
 		} else {
 			return `${this.#name}`;
 		}
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 */
-	eval(scope) {
-		const typeClass = this.#typeClassExpr?.eval(scope) ?? new AnyTypeClass();
-
-		scope.set(this.#name, typeClass.asType(this.#name.value));
-	}
-
-	/**
-	 * @returns {IR[]}
-	 */
-	collectIR() {
-		const type = this.typeClass.asType(this.#name.value);
-
-		return this.typeClass.memberNames.map(m => new IR(`${type.path}__${m}`, this.#name.site))
 	}
 }
 
@@ -1860,7 +1805,6 @@ export class TypeParameters {
 	 */
 	eval(scope) {
 		if (this.#parameters.length == 0) {
-			console.log("NO PARAMETERS");
 			return scope;
 		} else {
 			const subScope = new Scope(scope);
@@ -1874,13 +1818,13 @@ export class TypeParameters {
 	/**
 	 * 
 	 * @param {FuncType} fnType
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	createInstance(fnType) {
 		if (this.#parameters.length == 0) {
-			return new FuncInstance(fnType);
+			return new FuncEntity(fnType);
 		} else {
-			return new ParametricInstance(this.parameters, fnType);
+			return new ParametricFunc(this.parameters, fnType);
 		}
 	}
 
@@ -1920,7 +1864,7 @@ export class TypeParameters {
  * (..) -> RetTypeExpr {...} expression
  * @package
  */
-export class FuncLiteralExpr extends ValueExpr {
+export class FuncLiteralExpr extends Expr {
 	#parameters;
 	#args;
 	#retTypeExprs;
@@ -1930,8 +1874,8 @@ export class FuncLiteralExpr extends ValueExpr {
 	 * @param {Site} site 
 	 * @param {TypeParameters} parameters
 	 * @param {FuncArg[]} args 
-	 * @param {(?TypeExpr)[]} retTypeExprs 
-	 * @param {ValueExpr} bodyExpr 
+	 * @param {(null | Expr)[]} retTypeExprs 
+	 * @param {Expr} bodyExpr 
 	 */
 	constructor(site, parameters, args, retTypeExprs, bodyExpr) {
 		super(site);
@@ -1963,16 +1907,9 @@ export class FuncLiteralExpr extends ValueExpr {
 			if (e == null) {
 				return new AnyType();
 			} else {
-				return e.type
+				return assertDefined(e.cache?.asType);
 			}
 		});
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	hasParameters() {
-		return this.#parameters.hasParameters();
 	}
 
 	/**
@@ -1985,24 +1922,15 @@ export class FuncLiteralExpr extends ValueExpr {
 	/**
 	 * @returns {boolean}
 	 */
+	hasParameters() {
+		return this.#parameters.hasParameters();
+	}
+	
+	/**
+	 * @returns {boolean}
+	 */
 	isLiteral() {
 		return true;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		if (this.#retTypeExprs.length === 1) {
-			let retTypeExpr = this.#retTypeExprs[0];
-			if (retTypeExpr == null) {
-				return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`;
-			} else {
-				return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> ${retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
-			}
-		} else {
-			return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => assertDefined(e).toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
-		}
 	}
 
 	/**
@@ -2015,13 +1943,19 @@ export class FuncLiteralExpr extends ValueExpr {
 			args = args.slice(1);
 		}
 
-		let argTypes = args.map(a => a.evalArgType(scope));
+		const argTypes = args.map(a => a.evalArgType(scope));
 
-		let retTypes = this.#retTypeExprs.map(e => {
+		const retTypes = this.#retTypeExprs.map(e => {
 			if (e == null) {
 				return new AnyType();
 			} else {
-				return e.eval(scope)
+				const retType = e.eval(scope).asType;
+
+				if (!retType) {
+					throw e.typeError("not a type");
+				}
+
+				return retType;
 			}
 		});
 
@@ -2040,7 +1974,7 @@ export class FuncLiteralExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		scope = this.#parameters.eval(scope);
@@ -2056,7 +1990,7 @@ export class FuncLiteralExpr extends ValueExpr {
 			if (!this.#args[i].isIgnored()) {
 				this.#args[i].evalDefault(subScope);
 
-				subScope.set(this.#args[i].name, Instance.new(a));
+				subScope.set(this.#args[i].name, a.toTyped());
 			}
 		});
 
@@ -2064,20 +1998,28 @@ export class FuncLiteralExpr extends ValueExpr {
 
 		if (this.#retTypeExprs.length === 1) {
 			if (this.#retTypeExprs[0] == null) {
-				if (bodyVal instanceof MultiInstance) {
-					return new FuncInstance(new FuncType(fnType.argTypes, bodyVal.values.map(v => v.getType(this.site))));
+				if (bodyVal.asMulti) {
+					return new FuncEntity(new FuncType(fnType.argTypes, bodyVal.asMulti.values.map(v => v.type)));
+				} else if (bodyVal.asTyped) {
+					return new FuncEntity(new FuncType(fnType.argTypes, bodyVal.asTyped.type));
 				} else {
-					return new FuncInstance(new FuncType(fnType.argTypes, bodyVal.getType(this.site)));
+					throw this.#bodyExpr.typeError("expect multi or typed");
 				}
-			} else if (bodyVal instanceof MultiInstance) {
+			} else if (bodyVal.asMulti) {
 				throw this.#retTypeExprs[0].typeError("unexpected multi-value body");
-			} else if (!bodyVal.isInstanceOf(fnType.retTypes[0])) {
-				throw this.#retTypeExprs[0].typeError(`wrong return type, expected ${fnType.retTypes[0].toString()} but got ${this.#bodyExpr.type.toString()}`);
+			} else if (bodyVal.asTyped) {
+				if (!fnType.retTypes[0].isBaseOf(bodyVal.asTyped.type)) {
+					throw this.#retTypeExprs[0].typeError(`wrong return type, expected ${fnType.retTypes[0].toString()} but got ${bodyVal.asTyped.type.toString()}`);
+				}
+			} else {
+				throw this.#bodyExpr.typeError("expect multi or typed");
 			}
 		} else {
-			if (bodyVal instanceof MultiInstance) {
-				/** @type {Instance[]} */
-				let bodyVals = bodyVal.values;
+			if (bodyVal.asMulti) {
+				/** 
+				 * @type {Typed[]} 
+				 */
+				let bodyVals = bodyVal.asMulti.values;
 
 				if (bodyVals.length !== this.#retTypeExprs.length) {
 					throw this.#bodyExpr.typeError(`expected multi-value function body with ${this.#retTypeExprs.length} values, but got ${bodyVals.length} values`);
@@ -2086,13 +2028,13 @@ export class FuncLiteralExpr extends ValueExpr {
 						let v = bodyVals[i];
 
 						let retTypeExpr = assertDefined(this.#retTypeExprs[i]);
-						if (!v.isInstanceOf(fnType.retTypes[i])) {
-							throw retTypeExpr.typeError(`wrong return type for value ${i}, expected ${fnType.retTypes[i].toString()} but got ${v.getType(this.#bodyExpr.site).toString()}`);
+						if (!fnType.retTypes[i].isBaseOf(v.type)) {
+							throw retTypeExpr.typeError(`wrong return type for value ${i}, expected ${fnType.retTypes[i].toString()} but got ${v.type.toString()}`);
 						}
 					}
 				}
 			} else {
-				throw this.#bodyExpr.typeError(`expected multi-value function body, but got ${this.#bodyExpr.type.toString()}`);
+				throw this.#bodyExpr.typeError(`expected multi-value function body, but got ${this.#bodyExpr.toString()}`);
 			}
 		}
 
@@ -2105,19 +2047,6 @@ export class FuncLiteralExpr extends ValueExpr {
 
 	isMethod() {
 		return this.#args.length > 0 && this.#args[0].name.toString() == "self";
-	}
-
-	use() {
-		for (let arg of this.#args) {
-			arg.use();
-		}
-
-		this.#retTypeExprs.forEach(e => {
-			if (e !== null) {
-				e.use();
-			}
-		});
-		this.#bodyExpr.use();
 	}
 
 	/**
@@ -2148,22 +2077,16 @@ export class FuncLiteralExpr extends ValueExpr {
 	}
 
 	/**
-	 * @param {?string} recursiveName 
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
-	toIRInternal(recursiveName, indent = "") {
+	toIRInternal(indent = "") {
 		let argsWithCommas = this.argsToIR();
 
 		let innerIndent = indent;
 		let methodIndent = indent;
 		if (this.isMethod()) {
 			innerIndent += TAB;
-		}
-
-		if (recursiveName !== null) {
-			innerIndent += TAB;
-			methodIndent += TAB;
 		}
 
 		let innerIR = this.#bodyExpr.toIR(innerIndent + TAB);
@@ -2187,110 +2110,33 @@ export class FuncLiteralExpr extends ValueExpr {
 			]);
 		}
 
-		if (recursiveName !== null) {
-			ir = new IR([
-				new IR("("),
-				new IR(recursiveName),
-				new IR(`) -> {\n${indent}${TAB}`),
-				ir,
-				new IR(`\n${indent}}`)
-			]);
-		}
-
 		ir = this.#parameters.wrapIR(indent, ir);
 
 		return ir;
 	}
 
 	/**
-	 * @param {string} recursiveName 
-	 * @param {string} indent 
-	 * @returns {IR}
-	 */
-	toIRRecursive(recursiveName, indent = "") {
-		return this.toIRInternal(recursiveName, indent);
-	}
-
-	/**
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		return this.toIRInternal(null, indent);
+		return this.toIRInternal(indent);
 	}
-}
-
-/**
- * Variable expression
- * @package
- */
-export class ValueRefExpr extends ValueExpr {
-	#name;
-	#isRecursiveFunc;
 
 	/**
-	 * @param {Word} name 
+	 * @returns {string}
 	 */
-	constructor(name) {
-		super(name.site);
-		this.#name = name;
-		this.#isRecursiveFunc = false;
-	}
-
 	toString() {
-		return this.#name.toString();
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
-	 */
-	evalInternal(scope) {
-		const val = scope.get(this.#name).assertInstance();
-		if (!val) {
-			throw this.#name.site.typeError("not an instance");
+		if (this.#retTypeExprs.length === 1) {
+			let retTypeExpr = this.#retTypeExprs[0];
+			if (retTypeExpr == null) {
+				return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`;
+			} else {
+				return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> ${retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
+			}
+		} else {
+			return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => assertDefined(e).toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
 		}
-
-		if (val instanceof FuncInstance && val.isRecursive(scope)) {
-			this.#isRecursiveFunc = true;
-		}
-
-		return val;
-	}
-
-	use() {
-		if (this.value instanceof FuncStatementInstance || this.value instanceof ParametricFuncStatementInstance) {
-			this.value.statement.use();
-		} else if (this.value instanceof ConstStatementInstance) {
-			this.value.statement.use();
-		}
-	}
-
-	/**
-	 * @param {string} indent 
-	 * @returns {IR}
-	 */
-	toIR(indent = "") {
-		let path = this.toString();
-
-		if (this.value instanceof FuncStatementInstance || this.value instanceof ParametricFuncStatementInstance || this.value instanceof ConstStatementInstance) {
-			path = this.value.statement.path;
-		} else if (this.value instanceof BuiltinFuncInstance) {
-			path = this.value.path;
-		}
-
-		let ir = new IR(path, this.site);
-
-		if (this.#isRecursiveFunc) {
-			ir = new IR([
-				ir,
-				new IR("("),
-				ir,
-				new IR(")")
-			]);
-		}
-		
-		return ir;
 	}
 }
 
@@ -2298,14 +2144,14 @@ export class ValueRefExpr extends ValueExpr {
  * value[...] expression
  * @package
  */
-export class ParametricValueExpr extends ValueExpr {
+export class ParametricExpr extends Expr {
 	#baseExpr;
 	#parameters;
 
 	/**
 	 * @param {Site} site - site of brackets
-	 * @param {ValueExpr} baseExpr
-	 * @param {TypeExpr[]} parameters
+	 * @param {Expr} baseExpr
+	 * @param {Expr[]} parameters
 	 */
 	constructor(site, baseExpr, parameters) {
 		super(site);
@@ -2314,50 +2160,33 @@ export class ParametricValueExpr extends ValueExpr {
 	}
 
 	/**
-	 * @returns {string}
+	 * @type {Type[]}
 	 */
-	toString() {
-		return `${this.#baseExpr.toString()}[${this.#parameters.map(p => p.toString()).join(", ")}]`;
+	get paramTypes() {
+		return this.#parameters.map(p => {
+			const pt = p.cache?.asType;
+
+			if (!pt) {
+				throw new Error("not a type");
+			}
+
+			return pt;
+		})
 	}
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const paramTypes = this.#parameters.map(p => {
-			const pt = p.eval(scope).assertType();
+		const paramTypes = this.#parameters.map(p => p.evalAsType(scope));
 
-			if (!pt) {
-				throw p.site.typeError("not a type");
-			}
-
-			return pt;
-		});
-
-		const baseVal_ = this.#baseExpr.eval(scope).assertInstance();
-		
-		const baseVal = baseVal_?.assertParametric();
+		const baseVal = this.#baseExpr.eval(scope).asParametric;
 		if (!baseVal) {
 			throw this.site.typeError("not a parametric instance");
 		}
 
-		console.log("BEFORE APPLICATION: ", baseVal.toString());
-
-		const applied = baseVal.applyTypes(this.site, paramTypes).assertInstance();
-		if (!applied) {
-			throw this.site.typeError("not an instance");
-		}
-
-		console.log("APPLIED instance: ", applied.toString());
-
-		return applied;
-	}
-
-	use() {
-		this.#baseExpr.use();
-
-		this.#parameters.forEach(p => p.use());
+		return baseVal.apply(paramTypes, this.site);
 	}
 
 	/**
@@ -2378,9 +2207,9 @@ export class ParametricValueExpr extends ValueExpr {
 		paramTypes.forEach((pt, i) => {
 			const tc = typeClasses[i];
 
-			const ptPath = pt.path;
+			const ptPath = assertDefined(pt.asNamed).path;
 
-			tc.memberNames.forEach(mn => {
+			Common.typeClassMembers(tc).forEach(mn => {
 				if (paramSites[i]) {
 					injected.push(new IR(`${ptPath}__${mn}`, paramSites[i]));
 				} else {
@@ -2408,157 +2237,23 @@ export class ParametricValueExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		const paramTypes = this.#parameters.map(p => p.type);
+		const paramTypes = this.paramTypes;
 
-		const typeClasses = this.#baseExpr.value.assertParametric()?.typeClasses ?? [];
+		const typeClasses = this.#baseExpr.cache?.asParametric?.typeClasses ?? [];
 
-		return ParametricValueExpr.toApplicationIR(
+		return ParametricExpr.toApplicationIR(
 			this.#baseExpr.toIR(indent),
 			paramTypes,
 			typeClasses,
 			this.#parameters.map(p => p.site)
 		)
 	}
-}
-
-/**
- * Word::Word::... expression
- * @package
- */
-export class ValuePathExpr extends ValueExpr {
-	#baseTypeExpr;
-	#memberName;
-	#isRecursiveFunc;
-
-	/**
-	 * @param {TypeExpr} baseTypeExpr 
-	 * @param {Word} memberName 
-	 */
-	constructor(baseTypeExpr, memberName) {
-		super(memberName.site);
-		this.#baseTypeExpr = baseTypeExpr;
-		this.#memberName = memberName;
-		this.#isRecursiveFunc = false;
-	}
-
-	/**
-	 * @type {Type}
-	 */
-	get baseType() {
-		return this.#baseTypeExpr.type;
-	}
 
 	/**
 	 * @returns {string}
 	 */
 	toString() {
-		return `${this.#baseTypeExpr.toString()}::${this.#memberName.toString()}`;
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isZeroFieldConstructor() {
-		let type = this.type;
-
-		if (type instanceof EnumMemberStatementType && type.statement.name.value === this.#memberName.value) {
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * Returns true if ValuePathExpr constructs a literal enum member with zero field or
-	 * if this baseType is also a baseType of the returned value
-	 * @returns {boolean}
-	 */
-	isLiteral() {
-		if (this.isZeroFieldConstructor()) {
-			return true;
-		} else {
-			let type = this.type;
-
-			if (this.baseType.isBaseOf(type)) {
-				return true;
-			} else {
-				return false;
-			}
-		}
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
-	 */
-	evalInternal(scope) {
-		const baseType = this.#baseTypeExpr.eval(scope);
-
-		const memberEntity = baseType.typeMembers[this.#memberName.value];
-		if (!memberEntity) {
-			throw this.#memberName.referenceError(`${baseType.toString()}.${this.#memberName.value} not found`);
-		}
-
-		const memberVal = memberEntity.assertInstance();
-		if (!memberVal) {
-			throw this.#memberName.site.typeError("not an instance");
-		}
-
-		if (memberVal instanceof FuncInstance && memberVal.isRecursive(scope)) {
-			this.#isRecursiveFunc = true;
-		}
-
-		return memberVal;
-	}
-
-	use() {
-		this.#baseTypeExpr.use();
-
-		if (this.value instanceof ConstStatementInstance) {
-			this.value.statement.use();
-		} else if (this.value instanceof FuncStatementInstance || this.value instanceof ParametricFuncStatementInstance) {
-			this.value.statement.use();
-		}
-	}
-
-	/**
-	 * @param {string} indent
-	 * @returns {IR}
-	 */
-	toIR(indent = "") {
-		// if we are directly accessing an enum member as a zero-field constructor we must change the code a bit
-		const memberVal = this.#baseTypeExpr.type.typeMembers[this.#memberName.value];
-
-		if ((memberVal instanceof EnumMemberStatementType) || (memberVal instanceof OptionNoneType)) {
-			let cId = memberVal.getConstrIndex(this.#memberName.site);
-
-			assert(cId >= 0);
-
-			return new IR(`__core__constrData(${cId.toString()}, __core__mkNilData(()))`, this.site)
-		} else {
-			let path = `${this.#baseTypeExpr.type.path}__${this.#memberName.toString()}`;
-
-			if (this.#baseTypeExpr.type instanceof Namespace) {
-				if (memberVal instanceof StatementType || memberVal instanceof FuncStatementInstance || memberVal instanceof ParametricFuncStatementInstance || memberVal instanceof ConstStatementInstance) {
-					path = memberVal.statement.path;
-				} else {
-					throw new Error("expected statement");
-				}
-			}
-
-			let ir = new IR(path, this.site);
-
-			if (this.#isRecursiveFunc) {
-				ir = new IR([
-					ir,
-					new IR("("),
-					ir,
-					new IR(")")
-				]);
-			}
-
-			return ir;
-		}
+		return `${this.#baseExpr.toString()}[${this.#parameters.map(p => p.toString()).join(", ")}]`;
 	}
 }
 
@@ -2567,13 +2262,13 @@ export class ValuePathExpr extends ValueExpr {
  * Note: there are no post-unary operators, only pre
  * @package
  */
-export class UnaryExpr extends ValueExpr {
+export class UnaryExpr extends Expr {
 	#op;
 	#a;
 
 	/**
 	 * @param {SymbolToken} op 
-	 * @param {ValueExpr} a 
+	 * @param {Expr} a 
 	 */
 	constructor(op, a) {
 		super(op.site);
@@ -2581,17 +2276,13 @@ export class UnaryExpr extends ValueExpr {
 		this.#a = a;
 	}
 
-	toString() {
-		return `${this.#op.toString()}${this.#a.toString()}`;
-	}
-
 	/**
 	 * Turns an op symbol into an internal name
 	 * @returns {Word}
 	 */
 	translateOp() {
-		let op = this.#op.toString();
-		let site = this.#op.site;
+		const op = this.#op.toString();
+		const site = this.#op.site;
 
 		if (op == "+") {
 			return new Word(site, "__pos");
@@ -2606,22 +2297,24 @@ export class UnaryExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const a = this.#a.eval(scope).assertInstance();
+		const a = this.#a.eval(scope).asInstance;
 		if (!a) {
 			throw this.#a.site.typeError("not an instance");
 		}
 
-		let fnVal = a.getType(this.site).getTypeMember(this.translateOp());
+		const op = this.translateOp().value;
 
-		// ops are immediately applied
-		return fnVal.call(this.#op.site, [a]);
-	}
+		const fnVal = a.type.typeMembers[op]?.asType?.toTyped()?.asFunc;
 
-	use() {
-		this.#a.use();
+		if (fnVal) {
+			// immediately applied
+			return fnVal.asFunc.call(this.#op.site, [a]);
+		} else {
+			throw this.#a.site.typeError(`'${this.#op.toString()} ${a.type.toString()}' undefined`);
+		}
 	}
 
 	/**
@@ -2629,7 +2322,7 @@ export class UnaryExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let path = this.type.path;
+		const path = assertDefined(this.cache?.asTyped?.type?.asNamed).path;
 
 		return new IR([
 			new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
@@ -2637,13 +2330,20 @@ export class UnaryExpr extends ValueExpr {
 			new IR(")")
 		]);
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#op.toString()}${this.#a.toString()}`;
+	}
 }
 
 /**
  * Binary operator expression
  * @package
  */
-export class BinaryExpr extends ValueExpr {
+export class BinaryExpr extends Expr {
 	#op;
 	#a;
 	#b;
@@ -2652,8 +2352,8 @@ export class BinaryExpr extends ValueExpr {
 
 	/**
 	 * @param {SymbolToken} op 
-	 * @param {ValueExpr} a 
-	 * @param {ValueExpr} b 
+	 * @param {Expr} a 
+	 * @param {Expr} b 
 	 */
 	constructor(op, a, b) {
 		super(op.site);
@@ -2665,14 +2365,14 @@ export class BinaryExpr extends ValueExpr {
 	}
 
 	/** 
-	 * @type {ValueExpr}
+	 * @type {Expr}
 	 */
 	get first() {
 		return this.#swap ? this.#b : this.#a;
 	}
 
 	/**
-	 * @type {ValueExpr} 
+	 * @type {Expr} 
 	 */
 	get second() {
 		return this.#swap ? this.#a : this.#b;
@@ -2688,8 +2388,8 @@ export class BinaryExpr extends ValueExpr {
 	 * @returns {Word}
 	 */
 	translateOp(alt = 0) {
-		let op = this.#op.toString();
-		let site = this.#op.site;
+		const op = this.#op.toString();
+		const site = this.#op.site;
 		let name;
 
 		if (op == "||") {
@@ -2746,23 +2446,18 @@ export class BinaryExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const a = this.#a.eval(scope).assertInstance();
+		const a = this.#a.eval(scope).asInstance;
 		if (!a) {
 			throw this.#a.typeError("not an instance");
 		} 
 
-		const b = this.#b.eval(scope).assertInstance();
+		const b = this.#b.eval(scope).asInstance;
 		if (!b) {
 			throw this.#b.typeError("not an instance");
 		}
-
-		/**
-		 * @type {?UserError}
-		 */
-		let firstError = null;
 
 		for (let swap of (this.isCommutative() ? [false, true] : [false])) {
 			for (let alt of [0, 1, 2]) {
@@ -2770,7 +2465,12 @@ export class BinaryExpr extends ValueExpr {
 				let second = swap ? a : b;
 
 				try {
-					let fnVal = first.getType(this.site).getTypeMember(this.translateOp(alt));
+					const fnVal_ = first.type.typeMembers[this.translateOp(alt).value];
+
+					let fnVal = fnVal_?.asType?.toTyped()?.asFunc;
+					if (!fnVal) {
+						continue;
+					}
 
 					let res = fnVal.call(this.#op.site, [first, second]);
 
@@ -2780,9 +2480,7 @@ export class BinaryExpr extends ValueExpr {
 					return res;
 				} catch (e) {
 					if (e instanceof UserError) {
-						if (firstError === null) {
-							firstError = e;
-						}
+						console.log(e.message);
 						continue;
 					} else {
 						throw e;
@@ -2791,16 +2489,7 @@ export class BinaryExpr extends ValueExpr {
 			}
 		}
 
-		if (firstError !== null) {
-			throw firstError;
-		} else {
-			throw new Error("unexpected");
-		}
-	}
-
-	use() {
-		this.#a.use();
-		this.#b.use();
+		throw this.typeError(`'${a.type.toString()} ${this.#op.toString()} ${b.type.toString()}' undefined`);
 	}
 
 	/**
@@ -2808,7 +2497,7 @@ export class BinaryExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let path = this.first.type.path;
+		let path = assertDefined(this.first.cache?.asTyped?.type.asNamed).path;
 
 		let op = this.translateOp(this.#alt).value;
 
@@ -2836,44 +2525,40 @@ export class BinaryExpr extends ValueExpr {
  * Parentheses expression
  * @package
  */
-export class ParensExpr extends ValueExpr {
+export class ParensExpr extends Expr {
 	#exprs;
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr[]} exprs
+	 * @param {Expr[]} exprs
 	 */
 	constructor(site, exprs) {
 		super(site);
 		this.#exprs = exprs;
 	}
 
-	toString() {
-		return `(${this.#exprs.map(e => e.toString()).join(", ")})`;
-	}
-
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		if (this.#exprs.length === 1) {
 			return this.#exprs[0].eval(scope);
 		} else {
-			return new MultiInstance(this.#exprs.map(e => {
-				const v = e.eval(scope);
+			return new MultiEntity(this.#exprs.map(e => {
+				const v = e.eval(scope).asTyped;
 
-				if (v.getType(e.site) instanceof ErrorType) {
+				if (!v) {
+					throw e.site.typeError("not typed");
+				} 
+				
+				if ((new ErrorType()).isBaseOf(v.type)) {
 					throw e.site.typeError("unexpected error call in multi-valued expression");
 				}
 
 				return v;
 			}));
 		}
-	}
-
-	use() {
-		this.#exprs.forEach(e => e.use());
 	}
 
 	/**
@@ -2891,6 +2576,13 @@ export class ParensExpr extends ValueExpr {
 			);
 		}
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `(${this.#exprs.map(e => e.toString()).join(", ")})`;
+	}
 }
 
 /**
@@ -2903,7 +2595,7 @@ export class CallArgExpr extends Token {
 	/**
 	 * @param {Site} site 
 	 * @param {null | Word} name 
-	 * @param {ValueExpr} valueExpr 
+	 * @param {Expr} valueExpr 
 	 */
 	constructor(site, name, valueExpr) {
 		super(site);
@@ -2920,17 +2612,17 @@ export class CallArgExpr extends Token {
 	}
 
 	/**
-	 * @type {ValueExpr}
+	 * @type {Expr}
 	 */
 	get valueExpr() {
 		return this.#valueExpr;
 	}
 
 	/**
-	 * @type {Instance}
+	 * @type {EvalEntity}
 	 */
 	get value() {
-		return this.#valueExpr.value;
+		return assertDefined(this.#valueExpr.cache);
 	}
 
 	/**
@@ -2959,14 +2651,10 @@ export class CallArgExpr extends Token {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	eval(scope) {
 		return this.#valueExpr.eval(scope);
-	}
-
-	use() {
-		this.#valueExpr.use();
 	}
 }
 
@@ -2974,7 +2662,7 @@ export class CallArgExpr extends Token {
  * ...(...) expression
  * @package
  */
-export class CallExpr extends ValueExpr {
+export class CallExpr extends Expr {
 	#fnExpr;
 	#argExprs;
 
@@ -2985,7 +2673,7 @@ export class CallExpr extends ValueExpr {
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr} fnExpr 
+	 * @param {Expr} fnExpr 
 	 * @param {CallArgExpr[]} argExprs 
 	 */
 	constructor(site, fnExpr, argExprs) {
@@ -3003,8 +2691,11 @@ export class CallExpr extends ValueExpr {
 		return `${this.#fnExpr.toString()}(${this.#argExprs.map(a => a.toString()).join(", ")})`;
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isLiteral() {
-		if (this.#fnExpr instanceof ValuePathExpr && this.#fnExpr.baseType.isBaseOf(this.type)) {
+		if (this.#fnExpr instanceof PathExpr && this.cache?.asTyped && this.#fnExpr.baseExpr.cache?.asType?.isBaseOf(this.cache.asTyped.type)) {
 			return true;
 		} else {
 			return false;
@@ -3013,28 +2704,41 @@ export class CallExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		const fnVal = this.#fnExpr.eval(scope);
 
-		const argVals = this.#argExprs.map(ae => ae.eval(scope));
+		const argVals = this.#argExprs.map(ae => {
+			const av_ = ae.eval(scope);
+			
+			const av = av_.asTyped ?? av_.asMulti;
+
+			if (!av) {
+				throw ae.typeError("not an instance");
+			}
+
+			return av;
+		});
 
 		/**
-		 * @type {Instance[]}
+		 * @type {(Typed | Multi)[]}
 		 */
-		let posArgVals = [];
+		const posArgVals_ = [];
 
 		this.#argExprs.forEach((argExpr, i) => {
 			if (!argExpr.isNamed()) {
-				posArgVals.push(argVals[i]);
+				posArgVals_.push(argVals[i]);
 			}
 		});
 
-		posArgVals = MultiInstance.flatten(posArgVals);
+		/**
+		 * @type {Typed[]}
+		 */
+		const posArgVals = MultiEntity.flatten(posArgVals_);
 
 		/**
-		 * @type {{[name: string]: Instance}}
+		 * @type {{[name: string]: Typed}}
 		 */
 		const namedArgVals = {};
 
@@ -3043,30 +2747,26 @@ export class CallExpr extends ValueExpr {
 				const val = argVals[i];
 
 				// can't be multi instance
-				if (val instanceof MultiInstance) {
+				if (val.asMulti) {
 					throw argExpr.typeError("can't use multiple return values as named argument");
+				} else if (val.asTyped) {
+					namedArgVals[argExpr.name] = val.asTyped;
+				} else {
+					throw new Error("unexpected");
 				}
-
-				namedArgVals[argExpr.name] = val;
 			}
 		});
 
 		assert(posArgVals.every(pav => pav != undefined));
 
-		if (fnVal instanceof ParametricInstance) {
+		if (fnVal.asParametric) {
 			this.#paramTypes = [];
 
-			return fnVal.call(this.site, posArgVals, namedArgVals, this.#paramTypes);
+			return fnVal.asParametric.call(this.site, posArgVals, namedArgVals, this.#paramTypes);
+		} else if (fnVal.asFunc) {
+			return fnVal.asFunc.call(this.site, posArgVals, namedArgVals);
 		} else {
-			return fnVal.call(this.site, posArgVals, namedArgVals);
-		}
-	}
-
-	use() {
-		this.#fnExpr.use();
-
-		for (let arg of this.#argExprs) {
-			arg.use();
+			throw this.#fnExpr.typeError("expected function");
 		}
 	}
 
@@ -3075,18 +2775,18 @@ export class CallExpr extends ValueExpr {
 	 * @type {FuncType}
 	 */
 	get fn() {
-		return assertClass(this.#fnExpr.value.getType(this.#fnExpr.site), FuncType);
+		return assertClass(this.#fnExpr.cache?.asTyped?.type, FuncType);
 	}
 
 	/**
-	 * @returns {[ValueExpr[], IR[]]} - first list are positional args, second list named args and remaining opt args
+	 * @returns {[Expr[], IR[]]} - first list are positional args, second list named args and remaining opt args
 	 */
 	expandArgs() {
 		const fn = this.fn;
 		const nNonOptArgs = fn.nNonOptArgs;
 
 		/**
-		 * @type {ValueExpr[]}
+		 * @type {Expr[]}
 		 */
 		const positional = [];
 
@@ -3137,25 +2837,25 @@ export class CallExpr extends ValueExpr {
 	toIR(indent = "") {
 		const fn = this.fn;
 		let fnIR = this.#fnExpr.toIR(indent);
-		const fnVal = this.#fnExpr.value.assertInstance();
-		if (fnVal instanceof ParametricInstance) {
+		const fnVal = this.#fnExpr.cache?.asParametric;
+		if (fnVal instanceof ParametricFunc) {
 			assert(this.#paramTypes.length > 0);
-			fnIR = ParametricValueExpr.toApplicationIR(fnIR, this.#paramTypes, fnVal.typeClasses);
+			fnIR = ParametricExpr.toApplicationIR(fnIR, this.#paramTypes, fnVal.typeClasses);
 		}
 
 		/**
 		 * First step is to eliminate the named args
-		 * @type {[ValueExpr[], IR[]]}
+		 * @type {[Expr[], IR[]]}
 		 */
 		const [positional, namedOptional] = this.expandArgs();
 
-		if (positional.some(e => (!e.isLiteral()) && (e.value instanceof MultiInstance))) {
+		if (positional.some(e => (!e.isLiteral()) && (e.cache?.asMulti))) {
 			// count the number of final args
 			let n = 0;
 
 			positional.forEach((e, i) => {
-				if ((!e.isLiteral()) && (e.value instanceof MultiInstance)) {
-					n += e.value.values.length;
+				if ((!e.isLiteral()) && (e.cache?.asMulti)) {
+					n += e.cache.asMulti.values.length;
 				} else {
 					n += 1;
 				}
@@ -3205,8 +2905,8 @@ export class CallExpr extends ValueExpr {
 			for (let i = positional.length - 1; i >= 0; i--) {
 				const e = positional[i];
 
-				if ((!e.isLiteral()) && (e.value instanceof MultiInstance)) {
-					const nMulti = e.value.values.length;
+				if ((!e.isLiteral()) && (e.cache?.asMulti)) {
+					const nMulti = e.cache.asMulti.values.length;
 					const multiNames = [];
 					const multiOpt = [];
 
@@ -3295,53 +2995,45 @@ export class CallExpr extends ValueExpr {
  *  ... . ... expression
  * @package
  */
-export class MemberExpr extends ValueExpr {
+export class MemberExpr extends Expr {
 	#objExpr;
 	#memberName;
-	#isRecursiveFunc;
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr} objExpr 
+	 * @param {Expr} objExpr 
 	 * @param {Word} memberName 
 	 */
 	constructor(site, objExpr, memberName) {
 		super(site);
 		this.#objExpr = objExpr;
 		this.#memberName = memberName;
-		this.#isRecursiveFunc = false;
-	}
-
-	toString() {
-		return `${this.#objExpr.toString()}.${this.#memberName.toString()}`;
 	}
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const objVal = this.#objExpr.eval(scope).assertInstance();
+		const objVal = this.#objExpr.eval(scope).asInstance;
 		if (!objVal) {
 			throw this.#objExpr.site.typeError("not an instance");
 		}
 
-		let memberVal = objVal.getInstanceMember(this.#memberName);
-
-		if (memberVal instanceof FuncInstance && memberVal.isRecursive(scope)) {
-			this.#isRecursiveFunc = true;
+		const member = objVal.instanceMembers[this.#memberName.value];
+		if (!member) {
+			console.log(objVal.instanceMembers)
+			throw this.#memberName.referenceError(`'${objVal.type.toString()}.${this.#memberName.value}' undefined`);
 		}
 
-		return memberVal;
-	}
+		if (member.asParametric) {
+			return member;
+		} else if (member.asType) {
+			const memberVal = member.asType.toTyped();
 
-	use() {
-		this.#objExpr.use();
-
-		if (this.value instanceof FuncStatementInstance || this.value instanceof ParametricFuncStatementInstance) {
-			this.value.statement.use();
-		} else if (this.value instanceof ConstStatementInstance) {
-			this.value.statement.use();
+			return memberVal;
+		} else {
+			throw new Error("expected type or parametric");
 		}
 	}
 
@@ -3352,28 +3044,16 @@ export class MemberExpr extends ValueExpr {
 	toIR(indent = "") {
 		// members can be functions so, field getters are also encoded as functions for consistency
 
-		let objPath = this.#objExpr.type.path;
+		const objType = assertDefined(this.#objExpr.cache?.asTyped?.type?.asNamed); 
+
+		let objPath = objType.path;
 
 		// if we are getting the member of an enum member we should check if it a field or method, because for a method we have to use the parent type
-		if ((this.#objExpr.type instanceof EnumMemberStatementType) && (!this.#objExpr.type.statement.hasField(this.#memberName))) {
-			objPath = this.#objExpr.type.statement.parent.path;
-		}
-
-		// if the memberVal was a ParamFuncValue then the member name might need to be modified if the output type of some callbacks is a Bool
-		if (this.value instanceof ParametricInstance && this.value.correctMemberName !== null) {
-			this.#memberName = new Word(this.#memberName.site, this.value.correctMemberName());
+		if (objType.asEnumMemberType && (objType.asEnumMemberType.fieldNames.findIndex(n => n == this.#memberName.value) == -1)) {
+			objPath = objType.asEnumMemberType.parentType.path;
 		}
 
 		let ir = new IR(`${objPath}__${this.#memberName.toString()}`, this.site);
-
-		if (this.#isRecursiveFunc) {
-			ir = new IR([
-				ir,
-				new IR("("),
-				ir,
-				new IR(")"),
-			]);
-		}
 
 		return new IR([
 			ir, new IR("("),
@@ -3381,20 +3061,27 @@ export class MemberExpr extends ValueExpr {
 			new IR(")"),
 		]);
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#objExpr.toString()}.${this.#memberName.toString()}`;
+	}
 }
 
 /**
  * if-then-else expression 
  * @package
  */
-export class IfElseExpr extends ValueExpr {
+export class IfElseExpr extends Expr {
 	#conditions;
 	#branches;
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr[]} conditions 
-	 * @param {ValueExpr[]} branches 
+	 * @param {Expr[]} conditions 
+	 * @param {Expr[]} branches 
 	 */
 	constructor(site, conditions, branches) {
 		assert(branches.length == conditions.length + 1);
@@ -3418,7 +3105,7 @@ export class IfElseExpr extends ValueExpr {
 
 	/**
 	 * @param {Site} site
-	 * @param {?Type} prevType
+	 * @param {null | Type} prevType
 	 * @param {Type} newType
 	 */
 	static reduceBranchType(site, prevType, newType) {
@@ -3431,8 +3118,8 @@ export class IfElseExpr extends ValueExpr {
 				return newType;
 			} else {
 				// check if enumparent is base of newType and of prevType
-				if (newType.isEnumMember()) {
-					const parentType = newType.parentType(Site.dummy());
+				if (newType.asEnumMemberType) {
+					const parentType = newType.asEnumMemberType.parentType;
 
 					if (parentType.isBaseOf(prevType) && parentType.isBaseOf(newType)) {
 						return parentType;
@@ -3448,18 +3135,18 @@ export class IfElseExpr extends ValueExpr {
 
 	/**
 	 * @param {Site} site
-	 * @param {?Type[]} prevTypes
-	 * @param {Instance} newValue
+	 * @param {null | Type[]} prevTypes
+	 * @param {Typed} newValue
 	 * @returns {?Type[]}
 	 */
 	static reduceBranchMultiType(site, prevTypes, newValue) {
-		if (!(newValue instanceof MultiInstance) && newValue.getType(site) instanceof ErrorType) {
+		if (!newValue.asMulti && (new ErrorType()).isBaseOf(newValue.type)) {
 			return prevTypes;
 		}
 
-		const newTypes = (newValue instanceof MultiInstance) ?
-			newValue.values.map(v => v.getType(site)) :
-			[newValue.getType(site)];
+		const newTypes = (newValue.asMulti) ?
+			newValue.asMulti.values.map(v => v.type) :
+			[newValue.type];
 
 		if (prevTypes === null) {
 			return newTypes;
@@ -3472,12 +3159,13 @@ export class IfElseExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		for (let c of this.#conditions) {
-			let cVal = c.eval(scope);
-			if (!cVal.isInstanceOf(BoolType)) {
+			let cVal = c.eval(scope).asTyped;
+
+			if (!cVal || !BoolType.isBaseOf(cVal.type)) {
 				throw c.typeError("expected bool");
 			}
 		}
@@ -3489,7 +3177,11 @@ export class IfElseExpr extends ValueExpr {
 		let branchMultiType = null;
 
 		for (let b of this.#branches) {
-			let branchVal = b.eval(scope);
+			let branchVal = b.eval(scope).asTyped;
+
+			if (!branchVal) {
+				throw b.typeError("not typed");
+			}
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				b.site, 
@@ -3500,19 +3192,9 @@ export class IfElseExpr extends ValueExpr {
 
 		if (branchMultiType === null) {
 			// i.e. every branch throws an error
-			return Instance.new(new ErrorType());
+			return new ErrorEntity();
 		} else  {
-			return Instance.new(branchMultiType);
-		}
-	}
-
-	use() {
-		for (let c of this.#conditions) {
-			c.use();
-		}
-
-		for (let b of this.#branches) {
-			b.use();
+			return Common.toTyped(branchMultiType);
 		}
 	}
 
@@ -3558,7 +3240,7 @@ export class DestructExpr {
 
 	/**
 	 * @param {Word} name - use an underscore as a sink
-	 * @param {?TypeExpr} typeExpr 
+	 * @param {null | Expr} typeExpr 
 	 * @param {DestructExpr[]} destructExprs
 	 */
 	constructor(name, typeExpr, destructExprs = []) {
@@ -3613,7 +3295,7 @@ export class DestructExpr {
 				throw new Error("typeExpr not set");
 			}
 		} else {
-			return this.#typeExpr.type;
+			return assertDefined(this.#typeExpr.cache?.asType);
 		}
 	}
 
@@ -3628,6 +3310,9 @@ export class DestructExpr {
 		}
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		if (this.#typeExpr === null) {
 			return this.name.toString();
@@ -3659,25 +3344,30 @@ export class DestructExpr {
 				throw new Error("typeExpr not set");
 			}
 		} else {
-			return this.#typeExpr.eval(scope);
+			const type = this.#typeExpr.eval(scope).asType;
+			if (!type) {
+				throw this.#typeExpr.typeError("not a type");
+			}
+
+			return type;
 		}
 	}
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {Type} upstreamType 
+	 * @param {DataType} upstreamType 
 	 */
 	evalDestructExprs(scope, upstreamType) {
 		if (this.#destructExprs.length > 0) {
-			if (!(upstreamType instanceof AnyType) && upstreamType.nFields(this.site) != this.#destructExprs.length) {
-				throw this.site.typeError(`wrong number of destruct fields, expected ${upstreamType.nFields(this.site)}, got ${this.#destructExprs.length}`);
+			if (upstreamType.fieldNames.length != this.#destructExprs.length) {
+				throw this.site.typeError(`wrong number of destruct fields, expected ${upstreamType.fieldNames.length}, got ${this.#destructExprs.length}`);
 			}
 
 			for (let i = 0; i < this.#destructExprs.length; i++) {
 
 				this.#destructExprs[i].evalInternal(
 					scope, 
-					upstreamType.getFieldType(this.site, i), 
+					assertDefined(upstreamType.instanceMembers[upstreamType.fieldNames[i]].asDataType), 
 					i
 				);
 			}
@@ -3686,38 +3376,38 @@ export class DestructExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {Type} upstreamType
+	 * @param {DataType} upstreamType
 	 * @param {number} i
 	 */
 	evalInternal(scope, upstreamType, i) {
 		if (this.hasType()) {
-			const t = this.evalType(scope).assertType();
+			const t = this.evalType(scope).asDataType;
 			if (!t) {
-				throw this.site.typeError("not a type");
+				throw this.site.typeError("not a data type");
 			}
 
 			// differs from upstreamType because can be enum parent
 			let checkType = t;
 
 			// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
-			if (t.isEnumMember() && !upstreamType.isEnumMember()) {
-				checkType = t.parentType(this.site);
+			if (t.asEnumMemberType && !upstreamType.asEnumMemberType) {
+				checkType = t.asEnumMemberType.parentType;
 			}
 
-			if (!Instance.new(upstreamType).isInstanceOf(checkType)) {
+			if (!checkType.isBaseOf(upstreamType)) {
 				throw this.site.typeError(`expected ${checkType.toString()} for destructure field ${i+1}, got ${upstreamType.toString()}`);
 			}
 
 			if (!this.isIgnored()) {
 				// TODO: take into account ghost type parameters
-				scope.set(this.name, Instance.new(t));
+				scope.set(this.name, t.toTyped());
 			}
 
 			this.evalDestructExprs(scope, t);
 		} else {
 			if (!this.isIgnored()) {
 				// TODO: take into account ghost type parameters
-				scope.set(this.name, Instance.new(upstreamType));
+				scope.set(this.name, upstreamType.toTyped());
 			}
 
 			this.evalDestructExprs(scope, upstreamType);
@@ -3726,11 +3416,11 @@ export class DestructExpr {
 
 	/**
 	 * @param {Scope} scope
-	 * @param {Type} caseType
+	 * @param {DataType} caseType
 	 */
 	evalInSwitchCase(scope, caseType) {
 		if (!this.isIgnored()) {
-			scope.set(this.#name, Instance.new(caseType));
+			scope.set(this.#name, caseType.toTyped());
 		}
 
 		this.evalDestructExprs(scope, caseType)
@@ -3738,38 +3428,52 @@ export class DestructExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {Type} upstreamType
+	 * @param {DataType} upstreamType
 	 * @param {number} i
 	 */
 	evalInAssignExpr(scope, upstreamType, i) {
-		const t = this.evalType(scope).assertType();
-		if (!t) {
-			throw this.site.typeError("not a type");
+		/**
+		 * @param {null | DataType} t 
+		 */
+		const checkType = (t) => {
+			if (!t) {
+				throw this.site.typeError("not a type");
+			}
+
+			// differs from upstreamType because can be enum parent
+			let checkType = t;
+
+			// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
+			if (t.asEnumMemberType && !upstreamType.asEnumMemberType) {
+				checkType = t.asEnumMemberType.parentType;
+			}
+
+			if (!checkType.isBaseOf(upstreamType)) {
+				throw this.site.typeError(`expected ${checkType.toString()} for rhs ${i+1}, got ${upstreamType.toString()}`);
+			}
+
+			if (!this.isIgnored()) {
+				// TODO: take into account ghost type parameters
+				scope.set(this.name, t.toTyped());
+			}
+
+			this.evalDestructExprs(scope, t);
 		}
 
-		// differs from upstreamType because can be enum parent
-		let checkType = t;
+		const t = this.evalType(scope);
 
-		// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
-		if (t.isEnumMember() && !upstreamType.isEnumMember()) {
-			checkType = t.parentType(this.site);
-		}
+		if (t.asDataType) {
+			/*if (i != 0) {
+				throw this.site.typeError("expected multi instance");
+			}*/
 
-		if (!Instance.new(upstreamType).isInstanceOf(checkType)) {
-			throw this.site.typeError(`expected ${checkType.toString()} for rhs ${i+1}, got ${upstreamType.toString()}`);
-		}
+			checkType(t.asDataType);
+		} else if (t.asMulti) {
+			if (i >= t.asMulti.values.length) {
+				throw this.site.typeError(`expected multi instace with only ${t.asMulti.values.length} items`);
+			}
 
-		if (!this.isIgnored()) {
-			// TODO: take into account ghost type parameters
-			scope.set(this.name, Instance.new(t));
-		}
-
-		this.evalDestructExprs(scope, t);
-	}
-
-	use() {
-		if (this.#typeExpr !== null) {
-			this.#typeExpr.use();
+			checkType(t.asMulti.values[i].type.asDataType);
 		}
 	}
 
@@ -3797,10 +3501,10 @@ export class DestructExpr {
 
 		const type = this.type;
 
-		if (type.isEnumMember()) {
+		if (type.asEnumMemberType) {
 			return `__helios__common__field_${fieldIndex}`;
-		} else if (type instanceof StructStatementType) {
-			if (type.nFields(Site.dummy()) == 1) {
+		} else if (type.asDataType) {
+			if (type.asDataType.fieldNames.length == 1) {
 				return "";
 			} else {
 				return `__helios__common__tuple_field_${fieldIndex}`;
@@ -3831,8 +3535,8 @@ export class DestructExpr {
 			let getter = `${fieldFn}(${objName})`;
 
 			// assert correct constructor index
-			if (this.#typeExpr && this.type.isEnumMember()) {
-				const constrIdx = this.type.getConstrIndex(this.#typeExpr.site);
+			if (this.#typeExpr && this.type.asEnumMemberType) {
+				const constrIdx = this.type.asEnumMemberType.constrIndex;
 
 				getter = `__helios__common__assert_constr_index(${getter}, ${constrIdx})`;
 			}
@@ -3893,7 +3597,7 @@ export class SwitchCase extends Token {
 	/**
 	 * @param {Site} site 
 	 * @param {DestructExpr} lhs
-	 * @param {ValueExpr} bodyExpr 
+	 * @param {Expr} bodyExpr 
 	 */
 	constructor(site, lhs, bodyExpr) {
 		super(site);
@@ -3903,7 +3607,7 @@ export class SwitchCase extends Token {
 	}
 
 	/**
-	 * @type {ValueExpr}
+	 * @type {Expr}
 	 */
 	get body() {
 		return this.#bodyExpr;
@@ -3944,16 +3648,16 @@ export class SwitchCase extends Token {
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope 
-	 * @param {Type} enumType
-	 * @returns {Instance}
+	 * @param {DataType} enumType
+	 * @returns {EvalEntity}
 	 */
 	evalEnumMember(scope, enumType) {
-		const caseType = enumType.getTypeMember(this.memberName).assertType();
+		const caseType = enumType.typeMembers[this.memberName.value]?.asEnumMemberType;
 		if (!caseType) {
 			throw this.memberName.typeError("not a type");
 		}
 
-		this.#constrIndex = caseType.getConstrIndex(this.memberName.site);
+		this.#constrIndex = caseType.constrIndex;
 
 		assert(this.#constrIndex >= 0);
 
@@ -3971,35 +3675,34 @@ export class SwitchCase extends Token {
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalDataMember(scope) {
-		/** @type {Type} */
+		/** @type {DataType} */
 		let memberType;
 
 		switch (this.memberName.value) {
 			case "Int":
-				memberType = new IntType();
+				memberType = IntType;
 				break;
 			case "ByteArray":
-				memberType = new ByteArrayType();
+				memberType = ByteArrayType;
 				break;
 			case "[]Data":
-				memberType = new ListType(new RawDataType());
+				memberType = ListType$(RawDataType);
 				break;
 			case "Map[Data]Data":
-				memberType = new MapType(new RawDataType(), new RawDataType());
+				memberType = MapType$(RawDataType, RawDataType);
 				break;
 			default:
-				let maybeMemberType = scope.get(this.memberName);
-				if (maybeMemberType instanceof Type) {
-					memberType = maybeMemberType;
+				let maybeMemberType = scope.get(this.memberName).asDataType;
+				if (!maybeMemberType) {
+					throw this.memberName.typeError("expected a data type");
+				}
+				memberType = maybeMemberType;
 
-					if (!(memberType instanceof EnumStatementType)) {
-						throw this.memberName.typeError("expected an enum type");
-					}
-				} else {
-					throw this.memberName.typeError("expected a type");
+				if (!Common.isEnum(memberType)) {
+					throw this.memberName.typeError("expected an enum type");
 				}
 		}
 
@@ -4012,10 +3715,6 @@ export class SwitchCase extends Token {
 		caseScope.assertAllUsed();
 
 		return bodyVal;
-	}
-
-	use() {
-		this.#bodyExpr.use();
 	}
 
 	/**
@@ -4050,10 +3749,10 @@ export class UnconstrDataSwitchCase extends SwitchCase {
 	 * @param {Site} site 
 	 * @param {?Word} intVarName 
 	 * @param {?Word} lstVarName 
-	 * @param {ValueExpr} bodyExpr 
+	 * @param {Expr} bodyExpr 
 	 */
 	constructor(site, intVarName, lstVarName, bodyExpr) {
-		super(site, new DestructExpr(new Word(site, "_"), new TypeRefExpr(new Word(site, "(Int, []Data)"))), bodyExpr);
+		super(site, new DestructExpr(new Word(site, "_"), new RefExpr(new Word(site, "(Int, []Data)"))), bodyExpr);
 
 		this.#intVarName = intVarName;
 		this.#lstVarName = lstVarName;
@@ -4079,18 +3778,18 @@ export class UnconstrDataSwitchCase extends SwitchCase {
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalDataMember(scope) {
 		if (this.#intVarName !== null || this.#lstVarName !== null) {
 			let caseScope = new Scope(scope);
 
 			if (this.#intVarName !== null) {
-				caseScope.set(this.#intVarName, Instance.new(new IntType()));
+				caseScope.set(this.#intVarName, new DataEntity(IntType));
 			}
 
 			if (this.#lstVarName !== null) {
-				caseScope.set(this.#lstVarName, Instance.new(new ListType(new RawDataType())));
+				caseScope.set(this.#lstVarName, new DataEntity(ListType$(RawDataType)));
 			}
 
 			let bodyVal = this.body.eval(caseScope);
@@ -4130,7 +3829,7 @@ export class SwitchDefault extends Token {
 
 	/**
 	 * @param {Site} site
-	 * @param {ValueExpr} bodyExpr
+	 * @param {Expr} bodyExpr
 	 */
 	constructor(site, bodyExpr) {
 		super(site);
@@ -4143,14 +3842,10 @@ export class SwitchDefault extends Token {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	eval(scope) {
 		return this.#bodyExpr.eval(scope);
-	}
-
-	use() {
-		this.#bodyExpr.use();
 	}
 
 	/**
@@ -4169,14 +3864,14 @@ export class SwitchDefault extends Token {
 /**
  * Parent class of EnumSwitchExpr and DataSwitchExpr
  */
-class SwitchExpr extends ValueExpr {
+class SwitchExpr extends Expr {
 	#controlExpr;
 	#cases;
 	#defaultCase;
 
 	/** 
 	 * @param {Site} site
-	 * @param {ValueExpr} controlExpr - input value of the switch
+	 * @param {Expr} controlExpr - input value of the switch
 	 * @param {SwitchCase[]} cases
 	 * @param {?SwitchDefault} defaultCase
 	*/
@@ -4209,18 +3904,6 @@ class SwitchExpr extends ValueExpr {
 	toString() {
 		return `${this.#controlExpr.toString()}.switch{${this.#cases.map(c => c.toString()).join(", ")}${this.#defaultCase === null ? "" : ", " + this.#defaultCase.toString()}}`;
 	}
-
-	use() {
-		this.#controlExpr.use();
-
-		for (let c of this.#cases) {
-			c.use();
-		}
-
-		if (this.#defaultCase !== null) {
-			this.#defaultCase.use();
-		}
-	}
 }
 
 /**
@@ -4230,12 +3913,22 @@ class SwitchExpr extends ValueExpr {
 export class EnumSwitchExpr extends SwitchExpr {
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		let controlVal = this.controlExpr.eval(scope);
-		let enumType = controlVal.getType(this.controlExpr.site);
-		let nEnumMembers = enumType.nEnumMembers(this.controlExpr.site);
+		let controlVal = this.controlExpr.eval(scope).asTyped;
+
+		if (!controlVal) {
+			throw this.controlExpr.typeError("not typed");
+		}
+
+		let enumType = controlVal.type.asDataType;
+
+		if (!enumType) {
+			throw this.controlExpr.typeError("not an enum");
+		}
+
+		let nEnumMembers = Common.countEnumMembers(enumType);
 
 		// check that we have enough cases to cover the enum members
 		if (this.defaultCase === null && nEnumMembers > this.cases.length) {
@@ -4243,11 +3936,15 @@ export class EnumSwitchExpr extends SwitchExpr {
 			this.setDefaultCaseToVoid();
 		}
 
-		/** @type {?Type[]} */
+		/** @type {null | Type[]} */
 		let branchMultiType = null;
 
 		for (let c of this.cases) {
-			let branchVal = c.evalEnumMember(scope, enumType);
+			let branchVal = c.evalEnumMember(scope, enumType).asTyped;
+
+			if (!branchVal) {
+				throw c.typeError("not typed");
+			}
 	
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				c.site, 
@@ -4257,7 +3954,11 @@ export class EnumSwitchExpr extends SwitchExpr {
 		}
 
 		if (this.defaultCase !== null) {
-			let defaultVal = this.defaultCase.eval(scope);
+			let defaultVal = this.defaultCase.eval(scope).asTyped;
+
+			if (!defaultVal) {
+				throw this.defaultCase.typeError("not typed");
+			}
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				this.defaultCase.site,
@@ -4267,9 +3968,9 @@ export class EnumSwitchExpr extends SwitchExpr {
 		}
 
 		if (branchMultiType === null) {
-			return Instance.new(new ErrorType());
+			return new ErrorEntity();
 		} else {
-			return Instance.new(branchMultiType);
+			return Common.toTyped(branchMultiType);
 		}
 	}
 
@@ -4319,15 +4020,21 @@ export class EnumSwitchExpr extends SwitchExpr {
 export class DataSwitchExpr extends SwitchExpr {
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		let controlVal = this.controlExpr.eval(scope);
-		let dataType = controlVal.getType(this.controlExpr.site);
+		let controlVal = this.controlExpr.eval(scope).asTyped;
+		if (!controlVal) {
+			throw this.controlExpr.typeError("not typed");
+		}
 
-		let controlSite = this.controlExpr.site;
-		if (!dataType.isBaseOf(new RawDataType())) {
-			throw this.controlExpr.typeError(`expected Data type, got ${controlVal.getType(controlSite).toString()}`);
+		let dataType = controlVal.type.asDataType;
+		if (!dataType) {
+			throw this.controlExpr.typeError("not a data type");
+		}
+
+		if (!RawDataType.isBaseOf(dataType)) {
+			throw this.controlExpr.typeError(`expected Data type, got ${controlVal.type.toString()}`);
 		}
 
 		// check that we have enough cases to cover the enum members
@@ -4340,7 +4047,10 @@ export class DataSwitchExpr extends SwitchExpr {
 		let branchMultiType = null;
 
 		for (let c of this.cases) {
-			let branchVal = c.evalDataMember(scope);
+			let branchVal = c.evalDataMember(scope).asTyped;
+			if (!branchVal) {
+				throw c.typeError("not typed");
+			}
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				c.site, 
@@ -4350,7 +4060,10 @@ export class DataSwitchExpr extends SwitchExpr {
 		}
 
 		if (this.defaultCase !== null) {
-			let defaultVal = this.defaultCase.eval(scope);
+			let defaultVal = this.defaultCase.eval(scope).asTyped;
+			if (!defaultVal) {
+				throw this.defaultCase.typeError("not typed");
+			}
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				this.defaultCase.site, 
@@ -4361,9 +4074,9 @@ export class DataSwitchExpr extends SwitchExpr {
 
 		if (branchMultiType === null) {
 			// only possible if each branch is an error
-			return Instance.new(new ErrorType());
+			return new ErrorEntity();
 		} else {
-			return Instance.new(branchMultiType);
+			return Common.toTyped(branchMultiType);
 		}
 	}
 

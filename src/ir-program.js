@@ -92,12 +92,12 @@ export class IRProgram {
 		let irTokens = tokenizeIR(irSrc, codeMap);
 
 		let expr = buildIRExpr(irTokens);
-	
+		
 		expr.resolveNames(scope);
-
-		expr = IRProgram.simplifyUnused(expr);
-
+		
 		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
+
+		//expr = IRProgram.simplifyUnused(expr);
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)

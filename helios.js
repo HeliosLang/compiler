@@ -119,68 +119,73 @@
 //
 //     Section 12: Tokenization              Tokenizer, tokenize, tokenizeIR
 //
-//     Section 13: Helios eval entities      EvalEntity, Type, ParamTypeRef, TypeClassType, 
-//                                           TypeClass, AnyTypeClass, StorableTypeClass, 
-//                                           Namespace, AnyType, DataType, AnyDataType, 
-//                                           BuiltinType, BuiltinEnumMember, StatementType, 
-//                                           StructStatementType, EnumStatementType, 
-//                                           EnumMemberStatementType, ArgType, FuncType, NotType, 
-//                                           Instance, DataInstance, ConstStatementInstance, 
-//                                           FuncInstance, FuncStatementInstance, MultiInstance, 
-//                                           VoidInstance, ErrorInstance, BuiltinFuncInstance, 
-//                                           PrintFunc, VoidType, ErrorType, IntType, RealType, 
-//                                           BoolType, StringType, ByteArrayType, Parameter, 
-//                                           ParametricInstance, ParametricFuncStatementInstance, 
-//                                           ListType, MapType, OptionType, OptionSomeType, 
-//                                           OptionNoneType, HashType, PubKeyHashType, 
-//                                           StakeKeyHashType, PubKeyType, ScriptHashType, 
-//                                           ValidatorHashType, MintingPolicyHashType, 
-//                                           StakingValidatorHashType, DatumHashType, 
+//     Section 13: Eval common types         applyTypes, Common, AnyType, ErrorType, ArgType, 
+//                                           FuncType, GenericType, GenericEnumMemberType, 
+//                                           VoidType, DataEntity, ErrorEntity, NamedEntity, 
+//                                           FuncEntity, MultiEntity, VoidEntity, ModuleNamespace
+//
+//     Section 14: Eval primitive types      genCommonInstanceMembers, genCommonTypeMembers, 
+//                                           BoolType, ByteArrayType, IntType, RawDataType, 
+//                                           RealType, StringType
+//
+//     Section 15: Eval builtin typeclasses  TypeClassImpl, AnyTypeClass, SerializableTypeClass, 
+//                                           Parameter, ParametricFunc, AppliedType, ParametricType
+//
+//     Section 16: Eval builtin functions    BuiltinFunc, AssertFunc, ErrorFunc, PrintFunc
+//
+//     Section 17: Eval container types      ListType, ListType, MapType, MapType, OptionType, 
+//                                           OptionType
+//
+//     Section 18: Eval time types           DurationType, TimeType, TimeRangeType
+//
+//     Section 19: Eval hash types           genHashInstanceMembers, genHashTypeMembers, 
+//                                           DatumHashType, MintingPolicyHashType, PubKeyType, 
+//                                           PubKeyHashType, ScriptHashType, StakeKeyHashType, 
+//                                           StakingHashType, StakingHashStakeKeyType, 
+//                                           StakingHashValidatorType, StakingValidatorHashType, 
+//                                           ValidatorHashType
+//
+//     Section 20: Eval money types          AssetClassType, ValueType
+//
+//     Section 21: Eval tx types             AddressType, CertifyingActionType, 
+//                                           CertifyingActionDelegateType, 
+//                                           CertifyingActionDeregisterType, 
+//                                           CertifyingActionRegisterType, 
+//                                           CertifyingActionRegisterPoolType, 
+//                                           CertifyingActionRetirePoolType, CredentialType, 
+//                                           CredentialPubKeyType, CredentialValidatorType, 
+//                                           OutputDatumType, OutputDatumHashType, 
+//                                           OutputDatumInlineType, OutputDatumNoneType, 
 //                                           ScriptContextType, ScriptPurposeType, 
-//                                           MintingScriptPurposeType, SpendingScriptPurposeType, 
-//                                           RewardingScriptPurposeType, 
-//                                           CertifyingScriptPurposeType, StakingPurposeType, 
-//                                           StakingRewardingPurposeType, 
-//                                           StakingCertifyingPurposeType, DCertType, 
-//                                           RegisterDCertType, DeregisterDCertType, 
-//                                           DelegateDCertType, RegisterPoolDCertType, 
-//                                           RetirePoolDCertType, TxType, TxIdType, TxInputType, 
-//                                           TxOutputType, OutputDatumType, NoOutputDatumType, 
-//                                           HashedOutputDatumType, InlineOutputDatumType, 
-//                                           RawDataType, TxOutputIdType, AddressType, 
-//                                           CredentialType, CredentialPubKeyType, 
-//                                           CredentialValidatorType, StakingHashType, 
-//                                           StakingHashStakeKeyType, StakingHashValidatorType, 
-//                                           StakingCredentialType, StakingHashCredentialType, 
-//                                           StakingPtrCredentialType, TimeType, DurationType, 
-//                                           TimeRangeType, AssetClassType, ValueType
+//                                           ScriptPurposeCertifyingType, 
+//                                           ScriptPurposeMintingType, ScriptPurposeTypeRewarding, 
+//                                           ScriptPurposeSpendingType, StakingCredentialType, 
+//                                           StakingCredentialHashType, StakingCredentialPtrType, 
+//                                           StakingPurposeType, StakingPurposeCertifyingType, 
+//                                           StakingPurposeRewardingType, TxType, TxIdType, 
+//                                           TxInputType, TxOutputType, TxOutputIdType
 //
-//     Section 14: Scopes                    GlobalScope, Scope, TopScope, ModuleScope, 
-//                                           FuncStatementScope
+//     Section 22: Scopes                    GlobalScope, Scope, TopScope, ModuleScope
 //
-//     Section 15: Helios AST expressions    Expr, TypeExpr, TypeClassExpr, TypeRefExpr, 
-//                                           ParametricTypeExpr, TypePathExpr, ListTypeExpr, 
-//                                           MapTypeExpr, OptionTypeExpr, VoidTypeExpr, 
-//                                           FuncArgTypeExpr, FuncTypeExpr, ValueExpr, AssignExpr, 
-//                                           PrintExpr, VoidExpr, ChainExpr, PrimitiveLiteralExpr, 
-//                                           LiteralDataExpr, StructLiteralField, 
-//                                           StructLiteralExpr, ListLiteralExpr, MapLiteralExpr, 
-//                                           NameTypePair, FuncArg, TypeParameter, TypeParameters, 
-//                                           FuncLiteralExpr, ValueRefExpr, ParametricValueExpr, 
-//                                           ValuePathExpr, UnaryExpr, BinaryExpr, ParensExpr, 
-//                                           CallArgExpr, CallExpr, MemberExpr, IfElseExpr, 
-//                                           DestructExpr, SwitchCase, UnconstrDataSwitchCase, 
-//                                           SwitchDefault, SwitchExpr, EnumSwitchExpr, 
-//                                           DataSwitchExpr
+//     Section 23: Helios AST expressions    Expr, RefExpr, PathExpr, ListTypeExpr, MapTypeExpr, 
+//                                           OptionTypeExpr, VoidTypeExpr, FuncArgTypeExpr, 
+//                                           FuncTypeExpr, AssignExpr, PrintExpr, VoidExpr, 
+//                                           ChainExpr, PrimitiveLiteralExpr, LiteralDataExpr, 
+//                                           StructLiteralField, StructLiteralExpr, 
+//                                           ListLiteralExpr, MapLiteralExpr, NameTypePair, 
+//                                           FuncArg, TypeParameter, TypeParameters, 
+//                                           FuncLiteralExpr, ParametricExpr, UnaryExpr, 
+//                                           BinaryExpr, ParensExpr, CallArgExpr, CallExpr, 
+//                                           MemberExpr, IfElseExpr, DestructExpr, SwitchCase, 
+//                                           UnconstrDataSwitchCase, SwitchDefault, SwitchExpr, 
+//                                           EnumSwitchExpr, DataSwitchExpr
 //
-//     Section 16: Literal functions         buildLiteralExprFromJson, buildLiteralExprFromValue
-//
-//     Section 17: Helios AST statements     Statement, ImportFromStatement, 
+//     Section 24: Helios AST statements     Statement, ImportFromStatement, 
 //                                           ImportModuleStatement, ConstStatement, DataField, 
 //                                           DataDefinition, StructStatement, FuncStatement, 
 //                                           EnumMember, EnumStatement, ImplDefinition
 //
-//     Section 18: Helios AST building       AUTOMATIC_METHODS, importPathTranslator, 
+//     Section 25: Helios AST building       AUTOMATIC_METHODS, importPathTranslator, 
 //                                           setImportPathTranslator, buildProgramStatements, 
 //                                           buildScriptPurpose, buildScript, 
 //                                           extractScriptPurposeAndName, buildConstStatement, 
@@ -213,46 +218,47 @@
 //                                           buildStructLiteralNamedField, 
 //                                           buildStructLiteralUnnamedField, buildValuePathExpr
 //
-//     Section 19: IR definitions            onNotifyRawUsage, setRawUsageNotifier, RawFunc, 
-//                                           makeRawFunctions, wrapWithRawFunctions
+//     Section 26: IR definitions            onNotifyRawUsage, setRawUsageNotifier, RawFunc, 
+//                                           makeRawFunctions, fetchRawFunctions, 
+//                                           wrapWithRawFunctions
 //
-//     Section 20: IR Context objects        IRScope, IRVariable, IRValue, IRFuncValue, 
+//     Section 27: IR Context objects        IRScope, IRVariable, IRValue, IRFuncValue, 
 //                                           IRLiteralValue, IRDeferredValue, IRCallStack
 //
-//     Section 21: IR AST objects            IRNameExprRegistry, IRExprRegistry, IRExpr, 
+//     Section 28: IR AST objects            IRNameExprRegistry, IRExprRegistry, IRExpr, 
 //                                           IRNameExpr, IRLiteralExpr, IRConstExpr, IRFuncExpr, 
 //                                           IRCallExpr, IRCoreCallExpr, IRUserCallExpr, 
 //                                           IRAnonCallExpr, IRNestedAnonCallExpr, IRFuncDefExpr, 
 //                                           IRErrorCallExpr
 //
-//     Section 22: IR AST build functions    buildIRExpr, buildIRFuncExpr
+//     Section 29: IR AST build functions    buildIRExpr, buildIRFuncExpr
 //
-//     Section 23: IR Program                IRProgram, IRParametricProgram
+//     Section 30: IR Program                IRProgram, IRParametricProgram
 //
-//     Section 24: Helios program            Module, MainModule, RedeemerProgram, 
+//     Section 31: Helios program            Module, MainModule, RedeemerProgram, 
 //                                           DatumRedeemerProgram, TestingProgram, 
 //                                           SpendingProgram, MintingProgram, StakingProgram
 //
-//     Section 25: Native scripts            NativeContext, NativeScript, NativeSig, NativeAll, 
+//     Section 32: Native scripts            NativeContext, NativeScript, NativeSig, NativeAll, 
 //                                           NativeAny, NativeAtLeast, NativeAfter, NativeBefore
 //
-//     Section 26: Tx types                  Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
+//     Section 33: Tx types                  Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
 //                                           TxOutput, DCert, StakeAddress, Signature, Redeemer, 
 //                                           SpendingRedeemer, MintingRedeemer, Datum, 
 //                                           HashedDatum, InlineDatum, encodeMetadata, 
 //                                           decodeMetadata, TxMetadata
 //
-//     Section 27: Highlighting function     SyntaxCategory, highlight
+//     Section 34: Highlighting function     SyntaxCategory, highlight
 //
-//     Section 28: Fuzzy testing framework   FuzzyTest
+//     Section 35: Fuzzy testing framework   FuzzyTest
 //
-//     Section 29: CoinSelection             CoinSelection
+//     Section 36: CoinSelection             CoinSelection
 //
-//     Section 30: Wallets                   Cip30Wallet, WalletHelper
+//     Section 37: Wallets                   Cip30Wallet, WalletHelper
 //
-//     Section 31: Network                   BlockfrostV0
+//     Section 38: Network                   BlockfrostV0
 //
-//     Section 32: Emulator                  WalletEmulator, GenesisTx, RegularTx, NetworkEmulator
+//     Section 39: Emulator                  WalletEmulator, GenesisTx, RegularTx, NetworkEmulator
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2308,7 +2314,7 @@ class StringLiteral extends PrimitiveLiteral {
 
 	/**
 	 * @param {string | IR[]} content 
-	 * @param {?Site} site 
+	 * @param {null | Site} site 
 	 */
 	constructor(content, site = null) {
 		assert(!(Array.isArray(content) && content.some(item => item == undefined)), "some items undefined");
@@ -2424,6 +2430,38 @@ class StringLiteral extends PrimitiveLiteral {
 		const [src, _] = this.generateSource();
 
 		return (new Source(src)).pretty();
+	}
+
+	/**
+	 * @param {RegExp} re 
+	 * @param {string} newStr
+	 * @returns {IR}
+	 */
+	replace(re, newStr) {
+		if (typeof this.#content == "string") {
+			return new IR(this.#content.replace(re, newStr), this.#site);
+		} else {
+			return new IR(this.#content.map(ir => ir.replace(re, newStr), this.#site));
+		}
+	}
+
+	/**
+	 * 
+	 * @param {RegExp} re 
+	 * @param {(match: string) => void} callback 
+	 */
+	search(re, callback) {
+		if (typeof this.#content == "string") {
+			const ms = this.#content.match(re);
+
+			if (ms) {
+				for (let m of ms) {
+					callback(m);
+				}
+			}
+		} else {
+			this.#content.forEach(ir => ir.search(re, callback));
+		}
 	}
 
 	/**
@@ -5512,9 +5550,10 @@ export class HeliosData extends CborData {
 
 /**
  * @template {HeliosData} T
+ * 
  * @typedef {{
- *   new(...args: any[]): T;
- *   fromUplcCbor: (bytes: (string | number[])) => T,
+ *   new(...args: any[]): T
+ *   fromUplcCbor: (bytes: (string | number[])) => T
  *   fromUplcData: (data: UplcData) => T
  * }} HeliosDataClass
  */
@@ -12817,11 +12856,14 @@ export class Tokenizer {
 	#codeMap;
 	#codeMapPos;
 
+	#irMode;
+
 	/**
 	 * @param {Source} src 
 	 * @param {?CodeMap} codeMap 
+	 * @param {boolean} irMode - if true '@' is treated as a regular character
 	 */
-	constructor(src, codeMap = null) {
+	constructor(src, codeMap = null, irMode = false) {
 		assert(src instanceof Source);
 
 		this.#src = src;
@@ -12829,6 +12871,7 @@ export class Tokenizer {
 		this.#ts = []; // reset to empty to list at start of tokenize()
 		this.#codeMap = codeMap; // can be a list of pairs [pos, site in another source]
 		this.#codeMapPos = 0; // not used if codeMap === null
+		this.#irMode = irMode;
 	}
 
 	incrPos() {
@@ -12905,7 +12948,7 @@ export class Tokenizer {
 	 * @param {string} c 
 	 */
 	readToken(site, c) {
-		if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+		if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && c == '@')) {
 			this.readWord(site, c);
 		} else if (c == '/') {
 			this.readMaybeComment(site);
@@ -12986,7 +13029,7 @@ export class Tokenizer {
 
 		let c = c0;
 		while (c != '\0') {
-			if (c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+			if (c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && c == '@')) {
 				chars.push(c);
 				c = this.readChar();
 			} else {
@@ -13578,7 +13621,7 @@ function tokenizeIR(rawSrc, codeMap) {
 	let src = new Source(rawSrc);
 
 	// the Tokenizer for Helios can simply be reused for the IR
-	let tokenizer = new Tokenizer(src, codeMap);
+	let tokenizer = new Tokenizer(src, codeMap, true);
 
 	const ts = tokenizer.tokenize();
 
@@ -13593,651 +13636,379 @@ function tokenizeIR(rawSrc, codeMap) {
 
 
 
-///////////////////////////////////
-// Section 13: Helios eval entities
-///////////////////////////////////
+////////////////////////////////
+// Section 13: Eval common types
+////////////////////////////////
 
 /**
- * We can't use StructStatement etc. directly because that would give circular dependencies
+ * @template {HeliosData} T
+ */
+
+/**
+ * @typedef {Named & Type & {
+ *   asDataType: DataType
+ *   fieldNames:  string[]
+ *   offChainType: (null | HeliosDataClass<HeliosData>)
+ * }} DataType
+ */
+
+/**
+ * @typedef {DataType & {
+ *   asEnumMemberType: EnumMemberType
+ *   constrIndex: number
+ *   parentType: DataType
+ * }} EnumMemberType
+ */
+
+/**
+ * EvalEntities assert themselves
  * @typedef {{
- *   name: Word,
- *   getTypeMember(key: Word): EvalEntity,
- *   getInstanceMember(key: Word): Instance,
- *   nFields(site: Site): number,
- *   hasField(key: Word): boolean,
- *   getFieldType(site: Site, i: number): Type,
- * 	 getFieldIndex(site: Site, name: string): number,
- *   getFieldName(i: number): string,
- *   getConstrIndex(site: Site): number,
- *   nEnumMembers(site: Site): number,
- *   path: string,
- *   use: () => void
- * }} UserTypeStatement
+ *   asDataType:       (null | DataType)
+ *   asEnumMemberType: (null | EnumMemberType)
+ *   asFunc:           (null | Func)
+ *   asInstance:       (null | Instance)
+ *   asMulti:          (null | Multi)
+ *   asNamed:          (null | Named)
+ *   asNamespace:      (null | Namespace)
+ *   asParametric:     (null | Parametric)
+ * 	 asType:           (null | Type)
+ *   asTyped:          (null | Typed)
+ *   asTypeClass:      (null | TypeClass)
+ *   toString():       string
+ * }} EvalEntity
  */
 
 /**
- * We can't use ConstStatement directly because that would give a circular dependency
- * @typedef {{
- *   name: Word,
- *   path: string,
- *   use: () => void
- * }} ConstTypeStatement
+ * @typedef {Typed & {
+ *   asFunc: Func
+ *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}): (Typed | Multi)
+ * }} Func
  */
 
 /**
- * We can't use EnumMember directly because that would give a circular dependency
- * @typedef {UserTypeStatement & {
- * 	 parent: EnumTypeStatement,
- *   getConstrIndex(site: Site): number
-*  }} EnumMemberTypeStatement
+ * @typedef {Typed & {
+ *   asInstance:      Instance
+ *   fieldNames:      string[]
+ *   instanceMembers: InstanceMembers
+ * }} Instance
  */
 
 /**
- * We can't use EnumStatement directly because that would give a circular dependency
- * @typedef {UserTypeStatement & {
- *   type: Type,
- *   nEnumMembers(site: Site): number,
- *   getEnumMember(site: Site, i: number): EnumMemberTypeStatement
- * }} EnumTypeStatement
+ * @typedef {EvalEntity & {
+ *	 asMulti: Multi
+ *   values:  Typed[]
+ * }} Multi
  */
 
 /**
- * We can't use FuncStatement directly because that would give a circular dependency
- * @typedef {{
- *   path: string,
- *   use: () => void,
- *   setRecursive: () => void,
- *   isRecursive: () => boolean
- * }} RecurseableStatement
+ * @typedef {EvalEntity & {
+ *   asNamed: Named
+ *   name:    string
+ *   path:    string
+ * }} Named
  */
 
 /**
- * We can't use Scope directly because that would give a circular dependency
- * @typedef {{
- *   isRecursive: (statement: RecurseableStatement) => boolean
- * }} RecursivenessChecker
+ * @typedef {EvalEntity & {
+ *   asNamespace: Namespace
+ *   namespaceMembers: NamespaceMembers
+ * }} Namespace
  */
 
 /**
- * We can't use Scope directly because that would give a circular dependency
- * @typedef {{
- *   get: (name: Word) => EvalEntity
- * }} ScopeLike
+ * @typedef {EvalEntity & {
+ *   asParametric: Parametric
+ *   offChainType: (null | ((...any) => HeliosDataClass<HeliosData>))
+ *   typeClasses: TypeClass[]
+ *   apply(types: Type[], site?: Site): EvalEntity
+ *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): (Typed | Multi)
+ * }} Parametric
  */
 
 /**
- * @typedef {{
- * 	 assertType(): (null | Type)
- *   assertInstance(): (null | Instance)
- *   assertTypeClass(): (null | TypeClass)
- * }} EvalEntityI
+ * @typedef {EvalEntity & {
+ *   asType:               Type
+ *   instanceMembers:      InstanceMembers
+ *   typeMembers:          TypeMembers
+ *   isBaseOf(type: Type): boolean
+ *   infer(site: Site, map: Map<string, Type>, type: (null | Type)): Type
+ *   toTyped():            Typed
+ * }} Type
  */
 
 /**
- * Base class of Instance and Type.
- * Any member function that takes 'site' as its first argument throws a TypeError if used incorrectly (eg. calling a non-FuncType).
- * @package
- * @implements {EvalEntityI}
+ * @typedef {EvalEntity & {
+ *   asTyped: Typed
+ *   type: Type
+ * }} Typed
  */
-class EvalEntity {
-	constructor() {
-		this.used_ = false;
-	}
 
-	/**
-	 * @returns {null | Type}
-	 */
-	assertType() {
-		return null;
-	}
+/**
+ * @typedef {EvalEntity & {
+ *   asTypeClass:                    TypeClass
+ *   genInstanceMembers(impl: Type): TypeClassMembers
+ *   genTypeMembers(impl: Type):     TypeClassMembers
+ *   toType(name: string):           DataType
+ * }} TypeClass
+ */
 
-	/**
-	 * @returns {null | TypeClass}
-	 */
-	assertTypeClass() {
-		return null;
-	}
+/**
+ * @typedef {{[name: string]: (Parametric | Type)}} InstanceMembers
+ */
 
-	/**
-	 * @returns {null | Instance}
-	 */
-	assertInstance() {
-		return null;
-	}
+/**
+ * @typedef {{[name: string]: EvalEntity}} NamespaceMembers
+ */
 
-	/**
-	 * @param {Site} site 
-	 * @param {Type[]} types 
-	 * @returns {EvalEntity}
-	 */
-	applyTypes(site, types) {
-		throw site.typeError("not parametric");
-	}
+/**
+ * @typedef {{[name: string]: (Parametric | Type)}} TypeMembers
+ */
 
-	/**
-	 * @returns {boolean}
-	 */
-	isUsed() {
-		return this.used_;
-	}
+/**
+ * @typedef {{[name: string]: Type}} TypeClassMembers
+ */
 
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Used by Scope to mark named Values/Types as used.
-	 * At the end of the Scope an error is thrown if any named Values/Types aren't used.
-	 */
-	markAsUsed() {
-		this.used_ = true;
-	}
-
-	/**
-	 * Gets type of a value. Throws error when trying to get type of type.
-	 * @param {Site} site
-	 * @returns {Type}
-	 */
-	getType(site) {
-		throw new Error("not yet implemented");
-	}
-
-
-	/**
-	 * Returns the return type of a function (wrapped as a Instance) if the args have the correct types. 
-	 * Throws an error if 'this' isn't a function value, or if the args don't correspond.
-	 * @param {Site} site 
-	 * @param {Instance[]} args
-	 * @param {{[name: string]: Instance}} namedArgs
-	 * @returns {Instance}
-	 */
-	call(site, args, namedArgs = {}) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Gets a member of a Type (i.e. the '::' operator).
-	 * Throws an error if the member doesn't exist or if 'this' isn't a DataType.
-	 * @param {Word} name
-	 * @returns {EvalEntity} - can be Instance or Type
-	 */
-	getTypeMember(name) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Gets a member of a Instance (i.e. the '.' operator).
-	 * Throws an error if the member doesn't exist or if 'this' isn't a DataInstance.
-	 * @param {Word} name
-	 * @returns {Instance} - can be FuncInstance or DataInstance
-	 */
-	getInstanceMember(name) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Returns the number of fields in a struct.
-	 * Used to check if a literal struct constructor is correct.
-	 * @param {Site} site
-	 * @returns {number}
-	 */
-	nFields(site) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Returns the type of struct or enumMember fields.
-	 * Used to check if literal struct constructor is correct.
-	 * @param {Site} site
-	 * @param {number} i
-	 * @returns {Type}
-	 */
-	getFieldType(site, i) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Returns the index of struct or enumMember fields.
-	 * Used to order literal struct fields.
-	 * @param {Site} site
-	 * @param {string} name
-	 * @returns {number}
-	 */
-	getFieldIndex(site, name) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Returns the constructor index so Plutus-core data can be created correctly.
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		throw new Error("not yet implemented");
-	}
+/**
+ * @param {Parametric} parametric
+ * @param {Type[]} types
+ * @returns {DataType}
+ */
+export function applyTypes(parametric, ...types) {
+    return assertDefined(parametric.apply(types).asDataType);
 }
 
-
 /**
- * Types are used during type-checking of Helios
  * @package
  */
-class Type extends EvalEntity {
+class Common {
 	constructor() {
-		super();
 	}
 
-	/**
-	 * Returns 'true' if 'this' is a base-type of 'type'. Throws an error if 'this' isn't a Type.
-	 * @param {Type} type
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		throw new Error("not yet implemented");
-	}
+    /**
+     * @param {Typed} i 
+     * @param {Type} t 
+     * @returns {boolean}
+     */
+    static instanceOf(i, t) {
+        return t.isBaseOf(i.type);
+    }
+
+    /**
+     * @param {Type | Type[]} type 
+     * @returns {Typed | Multi}
+     */
+    static toTyped(type) {
+        if (Array.isArray(type)) {
+            if (type.length === 1) {
+                return Common.toTyped(type[0]);
+            } else {
+                return new MultiEntity(type.map(t => {
+                    const typed = Common.toTyped(t).asTyped;
+                    
+                    if (!typed) {
+                        throw new Error("unexpected nested Multi");
+                    } else {
+                        return typed;
+                    }
+                }));
+            }
+        } else {
+			return type.toTyped();
+        }
+    }
 
 	/**
 	 * Compares two types. Throws an error if neither is a Type.
 	 * @example
-	 * Type.same(Site.dummy(), new IntType(), new IntType()) => true
+	 * Common.typesEq(new IntType(), new IntType()) => true
 	 * @param {Type} a 
 	 * @param {Type} b 
 	 * @returns {boolean}
 	 */
-	static same(a, b) {
+	static typesEq(a, b) {
 		return a.isBaseOf(b) && b.isBaseOf(a);
 	}
 
 	/**
-	 * @returns {null | Type}
+	 * @param {Type} type 
 	 */
-	assertType() {
-		return this;
-	}
-
-	/**
-	 * Returns the underlying Type. Throws an error in this case because a Type can't return another Type.
-	 * @param {Site} site 
-	 * @returns {Type}
-	 */
-	getType(site) {
-		throw site.typeError(`can't use getType(), '${this.toString()}' isn't an instance`);
-	}
-
-	/**
-	 * Throws an error because a Type can't be an instance of another Type.
-	 * @param {Site} site 
-	 * @param {Type | ClassOfType} type
-	 * @returns {boolean}
-	 */
-	isInstanceOf(site, type) {
-		throw site.typeError(`can't use isInstanceOf(), '${this.toString()}' isn't an instance`);
-	}
-
-	/**
-	 * Throws an error because a Type isn't callable.
-	 * @param {Site} site 
-	 * @param {Instance[]} args 
-	 * @param {{[name: string]: Instance}} namedArgs
-	 * @returns {Instance}
-	 */
-	call(site, args, namedArgs = {}) {
-		throw site.typeError("not callable");
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isEnumMember() {
-		return false;
-	}
-
-	/**
-	 * Throws error for non-enum members
-	 * @param {Site} site 
-	 * @returns {Type}
-	 */
-	parentType(site) {
-		throw site.typeError(`'${this.toString}' isn't an enum member`);
-	}
-
-	/**
-	 * Returns number of members of an enum type
-	 * Throws an error if not an enum type
-	 * @param {Site} site
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		throw site.typeError(`'${this.toString()}' isn't an enum type`);
-	}
-
-	/**
-	 * Returns the base path in the IR (eg. __helios__bool, __helios__error, etc.)
-	 * @type {string}
-	 */
-	get path() {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		throw new Error(`${this.toString()} doesn't have a corresponding userType`);
-	}
-
-	/**
-	 * @package
-	 * @param {Site} site
-	 * @param {Map<string, Type>} map 
-	 * @param {Type | null} type
-	 * @returns {Type} 
-	 */
-	infer(site, map, type) {
-		// most types don't have to do anything here
-		return this;
-	}
-
-	/**
-	 * @type {{[name: string]: EvalEntity}}
-	 */
-	get typeMembers() {
-		return {};
-	}
-
-	/**
-	 * @type {{[name: string]: Instance}}
-	 */
-	get instanceMembers() {
-		return {};
-	}
-}
-
-/**
- * @package
- */
-class ParamTypeRef extends Type {
-	#name
-
-	/**
-	 * @param {string} name 
-	 */
-	constructor(name) {
-		super();
-		this.#name = name;
-	}
-
-	/**
-	 * @type {string}
-	 */
-	get name() {
-		return this.#name;
-	}
-
-	/**
-	 * @package
-	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
-	 * @param {Type | null} type
-	 * @returns {Type}
-	 */
-	infer(site, map, type) {
-		console.log("INFERRING ", this.#name, Array.from(map.keys()));
-
-		const prev = map.get(this.#name);
-
-		if (!prev) {
-			if (type) {
-				map.set(this.#name, type);
-
-				return type;
-			} else {
-				throw new Error(`${this.#name} should be in map`);
-			}
-		} else {
-			console.log("HERE", prev.toString());
-			return prev;
-		}
-	}
-}
-
-/**
- * @package
- */
-class TypeClassType extends ParamTypeRef {
-	#typeMembers;
-	#instanceMembers;
-
-	/**
-	 * @param {string} name
-	 * @param {TypeClass} typeClass
-	 */
-	constructor(name, typeClass) {
-		super(name);
-		this.#typeMembers = Instance.fromTypesObject(typeClass.genTypeMembers(this));
-		this.#instanceMembers = Instance.fromTypesObject(typeClass.genInstanceMembers(this));
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return this.name;
-	}
-
-	/**
-	 * Returns 'true' if 'this' is a base-type of 'type'. Throws an error if 'this' isn't a Type.
-	 * @param {Type} type
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		if (type instanceof TypeClassType) {
-			// we cans simply use name because name-shadowing isn't allowed
-			return type.name == this.name;
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * @param {string} name
-	 * @returns {string}
-	 */
-	static nameToPath(name) {
-		return `__${name}`;
-	}
-	
-	/**
-	 * @type {string}
-	 */
-	get path() {
-		return TypeClassType.nameToPath(this.name);
-	}
-
-	/**
-	 * @type {{[name: string]: Instance}}
-	 */
-	get typeMembers() {
-		return this.#typeMembers;
-	}
-
-	/**
-	 * @type {{[name: string]: Instance}}
-	 */
-	get instanceMembers() {
-		return this.#instanceMembers;
-	}
-}
-
-/**
- * @package
- */
-class TypeClass extends EvalEntity {
-	/**
-	 * @returns {null | TypeClass}
-	 */
-	assertTypeClass() {
-		return this;
-	}
-
-	/**
-	 * @param {Type} implementation
-	 * @returns {{[name: string]: Type}}
-	 */
-	genTypeMembers(implementation) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {Type} implementation
-	 * @returns {{[name: string]: Type}}
-	 */
-	genInstanceMembers(implementation) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @type {string[]}
-	 */
-	get memberNames() {
-		const dummy = this.asType("");
-
-		const typeMemberNames = Object.keys(this.genTypeMembers(dummy)).sort();
-		const instanceMemberNames = Object.keys(this.genInstanceMembers(dummy)).sort();
-
-		return typeMemberNames.concat(instanceMemberNames);
+	static isEnum(type) {
+		return Object.values(type.typeMembers).some(v => v.asEnumMemberType);
 	}
 
 	/**
 	 * @param {Type} type 
-	 * @returns {boolean}
 	 */
-	isImplementedBy(type) {
-		const typeMembers = this.genTypeMembers(type);
-
-		for (let k in typeMembers) {
-			if (!type.typeMembers[k]?.assertInstance()?.isInstanceOf(typeMembers[k])) {
-				return false;
-			}
-		}
-
-		const instanceMembers = this.genInstanceMembers(type);
-
-		for (let k in instanceMembers) {
-			if (!type.instanceMembers[k]?.assertInstance()?.isInstanceOf(instanceMembers[k])) {
-				return false;
-			}
-		}
-
-		return true;
+	static countEnumMembers(type) {
+		return Object.values(type.typeMembers).reduce((prev, v) => v.asEnumMemberType ? prev + 1 : prev, 0);
 	}
+  
+    /**
+     * @param {TypeClass} tc 
+     * @returns {string[]}
+     */
+    static typeClassMembers(tc) {
+        const dummy = tc.toType("");
+
+        const typeMemberNames = Object.keys(tc.genTypeMembers(dummy)).sort();
+        const instanceMemberNames = Object.keys(tc.genInstanceMembers(dummy)).sort();
+
+        return typeMemberNames.concat(instanceMemberNames);
+    }
+
+    /**
+     * @param {Type} type 
+     * @param {TypeClass} tc 
+     * @returns {boolean}
+     */
+    static typeImplements(type, tc) {
+        const typeMembers = tc.genTypeMembers(type);
+
+        for (let k in typeMembers) {
+            const check = type.typeMembers[k]?.asType;
+
+            if ((check && !typeMembers[k].asType?.isBaseOf(check)) || !check) {
+                return false;
+            } 
+        }
+
+        const instanceMembers = tc.genInstanceMembers(type);
+
+        for (let k in instanceMembers) {
+            const check = type.instanceMembers[k]?.asType;
+
+            if ((check && !instanceMembers[k].asType?.isBaseOf(check)) || !check) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @type {null | DataType}
+     */
+    get asDataType() {
+        return null;
+    }
+
+    /**
+     * @type {null | EnumMemberType}
+     */
+    get asEnumMemberType() {
+        return null;
+    }
+
+    /**
+     * @type {null | Func}
+     */
+    get asFunc() {
+        return null;
+    }
+
+    /**
+	 * @type {null | Instance}
+	 */
+	get asInstance() {
+		return null;
+	}
+
+    /**
+     * @type {null | Multi}
+     */
+    get asMulti() {
+        return null;
+    }
+
+    /**
+     * @type {null | Named}
+     */
+    get asNamed() {
+        return null;
+    }
+
+    /**
+	 * @type {null | Namespace}
+	 */
+	get asNamespace() {
+		return null;
+	}
+
+    /**
+     * @type {null | Parametric}
+     */
+    get asParametric() {
+        return null;
+    }
 
 	/**
-	 * @param {string} name
-	 * @returns {Type}
+	 * @type {null | Type}
 	 */
-	asType(name) {
-		return new TypeClassType(name, this);
-	}
-}
-
-export class AnyTypeClass extends TypeClass {
-	/**
-	 * @param {Type} implementation
-	 * @returns {{[name: string]: Type}}
-	 */
-	genTypeMembers(implementation) {
-		return {};
+	get asType() {
+		return null;
 	}
 
+    /**
+     * @type {null | Typed}
+     */
+    get asTyped() {
+        return this.asInstance ?? this.asFunc;
+    }
+
 	/**
-	 * @param {Type} implementation
-	 * @returns {{[name: string]: Type}}
+	 * @type {null | TypeClass}
 	 */
-	genInstanceMembers(implementation) {
-		return {};
+	get asTypeClass() {
+		return null;
 	}
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        throw new Error("not yet implemented");
+    }
 }
 
 /**
- * A type with `from_data` type member and `
  * @package
+ * @implements {Type}
  */
-class StorableTypeClass extends TypeClass {
-	/**
-	 * @param {Type} implementation
-	 * @returns {{[name: string]: Type}}
-	 */
-	genTypeMembers(implementation) {
-		return {
-			from_data: new FuncType([new RawDataType()], implementation)
-		}
-	}
-
-	/**	
-	 * @param {Type} implementation
-	 * @returns {{[name: string]: Type}}
-	 */
-	genInstanceMembers(implementation) {
-		return {
-			__to_data: new FuncType([], new RawDataType())
-		}
-	}
-}
-
-/**
- * Behaves similarly to a type (i.e. getTypeMember), but isn't actualy a Type
- * TODO: don't let this be a type
- * @package
- */
-class Namespace extends Type {
-	#module;
-
-	/**
-	 * @param {ScopeLike} m
-	 */
-	constructor(m) {
-		super();
-		this.#module = m;
-	}
-
-	/**
-	 * @param {Type} type
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		throw new Error("not a type");
-	}
-
-	/**
-	 * Gets a member of a Type (i.e. the '::' operator).
-	 * @param {Word} name
-	 * @returns {EvalEntity} - can be Instance or Type
-	 */
-	getTypeMember(name) {
-		return assertClass(this.#module.get(name), EvalEntity);
-	}
-
-	/**
-	 * Path of namespace is empty, because this part is already included in statements
-	 * @type {string}
-	 */
-	get path() {
-		return ""
-	}
-}
-
-/**
- * AnyType matches any other type in the type checker.
- * @package
- */
-class AnyType extends Type {
+class AnyType extends Common {
 	constructor() {
 		super();
 	}
+
+	/**
+     * @type {Type}
+     */
+	get asType() {
+        return this;
+    }
+
+	/**
+	 * @type {InstanceMembers}
+	 */
+	get instanceMembers() {
+		return {};
+	}
+
+	/**
+	 * @type {TypeMembers}
+	 */
+	get typeMembers() {
+		return {}
+	}
+
+	/**
+     * @param {Site} site 
+     * @param {Map<string, Type>} map 
+     * @param {null | Type} type 
+     * @returns {Type}
+     */
+	infer(site, map, type) {
+        return this;
+    }
 
 	/**
 	 * @param {Type} other 
@@ -14248,688 +14019,74 @@ class AnyType extends Type {
 	}
 
 	/**
-	 * @returns {string}
+	 * @returns {Typed}
 	 */
-	toString() {
-		return "Any";
+	toTyped() {
+		throw new Error("can't be turned into a type");
 	}
 }
 
 /**
- * Base class of non-FuncTypes.
+ * Type of special case of no-return value where execution can't continue.
+ * @package
+ * @implements {Type}
  */
-class DataType extends Type {
+class ErrorType extends Common {
 	constructor() {
-		super();
+        super();
 	}
 
-	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		return Object.getPrototypeOf(this) == Object.getPrototypeOf(type);
-	}
-
-	/**
-	 * @type {{[name: string]: EvalEntity}}
-	 */
-	get typeMembers() {
-		return {
-			...super.typeMembers,
-			__eq:      Instance.new(new FuncType([this, this], new BoolType())),
-			__neq:     Instance.new(new FuncType([this, this], new BoolType())),
-			from_data: Instance.new(new FuncType([new RawDataType()], this))
-		}
-	}
-
-	/**
-	 * @type {{[name: string]: Instance}}
-	 */
-	get instanceMembers() {
-		return {
-			...super.instanceMembers,
-			__to_data: Instance.new(new FuncType([], new RawDataType())),
-			serialize: Instance.new(new FuncType([], new ByteArrayType()))
-		}
-	}
-}
-
-/**
- * Matches everything except FuncType.
- * Used by find_datum_hash.
- */
-class AnyDataType extends Type {
-	constructor() {
-		super();
-	}
-
-	/**
-	 * @param {Type} type
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		return !(type instanceof FuncType);
-	}
-}
-
-/**
- * Base class of all builtin types (eg. IntType)
- * Note: any builtin type that inherits from BuiltinType must implement get path()
- * @package
- */
-class BuiltinType extends DataType {
-	#macrosAllowed; // macros are allowed after the definition of the main function
-
-	constructor() {
-		super();
-		this.#macrosAllowed = false;
-	}
-
-	allowMacros() {
-		this.#macrosAllowed = true;
-	}
-
-	get macrosAllowed() {
-		return this.#macrosAllowed;
-	}
-
-	/**
-	 * Returns Type member (i.e. '::' operator).
-	 * @param {Word} name
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([this, this], new BoolType()));
-			case "from_data":
-				return Instance.new(new FuncType([new RawDataType()], this));
-			default:
-				throw name.referenceError(`${this.toString()}::${name.value} undefined`);
-		}
-	}
-
-	/**
-	 * Returns one of default instance members, or throws an error.
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "serialize":
-				return Instance.new(new FuncType([], new ByteArrayType()));
-			default:
-				throw name.referenceError(`${this.toString()}.${name.value} undefined`);
-		}
-	}
-
-	/**
-	 * Returns the number of data fields in a builtin type (not yet used)
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nFields(site) {
-		return 0;
-	}
-
-	/**
-	 * Returns the constructor index of a builtin type (eg. 1 for Option::None).
-	 * By default non-enum builtin types that are encoded as Plutus-core data use the '0' constructor index.
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 0;
-	}
-
-	/**
-	 * Use 'path' getter instead of 'toIR()' in order to get the base path.
-	 */
-	toIR() {
-		throw new Error("use path getter instead");
-	}
-}
-
-/**
- * @package
- */
-class BuiltinEnumMember extends BuiltinType {
-	#parentType;
-
-	/**
-	 * @param {BuiltinType} parentType 
-	 */
-	constructor(parentType) {
-		super();
-		this.#parentType = parentType;
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isEnumMember() {
-		return true;
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {Type}
-	 */
-	parentType(site) {
-		return this.#parentType;
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				return Instance.new(new FuncType([this.#parentType, this.#parentType], new BoolType()));
-			case "from_data":
-				throw name.referenceError(`'${this.toString()}::from_data' undefined`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-}
-
-/**
- * Type wrapper for Struct statements and Enums and Enum members.
- * @package
- * @template {UserTypeStatement} T
- */
-class StatementType extends DataType {
-	#statement;
-
-	/**
-	 * @param {T} statement 
-	 */
-	constructor(statement) {
-		super();
-		this.#statement = statement;
-	}
-
-	/**
-	 * @type {string}
-	 */
-	get name() {
-		return this.#statement.name.value;
-	}
-
-	/**
-	 * @returns {T}
-	 */
-	get statement() {
-		return this.#statement;
-	}
-
-	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		if (type instanceof StatementType) {
-			return type.path.startsWith(this.path);
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * Returns the name of the type.
-	 * @returns {string}
-	 */
-	toString() {
-		return this.#statement.name.toString();
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		return this.#statement.getTypeMember(name);
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		return this.#statement.getInstanceMember(name);
-	}
-
-	/**
-	 * Returns the number of fields in a Struct or in an EnumMember.
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nFields(site) {
-		return this.#statement.nFields(site);
-	}
-
-	/**
-	 * Returns the i-th field of a Struct or an EnumMember
-	 * @param {Site} site
-	 * @param {number} i
-	 * @returns {Type}
-	 */
-	getFieldType(site, i) {
-		return this.#statement.getFieldType(site, i);
-	}
-
-	/**
-	 * Returns the index of a named field of a Struct or an EnumMember
-	 * @param {Site} site
-	 * @param {string} name
-	 * @returns {number}
-	 */
-	getFieldIndex(site, name) {
-		return this.#statement.getFieldIndex(site, name);
-	}
-
-	/**
-	 * Returns the constructor index so that __core__constrData can be called correctly.
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return this.#statement.getConstrIndex(site);
-	}
-
-	/**
-	 * Returns the number of members of an EnumStatement
-	 * @param {Site} site
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		return this.#statement.nEnumMembers(site);
-	}
-
-	get path() {
-		return this.#statement.path;
-	}
-
-	/**
-	 * @returns {null | Instance}
-	 */
-	assertInstance() {
-		return null;
-	}
-}
-
-/**
- * @package
- * @extends {StatementType<UserTypeStatement>}
- */
-class StructStatementType extends StatementType {
-	/**
-	 * @param {UserTypeStatement} statement - can't use StructStatement because that would give a circular dependency
-	 */
-	constructor(statement) {
-		super(statement);
-	}
-
-	/**
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		const statement = this.statement;
-
-		const nFields = this.nFields(Site.dummy());
-
-		/**
-		 * @type {[string, Type][]} - [name, type]
-		 */
-		const fields = [];
-
-		for (let i = 0; i < nFields; i++) {
-			fields.push([statement.getFieldName(i), statement.getFieldType(Site.dummy(), i)]);
-		}
-
-		class Struct extends HeliosData {
-			/**
-			 * So we can access fields by index
-			 * @type {HeliosData[]}
-			 */
-			#fields;
-
-			/**
-			 * @param  {...any} args
-			 */
-			constructor(...args) {
-				super();
-				if (args.length != nFields) {
-					throw new Error(`expected ${nFields} args, got ${args.length}`);
-				}
-
-				this.#fields = [];
-
-				args.forEach((arg, i) => {
-					const [fieldName, fieldType] = fields[i];
-					const FieldClass = fieldType.userType;
-
-					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
-
-					this.#fields.push(instance);
-					this[fieldName] = instance;
-				});
-			}
-
-			/**
-			 * Overload 'instanceof' operator
-			 * @param {any} other 
-			 * @returns {boolean}
-			 */
-			static [Symbol.hasInstance](other) {
-				return (other._structStatement === statement) && (other instanceof HeliosData);
-			}
-
-			/**
-			 * @type {UserTypeStatement}
-			 */
-			get _structStatement() {
-				return statement;
-			}
-
-			/**
-			 * @returns {UplcData}
-			 */
-			_toUplcData() {
-				if (this.#fields.length == 1) {
-					return this.#fields[0]._toUplcData();
-				} else {
-					return new ListData(this.#fields.map(f => f._toUplcData()));
-				}
-			}
-
-			/**
-			 * @param {string | number[]} bytes 
-			 * @returns {Struct}
-			 */
-			static fromUplcCbor(bytes) {
-				return Struct.fromUplcData(UplcData.fromCbor(bytes));
-			}
-
-			/**
-			 * @param {UplcData} data 
-			 * @returns {Struct}
-			 */
-			static fromUplcData(data) {
-				const dataItems = data.list;
-
-				if (dataItems.length != nFields) {
-					throw new Error("unexpected number of fields");
-				}
-
-				const args = dataItems.map((item, i) => {
-					return fields[i][1].userType.fromUplcData(item);
-				});
-
-				return new Struct(...args);
-			}
-		}
-
-		Object.defineProperty(Struct, "name", {value: this.name, writable: false});		
-
-		return Struct;
-	}
-}
-
-/**
- * @package
- * @extends {StatementType<EnumTypeStatement>}
- */
-class EnumStatementType extends StatementType {
-	/**
-	 * @param {EnumTypeStatement} statement - can't use EnumStatement because that would give a circular dependency
-	 */
-	constructor(statement) {
-		super(statement);
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		const statement = this.statement;
-
-		const nVariants = statement.nEnumMembers(Site.dummy());
-
-		/**
-		 * @type {HeliosDataClass<HeliosData>[]}
-		 */
-		const variants = [];
-
-		for (let i = 0; i < nVariants; i++) {
-			variants.push(
-				(new EnumMemberStatementType(statement.getEnumMember(Site.dummy(), i))).userType
-			);
-		}
-
-		class Enum extends HeliosData {
-			constructor() {
-				super();
-				throw new Error("can't be constructed (hint: construct an enum)");
-			}
-
-			/**
-			 * Overload 'instanceof' operator
-			 * @param {any} other 
-			 * @returns {boolean}
-			 */
-			static [Symbol.hasInstance](other) {
-				return (other._enumStatement === statement) && (other instanceof HeliosData);
-			}
-
-			/**
-			 * @type {EnumTypeStatement}
-			 */
-			get _enumStatement() {
-				return statement;
-			}
-
-			/**
-			 * @param {string | number[]} bytes
-			 * @returns {HeliosData}
-			 */
-			static fromUplcCbor(bytes) {
-				return Enum.fromUplcData(UplcData.fromCbor(bytes));
-			}
-
-			/**
-			 * @param {UplcData} data 
-			 * @returns {HeliosData}
-			 */
-			static fromUplcData(data) {
-				const variant = assertDefined(variants[data.index], "index out of range");
-
-				return variant.fromUplcData(data);
-			}
-		}
-
-		Object.defineProperty(Enum, "name", {value: this.name, writable: false});
-
-		for (let v of variants) {
-			Object.defineProperty(Enum, v.name, {value: v, writable: false});
-		}
-
-		return Enum;
-	}
-}
-
-/**
- * @package
- * @extends {StatementType<EnumMemberTypeStatement>}
- */
-class EnumMemberStatementType extends StatementType {
     /**
-     * @param {EnumMemberTypeStatement} statement - can't use EnumMember because that would give a circular dependency
+     * @type {InstanceMembers}
      */
-    constructor(statement) {
-        super(statement);
+    get instanceMembers() {
+        return {};
+    }
+
+    /**
+     * @type {TypeMembers}
+     */
+    get typeMembers() {
+        return {};
+    }
+
+    /**
+     * @type {Type}
+     */
+    get asType() {
+        return this;
+    }
+
+    /**
+     * @param {Site} site 
+     * @param {Map<string, Type>} map 
+     * @param {null | Type} type 
+     * @returns {Type}
+     */
+    infer(site, map, type) {
+        return this;
     }
 
 	/**
+	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isEnumMember() {
-		return true;
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {Type}
-	 */
-	parentType(site) {
-		return this.statement.parent.type;
+	isBaseOf(type) {
+		return type instanceof ErrorType;
 	}
 
     /**
-	 * A StatementType can instantiate itself if the underlying statement is an enum member with no fields
-	 * @package
-	 * @returns {null | Instance}
-	 */
-    assertInstance() {
-        if (this.statement.nFields(Site.dummy()) == 0) {
-            return Instance.new(this);
-        } else {
-			return null;
-        }
+     * @returns {string}
+     */
+    toString() {
+        return "()";
     }
 
 	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
+	 * @returns {Typed}
 	 */
-	get userType() {
-		const statement = this.statement;
-
-		const enumStatement = statement.parent;
-
-		const index = statement.getConstrIndex(Site.dummy());
-
-		const nFields = this.nFields(Site.dummy());
-
-		/**
-		 * @type {[string, Type][]} - [name, type]
-		 */
-		const fields = [];
-
-		for (let i = 0; i < nFields; i++) {
-			fields.push([statement.getFieldName(i), statement.getFieldType(Site.dummy(), i)]);
-		}
-
-		// similar to Struct
-		class EnumVariant extends HeliosData {
-			/**
-			 * So we can access fields by index
-			 * @type {HeliosData[]}
-			 */
-			#fields;
-
-			/**
-			 * @param  {...any} args
-			 */
-			constructor(...args) {
-				super();
-				if (args.length != nFields) {
-					throw new Error(`expected ${nFields} args, got ${args.length}`);
-				}
- 
-				this.#fields = [];
- 
-				args.forEach((arg, i) => {
-					const [fieldName, fieldType] = fields[i];
-					const FieldClass = fieldType.userType;
- 
-					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
-
- 					this.#fields.push(instance);
-					this[fieldName] = instance;
-
-				});
-			}
- 
-			/**
-			 * Overload 'instanceof' operator
-			 * @param {any} other 
-			 * @returns {boolean}
-			 */
-			static [Symbol.hasInstance](other) {
-				return (other._enumVariantStatement === statement) && (other instanceof HeliosData);
-			}
- 
-			/**
-			 * @type {EnumTypeStatement}
-			 */
-			get _enumStatement() {
-				return enumStatement;
-			}
-
-			/**
-			 * @type {EnumMemberTypeStatement}
-			 */
-			get _enumVariantStatement() {
-				return statement;
-			}
- 
-			/**
-			 * @returns {UplcData}
-			 */
-			_toUplcData() {
-				return new ConstrData(index, this.#fields.map(f => f._toUplcData()));
-			}
- 
-			/**
-			 * @param {string | number[]} bytes 
-			 * @returns {EnumVariant}
-			 */
-			static fromUplcCbor(bytes) {
-				return EnumVariant.fromUplcData(UplcData.fromCbor(bytes));
-			}
- 
-			/**
-			 * @param {UplcData} data 
-			 * @returns {EnumVariant}
-			 */
-			static fromUplcData(data) {
-				assert(data.index == index, "wrong index");
-
-				const dataItems = data.list;
- 
-				if (dataItems.length != nFields) {
-					throw new Error("unexpected number of fields");
-				}
- 
-				const args = dataItems.map((item, i) => {
-					return fields[i][1].userType.fromUplcData(item);
-				});
- 
-				return new EnumVariant(...args);
-			}
-		}
-
-		Object.defineProperty(EnumVariant, "name", {value: this.name, writable: false});
-
-		return EnumVariant;
+	toTyped() {
+		return new ErrorEntity();
 	}
 }
 
@@ -14949,7 +14106,7 @@ class ArgType {
 	 */
 	constructor(name, type, optional = false) {
 		this.#name = name;
-		this.#type = type;
+		this.#type = assertDefined(type);
 		this.#optional = optional;
 	}
 
@@ -14963,11 +14120,49 @@ class ArgType {
 			return this.#name.toString();
 		}
 	}
+
 	/**
 	 * @type {Type}
 	 */
 	get type() {
 		return this.#type;
+	}
+
+    /**
+	 * @package
+	 * @param {Site} site 
+	 * @param {Map<string, Type>} map 
+	 * @param {null | Type} type 
+	 * @returns {ArgType}
+	 */
+	infer(site, map, type) {
+		return new ArgType(
+			this.#name,
+			this.#type.infer(site, map, type),
+			this.#optional
+		);
+	}
+
+    /**
+	 * @param {ArgType} other 
+	 * @returns {boolean}
+	 */
+	isBaseOf(other) {
+		// if this arg has a default value, the other arg must also have a default value
+		if (this.#optional && !other.#optional) {
+			return false;
+		}
+
+		// if this is named, the other must be named as well
+		if (this.#name != null) {
+			return this.#name.toString() == (other.#name?.toString() ?? "");
+		}
+
+		if (!other.#type.isBaseOf(this.#type)) { // note the reversal of the check
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -14994,50 +14189,14 @@ class ArgType {
 			this.#type.toString()
 		].join("");
 	}
-
-	/**
-	 * @package
-	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
-	 * @param {Type | null} type 
-	 * @returns {ArgType}
-	 */
-	infer(site, map, type) {
-		return new ArgType(
-			this.#name,
-			this.#type.infer(site, map, type),
-			this.#optional
-		);
-	}
-
-	/**
-	 * @param {ArgType} other 
-	 * @returns {boolean}
-	 */
-	isBaseOf(other) {
-		// if this arg has a default value, the other arg must also have a default value
-		if (this.#optional && !other.#optional) {
-			return false;
-		}
-
-		// if this is named, the other must be named as well
-		if (this.#name != null) {
-			return this.#name.toString() == (other.#name?.toString() ?? "");
-		}
-
-		if (!other.#type.isBaseOf(this.#type)) { // note the reversal of the check
-			return false;
-		}
-
-		return true;
-	}
 }
 
 /**
  * Function type with arg types and a return type
  * @package
+ * @implements {Type}
  */
-class FuncType extends Type {
+class FuncType extends Common {
 	/**
 	 * @type {ArgType[]}
 	 */
@@ -15053,14 +14212,9 @@ class FuncType extends Type {
 	 * @param {Type | Type[]} retTypes 
 	 */
 	constructor(argTypes, retTypes) {
-		super();
-		this.#argTypes = argTypes.map(at => {
-			if (at instanceof Type) {
-				return new ArgType(null, at);
-			} else {
-				return at;
-			}
-		});
+        super();
+
+		this.#argTypes = argTypes.map(at => (at instanceof ArgType) ? at : new ArgType(null, at));
 
 		if (!Array.isArray(retTypes)) {
 			retTypes = [retTypes];
@@ -15069,28 +14223,7 @@ class FuncType extends Type {
 		this.#retTypes = retTypes;
 	}
 
-	/**
-	 * @type {number}
-	 */
-	get nArgs() {
-		return this.#argTypes.length;
-	}
-
-	/**
-	 * @type {number}
-	 */
-	get nNonOptArgs() {
-		return this.#argTypes.filter(at => !at.isOptional()).length;
-	}
-
-	/**
-	 * @type {number}
-	 */
-	get nOptArgs() {
-		return this.#argTypes.filter(at => at.isOptional()).length;
-	}
-
-	/**
+    /**
 	 * @type {Type[]}
 	 */
 	get argTypes() {
@@ -15098,24 +14231,108 @@ class FuncType extends Type {
 	}
 
 	/**
+	 * @type {InstanceMembers}
+	 */
+	get instanceMembers() {
+		return {};
+	}
+
+    /**
+	 * @type {number}
+	 */
+	get nArgs() {
+		return this.#argTypes.length;
+	}
+
+    /**
+	 * @type {number}
+	 */
+	get nNonOptArgs() {
+		return this.#argTypes.filter(at => !at.isOptional()).length;
+	}
+
+    /**
+	 * @type {number}
+	 */
+	get nOptArgs() {
+		return this.#argTypes.filter(at => at.isOptional()).length;
+	}
+
+    /**
 	 * @type {Type[]}
 	 */
 	get retTypes() {
 		return this.#retTypes;
 	}
 
-	/**
-	 * @returns {string}
+    /**
+	 * @type {TypeMembers}
 	 */
-	toString() {
-		if (this.#retTypes.length === 1) {
-			return `(${this.#argTypes.map(a => a.toString()).join(", ")}) -> ${this.#retTypes.toString()}`;
-		} else {
-			return `(${this.#argTypes.map(a => a.toString()).join(", ")}) -> (${this.#retTypes.map(t => t.toString()).join(", ")})`;
-		}
+	get typeMembers() {
+		return {};
 	}
 
 	/**
+	 * @type {Type}
+	 */
+	get asType() {
+		return this;
+    }
+
+
+	/**
+	 * Checks if arg types are valid.
+	 * Throws errors if not valid. Returns the return type if valid. 
+	 * @param {Site} site 
+	 * @param {Typed[]} posArgs
+	 * @param {{[name: string]: Typed}} namedArgs
+	 * @returns {Type[]}
+	 */
+	checkCall(site, posArgs, namedArgs = {}) {
+		if (posArgs.length < this.nNonOptArgs) {
+			// check if each nonOptArg is covered by the named args
+			for (let i = 0; i < this.nNonOptArgs; i++) {
+				if (!this.#argTypes[i].isNamed()) {
+					throw site.typeError(`expected at least ${this.#argTypes.filter(at => !at.isNamed()).length} positional arg(s), got ${posArgs.length} positional arg(s)`);
+				} else {
+					if (!(this.#argTypes[i].name in namedArgs)) {
+						throw site.typeError(`named arg ${this.#argTypes[i].name} missing from call`);
+					}
+				}
+			}
+
+		} else if (posArgs.length > this.#argTypes.length) {
+			throw site.typeError(`expected at most ${this.#argTypes.length} arg(s), got ${posArgs.length} arg(s)`);
+		}
+
+		for (let i = 0; i < posArgs.length; i++) {
+			if (!Common.instanceOf(posArgs[i], this.#argTypes[i].type)) {
+				throw site.typeError(`expected '${this.#argTypes[i].type.toString()}' for arg ${i + 1}, got '${posArgs[i].toString()}'`);
+			}
+		}
+
+		for (let key in namedArgs) {
+			const i = this.#argTypes.findIndex(at => at.name == key);
+
+			if (i == -1) {
+				throw site.typeError(`arg named ${key} not found in function type ${this.toString()}`);
+			}
+
+			if (i < posArgs.length) {
+				throw site.typeError(`named arg '${key}' already covered by positional arg ${i+1}`);
+			}
+
+			const thisArg = this.#argTypes[i];
+
+			if (!Common.instanceOf(namedArgs[key], thisArg.type)) {
+				throw site.typeError(`expected '${thisArg.type.toString()}' for arg '${key}', got '${namedArgs[key].toString()}`);
+			}
+		}
+
+		return this.#retTypes;
+	}
+
+    /**
 	 * @package
 	 * @param {Site} site
 	 * @param {Map<string, Type>} map 
@@ -15129,7 +14346,7 @@ class FuncType extends Type {
 				this.#retTypes.map(rt=> rt.infer(site, map, null))
 			);
 		} else if (type instanceof FuncType) {
-			if (type.argTypes.length == this.#argTypes.length && type.retTypes.length != this.#retTypes.length) {
+			if (type.argTypes.length == this.#argTypes.length && type.retTypes.length == this.#retTypes.length) {
 				return new FuncType(
 					this.#argTypes.map((at, i) => at.infer(site, map, type.argTypes[i])),
 					this.#retTypes.map((rt, i) => rt.infer(site, map, type.retTypes[i]))
@@ -15137,10 +14354,10 @@ class FuncType extends Type {
 			}
 		}
 
-		throw site.typeError("unable to infer type");
+		throw site.typeError(`unable to infer type of ${this.toString()}`);
 	}
 
-	/**
+    /**
 	 * @package
 	 * @param {Site} site 
 	 * @param {Map<string, Type>} map 
@@ -15158,23 +14375,7 @@ class FuncType extends Type {
 		throw site.typeError("unable to infer from args");
 	}
 
-	/**
-	 * Checks if the type of the first arg is the same as 'type'
-	 * Also returns false if there are no args.
-	 * For a method to be a valid instance member its first argument must also be named 'self', but that is checked elsewhere
-	 * @param {Site} site 
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isMaybeMethod(site, type) {
-		if (this.#argTypes.length > 0) {
-			return Type.same(this.#argTypes[0].type, type);
-		} else {
-			return false;
-		}
-	}
-
-	/** 
+    /** 
 	 * Checks if any of 'this' argTypes or retType is same as Type.
 	 * Only if this checks return true is the association allowed.
 	 * @param {Site} site
@@ -15183,13 +14384,13 @@ class FuncType extends Type {
 	 */
 	isAssociated(site, type) {
 		for (let arg of this.#argTypes) {
-			if (Type.same(arg.type, type)) {
+			if (Common.typesEq(arg.type, type)) {
 				return true;
 			}
 		}
 
 		for (let rt of this.#retTypes) {
-			if (Type.same(type, rt)) {
+			if (Common.typesEq(type, rt)) {
 				return true;
 			}
 		}
@@ -15197,7 +14398,7 @@ class FuncType extends Type {
 		return false;
 	}
 
-	/**
+    /**
 	 * Checks if 'this' is a base type of another FuncType.
 	 * The number of args needs to be the same.
 	 * Each argType of the FuncType we are checking against needs to be the same or less specific (i.e. isBaseOf(this.#argTypes[i]))
@@ -15233,6 +14434,33 @@ class FuncType extends Type {
 			return false;
 		}
 	}
+
+    /**
+	 * Checks if the type of the first arg is the same as 'type'
+	 * Also returns false if there are no args.
+	 * For a method to be a valid instance member its first argument must also be named 'self', but that is checked elsewhere
+	 * @param {Site} site 
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isMaybeMethod(site, type) {
+		if (this.#argTypes.length > 0) {
+			return Common.typesEq(this.#argTypes[0].type, type);
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		if (this.#retTypes.length === 1) {
+			return `(${this.#argTypes.map(a => a.toString()).join(", ")}) -> ${this.#retTypes.toString()}`;
+		} else {
+			return `(${this.#argTypes.map(a => a.toString()).join(", ")}) -> (${this.#retTypes.map(t => t.toString()).join(", ")})`;
+		}
+	}
 	
 	/**
 	 * Throws an error if name isn't found
@@ -15251,145 +14479,306 @@ class FuncType extends Type {
 	}
 
 	/**
-	 * Checks if arg types are valid.
-	 * Throws errors if not valid. Returns the return type if valid. 
-	 * @param {Site} site 
-	 * @param {Instance[]} posArgs
-	 * @param {{[name: string]: Instance}} namedArgs
-	 * @returns {Type[]}
+	 * @returns {Typed}
 	 */
-	checkCall(site, posArgs, namedArgs = {}) {
-		if (posArgs.length < this.nNonOptArgs) {
-			// check if each nonOptArg is covered by the named args
-			for (let i = 0; i < this.nNonOptArgs; i++) {
-				if (!this.#argTypes[i].isNamed()) {
-					throw site.typeError(`expected at least ${this.#argTypes.filter(at => !at.isNamed()).length} positional arg(s), got ${posArgs.length} positional arg(s)`);
-				} else {
-					if (!(this.#argTypes[i].name in namedArgs)) {
-						throw site.typeError(`named arg ${this.#argTypes[i].name} missing from call`);
-					}
-				}
-			}
-
-		} else if (posArgs.length > this.#argTypes.length) {
-			throw site.typeError(`expected at most ${this.#argTypes.length} arg(s), got ${posArgs.length} arg(s)`);
-		}
-
-		for (let i = 0; i < posArgs.length; i++) {
-			if (!posArgs[i].isInstanceOf(this.#argTypes[i].type)) {
-				throw site.typeError(`expected '${this.#argTypes[i].type.toString()}' for arg ${i + 1}, got '${posArgs[i].toString()}'`);
-			}
-		}
-
-		for (let key in namedArgs) {
-			const i = this.#argTypes.findIndex(at => at.name == key);
-
-			if (i == -1) {
-				throw site.typeError(`arg named ${key} not found in function type ${this.toString()}`);
-			}
-
-			if (i < posArgs.length) {
-				throw site.typeError(`named arg '${key}' already covered by positional arg ${i+1}`);
-			}
-
-			const thisArg = this.#argTypes[i];
-
-			if (!namedArgs[key].isInstanceOf(thisArg.type)) {
-				throw site.typeError(`expected '${thisArg.type.toString()}' for arg '${key}', got '${namedArgs[key].toString()}`);
-			}
-		}
-
-		return this.#retTypes;
-	}
-
-}
-
-class NotType extends EvalEntity {
-	constructor() {
-		super();
-	}
-
-	/**
-	 * @param {Word} name
-	 * @returns {EvalEntity} - can be Instance or Type
-	 */
-	getTypeMember(name) {
-		throw new Error("not a type");
+	toTyped() {
+		return new FuncEntity(this);
 	}
 }
 
 /**
- * Base class for DataInstance and FuncInstance
+ * Created by statements
  * @package
+ * @template {HeliosData} T
+ * @implements {DataType}
  */
-class Instance extends NotType {
+class GenericType extends Common {
+    #name;
+
+    /**
+     * @type {string}
+     */
+    #path;
+
+    #offChainType;
+    #fieldNames;
+
+	/**
+	 * defer until needed
+	 * @type {(self: Type) => InstanceMembers}
+	 */
+	#genInstanceMembers; 
+
+	/**
+	 * defer until needed
+	 * @type {(self: Type) => TypeMembers}
+	 */
+	#genTypeMembers;
+
+    /**
+     * @param {({
+     *   name: string,
+     *   path?: string,
+     *   offChainType?: HeliosDataClass<T> | null,
+     *   fieldNames?: string[],
+     *   genInstanceMembers: (self: Type) => InstanceMembers,
+     *   genTypeMembers: (self: Type) => TypeMembers
+     * })} props
+     */
+    constructor({name, path, offChainType, fieldNames, genInstanceMembers, genTypeMembers}) {
+        super();
+
+        this.#name = name;
+        this.#path = path ?? `__helios__${name.toLowerCase()}`;
+        this.#offChainType = offChainType ?? null;
+        this.#fieldNames = fieldNames ?? [];
+
+		this.#genInstanceMembers = genInstanceMembers;
+		this.#genTypeMembers = genTypeMembers;
+    }
+
+    /**
+     * @type {string[]}
+     */
+    get fieldNames() {
+        return this.#fieldNames;
+    }
+
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers() {
+		return this.#genInstanceMembers(this);
+    }
+
+    /**
+     * @type {string}
+     */
+    get name() {
+        return this.#name;
+    }
+
+    /**
+     * @type {null | HeliosDataClass<T>}
+     */
+    get offChainType() {
+        return this.#offChainType;
+    }
+
+    /**
+     * @type {string}
+     */
+    get path() {
+        return this.#path;
+    }
+
+    /**
+     * @type {TypeMembers}
+     */
+    get typeMembers() {
+		return this.#genTypeMembers(this);
+    }
+
+    /**
+     * @type {DataType}
+     */
+    get asDataType() {
+        return this;
+    }
+
+    /**
+     * @type {Named}
+     */
+    get asNamed() {
+        return this;
+    }
+
+    /**
+     * @type {Type}
+     */
+    get asType() {
+        return this;
+    }
+
+    /**
+     * @param {Site} site 
+     * @param {Map<string, Type>} map 
+     * @param {null | Type} type 
+     * @returns {Type}
+     */
+    infer(site, map, type) {
+        return this;
+    }
+
+    /**
+     * @param {Type} other 
+     * @returns {boolean}
+     */
+    isBaseOf(other) {
+		if (other.asEnumMemberType) {
+			return this.isBaseOf(other.asEnumMemberType.parentType);
+		} else if (other.asNamed) { 
+			return other.asNamed.path == this.#path;
+		} else {
+			return false;
+		}
+    }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return this.name;
+    }
+
+	/**
+	 * @returns {Typed}
+	 */
+	toTyped() {
+		return new DataEntity(this);
+	}
+}
+
+/**
+ * Created by statements
+ * @package
+ * @template {HeliosData} T
+ * @implements {EnumMemberType}
+ * @extends {GenericType<T>}
+ */
+class GenericEnumMemberType extends GenericType {
+    #constrIndex;
+    #parentType;
+
+    /**
+     * @param {({
+     *   name: string,
+     *   path?: string,
+     *   constrIndex: number,
+     *   parentType: DataType,
+     *   offChainType?: HeliosDataClass<T>,
+     *   fieldNames?: string[],
+     *   genInstanceMembers: (self: Type) => InstanceMembers,
+     *   genTypeMembers?: (self: Type) => TypeMembers
+     * })} props
+     */
+    constructor({name, path, constrIndex, parentType, offChainType, fieldNames, genInstanceMembers, genTypeMembers}) {
+        super({
+            name, 
+            path: path ?? `${parentType.path}__${name}`, 
+            offChainType, 
+            fieldNames, 
+            genInstanceMembers, 
+            genTypeMembers: genTypeMembers ?? ((self) => ({}))
+        });
+
+        this.#constrIndex = constrIndex;
+        this.#parentType = parentType;
+    }
+    
+    /**
+     * @type {number}
+     */
+    get constrIndex() {
+        return this.#constrIndex;
+    }
+
+    /**
+     * @type {DataType}
+     */
+    get parentType() {
+        return this.#parentType;
+    }
+
+    /**
+     * @type {EnumMemberType}
+     */
+    get asEnumMemberType() {
+        return this;
+    }
+
+	/**
+	 * @param {Type} other 
+	 * @returns {boolean}
+	 */
+	isBaseOf(other) {
+		if (other instanceof GenericEnumMemberType) {
+			return other.path == this.path && other.name == this.name;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * @returns {string}
+	 */
+    toString() {
+        return `${this.#parentType.toString()}::${this.name}`;
+    }
+}
+
+/**
+ * Type of return-value of functions that don't return anything (eg. assert, print, error)
+ * @package
+ * @implements {Type}
+ */
+class VoidType extends Common {
 	constructor() {
 		super();
 	}
 
 	/**
-	 * Returns 'true' if 'this' is an instance of 'type'. Throws an error if 'this' isn't a Instance.
-	 * 'type' can be a class, or a class instance.
-	 * @param {Type | ClassOfType} type 
+     * @type {InstanceMembers}
+     */
+    get instanceMembers() {
+        return {};
+    }
+
+    /**
+     * @type {TypeMembers}
+     */
+    get typeMembers() {
+        return {};
+    }
+
+    /**
+     * @type {Type}
+     */
+    get asType() {
+        return this;
+    }
+
+    /**
+     * 
+     * @param {Site} site 
+     * @param {Map<string, Type>} map 
+     * @param {null | Type} type 
+     * @returns {Type}
+     */
+    infer(site, map, type) {
+        return this;
+    }
+
+	/**
+	 * @param {Type} type 
 	 * @returns {boolean}
 	 */
-	isInstanceOf(type) {
-		throw new Error("not yet implemented");
+	isBaseOf(type) {
+		return type instanceof VoidType;
 	}
 
-	/**
-	 * @param {Type | Type[]} type 
-	 * @returns {Instance}
-	 */
-	static new(type) {
-		if (Array.isArray(type)) {
-			if (type.length === 1) {
-				return Instance.new(type[0]);
-			} else {
-				return new MultiInstance(type.map(t => Instance.new(t)));
-			}
-		} else if (type instanceof FuncType) {
-			return new FuncInstance(type);
-		} else if (type instanceof ErrorType) {
-			return new ErrorInstance();
-		} else if (type instanceof VoidType) {
-			return new VoidInstance();
-		} else {
-			return new DataInstance(type);
-		}
+    /**
+     * @returns {string}
+     */
+    toString() {
+		return "()";
 	}
-
+	
 	/**
-	 * @param {{[name: string]: Type}} types
-	 * @returns {{[name: string]: Instance}}
+	 * @returns {Typed}
 	 */
-	static fromTypesObject(types) {
-		/**
-		 * @type {{[name: string]: Instance}}
-		 */
-		const obj = {};
-
-		for (let k in types) {
-			obj[k] = Instance.new(types[k]);
-		}
-
-		return obj;
-	}
-
-	/**
-	 * @package
-	 * @returns {null | Instance}
-	 */
-	assertInstance() {
-		return this;
-	}
-
-	/**
-	 * @package
-	 * @returns {null | ParametricInstance}
-	 */
-	assertParametric() {
-		return null;
+	toTyped() {
+		return new VoidEntity();
 	}
 }
 
@@ -15397,18 +14786,53 @@ class Instance extends NotType {
 /**
  * A regular non-Func Instance. DataValues can always be compared, serialized, used in containers.
  * @package
+ * @implements {Instance}
  */
-class DataInstance extends Instance {
+class DataEntity extends Common {
 	#type;
 
 	/**
 	 * @param {DataType} type 
 	 */
 	constructor(type) {
+        super();
 		assert(!(type instanceof FuncType));
-
-		super();
 		this.#type = type;
+	}
+
+    /**
+     * @type {string[]}
+     */
+    get fieldNames() {
+        return this.#type.fieldNames;
+    }
+
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers() {
+        return this.#type.instanceMembers;
+    }
+
+	/**
+	 * @type {Type}
+	 */
+	get type() {
+		return this.#type;
+	}
+
+    /**
+     * @type {Instance}
+     */
+    get asInstance() {
+        return this;
+    }
+
+	/**
+	 * @type {Typed}
+	 */
+	get asTyped() {
+		return this;
 	}
 
 	/**
@@ -15417,129 +14841,242 @@ class DataInstance extends Instance {
 	toString() {
 		return this.#type.toString();
 	}
+}
 
-	/**
-	 * Gets the underlying Type.
-	 * @param {Site} site 
-	 * @returns {Type}
-	 */
-	getType(site) {
-		return this.#type;
+/**
+ * Returned by an error()
+ * Special case of no-return-value that indicates that execution can't proceed.
+ * @package
+ */
+class ErrorEntity extends Common {
+	constructor() {
+		super();
 	}
 
 	/**
-	 * @typedef {new(...any) => Type} ClassOfType
+	 * @type {string[]}
 	 */
+	get fieldNames() {
+		return [];
+	}
+
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers() {
+        return {};
+    }
+
+    /**
+     * @type {Type}
+     */
+	get type() {
+		return new ErrorType();
+	}
+
+    /**
+     * @type {Instance}
+     */
+    get asInstance() {
+        return this;
+    }
 
 	/**
-	 * Checks if 'this' is instance of 'type'.
-	 * 'type' can be a class, or a class instance
-	 * @param {Type | ClassOfType} type 
-	 * @returns 
+	 * @type {Typed}
 	 */
-	isInstanceOf(type) {
-		if (typeof type == 'function') {
-			return this.#type instanceof type;
-		} else {
-			return type.isBaseOf(this.#type);
-		}
+	get asTyped() {
+		return this;
 	}
 
 	/**
-	 * Returns the number of fields of a struct, enum member, or builtin type.
-	 * @param {Site} site 
-	 * @returns {number}
+	 * @returns {string}
 	 */
-	nFields(site) {
-		return this.#type.nFields(site);
-	}
-
-	/**
-	 * Returns the i-th field of a Struct or an EnumMember
-	 * @param {Site} site
-	 * @param {number} i
-	 * @returns {Type}
-	 */
-	getFieldType(site, i) {
-		return this.#type.getFieldType(site, i);
-	}
-
-	/**
-	 * Returns the index of a named field
-	 * @param {Site} site 
-	 * @param {string} name 
-	 * @returns {number}
-	 */
-	getFieldIndex(site, name) {
-		return this.#type.getFieldIndex(site, name);
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		return assertDefined(this.#type.instanceMembers[name.value]);
-	}
-
-	/**
-	 * Throws an error bec
-	 * @param {Site} site 
-	 * @param {Instance[]} args 
-	 * @param {{[name: string]: Instance}} namedArgs
-	 * @returns {Instance}
-	 */
-	call(site, args, namedArgs = {}) {
-		throw site.typeError("not callable");
+	toString() {
+		return "()";
 	}
 }
 
 /**
  * @package
+ * @implements {Named}
  */
-class ConstStatementInstance extends DataInstance {
-	#statement;
+class NamedEntity {
+	#name;
+	#path;
+	#entity;
 
 	/**
-	 * @param {DataType} type 
-	 * @param {ConstTypeStatement} statement - can't use ConstStatement because that would give circular dependency
+	 * @param {string} name 
+	 * @param {string} path 
+	 * @param {EvalEntity} entity
 	 */
-	constructor(type, statement) {
-		super(type);
-		this.#statement = statement;
+	constructor(name, path, entity) {
+		this.#name = name;
+		this.#path = path;
+		this.#entity = entity;
 	}
 
 	/**
-	 * @type {ConstTypeStatement}
+	 * @type {null | DataType}
 	 */
-	get statement() {
-		return this.#statement
+	get asDataType() {
+		return this.#entity.asDataType;
+	}
+
+	/**
+	 * @type {null | EnumMemberType}
+	 */
+	get asEnumMemberType() {
+		return this.#entity.asEnumMemberType;
+	}
+
+	/**
+	 * @type {null | Func}
+	 */
+	get asFunc() {
+		return this.#entity.asFunc;
+	}
+
+	/**
+	 * @type {null | Instance}
+	 */
+	get asInstance() {
+		return this.#entity.asInstance;
+	}
+	
+	/**
+	 * @type {null | Multi}
+	 */
+	get asMulti() {
+		return this.#entity.asMulti;
+	}
+
+	/**
+	 * @type {Named}
+	 */
+	get asNamed() {
+		return this;
+	}
+
+	/**
+	 * @type {null | Namespace}
+	 */
+	get asNamespace() {
+		return this.#entity.asNamespace;
+	}
+
+	/**
+	 * @type {null | Parametric}
+	 */
+	get asParametric() {
+		return this.#entity.asParametric;
+	}
+
+	/**
+	 * @type {null | Type}
+	 */
+	get asType() {
+		return this.#entity.asType;
+	}
+
+	/**
+	 * @type {null | Typed}
+	 */
+	get asTyped() {
+		return this.#entity.asTyped;
+	}
+
+	/**
+	 * @type {null | TypeClass}
+	 */
+	get asTypeClass() {
+		return this.#entity.asTypeClass;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#name;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get path() {
+		return this.#path;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.#entity.toString();
 	}
 }
 
 /**
  * A callable Instance.
  * @package
+ * @implements {Func}
  */
-class FuncInstance extends Instance {
+class FuncEntity extends Common {
+	/**
+	 * @type {FuncType}
+	 */
 	#type;
 
+	#name;
+	#path;
+
 	/**
-	 * @param {FuncType} type 
+	 * @param {FuncType} type
 	 */
 	constructor(type) {
+        super();
+
 		assert(type instanceof FuncType);
 
-		super();
 		this.#type = type;
 	}
 
 	/**
-	 * @param {RecursivenessChecker} scope
-	 * @returns {boolean}
+	 * @type {Type}
 	 */
-	isRecursive(scope) {
-		return false;
+	get type() {
+		return this.#type;
+	}
+
+    /**
+	 * Returns the underlying FuncType directly.
+	 * @type {FuncType}
+	 */
+	get funcType() {
+		return this.#type;
+	}
+
+	/**
+	 * @type {Func}
+	 */
+	get asFunc() {
+		return this;
+	}
+
+	/**
+	 * @type {Typed}
+	 */
+	get asTyped() {
+		return this;
+	}
+
+    /**
+	 * @param {Site} site 
+	 * @param {Typed[]} args 
+	 * @param {{[name: string]: Typed}} namedArgs
+	 * @returns {Typed | Multi}
+	 */
+	call(site, args, namedArgs = {}) {
+		return Common.toTyped(this.#type.checkCall(site, args, namedArgs));
 	}
 
 	/**
@@ -15549,141 +15086,60 @@ class FuncInstance extends Instance {
 	toString() {
 		return this.#type.toString();
 	}
-
-	/**
-	 * Returns the underlying FuncType as Type.
-	 * @param {Site} site
-	 * @returns {Type}
-	 */
-	getType(site) {
-		return this.#type;
-	}
-
-	/**
-	 * Returns the underlying FuncType directly.
-	 * @returns {FuncType}
-	 */
-	getFuncType() {
-		return this.#type;
-	}
-
-	/**
-	 * Checks if 'this' is an instance of 'type'.
-	 * Type can be a class or a class instance
-	 * @param {Type | ClassOfType} type 
-	 * @returns {boolean}
-	 */
-	isInstanceOf(type) {
-		if (typeof type == 'function') {
-			return this.#type instanceof type;
-		} else {
-			return type.isBaseOf(this.#type);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @param {Instance[]} args 
-	 * @param {{[name: string]: Instance}} namedArgs
-	 * @returns {Instance}
-	 */
-	call(site, args, namedArgs = {}) {
-		return Instance.new(this.#type.checkCall(site, args, namedArgs));
-	}
-
-	/**
-	 * Throws an error because a function value doesn't have any fields.
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nFields(site) {
-		throw site.typeError("a function doesn't have fields");
-	}
-
-	/**
-	 * Throws an error because a function value doesn't have any fields.
-	 * @param {Site} site
-	 * @param {number} i
-	 * @returns {Type}
-	 */
-	getFieldType(site, i) {
-		throw site.typeError("a function doesn't have fields");
-	}
-
-	/**
-	 * Throws an error because a function value have any fields.
-	 * @param {Site} site 
-	 * @param {string} name 
-	 * @returns {number}
-	 */
-	getFieldIndex(site, name) {
-		throw site.typeError("a function doesn't have fields");
-	}
-
-	/**
-	 * Throws an error because a function value doesn't have members.
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		throw name.typeError("a function doesn't have any members");
-	}
 }
-
-/**
- * Special function value class for top level functions because they can be used recursively.
- * @package
- */
-class FuncStatementInstance extends FuncInstance {
-	#statement
-
-	/**
-	 * @param {FuncType} type 
-	 * @param {RecurseableStatement} statement - can't use FuncStatement because that would give circular dependency
-	 */
-	constructor(type, statement) {
-		super(type);
-		this.#statement = statement;
-	}
-
-	/**
-	 * @type {RecurseableStatement}
-	 */
-	get statement() {
-		return this.#statement;
-	}
-
-	/**
-	 * @param {RecursivenessChecker} scope
-	 * @returns {boolean}
-	 */
-	isRecursive(scope) {
-		if (this.#statement.isRecursive()) {
-			return true;
-		} else {
-			return scope.isRecursive(this.#statement);
-		}
-	}
-}
-
 
 /**
  * Wraps multiple return values
  * @package
+ * @implements {Multi}
  */
-class MultiInstance extends Instance {
+class MultiEntity extends Common {
 	#values;
 
 	/**
-	 * @param {Instance[]} values 
+	 * @param {Typed[]} values 
 	 */
 	constructor(values) {
-		super();
+        super();
+
 		this.#values = values;
 	}
 
+    /**
+	 * @param {(Typed | Multi)[]} vals
+	 * @returns {Typed[]}
+	 */
+    static flatten(vals) {
+        /**
+         * @type {Typed[]}
+         */
+        let result = [];
+
+        for (let v of vals) {
+            if (v.asMulti) {
+                result = result.concat(v.asMulti.values);
+            } else if (v.asTyped) {
+                result.push(v.asTyped);
+            } else {
+				throw new Error("unexpected");
+			}
+        }
+
+        return result;
+    }
+
+	/**
+	 * @type {Typed[]}
+	 */
 	get values() {
 		return this.#values;
+	}
+
+    /**
+	 * @type {Multi}
+	 */
+	get asMulti() {
+		return this;
 	}
 
 	/**
@@ -15691,636 +15147,572 @@ class MultiInstance extends Instance {
 	 */
 	toString() {
 		return `(${this.#values.map(v => v.toString()).join(", ")})`;
-	}
-
-	/**
-	 * @param {Instance[]} vals
-	 * @returns {Instance[]}
-	 */
-	static flatten(vals) {
-		/**
-		 * @type {Instance[]}
-		 */
-		let result = [];
-
-		for (let v of vals) {
-			if (v instanceof MultiInstance) {
-				result = result.concat(v.values);
-			} else {
-				result.push(v);
-			}
-		}
-
-		return result;
-	}
+	}	
 }
+
 
 /**
  * Returned by functions that don't return anything (eg. assert, error, print)
  * @package
+ * @implements {Instance}
  */
-class VoidInstance extends Instance {
+class VoidEntity extends Common {
 	constructor() {
 		super();
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get fieldNames() {
+		return [];
+	}
+
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers() {
+        return {};
+    }
+
+    /**
+     * @type {Type}
+     */
+	get type() {
+		return new VoidType();
+	}
+
+    /**
+     * @type {Instance}
+     */
+    get asInstance() {
+        return this;
+    }
+
+	/**
+	 * @type {Typed}
+	 */
+	get asTyped() {
+		return this;
 	}
 
 	/**
 	 * @returns {string}
 	 */
 	toString() {
-		return "()"
-	}
-
-	/**
-	 * @param {Type | ClassOfType} type 
-	 * @returns {boolean}
-	 */
-	isInstanceOf(type) {
-		return type instanceof VoidType;
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {Type}
-	 */
-	getType(site) {
-		return new VoidType();
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @param {Instance[]} args
-	 * @param {{[name: string]: Instance}} namedArgs
-	 * @returns {Instance}
-	 */
-	call(site, args, namedArgs = {}) {
-		throw new Error("can't call void");
-	}
-
-	/**
-	 * @param {Word} name
-	 * @returns {Instance} - can be FuncInstance or DataInstance
-	 */
-	getInstanceMember(name) {
-		throw new Error("can't get member of void");
-	}
-
-	/**
-	 * @param {Site} site
-	 * @returns {number}
-	 */
-	nFields(site) {
-		throw new Error("can't get nFields of void");
-	}
-
-	/**
-	 * @param {Site} site
-	 * @param {number} i
-	 * @returns {Type}
-	 */
-	getFieldType(site, i) {
-		throw new Error("can't get field-type of void");
-	}
-
-	/**
-	 * @param {Site} site
-	 * @param {string} name
-	 * @returns {number}
-	 */
-	getFieldIndex(site, name) {
-		throw new Error("can't get field-type of void");
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		throw new Error("can't get constr index of void");
-	}
-}
-
-/**
- * Returned by an error()
- * Special case of no-return-value that indicates that execution can't proceed.
- * @package
- */
-class ErrorInstance extends VoidInstance {
-	/**
-	 * @param {Site} site 
-	 * @returns {Type}
-	 */
-	 getType(site) {
-		return new ErrorType();
-	}
-}
-
-/**
- * Parent-class for AssertFunc, ErrorFunc and PrintFunc
- * @package
- */
-class BuiltinFuncInstance extends FuncInstance {
-	/**
-	 * Returns the base path in the IR (eg. __helios__bool, __helios__error, etc.)
-	 * @type {string}
-	 */
-	get path() {
-		throw new Error("not implemented")
-	}
-}
-
-/**
- * Special builtin function that throws an error if condition is false and returns Void
- * @package
- */
- class AssertFunc extends BuiltinFuncInstance {
-	constructor() {
-		super(new FuncType([new BoolType(), new StringType()], new VoidType()));
-	}
-
-	get path() {
-		return "__helios__assert";
-	}
-}
-
-/**
- * Special builtin function that throws an error and returns ErrorInstance (special case of Void)
- * @package
- */
- class ErrorFunc extends BuiltinFuncInstance {
-	constructor() {
-		super(new FuncType([new StringType()], new ErrorType()));
-	}
-
-	get path() {
-		return "__helios__error";
-	}
-}
-
-/**
- * Special builtin function that prints a message and returns void
- * @package
- */
-class PrintFunc extends BuiltinFuncInstance {
-	constructor() {
-		super(new FuncType([new StringType()], new VoidType()));
-	}
-
-	get path() {
-		return "__helios__print";
-	}
-}
-
-/**
- * Type of return-value of functions that don't return anything (eg. assert, print, error)
- * @package
- */
-class VoidType extends Type {
-	constructor() {
-		super();
-	}
-
-	toString() {
 		return "()";
 	}
-
-	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		return type instanceof VoidType;
-	}
 }
 
 /**
- * Type of special case of no-return value where execution can't continue.
  * @package
+ * @implements {Namespace}
  */
-class ErrorType extends VoidType {
-	constructor() {
+class ModuleNamespace extends Common {
+	#members;
+
+	/**
+	 * @param {NamespaceMembers} members
+	 */
+	constructor(members) {
 		super();
+		this.#members = members;
 	}
 
 	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
+	 * @type {NamespaceMembers}
 	 */
-	isBaseOf(type) {
-		return type instanceof ErrorType;
+	get namespaceMembers() {
+		return this.#members;
+	}
+
+	/**
+	 * @type {Namespace}
+	 */
+	get asNamespace() {
+		return this;
 	}
 }
 
+
+///////////////////////////////////
+// Section 14: Eval primitive types
+///////////////////////////////////
 /**
- * Builtin Int type
  * @package
+ * @param {Type} type
+ * @returns {InstanceMembers}
  */
-class IntType extends BuiltinType {
-	constructor() {
-		super();
-	}
-
-	toString() {
-		return "Int";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__neg":
-			case "__pos":
-				return Instance.new(new FuncType([this], new IntType()));
-			case "__add":
-			case "__sub":
-			case "__mul":
-			case "__div":
-			case "__mod":
-				return Instance.new(new FuncType([this, new IntType()], new IntType()));
-			case "__add1":
-			case "__sub1":
-			case "__mul1":
-			case "__div1":
-				return Instance.new(new FuncType([this, new RealType()], new RealType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([this, new IntType()], new BoolType()));
-			case "from_big_endian":
-			case "from_little_endian":
-				return Instance.new(new FuncType([new ByteArrayType()], new IntType()));
-			case "max":
-			case "min": 
-				return Instance.new(new FuncType([new IntType(), new IntType()], new IntType()));
-			case "from_base58":
-			case "parse":
-				return Instance.new(new FuncType([new StringType()], new IntType()));
-			case "sqrt":
-				return Instance.new(new FuncType([new IntType()], new IntType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "decode_zigzag":
-			case "encode_zigzag":
-			case "abs":
-				return Instance.new(new FuncType([], new IntType()));
-			case "bound":
-				return Instance.new(new FuncType([new IntType(), new IntType()], new IntType()));
-			case "bound_min":
-			case "bound_max":
-				return Instance.new(new FuncType([new IntType()], new IntType()));
-			case "to_bool":
-				return Instance.new(new FuncType([], new BoolType()));
-			case "to_big_endian":
-			case "to_little_endian":
-				return Instance.new(new FuncType([], new ByteArrayType()));
-			case "to_base58":
-			case "to_hex":
-			case "show":
-				return Instance.new(new FuncType([], new StringType()));
-			case "to_real":
-				return Instance.new(new FuncType([], new RealType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	get path() {
-		return "__helios__int";
-	}
-
-	get userType() {
-		return HInt;
-	}
+function genCommonInstanceMembers(type) {
+    return {
+        serialize: new FuncType([], ByteArrayType),
+    }
 }
 
 /**
- * Builtin Real fixed point number type
  * @package
+ * @param {Type} type
+ * @returns {TypeMembers}
  */
-class RealType extends BuiltinType {
-	constructor() {
-		super();
-	}
-
-	toString() {
-		return "Real";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__neg":
-			case "__pos":
-				return Instance.new (new FuncType([this], new RealType()));
-			case "__add":
-			case "__sub":
-			case "__mul":
-			case "__div":
-				return Instance.new(new FuncType([this, new RealType()], new RealType()));
-			case "__add1":
-			case "__sub1":
-			case "__mul1":
-			case "__div1":
-				return Instance.new(new FuncType([this, new IntType()], new RealType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([this, new RealType()], new BoolType()));
-			case "__eq1":
-			case "__neq1":
-			case "__geq1":
-			case "__gt1":
-			case "__leq1":
-			case "__lt1":
-				return Instance.new(new FuncType([this, new IntType()], new BoolType()));
-			case "sqrt":
-				return Instance.new(new FuncType([this], this));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "abs":
-				return Instance.new(new FuncType([], new RealType()));
-			case "floor":
-			case "trunc":
-			case "ceil":
-			case "round":
-				return Instance.new(new FuncType([], new IntType()));
-			case "show":
-				return Instance.new(new FuncType([], new StringType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	get path() {
-		return "__helios__real";
-	}
+function genCommonTypeMembers(type) {
+    return {
+        __eq:      new FuncType([type, type], BoolType),
+        __neq:     new FuncType([type, type], BoolType),
+        from_data: new FuncType([RawDataType], type),
+        __to_data: new FuncType([type], RawDataType),
+    }
 }
 
 /**
  * Builtin bool type
  * @package
+ * @type {DataType}
  */
-class BoolType extends BuiltinType {
-	constructor() {
+const BoolType = new GenericType({
+    name: "Bool",
+    offChainType: Bool,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        show:      new FuncType([], StringType),
+        to_int:    new FuncType([], IntType),
+        trace:     new FuncType([StringType], self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        __and:     new FuncType([self, self], self),
+        __neq:     new FuncType([self, self], self),
+        __not:     new FuncType([self], self),
+        __or:      new FuncType([self, self], self),
+        and:       new FuncType([new FuncType([], self), new FuncType([], self)], self),
+        or:        new FuncType([new FuncType([], self), new FuncType([], self)], self)
+    })
+});
+
+/**
+ * Builtin bytearray type
+ * @package
+ * @type {DataType}
+ */
+const ByteArrayType = new GenericType({
+    name: "ByteArray",
+    offChainType: ByteArray,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        blake2b: new FuncType([], self),
+        decode_utf8: new FuncType([], StringType),
+        ends_with: new FuncType([self], BoolType),
+        length: IntType,
+        prepend: new FuncType([IntType], self),
+        sha2: new FuncType([], self),
+        sha3: new FuncType([], self),
+        show: new FuncType([], StringType),
+        slice: new FuncType([IntType, IntType], self),
+        starts_with: new FuncType([self], BoolType),
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        __add: new FuncType([self, self], self),
+        __geq: new FuncType([self, self], BoolType),
+        __gt: new FuncType([self, self], BoolType),
+        __leq: new FuncType([self, self], BoolType),
+        __lt: new FuncType([self, self], BoolType)
+    })
+});
+
+/**
+ * @package
+ * @type {DataType}
+ */
+const IntType = new GenericType({
+    name: "Int",
+    offChainType: HInt,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        abs: new FuncType([], self),
+        bound: new FuncType([self, self], self),
+        bound_max: new FuncType([self], self),
+        bound_min: new FuncType([self], self),
+        decode_zigzag: new FuncType([], self),
+        encode_zigzag: new FuncType([], self),
+        show: new FuncType([], StringType),
+        to_base58: new FuncType([], StringType),
+        to_big_endian: new FuncType([], ByteArrayType),
+        to_bool: new FuncType([], BoolType),
+        to_hex: new FuncType([], StringType),
+        to_little_endian: new FuncType([], ByteArrayType),
+        to_real: new FuncType([], RealType)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        __add: new FuncType([self, self], self),
+        __add1: new FuncType([self, RealType], RealType),
+        __div: new FuncType([self, self], self),
+        __div1: new FuncType([self, RealType], RealType),
+        __geq: new FuncType([self, self], BoolType),
+        __gt: new FuncType([self, self], BoolType),
+        __leq: new FuncType([self, self], BoolType),
+        __lt: new FuncType([self, self], BoolType),
+        __mod: new FuncType([self, self], self),
+        __mul: new FuncType([self, self], self),
+        __mul1: new FuncType([self, RealType], RealType),
+        __neg: new FuncType([self], self),
+        __pos: new FuncType([self], self),
+        __sub: new FuncType([self, self], self),
+        __sub1: new FuncType([self, RealType], RealType),
+        from_base58: new FuncType([StringType], self),
+        from_big_endian: new FuncType([ByteArrayType], self),
+        from_little_endian: new FuncType([ByteArrayType], self),
+        max: new FuncType([self, self], self),
+        min: new FuncType([self, self], self),
+        parse: new FuncType([StringType], self),
+        sqrt: new FuncType([self], self)
+    })
+});
+
+/**
+ * Type of external data that must be cast/type-checked before using
+ * Not named 'Data' in Js because it's too generic
+ * @package
+ * @type {DataType}
+ */
+const RawDataType = new GenericType({
+    name: "Data",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        tag: IntType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self)
+    })
+});
+
+/**
+ * Builtin Real fixed point number type
+ * @package
+ * @type {DataType}
+ */
+const RealType = new GenericType({
+    name: "Real",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        abs: new FuncType([], self),
+        ceil: new FuncType([], IntType),
+        floor: new FuncType([], IntType),
+        round: new FuncType([], IntType),
+        show: new FuncType([], StringType),
+        trunc: new FuncType([], IntType)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        __add: new FuncType([self, self], self),
+        __add1: new FuncType([self, IntType], self),
+        __div: new FuncType([self, self], self),
+        __div1: new FuncType([self, IntType], self),
+        __eq1: new FuncType([self, IntType], BoolType),
+        __geq: new FuncType([self, self], BoolType),
+        __geq1: new FuncType([self, IntType], BoolType),
+        __gt: new FuncType([self, self], BoolType),
+        __gt1: new FuncType([self, IntType], BoolType),
+        __leq: new FuncType([self, self], BoolType),
+        __leq1: new FuncType([self, IntType], BoolType),
+        __lt: new FuncType([self, self], BoolType),
+        __lt1: new FuncType([self, IntType], BoolType),
+        __mul: new FuncType([self, self], self),
+        __mul1: new FuncType([self, IntType], self),
+        __neg: new FuncType([self], self),
+        __neq1: new FuncType([self, IntType], BoolType),
+        __pos: new FuncType([self], self),
+        __sub: new FuncType([self, self], self),
+        __sub1: new FuncType([self, IntType], self),
+        sqrt: new FuncType([self], self)
+    })
+});
+
+/**
+ * Builtin string type
+ * @package
+ * @type {DataType}
+ */
+const StringType = new GenericType({
+    name: "String",
+    offChainType: HString,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        encode_utf8: new FuncType([], ByteArrayType),
+        ends_with: new FuncType([self], BoolType),
+        starts_with: new FuncType([self], BoolType)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        __add: new FuncType([self, self], self)
+    })
+});
+
+
+///////////////////////////////////////
+// Section 15: Eval builtin typeclasses
+///////////////////////////////////////
+
+
+/**
+ * @package
+ * @implements {DataType}
+ */
+class TypeClassImpl extends Common {
+    /**
+     * @type {string}
+     */
+    #name;
+
+	/**
+	 * @type {InstanceMembers}
+	 */
+	#instanceMembers;
+
+	/**
+	 * @type {TypeMembers}
+	 */
+	#typeMembers;
+
+	/**
+	 * @param {TypeClass} typeClass
+	 * @param {string} name
+	 */
+	constructor(typeClass, name) {
 		super();
+
+        this.#name = name;
+        this.#instanceMembers = typeClass.genInstanceMembers(this);
+		this.#typeMembers = typeClass.genTypeMembers(this);
+    }
+
+	/**
+	 * @param {string} name
+	 * @returns {string}
+	 */
+	static nameToPath(name) {
+		return `__typeparam__${name}`;
+	}
+	
+    /**
+	 * @type {InstanceMembers}
+	 */
+	get instanceMembers() {
+		return this.#instanceMembers;
+	}
+
+	/**
+	 * @type {string}
+	 */
+    get name() {
+        return this.#name;
+    }
+
+	/**
+	 * @type {null | HeliosDataClass<HeliosData>}
+	 */
+	get offChainType() {
+		return null;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get path() {
+		return TypeClassImpl.nameToPath(this.name);
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get fieldNames() {
+		return [];
+	}
+
+	/**
+	 * @type {TypeMembers}
+	 */
+	get typeMembers() {
+		return this.#typeMembers;
+	}
+
+	/**
+	 * @type {DataType}
+	 */
+	get asDataType() {
+		return this;
+	}
+
+    /**
+     * @type {Named}
+     */
+    get asNamed() {
+        return this;
+    }
+
+    /**
+     * @type {Type}
+     */
+    get asType() {
+        return this;
+    }
+
+    /**
+	 * @package
+	 * @param {Site} site 
+	 * @param {Map<string, Type>} map 
+	 * @param {null | Type} type
+	 * @returns {Type}
+	 */
+	infer(site, map, type) {
+		const prev = map.get(this.#name);
+
+		if (!prev) {
+			if (type) {
+				map.set(this.#name, type);
+
+				return type;
+			} else {
+				throw new Error(`${this.#name} should be in map`);
+			}
+		} else {
+			return prev;
+		}
+	}
+
+	/**
+	 * Returns 'true' if 'this' is a base-type of 'type'. Throws an error if 'this' isn't a Type.
+	 * @param {Type} type
+	 * @returns {boolean}
+	 */
+	isBaseOf(type) {
+		if (type instanceof TypeClassImpl) {
+			// we cans simply use name because name-shadowing isn't allowed
+			return type.name == this.name;
+		} else {
+			return false;
+		}
+	}
+
+    /**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.name;
+	}
+
+	/**
+	 * @returns {Typed}
+	 */
+	toTyped() {
+		return new DataEntity(this);
+	}
+}
+
+/**
+ * @package
+ * @implements {TypeClass}
+ */
+class AnyTypeClass extends Common {
+    constructor() {
+        super();
+    }
+
+	/**
+	 * @type {TypeClass}
+	 */
+	get asTypeClass() {
+		return this;
+	}
+
+    /**
+	 * @param {Type} impl
+	 * @returns {TypeClassMembers}
+	 */
+	genInstanceMembers(impl) {
+		return {};
+	}
+
+	/**
+	 * @param {Type} impl
+	 * @returns {TypeClassMembers}
+	 */
+	genTypeMembers(impl) {
+		return {};
+    }
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "Any"
+	}
+
+    /**
+     * @param {string} name 
+     * @returns {DataType}
+     */
+
+    toType(name) {
+        return new TypeClassImpl(this, name);
+    }
+}
+
+/**
+ * @package
+ * @implements {TypeClass}
+ */
+class SerializableTypeClass extends Common {
+    constructor() {
+        super();
+    }
+
+	/**
+	 * @type {TypeClass}
+	 */
+	get asTypeClass() {
+		return this;
+	}
+
+	/**
+	 * @param {Type} impl
+	 * @returns {TypeClassMembers}
+	 */
+	genTypeMembers(impl) {
+		return {
+            __eq: new FuncType([impl, impl], BoolType),
+            __neq: new FuncType([impl, impl], BoolType),
+			__to_data: new FuncType([impl], RawDataType),
+			from_data: new FuncType([RawDataType], impl)
+		}
+	}
+
+	/**	
+	 * @param {Type} impl
+	 * @returns {TypeClassMembers}
+	 */
+	genInstanceMembers(impl) {
+		return {
+            serialize: new FuncType([], ByteArrayType)
+		}
 	}
 
 	/**
 	 * @returns {string}
 	 */
 	toString() {
-		return "Bool";
+		return "Serializable";
 	}
 
-	/**
-	 * @type {{[name: string]: EvalEntity}}
-	 */
-	get typeMembers() {
-		return {
-			...super.typeMembers,
-			__and: Instance.new(new FuncType([this, this], this)),
-			__not: Instance.new(new FuncType([this], this)),
-			__or:  Instance.new(new FuncType([this, this], this)),
-			and:   Instance.new(new FuncType([new FuncType([], this), new FuncType([], this)], this)),
-			or:    Instance.new(new FuncType([new FuncType([], this), new FuncType([], this)], this)),
-		};
-	}
-
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__not":
-				return Instance.new(new FuncType([this], new BoolType()));
-			case "__and":
-			case "__or":
-				return Instance.new(new FuncType([this, new BoolType()], new BoolType()));
-			case "and":
-			case "or":
-				return Instance.new(new FuncType([new FuncType([], new BoolType()), new FuncType([], new BoolType())], new BoolType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @type {{[name: string]: Instance}}
-	 */
-	get instanceMembers() {
-		return {
-			...super.instanceMembers,
-			show:   Instance.new(new FuncType([], new StringType())),
-			to_int: Instance.new(new FuncType([], new IntType())),
-			trace:  Instance.new(new FuncType([new StringType()], new BoolType()))
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "to_int":
-				return Instance.new(new FuncType([], new IntType()));
-			case "show":
-				return Instance.new(new FuncType([], new StringType()));
-			case "trace":
-				return Instance.new(new FuncType([new StringType()], new BoolType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @type {string}
-	 */
-	get path() {
-		return "__helios__bool";
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return Bool;
-	}
+    /**
+     * @param {string} name 
+     * @returns {DataType}
+     */
+    toType(name) {
+        return new TypeClassImpl(this, name);
+    }
 }
 
-/**
- * Builtin string type
- * @package
- */
-class StringType extends BuiltinType {
-	constructor() {
-		super();
-	}
-
-	toString() {
-		return "String";
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([this, new StringType()], new StringType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "starts_with":
-			case "ends_with":
-				return Instance.new(new FuncType([new StringType()], new BoolType()));
-			case "encode_utf8":
-				return Instance.new(new FuncType([], new ByteArrayType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @type {string}
-	 */
-	get path() {
-		return "__helios__string";
-	}
-
-	/**
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return HString;
-	}
-}
-
-/**
- * Builtin bytearray type
- * @package
- */
-class ByteArrayType extends BuiltinType {
-	#size;
-
-	/**
-	 * @param {?number} size - can be null or 32 (result of hashing)
-	 */
-	constructor(size = null) {
-		super();
-
-		this.#size = size;
-	}
-
-	toString() {
-		return "ByteArray";
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([this, new ByteArrayType()], new ByteArrayType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([this, new ByteArrayType()], new BoolType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "length":
-				return Instance.new(new IntType());
-			case "slice":
-				return Instance.new(new FuncType([new IntType(), new IntType()], new ByteArrayType()));
-			case "starts_with":
-			case "ends_with":
-				return Instance.new(new FuncType([new ByteArrayType()], new BoolType()));
-			case "prepend":
-				return Instance.new(new FuncType([new IntType()], new ByteArrayType()));
-			case "sha2":
-			case "sha3":
-			case "blake2b":
-				return Instance.new(new FuncType([], new ByteArrayType(32)));
-			case "decode_utf8":
-			case "show":
-				return Instance.new(new FuncType([], new StringType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @type {string}
-	 */
-	get path() {
-		return `__helios__bytearray${this.#size === null ? "" : this.#size}`;
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return ByteArray;
-	}
-}
 
 /**
  * @package
@@ -16340,7 +15732,7 @@ class Parameter {
 	 * @param {string} name - typically "a" or "b"
 	 * @param {TypeClass} typeClass
 	 */
-	constructor(name, typeClass = new AnyTypeClass()) {
+	constructor(name, typeClass) {
 		this.#name = name;
 		this.#typeClass = typeClass
 	}
@@ -16353,10 +15745,10 @@ class Parameter {
 	}
 
 	/**
-	 * @type {ParamTypeRef}
+	 * @type {Type}
 	 */
 	get ref() {
-		return new ParamTypeRef(this.#name);
+		return new TypeClassImpl(this.typeClass, this.#name);
 	}
 
 	/**
@@ -16380,22 +15772,27 @@ class Parameter {
  * Only func instances can be parametrics instances,
  *  there are no other kinds of parametric instances
  * @package
+ * @implements {Parametric}
  */
-class ParametricInstance extends FuncInstance {
+class ParametricFunc extends Common {
 	#params;
 	#fnType;
-	#correctMemberName;
 
 	/**
 	 * @param {Parameter[]} params
-	 * @param {FuncType} fnType 
-	 * @param {?() => string} correctMemberName
+	 * @param {FuncType} fnType
 	 */
-	constructor(params, fnType, correctMemberName = null) {
-		super(fnType);
+	constructor(params, fnType) {
+		super();
 		this.#params = params;
 		this.#fnType = fnType;
-		this.#correctMemberName = correctMemberName;
+	}
+
+	/**
+	 * @type {null | ((...any) => HeliosDataClass<HeliosData>)}
+	 */
+	get offChainType() {
+		return null;
 	}
 
 	get params() {
@@ -16407,38 +15804,19 @@ class ParametricInstance extends FuncInstance {
 	}
 
 	/**
-	 * @returns {null | ParametricInstance}
-	 */
-	assertParametric() {
-		return this;
-	}
-
-	/**
 	 * null TypeClasses aren't included
 	 * @type {TypeClass[]}
 	 */
 	get typeClasses() {
-		/**
-		 * @type {TypeClass[]}
-		 */
-		const tcs = [];
-
-		this.#params.forEach(p => {
-			const tc = p.typeClass
-			if (tc !== null) {
-				tcs.push(tc);
-			}
-		});
-
-		return tcs;
+		return this.#params.map(p => p.typeClass);
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {Type[]} types 
+	 * @param {Site} site
 	 * @returns {EvalEntity}
 	 */
-	applyTypes(site, types) {
+	apply(types, site = Site.dummy()) {
 		if (types.length != this.#params.length) {
 			throw site.typeError("wrong number of parameter type arguments");
 		}
@@ -16449,49 +15827,32 @@ class ParametricInstance extends FuncInstance {
 		const map = new Map();
 
 		this.#params.forEach((p, i) => {
-			if (!p.typeClass?.isImplementedBy(types[i]) ?? true) {
+			if (!Common.typeImplements(types[i], p.typeClass)) {
 				throw site.typeError("typeclass match failed")
 			}
 
 			map.set(p.name, types[i]);
 		});
 
-		console.log("MAP", map);
+		const inferred = this.#fnType.infer(site, map, null);
 
-		return new FuncInstance(assertClass(this.#fnType.infer(site, map, null), FuncType));
-	}
-
-	get correctMemberName() {
-		return this.#correctMemberName;
-	}
-
-	toString() {
-		return this.#fnType.toString();
+		return new FuncEntity(assertClass(inferred, FuncType));
 	}
 
 	/**
-	 * @param {Site} site 
-	 * @returns {Type}
+	 * @type {Parametric}
 	 */
-	getType(site) {
-		throw site.typeError("can't get type of type parametric function (must be fully applied to be a valid type)");
+	get asParametric() {
+		return this;
 	}
 
-	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isInstanceOf(type) {
-		return false;
-	}
-
-	/**
+    /**
 	 * Must infer before calling
 	 * @param {Site} site 
-	 * @param {Instance[]} args
-	 * @param {{[name: string]: Instance}} namedArgs
+	 * @param {Typed[]} args
+	 * @param {{[name: string]: Typed}} namedArgs
 	 * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
-	 * @returns {Instance}
+	 * @returns {Typed | Multi}
 	 */
 	call(site, args, namedArgs = {}, paramTypes = []) {
 		/**
@@ -16499,7 +15860,7 @@ class ParametricInstance extends FuncInstance {
 		 */
 		const map = new Map();
 
-		const fnType = this.#fnType.inferArgs(site, map, args.map(a => a.getType(site)));
+		const fnType = this.#fnType.inferArgs(site, map, args.map(a => a.type));
 
 		// make sure that each parameter is defined in the map
 		this.#params.forEach(p => {
@@ -16512,3047 +15873,1637 @@ class ParametricInstance extends FuncInstance {
 			paramTypes.push(pt);
 		});
 
-		return (new FuncInstance(fnType)).call(site, args, namedArgs);
+		return (new FuncEntity(fnType)).call(site, args, namedArgs);
+	}
+
+    /**
+     * @returns {string}
+     */
+	toString() {
+		return this.#fnType.toString();
 	}
 }
 
 /**
- * Special function value class for top level functions because they can be used recursively.
  * @package
+ * @implements {DataType}
  */
-class ParametricFuncStatementInstance extends ParametricInstance {
-	#statement
+class AppliedType extends Common {
+    #types;
+    #apply;
+    #inner;
+
+    /**
+     * @param {Type[]} types
+     * @param {(types: Type[]) => DataType} apply
+     * @param {DataType} inner 
+     */
+    constructor(types, apply, inner) {
+        super();
+
+        this.#types = types;
+        this.#apply = apply;
+        this.#inner = inner;
+    }
+
+    /**
+     * @type {string[]}
+     */
+    get fieldNames() {
+        return this.#inner.fieldNames;
+    }
+
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers() {
+        return this.#inner.instanceMembers;
+    }
+
+    /**
+     * @type {string}
+     */
+    get name() {
+        return this.#inner.name;
+    }
+
+    /**
+     * @type {null | HeliosDataClass<HeliosData>}
+     */
+    get offChainType() {
+        return this.#inner.offChainType;
+    }
+
+    /**
+     * @type {string}
+     */
+    get path() {
+        return this.#inner.path;
+    }
+
+    /**
+     * @type {TypeMembers}
+     */
+    get typeMembers() {
+        return this.#inner.typeMembers;
+    }
+
+    /**
+     * @type {DataType}
+     */
+    get asDataType() {
+        return this;
+    }
+
+    /**
+     * @type {Named}
+     */
+    get asNamed() {
+        return this;
+    }
+
+    /**
+     * @type {Type}
+     */
+    get asType() {
+        return this;
+    }
+
+    /**
+     * @param {Site} site 
+     * @param {Map<string, Type>} map 
+     * @param {null | Type} type 
+     * @returns {Type}
+     */
+    infer(site, map, type) {
+        if (!type) {
+            const inferred = this.#types.map(t => t.infer(site, map, null));
+
+            return new AppliedType(inferred, this.#apply, this.#apply(inferred));
+		} else if (this.isBaseOf(type)) {
+            const inferred = this.#types.map(t => t.infer(site, map, t));
+
+            return new AppliedType(inferred, this.#apply, this.#apply(inferred));
+        }
+
+		throw site.typeError("unable to infer type");
+    }
+
+    /**
+     * @param {Type} other 
+     * @returns {boolean}
+     */
+    isBaseOf(other) {
+        return this.#inner.isBaseOf(other);
+    }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return this.#inner.toString();
+    }
 
 	/**
-	 * @param {Parameter[]} params
-	 * @param {FuncType} type 
-	 * @param {RecurseableStatement} statement - can't use FuncStatement because that would give circular dependency
+	 * @returns {Typed}
 	 */
-	constructor(params, type, statement) {
-		super(params, type);
-		this.#statement = statement;
+	toTyped() {
+		return new DataEntity(this);
+	}
+}
+
+/**
+ * @package
+ * @implements {Parametric}
+ */
+class ParametricType extends Common {
+    #offChainType;
+    #parameters;
+    #apply;
+
+    /**
+     * @param {{
+     *   offChainType?: ((...any) => HeliosDataClass<HeliosData>)
+     *   parameters: Parameter[]
+     *   apply: (types: Type[]) => DataType
+     * }} props
+     */
+    constructor({offChainType, parameters, apply}) {
+        super();
+        this.#offChainType = offChainType ?? null;
+        this.#parameters = parameters;
+        this.#apply = apply;
+    }
+
+    /**
+     * @type {Parametric}
+     */
+    get asParametric() {
+        return this;
+    }
+
+    /**
+     * @type {null | ((...any) => HeliosDataClass<HeliosData>)}
+     */
+    get offChainType() {
+        return this.#offChainType;
+    }
+
+	/**
+	 * @type {TypeClass[]}
+	 */
+	get typeClasses() {
+		return this.#parameters.map(p => p.typeClass);
 	}
 
-	/**
-	 * @type {RecurseableStatement}
-	 */
-	get statement() {
-		return this.#statement;
-	}
-
-	/**
-	 * @param {RecursivenessChecker} scope
-	 * @returns {boolean}
-	 */
-	isRecursive(scope) {
-		if (this.#statement.isRecursive()) {
-			return true;
-		} else {
-			return scope.isRecursive(this.#statement);
+    /**
+     * @param {Type[]} types 
+     * @param {Site} site 
+     * @returns {EvalEntity}
+     */
+    apply(types, site = Site.dummy()) {
+        if (types.length != this.#parameters.length) {
+			throw site.typeError(`expected ${this.#parameters.length} type parameter(s), got ${types.length}`);
 		}
+
+		this.#parameters.forEach((p, i) => {
+			if (!Common.typeImplements(types[i], p.typeClass)) {
+				throw site.typeError(`${types[i].toString()} doesn't implement ${p.typeClass.toString()}`);
+			}
+		});
+
+		return new AppliedType(types, this.#apply, this.#apply(types));
+    }
+
+	 /**
+	 * Must infer before calling
+	 * @param {Site} site 
+	 * @param {Typed[]} args
+	 * @param {{[name: string]: Typed}} namedArgs
+	 * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
+	 * @returns {Typed | Multi}
+	 */
+	call(site, args, namedArgs = {}, paramTypes = []) {
+		throw site.typeError("not a parametric function");
+	}
+}
+
+
+/////////////////////////////////////
+// Section 16: Eval builtin functions
+/////////////////////////////////////
+
+/**
+ * Used by print, error, and assert
+ * @package
+ * @implements {Func}
+ * @implements {Named}
+ */
+class BuiltinFunc extends Common {
+	/**
+	 * @type {string}
+	 */
+	#name;
+
+	/**
+	 * @type {FuncType}
+	 */
+	#type;
+
+	/**
+	 * 
+	 * @param {{
+	 *   name: string,
+	 *   type: FuncType
+	 * }} props
+	 */
+	constructor({name, type}) {
+		super();
+		this.#name = name;
+		this.#type = type;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#name;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get path() {
+		return `__helios__${this.#name}`;
+	}
+
+	/**
+	 * @type {Type}
+	 */
+	get type() {
+		return this.#type;
+	}
+
+	/**
+	 * @type {Func}
+	 */
+	get asFunc() {
+		return this;
+	}
+
+	/**
+     * @type {Named}
+     */
+	get asNamed() {
+        return this;
+    }
+
+	/**
+	 * @type {Typed}
+	 */
+	get asTyped() {
+		return this;
 	}
 
 	/**
 	 * @param {Site} site 
-	 * @param {Type[]} types 
-	 * @returns {EvalEntity}
+	 * @param {Typed[]} args 
+	 * @param {{[name: string]: Typed}} namedArgs
+	 * @returns {Typed | Multi}
 	 */
-	applyTypes(site, types) {
-		if (types.length != this.params.length) {
-			throw site.typeError("wrong number of parameter type arguments");
-		}
-
-		/**
-		 * @type {Map<string, Type>}
-		 */
-		const map = new Map();
-
-		this.params.forEach((p, i) => {
-			if (!p.typeClass?.isImplementedBy(types[i]) ?? true) {
-				throw site.typeError("typeclass match failed")
-			}
-
-			map.set(p.name, types[i]);
-		});
-
-		console.log("MAP", map);
-
-		return new FuncStatementInstance(assertClass(this.fnType.infer(site, map, null), FuncType), this.#statement);
+	call(site, args, namedArgs = {}) {
+		return Common.toTyped(this.#type.checkCall(site, args, namedArgs));
 	}
+
+	/**
+     * @returns {string}
+     */
+    toString() {
+        return this.name;
+    }
 }
+
+/**
+ * Special builtin function that throws an error if condition is false and returns Void
+ * @package
+ */
+const AssertFunc = new BuiltinFunc({
+    name: "assert",
+    type: new FuncType([BoolType, StringType], new VoidType())
+});
+
+/**
+ * Special builtin function that throws an error and returns ErrorInstance (special case of Void)
+ * @package
+ */
+const ErrorFunc = new BuiltinFunc({
+	name: "error",
+	type: new FuncType([StringType], new ErrorType())
+});
+
+/**
+ * Special builtin function that prints a message and returns void
+ * @package
+ */
+const PrintFunc = new BuiltinFunc({
+	name: "print",
+	type:  new FuncType([StringType], new VoidType())
+});
+
+
+///////////////////////////////////
+// Section 17: Eval container types
+///////////////////////////////////
 
 /**
  * Builtin list type
  * @package
+ * @type {Parametric}
  */
-class ListType extends BuiltinType {
-	#itemType;
+const ListType = new ParametricType({
+	offChainType: HList,
+	parameters: [new Parameter("ItemType", new SerializableTypeClass())],
+	apply: ([itemType]) => {
+		const offChainItemType = itemType.asDataType?.offChainType ?? null;
+		const offChainType = offChainItemType ? HList(offChainItemType) : null;
 
-	/**
-	 * @param {Type} itemType 
-	 */
-	constructor(itemType) {
-		super();
-		this.#itemType = itemType;
+		return new GenericType({
+			offChainType: offChainType,
+			name: `[]${itemType.toString()}`,
+			path: `__helios__list@${assertDefined(itemType.asDataType).path}@`,
+			genInstanceMembers: (self) => ({
+				...genCommonInstanceMembers(self),
+				all: new FuncType([new FuncType([itemType], BoolType)], BoolType),
+				any: new FuncType([new FuncType([itemType], BoolType)], BoolType),
+				drop: new FuncType([IntType], self),
+				drop_end: new FuncType([IntType], self),
+				filter: new FuncType([new FuncType([itemType], BoolType)], self),
+				find: new FuncType([new FuncType([itemType], BoolType)], itemType),
+				find_safe: new FuncType([new FuncType([itemType], BoolType)], OptionType$(itemType)),
+				fold: (() => {
+					const a = new Parameter("a", new AnyTypeClass());
+					return new ParametricFunc([a], new FuncType([new FuncType([a.ref, itemType], a.ref), a.ref], a.ref));
+				})(),
+				fold_lazy: (() => {
+					const a = new Parameter("a", new AnyTypeClass());
+					return new ParametricFunc([a], new FuncType([new FuncType([itemType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
+				})(),
+				for_each: new FuncType([new FuncType([itemType], new VoidType())], new VoidType()),
+				get: new FuncType([IntType], itemType),
+				get_singleton: new FuncType([], itemType),
+				head: itemType,
+				is_empty: new FuncType([], BoolType),
+				length: IntType,
+				map: (() => {
+					const a = new Parameter("a", new SerializableTypeClass());
+					return new ParametricFunc([a], new FuncType([new FuncType([itemType], a.ref)], ListType$(a.ref)));
+				})(),
+				prepend: new FuncType([itemType], self),
+				sort: new FuncType([new FuncType([itemType, itemType], BoolType)], self),
+				tail: self,
+				take: new FuncType([IntType], self),
+				take_end: new FuncType([IntType], itemType),
+			}),
+			genTypeMembers: (self) => ({
+				...genCommonTypeMembers(self),
+				__add: new FuncType([self, self], self),
+				new: new FuncType([IntType, new FuncType([IntType], itemType)], self),
+				new_const: new FuncType([IntType, itemType], self)
+			})
+		})
 	}
+});
 
-	/**
-	 * @package
-	 * @type {Type}
-	 */
-	get itemType() {
-		return this.#itemType;
-	}
-
-	toString() {
-		return `[]${this.#itemType.toString()}`;
-	}
-
-	/**
-	 * @package
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		if (type instanceof ListType) {
-			return this.#itemType.isBaseOf(type.itemType);
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
-	 * @param {Type | null} type 
-	 * @returns {Type}
-	 */
-	infer(site, map, type) {
-		if (!type) {
-			return new ListType(this.#itemType.infer(site, map, null))
-		} else if (type instanceof ListType) {
-			return new ListType(this.#itemType.infer(site, map, type.itemType));
-		}
-
-		throw site.typeError("unable to infer type");
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([this, this], this));
-			case "new":
-				return Instance.new(new FuncType([new IntType(), new FuncType([new IntType()], this.#itemType)], this));
-			case "new_const":
-				return Instance.new(new FuncType([new IntType(), this.#itemType], this));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "all":
-			case "any":
-				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new BoolType()));
-			case "drop":
-			case "drop_end":
-			case "take":
-			case "take_end":
-				return Instance.new(new FuncType([new IntType()], this));
-			case "filter":
-				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], this));
-			case "find":
-				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], this.#itemType));
-			case "find_safe":
-				return Instance.new(new FuncType([new FuncType([this.#itemType], new BoolType())], new OptionType(this.#itemType)));
-			case "for_each":
-				return Instance.new(new FuncType([new FuncType([this.#itemType], new VoidType())], new VoidType()));
-			case "fold": {
-				let a = new Parameter("a");
-				return new ParametricInstance([a], new FuncType([new FuncType([a.ref, this.#itemType], a.ref), a.ref], a.ref));
-			}
-			case "fold_lazy": {
-				let a = new Parameter("a");
-				return new ParametricInstance([a], new FuncType([new FuncType([this.#itemType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
-			}
-			case "get":
-				return Instance.new(new FuncType([new IntType()], this.#itemType));
-			case "get_singleton":
-				return Instance.new(new FuncType([], this.#itemType));
-			case "head":
-				return Instance.new(this.#itemType);
-			case "is_empty":
-				return Instance.new(new FuncType([], new BoolType()));
-			case "length":
-				return Instance.new(new IntType());
-			case "map": {
-				let a = new Parameter("a");
-				return new ParametricInstance([a], new FuncType([new FuncType([this.#itemType], a.ref)], new ListType(a.ref)));
-			}
-			case "prepend":
-				return Instance.new(new FuncType([this.#itemType], this));
-			case "sort":
-				return Instance.new(new FuncType([new FuncType([this.#itemType, this.#itemType], new BoolType())], this));
-			case "tail":
-				return Instance.new(this);
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @type {string}
-	 */
-	get path() {
-		return `__helios__${this.#itemType instanceof BoolType ? "bool" : ""}list`;
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return HList(this.#itemType.userType);
-	}
+/**
+ * @param {Type} itemType 
+ * @returns {DataType}
+ */
+export function ListType$(itemType) {
+	return applyTypes(ListType, itemType);
 }
 
 /**
  * Builtin map type (in reality list of key-value pairs)
  * @package
+ * @type {Parametric}
  */
-class MapType extends BuiltinType {
-	#keyType;
-	#valueType;
+const MapType = new ParametricType({
+	offChainType: HMap,
+	parameters: [new Parameter("KeyType", new SerializableTypeClass()), new Parameter("ValueType", new SerializableTypeClass())],
+	apply: ([keyType, valueType]) => {
+		const offChainKeyType = keyType.asDataType?.offChainType ?? null;
+		const offChainValueType = valueType.asDataType?.offChainType ?? null;
+		const offChainType = offChainKeyType && offChainValueType ? HMap(offChainKeyType, offChainValueType) : null;
 
-	/**
-	 * @param {Type} keyType 
-	 * @param {Type} valueType 
-	 */
-	constructor(keyType, valueType) {
-		super();
-		this.#keyType = keyType;
-		this.#valueType = valueType;
+		return new GenericType({
+			offChainType: offChainType,
+			name: `Map[${keyType.toString()}]${valueType.toString()}`,
+			path: `__helios__map@${assertDefined(keyType.asDataType).path}@${assertDefined(valueType.asDataType).path}@`,
+			genInstanceMembers: (self) => ({
+				...genCommonInstanceMembers(self),
+				all: new FuncType([new FuncType([keyType, valueType], BoolType)], BoolType),
+				any: new FuncType([new FuncType([keyType, valueType], BoolType)], BoolType),
+				delete: new FuncType([keyType], self),
+				filter: new FuncType([new FuncType([keyType, valueType], BoolType)], self),
+				find: new FuncType([new FuncType([keyType, valueType], BoolType)], [keyType, valueType]),
+				find_key: new FuncType([new FuncType([keyType], BoolType)], keyType),
+				find_key_safe: new FuncType([new FuncType([keyType], BoolType)], OptionType$(keyType)),
+				find_safe: new FuncType([new FuncType([keyType, valueType], BoolType)], [new FuncType([], [keyType, valueType]), BoolType]),
+				find_value: new FuncType([new FuncType([valueType], BoolType)], valueType),
+				find_value_safe: new FuncType([new FuncType([valueType], BoolType)], OptionType$(valueType)),
+				fold: (() => {
+					const a = new Parameter("a", new AnyTypeClass());
+					return new ParametricFunc([a], new FuncType([new FuncType([a.ref, keyType, valueType], a.ref), a.ref], a.ref));
+				})(),
+				fold_lazy: (() => {
+					const a = new Parameter("a", new AnyTypeClass());
+					return new ParametricFunc([a], new FuncType([new FuncType([keyType, valueType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
+				})(),
+				for_each: new FuncType([new FuncType([keyType, valueType], new VoidType())], new VoidType()),
+				get: new FuncType([keyType], valueType),
+				get_safe: new FuncType([keyType], OptionType$(valueType)),
+				head: new FuncType([], [keyType, valueType]),
+				head_key: keyType,
+				head_value: valueType,
+				is_empty: new FuncType([], BoolType),
+				length: IntType,
+				map: (() => {
+					const a = new Parameter("a", new SerializableTypeClass());
+					const b = new Parameter("b", new SerializableTypeClass());
+
+					return new ParametricFunc([a, b], new FuncType([new FuncType([keyType, valueType], [a.ref, b.ref])], MapType$(a.ref, b.ref)));
+				})(),
+				prepend: new FuncType([keyType, valueType], self),
+				set: new FuncType([keyType, valueType], self),
+				sort: new FuncType([new FuncType([keyType, valueType, keyType, valueType], BoolType)], MapType$(keyType, valueType)),
+				tail: self
+			}),
+			genTypeMembers: (self) => ({
+				...genCommonTypeMembers(self),
+				__add: new FuncType([self, self], self)
+			})
+		})
 	}
+});
 
-	/**
-	 * @package
-	 * @type {Type}
-	 */
-	get keyType() {
-		return this.#keyType;
-	}
-
-	/**
-	 * @package
-	 * @type {Type}
-	 */
-	get valueType() {
-		return this.#valueType;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `Map[${this.#keyType.toString()}]${this.#valueType.toString()}`;
-	}
-
-	/**
-	 * @package
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		if (type instanceof MapType) {
-			return this.#keyType.isBaseOf(type.#keyType) && this.#valueType.isBaseOf(type.#valueType);
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
-	 * @param {Type | null} type 
-	 * @returns {Type}
-	 */
-	infer(site, map, type) {
-		if (!type) {
-			return new MapType(
-				this.#keyType.infer(site, map, null),
-				this.#valueType.infer(site, map, null)
-			);
-		} else if (type instanceof MapType) {
-			return new MapType(
-				this.#keyType.infer(site, map, type.keyType),
-				this.#valueType.infer(site, map, type.valueType)
-			);
-		}
-
-		throw site.typeError("unable to infer type");
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([this, this], this));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "all":
-			case "any":
-				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], new BoolType()));
-			case "delete":
-				return Instance.new(new FuncType([this.#keyType], this));
-			case "filter":
-				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], this));
-			case "find":
-				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], [this.#keyType, this.#valueType]));
-			case "find_safe":
-				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new BoolType())], [new FuncType([], [this.#keyType, this.#valueType]), new BoolType()]))
-			case "find_key":
-				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], this.#keyType));
-			case "find_key_safe":
-				return Instance.new(new FuncType([new FuncType([this.#keyType], new BoolType())], new OptionType(this.#keyType)));
-			case "find_value":
-				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], this.#valueType));
-			case "find_value_safe":
-				return Instance.new(new FuncType([new FuncType([this.#valueType], new BoolType())], new OptionType(this.#valueType)));
-			case "fold": {
-				let a = new Parameter("a");
-				return new ParametricInstance([a], new FuncType([new FuncType([a.ref, this.#keyType, this.#valueType], a.ref), a.ref], a.ref));
-			}
-			case "fold_lazy": {
-				let a = new Parameter("a");
-				return new ParametricInstance([a], new FuncType([new FuncType([this.#keyType, this.#valueType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
-			}
-			case "for_each":
-				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType], new VoidType())], new VoidType()));
-			case "get":
-				return Instance.new(new FuncType([this.#keyType], this.#valueType));
-			case "get_safe":
-				return Instance.new(new FuncType([this.#keyType], new OptionType(this.#valueType)));
-			case "head":
-				return Instance.new(new FuncType([], [this.#keyType, this.#valueType]));
-			case "head_key":
-				return Instance.new(this.#keyType);
-			case "head_value":
-				return Instance.new(this.#valueType);
-			case "is_empty":
-				return Instance.new(new FuncType([], new BoolType()));
-			case "length":
-				return Instance.new(new IntType());
-			case "map": {
-				let a = new Parameter("a");
-				let b = new Parameter("b");
-
-				return new ParametricInstance([a, b], new FuncType([new FuncType([this.#keyType, this.#valueType], [a.ref, b.ref])], new MapType(a.ref, b.ref)));
-			}
-			case "prepend":
-				return Instance.new(new FuncType([this.#keyType, this.#valueType], this));
-			case "set":
-				return Instance.new(new FuncType([this.#keyType, this.#valueType], this));
-			case "sort":
-				return Instance.new(new FuncType([new FuncType([this.#keyType, this.#valueType, this.#keyType, this.#valueType], new BoolType())], new MapType(this.#keyType, this.#valueType)));
-			case "tail":
-				return Instance.new(this);
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @type {string}
-	 */
-	get path() {
-		return `__helios__${this.#valueType instanceof BoolType ? "bool" : ""}map`;
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return HMap(this.#keyType.userType, this.#valueType.userType);
-	}
+/**
+ * @param {Type} keyType 
+ * @param {Type} valueType
+ * @returns {DataType}
+ */
+export function MapType$(keyType, valueType) {
+	return applyTypes(MapType, keyType, valueType);
 }
 
 /**
  * Builtin option type
  * @package
+ * @type {Parametric}
  */
-class OptionType extends BuiltinType {
-	#someType;
+const OptionType = new ParametricType({
+	offChainType: Option,
+	parameters: [new Parameter("SomeType", new SerializableTypeClass())],
+	apply: ([someType]) => {
+		const someOffChainType = someType.asDataType?.offChainType ?? null;
+		const offChainType = someOffChainType ? Option(someOffChainType) : null;
 
-	/**
-	 * @param {Type} someType 
-	 */
-	constructor(someType) {
-		super();
-		this.#someType = someType;
+		/**
+		 * @type {DataType}
+		 */
+		const AppliedOptionType = new GenericType({
+			offChainType: offChainType,
+			name: `Option[${someType.toString()}]`,
+			path: `__helios__option@${assertDefined(someType.asDataType).path}@`,
+			genInstanceMembers: (self) => ({
+				...genCommonInstanceMembers(self),
+				map: (() => {
+					const a = new Parameter("a", new SerializableTypeClass());
+					return new ParametricFunc([a], new FuncType([new FuncType([someType], a.ref)], OptionType$(a.ref)));
+				})(),
+				unwrap: new FuncType([], someType)
+			}),
+			genTypeMembers: (self) => ({
+				...genCommonTypeMembers(self),
+           		None: NoneType,
+            	Some: SomeType
+			})
+		});
+
+		/**
+		 * @type {EnumMemberType}
+		 */
+		const SomeType = new GenericEnumMemberType({
+			name: "Some",
+			constrIndex: 0,
+			parentType: AppliedOptionType,
+			path: "__helios__option__some",
+			genInstanceMembers: (self) => ({
+				...genCommonInstanceMembers(self),
+				some: someType
+			}),
+			genTypeMembers: (self) => ({
+				...genCommonTypeMembers(self)
+			})
+		});
+
+		/**
+		 * @type {EnumMemberType}
+		 */
+		const NoneType = new GenericEnumMemberType({
+			name: "None",
+			constrIndex: 1,
+			parentType: AppliedOptionType,
+			path: "__helios__option__none",
+			genInstanceMembers: (self) => ({
+				...genCommonInstanceMembers(self)
+			}),
+			genTypeMembers: (self) => ({
+				...genCommonTypeMembers(self)
+			})
+		});
+
+		return AppliedOptionType;
 	}
-
-	/**
-	 * @type {Type}
-	 */
-	get someType() {
-		return this.#someType;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `Option[${this.#someType.toString()}]`;
-	}
-
-	/**
-	 * @package
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		return 2;
-	}
-
-	/**
-	 * @package
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		if (type instanceof OptionType) {
-			return this.#someType.isBaseOf(type.#someType);
-		} else {
-			return (new OptionSomeType(this.#someType)).isBaseOf(type) || 
-				(new OptionNoneType(this.#someType)).isBaseOf(type);
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
-	 * @param {Type | null} type 
-	 * @returns {Type}
-	 */
-	infer(site, map, type) {
-		if (!type) {
-			return new OptionType(
-				this.#someType.infer(site, map, null)
-			);
-		} else if (type instanceof OptionType || type instanceof OptionSomeType || type instanceof OptionNoneType) {
-			return new OptionType(
-				this.#someType.infer(site, map, type.someType)
-			);
-		}
-
-		throw site.typeError("unable to infer type");
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "Some":
-				return new OptionSomeType(this.#someType);
-			case "None":
-				return new OptionNoneType(this.#someType);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "map": {
-				const a = new Parameter("a");
-
-				return new ParametricInstance([a], new FuncType([new FuncType([this.#someType], a.ref)], new OptionType(a.ref)));
-			}
-			case "unwrap":
-				return Instance.new(new FuncType([], this.#someType));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @type {string}
-	 */
-	get path() {
-		return `__helios__${this.#someType instanceof BoolType ? "bool" : ""}option`;
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return Option(this.#someType.userType);
-	}
-}
+});
 
 /**
- * Member type of OptionType with some content
+ * @param {Type} someType 
+ * @returns {DataType}
  */
-class OptionSomeType extends BuiltinEnumMember {
-	#someType;
-
-	/**
-	 * @param {Type} someType 
-	 */
-	constructor(someType) {
-		super(new OptionType(someType));
-		this.#someType = someType;
-	}
-
-	/**
-	 * @type {Type}
-	 */
-	get someType() {
-		return this.#someType;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `Option[${this.#someType.toString()}]::Some`;
-	}
-
-	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		if (type instanceof OptionSomeType) {
-			return this.#someType.isBaseOf(type.#someType);
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
-	 * @param {Type | null} type 
-	 * @returns {Type}
-	 */
-	infer(site, map, type) {
-		if (!type) {
-			return new OptionSomeType(
-				this.#someType.infer(site, map, null)
-			);
-		} else if (type instanceof OptionSomeType) {
-			return new OptionSomeType(
-				this.#someType.infer(site, map, type.someType)
-			);
-		}
-
-		throw site.typeError("unable to infer type");
-	}
-
-	/**
-	 * @param {Site} site
-	 * @returns {number}
-	 */
-	nFields(site) {
-		return 1;
-	}
-
-	/**
-	 * @param {Site} site
-	 * @param {number} i
-	 * @returns {Type}
-	 */
-	getFieldType(site, i) {
-		assert(i == 0);
-		return this.#someType;
-	}
-
-	/**
-	 * @param {Site} site
-	 * @param {string} name
-	 * @returns {number}
-	 */
-	getFieldIndex(site, name) {
-		assert(name == "some");
-		return 0;
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "some":
-				return Instance.new(this.#someType);
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 0;
-	}
-
-	get path() {
-		return `__helios__${this.#someType instanceof BoolType ? "bool" : ""}option__some`;
-	}
+export function OptionType$(someType) {
+	return applyTypes(OptionType, someType);
 }
 
-/**
- * Member type of OptionType with no content
- * @package
- */
-class OptionNoneType extends BuiltinEnumMember {
-	#someType;
 
-	/**
-	 * @param {Type} someType 
-	 */
-	constructor(someType) {
-		super(new OptionType(someType));
-		this.#someType = someType;
-	}
-
-	/**
-	 * @type {Type}
-	 */
-	get someType() {
-		return this.#someType;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `Option[${this.#someType.toString()}]::None`;
-	}
-
-	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		if (type instanceof OptionNoneType) {
-			return this.#someType.isBaseOf(type.#someType);
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
-	 * @param {Type | null} type 
-	 * @returns {Type}
-	 */
-	infer(site, map, type) {
-		if (!type) {
-			return new OptionNoneType(
-				this.#someType.infer(site, map, null)
-			);
-		} else if (type instanceof OptionNoneType) {
-			return new OptionNoneType(
-				this.#someType.infer(site, map, type.someType)
-			);
-		}
-
-		throw site.typeError("unable to infer type");
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 1;
-	}
-
-	/**
-	 * @type {string}
-	 */
-	get path() {
-		return `__helios__${this.#someType instanceof BoolType ? "bool" : ""}option__none`;
-	}
-
-	/**
-	 * Instantiates self as value
-	 * @returns {Instance | null}
-	 */
-	assertInstance() {
-		return Instance.new(this);
-	}
-}
-
-/**
- * Base type of other ValidatorHash etc. (all functionality is actually implemented here)
- * @package
- */
-class HashType extends BuiltinType {
-	constructor() {
-		super();
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([this, this], new BoolType()));
-			case "new":
-				return Instance.new(new FuncType([new ByteArrayType()], this));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "show":
-				return Instance.new(new FuncType([], new StringType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	get path() {
-		return "__helios__hash";
-	}
-}
-
-/**
- * Builtin PubKeyHash type
- * @package
- */
-class PubKeyHashType extends HashType {
-	toString() {
-		return "PubKeyHash";
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return PubKeyHash;
-	}
-}
-
-/**
- * Builtin StakeKeyHash type
- * @package
- */
-class StakeKeyHashType extends HashType {
-	toString() {
-		return "StakeKeyHash";
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return StakeKeyHash;
-	}
-}
-
-/**
- * Builtin PubKey type
- * @package
- */
-class PubKeyType extends BuiltinType {
-	toString() {
-		return "PubKey";
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "new":
-				return Instance.new(new FuncType([new ByteArrayType()], this));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "show":
-				return Instance.new(new FuncType([], new StringType()));
-			case "verify":
-				return Instance.new(new FuncType([new ByteArrayType(), new ByteArrayType()], new BoolType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @type {string}
-	 */
-	get path() {
-		return "__helios__pubkey";
-	}
-}
-
-/**
- * Generalization of ValidatorHash type and MintingPolicyHash type
- * Must be cast before being able to use the Hash type methods
- * @package
- */
-class ScriptHashType extends BuiltinType {
-	constructor() {
-		super();
-	}
-
-	toString() {
-		return "ScriptHash";
-	}
-
-	get path() {
-		return "__helios__scripthash";
-	}
-}
-
-/**
- * Builtin ValidatorHash type
- * @package
- */
-class ValidatorHashType extends HashType {
-	#purpose;
-
-	/**
-	 * @param {number} purpose 
-	 */
-	constructor(purpose = -1) {
-		super();
-		this.#purpose = purpose;
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "CURRENT":
-				if (this.macrosAllowed) {
-					if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Testing) {
-						return Instance.new(this);
-					} else {
-						throw name.referenceError("'ValidatorHash::CURRENT' only available in spending script");
-					}
-				} else {
-					throw name.referenceError("'ValidatorHash::CURRENT' can only be used after 'main'");
-				}
-			case "from_script_hash":
-				return Instance.new(new FuncType([new ScriptHashType()], new ValidatorHashType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	toString() {
-		return "ValidatorHash";
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return ValidatorHash;
-	}
-}
-
-/**
- * Builtin MintingPolicyHash type
- * @package
- */
-class MintingPolicyHashType extends HashType {
-	#purpose;
-
-	/**
-	 * @param {number} purpose 
-	 */
-	constructor(purpose = -1) {
-		super();
-		this.#purpose = purpose;
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "CURRENT":
-				if (this.macrosAllowed) {
-					if (this.#purpose == ScriptPurpose.Minting) {
-						return Instance.new(this);
-					} else {
-						throw name.referenceError("'MintingPolicyHash::CURRENT' only available in minting script");
-					}
-				} else {
-					throw name.referenceError("'MintingPolicyHash::CURRENT' can only be used after 'main'");
-				}
-			case "from_script_hash":
-				return Instance.new(new FuncType([new ScriptHashType()], new MintingPolicyHashType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	toString() {
-		return "MintingPolicyHash";
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return MintingPolicyHash;
-	}
-}
-
-/**
- * Builtin StakingValidatorHash type
- * @package
- */
-class StakingValidatorHashType extends HashType {
-	#purpose;
-
-	/**
-	 * @param {number} purpose 
-	 */
-	constructor(purpose = -1) {
-		super();
-		this.#purpose = purpose;
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "CURRENT":
-				if (this.macrosAllowed) {
-					if (this.#purpose == ScriptPurpose.Staking) {
-						return Instance.new(this);
-					} else {
-						throw name.referenceError("'StakingValidatorHash::CURRENT' only available in minting script");
-					}
-				} else {
-					throw name.referenceError("'StakingValidatorHash::CURRENT' can only be used after 'main'");
-				}
-			case "from_script_hash":
-				return Instance.new(new FuncType([new ScriptHashType()], new StakingValidatorHashType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	toString() {
-		return "StakingValidatorHash";
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return StakingValidatorHash;
-	}
-}
-
-/**
- * Builtin DatumHash type
- * @package
- */
-class DatumHashType extends HashType {
-	toString() {
-		return "DatumHash";
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return DatumHash;
-	}
-}
-
-/**
- * Builtin ScriptContext type
- * @package
- */
-class ScriptContextType extends BuiltinType {
-	#purpose;
-
-	/**
-	 * @param {number} purpose 
-	 */
-	constructor(purpose) {
-		super();
-		this.#purpose = purpose;
-	}
-
-	toString() {
-		return "ScriptContext";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "new_spending":
-				if (this.macrosAllowed) {
-					if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Testing) {
-						return Instance.new(new FuncType([new TxType(), new TxOutputIdType()], this));
-					} else {
-						throw name.referenceError("'ScriptContext::new_spending' only avaiable for spending");
-					}
-				} else {
-					if (this.#purpose == ScriptPurpose.Staking || this.#purpose == ScriptPurpose.Minting) {
-						throw name.referenceError("'ScriptContext::new_spending' only avaiable for spending  scripts");
-					} else {
-						throw name.referenceError("'ScriptContext::new_spending' can only be used after 'main'");
-					}
-				}
-			case "new_minting":
-				if (this.macrosAllowed) {
-					if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Testing) {
-						return Instance.new(new FuncType([new TxType(), new MintingPolicyHashType()], this));
-					} else {
-						throw name.referenceError("'ScriptContext::new_minting' only avaiable for minting scripts");
-					}
-				} else {
-					if (this.#purpose == ScriptPurpose.Staking || this.#purpose == ScriptPurpose.Spending) {
-						throw name.referenceError("'ScriptContext::new_minting' only avaiable for minting scripts");
-					} else {
-						throw name.referenceError("'ScriptContext::new_minting' can only be used after 'main'");
-					}
-				}
-			case "new_rewarding":
-				if (this.macrosAllowed) {
-					if (this.#purpose == ScriptPurpose.Staking || this.#purpose == ScriptPurpose.Testing) {
-						return Instance.new(new FuncType([new TxType(), new StakingCredentialType()], this));
-					} else {
-						throw name.referenceError("'ScriptContext::new_rewarding' only avaiable for staking scripts");
-					}
-				} else {
-					if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Minting) {
-						throw name.referenceError("'ScriptContext::new_rewarding' only avaiable for staking scripts");
-					} else {
-						throw name.referenceError("'ScriptContext::new_rewarding' can only be used after 'main'");
-					}
-				}
-			case "new_certifying":
-				if (this.macrosAllowed) {
-					if (this.#purpose == ScriptPurpose.Staking || this.#purpose == ScriptPurpose.Testing) {
-						return Instance.new(new FuncType([new TxType(), new DCertType()], this));
-					} else {
-						throw name.referenceError("'ScriptContext::new_certifying' only avaiable for staking scripts");
-					}
-				} else {
-					if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Minting) {
-						throw name.referenceError("'ScriptContext::new_certifying' only avaiable for staking scripts");
-					} else {
-						throw name.referenceError("'ScriptContext::new_certifying' can only be used after 'main'");
-					}
-				}
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "tx":
-				return Instance.new(new TxType());
-			case "get_spending_purpose_output_id":
-				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in minting/staking script");
-				} else {
-					return Instance.new(new FuncType([], new TxOutputIdType()));
-				}
-			case "get_current_validator_hash":
-				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in minting/staking script");
-				} else {
-					return Instance.new(new FuncType([], new ValidatorHashType(this.#purpose)));
-				}
-			case "get_current_minting_policy_hash":
-				if (this.#purpose == ScriptPurpose.Spending || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in spending/staking script");
-				} else {
-					return Instance.new(new FuncType([], new MintingPolicyHashType(this.#purpose)));
-				}
-			case "get_current_input":
-				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in minting/staking script");
-				} else {
-					return Instance.new(new FuncType([], new TxInputType()));
-				}
-			case "get_cont_outputs":
-				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Staking) {
-					throw name.referenceError("not available in minting/staking script");
-				} else {
-					return Instance.new(new FuncType([], new ListType(new TxOutputType())));
-				}
-			case "get_staking_purpose":
-				if (this.#purpose == ScriptPurpose.Minting || this.#purpose == ScriptPurpose.Spending) {
-					throw name.referenceError("not available in minting/spending script");
-				} else {
-					return Instance.new(new FuncType([], new StakingPurposeType()));
-				}
-			case "get_script_purpose":
-				return Instance.new(new FuncType([], new ScriptPurposeType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	get path() {
-		return "__helios__scriptcontext";
-	}
-}
-
-/**
- * Builtin ScriptPurpose type (Minting| Spending| Rewarding | Certifying)
- * @package
- */
-class ScriptPurposeType extends BuiltinType {
-	toString() {
-		return "ScriptPurpose";
-	}
-
-	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		let b = super.isBaseOf(type) ||
-				(new MintingScriptPurposeType()).isBaseOf(type) || 
-				(new SpendingScriptPurposeType()).isBaseOf(type) || 
-				(new RewardingScriptPurposeType()).isBaseOf(type) || 
-				(new CertifyingScriptPurposeType()).isBaseOf(type); 
-
-		return b;
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "new_minting":
-				return Instance.new(new FuncType([new MintingPolicyHashType()], new MintingScriptPurposeType()));
-			case "new_spending":
-				return Instance.new(new FuncType([new TxOutputIdType()], new SpendingScriptPurposeType()));
-			case "new_rewarding":
-				return Instance.new(new FuncType([new StakingCredentialType()], new RewardingScriptPurposeType()));
-			case "new_certifying":
-				return Instance.new(new FuncType([new DCertType()], new CertifyingScriptPurposeType()));
-			case "Minting":
-				return new MintingScriptPurposeType();
-			case "Spending":
-				return new SpendingScriptPurposeType();
-			case "Rewarding":
-				return new RewardingScriptPurposeType();
-			case "Certifying":
-				return new CertifyingScriptPurposeType();
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		return 4;
-	}
-
-	get path() {
-		return "__helios__scriptpurpose";
-	}
-}
-
-/**
- * Builtin ScriptPurpose::Minting
- */
-class MintingScriptPurposeType extends BuiltinEnumMember {
-	constructor() {
-		super(new ScriptPurposeType());
-	}
-
-	toString() {
-		return "ScriptPurpose::Minting";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "policy_hash":
-				return Instance.new(new MintingPolicyHashType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 0;
-	}
-
-	get path() {
-		return "__helios__scriptpurpose__minting";
-	}
-}
-
-/**
- * Builtin ScriptPurpose::Spending
- */
-class SpendingScriptPurposeType extends BuiltinEnumMember {
-	constructor() {
-		super(new ScriptPurposeType());
-	}
-
-	toString() {
-		return "ScriptPurpose::Spending";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "output_id":
-				return Instance.new(new TxOutputIdType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 1;
-	}
-
-	get path() {
-		return "__helios__scriptpurpose__spending";
-	}
-}
-
-/**
- * Builtin ScriptPurpose::Rewarding
- */
-class RewardingScriptPurposeType extends BuiltinEnumMember {
-	/**
-	 * @param {?BuiltinType} parentType 
-	 */
-	constructor(parentType = null) {
-		super(parentType === null ? new ScriptPurposeType() : parentType);
-	}
-
-	toString() {
-		return "ScriptPurpose::Rewarding";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "credential":
-				return Instance.new(new StakingCredentialType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 2;
-	}
-
-	get path() {
-		return "__helios__scriptpurpose__rewarding";
-	}
-}
-
-/**
- * Builtin ScriptPurpose::Certifying type
- */
-class CertifyingScriptPurposeType extends BuiltinEnumMember {
-	/**
-	 * @param {?BuiltinType} parentType
-	 */
-	constructor(parentType = null) {
-		super(parentType === null ? new ScriptPurposeType() : parentType);
-	}
-
-	toString() {
-		return "ScriptPurpose::Certifying";
-	}
-
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "dcert":
-				return Instance.new(new DCertType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 3;
-	}
-
-	get path() {
-		return "__helios__scriptpurpose__certifying";
-	}
-}
-
-/**
- * Builtin StakingPurpose type (Rewarding or Certifying)
- * @package
- */
-class StakingPurposeType extends BuiltinType {
-	toString() {
-		return "StakingPurpose";
-	}
-
-	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		let b = super.isBaseOf(type) ||
-				(new StakingRewardingPurposeType()).isBaseOf(type) || 
-				(new StakingCertifyingPurposeType()).isBaseOf(type); 
-
-		return b;
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "Rewarding":
-				return new StakingRewardingPurposeType();
-			case "Certifying":
-				return new StakingCertifyingPurposeType();
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		return 2;
-	}
-
-	get path() {
-		return "__helios__stakingpurpose";
-	}
-}
-
-/**
- * Builtin StakingPurpose::Rewarding
- */
-class StakingRewardingPurposeType extends RewardingScriptPurposeType {
-	constructor() {
-		super(new StakingPurposeType());
-	}
-
-	toString() {
-		return "StakingPurpose::Rewarding";
-	}
-
-	get path() {
-		return "__helios__stakingpurpose__rewarding";
-	}
-}
-
-/**
- * Builtin StakingPurpose::Certifying type
- */
-class StakingCertifyingPurposeType extends CertifyingScriptPurposeType {
-	constructor() {
-		super(new StakingPurposeType());
-	}
-
-	toString() {
-		return "StakingPurpose::Certifying";
-	}
-
-	get path() {
-		return "__helios__stakingpurpose__certifying";
-	}
-}
-
-/**
- * Staking action type (confusingly named D(igest)(of)?Cert(ificate))
- * TODO: think of better name
- * @package
- */
-class DCertType extends BuiltinType {
-	toString() {
-		return "DCert";
-	}
-
-	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		let b = super.isBaseOf(type) ||
-				(new RegisterDCertType()).isBaseOf(type) || 
-				(new DeregisterDCertType()).isBaseOf(type) || 
-				(new DelegateDCertType()).isBaseOf(type) || 
-				(new RegisterPoolDCertType()).isBaseOf(type) ||
-				(new RetirePoolDCertType()).isBaseOf(type); 
-
-		return b;
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "new_register":
-				return Instance.new(new FuncType([new StakingCredentialType()], new RegisterDCertType()));
-			case "new_deregister":
-				return Instance.new(new FuncType([new StakingCredentialType()], new DeregisterDCertType()));
-			case "new_delegate":
-				return Instance.new(new FuncType([new StakingCredentialType(), new PubKeyHashType()], new DelegateDCertType()));
-			case "new_register_pool":
-				return Instance.new(new FuncType([new PubKeyHashType(), new PubKeyHashType()], new RegisterPoolDCertType()));
-			case "new_retire_pool":
-				return Instance.new(new FuncType([new PubKeyHashType(), new IntType()], new RetirePoolDCertType()));
-			case "Register":
-				return new RegisterDCertType();
-			case "Deregister":
-				return new DeregisterDCertType();
-			case "Delegate":
-				return new DelegateDCertType();
-			case "RegisterPool":
-				return new RegisterPoolDCertType();
-			case "RetirePool":
-				return new RetirePoolDCertType();
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		return 5;
-	}
-
-	get path() {
-		return "__helios__dcert";
-	}
-}
-
-class RegisterDCertType extends BuiltinEnumMember {
-	constructor() {
-		super(new DCertType());
-	}
-
-	toString() {
-		return "DCert::Register";
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "credential":
-				return Instance.new(new StakingCredentialType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 0;
-	}
-
-	get path() {
-		return "__helios__dcert__register";
-	}
-}
-
-class DeregisterDCertType extends BuiltinEnumMember {
-	constructor() {
-		super(new DCertType());
-	}
-
-	toString() {
-		return "DCert::Deregister";
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "credential":
-				return Instance.new(new StakingCredentialType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 1;
-	}
-
-	get path() {
-		return "__helios__dcert__deregister";
-	}
-}
-
-class DelegateDCertType extends BuiltinEnumMember {
-	constructor() {
-		super(new DCertType());
-	}
-
-	toString() {
-		return "DCert::Delegate";
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "delegator":
-				return Instance.new(new StakingCredentialType());
-			case "pool_id":
-				return Instance.new(new PubKeyHashType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 2;
-	}
-
-	get path() {
-		return "__helios__dcert__delegate";
-	}
-}
-
-class RegisterPoolDCertType extends BuiltinEnumMember {
-	constructor() {
-		super(new DCertType());
-	}
-
-	toString() {
-		return "DCert::RegisterPool";
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "pool_id":
-				return Instance.new(new PubKeyHashType());
-			case "pool_vrf":
-				return Instance.new(new PubKeyHashType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 3;
-	}
-
-	get path() {
-		return "__helios__dcert__registerpool";
-	}
-}
-
-class RetirePoolDCertType extends BuiltinEnumMember {
-	constructor() {
-		super(new DCertType());
-	}
-
-	toString() {
-		return "DCert::RetirePool";
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "pool_id":
-				return Instance.new(new PubKeyHashType());
-			case "epoch":
-				return Instance.new(new IntType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 4;
-	}
-
-	get path() {
-		return "__helios__dcert__retirepool";
-	}
-}
-
-/**
- * Builtin Tx type
- * @package
- */
-class TxType extends BuiltinType {
-	constructor() {
-		super();
-	}
-
-	toString() {
-		return "Tx";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "new":
-				if (this.macrosAllowed) {
-					return Instance.new(new FuncType([
-						new ListType(new TxInputType()), // 0
-						new ListType(new TxInputType()), // 1
-						new ListType(new TxOutputType()), // 2
-						new ValueType(), // 3
-						new ValueType(), // 4
-						new ListType(new DCertType()), // 5
-						new MapType(new StakingCredentialType(), new IntType()), // 6
-						new TimeRangeType(), // 7
-						new ListType(new PubKeyHashType()), // 8
-						new MapType(new ScriptPurposeType(), new AnyDataType()), // 9
-						new MapType(new DatumHashType(), new AnyDataType()) // 10
-					], this));
-				} else {
-					throw name.referenceError("'Tx::new' can only be used after 'main'");
-				}
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "inputs":
-				return Instance.new(new ListType(new TxInputType()));
-			case "ref_inputs":
-				return Instance.new(new ListType(new TxInputType()));
-			case "outputs":
-				return Instance.new(new ListType(new TxOutputType()));
-			case "fee":
-				return Instance.new(new ValueType());
-			case "minted":
-				return Instance.new(new ValueType());
-			case "dcerts":
-				return Instance.new(new ListType(new DCertType()));
-			case "withdrawals":
-				return Instance.new(new MapType(new StakingCredentialType(), new IntType()));
-			case "time_range":
-				return Instance.new(new TimeRangeType());
-			case "signatories":
-				return Instance.new(new ListType(new PubKeyHashType()));
-			case "redeemers":
-				return Instance.new(new MapType(new ScriptPurposeType(), new RawDataType()));
-			case "datums":
-				return Instance.new(new MapType(new DatumHashType(), new RawDataType()));
-			case "id":
-				return Instance.new(new TxIdType());
-			case "find_datum_hash":
-				return Instance.new(new FuncType([new AnyDataType()], new DatumHashType()));
-			case "get_datum_data":
-				return Instance.new(new FuncType([new TxOutputType()], new RawDataType()));
-			case "outputs_sent_to":
-				return Instance.new(new FuncType([new PubKeyHashType()], new ListType(new TxOutputType())));
-			case "outputs_sent_to_datum":
-				return Instance.new(new FuncType([new PubKeyHashType(), new AnyDataType(), new BoolType()], new ListType(new TxOutputType())));
-			case "outputs_locked_by":
-				return Instance.new(new FuncType([new ValidatorHashType()], new ListType(new TxOutputType())));
-			case "outputs_locked_by_datum":
-				return Instance.new(new FuncType([new ValidatorHashType(), new AnyDataType(), new BoolType()], new ListType(new TxOutputType())));
-			case "value_sent_to":
-				return Instance.new(new FuncType([new PubKeyHashType()], new ValueType()));
-			case "value_sent_to_datum":
-				return Instance.new(new FuncType([new PubKeyHashType(), new AnyDataType(), new BoolType()], new ValueType()));
-			case "value_locked_by":
-				return Instance.new(new FuncType([new ValidatorHashType()], new ValueType()));
-			case "value_locked_by_datum":
-				return Instance.new(new FuncType([new ValidatorHashType(), new AnyDataType(), new BoolType()], new ValueType()));
-			case "is_signed_by":
-				return Instance.new(new FuncType([new PubKeyHashType()], new BoolType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	get path() {
-		return "__helios__tx";
-	}
-}
-
-/**
- * Builtin TxId type
- * @package
- */
-class TxIdType extends BuiltinType {
-	toString() {
-		return "TxId";
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([this, this], new BoolType()));
-			case "new":
-				return Instance.new(new FuncType([new ByteArrayType()], this));
-			case "CURRENT":
-				if (this.macrosAllowed) {
-					return Instance.new(this);
-				} else {
-					throw name.referenceError("'TxId::CURRENT' can only be used after 'main'");
-				}
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "show":
-				return Instance.new(new FuncType([], new StringType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @type {string}
-	 */
-	get path() {
-		return "__helios__txid";
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return TxId;
-	}
-}
-
-/**
- * Builtin TxInput type
- * @package
- */
-class TxInputType extends BuiltinType {
-	toString() {
-		return "TxInput";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "new":
-				if (this.macrosAllowed) {
-					return Instance.new(new FuncType([
-						new TxOutputIdType(), // 0
-						new TxOutputType(), // 1
-					], this));
-				} else {
-					throw name.referenceError("'TxInput::new' can only be used after 'main'");
-				}
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "output_id":
-				return Instance.new(new TxOutputIdType());
-			case "output":
-				return Instance.new(new TxOutputType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	get path() {
-		return "__helios__txinput";
-	}
-}
-
-/**
- * Builtin TxOutput type
- * @package
- */
-class TxOutputType extends BuiltinType {
-	toString() {
-		return "TxOutput";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "new":
-				return Instance.new(new FuncType([
-					new AddressType(), // 0
-					new ValueType(), // 1
-					new OutputDatumType(), // 2
-				], this));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "address":
-				return Instance.new(new AddressType());
-			case "value":
-				return Instance.new(new ValueType());
-			case "datum":
-				return Instance.new(new OutputDatumType());
-			case "ref_script_hash":
-				return Instance.new(new OptionType(new ScriptHashType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	get path() {
-		return "__helios__txoutput";
-	}
-}
-
-/**
- * @package
- */
-class OutputDatumType extends BuiltinType {
-	toString() {
-		return "OutputDatum";
-	}
-
-	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		let b = super.isBaseOf(type) ||
-				(new NoOutputDatumType()).isBaseOf(type) || 
-				(new HashedOutputDatumType()).isBaseOf(type) || 
-				(new InlineOutputDatumType()).isBaseOf(type);
-
-		return b;
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "new_none":
-				return Instance.new(new FuncType([], new NoOutputDatumType()));
-			case "new_hash":
-				return Instance.new(new FuncType([new DatumHashType()], new HashedOutputDatumType()));
-			case "new_inline": {
-				const a = new Parameter("a");
-
-				return new ParametricInstance([a], new FuncType([a.ref], new InlineOutputDatumType()));
-			}
-			case "None":
-				return new NoOutputDatumType();
-			case "Hash":
-				return new HashedOutputDatumType();
-			case "Inline":
-				return new InlineOutputDatumType();
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "get_inline_data":
-				return Instance.new(new FuncType([], new RawDataType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		return 3;
-	}
-
-	get path() {
-		return "__helios__outputdatum";
-	}
-}
-
-/**
- * @package
- */
-class NoOutputDatumType extends BuiltinEnumMember {
-	constructor() {
-		super(new OutputDatumType);
-	}
-
-	toString() {
-		return "OutputDatum::None";
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 0;
-	}
-
-	get path() {
-		return "__helios__outputdatum__none";
-	}
-}
-
-/**
- * @package
- */
-class HashedOutputDatumType extends BuiltinEnumMember {
-	constructor() {
-		super(new OutputDatumType());
-	}
-
-	toString() {
-		return "OutputDatum::Hash";
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "hash":
-				return Instance.new(new DatumHashType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 1;
-	}
-
-	get path() {
-		return "__helios__outputdatum__hash";
-	}
-}
-
-/**
- * @package
- */
-class InlineOutputDatumType extends BuiltinEnumMember {
-	constructor() {
-		super(new OutputDatumType());
-	}
-
-	toString() {
-		return "OutputDatum::Inline";
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "data":
-				return Instance.new(new RawDataType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 2;
-	}
-
-	get path() {
-		return "__helios__outputdatum__inline";
-	}
-}
-
-/**
- * Type of external data that must be cast/type-checked before using
- * Not named 'Data' in Js because it's too generic
- * @package
- */
-class RawDataType extends BuiltinType {
-	toString() {
-		return "Data";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "from_data":
-				throw name.referenceError(`calling Data::from_data(data) is useless`);
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "tag":
-				return Instance.new(new IntType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	get path() {
-		return "__helios__data";
-	}
-}
-
-/**
- * Builtin TxOutputId type
- * @package
- */
-class TxOutputIdType extends BuiltinType {
-	toString() {
-		return "TxOutputId";
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__lt":
-			case "__leq":
-			case "__gt":
-			case "__geq":
-				return Instance.new(new FuncType([this, new TxOutputIdType()], new BoolType()));
-			case "new":
-				return Instance.new(new FuncType([new TxIdType(), new IntType()], new TxOutputIdType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "tx_id":
-				return Instance.new(new TxIdType());
-			case "index":
-				return Instance.new(new IntType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @type {string}
-	 */
-	get path() {
-		return "__helios__txoutputid";
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return TxOutputId;
-	}
-}
-
-/**
- * Buitin Address type
- * @package
- */
-class AddressType extends BuiltinType {
-	toString() {
-		return "Address";
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "new":
-				return Instance.new(new FuncType([
-					new CredentialType(), // 0
-					new OptionType(new StakingCredentialType()), // 1
-				], this));
-			case "new_empty":
-				return Instance.new(new FuncType([], this));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "credential":
-				return Instance.new(new CredentialType());
-			case "staking_credential":
-				return Instance.new(new OptionType(new StakingCredentialType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @type {string}
-	 */
-	get path() {
-		return "__helios__address";
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return Address;
-	}
-}
-
-/**
- * Builtin Credential type
- * @package
- */
-class CredentialType extends BuiltinType {
-	toString() {
-		return "Credential";
-	}
-
-	/**
-	 * @package
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		let b = super.isBaseOf(type) ||
-				(new CredentialPubKeyType()).isBaseOf(type) || 
-				(new CredentialValidatorType()).isBaseOf(type); 
-
-		return b;
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "PubKey":
-				return new CredentialPubKeyType();
-			case "Validator":
-				return new CredentialValidatorType();
-			case "new_pubkey":
-				return Instance.new(new FuncType([new PubKeyHashType()], new CredentialPubKeyType()));
-			case "new_validator":
-				return Instance.new(new FuncType([new ValidatorHashType()], new CredentialValidatorType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		return 2;
-	}
-
-	/**
-	 * @package
-	 * @type {string}
-	 */
-	get path() {
-		return "__helios__credential";
-	}
-}
-
-/**
- * Builtin Credential::PubKey
- */
-class CredentialPubKeyType extends BuiltinEnumMember {
-	constructor() {
-		super(new CredentialType());
-	}
-
-	toString() {
-		return "Credential::PubKey";
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "hash":
-				return Instance.new(new PubKeyHashType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 0;
-	}
-
-	get path() {
-		return "__helios__credential__pubkey";
-	}
-}
-
-/**
- * Builtin Credential::Validator type
- */
-class CredentialValidatorType extends BuiltinEnumMember {
-	constructor() {
-		super(new CredentialType());
-	}
-
-	toString() {
-		return "Credential::Validator";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "hash":
-				return Instance.new(new ValidatorHashType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 1;
-	}
-
-	get path() {
-		return "__helios__credential__validator";
-	}
-}
-
-/**
- * Builtin StakingHash type
- * @package
- */
-class StakingHashType extends BuiltinType {
-	toString() {
-		return "StakingHash";
-	}
-
-	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		let b = super.isBaseOf(type) ||
-				(new StakingHashStakeKeyType()).isBaseOf(type) || 
-				(new StakingHashValidatorType()).isBaseOf(type); 
-
-		return b;
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "StakeKey":
-				return new StakingHashStakeKeyType();
-			case "Validator":
-				return new StakingHashValidatorType();
-			case "new_stakekey":
-				return Instance.new(new FuncType([new StakeKeyHashType()], new StakingHashStakeKeyType()));
-			case "new_validator":
-				return Instance.new(new FuncType([new StakingValidatorHashType()], new StakingHashValidatorType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		return 2;
-	}
-
-	get path() {
-		return "__helios__stakinghash";
-	}
-}
-
-/**
- * Builtin StakingHash::StakeKey
- */
-class StakingHashStakeKeyType extends BuiltinEnumMember {
-	constructor() {
-		super(new StakingHashType());
-	}
-
-	toString() {
-		return "StakingHash::StakeKey";
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "hash":
-				return Instance.new(new StakeKeyHashType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 0;
-	}
-
-	get path() {
-		return "__helios__stakinghash__stakekey";
-	}
-}
-
-/**
- * Builtin StakingHash::Validator type
- */
-class StakingHashValidatorType extends BuiltinEnumMember {
-	constructor() {
-		super(new StakingHashType());
-	}
-
-	toString() {
-		return "StakingHash::Validator";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "hash":
-				return Instance.new(new StakingValidatorHashType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 1;
-	}
-
-	get path() {
-		return "__helios__stakinghash__validator";
-	}
-}
-
-/**
- * Builtin StakingCredential type
- * @package
- */
-class StakingCredentialType extends BuiltinType {
-	toString() {
-		return "StakingCredential";
-	}
-
-	/**
-	 * @param {Type} type 
-	 * @returns {boolean}
-	 */
-	isBaseOf(type) {
-		let b = super.isBaseOf(type) ||
-				(new StakingHashCredentialType()).isBaseOf(type) || 
-				(new StakingPtrCredentialType()).isBaseOf(type); 
-
-		return b;
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "Hash":
-				return new StakingHashCredentialType();
-			case "Ptr":
-				return new StakingPtrCredentialType();
-			case "new_hash":
-				return Instance.new(new FuncType([new StakingHashType()], new StakingHashCredentialType()));
-			case "new_ptr":
-				return Instance.new(new FuncType([new IntType(), new IntType(), new IntType()], new StakingPtrCredentialType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		return 2;
-	}
-
-	get path() {
-		return "__helios__stakingcredential";
-	}
-}
-
-/**
- * Builtin StakingCredential::Hash
- */
-class StakingHashCredentialType extends BuiltinEnumMember {
-	constructor() {
-		super(new StakingCredentialType());
-	}
-
-	toString() {
-		return "StakingCredential::Hash";
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "hash":
-				return Instance.new(new StakingHashType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 0;
-	}
-
-	get path() {
-		return "__helios__stakingcredential__hash";
-	}
-}
-
-/**
- * Builtin StakingCredential::Ptr
- */
-class StakingPtrCredentialType extends BuiltinEnumMember {
-	constructor() {
-		super(new StakingCredentialType());
-	}
-
-	toString() {
-		return "StakingCredential::Ptr";
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return 1;
-	}
-
-	get path() {
-		return "__helios__stakingcredential__ptr";
-	}
-}
-
-/**
- * Builtin Time type. Opaque alias of Int representing milliseconds since 1970
- */
-export class TimeType extends BuiltinType {
-	toString() {
-		return "Time";
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__add":
-				return Instance.new(new FuncType([this, new DurationType()], new TimeType()));
-			case "__sub":
-				return Instance.new(new FuncType([this, new TimeType()], new DurationType()));
-			case "__sub1":
-				return Instance.new(new FuncType([this, new DurationType()], new TimeType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([this, new TimeType()], new BoolType()));
-			case "new":
-				return Instance.new(new FuncType([new IntType()], this));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "show":
-				return Instance.new(new FuncType([], new StringType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	get path() {
-		return "__helios__time";
-	}
-
-	/**
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return Time;
-	}
-}
+//////////////////////////////
+// Section 18: Eval time types
+//////////////////////////////
 
 /**
  * Builtin Duration type
  * @package
+ * @type {DataType}
  */
-class DurationType extends BuiltinType {
-	toString() {
-		return "Duration";
-	}
+var DurationType = new GenericType({
+    name: "Duration",
+    offChainType: Duration,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        __add: new FuncType([self, self], self),
+        __div: new FuncType([self, IntType], self),
+        __div1: new FuncType([self, DurationType], IntType),
+        __geq: new FuncType([self, DurationType], BoolType),
+        __gt: new FuncType([self, DurationType], BoolType),
+        __leq: new FuncType([self, DurationType], BoolType),
+        __lt: new FuncType([self, DurationType], BoolType),
+        __mod: new FuncType([self, self], self),
+        __mul: new FuncType([self, IntType], self),
+        __sub: new FuncType([self, self], self),
+		new: new FuncType([IntType], self),
+        SECOND: self,
+        MINUTE: self,
+        HOUR: self,
+        DAY: self,
+        WEEK: self
+    })
+});
 
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__add":
-			case "__sub":
-			case "__mod":
-				return Instance.new(new FuncType([this, new DurationType()], new DurationType()));
-			case "__mul":
-			case "__div":
-				return Instance.new(new FuncType([this, new IntType()], new DurationType()));
-			case "__div1":
-				return Instance.new(new FuncType([this, new DurationType()], new IntType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([this, new DurationType()], new BoolType()));
-			case "new":
-				return Instance.new(new FuncType([new IntType()], this));
-			case "SECOND":
-			case "MINUTE":
-			case "HOUR":
-			case "DAY":
-			case "WEEK":
-				return Instance.new(this)
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	get path() {
-		return "__helios__duration";
-	}
-
-	get userType() {
-		return Duration;
-	}
-}
+/**
+ * Builtin Time type. Opaque alias of Int representing milliseconds since 1970
+ * @package
+ * @type {DataType}
+ */
+var TimeType = new GenericType({
+    name: "Time",
+    offChainType: Time,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        show: new FuncType([], StringType)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        __add: new FuncType([self, DurationType], TimeType),
+        __geq: new FuncType([self, TimeType], BoolType),
+        __gt: new FuncType([self, TimeType], BoolType),
+        __leq: new FuncType([self, TimeType], BoolType),
+        __lt: new FuncType([self, TimeType], BoolType),
+	    __sub: new FuncType([self, TimeType], DurationType),
+        __sub1: new FuncType([self, DurationType], TimeType),
+        new: new FuncType([IntType], self)
+    })
+});
 
 /**
  * Builtin TimeRange type
  * @package
+ * @type {DataType}
  */
-class TimeRangeType extends BuiltinType {
-	toString() {
-		return "TimeRange";
-	}
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "new":
-				return Instance.new(new FuncType([new TimeType(), new TimeType()], new TimeRangeType()));
-			case "ALWAYS":
-				return Instance.new(new TimeRangeType());
-			case "NEVER":
-				return Instance.new(new TimeRangeType());
-			case "from":
-				return Instance.new(new FuncType([new TimeType()], new TimeRangeType()));
-			case "to":
-				return Instance.new(new FuncType([new TimeType()], new TimeRangeType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
+var TimeRangeType = new GenericType({
+    name: "TimeRange",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        contains: new FuncType([TimeType], BoolType),
+        end: TimeType,
+        is_before: new FuncType([TimeType], BoolType),
+        is_after: new FuncType([TimeType], BoolType),
+        show: new FuncType([], StringType)
+    }),
+    genTypeMembers: (self) => ({
+        new: new FuncType([TimeType, TimeType], self),
+        ALWAYS: self,
+        NEVER: self,
+        from: new FuncType([TimeType], self),
+        to: new FuncType([TimeType], self)
+    })
+});
 
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "is_before": // is_before condition never overlaps with contains
-			case "is_after": // is_after condition never overlaps with contains
-			case "contains":
-				return Instance.new(new FuncType([new TimeType()], new BoolType()));
-			case "start":
-			case "end":
-				return Instance.new(new TimeType());
-			case "show":
-				return Instance.new(new FuncType([], new StringType()));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
 
-	get path() {
-		return "__helios__timerange";
-	}
+//////////////////////////////
+// Section 19: Eval hash types
+//////////////////////////////
+
+/**
+ * @param {Type} self 
+ * @returns {InstanceMembers}
+ */
+function genHashInstanceMembers(self) {
+    return {
+        ...genCommonInstanceMembers(self),
+        show: new FuncType([], StringType)
+    };
 }
+
+/**
+ * @param {Type} self 
+ * @returns {TypeMembers}
+ */
+function genHashTypeMembers(self) {
+    return {
+        ...genCommonTypeMembers(self),
+        __geq: new FuncType([self, self], BoolType),
+        __gt: new FuncType([self, self], BoolType),
+        __leq: new FuncType([self, self], BoolType),
+        __lt: new FuncType([self, self], BoolType),
+        new: new FuncType([ByteArrayType], self)
+    };
+}
+
+/**
+ * @package
+ * @type {DataType}
+ */
+var DatumHashType = new GenericType({
+    name: "DatumHash",
+    offChainType: DatumHash,
+    genInstanceMembers: genHashInstanceMembers,
+    genTypeMembers: genHashTypeMembers
+});
+
+/**
+ * @package
+ * @type {DataType}
+ */
+var MintingPolicyHashType = new GenericType({
+    name: "MintingPolicyHash",
+    offChainType: MintingPolicyHash,
+    genInstanceMembers: genHashInstanceMembers,
+    genTypeMembers: (self) => ({
+        ...genHashTypeMembers(self),
+        from_script_hash: new FuncType([ScriptHashType], self)
+    })
+});
+
+/**
+ * Builtin PubKey type
+ * @package
+ * @type {DataType}
+ */
+var PubKeyType = new GenericType({
+    name: "PubKey",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        show: new FuncType([], StringType),
+        verify: new FuncType([ByteArrayType, ByteArrayType], BoolType)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        new: new FuncType([ByteArrayType], self)
+    })
+});
+
+/**
+ * Builtin PubKeyHash type
+ * @package
+ * @type {DataType}
+ */
+var PubKeyHashType = new GenericType({
+    name: "PubKeyHash",
+    offChainType: PubKeyHash,
+    genInstanceMembers: genHashInstanceMembers,
+    genTypeMembers: genHashTypeMembers
+});
+
+/**
+ * @package
+ * @type {DataType}
+ */
+var ScriptHashType = new GenericType({
+    name: "ScriptHash",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self)
+    })
+});
+
+/**
+ * @package
+ * @type {DataType}
+ */
+var StakeKeyHashType = new GenericType({
+    name: "StakeKeyHash",
+    offChainType: StakeKeyHash,
+    genInstanceMembers: genHashInstanceMembers,
+    genTypeMembers: genHashTypeMembers
+});
+
+/**
+ * Builtin StakingHash type
+ * @package
+ * @type {DataType}
+ */
+var StakingHashType = new GenericType({
+    name: "StakingHash",
+    genInstanceMembers: genCommonInstanceMembers,
+    genTypeMembers: (self) => ({
+        StakeKey: StakingHashStakeKeyType,
+        Validator: StakingHashValidatorType,
+        new_stakekey: new FuncType([StakeKeyHashType], StakingHashStakeKeyType),
+        new_validator: new FuncType([StakingValidatorHashType], StakingHashValidatorType)
+    })
+});
+
+/**
+ * @package
+ * @type {EnumMemberType}
+ */
+var StakingHashStakeKeyType = new GenericEnumMemberType({
+    name: "StakeKey",
+    constrIndex: 0,
+    parentType: StakingHashType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        hash: StakeKeyHashType
+    })
+});
+
+/**
+ * @package
+ * @type {EnumMemberType}
+ */
+var StakingHashValidatorType = new GenericEnumMemberType({
+    name: "Validator",
+    constrIndex: 1,
+    parentType: StakingHashType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        hash: StakingValidatorHashType
+    })
+});
+
+/**
+ * @package
+ * @type {DataType}
+ */
+var StakingValidatorHashType = new GenericType({
+    name: "StakingValidatorHash",
+    offChainType: StakingValidatorHash,
+    genInstanceMembers: genHashInstanceMembers,
+    genTypeMembers: (self) => ({
+        ...genHashTypeMembers(self),
+        from_script_hash: new FuncType([ScriptHashType], self)
+    })
+});
+
+/**
+ * @package
+ * @type {DataType}
+ */
+var ValidatorHashType = new GenericType({
+    name: "ValidatorHash",
+    offChainType: ValidatorHash,
+    genInstanceMembers: genHashInstanceMembers,
+    genTypeMembers: (self) => ({
+        ...genHashTypeMembers(self),
+        from_script_hash:  new FuncType([ScriptHashType], self)
+    })
+});
+
+
+///////////////////////////////
+// Section 20: Eval money types
+///////////////////////////////
 
 /**
  * Builtin AssetClass type
  * @package
+ * @type {DataType}
  */
-class AssetClassType extends BuiltinType {
-	toString() {
-		return "AssetClass";
-	}
+var AssetClassType = new GenericType({
+    name: "AssetClass",
+    offChainType: AssetClass,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        mph: MintingPolicyHashType,
+        token_name: ByteArrayType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        ADA: self,
+        new: new FuncType([MintingPolicyHashType, ByteArrayType], self)
+    })
+});
 
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "ADA":
-				return Instance.new(new AssetClassType());
-			case "new":
-				return Instance.new(new FuncType([new MintingPolicyHashType(), new ByteArrayType()], new AssetClassType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "mph":
-				return Instance.new(new MintingPolicyHashType());
-			case "token_name":
-				return Instance.new(new ByteArrayType());
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	get path() {
-		return "__helios__assetclass";
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return AssetClass;
-	}
-}
 
 /**
  * Builtin money Value type
  * @package
+ * @type {DataType}
  */
-class ValueType extends BuiltinType {
+var ValueType = new GenericType({
+    name: "Value",
+    offChainType: Value,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        contains: new FuncType([self], BoolType),
+        contains_policy: new FuncType([MintingPolicyHashType], BoolType),
+        get: new FuncType([AssetClassType], IntType),
+        get_assets: new FuncType([], ValueType),
+        get_lovelace: new FuncType([], IntType),
+        get_policy: new FuncType([MintingPolicyHashType], MapType$(ByteArrayType, IntType)),
+        get_safe: new FuncType([AssetClassType], IntType),
+        is_zero: new FuncType([], BoolType),
+        show: new FuncType([], StringType),
+        to_map: new FuncType([], MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType)))
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        __add: new FuncType([self, self], self),
+        __div: new FuncType([self, IntType], ValueType),
+        __geq: new FuncType([self, ValueType], BoolType),
+        __gt: new FuncType([self, ValueType], BoolType),
+        __leq: new FuncType([self, ValueType], BoolType),
+        __lt: new FuncType([self, ValueType], BoolType),
+        __mul: new FuncType([self, IntType], ValueType),
+		__sub: new FuncType([self, self], self),
+        from_map: new FuncType([MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType))], self),
+        lovelace: new FuncType([IntType], self),
+        new: new FuncType([AssetClassType, IntType], self),
+        ZERO: self
+    })
+});
+
+
+////////////////////////////
+// Section 21: Eval tx types
+////////////////////////////
+
+/**
+ * Buitin Address type
+ * @package
+ * @type {DataType}
+ */
+const AddressType = new GenericType({
+    name: "Address",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        credential: CredentialType,
+        staking_credential: StakingCredentialType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        new: new FuncType([CredentialType, OptionType$(StakingCredentialType)], self),
+        new_empty: new FuncType([], self)
+    })
+});
+
+/**
+ * @package
+ * @type {DataType}
+ */
+const CertifyingActionType = new GenericType({
+    name: "CertifyingAction",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        Delegate: CertifyingActionDelegateType,
+        Deregister: CertifyingActionDeregisterType,
+        Register: CertifyingActionRegisterType,
+        RegisterPool: CertifyingActionRegisterPoolType,
+        RetirePool: CertifyingActionRetirePoolType,
+        new_delegate: new FuncType([StakingCredentialType, PubKeyHashType], CertifyingActionDelegateType),
+        new_deregister: new FuncType([StakingCredentialType], CertifyingActionDeregisterType),
+        new_register: new FuncType([StakingCredentialType], CertifyingActionRegisterType),
+        new_register_pool: new FuncType([PubKeyHashType, PubKeyHashType], CertifyingActionRegisterPoolType),
+        new_retire_pool: new FuncType([PubKeyHashType, IntType], CertifyingActionRetirePoolType)
+    })
+});
+
+/**
+ * @package
+ * @type {EnumMemberType}
+ */
+const CertifyingActionDelegateType = new GenericEnumMemberType({
+    name: "Delegate",
+    constrIndex: 2,
+    parentType: CertifyingActionType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        delegator: StakingCredentialType,
+		pool_id: PubKeyHashType
+
+    })
+});
+
+/**
+ * @package
+ * @type {EnumMemberType}
+ */
+const CertifyingActionDeregisterType = new GenericEnumMemberType({
+    name: "Deregister",
+    constrIndex: 1,
+    parentType: CertifyingActionType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        credential: StakingCredentialType
+    })
+});
+
+/**
+ * @package
+ * @type {EnumMemberType}
+ */
+const CertifyingActionRegisterType = new GenericEnumMemberType({
+    name: "Register",
+    constrIndex: 0,
+    parentType: CertifyingActionType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        credential: StakingCredentialType
+    })
+});
+
+/**
+ * @package
+ * @type {EnumMemberType}
+ */
+const CertifyingActionRegisterPoolType = new GenericEnumMemberType({
+    name: "RegisterPool",
+    constrIndex: 3,
+    parentType: CertifyingActionType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        pool_id: PubKeyHashType,
+        pool_vrf: PubKeyHashType
+    })
+});
+
+/**
+ * @package
+ * @type {EnumMemberType}
+ */
+const CertifyingActionRetirePoolType = new GenericEnumMemberType({
+    name: "RetirePool",
+    constrIndex: 4,
+    parentType: CertifyingActionType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        pool_id: PubKeyHashType,
+        epoch: IntType
+    })
+});
+
+
+/**
+ * Builtin Credential type
+ * @package
+ * @type {DataType}
+ */
+const CredentialType = new GenericType({
+    name: "Credential",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        PubKey: CredentialPubKeyType,
+        Validator: CredentialValidatorType,
+        new_pubkey: new FuncType([PubKeyHashType], CredentialPubKeyType),
+        new_validator: new FuncType([ValidatorHashType], CredentialValidatorType)
+    })
+});
+
+
+/**
+ * Builtin Credential::PubKey
+ */
+const CredentialPubKeyType = new GenericEnumMemberType({
+    name: "PubKey",
+    constrIndex: 0,
+    parentType: CredentialType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        hash: PubKeyHashType
+    })
+});
+
+/**
+ * Builtin Credential::Validator type
+ */
+const CredentialValidatorType = new GenericEnumMemberType({
+    name: "Validator",
+    constrIndex: 1,
+    parentType: CredentialType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        hash: ValidatorHashType
+    })
+});
+
+/**
+ * @package
+ * @type {DataType}
+ */
+const OutputDatumType = new GenericType({
+    name: "OutputDatum",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        get_inline_data: new FuncType([], RawDataType)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        Hash: OutputDatumHashType,
+        Inline: OutputDatumInlineType,
+        None: OutputDatumNoneType,
+        new_hash: new FuncType([DatumHashType], OutputDatumHashType),
+		new_inline: (() => {
+            const a = new Parameter("a", new SerializableTypeClass());
+
+            return new ParametricFunc([a], new FuncType([a.ref], OutputDatumInlineType))
+        })(),
+        new_none: new FuncType([], OutputDatumNoneType)
+    })
+});
+
+/**
+ * @package
+ * @type {EnumMemberType}
+ */
+const OutputDatumHashType = new GenericEnumMemberType({
+    name: "Hash",
+    constrIndex: 1,
+    parentType: OutputDatumType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        hash: DatumHashType
+    })
+});
+
+/**
+ * @package
+ * @type {EnumMemberType}
+ */
+const OutputDatumInlineType = new GenericEnumMemberType({
+    name: "Inline",
+    constrIndex: 2,
+    parentType: OutputDatumType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        data: RawDataType
+    })
+});
+
+/**
+ * @package
+ * @type {EnumMemberType}
+ */
+const OutputDatumNoneType = new GenericEnumMemberType({
+    name: "None",
+    constrIndex: 0,
+    parentType: OutputDatumType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self)
+    })
+});
+
+/**
+ * Builtin ScriptContext type
+ * @package
+ * @implements {DataType}
+ */
+class ScriptContextType extends Common {
+    /**
+     * @type {number}
+     */
+    #purpose;
+
+    /**
+     * @param {number} purpose 
+     */
+	constructor(purpose) {
+		super();
+
+        this.#purpose = purpose;
+	}
+
+    /**
+     * @type {string[]}
+     */
+    get fieldNames() {
+        return [];
+    }
+
+    /**
+     * @type {string}
+     */
+    get name() {
+        return "ScriptContext";
+    }
+
+    /**
+     * @param {number} purpose
+     * @returns {InstanceMembers}
+     */
+    static genPurposeInstanceMembers(purpose) {
+        switch (purpose) {
+            case ScriptPurpose.Minting:
+                return {
+                    get_cont_outputs: new FuncType([], ListType$(TxOutputType)),
+                    get_current_input: new FuncType([], TxInputType),
+                    get_current_minting_policy_hash: new FuncType([], MintingPolicyHashType)
+                };
+            case ScriptPurpose.Spending:
+                return {
+                   get_current_validator_hash: new FuncType([], ValidatorHashType),
+                   get_spending_purpose_output_id: new FuncType([], TxOutputIdType)
+                };
+            case ScriptPurpose.Staking:
+                return {
+                    get_staking_purpose:new FuncType([], StakingPurposeType)
+                };
+            case ScriptPurpose.Testing:
+                return {
+                    ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Minting),
+                    ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Spending),
+                    ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Staking),
+                };
+            default:
+                throw new Error("unhandled ScriptPurpose");
+        }
+    }
+    /**
+	 * @type {InstanceMembers}
+	 */
+	get instanceMembers() {
+        return {
+            ...genCommonInstanceMembers(this),
+            ...ScriptContextType.genPurposeInstanceMembers(this.#purpose),
+            get_script_purpose: new FuncType([], ScriptPurposeType),
+            tx: TxType
+        };
+	}
+
+    /**
+     * @type {null | HeliosDataClass<HeliosData>}
+     */
+    get offChainType() {
+        return null;
+    }
+
+    /**
+     * @type {string}
+     */
+    get path() {
+		return "__helios__scriptcontext";
+	}
+
+	/**
+	 * @type {TypeMembers}
+	 */
+	get typeMembers() {
+        return {
+            ...genCommonTypeMembers(this),
+            new_certifying: new FuncType([TxType, CertifyingActionType], new ScriptContextType(ScriptPurpose.Staking)),
+            new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType(ScriptPurpose.Minting)),
+            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(ScriptPurpose.Rewarding)),
+            new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType(ScriptPurpose.Spending))
+        };
+	}
+
+    /**
+     * @type {DataType}
+     */
+    get asDataType() {
+        return this;
+    }
+
+    /**
+     * @type {Named}
+     */
+    get asNamed() {
+        return this;
+    }
+
+    /**
+     * @type {Type}
+     */
+    get asType() {
+        return this;
+    }
+
+    /**
+     * @param {Site} site 
+     * @param {Map<string, Type>} map 
+     * @param {null | Type} type 
+     * @returns {Type}
+     */
+    infer(site, map, type) {
+        return this;
+    }
+
+    /**
+     * @param {Type} other 
+     * @returns {boolean}
+     */
+    isBaseOf(other) {
+        return other instanceof ScriptContextType;
+    }
+
+    /**
+     * @returns {string}
+     */
 	toString() {
-		return "Value";
+		return this.name;
 	}
 
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		switch (name.value) {
-			case "__add":
-			case "__sub":
-				return Instance.new(new FuncType([this, new ValueType()], new ValueType()));
-			case "__mul":
-			case "__div":
-				return Instance.new(new FuncType([this, new IntType()], new ValueType()));
-			case "__geq":
-			case "__gt":
-			case "__leq":
-			case "__lt":
-				return Instance.new(new FuncType([this, new ValueType()], new BoolType()));
-			case "ZERO":
-				return Instance.new(new ValueType());
-			case "lovelace":
-				return Instance.new(new FuncType([new IntType()], new ValueType()));
-			case "new":
-				return Instance.new(new FuncType([new AssetClassType(), new IntType()], new ValueType()));
-			case "from_map":
-				return Instance.new(new FuncType([new MapType(new MintingPolicyHashType(), new MapType(new ByteArrayType(), new IntType()))], new ValueType()));
-			default:
-				return super.getTypeMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @param {Word} name 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name) {
-		switch (name.value) {
-			case "contains":
-				return Instance.new(new FuncType([new ValueType()], new BoolType()));
-			case "is_zero":
-				return Instance.new(new FuncType([], new BoolType()));
-			case "get":
-				return Instance.new(new FuncType([new AssetClassType()], new IntType()));
-			case "get_safe":
-				return Instance.new(new FuncType([new AssetClassType()], new IntType()));
-			case "get_lovelace":
-				return Instance.new(new FuncType([], new IntType()));
-			case "get_assets":
-				return Instance.new(new FuncType([], new ValueType()));
-			case "get_policy":
-				return Instance.new(new FuncType([new MintingPolicyHashType()], new MapType(new ByteArrayType(), new IntType())));
-			case "contains_policy":
-				return Instance.new(new FuncType([new MintingPolicyHashType()], new BoolType()));
-			case "show":
-				return Instance.new(new FuncType([], new StringType()));
-			case "to_map":
-				return Instance.new(new FuncType([], new MapType(new MintingPolicyHashType(), new MapType(new ByteArrayType(), new IntType()))));
-			default:
-				return super.getInstanceMember(name);
-		}
-	}
-
-	/**
-	 * @package
-	 * @type {string}
-	 */
-	get path() {
-		return "__helios__value";
-	}
-
-	/**
-	 * @package
-	 * @type {HeliosDataClass<HeliosData>}
-	 */
-	get userType() {
-		return Value;
-	}
+    /**
+     * @returns {Typed}
+     */
+    toTyped() {
+        return new DataEntity(this);
+    }
 }
 
 
+/**
+ * Builtin ScriptPurpose type (Minting| Spending| Rewarding | Certifying)
+ * @package
+ * @type {DataType}
+ */
+const ScriptPurposeType = new GenericType({
+    name: "ScriptPurpose",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        Certifying: ScriptPurposeCertifyingType,
+        Minting: ScriptPurposeMintingType,
+        Rewarding: ScriptPurposeTypeRewarding,
+        Spending: ScriptPurposeSpendingType,
+        new_certifying: new FuncType([CertifyingActionType], ScriptPurposeCertifyingType),
+        new_minting: new FuncType([MintingPolicyHashType], ScriptPurposeMintingType),
+        new_rewarding: new FuncType([StakingCredentialType], ScriptPurposeTypeRewarding),
+        new_spending: new FuncType([TxOutputIdType], ScriptPurposeSpendingType), 
+    })
+}); 
+
+/**
+ * Builtin ScriptPurpose::Certifying
+ * @package
+ * @type {EnumMemberType}
+ */
+const ScriptPurposeCertifyingType = new GenericEnumMemberType({
+    name: "Certifying",
+    constrIndex: 3,
+    parentType: ScriptPurposeType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        action: CertifyingActionType
+    })
+});
+
+/**
+ * Builtin ScriptPurpose::Minting
+ * @package
+ * @type {EnumMemberType}
+ */
+const ScriptPurposeMintingType = new GenericEnumMemberType({
+    name: "Minting",
+    constrIndex: 0,
+    parentType: ScriptPurposeType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        policy_hash: MintingPolicyHashType
+    })
+});
+
+/**
+ * Builtin ScriptPurpose::Rewarding
+ * @package
+ * @type {EnumMemberType}
+ */
+const ScriptPurposeTypeRewarding = new GenericEnumMemberType({
+    name: "Rewarding",
+    constrIndex: 2,
+    parentType: ScriptPurposeType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        credential: StakingCredentialType
+    })
+});
+
+/**
+ * Builtin ScriptPurpose::Spending
+ * @package
+ * @type {EnumMemberType}
+ */
+const ScriptPurposeSpendingType = new GenericEnumMemberType({
+    name: "Spending",
+    constrIndex: 1,
+    parentType: ScriptPurposeType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        output_id: TxOutputIdType
+    })
+});
+
+/**
+ * Builtin StakingCredential type
+ * @package
+ * @type {DataType}
+ */
+const StakingCredentialType = new GenericType({
+    name: "StakingCredential",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        Hash: StakingCredentialHashType,
+        Ptr: StakingCredentialPtrType,
+        new_hash: new FuncType([StakingHashType], StakingCredentialHashType),
+        new_ptr: new FuncType([IntType, IntType, IntType], StakingCredentialPtrType)
+    })
+});
+
+/**
+ * Builtin StakingCredential::Hash
+ * @package
+ * @type {EnumMemberType}
+ */
+const StakingCredentialHashType = new GenericEnumMemberType({
+    name: "Hash",
+    constrIndex: 0,
+    parentType: StakingCredentialType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        hash: StakingHashType,
+    })
+});
+
+/**
+ * Builtin StakingCredential::Ptr
+ * @package
+ * @type {EnumMemberType}
+ */
+const StakingCredentialPtrType = new GenericEnumMemberType({
+    name: "Ptr",
+    constrIndex: 1,
+    parentType: StakingCredentialType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self)
+    })
+});
+
+/**
+ * Builtin StakingPurpose type (Rewarding or Certifying)
+ * @package
+ * @type {DataType}
+ */
+const StakingPurposeType = new GenericType({
+    name : "StakingPurpose",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        Certifying: StakingPurposeCertifyingType,
+        Rewarding: StakingPurposeRewardingType
+    })
+});
+
+/**
+ * Builtin ScriptPurpose::Minting
+ * @package
+ * @type {EnumMemberType}
+ */
+const StakingPurposeCertifyingType = new GenericEnumMemberType({
+    name: "Certifying",
+    constrIndex: 3,
+    parentType: StakingPurposeType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        action: CertifyingActionType
+    })
+});
+
+/**
+ * Builtin ScriptPurpose::Minting
+ * @package
+ * @type {EnumMemberType}
+ */
+const StakingPurposeRewardingType = new GenericEnumMemberType({
+    name: "Rewarding",
+    constrIndex: 2,
+    parentType: StakingPurposeType,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        credential: StakingCredentialType,
+    })
+});
+
+
+/**
+ * Builtin Tx type
+ * @package
+ * @type {DataType}
+ */
+const TxType = new GenericType({
+    name: "Tx",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        inputs: ListType$(TxInputType),
+		ref_inputs: ListType$(TxInputType),
+        outputs: ListType$(TxOutputType),
+        fee: ValueType,
+        minted: ValueType,
+        cert_actions: ListType$(CertifyingActionType),
+        withdrawals: MapType$(StakingCredentialType, IntType),
+		time_range: TimeRangeType,
+		signatories: ListType$(PubKeyHashType),
+        redeemers: MapType$(ScriptPurposeType, RawDataType),
+        datums: MapType$(DatumHashType, RawDataType),
+        id: TxIdType,
+        find_datum_hash: (() => {
+            const a = new Parameter("a", new SerializableTypeClass());
+
+            return new ParametricFunc([a], new FuncType([a.ref], DatumHashType))
+        })(),
+        get_datum_data: new FuncType([TxOutputType], RawDataType),
+        outputs_sent_to: new FuncType([PubKeyHashType], ListType$(TxOutputType)),
+        outputs_send_to_datum: (() => {
+            const a = new Parameter("a", new SerializableTypeClass());
+
+            return new ParametricFunc([a], new FuncType([PubKeyHashType, a.ref, BoolType], ListType$(TxOutputType)))
+        })(),
+        outputs_locked_by: new FuncType([ValidatorHashType], ListType$(TxOutputType)),
+        outputs_locked_by_datum: (() => {
+            const a = new Parameter("a", new SerializableTypeClass());
+
+            return new ParametricFunc([a], new FuncType([ValidatorHashType, a.ref, BoolType], ListType$(TxOutputType)))
+        })(),
+        value_sent_to: new FuncType([PubKeyHashType], ValueType),
+        value_sent_to_datum: (() => {
+            const a = new Parameter("a", new SerializableTypeClass());
+
+            return new ParametricFunc([a], new FuncType([PubKeyHashType, a.ref, BoolType], ValueType));
+        })(),
+        value_locked_by: new FuncType([ValidatorHashType], ValueType),
+        value_locked_by_datum: (() => {
+            const a = new Parameter("a", new SerializableTypeClass());
+
+            return new ParametricFunc([a], new FuncType([ValidatorHashType, a.ref, BoolType], ValueType));
+        })(),
+        is_signed_by: new FuncType([PubKeyHashType], BoolType)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        new: (() => {
+            const a = new Parameter("a", new SerializableTypeClass());
+            const b = new Parameter("b", new SerializableTypeClass());
+            
+            return new ParametricFunc([a, b], new FuncType([
+                ListType$(TxInputType), // 0
+                ListType$(TxInputType), // 1
+                ListType$(TxOutputType), // 2
+                ValueType, // 3
+                ValueType, // 4
+                ListType$(CertifyingActionType), // 5
+                MapType$(StakingCredentialType, IntType), // 6
+                TimeRangeType, // 7
+                ListType$(PubKeyHashType), // 8
+                MapType$(ScriptPurposeType, a.ref), // 9
+                MapType$(DatumHashType, a.ref) // 10
+            ], self))
+        })()
+    })
+});
+
+/**
+ * Builtin TxId type
+ * @package
+ * @type {DataType}
+ */
+const TxIdType = new GenericType({
+    name: "TxId",
+    offChainType: TxId,
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        show: new FuncType([], StringType)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        __geq: new FuncType([self, self], BoolType),
+        __gt: new FuncType([self, self], BoolType),
+        __leq: new FuncType([self, self], BoolType),
+        __lt: new FuncType([self, self], BoolType),
+        new: new FuncType([ByteArrayType], self)
+    })
+});
+
+
+/**
+ * Builtin TxInput type
+ * @package
+ * @type {DataType}
+ */
+const TxInputType = new GenericType({
+    name: "TxInput",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        output_id: TxOutputIdType,
+        output: TxOutputType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        new: new FuncType([TxOutputIdType, TxOutputType], self)
+    })
+});
+
+/**
+ * Builtin TxOutput type
+ * @package
+ * @type {DataType}
+ */
+const TxOutputType = new GenericType({
+    name: "TxOutput",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        address: AddressType,
+        value: ValueType,
+	    datum: OutputDatumType,
+        ref_script_hash: OptionType$(ScriptHashType)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        new: new FuncType([AddressType, ValueType, OutputDatumType], self)
+    })
+});
+
+/**
+ * Builtin TxOutputId type
+ * @package
+ * @type {DataType}
+ */
+const TxOutputIdType = new GenericType({
+    name: "TxOutputId",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        tx_id: TxIdType,
+        index: IntType
+    }),
+    genTypeMembers: (self) => ({
+        __geq: new FuncType([self, TxOutputIdType], BoolType),
+        __gt: new FuncType([self, TxOutputIdType], BoolType),
+        __leq: new FuncType([self, TxOutputIdType], BoolType),
+        __lt: new FuncType([self, TxOutputIdType], BoolType),
+        new: new FuncType([TxIdType, IntType], TxOutputIdType)
+    })
+});
+
+
 /////////////////////
-// Section 14: Scopes
+// Section 22: Scopes
 /////////////////////
+
+
 /**
  * GlobalScope sits above the top-level scope and contains references to all the builtin Values and Types
  * @package
@@ -19604,21 +17555,11 @@ class GlobalScope {
 	get(name) {
 		for (let pair of this.#values) {
 			if (pair[0].toString() == name.toString()) {
-				pair[1].markAsUsed();
 				return pair[1];
 			}
 		}
 
 		throw name.referenceError(`'${name.toString()}' undefined`);
-	}
-
-	/**
-	 * Check if funcstatement is called recursively (always false here)
-	 * @param {RecurseableStatement} statement
-	 * @returns {boolean}
-	 */
-	isRecursive(statement) {
-		return false;
 	}
 
 	/**
@@ -19639,56 +17580,48 @@ class GlobalScope {
 		// List (aka '[]'), Option, and Map types are accessed through special expressions
 
 		// fill the global scope with builtin types
-        scope.set("Address",              new AddressType());
-        scope.set("AssetClass",           new AssetClassType());
-        scope.set("Bool",                 new BoolType());
-        scope.set("ByteArray",            new ByteArrayType());
-        scope.set("Credential",           new CredentialType());
-        scope.set("DatumHash",            new DatumHashType());
-        scope.set("Data",                 new RawDataType());
-        scope.set("DCert",                new DCertType());
-        scope.set("Duration",             new DurationType());
-		scope.set("Int",                  new IntType());
-        scope.set("MintingPolicyHash",    new MintingPolicyHashType(purpose));
-        scope.set("OutputDatum",          new OutputDatumType());
-        scope.set("PubKey",               new PubKeyType());
-		scope.set("PubKeyHash",           new PubKeyHashType());
-		scope.set("Real",                 new RealType());
+        scope.set("Address",              AddressType);
+        scope.set("AssetClass",           AssetClassType);
+        scope.set("Bool",                 BoolType);
+        scope.set("ByteArray",            ByteArrayType);
+		scope.set("CertifyingAction",     CertifyingActionType);
+        scope.set("Credential",           CredentialType);
+        scope.set("DatumHash",            DatumHashType);
+        scope.set("Data",                 RawDataType);
+        scope.set("Duration",             DurationType);
+		scope.set("Int",                  IntType);
+        scope.set("MintingPolicyHash",    MintingPolicyHashType);
+        scope.set("OutputDatum",          OutputDatumType);
+        scope.set("PubKey",               PubKeyType);
+		scope.set("PubKeyHash",           PubKeyHashType);
+		scope.set("Real",                 RealType);
         scope.set("ScriptContext",        new ScriptContextType(purpose));
-        scope.set("ScriptHash",           new ScriptHashType());
-        scope.set("ScriptPurpose",        new ScriptPurposeType());
-        scope.set("StakeKeyHash",         new StakeKeyHashType());
-        scope.set("StakingCredential",    new StakingCredentialType());
-        scope.set("StakingHash",          new StakingHashType());
-        scope.set("StakingPurpose",       new StakingPurposeType());
-        scope.set("StakingValidatorHash", new StakingValidatorHashType(purpose));
-		scope.set("Storable",             new StorableTypeClass());
-		scope.set("String",               new StringType());
-        scope.set("Time",                 new TimeType());
-        scope.set("TimeRange",            new TimeRangeType());
-        scope.set("Tx",                   new TxType());
-        scope.set("TxId",                 new TxIdType());
-        scope.set("TxInput",              new TxInputType());
-        scope.set("TxOutput",             new TxOutputType());
-        scope.set("TxOutputId",           new TxOutputIdType());
-		scope.set("ValidatorHash",        new ValidatorHashType(purpose));
-        scope.set("Value",                new ValueType());
+        scope.set("ScriptHash",           ScriptHashType);
+        scope.set("ScriptPurpose",        ScriptPurposeType);
+        scope.set("StakeKeyHash",         StakeKeyHashType);
+        scope.set("StakingCredential",    StakingCredentialType);
+        scope.set("StakingHash",          StakingHashType);
+        scope.set("StakingPurpose",       StakingPurposeType);
+        scope.set("StakingValidatorHash", StakingValidatorHashType);
+		scope.set("Serializable",         new SerializableTypeClass());
+		scope.set("String",               StringType);
+        scope.set("Time",                 TimeType);
+        scope.set("TimeRange",            TimeRangeType);
+        scope.set("Tx",                   TxType);
+        scope.set("TxId",                 TxIdType);
+        scope.set("TxInput",              TxInputType);
+        scope.set("TxOutput",             TxOutputType);
+        scope.set("TxOutputId",           TxOutputIdType);
+		scope.set("ValidatorHash",        ValidatorHashType);
+        scope.set("Value",                ValueType);
 
         // builtin functions
-        scope.set("assert",               new AssertFunc());
-		scope.set("error",                new ErrorFunc());
-        scope.set("print",                new PrintFunc());
+        scope.set("assert",               AssertFunc);
+		scope.set("error",                ErrorFunc);
+        scope.set("print",                PrintFunc);
 		
 
 		return scope;
-	}
-
-	allowMacros() {
-		for (let [_, value] of this.#values) {
-			if (value instanceof BuiltinType) {
-				value.allowMacros();
-			}
-		}
 	}
 
 	/**
@@ -19696,8 +17629,8 @@ class GlobalScope {
 	 */
 	loopTypes(callback) {
 		for (let [k, v] of this.#values) {
-			if (v instanceof Type) {
-				callback(k.value, v);
+			if (v.asType) {
+				callback(k.value, v.asType);
 			}
 		}
 	}
@@ -19706,9 +17639,9 @@ class GlobalScope {
 /**
  * User scope
  * @package
- * @implements {EvalEntityI}
+ * @implements {EvalEntity}
  */
-class Scope {
+class Scope extends Common {
 	/** @type {GlobalScope | Scope} */
 	#parent;
 
@@ -19719,11 +17652,18 @@ class Scope {
 	#values;
 
 	/**
+	 * @type {Set<string>}
+	 */
+	#used;
+
+	/**
 	 * @param {GlobalScope | Scope} parent 
 	 */
 	constructor(parent) {
+		super()
 		this.#parent = parent;
 		this.#values = []; // list of pairs
+		this.#used = new Set();
 	}
 
 	/**
@@ -19771,6 +17711,13 @@ class Scope {
 
 	/**
 	 * @param {Word} name 
+	 */
+	remove(name) {
+		this.#values = this.#values.filter(([n, _]) => n.value != name.value);
+	}
+
+	/**
+	 * @param {Word} name 
 	 * @returns {Scope}
 	 */
 	getScope(name) {
@@ -19797,9 +17744,7 @@ class Scope {
 
 		for (let [key, entity] of this.#values) {
 			if (key.toString() == name.toString()) {
-				if (entity instanceof EvalEntity) {
-					entity.markAsUsed();
-				}
+				this.#used.add(key.toString());
 
 				return entity;
 			}
@@ -19810,15 +17755,6 @@ class Scope {
 		} else {
 			throw name.referenceError(`'${name.toString()}' undefined`);
 		}
-	}
-
-	/**
-	 * Check if function statement is called recursively
-	 * @param {RecurseableStatement} statement
-	 * @returns {boolean}
-	 */
-	isRecursive(statement) {
-		return this.#parent.isRecursive(statement);
 	}
 
 	/**
@@ -19837,7 +17773,7 @@ class Scope {
 	assertAllUsed(onlyIfStrict = true) {
 		if (!onlyIfStrict || this.isStrict()) {
 			for (let [name, entity] of this.#values) {
-				if (entity instanceof EvalEntity && !entity.isUsed()) {
+				if (!(entity instanceof Scope) && !this.#used.has(name.toString())) {
 					throw name.referenceError(`'${name.toString()}' unused`);
 				}
 			}
@@ -19849,34 +17785,13 @@ class Scope {
 	 * @returns {boolean}
 	 */
 	isUsed(name) {
-		for (let [name, entity] of this.#values) {
-			if (name.value == name.value && entity instanceof EvalEntity) {
-				return entity.isUsed();
+		for (let [checkName, entity] of this.#values) {
+			if (name.value == checkName.value && !(entity instanceof Scope)) {
+				return this.#used.has(name.toString());
 			}
 		}
 
 		throw new Error(`${name.value} not found`);
-	}
-
-	/**
-	 * @returns {null | Instance}
-	 */
-	assertInstance() {
-		return null;
-	}
-	
-	/**
-	 * @returns {null | Type}
-	 */
-	assertType() {
-		return null;
-	}
-
-	/**
-	 * @returns {null | TypeClass}
-	 */
-	assertTypeClass() {
-		return null;
 	}
 
 	dump() {
@@ -19893,8 +17808,8 @@ class Scope {
 		this.#parent.loopTypes(callback);
 
 		for (let [k, v] of this.#values) {
-			if (v instanceof Type) {
-				callback(k.value, v);
+			if (v.asType) {
+				callback(k.value, v.asType);
 			}
 		}
 	}
@@ -19926,7 +17841,6 @@ class TopScope extends Scope {
 
 		this.set(new Word(name.site, `__scope__${name.value}`), value);
 	}
-
 
 	/**
 	 * @param {Word} name 
@@ -19977,159 +17891,46 @@ class TopScope extends Scope {
 class ModuleScope extends Scope {
 }
 
-/**
- * FuncStatementScope is a special scope used to detect recursion
- * @package
- */
-class FuncStatementScope extends Scope {
-	#statement;
-
-	/**
-	 * @param {Scope} parent
-	 * @param {RecurseableStatement} statement
-	 */
-	constructor(parent, statement) {
-		super(parent);
-
-		this.#statement = statement;
-	}
-
-	/**
-	 * @param {RecurseableStatement} statement 
-	 * @returns {boolean}
-	 */
-	isRecursive(statement) {
-		if (this.#statement === statement) {
-			this.#statement.setRecursive();
-			return true;
-		} else {
-			return super.isRecursive(statement);
-		}
-	}
-}
-
 
 /////////////////////////////////////
-// Section 15: Helios AST expressions
+// Section 23: Helios AST expressions
 /////////////////////////////////////
 
 /**
  * Base class of every Type and Instance expression.
+ * @package
  */
 class Expr extends Token {
+	/**@type {null | EvalEntity} */
+	#cache;
+
 	/**
 	 * @param {Site} site 
+	 
 	 */
 	constructor(site) {
 		super(site);
-	}
-
-	use() {
-		throw new Error("not yet implemented");
-	}
-}
-
-/**
- * Base class of every Type expression
- * Caches evaluated Type.
- * @package
- */
-class TypeExpr extends Expr {
-	#cache;
-
-	/**
-	 * @param {Site} site 
-	 * @param {Type | null} cache
-	 */
-	constructor(site, cache = null) {
-		super(site);
-		this.#cache = cache;
-	}
-
-	get type() {
-		if (this.#cache === null) {
-			throw new Error("type not yet evaluated");
-		} else {
-			return this.#cache;
-		}
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	evalInternal(scope) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	eval(scope) {
-		if (this.#cache === null) {
-			this.#cache = this.evalInternal(scope);
-		}
-
-		return this.#cache;
-	}
-}
-
-/**
- * @package
- * TODO: rename to TypeClassRefExpr
- */
-class TypeClassExpr extends Expr {
-	#name;
-
-	/**
-	 * @type {null | TypeClass}
-	 */
-	#cache;
-
-	/**
-	 * @param {Word} name 
-	 */
-	constructor(name) {
-		super(name.site);
-		this.#name = name;
 		this.#cache = null;
 	}
 
 	/**
-	 * @type {TypeClass}
+	 * @type {null | EvalEntity}
 	 */
-	get typeClass() {
-		if (this.#cache === null) {
-			throw new Error("should be set (can't call this before type evaluation)");
-		} else {
-			return this.#cache;
-		}
+	get cache() {
+		return this.#cache;
 	}
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {TypeClass}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const v = scope.get(this.#name);
-
-		if (v instanceof Scope) {
-			throw this.site.typeError("expected type class, got scope");
-		} else {
-			const tc = v.assertTypeClass();
-
-			if (!tc) {
-				throw this.site.typeError("not a typeclass");
-			} else {
-				return tc;
-			}
-		}
+		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {TypeClass}
+	 * @returns {EvalEntity}
 	 */
 	eval(scope) {
 		if (this.#cache === null) {
@@ -20138,22 +17939,109 @@ class TypeClassExpr extends Expr {
 
 		return this.#cache;
 	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {DataType}
+	 */
+	evalAsDataType(scope) {
+		const result = this.eval(scope).asDataType;
+
+		if (!result) {
+			throw this.typeError("not a data type");
+		}
+
+		return result;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
+	evalAsType(scope) {
+		const r = this.eval(scope);
+
+		const result = r.asType;
+
+		if (!result) {
+			throw this.typeError(`${r.toString()} isn't a type`);
+		}
+
+		return result;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Typed}
+	 */
+	evalAsTyped(scope) {
+		const r  = this.eval(scope);
+
+		const result = r.asTyped;
+
+		if (!result) {
+			throw this.typeError(`${r.toString()} isn't a value`);
+		}
+
+		return result;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return false;
+	}
+
+	/**
+	 * @param {string} indent
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		throw new Error("not yet implemented");
+	}
 }
 
 /**
- * Type reference class (i.e. using a Word)
+ * Simple reference class (i.e. using a Word)
  * @package
  */
-class TypeRefExpr extends TypeExpr {
+class RefExpr extends Expr {
 	#name;
 
 	/**
 	 * @param {Word} name
-	 * @param {?Type} cache
 	 */
-	constructor(name, cache = null) {
-		super(name.site, cache);
+	constructor(name) {
+		super(name.site);
 		this.#name = name;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		return scope.get(this.#name);
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		const path = this.cache?.asNamed ? this.cache.asNamed.path : this.#name.value;
+
+		let ir = new IR(path, this.site);
+		
+		return ir;
 	}
 
 	/**
@@ -20162,95 +18050,19 @@ class TypeRefExpr extends TypeExpr {
 	toString() {
 		return this.#name.toString();
 	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	evalInternal(scope) {
-		const type = scope.get(this.#name).assertType();
-		if (!type) {
-			throw this.#name.site.typeError("not a type");
-		}
-
-		return type;
-	}
-
-	get path() {
-		return this.type.path;
-	}
-
-	use() {
-		let t = this.type;
-
-		if (t instanceof StatementType) {
-			t.statement.use();
-		}
-	}
 }
 
 /**
- * Type[...] expression
+ * Name::Member expression
  * @package
  */
-class ParametricTypeExpr extends TypeExpr {
-	#baseExpr;
-	#parameters;
-
-	/**
-	 * @param {Site} site - site of brackets
-	 * @param {TypeExpr} baseExpr
-	 * @param {TypeExpr[]} parameters
-	 */
-	constructor(site, baseExpr, parameters) {
-		super(site);
-		this.#baseExpr = baseExpr;
-		this.#parameters = parameters;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `${this.#baseExpr.toString()}[${this.#parameters.map(p => p.toString()).join(", ")}]`;
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	evalInternal(scope) {
-		const paramTypes = this.#parameters.map(p => p.eval(scope));
-
-		const baseType = this.#baseExpr.eval(scope);
-
-		// TODO: apply paramTypes
-
-		return baseType;
-	}
-
-	get path() {
-		return this.type.path;
-	}
-
-	use() {
-		this.#baseExpr.use();
-
-		this.#parameters.forEach(p => p.use());
-	}
-}
-
-/**
- * Type::Member expression
- * @package
- */
-class TypePathExpr extends TypeExpr {
+class PathExpr extends Expr {
 	#baseExpr;
 	#memberName;
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr} baseExpr 
+	 * @param {Expr} baseExpr 
 	 * @param {Word} memberName
 	 */
 	constructor(site, baseExpr, memberName) {
@@ -20260,33 +18072,85 @@ class TypePathExpr extends TypeExpr {
 	}
 
 	/**
+	 * @type {Expr}
+	 */
+	get baseExpr() {
+		return this.#baseExpr;
+	}
+	
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		const base = this.#baseExpr.eval(scope);
+
+		/**
+		 * @type {null | EvalEntity}
+		 */
+		let member = null;
+
+		if (base.asNamespace) {
+			member = base.asNamespace.namespaceMembers[this.#memberName.value];
+		} else if (base.asType) {
+			const typeMembers = base.asType.typeMembers;
+
+			console.log(typeMembers, base.asType.instanceMembers, base.asType.toString());
+
+			member = typeMembers[this.#memberName.value];
+		}
+
+		if (!member) {
+			throw this.#memberName.referenceError(`${base.toString()}::${this.#memberName.value} not found`);
+		}
+
+		if (member.asEnumMemberType && member.asEnumMemberType.fieldNames.length == 0) {
+			console.log("detected 0 fields in ", member.toString())
+			return new DataEntity(member.asEnumMemberType);
+		} else if(base.asNamespace) {
+			return member;
+		} else if (member.asType?.toTyped().asFunc) {
+			console.log("HERE2", member.toString());
+			return member.asType.toTyped();
+		} else {
+			console.log("HERE", member.toString());
+			return member;
+		}
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return (this.cache?.asTyped?.type.asEnumMemberType?.fieldNames?.length ?? -1) == 0;
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		const v = this.cache;
+
+		if (v?.asTyped?.type?.asEnumMemberType) {
+			return new IR([
+				new IR(`${v.asTyped.type.asEnumMemberType.path}____new`, this.site),
+				new IR("()")
+			]);
+		} else if (v?.asNamed) {
+			return new IR(`${v.asNamed.path}`, this.site);
+		} else if (this.#baseExpr.cache?.asNamed) {
+			return new IR(`${this.#baseExpr.cache.asNamed.path}__${this.#memberName.value}`, this.site);
+		} else {
+			throw new Error(`expected named value, ${v?.toString()}`);
+		}
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
 		return `${this.#baseExpr.toString()}::${this.#memberName.toString()}`;
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	evalInternal(scope) {
-		let enumType = this.#baseExpr.eval(scope);
-
-		const memberType = enumType.getTypeMember(this.#memberName).assertType();
-		if (!memberType) {
-			throw this.#memberName.site.typeError("not a type");
-		}
-
-		return memberType;
-	}
-
-	get path() {
-		return this.type.path;
-	}
-
-	use() {
-		this.#baseExpr.use();
 	}
 }
 
@@ -20294,38 +18158,37 @@ class TypePathExpr extends TypeExpr {
  * []ItemType
  * @package
  */
-class ListTypeExpr extends TypeExpr {
+class ListTypeExpr extends Expr {
 	#itemTypeExpr;
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr} itemTypeExpr 
+	 * @param {Expr} itemTypeExpr 
 	 */
 	constructor(site, itemTypeExpr) {
 		super(site);
 		this.#itemTypeExpr = itemTypeExpr;
 	}
-
-	toString() {
-		return `[]${this.#itemTypeExpr.toString()}`;
-	}
-
+	
 	/**
 	 * @param {Scope} scope 
 	 * @returns {Type}
 	 */
 	evalInternal(scope) {
-		let itemType = this.#itemTypeExpr.eval(scope);
+		const itemType = this.#itemTypeExpr.eval(scope).asType;
 
-		if (itemType instanceof FuncType) {
-			throw this.#itemTypeExpr.typeError("list item type can't be function");
+		if (!itemType) {
+			throw this.#itemTypeExpr.typeError("not a type");
 		}
 
-		return new ListType(itemType);
+		return ListType$(itemType);
 	}
 
-	use() {
-		this.#itemTypeExpr.use();
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `[]${this.#itemTypeExpr.toString()}`;
 	}
 }
 
@@ -20333,14 +18196,14 @@ class ListTypeExpr extends TypeExpr {
  * Map[KeyType]ValueType expression
  * @package
  */
-class MapTypeExpr extends TypeExpr {
+class MapTypeExpr extends Expr {
 	#keyTypeExpr;
 	#valueTypeExpr;
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr} keyTypeExpr 
-	 * @param {TypeExpr} valueTypeExpr 
+	 * @param {Expr} keyTypeExpr 
+	 * @param {Expr} valueTypeExpr 
 	 */
 	constructor(site, keyTypeExpr, valueTypeExpr) {
 		super(site);
@@ -20348,35 +18211,29 @@ class MapTypeExpr extends TypeExpr {
 		this.#valueTypeExpr = valueTypeExpr;
 	}
 
-	toString() {
-		return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}`;
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		const keyType = this.#keyTypeExpr.eval(scope).asType;
+		if (!keyType) {
+			throw this.#keyTypeExpr.typeError("map key type not a type");
+		}
+
+		const valueType = this.#valueTypeExpr.eval(scope).asType;
+		if (!valueType) {
+			throw this.#valueTypeExpr.typeError("map value type not a type");
+		}
+
+		return MapType$(keyType, valueType);
 	}
 
 	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
+	 * @returns {string}
 	 */
-	evalInternal(scope) {
-		let keyType = this.#keyTypeExpr.eval(scope);
-
-		if (keyType instanceof FuncType) {
-			throw this.#keyTypeExpr.typeError("map key type can't be function");
-		} else if (keyType instanceof BoolType) {
-			throw this.#keyTypeExpr.typeError("map key type can't be a boolean");
-		}
-
-		let valueType = this.#valueTypeExpr.eval(scope);
-
-		if (valueType instanceof FuncType) {
-			throw this.#valueTypeExpr.typeError("map value type can't be function");
-		}
-
-		return new MapType(keyType, valueType);
-	}
-
-	use() {
-		this.#keyTypeExpr.use();
-		this.#valueTypeExpr.use();
+	toString() {
+		return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}`;
 	}
 }
 
@@ -20384,20 +18241,16 @@ class MapTypeExpr extends TypeExpr {
  * Option[SomeType] expression
  * @package
  */
-class OptionTypeExpr extends TypeExpr {
+class OptionTypeExpr extends Expr {
 	#someTypeExpr;
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr} someTypeExpr 
+	 * @param {Expr} someTypeExpr 
 	 */
 	constructor(site, someTypeExpr) {
 		super(site);
 		this.#someTypeExpr = someTypeExpr;
-	}
-
-	toString() {
-		return `Option[${this.#someTypeExpr.toString()}]`;
 	}
 
 	/**
@@ -20405,17 +18258,19 @@ class OptionTypeExpr extends TypeExpr {
 	 * @returns {Type}
 	 */
 	evalInternal(scope) {
-		let someType = this.#someTypeExpr.eval(scope);
-
-		if (someType instanceof FuncType) {
-			throw this.#someTypeExpr.typeError("option some type can't be function");
+		const someType = this.#someTypeExpr.eval(scope).asType;
+		if (!someType) {
+			throw this.#someTypeExpr.typeError("option some type not a type");
 		}
 
-		return new OptionType(someType);
+		return OptionType$(someType);
 	}
 
-	use() {
-		this.#someTypeExpr.use();
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `Option[${this.#someTypeExpr.toString()}]`;
 	}
 }
 
@@ -20423,24 +18278,27 @@ class OptionTypeExpr extends TypeExpr {
  * '()' which can only be used as return type of func
  * @package
  */
-class VoidTypeExpr extends TypeExpr {
+class VoidTypeExpr extends Expr {
+	/**
+	 * @param {Site} site 
+	 */
 	constructor(site) {
 		super(site);
 	}
 
-	toString() {
-		return "()";
-	}
-
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Type}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		return new VoidType();
 	}
-	
-	use() {
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "()";
 	}
 }
 
@@ -20455,7 +18313,7 @@ class FuncArgTypeExpr extends Token {
 	/**
 	 * @param {Site} site 
 	 * @param {null | Word} name 
-	 * @param {TypeExpr} typeExpr 
+	 * @param {Expr} typeExpr 
 	 * @param {boolean} optional 
 	 */
 	constructor(site, name, typeExpr, optional) {
@@ -20480,6 +18338,19 @@ class FuncArgTypeExpr extends Token {
 	}
 
 	/**
+	 * @param {Scope} scope 
+	 * @returns {ArgType}
+	 */
+	eval(scope) {
+		const type = this.#typeExpr.eval(scope).asType;
+		if (!type) {
+			throw this.#typeExpr.typeError("not a type");
+		}
+
+		return new ArgType(this.#name, type, this.optional);
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
@@ -20489,25 +18360,13 @@ class FuncArgTypeExpr extends Token {
 			this.#typeExpr.toString()
 		].join("");
 	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {ArgType}
-	 */
-	eval(scope) {
-		return new ArgType(this.#name, this.#typeExpr.eval(scope), this.optional);
-	}
-
-	use() {
-		this.#typeExpr.use();
-	}
 }
 
 /**
  * (ArgType1, ...) -> RetType expression
  * @package
  */
-class FuncTypeExpr extends TypeExpr {
+class FuncTypeExpr extends Expr {
 	#parameters;
 	#argTypeExprs;
 	#retTypeExprs;
@@ -20516,13 +18375,33 @@ class FuncTypeExpr extends TypeExpr {
 	 * @param {Site} site 
 	 * @param {TypeParameters} parameters
 	 * @param {FuncArgTypeExpr[]} argTypeExprs 
-	 * @param {TypeExpr[]} retTypeExprs 
+	 * @param {Expr[]} retTypeExprs 
 	 */
 	constructor(site, parameters, argTypeExprs, retTypeExprs) {
 		super(site);
 		this.#parameters = parameters;
 		this.#argTypeExprs = argTypeExprs;
 		this.#retTypeExprs = retTypeExprs;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Type}
+	 */
+	evalInternal(scope) {
+		const argTypes = this.#argTypeExprs.map(a => a.eval(scope));
+
+		const retTypes = this.#retTypeExprs.map(e => {
+			const retType = e.eval(scope).asType;
+
+			if (!retType) {
+				throw e.typeError("return type isn't a type");
+			}
+
+			return retType;
+		});
+
+		return new FuncType(argTypes, retTypes);
 	}
 
 	/**
@@ -20535,93 +18414,13 @@ class FuncTypeExpr extends TypeExpr {
 			return `${this.#parameters.toString()}(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => e.toString()).join(", ")})`;
 		}
 	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Type}
-	 */
-	evalInternal(scope) {
-		let argTypes = this.#argTypeExprs.map(a => a.eval(scope));
-
-		let retTypes = this.#retTypeExprs.map(e => e.eval(scope));
-
-		return new FuncType(argTypes, retTypes);
-	}
-
-	use() {
-		this.#argTypeExprs.forEach(arg => arg.use());
-		this.#retTypeExprs.forEach(e => e.use());
-	}
-}
-
-/**
- * Base class of expression that evaluate to Values.
- * @package
- */
-class ValueExpr extends Expr {
-	/** @type {?Instance} */
-	#cache;
-
-	/**
-	 * @param {Site} site 
-	 */
-	constructor(site) {
-		super(site);
-
-		this.#cache = null;
-	}
-
-	/**
-	 * @type {Instance}
-	 */
-	get value() {
-		if (this.#cache === null) {
-			throw new Error("type not yet evaluated");
-		} else {
-			return this.#cache;
-		}
-	}
-
-	get type() {
-		return this.value.getType(this.site);
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
-	 */
-	evalInternal(scope) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
-	 */
-	eval(scope) {
-		if (this.#cache === null) {
-			this.#cache = this.evalInternal(scope);
-		}
-
-		return this.#cache;
-	}
-
-	/**
-	 * Returns Intermediate Representation of a value expression.
-	 * The IR should be indented to make debugging easier.
-	 * @param {string} indent 
-	 * @returns {IR}
-	 */
-	toIR(indent = "") {
-		throw new Error("not implemented");
-	}
 }
 
 /**
  * '... = ... ; ...' expression
  * @package
  */
-class AssignExpr extends ValueExpr {
+class AssignExpr extends Expr {
 	#nameTypes;
 	#upstreamExpr;
 	#downstreamExpr;
@@ -20629,8 +18428,8 @@ class AssignExpr extends ValueExpr {
 	/**
 	 * @param {Site} site 
 	 * @param {DestructExpr[]} nameTypes 
-	 * @param {ValueExpr} upstreamExpr 
-	 * @param {ValueExpr} downstreamExpr 
+	 * @param {Expr} upstreamExpr 
+	 * @param {Expr} downstreamExpr 
 	 */
 	constructor(site, nameTypes, upstreamExpr, downstreamExpr) {
 		super(site);
@@ -20641,57 +18440,43 @@ class AssignExpr extends ValueExpr {
 	}
 
 	/**
-	 * @returns {string}
-	 */
-	toString() {
-		let downstreamStr = this.#downstreamExpr.toString();
-		assert(downstreamStr != undefined);
-
-		if (this.#nameTypes.length === 1) {
-			return `${this.#nameTypes.toString()} = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
-		} else {
-			return `(${this.#nameTypes.map(nt => nt.toString()).join(", ")}) = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
-		}
-	}
-
-	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		const subScope = new Scope(scope);
 
-		let upstreamVal = this.#upstreamExpr.eval(scope).assertInstance();
-		if (!upstreamVal) {
-			throw this.typeError("rhs in't an instance");
-		}
+
+		let upstreamVal = this.#upstreamExpr.eval(scope);
 
 		if (this.#nameTypes.length > 1) {
-			if (!(upstreamVal instanceof MultiInstance)) {
+			if (!upstreamVal.asMulti) {
 				throw this.typeError("rhs ins't a multi-value");
-			} else {
-				let vals = upstreamVal.values;
-
-				if (this.#nameTypes.length != vals.length) {
-					throw this.typeError(`expected ${this.#nameTypes.length} rhs in multi-assign, got ${vals.length}`);
-				} else {
-					this.#nameTypes.forEach((nt, i) => nt.evalInAssignExpr(subScope, vals[i].getType(nt.site), i));
-				}
 			}
-		} else {
+
+			const vals = upstreamVal.asMulti.values;
+
+			if (this.#nameTypes.length != vals.length) {
+				throw this.typeError(`expected ${this.#nameTypes.length} rhs in multi-assign, got ${vals.length}`);
+			}
+
+			this.#nameTypes.forEach((nt, i) => {
+				nt.evalInAssignExpr(subScope, assertDefined(vals[i].type.asDataType), i)
+			});
+		} else if (upstreamVal.asTyped) {
 			if (this.#nameTypes[0].hasType()) {
-				this.#nameTypes[0].evalInAssignExpr(subScope, upstreamVal.getType(this.#nameTypes[0].site), 0);
+				this.#nameTypes[0].evalInAssignExpr(subScope, assertDefined(upstreamVal.asTyped.type.asDataType), 0);
 			} else if (this.#upstreamExpr.isLiteral()) {
 				// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
 				if ((this.#upstreamExpr instanceof CallExpr &&
-					this.#upstreamExpr.fnExpr instanceof ValuePathExpr) || 
-					(this.#upstreamExpr instanceof ValuePathExpr && 
-					!this.#upstreamExpr.isZeroFieldConstructor())) 
+					this.#upstreamExpr.fnExpr instanceof PathExpr) || 
+					(this.#upstreamExpr instanceof PathExpr && 
+					!this.#upstreamExpr.isLiteral())) 
 				{
-					let upstreamType = upstreamVal.getType(this.#upstreamExpr.site);
+					const upstreamType = upstreamVal.asTyped.type;
 
-					if (upstreamType.isEnumMember()) {
-						upstreamVal = Instance.new(upstreamType.parentType(Site.dummy()));
+					if (upstreamType.asEnumMemberType) {
+						upstreamVal = new DataEntity(upstreamType.asEnumMemberType.parentType);
 					}
 				}
 
@@ -20699,6 +18484,8 @@ class AssignExpr extends ValueExpr {
 			} else {
 				throw this.typeError("unable to infer type of assignment rhs");
 			}
+		} else {
+			throw this.#upstreamExpr.typeError("not an instance");
 		}
 
 		const downstreamVal = this.#downstreamExpr.eval(subScope);
@@ -20708,19 +18495,12 @@ class AssignExpr extends ValueExpr {
 		return downstreamVal;
 	}
 
-	use() {
-		this.#nameTypes.forEach(nt => nt.use());
-		this.#upstreamExpr.use();
-		this.#downstreamExpr.use();
-	}
-
 	/**
 	 * 
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		
 		if (this.#nameTypes.length === 1) {
 			let inner = this.#downstreamExpr.toIR(indent + TAB);
 
@@ -20732,11 +18512,11 @@ class AssignExpr extends ValueExpr {
 			if (this.#nameTypes[0].hasType()) {
 				const t = this.#nameTypes[0].type;
 
-				if (t.isEnumMember()) {
+				if (t.asEnumMemberType) {
 					upstream = new IR([
 						new IR("__helios__common__assert_constr_index("),
 						upstream,
-						new IR(`, ${t.getConstrIndex(this.#nameTypes[0].site)})`)
+						new IR(`, ${t.asEnumMemberType.constrIndex})`)
 					]);
 				}
 			}
@@ -20769,20 +18549,34 @@ class AssignExpr extends ValueExpr {
 			return ir;
 		}
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		let downstreamStr = this.#downstreamExpr.toString();
+		assert(downstreamStr != undefined);
+
+		if (this.#nameTypes.length === 1) {
+			return `${this.#nameTypes.toString()} = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
+		} else {
+			return `(${this.#nameTypes.map(nt => nt.toString()).join(", ")}) = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
+		}
+	}
 }
 
 /**
  * print(...); ... expression
  * @package
  */
-class PrintExpr extends ValueExpr {
+class PrintExpr extends Expr {
 	#msgExpr;
 	#downstreamExpr;
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr} msgExpr 
-	 * @param {ValueExpr} downstreamExpr 
+	 * @param {Expr} msgExpr 
+	 * @param {Expr} downstreamExpr 
 	 */
 	constructor(site, msgExpr, downstreamExpr) {
 		super(site);
@@ -20791,34 +18585,21 @@ class PrintExpr extends ValueExpr {
 	}
 
 	/**
-	 * @returns {string}
-	 */
-	toString() {
-		let downstreamStr = this.#downstreamExpr.toString();
-		assert(downstreamStr != undefined);
-		return `print(${this.#msgExpr.toString()}); ${downstreamStr}`;
-	}
-
-	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const msgVal = this.#msgExpr.eval(scope).assertInstance();
+		const msgVal = this.#msgExpr.eval(scope).asInstance;
+
 		if (!msgVal) {
 			throw this.#msgExpr.typeError("not an instance");
 		}
 
-		if (!msgVal.isInstanceOf(StringType)) {
+		if (!StringType.isBaseOf(msgVal.type)) {
 			throw this.#msgExpr.typeError("expected string arg for print");
 		}
 
 		return this.#downstreamExpr.eval(scope);
-	}
-
-	use() {
-		this.#msgExpr.use();
-		this.#downstreamExpr.use();
 	}
 
 	/**
@@ -20834,13 +18615,24 @@ class PrintExpr extends ValueExpr {
 			new IR(`\n${indent}})()`)
 		]);
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		const downstreamStr = this.#downstreamExpr.toString();
+
+		assert(downstreamStr != undefined);
+
+		return `print(${this.#msgExpr.toString()}); ${downstreamStr}`;
+	}
 }
 
 /**
  * Helios equivalent of unit
  * @package
  */
-class VoidExpr extends ValueExpr {
+class VoidExpr extends Expr {
 	/**
 	 * @param {Site} site
 	 */
@@ -20848,23 +18640,27 @@ class VoidExpr extends ValueExpr {
 		super(site);
 	}
 
-	toString() {
-		return "()";
-	}
-
 	/**
 	 * @param {Scope} scope 
 	 * @returns {Instance}
 	 */
 	evalInternal(scope) {
-		return new VoidInstance();
+		return new VoidEntity();
 	}
 
-	use() {
-	}
-
-	toIR() {
+	/**
+	 * @param {string} indent
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
 		return new IR("()", this.site);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "()";
 	}
 }
 
@@ -20872,14 +18668,14 @@ class VoidExpr extends ValueExpr {
  * expr(...); ...
  * @package
  */
-class ChainExpr extends ValueExpr {
+class ChainExpr extends Expr {
 	#upstreamExpr;
 	#downstreamExpr;
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr} upstreamExpr 
-	 * @param {ValueExpr} downstreamExpr 
+	 * @param {Expr} upstreamExpr 
+	 * @param {Expr} downstreamExpr 
 	 */
 	constructor(site, upstreamExpr, downstreamExpr) {
 		super(site);
@@ -20893,23 +18689,22 @@ class ChainExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		let upstreamVal = this.#upstreamExpr.eval(scope);
+		const upstreamVal = this.#upstreamExpr.eval(scope).asTyped;
 
-		if (upstreamVal instanceof ErrorInstance) {
+		if (!upstreamVal) {
+			throw this.#upstreamExpr.typeError("upstream isn't typed");
+		}
+
+		if ((new ErrorType()).isBaseOf(upstreamVal.type)) {
 			throw this.#downstreamExpr.typeError("unreachable code (upstream always throws error)");
-		} else if (!(upstreamVal instanceof VoidInstance)) {
+		} else if (!((new VoidType()).isBaseOf(upstreamVal.type))) {
 			throw this.#upstreamExpr.typeError("unexpected return value (hint: use '='");
 		}
 
 		return this.#downstreamExpr.eval(scope);
-	}
-
-	use() {
-		this.#upstreamExpr.use();
-		this.#downstreamExpr.use();
 	}
 
 	/**
@@ -20931,7 +18726,7 @@ class ChainExpr extends ValueExpr {
  * Literal expression class (wraps literal tokens)
  * @package
  */
-class PrimitiveLiteralExpr extends ValueExpr {
+class PrimitiveLiteralExpr extends Expr {
 	#primitive;
 
 	/**
@@ -20942,31 +18737,20 @@ class PrimitiveLiteralExpr extends ValueExpr {
 		this.#primitive = primitive;
 	}
 
-	isLiteral() {
-		return true;
-	}
-
 	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return this.#primitive.toString();
-	}
-
-	/**
-	 * @type {Type}
+	 * @type {DataType}
 	 */
 	get type() {
 		if (this.#primitive instanceof IntLiteral) {
-			return new IntType();
+			return IntType;
 		} else if (this.#primitive instanceof RealLiteral) {
-			return new RealType();
+			return RealType;
 		} else if (this.#primitive instanceof BoolLiteral) {
-			return new BoolType();
+			return BoolType;
 		} else if (this.#primitive instanceof StringLiteral) {
-			return new StringType();
+			return StringType;
 		} else if (this.#primitive instanceof ByteArrayLiteral) {
-			return new ByteArrayType(this.#primitive.bytes.length == 32 ? 32 : null);
+			return ByteArrayType;
 		} else {
 			throw new Error("unhandled primitive type");
 		}	
@@ -20974,13 +18758,17 @@ class PrimitiveLiteralExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		return new DataInstance(this.type);
+		return new DataEntity(this.type);
 	}
 
-	use() {
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return true;
 	}
 
 	/**
@@ -21003,19 +18791,26 @@ class PrimitiveLiteralExpr extends ValueExpr {
 			throw new Error("unhandled primitive type");
 		}
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.#primitive.toString();
+	}
 }
 
 /**
  * Literal UplcData which is the result of parameter substitutions.
  * @package
  */
-class LiteralDataExpr extends ValueExpr {
+class LiteralDataExpr extends Expr {
 	#type;
 	#data;
 
 	/**
 	 * @param {Site} site 
-	 * @param {Type} type
+	 * @param {DataType} type
 	 * @param {UplcData} data
 	 */
 	constructor(site, type, data) {
@@ -21026,7 +18821,7 @@ class LiteralDataExpr extends ValueExpr {
 
 	/**
 	 * @package
-	 * @type {Type}
+	 * @type {DataType}
 	 */
 	get type() {
 		return this.#type;
@@ -21039,23 +18834,27 @@ class LiteralDataExpr extends ValueExpr {
 		return true;
 	}
 
-	toString() {
-		return `##${bytesToHex(this.#data.toCbor())}`;
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		return new DataEntity(this.#type);
 	}
 
 	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @param {string} indent 
+	 * @returns {IR}
 	 */
-	evalInternal(scope) {
-		return Instance.new(this.#type);
-	}
-
-	use() {
-	}
-
 	toIR(indent = "") {
 		return new IR(this.toString(), this.site);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `##${bytesToHex(this.#data.toCbor())}`;
 	}
 }
 
@@ -21068,12 +18867,23 @@ class StructLiteralField {
 	#value;
 
 	/**
-	 * @param {?Word} name 
-	 * @param {ValueExpr} value 
+	 * @param {null | Word} name 
+	 * @param {Expr} value 
 	 */
 	constructor(name, value) {
 		this.#name = name;
 		this.#value = value;
+	}
+
+	/**
+	 * @type {Word}
+	 */
+	get name() {
+		if (this.#name === null) {
+			throw new Error("name of field not given");
+		} else {
+			return this.#name;
+		}
 	}
 
 	get site() {
@@ -21083,40 +18893,20 @@ class StructLiteralField {
 			return this.#name.site;
 		}
 	}
+	
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	eval(scope) {
+		return this.#value.eval(scope);
+	}
 
 	/**
 	 * @returns {boolean}
 	 */
 	isNamed() {
 		return this.#name !== null;
-	}
-
-	get name() {
-		if (this.#name === null) {
-			throw new Error("name of field not given");
-		} else {
-			return this.#name;
-		}
-	}
-
-	toString() {
-		if (this.#name === null) {
-			return this.#value.toString();
-		} else {
-			return `${this.#name.toString()}: ${this.#value.toString()}`;
-		}
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
-	 */
-	eval(scope) {
-		return this.#value.eval(scope);
-	}
-
-	use() {
-		this.#value.use();
 	}
 
 	/**
@@ -21126,148 +18916,111 @@ class StructLiteralField {
 	toIR(indent = "") {
 		return this.#value.toIR(indent);
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		if (this.#name === null) {
+			return this.#value.toString();
+		} else {
+			return `${this.#name.toString()}: ${this.#value.toString()}`;
+		}
+	}
 }
 
 /**
  * Struct literal constructor
  * @package
  */
-class StructLiteralExpr extends ValueExpr {
+class StructLiteralExpr extends Expr {
 	#typeExpr;
 	#fields;
-	/** @type {?number} - set during evaluation */
-	#constrIndex;
 
 	/**
-	 * @param {TypeExpr} typeExpr 
+	 * @param {Expr} typeExpr 
 	 * @param {StructLiteralField[]} fields 
 	 */
 	constructor(typeExpr, fields) {
 		super(typeExpr.site);
 		this.#typeExpr = typeExpr;
 		this.#fields = fields;
-		this.#constrIndex = null;
 	}
 
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		const type = this.#typeExpr.eval(scope).asDataType;
+
+		if (!type) {
+			throw this.#typeExpr.typeError(`'${this.#typeExpr.toString()}' doesn't evaluate to a data type`);
+		}
+
+		if (type.fieldNames.length != this.#fields.length) {
+			throw this.typeError(`wrong number of fields for ${type.toString()}, expected ${type.fieldNames.length}, got ${this.#fields.length}`);
+		}
+
+		for (let i = 0; i < this.#fields.length; i++) {
+			const f = this.#fields[i];
+		
+			const fieldVal = f.eval(scope).asTyped;
+			if (!fieldVal) {
+				throw f.site.typeError("not typed");
+			}
+
+			if (f.isNamed()) {
+				if (type.fieldNames.findIndex(n => n == f.name.value) == -1) {
+					throw f.name.site.typeError("not a valid field");
+				}
+
+				// check the named type
+				const memberType = assertDefined(type.instanceMembers[f.name.value].asType);
+
+				if (!memberType.isBaseOf(fieldVal.type)) {
+					throw f.site.typeError(`wrong field type for '${f.name.toString()}', expected ${memberType.toString()}, got ${fieldVal.type.toString()}`);
+				}
+			} else {
+				// check the positional type
+				const memberType = assertDefined(type.instanceMembers[type.fieldNames[i]].asType);
+				
+				if (!memberType.isBaseOf(fieldVal.type)) {
+					throw f.site.typeError(`wrong field type for field ${i.toString()}, expected ${memberType.toString()}, got ${fieldVal.type.toString()}`);
+				}
+			}
+		}
+
+		return new DataEntity(type);
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
 	isLiteral() {
 		return true;
 	}
 
-	toString() {
-		return `${this.#typeExpr.toString()}{${this.#fields.map(f => f.toString()).join(", ")}}`;
-	}
-
+	/**
+	 * @returns {boolean}
+	 */
 	isNamed() {
 		// the expression builder already checked that all fields are named or all or positional (i.e. not mixed)
 		return this.#fields.length > 0 && this.#fields[0].isNamed();
 	}
 
 	/**
-	 * @param {Scope} scope 
-	 * @returns 
-	 */
-	evalInternal(scope) {
-		const type = this.#typeExpr.eval(scope).assertType();
-		if (!type) {
-			throw this.#typeExpr.typeError("not a type");
-		}
-
-		this.#constrIndex = type.getConstrIndex(this.site);
-
-		let instance = Instance.new(type);
-
-		if (instance.nFields(this.site) != this.#fields.length) {
-			throw this.typeError(`wrong number of fields for ${type.toString()}, expected ${instance.nFields(this.site)}, got ${this.#fields.length}`);
-		}
-
-		for (let i = 0; i < this.#fields.length; i++) {
-			let f = this.#fields[i];
-		
-			let fieldVal = f.eval(scope);
-
-			if (f.isNamed()) {
-				// check the named type
-				let memberType = instance.getInstanceMember(f.name).getType(f.name.site);
-
-				if (!fieldVal.isInstanceOf(memberType)) {
-					throw f.site.typeError(`wrong field type for '${f.name.toString()}', expected ${memberType.toString()}, got ${fieldVal.getType(Site.dummy()).toString()}`);
-				}
-			} else {
-				// check the positional type
-				let memberType = instance.getFieldType(f.site, i);
-				
-				if (!fieldVal.isInstanceOf(memberType)) {
-					throw f.site.typeError(`wrong field type for field ${i.toString()}, expected ${memberType.toString()}, got ${fieldVal.getType(Site.dummy()).toString()}`);
-				}
-			}
-		}
-
-		return instance;
-	}
-
-	use() {
-		this.#typeExpr.use();
-
-		for (let f of this.#fields) {
-			f.use();
-		}
-	}
-
-	/**
 	 * @param {Site} site
-	 * @param {Type} type
+	 * @param {string} path
 	 * @param {IR[]} fields
-	 * @param {number | null} constrIndex
 	 */
-	static toIRInternal(site, type, fields, constrIndex) {
-		let ir = new IR("__core__mkNilData(())");
-
-		const instance = Instance.new(type);
-
-		for (let i = fields.length - 1; i >= 0; i--) {
-			let f = fields[i];
-
-			const isBool = instance.getFieldType(site, i) instanceof BoolType;
-
-			if (isBool) {
-				f = new IR([
-					new IR("__helios__common__boolData("),
-					f,
-					new IR(")"),
-				]);
-			}
-
-			// in case of a struct with only one field, return that field directly 
-			if (fields.length == 1 && type instanceof StructStatementType) {
-				return f;
-			}
-
-			ir = new IR([
-				new IR("__core__mkCons("),
-				f,
-				new IR(", "),
-				ir,
-				new IR(")")
-			]);
-		}
-
-		if (constrIndex === null) {
-			throw new Error("constrIndex not yet set");
-		} else if (constrIndex == -1) {
-			// regular struct
-			return new IR([
-				new IR("__core__listData", site),
-				new IR("("), 
-				ir,
-				new IR(")")
-			]);
-		} else {
-			return new IR([
-				new IR("__core__constrData", site), new IR(`(${constrIndex.toString()}, `),
-				ir,
-				new IR(")")
-			]);
-		}
+	static toIRInternal(site, path, fields) {
+		return new IR([
+			new IR(`${path}____new`),
+			new IR("("),
+			new IR(fields).join(", "),
+			new IR(")")
+		], site);
 	}
 
 	/**
@@ -21275,18 +19028,25 @@ class StructLiteralExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		const type = this.#typeExpr.type;
+		const type = assertDefined(this.#typeExpr.cache?.asDataType);
 
 		const fields = this.#fields.slice();
 
 		// sort fields by correct name
 		if (this.isNamed()) {
-			fields.sort((a, b) => type.getFieldIndex(this.site, a.name.value) - type.getFieldIndex(this.site, b.name.value));
+			fields.sort((a, b) => type.fieldNames.findIndex(n => n == a.name.value) - type.fieldNames.findIndex(n => n == b.name.value));
 		}
 
 		const irFields = fields.map(f => f.toIR(indent));
 
-		return StructLiteralExpr.toIRInternal(this.site, type, irFields, this.#constrIndex);
+		return StructLiteralExpr.toIRInternal(this.site, type.path, irFields);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#typeExpr.toString()}{${this.#fields.map(f => f.toString()).join(", ")}}`;
 	}
 }
 
@@ -21294,14 +19054,14 @@ class StructLiteralExpr extends ValueExpr {
  * []{...} expression
  * @package
  */
-class ListLiteralExpr extends ValueExpr {
+class ListLiteralExpr extends Expr {
 	#itemTypeExpr;
 	#itemExprs;
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr} itemTypeExpr 
-	 * @param {ValueExpr[]} itemExprs 
+	 * @param {Expr} itemTypeExpr 
+	 * @param {Expr[]} itemExprs 
 	 */
 	constructor(site, itemTypeExpr, itemExprs) {
 		super(site);
@@ -21309,41 +19069,44 @@ class ListLiteralExpr extends ValueExpr {
 		this.#itemExprs = itemExprs;
 	}
 
-	isLiteral() {
-		return true;
-	}
-
-	toString() {
-		return `[]${this.#itemTypeExpr.toString()}{${this.#itemExprs.map(itemExpr => itemExpr.toString()).join(', ')}}`;
+	/**
+	 * @type {DataType}
+	 */
+	get itemType() {
+		return assertDefined(this.#itemTypeExpr.cache?.asDataType);
 	}
 
 	/**
 	 * @param {Scope} scope
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		let itemType = this.#itemTypeExpr.eval(scope);
+		const itemType = this.#itemTypeExpr.eval(scope).asDataType;
 
-		if (itemType instanceof FuncType) {
+		if (!itemType) {
 			throw this.#itemTypeExpr.typeError("content of list can't be func");
 		}
 
 		for (let itemExpr of this.#itemExprs) {
-			let itemVal = itemExpr.eval(scope);
+			let itemVal = itemExpr.eval(scope).asTyped;
 
-			if (!itemVal.isInstanceOf(itemType)) {
-				throw itemExpr.typeError(`expected ${itemType.toString()}, got ${itemVal.toString()}`);
+			if (!itemVal) {
+				throw itemExpr.typeError("not typed");
+			}
+
+			if (!itemType.isBaseOf(itemVal.type)) {
+				throw itemExpr.typeError(`expected ${itemType.toString()}, got ${itemVal.type.toString()}`);
 			}
 		}
 
-		return Instance.new(new ListType(itemType));
+		return new DataEntity(ListType$(itemType));
 	}
 
-	use() {
-		this.#itemTypeExpr.use();
-
-		for (let item of this.#itemExprs) {
-			item.use();
-		}
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return true;
 	}
 
 	/**
@@ -21351,7 +19114,7 @@ class ListLiteralExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let isBool = this.#itemTypeExpr.type instanceof BoolType;
+		const isBool = BoolType.isBaseOf(this.itemType);
 
 		// unsure if list literals in untyped Plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
 		let res = new IR("__core__mkNilData(())");
@@ -21380,22 +19143,29 @@ class ListLiteralExpr extends ValueExpr {
 
 		return new IR([new IR("__core__listData", this.site), new IR("("), res, new IR(")")]);
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `[]${this.#itemTypeExpr.toString()}{${this.#itemExprs.map(itemExpr => itemExpr.toString()).join(', ')}}`;
+	}
 }
 
 /**
  * Map[...]...{... : ...} expression
  * @package
  */
-class MapLiteralExpr extends ValueExpr {
+class MapLiteralExpr extends Expr {
 	#keyTypeExpr;
 	#valueTypeExpr;
 	#pairExprs;
 
 	/**
 	 * @param {Site} site 
-	 * @param {TypeExpr} keyTypeExpr 
-	 * @param {TypeExpr} valueTypeExpr
-	 * @param {[ValueExpr, ValueExpr][]} pairExprs 
+	 * @param {Expr} keyTypeExpr 
+	 * @param {Expr} valueTypeExpr
+	 * @param {[Expr, Expr][]} pairExprs 
 	 */
 	constructor(site, keyTypeExpr, valueTypeExpr, pairExprs) {
 		super(site);
@@ -21404,49 +19174,55 @@ class MapLiteralExpr extends ValueExpr {
 		this.#pairExprs = pairExprs;
 	}
 
-	isLiteral() {
-		return true;
-	}
-
-	toString() {
-		return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}{${this.#pairExprs.map(([keyExpr, valueExpr]) => `${keyExpr.toString()}: ${valueExpr.toString()}`).join(', ')}}`;
+	/**
+	 * @type {DataType}
+	 */
+	get valueType() {
+		return assertDefined(this.#valueTypeExpr.cache?.asDataType);
 	}
 
 	/**
 	 * @param {Scope} scope
 	 */
 	evalInternal(scope) {
-		let keyType = this.#keyTypeExpr.eval(scope);
-		let valueType = this.#valueTypeExpr.eval(scope);
-
-		if (keyType instanceof FuncType) {
+		const keyType = this.#keyTypeExpr.eval(scope).asDataType;
+		if (!keyType) {
 			throw this.#keyTypeExpr.typeError("key-type of Map can't be func");
-		} else if (valueType instanceof FuncType) {
+		}
+
+		const valueType = this.#valueTypeExpr.eval(scope).asDataType;
+		if (!valueType) {
 			throw this.#valueTypeExpr.typeError("value-type of Map can't be func");
 		}
 
 		for (let [keyExpr, valueExpr] of this.#pairExprs) {
-			let keyVal = keyExpr.eval(scope);
-			let valueVal = valueExpr.eval(scope);
+			const keyVal = keyExpr.eval(scope).asTyped;
+			if (!keyVal) {
+				throw keyExpr.typeError("not typed");
+			}
 
-			if (!keyVal.isInstanceOf(keyType)) {
+			const valueVal = valueExpr.eval(scope).asTyped;
+			if (!valueVal) {
+				throw valueExpr.typeError("not typed");
+			}
+
+			if (!keyType.isBaseOf(keyVal.type)) {
 				throw keyExpr.typeError(`expected ${keyType.toString()} for map key, got ${keyVal.toString()}`);
-			} else if (!valueVal.isInstanceOf(valueType)) {
+			}
+			
+			if (!valueType.isBaseOf(valueVal.type)) {
 				throw valueExpr.typeError(`expected ${valueType.toString()} for map value, got ${valueVal.toString()}`);
 			}
 		}
 
-		return Instance.new(new MapType(keyType, valueType));
+		return new DataEntity(MapType$(keyType, valueType));
 	}
 
-	use() {
-		this.#keyTypeExpr.use();
-		this.#valueTypeExpr.use();
-
-		for (let [fst, snd] of this.#pairExprs) {
-			fst.use();
-			snd.use();
-		}
+	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return true;
 	}
 
 	/**
@@ -21454,7 +19230,7 @@ class MapLiteralExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let isBoolValue = this.#valueTypeExpr.type instanceof BoolType;
+		const isBoolValue = BoolType.isBaseOf(this.valueType);
 
 		// unsure if list literals in untyped Plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
 		let res = new IR("__core__mkNilPairData(())");
@@ -21489,6 +19265,13 @@ class MapLiteralExpr extends ValueExpr {
 
 		return new IR([new IR("__core__mapData", this.site), new IR("("), res, new IR(")")]);
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}{${this.#pairExprs.map(([keyExpr, valueExpr]) => `${keyExpr.toString()}: ${valueExpr.toString()}`).join(', ')}}`;
+	}
 }
 
 /**
@@ -21501,7 +19284,7 @@ class NameTypePair {
 
 	/**
 	 * @param {Word} name 
-	 * @param {?TypeExpr} typeExpr 
+	 * @param {null | Expr} typeExpr 
 	 */
 	constructor(name, typeExpr) {
 		this.#name = name;
@@ -21522,17 +19305,6 @@ class NameTypePair {
 		return this.#name;
 	}
 
-	isIgnored() {
-		return this.name.value === "_";
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	hasType() {
-		return this.#typeExpr !== null;
-	}
-
 	/**
 	 * Throws an error if called before evalType()
 	 * @type {Type}
@@ -21543,7 +19315,7 @@ class NameTypePair {
 		} else if (this.#typeExpr === null) {
 			throw new Error("typeExpr not set");
 		} else {
-			return this.#typeExpr.type;
+			return assertDefined(this.#typeExpr.cache?.asType);
 		}
 	}
 
@@ -21558,12 +19330,18 @@ class NameTypePair {
 		}
 	}
 
-	toString() {
-		if (this.#typeExpr === null) {
-			return this.name.toString();
-		} else {
-			return `${this.name.toString()}: ${this.#typeExpr.toString()}`;
-		}
+	/**
+	 * @returns {boolean}
+	 */
+	isIgnored() {
+		return this.name.value === "_";
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	hasType() {
+		return this.#typeExpr !== null;
 	}
 
 	/**
@@ -21577,13 +19355,7 @@ class NameTypePair {
 		} else if (this.#typeExpr === null) {
 			throw new Error("typeExpr not set");
 		} else {
-			return this.#typeExpr.eval(scope);
-		}
-	}
-
-	use() {
-		if (this.#typeExpr !== null) {
-			this.#typeExpr.use();
+			return assertDefined(this.#typeExpr.eval(scope).asType);
 		}
 	}
 
@@ -21592,6 +19364,18 @@ class NameTypePair {
 	 */
 	toIR() {
 		return new IR(this.#name.toString(), this.#name.site);
+	}
+
+	/**
+	 * 
+	 * @returns {string}
+	 */
+	toString() {
+		if (this.#typeExpr === null) {
+			return this.name.toString();
+		} else {
+			return `${this.name.toString()}: ${this.#typeExpr.toString()}`;
+		}
 	}
 }
 
@@ -21604,8 +19388,8 @@ class FuncArg extends NameTypePair {
 
 	/**
 	 * @param {Word} name 
-	 * @param {?TypeExpr} typeExpr
-	 * @param {null | ValueExpr} defaultValueExpr
+	 * @param {null | Expr} typeExpr
+	 * @param {null | Expr} defaultValueExpr
 	 */
 	constructor(name, typeExpr, defaultValueExpr = null) {
 		super(name, typeExpr);
@@ -21618,12 +19402,15 @@ class FuncArg extends NameTypePair {
 	 */
 	evalDefault(scope) {
 		if (this.#defaultValueExpr != null) {
-			const v = this.#defaultValueExpr.eval(scope);
+			const v = this.#defaultValueExpr.eval(scope).asTyped;
+			if (!v) {
+				throw this.#defaultValueExpr.typeError("not typed");
+			}
 
 			const t = this.evalType(scope);
 
-			if (!v.isInstanceOf(t)) {
-				throw this.#defaultValueExpr.site.typeError(`expected ${t.toString()}, got ${v.getType(Site.dummy()).toString()}`);
+			if (!t.isBaseOf(v.type)) {
+				throw this.#defaultValueExpr.site.typeError(`expected ${t.toString()}, got ${v.type.toString()}`);
 			}
 		}
 	}
@@ -21711,7 +19498,7 @@ class TypeParameter {
 
 	/**
 	 * @param {Word} name 
-	 * @param {null | TypeClassExpr} typeClassExpr 
+	 * @param {null | Expr} typeClassExpr 
 	 */
 	constructor(name, typeClassExpr) {
 		this.#name = name;
@@ -21729,7 +19516,32 @@ class TypeParameter {
 	 * @type {TypeClass}
 	 */
 	get typeClass() {
-		return this.#typeClassExpr?.typeClass ?? new AnyTypeClass();
+		if (this.#typeClassExpr) {
+			return assertDefined(this.#typeClassExpr.cache?.asTypeClass);
+		} else {
+			return new AnyTypeClass();
+		}
+	}
+
+	/**
+	 * @returns {IR[]}
+	 */
+	collectIR() {
+		const type = this.typeClass.toType(this.#name.value);
+
+		return Common.typeClassMembers(this.typeClass).map(m => new IR(`${type.path}__${m}`, this.#name.site))
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 */
+	eval(scope) {
+		const typeClass = this.#typeClassExpr ? this.#typeClassExpr.eval(scope).asTypeClass : new AnyTypeClass();
+		if (!typeClass ) {
+			throw this.#typeClassExpr?.typeError("not a typeclass");
+		}
+
+		scope.set(this.#name, typeClass.toType(this.#name.value));
 	}
 
 	/**
@@ -21741,24 +19553,6 @@ class TypeParameter {
 		} else {
 			return `${this.#name}`;
 		}
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 */
-	eval(scope) {
-		const typeClass = this.#typeClassExpr?.eval(scope) ?? new AnyTypeClass();
-
-		scope.set(this.#name, typeClass.asType(this.#name.value));
-	}
-
-	/**
-	 * @returns {IR[]}
-	 */
-	collectIR() {
-		const type = this.typeClass.asType(this.#name.value);
-
-		return this.typeClass.memberNames.map(m => new IR(`${type.path}__${m}`, this.#name.site))
 	}
 }
 
@@ -21799,7 +19593,6 @@ class TypeParameters {
 	 */
 	eval(scope) {
 		if (this.#parameters.length == 0) {
-			console.log("NO PARAMETERS");
 			return scope;
 		} else {
 			const subScope = new Scope(scope);
@@ -21813,13 +19606,13 @@ class TypeParameters {
 	/**
 	 * 
 	 * @param {FuncType} fnType
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	createInstance(fnType) {
 		if (this.#parameters.length == 0) {
-			return new FuncInstance(fnType);
+			return new FuncEntity(fnType);
 		} else {
-			return new ParametricInstance(this.parameters, fnType);
+			return new ParametricFunc(this.parameters, fnType);
 		}
 	}
 
@@ -21859,7 +19652,7 @@ class TypeParameters {
  * (..) -> RetTypeExpr {...} expression
  * @package
  */
-class FuncLiteralExpr extends ValueExpr {
+class FuncLiteralExpr extends Expr {
 	#parameters;
 	#args;
 	#retTypeExprs;
@@ -21869,8 +19662,8 @@ class FuncLiteralExpr extends ValueExpr {
 	 * @param {Site} site 
 	 * @param {TypeParameters} parameters
 	 * @param {FuncArg[]} args 
-	 * @param {(?TypeExpr)[]} retTypeExprs 
-	 * @param {ValueExpr} bodyExpr 
+	 * @param {(null | Expr)[]} retTypeExprs 
+	 * @param {Expr} bodyExpr 
 	 */
 	constructor(site, parameters, args, retTypeExprs, bodyExpr) {
 		super(site);
@@ -21902,16 +19695,9 @@ class FuncLiteralExpr extends ValueExpr {
 			if (e == null) {
 				return new AnyType();
 			} else {
-				return e.type
+				return assertDefined(e.cache?.asType);
 			}
 		});
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	hasParameters() {
-		return this.#parameters.hasParameters();
 	}
 
 	/**
@@ -21924,24 +19710,15 @@ class FuncLiteralExpr extends ValueExpr {
 	/**
 	 * @returns {boolean}
 	 */
+	hasParameters() {
+		return this.#parameters.hasParameters();
+	}
+	
+	/**
+	 * @returns {boolean}
+	 */
 	isLiteral() {
 		return true;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		if (this.#retTypeExprs.length === 1) {
-			let retTypeExpr = this.#retTypeExprs[0];
-			if (retTypeExpr == null) {
-				return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`;
-			} else {
-				return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> ${retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
-			}
-		} else {
-			return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => assertDefined(e).toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
-		}
 	}
 
 	/**
@@ -21954,13 +19731,19 @@ class FuncLiteralExpr extends ValueExpr {
 			args = args.slice(1);
 		}
 
-		let argTypes = args.map(a => a.evalArgType(scope));
+		const argTypes = args.map(a => a.evalArgType(scope));
 
-		let retTypes = this.#retTypeExprs.map(e => {
+		const retTypes = this.#retTypeExprs.map(e => {
 			if (e == null) {
 				return new AnyType();
 			} else {
-				return e.eval(scope)
+				const retType = e.eval(scope).asType;
+
+				if (!retType) {
+					throw e.typeError("not a type");
+				}
+
+				return retType;
 			}
 		});
 
@@ -21979,24 +19762,23 @@ class FuncLiteralExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		scope = this.#parameters.eval(scope);
 
-		let fnType = this.evalTypeInternal(scope);
+		const fnType = this.evalTypeInternal(scope);
 		
 		// argTypes is calculated separately again here so it includes self
-		let argTypes = this.#args.map(a => a.evalType(scope));
+		const argTypes = this.#args.map(a => a.evalType(scope));
 
-		let res = this.#parameters.createInstance(fnType);
+		const subScope = new Scope(scope);
 
-		let subScope = new Scope(scope);
 		argTypes.forEach((a, i) => {
 			if (!this.#args[i].isIgnored()) {
 				this.#args[i].evalDefault(subScope);
 
-				subScope.set(this.#args[i].name, Instance.new(a));
+				subScope.set(this.#args[i].name, a.toTyped());
 			}
 		});
 
@@ -22004,20 +19786,28 @@ class FuncLiteralExpr extends ValueExpr {
 
 		if (this.#retTypeExprs.length === 1) {
 			if (this.#retTypeExprs[0] == null) {
-				if (bodyVal instanceof MultiInstance) {
-					return new FuncInstance(new FuncType(fnType.argTypes, bodyVal.values.map(v => v.getType(this.site))));
+				if (bodyVal.asMulti) {
+					return new FuncEntity(new FuncType(fnType.argTypes, bodyVal.asMulti.values.map(v => v.type)));
+				} else if (bodyVal.asTyped) {
+					return new FuncEntity(new FuncType(fnType.argTypes, bodyVal.asTyped.type));
 				} else {
-					return new FuncInstance(new FuncType(fnType.argTypes, bodyVal.getType(this.site)));
+					throw this.#bodyExpr.typeError("expect multi or typed");
 				}
-			} else if (bodyVal instanceof MultiInstance) {
+			} else if (bodyVal.asMulti) {
 				throw this.#retTypeExprs[0].typeError("unexpected multi-value body");
-			} else if (!bodyVal.isInstanceOf(fnType.retTypes[0])) {
-				throw this.#retTypeExprs[0].typeError(`wrong return type, expected ${fnType.retTypes[0].toString()} but got ${this.#bodyExpr.type.toString()}`);
+			} else if (bodyVal.asTyped) {
+				if (!fnType.retTypes[0].isBaseOf(bodyVal.asTyped.type)) {
+					throw this.#retTypeExprs[0].typeError(`wrong return type, expected ${fnType.retTypes[0].toString()} but got ${bodyVal.asTyped.type.toString()}`);
+				}
+			} else {
+				throw this.#bodyExpr.typeError("expect multi or typed");
 			}
 		} else {
-			if (bodyVal instanceof MultiInstance) {
-				/** @type {Instance[]} */
-				let bodyVals = bodyVal.values;
+			if (bodyVal.asMulti) {
+				/** 
+				 * @type {Typed[]} 
+				 */
+				let bodyVals = bodyVal.asMulti.values;
 
 				if (bodyVals.length !== this.#retTypeExprs.length) {
 					throw this.#bodyExpr.typeError(`expected multi-value function body with ${this.#retTypeExprs.length} values, but got ${bodyVals.length} values`);
@@ -22026,36 +19816,25 @@ class FuncLiteralExpr extends ValueExpr {
 						let v = bodyVals[i];
 
 						let retTypeExpr = assertDefined(this.#retTypeExprs[i]);
-						if (!v.isInstanceOf(fnType.retTypes[i])) {
-							throw retTypeExpr.typeError(`wrong return type for value ${i}, expected ${fnType.retTypes[i].toString()} but got ${v.getType(this.#bodyExpr.site).toString()}`);
+						if (!fnType.retTypes[i].isBaseOf(v.type)) {
+							throw retTypeExpr.typeError(`wrong return type for value ${i}, expected ${fnType.retTypes[i].toString()} but got ${v.type.toString()}`);
 						}
 					}
 				}
 			} else {
-				throw this.#bodyExpr.typeError(`expected multi-value function body, but got ${this.#bodyExpr.type.toString()}`);
+				throw this.#bodyExpr.typeError(`expected multi-value function body, but got ${this.#bodyExpr.toString()}`);
 			}
 		}
 
 		subScope.assertAllUsed();
+
+		let res = this.#parameters.createInstance(fnType);
 
 		return res;
 	}
 
 	isMethod() {
 		return this.#args.length > 0 && this.#args[0].name.toString() == "self";
-	}
-
-	use() {
-		for (let arg of this.#args) {
-			arg.use();
-		}
-
-		this.#retTypeExprs.forEach(e => {
-			if (e !== null) {
-				e.use();
-			}
-		});
-		this.#bodyExpr.use();
 	}
 
 	/**
@@ -22086,22 +19865,16 @@ class FuncLiteralExpr extends ValueExpr {
 	}
 
 	/**
-	 * @param {?string} recursiveName 
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
-	toIRInternal(recursiveName, indent = "") {
+	toIRInternal(indent = "") {
 		let argsWithCommas = this.argsToIR();
 
 		let innerIndent = indent;
 		let methodIndent = indent;
 		if (this.isMethod()) {
 			innerIndent += TAB;
-		}
-
-		if (recursiveName !== null) {
-			innerIndent += TAB;
-			methodIndent += TAB;
 		}
 
 		let innerIR = this.#bodyExpr.toIR(innerIndent + TAB);
@@ -22125,110 +19898,33 @@ class FuncLiteralExpr extends ValueExpr {
 			]);
 		}
 
-		if (recursiveName !== null) {
-			ir = new IR([
-				new IR("("),
-				new IR(recursiveName),
-				new IR(`) -> {\n${indent}${TAB}`),
-				ir,
-				new IR(`\n${indent}}`)
-			]);
-		}
-
 		ir = this.#parameters.wrapIR(indent, ir);
 
 		return ir;
 	}
 
 	/**
-	 * @param {string} recursiveName 
-	 * @param {string} indent 
-	 * @returns {IR}
-	 */
-	toIRRecursive(recursiveName, indent = "") {
-		return this.toIRInternal(recursiveName, indent);
-	}
-
-	/**
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		return this.toIRInternal(null, indent);
+		return this.toIRInternal(indent);
 	}
-}
-
-/**
- * Variable expression
- * @package
- */
-class ValueRefExpr extends ValueExpr {
-	#name;
-	#isRecursiveFunc;
 
 	/**
-	 * @param {Word} name 
+	 * @returns {string}
 	 */
-	constructor(name) {
-		super(name.site);
-		this.#name = name;
-		this.#isRecursiveFunc = false;
-	}
-
 	toString() {
-		return this.#name.toString();
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
-	 */
-	evalInternal(scope) {
-		const val = scope.get(this.#name).assertInstance();
-		if (!val) {
-			throw this.#name.site.typeError("not an instance");
+		if (this.#retTypeExprs.length === 1) {
+			let retTypeExpr = this.#retTypeExprs[0];
+			if (retTypeExpr == null) {
+				return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`;
+			} else {
+				return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> ${retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
+			}
+		} else {
+			return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => assertDefined(e).toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
 		}
-
-		if (val instanceof FuncInstance && val.isRecursive(scope)) {
-			this.#isRecursiveFunc = true;
-		}
-
-		return val;
-	}
-
-	use() {
-		if (this.value instanceof FuncStatementInstance || this.value instanceof ParametricFuncStatementInstance) {
-			this.value.statement.use();
-		} else if (this.value instanceof ConstStatementInstance) {
-			this.value.statement.use();
-		}
-	}
-
-	/**
-	 * @param {string} indent 
-	 * @returns {IR}
-	 */
-	toIR(indent = "") {
-		let path = this.toString();
-
-		if (this.value instanceof FuncStatementInstance || this.value instanceof ParametricFuncStatementInstance || this.value instanceof ConstStatementInstance) {
-			path = this.value.statement.path;
-		} else if (this.value instanceof BuiltinFuncInstance) {
-			path = this.value.path;
-		}
-
-		let ir = new IR(path, this.site);
-
-		if (this.#isRecursiveFunc) {
-			ir = new IR([
-				ir,
-				new IR("("),
-				ir,
-				new IR(")")
-			]);
-		}
-		
-		return ir;
 	}
 }
 
@@ -22236,14 +19932,14 @@ class ValueRefExpr extends ValueExpr {
  * value[...] expression
  * @package
  */
-class ParametricValueExpr extends ValueExpr {
+class ParametricExpr extends Expr {
 	#baseExpr;
 	#parameters;
 
 	/**
 	 * @param {Site} site - site of brackets
-	 * @param {ValueExpr} baseExpr
-	 * @param {TypeExpr[]} parameters
+	 * @param {Expr} baseExpr
+	 * @param {Expr[]} parameters
 	 */
 	constructor(site, baseExpr, parameters) {
 		super(site);
@@ -22252,50 +19948,33 @@ class ParametricValueExpr extends ValueExpr {
 	}
 
 	/**
-	 * @returns {string}
+	 * @type {Type[]}
 	 */
-	toString() {
-		return `${this.#baseExpr.toString()}[${this.#parameters.map(p => p.toString()).join(", ")}]`;
+	get paramTypes() {
+		return this.#parameters.map(p => {
+			const pt = p.cache?.asType;
+
+			if (!pt) {
+				throw new Error("not a type");
+			}
+
+			return pt;
+		})
 	}
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const paramTypes = this.#parameters.map(p => {
-			const pt = p.eval(scope).assertType();
+		const paramTypes = this.#parameters.map(p => p.evalAsType(scope));
 
-			if (!pt) {
-				throw p.site.typeError("not a type");
-			}
-
-			return pt;
-		});
-
-		const baseVal_ = this.#baseExpr.eval(scope).assertInstance();
-		
-		const baseVal = baseVal_?.assertParametric();
+		const baseVal = this.#baseExpr.eval(scope).asParametric;
 		if (!baseVal) {
 			throw this.site.typeError("not a parametric instance");
 		}
 
-		console.log("BEFORE APPLICATION: ", baseVal.toString());
-
-		const applied = baseVal.applyTypes(this.site, paramTypes).assertInstance();
-		if (!applied) {
-			throw this.site.typeError("not an instance");
-		}
-
-		console.log("APPLIED instance: ", applied.toString());
-
-		return applied;
-	}
-
-	use() {
-		this.#baseExpr.use();
-
-		this.#parameters.forEach(p => p.use());
+		return baseVal.apply(paramTypes, this.site);
 	}
 
 	/**
@@ -22316,9 +19995,9 @@ class ParametricValueExpr extends ValueExpr {
 		paramTypes.forEach((pt, i) => {
 			const tc = typeClasses[i];
 
-			const ptPath = pt.path;
+			const ptPath = assertDefined(pt.asNamed).path;
 
-			tc.memberNames.forEach(mn => {
+			Common.typeClassMembers(tc).forEach(mn => {
 				if (paramSites[i]) {
 					injected.push(new IR(`${ptPath}__${mn}`, paramSites[i]));
 				} else {
@@ -22346,157 +20025,23 @@ class ParametricValueExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		const paramTypes = this.#parameters.map(p => p.type);
+		const paramTypes = this.paramTypes;
 
-		const typeClasses = this.#baseExpr.value.assertParametric()?.typeClasses ?? [];
+		const typeClasses = this.#baseExpr.cache?.asParametric?.typeClasses ?? [];
 
-		return ParametricValueExpr.toApplicationIR(
+		return ParametricExpr.toApplicationIR(
 			this.#baseExpr.toIR(indent),
 			paramTypes,
 			typeClasses,
 			this.#parameters.map(p => p.site)
 		)
 	}
-}
-
-/**
- * Word::Word::... expression
- * @package
- */
-class ValuePathExpr extends ValueExpr {
-	#baseTypeExpr;
-	#memberName;
-	#isRecursiveFunc;
-
-	/**
-	 * @param {TypeExpr} baseTypeExpr 
-	 * @param {Word} memberName 
-	 */
-	constructor(baseTypeExpr, memberName) {
-		super(memberName.site);
-		this.#baseTypeExpr = baseTypeExpr;
-		this.#memberName = memberName;
-		this.#isRecursiveFunc = false;
-	}
-
-	/**
-	 * @type {Type}
-	 */
-	get baseType() {
-		return this.#baseTypeExpr.type;
-	}
 
 	/**
 	 * @returns {string}
 	 */
 	toString() {
-		return `${this.#baseTypeExpr.toString()}::${this.#memberName.toString()}`;
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isZeroFieldConstructor() {
-		let type = this.type;
-
-		if (type instanceof EnumMemberStatementType && type.statement.name.value === this.#memberName.value) {
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * Returns true if ValuePathExpr constructs a literal enum member with zero field or
-	 * if this baseType is also a baseType of the returned value
-	 * @returns {boolean}
-	 */
-	isLiteral() {
-		if (this.isZeroFieldConstructor()) {
-			return true;
-		} else {
-			let type = this.type;
-
-			if (this.baseType.isBaseOf(type)) {
-				return true;
-			} else {
-				return false;
-			}
-		}
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Instance}
-	 */
-	evalInternal(scope) {
-		const baseType = this.#baseTypeExpr.eval(scope);
-
-		const memberEntity = baseType.typeMembers[this.#memberName.value];
-		if (!memberEntity) {
-			throw this.#memberName.referenceError(`${baseType.toString()}.${this.#memberName.value} not found`);
-		}
-
-		const memberVal = memberEntity.assertInstance();
-		if (!memberVal) {
-			throw this.#memberName.site.typeError("not an instance");
-		}
-
-		if (memberVal instanceof FuncInstance && memberVal.isRecursive(scope)) {
-			this.#isRecursiveFunc = true;
-		}
-
-		return memberVal;
-	}
-
-	use() {
-		this.#baseTypeExpr.use();
-
-		if (this.value instanceof ConstStatementInstance) {
-			this.value.statement.use();
-		} else if (this.value instanceof FuncStatementInstance || this.value instanceof ParametricFuncStatementInstance) {
-			this.value.statement.use();
-		}
-	}
-
-	/**
-	 * @param {string} indent
-	 * @returns {IR}
-	 */
-	toIR(indent = "") {
-		// if we are directly accessing an enum member as a zero-field constructor we must change the code a bit
-		const memberVal = this.#baseTypeExpr.type.typeMembers[this.#memberName.value];
-
-		if ((memberVal instanceof EnumMemberStatementType) || (memberVal instanceof OptionNoneType)) {
-			let cId = memberVal.getConstrIndex(this.#memberName.site);
-
-			assert(cId >= 0);
-
-			return new IR(`__core__constrData(${cId.toString()}, __core__mkNilData(()))`, this.site)
-		} else {
-			let path = `${this.#baseTypeExpr.type.path}__${this.#memberName.toString()}`;
-
-			if (this.#baseTypeExpr.type instanceof Namespace) {
-				if (memberVal instanceof StatementType || memberVal instanceof FuncStatementInstance || memberVal instanceof ParametricFuncStatementInstance || memberVal instanceof ConstStatementInstance) {
-					path = memberVal.statement.path;
-				} else {
-					throw new Error("expected statement");
-				}
-			}
-
-			let ir = new IR(path, this.site);
-
-			if (this.#isRecursiveFunc) {
-				ir = new IR([
-					ir,
-					new IR("("),
-					ir,
-					new IR(")")
-				]);
-			}
-
-			return ir;
-		}
+		return `${this.#baseExpr.toString()}[${this.#parameters.map(p => p.toString()).join(", ")}]`;
 	}
 }
 
@@ -22505,13 +20050,13 @@ class ValuePathExpr extends ValueExpr {
  * Note: there are no post-unary operators, only pre
  * @package
  */
-class UnaryExpr extends ValueExpr {
+class UnaryExpr extends Expr {
 	#op;
 	#a;
 
 	/**
 	 * @param {SymbolToken} op 
-	 * @param {ValueExpr} a 
+	 * @param {Expr} a 
 	 */
 	constructor(op, a) {
 		super(op.site);
@@ -22519,17 +20064,13 @@ class UnaryExpr extends ValueExpr {
 		this.#a = a;
 	}
 
-	toString() {
-		return `${this.#op.toString()}${this.#a.toString()}`;
-	}
-
 	/**
 	 * Turns an op symbol into an internal name
 	 * @returns {Word}
 	 */
 	translateOp() {
-		let op = this.#op.toString();
-		let site = this.#op.site;
+		const op = this.#op.toString();
+		const site = this.#op.site;
 
 		if (op == "+") {
 			return new Word(site, "__pos");
@@ -22544,22 +20085,24 @@ class UnaryExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const a = this.#a.eval(scope).assertInstance();
+		const a = this.#a.eval(scope).asInstance;
 		if (!a) {
 			throw this.#a.site.typeError("not an instance");
 		}
 
-		let fnVal = a.getType(this.site).getTypeMember(this.translateOp());
+		const op = this.translateOp().value;
 
-		// ops are immediately applied
-		return fnVal.call(this.#op.site, [a]);
-	}
+		const fnVal = a.type.typeMembers[op]?.asType?.toTyped()?.asFunc;
 
-	use() {
-		this.#a.use();
+		if (fnVal) {
+			// immediately applied
+			return fnVal.asFunc.call(this.#op.site, [a]);
+		} else {
+			throw this.#a.site.typeError(`'${this.#op.toString()} ${a.type.toString()}' undefined`);
+		}
 	}
 
 	/**
@@ -22567,7 +20110,7 @@ class UnaryExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let path = this.type.path;
+		const path = assertDefined(this.cache?.asTyped?.type?.asNamed).path;
 
 		return new IR([
 			new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
@@ -22575,13 +20118,20 @@ class UnaryExpr extends ValueExpr {
 			new IR(")")
 		]);
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#op.toString()}${this.#a.toString()}`;
+	}
 }
 
 /**
  * Binary operator expression
  * @package
  */
-class BinaryExpr extends ValueExpr {
+class BinaryExpr extends Expr {
 	#op;
 	#a;
 	#b;
@@ -22590,8 +20140,8 @@ class BinaryExpr extends ValueExpr {
 
 	/**
 	 * @param {SymbolToken} op 
-	 * @param {ValueExpr} a 
-	 * @param {ValueExpr} b 
+	 * @param {Expr} a 
+	 * @param {Expr} b 
 	 */
 	constructor(op, a, b) {
 		super(op.site);
@@ -22603,14 +20153,14 @@ class BinaryExpr extends ValueExpr {
 	}
 
 	/** 
-	 * @type {ValueExpr}
+	 * @type {Expr}
 	 */
 	get first() {
 		return this.#swap ? this.#b : this.#a;
 	}
 
 	/**
-	 * @type {ValueExpr} 
+	 * @type {Expr} 
 	 */
 	get second() {
 		return this.#swap ? this.#a : this.#b;
@@ -22626,8 +20176,8 @@ class BinaryExpr extends ValueExpr {
 	 * @returns {Word}
 	 */
 	translateOp(alt = 0) {
-		let op = this.#op.toString();
-		let site = this.#op.site;
+		const op = this.#op.toString();
+		const site = this.#op.site;
 		let name;
 
 		if (op == "||") {
@@ -22684,23 +20234,18 @@ class BinaryExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const a = this.#a.eval(scope).assertInstance();
+		const a = this.#a.eval(scope).asInstance;
 		if (!a) {
 			throw this.#a.typeError("not an instance");
 		} 
 
-		const b = this.#b.eval(scope).assertInstance();
+		const b = this.#b.eval(scope).asInstance;
 		if (!b) {
 			throw this.#b.typeError("not an instance");
 		}
-
-		/**
-		 * @type {?UserError}
-		 */
-		let firstError = null;
 
 		for (let swap of (this.isCommutative() ? [false, true] : [false])) {
 			for (let alt of [0, 1, 2]) {
@@ -22708,7 +20253,12 @@ class BinaryExpr extends ValueExpr {
 				let second = swap ? a : b;
 
 				try {
-					let fnVal = first.getType(this.site).getTypeMember(this.translateOp(alt));
+					const fnVal_ = first.type.typeMembers[this.translateOp(alt).value];
+
+					let fnVal = fnVal_?.asType?.toTyped()?.asFunc;
+					if (!fnVal) {
+						continue;
+					}
 
 					let res = fnVal.call(this.#op.site, [first, second]);
 
@@ -22718,9 +20268,7 @@ class BinaryExpr extends ValueExpr {
 					return res;
 				} catch (e) {
 					if (e instanceof UserError) {
-						if (firstError === null) {
-							firstError = e;
-						}
+						console.log(e.message);
 						continue;
 					} else {
 						throw e;
@@ -22729,16 +20277,7 @@ class BinaryExpr extends ValueExpr {
 			}
 		}
 
-		if (firstError !== null) {
-			throw firstError;
-		} else {
-			throw new Error("unexpected");
-		}
-	}
-
-	use() {
-		this.#a.use();
-		this.#b.use();
+		throw this.typeError(`'${a.type.toString()} ${this.#op.toString()} ${b.type.toString()}' undefined`);
 	}
 
 	/**
@@ -22746,7 +20285,7 @@ class BinaryExpr extends ValueExpr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		let path = this.first.type.path;
+		let path = assertDefined(this.first.cache?.asTyped?.type.asNamed).path;
 
 		let op = this.translateOp(this.#alt).value;
 
@@ -22774,44 +20313,40 @@ class BinaryExpr extends ValueExpr {
  * Parentheses expression
  * @package
  */
-class ParensExpr extends ValueExpr {
+class ParensExpr extends Expr {
 	#exprs;
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr[]} exprs
+	 * @param {Expr[]} exprs
 	 */
 	constructor(site, exprs) {
 		super(site);
 		this.#exprs = exprs;
 	}
 
-	toString() {
-		return `(${this.#exprs.map(e => e.toString()).join(", ")})`;
-	}
-
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		if (this.#exprs.length === 1) {
 			return this.#exprs[0].eval(scope);
 		} else {
-			return new MultiInstance(this.#exprs.map(e => {
-				const v = e.eval(scope);
+			return new MultiEntity(this.#exprs.map(e => {
+				const v = e.eval(scope).asTyped;
 
-				if (v.getType(e.site) instanceof ErrorType) {
+				if (!v) {
+					throw e.site.typeError("not typed");
+				} 
+				
+				if ((new ErrorType()).isBaseOf(v.type)) {
 					throw e.site.typeError("unexpected error call in multi-valued expression");
 				}
 
 				return v;
 			}));
 		}
-	}
-
-	use() {
-		this.#exprs.forEach(e => e.use());
 	}
 
 	/**
@@ -22829,6 +20364,13 @@ class ParensExpr extends ValueExpr {
 			);
 		}
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `(${this.#exprs.map(e => e.toString()).join(", ")})`;
+	}
 }
 
 /**
@@ -22841,7 +20383,7 @@ class CallArgExpr extends Token {
 	/**
 	 * @param {Site} site 
 	 * @param {null | Word} name 
-	 * @param {ValueExpr} valueExpr 
+	 * @param {Expr} valueExpr 
 	 */
 	constructor(site, name, valueExpr) {
 		super(site);
@@ -22858,17 +20400,17 @@ class CallArgExpr extends Token {
 	}
 
 	/**
-	 * @type {ValueExpr}
+	 * @type {Expr}
 	 */
 	get valueExpr() {
 		return this.#valueExpr;
 	}
 
 	/**
-	 * @type {Instance}
+	 * @type {EvalEntity}
 	 */
 	get value() {
-		return this.#valueExpr.value;
+		return assertDefined(this.#valueExpr.cache);
 	}
 
 	/**
@@ -22897,14 +20439,10 @@ class CallArgExpr extends Token {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	eval(scope) {
 		return this.#valueExpr.eval(scope);
-	}
-
-	use() {
-		this.#valueExpr.use();
 	}
 }
 
@@ -22912,7 +20450,7 @@ class CallArgExpr extends Token {
  * ...(...) expression
  * @package
  */
-class CallExpr extends ValueExpr {
+class CallExpr extends Expr {
 	#fnExpr;
 	#argExprs;
 
@@ -22923,7 +20461,7 @@ class CallExpr extends ValueExpr {
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr} fnExpr 
+	 * @param {Expr} fnExpr 
 	 * @param {CallArgExpr[]} argExprs 
 	 */
 	constructor(site, fnExpr, argExprs) {
@@ -22941,8 +20479,11 @@ class CallExpr extends ValueExpr {
 		return `${this.#fnExpr.toString()}(${this.#argExprs.map(a => a.toString()).join(", ")})`;
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isLiteral() {
-		if (this.#fnExpr instanceof ValuePathExpr && this.#fnExpr.baseType.isBaseOf(this.type)) {
+		if (this.#fnExpr instanceof PathExpr && this.cache?.asTyped && this.#fnExpr.baseExpr.cache?.asType?.isBaseOf(this.cache.asTyped.type)) {
 			return true;
 		} else {
 			return false;
@@ -22951,28 +20492,41 @@ class CallExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		const fnVal = this.#fnExpr.eval(scope);
 
-		const argVals = this.#argExprs.map(ae => ae.eval(scope));
+		const argVals = this.#argExprs.map(ae => {
+			const av_ = ae.eval(scope);
+			
+			const av = av_.asTyped ?? av_.asMulti;
+
+			if (!av) {
+				throw ae.typeError("not an instance");
+			}
+
+			return av;
+		});
 
 		/**
-		 * @type {Instance[]}
+		 * @type {(Typed | Multi)[]}
 		 */
-		let posArgVals = [];
+		const posArgVals_ = [];
 
 		this.#argExprs.forEach((argExpr, i) => {
 			if (!argExpr.isNamed()) {
-				posArgVals.push(argVals[i]);
+				posArgVals_.push(argVals[i]);
 			}
 		});
 
-		posArgVals = MultiInstance.flatten(posArgVals);
+		/**
+		 * @type {Typed[]}
+		 */
+		const posArgVals = MultiEntity.flatten(posArgVals_);
 
 		/**
-		 * @type {{[name: string]: Instance}}
+		 * @type {{[name: string]: Typed}}
 		 */
 		const namedArgVals = {};
 
@@ -22981,30 +20535,26 @@ class CallExpr extends ValueExpr {
 				const val = argVals[i];
 
 				// can't be multi instance
-				if (val instanceof MultiInstance) {
+				if (val.asMulti) {
 					throw argExpr.typeError("can't use multiple return values as named argument");
+				} else if (val.asTyped) {
+					namedArgVals[argExpr.name] = val.asTyped;
+				} else {
+					throw new Error("unexpected");
 				}
-
-				namedArgVals[argExpr.name] = val;
 			}
 		});
 
 		assert(posArgVals.every(pav => pav != undefined));
 
-		if (fnVal instanceof ParametricInstance) {
+		if (fnVal.asParametric) {
 			this.#paramTypes = [];
 
-			return fnVal.call(this.site, posArgVals, namedArgVals, this.#paramTypes);
+			return fnVal.asParametric.call(this.site, posArgVals, namedArgVals, this.#paramTypes);
+		} else if (fnVal.asFunc) {
+			return fnVal.asFunc.call(this.site, posArgVals, namedArgVals);
 		} else {
-			return fnVal.call(this.site, posArgVals, namedArgVals);
-		}
-	}
-
-	use() {
-		this.#fnExpr.use();
-
-		for (let arg of this.#argExprs) {
-			arg.use();
+			throw this.#fnExpr.typeError("expected function");
 		}
 	}
 
@@ -23013,18 +20563,18 @@ class CallExpr extends ValueExpr {
 	 * @type {FuncType}
 	 */
 	get fn() {
-		return assertClass(this.#fnExpr.value.getType(this.#fnExpr.site), FuncType);
+		return assertClass(this.#fnExpr.cache?.asTyped?.type, FuncType);
 	}
 
 	/**
-	 * @returns {[ValueExpr[], IR[]]} - first list are positional args, second list named args and remaining opt args
+	 * @returns {[Expr[], IR[]]} - first list are positional args, second list named args and remaining opt args
 	 */
 	expandArgs() {
 		const fn = this.fn;
 		const nNonOptArgs = fn.nNonOptArgs;
 
 		/**
-		 * @type {ValueExpr[]}
+		 * @type {Expr[]}
 		 */
 		const positional = [];
 
@@ -23075,25 +20625,25 @@ class CallExpr extends ValueExpr {
 	toIR(indent = "") {
 		const fn = this.fn;
 		let fnIR = this.#fnExpr.toIR(indent);
-		const fnVal = this.#fnExpr.value.assertInstance();
-		if (fnVal instanceof ParametricInstance) {
+		const fnVal = this.#fnExpr.cache?.asParametric;
+		if (fnVal instanceof ParametricFunc) {
 			assert(this.#paramTypes.length > 0);
-			fnIR = ParametricValueExpr.toApplicationIR(fnIR, this.#paramTypes, fnVal.typeClasses);
+			fnIR = ParametricExpr.toApplicationIR(fnIR, this.#paramTypes, fnVal.typeClasses);
 		}
 
 		/**
 		 * First step is to eliminate the named args
-		 * @type {[ValueExpr[], IR[]]}
+		 * @type {[Expr[], IR[]]}
 		 */
 		const [positional, namedOptional] = this.expandArgs();
 
-		if (positional.some(e => (!e.isLiteral()) && (e.value instanceof MultiInstance))) {
+		if (positional.some(e => (!e.isLiteral()) && (e.cache?.asMulti))) {
 			// count the number of final args
 			let n = 0;
 
 			positional.forEach((e, i) => {
-				if ((!e.isLiteral()) && (e.value instanceof MultiInstance)) {
-					n += e.value.values.length;
+				if ((!e.isLiteral()) && (e.cache?.asMulti)) {
+					n += e.cache.asMulti.values.length;
 				} else {
 					n += 1;
 				}
@@ -23143,8 +20693,8 @@ class CallExpr extends ValueExpr {
 			for (let i = positional.length - 1; i >= 0; i--) {
 				const e = positional[i];
 
-				if ((!e.isLiteral()) && (e.value instanceof MultiInstance)) {
-					const nMulti = e.value.values.length;
+				if ((!e.isLiteral()) && (e.cache?.asMulti)) {
+					const nMulti = e.cache.asMulti.values.length;
 					const multiNames = [];
 					const multiOpt = [];
 
@@ -23233,53 +20783,45 @@ class CallExpr extends ValueExpr {
  *  ... . ... expression
  * @package
  */
-class MemberExpr extends ValueExpr {
+class MemberExpr extends Expr {
 	#objExpr;
 	#memberName;
-	#isRecursiveFunc;
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr} objExpr 
+	 * @param {Expr} objExpr 
 	 * @param {Word} memberName 
 	 */
 	constructor(site, objExpr, memberName) {
 		super(site);
 		this.#objExpr = objExpr;
 		this.#memberName = memberName;
-		this.#isRecursiveFunc = false;
-	}
-
-	toString() {
-		return `${this.#objExpr.toString()}.${this.#memberName.toString()}`;
 	}
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const objVal = this.#objExpr.eval(scope).assertInstance();
+		const objVal = this.#objExpr.eval(scope).asInstance;
 		if (!objVal) {
 			throw this.#objExpr.site.typeError("not an instance");
 		}
 
-		let memberVal = objVal.getInstanceMember(this.#memberName);
-
-		if (memberVal instanceof FuncInstance && memberVal.isRecursive(scope)) {
-			this.#isRecursiveFunc = true;
+		const member = objVal.instanceMembers[this.#memberName.value];
+		if (!member) {
+			console.log(objVal.instanceMembers)
+			throw this.#memberName.referenceError(`'${objVal.type.toString()}.${this.#memberName.value}' undefined`);
 		}
 
-		return memberVal;
-	}
+		if (member.asParametric) {
+			return member;
+		} else if (member.asType) {
+			const memberVal = member.asType.toTyped();
 
-	use() {
-		this.#objExpr.use();
-
-		if (this.value instanceof FuncStatementInstance || this.value instanceof ParametricFuncStatementInstance) {
-			this.value.statement.use();
-		} else if (this.value instanceof ConstStatementInstance) {
-			this.value.statement.use();
+			return memberVal;
+		} else {
+			throw new Error("expected type or parametric");
 		}
 	}
 
@@ -23290,28 +20832,16 @@ class MemberExpr extends ValueExpr {
 	toIR(indent = "") {
 		// members can be functions so, field getters are also encoded as functions for consistency
 
-		let objPath = this.#objExpr.type.path;
+		const objType = assertDefined(this.#objExpr.cache?.asTyped?.type?.asNamed); 
+
+		let objPath = objType.path;
 
 		// if we are getting the member of an enum member we should check if it a field or method, because for a method we have to use the parent type
-		if ((this.#objExpr.type instanceof EnumMemberStatementType) && (!this.#objExpr.type.statement.hasField(this.#memberName))) {
-			objPath = this.#objExpr.type.statement.parent.path;
-		}
-
-		// if the memberVal was a ParamFuncValue then the member name might need to be modified if the output type of some callbacks is a Bool
-		if (this.value instanceof ParametricInstance && this.value.correctMemberName !== null) {
-			this.#memberName = new Word(this.#memberName.site, this.value.correctMemberName());
+		if (objType.asEnumMemberType && (objType.asEnumMemberType.fieldNames.findIndex(n => n == this.#memberName.value) == -1)) {
+			objPath = objType.asEnumMemberType.parentType.path;
 		}
 
 		let ir = new IR(`${objPath}__${this.#memberName.toString()}`, this.site);
-
-		if (this.#isRecursiveFunc) {
-			ir = new IR([
-				ir,
-				new IR("("),
-				ir,
-				new IR(")"),
-			]);
-		}
 
 		return new IR([
 			ir, new IR("("),
@@ -23319,20 +20849,27 @@ class MemberExpr extends ValueExpr {
 			new IR(")"),
 		]);
 	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#objExpr.toString()}.${this.#memberName.toString()}`;
+	}
 }
 
 /**
  * if-then-else expression 
  * @package
  */
-class IfElseExpr extends ValueExpr {
+class IfElseExpr extends Expr {
 	#conditions;
 	#branches;
 
 	/**
 	 * @param {Site} site 
-	 * @param {ValueExpr[]} conditions 
-	 * @param {ValueExpr[]} branches 
+	 * @param {Expr[]} conditions 
+	 * @param {Expr[]} branches 
 	 */
 	constructor(site, conditions, branches) {
 		assert(branches.length == conditions.length + 1);
@@ -23356,7 +20893,7 @@ class IfElseExpr extends ValueExpr {
 
 	/**
 	 * @param {Site} site
-	 * @param {?Type} prevType
+	 * @param {null | Type} prevType
 	 * @param {Type} newType
 	 */
 	static reduceBranchType(site, prevType, newType) {
@@ -23369,8 +20906,8 @@ class IfElseExpr extends ValueExpr {
 				return newType;
 			} else {
 				// check if enumparent is base of newType and of prevType
-				if (newType.isEnumMember()) {
-					const parentType = newType.parentType(Site.dummy());
+				if (newType.asEnumMemberType) {
+					const parentType = newType.asEnumMemberType.parentType;
 
 					if (parentType.isBaseOf(prevType) && parentType.isBaseOf(newType)) {
 						return parentType;
@@ -23386,18 +20923,18 @@ class IfElseExpr extends ValueExpr {
 
 	/**
 	 * @param {Site} site
-	 * @param {?Type[]} prevTypes
-	 * @param {Instance} newValue
+	 * @param {null | Type[]} prevTypes
+	 * @param {Typed} newValue
 	 * @returns {?Type[]}
 	 */
 	static reduceBranchMultiType(site, prevTypes, newValue) {
-		if (!(newValue instanceof MultiInstance) && newValue.getType(site) instanceof ErrorType) {
+		if (!newValue.asMulti && (new ErrorType()).isBaseOf(newValue.type)) {
 			return prevTypes;
 		}
 
-		const newTypes = (newValue instanceof MultiInstance) ?
-			newValue.values.map(v => v.getType(site)) :
-			[newValue.getType(site)];
+		const newTypes = (newValue.asMulti) ?
+			newValue.asMulti.values.map(v => v.type) :
+			[newValue.type];
 
 		if (prevTypes === null) {
 			return newTypes;
@@ -23410,12 +20947,13 @@ class IfElseExpr extends ValueExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		for (let c of this.#conditions) {
-			let cVal = c.eval(scope);
-			if (!cVal.isInstanceOf(BoolType)) {
+			let cVal = c.eval(scope).asTyped;
+
+			if (!cVal || !BoolType.isBaseOf(cVal.type)) {
 				throw c.typeError("expected bool");
 			}
 		}
@@ -23427,7 +20965,11 @@ class IfElseExpr extends ValueExpr {
 		let branchMultiType = null;
 
 		for (let b of this.#branches) {
-			let branchVal = b.eval(scope);
+			let branchVal = b.eval(scope).asTyped;
+
+			if (!branchVal) {
+				throw b.typeError("not typed");
+			}
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				b.site, 
@@ -23438,19 +20980,9 @@ class IfElseExpr extends ValueExpr {
 
 		if (branchMultiType === null) {
 			// i.e. every branch throws an error
-			return Instance.new(new ErrorType());
+			return new ErrorEntity();
 		} else  {
-			return Instance.new(branchMultiType);
-		}
-	}
-
-	use() {
-		for (let c of this.#conditions) {
-			c.use();
-		}
-
-		for (let b of this.#branches) {
-			b.use();
+			return Common.toTyped(branchMultiType);
 		}
 	}
 
@@ -23496,7 +21028,7 @@ class DestructExpr {
 
 	/**
 	 * @param {Word} name - use an underscore as a sink
-	 * @param {?TypeExpr} typeExpr 
+	 * @param {null | Expr} typeExpr 
 	 * @param {DestructExpr[]} destructExprs
 	 */
 	constructor(name, typeExpr, destructExprs = []) {
@@ -23551,7 +21083,7 @@ class DestructExpr {
 				throw new Error("typeExpr not set");
 			}
 		} else {
-			return this.#typeExpr.type;
+			return assertDefined(this.#typeExpr.cache?.asType);
 		}
 	}
 
@@ -23566,6 +21098,9 @@ class DestructExpr {
 		}
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		if (this.#typeExpr === null) {
 			return this.name.toString();
@@ -23597,25 +21132,30 @@ class DestructExpr {
 				throw new Error("typeExpr not set");
 			}
 		} else {
-			return this.#typeExpr.eval(scope);
+			const type = this.#typeExpr.eval(scope).asType;
+			if (!type) {
+				throw this.#typeExpr.typeError("not a type");
+			}
+
+			return type;
 		}
 	}
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {Type} upstreamType 
+	 * @param {DataType} upstreamType 
 	 */
 	evalDestructExprs(scope, upstreamType) {
 		if (this.#destructExprs.length > 0) {
-			if (!(upstreamType instanceof AnyType) && upstreamType.nFields(this.site) != this.#destructExprs.length) {
-				throw this.site.typeError(`wrong number of destruct fields, expected ${upstreamType.nFields(this.site)}, got ${this.#destructExprs.length}`);
+			if (upstreamType.fieldNames.length != this.#destructExprs.length) {
+				throw this.site.typeError(`wrong number of destruct fields, expected ${upstreamType.fieldNames.length}, got ${this.#destructExprs.length}`);
 			}
 
 			for (let i = 0; i < this.#destructExprs.length; i++) {
 
 				this.#destructExprs[i].evalInternal(
 					scope, 
-					upstreamType.getFieldType(this.site, i), 
+					assertDefined(upstreamType.instanceMembers[upstreamType.fieldNames[i]].asDataType), 
 					i
 				);
 			}
@@ -23624,38 +21164,38 @@ class DestructExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {Type} upstreamType
+	 * @param {DataType} upstreamType
 	 * @param {number} i
 	 */
 	evalInternal(scope, upstreamType, i) {
 		if (this.hasType()) {
-			const t = this.evalType(scope).assertType();
+			const t = this.evalType(scope).asDataType;
 			if (!t) {
-				throw this.site.typeError("not a type");
+				throw this.site.typeError("not a data type");
 			}
 
 			// differs from upstreamType because can be enum parent
 			let checkType = t;
 
 			// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
-			if (t.isEnumMember() && !upstreamType.isEnumMember()) {
-				checkType = t.parentType(this.site);
+			if (t.asEnumMemberType && !upstreamType.asEnumMemberType) {
+				checkType = t.asEnumMemberType.parentType;
 			}
 
-			if (!Instance.new(upstreamType).isInstanceOf(checkType)) {
+			if (!checkType.isBaseOf(upstreamType)) {
 				throw this.site.typeError(`expected ${checkType.toString()} for destructure field ${i+1}, got ${upstreamType.toString()}`);
 			}
 
 			if (!this.isIgnored()) {
 				// TODO: take into account ghost type parameters
-				scope.set(this.name, Instance.new(t));
+				scope.set(this.name, t.toTyped());
 			}
 
 			this.evalDestructExprs(scope, t);
 		} else {
 			if (!this.isIgnored()) {
 				// TODO: take into account ghost type parameters
-				scope.set(this.name, Instance.new(upstreamType));
+				scope.set(this.name, upstreamType.toTyped());
 			}
 
 			this.evalDestructExprs(scope, upstreamType);
@@ -23664,11 +21204,11 @@ class DestructExpr {
 
 	/**
 	 * @param {Scope} scope
-	 * @param {Type} caseType
+	 * @param {DataType} caseType
 	 */
 	evalInSwitchCase(scope, caseType) {
 		if (!this.isIgnored()) {
-			scope.set(this.#name, Instance.new(caseType));
+			scope.set(this.#name, caseType.toTyped());
 		}
 
 		this.evalDestructExprs(scope, caseType)
@@ -23676,38 +21216,52 @@ class DestructExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {Type} upstreamType
+	 * @param {DataType} upstreamType
 	 * @param {number} i
 	 */
 	evalInAssignExpr(scope, upstreamType, i) {
-		const t = this.evalType(scope).assertType();
-		if (!t) {
-			throw this.site.typeError("not a type");
+		/**
+		 * @param {null | DataType} t 
+		 */
+		const checkType = (t) => {
+			if (!t) {
+				throw this.site.typeError("not a type");
+			}
+
+			// differs from upstreamType because can be enum parent
+			let checkType = t;
+
+			// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
+			if (t.asEnumMemberType && !upstreamType.asEnumMemberType) {
+				checkType = t.asEnumMemberType.parentType;
+			}
+
+			if (!checkType.isBaseOf(upstreamType)) {
+				throw this.site.typeError(`expected ${checkType.toString()} for rhs ${i+1}, got ${upstreamType.toString()}`);
+			}
+
+			if (!this.isIgnored()) {
+				// TODO: take into account ghost type parameters
+				scope.set(this.name, t.toTyped());
+			}
+
+			this.evalDestructExprs(scope, t);
 		}
 
-		// differs from upstreamType because can be enum parent
-		let checkType = t;
+		const t = this.evalType(scope);
 
-		// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
-		if (t.isEnumMember() && !upstreamType.isEnumMember()) {
-			checkType = t.parentType(this.site);
-		}
+		if (t.asDataType) {
+			/*if (i != 0) {
+				throw this.site.typeError("expected multi instance");
+			}*/
 
-		if (!Instance.new(upstreamType).isInstanceOf(checkType)) {
-			throw this.site.typeError(`expected ${checkType.toString()} for rhs ${i+1}, got ${upstreamType.toString()}`);
-		}
+			checkType(t.asDataType);
+		} else if (t.asMulti) {
+			if (i >= t.asMulti.values.length) {
+				throw this.site.typeError(`expected multi instace with only ${t.asMulti.values.length} items`);
+			}
 
-		if (!this.isIgnored()) {
-			// TODO: take into account ghost type parameters
-			scope.set(this.name, Instance.new(t));
-		}
-
-		this.evalDestructExprs(scope, t);
-	}
-
-	use() {
-		if (this.#typeExpr !== null) {
-			this.#typeExpr.use();
+			checkType(t.asMulti.values[i].type.asDataType);
 		}
 	}
 
@@ -23735,10 +21289,10 @@ class DestructExpr {
 
 		const type = this.type;
 
-		if (type.isEnumMember()) {
+		if (type.asEnumMemberType) {
 			return `__helios__common__field_${fieldIndex}`;
-		} else if (type instanceof StructStatementType) {
-			if (type.nFields(Site.dummy()) == 1) {
+		} else if (type.asDataType) {
+			if (type.asDataType.fieldNames.length == 1) {
 				return "";
 			} else {
 				return `__helios__common__tuple_field_${fieldIndex}`;
@@ -23769,8 +21323,8 @@ class DestructExpr {
 			let getter = `${fieldFn}(${objName})`;
 
 			// assert correct constructor index
-			if (this.#typeExpr && this.type.isEnumMember()) {
-				const constrIdx = this.type.getConstrIndex(this.#typeExpr.site);
+			if (this.#typeExpr && this.type.asEnumMemberType) {
+				const constrIdx = this.type.asEnumMemberType.constrIndex;
 
 				getter = `__helios__common__assert_constr_index(${getter}, ${constrIdx})`;
 			}
@@ -23831,7 +21385,7 @@ class SwitchCase extends Token {
 	/**
 	 * @param {Site} site 
 	 * @param {DestructExpr} lhs
-	 * @param {ValueExpr} bodyExpr 
+	 * @param {Expr} bodyExpr 
 	 */
 	constructor(site, lhs, bodyExpr) {
 		super(site);
@@ -23841,7 +21395,7 @@ class SwitchCase extends Token {
 	}
 
 	/**
-	 * @type {ValueExpr}
+	 * @type {Expr}
 	 */
 	get body() {
 		return this.#bodyExpr;
@@ -23882,16 +21436,16 @@ class SwitchCase extends Token {
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope 
-	 * @param {Type} enumType
-	 * @returns {Instance}
+	 * @param {DataType} enumType
+	 * @returns {EvalEntity}
 	 */
 	evalEnumMember(scope, enumType) {
-		const caseType = enumType.getTypeMember(this.memberName).assertType();
+		const caseType = enumType.typeMembers[this.memberName.value]?.asEnumMemberType;
 		if (!caseType) {
 			throw this.memberName.typeError("not a type");
 		}
 
-		this.#constrIndex = caseType.getConstrIndex(this.memberName.site);
+		this.#constrIndex = caseType.constrIndex;
 
 		assert(this.#constrIndex >= 0);
 
@@ -23909,35 +21463,34 @@ class SwitchCase extends Token {
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalDataMember(scope) {
-		/** @type {Type} */
+		/** @type {DataType} */
 		let memberType;
 
 		switch (this.memberName.value) {
 			case "Int":
-				memberType = new IntType();
+				memberType = IntType;
 				break;
 			case "ByteArray":
-				memberType = new ByteArrayType();
+				memberType = ByteArrayType;
 				break;
 			case "[]Data":
-				memberType = new ListType(new RawDataType());
+				memberType = ListType$(RawDataType);
 				break;
 			case "Map[Data]Data":
-				memberType = new MapType(new RawDataType(), new RawDataType());
+				memberType = MapType$(RawDataType, RawDataType);
 				break;
 			default:
-				let maybeMemberType = scope.get(this.memberName);
-				if (maybeMemberType instanceof Type) {
-					memberType = maybeMemberType;
+				let maybeMemberType = scope.get(this.memberName).asDataType;
+				if (!maybeMemberType) {
+					throw this.memberName.typeError("expected a data type");
+				}
+				memberType = maybeMemberType;
 
-					if (!(memberType instanceof EnumStatementType)) {
-						throw this.memberName.typeError("expected an enum type");
-					}
-				} else {
-					throw this.memberName.typeError("expected a type");
+				if (!Common.isEnum(memberType)) {
+					throw this.memberName.typeError("expected an enum type");
 				}
 		}
 
@@ -23950,10 +21503,6 @@ class SwitchCase extends Token {
 		caseScope.assertAllUsed();
 
 		return bodyVal;
-	}
-
-	use() {
-		this.#bodyExpr.use();
 	}
 
 	/**
@@ -23988,10 +21537,10 @@ class UnconstrDataSwitchCase extends SwitchCase {
 	 * @param {Site} site 
 	 * @param {?Word} intVarName 
 	 * @param {?Word} lstVarName 
-	 * @param {ValueExpr} bodyExpr 
+	 * @param {Expr} bodyExpr 
 	 */
 	constructor(site, intVarName, lstVarName, bodyExpr) {
-		super(site, new DestructExpr(new Word(site, "_"), new TypeRefExpr(new Word(site, "(Int, []Data)"))), bodyExpr);
+		super(site, new DestructExpr(new Word(site, "_"), new RefExpr(new Word(site, "(Int, []Data)"))), bodyExpr);
 
 		this.#intVarName = intVarName;
 		this.#lstVarName = lstVarName;
@@ -24017,18 +21566,18 @@ class UnconstrDataSwitchCase extends SwitchCase {
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalDataMember(scope) {
 		if (this.#intVarName !== null || this.#lstVarName !== null) {
 			let caseScope = new Scope(scope);
 
 			if (this.#intVarName !== null) {
-				caseScope.set(this.#intVarName, Instance.new(new IntType()));
+				caseScope.set(this.#intVarName, new DataEntity(IntType));
 			}
 
 			if (this.#lstVarName !== null) {
-				caseScope.set(this.#lstVarName, Instance.new(new ListType(new RawDataType())));
+				caseScope.set(this.#lstVarName, new DataEntity(ListType$(RawDataType)));
 			}
 
 			let bodyVal = this.body.eval(caseScope);
@@ -24068,7 +21617,7 @@ class SwitchDefault extends Token {
 
 	/**
 	 * @param {Site} site
-	 * @param {ValueExpr} bodyExpr
+	 * @param {Expr} bodyExpr
 	 */
 	constructor(site, bodyExpr) {
 		super(site);
@@ -24081,14 +21630,10 @@ class SwitchDefault extends Token {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	eval(scope) {
 		return this.#bodyExpr.eval(scope);
-	}
-
-	use() {
-		this.#bodyExpr.use();
 	}
 
 	/**
@@ -24107,14 +21652,14 @@ class SwitchDefault extends Token {
 /**
  * Parent class of EnumSwitchExpr and DataSwitchExpr
  */
-class SwitchExpr extends ValueExpr {
+class SwitchExpr extends Expr {
 	#controlExpr;
 	#cases;
 	#defaultCase;
 
 	/** 
 	 * @param {Site} site
-	 * @param {ValueExpr} controlExpr - input value of the switch
+	 * @param {Expr} controlExpr - input value of the switch
 	 * @param {SwitchCase[]} cases
 	 * @param {?SwitchDefault} defaultCase
 	*/
@@ -24147,18 +21692,6 @@ class SwitchExpr extends ValueExpr {
 	toString() {
 		return `${this.#controlExpr.toString()}.switch{${this.#cases.map(c => c.toString()).join(", ")}${this.#defaultCase === null ? "" : ", " + this.#defaultCase.toString()}}`;
 	}
-
-	use() {
-		this.#controlExpr.use();
-
-		for (let c of this.#cases) {
-			c.use();
-		}
-
-		if (this.#defaultCase !== null) {
-			this.#defaultCase.use();
-		}
-	}
 }
 
 /**
@@ -24168,12 +21701,22 @@ class SwitchExpr extends ValueExpr {
 class EnumSwitchExpr extends SwitchExpr {
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		let controlVal = this.controlExpr.eval(scope);
-		let enumType = controlVal.getType(this.controlExpr.site);
-		let nEnumMembers = enumType.nEnumMembers(this.controlExpr.site);
+		let controlVal = this.controlExpr.eval(scope).asTyped;
+
+		if (!controlVal) {
+			throw this.controlExpr.typeError("not typed");
+		}
+
+		let enumType = controlVal.type.asDataType;
+
+		if (!enumType) {
+			throw this.controlExpr.typeError("not an enum");
+		}
+
+		let nEnumMembers = Common.countEnumMembers(enumType);
 
 		// check that we have enough cases to cover the enum members
 		if (this.defaultCase === null && nEnumMembers > this.cases.length) {
@@ -24181,11 +21724,15 @@ class EnumSwitchExpr extends SwitchExpr {
 			this.setDefaultCaseToVoid();
 		}
 
-		/** @type {?Type[]} */
+		/** @type {null | Type[]} */
 		let branchMultiType = null;
 
 		for (let c of this.cases) {
-			let branchVal = c.evalEnumMember(scope, enumType);
+			let branchVal = c.evalEnumMember(scope, enumType).asTyped;
+
+			if (!branchVal) {
+				throw c.typeError("not typed");
+			}
 	
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				c.site, 
@@ -24195,7 +21742,11 @@ class EnumSwitchExpr extends SwitchExpr {
 		}
 
 		if (this.defaultCase !== null) {
-			let defaultVal = this.defaultCase.eval(scope);
+			let defaultVal = this.defaultCase.eval(scope).asTyped;
+
+			if (!defaultVal) {
+				throw this.defaultCase.typeError("not typed");
+			}
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				this.defaultCase.site,
@@ -24205,9 +21756,9 @@ class EnumSwitchExpr extends SwitchExpr {
 		}
 
 		if (branchMultiType === null) {
-			return Instance.new(new ErrorType());
+			return new ErrorEntity();
 		} else {
-			return Instance.new(branchMultiType);
+			return Common.toTyped(branchMultiType);
 		}
 	}
 
@@ -24257,15 +21808,21 @@ class EnumSwitchExpr extends SwitchExpr {
 class DataSwitchExpr extends SwitchExpr {
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		let controlVal = this.controlExpr.eval(scope);
-		let dataType = controlVal.getType(this.controlExpr.site);
+		let controlVal = this.controlExpr.eval(scope).asTyped;
+		if (!controlVal) {
+			throw this.controlExpr.typeError("not typed");
+		}
 
-		let controlSite = this.controlExpr.site;
-		if (!dataType.isBaseOf(new RawDataType())) {
-			throw this.controlExpr.typeError(`expected Data type, got ${controlVal.getType(controlSite).toString()}`);
+		let dataType = controlVal.type.asDataType;
+		if (!dataType) {
+			throw this.controlExpr.typeError("not a data type");
+		}
+
+		if (!RawDataType.isBaseOf(dataType)) {
+			throw this.controlExpr.typeError(`expected Data type, got ${controlVal.type.toString()}`);
 		}
 
 		// check that we have enough cases to cover the enum members
@@ -24278,7 +21835,10 @@ class DataSwitchExpr extends SwitchExpr {
 		let branchMultiType = null;
 
 		for (let c of this.cases) {
-			let branchVal = c.evalDataMember(scope);
+			let branchVal = c.evalDataMember(scope).asTyped;
+			if (!branchVal) {
+				throw c.typeError("not typed");
+			}
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				c.site, 
@@ -24288,7 +21848,10 @@ class DataSwitchExpr extends SwitchExpr {
 		}
 
 		if (this.defaultCase !== null) {
-			let defaultVal = this.defaultCase.eval(scope);
+			let defaultVal = this.defaultCase.eval(scope).asTyped;
+			if (!defaultVal) {
+				throw this.defaultCase.typeError("not typed");
+			}
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				this.defaultCase.site, 
@@ -24299,9 +21862,9 @@ class DataSwitchExpr extends SwitchExpr {
 
 		if (branchMultiType === null) {
 			// only possible if each branch is an error
-			return Instance.new(new ErrorType());
+			return new ErrorEntity();
 		} else {
-			return Instance.new(branchMultiType);
+			return Common.toTyped(branchMultiType);
 		}
 	}
 
@@ -24379,260 +21942,8 @@ class DataSwitchExpr extends SwitchExpr {
 }
 
 
-////////////////////////////////
-// Section 16: Literal functions
-////////////////////////////////
-
-/**
- * @package
- * @param {Site} site
- * @param {Type} type - expected type
- * @param {any} value - result of JSON.parse(string)
- * @param {string} path - context for debugging
- * @returns {ValueExpr}
- */
-function buildLiteralExprFromJson(site, type, value, path) {
-	if (value === null) {
-		throw site.typeError(`expected non-null value for parameter '${path}'`);
-	} else if (type instanceof BoolType) {
-		if (typeof value == "boolean") {
-			return new PrimitiveLiteralExpr(new BoolLiteral(site, value));
-		} else {
-			throw site.typeError(`expected boolean for parameter '${path}', got '${value}'`);
-		}
-	} else if (type instanceof StringType) {
-		if (typeof value == "string") {
-			return new PrimitiveLiteralExpr(new StringLiteral(site, value));
-		} else {
-			throw site.typeError(`expected string for parameter '${path}', got '${value}'`);
-		}
-	} else if (type instanceof IntType) {
-		if (typeof value == "number") {
-			if (value%1 == 0.0) {
-				return new PrimitiveLiteralExpr(new IntLiteral(site, BigInt(value)));
-			} else {
-				throw site.typeError(`expected round number for parameter '${path}', got '${value}'`);
-			}
-		} else {
-			throw site.typeError(`expected number for parameter '${path}', got '${value}'`);
-		}
-	} else if (type instanceof ByteArrayType || type instanceof HashType) {
-		if (value instanceof Array) {
-			/**
-			 * @type {number[]}
-			 */
-			const bytes = [];
-
-			for (let item of value) {
-				if (typeof item == "number" && item%1 == 0.0 && item >= 0 && item < 256) {
-					bytes.push(item);
-				} else {
-					throw site.typeError(`expected uint8[] for parameter '${path}', got '${value}'`);
-				}
-			}
-
-			/** @type {ValueExpr} */
-			let litExpr = new PrimitiveLiteralExpr(new ByteArrayLiteral(site, bytes));
-
-			if (type instanceof HashType) {
-				litExpr = new CallExpr(site, new ValuePathExpr(new TypeRefExpr(new Word(site, type.toString()), type), new Word(site, "new")), [new CallArgExpr(litExpr.site, null, litExpr)]);
-			}
-
-			return litExpr;
-		} else {
-			throw site.typeError(`expected array for parameter '${path}', got '${value}'`);
-		}
-	} else if (type instanceof ListType) {
-		if (value instanceof Array) {
-			/**
-			 * @type {ValueExpr[]}
-			 */
-			const items = [];
-
-			for (let item of value) {
-				items.push(buildLiteralExprFromJson(site, type.itemType, item, path + "[]"));
-			}
-
-			return new ListLiteralExpr(site, new TypeExpr(site, type.itemType), items);
-		} else {
-			throw site.typeError(`expected array for parameter '${path}', got '${value}'`);
-		}
-	} else if (type instanceof MapType) {
-		/**
-		 * @type {[ValueExpr, ValueExpr][]}
-		 */
-		const pairs = [];
-
-		if (value instanceof Object && type.keyType instanceof StringType) {
-			for (let key in value) {
-				pairs.push([new PrimitiveLiteralExpr(new StringLiteral(site, key)), buildLiteralExprFromJson(site, type.valueType, value[key], path + "." + key)]);
-			}
-		} else if (value instanceof Array) {
-			for (let item of value) {
-				if (item instanceof Array && item.length == 2) {
-					pairs.push([
-						buildLiteralExprFromJson(site, type.keyType, item[0], path + "[0]"),
-						buildLiteralExprFromJson(site, type.valueType, item[1], path + "[1]"),
-					]);
-				} else {
-					throw site.typeError(`expected array of pairs for parameter '${path}', got '${value}'`);
-				}
-			}
-		} else {
-			throw site.typeError(`expected array or object for parameter '${path}', got '${value}'`);
-		}
-
-		return new MapLiteralExpr(
-			site, 
-			new TypeExpr(site, type.keyType), 
-			new TypeExpr(site, type.valueType),
-			pairs
-		);
-	} else if (type instanceof StructStatementType || type instanceof EnumMemberStatementType) {
-		if (value instanceof Object) {
-			const nFields = type.statement.nFields(site);
-
-			/**
-			 * @type {StructLiteralField[]}
-			 */
-			const fields = new Array(nFields);
-
-			const nActual = Object.entries(value).length;
-
-			if (nFields != nActual) {
-				throw site.typeError(`expected object with ${nFields.toString} fields for parameter '${path}', got '${value}' with ${nActual.toString()} fields`);
-			}
-
-			for (let i = 0; i < nFields; i++) {
-				const key = type.statement.getFieldName(i);
-
-				const subValue = value[key];
-
-				if (subValue === undefined) {
-					throw site.typeError(`expected object with key '${key}' for parameter '${path}', got '${value}`);
-				}
-
-				const fieldType = type.statement.getFieldType(site, i);
-
-				const valueExpr = buildLiteralExprFromJson(site, fieldType, subValue, path + "." + key);
-
-				fields[i] = new StructLiteralField(nFields == 1 ? null : new Word(site, key), valueExpr);
-			}
-
-			return new StructLiteralExpr(new TypeExpr(site, type), fields);
-		} else {
-			throw site.typeError(`expected object for parameter '${path}', got '${value}'`);
-		}
-	} else {
-		throw site.typeError(`unhandled parameter type '${type.toString()}', for parameter ${path}`);
-	}
-}
-
-/**
- * @package
- * @param {Site} site
- * @param {Type} type - expected type
- * @param {UplcValue} value 
- * @param {string} path - context for debugging
- * @returns {ValueExpr}
- */
-function buildLiteralExprFromValue(site, type, value, path) {
-	if (type instanceof BoolType) {
-		if (value instanceof UplcBool) {
-			return new PrimitiveLiteralExpr(new BoolLiteral(site, value.bool));
-		} else {
-			throw site.typeError(`expected UplcBool for parameter '${path}', got '${value}'`);
-		}
-	} else if (type instanceof StringType) {
-		if (value instanceof UplcDataValue && value.data instanceof ByteArrayData) {
-			return new PrimitiveLiteralExpr(new StringLiteral(site, bytesToText(value.data.bytes)));
-		} else {
-			throw site.typeError(`expected ByteArrayData for parameter '${path}', got '${value}'`);
-		}
-	} else if (type instanceof IntType) {
-		if (value instanceof UplcDataValue && value.data instanceof IntData) {
-			return new PrimitiveLiteralExpr(new IntLiteral(site, value.data.value));
-		} else {
-			throw site.typeError(`expected IntData for parameter '${path}', got '${value}'`);
-		}
-	} else if (type instanceof ByteArrayType) {
-		if (value instanceof UplcDataValue && value.data instanceof ByteArrayData) {
-			return new PrimitiveLiteralExpr(new ByteArrayLiteral(site, value.data.bytes));
-		} else {
-			throw site.typeError(`expected ByteArrayData for parameter '${path}', got '${value}'`);
-		}
-	} else if (type instanceof ListType) {
-		if (value instanceof UplcDataValue && value.data instanceof ListData) {
-			/**
-			 * @type {ValueExpr[]}
-			 */
-			const items = [];
-
-			for (let data of value.data.list) {
-				items.push(buildLiteralExprFromValue(site, type.itemType, new UplcDataValue(site, data), path + "[]"));
-			}
-
-			return new ListLiteralExpr(site, new TypeExpr(site, type.itemType), items);
-		} else {
-			throw site.typeError(`expected ListData for parameter '${path}', got '${value}'`);
-		}
-	} else if (type instanceof MapType) {
-		if (value instanceof UplcDataValue && value.data instanceof MapData) {
-			/**
-			 * @type {[ValueExpr, ValueExpr][]}
-			 */
-			const pairs = [];
-
-			for (let dataPair of value.data.map) {
-				const keyExpr = buildLiteralExprFromValue(site, type.keyType, new UplcDataValue(site, dataPair[0]), path + "{key}");
-				const valueExpr = buildLiteralExprFromValue(site, type.valueType, new UplcDataValue(site, dataPair[1]), path + "{value}");
-
-				pairs.push([keyExpr, valueExpr]);
-			}
-
-			return new MapLiteralExpr(
-				site, 
-				new TypeExpr(site, type.keyType), 
-				new TypeExpr(site, type.valueType),
-				pairs
-			);
-		} else {
-			throw site.typeError(`expected ListData for parameter '${path}', got '${value}'`);
-		}
-	} else if (type instanceof StructStatementType || type instanceof EnumMemberStatementType) {
-		if (value instanceof UplcDataValue && value.data instanceof ConstrData) {
-			const nFields = type.statement.nFields(site);
-			/**
-			 * @type {StructLiteralField[]}
-			 */
-			const fields = new Array(nFields);
-
-			if (nFields != value.data.fields.length) {
-				throw site.typeError(`expected ConstrData with ${nFields.toString} fields for parameter '${path}', got '${value}' with ${value.data.fields.length.toString()} fields`);
-			}
-
-			for (let i = 0; i < nFields; i++) {
-				const f = value.data.fields[i];
-
-				const fieldType = type.statement.getFieldType(site, i);
-
-				const valueExpr = buildLiteralExprFromValue(site, fieldType, new UplcDataValue(site, f), path + "." + i.toString());
-
-				fields[i] = new StructLiteralField(nFields == 1 ? null : new Word(site, type.statement.getFieldName(i)), valueExpr);
-			}
-
-			return new StructLiteralExpr(new TypeExpr(site, type), fields);
-		} else {
-			throw site.typeError(`expected ConstrData for parameter '${path}', got '${value}'`);
-		}
-	} else {
-		throw site.typeError(`unhandled parameter type '${type.toString()}', for parameter ${path}`);
-	}
-}
-
-
 ////////////////////////////////////
-// Section 17: Helios AST statements
+// Section 24: Helios AST statements
 ////////////////////////////////////
 
 /**
@@ -24642,7 +21953,6 @@ function buildLiteralExprFromValue(site, type, value, path) {
  */
 class Statement extends Token {
 	#name;
-	#used;
 	#basePath; // set by the parent Module
 
 	/**
@@ -24652,19 +21962,7 @@ class Statement extends Token {
 	constructor(site, name) {
 		super(site);
 		this.#name = name;
-		this.#used = false;
 		this.#basePath = "__user";
-	}
-
-	/**
-	 * @param {string} basePath 
-	 */
-	setBasePath(basePath) {
-		this.#basePath = basePath;
-	}
-
-	get path() {
-		return `${this.#basePath}__${this.name.toString()}`;
 	}
 
 	/**
@@ -24675,10 +21973,10 @@ class Statement extends Token {
 	}
 
 	/**
-	 * @type {boolean}
+	 * @type {string}
 	 */
-	get used() {
-		return this.#used;
+	get path() {
+		return `${this.#basePath}__${this.name.toString()}`;
 	}
 
 	/**
@@ -24688,21 +21986,11 @@ class Statement extends Token {
 		throw new Error("not yet implemented");
 	}
 
-	use() {
-		this.#used = true;
-	}
-
 	/**
-	 * @param {Uint8Array} mask
+	 * @param {string} basePath 
 	 */
-	hideUnused(mask) {
-		if (!this.#used) {
-			if (this.site.endSite === null) {
-				mask.fill(0, this.site.startPos);
-			} else {
-				mask.fill(0, this.site.startPos, this.site.endSite.startPos);
-			}
-		}
+	setBasePath(basePath) {
+		this.#basePath = basePath;
 	}
 
 	/**
@@ -24711,6 +21999,13 @@ class Statement extends Token {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
 		throw new Error("not yet implemented");
 	}
 }
@@ -24723,11 +22018,6 @@ class ImportFromStatement extends Statement {
 	#origName;
 	#moduleName;
 
-	/** 
-	 * @type {Statement | null} 
-	 */
-	#origStatement;
-
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name
@@ -24738,7 +22028,6 @@ class ImportFromStatement extends Statement {
 		super(site, name);
 		this.#origName = origName;
 		this.#moduleName = moduleName;
-		this.#origStatement = null;
 	}
 
 	/**
@@ -24746,14 +22035,6 @@ class ImportFromStatement extends Statement {
 	 */
 	get moduleName() {
 		return this.#moduleName;
-	}
-
-	/**
-	 * Returns null if import is another Namespace
-	 * @type {Statement | null}
-	 */
-	get origStatement() {
-		return this.#origStatement;
 	}
 
 	/**
@@ -24776,17 +22057,9 @@ class ImportFromStatement extends Statement {
 	 * @param {ModuleScope} scope 
 	 */
 	eval(scope) {
-		let v = this.evalInternal(scope);
-
-		if (v instanceof FuncStatementInstance || v instanceof ParametricFuncStatementInstance || v instanceof ConstStatementInstance || v instanceof StatementType) {
-			this.#origStatement = assertClass(v.statement, Statement);
-		}
+		const v = this.evalInternal(scope);
 
 		scope.set(this.name, v);
-	}
-
-	use() {
-		super.use();
 	}
 
 	/**
@@ -24829,24 +22102,19 @@ class ImportModuleStatement extends Statement {
 	 */
 	evalInternal(scope) {
 		let importedScope = scope.getScope(this.name);
+		
+		/**
+		 * @type {NamespaceMembers}
+		 */
+		const namespaceMembers = {};
 
-		return new Namespace({
-			/**
-			 * @param {Word} name 
-			 * @returns {EvalEntity}
-			 */
-			get: (name) => {
-				const v = assertClass(importedScope, Scope).get(name);
-
-				if (v instanceof Scope)	{
-					throw name.typeError("unexpected scope");
-				} else {
-					this.#imported.set(name.value, v);
-					
-					return v;
-				}
+		for (let [name, entity] of importedScope.values) {
+			if (!(entity instanceof Scope)) {
+				namespaceMembers[name.value] = entity;
 			}
-		});	
+		}
+
+		return new ModuleNamespace(namespaceMembers);
 	}
 
 	/**
@@ -24856,12 +22124,6 @@ class ImportModuleStatement extends Statement {
 		let v = this.evalInternal(scope);
 
 		scope.set(this.name, v);
-	}
-
-	use() {
-		super.use();
-
-		// actual use is handled by wherever imported variables/types are called/used
 	}
 
 	/**
@@ -24878,20 +22140,20 @@ class ImportModuleStatement extends Statement {
  */
 class ConstStatement extends Statement {
 	/**
-	 * @type {?TypeExpr}
+	 * @type {null | Expr}
 	 */
 	#typeExpr;
 
 	/**
-	 * @type {ValueExpr}
+	 * @type {Expr}
 	 */
 	#valueExpr;
 
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
-	 * @param {?TypeExpr} typeExpr - can be null in case of type inference
-	 * @param {ValueExpr} valueExpr 
+	 * @param {null | Expr} typeExpr - can be null in case of type inference
+	 * @param {Expr} valueExpr 
 	 */
 	constructor(site, name, typeExpr, valueExpr) {
 		super(site, name);
@@ -24899,25 +22161,14 @@ class ConstStatement extends Statement {
 		this.#valueExpr = valueExpr;
 	}
 
+	/**
+	 * @type {DataType}
+	 */
 	get type() {
 		if (this.#typeExpr === null) {
-			return this.#valueExpr.type;
+			return assertDefined(this.#valueExpr.cache?.asTyped?.type?.asDataType);
 		} else {
-			return this.#typeExpr.type;
-		}
-	}
-
-	/**
-	 * @param {string | UplcValue} value 
-	 */
-	changeValue(value) {
-		let type = this.type;
-		let site = this.#valueExpr.site;
-
-		if (typeof value == "string") {
-			this.#valueExpr = buildLiteralExprFromJson(site, type, JSON.parse(value), this.name.value);
-		} else {
-			this.#valueExpr = buildLiteralExprFromValue(site, type, value, this.name.value);
+			return assertDefined(this.#typeExpr.cache?.asDataType);
 		}
 	}
 
@@ -24929,7 +22180,7 @@ class ConstStatement extends Statement {
 		const type = this.type;
 		const site = this.#valueExpr.site;
 
-		if ((new BoolType()).isBaseOf(type)) {
+		if (BoolType.isBaseOf(type)) {
 			this.#valueExpr = new PrimitiveLiteralExpr(new BoolLiteral(site, data.index == 1));
 		} else {
 			this.#valueExpr = new LiteralDataExpr(site, type, data);
@@ -24945,29 +22196,44 @@ class ConstStatement extends Statement {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {DataType}
+	 */
+	evalType(scope) {
+		if (this.#typeExpr) {
+			return this.#typeExpr.evalAsDataType(scope);
+		} else {
+			const type = this.#valueExpr.evalAsTyped(scope).type.asDataType;
+
+			if (!type) {
+				throw this.#valueExpr.typeError("not a data type");
+			}
+
+			return type;
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		let value = this.#valueExpr.eval(scope);
-
-		/** @type {Type} */
-		let type;
+		const value = this.#valueExpr.evalAsTyped(scope);
 
 		if (this.#typeExpr === null) {
 			if (!this.#valueExpr.isLiteral()) {
-				throw this.typeError("can't infer type");
+				throw this.typeError(`can't infer type of ${this.#valueExpr.toString()}`);
 			}
 
-			type = this.#valueExpr.type;
+			return value;
 		} else {
-			type = this.#typeExpr.eval(scope);
+			const type = this.#typeExpr.evalAsDataType(scope);
 
-			if (!value.isInstanceOf(type)) {
+			if (!type.isBaseOf(value.type)) {
 				throw this.#valueExpr.typeError("wrong type");
 			}
-		}
 
-		return new ConstStatementInstance(type, this);
+			return new DataEntity(type);
+		}
 	}
 
 	/**
@@ -24975,19 +22241,7 @@ class ConstStatement extends Statement {
 	 * @param {TopScope} scope 
 	 */
 	eval(scope) {
-		scope.set(this.name, this.evalInternal(scope));
-	}
-
-	use() {
-		if (!this.used) {
-			super.use();
-
-			this.#valueExpr.use();
-
-			if (this.#typeExpr !== null) {
-				this.#typeExpr.use();
-			}
-		}
+		scope.set(this.name, new NamedEntity(this.name.value, this.path, this.evalInternal(scope)));
 	}
 
 	/**
@@ -24998,8 +22252,7 @@ class ConstStatement extends Statement {
 			new IR("const(", this.site),
 			this.#valueExpr.toIR(),
 			new IR(")")
-		])
-		
+		]);	
 	}
 
 	/**
@@ -25017,10 +22270,18 @@ class ConstStatement extends Statement {
 class DataField extends NameTypePair {
 	/**
 	 * @param {Word} name 
-	 * @param {TypeExpr} typeExpr 
+	 * @param {Expr} typeExpr 
 	 */
 	constructor(name, typeExpr) {
 		super(name, typeExpr);
+	}
+
+	/**
+	 * Throws an error if called before evalType()
+	 * @type {DataType}
+	 */
+	get type() {
+		return assertDefined(super.type.asDataType);
 	}
 }
 
@@ -25031,9 +22292,6 @@ class DataField extends NameTypePair {
 class DataDefinition extends Statement {
 	#fields;
 
-	/** @type {Set<string>} */
-	#usedAutoMethods;
-
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
@@ -25042,11 +22300,10 @@ class DataDefinition extends Statement {
 	constructor(site, name, fields) {
 		super(site, name);
 		this.#fields = fields;
-		this.#usedAutoMethods = new Set();
 	}
 
 	/**
-	 * @type {Type}
+	 * @type {DataType}
 	 */
 	get type() {
 		throw new Error("not yet implemented");
@@ -25054,14 +22311,6 @@ class DataDefinition extends Statement {
 
 	get fields() {
 		return this.#fields.slice();
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -25082,6 +22331,13 @@ class DataDefinition extends Statement {
 		}
 
 		return found;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get fieldNames() {
+		return this.#fields.map(f => f.name.value);
 	}
 
 	/**
@@ -25115,45 +22371,52 @@ class DataDefinition extends Statement {
 	}
 
 	/**
-	 * @param {Scope} scope
+	 * @param {Scope} scope 
+	 * @returns {InstanceMembers}
 	 */
-	evalInternal(scope) {
-		for (let f of this.#fields) {
-			let fieldType = f.evalType(scope);
+	evalFieldTypes(scope) {
+		/**
+		 * @type {InstanceMembers}
+		 */
+		const fields = {};
 
-			if (fieldType instanceof FuncType) {
+		for (let f of this.#fields) {
+			const fieldType = f.evalType(scope).asDataType;
+
+			if (!fieldType) {
 				throw f.site.typeError("field can't be function type");
 			}
+
+			fields[f.name.value] = fieldType;
 		}
+
+		return fields;
 	}
 
 	/**
-	 * @param {Site} site 
-	 * @returns {number}
+	 * @type {number}
 	 */
-	nFields(site) {
+	get nFields() {
 		return this.#fields.length;
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {number} i 
-	 * @returns {Type}
+	 * @returns {DataType}
 	 */
-	getFieldType(site, i) {
+	getFieldType(i) {
 		return this.#fields[i].type;
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {string} name 
 	 * @returns {number}
 	 */
-	getFieldIndex(site, name) {
+	getFieldIndex(name) {
 		const i = this.findField(new Word(Site.dummy(), name));
 
 		if (i == -1) {
-			throw site.typeError(`field ${name} not find in ${this.toString()}`);
+			throw new Error(`field ${name} not find in ${this.toString()}`);
 		} else {
 			return i;
 		}
@@ -25175,63 +22438,89 @@ class DataDefinition extends Statement {
 		throw site.typeError(`'${this.name.value}' isn't an enum type`);
 	}
 
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		if (this.hasField(name)) {
-			throw name.referenceError(`'${this.name.toString()}::${name.toString()}' undefined (did you mean '${this.name.toString()}.${name.toString()}'?)`);
-		} else {
-			throw name.referenceError(`'${this.name.toString()}::${name.toString()}' undefined`);
-		}
-	}
 
 	/**
 	 * Gets insance member value.
-	 * If dryRun == true usage is triggered
-	 * @param {Word} name 
-	 * @param {boolean} dryRun 
-	 * @returns {Instance}
+	 * @param {Type} self
+	 * @returns {InstanceMembers}
 	 */
-	getInstanceMember(name, dryRun = false) {
-		switch (name.value) {
-			case "copy":
-				this.#usedAutoMethods.add(name.value);
-				return Instance.new(new FuncType(this.#fields.map(f => new ArgType(f.name, f.type, true)), this.type));
-			default:
-				let i = this.findField(name);
+	genInstanceMembers(self) {
+		const members = {
+			...genCommonInstanceMembers(self),
+			copy: new FuncType(this.#fields.map(f => new ArgType(f.name, f.type, true)), this.type),
+		};
 
-				if (i == -1) {
-					throw name.referenceError(`'${this.name.toString()}.${name.toString()}' undefined`);
-				} else {
-					return Instance.new(this.#fields[i].type);
-				}
+		for (let f of this.fields) {
+			members[f.name.value] = f.type;
 		}
-		
+
+		return members;
 	}
 
-	use() {
-		if (!this.used) {
-			super.use();
-			
-			for (let f of this.#fields) {
-				f.use();
+	/**
+	 * @param {Type} self
+	 * @returns {TypeMembers}
+	 */
+	genTypeMembers(self) {
+		return {
+			...genCommonTypeMembers(self)
+		};
+	}
+
+	/**
+	 * 
+	 * @param {IRDefinitions} map 
+	 */
+	newToIR(map) {
+		/**
+		 * @type {IR}
+		 */
+		let ir;
+
+		if (this.nFields == 1) {
+			ir = new IR(`${this.getFieldType(0).path}____to_data`);
+		} else {
+			ir = new IR("__core__mkNilData(())");
+
+			for (let i = this.nFields - 1; i >= 0; i--) {
+				const f = this.#fields[i];
+
+				ir = new IR([
+					new IR(`__core__mkCons(${this.getFieldType(i).path}____to_data(`),
+					new IR(f.name.value),
+					new IR("), "),
+					ir,
+					new IR(")")
+				]);
 			}
+
+			// wrap as function
+			ir = new IR([
+				new IR("("),
+				new IR(this.#fields.map(f => new IR(f.name.value))).join(", "),
+				new IR(") -> {__core__listData("),
+				ir,
+				new IR(")}")
+			]);
 		}
+
+		const key = `${this.path}____new`;
+
+		map.set(key, ir);
 	}
 
 	/**
 	 * @package
 	 * @param {IRDefinitions} map 
 	 * @param {string[]} getterNames
+	 * @param {number} constrIndex
 	 */
-	copyToIR(map, getterNames) {
+	copyToIR(map, getterNames, constrIndex = -1) {
 		const key = `${this.path}__copy`;
 
 		// using existing IR generators as much as possible
 
-		let ir = StructLiteralExpr.toIRInternal(this.site, this.type, this.#fields.map(df => new IR(df.name.value)), this.getConstrIndex(this.site));
+		let ir = StructLiteralExpr.toIRInternal(this.site, this.path, this.#fields.map(df => new IR(df.name.value)));
 
 		// wrap with defaults
 
@@ -25269,59 +22558,69 @@ class DataDefinition extends Statement {
 		 */
 		const getterNames = [];
 
-		// add a getter for each field
-		for (let i = 0; i < this.#fields.length; i++) {
-			let f = this.#fields[i];
-			let key = `${this.path}__${f.name.toString()}`;
+		if (this.fields.length == 1) {
+			const f = this.fields[0];
+			const key = `${this.path}__${f.name.toString()}`;
+			const isBool = BoolType.isBaseOf(f.type);
+
+			const getter = isBool ? new IR("__helios__common__unBoolData", f.site) : new IR("__helios__common__identity", f.site);
+			
+			map.set(key, getter);
 			getterNames.push(key);
-			let isBool = f.type instanceof BoolType;
+		} else {
+			// add a getter for each field
+			for (let i = 0; i < this.#fields.length; i++) {
+				let f = this.#fields[i];
+				let key = `${this.path}__${f.name.toString()}`;
+				getterNames.push(key);
+				let isBool = BoolType.isBaseOf(f.type);
 
-			/**
-			 * @type {IR}
-			 */
-			let getter;
+				/**
+				 * @type {IR}
+				 */
+				let getter;
 
-			if (i < 20) {
+				if (i < 20) {
 
-				getter = new IR(`${getterBaseName}_${i}`, f.site);
+					getter = new IR(`${getterBaseName}_${i}`, f.site);
 
-				if (isBool) {
+					if (isBool) {
+						getter = new IR([
+							new IR("(self) "), new IR("->", f.site), new IR(" {"),
+							new IR(`__helios__common__unBoolData(${getterBaseName}_${i}(self))`),
+							new IR("}"),
+						]);
+					}
+				} else {
+					let inner = isConstr ? new IR("__core__sndPair(__core__unConstrData(self))") : new IR("__core__unListData(self)");
+
+					for (let j = 0; j < i; j++) {
+						inner = new IR([new IR("__core__tailList("), inner, new IR(")")]);
+					}
+
+					inner = new IR([
+						new IR("__core__headList("),
+						inner,
+						new IR(")"),
+					]);
+
+					if (isBool) {
+						inner = new IR([new IR("__helios__common__unBoolData("), inner, new IR(")")]);
+					}
+
 					getter = new IR([
 						new IR("(self) "), new IR("->", f.site), new IR(" {"),
-						new IR(`__helios__common__unBoolData(${getterBaseName}_${i}(self))`),
+						inner,
 						new IR("}"),
 					]);
 				}
-			} else {
-				let inner = isConstr ? new IR("__core__sndPair(__core__unConstrData(self))") : new IR("__core__unListData(self)");
 
-				for (let j = 0; j < i; j++) {
-					inner = new IR([new IR("__core__tailList("), inner, new IR(")")]);
-				}
-
-				inner = new IR([
-					new IR("__core__headList("),
-					inner,
-					new IR(")"),
-				]);
-
-				if (isBool) {
-					inner = new IR([new IR("__helios__common__unBoolData("), inner, new IR(")")]);
-				}
-
-				getter = new IR([
-					new IR("(self) "), new IR("->", f.site), new IR(" {"),
-					inner,
-					new IR("}"),
-				]);
+				map.set(key, getter)
 			}
-
-			map.set(key, getter)
 		}
 
-		if (this.#usedAutoMethods.has("copy")) {
-			this.copyToIR(map, getterNames);
-		}
+		this.newToIR(map);
+		this.copyToIR(map, getterNames);
 	}
 }
 
@@ -25348,10 +22647,108 @@ class StructStatement extends DataDefinition {
 	}
 
 	/**
-	 * @type {StructStatementType}
+	 * @param {string} basePath 
 	 */
-	get type() {
-		return new StructStatementType(this);
+	setBasePath(basePath) {
+		super.setBasePath(basePath);
+
+		this.#impl.setBasePath(this.path);
+	}
+
+	/**
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get offChainType() {
+		const statement = this;
+
+		class Struct extends HeliosData {
+			/**
+			 * So we can access fields by index
+			 * @type {HeliosData[]}
+			 */
+			#fields;
+
+			/**
+			 * @param  {...any} args
+			 */
+			constructor(...args) {
+				super();
+				if (args.length != statement.nFields) {
+					throw new Error(`expected ${statement.nFields} args, got ${args.length}`);
+				}
+
+				this.#fields = [];
+
+				args.forEach((arg, i) => {
+					const fieldName = statement.getFieldName(i);
+					const fieldType = statement.getFieldType(i);
+
+					const FieldClass = assertDefined(fieldType.offChainType);
+
+					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+
+					this.#fields.push(instance);
+					this[fieldName] = instance;
+				});
+			}
+
+			/**
+			 * Overload 'instanceof' operator
+			 * @param {any} other 
+			 * @returns {boolean}
+			 */
+			static [Symbol.hasInstance](other) {
+				return (other._structStatement === statement) && (other instanceof HeliosData);
+			}
+
+			/**
+			 * @type {StructStatement}
+			 */
+			get _structStatement() {
+				return statement;
+			}
+
+			/**
+			 * @returns {UplcData}
+			 */
+			_toUplcData() {
+				if (this.#fields.length == 1) {
+					return this.#fields[0]._toUplcData();
+				} else {
+					return new ListData(this.#fields.map(f => f._toUplcData()));
+				}
+			}
+
+			/**
+			 * @param {string | number[]} bytes 
+			 * @returns {Struct}
+			 */
+			static fromUplcCbor(bytes) {
+				return Struct.fromUplcData(UplcData.fromCbor(bytes));
+			}
+
+			/**
+			 * @param {UplcData} data 
+			 * @returns {Struct}
+			 */
+			static fromUplcData(data) {
+				const dataItems = data.list;
+
+				if (dataItems.length != statement.nFields) {
+					throw new Error("unexpected number of fields");
+				}
+
+				const args = dataItems.map((item, i) => {
+					return assertDefined(statement.getFieldType(i).offChainType).fromUplcData(item);
+				});
+
+				return new Struct(...args);
+			}
+		}
+
+		Object.defineProperty(Struct, "name", {value: this.name, writable: false});		
+
+		return Struct;
 	}
 
 	/**
@@ -25362,81 +22759,54 @@ class StructStatement extends DataDefinition {
 	}
 
 	/**
-	 * Returns -1, which means -> don't use ConstrData, but use []Data directly
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return -1;
-	}
-
-	/**
 	 * Evaluates own type and adds to scope
 	 * @param {TopScope} scope 
 	 */
 	eval(scope) {
-		if (scope.isStrict() && this.fields.length == 0) {
-			throw this.syntaxError("expected at least 1 struct field");
-		}
+		// first evaluate the type using a shell type of self
+		const shell = new GenericType({
+			fieldNames: this.fields.map(f => f.name.value),
+			name: this.name.value,
+			path: this.path,
+			genInstanceMembers: (self) => ({}),
+			genTypeMembers: (self) => ({})
+		});
+
+		const typeScope = new Scope(scope);
+		typeScope.set(this.name, shell);
+
+		const fields = super.evalFieldTypes(typeScope);
+
+		const [instanceMembers, typeMembers] = this.#impl.evalTypes(typeScope);
+
+		const full = new GenericType({
+			fieldNames: this.fields.map(f => f.name.value),
+			name: this.name.value,
+			path: this.path,
+			offChainType: this.offChainType,
+			genInstanceMembers: (self) => ({
+				...genCommonInstanceMembers(self),
+				...fields,
+				...instanceMembers
+			}),
+			genTypeMembers: (self) => ({
+				...genCommonTypeMembers(self),
+				...typeMembers
+			})
+		});
 
 		// add before so recursive types are possible
-		scope.set(this.name, this.type);
+		scope.set(this.name, full);
 
-		this.evalInternal(scope);
-
-		// check the types of the member methods
+		// full type evaluation of function bodies
 		this.#impl.eval(scope);
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @param {boolean} dryRun 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name, dryRun = false) {
-		if (super.hasMember(name)) {
-			return super.getInstanceMember(name, dryRun);
-		} else {
-			return this.#impl.getInstanceMember(name, dryRun);
-		}
-	}
-
-	/**
-	 * @param {Word} name
-	 * @param {boolean} dryRun
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name, dryRun = false) {
-		// only the impl can contain potentially contain type members
-		return this.#impl.getTypeMember(name, dryRun);
-	}
-
-	/**
-	 * @param {Uint8Array} mask
-	 */
-	hideUnused(mask) {
-		super.hideUnused(mask);
-
-		this.#impl.hideUnused(mask);
 	}
 
 	/**
 	 * @param {IRDefinitions} map
 	 */
 	toIR(map) {
-		if (this.fields.length == 1) {
-			let f = this.fields[0];
-			let key = `${this.path}__${f.name.toString()}`;
-			let isBool = f.type instanceof BoolType;
-
-			if (isBool) {
-				map.set(key, new IR("__helios__common__unBoolData", f.site));
-			} else {
-				map.set(key, new IR("__helios__common__identity", f.site));
-			}
-		} else {
-			super.toIR(map, false);
-		}
+		super.toIR(map, false);
 
 		this.#impl.toIR(map);
 	}
@@ -25449,7 +22819,6 @@ class StructStatement extends DataDefinition {
  */
 class FuncStatement extends Statement {
 	#funcExpr;
-	#recursive;
 
 	/**
 	 * @param {Site} site 
@@ -25459,7 +22828,6 @@ class FuncStatement extends Statement {
 	constructor(site, name, funcExpr) {
 		super(site, name);
 		this.#funcExpr = funcExpr;
-		this.#recursive = false;
 	}
 
 	/**
@@ -25483,6 +22851,9 @@ class FuncStatement extends Statement {
 		return this.#funcExpr.retTypes;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `func ${this.name.toString()}${this.#funcExpr.toString()}`;
 	}
@@ -25490,7 +22861,7 @@ class FuncStatement extends Statement {
 	/**
 	 * Evaluates a function and returns a func value
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		return this.#funcExpr.evalInternal(scope);
@@ -25506,25 +22877,6 @@ class FuncStatement extends Statement {
 		return this.#funcExpr.evalType(scope);
 	}
 
-	use() {
-		if (!this.used) {
-			super.use();
-
-			this.#funcExpr.use();
-		}
-	}
-
-	isRecursive() {
-		return this.#recursive;
-	}
-
-	/**
-	 * Called in FuncStatementScope as soon as recursion is detected
-	 */
-	setRecursive() {
-		this.#recursive = true;
-	}
-
 	/**
 	 * @param {Scope} scope 
 	 */
@@ -25534,25 +22886,20 @@ class FuncStatement extends Statement {
 		let fnType = this.evalType(scope);
 
 		let fnVal = this.#funcExpr.hasParameters() ?
-			new ParametricFuncStatementInstance(this.#funcExpr.parameters, fnType, this) :
-			new FuncStatementInstance(fnType, this);
+			new ParametricFunc(this.#funcExpr.parameters, fnType) :
+			new FuncEntity(fnType);
 
-		scope.set(this.name, fnVal);
+		scope.set(this.name, new NamedEntity(this.name.value, this.path, fnVal));
 
-		void this.#funcExpr.evalInternal(new FuncStatementScope(scope, this));
+		void this.#funcExpr.evalInternal(scope);
 	}
 
 	/**
-	 * Returns IR of function.
-	 * @param {string} fullName - fullName has been prefixed with a type path for impl members
+	 * Returns IR of function
 	 * @returns {IR}
 	 */
-	toIRInternal(fullName = this.path) {
-		if (this.#recursive) {
-			return this.#funcExpr.toIRRecursive(fullName, TAB);
-		} else {
-			return this.#funcExpr.toIR(TAB);
-		}
+	toIRInternal() {
+		return this.#funcExpr.toIR(TAB);
 	}
 
 	/**
@@ -25580,7 +22927,7 @@ class FuncStatement extends Statement {
  * @package
  */
 class EnumMember extends DataDefinition {
-	/** @type {?EnumStatement} */
+	/** @type {null | EnumStatement} */
 	#parent;
 
 	/** @type {?number} */
@@ -25594,6 +22941,17 @@ class EnumMember extends DataDefinition {
 		super(name.site, name, fields);
 		this.#parent = null; // registered later
 		this.#constrIndex = null;
+	}
+
+	/**
+	 * @returns {number}
+	 */
+	get constrIndex() {
+		if (this.#constrIndex === null) {
+			throw new Error("constrIndex not set");
+		} else {
+			return this.#constrIndex;
+		}
 	}
 
 	/** 
@@ -25616,48 +22974,149 @@ class EnumMember extends DataDefinition {
 		}
 	}
 
-	get type() {
-		return new EnumMemberStatementType(this);
-	}
-
 	/**
-	 * @param {Site} site 
-	 * @returns {number}
+	 * @type {HeliosDataClass<HeliosData>}
 	 */
-	getConstrIndex(site) {
-		if (this.#constrIndex === null) {
-			throw new Error("constrIndex not set");
-		} else {
-			return this.#constrIndex;
+	get offChainType() {
+		const statement = this;
+
+		const enumStatement = statement.parent;
+
+		const index = statement.constrIndex;
+
+		const nFields = statement.nFields;
+
+		/**
+		 * @type {[string, DataType][]} - [name, type]
+		 */
+		const fields = [];
+
+		for (let i = 0; i < nFields; i++) {
+			fields.push([statement.getFieldName(i), statement.getFieldType(i)]);
 		}
+
+		// similar to Struct
+		class EnumVariant extends HeliosData {
+			/**
+			 * So we can access fields by index
+			 * @type {HeliosData[]}
+			 */
+			#fields;
+
+			/**
+			 * @param  {...any} args
+			 */
+			constructor(...args) {
+				super();
+				if (args.length != nFields) {
+					throw new Error(`expected ${nFields} args, got ${args.length}`);
+				}
+
+				this.#fields = [];
+
+				args.forEach((arg, i) => {
+					const [fieldName, fieldType] = fields[i];
+					const FieldClass = assertDefined(fieldType.offChainType);
+
+					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+
+					this.#fields.push(instance);
+					this[fieldName] = instance;
+
+				});
+			}
+
+			/**
+			 * Overload 'instanceof' operator
+			 * @param {any} other 
+			 * @returns {boolean}
+			 */
+			static [Symbol.hasInstance](other) {
+				return (other._enumVariantStatement === statement) && (other instanceof HeliosData);
+			}
+
+			/**
+			 * @type {EnumStatement}
+			 */
+			get _enumStatement() {
+				return enumStatement;
+			}
+
+			/**
+			 * @type {EnumMember}
+			 */
+			get _enumVariantStatement() {
+				return statement;
+			}
+
+			/**
+			 * @returns {UplcData}
+			 */
+			_toUplcData() {
+				return new ConstrData(index, this.#fields.map(f => f._toUplcData()));
+			}
+
+			/**
+			 * @param {string | number[]} bytes 
+			 * @returns {EnumVariant}
+			 */
+			static fromUplcCbor(bytes) {
+				return EnumVariant.fromUplcData(UplcData.fromCbor(bytes));
+			}
+
+			/**
+			 * @param {UplcData} data 
+			 * @returns {EnumVariant}
+			 */
+			static fromUplcData(data) {
+				assert(data.index == index, "wrong index");
+
+				const dataItems = data.list;
+
+				if (dataItems.length != nFields) {
+					throw new Error("unexpected number of fields");
+				}
+
+				const args = dataItems.map((item, i) => {
+					return assertDefined(fields[i][1].offChainType).fromUplcData(item);
+				});
+
+				return new EnumVariant(...args);
+			}
+		}
+
+		Object.defineProperty(EnumVariant, "name", {value: this.name, writable: false});
+
+		return EnumVariant;
+
 	}
 
 	/**
 	 * @param {Scope} scope 
+	 * @returns {(parent: DataType) => EnumMemberType}
 	 */
-	eval(scope) {
+	evalType(scope) {
 		if (this.#parent === null) {
 			throw new Error("parent should've been registered");
 		}
 
-		super.evalInternal(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
-	}
+		const instanceMembers = super.evalFieldTypes(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
 
-	/**
-	 * @param {Word} name 
-	 * @param {boolean} dryRun 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name, dryRun = false) {
-		if (this.hasField(name)) {
-			return super.getInstanceMember(name, dryRun);
-		} else {
-			if (this.#parent === null) {
-				throw new Error("parent should've been registered");
-			} else {
-				return this.#parent.getInstanceMember(name, dryRun);
-			}
-		}
+		return (parent) => new GenericEnumMemberType({
+			name: this.name.value,
+			path: this.path,
+			constrIndex: this.constrIndex,
+			offChainType: this.offChainType,
+			parentType: parent,
+			fieldNames: this.fieldNames,
+			genInstanceMembers: (self) => ({
+				...genCommonInstanceMembers(self),
+				...instanceMembers
+			}),
+			genTypeMembers: (self) => ({
+				...genCommonTypeMembers(self),
+			})
+		});
 	}
 
 	get path() {
@@ -25692,8 +23151,81 @@ class EnumStatement extends Statement {
 		}
 	}
 
-	get type() {
-		return new EnumStatementType(this);
+	/**
+	 * @param {string} basePath 
+	 */
+	setBasePath(basePath) {
+		super.setBasePath(basePath);
+
+		this.#impl.setBasePath(this.path);
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get offChainType() {
+		const statement = this;
+
+		const nVariants = statement.nEnumMembers;
+
+		/**
+		 * @type {HeliosDataClass<HeliosData>[]}
+		 */
+		const variants = [];
+
+		for (let i = 0; i < nVariants; i++) {
+			variants.push(this.#members[i].offChainType);
+		}
+
+		class Enum extends HeliosData {
+			constructor() {
+				super();
+				throw new Error("can't be constructed (hint: construct an enum)");
+			}
+
+			/**
+			 * Overload 'instanceof' operator
+			 * @param {any} other 
+			 * @returns {boolean}
+			 */
+			static [Symbol.hasInstance](other) {
+				return (other._enumStatement === statement) && (other instanceof HeliosData);
+			}
+
+			/**
+			 * @type {EnumStatement}
+			 */
+			get _enumStatement() {
+				return statement;
+			}
+
+			/**
+			 * @param {string | number[]} bytes
+			 * @returns {HeliosData}
+			 */
+			static fromUplcCbor(bytes) {
+				return Enum.fromUplcData(UplcData.fromCbor(bytes));
+			}
+
+			/**
+			 * @param {UplcData} data 
+			 * @returns {HeliosData}
+			 */
+			static fromUplcData(data) {
+				const variant = assertDefined(variants[data.index], "index out of range");
+
+				return variant.fromUplcData(data);
+			}
+		}
+
+		Object.defineProperty(Enum, "name", {value: this.name, writable: false});
+
+		for (let v of variants) {
+			Object.defineProperty(Enum, v.name, {value: v, writable: false});
+		}
+
+		return Enum;
 	}
 
 	/**
@@ -25718,11 +23250,10 @@ class EnumStatement extends Statement {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {number} i
 	 * @returns {EnumMember}
 	 */
-	getEnumMember(site, i) {
+	getEnumMember(i) {
 		return assertDefined(this.#members[i]);
 	}
 
@@ -25734,6 +23265,40 @@ class EnumStatement extends Statement {
 		return this.findEnumMember(name) != -1;
 	}
 
+	/**
+	 * @returns {number}
+	 */
+	get nEnumMembers() {
+		return this.#members.length;
+	}
+
+	/**
+	 * @param {Type} self 
+	 * @returns {TypeMembers}
+	 */
+	genEnumMemberShellTypes(self) {
+		/**
+		 * @type {TypeMembers}
+		 */
+		const types = {};
+
+		for (let member of this.#members) {
+			types[member.name.value] = new GenericEnumMemberType({
+				constrIndex: member.constrIndex,
+				name: member.name.value,
+				path: member.path,
+				parentType: assertDefined(self.asDataType),
+				genInstanceMembers: (self) => ({}),
+				genTypeMembers: (self) => ({})
+			});
+		}
+
+		return types
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `enum ${this.name.toString()}${this.#parameters.toString()} {${this.#members.map(m => m.toString()).join(", ")}}`;
 	}
@@ -25742,117 +23307,56 @@ class EnumStatement extends Statement {
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
-		scope.set(this.name, this.type);
-
-		this.#members.forEach(m => {
-			m.eval(scope);
+		// first set the shell type
+		const shell = new GenericType({
+			name: this.name.value,
+			path: this.path,
+			genInstanceMembers: (self) => ({}),
+			genTypeMembers: (self) => this.genEnumMemberShellTypes(self)
 		});
 
-		this.#impl.eval(scope);
-	}
+		// the scope that is used for type evaluation
+		const subScope = new Scope(scope);
+		subScope.set(this.name, shell);
 
-	use() {
-		if (!this.used) {
-			super.use();
+		/**
+		 * @type {{[name: string]: (parent: DataType) => EnumMemberType}}
+		 */
+		const genFullMembers = {};
 
-			for (let m of this.#members) {
-				m.use();
+		this.#members.forEach(m => {
+			genFullMembers[m.name.value] =m.evalType(subScope);
+		});
+
+		const [instanceMembers, typeMembers] = this.#impl.evalTypes(subScope);
+
+		const full = new GenericType({
+			name: this.name.value,
+			path: this.path,
+			offChainType: this.offChainType,
+			genInstanceMembers: (self) => ({
+				...genCommonInstanceMembers(self),
+				...instanceMembers
+			}),
+			genTypeMembers: (self) => {
+				const typeMembers_ = {
+					...genCommonTypeMembers(self),
+					...typeMembers
+				};
+				
+				// TODO: detect duplicates
+				for (let memberName in genFullMembers) {
+					typeMembers_[memberName] = genFullMembers[memberName](assertDefined(self.asDataType))
+				}
+
+				return typeMembers_
 			}
-		}
-	}
+		});
 
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nFields(site) {
-		throw site.typeError("enum doesn't have fields");
-	}
+		console.log(full.typeMembers)
+		scope.set(this.name, full);
 
-	/**
-	 * @param {Site} site
-	 * @param {number} i
-	 * @returns {Type}
-	 */
-	getFieldType(site, i) {
-		throw site.typeError("enum doesn't have fields");
-	}
-
-	/**f
-	 * @param {Site} site 
-	 * @param {string} name 
-	 * @returns {number}
-	 */
-	getFieldIndex(site, name) {
-		throw site.typeError("enum doesn't have fields");
-	}
-
-	/**
-	 * @param {number} i 
-	 * @returns {string}
-	 */
-	getFieldName(i) {
-		throw Site.dummy().typeError("enum doesn't have fields");
-	}
-	
-    /**
-     * @param {Word} name 
-     * @returns {boolean}
-     */
-    hasField(name) {
-        throw name.site.typeError("enum doesn't have fields");
-    }
-
-	/** 
-	 * @param {Word} name 
-	 * @param {boolean} dryRun 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name, dryRun = false) {
-		if (this.hasEnumMember(name)) {
-			throw name.referenceError(`'${name.toString()}' is an enum of '${this.toString}' (did you mean '${this.toString()}::${name.toString()}'?)`);
-		} else {
-			return this.#impl.getInstanceMember(name, dryRun);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @param {boolean} dryRun
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name, dryRun = false) {
-		let i = this.findEnumMember(name);
-		if (i == -1) {
-			return this.#impl.getTypeMember(name, dryRun);
-		} else {
-			return this.#members[i].type;
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		throw site.typeError("can't construct an enum directly (cast to a concrete type first)");
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		return this.#members.length;
-	}
-
-	/**
-	 * @param {Uint8Array} mask
-	 */
-	hideUnused(mask) {
-		super.hideUnused(mask);
-
-		this.#impl.hideUnused(mask);
+		this.#impl.eval(scope);
 	}
 
 	/**
@@ -25875,135 +23379,66 @@ class ImplDefinition {
 	#selfTypeExpr;
 	#statements;
 
-	/** @type {Instance[]} - filled during eval to allow same recursive behaviour as for top-level statements */
-	#statementValues;
-
-	/** @type {Set<string>} */
-	#usedStatements;
-
 	/**
-	 * @param {TypeRefExpr} selfTypeExpr;
+	 * @param {RefExpr} selfTypeExpr;
 	 * @param {(FuncStatement | ConstStatement)[]} statements 
 	 */
 	constructor(selfTypeExpr, statements) {
 		this.#selfTypeExpr = selfTypeExpr;
 		this.#statements = statements;
-		this.#statementValues = [];
-		this.#usedStatements = new Set(); // used for code-generation, but not for cleanSource filtering
 	}
 
+	/**
+	 * @param {string} basePath 
+	 */
+	setBasePath(basePath) {
+		for (let s of this.#statements) {
+			s.setBasePath(basePath);
+		}
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `${this.#statements.map(s => s.toString()).join("\n")}`;
+	}
+
+	/**
+	 * Doesn't add the common types
+	 * @param {Scope} scope 
+	 * @returns {[InstanceMembers, TypeMembers]}
+	 */
+	evalTypes(scope) {
+		/**
+		 * @type {InstanceMembers}
+		 */
+		const instanceMembers = {};
+
+		/**
+		 * @type {TypeMembers}
+		 */
+		const typeMembers = {};
+
+		for (let s of this.#statements) {
+			if (FuncStatement.isMethod(s)) {
+				instanceMembers[s.name.value] = s.evalType(scope);
+			} else {
+				typeMembers[s.name.value] = s.evalType(scope);
+			}
+		}
+
+		return [instanceMembers, typeMembers];
 	}
 
 	/**
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
-		let selfType = this.#selfTypeExpr.eval(scope);
+		void this.#selfTypeExpr.eval(scope);
 
-		if (!(selfType instanceof StatementType)) {
-			throw this.#selfTypeExpr.referenceError("not a user-type");
-		} else {
-			for (let s of this.#statements) {
-				if (s instanceof FuncStatement) {
-					// override eval() of FuncStatement because we don't want the function to add itself to the scope directly.
-					let v = new FuncStatementInstance(s.evalType(scope), s);
-
-					this.#statementValues.push(v); // add func type to #statementValues in order to allow recursive calls (acts as a special scope)
-
-					// eval internal doesn't add anything to scope
-					void s.evalInternal(new FuncStatementScope(scope, s));
-				} else {
-					// eval internal doesn't add anything to scope
-					this.#statementValues.push(s.evalInternal(scope));
-				}
-			}
-		}
-	}
-
-	/**
-	 * @param {Word} name
-	 * @param {boolean} dryRun
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name, dryRun = false) {
-		switch (name.value) {
-			case "serialize":
-				this.#usedStatements.add(name.toString());
-				return Instance.new(new FuncType([], new ByteArrayType()));
-			
-			default:
-				// loop the contained statements to find one with name 'name'
-				for (let i = 0; i < this.#statementValues.length; i++) {
-					let s = this.#statements[i];
-
-					if (name.toString() == s.name.toString()) {
-						if (FuncStatement.isMethod(s)) {
-							if (!dryRun) {
-								this.#usedStatements.add(name.toString());
-							}
-
-							return this.#statementValues[i];
-						} else {
-							throw name.referenceError(`'${this.#selfTypeExpr.toString()}.${name.toString()}' isn't a method (did you mean '${this.#selfTypeExpr.toString()}::${name.toString()}'?)`);
-						}
-					}
-				}
-
-				throw name.referenceError(`'${this.#selfTypeExpr.toString()}.${name.toString()}' undefined`);
-		}
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @param {boolean} dryRun 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name, dryRun = false) {
-		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				this.#usedStatements.add(name.toString());
-				return Instance.new(new FuncType([this.#selfTypeExpr.type, this.#selfTypeExpr.type], new BoolType()));
-			case "from_data":
-				this.#usedStatements.add(name.toString());
-				return Instance.new(new FuncType([new RawDataType()], this.#selfTypeExpr.type));
-			default:
-				for (let i = 0; i < this.#statementValues.length; i++) {
-					let s = this.#statements[i];
-
-					if (name.toString() == s.name.toString()) {
-						if (FuncStatement.isMethod(s)) {
-							throw name.referenceError(`'${this.#selfTypeExpr.toString()}::${name.value}' is a method (did you mean '${this.#selfTypeExpr.toString()}.${name.toString()}'?)`)
-						} else {
-							if (!dryRun) {
-								this.#usedStatements.add(name.toString());
-							}
-
-							return this.#statementValues[i];
-						}
-					}
-				}
-
-				throw name.referenceError(`'${this.#selfTypeExpr.toString()}::${name.toString()}' undefined`);
-		}
-	}
-
-	/**
-	 * @param {Uint8Array} mask
-	 */
-	hideUnused(mask) {
 		for (let s of this.#statements) {
-			if (!s.used) {
-				let site = s.site;
-
-				if (site.endSite === null) {
-					mask.fill(0, site.startPos);
-				} else {
-					mask.fill(0, site.startPos, site.endSite.startPos);
-				}
-			}
+			void s.evalInternal(scope);
 		}
 	}
 
@@ -26012,39 +23447,24 @@ class ImplDefinition {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		let path = this.#selfTypeExpr.path;
+		let path = assertDefined(this.#selfTypeExpr.cache?.asNamed).path;
 		let site = this.#selfTypeExpr.site;
 
-		if (this.#usedStatements.has("__eq")) {
-			map.set(`${path}____eq`, new IR("__helios__common____eq", site));
-		}
-
-		if (this.#usedStatements.has("__neq")) {
-			map.set(`${path}____neq`, new IR("__helios__common____neq", site));
-		}
-
-		if (this.#usedStatements.has("serialize")) {
-			map.set(`${path}__serialize`, new IR("__helios__common__serialize", site));
-		}
-
-		if (this.#usedStatements.has("from_data")) {
-			map.set(`${path}__from_data`, new IR("__helios__common__identity", site));
-		}
+		map.set(`${path}____eq`, new IR("__helios__common____eq", site));
+		map.set(`${path}____neq`, new IR("__helios__common____neq", site));
+		map.set(`${path}__serialize`, new IR("__helios__common__serialize", site));
+		map.set(`${path}__from_data`, new IR("__helios__common__identity", site));
+		map.set(`${path}____to_data`, new IR("__helios__common__identity", site));
 
 		for (let s of this.#statements) {
-			let key = `${path}__${s.name.toString()}`
-			if (s instanceof FuncStatement) {
-				map.set(key, s.toIRInternal(key));
-			} else {
-				map.set(key, s.toIRInternal());
-			}
+			map.set(s.path, s.toIRInternal());
 		}
 	}
 }
 
 
 //////////////////////////////////
-// Section 18: Helios AST building
+// Section 25: Helios AST building
 //////////////////////////////////
 
 const AUTOMATIC_METHODS = [
@@ -26351,7 +23771,7 @@ function buildConstStatement(site, ts) {
 /**
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {TypeClassExpr | null}
+ * @returns {RefExpr | null}
  */
 function buildTypeClassExpr(site, ts) {
 	const name = assertToken(ts.shift(), site, "expected word")?.assertWord()?.assertNotKeyword();
@@ -26359,7 +23779,7 @@ function buildTypeClassExpr(site, ts) {
 		return null;
 	}
 
-	return new TypeClassExpr(name);
+	return new RefExpr(name);
 }
 
 /**
@@ -26476,7 +23896,7 @@ function buildStructStatement(site, ts) {
 
 	const fields = buildDataFields(tsFields);
 
-	const impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), fields.map(f => f.name), braces.site.endSite);
+	const impl = buildImplDefinition(tsImpl, new RefExpr(name), fields.map(f => f.name), braces.site.endSite);
 
 	if (impl === null) {
 		return null;
@@ -26564,7 +23984,7 @@ function buildDataFields(ts) {
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @param {?TypeExpr} methodOf - methodOf !== null then first arg can be named 'self'
+ * @param {null | Expr} methodOf - methodOf !== null then first arg can be named 'self'
  * @returns {FuncStatement | null}
  */
 function buildFuncStatement(site, ts, methodOf = null) {
@@ -26591,7 +24011,7 @@ function buildFuncStatement(site, ts, methodOf = null) {
 /**
  * @package
  * @param {Token[]} ts 
- * @param {?TypeExpr} methodOf - methodOf !== null then first arg can be named 'self'
+ * @param {null | Expr} methodOf - methodOf !== null then first arg can be named 'self'
  * @param {boolean} allowInferredRetType
  * @returns {FuncLiteralExpr | null}
  */
@@ -26644,7 +24064,7 @@ function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false)
 /**
  * @package
  * @param {Group} parens 
- * @param {?TypeExpr} methodOf - methodOf !== nul then first arg can be named 'self'
+ * @param {null | Expr} methodOf - methodOf !== nul then first arg can be named 'self'
  * @returns {FuncArg[]}
  */
 function buildFuncArgs(parens, methodOf = null) {
@@ -26711,7 +24131,7 @@ function buildFuncArgs(parens, methodOf = null) {
 				const equalsPos = SymbolToken.find(ts, "=");
 
 				/**
-				 * @type {null | ValueExpr}
+				 * @type {null | Expr}
 				 */
 				let defaultValueExpr = null;
 
@@ -26734,7 +24154,7 @@ function buildFuncArgs(parens, methodOf = null) {
 				}
 
 				/**
-				 * @type {TypeExpr | null}
+				 * @type {null | Expr}
 				 */
 				let typeExpr = null;
 
@@ -26791,7 +24211,7 @@ function buildEnumStatement(site, ts) {
 		members.push(member);
 	}
 
-	const impl = buildImplDefinition(tsImpl, new TypeRefExpr(name), members.map(m => m.name), braces.site.endSite);
+	const impl = buildImplDefinition(tsImpl, new RefExpr(name), members.map(m => m.name), braces.site.endSite);
 
 	if (!impl) {
 		return null;
@@ -26981,7 +24401,7 @@ function buildEnumMember(ts) {
 /** 
  * @package
  * @param {Token[]} ts 
- * @param {TypeRefExpr} selfTypeExpr - reference to parent type
+ * @param {RefExpr} selfTypeExpr - reference to parent type
  * @param {Word[]} fieldNames - to check if impl statements have a unique name
  * @param {?Site} endSite
  * @returns {ImplDefinition | null}
@@ -27052,7 +24472,7 @@ function buildImplDefinition(ts, selfTypeExpr, fieldNames, endSite) {
 /**
  * @package
  * @param {Token[]} ts 
- * @param {TypeExpr} methodOf
+ * @param {Expr} methodOf
  * @returns {(ConstStatement | FuncStatement)[]}
  */
 function buildImplMembers(ts, methodOf) {
@@ -27094,7 +24514,7 @@ function buildImplMembers(ts, methodOf) {
  * @package
  * @param {Site} site
  * @param {Token[]} ts 
- * @returns {TypeExpr | null}
+ * @returns {Expr | null}
  */
 function buildTypeExpr(site, ts) {
 	if (ts.length == 0) {
@@ -27126,7 +24546,7 @@ function buildTypeExpr(site, ts) {
 
 /**
  * @param {Token[]} ts 
- * @returns {ParametricTypeExpr | null}
+ * @returns {ParametricExpr | null}
  */
 function buildParametricTypeExpr(ts) {
 	const brackets = assertDefined(ts.pop()).assertGroup("[");
@@ -27147,7 +24567,7 @@ function buildParametricTypeExpr(ts) {
 		return null;
 	}
 
-	return new ParametricTypeExpr(brackets.site, baseExpr, typeExprs);
+	return new ParametricExpr(brackets.site, baseExpr, typeExprs);
 }
 
 /**
@@ -27219,7 +24639,7 @@ function buildMapTypeExpr(ts) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {TypeExpr | null}
+ * @returns {Expr | null}
  */
 function buildOptionTypeExpr(ts) {
 	const kw = assertDefined(ts.shift()).assertWord("Option");
@@ -27252,7 +24672,7 @@ function buildOptionTypeExpr(ts) {
 					return null;
 				}
 
-				return new TypePathExpr(ts[0].site, typeExpr, memberName);
+				return new PathExpr(ts[0].site, typeExpr, memberName);
 			}
 		} else {
 			ts[0].syntaxError("invalid option type syntax");
@@ -27392,7 +24812,7 @@ function buildFuncArgTypeExpr(ts) {
  * @param {Site} site 
  * @param {Token[]} ts 
  * @param {boolean} allowInferredRetType
- * @returns {null | (null | TypeExpr)[]}
+ * @returns {null | (null | Expr)[]}
  */
 function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 	if (ts.length === 0) {
@@ -27429,7 +24849,7 @@ function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {null | TypePathExpr}
+ * @returns {null | PathExpr}
  */
 function buildTypePathExpr(ts) {
 	const i = SymbolToken.findLast(ts, "::");
@@ -27451,13 +24871,13 @@ function buildTypePathExpr(ts) {
 		return null;
 	}
 	
-	return new TypePathExpr(dcolon.site, baseExpr, memberName);
+	return new PathExpr(dcolon.site, baseExpr, memberName);
 }
 
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {TypeRefExpr | null}
+ * @returns {RefExpr | null}
  */
 function buildTypeRefExpr(ts) {
 	const name = assertDefined(ts.shift()).assertWord()?.assertNotKeyword();
@@ -27471,20 +24891,20 @@ function buildTypeRefExpr(ts) {
 		return null;
 	}
 
-	return new TypeRefExpr(name);
+	return new RefExpr(name);
 }
 
 /**
  * @package
  * @param {Token[]} ts 
  * @param {number} prec 
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildValueExpr(ts, prec = 0) {
 	assert(ts.length > 0);
 
 	// lower index in exprBuilders is lower precedence
-	/** @type {((ts: Token[], prev: number) => (ValueExpr | null))[]} */
+	/** @type {((ts: Token[], prev: number) => (Expr | null))[]} */
 	const exprBuilders = [
 		/**
 		 * 0: lowest precedence is assignment
@@ -27520,7 +24940,7 @@ function buildValueExpr(ts, prec = 0) {
  * @package
  * @param {Token[]} ts
  * @param {number} prec
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildMaybeAssignOrPrintExpr(ts, prec) {
 	let semicolonPos = SymbolToken.find(ts, ";");
@@ -27737,7 +25157,7 @@ function buildDestructExpr(site, ts, isSwitchCase = false) {
 					return null;
 				}
 
-				const typeExpr = new TypeRefExpr(typeName);
+				const typeExpr = new RefExpr(typeName);
 
 				if (!typeExpr) {
 					return null;
@@ -27890,7 +25310,7 @@ function buildAssignLhs(site, ts) {
 /**
  * @package
  * @param {string | string[]} symbol 
- * @returns {(ts: Token[], prec: number) => (ValueExpr | null)}
+ * @returns {(ts: Token[], prec: number) => (Expr | null)}
  */
 function makeBinaryExprBuilder(symbol) {
 	// default behaviour is left-to-right associative
@@ -27920,7 +25340,7 @@ function makeBinaryExprBuilder(symbol) {
 /**
  * @package
  * @param {string | string[]} symbol 
- * @returns {(ts: Token[], prec: number) => (ValueExpr | null)}
+ * @returns {(ts: Token[], prec: number) => (Expr | null)}
  */
 function makeUnaryExprBuilder(symbol) {
 	// default behaviour is right-to-left associative
@@ -27944,10 +25364,10 @@ function makeUnaryExprBuilder(symbol) {
  * @package
  * @param {Token[]} ts 
  * @param {number} prec 
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildChainedValueExpr(ts, prec) {
-	/** @type {ValueExpr | null} */
+	/** @type {Expr | null} */
 	let expr = buildChainStartValueExpr(ts);
 
 	// now we can parse the rest of the chaining
@@ -27988,9 +25408,9 @@ function buildChainedValueExpr(ts, prec) {
 }
 
 /**
- * @param {ValueExpr} expr 
+ * @param {Expr} expr 
  * @param {Group} brackets 
- * @returns {ParametricValueExpr | null}
+ * @returns {ParametricExpr | null}
  */
 function buildParametricValueExpr(expr, brackets) {
 	const typeExprs = reduceNull(brackets.fields.map(fts => {
@@ -28013,12 +25433,12 @@ function buildParametricValueExpr(expr, brackets) {
 		return null;
 	}
 
-	return new ParametricValueExpr(brackets.site, expr, typeExprs);
+	return new ParametricExpr(brackets.site, expr, typeExprs);
 }
 
 /**
  * @param {Site} site 
- * @param {ValueExpr} fnExpr 
+ * @param {Expr} fnExpr 
  * @param {Group} parens
  * @returns {CallExpr | null}
  */
@@ -28035,7 +25455,7 @@ function buildCallExpr(site, fnExpr, parens) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildChainStartValueExpr(ts) {
 	if (ts.length > 1 && ts[0].isGroup("(") && ts[1].isSymbol("->")) {
@@ -28076,7 +25496,7 @@ function buildChainStartValueExpr(ts) {
 			const name = assertDefined(ts.shift()?.assertWord());
 
 			if (name.value == "self") {
-				return new ValueRefExpr(name);
+				return new RefExpr(name);
 			} else {
 				const n = name.assertNotKeyword();
 
@@ -28084,7 +25504,7 @@ function buildChainStartValueExpr(ts) {
 					return null;
 				}
 
-				return new ValueRefExpr(n);
+				return new RefExpr(n);
 			}
 		}
 	} else {
@@ -28096,7 +25516,7 @@ function buildChainStartValueExpr(ts) {
 /**
  * @package
  * @param {Token[]} ts
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildParensExpr(ts) {
 	const group = assertDefined(ts.shift()).assertGroup("(");
@@ -28114,7 +25534,7 @@ function buildParensExpr(ts) {
 		const fields = group.fields.map(fts => buildValueExpr(fts));
 
 		/**
-		 * @type {ValueExpr[]}
+		 * @type {Expr[]}
 		 */
 		const nonNullFields = [];
 
@@ -28224,10 +25644,10 @@ function buildIfElseExpr(ts) {
 
 	const site = ifWord.site;
 
-	/** @type {ValueExpr[]} */
+	/** @type {Expr[]} */
 	const conditions = [];
 
-	/** @type {ValueExpr[]} */
+	/** @type {Expr[]} */
 	const branches = [];
 	while (true) {
 		const parens = assertToken(ts.shift(), site)?.assertGroup("(");
@@ -28317,9 +25737,9 @@ function buildIfElseExpr(ts) {
 
 /**
  * @package
- * @param {ValueExpr} controlExpr
+ * @param {Expr} controlExpr
  * @param {Token[]} ts 
- * @returns {ValueExpr | null} - EnumSwitchExpr or DataSwitchExpr
+ * @returns {Expr | null} - EnumSwitchExpr or DataSwitchExpr
  */
 function buildSwitchExpr(controlExpr, ts) {
 	const switchWord = assertDefined(ts.shift()).assertWord("switch");
@@ -28672,10 +26092,10 @@ function buildSingleArgSwitchCase(tsLeft, ts) {
  * @package
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildSwitchCaseBody(site, ts) {
-	/** @type {?ValueExpr} */
+	/** @type {null | Expr} */
 	let bodyExpr = null;
 
 	if (ts.length == 0) {
@@ -28729,7 +26149,7 @@ function buildSwitchDefault(ts) {
 			return null;
 		}
 
-		/** @type {null | ValueExpr} */
+		/** @type {null | Expr} */
 		let bodyExpr = null;
 
 		if (ts.length == 0) {
@@ -28850,7 +26270,7 @@ function buildMapLiteralExpr(ts) {
 	}
 
 	/**
-	 * @type {null | [ValueExpr, ValueExpr][]}
+	 * @type {null | [Expr, Expr][]}
 	 */
 	const pairs = reduceNullPairs(braces.fields.map(fts => {
 		const colonPos = SymbolToken.find(fts, ":");
@@ -28871,7 +26291,7 @@ function buildMapLiteralExpr(ts) {
 			const valueExpr = buildValueExpr(fts.slice(colonPos+1));
 
 			/**
-			 * @type {[ValueExpr | null, ValueExpr | null]}
+			 * @type {[Expr | null, Expr | null]}
 			 */
 			return [keyExpr, valueExpr];
 		}
@@ -28994,7 +26414,7 @@ function buildStructLiteralUnnamedField(site, ts) {
 /**
  * @package
  * @param {Token[]} ts 
- * @returns {ValueExpr | null}
+ * @returns {Expr | null}
  */
 function buildValuePathExpr(ts) {
 	const dcolonPos = SymbolToken.findLast(ts, "::");
@@ -29015,12 +26435,12 @@ function buildValuePathExpr(ts) {
 		return null;
 	}
 	
-	return new ValuePathExpr(typeExpr, memberName);
+	return new PathExpr(typeExpr.site, typeExpr, memberName);
 }
 
 
 /////////////////////////////
-// Section 19: IR definitions
+// Section 26: IR definitions
 /////////////////////////////
 
 /**
@@ -29130,6 +26550,7 @@ function makeRawFunctions() {
 		add(new RawFunc(`${ns}____neq`, "__helios__common____neq"));
 		add(new RawFunc(`${ns}__serialize`, "__helios__common__serialize"));
 		add(new RawFunc(`${ns}__from_data`, "__helios__common__identity"));
+		add(new RawFunc(`${ns}____to_data`, "__helios__common__identity"));
 	}
 
 	/**
@@ -30675,9 +28096,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__bool____to_data", 
 	`(self) -> {
-		() -> {
-			__helios__common__boolData(self)
-		}
+		__helios__common__boolData(self)
 	}`));
 	add(new RawFunc("__helios__bool__and",
 	`(a, b) -> {
@@ -31464,12 +28883,12 @@ function makeRawFunctions() {
 
 
 	// Map builtins
-	addDataFuncs("__helios__map");
-	add(new RawFunc("__helios__map____add",
+	addDataFuncs("__helios__map@__T0@__T1@");
+	add(new RawFunc("__helios__map@__T0@__T1@____add",
 	`(a, b) -> {
 		__core__mapData(__helios__common__concat(__core__unMapData(a), __core__unMapData(b)))
 	}`));
-	add(new RawFunc("__helios__map__prepend",
+	add(new RawFunc("__helios__map@__T0@__T1@__prepend",
 	`(self) -> {
 		(self) -> {
 			(key, value) -> {
@@ -31477,7 +28896,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__head",
+	add(new RawFunc("__helios__map@__T0@__T1@__head",
 	`(self) -> {
 		(head) -> {
 			() -> {
@@ -31487,23 +28906,23 @@ function makeRawFunctions() {
 			}
 		}(__core__headList(__core__unMapData(self)))
 	}`));
-	add(new RawFunc("__helios__map__head_key",
+	add(new RawFunc("__helios__map@__T0@__T1@__head_key",
 	`(self) -> {
 		__core__fstPair(__core__headList(__core__unMapData(self)))
 	}`));
-	add(new RawFunc("__helios__map__head_value",
+	add(new RawFunc("__helios__map@__T0@__T1@__head_value",
 	`(self) -> {
 		__core__sndPair(__core__headList(__core__unMapData(self)))
 	}`));
-	add(new RawFunc("__helios__map__length",
+	add(new RawFunc("__helios__map@__T0@__T1@__length",
 	`(self) -> {
 		__helios__common__length(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__tail",
+	add(new RawFunc("__helios__map@__T0@__T1@__tail",
 	`(self) -> {
 		__core__mapData(__core__tailList(__core__unMapData(self)))
 	}`));
-	add(new RawFunc("__helios__map__is_empty",
+	add(new RawFunc("__helios__map@__T0@__T1@__is_empty",
 	`(self) -> {
 		(self) -> {
 			() -> {
@@ -31511,13 +28930,13 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__get",
+	add(new RawFunc("__helios__map@__T0@__T1@__get",
 	`(self) -> {
 		(key) -> {
 			__helios__common__map_get(self, key, (x) -> {x}, () -> {error("key not found")})
 		}
 	}`));
-	add(new RawFunc("__helios__map__get_safe",
+	add(new RawFunc("__helios__map@__T0@__T1@__get_safe",
 	`(self) -> {
 		(key) -> {
 			__helios__common__map_get(
@@ -31532,7 +28951,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map__all",
+	add(new RawFunc("__helios__map@__T0@__T1@__all",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -31546,7 +28965,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__any",
+	add(new RawFunc("__helios__map@__T0@__T1@__any",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -31560,7 +28979,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__delete",
+	add(new RawFunc("__helios__map@__T0@__T1@__delete",
 	`(self) -> {
 		(self) -> {
 			(key) -> {
@@ -31586,7 +29005,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__filter",
+	add(new RawFunc("__helios__map@__T0@__T1@__filter",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -31600,7 +29019,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__find",
+	add(new RawFunc("__helios__map@__T0@__T1@__find",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -31630,7 +29049,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__find_safe",
+	add(new RawFunc("__helios__map@__T0@__T1@__find_safe",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -31671,7 +29090,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__find_key",
+	add(new RawFunc("__helios__map@__T0@__T1@__find_key",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -31689,7 +29108,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__find_key_safe",
+	add(new RawFunc("__helios__map@__T0@__T1@__find_key_safe",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -31707,7 +29126,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__find_value",
+	add(new RawFunc("__helios__map@__T0@__T1@__find_value",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -31725,7 +29144,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__find_value_safe",
+	add(new RawFunc("__helios__map@__T0@__T1@__find_value_safe",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -31743,7 +29162,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__map",
+	add(new RawFunc("__helios__map@__T0@__T1@__map",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -31763,7 +29182,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__map_to_bool",
+	add(new RawFunc("__helios__map@__T0@__T1@__map_to_bool",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -31783,7 +29202,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__fold",
+	add(new RawFunc("__helios__map@__T0@__T1@__fold",
 	`(self) -> {
 		(self) -> {
 			(fn, z) -> {
@@ -31798,7 +29217,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__fold_lazy",
+	add(new RawFunc("__helios__map@__T0@__T1@__fold_lazy",
 	`(self) -> {
 		(self) -> {
 			(fn, z) -> {
@@ -31813,7 +29232,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__for_each",
+	add(new RawFunc("__helios__map@__T0@__T1@__for_each",
 	`(self) -> {
 		(self) -> {
 			(fn) -> {
@@ -31840,7 +29259,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__set", 
+	add(new RawFunc("__helios__map@__T0@__T1@__set", 
 	`(self) -> {
 		(self) -> {
 			(key, value) -> {
@@ -31872,7 +29291,7 @@ function makeRawFunctions() {
 			}
 		}(__core__unMapData(self))
 	}`));
-	add(new RawFunc("__helios__map__sort",
+	add(new RawFunc("__helios__map@__T0@__T1@__sort",
 	`(self) -> {
 		(self) -> {
 			(comp) -> {
@@ -32263,16 +29682,17 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__booloption__none__cast",      "__helios__option__none__cast"));
 
 	
+	for (let hash of ["pubkeyhash", "validatorhash", "mintingpolicyhash", "stakingvalidatorhash"]) {
 	// Hash builtins
-	addDataFuncs("__helios__hash");
-	add(new RawFunc("__helios__hash____lt", "__helios__bytearray____lt"));
-	add(new RawFunc("__helios__hash____leq", "__helios__bytearray____leq"));
-	add(new RawFunc("__helios__hash____gt", "__helios__bytearray____gt"));
-	add(new RawFunc("__helios__hash____geq", "__helios__bytearray____geq"));
-	add(new RawFunc("__helios__hash__new", `__helios__common__identity`));
-	add(new RawFunc("__helios__hash__show", "__helios__bytearray__show"));
-	add(new RawFunc("__helios__hash__CURRENT", "__core__bData(#0000000000000000000000000000000000000000000000000000000000000000)"));
-	add(new RawFunc("__helios__hash__from_script_hash", "__helios__common__identity"));
+		addDataFuncs(`__helios__${hash}`);
+		add(new RawFunc(`__helios__${hash}____lt`, "__helios__bytearray____lt"));
+		add(new RawFunc(`__helios__${hash}____leq`, "__helios__bytearray____leq"));
+		add(new RawFunc(`__helios__${hash}____gt`, "__helios__bytearray____gt"));
+		add(new RawFunc(`__helios__${hash}____geq`, "__helios__bytearray____geq"));
+		add(new RawFunc(`__helios__${hash}__new`, `__helios__common__identity`));
+		add(new RawFunc(`__helios__${hash}__show`, "__helios__bytearray__show"));
+		add(new RawFunc(`__helios__${hash}__from_script_hash`, "__helios__common__identity"));
+	}
 
 	
 	// ScriptHash builtin
@@ -32520,7 +29940,7 @@ function makeRawFunctions() {
 			signatories,
 			redeemers,
 			datums,
-			__helios__txid__CURRENT
+			__helios__txid__new(__core__bData(#0000000000000000000000000000000000000000000000000000000000000000))
 		))
 	}`));
 	add(new RawFunc("__helios__tx__inputs", "__helios__common__field_0"));
@@ -32755,7 +30175,6 @@ function makeRawFunctions() {
 	`(bytes) -> {
 		__core__constrData(0, __helios__common__list_1(bytes)) 
 	}`));
-	add(new RawFunc("__helios__txid__CURRENT", "__helios__txid__new(__core__bData(#0000000000000000000000000000000000000000000000000000000000000000))"));
 	add(new RawFunc("__helios__txid__show",
 	`(self) -> {
 		__helios__bytearray__show(__helios__txid__bytes(self))
@@ -33904,11 +31323,11 @@ function makeRawFunctions() {
 }
 
 /**
- * @param {IR} ir 
- * @returns {IR}
  * @package
+ * @param {IR} ir 
+ * @returns {Map<string, IR>}
  */
-function wrapWithRawFunctions(ir) {
+function fetchRawFunctions(ir) {
 	let db = makeRawFunctions();
 
 	// notify statistics of existence of builtin in correct order
@@ -33918,7 +31337,7 @@ function wrapWithRawFunctions(ir) {
 		}
 	}
 
-	let re = new RegExp("__helios[a-zA-Z0-9_]*", "g");
+	let re = new RegExp("__helios[a-zA-Z0-9_@]*", "g");
 
 	let [src, _] = ir.generateSource();
 
@@ -33926,29 +31345,61 @@ function wrapWithRawFunctions(ir) {
 
 	let matches = src.match(re);
 
-	let map = new Map();
+	/**
+	 * @param {string} m 
+	 * @returns {string}
+	 */
+	const cleanTypeParameters = (m) => {
+		if (m.includes("@")) {
+			const parts = m.split("@");
+
+			const prefix = parts.shift();
+			const suffix = parts.pop();
+
+			return `${prefix}@${parts.map((_, i) => `__T${i}`).join("@")}@${suffix}`;
+		} else {
+			return m;
+		}
+	}
+
+	/**
+	 * @type {Map<string, IR>}
+	 */
+	const map = new Map();
 
 	if (matches !== null) {
 		for (let match of matches) {
-			if (!map.has(match)) {
-				if (!db.has(match)) {
-					throw new Error(`builtin ${match} not found`);
-				}
+			const m = cleanTypeParameters(match);
+			if (!map.has(m)) {
+				const builtin = db.get(m);
 
-				let builtin = assertDefined(db.get(match));
+				if (!builtin) {
+					throw new Error(`builtin ${m} not found`);
+				}
 
 				builtin.load(db, map);
 			}
 		}
 	}
 
+	return map;
+}
+
+/**
+ * @package
+ * @param {IR} ir 
+ * @returns {IR}
+ */
+function wrapWithRawFunctions(ir) {
+	const map = fetchRawFunctions(ir);
+	
 	return IR.wrapWithDefinitions(ir, map);
 }
 
 
 
 /////////////////////////////////
-// Section 20: IR Context objects
+// Section 27: IR Context objects
 /////////////////////////////////
 
 /**
@@ -33962,8 +31413,8 @@ class IRScope {
 	#variable;
 
 	/**
-	 * @param {?IRScope} parent 
-	 * @param {?IRVariable} variable
+	 * @param {null | IRScope} parent 
+	 * @param {null | IRVariable} variable
 	 */
 	constructor(parent, variable) {
 		this.#parent = parent;
@@ -34221,6 +31672,7 @@ class IRCallStack {
 		} else if (this.#parent !== null) {
 			return this.#parent.get(variable);
 		} else {
+			return new IRValue()
 			return null;
 		}
 	}
@@ -34233,11 +31685,18 @@ class IRCallStack {
 	set(variable, value) {
 		return new IRCallStack(this.#throwRTErrors, this, variable, value);
 	}
+
+	/**
+	 * @returns {string[]}
+	 */
+	dump() {
+		return (this.#parent?.dump() ?? []).concat([this.#variable?.name ?? ""])
+	}
 }
 
 
 /////////////////////////////
-// Section 21: IR AST objects
+// Section 28: IR AST objects
 /////////////////////////////
 
 /**
@@ -34478,6 +31937,15 @@ class IRExpr extends Token {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar
+	 * @param {number[]} remaining
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
 	 * @returns {UplcTerm}
 	 */
 	toUplc() {
@@ -34591,6 +32059,15 @@ class IRNameExpr extends IRExpr {
 	evalConstants(stack) {
 		if (this.#variable != null) {
 			this.#value = stack.get(this.#variable);
+
+			if (this.#value === null) {
+				console.log(stack.dump())
+				console.log("MAYBE UNDEFINED IN IR:", this.#variable.name)
+
+				if (this.#variable.name.startsWith("__module")) {
+					throw new Error("block");
+				}
+			}
 		}
 
 		return this;
@@ -34619,6 +32096,15 @@ class IRNameExpr extends IRExpr {
 		}
 	}
 
+	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	removeUnusedCallArgs(fnVar, remaining) {
+		return this;
+	}
+	
 	/**
 	 * @param {IRLiteralRegistry} literals
 	 * @returns {IRExpr}
@@ -34668,6 +32154,15 @@ class IRNameExpr extends IRExpr {
 		} else {
 			return this;
 		}
+	}
+
+	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return this;
 	}
 
 	/**
@@ -34756,6 +32251,15 @@ class IRLiteralExpr extends IRExpr {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	removeUnusedCallArgs(fnVar, remaining) {
+		return this;
+	}
+
+	/**
 	 * @param {IRLiteralRegistry} literals
 	 * @returns {IRExpr}
 	 */
@@ -34794,6 +32298,15 @@ class IRLiteralExpr extends IRExpr {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return this;
+	}
+
+	/**
 	 * @returns {UplcConst}
 	 */
 	toUplc() {
@@ -34817,8 +32330,19 @@ class IRConstExpr extends IRExpr {
 		this.#expr = expr;
 	}
 
+	/**
+	 * @param {string} indent 
+	 * @returns {string}
+	 */
 	toString(indent = "") {
 		return `const(${this.#expr.toString(indent)})`;
+	}
+
+	/**
+	 * @param {IRNameExprRegistry} nameExprs
+	 */
+	registerNameExprs(nameExprs) {
+		this.#expr.registerNameExprs(nameExprs);
 	}
 
 	/**
@@ -34838,6 +32362,7 @@ class IRConstExpr extends IRExpr {
 		if (result != null) {
 			return new IRLiteralExpr(result.value);
 		} else {
+			console.log(this.toString());
 			throw new Error("unable to evaluate const");
 		}
 	}
@@ -34848,6 +32373,14 @@ class IRConstExpr extends IRExpr {
 	 */
 	eval(stack) {
 		return this.#expr.eval(stack);
+	}
+
+	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return new IRConstExpr(this.site, this.#expr.simplifyUnusedTypeParams(fnVar, remaining));
 	}
 
 	/**
@@ -34956,6 +32489,15 @@ class IRFuncExpr extends IRExpr {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining
+	 * @returns {IRExpr} 
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return new IRFuncExpr(this.site, this.args, this.#body.simplifyUnusedTypeParams(fnVar, remaining));
+	}
+
+	/**
 	 * @param {IRLiteralRegistry} literals 
 	 * @returns {IRExpr}
 	 */
@@ -34992,7 +32534,7 @@ class IRFuncExpr extends IRExpr {
 
 	/**
 	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
+	 * @returns {IRFuncExpr}
 	 */
 	simplifyUnused(registry) {
 		return new IRFuncExpr(this.site, this.args, this.#body.simplifyUnused(registry));
@@ -35032,7 +32574,7 @@ class IRCallExpr extends IRExpr {
 	 */
 	constructor(site, argExprs, parensSite) {
 		super(site);
-		this.#argExprs = argExprs;
+		this.#argExprs = assertDefined(argExprs);
 		this.#parensSite = parensSite;
 		
 	}
@@ -35067,7 +32609,15 @@ class IRCallExpr extends IRExpr {
 	 * @returns {IRExpr[]}
 	 */
 	evalConstantsInArgs(stack) {
+		try {
 		return this.#argExprs.map(a => a.evalConstants(stack));
+		} catch (e) {
+			if (e.message == "block") {
+				console.log("HERE:", this.toString())
+			}
+
+			throw e;
+		}
 	}
 
 	/** 
@@ -35279,6 +32829,16 @@ class IRCoreCallExpr extends IRCallExpr {
 		}
 		
 		return null;
+	}
+
+	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining));
+
+		return new IRCoreCallExpr(this.#name, argExprs, this.parensSite);
 	}
 
 	/**
@@ -35712,6 +33272,31 @@ class IRUserCallExpr extends IRCallExpr {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining));
+
+		if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.isVariable(fnVar)) {
+			return new IRUserCallExpr(
+				this.#fnExpr,
+				argExprs.filter((_, i) => remaining.some(i_ => i_ == i)),
+				this.parensSite
+			);
+		} else {
+			const fnExpr = this.#fnExpr.simplifyUnusedTypeParams(fnVar, remaining);
+
+			return new IRUserCallExpr(
+				fnExpr,
+				argExprs,
+				this.parensSite
+			)
+		}
+	}
+
+	/**
 	 * @param {IRLiteralRegistry} literals
 	 * @returns {(IRExpr[] | IRLiteralExpr)}
 	 */
@@ -35924,6 +33509,25 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 	}
 
 	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining));
+
+		let anon = assertClass(this.#anon.simplifyUnusedTypeParams(fnVar, remaining), IRFuncExpr);
+
+		argExprs.forEach((ae, i) => {
+			if (ae instanceof IRNameExpr && ae.isVariable(fnVar)) {
+				anon = assertClass(anon.simplifyUnusedTypeParams(this.argVariables[i], remaining), IRFuncExpr);
+			}
+		});
+
+		return new IRAnonCallExpr(anon, argExprs, this.parensSite);
+	}
+
+	/**
 	 * Add literal args to the map
 	 * @param {IRLiteralRegistry} literals
 	 * @returns {IRExpr}
@@ -36023,7 +33627,7 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 
 	/**
 	 * @param {IRExprRegistry} registry 
-	 * @returns {IRAnonCallExpr}
+	 * @returns {IRExpr}
 	 */
 	simplifyUnused(registry) {
 		const args = this.simplifyUnusedInArgs(registry);
@@ -36032,8 +33636,6 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 		const remainingIds = this.argVariables.map((variable, i) => {
 			const n = registry.countReferences(variable);
 
-			console.log(variable.name, n);
-			
 			if (n == 0) {
 				return -1;
 			} else {
@@ -36072,6 +33674,19 @@ export class IRNestedAnonCallExpr extends IRUserCallExpr {
 		this.#anon = anon;
 	}
 
+	/**
+	 * @param {IRVariable} fnVar
+	 * @param {number[]} remaining
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return new IRNestedAnonCallExpr(
+			assertClass(this.#anon.simplifyUnusedTypeParams(fnVar, remaining), IRAnonCallExpr),
+			this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining)),
+			this.parensSite
+		)
+	}
+		
 	/**
 	 * Flattens consecutive nested calls
 	 * @param {IRExprRegistry} registry
@@ -36113,7 +33728,7 @@ export class IRNestedAnonCallExpr extends IRUserCallExpr {
 	 * @returns {IRExpr}
 	 */
 	simplifyUnused(registry) {
-		const anon = this.#anon.simplifyUnused(registry);
+		const anon = assertClass(this.#anon.simplifyUnused(registry), IRAnonCallExpr);
 
 		const args = this.simplifyUnusedInArgs(registry);
 
@@ -36129,14 +33744,107 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 	#def;
 
 	/**
-	 * @param {IRFuncExpr} fnExpr 
+	 * @param {IRFuncExpr} anon 
 	 * @param {IRFuncExpr} defExpr 
 	 * @param {Site} parensSite
 	 */
-	constructor(fnExpr, defExpr, parensSite) {
-		super(fnExpr, [defExpr], parensSite);
+	constructor(anon, defExpr, parensSite) {
+		super(anon, [defExpr], parensSite);
 
 		this.#def = defExpr;
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {[IRFuncExpr, IRFuncExpr]}
+	 */
+	simplifyTypeParams(registry) {
+		let anon = this.anon;
+		let def = this.#def;
+
+		if (this.#def.args.some(a => a.name.startsWith("__typeparam"))) {
+			const usedTypeParams = this.#def.args.map((variable, i) => {
+				const n = registry.countReferences(variable);
+
+				if (n == 0) {
+					return -1;
+				} else {
+					return i;
+				}
+			}).filter(i => i != -1);
+
+			if (usedTypeParams.length < this.#def.args.length) {
+				anon = new IRFuncExpr(
+					anon.site,
+					anon.args,
+					anon.body.simplifyUnusedTypeParams(anon.args[0], usedTypeParams)
+				);
+
+				def = new IRFuncExpr(
+					this.#def.site,
+					usedTypeParams.map(i => def.args[i]),
+					this.#def.body
+				);
+			}
+		}
+
+		return [anon, def];
+	}
+
+	/**
+	 * Remove args that are unused in def
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
+	 */
+	simplifyTopology(registry) {
+		const [anon, def] = this.simplifyTypeParams(registry);
+		
+		const res = (new IRAnonCallExpr(anon, [def], this.parensSite)).simplifyTopology(registry);
+
+		if (res instanceof IRAnonCallExpr && res.argExprs.length == 0) {
+			const argExpr = res.argExprs[0];
+			
+			if (res.anon.args.length == 1 && argExpr instanceof IRFuncExpr) {
+				return new IRFuncDefExpr(
+					res.anon,
+					argExpr,
+					this.parensSite
+				)
+			}
+		}
+
+		return res;
+	}
+
+	/**
+	 * @param {IRVariable} fnVar
+	 * @param {number[]} remaining
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return new IRFuncDefExpr(
+			assertClass(this.anon.simplifyUnusedTypeParams(fnVar, remaining), IRFuncExpr),
+			assertClass(this.#def.simplifyUnusedTypeParams(fnVar, remaining), IRFuncExpr),
+			this.parensSite
+		);
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
+		if (registry.countReferences(this.anon.args[0]) == 0) {
+			return this.anon.body.simplifyUnused(registry);
+		} else {
+			const [anon, def] = this.simplifyTypeParams(registry);
+
+			return new IRFuncDefExpr(
+				anon.simplifyUnused(registry),
+				def.simplifyUnused(registry),
+				this.parensSite
+			);
+		}
 	}
 }
 
@@ -36221,6 +33929,23 @@ class IRErrorCallExpr extends IRExpr {
 	}
 
 	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
+		return this;
+	}
+
+	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedTypeParams(fnVar, remaining) {
+		return this;
+	}
+
+	/**
 	 * @returns {UplcTerm}
 	 */
 	toUplc() {
@@ -36230,7 +33955,7 @@ class IRErrorCallExpr extends IRExpr {
 
 
 /////////////////////////////////////
-// Section 22: IR AST build functions
+// Section 29: IR AST build functions
 /////////////////////////////////////
 
 /**
@@ -36400,7 +34125,7 @@ function buildIRFuncExpr(ts) {
 
 
 /////////////////////////
-// Section 23: IR Program
+// Section 30: IR Program
 /////////////////////////
 
 /**
@@ -36449,12 +34174,12 @@ class IRProgram {
 		let irTokens = tokenizeIR(irSrc, codeMap);
 
 		let expr = buildIRExpr(irTokens);
-	
+		
 		expr.resolveNames(scope);
-
-		expr = IRProgram.simplifyUnused(expr);
-
+		
 		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
+
+		//expr = IRProgram.simplifyUnused(expr);
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
@@ -36655,7 +34380,7 @@ export class IRParametricProgram {
 
 
 /////////////////////////////
-// Section 24: Helios program
+// Section 31: Helios program
 /////////////////////////////
 
 /**
@@ -36732,61 +34457,6 @@ class Module {
 		for (let s of this.statements) {
 			s.eval(scope);
 		}
-	}
-
-	/**
-	 * Cleans the program by removing everything that is unecessary for the smart contract (easier to audit)
-	 * @returns {string}
-	 */
-	cleanSource() {
-		let raw = this.name.site.src.raw;
-		let n = raw.length;
-
-		let mask = new Uint8Array(n);
-
-		mask.fill(1); // hide the unused parts by setting to 0
-
-		for (let s of this.#statements) {
-			s.hideUnused(mask);
-		}
-
-		/** @type {string[]} */
-		let chars = [];
-
-		for (let i = 0; i < n; i++) {
-			let c = raw.charAt(i);
-
-			if (c == '\n' || c == ' ') {
-				chars.push(c);
-			} else if (mask[i] == 1) {
-				chars.push(c);
-			} else {
-				chars.push(' ');
-			}
-		}
-
-		let lines = chars.join("").split("\n").map(l => {
-			if (l.trim().length == 0) {
-				return "";
-			} else {
-				return l;
-			}
-		});
-
-		// remove more than one consecutive empty line
-
-		/**
-		 * @type {string[]}
-		 */
-		let parts = [];
-
-		for (let i = 0; i < lines.length; i++) {
-			if (!(i > 0 && lines[i-1].length == 0 && lines[i].length == 0)) {
-				parts.push(lines[i]);
-			}
-		}
-
-		return parts.join("\n");
 	}
 
 	/**
@@ -37133,13 +34803,6 @@ class MainModule extends Module {
 	}
 
 	/**
-	 * @returns {[string[], string]}
-	 */
-	cleanSource() {
-		return [this.mainImportedModules.map(m => m.cleanSource()), this.mainModule.cleanSource()];
-	}
-
-	/**
 	 * @param {GlobalScope} globalScope
 	 * @returns {TopScope}
 	 */
@@ -37157,7 +34820,6 @@ class MainModule extends Module {
 			m.evalTypes(moduleScope);
 
 			if (m instanceof MainModule) {
-				globalScope.allowMacros();
 				topScope.setStrict(false);
 			}
 
@@ -37165,8 +34827,6 @@ class MainModule extends Module {
 				topScope.setScope(m.name, moduleScope);
 			}
 		}
-
-		this.mainFunc.use();
 		
 		return topScope;
 	}
@@ -37193,56 +34853,28 @@ class MainModule extends Module {
 		const mainModuleScope = topScope.getModuleScope(this.mainModule.name);
 
 		mainModuleScope.loopTypes((name, type) => {
-			if (type instanceof StructStatementType || type instanceof EnumStatementType) {
-				if (name in this.#types) {
-					throw new Error(`unexpected duplicate type name ${name} in main program scope`);
-				}
-
-				this.#types[name] = type.userType;;
+			if (type?.asDataType?.offChainType) {
+				this.#types[name] = type.asDataType.offChainType;
 			}
 		});
 	}
 
 	/**
-	 * @type {Object.<string, Type>}
+	 * @type {Object.<string, DataType>}
 	 */
 	get paramTypes() {
 		/**
-		 * @type {Object.<string, Type>}
+		 * @type {Object.<string, DataType>}
 		 */
 		let res = {};
 
 		for (let s of this.mainAndPostStatements) {
 			if (s instanceof ConstStatement) {
 				res[s.name.value] = s.type;
-			} else if (s instanceof ImportFromStatement && s.origStatement instanceof ConstStatement) {
-				res[s.name.value] = s.origStatement.type;
 			}
 		}
 
 		return res;
-	}
-
-	/**
-	 * Change the literal value of a const statements  
-	 * @param {string} name 
-	 * @param {string | UplcValue} value 
-	 * @returns {Program} - returns 'this' so that changeParam calls can be chained
-	 */
-	changeParam(name, value) {
-		deprecationWarning("program.changeParam", "0.14.0", "use program.parameters instead", "https://www.hyperion-bt.org/helios-book/api/reference/program.html#parameters-1");
-
-		for (let s of this.mainAndPostStatements) {
-			if (s instanceof ConstStatement && s.name.value == name) {
-				s.changeValue(value);
-				return this;
-			} else if (s instanceof ImportFromStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
-				s.origStatement.changeValue(value);
-				return this;
-			}
-		}
-
-		throw this.mainFunc.referenceError(`param '${name}' not found`);
 	}
 
 	/**
@@ -37256,9 +34888,6 @@ class MainModule extends Module {
 			if (s instanceof ConstStatement && s.name.value == name) {
 				s.changeValueSafe(data);
 				return this;
-			} else if (s instanceof ImportFromStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
-				s.origStatement.changeValueSafe(data);
-				return this;
 			}
 		}
 
@@ -37271,44 +34900,44 @@ class MainModule extends Module {
 	 * @returns {UplcValue}
 	 */
 	evalParam(name) {
-		/**
-		 * @type {Map<string, IR>}
+		/** 
+		 * @type {any} 
 		 */
-		let map = new Map();
-
-		/** @type {?ConstStatement} */
 		let constStatement = null;
 
-		for (let s of this.mainAndPostStatements) {
-			if (s instanceof ImportFromStatement && s.name.value == name && s.origStatement instanceof ConstStatement) {
-				constStatement = s.origStatement;
-				break;
-			}
-		}
-
-		for (let [s, isImport] of this.allStatements) {
-			s.toIR(map);
+		const map = this.fetchDefinitions(new IR(""), [], (s, isImport) => {
 			if (s instanceof ConstStatement && ((s.name.value == name && !isImport) || s === constStatement)) {
 				constStatement = s;
-				break;
+				return true;
+			} else {
+				return false;
 			}
-		}
+		});
 
 		if (constStatement === null) {
 			throw new Error(`param '${name}' not found`);
-		} else {
-			const path = constStatement.path;
+		} 
 
-			let ir = assertDefined(map.get(path));
+		const path = assertDefined(constStatement).path;
 
-			map.delete(path);
+		let ir = assertDefined(map.get(path));
 
-			ir = wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
+		map.delete(path);
 
-			const irProgram = IRProgram.new(ir, this.#purpose, true, true);
+		console.log("CONST IR:", ir.generateSource()[0])
+		ir = new IR([
+			ir,
+			new IR("(())")
+		])
 
-			return new UplcDataValue(irProgram.site, irProgram.data);
-		}
+		ir = wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
+
+		console.log(ir.generateSource()[0]);
+
+		const irProgram = IRProgram.new(ir, this.#purpose, true, true);
+
+		console.log("EVALUATED", name);
+		return new UplcDataValue(irProgram.site, irProgram.data);
 	}
 	
 	/**
@@ -37336,7 +34965,7 @@ class MainModule extends Module {
 					
 					const uplcValue = that.evalParam(name);
 
-					const value = (uplcValue instanceof UplcBool) ? new Bool(uplcValue.bool) : type.userType.fromUplcData(uplcValue.data);
+					const value = (uplcValue instanceof UplcBool) ? new Bool(uplcValue.bool) : assertDefined(type.offChainType).fromUplcData(uplcValue.data);
 						
 					target[name] = value;
 
@@ -37358,7 +34987,7 @@ class MainModule extends Module {
 		for (let name in values) {
 			const rawValue = values[name];
 
-			const UserType = assertDefined(types[name], `invalid param name '${name}'`).userType;
+			const UserType = assertDefined(types[name].offChainType, `invalid param name '${name}'`);
 
 			const value = rawValue instanceof UserType ? rawValue : new UserType(rawValue);
 
@@ -37370,11 +34999,11 @@ class MainModule extends Module {
 
 	/**
 	 * @package
-	 * @param {IR} ir
 	 * @param {string[]} parameters
-	 * @returns {IR}
+	 * @param {(s: Statement, isImport: boolean) => boolean} endCond
+	 * @returns {IRDefinitions} 
 	 */
-	wrapEntryPoint(ir, parameters) {
+	statementsToIR(parameters, endCond) {
 		// find the constStatements associated with the parameters
 		/**
 		 * @type {(ConstStatement | null)[]}
@@ -37389,12 +35018,6 @@ class MainModule extends Module {
 					if (i != -1) {
 						parameterStatements[i] = statement;
 					}
-				} else if (statement instanceof ImportFromStatement && statement.origStatement instanceof ConstStatement) {
-					const i = parameters.findIndex(p => statement.name.value == p);
-
-					if (i != -1) {
-						parameterStatements[i] = statement.origStatement;
-					}
 				}
 			}
 
@@ -37406,18 +35029,18 @@ class MainModule extends Module {
 		}		
 
 		/**
-		 * @type {Map<string, IR>}
+		 * @type {IRDefinitions}
 		 */
 		const map = new Map();
 
-		for (let [statement, _] of this.allStatements) {
+		for (let [statement, isImport] of this.allStatements) {
 			if (parameters.length > 0 && statement instanceof ConstStatement) {
 				const i = parameterStatements.findIndex(cs => cs === statement);
 
 				if (i != -1) {
 					let ir = new IR(`__PARAM_${i}`);
 
-					if (statement.type instanceof BoolType) {
+					if (BoolType.isBaseOf(statement.type)) {
 						ir = new IR([
 							new IR("__helios__common__unBoolData("),
 							ir,
@@ -37433,14 +35056,161 @@ class MainModule extends Module {
 
 			statement.toIR(map);
 
-			if (statement.name.value == "main") {
+			
+
+			if (endCond(statement, isImport)) {
+				console.log(map);
 				break;
 			}
 		}
+
+		return map;
+	}
+
+	/**
+	 * For top-level statements
+	 * @package
+	 * @param {IRDefinitions} map 
+	 */
+	static injectMutualRecursions(map) {
+		const keys = Array.from(map.keys());
+
+		for (let i = keys.length - 1; i >= 0; i--) {
+			const k = keys[i];
+
+			// including self
+			const others = keys.slice(i);
+
+			// do the actual replacing
+			for (let k_ of keys) {
+				map.set(k_, assertDefined(map.get(k_)).replace(new RegExp(`\\b${k}\\b`, "gm"), `${k}(${others.join(", ")})`));
+			}
+
+			const wrapped = new IR([
+				new IR(`(${others.join(", ")}) -> {`),
+				assertDefined(map.get(k)),
+				new IR("}")
+			]);
+
+			// wrap own definition
+			map.set(k, wrapped);
+		}
+	}
+
+	/**
+	 * Also merges builtins and map
+	 * @param {IRDefinitions} builtins 
+	 * @param {IRDefinitions} map 
+	 * @returns {IRDefinitions}
+	 */
+	static injectTypeParameters(builtins, map) {
+		const re = new RegExp("\\b__[a-zA-Z0-9_]*@[a-zA-Z0-9_@]*@[a-zA-Z0-9_]*\\b");
+
+		/**
+		 * @type {IRDefinitions}
+		 */
+		const added = new Map();
+
+		/**
+		 * @param {string} name 
+		 */
+		const add = (name) => {
+			console.log("matched", name);
+			if (builtins.has(name) || map.has(name) || added.has(name)) {
+				return;
+			}
+
+			const parts = name.split("@");
+			const prefix = parts.shift();
+			const suffix = parts.pop();
+
+			assert(parts.length > 0);
+
+			const genericName = `${prefix}@${parts.map((_, i) => `__T${i}`).join("@")}@${suffix}`;
+			console.log("generating: ", genericName);
+
+			let ir = builtins.get(genericName) ?? map.get(genericName);
+
+			if (!ir) {
+				throw new Error(`${genericName} undefined in ir`);
+			} else {
+				parts.forEach((newStr, i) => {
+					ir = assertDefined(ir).replace(new RegExp(`\\b__T${i}\\b`), newStr);
+				});
+
+				added.set(name, ir);
+
+				ir.search(re, add);
+			}
+		};
+
+		for (let [k, v] of map) {
+			v.search(re, add);
+		}
+
+		let entries = Array.from(builtins.entries()).concat(Array.from(map.entries()));
+
+		/**
+		 * @param {string} prefix
+		 * @returns {number}
+		 */
+		const findLast = (prefix) => {
+			for (let i = entries.length - 1; i >= 0; i--) {
+				if (entries[i][0].startsWith(prefix) || entries[i][0].startsWith("__helios")) {
+					return i;
+				}
+			}
+
+			return -1;
+		};
+
+		const addedEntries = Array.from(added.entries());
+
+		for (let i = addedEntries.length-1; i >= 0; i--) {
+			const [name, ir] = addedEntries[i];
+
+			const parts = name.split("@");
+			parts.shift();
+			parts.pop();
+
+			const j = parts.reduce((prev, part) => Math.max(prev, findLast(part)), -1);
+
+			entries = entries.slice(0, j+1).concat([[name, ir]]).concat(entries.slice(j+1));
+		}
+
+		return new Map(entries);
+	}
+
+	/**
+	 * @package
+	 * @param {IR} ir
+	 * @param {string[]} parameters
+	 * @param {(s: Statement) => boolean} endCond
+	 * @returns {IRDefinitions}
+	 */
+	fetchDefinitions(ir, parameters, endCond) {
+		let map = this.statementsToIR(parameters, endCond);
+
+		Program.injectMutualRecursions(map);
  
 		// builtin functions are added when the IR program is built
 		// also replace all tabs with four spaces
-		return wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
+
+		const builtins = fetchRawFunctions(IR.wrapWithDefinitions(ir, map));
+
+		return Program.injectTypeParameters(builtins, map);
+	}
+
+	/**
+	 * @package
+	 * @param {IR} ir
+	 * @param {string[]} parameters
+	 * @returns {IR}
+	 */
+	wrapEntryPoint(ir, parameters) {
+		const map = this.fetchDefinitions(ir, parameters, (s) => s.name.value == "main");
+
+		return IR.wrapWithDefinitions(ir, map);
 	}
 
 	/**
@@ -37470,9 +35240,10 @@ class MainModule extends Module {
 	compile(simplify = false) {
 		const ir = this.toIR([]);
 
+		console.log(ir.generateSource()[0]);
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 		
-		//console.log(new Source(irProgram.toString()).pretty());
+		console.log(new Source(irProgram.toString()).pretty());
 		
 		return irProgram.toUplc();
 	}
@@ -37564,7 +35335,7 @@ class RedeemerProgram extends Program {
 
 		if (retTypes.length !== 1) {
 			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
-		} else if (!(retTypes[0] instanceof BoolType)) {
+		} else if (!(BoolType.isBaseOf(retTypes[0]))) {
 			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retTypes[0].toString()}'`);
 		}
 
@@ -37609,7 +35380,7 @@ class RedeemerProgram extends Program {
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
+			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(${this.mainPath})(`),
 			new IR(innerArgs).join(", "),
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
@@ -37702,7 +35473,7 @@ class DatumRedeemerProgram extends Program {
 
 		if (retTypes.length !== 1) {
 			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
-		} else if (!(retTypes[0] instanceof BoolType)) {
+		} else if (!(BoolType.isBaseOf(retTypes[0]))) {
 			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retTypes[0].toString()}'`);
 		}
 
@@ -37753,7 +35524,7 @@ class DatumRedeemerProgram extends Program {
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
+			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(${this.mainPath})(`),
 			new IR(innerArgs).join(", "),
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
@@ -37803,20 +35574,21 @@ class TestingProgram extends Program {
 	 */
 	toIR(parameters = []) {
 		const innerArgs = this.mainFunc.argTypes.map((t, i) => {
-			if (t instanceof BoolType) {
+			if (BoolType.isBaseOf(t)) {
 				return new IR(`__helios__common__unBoolData(arg${i})`);
 			} else {
 				return new IR(`arg${i}`);
 			}
 		});
 
+		// allow main to be called recursively
 		let ir = new IR([
-			new IR(`${this.mainPath}(`),
+			new IR(`${this.mainPath}(${this.mainPath})(`),
 			new IR(innerArgs).join(", "),
 			new IR(")"),
 		]);
 
-		if (this.mainFunc.retTypes[0] instanceof BoolType) {
+		if (BoolType.isBaseOf(this.mainFunc.retTypes[0])) {
 			ir = new IR([
 				new IR("__helios__common__boolData("),
 				ir,
@@ -37912,7 +35684,7 @@ class StakingProgram extends RedeemerProgram {
 
 
 /////////////////////////////
-// Section 25: Native scripts
+// Section 32: Native scripts
 /////////////////////////////
 
 /**
@@ -38498,7 +36270,7 @@ class NativeBefore extends NativeScript {
 
 
 ///////////////////////
-// Section 26: Tx types
+// Section 33: Tx types
 ///////////////////////
 
 export class Tx extends CborData {
@@ -42311,7 +40083,7 @@ class TxMetadata {
 
 
 ////////////////////////////////////
-// Section 27: Highlighting function
+// Section 34: Highlighting function
 ////////////////////////////////////
 
 /**
@@ -42637,7 +40409,7 @@ export function highlight(src) {
 
 
 //////////////////////////////////////
-// Section 28: Fuzzy testing framework
+// Section 35: Fuzzy testing framework
 //////////////////////////////////////
 
 /**
@@ -43104,7 +40876,7 @@ export class FuzzyTest {
 
 
 ////////////////////////////
-// Section 29: CoinSelection
+// Section 36: CoinSelection
 ////////////////////////////
 
 
@@ -43243,7 +41015,7 @@ export class CoinSelection {
 
 
 //////////////////////
-// Section 30: Wallets
+// Section 37: Wallets
 //////////////////////
 
 
@@ -43471,7 +41243,7 @@ export class WalletHelper {
 
 
 //////////////////////
-// Section 31: Network
+// Section 38: Network
 //////////////////////
 
 /**
@@ -43666,7 +41438,7 @@ export class BlockfrostV0 {
 
 
 ///////////////////////
-// Section 32: Emulator
+// Section 39: Emulator
 ///////////////////////
 /**
  * Single address wallet emulator.

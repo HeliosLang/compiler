@@ -29,8 +29,8 @@ export class IRScope {
 	#variable;
 
 	/**
-	 * @param {?IRScope} parent 
-	 * @param {?IRVariable} variable
+	 * @param {null | IRScope} parent 
+	 * @param {null | IRVariable} variable
 	 */
 	constructor(parent, variable) {
 		this.#parent = parent;
@@ -288,6 +288,7 @@ export class IRCallStack {
 		} else if (this.#parent !== null) {
 			return this.#parent.get(variable);
 		} else {
+			return new IRValue()
 			return null;
 		}
 	}
@@ -299,5 +300,12 @@ export class IRCallStack {
 	 */
 	set(variable, value) {
 		return new IRCallStack(this.#throwRTErrors, this, variable, value);
+	}
+
+	/**
+	 * @returns {string[]}
+	 */
+	dump() {
+		return (this.#parent?.dump() ?? []).concat([this.#variable?.name ?? ""])
 	}
 }

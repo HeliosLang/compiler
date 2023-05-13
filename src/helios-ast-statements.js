@@ -6,13 +6,9 @@ import {
 } from "./config.js";
 
 import {
-    assertClass,
+	assert,
 	assertDefined
 } from "./utils.js";
-
-/**
- * @typedef {import("./tokens.js").IRDefinitions} IRDefinitions
- */
 
 import {
 	BoolLiteral,
@@ -22,57 +18,100 @@ import {
     Word
 } from "./tokens.js";
 
+/**
+ * @typedef {import("./tokens.js").IRDefinitions} IRDefinitions
+ */
+
 import {
+	ConstrData,
+	ListData,
 	UplcData
 } from "./uplc-data.js";
 
 import {
-	UplcValue
-} from "./uplc-ast.js";
+	HeliosData
+} from "./helios-data.js";
+
+/**
+ * @template {HeliosData} T
+ * @typedef {import("./helios-data.js").HeliosDataClass<T>} HeliosDataClass
+ */
 
 import {
 	ArgType,
-    BoolType,
-    ByteArrayType,
-    EvalEntity,
-    ConstStatementInstance,
-    EnumMemberStatementType,
-    EnumStatementType,
-    FuncStatementInstance,
+    DataEntity,
     FuncType,
-    Instance,
-	Namespace,
-    RawDataType,
-    StatementType,
-    Type,
-    StructStatementType,
-	ParametricFuncStatementInstance
-} from "./helios-eval-entities.js";
+	FuncEntity,
+	GenericType,
+	GenericEnumMemberType,
+	ModuleNamespace,
+	NamedEntity,
+	
+} from "./eval-common.js";
+
+/**
+ * @typedef {import("./eval-common.js").DataType} DataType
+ */
+
+/**
+ * @typedef {import("./eval-common.js").EnumMemberType} EnumMemberType
+ */
+
+/**
+ * @typedef {import("./eval-common.js").EvalEntity} EvalEntity
+ */
+
+/**
+ * @typedef {import("./eval-common.js").Instance} Instance
+ */
+
+/**
+ * @typedef {import("./eval-common.js").Parametric} Parametric
+ */
+
+/**
+ * @typedef {import("./eval-common.js").Type} Type
+ */
+
+/**
+ * @typedef {import("./eval-common.js").InstanceMembers} InstanceMembers
+ */
+
+/**
+ * @typedef {import("./eval-common.js").NamespaceMembers} NamespaceMembers
+ */
+
+/**
+ * @typedef {import("./eval-common.js").TypeMembers} TypeMembers
+ */
 
 import {
-    FuncStatementScope,
+	BoolType,
+	genCommonInstanceMembers,
+	genCommonTypeMembers
+} from "./eval-primitives.js";
+
+import {
+	ParametricFunc
+} from "./eval-parametric.js";
+
+import {
     ModuleScope,
     Scope,
     TopScope
 } from "./helios-scopes.js";
 
 import {
+	Expr,
 	FuncArg,
     FuncLiteralExpr,
     LiteralDataExpr,
     NameTypePair,
     PrimitiveLiteralExpr,
+	RefExpr,
     StructLiteralExpr,
-    TypeExpr,
-	TypeParameters,
-    TypeRefExpr,
-    ValueExpr
+	TypeParameters
 } from "./helios-ast-expressions.js";
-
-import {
-	buildLiteralExprFromJson,
-	buildLiteralExprFromValue
-} from "./helios-param.js";
 
 /**
  * Base class for all statements
@@ -81,7 +120,6 @@ import {
  */
 export class Statement extends Token {
 	#name;
-	#used;
 	#basePath; // set by the parent Module
 
 	/**
@@ -91,19 +129,7 @@ export class Statement extends Token {
 	constructor(site, name) {
 		super(site);
 		this.#name = name;
-		this.#used = false;
 		this.#basePath = "__user";
-	}
-
-	/**
-	 * @param {string} basePath 
-	 */
-	setBasePath(basePath) {
-		this.#basePath = basePath;
-	}
-
-	get path() {
-		return `${this.#basePath}__${this.name.toString()}`;
 	}
 
 	/**
@@ -114,10 +140,10 @@ export class Statement extends Token {
 	}
 
 	/**
-	 * @type {boolean}
+	 * @type {string}
 	 */
-	get used() {
-		return this.#used;
+	get path() {
+		return `${this.#basePath}__${this.name.toString()}`;
 	}
 
 	/**
@@ -127,21 +153,11 @@ export class Statement extends Token {
 		throw new Error("not yet implemented");
 	}
 
-	use() {
-		this.#used = true;
-	}
-
 	/**
-	 * @param {Uint8Array} mask
+	 * @param {string} basePath 
 	 */
-	hideUnused(mask) {
-		if (!this.#used) {
-			if (this.site.endSite === null) {
-				mask.fill(0, this.site.startPos);
-			} else {
-				mask.fill(0, this.site.startPos, this.site.endSite.startPos);
-			}
-		}
+	setBasePath(basePath) {
+		this.#basePath = basePath;
 	}
 
 	/**
@@ -150,6 +166,13 @@ export class Statement extends Token {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
 		throw new Error("not yet implemented");
 	}
 }
@@ -162,11 +185,6 @@ export class ImportFromStatement extends Statement {
 	#origName;
 	#moduleName;
 
-	/** 
-	 * @type {Statement | null} 
-	 */
-	#origStatement;
-
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name
@@ -177,7 +195,6 @@ export class ImportFromStatement extends Statement {
 		super(site, name);
 		this.#origName = origName;
 		this.#moduleName = moduleName;
-		this.#origStatement = null;
 	}
 
 	/**
@@ -185,14 +202,6 @@ export class ImportFromStatement extends Statement {
 	 */
 	get moduleName() {
 		return this.#moduleName;
-	}
-
-	/**
-	 * Returns null if import is another Namespace
-	 * @type {Statement | null}
-	 */
-	get origStatement() {
-		return this.#origStatement;
 	}
 
 	/**
@@ -215,17 +224,9 @@ export class ImportFromStatement extends Statement {
 	 * @param {ModuleScope} scope 
 	 */
 	eval(scope) {
-		let v = this.evalInternal(scope);
-
-		if (v instanceof FuncStatementInstance || v instanceof ParametricFuncStatementInstance || v instanceof ConstStatementInstance || v instanceof StatementType) {
-			this.#origStatement = assertClass(v.statement, Statement);
-		}
+		const v = this.evalInternal(scope);
 
 		scope.set(this.name, v);
-	}
-
-	use() {
-		super.use();
 	}
 
 	/**
@@ -268,24 +269,19 @@ export class ImportModuleStatement extends Statement {
 	 */
 	evalInternal(scope) {
 		let importedScope = scope.getScope(this.name);
+		
+		/**
+		 * @type {NamespaceMembers}
+		 */
+		const namespaceMembers = {};
 
-		return new Namespace({
-			/**
-			 * @param {Word} name 
-			 * @returns {EvalEntity}
-			 */
-			get: (name) => {
-				const v = assertClass(importedScope, Scope).get(name);
-
-				if (v instanceof Scope)	{
-					throw name.typeError("unexpected scope");
-				} else {
-					this.#imported.set(name.value, v);
-					
-					return v;
-				}
+		for (let [name, entity] of importedScope.values) {
+			if (!(entity instanceof Scope)) {
+				namespaceMembers[name.value] = entity;
 			}
-		});	
+		}
+
+		return new ModuleNamespace(namespaceMembers);
 	}
 
 	/**
@@ -295,12 +291,6 @@ export class ImportModuleStatement extends Statement {
 		let v = this.evalInternal(scope);
 
 		scope.set(this.name, v);
-	}
-
-	use() {
-		super.use();
-
-		// actual use is handled by wherever imported variables/types are called/used
 	}
 
 	/**
@@ -317,20 +307,20 @@ export class ImportModuleStatement extends Statement {
  */
 export class ConstStatement extends Statement {
 	/**
-	 * @type {?TypeExpr}
+	 * @type {null | Expr}
 	 */
 	#typeExpr;
 
 	/**
-	 * @type {ValueExpr}
+	 * @type {Expr}
 	 */
 	#valueExpr;
 
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
-	 * @param {?TypeExpr} typeExpr - can be null in case of type inference
-	 * @param {ValueExpr} valueExpr 
+	 * @param {null | Expr} typeExpr - can be null in case of type inference
+	 * @param {Expr} valueExpr 
 	 */
 	constructor(site, name, typeExpr, valueExpr) {
 		super(site, name);
@@ -338,25 +328,14 @@ export class ConstStatement extends Statement {
 		this.#valueExpr = valueExpr;
 	}
 
+	/**
+	 * @type {DataType}
+	 */
 	get type() {
 		if (this.#typeExpr === null) {
-			return this.#valueExpr.type;
+			return assertDefined(this.#valueExpr.cache?.asTyped?.type?.asDataType);
 		} else {
-			return this.#typeExpr.type;
-		}
-	}
-
-	/**
-	 * @param {string | UplcValue} value 
-	 */
-	changeValue(value) {
-		let type = this.type;
-		let site = this.#valueExpr.site;
-
-		if (typeof value == "string") {
-			this.#valueExpr = buildLiteralExprFromJson(site, type, JSON.parse(value), this.name.value);
-		} else {
-			this.#valueExpr = buildLiteralExprFromValue(site, type, value, this.name.value);
+			return assertDefined(this.#typeExpr.cache?.asDataType);
 		}
 	}
 
@@ -368,7 +347,7 @@ export class ConstStatement extends Statement {
 		const type = this.type;
 		const site = this.#valueExpr.site;
 
-		if ((new BoolType()).isBaseOf(type)) {
+		if (BoolType.isBaseOf(type)) {
 			this.#valueExpr = new PrimitiveLiteralExpr(new BoolLiteral(site, data.index == 1));
 		} else {
 			this.#valueExpr = new LiteralDataExpr(site, type, data);
@@ -384,29 +363,44 @@ export class ConstStatement extends Statement {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {DataType}
+	 */
+	evalType(scope) {
+		if (this.#typeExpr) {
+			return this.#typeExpr.evalAsDataType(scope);
+		} else {
+			const type = this.#valueExpr.evalAsTyped(scope).type.asDataType;
+
+			if (!type) {
+				throw this.#valueExpr.typeError("not a data type");
+			}
+
+			return type;
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		let value = this.#valueExpr.eval(scope);
-
-		/** @type {Type} */
-		let type;
+		const value = this.#valueExpr.evalAsTyped(scope);
 
 		if (this.#typeExpr === null) {
 			if (!this.#valueExpr.isLiteral()) {
-				throw this.typeError("can't infer type");
+				throw this.typeError(`can't infer type of ${this.#valueExpr.toString()}`);
 			}
 
-			type = this.#valueExpr.type;
+			return value;
 		} else {
-			type = this.#typeExpr.eval(scope);
+			const type = this.#typeExpr.evalAsDataType(scope);
 
-			if (!value.isInstanceOf(type)) {
+			if (!type.isBaseOf(value.type)) {
 				throw this.#valueExpr.typeError("wrong type");
 			}
-		}
 
-		return new ConstStatementInstance(type, this);
+			return new DataEntity(type);
+		}
 	}
 
 	/**
@@ -414,19 +408,7 @@ export class ConstStatement extends Statement {
 	 * @param {TopScope} scope 
 	 */
 	eval(scope) {
-		scope.set(this.name, this.evalInternal(scope));
-	}
-
-	use() {
-		if (!this.used) {
-			super.use();
-
-			this.#valueExpr.use();
-
-			if (this.#typeExpr !== null) {
-				this.#typeExpr.use();
-			}
-		}
+		scope.set(this.name, new NamedEntity(this.name.value, this.path, this.evalInternal(scope)));
 	}
 
 	/**
@@ -437,8 +419,7 @@ export class ConstStatement extends Statement {
 			new IR("const(", this.site),
 			this.#valueExpr.toIR(),
 			new IR(")")
-		])
-		
+		]);	
 	}
 
 	/**
@@ -456,10 +437,18 @@ export class ConstStatement extends Statement {
 export class DataField extends NameTypePair {
 	/**
 	 * @param {Word} name 
-	 * @param {TypeExpr} typeExpr 
+	 * @param {Expr} typeExpr 
 	 */
 	constructor(name, typeExpr) {
 		super(name, typeExpr);
+	}
+
+	/**
+	 * Throws an error if called before evalType()
+	 * @type {DataType}
+	 */
+	get type() {
+		return assertDefined(super.type.asDataType);
 	}
 }
 
@@ -470,9 +459,6 @@ export class DataField extends NameTypePair {
 export class DataDefinition extends Statement {
 	#fields;
 
-	/** @type {Set<string>} */
-	#usedAutoMethods;
-
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
@@ -481,11 +467,10 @@ export class DataDefinition extends Statement {
 	constructor(site, name, fields) {
 		super(site, name);
 		this.#fields = fields;
-		this.#usedAutoMethods = new Set();
 	}
 
 	/**
-	 * @type {Type}
+	 * @type {DataType}
 	 */
 	get type() {
 		throw new Error("not yet implemented");
@@ -493,14 +478,6 @@ export class DataDefinition extends Statement {
 
 	get fields() {
 		return this.#fields.slice();
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -521,6 +498,13 @@ export class DataDefinition extends Statement {
 		}
 
 		return found;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get fieldNames() {
+		return this.#fields.map(f => f.name.value);
 	}
 
 	/**
@@ -554,45 +538,52 @@ export class DataDefinition extends Statement {
 	}
 
 	/**
-	 * @param {Scope} scope
+	 * @param {Scope} scope 
+	 * @returns {InstanceMembers}
 	 */
-	evalInternal(scope) {
-		for (let f of this.#fields) {
-			let fieldType = f.evalType(scope);
+	evalFieldTypes(scope) {
+		/**
+		 * @type {InstanceMembers}
+		 */
+		const fields = {};
 
-			if (fieldType instanceof FuncType) {
+		for (let f of this.#fields) {
+			const fieldType = f.evalType(scope).asDataType;
+
+			if (!fieldType) {
 				throw f.site.typeError("field can't be function type");
 			}
+
+			fields[f.name.value] = fieldType;
 		}
+
+		return fields;
 	}
 
 	/**
-	 * @param {Site} site 
-	 * @returns {number}
+	 * @type {number}
 	 */
-	nFields(site) {
+	get nFields() {
 		return this.#fields.length;
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {number} i 
-	 * @returns {Type}
+	 * @returns {DataType}
 	 */
-	getFieldType(site, i) {
+	getFieldType(i) {
 		return this.#fields[i].type;
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {string} name 
 	 * @returns {number}
 	 */
-	getFieldIndex(site, name) {
+	getFieldIndex(name) {
 		const i = this.findField(new Word(Site.dummy(), name));
 
 		if (i == -1) {
-			throw site.typeError(`field ${name} not find in ${this.toString()}`);
+			throw new Error(`field ${name} not find in ${this.toString()}`);
 		} else {
 			return i;
 		}
@@ -614,63 +605,89 @@ export class DataDefinition extends Statement {
 		throw site.typeError(`'${this.name.value}' isn't an enum type`);
 	}
 
-	/**
-	 * @param {Word} name 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name) {
-		if (this.hasField(name)) {
-			throw name.referenceError(`'${this.name.toString()}::${name.toString()}' undefined (did you mean '${this.name.toString()}.${name.toString()}'?)`);
-		} else {
-			throw name.referenceError(`'${this.name.toString()}::${name.toString()}' undefined`);
-		}
-	}
 
 	/**
 	 * Gets insance member value.
-	 * If dryRun == true usage is triggered
-	 * @param {Word} name 
-	 * @param {boolean} dryRun 
-	 * @returns {Instance}
+	 * @param {Type} self
+	 * @returns {InstanceMembers}
 	 */
-	getInstanceMember(name, dryRun = false) {
-		switch (name.value) {
-			case "copy":
-				this.#usedAutoMethods.add(name.value);
-				return Instance.new(new FuncType(this.#fields.map(f => new ArgType(f.name, f.type, true)), this.type));
-			default:
-				let i = this.findField(name);
+	genInstanceMembers(self) {
+		const members = {
+			...genCommonInstanceMembers(self),
+			copy: new FuncType(this.#fields.map(f => new ArgType(f.name, f.type, true)), this.type),
+		};
 
-				if (i == -1) {
-					throw name.referenceError(`'${this.name.toString()}.${name.toString()}' undefined`);
-				} else {
-					return Instance.new(this.#fields[i].type);
-				}
+		for (let f of this.fields) {
+			members[f.name.value] = f.type;
 		}
-		
+
+		return members;
 	}
 
-	use() {
-		if (!this.used) {
-			super.use();
-			
-			for (let f of this.#fields) {
-				f.use();
+	/**
+	 * @param {Type} self
+	 * @returns {TypeMembers}
+	 */
+	genTypeMembers(self) {
+		return {
+			...genCommonTypeMembers(self)
+		};
+	}
+
+	/**
+	 * 
+	 * @param {IRDefinitions} map 
+	 */
+	newToIR(map) {
+		/**
+		 * @type {IR}
+		 */
+		let ir;
+
+		if (this.nFields == 1) {
+			ir = new IR(`${this.getFieldType(0).path}____to_data`);
+		} else {
+			ir = new IR("__core__mkNilData(())");
+
+			for (let i = this.nFields - 1; i >= 0; i--) {
+				const f = this.#fields[i];
+
+				ir = new IR([
+					new IR(`__core__mkCons(${this.getFieldType(i).path}____to_data(`),
+					new IR(f.name.value),
+					new IR("), "),
+					ir,
+					new IR(")")
+				]);
 			}
+
+			// wrap as function
+			ir = new IR([
+				new IR("("),
+				new IR(this.#fields.map(f => new IR(f.name.value))).join(", "),
+				new IR(") -> {__core__listData("),
+				ir,
+				new IR(")}")
+			]);
 		}
+
+		const key = `${this.path}____new`;
+
+		map.set(key, ir);
 	}
 
 	/**
 	 * @package
 	 * @param {IRDefinitions} map 
 	 * @param {string[]} getterNames
+	 * @param {number} constrIndex
 	 */
-	copyToIR(map, getterNames) {
+	copyToIR(map, getterNames, constrIndex = -1) {
 		const key = `${this.path}__copy`;
 
 		// using existing IR generators as much as possible
 
-		let ir = StructLiteralExpr.toIRInternal(this.site, this.type, this.#fields.map(df => new IR(df.name.value)), this.getConstrIndex(this.site));
+		let ir = StructLiteralExpr.toIRInternal(this.site, this.path, this.#fields.map(df => new IR(df.name.value)));
 
 		// wrap with defaults
 
@@ -708,59 +725,69 @@ export class DataDefinition extends Statement {
 		 */
 		const getterNames = [];
 
-		// add a getter for each field
-		for (let i = 0; i < this.#fields.length; i++) {
-			let f = this.#fields[i];
-			let key = `${this.path}__${f.name.toString()}`;
+		if (this.fields.length == 1) {
+			const f = this.fields[0];
+			const key = `${this.path}__${f.name.toString()}`;
+			const isBool = BoolType.isBaseOf(f.type);
+
+			const getter = isBool ? new IR("__helios__common__unBoolData", f.site) : new IR("__helios__common__identity", f.site);
+			
+			map.set(key, getter);
 			getterNames.push(key);
-			let isBool = f.type instanceof BoolType;
+		} else {
+			// add a getter for each field
+			for (let i = 0; i < this.#fields.length; i++) {
+				let f = this.#fields[i];
+				let key = `${this.path}__${f.name.toString()}`;
+				getterNames.push(key);
+				let isBool = BoolType.isBaseOf(f.type);
 
-			/**
-			 * @type {IR}
-			 */
-			let getter;
+				/**
+				 * @type {IR}
+				 */
+				let getter;
 
-			if (i < 20) {
+				if (i < 20) {
 
-				getter = new IR(`${getterBaseName}_${i}`, f.site);
+					getter = new IR(`${getterBaseName}_${i}`, f.site);
 
-				if (isBool) {
+					if (isBool) {
+						getter = new IR([
+							new IR("(self) "), new IR("->", f.site), new IR(" {"),
+							new IR(`__helios__common__unBoolData(${getterBaseName}_${i}(self))`),
+							new IR("}"),
+						]);
+					}
+				} else {
+					let inner = isConstr ? new IR("__core__sndPair(__core__unConstrData(self))") : new IR("__core__unListData(self)");
+
+					for (let j = 0; j < i; j++) {
+						inner = new IR([new IR("__core__tailList("), inner, new IR(")")]);
+					}
+
+					inner = new IR([
+						new IR("__core__headList("),
+						inner,
+						new IR(")"),
+					]);
+
+					if (isBool) {
+						inner = new IR([new IR("__helios__common__unBoolData("), inner, new IR(")")]);
+					}
+
 					getter = new IR([
 						new IR("(self) "), new IR("->", f.site), new IR(" {"),
-						new IR(`__helios__common__unBoolData(${getterBaseName}_${i}(self))`),
+						inner,
 						new IR("}"),
 					]);
 				}
-			} else {
-				let inner = isConstr ? new IR("__core__sndPair(__core__unConstrData(self))") : new IR("__core__unListData(self)");
 
-				for (let j = 0; j < i; j++) {
-					inner = new IR([new IR("__core__tailList("), inner, new IR(")")]);
-				}
-
-				inner = new IR([
-					new IR("__core__headList("),
-					inner,
-					new IR(")"),
-				]);
-
-				if (isBool) {
-					inner = new IR([new IR("__helios__common__unBoolData("), inner, new IR(")")]);
-				}
-
-				getter = new IR([
-					new IR("(self) "), new IR("->", f.site), new IR(" {"),
-					inner,
-					new IR("}"),
-				]);
+				map.set(key, getter)
 			}
-
-			map.set(key, getter)
 		}
 
-		if (this.#usedAutoMethods.has("copy")) {
-			this.copyToIR(map, getterNames);
-		}
+		this.newToIR(map);
+		this.copyToIR(map, getterNames);
 	}
 }
 
@@ -787,10 +814,108 @@ export class StructStatement extends DataDefinition {
 	}
 
 	/**
-	 * @type {StructStatementType}
+	 * @param {string} basePath 
 	 */
-	get type() {
-		return new StructStatementType(this);
+	setBasePath(basePath) {
+		super.setBasePath(basePath);
+
+		this.#impl.setBasePath(this.path);
+	}
+
+	/**
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get offChainType() {
+		const statement = this;
+
+		class Struct extends HeliosData {
+			/**
+			 * So we can access fields by index
+			 * @type {HeliosData[]}
+			 */
+			#fields;
+
+			/**
+			 * @param  {...any} args
+			 */
+			constructor(...args) {
+				super();
+				if (args.length != statement.nFields) {
+					throw new Error(`expected ${statement.nFields} args, got ${args.length}`);
+				}
+
+				this.#fields = [];
+
+				args.forEach((arg, i) => {
+					const fieldName = statement.getFieldName(i);
+					const fieldType = statement.getFieldType(i);
+
+					const FieldClass = assertDefined(fieldType.offChainType);
+
+					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+
+					this.#fields.push(instance);
+					this[fieldName] = instance;
+				});
+			}
+
+			/**
+			 * Overload 'instanceof' operator
+			 * @param {any} other 
+			 * @returns {boolean}
+			 */
+			static [Symbol.hasInstance](other) {
+				return (other._structStatement === statement) && (other instanceof HeliosData);
+			}
+
+			/**
+			 * @type {StructStatement}
+			 */
+			get _structStatement() {
+				return statement;
+			}
+
+			/**
+			 * @returns {UplcData}
+			 */
+			_toUplcData() {
+				if (this.#fields.length == 1) {
+					return this.#fields[0]._toUplcData();
+				} else {
+					return new ListData(this.#fields.map(f => f._toUplcData()));
+				}
+			}
+
+			/**
+			 * @param {string | number[]} bytes 
+			 * @returns {Struct}
+			 */
+			static fromUplcCbor(bytes) {
+				return Struct.fromUplcData(UplcData.fromCbor(bytes));
+			}
+
+			/**
+			 * @param {UplcData} data 
+			 * @returns {Struct}
+			 */
+			static fromUplcData(data) {
+				const dataItems = data.list;
+
+				if (dataItems.length != statement.nFields) {
+					throw new Error("unexpected number of fields");
+				}
+
+				const args = dataItems.map((item, i) => {
+					return assertDefined(statement.getFieldType(i).offChainType).fromUplcData(item);
+				});
+
+				return new Struct(...args);
+			}
+		}
+
+		Object.defineProperty(Struct, "name", {value: this.name, writable: false});		
+
+		return Struct;
 	}
 
 	/**
@@ -801,81 +926,54 @@ export class StructStatement extends DataDefinition {
 	}
 
 	/**
-	 * Returns -1, which means -> don't use ConstrData, but use []Data directly
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		return -1;
-	}
-
-	/**
 	 * Evaluates own type and adds to scope
 	 * @param {TopScope} scope 
 	 */
 	eval(scope) {
-		if (scope.isStrict() && this.fields.length == 0) {
-			throw this.syntaxError("expected at least 1 struct field");
-		}
+		// first evaluate the type using a shell type of self
+		const shell = new GenericType({
+			fieldNames: this.fields.map(f => f.name.value),
+			name: this.name.value,
+			path: this.path,
+			genInstanceMembers: (self) => ({}),
+			genTypeMembers: (self) => ({})
+		});
+
+		const typeScope = new Scope(scope);
+		typeScope.set(this.name, shell);
+
+		const fields = super.evalFieldTypes(typeScope);
+
+		const [instanceMembers, typeMembers] = this.#impl.evalTypes(typeScope);
+
+		const full = new GenericType({
+			fieldNames: this.fields.map(f => f.name.value),
+			name: this.name.value,
+			path: this.path,
+			offChainType: this.offChainType,
+			genInstanceMembers: (self) => ({
+				...genCommonInstanceMembers(self),
+				...fields,
+				...instanceMembers
+			}),
+			genTypeMembers: (self) => ({
+				...genCommonTypeMembers(self),
+				...typeMembers
+			})
+		});
 
 		// add before so recursive types are possible
-		scope.set(this.name, this.type);
+		scope.set(this.name, full);
 
-		this.evalInternal(scope);
-
-		// check the types of the member methods
+		// full type evaluation of function bodies
 		this.#impl.eval(scope);
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @param {boolean} dryRun 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name, dryRun = false) {
-		if (super.hasMember(name)) {
-			return super.getInstanceMember(name, dryRun);
-		} else {
-			return this.#impl.getInstanceMember(name, dryRun);
-		}
-	}
-
-	/**
-	 * @param {Word} name
-	 * @param {boolean} dryRun
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name, dryRun = false) {
-		// only the impl can contain potentially contain type members
-		return this.#impl.getTypeMember(name, dryRun);
-	}
-
-	/**
-	 * @param {Uint8Array} mask
-	 */
-	hideUnused(mask) {
-		super.hideUnused(mask);
-
-		this.#impl.hideUnused(mask);
 	}
 
 	/**
 	 * @param {IRDefinitions} map
 	 */
 	toIR(map) {
-		if (this.fields.length == 1) {
-			let f = this.fields[0];
-			let key = `${this.path}__${f.name.toString()}`;
-			let isBool = f.type instanceof BoolType;
-
-			if (isBool) {
-				map.set(key, new IR("__helios__common__unBoolData", f.site));
-			} else {
-				map.set(key, new IR("__helios__common__identity", f.site));
-			}
-		} else {
-			super.toIR(map, false);
-		}
+		super.toIR(map, false);
 
 		this.#impl.toIR(map);
 	}
@@ -888,7 +986,6 @@ export class StructStatement extends DataDefinition {
  */
 export class FuncStatement extends Statement {
 	#funcExpr;
-	#recursive;
 
 	/**
 	 * @param {Site} site 
@@ -898,7 +995,6 @@ export class FuncStatement extends Statement {
 	constructor(site, name, funcExpr) {
 		super(site, name);
 		this.#funcExpr = funcExpr;
-		this.#recursive = false;
 	}
 
 	/**
@@ -922,6 +1018,9 @@ export class FuncStatement extends Statement {
 		return this.#funcExpr.retTypes;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `func ${this.name.toString()}${this.#funcExpr.toString()}`;
 	}
@@ -929,7 +1028,7 @@ export class FuncStatement extends Statement {
 	/**
 	 * Evaluates a function and returns a func value
 	 * @param {Scope} scope 
-	 * @returns {Instance}
+	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
 		return this.#funcExpr.evalInternal(scope);
@@ -945,25 +1044,6 @@ export class FuncStatement extends Statement {
 		return this.#funcExpr.evalType(scope);
 	}
 
-	use() {
-		if (!this.used) {
-			super.use();
-
-			this.#funcExpr.use();
-		}
-	}
-
-	isRecursive() {
-		return this.#recursive;
-	}
-
-	/**
-	 * Called in FuncStatementScope as soon as recursion is detected
-	 */
-	setRecursive() {
-		this.#recursive = true;
-	}
-
 	/**
 	 * @param {Scope} scope 
 	 */
@@ -973,25 +1053,20 @@ export class FuncStatement extends Statement {
 		let fnType = this.evalType(scope);
 
 		let fnVal = this.#funcExpr.hasParameters() ?
-			new ParametricFuncStatementInstance(this.#funcExpr.parameters, fnType, this) :
-			new FuncStatementInstance(fnType, this);
+			new ParametricFunc(this.#funcExpr.parameters, fnType) :
+			new FuncEntity(fnType);
 
-		scope.set(this.name, fnVal);
+		scope.set(this.name, new NamedEntity(this.name.value, this.path, fnVal));
 
-		void this.#funcExpr.evalInternal(new FuncStatementScope(scope, this));
+		void this.#funcExpr.evalInternal(scope);
 	}
 
 	/**
-	 * Returns IR of function.
-	 * @param {string} fullName - fullName has been prefixed with a type path for impl members
+	 * Returns IR of function
 	 * @returns {IR}
 	 */
-	toIRInternal(fullName = this.path) {
-		if (this.#recursive) {
-			return this.#funcExpr.toIRRecursive(fullName, TAB);
-		} else {
-			return this.#funcExpr.toIR(TAB);
-		}
+	toIRInternal() {
+		return this.#funcExpr.toIR(TAB);
 	}
 
 	/**
@@ -1019,7 +1094,7 @@ export class FuncStatement extends Statement {
  * @package
  */
 export class EnumMember extends DataDefinition {
-	/** @type {?EnumStatement} */
+	/** @type {null | EnumStatement} */
 	#parent;
 
 	/** @type {?number} */
@@ -1033,6 +1108,17 @@ export class EnumMember extends DataDefinition {
 		super(name.site, name, fields);
 		this.#parent = null; // registered later
 		this.#constrIndex = null;
+	}
+
+	/**
+	 * @returns {number}
+	 */
+	get constrIndex() {
+		if (this.#constrIndex === null) {
+			throw new Error("constrIndex not set");
+		} else {
+			return this.#constrIndex;
+		}
 	}
 
 	/** 
@@ -1055,48 +1141,149 @@ export class EnumMember extends DataDefinition {
 		}
 	}
 
-	get type() {
-		return new EnumMemberStatementType(this);
-	}
-
 	/**
-	 * @param {Site} site 
-	 * @returns {number}
+	 * @type {HeliosDataClass<HeliosData>}
 	 */
-	getConstrIndex(site) {
-		if (this.#constrIndex === null) {
-			throw new Error("constrIndex not set");
-		} else {
-			return this.#constrIndex;
+	get offChainType() {
+		const statement = this;
+
+		const enumStatement = statement.parent;
+
+		const index = statement.constrIndex;
+
+		const nFields = statement.nFields;
+
+		/**
+		 * @type {[string, DataType][]} - [name, type]
+		 */
+		const fields = [];
+
+		for (let i = 0; i < nFields; i++) {
+			fields.push([statement.getFieldName(i), statement.getFieldType(i)]);
 		}
+
+		// similar to Struct
+		class EnumVariant extends HeliosData {
+			/**
+			 * So we can access fields by index
+			 * @type {HeliosData[]}
+			 */
+			#fields;
+
+			/**
+			 * @param  {...any} args
+			 */
+			constructor(...args) {
+				super();
+				if (args.length != nFields) {
+					throw new Error(`expected ${nFields} args, got ${args.length}`);
+				}
+
+				this.#fields = [];
+
+				args.forEach((arg, i) => {
+					const [fieldName, fieldType] = fields[i];
+					const FieldClass = assertDefined(fieldType.offChainType);
+
+					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+
+					this.#fields.push(instance);
+					this[fieldName] = instance;
+
+				});
+			}
+
+			/**
+			 * Overload 'instanceof' operator
+			 * @param {any} other 
+			 * @returns {boolean}
+			 */
+			static [Symbol.hasInstance](other) {
+				return (other._enumVariantStatement === statement) && (other instanceof HeliosData);
+			}
+
+			/**
+			 * @type {EnumStatement}
+			 */
+			get _enumStatement() {
+				return enumStatement;
+			}
+
+			/**
+			 * @type {EnumMember}
+			 */
+			get _enumVariantStatement() {
+				return statement;
+			}
+
+			/**
+			 * @returns {UplcData}
+			 */
+			_toUplcData() {
+				return new ConstrData(index, this.#fields.map(f => f._toUplcData()));
+			}
+
+			/**
+			 * @param {string | number[]} bytes 
+			 * @returns {EnumVariant}
+			 */
+			static fromUplcCbor(bytes) {
+				return EnumVariant.fromUplcData(UplcData.fromCbor(bytes));
+			}
+
+			/**
+			 * @param {UplcData} data 
+			 * @returns {EnumVariant}
+			 */
+			static fromUplcData(data) {
+				assert(data.index == index, "wrong index");
+
+				const dataItems = data.list;
+
+				if (dataItems.length != nFields) {
+					throw new Error("unexpected number of fields");
+				}
+
+				const args = dataItems.map((item, i) => {
+					return assertDefined(fields[i][1].offChainType).fromUplcData(item);
+				});
+
+				return new EnumVariant(...args);
+			}
+		}
+
+		Object.defineProperty(EnumVariant, "name", {value: this.name, writable: false});
+
+		return EnumVariant;
+
 	}
 
 	/**
 	 * @param {Scope} scope 
+	 * @returns {(parent: DataType) => EnumMemberType}
 	 */
-	eval(scope) {
+	evalType(scope) {
 		if (this.#parent === null) {
 			throw new Error("parent should've been registered");
 		}
 
-		super.evalInternal(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
-	}
+		const instanceMembers = super.evalFieldTypes(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
 
-	/**
-	 * @param {Word} name 
-	 * @param {boolean} dryRun 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name, dryRun = false) {
-		if (this.hasField(name)) {
-			return super.getInstanceMember(name, dryRun);
-		} else {
-			if (this.#parent === null) {
-				throw new Error("parent should've been registered");
-			} else {
-				return this.#parent.getInstanceMember(name, dryRun);
-			}
-		}
+		return (parent) => new GenericEnumMemberType({
+			name: this.name.value,
+			path: this.path,
+			constrIndex: this.constrIndex,
+			offChainType: this.offChainType,
+			parentType: parent,
+			fieldNames: this.fieldNames,
+			genInstanceMembers: (self) => ({
+				...genCommonInstanceMembers(self),
+				...instanceMembers
+			}),
+			genTypeMembers: (self) => ({
+				...genCommonTypeMembers(self),
+			})
+		});
 	}
 
 	get path() {
@@ -1131,8 +1318,81 @@ export class EnumStatement extends Statement {
 		}
 	}
 
-	get type() {
-		return new EnumStatementType(this);
+	/**
+	 * @param {string} basePath 
+	 */
+	setBasePath(basePath) {
+		super.setBasePath(basePath);
+
+		this.#impl.setBasePath(this.path);
+	}
+
+	/**
+	 * @package
+	 * @type {HeliosDataClass<HeliosData>}
+	 */
+	get offChainType() {
+		const statement = this;
+
+		const nVariants = statement.nEnumMembers;
+
+		/**
+		 * @type {HeliosDataClass<HeliosData>[]}
+		 */
+		const variants = [];
+
+		for (let i = 0; i < nVariants; i++) {
+			variants.push(this.#members[i].offChainType);
+		}
+
+		class Enum extends HeliosData {
+			constructor() {
+				super();
+				throw new Error("can't be constructed (hint: construct an enum)");
+			}
+
+			/**
+			 * Overload 'instanceof' operator
+			 * @param {any} other 
+			 * @returns {boolean}
+			 */
+			static [Symbol.hasInstance](other) {
+				return (other._enumStatement === statement) && (other instanceof HeliosData);
+			}
+
+			/**
+			 * @type {EnumStatement}
+			 */
+			get _enumStatement() {
+				return statement;
+			}
+
+			/**
+			 * @param {string | number[]} bytes
+			 * @returns {HeliosData}
+			 */
+			static fromUplcCbor(bytes) {
+				return Enum.fromUplcData(UplcData.fromCbor(bytes));
+			}
+
+			/**
+			 * @param {UplcData} data 
+			 * @returns {HeliosData}
+			 */
+			static fromUplcData(data) {
+				const variant = assertDefined(variants[data.index], "index out of range");
+
+				return variant.fromUplcData(data);
+			}
+		}
+
+		Object.defineProperty(Enum, "name", {value: this.name, writable: false});
+
+		for (let v of variants) {
+			Object.defineProperty(Enum, v.name, {value: v, writable: false});
+		}
+
+		return Enum;
 	}
 
 	/**
@@ -1157,11 +1417,10 @@ export class EnumStatement extends Statement {
 	}
 
 	/**
-	 * @param {Site} site 
 	 * @param {number} i
 	 * @returns {EnumMember}
 	 */
-	getEnumMember(site, i) {
+	getEnumMember(i) {
 		return assertDefined(this.#members[i]);
 	}
 
@@ -1173,6 +1432,40 @@ export class EnumStatement extends Statement {
 		return this.findEnumMember(name) != -1;
 	}
 
+	/**
+	 * @returns {number}
+	 */
+	get nEnumMembers() {
+		return this.#members.length;
+	}
+
+	/**
+	 * @param {Type} self 
+	 * @returns {TypeMembers}
+	 */
+	genEnumMemberShellTypes(self) {
+		/**
+		 * @type {TypeMembers}
+		 */
+		const types = {};
+
+		for (let member of this.#members) {
+			types[member.name.value] = new GenericEnumMemberType({
+				constrIndex: member.constrIndex,
+				name: member.name.value,
+				path: member.path,
+				parentType: assertDefined(self.asDataType),
+				genInstanceMembers: (self) => ({}),
+				genTypeMembers: (self) => ({})
+			});
+		}
+
+		return types
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `enum ${this.name.toString()}${this.#parameters.toString()} {${this.#members.map(m => m.toString()).join(", ")}}`;
 	}
@@ -1181,117 +1474,56 @@ export class EnumStatement extends Statement {
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
-		scope.set(this.name, this.type);
-
-		this.#members.forEach(m => {
-			m.eval(scope);
+		// first set the shell type
+		const shell = new GenericType({
+			name: this.name.value,
+			path: this.path,
+			genInstanceMembers: (self) => ({}),
+			genTypeMembers: (self) => this.genEnumMemberShellTypes(self)
 		});
 
-		this.#impl.eval(scope);
-	}
+		// the scope that is used for type evaluation
+		const subScope = new Scope(scope);
+		subScope.set(this.name, shell);
 
-	use() {
-		if (!this.used) {
-			super.use();
+		/**
+		 * @type {{[name: string]: (parent: DataType) => EnumMemberType}}
+		 */
+		const genFullMembers = {};
 
-			for (let m of this.#members) {
-				m.use();
+		this.#members.forEach(m => {
+			genFullMembers[m.name.value] =m.evalType(subScope);
+		});
+
+		const [instanceMembers, typeMembers] = this.#impl.evalTypes(subScope);
+
+		const full = new GenericType({
+			name: this.name.value,
+			path: this.path,
+			offChainType: this.offChainType,
+			genInstanceMembers: (self) => ({
+				...genCommonInstanceMembers(self),
+				...instanceMembers
+			}),
+			genTypeMembers: (self) => {
+				const typeMembers_ = {
+					...genCommonTypeMembers(self),
+					...typeMembers
+				};
+				
+				// TODO: detect duplicates
+				for (let memberName in genFullMembers) {
+					typeMembers_[memberName] = genFullMembers[memberName](assertDefined(self.asDataType))
+				}
+
+				return typeMembers_
 			}
-		}
-	}
+		});
 
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nFields(site) {
-		throw site.typeError("enum doesn't have fields");
-	}
+		console.log(full.typeMembers)
+		scope.set(this.name, full);
 
-	/**
-	 * @param {Site} site
-	 * @param {number} i
-	 * @returns {Type}
-	 */
-	getFieldType(site, i) {
-		throw site.typeError("enum doesn't have fields");
-	}
-
-	/**f
-	 * @param {Site} site 
-	 * @param {string} name 
-	 * @returns {number}
-	 */
-	getFieldIndex(site, name) {
-		throw site.typeError("enum doesn't have fields");
-	}
-
-	/**
-	 * @param {number} i 
-	 * @returns {string}
-	 */
-	getFieldName(i) {
-		throw Site.dummy().typeError("enum doesn't have fields");
-	}
-	
-    /**
-     * @param {Word} name 
-     * @returns {boolean}
-     */
-    hasField(name) {
-        throw name.site.typeError("enum doesn't have fields");
-    }
-
-	/** 
-	 * @param {Word} name 
-	 * @param {boolean} dryRun 
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name, dryRun = false) {
-		if (this.hasEnumMember(name)) {
-			throw name.referenceError(`'${name.toString()}' is an enum of '${this.toString}' (did you mean '${this.toString()}::${name.toString()}'?)`);
-		} else {
-			return this.#impl.getInstanceMember(name, dryRun);
-		}
-	}
-
-	/**
-	 * @param {Word} name 
-	 * @param {boolean} dryRun
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name, dryRun = false) {
-		let i = this.findEnumMember(name);
-		if (i == -1) {
-			return this.#impl.getTypeMember(name, dryRun);
-		} else {
-			return this.#members[i].type;
-		}
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	getConstrIndex(site) {
-		throw site.typeError("can't construct an enum directly (cast to a concrete type first)");
-	}
-
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		return this.#members.length;
-	}
-
-	/**
-	 * @param {Uint8Array} mask
-	 */
-	hideUnused(mask) {
-		super.hideUnused(mask);
-
-		this.#impl.hideUnused(mask);
+		this.#impl.eval(scope);
 	}
 
 	/**
@@ -1314,135 +1546,66 @@ export class ImplDefinition {
 	#selfTypeExpr;
 	#statements;
 
-	/** @type {Instance[]} - filled during eval to allow same recursive behaviour as for top-level statements */
-	#statementValues;
-
-	/** @type {Set<string>} */
-	#usedStatements;
-
 	/**
-	 * @param {TypeRefExpr} selfTypeExpr;
+	 * @param {RefExpr} selfTypeExpr;
 	 * @param {(FuncStatement | ConstStatement)[]} statements 
 	 */
 	constructor(selfTypeExpr, statements) {
 		this.#selfTypeExpr = selfTypeExpr;
 		this.#statements = statements;
-		this.#statementValues = [];
-		this.#usedStatements = new Set(); // used for code-generation, but not for cleanSource filtering
 	}
 
+	/**
+	 * @param {string} basePath 
+	 */
+	setBasePath(basePath) {
+		for (let s of this.#statements) {
+			s.setBasePath(basePath);
+		}
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `${this.#statements.map(s => s.toString()).join("\n")}`;
+	}
+
+	/**
+	 * Doesn't add the common types
+	 * @param {Scope} scope 
+	 * @returns {[InstanceMembers, TypeMembers]}
+	 */
+	evalTypes(scope) {
+		/**
+		 * @type {InstanceMembers}
+		 */
+		const instanceMembers = {};
+
+		/**
+		 * @type {TypeMembers}
+		 */
+		const typeMembers = {};
+
+		for (let s of this.#statements) {
+			if (FuncStatement.isMethod(s)) {
+				instanceMembers[s.name.value] = s.evalType(scope);
+			} else {
+				typeMembers[s.name.value] = s.evalType(scope);
+			}
+		}
+
+		return [instanceMembers, typeMembers];
 	}
 
 	/**
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
-		let selfType = this.#selfTypeExpr.eval(scope);
+		void this.#selfTypeExpr.eval(scope);
 
-		if (!(selfType instanceof StatementType)) {
-			throw this.#selfTypeExpr.referenceError("not a user-type");
-		} else {
-			for (let s of this.#statements) {
-				if (s instanceof FuncStatement) {
-					// override eval() of FuncStatement because we don't want the function to add itself to the scope directly.
-					let v = new FuncStatementInstance(s.evalType(scope), s);
-
-					this.#statementValues.push(v); // add func type to #statementValues in order to allow recursive calls (acts as a special scope)
-
-					// eval internal doesn't add anything to scope
-					void s.evalInternal(new FuncStatementScope(scope, s));
-				} else {
-					// eval internal doesn't add anything to scope
-					this.#statementValues.push(s.evalInternal(scope));
-				}
-			}
-		}
-	}
-
-	/**
-	 * @param {Word} name
-	 * @param {boolean} dryRun
-	 * @returns {Instance}
-	 */
-	getInstanceMember(name, dryRun = false) {
-		switch (name.value) {
-			case "serialize":
-				this.#usedStatements.add(name.toString());
-				return Instance.new(new FuncType([], new ByteArrayType()));
-			
-			default:
-				// loop the contained statements to find one with name 'name'
-				for (let i = 0; i < this.#statementValues.length; i++) {
-					let s = this.#statements[i];
-
-					if (name.toString() == s.name.toString()) {
-						if (FuncStatement.isMethod(s)) {
-							if (!dryRun) {
-								this.#usedStatements.add(name.toString());
-							}
-
-							return this.#statementValues[i];
-						} else {
-							throw name.referenceError(`'${this.#selfTypeExpr.toString()}.${name.toString()}' isn't a method (did you mean '${this.#selfTypeExpr.toString()}::${name.toString()}'?)`);
-						}
-					}
-				}
-
-				throw name.referenceError(`'${this.#selfTypeExpr.toString()}.${name.toString()}' undefined`);
-		}
-	}
-	
-	/**
-	 * @param {Word} name 
-	 * @param {boolean} dryRun 
-	 * @returns {EvalEntity}
-	 */
-	getTypeMember(name, dryRun = false) {
-		switch (name.value) {
-			case "__eq":
-			case "__neq":
-				this.#usedStatements.add(name.toString());
-				return Instance.new(new FuncType([this.#selfTypeExpr.type, this.#selfTypeExpr.type], new BoolType()));
-			case "from_data":
-				this.#usedStatements.add(name.toString());
-				return Instance.new(new FuncType([new RawDataType()], this.#selfTypeExpr.type));
-			default:
-				for (let i = 0; i < this.#statementValues.length; i++) {
-					let s = this.#statements[i];
-
-					if (name.toString() == s.name.toString()) {
-						if (FuncStatement.isMethod(s)) {
-							throw name.referenceError(`'${this.#selfTypeExpr.toString()}::${name.value}' is a method (did you mean '${this.#selfTypeExpr.toString()}.${name.toString()}'?)`)
-						} else {
-							if (!dryRun) {
-								this.#usedStatements.add(name.toString());
-							}
-
-							return this.#statementValues[i];
-						}
-					}
-				}
-
-				throw name.referenceError(`'${this.#selfTypeExpr.toString()}::${name.toString()}' undefined`);
-		}
-	}
-
-	/**
-	 * @param {Uint8Array} mask
-	 */
-	hideUnused(mask) {
 		for (let s of this.#statements) {
-			if (!s.used) {
-				let site = s.site;
-
-				if (site.endSite === null) {
-					mask.fill(0, site.startPos);
-				} else {
-					mask.fill(0, site.startPos, site.endSite.startPos);
-				}
-			}
+			void s.evalInternal(scope);
 		}
 	}
 
@@ -1451,32 +1614,17 @@ export class ImplDefinition {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		let path = this.#selfTypeExpr.path;
+		let path = assertDefined(this.#selfTypeExpr.cache?.asNamed).path;
 		let site = this.#selfTypeExpr.site;
 
-		if (this.#usedStatements.has("__eq")) {
-			map.set(`${path}____eq`, new IR("__helios__common____eq", site));
-		}
-
-		if (this.#usedStatements.has("__neq")) {
-			map.set(`${path}____neq`, new IR("__helios__common____neq", site));
-		}
-
-		if (this.#usedStatements.has("serialize")) {
-			map.set(`${path}__serialize`, new IR("__helios__common__serialize", site));
-		}
-
-		if (this.#usedStatements.has("from_data")) {
-			map.set(`${path}__from_data`, new IR("__helios__common__identity", site));
-		}
+		map.set(`${path}____eq`, new IR("__helios__common____eq", site));
+		map.set(`${path}____neq`, new IR("__helios__common____neq", site));
+		map.set(`${path}__serialize`, new IR("__helios__common__serialize", site));
+		map.set(`${path}__from_data`, new IR("__helios__common__identity", site));
+		map.set(`${path}____to_data`, new IR("__helios__common__identity", site));
 
 		for (let s of this.#statements) {
-			let key = `${path}__${s.name.toString()}`
-			if (s instanceof FuncStatement) {
-				map.set(key, s.toIRInternal(key));
-			} else {
-				map.set(key, s.toIRInternal());
-			}
+			map.set(s.path, s.toIRInternal());
 		}
 	}
 }

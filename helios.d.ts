@@ -182,6 +182,139 @@ export function deserializeUplc(jsonString: string): UplcProgram;
  */
 export function tokenize(src: Source): Token[] | null;
 /**
+ * @template {HeliosData} T
+ */
+/**
+ * @typedef {Named & Type & {
+ *   asDataType: DataType
+ *   fieldNames:  string[]
+ *   offChainType: (null | HeliosDataClass<HeliosData>)
+ * }} DataType
+ */
+/**
+ * @typedef {DataType & {
+ *   asEnumMemberType: EnumMemberType
+ *   constrIndex: number
+ *   parentType: DataType
+ * }} EnumMemberType
+ */
+/**
+ * EvalEntities assert themselves
+ * @typedef {{
+ *   asDataType:       (null | DataType)
+ *   asEnumMemberType: (null | EnumMemberType)
+ *   asFunc:           (null | Func)
+ *   asInstance:       (null | Instance)
+ *   asMulti:          (null | Multi)
+ *   asNamed:          (null | Named)
+ *   asNamespace:      (null | Namespace)
+ *   asParametric:     (null | Parametric)
+ * 	 asType:           (null | Type)
+ *   asTyped:          (null | Typed)
+ *   asTypeClass:      (null | TypeClass)
+ *   toString():       string
+ * }} EvalEntity
+ */
+/**
+ * @typedef {Typed & {
+ *   asFunc: Func
+ *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}): (Typed | Multi)
+ * }} Func
+ */
+/**
+ * @typedef {Typed & {
+ *   asInstance:      Instance
+ *   fieldNames:      string[]
+ *   instanceMembers: InstanceMembers
+ * }} Instance
+ */
+/**
+ * @typedef {EvalEntity & {
+ *	 asMulti: Multi
+ *   values:  Typed[]
+ * }} Multi
+ */
+/**
+ * @typedef {EvalEntity & {
+ *   asNamed: Named
+ *   name:    string
+ *   path:    string
+ * }} Named
+ */
+/**
+ * @typedef {EvalEntity & {
+ *   asNamespace: Namespace
+ *   namespaceMembers: NamespaceMembers
+ * }} Namespace
+ */
+/**
+ * @typedef {EvalEntity & {
+ *   asParametric: Parametric
+ *   offChainType: (null | ((...any) => HeliosDataClass<HeliosData>))
+ *   typeClasses: TypeClass[]
+ *   apply(types: Type[], site?: Site): EvalEntity
+ *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): (Typed | Multi)
+ * }} Parametric
+ */
+/**
+ * @typedef {EvalEntity & {
+ *   asType:               Type
+ *   instanceMembers:      InstanceMembers
+ *   typeMembers:          TypeMembers
+ *   isBaseOf(type: Type): boolean
+ *   infer(site: Site, map: Map<string, Type>, type: (null | Type)): Type
+ *   toTyped():            Typed
+ * }} Type
+ */
+/**
+ * @typedef {EvalEntity & {
+ *   asTyped: Typed
+ *   type: Type
+ * }} Typed
+ */
+/**
+ * @typedef {EvalEntity & {
+ *   asTypeClass:                    TypeClass
+ *   genInstanceMembers(impl: Type): TypeClassMembers
+ *   genTypeMembers(impl: Type):     TypeClassMembers
+ *   toType(name: string):           DataType
+ * }} TypeClass
+ */
+/**
+ * @typedef {{[name: string]: (Parametric | Type)}} InstanceMembers
+ */
+/**
+ * @typedef {{[name: string]: EvalEntity}} NamespaceMembers
+ */
+/**
+ * @typedef {{[name: string]: (Parametric | Type)}} TypeMembers
+ */
+/**
+ * @typedef {{[name: string]: Type}} TypeClassMembers
+ */
+/**
+ * @param {Parametric} parametric
+ * @param {Type[]} types
+ * @returns {DataType}
+ */
+export function applyTypes(parametric: Parametric, ...types: Type[]): DataType;
+/**
+ * @param {Type} itemType
+ * @returns {DataType}
+ */
+export function ListType$(itemType: Type): DataType;
+/**
+ * @param {Type} keyType
+ * @param {Type} valueType
+ * @returns {DataType}
+ */
+export function MapType$(keyType: Type, valueType: Type): DataType;
+/**
+ * @param {Type} someType
+ * @returns {DataType}
+ */
+export function OptionType$(someType: Type): DataType;
+/**
  * Used by VSCode plugin
  * @param {(path: StringLiteral) => (string | null)} fn
  */
@@ -1174,9 +1307,10 @@ export class HeliosData extends CborData {
 }
 /**
  * @template {HeliosData} T
+ *
  * @typedef {{
- *   new(...args: any[]): T;
- *   fromUplcCbor: (bytes: (string | number[])) => T,
+ *   new(...args: any[]): T
+ *   fromUplcCbor: (bytes: (string | number[])) => T
  *   fromUplcData: (data: UplcData) => T
  * }} HeliosDataClass
  */
@@ -2663,8 +2797,9 @@ export class Tokenizer {
     /**
      * @param {Source} src
      * @param {?CodeMap} codeMap
+     * @param {boolean} irMode - if true '@' is treated as a regular character
      */
-    constructor(src: Source, codeMap?: CodeMap | null);
+    constructor(src: Source, codeMap?: CodeMap | null, irMode?: boolean);
     incrPos(): void;
     decrPos(): void;
     get currentSite(): Site;
@@ -2792,13 +2927,6 @@ export class Tokenizer {
     nestGroups(ts: Token[]): Token[] | null;
     #private;
 }
-export class AnyTypeClass extends TypeClass {
-}
-/**
- * Builtin Time type. Opaque alias of Int representing milliseconds since 1970
- */
-export class TimeType extends BuiltinType {
-}
 /**
  * @typedef {Map<IRVariable, IRLiteralExpr>} IRLiteralRegistry
  */
@@ -2886,11 +3014,6 @@ export class IRAnonCallExpr extends IRUserCallExpr {
      * @param {IRCallStack} stack
      */
     evalConstants(stack: IRCallStack): IRLiteralExpr | IRUserCallExpr;
-    /**
-     * @param {IRExprRegistry} registry
-     * @returns {IRAnonCallExpr}
-     */
-    simplifyUnused(registry: IRExprRegistry): IRAnonCallExpr;
     #private;
 }
 export class IRNestedAnonCallExpr extends IRUserCallExpr {
@@ -2904,11 +3027,16 @@ export class IRNestedAnonCallExpr extends IRUserCallExpr {
 }
 export class IRFuncDefExpr extends IRAnonCallExpr {
     /**
-     * @param {IRFuncExpr} fnExpr
+     * @param {IRFuncExpr} anon
      * @param {IRFuncExpr} defExpr
      * @param {Site} parensSite
      */
-    constructor(fnExpr: IRFuncExpr, defExpr: IRFuncExpr, parensSite: Site);
+    constructor(anon: IRFuncExpr, defExpr: IRFuncExpr, parensSite: Site);
+    /**
+     * @param {IRExprRegistry} registry
+     * @returns {[IRFuncExpr, IRFuncExpr]}
+     */
+    simplifyTypeParams(registry: IRExprRegistry): [IRFuncExpr, IRFuncExpr];
     #private;
 }
 export class IRParametricProgram {
@@ -2959,6 +3087,19 @@ export class Program {
      */
     static new(mainSrc: string, moduleSrcs?: string[]): Program;
     /**
+     * For top-level statements
+     * @package
+     * @param {IRDefinitions} map
+     */
+    static injectMutualRecursions(map: IRDefinitions): void;
+    /**
+     * Also merges builtins and map
+     * @param {IRDefinitions} builtins
+     * @param {IRDefinitions} map
+     * @returns {IRDefinitions}
+     */
+    static injectTypeParameters(builtins: IRDefinitions, map: IRDefinitions): IRDefinitions;
+    /**
      * @param {number} purpose
      * @param {Module[]} modules
      */
@@ -3005,10 +3146,6 @@ export class Program {
      */
     toString(): string;
     /**
-     * @returns {[string[], string]}
-     */
-    cleanSource(): [string[], string];
-    /**
      * @param {GlobalScope} globalScope
      * @returns {TopScope}
      */
@@ -3029,18 +3166,11 @@ export class Program {
      */
     fillTypes(topScope: TopScope): void;
     /**
-     * @type {Object.<string, Type>}
+     * @type {Object.<string, DataType>}
      */
     get paramTypes(): {
-        [x: string]: Type;
+        [x: string]: DataType;
     };
-    /**
-     * Change the literal value of a const statements
-     * @param {string} name
-     * @param {string | UplcValue} value
-     * @returns {Program} - returns 'this' so that changeParam calls can be chained
-     */
-    changeParam(name: string, value: string | UplcValue): Program;
     /**
      * Change the literal value of a const statements
      * @package
@@ -3067,6 +3197,21 @@ export class Program {
     get parameters(): {
         [x: string]: HeliosData;
     };
+    /**
+     * @package
+     * @param {string[]} parameters
+     * @param {(s: Statement, isImport: boolean) => boolean} endCond
+     * @returns {IRDefinitions}
+     */
+    statementsToIR(parameters: string[], endCond: (s: Statement, isImport: boolean) => boolean): IRDefinitions;
+    /**
+     * @package
+     * @param {IR} ir
+     * @param {string[]} parameters
+     * @param {(s: Statement) => boolean} endCond
+     * @returns {IRDefinitions}
+     */
+    fetchDefinitions(ir: IR, parameters: string[], endCond: (s: Statement) => boolean): IRDefinitions;
     /**
      * @package
      * @param {IR} ir
@@ -4299,6 +4444,99 @@ export type TransferUplcAst = {
     transferUplcUnit: (site: any) => any;
     transferUplcVariable: (site: any, index: any) => any;
 };
+export type DataType = Named & Type & {
+    asDataType: DataType;
+    fieldNames: string[];
+    offChainType: (null | HeliosDataClass<HeliosData>);
+};
+export type EnumMemberType = DataType & {
+    asEnumMemberType: EnumMemberType;
+    constrIndex: number;
+    parentType: DataType;
+};
+/**
+ * EvalEntities assert themselves
+ */
+export type EvalEntity = {
+    asDataType: (null | DataType);
+    asEnumMemberType: (null | EnumMemberType);
+    asFunc: (null | Func);
+    asInstance: (null | Instance);
+    asMulti: (null | Multi);
+    asNamed: (null | Named);
+    asNamespace: (null | Namespace);
+    asParametric: (null | Parametric);
+    asType: (null | Type);
+    asTyped: (null | Typed);
+    asTypeClass: (null | TypeClass);
+    toString(): string;
+};
+export type Func = EvalEntity & {
+    asTyped: Typed;
+    type: Type;
+} & {
+    asFunc: Func;
+    call(site: Site, args: Typed[], namedArgs?: {
+        [name: string]: Typed;
+    }): (Typed | Multi);
+};
+export type Instance = Typed & {
+    asInstance: Instance;
+    fieldNames: string[];
+    instanceMembers: InstanceMembers;
+};
+export type Multi = EvalEntity & {
+    asMulti: Multi;
+    values: Typed[];
+};
+export type Named = EvalEntity & {
+    asNamed: Named;
+    name: string;
+    path: string;
+};
+export type Namespace = EvalEntity & {
+    asNamespace: Namespace;
+    namespaceMembers: NamespaceMembers;
+};
+export type Parametric = EvalEntity & {
+    asParametric: Parametric;
+    offChainType: (...any: any[]) => HeliosDataClass<HeliosData>;
+    typeClasses: TypeClass[];
+    apply(types: Type[], site?: Site): EvalEntity;
+    call(site: Site, args: Typed[], namedArgs?: {
+        [name: string]: Typed;
+    }, paramTypes?: Type[]): (Typed | Multi);
+};
+export type Type = EvalEntity & {
+    asType: Type;
+    instanceMembers: InstanceMembers;
+    typeMembers: TypeMembers;
+    isBaseOf(type: Type): boolean;
+    infer(site: Site, map: Map<string, Type>, type: (null | Type)): Type;
+    toTyped(): Typed;
+};
+export type Typed = EvalEntity & {
+    asTyped: Typed;
+    type: Type;
+};
+export type TypeClass = EvalEntity & {
+    asTypeClass: TypeClass;
+    genInstanceMembers(impl: Type): TypeClassMembers;
+    genTypeMembers(impl: Type): TypeClassMembers;
+    toType(name: string): DataType;
+};
+export type InstanceMembers = {
+    [name: string]: Type | Parametric;
+};
+export type NamespaceMembers = {
+    [name: string]: EvalEntity;
+};
+export type TypeMembers = {
+    [name: string]: Type | Parametric;
+};
+export type TypeClassMembers = {
+    [name: string]: Type;
+};
 /**
  * The inner 'any' is also Metadata, but jsdoc doesn't allow declaring recursive types
  * Metadata is essentially a JSON schema object
@@ -4347,72 +4585,6 @@ export type ProgramProperties = {
 export type TransferableUplcProgram<TInstance> = {
     transferUplcProgram: (expr: any, properties: ProgramProperties, version: any[]) => TInstance;
     transferUplcAst: TransferUplcAst;
-};
-/**
- * We can't use StructStatement etc. directly because that would give circular dependencies
- */
-export type UserTypeStatement = {
-    name: Word;
-    getTypeMember(key: Word): EvalEntity;
-    getInstanceMember(key: Word): Instance;
-    nFields(site: Site): number;
-    hasField(key: Word): boolean;
-    getFieldType(site: Site, i: number): Type;
-    getFieldIndex(site: Site, name: string): number;
-    getFieldName(i: number): string;
-    getConstrIndex(site: Site): number;
-    nEnumMembers(site: Site): number;
-    path: string;
-    use: () => void;
-};
-/**
- * We can't use ConstStatement directly because that would give a circular dependency
- */
-export type ConstTypeStatement = {
-    name: Word;
-    path: string;
-    use: () => void;
-};
-/**
- * We can't use EnumMember directly because that would give a circular dependency
- */
-export type EnumMemberTypeStatement = UserTypeStatement & {
-    parent: EnumTypeStatement;
-    getConstrIndex(site: Site): number;
-};
-/**
- * We can't use EnumStatement directly because that would give a circular dependency
- */
-export type EnumTypeStatement = UserTypeStatement & {
-    type: Type;
-    nEnumMembers(site: Site): number;
-    getEnumMember(site: Site, i: number): EnumMemberTypeStatement;
-};
-/**
- * We can't use FuncStatement directly because that would give a circular dependency
- */
-export type RecurseableStatement = {
-    path: string;
-    use: () => void;
-    setRecursive: () => void;
-    isRecursive: () => boolean;
-};
-/**
- * We can't use Scope directly because that would give a circular dependency
- */
-export type RecursivenessChecker = {
-    isRecursive: (statement: RecurseableStatement) => boolean;
-};
-/**
- * We can't use Scope directly because that would give a circular dependency
- */
-export type ScopeLike = {
-    get: (name: Word) => EvalEntity;
-};
-export type EvalEntityI = {
-    assertType(): (null | Type);
-    assertInstance(): (null | Instance);
-    assertTypeClass(): (null | TypeClass);
 };
 export type IRLiteralRegistry = Map<IRVariable, IRLiteralExpr>;
 export type UserTypes = {
@@ -4509,27 +4681,21 @@ declare class Statement extends Token {
      */
     constructor(site: Site, name: Word);
     /**
-     * @param {string} basePath
-     */
-    setBasePath(basePath: string): void;
-    get path(): string;
-    /**
      * @type {Word}
      */
     get name(): Word;
     /**
-     * @type {boolean}
+     * @type {string}
      */
-    get used(): boolean;
+    get path(): string;
     /**
      * @param {ModuleScope} scope
      */
     eval(scope: ModuleScope): void;
-    use(): void;
     /**
-     * @param {Uint8Array} mask
+     * @param {string} basePath
      */
-    hideUnused(mask: Uint8Array): void;
+    setBasePath(basePath: string): void;
     /**
      * Returns IR of statement.
      * No need to specify indent here, because all statements are top-level
@@ -4713,9 +4879,9 @@ declare class IR {
     static wrapWithDefinitions(inner: IR, definitions: IRDefinitions): IR;
     /**
      * @param {string | IR[]} content
-     * @param {?Site} site
+     * @param {null | Site} site
      */
-    constructor(content: string | IR[], site?: Site | null);
+    constructor(content: string | IR[], site?: null | Site);
     /**
      * @package
      * @type {string | IR[]}
@@ -4748,6 +4914,18 @@ declare class IR {
      * @returns {string}
      */
     pretty(): string;
+    /**
+     * @param {RegExp} re
+     * @param {string} newStr
+     * @returns {IR}
+     */
+    replace(re: RegExp, newStr: string): IR;
+    /**
+     *
+     * @param {RegExp} re
+     * @param {(match: string) => void} callback
+     */
+    search(re: RegExp, callback: (match: string) => void): void;
     #private;
 }
 /**
@@ -5028,53 +5206,6 @@ declare class UplcTerm {
     #private;
 }
 /**
- * @package
- */
-declare class TypeClass extends EvalEntity {
-    /**
-     * @param {Type} implementation
-     * @returns {{[name: string]: Type}}
-     */
-    genTypeMembers(implementation: Type): {
-        [name: string]: Type;
-    };
-    /**
-     * @param {Type} implementation
-     * @returns {{[name: string]: Type}}
-     */
-    genInstanceMembers(implementation: Type): {
-        [name: string]: Type;
-    };
-    /**
-     * @type {string[]}
-     */
-    get memberNames(): string[];
-    /**
-     * @param {Type} type
-     * @returns {boolean}
-     */
-    isImplementedBy(type: Type): boolean;
-    /**
-     * @param {string} name
-     * @returns {Type}
-     */
-    asType(name: string): Type;
-}
-/**
- * Base class of all builtin types (eg. IntType)
- * Note: any builtin type that inherits from BuiltinType must implement get path()
- * @package
- */
-declare class BuiltinType extends DataType {
-    allowMacros(): void;
-    get macrosAllowed(): boolean;
-    /**
-     * Use 'path' getter instead of 'toIR()' in order to get the base path.
-     */
-    toIR(): void;
-    #private;
-}
-/**
  * Intermediate Representation variable reference expression
  * @package
  */
@@ -5104,6 +5235,12 @@ declare class IRNameExpr extends IRExpr {
      * @returns {boolean}
      */
     isVariable(ref: IRVariable): boolean;
+    /**
+     * @param {IRVariable} fnVar
+     * @param {number[]} remaining
+     * @returns {IRExpr}
+     */
+    removeUnusedCallArgs(fnVar: IRVariable, remaining: number[]): IRExpr;
     #private;
 }
 /**
@@ -5184,6 +5321,12 @@ declare class IRExpr extends Token {
      */
     simplifyUnused(registry: IRExprRegistry): IRExpr;
     /**
+     * @param {IRVariable} fnVar
+     * @param {number[]} remaining
+     * @returns {IRExpr}
+     */
+    simplifyUnusedTypeParams(fnVar: IRVariable, remaining: number[]): IRExpr;
+    /**
      * @returns {UplcTerm}
      */
     toUplc(): UplcTerm;
@@ -5235,6 +5378,11 @@ declare class IRFuncExpr extends IRExpr {
      * @param {IRCallStack} stack
      */
     evalConstants(stack: IRCallStack): IRFuncExpr;
+    /**
+     * @param {IRExprRegistry} registry
+     * @returns {IRFuncExpr}
+     */
+    simplifyUnused(registry: IRExprRegistry): IRFuncExpr;
     #private;
 }
 /**
@@ -5260,6 +5408,10 @@ declare class IRCallStack {
      * @returns {IRCallStack}
      */
     set(variable: IRVariable, value: IRValue): IRCallStack;
+    /**
+     * @returns {string[]}
+     */
+    dump(): string[];
     #private;
 }
 /**
@@ -5279,6 +5431,12 @@ declare class IRLiteralExpr extends IRExpr {
      * @param {IRCallStack} stack
      */
     evalConstants(stack: IRCallStack): IRLiteralExpr;
+    /**
+     * @param {IRVariable} fnVar
+     * @param {number[]} remaining
+     * @returns {IRExpr}
+     */
+    removeUnusedCallArgs(fnVar: IRVariable, remaining: number[]): IRExpr;
     /**
      * @returns {UplcConst}
      */
@@ -5389,11 +5547,6 @@ declare class Module {
      */
     evalTypes(scope: ModuleScope): void;
     /**
-     * Cleans the program by removing everything that is unecessary for the smart contract (easier to audit)
-     * @returns {string}
-     */
-    cleanSource(): string;
-    /**
      * This module can depend on other modules
      * TODO: detect circular dependencies
      * @param {Module[]} modules
@@ -5444,9 +5597,9 @@ declare class FuncStatement extends Statement {
     /**
      * Evaluates a function and returns a func value
      * @param {Scope} scope
-     * @returns {Instance}
+     * @returns {EvalEntity}
      */
-    evalInternal(scope: Scope): Instance;
+    evalInternal(scope: Scope): EvalEntity;
     /**
      * Evaluates type of a funtion.
      * Separate from evalInternal so we can use this function recursively inside evalInternal
@@ -5454,17 +5607,11 @@ declare class FuncStatement extends Statement {
      * @returns {FuncType}
      */
     evalType(scope: Scope): FuncType;
-    isRecursive(): boolean;
     /**
-     * Called in FuncStatementScope as soon as recursion is detected
-     */
-    setRecursive(): void;
-    /**
-     * Returns IR of function.
-     * @param {string} fullName - fullName has been prefixed with a type path for impl members
+     * Returns IR of function
      * @returns {IR}
      */
-    toIRInternal(fullName?: string): IR;
+    toIRInternal(): IR;
     #private;
 }
 /**
@@ -5499,16 +5646,9 @@ declare class GlobalScope {
      */
     get(name: Word): EvalEntity;
     /**
-     * Check if funcstatement is called recursively (always false here)
-     * @param {RecurseableStatement} statement
-     * @returns {boolean}
-     */
-    isRecursive(statement: RecurseableStatement): boolean;
-    /**
      * @returns {boolean}
      */
     isStrict(): boolean;
-    allowMacros(): void;
     /**
      * @param {(name: string, type: Type) => void} callback
      */
@@ -5572,79 +5712,6 @@ declare class NativeContext {
      */
     isSignedBy(key: PubKeyHash): boolean;
     #private;
-=======
- * Types are used during type-checking of Helios
- * @package
- */
-declare class Type extends EvalEntity {
-    /**
-     * Compares two types. Throws an error if neither is a Type.
-     * @example
-     * Type.same(Site.dummy(), new IntType(), new IntType()) => true
-     * @param {Type} a
-     * @param {Type} b
-     * @returns {boolean}
-     */
-    static same(a: Type, b: Type): boolean;
-    /**
-     * Returns 'true' if 'this' is a base-type of 'type'. Throws an error if 'this' isn't a Type.
-     * @param {Type} type
-     * @returns {boolean}
-     */
-    isBaseOf(type: Type): boolean;
-    /**
-     * Throws an error because a Type can't be an instance of another Type.
-     * @param {Site} site
-     * @param {Type | ClassOfType} type
-     * @returns {boolean}
-     */
-    isInstanceOf(site: Site, type: Type | (new (...any: any[]) => Type)): boolean;
-    /**
-     * @returns {boolean}
-     */
-    isEnumMember(): boolean;
-    /**
-     * Throws error for non-enum members
-     * @param {Site} site
-     * @returns {Type}
-     */
-    parentType(site: Site): Type;
-    /**
-     * Returns number of members of an enum type
-     * Throws an error if not an enum type
-     * @param {Site} site
-     * @returns {number}
-     */
-    nEnumMembers(site: Site): number;
-    /**
-     * Returns the base path in the IR (eg. __helios__bool, __helios__error, etc.)
-     * @type {string}
-     */
-    get path(): string;
-    /**
-     * @type {HeliosDataClass<HeliosData>}
-     */
-    get userType(): HeliosDataClass<HeliosData>;
-    /**
-     * @package
-     * @param {Site} site
-     * @param {Map<string, Type>} map
-     * @param {Type | null} type
-     * @returns {Type}
-     */
-    infer(site: Site, map: Map<string, Type>, type: Type | null): Type;
-    /**
-     * @type {{[name: string]: EvalEntity}}
-     */
-    get typeMembers(): {
-        [name: string]: EvalEntity;
-    };
-    /**
-     * @type {{[name: string]: Instance}}
-     */
-    get instanceMembers(): {
-        [name: string]: Instance;
-    };
 }
 /**
  * inputs, minted assets, and withdrawals need to be sorted in order to form a valid transaction
@@ -6157,206 +6224,6 @@ declare class CostModel {
     dump(): string;
 }
 /**
- * We can't use StructStatement etc. directly because that would give circular dependencies
- * @typedef {{
- *   name: Word,
- *   getTypeMember(key: Word): EvalEntity,
- *   getInstanceMember(key: Word): Instance,
- *   nFields(site: Site): number,
- *   hasField(key: Word): boolean,
- *   getFieldType(site: Site, i: number): Type,
- * 	 getFieldIndex(site: Site, name: string): number,
- *   getFieldName(i: number): string,
- *   getConstrIndex(site: Site): number,
- *   nEnumMembers(site: Site): number,
- *   path: string,
- *   use: () => void
- * }} UserTypeStatement
- */
-/**
- * We can't use ConstStatement directly because that would give a circular dependency
- * @typedef {{
- *   name: Word,
- *   path: string,
- *   use: () => void
- * }} ConstTypeStatement
- */
-/**
- * We can't use EnumMember directly because that would give a circular dependency
- * @typedef {UserTypeStatement & {
- * 	 parent: EnumTypeStatement,
- *   getConstrIndex(site: Site): number
-*  }} EnumMemberTypeStatement
- */
-/**
- * We can't use EnumStatement directly because that would give a circular dependency
- * @typedef {UserTypeStatement & {
- *   type: Type,
- *   nEnumMembers(site: Site): number,
- *   getEnumMember(site: Site, i: number): EnumMemberTypeStatement
- * }} EnumTypeStatement
- */
-/**
- * We can't use FuncStatement directly because that would give a circular dependency
- * @typedef {{
- *   path: string,
- *   use: () => void,
- *   setRecursive: () => void,
- *   isRecursive: () => boolean
- * }} RecurseableStatement
- */
-/**
- * We can't use Scope directly because that would give a circular dependency
- * @typedef {{
- *   isRecursive: (statement: RecurseableStatement) => boolean
- * }} RecursivenessChecker
- */
-/**
- * We can't use Scope directly because that would give a circular dependency
- * @typedef {{
- *   get: (name: Word) => EvalEntity
- * }} ScopeLike
- */
-/**
- * @typedef {{
- * 	 assertType(): (null | Type)
- *   assertInstance(): (null | Instance)
- *   assertTypeClass(): (null | TypeClass)
- * }} EvalEntityI
- */
-/**
- * Base class of Instance and Type.
- * Any member function that takes 'site' as its first argument throws a TypeError if used incorrectly (eg. calling a non-FuncType).
- * @package
- * @implements {EvalEntityI}
- */
-declare class EvalEntity implements EvalEntityI {
-    used_: boolean;
-    /**
-     * @returns {null | Type}
-     */
-    assertType(): null | Type;
-    /**
-     * @returns {null | TypeClass}
-     */
-    assertTypeClass(): null | TypeClass;
-    /**
-     * @returns {null | Instance}
-     */
-    assertInstance(): null | Instance;
-    /**
-     * @param {Site} site
-     * @param {Type[]} types
-     * @returns {EvalEntity}
-     */
-    applyTypes(site: Site, types: Type[]): EvalEntity;
-    /**
-     * @returns {boolean}
-     */
-    isUsed(): boolean;
-    /**
-     * @returns {string}
-     */
-    toString(): string;
-    /**
-     * Used by Scope to mark named Values/Types as used.
-     * At the end of the Scope an error is thrown if any named Values/Types aren't used.
-     */
-    markAsUsed(): void;
-    /**
-     * Gets type of a value. Throws error when trying to get type of type.
-     * @param {Site} site
-     * @returns {Type}
-     */
-    getType(site: Site): Type;
-    /**
-     * Returns the return type of a function (wrapped as a Instance) if the args have the correct types.
-     * Throws an error if 'this' isn't a function value, or if the args don't correspond.
-     * @param {Site} site
-     * @param {Instance[]} args
-     * @param {{[name: string]: Instance}} namedArgs
-     * @returns {Instance}
-     */
-    call(site: Site, args: Instance[], namedArgs?: {
-        [name: string]: Instance;
-    }): Instance;
-    /**
-     * Gets a member of a Type (i.e. the '::' operator).
-     * Throws an error if the member doesn't exist or if 'this' isn't a DataType.
-     * @param {Word} name
-     * @returns {EvalEntity} - can be Instance or Type
-     */
-    getTypeMember(name: Word): EvalEntity;
-    /**
-     * Gets a member of a Instance (i.e. the '.' operator).
-     * Throws an error if the member doesn't exist or if 'this' isn't a DataInstance.
-     * @param {Word} name
-     * @returns {Instance} - can be FuncInstance or DataInstance
-     */
-    getInstanceMember(name: Word): Instance;
-    /**
-     * Returns the number of fields in a struct.
-     * Used to check if a literal struct constructor is correct.
-     * @param {Site} site
-     * @returns {number}
-     */
-    nFields(site: Site): number;
-    /**
-     * Returns the type of struct or enumMember fields.
-     * Used to check if literal struct constructor is correct.
-     * @param {Site} site
-     * @param {number} i
-     * @returns {Type}
-     */
-    getFieldType(site: Site, i: number): Type;
-    /**
-     * Returns the index of struct or enumMember fields.
-     * Used to order literal struct fields.
-     * @param {Site} site
-     * @param {string} name
-     * @returns {number}
-     */
-    getFieldIndex(site: Site, name: string): number;
-    /**
-     * Returns the constructor index so Plutus-core data can be created correctly.
-     * @param {Site} site
-     * @returns {number}
-     */
-    getConstrIndex(site: Site): number;
-}
-/**
- * Base class for DataInstance and FuncInstance
- * @package
- */
-declare class Instance extends NotType {
-    /**
-     * @param {Type | Type[]} type
-     * @returns {Instance}
-     */
-    static new(type: Type | Type[]): Instance;
-    /**
-     * @param {{[name: string]: Type}} types
-     * @returns {{[name: string]: Instance}}
-     */
-    static fromTypesObject(types: {
-        [name: string]: Type;
-    }): {
-        [name: string]: Instance;
-    };
-    /**
-     * Returns 'true' if 'this' is an instance of 'type'. Throws an error if 'this' isn't a Instance.
-     * 'type' can be a class, or a class instance.
-     * @param {Type | ClassOfType} type
-     * @returns {boolean}
-     */
-    isInstanceOf(type: Type | (new (...any: any[]) => Type)): boolean;
-    /**
-     * @package
-     * @returns {null | ParametricInstance}
-     */
-    assertParametric(): null | ParametricInstance;
-}
-/**
  * Base class of literal tokens
  * @package
  */
@@ -6366,11 +6233,6 @@ declare class PrimitiveLiteral extends Token {
  * @package
  */
 declare class ModuleScope extends Scope {
-}
-/**
- * Base class of non-FuncTypes.
- */
-declare class DataType extends Type {
 }
 /**
  * @package
@@ -6407,10 +6269,10 @@ declare class IRScope {
      */
     static findBuiltin(name: string): number;
     /**
-     * @param {?IRScope} parent
-     * @param {?IRVariable} variable
+     * @param {null | IRScope} parent
+     * @param {null | IRVariable} variable
      */
-    constructor(parent: IRScope | null, variable: IRVariable | null);
+    constructor(parent: null | IRScope, variable: null | IRVariable);
     /**
      * Calculates the Debruijn index of a named value. Internal method
      * @param {Word | IRVariable} name
@@ -6487,9 +6349,9 @@ declare class IRCallExpr extends IRExpr {
 /**
  * User scope
  * @package
- * @implements {EvalEntityI}
+ * @implements {EvalEntity}
  */
-declare class Scope implements EvalEntityI {
+declare class Scope extends Common implements EvalEntity {
     /**
      * @param {GlobalScope | Scope} parent
      */
@@ -6512,6 +6374,10 @@ declare class Scope implements EvalEntityI {
     set(name: Word, value: EvalEntity | Scope): void;
     /**
      * @param {Word} name
+     */
+    remove(name: Word): void;
+    /**
+     * @param {Word} name
      * @returns {Scope}
      */
     getScope(name: Word): Scope;
@@ -6521,12 +6387,6 @@ declare class Scope implements EvalEntityI {
      * @returns {EvalEntity | Scope}
      */
     get(name: Word): EvalEntity | Scope;
-    /**
-     * Check if function statement is called recursively
-     * @param {RecurseableStatement} statement
-     * @returns {boolean}
-     */
-    isRecursive(statement: RecurseableStatement): boolean;
     /**
      * @returns {boolean}
      */
@@ -6543,18 +6403,6 @@ declare class Scope implements EvalEntityI {
      * @returns {boolean}
      */
     isUsed(name: Word): boolean;
-    /**
-     * @returns {null | Instance}
-     */
-    assertInstance(): null | Instance;
-    /**
-     * @returns {null | Type}
-     */
-    assertType(): null | Type;
-    /**
-     * @returns {null | TypeClass}
-     */
-    assertTypeClass(): null | TypeClass;
     dump(): void;
     /**
      * @param {(name: string, type: Type) => void} callback
@@ -6565,13 +6413,22 @@ declare class Scope implements EvalEntityI {
 /**
  * Function type with arg types and a return type
  * @package
+ * @implements {Type}
  */
-declare class FuncType extends Type {
+declare class FuncType extends Common implements Type {
     /**
      * @param {Type[] | ArgType[]} argTypes
      * @param {Type | Type[]} retTypes
      */
     constructor(argTypes: Type[] | ArgType[], retTypes: Type | Type[]);
+    /**
+     * @type {Type[]}
+     */
+    get argTypes(): Type[];
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers(): InstanceMembers;
     /**
      * @type {number}
      */
@@ -6587,11 +6444,30 @@ declare class FuncType extends Type {
     /**
      * @type {Type[]}
      */
-    get argTypes(): Type[];
-    /**
-     * @type {Type[]}
-     */
     get retTypes(): Type[];
+    /**
+     * @type {TypeMembers}
+     */
+    get typeMembers(): TypeMembers;
+    /**
+     * Checks if arg types are valid.
+     * Throws errors if not valid. Returns the return type if valid.
+     * @param {Site} site
+     * @param {Typed[]} posArgs
+     * @param {{[name: string]: Typed}} namedArgs
+     * @returns {Type[]}
+     */
+    checkCall(site: Site, posArgs: Typed[], namedArgs?: {
+        [name: string]: Typed;
+    }): Type[];
+    /**
+     * @package
+     * @param {Site} site
+     * @param {Map<string, Type>} map
+     * @param {Type | null} type
+     * @returns {Type}
+     */
+    infer(site: Site, map: Map<string, Type>, type: Type | null): Type;
     /**
      * @package
      * @param {Site} site
@@ -6600,6 +6476,23 @@ declare class FuncType extends Type {
      * @returns {FuncType}
      */
     inferArgs(site: Site, map: Map<string, Type>, argTypes: Type[]): FuncType;
+    /**
+     * Checks if any of 'this' argTypes or retType is same as Type.
+     * Only if this checks return true is the association allowed.
+     * @param {Site} site
+     * @param {Type} type
+     * @returns {boolean}
+     */
+    isAssociated(site: Site, type: Type): boolean;
+    /**
+     * Checks if 'this' is a base type of another FuncType.
+     * The number of args needs to be the same.
+     * Each argType of the FuncType we are checking against needs to be the same or less specific (i.e. isBaseOf(this.#argTypes[i]))
+     * The retType of 'this' needs to be the same or more specific
+     * @param {Type} other
+     * @returns {boolean}
+     */
+    isBaseOf(other: Type): boolean;
     /**
      * Checks if the type of the first arg is the same as 'type'
      * Also returns false if there are no args.
@@ -6610,14 +6503,6 @@ declare class FuncType extends Type {
      */
     isMaybeMethod(site: Site, type: Type): boolean;
     /**
-     * Checks if any of 'this' argTypes or retType is same as Type.
-     * Only if this checks return true is the association allowed.
-     * @param {Site} site
-     * @param {Type} type
-     * @returns {boolean}
-     */
-    isAssociated(site: Site, type: Type): boolean;
-    /**
      * Throws an error if name isn't found
      * @param {Site} site
      * @param {string} name
@@ -6625,31 +6510,24 @@ declare class FuncType extends Type {
      */
     getNamedIndex(site: Site, name: string): number;
     /**
-     * Checks if arg types are valid.
-     * Throws errors if not valid. Returns the return type if valid.
-     * @param {Site} site
-     * @param {Instance[]} posArgs
-     * @param {{[name: string]: Instance}} namedArgs
-     * @returns {Type[]}
+     * @returns {Typed}
      */
-    checkCall(site: Site, posArgs: Instance[], namedArgs?: {
-        [name: string]: Instance;
-    }): Type[];
+    toTyped(): Typed;
     #private;
 }
 /**
  * (..) -> RetTypeExpr {...} expression
  * @package
  */
-declare class FuncLiteralExpr extends ValueExpr {
+declare class FuncLiteralExpr extends Expr {
     /**
      * @param {Site} site
      * @param {TypeParameters} parameters
      * @param {FuncArg[]} args
-     * @param {(?TypeExpr)[]} retTypeExprs
-     * @param {ValueExpr} bodyExpr
+     * @param {(null | Expr)[]} retTypeExprs
+     * @param {Expr} bodyExpr
      */
-    constructor(site: Site, parameters: TypeParameters, args: FuncArg[], retTypeExprs: (TypeExpr | null)[], bodyExpr: ValueExpr);
+    constructor(site: Site, parameters: TypeParameters, args: FuncArg[], retTypeExprs: (null | Expr)[], bodyExpr: Expr);
     /**
      * @type {Type[]}
      */
@@ -6663,13 +6541,13 @@ declare class FuncLiteralExpr extends ValueExpr {
      */
     get retTypes(): Type[];
     /**
-     * @returns {boolean}
-     */
-    hasParameters(): boolean;
-    /**
      * @type {Parameter[]}
      */
     get parameters(): Parameter[];
+    /**
+     * @returns {boolean}
+     */
+    hasParameters(): boolean;
     /**
      * @param {Scope} scope
      * @returns {FuncType}
@@ -6692,17 +6570,10 @@ declare class FuncLiteralExpr extends ValueExpr {
      */
     wrapWithDefaultArgs(innerIR: IR): IR;
     /**
-     * @param {?string} recursiveName
      * @param {string} indent
      * @returns {IR}
      */
-    toIRInternal(recursiveName: string | null, indent?: string): IR;
-    /**
-     * @param {string} recursiveName
-     * @param {string} indent
-     * @returns {IR}
-     */
-    toIRRecursive(recursiveName: string, indent?: string): IR;
+    toIRInternal(indent?: string): IR;
     #private;
 }
 /**
@@ -6735,45 +6606,97 @@ declare class UplcAnon extends UplcValue {
     callSync(callSite: Site, subStack: UplcStack, args: UplcValue[]): UplcValue | Promise<UplcValue>;
     #private;
 }
-declare class NotType extends EvalEntity {
-}
 /**
- * Only func instances can be parametrics instances,
- *  there are no other kinds of parametric instances
  * @package
  */
-declare class ParametricInstance extends FuncInstance {
+declare class Common {
     /**
-     * @param {Parameter[]} params
-     * @param {FuncType} fnType
-     * @param {?() => string} correctMemberName
-     */
-    constructor(params: Parameter[], fnType: FuncType, correctMemberName?: (() => string) | null);
-    get params(): Parameter[];
-    get fnType(): FuncType;
-    /**
-     * null TypeClasses aren't included
-     * @type {TypeClass[]}
-     */
-    get typeClasses(): TypeClass[];
-    get correctMemberName(): () => string;
-    /**
-     * @param {Type} type
+     * @param {Typed} i
+     * @param {Type} t
      * @returns {boolean}
      */
-    isInstanceOf(type: Type): boolean;
+    static instanceOf(i: Typed, t: Type): boolean;
     /**
-     * Must infer before calling
-     * @param {Site} site
-     * @param {Instance[]} args
-     * @param {{[name: string]: Instance}} namedArgs
-     * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
-     * @returns {Instance}
+     * @param {Type | Type[]} type
+     * @returns {Typed | Multi}
      */
-    call(site: Site, args: Instance[], namedArgs?: {
-        [name: string]: Instance;
-    }, paramTypes?: Type[]): Instance;
-    #private;
+    static toTyped(type: Type | Type[]): Typed | Multi;
+    /**
+     * Compares two types. Throws an error if neither is a Type.
+     * @example
+     * Common.typesEq(new IntType(), new IntType()) => true
+     * @param {Type} a
+     * @param {Type} b
+     * @returns {boolean}
+     */
+    static typesEq(a: Type, b: Type): boolean;
+    /**
+     * @param {Type} type
+     */
+    static isEnum(type: Type): boolean;
+    /**
+     * @param {Type} type
+     */
+    static countEnumMembers(type: Type): number;
+    /**
+     * @param {TypeClass} tc
+     * @returns {string[]}
+     */
+    static typeClassMembers(tc: TypeClass): string[];
+    /**
+     * @param {Type} type
+     * @param {TypeClass} tc
+     * @returns {boolean}
+     */
+    static typeImplements(type: Type, tc: TypeClass): boolean;
+    /**
+     * @type {null | DataType}
+     */
+    get asDataType(): DataType;
+    /**
+     * @type {null | EnumMemberType}
+     */
+    get asEnumMemberType(): EnumMemberType;
+    /**
+     * @type {null | Func}
+     */
+    get asFunc(): Func;
+    /**
+     * @type {null | Instance}
+     */
+    get asInstance(): Instance;
+    /**
+     * @type {null | Multi}
+     */
+    get asMulti(): Multi;
+    /**
+     * @type {null | Named}
+     */
+    get asNamed(): Named;
+    /**
+     * @type {null | Namespace}
+     */
+    get asNamespace(): Namespace;
+    /**
+     * @type {null | Parametric}
+     */
+    get asParametric(): Parametric;
+    /**
+     * @type {null | Type}
+     */
+    get asType(): Type;
+    /**
+     * @type {null | Typed}
+     */
+    get asTyped(): Typed;
+    /**
+     * @type {null | TypeClass}
+     */
+    get asTypeClass(): TypeClass;
+    /**
+     * @returns {string}
+     */
+    toString(): string;
 }
 /**
  * @package
@@ -6795,6 +6718,19 @@ declare class ArgType {
      */
     get type(): Type;
     /**
+     * @package
+     * @param {Site} site
+     * @param {Map<string, Type>} map
+     * @param {null | Type} type
+     * @returns {ArgType}
+     */
+    infer(site: Site, map: Map<string, Type>, type: null | Type): ArgType;
+    /**
+     * @param {ArgType} other
+     * @returns {boolean}
+     */
+    isBaseOf(other: ArgType): boolean;
+    /**
      * @returns {boolean}
      */
     isNamed(): boolean;
@@ -6806,44 +6742,43 @@ declare class ArgType {
      * @returns {string}
      */
     toString(): string;
-    /**
-     * @package
-     * @param {Site} site
-     * @param {Map<string, Type>} map
-     * @param {Type | null} type
-     * @returns {ArgType}
-     */
-    infer(site: Site, map: Map<string, Type>, type: Type | null): ArgType;
-    /**
-     * @param {ArgType} other
-     * @returns {boolean}
-     */
-    isBaseOf(other: ArgType): boolean;
     #private;
 }
 /**
- * Base class of expression that evaluate to Values.
+ * Base class of every Type and Instance expression.
  * @package
  */
-declare class ValueExpr extends Expr {
+declare class Expr extends Token {
     /**
-     * @type {Instance}
+     * @type {null | EvalEntity}
      */
-    get value(): Instance;
-    get type(): Type;
+    get cache(): EvalEntity;
     /**
      * @param {Scope} scope
-     * @returns {Instance}
+     * @returns {EvalEntity}
      */
-    evalInternal(scope: Scope): Instance;
+    evalInternal(scope: Scope): EvalEntity;
     /**
      * @param {Scope} scope
-     * @returns {Instance}
+     * @returns {EvalEntity}
      */
-    eval(scope: Scope): Instance;
+    eval(scope: Scope): EvalEntity;
     /**
-     * Returns Intermediate Representation of a value expression.
-     * The IR should be indented to make debugging easier.
+     * @param {Scope} scope
+     * @returns {DataType}
+     */
+    evalAsDataType(scope: Scope): DataType;
+    /**
+     * @param {Scope} scope
+     * @returns {Type}
+     */
+    evalAsType(scope: Scope): Type;
+    /**
+     * @param {Scope} scope
+     * @returns {Typed}
+     */
+    evalAsTyped(scope: Scope): Typed;
+    /**
      * @param {string} indent
      * @returns {IR}
      */
@@ -6858,15 +6793,15 @@ declare class Parameter {
      * @param {string} name - typically "a" or "b"
      * @param {TypeClass} typeClass
      */
-    constructor(name: string, typeClass?: TypeClass);
+    constructor(name: string, typeClass: TypeClass);
     /**
      * @type {string}
      */
     get name(): string;
     /**
-     * @type {ParamTypeRef}
+     * @type {Type}
      */
-    get ref(): ParamTypeRef;
+    get ref(): Type;
     /**
      * A null TypeClass matches any type
      * @type {TypeClass}
@@ -6896,9 +6831,9 @@ declare class TypeParameters {
     /**
      *
      * @param {FuncType} fnType
-     * @returns {Instance}
+     * @returns {EvalEntity}
      */
-    createInstance(fnType: FuncType): Instance;
+    createInstance(fnType: FuncType): EvalEntity;
     /**
      * TODO: indent properly
      * @param {string} indent
@@ -6922,10 +6857,10 @@ declare class FuncArg extends NameTypePair {
     static wrapWithDefaultInternal(bodyIR: IR, name: string, defaultIR: IR): IR;
     /**
      * @param {Word} name
-     * @param {?TypeExpr} typeExpr
-     * @param {null | ValueExpr} defaultValueExpr
+     * @param {null | Expr} typeExpr
+     * @param {null | Expr} defaultValueExpr
      */
-    constructor(name: Word, typeExpr: TypeExpr | null, defaultValueExpr?: null | ValueExpr);
+    constructor(name: Word, typeExpr: null | Expr, defaultValueExpr?: null | Expr);
     /**
      * @param {Scope} scope
      */
@@ -6957,79 +6892,14 @@ declare class FuncArg extends NameTypePair {
     #private;
 }
 /**
- * Base class of every Type expression
- * Caches evaluated Type.
- * @package
- */
-declare class TypeExpr extends Expr {
-    /**
-     * @param {Site} site
-     * @param {Type | null} cache
-     */
-    constructor(site: Site, cache?: Type | null);
-    get type(): Type;
-    /**
-     * @param {Scope} scope
-     * @returns {Type}
-     */
-    evalInternal(scope: Scope): Type;
-    /**
-     * @param {Scope} scope
-     * @returns {Type}
-     */
-    eval(scope: Scope): Type;
-    #private;
-}
-/**
- * A callable Instance.
- * @package
- */
-declare class FuncInstance extends Instance {
-    /**
-     * @param {FuncType} type
-     */
-    constructor(type: FuncType);
-    /**
-     * @param {RecursivenessChecker} scope
-     * @returns {boolean}
-     */
-    isRecursive(scope: RecursivenessChecker): boolean;
-    /**
-     * Returns the underlying FuncType directly.
-     * @returns {FuncType}
-     */
-    getFuncType(): FuncType;
-    #private;
-}
-/**
- * Base class of every Type and Instance expression.
- */
-declare class Expr extends Token {
-    use(): void;
-}
-/**
- * @package
- */
-declare class ParamTypeRef extends Type {
-    /**
-     * @param {string} name
-     */
-    constructor(name: string);
-    /**
-     * @type {string}
-     */
-    get name(): string;
-    #private;
-}
-/**
  * @package
  */
 declare class TypeParameter {
     /**
      * @param {Word} name
-     * @param {null | TypeClassExpr} typeClassExpr
+     * @param {null | Expr} typeClassExpr
      */
-    constructor(name: Word, typeClassExpr: null | TypeClassExpr);
+    constructor(name: Word, typeClassExpr: null | Expr);
     /**
      * @type {string}
      */
@@ -7039,17 +6909,17 @@ declare class TypeParameter {
      */
     get typeClass(): TypeClass;
     /**
-     * @returns {string}
+     * @returns {IR[]}
      */
-    toString(): string;
+    collectIR(): IR[];
     /**
      * @param {Scope} scope
      */
     eval(scope: Scope): void;
     /**
-     * @returns {IR[]}
+     * @returns {string}
      */
-    collectIR(): IR[];
+    toString(): string;
     #private;
 }
 /**
@@ -7059,9 +6929,9 @@ declare class TypeParameter {
 declare class NameTypePair {
     /**
      * @param {Word} name
-     * @param {?TypeExpr} typeExpr
+     * @param {null | Expr} typeExpr
      */
-    constructor(name: Word, typeExpr: TypeExpr | null);
+    constructor(name: Word, typeExpr: null | Expr);
     /**
      * @type {Site}
      */
@@ -7070,11 +6940,6 @@ declare class NameTypePair {
      * @type {Word}
      */
     get name(): Word;
-    isIgnored(): boolean;
-    /**
-     * @returns {boolean}
-     */
-    hasType(): boolean;
     /**
      * Throws an error if called before evalType()
      * @type {Type}
@@ -7084,43 +6949,29 @@ declare class NameTypePair {
      * @type {string}
      */
     get typeName(): string;
-    toString(): string;
+    /**
+     * @returns {boolean}
+     */
+    isIgnored(): boolean;
+    /**
+     * @returns {boolean}
+     */
+    hasType(): boolean;
     /**
      * Evaluates the type, used by FuncLiteralExpr and DataDefinition
      * @param {Scope} scope
      * @returns {Type}
      */
     evalType(scope: Scope): Type;
-    use(): void;
     /**
      * @returns {IR}
      */
     toIR(): IR;
-    #private;
-}
-/**
- * @package
- * TODO: rename to TypeClassRefExpr
- */
-declare class TypeClassExpr extends Expr {
     /**
-     * @param {Word} name
+     *
+     * @returns {string}
      */
-    constructor(name: Word);
-    /**
-     * @type {TypeClass}
-     */
-    get typeClass(): TypeClass;
-    /**
-     * @param {Scope} scope
-     * @returns {TypeClass}
-     */
-    evalInternal(scope: Scope): TypeClass;
-    /**
-     * @param {Scope} scope
-     * @returns {TypeClass}
-     */
-    eval(scope: Scope): TypeClass;
+    toString(): string;
     #private;
 }
 export {};

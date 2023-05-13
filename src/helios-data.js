@@ -59,9 +59,10 @@ export class HeliosData extends CborData {
 
 /**
  * @template {HeliosData} T
+ * 
  * @typedef {{
- *   new(...args: any[]): T;
- *   fromUplcCbor: (bytes: (string | number[])) => T,
+ *   new(...args: any[]): T
+ *   fromUplcCbor: (bytes: (string | number[])) => T
  *   fromUplcData: (data: UplcData) => T
  * }} HeliosDataClass
  */
