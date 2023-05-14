@@ -760,13 +760,12 @@ class MainModule extends Module {
 				if (i != -1) {
 					let ir = new IR(`__PARAM_${i}`);
 
-					if (BoolType.isBaseOf(statement.type)) {
-						ir = new IR([
-							new IR("__helios__common__unBoolData("),
-							ir,
-							new IR(")")
-						]);
-					}
+					ir = new IR([
+						new IR(`${statement.type.path}__from_data`),
+						new IR("("),
+						ir,
+						new IR(")")
+					]);
 
 					map.set(statement.path, ir); 
 
@@ -775,8 +774,6 @@ class MainModule extends Module {
 			}
 
 			statement.toIR(map);
-
-			
 
 			if (endCond(statement, isImport)) {
 				console.log(map);
@@ -1181,7 +1178,7 @@ class TestingProgram extends Program {
 
 		const topScope = this.evalTypesInternal(scope);
 
-		if (!this.mainFunc.argTypes.some(at => Common.typeImplements(at, new SerializableTypeClass()))) {
+		if (this.mainFunc.argTypes.some(at => !Common.typeImplements(at, new SerializableTypeClass()))) {
 			throw this.mainFunc.typeError("invalid entry-point argument types");
 		}
 

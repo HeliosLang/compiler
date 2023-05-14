@@ -120,7 +120,7 @@ function makeRawFunctions() {
 	function addNeqFunc(ns) {
 		add(new RawFunc(`${ns}____neq`, 
 		`(self, other) -> {
-			__helios__common__not(${ns}___eq(self, other))
+			__helios__common__not(${ns}____eq(self, other))
 		}`));
 	}
 
@@ -130,7 +130,7 @@ function makeRawFunctions() {
 	function addDataLikeEqFunc(ns) {
 		add(new RawFunc(`${ns}____eq`, 
 		`(self, other) -> {
-			__core__equalsData(${ns}___to_data(self), ${ns}____to_data(other))
+			__core__equalsData(${ns}____to_data(self), ${ns}____to_data(other))
 		}`));
 	}
 
@@ -140,7 +140,9 @@ function makeRawFunctions() {
 	function addSerializeFunc(ns) {
 		add(new RawFunc(`${ns}__serialize`, 
 		`(self) -> {
-			__core_serialiseData(${ns}____to_data(self))
+			() -> {
+				__core__serialiseData(${ns}____to_data(self))
+			}
 		}`));
 	}
 
@@ -501,22 +503,6 @@ function makeRawFunctions() {
 	`(lst, key) -> {
 		__helios__common__any(lst, (item) -> {__core__equalsData(item, key)})
 	}`));
-	add(new RawFunc("__helios__common__unBoolData",
-	`(d) -> {
-		__core__ifThenElse(
-			__core__equalsInteger(__core__fstPair(__core__unConstrData(d)), 0), 
-			false, 
-			true
-		)
-	}`));
-	add(new RawFunc("__helios__common__boolData",
-	`(b) -> {
-		__core__constrData(__core__ifThenElse(b, 1, 0), __helios__common__list_0)
-	}`));
-	add(new RawFunc("__helios__common__unStringData",
-	`(d) -> {
-		__core__decodeUtf8(__core__unBData(d))
-	}`));
 	add(new RawFunc("__helios__common__stringData",
 	`(s) -> {
 		__core__bData(__core__encodeUtf8(s))
@@ -728,11 +714,11 @@ function makeRawFunctions() {
 
 
 	// Int builtins
-	addSerializeFunc("__helios__int");
-	addNeqFunc("__helios__int");
 	add(new RawFunc("__helios__int____eq", "__core__equalsInteger"));
 	add(new RawFunc("__helios__int__from_data", "__core__unIData"));
 	add(new RawFunc("__helios__int____to_data", "__core__iData"));
+	addNeqFunc("__helios__int");
+	addSerializeFunc("__helios__int");
 	add(new RawFunc("__helios__int____neg",
 	`(self) -> {
 		__core__multiplyInteger(self, -1)
@@ -1550,8 +1536,18 @@ function makeRawFunctions() {
 	`(a, b) -> {
 		__core__ifThenElse(a, __helios__common__not(b), b)
 	}`));
-	add(new RawFunc("__helios__bool__from_data", "__helios__common__unBoolData"));
-	add(new RawFunc("__helios__bool____to_data",  "__helios__common__boolData"));
+	add(new RawFunc("__helios__bool__from_data", 
+	`(d) -> {
+		__core__ifThenElse(
+			__core__equalsInteger(__core__fstPair(__core__unConstrData(d)), 0), 
+			false, 
+			true
+		)
+	}`));
+	add(new RawFunc("__helios__bool____to_data",  
+	`(b) -> {
+		__core__constrData(__core__ifThenElse(b, 1, 0), __helios__common__list_0)
+	}`));
 	add(new RawFunc("__helios__bool__and",
 	`(a, b) -> {
 		__core__ifThenElse(
@@ -1572,7 +1568,7 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__bool__to_int",
 	`(self) -> {
 		() -> {
-			__core__iData(__core__ifThenElse(self, 1, 0))
+			__core__ifThenElse(self, 1, 0)
 		}
 	}`));
 	add(new RawFunc("__helios__bool__show",
@@ -1599,8 +1595,14 @@ function makeRawFunctions() {
 	addSerializeFunc("__helios__string");
 	addNeqFunc("__helios__string");
 	add(new RawFunc("__helios__string____eq", "__core__equalsString"));
-	add(new RawFunc("__helios__string__from_data", "__helios__common__unStringData"));
-	add(new RawFunc("__helios__string____to_data", "__helios__common__stringData"));
+	add(new RawFunc("__helios__string__from_data", 
+	`(d) -> {
+		__core__decodeUtf8(__core__unBData(d))
+	}`));
+	add(new RawFunc("__helios__string____to_data", 
+	`(s) -> {
+		__core__bData(__core__encodeUtf8(s))
+	}`));
 	add(new RawFunc("__helios__string____add", "__core__appendString"));
 	add(new RawFunc("__helios__string__starts_with", 
 	`(self) -> {
@@ -1694,13 +1696,21 @@ function makeRawFunctions() {
 							__core__lessThanInteger(0, n),
 							() -> {
 								__core__appendString(
-									__core__decodeUtf8((hexBytes) -> {
-										__core__ifThenElse(
-											__core__equalsInteger(__core__lengthOfByteString(hexBytes), 1),
-											__core__consByteString(48, hexBytes),
-											hexBytes
+									__core__decodeUtf8(
+										(hexBytes) -> {
+											__core__ifThenElse(
+												__core__equalsInteger(__core__lengthOfByteString(hexBytes), 1),
+												__core__consByteString(48, hexBytes),
+												hexBytes
+											)
+										}(
+											__core__encodeUtf8(
+												__helios__int__to_hex(
+													__core__indexByteString(self, 0)
+												)()
+											)
 										)
-									}(__core__unBData(__helios__int__to_hex(__core__iData(__core__indexByteString(self, 0)))()))), 
+									), 
 									recurse(recurse, __core__sliceByteString(1, n, self))
 								)
 							},
@@ -3525,7 +3535,7 @@ function makeRawFunctions() {
 							}
 						)()
 					}(__core__fstPair(__core__unConstrData(extended)))
-				}(__helios__common__field_0(upper), __helios__common__unBoolData(__helios__common__field_1(upper)))
+				}(__helios__common__field_0(upper), __helios__bool__from_data(__helios__common__field_1(upper)))
 			}(__helios__common__field_1(self))
 		}
 	}`));
@@ -3553,7 +3563,7 @@ function makeRawFunctions() {
 							}
 						)()
 					}(__core__fstPair(__core__unConstrData(extended)))
-				}(__helios__common__field_0(lower), __helios__common__unBoolData(__helios__common__field_1(lower)))
+				}(__helios__common__field_0(lower), __helios__bool__from_data(__helios__common__field_1(lower)))
 			}(__helios__common__field_0(self))
 		}
 	}`));
@@ -3610,10 +3620,10 @@ function makeRawFunctions() {
 										}
 									)()
 								}(__core__fstPair(__core__unConstrData(extended)))
-							}(__helios__common__field_0(upper), __helios__common__unBoolData(__helios__common__field_1(upper)))
+							}(__helios__common__field_0(upper), __helios__bool__from_data(__helios__common__field_1(upper)))
 						}(__helios__common__field_1(self))
 					})
-				}(__helios__common__field_0(lower), __helios__common__unBoolData(__helios__common__field_1(lower)))
+				}(__helios__common__field_0(lower), __helios__bool__from_data(__helios__common__field_1(lower)))
 			}(__helios__common__field_0(self))
 		}
 	}`));
@@ -3636,7 +3646,7 @@ function makeRawFunctions() {
 								__core__ifThenElse(closed, "[", "("),
 								show_extended(extended)
 							)
-						}(__helios__common__field_0(lower), __helios__common__unBoolData(__helios__common__field_1(lower)))
+						}(__helios__common__field_0(lower), _helios__bool__from_data(__helios__common__field_1(lower)))
 					}(__helios__common__field_0(self)),
 					__helios__string____add(
 						",",
@@ -3646,7 +3656,7 @@ function makeRawFunctions() {
 									show_extended(extended),
 									__core__ifThenElse(closed, "]", ")")
 								)
-							}(__helios__common__field_0(upper), __helios__common__unBoolData(__helios__common__field_1(upper)))
+							}(__helios__common__field_0(upper), __helios__bool__from_data(__helios__common__field_1(upper)))
 						}(__helios__common__field_1(self))
 					)
 				)

@@ -3125,6 +3125,10 @@ export class Program {
      */
     get mainFunc(): FuncStatement;
     /**
+     * @type {DataType[]}
+     */
+    get mainArgTypes(): DataType[];
+    /**
      * @type {string}
      */
     get mainPath(): string;

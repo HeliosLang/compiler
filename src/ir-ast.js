@@ -1732,18 +1732,18 @@ export class IRUserCallExpr extends IRCallExpr {
 				return new IRCoreCallExpr(new Word(this.#fnExpr.site, this.#fnExpr.name), args, this.parensSite);
 			} else {
 				switch (this.#fnExpr.name) {
-					case "__helios__common__boolData": {
-							// check if arg is a call to __helios__common__unBoolData
+					case "__helios__bool____to_data": {
+							// check if arg is a call to __helios__bool__from_data
 							const a = args[0];
-							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__common__unBoolData") {
+							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__bool__from_data") {
 								return a.argExprs[0];
 							}
 						}
 						break;
-					case "__helios__common__unBoolData": {
-							// check if arg is a call to __helios__common__boolData
+					case "__helios__bool__from_data": {
+							// check if arg is a call to __helios__bool____to_data
 							const a = args[0];
-							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__common__boolData") {
+							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__bool____to_data") {
 								return a.argExprs[0];
 							}
 						}

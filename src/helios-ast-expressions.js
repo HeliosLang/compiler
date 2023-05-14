@@ -820,9 +820,9 @@ export class PrintExpr extends Expr {
 	 */
 	toIR(indent = "") {
 		return new IR([
-			new IR("__core__trace", this.site), new IR("("), new IR("__helios__common__unStringData("),
+			new IR("__core__trace", this.site), new IR("("),
 			this.#msgExpr.toIR(indent),
-			new IR(`), () -> {\n${indent}${TAB}`),
+			new IR(`, () -> {\n${indent}${TAB}`),
 			this.#downstreamExpr.toIR(indent + TAB),
 			new IR(`\n${indent}})()`)
 		]);
