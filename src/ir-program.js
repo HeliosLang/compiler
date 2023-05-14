@@ -1,6 +1,11 @@
 //@ts-check
 // IR Program
 
+import { 
+	assertClass, 
+	textToBytes 
+} from "./utils.js";
+
 import {
     IR,
 	Site,
@@ -8,11 +13,23 @@ import {
 } from "./tokens.js";
 
 import {
+	ByteArrayData,
+	ConstrData,
+	IntData,
+	ListData,
+	MapData,
     UplcData
 } from "./uplc-data.js";
 
 import {
-	UplcLambda
+	UplcBool,
+	UplcByteArray,
+	UplcDataValue,
+	UplcInt,
+	UplcList,
+	UplcLambda,
+	UplcPair,
+	UplcString,
 } from "./uplc-ast.js";
 
 /**
@@ -45,6 +62,7 @@ import {
 import {
     buildIRExpr
 } from "./ir-build.js";
+
 
 /**
  * Wrapper for IRFuncExpr, IRCallExpr or IRLiteralExpr
@@ -220,13 +238,35 @@ export class IRProgram {
 		if (this.#expr instanceof IRLiteralExpr) {
 			let v = this.#expr.value;
 
-			return v.data;
-		} else {
-			console.log(this.#expr.toString());
-			throw new Error("expected data literal");
-		}
+			if (v instanceof UplcDataValue) {
+				return v.data;
+			} else if (v instanceof UplcInt) {
+				return new IntData(v.int);
+			} else if (v instanceof UplcBool) {
+				return new ConstrData(v.bool ? 1 : 0, []);
+			} else if (v instanceof UplcList) {
+				if (v.isDataList()) {
+					return new ListData(v.list.map(item => item.data));
+				} else if (v.isDataMap()) {
+					return new MapData(v.list.map(item => {
+						const pair = assertClass(item, UplcPair);
+
+						return [pair.key, pair.value];
+					}));
+				}
+			} else if (v instanceof UplcString) {
+				return new ByteArrayData(textToBytes(v.string));
+			} else if (v instanceof UplcByteArray) {
+				return new ByteArrayData(v.bytes);
+			}
+		} 
+
+		throw new Error(`unable to turn '${this.toString()}' into data`);
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return this.#expr.toString();
 	}

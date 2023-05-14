@@ -21,6 +21,10 @@ async function profile(src, argNames, expected = null) {
 	// also test the transfer() function
 	let profileResult = await program.compile(true).transfer(helios.UplcProgram).profile(args, networkParams);
 
+	if (profileResult.result instanceof helios.UserError) {
+		throw profileResult.result;
+	}
+	
     console.log(profileResult);
 
 	if (expected != null) {

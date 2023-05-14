@@ -2292,6 +2292,14 @@ export class UplcType {
      * @returns {boolean}
      */
     isSameType(value: UplcValue): boolean;
+    /**
+     * @returns {boolean}
+     */
+    isData(): boolean;
+    /**
+     * @returns {boolean}
+     */
+    isDataPair(): boolean;
     #private;
 }
 /**
@@ -2567,6 +2575,14 @@ export class UplcList extends UplcValue {
      * @returns {UplcList}
      */
     copy(newSite: Site): UplcList;
+    /**
+     * @returns {boolean}
+     */
+    isDataList(): boolean;
+    /**
+     * @returns {boolean}
+     */
+    isDataMap(): boolean;
     #private;
 }
 /**
@@ -3089,9 +3105,11 @@ export class Program {
     /**
      * For top-level statements
      * @package
+     * @param {IR} mainIR
      * @param {IRDefinitions} map
+     * @returns {IR}
      */
-    static injectMutualRecursions(map: IRDefinitions): void;
+    static injectMutualRecursions(mainIR: IR, map: IRDefinitions): IR;
     /**
      * Also merges builtins and map
      * @param {IR} mainIR
@@ -3170,10 +3188,14 @@ export class Program {
      */
     fillTypes(topScope: TopScope): void;
     /**
-     * @type {Object.<string, DataType>}
+     * @param {(name: string, cs: ConstStatement) => void} callback
+     */
+    loopConstStatements(callback: (name: string, cs: ConstStatement) => void): void;
+    /**
+     * @type {{[name: string]: DataType}}
      */
     get paramTypes(): {
-        [x: string]: DataType;
+        [name: string]: DataType;
     };
     /**
      * Change the literal value of a const statements
@@ -3181,30 +3203,36 @@ export class Program {
      * @param {string} name
      * @param {UplcData} data
      */
-    changeParamSafe(name: string, data: UplcData): Program;
+    changeParamSafe(name: string, data: UplcData): void;
     /**
      * @param {string} name
      * @returns {ConstStatement | null}
      */
     findConstStatement(name: string): ConstStatement | null;
     /**
+     * @param {ConstStatement} constStatement
+     * @returns {UplcValue}
+     */
+    evalConst(constStatement: ConstStatement): UplcValue;
+    /**
      * Doesn't use wrapEntryPoint
-     * @param {string} name
+     * @param {string} name - can be namespace: "Type::ConstName" or "Module::ConstName" or "Module::Type::ConstName"
      * @returns {UplcValue}
      */
     evalParam(name: string): UplcValue;
     /**
-     * @param {Object.<string, HeliosData | any>} values
+     * Use proxy for setting
+     * @param {{[name: string]: HeliosData | any}} values
      */
     set parameters(arg: {
-        [x: string]: HeliosData;
+        [name: string]: any;
     });
     /**
      * Alternative way to get the parameters as HeliosData instances
-     * @returns {Object.<string, HeliosData>}
+     * @returns {{[name: string]: HeliosData | any}}
      */
     get parameters(): {
-        [x: string]: HeliosData;
+        [name: string]: any;
     };
     /**
      * @package
@@ -3214,6 +3242,8 @@ export class Program {
      */
     statementsToIR(parameters: string[], endCond: (s: Statement, isImport: boolean) => boolean): IRDefinitions;
     /**
+     * Loops over all statements, until endCond == true (includes the matches statement)
+     * Then applies type parameters
      * @package
      * @param {IR} ir
      * @param {string[]} parameters
@@ -4702,6 +4732,11 @@ declare class Statement extends Token {
      */
     eval(scope: ModuleScope): void;
     /**
+     * @param {string} namespace
+     * @param {(name: string, cs: ConstStatement) => void} callback
+     */
+    loopConstStatements(namespace: string, callback: (name: string, cs: ConstStatement) => void): void;
+    /**
      * @param {string} basePath
      */
     setBasePath(basePath: string): void;
@@ -5520,6 +5555,9 @@ declare class IRProgram {
      * @type {UplcData}
      */
     get data(): UplcData;
+    /**
+     * @returns {string}
+     */
     toString(): string;
     /**
      * @returns {UplcProgram}
@@ -5554,6 +5592,14 @@ declare class Module {
      * @type {Statement[]}
      */
     get statements(): Statement[];
+    /**
+     * @param {string} namespace
+     * @param {(name: string, cs: ConstStatement) => void} callback
+     */
+    loopConstStatements(namespace: string, callback: (name: string, cs: ConstStatement) => void): void;
+    /**
+     * @returns {string}
+     */
     toString(): string;
     /**
      * @param {ModuleScope} scope

@@ -156,6 +156,14 @@ export class Statement extends Token {
 	}
 
 	/**
+	 * @param {string} namespace 
+	 * @param {(name: string, cs: ConstStatement) => void} callback 
+	 */
+	loopConstStatements(namespace, callback) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
 	 * @param {string} basePath 
 	 */
 	setBasePath(basePath) {
@@ -232,6 +240,14 @@ export class ImportFromStatement extends Statement {
 	}
 
 	/**
+	 * Do nothing
+	 * @param {string} namespace 
+	 * @param {(name: string, cs: ConstStatement) => void} callback 
+	 */
+	loopConstStatements(namespace, callback) {
+	}
+
+	/**
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
@@ -296,6 +312,14 @@ export class ImportModuleStatement extends Statement {
 	}
 
 	/**
+	 * Do nothing
+	 * @param {string} namespace 
+	 * @param {(name: string, cs: ConstStatement) => void} callback 
+	 */
+	loopConstStatements(namespace, callback) {
+	}
+
+	/**
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
@@ -339,6 +363,14 @@ export class ConstStatement extends Statement {
 		} else {
 			return assertDefined(this.#typeExpr.cache?.asDataType, this.#typeExpr.cache?.toString() ?? this.#typeExpr.toString());
 		}
+	}
+
+	/**
+	 * Include __const prefix in path so that mutual recursion injection isn't applied
+	 * @type {string}
+	 */
+	get path() {
+		return `__const${super.path}`;
 	}
 
 	/**
@@ -407,6 +439,14 @@ export class ConstStatement extends Statement {
 	 */
 	eval(scope) {
 		scope.set(this.name, new NamedEntity(this.name.value, this.path, this.evalInternal(scope)));
+	}
+
+	/**
+	 * @param {string} namespace 
+	 * @param {(name: string, cs: ConstStatement) => void} callback 
+	 */
+	loopConstStatements(namespace, callback) {
+		callback(`${namespace}${this.name.value}`, this);
 	}
 
 	/**
@@ -994,10 +1034,26 @@ export class StructStatement extends DataDefinition {
 	}
 
 	/**
+	 * @param {string} namespace 
+	 * @param {(name: string, cs: ConstStatement) => void} callback 
+	 */
+	loopConstStatements(namespace, callback) {
+		this.#impl.loopConstStatements(`${namespace}${this.name.value}::`, callback);
+	}
+
+	/**
 	 * @param {IRDefinitions} map
 	 */
 	toIR(map) {
 		super.toIR(map, false);
+
+		const implPath = this.fieldNames.length == 1 ? this.getFieldType(0).path : "__helios__tuple";
+
+		map.set(`${this.path}____eq`, new IR(`${implPath}____eq`, this.site));
+		map.set(`${this.path}____neq`, new IR(`${implPath}____neq`, this.site));
+		map.set(`${this.path}__serialize`, new IR(`${implPath}__serialize`, this.site));
+		map.set(`${this.path}__from_data`, new IR(`${implPath}__from_data`, this.site));
+		map.set(`${this.path}____to_data`, new IR(`${implPath}____to_data`, this.site));
 
 		this.#impl.toIR(map);
 	}
@@ -1083,6 +1139,14 @@ export class FuncStatement extends Statement {
 		scope.set(this.name, new NamedEntity(this.name.value, this.path, fnVal));
 
 		void this.#funcExpr.evalInternal(scope);
+	}
+
+	/**
+	 * Do nothing
+	 * @param {string} namespace 
+	 * @param {(name: string, cs: ConstStatement) => void} callback 
+	 */
+	loopConstStatements(namespace, callback) {
 	}
 
 	/**
@@ -1319,6 +1383,21 @@ export class EnumMember extends DataDefinition {
 	get path() {
 		return `${this.parent.path}__${this.name.toString()}`;
 	}
+
+	/**
+	 * @param {IRDefinitions} map 
+	 */
+	toIR(map) {
+		super.toIR(map);
+
+		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.site));
+		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.site));
+		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.site));
+		map.set(`${this.path}__from_data`, new IR(`(data) -> {
+			__helios__common__assert_constr_index(data, ${this.constrIndex})
+		}`, this.site));
+		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.site));
+	}
 }
 
 /**
@@ -1494,13 +1573,6 @@ export class EnumStatement extends Statement {
 	}
 
 	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `enum ${this.name.toString()}${this.#parameters.toString()} {${this.#members.map(m => m.toString()).join(", ")}}`;
-	}
-
-	/**
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
@@ -1549,11 +1621,18 @@ export class EnumStatement extends Statement {
 				return typeMembers_
 			}
 		});
-
-		console.log(full.typeMembers)
+		
 		scope.set(this.name, full);
 
 		this.#impl.eval(scope);
+	}
+
+	/**
+	 * @param {string} namespace 
+	 * @param {(name: string, cs: ConstStatement) => void} callback 
+	 */
+	loopConstStatements(namespace, callback) {
+		this.#impl.loopConstStatements(`${namespace}${this.name.value}::`, callback);
 	}
 
 	/**
@@ -1564,7 +1643,20 @@ export class EnumStatement extends Statement {
 			member.toIR(map);
 		}
 
+		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.site));
+		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.site));
+		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.site));
+		map.set(`${this.path}__from_data`, new IR("__helios__common__identity", this.site));
+		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.site));
+
 		this.#impl.toIR(map);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `enum ${this.name.toString()}${this.#parameters.toString()} {${this.#members.map(m => m.toString()).join(", ")}}`;
 	}
 }
 
@@ -1642,18 +1734,21 @@ export class ImplDefinition {
 	}
 
 	/**
+	 * @param {string} namespace 
+	 * @param {(name: string, cs: ConstStatement) => void} callback 
+	 */
+	loopConstStatements(namespace, callback) {
+		for (let s of this.#statements) {
+			s.loopConstStatements(namespace, callback);
+		}
+	}
+	
+	/**
 	 * Returns IR of all impl members
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		let path = assertDefined(this.#selfTypeExpr.cache?.asNamed).path;
-		let site = this.#selfTypeExpr.site;
 
-		map.set(`${path}____eq`, new IR("__helios__common____eq", site));
-		map.set(`${path}____neq`, new IR("__helios__common____neq", site));
-		map.set(`${path}__serialize`, new IR("__helios__common__serialize", site));
-		map.set(`${path}__from_data`, new IR("__helios__common__identity", site));
-		map.set(`${path}____to_data`, new IR("__helios__common__identity", site));
 
 		for (let s of this.#statements) {
 			map.set(s.path, s.toIRInternal());

@@ -487,7 +487,11 @@ async function test14() {
 
   const srcHelpers = `module helpers
   
-  const SOME_PARAM = 0
+  struct SOME_STRUCT {
+    a: Int
+
+    const SOME_PARAM = 0
+  }
 
   func is_tx_authorized_by(tx: Tx, _) -> Bool {
     tx.is_signed_by(PubKeyHash::new(#))
@@ -495,7 +499,7 @@ async function test14() {
 
   const src = `minting sample_migrate_token_policy
 
-  import { is_tx_authorized_by, SOME_PARAM } from helpers
+  import { is_tx_authorized_by } from helpers
 
   struct MyStruct {
   	a: Int
@@ -573,9 +577,10 @@ async function test14() {
 
   console.log(program.parameters.VALUE.toSchemaJson());
 
-  program.parameters = {VALUE: new Value(200n), SOME_PARAM: 2};
+  program.parameters = {VALUE: new Value(200n), ["helpers::SOME_STRUCT::SOME_PARAM"]: 2};
+  program.parameters["helpers::SOME_STRUCT::SOME_PARAM"] = 10
 
-  console.log(program.parameters.VALUE.toSchemaJson(), program.parameters.SOME_PARAM.toSchemaJson());
+  console.log("Schemas of test14", program.parameters.VALUE.toSchemaJson(), program.parameters["helpers::SOME_STRUCT::SOME_PARAM"].toSchemaJson());
 
   const myEnum = new MyEnum.Three(1, 2);
 

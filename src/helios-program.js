@@ -8,8 +8,7 @@ import {
 import {
     Source,
     assertDefined,
-	assert,
-	deprecationWarning
+	assert
 } from "./utils.js";
 
 import {
@@ -29,7 +28,6 @@ import {
 } from "./uplc-data.js";
 
 import {
-	Bool,
 	HeliosData
 } from "./helios-data.js";
 
@@ -40,7 +38,6 @@ import {
 
 import {
     ScriptPurpose,
-	UplcBool,
     UplcDataValue,
     UplcValue
 } from "./uplc-ast.js";
@@ -53,6 +50,10 @@ import {
     tokenize
 } from "./tokenization.js";
 
+import { 
+	Common 
+} from "./eval-common.js";
+
 /**
  * @typedef {import("./eval-common.js").DataType} DataType
  */
@@ -61,9 +62,19 @@ import {
  * @typedef {import("./eval-common.js").Type} Type
  */
 
+
+
 import {
 	BoolType
 } from "./eval-primitives.js";
+
+import { 
+	SerializableTypeClass 
+} from "./eval-parametric.js";
+
+import { 
+	ScriptContextType 
+} from "./eval-tx.js";
 
 import {
     GlobalScope,
@@ -73,10 +84,12 @@ import {
 
 import {
     ConstStatement,
+    EnumStatement,
     FuncStatement,
     ImportFromStatement,
     ImportModuleStatement,
-    Statement
+    Statement,
+	StructStatement
 } from "./helios-ast-statements.js";
 
 import {
@@ -85,17 +98,14 @@ import {
 
 import {
 	fetchRawFunctions,
-    fetchRawGenerics,
-    wrapWithRawFunctions
+    fetchRawGenerics
 } from "./ir-defs.js";
 
 import {
     IRProgram,
 	IRParametricProgram
 } from "./ir-program.js";
-import { Common } from "./eval-common.js";
-import { SerializableTypeClass } from "./eval-parametric.js";
-import { ScriptContextType } from "./eval-tx.js";
+
 
 /**
  * A Module is a collection of statements
@@ -160,6 +170,19 @@ class Module {
 		return this.#statements.slice();
 	}
 
+	/**
+	 * @param {string} namespace 
+	 * @param {(name: string, cs: ConstStatement) => void} callback 
+	 */
+	loopConstStatements(namespace, callback) {
+		for (let s of this.#statements) {
+			s.loopConstStatements(namespace, callback);
+		}
+	}
+
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return this.#statements.map(s => s.toString()).join("\n");
 	}
@@ -508,6 +531,7 @@ class MainModule extends Module {
 		for (let i = 0; i < this.#modules.length; i++) {
 			let m = this.#modules[i];
 
+			// MainModule or PostModule => isImport == false
 			let isImport = !(m instanceof MainModule || (i == this.#modules.length - 1));
 
 			statements = statements.concat(m.statements.map(s => [s, isImport]));
@@ -581,19 +605,30 @@ class MainModule extends Module {
 	}
 
 	/**
-	 * @type {Object.<string, DataType>}
+	 * @param {(name: string, cs: ConstStatement) => void} callback 
+	 */
+	loopConstStatements(callback) {
+		const postModule = this.postModule;
+
+		for (let m of this.#modules) {
+			const namespace = (m instanceof MainModule || m === postModule) ? "" : `${m.name.value}::`;
+
+			m.loopConstStatements(namespace, callback);
+		}
+	}
+
+	/**
+	 * @type {{[name: string]: DataType}}
 	 */
 	get paramTypes() {
 		/**
-		 * @type {Object.<string, DataType>}
+		 * @type {{[name: string]: DataType}}
 		 */
 		let res = {};
 
-		for (let s of this.mainAndPostStatements) {
-			if (s instanceof ConstStatement) {
-				res[s.name.value] = s.type;
-			}
-		}
+		this.loopConstStatements((name, constStatement) => {
+			res[name] = constStatement.type
+		});
 
 		return res;
 	}
@@ -605,14 +640,20 @@ class MainModule extends Module {
 	 * @param {UplcData} data
 	 */
 	changeParamSafe(name, data) {
-		for (let s of this.mainAndPostStatements) {
-			if (s instanceof ConstStatement && s.name.value == name) {
-				s.changeValueSafe(data);
-				return this;
-			}
-		}
+		let found = false;
 
-		throw this.mainFunc.referenceError(`param '${name}' not found`);
+		this.loopConstStatements((constName, constStatement) => {
+			if (!found) {
+				if (constName == name) {
+					constStatement.changeValueSafe(data);
+					found = true;
+				}
+			}
+		})
+
+		if (!found) {
+			throw this.mainFunc.referenceError(`param '${name}' not found`);
+		}
 	}
 
 	/**
@@ -620,18 +661,66 @@ class MainModule extends Module {
 	 * @returns {ConstStatement | null}
 	 */
 	findConstStatement(name) {
-		for (let [statement, isImport] of this.allStatements) {
-			if (statement instanceof ConstStatement && statement.name.value == name && !isImport) {
-				return statement;
-			}
-		}
+		/**
+		 * @type {ConstStatement | null}
+		 */
+		let cs = null;
 
-		return null;
+		this.loopConstStatements((constName, constStatement) => {
+			if (cs === null) {
+				if (name == constName)  {
+					cs = constStatement;
+				}
+			}
+		});
+
+		return cs;
+	}
+
+	/**
+	 * @param {ConstStatement} constStatement
+	 * @returns {UplcValue}
+	 */
+	evalConst(constStatement) {
+		const map = this.fetchDefinitions(new IR(""), [], (s, isImport) => {
+			let found = false;
+			s.loopConstStatements("", (_, cs) => {
+				if (!found) {
+					if (cs === constStatement) {
+						found = true;
+					}
+				}
+			})
+
+			return found;
+		});
+
+		const path = constStatement.path;
+
+		let inner = new IR([
+			new IR("const"),
+			new IR("("),
+			new IR(path),
+			new IR(")")
+		]);
+
+		inner = Program.injectMutualRecursions(inner, map);
+
+		let ir = IR.wrapWithDefinitions(inner, map);
+
+		// add builtins as late as possible, to make sure we catch as many dependencies as possible
+		const builtins = fetchRawFunctions(ir);
+
+		ir = IR.wrapWithDefinitions(ir, builtins);
+
+		const irProgram = IRProgram.new(ir, this.#purpose, true, true);
+
+		return new UplcDataValue(irProgram.site, irProgram.data);
 	}
 
 	/**
 	 * Doesn't use wrapEntryPoint
-	 * @param {string} name 
+	 * @param {string} name - can be namespace: "Type::ConstName" or "Module::ConstName" or "Module::Type::ConstName"
 	 * @returns {UplcValue}
 	 */
 	evalParam(name) {
@@ -644,42 +733,12 @@ class MainModule extends Module {
 			throw new Error(`param '${name}' not found`);
 		}
 
-		const toDataIR = new IR(`${constStatement.type.path}____to_data`);
-
-		// include toDataIR so that any template builtins within that are included
-		const map = this.fetchDefinitions(toDataIR, [], (s, isImport) => {
-			return s instanceof ConstStatement && ((s.name.value == name && !isImport) || s === constStatement);
-		});
-
-		const path = constStatement.path;
-
-		let ir = assertDefined(map.get(path));
-
-		map.delete(path);
-
-		ir = new IR([
-			toDataIR,
-			new IR("("),
-			ir,
-			new IR("(())"),
-			new IR(")")
-		])
-
-		ir = IR.wrapWithDefinitions(ir, map);
-
-		// add builtins as late as possible, to make sure we catch as many dependencies as possible
-		const builtins = fetchRawFunctions(IR.wrapWithDefinitions(ir, map));
-
-		ir = IR.wrapWithDefinitions(ir, builtins);
-
-		const irProgram = IRProgram.new(ir, this.#purpose, true, true);
-
-		return new UplcDataValue(irProgram.site, irProgram.data);
+		return this.evalConst(constStatement);
 	}
 	
 	/**
 	 * Alternative way to get the parameters as HeliosData instances
-	 * @returns {Object.<string, HeliosData>}
+	 * @returns {{[name: string]: HeliosData | any}}
 	 */
 	get parameters() {
 		const that = this;
@@ -690,9 +749,9 @@ class MainModule extends Module {
 		const handler = {
 			/**
 			 * Return from this.#parameters if available, or calculate
-			 * @param {Object.<string, HeliosData>} target 
+			 * @param {{[name: string]: HeliosData}} target 
 			 * @param {string} name
-			 * @returns 
+			 * @returns {HeliosData}
 			 */
 			get(target, name) {
 				if (name in target) {
@@ -702,35 +761,49 @@ class MainModule extends Module {
 					
 					const uplcValue = that.evalParam(name);
 
-					const value = (uplcValue instanceof UplcBool) ? new Bool(uplcValue.bool) : assertDefined(type.offChainType).fromUplcData(uplcValue.data);
+					const value = assertDefined(type.offChainType).fromUplcData(uplcValue.data);
 						
 					target[name] = value;
 
-					// TODO: return Proxy instead?
 					return value;
 				}
 			},
+			
+			/**
+			 * @param {{[name: string]: HeliosData}} target
+			 * @param {string} name
+			 * @param {HeliosData | any} rawValue
+			 * @returns {boolean}
+			 */
+			set(target, name, rawValue) {
+				if (!types[name]) {
+					throw new Error(`invalid parameter name '${name}'`);
+				}
+
+				const UserType = assertDefined(types[name].offChainType, `invalid param name '${name}'`);
+
+				const value = rawValue instanceof UserType ? rawValue : new UserType(rawValue);
+
+				target[name] = value;
+
+				that.changeParamSafe(name, value._toUplcData());
+
+				return true;
+			}
 		};
 
 		return new Proxy(this.#parameters, handler);
 	}
 
 	/**
-	 * @param {Object.<string, HeliosData | any>} values
+	 * Use proxy for setting
+	 * @param {{[name: string]: HeliosData | any}} values
 	 */
 	set parameters(values) {
-		const types = this.paramTypes;
+		const proxy = this.parameters;
 
 		for (let name in values) {
-			const rawValue = values[name];
-
-			const UserType = assertDefined(types[name].offChainType, `invalid param name '${name}'`);
-
-			const value = rawValue instanceof UserType ? rawValue : new UserType(rawValue);
-
-			this.#parameters[name] = value;
-
-			this.changeParamSafe(name, value._toUplcData());
+			proxy[name] = values[name];
 		}
 	}
 
@@ -803,21 +876,35 @@ class MainModule extends Module {
 	/**
 	 * For top-level statements
 	 * @package
-	 * @param {IRDefinitions} map 
+	 * @param {IR} mainIR
+	 * @param {IRDefinitions} map
+	 * @returns {IR}
 	 */
-	static injectMutualRecursions(map) {
+	static injectMutualRecursions(mainIR, map) {
 		const keys = Array.from(map.keys());
 
 		for (let i = keys.length - 1; i >= 0; i--) {
 			const k = keys[i];
 
-			// including self
-			const others = keys.slice(i);
+			// don't make a final const statement self-recursive (makes evalParam easier)
+			// don't make __helios builtins mutually recursive
+			// don't make __from_data and ____<op> methods mutually recursive (used frequently inside the entrypoint)
+			if ((k.startsWith("__const") && i == keys.length - 1) || k.startsWith("__helios") || k.endsWith("__from_data") || k.includes("____")) {
+				continue;
+			}
 
+			// get all following definitions including self, excluding constants
+			// also don't mutual recurse helios functions
+			const others = keys.slice(i).filter(k => !k.startsWith("__const") && !k.startsWith("__helios") && !k.endsWith("__from_data") && !k.includes("____"));
+
+			const re = new RegExp(`\\b${k}\\b`, "gm");
+			const newStr = `${k}(${others.join(", ")})`;
 			// do the actual replacing
 			for (let k_ of keys) {
-				map.set(k_, assertDefined(map.get(k_)).replace(new RegExp(`\\b${k}\\b`, "gm"), `${k}(${others.join(", ")})`));
+				map.set(k_, assertDefined(map.get(k_)).replace(re, newStr));
 			}
+
+			mainIR = mainIR.replace(re, newStr);
 
 			const wrapped = new IR([
 				new IR(`(${others.join(", ")}) -> {`),
@@ -828,6 +915,8 @@ class MainModule extends Module {
 			// wrap own definition
 			map.set(k, wrapped);
 		}
+
+		return mainIR;
 	}
 
 	/**
@@ -919,6 +1008,8 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * Loops over all statements, until endCond == true (includes the matches statement)
+	 * Then applies type parameters
 	 * @package
 	 * @param {IR} ir
 	 * @param {string[]} parameters
@@ -927,8 +1018,6 @@ class MainModule extends Module {
 	 */
 	fetchDefinitions(ir, parameters, endCond) {
 		let map = this.statementsToIR(parameters, endCond);
-
-		Program.injectMutualRecursions(map);
 
 		return Program.applyTypeParameters(ir, map);
 	}
@@ -941,6 +1030,8 @@ class MainModule extends Module {
 	 */
 	wrapEntryPoint(ir, parameters) {
 		let map = this.fetchDefinitions(ir, parameters, (s) => s.name.value == "main");
+
+		ir = Program.injectMutualRecursions(ir, map);
 
 		const builtins = fetchRawFunctions(IR.wrapWithDefinitions(ir, map));
 
@@ -1081,7 +1172,7 @@ class RedeemerProgram extends Program {
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(${this.mainPath})(`),
+			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
@@ -1180,7 +1271,7 @@ class DatumRedeemerProgram extends Program {
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(${this.mainPath})(`),
+			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
@@ -1232,12 +1323,16 @@ class TestingProgram extends Program {
 	 */
 	toIR(parameters = []) {
 		const innerArgs = this.mainArgTypes.map((t, i) => {
-			return new IR(`${t.path}__from_data(arg${i})`);
+			return new IR([
+				new IR(`${t.path}__from_data`),
+				new IR("("),
+				new IR(`arg${i}`),
+				new IR(")")
+			]);
 		});
 
-		// allow main to be called recursively
 		let ir = new IR([
-			new IR(`${this.mainPath}(${this.mainPath})(`),
+			new IR(`${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
 			new IR(")"),
 		]);

@@ -344,6 +344,20 @@ export class UplcType {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isData() {
+		return this.#typeBits == UplcType.newDataType().#typeBits;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isDataPair() {
+		return this.#typeBits == UplcType.newDataPairType().#typeBits;
+	}
+
+	/**
 	 * @returns {UplcType}
 	 */
 	static newDataType() {
@@ -1805,6 +1819,9 @@ export class UplcList extends UplcValue {
 		return sum;
 	}
 
+	/**
+	 * @type {UplcType}
+	 */
 	get itemType() {
 		return this.#itemType;
 	}
@@ -1829,6 +1846,20 @@ export class UplcList extends UplcValue {
 	 */
 	get list() {
 		return this.#items.slice();
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isDataList() {
+		return this.#itemType.isData();
+	}
+	
+	/**
+	 * @returns {boolean}
+	 */
+	isDataMap() {
+		return this.#itemType.isDataPair();
 	}
 
 	/**

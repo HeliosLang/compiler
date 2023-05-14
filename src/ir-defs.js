@@ -1722,6 +1722,14 @@ function makeRawFunctions() {
 	}`));
 
 
+	// Tuple (list of data, which is used by structs which have more than 1 field)
+	addSerializeFunc("__helios__tuple");
+	addNeqFunc("__helios__tuple");
+	addDataLikeEqFunc("__helios__tuple");
+	add(new RawFunc("__helios__tuple__from_data", "__core__unListData"));
+	add(new RawFunc("__helios__tuple____to_data", "__core__listData"));
+
+
 	// List builtins
 	addSerializeFunc(`__helios__list[${TTPP}0]`);
 	addNeqFunc(`__helios__list[${TTPP}0]`);
@@ -4391,7 +4399,10 @@ export function fetchRawFunctions(ir) {
 	// notify statistics of existence of builtin in correct order
 	if (onNotifyRawUsage !== null) {
 		for (let [name, _] of db) {
-			onNotifyRawUsage(name, 0);
+			// don't add templates, as they will never actually be used
+			if (!IRParametricName.isTemplate(name)) {
+				onNotifyRawUsage(name, 0);
+			}
 		}
 	}
 
