@@ -1559,11 +1559,12 @@ export class Crypto {
 		return {
 			/**
 			 * @param {number[]} privateKey 
+			 * @param {boolean} isExtendedKey
 			 * @returns {number[]}
 			 */
-			derivePublicKey: function(privateKey) {
-				const privateKeyHash = Crypto.sha2_512(privateKey);
-				const a = calca(privateKeyHash);
+			derivePublicKey: function(privateKey, isExtendedKey = false) {
+				const extendedKey = isExtendedKey ? privateKey : Crypto.sha2_512(privateKey);
+				const a = calca(extendedKey);
 				const A = scalarMul(BASE, a);
 
 				return encodePoint(A);
@@ -1572,16 +1573,17 @@ export class Crypto {
 			/**
 			 * @param {number[]} message 
 			 * @param {number[]} privateKey 
+			 * @param {boolean} isExtendedKey
 			 * @returns {number[]}
 			 */
-			sign: function(message, privateKey) {
-				const privateKeyHash = Crypto.sha2_512(privateKey);
-				const a = calca(privateKeyHash);
+			sign: function(message, privateKey, isExtendedKey = false) {
+				const extendedKey = isExtendedKey ? privateKey : Crypto.sha2_512(privateKey);
+				const a = calca(extendedKey);
 
 				// for convenience calculate publicKey here:
 				const publicKey = encodePoint(scalarMul(BASE, a));
 
-				const r = ihash(privateKeyHash.slice(32, 64).concat(message));
+				const r = ihash(extendedKey.slice(32, 64).concat(message));
 				const R = scalarMul(BASE, r);
 				const S = posMod(r + ihash(encodePoint(R).concat(publicKey).concat(message))*a, CURVE_ORDER);
 

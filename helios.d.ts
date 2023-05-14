@@ -705,15 +705,17 @@ export class Crypto {
     static get Ed25519(): {
         /**
          * @param {number[]} privateKey
+         * @param {boolean} isExtendedKey
          * @returns {number[]}
          */
-        derivePublicKey: (privateKey: number[]) => number[];
+        derivePublicKey: (privateKey: number[], isExtendedKey?: boolean) => number[];
         /**
          * @param {number[]} message
          * @param {number[]} privateKey
+         * @param {boolean} isExtendedKey
          * @returns {number[]}
          */
-        sign: (message: number[], privateKey: number[]) => number[];
+        sign: (message: number[], privateKey: number[], isExtendedKey?: boolean) => number[];
         /**
          * @param {number[]} signature
          * @param {number[]} message
