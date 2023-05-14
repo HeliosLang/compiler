@@ -2,11 +2,16 @@
 // Eval time types
 
 import {
+    assertDefined
+} from "./utils.js";
+
+import {
     Duration,
     Time
 } from "./helios-data.js";
 
 import {
+    DataEntity,
     FuncType,
     GenericType
 } from "./eval-common.js";
@@ -34,25 +39,29 @@ export var DurationType = new GenericType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
     }),
-    genTypeMembers: (self) => ({
-        ...genCommonTypeMembers(self),
-        __add: new FuncType([self, self], self),
-        __div: new FuncType([self, IntType], self),
-        __div1: new FuncType([self, DurationType], IntType),
-        __geq: new FuncType([self, DurationType], BoolType),
-        __gt: new FuncType([self, DurationType], BoolType),
-        __leq: new FuncType([self, DurationType], BoolType),
-        __lt: new FuncType([self, DurationType], BoolType),
-        __mod: new FuncType([self, self], self),
-        __mul: new FuncType([self, IntType], self),
-        __sub: new FuncType([self, self], self),
-		new: new FuncType([IntType], self),
-        SECOND: self,
-        MINUTE: self,
-        HOUR: self,
-        DAY: self,
-        WEEK: self
-    })
+    genTypeMembers: (self) => {
+        const selfInstance = new DataEntity(assertDefined(self.asDataType));
+
+        return {
+            ...genCommonTypeMembers(self),
+            __add: new FuncType([self, self], self),
+            __div: new FuncType([self, IntType], self),
+            __div1: new FuncType([self, DurationType], IntType),
+            __geq: new FuncType([self, DurationType], BoolType),
+            __gt: new FuncType([self, DurationType], BoolType),
+            __leq: new FuncType([self, DurationType], BoolType),
+            __lt: new FuncType([self, DurationType], BoolType),
+            __mod: new FuncType([self, self], self),
+            __mul: new FuncType([self, IntType], self),
+            __sub: new FuncType([self, self], self),
+            new: new FuncType([IntType], self),
+            SECOND: selfInstance,
+            MINUTE: selfInstance,
+            HOUR: selfInstance,
+            DAY: selfInstance,
+            WEEK: selfInstance
+        }
+    }
 });
 
 /**
@@ -90,16 +99,22 @@ export var TimeRangeType = new GenericType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         contains: new FuncType([TimeType], BoolType),
+        start: TimeType,
         end: TimeType,
         is_before: new FuncType([TimeType], BoolType),
         is_after: new FuncType([TimeType], BoolType),
         show: new FuncType([], StringType)
     }),
-    genTypeMembers: (self) => ({
-        new: new FuncType([TimeType, TimeType], self),
-        ALWAYS: self,
-        NEVER: self,
-        from: new FuncType([TimeType], self),
-        to: new FuncType([TimeType], self)
-    })
+    genTypeMembers: (self) => {
+        const selfInstance = new DataEntity(assertDefined(self.asDataType));
+
+        return {
+            ...genCommonTypeMembers(self),
+            new: new FuncType([TimeType, TimeType], self),
+            ALWAYS: selfInstance,
+            NEVER: selfInstance,
+            from: new FuncType([TimeType], self),
+            to: new FuncType([TimeType], self)
+        };
+    }
 });

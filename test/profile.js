@@ -84,33 +84,35 @@ async function test1() {
 
 	const IN_VALUE: Value = Value::lovelace(1000000)
 
-	const REF_ID: TxOutputId = TxOutputId::new(TxId::new(#0123456789012345678901234567890123456789012345678901234567891234), 0)
+	const TX_ID: TxId = TxId::new(#0123456789012345678901234567890123456789012345678901234567891234)
+	const REF_ID: TxOutputId = TxOutputId::new(TX_ID, 0)
 
-	const MINTED: Value = Value::new(AssetClass::new(MintingPolicyHash::CURRENT, #01 + REF_ID.serialize().sha3().slice(1, -1)), 1)
+	const MINTED: Value = Value::new(AssetClass::new(MintingPolicyHash::new(#1123456789012345678901234567890123456789012345678901234567891234), #01 + REF_ID.serialize().sha3().slice(1, -1)), 1)
 
 	const OUT_VALUE: Value = IN_VALUE + MINTED
 
 	const NEW_ID: TxOutputId = TxOutputId::new(TxId::new(#1123456789012345678901234567890123456789012345678901234567891234), 0)
 
-	const REDEEMER = Redeemer::Mint{REF_ID}
+	const REDEEMER: Redeemer = Redeemer::Mint{REF_ID}
 
 	struct Datum {
 		a: Int
 	}
 
-	const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_minting(Tx::new(
+	const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_minting(Tx::new[Int, Data](
 		[]TxInput{TxInput::new(REF_ID, TxOutput::new(ADDRESS, IN_VALUE, OutputDatum::new_none()))},
 		[]TxInput{},
 		[]TxOutput{TxOutput::new(ADDRESS, OUT_VALUE, OutputDatum::new_none())},
 		Value::lovelace(160000),
 		MINTED,
-		[]DCert{},
+		[]CertifyingAction{},
 		Map[StakingCredential]Int{},
 		TimeRange::ALWAYS,
 		[]PubKeyHash{},
 		Map[ScriptPurpose]Int{},
-		Map[DatumHash]Data{}
-	), MintingPolicyHash::CURRENT)`;
+		Map[DatumHash]Data{},
+		TX_ID
+	), MintingPolicyHash::new(#1123456789012345678901234567890123456789012345678901234567891234))`;
 
 	await profile(src, ["REDEEMER", "SCRIPT_CONTEXT"]);
 }

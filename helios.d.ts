@@ -253,7 +253,7 @@ export function tokenize(src: Source): Token[] | null;
  *   offChainType: (null | ((...any) => HeliosDataClass<HeliosData>))
  *   typeClasses: TypeClass[]
  *   apply(types: Type[], site?: Site): EvalEntity
- *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): (Typed | Multi)
+ *   inferCall(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): Func
  * }} Parametric
  */
 /**
@@ -274,10 +274,10 @@ export function tokenize(src: Source): Token[] | null;
  */
 /**
  * @typedef {EvalEntity & {
- *   asTypeClass:                    TypeClass
- *   genInstanceMembers(impl: Type): TypeClassMembers
- *   genTypeMembers(impl: Type):     TypeClassMembers
- *   toType(name: string):           DataType
+ *   asTypeClass:                        TypeClass
+ *   genInstanceMembers(impl: Type):     TypeClassMembers
+ *   genTypeMembers(impl: Type):         TypeClassMembers
+ *   toType(name: string, path: string): DataType
  * }} TypeClass
  */
 /**
@@ -287,7 +287,7 @@ export function tokenize(src: Source): Token[] | null;
  * @typedef {{[name: string]: EvalEntity}} NamespaceMembers
  */
 /**
- * @typedef {{[name: string]: (Parametric | Type)}} TypeMembers
+ * @typedef {{[name: string]: (Parametric | Type | Typed)}} TypeMembers
  */
 /**
  * @typedef {{[name: string]: Type}} TypeClassMembers
@@ -3094,11 +3094,11 @@ export class Program {
     static injectMutualRecursions(map: IRDefinitions): void;
     /**
      * Also merges builtins and map
-     * @param {IRDefinitions} builtins
+     * @param {IR} mainIR
      * @param {IRDefinitions} map
      * @returns {IRDefinitions}
      */
-    static injectTypeParameters(builtins: IRDefinitions, map: IRDefinitions): IRDefinitions;
+    static applyTypeParameters(mainIR: IR, map: IRDefinitions): IRDefinitions;
     /**
      * @param {number} purpose
      * @param {Module[]} modules
@@ -3182,6 +3182,11 @@ export class Program {
      * @param {UplcData} data
      */
     changeParamSafe(name: string, data: UplcData): Program;
+    /**
+     * @param {string} name
+     * @returns {ConstStatement | null}
+     */
+    findConstStatement(name: string): ConstStatement | null;
     /**
      * Doesn't use wrapEntryPoint
      * @param {string} name
@@ -4507,9 +4512,9 @@ export type Parametric = EvalEntity & {
     offChainType: (...any: any[]) => HeliosDataClass<HeliosData>;
     typeClasses: TypeClass[];
     apply(types: Type[], site?: Site): EvalEntity;
-    call(site: Site, args: Typed[], namedArgs?: {
+    inferCall(site: Site, args: Typed[], namedArgs?: {
         [name: string]: Typed;
-    }, paramTypes?: Type[]): (Typed | Multi);
+    }, paramTypes?: Type[]): Func;
 };
 export type Type = EvalEntity & {
     asType: Type;
@@ -4527,7 +4532,7 @@ export type TypeClass = EvalEntity & {
     asTypeClass: TypeClass;
     genInstanceMembers(impl: Type): TypeClassMembers;
     genTypeMembers(impl: Type): TypeClassMembers;
-    toType(name: string): DataType;
+    toType(name: string, path: string): DataType;
 };
 export type InstanceMembers = {
     [name: string]: Type | Parametric;
@@ -4536,7 +4541,7 @@ export type NamespaceMembers = {
     [name: string]: EvalEntity;
 };
 export type TypeMembers = {
-    [name: string]: Type | Parametric;
+    [name: string]: Type | Typed | Parametric;
 };
 export type TypeClassMembers = {
     [name: string]: Type;
@@ -4909,6 +4914,10 @@ declare class IR {
      * @returns {IR}
      */
     join(sep: string): IR;
+    /**
+     * @returns {string}
+     */
+    toString(): string;
     /**
      * @package
      * @returns {[string, CodeMap]}
@@ -5687,6 +5696,48 @@ declare class TopScope extends Scope {
     #private;
 }
 /**
+ * Const value statement
+ * @package
+ */
+declare class ConstStatement extends Statement {
+    /**
+     * @param {Site} site
+     * @param {Word} name
+     * @param {null | Expr} typeExpr - can be null in case of type inference
+     * @param {Expr} valueExpr
+     */
+    constructor(site: Site, name: Word, typeExpr: null | Expr, valueExpr: Expr);
+    /**
+     * @type {DataType}
+     */
+    get type(): DataType;
+    /**
+     * Use this to change a value of something that is already typechecked.
+     * @param {UplcData} data
+     */
+    changeValueSafe(data: UplcData): void;
+    /**
+     * @param {Scope} scope
+     * @returns {DataType}
+     */
+    evalType(scope: Scope): DataType;
+    /**
+     * @param {Scope} scope
+     * @returns {EvalEntity}
+     */
+    evalInternal(scope: Scope): EvalEntity;
+    /**
+     * Evaluates rhs and adds to scope
+     * @param {TopScope} scope
+     */
+    eval(scope: TopScope): void;
+    /**
+     * @returns {IR}
+     */
+    toIRInternal(): IR;
+    #private;
+}
+/**
  * @package
  */
 declare class NativeContext {
@@ -6119,14 +6170,24 @@ declare function setBlake2bDigestSize(s: number): void;
  * @param {NetworkParams} networkParams
  */
 declare function dumpCostModels(networkParams: NetworkParams): void;
-declare namespace ScriptPurpose {
-    export const Testing: number;
-    export const Minting: number;
-    export const Spending: number;
-    export const Staking: number;
-    const Module_1: number;
-    export { Module_1 as Module };
-}
+/**
+ * A Helios/Uplc Program can have different purposes
+ * @package
+ * @type {{
+ *   Testing: number,
+ * 	 Minting: number,
+ *   Spending: number,
+ *   Staking: number,
+ *   Module: number
+ * }}
+ */
+declare const ScriptPurpose: {
+    Testing: number;
+    Minting: number;
+    Spending: number;
+    Staking: number;
+    Module: number;
+};
 /**
  * Plutus-core lambda term
  * @package
@@ -6581,6 +6642,47 @@ declare class FuncLiteralExpr extends Expr {
     #private;
 }
 /**
+ * Base class of every Type and Instance expression.
+ * @package
+ */
+declare class Expr extends Token {
+    /**
+     * @type {null | EvalEntity}
+     */
+    get cache(): EvalEntity;
+    /**
+     * @param {Scope} scope
+     * @returns {EvalEntity}
+     */
+    evalInternal(scope: Scope): EvalEntity;
+    /**
+     * @param {Scope} scope
+     * @returns {EvalEntity}
+     */
+    eval(scope: Scope): EvalEntity;
+    /**
+     * @param {Scope} scope
+     * @returns {DataType}
+     */
+    evalAsDataType(scope: Scope): DataType;
+    /**
+     * @param {Scope} scope
+     * @returns {Type}
+     */
+    evalAsType(scope: Scope): Type;
+    /**
+     * @param {Scope} scope
+     * @returns {Typed}
+     */
+    evalAsTyped(scope: Scope): Typed;
+    /**
+     * @param {string} indent
+     * @returns {IR}
+     */
+    toIR(indent?: string): IR;
+    #private;
+}
+/**
  * Anonymous Plutus-core function.
  * Returns a new UplcAnon whenever it is called/applied (args are 'accumulated'), except final application, when the function itself is evaluated.
  * @package
@@ -6749,55 +6851,15 @@ declare class ArgType {
     #private;
 }
 /**
- * Base class of every Type and Instance expression.
- * @package
- */
-declare class Expr extends Token {
-    /**
-     * @type {null | EvalEntity}
-     */
-    get cache(): EvalEntity;
-    /**
-     * @param {Scope} scope
-     * @returns {EvalEntity}
-     */
-    evalInternal(scope: Scope): EvalEntity;
-    /**
-     * @param {Scope} scope
-     * @returns {EvalEntity}
-     */
-    eval(scope: Scope): EvalEntity;
-    /**
-     * @param {Scope} scope
-     * @returns {DataType}
-     */
-    evalAsDataType(scope: Scope): DataType;
-    /**
-     * @param {Scope} scope
-     * @returns {Type}
-     */
-    evalAsType(scope: Scope): Type;
-    /**
-     * @param {Scope} scope
-     * @returns {Typed}
-     */
-    evalAsTyped(scope: Scope): Typed;
-    /**
-     * @param {string} indent
-     * @returns {IR}
-     */
-    toIR(indent?: string): IR;
-    #private;
-}
-/**
  * @package
  */
 declare class Parameter {
     /**
      * @param {string} name - typically "a" or "b"
+     * @param {string} path - typicall "__T0" or "__F0"
      * @param {TypeClass} typeClass
      */
-    constructor(name: string, typeClass: TypeClass);
+    constructor(name: string, path: string, typeClass: TypeClass);
     /**
      * @type {string}
      */
@@ -6823,28 +6885,25 @@ declare class TypeParameters {
      */
     constructor(parameters: TypeParameter[]);
     hasParameters(): boolean;
-    get parameters(): Parameter[];
+    /**
+     * @param {string} basePath
+     */
+    getParameters(basePath: string): Parameter[];
     /**
      * @returns {string}
      */
     toString(): string;
     /**
      * @param {Scope} scope
+     * @param {string} baseName
      */
-    eval(scope: Scope): Scope;
+    eval(scope: Scope, baseName: string): Scope;
     /**
-     *
      * @param {FuncType} fnType
+     * @param {string} baseParamPath
      * @returns {EvalEntity}
      */
-    createInstance(fnType: FuncType): EvalEntity;
-    /**
-     * TODO: indent properly
-     * @param {string} indent
-     * @param {IR} ir
-     * @returns {IR}
-     */
-    wrapIR(indent: string, ir: IR): IR;
+    createInstance(fnType: FuncType, baseParamPath: string): EvalEntity;
     #private;
 }
 /**
@@ -6913,13 +6972,10 @@ declare class TypeParameter {
      */
     get typeClass(): TypeClass;
     /**
-     * @returns {IR[]}
-     */
-    collectIR(): IR[];
-    /**
      * @param {Scope} scope
+     * @param {string} path
      */
-    eval(scope: Scope): void;
+    eval(scope: Scope, path: string): void;
     /**
      * @returns {string}
      */

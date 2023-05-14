@@ -80,7 +80,8 @@
 //     Section 3: Tokens                     Site, RuntimeError, Token, assertToken, Word, 
 //                                           SymbolToken, Group, PrimitiveLiteral, IntLiteral, 
 //                                           RealLiteral, BoolLiteral, ByteArrayLiteral, 
-//                                           StringLiteral, RE_IR_PARAMETRIC_NAME, IRParametricName
+//                                           StringLiteral, RE_IR_PARAMETRIC_NAME, TTPP, FTPP, 
+//                                           RE_TEMPLATE_NAME, IRParametricName
 //
 //     Section 4: Cryptography functions     BLAKE2B_DIGEST_SIZE, setBlake2bDigestSize, imod32, 
 //                                           irotr, posMod, UInt64, Crypto
@@ -125,8 +126,8 @@
 //                                           FuncEntity, MultiEntity, VoidEntity, ModuleNamespace
 //
 //     Section 14: Eval primitive types      genCommonInstanceMembers, genCommonTypeMembers, 
-//                                           BoolType, ByteArrayType, IntType, RawDataType, 
-//                                           RealType, StringType
+//                                           genCommonEnumTypeMembers, BoolType, ByteArrayType, 
+//                                           IntType, RawDataType, RealType, StringType
 //
 //     Section 15: Eval builtin typeclasses  TypeClassImpl, AnyTypeClass, SerializableTypeClass, 
 //                                           Parameter, ParametricFunc, AppliedType, ParametricType
@@ -167,9 +168,9 @@
 //
 //     Section 22: Scopes                    GlobalScope, Scope, TopScope, ModuleScope
 //
-//     Section 23: Helios AST expressions    Expr, RefExpr, PathExpr, ListTypeExpr, MapTypeExpr, 
-//                                           OptionTypeExpr, VoidTypeExpr, FuncArgTypeExpr, 
-//                                           FuncTypeExpr, AssignExpr, PrintExpr, VoidExpr, 
+//     Section 23: Helios AST expressions    Expr, RefExpr, PathExpr, ValuePathExpr, ListTypeExpr, 
+//                                           MapTypeExpr, OptionTypeExpr, VoidTypeExpr, 
+//                                           FuncArgTypeExpr, FuncTypeExpr, AssignExpr, VoidExpr, 
 //                                           ChainExpr, PrimitiveLiteralExpr, LiteralDataExpr, 
 //                                           StructLiteralField, StructLiteralExpr, 
 //                                           ListLiteralExpr, MapLiteralExpr, NameTypePair, 
@@ -202,7 +203,7 @@
 //                                           buildFuncTypeExpr, buildFuncArgTypeExpr, 
 //                                           buildFuncRetTypeExprs, buildTypePathExpr, 
 //                                           buildTypeRefExpr, buildValueExpr, 
-//                                           buildMaybeAssignOrPrintExpr, buildDestructExpr, 
+//                                           buildMaybeAssignOrChainExpr, buildDestructExpr, 
 //                                           buildDestructExprs, buildAssignLhs, 
 //                                           makeBinaryExprBuilder, makeUnaryExprBuilder, 
 //                                           buildChainedValueExpr, buildParametricValueExpr, 
@@ -218,9 +219,9 @@
 //                                           buildStructLiteralNamedField, 
 //                                           buildStructLiteralUnnamedField, buildValuePathExpr
 //
-//     Section 26: IR definitions            onNotifyRawUsage, setRawUsageNotifier, RawFunc, 
-//                                           makeRawFunctions, fetchRawFunctions, 
-//                                           wrapWithRawFunctions
+//     Section 26: IR definitions            onNotifyRawUsage, setRawUsageNotifier, RE_BUILTIN, 
+//                                           RawFunc, makeRawFunctions, db, fetchRawGenerics, 
+//                                           fetchRawFunctions, wrapWithRawFunctions
 //
 //     Section 27: IR Context objects        IRScope, IRVariable, IRValue, IRFuncValue, 
 //                                           IRLiteralValue, IRDeferredValue, IRCallStack
@@ -2385,6 +2386,13 @@ class StringLiteral extends PrimitiveLiteral {
 		}
 	}
 
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.flatten().map(p => typeof p.content == "string" ? p.content : "").join("");
+	}
+
     /**
      * @package
 	 * @returns {[string, CodeMap]}
@@ -2495,7 +2503,22 @@ class StringLiteral extends PrimitiveLiteral {
 /**
  * @package
  */
-const RE_IR_PARAMETRIC_NAME = /[a-zA-Z_][a-zA-Z_0-9]*[[][a-zA-Z_0-9@[\]]/;
+const RE_IR_PARAMETRIC_NAME = /[a-zA-Z_][a-zA-Z_0-9]*[[][a-zA-Z_0-9@[\]]*/g;
+
+
+/**
+ * Type type parameter prefix
+ * @package
+ */
+const TTPP = "__T";
+
+/**
+ * Func type parameter prefix
+ * @package
+ */
+const FTPP = "__F";
+
+const RE_TEMPLATE_NAME = new RegExp(`\\b(${TTPP}|${FTPP})[0-9]*\\b`);
 
 /**
  * @package
@@ -2552,8 +2575,10 @@ class IRParametricName {
 	 * @return {string}
 	 */
 	toTemplate() {
-		return `${this.#base}${this.#ttp.length > 0 ? `[${this.#ttp.map((_, i) => `__TTP${i}`).join("@")}]` : ""}${this.#fn}${this.#ftp.length > 0 ? `[${this.#ftp.map((_, i) => `__FTP${i}`).join("@")}]` : ""}`;
+		return `${this.#base}${this.#ttp.length > 0 ? `[${this.#ttp.map((_, i) => `${TTPP}${i}`).join("@")}]` : ""}${this.#fn}${this.#ftp.length > 0 ? `[${this.#ftp.map((_, i) => `${FTPP}${i}`).join("@")}]` : ""}`;
 	}
+
+	
 
 	/**
 	 * @param {IR} ir
@@ -2561,11 +2586,11 @@ class IRParametricName {
 	 */
 	replaceTemplateNames(ir) {
 		this.#ttp.forEach((name, i) => {
-			ir = ir.replace(new RegExp(`\\b__TTP${i}`, "gm"), name);
+			ir = ir.replace(new RegExp(`\\b${TTPP}${i}`, "gm"), name);
 		})
 
 		this.#ftp.forEach((name, i) => {
-			ir = ir.replace(new RegExp(`\\b___FTP${i}`, "gm"), name);
+			ir = ir.replace(new RegExp(`\\b${FTPP}${i}`, "gm"), name);
 		})
 
 		return ir;
@@ -2573,22 +2598,33 @@ class IRParametricName {
 
 	/**
 	 * @example
- 	 * IRParametricName.matches("__helios__map[__T0@__T1]__fold[__T2@__T3]") => true
+ 	 * IRParametricName.matches("__helios__map[__T0@__T1]__fold[__F2@__F3]") => true
 	 * @example
 	 * IRParametricName.matches("__helios__int") => false
+	 * @example
+	 * IRParametricName.matches("__helios__option[__T0]__none__new") => true
 	 * @param {string} str 
+	 * @returns {boolean}
 	 */
 	static matches(str) {
 		return str.match(RE_IR_PARAMETRIC_NAME) ? true : false;
 	}
 
 	/**
+	 * @param {string} name 
+	 * @returns {boolean}
+	 */
+	static isTemplate(name) {
+		return name.match(RE_TEMPLATE_NAME) ? true : false;
+	}
+
+	/**
 	 * @example
-	 * IRParametricName.parse("__helios__map[__T0@__T1]__fold[__T2@__T3]").toString() => "__helios__map[__T0@__T1]__fold[__T2@__T3]"
+	 * IRParametricName.parse("__helios__map[__T0@__T1]__fold[__F0@__F1]").toString() => "__helios__map[__T0@__T1]__fold[__F0@__F1]"
 	 * @example
-	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__T2@__T3]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__T2@__T3]"
+	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__F0@__F1]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__F0@__F1]"
 	 * @example
-	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__T2@__T3]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__T2@__T3]"
+	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]"
 	 * @param {string} str 
 	 * @returns {IRParametricName}
 	 */
@@ -2632,8 +2668,6 @@ class IRParametricName {
 
 				c = str.charAt(pos);
 
-				console.log(c, depth);
-
 				if (c == "[") {
 					chars.push(c);
 					depth++;
@@ -2657,7 +2691,7 @@ class IRParametricName {
 				} else if ((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c == "_" || (c >= "0" && c <= "9")) {
 					chars.push(c);
 				} else {
-					throw new Error("unexpected char in parametric name");
+					throw new Error(`unexpected char '${c}' in parametric name '${str}'`);
 				}
 			}
 
@@ -2705,9 +2739,7 @@ class IRParametricName {
 
 		let base = eatAlphaNum();
 
-		console.log(base);
 		let ttp = eatParams();
-		console.log("HERE", ttp, str.slice(pos));
 		let fn = "";
 		let ftp = [];
 
@@ -9184,6 +9216,13 @@ export function isUplcBuiltin(name, strict = false) {
 /**
  * A Helios/Uplc Program can have different purposes
  * @package
+ * @type {{
+ *   Testing: number,
+ * 	 Minting: number,
+ *   Spending: number,
+ *   Staking: number,
+ *   Module: number
+ * }}
  */
 const ScriptPurpose = {
 	Testing: -1,
@@ -11907,7 +11946,7 @@ class UplcBuiltin extends UplcTerm {
 
 					if (b.isList()) {
 						if (!b.itemType.isSameType(a)) {
-							throw callSite.typeError(`wrong type for 2nd arg of mkCons`);
+							throw callSite.typeError(`wrong type for 2nd arg of mkCons, expected ${a.toString()}, got ${b.toString()}`);
 						}
 
 						let lst = b.list;
@@ -13182,7 +13221,7 @@ export class Tokenizer {
 	 * @param {string} c 
 	 */
 	readToken(site, c) {
-		if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && c == '@')) {
+		if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && (c == '@' || c == '[' || c == ']'))) {
 			this.readWord(site, c);
 		} else if (c == '/') {
 			this.readMaybeComment(site);
@@ -13263,7 +13302,7 @@ export class Tokenizer {
 
 		let c = c0;
 		while (c != '\0') {
-			if (c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && c == '@')) {
+			if (c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && (c == '@' || c == '[' || c == ']'))) {
 				chars.push(c);
 				c = this.readChar();
 			} else {
@@ -13955,7 +13994,7 @@ function tokenizeIR(rawSrc, codeMap) {
  *   offChainType: (null | ((...any) => HeliosDataClass<HeliosData>))
  *   typeClasses: TypeClass[]
  *   apply(types: Type[], site?: Site): EvalEntity
- *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): (Typed | Multi)
+ *   inferCall(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): Func
  * }} Parametric
  */
 
@@ -13979,10 +14018,10 @@ function tokenizeIR(rawSrc, codeMap) {
 
 /**
  * @typedef {EvalEntity & {
- *   asTypeClass:                    TypeClass
- *   genInstanceMembers(impl: Type): TypeClassMembers
- *   genTypeMembers(impl: Type):     TypeClassMembers
- *   toType(name: string):           DataType
+ *   asTypeClass:                        TypeClass
+ *   genInstanceMembers(impl: Type):     TypeClassMembers
+ *   genTypeMembers(impl: Type):         TypeClassMembers
+ *   toType(name: string, path: string): DataType
  * }} TypeClass
  */
 
@@ -13995,7 +14034,7 @@ function tokenizeIR(rawSrc, codeMap) {
  */
 
 /**
- * @typedef {{[name: string]: (Parametric | Type)}} TypeMembers
+ * @typedef {{[name: string]: (Parametric | Type | Typed)}} TypeMembers
  */
 
 /**
@@ -14082,7 +14121,7 @@ class Common {
      * @returns {string[]}
      */
     static typeClassMembers(tc) {
-        const dummy = tc.toType("");
+        const dummy = tc.toType("", "");
 
         const typeMemberNames = Object.keys(tc.genTypeMembers(dummy)).sort();
         const instanceMemberNames = Object.keys(tc.genInstanceMembers(dummy)).sort();
@@ -14206,11 +14245,39 @@ class Common {
 
 /**
  * @package
- * @implements {Type}
+ * @implements {DataType}
  */
 class AnyType extends Common {
 	constructor() {
 		super();
+	}
+
+	/**
+	 * @type {DataType}
+	 */
+	get asDataType() {
+		return this;
+	}
+
+	/**
+	 * @type {HeliosDataClass<HeliosData> | null}
+	 */
+	get offChainType() {
+		return null;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get fieldNames() {
+		return [];
+	}
+
+	/**
+	 * @type {Named}
+	 */
+	get asNamed() {
+		return this;
 	}
 
 	/**
@@ -14225,6 +14292,20 @@ class AnyType extends Common {
 	 */
 	get instanceMembers() {
 		return {};
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return "";
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get path() {
+		return "";
 	}
 
 	/**
@@ -14257,6 +14338,13 @@ class AnyType extends Common {
 	 */
 	toTyped() {
 		throw new Error("can't be turned into a type");
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "Any";
 	}
 }
 
@@ -14899,7 +14987,7 @@ class GenericEnumMemberType extends GenericType {
     constructor({name, path, constrIndex, parentType, offChainType, fieldNames, genInstanceMembers, genTypeMembers}) {
         super({
             name, 
-            path: path ?? `${parentType.path}__${name}`, 
+            path: path ?? `${parentType.path}__${name.toLowerCase()}`, 
             offChainType, 
             fieldNames, 
             genInstanceMembers, 
@@ -15498,6 +15586,22 @@ function genCommonTypeMembers(type) {
 }
 
 /**
+ * @package
+ * @param {Type} type
+ * @param {Type} parentType
+ * @returns {TypeMembers}
+ */
+function genCommonEnumTypeMembers(type, parentType) {
+    return {
+        __eq:      new FuncType([type, parentType], BoolType),
+        __neq:     new FuncType([type, parentType], BoolType),
+        from_data: new FuncType([RawDataType], type),
+        __to_data: new FuncType([type], RawDataType),
+    }
+}
+
+
+/**
  * Builtin bool type
  * @package
  * @type {DataType}
@@ -15699,6 +15803,12 @@ class TypeClassImpl extends Common {
     #name;
 
 	/**
+     * @type {string}
+     */
+	#path;
+
+
+	/**
 	 * @type {InstanceMembers}
 	 */
 	#instanceMembers;
@@ -15711,23 +15821,17 @@ class TypeClassImpl extends Common {
 	/**
 	 * @param {TypeClass} typeClass
 	 * @param {string} name
+	 * @param {string} path
 	 */
-	constructor(typeClass, name) {
+	constructor(typeClass, name, path) {
 		super();
 
         this.#name = name;
+		this.#path = path;
         this.#instanceMembers = typeClass.genInstanceMembers(this);
 		this.#typeMembers = typeClass.genTypeMembers(this);
     }
 
-	/**
-	 * @param {string} name
-	 * @returns {string}
-	 */
-	static nameToPath(name) {
-		return `__typeparam__${name}`;
-	}
-	
     /**
 	 * @type {InstanceMembers}
 	 */
@@ -15753,7 +15857,7 @@ class TypeClassImpl extends Common {
 	 * @type {string}
 	 */
 	get path() {
-		return TypeClassImpl.nameToPath(this.name);
+		return this.#path;
 	}
 
 	/**
@@ -15884,11 +15988,12 @@ class AnyTypeClass extends Common {
 
     /**
      * @param {string} name 
+	 * @param {string} path
      * @returns {DataType}
      */
 
-    toType(name) {
-        return new TypeClassImpl(this, name);
+    toType(name, path) {
+        return new TypeClassImpl(this, name, path);
     }
 }
 
@@ -15940,10 +16045,11 @@ class SerializableTypeClass extends Common {
 
     /**
      * @param {string} name 
+	 * @param {string} path
      * @returns {DataType}
      */
-    toType(name) {
-        return new TypeClassImpl(this, name);
+    toType(name, path) {
+        return new TypeClassImpl(this, name, path);
     }
 }
 
@@ -15958,16 +16064,23 @@ class Parameter {
 	#name;
 
 	/** 
+	 * @type {string} 
+	 */
+	#path;
+
+	/** 
 	 * @type {TypeClass}
 	 */
 	#typeClass;
 
 	/**
 	 * @param {string} name - typically "a" or "b"
+	 * @param {string} path - typicall "__T0" or "__F0"
 	 * @param {TypeClass} typeClass
 	 */
-	constructor(name, typeClass) {
+	constructor(name, path, typeClass) {
 		this.#name = name;
+		this.#path = path;
 		this.#typeClass = typeClass
 	}
 
@@ -15982,7 +16095,7 @@ class Parameter {
 	 * @type {Type}
 	 */
 	get ref() {
-		return new TypeClassImpl(this.typeClass, this.#name);
+		return new TypeClassImpl(this.typeClass, this.#name, this.#path);
 	}
 
 	/**
@@ -16086,9 +16199,9 @@ class ParametricFunc extends Common {
 	 * @param {Typed[]} args
 	 * @param {{[name: string]: Typed}} namedArgs
 	 * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
-	 * @returns {Typed | Multi}
+	 * @returns {Func}
 	 */
-	call(site, args, namedArgs = {}, paramTypes = []) {
+	inferCall(site, args, namedArgs = {}, paramTypes = []) {
 		/**
 		 * @type {Map<string, Type>}
 		 */
@@ -16107,7 +16220,7 @@ class ParametricFunc extends Common {
 			paramTypes.push(pt);
 		});
 
-		return (new FuncEntity(fnType)).call(site, args, namedArgs);
+		return new FuncEntity(fnType);
 	}
 
     /**
@@ -16315,9 +16428,9 @@ class ParametricType extends Common {
 	 * @param {Typed[]} args
 	 * @param {{[name: string]: Typed}} namedArgs
 	 * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
-	 * @returns {Typed | Multi}
+	 * @returns {Func}
 	 */
-	call(site, args, namedArgs = {}, paramTypes = []) {
+	inferCall(site, args, namedArgs = {}, paramTypes = []) {
 		throw site.typeError("not a parametric function");
 	}
 }
@@ -16456,7 +16569,7 @@ const PrintFunc = new BuiltinFunc({
  */
 const ListType = new ParametricType({
 	offChainType: HList,
-	parameters: [new Parameter("ItemType", new SerializableTypeClass())],
+	parameters: [new Parameter("ItemType", `${TTPP}0`, new SerializableTypeClass())],
 	apply: ([itemType]) => {
 		const offChainItemType = itemType.asDataType?.offChainType ?? null;
 		const offChainType = offChainItemType ? HList(offChainItemType) : null;
@@ -16475,11 +16588,11 @@ const ListType = new ParametricType({
 				find: new FuncType([new FuncType([itemType], BoolType)], itemType),
 				find_safe: new FuncType([new FuncType([itemType], BoolType)], OptionType$(itemType)),
 				fold: (() => {
-					const a = new Parameter("a", new AnyTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([a.ref, itemType], a.ref), a.ref], a.ref));
 				})(),
 				fold_lazy: (() => {
-					const a = new Parameter("a", new AnyTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([itemType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
 				})(),
 				for_each: new FuncType([new FuncType([itemType], new VoidType())], new VoidType()),
@@ -16489,14 +16602,14 @@ const ListType = new ParametricType({
 				is_empty: new FuncType([], BoolType),
 				length: IntType,
 				map: (() => {
-					const a = new Parameter("a", new SerializableTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([itemType], a.ref)], ListType$(a.ref)));
 				})(),
 				prepend: new FuncType([itemType], self),
 				sort: new FuncType([new FuncType([itemType, itemType], BoolType)], self),
 				tail: self,
 				take: new FuncType([IntType], self),
-				take_end: new FuncType([IntType], itemType),
+				take_end: new FuncType([IntType], self),
 			}),
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self),
@@ -16523,7 +16636,10 @@ export function ListType$(itemType) {
  */
 const MapType = new ParametricType({
 	offChainType: HMap,
-	parameters: [new Parameter("KeyType", new SerializableTypeClass()), new Parameter("ValueType", new SerializableTypeClass())],
+	parameters: [
+		new Parameter("KeyType", `${TTPP}0`, new SerializableTypeClass()), 
+		new Parameter("ValueType", `${TTPP}1`, new SerializableTypeClass())
+	],
 	apply: ([keyType, valueType]) => {
 		const offChainKeyType = keyType.asDataType?.offChainType ?? null;
 		const offChainValueType = valueType.asDataType?.offChainType ?? null;
@@ -16546,11 +16662,11 @@ const MapType = new ParametricType({
 				find_value: new FuncType([new FuncType([valueType], BoolType)], valueType),
 				find_value_safe: new FuncType([new FuncType([valueType], BoolType)], OptionType$(valueType)),
 				fold: (() => {
-					const a = new Parameter("a", new AnyTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([a.ref, keyType, valueType], a.ref), a.ref], a.ref));
 				})(),
 				fold_lazy: (() => {
-					const a = new Parameter("a", new AnyTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([keyType, valueType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
 				})(),
 				for_each: new FuncType([new FuncType([keyType, valueType], new VoidType())], new VoidType()),
@@ -16562,8 +16678,8 @@ const MapType = new ParametricType({
 				is_empty: new FuncType([], BoolType),
 				length: IntType,
 				map: (() => {
-					const a = new Parameter("a", new SerializableTypeClass());
-					const b = new Parameter("b", new SerializableTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
+					const b = new Parameter("b", `${FTPP}1`, new SerializableTypeClass());
 
 					return new ParametricFunc([a, b], new FuncType([new FuncType([keyType, valueType], [a.ref, b.ref])], MapType$(a.ref, b.ref)));
 				})(),
@@ -16596,10 +16712,11 @@ export function MapType$(keyType, valueType) {
  */
 const OptionType = new ParametricType({
 	offChainType: Option,
-	parameters: [new Parameter("SomeType", new SerializableTypeClass())],
+	parameters: [new Parameter("SomeType", `${TTPP}0`, new SerializableTypeClass())],
 	apply: ([someType]) => {
 		const someOffChainType = someType.asDataType?.offChainType ?? null;
 		const offChainType = someOffChainType ? Option(someOffChainType) : null;
+		const someTypePath = assertDefined(someType.asDataType).path;
 
 		/**
 		 * @type {DataType}
@@ -16607,11 +16724,11 @@ const OptionType = new ParametricType({
 		const AppliedOptionType = new GenericType({
 			offChainType: offChainType,
 			name: `Option[${someType.toString()}]`,
-			path: `__helios__option[${assertDefined(someType.asDataType).path}]`,
+			path: `__helios__option[${someTypePath}]`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				map: (() => {
-					const a = new Parameter("a", new SerializableTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([someType], a.ref)], OptionType$(a.ref)));
 				})(),
 				unwrap: new FuncType([], someType)
@@ -16629,8 +16746,9 @@ const OptionType = new ParametricType({
 		const SomeType = new GenericEnumMemberType({
 			name: "Some",
 			constrIndex: 0,
+			fieldNames: ["some"],
 			parentType: AppliedOptionType,
-			path: "__helios__option__some",
+			path: `__helios__option[${someTypePath}]__some`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				some: someType
@@ -16647,7 +16765,7 @@ const OptionType = new ParametricType({
 			name: "None",
 			constrIndex: 1,
 			parentType: AppliedOptionType,
-			path: "__helios__option__none",
+			path: `__helios__option[${someTypePath}]__none`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self)
 			}),
@@ -16684,25 +16802,29 @@ var DurationType = new GenericType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
     }),
-    genTypeMembers: (self) => ({
-        ...genCommonTypeMembers(self),
-        __add: new FuncType([self, self], self),
-        __div: new FuncType([self, IntType], self),
-        __div1: new FuncType([self, DurationType], IntType),
-        __geq: new FuncType([self, DurationType], BoolType),
-        __gt: new FuncType([self, DurationType], BoolType),
-        __leq: new FuncType([self, DurationType], BoolType),
-        __lt: new FuncType([self, DurationType], BoolType),
-        __mod: new FuncType([self, self], self),
-        __mul: new FuncType([self, IntType], self),
-        __sub: new FuncType([self, self], self),
-		new: new FuncType([IntType], self),
-        SECOND: self,
-        MINUTE: self,
-        HOUR: self,
-        DAY: self,
-        WEEK: self
-    })
+    genTypeMembers: (self) => {
+        const selfInstance = new DataEntity(assertDefined(self.asDataType));
+
+        return {
+            ...genCommonTypeMembers(self),
+            __add: new FuncType([self, self], self),
+            __div: new FuncType([self, IntType], self),
+            __div1: new FuncType([self, DurationType], IntType),
+            __geq: new FuncType([self, DurationType], BoolType),
+            __gt: new FuncType([self, DurationType], BoolType),
+            __leq: new FuncType([self, DurationType], BoolType),
+            __lt: new FuncType([self, DurationType], BoolType),
+            __mod: new FuncType([self, self], self),
+            __mul: new FuncType([self, IntType], self),
+            __sub: new FuncType([self, self], self),
+            new: new FuncType([IntType], self),
+            SECOND: selfInstance,
+            MINUTE: selfInstance,
+            HOUR: selfInstance,
+            DAY: selfInstance,
+            WEEK: selfInstance
+        }
+    }
 });
 
 /**
@@ -16740,18 +16862,24 @@ var TimeRangeType = new GenericType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         contains: new FuncType([TimeType], BoolType),
+        start: TimeType,
         end: TimeType,
         is_before: new FuncType([TimeType], BoolType),
         is_after: new FuncType([TimeType], BoolType),
         show: new FuncType([], StringType)
     }),
-    genTypeMembers: (self) => ({
-        new: new FuncType([TimeType, TimeType], self),
-        ALWAYS: self,
-        NEVER: self,
-        from: new FuncType([TimeType], self),
-        to: new FuncType([TimeType], self)
-    })
+    genTypeMembers: (self) => {
+        const selfInstance = new DataEntity(assertDefined(self.asDataType));
+
+        return {
+            ...genCommonTypeMembers(self),
+            new: new FuncType([TimeType, TimeType], self),
+            ALWAYS: selfInstance,
+            NEVER: selfInstance,
+            from: new FuncType([TimeType], self),
+            to: new FuncType([TimeType], self)
+        };
+    }
 });
 
 
@@ -16892,6 +17020,9 @@ var StakingHashStakeKeyType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: StakeKeyHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, StakingHashType)
     })
 });
 
@@ -16906,6 +17037,9 @@ var StakingHashValidatorType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: StakingValidatorHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, StakingHashType)
     })
 });
 
@@ -16955,11 +17089,15 @@ var AssetClassType = new GenericType({
         mph: MintingPolicyHashType,
         token_name: ByteArrayType
     }),
-    genTypeMembers: (self) => ({
-        ...genCommonTypeMembers(self),
-        ADA: self,
-        new: new FuncType([MintingPolicyHashType, ByteArrayType], self)
-    })
+    genTypeMembers: (self) => {
+        const selfInstance = new DataEntity(assertDefined(self.asDataType));
+
+        return {
+            ...genCommonTypeMembers(self),
+            ADA: selfInstance,
+            new: new FuncType([MintingPolicyHashType, ByteArrayType], self)
+        }
+    }
 });
 
 
@@ -16984,21 +17122,25 @@ var ValueType = new GenericType({
         show: new FuncType([], StringType),
         to_map: new FuncType([], MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType)))
     }),
-    genTypeMembers: (self) => ({
-        ...genCommonTypeMembers(self),
-        __add: new FuncType([self, self], self),
-        __div: new FuncType([self, IntType], ValueType),
-        __geq: new FuncType([self, ValueType], BoolType),
-        __gt: new FuncType([self, ValueType], BoolType),
-        __leq: new FuncType([self, ValueType], BoolType),
-        __lt: new FuncType([self, ValueType], BoolType),
-        __mul: new FuncType([self, IntType], ValueType),
-		__sub: new FuncType([self, self], self),
-        from_map: new FuncType([MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType))], self),
-        lovelace: new FuncType([IntType], self),
-        new: new FuncType([AssetClassType, IntType], self),
-        ZERO: self
-    })
+    genTypeMembers: (self) => {
+        const selfInstance = new DataEntity(assertDefined(self.asDataType));
+
+        return {
+            ...genCommonTypeMembers(self),
+            __add: new FuncType([self, self], self),
+            __div: new FuncType([self, IntType], ValueType),
+            __geq: new FuncType([self, ValueType], BoolType),
+            __gt: new FuncType([self, ValueType], BoolType),
+            __leq: new FuncType([self, ValueType], BoolType),
+            __lt: new FuncType([self, ValueType], BoolType),
+            __mul: new FuncType([self, IntType], ValueType),
+            __sub: new FuncType([self, self], self),
+            from_map: new FuncType([MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType))], self),
+            lovelace: new FuncType([IntType], self),
+            new: new FuncType([AssetClassType, IntType], self),
+            ZERO: selfInstance
+        }
+    }
 });
 
 
@@ -17016,7 +17158,7 @@ const AddressType = new GenericType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: CredentialType,
-        staking_credential: StakingCredentialType
+        staking_credential: OptionType$(StakingCredentialType)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
@@ -17061,7 +17203,9 @@ const CertifyingActionDelegateType = new GenericEnumMemberType({
         ...genCommonInstanceMembers(self),
         delegator: StakingCredentialType,
 		pool_id: PubKeyHashType
-
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CertifyingActionType)
     })
 });
 
@@ -17076,6 +17220,9 @@ const CertifyingActionDeregisterType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CertifyingActionType)
     })
 });
 
@@ -17090,6 +17237,9 @@ const CertifyingActionRegisterType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CertifyingActionType)
     })
 });
 
@@ -17105,6 +17255,9 @@ const CertifyingActionRegisterPoolType = new GenericEnumMemberType({
         ...genCommonInstanceMembers(self),
         pool_id: PubKeyHashType,
         pool_vrf: PubKeyHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CertifyingActionType)
     })
 });
 
@@ -17120,6 +17273,9 @@ const CertifyingActionRetirePoolType = new GenericEnumMemberType({
         ...genCommonInstanceMembers(self),
         pool_id: PubKeyHashType,
         epoch: IntType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CertifyingActionType)
     })
 });
 
@@ -17154,6 +17310,9 @@ const CredentialPubKeyType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: PubKeyHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CredentialType)
     })
 });
 
@@ -17167,6 +17326,9 @@ const CredentialValidatorType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: ValidatorHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CredentialType)
     })
 });
 
@@ -17187,7 +17349,7 @@ const OutputDatumType = new GenericType({
         None: OutputDatumNoneType,
         new_hash: new FuncType([DatumHashType], OutputDatumHashType),
 		new_inline: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 
             return new ParametricFunc([a], new FuncType([a.ref], OutputDatumInlineType))
         })(),
@@ -17206,6 +17368,9 @@ const OutputDatumHashType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: DatumHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, OutputDatumType)
     })
 });
 
@@ -17220,6 +17385,9 @@ const OutputDatumInlineType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         data: RawDataType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, OutputDatumType)
     })
 });
 
@@ -17233,6 +17401,9 @@ const OutputDatumNoneType = new GenericEnumMemberType({
     parentType: OutputDatumType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, OutputDatumType)
     })
 });
 
@@ -17253,7 +17424,7 @@ class ScriptContextType extends Common {
 	constructor(purpose) {
 		super();
 
-        this.#purpose = purpose;
+        this.#purpose = assertDefined(purpose);
 	}
 
     /**
@@ -17292,13 +17463,14 @@ class ScriptContextType extends Common {
                     get_staking_purpose:new FuncType([], StakingPurposeType)
                 };
             case ScriptPurpose.Testing:
+            case -1:
                 return {
                     ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Minting),
                     ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Spending),
                     ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Staking),
                 };
             default:
-                throw new Error("unhandled ScriptPurpose");
+                throw new Error(`unhandled ScriptPurpose ${purpose}`);
         }
     }
     /**
@@ -17335,7 +17507,7 @@ class ScriptContextType extends Common {
             ...genCommonTypeMembers(this),
             new_certifying: new FuncType([TxType, CertifyingActionType], new ScriptContextType(ScriptPurpose.Staking)),
             new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType(ScriptPurpose.Minting)),
-            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(ScriptPurpose.Rewarding)),
+            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(ScriptPurpose.Staking)),
             new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType(ScriptPurpose.Spending))
         };
 	}
@@ -17394,7 +17566,6 @@ class ScriptContextType extends Common {
     }
 }
 
-
 /**
  * Builtin ScriptPurpose type (Minting| Spending| Rewarding | Certifying)
  * @package
@@ -17430,6 +17601,9 @@ const ScriptPurposeCertifyingType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         action: CertifyingActionType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, ScriptPurposeType)
     })
 });
 
@@ -17445,6 +17619,9 @@ const ScriptPurposeMintingType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         policy_hash: MintingPolicyHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, ScriptPurposeType)
     })
 });
 
@@ -17460,6 +17637,9 @@ const ScriptPurposeTypeRewarding = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, ScriptPurposeType)
     })
 });
 
@@ -17475,6 +17655,9 @@ const ScriptPurposeSpendingType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         output_id: TxOutputIdType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, ScriptPurposeType)
     })
 });
 
@@ -17509,6 +17692,9 @@ const StakingCredentialHashType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: StakingHashType,
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, StakingCredentialType)
     })
 });
 
@@ -17523,6 +17709,9 @@ const StakingCredentialPtrType = new GenericEnumMemberType({
     parentType: StakingCredentialType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, StakingCredentialType)
     })
 });
 
@@ -17555,6 +17744,9 @@ const StakingPurposeCertifyingType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         action: CertifyingActionType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, StakingPurposeType)
     })
 });
 
@@ -17570,6 +17762,9 @@ const StakingPurposeRewardingType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType,
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, StakingPurposeType)
     })
 });
 
@@ -17596,32 +17791,32 @@ const TxType = new GenericType({
         datums: MapType$(DatumHashType, RawDataType),
         id: TxIdType,
         find_datum_hash: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 
             return new ParametricFunc([a], new FuncType([a.ref], DatumHashType))
         })(),
         get_datum_data: new FuncType([TxOutputType], RawDataType),
         outputs_sent_to: new FuncType([PubKeyHashType], ListType$(TxOutputType)),
-        outputs_send_to_datum: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
+        outputs_sent_to_datum: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 
             return new ParametricFunc([a], new FuncType([PubKeyHashType, a.ref, BoolType], ListType$(TxOutputType)))
         })(),
         outputs_locked_by: new FuncType([ValidatorHashType], ListType$(TxOutputType)),
         outputs_locked_by_datum: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 
             return new ParametricFunc([a], new FuncType([ValidatorHashType, a.ref, BoolType], ListType$(TxOutputType)))
         })(),
         value_sent_to: new FuncType([PubKeyHashType], ValueType),
         value_sent_to_datum: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 
             return new ParametricFunc([a], new FuncType([PubKeyHashType, a.ref, BoolType], ValueType));
         })(),
         value_locked_by: new FuncType([ValidatorHashType], ValueType),
         value_locked_by_datum: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 
             return new ParametricFunc([a], new FuncType([ValidatorHashType, a.ref, BoolType], ValueType));
         })(),
@@ -17630,8 +17825,8 @@ const TxType = new GenericType({
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
         new: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
-            const b = new Parameter("b", new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
+            const b = new Parameter("b", `${FTPP}1`, new SerializableTypeClass());
             
             return new ParametricFunc([a, b], new FuncType([
                 ListType$(TxInputType), // 0
@@ -17644,7 +17839,8 @@ const TxType = new GenericType({
                 TimeRangeType, // 7
                 ListType$(PubKeyHashType), // 8
                 MapType$(ScriptPurposeType, a.ref), // 9
-                MapType$(DatumHashType, a.ref) // 10
+                MapType$(DatumHashType, b.ref), // 10
+                TxIdType // 11
             ], self))
         })()
     })
@@ -17663,7 +17859,7 @@ const TxIdType = new GenericType({
         show: new FuncType([], StringType)
     }),
     genTypeMembers: (self) => ({
-        ...genCommonInstanceMembers(self),
+        ...genCommonTypeMembers(self),
         __geq: new FuncType([self, self], BoolType),
         __gt: new FuncType([self, self], BoolType),
         __leq: new FuncType([self, self], BoolType),
@@ -17724,6 +17920,7 @@ const TxOutputIdType = new GenericType({
         index: IntType
     }),
     genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
         __geq: new FuncType([self, TxOutputIdType], BoolType),
         __gt: new FuncType([self, TxOutputIdType], BoolType),
         __leq: new FuncType([self, TxOutputIdType], BoolType),
@@ -18329,8 +18526,6 @@ class PathExpr extends Expr {
 		} else if (base.asType) {
 			const typeMembers = base.asType.typeMembers;
 
-			console.log(typeMembers, base.asType.instanceMembers, base.asType.toString());
-
 			member = typeMembers[this.#memberName.value];
 		}
 
@@ -18338,16 +18533,62 @@ class PathExpr extends Expr {
 			throw this.#memberName.referenceError(`${base.toString()}::${this.#memberName.value} not found`);
 		}
 
-		if (member.asEnumMemberType && member.asEnumMemberType.fieldNames.length == 0) {
-			console.log("detected 0 fields in ", member.toString())
-			return new DataEntity(member.asEnumMemberType);
-		} else if(base.asNamespace) {
-			return member;
-		} else if (member.asType?.toTyped().asFunc) {
-			console.log("HERE2", member.toString());
+		if (member.asType?.toTyped().asFunc) {
 			return member.asType.toTyped();
 		} else {
-			console.log("HERE", member.toString());
+			return member;
+		}
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		const v = this.cache;
+
+		if (v?.asNamed) {
+			return new IR(`${v.asNamed.path}`, this.site);
+		} else if (this.#baseExpr.cache?.asNamed) {
+			return new IR(`${this.#baseExpr.cache.asNamed.path}__${this.#memberName.value}`, this.site);
+		} else {
+			throw new Error(`expected named value, ${v?.toString()}`);
+		}
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#baseExpr.toString()}::${this.#memberName.toString()}`;
+	}
+}
+
+/**
+ * Name::Member expression which can instantiate zero field structs and enum members
+ * @package
+ */
+class ValuePathExpr extends PathExpr {
+
+	/**
+	 * @param {Site} site 
+	 * @param {Expr} baseExpr 
+	 * @param {Word} memberName
+	 */
+	constructor(site, baseExpr, memberName) {
+		super(site, baseExpr, memberName);
+	}
+	
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		const member = super.evalInternal(scope);
+
+		if (member.asEnumMemberType && member.asEnumMemberType.fieldNames.length == 0) {
+			return new DataEntity(member.asEnumMemberType);
+		} else {
 			return member;
 		}
 	}
@@ -18366,25 +18607,14 @@ class PathExpr extends Expr {
 	toIR(indent = "") {
 		const v = this.cache;
 
-		if (v?.asTyped?.type?.asEnumMemberType) {
+		if (v?.asTyped?.type?.asEnumMemberType && v.asTyped.type.asEnumMemberType.fieldNames.length == 0) {
 			return new IR([
 				new IR(`${v.asTyped.type.asEnumMemberType.path}____new`, this.site),
 				new IR("()")
 			]);
-		} else if (v?.asNamed) {
-			return new IR(`${v.asNamed.path}`, this.site);
-		} else if (this.#baseExpr.cache?.asNamed) {
-			return new IR(`${this.#baseExpr.cache.asNamed.path}__${this.#memberName.value}`, this.site);
 		} else {
-			throw new Error(`expected named value, ${v?.toString()}`);
+			return super.toIR(indent);
 		}
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `${this.#baseExpr.toString()}::${this.#memberName.toString()}`;
 	}
 }
 
@@ -18409,10 +18639,11 @@ class ListTypeExpr extends Expr {
 	 * @returns {Type}
 	 */
 	evalInternal(scope) {
-		const itemType = this.#itemTypeExpr.eval(scope).asType;
+		const itemType_ = this.#itemTypeExpr.eval(scope);
+		const itemType = itemType_.asType;
 
 		if (!itemType) {
-			throw this.#itemTypeExpr.typeError("not a type");
+			throw this.#itemTypeExpr.typeError(`'${itemType_.toString()}' isn't a type`);
 		}
 
 		return ListType$(itemType);
@@ -18492,12 +18723,7 @@ class OptionTypeExpr extends Expr {
 	 * @returns {Type}
 	 */
 	evalInternal(scope) {
-		const someType = this.#someTypeExpr.eval(scope).asType;
-		if (!someType) {
-			throw this.#someTypeExpr.typeError("option some type not a type");
-		}
-
-		return OptionType$(someType);
+		return OptionType$(this.#someTypeExpr.evalAsType(scope));
 	}
 
 	/**
@@ -18576,9 +18802,11 @@ class FuncArgTypeExpr extends Token {
 	 * @returns {ArgType}
 	 */
 	eval(scope) {
-		const type = this.#typeExpr.eval(scope).asType;
+		const type_ = this.#typeExpr.eval(scope);
+
+		const type = type_.asType;
 		if (!type) {
-			throw this.#typeExpr.typeError("not a type");
+			throw this.#typeExpr.typeError(`'${type_.toString()}' isn't a type`);
 		}
 
 		return new ArgType(this.#name, type, this.optional);
@@ -18695,11 +18923,11 @@ class AssignExpr extends Expr {
 			}
 
 			this.#nameTypes.forEach((nt, i) => {
-				nt.evalInAssignExpr(subScope, assertDefined(vals[i].type.asDataType), i)
+				nt.evalInAssignExpr(subScope, assertDefined(vals[i].type.asType), i)
 			});
 		} else if (upstreamVal.asTyped) {
 			if (this.#nameTypes[0].hasType()) {
-				this.#nameTypes[0].evalInAssignExpr(subScope, assertDefined(upstreamVal.asTyped.type.asDataType), 0);
+				this.#nameTypes[0].evalInAssignExpr(subScope, assertDefined(upstreamVal.asTyped.type.asType), 0);
 			} else if (this.#upstreamExpr.isLiteral()) {
 				// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
 				if ((this.#upstreamExpr instanceof CallExpr &&
@@ -18796,69 +19024,6 @@ class AssignExpr extends Expr {
 		} else {
 			return `(${this.#nameTypes.map(nt => nt.toString()).join(", ")}) = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
 		}
-	}
-}
-
-/**
- * print(...); ... expression
- * @package
- */
-class PrintExpr extends Expr {
-	#msgExpr;
-	#downstreamExpr;
-
-	/**
-	 * @param {Site} site 
-	 * @param {Expr} msgExpr 
-	 * @param {Expr} downstreamExpr 
-	 */
-	constructor(site, msgExpr, downstreamExpr) {
-		super(site);
-		this.#msgExpr = msgExpr;
-		this.#downstreamExpr = downstreamExpr;
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {EvalEntity}
-	 */
-	evalInternal(scope) {
-		const msgVal = this.#msgExpr.eval(scope).asInstance;
-
-		if (!msgVal) {
-			throw this.#msgExpr.typeError("not an instance");
-		}
-
-		if (!StringType.isBaseOf(msgVal.type)) {
-			throw this.#msgExpr.typeError("expected string arg for print");
-		}
-
-		return this.#downstreamExpr.eval(scope);
-	}
-
-	/**
-	 * @param {string} indent 
-	 * @returns {IR}
-	 */
-	toIR(indent = "") {
-		return new IR([
-			new IR("__core__trace", this.site), new IR("("), new IR("__helios__common__unStringData("),
-			this.#msgExpr.toIR(indent),
-			new IR(`), () -> {\n${indent}${TAB}`),
-			this.#downstreamExpr.toIR(indent + TAB),
-			new IR(`\n${indent}})()`)
-		]);
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		const downstreamStr = this.#downstreamExpr.toString();
-
-		assert(downstreamStr != undefined);
-
-		return `print(${this.#msgExpr.toString()}); ${downstreamStr}`;
 	}
 }
 
@@ -19061,6 +19226,13 @@ class LiteralDataExpr extends Expr {
 	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
+		return new DataEntity(this.#type);
+	}
+
+	/**
+	 * @type {EvalEntity}
+	 */
+	get cache() {
 		return new DataEntity(this.#type);
 	}
 
@@ -19750,24 +19922,16 @@ class TypeParameter {
 	}
 
 	/**
-	 * @returns {IR[]}
-	 */
-	collectIR() {
-		const type = this.typeClass.toType(this.#name.value);
-
-		return Common.typeClassMembers(this.typeClass).map(m => new IR(`${type.path}__${m}`, this.#name.site))
-	}
-
-	/**
 	 * @param {Scope} scope 
+	 * @param {string} path
 	 */
-	eval(scope) {
+	eval(scope, path) {
 		const typeClass = this.#typeClassExpr ? this.#typeClassExpr.eval(scope).asTypeClass : new AnyTypeClass();
 		if (!typeClass ) {
 			throw this.#typeClassExpr?.typeError("not a typeclass");
 		}
 
-		scope.set(this.#name, typeClass.toType(this.#name.value));
+		scope.set(this.#name, typeClass.toType(this.#name.value, path));
 	}
 
 	/**
@@ -19799,8 +19963,11 @@ class TypeParameters {
 		return this.#parameters.length > 0;
 	}
 
-	get parameters() {
-		return this.#parameters.map(p => new Parameter(p.name, p.typeClass));
+	/**
+	 * @param {string} basePath
+	 */
+	getParameters(basePath) {
+		return this.#parameters.map((p, i) => new Parameter(p.name, `${basePath}${i}`, p.typeClass));
 	}
 
 	/**
@@ -19816,60 +19983,30 @@ class TypeParameters {
 
 	/**
 	 * @param {Scope} scope 
+	 * @param {string} baseName
 	 */
-	eval(scope) {
+	eval(scope, baseName) {
 		if (this.#parameters.length == 0) {
 			return scope;
 		} else {
 			const subScope = new Scope(scope);
 
-			this.#parameters.forEach(p => p.eval(subScope));
+			this.#parameters.forEach((p, i) => p.eval(subScope, `${baseName}${i}`));
 
 			return subScope;
 		}
 	}
 
 	/**
-	 * 
 	 * @param {FuncType} fnType
+	 * @param {string} baseParamPath
 	 * @returns {EvalEntity}
 	 */
-	createInstance(fnType) {
+	createInstance(fnType, baseParamPath) {
 		if (this.#parameters.length == 0) {
 			return new FuncEntity(fnType);
 		} else {
-			return new ParametricFunc(this.parameters, fnType);
-		}
-	}
-
-	/**
-	 * TODO: indent properly
-	 * @param {string} indent
-	 * @param {IR} ir 
-	 * @returns {IR}
-	 */
-	wrapIR(indent, ir) {
-		/**
-		 * @type {IR[]}
-		 */
-		let members = [];
-
-		this.#parameters.forEach(p => {
-			const m = p.collectIR();
-
-			members = members.concat(m);
-		});
-
-		if (members.length > 0) {
-			return new IR([
-				new IR("("),
-				new IR(members).join(", "),
-				new IR(") -> {"),
-				ir,
-				new IR("}")
-			]);
-		} else {
-			return ir;
+			return new ParametricFunc(this.getParameters(baseParamPath), fnType);
 		}
 	}
 }
@@ -19930,7 +20067,7 @@ class FuncLiteralExpr extends Expr {
 	 * @type {Parameter[]}
 	 */
 	get	parameters() {
-		return this.#parameters.parameters;
+		return this.#parameters.getParameters(FTPP);
 	}
 
 	/**
@@ -19963,13 +20100,7 @@ class FuncLiteralExpr extends Expr {
 			if (e == null) {
 				return new AnyType();
 			} else {
-				const retType = e.eval(scope).asType;
-
-				if (!retType) {
-					throw e.typeError("not a type");
-				}
-
-				return retType;
+				return e.evalAsType(scope);
 			}
 		});
 
@@ -19981,7 +20112,7 @@ class FuncLiteralExpr extends Expr {
 	 * @returns {FuncType}
 	 */
 	evalType(scope) {
-		scope = this.#parameters.eval(scope);
+		scope = this.#parameters.eval(scope, FTPP);
 
 		return this.evalTypeInternal(scope);
 	}
@@ -19991,7 +20122,7 @@ class FuncLiteralExpr extends Expr {
 	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		scope = this.#parameters.eval(scope);
+		scope = this.#parameters.eval(scope, FTPP);
 
 		const fnType = this.evalTypeInternal(scope);
 		
@@ -20054,7 +20185,7 @@ class FuncLiteralExpr extends Expr {
 
 		subScope.assertAllUsed();
 
-		let res = this.#parameters.createInstance(fnType);
+		let res = this.#parameters.createInstance(fnType, FTPP);
 
 		return res;
 	}
@@ -20123,8 +20254,6 @@ class FuncLiteralExpr extends Expr {
 				new IR(`\n${methodIndent}}`),
 			]);
 		}
-
-		ir = this.#parameters.wrapIR(indent, ir);
 
 		return ir;
 	}
@@ -20205,37 +20334,17 @@ class ParametricExpr extends Expr {
 
 	/**
 	 * Reused by CallExpr
-	 * @param {IR} baseIR 
 	 * @param {Type[]} paramTypes
-	 * @param {TypeClass[]} typeClasses
-	 * @param {Site[]} paramSites
+	 * @returns {string}
 	 */
-	static toApplicationIR(baseIR, paramTypes, typeClasses, paramSites = []) {
-		assert(typeClasses.length == paramTypes.length);
-
-		/**
-		 * @type {IR[]}
-		 */
-		const injected = [];
-
-		paramTypes.forEach((pt, i) => {
-			const ptPath = assertDefined(pt.asNamed).path;
-
-			injected.push(new IR(ptPath, paramSites[i]));
-		});
-
-		let ir = baseIR;
-
-		if (injected.length > 0) {
-			ir = new IR([
-				ir,
-				new IR("["),
-				new IR(injected).join("@"),
-				new IR("]")
-			])
-		}
-
-		return ir;
+	static toApplicationIR(paramTypes) {
+		return `[${paramTypes.map(pt => {
+			if (pt instanceof FuncType) {
+				return "__fn";
+			} else {
+				return assertDefined(pt.asNamed).path;
+			}
+		}).join("@")}]`;
 	}
 
 	/**
@@ -20243,16 +20352,13 @@ class ParametricExpr extends Expr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		const paramTypes = this.paramTypes;
+		const params = ParametricExpr.toApplicationIR(this.paramTypes);
 
-		const typeClasses = this.#baseExpr.cache?.asParametric?.typeClasses ?? [];
-
-		return ParametricExpr.toApplicationIR(
-			this.#baseExpr.toIR(indent),
-			paramTypes,
-			typeClasses,
-			this.#parameters.map(p => p.site)
-		)
+		if (this.#baseExpr instanceof MemberExpr) {
+			return this.#baseExpr.toIR(indent, params);
+		} else {
+			return new IR(`${this.#baseExpr.toIR().toString()}${params}`, this.site);
+		}
 	}
 
 	/**
@@ -20486,7 +20592,6 @@ class BinaryExpr extends Expr {
 					return res;
 				} catch (e) {
 					if (e instanceof UserError) {
-						console.log(e.message);
 						continue;
 					} else {
 						throw e;
@@ -20678,6 +20783,11 @@ class CallExpr extends Expr {
 	#paramTypes;
 
 	/**
+	 * @type {null | Func}
+	 */
+	#appliedFnVal;
+
+	/**
 	 * @param {Site} site 
 	 * @param {Expr} fnExpr 
 	 * @param {CallArgExpr[]} argExprs 
@@ -20687,6 +20797,7 @@ class CallExpr extends Expr {
 		this.#fnExpr = fnExpr;
 		this.#argExprs = argExprs;
 		this.#paramTypes = [];
+		this.#appliedFnVal = null; // only for inferred parametric funcions
 	}
 
 	get fnExpr() {
@@ -20768,7 +20879,9 @@ class CallExpr extends Expr {
 		if (fnVal.asParametric) {
 			this.#paramTypes = [];
 
-			return fnVal.asParametric.call(this.site, posArgVals, namedArgVals, this.#paramTypes);
+			this.#appliedFnVal = fnVal.asParametric.inferCall(this.site, posArgVals, namedArgVals, this.#paramTypes);
+
+			return this.#appliedFnVal.call(this.site, posArgVals, namedArgVals);
 		} else if (fnVal.asFunc) {
 			return fnVal.asFunc.call(this.site, posArgVals, namedArgVals);
 		} else {
@@ -20781,7 +20894,11 @@ class CallExpr extends Expr {
 	 * @type {FuncType}
 	 */
 	get fn() {
-		return assertClass(this.#fnExpr.cache?.asTyped?.type, FuncType);
+		if (this.#fnExpr.cache?.asParametric) {
+			return assertClass(this.#appliedFnVal?.type?.asType, FuncType);
+		} else {
+			return assertClass(this.#fnExpr.cache?.asTyped?.type.asType, FuncType);
+		}
 	}
 
 	/**
@@ -20840,14 +20957,34 @@ class CallExpr extends Expr {
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
-		const fn = this.fn;
-		let fnIR = this.#fnExpr.toIR(indent);
-		const fnVal = this.#fnExpr.cache?.asParametric;
-		if (fnVal instanceof ParametricFunc) {
+	toFnExprIR(indent = "") {
+		if (this.#fnExpr.cache?.asParametric instanceof ParametricFunc) {
 			assert(this.#paramTypes.length > 0);
-			fnIR = ParametricExpr.toApplicationIR(fnIR, this.#paramTypes, fnVal.typeClasses);
+
+			const params = ParametricExpr.toApplicationIR(this.#paramTypes);
+
+			if (this.#fnExpr instanceof MemberExpr) {
+				return this.#fnExpr.toIR(indent, params);
+			} else {
+				return new IR(`${this.#fnExpr.toIR(indent).toString()}${params}`, this.#fnExpr.site);
+			}
+		} else {
+			return this.#fnExpr.toIR(indent);
 		}
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		let fnIR = this.toFnExprIR(indent);
+
+		/**
+		 * We need the func type for things like multivalued args and optional args 
+		 * @type {FuncType} 
+		 */
+		const fn = this.fn;
 
 		/**
 		 * First step is to eliminate the named args
@@ -21026,10 +21163,16 @@ class MemberExpr extends Expr {
 			throw this.#objExpr.site.typeError("not an instance");
 		}
 
-		const member = objVal.instanceMembers[this.#memberName.value];
+		let member = objVal.instanceMembers[this.#memberName.value];
 		if (!member) {
-			console.log(objVal.instanceMembers)
-			throw this.#memberName.referenceError(`'${objVal.type.toString()}.${this.#memberName.value}' undefined`);
+
+			if (objVal?.type?.asEnumMemberType) {
+				member = objVal.type.asEnumMemberType.parentType.instanceMembers[this.#memberName.value];
+			}
+
+			if (!member) {
+				throw this.#memberName.referenceError(`'${objVal.type.toString()}.${this.#memberName.value}' undefined`);
+			}
 		}
 
 		if (member.asParametric) {
@@ -21045,9 +21188,10 @@ class MemberExpr extends Expr {
 
 	/**
 	 * @param {string} indent 
+	 * @param {string} params - applied type parameters must be inserted Before the call to self
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(indent = "", params = "") {
 		// members can be functions so, field getters are also encoded as functions for consistency
 
 		const objType = assertDefined(this.#objExpr.cache?.asTyped?.type?.asNamed); 
@@ -21055,11 +21199,11 @@ class MemberExpr extends Expr {
 		let objPath = objType.path;
 
 		// if we are getting the member of an enum member we should check if it a field or method, because for a method we have to use the parent type
-		if (objType.asEnumMemberType && (objType.asEnumMemberType.fieldNames.findIndex(n => n == this.#memberName.value) == -1)) {
+		if (objType.asEnumMemberType && (objType.asEnumMemberType.instanceMembers[this.#memberName.value] === undefined)) {
 			objPath = objType.asEnumMemberType.parentType.path;
 		}
 
-		let ir = new IR(`${objPath}__${this.#memberName.toString()}`, this.site);
+		let ir = new IR(`${objPath}__${this.#memberName.toString()}${params}`, this.site);
 
 		return new IR([
 			ir, new IR("("),
@@ -21350,30 +21494,31 @@ class DestructExpr {
 				throw new Error("typeExpr not set");
 			}
 		} else {
-			const type = this.#typeExpr.eval(scope).asType;
-			if (!type) {
-				throw this.#typeExpr.typeError("not a type");
-			}
-
-			return type;
+			return this.#typeExpr.evalAsType(scope);
 		}
 	}
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {DataType} upstreamType 
+	 * @param {Type} upstreamType 
 	 */
 	evalDestructExprs(scope, upstreamType) {
 		if (this.#destructExprs.length > 0) {
-			if (upstreamType.fieldNames.length != this.#destructExprs.length) {
-				throw this.site.typeError(`wrong number of destruct fields, expected ${upstreamType.fieldNames.length}, got ${this.#destructExprs.length}`);
+			if (!upstreamType.asDataType) {
+				throw this.site.typeError("can't destruct a function");
+			}
+
+			const upstreamFieldNames = upstreamType.asDataType.fieldNames;
+
+			if (upstreamFieldNames.length != this.#destructExprs.length) {
+				throw this.site.typeError(`wrong number of destruct fields, expected ${upstreamFieldNames.length}, got ${this.#destructExprs.length}`);
 			}
 
 			for (let i = 0; i < this.#destructExprs.length; i++) {
 
 				this.#destructExprs[i].evalInternal(
 					scope, 
-					assertDefined(upstreamType.instanceMembers[upstreamType.fieldNames[i]].asDataType), 
+					assertDefined(upstreamType.instanceMembers[upstreamFieldNames[i]].asDataType), 
 					i
 				);
 			}
@@ -21382,7 +21527,7 @@ class DestructExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {DataType} upstreamType
+	 * @param {Type} upstreamType
 	 * @param {number} i
 	 */
 	evalInternal(scope, upstreamType, i) {
@@ -21434,12 +21579,12 @@ class DestructExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {DataType} upstreamType
+	 * @param {Type} upstreamType
 	 * @param {number} i
 	 */
 	evalInAssignExpr(scope, upstreamType, i) {
 		/**
-		 * @param {null | DataType} t 
+		 * @param {null | Type} t 
 		 */
 		const checkType = (t) => {
 			if (!t) {
@@ -21468,18 +21613,16 @@ class DestructExpr {
 
 		const t = this.evalType(scope);
 
-		if (t.asDataType) {
-			/*if (i != 0) {
-				throw this.site.typeError("expected multi instance");
-			}*/
-
-			checkType(t.asDataType);
+		if (t.asType) {
+			checkType(t.asType);
 		} else if (t.asMulti) {
 			if (i >= t.asMulti.values.length) {
 				throw this.site.typeError(`expected multi instace with only ${t.asMulti.values.length} items`);
 			}
 
 			checkType(t.asMulti.values[i].type.asDataType);
+		} else {
+			throw new Error("unexpected");
 		}
 	}
 
@@ -21654,7 +21797,7 @@ class SwitchCase extends Token {
 	evalEnumMember(scope, enumType) {
 		const caseType = enumType.typeMembers[this.memberName.value]?.asEnumMemberType;
 		if (!caseType) {
-			throw this.memberName.typeError("not a type");
+			throw this.memberName.typeError(`${this.memberName.value} isn't a valid enum member of ${enumType.toString()}`);
 		}
 
 		this.#constrIndex = caseType.constrIndex;
@@ -22411,9 +22554,9 @@ class ConstStatement extends Statement {
 	 */
 	get type() {
 		if (this.#typeExpr === null) {
-			return assertDefined(this.#valueExpr.cache?.asTyped?.type?.asDataType);
+			return assertDefined(this.#valueExpr.cache?.asTyped?.type?.asDataType, this.#valueExpr.cache?.toString() ?? this.#valueExpr.toString());
 		} else {
-			return assertDefined(this.#typeExpr.cache?.asDataType);
+			return assertDefined(this.#typeExpr.cache?.asDataType, this.#typeExpr.cache?.toString() ?? this.#typeExpr.toString());
 		}
 	}
 
@@ -22425,11 +22568,7 @@ class ConstStatement extends Statement {
 		const type = this.type;
 		const site = this.#valueExpr.site;
 
-		if (BoolType.isBaseOf(type)) {
-			this.#valueExpr = new PrimitiveLiteralExpr(new BoolLiteral(site, data.index == 1));
-		} else {
-			this.#valueExpr = new LiteralDataExpr(site, type, data);
-		}
+		this.#valueExpr = new LiteralDataExpr(site, type, data);
 	}
 
 	/**
@@ -22493,11 +22632,22 @@ class ConstStatement extends Statement {
 	 * @returns {IR}
 	 */
 	toIRInternal() {
+		let ir = this.#valueExpr.toIR();
+
+		if (this.#valueExpr instanceof LiteralDataExpr) {
+			ir = new IR([
+				new IR(`${this.#valueExpr.type.path}__from_data`),
+				new IR("("),
+				ir,
+				new IR(")")
+			]);
+		}
+
 		return new IR([
 			new IR("const(", this.site),
-			this.#valueExpr.toIR(),
+			ir,
 			new IR(")")
-		]);	
+		]);
 	}
 
 	/**
@@ -23166,7 +23316,13 @@ class FuncStatement extends Statement {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		map.set(this.path, this.toIRInternal());
+		let key = this.path
+		
+		if (this.#funcExpr.parameters.length > 0) {
+			key = key + `[${this.#funcExpr.parameters.map((_, i) => `${FTPP}${i}`).join("@")}]`;
+		}
+
+		map.set(key, this.toIRInternal());
 	}
 
 	/**
@@ -23683,6 +23839,8 @@ class ImplDefinition {
 		for (let s of this.#statements) {
 			if (FuncStatement.isMethod(s)) {
 				instanceMembers[s.name.value] = s.evalType(scope);
+			} else if (s instanceof ConstStatement) {
+				typeMembers[s.name.value] = s.evalType(scope).toTyped();
 			} else {
 				typeMembers[s.name.value] = s.evalType(scope);
 			}
@@ -25173,7 +25331,7 @@ function buildValueExpr(ts, prec = 0) {
 		 * @returns 
 		 */
 		function (ts_, prec_) {
-			return buildMaybeAssignOrPrintExpr(ts_, prec_);
+			return buildMaybeAssignOrChainExpr(ts_, prec_);
 		},
 		makeBinaryExprBuilder('||'), // 1: logical or operator
 		makeBinaryExprBuilder('&&'), // 2: logical and operator
@@ -25202,10 +25360,9 @@ function buildValueExpr(ts, prec = 0) {
  * @param {number} prec
  * @returns {Expr | null}
  */
-function buildMaybeAssignOrPrintExpr(ts, prec) {
+function buildMaybeAssignOrChainExpr(ts, prec) {
 	let semicolonPos = SymbolToken.find(ts, ";");
 	const equalsPos = SymbolToken.find(ts, "=");
-	const printPos = Word.find(ts, "print");
 
 	if (semicolonPos == -1) {
 		if (equalsPos != -1) {
@@ -25215,7 +25372,7 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 			return buildValueExpr(ts, prec + 1);
 		}
 	} else {
-		if ((equalsPos == -1 || equalsPos > semicolonPos) && (printPos == -1 || printPos > semicolonPos)) {
+		if (equalsPos == -1 || equalsPos > semicolonPos) {
 			const upstreamExpr = buildValueExpr(ts.splice(0, semicolonPos), prec+1);
 			const site = assertDefined(ts.shift()).site;
 
@@ -25236,13 +25393,6 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 				}
 			}
 		} else if (equalsPos != -1 && equalsPos < semicolonPos) {
-			if (printPos != -1) {
-				if (printPos <= semicolonPos) {
-					ts[printPos].syntaxError("expected ';' after 'print(...)'");
-					return null;
-				}
-			}
-
 			const equals = ts[equalsPos].assertSymbol("=");
 
 			if (!equals) {
@@ -25288,57 +25438,6 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 				return null;
 			} else {
 				return new AssignExpr(equalsSite, lhs, upstreamExpr, downstreamExpr);
-			}
-		} else if (printPos != -1 && printPos < semicolonPos) {
-			if (equalsPos != -1) {
-				if (equalsPos <= semicolonPos) {
-					ts[equalsPos].syntaxError("expected ';' after '...=...'");
-					return null;
-				}
-			}
-
-			const print = assertDefined(ts.shift()).assertWord("print");
-
-			if (!print) {
-				return null;
-			}
-
-			const printSite = print.site;
-
-			const maybeParens = ts.shift();
-
-			if (maybeParens === undefined) {
-				ts[printPos].syntaxError("expected '(...)' after 'print'");
-				return null;
-			} else {
-				const parens = maybeParens.assertGroup("(", 1);
-
-				if (!parens) {
-					return null;
-				}
-
-				const msgExpr = buildValueExpr(parens.fields[0]);
-
-				const semicolon = assertToken(ts.shift(), parens.site)?.assertSymbol(";")
-
-				if (!semicolon) {
-					return null;
-				}
-
-				const semicolonSite = semicolon.site;
-
-				if (ts.length == 0) {
-					semicolonSite.syntaxError("expected expression after ';'");
-					return null;
-				}
-
-				const downstreamExpr = buildValueExpr(ts, prec);
-
-				if (!downstreamExpr || !msgExpr) {
-					return null;
-				}
-
-				return new PrintExpr(printSite, msgExpr, downstreamExpr);
 			}
 		} else {
 			ts[0].syntaxError("unhandled");
@@ -26695,14 +26794,13 @@ function buildValuePathExpr(ts) {
 		return null;
 	}
 	
-	return new PathExpr(typeExpr.site, typeExpr, memberName);
+	return new ValuePathExpr(typeExpr.site, typeExpr, memberName);
 }
 
 
 /////////////////////////////
 // Section 26: IR definitions
 /////////////////////////////
-
 /**
  * For collecting test coverage statistics
  * @type {?((name: string, count: number) => void)}
@@ -26716,6 +26814,8 @@ var onNotifyRawUsage = null;
 function setRawUsageNotifier(callback) {
 	onNotifyRawUsage = callback;
 }
+
+const RE_BUILTIN = new RegExp("(?<![@[])__helios[a-zA-Z0-9_@[\\]]*", "g");
 
 /**
  * Wrapper for a builtin function (written in IR)
@@ -26738,9 +26838,7 @@ class RawFunc {
 		this.#definition = definition;
 		this.#dependencies = new Set();
 
-		let re = new RegExp("__helios__[a-zA-Z_0-9]*", "g");
-
-		let matches = this.#definition.match(re);
+		let matches = this.#definition.match(RE_BUILTIN);
 
 		if (matches !== null) {
 			for (let match of matches) {
@@ -26754,9 +26852,16 @@ class RawFunc {
 	}
 
 	/**
+	 * @returns {IR}
+	 */
+	toIR() {
+		return new IR(replaceTabs(this.#definition))
+	}
+
+	/**
 	 * Loads 'this.#dependecies' (if not already loaded), then load 'this'
 	 * @param {Map<string, RawFunc>} db 
-	 * @param {Map<string, IR>} dst 
+	 * @param {IRDefinitions} dst 
 	 * @returns {void}
 	 */
 	load(db, dst) {
@@ -26775,7 +26880,7 @@ class RawFunc {
 				}
 			}
 
-			dst.set(this.#name, new IR(replaceTabs(this.#definition)));
+			dst.set(this.#name, this.toIR());
 		}
 	}
 }
@@ -26807,7 +26912,7 @@ function makeRawFunctions() {
 	function addNeqFunc(ns) {
 		add(new RawFunc(`${ns}____neq`, 
 		`(self, other) -> {
-			__helios__common__not(${ns}____eq(self, other))
+			__helios__bool____not(${ns}____eq(self, other))
 		}`));
 	}
 
@@ -26876,11 +26981,17 @@ function makeRawFunctions() {
 	/**
 	 * Adds basic auto members to a fully named enum type
 	 * @param {string} ns 
+	 * @param {number} constrIndex
 	 */
-	function addEnumDataFuncs(ns) {
+	function addEnumDataFuncs(ns, constrIndex) {
 		add(new RawFunc(`${ns}____eq`, "__helios__common____eq"));
 		add(new RawFunc(`${ns}____neq`, "__helios__common____neq"));
 		add(new RawFunc(`${ns}__serialize`, "__helios__common__serialize"));
+		add(new RawFunc(`${ns}____to_data`, "__helios__common__identity"));
+		add(new RawFunc(`${ns}__from_data`, 
+		`(data) -> {
+			__helios__common__assert_constr_index(data, ${constrIndex})
+		}`))
 	}
 
 	/**
@@ -26956,14 +27067,10 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__common__identity",
 	`(self) -> {self}`));
-	add(new RawFunc("__helios__common__not",
-	`(b) -> {
-		__core__ifThenElse(b, false, true)
-	}`));
 	add(new RawFunc("__helios__common____eq", "__core__equalsData"));
 	add(new RawFunc("__helios__common____neq",
 	`(a, b) -> {
-		__helios__common__not(__core__equalsData(a, b))
+		__helios__bool____not(__core__equalsData(a, b))
 	}`));
 	add(new RawFunc("__helios__common__serialize",
 	`(self) -> {
@@ -27185,18 +27292,10 @@ function makeRawFunctions() {
 				)()
 			}
 		)
-}`));
+	}`));
 	add(new RawFunc("__helios__common__is_in_bytearray_list",
 	`(lst, key) -> {
 		__helios__common__any(lst, (item) -> {__core__equalsData(item, key)})
-	}`));
-	add(new RawFunc("__helios__common__unStringData",
-	`(d) -> {
-		__core__decodeUtf8(__core__unBData(d))
-	}`));
-	add(new RawFunc("__helios__common__stringData",
-	`(s) -> {
-		__core__bData(__core__encodeUtf8(s))
 	}`));
 	add(new RawFunc("__helios__common__length", 
 	`(lst) -> {
@@ -27210,22 +27309,6 @@ function makeRawFunctions() {
 					() -> {__core__addInteger(recurse(recurse, __core__tailList(lst)), 1)}
 				)()
 			}
-		)
-	}`));
-	add(new RawFunc("__helios__common__max",
-	`(a, b) -> {
-		__core__ifThenElse(
-			__core__lessThanInteger(a, b),
-			b,
-			a
-		)
-	}`));
-	add(new RawFunc("__helios__common__min", 
-	`(a, b) -> {
-		__core__ifThenElse(
-			__core__lessThanEqualsInteger(a, b),
-			a,
-			b
 		)
 	}`));
 	add(new RawFunc("__helios__common__concat", 
@@ -27245,39 +27328,33 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__common__slice_bytearray",
 	`(self, selfLengthFn) -> {
 		(start, end) -> {
-			(self) -> {
-				(start, end) -> {
-					(normalize) -> {
-						__core__bData(
-							(fn) -> {
-								fn(normalize(start))
-							}(
-								(start) -> {
-									(fn) -> {
-										fn(normalize(end))
-									}(
-										(end) -> {
-											__core__sliceByteString(start, __core__subtractInteger(end, __helios__common__max(start, 0)), self)
-										}
-									)
-								}
-							)
+			(normalize) -> {
+				(fn) -> {
+					fn(normalize(start))
+				}(
+					(start) -> {
+						(fn) -> {
+							fn(normalize(end))
+						}(
+							(end) -> {
+								__core__sliceByteString(start, __core__subtractInteger(end, __helios__int__max(start, 0)), self)
+							}
 						)
-					}(
-						(pos) -> {
-							__core__ifThenElse(
-								__core__lessThanInteger(pos, 0),
-								() -> {
-									__core__addInteger(__core__addInteger(selfLengthFn(self), 1), pos)
-								},
-								() -> {
-									pos
-								}
-							)()
+					}
+				)
+			}(
+				(pos) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(pos, 0),
+						() -> {
+							__core__addInteger(__core__addInteger(selfLengthFn(self), 1), pos)
+						},
+						() -> {
+							pos
 						}
-					)
-				}(__core__unIData(start), __core__unIData(end))
-			}(__core__unBData(self))
+					)()
+				}
+			)
 		}
 	}`));
 	add(new RawFunc("__helios__common__starts_with", 
@@ -27365,9 +27442,9 @@ function makeRawFunctions() {
 		__core__mkCons(${first}, __helios__common__list_${(i-1).toString()}(${woFirst.join(", ")}))
 	}`));
 	}
-	add(new RawFunc("__helios__common__hash_datum_data", 
+	add(new RawFunc(`__helios__common__hash_datum_data[${FTPP}0]`, 
 	`(data) -> {
-		__core__blake2b_256(__core__serialiseData(data))
+		__core__blake2b_256(${FTPP}0__serialize(data)())
 	}`));
 
 
@@ -27444,17 +27521,17 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__int____geq",
 	`(a, b) -> {
-		__helios__common__not(__core__lessThanInteger(a, b))
+		__helios__bool____not(__core__lessThanInteger(a, b))
 	}`));
 	add(new RawFunc("__helios__int____gt",
 	`(a, b) -> {
-		__helios__common__not(__core__lessThanEqualsInteger(a, b))
+		__helios__bool____not(__core__lessThanEqualsInteger(a, b))
 	}`));
 	add(new RawFunc("__helios__int____leq", "__core__lessThanEqualsInteger"));
 	add(new RawFunc("__helios__int____lt", "__core__lessThanInteger"));
 	add(new RawFunc("__helios__int____geq1",
 	`(a, b) -> {
-		__helios__common__not(
+		__helios__bool____not(
 			__core__lessThanInteger(
 				__core__multiplyInteger(a, __helios__real__ONE),
 				b
@@ -27463,7 +27540,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__int____gt1",
 	`(a, b) -> {
-		__helios__common__not(
+		__helios__bool____not(
 			__core__lessThanEqualsInteger(
 				__core__multiplyInteger(a, __helios__real__ONE),
 				b
@@ -28117,7 +28194,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__real____neq1",
 	`(a, b) -> {
-		__helios__common__not(
+		__helios__bool____not(
 			__core__equalsInteger(
 				a,
 				__core__multiplyInteger(b, __helios__real__ONE)
@@ -28126,7 +28203,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__real____geq1", 
 	`(a, b) -> {
-		__helios__common__not(
+		__helios__bool____not(
 			__core__lessThanInteger(
 				a,
 				__core__multiplyInteger(b, __helios__real__ONE)
@@ -28135,7 +28212,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__real____gt1", 
 	`(a, b) -> {
-		__helios__common__not(
+		__helios__bool____not(
 			__core__lessThanEqualsInteger(
 				a, 
 				__core__multiplyInteger(b, __helios__real__ONE)
@@ -28221,11 +28298,11 @@ function makeRawFunctions() {
 	addSerializeFunc("__helios__bool");
 	add(new RawFunc("__helios__bool____eq", 
 	`(a, b) -> {
-		__core__ifThenElse(a, b, __helios__common__not(b))
+		__core__ifThenElse(a, b, __helios__bool____not(b))
 	}`));
 	add(new RawFunc("__helios__bool____neq",
 	`(a, b) -> {
-		__core__ifThenElse(a, __helios__common__not(b), b)
+		__core__ifThenElse(a, __helios__bool____not(b), b)
 	}`));
 	add(new RawFunc("__helios__bool__from_data", 
 	`(d) -> {
@@ -28255,11 +28332,14 @@ function makeRawFunctions() {
 			() -> {b()}
 		)()
 	}`));
-	add(new RawFunc("__helios__bool____not", "__helios__common__not"));
+	add(new RawFunc("__helios__bool____not", 
+	`(b) -> {
+		__core__ifThenElse(b, false, true)
+	}`));
 	add(new RawFunc("__helios__bool__to_int",
 	`(self) -> {
 		() -> {
-			__core__iData(__core__ifThenElse(self, 1, 0))
+			__core__ifThenElse(self, 1, 0)
 		}
 	}`));
 	add(new RawFunc("__helios__bool__show",
@@ -28286,19 +28366,29 @@ function makeRawFunctions() {
 	addSerializeFunc("__helios__string");
 	addNeqFunc("__helios__string");
 	add(new RawFunc("__helios__string____eq", "__core__equalsString"));
-	add(new RawFunc("__helios__string__from_data", "__helios__common__unStringData"));
-	add(new RawFunc("__helios__string____to_data", "__helios__common__stringData"));
+	add(new RawFunc("__helios__string__from_data", 
+	`(d) -> {
+		__core__decodeUtf8(__core__unBData(d))
+	}`));
+	add(new RawFunc("__helios__string____to_data", 
+	`(s) -> {
+		__core__bData(__core__encodeUtf8(s))
+	}`));
 	add(new RawFunc("__helios__string____add", "__core__appendString"));
 	add(new RawFunc("__helios__string__starts_with", 
 	`(self) -> {
 		(prefix) -> {
-			__helios__bytearray__starts_with(__core__encodeUtf8(self))(__core__encodeUtf8(prefix)
+			__helios__bytearray__starts_with(
+				__core__encodeUtf8(self)
+			)(__core__encodeUtf8(prefix))
 		}
 	}`));
 	add(new RawFunc("__helios__string__ends_with", 
 	`(self) -> {
 		(suffix) -> {
-			__helios__bytearray__ends_with(__core__encodeUtf8(self))(__core__encodeUtf8(suffix)
+			__helios__bytearray__ends_with(
+				__core__encodeUtf8(self)
+			)(__core__encodeUtf8(suffix))
 		}
 	}`));
 	add(new RawFunc("__helios__string__encode_utf8",
@@ -28318,11 +28408,11 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__bytearray____add", "__core__appendByteString"));
 	add(new RawFunc("__helios__bytearray____geq",
 	`(a, b) -> {
-		__helios__common__not(__core__lessThanByteString(a, b))
+		__helios__bool____not(__core__lessThanByteString(a, b))
 	}`));
 	add(new RawFunc("__helios__bytearray____gt",
 	`(a, b) -> {
-		__helios__common__not(__core__lessThanEqualsByteString(a, b))
+		__helios__bool____not(__core__lessThanEqualsByteString(a, b))
 	}`));
 	add(new RawFunc("__helios__bytearray____leq", "__core__lessThanEqualsByteString"));
 	add(new RawFunc("__helios__bytearray____lt", "__core__lessThanByteString"));
@@ -28373,7 +28463,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		() -> {
 			(recurse) -> {
-				__core__decodeUtf8(recurse(recurse, self))
+				recurse(recurse, self)
 			}(
 				(recurse, self) -> {
 					(n) -> {
@@ -28381,13 +28471,21 @@ function makeRawFunctions() {
 							__core__lessThanInteger(0, n),
 							() -> {
 								__core__appendString(
-									__core__decodeUtf8((hexBytes) -> {
-										__core__ifThenElse(
-											__core__equalsInteger(__core__lengthOfByteString(hexBytes), 1),
-											__core__consByteString(48, hexBytes),
-											hexBytes
+									__core__decodeUtf8(
+										(hexBytes) -> {
+											__core__ifThenElse(
+												__core__equalsInteger(__core__lengthOfByteString(hexBytes), 1),
+												__core__consByteString(48, hexBytes),
+												hexBytes
+											)
+										}(
+											__core__encodeUtf8(
+												__helios__int__to_hex(
+													__core__indexByteString(self, 0)
+												)()
+											)
 										)
-									}(__core__unBData(__helios__int__to_hex(__core__iData(__core__indexByteString(self, 0)))()))), 
+									), 
 									recurse(recurse, __core__sliceByteString(1, n, self))
 								)
 							},
@@ -28403,12 +28501,12 @@ function makeRawFunctions() {
 
 
 	// List builtins
-	addSerializeFunc("__helios__list[__T0]");
-	addNeqFunc("__helios__list[__T0]");
-	addDataLikeEqFunc("__helios__list[__T0]");
-	add(new RawFunc("__helios__list[__T0]__from_data", "__core__unListData"));
-	add(new RawFunc("__helios__list[__T0]____to_data", "__core__listData"));
-	add(new RawFunc("__helios__list[__T0]__new",
+	addSerializeFunc(`__helios__list[${TTPP}0]`);
+	addNeqFunc(`__helios__list[${TTPP}0]`);
+	addDataLikeEqFunc(`__helios__list[${TTPP}0]`);
+	add(new RawFunc(`__helios__list[${TTPP}0]__from_data`, "__core__unListData"));
+	add(new RawFunc(`__helios__list[${TTPP}0]____to_data`, "__core__listData"));
+	add(new RawFunc(`__helios__list[${TTPP}0]__new`,
 	`(n, fn) -> {
 		(recurse) -> {
 			recurse(recurse, 0)
@@ -28416,34 +28514,34 @@ function makeRawFunctions() {
 			(recurse, i) -> {
 				__core__ifThenElse(
 					__core__lessThanInteger(i, n),
-					() -> {__core__mkCons(__T0__from_data(fn(i)), recurse(recurse, __core__addInteger(i, 1)))},
+					() -> {__core__mkCons(${TTPP}0____to_data(fn(i)), recurse(recurse, __core__addInteger(i, 1)))},
 					() -> {__core__mkNilData(())}
 				)()
 			}
 		)
 	}`));
-	add(new RawFunc("__helios__list[__T0]__new_const",
+	add(new RawFunc(`__helios__list[${TTPP}0]__new_const`,
 	`(n, item) -> {
-		__helios__list[__T0]__new(n, (i) -> {item})
+		__helios__list[${TTPP}0]__new(n, (i) -> {item})
 	}`));
-	add(new RawFunc("__helios__list[__T0]____add", "__helios__common__concat"));
-	add(new RawFunc("__helios__list[__T0]__length", "__helios__common__length"));
-	add(new RawFunc("__helios__list[__T0]__head", 
+	add(new RawFunc(`__helios__list[${TTPP}0]____add`, "__helios__common__concat"));
+	add(new RawFunc(`__helios__list[${TTPP}0]__length`, "__helios__common__length"));
+	add(new RawFunc(`__helios__list[${TTPP}0]__head`, 
 	`(self) -> {
-		__T0__from_data(__core__headList(self))
+		${TTPP}0__from_data(__core__headList(self))
 	}`));
-	add(new RawFunc("__helios__list[__T0]__tail", "__core__tailList"));
-	add(new RawFunc("__helios__list[__T0]__is_empty",
+	add(new RawFunc(`__helios__list[${TTPP}0]__tail`, "__core__tailList"));
+	add(new RawFunc(`__helios__list[${TTPP}0]__is_empty`,
 	`(self) -> {
 		() -> {
 			__core__nullList(self)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__get",
+	add(new RawFunc(`__helios__list[${TTPP}0]__get`,
 	`(self) -> {
 		(index) -> {
 			(recurse) -> {
-				__T0__from_data(recurse(recurse, self, index))
+				${TTPP}0__from_data(recurse(recurse, self, index))
 			}(
 				(recurse, self, index) -> {
 					__core__chooseList(
@@ -28465,10 +28563,10 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__get_singleton",
+	add(new RawFunc(`__helios__list[${TTPP}0]__get_singleton`,
 	`(self) -> {
 		() -> {
-			__T0__from_data(
+			${TTPP}0__from_data(
 				__core__chooseUnit(
 					__helios__assert(
 						__core__nullList(__core__tailList(self)),
@@ -28479,7 +28577,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__drop",
+	add(new RawFunc(`__helios__list[${TTPP}0]__drop`,
 	`(self) -> {
 		(n) -> {
 			(recurse) -> {
@@ -28511,7 +28609,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__drop_end",
+	add(new RawFunc(`__helios__list[${TTPP}0]__drop_end`,
 	`(self) -> {
 		(n) -> {
 			(recurse) -> {
@@ -28576,7 +28674,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__take",
+	add(new RawFunc(`__helios__list[${TTPP}0]__take`,
 	`(self) -> {
 		(n) -> {
 			(recurse) -> {
@@ -28611,7 +28709,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__take_end",
+	add(new RawFunc(`__helios__list[${TTPP}0]__take_end`,
 	`(self) -> {
 		(n) -> {
 			(recurse) -> {
@@ -28668,59 +28766,82 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__any",
+	add(new RawFunc(`__helios__list[${TTPP}0]__any`,
 	`(self) -> {
 		(fn) -> {
-			__helios__common__any(self, fn)
-		}
-	}`));
-	add(new RawFunc("__helios__list[__T0]__all",
-	`(self) -> {
-		(fn) -> {
-			__helios__common__all(self, fn)
-		}
-	}`));
-	add(new RawFunc("__helios__list[__T0]__prepend",
-	`(self) -> {
-		(item) -> {
-			__core__mkCons(__T0____to_data(item), self)
-		}
-	}`));
-	add(new RawFunc("__helios__list[__T0]__find",
-	`(self) -> {
-		(fn) -> {
-			__helios__common__find(
+			__helios__common__any(
 				self, 
 				(item) -> {
-					fn(__TO__from_data(item))
+					fn(${TTPP}0__from_data(item))
 				}
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__find_safe",
+	add(new RawFunc(`__helios__list[${TTPP}0]__all`,
+	`(self) -> {
+		(fn) -> {
+			__helios__common__all(
+				self, 
+				(item) -> {
+					fn(${TTPP}0__from_data(item))
+				}
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__prepend`,
+	`(self) -> {
+		(item) -> {
+			__core__mkCons(${TTPP}0____to_data(item), self)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__find`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, lst) -> {
+					__core__chooseList(
+						lst, 
+						() -> {error("not found")}, 
+						() -> {
+							(item) -> {
+								__core__ifThenElse(
+									fn(item), 
+									() -> {item}, 
+									() -> {recurse(recurse, __core__tailList(lst))}
+								)()
+							}(${TTPP}0__from_data(__core__headList(lst)))
+						}
+					)()
+				}
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__find_safe`,
 	`(self) -> {
 		(fn) -> {
 			__helios__common__find_safe(
 				self,
 				(item) -> {
-					fn(__T0__from_data(item))
+					fn(${TTPP}0__from_data(item))
 				},
 				__helios__common__identity
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__filter",
+	add(new RawFunc(`__helios__list[${TTPP}0]__filter`,
 	`(self) -> {
 		(fn) -> {
 			__helios__common__filter_list(
 				self, 
 				(item) -> {
-					fn(__TO__from_data(item))
+					fn(${TTPP}0__from_data(item))
 				}
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__for_each",
+	add(new RawFunc(`__helios__list[${TTPP}0]__for_each`,
 	`(self) -> {
 		(fn) -> {
 			(recurse) -> {
@@ -28734,7 +28855,7 @@ function makeRawFunctions() {
 						},
 						() -> {
 							__core__chooseUnit(
-								fn(__T0__from_data(__core__headList(lst))),
+								fn(${TTPP}0__from_data(__core__headList(lst))),
 								recurse(recurse, __core__tailList(lst))
 							)
 						}
@@ -28743,49 +28864,49 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__fold[__FT0]",
+	add(new RawFunc(`__helios__list[${TTPP}0]__fold[${FTPP}0]`,
 	`(self) -> {
 		(fn, z) -> {
 			__helios__common__fold(
 				self, 
 				(prev, item) -> {
-					fn(prev, __T0__from_data(item))
+					fn(prev, ${TTPP}0__from_data(item))
 				}, 
 				z
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__fold_lazy[__FT0]",
+	add(new RawFunc(`__helios__list[${TTPP}0]__fold_lazy[${FTPP}0]`,
 	`(self) -> {
 		(fn, z) -> {
 			__helios__common__fold_lazy(
 				self, 
-				(item, continue) -> {
-					fn(__T0__from_data(item), continue)
+				(item, next) -> {
+					fn(${TTPP}0__from_data(item), next)
 				},
 				z
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__map[__FT0]",
+	add(new RawFunc(`__helios__list[${TTPP}0]__map[${FTPP}0]`,
 	`(self) -> {
 		(fn) -> {
 			__helios__common__map(
 				self, 
 				(item) -> {
-					__FT0____to_data(fn(__T0__from_data(item)))
+					${FTPP}0____to_data(fn(${TTPP}0__from_data(item)))
 				}, 
 				__core__mkNilData(())
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__T0]__sort",
+	add(new RawFunc(`__helios__list[${TTPP}0]__sort`,
 	`(self) -> {
 		(comp) -> {
 			__helios__common__sort(
 				self, 
 				(a, b) -> {
-					comp(__T0__from_data(a), __T0__from_data(b))
+					comp(${TTPP}0__from_data(a), ${TTPP}0__from_data(b))
 				}
 			)
 		}
@@ -28793,59 +28914,64 @@ function makeRawFunctions() {
 	
 
 	// Map builtins
-	addSerializeFunc("__helios__map[__T0@__T1]");
-	addNeqFunc("__helios__map[__T0@__T1]");
-	addDataLikeEqFunc("__helios__map[__T0@__T1]");
-	add(new RawFunc("__helios__map[__T0@__T1]__from_data", "__core__unMapData"));
-	add(new RawFunc("__helios__map[__T0@__T1]____to_data", "core__mapData"));
-	add(new RawFunc("__helios__map[__T0@__T1]____add", "__helios__common__concat"));
-	add(new RawFunc("__helios__map[__T0@__T1]__prepend",
+	addSerializeFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
+	addNeqFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
+	addDataLikeEqFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__from_data`, "__core__unMapData"));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]____to_data`, "__core__mapData"));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]____add`, "__helios__common__concat"));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__prepend`,
 	`(self) -> {
 		(key, value) -> {
-			__core__mkCons(__core__mkPairData(__T0____to_data(key), __T1____to_data(value)), self)
+			__core__mkCons(__core__mkPairData(${TTPP}0____to_data(key), ${TTPP}1____to_data(value)), self)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__head",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__head`,
 	`(self) -> {
 		(head) -> {
 			() -> {
 				(callback) -> {
-					callback(__T0__from_data(__core__fstPair(head)), __T1__from_data(__core__sndPair(head)))
+					callback(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head)))
 				}
 			}
 		}(__core__headList(self))
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__head_key",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__head_key`,
 	`(self) -> {
-		__T0__from_data(__core__fstPair(__core__headList(self)))
+		${TTPP}0__from_data(__core__fstPair(__core__headList(self)))
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__head_value",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__head_value`,
 	`(self) -> {
-		__T1__from_data(__core__sndPair(__core__headList(self)))
+		${TTPP}1__from_data(__core__sndPair(__core__headList(self)))
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__length",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__length`,
 	`(self) -> {
 		__helios__common__length(self)
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__tail", "__core__tailList"));
-	add(new RawFunc("__helios__map[__T0@__T1]__is_empty",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__tail`, "__core__tailList"));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__is_empty`,
 	`(self) -> {
 		() -> {
 			__core__nullList(self)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__get",
-	`(self) -> {
-		(key) -> {
-			__helios__common__map_get(self, __T0____to_data(key), (x) -> {__T1__from_data(x)}, () -> {error("key not found")})
-		}
-	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__get_safe",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__get`,
 	`(self) -> {
 		(key) -> {
 			__helios__common__map_get(
 				self, 
-				__T0____to_data(key), 
+				${TTPP}0____to_data(key), 
+				(x) -> {${TTPP}1__from_data(x)}, 
+				() -> {error("key not found")}
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__get_safe`,
+	`(self) -> {
+		(key) -> {
+			__helios__common__map_get(
+				self, 
+				${TTPP}0____to_data(key), 
 				(x) -> {
 					__core__constrData(0, __helios__common__list_1(x))
 				}, 
@@ -28855,31 +28981,31 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__all",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__all`,
 	`(self) -> {
 		(fn) -> {
 			(fn) -> {
 				__helios__common__all(self, fn)
 			}(
 				(pair) -> {
-					fn(__T0__from_data(__core__fstPair(pair)), __T1__from_data(__core__sndPair(pair)))
+					fn(${TTPP}0__from_data(__core__fstPair(pair)), ${TTPP}1__from_data(__core__sndPair(pair)))
 				}
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__any",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__any`,
 	`(self) -> {
 		(fn) -> {
 			(fn) -> {
 				__helios__common__any(self, fn)
 			}(
 				(pair) -> {
-					fn(__T0__from_data(__core__fstPair(pair)), __T1__from_data(__core__sndPair(pair)))
+					fn(${TTPP}0__from_data(__core__fstPair(pair)), ${TTPP}1__from_data(__core__sndPair(pair)))
 				}
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__delete",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__delete`,
 	`(self) -> {
 		(key) -> {
 			(key) -> {
@@ -28902,27 +29028,27 @@ function makeRawFunctions() {
 						)()
 					}
 				)
-			}(__T0____to_data(key))
+			}(${TTPP}0____to_data(key))
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__filter",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__filter`,
 	`(self) -> {
 		(fn) -> {
 			__helios__common__filter_map(
 				self, 
 				(pair) -> {
-					fn(__T0__from_data(__core__fstPair(pair)), __T1__from_data(__core__sndPair(pair)))
+					fn(${TTPP}0__from_data(__core__fstPair(pair)), ${TTPP}1__from_data(__core__sndPair(pair)))
 				}
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__find",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__find`,
 	`(self) -> {
 		(fn) -> {
 			(recurse) -> {
-				recurse(recurse, self, fn)
+				recurse(recurse, self)
 			}(
-				(recurse, self, fn) -> {
+				(recurse, self) -> {
 					__core__chooseList(
 						self, 
 						() -> {error("not found")}, 
@@ -28937,10 +29063,13 @@ function makeRawFunctions() {
 											}
 										}, 
 										() -> {
-											recurse(recurse, __core__tailList(self), fn)
+											recurse(recurse, __core__tailList(self))
 										}
-									)(__T0__from_data(__core__fstPair(head)), __T1__from_data(__core__sndPair(head)))
-								}
+									)()
+								}(
+									${TTPP}0__from_data(__core__fstPair(head)), 
+									${TTPP}1__from_data(__core__sndPair(head))
+								)
 							}(__core__headList(self))
 						}
 					)()
@@ -28948,7 +29077,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__find_safe",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__find_safe`,
 	`(self) -> {
 		(fn) -> {
 			(recurse) -> {
@@ -28983,7 +29112,7 @@ function makeRawFunctions() {
 											recurse(recurse, __core__tailList(self), fn)
 										}
 									)()
-								}(__T0__from_data(__core__fstPair(head)), __T1__from_data(__core__sndPair(head)))
+								}(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head)))
 							}(__core__headList(self))
 						}
 					)()
@@ -28991,65 +29120,79 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__find_key",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__find_key`,
 	`(self) -> {
 		(fn) -> {
-			__T0__from_data(
-				__core__fstPair(
-					__helios__common__find(
-						self, 
-						(pair) -> {
-							fn(__T0__from_data(__core__fstPair(pair)))
-						}
-					)
-				)
-			)
-		}
-	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__find_key_safe",
-	`(self) -> {
-		(fn) -> {
-			(fn) -> {
-				__helios__common__find_safe(
-					self,
-					fn,
-					__core__fstPair
-				)
+			(recurse) -> {
+				recurse(recurse, self)
 			}(
-				(pair) -> {
-					fn(__core__fstPair(pair))
+				(recurse, map) -> {
+					__core__chooseList(
+						map, 
+						() -> {error("not found")}, 
+						() -> {
+							(item) -> {
+								__core__ifThenElse(
+									fn(item), 
+									() -> {item}, 
+									() -> {recurse(recurse, __core__tailList(map))}
+								)()
+							}(${TTPP}0__from_data(__core__fstPair(__core__headList(map))))
+						}
+					)()
 				}
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__find_value",
-	`(self) -> {
-		(fn) -> {
-			__T1__from_data(
-				__core__sndPair(
-					__helios__common__find(
-						self, 
-						(pair) -> {
-							fn(__T1__from_data(__core__sndPair(pair)))
-						}
-					)
-				)
-			)
-		}
-	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__find_value_safe",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__find_key_safe`,
 	`(self) -> {
 		(fn) -> {
 			__helios__common__find_safe(
 				self,
 				(pair) -> {
-					fn(__T1__from_data(__core__sndPair(pair)))
+					fn(${TTPP}0__from_data(__core__fstPair(pair)))
+				},
+				__core__fstPair
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__find_value`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, map) -> {
+					__core__chooseList(
+						map, 
+						() -> {error("not found")}, 
+						() -> {
+							(item) -> {
+								__core__ifThenElse(
+									fn(item), 
+									() -> {item}, 
+									() -> {recurse(recurse, __core__tailList(map))}
+								)()
+							}(${TTPP}1__from_data(__core__sndPair(__core__headList(map))))
+						}
+					)()
+				}
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__find_value_safe`,
+	`(self) -> {
+		(fn) -> {
+			__helios__common__find_safe(
+				self,
+				(pair) -> {
+					fn(${TTPP}1__from_data(__core__sndPair(pair)))
 				},
 				__core__sndPair
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__map[__FT0@__FT1]",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__map[${FTPP}0@${FTPP}1]`,
 	`(self) -> {
 		(fn) -> {
 			__helios__common__map(
@@ -29058,38 +29201,38 @@ function makeRawFunctions() {
 					(mapped_pair) -> {
 						mapped_pair(
 							(key, value) -> {
-								__core__mkPairData(__FT0____to_data(key), __FT1____to_data(value))
+								__core__mkPairData(${FTPP}0____to_data(key), ${FTPP}1____to_data(value))
 							}
 						)
-					}(fn(__T0__from_data(__core__fstPair(pair)), __T1__from_data(__core__sndPair(pair))))
+					}(fn(${TTPP}0__from_data(__core__fstPair(pair)), ${TTPP}1__from_data(__core__sndPair(pair))))
 				}, 
 				__core__mkNilPairData(())
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__fold[__FT0]",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__fold[${FTPP}0]`,
 	`(self) -> {
 		(fn, z) -> {
 			__helios__common__fold(self,
 				(z, pair) -> {
-					fn(z, __T0__from_data(__core__fstPair(pair)), __T1__from_data(__core__sndPair(pair)))
+					fn(z, ${TTPP}0__from_data(__core__fstPair(pair)), ${TTPP}1__from_data(__core__sndPair(pair)))
 				}, 
 				z
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__fold_lazy[__FT0]",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__fold_lazy[${FTPP}0]`,
 	`(self) -> {
 		(fn, z) -> {
 			__helios__common__fold_lazy(self, 
 				(pair, next) -> {
-					fn(__T0__from_data(__core__fstPair(pair)), __T1__from_data(__core__sndPair(pair)), next)
+					fn(${TTPP}0__from_data(__core__fstPair(pair)), ${TTPP}1__from_data(__core__sndPair(pair)), next)
 				}, 
 				z
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__for_each",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__for_each`,
 	`(self) -> {
 		(fn) -> {
 			(recurse) -> {
@@ -29104,7 +29247,7 @@ function makeRawFunctions() {
 						() -> {
 							(head) -> {
 								__core__chooseUnit(
-									fn(__T0__from_data(__core__fstPair(head)), __T1__from_data(__core__sndPair(head))),
+									fn(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head))),
 									recurse(recurse, __core__tailList(map))
 								)
 							}(__core__headList(map))
@@ -29114,7 +29257,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__set", 
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__set`, 
 	`(self) -> {
 		(key, value) -> {
 			(key, value) -> {
@@ -29143,20 +29286,20 @@ function makeRawFunctions() {
 						)()
 					}
 				)
-			}(__T0____to_data(key), __T1____to_data(value))
+			}(${TTPP}0____to_data(key), ${TTPP}1____to_data(value))
 		}
 	}`));
-	add(new RawFunc("__helios__map[__T0@__T1]__sort",
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__sort`,
 	`(self) -> {
 		(comp) -> {
 			__helios__common__sort(
 				self, 
 				(a, b) -> {
 					comp(
-						__T0__from_data(__core__fstPair(a)), 
-						__T1__from_data(__core__sndPair(a)), 
-						__T0__from_data(__core__fstPair(b)),
-						__T1__from_data(__core__sndPair(b))
+						${TTPP}0__from_data(__core__fstPair(a)), 
+						${TTPP}1__from_data(__core__sndPair(a)), 
+						${TTPP}0__from_data(__core__fstPair(b)),
+						${TTPP}1__from_data(__core__sndPair(b))
 					)
 				}
 			)
@@ -29165,66 +29308,69 @@ function makeRawFunctions() {
 
 
 	// Option[T] builtins
-	addDataFuncs("__helios__option[__T0]");
-	add(new RawFunc("__helios__option[__T0]__map", 
+	addDataFuncs(`__helios__option[${TTPP}0]`);
+	add(new RawFunc(`__helios__option[${TTPP}0]__map[${FTPP}0]`, 
 	`(self) -> {
 		(fn) -> {
 			(pair) -> {
 				__core__ifThenElse(
 					__core__equalsInteger(__core__fstPair(pair), 0),
 					() -> {
-						__helios__option[__T0]__some__new(
+						__helios__option[${FTPP}0]__some__new(
 							fn(
-								__T0__from_data(
+								${TTPP}0__from_data(
 									__core__headList(__core__sndPair(pair))
 								)
 							)
 						)
 					},
 					() -> {
-						__helios__option[__T0]__none__new()
+						__helios__option[${FTPP}0]__none__new()
 					}
 				)()
 			}(__core__unConstrData(self))
 		}
 	}`));
-	add(new RawFunc("__helios__optiont[__T0]__unwrap", 
+	add(new RawFunc(`__helios__option[${TTPP}0]__unwrap`, 
 	`(self) -> {
 		() -> {
-			__T0__from_data(__helios__common__field_0(self))
+			${TTPP}0__from_data(__helios__common__field_0(self))
 		}
 	}`));
 
 
 	// Option[T]::Some
-	addEnumDataFuncs("__helios__optiont[__T0]__some");
-	add(new RawFunc("__helios__optiont[__T0]__some__new",
+	addEnumDataFuncs(`__helios__option[${TTPP}0]__some`, 0);
+	add(new RawFunc(`__helios__option[${TTPP}0]__some____new`,
 	`(some) -> {
-		__core__constrData(0, __helios__common__list_1(__T0____to_data(some)))
+		__core__constrData(0, __helios__common__list_1(${TTPP}0____to_data(some)))
 	}`));
-	add(new RawFunc("__helios__optiont[__T0]__some__cast",
+	add(new RawFunc(`__helios__option[${TTPP}0]__some__new`, `__helios__option[${TTPP}0]__some____new`));
+	add(new RawFunc(`__helios__option[${TTPP}0]__some__cast`,
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 0)
 	}`));
-	add(new RawFunc("__helios__optiont[__T0]__some__some", 
+	add(new RawFunc(`__helios__option[${TTPP}0]__some__some`, 
 	`(self) -> {
-		__T0__from_data(__helios__common__field_0(self))
+		${TTPP}0__from_data(__helios__common__field_0(self))
 	}`));
 	
 
 	// Option[T]::None
-	addEnumDataFuncs("__helios__option__none");
-	add(new RawFunc("__helios__option__none__new",
+	addEnumDataFuncs(`__helios__option[${TTPP}0]__none`, 1);
+	add(new RawFunc("__helios__option__NONE", "__core__constrData(1, __helios__common__list_0)"));
+	add(new RawFunc(`__helios__option[${TTPP}0]__none____new`,
 	`() -> {
-		__core__constrData(1, __helios__common__list_0)
+		__helios__option__NONE
 	}`));
-	add(new RawFunc("__helios__option__none__cast",
+	add(new RawFunc(`__helios__option[${TTPP}0]__none__new`, `__helios__option[${TTPP}0]__none____new`));
+	add(new RawFunc(`__helios__option[${TTPP}0]__none__cast`,
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 1)
 	}`));
 
 	
-	for (let hash of ["pubkeyhash", "validatorhash", "mintingpolicyhash", "stakingvalidatorhash"]) {
+	for (let hash of ["pubkeyhash", "validatorhash", "mintingpolicyhash", "stakingvalidatorhash", "datumhash", "stakekeyhash"]) {
 	// Hash builtins
 		addByteArrayLikeFuncs(`__helios__${hash}`);
 		add(new RawFunc(`__helios__${hash}__from_script_hash`, "__helios__common__identity"));
@@ -29258,7 +29404,12 @@ function makeRawFunctions() {
 	`(tx, mph) -> {
 		__core__constrData(0, __helios__common__list_2(
 			tx,
-			__core__constrData(0, __helios__common__list_1(mph))
+			__core__constrData(
+				0, 
+				__helios__common__list_1(
+					__helios__mintingpolicyhash____to_data(mph)
+				)
+			)
 		))
 	}`));
 	add(new RawFunc("__helios__scriptcontext__new_rewarding",
@@ -29281,9 +29432,23 @@ function makeRawFunctions() {
 	`(self) -> {
 		() -> {
 			(id) -> {
-				__helios__list[__helios__txinput]__find(__helios__tx__inputs(__helios__scriptcontext__tx(self)))(
-					(input) -> {
-						__core__equalsData(__helios__txinput__output_id(input), id)
+				(recurse) -> {
+					recurse(recurse, __helios__tx__inputs(__helios__scriptcontext__tx(self)))
+				}(
+					(recurse, lst) -> {
+						__core__chooseList(
+							lst, 
+							() -> {error("not found")}, 
+							() -> {
+								(item) -> {
+									__core__ifThenElse(
+										__core__equalsData(__helios__txinput__output_id(item), id), 
+										() -> {item}, 
+										() -> {recurse(recurse, __core__tailList(lst))}
+									)()
+								}(__core__headList(lst))
+							}
+						)()
 					}
 				)
 			}(__helios__scriptcontext__get_spending_purpose_output_id(self)())
@@ -29294,7 +29459,8 @@ function makeRawFunctions() {
 		() -> {
 			(vh) -> {
 				(outputs) -> {
-					__helios__list[__helios__txoutput]__filter(outputs)(
+					__helios__common__filter_list(
+						outputs,
 						(output) -> {
 							(credential) -> {
 								(pair) -> {
@@ -29304,7 +29470,7 @@ function makeRawFunctions() {
 											false
 										},
 										() -> {
-											__core__equalsData(__core__headList(__core__sndPair(pair)), vh)
+											__core__equalsByteString(__core__unBData(__core__headList(__core__sndPair(pair))), vh)
 										}
 									)()
 								}(__core__unConstrData(credential))
@@ -29339,7 +29505,9 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__scriptcontext__get_current_minting_policy_hash", 
 	`(self) -> {
-		__helios__mintingpolicyhash__from_data(__helios__scriptcontext__get_spending_purpose_output_id(self))
+		() -> {
+			__helios__mintingpolicyhash__from_data(__helios__scriptcontext__get_spending_purpose_output_id(self)())
+		}
 	}`));
 	add(new RawFunc("__helios__scriptcontext__get_staking_purpose", 
 	`(self) -> {
@@ -29360,12 +29528,12 @@ function makeRawFunctions() {
 
 
 	// StakingPurpose::Rewarding builtins
-	addEnumDataFuncs("__helios__stakingpurpose__rewarding");
+	addEnumDataFuncs("__helios__stakingpurpose__rewarding", 2);
 	add(new RawFunc("__helios__stakingpurpose__rewarding__credential", "__helios__common__field_0"));
 
 	
 	// StakingPurpose::Certifying builtins
-	addEnumDataFuncs("__helios__stakingpurpose__certifying");
+	addEnumDataFuncs("__helios__stakingpurpose__certifying", 3);
 	add(new RawFunc("__helios__stakingpurpose__certifying__action", "__helios__common__field_0"));
 
 
@@ -29390,7 +29558,7 @@ function makeRawFunctions() {
 
 
 	// ScriptPurpose::Minting builtins
-	addEnumDataFuncs("__helios__scriptpurpose__minting");
+	addEnumDataFuncs("__helios__scriptpurpose__minting", 0);
 	add(new RawFunc("__helios__scriptpurpose__minting__policy_hash", 
 	`(self) -> {
 		__helios__mintingpolicyhash__from_data(__helios__common__field_0(self))
@@ -29398,17 +29566,17 @@ function makeRawFunctions() {
 
 	
 	// ScriptPurpose::Spending builtins
-	addEnumDataFuncs("__helios__scriptpurpose__spending");
+	addEnumDataFuncs("__helios__scriptpurpose__spending", 1);
 	add(new RawFunc("__helios__scriptpurpose__spending__output_id", "__helios__common__field_0"));
 
 	
 	// ScriptPurpose::Rewarding builtins
-	addEnumDataFuncs("__helios__scriptpurpose__rewarding");
+	addEnumDataFuncs("__helios__scriptpurpose__rewarding", 2);
 	add(new RawFunc("__helios__scriptpurpose__rewarding__credential", "__helios__common__field_0"));
 
 	
 	// ScriptPurpose::Certifying builtins
-	addEnumDataFuncs("__helios__scriptpurpose__certifying");
+	addEnumDataFuncs("__helios__scriptpurpose__certifying", 3);
 	add(new RawFunc("__helios__scriptpurpose__certifying__action", "__helios__common__field_0"));
 
 
@@ -29424,7 +29592,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__certifyingaction__new_delegate",
 	`(cred, pool_id) -> {
-		__core__constrData(2, __helios__common__list_2(cred, __helios__pubkeyhash____to_data(pool_id))
+		__core__constrData(2, __helios__common__list_2(cred, __helios__pubkeyhash____to_data(pool_id)))
 	}`));
 	add(new RawFunc("__helios__certifyingaction__new_register_pool",
 	`(id, vrf) -> {
@@ -29437,17 +29605,17 @@ function makeRawFunctions() {
 
 
 	// DCert::Register builtins
-	addEnumDataFuncs("__helios__certifyingaction__register");
+	addEnumDataFuncs("__helios__certifyingaction__register", 0);
 	add(new RawFunc("__helios__certifyingaction__register__credential", "__helios__common__field_0"));
 
 
 	// DCert::Deregister builtins
-	addEnumDataFuncs("__helios__certifyingaction__deregister");
+	addEnumDataFuncs("__helios__certifyingaction__deregister", 1);
 	add(new RawFunc("__helios__certifyingaction__deregister__credential", "__helios__common__field_0"));
 
 
 	// DCert::Delegate builtins
-	addEnumDataFuncs("__helios__certifyingaction__delegate");
+	addEnumDataFuncs("__helios__certifyingaction__delegate", 2);
 	add(new RawFunc("__helios__certifyingaction__delegate__delegator", "__helios__common__field_0"));
 	add(new RawFunc("__helios__certifyingaction__delegate__pool_id", 
 	`(self) -> {
@@ -29456,7 +29624,7 @@ function makeRawFunctions() {
 
 
 	// DCert::RegisterPool builtins
-	addEnumDataFuncs("__helios__certifyingaction__registerpool");
+	addEnumDataFuncs("__helios__certifyingaction__registerpool", 3);
 	add(new RawFunc("__helios__certifyingaction__registerpool__pool_id", 
 	`(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__field_0(self))
@@ -29468,10 +29636,10 @@ function makeRawFunctions() {
 
 
 	// DCert::RetirePool builtins
-	addEnumDataFuncs("__helios__certifyingaction__retirepool");
+	addEnumDataFuncs("__helios__certifyingaction__retirepool", 4);
 	add(new RawFunc("__helios__certifyingaction__retirepool__pool_id", 
 	`(self) -> {
-		__helios__pubkeyhash__from_data(__helios__common__field_0)
+		__helios__pubkeyhash__from_data(__helios__common__field_0(self))
 	}`));
 	add(new RawFunc("__helios__certifyingaction__retirepool__epoch", 
 	`(self) -> {
@@ -29481,8 +29649,8 @@ function makeRawFunctions() {
 
 	// Tx builtins
 	addDataFuncs("__helios__tx");
-	add(new RawFunc("__helios__tx__new",
-	`(inputs, ref_inputs, outputs, fee, minted, cert_actions, withdrawals, validity, signatories, redeemers, datums) -> {
+	add(new RawFunc(`__helios__tx__new[${FTPP}0@${FTPP}1]`,
+	`(inputs, ref_inputs, outputs, fee, minted, cert_actions, withdrawals, validity, signatories, redeemers, datums, txId) -> {
 		__core__constrData(0, __helios__common__list_12(
 			__core__listData(inputs),
 			__core__listData(ref_inputs),
@@ -29540,7 +29708,7 @@ function makeRawFunctions() {
 		__core__unMapData(__helios__common__field_10(self))
 	}`));
 	add(new RawFunc("__helios__tx__id", "__helios__common__field_11"));
-	add(new RawFunc("__helios__tx__find_datum_hash",
+	add(new RawFunc(`__helios__tx__find_datum_hash[${FTPP}0]`,
 	`(self) -> {
 		(datum) -> {
 			__helios__datumhash__from_data(
@@ -29574,13 +29742,13 @@ function makeRawFunctions() {
 							__core__ifThenElse(
 								__core__equalsInteger(idx, 2),
 								() -> {
-									__core__headList(__core__sndPair(pair))
+									__core__headList(__core__sndPair(output))
 								},
 								() -> {error("output doesn't have a datum")}
 							)()
 						}
 					)()
-				}(__core__fstPair(pair))
+				}(__core__fstPair(output))
 			}(__core__unConstrData(__helios__txoutput__datum(output)))
 		}
 	}`));
@@ -29599,21 +29767,21 @@ function makeRawFunctions() {
 			})
 		}
 	}`));
-	add(new RawFunc("__helios__tx__outputs_sent_to_datum",
+	add(new RawFunc(`__helios__tx__outputs_sent_to_datum[${FTPP}0]`,
 	`(self) -> {
 		(pkh, datum, isInline) -> {
 			__core__ifThenElse(
 				isInline,
 				() -> {
-					__helios__tx__outputs_sent_to_inline_datum(self, pkh, datum)
+					__helios__tx__outputs_sent_to_inline_datum[${FTPP}0](self, pkh, datum)
 				},
 				() -> {
-					__helios__tx__outputs_sent_to_datum_hash(self, pkh, datum)
+					__helios__tx__outputs_sent_to_datum_hash[${FTPP}0](self, pkh, datum)
 				}
 			)()
 		}
 	}`));
-	add(new RawFunc("__helios__tx__outputs_sent_to_datum_hash",
+	add(new RawFunc(`__helios__tx__outputs_sent_to_datum_hash[${FTPP}0]`,
 	`(self, pkh, datum) -> {
 		(datumHash) -> {
 			__helios__tx__filter_outputs(
@@ -29629,9 +29797,9 @@ function makeRawFunctions() {
 					)
 				}
 			)
-		}(__helios__common__hash_datum_data(datum))
+		}(__helios__common__hash_datum_data[${FTPP}0](datum))
 	}`));
-	add(new RawFunc("__helios__tx__outputs_sent_to_inline_datum",
+	add(new RawFunc(`__helios__tx__outputs_sent_to_inline_datum[${FTPP}0]`,
 	`(self, pkh, datum) -> {
 		__helios__tx__filter_outputs(
 			self, 
@@ -29641,7 +29809,7 @@ function makeRawFunctions() {
 						__helios__txoutput__is_sent_to(output)(pkh)
 					},
 					() -> {
-						__helios__txoutput__has_inline_datum(output, datum)
+						__helios__txoutput__has_inline_datum[${FTPP}0](output, datum)
 					}
 				)
 			}
@@ -29655,21 +29823,21 @@ function makeRawFunctions() {
 			})
 		}
 	}`));
-	add(new RawFunc("__helios__tx__outputs_locked_by_datum",
+	add(new RawFunc(`__helios__tx__outputs_locked_by_datum[${FTPP}0]`,
 	`(self) -> {
 		(vh, datum, isInline) -> {
 			__core__ifThenElse(
 				isInline,
 				() -> {
-					__helios__tx__outputs_locked_by_inline_datum(self, vh, datum)
+					__helios__tx__outputs_locked_by_inline_datum[${FTPP}0](self, vh, datum)
 				},
 				() -> {
-					__helios__tx__outputs_locked_by_datum_hash(self, vh, datum)
+					__helios__tx__outputs_locked_by_datum_hash[${FTPP}0](self, vh, datum)
 				}
 			)()
 		}
 	}`));
-	add(new RawFunc("__helios__tx__outputs_locked_by_datum_hash",
+	add(new RawFunc(`__helios__tx__outputs_locked_by_datum_hash[${FTPP}0]`,
 	`(self, vh, datum) -> {
 		(datumHash) -> {
 			__helios__tx__filter_outputs(
@@ -29685,9 +29853,9 @@ function makeRawFunctions() {
 					)
 				}
 			)
-		}(__helios__common__hash_datum_data(datum))
+		}(__helios__common__hash_datum_data[${FTPP}0](datum))
 	}`));
-	add(new RawFunc("__helios__tx__outputs_locked_by_inline_datum",
+	add(new RawFunc(`__helios__tx__outputs_locked_by_inline_datum[${FTPP}0]`,
 	`(self, vh, datum) -> {
 		__helios__tx__filter_outputs(
 			self, 
@@ -29697,7 +29865,7 @@ function makeRawFunctions() {
 						__helios__txoutput__is_locked_by(output)(vh)
 					},
 					() -> {
-						__helios__txoutput__has_inline_datum(output, datum)
+						__helios__txoutput__has_inline_datum[${FTPP}0](output, datum)
 					}
 				)
 			}
@@ -29709,10 +29877,10 @@ function makeRawFunctions() {
 			__helios__txoutput__sum_values(__helios__tx__outputs_sent_to(self)(pkh))
 		}
 	}`));
-	add(new RawFunc("__helios__tx__value_sent_to_datum",
+	add(new RawFunc(`__helios__tx__value_sent_to_datum[${FTPP}0]`,
 	`(self) -> {
 		(pkh, datum, isInline) -> {
-			__helios__txoutput__sum_values(__helios__tx__outputs_sent_to_datum(self)(pkh, datum, isInline))
+			__helios__txoutput__sum_values(__helios__tx__outputs_sent_to_datum[${FTPP}0](self)(pkh, datum, isInline))
 		}
 	}`));
 	add(new RawFunc("__helios__tx__value_locked_by",
@@ -29721,10 +29889,10 @@ function makeRawFunctions() {
 			__helios__txoutput__sum_values(__helios__tx__outputs_locked_by(self)(vh))
 		}
 	}`));
-	add(new RawFunc("__helios__tx__value_locked_by_datum",
+	add(new RawFunc(`__helios__tx__value_locked_by_datum[${FTPP}0]`,
 	`(self) -> {
 		(vh, datum, isInline) -> {
-			__helios__txoutput__sum_values(__helios__tx__outputs_locked_by_datum(self)(vh, datum, isInline))
+			__helios__txoutput__sum_values(__helios__tx__outputs_locked_by_datum[${FTPP}0](self)(vh, datum, isInline))
 		}
 	}`));
 	add(new RawFunc("__helios__tx__is_signed_by",
@@ -29788,7 +29956,7 @@ function makeRawFunctions() {
 	addDataFuncs("__helios__txoutput");
 	add(new RawFunc("__helios__txoutput__new", 
 	`(address, value, datum) -> {
-		__core__constrData(0, __helios__common__list_4(address, value, datum, __helios__option__none__new()))
+		__core__constrData(0, __helios__common__list_4(address, __core__mapData(value), datum, __helios__option__NONE))
 	}`));
 	add(new RawFunc("__helios__txoutput__address", "__helios__common__field_0"));
 	add(new RawFunc("__helios__txoutput__value", `(self) -> {
@@ -29816,12 +29984,17 @@ function makeRawFunctions() {
 	`(self, datumHash) -> {
 		__helios__datumhash____eq(__helios__txoutput__get_datum_hash(self)(), datumHash)
 	}`));
-	add(new RawFunc("__helios__txoutput__has_inline_datum",
+	add(new RawFunc(`__helios__txoutput__has_inline_datum[${FTPP}0]`,
 	`(self, datum) -> {
 		(pair) -> {
 			__core__ifThenElse(
 				__core__equalsInteger(__core__fstPair(pair), 2),
-				() -> {__core__equalsData(datum, __core__headList(__core__sndPair(pair)))},
+				() -> {
+					__core__equalsData(
+						${FTPP}0____to_data(datum),
+						__core__headList(__core__sndPair(pair))
+					)
+				},
 				() -> {false}
 			)()
 		}(__core__unConstrData(__helios__txoutput__datum(self)))
@@ -29889,9 +30062,9 @@ function makeRawFunctions() {
 	`(hash) -> {
 		__core__constrData(1, __helios__common__list_1(__helios__datumhash____to_data(hash)))
 	}`));
-	add(new RawFunc("__helios__outputdatum__new_inline[__FT0]",
+	add(new RawFunc(`__helios__outputdatum__new_inline[${FTPP}0]`,
 	`(data) -> {
-		__core__constrData(2, __helios__common__list_1(__FT0____to_data(data)))
+		__core__constrData(2, __helios__common__list_1(${FTPP}0____to_data(data)))
 	}`));
 	add(new RawFunc("__helios__outputdatum__get_inline_data",
 	`(self) -> {
@@ -29914,11 +30087,11 @@ function makeRawFunctions() {
 
 
 	// OutputDatum::None
-	addEnumDataFuncs("__helios__outputdatum__none");
+	addEnumDataFuncs("__helios__outputdatum__none", 0);
 	
 
 	// OutputDatum::Hash
-	addEnumDataFuncs("__helios__outputdatum__hash");
+	addEnumDataFuncs("__helios__outputdatum__hash", 1);
 	add(new RawFunc("__helios__outputdatum__hash__hash", 
 	`(self) -> {
 		__helios__datumhash__from_data(__helios__common__field_0(self))
@@ -29926,7 +30099,7 @@ function makeRawFunctions() {
 
 
 	// OutputDatum::Inline
-	addEnumDataFuncs("__helios__outputdatum__inline");
+	addEnumDataFuncs("__helios__outputdatum__inline", 2);
 	add(new RawFunc("__helios__outputdatum__inline__data", "__helios__common__field_0"));
 
 
@@ -29991,7 +30164,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__address__new_empty",
 	`() -> {
-		__core__constrData(0, __helios__common__list_2(__helios__credential__new_pubkey(#), __helios__option__none__new()))
+		__core__constrData(0, __helios__common__list_2(__helios__credential__new_pubkey(#), __helios__option__NONE))
 	}`))
 	add(new RawFunc("__helios__address__credential", "__helios__common__field_0"));
 	add(new RawFunc("__helios__address__staking_credential", "__helios__common__field_1"));
@@ -30024,19 +30197,19 @@ function makeRawFunctions() {
 
 
 	// Credential::PubKey builtins
-	addEnumDataFuncs("__helios__credential__pubkey");
+	addEnumDataFuncs("__helios__credential__pubkey", 0);
 	add(new RawFunc("__helios__credential__pubkey__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 0)
 	}`));
 	add(new RawFunc("__helios__credential__pubkey__hash", 
 	`(self) -> {
-		__helios__pubkeyhash__from_data(__helios__common__field_0)
+		__helios__pubkeyhash__from_data(__helios__common__field_0(self))
 	}`));
 
 
 	// Credential::Validator builtins
-	addEnumDataFuncs("__helios__credential__validator");
+	addEnumDataFuncs("__helios__credential__validator", 1);
 	add(new RawFunc("__helios__credential__validator__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 1)
@@ -30056,13 +30229,13 @@ function makeRawFunctions() {
 
 
 	// StakingHash::StakeKey builtins
-	addEnumDataFuncs("__helios__stakinghash__stakekey");
+	addEnumDataFuncs("__helios__stakinghash__stakekey", 0);
 	add(new RawFunc("__helios__stakinghash__stakekey__cast", "__helios__credential__pubkey__cast"));
 	add(new RawFunc("__helios__stakinghash__stakekey__hash", "__helios__credential__pubkey__hash"));
 
 
 	// StakingHash::Validator builtins
-	addEnumDataFuncs("__helios__stakinghash__validator");
+	addEnumDataFuncs("__helios__stakinghash__validator", 1);
 	add(new RawFunc("__helios__stakinghash__validator__cast", "__helios__credential__validator__cast"));
 	add(new RawFunc("__helios__stakinghash__validator__hash", "__helios__credential__validator__hash"));
 
@@ -30084,12 +30257,12 @@ function makeRawFunctions() {
 
 	
 	// StakingCredential::Hash builtins
-	addEnumDataFuncs("__helios__stakingcredential__hash");
+	addEnumDataFuncs("__helios__stakingcredential__hash", 0);
 	add(new RawFunc("__helios__stakingcredential__hash__hash", "__helios__common__field_0"));
 
 
 	// StakingCredential::Ptr builtins
-	addEnumDataFuncs("__helios__stakingcredential__ptr");
+	addEnumDataFuncs("__helios__stakingcredential__ptr", 1);
 
 
 	// Time builtins
@@ -30129,16 +30302,18 @@ function makeRawFunctions() {
 	addDataFuncs("__helios__timerange");
 	add(new RawFunc("__helios__timerange__new", `
 	(a, b) -> {
-		__core__constrData(0, __helios__common__list_2(
+		(a, b) -> {
 			__core__constrData(0, __helios__common__list_2(
-				__core__constrData(1, __helios__common__list_1(a)),
-				__helios__bool____to_data(true)
-			)),
-			__core__constrData(0, __helios__common__list_2(
-				__core__constrData(1, __helios__common__list_1(b)),
-				__helios__bool____to_data(true)
+				__core__constrData(0, __helios__common__list_2(
+					__core__constrData(1, __helios__common__list_1(a)),
+					__helios__bool____to_data(true)
+				)),
+				__core__constrData(0, __helios__common__list_2(
+					__core__constrData(1, __helios__common__list_1(b)),
+					__helios__bool____to_data(true)
+				))
 			))
-		))
+		}(__helios__time____to_data(a), __helios__time____to_data(b))
 	}`));
 	add(new RawFunc("__helios__timerange__ALWAYS", `
 	__core__constrData(0, __helios__common__list_2(
@@ -30164,29 +30339,33 @@ function makeRawFunctions() {
 	))`));
 	add(new RawFunc("__helios__timerange__from", `
 	(a) -> {
-		__core__constrData(0, __helios__common__list_2(
+		(a) -> {
 			__core__constrData(0, __helios__common__list_2(
-				__core__constrData(1, __helios__common__list_1(a)),
-				__helios__bool____to_data(true)
-			)),
-			__core__constrData(0, __helios__common__list_2(
-				__core__constrData(2, __helios__common__list_0),
-				__helios__bool____to_data(true)
+				__core__constrData(0, __helios__common__list_2(
+					__core__constrData(1, __helios__common__list_1(a)),
+					__helios__bool____to_data(true)
+				)),
+				__core__constrData(0, __helios__common__list_2(
+					__core__constrData(2, __helios__common__list_0),
+					__helios__bool____to_data(true)
+				))
 			))
-		))
+		}(__helios__time____to_data(a))
 	}`));
 	add(new RawFunc("__helios__timerange__to", `
 	(b) -> {
-		__core__constrData(0, __helios__common__list_2(
+		(b) -> {
 			__core__constrData(0, __helios__common__list_2(
-				__core__constrData(0, __helios__common__list_0),
-				__helios__bool____to_data(true)
-			)),
-			__core__constrData(0, __helios__common__list_2(
-				__core__constrData(1, __helios__common__list_1(b)),
-				__helios__bool____to_data(true)
+				__core__constrData(0, __helios__common__list_2(
+					__core__constrData(0, __helios__common__list_0),
+					__helios__bool____to_data(true)
+				)),
+				__core__constrData(0, __helios__common__list_2(
+					__core__constrData(1, __helios__common__list_1(b)),
+					__helios__bool____to_data(true)
+				))
 			))
-		))
+		}(__helios__time____to_data(b))
 	}`));
 	add(new RawFunc("__helios__timerange__is_before", 
 	`(self) -> {
@@ -30323,7 +30502,7 @@ function makeRawFunctions() {
 								__core__ifThenElse(closed, "[", "("),
 								show_extended(extended)
 							)
-						}(__helios__common__field_0(lower), _helios__bool__from_data(__helios__common__field_1(lower)))
+						}(__helios__common__field_0(lower), __helios__bool__from_data(__helios__common__field_1(lower)))
 					}(__helios__common__field_0(self)),
 					__helios__string____add(
 						",",
@@ -30349,7 +30528,9 @@ function makeRawFunctions() {
 									() -> {"+inf"},
 									() -> {
 										(fields) -> {
-											__helios__int__show(__core__headList(fields))()
+											__helios__int__show(
+												__helios__int__from_data(__core__headList(fields))
+											)()
 										}(__core__sndPair(__core__unConstrData(extended)))
 									}
 								)()
@@ -30400,19 +30581,17 @@ function makeRawFunctions() {
 			},
 			() -> {
 				(mph, tokenName) -> {
-					__core__mapData(
-						__core__mkCons(
-							__core__mkPairData(
-								mph, 
-								__core__mapData(
-									__core__mkCons(
-										__core__mkPairData(tokenName, __helios__int____to_data(i)), 
-										__core__mkNilPairData(())
-									)
+					__core__mkCons(
+						__core__mkPairData(
+							mph, 
+							__core__mapData(
+								__core__mkCons(
+									__core__mkPairData(tokenName, __helios__int____to_data(i)), 
+									__core__mkNilPairData(())
 								)
-							), 
-							__core__mkNilPairData(())
-						)
+							)
+						), 
+						__core__mkNilPairData(())
 					)
 				}(__helios__common__field_0(assetClass), __helios__common__field_1(assetClass))
 			}
@@ -30612,7 +30791,12 @@ function makeRawFunctions() {
 					() -> {
 						(key) -> {
 							__core__ifThenElse(
-								__helios__common__not(comp(__helios__value__get_inner_map_int(a, key), __helios__value__get_inner_map_int(b, key))), 
+								__helios__bool____not(
+									comp(
+										__helios__value__get_inner_map_int(a, key), 
+										__helios__value__get_inner_map_int(b, key)
+									)
+								), 
 								() -> {false}, 
 								() -> {recurse(recurse, __core__tailList(keys))}
 							)()
@@ -30634,7 +30818,7 @@ function makeRawFunctions() {
 					() -> {
 						(key) -> {
 							__core__ifThenElse(
-								__helios__common__not(
+								__helios__bool____not(
 									__helios__value__compare_inner(
 										comp, 
 										__helios__value__get_inner_map(a, key), 
@@ -30656,7 +30840,7 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__value____neq",
 	`(a, b) -> {
-		__helios__common__not(__helios__value____eq(a, b))
+		__helios__bool____not(__helios__value____eq(a, b))
 	}`));
 	add(new RawFunc("__helios__value____add",
 	`(a, b) -> {
@@ -30676,7 +30860,15 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__value____geq",
 	`(a, b) -> {
-		__helios__value__compare(a, b, (a_qty, b_qty) -> {__helios__common__not(__core__lessThanInteger(a_qty, b_qty))})
+		__helios__value__compare(
+			a, 
+			b, 
+			(a_qty, b_qty) -> {
+				__helios__bool____not(
+					__core__lessThanInteger(a_qty, b_qty)
+				)
+			}
+		)
 	}`));
 	add(new RawFunc("__helios__value__contains", `
 	(self) -> {
@@ -30688,7 +30880,7 @@ function makeRawFunctions() {
 	`(a, b) -> {
 		__helios__bool__and(
 			() -> {
-				__helios__common__not(
+				__helios__bool____not(
 					__helios__bool__and(
 						__helios__value__is_zero(a),
 						__helios__value__is_zero(b)
@@ -30700,7 +30892,7 @@ function makeRawFunctions() {
 					a, 
 					b,
 					(a_qty, b_qty) -> {
-						__helios__common__not(__core__lessThanEqualsInteger(a_qty, b_qty))
+						__helios__bool____not(__core__lessThanEqualsInteger(a_qty, b_qty))
 					}
 				)
 			}
@@ -30714,7 +30906,7 @@ function makeRawFunctions() {
 	`(a, b) -> {
 		__helios__bool__and(
 			() -> {
-				__helios__common__not(
+				__helios__bool____not(
 					__helios__bool__and(
 						__helios__value__is_zero(a),
 						__helios__value__is_zero(b)
@@ -30827,10 +31019,10 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__value__get_assets",
 	`(self) -> {
 		() -> {
-			__helios__commn__filter_map(
+			__helios__common__filter_map(
 				self,
 				(pair) -> {
-					__helios__common__not(__core__equalsByteString(__core__unBData(__core__fstPair(pair)), #))
+					__helios__bool____not(__core__equalsByteString(__core__unBData(__core__fstPair(pair)), #))
 				}
 			)
 		}
@@ -30890,12 +31082,6 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__value__show",
 	`(self) -> {
 		() -> {
-			__helios__common__fold(self,
-				(z, pair) -> {
-					fn(z, __T0__from_data(__core__fstPair(pair)), __T1__from_data(__core__sndPair(pair)))
-				}, 
-				z
-			)
 			__helios__common__fold(
 				self,
 				(prev, pair) -> {
@@ -30941,7 +31127,7 @@ function makeRawFunctions() {
 							},
 							prev
 						)
-					}(__helios__mintingpolicyhash__from_data(__core__fstPair(pair)), __core__unMapData(__core__sdnPair(pair)))
+					}(__helios__mintingpolicyhash__from_data(__core__fstPair(pair)), __core__unMapData(__core__sndPair(pair)))
 				},
 				""
 			)
@@ -30951,14 +31137,35 @@ function makeRawFunctions() {
 	return db;
 }
 
+const db = makeRawFunctions();
+
+/**
+ * Load all raw generics so all possible implementations can be generated correctly during type parameter injection phase
+ * @package
+ * @returns {IRDefinitions}
+ */
+function fetchRawGenerics() {
+	/**
+	 * @type {IRDefinitions}
+	 */
+	const map = new Map();
+
+	for (let [k, v] of db) {
+		if (IRParametricName.matches(k)) {
+			// load without dependencies
+			map.set(k, v.toIR())
+		}
+	}
+
+	return map;
+}
+
 /**
  * @package
  * @param {IR} ir 
- * @returns {Map<string, IR>}
+ * @returns {IRDefinitions}
  */
 function fetchRawFunctions(ir) {
-	let db = makeRawFunctions();
-
 	// notify statistics of existence of builtin in correct order
 	if (onNotifyRawUsage !== null) {
 		for (let [name, _] of db) {
@@ -30966,40 +31173,20 @@ function fetchRawFunctions(ir) {
 		}
 	}
 
-	let re = new RegExp("__helios[a-zA-Z0-9_@]*", "g");
-
 	let [src, _] = ir.generateSource();
 
-	//console.log(src);
+	
 
-	let matches = src.match(re);
-
-	/**
-	 * @param {string} m 
-	 * @returns {string}
-	 */
-	const cleanTypeParameters = (m) => {
-		if (m.includes("@")) {
-			const parts = m.split("@");
-
-			const prefix = parts.shift();
-			const suffix = parts.pop();
-
-			return `${prefix}@${parts.map((_, i) => `__T${i}`).join("@")}@${suffix}`;
-		} else {
-			return m;
-		}
-	}
+	let matches = src.match(RE_BUILTIN);
 
 	/**
-	 * @type {Map<string, IR>}
+	 * @type {IRDefinitions}
 	 */
 	const map = new Map();
 
 	if (matches !== null) {
-		for (let match of matches) {
-			const m = cleanTypeParameters(match);
-			if (!map.has(m)) {
+		for (let m of matches) {
+			if (!IRParametricName.matches(m) && !map.has(m)) {
 				const builtin = db.get(m);
 
 				if (!builtin) {
@@ -31688,15 +31875,6 @@ class IRNameExpr extends IRExpr {
 	evalConstants(stack) {
 		if (this.#variable != null) {
 			this.#value = stack.get(this.#variable);
-
-			if (this.#value === null) {
-				console.log(stack.dump())
-				console.log("MAYBE UNDEFINED IN IR:", this.#variable.name)
-
-				if (this.#variable.name.startsWith("__module")) {
-					throw new Error("block");
-				}
-			}
 		}
 
 		return this;
@@ -32238,15 +32416,7 @@ class IRCallExpr extends IRExpr {
 	 * @returns {IRExpr[]}
 	 */
 	evalConstantsInArgs(stack) {
-		try {
 		return this.#argExprs.map(a => a.evalConstants(stack));
-		} catch (e) {
-			if (e.message == "block") {
-				console.log("HERE:", this.toString())
-			}
-
-			throw e;
-		}
 	}
 
 	/** 
@@ -32555,7 +32725,7 @@ class IRCoreCallExpr extends IRCallExpr {
 							b.value.bool && 
 							cond instanceof IRUserCallExpr && 
 							cond.fnExpr instanceof IRNameExpr && 
-							cond.fnExpr.name === "__helios__common__not"
+							cond.fnExpr.name === "__helios__bool____not"
 						) {
 							return cond.argExprs[0];
 						}	
@@ -33026,9 +33196,9 @@ class IRUserCallExpr extends IRCallExpr {
 							}
 						}
 						break;
-					case "__helios__common__not": {
+					case "__helios__bool____not": {
 							const a = args[0];
-							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__common__not") {
+							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__bool____not") {
 								return a.argExprs[0];
 							}
 						}
@@ -34531,48 +34701,64 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @param {string} name 
+	 * @returns {ConstStatement | null}
+	 */
+	findConstStatement(name) {
+		for (let [statement, isImport] of this.allStatements) {
+			if (statement instanceof ConstStatement && statement.name.value == name && !isImport) {
+				return statement;
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * Doesn't use wrapEntryPoint
 	 * @param {string} name 
 	 * @returns {UplcValue}
 	 */
 	evalParam(name) {
 		/** 
-		 * @type {any} 
+		 * @type {ConstStatement | null} 
 		 */
-		let constStatement = null;
+		let constStatement = this.findConstStatement(name);
 
-		const map = this.fetchDefinitions(new IR(""), [], (s, isImport) => {
-			if (s instanceof ConstStatement && ((s.name.value == name && !isImport) || s === constStatement)) {
-				constStatement = s;
-				return true;
-			} else {
-				return false;
-			}
+		if (!constStatement) {
+			throw new Error(`param '${name}' not found`);
+		}
+
+		const toDataIR = new IR(`${constStatement.type.path}____to_data`);
+
+		// include toDataIR so that any template builtins within that are included
+		const map = this.fetchDefinitions(toDataIR, [], (s, isImport) => {
+			return s instanceof ConstStatement && ((s.name.value == name && !isImport) || s === constStatement);
 		});
 
-		if (constStatement === null) {
-			throw new Error(`param '${name}' not found`);
-		} 
-
-		const path = assertDefined(constStatement).path;
+		const path = constStatement.path;
 
 		let ir = assertDefined(map.get(path));
 
 		map.delete(path);
 
-		console.log("CONST IR:", ir.generateSource()[0])
 		ir = new IR([
+			toDataIR,
+			new IR("("),
 			ir,
-			new IR("(())")
+			new IR("(())"),
+			new IR(")")
 		])
 
-		ir = wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
+		ir = IR.wrapWithDefinitions(ir, map);
 
-		console.log(ir.generateSource()[0]);
+		// add builtins as late as possible, to make sure we catch as many dependencies as possible
+		const builtins = fetchRawFunctions(IR.wrapWithDefinitions(ir, map));
+
+		ir = IR.wrapWithDefinitions(ir, builtins);
 
 		const irProgram = IRProgram.new(ir, this.#purpose, true, true);
 
-		console.log("EVALUATED", name);
 		return new UplcDataValue(irProgram.site, irProgram.data);
 	}
 	
@@ -34692,7 +34878,6 @@ class MainModule extends Module {
 			statement.toIR(map);
 
 			if (endCond(statement, isImport)) {
-				console.log(map);
 				break;
 			}
 		}
@@ -34732,11 +34917,13 @@ class MainModule extends Module {
 
 	/**
 	 * Also merges builtins and map
-	 * @param {IRDefinitions} builtins 
+	 * @param {IR} mainIR
 	 * @param {IRDefinitions} map 
 	 * @returns {IRDefinitions}
 	 */
-	static injectTypeParameters(builtins, map) {
+	static applyTypeParameters(mainIR, map) {
+		const builtinGenerics = fetchRawGenerics();
+
 		/**
 		 * @type {Map<string, [string, IR]>}
 		 */
@@ -34747,7 +34934,7 @@ class MainModule extends Module {
 		 * @param {string} location
 		 */
 		const add = (name, location) => {
-			if (builtins.has(name) || map.has(name) || added.has(name)) {
+			if (map.has(name) || added.has(name)) {
 				return;
 			}
 
@@ -34755,7 +34942,7 @@ class MainModule extends Module {
 
 			const genericName = pName.toTemplate();
 
-			let ir = builtins.get(genericName) ?? map.get(genericName);
+			let ir = builtinGenerics.get(genericName) ?? map.get(genericName);
 
 			if (!ir) {
 				throw new Error(`${genericName} undefined in ir`);
@@ -34764,19 +34951,18 @@ class MainModule extends Module {
 
 				added.set(name, [location, ir]);
 
-				ir.search(RE_IR_PARAMETRIC_NAME, (name_) => add(name_, name));
+				ir.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, location));
 			}
 		};
-
-		for (let [k, v] of builtins) {
-			v.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, k));
-		}
 
 		for (let [k, v] of map) {
 			v.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, k));
 		}
 
-		let entries = Array.from(builtins.entries()).concat(Array.from(map.entries()));
+		mainIR.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, "main"))
+
+		// we need to keep templates, otherwise find() might fail to inject the applied definitions in the right location
+		let entries = Array.from(map.entries());
 
 		/**
 		 * @param {string} name
@@ -34789,11 +34975,16 @@ class MainModule extends Module {
 				}
 			}
 
-			throw new Error("not found");
+			if (name == "main") {
+				return entries.length;
+			} else {
+				throw new Error(`${name} not found`);
+			}
 		};
 
 		const addedEntries = Array.from(added.entries());
 
+		// loop from end so that applied definitions that were generated recursively are added in the correct order
 		for (let i = addedEntries.length-1; i >= 0; i--) {
 			const [name, [location, ir]] = addedEntries[i];
 
@@ -34803,6 +34994,11 @@ class MainModule extends Module {
 
 			entries = entries.slice(0, j).concat([[name, ir]]).concat(entries.slice(j));
 		}
+
+		/**
+		 * Remove template because they don't make any sense in the final output
+		 */
+		entries = entries.filter(([key, _]) => !IRParametricName.isTemplate(key));
 
 		return new Map(entries);
 	}
@@ -34818,13 +35014,8 @@ class MainModule extends Module {
 		let map = this.statementsToIR(parameters, endCond);
 
 		Program.injectMutualRecursions(map);
- 
-		// builtin functions are added when the IR program is built
-		// also replace all tabs with four spaces
 
-		const builtins = fetchRawFunctions(IR.wrapWithDefinitions(ir, map));
-
-		return Program.injectTypeParameters(builtins, map);
+		return Program.applyTypeParameters(ir, map);
 	}
 
 	/**
@@ -34834,9 +35025,15 @@ class MainModule extends Module {
 	 * @returns {IR}
 	 */
 	wrapEntryPoint(ir, parameters) {
-		const map = this.fetchDefinitions(ir, parameters, (s) => s.name.value == "main");
+		let map = this.fetchDefinitions(ir, parameters, (s) => s.name.value == "main");
 
-		return IR.wrapWithDefinitions(ir, map);
+		const builtins = fetchRawFunctions(IR.wrapWithDefinitions(ir, map));
+
+		map = new Map(Array.from(builtins).concat(Array.from(map)));
+
+		ir = IR.wrapWithDefinitions(ir, map);
+
+		return ir;
 	}
 
 	/**
@@ -34866,10 +35063,9 @@ class MainModule extends Module {
 	compile(simplify = false) {
 		const ir = this.toIR([]);
 
-		console.log(ir.generateSource()[0]);
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 		
-		console.log(new Source(irProgram.toString()).pretty());
+		//console.log(new Source(irProgram.toString()).pretty());
 		
 		return irProgram.toUplc();
 	}
@@ -34911,19 +35107,20 @@ class RedeemerProgram extends Program {
 
 		// check the 'main' function
 
-		let main = this.mainFunc;
-		let argTypes = main.argTypes;
-		let retTypes = main.retTypes;
+		const main = this.mainFunc;
+		const argTypeNames = main.argTypeNames;
+		const argTypes = main.argTypes;
+		const retTypes = main.retTypes;
 
 		if (argTypes.length != 2) {
 			throw main.typeError("expected 2 args for main");
 		}
 
-		if (!Common.typeImplements(argTypes[0], new SerializableTypeClass())) {
+		if (argTypeNames[0] != "" && !Common.typeImplements(argTypes[0], new SerializableTypeClass())) {
 			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[0].toString()}`);
 		}
 
-		if ((new ScriptContextType(-1)).isBaseOf(argTypes[1])) {
+		if (argTypeNames[1] != "" && !(new ScriptContextType(-1)).isBaseOf(argTypes[1])) {
 			throw main.typeError(`illegal 3rd argument type in main, expected 'ScriptContext', got ${argTypes[1].toString()}`);
 		}
 
@@ -34999,6 +35196,7 @@ class DatumRedeemerProgram extends Program {
 		// check the 'main' function
 
 		const main = this.mainFunc;
+		const argTypeNames = main.argTypeNames;
 		const argTypes = main.argTypes;
 		const retTypes = main.retTypes;
 
@@ -35006,15 +35204,15 @@ class DatumRedeemerProgram extends Program {
 			throw main.typeError("expected 3 args for main");
 		}
 
-		if (!Common.typeImplements(argTypes[0], new SerializableTypeClass())) {
+		if (argTypeNames[0] != "" && !Common.typeImplements(argTypes[0], new SerializableTypeClass())) {
 			throw main.typeError(`illegal datum argument type in main: '${argTypes[0].toString()}`);
 		}
 
-		if (!Common.typeImplements(argTypes[1], new SerializableTypeClass())) {
+		if (argTypeNames[1] != "" && !Common.typeImplements(argTypes[1], new SerializableTypeClass())) {
 			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[1].toString()}`);
 		}
 
-		if ((new ScriptContextType(-1)).isBaseOf(argTypes[2])) {
+		if (argTypeNames[2] != "" && !(new ScriptContextType(-1)).isBaseOf(argTypes[2])) {
 			throw main.typeError(`illegal 3rd argument type in main, expected 'ScriptContext', got ${argTypes[2].toString()}`);
 		}
 
@@ -35043,15 +35241,22 @@ class DatumRedeemerProgram extends Program {
 		 */
 		const innerArgs = [];
 
+		const argTypeNames = this.mainFunc.argTypeNames;
 		this.mainArgTypes.forEach((t, i) => {
 			const name = argNames[i];
 
-			innerArgs.push(new IR([
-				new IR(`${t.path}__from_data`),
-				new IR("("),
-				new IR(name),
-				new IR(")")
-			]));
+			// empty path signgi
+			if (argTypeNames[i] != "") {
+				innerArgs.push(new IR([
+					new IR(`${t.path}__from_data`),
+					new IR("("),
+					new IR(name),
+					new IR(")")
+				]));
+			} else {
+				// unused arg, 0 is easier to optimize
+				innerArgs.push(new IR("0"));
+			}
 
 			outerArgs.push(new IR(name));
 		});

@@ -1188,6 +1188,13 @@ export class StringLiteral extends PrimitiveLiteral {
 		}
 	}
 
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.flatten().map(p => typeof p.content == "string" ? p.content : "").join("");
+	}
+
     /**
      * @package
 	 * @returns {[string, CodeMap]}
@@ -1298,7 +1305,22 @@ export class StringLiteral extends PrimitiveLiteral {
 /**
  * @package
  */
-export const RE_IR_PARAMETRIC_NAME = /[a-zA-Z_][a-zA-Z_0-9]*[[][a-zA-Z_0-9@[\]]/;
+export const RE_IR_PARAMETRIC_NAME = /[a-zA-Z_][a-zA-Z_0-9]*[[][a-zA-Z_0-9@[\]]*/g;
+
+
+/**
+ * Type type parameter prefix
+ * @package
+ */
+export const TTPP = "__T";
+
+/**
+ * Func type parameter prefix
+ * @package
+ */
+export const FTPP = "__F";
+
+const RE_TEMPLATE_NAME = new RegExp(`\\b(${TTPP}|${FTPP})[0-9]*\\b`);
 
 /**
  * @package
@@ -1355,8 +1377,10 @@ export class IRParametricName {
 	 * @return {string}
 	 */
 	toTemplate() {
-		return `${this.#base}${this.#ttp.length > 0 ? `[${this.#ttp.map((_, i) => `__TTP${i}`).join("@")}]` : ""}${this.#fn}${this.#ftp.length > 0 ? `[${this.#ftp.map((_, i) => `__FTP${i}`).join("@")}]` : ""}`;
+		return `${this.#base}${this.#ttp.length > 0 ? `[${this.#ttp.map((_, i) => `${TTPP}${i}`).join("@")}]` : ""}${this.#fn}${this.#ftp.length > 0 ? `[${this.#ftp.map((_, i) => `${FTPP}${i}`).join("@")}]` : ""}`;
 	}
+
+	
 
 	/**
 	 * @param {IR} ir
@@ -1364,11 +1388,11 @@ export class IRParametricName {
 	 */
 	replaceTemplateNames(ir) {
 		this.#ttp.forEach((name, i) => {
-			ir = ir.replace(new RegExp(`\\b__TTP${i}`, "gm"), name);
+			ir = ir.replace(new RegExp(`\\b${TTPP}${i}`, "gm"), name);
 		})
 
 		this.#ftp.forEach((name, i) => {
-			ir = ir.replace(new RegExp(`\\b___FTP${i}`, "gm"), name);
+			ir = ir.replace(new RegExp(`\\b${FTPP}${i}`, "gm"), name);
 		})
 
 		return ir;
@@ -1376,22 +1400,33 @@ export class IRParametricName {
 
 	/**
 	 * @example
- 	 * IRParametricName.matches("__helios__map[__T0@__T1]__fold[__T2@__T3]") => true
+ 	 * IRParametricName.matches("__helios__map[__T0@__T1]__fold[__F2@__F3]") => true
 	 * @example
 	 * IRParametricName.matches("__helios__int") => false
+	 * @example
+	 * IRParametricName.matches("__helios__option[__T0]__none__new") => true
 	 * @param {string} str 
+	 * @returns {boolean}
 	 */
 	static matches(str) {
 		return str.match(RE_IR_PARAMETRIC_NAME) ? true : false;
 	}
 
 	/**
+	 * @param {string} name 
+	 * @returns {boolean}
+	 */
+	static isTemplate(name) {
+		return name.match(RE_TEMPLATE_NAME) ? true : false;
+	}
+
+	/**
 	 * @example
-	 * IRParametricName.parse("__helios__map[__T0@__T1]__fold[__T2@__T3]").toString() => "__helios__map[__T0@__T1]__fold[__T2@__T3]"
+	 * IRParametricName.parse("__helios__map[__T0@__T1]__fold[__F0@__F1]").toString() => "__helios__map[__T0@__T1]__fold[__F0@__F1]"
 	 * @example
-	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__T2@__T3]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__T2@__T3]"
+	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__F0@__F1]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__F0@__F1]"
 	 * @example
-	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__T2@__T3]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__T2@__T3]"
+	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]"
 	 * @param {string} str 
 	 * @returns {IRParametricName}
 	 */
@@ -1435,8 +1470,6 @@ export class IRParametricName {
 
 				c = str.charAt(pos);
 
-				console.log(c, depth);
-
 				if (c == "[") {
 					chars.push(c);
 					depth++;
@@ -1460,7 +1493,7 @@ export class IRParametricName {
 				} else if ((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c == "_" || (c >= "0" && c <= "9")) {
 					chars.push(c);
 				} else {
-					throw new Error("unexpected char in parametric name");
+					throw new Error(`unexpected char '${c}' in parametric name '${str}'`);
 				}
 			}
 
@@ -1508,9 +1541,7 @@ export class IRParametricName {
 
 		let base = eatAlphaNum();
 
-		console.log(base);
 		let ttp = eatParams();
-		console.log("HERE", ttp, str.slice(pos));
 		let fn = "";
 		let ftp = [];
 

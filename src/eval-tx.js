@@ -2,7 +2,12 @@
 // Eval tx types
 
 import {
-    Site
+    assertDefined
+} from "./utils.js";
+
+import {
+    Site,
+    FTPP
 } from "./tokens.js";
 
 import {
@@ -63,7 +68,8 @@ import {
     RawDataType,
     StringType,
     genCommonInstanceMembers,
-    genCommonTypeMembers
+    genCommonTypeMembers,
+    genCommonEnumTypeMembers
 } from "./eval-primitives.js";
 
 import { 
@@ -105,7 +111,7 @@ export const AddressType = new GenericType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: CredentialType,
-        staking_credential: StakingCredentialType
+        staking_credential: OptionType$(StakingCredentialType)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
@@ -150,7 +156,9 @@ const CertifyingActionDelegateType = new GenericEnumMemberType({
         ...genCommonInstanceMembers(self),
         delegator: StakingCredentialType,
 		pool_id: PubKeyHashType
-
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CertifyingActionType)
     })
 });
 
@@ -165,6 +173,9 @@ const CertifyingActionDeregisterType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CertifyingActionType)
     })
 });
 
@@ -179,6 +190,9 @@ const CertifyingActionRegisterType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CertifyingActionType)
     })
 });
 
@@ -194,6 +208,9 @@ const CertifyingActionRegisterPoolType = new GenericEnumMemberType({
         ...genCommonInstanceMembers(self),
         pool_id: PubKeyHashType,
         pool_vrf: PubKeyHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CertifyingActionType)
     })
 });
 
@@ -209,6 +226,9 @@ const CertifyingActionRetirePoolType = new GenericEnumMemberType({
         ...genCommonInstanceMembers(self),
         pool_id: PubKeyHashType,
         epoch: IntType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CertifyingActionType)
     })
 });
 
@@ -243,6 +263,9 @@ const CredentialPubKeyType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: PubKeyHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CredentialType)
     })
 });
 
@@ -256,6 +279,9 @@ const CredentialValidatorType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: ValidatorHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, CredentialType)
     })
 });
 
@@ -276,7 +302,7 @@ export const OutputDatumType = new GenericType({
         None: OutputDatumNoneType,
         new_hash: new FuncType([DatumHashType], OutputDatumHashType),
 		new_inline: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 
             return new ParametricFunc([a], new FuncType([a.ref], OutputDatumInlineType))
         })(),
@@ -295,6 +321,9 @@ const OutputDatumHashType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: DatumHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, OutputDatumType)
     })
 });
 
@@ -309,6 +338,9 @@ const OutputDatumInlineType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         data: RawDataType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, OutputDatumType)
     })
 });
 
@@ -322,6 +354,9 @@ const OutputDatumNoneType = new GenericEnumMemberType({
     parentType: OutputDatumType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, OutputDatumType)
     })
 });
 
@@ -342,7 +377,7 @@ export class ScriptContextType extends Common {
 	constructor(purpose) {
 		super();
 
-        this.#purpose = purpose;
+        this.#purpose = assertDefined(purpose);
 	}
 
     /**
@@ -381,13 +416,14 @@ export class ScriptContextType extends Common {
                     get_staking_purpose:new FuncType([], StakingPurposeType)
                 };
             case ScriptPurpose.Testing:
+            case -1:
                 return {
                     ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Minting),
                     ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Spending),
                     ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Staking),
                 };
             default:
-                throw new Error("unhandled ScriptPurpose");
+                throw new Error(`unhandled ScriptPurpose ${purpose}`);
         }
     }
     /**
@@ -424,7 +460,7 @@ export class ScriptContextType extends Common {
             ...genCommonTypeMembers(this),
             new_certifying: new FuncType([TxType, CertifyingActionType], new ScriptContextType(ScriptPurpose.Staking)),
             new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType(ScriptPurpose.Minting)),
-            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(ScriptPurpose.Rewarding)),
+            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(ScriptPurpose.Staking)),
             new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType(ScriptPurpose.Spending))
         };
 	}
@@ -483,7 +519,6 @@ export class ScriptContextType extends Common {
     }
 }
 
-
 /**
  * Builtin ScriptPurpose type (Minting| Spending| Rewarding | Certifying)
  * @package
@@ -519,6 +554,9 @@ const ScriptPurposeCertifyingType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         action: CertifyingActionType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, ScriptPurposeType)
     })
 });
 
@@ -534,6 +572,9 @@ const ScriptPurposeMintingType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         policy_hash: MintingPolicyHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, ScriptPurposeType)
     })
 });
 
@@ -549,6 +590,9 @@ const ScriptPurposeTypeRewarding = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, ScriptPurposeType)
     })
 });
 
@@ -564,6 +608,9 @@ const ScriptPurposeSpendingType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         output_id: TxOutputIdType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, ScriptPurposeType)
     })
 });
 
@@ -598,6 +645,9 @@ const StakingCredentialHashType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: StakingHashType,
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, StakingCredentialType)
     })
 });
 
@@ -612,6 +662,9 @@ const StakingCredentialPtrType = new GenericEnumMemberType({
     parentType: StakingCredentialType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, StakingCredentialType)
     })
 });
 
@@ -644,6 +697,9 @@ const StakingPurposeCertifyingType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         action: CertifyingActionType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, StakingPurposeType)
     })
 });
 
@@ -659,6 +715,9 @@ const StakingPurposeRewardingType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType,
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, StakingPurposeType)
     })
 });
 
@@ -685,32 +744,32 @@ export const TxType = new GenericType({
         datums: MapType$(DatumHashType, RawDataType),
         id: TxIdType,
         find_datum_hash: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 
             return new ParametricFunc([a], new FuncType([a.ref], DatumHashType))
         })(),
         get_datum_data: new FuncType([TxOutputType], RawDataType),
         outputs_sent_to: new FuncType([PubKeyHashType], ListType$(TxOutputType)),
-        outputs_send_to_datum: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
+        outputs_sent_to_datum: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 
             return new ParametricFunc([a], new FuncType([PubKeyHashType, a.ref, BoolType], ListType$(TxOutputType)))
         })(),
         outputs_locked_by: new FuncType([ValidatorHashType], ListType$(TxOutputType)),
         outputs_locked_by_datum: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 
             return new ParametricFunc([a], new FuncType([ValidatorHashType, a.ref, BoolType], ListType$(TxOutputType)))
         })(),
         value_sent_to: new FuncType([PubKeyHashType], ValueType),
         value_sent_to_datum: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 
             return new ParametricFunc([a], new FuncType([PubKeyHashType, a.ref, BoolType], ValueType));
         })(),
         value_locked_by: new FuncType([ValidatorHashType], ValueType),
         value_locked_by_datum: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 
             return new ParametricFunc([a], new FuncType([ValidatorHashType, a.ref, BoolType], ValueType));
         })(),
@@ -719,8 +778,8 @@ export const TxType = new GenericType({
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
         new: (() => {
-            const a = new Parameter("a", new SerializableTypeClass());
-            const b = new Parameter("b", new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
+            const b = new Parameter("b", `${FTPP}1`, new SerializableTypeClass());
             
             return new ParametricFunc([a, b], new FuncType([
                 ListType$(TxInputType), // 0
@@ -733,7 +792,8 @@ export const TxType = new GenericType({
                 TimeRangeType, // 7
                 ListType$(PubKeyHashType), // 8
                 MapType$(ScriptPurposeType, a.ref), // 9
-                MapType$(DatumHashType, a.ref) // 10
+                MapType$(DatumHashType, b.ref), // 10
+                TxIdType // 11
             ], self))
         })()
     })
@@ -752,7 +812,7 @@ export const TxIdType = new GenericType({
         show: new FuncType([], StringType)
     }),
     genTypeMembers: (self) => ({
-        ...genCommonInstanceMembers(self),
+        ...genCommonTypeMembers(self),
         __geq: new FuncType([self, self], BoolType),
         __gt: new FuncType([self, self], BoolType),
         __leq: new FuncType([self, self], BoolType),
@@ -813,6 +873,7 @@ export const TxOutputIdType = new GenericType({
         index: IntType
     }),
     genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
         __geq: new FuncType([self, TxOutputIdType], BoolType),
         __gt: new FuncType([self, TxOutputIdType], BoolType),
         __leq: new FuncType([self, TxOutputIdType], BoolType),

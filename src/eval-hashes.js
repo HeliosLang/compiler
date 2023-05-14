@@ -52,7 +52,8 @@ import {
     ByteArrayType,
     StringType,
     genCommonInstanceMembers,
-    genCommonTypeMembers
+    genCommonTypeMembers,
+    genCommonEnumTypeMembers
 } from "./eval-primitives.js";
 
 /**
@@ -188,6 +189,9 @@ export var StakingHashStakeKeyType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: StakeKeyHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, StakingHashType)
     })
 });
 
@@ -202,6 +206,9 @@ export var StakingHashValidatorType = new GenericEnumMemberType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: StakingValidatorHashType
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonEnumTypeMembers(self, StakingHashType)
     })
 });
 

@@ -30,6 +30,10 @@ import {
  */
 
 /**
+ * @typedef {import("./eval-common.js").Func} Func
+ */
+
+/**
  * @typedef {import("./eval-common.js").EvalEntity} EvalEntity
  */
 
@@ -87,6 +91,12 @@ export class TypeClassImpl extends Common {
     #name;
 
 	/**
+     * @type {string}
+     */
+	#path;
+
+
+	/**
 	 * @type {InstanceMembers}
 	 */
 	#instanceMembers;
@@ -99,23 +109,17 @@ export class TypeClassImpl extends Common {
 	/**
 	 * @param {TypeClass} typeClass
 	 * @param {string} name
+	 * @param {string} path
 	 */
-	constructor(typeClass, name) {
+	constructor(typeClass, name, path) {
 		super();
 
         this.#name = name;
+		this.#path = path;
         this.#instanceMembers = typeClass.genInstanceMembers(this);
 		this.#typeMembers = typeClass.genTypeMembers(this);
     }
 
-	/**
-	 * @param {string} name
-	 * @returns {string}
-	 */
-	static nameToPath(name) {
-		return `__typeparam__${name}`;
-	}
-	
     /**
 	 * @type {InstanceMembers}
 	 */
@@ -141,7 +145,7 @@ export class TypeClassImpl extends Common {
 	 * @type {string}
 	 */
 	get path() {
-		return TypeClassImpl.nameToPath(this.name);
+		return this.#path;
 	}
 
 	/**
@@ -272,11 +276,12 @@ export class AnyTypeClass extends Common {
 
     /**
      * @param {string} name 
+	 * @param {string} path
      * @returns {DataType}
      */
 
-    toType(name) {
-        return new TypeClassImpl(this, name);
+    toType(name, path) {
+        return new TypeClassImpl(this, name, path);
     }
 }
 
@@ -328,10 +333,11 @@ export class SerializableTypeClass extends Common {
 
     /**
      * @param {string} name 
+	 * @param {string} path
      * @returns {DataType}
      */
-    toType(name) {
-        return new TypeClassImpl(this, name);
+    toType(name, path) {
+        return new TypeClassImpl(this, name, path);
     }
 }
 
@@ -346,16 +352,23 @@ export class Parameter {
 	#name;
 
 	/** 
+	 * @type {string} 
+	 */
+	#path;
+
+	/** 
 	 * @type {TypeClass}
 	 */
 	#typeClass;
 
 	/**
 	 * @param {string} name - typically "a" or "b"
+	 * @param {string} path - typicall "__T0" or "__F0"
 	 * @param {TypeClass} typeClass
 	 */
-	constructor(name, typeClass) {
+	constructor(name, path, typeClass) {
 		this.#name = name;
+		this.#path = path;
 		this.#typeClass = typeClass
 	}
 
@@ -370,7 +383,7 @@ export class Parameter {
 	 * @type {Type}
 	 */
 	get ref() {
-		return new TypeClassImpl(this.typeClass, this.#name);
+		return new TypeClassImpl(this.typeClass, this.#name, this.#path);
 	}
 
 	/**
@@ -474,9 +487,9 @@ export class ParametricFunc extends Common {
 	 * @param {Typed[]} args
 	 * @param {{[name: string]: Typed}} namedArgs
 	 * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
-	 * @returns {Typed | Multi}
+	 * @returns {Func}
 	 */
-	call(site, args, namedArgs = {}, paramTypes = []) {
+	inferCall(site, args, namedArgs = {}, paramTypes = []) {
 		/**
 		 * @type {Map<string, Type>}
 		 */
@@ -495,7 +508,7 @@ export class ParametricFunc extends Common {
 			paramTypes.push(pt);
 		});
 
-		return (new FuncEntity(fnType)).call(site, args, namedArgs);
+		return new FuncEntity(fnType);
 	}
 
     /**
@@ -703,9 +716,9 @@ export class ParametricType extends Common {
 	 * @param {Typed[]} args
 	 * @param {{[name: string]: Typed}} namedArgs
 	 * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
-	 * @returns {Typed | Multi}
+	 * @returns {Func}
 	 */
-	call(site, args, namedArgs = {}, paramTypes = []) {
+	inferCall(site, args, namedArgs = {}, paramTypes = []) {
 		throw site.typeError("not a parametric function");
 	}
 }

@@ -15,6 +15,7 @@ import {
 import { 
 	BoolLiteral,
 	ByteArrayLiteral,
+	FTPP,
 	IntLiteral,
 	IR,
 	PrimitiveLiteral,
@@ -53,6 +54,10 @@ import {
 
 /**
  * @typedef {import("./eval-common.js").EvalEntity} EvalEntity
+ */
+
+/**
+ * @typedef {import("./eval-common.js").Func} Func
  */
 
 /**
@@ -307,8 +312,6 @@ export class PathExpr extends Expr {
 		} else if (base.asType) {
 			const typeMembers = base.asType.typeMembers;
 
-			console.log(typeMembers, base.asType.instanceMembers, base.asType.toString());
-
 			member = typeMembers[this.#memberName.value];
 		}
 
@@ -316,16 +319,62 @@ export class PathExpr extends Expr {
 			throw this.#memberName.referenceError(`${base.toString()}::${this.#memberName.value} not found`);
 		}
 
-		if (member.asEnumMemberType && member.asEnumMemberType.fieldNames.length == 0) {
-			console.log("detected 0 fields in ", member.toString())
-			return new DataEntity(member.asEnumMemberType);
-		} else if(base.asNamespace) {
-			return member;
-		} else if (member.asType?.toTyped().asFunc) {
-			console.log("HERE2", member.toString());
+		if (member.asType?.toTyped().asFunc) {
 			return member.asType.toTyped();
 		} else {
-			console.log("HERE", member.toString());
+			return member;
+		}
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		const v = this.cache;
+
+		if (v?.asNamed) {
+			return new IR(`${v.asNamed.path}`, this.site);
+		} else if (this.#baseExpr.cache?.asNamed) {
+			return new IR(`${this.#baseExpr.cache.asNamed.path}__${this.#memberName.value}`, this.site);
+		} else {
+			throw new Error(`expected named value, ${v?.toString()}`);
+		}
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#baseExpr.toString()}::${this.#memberName.toString()}`;
+	}
+}
+
+/**
+ * Name::Member expression which can instantiate zero field structs and enum members
+ * @package
+ */
+export class ValuePathExpr extends PathExpr {
+
+	/**
+	 * @param {Site} site 
+	 * @param {Expr} baseExpr 
+	 * @param {Word} memberName
+	 */
+	constructor(site, baseExpr, memberName) {
+		super(site, baseExpr, memberName);
+	}
+	
+	/**
+	 * @param {Scope} scope 
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		const member = super.evalInternal(scope);
+
+		if (member.asEnumMemberType && member.asEnumMemberType.fieldNames.length == 0) {
+			return new DataEntity(member.asEnumMemberType);
+		} else {
 			return member;
 		}
 	}
@@ -344,25 +393,14 @@ export class PathExpr extends Expr {
 	toIR(indent = "") {
 		const v = this.cache;
 
-		if (v?.asTyped?.type?.asEnumMemberType) {
+		if (v?.asTyped?.type?.asEnumMemberType && v.asTyped.type.asEnumMemberType.fieldNames.length == 0) {
 			return new IR([
 				new IR(`${v.asTyped.type.asEnumMemberType.path}____new`, this.site),
 				new IR("()")
 			]);
-		} else if (v?.asNamed) {
-			return new IR(`${v.asNamed.path}`, this.site);
-		} else if (this.#baseExpr.cache?.asNamed) {
-			return new IR(`${this.#baseExpr.cache.asNamed.path}__${this.#memberName.value}`, this.site);
 		} else {
-			throw new Error(`expected named value, ${v?.toString()}`);
+			return super.toIR(indent);
 		}
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `${this.#baseExpr.toString()}::${this.#memberName.toString()}`;
 	}
 }
 
@@ -387,10 +425,11 @@ export class ListTypeExpr extends Expr {
 	 * @returns {Type}
 	 */
 	evalInternal(scope) {
-		const itemType = this.#itemTypeExpr.eval(scope).asType;
+		const itemType_ = this.#itemTypeExpr.eval(scope);
+		const itemType = itemType_.asType;
 
 		if (!itemType) {
-			throw this.#itemTypeExpr.typeError("not a type");
+			throw this.#itemTypeExpr.typeError(`'${itemType_.toString()}' isn't a type`);
 		}
 
 		return ListType$(itemType);
@@ -470,12 +509,7 @@ export class OptionTypeExpr extends Expr {
 	 * @returns {Type}
 	 */
 	evalInternal(scope) {
-		const someType = this.#someTypeExpr.eval(scope).asType;
-		if (!someType) {
-			throw this.#someTypeExpr.typeError("option some type not a type");
-		}
-
-		return OptionType$(someType);
+		return OptionType$(this.#someTypeExpr.evalAsType(scope));
 	}
 
 	/**
@@ -554,9 +588,11 @@ export class FuncArgTypeExpr extends Token {
 	 * @returns {ArgType}
 	 */
 	eval(scope) {
-		const type = this.#typeExpr.eval(scope).asType;
+		const type_ = this.#typeExpr.eval(scope);
+
+		const type = type_.asType;
 		if (!type) {
-			throw this.#typeExpr.typeError("not a type");
+			throw this.#typeExpr.typeError(`'${type_.toString()}' isn't a type`);
 		}
 
 		return new ArgType(this.#name, type, this.optional);
@@ -673,11 +709,11 @@ export class AssignExpr extends Expr {
 			}
 
 			this.#nameTypes.forEach((nt, i) => {
-				nt.evalInAssignExpr(subScope, assertDefined(vals[i].type.asDataType), i)
+				nt.evalInAssignExpr(subScope, assertDefined(vals[i].type.asType), i)
 			});
 		} else if (upstreamVal.asTyped) {
 			if (this.#nameTypes[0].hasType()) {
-				this.#nameTypes[0].evalInAssignExpr(subScope, assertDefined(upstreamVal.asTyped.type.asDataType), 0);
+				this.#nameTypes[0].evalInAssignExpr(subScope, assertDefined(upstreamVal.asTyped.type.asType), 0);
 			} else if (this.#upstreamExpr.isLiteral()) {
 				// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
 				if ((this.#upstreamExpr instanceof CallExpr &&
@@ -774,69 +810,6 @@ export class AssignExpr extends Expr {
 		} else {
 			return `(${this.#nameTypes.map(nt => nt.toString()).join(", ")}) = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
 		}
-	}
-}
-
-/**
- * print(...); ... expression
- * @package
- */
-export class PrintExpr extends Expr {
-	#msgExpr;
-	#downstreamExpr;
-
-	/**
-	 * @param {Site} site 
-	 * @param {Expr} msgExpr 
-	 * @param {Expr} downstreamExpr 
-	 */
-	constructor(site, msgExpr, downstreamExpr) {
-		super(site);
-		this.#msgExpr = msgExpr;
-		this.#downstreamExpr = downstreamExpr;
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {EvalEntity}
-	 */
-	evalInternal(scope) {
-		const msgVal = this.#msgExpr.eval(scope).asInstance;
-
-		if (!msgVal) {
-			throw this.#msgExpr.typeError("not an instance");
-		}
-
-		if (!StringType.isBaseOf(msgVal.type)) {
-			throw this.#msgExpr.typeError("expected string arg for print");
-		}
-
-		return this.#downstreamExpr.eval(scope);
-	}
-
-	/**
-	 * @param {string} indent 
-	 * @returns {IR}
-	 */
-	toIR(indent = "") {
-		return new IR([
-			new IR("__core__trace", this.site), new IR("("),
-			this.#msgExpr.toIR(indent),
-			new IR(`, () -> {\n${indent}${TAB}`),
-			this.#downstreamExpr.toIR(indent + TAB),
-			new IR(`\n${indent}})()`)
-		]);
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		const downstreamStr = this.#downstreamExpr.toString();
-
-		assert(downstreamStr != undefined);
-
-		return `print(${this.#msgExpr.toString()}); ${downstreamStr}`;
 	}
 }
 
@@ -1039,6 +1012,13 @@ export class LiteralDataExpr extends Expr {
 	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
+		return new DataEntity(this.#type);
+	}
+
+	/**
+	 * @type {EvalEntity}
+	 */
+	get cache() {
 		return new DataEntity(this.#type);
 	}
 
@@ -1728,24 +1708,16 @@ export class TypeParameter {
 	}
 
 	/**
-	 * @returns {IR[]}
-	 */
-	collectIR() {
-		const type = this.typeClass.toType(this.#name.value);
-
-		return Common.typeClassMembers(this.typeClass).map(m => new IR(`${type.path}__${m}`, this.#name.site))
-	}
-
-	/**
 	 * @param {Scope} scope 
+	 * @param {string} path
 	 */
-	eval(scope) {
+	eval(scope, path) {
 		const typeClass = this.#typeClassExpr ? this.#typeClassExpr.eval(scope).asTypeClass : new AnyTypeClass();
 		if (!typeClass ) {
 			throw this.#typeClassExpr?.typeError("not a typeclass");
 		}
 
-		scope.set(this.#name, typeClass.toType(this.#name.value));
+		scope.set(this.#name, typeClass.toType(this.#name.value, path));
 	}
 
 	/**
@@ -1777,8 +1749,11 @@ export class TypeParameters {
 		return this.#parameters.length > 0;
 	}
 
-	get parameters() {
-		return this.#parameters.map(p => new Parameter(p.name, p.typeClass));
+	/**
+	 * @param {string} basePath
+	 */
+	getParameters(basePath) {
+		return this.#parameters.map((p, i) => new Parameter(p.name, `${basePath}${i}`, p.typeClass));
 	}
 
 	/**
@@ -1794,60 +1769,30 @@ export class TypeParameters {
 
 	/**
 	 * @param {Scope} scope 
+	 * @param {string} baseName
 	 */
-	eval(scope) {
+	eval(scope, baseName) {
 		if (this.#parameters.length == 0) {
 			return scope;
 		} else {
 			const subScope = new Scope(scope);
 
-			this.#parameters.forEach(p => p.eval(subScope));
+			this.#parameters.forEach((p, i) => p.eval(subScope, `${baseName}${i}`));
 
 			return subScope;
 		}
 	}
 
 	/**
-	 * 
 	 * @param {FuncType} fnType
+	 * @param {string} baseParamPath
 	 * @returns {EvalEntity}
 	 */
-	createInstance(fnType) {
+	createInstance(fnType, baseParamPath) {
 		if (this.#parameters.length == 0) {
 			return new FuncEntity(fnType);
 		} else {
-			return new ParametricFunc(this.parameters, fnType);
-		}
-	}
-
-	/**
-	 * TODO: indent properly
-	 * @param {string} indent
-	 * @param {IR} ir 
-	 * @returns {IR}
-	 */
-	wrapIR(indent, ir) {
-		/**
-		 * @type {IR[]}
-		 */
-		let members = [];
-
-		this.#parameters.forEach(p => {
-			const m = p.collectIR();
-
-			members = members.concat(m);
-		});
-
-		if (members.length > 0) {
-			return new IR([
-				new IR("("),
-				new IR(members).join(", "),
-				new IR(") -> {"),
-				ir,
-				new IR("}")
-			]);
-		} else {
-			return ir;
+			return new ParametricFunc(this.getParameters(baseParamPath), fnType);
 		}
 	}
 }
@@ -1908,7 +1853,7 @@ export class FuncLiteralExpr extends Expr {
 	 * @type {Parameter[]}
 	 */
 	get	parameters() {
-		return this.#parameters.parameters;
+		return this.#parameters.getParameters(FTPP);
 	}
 
 	/**
@@ -1941,13 +1886,7 @@ export class FuncLiteralExpr extends Expr {
 			if (e == null) {
 				return new AnyType();
 			} else {
-				const retType = e.eval(scope).asType;
-
-				if (!retType) {
-					throw e.typeError("not a type");
-				}
-
-				return retType;
+				return e.evalAsType(scope);
 			}
 		});
 
@@ -1959,7 +1898,7 @@ export class FuncLiteralExpr extends Expr {
 	 * @returns {FuncType}
 	 */
 	evalType(scope) {
-		scope = this.#parameters.eval(scope);
+		scope = this.#parameters.eval(scope, FTPP);
 
 		return this.evalTypeInternal(scope);
 	}
@@ -1969,7 +1908,7 @@ export class FuncLiteralExpr extends Expr {
 	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		scope = this.#parameters.eval(scope);
+		scope = this.#parameters.eval(scope, FTPP);
 
 		const fnType = this.evalTypeInternal(scope);
 		
@@ -2032,7 +1971,7 @@ export class FuncLiteralExpr extends Expr {
 
 		subScope.assertAllUsed();
 
-		let res = this.#parameters.createInstance(fnType);
+		let res = this.#parameters.createInstance(fnType, FTPP);
 
 		return res;
 	}
@@ -2101,8 +2040,6 @@ export class FuncLiteralExpr extends Expr {
 				new IR(`\n${methodIndent}}`),
 			]);
 		}
-
-		ir = this.#parameters.wrapIR(indent, ir);
 
 		return ir;
 	}
@@ -2183,37 +2120,17 @@ export class ParametricExpr extends Expr {
 
 	/**
 	 * Reused by CallExpr
-	 * @param {IR} baseIR 
 	 * @param {Type[]} paramTypes
-	 * @param {TypeClass[]} typeClasses
-	 * @param {Site[]} paramSites
+	 * @returns {string}
 	 */
-	static toApplicationIR(baseIR, paramTypes, typeClasses, paramSites = []) {
-		assert(typeClasses.length == paramTypes.length);
-
-		/**
-		 * @type {IR[]}
-		 */
-		const injected = [];
-
-		paramTypes.forEach((pt, i) => {
-			const ptPath = assertDefined(pt.asNamed).path;
-
-			injected.push(new IR(ptPath, paramSites[i]));
-		});
-
-		let ir = baseIR;
-
-		if (injected.length > 0) {
-			ir = new IR([
-				ir,
-				new IR("["),
-				new IR(injected).join("@"),
-				new IR("]")
-			])
-		}
-
-		return ir;
+	static toApplicationIR(paramTypes) {
+		return `[${paramTypes.map(pt => {
+			if (pt instanceof FuncType) {
+				return "__fn";
+			} else {
+				return assertDefined(pt.asNamed).path;
+			}
+		}).join("@")}]`;
 	}
 
 	/**
@@ -2221,16 +2138,13 @@ export class ParametricExpr extends Expr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		const paramTypes = this.paramTypes;
+		const params = ParametricExpr.toApplicationIR(this.paramTypes);
 
-		const typeClasses = this.#baseExpr.cache?.asParametric?.typeClasses ?? [];
-
-		return ParametricExpr.toApplicationIR(
-			this.#baseExpr.toIR(indent),
-			paramTypes,
-			typeClasses,
-			this.#parameters.map(p => p.site)
-		)
+		if (this.#baseExpr instanceof MemberExpr) {
+			return this.#baseExpr.toIR(indent, params);
+		} else {
+			return new IR(`${this.#baseExpr.toIR().toString()}${params}`, this.site);
+		}
 	}
 
 	/**
@@ -2464,7 +2378,6 @@ export class BinaryExpr extends Expr {
 					return res;
 				} catch (e) {
 					if (e instanceof UserError) {
-						console.log(e.message);
 						continue;
 					} else {
 						throw e;
@@ -2656,6 +2569,11 @@ export class CallExpr extends Expr {
 	#paramTypes;
 
 	/**
+	 * @type {null | Func}
+	 */
+	#appliedFnVal;
+
+	/**
 	 * @param {Site} site 
 	 * @param {Expr} fnExpr 
 	 * @param {CallArgExpr[]} argExprs 
@@ -2665,6 +2583,7 @@ export class CallExpr extends Expr {
 		this.#fnExpr = fnExpr;
 		this.#argExprs = argExprs;
 		this.#paramTypes = [];
+		this.#appliedFnVal = null; // only for inferred parametric funcions
 	}
 
 	get fnExpr() {
@@ -2746,7 +2665,9 @@ export class CallExpr extends Expr {
 		if (fnVal.asParametric) {
 			this.#paramTypes = [];
 
-			return fnVal.asParametric.call(this.site, posArgVals, namedArgVals, this.#paramTypes);
+			this.#appliedFnVal = fnVal.asParametric.inferCall(this.site, posArgVals, namedArgVals, this.#paramTypes);
+
+			return this.#appliedFnVal.call(this.site, posArgVals, namedArgVals);
 		} else if (fnVal.asFunc) {
 			return fnVal.asFunc.call(this.site, posArgVals, namedArgVals);
 		} else {
@@ -2759,7 +2680,11 @@ export class CallExpr extends Expr {
 	 * @type {FuncType}
 	 */
 	get fn() {
-		return assertClass(this.#fnExpr.cache?.asTyped?.type, FuncType);
+		if (this.#fnExpr.cache?.asParametric) {
+			return assertClass(this.#appliedFnVal?.type?.asType, FuncType);
+		} else {
+			return assertClass(this.#fnExpr.cache?.asTyped?.type.asType, FuncType);
+		}
 	}
 
 	/**
@@ -2818,14 +2743,34 @@ export class CallExpr extends Expr {
 	 * @param {string} indent 
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
-		const fn = this.fn;
-		let fnIR = this.#fnExpr.toIR(indent);
-		const fnVal = this.#fnExpr.cache?.asParametric;
-		if (fnVal instanceof ParametricFunc) {
+	toFnExprIR(indent = "") {
+		if (this.#fnExpr.cache?.asParametric instanceof ParametricFunc) {
 			assert(this.#paramTypes.length > 0);
-			fnIR = ParametricExpr.toApplicationIR(fnIR, this.#paramTypes, fnVal.typeClasses);
+
+			const params = ParametricExpr.toApplicationIR(this.#paramTypes);
+
+			if (this.#fnExpr instanceof MemberExpr) {
+				return this.#fnExpr.toIR(indent, params);
+			} else {
+				return new IR(`${this.#fnExpr.toIR(indent).toString()}${params}`, this.#fnExpr.site);
+			}
+		} else {
+			return this.#fnExpr.toIR(indent);
 		}
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		let fnIR = this.toFnExprIR(indent);
+
+		/**
+		 * We need the func type for things like multivalued args and optional args 
+		 * @type {FuncType} 
+		 */
+		const fn = this.fn;
 
 		/**
 		 * First step is to eliminate the named args
@@ -3004,10 +2949,16 @@ export class MemberExpr extends Expr {
 			throw this.#objExpr.site.typeError("not an instance");
 		}
 
-		const member = objVal.instanceMembers[this.#memberName.value];
+		let member = objVal.instanceMembers[this.#memberName.value];
 		if (!member) {
-			console.log(objVal.instanceMembers)
-			throw this.#memberName.referenceError(`'${objVal.type.toString()}.${this.#memberName.value}' undefined`);
+
+			if (objVal?.type?.asEnumMemberType) {
+				member = objVal.type.asEnumMemberType.parentType.instanceMembers[this.#memberName.value];
+			}
+
+			if (!member) {
+				throw this.#memberName.referenceError(`'${objVal.type.toString()}.${this.#memberName.value}' undefined`);
+			}
 		}
 
 		if (member.asParametric) {
@@ -3023,9 +2974,10 @@ export class MemberExpr extends Expr {
 
 	/**
 	 * @param {string} indent 
+	 * @param {string} params - applied type parameters must be inserted Before the call to self
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(indent = "", params = "") {
 		// members can be functions so, field getters are also encoded as functions for consistency
 
 		const objType = assertDefined(this.#objExpr.cache?.asTyped?.type?.asNamed); 
@@ -3033,11 +2985,11 @@ export class MemberExpr extends Expr {
 		let objPath = objType.path;
 
 		// if we are getting the member of an enum member we should check if it a field or method, because for a method we have to use the parent type
-		if (objType.asEnumMemberType && (objType.asEnumMemberType.fieldNames.findIndex(n => n == this.#memberName.value) == -1)) {
+		if (objType.asEnumMemberType && (objType.asEnumMemberType.instanceMembers[this.#memberName.value] === undefined)) {
 			objPath = objType.asEnumMemberType.parentType.path;
 		}
 
-		let ir = new IR(`${objPath}__${this.#memberName.toString()}`, this.site);
+		let ir = new IR(`${objPath}__${this.#memberName.toString()}${params}`, this.site);
 
 		return new IR([
 			ir, new IR("("),
@@ -3328,30 +3280,31 @@ export class DestructExpr {
 				throw new Error("typeExpr not set");
 			}
 		} else {
-			const type = this.#typeExpr.eval(scope).asType;
-			if (!type) {
-				throw this.#typeExpr.typeError("not a type");
-			}
-
-			return type;
+			return this.#typeExpr.evalAsType(scope);
 		}
 	}
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {DataType} upstreamType 
+	 * @param {Type} upstreamType 
 	 */
 	evalDestructExprs(scope, upstreamType) {
 		if (this.#destructExprs.length > 0) {
-			if (upstreamType.fieldNames.length != this.#destructExprs.length) {
-				throw this.site.typeError(`wrong number of destruct fields, expected ${upstreamType.fieldNames.length}, got ${this.#destructExprs.length}`);
+			if (!upstreamType.asDataType) {
+				throw this.site.typeError("can't destruct a function");
+			}
+
+			const upstreamFieldNames = upstreamType.asDataType.fieldNames;
+
+			if (upstreamFieldNames.length != this.#destructExprs.length) {
+				throw this.site.typeError(`wrong number of destruct fields, expected ${upstreamFieldNames.length}, got ${this.#destructExprs.length}`);
 			}
 
 			for (let i = 0; i < this.#destructExprs.length; i++) {
 
 				this.#destructExprs[i].evalInternal(
 					scope, 
-					assertDefined(upstreamType.instanceMembers[upstreamType.fieldNames[i]].asDataType), 
+					assertDefined(upstreamType.instanceMembers[upstreamFieldNames[i]].asDataType), 
 					i
 				);
 			}
@@ -3360,7 +3313,7 @@ export class DestructExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {DataType} upstreamType
+	 * @param {Type} upstreamType
 	 * @param {number} i
 	 */
 	evalInternal(scope, upstreamType, i) {
@@ -3412,12 +3365,12 @@ export class DestructExpr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {DataType} upstreamType
+	 * @param {Type} upstreamType
 	 * @param {number} i
 	 */
 	evalInAssignExpr(scope, upstreamType, i) {
 		/**
-		 * @param {null | DataType} t 
+		 * @param {null | Type} t 
 		 */
 		const checkType = (t) => {
 			if (!t) {
@@ -3446,18 +3399,16 @@ export class DestructExpr {
 
 		const t = this.evalType(scope);
 
-		if (t.asDataType) {
-			/*if (i != 0) {
-				throw this.site.typeError("expected multi instance");
-			}*/
-
-			checkType(t.asDataType);
+		if (t.asType) {
+			checkType(t.asType);
 		} else if (t.asMulti) {
 			if (i >= t.asMulti.values.length) {
 				throw this.site.typeError(`expected multi instace with only ${t.asMulti.values.length} items`);
 			}
 
 			checkType(t.asMulti.values[i].type.asDataType);
+		} else {
+			throw new Error("unexpected");
 		}
 	}
 
@@ -3632,7 +3583,7 @@ export class SwitchCase extends Token {
 	evalEnumMember(scope, enumType) {
 		const caseType = enumType.typeMembers[this.memberName.value]?.asEnumMemberType;
 		if (!caseType) {
-			throw this.memberName.typeError("not a type");
+			throw this.memberName.typeError(`${this.memberName.value} isn't a valid enum member of ${enumType.toString()}`);
 		}
 
 		this.#constrIndex = caseType.constrIndex;

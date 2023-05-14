@@ -55,6 +55,22 @@ export function genCommonTypeMembers(type) {
 }
 
 /**
+ * @package
+ * @param {Type} type
+ * @param {Type} parentType
+ * @returns {TypeMembers}
+ */
+export function genCommonEnumTypeMembers(type, parentType) {
+    return {
+        __eq:      new FuncType([type, parentType], BoolType),
+        __neq:     new FuncType([type, parentType], BoolType),
+        from_data: new FuncType([RawDataType], type),
+        __to_data: new FuncType([type], RawDataType),
+    }
+}
+
+
+/**
  * Builtin bool type
  * @package
  * @type {DataType}

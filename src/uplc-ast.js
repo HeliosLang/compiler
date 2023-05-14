@@ -52,6 +52,13 @@ import {
 /**
  * A Helios/Uplc Program can have different purposes
  * @package
+ * @type {{
+ *   Testing: number,
+ * 	 Minting: number,
+ *   Spending: number,
+ *   Staking: number,
+ *   Module: number
+ * }}
  */
 export const ScriptPurpose = {
 	Testing: -1,
@@ -2775,7 +2782,7 @@ export class UplcBuiltin extends UplcTerm {
 
 					if (b.isList()) {
 						if (!b.itemType.isSameType(a)) {
-							throw callSite.typeError(`wrong type for 2nd arg of mkCons`);
+							throw callSite.typeError(`wrong type for 2nd arg of mkCons, expected ${a.toString()}, got ${b.toString()}`);
 						}
 
 						let lst = b.list;

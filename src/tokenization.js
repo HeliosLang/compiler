@@ -135,7 +135,7 @@ export class Tokenizer {
 	 * @param {string} c 
 	 */
 	readToken(site, c) {
-		if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && c == '@')) {
+		if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && (c == '@' || c == '[' || c == ']'))) {
 			this.readWord(site, c);
 		} else if (c == '/') {
 			this.readMaybeComment(site);
@@ -216,7 +216,7 @@ export class Tokenizer {
 
 		let c = c0;
 		while (c != '\0') {
-			if (c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && c == '@')) {
+			if (c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && (c == '@' || c == '[' || c == ']'))) {
 				chars.push(c);
 				c = this.readChar();
 			} else {

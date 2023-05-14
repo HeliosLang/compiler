@@ -2,11 +2,16 @@
 // Eval money types
 
 import {
+    assertDefined
+} from "./utils.js";
+
+import {
     AssetClass,
     Value
 } from "./helios-data.js";
 
 import {
+    DataEntity,
     FuncType,
     GenericType
 } from "./eval-common.js";
@@ -45,11 +50,15 @@ export var AssetClassType = new GenericType({
         mph: MintingPolicyHashType,
         token_name: ByteArrayType
     }),
-    genTypeMembers: (self) => ({
-        ...genCommonTypeMembers(self),
-        ADA: self,
-        new: new FuncType([MintingPolicyHashType, ByteArrayType], self)
-    })
+    genTypeMembers: (self) => {
+        const selfInstance = new DataEntity(assertDefined(self.asDataType));
+
+        return {
+            ...genCommonTypeMembers(self),
+            ADA: selfInstance,
+            new: new FuncType([MintingPolicyHashType, ByteArrayType], self)
+        }
+    }
 });
 
 
@@ -74,19 +83,23 @@ export var ValueType = new GenericType({
         show: new FuncType([], StringType),
         to_map: new FuncType([], MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType)))
     }),
-    genTypeMembers: (self) => ({
-        ...genCommonTypeMembers(self),
-        __add: new FuncType([self, self], self),
-        __div: new FuncType([self, IntType], ValueType),
-        __geq: new FuncType([self, ValueType], BoolType),
-        __gt: new FuncType([self, ValueType], BoolType),
-        __leq: new FuncType([self, ValueType], BoolType),
-        __lt: new FuncType([self, ValueType], BoolType),
-        __mul: new FuncType([self, IntType], ValueType),
-		__sub: new FuncType([self, self], self),
-        from_map: new FuncType([MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType))], self),
-        lovelace: new FuncType([IntType], self),
-        new: new FuncType([AssetClassType, IntType], self),
-        ZERO: self
-    })
+    genTypeMembers: (self) => {
+        const selfInstance = new DataEntity(assertDefined(self.asDataType));
+
+        return {
+            ...genCommonTypeMembers(self),
+            __add: new FuncType([self, self], self),
+            __div: new FuncType([self, IntType], ValueType),
+            __geq: new FuncType([self, ValueType], BoolType),
+            __gt: new FuncType([self, ValueType], BoolType),
+            __leq: new FuncType([self, ValueType], BoolType),
+            __lt: new FuncType([self, ValueType], BoolType),
+            __mul: new FuncType([self, IntType], ValueType),
+            __sub: new FuncType([self, self], self),
+            from_map: new FuncType([MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType))], self),
+            lovelace: new FuncType([IntType], self),
+            new: new FuncType([AssetClassType, IntType], self),
+            ZERO: selfInstance
+        }
+    }
 });

@@ -6,6 +6,11 @@ import {
 } from "./utils.js";
 
 import {
+	FTPP,
+	TTPP
+} from "./tokens.js";
+
+import {
 	HeliosData,
 	HMap,
 	HList,
@@ -75,7 +80,7 @@ import {
  */
 export const ListType = new ParametricType({
 	offChainType: HList,
-	parameters: [new Parameter("ItemType", new SerializableTypeClass())],
+	parameters: [new Parameter("ItemType", `${TTPP}0`, new SerializableTypeClass())],
 	apply: ([itemType]) => {
 		const offChainItemType = itemType.asDataType?.offChainType ?? null;
 		const offChainType = offChainItemType ? HList(offChainItemType) : null;
@@ -94,11 +99,11 @@ export const ListType = new ParametricType({
 				find: new FuncType([new FuncType([itemType], BoolType)], itemType),
 				find_safe: new FuncType([new FuncType([itemType], BoolType)], OptionType$(itemType)),
 				fold: (() => {
-					const a = new Parameter("a", new AnyTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([a.ref, itemType], a.ref), a.ref], a.ref));
 				})(),
 				fold_lazy: (() => {
-					const a = new Parameter("a", new AnyTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([itemType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
 				})(),
 				for_each: new FuncType([new FuncType([itemType], new VoidType())], new VoidType()),
@@ -108,14 +113,14 @@ export const ListType = new ParametricType({
 				is_empty: new FuncType([], BoolType),
 				length: IntType,
 				map: (() => {
-					const a = new Parameter("a", new SerializableTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([itemType], a.ref)], ListType$(a.ref)));
 				})(),
 				prepend: new FuncType([itemType], self),
 				sort: new FuncType([new FuncType([itemType, itemType], BoolType)], self),
 				tail: self,
 				take: new FuncType([IntType], self),
-				take_end: new FuncType([IntType], itemType),
+				take_end: new FuncType([IntType], self),
 			}),
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self),
@@ -142,7 +147,10 @@ export function ListType$(itemType) {
  */
 export const MapType = new ParametricType({
 	offChainType: HMap,
-	parameters: [new Parameter("KeyType", new SerializableTypeClass()), new Parameter("ValueType", new SerializableTypeClass())],
+	parameters: [
+		new Parameter("KeyType", `${TTPP}0`, new SerializableTypeClass()), 
+		new Parameter("ValueType", `${TTPP}1`, new SerializableTypeClass())
+	],
 	apply: ([keyType, valueType]) => {
 		const offChainKeyType = keyType.asDataType?.offChainType ?? null;
 		const offChainValueType = valueType.asDataType?.offChainType ?? null;
@@ -165,11 +173,11 @@ export const MapType = new ParametricType({
 				find_value: new FuncType([new FuncType([valueType], BoolType)], valueType),
 				find_value_safe: new FuncType([new FuncType([valueType], BoolType)], OptionType$(valueType)),
 				fold: (() => {
-					const a = new Parameter("a", new AnyTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([a.ref, keyType, valueType], a.ref), a.ref], a.ref));
 				})(),
 				fold_lazy: (() => {
-					const a = new Parameter("a", new AnyTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([keyType, valueType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
 				})(),
 				for_each: new FuncType([new FuncType([keyType, valueType], new VoidType())], new VoidType()),
@@ -181,8 +189,8 @@ export const MapType = new ParametricType({
 				is_empty: new FuncType([], BoolType),
 				length: IntType,
 				map: (() => {
-					const a = new Parameter("a", new SerializableTypeClass());
-					const b = new Parameter("b", new SerializableTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
+					const b = new Parameter("b", `${FTPP}1`, new SerializableTypeClass());
 
 					return new ParametricFunc([a, b], new FuncType([new FuncType([keyType, valueType], [a.ref, b.ref])], MapType$(a.ref, b.ref)));
 				})(),
@@ -215,10 +223,11 @@ export function MapType$(keyType, valueType) {
  */
 export const OptionType = new ParametricType({
 	offChainType: Option,
-	parameters: [new Parameter("SomeType", new SerializableTypeClass())],
+	parameters: [new Parameter("SomeType", `${TTPP}0`, new SerializableTypeClass())],
 	apply: ([someType]) => {
 		const someOffChainType = someType.asDataType?.offChainType ?? null;
 		const offChainType = someOffChainType ? Option(someOffChainType) : null;
+		const someTypePath = assertDefined(someType.asDataType).path;
 
 		/**
 		 * @type {DataType}
@@ -226,11 +235,11 @@ export const OptionType = new ParametricType({
 		const AppliedOptionType = new GenericType({
 			offChainType: offChainType,
 			name: `Option[${someType.toString()}]`,
-			path: `__helios__option[${assertDefined(someType.asDataType).path}]`,
+			path: `__helios__option[${someTypePath}]`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				map: (() => {
-					const a = new Parameter("a", new SerializableTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([someType], a.ref)], OptionType$(a.ref)));
 				})(),
 				unwrap: new FuncType([], someType)
@@ -248,8 +257,9 @@ export const OptionType = new ParametricType({
 		const SomeType = new GenericEnumMemberType({
 			name: "Some",
 			constrIndex: 0,
+			fieldNames: ["some"],
 			parentType: AppliedOptionType,
-			path: "__helios__option__some",
+			path: `__helios__option[${someTypePath}]__some`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				some: someType
@@ -266,7 +276,7 @@ export const OptionType = new ParametricType({
 			name: "None",
 			constrIndex: 1,
 			parentType: AppliedOptionType,
-			path: "__helios__option__none",
+			path: `__helios__option[${someTypePath}]__none`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self)
 			}),

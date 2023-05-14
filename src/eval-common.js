@@ -98,7 +98,7 @@ import {
  *   offChainType: (null | ((...any) => HeliosDataClass<HeliosData>))
  *   typeClasses: TypeClass[]
  *   apply(types: Type[], site?: Site): EvalEntity
- *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): (Typed | Multi)
+ *   inferCall(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): Func
  * }} Parametric
  */
 
@@ -122,10 +122,10 @@ import {
 
 /**
  * @typedef {EvalEntity & {
- *   asTypeClass:                    TypeClass
- *   genInstanceMembers(impl: Type): TypeClassMembers
- *   genTypeMembers(impl: Type):     TypeClassMembers
- *   toType(name: string):           DataType
+ *   asTypeClass:                        TypeClass
+ *   genInstanceMembers(impl: Type):     TypeClassMembers
+ *   genTypeMembers(impl: Type):         TypeClassMembers
+ *   toType(name: string, path: string): DataType
  * }} TypeClass
  */
 
@@ -138,7 +138,7 @@ import {
  */
 
 /**
- * @typedef {{[name: string]: (Parametric | Type)}} TypeMembers
+ * @typedef {{[name: string]: (Parametric | Type | Typed)}} TypeMembers
  */
 
 /**
@@ -225,7 +225,7 @@ export class Common {
      * @returns {string[]}
      */
     static typeClassMembers(tc) {
-        const dummy = tc.toType("");
+        const dummy = tc.toType("", "");
 
         const typeMemberNames = Object.keys(tc.genTypeMembers(dummy)).sort();
         const instanceMemberNames = Object.keys(tc.genInstanceMembers(dummy)).sort();
@@ -349,11 +349,39 @@ export class Common {
 
 /**
  * @package
- * @implements {Type}
+ * @implements {DataType}
  */
 export class AnyType extends Common {
 	constructor() {
 		super();
+	}
+
+	/**
+	 * @type {DataType}
+	 */
+	get asDataType() {
+		return this;
+	}
+
+	/**
+	 * @type {HeliosDataClass<HeliosData> | null}
+	 */
+	get offChainType() {
+		return null;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get fieldNames() {
+		return [];
+	}
+
+	/**
+	 * @type {Named}
+	 */
+	get asNamed() {
+		return this;
 	}
 
 	/**
@@ -368,6 +396,20 @@ export class AnyType extends Common {
 	 */
 	get instanceMembers() {
 		return {};
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return "";
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get path() {
+		return "";
 	}
 
 	/**
@@ -400,6 +442,13 @@ export class AnyType extends Common {
 	 */
 	toTyped() {
 		throw new Error("can't be turned into a type");
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "Any";
 	}
 }
 
@@ -1042,7 +1091,7 @@ export class GenericEnumMemberType extends GenericType {
     constructor({name, path, constrIndex, parentType, offChainType, fieldNames, genInstanceMembers, genTypeMembers}) {
         super({
             name, 
-            path: path ?? `${parentType.path}__${name}`, 
+            path: path ?? `${parentType.path}__${name.toLowerCase()}`, 
             offChainType, 
             fieldNames, 
             genInstanceMembers, 

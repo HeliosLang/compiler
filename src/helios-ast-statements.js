@@ -15,7 +15,8 @@ import {
     IR,
     Site,
     Token,
-    Word
+    Word,
+	FTPP
 } from "./tokens.js";
 
 /**
@@ -45,8 +46,7 @@ import {
 	GenericType,
 	GenericEnumMemberType,
 	ModuleNamespace,
-	NamedEntity,
-	
+	NamedEntity
 } from "./eval-common.js";
 
 /**
@@ -102,11 +102,13 @@ import {
 } from "./helios-scopes.js";
 
 import {
+	CallExpr,
 	Expr,
 	FuncArg,
     FuncLiteralExpr,
     LiteralDataExpr,
     NameTypePair,
+	PathExpr,
     PrimitiveLiteralExpr,
 	RefExpr,
     StructLiteralExpr,
@@ -333,9 +335,9 @@ export class ConstStatement extends Statement {
 	 */
 	get type() {
 		if (this.#typeExpr === null) {
-			return assertDefined(this.#valueExpr.cache?.asTyped?.type?.asDataType);
+			return assertDefined(this.#valueExpr.cache?.asTyped?.type?.asDataType, this.#valueExpr.cache?.toString() ?? this.#valueExpr.toString());
 		} else {
-			return assertDefined(this.#typeExpr.cache?.asDataType);
+			return assertDefined(this.#typeExpr.cache?.asDataType, this.#typeExpr.cache?.toString() ?? this.#typeExpr.toString());
 		}
 	}
 
@@ -347,11 +349,7 @@ export class ConstStatement extends Statement {
 		const type = this.type;
 		const site = this.#valueExpr.site;
 
-		if (BoolType.isBaseOf(type)) {
-			this.#valueExpr = new PrimitiveLiteralExpr(new BoolLiteral(site, data.index == 1));
-		} else {
-			this.#valueExpr = new LiteralDataExpr(site, type, data);
-		}
+		this.#valueExpr = new LiteralDataExpr(site, type, data);
 	}
 
 	/**
@@ -415,11 +413,22 @@ export class ConstStatement extends Statement {
 	 * @returns {IR}
 	 */
 	toIRInternal() {
+		let ir = this.#valueExpr.toIR();
+
+		if (this.#valueExpr instanceof LiteralDataExpr) {
+			ir = new IR([
+				new IR(`${this.#valueExpr.type.path}__from_data`),
+				new IR("("),
+				ir,
+				new IR(")")
+			]);
+		}
+
 		return new IR([
 			new IR("const(", this.site),
-			this.#valueExpr.toIR(),
+			ir,
 			new IR(")")
-		]);	
+		]);
 	}
 
 	/**
@@ -1088,7 +1097,13 @@ export class FuncStatement extends Statement {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		map.set(this.path, this.toIRInternal());
+		let key = this.path
+		
+		if (this.#funcExpr.parameters.length > 0) {
+			key = key + `[${this.#funcExpr.parameters.map((_, i) => `${FTPP}${i}`).join("@")}]`;
+		}
+
+		map.set(key, this.toIRInternal());
 	}
 
 	/**
@@ -1605,6 +1620,8 @@ export class ImplDefinition {
 		for (let s of this.#statements) {
 			if (FuncStatement.isMethod(s)) {
 				instanceMembers[s.name.value] = s.evalType(scope);
+			} else if (s instanceof ConstStatement) {
+				typeMembers[s.name.value] = s.evalType(scope).toTyped();
 			} else {
 				typeMembers[s.name.value] = s.evalType(scope);
 			}

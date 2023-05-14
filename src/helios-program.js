@@ -85,6 +85,7 @@ import {
 
 import {
 	fetchRawFunctions,
+    fetchRawGenerics,
     wrapWithRawFunctions
 } from "./ir-defs.js";
 
@@ -615,48 +616,64 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @param {string} name 
+	 * @returns {ConstStatement | null}
+	 */
+	findConstStatement(name) {
+		for (let [statement, isImport] of this.allStatements) {
+			if (statement instanceof ConstStatement && statement.name.value == name && !isImport) {
+				return statement;
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * Doesn't use wrapEntryPoint
 	 * @param {string} name 
 	 * @returns {UplcValue}
 	 */
 	evalParam(name) {
 		/** 
-		 * @type {any} 
+		 * @type {ConstStatement | null} 
 		 */
-		let constStatement = null;
+		let constStatement = this.findConstStatement(name);
 
-		const map = this.fetchDefinitions(new IR(""), [], (s, isImport) => {
-			if (s instanceof ConstStatement && ((s.name.value == name && !isImport) || s === constStatement)) {
-				constStatement = s;
-				return true;
-			} else {
-				return false;
-			}
+		if (!constStatement) {
+			throw new Error(`param '${name}' not found`);
+		}
+
+		const toDataIR = new IR(`${constStatement.type.path}____to_data`);
+
+		// include toDataIR so that any template builtins within that are included
+		const map = this.fetchDefinitions(toDataIR, [], (s, isImport) => {
+			return s instanceof ConstStatement && ((s.name.value == name && !isImport) || s === constStatement);
 		});
 
-		if (constStatement === null) {
-			throw new Error(`param '${name}' not found`);
-		} 
-
-		const path = assertDefined(constStatement).path;
+		const path = constStatement.path;
 
 		let ir = assertDefined(map.get(path));
 
 		map.delete(path);
 
-		console.log("CONST IR:", ir.generateSource()[0])
 		ir = new IR([
+			toDataIR,
+			new IR("("),
 			ir,
-			new IR("(())")
+			new IR("(())"),
+			new IR(")")
 		])
 
-		ir = wrapWithRawFunctions(IR.wrapWithDefinitions(ir, map));
+		ir = IR.wrapWithDefinitions(ir, map);
 
-		console.log(ir.generateSource()[0]);
+		// add builtins as late as possible, to make sure we catch as many dependencies as possible
+		const builtins = fetchRawFunctions(IR.wrapWithDefinitions(ir, map));
+
+		ir = IR.wrapWithDefinitions(ir, builtins);
 
 		const irProgram = IRProgram.new(ir, this.#purpose, true, true);
 
-		console.log("EVALUATED", name);
 		return new UplcDataValue(irProgram.site, irProgram.data);
 	}
 	
@@ -776,7 +793,6 @@ class MainModule extends Module {
 			statement.toIR(map);
 
 			if (endCond(statement, isImport)) {
-				console.log(map);
 				break;
 			}
 		}
@@ -816,11 +832,13 @@ class MainModule extends Module {
 
 	/**
 	 * Also merges builtins and map
-	 * @param {IRDefinitions} builtins 
+	 * @param {IR} mainIR
 	 * @param {IRDefinitions} map 
 	 * @returns {IRDefinitions}
 	 */
-	static injectTypeParameters(builtins, map) {
+	static applyTypeParameters(mainIR, map) {
+		const builtinGenerics = fetchRawGenerics();
+
 		/**
 		 * @type {Map<string, [string, IR]>}
 		 */
@@ -831,7 +849,7 @@ class MainModule extends Module {
 		 * @param {string} location
 		 */
 		const add = (name, location) => {
-			if (builtins.has(name) || map.has(name) || added.has(name)) {
+			if (map.has(name) || added.has(name)) {
 				return;
 			}
 
@@ -839,7 +857,7 @@ class MainModule extends Module {
 
 			const genericName = pName.toTemplate();
 
-			let ir = builtins.get(genericName) ?? map.get(genericName);
+			let ir = builtinGenerics.get(genericName) ?? map.get(genericName);
 
 			if (!ir) {
 				throw new Error(`${genericName} undefined in ir`);
@@ -848,19 +866,18 @@ class MainModule extends Module {
 
 				added.set(name, [location, ir]);
 
-				ir.search(RE_IR_PARAMETRIC_NAME, (name_) => add(name_, name));
+				ir.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, location));
 			}
 		};
-
-		for (let [k, v] of builtins) {
-			v.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, k));
-		}
 
 		for (let [k, v] of map) {
 			v.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, k));
 		}
 
-		let entries = Array.from(builtins.entries()).concat(Array.from(map.entries()));
+		mainIR.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, "main"))
+
+		// we need to keep templates, otherwise find() might fail to inject the applied definitions in the right location
+		let entries = Array.from(map.entries());
 
 		/**
 		 * @param {string} name
@@ -873,11 +890,16 @@ class MainModule extends Module {
 				}
 			}
 
-			throw new Error("not found");
+			if (name == "main") {
+				return entries.length;
+			} else {
+				throw new Error(`${name} not found`);
+			}
 		};
 
 		const addedEntries = Array.from(added.entries());
 
+		// loop from end so that applied definitions that were generated recursively are added in the correct order
 		for (let i = addedEntries.length-1; i >= 0; i--) {
 			const [name, [location, ir]] = addedEntries[i];
 
@@ -887,6 +909,11 @@ class MainModule extends Module {
 
 			entries = entries.slice(0, j).concat([[name, ir]]).concat(entries.slice(j));
 		}
+
+		/**
+		 * Remove template because they don't make any sense in the final output
+		 */
+		entries = entries.filter(([key, _]) => !IRParametricName.isTemplate(key));
 
 		return new Map(entries);
 	}
@@ -902,13 +929,8 @@ class MainModule extends Module {
 		let map = this.statementsToIR(parameters, endCond);
 
 		Program.injectMutualRecursions(map);
- 
-		// builtin functions are added when the IR program is built
-		// also replace all tabs with four spaces
 
-		const builtins = fetchRawFunctions(IR.wrapWithDefinitions(ir, map));
-
-		return Program.injectTypeParameters(builtins, map);
+		return Program.applyTypeParameters(ir, map);
 	}
 
 	/**
@@ -918,9 +940,15 @@ class MainModule extends Module {
 	 * @returns {IR}
 	 */
 	wrapEntryPoint(ir, parameters) {
-		const map = this.fetchDefinitions(ir, parameters, (s) => s.name.value == "main");
+		let map = this.fetchDefinitions(ir, parameters, (s) => s.name.value == "main");
 
-		return IR.wrapWithDefinitions(ir, map);
+		const builtins = fetchRawFunctions(IR.wrapWithDefinitions(ir, map));
+
+		map = new Map(Array.from(builtins).concat(Array.from(map)));
+
+		ir = IR.wrapWithDefinitions(ir, map);
+
+		return ir;
 	}
 
 	/**
@@ -950,10 +978,9 @@ class MainModule extends Module {
 	compile(simplify = false) {
 		const ir = this.toIR([]);
 
-		console.log(ir.generateSource()[0]);
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 		
-		console.log(new Source(irProgram.toString()).pretty());
+		//console.log(new Source(irProgram.toString()).pretty());
 		
 		return irProgram.toUplc();
 	}
@@ -995,19 +1022,20 @@ class RedeemerProgram extends Program {
 
 		// check the 'main' function
 
-		let main = this.mainFunc;
-		let argTypes = main.argTypes;
-		let retTypes = main.retTypes;
+		const main = this.mainFunc;
+		const argTypeNames = main.argTypeNames;
+		const argTypes = main.argTypes;
+		const retTypes = main.retTypes;
 
 		if (argTypes.length != 2) {
 			throw main.typeError("expected 2 args for main");
 		}
 
-		if (!Common.typeImplements(argTypes[0], new SerializableTypeClass())) {
+		if (argTypeNames[0] != "" && !Common.typeImplements(argTypes[0], new SerializableTypeClass())) {
 			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[0].toString()}`);
 		}
 
-		if ((new ScriptContextType(-1)).isBaseOf(argTypes[1])) {
+		if (argTypeNames[1] != "" && !(new ScriptContextType(-1)).isBaseOf(argTypes[1])) {
 			throw main.typeError(`illegal 3rd argument type in main, expected 'ScriptContext', got ${argTypes[1].toString()}`);
 		}
 
@@ -1083,6 +1111,7 @@ class DatumRedeemerProgram extends Program {
 		// check the 'main' function
 
 		const main = this.mainFunc;
+		const argTypeNames = main.argTypeNames;
 		const argTypes = main.argTypes;
 		const retTypes = main.retTypes;
 
@@ -1090,15 +1119,15 @@ class DatumRedeemerProgram extends Program {
 			throw main.typeError("expected 3 args for main");
 		}
 
-		if (!Common.typeImplements(argTypes[0], new SerializableTypeClass())) {
+		if (argTypeNames[0] != "" && !Common.typeImplements(argTypes[0], new SerializableTypeClass())) {
 			throw main.typeError(`illegal datum argument type in main: '${argTypes[0].toString()}`);
 		}
 
-		if (!Common.typeImplements(argTypes[1], new SerializableTypeClass())) {
+		if (argTypeNames[1] != "" && !Common.typeImplements(argTypes[1], new SerializableTypeClass())) {
 			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[1].toString()}`);
 		}
 
-		if ((new ScriptContextType(-1)).isBaseOf(argTypes[2])) {
+		if (argTypeNames[2] != "" && !(new ScriptContextType(-1)).isBaseOf(argTypes[2])) {
 			throw main.typeError(`illegal 3rd argument type in main, expected 'ScriptContext', got ${argTypes[2].toString()}`);
 		}
 
@@ -1127,15 +1156,22 @@ class DatumRedeemerProgram extends Program {
 		 */
 		const innerArgs = [];
 
+		const argTypeNames = this.mainFunc.argTypeNames;
 		this.mainArgTypes.forEach((t, i) => {
 			const name = argNames[i];
 
-			innerArgs.push(new IR([
-				new IR(`${t.path}__from_data`),
-				new IR("("),
-				new IR(name),
-				new IR(")")
-			]));
+			// empty path signgi
+			if (argTypeNames[i] != "") {
+				innerArgs.push(new IR([
+					new IR(`${t.path}__from_data`),
+					new IR("("),
+					new IR(name),
+					new IR(")")
+				]));
+			} else {
+				// unused arg, 0 is easier to optimize
+				innerArgs.push(new IR("0"));
+			}
 
 			outerArgs.push(new IR(name));
 		});

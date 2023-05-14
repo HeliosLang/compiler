@@ -57,7 +57,6 @@ import {
     ParensExpr,
 	PathExpr,
     PrimitiveLiteralExpr,
-    PrintExpr,
     StructLiteralExpr,
     StructLiteralField,
     SwitchCase,
@@ -65,6 +64,7 @@ import {
     RefExpr,
     UnaryExpr,
     UnconstrDataSwitchCase,
+	ValuePathExpr,
     VoidExpr,
     VoidTypeExpr,
 	TypeParameter,
@@ -1531,7 +1531,7 @@ function buildValueExpr(ts, prec = 0) {
 		 * @returns 
 		 */
 		function (ts_, prec_) {
-			return buildMaybeAssignOrPrintExpr(ts_, prec_);
+			return buildMaybeAssignOrChainExpr(ts_, prec_);
 		},
 		makeBinaryExprBuilder('||'), // 1: logical or operator
 		makeBinaryExprBuilder('&&'), // 2: logical and operator
@@ -1560,10 +1560,9 @@ function buildValueExpr(ts, prec = 0) {
  * @param {number} prec
  * @returns {Expr | null}
  */
-function buildMaybeAssignOrPrintExpr(ts, prec) {
+function buildMaybeAssignOrChainExpr(ts, prec) {
 	let semicolonPos = SymbolToken.find(ts, ";");
 	const equalsPos = SymbolToken.find(ts, "=");
-	const printPos = Word.find(ts, "print");
 
 	if (semicolonPos == -1) {
 		if (equalsPos != -1) {
@@ -1573,7 +1572,7 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 			return buildValueExpr(ts, prec + 1);
 		}
 	} else {
-		if ((equalsPos == -1 || equalsPos > semicolonPos) && (printPos == -1 || printPos > semicolonPos)) {
+		if (equalsPos == -1 || equalsPos > semicolonPos) {
 			const upstreamExpr = buildValueExpr(ts.splice(0, semicolonPos), prec+1);
 			const site = assertDefined(ts.shift()).site;
 
@@ -1594,13 +1593,6 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 				}
 			}
 		} else if (equalsPos != -1 && equalsPos < semicolonPos) {
-			if (printPos != -1) {
-				if (printPos <= semicolonPos) {
-					ts[printPos].syntaxError("expected ';' after 'print(...)'");
-					return null;
-				}
-			}
-
 			const equals = ts[equalsPos].assertSymbol("=");
 
 			if (!equals) {
@@ -1646,57 +1638,6 @@ function buildMaybeAssignOrPrintExpr(ts, prec) {
 				return null;
 			} else {
 				return new AssignExpr(equalsSite, lhs, upstreamExpr, downstreamExpr);
-			}
-		} else if (printPos != -1 && printPos < semicolonPos) {
-			if (equalsPos != -1) {
-				if (equalsPos <= semicolonPos) {
-					ts[equalsPos].syntaxError("expected ';' after '...=...'");
-					return null;
-				}
-			}
-
-			const print = assertDefined(ts.shift()).assertWord("print");
-
-			if (!print) {
-				return null;
-			}
-
-			const printSite = print.site;
-
-			const maybeParens = ts.shift();
-
-			if (maybeParens === undefined) {
-				ts[printPos].syntaxError("expected '(...)' after 'print'");
-				return null;
-			} else {
-				const parens = maybeParens.assertGroup("(", 1);
-
-				if (!parens) {
-					return null;
-				}
-
-				const msgExpr = buildValueExpr(parens.fields[0]);
-
-				const semicolon = assertToken(ts.shift(), parens.site)?.assertSymbol(";")
-
-				if (!semicolon) {
-					return null;
-				}
-
-				const semicolonSite = semicolon.site;
-
-				if (ts.length == 0) {
-					semicolonSite.syntaxError("expected expression after ';'");
-					return null;
-				}
-
-				const downstreamExpr = buildValueExpr(ts, prec);
-
-				if (!downstreamExpr || !msgExpr) {
-					return null;
-				}
-
-				return new PrintExpr(printSite, msgExpr, downstreamExpr);
 			}
 		} else {
 			ts[0].syntaxError("unhandled");
@@ -3053,5 +2994,5 @@ function buildValuePathExpr(ts) {
 		return null;
 	}
 	
-	return new PathExpr(typeExpr.site, typeExpr, memberName);
+	return new ValuePathExpr(typeExpr.site, typeExpr, memberName);
 }

@@ -410,15 +410,6 @@ export class IRNameExpr extends IRExpr {
 	evalConstants(stack) {
 		if (this.#variable != null) {
 			this.#value = stack.get(this.#variable);
-
-			if (this.#value === null) {
-				console.log(stack.dump())
-				console.log("MAYBE UNDEFINED IN IR:", this.#variable.name)
-
-				if (this.#variable.name.startsWith("__module")) {
-					throw new Error("block");
-				}
-			}
 		}
 
 		return this;
@@ -960,15 +951,7 @@ export class IRCallExpr extends IRExpr {
 	 * @returns {IRExpr[]}
 	 */
 	evalConstantsInArgs(stack) {
-		try {
 		return this.#argExprs.map(a => a.evalConstants(stack));
-		} catch (e) {
-			if (e.message == "block") {
-				console.log("HERE:", this.toString())
-			}
-
-			throw e;
-		}
 	}
 
 	/** 
@@ -1277,7 +1260,7 @@ export class IRCoreCallExpr extends IRCallExpr {
 							b.value.bool && 
 							cond instanceof IRUserCallExpr && 
 							cond.fnExpr instanceof IRNameExpr && 
-							cond.fnExpr.name === "__helios__common__not"
+							cond.fnExpr.name === "__helios__bool____not"
 						) {
 							return cond.argExprs[0];
 						}	
@@ -1748,9 +1731,9 @@ export class IRUserCallExpr extends IRCallExpr {
 							}
 						}
 						break;
-					case "__helios__common__not": {
+					case "__helios__bool____not": {
 							const a = args[0];
-							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__common__not") {
+							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__bool____not") {
 								return a.argExprs[0];
 							}
 						}

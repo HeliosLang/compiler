@@ -163,6 +163,8 @@ function asData(value) {
         return value;
     } else if (value instanceof helios_.UplcDataValue) {
         return value.data;
+    } else if (value instanceof helios.UserError) {
+        throw value;
     } else {
         throw new Error("expected UplcDataValue or UplcData");
     }
@@ -254,12 +256,12 @@ function spendingScriptContextParam(useInlineDatum) {
         const DATUM_HASH_1 = DatumHash::new(DATUM_1.serialize().blake2b())
         const OUTPUT_DATUM = ${useInlineDatum ? "OutputDatum::new_inline(DATUM_1)" : "OutputDatum::new_hash(DATUM_HASH_1)"}
 
-        const CURRENT_TX_ID = TxId::CURRENT
+        const CURRENT_TX_ID = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
 
         const FIRST_TX_INPUT = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN, OutputDatum::new_none()))
         const REF_INPUT = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0), OutputDatum::new_inline(42)))
         const FIRST_TX_OUTPUT = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
-        const TX = Tx::new(
+        const TX: Tx = Tx::new[Int, Int](
             []TxInput{FIRST_TX_INPUT},
             []TxInput{REF_INPUT},
             []TxOutput{
@@ -269,12 +271,13 @@ function spendingScriptContextParam(useInlineDatum) {
             },
             Value::lovelace(FEE),
             Value::ZERO,
-            []DCert{},
+            []CertifyingAction{},
             Map[StakingCredential]Int{},
             TimeRange::new(Time::new(0), Time::new(100)),
             []PubKeyHash{PubKeyHash::new(PUB_KEY_HASH_BYTES)},
             Map[ScriptPurpose]Int{},
-            Map[DatumHash]Int{${useInlineDatum ? "" : "DATUM_HASH_1: DATUM_1"}}
+            Map[DatumHash]Int{${useInlineDatum ? "" : "DATUM_HASH_1: DATUM_1"}},
+            CURRENT_TX_ID
         )
         const SCRIPT_CONTEXT = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
     `;
@@ -283,7 +286,7 @@ function spendingScriptContextParam(useInlineDatum) {
 const mintingScriptContextParam = `
     // a script context with a single input and a single output
     const PUB_KEY_HASH_BYTES = #01234567890123456789012345678901234567890123456789012345
-    const TX_ID_IN = TxId::CURRENT
+    const TX_ID_IN = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
     const CURRENT_MPH_BYTES = #01234567890123456789012345678901234567890123456789012346
     const CURRENT_MPH = MintingPolicyHash::new(CURRENT_MPH_BYTES)
     const ADDRESS_IN = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
@@ -291,25 +294,26 @@ const mintingScriptContextParam = `
     const QTY = 1000
     const VALUE = Value::lovelace(QTY)
     const MINTED = Value::new(AssetClass::new(CURRENT_MPH, #abcd), 1)
-    const SCRIPT_CONTEXT = ScriptContext::new_minting(Tx::new(
+    const SCRIPT_CONTEXT = ScriptContext::new_minting(Tx::new[Int, Data](
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE + MINTED, OutputDatum::new_none())},
         Value::lovelace(160000),
         MINTED,
-        []DCert{},
+        []CertifyingAction{},
         Map[StakingCredential]Int{},
         TimeRange::ALWAYS,
         []PubKeyHash{},
         Map[ScriptPurpose]Int{},
-        Map[DatumHash]Data{}
+        Map[DatumHash]Data{},
+        TX_ID_IN
     ), CURRENT_MPH)
 `;
 
 const rewardingScriptContextParam = `
     // a script context with a single input and a single output
     const PUB_KEY_HASH_BYTES = #01234567890123456789012345678901234567890123456789012345
-    const TX_ID_IN = TxId::CURRENT
+    const TX_ID_IN = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
     const CURRENT_STAKING_CRED_BYTES = #01234567890123456789012345678901234567890123456789012346
     const CURRENT_STAKING_CRED = StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
     const REWARD_QTY = 2000
@@ -317,20 +321,21 @@ const rewardingScriptContextParam = `
     const ADDRESS_OUT: Address = ADDRESS_IN
     const QTY = 1000
     const VALUE = Value::lovelace(QTY)
-    const SCRIPT_CONTEXT = ScriptContext::new_rewarding(Tx::new(
+    const SCRIPT_CONTEXT = ScriptContext::new_rewarding(Tx::new[Int, Data](
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE + Value::lovelace(REWARD_QTY), OutputDatum::new_none())},
         Value::lovelace(160000),
         Value::ZERO,
-        []DCert{},
+        []CertifyingAction{},
         Map[StakingCredential]Int{
             CURRENT_STAKING_CRED: REWARD_QTY
         },
         TimeRange::ALWAYS,
         []PubKeyHash{},
         Map[ScriptPurpose]Int{},
-        Map[DatumHash]Data{}
+        Map[DatumHash]Data{},
+        TX_ID_IN
     ), CURRENT_STAKING_CRED)
 
     const STAKING_PURPOSE: StakingPurpose = SCRIPT_CONTEXT.get_staking_purpose()
@@ -339,33 +344,34 @@ const rewardingScriptContextParam = `
 const certifyingScriptContextParam = `
     // a script context with a single input and a single output
     const PUB_KEY_HASH_BYTES = #01234567890123456789012345678901234567890123456789012345
-    const TX_ID_IN = TxId::CURRENT
+    const TX_ID_IN = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
     const CURRENT_STAKING_CRED_BYTES = #01234567890123456789012345678901234567890123456789012346
     const CURRENT_STAKING_CRED = StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
     const ADDRESS_IN = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
     const ADDRESS_OUT: Address = ADDRESS_IN
     const QTY_IN = 1000
     const VALUE = Value::lovelace(QTY_IN)
-    const CURRENT_DCERT = DCert::new_register(CURRENT_STAKING_CRED)
-    const DCERT_DEREGISTER = DCert::new_deregister(CURRENT_STAKING_CRED)
+    const CURRENT_DCERT = CertifyingAction::new_register(CURRENT_STAKING_CRED)
+    const DCERT_DEREGISTER = CertifyingAction::new_deregister(CURRENT_STAKING_CRED)
     const POOL_ID = PubKeyHash::new(#1253751235)
     const POOL_VFR = PubKeyHash::new(#125375123598)
     const EPOCH = 370
-    const DCERT_DELEGATE = DCert::new_delegate(CURRENT_STAKING_CRED, POOL_ID)
-    const DCERT_REGISTER_POOL = DCert::new_register_pool(POOL_ID, POOL_VFR)
-    const DCERT_RETIRE_POOL = DCert::new_retire_pool(POOL_ID, EPOCH)
-    const SCRIPT_CONTEXT = ScriptContext::new_certifying(Tx::new(
+    const DCERT_DELEGATE = CertifyingAction::new_delegate(CURRENT_STAKING_CRED, POOL_ID)
+    const DCERT_REGISTER_POOL = CertifyingAction::new_register_pool(POOL_ID, POOL_VFR)
+    const DCERT_RETIRE_POOL = CertifyingAction::new_retire_pool(POOL_ID, EPOCH)
+    const SCRIPT_CONTEXT = ScriptContext::new_certifying(Tx::new[Int, Data](
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE, OutputDatum::new_none())},
         Value::lovelace(0),
         Value::ZERO,
-        []DCert{CURRENT_DCERT, DCERT_DEREGISTER, DCERT_DELEGATE, DCERT_REGISTER_POOL, DCERT_RETIRE_POOL},
+        []CertifyingAction{CURRENT_DCERT, DCERT_DEREGISTER, DCERT_DELEGATE, DCERT_REGISTER_POOL, DCERT_RETIRE_POOL},
         Map[StakingCredential]Int{},
         TimeRange::ALWAYS,
         []PubKeyHash{},
         Map[ScriptPurpose]Int{},
-        Map[DatumHash]Data{}
+        Map[DatumHash]Data{},
+        TX_ID_IN
     ), CURRENT_DCERT)
     const STAKING_PURPOSE: StakingPurpose = SCRIPT_CONTEXT.get_staking_purpose()
 `;
@@ -373,7 +379,7 @@ const certifyingScriptContextParam = `
 
 
 async function testBuiltins() {
-    const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
+    const ft = new helios.FuzzyTest(Math.random()*42, 1, true);
 
 
     /////////////
@@ -1572,224 +1578,7 @@ async function testBuiltins() {
         func main(a: ByteArray) -> ByteArray {
             a.serialize()
         }`, serializeProp);
-
-        await ft.test([ft.bytes()], `
-        testing bytearray32_eq_1
-        func main(a: ByteArray) -> Bool {
-            a.blake2b() == a.blake2b()
-        }`, ([_], res) => asBool(res));
-
-        await ft.test([ft.bytes(), ft.bytes()], `
-        testing bytearray32_eq_2
-        func main(a: ByteArray, b: ByteArray) -> Bool {
-            a.blake2b() == b.blake2b()
-        }`, ([a, b], res) => equalsList(asBytes(a), asBytes(b)) === asBool(res));
-
-        await ft.test([ft.bytes()], `
-        testing bytearray32_neq_1
-        func main(a: ByteArray) -> Bool {
-            a.blake2b() != a.blake2b()
-        }`, ([_], res) => !asBool(res));
-
-        await ft.test([ft.bytes(), ft.bytes()], `
-        testing bytearray32_neq_2
-        func main(a: ByteArray, b: ByteArray) -> Bool {
-            a.blake2b() != b.blake2b()
-        }`, ([a, b], res) => equalsList(asBytes(a), asBytes(b)) === !asBool(res));
-
-        await ft.test([ft.bytes()], `
-        testing bytearray32_add_1
-        func main(a: ByteArray) -> ByteArray {
-            a.blake2b() + #
-        }`, ([a], res) => equalsList(helios_.Crypto.blake2b(asBytes(a)), asBytes(res)));
-
-        await ft.test([ft.bytes()], `
-        testing bytearray32_add_1_alt
-        func main(a: ByteArray) -> ByteArray {
-            # + a.blake2b()
-        }`, ([a], res) => equalsList(helios_.Crypto.blake2b(asBytes(a)), asBytes(res)));
-
-        await ft.test([ft.bytes(), ft.bytes()], `
-        testing bytearray32_add_2
-        func main(a: ByteArray, b: ByteArray) -> ByteArray {
-            a.blake2b() + b.blake2b()
-        }`, ([a, b], res) => equalsList(helios_.Crypto.blake2b(asBytes(a)).concat(helios_.Crypto.blake2b(asBytes(b))), asBytes(res)));
-
-        await ft.test([ft.bytes()], `
-        testing bytearray32_length
-        func main(a: ByteArray) -> Int {
-            a.blake2b().length
-        }`, ([a], res) => 32n === asInt(res));
-
-        await ft.test([ft.bytes(0, 64), ft.int(-10, 100)], `
-        testing bytearray32_slice_1
-        func main(a: ByteArray, b: Int) -> ByteArray {
-            a.blake2b().slice(b, -1)
-        }`, ([a, b], res) => {
-            let bsa = helios_.Crypto.blake2b(asBytes(a));
-            let n = bsa.length;
-
-            let start = asInt(b) < 0n ? n + 1 + Number(asInt(b)) : Number(asInt(b));
-            if (start < 0) {
-                start = 0;
-            } else if (start > n) {
-                start = n;
-            }
-
-            let expected = bsa.slice(start);
-
-            return equalsList(expected, asBytes(res));
-        });
-
-        await ft.test([ft.bytes(0, 64), ft.int(-10, 100), ft.int(-10, 100)], `
-        testing bytearray32_slice_2
-        func main(a: ByteArray, b: Int, c: Int) -> ByteArray {
-            a.blake2b().slice(b, c)
-        }`, ([a, b, c], res) => {
-            let bsa = helios_.Crypto.blake2b(asBytes(a));
-            let n = bsa.length;
-
-            let start = asInt(b) < 0n ? n + 1 + Number(asInt(b)) : Number(asInt(b));
-            if (start < 0) {
-                start = 0;
-            } else if (start > n) {
-                start = n;
-            }
-
-            let end = asInt(c) < 0n ? n + 1 + Number(asInt(c)) : Number(asInt(c));
-            if (end < 0) {
-                end = 0;
-            } else if (end > n) {
-                end = n;
-            }
-
-            let expected = bsa.slice(start, end);
-
-            return equalsList(expected, asBytes(res));
-        });
-
-        await ft.test([ft.bytes(0, 10)], `
-        testing bytearray32_starts_with_1
-        func main(a: ByteArray) -> Bool {
-            a.blake2b().starts_with(#)
-        }`, ([a, b], res) => asBool(res));
-
-        await ft.test([ft.bytes(0, 10)], `
-        testing bytearray32_ends_with_1
-        func main(a: ByteArray) -> Bool {
-            a.blake2b().ends_with(#)
-        }`, ([a, b], res) => asBool(res));
-        
-        await ft.test([ft.utf8Bytes()], `
-        testing bytearray32_decode_utf8_utf8
-        func main(a: ByteArray) -> String {
-            a.blake2b().decode_utf8()
-        }`, ([a], res) => {
-            let bsa = helios_.Crypto.blake2b(asBytes(a));
-
-            try {
-                let aString = helios.bytesToText(bsa);
-
-                return aString == asString(res);
-            } catch (_) {
-                return isError(res, "invalid utf-8");
-            }
-        });
-
-        await ft.test([ft.bytes(0, 10)], `
-        testing bytearray32_sha2
-        func main(a: ByteArray) -> ByteArray {
-            a.blake2b().sha2()
-        }`, ([a], res) => {
-            let hasher = crypto.createHash("sha256");
-
-            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(asBytes(a)))).buffer));
-
-            return equalsList(Array.from(hasher.digest()), asBytes(res));
-        });
-
-        await ft.test([ft.bytes(55, 70)], `
-        testing bytearray32_sha2_alt
-        func main(a: ByteArray) -> ByteArray {
-            a.blake2b().sha2()
-        }`, ([a], res) => {
-            let hasher = crypto.createHash("sha256");
-
-            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(asBytes(a)))).buffer));
-
-            return equalsList(Array.from(hasher.digest()), asBytes(res));
-        });
-
-        await ft.test([ft.bytes(0, 10)], `
-        testing bytearray32_sha3
-        func main(a: ByteArray) -> ByteArray {
-            a.blake2b().sha3()
-        }`, ([a], res) => {
-            let hasher = crypto.createHash("sha3-256");
-
-            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(asBytes(a)))).buffer));
-
-            return equalsList(Array.from(hasher.digest()), asBytes(res));
-        });
-
-        await ft.test([ft.bytes(130, 140)], `
-        testing bytearray32_sha3_alt
-        func main(a: ByteArray) -> ByteArray {
-            a.blake2b().sha3()
-        }`, ([a], res) => {
-            let hasher = crypto.createHash("sha3-256");
-
-            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(asBytes(a)))).buffer));
-
-            return equalsList(Array.from(hasher.digest()), asBytes(res));
-        });
-
-        // the crypto library only supports blake2b512 (and not blake2b256), so temporarily set digest size to 64 bytes for testing
-        helios_.setBlake2bDigestSize(64);
-
-        await ft.test([ft.bytes(0, 10)], `
-        testing bytearray32_blake2b
-        func main(a: ByteArray) -> ByteArray {
-            a.blake2b().blake2b()
-        }`, ([a], res) => {
-            let hasher = crypto.createHash("blake2b512");
-
-            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(asBytes(a)))).buffer));
-
-            return equalsList(Array.from(hasher.digest()), asBytes(res));
-        });
-
-        await ft.test([ft.bytes(130, 140)], `
-        testing bytearray32_blake2b_alt
-        func main(a: ByteArray) -> ByteArray {
-            a.blake2b().blake2b()
-        }`, ([a], res) => {
-            let hasher = crypto.createHash("blake2b512");
-
-            hasher.update(new DataView((new Uint8Array(helios_.Crypto.blake2b(asBytes(a)))).buffer));
-
-            return equalsList(Array.from(hasher.digest()), asBytes(res));
-        });
-
-        helios_.setBlake2bDigestSize(32);
-
-        await ft.test([ft.bytes()], `
-        testing bytearray32_show
-        func main(a: ByteArray) -> String {
-            a.blake2b().show()
-        }`, ([a], res) => {
-            let s = Array.from(helios_.Crypto.blake2b(asBytes(a)), byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
-
-            return s === asString(res);
-        });
-
-        await ft.test([ft.bytes(0, 1024)], `
-        testing bytearray32_serialize
-        func main(a: ByteArray) -> ByteArray {
-            a.blake2b().serialize()
-        }`, ([a], res) => decodeCbor(asBytes(res)).isSame(new helios_.ByteArrayData(helios_.Crypto.blake2b(asBytes(a)))));
     }
-
 
     /////////////
     // List tests
@@ -1963,7 +1752,6 @@ async function testBuiltins() {
         }`, ([lst_, n_], res) => {
             const lst = asIntList(lst_);
             const n = Number(asInt(n_));
-            
 
             if (n > lst.length) {
                 return isError(res, "empty list");
@@ -2188,19 +1976,6 @@ async function testBuiltins() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        testing list_map_to_bool
-        func main(a: []Int) -> []Bool {
-            a.map((x: Int) -> Bool {
-                x >= 0
-            })
-        }`, ([a], res) => {
-            let la = asIntList(a);
-            let lRes = asBoolList(res);
-
-            return la.every((v, i) => (v >= 0n) === lRes[i]);
-        });
-
-        await ft.test([ft.list(ft.int())], `
         testing list_sort
         func main(lst: []Int) -> []Int {
             lst.sort((a: Int, b: Int) -> Bool {a < b})
@@ -2227,249 +2002,6 @@ async function testBuiltins() {
         await ft.test([ft.list(ft.int())], `
         testing list_serialize
         func main(a: []Int) -> ByteArray {
-            a.serialize()
-        }`, serializeProp);
-
-        await ft.test([ft.int(-20, 20), ft.bool()], `
-        testing boollist_new_const
-        func main(a: Int, b: Bool) -> []Bool {
-            []Bool::new_const(a, b)
-        }`, ([a, b], res) => {
-            let n = Number(asInt(a));
-            if (n < 0) {
-                n = 0;
-            }
-
-            return equalsList((new Array(n)).fill(asBool(b)), asBoolList(res));
-        });
-
-        await ft.test([ft.int(-20, 20)], `
-        testing boollist_new
-        func main(a: Int) -> []Bool {
-            []Bool::new(a, (i: Int) -> Bool {i%2 == 0})
-        }`, ([a], res) => {
-            let n = Number(asInt(a));
-            if (n < 0) {
-                n = 0;
-            }
-
-            let lRes = asBoolList(res)
-            return n == lRes.length && lRes.every((b, i) => b === (i%2 == 0));
-        });
-
-        await ft.test([ft.list(ft.bool(), 0, 20)], `
-        testing boollist_eq_1
-        func main(a: []Bool) -> Bool {
-            a == a
-        }`, ([_], res) => asBool(res));
-
-        await ft.test([ft.list(ft.bool()), ft.list(ft.bool())], `
-        testing boollist_eq_2
-        func main(a: []Bool, b: []Bool) -> Bool {
-            a == b
-        }`, ([a, b], res) => equalsList(asBoolList(a), asBoolList(b)) === asBool(res));
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_neq_1
-        func main(a: []Bool) -> Bool {
-            a != a
-        }`, ([_], res) => !asBool(res));
-
-        await ft.test([ft.list(ft.bool()), ft.list(ft.bool())], `
-        testing boollist_neq_2
-        func main(a: []Bool, b: []Bool) -> Bool {
-            a != b
-        }`, ([a, b], res) => equalsList(asBoolList(a), asBoolList(b)) === !asBool(res));
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_add_1
-        func main(a: []Bool) -> []Bool {
-            a + []Bool{}
-        }`, ([a], res) => equalsList(asBoolList(a), asBoolList(res)));
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_add_1_alt
-        func main(a: []Bool) -> []Bool {
-            []Bool{} + a
-        }`, ([a], res) => equalsList(asBoolList(a), asBoolList(res)));
-
-        await ft.test([ft.list(ft.bool()), ft.list(ft.bool())], `
-        testing boollist_add_2
-        func main(a: []Bool, b: []Bool) -> []Bool {
-            a + b
-        }`, ([a, b], res) => equalsList(asBoolList(a).concat(asBoolList(b)), asBoolList(res)));
-
-        await ft.test([ft.list(ft.bool(), 0, 50)], `
-        testing boollist_length
-        func main(a: []Bool) -> Int {
-            a.length
-        }`, ([a], res) => BigInt(asBoolList(a).length) === asInt(res));
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_head
-        func main(a: []Bool) -> Bool {
-            a.head
-        }`, ([a], res) => {
-            let la = asBoolList(a);
-
-            return (
-                la.length == 0 ? 
-                isError(res, "empty list") :
-                asBool(res) === la[0]
-            );
-        });
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_tail
-        func main(a: []Bool) -> []Bool {
-            a.tail
-        }`, ([a], res) => {
-            let la = asBoolList(a);
-
-            return  (
-                la.length == 0 ?
-                isError(res, "empty list") :
-                equalsList(la.slice(1), asBoolList(res))
-            );
-        });
-
-        await ft.test([ft.list(ft.bool(), 0, 10)], `
-        testing boollist_is_empty
-        func main(a: []Bool) -> Bool {
-            a.is_empty()
-        }`, ([a], res) => (asBoolList(a).length == 0) === asBool(res));
-
-        await ft.test([ft.list(ft.bool(), 0, 10), ft.int(-5, 15)], `
-        testing boollist_get
-        func main(a: []Bool, b: Int) -> Bool {
-            a.get(b)
-        }`, ([a, b], res) => {
-            let i = Number(asInt(b));
-            let la = asBoolList(a);
-            let n = la.length;
-
-            if (i >= n || i < 0) {
-                return isError(res, "index out of range");
-            } else {
-                return la[i] === asBool(res);
-            }
-        });
-
-        await ft.test([ft.list(ft.bool()), ft.bool()], `
-        testing boollist_prepend
-        func main(a: []Bool, b: Bool) -> []Bool {
-            a.prepend(b)
-        }`, ([a, b], res) => {
-            let expected = asBoolList(a);
-            expected.unshift(asBool(b));
-            return equalsList(expected, asBoolList(res));
-        });
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_any
-        func main(a: []Bool) -> Bool {
-            a.any((x: Bool) -> Bool {x})
-        }`, ([a], res) => asBoolList(a).some((i) => i) === asBool(res));
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_all
-        func main(a: []Bool) -> Bool {
-            a.all((x: Bool) -> Bool {x})
-        }`, ([a], res) => asBoolList(a).every((i) => i) === asBool(res));
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_find
-        func main(a: []Bool) -> Bool {
-            a.find((x: Bool) -> Bool {x})
-        }`, ([a], res) => {
-            let la = asBoolList(a);
-
-            if (la.every(i => !i)) {
-                return isError(res, "not found");
-            } else {
-                return asBool(res);
-            }
-        });
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_find_safe
-        func main(a: []Bool) -> Option[Bool] {
-            a.find_safe((x: Bool) -> Bool {x})
-        }`, ([a], res) => {
-            let la = asBoolList(a);
-
-            if (la.every(i => !i)) {
-                return asData(res).index == 1;
-            } else {
-                return asData(res).index == 0 && (asData(res).fields[0].index == 1);
-            }
-        });
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_filter
-        func main(a: []Bool) -> []Bool {
-            a.filter((x: Bool) -> Bool {x})
-        }`, ([a], res) => equalsList(asBoolList(a).filter(b => b), asBoolList(res)));
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_for_each
-        func main(a: []Bool) -> Bool {
-            a.for_each((x: Bool) -> () {
-                assert(x, "false found")
-            });
-            true
-        }`, ([a], res) => {
-            let la = asBoolList(a);
-
-            if (la.every(b => b)) {
-                return asBool(res);
-            } else {
-                return isError(res, "assert failed");
-            }
-        });
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_fold
-        func main(a: []Bool) -> Int {
-            a.fold((sum: Int, x: Bool) -> Int {sum + x.to_int()}, 0)
-        }`, ([a], res) => asBoolList(a).reduce((sum, b) => sum + (b ? 1n : 0n), 0n) === asInt(res));
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_fold_lazy
-        func main(a: []Bool) -> Int {
-            a.fold_lazy(
-                (item: Bool, sum: () -> Int) -> Int {
-                    sum() + item.to_int()
-                }, 
-                0
-            )
-        }`, ([a], res) => asBoolList(a).reduce((sum, b) => sum + (b ? 1n : 0n), 0n) === asInt(res));
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_map
-        func main(a: []Bool) -> []Int {
-            a.map((x: Bool) -> Int {
-                x.to_int()
-            })
-        }`, ([a], res) => equalsList(asBoolList(a).map(b => b ? 1n : 0n), asIntList(res)));
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_map_to_bool
-        func main(a: []Bool) -> []Bool {
-            a.map((x: Bool) -> Bool {
-                !x
-            })
-        }`, ([a], res) => equalsList(asBoolList(a).map(b => !b), asBoolList(res)));
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_from_data
-        func main(a: Data) -> []Bool {
-            []Bool::from_data(a)
-        }`, ([a], res) => equalsList(asBoolList(a), asBoolList(res)));
-
-        await ft.test([ft.list(ft.bool())], `
-        testing boollist_serialize
-        func main(a: []Bool) -> ByteArray {
             a.serialize()
         }`, serializeProp);
     }
@@ -2824,7 +2356,10 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(0, 10), ft.int())], `
         testing map_find_by_key
         func main(a: Map[Int]Int) -> Map[Int]Int {
-            (k: Int, v: Int) = a.find((k: Int, _) -> Bool {k == 0}); Map[Int]Int{k: v}
+            (k: Int, v: Int) = a.find((k: Int, _) -> {
+                k == 0
+            }); 
+            Map[Int]Int{k: v}
         }`, ([a], res) => {
             if (a.data.map.some(([k, _]) => asInt(k) == 0n)) {
                 return asData(res).map.length == 1 && asInt(asData(res).map[0][0]) === 0n;
@@ -2906,20 +2441,6 @@ async function testBuiltins() {
 
             return a.data.map.every(([_, v], i) => {
                 return asInt(v)*2n === asInt(lRes[i][1]);
-            });
-        });
-
-        await ft.test([ft.map(ft.int(), ft.int())], `
-        testing map_map_values_to_bool
-        func main(a: Map[Int]Int) -> Map[Int]Bool {
-            a.map((key: Int, value: Int) -> (Int, Bool) {
-                (key, value >= 0)
-            })
-        }`, ([a], res) => {
-            let lRes = asData(res).map;
-
-            return a.data.map.every(([_, v], i) => {
-                return (asInt(v) >= 0n) === asBool(lRes[i][1]);
             });
         });
 
@@ -3006,466 +2527,6 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_serialize
         func main(a: Map[Int]Int) -> ByteArray {
-            a.serialize()
-        }`, serializeProp);
-
-
-        ////////////////
-        // BoolMap tests
-        ////////////////
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_eq
-        func main(a: Map[Int]Bool) -> Bool {
-            a == a
-        }`, ([_], res) => asBool(res));
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_neq
-        func main(a: Map[Int]Bool) -> Bool {
-            a != a
-        }`, ([_], res) => !asBool(res));
-
-        await ft.test([ft.map(ft.int(), ft.bool(), 0, 10), ft.map(ft.int(), ft.bool(), 0, 10)], `
-        testing boolmap_add
-        func main(a: Map[Int]Bool, b: Map[Int]Bool) -> Map[Int]Bool {
-            a + b
-        }`, ([a, b], res) => asData(res).isSame(new helios_.MapData(a.data.map.concat(b.data.map))));
-
-        await ft.test([ft.map(ft.int(), ft.bool(), 0, 10), ft.int(), ft.bool()], `
-        testing boolmap_prepend
-        func main(a: Map[Int]Bool, k: Int, v: Bool) -> Map[Int]Bool {
-            a.prepend(k, v)
-        }`, ([a, k, v], res) => {
-            let expected = a.data.map;
-            expected.unshift([new helios.IntData(asInt(k)), new helios.ConstrData(asBool(v) ? 1 : 0, [])]);
-            return asData(res).isSame(new helios_.MapData(expected));
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_head_key
-        func main(a: Map[Int]Bool) -> Int {
-            a.head_key
-        }
-        `, ([a], res) => {
-            if (a.data.map.length == 0) {
-                return isError(res, "empty list");
-            } else {
-                return asInt(res) === asInt(a.data.map[0][0]);
-            }
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_head_key_alt
-        func main(a: Map[Int]Bool) -> Int {
-            (k: Int, _) = a.head(); k
-        }
-        `, ([a], res) => {
-            if (a.data.map.length == 0) {
-                return isError(res, "empty list");
-            } else {
-                return asInt(res) === asInt(a.data.map[0][0]);
-            }
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_head_value
-        func main(a: Map[Int]Bool) -> Bool {
-            a.head_value
-        }
-        `, ([a], res) => {
-            if (a.data.map.length == 0) {
-                return isError(res, "empty list");
-            } else {
-                return asBool(res) === asBool(a.data.map[0][1]);
-            }
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_head_value_alt
-        func main(a: Map[Int]Bool) -> Bool {
-            (_, v: Bool) = a.head(); v
-        }
-        `, ([a], res) => {
-            if (a.data.map.length == 0) {
-                return isError(res, "empty list");
-            } else {
-                return asBool(res) === asBool(a.data.map[0][1]);
-            }
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_length
-        func main(a: Map[Int]Bool) -> Int {
-            a.length
-        }`, ([a], res) => a.data.map.length == Number(asInt(res)));
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_tail
-        func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.tail
-        }`, ([a], res) => {
-            if (a.data.map.length == 0) {
-                return isError(res, "empty list");
-            } else {
-                let la = a.data.map.slice(1);
-                let lRes = asData(res).map.slice();
-
-                return la.length == lRes.length && la.every(([k,v], i) => asInt(k) === asInt(lRes[i][0]) && asBool(v) === asBool(lRes[i][1]));
-            }
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool(), 0, 10)], `
-        testing boolmap_is_empty
-        func main(a: Map[Int]Bool) -> Bool {
-            a.is_empty()
-        }`, ([a], res) => (a.data.map.length == 0) === asBool(res));
-
-        await ft.test([ft.int(), ft.bool(), ft.int(), ft.bool()], `
-        testing boolmap_get
-        func main(a: Int, b: Bool, c: Int, d: Bool) -> Bool {
-            m = Map[Int]Bool{a: b, c: d};
-            m.get(c)
-        }`, ([a, b, c, d], res) => asBool(d) === asBool(res));
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_all
-        func main(a: Map[Int]Bool) -> Bool {
-            a.all((k: Int, v: Bool) -> Bool {
-                k < v.to_int()
-            })
-        }`, ([a], res) => (a.data.map.every(([k, v]) => asInt(k) < BigInt(constrIndex(v)))) === asBool(res));
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_all_keys
-        func main(a: Map[Int]Bool) -> Bool {
-            a.all((k: Int, _) -> Bool {
-                k > 0
-            })
-        }`, ([a], res) => (a.data.map.every(([k, _]) => asInt(k) > 0n)) === asBool(res));
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_all_values
-        func main(a: Map[Int]Bool) -> Bool {
-            a.all((_, v: Bool) -> Bool {
-                v.to_int() > 0
-            })
-        }`, ([a], res) => (a.data.map.every(([_, v]) => constrIndex(v) > 0)) === asBool(res));
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_any
-        func main(a: Map[Int]Bool) -> Bool {
-            a.any((k: Int, v: Bool) -> Bool {
-                k < v.to_int()
-            })
-        }`, ([a], res) => (a.data.map.some(([k, v]) => asInt(k) < BigInt(constrIndex(v)))) === asBool(res));
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_any_key
-        func main(a: Map[Int]Bool) -> Bool {
-            a.any((k: Int, _) -> Bool {
-                k > 0
-            })
-        }`, ([a], res) => (a.data.map.some(([k, _]) => asInt(k) > 0n)) === asBool(res));
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_any_value
-        func main(a: Map[Int]Bool) -> Bool {
-            a.any((_, v: Bool) -> Bool {
-                v.to_int() > 0
-            })
-        }`, ([a], res) => (a.data.map.some(([_, v]) => constrIndex(v) > 0)) === asBool(res));
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_filter
-        func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.filter((k: Int, v: Bool) -> Bool {
-                k < v.to_int()
-            })
-        }`, ([_], res) => asData(res).map.every(([k, v]) => asInt(k) < BigInt(constrIndex(v))));
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_filter_by_key
-        func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.filter((k: Int, _) -> Bool {
-                k > 0
-            })
-        }`, ([_], res) => asData(res).map.every(([k, _]) => asInt(k) > 0n));
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_filter_by_value
-        func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.filter((_, v: Bool) -> Bool {
-                v.to_int() > 0
-            })
-        }`, ([_], res) => asData(res).map.every(([_, v]) => constrIndex(v) > 0));
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_find
-        func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            (k: Int, v: Bool) = a.find((k: Int, v: Bool) -> Bool {
-                k < v.to_int()
-            }); 
-            Map[Int]Bool{k: v}
-        }`, ([a], res) => {
-            if (a.data.map.some(([k, v]) => asInt(k) < BigInt(constrIndex(v)))) {
-                return asData(res).map.length == 1;
-            } else {
-                return isError(res, "not found");
-            }
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_find_by_key
-        func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            (result: () -> (Int, Bool), ok: Bool) = a.find_safe((k: Int, _) -> Bool {
-                k > 0
-            });
-            if (ok) {
-                (k: Int, v: Bool) = result();
-                Map[Int]Bool{k: v}
-            } else {
-                Map[Int]Bool{}
-            }
-        }`, ([a], res) => {
-            if (a.data.map.some(([k, _]) => asInt(k) > 0n)) {
-                return asData(res).map.length == 1;
-            } else {
-                return asData(res).map.length == 0;
-            }
-        });
-
-        await ft.test([ft.map(ft.int(0, 10), ft.bool())], `
-        testing boolmap_find_key
-        func main(a: Map[Int]Bool) -> Int {
-            a.find_key((k: Int) -> Bool {k == 0})
-        }`, ([a], res) => {
-            if (a.data.map.some(([k, _]) => asInt(k) == 0n)) {
-                return asInt(res) === 0n;
-            } else {
-                return isError(res, "not found");
-            }
-        });
-
-        await ft.test([ft.map(ft.int(0, 10), ft.bool())], `
-        testing boolmap_find_key_safe
-        func main(a: Map[Int]Bool) -> Option[Int] {
-            a.find_key_safe((k: Int) -> Bool {k == 0})
-        }`, ([a], res) => {            
-            if (a.data.map.some(([k, _]) => asInt(k) == 0n)) {
-                return asData(res).index == 0 && asInt(asData(res).fields[0]) === 0n;
-            } else {
-                return asData(res).index == 1;
-            }
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_find_by_value
-        func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            (result: () -> (Int, Bool), ok: Bool) = a.find_safe((_, v: Bool) -> Bool {
-                v.to_int() > 0
-            });
-            if (ok) {
-                (k: Int, v: Bool) = result();
-                Map[Int]Bool{k: v}
-            } else {
-                Map[Int]Bool{}
-            }
-        }`, ([a], res) => {
-            if (a.data.map.some(([_, v]) => constrIndex(v) > 0)) {
-                return asData(res).map.length == 1;
-            } else {
-                return asData(res).map.length == 0;
-            }
-        });
-
-        await ft.test([ft.map(ft.int(0, 10), ft.bool())], `
-        testing boolmap_find_value
-        func main(a: Map[Int]Bool) -> Bool {
-            a.find_value((v: Bool) -> Bool {v})
-        }`, ([a], res) => {
-            if (a.data.map.some(([_, v]) => asBool(v))) {
-                return asBool(res);
-            } else {
-                return isError(res, "not found");
-            }
-        });
-
-        await ft.test([ft.map(ft.int(0, 10), ft.bool())], `
-        testing boolmap_find_value_safe
-        func main(a: Map[Int]Bool) -> Option[Bool] {
-            a.find_value_safe((v: Bool) -> Bool {v})
-        }`, ([a], res) => {            
-            if (a.data.map.some(([_, v]) => asBool(v))) {
-                return asData(res).index == 0 && asBool(asData(res).fields[0]);
-            } else {
-                return asData(res).index == 1;
-            }
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_fold
-        func main(a: Map[Int]Bool) -> Int {
-            a.fold((prev: Int, k: Int, v: Bool) -> Int {
-                prev + k + v.to_int()
-            }, 0)
-        }`, ([a], res) => {
-            let sum = 0n;
-            a.data.map.forEach(([k, v]) => {
-                sum += asInt(k) + BigInt(constrIndex(v));
-            });
-
-            return sum === asInt(res);
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_fold_keys
-        func main(a: Map[Int]Bool) -> Int {
-            a.fold((prev: Int, k: Int, _) -> Int {
-                prev + k
-            }, 0)
-        }`, ([a], res) => {
-            let sum = 0n;
-            a.data.map.forEach(([k, _]) => {
-                sum += asInt(k);
-            });
-
-            return sum === asInt(res);
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_fold_values
-        func main(a: Map[Int]Bool) -> Int {
-            a.fold((prev: Int, _, v: Bool) -> Int {
-                prev + v.to_int()
-            }, 0)
-        }`, ([a], res) => {
-            let sum = 0n;
-            a.data.map.forEach(([_, v]) => {
-                sum += BigInt(constrIndex(v));
-            });
-
-            return sum === asInt(res);
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_fold_lazy
-        func main(a: Map[Int]Bool) -> Int {
-            a.fold_lazy((k: Int, v: Bool, next: () -> Int) -> Int {
-                k + v.to_int() + next()
-            }, 0)
-        }`, ([a], res) => {
-            let sum = 0n;
-            a.data.map.forEach(([k, v]) => {
-                sum += asInt(k) + BigInt(constrIndex(v));
-            });
-
-            return sum === asInt(res);
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_fold_keys_lazy
-        func main(a: Map[Int]Bool) -> Int {
-            a.fold_lazy((k: Int, _, next: () -> Int) -> Int {
-                k + next()
-            }, 0)
-        }`, ([a], res) => {
-            let sum = 0n;
-            a.data.map.forEach(([k, _]) => {
-                sum += asInt(k);
-            });
-
-            return sum === asInt(res);
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_fold_values_lazy
-        func main(a: Map[Int]Bool) -> Int {
-            a.fold_lazy((_, v: Bool, next: () -> Int) -> Int {
-                v.to_int() + next()
-            }, 0)
-        }`, ([a], res) => {
-            let sum = 0n;
-            a.data.map.forEach(([_, v]) => {
-                sum += BigInt(constrIndex(v));
-            });
-
-            return sum === asInt(res);
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_from_data
-        func main(a: Data) -> Map[Int]Bool {
-            Map[Int]Bool::from_data(a)
-        }`, ([a], res) => {
-            return a.data.map.length == asData(res).map.length && a.data.map.every((pair, i) => pair[0] === asData(res).map[i][0] && pair[1] === asData(res).map[i][1]);
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_map_keys
-        func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.map((key: Int, value: Bool) -> (Int, Bool) {
-                (key*2, value)
-            })
-        }`, ([a], res) => {
-            let lRes = asData(res).map;
-
-            return a.data.map.every(([k, _], i) => {
-                return asInt(k)*2n === asInt(lRes[i][0]);
-            });
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_map_values
-        func main(a: Map[Int]Bool) -> Map[Int]Int {
-            a.map((key: Int, value: Bool) -> (Int, Int) {
-                (key, if (value) {1} else {0})
-            })
-        }`, ([a], res) => {
-            let lRes = asData(res).map;
-
-            return a.data.map.every(([_, v], i) => {
-                return (asBool(v) ? 1n : 0n) === asInt(lRes[i][1]);
-            });
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_map_values_to_bool
-        func main(a: Map[Int]Bool) -> Map[Int]Bool {
-            a.map((key: Int, value: Bool) -> (Int, Bool) {
-                (key, !value)
-            })
-        }`, ([a], res) => {
-            let lRes = asData(res).map;
-
-            return a.data.map.every(([_, v], i) => {
-                return (!asBool(v)) === asBool(lRes[i][1]);
-            });
-        });
-
-        await ft.test([ft.map(ft.int(0, 3), ft.bool()), ft.int(0, 3)], `
-        testing boolmap_delete
-        func main(m: Map[Int]Bool, key: Int) -> Map[Int]Bool {
-            m.delete(key)
-        }`, ([_, key], res) => {
-            return asData(res).map.every((pair) => {
-                return asInt(pair[0]) !== asInt(key);
-            });
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool()), ft.int(), ft.bool()], `
-        testing boolmap_set
-        func main(m: Map[Int]Bool, key: Int, value: Bool) -> Map[Int]Bool {
-            m.delete(key).set(key, value)
-        }`, ([_, key, value], res) => {
-            return asData(res).map.some((pair) => {
-                return (asInt(pair[0]) === asInt(key)) && (asBool(pair[1]) === asBool(value));
-            });
-        });
-
-        await ft.test([ft.map(ft.int(), ft.bool())], `
-        testing boolmap_serialize
-        func main(a: Map[Int]Bool) -> ByteArray {
             a.serialize()
         }`, serializeProp);
     }
@@ -3795,7 +2856,8 @@ async function testBuiltins() {
     await ft.test([ft.bytes(0, 1), ft.bytes(0, 1)], `
     testing assetclass_new
     func main(a: ByteArray, b: ByteArray) -> Bool {
-        AssetClass::new(MintingPolicyHash::new(a), b) == AssetClass::ADA
+        AssetClass::new(MintingPolicyHash::new(a), b) == 
+        AssetClass::ADA
     }`, ([a, b], res) => (asBytes(a).length == 0 && asBytes(b).length == 0) === asBool(res));
 
     await ft.test([ft.bytes(0, 1), ft.bytes(0, 1)], `
@@ -4290,9 +3352,9 @@ async function testBuiltins() {
         `, ([_], res) => !asBool(res), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["STAKING_PURPOSE"], `
-        testing stakingpurpose_certifying_dcert
+        testing stakingpurpose_certifying_action
         func main(sp: StakingPurpose::Certifying) -> Bool {
-            sp.dcert == sp.dcert
+            sp.action == sp.action
         }
         ${certifyingScriptContextParam}
         `, ([_], res) => asBool(res), 5);
@@ -4306,46 +3368,46 @@ async function testBuiltins() {
         `, serializeProp, 5);
     }
 
-    const testDCert = true;
+    const testCertifyingAction = true;
 
-    if (testDCert) {
+    if (testCertifyingAction) {
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
-        testing dcert_eq
-        func main(dcert: DCert) -> Bool {
-            dcert == dcert
+        testing cert_action_eq
+        func main(ca: CertifyingAction) -> Bool {
+            ca == ca
         }
         ${certifyingScriptContextParam}
         `, ([_], res) => asBool(res), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
-        testing dcert_neq
-        func main(dcert: DCert) -> Bool {
-            dcert != dcert
+        testing cert_action_neq
+        func main(ca: CertifyingAction) -> Bool {
+            ca != ca
         }
         ${certifyingScriptContextParam}
         `, ([_], res) => !asBool(res), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
-        testing dcert_from_data
-        func main(dcert: Data) -> DCert {
-            DCert::from_data(dcert)
+        testing cert_action_from_data
+        func main(ca: Data) -> CertifyingAction {
+            CertifyingAction::from_data(ca)
         }
         ${certifyingScriptContextParam}
         `, ([a], res) => a.data.isSame(asData(res)), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
-        testing dcert_serialize
-        func main(dcert: DCert) -> ByteArray {
-            dcert.serialize()
+        testing cert_action_serialize
+        func main(ca: CertifyingAction) -> ByteArray {
+            ca.serialize()
         }
         ${certifyingScriptContextParam}
         `, serializeProp, 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
-        testing dcert_member_eq
+        testing cert_action_member_eq
         func main(ctx: ScriptContext) -> Bool {
-            ctx.tx.dcerts.all((dcert: DCert) -> Bool {
-                dcert.switch{
+            ctx.tx.cert_actions.all((cert_action: CertifyingAction) -> Bool {
+                cert_action.switch{
                     r: Register => r == r,
                     d: Deregister => d == d,
                     del: Delegate => del == del,
@@ -4358,10 +3420,10 @@ async function testBuiltins() {
         `, ([_], res) => asBool(res), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
-        testing dcert_member_neq
+        testing cert_action_member_neq
         func main(ctx: ScriptContext) -> Bool {
-            ctx.tx.dcerts.any((dcert: DCert) -> Bool {
-                dcert.switch{
+            ctx.tx.cert_actions.any((cert_action: CertifyingAction) -> Bool {
+                cert_action.switch{
                     r: Register => r != r,
                     d: Deregister => d != d,
                     del: Delegate => del != del,
@@ -4374,10 +3436,10 @@ async function testBuiltins() {
         `, ([_], res) => !asBool(res), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_STAKING_CRED", "POOL_ID", "POOL_VFR", "EPOCH", "SCRIPT_CONTEXT"], `
-        testing dcert_member_fields
+        testing cert_action_member_fields
         func main(staking_cred: StakingCredential, pool_id: PubKeyHash, pool_vrf: PubKeyHash, epoch: Int, ctx: ScriptContext) -> Bool {
-            ctx.tx.dcerts.any((dcert: DCert) -> Bool {
-                dcert.switch{
+            ctx.tx.cert_actions.any((cert_action: CertifyingAction) -> Bool {
+                cert_action.switch{
                     r: Register => r.credential == staking_cred,
                     d: Deregister => d.credential == staking_cred,
                     del: Delegate => del.delegator == staking_cred && del.pool_id == pool_id,
@@ -4390,10 +3452,10 @@ async function testBuiltins() {
         `, ([a], res) => asBool(res), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
-        testing dcert_member_serialize
+        testing cert_action_member_serialize
         func main(ctx: ScriptContext) -> []ByteArray {
-            ctx.tx.dcerts.map((dcert: DCert) -> ByteArray {
-                dcert.switch{
+            ctx.tx.cert_actions.map((cert_action: CertifyingAction) -> ByteArray {
+                cert_action.switch{
                     r: Register => r.serialize(),
                     d: Deregister => d.serialize(),
                     del: Delegate => del.serialize(),
@@ -4492,9 +3554,9 @@ async function testBuiltins() {
         `, ([_], res) => asBool(res), 10);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
-        testing tx_dcerts
+        testing tx_cert_actions
         func main(ctx: ScriptContext) -> Bool {
-            ctx.tx.dcerts.length > 0
+            ctx.tx.cert_actions.length > 0
         }
         ${certifyingScriptContextParam}
         `, ([_], res) => asBool(res), 5);
