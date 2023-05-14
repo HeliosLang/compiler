@@ -14,6 +14,8 @@ import {
 
 import {
     IR,
+    IRParametricName,
+    RE_IR_PARAMETRIC_NAME,
     UserError,
     Word
 } from "./tokens.js";
@@ -90,6 +92,9 @@ import {
     IRProgram,
 	IRParametricProgram
 } from "./ir-program.js";
+import { Common } from "./eval-common.js";
+import { SerializableTypeClass } from "./eval-parametric.js";
+import { ScriptContextType } from "./eval-tx.js";
 
 /**
  * A Module is a collection of statements
@@ -456,6 +461,13 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @type {DataType[]}
+	 */
+	get mainArgTypes() {
+		return this.mainFunc.argTypes.map(at => assertDefined(at.asDataType));
+	}
+
+	/**
 	 * @type {string}
 	 */
 	get mainPath() {
@@ -812,78 +824,71 @@ class MainModule extends Module {
 	 * @returns {IRDefinitions}
 	 */
 	static injectTypeParameters(builtins, map) {
-		const re = new RegExp("\\b__[a-zA-Z0-9_]*@[a-zA-Z0-9_@]*@[a-zA-Z0-9_]*\\b");
-
 		/**
-		 * @type {IRDefinitions}
+		 * @type {Map<string, [string, IR]>}
 		 */
 		const added = new Map();
 
 		/**
 		 * @param {string} name 
+		 * @param {string} location
 		 */
-		const add = (name) => {
-			console.log("matched", name);
+		const add = (name, location) => {
 			if (builtins.has(name) || map.has(name) || added.has(name)) {
 				return;
 			}
 
-			const parts = name.split("@");
-			const prefix = parts.shift();
-			const suffix = parts.pop();
+			const pName = IRParametricName.parse(name);
 
-			assert(parts.length > 0);
-
-			const genericName = `${prefix}@${parts.map((_, i) => `__T${i}`).join("@")}@${suffix}`;
-			console.log("generating: ", genericName);
+			const genericName = pName.toTemplate();
 
 			let ir = builtins.get(genericName) ?? map.get(genericName);
 
 			if (!ir) {
 				throw new Error(`${genericName} undefined in ir`);
 			} else {
-				parts.forEach((newStr, i) => {
-					ir = assertDefined(ir).replace(new RegExp(`\\b__T${i}\\b`), newStr);
-				});
+				ir = pName.replaceTemplateNames(ir);
 
-				added.set(name, ir);
+				added.set(name, [location, ir]);
 
-				ir.search(re, add);
+				ir.search(RE_IR_PARAMETRIC_NAME, (name_) => add(name_, name));
 			}
 		};
 
+		for (let [k, v] of builtins) {
+			v.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, k));
+		}
+
 		for (let [k, v] of map) {
-			v.search(re, add);
+			v.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, k));
 		}
 
 		let entries = Array.from(builtins.entries()).concat(Array.from(map.entries()));
 
 		/**
-		 * @param {string} prefix
+		 * @param {string} name
 		 * @returns {number}
 		 */
-		const findLast = (prefix) => {
+		const find = (name) => {
 			for (let i = entries.length - 1; i >= 0; i--) {
-				if (entries[i][0].startsWith(prefix) || entries[i][0].startsWith("__helios")) {
+				if (entries[i][0] == name) {
 					return i;
 				}
 			}
 
-			return -1;
+			throw new Error("not found");
 		};
 
 		const addedEntries = Array.from(added.entries());
 
 		for (let i = addedEntries.length-1; i >= 0; i--) {
-			const [name, ir] = addedEntries[i];
+			const [name, [location, ir]] = addedEntries[i];
 
-			const parts = name.split("@");
-			parts.shift();
-			parts.pop();
+			const j = find(location);
 
-			const j = parts.reduce((prev, part) => Math.max(prev, findLast(part)), -1);
+			// inject right before location
 
-			entries = entries.slice(0, j+1).concat([[name, ir]]).concat(entries.slice(j+1));
+			entries = entries.slice(0, j).concat([[name, ir]]).concat(entries.slice(j));
 		}
 
 		return new Map(entries);
@@ -994,51 +999,19 @@ class RedeemerProgram extends Program {
 		// check the 'main' function
 
 		let main = this.mainFunc;
-		let argTypeNames = main.argTypeNames;
+		let argTypes = main.argTypes;
 		let retTypes = main.retTypes;
-		let haveRedeemer = false;
-		let haveScriptContext = false;
-		let haveUnderscores = argTypeNames.some(name => name =="");
 
-		if (argTypeNames.length > 2) {
-			throw main.typeError("too many arguments for main");
-		} else if (haveUnderscores) {
-			// empty type name comes from an underscore
-			assert(argTypeNames.length == 2, "expected 2 arguments");
-		} else if (argTypeNames.length != 2) {
-			deprecationWarning("main with variable arguments", "0.14.0", "use underscores instead", "https://www.hyperion-bt.org/helios-book/lang/script-structure.html#main-function-4");
+		if (argTypes.length != 2) {
+			throw main.typeError("expected 2 args for main");
 		}
 
-		for (let i = 0; i < argTypeNames.length; i++) {
-			const t = argTypeNames[i];
+		if (!Common.typeImplements(argTypes[0], new SerializableTypeClass())) {
+			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[0].toString()}`);
+		}
 
-			if (t == "") {
-				continue
-			} else if (t == "Redeemer") {
-				if (haveUnderscores && i != 0) {
-					throw main.typeError(`unexpected Redeemer type for arg ${i} of main`);
-				}
-
-				if (haveRedeemer) {
-					throw main.typeError(`duplicate 'Redeemer' argument`);
-				} else if (haveScriptContext) {
-					throw main.typeError(`'Redeemer' must come before 'ScriptContext'`);
-				} else {
-					haveRedeemer = true;
-				}
-			} else if (t == "ScriptContext") {
-				if (haveUnderscores && i != 1) {
-					throw main.typeError(`unexpected ScriptContext type for arg ${i} of main`);
-				}
-
-				if (haveScriptContext) {
-					throw main.typeError(`duplicate 'ScriptContext' argument`);
-				} else {
-					haveScriptContext = true;
-				}
-			} else {
-				throw main.typeError(`illegal argument type, must be 'Redeemer' or 'ScriptContext', got '${t}'`);
-			}
+		if ((new ScriptContextType(-1)).isBaseOf(argTypes[1])) {
+			throw main.typeError(`illegal 3rd argument type in main, expected 'ScriptContext', got ${argTypes[1].toString()}`);
 		}
 
 		if (retTypes.length !== 1) {
@@ -1056,33 +1029,28 @@ class RedeemerProgram extends Program {
 	 * @returns {IR} 
 	 */
 	toIR(parameters = []) {
+		const argNames = ["redeemer", "ctx"];
+
 		/** @type {IR[]} */
 		const outerArgs = [];
 
-		/** @type {IR[]} */
+		/** 
+		 * @type {IR[]} 
+		 */
 		const innerArgs = [];
 
-		for (let t of this.mainFunc.argTypeNames) {
-			if (t == "Redeemer") {
-				innerArgs.push(new IR("redeemer"));
-				outerArgs.push(new IR("redeemer"));
-			} else if (t == "ScriptContext") {
-				innerArgs.push(new IR("ctx"));
-				if (outerArgs.length == 0) {
-					outerArgs.push(new IR("_"));
-				}
-				outerArgs.push(new IR("ctx"));
-			} else if (t == "") {
-				innerArgs.push(new IR("0")); // use a literal to make life easier for the optimizer
-				outerArgs.push(new IR("_"));
-			} else {
-				throw new Error("unexpected");
-			}
-		}
+		this.mainArgTypes.forEach((t, i) => {
+			const name = argNames[i];
 
-		while(outerArgs.length < 2) {
-			outerArgs.push(new IR("_"));
-		}
+			innerArgs.push(new IR([
+				new IR(`${t.path}__from_data`),
+				new IR("("),
+				new IR(name),
+				new IR(")")
+			]));
+
+			outerArgs.push(new IR(name));
+		});
 
 		const ir = new IR([
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
@@ -1118,65 +1086,23 @@ class DatumRedeemerProgram extends Program {
 		// check the 'main' function
 
 		const main = this.mainFunc;
-		const argTypeNames = main.argTypeNames;
+		const argTypes = main.argTypes;
 		const retTypes = main.retTypes;
-		const haveUnderscores = argTypeNames.some(name => name == "");
-		let haveDatum = false;
-		let haveRedeemer = false;
-		let haveScriptContext = false;
 
-		if (argTypeNames.length > 3) {
-			throw main.typeError("too many arguments for main");
-		} else if (haveUnderscores) {
-			assert(argTypeNames.length == 3, "expected 3 args");
-		} else if (argTypeNames.length != 3) {
-			deprecationWarning("main with variable arguments", "0.14.0", "use underscores instead", "https://www.hyperion-bt.org/helios-book/lang/script-structure.html#main-function-4");
+		if (argTypes.length != 3) {
+			throw main.typeError("expected 3 args for main");
 		}
 
-		for (let i = 0; i < argTypeNames.length; i++) {
-			const t = argTypeNames[i];
+		if (!Common.typeImplements(argTypes[0], new SerializableTypeClass())) {
+			throw main.typeError(`illegal datum argument type in main: '${argTypes[0].toString()}`);
+		}
 
-			if (t == "") {
-				continue;
-			} else if (t == "Datum") {
-				if (haveUnderscores && i != 0) {
-					throw main.typeError(`unexpected Datum type for arg ${i} of main`);
-				}
+		if (!Common.typeImplements(argTypes[1], new SerializableTypeClass())) {
+			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[1].toString()}`);
+		}
 
-				if (haveDatum) {
-					throw main.typeError("duplicate 'Datum' argument");
-				} else if (haveRedeemer) {
-					throw main.typeError("'Datum' must come before 'Redeemer'");
-				} else if (haveScriptContext) {
-					throw main.typeError("'Datum' must come before 'ScriptContext'");
-				} else {
-					haveDatum = true;
-				}
-			} else if (t == "Redeemer") {
-				if (haveUnderscores && i != 1) {
-					throw main.typeError(`unexpected Redeemer type for arg ${i} of main`);
-				}
-
-				if (haveRedeemer) {
-					throw main.typeError("duplicate 'Redeemer' argument");
-				} else if (haveScriptContext) {
-					throw main.typeError("'Redeemer' must come before 'ScriptContext'");
-				} else {
-					haveRedeemer = true;
-				}
-			} else if (t == "ScriptContext") {
-				if (haveUnderscores && i != 2) {
-					throw main.typeError(`unexpected ScriptContext type for arg ${i} of main`);
-				}
-
-				if (haveScriptContext) {
-					throw main.typeError("duplicate 'ScriptContext' argument");
-				} else {
-					haveScriptContext = true;
-				}
-			} else {
-				throw main.typeError(`illegal argument type, must be 'Datum', 'Redeemer' or 'ScriptContext', got '${t}'`);
-			}
+		if ((new ScriptContextType(-1)).isBaseOf(argTypes[2])) {
+			throw main.typeError(`illegal 3rd argument type in main, expected 'ScriptContext', got ${argTypes[2].toString()}`);
 		}
 
 		if (retTypes.length !== 1) {
@@ -1194,39 +1120,28 @@ class DatumRedeemerProgram extends Program {
 	 * @returns {IR}
 	 */
 	toIR(parameters = []) {
+		const argNames = ["datum", "redeemer", "ctx"];
+
 		/** @type {IR[]} */
 		const outerArgs = [];
 
-		/** @type {IR[]} */
+		/** 
+		 * @type {IR[]} 
+		 */
 		const innerArgs = [];
 
-		for (let t of this.mainFunc.argTypeNames) {
-			if (t == "Datum") {
-				innerArgs.push(new IR("datum"));
-				outerArgs.push(new IR("datum"));
-			} else if (t == "Redeemer") {
-				innerArgs.push(new IR("redeemer"));
-				if (outerArgs.length == 0) {
-					outerArgs.push(new IR("_"));
-				}
-				outerArgs.push(new IR("redeemer"));
-			} else if (t == "ScriptContext") {
-				innerArgs.push(new IR("ctx"));
-				while (outerArgs.length < 2) {
-					outerArgs.push(new IR("_"));
-				}
-				outerArgs.push(new IR("ctx"));
-			} else if (t == "") {
-				innerArgs.push(new IR("0")); // use a literal to make life easier for the optimizer
-				outerArgs.push(new IR("_"));
-			} else {
-				throw new Error("unexpected");
-			}
-		}
+		this.mainArgTypes.forEach((t, i) => {
+			const name = argNames[i];
 
-		while(outerArgs.length < 3) {
-			outerArgs.push(new IR("_"));
-		}
+			innerArgs.push(new IR([
+				new IR(`${t.path}__from_data`),
+				new IR("("),
+				new IR(name),
+				new IR(")")
+			]));
+
+			outerArgs.push(new IR(name));
+		});
 
 		const ir = new IR([
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
@@ -1266,9 +1181,11 @@ class TestingProgram extends Program {
 
 		const topScope = this.evalTypesInternal(scope);
 
-		// main can have any arg types, and any return type 
+		if (!this.mainFunc.argTypes.some(at => Common.typeImplements(at, new SerializableTypeClass()))) {
+			throw this.mainFunc.typeError("invalid entry-point argument types");
+		}
 
-		if (this.mainFunc.retTypes.length > 1) {
+		if (this.mainFunc.retTypes.length != 1) {
 			throw this.mainFunc.typeError("program entry-point can only return one value");
 		}
 
@@ -1281,12 +1198,8 @@ class TestingProgram extends Program {
 	 * @returns {IR}
 	 */
 	toIR(parameters = []) {
-		const innerArgs = this.mainFunc.argTypes.map((t, i) => {
-			if (BoolType.isBaseOf(t)) {
-				return new IR(`__helios__common__unBoolData(arg${i})`);
-			} else {
-				return new IR(`arg${i}`);
-			}
+		const innerArgs = this.mainArgTypes.map((t, i) => {
+			return new IR(`${t.path}__from_data(arg${i})`);
 		});
 
 		// allow main to be called recursively
@@ -1296,13 +1209,14 @@ class TestingProgram extends Program {
 			new IR(")"),
 		]);
 
-		if (BoolType.isBaseOf(this.mainFunc.retTypes[0])) {
-			ir = new IR([
-				new IR("__helios__common__boolData("),
-				ir,
-				new IR(")")
-			]);
-		}
+		const retType = assertDefined(this.mainFunc.retTypes[0].asDataType);
+
+		ir = new IR([
+			new IR(`${retType.path}____to_data`),
+			new IR("("),
+			ir,
+			new IR(")")
+		]);
 
 		const outerArgs = this.mainFunc.argTypes.map((_, i) => new IR(`arg${i}`));
 

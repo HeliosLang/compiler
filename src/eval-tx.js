@@ -25,8 +25,6 @@ import {
     FuncType,
     GenericEnumMemberType,
     GenericType,
-    Parameter,
-    ParametricFunc
 } from "./eval-common.js";
 
 /**
@@ -69,6 +67,8 @@ import {
 } from "./eval-primitives.js";
 
 import { 
+    Parameter,
+    ParametricFunc,
     SerializableTypeClass 
 } from "./eval-parametric.js";
 

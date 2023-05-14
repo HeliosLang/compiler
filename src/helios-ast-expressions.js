@@ -989,19 +989,7 @@ export class PrimitiveLiteralExpr extends Expr {
 	 */
 	toIR(indent = "") {
 		// all literals can be reused in their string-form in the IR
-		let inner = new IR(this.#primitive.toString(), this.#primitive.site);
-
-		if (this.#primitive instanceof IntLiteral || this.#primitive instanceof RealLiteral) {
-			return new IR([new IR("__core__iData", this.site), new IR("("), inner, new IR(")")]);
-		} else if (this.#primitive instanceof BoolLiteral) {
-			return inner;
-		} else if (this.#primitive instanceof StringLiteral) {
-			return new IR([new IR("__helios__common__stringData", this.site), new IR("("), inner, new IR(")")]);
-		} else if (this.#primitive instanceof ByteArrayLiteral) {
-			return new IR([new IR("__core__bData", this.site), new IR("("), inner, new IR(")")]);
-		} else {
-			throw new Error("unhandled primitive type");
-		}
+		return new IR(this.#primitive.toString(), this.#primitive.site);
 	}
 
 	/**
@@ -1326,34 +1314,30 @@ export class ListLiteralExpr extends Expr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		const isBool = BoolType.isBaseOf(this.itemType);
-
-		// unsure if list literals in untyped Plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
-		let res = new IR("__core__mkNilData(())");
+		let ir = new IR("__core__mkNilData(())");
 
 		// starting from last element, keeping prepending a data version of that item
 
 		for (let i = this.#itemExprs.length - 1; i >= 0; i--) {
-			let itemIR = this.#itemExprs[i].toIR(indent);
 
-			if (isBool) {
-				itemIR = new IR([
-					new IR("__helios__common__boolData("),
-					itemIR,
-					new IR(")"),
-				]);
-			}
+			let itemIR = new IR([
+				new IR(`${this.itemType.path}____to_data`),
+				new IR("("),
+				this.#itemExprs[i].toIR(indent),
+				new IR(")"),
+			]);
 
-			res = new IR([
-				new IR("__core__mkCons("),
+			ir = new IR([
+				new IR("__core__mkCons"),
+				new IR("("),
 				itemIR,
 				new IR(", "),
-				res,
+				ir,
 				new IR(")")
 			]);
 		}
 
-		return new IR([new IR("__core__listData", this.site), new IR("("), res, new IR(")")]);
+		return ir;
 	}
 
 	/**
@@ -1384,6 +1368,13 @@ export class MapLiteralExpr extends Expr {
 		this.#keyTypeExpr = keyTypeExpr;
 		this.#valueTypeExpr = valueTypeExpr;
 		this.#pairExprs = pairExprs;
+	}
+
+	/**
+	 * @type {DataType}
+	 */
+	get keyType() {
+		return assertDefined(this.#keyTypeExpr.cache?.asDataType);
 	}
 
 	/**
@@ -1442,40 +1433,41 @@ export class MapLiteralExpr extends Expr {
 	 * @returns {IR}
 	 */
 	toIR(indent = "") {
-		const isBoolValue = BoolType.isBaseOf(this.valueType);
-
-		// unsure if list literals in untyped Plutus-core accept arbitrary terms, so we will use the more verbose constructor functions 
-		let res = new IR("__core__mkNilPairData(())");
+		let ir = new IR("__core__mkNilPairData(())");
 
 		// starting from last element, keeping prepending a data version of that item
 
 		for (let i = this.#pairExprs.length - 1; i >= 0; i--) {
 			let [keyExpr, valueExpr] = this.#pairExprs[i];
 
-			let valueIR = valueExpr.toIR(indent);
+			let keyIR = new IR([
+				new IR(`${this.keyType.path}____to_data`),
+				new IR("("),
+				keyExpr.toIR(indent),
+				new IR(")"),
+			]);
 
-			if (isBoolValue) {
-				valueIR = new IR([
-					new IR("__helios__common__boolData("),
-					valueIR,
-					new IR(")"),
-				]);
-			}
+			let valueIR = new IR([
+				new IR(`${this.valueType.path}____to_data`),
+				new IR("("),
+				valueExpr.toIR(indent),
+				new IR(")"),
+			]);
 
-			res = new IR([
+			ir = new IR([
 				new IR("__core__mkCons("),
 				new IR("__core__mkPairData("),
-				keyExpr.toIR(indent),
+				keyIR,
 				new IR(","),
 				valueIR,
 				new IR(")"),
 				new IR(", "),
-				res,
+				ir,
 				new IR(")")
-			]);
+			], this.site);
 		}
 
-		return new IR([new IR("__core__mapData", this.site), new IR("("), res, new IR(")")]);
+		return ir;
 	}
 
 	/**
@@ -2205,17 +2197,9 @@ export class ParametricExpr extends Expr {
 		const injected = [];
 
 		paramTypes.forEach((pt, i) => {
-			const tc = typeClasses[i];
-
 			const ptPath = assertDefined(pt.asNamed).path;
 
-			Common.typeClassMembers(tc).forEach(mn => {
-				if (paramSites[i]) {
-					injected.push(new IR(`${ptPath}__${mn}`, paramSites[i]));
-				} else {
-					injected.push(new IR(`${ptPath}__${mn}`));
-				}
-			});
+			injected.push(new IR(ptPath, paramSites[i]));
 		});
 
 		let ir = baseIR;
@@ -2223,9 +2207,9 @@ export class ParametricExpr extends Expr {
 		if (injected.length > 0) {
 			ir = new IR([
 				ir,
-				new IR("("),
-				new IR(injected).join(", "),
-				new IR(")")
+				new IR("["),
+				new IR(injected).join("@"),
+				new IR("]")
 			])
 		}
 
@@ -3491,24 +3475,13 @@ export class DestructExpr {
 
 	/**
 	 * @param {number} fieldIndex
-	 * @param {boolean} isSwitchCase
 	 * @returns {string}
 	 */
-	getFieldFn(fieldIndex, isSwitchCase = false) {
-		if (isSwitchCase) {
-			return `__helios__common__field_${fieldIndex}`;
-		}
-
+	getFieldFn(fieldIndex) {
 		const type = this.type;
 
-		if (type.asEnumMemberType) {
-			return `__helios__common__field_${fieldIndex}`;
-		} else if (type.asDataType) {
-			if (type.asDataType.fieldNames.length == 1) {
-				return "";
-			} else {
-				return `__helios__common__tuple_field_${fieldIndex}`;
-			}
+		if (type.asDataType) {
+			return `${type.asDataType.path}__${type.asDataType.fieldNames[fieldIndex]}`;
 		} else {
 			return "";
 		}
@@ -3556,10 +3529,9 @@ export class DestructExpr {
 	 * @param {string} indent
 	 * @param {IR} inner 
 	 * @param {number} argIndex 
-	 * @param {boolean} isSwitchCase
 	 * @returns {IR}
 	 */
-	wrapDestructIR(indent, inner, argIndex, isSwitchCase = false) {
+	wrapDestructIR(indent, inner, argIndex) {
 		if (this.#destructExprs.length == 0) {
 			return inner;
 		} else {
@@ -3568,7 +3540,7 @@ export class DestructExpr {
 			for (let i = this.#destructExprs.length - 1; i >= 0; i--) {
 				const de = this.#destructExprs[i];
 
-				inner = de.wrapDestructIRInternal(indent + TAB, inner, baseName, i, this.getFieldFn(i, isSwitchCase));
+				inner = de.wrapDestructIRInternal(indent + TAB, inner, baseName, i, this.getFieldFn(i));
 			}
 
 			return inner;
@@ -3633,6 +3605,9 @@ export class SwitchCase extends Token {
 		}
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get constrIndex() {
 		if (this.#constrIndex === null) {
 			throw new Error("constrIndex not yet set");
@@ -3641,6 +3616,9 @@ export class SwitchCase extends Token {
 		}
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return `${this.#lhs.toString()} => ${this.#bodyExpr.toString()}`;
 	}
@@ -3725,7 +3703,7 @@ export class SwitchCase extends Token {
 	toIR(indent = "") {
 		let inner = this.#bodyExpr.toIR(indent + TAB);
 
-		inner = this.#lhs.wrapDestructIR(indent, inner, 0, true);
+		inner = this.#lhs.wrapDestructIR(indent, inner, 0);
 
 		return new IR([
 			new IR("("),
@@ -3813,7 +3791,7 @@ export class UnconstrDataSwitchCase extends SwitchCase {
 			new IR(`(pair) -> {\n${indent}${TAB}${TAB}`),
 			new IR(`(${this.#intVarName !== null ? this.#intVarName.toString() : "_"}, ${this.#lstVarName !== null ? this.#lstVarName.toString() : "_"}) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}${TAB}${TAB}`),
 			this.body.toIR(indent + TAB + TAB + TAB),
-			new IR(`\n${indent}${TAB}${TAB}}(__core__iData(__core__fstPair(pair)), __core__listData(__core__sndPair(pair)))`),
+			new IR(`\n${indent}${TAB}${TAB}}(__core__fstPair(pair), __core__sndPair(pair))`),
 			new IR(`\n${indent}${TAB}}(__core__unConstrData(data))`),
 			new IR(`\n${indent}}`)
 		]);
@@ -4093,18 +4071,51 @@ export class DataSwitchExpr extends SwitchExpr {
 
 			switch (c.memberName.value) {
 				case "ByteArray":
-					cases[4] = ir;
+					cases[4] = new IR([
+						new IR("("), new IR("e"), new IR(") -> {"), 
+						ir,
+						new IR("("),
+						new IR("__helios__bytearray__from_data"),
+						new IR("("), new IR("e"), new IR(")"),
+						new IR(")"),
+						new IR("}")
+					]);
 					break;
 				case "Int":
-					cases[3] = ir;
+					cases[3] = new IR([
+						new IR("("), new IR("e"), new IR(") -> {"), 
+						ir,
+						new IR("("),
+						new IR("__helios__int__from_data"),
+						new IR("("), new IR("e"), new IR(")"),
+						new IR(")"),
+						new IR("}")
+					]);
 					break;
 				case "[]Data":
-					cases[2] = ir;
+					cases[2] = new IR([
+						new IR("("), new IR("e"), new IR(") -> {"), 
+						ir,
+						new IR("("),
+						new IR("__code__unListData"),
+						new IR("("), new IR("e"), new IR(")"),
+						new IR(")"),
+						new IR("}")
+					]);
 					break;
 				case "Map[Data]Data":
-					cases[1] = ir;
+					cases[1] = new IR([
+						new IR("("), new IR("e"), new IR(") -> {"), 
+						ir,
+						new IR("("),
+						new IR("__code__unMapData"),
+						new IR("("), new IR("e"), new IR(")"),
+						new IR(")"),
+						new IR("}")
+					]);
 					break;
 				case "(Int, []Data)":
+					// conversion from_data is handled by UnconstrDataSwitchCase
 					cases[0] = ir;
 					break;
 				default:

@@ -83,7 +83,7 @@ export const ListType = new ParametricType({
 		return new GenericType({
 			offChainType: offChainType,
 			name: `[]${itemType.toString()}`,
-			path: `__helios__list@${assertDefined(itemType.asDataType).path}@`,
+			path: `__helios__list[${assertDefined(itemType.asDataType).path}]`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				all: new FuncType([new FuncType([itemType], BoolType)], BoolType),
@@ -151,7 +151,7 @@ export const MapType = new ParametricType({
 		return new GenericType({
 			offChainType: offChainType,
 			name: `Map[${keyType.toString()}]${valueType.toString()}`,
-			path: `__helios__map@${assertDefined(keyType.asDataType).path}@${assertDefined(valueType.asDataType).path}@`,
+			path: `__helios__map[${assertDefined(keyType.asDataType).path}@${assertDefined(valueType.asDataType).path}]`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				all: new FuncType([new FuncType([keyType, valueType], BoolType)], BoolType),
@@ -226,7 +226,7 @@ export const OptionType = new ParametricType({
 		const AppliedOptionType = new GenericType({
 			offChainType: offChainType,
 			name: `Option[${someType.toString()}]`,
-			path: `__helios__option@${assertDefined(someType.asDataType).path}@`,
+			path: `__helios__option[${assertDefined(someType.asDataType).path}]`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				map: (() => {

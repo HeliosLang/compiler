@@ -645,17 +645,19 @@ export class DataDefinition extends Statement {
 		let ir;
 
 		if (this.nFields == 1) {
-			ir = new IR(`${this.getFieldType(0).path}____to_data`);
+			ir = new IR("__helios__common__identity");
 		} else {
-			ir = new IR("__core__mkNilData(())");
+			ir = new IR([
+				new IR("__core__mkNilData"),
+				new IR("(())")
+			]);
 
 			for (let i = this.nFields - 1; i >= 0; i--) {
 				const f = this.#fields[i];
 
 				ir = new IR([
-					new IR(`__core__mkCons(${this.getFieldType(i).path}____to_data(`),
-					new IR(f.name.value),
-					new IR("), "),
+					new IR("__core__mkCons"),
+					new IR("("), new IR(`${f.type.path}____to_data`), new IR("("), new IR(f.name.value), new IR("), "),
 					ir,
 					new IR(")")
 				]);
@@ -665,9 +667,9 @@ export class DataDefinition extends Statement {
 			ir = new IR([
 				new IR("("),
 				new IR(this.#fields.map(f => new IR(f.name.value))).join(", "),
-				new IR(") -> {__core__listData("),
+				new IR(") -> {"),
 				ir,
-				new IR(")}")
+				new IR("}")
 			]);
 		}
 
@@ -685,8 +687,6 @@ export class DataDefinition extends Statement {
 	copyToIR(map, getterNames, constrIndex = -1) {
 		const key = `${this.path}__copy`;
 
-		// using existing IR generators as much as possible
-
 		let ir = StructLiteralExpr.toIRInternal(this.site, this.path, this.#fields.map(df => new IR(df.name.value)));
 
 		// wrap with defaults
@@ -701,12 +701,17 @@ export class DataDefinition extends Statement {
 		}
 
 		ir = new IR([
-			new IR("(self) -> {"),
+			new IR("("), new IR("self"), new IR(") -> {"),
 			new IR("("),
-			new IR(this.#fields.map(f => new IR(`__useopt__${f.name.toString()}, ${f.name.toString()}`))).join(", "),
+			new IR(this.#fields.map(f => new IR([
+				new IR(`__useopt__${f.name.toString()}`),
+				new IR(", "),
+				new IR(`${f.name.toString()}`)
+			]))).join(", "),
 			new IR(") -> {"),
 			ir,
-			new IR("}}")
+			new IR("}"),
+			new IR("}")
 		]);
 
 		map.set(key, ir);
@@ -728,9 +733,8 @@ export class DataDefinition extends Statement {
 		if (this.fields.length == 1) {
 			const f = this.fields[0];
 			const key = `${this.path}__${f.name.toString()}`;
-			const isBool = BoolType.isBaseOf(f.type);
 
-			const getter = isBool ? new IR("__helios__common__unBoolData", f.site) : new IR("__helios__common__identity", f.site);
+			const getter = new IR("__helios__common__identity", f.site);
 			
 			map.set(key, getter);
 			getterNames.push(key);
@@ -740,7 +744,6 @@ export class DataDefinition extends Statement {
 				let f = this.#fields[i];
 				let key = `${this.path}__${f.name.toString()}`;
 				getterNames.push(key);
-				let isBool = BoolType.isBaseOf(f.type);
 
 				/**
 				 * @type {IR}
@@ -748,35 +751,47 @@ export class DataDefinition extends Statement {
 				let getter;
 
 				if (i < 20) {
-
 					getter = new IR(`${getterBaseName}_${i}`, f.site);
 
-					if (isBool) {
-						getter = new IR([
-							new IR("(self) "), new IR("->", f.site), new IR(" {"),
-							new IR(`__helios__common__unBoolData(${getterBaseName}_${i}(self))`),
-							new IR("}"),
+					getter = new IR([
+						new IR("("), new IR("self"), new IR(") "), 
+						new IR("->", f.site), 
+						new IR(" {"), 
+						new IR(`${f.type.path}__from_data`), new IR("("),
+						new IR(`${getterBaseName}_${i}`), new IR("("), new IR("self"), new IR(")"),
+						new IR(")"),
+						new IR("}"),
+					]);
+				} else {
+					let inner = new IR("self");
+
+					if (isConstr) {
+						inner = new IR([
+							new IR("__core__sndPair"),
+							new IR("("),
+							new IR("__core__unConstrData"), new IR("("), inner, new IR(")"),
+							new IR(")")
 						]);
 					}
-				} else {
-					let inner = isConstr ? new IR("__core__sndPair(__core__unConstrData(self))") : new IR("__core__unListData(self)");
 
 					for (let j = 0; j < i; j++) {
-						inner = new IR([new IR("__core__tailList("), inner, new IR(")")]);
+						inner = new IR([
+							new IR("__core__tailList"), new IR("("), inner, new IR(")")
+						]);
 					}
 
 					inner = new IR([
-						new IR("__core__headList("),
-						inner,
-						new IR(")"),
+						new IR("__core__headList"), new IR("("), inner, new IR(")")
 					]);
 
-					if (isBool) {
-						inner = new IR([new IR("__helios__common__unBoolData("), inner, new IR(")")]);
-					}
+					inner = new IR([
+						new IR(`${f.type.path}__from_data`), new IR("("), inner, new IR(")")
+					]);
 
 					getter = new IR([
-						new IR("(self) "), new IR("->", f.site), new IR(" {"),
+						new IR("("), new IR("self"), new IR(") "), 
+						new IR("->", f.site), 
+						new IR(" {"),
 						inner,
 						new IR("}"),
 					]);

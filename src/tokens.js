@@ -1294,3 +1294,238 @@ export class StringLiteral extends PrimitiveLiteral {
 		return res;
 	}
 }
+
+/**
+ * @package
+ */
+export const RE_IR_PARAMETRIC_NAME = /[a-zA-Z_][a-zA-Z_0-9]*[[][a-zA-Z_0-9@[\]]/;
+
+/**
+ * @package
+ */
+export class IRParametricName {
+	/**
+	 * Base type name
+	 * @type {string}
+	 */
+	#base;
+
+	/**
+	 * Type type parameters
+	 * Note: nested type names can stay strings
+	 * Note: can be empty
+	 * @type {string[]}
+	 */
+	#ttp;
+
+	/**
+	 * Function name
+	 * @type {string}
+	 */
+	#fn;
+
+	/**
+	 * Function type parameters
+	 * Note: can be empty
+	 * @type {string[]}
+	 */
+	#ftp;
+
+	/**
+	 * @param {string} base 
+	 * @param {string[]} ttp 
+	 * @param {string} fn 
+	 * @param {string[]} ftp 
+	 */
+	constructor(base, ttp, fn, ftp) {
+		this.#base = base;
+		this.#ttp = ttp;
+		this.#fn = fn;
+		this.#ftp = ftp;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#base}${this.#ttp.length > 0 ? `[${this.#ttp.join("@")}]` : ""}${this.#fn}${this.#ftp.length > 0 ? `[${this.#ftp.join("@")}]` : ""}`;
+	}
+
+	/**
+	 * @return {string}
+	 */
+	toTemplate() {
+		return `${this.#base}${this.#ttp.length > 0 ? `[${this.#ttp.map((_, i) => `__TTP${i}`).join("@")}]` : ""}${this.#fn}${this.#ftp.length > 0 ? `[${this.#ftp.map((_, i) => `__FTP${i}`).join("@")}]` : ""}`;
+	}
+
+	/**
+	 * @param {IR} ir
+	 * @returns {IR}
+	 */
+	replaceTemplateNames(ir) {
+		this.#ttp.forEach((name, i) => {
+			ir = ir.replace(new RegExp(`\\b__TTP${i}`, "gm"), name);
+		})
+
+		this.#ftp.forEach((name, i) => {
+			ir = ir.replace(new RegExp(`\\b___FTP${i}`, "gm"), name);
+		})
+
+		return ir;
+	}
+
+	/**
+	 * @example
+ 	 * IRParametricName.matches("__helios__map[__T0@__T1]__fold[__T2@__T3]") => true
+	 * @example
+	 * IRParametricName.matches("__helios__int") => false
+	 * @param {string} str 
+	 */
+	static matches(str) {
+		return str.match(RE_IR_PARAMETRIC_NAME) ? true : false;
+	}
+
+	/**
+	 * @example
+	 * IRParametricName.parse("__helios__map[__T0@__T1]__fold[__T2@__T3]").toString() => "__helios__map[__T0@__T1]__fold[__T2@__T3]"
+	 * @example
+	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__T2@__T3]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__T2@__T3]"
+	 * @example
+	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__T2@__T3]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__T2@__T3]"
+	 * @param {string} str 
+	 * @returns {IRParametricName}
+	 */
+	static parse(str) {
+		let pos = 0;
+
+		/**
+		 * @returns {string}
+		 */
+		const eatAlphaNum = () => {
+			let c = str.charAt(pos);
+
+			const chars = [];
+
+			while ((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c == "_" || (c >= "0" && c <= "9")) {
+				chars.push(c);
+
+				pos++;
+
+				c = str.charAt(pos);
+			}
+			
+			return chars.join("");
+		}
+
+		/**
+		 * @returns {string[]}
+		 */
+		const eatParams = () => {
+			let c = str.charAt(pos);
+
+			assert(c == "[", `expected [, got ${c}`);
+
+			const groups = [];
+			let chars = [];
+
+			let depth = 1;
+
+			while (depth > 0) {
+				pos++;
+
+				c = str.charAt(pos);
+
+				console.log(c, depth);
+
+				if (c == "[") {
+					chars.push(c);
+					depth++;
+				} else if (c == "]") {
+					if (depth > 1) {
+						chars.push(c);
+					} else {
+						assert(chars.length > 0, "zero chars in group before ]");
+						groups.push(chars);
+						chars = [];
+					}
+					depth--;
+				} else if (c == "@") {
+					if (depth > 1) {
+						chars.push(c);
+					} else {
+						assert(chars.length > 0, "zero chars in group before @");
+						groups.push(chars);
+						chars = [];
+					}
+				} else if ((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c == "_" || (c >= "0" && c <= "9")) {
+					chars.push(c);
+				} else {
+					throw new Error("unexpected char in parametric name");
+				}
+			}
+
+			// final closing bracket
+			pos++;
+
+			return groups.map(g => g.join(""));
+		}
+
+		/**
+		 * 
+		 * @param {string} base 
+		 * @returns {[string, string]}
+		 */
+		const uneatFn = (base) => {
+			let pos = base.length - 1;
+
+			let c = base.charAt(pos);
+
+			assert(c != "_", "unexpected underscore");
+
+			let underscores = 0;
+
+			while (pos > 0) {
+				pos--;
+				c = base.charAt(pos);
+
+				if (underscores >= 2) {
+					if (c != "_") {
+						return [base.slice(0, pos+1), base.slice(pos+1)];
+					} else {
+						underscores++;
+					}
+				} else {
+					if (c == "_") {
+						underscores++;
+					} else {
+						underscores = 0;
+					}
+				}
+			}
+
+			throw new Error("bad name format");
+		}
+
+		let base = eatAlphaNum();
+
+		console.log(base);
+		let ttp = eatParams();
+		console.log("HERE", ttp, str.slice(pos));
+		let fn = "";
+		let ftp = [];
+
+		if (pos >= str.length) {
+			[base, fn] = uneatFn(base);
+			ftp = ttp;
+			ttp = [];
+		} else {
+			fn = eatAlphaNum();
+
+			if (pos < str.length) {
+				ftp = eatParams();
+			}
+		}
+
+		return new IRParametricName(base, ttp, fn, ftp);
+	}
+}
