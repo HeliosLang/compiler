@@ -146,7 +146,7 @@
 //                                           StakingHashValidatorType, StakingValidatorHashType, 
 //                                           ValidatorHashType
 //
-//     Section 20: Eval money types          AssetClassType, ValueType
+//     Section 20: Eval money types          AssetClassType, ValueType, ValuableTypeClass
 //
 //     Section 21: Eval tx types             AddressType, CertifyingActionType, 
 //                                           CertifyingActionDelegateType, 
@@ -223,8 +223,9 @@
 //                                           RawFunc, makeRawFunctions, db, fetchRawGenerics, 
 //                                           fetchRawFunctions, wrapWithRawFunctions
 //
-//     Section 27: IR Context objects        IRScope, IRVariable, IRValue, IRFuncValue, 
-//                                           IRLiteralValue, IRDeferredValue, IRCallStack
+//     Section 27: IR Context objects        IRScope, ALWAYS_INLINEABLE, IRVariable, IRValue, 
+//                                           IRFuncValue, IRLiteralValue, IRDeferredValue, 
+//                                           IRCallStack
 //
 //     Section 28: IR AST objects            IRNameExprRegistry, IRExprRegistry, IRExpr, 
 //                                           IRNameExpr, IRLiteralExpr, IRConstExpr, IRFuncExpr, 
@@ -17174,6 +17175,57 @@ var ValueType = new GenericType({
     }
 });
 
+/**
+ * @package
+ * @implements {TypeClass}
+ */
+class ValuableTypeClass extends Common {
+    constructor() {
+        super();
+    }
+
+	/**
+	 * @type {TypeClass}
+	 */
+	get asTypeClass() {
+		return this;
+	}
+
+	/**
+	 * @param {Type} impl
+	 * @returns {TypeClassMembers}
+	 */
+	genTypeMembers(impl) {
+		return {};
+	}
+
+	/**	
+	 * @param {Type} impl
+	 * @returns {TypeClassMembers}
+	 */
+	genInstanceMembers(impl) {
+		return {
+            value: ValueType
+		};
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "Valuable";
+	}
+
+    /**
+     * @param {string} name 
+	 * @param {string} path
+     * @returns {DataType}
+     */
+    toType(name, path) {
+        return new TypeClassImpl(this, name, path);
+    }
+}
+
 
 ////////////////////////////
 // Section 21: Eval tx types
@@ -18076,6 +18128,7 @@ class GlobalScope {
         scope.set("TxOutputId",           TxOutputIdType);
 		scope.set("ValidatorHash",        ValidatorHashType);
         scope.set("Value",                ValueType);
+		scope.set("Valuable",             new ValuableTypeClass());
 
         // builtin functions
         scope.set("assert",               AssertFunc);
@@ -18383,6 +18436,14 @@ class Expr extends Token {
 	}
 
 	/**
+	 * Used in switch cases where initial typeExpr is used as memberName instead
+	 * @param {null | EvalEntity} c
+	 */
+	set cache(c) {
+		this.#cache = c;
+	}
+
+	/**
 	 * @param {Scope} scope 
 	 * @returns {EvalEntity}
 	 */
@@ -18447,6 +18508,22 @@ class Expr extends Token {
 
 		return result;
 	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Typed | Multi}
+	 */
+	evalAsTypedOrMulti(scope) {
+		const r  = this.eval(scope);
+
+		if (r.asTyped) {
+			return r.asTyped;
+		} else if (r.asMulti) {
+			return r.asMulti;
+		} else {
+			throw this.typeError(`${r.toString()} isn't a value`);
+		}
+	}	
 
 	/**
 	 * @returns {boolean}
@@ -21317,17 +21394,17 @@ class IfElseExpr extends Expr {
 	/**
 	 * @param {Site} site
 	 * @param {null | Type[]} prevTypes
-	 * @param {Typed} newValue
+	 * @param {Typed | Multi} newValue
 	 * @returns {?Type[]}
 	 */
 	static reduceBranchMultiType(site, prevTypes, newValue) {
-		if (!newValue.asMulti && (new ErrorType()).isBaseOf(newValue.type)) {
+		if (!newValue.asMulti && newValue.asTyped && (new ErrorType()).isBaseOf(newValue.asTyped.type)) {
 			return prevTypes;
 		}
 
 		const newTypes = (newValue.asMulti) ?
 			newValue.asMulti.values.map(v => v.type) :
-			[newValue.type];
+			[assertDefined(newValue.asTyped).type];
 
 		if (prevTypes === null) {
 			return newTypes;
@@ -21358,11 +21435,7 @@ class IfElseExpr extends Expr {
 		let branchMultiType = null;
 
 		for (let b of this.#branches) {
-			let branchVal = b.eval(scope).asTyped;
-
-			if (!branchVal) {
-				throw b.typeError("not typed");
-			}
+			const branchVal = b.evalAsTypedOrMulti(scope);
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				b.site, 
@@ -21415,8 +21488,19 @@ class IfElseExpr extends Expr {
  * @package
  */
 class DestructExpr {
+	/**
+	 * @type {Word}
+	 */
 	#name;
+
+	/**
+	 * @type {null | Expr}
+	 */
 	#typeExpr;
+
+	/**
+	 * @type {DestructExpr[]}
+	 */
 	#destructExprs;
 
 	/**
@@ -21476,7 +21560,12 @@ class DestructExpr {
 				throw new Error("typeExpr not set");
 			}
 		} else {
-			return assertDefined(this.#typeExpr.cache?.asType);
+			if (!this.#typeExpr.cache?.asType) {
+				console.log(this.#typeExpr.toString(), this.hasType());
+				throw this.#typeExpr.typeError(`invalid type '${assertDefined(this.#typeExpr.cache, "cache unset").toString()}'`);
+			} else {
+				return this.#typeExpr.cache.asType;
+			}
 		}
 	}
 
@@ -21525,6 +21614,7 @@ class DestructExpr {
 				throw new Error("typeExpr not set");
 			}
 		} else {
+			console.log("evaluating", this.#typeExpr.toString());
 			return this.#typeExpr.evalAsType(scope);
 		}
 	}
@@ -21605,7 +21695,11 @@ class DestructExpr {
 			scope.set(this.#name, caseType.toTyped());
 		}
 
-		this.evalDestructExprs(scope, caseType)
+		if (this.#typeExpr) {
+			this.#typeExpr.cache = caseType;
+		}
+
+		this.evalDestructExprs(scope, caseType);
 	}
 
 	/**
@@ -22755,7 +22849,9 @@ class DataField extends NameTypePair {
  * Base class for struct and enum member
  * @package
  */
-class DataDefinition extends Statement {
+class DataDefinition {
+	#site;
+	#name;
 	#fields;
 
 	/**
@@ -22764,17 +22860,28 @@ class DataDefinition extends Statement {
 	 * @param {DataField[]} fields 
 	 */
 	constructor(site, name, fields) {
-		super(site, name);
+		this.#site = site;
+		this.#name = name;
 		this.#fields = fields;
 	}
 
 	/**
-	 * @type {DataType}
+	 * @type {Site}
 	 */
-	get type() {
-		throw new Error("not yet implemented");
+	get site() {
+		return this.#site;
 	}
 
+	/**
+	 * @type {Word}
+	 */
+	get name() {
+		return this.#name;
+	}
+
+	/**
+	 * @type {DataField[]}
+	 */
 	get fields() {
 		return this.#fields.slice();
 	}
@@ -22895,15 +23002,6 @@ class DataDefinition extends Statement {
 	getFieldName(i) {
 		return this.#fields[i].name.toString();
 	}
-	
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		throw site.typeError(`'${this.name.value}' isn't an enum type`);
-	}
-
 
 	/**
 	 * Gets insance member value.
@@ -22913,7 +23011,7 @@ class DataDefinition extends Statement {
 	genInstanceMembers(self) {
 		const members = {
 			...genCommonInstanceMembers(self),
-			copy: new FuncType(this.#fields.map(f => new ArgType(f.name, f.type, true)), this.type),
+			copy: new FuncType(this.#fields.map(f => new ArgType(f.name, f.type, true)), self),
 		};
 
 		for (let f of this.fields) {
@@ -22934,17 +23032,26 @@ class DataDefinition extends Statement {
 	}
 
 	/**
-	 * 
+	 * @param {string} path
 	 * @param {IRDefinitions} map 
+	 * @param {number} constrIndex
 	 */
-	newToIR(map) {
+	newToIR(path, map, constrIndex) {
+		const isConstr = constrIndex != -1;
+
 		/**
 		 * @type {IR}
 		 */
 		let ir;
 
 		if (this.nFields == 1) {
-			ir = new IR("__helios__common__identity");
+			if (isConstr) {
+				ir = new IR(`(self) -> {
+					__core__constrData(${constrIndex}, __helios__common__list_1(${this.getFieldType(0).path}____to_data(self)))
+				}`, this.site);
+			} else {
+				ir = new IR("__helios__common__identity");
+		}
 		} else {
 			ir = new IR([
 				new IR("__core__mkNilData"),
@@ -22962,6 +23069,17 @@ class DataDefinition extends Statement {
 				]);
 			}
 
+			if (isConstr) {
+				ir = new IR([
+					new IR("__core__constrData"),
+					new IR("("),
+					new IR(constrIndex.toString()),
+					new IR(", "),
+					ir,
+					new IR(")")
+				]);
+			}
+
 			// wrap as function
 			ir = new IR([
 				new IR("("),
@@ -22972,21 +23090,22 @@ class DataDefinition extends Statement {
 			]);
 		}
 
-		const key = `${this.path}____new`;
+		const key = `${path}____new`;
 
 		map.set(key, ir);
 	}
 
 	/**
 	 * @package
+	 * @param {string} path
 	 * @param {IRDefinitions} map 
 	 * @param {string[]} getterNames
 	 * @param {number} constrIndex
 	 */
-	copyToIR(map, getterNames, constrIndex = -1) {
-		const key = `${this.path}__copy`;
+	copyToIR(path, map, getterNames, constrIndex = -1) {
+		const key = `${path}__copy`;
 
-		let ir = StructLiteralExpr.toIRInternal(this.site, this.path, this.#fields.map(df => new IR(df.name.value)));
+		let ir = StructLiteralExpr.toIRInternal(this.site, path, this.#fields.map(df => new IR(df.name.value)));
 
 		// wrap with defaults
 
@@ -23018,10 +23137,13 @@ class DataDefinition extends Statement {
 
 	/**
 	 * Doesn't return anything, but sets its IRdef in the map
+	 * @param {string} path
 	 * @param {IRDefinitions} map
-	 * @param {boolean} isConstr
+	 * @param {number} constrIndex
 	 */
-	toIR(map, isConstr = true) {
+	toIR(path, map, constrIndex) {
+		const isConstr = constrIndex != -1;
+
 		const getterBaseName = isConstr ? "__helios__common__field" : "__helios__common__tuple_field";
 
 		/**
@@ -23029,19 +23151,20 @@ class DataDefinition extends Statement {
 		 */
 		const getterNames = [];
 
-		if (this.fields.length == 1) {
+		if (this.fields.length == 1 && !isConstr) {
 			const f = this.fields[0];
-			const key = `${this.path}__${f.name.toString()}`;
+			const key = `${path}__${f.name.value}`;
 
-			const getter = new IR("__helios__common__identity", f.site);
+			const getter =  new IR("__helios__common__identity", f.site);
 			
 			map.set(key, getter);
+
 			getterNames.push(key);
 		} else {
 			// add a getter for each field
 			for (let i = 0; i < this.#fields.length; i++) {
 				let f = this.#fields[i];
-				let key = `${this.path}__${f.name.toString()}`;
+				let key = `${path}__${f.name.value}`;
 				getterNames.push(key);
 
 				/**
@@ -23100,8 +23223,8 @@ class DataDefinition extends Statement {
 			}
 		}
 
-		this.newToIR(map);
-		this.copyToIR(map, getterNames);
+		this.newToIR(path, map, constrIndex);
+		this.copyToIR(path, map, getterNames);
 	}
 }
 
@@ -23109,8 +23232,9 @@ class DataDefinition extends Statement {
  * Struct statement
  * @package
  */
-class StructStatement extends DataDefinition {
+class StructStatement extends Statement {
 	#parameters;
+	#dataDef;
 	#impl;
 
 	/**
@@ -23121,9 +23245,10 @@ class StructStatement extends DataDefinition {
 	 * @param {ImplDefinition} impl
 	 */
 	constructor(site, name, parameters, fields, impl) {
-		super(site, name, fields);
+		super(site, name);
 
 		this.#parameters = parameters;
+		this.#dataDef = new DataDefinition(this.site, name, fields);
 		this.#impl = impl;
 	}
 
@@ -23154,15 +23279,15 @@ class StructStatement extends DataDefinition {
 			 */
 			constructor(...args) {
 				super();
-				if (args.length != statement.nFields) {
-					throw new Error(`expected ${statement.nFields} args, got ${args.length}`);
+				if (args.length != statement.#dataDef.nFields) {
+					throw new Error(`expected ${statement.#dataDef.nFields} args, got ${args.length}`);
 				}
 
 				this.#fields = [];
 
 				args.forEach((arg, i) => {
-					const fieldName = statement.getFieldName(i);
-					const fieldType = statement.getFieldType(i);
+					const fieldName = statement.#dataDef.getFieldName(i);
+					const fieldType = statement.#dataDef.getFieldType(i);
 
 					const FieldClass = assertDefined(fieldType.offChainType);
 
@@ -23215,12 +23340,12 @@ class StructStatement extends DataDefinition {
 			static fromUplcData(data) {
 				const dataItems = data.list;
 
-				if (dataItems.length != statement.nFields) {
+				if (dataItems.length != statement.#dataDef.nFields) {
 					throw new Error("unexpected number of fields");
 				}
 
 				const args = dataItems.map((item, i) => {
-					return assertDefined(statement.getFieldType(i).offChainType).fromUplcData(item);
+					return assertDefined(statement.#dataDef.getFieldType(i).offChainType).fromUplcData(item);
 				});
 
 				return new Struct(...args);
@@ -23236,7 +23361,7 @@ class StructStatement extends DataDefinition {
 	 * @returns {string}
 	 */
 	toString() {
-		return `struct ${this.name.toString()}${this.#parameters.toString()} ${this.toStringFields()}`;
+		return `struct ${this.name.toString()}${this.#parameters.toString()} ${this.#dataDef.toStringFields()}`;
 	}
 
 	/**
@@ -23246,7 +23371,7 @@ class StructStatement extends DataDefinition {
 	eval(scope) {
 		// first evaluate the type using a shell type of self
 		const shell = new GenericType({
-			fieldNames: this.fields.map(f => f.name.value),
+			fieldNames: this.#dataDef.fields.map(f => f.name.value),
 			name: this.name.value,
 			path: this.path,
 			genInstanceMembers: (self) => ({}),
@@ -23256,12 +23381,12 @@ class StructStatement extends DataDefinition {
 		const typeScope = new Scope(scope);
 		typeScope.set(this.name, shell);
 
-		const fields = super.evalFieldTypes(typeScope);
+		const fields = this.#dataDef.evalFieldTypes(typeScope);
 
 		const [instanceMembers, typeMembers] = this.#impl.evalTypes(typeScope);
 
 		const full = new GenericType({
-			fieldNames: this.fields.map(f => f.name.value),
+			fieldNames: this.#dataDef.fields.map(f => f.name.value),
 			name: this.name.value,
 			path: this.path,
 			offChainType: this.offChainType,
@@ -23295,15 +23420,16 @@ class StructStatement extends DataDefinition {
 	 * @param {IRDefinitions} map
 	 */
 	toIR(map) {
-		super.toIR(map, false);
-
-		const implPath = this.fieldNames.length == 1 ? this.getFieldType(0).path : "__helios__tuple";
+		const implPath = this.#dataDef.fieldNames.length == 1 ? this.#dataDef.getFieldType(0).path : "__helios__tuple";
 
 		map.set(`${this.path}____eq`, new IR(`${implPath}____eq`, this.site));
 		map.set(`${this.path}____neq`, new IR(`${implPath}____neq`, this.site));
 		map.set(`${this.path}__serialize`, new IR(`${implPath}__serialize`, this.site));
 		map.set(`${this.path}__from_data`, new IR(`${implPath}__from_data`, this.site));
 		map.set(`${this.path}____to_data`, new IR(`${implPath}____to_data`, this.site));
+
+		// super.toIR adds __new and copy, which might depend on __to_data, so must come after
+		this.#dataDef.toIR(this.path, map, -1);
 
 		this.#impl.toIR(map);
 	}
@@ -23437,21 +23563,23 @@ class FuncStatement extends Statement {
  * EnumMember defintion is similar to a struct definition
  * @package
  */
-class EnumMember extends DataDefinition {
+class EnumMember {
 	/** @type {null | EnumStatement} */
 	#parent;
 
 	/** @type {?number} */
 	#constrIndex;
 
+	#dataDef;
+
 	/**
 	 * @param {Word} name
 	 * @param {DataField[]} fields
 	 */
 	constructor(name, fields) {
-		super(name.site, name, fields);
 		this.#parent = null; // registered later
 		this.#constrIndex = null;
+		this.#dataDef = new DataDefinition(name.site, name, fields);
 	}
 
 	/**
@@ -23463,6 +23591,13 @@ class EnumMember extends DataDefinition {
 		} else {
 			return this.#constrIndex;
 		}
+	}
+
+	/**
+	 * @type {Word}
+	 */
+	get name() {
+		return this.#dataDef.name;
 	}
 
 	/** 
@@ -23495,7 +23630,7 @@ class EnumMember extends DataDefinition {
 
 		const index = statement.constrIndex;
 
-		const nFields = statement.nFields;
+		const nFields = statement.#dataDef.nFields;
 
 		/**
 		 * @type {[string, DataType][]} - [name, type]
@@ -23503,7 +23638,7 @@ class EnumMember extends DataDefinition {
 		const fields = [];
 
 		for (let i = 0; i < nFields; i++) {
-			fields.push([statement.getFieldName(i), statement.getFieldType(i)]);
+			fields.push([statement.#dataDef.getFieldName(i), statement.#dataDef.getFieldType(i)]);
 		}
 
 		// similar to Struct
@@ -23596,7 +23731,7 @@ class EnumMember extends DataDefinition {
 			}
 		}
 
-		Object.defineProperty(EnumVariant, "name", {value: this.name, writable: false});
+		Object.defineProperty(EnumVariant, "name", {value: this.#dataDef.name, writable: false});
 
 		return EnumVariant;
 
@@ -23611,42 +23746,43 @@ class EnumMember extends DataDefinition {
 			throw new Error("parent should've been registered");
 		}
 
-		const instanceMembers = super.evalFieldTypes(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
+		const instanceMembers = this.#dataDef.evalFieldTypes(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
 
 		return (parent) => new GenericEnumMemberType({
-			name: this.name.value,
+			name: this.#dataDef.name.value,
 			path: this.path,
 			constrIndex: this.constrIndex,
 			offChainType: this.offChainType,
 			parentType: parent,
-			fieldNames: this.fieldNames,
+			fieldNames: this.#dataDef.fieldNames,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				...instanceMembers
 			}),
 			genTypeMembers: (self) => ({
-				...genCommonTypeMembers(self),
+				...genCommonEnumTypeMembers(self, parent),
 			})
 		});
 	}
 
 	get path() {
-		return `${this.parent.path}__${this.name.toString()}`;
+		return `${this.parent.path}__${this.#dataDef.name.toString()}`;
 	}
 
 	/**
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		super.toIR(map);
-
-		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.site));
-		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.site));
-		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.site));
+		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.#dataDef.site));
+		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.#dataDef.site));
+		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.#dataDef.site));
 		map.set(`${this.path}__from_data`, new IR(`(data) -> {
 			__helios__common__assert_constr_index(data, ${this.constrIndex})
-		}`, this.site));
-		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.site));
+		}`, this.#dataDef.site));
+		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.#dataDef.site));
+
+		// super.toIR adds __new and copy, which might depend on __to_data, so must come after
+		this.#dataDef.toIR(this.path, map, this.constrIndex);
 	}
 }
 
@@ -23889,15 +24025,16 @@ class EnumStatement extends Statement {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		for (let member of this.#members) {
-			member.toIR(map);
-		}
-
 		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.site));
 		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.site));
 		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.site));
 		map.set(`${this.path}__from_data`, new IR("__helios__common__identity", this.site));
 		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.site));
+
+		// member __new and copy methods might depend on __to_data, so must be generated after
+		for (let member of this.#members) {
+			member.toIR(map);
+		}
 
 		this.#impl.toIR(map);
 	}
@@ -31430,6 +31567,15 @@ class IRScope {
 	}
 }
 
+const ALWAYS_INLINEABLE = [
+	"__helios__int____to_data",
+	"__helios__common__identity",
+	"__helios__int____neg",
+	"__helios__common__fields",
+	"__helios__common__fields_after_0",
+	"__helios__common__field_0"
+];
+
 /**
  * IR class that represents function arguments
  * @package
@@ -31466,6 +31612,13 @@ class IRVariable extends Token {
 		newVars.set(this, newVar);
 
 		return newVar;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isAlwaysInlineable() {
+		return ALWAYS_INLINEABLE.findIndex((name_) => name_ == this.#name.value) != -1;
 	}
 }
 
@@ -31894,7 +32047,7 @@ class IRExpr extends Token {
 	 * @param {number[]} remaining
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		throw new Error("not yet implemented");
 	}
 
@@ -32105,7 +32258,7 @@ class IRNameExpr extends IRExpr {
 	 * @param {number[]} remaining 
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		return this;
 	}
 
@@ -32246,7 +32399,7 @@ class IRLiteralExpr extends IRExpr {
 	 * @param {number[]} remaining 
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		return this;
 	}
 
@@ -32323,8 +32476,8 @@ class IRConstExpr extends IRExpr {
 	 * @param {IRVariable} fnVar 
 	 * @param {number[]} remaining 
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
-		return new IRConstExpr(this.site, this.#expr.simplifyUnusedTypeParams(fnVar, remaining));
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
+		return new IRConstExpr(this.site, this.#expr.simplifyUnusedRecursionArgs(fnVar, remaining));
 	}
 
 	/**
@@ -32431,14 +32584,23 @@ class IRFuncExpr extends IRExpr {
 			return this.#body.eval(stack);
 		});
 	}
+	
+	/**
+	 * @param {IRNameExprRegistry} nameExprs
+	 */
+	registerNameExprs(nameExprs) {
+		this.#args.forEach(a => nameExprs.registerVariable(a));
+
+		this.#body.registerNameExprs(nameExprs);
+	}
 
 	/**
 	 * @param {IRVariable} fnVar 
 	 * @param {number[]} remaining
 	 * @returns {IRExpr} 
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
-		return new IRFuncExpr(this.site, this.args, this.#body.simplifyUnusedTypeParams(fnVar, remaining));
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
+		return new IRFuncExpr(this.site, this.args, this.#body.simplifyUnusedRecursionArgs(fnVar, remaining));
 	}
 
 	/**
@@ -32447,17 +32609,6 @@ class IRFuncExpr extends IRExpr {
 	 */
 	simplifyLiterals(literals) {
 		return new IRFuncExpr(this.site, this.args, this.#body.simplifyLiterals(literals));
-	}
-	
-	/**
-	 * @param {IRNameExprRegistry} nameExprs
-	 */
-	registerNameExprs(nameExprs) {
-		nameExprs = nameExprs.resetVariables();
-
-		this.#args.forEach(a => nameExprs.registerVariable(a));
-
-		this.#body.registerNameExprs(nameExprs);
 	}
 
 	/**
@@ -32771,8 +32922,8 @@ class IRCoreCallExpr extends IRCallExpr {
 	 * @param {IRVariable} fnVar 
 	 * @param {number[]} remaining 
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
-		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining));
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedRecursionArgs(fnVar, remaining));
 
 		return new IRCoreCallExpr(this.#name, argExprs, this.parensSite);
 	}
@@ -33212,17 +33363,23 @@ class IRUserCallExpr extends IRCallExpr {
 	 * @param {number[]} remaining 
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
-		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining));
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedRecursionArgs(fnVar, remaining));
 
 		if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.isVariable(fnVar)) {
-			return new IRUserCallExpr(
-				this.#fnExpr,
-				argExprs.filter((_, i) => remaining.some(i_ => i_ == i)),
-				this.parensSite
-			);
+			const remainingArgExprs = argExprs.filter((_, i) => remaining.some(i_ => i_ == i));
+
+			if (remainingArgExprs.length == 0) {
+				return this.#fnExpr;
+			} else {
+				return new IRUserCallExpr(
+					this.#fnExpr,
+					remainingArgExprs,
+					this.parensSite
+				);
+			}
 		} else {
-			const fnExpr = this.#fnExpr.simplifyUnusedTypeParams(fnVar, remaining);
+			const fnExpr = this.#fnExpr.simplifyUnusedRecursionArgs(fnVar, remaining);
 
 			return new IRUserCallExpr(
 				fnExpr,
@@ -33449,14 +33606,14 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 	 * @param {number[]} remaining 
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
-		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining));
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedRecursionArgs(fnVar, remaining));
 
-		let anon = assertClass(this.#anon.simplifyUnusedTypeParams(fnVar, remaining), IRFuncExpr);
+		let anon = assertClass(this.#anon.simplifyUnusedRecursionArgs(fnVar, remaining), IRFuncExpr);
 
 		argExprs.forEach((ae, i) => {
 			if (ae instanceof IRNameExpr && ae.isVariable(fnVar)) {
-				anon = assertClass(anon.simplifyUnusedTypeParams(this.argVariables[i], remaining), IRFuncExpr);
+				anon = assertClass(anon.simplifyUnusedRecursionArgs(this.argVariables[i], remaining), IRFuncExpr);
 			}
 		});
 
@@ -33518,7 +33675,8 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 	simplifyTopology(registry) {
 		const args = this.simplifyTopologyInArgs(registry);
 
-		// remove unused args, inline args that are only referenced once, inline all IRNameExprs, inline function with default args 
+		// remove unused args, inline args that are only referenced once, inline all IRNameExprs, inline function with default args,
+		//  inline tiny builtins, inline functions whose body is simply a IRNameExpr
 		const remainingIds = this.argVariables.map((variable, i) => {
 			const n = registry.countReferences(variable);
 
@@ -33526,9 +33684,12 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 
 			if (
 				n == 0 
+				|| variable.isAlwaysInlineable()
 				|| (n == 1 && (!registry.maybeInsideLoop(variable) || arg instanceof IRFuncExpr)) 
 				|| arg instanceof IRNameExpr 
 				|| (arg instanceof IRFuncExpr && arg.hasOptArgs())
+				|| (arg instanceof IRFuncExpr && arg.body instanceof IRNameExpr)
+				
 			) {
 				if (n > 0) {
 					// inline
@@ -33615,10 +33776,10 @@ export class IRNestedAnonCallExpr extends IRUserCallExpr {
 	 * @param {number[]} remaining
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		return new IRNestedAnonCallExpr(
-			assertClass(this.#anon.simplifyUnusedTypeParams(fnVar, remaining), IRAnonCallExpr),
-			this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining)),
+			assertClass(this.#anon.simplifyUnusedRecursionArgs(fnVar, remaining), IRAnonCallExpr),
+			this.argExprs.map(ae => ae.simplifyUnusedRecursionArgs(fnVar, remaining)),
 			this.parensSite
 		)
 	}
@@ -33691,15 +33852,28 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 	}
 
 	/**
-	 * @param {IRExprRegistry} registry
-	 * @returns {[IRFuncExpr, IRFuncExpr]}
+	 * @param {IRNameExprRegistry} nameExprs 
 	 */
-	simplifyTypeParams(registry) {
+	registerNameExprs(nameExprs) {
+		this.argVariables.forEach(a => nameExprs.registerVariable(a));
+
+		this.anon.body.registerNameExprs(nameExprs);
+
+		nameExprs = nameExprs.resetVariables();
+
+		this.#def.registerNameExprs(nameExprs);
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {[IRFuncExpr, IRExpr]}
+	 */
+	simplifyRecursionArgs(registry) {
 		let anon = this.anon;
 		let def = this.#def;
 
-		if (this.#def.args.some(a => a.name.startsWith("__typeparam"))) {
-			const usedTypeParams = this.#def.args.map((variable, i) => {
+		if (this.#def.args.some(a => a.name.startsWith("__module") || a.name.startsWith("__const"))) {
+			const usedArgs = this.#def.args.map((variable, i) => {
 				const n = registry.countReferences(variable);
 
 				if (n == 0) {
@@ -33709,16 +33883,21 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 				}
 			}).filter(i => i != -1);
 
-			if (usedTypeParams.length < this.#def.args.length) {
+			if (usedArgs.length < this.#def.args.length) {
 				anon = new IRFuncExpr(
 					anon.site,
 					anon.args,
-					anon.body.simplifyUnusedTypeParams(anon.args[0], usedTypeParams)
+					anon.body.simplifyUnusedRecursionArgs(anon.args[0], usedArgs)
 				);
+
+				if (usedArgs.length == 0) {
+					// simplify the body if none of the args remain
+					return [anon, this.#def.body];
+				}
 
 				def = new IRFuncExpr(
 					this.#def.site,
-					usedTypeParams.map(i => def.args[i]),
+					usedArgs.map(i => def.args[i]),
 					this.#def.body
 				);
 			}
@@ -33733,7 +33912,7 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 	 * @returns {IRExpr}
 	 */
 	simplifyTopology(registry) {
-		const [anon, def] = this.simplifyTypeParams(registry);
+		const [anon, def] = this.simplifyRecursionArgs(registry);
 		
 		const res = (new IRAnonCallExpr(anon, [def], this.parensSite)).simplifyTopology(registry);
 
@@ -33757,10 +33936,10 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 	 * @param {number[]} remaining
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		return new IRFuncDefExpr(
-			assertClass(this.anon.simplifyUnusedTypeParams(fnVar, remaining), IRFuncExpr),
-			assertClass(this.#def.simplifyUnusedTypeParams(fnVar, remaining), IRFuncExpr),
+			assertClass(this.anon.simplifyUnusedRecursionArgs(fnVar, remaining), IRFuncExpr),
+			assertClass(this.#def.simplifyUnusedRecursionArgs(fnVar, remaining), IRFuncExpr),
 			this.parensSite
 		);
 	}
@@ -33773,13 +33952,21 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 		if (registry.countReferences(this.anon.args[0]) == 0) {
 			return this.anon.body.simplifyUnused(registry);
 		} else {
-			const [anon, def] = this.simplifyTypeParams(registry);
+			const [anon, def] = this.simplifyRecursionArgs(registry);
 
-			return new IRFuncDefExpr(
-				anon.simplifyUnused(registry),
-				def.simplifyUnused(registry),
-				this.parensSite
-			);
+			if (def instanceof IRFuncExpr) {
+				return new IRFuncDefExpr(
+					anon.simplifyUnused(registry),
+					def.simplifyUnused(registry),
+					this.parensSite
+				);
+			} else {
+				return new IRAnonCallExpr(
+					anon.simplifyUnused(registry),
+					[def],
+					this.site
+				);
+			}
 		}
 	}
 }
@@ -33877,7 +34064,7 @@ class IRErrorCallExpr extends IRExpr {
 	 * @param {number[]} remaining 
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		return this;
 	}
 
@@ -34106,6 +34293,7 @@ class IRProgram {
 	static new(ir, purpose, simplify = false, throwSimplifyRTErrors = false, scope = new IRScope(null, null)) {
 		let [irSrc, codeMap] = ir.generateSource();
 
+		console.log(irSrc);
 		const callsTxTimeRange = irSrc.match(/\b__helios__tx__time_range\b/) !== null;
 
 		let irTokens = tokenizeIR(irSrc, codeMap);
@@ -34116,15 +34304,15 @@ class IRProgram {
 		
 		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
 
-		//expr = IRProgram.simplifyUnused(expr);
+		expr = IRProgram.simplifyUnused(expr);
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
 			expr = IRProgram.simplify(expr);
-
-			// make sure the debruijn indices are correct
-			expr.resolveNames(scope);
 		}
+
+		// make sure the debruijn indices are correct (doesn't matter for simplication because names are converted into unique IRVariables, but is very important before converting to UPLC)
+		expr.resolveNames(scope);
 
 		const program = new IRProgram(IRProgram.assertValidRoot(expr), {
 			purpose: purpose,

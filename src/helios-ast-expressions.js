@@ -138,6 +138,14 @@ export class Expr extends Token {
 	}
 
 	/**
+	 * Used in switch cases where initial typeExpr is used as memberName instead
+	 * @param {null | EvalEntity} c
+	 */
+	set cache(c) {
+		this.#cache = c;
+	}
+
+	/**
 	 * @param {Scope} scope 
 	 * @returns {EvalEntity}
 	 */
@@ -202,6 +210,22 @@ export class Expr extends Token {
 
 		return result;
 	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Typed | Multi}
+	 */
+	evalAsTypedOrMulti(scope) {
+		const r  = this.eval(scope);
+
+		if (r.asTyped) {
+			return r.asTyped;
+		} else if (r.asMulti) {
+			return r.asMulti;
+		} else {
+			throw this.typeError(`${r.toString()} isn't a value`);
+		}
+	}	
 
 	/**
 	 * @returns {boolean}
@@ -3072,17 +3096,17 @@ export class IfElseExpr extends Expr {
 	/**
 	 * @param {Site} site
 	 * @param {null | Type[]} prevTypes
-	 * @param {Typed} newValue
+	 * @param {Typed | Multi} newValue
 	 * @returns {?Type[]}
 	 */
 	static reduceBranchMultiType(site, prevTypes, newValue) {
-		if (!newValue.asMulti && (new ErrorType()).isBaseOf(newValue.type)) {
+		if (!newValue.asMulti && newValue.asTyped && (new ErrorType()).isBaseOf(newValue.asTyped.type)) {
 			return prevTypes;
 		}
 
 		const newTypes = (newValue.asMulti) ?
 			newValue.asMulti.values.map(v => v.type) :
-			[newValue.type];
+			[assertDefined(newValue.asTyped).type];
 
 		if (prevTypes === null) {
 			return newTypes;
@@ -3113,11 +3137,7 @@ export class IfElseExpr extends Expr {
 		let branchMultiType = null;
 
 		for (let b of this.#branches) {
-			let branchVal = b.eval(scope).asTyped;
-
-			if (!branchVal) {
-				throw b.typeError("not typed");
-			}
+			const branchVal = b.evalAsTypedOrMulti(scope);
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				b.site, 
@@ -3170,8 +3190,19 @@ export class IfElseExpr extends Expr {
  * @package
  */
 export class DestructExpr {
+	/**
+	 * @type {Word}
+	 */
 	#name;
+
+	/**
+	 * @type {null | Expr}
+	 */
 	#typeExpr;
+
+	/**
+	 * @type {DestructExpr[]}
+	 */
 	#destructExprs;
 
 	/**
@@ -3231,7 +3262,12 @@ export class DestructExpr {
 				throw new Error("typeExpr not set");
 			}
 		} else {
-			return assertDefined(this.#typeExpr.cache?.asType);
+			if (!this.#typeExpr.cache?.asType) {
+				console.log(this.#typeExpr.toString(), this.hasType());
+				throw this.#typeExpr.typeError(`invalid type '${assertDefined(this.#typeExpr.cache, "cache unset").toString()}'`);
+			} else {
+				return this.#typeExpr.cache.asType;
+			}
 		}
 	}
 
@@ -3280,6 +3316,7 @@ export class DestructExpr {
 				throw new Error("typeExpr not set");
 			}
 		} else {
+			console.log("evaluating", this.#typeExpr.toString());
 			return this.#typeExpr.evalAsType(scope);
 		}
 	}
@@ -3360,7 +3397,11 @@ export class DestructExpr {
 			scope.set(this.#name, caseType.toTyped());
 		}
 
-		this.evalDestructExprs(scope, caseType)
+		if (this.#typeExpr) {
+			this.#typeExpr.cache = caseType;
+		}
+
+		this.evalDestructExprs(scope, caseType);
 	}
 
 	/**

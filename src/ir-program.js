@@ -105,6 +105,7 @@ export class IRProgram {
 	static new(ir, purpose, simplify = false, throwSimplifyRTErrors = false, scope = new IRScope(null, null)) {
 		let [irSrc, codeMap] = ir.generateSource();
 
+		console.log(irSrc);
 		const callsTxTimeRange = irSrc.match(/\b__helios__tx__time_range\b/) !== null;
 
 		let irTokens = tokenizeIR(irSrc, codeMap);
@@ -115,15 +116,15 @@ export class IRProgram {
 		
 		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
 
-		//expr = IRProgram.simplifyUnused(expr);
+		expr = IRProgram.simplifyUnused(expr);
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
 			expr = IRProgram.simplify(expr);
-
-			// make sure the debruijn indices are correct
-			expr.resolveNames(scope);
 		}
+
+		// make sure the debruijn indices are correct (doesn't matter for simplication because names are converted into unique IRVariables, but is very important before converting to UPLC)
+		expr.resolveNames(scope);
 
 		const program = new IRProgram(IRProgram.assertValidRoot(expr), {
 			purpose: purpose,

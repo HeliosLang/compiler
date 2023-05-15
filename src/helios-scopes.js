@@ -68,7 +68,8 @@ import {
 
 import {
 	AssetClassType,
-	ValueType
+	ValueType,
+	ValuableTypeClass
 } from "./eval-money.js";
 
 import {
@@ -198,6 +199,7 @@ export class GlobalScope {
         scope.set("TxOutputId",           TxOutputIdType);
 		scope.set("ValidatorHash",        ValidatorHashType);
         scope.set("Value",                ValueType);
+		scope.set("Valuable",             new ValuableTypeClass());
 
         // builtin functions
         scope.set("assert",               AssertFunc);

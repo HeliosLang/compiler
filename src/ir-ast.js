@@ -292,7 +292,7 @@ export class IRExpr extends Token {
 	 * @param {number[]} remaining
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		throw new Error("not yet implemented");
 	}
 
@@ -503,7 +503,7 @@ export class IRNameExpr extends IRExpr {
 	 * @param {number[]} remaining 
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		return this;
 	}
 
@@ -644,7 +644,7 @@ export class IRLiteralExpr extends IRExpr {
 	 * @param {number[]} remaining 
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		return this;
 	}
 
@@ -721,8 +721,8 @@ export class IRConstExpr extends IRExpr {
 	 * @param {IRVariable} fnVar 
 	 * @param {number[]} remaining 
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
-		return new IRConstExpr(this.site, this.#expr.simplifyUnusedTypeParams(fnVar, remaining));
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
+		return new IRConstExpr(this.site, this.#expr.simplifyUnusedRecursionArgs(fnVar, remaining));
 	}
 
 	/**
@@ -829,14 +829,23 @@ export class IRFuncExpr extends IRExpr {
 			return this.#body.eval(stack);
 		});
 	}
+	
+	/**
+	 * @param {IRNameExprRegistry} nameExprs
+	 */
+	registerNameExprs(nameExprs) {
+		this.#args.forEach(a => nameExprs.registerVariable(a));
+
+		this.#body.registerNameExprs(nameExprs);
+	}
 
 	/**
 	 * @param {IRVariable} fnVar 
 	 * @param {number[]} remaining
 	 * @returns {IRExpr} 
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
-		return new IRFuncExpr(this.site, this.args, this.#body.simplifyUnusedTypeParams(fnVar, remaining));
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
+		return new IRFuncExpr(this.site, this.args, this.#body.simplifyUnusedRecursionArgs(fnVar, remaining));
 	}
 
 	/**
@@ -845,17 +854,6 @@ export class IRFuncExpr extends IRExpr {
 	 */
 	simplifyLiterals(literals) {
 		return new IRFuncExpr(this.site, this.args, this.#body.simplifyLiterals(literals));
-	}
-	
-	/**
-	 * @param {IRNameExprRegistry} nameExprs
-	 */
-	registerNameExprs(nameExprs) {
-		nameExprs = nameExprs.resetVariables();
-
-		this.#args.forEach(a => nameExprs.registerVariable(a));
-
-		this.#body.registerNameExprs(nameExprs);
 	}
 
 	/**
@@ -1169,8 +1167,8 @@ export class IRCoreCallExpr extends IRCallExpr {
 	 * @param {IRVariable} fnVar 
 	 * @param {number[]} remaining 
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
-		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining));
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedRecursionArgs(fnVar, remaining));
 
 		return new IRCoreCallExpr(this.#name, argExprs, this.parensSite);
 	}
@@ -1610,17 +1608,23 @@ export class IRUserCallExpr extends IRCallExpr {
 	 * @param {number[]} remaining 
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
-		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining));
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedRecursionArgs(fnVar, remaining));
 
 		if (this.#fnExpr instanceof IRNameExpr && this.#fnExpr.isVariable(fnVar)) {
-			return new IRUserCallExpr(
-				this.#fnExpr,
-				argExprs.filter((_, i) => remaining.some(i_ => i_ == i)),
-				this.parensSite
-			);
+			const remainingArgExprs = argExprs.filter((_, i) => remaining.some(i_ => i_ == i));
+
+			if (remainingArgExprs.length == 0) {
+				return this.#fnExpr;
+			} else {
+				return new IRUserCallExpr(
+					this.#fnExpr,
+					remainingArgExprs,
+					this.parensSite
+				);
+			}
 		} else {
-			const fnExpr = this.#fnExpr.simplifyUnusedTypeParams(fnVar, remaining);
+			const fnExpr = this.#fnExpr.simplifyUnusedRecursionArgs(fnVar, remaining);
 
 			return new IRUserCallExpr(
 				fnExpr,
@@ -1847,14 +1851,14 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 	 * @param {number[]} remaining 
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
-		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining));
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
+		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedRecursionArgs(fnVar, remaining));
 
-		let anon = assertClass(this.#anon.simplifyUnusedTypeParams(fnVar, remaining), IRFuncExpr);
+		let anon = assertClass(this.#anon.simplifyUnusedRecursionArgs(fnVar, remaining), IRFuncExpr);
 
 		argExprs.forEach((ae, i) => {
 			if (ae instanceof IRNameExpr && ae.isVariable(fnVar)) {
-				anon = assertClass(anon.simplifyUnusedTypeParams(this.argVariables[i], remaining), IRFuncExpr);
+				anon = assertClass(anon.simplifyUnusedRecursionArgs(this.argVariables[i], remaining), IRFuncExpr);
 			}
 		});
 
@@ -1916,7 +1920,8 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 	simplifyTopology(registry) {
 		const args = this.simplifyTopologyInArgs(registry);
 
-		// remove unused args, inline args that are only referenced once, inline all IRNameExprs, inline function with default args 
+		// remove unused args, inline args that are only referenced once, inline all IRNameExprs, inline function with default args,
+		//  inline tiny builtins, inline functions whose body is simply a IRNameExpr
 		const remainingIds = this.argVariables.map((variable, i) => {
 			const n = registry.countReferences(variable);
 
@@ -1924,9 +1929,12 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 
 			if (
 				n == 0 
+				|| variable.isAlwaysInlineable()
 				|| (n == 1 && (!registry.maybeInsideLoop(variable) || arg instanceof IRFuncExpr)) 
 				|| arg instanceof IRNameExpr 
 				|| (arg instanceof IRFuncExpr && arg.hasOptArgs())
+				|| (arg instanceof IRFuncExpr && arg.body instanceof IRNameExpr)
+				
 			) {
 				if (n > 0) {
 					// inline
@@ -2013,10 +2021,10 @@ export class IRNestedAnonCallExpr extends IRUserCallExpr {
 	 * @param {number[]} remaining
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		return new IRNestedAnonCallExpr(
-			assertClass(this.#anon.simplifyUnusedTypeParams(fnVar, remaining), IRAnonCallExpr),
-			this.argExprs.map(ae => ae.simplifyUnusedTypeParams(fnVar, remaining)),
+			assertClass(this.#anon.simplifyUnusedRecursionArgs(fnVar, remaining), IRAnonCallExpr),
+			this.argExprs.map(ae => ae.simplifyUnusedRecursionArgs(fnVar, remaining)),
 			this.parensSite
 		)
 	}
@@ -2089,15 +2097,28 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 	}
 
 	/**
-	 * @param {IRExprRegistry} registry
-	 * @returns {[IRFuncExpr, IRFuncExpr]}
+	 * @param {IRNameExprRegistry} nameExprs 
 	 */
-	simplifyTypeParams(registry) {
+	registerNameExprs(nameExprs) {
+		this.argVariables.forEach(a => nameExprs.registerVariable(a));
+
+		this.anon.body.registerNameExprs(nameExprs);
+
+		nameExprs = nameExprs.resetVariables();
+
+		this.#def.registerNameExprs(nameExprs);
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {[IRFuncExpr, IRExpr]}
+	 */
+	simplifyRecursionArgs(registry) {
 		let anon = this.anon;
 		let def = this.#def;
 
-		if (this.#def.args.some(a => a.name.startsWith("__typeparam"))) {
-			const usedTypeParams = this.#def.args.map((variable, i) => {
+		if (this.#def.args.some(a => a.name.startsWith("__module") || a.name.startsWith("__const"))) {
+			const usedArgs = this.#def.args.map((variable, i) => {
 				const n = registry.countReferences(variable);
 
 				if (n == 0) {
@@ -2107,16 +2128,21 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 				}
 			}).filter(i => i != -1);
 
-			if (usedTypeParams.length < this.#def.args.length) {
+			if (usedArgs.length < this.#def.args.length) {
 				anon = new IRFuncExpr(
 					anon.site,
 					anon.args,
-					anon.body.simplifyUnusedTypeParams(anon.args[0], usedTypeParams)
+					anon.body.simplifyUnusedRecursionArgs(anon.args[0], usedArgs)
 				);
+
+				if (usedArgs.length == 0) {
+					// simplify the body if none of the args remain
+					return [anon, this.#def.body];
+				}
 
 				def = new IRFuncExpr(
 					this.#def.site,
-					usedTypeParams.map(i => def.args[i]),
+					usedArgs.map(i => def.args[i]),
 					this.#def.body
 				);
 			}
@@ -2131,7 +2157,7 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 	 * @returns {IRExpr}
 	 */
 	simplifyTopology(registry) {
-		const [anon, def] = this.simplifyTypeParams(registry);
+		const [anon, def] = this.simplifyRecursionArgs(registry);
 		
 		const res = (new IRAnonCallExpr(anon, [def], this.parensSite)).simplifyTopology(registry);
 
@@ -2155,10 +2181,10 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 	 * @param {number[]} remaining
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		return new IRFuncDefExpr(
-			assertClass(this.anon.simplifyUnusedTypeParams(fnVar, remaining), IRFuncExpr),
-			assertClass(this.#def.simplifyUnusedTypeParams(fnVar, remaining), IRFuncExpr),
+			assertClass(this.anon.simplifyUnusedRecursionArgs(fnVar, remaining), IRFuncExpr),
+			assertClass(this.#def.simplifyUnusedRecursionArgs(fnVar, remaining), IRFuncExpr),
 			this.parensSite
 		);
 	}
@@ -2171,13 +2197,21 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 		if (registry.countReferences(this.anon.args[0]) == 0) {
 			return this.anon.body.simplifyUnused(registry);
 		} else {
-			const [anon, def] = this.simplifyTypeParams(registry);
+			const [anon, def] = this.simplifyRecursionArgs(registry);
 
-			return new IRFuncDefExpr(
-				anon.simplifyUnused(registry),
-				def.simplifyUnused(registry),
-				this.parensSite
-			);
+			if (def instanceof IRFuncExpr) {
+				return new IRFuncDefExpr(
+					anon.simplifyUnused(registry),
+					def.simplifyUnused(registry),
+					this.parensSite
+				);
+			} else {
+				return new IRAnonCallExpr(
+					anon.simplifyUnused(registry),
+					[def],
+					this.site
+				);
+			}
 		}
 	}
 }
@@ -2275,7 +2309,7 @@ export class IRErrorCallExpr extends IRExpr {
 	 * @param {number[]} remaining 
 	 * @returns {IRExpr}
 	 */
-	simplifyUnusedTypeParams(fnVar, remaining) {
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		return this;
 	}
 

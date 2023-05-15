@@ -3050,9 +3050,9 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
     constructor(anon: IRFuncExpr, defExpr: IRFuncExpr, parensSite: Site);
     /**
      * @param {IRExprRegistry} registry
-     * @returns {[IRFuncExpr, IRFuncExpr]}
+     * @returns {[IRFuncExpr, IRExpr]}
      */
-    simplifyTypeParams(registry: IRExprRegistry): [IRFuncExpr, IRFuncExpr];
+    simplifyRecursionArgs(registry: IRExprRegistry): [IRFuncExpr, IRExpr];
     #private;
 }
 export class IRParametricProgram {
@@ -5309,6 +5309,10 @@ declare class IRVariable extends Token {
      * @returns {IRVariable}
      */
     copy(newVars: Map<IRVariable, IRVariable>): IRVariable;
+    /**
+     * @returns {boolean}
+     */
+    isAlwaysInlineable(): boolean;
     #private;
 }
 /**
@@ -5373,7 +5377,7 @@ declare class IRExpr extends Token {
      * @param {number[]} remaining
      * @returns {IRExpr}
      */
-    simplifyUnusedTypeParams(fnVar: IRVariable, remaining: number[]): IRExpr;
+    simplifyUnusedRecursionArgs(fnVar: IRVariable, remaining: number[]): IRExpr;
     /**
      * @returns {UplcTerm}
      */
@@ -6693,6 +6697,11 @@ declare class FuncLiteralExpr extends Expr {
  */
 declare class Expr extends Token {
     /**
+     * Used in switch cases where initial typeExpr is used as memberName instead
+     * @param {null | EvalEntity} c
+     */
+    set cache(arg: EvalEntity);
+    /**
      * @type {null | EvalEntity}
      */
     get cache(): EvalEntity;
@@ -6721,6 +6730,11 @@ declare class Expr extends Token {
      * @returns {Typed}
      */
     evalAsTyped(scope: Scope): Typed;
+    /**
+     * @param {Scope} scope
+     * @returns {Typed | Multi}
+     */
+    evalAsTypedOrMulti(scope: Scope): Typed | Multi;
     /**
      * @param {string} indent
      * @returns {IR}

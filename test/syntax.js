@@ -1165,7 +1165,7 @@ async function test24() {
 async function test25() {
   await testTrue(`testing type_parameters
   
-  struct Pair[A: Storable] {
+  struct Pair[A: Serializable] {
     a: Int
     b: Int
 

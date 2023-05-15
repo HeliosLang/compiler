@@ -11,6 +11,7 @@ import {
 } from "./helios-data.js";
 
 import {
+    Common,
     DataEntity,
     FuncType,
     GenericType
@@ -20,14 +21,31 @@ import {
  * @typedef {import("./eval-common.js").DataType} DataType
  */
 
+/**
+ * @typedef {import("./eval-common.js").Type} Type
+ */
+
+/**
+ * @typedef {import("./eval-common.js").TypeClass} TypeClass
+ */
+
+/**
+ * @typedef {import("./eval-common.js").TypeClassMembers} TypeClassMembers
+ */
+
 import { 
     BoolType,
     ByteArrayType,
     IntType,
+    RawDataType,
     StringType,
     genCommonInstanceMembers,
     genCommonTypeMembers
 } from "./eval-primitives.js";
+
+import {
+    TypeClassImpl
+} from "./eval-parametric.js";
 
 import {
     MapType$
@@ -103,3 +121,54 @@ export var ValueType = new GenericType({
         }
     }
 });
+
+/**
+ * @package
+ * @implements {TypeClass}
+ */
+export class ValuableTypeClass extends Common {
+    constructor() {
+        super();
+    }
+
+	/**
+	 * @type {TypeClass}
+	 */
+	get asTypeClass() {
+		return this;
+	}
+
+	/**
+	 * @param {Type} impl
+	 * @returns {TypeClassMembers}
+	 */
+	genTypeMembers(impl) {
+		return {};
+	}
+
+	/**	
+	 * @param {Type} impl
+	 * @returns {TypeClassMembers}
+	 */
+	genInstanceMembers(impl) {
+		return {
+            value: ValueType
+		};
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "Valuable";
+	}
+
+    /**
+     * @param {string} name 
+	 * @param {string} path
+     * @returns {DataType}
+     */
+    toType(name, path) {
+        return new TypeClassImpl(this, name, path);
+    }
+}

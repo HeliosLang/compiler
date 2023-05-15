@@ -11,7 +11,6 @@ import {
 } from "./utils.js";
 
 import {
-	BoolLiteral,
     IR,
     Site,
     Token,
@@ -86,9 +85,9 @@ import {
  */
 
 import {
-	BoolType,
 	genCommonInstanceMembers,
-	genCommonTypeMembers
+	genCommonTypeMembers,
+	genCommonEnumTypeMembers
 } from "./eval-primitives.js";
 
 import {
@@ -102,14 +101,11 @@ import {
 } from "./helios-scopes.js";
 
 import {
-	CallExpr,
 	Expr,
 	FuncArg,
     FuncLiteralExpr,
     LiteralDataExpr,
     NameTypePair,
-	PathExpr,
-    PrimitiveLiteralExpr,
 	RefExpr,
     StructLiteralExpr,
 	TypeParameters
@@ -505,7 +501,9 @@ export class DataField extends NameTypePair {
  * Base class for struct and enum member
  * @package
  */
-export class DataDefinition extends Statement {
+export class DataDefinition {
+	#site;
+	#name;
 	#fields;
 
 	/**
@@ -514,17 +512,28 @@ export class DataDefinition extends Statement {
 	 * @param {DataField[]} fields 
 	 */
 	constructor(site, name, fields) {
-		super(site, name);
+		this.#site = site;
+		this.#name = name;
 		this.#fields = fields;
 	}
 
 	/**
-	 * @type {DataType}
+	 * @type {Site}
 	 */
-	get type() {
-		throw new Error("not yet implemented");
+	get site() {
+		return this.#site;
 	}
 
+	/**
+	 * @type {Word}
+	 */
+	get name() {
+		return this.#name;
+	}
+
+	/**
+	 * @type {DataField[]}
+	 */
 	get fields() {
 		return this.#fields.slice();
 	}
@@ -645,15 +654,6 @@ export class DataDefinition extends Statement {
 	getFieldName(i) {
 		return this.#fields[i].name.toString();
 	}
-	
-	/**
-	 * @param {Site} site 
-	 * @returns {number}
-	 */
-	nEnumMembers(site) {
-		throw site.typeError(`'${this.name.value}' isn't an enum type`);
-	}
-
 
 	/**
 	 * Gets insance member value.
@@ -663,7 +663,7 @@ export class DataDefinition extends Statement {
 	genInstanceMembers(self) {
 		const members = {
 			...genCommonInstanceMembers(self),
-			copy: new FuncType(this.#fields.map(f => new ArgType(f.name, f.type, true)), this.type),
+			copy: new FuncType(this.#fields.map(f => new ArgType(f.name, f.type, true)), self),
 		};
 
 		for (let f of this.fields) {
@@ -684,17 +684,26 @@ export class DataDefinition extends Statement {
 	}
 
 	/**
-	 * 
+	 * @param {string} path
 	 * @param {IRDefinitions} map 
+	 * @param {number} constrIndex
 	 */
-	newToIR(map) {
+	newToIR(path, map, constrIndex) {
+		const isConstr = constrIndex != -1;
+
 		/**
 		 * @type {IR}
 		 */
 		let ir;
 
 		if (this.nFields == 1) {
-			ir = new IR("__helios__common__identity");
+			if (isConstr) {
+				ir = new IR(`(self) -> {
+					__core__constrData(${constrIndex}, __helios__common__list_1(${this.getFieldType(0).path}____to_data(self)))
+				}`, this.site);
+			} else {
+				ir = new IR("__helios__common__identity");
+		}
 		} else {
 			ir = new IR([
 				new IR("__core__mkNilData"),
@@ -712,6 +721,17 @@ export class DataDefinition extends Statement {
 				]);
 			}
 
+			if (isConstr) {
+				ir = new IR([
+					new IR("__core__constrData"),
+					new IR("("),
+					new IR(constrIndex.toString()),
+					new IR(", "),
+					ir,
+					new IR(")")
+				]);
+			}
+
 			// wrap as function
 			ir = new IR([
 				new IR("("),
@@ -722,21 +742,22 @@ export class DataDefinition extends Statement {
 			]);
 		}
 
-		const key = `${this.path}____new`;
+		const key = `${path}____new`;
 
 		map.set(key, ir);
 	}
 
 	/**
 	 * @package
+	 * @param {string} path
 	 * @param {IRDefinitions} map 
 	 * @param {string[]} getterNames
 	 * @param {number} constrIndex
 	 */
-	copyToIR(map, getterNames, constrIndex = -1) {
-		const key = `${this.path}__copy`;
+	copyToIR(path, map, getterNames, constrIndex = -1) {
+		const key = `${path}__copy`;
 
-		let ir = StructLiteralExpr.toIRInternal(this.site, this.path, this.#fields.map(df => new IR(df.name.value)));
+		let ir = StructLiteralExpr.toIRInternal(this.site, path, this.#fields.map(df => new IR(df.name.value)));
 
 		// wrap with defaults
 
@@ -768,10 +789,13 @@ export class DataDefinition extends Statement {
 
 	/**
 	 * Doesn't return anything, but sets its IRdef in the map
+	 * @param {string} path
 	 * @param {IRDefinitions} map
-	 * @param {boolean} isConstr
+	 * @param {number} constrIndex
 	 */
-	toIR(map, isConstr = true) {
+	toIR(path, map, constrIndex) {
+		const isConstr = constrIndex != -1;
+
 		const getterBaseName = isConstr ? "__helios__common__field" : "__helios__common__tuple_field";
 
 		/**
@@ -779,19 +803,20 @@ export class DataDefinition extends Statement {
 		 */
 		const getterNames = [];
 
-		if (this.fields.length == 1) {
+		if (this.fields.length == 1 && !isConstr) {
 			const f = this.fields[0];
-			const key = `${this.path}__${f.name.toString()}`;
+			const key = `${path}__${f.name.value}`;
 
-			const getter = new IR("__helios__common__identity", f.site);
+			const getter =  new IR("__helios__common__identity", f.site);
 			
 			map.set(key, getter);
+
 			getterNames.push(key);
 		} else {
 			// add a getter for each field
 			for (let i = 0; i < this.#fields.length; i++) {
 				let f = this.#fields[i];
-				let key = `${this.path}__${f.name.toString()}`;
+				let key = `${path}__${f.name.value}`;
 				getterNames.push(key);
 
 				/**
@@ -850,8 +875,8 @@ export class DataDefinition extends Statement {
 			}
 		}
 
-		this.newToIR(map);
-		this.copyToIR(map, getterNames);
+		this.newToIR(path, map, constrIndex);
+		this.copyToIR(path, map, getterNames);
 	}
 }
 
@@ -859,8 +884,9 @@ export class DataDefinition extends Statement {
  * Struct statement
  * @package
  */
-export class StructStatement extends DataDefinition {
+export class StructStatement extends Statement {
 	#parameters;
+	#dataDef;
 	#impl;
 
 	/**
@@ -871,9 +897,10 @@ export class StructStatement extends DataDefinition {
 	 * @param {ImplDefinition} impl
 	 */
 	constructor(site, name, parameters, fields, impl) {
-		super(site, name, fields);
+		super(site, name);
 
 		this.#parameters = parameters;
+		this.#dataDef = new DataDefinition(this.site, name, fields);
 		this.#impl = impl;
 	}
 
@@ -904,15 +931,15 @@ export class StructStatement extends DataDefinition {
 			 */
 			constructor(...args) {
 				super();
-				if (args.length != statement.nFields) {
-					throw new Error(`expected ${statement.nFields} args, got ${args.length}`);
+				if (args.length != statement.#dataDef.nFields) {
+					throw new Error(`expected ${statement.#dataDef.nFields} args, got ${args.length}`);
 				}
 
 				this.#fields = [];
 
 				args.forEach((arg, i) => {
-					const fieldName = statement.getFieldName(i);
-					const fieldType = statement.getFieldType(i);
+					const fieldName = statement.#dataDef.getFieldName(i);
+					const fieldType = statement.#dataDef.getFieldType(i);
 
 					const FieldClass = assertDefined(fieldType.offChainType);
 
@@ -965,12 +992,12 @@ export class StructStatement extends DataDefinition {
 			static fromUplcData(data) {
 				const dataItems = data.list;
 
-				if (dataItems.length != statement.nFields) {
+				if (dataItems.length != statement.#dataDef.nFields) {
 					throw new Error("unexpected number of fields");
 				}
 
 				const args = dataItems.map((item, i) => {
-					return assertDefined(statement.getFieldType(i).offChainType).fromUplcData(item);
+					return assertDefined(statement.#dataDef.getFieldType(i).offChainType).fromUplcData(item);
 				});
 
 				return new Struct(...args);
@@ -986,7 +1013,7 @@ export class StructStatement extends DataDefinition {
 	 * @returns {string}
 	 */
 	toString() {
-		return `struct ${this.name.toString()}${this.#parameters.toString()} ${this.toStringFields()}`;
+		return `struct ${this.name.toString()}${this.#parameters.toString()} ${this.#dataDef.toStringFields()}`;
 	}
 
 	/**
@@ -996,7 +1023,7 @@ export class StructStatement extends DataDefinition {
 	eval(scope) {
 		// first evaluate the type using a shell type of self
 		const shell = new GenericType({
-			fieldNames: this.fields.map(f => f.name.value),
+			fieldNames: this.#dataDef.fields.map(f => f.name.value),
 			name: this.name.value,
 			path: this.path,
 			genInstanceMembers: (self) => ({}),
@@ -1006,12 +1033,12 @@ export class StructStatement extends DataDefinition {
 		const typeScope = new Scope(scope);
 		typeScope.set(this.name, shell);
 
-		const fields = super.evalFieldTypes(typeScope);
+		const fields = this.#dataDef.evalFieldTypes(typeScope);
 
 		const [instanceMembers, typeMembers] = this.#impl.evalTypes(typeScope);
 
 		const full = new GenericType({
-			fieldNames: this.fields.map(f => f.name.value),
+			fieldNames: this.#dataDef.fields.map(f => f.name.value),
 			name: this.name.value,
 			path: this.path,
 			offChainType: this.offChainType,
@@ -1045,15 +1072,16 @@ export class StructStatement extends DataDefinition {
 	 * @param {IRDefinitions} map
 	 */
 	toIR(map) {
-		super.toIR(map, false);
-
-		const implPath = this.fieldNames.length == 1 ? this.getFieldType(0).path : "__helios__tuple";
+		const implPath = this.#dataDef.fieldNames.length == 1 ? this.#dataDef.getFieldType(0).path : "__helios__tuple";
 
 		map.set(`${this.path}____eq`, new IR(`${implPath}____eq`, this.site));
 		map.set(`${this.path}____neq`, new IR(`${implPath}____neq`, this.site));
 		map.set(`${this.path}__serialize`, new IR(`${implPath}__serialize`, this.site));
 		map.set(`${this.path}__from_data`, new IR(`${implPath}__from_data`, this.site));
 		map.set(`${this.path}____to_data`, new IR(`${implPath}____to_data`, this.site));
+
+		// super.toIR adds __new and copy, which might depend on __to_data, so must come after
+		this.#dataDef.toIR(this.path, map, -1);
 
 		this.#impl.toIR(map);
 	}
@@ -1187,21 +1215,23 @@ export class FuncStatement extends Statement {
  * EnumMember defintion is similar to a struct definition
  * @package
  */
-export class EnumMember extends DataDefinition {
+export class EnumMember {
 	/** @type {null | EnumStatement} */
 	#parent;
 
 	/** @type {?number} */
 	#constrIndex;
 
+	#dataDef;
+
 	/**
 	 * @param {Word} name
 	 * @param {DataField[]} fields
 	 */
 	constructor(name, fields) {
-		super(name.site, name, fields);
 		this.#parent = null; // registered later
 		this.#constrIndex = null;
+		this.#dataDef = new DataDefinition(name.site, name, fields);
 	}
 
 	/**
@@ -1213,6 +1243,13 @@ export class EnumMember extends DataDefinition {
 		} else {
 			return this.#constrIndex;
 		}
+	}
+
+	/**
+	 * @type {Word}
+	 */
+	get name() {
+		return this.#dataDef.name;
 	}
 
 	/** 
@@ -1245,7 +1282,7 @@ export class EnumMember extends DataDefinition {
 
 		const index = statement.constrIndex;
 
-		const nFields = statement.nFields;
+		const nFields = statement.#dataDef.nFields;
 
 		/**
 		 * @type {[string, DataType][]} - [name, type]
@@ -1253,7 +1290,7 @@ export class EnumMember extends DataDefinition {
 		const fields = [];
 
 		for (let i = 0; i < nFields; i++) {
-			fields.push([statement.getFieldName(i), statement.getFieldType(i)]);
+			fields.push([statement.#dataDef.getFieldName(i), statement.#dataDef.getFieldType(i)]);
 		}
 
 		// similar to Struct
@@ -1346,7 +1383,7 @@ export class EnumMember extends DataDefinition {
 			}
 		}
 
-		Object.defineProperty(EnumVariant, "name", {value: this.name, writable: false});
+		Object.defineProperty(EnumVariant, "name", {value: this.#dataDef.name, writable: false});
 
 		return EnumVariant;
 
@@ -1361,42 +1398,43 @@ export class EnumMember extends DataDefinition {
 			throw new Error("parent should've been registered");
 		}
 
-		const instanceMembers = super.evalFieldTypes(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
+		const instanceMembers = this.#dataDef.evalFieldTypes(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
 
 		return (parent) => new GenericEnumMemberType({
-			name: this.name.value,
+			name: this.#dataDef.name.value,
 			path: this.path,
 			constrIndex: this.constrIndex,
 			offChainType: this.offChainType,
 			parentType: parent,
-			fieldNames: this.fieldNames,
+			fieldNames: this.#dataDef.fieldNames,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				...instanceMembers
 			}),
 			genTypeMembers: (self) => ({
-				...genCommonTypeMembers(self),
+				...genCommonEnumTypeMembers(self, parent),
 			})
 		});
 	}
 
 	get path() {
-		return `${this.parent.path}__${this.name.toString()}`;
+		return `${this.parent.path}__${this.#dataDef.name.toString()}`;
 	}
 
 	/**
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		super.toIR(map);
-
-		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.site));
-		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.site));
-		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.site));
+		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.#dataDef.site));
+		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.#dataDef.site));
+		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.#dataDef.site));
 		map.set(`${this.path}__from_data`, new IR(`(data) -> {
 			__helios__common__assert_constr_index(data, ${this.constrIndex})
-		}`, this.site));
-		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.site));
+		}`, this.#dataDef.site));
+		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.#dataDef.site));
+
+		// super.toIR adds __new and copy, which might depend on __to_data, so must come after
+		this.#dataDef.toIR(this.path, map, this.constrIndex);
 	}
 }
 
@@ -1639,15 +1677,16 @@ export class EnumStatement extends Statement {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		for (let member of this.#members) {
-			member.toIR(map);
-		}
-
 		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.site));
 		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.site));
 		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.site));
 		map.set(`${this.path}__from_data`, new IR("__helios__common__identity", this.site));
 		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.site));
+
+		// member __new and copy methods might depend on __to_data, so must be generated after
+		for (let member of this.#members) {
+			member.toIR(map);
+		}
 
 		this.#impl.toIR(map);
 	}

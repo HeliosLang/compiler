@@ -392,6 +392,7 @@ async function testBuiltins() {
         a.tag
     }`, ([a], res) => BigInt(a.data.index) == asInt(res));
 
+    throw new Error("block");
 
     ////////////
     // Int tests
