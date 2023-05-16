@@ -1770,8 +1770,14 @@ function makeRawFunctions() {
 	add(new RawFunc(`__helios__list[${TTPP}0]__get`,
 	`(self) -> {
 		(index) -> {
+			${TTPP}0__from_data(__helios__list[__helios__data]__get(self)(index))
+		}
+	}`));
+	add(new RawFunc("__helios__list[__helios__data]__get",
+	`(self) -> {
+		(index) -> {
 			(recurse) -> {
-				${TTPP}0__from_data(recurse(recurse, self, index))
+				recurse(recurse, self, index)
 			}(
 				(recurse, self, index) -> {
 					__core__chooseList(
@@ -1797,17 +1803,24 @@ function makeRawFunctions() {
 	`(self) -> {
 		() -> {
 			${TTPP}0__from_data(
-				__core__chooseUnit(
-					__helios__assert(
-						__core__nullList(__core__tailList(self)),
-						"not a singleton list"
-					),
-					__core__headList(self)
-				)
+				__helios__list[__helios__data]__get_singleton(self)()
 			)
 		}
 	}`));
-	add(new RawFunc(`__helios__list[${TTPP}0]__drop`,
+	add(new RawFunc("__helios__list[__helios__data]__get_singleton",
+	`(self) -> {
+		() -> {
+			__core__chooseUnit(
+				__helios__assert(
+					__core__nullList(__core__tailList(self)),
+					"not a singleton list"
+				),
+				__core__headList(self)
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__drop`, "__helios__list[__helios__data]__drop"));
+	add(new RawFunc("__helios__list[__helios__data]__drop",
 	`(self) -> {
 		(n) -> {
 			(recurse) -> {
@@ -1839,7 +1852,8 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc(`__helios__list[${TTPP}0]__drop_end`,
+	add(new RawFunc(`__helios__list[${TTPP}0]__drop_end`, "__helios__list[__helios__data]__drop_end"));
+	add(new RawFunc("__helios__list[__helios__data]__drop_end",
 	`(self) -> {
 		(n) -> {
 			(recurse) -> {
@@ -1904,7 +1918,8 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc(`__helios__list[${TTPP}0]__take`,
+	add(new RawFunc(`__helios__list[${TTPP}0]__take`, "__helios__list[__helios__data]__take"));
+	add(new RawFunc("__helios__list[__helios__data]__take",
 	`(self) -> {
 		(n) -> {
 			(recurse) -> {
@@ -1939,7 +1954,8 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc(`__helios__list[${TTPP}0]__take_end`,
+	add(new RawFunc(`__helios__list[${TTPP}0]__take_end`, "__helios__list[__helios__data]__take_end"));
+	add(new RawFunc(`__helios__list[__helios__data]__take_end`,
 	`(self) -> {
 		(n) -> {
 			(recurse) -> {
@@ -2137,6 +2153,112 @@ function makeRawFunctions() {
 				self, 
 				(a, b) -> {
 					comp(${TTPP}0__from_data(a), ${TTPP}0__from_data(b))
+				}
+			)
+		}
+	}`));
+
+
+	// List specials
+	add(new RawFunc("__helios__list[__helios__int]__sum",
+	`(self) -> {
+		() -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, lst) -> {
+					__core__chooseList(
+						lst,
+						() -> {
+							0
+						},
+						() -> {
+							__core__addInteger(		
+								__core__unIData(__core__headList(lst)),
+								recurse(recurse, __core__tailList(lst))
+							)
+						}
+					)()
+				}
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__list[__helios__real]__sum", "__helios__list[__helios__int]__sum"));
+	add(new RawFunc("__helios__list[__helios__string]__join",
+	`(self) -> {
+		(__useopt__separator, separator) -> {
+			(separator) -> {
+				(recurse) -> {
+					recurse(recurse, self, "")
+				}(
+					(recurse, lst, sep) -> {
+						__core__chooseList(
+							lst,
+							() -> {
+								""
+							},
+							() -> {
+								__helios__string____add(
+									__helios__string____add(
+										sep,
+										__helios__string__from_data(__core__headList(lst))
+									),
+									recurse(recurse, __core__tailList(lst), separator)
+								)
+							}
+						)()
+					}
+				)
+			}(__core__ifThenElse(__useopt__separator, separator, ""))
+		}
+	}`));
+	add(new RawFunc("__helios__list[__helios__bytearray]__join",
+	`(self) -> {
+		(__useopt__separator, separator) -> {
+			(separator) -> {
+				(recurse) -> {
+					recurse(recurse, self, #)
+				}(
+					(recurse, lst, sep) -> {
+						__core__chooseList(
+							lst,
+							() -> {
+								#
+							},
+							() -> {
+								__helios__bytearray____add(
+									__helios__bytearray____add(
+										sep,
+										__core__unBData(__core__headList(lst))
+									),
+									recurse(recurse, __core__tailList(lst), separator)
+								)
+							}
+						)()
+					}
+				)
+			}(__core__ifThenElse(__useopt__separator, separator, #))
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__flatten`,
+	`(self) -> {
+		() -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, lst) -> {
+					__core__chooseList(
+						lst,
+						() -> {
+							__core__mkNilData(())
+						},
+						() -> {
+							__helios__list[${TTPP}0]____add(
+								__core__unListData(__core__headList(lst)),
+								recurse(recurse, __core__tailList(lst))
+							)
+						}
+					)()
 				}
 			)
 		}
@@ -3101,6 +3223,22 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
+	add(new RawFunc(`__helios__tx__outputs_paid_to[${FTPP}0]`,
+	`(self, addr, datum) -> {
+		__helios__tx__filter_outputs(
+			self, 
+			(output) -> {
+				__helios__bool__and(
+					() -> {
+						__helios__address____eq(__helios__txoutput__address(output), addr)
+					},
+					() -> {
+						__helios__txoutput__has_inline_datum[${FTPP}0](output, datum)
+					}
+				)
+			}
+		)
+	}`));
 	add(new RawFunc("__helios__tx__value_sent_to",
 	`(self) -> {
 		(pkh) -> {
@@ -3123,6 +3261,12 @@ function makeRawFunctions() {
 	`(self) -> {
 		(vh, datum, isInline) -> {
 			__helios__txoutput__sum_values(__helios__tx__outputs_locked_by_datum[${FTPP}0](self)(vh, datum, isInline))
+		}
+	}`));
+	add(new RawFunc(`__helios__tx__value_paid_to[${FTPP}0]`,
+	`(self) -> {
+		(addr, datum) -> {
+			__helios__txoutput__sum_values(__helios__tx__outputs_paid_to[${FTPP}0](self)(addr, datum))
 		}
 	}`));
 	add(new RawFunc("__helios__tx__is_signed_by",
@@ -4376,6 +4520,27 @@ function makeRawFunctions() {
 			)
 		}
 	}`))
+	add(new RawFunc(`__helios__value__sum[${FTPP}0]`,
+	`(self) -> {
+		(recurse) -> {
+			recurse(recurse, self)
+		}(
+			(recurse, lst) -> {
+				__core__chooseList(
+					lst,
+					() -> {
+						__helios__value__ZERO
+					},
+					() -> {
+						__helios__value____add(
+							${FTPP}0__value(${FTPP}0__from_data(__core__headList(lst))),
+							recurse(recurse, __core__tailList(lst))
+						)
+					}
+				)()
+			}
+		)
+	}`));
 
 	return db;
 }
@@ -4404,6 +4569,7 @@ export function fetchRawGenerics() {
 }
 
 /**
+ * Doesn't add templates
  * @package
  * @param {IR} ir 
  * @returns {IRDefinitions}
@@ -4420,8 +4586,6 @@ export function fetchRawFunctions(ir) {
 	}
 
 	let [src, _] = ir.generateSource();
-
-	
 
 	let matches = src.match(RE_BUILTIN);
 

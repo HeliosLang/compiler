@@ -775,6 +775,11 @@ export const TxType = new GenericType({
 
             return new ParametricFunc([a], new FuncType([ValidatorHashType, a.ref, BoolType], ValueType));
         })(),
+        value_paid_to: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+
+            return new ParametricFunc([a], new FuncType([AddressType, a.ref], ValueType));
+        })(),
         is_signed_by: new FuncType([PubKeyHashType], BoolType)
     }),
     genTypeMembers: (self) => ({

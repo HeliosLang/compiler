@@ -103,7 +103,7 @@ async function test1() {
 		a: Int
 	}
 
-	const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_minting(Tx::new[Int, Data](
+	const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_minting(Tx::new(
 		[]TxInput{TxInput::new(REF_ID, TxOutput::new(ADDRESS, IN_VALUE, OutputDatum::new_none()))},
 		[]TxInput{},
 		[]TxOutput{TxOutput::new(ADDRESS, OUT_VALUE, OutputDatum::new_none())},

@@ -500,7 +500,7 @@ export default async function main() {
 	const FIRST_TX_INPUT: TxInput = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN + Value::new(AssetClass::new(MPH, #), 1), OutputDatum::new_inline(42)))
 	const REF_INPUT: TxInput = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0) + Value::new(AssetClass::new(MPH, #), 1), OutputDatum::new_inline(42)))
 	const FIRST_TX_OUTPUT: TxOutput = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
-	const TX: Tx = Tx::new[Int, Int](
+	const TX: Tx = Tx::new(
 		[]TxInput{FIRST_TX_INPUT},
 		[]TxInput{REF_INPUT},
 		[]TxOutput{
@@ -588,7 +588,7 @@ export default async function main() {
     )
 
     const ctx_good_default: ScriptContext = ScriptContext::new_spending(
-        Tx::new[Data, Data](
+        Tx::new(
             []TxInput{good_owner_input},
             []TxInput{good_ref_input_pz},
             []TxOutput{good_owner_output},

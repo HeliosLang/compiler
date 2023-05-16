@@ -6,6 +6,8 @@ import {
 } from "./utils.js";
 
 import {
+	Word,
+	Site,
 	FTPP,
 	TTPP
 } from "./tokens.js";
@@ -23,6 +25,8 @@ import {
  */
 
 import {
+	AllType,
+	ArgType,
     FuncType,
     GenericEnumMemberType,
     GenericType,
@@ -60,7 +64,10 @@ import {
 
 import {
 	BoolType,
+	ByteArrayType,
 	IntType,
+	RealType,
+	StringType,
 	genCommonInstanceMembers,
 	genCommonTypeMembers
 } from "./eval-primitives.js";
@@ -79,6 +86,7 @@ import {
  * @type {Parametric}
  */
 export const ListType = new ParametricType({
+	name: "[]",
 	offChainType: HList,
 	parameters: [new Parameter("ItemType", `${TTPP}0`, new DefaultTypeClass())],
 	apply: ([itemType]) => {
@@ -89,39 +97,63 @@ export const ListType = new ParametricType({
 			offChainType: offChainType,
 			name: `[]${itemType.toString()}`,
 			path: `__helios__list[${assertDefined(itemType.asDataType).path}]`,
-			genInstanceMembers: (self) => ({
-				...genCommonInstanceMembers(self),
-				all: new FuncType([new FuncType([itemType], BoolType)], BoolType),
-				any: new FuncType([new FuncType([itemType], BoolType)], BoolType),
-				drop: new FuncType([IntType], self),
-				drop_end: new FuncType([IntType], self),
-				filter: new FuncType([new FuncType([itemType], BoolType)], self),
-				find: new FuncType([new FuncType([itemType], BoolType)], itemType),
-				find_safe: new FuncType([new FuncType([itemType], BoolType)], OptionType$(itemType)),
-				fold: (() => {
-					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
-					return new ParametricFunc([a], new FuncType([new FuncType([a.ref, itemType], a.ref), a.ref], a.ref));
-				})(),
-				fold_lazy: (() => {
-					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
-					return new ParametricFunc([a], new FuncType([new FuncType([itemType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
-				})(),
-				for_each: new FuncType([new FuncType([itemType], new VoidType())], new VoidType()),
-				get: new FuncType([IntType], itemType),
-				get_singleton: new FuncType([], itemType),
-				head: itemType,
-				is_empty: new FuncType([], BoolType),
-				length: IntType,
-				map: (() => {
-					const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
-					return new ParametricFunc([a], new FuncType([new FuncType([itemType], a.ref)], ListType$(a.ref)));
-				})(),
-				prepend: new FuncType([itemType], self),
-				sort: new FuncType([new FuncType([itemType, itemType], BoolType)], self),
-				tail: self,
-				take: new FuncType([IntType], self),
-				take_end: new FuncType([IntType], self),
-			}),
+			genInstanceMembers: (self) => {
+				/**
+				 * @type {InstanceMembers}
+				 */
+				const specialMembers = {};
+
+				if (IntType.isBaseOf(itemType)) {
+					specialMembers.sum = new FuncType([], itemType);
+				} else if (RealType.isBaseOf(itemType)) {
+					specialMembers.sum = new FuncType([], itemType);
+				} else if (StringType.isBaseOf(itemType)) {
+					specialMembers.join = new FuncType([
+						new ArgType(new Word(Site.dummy(), "separator"), StringType, true)
+					], StringType);
+				} else if (ByteArrayType.isBaseOf(itemType)) {
+					specialMembers.join = new FuncType([
+						new ArgType(new Word(Site.dummy(), "separator"), ByteArrayType, true)
+					], ByteArrayType);
+				} else if (itemType.asNamed?.name.startsWith("[]")) {
+					specialMembers.flatten = new FuncType([], itemType);
+				}
+
+				return {
+					...genCommonInstanceMembers(self),
+					...specialMembers,
+					all: new FuncType([new FuncType([itemType], BoolType)], BoolType),
+					any: new FuncType([new FuncType([itemType], BoolType)], BoolType),
+					drop: new FuncType([IntType], self),
+					drop_end: new FuncType([IntType], self),
+					filter: new FuncType([new FuncType([itemType], BoolType)], self),
+					find: new FuncType([new FuncType([itemType], BoolType)], itemType),
+					find_safe: new FuncType([new FuncType([itemType], BoolType)], OptionType$(itemType)),
+					fold: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+						return new ParametricFunc([a], new FuncType([new FuncType([a.ref, itemType], a.ref), a.ref], a.ref));
+					})(),
+					fold_lazy: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+						return new ParametricFunc([a], new FuncType([new FuncType([itemType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
+					})(),
+					for_each: new FuncType([new FuncType([itemType], new VoidType())], new VoidType()),
+					get: new FuncType([IntType], itemType),
+					get_singleton: new FuncType([], itemType),
+					head: itemType,
+					is_empty: new FuncType([], BoolType),
+					length: IntType,
+					map: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+						return new ParametricFunc([a], new FuncType([new FuncType([itemType], a.ref)], ListType$(a.ref)));
+					})(),
+					prepend: new FuncType([itemType], self),
+					sort: new FuncType([new FuncType([itemType, itemType], BoolType)], self),
+					tail: self,
+					take: new FuncType([IntType], self),
+					take_end: new FuncType([IntType], self),
+				}
+			},
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self),
 				__add: new FuncType([self, self], self),
@@ -146,6 +178,7 @@ export function ListType$(itemType) {
  * @type {Parametric}
  */
 export const MapType = new ParametricType({
+	name: "Map",
 	offChainType: HMap,
 	parameters: [
 		new Parameter("KeyType", `${TTPP}0`, new DefaultTypeClass()), 
@@ -222,6 +255,7 @@ export function MapType$(keyType, valueType) {
  * @type {Parametric}
  */
 export const OptionType = new ParametricType({
+	name: "Option",
 	offChainType: Option,
 	parameters: [new Parameter("SomeType", `${TTPP}0`, new DefaultTypeClass())],
 	apply: ([someType]) => {

@@ -659,6 +659,7 @@ export class TypeParameters {
 			return type;
 		} else {
 			return new ParametricType({
+				name: type.name,
 				parameters: this.getParameters(),
 				apply: (paramTypes) => {
 					/**
@@ -688,34 +689,6 @@ export class TypeParameters {
 			});
 		}
 	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {Scope}
-	 */
-	eval(scope) {
-		if (this.#parameters.length == 0) {
-			return scope;
-		} else {
-			const subScope = new Scope(scope);
-
-			this.#parameters.forEach((p, i) => p.eval(subScope, `${this.#prefix}${i}`));
-
-			return subScope;
-		}
-	}
-
-	/**
-	 * @param {FuncType} fnType
-	 * @returns {EvalEntity}
-	 */
-	createInstance(fnType) {
-		if (this.#parameters.length == 0) {
-			return new FuncEntity(fnType);
-		} else {
-			return new ParametricFunc(this.getParameters(), fnType);
-		}
-	}
 }
 
 /**
@@ -737,6 +710,25 @@ export class DataField extends NameTypePair {
 	 */
 	get type() {
 		return assertDefined(super.type.asDataType);
+	}
+
+	/**
+	 * Evaluates the type, used by FuncLiteralExpr and DataDefinition
+	 * @param {Scope} scope 
+	 * @returns {DataType}
+	 */
+	eval(scope) {
+		if (this.typeExpr === null) {
+			throw new Error("typeExpr not set");
+		} else {
+			const t = this.typeExpr.eval(scope);
+
+			if (t.asDataType) {
+				return t.asDataType;
+			} else {
+				throw this.typeExpr.typeError(`'${t.toString()}' isn't a valid data field type`);
+			}
+		}
 	}
 }
 
@@ -849,13 +841,7 @@ export class DataDefinition {
 		const fields = {};
 
 		for (let f of this.#fields) {
-			const fieldType = f.evalType(scope).asDataType;
-
-			if (!fieldType) {
-				throw f.site.typeError("field can't be function type");
-			}
-
-			fields[f.name.value] = fieldType;
+			fields[f.name.value]= f.eval(scope);
 		}
 
 		return fields;
@@ -1316,7 +1302,7 @@ export class StructStatement extends Statement {
 			});
 		}, this.#impl);
 		
-		scope.set(this.name, new NamedEntity(this.name.value, this.path, type));
+		scope.set(this.name, new NamedEntity(this.name.value, super.path, type));
 	}
 
 	/**
@@ -1670,22 +1656,30 @@ export class EnumMember {
 
 		const instanceMembers = this.#dataDef.evalFieldTypes(scope); // the internally created type isn't be added to the scope. (the parent enum type takes care of that)
 
-		return (parent) => new GenericEnumMemberType({
-			name: this.#dataDef.name.value,
-			path: this.path,
-			constrIndex: this.constrIndex,
-			offChainType: this.offChainType,
-			parentType: parent,
-			fieldNames: this.#dataDef.fieldNames,
-			genInstanceMembers: (self) => ({
-				...genCommonInstanceMembers(self),
-				...instanceMembers,
-				copy: this.#dataDef.genCopyType(self)
-			}),
-			genTypeMembers: (self) => ({
-				...genCommonEnumTypeMembers(self, parent),
+		return (parent) => {
+			const path = `${parent.path}__${this.#dataDef.name.value}`; 
+
+			return new GenericEnumMemberType({
+				name: this.#dataDef.name.value,
+				path: path, 
+				constrIndex: this.constrIndex,
+				offChainType: this.offChainType,
+				parentType: parent,
+				fieldNames: this.#dataDef.fieldNames,
+				genInstanceMembers: (self) => {
+					const res = {
+						...genCommonInstanceMembers(self),
+						...instanceMembers,
+						copy: this.#dataDef.genCopyType(self)
+					}
+
+					return res;
+				},
+				genTypeMembers: (self) => ({
+					...genCommonEnumTypeMembers(self, parent),
+				})
 			})
-		});
+		};
 	}
 
 	get path() {
@@ -1734,6 +1728,13 @@ export class EnumStatement extends Statement {
 		for (let i = 0; i < this.#members.length; i++) {
 			this.#members[i].registerParent(this, i);
 		}
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get path() {
+		return this.#parameters.genPath(super.path);
 	}
 
 	/**
@@ -1858,7 +1859,7 @@ export class EnumStatement extends Statement {
 	}
 
 	/**
-	 * @param {Type} self 
+	 * @param {DataType} self 
 	 * @returns {TypeMembers}
 	 */
 	genEnumMemberShellTypes(self) {
@@ -1871,7 +1872,7 @@ export class EnumStatement extends Statement {
 			types[member.name.value] = new GenericEnumMemberType({
 				constrIndex: member.constrIndex,
 				name: member.name.value,
-				path: member.path,
+				path: `${self.path}__${member.name.value}`,
 				parentType: assertDefined(self.asDataType),
 				genInstanceMembers: (self) => ({}),
 				genTypeMembers: (self) => ({})
@@ -1888,12 +1889,38 @@ export class EnumStatement extends Statement {
 		const type = this.#parameters.evalParametricType(scope, (typeScope) => {
 			// first set the shell type
 			if (this.name.value != "") {
-				const shell = new GenericType({
-					name: this.name.value,
-					path: this.path,
-					genInstanceMembers: (self) => ({}),
-					genTypeMembers: (self) => this.genEnumMemberShellTypes(self)
-				});
+				let shell = this.#parameters.hasParameters() ? 
+					new ParametricType({
+						name: this.name.value,
+						parameters: this.#parameters.getParameters(),
+						apply: (paramTypes) => {
+							/**
+							 * @type {Map<string, Type>}
+							 */
+							const map = new Map();
+
+							paramTypes.forEach((pt, i) => {
+								const name = this.#parameters.getParameters()[i].name;
+
+								map.set(name, pt);
+							});
+
+							const appliedPath = IRParametricName.parse(this.path, true).toImplementation(paramTypes.map(pt => assertDefined(pt.asDataType).path)).toString();
+
+							return new GenericType({
+								name: `${this.name.value}[${paramTypes.map(pt => pt.toString()).join(",")}]`,
+								path: appliedPath,
+								genInstanceMembers: (self) => ({}),
+								genTypeMembers: (self) => this.genEnumMemberShellTypes(assertDefined(self.asDataType))
+							});
+						}
+					}) :
+					new GenericType({
+						name: this.name.value,
+						path: this.path,
+						genInstanceMembers: (self) => ({}),
+						genTypeMembers: (self) => this.genEnumMemberShellTypes(assertDefined(self.asDataType))
+					});
 
 				typeScope.set(this.name, shell);
 			}
@@ -1933,7 +1960,8 @@ export class EnumStatement extends Statement {
 			});
 		}, this.#impl);
 
-		scope.set(this.name, new NamedEntity(this.name.value, this.path, type));
+		// don't include type parameters in path, these are added by application statement
+		scope.set(this.name, new NamedEntity(this.name.value, super.path, type));
 	}
 
 	/**
@@ -2065,8 +2093,6 @@ export class ImplDefinition {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-
-
 		for (let s of this.#statements) {
 			map.set(s.path, s.toIRInternal());
 		}

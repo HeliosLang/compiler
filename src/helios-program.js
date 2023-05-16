@@ -947,7 +947,7 @@ class MainModule extends Module {
 
 			const genericName = pName.toTemplate();
 
-			let ir = builtinGenerics.get(genericName) ?? map.get(genericName);
+			let ir = builtinGenerics.get(name) ?? builtinGenerics.get(genericName) ?? map.get(genericName);
 
 			if (!ir) {
 				throw new Error(`${genericName} undefined in ir`);
@@ -1122,7 +1122,7 @@ class RedeemerProgram extends Program {
 			throw main.typeError("expected 2 args for main");
 		}
 
-		if (argTypeNames[0] != "" && !Common.typeImplements(argTypes[0], new DefaultTypeClass())) {
+		if (argTypeNames[0] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[0])) {
 			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[0].toString()}`);
 		}
 
@@ -1218,11 +1218,11 @@ class DatumRedeemerProgram extends Program {
 			throw main.typeError("expected 3 args for main");
 		}
 
-		if (argTypeNames[0] != "" && !Common.typeImplements(argTypes[0], new DefaultTypeClass())) {
+		if (argTypeNames[0] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[0])) {
 			throw main.typeError(`illegal datum argument type in main: '${argTypes[0].toString()}`);
 		}
 
-		if (argTypeNames[1] != "" && !Common.typeImplements(argTypes[1], new DefaultTypeClass())) {
+		if (argTypeNames[1] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[1])) {
 			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[1].toString()}`);
 		}
 
@@ -1313,7 +1313,7 @@ class TestingProgram extends Program {
 
 		const topScope = this.evalTypesInternal(scope);
 
-		if (this.mainFunc.argTypes.some(at => !Common.typeImplements(at, new DefaultTypeClass()))) {
+		if (this.mainFunc.argTypes.some(at => !(new DefaultTypeClass()).isImplementedBy(at))) {
 			throw this.mainFunc.typeError("invalid entry-point argument types");
 		}
 

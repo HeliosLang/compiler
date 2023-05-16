@@ -714,7 +714,6 @@ export class AssignExpr extends Expr {
 	evalInternal(scope) {
 		const subScope = new Scope(scope);
 
-
 		let upstreamVal = this.#upstreamExpr.eval(scope);
 
 		if (this.#nameTypes.length > 1) {
@@ -1524,6 +1523,13 @@ export class NameTypePair {
 	}
 
 	/**
+	 * @type {null | Expr}
+	 */
+	get typeExpr() {
+		return this.#typeExpr
+	}
+
+	/**
 	 * @type {string}
 	 */
 	get typeName() {
@@ -2011,7 +2017,7 @@ export class ParametricExpr extends Expr {
 	 */
 	toIR(indent = "") {
 		const params = ParametricExpr.toApplicationIR(this.paramTypes);
-
+		
 		if (this.#baseExpr instanceof MemberExpr) {
 			return this.#baseExpr.toIR(indent, params);
 		} else {

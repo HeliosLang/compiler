@@ -19,6 +19,7 @@ import {
  */
 
 import {
+	AllType,
 	AnyType,
     Common,
     DataEntity,
@@ -288,10 +289,18 @@ export class AnyTypeClass extends Common {
     }
 
 	/**
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isImplementedBy(type) {
+		return true;
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
-		return "Any"
+		return "Any";
 	}
 
     /**
@@ -341,6 +350,14 @@ export class DefaultTypeClass extends Common {
 		return {
             serialize: new FuncType([], ByteArrayType)
 		}
+	}
+
+	/**
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isImplementedBy(type) {
+		return type.asDataType != null || type instanceof AllType;
 	}
 
 	/**
@@ -484,7 +501,7 @@ export class ParametricFunc extends Common {
 		const map = new Map();
 
 		this.#params.forEach((p, i) => {
-			if (!Common.typeImplements(types[i], p.typeClass)) {
+			if (!p.typeClass.isImplementedBy(types[i])) {
 				throw site.typeError("typeclass match failed")
 			}
 
@@ -648,13 +665,19 @@ class AppliedType extends Common {
             const inferred = this.#types.map(t => t.infer(site, map, null));
 
             return new AppliedType(inferred, this.#apply, this.#apply(inferred));
-		} else if (this.isBaseOf(type)) {
-            const inferred = this.#types.map(t => t.infer(site, map, t));
+		} else if (type instanceof AppliedType && type.#types.length == this.#types.length) {
+            const inferred = this.#types.map((t, i) => t.infer(site, map, type.#types[i]));
 
-            return new AppliedType(inferred, this.#apply, this.#apply(inferred));
-        }
+            const res = new AppliedType(inferred, this.#apply, this.#apply(inferred));
 
-		throw site.typeError("unable to infer type");
+			if (!res.isBaseOf(type)) {
+				throw site.typeError("unable to infer type");
+			}
+
+			return res;
+        } else {
+			throw site.typeError("unable to infer type");
+		}
     }
 
     /**
@@ -685,19 +708,22 @@ class AppliedType extends Common {
  * @implements {Parametric}
  */
 export class ParametricType extends Common {
+	#name;
     #offChainType;
     #parameters;
     #apply;
 
     /**
      * @param {{
+	 * 	 name: string,
      *   offChainType?: ((...any) => HeliosDataClass<HeliosData>)
      *   parameters: Parameter[]
      *   apply: (types: Type[]) => DataType
      * }} props
      */
-    constructor({offChainType, parameters, apply}) {
+    constructor({name, offChainType, parameters, apply}) {
         super();
+		this.#name = name;
         this.#offChainType = offChainType ?? null;
         this.#parameters = parameters;
         this.#apply = apply;
@@ -735,7 +761,7 @@ export class ParametricType extends Common {
 		}
 
 		this.#parameters.forEach((p, i) => {
-			if (!Common.typeImplements(types[i], p.typeClass)) {
+			if (!p.typeClass.isImplementedBy(types[i])) {
 				throw site.typeError(`${types[i].toString()} doesn't implement ${p.typeClass.toString()}`);
 			}
 		});
@@ -768,6 +794,6 @@ export class ParametricType extends Common {
 	 * @returns {string}
 	 */
 	toString() {
-		return `[${this.#parameters.map(p => p.toString())}]`;
+		return `${this.#name}`;//[${this.#parameters.map(p => p.toString())}]`;
 	}
 }

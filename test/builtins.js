@@ -95,6 +95,10 @@ function isValidString(value) {
     throw new Error(`expected ByteArrayData, got ${value.toString()}`);
 }
 
+/**
+ * @param {any} value 
+ * @returns {string}
+ */
 function asString(value) {
     if (value instanceof helios_.ByteArrayData) {
         return helios.bytesToText(value.bytes);
@@ -130,6 +134,74 @@ function asIntList(value) {
         let data = value.data;
         
         return asIntList(data);
+    }
+
+    throw new Error(`expected ListData, got ${value.toString()}`);
+}
+
+/**
+ * 
+ * @param {any} value 
+ * @returns {bigint[][]}
+ */
+function asNestedIntList(value) {
+    if (value instanceof helios_.ListData) {
+        let items = [];
+
+        for (let item of value.list) {
+            items.push(asIntList(item));
+        }
+
+        return items;
+    } else if (value instanceof helios_.UplcDataValue) {
+        let data = value.data;
+        
+        return asNestedIntList(data);
+    }
+
+    throw new Error(`expected ListData of ListData, got ${value.toString()}`);
+}
+
+/**
+ * 
+ * @param {any} value 
+ * @returns {string[]}
+ */
+function asStringList(value) {
+    if (value instanceof helios_.ListData) {
+        let items = [];
+
+        for (let item of value.list) {
+            items.push(asString(item));
+        }
+
+        return items;
+    } else if (value instanceof helios_.UplcDataValue) {
+        let data = value.data;
+        
+        return asStringList(data);
+    }
+
+    throw new Error(`expected ListData, got ${value.toString()}`);
+}
+
+/**
+ * @param {any} value 
+ * @returns {number[][]}
+ */
+function asBytesList(value) {
+    if (value instanceof helios_.ListData) {
+        let items = [];
+
+        for (let item of value.list) {
+            items.push(asBytes(item));
+        }
+
+        return items;
+    } else if (value instanceof helios_.UplcDataValue) {
+        let data = value.data;
+        
+        return asBytesList(data);
     }
 
     throw new Error(`expected ListData, got ${value.toString()}`);
@@ -261,7 +333,7 @@ function spendingScriptContextParam(useInlineDatum) {
         const FIRST_TX_INPUT = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN, OutputDatum::new_none()))
         const REF_INPUT = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0), OutputDatum::new_inline(42)))
         const FIRST_TX_OUTPUT = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
-        const TX: Tx = Tx::new[Int, Int](
+        const TX: Tx = Tx::new(
             []TxInput{FIRST_TX_INPUT},
             []TxInput{REF_INPUT},
             []TxOutput{
@@ -294,7 +366,7 @@ const mintingScriptContextParam = `
     const QTY = 1000
     const VALUE = Value::lovelace(QTY)
     const MINTED = Value::new(AssetClass::new(CURRENT_MPH, #abcd), 1)
-    const SCRIPT_CONTEXT = ScriptContext::new_minting(Tx::new[Int, Data](
+    const SCRIPT_CONTEXT = ScriptContext::new_minting(Tx::new(
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE + MINTED, OutputDatum::new_none())},
@@ -321,7 +393,7 @@ const rewardingScriptContextParam = `
     const ADDRESS_OUT: Address = ADDRESS_IN
     const QTY = 1000
     const VALUE = Value::lovelace(QTY)
-    const SCRIPT_CONTEXT = ScriptContext::new_rewarding(Tx::new[Int, Data](
+    const SCRIPT_CONTEXT = ScriptContext::new_rewarding(Tx::new(
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE + Value::lovelace(REWARD_QTY), OutputDatum::new_none())},
@@ -359,7 +431,7 @@ const certifyingScriptContextParam = `
     const DCERT_DELEGATE = CertifyingAction::new_delegate(CURRENT_STAKING_CRED, POOL_ID)
     const DCERT_REGISTER_POOL = CertifyingAction::new_register_pool(POOL_ID, POOL_VFR)
     const DCERT_RETIRE_POOL = CertifyingAction::new_retire_pool(POOL_ID, EPOCH)
-    const SCRIPT_CONTEXT = ScriptContext::new_certifying(Tx::new[Int, Data](
+    const SCRIPT_CONTEXT = ScriptContext::new_certifying(Tx::new(
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE, OutputDatum::new_none())},
@@ -2004,6 +2076,113 @@ async function testBuiltins() {
         func main(a: []Int) -> ByteArray {
             a.serialize()
         }`, serializeProp);
+
+        await ft.test([ft.list(ft.int())], `
+        testing list_sum_int
+        func main(a: []Int) -> Int {
+            a.sum()
+        }`, ([a], res) => {
+            let la = asIntList(a);
+
+            return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
+        });
+
+        await ft.test([ft.list(ft.real())], `
+        testing list_sum_real
+        func main(a: []Real) -> Real {
+            a.sum()
+        }`, ([a], res) => {
+            let la = asIntList(a);
+    
+            return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
+        });
+
+        await ft.test([ft.list(ft.string(), 0, 4)], `
+        testing list_join_string
+        func main(a: []String) -> String {
+            a.join()
+        }`, ([a], res) => {
+            let la = asStringList(a);
+
+            return la.join("") === asString(res);
+        });
+
+        await ft.test([ft.list(ft.string(), 0, 4)], `
+        testing list_join_string
+        func main(a: []String) -> String {
+            a.join(", ")
+        }`, ([a], res) => {
+            let la = asStringList(a);
+
+            return la.join(", ") === asString(res);
+        });
+
+        await ft.test([ft.list(ft.bytes(), 0, 4)], `
+        testing list_join_bytes
+        func main(a: []ByteArray) -> ByteArray {
+            a.join(#ff)
+        }`, ([a], res) => {
+            let la = asBytesList(a);
+
+            /**
+             * @type {number[]}
+             */
+            let flattened = [];
+
+            for (let i = 0; i < la.length; i++) {
+                if (i > 0) {
+                    flattened.push(255);
+                }
+
+                flattened = flattened.concat(la[i]);
+            }
+
+            return equalsList(flattened, asBytes(res));
+        });
+
+        await ft.test([ft.list(ft.bytes(), 0, 4)], `
+        testing list_join_bytes
+        func main(a: []ByteArray) -> ByteArray {
+            a.join(#00)
+        }`, ([a], res) => {
+            let la = asBytesList(a);
+
+            /**
+             * @type {number[]}
+             */
+            let flattened = [];
+
+            for (let i = 0; i < la.length; i++) {
+                if (i > 0) {
+                    flattened.push(0);
+                }
+
+                flattened = flattened.concat(la[i]);
+            }
+
+            return equalsList(flattened, asBytes(res));
+        });
+
+        await ft.test([ft.list(ft.list(ft.int(), 0, 4), 0, 4)], `
+        testing list_flatten
+        func main(a: [][]Int) -> []Int {
+            a.flatten()
+        }`, ([a], res) => {
+            let la = asNestedIntList(a);
+
+            /**
+             * @type {bigint[]}
+             */
+            let flattened = [];
+
+            for (let item of la ) {
+                flattened = flattened.concat(item);
+            }
+
+            return equalsList(flattened, asIntList(res));
+        });
+
+
     }
 
 
@@ -2651,129 +2830,6 @@ async function testBuiltins() {
     }`, serializeProp);
 
 
-    ///////////////////
-    // BoolOption tests
-    ///////////////////
-
-    await ft.test([ft.option(ft.bool())], `
-    testing booloption_eq_1
-    func main(a: Option[Bool]) -> Bool {
-        a == a
-    }`, ([_], res) => asBool(res), 15);
-
-    await ft.test([ft.option(ft.bool()), ft.option(ft.bool())], `
-    testing booloption_eq_2
-    func main(a: Option[Bool], b: Option[Bool]) -> Bool {
-        a == b
-    }`, ([a, b], res) => a.data.isSame(b.data) === asBool(res));
-
-    await ft.test([ft.option(ft.bool()), ft.option(ft.bool())], `
-    testing booloption_eq_2_alt
-    func main(a: Option[Bool], b: Option[Bool]) -> Bool {
-        a.switch{
-            s: Some => s == b,
-            n: None => n == b
-        }
-    }`, ([a, b], res) => a.data.isSame(b.data) === asBool(res));
-
-    await ft.test([ft.option(ft.bool())], `
-    testing booloption_neq_1
-    func main(a: Option[Bool]) -> Bool {
-        a != a
-    }`, ([_], res) => !asBool(res));
-
-    await ft.test([ft.option(ft.bool()), ft.option(ft.bool())], `
-    testing booloption_neq_2
-    func main(a: Option[Bool], b: Option[Bool]) -> Bool {
-        a != b
-    }`, ([a, b], res) => a.data.isSame(b.data) === !asBool(res));
-
-    await ft.test([ft.option(ft.bool()), ft.option(ft.bool())], `
-    testing booloption_neq_2_alt
-    func main(a: Option[Bool], b: Option[Bool]) -> Bool {
-        a.switch{
-            s: Some => s != b,
-            n: None => n != b
-        }
-    }`, ([a, b], res) => a.data.isSame(b.data) === !asBool(res));
-
-    await ft.test([ft.option(ft.bool())], `
-    testing booloption_some
-    func main(a: Option[Bool]) -> Bool {
-        a.switch{
-            s: Some => s.some,
-            None    => false
-        }
-    }`, ([a], res) => {
-        if (a.data.index == 1) {
-            return !asBool(res);
-        } else {
-            return constrIndex(a.data.fields[0]) === (asBool(res) ? 1 : 0);
-        }
-    });
-
-    await ft.test([ft.option(ft.bool())], `
-    testing booloption_unwrap
-    func main(a: Option[Bool]) -> Bool {
-        a.unwrap()
-    }`, ([a], res) => {
-        if (a.data.index == 1) {
-            return isError(res, "empty list");
-        } else {
-            return asBool(a.data.fields[0]) === asBool(res);
-        }
-    });
-
-    await ft.test([ft.option(ft.bool())], `
-    testing booloption_map
-    func main(a: Option[Bool]) -> Option[Int] {
-        a.map((x: Bool) -> {x.to_int()})
-    }`, ([a], res) => {
-        if (res instanceof helios.UserError) {
-            throw res;
-        } else {
-            if (a.data.index == 1) {
-                return res.data.index == 1;
-            } else {
-                return (asInt(res.data.fields[0]) == 1n) == asBool(a.data.fields[0])
-            }
-        }
-    });
-
-    await ft.test([ft.option(ft.bool())], `
-    testing booloption_map_to_bool
-    func main(a: Option[Bool]) -> Option[Bool] {
-        a.map((x: Bool) -> {!x})
-    }`, ([a], res) => {
-        if (a.data.index == 1) {
-            return helios_.assertClass(res, helios.UplcValue).data.index == 1;
-        } else {
-            return asBool(helios_.assertClass(res, helios.UplcValue).data.fields[0]) != asBool(a.data.fields[0]);
-        }
-    });
-
-    await ft.test([ft.option(ft.bool())], `
-    testing booloption_from_data
-    func main(a: Data) -> Option[Bool] {
-        Option[Bool]::from_data(a)
-    }`, ([a], res) => a.data.isSame(asData(res)));
-
-    await ft.test([ft.option(ft.bool())], `
-    testing booloption_serialize
-    func main(a: Option[Bool]) -> ByteArray {
-        a.serialize()
-    }`, serializeProp);
-
-    await ft.test([ft.option(ft.bool())], `
-    testing option_sub_serialize
-    func main(a: Option[Bool]) -> ByteArray {
-        a.switch{
-            s: Some => s.serialize(),
-            n: None => n.serialize()
-        }
-    }`, serializeProp);
-
-
     /////////////
     // Hash tests
     /////////////
@@ -2941,6 +2997,12 @@ async function testBuiltins() {
         testing value_add_2
         func main(a: Int, b: Int) -> Int {
             (Value::lovelace(a) + Value::lovelace(b)).get(AssetClass::ADA)
+        }`, ([a, b], res) => asInt(a) + asInt(b) === asInt(res));
+
+        await ft.test([ft.int(), ft.int()], `
+        testing value_sum
+        func main(a: Int, b: Int) -> Int {
+            Value::sum([]Value{Value::lovelace(a), Value::lovelace(b)}).get(AssetClass::ADA)
         }`, ([a, b], res) => asInt(a) + asInt(b) === asInt(res));
 
         await ft.test([ft.int()], `

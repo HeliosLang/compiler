@@ -6,6 +6,10 @@ import {
 } from "./utils.js";
 
 import {
+    FTPP
+} from "./tokens.js";
+
+import {
     AssetClass,
     Value
 } from "./helios-data.js";
@@ -37,17 +41,19 @@ import {
     BoolType,
     ByteArrayType,
     IntType,
-    RawDataType,
     StringType,
     genCommonInstanceMembers,
     genCommonTypeMembers
 } from "./eval-primitives.js";
 
 import {
-    DataTypeClassImpl
+    DataTypeClassImpl,
+    Parameter,
+    ParametricFunc
 } from "./eval-parametric.js";
 
 import {
+    ListType$,
     MapType$
 } from "./eval-containers.js";
 
@@ -118,6 +124,10 @@ export var ValueType = new GenericType({
             from_map: new FuncType([MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType))], self),
             lovelace: new FuncType([IntType], self),
             new: new FuncType([AssetClassType, IntType], self),
+            sum: (() => {
+                const a = new Parameter("a", `${FTPP}0`, new ValuableTypeClass());
+                return new ParametricFunc([a], new FuncType([ListType$(a.ref)], self));
+            })(),
             ZERO: selfInstance
         }
     }
@@ -156,6 +166,14 @@ export class ValuableTypeClass extends Common {
             value: ValueType
 		};
 	}
+
+    /**
+     * @param {Type} type 
+     * @returns {boolean}
+     */
+    isImplementedBy(type) {
+        return Common.typeImplements(type, this);
+    }
 
 	/**
 	 * @returns {string}

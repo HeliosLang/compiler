@@ -1501,9 +1501,13 @@ export class IRParametricName {
 		 * @returns {string[]}
 		 */
 		const eatParams = () => {
+			if (pos >= str.length) {
+				return [];
+			}
+			
 			let c = str.charAt(pos);
 
-			assert(c == "[", `expected [, got ${c}`);
+			assert(c == "[", `expected [, got ${c} (in ${str})`);
 
 			const groups = [];
 			let chars = [];

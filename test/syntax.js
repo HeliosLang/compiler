@@ -661,23 +661,23 @@ async function test18() {
   const src = `
   testing merkle_trees
 
-  enum MerkleTree {
+  enum MerkleTree[A] {
     // represents no value (null object pattern)
     MerkleEmpty
   
-    MerkleLeaf { hash: ByteArray }
+    MerkleLeaf { hash: A }
   
     MerkleNode {
-      hash: ByteArray
-      left: MerkleTree
-      right: MerkleTree
+      hash: A
+      left: MerkleTree[A]
+      right: MerkleTree[A]
     }
   }
   
   func main() -> Bool {
-      a = MerkleTree::MerkleEmpty;
-      b = MerkleTree::MerkleLeaf{#abcd};
-      c = MerkleTree::MerkleNode{hash: #1234, left: a, right: b};
+      a = MerkleTree[ByteArray]::MerkleEmpty;
+      b = MerkleTree[ByteArray]::MerkleLeaf{#abcd};
+      c = MerkleTree[ByteArray]::MerkleNode{hash: #1234, left: a, right: b};
       (c.left == a).trace("left equal to a: ")
   }`;
 

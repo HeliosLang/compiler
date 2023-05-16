@@ -126,6 +126,7 @@ import {
  *   asTypeClass:                        TypeClass
  *   genInstanceMembers(impl: Type):     TypeClassMembers
  *   genTypeMembers(impl: Type):         TypeClassMembers
+ *   isImplementedBy(type: Type):        boolean
  *   toType(name: string, path: string): Type
  * }} TypeClass
  */
@@ -240,6 +241,10 @@ export class Common {
      * @returns {boolean}
      */
     static typeImplements(type, tc) {
+		if (type instanceof AllType) {
+			return true;
+		}
+
         const typeMembers = tc.genTypeMembers(type);
 
         for (let k in typeMembers) {
@@ -1103,7 +1108,7 @@ export class GenericType extends Common {
 				 */
 				const instanceMembers = {};
 
-				const oldInstanceMembers = this.instanceMembers;
+				const oldInstanceMembers = this.#genInstanceMembers(self);
 
 				for (let k in oldInstanceMembers) {
 					const v = oldInstanceMembers[k];
@@ -1125,7 +1130,7 @@ export class GenericType extends Common {
 				 */
 				const typeMembers = {};
 
-				const oldTypeMembers = this.typeMembers;
+				const oldTypeMembers = this.#genTypeMembers(self);
 
 				for (let k in oldTypeMembers) {
 					const v = oldTypeMembers[k];

@@ -278,6 +278,7 @@ export function tokenize(src: Source): Token[] | null;
  *   asTypeClass:                        TypeClass
  *   genInstanceMembers(impl: Type):     TypeClassMembers
  *   genTypeMembers(impl: Type):         TypeClassMembers
+ *   isImplementedBy(type: Type):        boolean
  *   toType(name: string, path: string): Type
  * }} TypeClass
  */
@@ -4564,6 +4565,7 @@ export type TypeClass = EvalEntity & {
     asTypeClass: TypeClass;
     genInstanceMembers(impl: Type): TypeClassMembers;
     genTypeMembers(impl: Type): TypeClassMembers;
+    isImplementedBy(type: Type): boolean;
     toType(name: string, path: string): Type;
 };
 export type InstanceMembers = {
@@ -6732,16 +6734,6 @@ declare class TypeParameters {
      * @returns {DataType | ParametricType}
      */
     evalParametricType(scope: Scope, evalConcrete: (scope: Scope) => DataType, impl: ImplDefinition): DataType | ParametricType;
-    /**
-     * @param {Scope} scope
-     * @returns {Scope}
-     */
-    eval(scope: Scope): Scope;
-    /**
-     * @param {FuncType} fnType
-     * @returns {EvalEntity}
-     */
-    createInstance(fnType: FuncType): EvalEntity;
     #private;
 }
 /**
@@ -7090,12 +7082,14 @@ declare class ImplDefinition {
 declare class ParametricType extends Common implements Parametric {
     /**
      * @param {{
+     * 	 name: string,
      *   offChainType?: ((...any) => HeliosDataClass<HeliosData>)
      *   parameters: Parameter[]
      *   apply: (types: Type[]) => DataType
      * }} props
      */
-    constructor({ offChainType, parameters, apply }: {
+    constructor({ name, offChainType, parameters, apply }: {
+        name: string;
         offChainType?: (...any: any[]) => HeliosDataClass<HeliosData>;
         parameters: Parameter[];
         apply: (types: Type[]) => DataType;
@@ -7243,6 +7237,10 @@ declare class NameTypePair {
      * @type {Type}
      */
     get type(): Type;
+    /**
+     * @type {null | Expr}
+     */
+    get typeExpr(): Expr;
     /**
      * @type {string}
      */
