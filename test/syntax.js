@@ -100,7 +100,7 @@ async function test0() {
       unused2()
     }
 
-    func deserialize[A: Serializable](a: Data) -> A {
+    func deserialize[A](a: Data) -> A {
       A::from_data(a)
     }
 
@@ -110,7 +110,7 @@ async function test0() {
 
     const program = helios.Program.new(src);
 
-    console.log(program.prettyIR(false));
+    console.log(program.prettyIR(true));
 }
 
 async function test1() {
@@ -1165,19 +1165,23 @@ async function test24() {
 async function test25() {
   await testTrue(`testing type_parameters
   
-  struct Pair[A: Serializable] {
-    a: Int
-    b: Int
+  struct Pair[A] {
+    a: A
+    b: A
 
-    func compare[B: Valuable](self) -> Bool {
-      self.a == 10 && self.b == 11
+    func serialize_custom(self) -> ByteArray {
+      self.a.serialize() + self.b.serialize()
+    }
+
+    func serialize_2[B](self, other: B) -> ByteArray {
+      self.serialize_custom() + other.serialize()
     }
   }
 
   func main() -> Bool {
     p = Pair[Int]{10, 11};
 
-    p.compare[Int]()
+    p.serialize_custom().length < p.serialize_2(true).length
   }`);
 }
 

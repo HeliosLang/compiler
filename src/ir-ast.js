@@ -36,6 +36,7 @@ import {
     UplcList,
     UplcString,
     UplcTerm,
+    UplcUnit,
     UplcValue,
     UplcVariable
 } from "./uplc-ast.js";
@@ -1106,6 +1107,8 @@ export class IRCoreCallExpr extends IRCallExpr {
 			} else {
 				return null;
 			}
+		} else if (builtinName == "chooseUnit") {
+			return args[1];
 		} else if (builtinName == "trace") {
 			return args[1];
 		} else {
@@ -1368,6 +1371,15 @@ export class IRCoreCallExpr extends IRCallExpr {
 
 				if (cond instanceof IRCoreCallExpr && cond.builtinName === "nullList") {
 					return new IRCoreCallExpr(new Word(this.site, "__core__chooseList"), [cond.argExprs[0], a, b], this.parensSite);
+				}
+
+				break;
+			}
+			case "chooseUnit": {
+				const a = args[0];
+
+				if (a instanceof IRLiteralExpr && a.value instanceof UplcUnit) {
+					return args[1];
 				}
 
 				break;
@@ -1856,12 +1868,6 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 
 		let anon = assertClass(this.#anon.simplifyUnusedRecursionArgs(fnVar, remaining), IRFuncExpr);
 
-		argExprs.forEach((ae, i) => {
-			if (ae instanceof IRNameExpr && ae.isVariable(fnVar)) {
-				anon = assertClass(anon.simplifyUnusedRecursionArgs(this.argVariables[i], remaining), IRFuncExpr);
-			}
-		});
-
 		return new IRAnonCallExpr(anon, argExprs, this.parensSite);
 	}
 
@@ -1990,15 +1996,19 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 
 		const anonBody = this.#anon.body.simplifyUnused(registry);
 
-		return new IRAnonCallExpr(
-			new IRFuncExpr(
-				this.#anon.site,
-				remainingVars,
-				anonBody
-			),
-			remainingExprs,
-			this.parensSite
-		);
+		if (remainingVars.length == 0) {
+			return anonBody;
+		} else {
+			return new IRAnonCallExpr(
+				new IRFuncExpr(
+					this.#anon.site,
+					remainingVars,
+					anonBody
+				),
+				remainingExprs,
+				this.parensSite
+			);
+		}
 	}
 }
 
@@ -2070,15 +2080,23 @@ export class IRNestedAnonCallExpr extends IRUserCallExpr {
 	 * @returns {IRExpr}
 	 */
 	simplifyUnused(registry) {
-		const anon = assertClass(this.#anon.simplifyUnused(registry), IRAnonCallExpr);
+		const anon = this.#anon.simplifyUnused(registry);
 
 		const args = this.simplifyUnusedInArgs(registry);
 
-		return new IRNestedAnonCallExpr(
-			anon,
-			args,
-			this.parensSite
-		);
+		if (anon instanceof IRAnonCallExpr) {
+			return new IRNestedAnonCallExpr(
+				anon,
+				args,
+				this.parensSite
+			);
+		} else {
+			return new IRUserCallExpr(
+				anon,
+				args,
+				this.parensSite
+			)
+		}
 	}
 }
 
@@ -2117,7 +2135,7 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 		let anon = this.anon;
 		let def = this.#def;
 
-		if (this.#def.args.some(a => a.name.startsWith("__module") || a.name.startsWith("__const"))) {
+		if (this.#def.args.every(a => a.name.startsWith("__module") || a.name.startsWith("__const"))) {
 			const usedArgs = this.#def.args.map((variable, i) => {
 				const n = registry.countReferences(variable);
 

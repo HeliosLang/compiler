@@ -99,6 +99,7 @@ import {
  *   typeClasses: TypeClass[]
  *   apply(types: Type[], site?: Site): EvalEntity
  *   inferCall(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): Func
+ * 	 infer(site: Site, map: Map<string, Type>): Parametric
  * }} Parametric
  */
 
@@ -125,7 +126,7 @@ import {
  *   asTypeClass:                        TypeClass
  *   genInstanceMembers(impl: Type):     TypeClassMembers
  *   genTypeMembers(impl: Type):         TypeClassMembers
- *   toType(name: string, path: string): DataType
+ *   toType(name: string, path: string): Type
  * }} TypeClass
  */
 
@@ -351,7 +352,7 @@ export class Common {
  * @package
  * @implements {DataType}
  */
-export class AnyType extends Common {
+export class AllType extends Common {
 	constructor() {
 		super();
 	}
@@ -412,6 +413,69 @@ export class AnyType extends Common {
 		return "";
 	}
 
+	/**
+	 * @type {TypeMembers}
+	 */
+	get typeMembers() {
+		return {}
+	}
+
+	/**
+     * @param {Site} site 
+     * @param {Map<string, Type>} map 
+     * @param {null | Type} type 
+     * @returns {Type}
+     */
+	infer(site, map, type) {
+        return this;
+    }
+
+	/**
+	 * @param {Type} other 
+	 * @returns {boolean}
+	 */
+	isBaseOf(other) {
+		return true;
+	}
+
+	/**
+	 * @returns {Typed}
+	 */
+	toTyped() {
+		throw new Error("can't be turned into a type");
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "All";
+	}
+}
+
+/**
+ * @package
+ * @implements {Type}
+ */
+export class AnyType extends Common {
+	constructor() {
+		super();
+	}
+
+	/**
+     * @type {Type}
+     */
+	get asType() {
+        return this;
+    }
+
+	/**
+	 * @type {InstanceMembers}
+	 */
+	get instanceMembers() {
+		return {};
+	}
+	
 	/**
 	 * @type {TypeMembers}
 	 */
@@ -720,10 +784,8 @@ export class FuncType extends Common {
 			for (let i = 0; i < this.nNonOptArgs; i++) {
 				if (!this.#argTypes[i].isNamed()) {
 					throw site.typeError(`expected at least ${this.#argTypes.filter(at => !at.isNamed()).length} positional arg(s), got ${posArgs.length} positional arg(s)`);
-				} else {
-					if (!(this.#argTypes[i].name in namedArgs)) {
-						throw site.typeError(`named arg ${this.#argTypes[i].name} missing from call`);
-					}
+				} else if (!(this.#argTypes[i].name in namedArgs)) {
+					throw site.typeError(`expected at least ${this.nNonOptArgs} arg(s), missing '${this.#argTypes[i].name}'`);
 				}
 			}
 
@@ -733,7 +795,7 @@ export class FuncType extends Common {
 
 		for (let i = 0; i < posArgs.length; i++) {
 			if (!Common.instanceOf(posArgs[i], this.#argTypes[i].type)) {
-				throw site.typeError(`expected '${this.#argTypes[i].type.toString()}' for arg ${i + 1}, got '${posArgs[i].toString()}'`);
+				throw site.typeError(`expected '${this.#argTypes[i].type.toString()}' for arg ${i + 1}, got '${posArgs[i].type.toString()}'`);
 			}
 		}
 
@@ -1028,13 +1090,90 @@ export class GenericType extends Common {
 
     /**
      * @param {Site} site 
+     * @param {Map<string, Type>} map
+     */
+    inferInternal(site, map) {
+		return {
+			name: this.#name,
+			path: this.#path,
+			fieldNames: this.#fieldNames,
+			genInstanceMembers: (self) => {
+				/**
+				 * @type {InstanceMembers}
+				 */
+				const instanceMembers = {};
+
+				const oldInstanceMembers = this.instanceMembers;
+
+				for (let k in oldInstanceMembers) {
+					const v = oldInstanceMembers[k];
+
+					if (v.asParametric) {
+						instanceMembers[k] = v.asParametric.infer(site, map);
+					} else if (v.asType) {
+						instanceMembers[k] = v.asType.infer(site, map, null);
+					} else {
+						throw new Error("unhandled");
+					}
+				}
+
+				return instanceMembers;
+			},
+			genTypeMembers: (self) => {
+				/**
+				 * @type {TypeMembers}
+				 */
+				const typeMembers = {};
+
+				const oldTypeMembers = this.typeMembers;
+
+				for (let k in oldTypeMembers) {
+					const v = oldTypeMembers[k];
+
+					if (v.asParametric) {
+						typeMembers[k] = v.asParametric.infer(site, map);
+					} else if (v.asTyped) {
+						typeMembers[k] = v.asTyped.type.infer(site, map, null).toTyped();
+					} else if (v.asType) {
+						typeMembers[k] = v.asType.infer(site, map, null);
+					} else {
+						throw new Error("unhandled");
+					}
+				}
+
+				return typeMembers;
+			}
+		}
+    }
+
+	/**
+     * @param {Site} site 
      * @param {Map<string, Type>} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
-    infer(site, map, type) {
-        return this;
-    }
+	infer(site, map, type) {
+		if (type !== null) {
+			return this;
+		} else {
+			return new GenericType(this.inferInternal(site, map));
+		}
+	}
+
+	/**
+	 * @param {string} name 
+	 * @param {string} path 
+	 * @returns {GenericType}
+	 */
+	changeNameAndPath(name, path) {
+		return new GenericType({
+			name: name,
+			path: path,
+			fieldNames: this.#fieldNames,
+			genInstanceMembers: this.#genInstanceMembers,
+			genTypeMembers: this.#genTypeMembers
+		});
+	}
 
     /**
      * @param {Type} other 
@@ -1124,12 +1263,30 @@ export class GenericEnumMemberType extends GenericType {
     }
 
 	/**
+     * @param {Site} site 
+     * @param {Map<string, Type>} map 
+     * @param {null | Type} type 
+     * @returns {Type}
+     */
+	infer(site, map, type) {
+		if (type !== null) {
+			return this;
+		} else {
+			return new GenericEnumMemberType({
+				...this.inferInternal(site, map),
+				parentType: assertDefined(this.#parentType.infer(site, map, null).asDataType),
+				constrIndex: this.#constrIndex
+			});
+		}
+	}
+
+	/**
 	 * @param {Type} other 
 	 * @returns {boolean}
 	 */
 	isBaseOf(other) {
 		if (other instanceof GenericEnumMemberType) {
-			return other.path == this.path && other.name == this.name;
+			return other.path == this.path;
 		} else {
 			return false;
 		}
@@ -1576,6 +1733,39 @@ export class MultiEntity extends Common {
 	}	
 }
 
+/**
+ * @package
+ * @implements {Typed}
+ */
+export class TypedEntity extends Common {
+	/**
+	 * @type {Type}
+	 */
+	#type;
+
+	/**
+	 * @param {Type} type 
+	 */
+	constructor(type) {
+		super();
+
+		this.#type = type;
+	}
+
+	/**
+	 * @returns {Typed}
+	 */
+	get asTyped() {
+		return this
+	}
+
+	/**
+	 * @type {Type}
+	 */
+	get type() {
+		return this.#type;
+	}
+}
 
 /**
  * Returned by functions that don't return anything (eg. assert, error, print)

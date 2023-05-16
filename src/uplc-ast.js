@@ -915,7 +915,11 @@ export class UplcAnon extends UplcValue {
 	}
 
 	toString() {
-		return "fn";
+		if (this.#argNames !== null) {
+			return `fn(${this.#argNames.join(", ")})`;
+		} else {
+			return "fn";
+		}
 	}
 
 	/**

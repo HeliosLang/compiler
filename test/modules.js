@@ -33,7 +33,7 @@ async function test1() {
 
     console.log(result.toString());
 
-    program.changeParam("QTY", "20");
+    program.parameters.QTY = 20;
     console.log(program.evalParam("QTY").toString());
 }
 
@@ -135,7 +135,7 @@ async function test5() {
     const moduleSrc = `
     module my_module
     
-    const vh: ValidatorHash = ValidatorHash::CURRENT
+    const vh: ValidatorHash = ValidatorHash::new(#00112233445566778899001122334455667788990011223344556677)
     `;
 
     const mainSrc = `

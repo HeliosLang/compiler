@@ -254,6 +254,7 @@ export function tokenize(src: Source): Token[] | null;
  *   typeClasses: TypeClass[]
  *   apply(types: Type[], site?: Site): EvalEntity
  *   inferCall(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): Func
+ * 	 infer(site: Site, map: Map<string, Type>): Parametric
  * }} Parametric
  */
 /**
@@ -277,7 +278,7 @@ export function tokenize(src: Source): Token[] | null;
  *   asTypeClass:                        TypeClass
  *   genInstanceMembers(impl: Type):     TypeClassMembers
  *   genTypeMembers(impl: Type):         TypeClassMembers
- *   toType(name: string, path: string): DataType
+ *   toType(name: string, path: string): Type
  * }} TypeClass
  */
 /**
@@ -4545,6 +4546,7 @@ export type Parametric = EvalEntity & {
     inferCall(site: Site, args: Typed[], namedArgs?: {
         [name: string]: Typed;
     }, paramTypes?: Type[]): Func;
+    infer(site: Site, map: Map<string, Type>): Parametric;
 };
 export type Type = EvalEntity & {
     asType: Type;
@@ -4562,7 +4564,7 @@ export type TypeClass = EvalEntity & {
     asTypeClass: TypeClass;
     genInstanceMembers(impl: Type): TypeClassMembers;
     genTypeMembers(impl: Type): TypeClassMembers;
-    toType(name: string, path: string): DataType;
+    toType(name: string, path: string): Type;
 };
 export type InstanceMembers = {
     [name: string]: Type | Parametric;
@@ -4936,6 +4938,10 @@ declare class IR {
      * @type {?Site}
      */
     get site(): Site;
+    /**
+     * @returns {any}
+     */
+    dump(): any;
     /**
      * Returns a list containing IR instances that themselves only contain strings
      * @package
@@ -5642,9 +5648,10 @@ declare class FuncStatement extends Statement {
     /**
      * @param {Site} site
      * @param {Word} name
+     * @param {TypeParameters} parameters
      * @param {FuncLiteralExpr} funcExpr
      */
-    constructor(site: Site, name: Word, funcExpr: FuncLiteralExpr);
+    constructor(site: Site, name: Word, parameters: TypeParameters, funcExpr: FuncLiteralExpr);
     /**
      * @type {Type[]}
      */
@@ -5667,9 +5674,9 @@ declare class FuncStatement extends Statement {
      * Evaluates type of a funtion.
      * Separate from evalInternal so we can use this function recursively inside evalInternal
      * @param {Scope} scope
-     * @returns {FuncType}
+     * @returns {ParametricFunc | FuncType}
      */
-    evalType(scope: Scope): FuncType;
+    evalType(scope: Scope): ParametricFunc | FuncType;
     /**
      * Returns IR of function
      * @returns {IR}
@@ -6526,6 +6533,54 @@ declare class Scope extends Common implements EvalEntity {
     #private;
 }
 /**
+ * Only func instances can be parametrics instances,
+ *  there are no other kinds of parametric instances
+ * @package
+ * @implements {Parametric}
+ */
+declare class ParametricFunc extends Common implements Parametric {
+    /**
+     * @param {Parameter[]} params
+     * @param {FuncType} fnType
+     */
+    constructor(params: Parameter[], fnType: FuncType);
+    /**
+     * @type {null | ((...any) => HeliosDataClass<HeliosData>)}
+     */
+    get offChainType(): (...any: any[]) => HeliosDataClass<HeliosData>;
+    get params(): Parameter[];
+    get fnType(): FuncType;
+    /**
+     * null TypeClasses aren't included
+     * @type {TypeClass[]}
+     */
+    get typeClasses(): TypeClass[];
+    /**
+     * @param {Type[]} types
+     * @param {Site} site
+     * @returns {EvalEntity}
+     */
+    apply(types: Type[], site?: Site): EvalEntity;
+    /**
+     * Must infer before calling
+     * @param {Site} site
+     * @param {Typed[]} args
+     * @param {{[name: string]: Typed}} namedArgs
+     * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
+     * @returns {Func}
+     */
+    inferCall(site: Site, args: Typed[], namedArgs?: {
+        [name: string]: Typed;
+    }, paramTypes?: Type[]): Func;
+    /**
+     * @param {Site} site
+     * @param {Map<string, Type>} map
+     * @returns {Parametric}
+     */
+    infer(site: Site, map: Map<string, Type>): Parametric;
+    #private;
+}
+/**
  * Function type with arg types and a return type
  * @package
  * @implements {Type}
@@ -6631,18 +6686,76 @@ declare class FuncType extends Common implements Type {
     #private;
 }
 /**
+ * @package
+ */
+declare class TypeParameters {
+    /**
+     * @param {TypeParameter[]} parameters
+     * @param {boolean} isForFunc
+     */
+    constructor(parameters: TypeParameter[], isForFunc: boolean);
+    hasParameters(): boolean;
+    /**
+     * @returns {Parameter[]}
+     */
+    getParameters(): Parameter[];
+    /**
+     * @param {string} base
+     * @returns {string}
+     */
+    genPath(base: string): string;
+    /**
+     * @returns {string}
+     */
+    toString(): string;
+    /**
+     * @param {Scope} scope
+     * @returns {Scope}
+     */
+    evalParams(scope: Scope): Scope;
+    /**
+     * @param {Scope} scope
+     * @param {(scope: Scope) => FuncType} evalConcrete
+     * @returns {ParametricFunc | FuncType}
+     */
+    evalParametricFuncType(scope: Scope, evalConcrete: (scope: Scope) => FuncType, impl?: any): ParametricFunc | FuncType;
+    /**
+     * @param {Scope} scope
+     * @param {(scope: Scope) => FuncType} evalConcrete
+     * @returns {EvalEntity}
+     */
+    evalParametricFunc(scope: Scope, evalConcrete: (scope: Scope) => FuncType): EvalEntity;
+    /**
+     * @param {Scope} scope
+     * @param {(scope: Scope) => DataType} evalConcrete
+     * @param {ImplDefinition} impl
+     * @returns {DataType | ParametricType}
+     */
+    evalParametricType(scope: Scope, evalConcrete: (scope: Scope) => DataType, impl: ImplDefinition): DataType | ParametricType;
+    /**
+     * @param {Scope} scope
+     * @returns {Scope}
+     */
+    eval(scope: Scope): Scope;
+    /**
+     * @param {FuncType} fnType
+     * @returns {EvalEntity}
+     */
+    createInstance(fnType: FuncType): EvalEntity;
+    #private;
+}
+/**
  * (..) -> RetTypeExpr {...} expression
  * @package
  */
 declare class FuncLiteralExpr extends Expr {
     /**
      * @param {Site} site
-     * @param {TypeParameters} parameters
      * @param {FuncArg[]} args
      * @param {(null | Expr)[]} retTypeExprs
      * @param {Expr} bodyExpr
      */
-    constructor(site: Site, parameters: TypeParameters, args: FuncArg[], retTypeExprs: (null | Expr)[], bodyExpr: Expr);
+    constructor(site: Site, args: FuncArg[], retTypeExprs: (null | Expr)[], bodyExpr: Expr);
     /**
      * @type {Type[]}
      */
@@ -6655,19 +6768,6 @@ declare class FuncLiteralExpr extends Expr {
      * @type {Type[]}
      */
     get retTypes(): Type[];
-    /**
-     * @type {Parameter[]}
-     */
-    get parameters(): Parameter[];
-    /**
-     * @returns {boolean}
-     */
-    hasParameters(): boolean;
-    /**
-     * @param {Scope} scope
-     * @returns {FuncType}
-     */
-    evalTypeInternal(scope: Scope): FuncType;
     /**
      * @param {Scope} scope
      * @returns {FuncType}
@@ -6867,6 +6967,35 @@ declare class Common {
 /**
  * @package
  */
+declare class Parameter {
+    /**
+     * @param {string} name - typically "a" or "b"
+     * @param {string} path - typicall "__T0" or "__F0"
+     * @param {TypeClass} typeClass
+     */
+    constructor(name: string, path: string, typeClass: TypeClass);
+    /**
+     * @type {string}
+     */
+    get name(): string;
+    /**
+     * @type {Type}
+     */
+    get ref(): Type;
+    /**
+     * A null TypeClass matches any type
+     * @type {TypeClass}
+     */
+    get typeClass(): TypeClass;
+    /**
+     * @returns {string}
+     */
+    toString(): string;
+    #private;
+}
+/**
+ * @package
+ */
 declare class ArgType {
     /**
      *
@@ -6911,59 +7040,125 @@ declare class ArgType {
     #private;
 }
 /**
+ * Impl statements, which add functions and constants to registry of user types (Struct, Enum Member and Enums)
  * @package
  */
-declare class Parameter {
+declare class ImplDefinition {
     /**
-     * @param {string} name - typically "a" or "b"
-     * @param {string} path - typicall "__T0" or "__F0"
-     * @param {TypeClass} typeClass
+     * @param {RefExpr} selfTypeExpr;
+     * @param {(FuncStatement | ConstStatement)[]} statements
      */
-    constructor(name: string, path: string, typeClass: TypeClass);
+    constructor(selfTypeExpr: RefExpr, statements: (FuncStatement | ConstStatement)[]);
     /**
-     * @type {string}
+     * @type {Site}
      */
-    get name(): string;
-    /**
-     * @type {Type}
-     */
-    get ref(): Type;
-    /**
-     * A null TypeClass matches any type
-     * @type {TypeClass}
-     */
-    get typeClass(): TypeClass;
-    toString(): string;
-    #private;
-}
-/**
- * @package
- */
-declare class TypeParameters {
-    /**
-     * @param {TypeParameter[]} parameters
-     */
-    constructor(parameters: TypeParameter[]);
-    hasParameters(): boolean;
+    get site(): Site;
     /**
      * @param {string} basePath
      */
-    getParameters(basePath: string): Parameter[];
+    setBasePath(basePath: string): void;
     /**
      * @returns {string}
      */
     toString(): string;
     /**
+     * Doesn't add the common types
      * @param {Scope} scope
-     * @param {string} baseName
+     * @returns {[InstanceMembers, TypeMembers]}
      */
-    eval(scope: Scope, baseName: string): Scope;
+    evalTypes(scope: Scope): [InstanceMembers, TypeMembers];
     /**
-     * @param {FuncType} fnType
-     * @param {string} baseParamPath
+     * @param {Scope} scope
+     */
+    eval(scope: Scope): void;
+    /**
+     * @param {string} namespace
+     * @param {(name: string, cs: ConstStatement) => void} callback
+     */
+    loopConstStatements(namespace: string, callback: (name: string, cs: ConstStatement) => void): void;
+    /**
+     * Returns IR of all impl members
+     * @param {IRDefinitions} map
+     */
+    toIR(map: IRDefinitions): void;
+    #private;
+}
+/**
+ * @package
+ * @implements {Parametric}
+ */
+declare class ParametricType extends Common implements Parametric {
+    /**
+     * @param {{
+     *   offChainType?: ((...any) => HeliosDataClass<HeliosData>)
+     *   parameters: Parameter[]
+     *   apply: (types: Type[]) => DataType
+     * }} props
+     */
+    constructor({ offChainType, parameters, apply }: {
+        offChainType?: (...any: any[]) => HeliosDataClass<HeliosData>;
+        parameters: Parameter[];
+        apply: (types: Type[]) => DataType;
+    });
+    /**
+     * @type {null | ((...any) => HeliosDataClass<HeliosData>)}
+     */
+    get offChainType(): (...any: any[]) => HeliosDataClass<HeliosData>;
+    /**
+     * @type {TypeClass[]}
+     */
+    get typeClasses(): TypeClass[];
+    /**
+     * @param {Type[]} types
+     * @param {Site} site
      * @returns {EvalEntity}
      */
-    createInstance(fnType: FuncType, baseParamPath: string): EvalEntity;
+    apply(types: Type[], site?: Site): EvalEntity;
+    /**
+    * Must infer before calling
+    * @param {Site} site
+    * @param {Typed[]} args
+    * @param {{[name: string]: Typed}} namedArgs
+    * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
+    * @returns {Func}
+    */
+    inferCall(site: Site, args: Typed[], namedArgs?: {
+        [name: string]: Typed;
+    }, paramTypes?: Type[]): Func;
+    /**
+     * @param {Site} site
+     * @param {Map<string, Type>} map
+     * @returns {Parametric}
+     */
+    infer(site: Site, map: Map<string, Type>): Parametric;
+    #private;
+}
+/**
+ * @package
+ */
+declare class TypeParameter {
+    /**
+     * @param {Word} name
+     * @param {null | Expr} typeClassExpr
+     */
+    constructor(name: Word, typeClassExpr: null | Expr);
+    /**
+     * @type {string}
+     */
+    get name(): string;
+    /**
+     * @type {TypeClass}
+     */
+    get typeClass(): TypeClass;
+    /**
+     * @param {Scope} scope
+     * @param {string} path
+     */
+    eval(scope: Scope, path: string): void;
+    /**
+     * @returns {string}
+     */
+    toString(): string;
     #private;
 }
 /**
@@ -7015,31 +7210,14 @@ declare class FuncArg extends NameTypePair {
     #private;
 }
 /**
+ * Simple reference class (i.e. using a Word)
  * @package
  */
-declare class TypeParameter {
+declare class RefExpr extends Expr {
     /**
      * @param {Word} name
-     * @param {null | Expr} typeClassExpr
      */
-    constructor(name: Word, typeClassExpr: null | Expr);
-    /**
-     * @type {string}
-     */
-    get name(): string;
-    /**
-     * @type {TypeClass}
-     */
-    get typeClass(): TypeClass;
-    /**
-     * @param {Scope} scope
-     * @param {string} path
-     */
-    eval(scope: Scope, path: string): void;
-    /**
-     * @returns {string}
-     */
-    toString(): string;
+    constructor(name: Word);
     #private;
 }
 /**

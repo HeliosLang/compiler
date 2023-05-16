@@ -70,7 +70,7 @@ import {
 	Parameter,
     ParametricFunc,
 	ParametricType,
-	SerializableTypeClass
+	DefaultTypeClass
 } from "./eval-parametric.js";
 
 /**
@@ -80,7 +80,7 @@ import {
  */
 export const ListType = new ParametricType({
 	offChainType: HList,
-	parameters: [new Parameter("ItemType", `${TTPP}0`, new SerializableTypeClass())],
+	parameters: [new Parameter("ItemType", `${TTPP}0`, new DefaultTypeClass())],
 	apply: ([itemType]) => {
 		const offChainItemType = itemType.asDataType?.offChainType ?? null;
 		const offChainType = offChainItemType ? HList(offChainItemType) : null;
@@ -113,7 +113,7 @@ export const ListType = new ParametricType({
 				is_empty: new FuncType([], BoolType),
 				length: IntType,
 				map: (() => {
-					const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([itemType], a.ref)], ListType$(a.ref)));
 				})(),
 				prepend: new FuncType([itemType], self),
@@ -148,8 +148,8 @@ export function ListType$(itemType) {
 export const MapType = new ParametricType({
 	offChainType: HMap,
 	parameters: [
-		new Parameter("KeyType", `${TTPP}0`, new SerializableTypeClass()), 
-		new Parameter("ValueType", `${TTPP}1`, new SerializableTypeClass())
+		new Parameter("KeyType", `${TTPP}0`, new DefaultTypeClass()), 
+		new Parameter("ValueType", `${TTPP}1`, new DefaultTypeClass())
 	],
 	apply: ([keyType, valueType]) => {
 		const offChainKeyType = keyType.asDataType?.offChainType ?? null;
@@ -189,8 +189,8 @@ export const MapType = new ParametricType({
 				is_empty: new FuncType([], BoolType),
 				length: IntType,
 				map: (() => {
-					const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
-					const b = new Parameter("b", `${FTPP}1`, new SerializableTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+					const b = new Parameter("b", `${FTPP}1`, new DefaultTypeClass());
 
 					return new ParametricFunc([a, b], new FuncType([new FuncType([keyType, valueType], [a.ref, b.ref])], MapType$(a.ref, b.ref)));
 				})(),
@@ -223,7 +223,7 @@ export function MapType$(keyType, valueType) {
  */
 export const OptionType = new ParametricType({
 	offChainType: Option,
-	parameters: [new Parameter("SomeType", `${TTPP}0`, new SerializableTypeClass())],
+	parameters: [new Parameter("SomeType", `${TTPP}0`, new DefaultTypeClass())],
 	apply: ([someType]) => {
 		const someOffChainType = someType.asDataType?.offChainType ?? null;
 		const offChainType = someOffChainType ? Option(someOffChainType) : null;
@@ -239,7 +239,7 @@ export const OptionType = new ParametricType({
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				map: (() => {
-					const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
+					const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([someType], a.ref)], OptionType$(a.ref)));
 				})(),
 				unwrap: new FuncType([], someType)

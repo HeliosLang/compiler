@@ -33,7 +33,7 @@ import {
 } from "./uplc-data.js";
 
 import {
-	AnyType,
+	AllType,
 	ArgType,
 	Common,
 	DataEntity,
@@ -42,7 +42,6 @@ import {
 	FuncEntity,
 	FuncType,
 	MultiEntity,
-
 	VoidEntity,
 	VoidType
 
@@ -95,7 +94,7 @@ import {
 } from "./eval-primitives.js";
 
 import {
-	AnyTypeClass,
+	DefaultTypeClass,
 	Parameter,
 	ParametricFunc
 } from "./eval-parametric.js";
@@ -639,19 +638,16 @@ export class FuncArgTypeExpr extends Token {
  * @package
  */
 export class FuncTypeExpr extends Expr {
-	#parameters;
 	#argTypeExprs;
 	#retTypeExprs;
 
 	/**
-	 * @param {Site} site 
-	 * @param {TypeParameters} parameters
+	 * @param {Site} site
 	 * @param {FuncArgTypeExpr[]} argTypeExprs 
 	 * @param {Expr[]} retTypeExprs 
 	 */
-	constructor(site, parameters, argTypeExprs, retTypeExprs) {
+	constructor(site, argTypeExprs, retTypeExprs) {
 		super(site);
-		this.#parameters = parameters;
 		this.#argTypeExprs = argTypeExprs;
 		this.#retTypeExprs = retTypeExprs;
 	}
@@ -681,9 +677,9 @@ export class FuncTypeExpr extends Expr {
 	 */
 	toString() {
 		if (this.#retTypeExprs.length === 1) {
-			return `${this.#parameters.toString()}(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExprs.toString()}`;
+			return `(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExprs.toString()}`;
 		} else {
-			return `${this.#parameters.toString()}(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => e.toString()).join(", ")})`;
+			return `(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => e.toString()).join(", ")})`;
 		}
 	}
 }
@@ -1519,7 +1515,7 @@ export class NameTypePair {
 	 */
 	get type() {
 		if (this.isIgnored()) {
-			return new AnyType();
+			return new AllType();
 		} else if (this.#typeExpr === null) {
 			throw new Error("typeExpr not set");
 		} else {
@@ -1559,11 +1555,17 @@ export class NameTypePair {
 	 */
 	evalType(scope) {
 		if (this.isIgnored()) {
-			return new AnyType();
+			return new AllType();
 		} else if (this.#typeExpr === null) {
 			throw new Error("typeExpr not set");
 		} else {
-			return assertDefined(this.#typeExpr.eval(scope).asType);
+			const t = this.#typeExpr.eval(scope);
+
+			if (!t.asType) {
+				throw this.#typeExpr.typeError(`'${t.toString()} isn't a valid type`);
+			} else {
+				return t.asType;
+			}
 		}
 	}
 
@@ -1698,149 +1700,22 @@ export class FuncArg extends NameTypePair {
 }
 
 /**
- * @package
- */
-export class TypeParameter {
-	#name;
-	#typeClassExpr;
-
-	/**
-	 * @param {Word} name 
-	 * @param {null | Expr} typeClassExpr 
-	 */
-	constructor(name, typeClassExpr) {
-		this.#name = name;
-		this.#typeClassExpr = typeClassExpr;
-	}
-
-	/**
-	 * @type {string}
-	 */
-	get name() {
-		return this.#name.value;
-	}
-
-	/**
-	 * @type {TypeClass}
-	 */
-	get typeClass() {
-		if (this.#typeClassExpr) {
-			return assertDefined(this.#typeClassExpr.cache?.asTypeClass);
-		} else {
-			return new AnyTypeClass();
-		}
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @param {string} path
-	 */
-	eval(scope, path) {
-		const typeClass = this.#typeClassExpr ? this.#typeClassExpr.eval(scope).asTypeClass : new AnyTypeClass();
-		if (!typeClass ) {
-			throw this.#typeClassExpr?.typeError("not a typeclass");
-		}
-
-		scope.set(this.#name, typeClass.toType(this.#name.value, path));
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		if (this.#typeClassExpr) {
-			return `${this.#name}: ${this.#typeClassExpr.toString()}`;
-		} else {
-			return `${this.#name}`;
-		}
-	}
-}
-
-/**
- * @package
- */
-export class TypeParameters {
-	#parameters;
-
-	/**
-	 * @param {TypeParameter[]} parameters 
-	 */
-	constructor(parameters) {
-		this.#parameters = parameters;
-	}
-
-	hasParameters() {
-		return this.#parameters.length > 0;
-	}
-
-	/**
-	 * @param {string} basePath
-	 */
-	getParameters(basePath) {
-		return this.#parameters.map((p, i) => new Parameter(p.name, `${basePath}${i}`, p.typeClass));
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		if (!this.hasParameters) {
-			return "";
-		} else {
-			return `[${this.#parameters.map(p => p.toString()).join(", ")}]`;
-		}
-	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @param {string} baseName
-	 */
-	eval(scope, baseName) {
-		if (this.#parameters.length == 0) {
-			return scope;
-		} else {
-			const subScope = new Scope(scope);
-
-			this.#parameters.forEach((p, i) => p.eval(subScope, `${baseName}${i}`));
-
-			return subScope;
-		}
-	}
-
-	/**
-	 * @param {FuncType} fnType
-	 * @param {string} baseParamPath
-	 * @returns {EvalEntity}
-	 */
-	createInstance(fnType, baseParamPath) {
-		if (this.#parameters.length == 0) {
-			return new FuncEntity(fnType);
-		} else {
-			return new ParametricFunc(this.getParameters(baseParamPath), fnType);
-		}
-	}
-}
-
-/**
  * (..) -> RetTypeExpr {...} expression
  * @package
  */
 export class FuncLiteralExpr extends Expr {
-	#parameters;
 	#args;
 	#retTypeExprs;
 	#bodyExpr;
 
 	/**
-	 * @param {Site} site 
-	 * @param {TypeParameters} parameters
+	 * @param {Site} site
 	 * @param {FuncArg[]} args 
 	 * @param {(null | Expr)[]} retTypeExprs 
 	 * @param {Expr} bodyExpr 
 	 */
-	constructor(site, parameters, args, retTypeExprs, bodyExpr) {
+	constructor(site, args, retTypeExprs, bodyExpr) {
 		super(site);
-		this.#parameters = parameters;
 		this.#args = args;
 		this.#retTypeExprs = retTypeExprs;
 		this.#bodyExpr = bodyExpr;
@@ -1866,25 +1741,11 @@ export class FuncLiteralExpr extends Expr {
 	get retTypes() {
 		return this.#retTypeExprs.map(e => {
 			if (e == null) {
-				return new AnyType();
+				return new AllType();
 			} else {
 				return assertDefined(e.cache?.asType);
 			}
 		});
-	}
-
-	/**
-	 * @type {Parameter[]}
-	 */
-	get	parameters() {
-		return this.#parameters.getParameters(FTPP);
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	hasParameters() {
-		return this.#parameters.hasParameters();
 	}
 	
 	/**
@@ -1898,7 +1759,7 @@ export class FuncLiteralExpr extends Expr {
 	 * @param {Scope} scope 
 	 * @returns {FuncType}
 	 */
-	evalTypeInternal(scope) {
+	evalType(scope) {
 		let args = this.#args;
 		if (this.isMethod()) {
 			args = args.slice(1);
@@ -1908,7 +1769,7 @@ export class FuncLiteralExpr extends Expr {
 
 		const retTypes = this.#retTypeExprs.map(e => {
 			if (e == null) {
-				return new AnyType();
+				return new AllType();
 			} else {
 				return e.evalAsType(scope);
 			}
@@ -1919,22 +1780,10 @@ export class FuncLiteralExpr extends Expr {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {FuncType}
-	 */
-	evalType(scope) {
-		scope = this.#parameters.eval(scope, FTPP);
-
-		return this.evalTypeInternal(scope);
-	}
-
-	/**
-	 * @param {Scope} scope 
 	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		scope = this.#parameters.eval(scope, FTPP);
-
-		const fnType = this.evalTypeInternal(scope);
+		const fnType = this.evalType(scope);
 		
 		// argTypes is calculated separately again here so it includes self
 		const argTypes = this.#args.map(a => a.evalType(scope));
@@ -1995,9 +1844,7 @@ export class FuncLiteralExpr extends Expr {
 
 		subScope.assertAllUsed();
 
-		let res = this.#parameters.createInstance(fnType, FTPP);
-
-		return res;
+		return new FuncEntity(fnType);
 	}
 
 	isMethod() {
@@ -2083,12 +1930,12 @@ export class FuncLiteralExpr extends Expr {
 		if (this.#retTypeExprs.length === 1) {
 			let retTypeExpr = this.#retTypeExprs[0];
 			if (retTypeExpr == null) {
-				return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`;
+				return `(${this.#args.map(a => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`;
 			} else {
-				return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> ${retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
+				return `(${this.#args.map(a => a.toString()).join(", ")}) -> ${retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
 			}
 		} else {
-			return `${this.#parameters.toString()}(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => assertDefined(e).toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
+			return `(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => assertDefined(e).toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
 		}
 	}
 }
@@ -2134,12 +1981,13 @@ export class ParametricExpr extends Expr {
 	evalInternal(scope) {
 		const paramTypes = this.#parameters.map(p => p.evalAsType(scope));
 
-		const baseVal = this.#baseExpr.eval(scope).asParametric;
-		if (!baseVal) {
-			throw this.site.typeError("not a parametric instance");
-		}
+		const baseVal = this.#baseExpr.eval(scope);
 
-		return baseVal.apply(paramTypes, this.site);
+		if (!baseVal.asParametric) {
+			throw this.site.typeError(`'${baseVal.toString()}' isn't a parametric instance`);
+		} else {
+			return baseVal.asParametric.apply(paramTypes, this.site);
+		}
 	}
 
 	/**
@@ -2695,7 +2543,7 @@ export class CallExpr extends Expr {
 		} else if (fnVal.asFunc) {
 			return fnVal.asFunc.call(this.site, posArgVals, namedArgVals);
 		} else {
-			throw this.#fnExpr.typeError("expected function");
+			throw this.#fnExpr.typeError(`expected function, got ${fnVal.toString()}`);
 		}
 	}
 
@@ -3257,13 +3105,12 @@ export class DestructExpr {
 	get type() {
 		if (this.#typeExpr === null) {
 			if (this.isIgnored()) {
-				return new AnyType();
+				return new AllType();
 			} else {
 				throw new Error("typeExpr not set");
 			}
 		} else {
 			if (!this.#typeExpr.cache?.asType) {
-				console.log(this.#typeExpr.toString(), this.hasType());
 				throw this.#typeExpr.typeError(`invalid type '${assertDefined(this.#typeExpr.cache, "cache unset").toString()}'`);
 			} else {
 				return this.#typeExpr.cache.asType;
@@ -3311,12 +3158,11 @@ export class DestructExpr {
 	evalType(scope) {
 		if (this.#typeExpr === null) {
 			if (this.isIgnored()) {
-				return new AnyType();
+				return new AllType();
 			} else {
 				throw new Error("typeExpr not set");
 			}
 		} else {
-			console.log("evaluating", this.#typeExpr.toString());
 			return this.#typeExpr.evalAsType(scope);
 		}
 	}

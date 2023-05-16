@@ -67,8 +67,6 @@ import {
 	ValuePathExpr,
     VoidExpr,
     VoidTypeExpr,
-	TypeParameter,
-	TypeParameters,
 	ParametricExpr
 } from "./helios-ast-expressions.js";
 
@@ -82,7 +80,9 @@ import {
     ImportFromStatement,
     ImportModuleStatement,
     Statement,
-    StructStatement
+    StructStatement,
+	TypeParameter,
+	TypeParameters
 } from "./helios-ast-statements.js";
 
 const AUTOMATIC_METHODS = [
@@ -436,9 +436,10 @@ function buildTypeParameter(site, ts) {
 
 /**
  * @param {Token[]} ts 
+ * @param {boolean} isForFunc
  * @returns {TypeParameters}
  */
-function buildTypeParameters(ts) {
+function buildTypeParameters(ts, isForFunc) {
 	if (ts.length > 0 && ts[0].isGroup("[")) {
 		const brackets = assertDefined(ts.shift()).assertGroup("[");
 
@@ -451,12 +452,12 @@ function buildTypeParameters(ts) {
 			}));
 
 			if (params) {
-				return new TypeParameters(params);
+				return new TypeParameters(params, isForFunc);
 			}			
 		}
 	}
 
-	return new TypeParameters([]);
+	return new TypeParameters([], isForFunc);
 }
 
 /**
@@ -492,7 +493,7 @@ function buildStructStatement(site, ts) {
 		return null;
 	}
 
-	const parameters = buildTypeParameters(ts);
+	const parameters = buildTypeParameters(ts, false);
 
 	const maybeBraces = assertToken(ts.shift(), name.site, `expected '{...}' after 'struct ${name.toString()}'`);
 	if (!maybeBraces) {
@@ -617,13 +618,15 @@ function buildFuncStatement(site, ts, methodOf = null) {
 		return null;
 	}
 
+	const parameters = buildTypeParameters(ts, true);
+
 	const fnExpr = buildFuncLiteralExpr(ts, methodOf, false);
 
 	if (!fnExpr) {
 		return null;
 	}
 
-	return new FuncStatement(site.merge(fnExpr.site), name, fnExpr);
+	return new FuncStatement(site.merge(fnExpr.site), name, parameters, fnExpr);
 }
 
 /**
@@ -634,8 +637,6 @@ function buildFuncStatement(site, ts, methodOf = null) {
  * @returns {FuncLiteralExpr | null}
  */
 function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false) {
-	const parameters = buildTypeParameters(ts);
-
 	const parens = assertDefined(ts.shift()).assertGroup("(");
 	if (!parens) {
 		return null;
@@ -676,7 +677,7 @@ function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false)
 		return null;
 	}
 
-	return new FuncLiteralExpr(site, parameters, args, retTypeExprs, bodyExpr);
+	return new FuncLiteralExpr(site, args, retTypeExprs, bodyExpr);
 }
 
 /**
@@ -802,7 +803,7 @@ function buildEnumStatement(site, ts) {
 		return null;
 	}
 
-	const parameters = buildTypeParameters(ts);
+	const parameters = buildTypeParameters(ts, false);
 
 	const braces = assertToken(ts.shift(), name.site, `expected '{...}' after 'enum ${name.toString()}'`)?.assertGroup("{", 1);
 
@@ -1307,8 +1308,6 @@ function buildOptionTypeExpr(ts) {
  * @returns {FuncTypeExpr | null}
  */
 function buildFuncTypeExpr(ts) {
-	const parameters = buildTypeParameters(ts);
-
 	const parens = assertDefined(ts.shift()).assertGroup("(");
 	if (!parens) {
 		return null;
@@ -1365,7 +1364,7 @@ function buildFuncTypeExpr(ts) {
 		return null;
 	}
 
-	return new FuncTypeExpr(parens.site, parameters, argTypes, retTypes.map(t => assertDefined(t)));
+	return new FuncTypeExpr(parens.site, argTypes, retTypes.map(t => assertDefined(t)));
 }
 
 /**

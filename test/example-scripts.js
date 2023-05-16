@@ -25,7 +25,11 @@ export default async function main() {
             } 
         
             if (resStr != expectedResult) {
-                throw new Error(`unexpected result in ${name}: expected "${expectedResult}", got "${resStr}"`);
+                if (result_ instanceof Error) {
+                    throw result_;
+                } else {
+                    throw new Error(`unexpected result in ${name}: expected "${expectedResult}", got "${resStr}"`);
+                }
             }
         }
 
@@ -35,7 +39,7 @@ export default async function main() {
             let args = argNames.map(n => program.evalParam(n));
 
             // test the transfer() function as well
-            let [result, messages] = await program.compile().transfer(helios.UplcProgram).runWithPrint(args);
+            let [result, messages] = await program.compile(false).transfer(helios.UplcProgram).runWithPrint(args);
         
             checkResult(result);
         
@@ -170,7 +174,7 @@ export default async function main() {
     func main() -> Bool {
         x: ByteArray = #32423acd232;
         (fibonacci(1) == 1) && x.length() == 12
-    }`, "not callable", []);
+    }`, "expected function, got Int", []);
 
     // 7. list_get ok
     await runTestScript(`
@@ -491,12 +495,12 @@ export default async function main() {
 	const DATUM_HASH_1: DatumHash = DatumHash::new(DATUM_1.serialize().blake2b())
 	const OUTPUT_DATUM: OutputDatum = OutputDatum::new_hash(DATUM_HASH_1)
 
-	const CURRENT_TX_ID: TxId = TxId::CURRENT
+	const CURRENT_TX_ID: TxId = TxId::new(#00112233445566778899001122334455667788990011223344556677)
 
 	const FIRST_TX_INPUT: TxInput = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN + Value::new(AssetClass::new(MPH, #), 1), OutputDatum::new_inline(42)))
 	const REF_INPUT: TxInput = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0) + Value::new(AssetClass::new(MPH, #), 1), OutputDatum::new_inline(42)))
 	const FIRST_TX_OUTPUT: TxOutput = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
-	const TX: Tx = Tx::new(
+	const TX: Tx = Tx::new[Int, Int](
 		[]TxInput{FIRST_TX_INPUT},
 		[]TxInput{REF_INPUT},
 		[]TxOutput{
@@ -506,12 +510,13 @@ export default async function main() {
 		},
 		Value::lovelace(FEE),
 		Value::ZERO,
-		[]DCert{},
+		[]CertifyingAction{},
 		Map[StakingCredential]Int{},
 		TimeRange::new(Time::new(0), Time::new(100)),
 		[]PubKeyHash{PubKeyHash::new(PUB_KEY_HASH_BYTES)},
 		Map[ScriptPurpose]Int{},
-		Map[DatumHash]Int{}
+		Map[DatumHash]Int{},
+        TxId::new(#9876543210012345678901234567890123456789012345678901234567891234)
 	)
 	const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
 
@@ -583,18 +588,19 @@ export default async function main() {
     )
 
     const ctx_good_default: ScriptContext = ScriptContext::new_spending(
-        Tx::new(
+        Tx::new[Data, Data](
             []TxInput{good_owner_input},
             []TxInput{good_ref_input_pz},
             []TxOutput{good_owner_output},
             Value::lovelace(160000),
             Value::ZERO,
-            []DCert{},
+            []CertifyingAction{},
             Map[StakingCredential]Int{},
             TimeRange::from(Time::new(1001)),
             []PubKeyHash{PubKeyHash::new(#9876543210012345678901234567890123456789012345678901234567891234)},
             Map[ScriptPurpose]Data{},
-            Map[DatumHash]Data{}
+            Map[DatumHash]Data{},
+            TxId::new(#9876543210012345678901234567890123456789012345678901234567891234)
         ),
         TxOutputId::new(TxId::new(#0123456789012345678901234567890123456789012345678901234567891234), 0)
     )`, ["good_datum", "update_nft_redeemer_good", "ctx_good_default"], "data(1{})", []);

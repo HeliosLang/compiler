@@ -11,6 +11,7 @@ import {
 } from "./tokens.js";
 
 import {
+    Address,
 	HeliosData,
     TxId
 } from "./helios-data.js";
@@ -75,7 +76,7 @@ import {
 import { 
     Parameter,
     ParametricFunc,
-    SerializableTypeClass 
+    DefaultTypeClass 
 } from "./eval-parametric.js";
 
 import {
@@ -108,6 +109,7 @@ import {
  */
 export const AddressType = new GenericType({
     name: "Address",
+    offChainType: Address,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: CredentialType,
@@ -302,7 +304,7 @@ export const OutputDatumType = new GenericType({
         None: OutputDatumNoneType,
         new_hash: new FuncType([DatumHashType], OutputDatumHashType),
 		new_inline: (() => {
-            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
 
             return new ParametricFunc([a], new FuncType([a.ref], OutputDatumInlineType))
         })(),
@@ -744,32 +746,32 @@ export const TxType = new GenericType({
         datums: MapType$(DatumHashType, RawDataType),
         id: TxIdType,
         find_datum_hash: (() => {
-            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
 
             return new ParametricFunc([a], new FuncType([a.ref], DatumHashType))
         })(),
         get_datum_data: new FuncType([TxOutputType], RawDataType),
         outputs_sent_to: new FuncType([PubKeyHashType], ListType$(TxOutputType)),
         outputs_sent_to_datum: (() => {
-            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
 
             return new ParametricFunc([a], new FuncType([PubKeyHashType, a.ref, BoolType], ListType$(TxOutputType)))
         })(),
         outputs_locked_by: new FuncType([ValidatorHashType], ListType$(TxOutputType)),
         outputs_locked_by_datum: (() => {
-            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
 
             return new ParametricFunc([a], new FuncType([ValidatorHashType, a.ref, BoolType], ListType$(TxOutputType)))
         })(),
         value_sent_to: new FuncType([PubKeyHashType], ValueType),
         value_sent_to_datum: (() => {
-            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
 
             return new ParametricFunc([a], new FuncType([PubKeyHashType, a.ref, BoolType], ValueType));
         })(),
         value_locked_by: new FuncType([ValidatorHashType], ValueType),
         value_locked_by_datum: (() => {
-            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
 
             return new ParametricFunc([a], new FuncType([ValidatorHashType, a.ref, BoolType], ValueType));
         })(),
@@ -778,8 +780,8 @@ export const TxType = new GenericType({
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
         new: (() => {
-            const a = new Parameter("a", `${FTPP}0`, new SerializableTypeClass());
-            const b = new Parameter("b", `${FTPP}1`, new SerializableTypeClass());
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+            const b = new Parameter("b", `${FTPP}1`, new DefaultTypeClass());
             
             return new ParametricFunc([a, b], new FuncType([
                 ListType$(TxInputType), // 0
@@ -832,7 +834,10 @@ export const TxInputType = new GenericType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         output_id: TxOutputIdType,
-        output: TxOutputType
+        output: TxOutputType,
+        address: AddressType,
+        value: ValueType,
+        datum: OutputDatumType
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),

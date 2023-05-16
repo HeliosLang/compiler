@@ -15,7 +15,9 @@ import {
     Site,
     Token,
     Word,
-	FTPP
+	FTPP,
+	TTPP,
+	IRParametricName
 } from "./tokens.js";
 
 /**
@@ -40,8 +42,8 @@ import {
 import {
 	ArgType,
     DataEntity,
-    FuncType,
 	FuncEntity,
+    FuncType,
 	GenericType,
 	GenericEnumMemberType,
 	ModuleNamespace,
@@ -73,6 +75,10 @@ import {
  */
 
 /**
+ * @typedef {import("./eval-common.js").TypeClass} TypeClass
+ */
+
+/**
  * @typedef {import("./eval-common.js").InstanceMembers} InstanceMembers
  */
 
@@ -91,7 +97,10 @@ import {
 } from "./eval-primitives.js";
 
 import {
-	ParametricFunc
+	DefaultTypeClass,
+	Parameter,
+	ParametricFunc, 
+	ParametricType
 } from "./eval-parametric.js";
 
 import {
@@ -107,8 +116,7 @@ import {
     LiteralDataExpr,
     NameTypePair,
 	RefExpr,
-    StructLiteralExpr,
-	TypeParameters
+    StructLiteralExpr
 } from "./helios-ast-expressions.js";
 
 /**
@@ -475,6 +483,241 @@ export class ConstStatement extends Statement {
 	}
 }
 
+
+/**
+ * @package
+ */
+export class TypeParameter {
+	#name;
+	#typeClassExpr;
+
+	/**
+	 * @param {Word} name 
+	 * @param {null | Expr} typeClassExpr 
+	 */
+	constructor(name, typeClassExpr) {
+		this.#name = name;
+		this.#typeClassExpr = typeClassExpr;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return this.#name.value;
+	}
+
+	/**
+	 * @type {TypeClass}
+	 */
+	get typeClass() {
+		if (this.#typeClassExpr) {
+			return assertDefined(this.#typeClassExpr.cache?.asTypeClass);
+		} else {
+			return new DefaultTypeClass();
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @param {string} path
+	 */
+	eval(scope, path) {
+		const typeClass = this.#typeClassExpr ? this.#typeClassExpr.eval(scope).asTypeClass : new DefaultTypeClass();
+		if (!typeClass ) {
+			throw this.#typeClassExpr?.typeError("not a typeclass");
+		}
+
+		scope.set(this.#name, typeClass.toType(this.#name.value, path));
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		if (this.#typeClassExpr) {
+			return `${this.#name}: ${this.#typeClassExpr.toString()}`;
+		} else {
+			return `${this.#name}`;
+		}
+	}
+}
+
+/**
+ * @package
+ */
+export class TypeParameters {
+	#parameters;
+	#prefix;
+
+	/**
+	 * @param {TypeParameter[]} parameters 
+	 * @param {boolean} isForFunc
+	 */
+	constructor(parameters, isForFunc) {
+		this.#parameters = parameters;
+		this.#prefix = isForFunc ? FTPP : TTPP;
+	}
+
+	hasParameters() {
+		return this.#parameters.length > 0;
+	}
+
+	/**
+	 * @returns {Parameter[]}
+	 */
+	getParameters() {
+		return this.#parameters.map((p, i) => new Parameter(p.name, `${this.#prefix}${i}`, p.typeClass));
+	}
+
+	/**
+	 * @param {string} base
+	 * @returns {string}
+	 */
+	genPath(base) {
+		if (this.hasParameters()) {
+			return `${base}[${this.#parameters.map((_, i) => `${this.#prefix}${i}`).join("@")}]`;
+		} else {
+			return base;
+		}
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		if (!this.hasParameters) {
+			return "";
+		} else {
+			return `[${this.#parameters.map(p => p.toString()).join(", ")}]`;
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Scope}
+	 */
+	evalParams(scope) {
+		const subScope = new Scope(scope);
+
+		this.#parameters.forEach((p, i) => p.eval(subScope, `${this.#prefix}${i}`));
+
+		return subScope;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @param {(scope: Scope) => FuncType} evalConcrete
+	 * @returns {ParametricFunc | FuncType}
+	 */
+	evalParametricFuncType(scope, evalConcrete, impl = null) {
+		const typeScope = this.evalParams(scope);
+
+		const type = evalConcrete(typeScope);
+
+		typeScope.assertAllUsed();
+
+		return this.hasParameters() ? new ParametricFunc(this.getParameters(), type) : type;
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @param {(scope: Scope) => FuncType} evalConcrete 
+	 * @returns {EvalEntity}
+	 */
+	evalParametricFunc(scope, evalConcrete) {
+		const type = this.evalParametricFuncType(scope, evalConcrete);
+
+		if (type.asType) {
+			return type.asType.toTyped();
+		} else {
+			return type;
+		}
+	}
+
+	/**
+	 * @param {Scope} scope
+	 * @param {(scope: Scope) => DataType} evalConcrete
+	 * @param {ImplDefinition} impl
+	 * @returns {DataType | ParametricType}
+	 */
+	evalParametricType(scope, evalConcrete, impl) {
+		const typeScope = this.evalParams(scope);
+
+		const type = evalConcrete(new Scope(typeScope));
+
+		typeScope.assertAllUsed();
+
+		// don't pollute the parent scope yet
+		const subScope = new Scope(scope);
+
+		subScope.set(new Word(impl.site, type.name), type);
+
+		impl.eval(subScope);
+
+		if (!this.hasParameters()) {
+			return type;
+		} else {
+			return new ParametricType({
+				parameters: this.getParameters(),
+				apply: (paramTypes) => {
+					/**
+					 * @type {Map<string, Type>}
+					 */
+					const map = new Map();
+
+					paramTypes.forEach((pt, i) => {
+						const name = this.getParameters()[i].name;
+
+						map.set(name, pt);
+					});
+
+					const appliedType = assertDefined(type.infer(impl.site, map, null).asDataType);
+
+					const appliedPath = IRParametricName.parse(type.path, true).toImplementation(paramTypes.map(pt => assertDefined(pt.asDataType).path)).toString();
+
+					if (appliedType instanceof GenericType) {
+						return appliedType.changeNameAndPath(
+							`${type.name}[${paramTypes.map(pt => pt.toString()).join(",")}]`,
+							appliedPath
+						);
+					} else {
+						throw new Error("unexpected");
+					}
+				}
+			});
+		}
+	}
+
+	/**
+	 * @param {Scope} scope 
+	 * @returns {Scope}
+	 */
+	eval(scope) {
+		if (this.#parameters.length == 0) {
+			return scope;
+		} else {
+			const subScope = new Scope(scope);
+
+			this.#parameters.forEach((p, i) => p.eval(subScope, `${this.#prefix}${i}`));
+
+			return subScope;
+		}
+	}
+
+	/**
+	 * @param {FuncType} fnType
+	 * @returns {EvalEntity}
+	 */
+	createInstance(fnType) {
+		if (this.#parameters.length == 0) {
+			return new FuncEntity(fnType);
+		} else {
+			return new ParametricFunc(this.getParameters(), fnType);
+		}
+	}
+}
+
 /**
  * Single field in struct or enum member
  * @package
@@ -616,6 +859,14 @@ export class DataDefinition {
 		}
 
 		return fields;
+	}
+
+	/**
+	 * @param {Type} self
+	 * @returns {Type}
+	 */
+	genCopyType(self) {
+		return new FuncType(this.#fields.map(f => new ArgType(f.name, f.type, true)), self);
 	}
 
 	/**
@@ -904,6 +1155,10 @@ export class StructStatement extends Statement {
 		this.#impl = impl;
 	}
 
+	get path() {
+		return this.#parameters.genPath(super.path);
+	}
+
 	/**
 	 * @param {string} basePath 
 	 */
@@ -941,7 +1196,11 @@ export class StructStatement extends Statement {
 					const fieldName = statement.#dataDef.getFieldName(i);
 					const fieldType = statement.#dataDef.getFieldType(i);
 
-					const FieldClass = assertDefined(fieldType.offChainType);
+					if (!fieldType.offChainType) {
+						throw new Error(`offChainType for ${fieldType.name} not yet implemented`);
+					}
+
+					const FieldClass = fieldType.offChainType;
 
 					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
 
@@ -1021,43 +1280,43 @@ export class StructStatement extends Statement {
 	 * @param {TopScope} scope 
 	 */
 	eval(scope) {
-		// first evaluate the type using a shell type of self
-		const shell = new GenericType({
-			fieldNames: this.#dataDef.fields.map(f => f.name.value),
-			name: this.name.value,
-			path: this.path,
-			genInstanceMembers: (self) => ({}),
-			genTypeMembers: (self) => ({})
-		});
+		const type = this.#parameters.evalParametricType(scope, (typeScope) => {
+			if (this.name.value != "") {
+				// first evaluate the type using a shell type of self
+				const shell = new GenericType({
+					fieldNames: this.#dataDef.fieldNames,
+					name: this.name.value,
+					path: this.path,
+					genInstanceMembers: (self) => ({}),
+					genTypeMembers: (self) => ({})
+				});
+	
+				typeScope.set(this.name, shell);	
+			}
 
-		const typeScope = new Scope(scope);
-		typeScope.set(this.name, shell);
+			const fields = this.#dataDef.evalFieldTypes(typeScope);
+			
+			const [instanceMembers, typeMembers] = this.#impl.evalTypes(typeScope);
 
-		const fields = this.#dataDef.evalFieldTypes(typeScope);
-
-		const [instanceMembers, typeMembers] = this.#impl.evalTypes(typeScope);
-
-		const full = new GenericType({
-			fieldNames: this.#dataDef.fields.map(f => f.name.value),
-			name: this.name.value,
-			path: this.path,
-			offChainType: this.offChainType,
-			genInstanceMembers: (self) => ({
-				...genCommonInstanceMembers(self),
-				...fields,
-				...instanceMembers
-			}),
-			genTypeMembers: (self) => ({
-				...genCommonTypeMembers(self),
-				...typeMembers
-			})
-		});
-
-		// add before so recursive types are possible
-		scope.set(this.name, full);
-
-		// full type evaluation of function bodies
-		this.#impl.eval(scope);
+			return new GenericType({
+				fieldNames: this.#dataDef.fieldNames,
+				name: this.name.value,
+				path: this.path, // includes template parameters
+				offChainType: this.offChainType,
+				genInstanceMembers: (self) => ({
+					...genCommonInstanceMembers(self),
+					...fields,
+					...instanceMembers,
+					copy: this.#dataDef.genCopyType(self)
+				}),
+				genTypeMembers: (self) => ({
+					...genCommonTypeMembers(self),
+					...typeMembers
+				})
+			});
+		}, this.#impl);
+		
+		scope.set(this.name, new NamedEntity(this.name.value, this.path, type));
 	}
 
 	/**
@@ -1093,16 +1352,26 @@ export class StructStatement extends Statement {
  * @package
  */
 export class FuncStatement extends Statement {
+	#parameters;
 	#funcExpr;
 
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
+	 * @param {TypeParameters} parameters
 	 * @param {FuncLiteralExpr} funcExpr 
 	 */
-	constructor(site, name, funcExpr) {
+	constructor(site, name, parameters, funcExpr) {
 		super(site, name);
+		this.#parameters = parameters;
 		this.#funcExpr = funcExpr;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get path() {
+		return this.#parameters.genPath(super.path);
 	}
 
 	/**
@@ -1130,7 +1399,7 @@ export class FuncStatement extends Statement {
 	 * @returns {string}
 	 */
 	toString() {
-		return `func ${this.name.toString()}${this.#funcExpr.toString()}`;
+		return `func ${this.name.toString()}${this.#parameters.toString()}${this.#funcExpr.toString()}`;
 	}
 
 	/**
@@ -1146,27 +1415,34 @@ export class FuncStatement extends Statement {
 	 * Evaluates type of a funtion.
 	 * Separate from evalInternal so we can use this function recursively inside evalInternal
 	 * @param {Scope} scope 
-	 * @returns {FuncType}
+	 * @returns {ParametricFunc | FuncType}
 	 */
 	evalType(scope) {
-		return this.#funcExpr.evalType(scope);
+		return this.#parameters.evalParametricFuncType(scope, (subScope) => {
+			return this.#funcExpr.evalType(subScope);
+		});
 	}
 
 	/**
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
-		// add to scope before evaluating, to allow recursive calls
+		const typed = this.#parameters.evalParametricFunc(scope, (subScope) => {
+			const type = this.#funcExpr.evalType(subScope);
 
-		let fnType = this.evalType(scope);
+			const implScope = new Scope(subScope);
 
-		let fnVal = this.#funcExpr.hasParameters() ?
-			new ParametricFunc(this.#funcExpr.parameters, fnType) :
-			new FuncEntity(fnType);
+			// recursive calls expect func value, not func type
+			implScope.set(this.name, new NamedEntity(this.name.value, super.path, type.toTyped()));
 
-		scope.set(this.name, new NamedEntity(this.name.value, this.path, fnVal));
+			void this.#funcExpr.evalInternal(implScope);
 
-		void this.#funcExpr.evalInternal(scope);
+			return type;
+		});
+
+		assert(!typed.asType);
+
+		scope.set(this.name, new NamedEntity(this.name.value, super.path, typed));
 	}
 
 	/**
@@ -1189,13 +1465,7 @@ export class FuncStatement extends Statement {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		let key = this.path
-		
-		if (this.#funcExpr.parameters.length > 0) {
-			key = key + `[${this.#funcExpr.parameters.map((_, i) => `${FTPP}${i}`).join("@")}]`;
-		}
-
-		map.set(key, this.toIRInternal());
+		map.set(this.path, this.toIRInternal());
 	}
 
 	/**
@@ -1409,7 +1679,8 @@ export class EnumMember {
 			fieldNames: this.#dataDef.fieldNames,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
-				...instanceMembers
+				...instanceMembers,
+				copy: this.#dataDef.genCopyType(self)
 			}),
 			genTypeMembers: (self) => ({
 				...genCommonEnumTypeMembers(self, parent),
@@ -1614,55 +1885,55 @@ export class EnumStatement extends Statement {
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
-		// first set the shell type
-		const shell = new GenericType({
-			name: this.name.value,
-			path: this.path,
-			genInstanceMembers: (self) => ({}),
-			genTypeMembers: (self) => this.genEnumMemberShellTypes(self)
-		});
+		const type = this.#parameters.evalParametricType(scope, (typeScope) => {
+			// first set the shell type
+			if (this.name.value != "") {
+				const shell = new GenericType({
+					name: this.name.value,
+					path: this.path,
+					genInstanceMembers: (self) => ({}),
+					genTypeMembers: (self) => this.genEnumMemberShellTypes(self)
+				});
 
-		// the scope that is used for type evaluation
-		const subScope = new Scope(scope);
-		subScope.set(this.name, shell);
-
-		/**
-		 * @type {{[name: string]: (parent: DataType) => EnumMemberType}}
-		 */
-		const genFullMembers = {};
-
-		this.#members.forEach(m => {
-			genFullMembers[m.name.value] =m.evalType(subScope);
-		});
-
-		const [instanceMembers, typeMembers] = this.#impl.evalTypes(subScope);
-
-		const full = new GenericType({
-			name: this.name.value,
-			path: this.path,
-			offChainType: this.offChainType,
-			genInstanceMembers: (self) => ({
-				...genCommonInstanceMembers(self),
-				...instanceMembers
-			}),
-			genTypeMembers: (self) => {
-				const typeMembers_ = {
-					...genCommonTypeMembers(self),
-					...typeMembers
-				};
-				
-				// TODO: detect duplicates
-				for (let memberName in genFullMembers) {
-					typeMembers_[memberName] = genFullMembers[memberName](assertDefined(self.asDataType))
-				}
-
-				return typeMembers_
+				typeScope.set(this.name, shell);
 			}
-		});
-		
-		scope.set(this.name, full);
 
-		this.#impl.eval(scope);
+			/**
+			 * @type {{[name: string]: (parent: DataType) => EnumMemberType}}
+			 */
+			const genFullMembers = {};
+
+			this.#members.forEach(m => {
+				genFullMembers[m.name.value] = m.evalType(typeScope);
+			});
+
+			const [instanceMembers, typeMembers] = this.#impl.evalTypes(typeScope);
+
+			return new GenericType({
+				name: this.name.value,
+				path: this.path,
+				offChainType: this.offChainType,
+				genInstanceMembers: (self) => ({
+					...genCommonInstanceMembers(self),
+					...instanceMembers
+				}),
+				genTypeMembers: (self) => {
+					const typeMembers_ = {
+						...genCommonTypeMembers(self),
+						...typeMembers
+					};
+					
+					// TODO: detect duplicates
+					for (let memberName in genFullMembers) {
+						typeMembers_[memberName] = genFullMembers[memberName](assertDefined(self.asDataType))
+					}
+
+					return typeMembers_
+				}
+			});
+		}, this.#impl);
+
+		scope.set(this.name, new NamedEntity(this.name.value, this.path, type));
 	}
 
 	/**
@@ -1714,6 +1985,13 @@ export class ImplDefinition {
 	constructor(selfTypeExpr, statements) {
 		this.#selfTypeExpr = selfTypeExpr;
 		this.#statements = statements;
+	}
+
+	/**
+	 * @type {Site}
+	 */
+	get site() {
+		return this.#selfTypeExpr.site;
 	}
 
 	/**

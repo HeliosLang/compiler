@@ -77,7 +77,7 @@ async function testMinting(optimized = false) {
     const src = `
 	minting testnft
 
-	func main() -> Bool {
+	func main(_, _) -> Bool {
 		true
 	}`;
 

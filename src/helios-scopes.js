@@ -39,7 +39,7 @@ import {
 } from "./eval-primitives.js";
 
 import {
-	SerializableTypeClass
+	AnyTypeClass
 } from "./eval-parametric.js";
 
 import {
@@ -166,6 +166,7 @@ export class GlobalScope {
 
 		// fill the global scope with builtin types
         scope.set("Address",              AddressType);
+		scope.set("Any",         		  new AnyTypeClass());
         scope.set("AssetClass",           AssetClassType);
         scope.set("Bool",                 BoolType);
         scope.set("ByteArray",            ByteArrayType);
@@ -188,7 +189,6 @@ export class GlobalScope {
         scope.set("StakingHash",          StakingHashType);
         scope.set("StakingPurpose",       StakingPurposeType);
         scope.set("StakingValidatorHash", StakingValidatorHashType);
-		scope.set("Serializable",         new SerializableTypeClass());
 		scope.set("String",               StringType);
         scope.set("Time",                 TimeType);
         scope.set("TimeRange",            TimeRangeType);

@@ -44,7 +44,7 @@ import {
 } from "./eval-primitives.js";
 
 import {
-    TypeClassImpl
+    DataTypeClassImpl
 } from "./eval-parametric.js";
 
 import {
@@ -99,7 +99,8 @@ export var ValueType = new GenericType({
         get_safe: new FuncType([AssetClassType], IntType),
         is_zero: new FuncType([], BoolType),
         show: new FuncType([], StringType),
-        to_map: new FuncType([], MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType)))
+        to_map: new FuncType([], MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType))),
+        value: self // so that Value implements Valuable itself as well
     }),
     genTypeMembers: (self) => {
         const selfInstance = new DataEntity(assertDefined(self.asDataType));
@@ -169,6 +170,6 @@ export class ValuableTypeClass extends Common {
      * @returns {DataType}
      */
     toType(name, path) {
-        return new TypeClassImpl(this, name, path);
+        return new DataTypeClassImpl(this, name, path);
     }
 }

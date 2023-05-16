@@ -19,10 +19,12 @@ import {
  */
 
 import {
+	AnyType,
     Common,
     DataEntity,
 	FuncEntity,
-    FuncType
+    FuncType,
+	TypedEntity
 } from "./eval-common.js";
 
 /**
@@ -79,23 +81,15 @@ import {
     RawDataType
 } from "./eval-primitives.js";
 
-
 /**
  * @package
- * @implements {DataType}
+ * @implements {Type}
  */
 export class TypeClassImpl extends Common {
-    /**
-     * @type {string}
-     */
-    #name;
-
 	/**
-     * @type {string}
-     */
-	#path;
-
-
+	 * @type {string}
+	 */
+	#name;
 	/**
 	 * @type {InstanceMembers}
 	 */
@@ -108,14 +102,10 @@ export class TypeClassImpl extends Common {
 
 	/**
 	 * @param {TypeClass} typeClass
-	 * @param {string} name
-	 * @param {string} path
 	 */
-	constructor(typeClass, name, path) {
+	constructor(typeClass, name) {
 		super();
-
-        this.#name = name;
-		this.#path = path;
+		this.#name = name;
         this.#instanceMembers = typeClass.genInstanceMembers(this);
 		this.#typeMembers = typeClass.genTypeMembers(this);
     }
@@ -130,29 +120,8 @@ export class TypeClassImpl extends Common {
 	/**
 	 * @type {string}
 	 */
-    get name() {
-        return this.#name;
-    }
-
-	/**
-	 * @type {null | HeliosDataClass<HeliosData>}
-	 */
-	get offChainType() {
-		return null;
-	}
-
-	/**
-	 * @type {string}
-	 */
-	get path() {
-		return this.#path;
-	}
-
-	/**
-	 * @type {string[]}
-	 */
-	get fieldNames() {
-		return [];
+	get name() {
+		return this.#name;
 	}
 
 	/**
@@ -161,20 +130,6 @@ export class TypeClassImpl extends Common {
 	get typeMembers() {
 		return this.#typeMembers;
 	}
-
-	/**
-	 * @type {DataType}
-	 */
-	get asDataType() {
-		return this;
-	}
-
-    /**
-     * @type {Named}
-     */
-    get asNamed() {
-        return this;
-    }
 
     /**
      * @type {Type}
@@ -199,7 +154,8 @@ export class TypeClassImpl extends Common {
 
 				return type;
 			} else {
-				throw new Error(`${this.#name} should be in map`);
+				// type not yet available: could be parametric func inside a parametric type
+				return this;
 			}
 		} else {
 			return prev;
@@ -225,6 +181,70 @@ export class TypeClassImpl extends Common {
 	 */
 	toString() {
 		return this.name;
+	}
+
+	/**
+	 * @returns {Typed}
+	 */
+	toTyped() {
+		return new TypedEntity(this);
+	}
+}
+
+/**
+ * @package
+ * @implements {DataType}
+ */
+export class DataTypeClassImpl extends TypeClassImpl {
+	/**
+     * @type {string}
+     */
+	#path;
+
+	/**
+	 * @param {TypeClass} typeClass
+	 * @param {string} name
+	 * @param {string} path
+	 */
+	constructor(typeClass, name, path) {
+		super(typeClass, name);
+
+		this.#path = path;
+    }
+
+	/**
+	 * @type {string[]}
+	 */
+	get fieldNames() {
+		return [];
+	}
+
+	/**
+	 * @type {null | HeliosDataClass<HeliosData>}
+	 */
+	get offChainType() {
+		return null;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get path() {
+		return this.#path;
+	}
+
+	/**
+	 * @type {Named}
+	 */
+	get asNamed() {
+		return this;
+	}
+
+	/**
+	 * @type {DataType}
+	 */
+	get asDataType() {
+		return this;
 	}
 
 	/**
@@ -277,11 +297,10 @@ export class AnyTypeClass extends Common {
     /**
      * @param {string} name 
 	 * @param {string} path
-     * @returns {DataType}
+     * @returns {Type}
      */
-
     toType(name, path) {
-        return new TypeClassImpl(this, name, path);
+		return new TypeClassImpl(this, name);
     }
 }
 
@@ -289,7 +308,7 @@ export class AnyTypeClass extends Common {
  * @package
  * @implements {TypeClass}
  */
-export class SerializableTypeClass extends Common {
+export class DefaultTypeClass extends Common {
     constructor() {
         super();
     }
@@ -328,7 +347,7 @@ export class SerializableTypeClass extends Common {
 	 * @returns {string}
 	 */
 	toString() {
-		return "Serializable";
+		return "";
 	}
 
     /**
@@ -337,7 +356,7 @@ export class SerializableTypeClass extends Common {
      * @returns {DataType}
      */
     toType(name, path) {
-        return new TypeClassImpl(this, name, path);
+        return new DataTypeClassImpl(this, name, path);
     }
 }
 
@@ -383,7 +402,7 @@ export class Parameter {
 	 * @type {Type}
 	 */
 	get ref() {
-		return new TypeClassImpl(this.typeClass, this.#name, this.#path);
+		return this.#typeClass.toType(this.#name, this.#path);
 	}
 
 	/**
@@ -394,8 +413,11 @@ export class Parameter {
 		return this.#typeClass;
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
-		if (this.#typeClass) {
+		if (this.#typeClass && this.#typeClass.toString() != "") {
 			return `${this.#name}: ${this.#typeClass.toString()}`
 		} else {
 			return this.#name;
@@ -502,7 +524,7 @@ export class ParametricFunc extends Common {
 			const pt = map.get(p.name);
 
 			if (!pt) {
-				throw site.typeError("failed to infer all type parameters (hint: apply directly using [...])");
+				throw site.typeError(`failed to infer type of '${p.name}'  (hint: apply directly using [...])`);
 			}
 
 			paramTypes.push(pt);
@@ -510,12 +532,23 @@ export class ParametricFunc extends Common {
 
 		return new FuncEntity(fnType);
 	}
+	
+	/**
+	 * @param {Site} site 
+	 * @param {Map<string, Type>} map 
+	 * @returns {Parametric}
+	 */
+	infer(site, map) {
+		const fnType = assertClass(this.#fnType.infer(site, map, null), FuncType);
+
+		return new ParametricFunc(this.#params, fnType);
+	}
 
     /**
      * @returns {string}
      */
 	toString() {
-		return this.#fnType.toString();
+		return `[${this.#params.map(p => p.toString()).join(", ")}]${this.#fnType.toString()}`;
 	}
 }
 
@@ -720,5 +753,21 @@ export class ParametricType extends Common {
 	 */
 	inferCall(site, args, namedArgs = {}, paramTypes = []) {
 		throw site.typeError("not a parametric function");
+	}
+
+	/**
+	 * @param {Site} site 
+	 * @param {Map<string, Type>} map 
+	 * @returns {Parametric}
+	 */
+	infer(site, map) {
+		throw site.typeError("not a parametric function");
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `[${this.#parameters.map(p => p.toString())}]`;
 	}
 }

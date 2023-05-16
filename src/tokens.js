@@ -1142,6 +1142,17 @@ export class StringLiteral extends PrimitiveLiteral {
 	}
 
 	/**
+	 * @returns {any}
+	 */
+	dump() {
+		if (typeof this.#content == "string") {
+			return this.#content;
+		} else {
+			return this.#content.map(c => c.dump());
+		}
+	}
+
+	/**
 	 * Returns a list containing IR instances that themselves only contain strings
      * @package
 	 * @returns {IR[]}
@@ -1359,11 +1370,46 @@ export class IRParametricName {
 	 * @param {string} fn 
 	 * @param {string[]} ftp 
 	 */
-	constructor(base, ttp, fn, ftp) {
+	constructor(base, ttp, fn = "", ftp = []) {
 		this.#base = base;
 		this.#ttp = ttp;
 		this.#fn = fn;
 		this.#ftp = ftp;
+	}
+
+	/**
+	 * @param {string} base 
+	 * @param {number} nTtps 
+	 * @param {string} fn 
+	 * @param {number} nFtps 
+	 * @returns 
+	 */
+	static newTemplate(base, nTtps, fn = "", nFtps = 0) {
+		return new IRParametricName(
+			base, 
+			(new Array(nTtps)).map((_, i) => `${TTPP}${i}`),
+			fn,
+			(new Array(nFtps)).map((_, i) => `${FTPP}${i}`)
+		);
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get base() {
+		return this.#base;
+	}
+
+	/**
+	 * @param {string[]} ttp 
+	 * @param {string[]} ftp 
+	 * @returns {IRParametricName}
+	 */
+	toImplementation(ttp, ftp = []) {
+		assert(ttp.length == this.#ttp.length, `expected ${this.#ttp.length} type parameters, got ${ttp.length} (in ${this.toString()})`);
+		assert(ftp.length == this.#ftp.length, `expected ${this.#ftp.length} function type parameters, got ${ftp.length} (in ${this.toString()})`);
+
+		return new IRParametricName(this.#base, ttp, this.#fn, ftp);
 	}
 
 	/**
@@ -1379,8 +1425,6 @@ export class IRParametricName {
 	toTemplate() {
 		return `${this.#base}${this.#ttp.length > 0 ? `[${this.#ttp.map((_, i) => `${TTPP}${i}`).join("@")}]` : ""}${this.#fn}${this.#ftp.length > 0 ? `[${this.#ftp.map((_, i) => `${FTPP}${i}`).join("@")}]` : ""}`;
 	}
-
-	
 
 	/**
 	 * @param {IR} ir
@@ -1428,9 +1472,10 @@ export class IRParametricName {
 	 * @example
 	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]"
 	 * @param {string} str 
+	 * @param {boolean} preferType
 	 * @returns {IRParametricName}
 	 */
-	static parse(str) {
+	static parse(str, preferType = false) {
 		let pos = 0;
 
 		/**
@@ -1546,9 +1591,11 @@ export class IRParametricName {
 		let ftp = [];
 
 		if (pos >= str.length) {
-			[base, fn] = uneatFn(base);
-			ftp = ttp;
-			ttp = [];
+			if (!preferType) {
+				[base, fn] = uneatFn(base);
+				ftp = ttp;
+				ttp = [];
+			}
 		} else {
 			fn = eatAlphaNum();
 

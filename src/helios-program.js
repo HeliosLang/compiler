@@ -7,8 +7,9 @@ import {
 
 import {
     Source,
+	assert,
     assertDefined,
-	assert
+	assertNonEmpty
 } from "./utils.js";
 
 import {
@@ -69,7 +70,7 @@ import {
 } from "./eval-primitives.js";
 
 import { 
-	SerializableTypeClass 
+	DefaultTypeClass 
 } from "./eval-parametric.js";
 
 import { 
@@ -84,12 +85,10 @@ import {
 
 import {
     ConstStatement,
-    EnumStatement,
     FuncStatement,
     ImportFromStatement,
     ImportModuleStatement,
-    Statement,
-	StructStatement
+    Statement
 } from "./helios-ast-statements.js";
 
 import {
@@ -897,7 +896,9 @@ class MainModule extends Module {
 			// also don't mutual recurse helios functions
 			const others = keys.slice(i).filter(k => !k.startsWith("__const") && !k.startsWith("__helios") && !k.endsWith("__from_data") && !k.includes("____"));
 
-			const re = new RegExp(`\\b${k}\\b`, "gm");
+			const escaped = k.replace(/\[/g, "\\[").replace(/]/g, "\\]");
+
+			const re = new RegExp(`\\b${escaped}(\\b|$)`, "gm");
 			const newStr = `${k}(${others.join(", ")})`;
 			// do the actual replacing
 			for (let k_ of keys) {
@@ -955,7 +956,7 @@ class MainModule extends Module {
 
 				added.set(name, [location, ir]);
 
-				ir.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, location));
+				ir.search(RE_IR_PARAMETRIC_NAME, (name_) => add(name_, name));
 			}
 		};
 
@@ -988,8 +989,7 @@ class MainModule extends Module {
 
 		const addedEntries = Array.from(added.entries());
 
-		// loop from end so that applied definitions that were generated recursively are added in the correct order
-		for (let i = addedEntries.length-1; i >= 0; i--) {
+		for (let i = 0; i < addedEntries.length; i++) {
 			const [name, [location, ir]] = addedEntries[i];
 
 			const j = find(location);
@@ -1122,7 +1122,7 @@ class RedeemerProgram extends Program {
 			throw main.typeError("expected 2 args for main");
 		}
 
-		if (argTypeNames[0] != "" && !Common.typeImplements(argTypes[0], new SerializableTypeClass())) {
+		if (argTypeNames[0] != "" && !Common.typeImplements(argTypes[0], new DefaultTypeClass())) {
 			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[0].toString()}`);
 		}
 
@@ -1155,15 +1155,23 @@ class RedeemerProgram extends Program {
 		 */
 		const innerArgs = [];
 
+		const argTypeNames = this.mainFunc.argTypeNames;
+
 		this.mainArgTypes.forEach((t, i) => {
 			const name = argNames[i];
 
-			innerArgs.push(new IR([
-				new IR(`${t.path}__from_data`),
-				new IR("("),
-				new IR(name),
-				new IR(")")
-			]));
+			// empty path
+			if (argTypeNames[i] != "") {
+				innerArgs.push(new IR([
+					new IR(`${assertNonEmpty(t.path)}__from_data`),
+					new IR("("),
+					new IR(name),
+					new IR(")")
+				]));
+			} else {
+				// unused arg, 0 is easier to optimize
+				innerArgs.push(new IR("0"));
+			}
 
 			outerArgs.push(new IR(name));
 		});
@@ -1210,11 +1218,11 @@ class DatumRedeemerProgram extends Program {
 			throw main.typeError("expected 3 args for main");
 		}
 
-		if (argTypeNames[0] != "" && !Common.typeImplements(argTypes[0], new SerializableTypeClass())) {
+		if (argTypeNames[0] != "" && !Common.typeImplements(argTypes[0], new DefaultTypeClass())) {
 			throw main.typeError(`illegal datum argument type in main: '${argTypes[0].toString()}`);
 		}
 
-		if (argTypeNames[1] != "" && !Common.typeImplements(argTypes[1], new SerializableTypeClass())) {
+		if (argTypeNames[1] != "" && !Common.typeImplements(argTypes[1], new DefaultTypeClass())) {
 			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[1].toString()}`);
 		}
 
@@ -1251,10 +1259,10 @@ class DatumRedeemerProgram extends Program {
 		this.mainArgTypes.forEach((t, i) => {
 			const name = argNames[i];
 
-			// empty path signgi
+			// empty path
 			if (argTypeNames[i] != "") {
 				innerArgs.push(new IR([
-					new IR(`${t.path}__from_data`),
+					new IR(`${assertNonEmpty(t.path)}__from_data`),
 					new IR("("),
 					new IR(name),
 					new IR(")")
@@ -1305,7 +1313,7 @@ class TestingProgram extends Program {
 
 		const topScope = this.evalTypesInternal(scope);
 
-		if (this.mainFunc.argTypes.some(at => !Common.typeImplements(at, new SerializableTypeClass()))) {
+		if (this.mainFunc.argTypes.some(at => !Common.typeImplements(at, new DefaultTypeClass()))) {
 			throw this.mainFunc.typeError("invalid entry-point argument types");
 		}
 
@@ -1322,13 +1330,21 @@ class TestingProgram extends Program {
 	 * @returns {IR}
 	 */
 	toIR(parameters = []) {
+		const argTypeNames = this.mainFunc.argTypeNames;
+
 		const innerArgs = this.mainArgTypes.map((t, i) => {
-			return new IR([
-				new IR(`${t.path}__from_data`),
-				new IR("("),
-				new IR(`arg${i}`),
-				new IR(")")
-			]);
+			// empty path
+			if (argTypeNames[i] != "") {
+				return new IR([
+					new IR(`${assertNonEmpty(t.path)}__from_data`),
+					new IR("("),
+					new IR(`arg${i}`),
+					new IR(")")
+				]);
+			} else {
+				// unused arg, 0 is easier to optimize
+				return new IR("0")
+			}
 		});
 
 		let ir = new IR([

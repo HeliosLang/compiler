@@ -3180,6 +3180,18 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc("__helios__txinput__output_id", "__helios__common__field_0"));
 	add(new RawFunc("__helios__txinput__output", "__helios__common__field_1"));
+	add(new RawFunc("__helios__txinput__address",
+	`(self) -> {
+		__helios__txoutput__address(__helios__txinput__output(self))
+	}`));
+	add(new RawFunc("__helios__txinput__value", 
+	`(self) -> {
+		__helios__txoutput__value(__helios__txinput__output(self))
+	}`));
+	add(new RawFunc("__helios__txinput__datum",
+	`(self) -> {
+		__helios__txoutput__datum(__helios__txinput__output(self))
+	}`));
 	
 
 	// TxOutput builtins
@@ -3797,6 +3809,7 @@ function makeRawFunctions() {
 	addSerializeFunc("__helios__value");
 	add(new RawFunc("__helios__value__from_data", "__core__unMapData"));
 	add(new RawFunc("__helios__value____to_data", "__core__mapData"));
+	add(new RawFunc("__helios__value__value", "__helios__common__identity"));
 	add(new RawFunc("__helios__value__ZERO", "__core__mkNilPairData(())"));
 	add(new RawFunc("__helios__value__lovelace",
 	`(i) -> {

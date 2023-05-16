@@ -2,6 +2,7 @@
 // IR Program
 
 import { 
+	Source,
 	assertClass, 
 	textToBytes 
 } from "./utils.js";
@@ -105,7 +106,6 @@ export class IRProgram {
 	static new(ir, purpose, simplify = false, throwSimplifyRTErrors = false, scope = new IRScope(null, null)) {
 		let [irSrc, codeMap] = ir.generateSource();
 
-		console.log(irSrc);
 		const callsTxTimeRange = irSrc.match(/\b__helios__tx__time_range\b/) !== null;
 
 		let irTokens = tokenizeIR(irSrc, codeMap);

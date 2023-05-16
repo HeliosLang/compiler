@@ -78,6 +78,20 @@ export function assertClass(obj, C, msg = "unexpected class") {
 
 /**
  * @package
+ * @param {string} str 
+ * @param {string} msg 
+ * @returns {string}
+ */
+export function assertNonEmpty(str, msg = "empty string") {
+	if (str.length == 0) {
+		throw new Error(msg);
+	} else {
+		return str;
+	}
+}
+
+/**
+ * @package
  * @param {any} obj 
  * @param {string} msg 
  * @returns {number}
