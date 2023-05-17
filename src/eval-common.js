@@ -993,6 +993,7 @@ export class GenericType extends Common {
      */
     #path;
 
+	#genOffChainType;
     #offChainType;
     #fieldNames;
 
@@ -1013,16 +1014,18 @@ export class GenericType extends Common {
      *   name: string,
      *   path?: string,
      *   offChainType?: HeliosDataClass<T> | null,
+	 *   genOffChainType?: (() => HeliosDataClass<T>) | null
      *   fieldNames?: string[],
      *   genInstanceMembers: (self: Type) => InstanceMembers,
      *   genTypeMembers: (self: Type) => TypeMembers
      * })} props
      */
-    constructor({name, path, offChainType, fieldNames, genInstanceMembers, genTypeMembers}) {
+    constructor({name, path, offChainType, genOffChainType, fieldNames, genInstanceMembers, genTypeMembers}) {
         super();
 
         this.#name = name;
         this.#path = path ?? `__helios__${name.toLowerCase()}`;
+		this.#genOffChainType = genOffChainType ?? null;
         this.#offChainType = offChainType ?? null;
         this.#fieldNames = fieldNames ?? [];
 
@@ -1055,7 +1058,13 @@ export class GenericType extends Common {
      * @type {null | HeliosDataClass<T>}
      */
     get offChainType() {
-        return this.#offChainType;
+		if (this.#offChainType) {
+			return this.#offChainType;
+		} else if (this.#genOffChainType) {
+			return this.#genOffChainType();
+		} else {
+			return null;
+		}
     }
 
     /**
@@ -1227,15 +1236,17 @@ export class GenericEnumMemberType extends GenericType {
      *   constrIndex: number,
      *   parentType: DataType,
      *   offChainType?: HeliosDataClass<T>,
+	 *   genOffChainType?: () => HeliosDataClass<T>,
      *   fieldNames?: string[],
      *   genInstanceMembers: (self: Type) => InstanceMembers,
      *   genTypeMembers?: (self: Type) => TypeMembers
      * })} props
      */
-    constructor({name, path, constrIndex, parentType, offChainType, fieldNames, genInstanceMembers, genTypeMembers}) {
+    constructor({name, path, constrIndex, parentType, offChainType, genOffChainType, fieldNames, genInstanceMembers, genTypeMembers}) {
         super({
             name, 
             path: path ?? `${parentType.path}__${name.toLowerCase()}`, 
+			genOffChainType,
             offChainType, 
             fieldNames, 
             genInstanceMembers, 

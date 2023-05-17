@@ -261,6 +261,7 @@ export const CredentialType = new GenericType({
 const CredentialPubKeyType = new GenericEnumMemberType({
     name: "PubKey",
     constrIndex: 0,
+    fieldNames: ["hash"],
     parentType: CredentialType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -277,6 +278,7 @@ const CredentialPubKeyType = new GenericEnumMemberType({
 const CredentialValidatorType = new GenericEnumMemberType({
     name: "Validator",
     constrIndex: 1,
+    fieldNames: ["hash"],
     parentType: CredentialType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -404,14 +406,14 @@ export class ScriptContextType extends Common {
         switch (purpose) {
             case ScriptPurpose.Minting:
                 return {
-                    get_cont_outputs: new FuncType([], ListType$(TxOutputType)),
-                    get_current_input: new FuncType([], TxInputType),
                     get_current_minting_policy_hash: new FuncType([], MintingPolicyHashType)
                 };
             case ScriptPurpose.Spending:
                 return {
-                   get_current_validator_hash: new FuncType([], ValidatorHashType),
-                   get_spending_purpose_output_id: new FuncType([], TxOutputIdType)
+                    get_current_input: new FuncType([], TxInputType),
+                    get_cont_outputs: new FuncType([], ListType$(TxOutputType)),
+                    get_current_validator_hash: new FuncType([], ValidatorHashType),
+                    get_spending_purpose_output_id: new FuncType([], TxOutputIdType)
                 };
             case ScriptPurpose.Staking:
                 return {

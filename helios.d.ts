@@ -6729,11 +6729,11 @@ declare class TypeParameters {
     evalParametricFunc(scope: Scope, evalConcrete: (scope: Scope) => FuncType): EvalEntity;
     /**
      * @param {Scope} scope
+     * @param {Site} site
      * @param {(scope: Scope) => DataType} evalConcrete
-     * @param {ImplDefinition} impl
-     * @returns {DataType | ParametricType}
+     * @returns {[DataType | ParametricType, Scope]}
      */
-    evalParametricType(scope: Scope, evalConcrete: (scope: Scope) => DataType, impl: ImplDefinition): DataType | ParametricType;
+    createParametricType(scope: Scope, site: Site, evalConcrete: (scope: Scope) => DataType): [DataType | ParametricType, Scope];
     #private;
 }
 /**
@@ -7032,50 +7032,6 @@ declare class ArgType {
     #private;
 }
 /**
- * Impl statements, which add functions and constants to registry of user types (Struct, Enum Member and Enums)
- * @package
- */
-declare class ImplDefinition {
-    /**
-     * @param {RefExpr} selfTypeExpr;
-     * @param {(FuncStatement | ConstStatement)[]} statements
-     */
-    constructor(selfTypeExpr: RefExpr, statements: (FuncStatement | ConstStatement)[]);
-    /**
-     * @type {Site}
-     */
-    get site(): Site;
-    /**
-     * @param {string} basePath
-     */
-    setBasePath(basePath: string): void;
-    /**
-     * @returns {string}
-     */
-    toString(): string;
-    /**
-     * Doesn't add the common types
-     * @param {Scope} scope
-     * @returns {[InstanceMembers, TypeMembers]}
-     */
-    evalTypes(scope: Scope): [InstanceMembers, TypeMembers];
-    /**
-     * @param {Scope} scope
-     */
-    eval(scope: Scope): void;
-    /**
-     * @param {string} namespace
-     * @param {(name: string, cs: ConstStatement) => void} callback
-     */
-    loopConstStatements(namespace: string, callback: (name: string, cs: ConstStatement) => void): void;
-    /**
-     * Returns IR of all impl members
-     * @param {IRDefinitions} map
-     */
-    toIR(map: IRDefinitions): void;
-    #private;
-}
-/**
  * @package
  * @implements {Parametric}
  */
@@ -7201,17 +7157,6 @@ declare class FuncArg extends NameTypePair {
      * @returns {IR}
      */
     wrapWithDefault(bodyIR: IR): IR;
-    #private;
-}
-/**
- * Simple reference class (i.e. using a Word)
- * @package
- */
-declare class RefExpr extends Expr {
-    /**
-     * @param {Word} name
-     */
-    constructor(name: Word);
     #private;
 }
 /**

@@ -874,7 +874,7 @@ function makeRawFunctions() {
 		}
 	}`));
 	add(new RawFunc("__helios__int__to_real",
-	`(self) - {
+	`(self) -> {
 		() -> {
 			__core__multiplyInteger(self, __helios__real__ONE)
 		}
@@ -1372,9 +1372,9 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__real____add", "__helios__int____add"));
 	add(new RawFunc("__helios__real____add1", 
 	`(a, b) -> {
-			__core__addInteger(a,
-				__core__multiplyInteger(b, __helios__real__ONE)
-			)
+		__core__addInteger(
+			a,
+			__core__multiplyInteger(b, __helios__real__ONE)
 		)
 	}`));
 	add(new RawFunc("__helios__real____sub", "__helios__int____sub"));

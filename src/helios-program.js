@@ -894,7 +894,7 @@ class MainModule extends Module {
 
 			// get all following definitions including self, excluding constants
 			// also don't mutual recurse helios functions
-			const others = keys.slice(i).filter(k => !k.startsWith("__const") && !k.startsWith("__helios") && !k.endsWith("__from_data") && !k.includes("____"));
+			const others = keys.slice(i, i+1).filter(k => !k.startsWith("__const") && !k.startsWith("__helios") && !k.endsWith("__from_data") && !k.includes("____"));
 
 			const escaped = k.replace(/\[/g, "\\[").replace(/]/g, "\\]");
 

@@ -1165,21 +1165,21 @@ async function test24() {
 async function test25() {
   await testTrue(`testing type_parameters
   
-  struct Pair[A] {
+  struct Pair[A, B] {
     a: A
-    b: A
+    b: B
 
     func serialize_custom(self) -> ByteArray {
       self.a.serialize() + self.b.serialize()
     }
 
-    func serialize_2[B](self, other: B) -> ByteArray {
+    func serialize_2[C](self, other: C) -> ByteArray {
       self.serialize_custom() + other.serialize()
     }
   }
 
   func main() -> Bool {
-    p = Pair[Int]{10, 11};
+    p = Pair[Int, Int]{10, 11};
 
     p.serialize_custom().length < p.serialize_2(true).length
   }`);

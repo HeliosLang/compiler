@@ -515,7 +515,20 @@ function buildStructStatement(site, ts) {
 
 	const fields = buildDataFields(tsFields);
 
-	const impl = buildImplDefinition(tsImpl, new RefExpr(name), fields.map(f => f.name), braces.site.endSite);
+	/**
+	 * @type {Expr}
+	 */
+	let selfTypeExpr = new RefExpr(name);
+
+	if (parameters.hasParameters()) {
+		selfTypeExpr = new ParametricExpr(
+			selfTypeExpr.site, 
+			selfTypeExpr,
+			parameters.getParameters().map(p => new RefExpr(new Word(selfTypeExpr.site, p.name)))
+		)
+	}
+
+	const impl = buildImplDefinition(tsImpl, selfTypeExpr, fields.map(f => f.name), braces.site.endSite);
 
 	if (impl === null) {
 		return null;
@@ -830,7 +843,20 @@ function buildEnumStatement(site, ts) {
 		members.push(member);
 	}
 
-	const impl = buildImplDefinition(tsImpl, new RefExpr(name), members.map(m => m.name), braces.site.endSite);
+	/**
+	 * @type {Expr}
+	 */
+	let selfTypeExpr = new RefExpr(name);
+
+	if (parameters.hasParameters()) {
+		selfTypeExpr = new ParametricExpr(
+			selfTypeExpr.site, 
+			selfTypeExpr,
+			parameters.getParameters().map(p => new RefExpr(new Word(selfTypeExpr.site, p.name)))
+		)
+	}
+
+	const impl = buildImplDefinition(tsImpl, selfTypeExpr, members.map(m => m.name), braces.site.endSite);
 
 	if (!impl) {
 		return null;
@@ -1020,7 +1046,7 @@ function buildEnumMember(ts) {
 /** 
  * @package
  * @param {Token[]} ts 
- * @param {RefExpr} selfTypeExpr - reference to parent type
+ * @param {Expr} selfTypeExpr - reference to parent type
  * @param {Word[]} fieldNames - to check if impl statements have a unique name
  * @param {?Site} endSite
  * @returns {ImplDefinition | null}

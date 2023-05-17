@@ -157,9 +157,9 @@ export class Expr extends Token {
 	 * @returns {EvalEntity}
 	 */
 	eval(scope) {
-		if (this.#cache === null) {
+		//if (this.#cache === null) {
 			this.#cache = this.evalInternal(scope);
-		}
+		//}
 
 		return this.#cache;
 	}
@@ -1161,6 +1161,26 @@ export class StructLiteralExpr extends Expr {
 			throw this.typeError(`wrong number of fields for ${type.toString()}, expected ${type.fieldNames.length}, got ${this.#fields.length}`);
 		}
 
+		/**
+		 * @param {Word} name
+		 * @returns {Type}
+		 */
+		const getMemberType = (name) => {
+			const memberVal = type.instanceMembers[name.value];
+
+			if (!memberVal) {
+				throw name.typeError(`member '${name.value}' not defined`);
+			}
+
+			const memberType = memberVal.asType;
+
+			if (!memberType) {
+				throw name.typeError(`member '${name.value}' isn't a type`);
+			}
+
+			return memberType;
+		};
+
 		for (let i = 0; i < this.#fields.length; i++) {
 			const f = this.#fields[i];
 		
@@ -1175,14 +1195,14 @@ export class StructLiteralExpr extends Expr {
 				}
 
 				// check the named type
-				const memberType = assertDefined(type.instanceMembers[f.name.value].asType);
+				const memberType = getMemberType(f.name);
 
 				if (!memberType.isBaseOf(fieldVal.type)) {
 					throw f.site.typeError(`wrong field type for '${f.name.toString()}', expected ${memberType.toString()}, got ${fieldVal.type.toString()}`);
 				}
 			} else {
 				// check the positional type
-				const memberType = assertDefined(type.instanceMembers[type.fieldNames[i]].asType);
+				const memberType = getMemberType(new Word(f.site, type.fieldNames[i]));
 				
 				if (!memberType.isBaseOf(fieldVal.type)) {
 					throw f.site.typeError(`wrong field type for field ${i.toString()}, expected ${memberType.toString()}, got ${fieldVal.type.toString()}`);

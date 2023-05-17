@@ -185,7 +185,7 @@ export class IRExprRegistry {
 	 * @returns {IRExpr}
 	 */
 	getInlineable(variable) {
-		return assertDefined(this.#inline.get(variable)).copy(new Map());
+		return assertDefined(this.#inline.get(variable), `${this.isInlineable(variable)} ????`).copy(new Map());
 	}
 
 	/**
@@ -193,7 +193,7 @@ export class IRExprRegistry {
 	 * @param {IRExpr} expr 
 	 */
 	addInlineable(variable, expr) {
-		this.#inline.set(variable, expr);
+		this.#inline.set(variable, assertDefined(expr));
 	}
 }
 
@@ -995,7 +995,7 @@ export class IRCallExpr extends IRExpr {
 	 * @returns {IRExpr[]}
 	 */
 	simplifyTopologyInArgs(registry) {
-		return this.#argExprs.map(a => a.simplifyTopology(registry));
+		return this.#argExprs.map(a => assertDefined(a.simplifyTopology(registry)));
 	}
 
 	/**
@@ -1926,12 +1926,14 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 	simplifyTopology(registry) {
 		const args = this.simplifyTopologyInArgs(registry);
 
+		assert(args.length == this.argVariables.length, `number of args should be equal to number of argVariables (${this.toString()})`);
+
 		// remove unused args, inline args that are only referenced once, inline all IRNameExprs, inline function with default args,
 		//  inline tiny builtins, inline functions whose body is simply a IRNameExpr
 		const remainingIds = this.argVariables.map((variable, i) => {
 			const n = registry.countReferences(variable);
 
-			const arg = args[i];
+			const arg = assertDefined(args[i]);
 
 			if (
 				n == 0 
@@ -1942,7 +1944,7 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 				|| (arg instanceof IRFuncExpr && arg.body instanceof IRNameExpr)
 				
 			) {
-				if (n > 0) {
+				if (n > 0 && arg != null) {
 					// inline
 					registry.addInlineable(variable, arg);
 				}
