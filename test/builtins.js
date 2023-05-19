@@ -343,7 +343,7 @@ function spendingScriptContextParam(useInlineDatum) {
             },
             Value::lovelace(FEE),
             Value::ZERO,
-            []CertifyingAction{},
+            []DCert{},
             Map[StakingCredential]Int{},
             TimeRange::new(Time::new(0), Time::new(100)),
             []PubKeyHash{PubKeyHash::new(PUB_KEY_HASH_BYTES)},
@@ -372,7 +372,7 @@ const mintingScriptContextParam = `
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE + MINTED, OutputDatum::new_none())},
         Value::lovelace(160000),
         MINTED,
-        []CertifyingAction{},
+        []DCert{},
         Map[StakingCredential]Int{},
         TimeRange::ALWAYS,
         []PubKeyHash{},
@@ -399,7 +399,7 @@ const rewardingScriptContextParam = `
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE + Value::lovelace(REWARD_QTY), OutputDatum::new_none())},
         Value::lovelace(160000),
         Value::ZERO,
-        []CertifyingAction{},
+        []DCert{},
         Map[StakingCredential]Int{
             CURRENT_STAKING_CRED: REWARD_QTY
         },
@@ -423,21 +423,21 @@ const certifyingScriptContextParam = `
     const ADDRESS_OUT: Address = ADDRESS_IN
     const QTY_IN = 1000
     const VALUE = Value::lovelace(QTY_IN)
-    const CURRENT_DCERT = CertifyingAction::new_register(CURRENT_STAKING_CRED)
-    const DCERT_DEREGISTER = CertifyingAction::new_deregister(CURRENT_STAKING_CRED)
+    const CURRENT_DCERT = DCert::new_register(CURRENT_STAKING_CRED)
+    const DCERT_DEREGISTER = DCert::new_deregister(CURRENT_STAKING_CRED)
     const POOL_ID = PubKeyHash::new(#1253751235)
     const POOL_VFR = PubKeyHash::new(#125375123598)
     const EPOCH = 370
-    const DCERT_DELEGATE = CertifyingAction::new_delegate(CURRENT_STAKING_CRED, POOL_ID)
-    const DCERT_REGISTER_POOL = CertifyingAction::new_register_pool(POOL_ID, POOL_VFR)
-    const DCERT_RETIRE_POOL = CertifyingAction::new_retire_pool(POOL_ID, EPOCH)
+    const DCERT_DELEGATE = DCert::new_delegate(CURRENT_STAKING_CRED, POOL_ID)
+    const DCERT_REGISTER_POOL = DCert::new_register_pool(POOL_ID, POOL_VFR)
+    const DCERT_RETIRE_POOL = DCert::new_retire_pool(POOL_ID, EPOCH)
     const SCRIPT_CONTEXT = ScriptContext::new_certifying(Tx::new(
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE, OutputDatum::new_none())},
         Value::lovelace(0),
         Value::ZERO,
-        []CertifyingAction{CURRENT_DCERT, DCERT_DEREGISTER, DCERT_DELEGATE, DCERT_REGISTER_POOL, DCERT_RETIRE_POOL},
+        []DCert{CURRENT_DCERT, DCERT_DEREGISTER, DCERT_DELEGATE, DCERT_REGISTER_POOL, DCERT_RETIRE_POOL},
         Map[StakingCredential]Int{},
         TimeRange::ALWAYS,
         []PubKeyHash{},
@@ -3414,9 +3414,9 @@ async function testBuiltins() {
         `, ([_], res) => !asBool(res), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["STAKING_PURPOSE"], `
-        testing stakingpurpose_certifying_action
+        testing stakingpurpose_dcert
         func main(sp: StakingPurpose::Certifying) -> Bool {
-            sp.action == sp.action
+            sp.dcert == sp.dcert
         }
         ${certifyingScriptContextParam}
         `, ([_], res) => asBool(res), 5);
@@ -3430,46 +3430,46 @@ async function testBuiltins() {
         `, serializeProp, 5);
     }
 
-    const testCertifyingAction = true;
+    const testDCert = true;
 
-    if (testCertifyingAction) {
+    if (testDCert) {
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
-        testing cert_action_eq
-        func main(ca: CertifyingAction) -> Bool {
+        testing dcert_eq
+        func main(ca: DCert) -> Bool {
             ca == ca
         }
         ${certifyingScriptContextParam}
         `, ([_], res) => asBool(res), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
-        testing cert_action_neq
-        func main(ca: CertifyingAction) -> Bool {
+        testing dcert_neq
+        func main(ca: DCert) -> Bool {
             ca != ca
         }
         ${certifyingScriptContextParam}
         `, ([_], res) => !asBool(res), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
-        testing cert_action_from_data
-        func main(ca: Data) -> CertifyingAction {
-            CertifyingAction::from_data(ca)
+        testing dcert_from_data
+        func main(ca: Data) -> DCert {
+            DCert::from_data(ca)
         }
         ${certifyingScriptContextParam}
         `, ([a], res) => a.data.isSame(asData(res)), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_DCERT"], `
-        testing cert_action_serialize
-        func main(ca: CertifyingAction) -> ByteArray {
+        testing dcert_serialize
+        func main(ca: DCert) -> ByteArray {
             ca.serialize()
         }
         ${certifyingScriptContextParam}
         `, serializeProp, 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
-        testing cert_action_member_eq
+        testing dcert_member_eq
         func main(ctx: ScriptContext) -> Bool {
-            ctx.tx.cert_actions.all((cert_action: CertifyingAction) -> Bool {
-                cert_action.switch{
+            ctx.tx.dcerts.all((dcert: DCert) -> Bool {
+                dcert.switch{
                     r: Register => r == r,
                     d: Deregister => d == d,
                     del: Delegate => del == del,
@@ -3482,10 +3482,10 @@ async function testBuiltins() {
         `, ([_], res) => asBool(res), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
-        testing cert_action_member_neq
+        testing dcert_member_neq
         func main(ctx: ScriptContext) -> Bool {
-            ctx.tx.cert_actions.any((cert_action: CertifyingAction) -> Bool {
-                cert_action.switch{
+            ctx.tx.dcerts.any((dcert: DCert) -> Bool {
+                dcert.switch{
                     r: Register => r != r,
                     d: Deregister => d != d,
                     del: Delegate => del != del,
@@ -3498,10 +3498,10 @@ async function testBuiltins() {
         `, ([_], res) => !asBool(res), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["CURRENT_STAKING_CRED", "POOL_ID", "POOL_VFR", "EPOCH", "SCRIPT_CONTEXT"], `
-        testing cert_action_member_fields
+        testing dcert_member_fields
         func main(staking_cred: StakingCredential, pool_id: PubKeyHash, pool_vrf: PubKeyHash, epoch: Int, ctx: ScriptContext) -> Bool {
-            ctx.tx.cert_actions.any((cert_action: CertifyingAction) -> Bool {
-                cert_action.switch{
+            ctx.tx.dcerts.any((dcert: DCert) -> Bool {
+                dcert.switch{
                     r: Register => r.credential == staking_cred,
                     d: Deregister => d.credential == staking_cred,
                     del: Delegate => del.delegator == staking_cred && del.pool_id == pool_id,
@@ -3514,10 +3514,10 @@ async function testBuiltins() {
         `, ([a], res) => asBool(res), 5);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
-        testing cert_action_member_serialize
+        testing dcert_member_serialize
         func main(ctx: ScriptContext) -> []ByteArray {
-            ctx.tx.cert_actions.map((cert_action: CertifyingAction) -> ByteArray {
-                cert_action.switch{
+            ctx.tx.dcerts.map((dcert: DCert) -> ByteArray {
+                dcert.switch{
                     r: Register => r.serialize(),
                     d: Deregister => d.serialize(),
                     del: Delegate => del.serialize(),
@@ -3616,9 +3616,9 @@ async function testBuiltins() {
         `, ([_], res) => asBool(res), 10);
 
         await ft.testParams({"CURRENT_STAKING_CRED_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
-        testing tx_cert_actions
+        testing tx_dcerts
         func main(ctx: ScriptContext) -> Bool {
-            ctx.tx.cert_actions.length > 0
+            ctx.tx.dcerts.length > 0
         }
         ${certifyingScriptContextParam}
         `, ([_], res) => asBool(res), 5);

@@ -660,7 +660,7 @@ export class Tokenizer {
 	 * @param {Token[]} ts 
 	 * @returns {Group | null}
 	 */
-	buildGroup(ts) {
+	static buildGroup(ts) {
 		const open = assertDefined(ts.shift()).assertSymbol();
 
 		if (!open) {
@@ -739,19 +739,13 @@ export class Tokenizer {
 			return null;
 		}
 
-		const groupedFields = reduceNull(fields.map(f => this.nestGroups(f)));
-
-		if (!groupedFields) {
-			return null;
-		}
-
 		let site = open.site;
 
 		if (endSite) {
 			site = site.merge(endSite);
 		}
 
-		return new Group(site, open.value, groupedFields, firstComma);
+		return new Group(site, open.value, fields, firstComma);
 	}
 
 	/**
@@ -762,26 +756,49 @@ export class Tokenizer {
 	 */
 	nestGroups(ts) {
 		/**
-		 * @type {(Token | null)[]}
+		 * @type {Token[][]}
 		 */
-		let res = [];
+		const stack = [];
 
-		let t = ts.shift();
-		while (t != undefined) {
+		/**
+		 * @type {Token[]}
+		 */
+		let current = [];
+
+		for (let t of ts) {
 			if (Group.isOpenSymbol(t)) {
-				ts.unshift(t);
+				stack.push(current);
 
-				res.push(this.buildGroup(ts));
+				current = [t];
 			} else if (Group.isCloseSymbol(t)) {
-				t.syntaxError(`unmatched '${assertDefined(t.assertSymbol()).value}'`);
-			} else {
-				res.push(t);
-			}
+				const prev = assertDefined(current[0]?.assertSymbol());
+				if (!t.isSymbol(Group.matchSymbol(prev))) {
+					prev.syntaxError(`unmatched '${prev.value}'`);
+					t.syntaxError(`unmatched '${assertDefined(t.assertSymbol()).value}'`);
+					return null;
+				}
 
-			t = ts.shift();
+				current.push(t);
+
+				const group = Tokenizer.buildGroup(current);
+				if (!group) {
+					return null;
+				}
+
+				current = assertDefined(stack.pop());
+
+				current.push(group);
+			} else {
+				current.push(t);
+			}
 		}
 
-		return reduceNull(res);
+		if (stack.length > 0) {
+			const t = assertDefined(stack[stack.length - 1][0]?.assertSymbol());
+			t.syntaxError(`unmacthed '${t.value}'`);
+		}
+		
+		return current;
 	}
 }
 

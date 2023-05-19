@@ -273,7 +273,7 @@ class MainModule extends Module {
 }
 
 /**
- * @typedef {Object.<string, HeliosDataClass<HeliosData>>} UserTypes
+ * @typedef {{[name: string]: any}} UserTypes
  */
 
 /**
@@ -775,17 +775,25 @@ class MainModule extends Module {
 			 * @returns {boolean}
 			 */
 			set(target, name, rawValue) {
-				if (!types[name]) {
-					throw new Error(`invalid parameter name '${name}'`);
+				let permissive = false;
+				if (name.startsWith("?")) {
+					name = name.slice(1);
+					permissive = true;
 				}
 
-				const UserType = assertDefined(types[name].offChainType, `invalid param name '${name}'`);
+				if (!types[name]) {
+					if (!permissive) {
+						throw new Error(`invalid parameter name '${name}'`);
+					}
+				} else {
+					const UserType = assertDefined(types[name].offChainType, `invalid param name '${name}'`);
 
-				const value = rawValue instanceof UserType ? rawValue : new UserType(rawValue);
+					const value = rawValue instanceof UserType ? rawValue : new UserType(rawValue);
 
-				target[name] = value;
+					target[name] = value;
 
-				that.changeParamSafe(name, value._toUplcData());
+					that.changeParamSafe(name, value._toUplcData());
+				}
 
 				return true;
 			}
@@ -880,6 +888,42 @@ class MainModule extends Module {
 	 * @returns {IR}
 	 */
 	static injectMutualRecursions(mainIR, map) {
+		/**
+		 * @param {string} name
+		 * @param {string[]} potentialDependencies 
+		 * @returns {string[]}
+		 */
+		const filterMutualDependencies = (name, potentialDependencies) => {
+			// names to be treated
+			const stack = [name];
+
+			/**
+			 * @type {Set<string>}
+			 */
+			let set = new Set();
+
+			while (stack.length > 0) {
+				const name = assertDefined(stack.shift());
+
+				const ir = assertDefined(map.get(name));
+
+				const localDependencies = potentialDependencies.slice(potentialDependencies.findIndex(n => n == name));
+
+				for (let i = 0; i < localDependencies.length; i++) {
+					const dep = localDependencies[i];
+					if (ir.includes(dep)) {
+						set.add(dep)
+
+						if (dep != name) {
+							stack.push(dep);
+						}
+					}
+				}
+			}
+
+			return potentialDependencies.filter(d => set.has(d));
+		}
+
 		const keys = Array.from(map.keys());
 
 		for (let i = keys.length - 1; i >= 0; i--) {
@@ -892,29 +936,35 @@ class MainModule extends Module {
 				continue;
 			}
 
+			let prefix = assertDefined(k.match(/(__const)?([^[]+)(\[|$)/))[0];
+
 			// get all following definitions including self, excluding constants
 			// also don't mutual recurse helios functions
-			const others = keys.slice(i, i+1).filter(k => !k.startsWith("__const") && !k.startsWith("__helios") && !k.endsWith("__from_data") && !k.includes("____"));
+			const potentialDependencies = keys.slice(i).filter(k => (k.startsWith(prefix) || k.startsWith(`__const${prefix}`)) && !k.endsWith("__from_data") && !k.includes("____"));
 
-			const escaped = k.replace(/\[/g, "\\[").replace(/]/g, "\\]");
+			const dependencies = filterMutualDependencies(k, potentialDependencies);
 
-			const re = new RegExp(`\\b${escaped}(\\b|$)`, "gm");
-			const newStr = `${k}(${others.join(", ")})`;
-			// do the actual replacing
-			for (let k_ of keys) {
-				map.set(k_, assertDefined(map.get(k_)).replace(re, newStr));
+			if (dependencies.length > 0) {
+				const escaped = k.replace(/\[/g, "\\[").replace(/]/g, "\\]");
+
+				const re = new RegExp(`\\b${escaped}(\\b|$)`, "gm");
+				const newStr = `${k}(${dependencies.join(", ")})`;
+				// do the actual replacing
+				for (let k_ of keys) {
+					map.set(k_, assertDefined(map.get(k_)).replace(re, newStr));
+				}
+
+				mainIR = mainIR.replace(re, newStr);
+
+				const wrapped = new IR([
+					new IR(`(${dependencies.join(", ")}) -> {`),
+					assertDefined(map.get(k)),
+					new IR("}")
+				]);
+
+				// wrap own definition
+				map.set(k, wrapped);
 			}
-
-			mainIR = mainIR.replace(re, newStr);
-
-			const wrapped = new IR([
-				new IR(`(${others.join(", ")}) -> {`),
-				assertDefined(map.get(k)),
-				new IR("}")
-			]);
-
-			// wrap own definition
-			map.set(k, wrapped);
 		}
 
 		return mainIR;

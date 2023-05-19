@@ -275,10 +275,10 @@ export class Tx extends CborData {
 
 	/**
 	 * @param {UTxO} input
-	 * @param {?(UplcDataValue | UplcData)} redeemer
+	 * @param {?(UplcDataValue | UplcData | HeliosData)} rawRedeemer
 	 * @returns {Tx}
 	 */
-	addInput(input, redeemer = null) {
+	addInput(input, rawRedeemer = null) {
 		assert(!this.#valid);
 
 		if (input.origOutput === null) {
@@ -286,10 +286,12 @@ export class Tx extends CborData {
 		} else {
 			void this.#body.addInput(input.asTxInput);
 
-			if (redeemer !== null) {
+			if (rawRedeemer !== null) {
 				assert(input.origOutput.address.validatorHash !== null, "input isn't locked by a script");
 
-				this.#witnesses.addSpendingRedeemer(input.asTxInput, UplcDataValue.unwrap(redeemer));
+				const redeemer = rawRedeemer instanceof HeliosData ? rawRedeemer._toUplcData() : UplcDataValue.unwrap(rawRedeemer);
+
+				this.#witnesses.addSpendingRedeemer(input.asTxInput, redeemer);
 
 				if (input.origOutput.datum === null) {
 					throw new Error("expected non-null datum");
@@ -319,7 +321,7 @@ export class Tx extends CborData {
 
 	/**
 	 * @param {UTxO[]} inputs
-	 * @param {?(UplcDataValue | UplcData)} redeemer
+	 * @param {?(UplcDataValue | UplcData | HeliosData)} redeemer
 	 * @returns {Tx}
 	 */
 	addInputs(inputs, redeemer = null) {
@@ -2312,6 +2314,17 @@ class TxInput extends CborData {
 			throw new Error("origOutput not set");
 		} else {
 			return this.#origOutput;
+		}
+	}
+
+	/**
+	 * @type {UTxO}
+	 */
+	get utxo() {
+		if (this.#origOutput === null) {
+			throw new Error("origOutput not set");
+		} else {
+			return new UTxO(this.#txId, this.#utxoIdx, this.#origOutput);
 		}
 	}
 

@@ -176,7 +176,34 @@ export default async function main() {
         (fibonacci(1) == 1) && x.length() == 12
     }`, "expected function, got Int", []);
 
-    // 7. list_get ok
+    // 7. mutual recursion
+    // * mutual recursive struct statements in wrong order
+    await runTestScript(`
+    testing mutual_recursion
+
+    struct Wrapper {
+        a: Int
+
+        func fn1(self) -> Int {
+            self.fn2()
+        }
+
+        func fn2(self) -> Int {
+            self.fn3()
+        }
+
+        func fn3(self) -> Int {
+            self.a
+        }
+    }
+
+    func main() -> Int {
+        w = Wrapper{1};
+
+        w.fn1()
+    }`, "data(1)", []);
+
+    // 8. list_get ok
     await runTestScript(`
     testing list_get
     func main() -> Bool {
@@ -185,7 +212,7 @@ export default async function main() {
         x.get(2) == 3
     }`, "data(1{})", "1");
 
-    // 8. list_get nok
+    // 9. list_get nok
     // * error thrown by builtin
     await runTestScript(`
     testing list_get
@@ -195,7 +222,7 @@ export default async function main() {
         x.get(-1) == 3
     }`, "index out of range", "1");
 
-    // 9. multiple_args
+    // 10. multiple_args
     // * function that takes more than 1 arguments
     await runTestScript(`
     testing multiple_args
@@ -207,7 +234,7 @@ export default async function main() {
         true
     }`, "data(1{})", ["hello world"]);
 
-    // 10. collatz recursion
+    // 11. collatz recursion
     // * recursion
     await runTestScript(`
     testing collatz
@@ -224,7 +251,7 @@ export default async function main() {
         collatz(3, []Int{})
     }`, "data([1, 2, 4, 8, 16, 5, 10, 3])", []);
 
-    // 11. list_any
+    // 12. list_any
     // * member function as value
     await runTestScript(`
     testing list_any
@@ -237,7 +264,7 @@ export default async function main() {
         main_inner([]Int{1,2,3,4,5,6,10}.any)
     }`, "data(1{})", []);
     
-    // 12. value_get
+    // 13. value_get
     await runTestScript(`
     testing value_get
     func main() -> []Int {
@@ -251,7 +278,7 @@ export default async function main() {
         []Int{x.get(ac1), x.get(ac2), x.get(ac3)}
     }`, "policy not found", []);
 
-    // 13. switch_redeemer
+    // 14. switch_redeemer
     await runTestScript(`
     testing staking
     enum Redeemer {
@@ -273,7 +300,7 @@ export default async function main() {
         true
     }`, "data(1{})", ["false", "true", "false"]);
 
-    // 14. struct method recursion
+    // 15. struct method recursion
     await runTestScript(`
     testing fibonacci_struct
     struct Fib {
@@ -296,7 +323,7 @@ export default async function main() {
         fib.calc(5)
     }`, "data(13)", []);
 
-    // 15. enum method recursion
+    // 16. enum method recursion
     await runTestScript(`
     testing fibonacci_enum
     enum Fib {
@@ -510,7 +537,7 @@ export default async function main() {
 		},
 		Value::lovelace(FEE),
 		Value::ZERO,
-		[]CertifyingAction{},
+		[]DCert{},
 		Map[StakingCredential]Int{},
 		TimeRange::new(Time::new(0), Time::new(100)),
 		[]PubKeyHash{PubKeyHash::new(PUB_KEY_HASH_BYTES)},
@@ -594,7 +621,7 @@ export default async function main() {
             []TxOutput{good_owner_output},
             Value::lovelace(160000),
             Value::ZERO,
-            []CertifyingAction{},
+            []DCert{},
             Map[StakingCredential]Int{},
             TimeRange::from(Time::new(1001)),
             []PubKeyHash{PubKeyHash::new(#9876543210012345678901234567890123456789012345678901234567891234)},

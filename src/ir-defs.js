@@ -2772,10 +2772,10 @@ function makeRawFunctions() {
 		))
 	}`));
 	add(new RawFunc("__helios__scriptcontext__new_certifying",
-	`(tx, action) -> {
+	`(tx, dcert) -> {
 		__core__constrData(0, __helios__common__list_2(
 			tx,
-			__core__constrData(3, __helios__common__list_1(action))
+			__core__constrData(3, __helios__common__list_1(dcert))
 		))
 	}`));
 	add(new RawFunc("__helios__scriptcontext__tx", "__helios__common__field_0"));
@@ -2886,7 +2886,7 @@ function makeRawFunctions() {
 	
 	// StakingPurpose::Certifying builtins
 	addEnumDataFuncs("__helios__stakingpurpose__certifying", 3);
-	add(new RawFunc("__helios__stakingpurpose__certifying__action", "__helios__common__field_0"));
+	add(new RawFunc("__helios__stakingpurpose__certifying__dcert", "__helios__common__field_0"));
 
 
 	// ScriptPurpose builtins
@@ -2929,71 +2929,71 @@ function makeRawFunctions() {
 	
 	// ScriptPurpose::Certifying builtins
 	addEnumDataFuncs("__helios__scriptpurpose__certifying", 3);
-	add(new RawFunc("__helios__scriptpurpose__certifying__action", "__helios__common__field_0"));
+	add(new RawFunc("__helios__scriptpurpose__certifying__dcert", "__helios__common__field_0"));
 
 
 	// DCert builtins
-	addDataFuncs("__helios__certifyingaction");
-	add(new RawFunc("__helios__certifyingaction__new_register",
+	addDataFuncs("__helios__dcert");
+	add(new RawFunc("__helios__dcert__new_register",
 	`(cred) -> {
 		__core__constrData(0, __helios__common__list_1(cred))
 	}`));
-	add(new RawFunc("__helios__certifyingaction__new_deregister",
+	add(new RawFunc("__helios__dcert__new_deregister",
 	`(cred) -> {
 		__core__constrData(1, __helios__common__list_1(cred))
 	}`));
-	add(new RawFunc("__helios__certifyingaction__new_delegate",
+	add(new RawFunc("__helios__dcert__new_delegate",
 	`(cred, pool_id) -> {
 		__core__constrData(2, __helios__common__list_2(cred, __helios__pubkeyhash____to_data(pool_id)))
 	}`));
-	add(new RawFunc("__helios__certifyingaction__new_register_pool",
+	add(new RawFunc("__helios__dcert__new_register_pool",
 	`(id, vrf) -> {
 		__core__constrData(3, __helios__common__list_2(__helios__pubkeyhash____to_data(id), __helios__pubkeyhash____to_data(vrf)))
 	}`));
-	add(new RawFunc("__helios__certifyingaction__new_retire_pool",
+	add(new RawFunc("__helios__dcert__new_retire_pool",
 	`(id, epoch) -> {
 		__core__constrData(4, __helios__common__list_2(__helios__pubkeyhash____to_data(id), __helios__int____to_data(epoch)))
 	}`));
 
 
 	// DCert::Register builtins
-	addEnumDataFuncs("__helios__certifyingaction__register", 0);
-	add(new RawFunc("__helios__certifyingaction__register__credential", "__helios__common__field_0"));
+	addEnumDataFuncs("__helios__dcert__register", 0);
+	add(new RawFunc("__helios__dcert__register__credential", "__helios__common__field_0"));
 
 
 	// DCert::Deregister builtins
-	addEnumDataFuncs("__helios__certifyingaction__deregister", 1);
-	add(new RawFunc("__helios__certifyingaction__deregister__credential", "__helios__common__field_0"));
+	addEnumDataFuncs("__helios__dcert__deregister", 1);
+	add(new RawFunc("__helios__dcert__deregister__credential", "__helios__common__field_0"));
 
 
 	// DCert::Delegate builtins
-	addEnumDataFuncs("__helios__certifyingaction__delegate", 2);
-	add(new RawFunc("__helios__certifyingaction__delegate__delegator", "__helios__common__field_0"));
-	add(new RawFunc("__helios__certifyingaction__delegate__pool_id", 
+	addEnumDataFuncs("__helios__dcert__delegate", 2);
+	add(new RawFunc("__helios__dcert__delegate__delegator", "__helios__common__field_0"));
+	add(new RawFunc("__helios__dcert__delegate__pool_id", 
 	`(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__field_1(self))
 	}`));
 
 
 	// DCert::RegisterPool builtins
-	addEnumDataFuncs("__helios__certifyingaction__registerpool", 3);
-	add(new RawFunc("__helios__certifyingaction__registerpool__pool_id", 
+	addEnumDataFuncs("__helios__dcert__registerpool", 3);
+	add(new RawFunc("__helios__dcert__registerpool__pool_id", 
 	`(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__field_0(self))
 	}`));
-	add(new RawFunc("__helios__certifyingaction__registerpool__pool_vrf", 
+	add(new RawFunc("__helios__dcert__registerpool__pool_vrf", 
 	`(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__field_1(self))
 	}`));
 
 
 	// DCert::RetirePool builtins
-	addEnumDataFuncs("__helios__certifyingaction__retirepool", 4);
-	add(new RawFunc("__helios__certifyingaction__retirepool__pool_id", 
+	addEnumDataFuncs("__helios__dcert__retirepool", 4);
+	add(new RawFunc("__helios__dcert__retirepool__pool_id", 
 	`(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__field_0(self))
 	}`));
-	add(new RawFunc("__helios__certifyingaction__retirepool__epoch", 
+	add(new RawFunc("__helios__dcert__retirepool__epoch", 
 	`(self) -> {
 		__helios__int__from_data(__helios__common__field_1(self))
 	}`));
@@ -3002,14 +3002,14 @@ function makeRawFunctions() {
 	// Tx builtins
 	addDataFuncs("__helios__tx");
 	add(new RawFunc(`__helios__tx__new[${FTPP}0@${FTPP}1]`,
-	`(inputs, ref_inputs, outputs, fee, minted, cert_actions, withdrawals, validity, signatories, redeemers, datums, txId) -> {
+	`(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums, txId) -> {
 		__core__constrData(0, __helios__common__list_12(
 			__core__listData(inputs),
 			__core__listData(ref_inputs),
 			__core__listData(outputs),
 			__core__mapData(fee),
 			__core__mapData(minted),
-			__core__listData(cert_actions),
+			__core__listData(dcerts),
 			__core__mapData(withdrawals),
 			validity,
 			__core__listData(signatories),
@@ -3038,7 +3038,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		__core__unMapData(__helios__common__field_4(self))
 	}`));
-	add(new RawFunc("__helios__tx__cert_actions", 
+	add(new RawFunc("__helios__tx__dcerts", 
 	`(self) -> {
 		__core__unListData(__helios__common__field_5(self))
 	}`));
@@ -3224,20 +3224,22 @@ function makeRawFunctions() {
 		)
 	}`));
 	add(new RawFunc(`__helios__tx__outputs_paid_to[${FTPP}0]`,
-	`(self, addr, datum) -> {
-		__helios__tx__filter_outputs(
-			self, 
-			(output) -> {
-				__helios__bool__and(
-					() -> {
-						__helios__address____eq(__helios__txoutput__address(output), addr)
-					},
-					() -> {
-						__helios__txoutput__has_inline_datum[${FTPP}0](output, datum)
-					}
-				)
-			}
-		)
+	`(self) -> {
+		(addr, datum) -> {
+			__helios__tx__filter_outputs(
+				self, 
+				(output) -> {
+					__helios__bool__and(
+						() -> {
+							__helios__address____eq(__helios__txoutput__address(output), addr)
+						},
+						() -> {
+							__helios__txoutput__has_inline_datum[${FTPP}0](output, datum)
+						}
+					)
+				}
+			)
+		}
 	}`));
 	add(new RawFunc("__helios__tx__value_sent_to",
 	`(self) -> {
@@ -3596,6 +3598,7 @@ function makeRawFunctions() {
 
 	// Credential::Validator builtins
 	addEnumDataFuncs("__helios__credential__validator", 1);
+	add(new RawFunc("__helios__credential__validator____new", "__helios__credential__new_validator"));
 	add(new RawFunc("__helios__credential__validator__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 1)

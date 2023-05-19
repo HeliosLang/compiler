@@ -13,7 +13,9 @@ import {
     UTxO
 } from "./tx-builder.js";
 
-
+/**
+ * @typedef {(utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]]} CoinSelectionAlgorithm
+ */
 
 /**
  * Collection of coin selection algorithms
@@ -129,18 +131,14 @@ export class CoinSelection {
     }
 
     /**
-     * @param {UTxO[]} utxos 
-     * @param {Value} amount 
-     * @returns {[UTxO[], UTxO[]]} - [selected, not selected]
+     * @type {CoinSelectionAlgorithm}
      */
     static selectSmallestFirst(utxos, amount) {
         return CoinSelection.selectExtremumFirst(utxos, amount, false);
     }
 
     /**
-     * @param {UTxO[]} utxos 
-     * @param {Value} amount 
-     * @returns {[UTxO[], UTxO[]]} - [selected, not selected]
+     * @type {CoinSelectionAlgorithm}
      */
     static selectLargestFirst(utxos, amount) {
         return CoinSelection.selectExtremumFirst(utxos, amount, true);

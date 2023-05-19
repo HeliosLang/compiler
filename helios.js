@@ -151,17 +151,14 @@
 //
 //     Section 20: Eval money types          AssetClassType, ValueType, ValuableTypeClass
 //
-//     Section 21: Eval tx types             AddressType, CertifyingActionType, 
-//                                           CertifyingActionDelegateType, 
-//                                           CertifyingActionDeregisterType, 
-//                                           CertifyingActionRegisterType, 
-//                                           CertifyingActionRegisterPoolType, 
-//                                           CertifyingActionRetirePoolType, CredentialType, 
-//                                           CredentialPubKeyType, CredentialValidatorType, 
-//                                           OutputDatumType, OutputDatumHashType, 
-//                                           OutputDatumInlineType, OutputDatumNoneType, 
-//                                           ScriptContextType, ScriptPurposeType, 
-//                                           ScriptPurposeCertifyingType, 
+//     Section 21: Eval tx types             AddressType, DCertType, DCertDelegateType, 
+//                                           DCertDeregisterType, DCertRegisterType, 
+//                                           DCertRegisterPoolType, DCertRetirePoolType, 
+//                                           CredentialType, CredentialPubKeyType, 
+//                                           CredentialValidatorType, OutputDatumType, 
+//                                           OutputDatumHashType, OutputDatumInlineType, 
+//                                           OutputDatumNoneType, ScriptContextType, 
+//                                           ScriptPurposeType, ScriptPurposeCertifyingType, 
 //                                           ScriptPurposeMintingType, ScriptPurposeTypeRewarding, 
 //                                           ScriptPurposeSpendingType, StakingCredentialType, 
 //                                           StakingCredentialHashType, StakingCredentialPtrType, 
@@ -2470,6 +2467,18 @@ class StringLiteral extends PrimitiveLiteral {
 	}
 
 	/**
+	 * @param {string} str 
+	 * @returns {boolean}
+	 */
+	includes(str) {
+		if (typeof this.#content == "string") {
+			return this.#content.includes(str);
+		} else {
+			return this.#content.some(ir => ir.includes(str));
+		}
+	}
+
+	/**
 	 * @param {RegExp} re 
 	 * @param {string} newStr
 	 * @returns {IR}
@@ -2742,8 +2751,9 @@ class IRParametricName {
 					if (depth > 1) {
 						chars.push(c);
 					} else {
-						assert(chars.length > 0, "zero chars in group before ]");
-						groups.push(chars);
+						if (chars.length > 0) {
+							groups.push(chars);	
+						}
 						chars = [];
 					}
 					depth--;
@@ -2871,6 +2881,7 @@ function irotr(x, n) {
 }
 
 /**
+ * Positive modulo operator
  * @package
  * @param {bigint} x 
  * @param {bigint} n 
@@ -4138,20 +4149,21 @@ export class Crypto {
      * @package
 	 */
 	static get Ed25519() {
+		/**
+		 * @template {Point<T>} T
+		 * @typedef {{
+		 *   add(other: T): T
+		 *   mul(scalar: bigint): T
+		 *   encode(): number[]
+		 * }} Point
+		 */
+
 		const Q = 57896044618658097711785492504343953926634992332820282019728792003956564819949n; // ipowi(255n) - 19n
 		const Q38 = 7237005577332262213973186563042994240829374041602535252466099000494570602494n; // (Q + 3n)/8n
 		const CURVE_ORDER = 7237005577332262213973186563042994240857116359379907606001950938285454250989n; // ipow2(252n) + 27742317777372353535851937790883648493n;
 		const D = -4513249062541557337682894930092624173785641285191125241628941591882900924598840740n; // -121665n * invert(121666n);
 		const I = 19681161376707505956807079304988542015446066515923890162744021073123829784752n; // expMod(2n, (Q - 1n)/4n, Q);
-		
-		/**
-		 * @type {[bigint, bigint]}
-		 */
-		const BASE = [
-			15112221349535400772501151409588531511454012693041857206046113283949847762202n, // recoverX(B[1]) % Q
-			46316835694926478169428394003475163141307993866256225615783033603165251855960n, // (4n*invert(5n)) % Q
-		];
-
+	
 		/**
 		 * @param {bigint} b 
 		 * @param {bigint} e 
@@ -4174,11 +4186,19 @@ export class Crypto {
 		}
 
 		/**
+		 * @param {bigint} x 
+		 * @returns {bigint}
+		 */
+		function curveMod(x) {
+			return posMod(x, Q)
+		}
+
+		/**
 		 * @param {bigint} n 
 		 * @returns {bigint}
 		 */
 		function invert(n) {
-			let a = posMod(n, Q);
+			let a = curveMod(n);
 			let b = Q;
 
 			let x = 0n;
@@ -4199,7 +4219,7 @@ export class Crypto {
 				v = n;
 			}
 
-			return posMod(x, Q)
+			return curveMod(x);
 		}
 
 		/**
@@ -4220,43 +4240,6 @@ export class Crypto {
 			}
 
 			return x;
-		}		
-
-		/**
-		 * Curve point 'addition'
-		 * Note: this is probably the bottleneck of this Ed25519 implementation
-		 * @param {[bigint, bigint]} a 
-		 * @param {[bigint, bigint]} b 
-		 * @returns {[bigint, bigint]}
-		 */
-		function edwards(a, b) {
-			const x1 = a[0];
-			const y1 = a[1];
-			const x2 = b[0];
-			const y2 = b[1];
-			const dxxyy = D*x1*x2*y1*y2;
-			const x3 = (x1*y2+x2*y1) * invert(1n+dxxyy);
-			const y3 = (y1*y2+x1*x2) * invert(1n-dxxyy);
-			return [posMod(x3, Q), posMod(y3, Q)];
-		}
-
-		/**
-		 * @param {[bigint, bigint]} point 
-		 * @param {bigint} n 
-		 * @returns {[bigint, bigint]}
-		 */
-		function scalarMul(point, n) {
-			if (n == 0n) {
-				return [0n, 1n];
-			} else {
-				let sum = scalarMul(point, n/2n);
-				sum = edwards(sum, sum);
-				if ((n % 2n) != 0n) {
-					sum = edwards(sum, point);
-				}
-
-				return sum;
-			}
 		}
 
 		/**
@@ -4283,22 +4266,6 @@ export class Crypto {
 		}
 
 		/**
-		 * @param {[bigint, bigint]} point
-		 * @returns {number[]}
-		 */
-		function encodePoint(point) {
-			const [x, y] = point;
-
-			const bytes = encodeInt(y);
-
-			// last bit is determined by x
-
-			bytes[31] = (bytes[31] & 0b011111111) | (Number(x & 1n) * 0b10000000);
-
-			return bytes;
-		}
-
-		/**
 		 * @param {number[]} bytes 
 		 * @param {number} i - bit index
 		 * @returns {number} - 0 or 1
@@ -4308,43 +4275,294 @@ export class Crypto {
 		}
 
 		/**
-		 * @param {[bigint, bigint]} point
-		 * @returns {boolean}
+		 * @implements {Point<AffinePoint>}
 		 */
-		function isOnCurve(point) {
-			const x = point[0];
-			const y = point[1];
-			const xx = x*x;
-			const yy = y*y;
-			return (-xx + yy - 1n - D*xx*yy) % Q == 0n;
-		}
+		class AffinePoint {
+			#x;
+			#y;
 
-		/**
-		 * @param {number[]} s 
-		 */
-		function decodePoint(s) {
-			assert(s.length == 32);
-
-			const bytes = s.slice();
-			bytes[31] = bytes[31] & 0b01111111;
-
-			const y = decodeInt(bytes);
-
-			let x = recoverX(y);
-			if (Number(x & 1n) != getBit(s, 255)) {
-				x = Q - x;
+			/**
+			 * @param {bigint} x 
+			 * @param {bigint} y 
+			 */
+			constructor(x, y) {
+				this.#x = x;
+				this.#y = y;
 			}
 
 			/**
-			 * @type {[bigint, bigint]}
+			 * @type {AffinePoint}
 			 */
-			const point = [x, y];
-
-			if (!isOnCurve(point)) {
-				throw new Error("point isn't on curve");
+			static get BASE() {
+				return new AffinePoint(
+					15112221349535400772501151409588531511454012693041857206046113283949847762202n, // recoverX(B[1]) % Q
+					46316835694926478169428394003475163141307993866256225615783033603165251855960n  // (4n*invert(5n)) % Q
+				);
+			}
+			
+			/**
+			 * @type {AffinePoint}
+			 */
+			static get ZERO() {
+				return new AffinePoint(0n, 1n);
 			}
 
-			return point;
+			/**
+			 * @param {number[]} bytes 
+			 * @returns {AffinePoint}
+			 */
+			static decode(bytes) {
+				assert(bytes.length == 32);
+
+				bytes = bytes.slice();
+				bytes[31] = bytes[31] & 0b01111111;
+	
+				const y = decodeInt(bytes);
+	
+				let x = recoverX(y);
+				if (Number(x & 1n) != getBit(bytes, 255)) {
+					x = Q - x;
+				}
+	
+				const point = new AffinePoint(x, y);
+	
+				assert(point.isOnCurve(), "point isn't on curve");
+	
+				return point;
+			}
+
+			/**
+			 * @type {bigint}
+			 */
+			get x() {
+				return this.#x;
+			}
+
+			/**
+			 * @type {bigint}
+			 */
+			get y() {
+				return this.#y;
+			}
+
+			/** Curve point 'addition'
+		     * Note: the invert in this calculation is very slow
+			 * @param {AffinePoint} other 
+			 * @returns {AffinePoint}
+			 */
+			add(other) {
+				const x1 = this.#x;
+				const y1 = this.#y;
+				const x2 = other.#x;
+				const y2 = other.#y;
+				const dxxyy = D*x1*x2*y1*y2;
+				const x3 = (x1*y2+x2*y1) * invert(1n+dxxyy);
+				const y3 = (y1*y2+x1*x2) * invert(1n-dxxyy);
+
+				return new AffinePoint(
+					curveMod(x3), 
+					curveMod(y3)
+				);
+			}
+
+			/**
+			 * @returns {boolean}
+			 */
+		 	isOnCurve() {
+				const x = this.#x;
+				const y = this.#y;
+				const xx = x*x;
+				const yy = y*y;
+				return (-xx + yy - 1n - D*xx*yy) % Q == 0n;
+			}
+
+			/**
+			 * @param {bigint} s 
+			 * @returns {AffinePoint}
+			 */
+			mul(s) {
+				if (s == 0n) {
+					return AffinePoint.ZERO;
+				} else {
+					let sum = this.mul(s/2n);
+
+					sum = sum.add(sum);
+
+					if ((s % 2n) != 0n) {
+						sum = sum.add(this);
+					}
+	
+					return sum;
+				}
+			}
+
+			/**
+			 * @returns {number[]}
+			 */
+			encode() {
+				const bytes = encodeInt(this.#y);
+	
+				// last bit is determined by x
+	
+				bytes[31] = (bytes[31] & 0b011111111) | (Number(this.#x & 1n) * 0b10000000);
+	
+				return bytes;
+			}
+		}
+
+		/**
+		 * Extended point implementation take from @noble/ed25519
+		 * @implements {Point<ExtendedPoint>}
+		 */
+		class ExtendedPoint {
+			#x;
+			#y;
+			#z;
+			#t; // saves recalculation of curveMod(x*y)
+
+			/**
+			 * @param {bigint} x 
+			 * @param {bigint} y 
+			 * @param {bigint} z 
+			 * @param {bigint} t 
+			 */
+			constructor(x, y, z, t) {
+				this.#x = x;
+				this.#y = y;
+				this.#z = z;
+				this.#t = t;
+			}
+
+			/**
+			 * @type {ExtendedPoint}
+			 */
+			static get BASE() {
+				return new ExtendedPoint(
+					AffinePoint.BASE.x,
+					AffinePoint.BASE.y,
+					1n,
+					curveMod(AffinePoint.BASE.x*AffinePoint.BASE.y)
+				)
+			}
+
+			/**
+			 * @type {ExtendedPoint}
+			 */
+			static get ZERO() {
+				return new ExtendedPoint(0n, 1n, 1n, 0n);
+			}
+
+			/**
+			 * @param {number[]} bytes 
+			 * @returns {ExtendedPoint}
+			 */
+			static decode(bytes) {
+				return ExtendedPoint.fromAffine(AffinePoint.decode(bytes));
+			}
+
+			/**
+			 * @param {AffinePoint} affine 
+			 * @returns {ExtendedPoint}
+			 */
+			static fromAffine(affine) {
+				return new ExtendedPoint(affine.x, affine.y, 1n, curveMod(affine.x*affine.y));
+			}
+
+			/**
+			 * @param {ExtendedPoint} other 
+			 * @returns {ExtendedPoint}
+			 */
+			add(other) {
+				const x1 = this.#x;
+				const y1 = this.#y;
+				const z1 = this.#z;
+				const t1 = this.#t;
+
+				const x2 = other.#x;
+				const y2 = other.#y;
+				const z2 = other.#z;
+				const t2 = other.#t;
+
+				const a = curveMod(x1*x2);
+				const b = curveMod(y1*y2);
+				const c = curveMod(D*t1*t2);
+				const d = curveMod(z1*z2);
+				const e = curveMod((x1 + y1)*(x2 + y2) - a - b);
+				const f = curveMod(d - c);
+				const g = curveMod(d + c);
+				const h = curveMod(a + b);
+				const x3 = curveMod(e*f);
+				const y3 = curveMod(g*h);
+				const z3 = curveMod(f*g);
+				const t3 = curveMod(e*h);
+				
+				return new ExtendedPoint(x3, y3, z3, t3);
+			}
+
+			/**
+			 * @returns {number[]}
+			 */
+			encode() {
+				return this.toAffine().encode()
+			}
+
+			/**
+			 * @param {ExtendedPoint} other 
+			 * @returns {boolean}
+			 */
+			equals(other) {
+				return (curveMod(this.#x*other.#z) == curveMod(other.#x*this.#z)) && (curveMod(this.#y*other.#z) == curveMod(other.#y*this.#z));
+			}
+
+			/**
+			 * @returns {boolean}
+			 */
+			isBase() {
+				return this.equals(ExtendedPoint.BASE);
+			}
+
+			/**
+			 * @returns {boolean}
+			 */
+			isZero() {
+				return this.equals(ExtendedPoint.ZERO);
+			}
+
+			/**
+			 * @param {bigint} s 
+			 * @returns {ExtendedPoint}
+			 */
+			mul(s) {
+				if (s == 0n) {
+					return ExtendedPoint.ZERO;
+				} else {
+					let sum = this.mul(s/2n);
+
+					sum = sum.add(sum);
+
+					if ((s % 2n) != 0n) {
+						sum = sum.add(this);
+					}
+	
+					return sum;
+				}
+			}
+
+			/**
+			 * @returns {AffinePoint}
+			 */
+			toAffine() {
+				if (this.isZero()) {
+					return new AffinePoint(0n, 0n);
+				} else {
+					const zInverse = invert(this.#z);
+
+					return new AffinePoint(
+						curveMod(this.#x*zInverse),
+						curveMod(this.#y*zInverse)
+					);
+				}
+			}
 		}
 
 		/**
@@ -4373,6 +4591,8 @@ export class Crypto {
 			return decodeInt(h);
 		}
 
+		const PointImpl = ExtendedPoint
+
 		return {
 			/**
 			 * @param {number[]} privateKey 
@@ -4381,9 +4601,9 @@ export class Crypto {
 			derivePublicKey: function(privateKey) {
 				const privateKeyHash = Crypto.sha2_512(privateKey);
 				const a = calca(privateKeyHash);
-				const A = scalarMul(BASE, a);
+				const A = PointImpl.BASE.mul(a);
 
-				return encodePoint(A);
+				return A.encode();
 			},
 
 			/**
@@ -4396,13 +4616,14 @@ export class Crypto {
 				const a = calca(privateKeyHash);
 
 				// for convenience calculate publicKey here:
-				const publicKey = encodePoint(scalarMul(BASE, a));
+				const publicKey = PointImpl.BASE.mul(a).encode();
 
 				const r = ihash(privateKeyHash.slice(32, 64).concat(message));
-				const R = scalarMul(BASE, r);
-				const S = posMod(r + ihash(encodePoint(R).concat(publicKey).concat(message))*a, CURVE_ORDER);
+				const R = PointImpl.BASE.mul(r);
+				const Rencoded = R.encode();
+				const S = posMod(r + ihash(Rencoded.concat(publicKey).concat(message))*a, CURVE_ORDER);
 
-				return encodePoint(R).concat(encodeInt(S));
+				return Rencoded.concat(encodeInt(S));
 			},
 
 			/**
@@ -4420,13 +4641,13 @@ export class Crypto {
 					throw new Error(`unexpected publickey length ${publicKey.length}`);
 				}
 
-				const R = decodePoint(signature.slice(0, 32));
-				const A = decodePoint(publicKey);
+				const R = PointImpl.decode(signature.slice(0, 32));
+				const A = PointImpl.decode(publicKey);
 				const S = decodeInt(signature.slice(32, 64));
 				const h = ihash(signature.slice(0, 32).concat(publicKey).concat(message));
 
-				const left = scalarMul(BASE, S);
-				const right = edwards(R, scalarMul(A, h));
+				const left = PointImpl.BASE.mul(S);
+				const right = R.add(A.mul(h));
 
 				return (left[0] == right[0]) && (left[1] == right[1]);
 			}
@@ -7646,6 +7867,13 @@ export class AssetClass extends HeliosData {
     static fromUplcCbor(bytes) {
         return AssetClass.fromUplcData(UplcData.fromCbor(bytes));
     }
+
+	/**
+	 * @type {AssetClass}
+	 */
+	static get ADA() {
+		return new AssetClass(new MintingPolicyHash(""), "");
+	}
 }
 
 
@@ -7695,6 +7923,21 @@ export class Assets extends CborData {
 		})
 
 		return count;
+	}
+
+	/**
+	 * Returns empty if mph not found
+	 * @param {MintingPolicyHash} mph
+	 * @returns {[number[], bigint][]}
+	 */
+	getTokens(mph) {
+		const i = this.#assets.findIndex(entry => entry[0].eq(mph));
+
+		if (i != -1) {
+			return this.#assets[i][1];
+		} else {
+			return [];
+		}
 	}
 
 	/**
@@ -7816,6 +8059,16 @@ export class Assets extends CborData {
 	 */
 	sub(other) {
 		return this.applyBinOp(other, (a, b) => a - b);
+	}
+
+	/**
+	 * @param {bigint} scalar 
+	 * @returns {Assets}
+	 */
+	mul(scalar) {
+		return new Assets(this.#assets.map(([mph, tokens]) => {
+			return [mph, tokens.map(([token, qty]) => [token, qty*scalar])]
+		}))
 	}
 
 	/**
@@ -8195,6 +8448,14 @@ export class Value extends HeliosData {
 	 */
 	sub(other) {
 		return new Value(this.#lovelace - other.#lovelace, this.#assets.sub(other.#assets));
+	}
+
+	/**
+	 * @param {bigint} scalar 
+	 * @returns {Value}
+	 */
+	mul(scalar) {
+		return new Value(this.#lovelace*scalar, this.#assets.mul(scalar))
 	}
 
 	/**
@@ -13850,7 +14111,7 @@ export class Tokenizer {
 	 * @param {Token[]} ts 
 	 * @returns {Group | null}
 	 */
-	buildGroup(ts) {
+	static buildGroup(ts) {
 		const open = assertDefined(ts.shift()).assertSymbol();
 
 		if (!open) {
@@ -13929,19 +14190,13 @@ export class Tokenizer {
 			return null;
 		}
 
-		const groupedFields = reduceNull(fields.map(f => this.nestGroups(f)));
-
-		if (!groupedFields) {
-			return null;
-		}
-
 		let site = open.site;
 
 		if (endSite) {
 			site = site.merge(endSite);
 		}
 
-		return new Group(site, open.value, groupedFields, firstComma);
+		return new Group(site, open.value, fields, firstComma);
 	}
 
 	/**
@@ -13952,26 +14207,49 @@ export class Tokenizer {
 	 */
 	nestGroups(ts) {
 		/**
-		 * @type {(Token | null)[]}
+		 * @type {Token[][]}
 		 */
-		let res = [];
+		const stack = [];
 
-		let t = ts.shift();
-		while (t != undefined) {
+		/**
+		 * @type {Token[]}
+		 */
+		let current = [];
+
+		for (let t of ts) {
 			if (Group.isOpenSymbol(t)) {
-				ts.unshift(t);
+				stack.push(current);
 
-				res.push(this.buildGroup(ts));
+				current = [t];
 			} else if (Group.isCloseSymbol(t)) {
-				t.syntaxError(`unmatched '${assertDefined(t.assertSymbol()).value}'`);
-			} else {
-				res.push(t);
-			}
+				const prev = assertDefined(current[0]?.assertSymbol());
+				if (!t.isSymbol(Group.matchSymbol(prev))) {
+					prev.syntaxError(`unmatched '${prev.value}'`);
+					t.syntaxError(`unmatched '${assertDefined(t.assertSymbol()).value}'`);
+					return null;
+				}
 
-			t = ts.shift();
+				current.push(t);
+
+				const group = Tokenizer.buildGroup(current);
+				if (!group) {
+					return null;
+				}
+
+				current = assertDefined(stack.pop());
+
+				current.push(group);
+			} else {
+				current.push(t);
+			}
 		}
 
-		return reduceNull(res);
+		if (stack.length > 0) {
+			const t = assertDefined(stack[stack.length - 1][0]?.assertSymbol());
+			t.syntaxError(`unmacthed '${t.value}'`);
+		}
+		
+		return current;
 	}
 }
 
@@ -17645,23 +17923,23 @@ const AddressType = new GenericType({
  * @package
  * @type {DataType}
  */
-const CertifyingActionType = new GenericType({
-    name: "CertifyingAction",
+const DCertType = new GenericType({
+    name: "DCert",
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
-        Delegate: CertifyingActionDelegateType,
-        Deregister: CertifyingActionDeregisterType,
-        Register: CertifyingActionRegisterType,
-        RegisterPool: CertifyingActionRegisterPoolType,
-        RetirePool: CertifyingActionRetirePoolType,
-        new_delegate: new FuncType([StakingCredentialType, PubKeyHashType], CertifyingActionDelegateType),
-        new_deregister: new FuncType([StakingCredentialType], CertifyingActionDeregisterType),
-        new_register: new FuncType([StakingCredentialType], CertifyingActionRegisterType),
-        new_register_pool: new FuncType([PubKeyHashType, PubKeyHashType], CertifyingActionRegisterPoolType),
-        new_retire_pool: new FuncType([PubKeyHashType, IntType], CertifyingActionRetirePoolType)
+        Delegate: DCertDelegateType,
+        Deregister: DCertDeregisterType,
+        Register: DCertRegisterType,
+        RegisterPool: DCertRegisterPoolType,
+        RetirePool: DCertRetirePoolType,
+        new_delegate: new FuncType([StakingCredentialType, PubKeyHashType], DCertDelegateType),
+        new_deregister: new FuncType([StakingCredentialType], DCertDeregisterType),
+        new_register: new FuncType([StakingCredentialType], DCertRegisterType),
+        new_register_pool: new FuncType([PubKeyHashType, PubKeyHashType], DCertRegisterPoolType),
+        new_retire_pool: new FuncType([PubKeyHashType, IntType], DCertRetirePoolType)
     })
 });
 
@@ -17669,17 +17947,17 @@ const CertifyingActionType = new GenericType({
  * @package
  * @type {EnumMemberType}
  */
-const CertifyingActionDelegateType = new GenericEnumMemberType({
+const DCertDelegateType = new GenericEnumMemberType({
     name: "Delegate",
     constrIndex: 2,
-    parentType: CertifyingActionType,
+    parentType: DCertType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         delegator: StakingCredentialType,
 		pool_id: PubKeyHashType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, CertifyingActionType)
+        ...genCommonEnumTypeMembers(self, DCertType)
     })
 });
 
@@ -17687,16 +17965,16 @@ const CertifyingActionDelegateType = new GenericEnumMemberType({
  * @package
  * @type {EnumMemberType}
  */
-const CertifyingActionDeregisterType = new GenericEnumMemberType({
+const DCertDeregisterType = new GenericEnumMemberType({
     name: "Deregister",
     constrIndex: 1,
-    parentType: CertifyingActionType,
+    parentType: DCertType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, CertifyingActionType)
+        ...genCommonEnumTypeMembers(self, DCertType)
     })
 });
 
@@ -17704,16 +17982,16 @@ const CertifyingActionDeregisterType = new GenericEnumMemberType({
  * @package
  * @type {EnumMemberType}
  */
-const CertifyingActionRegisterType = new GenericEnumMemberType({
+const DCertRegisterType = new GenericEnumMemberType({
     name: "Register",
     constrIndex: 0,
-    parentType: CertifyingActionType,
+    parentType: DCertType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, CertifyingActionType)
+        ...genCommonEnumTypeMembers(self, DCertType)
     })
 });
 
@@ -17721,17 +17999,17 @@ const CertifyingActionRegisterType = new GenericEnumMemberType({
  * @package
  * @type {EnumMemberType}
  */
-const CertifyingActionRegisterPoolType = new GenericEnumMemberType({
+const DCertRegisterPoolType = new GenericEnumMemberType({
     name: "RegisterPool",
     constrIndex: 3,
-    parentType: CertifyingActionType,
+    parentType: DCertType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         pool_id: PubKeyHashType,
         pool_vrf: PubKeyHashType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, CertifyingActionType)
+        ...genCommonEnumTypeMembers(self, DCertType)
     })
 });
 
@@ -17739,17 +18017,17 @@ const CertifyingActionRegisterPoolType = new GenericEnumMemberType({
  * @package
  * @type {EnumMemberType}
  */
-const CertifyingActionRetirePoolType = new GenericEnumMemberType({
+const DCertRetirePoolType = new GenericEnumMemberType({
     name: "RetirePool",
     constrIndex: 4,
-    parentType: CertifyingActionType,
+    parentType: DCertType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         pool_id: PubKeyHashType,
         epoch: IntType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, CertifyingActionType)
+        ...genCommonEnumTypeMembers(self, DCertType)
     })
 });
 
@@ -17981,7 +18259,7 @@ class ScriptContextType extends Common {
 	get typeMembers() {
         return {
             ...genCommonTypeMembers(this),
-            new_certifying: new FuncType([TxType, CertifyingActionType], new ScriptContextType(ScriptPurpose.Staking)),
+            new_certifying: new FuncType([TxType, DCertType], new ScriptContextType(ScriptPurpose.Staking)),
             new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType(ScriptPurpose.Minting)),
             new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(ScriptPurpose.Staking)),
             new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType(ScriptPurpose.Spending))
@@ -18058,7 +18336,7 @@ const ScriptPurposeType = new GenericType({
         Minting: ScriptPurposeMintingType,
         Rewarding: ScriptPurposeTypeRewarding,
         Spending: ScriptPurposeSpendingType,
-        new_certifying: new FuncType([CertifyingActionType], ScriptPurposeCertifyingType),
+        new_certifying: new FuncType([DCertType], ScriptPurposeCertifyingType),
         new_minting: new FuncType([MintingPolicyHashType], ScriptPurposeMintingType),
         new_rewarding: new FuncType([StakingCredentialType], ScriptPurposeTypeRewarding),
         new_spending: new FuncType([TxOutputIdType], ScriptPurposeSpendingType), 
@@ -18076,7 +18354,7 @@ const ScriptPurposeCertifyingType = new GenericEnumMemberType({
     parentType: ScriptPurposeType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
-        action: CertifyingActionType
+        dcert: DCertType
     }),
     genTypeMembers: (self) => ({
         ...genCommonEnumTypeMembers(self, ScriptPurposeType)
@@ -18219,7 +18497,7 @@ const StakingPurposeCertifyingType = new GenericEnumMemberType({
     parentType: StakingPurposeType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
-        action: CertifyingActionType
+        dcert: DCertType
     }),
     genTypeMembers: (self) => ({
         ...genCommonEnumTypeMembers(self, StakingPurposeType)
@@ -18259,7 +18537,7 @@ const TxType = new GenericType({
         outputs: ListType$(TxOutputType),
         fee: ValueType,
         minted: ValueType,
-        cert_actions: ListType$(CertifyingActionType),
+        dcerts: ListType$(DCertType),
         withdrawals: MapType$(StakingCredentialType, IntType),
 		time_range: TimeRangeType,
 		signatories: ListType$(PubKeyHashType),
@@ -18315,7 +18593,7 @@ const TxType = new GenericType({
                 ListType$(TxOutputType), // 2
                 ValueType, // 3
                 ValueType, // 4
-                ListType$(CertifyingActionType), // 5
+                ListType$(DCertType), // 5
                 MapType$(StakingCredentialType, IntType), // 6
                 TimeRangeType, // 7
                 ListType$(PubKeyHashType), // 8
@@ -18500,7 +18778,7 @@ class GlobalScope {
         scope.set("AssetClass",           AssetClassType);
         scope.set("Bool",                 BoolType);
         scope.set("ByteArray",            ByteArrayType);
-		scope.set("CertifyingAction",     CertifyingActionType);
+		scope.set("DCert",                DCertType);
         scope.set("Credential",           CredentialType);
         scope.set("DatumHash",            DatumHashType);
         scope.set("Data",                 RawDataType);
@@ -23185,12 +23463,22 @@ class TypeParameters {
 	}
 
 	/**
+	 * Always include the braces, even if there aren't any type parameters, so that the mutual recursion injection function has an easier time figuring out what can depend on what
 	 * @param {string} base
 	 * @returns {string}
 	 */
-	genPath(base) {
+	genTypePath(base) {
+		return `${base}[${this.#parameters.map((_, i) => `${this.#prefix}${i}`).join("@")}]`;
+	}
+
+	/**
+	 * Always include the braces, even if there aren't any type parameters, so that the mutual recursion injection function has an easier time figuring out what can depend on what
+	 * @param {string} base
+	 * @returns {string}
+	 */
+	genFuncPath(base) {
 		if (this.hasParameters()) {
-			return `${base}[${this.#parameters.map((_, i) => `${this.#prefix}${i}`).join("@")}]`;
+			return this.genTypePath(base);
 		} else {
 			return base;
 		}
@@ -23749,7 +24037,7 @@ class StructStatement extends Statement {
 	}
 
 	get path() {
-		return this.#parameters.genPath(super.path);
+		return this.#parameters.genTypePath(super.path);
 	}
 
 	/**
@@ -23891,8 +24179,10 @@ class StructStatement extends Statement {
 				})
 			});
 		});
+
+		const path = this.#parameters.hasParameters() ? super.path : this.path;
 		
-		scope.set(this.name, new NamedEntity(this.name.value, super.path, type));
+		scope.set(this.name, new NamedEntity(this.name.value, path, type));
 
 		void this.#dataDef.evalFieldTypes(typeScope);
 
@@ -23953,7 +24243,7 @@ class FuncStatement extends Statement {
 	 * @type {string}
 	 */
 	get path() {
-		return this.#parameters.genPath(super.path);
+		return this.#parameters.genFuncPath(super.path,);
 	}
 
 	/**
@@ -24338,7 +24628,7 @@ class EnumStatement extends Statement {
 	 * @type {string}
 	 */
 	get path() {
-		return this.#parameters.genPath(super.path);
+		return this.#parameters.genTypePath(super.path);
 	}
 
 	/**
@@ -24530,8 +24820,10 @@ class EnumStatement extends Statement {
 			return type;
 		});
 
-		// don't include type parameters in path, these are added by application statement
-		scope.set(this.name, new NamedEntity(this.name.value, super.path, type));
+		// don't include type parameters in path (except empty), these are added by application statement
+		const path = this.#parameters.hasParameters() ? super.path : this.path;
+		
+		scope.set(this.name, new NamedEntity(this.name.value, path, type));
 
 		this.#members.forEach(m => {
 			m.evalDataFields(typeScope);
@@ -30382,10 +30674,10 @@ function makeRawFunctions() {
 		))
 	}`));
 	add(new RawFunc("__helios__scriptcontext__new_certifying",
-	`(tx, action) -> {
+	`(tx, dcert) -> {
 		__core__constrData(0, __helios__common__list_2(
 			tx,
-			__core__constrData(3, __helios__common__list_1(action))
+			__core__constrData(3, __helios__common__list_1(dcert))
 		))
 	}`));
 	add(new RawFunc("__helios__scriptcontext__tx", "__helios__common__field_0"));
@@ -30496,7 +30788,7 @@ function makeRawFunctions() {
 	
 	// StakingPurpose::Certifying builtins
 	addEnumDataFuncs("__helios__stakingpurpose__certifying", 3);
-	add(new RawFunc("__helios__stakingpurpose__certifying__action", "__helios__common__field_0"));
+	add(new RawFunc("__helios__stakingpurpose__certifying__dcert", "__helios__common__field_0"));
 
 
 	// ScriptPurpose builtins
@@ -30539,71 +30831,71 @@ function makeRawFunctions() {
 	
 	// ScriptPurpose::Certifying builtins
 	addEnumDataFuncs("__helios__scriptpurpose__certifying", 3);
-	add(new RawFunc("__helios__scriptpurpose__certifying__action", "__helios__common__field_0"));
+	add(new RawFunc("__helios__scriptpurpose__certifying__dcert", "__helios__common__field_0"));
 
 
 	// DCert builtins
-	addDataFuncs("__helios__certifyingaction");
-	add(new RawFunc("__helios__certifyingaction__new_register",
+	addDataFuncs("__helios__dcert");
+	add(new RawFunc("__helios__dcert__new_register",
 	`(cred) -> {
 		__core__constrData(0, __helios__common__list_1(cred))
 	}`));
-	add(new RawFunc("__helios__certifyingaction__new_deregister",
+	add(new RawFunc("__helios__dcert__new_deregister",
 	`(cred) -> {
 		__core__constrData(1, __helios__common__list_1(cred))
 	}`));
-	add(new RawFunc("__helios__certifyingaction__new_delegate",
+	add(new RawFunc("__helios__dcert__new_delegate",
 	`(cred, pool_id) -> {
 		__core__constrData(2, __helios__common__list_2(cred, __helios__pubkeyhash____to_data(pool_id)))
 	}`));
-	add(new RawFunc("__helios__certifyingaction__new_register_pool",
+	add(new RawFunc("__helios__dcert__new_register_pool",
 	`(id, vrf) -> {
 		__core__constrData(3, __helios__common__list_2(__helios__pubkeyhash____to_data(id), __helios__pubkeyhash____to_data(vrf)))
 	}`));
-	add(new RawFunc("__helios__certifyingaction__new_retire_pool",
+	add(new RawFunc("__helios__dcert__new_retire_pool",
 	`(id, epoch) -> {
 		__core__constrData(4, __helios__common__list_2(__helios__pubkeyhash____to_data(id), __helios__int____to_data(epoch)))
 	}`));
 
 
 	// DCert::Register builtins
-	addEnumDataFuncs("__helios__certifyingaction__register", 0);
-	add(new RawFunc("__helios__certifyingaction__register__credential", "__helios__common__field_0"));
+	addEnumDataFuncs("__helios__dcert__register", 0);
+	add(new RawFunc("__helios__dcert__register__credential", "__helios__common__field_0"));
 
 
 	// DCert::Deregister builtins
-	addEnumDataFuncs("__helios__certifyingaction__deregister", 1);
-	add(new RawFunc("__helios__certifyingaction__deregister__credential", "__helios__common__field_0"));
+	addEnumDataFuncs("__helios__dcert__deregister", 1);
+	add(new RawFunc("__helios__dcert__deregister__credential", "__helios__common__field_0"));
 
 
 	// DCert::Delegate builtins
-	addEnumDataFuncs("__helios__certifyingaction__delegate", 2);
-	add(new RawFunc("__helios__certifyingaction__delegate__delegator", "__helios__common__field_0"));
-	add(new RawFunc("__helios__certifyingaction__delegate__pool_id", 
+	addEnumDataFuncs("__helios__dcert__delegate", 2);
+	add(new RawFunc("__helios__dcert__delegate__delegator", "__helios__common__field_0"));
+	add(new RawFunc("__helios__dcert__delegate__pool_id", 
 	`(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__field_1(self))
 	}`));
 
 
 	// DCert::RegisterPool builtins
-	addEnumDataFuncs("__helios__certifyingaction__registerpool", 3);
-	add(new RawFunc("__helios__certifyingaction__registerpool__pool_id", 
+	addEnumDataFuncs("__helios__dcert__registerpool", 3);
+	add(new RawFunc("__helios__dcert__registerpool__pool_id", 
 	`(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__field_0(self))
 	}`));
-	add(new RawFunc("__helios__certifyingaction__registerpool__pool_vrf", 
+	add(new RawFunc("__helios__dcert__registerpool__pool_vrf", 
 	`(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__field_1(self))
 	}`));
 
 
 	// DCert::RetirePool builtins
-	addEnumDataFuncs("__helios__certifyingaction__retirepool", 4);
-	add(new RawFunc("__helios__certifyingaction__retirepool__pool_id", 
+	addEnumDataFuncs("__helios__dcert__retirepool", 4);
+	add(new RawFunc("__helios__dcert__retirepool__pool_id", 
 	`(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__field_0(self))
 	}`));
-	add(new RawFunc("__helios__certifyingaction__retirepool__epoch", 
+	add(new RawFunc("__helios__dcert__retirepool__epoch", 
 	`(self) -> {
 		__helios__int__from_data(__helios__common__field_1(self))
 	}`));
@@ -30612,14 +30904,14 @@ function makeRawFunctions() {
 	// Tx builtins
 	addDataFuncs("__helios__tx");
 	add(new RawFunc(`__helios__tx__new[${FTPP}0@${FTPP}1]`,
-	`(inputs, ref_inputs, outputs, fee, minted, cert_actions, withdrawals, validity, signatories, redeemers, datums, txId) -> {
+	`(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums, txId) -> {
 		__core__constrData(0, __helios__common__list_12(
 			__core__listData(inputs),
 			__core__listData(ref_inputs),
 			__core__listData(outputs),
 			__core__mapData(fee),
 			__core__mapData(minted),
-			__core__listData(cert_actions),
+			__core__listData(dcerts),
 			__core__mapData(withdrawals),
 			validity,
 			__core__listData(signatories),
@@ -30648,7 +30940,7 @@ function makeRawFunctions() {
 	`(self) -> {
 		__core__unMapData(__helios__common__field_4(self))
 	}`));
-	add(new RawFunc("__helios__tx__cert_actions", 
+	add(new RawFunc("__helios__tx__dcerts", 
 	`(self) -> {
 		__core__unListData(__helios__common__field_5(self))
 	}`));
@@ -30834,20 +31126,22 @@ function makeRawFunctions() {
 		)
 	}`));
 	add(new RawFunc(`__helios__tx__outputs_paid_to[${FTPP}0]`,
-	`(self, addr, datum) -> {
-		__helios__tx__filter_outputs(
-			self, 
-			(output) -> {
-				__helios__bool__and(
-					() -> {
-						__helios__address____eq(__helios__txoutput__address(output), addr)
-					},
-					() -> {
-						__helios__txoutput__has_inline_datum[${FTPP}0](output, datum)
-					}
-				)
-			}
-		)
+	`(self) -> {
+		(addr, datum) -> {
+			__helios__tx__filter_outputs(
+				self, 
+				(output) -> {
+					__helios__bool__and(
+						() -> {
+							__helios__address____eq(__helios__txoutput__address(output), addr)
+						},
+						() -> {
+							__helios__txoutput__has_inline_datum[${FTPP}0](output, datum)
+						}
+					)
+				}
+			)
+		}
 	}`));
 	add(new RawFunc("__helios__tx__value_sent_to",
 	`(self) -> {
@@ -31206,6 +31500,7 @@ function makeRawFunctions() {
 
 	// Credential::Validator builtins
 	addEnumDataFuncs("__helios__credential__validator", 1);
+	add(new RawFunc("__helios__credential__validator____new", "__helios__credential__new_validator"));
 	add(new RawFunc("__helios__credential__validator__cast",
 	`(data) -> {
 		__helios__common__assert_constr_index(data, 1)
@@ -35064,7 +35359,13 @@ class IRProgram {
 
 		let expr = buildIRExpr(irTokens);
 		
-		expr.resolveNames(scope);
+		try {
+			expr.resolveNames(scope);
+		} catch (e) {
+			console.log((new Source(irSrc)).pretty());
+
+			throw e;
+		}
 		
 		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
 
@@ -35462,7 +35763,7 @@ class MainModule extends Module {
 }
 
 /**
- * @typedef {Object.<string, HeliosDataClass<HeliosData>>} UserTypes
+ * @typedef {{[name: string]: any}} UserTypes
  */
 
 /**
@@ -35964,17 +36265,25 @@ class MainModule extends Module {
 			 * @returns {boolean}
 			 */
 			set(target, name, rawValue) {
-				if (!types[name]) {
-					throw new Error(`invalid parameter name '${name}'`);
+				let permissive = false;
+				if (name.startsWith("?")) {
+					name = name.slice(1);
+					permissive = true;
 				}
 
-				const UserType = assertDefined(types[name].offChainType, `invalid param name '${name}'`);
+				if (!types[name]) {
+					if (!permissive) {
+						throw new Error(`invalid parameter name '${name}'`);
+					}
+				} else {
+					const UserType = assertDefined(types[name].offChainType, `invalid param name '${name}'`);
 
-				const value = rawValue instanceof UserType ? rawValue : new UserType(rawValue);
+					const value = rawValue instanceof UserType ? rawValue : new UserType(rawValue);
 
-				target[name] = value;
+					target[name] = value;
 
-				that.changeParamSafe(name, value._toUplcData());
+					that.changeParamSafe(name, value._toUplcData());
+				}
 
 				return true;
 			}
@@ -36069,6 +36378,42 @@ class MainModule extends Module {
 	 * @returns {IR}
 	 */
 	static injectMutualRecursions(mainIR, map) {
+		/**
+		 * @param {string} name
+		 * @param {string[]} potentialDependencies 
+		 * @returns {string[]}
+		 */
+		const filterMutualDependencies = (name, potentialDependencies) => {
+			// names to be treated
+			const stack = [name];
+
+			/**
+			 * @type {Set<string>}
+			 */
+			let set = new Set();
+
+			while (stack.length > 0) {
+				const name = assertDefined(stack.shift());
+
+				const ir = assertDefined(map.get(name));
+
+				const localDependencies = potentialDependencies.slice(potentialDependencies.findIndex(n => n == name));
+
+				for (let i = 0; i < localDependencies.length; i++) {
+					const dep = localDependencies[i];
+					if (ir.includes(dep)) {
+						set.add(dep)
+
+						if (dep != name) {
+							stack.push(dep);
+						}
+					}
+				}
+			}
+
+			return potentialDependencies.filter(d => set.has(d));
+		}
+
 		const keys = Array.from(map.keys());
 
 		for (let i = keys.length - 1; i >= 0; i--) {
@@ -36081,29 +36426,35 @@ class MainModule extends Module {
 				continue;
 			}
 
+			let prefix = assertDefined(k.match(/(__const)?([^[]+)(\[|$)/))[0];
+
 			// get all following definitions including self, excluding constants
 			// also don't mutual recurse helios functions
-			const others = keys.slice(i, i+1).filter(k => !k.startsWith("__const") && !k.startsWith("__helios") && !k.endsWith("__from_data") && !k.includes("____"));
+			const potentialDependencies = keys.slice(i).filter(k => (k.startsWith(prefix) || k.startsWith(`__const${prefix}`)) && !k.endsWith("__from_data") && !k.includes("____"));
 
-			const escaped = k.replace(/\[/g, "\\[").replace(/]/g, "\\]");
+			const dependencies = filterMutualDependencies(k, potentialDependencies);
 
-			const re = new RegExp(`\\b${escaped}(\\b|$)`, "gm");
-			const newStr = `${k}(${others.join(", ")})`;
-			// do the actual replacing
-			for (let k_ of keys) {
-				map.set(k_, assertDefined(map.get(k_)).replace(re, newStr));
+			if (dependencies.length > 0) {
+				const escaped = k.replace(/\[/g, "\\[").replace(/]/g, "\\]");
+
+				const re = new RegExp(`\\b${escaped}(\\b|$)`, "gm");
+				const newStr = `${k}(${dependencies.join(", ")})`;
+				// do the actual replacing
+				for (let k_ of keys) {
+					map.set(k_, assertDefined(map.get(k_)).replace(re, newStr));
+				}
+
+				mainIR = mainIR.replace(re, newStr);
+
+				const wrapped = new IR([
+					new IR(`(${dependencies.join(", ")}) -> {`),
+					assertDefined(map.get(k)),
+					new IR("}")
+				]);
+
+				// wrap own definition
+				map.set(k, wrapped);
 			}
-
-			mainIR = mainIR.replace(re, newStr);
-
-			const wrapped = new IR([
-				new IR(`(${others.join(", ")}) -> {`),
-				assertDefined(map.get(k)),
-				new IR("}")
-			]);
-
-			// wrap own definition
-			map.set(k, wrapped);
 		}
 
 		return mainIR;
@@ -37428,10 +37779,10 @@ export class Tx extends CborData {
 
 	/**
 	 * @param {UTxO} input
-	 * @param {?(UplcDataValue | UplcData)} redeemer
+	 * @param {?(UplcDataValue | UplcData | HeliosData)} rawRedeemer
 	 * @returns {Tx}
 	 */
-	addInput(input, redeemer = null) {
+	addInput(input, rawRedeemer = null) {
 		assert(!this.#valid);
 
 		if (input.origOutput === null) {
@@ -37439,10 +37790,12 @@ export class Tx extends CborData {
 		} else {
 			void this.#body.addInput(input.asTxInput);
 
-			if (redeemer !== null) {
+			if (rawRedeemer !== null) {
 				assert(input.origOutput.address.validatorHash !== null, "input isn't locked by a script");
 
-				this.#witnesses.addSpendingRedeemer(input.asTxInput, UplcDataValue.unwrap(redeemer));
+				const redeemer = rawRedeemer instanceof HeliosData ? rawRedeemer._toUplcData() : UplcDataValue.unwrap(rawRedeemer);
+
+				this.#witnesses.addSpendingRedeemer(input.asTxInput, redeemer);
 
 				if (input.origOutput.datum === null) {
 					throw new Error("expected non-null datum");
@@ -37472,7 +37825,7 @@ export class Tx extends CborData {
 
 	/**
 	 * @param {UTxO[]} inputs
-	 * @param {?(UplcDataValue | UplcData)} redeemer
+	 * @param {?(UplcDataValue | UplcData | HeliosData)} redeemer
 	 * @returns {Tx}
 	 */
 	addInputs(inputs, redeemer = null) {
@@ -39465,6 +39818,17 @@ class TxInput extends CborData {
 			throw new Error("origOutput not set");
 		} else {
 			return this.#origOutput;
+		}
+	}
+
+	/**
+	 * @type {UTxO}
+	 */
+	get utxo() {
+		if (this.#origOutput === null) {
+			throw new Error("origOutput not set");
+		} else {
+			return new UTxO(this.#txId, this.#utxoIdx, this.#origOutput);
 		}
 	}
 
@@ -41834,7 +42198,9 @@ export class FuzzyTest {
 // Section 36: CoinSelection
 ////////////////////////////
 
-
+/**
+ * @typedef {(utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]]} CoinSelectionAlgorithm
+ */
 
 /**
  * Collection of coin selection algorithms
@@ -41950,18 +42316,14 @@ export class CoinSelection {
     }
 
     /**
-     * @param {UTxO[]} utxos 
-     * @param {Value} amount 
-     * @returns {[UTxO[], UTxO[]]} - [selected, not selected]
+     * @type {CoinSelectionAlgorithm}
      */
     static selectSmallestFirst(utxos, amount) {
         return CoinSelection.selectExtremumFirst(utxos, amount, false);
     }
 
     /**
-     * @param {UTxO[]} utxos 
-     * @param {Value} amount 
-     * @returns {[UTxO[], UTxO[]]} - [selected, not selected]
+     * @type {CoinSelectionAlgorithm}
      */
     static selectLargestFirst(utxos, amount) {
         return CoinSelection.selectExtremumFirst(utxos, amount, true);

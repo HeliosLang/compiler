@@ -1762,6 +1762,10 @@ export class AssetClass extends HeliosData {
      */
     static fromUplcCbor(bytes: string | number[]): AssetClass;
     /**
+     * @type {AssetClass}
+     */
+    static get ADA(): AssetClass;
+    /**
      *
      * @param {any[]} args
      */
@@ -1794,6 +1798,12 @@ export class Assets extends CborData {
      * @type {number}
      */
     get nTokenTypes(): number;
+    /**
+     * Returns empty if mph not found
+     * @param {MintingPolicyHash} mph
+     * @returns {[number[], bigint][]}
+     */
+    getTokens(mph: MintingPolicyHash): [number[], bigint][];
     /**
      * @returns {boolean}
      */
@@ -1837,6 +1847,11 @@ export class Assets extends CborData {
      * @returns {Assets}
      */
     sub(other: Assets): Assets;
+    /**
+     * @param {bigint} scalar
+     * @returns {Assets}
+     */
+    mul(scalar: bigint): Assets;
     /**
      * Mutates 'this'
      * Throws error if mph is already contained in 'this'
@@ -1949,6 +1964,11 @@ export class Value extends HeliosData {
      * @returns {Value}
      */
     sub(other: Value): Value;
+    /**
+     * @param {bigint} scalar
+     * @returns {Value}
+     */
+    mul(scalar: bigint): Value;
     /**
      * @param {Value} other
      * @returns {boolean}
@@ -2813,6 +2833,12 @@ export class Tokenizer {
      */
     static assertCorrectDecimalUnderscores(site: Site, chars: string[], reverse?: boolean): string[];
     /**
+     * Separates tokens in fields (separted by commas)
+     * @param {Token[]} ts
+     * @returns {Group | null}
+     */
+    static buildGroup(ts: Token[]): Group | null;
+    /**
      * @param {Source} src
      * @param {?CodeMap} codeMap
      * @param {boolean} irMode - if true '@' is treated as a regular character
@@ -2930,12 +2956,6 @@ export class Tokenizer {
      * @param {string} c0 - first character
      */
     readSymbol(site: Site, c0: string): void;
-    /**
-     * Separates tokens in fields (separted by commas)
-     * @param {Token[]} ts
-     * @returns {Group | null}
-     */
-    buildGroup(ts: Token[]): Group | null;
     /**
      * Match group open with group close symbols in order to form groups.
      * This is recursively applied to nested groups.
@@ -3079,7 +3099,7 @@ export class IRParametricProgram {
     #private;
 }
 /**
- * @typedef {Object.<string, HeliosDataClass<HeliosData>>} UserTypes
+ * @typedef {{[name: string]: any}} UserTypes
  */
 /**
  * Helios root object
@@ -3181,9 +3201,7 @@ export class Program {
     /**
      * @type {UserTypes}
      */
-    get types(): {
-        [x: string]: HeliosDataClass<HeliosData>;
-    };
+    get types(): UserTypes;
     /**
      * Fill #types with convenient javascript equivalents of Int, ByteArray etc.
      * @param {TopScope} topScope
@@ -3376,16 +3394,16 @@ export class Tx extends CborData {
     mintTokens(mph: MintingPolicyHash, tokens: [number[] | string, bigint][], redeemer: UplcDataValue | UplcData | null): Tx;
     /**
      * @param {UTxO} input
-     * @param {?(UplcDataValue | UplcData)} redeemer
+     * @param {?(UplcDataValue | UplcData | HeliosData)} rawRedeemer
      * @returns {Tx}
      */
-    addInput(input: UTxO, redeemer?: (UplcDataValue | UplcData) | null): Tx;
+    addInput(input: UTxO, rawRedeemer?: (UplcDataValue | UplcData | HeliosData) | null): Tx;
     /**
      * @param {UTxO[]} inputs
-     * @param {?(UplcDataValue | UplcData)} redeemer
+     * @param {?(UplcDataValue | UplcData | HeliosData)} redeemer
      * @returns {Tx}
      */
-    addInputs(inputs: UTxO[], redeemer?: (UplcDataValue | UplcData) | null): Tx;
+    addInputs(inputs: UTxO[], redeemer?: (UplcDataValue | UplcData | HeliosData) | null): Tx;
     /**
      * @param {TxRefInput} input
      * @param {?UplcProgram} refScript
@@ -4129,6 +4147,9 @@ export class FuzzyTest {
     #private;
 }
 /**
+ * @typedef {(utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]]} CoinSelectionAlgorithm
+ */
+/**
  * Collection of coin selection algorithms
  */
 export class CoinSelection {
@@ -4139,17 +4160,7 @@ export class CoinSelection {
      * @returns {[UTxO[], UTxO[]]} - [picked, not picked that can be used as spares]
      */
     static selectExtremumFirst(utxos: UTxO[], amount: Value, largestFirst: boolean): [UTxO[], UTxO[]];
-    /**
-     * @param {UTxO[]} utxos
-     * @param {Value} amount
-     * @returns {[UTxO[], UTxO[]]} - [selected, not selected]
-     */
     static selectSmallestFirst(utxos: UTxO[], amount: Value): [UTxO[], UTxO[]];
-    /**
-     * @param {UTxO[]} utxos
-     * @param {Value} amount
-     * @returns {[UTxO[], UTxO[]]} - [selected, not selected]
-     */
     static selectLargestFirst(utxos: UTxO[], amount: Value): [UTxO[], UTxO[]];
 }
 /**
@@ -4631,12 +4642,13 @@ export type TransferableUplcProgram<TInstance> = {
 };
 export type IRLiteralRegistry = Map<IRVariable, IRLiteralExpr>;
 export type UserTypes = {
-    [x: string]: HeliosDataClass<HeliosData>;
+    [name: string]: any;
 };
 export type ValueGenerator = () => UplcData;
 export type PropertyTest = (args: UplcValue[], res: (UplcValue | UserError)) => (boolean | {
     [x: string]: boolean;
 });
+export type CoinSelectionAlgorithm = (utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]];
 export type Wallet = {
     isMainnet(): Promise<boolean>;
     usedAddresses: Promise<Address[]>;
@@ -4970,6 +4982,11 @@ declare class IR {
      * @returns {string}
      */
     pretty(): string;
+    /**
+     * @param {string} str
+     * @returns {boolean}
+     */
+    includes(str: string): boolean;
     /**
      * @param {RegExp} re
      * @param {string} newStr
@@ -6053,6 +6070,10 @@ declare class TxInput extends CborData {
      */
     get origOutput(): TxOutput;
     /**
+     * @type {UTxO}
+     */
+    get utxo(): UTxO;
+    /**
      * Shortcut
      * @type {Value}
      */
@@ -6702,10 +6723,17 @@ declare class TypeParameters {
      */
     getParameters(): Parameter[];
     /**
+     * Always include the braces, even if there aren't any type parameters, so that the mutual recursion injection function has an easier time figuring out what can depend on what
      * @param {string} base
      * @returns {string}
      */
-    genPath(base: string): string;
+    genTypePath(base: string): string;
+    /**
+     * Always include the braces, even if there aren't any type parameters, so that the mutual recursion injection function has an easier time figuring out what can depend on what
+     * @param {string} base
+     * @returns {string}
+     */
+    genFuncPath(base: string): string;
     /**
      * @returns {string}
      */

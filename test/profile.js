@@ -109,7 +109,7 @@ async function test1() {
 		[]TxOutput{TxOutput::new(ADDRESS, OUT_VALUE, OutputDatum::new_none())},
 		Value::lovelace(160000),
 		MINTED,
-		[]CertifyingAction{},
+		[]DCert{},
 		Map[StakingCredential]Int{},
 		TimeRange::ALWAYS,
 		[]PubKeyHash{},

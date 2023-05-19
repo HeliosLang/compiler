@@ -112,7 +112,13 @@ export class IRProgram {
 
 		let expr = buildIRExpr(irTokens);
 		
-		expr.resolveNames(scope);
+		try {
+			expr.resolveNames(scope);
+		} catch (e) {
+			console.log((new Source(irSrc)).pretty());
+
+			throw e;
+		}
 		
 		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
 

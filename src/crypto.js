@@ -54,6 +54,7 @@ function irotr(x, n) {
 }
 
 /**
+ * Positive modulo operator
  * @package
  * @param {bigint} x 
  * @param {bigint} n 
@@ -1321,20 +1322,21 @@ export class Crypto {
      * @package
 	 */
 	static get Ed25519() {
+		/**
+		 * @template {Point<T>} T
+		 * @typedef {{
+		 *   add(other: T): T
+		 *   mul(scalar: bigint): T
+		 *   encode(): number[]
+		 * }} Point
+		 */
+
 		const Q = 57896044618658097711785492504343953926634992332820282019728792003956564819949n; // ipowi(255n) - 19n
 		const Q38 = 7237005577332262213973186563042994240829374041602535252466099000494570602494n; // (Q + 3n)/8n
 		const CURVE_ORDER = 7237005577332262213973186563042994240857116359379907606001950938285454250989n; // ipow2(252n) + 27742317777372353535851937790883648493n;
 		const D = -4513249062541557337682894930092624173785641285191125241628941591882900924598840740n; // -121665n * invert(121666n);
 		const I = 19681161376707505956807079304988542015446066515923890162744021073123829784752n; // expMod(2n, (Q - 1n)/4n, Q);
-		
-		/**
-		 * @type {[bigint, bigint]}
-		 */
-		const BASE = [
-			15112221349535400772501151409588531511454012693041857206046113283949847762202n, // recoverX(B[1]) % Q
-			46316835694926478169428394003475163141307993866256225615783033603165251855960n, // (4n*invert(5n)) % Q
-		];
-
+	
 		/**
 		 * @param {bigint} b 
 		 * @param {bigint} e 
@@ -1357,11 +1359,19 @@ export class Crypto {
 		}
 
 		/**
+		 * @param {bigint} x 
+		 * @returns {bigint}
+		 */
+		function curveMod(x) {
+			return posMod(x, Q)
+		}
+
+		/**
 		 * @param {bigint} n 
 		 * @returns {bigint}
 		 */
 		function invert(n) {
-			let a = posMod(n, Q);
+			let a = curveMod(n);
 			let b = Q;
 
 			let x = 0n;
@@ -1382,7 +1392,7 @@ export class Crypto {
 				v = n;
 			}
 
-			return posMod(x, Q)
+			return curveMod(x);
 		}
 
 		/**
@@ -1403,43 +1413,6 @@ export class Crypto {
 			}
 
 			return x;
-		}		
-
-		/**
-		 * Curve point 'addition'
-		 * Note: this is probably the bottleneck of this Ed25519 implementation
-		 * @param {[bigint, bigint]} a 
-		 * @param {[bigint, bigint]} b 
-		 * @returns {[bigint, bigint]}
-		 */
-		function edwards(a, b) {
-			const x1 = a[0];
-			const y1 = a[1];
-			const x2 = b[0];
-			const y2 = b[1];
-			const dxxyy = D*x1*x2*y1*y2;
-			const x3 = (x1*y2+x2*y1) * invert(1n+dxxyy);
-			const y3 = (y1*y2+x1*x2) * invert(1n-dxxyy);
-			return [posMod(x3, Q), posMod(y3, Q)];
-		}
-
-		/**
-		 * @param {[bigint, bigint]} point 
-		 * @param {bigint} n 
-		 * @returns {[bigint, bigint]}
-		 */
-		function scalarMul(point, n) {
-			if (n == 0n) {
-				return [0n, 1n];
-			} else {
-				let sum = scalarMul(point, n/2n);
-				sum = edwards(sum, sum);
-				if ((n % 2n) != 0n) {
-					sum = edwards(sum, point);
-				}
-
-				return sum;
-			}
 		}
 
 		/**
@@ -1466,22 +1439,6 @@ export class Crypto {
 		}
 
 		/**
-		 * @param {[bigint, bigint]} point
-		 * @returns {number[]}
-		 */
-		function encodePoint(point) {
-			const [x, y] = point;
-
-			const bytes = encodeInt(y);
-
-			// last bit is determined by x
-
-			bytes[31] = (bytes[31] & 0b011111111) | (Number(x & 1n) * 0b10000000);
-
-			return bytes;
-		}
-
-		/**
 		 * @param {number[]} bytes 
 		 * @param {number} i - bit index
 		 * @returns {number} - 0 or 1
@@ -1491,43 +1448,294 @@ export class Crypto {
 		}
 
 		/**
-		 * @param {[bigint, bigint]} point
-		 * @returns {boolean}
+		 * @implements {Point<AffinePoint>}
 		 */
-		function isOnCurve(point) {
-			const x = point[0];
-			const y = point[1];
-			const xx = x*x;
-			const yy = y*y;
-			return (-xx + yy - 1n - D*xx*yy) % Q == 0n;
-		}
+		class AffinePoint {
+			#x;
+			#y;
 
-		/**
-		 * @param {number[]} s 
-		 */
-		function decodePoint(s) {
-			assert(s.length == 32);
-
-			const bytes = s.slice();
-			bytes[31] = bytes[31] & 0b01111111;
-
-			const y = decodeInt(bytes);
-
-			let x = recoverX(y);
-			if (Number(x & 1n) != getBit(s, 255)) {
-				x = Q - x;
+			/**
+			 * @param {bigint} x 
+			 * @param {bigint} y 
+			 */
+			constructor(x, y) {
+				this.#x = x;
+				this.#y = y;
 			}
 
 			/**
-			 * @type {[bigint, bigint]}
+			 * @type {AffinePoint}
 			 */
-			const point = [x, y];
-
-			if (!isOnCurve(point)) {
-				throw new Error("point isn't on curve");
+			static get BASE() {
+				return new AffinePoint(
+					15112221349535400772501151409588531511454012693041857206046113283949847762202n, // recoverX(B[1]) % Q
+					46316835694926478169428394003475163141307993866256225615783033603165251855960n  // (4n*invert(5n)) % Q
+				);
+			}
+			
+			/**
+			 * @type {AffinePoint}
+			 */
+			static get ZERO() {
+				return new AffinePoint(0n, 1n);
 			}
 
-			return point;
+			/**
+			 * @param {number[]} bytes 
+			 * @returns {AffinePoint}
+			 */
+			static decode(bytes) {
+				assert(bytes.length == 32);
+
+				bytes = bytes.slice();
+				bytes[31] = bytes[31] & 0b01111111;
+	
+				const y = decodeInt(bytes);
+	
+				let x = recoverX(y);
+				if (Number(x & 1n) != getBit(bytes, 255)) {
+					x = Q - x;
+				}
+	
+				const point = new AffinePoint(x, y);
+	
+				assert(point.isOnCurve(), "point isn't on curve");
+	
+				return point;
+			}
+
+			/**
+			 * @type {bigint}
+			 */
+			get x() {
+				return this.#x;
+			}
+
+			/**
+			 * @type {bigint}
+			 */
+			get y() {
+				return this.#y;
+			}
+
+			/** Curve point 'addition'
+		     * Note: the invert in this calculation is very slow
+			 * @param {AffinePoint} other 
+			 * @returns {AffinePoint}
+			 */
+			add(other) {
+				const x1 = this.#x;
+				const y1 = this.#y;
+				const x2 = other.#x;
+				const y2 = other.#y;
+				const dxxyy = D*x1*x2*y1*y2;
+				const x3 = (x1*y2+x2*y1) * invert(1n+dxxyy);
+				const y3 = (y1*y2+x1*x2) * invert(1n-dxxyy);
+
+				return new AffinePoint(
+					curveMod(x3), 
+					curveMod(y3)
+				);
+			}
+
+			/**
+			 * @returns {boolean}
+			 */
+		 	isOnCurve() {
+				const x = this.#x;
+				const y = this.#y;
+				const xx = x*x;
+				const yy = y*y;
+				return (-xx + yy - 1n - D*xx*yy) % Q == 0n;
+			}
+
+			/**
+			 * @param {bigint} s 
+			 * @returns {AffinePoint}
+			 */
+			mul(s) {
+				if (s == 0n) {
+					return AffinePoint.ZERO;
+				} else {
+					let sum = this.mul(s/2n);
+
+					sum = sum.add(sum);
+
+					if ((s % 2n) != 0n) {
+						sum = sum.add(this);
+					}
+	
+					return sum;
+				}
+			}
+
+			/**
+			 * @returns {number[]}
+			 */
+			encode() {
+				const bytes = encodeInt(this.#y);
+	
+				// last bit is determined by x
+	
+				bytes[31] = (bytes[31] & 0b011111111) | (Number(this.#x & 1n) * 0b10000000);
+	
+				return bytes;
+			}
+		}
+
+		/**
+		 * Extended point implementation take from @noble/ed25519
+		 * @implements {Point<ExtendedPoint>}
+		 */
+		class ExtendedPoint {
+			#x;
+			#y;
+			#z;
+			#t; // saves recalculation of curveMod(x*y)
+
+			/**
+			 * @param {bigint} x 
+			 * @param {bigint} y 
+			 * @param {bigint} z 
+			 * @param {bigint} t 
+			 */
+			constructor(x, y, z, t) {
+				this.#x = x;
+				this.#y = y;
+				this.#z = z;
+				this.#t = t;
+			}
+
+			/**
+			 * @type {ExtendedPoint}
+			 */
+			static get BASE() {
+				return new ExtendedPoint(
+					AffinePoint.BASE.x,
+					AffinePoint.BASE.y,
+					1n,
+					curveMod(AffinePoint.BASE.x*AffinePoint.BASE.y)
+				)
+			}
+
+			/**
+			 * @type {ExtendedPoint}
+			 */
+			static get ZERO() {
+				return new ExtendedPoint(0n, 1n, 1n, 0n);
+			}
+
+			/**
+			 * @param {number[]} bytes 
+			 * @returns {ExtendedPoint}
+			 */
+			static decode(bytes) {
+				return ExtendedPoint.fromAffine(AffinePoint.decode(bytes));
+			}
+
+			/**
+			 * @param {AffinePoint} affine 
+			 * @returns {ExtendedPoint}
+			 */
+			static fromAffine(affine) {
+				return new ExtendedPoint(affine.x, affine.y, 1n, curveMod(affine.x*affine.y));
+			}
+
+			/**
+			 * @param {ExtendedPoint} other 
+			 * @returns {ExtendedPoint}
+			 */
+			add(other) {
+				const x1 = this.#x;
+				const y1 = this.#y;
+				const z1 = this.#z;
+				const t1 = this.#t;
+
+				const x2 = other.#x;
+				const y2 = other.#y;
+				const z2 = other.#z;
+				const t2 = other.#t;
+
+				const a = curveMod(x1*x2);
+				const b = curveMod(y1*y2);
+				const c = curveMod(D*t1*t2);
+				const d = curveMod(z1*z2);
+				const e = curveMod((x1 + y1)*(x2 + y2) - a - b);
+				const f = curveMod(d - c);
+				const g = curveMod(d + c);
+				const h = curveMod(a + b);
+				const x3 = curveMod(e*f);
+				const y3 = curveMod(g*h);
+				const z3 = curveMod(f*g);
+				const t3 = curveMod(e*h);
+				
+				return new ExtendedPoint(x3, y3, z3, t3);
+			}
+
+			/**
+			 * @returns {number[]}
+			 */
+			encode() {
+				return this.toAffine().encode()
+			}
+
+			/**
+			 * @param {ExtendedPoint} other 
+			 * @returns {boolean}
+			 */
+			equals(other) {
+				return (curveMod(this.#x*other.#z) == curveMod(other.#x*this.#z)) && (curveMod(this.#y*other.#z) == curveMod(other.#y*this.#z));
+			}
+
+			/**
+			 * @returns {boolean}
+			 */
+			isBase() {
+				return this.equals(ExtendedPoint.BASE);
+			}
+
+			/**
+			 * @returns {boolean}
+			 */
+			isZero() {
+				return this.equals(ExtendedPoint.ZERO);
+			}
+
+			/**
+			 * @param {bigint} s 
+			 * @returns {ExtendedPoint}
+			 */
+			mul(s) {
+				if (s == 0n) {
+					return ExtendedPoint.ZERO;
+				} else {
+					let sum = this.mul(s/2n);
+
+					sum = sum.add(sum);
+
+					if ((s % 2n) != 0n) {
+						sum = sum.add(this);
+					}
+	
+					return sum;
+				}
+			}
+
+			/**
+			 * @returns {AffinePoint}
+			 */
+			toAffine() {
+				if (this.isZero()) {
+					return new AffinePoint(0n, 0n);
+				} else {
+					const zInverse = invert(this.#z);
+
+					return new AffinePoint(
+						curveMod(this.#x*zInverse),
+						curveMod(this.#y*zInverse)
+					);
+				}
+			}
 		}
 
 		/**
@@ -1556,6 +1764,8 @@ export class Crypto {
 			return decodeInt(h);
 		}
 
+		const PointImpl = ExtendedPoint
+
 		return {
 			/**
 			 * @param {number[]} privateKey 
@@ -1564,9 +1774,9 @@ export class Crypto {
 			derivePublicKey: function(privateKey) {
 				const privateKeyHash = Crypto.sha2_512(privateKey);
 				const a = calca(privateKeyHash);
-				const A = scalarMul(BASE, a);
+				const A = PointImpl.BASE.mul(a);
 
-				return encodePoint(A);
+				return A.encode();
 			},
 
 			/**
@@ -1579,13 +1789,14 @@ export class Crypto {
 				const a = calca(privateKeyHash);
 
 				// for convenience calculate publicKey here:
-				const publicKey = encodePoint(scalarMul(BASE, a));
+				const publicKey = PointImpl.BASE.mul(a).encode();
 
 				const r = ihash(privateKeyHash.slice(32, 64).concat(message));
-				const R = scalarMul(BASE, r);
-				const S = posMod(r + ihash(encodePoint(R).concat(publicKey).concat(message))*a, CURVE_ORDER);
+				const R = PointImpl.BASE.mul(r);
+				const Rencoded = R.encode();
+				const S = posMod(r + ihash(Rencoded.concat(publicKey).concat(message))*a, CURVE_ORDER);
 
-				return encodePoint(R).concat(encodeInt(S));
+				return Rencoded.concat(encodeInt(S));
 			},
 
 			/**
@@ -1603,13 +1814,13 @@ export class Crypto {
 					throw new Error(`unexpected publickey length ${publicKey.length}`);
 				}
 
-				const R = decodePoint(signature.slice(0, 32));
-				const A = decodePoint(publicKey);
+				const R = PointImpl.decode(signature.slice(0, 32));
+				const A = PointImpl.decode(publicKey);
 				const S = decodeInt(signature.slice(32, 64));
 				const h = ihash(signature.slice(0, 32).concat(publicKey).concat(message));
 
-				const left = scalarMul(BASE, S);
-				const right = edwards(R, scalarMul(A, h));
+				const left = PointImpl.BASE.mul(S);
+				const right = R.add(A.mul(h));
 
 				return (left[0] == right[0]) && (left[1] == right[1]);
 			}

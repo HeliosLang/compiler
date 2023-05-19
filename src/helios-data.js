@@ -1820,6 +1820,13 @@ export class AssetClass extends HeliosData {
     static fromUplcCbor(bytes) {
         return AssetClass.fromUplcData(UplcData.fromCbor(bytes));
     }
+
+	/**
+	 * @type {AssetClass}
+	 */
+	static get ADA() {
+		return new AssetClass(new MintingPolicyHash(""), "");
+	}
 }
 
 
@@ -1869,6 +1876,21 @@ export class Assets extends CborData {
 		})
 
 		return count;
+	}
+
+	/**
+	 * Returns empty if mph not found
+	 * @param {MintingPolicyHash} mph
+	 * @returns {[number[], bigint][]}
+	 */
+	getTokens(mph) {
+		const i = this.#assets.findIndex(entry => entry[0].eq(mph));
+
+		if (i != -1) {
+			return this.#assets[i][1];
+		} else {
+			return [];
+		}
 	}
 
 	/**
@@ -1990,6 +2012,16 @@ export class Assets extends CborData {
 	 */
 	sub(other) {
 		return this.applyBinOp(other, (a, b) => a - b);
+	}
+
+	/**
+	 * @param {bigint} scalar 
+	 * @returns {Assets}
+	 */
+	mul(scalar) {
+		return new Assets(this.#assets.map(([mph, tokens]) => {
+			return [mph, tokens.map(([token, qty]) => [token, qty*scalar])]
+		}))
 	}
 
 	/**
@@ -2369,6 +2401,14 @@ export class Value extends HeliosData {
 	 */
 	sub(other) {
 		return new Value(this.#lovelace - other.#lovelace, this.#assets.sub(other.#assets));
+	}
+
+	/**
+	 * @param {bigint} scalar 
+	 * @returns {Value}
+	 */
+	mul(scalar) {
+		return new Value(this.#lovelace*scalar, this.#assets.mul(scalar))
 	}
 
 	/**

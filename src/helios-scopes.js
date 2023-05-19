@@ -74,8 +74,8 @@ import {
 
 import {
 	AddressType,
-	CertifyingActionType,
 	CredentialType,
+	DCertType,
 	OutputDatumType,
 	ScriptContextType,
 	ScriptPurposeType,
@@ -170,7 +170,7 @@ export class GlobalScope {
         scope.set("AssetClass",           AssetClassType);
         scope.set("Bool",                 BoolType);
         scope.set("ByteArray",            ByteArrayType);
-		scope.set("CertifyingAction",     CertifyingActionType);
+		scope.set("DCert",                DCertType);
         scope.set("Credential",           CredentialType);
         scope.set("DatumHash",            DatumHashType);
         scope.set("Data",                 RawDataType);

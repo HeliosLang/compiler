@@ -1254,6 +1254,18 @@ export class StringLiteral extends PrimitiveLiteral {
 	}
 
 	/**
+	 * @param {string} str 
+	 * @returns {boolean}
+	 */
+	includes(str) {
+		if (typeof this.#content == "string") {
+			return this.#content.includes(str);
+		} else {
+			return this.#content.some(ir => ir.includes(str));
+		}
+	}
+
+	/**
 	 * @param {RegExp} re 
 	 * @param {string} newStr
 	 * @returns {IR}
@@ -1526,8 +1538,9 @@ export class IRParametricName {
 					if (depth > 1) {
 						chars.push(c);
 					} else {
-						assert(chars.length > 0, "zero chars in group before ]");
-						groups.push(chars);
+						if (chars.length > 0) {
+							groups.push(chars);	
+						}
 						chars = [];
 					}
 					depth--;

@@ -571,12 +571,22 @@ export class TypeParameters {
 	}
 
 	/**
+	 * Always include the braces, even if there aren't any type parameters, so that the mutual recursion injection function has an easier time figuring out what can depend on what
 	 * @param {string} base
 	 * @returns {string}
 	 */
-	genPath(base) {
+	genTypePath(base) {
+		return `${base}[${this.#parameters.map((_, i) => `${this.#prefix}${i}`).join("@")}]`;
+	}
+
+	/**
+	 * Always include the braces, even if there aren't any type parameters, so that the mutual recursion injection function has an easier time figuring out what can depend on what
+	 * @param {string} base
+	 * @returns {string}
+	 */
+	genFuncPath(base) {
 		if (this.hasParameters()) {
-			return `${base}[${this.#parameters.map((_, i) => `${this.#prefix}${i}`).join("@")}]`;
+			return this.genTypePath(base);
 		} else {
 			return base;
 		}
@@ -1135,7 +1145,7 @@ export class StructStatement extends Statement {
 	}
 
 	get path() {
-		return this.#parameters.genPath(super.path);
+		return this.#parameters.genTypePath(super.path);
 	}
 
 	/**
@@ -1277,8 +1287,10 @@ export class StructStatement extends Statement {
 				})
 			});
 		});
+
+		const path = this.#parameters.hasParameters() ? super.path : this.path;
 		
-		scope.set(this.name, new NamedEntity(this.name.value, super.path, type));
+		scope.set(this.name, new NamedEntity(this.name.value, path, type));
 
 		void this.#dataDef.evalFieldTypes(typeScope);
 
@@ -1339,7 +1351,7 @@ export class FuncStatement extends Statement {
 	 * @type {string}
 	 */
 	get path() {
-		return this.#parameters.genPath(super.path);
+		return this.#parameters.genFuncPath(super.path,);
 	}
 
 	/**
@@ -1724,7 +1736,7 @@ export class EnumStatement extends Statement {
 	 * @type {string}
 	 */
 	get path() {
-		return this.#parameters.genPath(super.path);
+		return this.#parameters.genTypePath(super.path);
 	}
 
 	/**
@@ -1916,8 +1928,10 @@ export class EnumStatement extends Statement {
 			return type;
 		});
 
-		// don't include type parameters in path, these are added by application statement
-		scope.set(this.name, new NamedEntity(this.name.value, super.path, type));
+		// don't include type parameters in path (except empty), these are added by application statement
+		const path = this.#parameters.hasParameters() ? super.path : this.path;
+		
+		scope.set(this.name, new NamedEntity(this.name.value, path, type));
 
 		this.#members.forEach(m => {
 			m.evalDataFields(typeScope);

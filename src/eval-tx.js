@@ -126,23 +126,23 @@ export const AddressType = new GenericType({
  * @package
  * @type {DataType}
  */
-export const CertifyingActionType = new GenericType({
-    name: "CertifyingAction",
+export const DCertType = new GenericType({
+    name: "DCert",
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
-        Delegate: CertifyingActionDelegateType,
-        Deregister: CertifyingActionDeregisterType,
-        Register: CertifyingActionRegisterType,
-        RegisterPool: CertifyingActionRegisterPoolType,
-        RetirePool: CertifyingActionRetirePoolType,
-        new_delegate: new FuncType([StakingCredentialType, PubKeyHashType], CertifyingActionDelegateType),
-        new_deregister: new FuncType([StakingCredentialType], CertifyingActionDeregisterType),
-        new_register: new FuncType([StakingCredentialType], CertifyingActionRegisterType),
-        new_register_pool: new FuncType([PubKeyHashType, PubKeyHashType], CertifyingActionRegisterPoolType),
-        new_retire_pool: new FuncType([PubKeyHashType, IntType], CertifyingActionRetirePoolType)
+        Delegate: DCertDelegateType,
+        Deregister: DCertDeregisterType,
+        Register: DCertRegisterType,
+        RegisterPool: DCertRegisterPoolType,
+        RetirePool: DCertRetirePoolType,
+        new_delegate: new FuncType([StakingCredentialType, PubKeyHashType], DCertDelegateType),
+        new_deregister: new FuncType([StakingCredentialType], DCertDeregisterType),
+        new_register: new FuncType([StakingCredentialType], DCertRegisterType),
+        new_register_pool: new FuncType([PubKeyHashType, PubKeyHashType], DCertRegisterPoolType),
+        new_retire_pool: new FuncType([PubKeyHashType, IntType], DCertRetirePoolType)
     })
 });
 
@@ -150,17 +150,17 @@ export const CertifyingActionType = new GenericType({
  * @package
  * @type {EnumMemberType}
  */
-const CertifyingActionDelegateType = new GenericEnumMemberType({
+const DCertDelegateType = new GenericEnumMemberType({
     name: "Delegate",
     constrIndex: 2,
-    parentType: CertifyingActionType,
+    parentType: DCertType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         delegator: StakingCredentialType,
 		pool_id: PubKeyHashType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, CertifyingActionType)
+        ...genCommonEnumTypeMembers(self, DCertType)
     })
 });
 
@@ -168,16 +168,16 @@ const CertifyingActionDelegateType = new GenericEnumMemberType({
  * @package
  * @type {EnumMemberType}
  */
-const CertifyingActionDeregisterType = new GenericEnumMemberType({
+const DCertDeregisterType = new GenericEnumMemberType({
     name: "Deregister",
     constrIndex: 1,
-    parentType: CertifyingActionType,
+    parentType: DCertType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, CertifyingActionType)
+        ...genCommonEnumTypeMembers(self, DCertType)
     })
 });
 
@@ -185,16 +185,16 @@ const CertifyingActionDeregisterType = new GenericEnumMemberType({
  * @package
  * @type {EnumMemberType}
  */
-const CertifyingActionRegisterType = new GenericEnumMemberType({
+const DCertRegisterType = new GenericEnumMemberType({
     name: "Register",
     constrIndex: 0,
-    parentType: CertifyingActionType,
+    parentType: DCertType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, CertifyingActionType)
+        ...genCommonEnumTypeMembers(self, DCertType)
     })
 });
 
@@ -202,17 +202,17 @@ const CertifyingActionRegisterType = new GenericEnumMemberType({
  * @package
  * @type {EnumMemberType}
  */
-const CertifyingActionRegisterPoolType = new GenericEnumMemberType({
+const DCertRegisterPoolType = new GenericEnumMemberType({
     name: "RegisterPool",
     constrIndex: 3,
-    parentType: CertifyingActionType,
+    parentType: DCertType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         pool_id: PubKeyHashType,
         pool_vrf: PubKeyHashType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, CertifyingActionType)
+        ...genCommonEnumTypeMembers(self, DCertType)
     })
 });
 
@@ -220,17 +220,17 @@ const CertifyingActionRegisterPoolType = new GenericEnumMemberType({
  * @package
  * @type {EnumMemberType}
  */
-const CertifyingActionRetirePoolType = new GenericEnumMemberType({
+const DCertRetirePoolType = new GenericEnumMemberType({
     name: "RetirePool",
     constrIndex: 4,
-    parentType: CertifyingActionType,
+    parentType: DCertType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         pool_id: PubKeyHashType,
         epoch: IntType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, CertifyingActionType)
+        ...genCommonEnumTypeMembers(self, DCertType)
     })
 });
 
@@ -462,7 +462,7 @@ export class ScriptContextType extends Common {
 	get typeMembers() {
         return {
             ...genCommonTypeMembers(this),
-            new_certifying: new FuncType([TxType, CertifyingActionType], new ScriptContextType(ScriptPurpose.Staking)),
+            new_certifying: new FuncType([TxType, DCertType], new ScriptContextType(ScriptPurpose.Staking)),
             new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType(ScriptPurpose.Minting)),
             new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(ScriptPurpose.Staking)),
             new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType(ScriptPurpose.Spending))
@@ -539,7 +539,7 @@ export const ScriptPurposeType = new GenericType({
         Minting: ScriptPurposeMintingType,
         Rewarding: ScriptPurposeTypeRewarding,
         Spending: ScriptPurposeSpendingType,
-        new_certifying: new FuncType([CertifyingActionType], ScriptPurposeCertifyingType),
+        new_certifying: new FuncType([DCertType], ScriptPurposeCertifyingType),
         new_minting: new FuncType([MintingPolicyHashType], ScriptPurposeMintingType),
         new_rewarding: new FuncType([StakingCredentialType], ScriptPurposeTypeRewarding),
         new_spending: new FuncType([TxOutputIdType], ScriptPurposeSpendingType), 
@@ -557,7 +557,7 @@ const ScriptPurposeCertifyingType = new GenericEnumMemberType({
     parentType: ScriptPurposeType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
-        action: CertifyingActionType
+        dcert: DCertType
     }),
     genTypeMembers: (self) => ({
         ...genCommonEnumTypeMembers(self, ScriptPurposeType)
@@ -700,7 +700,7 @@ const StakingPurposeCertifyingType = new GenericEnumMemberType({
     parentType: StakingPurposeType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
-        action: CertifyingActionType
+        dcert: DCertType
     }),
     genTypeMembers: (self) => ({
         ...genCommonEnumTypeMembers(self, StakingPurposeType)
@@ -740,7 +740,7 @@ export const TxType = new GenericType({
         outputs: ListType$(TxOutputType),
         fee: ValueType,
         minted: ValueType,
-        cert_actions: ListType$(CertifyingActionType),
+        dcerts: ListType$(DCertType),
         withdrawals: MapType$(StakingCredentialType, IntType),
 		time_range: TimeRangeType,
 		signatories: ListType$(PubKeyHashType),
@@ -796,7 +796,7 @@ export const TxType = new GenericType({
                 ListType$(TxOutputType), // 2
                 ValueType, // 3
                 ValueType, // 4
-                ListType$(CertifyingActionType), // 5
+                ListType$(DCertType), // 5
                 MapType$(StakingCredentialType, IntType), // 6
                 TimeRangeType, // 7
                 ListType$(PubKeyHashType), // 8
