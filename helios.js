@@ -4418,7 +4418,7 @@ export class Crypto {
 			#x;
 			#y;
 			#z;
-			#t; // saves recalculation of curveMod(x*y)
+			#t;
 
 			/**
 			 * @param {bigint} x 
