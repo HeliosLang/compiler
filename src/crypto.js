@@ -752,6 +752,10 @@ export class Crypto {
 	 * bytesToHex(Crypto.sha2_512([0x61, 0x62, 0x63])) => "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
 	 * @example 
 	 * bytesToHex(Crypto.sha2_512([])) => "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+	 * @example
+	 * bytesToHex(Crypto.sha2_512(textToBytes("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"))) => "204a8fc6dda82f0a0ced7beb8e08a41657c16ef468b228a8279be331a703c33596fd15c13b1b07f9aa1d3bea57789ca031ad85c7a71dd70354ec631238ca3445"
+	 * @example
+	 * bytesToHex(Crypto.sha2_512(textToBytes("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstuu"))) => "23565d109ac0e2aa9fb162385178895058b28489a6bc31cb55491ed83956851ab1d4bbd46440586f5c9c4b69c9c280118cbc55c71495d258cc27cc6bb25ee720"
      * @package
 	 * @param {number[]} bytes - list of uint8 numbers
 	 * @returns {number[]} - list of uint8 numbers
@@ -766,29 +770,33 @@ export class Crypto {
 		function pad(src) {
 			const nBits = src.length*8;
 
-			const dst = src.slice();
+			let dst = src.slice();
 
 			dst.push(0x80);
 
-			let nZeroes = (128 - dst.length%128) - 8;
-			if (nZeroes < 0) {
-				nZeroes += 128;
+			if ((dst.length + 16)%128 != 0) {
+				let nZeroes = (128 - dst.length%128) - 16;
+				if (nZeroes < 0) {
+					nZeroes += 128;
+				}
+
+				for (let i = 0; i < nZeroes; i++) {
+					dst.push(0);
+				}
 			}
 
-			for (let i = 0; i < nZeroes; i++) {
-				dst.push(0);
-			}
+			assert((dst.length + 16)%128 == 0, "bad padding");
 
 			// assume nBits fits in 32 bits
+			const lengthPadding = bigIntToBytes(BigInt(nBits))
 
-			dst.push(0);
-			dst.push(0);
-			dst.push(0);
-			dst.push(0);
-			dst.push(imod8(nBits >> 24));
-			dst.push(imod8(nBits >> 16));
-			dst.push(imod8(nBits >> 8));
-			dst.push(imod8(nBits >> 0));
+			while (lengthPadding.length < 16) {
+				lengthPadding.unshift(0);
+			}
+
+			dst = dst.concat(lengthPadding);
+
+			assert(dst.length%128 == 0, "bad length padding");
 			
 			return dst;
 		}
@@ -1316,9 +1324,8 @@ export class Crypto {
 	 *  * Crypto.Ed25519.sign(message, privateKey)
 	 *  * Crypto.Ed25519.verify(message, signature, publicKey)
 	 * 
-	 * This is implementation is slow (~0.5s per verification), but should be good enough for simple client-side usage
-	 * 
 	 * Ported from: https://ed25519.cr.yp.to/python/ed25519.py
+	 * ExtendedPoint implementation from: https://github.com/paulmillr/noble-ed25519
      * @package
 	 */
 	static get Ed25519() {
@@ -1518,8 +1525,9 @@ export class Crypto {
 				return this.#y;
 			}
 
-			/** Curve point 'addition'
-		     * Note: the invert in this calculation is very slow
+			/** 
+			 * Curve point 'addition'
+		     * Note: the invert call in this calculation is very slow (prefer ExtendedPoint for speed)
 			 * @param {AffinePoint} other 
 			 * @returns {AffinePoint}
 			 */
@@ -1726,7 +1734,7 @@ export class Crypto {
 			 */
 			toAffine() {
 				if (this.isZero()) {
-					return new AffinePoint(0n, 0n);
+					return AffinePoint.ZERO;
 				} else {
 					const zInverse = invert(this.#z);
 
@@ -1794,7 +1802,8 @@ export class Crypto {
 				const r = ihash(privateKeyHash.slice(32, 64).concat(message));
 				const R = PointImpl.BASE.mul(r);
 				const Rencoded = R.encode();
-				const S = posMod(r + ihash(Rencoded.concat(publicKey).concat(message))*a, CURVE_ORDER);
+				const ih = ihash(Rencoded.concat(publicKey).concat(message));
+				const S = posMod(r + ih*a, CURVE_ORDER);
 
 				return Rencoded.concat(encodeInt(S));
 			},
