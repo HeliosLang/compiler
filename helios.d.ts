@@ -809,8 +809,8 @@ export class CborData {
     static isUtf8(bytes: number[]): boolean;
     /**
      * Encodes a Utf8 string into Cbor bytes.
-     * Strings longer than 64 bytes are split into lists with 64 byte chunks
-     * Note: string splitting isn't reversible
+     * Strings can be split into lists with chunks of up to 64 bytes
+     * to play nice with Cardano tx metadata constraints.
      * @param {string} str
      * @param {boolean} split
      * @returns {number[]}
