@@ -27,6 +27,24 @@ export default async function main() {
 
 	tx.addMetadata(406, address.toHex());
 	tx.addMetadata(409, {"map": [["a", 1234], ["other", "this is a test"]]});
+	tx.addMetadata(721, {"map": [
+		[
+		  "919d4c2c9455016289341b1a14dedf697687af31751170d56a31466e",
+		  {
+			map: [
+			  [
+				"UTF8Token",
+				{
+				  map: [
+					["name", "Đồng UTF-8"],
+					["description", "Đây là một mô tả dài được viết với UTF-8. Mục tiêu để kiểm tra xem Helios có chia nhỏ ra đúng không. ヘーリオス（古希: Ἥλιος , Hēlios）は、ギリシア神話の太陽神である。その名はギリシア語で「太陽」を意味する一般名詞と同一である。象徴となる聖鳥は雄鶏。"],
+				  ],
+				},
+			  ],
+			],
+		  },
+		],
+	  ]});
 
 	// Simulate CIP30 `getUtxos()`
 	const walletUTXOs = [

@@ -4317,8 +4317,8 @@ export class CborData {
 
 	/**
 	 * Encodes a Utf8 string into Cbor bytes.
-	 * Strings longer than 64 bytes are split into lists with 64 byte chunks
-	 * Note: string splitting isn't reversible
+	 * Strings can be split into lists with chunks of up to 64 bytes
+	 * to play nice with Cardano tx metadata constraints.
 	 * @param {string} str
 	 * @param {boolean} split
 	 * @returns {number[]}
@@ -4330,10 +4330,22 @@ export class CborData {
 			/** @type {number[][]} */
 			const chunks = [];
 
-			for (let i = 0; i < bytes.length; i += 64) {
-				const chunk = bytes.slice(i, i + 64);
-
+			let i = 0;
+			while (i < bytes.length) {
+				// We encode the largest chunk up to 64 bytes
+				// that is valid UTF-8
+				let maxChunkLength = 64, chunk;
+				while (true) {
+					try {
+						chunk = bytes.slice(i, i + maxChunkLength);
+						bytesToText(chunk); // Decode to validate utf-8
+						break;
+					} catch(_) {
+						maxChunkLength--;
+					}
+				}
 				chunks.push([120, chunk.length].concat(chunk));
+				i += chunk.length;
 			}
 
 			return CborData.encodeDefList(chunks);
@@ -4674,7 +4686,7 @@ export class CborData {
 			let i = Number(CborData.decodeInteger(pairBytes));
 
 			fieldDecoder(i, pairBytes);
-			
+
 			done.add(i);
 		});
 
