@@ -1469,10 +1469,19 @@ export class DatumHash extends Hash {
 }
 export class PubKey extends HeliosData {
     /**
+     * @returns {PubKey}
+     */
+    static dummy(): PubKey;
+    /**
      * @param {UplcData} data
      * @returns {PubKey}
      */
     static fromUplcData(data: UplcData): PubKey;
+    /**
+     * @param {number[]} bytes
+     * @returns {PubKey}
+     */
+    static fromCbor(bytes: number[]): PubKey;
     /**
      * @param {string | number[]} rawValue
      */
@@ -1486,9 +1495,17 @@ export class PubKey extends HeliosData {
      */
     get hex(): string;
     /**
+     * @returns {boolean}
+     */
+    isDummy(): boolean;
+    /**
      * @returns {PubKeyHash}
      */
     hash(): PubKeyHash;
+    /**
+     * @returns {string}
+     */
+    dump(): string;
     #private;
 }
 export class PubKeyHash extends Hash {
@@ -3265,6 +3282,12 @@ export class Program {
      */
     statementsToIR(parameters: string[], endCond: (s: Statement, isImport: boolean) => boolean): IRDefinitions;
     /**
+     * @param {IR} ir
+     * @param {IRDefinitions} definitions
+     * @returns {IRDefinitions}
+     */
+    eliminateUnused(ir: IR, definitions: IRDefinitions): IRDefinitions;
+    /**
      * Loops over all statements, until endCond == true (includes the matches statement)
      * Then applies type parameters
      * @package
@@ -3274,6 +3297,12 @@ export class Program {
      * @returns {IRDefinitions}
      */
     fetchDefinitions(ir: IR, parameters: string[], endCond: (s: Statement) => boolean): IRDefinitions;
+    /**
+     * @param {IR} ir
+     * @param {IRDefinitions} definitions
+     * @returns {IR}
+     */
+    wrapInner(ir: IR, definitions: IRDefinitions): IR;
     /**
      * @package
      * @param {IR} ir
@@ -3907,10 +3936,10 @@ export class Signature extends CborData {
      */
     static fromCbor(bytes: number[]): Signature;
     /**
-     * @param {number[]} pubKey
+     * @param {number[] | PubKey} pubKey
      * @param {number[]} signature
      */
-    constructor(pubKey: number[], signature: number[]);
+    constructor(pubKey: number[] | PubKey, signature: number[]);
     /**
      * @type {PubKey}
      */
@@ -3932,6 +3961,41 @@ export class Signature extends CborData {
      * @param {number[]} msg
      */
     verify(msg: number[]): void;
+    #private;
+}
+export class PrivateKey extends HeliosData {
+    /**
+     * Generate a private key from a random number generator.
+     * This is not cryptographically secure, only use this for testing purpose
+     * @param {NumberGenerator} random
+     * @returns {PrivateKey} - Ed25519 private key is 32 bytes long
+     */
+    static random(random: NumberGenerator): PrivateKey;
+    /**
+     * @param {string | number[]} bytes
+     */
+    constructor(bytes: string | number[]);
+    /**
+     * @type {number[]}
+     */
+    get bytes(): number[];
+    /**
+     * @type {string}
+     */
+    get hex(): string;
+    /**
+     * @returns {PrivateKey}
+     */
+    extend(): PrivateKey;
+    /**
+     * @returns {PubKey}
+     */
+    derivePubKey(): PubKey;
+    /**
+     * @param {number[] | string} message
+     * @returns {Signature}
+     */
+    sign(message: number[] | string): Signature;
     #private;
 }
 /**
@@ -4334,16 +4398,18 @@ export class BlockfrostV0 implements Network {
  */
 export class WalletEmulator implements Wallet {
     /**
-     * Generate a private key from a random number generator (not cryptographically secure!)
-     * @param {NumberGenerator} random
-     * @returns {number[]} - Ed25519 private key is 32 bytes long
-     */
-    static genPrivateKey(random: NumberGenerator): number[];
-    /**
      * @param {Network} network
      * @param {NumberGenerator} random - used to generate the private key
      */
     constructor(network: Network, random: NumberGenerator);
+    /**
+     * @type {PrivateKey}
+     */
+    get privateKey(): PrivateKey;
+    /**
+     * @type {PubKey}
+     */
+    get pubKey(): PubKey;
     /**
      * @type {PubKeyHash}
      */
@@ -5782,14 +5848,18 @@ declare class ConstStatement extends Statement {
     /**
      * @param {Site} site
      * @param {Word} name
-     * @param {null | Expr} typeExpr - can be null in case of type inference
-     * @param {Expr} valueExpr
+     * @param {Expr} typeExpr - can be null in case of type inference
+     * @param {null | Expr} valueExpr
      */
-    constructor(site: Site, name: Word, typeExpr: null | Expr, valueExpr: Expr);
+    constructor(site: Site, name: Word, typeExpr: Expr, valueExpr: null | Expr);
     /**
      * @type {DataType}
      */
     get type(): DataType;
+    /**
+     * @returns {boolean}
+     */
+    isSet(): boolean;
     /**
      * Use this to change a value of something that is already typechecked.
      * @param {UplcData} data

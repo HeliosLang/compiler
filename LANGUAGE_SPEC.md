@@ -179,7 +179,7 @@ Comments are removed immediately.
 
 ## Int
 ```
-associated:  from_data, parse, from_little_endian, from_big_endian, min, max, from_base58
+associated:  from_data, parse, from_little_endian, from_big_endian, min, max, from_base58, sqrt, __to_data
 operators:   __eq, __neq, __neg, __pos, __add, __sub, __mul, __div, __mod, __geq, __gt, __leq, __lt
 methods:     serialize, to_bool, to_hex, to_little_endian, to_big_endian, show, bound, bound_min, 
              bound_max, abs, encode_zigzag, decode_zigzag, to_base58, to_real
@@ -188,15 +188,15 @@ internal ns: __helios__int
 
 ## Real
 ```
-associated:  from_data
+associated:  from_data, __to_data, sqrt
 operators:   __eq, __neq, __neg, __pos, __add, __sub, __mul,  __div, __geq, __gt, __leq, __lt
-methods:     serialize, show, floor, trunc, ceil, round
+methods:     serialize, show, floor, trunc, ceil, round,
 internal ns: __helios__real
 ```
 
 ## Bool
 ```
-associated:  and, or, from_data
+associated:  and, or, from_data, __to_data
 operators:   __eq, __neq, __not, __and (desugars as 'and'), __or (desugars as 'or')
 methods:     serialize, to_int, show
 internal ns: __helios__bool
@@ -204,7 +204,7 @@ internal ns: __helios__bool
 
 ## String
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq, __add
 methods:     serialize, starts_with, ends_with, encode_utf8
 internal ns: __helios__string
@@ -212,7 +212,7 @@ internal ns: __helios__string
 
 ## ByteArray
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq, __add, __lt, __leq, __gt, __geq
 getters:     length
 methods:     serialize, slice, starts_with, ends_with, sha2, sha3, blake2b, decode_utf8, show, prepend
@@ -221,29 +221,30 @@ internal ns: __helios__bytearray
 
 ## List
 ```
-associated:  new, new_const, from_data
+associated:  new, new_const, from_data, __to_data
 operators:   __eq, __neq, __add
 getters:     length, head, tail
 methods:     serialize, is_empty, get, prepend, any, all, find, find_safe, filter, fold, fold_lazy,
-             map, sort, for_each, get_singleton, drop, take, drop_end, take_end
+             map, sort, for_each, get_singleton, drop, take, drop_end, take_end, sum, join, flatten
 internal ns: __helios__list
 ```
 
 ## Map
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq, __add
 getters:     length, head_key, head_value, tail
 methods:     serialize, is_empty, get, get_safe, set, delete, all, all_keys, all_values, any, any_key, any_value, 
              filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values, 
              fold_lazy, fold_keys_lazy, fold_values_lazy, map_keys, map_values, prepend
-             sort, sort_by_key, sort_by_value, find, find_key, find_key_safe, find_by_key, find_value, find_value_safe, find_by_value, for_each
+             sort, sort_by_key, sort_by_value, find, find_key, find_key_safe, find_by_key, find_value, find_value_safe, find_by_value, for_each,
+             update, update_safe
 internal ns: __helios__map
 ```
 
 ## Option
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq
 methods:     serialize, unwrap, map
 internal ns: __helios__option
@@ -251,7 +252,7 @@ internal ns: __helios__option
 
 ### Option::Some
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 getters:     some
 methods:     serialize
 hidden:      new, cast
@@ -260,7 +261,7 @@ internal ns: __helios__option__some
 
 ### Option::None
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 methods:     serialize
 hidden:      new, cast
 internal ns: __helios__option__none
@@ -268,7 +269,7 @@ internal ns: __helios__option__none
 
 ## ScriptHash
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq
 methods:     serialize
 internal ns: __helios__scripthash
@@ -276,7 +277,7 @@ internal ns: __helios__scripthash
 
 ## PubKeyHash, StakeKeyHash, DatumHash
 ```
-associated:  new, from_data
+associated:  new, from_data, __to_data
 operators:   __eq, __neq, __lt, __leq, __gt, __geq
 methods:     serialize, show
 internal ns: __helios__hash
@@ -284,7 +285,7 @@ internal ns: __helios__hash
 
 ## ValidatorHash, MintingPolicyHash, StakingValidatorHash
 ```
-associated:  new, from_data, from_script_hash
+associated:  new, from_data, from_script_hash, __to_data
 operators:   __eq, __neq, __lt, __leq, __gt, __geq
 methods:     serialize, show
 macros:      CURRENT
@@ -293,7 +294,7 @@ internal ns: __helios__hash
 
 ## PubKey
 ```
-associated:  new, from_data
+associated:  new, from_data, __to_data
 operators:   __eq, __neq
 methods:     serialize, show, verify
 internal ns: __helios__pubkey
@@ -301,7 +302,7 @@ internal ns: __helios__pubkey
 
 ## ScriptContext
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq
 getters:     tx
 methods:     serialize, get_spending_purpose_output_id, get_current_validator_hash,
@@ -313,7 +314,7 @@ internal ns: __helios__scriptcontext
 
 ## StakingPurpose
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq
 methods:     serialize
 internal ns: __helios__stakingpurpose
@@ -321,7 +322,7 @@ internal ns: __helios__stakingpurpose
 
 ### StakingPurpose::Rewarding
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 getters:     credential
 methods:     serialize
 internal ns: __helios__stakingpurpose__rewarding
@@ -329,7 +330,7 @@ internal ns: __helios__stakingpurpose__rewarding
 
 ### StakingPurpose::Certifying
 ```
-operator:    __eq, __neq
+operator:    __eq, __neq, __to_data
 getters:     dcert,
 methods:     serialize,
 internal ns: __helios__stakingpurpose__certifying
@@ -337,7 +338,7 @@ internal ns: __helios__stakingpurpose__certifying
 
 ## ScriptPurpose
 ```
-associated:  from_data, new_minting, new_spending, new_rewarding, new_certifying
+associated:  from_data, new_minting, new_spending, new_rewarding, new_certifying, __to_data
 operators:   __eq, __neq
 methods:     serialize
 internal ns: __helios__scriptpurpose
@@ -345,7 +346,7 @@ internal ns: __helios__scriptpurpose
 
 ### ScriptPurpose::Minting
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 getters:     policy_hash
 methods:     serialize
 internal ns: __helios__scriptpurpose__minting
@@ -353,7 +354,7 @@ internal ns: __helios__scriptpurpose__minting
 
 ### ScriptPurpose::Spending
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 getters:     output_id
 methods:     serialize
 internal ns: __helios__scriptpurpose__spending
@@ -361,7 +362,7 @@ internal ns: __helios__scriptpurpose__spending
 
 ### ScriptPurpose::Rewarding
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 getters:     credential
 methods:     serialize
 internal ns: __helios__scriptpurpose__rewarding
@@ -369,7 +370,7 @@ internal ns: __helios__scriptpurpose__rewarding
 
 ### ScriptPurpose::Certifying
 ```
-operator:    __eq, __neq
+operator:    __eq, __neq, __to_data
 getters:     dcert,
 methods:     serialize,
 internal ns: __helios__scriptpurpose__certifying
@@ -377,7 +378,7 @@ internal ns: __helios__scriptpurpose__certifying
 
 ## DCert
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq
 methods:     serialize
 macros:      new_register, new_deregister, new_delegate, new_register_pool, new_retire_pool
@@ -386,7 +387,7 @@ internal ns:  __helios__dcert
 
 ### DCert::Register
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 getters:     credential
 methods:     serialize
 internal ns: __helios__dcert__register
@@ -394,7 +395,7 @@ internal ns: __helios__dcert__register
 
 ### DCert::Deregister
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 getters:     credential
 methods:     serialize
 internal ns: __helios__dcert__deregister
@@ -402,7 +403,7 @@ internal ns: __helios__dcert__deregister
 
 ### DCert::Delegate
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 getters:     delegator, pool_id
 methods:     serialize
 internal ns: __helios__dcert__delegate
@@ -410,7 +411,7 @@ internal ns: __helios__dcert__delegate
 
 ### DCert::RegisterPool
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 getters:     pool_id, pool_vrf
 methods:     serialize
 internal ns: __helios__dcert__registerpool
@@ -418,7 +419,7 @@ internal ns: __helios__dcert__registerpool
 
 ### DCert::RetirePool
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 getters:     pool_id, epoch
 methods:     serialize
 internal ns: __helios__dcert__retirepool
@@ -426,7 +427,7 @@ internal ns: __helios__dcert__retirepool
 
 ## Tx
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq
 getters:     inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, time_range, 
              signatories, id
@@ -442,7 +443,7 @@ internal ns: __helios__tx
     
 ## TxId
 ```
-associated:  new, from_data
+associated:  new, from_data, __to_data
 operators:   __eq, __neq, __lt, __leq, __gt, __geq
 methods:     serialize, show
 macros:      CURRENT
@@ -451,9 +452,9 @@ internal ns: __helios__txid
        
 ## TxInput
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq
-getters:     output_id, output
+getters:     output_id, output, value, datum, address
 methods:     serialize
 macros:      new
 internal ns: __helios__txinput
@@ -461,7 +462,7 @@ internal ns: __helios__txinput
 
 ## TxOutput
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq
 getters:     address, value, datum, ref_script_hash
 methods:     serialize
@@ -472,7 +473,7 @@ internal ns: __helios__txoutput
 
 ## OutputDatum
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq
 macros:      new_none, new_hash, new_inline
 methods:     inline_data, serialize
@@ -481,14 +482,14 @@ internal ns: __helios__outputdatum
 
 ### OutputDatum::None
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 methods:     serialize
 internal ns: __helios__outputdatum__none
 ```
 
 ### OutputDatum::Hash
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 getters:     hash
 methods:     serialize
 internal ns: __helios__outputdatum__hash
@@ -496,7 +497,7 @@ internal ns: __helios__outputdatum__hash
 
 ### OutputDatum::Inline
 ```
-operators:   __eq, __neq
+operators:   __eq, __neq, __to_data
 getters:     data
 methods:     serialize
 internal ns: __helios__outputdatum__inline
@@ -504,7 +505,7 @@ internal ns: __helios__outputdatum__inline
 
 ## Data
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq
 getters:     tag
 methods:     serialize
@@ -513,7 +514,7 @@ internal ns: __helios__data
 
 ## TxOutputId
 ```
-associated:  new, from_data
+associated:  new, from_data, __to_data
 operators:   __eq, __neq, __lt, __leq, __gt, __geq
 methods:     serialize
 internal ns: __helios__txoutputid
@@ -521,7 +522,7 @@ internal ns: __helios__txoutputid
 
 ## Address
 ```
-associated:  new, new_empty, from_data
+associated:  new, new_empty, from_data, __to_data
 operators:   __eq, __neq
 getters:     credential, staking_credential
 methods:     serialize
@@ -531,7 +532,7 @@ internal ns: __helios__address
 
 ## Credential
 ```
-associated:  new_pubkey, new_validator, from_data
+associated:  new_pubkey, new_validator, from_data, __to_data
 operators:   __eq, __neq
 methods:     serialize
 hidden:      is_pubkey, is_validator
@@ -540,7 +541,7 @@ internal ns: __helios__credential
 
 ### Credential::PubKey
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq
 getters:     hash
 methods:     serialize
@@ -550,7 +551,7 @@ internal ns: __helios__credential__pubkey
 
 ### Credential::Validator
 ```
-associated: from_data
+associated: from_data, __to_data
 operators:  __eq, __neq
 getters:    hash
 methods:    serialize
@@ -560,7 +561,7 @@ internal ns: __helios__credential__validator
 
 ## StakingHash
 ```
-associated:  new_stakekey, new_validator, from_data
+associated:  new_stakekey, new_validator, from_data, __to_data
 operators:   __eq, __neq
 methods:     serialize
 hidden:      is_stakekey, is_validator
@@ -569,7 +570,7 @@ internal ns: __helios__stakinghash
 
 ### StakingHash::StakeKey
 ```
-associated:  from_data
+associated:  from_data, __to_data
 operators:   __eq, __neq
 getters:     hash
 methods:     serialize
@@ -579,7 +580,7 @@ internal ns: __helios__stakinghash__stakekey
 
 ### StakingHash::Validator
 ```
-associated: from_data
+associated: from_data, __to_data
 operators:  __eq, __neq
 getters:    hash
 methods:    serialize
@@ -589,7 +590,7 @@ internal ns: __helios__stakinghash__validator
 
 ## StakingCredential
 ```
-associated: new_hash, new_ptr, from_data
+associated: new_hash, new_ptr, from_data, __to_data
 operators:  __eq, __neq
 methods:    serialize
 internal ns: __helios__stakingcredential
@@ -597,21 +598,21 @@ internal ns: __helios__stakingcredential
 
 ### StakingCredential::Hash
 ```
-operators:  __eq, __neq
+operators:  __eq, __neq, __to_data
 methods:    serialize
 internal ns: __helios__stakingcredential__hash
 ```
 
 ### StakingCredential::Ptr
 ```
-operators:  __eq, __neq
+operators:  __eq, __neq, __to_data
 methods:    serialize
 internal ns: __helios__stakingcredential__ptr
 ```
 
 ## Time
 ```
-associated: new, from_data
+associated: new, from_data, __to_data
 operators:  __eq, __neq, __add, __sub, __sub_alt, __geq, __gt, __leq, __lt
 methods:     serialize, show
 internal ns: __helios__time
@@ -619,7 +620,7 @@ internal ns: __helios__time
 
 ## Duration
 ```
-associated: new, from_data, SECOND, MINUTE, HOUR, DAY, WEEK
+associated: new, from_data, SECOND, MINUTE, HOUR, DAY, WEEK, __to_data
 operators:  __eq, __neq, __add, __sub, __mul, __div, __div_alt, __mod, __geq, __gt, __leq, __lt
 methods:    serialize
 internal ns: __helios__duration
@@ -627,7 +628,7 @@ internal ns: __helios__duration
 
 ## TimeRange
 ```
-associated: new, to, from, ALWAYS, NEVER, from_data
+associated: new, to, from, ALWAYS, NEVER, from_data, __to_data
 operators:  __eq, __neq
 getters:    start, end
 methods:    serialize, contains, is_before, is_after, show
@@ -636,7 +637,7 @@ internal ns: __helios__timerange
 
 ## AssetClass
 ```
-associated: ADA, new, from_data
+associated: ADA, new, from_data, __to_data
 operators:  __eq, __neq
 getters:    mph, token_name
 methods:    serialize
@@ -645,7 +646,7 @@ internal ns: __helios__assetclass
 
 ## Value
 ```
-associated:  ZERO, lovelace, new, from_data, from_map
+associated:  ZERO, lovelace, new, from_data, from_map, __to_data
 operators:   __eq, __neq, __add, __sub, __geq, __gt, __leq, __lt
 methods:     serialize, is_zero, get, get_safe, contains, get_policy, contains_policy, to_map, get_lovelace, get_assets, show
 hidden:      get_map_keys, merge_map_keys, get_inner_map, get_inner_map_int, add_or_subtract_inner, add_or_subtract, compare_inner, compare

@@ -357,7 +357,7 @@ export class DefaultTypeClass extends Common {
 	 * @returns {boolean}
 	 */
 	isImplementedBy(type) {
-		return type.asDataType != null || type instanceof AllType;
+		return Common.typeImplements(type, this) || type instanceof AllType;
 	}
 
 	/**

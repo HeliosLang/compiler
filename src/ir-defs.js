@@ -2641,6 +2641,72 @@ function makeRawFunctions() {
 			}(${TTPP}0____to_data(key), ${TTPP}1____to_data(value))
 		}
 	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__update`,
+	`(self) -> {
+		(key, fn) -> {
+			(key) -> {
+				(recurse) -> {
+					recurse(recurse, self)
+				}(
+					(recurse, map) -> {
+						__core__chooseList(
+							map,
+							() -> {
+								error("key not found")
+							},
+							() -> {
+								(pair) -> {
+									__core__ifThenElse(
+										__core__equalsData(key, __core__fstPair(pair)),
+										() -> {
+											__core__mkCons(
+												__core__mkPairData(
+													key,
+													${TTPP}1____to_data(fn(${TTPP}1__from_data(__core__sndPair(pair))))
+												),
+												__core__tailList(map)
+											)
+										},
+										() -> {
+											__core__mkCons(pair, recurse(recurse, __core__tailList(map)))
+										}
+									)()
+								}(__core__headList(map))
+							}
+						)()
+					}
+				)
+			}(${TTPP}0____to_data(key))
+		}
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__update_safe`,
+	`(self) -> {
+		(key, fn) -> {
+			(key) -> {
+				__helios__common__map(
+					self,
+					(pair) -> {
+						(oldKey, oldValue) -> {
+							(newValue) -> {
+								__core__mkPairData(oldKey, newValue)
+							}(
+								__core__ifThenElse(
+									__core__equalsData(oldKey, key),
+									() -> {
+										${TTPP}1____to_data(fn(${TTPP}1__from_data(oldValue)))
+									},
+									() -> {
+										oldValue
+									}
+								)()
+							)
+						}(__core__fstPair(pair), __core__sndPair(pair))
+					}, 
+					__core__mkNilPairData(())
+				)
+			}(${TTPP}0____to_data(key))
+		}
+	}`));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__sort`,
 	`(self) -> {
 		(comp) -> {

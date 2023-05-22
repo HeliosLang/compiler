@@ -590,29 +590,32 @@ export class Crypto {
 		function pad(src) {
 			const nBits = src.length*8;
 
-			const dst = src.slice();
+			let dst = src.slice();
 
 			dst.push(0x80);
 
-			let nZeroes = (64 - dst.length%64) - 8;
-			if (nZeroes < 0) {
-				nZeroes += 64;
+			if ((dst.length + 8)%64 != 0) {
+				let nZeroes = (64 - dst.length%64) - 8;
+				if (nZeroes < 0) {
+					nZeroes += 64;
+				}
+
+				for (let i = 0; i < nZeroes; i++) {
+					dst.push(0);
+				}
 			}
 
-			for (let i = 0; i < nZeroes; i++) {
-				dst.push(0);
+			assert((dst.length + 8)%64 == 0, "bad padding");
+
+			const lengthPadding = bigIntToBytes(BigInt(nBits));
+
+			assert(lengthPadding.length <= 8, "input data too big");
+
+			while (lengthPadding.length < 8) {
+				lengthPadding.unshift(0)
 			}
 
-			// assume nBits fits in 32 bits
-
-			dst.push(0);
-			dst.push(0);
-			dst.push(0);
-			dst.push(0);
-			dst.push(imod8(nBits >> 24));
-			dst.push(imod8(nBits >> 16));
-			dst.push(imod8(nBits >> 8));
-			dst.push(imod8(nBits >> 0));
+			dst = dst.concat(lengthPadding);
 			
 			return dst;
 		}
@@ -788,7 +791,9 @@ export class Crypto {
 			assert((dst.length + 16)%128 == 0, "bad padding");
 
 			// assume nBits fits in 32 bits
-			const lengthPadding = bigIntToBytes(BigInt(nBits))
+			const lengthPadding = bigIntToBytes(BigInt(nBits));
+
+			assert(lengthPadding.length <= 16, "input data too big");
 
 			while (lengthPadding.length < 16) {
 				lengthPadding.unshift(0);
@@ -1334,6 +1339,7 @@ export class Crypto {
 		 * @typedef {{
 		 *   add(other: T): T
 		 *   mul(scalar: bigint): T
+		 *   equals(other: T): boolean
 		 *   encode(): number[]
 		 * }} Point
 		 */
@@ -1494,10 +1500,10 @@ export class Crypto {
 			static decode(bytes) {
 				assert(bytes.length == 32);
 
-				bytes = bytes.slice();
-				bytes[31] = bytes[31] & 0b01111111;
+				const tmp = bytes.slice();
+				tmp[31] = tmp[31] & 0b01111111;
 	
-				const y = decodeInt(bytes);
+				const y = decodeInt(tmp);
 	
 				let x = recoverX(y);
 				if (Number(x & 1n) != getBit(bytes, 255)) {
@@ -1544,6 +1550,14 @@ export class Crypto {
 					curveMod(x3), 
 					curveMod(y3)
 				);
+			}
+
+			/**
+			 * @param {AffinePoint} other 
+			 * @returns {boolean}
+			 */
+			equals(other) {
+				return this.x == other.x && this.y == other.y;
 			}
 
 			/**
@@ -1831,7 +1845,7 @@ export class Crypto {
 				const left = PointImpl.BASE.mul(S);
 				const right = R.add(A.mul(h));
 
-				return (left[0] == right[0]) && (left[1] == right[1]);
+				return left.equals(right);
 			}
 		}
 	}

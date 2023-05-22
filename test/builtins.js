@@ -292,13 +292,13 @@ const serializeProp = ([a], res) => {
 function spendingScriptContextParam(useInlineDatum) {
     return `
         // a script context with a single input and a single output
-        const PUB_KEY_HASH_BYTES = #01234567890123456789012345678901234567890123456789012345
-        const TX_ID_IN_BYTES = #0123456789012345678901234567890123456789012345678901234567891234
+        const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
+        const TX_ID_IN_BYTES: ByteArray = #0123456789012345678901234567890123456789012345678901234567891234
         const TX_ID_IN: TxId = TxId::new(TX_ID_IN_BYTES)
-        const CURRENT_VALIDATOR_BYTES = #01234567890123456789012345678901234567890123456789012346
-        const CURRENT_VALIDATOR = ValidatorHash::new(CURRENT_VALIDATOR_BYTES)
-        const HAS_STAKING_CRED_IN = false
-        const STAKING_CRED_TYPE = false
+        const CURRENT_VALIDATOR_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012346
+        const CURRENT_VALIDATOR: ValidatorHash = ValidatorHash::new(CURRENT_VALIDATOR_BYTES)
+        const HAS_STAKING_CRED_IN: Bool = false
+        const STAKING_CRED_TYPE: Bool = false
         const SOME_STAKING_CRED_IN: StakingCredential = if (STAKING_CRED_TYPE) {
             StakingCredential::new_ptr(0, 0, 0)
         } else {
@@ -309,30 +309,30 @@ function spendingScriptContextParam(useInlineDatum) {
         } else {
             Option[StakingCredential]::None
         }
-        const CURRENT_VALIDATOR_CRED = Credential::new_validator(CURRENT_VALIDATOR)
-        const ADDRESS_IN = Address::new(CURRENT_VALIDATOR_CRED, STAKING_CRED_IN)
-        const TX_OUTPUT_ID_IN = TxOutputId::new(TX_ID_IN, 0)
-        const ADDRESS_OUT = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
-        const ADDRESS_OUT_1 = Address::new(Credential::new_validator(CURRENT_VALIDATOR), Option[StakingCredential]::None)
-        const QTY = 200000
-        const QTY_1 = 100000
-        const QTY_2 = 100000
+        const CURRENT_VALIDATOR_CRED: Credential = Credential::new_validator(CURRENT_VALIDATOR)
+        const ADDRESS_IN: Address = Address::new(CURRENT_VALIDATOR_CRED, STAKING_CRED_IN)
+        const TX_OUTPUT_ID_IN: TxOutputId = TxOutputId::new(TX_ID_IN, 0)
+        const ADDRESS_OUT: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+        const ADDRESS_OUT_1: Address = Address::new(Credential::new_validator(CURRENT_VALIDATOR), Option[StakingCredential]::None)
+        const QTY: Int = 200000
+        const QTY_1: Int = 100000
+        const QTY_2: Int = 100000
 
-        const FEE = 160000
-        const VALUE_IN = Value::lovelace(QTY + QTY_1 + QTY_2)
-        const VALUE_OUT = Value::lovelace(QTY - FEE)
-        const VALUE_OUT_1 = Value::lovelace(QTY_1)
-        const VALUE_OUT_2 = Value::lovelace(QTY_2)
+        const FEE: Int = 160000
+        const VALUE_IN: Value = Value::lovelace(QTY + QTY_1 + QTY_2)
+        const VALUE_OUT: Value = Value::lovelace(QTY - FEE)
+        const VALUE_OUT_1: Value = Value::lovelace(QTY_1)
+        const VALUE_OUT_2: Value = Value::lovelace(QTY_2)
 
-        const DATUM_1 = 42
-        const DATUM_HASH_1 = DatumHash::new(DATUM_1.serialize().blake2b())
-        const OUTPUT_DATUM = ${useInlineDatum ? "OutputDatum::new_inline(DATUM_1)" : "OutputDatum::new_hash(DATUM_HASH_1)"}
+        const DATUM_1: Int = 42
+        const DATUM_HASH_1: DatumHash = DatumHash::new(DATUM_1.serialize().blake2b())
+        const OUTPUT_DATUM: OutputDatum = ${useInlineDatum ? "OutputDatum::new_inline(DATUM_1)" : "OutputDatum::new_hash(DATUM_HASH_1)"}
 
-        const CURRENT_TX_ID = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
+        const CURRENT_TX_ID: TxId = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
 
-        const FIRST_TX_INPUT = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN, OutputDatum::new_none()))
-        const REF_INPUT = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0), OutputDatum::new_inline(42)))
-        const FIRST_TX_OUTPUT = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
+        const FIRST_TX_INPUT: TxInput = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN, OutputDatum::new_none()))
+        const REF_INPUT: TxInput = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0), OutputDatum::new_inline(42)))
+        const FIRST_TX_OUTPUT: TxOutput = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
         const TX: Tx = Tx::new(
             []TxInput{FIRST_TX_INPUT},
             []TxInput{REF_INPUT},
@@ -351,22 +351,22 @@ function spendingScriptContextParam(useInlineDatum) {
             Map[DatumHash]Int{${useInlineDatum ? "" : "DATUM_HASH_1: DATUM_1"}},
             CURRENT_TX_ID
         )
-        const SCRIPT_CONTEXT = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
+        const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
     `;
 }
 
 const mintingScriptContextParam = `
     // a script context with a single input and a single output
-    const PUB_KEY_HASH_BYTES = #01234567890123456789012345678901234567890123456789012345
-    const TX_ID_IN = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
-    const CURRENT_MPH_BYTES = #01234567890123456789012345678901234567890123456789012346
-    const CURRENT_MPH = MintingPolicyHash::new(CURRENT_MPH_BYTES)
-    const ADDRESS_IN = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+    const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
+    const TX_ID_IN: TxId = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
+    const CURRENT_MPH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012346
+    const CURRENT_MPH: MintingPolicyHash = MintingPolicyHash::new(CURRENT_MPH_BYTES)
+    const ADDRESS_IN: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
     const ADDRESS_OUT: Address = ADDRESS_IN
-    const QTY = 1000
-    const VALUE = Value::lovelace(QTY)
-    const MINTED = Value::new(AssetClass::new(CURRENT_MPH, #abcd), 1)
-    const SCRIPT_CONTEXT = ScriptContext::new_minting(Tx::new(
+    const QTY: Int = 1000
+    const VALUE: Value = Value::lovelace(QTY)
+    const MINTED: Value = Value::new(AssetClass::new(CURRENT_MPH, #abcd), 1)
+    const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_minting(Tx::new(
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE + MINTED, OutputDatum::new_none())},
@@ -384,16 +384,16 @@ const mintingScriptContextParam = `
 
 const rewardingScriptContextParam = `
     // a script context with a single input and a single output
-    const PUB_KEY_HASH_BYTES = #01234567890123456789012345678901234567890123456789012345
-    const TX_ID_IN = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
-    const CURRENT_STAKING_CRED_BYTES = #01234567890123456789012345678901234567890123456789012346
-    const CURRENT_STAKING_CRED = StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
-    const REWARD_QTY = 2000
-    const ADDRESS_IN = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+    const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
+    const TX_ID_IN: TxId = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
+    const CURRENT_STAKING_CRED_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012346
+    const CURRENT_STAKING_CRED: StakingCredential = StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
+    const REWARD_QTY: Int = 2000
+    const ADDRESS_IN: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
     const ADDRESS_OUT: Address = ADDRESS_IN
-    const QTY = 1000
-    const VALUE = Value::lovelace(QTY)
-    const SCRIPT_CONTEXT = ScriptContext::new_rewarding(Tx::new(
+    const QTY: Int = 1000
+    const VALUE: Value = Value::lovelace(QTY)
+    const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_rewarding(Tx::new(
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE + Value::lovelace(REWARD_QTY), OutputDatum::new_none())},
@@ -415,23 +415,23 @@ const rewardingScriptContextParam = `
 
 const certifyingScriptContextParam = `
     // a script context with a single input and a single output
-    const PUB_KEY_HASH_BYTES = #01234567890123456789012345678901234567890123456789012345
-    const TX_ID_IN = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
-    const CURRENT_STAKING_CRED_BYTES = #01234567890123456789012345678901234567890123456789012346
-    const CURRENT_STAKING_CRED = StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
-    const ADDRESS_IN = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
+    const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
+    const TX_ID_IN: TxId = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
+    const CURRENT_STAKING_CRED_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012346
+    const CURRENT_STAKING_CRED: StakingCredential = StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(CURRENT_STAKING_CRED_BYTES)))
+    const ADDRESS_IN: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
     const ADDRESS_OUT: Address = ADDRESS_IN
-    const QTY_IN = 1000
-    const VALUE = Value::lovelace(QTY_IN)
-    const CURRENT_DCERT = DCert::new_register(CURRENT_STAKING_CRED)
-    const DCERT_DEREGISTER = DCert::new_deregister(CURRENT_STAKING_CRED)
-    const POOL_ID = PubKeyHash::new(#1253751235)
-    const POOL_VFR = PubKeyHash::new(#125375123598)
-    const EPOCH = 370
-    const DCERT_DELEGATE = DCert::new_delegate(CURRENT_STAKING_CRED, POOL_ID)
-    const DCERT_REGISTER_POOL = DCert::new_register_pool(POOL_ID, POOL_VFR)
-    const DCERT_RETIRE_POOL = DCert::new_retire_pool(POOL_ID, EPOCH)
-    const SCRIPT_CONTEXT = ScriptContext::new_certifying(Tx::new(
+    const QTY_IN: Int = 1000
+    const VALUE: Value = Value::lovelace(QTY_IN)
+    const CURRENT_DCERT: DCert = DCert::new_register(CURRENT_STAKING_CRED)
+    const DCERT_DEREGISTER: DCert = DCert::new_deregister(CURRENT_STAKING_CRED)
+    const POOL_ID: PubKeyHash = PubKeyHash::new(#1253751235)
+    const POOL_VFR: PubKeyHash = PubKeyHash::new(#125375123598)
+    const EPOCH: Int = 370
+    const DCERT_DELEGATE: DCert = DCert::new_delegate(CURRENT_STAKING_CRED, POOL_ID)
+    const DCERT_REGISTER_POOL: DCert = DCert::new_register_pool(POOL_ID, POOL_VFR)
+    const DCERT_RETIRE_POOL: DCert = DCert::new_retire_pool(POOL_ID, EPOCH)
+    const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_certifying(Tx::new(
         []TxInput{TxInput::new(TxOutputId::new(TX_ID_IN, 0), TxOutput::new(ADDRESS_IN, VALUE, OutputDatum::new_none()))},
         []TxInput{},
         []TxOutput{TxOutput::new(ADDRESS_OUT, VALUE, OutputDatum::new_none())},
@@ -2642,6 +2642,57 @@ async function testBuiltins() {
                 return (asInt(pair[0]) === asInt(key)) && (asInt(pair[1]) === asInt(value));
             });
         });
+            
+        await ft.test([ft.map(ft.int(0, 10), ft.int()), ft.int(0, 10), ft.int()], `
+        testing map_update
+        func main(m: Map[Int]Int, key: Int, value: Int) -> Map[Int]Int {
+            m.update(key, (old: Int) -> Int {old + value})
+        }`, ([m, key, value], res) => {
+            const inpMap = asData(m).map;
+
+            if (inpMap.some(pair => asInt(pair[0]) == asInt(key))) {
+                const resMap = asData(res).map;
+
+                let ok = true;
+                let first = true;
+
+                inpMap.forEach((pair, i) => {
+                    if (asInt(pair[0]) == asInt(key) && first) {
+                        if (asInt(resMap[i][1]) != asInt(pair[1]) + asInt(value)) {
+                            ok = false;
+                        }
+
+                        first = false;
+                    } else if (asInt(resMap[i][1]) != asInt(pair[1])) {
+                        ok = false;
+                    }
+                });
+
+                return ok;
+            } else {
+                return isError(res, "key not found");
+            }
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int()), ft.int(), ft.int()], `
+        testing map_update_safe
+        func main(m: Map[Int]Int, key: Int, value: Int) -> Map[Int]Int {
+            m.update_safe(key, (old: Int) -> Int {old + value})
+        }`, ([m, key, value], res) => {
+            const resMap = asData(res).map;
+
+            return asData(m).map.every((pair, i) => {
+                if (asInt(pair[0]) != asInt(resMap[i][0])) {
+                    return false;
+                }
+
+                if (asInt(pair[0]) == asInt(key)) {
+                    return asInt(resMap[i][1]) == asInt(pair[1]) + asInt(value);
+                } else {
+                    return asInt(resMap[i][1]) == asInt(pair[1]);
+                }
+            });
+        });
 
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_sort
@@ -4052,7 +4103,7 @@ async function testBuiltins() {
         func main(data: Data) -> OutputDatum {
             OutputDatum::from_data(data)
         }
-        const INLINE_DATUM = 0
+        const INLINE_DATUM: Int = 0
 
         const OUTPUT_DATUM: OutputDatum = OutputDatum::new_inline(INLINE_DATUM)
         `, ([a], res) => a.data.isSame(asData(res)), 5);
@@ -4062,15 +4113,15 @@ async function testBuiltins() {
         func main(od: OutputDatum) -> ByteArray {
             od.serialize()
         }
-        const INLINE_DATUM = 0
+        const INLINE_DATUM: Int = 0
 
         const OUTPUT_DATUM: OutputDatum = OutputDatum::new_inline(INLINE_DATUM)
         `, serializeProp, 5);
 
         const outputDatumParam = `
-        const CONSTR_INDEX = 0
-        const INLINE_DATA = 0
-        const DATUM_HASH_BYTES = #
+        const CONSTR_INDEX: Int = 0
+        const INLINE_DATA: Int = 0
+        const DATUM_HASH_BYTES: ByteArray = #
         const DATUM_HASH: DatumHash = DatumHash::new(DATUM_HASH_BYTES)
 
         const OUTPUT_DATUM: OutputDatum = if (CONSTR_INDEX == 0) {
@@ -4123,7 +4174,7 @@ async function testBuiltins() {
     func main(data: Data) -> Bool {
         data == data
     }
-    const DATA = 0
+    const DATA: Int = 0
     `, ([_], res) => asBool(res), 10);
 
     await ft.testParams({"DATA": ft.int()}, ["DATA"], `
@@ -4131,7 +4182,7 @@ async function testBuiltins() {
     func main(data: Data) -> Bool {
         data != data
     }
-    const DATA = 0
+    const DATA: Int = 0
     `, ([_], res) => !asBool(res), 10);
 
     await ft.testParams({"DATA": ft.int()}, ["DATA"], `
@@ -4139,7 +4190,7 @@ async function testBuiltins() {
     func main(data: Data) -> ByteArray {
         data.serialize()
     }
-    const DATA = 0
+    const DATA: Int = 0
     `, serializeProp, 10);
 
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
@@ -4253,7 +4304,7 @@ async function testBuiltins() {
     func main(data: Data) -> Address {
         Address::from_data(data)
     }
-    const PUB_KEY_HASH_BYTES = #
+    const PUB_KEY_HASH_BYTES: ByteArray = #
     const ADDRESS: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
     `, ([a], res) => a.data.isSame(asData(res)), 10);
 
@@ -4954,8 +5005,8 @@ async function testBuiltins() {
     func main(a: Data) -> TimeRange {
         TimeRange::from_data(a)
     }
-    const START = 0
-    const DUR = 100
+    const START: Int = 0
+    const DUR: Int = 100
 
     const TR: TimeRange = TimeRange::new(Time::new(START), Time::new(START + DUR))
     `, ([a], res) => a.data.isSame(asData(res)));

@@ -317,7 +317,7 @@ async function tokencheck() {
 		}
 	}
 	
-	const MY_DATUM = Datum{
+	const MY_DATUM: Datum = Datum{
 		donor:        PubKeyHash::new(#15617f7afe41a04a5e913b29e8d0296643591f67d656a137fb9308e0),
 		beneficiary:  PubKeyHash::new(#ec57fb8a04573ed92e63b6df9cb2bfc44f2d20e80ce13a18bc7a973c), 
 		policy:       MintingPolicyHash::new(#2d99fb2a2ab63df209b5163d6b4a289d565ca2aa5f2722ee4a63d3a1)

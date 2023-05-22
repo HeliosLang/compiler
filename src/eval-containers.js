@@ -229,8 +229,10 @@ export const MapType = new ParametricType({
 				})(),
 				prepend: new FuncType([keyType, valueType], self),
 				set: new FuncType([keyType, valueType], self),
-				sort: new FuncType([new FuncType([keyType, valueType, keyType, valueType], BoolType)], MapType$(keyType, valueType)),
-				tail: self
+				sort: new FuncType([new FuncType([keyType, valueType, keyType, valueType], BoolType)], self),
+				tail: self,
+				update: new FuncType([keyType, new FuncType([valueType], valueType)], self),
+				update_safe: new FuncType([keyType, new FuncType([valueType], valueType)], self)
 			}),
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self),

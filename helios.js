@@ -245,8 +245,8 @@
 //                                           NativeAny, NativeAtLeast, NativeAfter, NativeBefore
 //
 //     Section 33: Tx types                  Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
-//                                           TxOutput, DCert, StakeAddress, Signature, Redeemer, 
-//                                           SpendingRedeemer, MintingRedeemer, Datum, 
+//                                           TxOutput, DCert, StakeAddress, Signature, PrivateKey, 
+//                                           Redeemer, SpendingRedeemer, MintingRedeemer, Datum, 
 //                                           HashedDatum, InlineDatum, encodeMetadata, 
 //                                           decodeMetadata, TxMetadata
 //
@@ -3417,29 +3417,32 @@ export class Crypto {
 		function pad(src) {
 			const nBits = src.length*8;
 
-			const dst = src.slice();
+			let dst = src.slice();
 
 			dst.push(0x80);
 
-			let nZeroes = (64 - dst.length%64) - 8;
-			if (nZeroes < 0) {
-				nZeroes += 64;
+			if ((dst.length + 8)%64 != 0) {
+				let nZeroes = (64 - dst.length%64) - 8;
+				if (nZeroes < 0) {
+					nZeroes += 64;
+				}
+
+				for (let i = 0; i < nZeroes; i++) {
+					dst.push(0);
+				}
 			}
 
-			for (let i = 0; i < nZeroes; i++) {
-				dst.push(0);
+			assert((dst.length + 8)%64 == 0, "bad padding");
+
+			const lengthPadding = bigIntToBytes(BigInt(nBits));
+
+			assert(lengthPadding.length <= 8, "input data too big");
+
+			while (lengthPadding.length < 8) {
+				lengthPadding.unshift(0)
 			}
 
-			// assume nBits fits in 32 bits
-
-			dst.push(0);
-			dst.push(0);
-			dst.push(0);
-			dst.push(0);
-			dst.push(imod8(nBits >> 24));
-			dst.push(imod8(nBits >> 16));
-			dst.push(imod8(nBits >> 8));
-			dst.push(imod8(nBits >> 0));
+			dst = dst.concat(lengthPadding);
 			
 			return dst;
 		}
@@ -3600,7 +3603,7 @@ export class Crypto {
 			let dst = src.slice();
 
 			dst.push(0x80);
-			
+
 			if ((dst.length + 16)%128 != 0) {
 				let nZeroes = (128 - dst.length%128) - 16;
 				if (nZeroes < 0) {
@@ -3615,7 +3618,9 @@ export class Crypto {
 			assert((dst.length + 16)%128 == 0, "bad padding");
 
 			// assume nBits fits in 32 bits
-			const lengthPadding = bigIntToBytes(BigInt(nBits))
+			const lengthPadding = bigIntToBytes(BigInt(nBits));
+
+			assert(lengthPadding.length <= 16, "input data too big");
 
 			while (lengthPadding.length < 16) {
 				lengthPadding.unshift(0);
@@ -4161,6 +4166,7 @@ export class Crypto {
 		 * @typedef {{
 		 *   add(other: T): T
 		 *   mul(scalar: bigint): T
+		 *   equals(other: T): boolean
 		 *   encode(): number[]
 		 * }} Point
 		 */
@@ -4321,10 +4327,10 @@ export class Crypto {
 			static decode(bytes) {
 				assert(bytes.length == 32);
 
-				bytes = bytes.slice();
-				bytes[31] = bytes[31] & 0b01111111;
+				const tmp = bytes.slice();
+				tmp[31] = tmp[31] & 0b01111111;
 	
-				const y = decodeInt(bytes);
+				const y = decodeInt(tmp);
 	
 				let x = recoverX(y);
 				if (Number(x & 1n) != getBit(bytes, 255)) {
@@ -4352,8 +4358,9 @@ export class Crypto {
 				return this.#y;
 			}
 
-			/** Curve point 'addition'
-		     * Note: the invert in this calculation is very slow
+			/** 
+			 * Curve point 'addition'
+		     * Note: the invert call in this calculation is very slow (prefer ExtendedPoint for speed)
 			 * @param {AffinePoint} other 
 			 * @returns {AffinePoint}
 			 */
@@ -4370,6 +4377,14 @@ export class Crypto {
 					curveMod(x3), 
 					curveMod(y3)
 				);
+			}
+
+			/**
+			 * @param {AffinePoint} other 
+			 * @returns {boolean}
+			 */
+			equals(other) {
+				return this.x == other.x && this.y == other.y;
 			}
 
 			/**
@@ -4657,7 +4672,7 @@ export class Crypto {
 				const left = PointImpl.BASE.mul(S);
 				const right = R.add(A.mul(h));
 
-				return (left[0] == right[0]) && (left[1] == right[1]);
+				return left.equals(right);
 			}
 		}
 	}
@@ -6976,6 +6991,13 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
+	 * @returns {PubKey}
+	 */
+	static dummy() {
+		return new PubKey((new Array(32)).fill(0));
+	}
+
+	/**
 	 * @type {number[]}
 	 */
 	get bytes() {
@@ -6998,6 +7020,28 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
+	 * @param {number[]} bytes 
+	 * @returns {PubKey}
+	 */
+	static fromCbor(bytes) {
+		return new PubKey(CborData.decodeBytes(bytes));
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isDummy() {
+		return this.#bytes.every(b => b == 0);
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return CborData.encodeBytes(this.#bytes);
+	}
+
+	/**
      * @returns {UplcData}
      */
     _toUplcData() {
@@ -7009,6 +7053,13 @@ export class PubKey extends HeliosData {
 	 */
 	hash() {
 		return new PubKeyHash(Crypto.blake2b(this.#bytes, 28));
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		return this.hex;
 	}
 }
 
@@ -16662,7 +16713,7 @@ class DefaultTypeClass extends Common {
 	 * @returns {boolean}
 	 */
 	isImplementedBy(type) {
-		return type.asDataType != null || type instanceof AllType;
+		return Common.typeImplements(type, this) || type instanceof AllType;
 	}
 
 	/**
@@ -17379,8 +17430,10 @@ const MapType = new ParametricType({
 				})(),
 				prepend: new FuncType([keyType, valueType], self),
 				set: new FuncType([keyType, valueType], self),
-				sort: new FuncType([new FuncType([keyType, valueType, keyType, valueType], BoolType)], MapType$(keyType, valueType)),
-				tail: self
+				sort: new FuncType([new FuncType([keyType, valueType, keyType, valueType], BoolType)], self),
+				tail: self,
+				update: new FuncType([keyType, new FuncType([valueType], valueType)], self),
+				update_safe: new FuncType([keyType, new FuncType([valueType], valueType)], self)
 			}),
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self),
@@ -17847,24 +17900,15 @@ var ValueType = new GenericType({
  * @package
  * @implements {TypeClass}
  */
-class ValuableTypeClass extends Common {
-    constructor() {
-        super();
-    }
-
-	/**
-	 * @type {TypeClass}
-	 */
-	get asTypeClass() {
-		return this;
-	}
-
+class ValuableTypeClass extends DefaultTypeClass {
 	/**
 	 * @param {Type} impl
 	 * @returns {TypeClassMembers}
 	 */
 	genTypeMembers(impl) {
-		return {};
+		return {
+            ...super.genTypeMembers(impl)
+        };
 	}
 
 	/**	
@@ -17873,17 +17917,10 @@ class ValuableTypeClass extends Common {
 	 */
 	genInstanceMembers(impl) {
 		return {
+            ...super.genInstanceMembers(impl),
             value: ValueType
 		};
 	}
-
-    /**
-     * @param {Type} type 
-     * @returns {boolean}
-     */
-    isImplementedBy(type) {
-        return Common.typeImplements(type, this);
-    }
 
 	/**
 	 * @returns {string}
@@ -17891,15 +17928,6 @@ class ValuableTypeClass extends Common {
 	toString() {
 		return "Valuable";
 	}
-
-    /**
-     * @param {string} name 
-	 * @param {string} path
-     * @returns {DataType}
-     */
-    toType(name, path) {
-        return new DataTypeClassImpl(this, name, path);
-    }
 }
 
 
@@ -23237,20 +23265,20 @@ class ImportModuleStatement extends Statement {
  */
 class ConstStatement extends Statement {
 	/**
-	 * @type {null | Expr}
+	 * @type {Expr}
 	 */
 	#typeExpr;
 
 	/**
-	 * @type {Expr}
+	 * @type {null | Expr}
 	 */
 	#valueExpr;
 
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
-	 * @param {null | Expr} typeExpr - can be null in case of type inference
-	 * @param {Expr} valueExpr 
+	 * @param {Expr} typeExpr - can be null in case of type inference
+	 * @param {null | Expr} valueExpr 
 	 */
 	constructor(site, name, typeExpr, valueExpr) {
 		super(site, name);
@@ -23262,11 +23290,7 @@ class ConstStatement extends Statement {
 	 * @type {DataType}
 	 */
 	get type() {
-		if (this.#typeExpr === null) {
-			return assertDefined(this.#valueExpr.cache?.asTyped?.type?.asDataType, this.#valueExpr.cache?.toString() ?? this.#valueExpr.toString());
-		} else {
-			return assertDefined(this.#typeExpr.cache?.asDataType, this.#typeExpr.cache?.toString() ?? this.#typeExpr.toString());
-		}
+		return assertDefined(this.#typeExpr.cache?.asDataType, this.#typeExpr.cache?.toString() ?? this.#typeExpr.toString());
 	}
 
 	/**
@@ -23278,12 +23302,19 @@ class ConstStatement extends Statement {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isSet() {
+		return this.#valueExpr !== null;
+	}
+
+	/**
 	 * Use this to change a value of something that is already typechecked.
 	 * @param {UplcData} data
 	 */
 	changeValueSafe(data) {
 		const type = this.type;
-		const site = this.#valueExpr.site;
+		const site = this.#valueExpr ? this.#valueExpr.site : this.site;
 
 		this.#valueExpr = new LiteralDataExpr(site, type, data);
 	}
@@ -23292,7 +23323,7 @@ class ConstStatement extends Statement {
 	 * @returns {string}
 	 */
 	toString() {
-		return `const ${this.name.toString()}${this.#typeExpr === null ? "" : ": " + this.#typeExpr.toString()} = ${this.#valueExpr.toString()};`;
+		return `const ${this.name.toString()}${this.#typeExpr.toString()}${this.#valueExpr ? ` = ${this.#valueExpr.toString()}` : ""};`;
 	}
 
 	/**
@@ -23300,17 +23331,7 @@ class ConstStatement extends Statement {
 	 * @returns {DataType}
 	 */
 	evalType(scope) {
-		if (this.#typeExpr) {
-			return this.#typeExpr.evalAsDataType(scope);
-		} else {
-			const type = this.#valueExpr.evalAsTyped(scope).type.asDataType;
-
-			if (!type) {
-				throw this.#valueExpr.typeError("not a data type");
-			}
-
-			return type;
-		}
+		return this.#typeExpr.evalAsDataType(scope);
 	}
 
 	/**
@@ -23318,23 +23339,17 @@ class ConstStatement extends Statement {
 	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const value = this.#valueExpr.evalAsTyped(scope);
+		const type = this.#typeExpr.evalAsDataType(scope);
 
-		if (this.#typeExpr === null) {
-			if (!this.#valueExpr.isLiteral()) {
-				throw this.typeError(`can't infer type of ${this.#valueExpr.toString()}`);
-			}
-
-			return value;
-		} else {
-			const type = this.#typeExpr.evalAsDataType(scope);
+		if (this.#valueExpr) {
+			const value = this.#valueExpr.evalAsTyped(scope);
 
 			if (!type.isBaseOf(value.type)) {
 				throw this.#valueExpr.typeError("wrong type");
 			}
-
-			return new DataEntity(type);
 		}
+
+		return new DataEntity(type);
 	}
 
 	/**
@@ -23357,7 +23372,7 @@ class ConstStatement extends Statement {
 	 * @returns {IR}
 	 */
 	toIRInternal() {
-		let ir = this.#valueExpr.toIR();
+		let ir = assertDefined(this.#valueExpr).toIR();
 
 		if (this.#valueExpr instanceof LiteralDataExpr) {
 			ir = new IR([
@@ -23379,7 +23394,9 @@ class ConstStatement extends Statement {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		map.set(this.path, this.toIRInternal());
+		if (this.#valueExpr) {
+			map.set(this.path, this.toIRInternal());
+		}
 	}
 }
 
@@ -24788,8 +24805,6 @@ class EnumStatement extends Statement {
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
-		let memberParentType = null;
-
 		const [type, typeScope] = this.#parameters.createParametricType(scope, this.site, (typeScope) => {
 			/**
 			 * @type {{[name: string]: (parent: DataType) => EnumMemberType}}
@@ -24823,8 +24838,6 @@ class EnumStatement extends Statement {
 				}
 			});
 
-			memberParentType = type;
-
 			return type;
 		});
 
@@ -24836,6 +24849,8 @@ class EnumStatement extends Statement {
 		this.#members.forEach(m => {
 			m.evalDataFields(typeScope);
 		});
+
+		typeScope.assertAllUsed();
 		
 		this.#impl.eval(typeScope);
 	}
@@ -24982,7 +24997,7 @@ class ImplDefinition {
 	 */
 	toIR(map) {
 		for (let s of this.#statements) {
-			map.set(s.path, s.toIRInternal());
+			s.toIR(map);
 		}
 	}
 }
@@ -25235,62 +25250,78 @@ function buildConstStatement(site, ts) {
 		return null;
 	}
 
-	let typeExpr = null;
-
-	if (ts.length > 0 && ts[0].isSymbol(":")) {
-		const colon = assertDefined(ts.shift());
-
-		const equalsPos = SymbolToken.find(ts, "=");
-
-		if (equalsPos == -1) {
-			ts.unshift(colon);
-			site.merge(ts[ts.length-1].site).syntaxError("invalid syntax (expected '=' after 'const')");
-			ts.splice(0);
-			return null;
-		} else if (equalsPos == 0) {
-			colon.site.merge(ts[0].site).syntaxError("expected type expression between ':' and '='");
-			ts.shift();
-			return null;
-		}
-
-		typeExpr = buildTypeExpr(colon.site, ts.splice(0, equalsPos));
-	}
-
-	const maybeEquals = ts.shift();
-
-	if (maybeEquals === undefined) {
-		site.merge(name.site).syntaxError("expected '=' after 'const'");
+	if (!(ts.length > 0 && ts[0].isSymbol(":"))) {
+		site.merge(name.site).syntaxError(`expected type annotation after 'const ${name.value}'`);
 		ts.splice(0);
 		return null;
-	} else if (!maybeEquals.isSymbol("=")) {
-		site.merge(maybeEquals.site).syntaxError("expected '=' after 'const'");
+	}
+
+	const colon = assertDefined(ts.shift());
+
+	let equalsPos = SymbolToken.find(ts, "=");
+	const statementEndPos = Word.find(ts, ["const", "func", "struct", "enum", "import"]);
+
+	let typeEndPos = equalsPos;
+
+	let hasRhs = false;
+
+	if (equalsPos == -1 && statementEndPos == -1) {
+		typeEndPos = ts.length;
+	} else if (statementEndPos != -1 && (equalsPos == -1 || (equalsPos > statementEndPos))) {
+		typeEndPos = statementEndPos;
+	} else if (equalsPos == 0) {
+		colon.site.merge(ts[0].site).syntaxError("expected type expression between ':' and '='");
+		ts.shift();
 		return null;
 	} else {
-		const equals = maybeEquals.assertSymbol("=");
+		hasRhs = true;
+	}
 
-		if (!equals) {
+	let endSite = ts[typeEndPos-1].site;
+
+	const typeExpr = buildTypeExpr(colon.site, ts.splice(0, typeEndPos));
+	if (!typeExpr) {
+		return null;
+	}
+
+	/**
+	 * @type {null | Expr}
+	 */
+	let valueExpr = null;
+
+	if (hasRhs) {
+		const maybeEquals = ts.shift();
+
+		if (maybeEquals === undefined) {
+			site.merge(name.site).syntaxError("expected '=' after 'const'");
+			ts.splice(0);
 			return null;
-		}
-
-		const nextStatementPos = Word.find(ts, ["const", "func", "struct", "enum", "import"]);
-
-		const tsValue = nextStatementPos == -1 ? ts.splice(0) : ts.splice(0, nextStatementPos);
-
-		if (tsValue.length == 0) {
-			equals.syntaxError("expected expression after '='");
+		} else if (!maybeEquals.isSymbol("=")) {
+			site.merge(maybeEquals.site).syntaxError("expected '=' after 'const'");
 			return null;
 		} else {
-			const endSite = tsValue[tsValue.length-1].site;
+			const equals = maybeEquals.assertSymbol("=");
 
-			const valueExpr = buildValueExpr(tsValue);
+			if (!equals) {
+				return null;
+			}
 
-			if (valueExpr === null) {
+			const nextStatementPos = Word.find(ts, ["const", "func", "struct", "enum", "import"]);
+
+			const tsValue = nextStatementPos == -1 ? ts.splice(0) : ts.splice(0, nextStatementPos);
+
+			if (tsValue.length == 0) {
+				equals.syntaxError("expected expression after '='");
 				return null;
 			} else {
-				return new ConstStatement(site.merge(endSite), name, typeExpr, valueExpr);
+				endSite = tsValue[tsValue.length-1].site;
+
+				valueExpr = buildValueExpr(tsValue);
 			}
 		}
 	}
+
+	return new ConstStatement(site.merge(endSite), name, typeExpr, valueExpr);
 }
 
 /**
@@ -30551,6 +30582,72 @@ function makeRawFunctions() {
 			}(${TTPP}0____to_data(key), ${TTPP}1____to_data(value))
 		}
 	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__update`,
+	`(self) -> {
+		(key, fn) -> {
+			(key) -> {
+				(recurse) -> {
+					recurse(recurse, self)
+				}(
+					(recurse, map) -> {
+						__core__chooseList(
+							map,
+							() -> {
+								error("key not found")
+							},
+							() -> {
+								(pair) -> {
+									__core__ifThenElse(
+										__core__equalsData(key, __core__fstPair(pair)),
+										() -> {
+											__core__mkCons(
+												__core__mkPairData(
+													key,
+													${TTPP}1____to_data(fn(${TTPP}1__from_data(__core__sndPair(pair))))
+												),
+												__core__tailList(map)
+											)
+										},
+										() -> {
+											__core__mkCons(pair, recurse(recurse, __core__tailList(map)))
+										}
+									)()
+								}(__core__headList(map))
+							}
+						)()
+					}
+				)
+			}(${TTPP}0____to_data(key))
+		}
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__update_safe`,
+	`(self) -> {
+		(key, fn) -> {
+			(key) -> {
+				__helios__common__map(
+					self,
+					(pair) -> {
+						(oldKey, oldValue) -> {
+							(newValue) -> {
+								__core__mkPairData(oldKey, newValue)
+							}(
+								__core__ifThenElse(
+									__core__equalsData(oldKey, key),
+									() -> {
+										${TTPP}1____to_data(fn(${TTPP}1__from_data(oldValue)))
+									},
+									() -> {
+										oldValue
+									}
+								)()
+							)
+						}(__core__fstPair(pair), __core__sndPair(pair))
+					}, 
+					__core__mkNilPairData(())
+				)
+			}(${TTPP}0____to_data(key))
+		}
+	}`));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__sort`,
 	`(self) -> {
 		(comp) -> {
@@ -35377,7 +35474,7 @@ class IRProgram {
 		
 		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
 
-		expr = IRProgram.simplifyUnused(expr);
+		// expr = IRProgram.simplifyUnused(expr); // this has been deprecated in favor of Program.eliminateUnused() (TODO: check that performs is the same and then remove this)
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
@@ -36194,21 +36291,14 @@ class MainModule extends Module {
 
 		const path = constStatement.path;
 
-		let inner = new IR([
+		const inner = new IR([
 			new IR("const"),
 			new IR("("),
 			new IR(path),
 			new IR(")")
 		]);
 
-		inner = Program.injectMutualRecursions(inner, map);
-
-		let ir = IR.wrapWithDefinitions(inner, map);
-
-		// add builtins as late as possible, to make sure we catch as many dependencies as possible
-		const builtins = fetchRawFunctions(ir);
-
-		ir = IR.wrapWithDefinitions(ir, builtins);
+		const ir = this.wrapInner(inner, map);
 
 		const irProgram = IRProgram.new(ir, this.#purpose, true, true);
 
@@ -36556,6 +36646,66 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @param {IR} ir 
+	 * @param {IRDefinitions} definitions 
+	 * @returns {IRDefinitions}
+	 */
+	eliminateUnused(ir, definitions) {
+		/**
+		 * Set of global paths
+		 * @type {Set<string>}
+		 */
+		const used = new Set();
+
+		/**
+		 * @type {IR[]}
+		 */
+		const stack = [ir];
+
+		const RE = /__[a-zA-Z0-9_[\]@]+/g;
+
+		while (stack.length > 0) {
+			const ir = assertDefined(stack.pop());
+
+			ir.search(RE, (match) => {
+				if (!used.has(match)) {
+					used.add(match);
+
+					const def = definitions.get(match);
+
+					if (def) {
+						stack.push(def);
+					}
+				}
+			})
+		}
+
+		// eliminate all definitions that are not in set
+
+		/**
+		 * @type {IRDefinitions}
+		 */
+		const result = new Map();
+
+		for (let [k, ir] of definitions) {
+			if (used.has(k)) {
+				result.set(k, ir);
+			}
+		}
+
+		// Loop internal const statemtsn
+		this.loopConstStatements((name, cs) => {
+			const path = cs.path;
+
+			if (used.has(path) && !cs.isSet()) {
+				throw cs.site.referenceError(`used unset const '${name}' (hint: use program.parameters['${name}'] = ...)`);
+			}
+		});
+
+		return result;
+	}
+
+	/**
 	 * Loops over all statements, until endCond == true (includes the matches statement)
 	 * Then applies type parameters
 	 * @package
@@ -36571,6 +36721,26 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @param {IR} ir
+	 * @param {IRDefinitions} definitions
+	 * @returns {IR}
+	 */
+	wrapInner(ir, definitions) {
+		ir = Program.injectMutualRecursions(ir, definitions);
+
+		definitions = this.eliminateUnused(ir, definitions);
+
+		ir = IR.wrapWithDefinitions(ir, definitions);
+
+		// add builtins as late as possible, to make sure we catch as many dependencies as possible
+		const builtins = fetchRawFunctions(ir);
+
+		ir = IR.wrapWithDefinitions(ir, builtins);
+
+		return ir;
+	}
+
+	/**
 	 * @package
 	 * @param {IR} ir
 	 * @param {string[]} parameters
@@ -36579,15 +36749,7 @@ class MainModule extends Module {
 	wrapEntryPoint(ir, parameters) {
 		let map = this.fetchDefinitions(ir, parameters, (s) => s.name.value == "main");
 
-		ir = Program.injectMutualRecursions(ir, map);
-
-		const builtins = fetchRawFunctions(IR.wrapWithDefinitions(ir, map));
-
-		map = new Map(Array.from(builtins).concat(Array.from(map)));
-
-		ir = IR.wrapWithDefinitions(ir, map);
-
-		return ir;
+		return this.wrapInner(ir, map);
 	}
 
 	/**
@@ -40520,9 +40682,8 @@ export class StakeAddress {
 }
 
 export class Signature extends CborData {
-	/** 
-	 * TODO: use PubKey type instead
-	 * @type {number[]} 
+	/**
+	 * @type {PubKey} 
 	 */
 	#pubKey;
 
@@ -40530,12 +40691,12 @@ export class Signature extends CborData {
 	#signature;
 
 	/**
-	 * @param {number[]} pubKey 
+	 * @param {number[] | PubKey} pubKey 
 	 * @param {number[]} signature 
 	 */
 	constructor(pubKey, signature) {
 		super();
-		this.#pubKey = pubKey;
+		this.#pubKey = (pubKey instanceof PubKey) ? pubKey : new PubKey(pubKey);
 		this.#signature = signature;
 	}
 
@@ -40543,7 +40704,7 @@ export class Signature extends CborData {
 	 * @type {PubKey}
 	 */
 	get pubKey() {
-		return new PubKey(this.#pubKey);
+		return this.#pubKey;
 	}
 
 	/**
@@ -40557,14 +40718,14 @@ export class Signature extends CborData {
 	 * @returns {Signature}
 	 */
 	static dummy() {
-		return new Signature((new Array(32)).fill(0), (new Array(64)).fill(0));
+		return new Signature(PubKey.dummy(), (new Array(64)).fill(0));
 	}
 
 	/**
 	 * @returns {boolean}
 	 */
 	isDummy() {
-		return this.#pubKey.every(b => b == 0) && this.#signature.every(b => b == 0);
+		return this.#pubKey.isDummy() && this.#signature.every(b => b == 0);
 	}
 
 	/**
@@ -40572,7 +40733,7 @@ export class Signature extends CborData {
 	 */
 	toCbor() {
 		return CborData.encodeTuple([
-			CborData.encodeBytes(this.#pubKey),
+			this.#pubKey.toCbor(),
 			CborData.encodeBytes(this.#signature),
 		]);
 	}
@@ -40582,16 +40743,16 @@ export class Signature extends CborData {
 	 * @returns {Signature}
 	 */
 	static fromCbor(bytes) {
-		/** @type {?number[]} */
+		/** @type {null | PubKey} */
 		let pubKey = null;
 
-		/** @type {?number[]} */
+		/** @type {null | number[]} */
 		let signature = null;
 
 		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					pubKey = CborData.decodeBytes(fieldBytes);
+					pubKey = PubKey.fromCbor(fieldBytes);
 					break;
 				case 1:
 					signature = CborData.decodeBytes(fieldBytes);
@@ -40615,8 +40776,8 @@ export class Signature extends CborData {
 	 */
 	dump() {
 		return {
-			pubKey: bytesToHex(this.#pubKey),
-			pubKeyHash: bytesToHex(Crypto.blake2b(this.#pubKey, 28)),
+			pubKey: this.#pubKey.dump,
+			pubKeyHash: this.pubKeyHash.dump(),
 			signature: bytesToHex(this.#signature),
 		};
 	}
@@ -40632,11 +40793,94 @@ export class Signature extends CborData {
 			if (this.#pubKey === null) {
 				throw new Error("pubKey can't be null");
 			} else {
-				if (!Crypto.Ed25519.verify(this.#signature, msg, this.#pubKey)) {
+				if (!Crypto.Ed25519.verify(this.#signature, msg, this.#pubKey.bytes)) {
 					throw new Error("incorrect signature");
 				}
 			}
 		}
+	}
+}
+
+export class PrivateKey extends HeliosData {
+	/**
+	 * @type {number[]}
+	 */
+	#bytes;
+
+	/**
+	 * cache the derived pubKey
+	 * @type {null | PubKey}
+	 */
+	#pubKey
+
+	/**
+	 * @param {string | number[]} bytes
+	 */
+	constructor(bytes) {
+		super();
+		this.#bytes = Array.isArray(bytes) ? bytes : hexToBytes(bytes);
+		this.#pubKey = null;
+	}
+
+ 	/**
+     * Generate a private key from a random number generator.
+	 * This is not cryptographically secure, only use this for testing purpose
+     * @param {NumberGenerator} random 
+     * @returns {PrivateKey} - Ed25519 private key is 32 bytes long
+     */
+	static random(random) {
+		const key = [];
+
+        for (let i = 0; i < 32; i++) {
+            key.push(Math.floor(random()*256)%256);
+        }
+
+        return new PrivateKey(key);
+	}
+
+	/**
+	 * @type {number[]}
+	 */
+	get bytes() {
+		return this.#bytes;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get hex() {
+		return bytesToHex(this.#bytes);
+	}
+
+	/**
+	 * @returns {PrivateKey}
+	 */
+	extend() {
+		return new PrivateKey(Crypto.sha2_512(this.#bytes));
+	}
+
+	/**
+	 * @returns {PubKey}
+	 */
+	derivePubKey() {
+		if (this.#pubKey) {
+			return this.#pubKey;
+		} else {
+			this.#pubKey = new PubKey(Crypto.Ed25519.derivePublicKey(this.#bytes));
+			
+			return this.#pubKey;
+		}
+	}
+
+	/**
+	 * @param {number[] | string} message 
+	 * @returns {Signature}
+	 */
+	sign(message) {
+		return new Signature(
+			this.derivePubKey(),
+			Crypto.Ed25519.sign(Array.isArray(message) ? message : hexToBytes(message), this.#bytes)
+		);
 	}
 }
 
@@ -42770,9 +43014,20 @@ export class BlockfrostV0 {
  * @implements {Wallet}
  */
 export class WalletEmulator {
+    /**
+     * @type {Network}
+     */
     #network;
+
+    /**
+     * @type {PrivateKey}
+     */
     #privateKey;
-    #publicKey;
+
+    /**
+     * @type {PubKey}
+     */
+    #pubKey;
 
     /** 
      * @param {Network} network
@@ -42780,32 +43035,31 @@ export class WalletEmulator {
      */
     constructor(network, random) {
         this.#network = network;
-        this.#privateKey = WalletEmulator.genPrivateKey(random);
-        this.#publicKey = Crypto.Ed25519.derivePublicKey(this.#privateKey);
+        this.#privateKey = PrivateKey.random(random);
+        this.#pubKey = this.#privateKey.derivePubKey();
 
         // TODO: staking credentials
     }
 
     /**
-     * Generate a private key from a random number generator (not cryptographically secure!)
-     * @param {NumberGenerator} random 
-     * @returns {number[]} - Ed25519 private key is 32 bytes long
+     * @type {PrivateKey}
      */
-    static genPrivateKey(random) {
-        const key = [];
+    get privateKey() {
+        return this.#privateKey;
+    }
 
-        for (let i = 0; i < 32; i++) {
-            key.push(Math.floor(random()*256)%256);
-        }
-
-        return key;
+    /**
+     * @type {PubKey}
+     */
+    get pubKey() {
+        return this.#pubKey;
     }
 
     /**
      * @type {PubKeyHash}
      */
     get pubKeyHash() {
-        return (new PubKey(this.#publicKey)).hash();
+        return this.#pubKey.hash();
     }
 
     /**
@@ -42857,10 +43111,7 @@ export class WalletEmulator {
      */
     async signTx(tx) {
         return [
-            new Signature(
-                this.#publicKey,
-                Crypto.Ed25519.sign(tx.bodyHash, this.#privateKey)
-            )
+            this.#privateKey.sign(tx.bodyHash)
         ];
     }
 

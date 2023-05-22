@@ -29,6 +29,7 @@ import {
 } from "./uplc-costmodels.js";
 
 import {
+    PrivateKey,
     Signature,
     Tx,
     TxOutput,
@@ -49,9 +50,20 @@ import {
  * @implements {Wallet}
  */
 export class WalletEmulator {
+    /**
+     * @type {Network}
+     */
     #network;
+
+    /**
+     * @type {PrivateKey}
+     */
     #privateKey;
-    #publicKey;
+
+    /**
+     * @type {PubKey}
+     */
+    #pubKey;
 
     /** 
      * @param {Network} network
@@ -59,32 +71,31 @@ export class WalletEmulator {
      */
     constructor(network, random) {
         this.#network = network;
-        this.#privateKey = WalletEmulator.genPrivateKey(random);
-        this.#publicKey = Crypto.Ed25519.derivePublicKey(this.#privateKey);
+        this.#privateKey = PrivateKey.random(random);
+        this.#pubKey = this.#privateKey.derivePubKey();
 
         // TODO: staking credentials
     }
 
     /**
-     * Generate a private key from a random number generator (not cryptographically secure!)
-     * @param {NumberGenerator} random 
-     * @returns {number[]} - Ed25519 private key is 32 bytes long
+     * @type {PrivateKey}
      */
-    static genPrivateKey(random) {
-        const key = [];
+    get privateKey() {
+        return this.#privateKey;
+    }
 
-        for (let i = 0; i < 32; i++) {
-            key.push(Math.floor(random()*256)%256);
-        }
-
-        return key;
+    /**
+     * @type {PubKey}
+     */
+    get pubKey() {
+        return this.#pubKey;
     }
 
     /**
      * @type {PubKeyHash}
      */
     get pubKeyHash() {
-        return (new PubKey(this.#publicKey)).hash();
+        return this.#pubKey.hash();
     }
 
     /**
@@ -136,10 +147,7 @@ export class WalletEmulator {
      */
     async signTx(tx) {
         return [
-            new Signature(
-                this.#publicKey,
-                Crypto.Ed25519.sign(tx.bodyHash, this.#privateKey)
-            )
+            this.#privateKey.sign(tx.bodyHash)
         ];
     }
 

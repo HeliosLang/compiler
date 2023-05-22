@@ -162,7 +162,7 @@ async function test2() {
         1
       }
 
-      const BLA = "123"
+      const BLA: String = "123"
 
       func unused2() -> Int {
         Datum::unusedMember()
@@ -174,11 +174,11 @@ async function test2() {
       datum.tradeOwnerSigned(tx)
     }
     
-    const OWNER_BYTES = #
-    const PRICE_LOVELACE = 0
-    const DISBURSEMENTS = Map[PubKeyHash]Int{}
+    const OWNER_BYTES: ByteArray = #
+    const PRICE_LOVELACE: Int = 0
+    const DISBURSEMENTS: Map[PubKeyHash]Int = Map[PubKeyHash]Int{}
     
-    const DATUM = Datum{
+    const DATUM: Datum = Datum{
       disbursements : DISBURSEMENTS,
       amount : PRICE_LOVELACE,
       tradeOwner : PubKeyHash::new(OWNER_BYTES)
@@ -204,21 +204,26 @@ async function test3() {
   const src = `
   testing bool_struct
 
+  const MY_TEXT: String
+
   struct MyStruct {
     b: Bool
     s: String
   }
 
   func main() -> Bool {
-    s = MyStruct{b: true, s: "asdasd"};
+    s = MyStruct{b: true, s: MY_TEXT};
     s.b
   } 
   `
 
   // also test the transfer() function
-  let program = helios.Program.new(src).compile().transfer(helios.UplcProgram);
+  const program = helios.Program.new(src);
+  program.parameters.MY_TEXT = "asdasd";
 
-  console.log((await program.run([])).toString());
+  const uplcProgram = program.compile().transfer(helios.UplcProgram);
+
+  console.log((await uplcProgram.run([])).toString());
 }
 
 async function test4() {
@@ -348,7 +353,7 @@ async function test8() {
     }
   }
 
-  const DATA = MyEnum::Three
+  const DATA: MyEnum::Three = MyEnum::Three
   `;
 
   const program = helios.Program.new(src);
@@ -437,7 +442,7 @@ async function test12() {
     Three{x: Int}
   }
 
-  const DATA = MyEnum::Three{10}
+  const DATA: MyEnum::Three = MyEnum::Three{10}
   `;
 
   const program = helios.Program.new(src);
@@ -490,7 +495,7 @@ async function test14() {
   struct SOME_STRUCT {
     a: Int
 
-    const SOME_PARAM = 0
+    const SOME_PARAM: Int = 0
   }
 
   func is_tx_authorized_by(tx: Tx, _) -> Bool {
@@ -515,11 +520,11 @@ async function test14() {
     }
   }
 
-  const CRED = Credential::new_pubkey(
+  const CRED: Credential = Credential::new_pubkey(
     PubKeyHash::new(#1234567890123456789012345678)
   )
 
-  const VALUE = Value::lovelace(100)
+  const VALUE: Value = Value::lovelace(100)
 
   func main(_, ctx: ScriptContext) -> Bool {
     tx: Tx = ctx.tx;
@@ -609,9 +614,9 @@ async function test16() {
   const src = `
   spending parametric
   
-  const OWNER = PubKeyHash::new(#)
+  const OWNER: PubKeyHash = PubKeyHash::new(#)
 
-  const BOOL = false
+  const BOOL: Bool = false
 
   func main(_, _, ctx: ScriptContext) -> Bool {
     ctx.tx.is_signed_by(OWNER) && BOOL

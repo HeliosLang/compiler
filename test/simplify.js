@@ -102,7 +102,7 @@ export default async function main() {
 	// PREC_NFT is empty for the base multi_nft minting policy, 
 	// but can be set to the minting policy hash of the base multi_nft minting policy, and so forth, 
 	// if you want to mint multiple batches of the tokens (each batch having a different minting policy hash of course)
-	const PREC_NFT = #
+	const PREC_NFT: ByteArray = #
 
 	enum Redeemer {
 		Mint {
@@ -140,7 +140,7 @@ export default async function main() {
 		} 
 	}
 
-	const RANDOM = "aksjdkjasd"
+	const RANDOM: String = "aksjdkjasd"
 
 	const LIST: []Int = []Int{1,2,3} + []Int{5,6,7}
 	`);
@@ -157,8 +157,8 @@ export default async function main() {
 		a + b + b
 	}
 
-	const A = 1
-	const B = 1
+	const A: Int = 1
+	const B: Int = 1
 	const C: Int = main(A, B)
 	`, ["A", "B"]);
 

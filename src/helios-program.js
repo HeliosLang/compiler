@@ -696,21 +696,14 @@ class MainModule extends Module {
 
 		const path = constStatement.path;
 
-		let inner = new IR([
+		const inner = new IR([
 			new IR("const"),
 			new IR("("),
 			new IR(path),
 			new IR(")")
 		]);
 
-		inner = Program.injectMutualRecursions(inner, map);
-
-		let ir = IR.wrapWithDefinitions(inner, map);
-
-		// add builtins as late as possible, to make sure we catch as many dependencies as possible
-		const builtins = fetchRawFunctions(ir);
-
-		ir = IR.wrapWithDefinitions(ir, builtins);
+		const ir = this.wrapInner(inner, map);
 
 		const irProgram = IRProgram.new(ir, this.#purpose, true, true);
 
@@ -1058,6 +1051,66 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @param {IR} ir 
+	 * @param {IRDefinitions} definitions 
+	 * @returns {IRDefinitions}
+	 */
+	eliminateUnused(ir, definitions) {
+		/**
+		 * Set of global paths
+		 * @type {Set<string>}
+		 */
+		const used = new Set();
+
+		/**
+		 * @type {IR[]}
+		 */
+		const stack = [ir];
+
+		const RE = /__[a-zA-Z0-9_[\]@]+/g;
+
+		while (stack.length > 0) {
+			const ir = assertDefined(stack.pop());
+
+			ir.search(RE, (match) => {
+				if (!used.has(match)) {
+					used.add(match);
+
+					const def = definitions.get(match);
+
+					if (def) {
+						stack.push(def);
+					}
+				}
+			})
+		}
+
+		// eliminate all definitions that are not in set
+
+		/**
+		 * @type {IRDefinitions}
+		 */
+		const result = new Map();
+
+		for (let [k, ir] of definitions) {
+			if (used.has(k)) {
+				result.set(k, ir);
+			}
+		}
+
+		// Loop internal const statemtsn
+		this.loopConstStatements((name, cs) => {
+			const path = cs.path;
+
+			if (used.has(path) && !cs.isSet()) {
+				throw cs.site.referenceError(`used unset const '${name}' (hint: use program.parameters['${name}'] = ...)`);
+			}
+		});
+
+		return result;
+	}
+
+	/**
 	 * Loops over all statements, until endCond == true (includes the matches statement)
 	 * Then applies type parameters
 	 * @package
@@ -1073,6 +1126,26 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @param {IR} ir
+	 * @param {IRDefinitions} definitions
+	 * @returns {IR}
+	 */
+	wrapInner(ir, definitions) {
+		ir = Program.injectMutualRecursions(ir, definitions);
+
+		definitions = this.eliminateUnused(ir, definitions);
+
+		ir = IR.wrapWithDefinitions(ir, definitions);
+
+		// add builtins as late as possible, to make sure we catch as many dependencies as possible
+		const builtins = fetchRawFunctions(ir);
+
+		ir = IR.wrapWithDefinitions(ir, builtins);
+
+		return ir;
+	}
+
+	/**
 	 * @package
 	 * @param {IR} ir
 	 * @param {string[]} parameters
@@ -1081,15 +1154,7 @@ class MainModule extends Module {
 	wrapEntryPoint(ir, parameters) {
 		let map = this.fetchDefinitions(ir, parameters, (s) => s.name.value == "main");
 
-		ir = Program.injectMutualRecursions(ir, map);
-
-		const builtins = fetchRawFunctions(IR.wrapWithDefinitions(ir, map));
-
-		map = new Map(Array.from(builtins).concat(Array.from(map)));
-
-		ir = IR.wrapWithDefinitions(ir, map);
-
-		return ir;
+		return this.wrapInner(ir, map);
 	}
 
 	/**

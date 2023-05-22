@@ -328,62 +328,78 @@ function buildConstStatement(site, ts) {
 		return null;
 	}
 
-	let typeExpr = null;
-
-	if (ts.length > 0 && ts[0].isSymbol(":")) {
-		const colon = assertDefined(ts.shift());
-
-		const equalsPos = SymbolToken.find(ts, "=");
-
-		if (equalsPos == -1) {
-			ts.unshift(colon);
-			site.merge(ts[ts.length-1].site).syntaxError("invalid syntax (expected '=' after 'const')");
-			ts.splice(0);
-			return null;
-		} else if (equalsPos == 0) {
-			colon.site.merge(ts[0].site).syntaxError("expected type expression between ':' and '='");
-			ts.shift();
-			return null;
-		}
-
-		typeExpr = buildTypeExpr(colon.site, ts.splice(0, equalsPos));
-	}
-
-	const maybeEquals = ts.shift();
-
-	if (maybeEquals === undefined) {
-		site.merge(name.site).syntaxError("expected '=' after 'const'");
+	if (!(ts.length > 0 && ts[0].isSymbol(":"))) {
+		site.merge(name.site).syntaxError(`expected type annotation after 'const ${name.value}'`);
 		ts.splice(0);
 		return null;
-	} else if (!maybeEquals.isSymbol("=")) {
-		site.merge(maybeEquals.site).syntaxError("expected '=' after 'const'");
+	}
+
+	const colon = assertDefined(ts.shift());
+
+	let equalsPos = SymbolToken.find(ts, "=");
+	const statementEndPos = Word.find(ts, ["const", "func", "struct", "enum", "import"]);
+
+	let typeEndPos = equalsPos;
+
+	let hasRhs = false;
+
+	if (equalsPos == -1 && statementEndPos == -1) {
+		typeEndPos = ts.length;
+	} else if (statementEndPos != -1 && (equalsPos == -1 || (equalsPos > statementEndPos))) {
+		typeEndPos = statementEndPos;
+	} else if (equalsPos == 0) {
+		colon.site.merge(ts[0].site).syntaxError("expected type expression between ':' and '='");
+		ts.shift();
 		return null;
 	} else {
-		const equals = maybeEquals.assertSymbol("=");
+		hasRhs = true;
+	}
 
-		if (!equals) {
+	let endSite = ts[typeEndPos-1].site;
+
+	const typeExpr = buildTypeExpr(colon.site, ts.splice(0, typeEndPos));
+	if (!typeExpr) {
+		return null;
+	}
+
+	/**
+	 * @type {null | Expr}
+	 */
+	let valueExpr = null;
+
+	if (hasRhs) {
+		const maybeEquals = ts.shift();
+
+		if (maybeEquals === undefined) {
+			site.merge(name.site).syntaxError("expected '=' after 'const'");
+			ts.splice(0);
 			return null;
-		}
-
-		const nextStatementPos = Word.find(ts, ["const", "func", "struct", "enum", "import"]);
-
-		const tsValue = nextStatementPos == -1 ? ts.splice(0) : ts.splice(0, nextStatementPos);
-
-		if (tsValue.length == 0) {
-			equals.syntaxError("expected expression after '='");
+		} else if (!maybeEquals.isSymbol("=")) {
+			site.merge(maybeEquals.site).syntaxError("expected '=' after 'const'");
 			return null;
 		} else {
-			const endSite = tsValue[tsValue.length-1].site;
+			const equals = maybeEquals.assertSymbol("=");
 
-			const valueExpr = buildValueExpr(tsValue);
+			if (!equals) {
+				return null;
+			}
 
-			if (valueExpr === null) {
+			const nextStatementPos = Word.find(ts, ["const", "func", "struct", "enum", "import"]);
+
+			const tsValue = nextStatementPos == -1 ? ts.splice(0) : ts.splice(0, nextStatementPos);
+
+			if (tsValue.length == 0) {
+				equals.syntaxError("expected expression after '='");
 				return null;
 			} else {
-				return new ConstStatement(site.merge(endSite), name, typeExpr, valueExpr);
+				endSite = tsValue[tsValue.length-1].site;
+
+				valueExpr = buildValueExpr(tsValue);
 			}
 		}
 	}
+
+	return new ConstStatement(site.merge(endSite), name, typeExpr, valueExpr);
 }
 
 /**

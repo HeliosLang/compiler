@@ -1,5 +1,12 @@
 This Changelog only applies to notable changes of language related features in `helios.js` on the main branch.
 
+# 2023/05/21
+* Generic typing for functions, enums and structs
+* `map.update` and `map.update_safe`
+* `const` statements always require typing, but value is optional (throws error if value is unset before compilation)
+* `Any`, `<empty>` and `Valuable` typeclasses
+* `[]Int.sum`, `[]Real.sum`, `[]String.join`, `[]ByteArray.join`, `[][]ItemType.flatten`
+
 # 2023/04/29
 * `List.drop`, `.take`, `.drop_end` and `.take_end` implemented
 

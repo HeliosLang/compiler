@@ -337,20 +337,20 @@ export class ImportModuleStatement extends Statement {
  */
 export class ConstStatement extends Statement {
 	/**
-	 * @type {null | Expr}
+	 * @type {Expr}
 	 */
 	#typeExpr;
 
 	/**
-	 * @type {Expr}
+	 * @type {null | Expr}
 	 */
 	#valueExpr;
 
 	/**
 	 * @param {Site} site 
 	 * @param {Word} name 
-	 * @param {null | Expr} typeExpr - can be null in case of type inference
-	 * @param {Expr} valueExpr 
+	 * @param {Expr} typeExpr - can be null in case of type inference
+	 * @param {null | Expr} valueExpr 
 	 */
 	constructor(site, name, typeExpr, valueExpr) {
 		super(site, name);
@@ -362,11 +362,7 @@ export class ConstStatement extends Statement {
 	 * @type {DataType}
 	 */
 	get type() {
-		if (this.#typeExpr === null) {
-			return assertDefined(this.#valueExpr.cache?.asTyped?.type?.asDataType, this.#valueExpr.cache?.toString() ?? this.#valueExpr.toString());
-		} else {
-			return assertDefined(this.#typeExpr.cache?.asDataType, this.#typeExpr.cache?.toString() ?? this.#typeExpr.toString());
-		}
+		return assertDefined(this.#typeExpr.cache?.asDataType, this.#typeExpr.cache?.toString() ?? this.#typeExpr.toString());
 	}
 
 	/**
@@ -378,12 +374,19 @@ export class ConstStatement extends Statement {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isSet() {
+		return this.#valueExpr !== null;
+	}
+
+	/**
 	 * Use this to change a value of something that is already typechecked.
 	 * @param {UplcData} data
 	 */
 	changeValueSafe(data) {
 		const type = this.type;
-		const site = this.#valueExpr.site;
+		const site = this.#valueExpr ? this.#valueExpr.site : this.site;
 
 		this.#valueExpr = new LiteralDataExpr(site, type, data);
 	}
@@ -392,7 +395,7 @@ export class ConstStatement extends Statement {
 	 * @returns {string}
 	 */
 	toString() {
-		return `const ${this.name.toString()}${this.#typeExpr === null ? "" : ": " + this.#typeExpr.toString()} = ${this.#valueExpr.toString()};`;
+		return `const ${this.name.toString()}${this.#typeExpr.toString()}${this.#valueExpr ? ` = ${this.#valueExpr.toString()}` : ""};`;
 	}
 
 	/**
@@ -400,17 +403,7 @@ export class ConstStatement extends Statement {
 	 * @returns {DataType}
 	 */
 	evalType(scope) {
-		if (this.#typeExpr) {
-			return this.#typeExpr.evalAsDataType(scope);
-		} else {
-			const type = this.#valueExpr.evalAsTyped(scope).type.asDataType;
-
-			if (!type) {
-				throw this.#valueExpr.typeError("not a data type");
-			}
-
-			return type;
-		}
+		return this.#typeExpr.evalAsDataType(scope);
 	}
 
 	/**
@@ -418,23 +411,17 @@ export class ConstStatement extends Statement {
 	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const value = this.#valueExpr.evalAsTyped(scope);
+		const type = this.#typeExpr.evalAsDataType(scope);
 
-		if (this.#typeExpr === null) {
-			if (!this.#valueExpr.isLiteral()) {
-				throw this.typeError(`can't infer type of ${this.#valueExpr.toString()}`);
-			}
-
-			return value;
-		} else {
-			const type = this.#typeExpr.evalAsDataType(scope);
+		if (this.#valueExpr) {
+			const value = this.#valueExpr.evalAsTyped(scope);
 
 			if (!type.isBaseOf(value.type)) {
 				throw this.#valueExpr.typeError("wrong type");
 			}
-
-			return new DataEntity(type);
 		}
+
+		return new DataEntity(type);
 	}
 
 	/**
@@ -457,7 +444,7 @@ export class ConstStatement extends Statement {
 	 * @returns {IR}
 	 */
 	toIRInternal() {
-		let ir = this.#valueExpr.toIR();
+		let ir = assertDefined(this.#valueExpr).toIR();
 
 		if (this.#valueExpr instanceof LiteralDataExpr) {
 			ir = new IR([
@@ -479,7 +466,9 @@ export class ConstStatement extends Statement {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(map) {
-		map.set(this.path, this.toIRInternal());
+		if (this.#valueExpr) {
+			map.set(this.path, this.toIRInternal());
+		}
 	}
 }
 
@@ -1888,8 +1877,6 @@ export class EnumStatement extends Statement {
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
-		let memberParentType = null;
-
 		const [type, typeScope] = this.#parameters.createParametricType(scope, this.site, (typeScope) => {
 			/**
 			 * @type {{[name: string]: (parent: DataType) => EnumMemberType}}
@@ -1923,8 +1910,6 @@ export class EnumStatement extends Statement {
 				}
 			});
 
-			memberParentType = type;
-
 			return type;
 		});
 
@@ -1936,6 +1921,8 @@ export class EnumStatement extends Statement {
 		this.#members.forEach(m => {
 			m.evalDataFields(typeScope);
 		});
+
+		typeScope.assertAllUsed();
 		
 		this.#impl.eval(typeScope);
 	}
@@ -2082,7 +2069,7 @@ export class ImplDefinition {
 	 */
 	toIR(map) {
 		for (let s of this.#statements) {
-			map.set(s.path, s.toIRInternal());
+			s.toIR(map);
 		}
 	}
 }

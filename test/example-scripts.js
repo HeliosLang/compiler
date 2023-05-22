@@ -428,6 +428,8 @@ export default async function main() {
     }`, "data(20)", []);
 
 	await runTestScriptWithArgs(`testing nestNFT
+    const NOTHING: Value = Value::lovelace(0)
+
 	enum Redeemer{
 		Convert {
 			mph: MintingPolicyHash
@@ -442,14 +444,12 @@ export default async function main() {
 			x.output.datum.switch{None => 0, else => 1}
 		}).fold((sum:Int,x:Int) -> Int {sum+x}, 0);
 
-		nothing: Value = Value::lovelace(0);
-
 		valueInputSC:Value=tx.inputs.map((x:TxInput) -> Value {
 			x.output.datum.switch{
 				Inline=> {x.output.value},
-				else=>nothing    
+				else=>NOTHING    
 			}
-		}).fold((sum:Value,x:Value) -> Value {sum+x}, nothing);
+		}).fold((sum:Value,x:Value) -> Value {sum+x}, NOTHING);
 	
 	
 		redeemer.switch{
@@ -486,13 +486,13 @@ export default async function main() {
 	
 	// a script context with a single input and a single output
 	const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
-	const TX_ID_IN_BYTES = #0123456789012345678901234567890123456789012345678901234567891234
+	const TX_ID_IN_BYTES: ByteArray = #0123456789012345678901234567890123456789012345678901234567891234
 	const TX_ID_IN: TxId = TxId::new(TX_ID_IN_BYTES)
-	const CURRENT_VALIDATOR_BYTES = #01234567890123456789012345678901234567890123456789012346
+	const CURRENT_VALIDATOR_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012346
 	const CURRENT_VALIDATOR: ValidatorHash = ValidatorHash::new(CURRENT_VALIDATOR_BYTES)
 	const MPH: MintingPolicyHash = MintingPolicyHash::new(CURRENT_VALIDATOR_BYTES)
-	const HAS_STAKING_CRED_IN = false
-	const STAKING_CRED_TYPE = false
+	const HAS_STAKING_CRED_IN: Bool = false
+	const STAKING_CRED_TYPE: Bool = false
 	const SOME_STAKING_CRED_IN: StakingCredential = if (STAKING_CRED_TYPE) {
 		StakingCredential::new_ptr(0, 0, 0)
 	} else {
@@ -508,11 +508,11 @@ export default async function main() {
 	const TX_OUTPUT_ID_IN: TxOutputId = TxOutputId::new(TX_ID_IN, 0)
 	const ADDRESS_OUT: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
 	const ADDRESS_OUT_1: Address = Address::new(Credential::new_validator(CURRENT_VALIDATOR), Option[StakingCredential]::None)
-	const QTY = 200000
-	const QTY_1 = 100000
-	const QTY_2 = 100000
+	const QTY: Int = 200000
+	const QTY_1: Int = 100000
+	const QTY_2: Int = 100000
 
-	const FEE = 160000
+	const FEE: Int = 160000
 	const VALUE_IN: Value = Value::lovelace(QTY + QTY_1 + QTY_2)
 	const VALUE_OUT: Value = Value::lovelace(QTY - FEE)
 	const VALUE_OUT_1: Value = Value::lovelace(QTY_1)
@@ -547,7 +547,7 @@ export default async function main() {
 	)
 	const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
 
-	const REDEEMER = Redeemer::Convert{
+	const REDEEMER: Redeemer = Redeemer::Convert{
 		mph: MPH,
 		policyConverted: MPH
 	}`, ["REDEEMER", "SCRIPT_CONTEXT"], "data(0{})", []);
@@ -585,11 +585,11 @@ export default async function main() {
         }
     }
 
-    const update_nft_redeemer_good = Redeemer::UPDATE_NFT_HANDLE { "xar12345" }
+    const update_nft_redeemer_good: Redeemer = Redeemer::UPDATE_NFT_HANDLE { "xar12345" }
 
-    const good_datum = Datum { 42 }
+    const good_datum: Datum = Datum { 42 }
 
-    const pz_settings = PzSettings {
+    const pz_settings: PzSettings = PzSettings {
         treasury_fee: 1
     }
 

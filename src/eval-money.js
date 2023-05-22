@@ -47,7 +47,7 @@ import {
 } from "./eval-primitives.js";
 
 import {
-    DataTypeClassImpl,
+    DefaultTypeClass,
     Parameter,
     ParametricFunc
 } from "./eval-parametric.js";
@@ -137,24 +137,15 @@ export var ValueType = new GenericType({
  * @package
  * @implements {TypeClass}
  */
-export class ValuableTypeClass extends Common {
-    constructor() {
-        super();
-    }
-
-	/**
-	 * @type {TypeClass}
-	 */
-	get asTypeClass() {
-		return this;
-	}
-
+export class ValuableTypeClass extends DefaultTypeClass {
 	/**
 	 * @param {Type} impl
 	 * @returns {TypeClassMembers}
 	 */
 	genTypeMembers(impl) {
-		return {};
+		return {
+            ...super.genTypeMembers(impl)
+        };
 	}
 
 	/**	
@@ -163,17 +154,10 @@ export class ValuableTypeClass extends Common {
 	 */
 	genInstanceMembers(impl) {
 		return {
+            ...super.genInstanceMembers(impl),
             value: ValueType
 		};
 	}
-
-    /**
-     * @param {Type} type 
-     * @returns {boolean}
-     */
-    isImplementedBy(type) {
-        return Common.typeImplements(type, this);
-    }
 
 	/**
 	 * @returns {string}
@@ -181,13 +165,4 @@ export class ValuableTypeClass extends Common {
 	toString() {
 		return "Valuable";
 	}
-
-    /**
-     * @param {string} name 
-	 * @param {string} path
-     * @returns {DataType}
-     */
-    toType(name, path) {
-        return new DataTypeClassImpl(this, name, path);
-    }
 }

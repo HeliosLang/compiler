@@ -122,7 +122,7 @@ export class IRProgram {
 		
 		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
 
-		expr = IRProgram.simplifyUnused(expr);
+		// expr = IRProgram.simplifyUnused(expr); // this has been deprecated in favor of Program.eliminateUnused() (TODO: check that performs is the same and then remove this)
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)

@@ -42,7 +42,7 @@ async function test1() {
 	// PREC_NFT is empty for the base multi_nft minting policy, 
 	// but can be set to the minting policy hash of the base multi_nft minting policy, and so forth, 
 	// if you want to mint multiple batches of the tokens (each batch having a different minting policy hash of course)
-	const PREC_NFT = #
+	const PREC_NFT: ByteArray = #
 
 	enum Redeemer {
 		Mint {
@@ -134,7 +134,7 @@ async function test2() {
 		true
 	}
 	
-	const DATUM = Datum{10}
+	const DATUM: Datum = Datum{10}
 	`
 
 	await profile(src, ["DATUM"]);
@@ -152,7 +152,7 @@ async function test3() {
 		list.length
 	}
 
-	const LIST = ${LIST}
+	const LIST: []Int = ${LIST}
 	`, ["LIST"]);
 
 	console.log("profiling list.drop");
@@ -166,7 +166,7 @@ async function test3() {
 		list.drop(2)
 	}
 
-	const LIST = ${LIST}
+	const LIST: []Int = ${LIST}
 	`, ["LIST"]);
 
 	console.log("profiling list.take");
@@ -178,7 +178,7 @@ async function test3() {
 		list.take(2)
 	}
 
-	const LIST = ${LIST}
+	const LIST: []Int = ${LIST}
 	`, ["LIST"]);
 
 	console.log("profiling list.take combined with list.length");
@@ -192,7 +192,7 @@ async function test3() {
 		list.take(n-2)
 	}
 
-	const LIST = ${LIST}
+	const LIST: []Int = ${LIST}
 	`, ["LIST"]);
 
 	console.log("profiling list.take combined with known list.length");
@@ -204,7 +204,7 @@ async function test3() {
 		list.take(n-2)
 	}
 
-	const LIST = ${LIST}
+	const LIST: []Int = ${LIST}
 
 	const N: Int = LIST.length
 	`, ["LIST", "N"]);
@@ -218,7 +218,7 @@ async function test3() {
 		list.drop_end(2)
 	}
 
-	const LIST = ${LIST}
+	const LIST: []Int = ${LIST}
 	`, ["LIST"]);
 
 	console.log("profiling list.drop with list.length");
@@ -231,7 +231,7 @@ async function test3() {
 		list.drop(n-2)
 	}
 
-	const LIST = ${LIST}
+	const LIST: []Int = ${LIST}
 	`, ["LIST"]);
 
 	console.log("profiling list.drop with known list.length");
@@ -244,7 +244,7 @@ async function test3() {
 		list.drop(n-2)
 	}
 
-	const LIST = ${LIST}
+	const LIST: []Int = ${LIST}
 
 	const N: Int = LIST.length
 	`, ["LIST", "N"]);
@@ -258,7 +258,7 @@ async function test3() {
 		list.take_end(2)
 	}
 
-	const LIST = ${LIST}
+	const LIST: []Int = ${LIST}
 	`, ["LIST"]);
 }
 

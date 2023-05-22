@@ -921,6 +921,13 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
+	 * @returns {PubKey}
+	 */
+	static dummy() {
+		return new PubKey((new Array(32)).fill(0));
+	}
+
+	/**
 	 * @type {number[]}
 	 */
 	get bytes() {
@@ -943,6 +950,28 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
+	 * @param {number[]} bytes 
+	 * @returns {PubKey}
+	 */
+	static fromCbor(bytes) {
+		return new PubKey(CborData.decodeBytes(bytes));
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isDummy() {
+		return this.#bytes.every(b => b == 0);
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return CborData.encodeBytes(this.#bytes);
+	}
+
+	/**
      * @returns {UplcData}
      */
     _toUplcData() {
@@ -954,6 +983,13 @@ export class PubKey extends HeliosData {
 	 */
 	hash() {
 		return new PubKeyHash(Crypto.blake2b(this.#bytes, 28));
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		return this.hex;
 	}
 }
 

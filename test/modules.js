@@ -7,7 +7,7 @@ async function test1() {
     const moduleSrc = `
     module my_module
 
-    const test = 0
+    const test: Int = 0
     `;
 
     const mainSrc = `
@@ -19,7 +19,7 @@ async function test1() {
         test
     }
     
-    const QTY = 10
+    const QTY: Int = 10
     `;
 
     let program = helios.Program.new(mainSrc, [moduleSrc]);
@@ -41,7 +41,7 @@ async function test2() {
     const module1 = `
     module m1
     
-    const test = 1
+    const test: Int = 1
     `;
 
     const module2 = `
@@ -159,7 +159,7 @@ async function test6() {
     const module1 = `
     module Module1
     
-    const test = 1
+    const test: Int = 1
     `;
 
     const module2 = `

@@ -22,6 +22,10 @@ import {
     Crypto
 } from "./crypto.js";
 
+/**
+ * @typedef {import("./crypto.js").NumberGenerator} NumberGenerator
+ */
+
 import {
     CborData
 } from "./cbor.js";
@@ -3008,9 +3012,8 @@ export class StakeAddress {
 }
 
 export class Signature extends CborData {
-	/** 
-	 * TODO: use PubKey type instead
-	 * @type {number[]} 
+	/**
+	 * @type {PubKey} 
 	 */
 	#pubKey;
 
@@ -3018,12 +3021,12 @@ export class Signature extends CborData {
 	#signature;
 
 	/**
-	 * @param {number[]} pubKey 
+	 * @param {number[] | PubKey} pubKey 
 	 * @param {number[]} signature 
 	 */
 	constructor(pubKey, signature) {
 		super();
-		this.#pubKey = pubKey;
+		this.#pubKey = (pubKey instanceof PubKey) ? pubKey : new PubKey(pubKey);
 		this.#signature = signature;
 	}
 
@@ -3031,7 +3034,7 @@ export class Signature extends CborData {
 	 * @type {PubKey}
 	 */
 	get pubKey() {
-		return new PubKey(this.#pubKey);
+		return this.#pubKey;
 	}
 
 	/**
@@ -3045,14 +3048,14 @@ export class Signature extends CborData {
 	 * @returns {Signature}
 	 */
 	static dummy() {
-		return new Signature((new Array(32)).fill(0), (new Array(64)).fill(0));
+		return new Signature(PubKey.dummy(), (new Array(64)).fill(0));
 	}
 
 	/**
 	 * @returns {boolean}
 	 */
 	isDummy() {
-		return this.#pubKey.every(b => b == 0) && this.#signature.every(b => b == 0);
+		return this.#pubKey.isDummy() && this.#signature.every(b => b == 0);
 	}
 
 	/**
@@ -3060,7 +3063,7 @@ export class Signature extends CborData {
 	 */
 	toCbor() {
 		return CborData.encodeTuple([
-			CborData.encodeBytes(this.#pubKey),
+			this.#pubKey.toCbor(),
 			CborData.encodeBytes(this.#signature),
 		]);
 	}
@@ -3070,16 +3073,16 @@ export class Signature extends CborData {
 	 * @returns {Signature}
 	 */
 	static fromCbor(bytes) {
-		/** @type {?number[]} */
+		/** @type {null | PubKey} */
 		let pubKey = null;
 
-		/** @type {?number[]} */
+		/** @type {null | number[]} */
 		let signature = null;
 
 		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					pubKey = CborData.decodeBytes(fieldBytes);
+					pubKey = PubKey.fromCbor(fieldBytes);
 					break;
 				case 1:
 					signature = CborData.decodeBytes(fieldBytes);
@@ -3103,8 +3106,8 @@ export class Signature extends CborData {
 	 */
 	dump() {
 		return {
-			pubKey: bytesToHex(this.#pubKey),
-			pubKeyHash: bytesToHex(Crypto.blake2b(this.#pubKey, 28)),
+			pubKey: this.#pubKey.dump,
+			pubKeyHash: this.pubKeyHash.dump(),
 			signature: bytesToHex(this.#signature),
 		};
 	}
@@ -3120,11 +3123,94 @@ export class Signature extends CborData {
 			if (this.#pubKey === null) {
 				throw new Error("pubKey can't be null");
 			} else {
-				if (!Crypto.Ed25519.verify(this.#signature, msg, this.#pubKey)) {
+				if (!Crypto.Ed25519.verify(this.#signature, msg, this.#pubKey.bytes)) {
 					throw new Error("incorrect signature");
 				}
 			}
 		}
+	}
+}
+
+export class PrivateKey extends HeliosData {
+	/**
+	 * @type {number[]}
+	 */
+	#bytes;
+
+	/**
+	 * cache the derived pubKey
+	 * @type {null | PubKey}
+	 */
+	#pubKey
+
+	/**
+	 * @param {string | number[]} bytes
+	 */
+	constructor(bytes) {
+		super();
+		this.#bytes = Array.isArray(bytes) ? bytes : hexToBytes(bytes);
+		this.#pubKey = null;
+	}
+
+ 	/**
+     * Generate a private key from a random number generator.
+	 * This is not cryptographically secure, only use this for testing purpose
+     * @param {NumberGenerator} random 
+     * @returns {PrivateKey} - Ed25519 private key is 32 bytes long
+     */
+	static random(random) {
+		const key = [];
+
+        for (let i = 0; i < 32; i++) {
+            key.push(Math.floor(random()*256)%256);
+        }
+
+        return new PrivateKey(key);
+	}
+
+	/**
+	 * @type {number[]}
+	 */
+	get bytes() {
+		return this.#bytes;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get hex() {
+		return bytesToHex(this.#bytes);
+	}
+
+	/**
+	 * @returns {PrivateKey}
+	 */
+	extend() {
+		return new PrivateKey(Crypto.sha2_512(this.#bytes));
+	}
+
+	/**
+	 * @returns {PubKey}
+	 */
+	derivePubKey() {
+		if (this.#pubKey) {
+			return this.#pubKey;
+		} else {
+			this.#pubKey = new PubKey(Crypto.Ed25519.derivePublicKey(this.#bytes));
+			
+			return this.#pubKey;
+		}
+	}
+
+	/**
+	 * @param {number[] | string} message 
+	 * @returns {Signature}
+	 */
+	sign(message) {
+		return new Signature(
+			this.derivePubKey(),
+			Crypto.Ed25519.sign(Array.isArray(message) ? message : hexToBytes(message), this.#bytes)
+		);
 	}
 }
 
