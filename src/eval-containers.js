@@ -25,7 +25,6 @@ import {
  */
 
 import {
-	AllType,
 	ArgType,
     FuncType,
     GenericEnumMemberType,
