@@ -32,6 +32,7 @@ import {
  *     usedAddresses: Promise<Address[]>,
  *     unusedAddresses: Promise<Address[]>,
  *     utxos: Promise<UTxO[]>,
+ *     collateral: Promise<UTxO[]>,
  *     signTx(tx: Tx): Promise<Signature[]>,
  *     submitTx(tx: Tx): Promise<TxId>
  * }} Wallet
@@ -43,8 +44,12 @@ import {
  *     getUsedAddresses(): Promise<string[]>,
  *     getUnusedAddresses(): Promise<string[]>,
  *     getUtxos(): Promise<string[]>,
+ *     getCollateral(): Promise<string[]>,
  *     signTx(txHex: string, partialSign: boolean): Promise<string>,
- *     submitTx(txHex: string): Promise<string>
+ *     submitTx(txHex: string): Promise<string>,
+ *     experimental: {
+ *         getCollateral(): Promise<string[]>
+ *     },
  * }} Cip30Handle
  */
 
@@ -55,7 +60,7 @@ export class Cip30Wallet {
     #handle;
 
     /**
-     * @param {Cip30Handle} handle 
+     * @param {Cip30Handle} handle
      */
     constructor(handle) {
         this.#handle = handle;
@@ -90,17 +95,25 @@ export class Cip30Wallet {
     }
 
     /**
-     * @param {Tx} tx 
+     * @type {Promise<UTxO[]>}
+     */
+    get collateral() {
+        const getCollateral = this.#handle.getCollateral || this.#handle.experimental.getCollateral;
+        return getCollateral().then(utxos => utxos.map(u => UTxO.fromCbor(hexToBytes(u))));
+    }
+
+    /**
+     * @param {Tx} tx
      * @returns {Promise<Signature[]>}
      */
     async signTx(tx) {
         const res = await this.#handle.signTx(bytesToHex(tx.toCbor()), true);
-        
+
         return TxWitnesses.fromCbor(hexToBytes(res)).signatures;
     }
 
     /**
-     * @param {Tx} tx 
+     * @param {Tx} tx
      * @returns {Promise<TxId>}
      */
     async submitTx(tx) {
@@ -114,7 +127,7 @@ export class WalletHelper {
     #wallet;
 
     /**
-     * @param {Wallet} wallet 
+     * @param {Wallet} wallet
      */
     constructor(wallet) {
         this.#wallet = wallet;
@@ -183,10 +196,10 @@ export class WalletHelper {
     }
 
     /**
-     * @param {Value} amount 
+     * @param {Value} amount
      * @param {(allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]} algorithm
      * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
-     */ 
+     */
     async pickUtxos(amount, algorithm = CoinSelection.selectSmallestFirst) {
         return algorithm(await this.#wallet.utxos, amount);
     }

@@ -65,7 +65,7 @@ export class WalletEmulator {
      */
     #pubKey;
 
-    /** 
+    /**
      * @param {Network} network
      * @param {NumberGenerator} random - used to generate the private key
      */
@@ -141,6 +141,15 @@ export class WalletEmulator {
     }
 
     /**
+     * @type {Promise<UTxO[]>}
+     */
+     get collateral() {
+        return new Promise((resolve, _) => {
+            resolve([])
+        });
+    }
+
+    /**
      * Simply assumed the tx needs to by signed by this wallet without checking.
      * @param {Tx} tx
      * @returns {Promise<Signature[]>}
@@ -152,7 +161,7 @@ export class WalletEmulator {
     }
 
     /**
-     * @param {Tx} tx 
+     * @param {Tx} tx
      * @returns {Promise<TxId>}
      */
     async submitTx(tx) {
@@ -180,9 +189,9 @@ class GenesisTx {
 
     /**
      * @param {number} id
-     * @param {Address} address 
+     * @param {Address} address
      * @param {bigint} lovelace
-     * @param {Assets} assets 
+     * @param {Assets} assets
      */
     constructor(id, address, lovelace, assets) {
         this.#id = id;
@@ -207,9 +216,9 @@ class GenesisTx {
     }
 
     /**
-     * @param {TxId} txId 
-     * @param {bigint} utxoIdx 
-     * @returns 
+     * @param {TxId} txId
+     * @param {bigint} utxoIdx
+     * @returns
      */
     consumes(txId, utxoIdx) {
         return false;
@@ -247,7 +256,7 @@ class RegularTx {
     #tx;
 
     /**
-     * @param {Tx} tx 
+     * @param {Tx} tx
      */
     constructor(tx) {
         this.#tx = tx;
@@ -274,8 +283,8 @@ class RegularTx {
     }
 
     /**
-     * @param {Address} address 
-     * @param {UTxO[]} utxos 
+     * @param {Address} address
+     * @param {UTxO[]} utxos
      * @returns {UTxO[]}
      */
     collectUtxos(address, utxos) {
@@ -327,7 +336,7 @@ export class NetworkEmulator {
     #blocks;
 
     /**
-     * @param {number} seed 
+     * @param {number} seed
      */
     constructor(seed = 0) {
         this.#slot = 0n;
@@ -340,7 +349,7 @@ export class NetworkEmulator {
     /**
      * Create a copy of networkParams that always has access to the current slot
      *  (for setting the validity range automatically)
-     * @param {NetworkParams} networkParams 
+     * @param {NetworkParams} networkParams
      * @returns {NetworkParams}
      */
     initNetworkParams(networkParams) {
@@ -368,9 +377,9 @@ export class NetworkEmulator {
 
     /**
      * Creates a UTxO using a GenesisTx.
-     * @param {WalletEmulator} wallet 
-     * @param {bigint} lovelace 
-     * @param {Assets} assets 
+     * @param {WalletEmulator} wallet
+     * @param {bigint} lovelace
+     * @param {Assets} assets
      */
     createUtxo(wallet, lovelace, assets = new Assets([])) {
         if (lovelace != 0n || !assets.isZero()) {
@@ -388,7 +397,7 @@ export class NetworkEmulator {
 
     /**
      * Mint a block with the current mempool, and advance the slot.
-     * @param {bigint} nSlots 
+     * @param {bigint} nSlots
      */
     tick(nSlots) {
         if (this.#mempool.length > 0) {
@@ -420,8 +429,8 @@ export class NetworkEmulator {
     }
 
     /**
-     * @param {TxId} txId 
-     * @param {bigint} utxoIdx 
+     * @param {TxId} txId
+     * @param {bigint} utxoIdx
      * @returns {boolean}
      */
     isConsumed(txId, utxoIdx) {
@@ -435,7 +444,7 @@ export class NetworkEmulator {
     }
 
     /**
-     * @param {Tx} tx 
+     * @param {Tx} tx
      * @returns {Promise<TxId>}
      */
     async submitTx(tx) {

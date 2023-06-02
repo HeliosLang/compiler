@@ -4236,6 +4236,7 @@ export class CoinSelection {
  *     usedAddresses: Promise<Address[]>,
  *     unusedAddresses: Promise<Address[]>,
  *     utxos: Promise<UTxO[]>,
+ *     collateral: Promise<UTxO[]>,
  *     signTx(tx: Tx): Promise<Signature[]>,
  *     submitTx(tx: Tx): Promise<TxId>
  * }} Wallet
@@ -4246,8 +4247,12 @@ export class CoinSelection {
  *     getUsedAddresses(): Promise<string[]>,
  *     getUnusedAddresses(): Promise<string[]>,
  *     getUtxos(): Promise<string[]>,
+ *     getCollateral(): Promise<string[]>,
  *     signTx(txHex: string, partialSign: boolean): Promise<string>,
- *     submitTx(txHex: string): Promise<string>
+ *     submitTx(txHex: string): Promise<string>,
+ *     experimental: {
+ *         getCollateral(): Promise<string[]>
+ *     },
  * }} Cip30Handle
  */
 /**
@@ -4274,6 +4279,10 @@ export class Cip30Wallet implements Wallet {
      * @type {Promise<UTxO[]>}
      */
     get utxos(): Promise<UTxO[]>;
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get collateral(): Promise<UTxO[]>;
     /**
      * @param {Tx} tx
      * @returns {Promise<Signature[]>}
@@ -4435,6 +4444,10 @@ export class WalletEmulator implements Wallet {
      * @type {Promise<UTxO[]>}
      */
     get utxos(): Promise<UTxO[]>;
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get collateral(): Promise<UTxO[]>;
     /**
      * Simply assumed the tx needs to by signed by this wallet without checking.
      * @param {Tx} tx
@@ -4723,6 +4736,7 @@ export type Wallet = {
     usedAddresses: Promise<Address[]>;
     unusedAddresses: Promise<Address[]>;
     utxos: Promise<UTxO[]>;
+    collateral: Promise<UTxO[]>;
     signTx(tx: Tx): Promise<Signature[]>;
     submitTx(tx: Tx): Promise<TxId>;
 };
@@ -4731,8 +4745,12 @@ export type Cip30Handle = {
     getUsedAddresses(): Promise<string[]>;
     getUnusedAddresses(): Promise<string[]>;
     getUtxos(): Promise<string[]>;
+    getCollateral(): Promise<string[]>;
     signTx(txHex: string, partialSign: boolean): Promise<string>;
     submitTx(txHex: string): Promise<string>;
+    experimental: {
+        getCollateral(): Promise<string[]>;
+    };
 };
 export type Network = {
     getUtxos(address: Address): Promise<UTxO[]>;
