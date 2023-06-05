@@ -57,7 +57,7 @@ import {
 } from "./eval-primitives.js";
 
 /**
- * @param {Type} self 
+ * @param {Type} self
  * @returns {InstanceMembers}
  */
 function genHashInstanceMembers(self) {
@@ -68,7 +68,7 @@ function genHashInstanceMembers(self) {
 }
 
 /**
- * @param {Type} self 
+ * @param {Type} self
  * @returns {TypeMembers}
  */
 function genHashTypeMembers(self) {
