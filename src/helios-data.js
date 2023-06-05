@@ -950,6 +950,14 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
+	 * @param {string | number[]} bytes
+	 * @returns {PubKey}
+	 */
+	 static fromUplcCbor(bytes) {
+		return PubKey.fromUplcData(UplcData.fromCbor(bytes));
+	}
+
+	/**
 	 * @param {number[]} bytes
 	 * @returns {PubKey}
 	 */

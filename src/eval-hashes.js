@@ -5,6 +5,7 @@ import {
 	DatumHash,
 	HeliosData,
 	MintingPolicyHash,
+	PubKey,
 	PubKeyHash,
 	StakeKeyHash,
 	StakingValidatorHash,
@@ -114,6 +115,7 @@ export var MintingPolicyHashType = new GenericType({
  */
 export var PubKeyType = new GenericType({
     name: "PubKey",
+    offChainType: PubKey,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         show: new FuncType([], StringType),
