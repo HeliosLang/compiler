@@ -187,7 +187,7 @@ export class BlockfrostV0 {
                 new TxOutput(
                     address,
                     BlockfrostV0.parseValue(obj.amount),
-                    Datum.inline(ConstrData.fromCbor(hexToBytes(obj.inline_datum)))
+                    obj.inline_datum ? Datum.inline(ConstrData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
                 )
             );
         });
