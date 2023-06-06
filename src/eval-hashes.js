@@ -5,6 +5,7 @@ import {
 	DatumHash,
 	HeliosData,
 	MintingPolicyHash,
+	PubKey,
 	PubKeyHash,
 	StakeKeyHash,
 	StakingValidatorHash,
@@ -57,7 +58,7 @@ import {
 } from "./eval-primitives.js";
 
 /**
- * @param {Type} self 
+ * @param {Type} self
  * @returns {InstanceMembers}
  */
 function genHashInstanceMembers(self) {
@@ -68,7 +69,7 @@ function genHashInstanceMembers(self) {
 }
 
 /**
- * @param {Type} self 
+ * @param {Type} self
  * @returns {TypeMembers}
  */
 function genHashTypeMembers(self) {
@@ -114,6 +115,7 @@ export var MintingPolicyHashType = new GenericType({
  */
 export var PubKeyType = new GenericType({
     name: "PubKey",
+    offChainType: PubKey,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         show: new FuncType([], StringType),
