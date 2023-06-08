@@ -84,7 +84,7 @@ export class IRScope {
 	 * Returns index of a named builtin
 	 * Throws an error if builtin doesn't exist
 	 * @param {string} name 
-	 * @returns 
+	 * @returns {number}
 	 */
 	static findBuiltin(name) {
 		let i = UPLC_BUILTINS.findIndex(info => { return "__core__" + info.name == name });

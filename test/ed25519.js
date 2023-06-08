@@ -6,7 +6,7 @@ import { runIfEntryPoint } from "./util.js";
 
 const helios_ = helios.exportedForTesting;
 
-const Ed25519 = helios_.Crypto.Ed25519;
+const Ed25519 = helios.Crypto.Ed25519;
 
 const N_TESTS = 100;
 

@@ -66,9 +66,22 @@ import {
  * @package
  * @type {DataType}
  */
-export var AssetClassType = new GenericType({
+export const AssetClassType = new GenericType({
     name: "AssetClass",
     offChainType: AssetClass,
+    genTypeDetails: (self) => ({
+        inputType: "string | {mph: number[] | string | MintingPolicyHash, tokenName: number[] | string} | helios.AssetClass",
+        outputType: "helios.AssetClass",
+        internalType: {
+            type: "AssetClass"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return AssetClass.fromProps(obj)._toUplcData();
+    },
+    uplcToJs: (data) => {
+        return AssetClass.fromUplcData(data);
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         mph: MintingPolicyHashType,
@@ -91,9 +104,22 @@ export var AssetClassType = new GenericType({
  * @package
  * @type {DataType}
  */
-export var ValueType = new GenericType({
+export const ValueType = new GenericType({
     name: "Value",
     offChainType: Value,
+    genTypeDetails: (self) => ({
+        inputType: `number | bigint | {lovelace?: number | bigint, assets: [string, number | bigint][] | [number[] | string | helios.MintingPolicyHash, [number[] | string, number | bigint][]][] | helios.Assets} | helios.Value`,
+        outputType: `helios.Value`,
+        internalType: {
+            type: "Value"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return Value.fromProps(obj)._toUplcData();
+    },
+    uplcToJs: (data) => {
+        return Value.fromUplcData(data);
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         contains: new FuncType([self], BoolType),

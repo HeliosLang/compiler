@@ -55,8 +55,12 @@ import {
 } from "./uplc-costmodels.js";
 
 import {
-    UPLC_BUILTINS
+    UPLC_BUILTINS, UPLC_MACROS, UPLC_MACROS_OFFSET
 } from "./uplc-builtins.js";
+
+/**
+ * @typedef {import("./uplc-ast.js").ScriptPurpose} ScriptPurpose
+ */
 
 /**
  * @typedef {import("./uplc-ast.js").UplcRTECallbacks} UplcRTECallbacks
@@ -64,7 +68,6 @@ import {
 
 import {
     DEFAULT_UPLC_RTE_CALLBACKS,
-    ScriptPurpose,
     UplcAnon,
     UplcBool,
     UplcBuiltin,
@@ -124,7 +127,7 @@ const UPLC_TAG_WIDTHS = {
 /**
  * TODO: purpose as enum type
  * @typedef {{
- *   purpose: null | number 
+ *   purpose: null | ScriptPurpose 
  *   callsTxTimeRange: boolean
  * }} ProgramProperties
  */
@@ -326,7 +329,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
-	 * @param {?UplcValue[]} args - if null the top-level term is returned as a value
+	 * @param {null | UplcValue[]} args - if null the top-level term is returned as a value
 	 * @param {UplcRTECallbacks} callbacks 
 	 * @param {?NetworkParams} networkParams
 	 * @returns {Promise<UplcValue | UserError>}
@@ -493,7 +496,7 @@ const UPLC_TAG_WIDTHS = {
 	 * @returns {string}
 	 */
 	serialize() {
-		let cborHex = bytesToHex(this.toCbor());
+		const cborHex = bytesToHex(this.toCbor());
 
 		return `{"type": "${this.plutusScriptVersion()}", "description": "", "cborHex": "${cborHex}"}`;
 	}
@@ -516,7 +519,7 @@ const UPLC_TAG_WIDTHS = {
 	get validatorHash() {
 		const purpose = this.#properties.purpose;
 
-		assert(purpose === null || purpose === ScriptPurpose.Spending);
+		assert(purpose === null || purpose === "spending");
 
 		return new ValidatorHash(this.hash());
 	}
@@ -527,7 +530,7 @@ const UPLC_TAG_WIDTHS = {
 	get mintingPolicyHash() {
 		const purpose = this.#properties.purpose;
 
-		assert(purpose === null || purpose === ScriptPurpose.Minting);
+		assert(purpose === null || purpose === "minting");
 
 		return new MintingPolicyHash(this.hash());
 	}
@@ -538,7 +541,7 @@ const UPLC_TAG_WIDTHS = {
 	get stakingValidatorHash() {
 		const purpose = this.#properties.purpose;
 
-		assert(purpose === null || purpose === ScriptPurpose.Staking);
+		assert(purpose === null || purpose === "staking");
 
 		return new StakingValidatorHash(this.hash());
 	}
@@ -639,6 +642,8 @@ const UPLC_TAG_WIDTHS = {
 
 		if (id >= 0 && id < all.length) {
 			return all[id].name;
+		} else if (id >= UPLC_MACROS_OFFSET && id < UPLC_MACROS_OFFSET + UPLC_MACROS.length) {
+			return `macro__${assertDefined(UPLC_MACROS[id - UPLC_MACROS_OFFSET])}`;
 		} else {
 			console.error(`Warning: builtin id ${id.toString()} out of range`);
 

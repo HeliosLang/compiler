@@ -40,11 +40,12 @@ const FILES = [
 	"native.js",
 	"tx-builder.js",
 	"highlight.js",
-	"fuzzy-test.js",
 	"coinselection.js",
 	"wallets.js",
 	"network.js",
-	"emulator.js"
+	"emulator.js",
+	"fuzzy-test.js",
+	"bundling.js"
 ];
 
 // build script that bundles all constituents of helios.js // goal: helios.js should be auditable
@@ -141,44 +142,43 @@ export const VERSION = "${version}";`;
 function buildFooter() {
 	return `
 /**
- * The following functions are used for some tests in ./test/, and aren't
+ * The following functions and classes are used for some tests in ./test/, and aren't
  * intended to be used by regular users of this library.
  */
 export const exportedForTesting = {
-	assert: assert,
-	assertClass: assertClass,
-	bigIntToBytes: bigIntToBytes,
-	bytesToBigInt: bytesToBigInt,
-	setRawUsageNotifier: setRawUsageNotifier,
-	setBlake2bDigestSize: setBlake2bDigestSize,
-	dumpCostModels: dumpCostModels,
-	Site: Site,
-	Source: Source,
-	Crypto: Crypto,
-	MapData: MapData,
-	UplcData: UplcData,
-	CborData: CborData,
-	ConstrData: ConstrData,
-	IntData: IntData,
-	ByteArrayData: ByteArrayData,
-	ListData: ListData,
-	UplcBool: UplcBool,
-	UplcValue: UplcValue,
-	UplcDataValue: UplcDataValue,
-	ScriptPurpose: ScriptPurpose,
-	UplcTerm: UplcTerm,
-	UplcProgram: UplcProgram,
-	UplcLambda: UplcLambda,
-	UplcCall: UplcCall,
-	UplcBuiltin: UplcBuiltin,
-	UplcVariable: UplcVariable,
-	UplcConst: UplcConst,
-	UplcInt: UplcInt,
-	IRProgram: IRProgram,
-	Tx: Tx,
-	TxInput: TxInput,
-	TxBody: TxBody,
-	REAL_PRECISION: REAL_PRECISION
+	assert,
+	assertClass,
+	assertDefined,
+	bigIntToBytes,
+	bytesToBigInt,
+	setRawUsageNotifier,
+	setBlake2bDigestSize,
+	dumpCostModels,
+	Site,
+	Source,
+	MapData,
+	UplcData,
+	CborData,
+	ConstrData,
+	IntData,
+	ByteArrayData,
+	ListData,
+	UplcBool,
+	UplcValue,
+	UplcDataValue,
+	UplcTerm,
+	UplcProgram,
+	UplcLambda,
+	UplcCall,
+	UplcBuiltin,
+	UplcVariable,
+	UplcConst,
+	UplcInt,
+	IRProgram,
+	Tx,
+	TxInput,
+	TxBody,
+	REAL_PRECISION
 };`
 }
 

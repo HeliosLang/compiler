@@ -179,6 +179,17 @@ export const UPLC_BUILTINS = (
 	}
 )();
 
+export const UPLC_MACROS_OFFSET = UPLC_BUILTINS.length;
+
+// index to helios-specific macro mapping
+export const UPLC_MACROS = [
+	"compile",
+	"finalize",
+	"get_utxo",
+	"now",
+	"pick"
+];
+
 /**
  * Use this function to check cost-model parameters
  * @package

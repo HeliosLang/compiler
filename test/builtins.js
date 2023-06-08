@@ -451,7 +451,7 @@ const certifyingScriptContextParam = `
 
 
 async function testBuiltins() {
-    const ft = new helios.FuzzyTest(Math.random()*42, 100, true);
+    const ft = new helios.FuzzyTest(/*Math.random()*/42, 100, true);
 
 
     /////////////
@@ -1781,6 +1781,16 @@ async function testBuiltins() {
         }`, ([a], res) => asBool(res));
 
         await ft.test([ft.list(ft.int())], `
+        testing list_head_iterator
+        func main(a: []Int) -> Bool {
+            if (a.length == 0) {
+                true
+            } else {
+                a.to_iterator().head() == a.get(0)
+            }
+        }`, ([a], res) => asBool(res));
+
+        await ft.test([ft.list(ft.int())], `
         testing list_tail
         func main(a: []Int) -> Bool {
             if (a.length == 0) {
@@ -1801,6 +1811,12 @@ async function testBuiltins() {
             a.is_empty() == (a.length == 0)
         }`, ([a], res) => asBool(res));
 
+        await ft.test([ft.list(ft.int(), 0, 10)], `
+        testing list_is_empty_iterator
+        func main(a: []Int) -> Bool {
+            a.to_iterator().is_empty() == (a.length == 0)
+        }`, ([a], res) => asBool(res));
+
         await ft.test([ft.list(ft.int(), 0, 2)], `
         testing list_get_singleton
         func main(a: []Int) -> Int {
@@ -1817,6 +1833,34 @@ async function testBuiltins() {
             }
         });
 
+        await ft.test([ft.list(ft.int(0, 5), 0, 5)], `
+        testing list_filter_get_singleton
+        func main(a: []Int) -> Int {
+            a.map((item: Int) -> {item*2}).filter((item: Int) -> {item == 0}).get_singleton()
+        }`, ([a], res) => {
+            const lst = asIntList(a);
+
+            if (lst.filter(i => i == 0n).length == 1) {
+                return asInt(res) == 0n;
+            } else {
+                return isError(res, "not a singleton list") || isError(res, "assert failed") || isError(res, "empty list");
+            }
+        });
+
+        await ft.test([ft.list(ft.int(0, 5), 0, 5)], `
+        testing list_filter_get_singleton_iterator
+        func main(a: []Int) -> Int {
+            a.to_iterator().map((item: Int) -> {item*2}).filter((item: Int) -> {item == 0}).get_singleton()
+        }`, ([a], res) => {
+            const lst = asIntList(a);
+
+            if (lst.filter(i => i == 0n).length == 1) {
+                return asInt(res) == 0n;
+            } else {
+                return isError(res, "not a singleton iterator") || isError(res, "assert failed") || isError(res, "empty iterator, not a singleton");
+            }
+        });
+
         await ft.test([ft.list(ft.int(), 0, 10), ft.int(-10, 15)], `
         testing list_drop
         func main(a: []Int, n: Int) -> []Int {
@@ -1829,6 +1873,27 @@ async function testBuiltins() {
                 return isError(res, "empty list");
             } else if (n < 0) {
                 return isError(res, "negative n in drop");
+            } else {
+                const resLst = asIntList(res);
+                
+                return ((n + resLst.length) == lst.length) && equalsList(resLst, lst.slice(n));
+            }
+        });
+
+        await ft.test([ft.list(ft.int(), 0, 10), ft.int(-10, 15)], `
+        testing list_drop_iterator
+        func main(a: []Int, n: Int) -> []Int {
+            []Int::from_iterator(
+                a.to_iterator().drop(n)
+            )
+        }`, ([lst_, n_], res) => {
+            const lst = asIntList(lst_);
+            const n = Number(asInt(n_));
+
+            if (n <= 0) {
+                return equalsList(lst, asIntList(res));
+            } else if (n >= lst.length) {
+                return asIntList(res).length == 0;
             } else {
                 const resLst = asIntList(res);
                 
@@ -1952,10 +2017,26 @@ async function testBuiltins() {
             }
         });
 
+        
         await ft.test([ft.list(ft.int())], `
         testing list_filter
         func main(a: []Int) -> []Int {
             a.filter((x: Int) -> Bool {x > 0})
+        }`, ([a], res) => {
+            let la = asIntList(a).filter(i => i > 0n);
+            let lRes = asIntList(res);
+
+            return (la.length == lRes.length) && la.every((a, i) => a == lRes[i]);
+        });
+
+        await ft.test([ft.list(ft.int())], `
+        testing list_filter_iterator
+        func main(a: []Int) -> []Int {
+            iter: Iterator[Int] = a.to_iterator();
+            filtered: Iterator[Int] = iter.filter((x: Int) -> {
+                x > 0
+            });
+            []Int::from_iterator(filtered)
         }`, ([a], res) => {
             let la = asIntList(a).filter(i => i > 0n);
             let lRes = asIntList(res);
@@ -1991,7 +2072,7 @@ async function testBuiltins() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        testing list_fold_2
+        testing list_fold2_verbose
         func main(a: []Int) -> Int {
             (sa: Int, sb: Int) = a.fold((sum: () -> (Int, Int), x: Int) -> () -> (Int, Int) {
                 (sa_: Int, sb_: Int) = sum();
@@ -2000,6 +2081,17 @@ async function testBuiltins() {
             (sa + sb)/2
         }
         `, ([a], res) => {
+            let la = asIntList(a);
+
+            return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
+        });
+
+        await ft.test([ft.list(ft.int())], `
+        testing list_fold2
+        func main(a: []Int) -> Int {
+            (sum0: Int, sum1: Int) = a.fold2((sum0: Int, sum1: Int, x: Int) -> {(sum0 + x, sum1 + x)}, 0, 0);
+            (sum0 + sum1)/2
+        }`, ([a], res) => {
             let la = asIntList(a);
 
             return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
@@ -2024,7 +2116,21 @@ async function testBuiltins() {
         });
 
         await ft.test([ft.list(ft.int())], `
-        testing list_fold_lazy2
+        testing list_fold2_lazy
+        func main(a: []Int) -> Int {
+            (sum0: Int, sum1: Int) = a.fold2_lazy((item: Int, sum: () -> (Int, Int)) -> {
+                (sum0: Int, sum1: Int) = sum(); 
+                (item + sum0, item + sum1)
+            }, 0, 0);
+            (sum0 + sum1)/2
+        }`, ([a], res) => {
+            let la = asIntList(a);
+
+            return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
+        });
+
+        await ft.test([ft.list(ft.int())], `
+        testing list_fold_lazy_prepend
         func main(a: []Int) -> []Int {
             a.fold_lazy((item: Int, next: () -> []Int) -> []Int {next().prepend(item)}, []Int{})
         }`, ([a], res) => {
@@ -2040,6 +2146,21 @@ async function testBuiltins() {
             a.map((x: Int) -> Int {
                 x*2
             })
+        }`, ([a], res) => {
+            let la = asIntList(a);
+            let lRes = asIntList(res);
+
+            return la.every((v, i) => v*2n == lRes[i]);
+        });
+
+        await ft.test([ft.list(ft.int())], `
+        testing list_map_iterator
+        func main(a: []Int) -> []Int {
+            []Int::from_iterator(
+                a.to_iterator().map((x: Int) -> Int {
+                    x*2
+                })
+            )
         }`, ([a], res) => {
             let la = asIntList(a);
             let lRes = asIntList(res);
@@ -2081,6 +2202,36 @@ async function testBuiltins() {
         testing list_sum_int
         func main(a: []Int) -> Int {
             a.sum()
+        }`, ([a], res) => {
+            let la = asIntList(a);
+
+            return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
+        });
+
+        await ft.test([ft.list(ft.int())], `
+        testing list_sum2_int_recurse
+        func rec(a: []Int, b: []Int) -> Int {
+            if (a.is_empty() || b.is_empty()) {
+                0
+            } else {
+                a.head + b.head + rec(a.tail, b.tail)
+            }
+        }
+
+        func main(a: []Int) -> Int {
+            s: Int = rec(a, a);
+            s/2
+        }`, ([a], res) => {
+            let la = asIntList(a);
+
+            return la.reduce((sum, i) => sum + i, 0n) === asInt(res);
+        });
+
+        await ft.test([ft.list(ft.int())], `
+        testing list_sum2_int_iterator
+        func main(a: []Int) -> Int {
+            s: Int = a.zip(a).fold((prev: Int, b: Int, c: Int) -> {prev+b+c}, 0);
+            s/2
         }`, ([a], res) => {
             let la = asIntList(a);
 
@@ -2380,6 +2531,16 @@ async function testBuiltins() {
         }`, ([_], res) => asData(res).map.every(([k, v]) => asInt(k) < asInt(v)));
 
         await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_filter_iterator
+        func main(a: Map[Int]Int) -> Map[Int]Int {
+            Map[Int]Int::from_iterator(
+                a.to_iterator().filter((k: Int, v: Int) -> Bool {
+                    k < v
+                })
+            )
+        }`, ([_], res) => asData(res).map.every(([k, v]) => asInt(k) < asInt(v)));
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_filter_by_key
         func main(a: Map[Int]Int) -> Map[Int]Int {
             a.filter((k: Int, _) -> Bool {
@@ -2615,6 +2776,22 @@ async function testBuiltins() {
             a.map((key: Int, value: Int) -> (Int, Int) {
                 (key, value*2)
             })
+        }`, ([a], res) => {
+            let lRes = asData(res).map;
+
+            return a.data.map.every(([_, v], i) => {
+                return asInt(v)*2n === asInt(lRes[i][1]);
+            });
+        });
+
+        await ft.test([ft.map(ft.int(), ft.int())], `
+        testing map_map_values_iterator
+        func main(a: Map[Int]Int) -> Map[Int]Int {
+            Map[Int]Int::from_iterator(
+                a.to_iterator().map2((key: Int, value: Int) -> (Int, Int) {
+                    (key, value*2)
+                })
+            )
         }`, ([a], res) => {
             let lRes = asData(res).map;
 

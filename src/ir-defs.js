@@ -1722,6 +1722,458 @@ function makeRawFunctions() {
 	}`));
 
 
+	// Iterator builtins (lazy lists)
+	// many iterator methods must be generated for different number of arguments
+	for (let n = 1; n <= 10; n++) {
+		const basePath = `__helios__iterator__${n}`;
+		const head = (new Array(n)).fill("").map((_, i) => `head${i}`).join(", ");
+		const unit = (new Array(n)).fill("").map((_, i) => "()").join(", ");
+		const returnHead = n == 1 ? `${head}` : `(callback) -> {callback(${head})}`;
+
+		add(new RawFunc(`${basePath}__drop`,
+	`(self) -> {
+		(n) -> {
+			(recurse) -> {
+				recurse(recurse, self, n)
+			}(
+				(recurse, iterator, i) -> {
+					__core__ifThenElse(
+						__core__lessThanEqualsInteger(i, 0),
+						() -> {
+							iterator
+						},
+						() -> {
+							iterator(
+								(is_null, ${head}, next_iterator) -> {
+									__core__ifThenElse(
+										is_null,
+										() -> {
+											iterator
+										},
+										() -> {
+											recurse(recurse, next_iterator, __core__subtractInteger(i, 1))
+										}
+									)()
+								}
+							)
+						}
+					)()
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__is_empty`,
+	`(self) -> {
+		() -> {
+			self(
+				(is_null, ${head}, next_iterator) -> {
+					is_null
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__head`,
+	`(self) -> {
+		() -> {
+			self(
+				(is_null, ${head}, next_iterator) -> {
+					${returnHead}
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__tail`,
+	`(self) -> {
+		self(
+			(is_null, ${head}, next_iterator) -> {
+				next_iterator
+			}
+		)
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__get`,
+	`(self) -> {
+		(i) -> {
+			__core__ifThenElse(
+				__core__lessThanInteger(i, 0),
+				() -> {
+					error("negative index in iterator.get()")
+				},
+				() -> {
+					(recurse) -> {
+						recurse(recurse, self, i)
+					}(
+						(recurse, iterator, i) -> {
+							iterator(
+								(is_null, ${head}, next_iterator) -> {
+									__core__ifThenElse(
+										is_null,
+										() -> {
+											error("index out of range")
+										},
+										() -> {
+											__core__ifThenElse(
+												__core__equalsInteger(i, 0),
+												() -> {
+													${returnHead}
+												},
+												() -> {
+													recurse(recurse, next_iterator, __core__subtractInteger(i, 1))
+												}
+											)()
+										}
+									)()
+									
+								}
+							)
+						}
+					)
+				}
+			)()
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__get_singleton`,
+	`(self) -> {
+		() -> {
+			self(
+				(is_null, ${head}, next_iterator) -> {
+					__core__ifThenElse(
+						is_null,
+						() -> {
+							error("empty iterator, not a singleton")
+						},
+						() -> {
+							__core__ifThenElse(
+								${basePath}__is_empty(next_iterator)(),
+								() -> {
+									${returnHead}
+								},
+								() -> {
+									error("not a singleton iterator")
+								}
+							)()
+						}
+					)()
+				}
+			)
+		}
+	}`));
+
+		add(new RawFunc(`${basePath}__take`,
+	`(self) -> {
+		(n) -> {
+			(recurse) -> {
+				recurse(recurse, self, n)
+			}(
+				(recurse, iterator, i) -> {
+					__core__ifThenElse(
+						__core__lessThanEqualsInteger(i, 0),
+						() -> {
+							(callback) -> {
+								callback(true, ${unit}, ())
+							}
+						},
+						() -> {
+							iterator(
+								(is_null, ${head}, next_iterator) -> {
+									__core__ifThenElse(
+										is_null,
+										() -> {
+											iterator
+										},
+										() -> {
+											(callback) -> {
+												callback(false, ${head}, recurse(recurse, next_iterator, __core__subtractInteger(i, 1)))
+											}
+										}
+									)()	
+								}
+							)
+						}
+					)()
+					
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__for_each`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, iterator) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							__core__ifThenElse(
+								is_null,
+								() -> {
+									()
+								},
+								() -> {
+									__core__chooseUnit(
+										fn(${head}),
+										recurse(recurse, next_iterator)
+									)
+								}
+							)()
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__fold[${FTPP}0]`,
+	`(self) -> {
+		(fn, z0) -> {
+			(recurse) -> {
+				recurse(recurse, self, z0)
+			}(
+				(recurse, iterator, z) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							__core__ifThenElse(
+								is_null,
+								() -> {
+									z
+								},
+								() -> {
+									recurse(recurse, next_iterator, fn(z, ${head}))
+								}
+							)()
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__find`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, iterator) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							__core__ifThenElse(
+								is_null,
+								() -> {
+									error("not found")
+								},
+								() -> {
+									__core__ifThenElse(
+										fn(${head}),
+										() -> {
+											${returnHead}
+										},
+										() -> {
+											recurse(recurse, next_iterator)
+										}
+									)()
+								}
+							)()
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__any`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, iterator) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							__core__ifThenElse(
+								is_null,
+								() -> {
+									false
+								},
+								() -> {
+									__core__ifThenElse(
+										fn(${head}),
+										() -> {
+											true
+										},
+										() -> {
+											recurse(recurse, next_iterator)
+										}
+									)()
+								}
+							)()
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__prepend`,
+	`(self) -> {
+		(${head}) -> {
+			(callback) -> {
+				callback(false, ${head}, self)
+			}
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__filter`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, iterator) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							(callback) -> {
+								__core__ifThenElse(
+									is_null,
+									() -> {
+										callback(true, ${unit}, ())
+									},
+									() -> {
+										__core__ifThenElse(
+											fn(${head}),
+											() -> {
+												callback(false, ${head}, recurse(recurse, next_iterator))
+											},
+											() -> {
+												recurse(recurse, next_iterator)(callback)
+											}
+										)()
+									}
+								)()
+							}
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+		add(new RawFunc(`${basePath}__map[${FTPP}0]`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, iterator) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							(callback) -> {
+								__core__ifThenElse(
+									is_null,
+									() -> {
+										callback(true, (), ())
+									},
+									() -> {
+										callback(false, fn(${head}), recurse(recurse, next_iterator))
+									}
+								)()
+							}
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+		add(new RawFunc(`${basePath}__map2[${FTPP}0@${FTPP}1]`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, iterator) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							(callback) -> {
+								__core__ifThenElse(
+									is_null,
+									() -> {
+										callback(true, (), (), ())
+									},
+									() -> {
+										fn(${head})(
+											(new_head0, new_head1) -> {
+												callback(false, new_head0, new_head1, recurse(recurse, next_iterator))
+											}
+										)
+									}
+								)()
+							}
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+		add(new RawFunc(`${basePath}__zip[${FTPP}0]`,
+	`(self) -> {
+		(lst) -> {
+			(recurse, self, lst) -> {
+				recurse(recurse, self, lst)
+			}(
+				(recurse, iterator, lst) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							__core__ifThenElse(
+								is_null,
+								(callback) -> {
+									callback(true, ${unit}, (), ())
+								},
+								(callback) -> {
+									__core__chooseList(
+										lst,
+										() -> {
+											callback(true, ${unit}, (), ())
+										},
+										() -> {
+											callback(
+												false,
+												${head},
+												${FTPP}0__from_data(__core__headList(lst)),
+												recurse(recurse, next_iterator, __core__tailList(lst))
+											)
+										}
+									)()
+								}
+							)
+						}
+					)	
+				}
+			)
+		}
+	}`
+		));
+	}
+
+
 	// Tuple (list of data, which is used by structs which have more than 1 field)
 	addSerializeFunc("__helios__tuple");
 	addNeqFunc("__helios__tuple");
@@ -1765,6 +2217,90 @@ function makeRawFunctions() {
 	`(self) -> {
 		() -> {
 			__core__nullList(self)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__to_iterator`,
+	`(self) -> {
+		() -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, lst) -> {
+					(callback) -> {
+						__core__chooseList(
+							lst,
+							() -> {
+								callback(true, (), ())
+							},
+							() -> {
+								callback(
+									false, 
+									${TTPP}0__from_data(__core__headList(lst)),
+									recurse(recurse, __core__tailList(lst))
+								)
+							}
+						)()
+					}
+				}
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__from_iterator`,
+	`(iterator) -> {
+		(recurse) -> {
+			recurse(recurse, iterator)
+		}(
+			(recurse, iterator) -> {
+				iterator(
+					(is_null, head, next_iterator) -> {
+						__core__ifThenElse(
+							is_null,
+							() -> {
+								__core__mkNilData(())
+							},
+							() -> {
+								__core__mkCons(
+									${TTPP}0____to_data(head),
+									recurse(recurse, next_iterator)
+								)
+							}
+						)()
+					}
+				)
+			}
+		)
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__zip[${FTPP}0]`, 
+	`(self) -> {
+		(other) -> {
+			(recurse) -> {
+				recurse(recurse, self, other)
+			}(
+				(recurse, lst1, lst2) -> {
+					__core__chooseList(
+						lst1,
+						(callback) -> {
+							callback(true, (), (), ())
+						},
+						(callback) -> {
+							__core__chooseList(
+								lst2,
+								() -> {
+									callback(true, (), (), ())
+								},
+								() -> {
+									callback(
+										false,
+										${TTPP}0__from_data(__core__headList(lst1)),
+										${FTPP}0__from_data(__core__headList(lst2)),
+										recurse(recurse, __core__tailList(lst1), __core__tailList(lst2))
+									)
+								}
+							)()
+						}
+					)
+				}
+			)
 		}
 	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__get`,
@@ -2034,6 +2570,32 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
+	add(new RawFunc(`__helios__list[__helios__data]__append`,
+	`(self) -> {
+		(item) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, lst) -> {
+					__core__chooseList(
+						lst,
+						() -> {
+							__core__mkCons(item, lst)
+						},
+						() -> {
+							__core__mkCons(__core__headList(lst), recurse(recurse, __core__tailList(lst)))
+						}
+					)()
+				}
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__append`,
+	`(self) -> {
+		(item) -> {
+			__helios__list[__helios__data]__append(self)(${TTPP}0____to_data(item))
+		}
+	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__prepend`,
 	`(self) -> {
 		(item) -> {
@@ -2112,25 +2674,57 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__fold[${FTPP}0]`,
 	`(self) -> {
-		(fn, z) -> {
+		(fn, a0) -> {
 			__helios__common__fold(
 				self, 
 				(prev, item) -> {
 					fn(prev, ${TTPP}0__from_data(item))
 				}, 
-				z
+				a0
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__fold2[${FTPP}0@${FTPP}1]`,
+	`(self) -> {
+		(fn, a0, b0) -> {
+			__helios__common__fold(
+				self,
+				(prev, item) -> {
+					prev(
+						(a, b) -> {
+							fn(a, b, ${TTPP}0__from_data(item))
+						}
+					)
+				},
+				(callback) -> {
+					callback(a0, b0)
+				}
 			)
 		}
 	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__fold_lazy[${FTPP}0]`,
 	`(self) -> {
-		(fn, z) -> {
+		(fn, a0) -> {
 			__helios__common__fold_lazy(
 				self, 
 				(item, next) -> {
 					fn(${TTPP}0__from_data(item), next)
 				},
-				z
+				a0
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__fold2_lazy[${FTPP}0@${FTPP}1]`,
+	`(self) -> {
+		(fn, a0, b0) -> {
+			__helios__common__fold_lazy(
+				self, 
+				(item, next) -> {
+					fn(${TTPP}0__from_data(item), next)
+				},
+				(callback) -> {
+					callback(a0, b0)
+				}
 			)
 		}
 	}`));
@@ -2160,7 +2754,7 @@ function makeRawFunctions() {
 
 
 	// List specials
-	add(new RawFunc("__helios__list[__helios__int]__sum",
+	add(new RawFunc(`__helios__list[${TTPP}0]__sum`,
 	`(self) -> {
 		() -> {
 			(recurse) -> {
@@ -2173,8 +2767,8 @@ function makeRawFunctions() {
 							0
 						},
 						() -> {
-							__core__addInteger(		
-								__core__unIData(__core__headList(lst)),
+							${TTPP}0____add(
+								${TTPP}0__from_data(__core__headList(lst)),
 								recurse(recurse, __core__tailList(lst))
 							)
 						}
@@ -2183,7 +2777,6 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__helios__real]__sum", "__helios__list[__helios__int]__sum"));
 	add(new RawFunc("__helios__list[__helios__string]__join",
 	`(self) -> {
 		(__useopt__separator, separator) -> {
@@ -2263,7 +2856,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	
+
 
 	// Map builtins
 	addSerializeFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
@@ -2276,6 +2869,18 @@ function makeRawFunctions() {
 	`(self) -> {
 		(key, value) -> {
 			__core__mkCons(__core__mkPairData(${TTPP}0____to_data(key), ${TTPP}1____to_data(value)), self)
+		}
+	}`));
+	add(new RawFunc(`__helios__map[__helios__data@__helios__data]__append`,
+	`(self) -> {
+		(key, value) -> {
+			__helios__list[__helios__data]__append(self)(__core__mkPairData(key, value))
+		}
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__append`,
+	`(self) -> {
+		(key, value) -> {
+			__helios__map[__helios__data@__helios__data]__append(self)(${TTPP}0____to_data(key), ${TTPP}1____to_data(value))
 		}
 	}`));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__head`,
@@ -2641,6 +3246,60 @@ function makeRawFunctions() {
 			}(${TTPP}0____to_data(key), ${TTPP}1____to_data(value))
 		}
 	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__to_iterator`,
+	`(self) -> {
+		() -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, map) -> {
+					(callback) -> {
+						__core__chooseList(
+							map,
+							() -> {
+								callback(true, (), (), ())
+							},
+							() -> {
+								(head) -> {
+									callback(
+										false, 
+										${TTPP}0__from_data(__core__fstPair(head)),
+										${TTPP}1__from_data(__core__sndPair(head)),
+										recurse(recurse, __core__tailList(map))
+									)
+								}(__core__headList(map))	
+							}
+						)()
+					}
+				}
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__from_iterator`,
+	`(iterator) -> {
+		(recurse) -> {
+			recurse(recurse, iterator)
+		}(
+			(recurse, iterator) -> {
+				iterator(
+					(is_null, head0, head1, next_iterator) -> {
+						__core__ifThenElse(
+							is_null,
+							() -> {
+								__core__mkNilPairData(())
+							},
+							() -> {
+								__core__mkCons(
+									__core__mkPairData(${TTPP}0____to_data(head0), ${TTPP}1____to_data(head1)),
+									recurse(recurse, next_iterator)
+								)
+							}
+						)()
+					}
+				)
+			}
+		)
+	}`));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__update`,
 	`(self) -> {
 		(key, fn) -> {
@@ -2940,6 +3599,48 @@ function makeRawFunctions() {
 		}
 	}`));
 
+	
+	// ContractContext builtin
+	addDataFuncs("__helios__contractcontext");
+	add(new RawFunc("__helios__contractcontext__scripts", `(self) -> {()}`));
+	add(new RawFunc("__helios__contractcontext__agent", `(self) -> {self}`));
+	add(new RawFunc("__helios__contractcontext__network", `(self) -> {()}`));
+	add(new RawFunc("__helios__contractcontext__new_tx_builder", `(self) -> {__helios__txbuilder__new_empty}`));
+
+
+	// Network builtin
+	add(new RawFunc("__helios__network__pick", 
+	`(self) -> {
+		(address, value) -> {
+			__core__macro__pick(__helios__address____to_data(address), __helios__value____to_data(value), ())
+		}
+	}`));
+	add(new RawFunc("__helios__network__get",
+	`(self) -> {
+		(id) -> {
+			__core__macro__get_utxo(__helios__txoutputid____to_data(id), ())
+		}
+	}`));
+
+
+	// Wallet builtin
+	addDataFuncs("__helios__wallet");
+	add(new RawFunc("__helios__wallet__address", `(self) -> {self}`));
+	add(new RawFunc("__helios__wallet__hash", 
+	`(self) -> {
+		__helios__credential__pubkey__hash(
+			__helios__credential__pubkey__cast(
+				__helios__address__credential(self)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__wallet__pick", 
+	`(self) -> {
+		(value) -> {
+			__core__macro__pick(self, __helios__value____to_data(value), ())
+		}
+	}`));
+
 
 	// StakingPurpose builtins
 	addDataFuncs("__helios__stakingpurpose");
@@ -3065,6 +3766,293 @@ function makeRawFunctions() {
 	}`));
 
 
+	// TxBuilder builtins
+	addDataFuncs("__helios__txbuilder");
+	add(new RawFunc(`__helios__txbuilder__new`,
+	`(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+		__core__constrData(0, __helios__common__list_12(
+			__core__listData(inputs),
+			__core__listData(ref_inputs),
+			__core__listData(outputs),
+			__core__mapData(fee),
+			__core__mapData(minted),
+			__core__listData(dcerts),
+			__core__mapData(withdrawals),
+			__helios__timerange____to_data(validity),
+			__core__listData(signatories),
+			__core__mapData(redeemers),
+			__core__mapData(datums),
+			__helios__txid__new(#00010203040506070809101112131415161718192021222324252627)
+		))
+	}`));
+	add(new RawFunc(`__helios__txbuilder__new_empty`,
+	`() -> {
+		__helios__txbuilder__new(
+			__core__mkNilData(()),
+			__core__mkNilData(()),
+			__core__mkNilData(()),
+			__core__mkNilPairData(()),
+			__core__mkNilPairData(()),
+			__core__mkNilData(()),
+			__core__mkNilPairData(()),
+			__helios__timerange__ALWAYS,
+			__core__mkNilData(()),
+			__core__mkNilPairData(()),
+			__core__mkNilPairData(())
+		)
+	}`));
+	add(new RawFunc(`__helios__txbuilder__unwrap`, 
+	`(self, callback) -> {
+		(fields) -> {
+			(inputs, fields) -> {
+				(ref_inputs, fields) -> {
+					(outputs, fields) -> {
+						(fee, fields) -> {
+							(minted, fields) -> {
+								(dcerts, fields) -> {
+									(withdrawals, fields) -> {
+										(validity, fields) -> {
+											(signatories, fields) -> {
+												(redeemers, fields) -> {
+													(datums, fields) -> {
+														callback(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums)
+													}(__core__unMapData(__core__headList(fields)), __core__tailList(fields))
+												}(__core__unMapData(__core__headList(fields)), __core__tailList(fields))
+											}(__core__unListData(__core__headList(fields)), __core__tailList(fields))
+										}(__helios__timerange__from_data(__core__headList(fields)), __core__tailList(fields))
+									}(__core__unMapData(__core__headList(fields)), __core__tailList(fields))
+								}(__core__unListData(__core__headList(fields)), __core__tailList(fields))
+							}(__core__unMapData(__core__headList(fields)), __core__tailList(fields))
+						}(__core__unMapData(__core__headList(fields)), __core__tailList(fields))
+					}(__core__unListData(__core__headList(fields)), __core__tailList(fields))
+				}(__core__unListData(__core__headList(fields)), __core__tailList(fields))
+			}(__core__unListData(__core__headList(fields)), __core__tailList(fields))
+		}(__core__sndPair(__core__unConstrData(self)))
+	}`));
+	add(new RawFunc(`__helios__txbuilder__spend`, 
+	`(self) -> {
+		(input) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					__helios__list[__helios__data]__append(inputs)(__helios__txinput____to_data(input)),
+					ref_inputs,
+					outputs, 
+					fee, 
+					minted, 
+					dcerts, 
+					withdrawals, 
+					validity, 
+					signatories, 
+					redeemers, 
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__spend_many`,
+	`(self) -> {
+		(extra_inputs) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					__helios__common__concat(inputs, extra_inputs),
+					ref_inputs,
+					outputs, 
+					fee, 
+					minted, 
+					dcerts, 
+					withdrawals, 
+					validity, 
+					signatories, 
+					redeemers, 
+					datums
+				)
+			})
+		}
+	}`))
+	add(new RawFunc(`__helios__txbuilder__redeem[${FTPP}0]`, 
+	`(self) -> {
+		(input, redeemer) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					__helios__list[__helios__data]__append(inputs)(
+						__helios__txinput____to_data(input)
+					),
+					ref_inputs, 
+					outputs, 
+					fee, 
+					minted, 
+					dcerts, 
+					withdrawals, 
+					validity, 
+					signatories,
+					__helios__map[__helios__data@__helios__data]__append(redeemers)(
+						__helios__scriptpurpose__new_spending(__helios__txinput__output_id(input)),
+						${FTPP}0____to_data(redeemer)
+					),
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__add_output`,
+	`(self) -> {
+		(output) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					inputs,
+					ref_inputs,
+					__helios__list[__helios__data]__append(outputs)(
+						__helios__txoutput____to_data(output)
+					),
+					fee,
+					minted,
+					dcerts,
+					withdrawals,
+					validity,
+					signatories,
+					redeemers,
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__add_outputs`,
+	`(self) -> {
+		(extra_outputs) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					inputs,
+					ref_inputs,
+					__helios__common__concat(outputs, extra_outputs),
+					fee,
+					minted,
+					dcerts,
+					withdrawals,
+					validity,
+					signatories,
+					redeemers,
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__pay[${FTPP}0]`,
+	`(self) -> {
+		(address, value, datum) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					inputs,
+					ref_inputs,
+					__helios__list[__helios__data]__append(outputs)(
+						__helios__txoutput____to_data(
+							__helios__txoutput__new(
+								address, 
+								value, 
+								__helios__outputdatum__new_inline[__helios__data](
+									${FTPP}0____to_data(datum)
+								)
+							)
+						)
+					),
+					fee,
+					minted,
+					dcerts,
+					withdrawals,
+					validity,
+					signatories,
+					redeemers,
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__mint[${FTPP}0]`,
+	`(self) -> {
+		(value, redeemer) -> {
+			__core__chooseUnit(
+				__helios__assert(
+					__core__equalsInteger(__helios__common__length(value), 1),
+					"expected a single mph in mint value"
+				),
+				(mph) -> {
+					__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+						__core__chooseUnit(
+							__helios__assert(
+								__helios__bool____not(
+									__helios__value__contains_policy(minted)(mph)
+								),
+								"already minted before"
+							),
+							__helios__txbuilder__new(
+								inputs,
+								ref_inputs,
+								outputs,
+								fee,
+								__helios__value____add(minted, value),
+								dcerts,
+								withdrawals,
+								validity,
+								signatories,
+								__helios__map[__helios__data@__helios__data]__append(redeemers)(
+									__helios__scriptpurpose__new_minting(mph),
+									${FTPP}0____to_data(redeemer)
+								),
+								datums
+							)
+						)
+					})
+				}(__helios__mintingpolicyhash__from_data(__core__fstPair(__core__headList(value))))
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__add_ref_input`, 
+	`(self) -> {
+		(ref_input) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					inputs,
+					__helios__list[__helios__data]__append(ref_inputs)(__helios__txinput____to_data(ref_input)),
+					outputs,
+					fee,
+					minted,
+					dcerts,
+					withdrawals,
+					validity,
+					signatories,
+					redeemers,
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__add_signer`,
+	`(self) -> {
+		(pk) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					inputs,
+					ref_inputs,
+					outputs,
+					fee,
+					minted,
+					dcerts,
+					withdrawals,
+					validity,
+					__helios__list[__helios__data]__append(signatories)(__helios__pubkeyhash____to_data(pk)),
+					redeemers,
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__finalize`,
+	`(self) -> {
+		() -> {
+			__core__macro__finalize(self, ())
+		}
+	}`));
+
+
 	// Tx builtins
 	addDataFuncs("__helios__tx");
 	add(new RawFunc(`__helios__tx__new[${FTPP}0@${FTPP}1]`,
@@ -3077,11 +4065,11 @@ function makeRawFunctions() {
 			__core__mapData(minted),
 			__core__listData(dcerts),
 			__core__mapData(withdrawals),
-			validity,
+			__helios__timerange____to_data(validity),
 			__core__listData(signatories),
 			__core__mapData(redeemers),
 			__core__mapData(datums),
-			__helios__txid__new(#0000000000000000000000000000000000000000000000000000000000000000)
+			__helios__txid____to_data(txId)
 		))
 	}`));
 	add(new RawFunc("__helios__tx__inputs", 
@@ -3516,9 +4504,13 @@ function makeRawFunctions() {
 	`(hash) -> {
 		__core__constrData(1, __helios__common__list_1(__helios__datumhash____to_data(hash)))
 	}`));
+	add(new RawFunc(`__helios__outputdatum__new_inline[__helios__data]`,
+	`(data) -> {
+		__core__constrData(2, __helios__common__list_1(data))
+	}`));
 	add(new RawFunc(`__helios__outputdatum__new_inline[${FTPP}0]`,
 	`(data) -> {
-		__core__constrData(2, __helios__common__list_1(${FTPP}0____to_data(data)))
+		__helios__outputdatum__new_inline[__helios__data](${FTPP}0____to_data(data))
 	}`));
 	add(new RawFunc("__helios__outputdatum__get_inline_data",
 	`(self) -> {
@@ -4641,13 +5633,14 @@ export function fetchRawGenerics() {
  * Doesn't add templates
  * @package
  * @param {IR} ir 
+ * @param {null | IRDefinitions} extra
  * @returns {IRDefinitions}
  */
-export function fetchRawFunctions(ir) {
+export function fetchRawFunctions(ir, extra = null) {
 	// notify statistics of existence of builtin in correct order
 	if (onNotifyRawUsage !== null) {
 		for (let [name, _] of db) {
-			// don't add templates, as they will never actually be used
+			// don't add templates, as they will never actually be used (type parameters are substituted)
 			if (!IRParametricName.isTemplate(name)) {
 				onNotifyRawUsage(name, 0);
 			}
@@ -4665,7 +5658,7 @@ export function fetchRawFunctions(ir) {
 
 	if (matches !== null) {
 		for (let m of matches) {
-			if (!IRParametricName.matches(m) && !map.has(m)) {
+			if (!IRParametricName.matches(m) && !map.has(m) && (!extra || !extra.has(m))) {
 				const builtin = db.get(m);
 
 				if (!builtin) {

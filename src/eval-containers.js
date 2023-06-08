@@ -76,8 +76,61 @@ import {
 	Parameter,
     ParametricFunc,
 	ParametricType,
-	DefaultTypeClass
+	DefaultTypeClass,
+	SummableTypeClass
 } from "./eval-parametric.js";
+
+/**
+ * @param {Type[]} itemTypes
+ * @returns {Type}
+ */
+export function IteratorType$(itemTypes) {
+	// to_list and to_map can't be part of Iterator because type information is lost (eg. we can map to an iterator over functions)
+	return new GenericType({
+		name: `Iterator[${itemTypes.map(it => it.toString()).join(", ")}]`,
+		path: `__helios__iterator__${itemTypes.length}`,
+		genInstanceMembers: (self) => {
+			const members = {
+				any: new FuncType([new FuncType(itemTypes, BoolType)], BoolType),
+				drop: new FuncType([IntType], self),
+				head: new FuncType([], itemTypes),
+				filter: new FuncType([new FuncType(itemTypes, BoolType)], self),
+				find: new FuncType([new FuncType(itemTypes, BoolType)], itemTypes),
+				for_each: new FuncType([new FuncType(itemTypes, new VoidType())], new VoidType()),
+				fold: (() => {
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+					return new ParametricFunc([a], new FuncType([new FuncType([a.ref].concat(itemTypes), a.ref), a.ref], a.ref));
+				})(),
+				get: new FuncType([IntType], itemTypes),
+				get_singleton: new FuncType([], itemTypes),
+				is_empty: new FuncType([], BoolType),
+				map: (() => {
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+					return new ParametricFunc([a], new FuncType([new FuncType(itemTypes, a.ref)], IteratorType$([a.ref])));
+				})(),
+				map2: (() => {
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+					const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
+
+					return new ParametricFunc([a, b], new FuncType([new FuncType(itemTypes, [a.ref, b.ref])], IteratorType$([a.ref, b.ref])));
+				})(),
+				prepend: new FuncType(itemTypes, self),
+				tail: self,
+				take: new FuncType([IntType], self)
+			}
+
+			if (itemTypes.length < 10) {
+				members.zip = (() => {
+					const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+					return new ParametricFunc([a], new FuncType([ListType$(a.ref)], IteratorType$(itemTypes.concat([a.ref]))));
+				})();
+			}
+
+			return members;
+		},
+		genTypeMembers: (self) => ({})
+	});
+};
 
 /**
  * Builtin list type
@@ -88,23 +141,30 @@ export const ListType = new ParametricType({
 	name: "[]",
 	offChainType: HList,
 	parameters: [new Parameter("ItemType", `${TTPP}0`, new DefaultTypeClass())],
-	apply: ([itemType]) => {
-		const offChainItemType = itemType.asDataType?.offChainType ?? null;
+	apply: ([itemType_]) => {
+		const itemType = assertDefined(itemType_.asDataType);
+		const offChainItemType = itemType.offChainType ?? null;
 		const offChainType = offChainItemType ? HList(offChainItemType) : null;
 
 		return new GenericType({
 			offChainType: offChainType,
 			name: `[]${itemType.toString()}`,
-			path: `__helios__list[${assertDefined(itemType.asDataType).path}]`,
+			path: `__helios__list[${itemType.path}]`,
+			genTypeDetails: (self) => ({
+				inputType: `(${assertDefined(itemType.typeDetails?.inputType)})[]`,
+				outputType: `(${assertDefined(itemType.typeDetails?.outputType)})[]`,
+				internalType: {
+					type: "List",
+					itemType: assertDefined(itemType.typeDetails?.internalType)
+				}
+			}),
 			genInstanceMembers: (self) => {
 				/**
 				 * @type {InstanceMembers}
 				 */
 				const specialMembers = {};
 
-				if (IntType.isBaseOf(itemType)) {
-					specialMembers.sum = new FuncType([], itemType);
-				} else if (RealType.isBaseOf(itemType)) {
+				if ((new SummableTypeClass()).isImplementedBy(itemType)) {
 					specialMembers.sum = new FuncType([], itemType);
 				} else if (StringType.isBaseOf(itemType)) {
 					specialMembers.join = new FuncType([
@@ -123,6 +183,7 @@ export const ListType = new ParametricType({
 					...specialMembers,
 					all: new FuncType([new FuncType([itemType], BoolType)], BoolType),
 					any: new FuncType([new FuncType([itemType], BoolType)], BoolType),
+					append: new FuncType([itemType], self),
 					drop: new FuncType([IntType], self),
 					drop_end: new FuncType([IntType], self),
 					filter: new FuncType([new FuncType([itemType], BoolType)], self),
@@ -132,9 +193,19 @@ export const ListType = new ParametricType({
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 						return new ParametricFunc([a], new FuncType([new FuncType([a.ref, itemType], a.ref), a.ref], a.ref));
 					})(),
+					fold2: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+						const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
+						return new ParametricFunc([a, b], new FuncType([new FuncType([a.ref, b.ref, itemType], [a.ref, b.ref]), a.ref, b.ref], [a.ref, b.ref]));
+					})(),
 					fold_lazy: (() => {
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 						return new ParametricFunc([a], new FuncType([new FuncType([itemType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
+					})(),
+					fold2_lazy: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+						const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
+						return new ParametricFunc([a, b], new FuncType([new FuncType([itemType, new FuncType([], [a.ref, b.ref])], [a.ref, b.ref]), a.ref, b.ref], [a.ref, b.ref]));
 					})(),
 					for_each: new FuncType([new FuncType([itemType], new VoidType())], new VoidType()),
 					get: new FuncType([IntType], itemType),
@@ -151,13 +222,19 @@ export const ListType = new ParametricType({
 					tail: self,
 					take: new FuncType([IntType], self),
 					take_end: new FuncType([IntType], self),
+					to_iterator: new FuncType([], IteratorType$([itemType])),
+					zip: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+						return new ParametricFunc([a], new FuncType([ListType$(a.ref)], IteratorType$([itemType, a.ref])));
+					})()
 				}
 			},
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self),
 				__add: new FuncType([self, self], self),
 				new: new FuncType([IntType, new FuncType([IntType], itemType)], self),
-				new_const: new FuncType([IntType, itemType], self)
+				new_const: new FuncType([IntType, itemType], self),
+				from_iterator: new FuncType([IteratorType$([itemType])], self)
 			})
 		})
 	}
@@ -183,19 +260,31 @@ export const MapType = new ParametricType({
 		new Parameter("KeyType", `${TTPP}0`, new DefaultTypeClass()), 
 		new Parameter("ValueType", `${TTPP}1`, new DefaultTypeClass())
 	],
-	apply: ([keyType, valueType]) => {
-		const offChainKeyType = keyType.asDataType?.offChainType ?? null;
-		const offChainValueType = valueType.asDataType?.offChainType ?? null;
+	apply: ([keyType_, valueType_]) => {
+		const keyType = assertDefined(keyType_.asDataType);
+		const valueType = assertDefined(valueType_.asDataType);
+		const offChainKeyType = keyType.offChainType ?? null;
+		const offChainValueType = valueType.offChainType ?? null;
 		const offChainType = offChainKeyType && offChainValueType ? HMap(offChainKeyType, offChainValueType) : null;
 
 		return new GenericType({
 			offChainType: offChainType,
 			name: `Map[${keyType.toString()}]${valueType.toString()}`,
-			path: `__helios__map[${assertDefined(keyType.asDataType).path}@${assertDefined(valueType.asDataType).path}]`,
+			path: `__helios__map[${keyType.path}@${valueType.path}]`,
+			genTypeDetails: (self) => ({
+				inputType: `[${assertDefined(keyType.typeDetails?.inputType)}, ${assertDefined(valueType.typeDetails?.inputType)}][]`,
+				outputType: `[${assertDefined(keyType.typeDetails?.outputType)}, ${assertDefined(valueType.typeDetails?.outputType)}][]`,
+				internalType: {
+					type: "Map",
+					keyType: assertDefined(keyType.typeDetails?.internalType),
+					valueType: assertDefined(valueType.typeDetails?.internalType)
+				}
+			}),
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				all: new FuncType([new FuncType([keyType, valueType], BoolType)], BoolType),
 				any: new FuncType([new FuncType([keyType, valueType], BoolType)], BoolType),
+				append: new FuncType([keyType, valueType], self),
 				delete: new FuncType([keyType], self),
 				filter: new FuncType([new FuncType([keyType, valueType], BoolType)], self),
 				find: new FuncType([new FuncType([keyType, valueType], BoolType)], [keyType, valueType]),
@@ -230,12 +319,14 @@ export const MapType = new ParametricType({
 				set: new FuncType([keyType, valueType], self),
 				sort: new FuncType([new FuncType([keyType, valueType, keyType, valueType], BoolType)], self),
 				tail: self,
+				to_iterator: new FuncType([], IteratorType$([keyType, valueType])),
 				update: new FuncType([keyType, new FuncType([valueType], valueType)], self),
 				update_safe: new FuncType([keyType, new FuncType([valueType], valueType)], self)
 			}),
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self),
-				__add: new FuncType([self, self], self)
+				__add: new FuncType([self, self], self),
+				from_iterator: new FuncType([IteratorType$([keyType, valueType])], self)
 			})
 		})
 	}
@@ -259,10 +350,11 @@ export const OptionType = new ParametricType({
 	name: "Option",
 	offChainType: Option,
 	parameters: [new Parameter("SomeType", `${TTPP}0`, new DefaultTypeClass())],
-	apply: ([someType]) => {
-		const someOffChainType = someType.asDataType?.offChainType ?? null;
+	apply: ([someType_]) => {
+		const someType = assertDefined(someType_.asDataType);
+		const someOffChainType = someType.offChainType ?? null;
 		const offChainType = someOffChainType ? Option(someOffChainType) : null;
-		const someTypePath = assertDefined(someType.asDataType).path;
+		const someTypePath = someType.path;
 
 		/**
 		 * @type {DataType}
@@ -271,6 +363,14 @@ export const OptionType = new ParametricType({
 			offChainType: offChainType,
 			name: `Option[${someType.toString()}]`,
 			path: `__helios__option[${someTypePath}]`,
+			genTypeDetails: (self) => ({
+				inputType: `null | ${assertDefined(someType.typeDetails?.inputType)}`,
+				outputType: `null | ${assertDefined(someType.typeDetails?.outputType)}`,
+				internalType: {
+					type: "Option",
+					someType: assertDefined(someType.typeDetails?.internalType)
+				}
+			}),
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				map: (() => {

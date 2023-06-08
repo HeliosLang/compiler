@@ -4,6 +4,30 @@
 import { TAB } from "./config.js";
 
 /**
+ * Part of a trick to force expansion of a type alias
+ * @template T
+ * @typedef {T extends any ? {key: T} : never} WrapAlias<T>
+ */
+
+/**
+ * Part of a trick to force expansion of a type alias
+ * @template T
+ * @typedef {T extends {key: any} ? T["key"] : never} UnwrapAlias<T>
+ */
+
+/**
+ * Explicit union type-aliases is sometimes more helpful in VSCode tooltips
+ * Unalias forces an alias expansion
+ * Trick taken from https://stackoverflow.com/questions/73588194
+ * @template T
+ * @typedef {UnwrapAlias<WrapAlias<T>>} ExpandAlias<T>
+ */
+
+/**
+ * @typedef {string & {}} hexstring
+ */
+
+/**
  * Needed by transfer() methods
  * @typedef {{
 *   transferByteArrayData: (bytes: number[]) => any,
@@ -370,7 +394,7 @@ export function byteToBitString(b, n = 8, prefix = true) {
  * Converts a hexadecimal representation of bytes into an actual list of uint8 bytes.
  * @example
  * hexToBytes("00ff34") => [0, 255, 52] 
- * @param {string} hex 
+ * @param {hexstring} hex 
  * @returns {number[]}
  */
 export function hexToBytes(hex) {
@@ -390,7 +414,7 @@ export function hexToBytes(hex) {
  * @example
  * bytesToHex([0, 255, 52]) => "00ff34"
  * @param {number[]} bytes
- * @returns {string}
+ * @returns {hexstring}
  */
 export function bytesToHex(bytes) {
 	const parts = [];
@@ -399,6 +423,9 @@ export function bytesToHex(bytes) {
 		parts.push(padZeroes(b.toString(16), 2));
 	}
 
+	/**
+	 * @type {hexstring}
+	 */
 	return parts.join('');
 }
 
@@ -602,7 +629,7 @@ export class BitWriter {
 	write(bitChars) {
 		for (let c of bitChars) {
 			if (c != '0' && c != '1') {
-				throw new Error("bad bit char");
+				throw new Error("bit string contains invalid chars: " + bitChars);
 			}
 		}
 

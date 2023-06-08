@@ -15,7 +15,6 @@ import {
 import { 
 	BoolLiteral,
 	ByteArrayLiteral,
-	FTPP,
 	IntLiteral,
 	IR,
 	PrimitiveLiteral,
@@ -94,18 +93,14 @@ import {
 } from "./eval-primitives.js";
 
 import {
-	DefaultTypeClass,
-	Parameter,
 	ParametricFunc
 } from "./eval-parametric.js";
 
 import {
-	ListType,
 	ListType$,
-	MapType,
 	MapType$,
-	OptionType,
-	OptionType$
+	OptionType$,
+	IteratorType$
 } from "./eval-containers.js";
 
 import {
@@ -508,6 +503,53 @@ export class MapTypeExpr extends Expr {
 	 */
 	toString() {
 		return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}`;
+	}
+}
+
+/**
+ * Iterator[Type1, ...] expr
+ * @package
+ */
+export class IteratorTypeExpr extends Expr {
+	#itemTypeExprs;
+
+	/**
+	 * @param {Site} site
+	 * @param {Expr[]} itemTypeExprs
+	 */
+	constructor(site, itemTypeExprs) {
+		super(site);
+
+		this.#itemTypeExprs = itemTypeExprs;
+	}
+
+	/**
+	 * @param {Scope} scope
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		const itemTypes = this.#itemTypeExprs.map(ite => {
+			const itemType = ite.eval(scope).asType;
+
+			if (!itemType) {
+				throw ite.typeError("not a type");
+			}
+
+			return itemType;
+		});
+
+		if (itemTypes.length > 10) {
+			throw this.site.typeError("too many Iterator type args (limited to 10)");
+		}
+
+		return IteratorType$(itemTypes);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `Iterator[${this.#itemTypeExprs.map(ite => ite.toString()).join(", ")}]`;
 	}
 }
 
@@ -1748,6 +1790,20 @@ export class FuncLiteralExpr extends Expr {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get nArgs() {
+		return this.#args.length;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get argNames() {
+		return this.#args.map(a => a.name.value);
+	}
+
+	/**
 	 * @type {Type[]}
 	 */
 	get argTypes() {
@@ -2481,7 +2537,7 @@ export class CallExpr extends Expr {
 		this.#fnExpr = fnExpr;
 		this.#argExprs = argExprs;
 		this.#paramTypes = [];
-		this.#appliedFnVal = null; // only for inferred parametric funcions
+		this.#appliedFnVal = null; // only for infered parametric funcions
 	}
 
 	get fnExpr() {
@@ -2971,7 +3027,7 @@ export class IfElseExpr extends Expr {
 	 * @param {Site} site
 	 * @param {null | Type[]} prevTypes
 	 * @param {Typed | Multi} newValue
-	 * @returns {?Type[]}
+	 * @returns {null | Type[]}
 	 */
 	static reduceBranchMultiType(site, prevTypes, newValue) {
 		if (!newValue.asMulti && newValue.asTyped && (new ErrorType()).isBaseOf(newValue.asTyped.type)) {
@@ -3006,7 +3062,7 @@ export class IfElseExpr extends Expr {
 
 		/**
 		 * Supports multiple return values
-		 * @type {?Type[]}
+		 * @type {null | Type[]}
 		 */
 		let branchMultiType = null;
 
@@ -3491,7 +3547,7 @@ export class SwitchCase extends Token {
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope 
 	 * @param {DataType} enumType
-	 * @returns {EvalEntity}
+	 * @returns {Multi | Typed}
 	 */
 	evalEnumMember(scope, enumType) {
 		const caseType = enumType.typeMembers[this.memberName.value]?.asEnumMemberType;
@@ -3507,7 +3563,13 @@ export class SwitchCase extends Token {
 
 		this.#lhs.evalInSwitchCase(caseScope, caseType);
 
-		const bodyVal = this.#bodyExpr.eval(caseScope);
+		const bodyVal_ = this.#bodyExpr.eval(caseScope);
+
+		const bodyVal = bodyVal_.asTyped ?? bodyVal_?.asMulti;
+
+		if (!bodyVal) {
+			throw this.#bodyExpr.typeError("not typed");
+		}
 
 		caseScope.assertAllUsed();
 
@@ -3517,7 +3579,7 @@ export class SwitchCase extends Token {
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope
-	 * @returns {EvalEntity}
+	 * @returns {Typed | Multi}
 	 */
 	evalDataMember(scope) {
 		/** @type {DataType} */
@@ -3552,9 +3614,15 @@ export class SwitchCase extends Token {
 
 		this.#lhs.evalInSwitchCase(caseScope, memberType);
 
-		const bodyVal = this.#bodyExpr.eval(caseScope);
+		const bodyVal_ = this.#bodyExpr.eval(caseScope);
 
 		caseScope.assertAllUsed();
+
+		const bodyVal = bodyVal_.asTyped ?? bodyVal_.asMulti;
+
+		if (!bodyVal) {
+			throw this.#bodyExpr.typeError("not typed");
+		}
 
 		return bodyVal;
 	}
@@ -3620,9 +3688,14 @@ export class UnconstrDataSwitchCase extends SwitchCase {
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope
-	 * @returns {EvalEntity}
+	 * @returns {Typed | Multi}
 	 */
 	evalDataMember(scope) {
+		/**
+		 * @type {null | Typed | Multi}
+		 */
+		let bodyVal = null;
+
 		if (this.#intVarName !== null || this.#lstVarName !== null) {
 			let caseScope = new Scope(scope);
 
@@ -3634,14 +3707,22 @@ export class UnconstrDataSwitchCase extends SwitchCase {
 				caseScope.set(this.#lstVarName, new DataEntity(ListType$(RawDataType)));
 			}
 
-			let bodyVal = this.body.eval(caseScope);
+			const bodyVal_ = this.body.eval(caseScope);
+
+			bodyVal = bodyVal_.asTyped ?? bodyVal_.asMulti;
 
 			caseScope.assertAllUsed();
-
-			return bodyVal;
 		} else {
-			return this.body.eval(scope);
+			const bodyVal_ = this.body.eval(scope);
+
+			bodyVal = bodyVal_.asTyped ?? bodyVal_.asMulti;
 		}
+
+		if (!bodyVal) {
+			throw this.body.typeError("not typed");
+		}
+
+		return bodyVal;
 	}
 
 	/**
@@ -3684,10 +3765,18 @@ export class SwitchDefault extends Token {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {EvalEntity}
+	 * @returns {Typed | Multi}
 	 */
 	eval(scope) {
-		return this.#bodyExpr.eval(scope);
+		const bodyVal_ = this.#bodyExpr.eval(scope);
+
+		const bodyVal = bodyVal_.asTyped ?? bodyVal_.asMulti;
+
+		if (!bodyVal) {
+			throw this.#bodyExpr.typeError("not typed");
+		}
+
+		return bodyVal;
 	}
 
 	/**
@@ -3715,7 +3804,7 @@ class SwitchExpr extends Expr {
 	 * @param {Site} site
 	 * @param {Expr} controlExpr - input value of the switch
 	 * @param {SwitchCase[]} cases
-	 * @param {?SwitchDefault} defaultCase
+	 * @param {null | SwitchDefault} defaultCase
 	*/
 	constructor(site, controlExpr, cases, defaultCase = null) {
 		super(site);
@@ -3782,11 +3871,7 @@ export class EnumSwitchExpr extends SwitchExpr {
 		let branchMultiType = null;
 
 		for (let c of this.cases) {
-			let branchVal = c.evalEnumMember(scope, enumType).asTyped;
-
-			if (!branchVal) {
-				throw c.typeError("not typed");
-			}
+			const branchVal = c.evalEnumMember(scope, enumType);
 	
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				c.site, 
@@ -3796,11 +3881,7 @@ export class EnumSwitchExpr extends SwitchExpr {
 		}
 
 		if (this.defaultCase !== null) {
-			let defaultVal = this.defaultCase.eval(scope).asTyped;
-
-			if (!defaultVal) {
-				throw this.defaultCase.typeError("not typed");
-			}
+			const defaultVal = this.defaultCase.eval(scope);
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				this.defaultCase.site,
@@ -3889,10 +3970,7 @@ export class DataSwitchExpr extends SwitchExpr {
 		let branchMultiType = null;
 
 		for (let c of this.cases) {
-			let branchVal = c.evalDataMember(scope).asTyped;
-			if (!branchVal) {
-				throw c.typeError("not typed");
-			}
+			const branchVal = c.evalDataMember(scope);
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				c.site, 
@@ -3902,10 +3980,7 @@ export class DataSwitchExpr extends SwitchExpr {
 		}
 
 		if (this.defaultCase !== null) {
-			let defaultVal = this.defaultCase.eval(scope).asTyped;
-			if (!defaultVal) {
-				throw this.defaultCase.typeError("not typed");
-			}
+			const defaultVal = this.defaultCase.eval(scope);
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				this.defaultCase.site, 

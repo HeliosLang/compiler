@@ -364,7 +364,7 @@ async function test8() {
 
   let res = await program.compile(true).run([data]);
 
-  console.log(helios.bytesToText(res.data.bytes));
+  console.log(helios.bytesToText(helios_.assertDefined(res.data.bytes)));
 }
 
 async function test9() {
@@ -453,7 +453,7 @@ async function test12() {
 
   let res = await program.compile(true).run([data]);
 
-  console.log(helios.bytesToText(res.data.bytes));
+  console.log(helios.bytesToText(helios_.assertDefined(res.data).bytes));
 }
 
 async function test13() {
@@ -556,13 +556,13 @@ async function test14() {
 
   const myInt = new HInt(10);
 
-  console.log(myInt.int);
+  console.log(myInt.value);
 
   console.log(myInt.toSchemaJson());
 
   console.log(myInt._toUplcData().toString());
 
-  console.log((HInt.fromUplcCbor([10])).int);
+  console.log((HInt.fromUplcCbor([10])).value);
 
   console.log(HInt.name);
 
@@ -613,18 +613,14 @@ async function test16() {
 
   const src = `
   spending parametric
-  
-  const OWNER: PubKeyHash = PubKeyHash::new(#)
 
-  const BOOL: Bool = false
-
-  func main(_, _, ctx: ScriptContext) -> Bool {
+  func main(OWNER: PubKeyHash, BOOL: Bool, _, _, ctx: ScriptContext) -> Bool {
     ctx.tx.is_signed_by(OWNER) && BOOL
   }`;
 
-  const program = helios.Program.new(src);
+  const program = helios.Program.new(src, [], {}, true);
 
-  program.compileParametric(["OWNER", "BOOL"], true);
+  program.compile(true);
 }
 
 async function test17() {

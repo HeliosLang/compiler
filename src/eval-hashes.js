@@ -1,6 +1,14 @@
 //@ts-check
 // Eval hash types
 
+import { 
+    hexToBytes
+} from "./utils.js";
+
+import { 
+    ByteArrayData
+} from "./uplc-data.js";
+
 import {
 	DatumHash,
 	HeliosData,
@@ -83,10 +91,38 @@ function genHashTypeMembers(self) {
 }
 
 /**
+ * @param {HeliosDataClass<HeliosData>} offchainType 
+ */
+function genHashTypeProps(offchainType) {
+    return {
+        genTypeDetails: (self) => ({
+            inputType: `number[] | string | helios.${offchainType.name}`,
+            outputType: `helios.${offchainType.name}`,
+            internalType: {
+                type: offchainType.name
+            }
+        }),
+        jsToUplc: (obj) => {
+            if (obj instanceof offchainType) {
+                return obj._toUplcData();
+            } else {
+                const bytes = Array.isArray(obj) ? obj : hexToBytes(obj);
+
+                return new ByteArrayData(bytes);
+            }
+        },
+        uplcToJs: (data) => {
+            return new offchainType(data.bytes);
+        }
+    }
+}
+
+/**
  * @package
  * @type {DataType}
  */
-export var DatumHashType = new GenericType({
+export const DatumHashType = new GenericType({
+    ...genHashTypeProps(DatumHash),
     name: "DatumHash",
     offChainType: DatumHash,
     genInstanceMembers: genHashInstanceMembers,
@@ -97,7 +133,8 @@ export var DatumHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-export var MintingPolicyHashType = new GenericType({
+export const MintingPolicyHashType = new GenericType({
+    ...genHashTypeProps(MintingPolicyHash),
     name: "MintingPolicyHash",
     offChainType: MintingPolicyHash,
     genInstanceMembers: genHashInstanceMembers,
@@ -112,7 +149,7 @@ export var MintingPolicyHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-export var PubKeyType = new GenericType({
+export const PubKeyType = new GenericType({
     name: "PubKey",
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -130,7 +167,8 @@ export var PubKeyType = new GenericType({
  * @package
  * @type {DataType}
  */
-export var PubKeyHashType = new GenericType({
+export const PubKeyHashType = new GenericType({
+    ...genHashTypeProps(PubKeyHash),
     name: "PubKeyHash",
     offChainType: PubKeyHash,
     genInstanceMembers: genHashInstanceMembers,
@@ -141,7 +179,7 @@ export var PubKeyHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-export var ScriptHashType = new GenericType({
+export const ScriptHashType = new GenericType({
     name: "ScriptHash",
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
@@ -155,7 +193,8 @@ export var ScriptHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-export var StakeKeyHashType = new GenericType({
+export const StakeKeyHashType = new GenericType({
+    ...genHashTypeProps(StakeKeyHash),
     name: "StakeKeyHash",
     offChainType: StakeKeyHash,
     genInstanceMembers: genHashInstanceMembers,
@@ -167,7 +206,7 @@ export var StakeKeyHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-export var StakingHashType = new GenericType({
+export const StakingHashType = new GenericType({
     name: "StakingHash",
     genInstanceMembers: genCommonInstanceMembers,
     genTypeMembers: (self) => ({
@@ -182,7 +221,7 @@ export var StakingHashType = new GenericType({
  * @package
  * @type {EnumMemberType}
  */
-export var StakingHashStakeKeyType = new GenericEnumMemberType({
+export const StakingHashStakeKeyType = new GenericEnumMemberType({
     name: "StakeKey",
     constrIndex: 0,
     parentType: StakingHashType,
@@ -199,7 +238,7 @@ export var StakingHashStakeKeyType = new GenericEnumMemberType({
  * @package
  * @type {EnumMemberType}
  */
-export var StakingHashValidatorType = new GenericEnumMemberType({
+export const StakingHashValidatorType = new GenericEnumMemberType({
     name: "Validator",
     constrIndex: 1,
     parentType: StakingHashType,
@@ -216,7 +255,8 @@ export var StakingHashValidatorType = new GenericEnumMemberType({
  * @package
  * @type {DataType}
  */
-export var StakingValidatorHashType = new GenericType({
+export const StakingValidatorHashType = new GenericType({
+    ...genHashTypeProps(StakingValidatorHash),
     name: "StakingValidatorHash",
     offChainType: StakingValidatorHash,
     genInstanceMembers: genHashInstanceMembers,
@@ -230,7 +270,8 @@ export var StakingValidatorHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-export var ValidatorHashType = new GenericType({
+export const ValidatorHashType = new GenericType({
+    ...genHashTypeProps(ValidatorHash),
     name: "ValidatorHash",
     offChainType: ValidatorHash,
     genInstanceMembers: genHashInstanceMembers,

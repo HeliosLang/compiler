@@ -2,7 +2,8 @@
 // Eval builtin typeclasses
 
 import {
-	assertClass
+	assertClass,
+	assertDefined
 } from "./utils.js";
 
 import {
@@ -19,14 +20,20 @@ import {
  */
 
 import {
-	AllType,
-	AnyType,
     Common,
     DataEntity,
 	FuncEntity,
     FuncType,
 	TypedEntity
 } from "./eval-common.js";
+
+/**
+ * @typedef {import("./eval-common.js").ParameterI} ParameterI
+ */
+
+/**
+ * @typedef {import("./eval-common.js").InferenceMap} InferenceMap
+ */
 
 /**
  * @typedef {import("./eval-common.js").DataType} DataType
@@ -59,7 +66,7 @@ import {
 /**
  * @typedef {import("./eval-common.js").Typed} Typed
  */
-
+ 
 /**
  * @typedef {import("./eval-common.js").TypeClass} TypeClass
  */
@@ -91,6 +98,12 @@ export class TypeClassImpl extends Common {
 	 * @type {string}
 	 */
 	#name;
+
+	/**
+	 * @type {null | ParameterI}
+	 */
+	#parameter;
+
 	/**
 	 * @type {InstanceMembers}
 	 */
@@ -103,10 +116,13 @@ export class TypeClassImpl extends Common {
 
 	/**
 	 * @param {TypeClass} typeClass
+	 * @param {string} name
+	 * @param {null | ParameterI} parameter - reference to original parameter, which is more unique than name
 	 */
-	constructor(typeClass, name) {
+	constructor(typeClass, name, parameter) {
 		super();
 		this.#name = name;
+		this.#parameter = parameter;
         this.#instanceMembers = typeClass.genInstanceMembers(this);
 		this.#typeMembers = typeClass.genTypeMembers(this);
     }
@@ -142,16 +158,18 @@ export class TypeClassImpl extends Common {
     /**
 	 * @package
 	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
+	 * @param {InferenceMap} map 
 	 * @param {null | Type} type
 	 * @returns {Type}
 	 */
 	infer(site, map, type) {
-		const prev = map.get(this.#name);
+		const p = assertDefined(this.#parameter, "unable to infer dummy TypeClass instantiation");
+
+		const prev = map.get(p);
 
 		if (!prev) {
 			if (type) {
-				map.set(this.#name, type);
+				map.set(p, type);
 
 				return type;
 			} else {
@@ -206,12 +224,27 @@ export class DataTypeClassImpl extends TypeClassImpl {
 	 * @param {TypeClass} typeClass
 	 * @param {string} name
 	 * @param {string} path
+	 * @param {null | ParameterI} parameter
 	 */
-	constructor(typeClass, name, path) {
-		super(typeClass, name);
+	constructor(typeClass, name, path, parameter) {
+		super(typeClass, name, parameter);
 
 		this.#path = path;
     }
+
+	/**
+	 * @type {DataType}
+	 */
+	get asDataType() {
+		return this;
+	}
+
+	/**
+	 * @type {Named}
+	 */
+	get asNamed() {
+		return this;
+	}
 
 	/**
 	 * @type {string[]}
@@ -232,20 +265,6 @@ export class DataTypeClassImpl extends TypeClassImpl {
 	 */
 	get path() {
 		return this.#path;
-	}
-
-	/**
-	 * @type {Named}
-	 */
-	get asNamed() {
-		return this;
-	}
-
-	/**
-	 * @type {DataType}
-	 */
-	get asDataType() {
-		return this;
 	}
 
 	/**
@@ -306,10 +325,11 @@ export class AnyTypeClass extends Common {
     /**
      * @param {string} name 
 	 * @param {string} path
+	 * @param {null | ParameterI} parameter
      * @returns {Type}
      */
-    toType(name, path) {
-		return new TypeClassImpl(this, name);
+    toType(name, path, parameter = null) {
+		return new TypeClassImpl(this, name, parameter);
     }
 }
 
@@ -357,7 +377,7 @@ export class DefaultTypeClass extends Common {
 	 * @returns {boolean}
 	 */
 	isImplementedBy(type) {
-		return Common.typeImplements(type, this) || type instanceof AllType;
+		return Common.typeImplements(type, this);
 	}
 
 	/**
@@ -370,16 +390,79 @@ export class DefaultTypeClass extends Common {
     /**
      * @param {string} name 
 	 * @param {string} path
+	 * @param {null | ParameterI} parameter
      * @returns {DataType}
      */
-    toType(name, path) {
-        return new DataTypeClassImpl(this, name, path);
+    toType(name, path, parameter = null) {
+        return new DataTypeClassImpl(this, name, path, parameter);
     }
 }
 
 
 /**
  * @package
+ * @implements {TypeClass}
+ */
+export class SummableTypeClass extends Common {
+    constructor() {
+        super();
+    }
+
+	/**
+	 * @type {TypeClass}
+	 */
+	get asTypeClass() {
+		return this;
+	}
+
+	/**
+	 * @param {Type} impl
+	 * @returns {TypeClassMembers}
+	 */
+	genTypeMembers(impl) {
+		return {
+            __add: new FuncType([impl, impl], impl),
+            __sub: new FuncType([impl, impl], impl)
+		};
+	}
+
+	/**	
+	 * @param {Type} impl
+	 * @returns {TypeClassMembers}
+	 */
+	genInstanceMembers(impl) {
+		return {};
+	}
+
+	/**
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isImplementedBy(type) {
+		return Common.typeImplements(type, this);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "Summable";
+	}
+
+    /**
+     * @param {string} name 
+	 * @param {string} path
+	 * @param {null | ParameterI} parameter
+     * @returns {DataType}
+     */
+    toType(name, path, parameter = null) {
+        return new DataTypeClassImpl(this, name, path, parameter);
+    }
+}
+
+/**
+ * @package
+ * @implements {ParameterI}
  */
 export class Parameter {
 	/** 
@@ -419,7 +502,7 @@ export class Parameter {
 	 * @type {Type}
 	 */
 	get ref() {
-		return this.#typeClass.toType(this.#name, this.#path);
+		return this.#typeClass.toType(this.#name, this.#path, this);
 	}
 
 	/**
@@ -496,7 +579,7 @@ export class ParametricFunc extends Common {
 		}
 
 		/**
-		 * @type {Map<string, Type>}
+		 * @type {InferenceMap}
 		 */
 		const map = new Map();
 
@@ -505,7 +588,7 @@ export class ParametricFunc extends Common {
 				throw site.typeError("typeclass match failed")
 			}
 
-			map.set(p.name, types[i]);
+			map.set(p, types[i]);
 		});
 
 		const inferred = this.#fnType.infer(site, map, null);
@@ -530,7 +613,7 @@ export class ParametricFunc extends Common {
 	 */
 	inferCall(site, args, namedArgs = {}, paramTypes = []) {
 		/**
-		 * @type {Map<string, Type>}
+		 * @type {InferenceMap}
 		 */
 		const map = new Map();
 
@@ -538,7 +621,7 @@ export class ParametricFunc extends Common {
 
 		// make sure that each parameter is defined in the map
 		this.#params.forEach(p => {
-			const pt = map.get(p.name);
+			const pt = map.get(p);
 
 			if (!pt) {
 				throw site.typeError(`failed to infer type of '${p.name}'  (hint: apply directly using [...])`);
@@ -552,7 +635,7 @@ export class ParametricFunc extends Common {
 	
 	/**
 	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
+	 * @param {InferenceMap} map 
 	 * @returns {Parametric}
 	 */
 	infer(site, map) {
@@ -656,19 +739,19 @@ class AppliedType extends Common {
 
     /**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
     infer(site, map, type) {
         if (!type) {
-            const inferred = this.#types.map(t => t.infer(site, map, null));
+            const infered = this.#types.map(t => t.infer(site, map, null));
 
-            return new AppliedType(inferred, this.#apply, this.#apply(inferred));
+            return new AppliedType(infered, this.#apply, this.#apply(infered));
 		} else if (type instanceof AppliedType && type.#types.length == this.#types.length) {
-            const inferred = this.#types.map((t, i) => t.infer(site, map, type.#types[i]));
+            const infered = this.#types.map((t, i) => t.infer(site, map, type.#types[i]));
 
-            const res = new AppliedType(inferred, this.#apply, this.#apply(inferred));
+            const res = new AppliedType(infered, this.#apply, this.#apply(infered));
 
 			if (!res.isBaseOf(type)) {
 				throw site.typeError("unable to infer type");
@@ -766,6 +849,7 @@ export class ParametricType extends Common {
 			}
 		});
 
+		// TODO: recursive problem, defer the implementation check
 		return new AppliedType(types, this.#apply, this.#apply(types));
     }
 
@@ -783,7 +867,7 @@ export class ParametricType extends Common {
 
 	/**
 	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
+	 * @param {InferenceMap} map 
 	 * @returns {Parametric}
 	 */
 	infer(site, map) {

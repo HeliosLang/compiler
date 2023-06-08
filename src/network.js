@@ -15,8 +15,13 @@ import {
     Assets,
     MintingPolicyHash,
     TxId,
+    TxOutputId,
     Value
 } from "./helios-data.js";
+
+import { 
+    NetworkParams
+} from "./uplc-costmodels.js";
 
 import {
     Datum,
@@ -33,9 +38,13 @@ import {
     WalletHelper
 } from "./wallets.js";
 
+
+
 /**
  * @typedef {{
- *     getUtxos(address: Address): Promise<UTxO[]>,
+ *     getUtxos(address: Address): Promise<UTxO[]>
+ *     getUtxo(id: TxOutputId): Promise<UTxO>
+ *     getParameters(): Promise<NetworkParams>
  *     submitTx(tx: Tx): Promise<TxId>
  * }} Network
  */
@@ -137,6 +146,21 @@ export class BlockfrostV0 {
     }
 
     /**
+     * @returns {Promise<NetworkParams>}
+     */
+    async getParameters() {
+        throw new Error("not yet implemented");
+    }
+
+    /**
+     * @param {TxOutputId} id
+     * @returns {Promise<UTxO>}
+     */
+    async getUtxo(id) {
+        throw new Error("not yet implemented");
+    }
+
+    /**
      * Used by BlockfrostV0.resolve()
      * @param {UTxO} utxo
      * @returns {Promise<boolean>}
@@ -191,7 +215,7 @@ export class BlockfrostV0 {
                 )
             );
         });
-    }  
+    }
 
     /** 
      * @param {Tx} tx 

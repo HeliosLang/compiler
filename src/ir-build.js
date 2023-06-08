@@ -58,16 +58,16 @@ export function buildIRExpr(ts) {
 		let t = ts.shift();
 
 		if (t === undefined) {
-			throw new Error("unexpected");
+			throw new Error("unexpected: no tokens");
 		} else {
 			if (t.isGroup("(") && ts.length > 0 && ts[0].isSymbol("->")) {
-				assert(expr === null);
+				assert(expr === null, "should be preceded by expr");
 
 				ts.unshift(t);
 
 				expr = buildIRFuncExpr(ts);
 			} else if (t.isGroup("(")) {
-				let group = assertDefined(t.assertGroup());
+				let group = assertDefined(t.assertGroup(), "should be a group");
 
 				if (expr === null) {
 					if (group.fields.length == 1) {
@@ -95,7 +95,7 @@ export function buildIRExpr(ts) {
 				}
 			} else if (t.isSymbol("-")) {
 				// only makes sense next to IntegerLiterals
-				let int = assertDefined(ts.shift());
+				let int = assertDefined(ts.shift(), "expected digit after '-'");
 				if (int instanceof IntLiteral) {
 					expr = new IRLiteralExpr(new UplcInt(int.site, int.value * (-1n)));
 				} else {
@@ -111,12 +111,12 @@ export function buildIRExpr(ts) {
 				assert(expr === null);
 				if (t.bytes.length == 0 && ts[0] != undefined && ts[0] instanceof ByteArrayLiteral) {
 					// literal data is ##<...>
-					const next = assertDefined(ts.shift());
+					const next = assertDefined(ts.shift(), "expected hexadecimal bytestring after '##'");
 
 					if (next instanceof ByteArrayLiteral) {
 						expr = new IRLiteralExpr(new UplcDataValue(next.site, UplcData.fromCbor(next.bytes)));
 					} else {
-						throw new Error("unexpected");
+						throw new Error("unexpected token after '##'");
 					}
 				} else {
 					expr = new IRLiteralExpr(new UplcByteArray(t.site, t.bytes));
@@ -125,25 +125,25 @@ export function buildIRExpr(ts) {
 				assert(expr === null);
 				expr = new IRLiteralExpr(new UplcString(t.site, t.value));
 			} else if (t.isWord("const")) {
-				assert(expr === null);
+				assert(expr === null, "unexpected expr before 'const'");
 
 				let maybeGroup = ts.shift();
 				if (maybeGroup === undefined) {
 					throw t.site.syntaxError("expected parens after const");
 				} else {
-					let parens = assertDefined(maybeGroup.assertGroup("(", 1));
+					let parens = assertDefined(maybeGroup.assertGroup("(", 1), "expected parens with single entry after 'const'");
 					let pts = parens.fields[0];
 
 					expr = new IRConstExpr(t.site, buildIRExpr(pts));
 				}
 			} else if (t.isWord("error")) {
-				assert(expr === null);
+				assert(expr === null, "unexpected expr before 'error'");
 
 				let maybeGroup = ts.shift();
 				if (maybeGroup === undefined) {
 					throw t.site.syntaxError("expected parens after error");
 				} else {
-					let parens = assertDefined(maybeGroup.assertGroup("(", 1));
+					let parens = assertDefined(maybeGroup.assertGroup("(", 1), "expected parens with single entry after 'error'");
 					let pts = parens.fields[0];
 
 					if (pts.length != 1) {
@@ -157,8 +157,13 @@ export function buildIRExpr(ts) {
 					expr = new IRErrorCallExpr(t.site, msg.value);
 				}
 			} else if (t.isWord()) {
-				assert(expr === null);
-				expr = new IRNameExpr(assertDefined(t.assertWord()));
+				const w = assertDefined(t.assertWord(), "expected word");
+
+				if (expr !== null) {
+					throw new Error(`unexpected expr '${expr.toString()}' before word '${w.value}'`);
+				}
+
+				expr = new IRNameExpr(w);
 			} else {
 				throw new Error("unhandled untyped token " + t.toString());
 			}

@@ -34,6 +34,9 @@ import {
 } from "./uplc-ast.js";
 
 /**
+ * @typedef {import("./uplc-ast.js").ScriptPurpose} ScriptPurpose
+ */
+/**
  * @typedef {import("./uplc-program.js").ProgramProperties} ProgramProperties
  */
 
@@ -97,7 +100,7 @@ export class IRProgram {
 	/**
 	 * @package
 	 * @param {IR} ir 
-	 * @param {?number} purpose
+	 * @param {null | ScriptPurpose} purpose
 	 * @param {boolean} simplify
 	 * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
 	 * @param {IRScope} scope
@@ -294,38 +297,45 @@ export class IRProgram {
 }
 
 export class IRParametricProgram {
+	/**
+	 * @type {IRProgram}
+	 */
 	#irProgram;
-	#parameters;
+
+	/**
+	 * @type {number}
+	 */
+	#nParams;
 
 	/**
 	 * @param {IRProgram} irProgram
-	 * @param {string[]} parameters
+	 * @param {number} nParams
 	 */
-	constructor(irProgram, parameters) {
+	constructor(irProgram, nParams) {
 		this.#irProgram = irProgram;
-		this.#parameters = parameters;
+		this.#nParams = nParams;
 	}
 
 	/**
 	 * @package
 	 * @param {IR} ir 
-	 * @param {?number} purpose
-	 * @param {string[]} parameters
+	 * @param {null | ScriptPurpose} purpose
+	 * @param {number} nParams
 	 * @param {boolean} simplify
 	 * @returns {IRParametricProgram}
 	 */
-	static new(ir, purpose, parameters, simplify = false) {
+	static new(ir, purpose, nParams, simplify = false) {
 		let scope = new IRScope(null, null);
 
-		parameters.forEach((p, i) => {
+		for (let i = 0; i < nParams; i++) {
 			const internalName = `__PARAM_${i}`;
 
 			scope = new IRScope(scope, new IRVariable(new Word(Site.dummy(), internalName)));
-		});
+		}
 
 		const irProgram = IRProgram.new(ir, purpose, simplify, false, scope);
 
-		return new IRParametricProgram(irProgram, parameters);
+		return new IRParametricProgram(irProgram, nParams);
 	}
 
 	/**
@@ -334,9 +344,9 @@ export class IRParametricProgram {
 	toUplc() {
 		let exprUplc = this.#irProgram.expr.toUplc();
 
-		this.#parameters.forEach(p => {
-			exprUplc = new UplcLambda(Site.dummy(), exprUplc, p);
-		});
+		for (let i = 0; i < this.#nParams; i++) {
+			exprUplc = new UplcLambda(Site.dummy(), exprUplc);
+		}
 
 		return new UplcProgram(exprUplc, this.#irProgram.properties);
 	}

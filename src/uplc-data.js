@@ -2,10 +2,15 @@
 // Uplc data types
 
 import {
+	assert,
     bytesToHex,
     hexToBytes,
     textToBytes
 } from "./utils.js";
+
+/**
+ * @typedef {import("./utils.js").hexstring} hexstring
+ */
 
 /**
  * @typedef {import("./utils.js").TransferUplcAst} TransferUplcAst
@@ -123,7 +128,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
-	 * @param {string | number[]} bytes
+	 * @param {hexstring | number[]} bytes
 	 * @returns {UplcData}
 	 */
 	static fromCbor(bytes) {
@@ -313,7 +318,7 @@ export class ByteArrayData extends UplcData {
 	}
 
 	/**
-	 * @returns {string}
+	 * @returns {hexstring}
 	 */
 	toHex() {
 		return bytesToHex(this.#bytes);
@@ -406,6 +411,7 @@ export class ListData extends UplcData {
 	 */
 	constructor(items) {
 		super();
+		assert(items.every(f => f instanceof UplcData), "expected exclusively UplcData items");
 		this.#items = items;
 	}
 
@@ -603,6 +609,7 @@ export class ConstrData extends UplcData {
 	 */
 	constructor(index, fields) {
 		super();
+		assert(fields.every(f => f instanceof UplcData), "expected exclusively UplcData fields");
 		this.#index = index;
 		this.#fields = fields;
 	}

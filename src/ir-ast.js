@@ -1487,10 +1487,12 @@ export class IRCoreCallExpr extends IRCallExpr {
 		 */
 		let term = new UplcBuiltin(site, builtinName);
 
-		let nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
- 
-		for (let i = 0; i < nForce; i++) {
-			term = new UplcForce(site, term);
+		if (!builtinName.startsWith("macro__")) {
+			const nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
+	
+			for (let i = 0; i < nForce; i++) {
+				term = new UplcForce(site, term);
+			}
 		}
  
 		return term;

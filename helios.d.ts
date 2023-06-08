@@ -9,18 +9,18 @@ export function reduceNullPairs<Ta, Tb>(pairs: [Ta, Tb][]): [Ta, Tb][];
  * Converts a hexadecimal representation of bytes into an actual list of uint8 bytes.
  * @example
  * hexToBytes("00ff34") => [0, 255, 52]
- * @param {string} hex
+ * @param {hexstring} hex
  * @returns {number[]}
  */
-export function hexToBytes(hex: string): number[];
+export function hexToBytes(hex: hexstring): number[];
 /**
  * Converts a list of uint8 bytes into its hexadecimal string representation.
  * @example
  * bytesToHex([0, 255, 52]) => "00ff34"
  * @param {number[]} bytes
- * @returns {string}
+ * @returns {hexstring}
  */
-export function bytesToHex(bytes: number[]): string;
+export function bytesToHex(bytes: number[]): hexstring;
 /**
  * Encodes a string into a list of uint8 bytes using UTF-8 encoding.
  * @example
@@ -77,6 +77,7 @@ export function HList<T extends HeliosData>(ItemClass: HeliosDataClass<T>): Heli
      */
     toSchemaJson(): string;
     /**
+     * Defaults to cbor encoding of uplc data structure.
      * @returns {number[]}
      */
     toCbor(): number[];
@@ -112,6 +113,7 @@ export function HMap<TKey extends HeliosData, TValue extends HeliosData>(KeyClas
      */
     toSchemaJson(): string;
     /**
+     * Defaults to cbor encoding of uplc data structure.
      * @returns {number[]}
      */
     toCbor(): number[];
@@ -145,6 +147,7 @@ export function Option<T extends HeliosData>(SomeClass: HeliosDataClass<T>): Hel
      */
     toSchemaJson(): string;
     /**
+     * Defaults to cbor encoding of uplc data structure.
      * @returns {number[]}
      */
     toCbor(): number[];
@@ -185,17 +188,65 @@ export function tokenize(src: Source): Token[] | null;
  * @template {HeliosData} T
  */
 /**
+ * @typedef {{
+ *   type:  string
+ * } | {
+ *   type:     "List"
+ *   itemType: TypeSchema
+ * } | {
+ *   type:      "Map"
+ *   keyType:   TypeSchema
+ *   valueType: TypeSchema
+ * } | {
+ *   type:     "Option"
+ *   someType: TypeSchema
+ * } | {
+ *   type:       "Struct"
+ *   fieldTypes: NamedTypeSchema[]
+ * } | {
+ *   type:         "Enum"
+ *   variantTypes: {name: string, fieldTypes: NamedTypeSchema[]}[]
+ * }} TypeSchema
+ */
+/**
+ * @typedef {{
+ * 	 name: string
+ * } & TypeSchema} NamedTypeSchema
+ */
+/**
+ * @typedef {{
+ *   name: string
+ *   typeClass: TypeClass
+ * }} ParameterI
+ */
+/**
+ * @typedef {Map<ParameterI, Type>} InferenceMap
+ */
+/**
+ * Used by the bundle cli command to generate a typescript annotations and (de)serialization code
+ * inputTypes form a type union
+ * @typedef {{
+ *   inputType:    string
+ *   outputType:   string
+ *   internalType: TypeSchema
+ * }} TypeDetails
+ */
+/**
  * @typedef {Named & Type & {
- *   asDataType: DataType
- *   fieldNames:  string[]
+ *   asDataType:   DataType
+ *   fieldNames:   string[]
  *   offChainType: (null | HeliosDataClass<HeliosData>)
+ *   typeDetails?: TypeDetails
+ *   jsToUplc:     (obj: any) => UplcData
+ *   uplcToJs:     (data: UplcData) => any
+ *   ready:        boolean
  * }} DataType
  */
 /**
  * @typedef {DataType & {
  *   asEnumMemberType: EnumMemberType
- *   constrIndex: number
- *   parentType: DataType
+ *   constrIndex:      number
+ *   parentType:       DataType
  * }} EnumMemberType
  */
 /**
@@ -254,7 +305,7 @@ export function tokenize(src: Source): Token[] | null;
  *   typeClasses: TypeClass[]
  *   apply(types: Type[], site?: Site): EvalEntity
  *   inferCall(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): Func
- * 	 infer(site: Site, map: Map<string, Type>): Parametric
+ * 	 infer(site: Site, map: InferenceMap): Parametric
  * }} Parametric
  */
 /**
@@ -263,7 +314,7 @@ export function tokenize(src: Source): Token[] | null;
  *   instanceMembers:      InstanceMembers
  *   typeMembers:          TypeMembers
  *   isBaseOf(type: Type): boolean
- *   infer(site: Site, map: Map<string, Type>, type: (null | Type)): Type
+ *   infer(site: Site, map: InferenceMap, type: null | Type): Type
  *   toTyped():            Typed
  * }} Type
  */
@@ -279,7 +330,7 @@ export function tokenize(src: Source): Token[] | null;
  *   genInstanceMembers(impl: Type):     TypeClassMembers
  *   genTypeMembers(impl: Type):         TypeClassMembers
  *   isImplementedBy(type: Type):        boolean
- *   toType(name: string, path: string): Type
+ *   toType(name: string, path: string, parameter?: null | ParameterI): Type
  * }} TypeClass
  */
 /**
@@ -300,6 +351,11 @@ export function tokenize(src: Source): Token[] | null;
  * @returns {DataType}
  */
 export function applyTypes(parametric: Parametric, ...types: Type[]): DataType;
+/**
+ * @param {Type[]} itemTypes
+ * @returns {Type}
+ */
+export function IteratorType$(itemTypes: Type[]): Type;
 /**
  * @param {Type} itemType
  * @returns {DataType}
@@ -324,17 +380,17 @@ export function setImportPathTranslator(fn: (path: StringLiteral) => (string | n
 /**
  * Also used by VSCode plugin
  * @param {Token[]} ts
- * @param {number | null} expectedPurpose
- * @returns {[number | null, Word | null, Statement[], number]}
+ * @param {null | ScriptPurpose} expectedPurpose
+ * @returns {[null | ScriptPurpose, Word | null, Statement[], number]}
  */
-export function buildScript(ts: Token[], expectedPurpose?: number | null): [number | null, Word | null, Statement[], number];
+export function buildScript(ts: Token[], expectedPurpose?: null | ScriptPurpose): [null | ScriptPurpose, Word | null, Statement[], number];
 /**
  * Parses Helios quickly to extract the script purpose header.
  * Returns null if header is missing or incorrectly formed (instead of throwing an error)
  * @param {string} rawSrc
- * @returns {?[string, string]} - [purpose, name]
+ * @returns {null | [ScriptPurpose, string]} - [purpose, name]
  */
-export function extractScriptPurposeAndName(rawSrc: string): [string, string] | null;
+export function extractScriptPurposeAndName(rawSrc: string): null | [ScriptPurpose, string];
 /**
  * Applies syntax highlighting by returning a list of char categories.
  * Not part of Tokeizer because it needs to be very fast and can't throw errors.
@@ -343,6 +399,18 @@ export function extractScriptPurposeAndName(rawSrc: string): [string, string] | 
  * @returns {Uint8Array}
  */
 export function highlight(src: string): Uint8Array;
+/**
+ * @param {TypeSchema} schema
+ * @param {any} obj
+ * @returns {UplcData}
+ */
+export function jsToUplc(schema: TypeSchema, obj: any): UplcData;
+/**
+ * @param {TypeSchema} schema
+ * @param {UplcData} data
+ * @returns {any}
+ */
+export function uplcToJs(schema: TypeSchema, data: UplcData): any;
 /**
  * Version of the Helios library.
  */
@@ -1130,10 +1198,10 @@ export class CborData {
  */
 export class UplcData extends CborData {
     /**
-     * @param {string | number[]} bytes
+     * @param {hexstring | number[]} bytes
      * @returns {UplcData}
      */
-    static fromCbor(bytes: string | number[]): UplcData;
+    static fromCbor(bytes: hexstring | number[]): UplcData;
     /**
      * @param {TransferUplcAst} other
      * @returns {any}
@@ -1244,9 +1312,9 @@ export class ByteArrayData extends UplcData {
      */
     constructor(bytes: number[]);
     /**
-     * @returns {string}
+     * @returns {hexstring}
      */
-    toHex(): string;
+    toHex(): hexstring;
     #private;
 }
 /**
@@ -1300,6 +1368,11 @@ export class ConstrData extends UplcData {
  */
 export class HeliosData extends CborData {
     /**
+     * Most HeliosData classes are builtin
+     * @returns {boolean}
+     */
+    static isBuiltin(): boolean;
+    /**
      * Name begins with underscore so it can never conflict with structure field names.
      * @package
      * @returns {UplcData}
@@ -1317,7 +1390,11 @@ export class HeliosData extends CborData {
  *   new(...args: any[]): T
  *   fromUplcCbor: (bytes: (string | number[])) => T
  *   fromUplcData: (data: UplcData) => T
+ *   isBuiltin(): boolean
  * }} HeliosDataClass
+ */
+/**
+ * @typedef {number | bigint} HIntProps
  */
 /**
  * Helios Int type
@@ -1325,10 +1402,15 @@ export class HeliosData extends CborData {
 export class HInt extends HeliosData {
     /**
      * @package
-     * @param {number | bigint | string} rawValue
+     * @param {HIntProps} rawValue
      * @returns {bigint}
      */
-    static cleanConstructorArg(rawValue: number | bigint | string): bigint;
+    static cleanConstructorArg(rawValue: HIntProps): bigint;
+    /**
+     * @param {HInt | HIntProps} props
+     * @returns {HInt}
+     */
+    static fromProps(props: HInt | HIntProps): HInt;
     /**
      * @param {UplcData} data
      * @returns {HInt}
@@ -1340,45 +1422,118 @@ export class HInt extends HeliosData {
      */
     static fromUplcCbor(bytes: string | number[]): HInt;
     /**
-     * @param {number | bigint | string} rawValue
+     * @param {number[]} bytes
+     * @returns {HInt}
      */
-    constructor(rawValue: number | bigint | string);
+    static fromCbor(bytes: number[]): HInt;
+    /**
+     * @param {ExpandAlias<HIntProps>} rawValue
+     */
+    constructor(rawValue: ExpandAlias<HIntProps>);
     /**
      * @type {bigint}
      */
     get value(): bigint;
+    /**
+     * @returns {string}
+     */
+    dump(): string;
+    /**
+     * @param {HInt | HIntProps} other
+     * @returns {boolean}
+     */
+    eq(other: HInt | HIntProps): boolean;
+    /**
+     * @param {HInt | HIntProps} other
+     * @returns {boolean}
+     */
+    neq(other: HInt | HIntProps): boolean;
+    /**
+     * @param {HInt | HIntProps} other
+     * @returns {boolean}
+     */
+    ge(other: HInt | HIntProps): boolean;
+    /**
+     * @param {HInt | HIntProps} other
+     * @returns {boolean}
+     */
+    gt(other: HInt | HIntProps): boolean;
+    /**
+     * @param {HInt | HIntProps} other
+     * @returns {boolean}
+     */
+    le(other: HInt | HIntProps): boolean;
+    /**
+     * @param {HInt | HIntProps} other
+     * @returns {boolean}
+     */
+    lt(other: HInt | HIntProps): boolean;
+    /**
+     * @param {HInt| HIntProps} other
+     * @returns {HInt}
+     */
+    add(other: HInt | HIntProps): HInt;
+    /**
+     * @param {HInt | HIntProps} other
+     * @returns {HInt}
+     */
+    sub(other: HInt | HIntProps): HInt;
+    /**
+     * @param {HInt| HIntProps} other
+     * @returns {HInt}
+     */
+    mul(other: HInt | HIntProps): HInt;
     #private;
 }
+/**
+ * @typedef {number | bigint | string | Date} TimeProps
+ */
 /**
  * Milliseconds since 1 jan 1970
  */
 export class Time extends HInt {
     /**
     * @package
-    * @param {number | bigint | string | Date} rawValue
+    * @param {TimeProps} props
     * @returns {bigint}
     */
-    static cleanConstructorArg(rawValue: number | bigint | string | Date): bigint;
+    static cleanConstructorArg(props: TimeProps): bigint;
     /**
-     * @param {number | bigint | string | Date} rawValue
+     * @param {Time | TimeProps} props
+     * @returns {Time}
      */
-    constructor(rawValue: number | bigint | string | Date);
+    static fromProps(props: Time | TimeProps): Time;
+    /**
+     * @param {ExpandAlias<TimeProps>} props
+     */
+    constructor(props: ExpandAlias<TimeProps>);
 }
+/**
+ * @typedef {HIntProps} DurationProps
+ */
 /**
  * Difference between two time values in milliseconds.
  */
 export class Duration extends HInt {
 }
 /**
+ * @typedef {boolean | string} BoolProps
+ */
+/**
  * Helios Bool type
  */
 export class Bool extends HeliosData {
     /**
      * @package
-     * @param {boolean | string} rawValue
+     * @param {BoolProps} props
      * @returns {boolean}
      */
-    static cleanConstructorArg(rawValue: boolean | string): boolean;
+    static cleanConstructorArg(props: BoolProps): boolean;
+    /**
+     * @param {Bool | BoolProps} props
+     * @returns {Bool}
+     */
+    static fromProps(props: Bool | BoolProps): Bool;
     /**
      * @param {UplcData} data
      * @returns {Bool}
@@ -1390,17 +1545,28 @@ export class Bool extends HeliosData {
      */
     static fromUplcCbor(bytes: string | number[]): Bool;
     /**
-     * @param {boolean | string} rawValue
+     * @param {ExpandAlias<BoolProps>} props
      */
-    constructor(rawValue: boolean | string);
+    constructor(props: ExpandAlias<BoolProps>);
+    /**
+     * @type {boolean}
+     */
     get bool(): boolean;
     #private;
 }
+/**
+ * @typedef {string} HStringProps
+ */
 /**
  * Helios String type.
  * Can't be named 'String' because that would interfere with the javascript 'String'-type
  */
 export class HString extends HeliosData {
+    /**
+     * @param {HString | HStringProps} props
+     * @returns {HString}
+     */
+    static fromProps(props: HString | HStringProps): HString;
     /**
      * @param {UplcData} data
      * @returns {HString}
@@ -1412,21 +1578,32 @@ export class HString extends HeliosData {
      */
     static fromUplcCbor(bytes: string | number[]): HString;
     /**
-     * @param {string} value
+     * @param {ExpandAlias<HStringProps>} props
      */
-    constructor(value: string);
+    constructor(props: ExpandAlias<HStringProps>);
+    /**
+     * @type {string}
+     */
     get string(): string;
     #private;
 }
+/**
+ * @typedef {hexstring | number[]} ByteArrayProps
+ */
 /**
  * Helios ByteArray type
  */
 export class ByteArray extends HeliosData {
     /**
      * @package
-     * @param {string | number[]} rawValue
+     * @param {ByteArrayProps} props
      */
-    static cleanConstructorArg(rawValue: string | number[]): number[];
+    static cleanConstructorArg(props: ByteArrayProps): number[];
+    /**
+     * @param {ByteArray | ByteArrayProps} props
+     * @returns {ByteArray}
+     */
+    static fromProps(props: ByteArray | ByteArrayProps): ByteArray;
     /**
      * @param {UplcData} data
      * @returns {ByteArray}
@@ -1438,19 +1615,32 @@ export class ByteArray extends HeliosData {
      */
     static fromUplcCbor(bytes: string | number[]): ByteArray;
     /**
-     * @param {string | number[]} rawValue
+     * @param {number[]} bytes
+     * @returns {ByteArray}
      */
-    constructor(rawValue: string | number[]);
+    static fromCbor(bytes: number[]): ByteArray;
+    /**
+     * @param {ExpandAlias<ByteArrayProps>} props
+     */
+    constructor(props: ExpandAlias<ByteArrayProps>);
     /**
      * @type {number[]}
      */
     get bytes(): number[];
     /**
-     * @type {string}
+     * @type {hexstring}
      */
-    get hex(): string;
+    get hex(): hexstring;
+    /**
+     * @param {ByteArray | ByteArrayProps} other
+     * @returns {boolean}
+     */
+    eq(other: ByteArray | ByteArrayProps): boolean;
     #private;
 }
+/**
+ * @typedef {HashProps} DatumHashProps
+ */
 export class DatumHash extends Hash {
     /**
      * @param {UplcData} data
@@ -1463,11 +1653,20 @@ export class DatumHash extends Hash {
      */
     static fromUplcCbor(bytes: string | number[]): DatumHash;
     /**
-     * @param {string | number[]} rawValue
+     * @param {string} str
+     * @returns {DatumHash}
      */
-    constructor(rawValue: string | number[]);
+    static fromHex(str: string): DatumHash;
 }
+/**
+ * @typedef {hexstring | number[]} PubKeyProps
+ */
 export class PubKey extends HeliosData {
+    /**
+     * @param {PubKey | PubKeyProps} props
+     * @returns {PubKey}
+     */
+    static fromProps(props: PubKey | PubKeyProps): PubKey;
     /**
      * @returns {PubKey}
      */
@@ -1483,17 +1682,17 @@ export class PubKey extends HeliosData {
      */
     static fromCbor(bytes: number[]): PubKey;
     /**
-     * @param {string | number[]} rawValue
+     * @param {ExpandAlias<PubKeyProps>} props
      */
-    constructor(rawValue: string | number[]);
+    constructor(props: ExpandAlias<PubKeyProps>);
     /**
      * @type {number[]}
      */
     get bytes(): number[];
     /**
-     * @type {string}
+     * @type {hexstring}
      */
-    get hex(): string;
+    get hex(): hexstring;
     /**
      * @returns {boolean}
      */
@@ -1508,6 +1707,9 @@ export class PubKey extends HeliosData {
     dump(): string;
     #private;
 }
+/**
+ * @typedef {HashProps} PubKeyHashProps
+ */
 export class PubKeyHash extends Hash {
     /**
      * @param {UplcData} data
@@ -1520,17 +1722,25 @@ export class PubKeyHash extends Hash {
      */
     static fromUplcCbor(bytes: string | number[]): PubKeyHash;
     /**
-     * @param {string | number[]} rawValue
+     * @param {string} str
+     * @returns {PubKeyHash}
      */
-    constructor(rawValue: string | number[]);
+    static fromHex(str: string): PubKeyHash;
 }
+/**
+ * @typedef {HashProps} ScriptHashProps
+ */
 export class ScriptHash extends Hash {
-    /**
-     * @param {string | number[]} rawValue
-     */
-    constructor(rawValue: string | number[]);
 }
+/**
+ * @typedef {HashProps} MintingPolicyHashProps
+ */
 export class MintingPolicyHash extends ScriptHash {
+    /**
+     * @param {MintingPolicyHash | MintingPolicyHashProps} props
+     * @returns {MintingPolicyHash}
+     */
+    static fromProps(props: MintingPolicyHash | MintingPolicyHashProps): MintingPolicyHash;
     /**
      * @param {number[]} bytes
      * @returns {MintingPolicyHash}
@@ -1557,6 +1767,9 @@ export class MintingPolicyHash extends ScriptHash {
      */
     toBech32(): string;
 }
+/**
+ * @typedef {HashProps} StakeKeyHashProps
+ */
 export class StakeKeyHash extends Hash {
     /**
      * @param {UplcData} data
@@ -1568,7 +1781,15 @@ export class StakeKeyHash extends Hash {
      * @returns {StakeKeyHash}
      */
     static fromUplcCbor(bytes: string | number[]): StakeKeyHash;
+    /**
+     * @param {string} str
+     * @returns {StakeKeyHash}
+     */
+    static fromHex(str: string): StakeKeyHash;
 }
+/**
+ * @typedef {HashProps} StakingValidatorHashProps
+ */
 export class StakingValidatorHash extends ScriptHash {
     /**
      * @param {UplcData} data
@@ -1580,7 +1801,15 @@ export class StakingValidatorHash extends ScriptHash {
      * @returns {StakingValidatorHash}
      */
     static fromUplcCbor(bytes: string | number[]): StakingValidatorHash;
+    /**
+     * @param {string} str
+     * @returns {StakingValidatorHash}
+     */
+    static fromHex(str: string): StakingValidatorHash;
 }
+/**
+ * @typedef {HashProps} ValidatorHashProps
+ */
 export class ValidatorHash extends ScriptHash {
     /**
      * @param {UplcData} data
@@ -1592,7 +1821,15 @@ export class ValidatorHash extends ScriptHash {
      * @returns {ValidatorHash}
      */
     static fromUplcCbor(bytes: string | number[]): ValidatorHash;
+    /**
+     * @param {string} str
+     * @returns {ValidatorHash}
+     */
+    static fromHex(str: string): ValidatorHash;
 }
+/**
+ * @typedef {HashProps} TxIdProps
+ */
 /**
  * Hash of a transaction
  */
@@ -1613,20 +1850,30 @@ export class TxId extends Hash {
      * @returns {TxId}
      */
     static dummy(fill?: number): TxId;
-    /**
-     * @param {string | number[]} rawValue
-     */
-    constructor(rawValue: string | number[]);
 }
+/**
+ * @typedef {string | [
+ * 	 TxId | ExpandAlias<TxIdProps>,
+ *   HInt | ExpandAlias<HIntProps>
+ * ] | {
+ *   txId: TxId | ExpandAlias<TxIdProps>
+ *   utxoId: HInt | ExpandAlias<HIntProps>
+ * }} TxOutputIdProps
+ */
 /**
  * Id of a Utxo
  */
 export class TxOutputId extends HeliosData {
     /**
-     * @param  {...any} args
-     * @returns {[any, any]}
+     * @param  {TxOutputIdProps} props
+     * @returns {[TxId | TxIdProps, HInt | HIntProps]}
      */
-    static cleanConstructorArgs(...args: any[]): [any, any];
+    static cleanConstructorArgs(props: TxOutputIdProps): [TxId | TxIdProps, HInt | HIntProps];
+    /**
+     * @param {TxOutputId | TxOutputIdProps} props
+     * @returns {TxOutputId}
+     */
+    static fromProps(props: TxOutputId | TxOutputIdProps): TxOutputId;
     /**
      * @param {UplcData} data
      * @returns {TxOutputId}
@@ -1638,38 +1885,57 @@ export class TxOutputId extends HeliosData {
      */
     static fromUplcCbor(bytes: string | number[]): TxOutputId;
     /**
-     * @param {...any} args
+     * @param {ExpandAlias<TxOutputIdProps>} props
      */
-    constructor(...args: any[]);
+    constructor(props: ExpandAlias<TxOutputIdProps>);
+    /**
+     * @type {TxId}
+     */
     get txId(): TxId;
-    get utxoIdx(): HInt;
+    /**
+     * @type {number}
+     */
+    get utxoIdx(): number;
     #private;
 }
+/**
+ * A valid bech32 string
+ * @typedef {string & {}} bech32string
+ */
+/**
+ * @typedef {bech32string | hexstring | number[]} AddressProps
+ */
 /**
  * See CIP19 for formatting of first byte
  */
 export class Address extends HeliosData {
     /**
-     * @param {number[] | string} rawValue
+     * @package
+     * @param {AddressProps} props
      * @returns {number[]}
      */
-    static cleanConstructorArg(rawValue: number[] | string): number[];
+    static cleanConstructorArg(props: AddressProps): number[];
+    /**
+     * @param {Address | AddressProps} props
+     * @returns {Address}
+     */
+    static fromProps(props: Address | AddressProps): Address;
     /**
      * @param {number[]} bytes
      * @returns {Address}
      */
     static fromCbor(bytes: number[]): Address;
     /**
-     * @param {string} str
+     * @param {bech32string} str
      * @returns {Address}
      */
-    static fromBech32(str: string): Address;
+    static fromBech32(str: bech32string): Address;
     /**
      * Doesn't check validity
-     * @param {string} hex
+     * @param {hexstring} hex
      * @returns {Address}
      */
-    static fromHex(hex: string): Address;
+    static fromHex(hex: hexstring): Address;
     /**
      * @param {PubKeyHash | ValidatorHash} hash
      * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
@@ -1719,19 +1985,22 @@ export class Address extends HeliosData {
      */
     static compStakingHashes(a: Address, b: Address): number;
     /**
-     * @param {string | number[]} rawValue
+     * @param {ExpandAlias<AddressProps>} props
      */
-    constructor(rawValue: string | number[]);
+    constructor(props: ExpandAlias<AddressProps>);
+    /**
+     * @type {number[]}
+     */
     get bytes(): number[];
     /**
      * Returns the raw Address bytes as a hex encoded string
-     * @returns {string}
+     * @returns {hexstring}
      */
-    toHex(): string;
+    toHex(): hexstring;
     /**
-     * @returns {string}
+     * @returns {bech32string}
      */
-    toBech32(): string;
+    toBech32(): bech32string;
     /**
      * @returns {Object}
      */
@@ -1747,25 +2016,39 @@ export class Address extends HeliosData {
      */
     toStakingData(): ConstrData;
     /**
-     * @type {?PubKeyHash}
+     * @type {null | PubKeyHash}
      */
     get pubKeyHash(): PubKeyHash;
     /**
-     * @type {?ValidatorHash}
+     * @type {null | ValidatorHash}
      */
     get validatorHash(): ValidatorHash;
     /**
-     * @type {?(StakeKeyHash | StakingValidatorHash)}
+     * @type {null | StakeKeyHash | StakingValidatorHash}
      */
     get stakingHash(): StakeKeyHash | StakingValidatorHash;
     #private;
 }
+/**
+ * @typedef {string | [
+ *   MintingPolicyHash | ExpandAlias<MintingPolicyHashProps>,
+ *   ByteArray | ExpandAlias<ByteArrayProps>
+ * ] | {
+ *   mph: MintingPolicyHash | ExpandAlias<MintingPolicyHashProps>,
+ *   tokenName: ByteArray | ExpandAlias<ByteArrayProps>
+ * }} AssetClassProps
+ */
 export class AssetClass extends HeliosData {
     /**
-     * @param {any[]} args
-     * @returns {[MintingPolicyHash, number[]]}
+     * @param {AssetClassProps} props
+     * @returns {[MintingPolicyHash | MintingPolicyHashProps, ByteArray | ByteArrayProps]}
      */
-    static cleanConstructorArgs(args: any[]): [MintingPolicyHash, number[]];
+    static cleanConstructorArgs(props: AssetClassProps): [MintingPolicyHash | MintingPolicyHashProps, ByteArray | ByteArrayProps];
+    /**
+     * @param {AssetClass | AssetClassProps} props
+     * @returns {AssetClass}
+     */
+    static fromProps(props: AssetClass | AssetClassProps): AssetClass;
     /**
      *
      * @param {UplcData} data
@@ -1787,9 +2070,17 @@ export class AssetClass extends HeliosData {
     static get ADA(): AssetClass;
     /**
      *
-     * @param {any[]} args
+     * @param {ExpandAlias<AssetClassProps>} props
      */
-    constructor(...args: any[]);
+    constructor(props: ExpandAlias<AssetClassProps>);
+    /**
+     * @type {MintingPolicyHash}
+     */
+    get mintingPolicyHash(): MintingPolicyHash;
+    /**
+     * @type {ByteArray}
+     */
+    get tokenName(): ByteArray;
     /**
      * Used when generating script contexts for running programs
      * @returns {ConstrData}
@@ -1798,18 +2089,36 @@ export class AssetClass extends HeliosData {
     #private;
 }
 /**
+ * @typedef {[
+ *   AssetClass | AssetClassProps,
+ *   HInt | HIntProps
+ * ][] | [
+ *   MintingPolicyHash | MintingPolicyHashProps,
+ *   [
+ *     ByteArray | ByteArrayProps,
+ *     HInt | HIntProps
+ *   ][]
+ * ][]} AssetsProps
+ */
+/**
  * Collection of non-lovelace assets
  */
 export class Assets extends CborData {
+    /**
+     * @param {Assets | AssetsProps} props
+     * @returns {Assets}
+     */
+    static fromProps(props: Assets | AssetsProps): Assets;
     /**
      * @param {number[]} bytes
      * @returns {Assets}
      */
     static fromCbor(bytes: number[]): Assets;
     /**
-     * @param {[MintingPolicyHash | number[] | string, [number[] | string, bigint | number][]][]} assets
+     * Also normalizes the assets
+     * @param {AssetsProps} props
      */
-    constructor(assets?: [MintingPolicyHash | number[] | string, [number[] | string, bigint | number][]][]);
+    constructor(props?: AssetsProps);
     /**
      * @type {MintingPolicyHash[]}
      */
@@ -1821,36 +2130,42 @@ export class Assets extends CborData {
     /**
      * Returns empty if mph not found
      * @param {MintingPolicyHash} mph
-     * @returns {[number[], bigint][]}
+     * @returns {[ByteArray, HInt][]}
      */
-    getTokens(mph: MintingPolicyHash): [number[], bigint][];
+    getTokens(mph: MintingPolicyHash): [ByteArray, HInt][];
     /**
      * @returns {boolean}
      */
     isZero(): boolean;
     /**
-     * @param {MintingPolicyHash} mph
-     * @param {number[]} tokenName
+     * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+     * @param {ByteArray | ByteArrayProps} tokenName
      * @returns {boolean}
      */
-    has(mph: MintingPolicyHash, tokenName: number[]): boolean;
+    has(mph: MintingPolicyHash | MintingPolicyHashProps, tokenName: ByteArray | ByteArrayProps): boolean;
     /**
-     * @param {MintingPolicyHash} mph
-     * @param {number[]} tokenName
+     * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+     * @param {ByteArray | ByteArrayProps} tokenName
      * @returns {bigint}
      */
-    get(mph: MintingPolicyHash, tokenName: number[]): bigint;
+    get(mph: MintingPolicyHash | MintingPolicyHashProps, tokenName: ByteArray | ByteArrayProps): bigint;
     /**
      * Mutates 'this'
      */
     removeZeroes(): void;
     /**
-     * Mutates 'this'
-     * @param {MintingPolicyHash} mph
-     * @param {number[]} tokenName
-     * @param {bigint} quantity
+     * Removes zeros and merges duplicates
+     * In-place algorithm
+     * Keeps the same order as much as possible
      */
-    addComponent(mph: MintingPolicyHash, tokenName: number[], quantity: bigint): void;
+    normalize(): void;
+    /**
+     * Mutates 'this'
+     * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+     * @param {ByteArray | ByteArrayProps} tokenName
+     * @param {HInt | HIntProps} qty
+     */
+    addComponent(mph: MintingPolicyHash | MintingPolicyHashProps, tokenName: ByteArray | ByteArrayProps, qty: HInt | HIntProps): void;
     /**
      * @param {Assets} other
      * @param {(a: bigint, b: bigint) => bigint} op
@@ -1868,22 +2183,22 @@ export class Assets extends CborData {
      */
     sub(other: Assets): Assets;
     /**
-     * @param {bigint} scalar
+     * @param {HInt | HIntProps} scalar
      * @returns {Assets}
      */
-    mul(scalar: bigint): Assets;
+    mul(scalar: HInt | HIntProps): Assets;
     /**
      * Mutates 'this'
      * Throws error if mph is already contained in 'this'
-     * @param {MintingPolicyHash} mph
-     * @param {[number[], bigint][]} tokens
+     * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+     * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens
      */
-    addTokens(mph: MintingPolicyHash, tokens: [number[], bigint][]): void;
+    addTokens(mph: MintingPolicyHash | MintingPolicyHashProps, tokens: [ByteArray | ByteArrayProps, HInt | HIntProps][]): void;
     /**
-     * @param {MintingPolicyHash} mph
-     * @returns {number[][]}
+     * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+     * @returns {ByteArray[]}
      */
-    getTokenNames(mph: MintingPolicyHash): number[][];
+    getTokenNames(mph: MintingPolicyHash | MintingPolicyHashProps): ByteArray[];
     /**
      * @param {Assets} other
      * @returns {boolean}
@@ -1926,14 +2241,35 @@ export class Assets extends CborData {
     assertSorted(): void;
     #private;
 }
+/**
+ * @typedef {HInt | HIntProps | [
+ *   HInt | HIntProps,
+ *   Assets | AssetsProps
+ * ] | {
+ *   lovelace: HInt| HIntProps,
+ *   assets?:   Assets | AssetsProps
+ * }} ValueProps
+ */
 export class Value extends HeliosData {
     /**
-     * @param {MintingPolicyHash} mph
-     * @param {number[]} tokenName
-     * @param {bigint} quantity
+     *
+     * @param {ValueProps} props
+     * @param {null | Assets | AssetsProps} maybeAssets
+     * @returns {[HInt | HIntProps, Assets | AssetsProps]}
+     */
+    static cleanConstructorArgs(props: ValueProps, maybeAssets: null | Assets | AssetsProps): [HInt | HIntProps, Assets | AssetsProps];
+    /**
+     * @param {ValueProps | Value} props
      * @returns {Value}
      */
-    static asset(mph: MintingPolicyHash, tokenName: number[], quantity: bigint): Value;
+    static fromProps(props: ValueProps | Value): Value;
+    /**
+     * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+     * @param {ByteArray | ByteArrayProps} tokenName
+     * @param {HInt | HIntProps} qty
+     * @returns {Value}
+     */
+    static asset(mph: MintingPolicyHash | MintingPolicyHashProps, tokenName: ByteArray | ByteArrayProps, qty: HInt | HIntProps): Value;
     /**
      * @param {number[]} bytes
      * @returns {Value}
@@ -1956,10 +2292,14 @@ export class Value extends HeliosData {
      */
     static fromUplcCbor(bytes: string | number[]): Value;
     /**
-     * @param {bigint} lovelace
-     * @param {Assets} assets
+     * @param {ValueProps} props
+     * @param {null | Assets | AssetsProps} assets
      */
-    constructor(lovelace?: bigint, assets?: Assets);
+    constructor(props?: ValueProps, assets?: null | Assets | AssetsProps);
+    /**
+     * @type {Assets}
+     */
+    get assets(): Assets;
     /**
      * @type {bigint}
      */
@@ -1967,13 +2307,9 @@ export class Value extends HeliosData {
     /**
      * Setter for lovelace
      * Note: mutation is handy when balancing transactions
-     * @param {bigint} lovelace
+     * @param {HInt | HIntProps} lovelace
      */
-    setLovelace(lovelace: bigint): void;
-    /**
-     * @type {Assets}
-     */
-    get assets(): Assets;
+    setLovelace(lovelace: HInt | HIntProps): void;
     /**
      * @param {Value} other
      * @returns {Value}
@@ -1985,10 +2321,10 @@ export class Value extends HeliosData {
      */
     sub(other: Value): Value;
     /**
-     * @param {bigint} scalar
+     * @param {HInt | HIntProps} scalar
      * @returns {Value}
      */
-    mul(scalar: bigint): Value;
+    mul(scalar: HInt | HIntProps): Value;
     /**
      * @param {Value} other
      * @returns {boolean}
@@ -2167,6 +2503,12 @@ export class NetworkParams {
     timeToSlot(time: bigint): bigint;
     #private;
 }
+export const UPLC_MACROS_OFFSET: number;
+export const UPLC_MACROS: string[];
+/**
+ * A Helios/Uplc Program can have different purposes
+ * @typedef {"testing" | "minting" | "spending" | "staking" | "linking" | "module" | "unknown"} ScriptPurpose
+ */
 /**
  * a UplcValue is passed around by Plutus-core expressions.
  */
@@ -2349,12 +2691,14 @@ export class UplcType {
  * @typedef {[?string, UplcValue][]} UplcRawStack
  */
 /**
-* @typedef {object} UplcRTECallbacks
-* @property {(msg: string) => Promise<void>} [onPrint]
-* @property {(site: Site, rawStack: UplcRawStack) => Promise<boolean>} [onStartCall]
-* @property {(site: Site, rawStack: UplcRawStack) => Promise<void>} [onEndCall]
-* @property {(name: string, isTerm: boolean, cost: Cost) => void} [onIncrCost]
-*/
+ * @typedef {{
+ *	 onPrint: (msg: string) => Promise<void>
+ *   onStartCall: (site: Site, rawStack: UplcRawStack) => Promise<boolean>
+ *   onEndCall: (site: Site, rawStack: UplcRawStack) => Promise<void>
+ *   onIncrCost: (name: string, isTerm: boolean, cost: Cost) => void
+ *   macros?: {[name: string]: (args: UplcValue[]) => UplcValue}
+ * }} UplcRTECallbacks
+ */
 /**
  * @type {UplcRTECallbacks}
  */
@@ -2651,7 +2995,7 @@ export class UplcDataValue extends UplcValue {
 /**
  * TODO: purpose as enum type
  * @typedef {{
- *   purpose: null | number
+ *   purpose: null | ScriptPurpose
  *   callsTxTimeRange: boolean
  * }} ProgramProperties
  */
@@ -2759,12 +3103,12 @@ export class UplcProgram {
      */
     apply(args: (UplcValue | HeliosData)[]): UplcProgram;
     /**
-     * @param {?UplcValue[]} args - if null the top-level term is returned as a value
+     * @param {null | UplcValue[]} args - if null the top-level term is returned as a value
      * @param {UplcRTECallbacks} callbacks
      * @param {?NetworkParams} networkParams
      * @returns {Promise<UplcValue | UserError>}
      */
-    run(args: UplcValue[] | null, callbacks?: UplcRTECallbacks, networkParams?: NetworkParams | null): Promise<UplcValue | UserError>;
+    run(args: null | UplcValue[], callbacks?: UplcRTECallbacks, networkParams?: NetworkParams | null): Promise<UplcValue | UserError>;
     /**
      * @param {?UplcValue[]} args
      * @returns {Promise<[(UplcValue | UserError), string[]]>}
@@ -2985,6 +3329,14 @@ export class Tokenizer {
     nestGroups(ts: Token[]): Token[] | null;
     #private;
 }
+export const WalletType: GenericType<HeliosData>;
+export const TxBuilderType: GenericType<HeliosData>;
+/**
+ * @type {{[name: string]: DataType}}
+ */
+export const builtinTypes: {
+    [name: string]: DataType;
+};
 /**
  * @typedef {Map<IRVariable, IRLiteralExpr>} IRLiteralRegistry
  */
@@ -3101,17 +3453,17 @@ export class IRParametricProgram {
     /**
      * @package
      * @param {IR} ir
-     * @param {?number} purpose
-     * @param {string[]} parameters
+     * @param {null | ScriptPurpose} purpose
+     * @param {number} nParams
      * @param {boolean} simplify
      * @returns {IRParametricProgram}
      */
-    static new(ir: IR, purpose: number | null, parameters: string[], simplify?: boolean): IRParametricProgram;
+    static new(ir: IR, purpose: null | ScriptPurpose, nParams: number, simplify?: boolean): IRParametricProgram;
     /**
      * @param {IRProgram} irProgram
-     * @param {string[]} parameters
+     * @param {number} nParams
      */
-    constructor(irProgram: IRProgram, parameters: string[]);
+    constructor(irProgram: IRProgram, nParams: number);
     /**
      * @returns {UplcProgram}
      */
@@ -3129,7 +3481,7 @@ export class Program {
      * @param {string} rawSrc
      * @returns {[purpose, Module[]]}
      */
-    static parseMain(rawSrc: string): [number, Module[]];
+    static parseMainInternal(rawSrc: string): [ScriptPurpose, Module[]];
     /**
      *
      * @param {string} mainName
@@ -3138,12 +3490,22 @@ export class Program {
      */
     static parseImports(mainName: string, moduleSrcs?: string[]): Module[];
     /**
+     * @param {string} mainSrc
+     * @param {string[]} moduleSrcs
+     * @returns {[null | ScriptPurpose, Module[]]}
+     */
+    static parseMain(mainSrc: string, moduleSrcs: string[]): [null | ScriptPurpose, Module[]];
+    /**
      * Creates  a new program.
      * @param {string} mainSrc
      * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
+     * @param {{[name: string]: Type}} validatorTypes
+     * @param {boolean} allowPosParams
      * @returns {Program}
      */
-    static new(mainSrc: string, moduleSrcs?: string[]): Program;
+    static new(mainSrc: string, moduleSrcs?: string[], validatorTypes?: {
+        [name: string]: Type;
+    }, allowPosParams?: boolean): Program;
     /**
      * For top-level statements
      * @package
@@ -3160,10 +3522,23 @@ export class Program {
      */
     static applyTypeParameters(mainIR: IR, map: IRDefinitions): IRDefinitions;
     /**
-     * @param {number} purpose
+     * @param {ScriptPurpose} purpose
      * @param {Module[]} modules
+     * @param {boolean} allowPosParams
      */
-    constructor(purpose: number, modules: Module[]);
+    constructor(purpose: ScriptPurpose, modules: Module[], allowPosParams: boolean);
+    /**
+     * @type {boolean}
+     */
+    get allowPosParams(): boolean;
+    /**
+     * @type {number}
+     */
+    get nPosParams(): number;
+    /**
+     * @type {Type[]}
+     */
+    get posParams(): Type[];
     /**
      * @type {Module[]}
      */
@@ -3173,9 +3548,13 @@ export class Program {
      */
     get mainModule(): MainModule;
     /**
-     * @type {?Module}
+     * @type {null | Module}
      */
     get postModule(): Module;
+    /**
+     * @type {ScriptPurpose}
+     */
+    get purpose(): ScriptPurpose;
     /**
      * @type {string}
      */
@@ -3184,6 +3563,10 @@ export class Program {
      * @type {FuncStatement}
      */
     get mainFunc(): FuncStatement;
+    /**
+     * @type {string[]}
+     */
+    get mainArgNames(): string[];
     /**
      * @type {DataType[]}
      */
@@ -3215,9 +3598,12 @@ export class Program {
      */
     evalTypesInternal(globalScope: GlobalScope): TopScope;
     /**
+     * @param {{[name: string]: Type}} validatorTypes
      * @returns {TopScope}
      */
-    evalTypes(): TopScope;
+    evalTypes(validatorTypes?: {
+        [name: string]: Type;
+    }): TopScope;
     /**
      * @type {UserTypes}
      */
@@ -3276,11 +3662,16 @@ export class Program {
     };
     /**
      * @package
-     * @param {string[]} parameters
      * @param {(s: Statement, isImport: boolean) => boolean} endCond
      * @returns {IRDefinitions}
      */
-    statementsToIR(parameters: string[], endCond: (s: Statement, isImport: boolean) => boolean): IRDefinitions;
+    statementsToIR(endCond: (s: Statement, isImport: boolean) => boolean): IRDefinitions;
+    /**
+     * @param {IR} ir
+     * @param {IRDefinitions} definitions
+     * @returns {Set<string>}
+     */
+    collectAllUsed(ir: IR, definitions: IRDefinitions): Set<string>;
     /**
      * @param {IR} ir
      * @param {IRDefinitions} definitions
@@ -3292,30 +3683,39 @@ export class Program {
      * Then applies type parameters
      * @package
      * @param {IR} ir
-     * @param {string[]} parameters
      * @param {(s: Statement) => boolean} endCond
      * @returns {IRDefinitions}
      */
-    fetchDefinitions(ir: IR, parameters: string[], endCond: (s: Statement) => boolean): IRDefinitions;
+    fetchDefinitions(ir: IR, endCond: (s: Statement) => boolean): IRDefinitions;
     /**
      * @param {IR} ir
      * @param {IRDefinitions} definitions
+     * @param {null | IRDefinitions} extra
      * @returns {IR}
      */
-    wrapInner(ir: IR, definitions: IRDefinitions): IR;
+    wrapInner(ir: IR, definitions: IRDefinitions, extra?: null | IRDefinitions): IR;
     /**
      * @package
      * @param {IR} ir
-     * @param {string[]} parameters
+     * @param {null | IRDefinitions} extra
      * @returns {IR}
      */
-    wrapEntryPoint(ir: IR, parameters: string[]): IR;
+    wrapEntryPoint(ir: IR, extra?: null | IRDefinitions): IR;
+    /**
+     * @returns {IR}
+     */
+    toIRInternal(): IR;
     /**
      * @package
-     * @param {string[]}  parameters
+     * @param {null | IRDefinitions} extra
      * @returns {IR}
      */
-    toIR(parameters?: string[]): IR;
+    toIR(extra?: null | IRDefinitions): IR;
+    /**
+     * Non-positional named parameters
+     * @type {[string, Type][]}
+     */
+    get requiredParameters(): [string, Type][];
     /**
      * @returns {string}
      */
@@ -3325,13 +3725,32 @@ export class Program {
      * @returns {UplcProgram}
      */
     compile(simplify?: boolean): UplcProgram;
+    #private;
+}
+export class LinkingProgram extends GenericProgram {
     /**
-     * Compile a special Uplc
-     * @param {string[]} parameters
-     * @param {boolean} simplify
-     * @returns {UplcProgram}
+     * Creates  a new program.
+     * @param {string} mainSrc
+     * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
+     * @param {{[name: string]: Type}} validatorTypes - generators for script hashes, used by ScriptCollection
+     * @returns {LinkingProgram}
      */
-    compileParametric(parameters: string[], simplify?: boolean): UplcProgram;
+    static new(mainSrc: string, moduleSrcs?: string[], validatorTypes?: {
+        [name: string]: Type;
+    }): LinkingProgram;
+    /**
+     * @param {Module[]} modules
+     * @param {Program[]} validators
+     */
+    constructor(modules: Module[], validators: Program[]);
+    /**
+     * @package
+     * @param {{[name: string]: Type}} validatorTypes
+     * @returns {TopScope}
+     */
+    evalTypes(validatorTypes?: {
+        [name: string]: Type;
+    }): TopScope;
     #private;
 }
 export class NativeScript extends CborData {
@@ -3385,6 +3804,18 @@ export class Tx extends CborData {
      */
     static fromCbor(raw: number[] | string): Tx;
     /**
+     * Used by bundler for macro finalization
+     * @param {UplcData} data
+     * @param {NetworkParams} networkParams
+     * @param {Address} changeAddress
+     * @param {UTxO[]} spareUtxos
+     * @param {{[name: string]: UplcProgram}} scripts
+     * @returns {Promise<Tx>}
+     */
+    static finalizeUplcData(data: UplcData, networkParams: NetworkParams, changeAddress: Address, spareUtxos: UTxO[], scripts: {
+        [name: string]: UplcProgram;
+    }): Promise<Tx>;
+    /**
      * @type {TxBody}
      */
     get body(): TxBody;
@@ -3403,6 +3834,11 @@ export class Tx extends CborData {
      */
     isValid(slot: bigint): boolean;
     /**
+     * @param {NetworkParams} networkParams
+     * @returns {UplcData}
+     */
+    toTxData(networkParams: NetworkParams): UplcData;
+    /**
      * @returns {Object}
      */
     dump(): any;
@@ -3418,18 +3854,18 @@ export class Tx extends CborData {
     validTo(slotOrTime: bigint | Date): Tx;
     /**
      * Throws error if assets of given mph are already being minted in this transaction
-     * @param {MintingPolicyHash} mph
-     * @param {[number[] | string, bigint][]} tokens - list of pairs of [tokenName, quantity], tokenName can be list of bytes or hex-string
+     * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+     * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens - list of pairs of [tokenName, quantity], tokenName can be list of bytes or hex-string
      * @param {UplcDataValue | UplcData | null} redeemer
      * @returns {Tx}
      */
-    mintTokens(mph: MintingPolicyHash, tokens: [number[] | string, bigint][], redeemer: UplcDataValue | UplcData | null): Tx;
+    mintTokens(mph: MintingPolicyHash | MintingPolicyHashProps, tokens: [ByteArray | ByteArrayProps, HInt | HIntProps][], redeemer: UplcDataValue | UplcData | null): Tx;
     /**
      * @param {UTxO} input
-     * @param {?(UplcDataValue | UplcData | HeliosData)} rawRedeemer
+     * @param {null | UplcDataValue | UplcData | HeliosData} rawRedeemer
      * @returns {Tx}
      */
-    addInput(input: UTxO, rawRedeemer?: (UplcDataValue | UplcData | HeliosData) | null): Tx;
+    addInput(input: UTxO, rawRedeemer?: null | UplcDataValue | UplcData | HeliosData): Tx;
     /**
      * @param {UTxO[]} inputs
      * @param {?(UplcDataValue | UplcData | HeliosData)} redeemer
@@ -3620,6 +4056,14 @@ export class TxWitnesses extends CborData {
      */
     get scripts(): (UplcProgram | NativeScript)[];
     /**
+     * @type {Redeemer[]}
+     */
+    get redeemers(): Redeemer[];
+    /**
+     * @type {ListData}
+     */
+    get datums(): ListData;
+    /**
      * @param {ValidatorHash | MintingPolicyHash} h
      * @returns {boolean}
      */
@@ -3750,18 +4194,18 @@ export class UTxO {
     static sumValue(utxos: UTxO[]): Value;
     /**
      * @param {TxId} txId
-     * @param {bigint} utxoIdx
+     * @param {number | bigint} utxoIdx
      * @param {TxOutput} origOutput
      */
-    constructor(txId: TxId, utxoIdx: bigint, origOutput: TxOutput);
+    constructor(txId: TxId, utxoIdx: number | bigint, origOutput: TxOutput);
     /**
      * @type {TxId}
      */
     get txId(): TxId;
     /**
-     * @type {bigint}
+     * @type {number}
      */
-    get utxoIdx(): bigint;
+    get utxoIdx(): number;
     /**
      * @type {TxInput}
      */
@@ -3775,6 +4219,12 @@ export class UTxO {
      */
     get origOutput(): TxOutput;
     /**
+     *
+     * @param {UTxO | TxInput} other
+     * @returns {boolean}
+     */
+    eq(other: UTxO | TxInput): boolean;
+    /**
      * @returns {number[]}
      */
     toCbor(): number[];
@@ -3783,10 +4233,10 @@ export class UTxO {
 export class TxRefInput extends TxInput {
     /**
      * @param {TxId} txId
-     * @param {bigint} utxoId
+     * @param {number | bigint} utxoId
      * @param {TxOutput} origOutput
      */
-    constructor(txId: TxId, utxoId: bigint, origOutput: TxOutput);
+    constructor(txId: TxId, utxoId: number | bigint, origOutput: TxOutput);
 }
 export class TxOutput extends CborData {
     /**
@@ -3795,12 +4245,17 @@ export class TxOutput extends CborData {
      */
     static fromCbor(bytes: number[]): TxOutput;
     /**
+     * @param {UplcData} data
+     * @returns {TxOutput}
+     */
+    static fromUplcData(data: UplcData): TxOutput;
+    /**
      * @param {Address} address
      * @param {Value} value
-     * @param {?Datum} datum
-     * @param {?UplcProgram} refScript
+     * @param {null | Datum} datum
+     * @param {null | UplcProgram} refScript
      */
-    constructor(address: Address, value: Value, datum?: Datum | null, refScript?: UplcProgram | null);
+    constructor(address: Address, value: Value, datum?: null | Datum, refScript?: null | UplcProgram);
     get address(): Address;
     /**
      * Mutation is handy when correctin the quantity of lovelace in a utxo
@@ -4009,6 +4464,11 @@ export class Datum extends CborData {
      */
     static fromCbor(bytes: number[]): Datum;
     /**
+     * @param {UplcData} data
+     * @returns {null | Datum}
+     */
+    static fromUplcData(data: UplcData): null | Datum;
+    /**
      * @param {UplcDataValue | UplcData | HeliosData} data
      * @returns {HashedDatum}
      */
@@ -4061,6 +4521,988 @@ export class HashedDatum extends Datum {
     #private;
 }
 /**
+ * @typedef {(utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]]} CoinSelectionAlgorithm
+ */
+/**
+ * Collection of coin selection algorithms
+ */
+export class CoinSelection {
+    /**
+     * @param {UTxO[]} utxos
+     * @param {Value} amount
+     * @param {boolean} largestFirst
+     * @returns {[UTxO[], UTxO[]]} - [picked, not picked that can be used as spares]
+     */
+    static selectExtremumFirst(utxos: UTxO[], amount: Value, largestFirst: boolean): [UTxO[], UTxO[]];
+    static selectSmallestFirst(utxos: UTxO[], amount: Value): [UTxO[], UTxO[]];
+    static selectLargestFirst(utxos: UTxO[], amount: Value): [UTxO[], UTxO[]];
+}
+/**
+ * @typedef {{
+ *     isMainnet(): Promise<boolean>,
+ *     usedAddresses: Promise<Address[]>,
+ *     unusedAddresses: Promise<Address[]>,
+ *     utxos: Promise<UTxO[]>,
+ *     signTx(tx: Tx): Promise<Signature[]>,
+ *     submitTx(tx: Tx): Promise<TxId>
+ * }} Wallet
+ */
+/**
+ * @typedef {{
+ *     getNetworkId(): Promise<number>,
+ *     getUsedAddresses(): Promise<bech32string[]>,
+ *     getUnusedAddresses(): Promise<bech32string[]>,
+ *     getUtxos(): Promise<hexstring[]>,
+ *     signTx(txHex: hexstring, partialSign: boolean): Promise<hexstring>,
+ *     submitTx(txHex: hexstring): Promise<hexstring>
+ * }} Cip30Handle
+ */
+/**
+ * @implements {Wallet}
+ */
+export class Cip30Wallet implements Wallet {
+    /**
+     * @param {Cip30Handle} handle
+     */
+    constructor(handle: Cip30Handle);
+    /**
+     * @returns {Promise<boolean>}
+     */
+    isMainnet(): Promise<boolean>;
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get usedAddresses(): Promise<Address[]>;
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get unusedAddresses(): Promise<Address[]>;
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get utxos(): Promise<UTxO[]>;
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<Signature[]>}
+     */
+    signTx(tx: Tx): Promise<Signature[]>;
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<TxId>}
+     */
+    submitTx(tx: Tx): Promise<TxId>;
+    #private;
+}
+export class WalletHelper {
+    /**
+     * @param {Wallet} wallet
+     */
+    constructor(wallet: Wallet);
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get allAddresses(): Promise<Address[]>;
+    /**
+     * @returns {Promise<Value>}
+     */
+    calcBalance(): Promise<Value>;
+    /**
+     * @type {Promise<Address>}
+     */
+    get baseAddress(): Promise<Address>;
+    /**
+     * @type {Promise<Address>}
+     */
+    get changeAddress(): Promise<Address>;
+    /**
+     * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
+     * @type {Promise<null | UTxO>}
+     */
+    get refUtxo(): Promise<UTxO>;
+    /**
+     * @param {Value} amount
+     * @param {(allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]} algorithm
+     * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
+     */
+    pickUtxos(amount: Value, algorithm?: (allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]): Promise<[UTxO[], UTxO[]]>;
+    /**
+     * Returned collateral can't contain an native assets (pure lovelace)
+     * TODO: combine UTxOs if a single UTxO isn't enough
+     * @param {bigint} amount - 2 Ada should cover most things
+     * @returns {Promise<UTxO>}
+     */
+    pickCollateral(amount?: bigint): Promise<UTxO>;
+    /**
+     * @param {Address} addr
+     * @returns {Promise<boolean>}
+     */
+    isOwnAddress(addr: Address): Promise<boolean>;
+    /**
+ * @param {PubKeyHash} pkh
+ * @returns {Promise<boolean>}
+ */
+    isOwnPubKeyHash(pkh: PubKeyHash): Promise<boolean>;
+    #private;
+}
+/**
+ * @typedef {{
+ *     getUtxos(address: Address): Promise<UTxO[]>
+ *     getUtxo(id: TxOutputId): Promise<UTxO>
+ *     getParameters(): Promise<NetworkParams>
+ *     submitTx(tx: Tx): Promise<TxId>
+ * }} Network
+ */
+/**
+ * @implements {Network}
+ */
+export class BlockfrostV0 implements Network {
+    /**
+     * Determine the network which the wallet is connected to.
+     * @param {Wallet} wallet
+     * @param {{
+     *     preview?: string,
+     *     preprod?: string,
+     *     mainnet?: string
+     * }} projectIds
+     * @returns {Promise<BlockfrostV0>}
+     */
+    static resolve(wallet: Wallet, projectIds: {
+        preview?: string;
+        preprod?: string;
+        mainnet?: string;
+    }): Promise<BlockfrostV0>;
+    /**
+     * @param {any} obj
+     * @returns
+     */
+    static parseValue(obj: any): Value;
+    /**
+     * @param {string} networkName - "preview", "preprod" or "mainnet"
+     * @param {string} projectId
+     */
+    constructor(networkName: string, projectId: string);
+    /**
+     * @returns {Promise<NetworkParams>}
+     */
+    getParameters(): Promise<NetworkParams>;
+    /**
+     * @param {TxOutputId} id
+     * @returns {Promise<UTxO>}
+     */
+    getUtxo(id: TxOutputId): Promise<UTxO>;
+    /**
+     * Used by BlockfrostV0.resolve()
+     * @param {UTxO} utxo
+     * @returns {Promise<boolean>}
+     */
+    hasUtxo(utxo: UTxO): Promise<boolean>;
+    /**
+     * Returns oldest UTxOs first, newest last.
+     * TODO: pagination
+     * @param {Address} address
+     * @returns {Promise<UTxO[]>}
+     */
+    getUtxos(address: Address): Promise<UTxO[]>;
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<TxId>}
+     */
+    submitTx(tx: Tx): Promise<TxId>;
+    #private;
+}
+export namespace rawNetworkEmulatorParams {
+    namespace shelleyGenesis {
+        const activeSlotsCoeff: number;
+        const epochLength: number;
+        const genDelegs: {
+            "637f2e950b0fd8f8e3e811c5fbeb19e411e7a2bf37272b84b29c1a0b": {
+                delegate: string;
+                vrf: string;
+            };
+            "8a4b77c4f534f8b8cc6f269e5ebb7ba77fa63a476e50e05e66d7051c": {
+                delegate: string;
+                vrf: string;
+            };
+            b00470cd193d67aac47c373602fccd4195aad3002c169b5570de1126: {
+                delegate: string;
+                vrf: string;
+            };
+            b260ffdb6eba541fcf18601923457307647dce807851b9d19da133ab: {
+                delegate: string;
+                vrf: string;
+            };
+            ced1599fd821a39593e00592e5292bdc1437ae0f7af388ef5257344a: {
+                delegate: string;
+                vrf: string;
+            };
+            dd2a7d71a05bed11db61555ba4c658cb1ce06c8024193d064f2a66ae: {
+                delegate: string;
+                vrf: string;
+            };
+            f3b9e74f7d0f24d2314ea5dfbca94b65b2059d1ff94d97436b82d5b4: {
+                delegate: string;
+                vrf: string;
+            };
+        };
+        const initialFunds: {};
+        const maxKESEvolutions: number;
+        const maxLovelaceSupply: number;
+        const networkId: string;
+        const networkMagic: number;
+        namespace protocolParams {
+            const a0: number;
+            const decentralisationParam: number;
+            const eMax: number;
+            namespace extraEntropy {
+                const tag: string;
+            }
+            const keyDeposit: number;
+            const maxBlockBodySize: number;
+            const maxBlockHeaderSize: number;
+            const maxTxSize: number;
+            const minFeeA: number;
+            const minFeeB: number;
+            const minPoolCost: number;
+            const minUTxOValue: number;
+            const nOpt: number;
+            const poolDeposit: number;
+            namespace protocolVersion {
+                const major: number;
+                const minor: number;
+            }
+            const rho: number;
+            const tau: number;
+        }
+        const securityParam: number;
+        const slotLength: number;
+        const slotsPerKESPeriod: number;
+        namespace staking {
+            const pools: {};
+            const stake: {};
+        }
+        const systemStart: string;
+        const updateQuorum: number;
+    }
+    namespace alonzoGenesis {
+        const lovelacePerUTxOWord: number;
+        namespace executionPrices {
+            namespace prSteps {
+                const numerator: number;
+                const denominator: number;
+            }
+            namespace prMem {
+                const numerator_1: number;
+                export { numerator_1 as numerator };
+                const denominator_1: number;
+                export { denominator_1 as denominator };
+            }
+        }
+        namespace maxTxExUnits {
+            const exUnitsMem: number;
+            const exUnitsSteps: number;
+        }
+        namespace maxBlockExUnits {
+            const exUnitsMem_1: number;
+            export { exUnitsMem_1 as exUnitsMem };
+            const exUnitsSteps_1: number;
+            export { exUnitsSteps_1 as exUnitsSteps };
+        }
+        const maxValueSize: number;
+        const collateralPercentage: number;
+        const maxCollateralInputs: number;
+        namespace costModels {
+            const PlutusV1: {
+                "sha2_256-memory-arguments": number;
+                "equalsString-cpu-arguments-constant": number;
+                "cekDelayCost-exBudgetMemory": number;
+                "lessThanEqualsByteString-cpu-arguments-intercept": number;
+                "divideInteger-memory-arguments-minimum": number;
+                "appendByteString-cpu-arguments-slope": number;
+                "blake2b-cpu-arguments-slope": number;
+                "iData-cpu-arguments": number;
+                "encodeUtf8-cpu-arguments-slope": number;
+                "unBData-cpu-arguments": number;
+                "multiplyInteger-cpu-arguments-intercept": number;
+                "cekConstCost-exBudgetMemory": number;
+                "nullList-cpu-arguments": number;
+                "equalsString-cpu-arguments-intercept": number;
+                "trace-cpu-arguments": number;
+                "mkNilData-memory-arguments": number;
+                "lengthOfByteString-cpu-arguments": number;
+                "cekBuiltinCost-exBudgetCPU": number;
+                "bData-cpu-arguments": number;
+                "subtractInteger-cpu-arguments-slope": number;
+                "unIData-cpu-arguments": number;
+                "consByteString-memory-arguments-intercept": number;
+                "divideInteger-memory-arguments-slope": number;
+                "divideInteger-cpu-arguments-model-arguments-slope": number;
+                "listData-cpu-arguments": number;
+                "headList-cpu-arguments": number;
+                "chooseData-memory-arguments": number;
+                "equalsInteger-cpu-arguments-intercept": number;
+                "sha3_256-cpu-arguments-slope": number;
+                "sliceByteString-cpu-arguments-slope": number;
+                "unMapData-cpu-arguments": number;
+                "lessThanInteger-cpu-arguments-intercept": number;
+                "mkCons-cpu-arguments": number;
+                "appendString-memory-arguments-intercept": number;
+                "modInteger-cpu-arguments-model-arguments-slope": number;
+                "ifThenElse-cpu-arguments": number;
+                "mkNilPairData-cpu-arguments": number;
+                "lessThanEqualsInteger-cpu-arguments-intercept": number;
+                "addInteger-memory-arguments-slope": number;
+                "chooseList-memory-arguments": number;
+                "constrData-memory-arguments": number;
+                "decodeUtf8-cpu-arguments-intercept": number;
+                "equalsData-memory-arguments": number;
+                "subtractInteger-memory-arguments-slope": number;
+                "appendByteString-memory-arguments-intercept": number;
+                "lengthOfByteString-memory-arguments": number;
+                "headList-memory-arguments": number;
+                "listData-memory-arguments": number;
+                "consByteString-cpu-arguments-intercept": number;
+                "unIData-memory-arguments": number;
+                "remainderInteger-memory-arguments-minimum": number;
+                "bData-memory-arguments": number;
+                "lessThanByteString-cpu-arguments-slope": number;
+                "encodeUtf8-memory-arguments-intercept": number;
+                "cekStartupCost-exBudgetCPU": number;
+                "multiplyInteger-memory-arguments-intercept": number;
+                "unListData-memory-arguments": number;
+                "remainderInteger-cpu-arguments-model-arguments-slope": number;
+                "cekVarCost-exBudgetCPU": number;
+                "remainderInteger-memory-arguments-slope": number;
+                "cekForceCost-exBudgetCPU": number;
+                "sha2_256-cpu-arguments-slope": number;
+                "equalsInteger-memory-arguments": number;
+                "indexByteString-memory-arguments": number;
+                "addInteger-memory-arguments-intercept": number;
+                "chooseUnit-cpu-arguments": number;
+                "sndPair-cpu-arguments": number;
+                "cekLamCost-exBudgetCPU": number;
+                "fstPair-cpu-arguments": number;
+                "quotientInteger-memory-arguments-minimum": number;
+                "decodeUtf8-cpu-arguments-slope": number;
+                "lessThanInteger-memory-arguments": number;
+                "lessThanEqualsInteger-cpu-arguments-slope": number;
+                "fstPair-memory-arguments": number;
+                "modInteger-memory-arguments-intercept": number;
+                "unConstrData-cpu-arguments": number;
+                "lessThanEqualsInteger-memory-arguments": number;
+                "chooseUnit-memory-arguments": number;
+                "sndPair-memory-arguments": number;
+                "addInteger-cpu-arguments-intercept": number;
+                "decodeUtf8-memory-arguments-slope": number;
+                "equalsData-cpu-arguments-intercept": number;
+                "mapData-cpu-arguments": number;
+                "mkPairData-cpu-arguments": number;
+                "quotientInteger-cpu-arguments-constant": number;
+                "consByteString-memory-arguments-slope": number;
+                "cekVarCost-exBudgetMemory": number;
+                "indexByteString-cpu-arguments": number;
+                "unListData-cpu-arguments": number;
+                "equalsInteger-cpu-arguments-slope": number;
+                "cekStartupCost-exBudgetMemory": number;
+                "subtractInteger-cpu-arguments-intercept": number;
+                "divideInteger-cpu-arguments-model-arguments-intercept": number;
+                "divideInteger-memory-arguments-intercept": number;
+                "cekForceCost-exBudgetMemory": number;
+                "blake2b-cpu-arguments-intercept": number;
+                "remainderInteger-cpu-arguments-constant": number;
+                "tailList-cpu-arguments": number;
+                "encodeUtf8-cpu-arguments-intercept": number;
+                "equalsString-cpu-arguments-slope": number;
+                "lessThanByteString-memory-arguments": number;
+                "multiplyInteger-cpu-arguments-slope": number;
+                "appendByteString-cpu-arguments-intercept": number;
+                "lessThanEqualsByteString-cpu-arguments-slope": number;
+                "modInteger-memory-arguments-slope": number;
+                "addInteger-cpu-arguments-slope": number;
+                "equalsData-cpu-arguments-slope": number;
+                "decodeUtf8-memory-arguments-intercept": number;
+                "chooseList-cpu-arguments": number;
+                "constrData-cpu-arguments": number;
+                "equalsByteString-memory-arguments": number;
+                "cekApplyCost-exBudgetCPU": number;
+                "quotientInteger-memory-arguments-slope": number;
+                "verifySignature-cpu-arguments-intercept": number;
+                "unMapData-memory-arguments": number;
+                "mkCons-memory-arguments": number;
+                "sliceByteString-memory-arguments-slope": number;
+                "sha3_256-memory-arguments": number;
+                "ifThenElse-memory-arguments": number;
+                "mkNilPairData-memory-arguments": number;
+                "equalsByteString-cpu-arguments-slope": number;
+                "appendString-cpu-arguments-intercept": number;
+                "quotientInteger-cpu-arguments-model-arguments-slope": number;
+                "cekApplyCost-exBudgetMemory": number;
+                "equalsString-memory-arguments": number;
+                "multiplyInteger-memory-arguments-slope": number;
+                "cekBuiltinCost-exBudgetMemory": number;
+                "remainderInteger-memory-arguments-intercept": number;
+                "sha2_256-cpu-arguments-intercept": number;
+                "remainderInteger-cpu-arguments-model-arguments-intercept": number;
+                "lessThanEqualsByteString-memory-arguments": number;
+                "tailList-memory-arguments": number;
+                "mkNilData-cpu-arguments": number;
+                "chooseData-cpu-arguments": number;
+                "unBData-memory-arguments": number;
+                "blake2b-memory-arguments": number;
+                "iData-memory-arguments": number;
+                "nullList-memory-arguments": number;
+                "cekDelayCost-exBudgetCPU": number;
+                "subtractInteger-memory-arguments-intercept": number;
+                "lessThanByteString-cpu-arguments-intercept": number;
+                "consByteString-cpu-arguments-slope": number;
+                "appendByteString-memory-arguments-slope": number;
+                "trace-memory-arguments": number;
+                "divideInteger-cpu-arguments-constant": number;
+                "cekConstCost-exBudgetCPU": number;
+                "encodeUtf8-memory-arguments-slope": number;
+                "quotientInteger-cpu-arguments-model-arguments-intercept": number;
+                "mapData-memory-arguments": number;
+                "appendString-cpu-arguments-slope": number;
+                "modInteger-cpu-arguments-constant": number;
+                "verifySignature-cpu-arguments-slope": number;
+                "unConstrData-memory-arguments": number;
+                "quotientInteger-memory-arguments-intercept": number;
+                "equalsByteString-cpu-arguments-constant": number;
+                "sliceByteString-memory-arguments-intercept": number;
+                "mkPairData-memory-arguments": number;
+                "equalsByteString-cpu-arguments-intercept": number;
+                "appendString-memory-arguments-slope": number;
+                "lessThanInteger-cpu-arguments-slope": number;
+                "modInteger-cpu-arguments-model-arguments-intercept": number;
+                "modInteger-memory-arguments-minimum": number;
+                "sha3_256-cpu-arguments-intercept": number;
+                "verifySignature-memory-arguments": number;
+                "cekLamCost-exBudgetMemory": number;
+                "sliceByteString-cpu-arguments-intercept": number;
+            };
+        }
+    }
+    namespace latestParams {
+        const collateralPercentage_1: number;
+        export { collateralPercentage_1 as collateralPercentage };
+        export namespace costModels_1 {
+            const PlutusScriptV1: {
+                "addInteger-cpu-arguments-intercept": number;
+                "addInteger-cpu-arguments-slope": number;
+                "addInteger-memory-arguments-intercept": number;
+                "addInteger-memory-arguments-slope": number;
+                "appendByteString-cpu-arguments-intercept": number;
+                "appendByteString-cpu-arguments-slope": number;
+                "appendByteString-memory-arguments-intercept": number;
+                "appendByteString-memory-arguments-slope": number;
+                "appendString-cpu-arguments-intercept": number;
+                "appendString-cpu-arguments-slope": number;
+                "appendString-memory-arguments-intercept": number;
+                "appendString-memory-arguments-slope": number;
+                "bData-cpu-arguments": number;
+                "bData-memory-arguments": number;
+                "blake2b_256-cpu-arguments-intercept": number;
+                "blake2b_256-cpu-arguments-slope": number;
+                "blake2b_256-memory-arguments": number;
+                "cekApplyCost-exBudgetCPU": number;
+                "cekApplyCost-exBudgetMemory": number;
+                "cekBuiltinCost-exBudgetCPU": number;
+                "cekBuiltinCost-exBudgetMemory": number;
+                "cekConstCost-exBudgetCPU": number;
+                "cekConstCost-exBudgetMemory": number;
+                "cekDelayCost-exBudgetCPU": number;
+                "cekDelayCost-exBudgetMemory": number;
+                "cekForceCost-exBudgetCPU": number;
+                "cekForceCost-exBudgetMemory": number;
+                "cekLamCost-exBudgetCPU": number;
+                "cekLamCost-exBudgetMemory": number;
+                "cekStartupCost-exBudgetCPU": number;
+                "cekStartupCost-exBudgetMemory": number;
+                "cekVarCost-exBudgetCPU": number;
+                "cekVarCost-exBudgetMemory": number;
+                "chooseData-cpu-arguments": number;
+                "chooseData-memory-arguments": number;
+                "chooseList-cpu-arguments": number;
+                "chooseList-memory-arguments": number;
+                "chooseUnit-cpu-arguments": number;
+                "chooseUnit-memory-arguments": number;
+                "consByteString-cpu-arguments-intercept": number;
+                "consByteString-cpu-arguments-slope": number;
+                "consByteString-memory-arguments-intercept": number;
+                "consByteString-memory-arguments-slope": number;
+                "constrData-cpu-arguments": number;
+                "constrData-memory-arguments": number;
+                "decodeUtf8-cpu-arguments-intercept": number;
+                "decodeUtf8-cpu-arguments-slope": number;
+                "decodeUtf8-memory-arguments-intercept": number;
+                "decodeUtf8-memory-arguments-slope": number;
+                "divideInteger-cpu-arguments-constant": number;
+                "divideInteger-cpu-arguments-model-arguments-intercept": number;
+                "divideInteger-cpu-arguments-model-arguments-slope": number;
+                "divideInteger-memory-arguments-intercept": number;
+                "divideInteger-memory-arguments-minimum": number;
+                "divideInteger-memory-arguments-slope": number;
+                "encodeUtf8-cpu-arguments-intercept": number;
+                "encodeUtf8-cpu-arguments-slope": number;
+                "encodeUtf8-memory-arguments-intercept": number;
+                "encodeUtf8-memory-arguments-slope": number;
+                "equalsByteString-cpu-arguments-constant": number;
+                "equalsByteString-cpu-arguments-intercept": number;
+                "equalsByteString-cpu-arguments-slope": number;
+                "equalsByteString-memory-arguments": number;
+                "equalsData-cpu-arguments-intercept": number;
+                "equalsData-cpu-arguments-slope": number;
+                "equalsData-memory-arguments": number;
+                "equalsInteger-cpu-arguments-intercept": number;
+                "equalsInteger-cpu-arguments-slope": number;
+                "equalsInteger-memory-arguments": number;
+                "equalsString-cpu-arguments-constant": number;
+                "equalsString-cpu-arguments-intercept": number;
+                "equalsString-cpu-arguments-slope": number;
+                "equalsString-memory-arguments": number;
+                "fstPair-cpu-arguments": number;
+                "fstPair-memory-arguments": number;
+                "headList-cpu-arguments": number;
+                "headList-memory-arguments": number;
+                "iData-cpu-arguments": number;
+                "iData-memory-arguments": number;
+                "ifThenElse-cpu-arguments": number;
+                "ifThenElse-memory-arguments": number;
+                "indexByteString-cpu-arguments": number;
+                "indexByteString-memory-arguments": number;
+                "lengthOfByteString-cpu-arguments": number;
+                "lengthOfByteString-memory-arguments": number;
+                "lessThanByteString-cpu-arguments-intercept": number;
+                "lessThanByteString-cpu-arguments-slope": number;
+                "lessThanByteString-memory-arguments": number;
+                "lessThanEqualsByteString-cpu-arguments-intercept": number;
+                "lessThanEqualsByteString-cpu-arguments-slope": number;
+                "lessThanEqualsByteString-memory-arguments": number;
+                "lessThanEqualsInteger-cpu-arguments-intercept": number;
+                "lessThanEqualsInteger-cpu-arguments-slope": number;
+                "lessThanEqualsInteger-memory-arguments": number;
+                "lessThanInteger-cpu-arguments-intercept": number;
+                "lessThanInteger-cpu-arguments-slope": number;
+                "lessThanInteger-memory-arguments": number;
+                "listData-cpu-arguments": number;
+                "listData-memory-arguments": number;
+                "mapData-cpu-arguments": number;
+                "mapData-memory-arguments": number;
+                "mkCons-cpu-arguments": number;
+                "mkCons-memory-arguments": number;
+                "mkNilData-cpu-arguments": number;
+                "mkNilData-memory-arguments": number;
+                "mkNilPairData-cpu-arguments": number;
+                "mkNilPairData-memory-arguments": number;
+                "mkPairData-cpu-arguments": number;
+                "mkPairData-memory-arguments": number;
+                "modInteger-cpu-arguments-constant": number;
+                "modInteger-cpu-arguments-model-arguments-intercept": number;
+                "modInteger-cpu-arguments-model-arguments-slope": number;
+                "modInteger-memory-arguments-intercept": number;
+                "modInteger-memory-arguments-minimum": number;
+                "modInteger-memory-arguments-slope": number;
+                "multiplyInteger-cpu-arguments-intercept": number;
+                "multiplyInteger-cpu-arguments-slope": number;
+                "multiplyInteger-memory-arguments-intercept": number;
+                "multiplyInteger-memory-arguments-slope": number;
+                "nullList-cpu-arguments": number;
+                "nullList-memory-arguments": number;
+                "quotientInteger-cpu-arguments-constant": number;
+                "quotientInteger-cpu-arguments-model-arguments-intercept": number;
+                "quotientInteger-cpu-arguments-model-arguments-slope": number;
+                "quotientInteger-memory-arguments-intercept": number;
+                "quotientInteger-memory-arguments-minimum": number;
+                "quotientInteger-memory-arguments-slope": number;
+                "remainderInteger-cpu-arguments-constant": number;
+                "remainderInteger-cpu-arguments-model-arguments-intercept": number;
+                "remainderInteger-cpu-arguments-model-arguments-slope": number;
+                "remainderInteger-memory-arguments-intercept": number;
+                "remainderInteger-memory-arguments-minimum": number;
+                "remainderInteger-memory-arguments-slope": number;
+                "sha2_256-cpu-arguments-intercept": number;
+                "sha2_256-cpu-arguments-slope": number;
+                "sha2_256-memory-arguments": number;
+                "sha3_256-cpu-arguments-intercept": number;
+                "sha3_256-cpu-arguments-slope": number;
+                "sha3_256-memory-arguments": number;
+                "sliceByteString-cpu-arguments-intercept": number;
+                "sliceByteString-cpu-arguments-slope": number;
+                "sliceByteString-memory-arguments-intercept": number;
+                "sliceByteString-memory-arguments-slope": number;
+                "sndPair-cpu-arguments": number;
+                "sndPair-memory-arguments": number;
+                "subtractInteger-cpu-arguments-intercept": number;
+                "subtractInteger-cpu-arguments-slope": number;
+                "subtractInteger-memory-arguments-intercept": number;
+                "subtractInteger-memory-arguments-slope": number;
+                "tailList-cpu-arguments": number;
+                "tailList-memory-arguments": number;
+                "trace-cpu-arguments": number;
+                "trace-memory-arguments": number;
+                "unBData-cpu-arguments": number;
+                "unBData-memory-arguments": number;
+                "unConstrData-cpu-arguments": number;
+                "unConstrData-memory-arguments": number;
+                "unIData-cpu-arguments": number;
+                "unIData-memory-arguments": number;
+                "unListData-cpu-arguments": number;
+                "unListData-memory-arguments": number;
+                "unMapData-cpu-arguments": number;
+                "unMapData-memory-arguments": number;
+                "verifyEd25519Signature-cpu-arguments-intercept": number;
+                "verifyEd25519Signature-cpu-arguments-slope": number;
+                "verifyEd25519Signature-memory-arguments": number;
+            };
+            const PlutusScriptV2: {
+                "addInteger-cpu-arguments-intercept": number;
+                "addInteger-cpu-arguments-slope": number;
+                "addInteger-memory-arguments-intercept": number;
+                "addInteger-memory-arguments-slope": number;
+                "appendByteString-cpu-arguments-intercept": number;
+                "appendByteString-cpu-arguments-slope": number;
+                "appendByteString-memory-arguments-intercept": number;
+                "appendByteString-memory-arguments-slope": number;
+                "appendString-cpu-arguments-intercept": number;
+                "appendString-cpu-arguments-slope": number;
+                "appendString-memory-arguments-intercept": number;
+                "appendString-memory-arguments-slope": number;
+                "bData-cpu-arguments": number;
+                "bData-memory-arguments": number;
+                "blake2b_256-cpu-arguments-intercept": number;
+                "blake2b_256-cpu-arguments-slope": number;
+                "blake2b_256-memory-arguments": number;
+                "cekApplyCost-exBudgetCPU": number;
+                "cekApplyCost-exBudgetMemory": number;
+                "cekBuiltinCost-exBudgetCPU": number;
+                "cekBuiltinCost-exBudgetMemory": number;
+                "cekConstCost-exBudgetCPU": number;
+                "cekConstCost-exBudgetMemory": number;
+                "cekDelayCost-exBudgetCPU": number;
+                "cekDelayCost-exBudgetMemory": number;
+                "cekForceCost-exBudgetCPU": number;
+                "cekForceCost-exBudgetMemory": number;
+                "cekLamCost-exBudgetCPU": number;
+                "cekLamCost-exBudgetMemory": number;
+                "cekStartupCost-exBudgetCPU": number;
+                "cekStartupCost-exBudgetMemory": number;
+                "cekVarCost-exBudgetCPU": number;
+                "cekVarCost-exBudgetMemory": number;
+                "chooseData-cpu-arguments": number;
+                "chooseData-memory-arguments": number;
+                "chooseList-cpu-arguments": number;
+                "chooseList-memory-arguments": number;
+                "chooseUnit-cpu-arguments": number;
+                "chooseUnit-memory-arguments": number;
+                "consByteString-cpu-arguments-intercept": number;
+                "consByteString-cpu-arguments-slope": number;
+                "consByteString-memory-arguments-intercept": number;
+                "consByteString-memory-arguments-slope": number;
+                "constrData-cpu-arguments": number;
+                "constrData-memory-arguments": number;
+                "decodeUtf8-cpu-arguments-intercept": number;
+                "decodeUtf8-cpu-arguments-slope": number;
+                "decodeUtf8-memory-arguments-intercept": number;
+                "decodeUtf8-memory-arguments-slope": number;
+                "divideInteger-cpu-arguments-constant": number;
+                "divideInteger-cpu-arguments-model-arguments-intercept": number;
+                "divideInteger-cpu-arguments-model-arguments-slope": number;
+                "divideInteger-memory-arguments-intercept": number;
+                "divideInteger-memory-arguments-minimum": number;
+                "divideInteger-memory-arguments-slope": number;
+                "encodeUtf8-cpu-arguments-intercept": number;
+                "encodeUtf8-cpu-arguments-slope": number;
+                "encodeUtf8-memory-arguments-intercept": number;
+                "encodeUtf8-memory-arguments-slope": number;
+                "equalsByteString-cpu-arguments-constant": number;
+                "equalsByteString-cpu-arguments-intercept": number;
+                "equalsByteString-cpu-arguments-slope": number;
+                "equalsByteString-memory-arguments": number;
+                "equalsData-cpu-arguments-intercept": number;
+                "equalsData-cpu-arguments-slope": number;
+                "equalsData-memory-arguments": number;
+                "equalsInteger-cpu-arguments-intercept": number;
+                "equalsInteger-cpu-arguments-slope": number;
+                "equalsInteger-memory-arguments": number;
+                "equalsString-cpu-arguments-constant": number;
+                "equalsString-cpu-arguments-intercept": number;
+                "equalsString-cpu-arguments-slope": number;
+                "equalsString-memory-arguments": number;
+                "fstPair-cpu-arguments": number;
+                "fstPair-memory-arguments": number;
+                "headList-cpu-arguments": number;
+                "headList-memory-arguments": number;
+                "iData-cpu-arguments": number;
+                "iData-memory-arguments": number;
+                "ifThenElse-cpu-arguments": number;
+                "ifThenElse-memory-arguments": number;
+                "indexByteString-cpu-arguments": number;
+                "indexByteString-memory-arguments": number;
+                "lengthOfByteString-cpu-arguments": number;
+                "lengthOfByteString-memory-arguments": number;
+                "lessThanByteString-cpu-arguments-intercept": number;
+                "lessThanByteString-cpu-arguments-slope": number;
+                "lessThanByteString-memory-arguments": number;
+                "lessThanEqualsByteString-cpu-arguments-intercept": number;
+                "lessThanEqualsByteString-cpu-arguments-slope": number;
+                "lessThanEqualsByteString-memory-arguments": number;
+                "lessThanEqualsInteger-cpu-arguments-intercept": number;
+                "lessThanEqualsInteger-cpu-arguments-slope": number;
+                "lessThanEqualsInteger-memory-arguments": number;
+                "lessThanInteger-cpu-arguments-intercept": number;
+                "lessThanInteger-cpu-arguments-slope": number;
+                "lessThanInteger-memory-arguments": number;
+                "listData-cpu-arguments": number;
+                "listData-memory-arguments": number;
+                "mapData-cpu-arguments": number;
+                "mapData-memory-arguments": number;
+                "mkCons-cpu-arguments": number;
+                "mkCons-memory-arguments": number;
+                "mkNilData-cpu-arguments": number;
+                "mkNilData-memory-arguments": number;
+                "mkNilPairData-cpu-arguments": number;
+                "mkNilPairData-memory-arguments": number;
+                "mkPairData-cpu-arguments": number;
+                "mkPairData-memory-arguments": number;
+                "modInteger-cpu-arguments-constant": number;
+                "modInteger-cpu-arguments-model-arguments-intercept": number;
+                "modInteger-cpu-arguments-model-arguments-slope": number;
+                "modInteger-memory-arguments-intercept": number;
+                "modInteger-memory-arguments-minimum": number;
+                "modInteger-memory-arguments-slope": number;
+                "multiplyInteger-cpu-arguments-intercept": number;
+                "multiplyInteger-cpu-arguments-slope": number;
+                "multiplyInteger-memory-arguments-intercept": number;
+                "multiplyInteger-memory-arguments-slope": number;
+                "nullList-cpu-arguments": number;
+                "nullList-memory-arguments": number;
+                "quotientInteger-cpu-arguments-constant": number;
+                "quotientInteger-cpu-arguments-model-arguments-intercept": number;
+                "quotientInteger-cpu-arguments-model-arguments-slope": number;
+                "quotientInteger-memory-arguments-intercept": number;
+                "quotientInteger-memory-arguments-minimum": number;
+                "quotientInteger-memory-arguments-slope": number;
+                "remainderInteger-cpu-arguments-constant": number;
+                "remainderInteger-cpu-arguments-model-arguments-intercept": number;
+                "remainderInteger-cpu-arguments-model-arguments-slope": number;
+                "remainderInteger-memory-arguments-intercept": number;
+                "remainderInteger-memory-arguments-minimum": number;
+                "remainderInteger-memory-arguments-slope": number;
+                "serialiseData-cpu-arguments-intercept": number;
+                "serialiseData-cpu-arguments-slope": number;
+                "serialiseData-memory-arguments-intercept": number;
+                "serialiseData-memory-arguments-slope": number;
+                "sha2_256-cpu-arguments-intercept": number;
+                "sha2_256-cpu-arguments-slope": number;
+                "sha2_256-memory-arguments": number;
+                "sha3_256-cpu-arguments-intercept": number;
+                "sha3_256-cpu-arguments-slope": number;
+                "sha3_256-memory-arguments": number;
+                "sliceByteString-cpu-arguments-intercept": number;
+                "sliceByteString-cpu-arguments-slope": number;
+                "sliceByteString-memory-arguments-intercept": number;
+                "sliceByteString-memory-arguments-slope": number;
+                "sndPair-cpu-arguments": number;
+                "sndPair-memory-arguments": number;
+                "subtractInteger-cpu-arguments-intercept": number;
+                "subtractInteger-cpu-arguments-slope": number;
+                "subtractInteger-memory-arguments-intercept": number;
+                "subtractInteger-memory-arguments-slope": number;
+                "tailList-cpu-arguments": number;
+                "tailList-memory-arguments": number;
+                "trace-cpu-arguments": number;
+                "trace-memory-arguments": number;
+                "unBData-cpu-arguments": number;
+                "unBData-memory-arguments": number;
+                "unConstrData-cpu-arguments": number;
+                "unConstrData-memory-arguments": number;
+                "unIData-cpu-arguments": number;
+                "unIData-memory-arguments": number;
+                "unListData-cpu-arguments": number;
+                "unListData-memory-arguments": number;
+                "unMapData-cpu-arguments": number;
+                "unMapData-memory-arguments": number;
+                "verifyEcdsaSecp256k1Signature-cpu-arguments": number;
+                "verifyEcdsaSecp256k1Signature-memory-arguments": number;
+                "verifyEd25519Signature-cpu-arguments-intercept": number;
+                "verifyEd25519Signature-cpu-arguments-slope": number;
+                "verifyEd25519Signature-memory-arguments": number;
+                "verifySchnorrSecp256k1Signature-cpu-arguments-intercept": number;
+                "verifySchnorrSecp256k1Signature-cpu-arguments-slope": number;
+                "verifySchnorrSecp256k1Signature-memory-arguments": number;
+            };
+        }
+        export { costModels_1 as costModels };
+        export namespace executionUnitPrices {
+            const priceMemory: number;
+            const priceSteps: number;
+        }
+        const maxBlockBodySize_1: number;
+        export { maxBlockBodySize_1 as maxBlockBodySize };
+        export namespace maxBlockExecutionUnits {
+            const memory: number;
+            const steps: number;
+        }
+        const maxBlockHeaderSize_1: number;
+        export { maxBlockHeaderSize_1 as maxBlockHeaderSize };
+        const maxCollateralInputs_1: number;
+        export { maxCollateralInputs_1 as maxCollateralInputs };
+        export namespace maxTxExecutionUnits {
+            const memory_1: number;
+            export { memory_1 as memory };
+            const steps_1: number;
+            export { steps_1 as steps };
+        }
+        const maxTxSize_1: number;
+        export { maxTxSize_1 as maxTxSize };
+        const maxValueSize_1: number;
+        export { maxValueSize_1 as maxValueSize };
+        const minPoolCost_1: number;
+        export { minPoolCost_1 as minPoolCost };
+        export const monetaryExpansion: number;
+        export const poolPledgeInfluence: number;
+        export const poolRetireMaxEpoch: number;
+        export namespace protocolVersion_1 {
+            const major_1: number;
+            export { major_1 as major };
+            const minor_1: number;
+            export { minor_1 as minor };
+        }
+        export { protocolVersion_1 as protocolVersion };
+        export const stakeAddressDeposit: number;
+        export const stakePoolDeposit: number;
+        export const stakePoolTargetNum: number;
+        export const treasuryCut: number;
+        export const txFeeFixed: number;
+        export const txFeePerByte: number;
+        export const utxoCostPerByte: number;
+    }
+    namespace latestTip {
+        const epoch: number;
+        const hash: string;
+        const slot: number;
+        const time: number;
+    }
+}
+/**
+ * Single address wallet emulator.
+ * @implements {Wallet}
+ */
+export class WalletEmulator implements Wallet {
+    /**
+     * @param {Network} network
+     * @param {NumberGenerator} random - used to generate the private key
+     */
+    constructor(network: Network, random: NumberGenerator);
+    /**
+     * @type {PrivateKey}
+     */
+    get privateKey(): PrivateKey;
+    /**
+     * @type {PubKey}
+     */
+    get pubKey(): PubKey;
+    /**
+     * @type {PubKeyHash}
+     */
+    get pubKeyHash(): PubKeyHash;
+    /**
+     * @type {Address}
+     */
+    get address(): Address;
+    /**
+     * @returns {Promise<boolean>}
+     */
+    isMainnet(): Promise<boolean>;
+    /**
+     * Assumed wallet was initiated with at least 1 UTxO at the pubkeyhash address.
+     * @type {Promise<Address[]>}
+     */
+    get usedAddresses(): Promise<Address[]>;
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get unusedAddresses(): Promise<Address[]>;
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get utxos(): Promise<UTxO[]>;
+    /**
+     * Simply assumed the tx needs to by signed by this wallet without checking.
+     * @param {Tx} tx
+     * @returns {Promise<Signature[]>}
+     */
+    signTx(tx: Tx): Promise<Signature[]>;
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<TxId>}
+     */
+    submitTx(tx: Tx): Promise<TxId>;
+    #private;
+}
+/**
+ * @implements {Network}
+ */
+export class NetworkEmulator implements Network {
+    /**
+     * @param {number} seed
+     */
+    constructor(seed?: number);
+    /**
+     * Create a copy of networkParams that always has access to the current slot
+     *  (for setting the validity range automatically)
+     * @param {NetworkParams} networkParams
+     * @returns {NetworkParams}
+     */
+    initNetworkParams(networkParams: NetworkParams): NetworkParams;
+    /**
+     * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
+     * @param {bigint} lovelace
+     * @param {Assets} assets
+     * @returns {WalletEmulator}
+     */
+    createWallet(lovelace?: bigint, assets?: Assets): WalletEmulator;
+    /**
+     * Creates a UTxO using a GenesisTx.
+     * @param {WalletEmulator} wallet
+     * @param {bigint} lovelace
+     * @param {Assets} assets
+     */
+    createUtxo(wallet: WalletEmulator, lovelace: bigint, assets?: Assets): void;
+    /**
+     * Mint a block with the current mempool, and advance the slot.
+     * @param {bigint} nSlots
+     */
+    tick(nSlots: bigint): void;
+    /**
+     * @returns {Promise<NetworkParams>}
+     */
+    getParameters(): Promise<NetworkParams>;
+    warnMempool(): void;
+    /**
+     * Throws an error if the UTxO isn't found
+     * @param {TxOutputId} id
+     * @returns {Promise<UTxO>}
+     */
+    getUtxo(id: TxOutputId): Promise<UTxO>;
+    /**
+     * @param {Address} address
+     * @returns {Promise<UTxO[]>}
+     */
+    getUtxos(address: Address): Promise<UTxO[]>;
+    dump(): void;
+    /**
+     * @param {UTxO | TxInput} utxo
+     * @returns {boolean}
+     */
+    isConsumed(utxo: UTxO | TxInput): boolean;
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<TxId>}
+     */
+    submitTx(tx: Tx): Promise<TxId>;
+    #private;
+}
+/**
  * @typedef {() => UplcData} ValueGenerator
  */
 /**
@@ -4076,6 +5518,7 @@ export class FuzzyTest {
      * @param {boolean} simplify - if true then also test the simplified program
      */
     constructor(seed?: number, runsPerTest?: number, simplify?: boolean);
+    reset(): void;
     /**
      * @returns {NumberGenerator}
      */
@@ -4213,296 +5656,28 @@ export class FuzzyTest {
     }, paramArgs: string[], src: string, propTest: PropertyTest, nRuns?: number, simplify?: boolean): Promise<void>;
     #private;
 }
-/**
- * @typedef {(utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]]} CoinSelectionAlgorithm
- */
-/**
- * Collection of coin selection algorithms
- */
-export class CoinSelection {
-    /**
-     * @param {UTxO[]} utxos
-     * @param {Value} amount
-     * @param {boolean} largestFirst
-     * @returns {[UTxO[], UTxO[]]} - [picked, not picked that can be used as spares]
-     */
-    static selectExtremumFirst(utxos: UTxO[], amount: Value, largestFirst: boolean): [UTxO[], UTxO[]];
-    static selectSmallestFirst(utxos: UTxO[], amount: Value): [UTxO[], UTxO[]];
-    static selectLargestFirst(utxos: UTxO[], amount: Value): [UTxO[], UTxO[]];
-}
-/**
- * @typedef {{
- *     isMainnet(): Promise<boolean>,
- *     usedAddresses: Promise<Address[]>,
- *     unusedAddresses: Promise<Address[]>,
- *     utxos: Promise<UTxO[]>,
- *     signTx(tx: Tx): Promise<Signature[]>,
- *     submitTx(tx: Tx): Promise<TxId>
- * }} Wallet
- */
-/**
- * @typedef {{
- *     getNetworkId(): Promise<number>,
- *     getUsedAddresses(): Promise<string[]>,
- *     getUnusedAddresses(): Promise<string[]>,
- *     getUtxos(): Promise<string[]>,
- *     signTx(txHex: string, partialSign: boolean): Promise<string>,
- *     submitTx(txHex: string): Promise<string>
- * }} Cip30Handle
- */
-/**
- * @implements {Wallet}
- */
-export class Cip30Wallet implements Wallet {
-    /**
-     * @param {Cip30Handle} handle
-     */
-    constructor(handle: Cip30Handle);
-    /**
-     * @returns {Promise<boolean>}
-     */
-    isMainnet(): Promise<boolean>;
-    /**
-     * @type {Promise<Address[]>}
-     */
-    get usedAddresses(): Promise<Address[]>;
-    /**
-     * @type {Promise<Address[]>}
-     */
-    get unusedAddresses(): Promise<Address[]>;
-    /**
-     * @type {Promise<UTxO[]>}
-     */
-    get utxos(): Promise<UTxO[]>;
-    /**
-     * @param {Tx} tx
-     * @returns {Promise<Signature[]>}
-     */
-    signTx(tx: Tx): Promise<Signature[]>;
-    /**
-     * @param {Tx} tx
-     * @returns {Promise<TxId>}
-     */
-    submitTx(tx: Tx): Promise<TxId>;
-    #private;
-}
-export class WalletHelper {
-    /**
-     * @param {Wallet} wallet
-     */
-    constructor(wallet: Wallet);
-    /**
-     * @type {Promise<Address[]>}
-     */
-    get allAddresses(): Promise<Address[]>;
-    /**
-     * @returns {Promise<Value>}
-     */
-    calcBalance(): Promise<Value>;
-    /**
-     * @type {Promise<Address>}
-     */
-    get baseAddress(): Promise<Address>;
-    /**
-     * @type {Promise<Address>}
-     */
-    get changeAddress(): Promise<Address>;
-    /**
-     * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
-     * @type {Promise<?UTxO>}
-     */
-    get refUtxo(): Promise<UTxO>;
-    /**
-     * @param {Value} amount
-     * @param {(allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]} algorithm
-     * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
-     */
-    pickUtxos(amount: Value, algorithm?: (allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]): Promise<[UTxO[], UTxO[]]>;
-    /**
-     * Returned collateral can't contain an native assets (pure lovelace)
-     * TODO: combine UTxOs if a single UTxO isn't enough
-     * @param {bigint} amount - 2 Ada should cover most things
-     * @returns {Promise<UTxO>}
-     */
-    pickCollateral(amount?: bigint): Promise<UTxO>;
-    /**
-     * @param {Address} addr
-     * @returns {Promise<boolean>}
-     */
-    isOwnAddress(addr: Address): Promise<boolean>;
-    /**
- * @param {PubKeyHash} pkh
- * @returns {Promise<boolean>}
- */
-    isOwnPubKeyHash(pkh: PubKeyHash): Promise<boolean>;
-    #private;
-}
-/**
- * @typedef {{
- *     getUtxos(address: Address): Promise<UTxO[]>,
- *     submitTx(tx: Tx): Promise<TxId>
- * }} Network
- */
-/**
- * @implements {Network}
- */
-export class BlockfrostV0 implements Network {
-    /**
-     * Determine the network which the wallet is connected to.
-     * @param {Wallet} wallet
-     * @param {{
-     *     preview?: string,
-     *     preprod?: string,
-     *     mainnet?: string
-     * }} projectIds
-     * @returns {Promise<BlockfrostV0>}
-     */
-    static resolve(wallet: Wallet, projectIds: {
-        preview?: string;
-        preprod?: string;
-        mainnet?: string;
-    }): Promise<BlockfrostV0>;
-    /**
-     * @param {any} obj
-     * @returns
-     */
-    static parseValue(obj: any): Value;
-    /**
-     * @param {string} networkName - "preview", "preprod" or "mainnet"
-     * @param {string} projectId
-     */
-    constructor(networkName: string, projectId: string);
-    /**
-     * Used by BlockfrostV0.resolve()
-     * @param {UTxO} utxo
-     * @returns {Promise<boolean>}
-     */
-    hasUtxo(utxo: UTxO): Promise<boolean>;
-    /**
-     * Returns oldest UTxOs first, newest last.
-     * TODO: pagination
-     * @param {Address} address
-     * @returns {Promise<UTxO[]>}
-     */
-    getUtxos(address: Address): Promise<UTxO[]>;
-    /**
-     * @param {Tx} tx
-     * @returns {Promise<TxId>}
-     */
-    submitTx(tx: Tx): Promise<TxId>;
-    #private;
-}
-/**
- * Single address wallet emulator.
- * @implements {Wallet}
- */
-export class WalletEmulator implements Wallet {
-    /**
-     * @param {Network} network
-     * @param {NumberGenerator} random - used to generate the private key
-     */
-    constructor(network: Network, random: NumberGenerator);
-    /**
-     * @type {PrivateKey}
-     */
-    get privateKey(): PrivateKey;
-    /**
-     * @type {PubKey}
-     */
-    get pubKey(): PubKey;
-    /**
-     * @type {PubKeyHash}
-     */
-    get pubKeyHash(): PubKeyHash;
-    /**
-     * @type {Address}
-     */
-    get address(): Address;
-    /**
-     * @returns {Promise<boolean>}
-     */
-    isMainnet(): Promise<boolean>;
-    /**
-     * Assumed wallet was initiated with at least 1 UTxO at the pubkeyhash address.
-     * @type {Promise<Address[]>}
-     */
-    get usedAddresses(): Promise<Address[]>;
-    /**
-     * @type {Promise<Address[]>}
-     */
-    get unusedAddresses(): Promise<Address[]>;
-    /**
-     * @type {Promise<UTxO[]>}
-     */
-    get utxos(): Promise<UTxO[]>;
-    /**
-     * Simply assumed the tx needs to by signed by this wallet without checking.
-     * @param {Tx} tx
-     * @returns {Promise<Signature[]>}
-     */
-    signTx(tx: Tx): Promise<Signature[]>;
-    /**
-     * @param {Tx} tx
-     * @returns {Promise<TxId>}
-     */
-    submitTx(tx: Tx): Promise<TxId>;
-    #private;
-}
-/**
- * @implements {Network}
- */
-export class NetworkEmulator implements Network {
-    /**
-     * @param {number} seed
-     */
-    constructor(seed?: number);
-    /**
-     * Create a copy of networkParams that always has access to the current slot
-     *  (for setting the validity range automatically)
-     * @param {NetworkParams} networkParams
-     * @returns {NetworkParams}
-     */
-    initNetworkParams(networkParams: NetworkParams): NetworkParams;
-    /**
-     * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
-     * @param {bigint} lovelace
-     * @param {Assets} assets
-     * @returns {WalletEmulator}
-     */
-    createWallet(lovelace?: bigint, assets?: Assets): WalletEmulator;
-    /**
-     * Creates a UTxO using a GenesisTx.
-     * @param {WalletEmulator} wallet
-     * @param {bigint} lovelace
-     * @param {Assets} assets
-     */
-    createUtxo(wallet: WalletEmulator, lovelace: bigint, assets?: Assets): void;
-    /**
-     * Mint a block with the current mempool, and advance the slot.
-     * @param {bigint} nSlots
-     */
-    tick(nSlots: bigint): void;
-    /**
-     * @param {Address} address
-     * @returns {Promise<UTxO[]>}
-     */
-    getUtxos(address: Address): Promise<UTxO[]>;
-    /**
-     * @param {TxId} txId
-     * @param {bigint} utxoIdx
-     * @returns {boolean}
-     */
-    isConsumed(txId: TxId, utxoIdx: bigint): boolean;
-    /**
-     * @param {Tx} tx
-     * @returns {Promise<TxId>}
-     */
-    submitTx(tx: Tx): Promise<TxId>;
-    #private;
+export namespace exportedForBundling {
+    export { AddressType };
+    export { AllType };
+    export { ArgType };
+    export { ByteArrayType };
+    export { FuncType };
+    export { IntType };
+    export { IR };
+    export { IRProgram };
+    export { IRParametricProgram };
+    export { MintingPolicyHashType };
+    export { RealType };
+    export { Site };
+    export { StringType };
+    export { TxType };
+    export { ValidatorHashType };
+    export { Word };
 }
 export namespace exportedForTesting {
     export { assert };
     export { assertClass };
+    export { assertDefined };
     export { bigIntToBytes };
     export { bytesToBigInt };
     export { setRawUsageNotifier };
@@ -4510,7 +5685,6 @@ export namespace exportedForTesting {
     export { dumpCostModels };
     export { Site };
     export { Source };
-    export { Crypto };
     export { MapData };
     export { UplcData };
     export { CborData };
@@ -4521,7 +5695,6 @@ export namespace exportedForTesting {
     export { UplcBool };
     export { UplcValue };
     export { UplcDataValue };
-    export { ScriptPurpose };
     export { UplcTerm };
     export { UplcProgram };
     export { UplcLambda };
@@ -4536,6 +5709,23 @@ export namespace exportedForTesting {
     export { TxBody };
     export { REAL_PRECISION };
 }
+/**
+ * <T>
+ */
+export type WrapAlias<T> = T extends any ? {
+    key: T;
+} : never;
+/**
+ * <T>
+ */
+export type UnwrapAlias<T> = T extends {
+    key: any;
+} ? T["key"] : never;
+/**
+ * <T>
+ */
+export type ExpandAlias<T> = UnwrapAlias<WrapAlias<T>>;
+export type hexstring = string & {};
 /**
  * Needed by transfer() methods
  */
@@ -4565,10 +5755,64 @@ export type TransferUplcAst = {
     transferUplcUnit: (site: any) => any;
     transferUplcVariable: (site: any, index: any) => any;
 };
-export type DataType = Named & Type & {
+export type TypeSchema = {
+    type: string;
+} | {
+    type: "List";
+    itemType: TypeSchema;
+} | {
+    type: "Map";
+    keyType: TypeSchema;
+    valueType: TypeSchema;
+} | {
+    type: "Option";
+    someType: TypeSchema;
+} | {
+    type: "Struct";
+    fieldTypes: NamedTypeSchema[];
+} | {
+    type: "Enum";
+    variantTypes: {
+        name: string;
+        fieldTypes: NamedTypeSchema[];
+    }[];
+};
+export type NamedTypeSchema = {
+    name: string;
+} & TypeSchema;
+export type ParameterI = {
+    name: string;
+    typeClass: TypeClass;
+};
+export type InferenceMap = Map<ParameterI, Type>;
+/**
+ * Used by the bundle cli command to generate a typescript annotations and (de)serialization code
+ * inputTypes form a type union
+ */
+export type TypeDetails = {
+    inputType: string;
+    outputType: string;
+    internalType: TypeSchema;
+};
+export type DataType = EvalEntity & {
+    asNamed: Named;
+    name: string;
+    path: string;
+} & {
+    asType: Type;
+    instanceMembers: InstanceMembers;
+    typeMembers: TypeMembers;
+    isBaseOf(type: Type): boolean;
+    infer(site: Site, map: InferenceMap, type: Type): Type;
+    toTyped(): Typed;
+} & {
     asDataType: DataType;
     fieldNames: string[];
     offChainType: (null | HeliosDataClass<HeliosData>);
+    typeDetails?: TypeDetails;
+    jsToUplc: (obj: any) => UplcData;
+    uplcToJs: (data: UplcData) => any;
+    ready: boolean;
 };
 export type EnumMemberType = DataType & {
     asEnumMemberType: EnumMemberType;
@@ -4627,14 +5871,14 @@ export type Parametric = EvalEntity & {
     inferCall(site: Site, args: Typed[], namedArgs?: {
         [name: string]: Typed;
     }, paramTypes?: Type[]): Func;
-    infer(site: Site, map: Map<string, Type>): Parametric;
+    infer(site: Site, map: InferenceMap): Parametric;
 };
 export type Type = EvalEntity & {
     asType: Type;
     instanceMembers: InstanceMembers;
     typeMembers: TypeMembers;
     isBaseOf(type: Type): boolean;
-    infer(site: Site, map: Map<string, Type>, type: (null | Type)): Type;
+    infer(site: Site, map: InferenceMap, type: null | Type): Type;
     toTyped(): Typed;
 };
 export type Typed = EvalEntity & {
@@ -4646,7 +5890,7 @@ export type TypeClass = EvalEntity & {
     genInstanceMembers(impl: Type): TypeClassMembers;
     genTypeMembers(impl: Type): TypeClassMembers;
     isImplementedBy(type: Type): boolean;
-    toType(name: string, path: string): Type;
+    toType(name: string, path: string, parameter?: null | ParameterI): Type;
 };
 export type InstanceMembers = {
     [name: string]: Type | Parametric;
@@ -4679,6 +5923,59 @@ export type HeliosDataClass<T extends HeliosData> = {
     new (...args: any[]): T;
     fromUplcCbor: (bytes: (string | number[])) => T;
     fromUplcData: (data: UplcData) => T;
+    isBuiltin(): boolean;
+};
+export type HIntProps = number | bigint;
+export type TimeProps = number | bigint | string | Date;
+export type DurationProps = HIntProps;
+export type BoolProps = boolean | string;
+export type HStringProps = string;
+export type ByteArrayProps = hexstring | number[];
+export type HashProps = hexstring | number[];
+export type DatumHashProps = HashProps;
+export type PubKeyProps = hexstring | number[];
+export type PubKeyHashProps = HashProps;
+export type ScriptHashProps = HashProps;
+export type MintingPolicyHashProps = HashProps;
+export type StakeKeyHashProps = HashProps;
+export type StakingValidatorHashProps = HashProps;
+export type ValidatorHashProps = HashProps;
+export type TxIdProps = HashProps;
+export type TxOutputIdProps = string | [
+    TxId | ExpandAlias<TxIdProps>,
+    HInt | ExpandAlias<HIntProps>
+] | {
+    txId: TxId | ExpandAlias<TxIdProps>;
+    utxoId: HInt | ExpandAlias<HIntProps>;
+};
+/**
+ * A valid bech32 string
+ */
+export type bech32string = string & {};
+export type AddressProps = bech32string | hexstring | number[];
+export type AssetClassProps = string | [
+    MintingPolicyHash | ExpandAlias<MintingPolicyHashProps>,
+    ByteArray | ExpandAlias<ByteArrayProps>
+] | {
+    mph: MintingPolicyHash | ExpandAlias<MintingPolicyHashProps>;
+    tokenName: ByteArray | ExpandAlias<ByteArrayProps>;
+};
+export type AssetsProps = [
+    AssetClass | AssetClassProps,
+    HInt | HIntProps
+][] | [
+    MintingPolicyHash | MintingPolicyHashProps,
+    [
+        ByteArray | ByteArrayProps,
+        HInt | HIntProps
+    ][]
+][];
+export type ValueProps = HInt | HIntProps | [
+    HInt | HIntProps,
+    Assets | AssetsProps
+] | {
+    lovelace: HInt | HIntProps;
+    assets?: Assets | AssetsProps;
 };
 export type Cost = {
     mem: bigint;
@@ -4688,18 +5985,25 @@ export type LiveSlotGetter = () => bigint;
 export type CostModelClass = {
     fromParams: (params: NetworkParams, baseName: string) => CostModel;
 };
+/**
+ * A Helios/Uplc Program can have different purposes
+ */
+export type ScriptPurpose = "testing" | "minting" | "spending" | "staking" | "linking" | "module" | "unknown";
 export type UplcRawStack = [string | null, UplcValue][];
 export type UplcRTECallbacks = {
-    onPrint?: (msg: string) => Promise<void>;
-    onStartCall?: (site: Site, rawStack: import("./helios").UplcRawStack) => Promise<boolean>;
-    onEndCall?: (site: Site, rawStack: import("./helios").UplcRawStack) => Promise<void>;
-    onIncrCost?: (name: string, isTerm: boolean, cost: Cost) => void;
+    onPrint: (msg: string) => Promise<void>;
+    onStartCall: (site: Site, rawStack: import("./helios").UplcRawStack) => Promise<boolean>;
+    onEndCall: (site: Site, rawStack: import("./helios").UplcRawStack) => Promise<void>;
+    onIncrCost: (name: string, isTerm: boolean, cost: Cost) => void;
+    macros?: {
+        [name: string]: (args: UplcValue[]) => UplcValue;
+    };
 };
 /**
  * TODO: purpose as enum type
  */
 export type ProgramProperties = {
-    purpose: null | number;
+    purpose: null | ScriptPurpose;
     callsTxTimeRange: boolean;
 };
 /**
@@ -4713,10 +6017,6 @@ export type IRLiteralRegistry = Map<IRVariable, IRLiteralExpr>;
 export type UserTypes = {
     [name: string]: any;
 };
-export type ValueGenerator = () => UplcData;
-export type PropertyTest = (args: UplcValue[], res: (UplcValue | UserError)) => (boolean | {
-    [x: string]: boolean;
-});
 export type CoinSelectionAlgorithm = (utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]];
 export type Wallet = {
     isMainnet(): Promise<boolean>;
@@ -4728,14 +6028,16 @@ export type Wallet = {
 };
 export type Cip30Handle = {
     getNetworkId(): Promise<number>;
-    getUsedAddresses(): Promise<string[]>;
-    getUnusedAddresses(): Promise<string[]>;
-    getUtxos(): Promise<string[]>;
-    signTx(txHex: string, partialSign: boolean): Promise<string>;
-    submitTx(txHex: string): Promise<string>;
+    getUsedAddresses(): Promise<bech32string[]>;
+    getUnusedAddresses(): Promise<bech32string[]>;
+    getUtxos(): Promise<hexstring[]>;
+    signTx(txHex: hexstring, partialSign: boolean): Promise<hexstring>;
+    submitTx(txHex: hexstring): Promise<hexstring>;
 };
 export type Network = {
     getUtxos(address: Address): Promise<UTxO[]>;
+    getUtxo(id: TxOutputId): Promise<UTxO>;
+    getParameters(): Promise<NetworkParams>;
     submitTx(tx: Tx): Promise<TxId>;
 };
 /**
@@ -4743,9 +6045,15 @@ export type Network = {
  */
 export type EmulatorTx = {
     id(): TxId;
-    consumes(txId: TxId, utxoIdx: bigint): boolean;
+    consumes(utxo: UTxO | TxInput): boolean;
     collectUtxos(address: Address, utxos: UTxO[]): UTxO[];
+    getUtxo(id: TxOutputId): (null | UTxO);
+    dump(): void;
 };
+export type ValueGenerator = () => UplcData;
+export type PropertyTest = (args: UplcValue[], res: (UplcValue | UserError)) => (boolean | {
+    [x: string]: boolean;
+});
 /**
  * String literal token (utf8)
  * @package
@@ -5071,15 +6379,23 @@ declare class IR {
     #private;
 }
 /**
+ * @typedef {hexstring | number[]} HashProps
+ */
+/**
  * Base class of all hash-types
  * @package
  */
 declare class Hash extends HeliosData {
     /**
-     * @param {string | number[]} rawValue
+     * @param {HashProps} props
      * @returns {number[]}
      */
-    static cleanConstructorArg(rawValue: string | number[]): number[];
+    static cleanConstructorArg(props: HashProps): number[];
+    /**
+     * @param {Hash | HashProps} props
+     * @returns {Hash}
+     */
+    static fromProps(props: Hash | HashProps): Hash;
     /**
      * Used internally for metadataHash and scriptDataHash
      * @param {number[]} bytes
@@ -5088,10 +6404,10 @@ declare class Hash extends HeliosData {
     static fromCbor(bytes: number[]): Hash;
     /**
      * Might be needed for internal use
-     * @param {string} str
+     * @param {hexstring} str
      * @returns {Hash}
      */
-    static fromHex(str: string): Hash;
+    static fromHex(str: hexstring): Hash;
     /**
      * @param {Hash} a
      * @param {Hash} b
@@ -5099,23 +6415,24 @@ declare class Hash extends HeliosData {
      */
     static compare(a: Hash, b: Hash): number;
     /**
-     * @param {number[]} bytes
+     * @param {ExpandAlias<HashProps>} props
      */
-    constructor(bytes: number[]);
+    constructor(props: ExpandAlias<HashProps>);
     /**
      * @returns {number[]}
      */
     get bytes(): number[];
     /**
-     * @returns {string}
+     * @returns {hexstring}
      */
-    get hex(): string;
+    get hex(): hexstring;
     /**
      * @returns {string}
      */
     dump(): string;
     /**
      * @param {Hash} other
+     * @returns {boolean}
      */
     eq(other: Hash): boolean;
     #private;
@@ -5130,9 +6447,9 @@ declare class UplcRte {
      */
     /**
      * @param {UplcRTECallbacks} callbacks
-     * @param {?NetworkParams} networkParams
+     * @param {null | NetworkParams} networkParams
      */
-    constructor(callbacks?: UplcRTECallbacks, networkParams?: NetworkParams | null);
+    constructor(callbacks?: UplcRTECallbacks, networkParams?: null | NetworkParams);
     /**
      * @param {string} name - for breakdown
      * @param {boolean} isTerm
@@ -5152,6 +6469,12 @@ declare class UplcRte {
      * @param {UplcValue[]} args
      */
     calcAndIncrCost(fn: UplcBuiltin, ...args: UplcValue[]): void;
+    /**
+     * @param {string} name
+     * @param {UplcValue[]} args
+     * @returns {Promise<UplcValue>}
+     */
+    callMacro(name: string, args: UplcValue[]): Promise<UplcValue>;
     /**
      * Gets variable using Debruijn index. Throws error here because UplcRTE is the stack root and doesn't contain any values.
      * @param {number} i
@@ -5198,11 +6521,11 @@ declare class UplcRte {
  */
 declare class UplcStack {
     /**
-     * @param {(?UplcStack) | UplcRte} parent
-     * @param {?UplcValue} value
-     * @param {?string} valueName
+     * @param {null | UplcStack | UplcRte} parent
+     * @param {null | UplcValue} value
+     * @param {null | string} valueName
      */
-    constructor(parent: (UplcStack | null) | UplcRte, value?: UplcValue | null, valueName?: string | null);
+    constructor(parent: null | UplcStack | UplcRte, value?: null | UplcValue, valueName?: null | string);
     incrStartupCost(): void;
     incrVariableCost(): void;
     incrLambdaCost(): void;
@@ -5223,6 +6546,13 @@ declare class UplcStack {
      * @returns {UplcValue}
      */
     get(i: number): UplcValue;
+    /**
+     *
+     * @param {string} name
+     * @param {UplcValue[]} args
+     * @returns {Promise<UplcValue>}
+     */
+    callMacro(name: string, args: UplcValue[]): Promise<UplcValue>;
     /**
      * Instantiates a child stack.
      * @param {UplcValue} value
@@ -5345,6 +6675,102 @@ declare class UplcTerm {
      * @param {BitWriter} bitWriter
      */
     toFlat(bitWriter: BitWriter): void;
+    #private;
+}
+/**
+ * Created by statements
+ * @package
+ * @template {HeliosData} T
+ * @implements {DataType}
+ */
+declare class GenericType<T extends HeliosData> extends Common implements DataType {
+    /**
+     * @param {({
+     *   name: string,
+     *   path?: string,
+     *   offChainType?: HeliosDataClass<T> | null,
+     *   genOffChainType?: (() => HeliosDataClass<T>) | null
+     *   fieldNames?: string[],
+     *   genInstanceMembers: (self: Type) => InstanceMembers,
+     *   genTypeMembers: (self: Type) => TypeMembers
+     *   genTypeDetails?: (self: Type) => TypeDetails,
+     *   jsToUplc?: (obj: any) => UplcData
+     *   uplcToJs?: (data: UplcData) => any
+     * })} props
+     */
+    constructor({ name, path, offChainType, genOffChainType, fieldNames, genInstanceMembers, genTypeMembers, genTypeDetails, jsToUplc, uplcToJs }: {
+        name: string;
+        path?: string;
+        offChainType?: HeliosDataClass<T> | null;
+        genOffChainType?: (() => HeliosDataClass<T>) | null;
+        fieldNames?: string[];
+        genInstanceMembers: (self: Type) => InstanceMembers;
+        genTypeMembers: (self: Type) => TypeMembers;
+        genTypeDetails?: (self: Type) => TypeDetails;
+        jsToUplc?: (obj: any) => UplcData;
+        uplcToJs?: (data: UplcData) => any;
+    });
+    /**
+     * @type {string[]}
+     */
+    get fieldNames(): string[];
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers(): InstanceMembers;
+    /**
+     * @type {string}
+     */
+    get name(): string;
+    /**
+     * @type {null | HeliosDataClass<T>}
+     */
+    get offChainType(): HeliosDataClass<T>;
+    /**
+     * @type {TypeDetails}
+     */
+    get typeDetails(): TypeDetails;
+    /**
+     * @type {string}
+     */
+    get path(): string;
+    /**
+     * @type {TypeMembers}
+     */
+    get typeMembers(): TypeMembers;
+    /**
+     * @param {Site} site
+     * @param {InferenceMap} map
+     */
+    inferInternal(site: Site, map: InferenceMap): {
+        name: string;
+        path: string;
+        fieldNames: string[];
+        genInstanceMembers: (self: any) => InstanceMembers;
+        genTypeMembers: (self: any) => TypeMembers;
+    };
+    /**
+     * @param {Site} site
+     * @param {InferenceMap} map
+     * @param {null | Type} type
+     * @returns {Type}
+     */
+    infer(site: Site, map: InferenceMap, type: null | Type): Type;
+    /**
+     * @param {string} name
+     * @param {string} path
+     * @returns {GenericType}
+     */
+    changeNameAndPath(name: string, path: string): GenericType<any>;
+    /**
+     * @param {Type} other
+     * @returns {boolean}
+     */
+    isBaseOf(other: Type): boolean;
+    /**
+     * @returns {Typed}
+     */
+    toTyped(): Typed;
     #private;
 }
 /**
@@ -5602,13 +7028,13 @@ declare class IRProgram {
     /**
      * @package
      * @param {IR} ir
-     * @param {?number} purpose
+     * @param {null | ScriptPurpose} purpose
      * @param {boolean} simplify
      * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
      * @param {IRScope} scope
      * @returns {IRProgram}
      */
-    static new(ir: IR, purpose: number | null, simplify?: boolean, throwSimplifyRTErrors?: boolean, scope?: IRScope): IRProgram;
+    static new(ir: IR, purpose: null | ScriptPurpose, simplify?: boolean, throwSimplifyRTErrors?: boolean, scope?: IRScope): IRProgram;
     /**
      * @param {IRExpr} expr
      * @returns {IRExpr}
@@ -5741,6 +7167,14 @@ declare class FuncStatement extends Statement {
      */
     constructor(site: Site, name: Word, parameters: TypeParameters, funcExpr: FuncLiteralExpr);
     /**
+     * @type {number}
+     */
+    get nArgs(): number;
+    /**
+     * @type {string[]}
+     */
+    get argNames(): string[];
+    /**
      * @type {Type[]}
      */
     get argTypes(): Type[];
@@ -5779,10 +7213,20 @@ declare class FuncStatement extends Statement {
 declare class GlobalScope {
     /**
      * Initialize the GlobalScope with all the builtins
-     * @param {number} purpose
+     * @param {ScriptPurpose} purpose
+     * @param {{[name: string]: Type}} validatorTypes
      * @returns {GlobalScope}
      */
-    static new(purpose: number): GlobalScope;
+    static new(purpose: ScriptPurpose, validatorTypes?: {
+        [name: string]: Type;
+    }): GlobalScope;
+    /**
+     * @param {{[name: string]: Type}} validatorTypes
+     * @returns {GlobalScope}
+     */
+    static newLinking(validatorTypes: {
+        [name: string]: Type;
+    }): GlobalScope;
     /**
      * Checks if scope contains a name
      * @param {Word} name
@@ -5885,6 +7329,16 @@ declare class ConstStatement extends Statement {
      */
     toIRInternal(): IR;
     #private;
+}
+declare class GenericProgram extends Program {
+    /**
+     * @package
+     * @param {{[name: string]: Type}} validatorTypes
+     * @returns {TopScope}
+     */
+    evalTypes(validatorTypes: {
+        [name: string]: Type;
+    }): TopScope;
 }
 /**
  * @package
@@ -6016,10 +7470,10 @@ declare class TxBody extends CborData {
     validTo(slot: bigint): void;
     /**
      * Throws error if this.#minted already contains mph
-     * @param {MintingPolicyHash} mph - minting policy hash
-     * @param {[number[], bigint][]} tokens
+     * @param {MintingPolicyHash | MintingPolicyHashProps} mph - minting policy hash
+     * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens
      */
-    addMint(mph: MintingPolicyHash, tokens: [number[], bigint][]): void;
+    addMint(mph: MintingPolicyHash | MintingPolicyHashProps, tokens: [ByteArray | ByteArrayProps, HInt | HIntProps][]): void;
     /**
      * @param {TxInput} input
      * @param {boolean} checkUniqueness
@@ -6076,9 +7530,9 @@ declare class TxBody extends CborData {
     countUniqueSigners(): number;
     /**
      * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset
-     * @param {Map<string, number>} set - hashes in hex format
+     * @param {Map<hexstring, number>} set - hashes in hex format
      */
-    collectScriptHashes(set: Map<string, number>): void;
+    collectScriptHashes(set: Map<hexstring, number>): void;
     /**
      * Makes sure each output contains the necessary min lovelace
      * @param {NetworkParams} networkParams
@@ -6091,9 +7545,9 @@ declare class TxBody extends CborData {
     checkOutputs(networkParams: NetworkParams): void;
     /**
      * @param {NetworkParams} networkParams
-     * @param {?bigint} minCollateral
+     * @param {null | bigint} minCollateral
      */
-    checkCollateral(networkParams: NetworkParams, minCollateral: bigint | null): void;
+    checkCollateral(networkParams: NetworkParams, minCollateral: null | bigint): void;
     /**
      * Makes sore inputs, withdrawals, and minted assets are in correct order
      * Mutates
@@ -6105,69 +7559,6 @@ declare class TxBody extends CborData {
      * @param {bigint} slot
      */
     isValid(slot: bigint): boolean;
-    #private;
-}
-/**
- * @package
- */
-declare class TxInput extends CborData {
-    /**
-     * @param {number[]} bytes
-     * @returns {TxInput}
-     */
-    static fromCbor(bytes: number[]): TxInput;
-    /**
-     * Tx inputs must be ordered.
-     * The following function can be used directly by a js array sort
-     * @param {TxInput} a
-     * @param {TxInput} b
-     * @returns {number}
-     */
-    static comp(a: TxInput, b: TxInput): number;
-    /**
-     * @param {TxId} txId
-     * @param {bigint} utxoIdx
-     * @param {?TxOutput} origOutput - used during building, not part of serialization
-     */
-    constructor(txId: TxId, utxoIdx: bigint, origOutput?: TxOutput | null);
-    /**
-     * @type {TxId}
-     */
-    get txId(): TxId;
-    /**
-     * @type {bigint}
-     */
-    get utxoIdx(): bigint;
-    /**
-     * @type {TxOutput}
-     */
-    get origOutput(): TxOutput;
-    /**
-     * @type {UTxO}
-     */
-    get utxo(): UTxO;
-    /**
-     * Shortcut
-     * @type {Value}
-     */
-    get value(): Value;
-    /**
-     * Shortcut
-     * @type {Address}
-     */
-    get address(): Address;
-    /**
-     * @returns {ConstrData}
-     */
-    toOutputIdData(): ConstrData;
-    /**
-     * @returns {ConstrData}
-     */
-    toData(): ConstrData;
-    /**
-     * @returns {Object}
-     */
-    dump(): any;
     #private;
 }
 declare class Redeemer extends CborData {
@@ -6233,6 +7624,80 @@ declare class Redeemer extends CborData {
     #private;
 }
 /**
+ * @package
+ */
+declare class TxInput extends CborData {
+    /**
+     * @param {UplcData} data
+     * @returns {TxInput}
+     */
+    static fromUplcData(data: UplcData): TxInput;
+    /**
+     * @param {number[]} bytes
+     * @returns {TxInput}
+     */
+    static fromCbor(bytes: number[]): TxInput;
+    /**
+     * Tx inputs must be ordered.
+     * The following function can be used directly by a js array sort
+     * @param {TxInput} a
+     * @param {TxInput} b
+     * @returns {number}
+     */
+    static comp(a: TxInput, b: TxInput): number;
+    /**
+     * @param {TxId} txId
+     * @param {number | bigint} utxoIdx
+     * @param {null | TxOutput} origOutput - used during building, not part of serialization
+     */
+    constructor(txId: TxId, utxoIdx: number | bigint, origOutput?: null | TxOutput);
+    /**
+     * @type {TxId}
+     */
+    get txId(): TxId;
+    /**
+     * @type {number}
+     */
+    get utxoIdx(): number;
+    /**
+     *
+     * @param {UTxO | TxInput} other
+     * @returns {boolean}
+     */
+    eq(other: UTxO | TxInput): boolean;
+    /**
+     * @type {TxOutput}
+     */
+    get origOutput(): TxOutput;
+    /**
+     * @type {UTxO}
+     */
+    get utxo(): UTxO;
+    /**
+     * Shortcut
+     * @type {Value}
+     */
+    get value(): Value;
+    /**
+     * Shortcut
+     * @type {Address}
+     */
+    get address(): Address;
+    /**
+     * @returns {ConstrData}
+     */
+    toOutputIdData(): ConstrData;
+    /**
+     * @returns {ConstrData}
+     */
+    toData(): ConstrData;
+    /**
+     * @returns {Object}
+     */
+    dump(): any;
+    #private;
+}
+/**
  * Inside helios this type is named OutputDatum::Inline in order to distinguish it from the user defined Datum,
  * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
  */
@@ -6243,6 +7708,268 @@ declare class InlineDatum extends Datum {
     constructor(data: UplcData);
     #private;
 }
+/**
+ * Buitin Address type
+ * @package
+ * @type {DataType}
+ */
+declare const AddressType: DataType;
+/**
+ * @package
+ * @implements {DataType}
+ */
+declare class AllType extends Common implements DataType {
+    /**
+     * @type {HeliosDataClass<HeliosData> | null}
+     */
+    get offChainType(): HeliosDataClass<HeliosData>;
+    /**
+     * @type {string[]}
+     */
+    get fieldNames(): string[];
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers(): InstanceMembers;
+    /**
+     * @type {string}
+     */
+    get name(): string;
+    /**
+     * @type {string}
+     */
+    get path(): string;
+    /**
+     * @type {TypeMembers}
+     */
+    get typeMembers(): TypeMembers;
+    /**
+     * @param {Site} site
+     * @param {InferenceMap} map
+     * @param {null | Type} type
+     * @returns {Type}
+     */
+    infer(site: Site, map: InferenceMap, type: null | Type): Type;
+    /**
+     * @param {Type} other
+     * @returns {boolean}
+     */
+    isBaseOf(other: Type): boolean;
+    /**
+     * @returns {Typed}
+     */
+    toTyped(): Typed;
+}
+/**
+ * @package
+ */
+declare class ArgType {
+    /**
+     *
+     * @param {null | Word} name
+     * @param {Type} type
+     * @param {boolean} optional
+     */
+    constructor(name: null | Word, type: Type, optional?: boolean);
+    /**
+     * @type {string}
+     */
+    get name(): string;
+    /**
+     * @type {Type}
+     */
+    get type(): Type;
+    /**
+     * @package
+     * @param {Site} site
+     * @param {InferenceMap} map
+     * @param {null | Type} type
+     * @returns {ArgType}
+     */
+    infer(site: Site, map: InferenceMap, type: null | Type): ArgType;
+    /**
+     * @param {ArgType} other
+     * @returns {boolean}
+     */
+    isBaseOf(other: ArgType): boolean;
+    /**
+     * @returns {boolean}
+     */
+    isNamed(): boolean;
+    /**
+     * @returns {boolean}
+     */
+    isOptional(): boolean;
+    /**
+     * @returns {string}
+     */
+    toString(): string;
+    #private;
+}
+/**
+ * Builtin bytearray type
+ * @package
+ * @type {DataType}
+ */
+declare const ByteArrayType: DataType;
+/**
+ * Function type with arg types and a return type
+ * @package
+ * @implements {Type}
+ */
+declare class FuncType extends Common implements Type {
+    /**
+     * @param {Type[] | ArgType[]} argTypes
+     * @param {Type | Type[]} retTypes
+     */
+    constructor(argTypes: Type[] | ArgType[], retTypes: Type | Type[]);
+    /**
+     * @type {Type[]}
+     */
+    get argTypes(): Type[];
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers(): InstanceMembers;
+    /**
+     * @type {number}
+     */
+    get nArgs(): number;
+    /**
+     * @type {number}
+     */
+    get nNonOptArgs(): number;
+    /**
+     * @type {number}
+     */
+    get nOptArgs(): number;
+    /**
+     * @type {Type[]}
+     */
+    get retTypes(): Type[];
+    /**
+     * @type {TypeMembers}
+     */
+    get typeMembers(): TypeMembers;
+    /**
+     * Checks if arg types are valid.
+     * Throws errors if not valid. Returns the return type if valid.
+     * @param {Site} site
+     * @param {Typed[]} posArgs
+     * @param {{[name: string]: Typed}} namedArgs
+     * @returns {Type[]}
+     */
+    checkCall(site: Site, posArgs: Typed[], namedArgs?: {
+        [name: string]: Typed;
+    }): Type[];
+    /**
+     * @package
+     * @param {Site} site
+     * @param {InferenceMap} map
+     * @param {null | Type} type
+     * @returns {Type}
+     */
+    infer(site: Site, map: InferenceMap, type: null | Type): Type;
+    /**
+     * @package
+     * @param {Site} site
+     * @param {InferenceMap} map
+     * @param {Type[]} argTypes
+     * @returns {FuncType}
+     */
+    inferArgs(site: Site, map: InferenceMap, argTypes: Type[]): FuncType;
+    /**
+     * Checks if any of 'this' argTypes or retType is same as Type.
+     * Only if this checks return true is the association allowed.
+     * @param {Site} site
+     * @param {Type} type
+     * @returns {boolean}
+     */
+    isAssociated(site: Site, type: Type): boolean;
+    /**
+     * Checks if 'this' is a base type of another FuncType.
+     * The number of args needs to be the same.
+     * Each argType of the FuncType we are checking against needs to be the same or less specific (i.e. isBaseOf(this.#argTypes[i]))
+     * The retType of 'this' needs to be the same or more specific
+     * @param {Type} other
+     * @returns {boolean}
+     */
+    isBaseOf(other: Type): boolean;
+    /**
+     * Checks if the type of the first arg is the same as 'type'
+     * Also returns false if there are no args.
+     * For a method to be a valid instance member its first argument must also be named 'self', but that is checked elsewhere
+     * @param {Site} site
+     * @param {Type} type
+     * @returns {boolean}
+     */
+    isMaybeMethod(site: Site, type: Type): boolean;
+    /**
+     * Throws an error if name isn't found
+     * @param {Site} site
+     * @param {string} name
+     * @returns {number}
+     */
+    getNamedIndex(site: Site, name: string): number;
+    /**
+     * @returns {Typed}
+     */
+    toTyped(): Typed;
+    #private;
+}
+/**
+ * @package
+ * @type {DataType}
+ */
+declare const IntType: DataType;
+/**
+ * @package
+ * @type {DataType}
+ */
+declare const MintingPolicyHashType: DataType;
+/**
+ * Builtin Real fixed point number type
+ * @package
+ * @type {DataType}
+ */
+declare const RealType: DataType;
+/**
+ * Builtin string type
+ * @package
+ * @type {DataType}
+ */
+declare const StringType: DataType;
+/**
+ * Builtin Tx type
+ * @package
+ * @type {DataType}
+ */
+declare const TxType: DataType;
+/**
+ * @package
+ * @type {DataType}
+ */
+declare const ValidatorHashType: DataType;
+/**
+ * Part of a trick to force expansion of a type alias
+ * @template T
+ * @typedef {T extends any ? {key: T} : never} WrapAlias<T>
+ */
+/**
+ * Part of a trick to force expansion of a type alias
+ * @template T
+ * @typedef {T extends {key: any} ? T["key"] : never} UnwrapAlias<T>
+ */
+/**
+ * Explicit union type-aliases is sometimes more helpful in VSCode tooltips
+ * Unalias forces an alias expansion
+ * Trick taken from https://stackoverflow.com/questions/73588194
+ * @template T
+ * @typedef {UnwrapAlias<WrapAlias<T>>} ExpandAlias<T>
+ */
+/**
+ * @typedef {string & {}} hexstring
+ */
 /**
  * Needed by transfer() methods
  * @typedef {{
@@ -6288,6 +8015,15 @@ declare function assert(cond: boolean, msg?: string): void;
  */
 declare function assertClass<Tin, Tout>(obj: Tin, C: new (...any: any[]) => Tout, msg?: string): Tout;
 /**
+ * Throws an error if 'obj' is undefined. Returns 'obj' itself (for chained application).
+ * @package
+ * @template T
+ * @param {T | undefined | null} obj
+ * @param {string} msg
+ * @returns {T}
+ */
+declare function assertDefined<T>(obj: T, msg?: string): T;
+/**
  * Converts an unbounded integer into a list of uint8 numbers (big endian)
  * Used by the CBOR encoding of data structures, and by Ed25519
  * @package
@@ -6323,24 +8059,6 @@ declare function setBlake2bDigestSize(s: number): void;
  * @param {NetworkParams} networkParams
  */
 declare function dumpCostModels(networkParams: NetworkParams): void;
-/**
- * A Helios/Uplc Program can have different purposes
- * @package
- * @type {{
- *   Testing: number,
- * 	 Minting: number,
- *   Spending: number,
- *   Staking: number,
- *   Module: number
- * }}
- */
-declare const ScriptPurpose: {
-    Testing: number;
-    Minting: number;
-    Spending: number;
-    Staking: number;
-    Module: number;
-};
 /**
  * Plutus-core lambda term
  * @package
@@ -6455,6 +8173,112 @@ declare class ModuleScope extends Scope {
 /**
  * @package
  */
+declare class Common {
+    /**
+     * @param {Typed} i
+     * @param {Type} t
+     * @returns {boolean}
+     */
+    static instanceOf(i: Typed, t: Type): boolean;
+    /**
+     * @param {Type | Type[]} type
+     * @returns {Typed | Multi}
+     */
+    static toTyped(type: Type | Type[]): Typed | Multi;
+    /**
+     * Compares two types. Throws an error if neither is a Type.
+     * @example
+     * Common.typesEq(IntType, IntType) => true
+     * @param {Type} a
+     * @param {Type} b
+     * @returns {boolean}
+     */
+    static typesEq(a: Type, b: Type): boolean;
+    /**
+     * @param {Type} type
+     */
+    static isEnum(type: Type): boolean;
+    /**
+     * @param {Type} type
+     */
+    static countEnumMembers(type: Type): number;
+    /**
+     * @param {TypeClass} tc
+     * @returns {string[]}
+     */
+    static typeClassMembers(tc: TypeClass): string[];
+    /**
+     * @param {Type} type
+     * @param {TypeClass} tc
+     * @returns {boolean}
+     */
+    static typeImplements(type: Type, tc: TypeClass): boolean;
+    /**
+     * @type {null | DataType}
+     */
+    get asDataType(): DataType;
+    /**
+     * @type {null | EnumMemberType}
+     */
+    get asEnumMemberType(): EnumMemberType;
+    /**
+     * @type {null | Func}
+     */
+    get asFunc(): Func;
+    /**
+     * @type {null | Instance}
+     */
+    get asInstance(): Instance;
+    /**
+     * @type {null | Multi}
+     */
+    get asMulti(): Multi;
+    /**
+     * @type {null | Named}
+     */
+    get asNamed(): Named;
+    /**
+     * @type {null | Namespace}
+     */
+    get asNamespace(): Namespace;
+    /**
+     * @type {null | Parametric}
+     */
+    get asParametric(): Parametric;
+    /**
+     * @type {null | Type}
+     */
+    get asType(): Type;
+    /**
+     * @type {null | Typed}
+     */
+    get asTyped(): Typed;
+    /**
+     * @type {null | TypeClass}
+     */
+    get asTypeClass(): TypeClass;
+    /**
+     * @type {boolean}
+     */
+    get ready(): boolean;
+    /**
+     * @param {any} obj
+     * @returns {UplcData}
+     */
+    jsToUplc(obj: any): UplcData;
+    /**
+     * @param {UplcData} data
+     * @returns {any}
+     */
+    uplcToJs(data: UplcData): any;
+    /**
+     * @returns {string}
+     */
+    toString(): string;
+}
+/**
+ * @package
+ */
 declare class IRValue {
     /**
      * @param {IRValue[]} args
@@ -6483,7 +8307,7 @@ declare class IRScope {
      * Returns index of a named builtin
      * Throws an error if builtin doesn't exist
      * @param {string} name
-     * @returns
+     * @returns {number}
      */
     static findBuiltin(name: string): number;
     /**
@@ -6670,115 +8494,10 @@ declare class ParametricFunc extends Common implements Parametric {
     }, paramTypes?: Type[]): Func;
     /**
      * @param {Site} site
-     * @param {Map<string, Type>} map
+     * @param {InferenceMap} map
      * @returns {Parametric}
      */
-    infer(site: Site, map: Map<string, Type>): Parametric;
-    #private;
-}
-/**
- * Function type with arg types and a return type
- * @package
- * @implements {Type}
- */
-declare class FuncType extends Common implements Type {
-    /**
-     * @param {Type[] | ArgType[]} argTypes
-     * @param {Type | Type[]} retTypes
-     */
-    constructor(argTypes: Type[] | ArgType[], retTypes: Type | Type[]);
-    /**
-     * @type {Type[]}
-     */
-    get argTypes(): Type[];
-    /**
-     * @type {InstanceMembers}
-     */
-    get instanceMembers(): InstanceMembers;
-    /**
-     * @type {number}
-     */
-    get nArgs(): number;
-    /**
-     * @type {number}
-     */
-    get nNonOptArgs(): number;
-    /**
-     * @type {number}
-     */
-    get nOptArgs(): number;
-    /**
-     * @type {Type[]}
-     */
-    get retTypes(): Type[];
-    /**
-     * @type {TypeMembers}
-     */
-    get typeMembers(): TypeMembers;
-    /**
-     * Checks if arg types are valid.
-     * Throws errors if not valid. Returns the return type if valid.
-     * @param {Site} site
-     * @param {Typed[]} posArgs
-     * @param {{[name: string]: Typed}} namedArgs
-     * @returns {Type[]}
-     */
-    checkCall(site: Site, posArgs: Typed[], namedArgs?: {
-        [name: string]: Typed;
-    }): Type[];
-    /**
-     * @package
-     * @param {Site} site
-     * @param {Map<string, Type>} map
-     * @param {Type | null} type
-     * @returns {Type}
-     */
-    infer(site: Site, map: Map<string, Type>, type: Type | null): Type;
-    /**
-     * @package
-     * @param {Site} site
-     * @param {Map<string, Type>} map
-     * @param {Type[]} argTypes
-     * @returns {FuncType}
-     */
-    inferArgs(site: Site, map: Map<string, Type>, argTypes: Type[]): FuncType;
-    /**
-     * Checks if any of 'this' argTypes or retType is same as Type.
-     * Only if this checks return true is the association allowed.
-     * @param {Site} site
-     * @param {Type} type
-     * @returns {boolean}
-     */
-    isAssociated(site: Site, type: Type): boolean;
-    /**
-     * Checks if 'this' is a base type of another FuncType.
-     * The number of args needs to be the same.
-     * Each argType of the FuncType we are checking against needs to be the same or less specific (i.e. isBaseOf(this.#argTypes[i]))
-     * The retType of 'this' needs to be the same or more specific
-     * @param {Type} other
-     * @returns {boolean}
-     */
-    isBaseOf(other: Type): boolean;
-    /**
-     * Checks if the type of the first arg is the same as 'type'
-     * Also returns false if there are no args.
-     * For a method to be a valid instance member its first argument must also be named 'self', but that is checked elsewhere
-     * @param {Site} site
-     * @param {Type} type
-     * @returns {boolean}
-     */
-    isMaybeMethod(site: Site, type: Type): boolean;
-    /**
-     * Throws an error if name isn't found
-     * @param {Site} site
-     * @param {string} name
-     * @returns {number}
-     */
-    getNamedIndex(site: Site, name: string): number;
-    /**
-     * @returns {Typed}
-     */
-    toTyped(): Typed;
+    infer(site: Site, map: InferenceMap): Parametric;
     #private;
 }
 /**
@@ -6786,11 +8505,18 @@ declare class FuncType extends Common implements Type {
  */
 declare class TypeParameters {
     /**
-     * @param {TypeParameter[]} parameters
+     * @param {TypeParameter[]} parameterExprs
      * @param {boolean} isForFunc
      */
-    constructor(parameters: TypeParameter[], isForFunc: boolean);
+    constructor(parameterExprs: TypeParameter[], isForFunc: boolean);
+    /**
+     * @returns {boolean}
+     */
     hasParameters(): boolean;
+    /**
+     * @type {string[]}
+     */
+    get parameterNames(): string[];
     /**
      * @returns {Parameter[]}
      */
@@ -6849,6 +8575,14 @@ declare class FuncLiteralExpr extends Expr {
      * @param {Expr} bodyExpr
      */
     constructor(site: Site, args: FuncArg[], retTypeExprs: (null | Expr)[], bodyExpr: Expr);
+    /**
+     * @type {number}
+     */
+    get nArgs(): number;
+    /**
+     * @type {string[]}
+     */
+    get argNames(): string[];
     /**
      * @type {Type[]}
      */
@@ -6967,100 +8701,9 @@ declare class UplcAnon extends UplcValue {
 }
 /**
  * @package
+ * @implements {ParameterI}
  */
-declare class Common {
-    /**
-     * @param {Typed} i
-     * @param {Type} t
-     * @returns {boolean}
-     */
-    static instanceOf(i: Typed, t: Type): boolean;
-    /**
-     * @param {Type | Type[]} type
-     * @returns {Typed | Multi}
-     */
-    static toTyped(type: Type | Type[]): Typed | Multi;
-    /**
-     * Compares two types. Throws an error if neither is a Type.
-     * @example
-     * Common.typesEq(IntType, IntType) => true
-     * @param {Type} a
-     * @param {Type} b
-     * @returns {boolean}
-     */
-    static typesEq(a: Type, b: Type): boolean;
-    /**
-     * @param {Type} type
-     */
-    static isEnum(type: Type): boolean;
-    /**
-     * @param {Type} type
-     */
-    static countEnumMembers(type: Type): number;
-    /**
-     * @param {TypeClass} tc
-     * @returns {string[]}
-     */
-    static typeClassMembers(tc: TypeClass): string[];
-    /**
-     * @param {Type} type
-     * @param {TypeClass} tc
-     * @returns {boolean}
-     */
-    static typeImplements(type: Type, tc: TypeClass): boolean;
-    /**
-     * @type {null | DataType}
-     */
-    get asDataType(): DataType;
-    /**
-     * @type {null | EnumMemberType}
-     */
-    get asEnumMemberType(): EnumMemberType;
-    /**
-     * @type {null | Func}
-     */
-    get asFunc(): Func;
-    /**
-     * @type {null | Instance}
-     */
-    get asInstance(): Instance;
-    /**
-     * @type {null | Multi}
-     */
-    get asMulti(): Multi;
-    /**
-     * @type {null | Named}
-     */
-    get asNamed(): Named;
-    /**
-     * @type {null | Namespace}
-     */
-    get asNamespace(): Namespace;
-    /**
-     * @type {null | Parametric}
-     */
-    get asParametric(): Parametric;
-    /**
-     * @type {null | Type}
-     */
-    get asType(): Type;
-    /**
-     * @type {null | Typed}
-     */
-    get asTyped(): Typed;
-    /**
-     * @type {null | TypeClass}
-     */
-    get asTypeClass(): TypeClass;
-    /**
-     * @returns {string}
-     */
-    toString(): string;
-}
-/**
- * @package
- */
-declare class Parameter {
+declare class Parameter implements ParameterI {
     /**
      * @param {string} name - typically "a" or "b"
      * @param {string} path - typicall "__T0" or "__F0"
@@ -7080,52 +8723,6 @@ declare class Parameter {
      * @type {TypeClass}
      */
     get typeClass(): TypeClass;
-    /**
-     * @returns {string}
-     */
-    toString(): string;
-    #private;
-}
-/**
- * @package
- */
-declare class ArgType {
-    /**
-     *
-     * @param {null | Word} name
-     * @param {Type} type
-     * @param {boolean} optional
-     */
-    constructor(name: null | Word, type: Type, optional?: boolean);
-    /**
-     * @type {string}
-     */
-    get name(): string;
-    /**
-     * @type {Type}
-     */
-    get type(): Type;
-    /**
-     * @package
-     * @param {Site} site
-     * @param {Map<string, Type>} map
-     * @param {null | Type} type
-     * @returns {ArgType}
-     */
-    infer(site: Site, map: Map<string, Type>, type: null | Type): ArgType;
-    /**
-     * @param {ArgType} other
-     * @returns {boolean}
-     */
-    isBaseOf(other: ArgType): boolean;
-    /**
-     * @returns {boolean}
-     */
-    isNamed(): boolean;
-    /**
-     * @returns {boolean}
-     */
-    isOptional(): boolean;
     /**
      * @returns {string}
      */
@@ -7178,10 +8775,10 @@ declare class ParametricType extends Common implements Parametric {
     }, paramTypes?: Type[]): Func;
     /**
      * @param {Site} site
-     * @param {Map<string, Type>} map
+     * @param {InferenceMap} map
      * @returns {Parametric}
      */
-    infer(site: Site, map: Map<string, Type>): Parametric;
+    infer(site: Site, map: InferenceMap): Parametric;
     #private;
 }
 /**
@@ -7205,7 +8802,7 @@ declare class TypeParameter {
      * @param {Scope} scope
      * @param {string} path
      */
-    eval(scope: Scope, path: string): void;
+    eval(scope: Scope, path: string): Parameter;
     /**
      * @returns {string}
      */

@@ -38,10 +38,13 @@ import {
  */
 
 import {
-    ScriptPurpose,
     UplcDataValue,
     UplcValue
 } from "./uplc-ast.js";
+
+/**
+ * @typedef {import("./uplc-ast.js").ScriptPurpose} ScriptPurpose
+ */
 
 import {
 	UplcProgram
@@ -74,6 +77,7 @@ import {
 } from "./eval-parametric.js";
 
 import { 
+	ContractContextType,
 	ScriptContextType 
 } from "./eval-tx.js";
 
@@ -144,7 +148,7 @@ class Module {
 			throw UserError.syntaxError(src, 0, 1, "empty script");
 		}
 
-		const [purpose, name, statements, mainIdx] = buildScript(ts, ScriptPurpose.Module);
+		const [purpose, name, statements, mainIdx] = buildScript(ts, "module");
 
 		src.throwErrors();
 
@@ -280,10 +284,24 @@ class MainModule extends Module {
  * Helios root object
  */
  export class Program {
+	/**
+	 * @type {ScriptPurpose}
+	 */
 	#purpose;
+
+	/**
+	 * @type {Module[]}
+	 */
 	#modules;
 
-	/** @type {UserTypes} */
+	/**
+	 * @type {boolean}
+	 */
+	#allowPosParams;
+
+	/** 
+	 * @type {UserTypes} 
+	 */
 	#types;
 
 	/**
@@ -293,12 +311,14 @@ class MainModule extends Module {
 	#parameters;
 	
 	/**
-	 * @param {number} purpose
+	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules
+	 * @param {boolean} allowPosParams
 	 */
-	constructor(purpose, modules) {
+	constructor(purpose, modules, allowPosParams) {
 		this.#purpose = purpose;
 		this.#modules = modules;
+		this.#allowPosParams = allowPosParams;
 		this.#types = {};
 		this.#parameters = {};
 	}
@@ -307,7 +327,7 @@ class MainModule extends Module {
 	 * @param {string} rawSrc 
 	 * @returns {[purpose, Module[]]}
 	 */
-	static parseMain(rawSrc) {
+	static parseMainInternal(rawSrc) {
 		const src = new Source(rawSrc, 0);
 
 		const ts = tokenize(src);
@@ -370,19 +390,18 @@ class MainModule extends Module {
 	}
 
 	/**
-	 * Creates  a new program.
 	 * @param {string} mainSrc 
-	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
-	 * @returns {Program}
+	 * @param {string[]} moduleSrcs
+	 * @returns {[null | ScriptPurpose, Module[]]}
 	 */
-	static new(mainSrc, moduleSrcs = []) {
-		let [purpose, modules] = Program.parseMain(mainSrc);
+	static parseMain(mainSrc, moduleSrcs) {
+		let [purpose, modules] = Program.parseMainInternal(mainSrc);
 
-		let site = modules[0].name.site;
+		const site = modules[0].name.site;
 
-		let imports = Program.parseImports(modules[0].name.value, moduleSrcs);
+		const imports = Program.parseImports(modules[0].name.value, moduleSrcs);
 		
-		let mainImports = modules[0].filterDependencies(imports);
+		const mainImports = modules[0].filterDependencies(imports);
 
 		/** @type {Module[]} */
 		let postImports = [];
@@ -393,6 +412,24 @@ class MainModule extends Module {
 
 		// create the final order of all the modules (this is the order in which statements will be added to the IR)
 		modules = mainImports.concat([modules[0]]).concat(postImports).concat(modules.slice(1));
+
+		if (purpose == "module") {
+			throw site.syntaxError("can't use module for main");
+		}
+
+		return [purpose, modules];
+	}
+
+	/**
+	 * Creates  a new program.
+	 * @param {string} mainSrc 
+	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
+	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {boolean} allowPosParams
+	 * @returns {Program}
+	 */
+	static new(mainSrc, moduleSrcs = [], validatorTypes = {}, allowPosParams = false) {
+		const [purpose, modules] = Program.parseMain(mainSrc, moduleSrcs);
 	
 		/**
 		 * @type {Program}
@@ -400,29 +437,48 @@ class MainModule extends Module {
 		let program;
 
 		switch (purpose) {
-			case ScriptPurpose.Testing:
+			case "testing":
 				program = new TestingProgram(modules);
 				break;
-			case ScriptPurpose.Spending:
-				program = new SpendingProgram(modules);
+			case "spending":
+				program = new SpendingProgram(modules, allowPosParams);
 				break;
-			case ScriptPurpose.Minting:
-				program = new MintingProgram(modules);
-				break
-			case ScriptPurpose.Staking:
-				program = new StakingProgram(modules);
-				break
-			case ScriptPurpose.Module:
-				throw site.syntaxError("can't use module for main");
+			case "minting":
+				program = new MintingProgram(modules, allowPosParams);
+				break;
+			case "staking":
+				program = new StakingProgram(modules, allowPosParams);
+				break;
 			default:
 				throw new Error("unhandled script purpose");
 		}
 
-		const topScope = program.evalTypes();
+		const topScope = program.evalTypes(validatorTypes);
 
 		program.fillTypes(topScope);
 
 		return program;
+	}
+
+	/**
+	 * @type {boolean}
+	 */
+	get allowPosParams() {
+		return this.#allowPosParams;
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get nPosParams() {
+		return 0;
+	}
+
+	/**
+	 * @type {Type[]}
+	 */
+	get posParams() {
+		return this.mainArgTypes.slice(0, this.nPosParams);
 	}
 
 	/** 
@@ -457,7 +513,7 @@ class MainModule extends Module {
 	}
 
 	/**
-	 * @type {?Module}
+	 * @type {null | Module}
 	 */
 	get postModule() {
 		let m = this.#modules[this.#modules.length - 1];
@@ -467,6 +523,13 @@ class MainModule extends Module {
 		} else {
 			return m;
 		}
+	}
+
+	/**
+	 * @type {ScriptPurpose}
+	 */
+	get purpose() {
+		return this.#purpose;
 	}
 
 	/**
@@ -481,6 +544,13 @@ class MainModule extends Module {
 	 */
 	get mainFunc() {
 		return this.mainModule.mainFunc;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get mainArgNames() {
+		return this.mainFunc.argNames;
 	}
 
 	/**
@@ -576,9 +646,10 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @param {{[name: string]: Type}} validatorTypes
 	 * @returns {TopScope}
 	 */
-	evalTypes() {
+	evalTypes(validatorTypes = {}) {
 		throw new Error("not yet implemeneted");
 	}
 
@@ -681,7 +752,7 @@ class MainModule extends Module {
 	 * @returns {UplcValue}
 	 */
 	evalConst(constStatement) {
-		const map = this.fetchDefinitions(new IR(""), [], (s, isImport) => {
+		const map = this.fetchDefinitions(new IR(""), (s, isImport) => {
 			let found = false;
 			s.loopConstStatements("", (_, cs) => {
 				if (!found) {
@@ -809,60 +880,16 @@ class MainModule extends Module {
 
 	/**
 	 * @package
-	 * @param {string[]} parameters
 	 * @param {(s: Statement, isImport: boolean) => boolean} endCond
 	 * @returns {IRDefinitions} 
 	 */
-	statementsToIR(parameters, endCond) {
-		// find the constStatements associated with the parameters
-		/**
-		 * @type {(ConstStatement | null)[]}
-		 */
-		const parameterStatements = new Array(parameters.length).fill(null);
-
-		if (parameters.length > 0) {
-			for (let statement of this.mainStatements) {
-				if (statement instanceof ConstStatement) {
-					const i = parameters.findIndex(p => statement.name.value == p);
-
-					if (i != -1) {
-						parameterStatements[i] = statement;
-					}
-				}
-			}
-
-			parameters.forEach((p, i) => {
-				if (parameterStatements[i] == null) {
-					throw new Error(`parameter ${p} not found (hint: must come before main)`);
-				}
-			});
-		}		
-
+	statementsToIR(endCond) {		
 		/**
 		 * @type {IRDefinitions}
 		 */
 		const map = new Map();
 
 		for (let [statement, isImport] of this.allStatements) {
-			if (parameters.length > 0 && statement instanceof ConstStatement) {
-				const i = parameterStatements.findIndex(cs => cs === statement);
-
-				if (i != -1) {
-					let ir = new IR(`__PARAM_${i}`);
-
-					ir = new IR([
-						new IR(`${statement.type.path}__from_data`),
-						new IR("("),
-						ir,
-						new IR(")")
-					]);
-
-					map.set(statement.path, ir); 
-
-					continue;
-				}
-			}
-
 			statement.toIR(map);
 
 			if (endCond(statement, isImport)) {
@@ -1053,9 +1080,9 @@ class MainModule extends Module {
 	/**
 	 * @param {IR} ir 
 	 * @param {IRDefinitions} definitions 
-	 * @returns {IRDefinitions}
+	 * @returns {Set<string>}
 	 */
-	eliminateUnused(ir, definitions) {
+	collectAllUsed(ir, definitions) {
 		/**
 		 * Set of global paths
 		 * @type {Set<string>}
@@ -1085,6 +1112,17 @@ class MainModule extends Module {
 			})
 		}
 
+		return used;
+	}
+
+	/**
+	 * @param {IR} ir 
+	 * @param {IRDefinitions} definitions 
+	 * @returns {IRDefinitions}
+	 */
+	eliminateUnused(ir, definitions) {
+		const used = this.collectAllUsed(ir, definitions);
+
 		// eliminate all definitions that are not in set
 
 		/**
@@ -1102,7 +1140,7 @@ class MainModule extends Module {
 		this.loopConstStatements((name, cs) => {
 			const path = cs.path;
 
-			if (used.has(path) && !cs.isSet()) {
+			if (used.has(path) && !definitions.has(cs.path)) {
 				throw cs.site.referenceError(`used unset const '${name}' (hint: use program.parameters['${name}'] = ...)`);
 			}
 		});
@@ -1115,12 +1153,11 @@ class MainModule extends Module {
 	 * Then applies type parameters
 	 * @package
 	 * @param {IR} ir
-	 * @param {string[]} parameters
 	 * @param {(s: Statement) => boolean} endCond
 	 * @returns {IRDefinitions}
 	 */
-	fetchDefinitions(ir, parameters, endCond) {
-		let map = this.statementsToIR(parameters, endCond);
+	fetchDefinitions(ir, endCond) {
+		let map = this.statementsToIR(endCond);
 
 		return Program.applyTypeParameters(ir, map);
 	}
@@ -1128,17 +1165,22 @@ class MainModule extends Module {
 	/**
 	 * @param {IR} ir
 	 * @param {IRDefinitions} definitions
+	 * @param {null | IRDefinitions} extra
 	 * @returns {IR}
 	 */
-	wrapInner(ir, definitions) {
+	wrapInner(ir, definitions, extra = null) {
 		ir = Program.injectMutualRecursions(ir, definitions);
 
 		definitions = this.eliminateUnused(ir, definitions);
 
 		ir = IR.wrapWithDefinitions(ir, definitions);
+		
+		if (extra) {
+			ir = IR.wrapWithDefinitions(ir, extra);
+		}
 
 		// add builtins as late as possible, to make sure we catch as many dependencies as possible
-		const builtins = fetchRawFunctions(ir);
+		const builtins = fetchRawFunctions(ir, extra);
 
 		ir = IR.wrapWithDefinitions(ir, builtins);
 
@@ -1148,29 +1190,61 @@ class MainModule extends Module {
 	/**
 	 * @package
 	 * @param {IR} ir
-	 * @param {string[]} parameters
+	 * @param {null | IRDefinitions} extra
 	 * @returns {IR}
 	 */
-	wrapEntryPoint(ir, parameters) {
-		let map = this.fetchDefinitions(ir, parameters, (s) => s.name.value == "main");
+	wrapEntryPoint(ir, extra = null) {
+		const map = this.fetchDefinitions(ir, (s) => s.name.value == "main");
 
-		return this.wrapInner(ir, map);
+		return this.wrapInner(ir, map, extra);
+	}
+
+	/**
+	 * @returns {IR}
+	 */
+	toIRInternal() {
+		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * @package
-	 * @param {string[]}  parameters
+	 * @param {null | IRDefinitions} extra
 	 * @returns {IR}
 	 */
-	toIR(parameters = []) {
-		throw new Error("not yet implemented");
+	toIR(extra = null) {
+		const ir = this.toIRInternal()
+
+		return this.wrapEntryPoint(ir, extra);
+	}
+
+	/**
+	 * Non-positional named parameters
+	 * @type {[string, Type][]}
+	 */
+	get requiredParameters() {
+		const ir = this.toIRInternal();
+		const definitions = this.fetchDefinitions(ir, (s) => s.name.value == "main");
+		const used = this.collectAllUsed(ir, definitions);
+		
+		/**
+		 * @type {[string, Type][]}
+		 */
+		const lst = [];
+
+		this.loopConstStatements((name, cs) => {
+			if (!cs.isSet() && used.has(cs.path)) {
+				lst.push([name, cs.type]);
+			}
+		});
+
+		return lst;
 	}
 
 	/**
 	 * @returns {string}
 	 */
 	prettyIR(simplify = false) {
-		const ir = this.toIR([]);
+		const ir = this.toIR();
 
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 
@@ -1182,40 +1256,38 @@ class MainModule extends Module {
 	 * @returns {UplcProgram}
 	 */
 	compile(simplify = false) {
-		const ir = this.toIR([]);
+		const ir = this.toIR();
 
-		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
-		
-		//console.log(new Source(irProgram.toString()).pretty());
-		
-		return irProgram.toUplc();
-	}
+		if (this.nPosParams > 0) {
+			const irProgram = IRParametricProgram.new(ir, this.#purpose, this.nPosParams, simplify);
 
-	/**
-	 * Compile a special Uplc
-	 * @param {string[]} parameters
-	 * @param {boolean} simplify
-	 * @returns {UplcProgram}
-	 */
-	compileParametric(parameters, simplify = false) {
-		assert(parameters.length > 0, "expected at least 1 parameter (hint: use program.compile() instead)");
-
-		const ir = this.toIR(parameters);
-
-		const irProgram = IRParametricProgram.new(ir, this.#purpose, parameters, simplify);
-
-		// TODO: UplcParametricProgram
-		return irProgram.toUplc();
+			// TODO: UplcParametricProgram
+			return irProgram.toUplc();
+		} else {
+			const irProgram = IRProgram.new(ir, this.#purpose, simplify);
+			
+			//console.log(new Source(irProgram.toString()).pretty());
+			
+			return irProgram.toUplc();
+		}
 	}
 }
 
 class RedeemerProgram extends Program {
 	/**
-	 * @param {number} purpose
+	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules 
+	 * @param {boolean} allowPosParams
 	 */
-	constructor(purpose, modules) {
-		super(purpose, modules);
+	constructor(purpose, modules, allowPosParams = false) {
+		super(purpose, modules, allowPosParams);
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get nPosParams() {
+		return this.mainFunc.nArgs - 2;
 	}
 
 	/**
@@ -1232,17 +1304,28 @@ class RedeemerProgram extends Program {
 		const argTypeNames = main.argTypeNames;
 		const argTypes = main.argTypes;
 		const retTypes = main.retTypes;
+		const nArgs = argTypes.length;
 
-		if (argTypes.length != 2) {
-			throw main.typeError("expected 2 args for main");
+		if (this.allowPosParams) {
+			if (nArgs < 2) {
+				throw main.typeError("expected at least 2 args for main");	
+			}
+		} else {
+			if (nArgs != 2) {
+				throw main.typeError("expected 2 args for main");
+			}
 		}
-
-		if (argTypeNames[0] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[0])) {
-			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[0].toString()}`);
-		}
-
-		if (argTypeNames[1] != "" && !(new ScriptContextType(-1)).isBaseOf(argTypes[1])) {
-			throw main.typeError(`illegal 3rd argument type in main, expected 'ScriptContext', got ${argTypes[1].toString()}`);
+		
+		for (let i = 0; i < nArgs; i++) {
+			if (i == nArgs - 1) {
+				if (argTypeNames[i] != "" && !(new ScriptContextType()).isBaseOf(argTypes[i])) {
+					throw main.typeError(`illegal type for arg ${nArgs} in main, expected 'ScriptContext', got ${argTypes[i].toString()}`);
+				}
+			} else {
+				if (argTypeNames[i] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[i])) {
+					throw main.typeError(`illegal ${i == nArgs - 2 ? "redeemer " : ""}argument type in main: '${argTypes[i].toString()}`);
+				}
+			}
 		}
 
 		if (retTypes.length !== 1) {
@@ -1256,42 +1339,46 @@ class RedeemerProgram extends Program {
 
 	/**
 	 * @package
-	 * @param {string[]} parameters
+	 * @param {{[name: string]: Type}} validatorTypes
+	 * @returns {TopScope}
+	 */
+	evalTypes(validatorTypes = {}) {
+		const scope = GlobalScope.new(this.purpose, validatorTypes);
+
+		return this.evalTypesInternal(scope);	
+	}
+
+	/**
+	 * @package
 	 * @returns {IR} 
 	 */
-	toIR(parameters = []) {
-		const argNames = ["redeemer", "ctx"];
+	toIRInternal() {
+		const outerArgNames = ["redeemer", "ctx"];
 
-		/** @type {IR[]} */
-		const outerArgs = [];
-
-		/** 
-		 * @type {IR[]} 
-		 */
-		const innerArgs = [];
-
+		const nArgs = this.mainFunc.nArgs;
 		const argTypeNames = this.mainFunc.argTypeNames;
+		const argTypes = this.mainArgTypes;
 
-		this.mainArgTypes.forEach((t, i) => {
-			const name = argNames[i];
+		const innerArgs = argTypes.map((t, i) => {
+			const name = (i >= (nArgs-2)) ? outerArgNames[i-(nArgs-2)] : `__PARAM_${i.toString()}`;
 
 			// empty path
 			if (argTypeNames[i] != "") {
-				innerArgs.push(new IR([
+				return new IR([
 					new IR(`${assertNonEmpty(t.path)}__from_data`),
 					new IR("("),
 					new IR(name),
 					new IR(")")
-				]));
+				]);
 			} else {
 				// unused arg, 0 is easier to optimize
-				innerArgs.push(new IR("0"));
+				return new IR("0");
 			}
-
-			outerArgs.push(new IR(name));
 		});
 
-		const ir = new IR([
+		const outerArgs = outerArgNames.map((n) => new IR(n));
+
+		let ir = new IR([
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
@@ -1301,17 +1388,32 @@ class RedeemerProgram extends Program {
 			new IR(`\n${TAB}}`),
 		]);
 
-		return this.wrapEntryPoint(ir, parameters);
+		return ir;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.purpose} ${this.name}\n${super.toString()}`;
 	}
 }
 
 class DatumRedeemerProgram extends Program {
 	/**
-	 * @param {number} purpose
+	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules
+	 * @param {boolean} allowPosParams
 	 */
-	constructor(purpose, modules) {
-		super(purpose, modules);
+	constructor(purpose, modules, allowPosParams) {
+		super(purpose, modules, allowPosParams);
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get nPosParams() {
+		return this.mainFunc.nArgs - 3;
 	}
 
 	/**
@@ -1328,21 +1430,28 @@ class DatumRedeemerProgram extends Program {
 		const argTypeNames = main.argTypeNames;
 		const argTypes = main.argTypes;
 		const retTypes = main.retTypes;
+		const nArgs = main.nArgs;
 
-		if (argTypes.length != 3) {
-			throw main.typeError("expected 3 args for main");
+		if (this.allowPosParams) {
+			if (argTypes.length < 3) {
+				throw main.typeError("expected at least 3 args for main");	
+			}
+		} else {
+			if (argTypes.length != 3) {
+				throw main.typeError("expected 3 args for main");	
+			}
 		}
 
-		if (argTypeNames[0] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[0])) {
-			throw main.typeError(`illegal datum argument type in main: '${argTypes[0].toString()}`);
-		}
-
-		if (argTypeNames[1] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[1])) {
-			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[1].toString()}`);
-		}
-
-		if (argTypeNames[2] != "" && !(new ScriptContextType(-1)).isBaseOf(argTypes[2])) {
-			throw main.typeError(`illegal 3rd argument type in main, expected 'ScriptContext', got ${argTypes[2].toString()}`);
+		for (let i = 0; i < nArgs; i++) {
+			if (i == nArgs - 1) {
+				if (argTypeNames[i] != "" && !(new ScriptContextType()).isBaseOf(argTypes[i])) {
+					throw main.typeError(`illegal type for arg ${nArgs} in main: expected 'ScriptContext', got '${argTypes[i].toString()}'`);
+				}
+			} else {
+				if (argTypeNames[i] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[i])) {
+					throw main.typeError(`illegal type for arg ${i+1} in main ${i == nArgs - 2 ? "(datum) " : (i == nArgs - 3 ? "(redeemer) " : "")}: '${argTypes[i].toString()}`);
+				}
+			}
 		}
 
 		if (retTypes.length !== 1) {
@@ -1356,41 +1465,45 @@ class DatumRedeemerProgram extends Program {
 
 	/**
 	 * @package
-	 * @param {string[]} parameters
+	 * @param {{[name: string]: Type}} validatorTypes
+	 * @returns {TopScope}
+	 */
+	evalTypes(validatorTypes) {
+		const scope = GlobalScope.new(this.purpose, validatorTypes);
+
+		return this.evalTypesInternal(scope);	
+	}
+
+	/**
+	 * @package
 	 * @returns {IR}
 	 */
-	toIR(parameters = []) {
-		const argNames = ["datum", "redeemer", "ctx"];
+	toIRInternal() {
+		const outerArgNames = ["datum", "redeemer", "ctx"];
 
-		/** @type {IR[]} */
-		const outerArgs = [];
-
-		/** 
-		 * @type {IR[]} 
-		 */
-		const innerArgs = [];
-
+		const nArgs = this.mainFunc.nArgs;
 		const argTypeNames = this.mainFunc.argTypeNames;
-		this.mainArgTypes.forEach((t, i) => {
-			const name = argNames[i];
+
+		const innerArgs = this.mainArgTypes.map((t, i) => {
+			const name = (i >= (nArgs-3)) ? outerArgNames[i-(nArgs-3)] : `__PARAM_${i.toString()}`;
 
 			// empty path
 			if (argTypeNames[i] != "") {
-				innerArgs.push(new IR([
+				return new IR([
 					new IR(`${assertNonEmpty(t.path)}__from_data`),
 					new IR("("),
 					new IR(name),
 					new IR(")")
-				]));
+				]);
 			} else {
 				// unused arg, 0 is easier to optimize
-				innerArgs.push(new IR("0"));
+				return new IR("0");
 			}
-
-			outerArgs.push(new IR(name));
 		});
 
-		const ir = new IR([
+		const outerArgs = outerArgNames.map((n) => new IR(n));
+
+		return new IR([
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
@@ -1399,41 +1512,62 @@ class DatumRedeemerProgram extends Program {
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
 		]);
-
-		return this.wrapEntryPoint(ir, parameters);
-	}
-}
-
-class TestingProgram extends Program {
-	/**
-	 * @param {Module[]} modules 
-	 */
-	constructor(modules) {
-		super(ScriptPurpose.Testing, modules);
 	}
 
 	/**
 	 * @returns {string}
 	 */
 	toString() {
-		return `testing ${this.name}\n${super.toString()}`;
+		return `${this.purpose} ${this.name}\n${super.toString()}`;
+	}
+}
+
+class GenericProgram extends Program {
+	/**
+	 * @param {ScriptPurpose} purpose 
+	 * @param {Module[]} modules 
+	 * @param {boolean} allowPosParams
+	 */
+	constructor(purpose, modules, allowPosParams) {
+		super(purpose, modules, allowPosParams);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.purpose} ${this.name}\n${super.toString()}`;
 	}
 
 	/**
 	 * @package
+	 * @param {{[name: string]: Type}} validatorTypes
 	 * @returns {TopScope}
 	 */
-	evalTypes() {
-		const scope = GlobalScope.new(ScriptPurpose.Testing);
+	evalTypes(validatorTypes) {
+		const scope = GlobalScope.new(this.purpose, validatorTypes);
 
-		const topScope = this.evalTypesInternal(scope);
+		const topScope = super.evalTypesInternal(scope);
 
-		if (this.mainFunc.argTypes.some(at => !(new DefaultTypeClass()).isImplementedBy(at))) {
-			throw this.mainFunc.typeError("invalid entry-point argument types");
-		}
+		// check the 'main' function
 
-		if (this.mainFunc.retTypes.length != 1) {
-			throw this.mainFunc.typeError("program entry-point can only return one value");
+		const main = this.mainFunc;
+		const argTypeNames = main.argTypeNames;
+		const argTypes = main.argTypes;
+		const retTypes = main.retTypes;
+
+
+		argTypeNames.forEach((argTypeName, i) => {
+			if (argTypeName != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[i])) {
+				throw main.typeError(`illegal argument type in main: '${argTypes[i].toString()}`);
+			}
+		});
+
+		// TODO: support multiple return values
+		if (retTypes.length !== 1) {
+			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
+		} else if (!((new DefaultTypeClass()).isImplementedBy(retTypes[0]))) {
+			throw main.typeError(`illegal return type for main: '${retTypes[0].toString()}'`);
 		}
 
 		return topScope;
@@ -1441,10 +1575,9 @@ class TestingProgram extends Program {
 
 	/**
 	 * @package
-	 * @param {string[]} parameters
 	 * @returns {IR}
 	 */
-	toIR(parameters = []) {
+	toIRInternal() {
 		const argTypeNames = this.mainFunc.argTypeNames;
 
 		const innerArgs = this.mainArgTypes.map((t, i) => {
@@ -1487,78 +1620,123 @@ class TestingProgram extends Program {
 			new IR(`\n${TAB}}`),
 		]);
 
-		return this.wrapEntryPoint(ir, parameters);
+		return ir;
+	}
+}
+
+class TestingProgram extends GenericProgram {
+	/**
+	 * @param {Module[]} modules 
+	 */
+	constructor(modules) {
+		super("testing", modules, false);
 	}
 }
 
 class SpendingProgram extends DatumRedeemerProgram {
 	/**
 	 * @param {Module[]} modules
+	 * @param {boolean} allowPosParams
 	 */
-	constructor(modules) {
-		super(ScriptPurpose.Spending, modules);
-	}
-
-	toString() {
-		return `spending ${this.name}\n${super.toString()}`;
-	}
-
-	/**
-	 * @package
-	 * @returns {TopScope}
-	 */
-	evalTypes() {
-		const scope = GlobalScope.new(ScriptPurpose.Spending);
-
-		return this.evalTypesInternal(scope);	
+	constructor(modules, allowPosParams) {
+		super("spending", modules, allowPosParams);
 	}
 }
 
 class MintingProgram extends RedeemerProgram {
 	/**
 	 * @param {Module[]} modules 
+	 * @param {boolean} allowPosParams
 	 */
-	constructor(modules) {
-		super(ScriptPurpose.Minting, modules);
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `minting ${this.name}\n${super.toString()}`;
-	}
-
-	/**
-	 * @package
-	 * @returns {TopScope}
-	 */
-	evalTypes() {
-		const scope = GlobalScope.new(ScriptPurpose.Minting);
-
-		return this.evalTypesInternal(scope);	
+	constructor(modules, allowPosParams = false) {
+		super("minting", modules, allowPosParams);
 	}
 }
 
 class StakingProgram extends RedeemerProgram {
 	/**
 	 * @param {Module[]} modules 
+	 * @param {boolean} allowPosParams
 	 */
-	constructor(modules) {
-		super(ScriptPurpose.Staking, modules);
+	constructor(modules, allowPosParams = false) {
+		super("staking", modules, allowPosParams);
+	}
+}
+
+export class LinkingProgram extends GenericProgram {
+	/**
+	 * @type {Program[]}
+	 */
+	#validators;
+
+	/**
+	 * @param {Module[]} modules 
+	 * @param {Program[]} validators 
+	 */
+	constructor(modules, validators) {
+		super("linking", modules, false);
+
+		this.#validators = validators;
 	}
 
-	toString() {
-		return `staking ${this.name}\n${super.toString()}`;
+	/**
+	 * Creates  a new program.
+	 * @param {string} mainSrc 
+	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
+	 * @param {{[name: string]: Type}} validatorTypes - generators for script hashes, used by ScriptCollection
+	 * @returns {LinkingProgram}
+	 */
+	static new(mainSrc, moduleSrcs = [], validatorTypes = {}) {
+		const [purpose, modules] = Program.parseMain(mainSrc, moduleSrcs);
+
+		assert(purpose == "linking")
+
+		const program = new LinkingProgram(modules, []);
+
+		program.evalTypes(validatorTypes)
+
+		return program;
 	}
 
 	/**
 	 * @package
+	 * @param {{[name: string]: Type}} validatorTypes
 	 * @returns {TopScope}
 	 */
-	evalTypes() {
-		const scope = GlobalScope.new(ScriptPurpose.Staking);
+	evalTypes(validatorTypes = {}) {
+		const scope = GlobalScope.newLinking(validatorTypes);
 
-		return this.evalTypesInternal(scope);	
+		const topScope = super.evalTypesInternal(scope);
+		
+		const main = this.mainFunc;
+		const argTypes = main.argTypes;
+		const argTypeNames = main.argTypeNames;
+		const retTypes = main.retTypes;
+
+		if (argTypeNames.length == 0) {
+			throw main.typeError("expected at least argument 'ContractContext'");
+		}
+
+		argTypeNames.forEach((argTypeName, i) => {
+			if (i != argTypeNames.length -1 && argTypeName != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[i])) {
+				throw main.typeError(`illegal argument type in main: '${argTypes[i].toString()}`);
+			}
+		});
+
+		if (argTypeNames[argTypeNames.length-1] != "") {
+			const lastArgType = argTypes[argTypes.length-1];
+			if (!(lastArgType instanceof ContractContextType)) {
+				throw main.typeError(`expected 'ContractContext' for arg ${argTypes.length}, got '${lastArgType.toString()}'`);
+			}
+		}
+		
+		// TODO: support multiple return values
+		if (retTypes.length !== 1) {
+			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
+		} else if (!((new DefaultTypeClass()).isImplementedBy(retTypes[0]))) {
+			throw main.typeError(`illegal return type for main: '${retTypes[0].toString()}'`);
+		}
+		
+		return topScope;
 	}
 }

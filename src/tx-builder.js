@@ -13,6 +13,10 @@ import {
     hexToBytes
 } from "./utils.js";
 
+/**
+ * @typedef {import("./utils.js").hexstring} hexstring
+ */
+
 import {
     Site,
     UserError
@@ -42,17 +46,32 @@ import {
 import {
 	Address,
 	Assets,
+	ByteArray,
     DatumHash,
 	HeliosData,
+	HInt,
     MintingPolicyHash,
 	PubKey,
     PubKeyHash,
     StakeKeyHash,
     StakingValidatorHash,
     TxId,
+	TxOutputId,
 	ValidatorHash,
 	Value
 } from "./helios-data.js";
+
+/**
+ * @typedef {import("./helios-data.js").ByteArrayProps} ByteArrayProps
+ */
+
+/**
+ * @typedef {import("./helios-data.js").HIntProps} HIntProps
+ */
+
+/**
+ * @typedef {import("./helios-data.js").MintingPolicyHashProps} MintingPolicyHashProps
+ */
 
 /**
  * @typedef {import("./uplc-costmodels.js").Cost} Cost
@@ -211,6 +230,122 @@ export class Tx extends CborData {
 		return tx;
 	}
 
+
+	/**
+	 * Used by bundler for macro finalization
+	 * @param {UplcData} data
+	 * @param {NetworkParams} networkParams
+	 * @param {Address} changeAddress
+	 * @param {UTxO[]} spareUtxos
+	 * @param {{[name: string]: UplcProgram}} scripts
+	 * @returns {Promise<Tx>}
+	 */
+	static async finalizeUplcData(data, networkParams, changeAddress, spareUtxos, scripts) {
+		const fields = data.fields;
+
+		assert(fields.length == 12);
+
+		const inputs = fields[0].list.map(d => TxInput.fromUplcData(d));
+		const refInputs = fields[1].list.map(d => TxInput.fromUplcData(d));
+		const outputs = fields[2].list.map(d => TxOutput.fromUplcData(d));
+		//txBody.#fee = Value.fromUplcData(fields[3]).lovelace.value;
+		const minted = Value.fromUplcData(fields[4]).assets;
+		//txBody.#dcerts = fields[5].list.map(d => DCert.fromUplcData(d));
+		//txBody.#withdrawals = new Map(fields[6].map.map(([key, value]) => {
+		//	return [Address.fromUplcData(key), value.int];
+		//}));
+		// validity
+		const signers = fields[8].list.map(d => PubKeyHash.fromUplcData(d));
+		const redeemers = fields[9].map.map(([key, value]) => {
+			if (key.index == 1) {
+				assert(key.fields.length == 1);
+				const outputId = TxOutputId.fromUplcData(key.fields[0]);
+				const i = inputs.findIndex(input => input.txId.eq(outputId.txId) && input.utxoIdx == outputId.utxoIdx);
+				assert(i != -1);
+				return new SpendingRedeemer(inputs[i], i, value);
+			} else if (key.index == 0) {
+				assert(key.fields.length == 1);
+				const mph = MintingPolicyHash.fromUplcData(key.fields[0]);
+				const i = minted.mintingPolicies.findIndex(m => m.eq(mph));
+				assert(i != -1);
+				return new MintingRedeemer(mph, i, value);
+			} else {
+				throw new Error("unhandled redeemer constr index");
+			}
+		});
+
+		console.log(`${inputs.length} INPUTS, ${refInputs.length} REF_INPUTS`);
+
+		// build the tx from scratch
+		const tx = new Tx();
+
+		// TODO: automatically added any available scripts
+		inputs.forEach((input, i) => {
+			const redeemer = redeemers.find(r => (r instanceof SpendingRedeemer) && r.inputIndex == i) ?? null;
+
+			if (redeemer instanceof SpendingRedeemer) {
+				tx.addInput(input.utxo, redeemer.data);
+
+				if (input.address.validatorHash) {
+					if  (input.address.validatorHash.hex in scripts) {
+						tx.attachScript(scripts[input.address.validatorHash.hex]);
+					} else {
+						throw new Error(`script for SpendingRedeemer (vh:${input.address.validatorHash.hex}) not found in ${Object.keys(scripts)}`);
+					}
+				} else {
+					throw new Error("unexpected (expected a validator address");
+				}
+			} else {
+				assert(redeemer === null);
+				tx.addInput(input.utxo);
+			}
+		});
+
+		refInputs.forEach(refInput => {
+			tx.addRefInput(new TxRefInput(refInput.txId, refInput.utxoIdx, refInput.origOutput));
+		});
+
+		// filter out spareUtxos that are already used as inputs
+		spareUtxos = spareUtxos.filter(utxo => {
+			return inputs.every(input => !input.eq(utxo)) && 
+				refInputs.every(input => !input.eq(utxo));
+		});
+
+		outputs.forEach(output => {
+			tx.addOutput(output);
+		});
+
+		minted.mintingPolicies.forEach((mph, i) => {
+			const redeemer = redeemers.find(r => (r instanceof MintingRedeemer) && r.mphIndex == i) ?? null;
+
+			if (redeemer instanceof MintingRedeemer) {
+				tx.mintTokens(mph, minted.getTokens(mph), redeemer.data);
+
+				if (mph.hex in scripts) {
+					tx.attachScript(scripts[mph.hex]);
+				} else {
+					throw new Error(`policy for mph ${mph.hex} not found in ${Object.keys(scripts)}`);
+				}
+			} else {
+				throw new Error("missing MintingRedeemer");
+			}
+		});
+
+		signers.forEach(pk => {
+			tx.addSigner(pk);
+		});
+
+		return await tx.finalize(networkParams, changeAddress, spareUtxos);
+	}
+
+	/**
+	 * @param {NetworkParams} networkParams
+	 * @returns {UplcData}
+	 */
+	toTxData(networkParams) {
+		return this.#body.toTxData(networkParams, this.witnesses.redeemers, this.witnesses.datums, this.id());
+	}
+
 	/**
 	 * @returns {Object}
 	 */
@@ -249,28 +384,24 @@ export class Tx extends CborData {
 
 	/**
 	 * Throws error if assets of given mph are already being minted in this transaction
-	 * @param {MintingPolicyHash} mph 
-	 * @param {[number[] | string, bigint][]} tokens - list of pairs of [tokenName, quantity], tokenName can be list of bytes or hex-string
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph 
+	 * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens - list of pairs of [tokenName, quantity], tokenName can be list of bytes or hex-string
 	 * @param {UplcDataValue | UplcData | null} redeemer
 	 * @returns {Tx}
 	 */
 	mintTokens(mph, tokens, redeemer) {
+		const mph_ = MintingPolicyHash.fromProps(mph);
+
 		assert(!this.#valid);
 
-		this.#body.addMint(mph, tokens.map(([name, amount]) => {
-			if (typeof name == "string" ) {
-				return [hexToBytes(name), amount];
-			} else {
-				return [name, amount];
-			}
-		}));
+		this.#body.addMint(mph_, tokens);
 
 		if (!redeemer) {
-			if (!this.#witnesses.isNativeScript(mph)) {
+			if (!this.#witnesses.isNativeScript(mph_)) {
 				throw new Error("no redeemer specified for minted tokens (hint: if this policy is a NativeScript, attach that script before calling tx.mintTokens())");
 			}
 		} else {
-			this.#witnesses.addMintingRedeemer(mph, UplcDataValue.unwrap(redeemer));
+			this.#witnesses.addMintingRedeemer(mph_, UplcDataValue.unwrap(redeemer));
 		}
 		
 
@@ -279,7 +410,7 @@ export class Tx extends CborData {
 
 	/**
 	 * @param {UTxO} input
-	 * @param {?(UplcDataValue | UplcData | HeliosData)} rawRedeemer
+	 * @param {null | UplcDataValue | UplcData | HeliosData} rawRedeemer
 	 * @returns {Tx}
 	 */
 	addInput(input, rawRedeemer = null) {
@@ -493,9 +624,10 @@ export class Tx extends CborData {
 		let scripts = this.#witnesses.scripts;
 
 		/**
-		 * @type {Set<string>}
+		 * @type {Set<hexstring>}
 		 */
 		const currentScripts = new Set();
+
 		scripts.forEach(script => {
 			currentScripts.add(bytesToHex(script.hash()))
 		})
@@ -513,8 +645,10 @@ export class Tx extends CborData {
 			wantedScripts.forEach((value, key) => {
 				if (!currentScripts.has(key)) {
 					if (value >= 0) {
+						console.error(JSON.stringify(this.dump(), null, "  "));
 						throw new Error(`missing script for input ${value}`);
 					} else if (value < 0) {
+						console.error(JSON.stringify(this.dump(), null, "  "));
 						throw new Error(`missing script for minting policy ${-value-1}`);
 					}
 				}
@@ -630,8 +764,8 @@ export class Tx extends CborData {
 		 * @param {TxInput[]} inputs 
 		 */
 		function addCollateralInputs(inputs) {
-			// first try using the UTxOs that already form the inputs
-			const cleanInputs = inputs.filter(utxo => utxo.value.assets.isZero()).sort((a, b) => Number(a.value.lovelace - b.value.lovelace));
+			// first try using the UTxOs that already form the inputs, but are locked at script
+			const cleanInputs = inputs.filter(utxo => (!utxo.address.validatorHash) && utxo.value.assets.isZero()).sort((a, b) => Number(a.value.lovelace - b.value.lovelace));
 
 			for (let input of cleanInputs) {
 				if (collateral > minCollateral) {
@@ -728,7 +862,7 @@ export class Tx extends CborData {
 		let diff = inputValue.sub(nonChangeOutputValue);
 
 		assert(diff.assets.isZero(), "unexpected unbalanced assets");
-		assert(diff.lovelace >= minLovelace);
+		assert(diff.lovelace >= minLovelace, `diff.lovelace=${diff.lovelace} ${typeof diff.lovelace} vs minLovelace=${minLovelace} ${typeof minLovelace}`);
 
 		changeOutput.setValue(diff);
 
@@ -1022,7 +1156,7 @@ class TxBody extends CborData {
 	#lastValidSlot;
 
 	/** @type {DCert[]} */
-	#certs;
+	#dcerts;
 
 	/**
 	 * Withdrawals must be sorted by address
@@ -1069,7 +1203,7 @@ class TxBody extends CborData {
 		this.#outputs = [];
 		this.#fee = 0n;
 		this.#lastValidSlot = null;
-		this.#certs = [];
+		this.#dcerts = [];
 		this.#withdrawals = new Map();
 		this.#firstValidSlot = null;
 		this.#minted = new Assets(); // starts as zero value (i.e. empty map)
@@ -1159,8 +1293,8 @@ class TxBody extends CborData {
 			object.set(3, CborData.encodeInteger(this.#lastValidSlot));
 		}
 
-		if (this.#certs.length != 0) {
-			object.set(4, CborData.encodeDefList(this.#certs));
+		if (this.#dcerts.length != 0) {
+			object.set(4, CborData.encodeDefList(this.#dcerts));
 		}
 
 		if (this.#withdrawals.size != 0) {
@@ -1214,9 +1348,9 @@ class TxBody extends CborData {
 	 * @returns {TxBody}
 	 */
 	static fromCbor(bytes) {
-		let txBody = new TxBody();
+		const txBody = new TxBody();
 
-		let done = CborData.decodeObject(bytes, (i, fieldBytes) => {
+		const done = CborData.decodeObject(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
 					CborData.decodeList(fieldBytes, (_, itemBytes) => {
@@ -1236,7 +1370,7 @@ class TxBody extends CborData {
 					break;
 				case 4:
 					CborData.decodeList(fieldBytes, (_, itemBytes) => {
-						txBody.#certs.push(DCert.fromCbor(itemBytes));
+						txBody.#dcerts.push(DCert.fromCbor(itemBytes));
 					});
 					break;
 				case 5:
@@ -1347,7 +1481,7 @@ class TxBody extends CborData {
 			(new Value(this.#fee))._toUplcData(),
 			// NOTE: all other Value instances in ScriptContext contain some lovelace, but #minted can never contain any lovelace, yet cardano-node always prepends 0 lovelace to the #minted MapData
 			(new Value(0n, this.#minted))._toUplcData(true), 
-			new ListData(this.#certs.map(cert => cert.toData())),
+			new ListData(this.#dcerts.map(cert => cert.toData())),
 			new MapData(Array.from(this.#withdrawals.entries()).map(w => [w[0].toStakingData(), new IntData(w[1])])),
 			this.toValidTimeRangeData(networkParams),
 			new ListData(this.#signers.map(rs => new ByteArrayData(rs.bytes))),
@@ -1441,8 +1575,8 @@ class TxBody extends CborData {
 
 	/**
 	 * Throws error if this.#minted already contains mph
-	 * @param {MintingPolicyHash} mph - minting policy hash
-	 * @param {[number[], bigint][]} tokens
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph - minting policy hash
+	 * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens
 	 */
 	addMint(mph, tokens) {
 		this.#minted.addTokens(mph, tokens);
@@ -1606,7 +1740,7 @@ class TxBody extends CborData {
 
 	/**
 	 * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset
-	 * @param {Map<string, number>} set - hashes in hex format
+	 * @param {Map<hexstring, number>} set - hashes in hex format
 	 */
 	collectScriptHashes(set) {
 		for (let i = 0; i < this.#inputs.length; i++) {
@@ -1662,7 +1796,7 @@ class TxBody extends CborData {
 	
 	/**
 	 * @param {NetworkParams} networkParams
-	 * @param {?bigint} minCollateral 
+	 * @param {null | bigint} minCollateral 
 	 */
 	checkCollateral(networkParams, minCollateral) {
 		assert(this.#collateral.length <= networkParams.maxCollateralInputs);
@@ -1789,6 +1923,20 @@ export class TxWitnesses extends CborData {
 		allScripts = allScripts.concat(this.#nativeScripts.slice());
 
 		return allScripts;
+	}
+
+	/**
+	 * @type {Redeemer[]}
+	 */
+	get redeemers() {
+		return this.#redeemers;
+	}
+
+	/**
+	 * @type {ListData}
+	 */
+	get datums() {
+		return this.#datums;
 	}
 
 	/**
@@ -1984,9 +2132,11 @@ export class TxWitnesses extends CborData {
 	attachNativeScript(script) {
 		const h = script.hash();
 
-		assert(this.#nativeScripts.every(other => !eq(h, other.hash())));
-
-		this.#nativeScripts.push(script);
+		if (this.#nativeScripts.some(other => eq(h, other.hash()))) {
+			return;
+		} else {
+			this.#nativeScripts.push(script);
+		}
 	}
 
 	/**
@@ -1997,13 +2147,22 @@ export class TxWitnesses extends CborData {
 	attachPlutusScript(program, isRef = false) {
 		const h = program.hash();
 
-		assert(this.#scripts.every(s => !eq(s.hash(), h)));
-		assert(this.#refScripts.every(s => !eq(s.hash(), h)));
-
 		if (isRef) {
-			this.#refScripts.push(program);
+			assert(this.#scripts.every(s => !eq(s.hash(), h)));
+
+			if (this.#refScripts.some(s => eq(s.hash(), h))) {
+				return;
+			} else {
+				this.#refScripts.push(program);
+			}
 		} else {
-			this.#scripts.push(program);
+			assert(this.#refScripts.every(s => !eq(s.hash(), h)));
+
+			if (this.#scripts.some(s => eq(s.hash(), h))) {
+				return;
+			} else {
+				this.#scripts.push(program);
+			}
 		}
 	}
 
@@ -2274,25 +2433,31 @@ export class TxWitnesses extends CborData {
 /**
  * @package
  */
-class TxInput extends CborData {
-	/** @type {TxId} */
+export class TxInput extends CborData {
+	/** 
+	 * @type {TxId} 
+	 */
 	#txId;
 
-	/** @type {bigint} */
+	/** 
+	 * @type {bigint} 
+	 */
 	#utxoIdx;
 
-	/** @type {?TxOutput} */
+	/** 
+	 * @type {null | TxOutput} 
+	 */
 	#origOutput;
 
 	/**
 	 * @param {TxId} txId 
-	 * @param {bigint} utxoIdx 
-	 * @param {?TxOutput} origOutput - used during building, not part of serialization
+	 * @param {number | bigint} utxoIdx 
+	 * @param {null | TxOutput} origOutput - used during building, not part of serialization
 	 */
 	constructor(txId, utxoIdx, origOutput = null) {
 		super();
 		this.#txId = txId;
-		this.#utxoIdx = utxoIdx;
+		this.#utxoIdx = BigInt(utxoIdx);
 		this.#origOutput = origOutput;
 	}
 	
@@ -2304,10 +2469,19 @@ class TxInput extends CborData {
 	}
 
 	/**
-	 * @type {bigint}
+	 * @type {number}
 	 */
 	get utxoIdx() {
-		return this.#utxoIdx;
+		return Number(this.#utxoIdx);
+	}
+
+	/**
+	 * 
+	 * @param {UTxO | TxInput} other 
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return other.txId.eq(this.txId) && other.utxoIdx == this.utxoIdx;
 	}
 
 	/**
@@ -2370,6 +2544,23 @@ class TxInput extends CborData {
 				this.#origOutput.toData(),
 			]);
 		}
+	}
+
+	/**
+	 * @param {UplcData} data 
+	 * @returns {TxInput}
+	 */
+	static fromUplcData(data) {
+		assert(data.index == 0);
+		const fields = data.fields;
+
+		const outputId = TxOutputId.fromUplcData(fields[0]);
+
+		return new TxInput(
+			outputId.txId,
+			outputId.utxoIdx,
+			TxOutput.fromUplcData(fields[1])
+		);
 	}
 
 	/**
@@ -2450,7 +2641,7 @@ export class UTxO {
 
 	/**
 	 * @param {TxId} txId 
-	 * @param {bigint} utxoIdx 
+	 * @param {number | bigint} utxoIdx 
 	 * @param {TxOutput} origOutput
 	 */
 	constructor(txId, utxoIdx, origOutput) {
@@ -2465,7 +2656,7 @@ export class UTxO {
 	}
 
 	/**
-	 * @type {bigint}
+	 * @type {number}
 	 */
 	get utxoIdx() {
 		return this.#input.utxoIdx;
@@ -2490,6 +2681,15 @@ export class UTxO {
 	 */
 	get origOutput() {
 		return this.#input.origOutput;
+	}
+
+	/**
+	 * 
+	 * @param {UTxO | TxInput} other 
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return other.txId.eq(this.txId) && other.utxoIdx == this.utxoIdx;
 	}
 
 	/**
@@ -2555,7 +2755,7 @@ export class UTxO {
 export class TxRefInput extends TxInput {
 	/**
 	 * @param {TxId} txId 
-	 * @param {bigint} utxoId
+	 * @param {number | bigint} utxoId
 	 * @param {TxOutput} origOutput
 	 */
 	constructor(txId, utxoId, origOutput) {
@@ -2564,23 +2764,31 @@ export class TxRefInput extends TxInput {
 }
 
 export class TxOutput extends CborData {
-	/** @type {Address} */
+	/** 
+	 * @type {Address} 
+	 */
 	#address;
 
-	/** @type {Value} */
+	/** 
+	 * @type {Value} 
+	 */
 	#value;
 
-	/** @type {?Datum} */
+	/** 
+	 * @type {null | Datum} 
+	 */
 	#datum;
 
-	/** @type {?UplcProgram} */
+	/**
+	 * @type {null | UplcProgram} 
+	 */
 	#refScript;
 
 	/**
 	 * @param {Address} address 
 	 * @param {Value} value 
-	 * @param {?Datum} datum 
-	 * @param {?UplcProgram} refScript 
+	 * @param {null | Datum} datum 
+	 * @param {null | UplcProgram} refScript 
 	 */
 	constructor(address, value, datum = null, refScript = null) {
 		assert(datum === null || datum instanceof Datum); // check this explicitely because caller might be using this constructor without proper type-checking
@@ -2694,16 +2902,24 @@ export class TxOutput extends CborData {
 	 * @returns {TxOutput}
 	 */
 	static fromCbor(bytes) {
-		/** @type {?Address} */
+		/** 
+		 * @type {null | Address} 
+		 */
 		let address = null;
 
-		/** @type {?Value} */
+		/** 
+		 * @type {null | Value} 
+		 */
 		let value = null;
 
-		/** @type {?Datum} */
+		/** 
+		 * @type {null | Datum} 
+		 */
 		let outputDatum = null;
 
-		/** @type {?UplcProgram} */
+		/** 
+		 * @type {null | UplcProgram} 
+		 */
 		let refScript = null;
 
 		if (CborData.isObject(bytes)) {
@@ -2801,6 +3017,21 @@ export class TxOutput extends CborData {
 	}
 
 	/**
+	 * @param {UplcData} data 
+	 * @returns {TxOutput}
+	 */
+	static fromUplcData(data) {
+		assert(data.index == 0);
+		assert(data.fields.length == 4);
+
+		return new TxOutput(
+			Address.fromUplcData(data.fields[0]),
+			Value.fromUplcData(data.fields[1]),
+			Datum.fromUplcData(data.fields[2])
+		);
+	}
+
+	/**
 	 * Each UTxO must contain some minimum quantity of lovelace to avoid that the blockchain is used for data storage
 	 * @param {NetworkParams} networkParams
 	 * @returns {bigint}
@@ -2845,6 +3076,14 @@ class DCert extends CborData {
 	 * @returns {DCert}
 	 */
 	static fromCbor(bytes) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {UplcData} data 
+	 * @returns {DCert}
+	 */
+	static fromUplcData(data) {
 		throw new Error("not yet implemented");
 	}
 
@@ -3561,10 +3800,10 @@ export class Datum extends CborData {
 	 * @returns {Datum}
 	 */
 	static fromCbor(bytes) {
-		/** @type {?number} */
+		/** @type {null | number} */
 		let type = null;
 
-		/** @type {?Datum} */
+		/** @type {null | Datum} */
 		let res = null;
 
 		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
@@ -3595,6 +3834,25 @@ export class Datum extends CborData {
 			throw new Error("unexpected");
 		} else {
 			return res;
+		}
+	}
+
+	/**
+	 * @param {UplcData} data
+	 * @returns {null | Datum}
+	 */
+	static fromUplcData(data) {
+		if (data.index == 0) {
+			assert(data.fields.length == 0);
+			return null;
+		} else if (data.index == 1) {
+			assert(data.fields.length == 1);
+			return new HashedDatum(DatumHash.fromUplcData(data.fields[0]));
+		} else if (data.index == 2) {
+			assert(data.fields.length == 1);
+			return new InlineDatum(data.fields[0]);
+		} else {
+			throw new Error("unhandled constr index");
 		}
 	}
 

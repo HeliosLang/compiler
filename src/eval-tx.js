@@ -13,7 +13,8 @@ import {
 import {
     Address,
 	HeliosData,
-    TxId
+    TxId,
+    TxOutputId
 } from "./helios-data.js";
 
 /**
@@ -21,9 +22,9 @@ import {
  * @typedef {import("./helios-data.js").HeliosDataClass<T>} HeliosDataClass
  */
 
-import {
-    ScriptPurpose
-} from "./uplc-ast.js";
+/**
+ * @typedef {import("./uplc-ast.js").ScriptPurpose} ScriptPurpose
+ */
 
 import {
     Common,
@@ -32,6 +33,10 @@ import {
     GenericEnumMemberType,
     GenericType,
 } from "./eval-common.js";
+
+/**
+ * @typedef {import("./eval-common.js").InferenceMap} InferenceMap
+ */
 
 /**
  * @typedef {import("./eval-common.js").DataType} DataType
@@ -110,6 +115,19 @@ import {
 export const AddressType = new GenericType({
     name: "Address",
     offChainType: Address,
+    genTypeDetails: (self) => ({
+        inputType: "string | helios.Address",
+        outputType: "helios.Address",
+        internalType: {
+            type: "Address"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return (Address.fromProps(obj))._toUplcData();
+    },
+    uplcToJs: (data) => {
+        return Address.fromUplcData(data);
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: CredentialType,
@@ -295,6 +313,7 @@ const CredentialValidatorType = new GenericEnumMemberType({
  */
 export const OutputDatumType = new GenericType({
     name: "OutputDatum",
+    path: "__helios__outputdatum",
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         get_inline_data: new FuncType([], RawDataType)
@@ -365,25 +384,10 @@ const OutputDatumNoneType = new GenericEnumMemberType({
 });
 
 /**
- * Builtin ScriptContext type
+ * Base class for ScriptContext, ContractContext, ScriptCollection and other "macro"-types
  * @package
- * @implements {DataType}
  */
-export class ScriptContextType extends Common {
-    /**
-     * @type {number}
-     */
-    #purpose;
-
-    /**
-     * @param {number} purpose 
-     */
-	constructor(purpose) {
-		super();
-
-        this.#purpose = assertDefined(purpose);
-	}
-
+export class MacroType extends Common {
     /**
      * @type {string[]}
      */
@@ -392,55 +396,18 @@ export class ScriptContextType extends Common {
     }
 
     /**
-     * @type {string}
+     * @type {InstanceMembers}
      */
-    get name() {
-        return "ScriptContext";
+    get instanceMembers() {
+        throw new Error("not yet implemented");
     }
 
     /**
-     * @param {number} purpose
-     * @returns {InstanceMembers}
+     * @type {string}
      */
-    static genPurposeInstanceMembers(purpose) {
-        switch (purpose) {
-            case ScriptPurpose.Minting:
-                return {
-                    get_current_minting_policy_hash: new FuncType([], MintingPolicyHashType)
-                };
-            case ScriptPurpose.Spending:
-                return {
-                    get_current_input: new FuncType([], TxInputType),
-                    get_cont_outputs: new FuncType([], ListType$(TxOutputType)),
-                    get_current_validator_hash: new FuncType([], ValidatorHashType),
-                    get_spending_purpose_output_id: new FuncType([], TxOutputIdType)
-                };
-            case ScriptPurpose.Staking:
-                return {
-                    get_staking_purpose:new FuncType([], StakingPurposeType)
-                };
-            case ScriptPurpose.Testing:
-            case -1:
-                return {
-                    ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Minting),
-                    ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Spending),
-                    ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Staking),
-                };
-            default:
-                throw new Error(`unhandled ScriptPurpose ${purpose}`);
-        }
+    get name() {
+        throw new Error("not yet implemented");
     }
-    /**
-	 * @type {InstanceMembers}
-	 */
-	get instanceMembers() {
-        return {
-            ...genCommonInstanceMembers(this),
-            ...ScriptContextType.genPurposeInstanceMembers(this.#purpose),
-            get_script_purpose: new FuncType([], ScriptPurposeType),
-            tx: TxType
-        };
-	}
 
     /**
      * @type {null | HeliosDataClass<HeliosData>}
@@ -453,21 +420,15 @@ export class ScriptContextType extends Common {
      * @type {string}
      */
     get path() {
-		return "__helios__scriptcontext";
-	}
+        throw new Error("not yet implemented");
+    }
 
 	/**
 	 * @type {TypeMembers}
 	 */
 	get typeMembers() {
-        return {
-            ...genCommonTypeMembers(this),
-            new_certifying: new FuncType([TxType, DCertType], new ScriptContextType(ScriptPurpose.Staking)),
-            new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType(ScriptPurpose.Minting)),
-            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(ScriptPurpose.Staking)),
-            new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType(ScriptPurpose.Spending))
-        };
-	}
+        return {};
+    }
 
     /**
      * @type {DataType}
@@ -492,7 +453,7 @@ export class ScriptContextType extends Common {
 
     /**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -505,7 +466,7 @@ export class ScriptContextType extends Common {
      * @returns {boolean}
      */
     isBaseOf(other) {
-        return other instanceof ScriptContextType;
+        throw new Error("not yet implemented");
     }
 
     /**
@@ -522,6 +483,219 @@ export class ScriptContextType extends Common {
         return new DataEntity(this);
     }
 }
+
+/**
+ * @package
+ * @implements {DataType}
+ */
+export class ScriptCollectionType extends MacroType {
+    /**
+     * @type {{[name: string]: Type}}
+     */
+    #scripts;
+
+    /**
+     * @param {{[name: string]: Type}} scripts 
+     */
+    constructor(scripts) {
+        super();
+
+        this.#scripts = scripts;
+    }
+
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers() {
+        return {
+            ...this.#scripts
+        };
+    }
+
+    /**
+     * @type {string}
+     */
+    get name() {
+        return "ScriptCollection";
+    }
+
+    /**
+     * @type {string}
+     */
+    get path() {
+        return "__helios__scriptcollection";
+    }
+
+    /**
+     * @param {Type} other 
+     * @returns {boolean}
+     */
+    isBaseOf(other) {
+        return other instanceof ScriptCollectionType;
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isEmpty() {
+        return true;
+    }
+}
+
+/**
+ * Builtin ScriptContext type
+ * @package
+ * @implements {DataType}
+ */
+export class ScriptContextType extends MacroType {
+    /**
+     * @type {ScriptCollectionType}
+     */
+   #scriptCollection;
+
+    /**
+     * @param {ScriptCollectionType} scriptCollection
+     */
+	constructor(scriptCollection = new ScriptCollectionType({})) {
+		super();
+        this.#scriptCollection = scriptCollection;
+	}
+
+    /**
+     * @type {string}
+     */
+    get name() {
+        return "ScriptContext";
+    }
+
+    /**
+	 * @type {InstanceMembers}
+	 */
+	get instanceMembers() {
+        const members = {
+            ...genCommonInstanceMembers(this),
+            get_current_minting_policy_hash: new FuncType([], MintingPolicyHashType),
+            get_current_input: new FuncType([], TxInputType),
+            get_cont_outputs: new FuncType([], ListType$(TxOutputType)),
+            get_current_validator_hash: new FuncType([], ValidatorHashType),
+            get_spending_purpose_output_id: new FuncType([], TxOutputIdType),
+            get_staking_purpose:new FuncType([], StakingPurposeType),
+            get_script_purpose: new FuncType([], ScriptPurposeType),
+            tx: TxType
+        };
+
+        if (!this.#scriptCollection.isEmpty()) {
+            members["scripts"] = this.#scriptCollection;
+        }
+        
+        return members;
+	}
+
+    /**
+     * @type {string}
+     */
+    get path() {
+		return "__helios__scriptcontext";
+	}
+
+	/**
+	 * @type {TypeMembers}
+	 */
+	get typeMembers() {
+        return {
+            ...genCommonTypeMembers(this),
+            new_certifying: new FuncType([TxType, DCertType], new ScriptContextType(this.#scriptCollection)),
+            new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType(this.#scriptCollection)),
+            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(this.#scriptCollection)),
+            new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType(this.#scriptCollection))
+        };
+	}
+
+    /**
+     * @param {Type} other 
+     * @returns {boolean}
+     */
+    isBaseOf(other) {
+        return other instanceof ScriptContextType;
+    }
+}
+
+/**
+ * Builtin ScriptContext type
+ * @package
+ * @implements {DataType}
+ */
+export class ContractContextType extends MacroType {
+    /**
+     * @type {ScriptCollectionType}
+     */
+    #scriptCollection;
+
+    /**
+     * @param {ScriptCollectionType} scriptCollection 
+     */
+    constructor(scriptCollection) {
+        super();
+        this.#scriptCollection = scriptCollection;
+    }
+
+    /**
+	 * @type {InstanceMembers}
+	 */
+	get instanceMembers() {
+        return {
+            agent: WalletType,
+            scripts: this.#scriptCollection,
+            network: NetworkType,
+            new_tx_builder: new FuncType([], TxBuilderType)
+        };
+	}
+
+    /**
+     * @type {string}
+     */
+    get name() {
+        return "ContractContext";
+    }
+
+    /**
+     * @type {string}
+     */
+    get path() {
+        return "__helios__contractcontext";
+    }
+
+    /**
+     * @param {Type} other 
+     * @returns {boolean}
+     */
+    isBaseOf(other) {
+        return other instanceof ContractContextType;
+    }
+}
+
+export const WalletType = new GenericType({
+    name: "Wallet",
+    genInstanceMembers: (self) => ({
+        address: AddressType,
+        hash: PubKeyHashType,
+        pick: new FuncType([ValueType], ListType$(TxInputType))
+    }),
+    genTypeMembers: (self) => ({})
+});
+
+/**
+ * Does this really need to be a class? (i.e. will it be instantiated with some properties)
+ * @package
+ */
+export const NetworkType = new GenericType({
+    name: "Network",
+    genInstanceMembers: (self) => ({
+        pick: new FuncType([AddressType, ValueType], ListType$(TxInputType)),
+        get: new FuncType([TxOutputIdType], TxInputType)
+    }),
+    genTypeMembers: (self) => ({}),
+});
 
 /**
  * Builtin ScriptPurpose type (Minting| Spending| Rewarding | Certifying)
@@ -725,6 +899,35 @@ const StakingPurposeRewardingType = new GenericEnumMemberType({
     })
 });
 
+export const TxBuilderType = new GenericType({
+    name: "TxBuilder",
+    path: "__helios__txbuilder",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        add_output: new FuncType([TxOutputType], self),
+        add_outputs: new FuncType([ListType$(TxOutputType)], self),
+        add_ref_input: new FuncType([TxInputType], self),
+        add_signer: new FuncType([PubKeyHashType], self),
+        finalize: new FuncType([], TxType),
+        pay: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+            return new ParametricFunc([a], new FuncType([AddressType, ValueType, a.ref], self));
+        })(),
+        mint: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+            return new ParametricFunc([a], new FuncType([ValueType, a.ref], self));
+        })(),
+        redeem: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+            return new ParametricFunc([a], new FuncType([TxInputType, a.ref], self));
+        })(),
+        spend: new FuncType([TxInputType], self),
+        spend_many: new FuncType([ListType$(TxInputType)], self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self)
+    })
+});
 
 /**
  * Builtin Tx type
@@ -733,6 +936,16 @@ const StakingPurposeRewardingType = new GenericEnumMemberType({
  */
 export const TxType = new GenericType({
     name: "Tx",
+    uplcToJs: (data) => {
+        return TxId.fromUplcData(data.fields[11]);
+    },
+    genTypeDetails: (self) => ({
+        inputType: "never",
+        outputType: "helios.Tx",
+        internalType: {
+            type: "Tx"
+        }
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         inputs: ListType$(TxInputType),
@@ -879,6 +1092,19 @@ export const TxOutputType = new GenericType({
  */
 export const TxOutputIdType = new GenericType({
     name: "TxOutputId",
+    genTypeDetails: (self) => ({
+        inputType: "{txId: number[] | string | helios.TxId, utxoId: number | bigint} | helios.TxOutputId",
+        outputType: "helios.TxOutputId",
+        internalType: {
+            type: "TxOutputId"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return TxOutputId.fromProps(obj)._toUplcData();
+    },
+    uplcToJs: (data) => {
+        return TxOutputId.fromUplcData(data);
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         tx_id: TxIdType,

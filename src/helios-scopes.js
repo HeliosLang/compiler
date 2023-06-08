@@ -9,9 +9,17 @@ import {
     Word
 } from "./tokens.js";
 
+/**
+ * @typedef {import("./uplc-ast.js").ScriptPurpose} ScriptPurpose
+ */
+
 import {
 	Common
 } from "./eval-common.js";
+
+/**
+ * @typedef {import("./eval-common.js").DataType} DataType
+ */
 
 /**
  * @typedef {import("./eval-common.js").EvalEntity} EvalEntity
@@ -74,20 +82,62 @@ import {
 
 import {
 	AddressType,
+	ContractContextType,
 	CredentialType,
 	DCertType,
+	NetworkType,
 	OutputDatumType,
+	ScriptCollectionType,
 	ScriptContextType,
 	ScriptPurposeType,
 	StakingCredentialType,
 	StakingPurposeType,
 	TxType,
+	TxBuilderType,
 	TxIdType,
 	TxInputType,
 	TxOutputIdType,
 	TxOutputType,
+	WalletType
 } from "./eval-tx.js";
 
+/**
+ * @type {{[name: string]: DataType}}
+ */
+export const builtinTypes = {
+	Address: AddressType,
+	AssetClass: AssetClassType,
+	Bool: BoolType,
+	ByteArray: ByteArrayType,
+	DCert: DCertType,
+	Credential: CredentialType,
+	DatumHash: DatumHashType,
+	Data: RawDataType,
+	Duration: DurationType,
+	Int: IntType,
+	MintingPolicyHash: MintingPolicyHashType,
+	OutputDatum: OutputDatumType,
+	PubKey: PubKeyType,
+	PubKeyHash: PubKeyHashType,
+	Real: RealType,
+	ScriptHash: ScriptHashType,
+    ScriptPurpose: ScriptPurposeType,
+    StakeKeyHash: StakeKeyHashType,
+    StakingCredential: StakingCredentialType,
+    StakingHash: StakingHashType,
+    StakingPurpose: StakingPurposeType,
+    StakingValidatorHash: StakingValidatorHashType,
+	String: StringType,
+    Time: TimeType,
+    TimeRange: TimeRangeType,
+    Tx: TxType,
+    TxId: TxIdType,
+    TxInput: TxInputType,
+    TxOutput: TxOutputType,
+    TxOutputId: TxOutputIdType,
+	ValidatorHash: ValidatorHashType,
+    Value: ValueType
+};
 
 /**
  * GlobalScope sits above the top-level scope and contains references to all the builtin Values and Types
@@ -156,56 +206,49 @@ export class GlobalScope {
 
 	/**
 	 * Initialize the GlobalScope with all the builtins
-	 * @param {number} purpose
+	 * @param {ScriptPurpose} purpose
+	 * @param {{[name: string]: Type}} validatorTypes
 	 * @returns {GlobalScope}
 	 */
-	static new(purpose) {
+	static new(purpose, validatorTypes = {}) {
 		let scope = new GlobalScope();
 
 		// List (aka '[]'), Option, and Map types are accessed through special expressions
 
 		// fill the global scope with builtin types
-        scope.set("Address",              AddressType);
+		for (let name in builtinTypes) {
+			scope.set(name, builtinTypes[name])
+		}
+
 		scope.set("Any",         		  new AnyTypeClass());
-        scope.set("AssetClass",           AssetClassType);
-        scope.set("Bool",                 BoolType);
-        scope.set("ByteArray",            ByteArrayType);
-		scope.set("DCert",                DCertType);
-        scope.set("Credential",           CredentialType);
-        scope.set("DatumHash",            DatumHashType);
-        scope.set("Data",                 RawDataType);
-        scope.set("Duration",             DurationType);
-		scope.set("Int",                  IntType);
-        scope.set("MintingPolicyHash",    MintingPolicyHashType);
-        scope.set("OutputDatum",          OutputDatumType);
-        scope.set("PubKey",               PubKeyType);
-		scope.set("PubKeyHash",           PubKeyHashType);
-		scope.set("Real",                 RealType);
-        scope.set("ScriptContext",        new ScriptContextType(purpose));
-        scope.set("ScriptHash",           ScriptHashType);
-        scope.set("ScriptPurpose",        ScriptPurposeType);
-        scope.set("StakeKeyHash",         StakeKeyHashType);
-        scope.set("StakingCredential",    StakingCredentialType);
-        scope.set("StakingHash",          StakingHashType);
-        scope.set("StakingPurpose",       StakingPurposeType);
-        scope.set("StakingValidatorHash", StakingValidatorHashType);
-		scope.set("String",               StringType);
-        scope.set("Time",                 TimeType);
-        scope.set("TimeRange",            TimeRangeType);
-        scope.set("Tx",                   TxType);
-        scope.set("TxId",                 TxIdType);
-        scope.set("TxInput",              TxInputType);
-        scope.set("TxOutput",             TxOutputType);
-        scope.set("TxOutputId",           TxOutputIdType);
-		scope.set("ValidatorHash",        ValidatorHashType);
-        scope.set("Value",                ValueType);
 		scope.set("Valuable",             new ValuableTypeClass());
+
+		const scriptCollection = new ScriptCollectionType(validatorTypes);
+		scope.set("ScriptCollection",     scriptCollection);
+        scope.set("ScriptContext",        new ScriptContextType(scriptCollection));
 
         // builtin functions
         scope.set("assert",               AssertFunc);
 		scope.set("error",                ErrorFunc);
         scope.set("print",                PrintFunc);
-		
+
+		return scope;
+	}
+
+	/**
+	 * @param {{[name: string]: Type}} validatorTypes 
+	 * @returns {GlobalScope}
+	 */
+	static newLinking(validatorTypes) {
+		const scope = GlobalScope.new("linking");
+
+		scope.set("Network", NetworkType);
+			
+		const scriptCollection = new ScriptCollectionType(validatorTypes);
+		scope.set("ScriptCollection", scriptCollection);
+		scope.set("ContractContext",  new ContractContextType(scriptCollection));
+		scope.set("TxBuilder",        TxBuilderType);
+		scope.set("Wallet",           WalletType);
 
 		return scope;
 	}
@@ -331,7 +374,6 @@ export class Scope extends Common {
 		for (let [key, entity] of this.#values) {
 			if (key.toString() == name.toString()) {
 				this.#used.add(key.toString());
-
 				return entity;
 			}
 		}

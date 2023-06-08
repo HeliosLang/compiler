@@ -24,10 +24,9 @@ import {
 	assertToken
 } from "./tokens.js";
 
-import {
-    ScriptPurpose,
-    getPurposeName
-} from "./uplc-ast.js";
+/**
+ * @typedef {import("./uplc-ast.js").ScriptPurpose} ScriptPurpose
+ */
 
 import {
     Tokenizer
@@ -47,6 +46,7 @@ import {
     FuncLiteralExpr,
     FuncTypeExpr,
     IfElseExpr,
+	IteratorTypeExpr,
     DestructExpr,
     ListLiteralExpr,
     ListTypeExpr,
@@ -164,8 +164,8 @@ export function buildProgramStatements(ts) {
 /**
  * @package
  * @param {Token[]} ts
- * @param {null | number} expectedPurpose
- * @returns {[number, Word] | null} - [purpose, name] (ScriptPurpose is an integer)
+ * @param {null | ScriptPurpose} expectedPurpose
+ * @returns {[ScriptPurpose, Word] | null} - [purpose, name] (ScriptPurpose is an integer)
  * @package
  */
 export function buildScriptPurpose(ts, expectedPurpose = null) {
@@ -189,20 +189,22 @@ export function buildScriptPurpose(ts, expectedPurpose = null) {
 	}
 
 	/**
-	 * @type {number | null}
+	 * @type {ScriptPurpose | null}
 	 */
 	let purpose = null;
 
 	if (purposeWord.isWord("spending")) {
-		purpose = ScriptPurpose.Spending;
+		purpose = "spending";
 	} else if (purposeWord.isWord("minting")) {
-		purpose = ScriptPurpose.Minting;
+		purpose = "minting";
 	} else if (purposeWord.isWord("staking")) {
-		purpose = ScriptPurpose.Staking;
+		purpose = "staking";
 	} else if (purposeWord.isWord("testing")) { // 'test' is not reserved as a keyword though
-		purpose = ScriptPurpose.Testing;
+		purpose = "testing";
+	} else if (purposeWord.isWord("linking")) {
+		purpose = "linking";
 	} else if (purposeWord.isWord("module")) {
-		purpose = ScriptPurpose.Module;
+		purpose = "module";
 	} else if (purposeWord.isKeyword()) {
 		purposeWord.syntaxError(`script purpose missing`);
 
@@ -210,13 +212,13 @@ export function buildScriptPurpose(ts, expectedPurpose = null) {
 
 		return null;
 	} else {
-		purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking', 'minting' or 'module')`);
-		purpose = -1;
+		purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking', 'minting', 'linking' or 'module')`);
+		purpose = "unknown";
 	}
 
 	if (expectedPurpose !== null && purpose !== null) {
 		if (expectedPurpose != purpose) {
-			purposeWord.syntaxError(`expected '${getPurposeName(purpose)}' script purpose`);
+			purposeWord.syntaxError(`expected '${expectedPurpose}' script purpose`);
 		}
 	}
 
@@ -236,8 +238,8 @@ export function buildScriptPurpose(ts, expectedPurpose = null) {
 /**
  * Also used by VSCode plugin
  * @param {Token[]} ts 
- * @param {number | null} expectedPurpose 
- * @returns {[number | null, Word | null, Statement[], number]}
+ * @param {null | ScriptPurpose} expectedPurpose 
+ * @returns {[null | ScriptPurpose, Word | null, Statement[], number]}
  */
 export function buildScript(ts, expectedPurpose = null) {
 	const first = ts[0];
@@ -250,7 +252,7 @@ export function buildScript(ts, expectedPurpose = null) {
 
 	const [purpose, name] = purposeName !== null ? purposeName : [null, null];
 
-	if (purpose != ScriptPurpose.Module) {
+	if (purpose != "module") {
 		mainIdx = statements.findIndex(s => s.name.value === "main");
 
 		if (mainIdx == -1) {
@@ -269,7 +271,7 @@ export function buildScript(ts, expectedPurpose = null) {
  * Parses Helios quickly to extract the script purpose header.
  * Returns null if header is missing or incorrectly formed (instead of throwing an error)
  * @param {string} rawSrc 
- * @returns {?[string, string]} - [purpose, name]
+ * @returns {null | [ScriptPurpose, string]} - [purpose, name]
  */
 export function extractScriptPurposeAndName(rawSrc) {
 	try {
@@ -297,7 +299,7 @@ export function extractScriptPurposeAndName(rawSrc) {
 		if (purposeName !== null) {
 			const [purpose, name] = purposeName;
 
-			return [getPurposeName(purpose), name.value];
+			return [purpose, name.value];
 		} else {
 			throw new Error("unexpected"); // should've been caught above by calling src.throwErrors()
 		}
@@ -540,7 +542,7 @@ function buildStructStatement(site, ts) {
 		selfTypeExpr = new ParametricExpr(
 			selfTypeExpr.site, 
 			selfTypeExpr,
-			parameters.getParameters().map(p => new RefExpr(new Word(selfTypeExpr.site, p.name)))
+			parameters.parameterNames.map(n => new RefExpr(new Word(selfTypeExpr.site, n)))
 		)
 	}
 
@@ -868,7 +870,7 @@ function buildEnumStatement(site, ts) {
 		selfTypeExpr = new ParametricExpr(
 			selfTypeExpr.site, 
 			selfTypeExpr,
-			parameters.getParameters().map(p => new RefExpr(new Word(selfTypeExpr.site, p.name)))
+			parameters.parameterNames.map(n => new RefExpr(new Word(selfTypeExpr.site, n)))
 		)
 	}
 
@@ -1184,21 +1186,23 @@ function buildTypeExpr(site, ts) {
 	}
 
 	if (ts[0].isGroup("[")) {
-		return buildListTypeExpr(ts);
+		return buildListTypeExpr(site, ts);
 	} else if (ts[0].isWord("Map")) {
-		return buildMapTypeExpr(ts);
+		return buildMapTypeExpr(site, ts);
 	} else if (ts[0].isWord("Option")) {
-		return buildOptionTypeExpr(ts);
+		return buildOptionTypeExpr(site, ts);
+	} else if (ts[0].isWord("Iterator")) {
+		return buildIteratorTypeExpr(site, ts);
 	} else if (ts.length > 1 && ts[0].isGroup("(") && ts[1].isSymbol("->")) {
-		return buildFuncTypeExpr(ts);
+		return buildFuncTypeExpr(site, ts);
 	} else if (ts.length > 2 && ts[0].isGroup("[") && ts[1].isGroup("(") && ts[2].isSymbol("->")) {
-		return buildFuncTypeExpr(ts);
+		return buildFuncTypeExpr(site, ts);
 	} else if (SymbolToken.find(ts, "::") > Group.find(ts, "[")) {
-		return buildTypePathExpr(ts);
+		return buildTypePathExpr(site, ts);
 	} else if (Group.find(ts, "[") > SymbolToken.find(ts, "::")) {
-		return buildParametricTypeExpr(ts);
+		return buildParametricTypeExpr(site, ts);
 	} else if (ts.length == 1 && ts[0].isWord()) {
-		return buildTypeRefExpr(ts);
+		return buildTypeRefExpr(site, ts);
 	} else {
 		ts[0].syntaxError("invalid type syntax");
 		return null;
@@ -1206,11 +1210,12 @@ function buildTypeExpr(site, ts) {
 }
 
 /**
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {ParametricExpr | null}
  */
-function buildParametricTypeExpr(ts) {
-	const brackets = assertDefined(ts.pop()).assertGroup("[");
+function buildParametricTypeExpr(site, ts) {
+	const brackets = assertToken(ts.pop(), site)?.assertGroup("[");
 	if (!brackets) {
 		return null;
 	}
@@ -1233,11 +1238,12 @@ function buildParametricTypeExpr(ts) {
 
 /**
  * @package
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {ListTypeExpr | null}
  */
-function buildListTypeExpr(ts) {
-	const brackets = assertDefined(ts.shift()).assertGroup("[", 0);
+function buildListTypeExpr(site, ts) {
+	const brackets = assertToken(ts.shift(), site)?.assertGroup("[", 0);
 
 	if (!brackets) {
 		return null
@@ -1254,11 +1260,12 @@ function buildListTypeExpr(ts) {
 
 /**
  * @package
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {MapTypeExpr | null}
  */
-function buildMapTypeExpr(ts) {
-	const kw = assertDefined(ts.shift()).assertWord("Map");
+function buildMapTypeExpr(site, ts) {
+	const kw = assertToken(ts.shift(), site)?.assertWord("Map");
 
 	if (!kw) {
 		return null;
@@ -1299,11 +1306,12 @@ function buildMapTypeExpr(ts) {
 
 /**
  * @package
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {Expr | null}
  */
-function buildOptionTypeExpr(ts) {
-	const kw = assertDefined(ts.shift()).assertWord("Option");
+function buildOptionTypeExpr(site, ts) {
+	const kw = assertToken(ts.shift(), site)?.assertWord("Option");
 
 	if (!kw) {
 		return null;
@@ -1346,11 +1354,51 @@ function buildOptionTypeExpr(ts) {
 
 /**
  * @package
+ * @param {Site} site
+ * @param {Token[]} ts
+ * @returns {IteratorTypeExpr | null}
+ */
+function buildIteratorTypeExpr(site, ts) {
+	const kw = assertToken(ts.shift(), site)?.assertWord("Iterator");
+
+	if (!kw) {
+		return null;
+	}
+
+	const maybeGroup = assertToken(ts.shift(), kw.site, "missing Map key-type");
+
+	if (!maybeGroup) {
+		return null;
+	}
+
+	const group = maybeGroup.assertGroup("[");
+	if (!group) {
+		return null;
+	}
+	
+	const typeArgs = reduceNull(group.fields.map(gts => {
+		return buildTypeExpr(group.site, gts);
+	}));
+
+	if (!typeArgs) {
+		return null;
+	}
+
+	if (typeArgs.length < 1) {
+		throw group.site.typeError("expected at least one type arg for Iterator[...]");
+	}
+
+	return new IteratorTypeExpr(kw.site, typeArgs);
+}
+
+/**
+ * @package
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {FuncTypeExpr | null}
  */
-function buildFuncTypeExpr(ts) {
-	const parens = assertDefined(ts.shift()).assertGroup("(");
+function buildFuncTypeExpr(site, ts) {
+	const parens = assertToken(ts.shift(), site)?.assertGroup("(");
 	if (!parens) {
 		return null;
 	}
@@ -1365,7 +1413,7 @@ function buildFuncTypeExpr(ts) {
 			return null;
 		}
 
-		const funcArgTypeExpr = buildFuncArgTypeExpr(fts);
+		const funcArgTypeExpr = buildFuncArgTypeExpr(fts[0].site, fts);
 
 		if (!funcArgTypeExpr) {
 			return null;
@@ -1400,21 +1448,27 @@ function buildFuncTypeExpr(ts) {
 		return null;
 	}
 
-	const retTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
+	const maybeRetTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
+
+	if (!maybeRetTypes) {
+		return null;
+	}
+
+	const retTypes = reduceNull(maybeRetTypes);
 
 	if (!retTypes) {
 		return null;
 	}
 
-	return new FuncTypeExpr(parens.site, argTypes, retTypes.map(t => assertDefined(t)));
+	return new FuncTypeExpr(parens.site, argTypes, retTypes);
 }
 
 /**
- * 
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {FuncArgTypeExpr | null}
  */
-function buildFuncArgTypeExpr(ts) {
+function buildFuncArgTypeExpr(site, ts) {
 	const colonPos = SymbolToken.find(ts, ":");
 
 	if (colonPos != -1 && colonPos != 1) {
@@ -1428,13 +1482,13 @@ function buildFuncArgTypeExpr(ts) {
 	let name = null;
 
 	if (colonPos != -1) {
-		name = assertDefined(ts.shift()).assertWord()?.assertNotKeyword() ?? null;
+		name = assertToken(ts.shift(), site)?.assertWord()?.assertNotKeyword() ?? null;
 
 		if (!name) {
 			return null;
 		}
 
-		const colon = assertDefined(ts.shift()).assertSymbol(":");
+		const colon = assertToken(ts.shift(), site)?.assertSymbol(":");
 
 		if (!colon) {
 			return null;
@@ -1446,11 +1500,19 @@ function buildFuncArgTypeExpr(ts) {
 		}
 	}
 
-	const next = assertDefined(ts[0]);
+	const next = assertToken(ts[0], site);
+
+	if (!next) {
+		return null;
+	}
 
 	const hasDefault = next.isSymbol("?");
 	if (hasDefault) {
-		const opt = assertDefined(ts.shift());
+		const opt = assertToken(ts.shift(), site);
+
+		if (!opt) {
+			return null;
+		}
 
 		if (ts.length == 0) {
 			opt.syntaxError("invalid type expression after '?'");
@@ -1507,10 +1569,11 @@ function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 
 /**
  * @package
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {null | PathExpr}
  */
-function buildTypePathExpr(ts) {
+function buildTypePathExpr(site, ts) {
 	const i = SymbolToken.findLast(ts, "::");
 
 	assert(i != -1);
@@ -1520,7 +1583,7 @@ function buildTypePathExpr(ts) {
 		return null;
 	}
 
-	const dcolon = assertDefined(ts.shift()).assertSymbol("::");
+	const dcolon = assertToken(ts.shift(), site)?.assertSymbol("::");
 	if (!dcolon) {
 		return null;
 	}
@@ -1535,11 +1598,12 @@ function buildTypePathExpr(ts) {
 
 /**
  * @package
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {RefExpr | null}
  */
-function buildTypeRefExpr(ts) {
-	const name = assertDefined(ts.shift()).assertWord()?.assertNotKeyword();
+function buildTypeRefExpr(site, ts) {
+	const name = assertToken(ts.shift(), site)?.assertWord()?.assertNotKeyword();
 
 	if (!name) {
 		return null;

@@ -451,11 +451,21 @@ async function singleDatumEntry() {
 		helios.Address.fromHashes(uplcProgram.validatorHash),
 		new helios.Value(4000000n),
 		inlineDatum
-	))
+	));
 
 	tx.attachScript(uplcProgram);
 
-	await tx.finalize(networkParams, helios.Address.fromBech32("addr_test1vrk907u2q3tnakfwvwmdl89jhlzy7tfqaqxwzwsch3afw0qqarpt4"));
+	const changeAddr = helios.Address.fromBech32("addr_test1vrk907u2q3tnakfwvwmdl89jhlzy7tfqaqxwzwsch3afw0qqarpt4");
+	await tx.finalize(networkParams, changeAddr, [
+		new helios.UTxO(
+			helios.TxId.fromHex("11b7cecd85d73fea6527b30dd5c9ac9c7c62f00b1c4e08c629b574394bd62be0"),
+			2n,
+			new helios.TxOutput(
+				changeAddr,
+				new helios.Value(2000000n)
+			)
+		)
+	]);
 
 	console.log(JSON.stringify(tx.dump(), undefined, 4));
 }

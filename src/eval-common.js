@@ -13,6 +13,10 @@ import {
 } from "./tokens.js";
 
 import {
+	UplcData
+} from "./uplc-data.js";
+
+import {
 	HeliosData
 } from "./helios-data.js";
 
@@ -22,18 +26,71 @@ import {
  */
 
 /**
+ * @typedef {{
+ *   type:  string
+ * } | {
+ *   type:     "List"
+ *   itemType: TypeSchema
+ * } | {
+ *   type:      "Map"
+ *   keyType:   TypeSchema
+ *   valueType: TypeSchema
+ * } | {
+ *   type:     "Option"
+ *   someType: TypeSchema
+ * } | {
+ *   type:       "Struct"
+ *   fieldTypes: NamedTypeSchema[]
+ * } | {
+ *   type:         "Enum"
+ *   variantTypes: {name: string, fieldTypes: NamedTypeSchema[]}[]
+ * }} TypeSchema
+ */
+
+/**
+ * @typedef {{
+ * 	 name: string
+ * } & TypeSchema} NamedTypeSchema
+ */
+
+/**
+ * @typedef {{
+ *   name: string
+ *   typeClass: TypeClass
+ * }} ParameterI
+ */
+
+/**
+ * @typedef {Map<ParameterI, Type>} InferenceMap
+ */
+
+/**
+ * Used by the bundle cli command to generate a typescript annotations and (de)serialization code
+ * inputTypes form a type union
+ * @typedef {{
+ *   inputType:    string
+ *   outputType:   string
+ *   internalType: TypeSchema
+ * }} TypeDetails
+ */
+
+/**
  * @typedef {Named & Type & {
- *   asDataType: DataType
- *   fieldNames:  string[]
+ *   asDataType:   DataType
+ *   fieldNames:   string[]
  *   offChainType: (null | HeliosDataClass<HeliosData>)
+ *   typeDetails?: TypeDetails
+ *   jsToUplc:     (obj: any) => UplcData
+ *   uplcToJs:     (data: UplcData) => any
+ *   ready:        boolean
  * }} DataType
  */
 
 /**
  * @typedef {DataType & {
  *   asEnumMemberType: EnumMemberType
- *   constrIndex: number
- *   parentType: DataType
+ *   constrIndex:      number
+ *   parentType:       DataType
  * }} EnumMemberType
  */
 
@@ -99,7 +156,7 @@ import {
  *   typeClasses: TypeClass[]
  *   apply(types: Type[], site?: Site): EvalEntity
  *   inferCall(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): Func
- * 	 infer(site: Site, map: Map<string, Type>): Parametric
+ * 	 infer(site: Site, map: InferenceMap): Parametric
  * }} Parametric
  */
 
@@ -109,7 +166,7 @@ import {
  *   instanceMembers:      InstanceMembers
  *   typeMembers:          TypeMembers
  *   isBaseOf(type: Type): boolean
- *   infer(site: Site, map: Map<string, Type>, type: (null | Type)): Type
+ *   infer(site: Site, map: InferenceMap, type: null | Type): Type
  *   toTyped():            Typed
  * }} Type
  */
@@ -127,7 +184,7 @@ import {
  *   genInstanceMembers(impl: Type):     TypeClassMembers
  *   genTypeMembers(impl: Type):         TypeClassMembers
  *   isImplementedBy(type: Type):        boolean
- *   toType(name: string, path: string): Type
+ *   toType(name: string, path: string, parameter?: null | ParameterI): Type
  * }} TypeClass
  */
 
@@ -241,7 +298,7 @@ export class Common {
      * @returns {boolean}
      */
     static typeImplements(type, tc) {
-		if (type instanceof AllType) {
+		if (type instanceof AllType || type.asDataType?.ready === false) {
 			return true;
 		}
 
@@ -345,6 +402,29 @@ export class Common {
 		return null;
 	}
 
+	/**
+	 * @type {boolean}
+	 */
+	get ready() {
+		return true;
+	}
+
+	/**
+	 * @param {any} obj
+	 * @returns {UplcData}
+	 */
+	jsToUplc(obj) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {UplcData} data
+	 * @returns {any}
+	 */
+	uplcToJs(data) {
+		throw new Error("not yet implemented");
+	}
+
     /**
      * @returns {string}
      */
@@ -370,20 +450,6 @@ export class AllType extends Common {
 	}
 
 	/**
-	 * @type {HeliosDataClass<HeliosData> | null}
-	 */
-	get offChainType() {
-		return null;
-	}
-
-	/**
-	 * @type {string[]}
-	 */
-	get fieldNames() {
-		return [];
-	}
-
-	/**
 	 * @type {Named}
 	 */
 	get asNamed() {
@@ -396,6 +462,20 @@ export class AllType extends Common {
 	get asType() {
         return this;
     }
+
+	/**
+	 * @type {HeliosDataClass<HeliosData> | null}
+	 */
+	get offChainType() {
+		return null;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get fieldNames() {
+		return [];
+	}
 
 	/**
 	 * @type {InstanceMembers}
@@ -427,7 +507,7 @@ export class AllType extends Common {
 
 	/**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -490,7 +570,7 @@ export class AnyType extends Common {
 
 	/**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -554,7 +634,7 @@ export class ErrorType extends Common {
 
     /**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -626,7 +706,7 @@ export class ArgType {
     /**
 	 * @package
 	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
+	 * @param {InferenceMap} map 
 	 * @param {null | Type} type 
 	 * @returns {ArgType}
 	 */
@@ -828,8 +908,8 @@ export class FuncType extends Common {
     /**
 	 * @package
 	 * @param {Site} site
-	 * @param {Map<string, Type>} map 
-	 * @param {Type | null} type 
+	 * @param {InferenceMap} map 
+	 * @param {null | Type} type 
 	 * @returns {Type}
 	 */
 	infer(site, map, type) {
@@ -853,7 +933,7 @@ export class FuncType extends Common {
     /**
 	 * @package
 	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
+	 * @param {InferenceMap} map 
 	 * @param {Type[]} argTypes 
 	 * @returns {FuncType}
 	 */
@@ -865,7 +945,7 @@ export class FuncType extends Common {
 			)
 		}
 
-		throw site.typeError("unable to infer from args");
+		throw site.typeError(`expected ${this.argTypes.length} arg(s), got ${argTypes.length}`);
 	}
 
     /** 
@@ -1009,6 +1089,33 @@ export class GenericType extends Common {
 	 */
 	#genTypeMembers;
 
+	/**
+	 * @type {null | InstanceMembers}
+	 */
+	#instanceMembers;
+
+	/**
+	 * @type {null | TypeMembers}
+	 */
+	#typeMembers;
+
+	/**
+	 * @type {null | ((self: Type) => TypeDetails)}
+	 */
+	#genTypeDetails;
+
+	#genDepth;
+
+	/**
+	 * @type {null | ((obj: any) => UplcData)}
+	 */
+	#jsToUplc;
+
+	/**
+	 * @type {null | ((data: UplcData) => any)}
+	 */
+	#uplcToJs;
+
     /**
      * @param {({
      *   name: string,
@@ -1018,9 +1125,23 @@ export class GenericType extends Common {
      *   fieldNames?: string[],
      *   genInstanceMembers: (self: Type) => InstanceMembers,
      *   genTypeMembers: (self: Type) => TypeMembers
+	 *   genTypeDetails?: (self: Type) => TypeDetails,
+	 *   jsToUplc?: (obj: any) => UplcData
+	 *   uplcToJs?: (data: UplcData) => any
      * })} props
      */
-    constructor({name, path, offChainType, genOffChainType, fieldNames, genInstanceMembers, genTypeMembers}) {
+    constructor({
+		name, 
+		path, 
+		offChainType, 
+		genOffChainType, 
+		fieldNames, 
+		genInstanceMembers, 
+		genTypeMembers, 
+		genTypeDetails,
+		jsToUplc,
+		uplcToJs
+	}) {
         super();
 
         this.#name = name;
@@ -1031,54 +1152,12 @@ export class GenericType extends Common {
 
 		this.#genInstanceMembers = genInstanceMembers;
 		this.#genTypeMembers = genTypeMembers;
-    }
-
-    /**
-     * @type {string[]}
-     */
-    get fieldNames() {
-        return this.#fieldNames;
-    }
-
-    /**
-     * @type {InstanceMembers}
-     */
-    get instanceMembers() {
-		return this.#genInstanceMembers(this);
-    }
-
-    /**
-     * @type {string}
-     */
-    get name() {
-        return this.#name;
-    }
-
-    /**
-     * @type {null | HeliosDataClass<T>}
-     */
-    get offChainType() {
-		if (this.#offChainType) {
-			return this.#offChainType;
-		} else if (this.#genOffChainType) {
-			return this.#genOffChainType();
-		} else {
-			return null;
-		}
-    }
-
-    /**
-     * @type {string}
-     */
-    get path() {
-        return this.#path;
-    }
-
-    /**
-     * @type {TypeMembers}
-     */
-    get typeMembers() {
-		return this.#genTypeMembers(this);
+		this.#instanceMembers = null;
+		this.#typeMembers = null;
+		this.#genTypeDetails = genTypeDetails ?? null;
+		this.#genDepth = 0;
+		this.#jsToUplc = jsToUplc ?? null;
+		this.#uplcToJs = uplcToJs ?? null;
     }
 
     /**
@@ -1103,8 +1182,84 @@ export class GenericType extends Common {
     }
 
     /**
+     * @type {string[]}
+     */
+    get fieldNames() {
+        return this.#fieldNames;
+    }
+
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers() {
+		if (!this.#instanceMembers) {
+			this.#instanceMembers = this.#genInstanceMembers(this);
+		}
+
+		return this.#instanceMembers;
+    }
+
+    /**
+     * @type {string}
+     */
+    get name() {
+        return this.#name;
+    }
+
+    /**
+     * @type {null | HeliosDataClass<T>}
+     */
+    get offChainType() {
+		if (this.#offChainType) {
+			return this.#offChainType;
+		} else if (this.#genOffChainType) {
+			return this.#genOffChainType();
+		} else {
+			return null;
+		}
+    }
+
+	/**
+	 * @type {TypeDetails}
+	 */
+	get typeDetails() {
+		if (this.#genTypeDetails) {
+			return this.#genTypeDetails(this);
+		} else {
+			throw new Error(`typeDetails not available for ${this.toString()}`)
+		}
+	}
+
+    /**
+     * @type {string}
+     */
+    get path() {
+        return this.#path;
+    }
+
+	/**
+	 * @type {boolean}
+	 */
+	get ready() {
+		return this.#genDepth < 2;
+	}
+
+    /**
+     * @type {TypeMembers}
+     */
+    get typeMembers() {
+		if (!this.#typeMembers) {
+			this.#genDepth += 1;
+			this.#typeMembers = this.#genTypeMembers(this);
+			this.#genDepth -= 1;
+		}
+
+		return this.#typeMembers;
+    }
+
+    /**
      * @param {Site} site 
-     * @param {Map<string, Type>} map
+     * @param {InferenceMap} map
      */
     inferInternal(site, map) {
 		return {
@@ -1162,7 +1317,7 @@ export class GenericType extends Common {
 
 	/**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -1203,6 +1358,30 @@ export class GenericType extends Common {
 		}
     }
 
+	/**
+	 * @param {any} obj 
+	 * @returns {UplcData}
+	 */
+	jsToUplc(obj) {
+		if (this.#jsToUplc) {
+			return this.#jsToUplc(obj);
+		} else {
+			throw new Error(`'${this.name}' doesn't support converting from JS to Uplc`);
+		}
+	}
+
+	/**
+	 * @param {UplcData} data
+	 * @returns {any}
+	 */
+	uplcToJs(data) {
+		if (this.#uplcToJs) {
+			return this.#uplcToJs(data);
+		} else {
+			throw new Error(`'${this.name}' doesn't support converting from Uplc to JS`);
+		}
+	}
+
     /**
      * @returns {string}
      */
@@ -1240,9 +1419,25 @@ export class GenericEnumMemberType extends GenericType {
      *   fieldNames?: string[],
      *   genInstanceMembers: (self: Type) => InstanceMembers,
      *   genTypeMembers?: (self: Type) => TypeMembers
+	 *   genTypeDetails?: (self: Type) => TypeDetails
+	 *   jsToUplc?: (obj: any) => UplcData
+	 *   uplcToJs?: (data: UplcData) => any
      * })} props
      */
-    constructor({name, path, constrIndex, parentType, offChainType, genOffChainType, fieldNames, genInstanceMembers, genTypeMembers}) {
+    constructor({
+		name, 
+		path, 
+		constrIndex, 
+		parentType, 
+		offChainType, 
+		genOffChainType, 
+		fieldNames, 
+		genInstanceMembers, 
+		genTypeMembers,
+		genTypeDetails,
+		jsToUplc,
+		uplcToJs
+	}) {
         super({
             name, 
             path: path ?? `${parentType.path}__${name.toLowerCase()}`, 
@@ -1250,7 +1445,10 @@ export class GenericEnumMemberType extends GenericType {
             offChainType, 
             fieldNames, 
             genInstanceMembers, 
-            genTypeMembers: genTypeMembers ?? ((self) => ({}))
+            genTypeMembers: genTypeMembers ?? ((self) => ({})),
+			genTypeDetails,
+			jsToUplc,
+			uplcToJs
         });
 
         this.#constrIndex = constrIndex;
@@ -1280,7 +1478,7 @@ export class GenericEnumMemberType extends GenericType {
 
 	/**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -1350,7 +1548,7 @@ export class VoidType extends Common {
     /**
      * 
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */

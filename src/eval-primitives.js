@@ -2,6 +2,18 @@
 // Eval primitive types
 
 import {
+    bytesToText,
+    hexToBytes,
+    textToBytes
+} from "./utils.js";
+
+import { 
+    ByteArrayData,
+    ConstrData,
+    IntData
+} from "./uplc-data.js";
+
+import {
 	Bool,
 	ByteArray,
 	HString,
@@ -78,6 +90,19 @@ export function genCommonEnumTypeMembers(type, parentType) {
 export const BoolType = new GenericType({
     name: "Bool",
     offChainType: Bool,
+    genTypeDetails: (self) => ({
+        inputType: "boolean",
+        outputType: "boolean",
+        internalType: {
+            type: "Bool"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return new ConstrData(obj ? 1 : 0, []);
+    },
+    uplcToJs: (data) => {
+        return data.index != 0;
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         show:      new FuncType([], StringType),
@@ -103,6 +128,21 @@ export const BoolType = new GenericType({
 export const ByteArrayType = new GenericType({
     name: "ByteArray",
     offChainType: ByteArray,
+    genTypeDetails: (self) => ({
+        inputType: "number[] | string",
+        outputType: "number[]",
+        internalType: {
+            type: "ByteArray"
+        }
+    }),
+    jsToUplc: (obj) => {
+        const bytes = Array.isArray(obj) ? obj : hexToBytes(obj);
+
+        return new ByteArrayData(bytes);
+    },
+    uplcToJs: (data) => {
+        return data.bytes;
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         blake2b: new FuncType([], self),
@@ -133,6 +173,19 @@ export const ByteArrayType = new GenericType({
 export const IntType = new GenericType({
     name: "Int",
     offChainType: HInt,
+    genTypeDetails: (self) => ({
+        inputType: "number | bigint",
+        outputType: "bigint",
+        internalType: {
+            type: "Int"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return new IntData(BigInt(obj));
+    },
+    uplcToJs: (data) => {
+        return data.int;
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         abs: new FuncType([], self),
@@ -200,6 +253,19 @@ export const RawDataType = new GenericType({
  */
 export const RealType = new GenericType({
     name: "Real",
+    genTypeDetails: (self) => ({
+        inputType: "number",
+        outputType: "number",
+        internalType: {
+            type: "Real"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return new IntData(BigInt(obj*1000000))
+    },
+    uplcToJs: (data) => {
+        return Number(data.int)/1000000
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         abs: new FuncType([], self),
@@ -243,6 +309,19 @@ export const RealType = new GenericType({
 export const StringType = new GenericType({
     name: "String",
     offChainType: HString,
+    genTypeDetails: (self) => ({
+        inputType: "string",
+        outputType: "string",
+        internalType: {
+            type: "String"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return new ByteArrayData(textToBytes(obj));
+    },
+    uplcToJs: (data) => {
+        return bytesToText(data.bytes);
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         encode_utf8: new FuncType([], ByteArrayType),

@@ -37,6 +37,8 @@ import {
 
 import {
     UPLC_BUILTINS,
+    UPLC_MACROS,
+    UPLC_MACROS_OFFSET,
     findUplcBuiltin
 } from "./uplc-builtins.js";
 
@@ -51,45 +53,8 @@ import {
 
 /**
  * A Helios/Uplc Program can have different purposes
- * @package
- * @type {{
- *   Testing: number,
- * 	 Minting: number,
- *   Spending: number,
- *   Staking: number,
- *   Module: number
- * }}
+ * @typedef {"testing" | "minting" | "spending" | "staking" | "linking" | "module" | "unknown"} ScriptPurpose
  */
-export const ScriptPurpose = {
-	Testing: -1,
-	Minting:  0,
-	Spending: 1,
-	Staking:  2,
-	Module:   3
-};
-
-/**
- * @package
- * @param {number} id
- * @returns {string}
- */
-export function getPurposeName(id) {
-	switch (id) {
-		case ScriptPurpose.Testing:
-			return "testing";
-		case ScriptPurpose.Minting:
-			return "minting";
-		case ScriptPurpose.Spending:
-			return "spending";
-		case ScriptPurpose.Staking:
-			return "staking";
-		case ScriptPurpose.Module:
-			return "module";
-		default:
-			throw new Error(`unhandled ScriptPurpose ${id}`);
-	}
-}
-
 
 /** 
  * a UplcValue is passed around by Plutus-core expressions.
@@ -386,21 +351,23 @@ export class UplcType {
  */
 
 /**
-* @typedef {object} UplcRTECallbacks
-* @property {(msg: string) => Promise<void>} [onPrint]
-* @property {(site: Site, rawStack: UplcRawStack) => Promise<boolean>} [onStartCall]
-* @property {(site: Site, rawStack: UplcRawStack) => Promise<void>} [onEndCall]
-* @property {(name: string, isTerm: boolean, cost: Cost) => void} [onIncrCost]
-*/
+ * @typedef {{
+ *	 onPrint: (msg: string) => Promise<void>
+ *   onStartCall: (site: Site, rawStack: UplcRawStack) => Promise<boolean>
+ *   onEndCall: (site: Site, rawStack: UplcRawStack) => Promise<void>
+ *   onIncrCost: (name: string, isTerm: boolean, cost: Cost) => void
+ *   macros?: {[name: string]: (args: UplcValue[]) => UplcValue}
+ * }} UplcRTECallbacks
+ */
 
 /**
  * @type {UplcRTECallbacks}
  */
 export const DEFAULT_UPLC_RTE_CALLBACKS = {
-	onPrint: async function (/** @type {string} */ msg) {return},
-	onStartCall: async function(/** @type {Site} */ site, /** @type {UplcRawStack} */ rawStack) {return false},
-	onEndCall: async function(/** @type {Site} */ site, /** @type {UplcRawStack} */ rawStack) {return},
-	onIncrCost: function(/** @type {string} */ name, /** @type {boolean} */ isTerm, /** @type {Cost} */ cost) {return},
+	onPrint: async (/** @type {string} */ msg) => {console.log(msg)},
+	onStartCall: async (/** @type {Site} */ site, /** @type {UplcRawStack} */ rawStack) => {return false},
+	onEndCall: async (/** @type {Site} */ site, /** @type {UplcRawStack} */ rawStack) => {return},
+	onIncrCost: (/** @type {string} */ name, /** @type {boolean} */ isTerm, /** @type {Cost} */ cost) => {return},
 }
 
 /**
@@ -430,7 +397,7 @@ export class UplcRte {
 
 	/**
 	 * @param {UplcRTECallbacks} callbacks 
-	 * @param {?NetworkParams} networkParams
+	 * @param {null | NetworkParams} networkParams
 	 */
 	constructor(callbacks = DEFAULT_UPLC_RTE_CALLBACKS, networkParams = null) {
 		assertDefined(callbacks);
@@ -513,6 +480,15 @@ export class UplcRte {
 
 			this.incrCost(fn.name, false, cost);
 		}
+	}
+
+	/**
+	 * @param {string} name 
+	 * @param {UplcValue[]} args 
+	 * @returns {Promise<UplcValue>}
+	 */
+	async callMacro(name, args) {
+		return assertDefined(await assertDefined(this.#callbacks.macros)[name])(args);
 	}
 
 	/**
@@ -599,9 +575,9 @@ class UplcStack {
 	#valueName;
 
 	/**
-	 * @param {(?UplcStack) | UplcRte} parent
-	 * @param {?UplcValue} value
-	 * @param {?string} valueName
+	 * @param {null | UplcStack | UplcRte} parent
+	 * @param {null | UplcValue} value
+	 * @param {null | string} valueName
 	 */
 	constructor(parent, value = null, valueName = null) {
 		this.#parent = parent;
@@ -689,6 +665,20 @@ class UplcStack {
 			} else {
 				return this.#parent.get(i);
 			}
+		}
+	}
+	
+	/**
+	 * 
+	 * @param {string} name 
+	 * @param {UplcValue[]} args 
+	 * @returns {Promise<UplcValue>}
+	 */
+	async callMacro(name, args) {
+		if (this.#parent) {
+			return await this.#parent.callMacro(name, args);
+		} else {
+			throw new Error("parent not set, can't call macro")
 		}
 	}
 
@@ -803,8 +793,6 @@ export class UplcAnon extends UplcValue {
 			nArgs = args;
 		}
 
-		assert(nArgs >= 1);
-
 		this.#rte = rte;
 		this.#nArgs = nArgs;
 		this.#argNames = argNames;
@@ -865,16 +853,16 @@ export class UplcAnon extends UplcValue {
 		let callSite = this.#callSite !== null ? this.#callSite : site;
 
 		// function is fully applied, collect the args and call the callback
-		if (argCount == this.#nArgs) {
+		if (argCount == this.#nArgs || (this.#nArgs == -1 && value instanceof UplcUnit)) { // second condition is used for macros
 			/** @type {UplcValue[]} */
 			let args = [];
 
 			let rawStack = rte.toList(); // use the RTE of the callsite
 
-			for (let i = this.#nArgs; i >= 1; i--) {
+			for (let i = argCount; i >= 1; i--) {
 				let argValue = subStack.get(i);
 				args.push(argValue);
-				rawStack.push([`__arg${this.#nArgs - i}`, argValue]);
+				rawStack.push([`__arg${argCount - i}`, argValue]);
 			}
 
 			// notify the RTE of the new live stack (list of pairs instead of UplcStack), and await permission to continue
@@ -901,8 +889,6 @@ export class UplcAnon extends UplcValue {
 			}
 		} else {
 			// function isn't yet fully applied, return a new partially applied UplcAnon
-			assert(this.#nArgs > 1);
-
 			return new UplcAnon(
 				callSite,
 				subStack,
@@ -2444,7 +2430,10 @@ export class UplcError extends UplcTerm {
  * @package
  */
 export class UplcBuiltin extends UplcTerm {
-	/** unknown builtins stay integers */
+	/** 
+	 * Unknown builtins stay integers
+	 * @type {string | number}
+	 */
 	#name;
 
 	/**
@@ -2453,7 +2442,7 @@ export class UplcBuiltin extends UplcTerm {
 	 */
 	constructor(site, name) {
 		super(site, 7);
-		this.#name = name;
+		this.#name = assertDefined(name);
 	}
 
 	/**
@@ -2491,11 +2480,25 @@ export class UplcBuiltin extends UplcTerm {
 	toFlat(bitWriter) {
 		bitWriter.write('0111');
 
-		/** @type {number} */
+		/** 
+		 * @type {number} 
+		 */
 		let i;
 
 		if (typeof this.#name == "string") {
-			i = UPLC_BUILTINS.findIndex(info => info.name == this.#name);
+			if (this.#name.startsWith("macro__")) {
+				const macroName = this.#name.slice(("macro__").length);
+
+				i = UPLC_MACROS.findIndex(entry => entry == macroName);
+
+				assert(i != -1, `macro '${macroName}' not found`);
+
+				i += UPLC_MACROS_OFFSET;
+			} else {
+				i = UPLC_BUILTINS.findIndex(info => info.name == this.#name);
+
+				assert(i != -1);
+			}
 		} else {
 			i = this.#name;
 		}
@@ -3045,8 +3048,16 @@ export class UplcBuiltin extends UplcTerm {
 			case "verifyEcdsaSecp256k1Signature":
 			case "verifySchnorrSecp256k1Signature":
 				throw new Error("no immediate need, so don't bother yet");
-			default:
-				throw new Error(`builtin ${this.#name} not yet implemented`);
+			default: {
+				const name = this.#name;
+				if (typeof name == "string" && name.startsWith("macro__")) {
+					return new UplcAnon(this.site, rte, -1, (callSite, _, ...args) => {
+						return rte.callMacro(name.slice(("macro__").length), args.slice(0, args.length - 1));
+					});
+				} else {
+					throw new Error(`builtin ${this.#name} not yet implemented`);
+				}
+			}
 		}
 	}
 
@@ -3064,7 +3075,7 @@ export class UplcBuiltin extends UplcTerm {
 		 */
 		let v = this.evalInternal(rte);
 
-		if  (typeof this.#name === 'string') {
+		if  (typeof this.#name === 'string' && !this.#name.startsWith("macro__")) {
 			let nForce = UPLC_BUILTINS[findUplcBuiltin("__core__" + this.#name)].forceCount;
 
 			for  (let i = 0; i < nForce; i++) {

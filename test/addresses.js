@@ -16,11 +16,11 @@ async function scriptAddress() {
 
 	console.log(cborBytes1);
 
-	let hash = helios_.Crypto.blake2b(cborBytes1, 28);
+	let hash = helios.Crypto.blake2b(cborBytes1, 28);
 
 	console.log(helios.bytesToHex(hash))
 
-	let addr = helios_.Crypto.encodeBech32("addr_test", [0x70].concat(hash));
+	let addr = helios.Crypto.encodeBech32("addr_test", [0x70].concat(hash));
 
 	console.log(addr);
 
@@ -33,7 +33,7 @@ async function scriptAddress() {
 
 	cborBytes2.unshift(1);
 
-	console.log(helios.bytesToHex(helios_.Crypto.blake2b(cborBytes2, 28)));
+	console.log(helios.bytesToHex(helios.Crypto.blake2b(cborBytes2, 28)));
 }
 
 async function nonTestnetAddress() {

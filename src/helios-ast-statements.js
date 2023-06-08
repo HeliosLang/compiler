@@ -10,6 +10,9 @@ import {
 	assertDefined
 } from "./utils.js";
 
+/**
+ * @typedef {import("./utils.js").hexstring} hexstring
+ */
 import {
     IR,
     Site,
@@ -49,6 +52,10 @@ import {
 	ModuleNamespace,
 	NamedEntity
 } from "./eval-common.js";
+
+/**
+ * @typedef {import("./eval-common.js").InferenceMap} InferenceMap
+ */
 
 /**
  * @typedef {import("./eval-common.js").DataType} DataType
@@ -517,7 +524,11 @@ export class TypeParameter {
 			throw this.#typeClassExpr?.typeError("not a typeclass");
 		}
 
-		scope.set(this.#name, typeClass.toType(this.#name.value, path));
+		const parameter = new Parameter(this.name, path, typeClass);
+
+		scope.set(this.#name, typeClass.toType(this.#name.value, path, parameter));
+
+		return parameter;
 	}
 
 	/**
@@ -536,27 +547,43 @@ export class TypeParameter {
  * @package
  */
 export class TypeParameters {
-	#parameters;
+	#parameterExprs;
 	#prefix;
 
 	/**
-	 * @param {TypeParameter[]} parameters 
+	 * @type {null | Parameter[]}
+	 */
+	#parameters;
+
+	/**
+	 * @param {TypeParameter[]} parameterExprs 
 	 * @param {boolean} isForFunc
 	 */
-	constructor(parameters, isForFunc) {
-		this.#parameters = parameters;
+	constructor(parameterExprs, isForFunc) {
+		this.#parameterExprs = parameterExprs;
 		this.#prefix = isForFunc ? FTPP : TTPP;
+		this.#parameters = null;
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	hasParameters() {
-		return this.#parameters.length > 0;
+		return this.#parameterExprs.length > 0;
+	}
+
+	/** 
+	 * @type {string[]}
+	 */
+	get parameterNames() {
+		return this.#parameterExprs.map(pe => pe.name);
 	}
 
 	/**
 	 * @returns {Parameter[]}
 	 */
 	getParameters() {
-		return this.#parameters.map((p, i) => new Parameter(p.name, `${this.#prefix}${i}`, p.typeClass));
+		return assertDefined(this.#parameters, "parameters not yet evaluated");
 	}
 
 	/**
@@ -565,7 +592,7 @@ export class TypeParameters {
 	 * @returns {string}
 	 */
 	genTypePath(base) {
-		return `${base}[${this.#parameters.map((_, i) => `${this.#prefix}${i}`).join("@")}]`;
+		return `${base}[${this.#parameterExprs.map((_, i) => `${this.#prefix}${i}`).join("@")}]`;
 	}
 
 	/**
@@ -585,10 +612,10 @@ export class TypeParameters {
 	 * @returns {string}
 	 */
 	toString() {
-		if (!this.hasParameters) {
+		if (!this.hasParameters()) {
 			return "";
 		} else {
-			return `[${this.#parameters.map(p => p.toString()).join(", ")}]`;
+			return `[${this.#parameterExprs.map(p => p.toString()).join(", ")}]`;
 		}
 	}
 
@@ -599,7 +626,13 @@ export class TypeParameters {
 	evalParams(scope) {
 		const subScope = new Scope(scope);
 
-		this.#parameters.forEach((p, i) => p.eval(subScope, `${this.#prefix}${i}`));
+		this.#parameters = [];
+
+		this.#parameterExprs.forEach((pe, i) => {
+			const p = pe.eval(subScope, `${this.#prefix}${i}`);
+
+			this.#parameters?.push(p);
+		});
 
 		return subScope;
 	}
@@ -653,14 +686,14 @@ export class TypeParameters {
 				parameters: this.getParameters(),
 				apply: (paramTypes) => {
 					/**
-					 * @type {Map<string, Type>}
+					 * @type {InferenceMap}
 					 */
 					const map = new Map();
 
 					paramTypes.forEach((pt, i) => {
-						const name = this.getParameters()[i].name;
+						const p = this.getParameters()[i];
 
-						map.set(name, pt);
+						map.set(p, pt);
 					});
 
 					const appliedType = assertDefined(type.infer(site, map, null).asDataType);
@@ -1164,27 +1197,45 @@ export class StructStatement extends Statement {
 			 */
 			constructor(...args) {
 				super();
-				if (args.length != statement.#dataDef.nFields) {
-					throw new Error(`expected ${statement.#dataDef.nFields} args, got ${args.length}`);
-				}
 
 				this.#fields = [];
 
-				args.forEach((arg, i) => {
-					const fieldName = statement.#dataDef.getFieldName(i);
-					const fieldType = statement.#dataDef.getFieldType(i);
+				if (args.length == 1 && (typeof args[0] == "object") && Object.keys(args[0]).length == statement.#dataDef.nFields && Object.keys(args[0]).every(k => statement.#dataDef.hasField(new Word(Site.dummy(), k)))) {
+					statement.#dataDef.fieldNames.forEach((fieldName, i) => {
+						const arg = assertDefined(args[0][fieldName]);
 
-					if (!fieldType.offChainType) {
-						throw new Error(`offChainType for ${fieldType.name} not yet implemented`);
-					}
+						const fieldType = statement.#dataDef.getFieldType(i);
 
-					const FieldClass = fieldType.offChainType;
+						if (!fieldType.offChainType) {
+							throw new Error(`offChainType for ${fieldType.name} not yet implemented`);
+						}
 
-					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+						const FieldClass = fieldType.offChainType;
 
-					this.#fields.push(instance);
-					this[fieldName] = instance;
-				});
+						const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+
+						this.#fields.push(instance);
+						this[fieldName] = instance;
+					});
+				} else if (args.length != statement.#dataDef.nFields) {
+					throw new Error(`expected ${statement.#dataDef.nFields} args, got ${args.length}`);
+				} else {
+					args.forEach((arg, i) => {
+						const fieldName = statement.#dataDef.getFieldName(i);
+						const fieldType = statement.#dataDef.getFieldType(i);
+
+						if (!fieldType.offChainType) {
+							throw new Error(`offChainType for ${fieldType.name} not yet implemented`);
+						}
+
+						const FieldClass = fieldType.offChainType;
+
+						const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+
+						this.#fields.push(instance);
+						this[fieldName] = instance;
+					});
+				}
 			}
 
 			/**
@@ -1201,6 +1252,13 @@ export class StructStatement extends Statement {
 			 */
 			get _structStatement() {
 				return statement;
+			}
+
+			/**
+			 * @type {HeliosData[]}
+			 */
+			get _fields() {
+				return this.#fields;
 			}
 
 			/**
@@ -1238,6 +1296,13 @@ export class StructStatement extends Statement {
 				});
 
 				return new Struct(...args);
+			}
+
+			/**
+			 * @returns {boolean}
+			 */
+			static isBuiltin() {
+				return false;
 			}
 		}
 
@@ -1343,6 +1408,20 @@ export class FuncStatement extends Statement {
 		return this.#parameters.genFuncPath(super.path,);
 	}
 
+	/**
+	 * @type {number}
+	 */
+	get nArgs() {
+		return this.#funcExpr.nArgs;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get argNames() {
+		return this.#funcExpr.argNames;
+	}
+	
 	/**
 	 * @type {Type[]}
 	 */
@@ -1597,6 +1676,13 @@ export class EnumMember {
 			}
 
 			/**
+			 * @returns {boolean}
+			 */
+			static isBuiltin() {
+				return false;
+			}
+
+			/**
 			 * @param {string | number[]} bytes 
 			 * @returns {EnumVariant}
 			 */
@@ -1778,7 +1864,7 @@ export class EnumStatement extends Statement {
 			}
 
 			/**
-			 * @param {string | number[]} bytes
+			 * @param {hexstring | number[]} bytes
 			 * @returns {HeliosData}
 			 */
 			static fromUplcCbor(bytes) {
@@ -1793,6 +1879,13 @@ export class EnumStatement extends Statement {
 				const variant = assertDefined(variants[data.index], "index out of range");
 
 				return variant.fromUplcData(data);
+			}
+
+			/**
+			 * @returns {boolean}
+			 */
+			static isBuiltin() {
+				return false;
 			}
 		}
 

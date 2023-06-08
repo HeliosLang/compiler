@@ -23,8 +23,16 @@ import {
     UplcData
 } from "./uplc-data.js";
 
+/**
+ * @typedef {import("./uplc-costmodels.js").Cost} Cost
+ */
+
+import { 
+	NetworkParams,
+} from "./uplc-costmodels.js";
+
 import {
-    UplcBool,
+	DEFAULT_UPLC_RTE_CALLBACKS,
     UplcDataValue,
     UplcValue
 } from "./uplc-ast.js";
@@ -36,6 +44,10 @@ import {
 import {
     Program
 } from "./helios-program.js";
+
+import {
+	rawNetworkEmulatorParams
+} from "./emulator.js";
 
 /**
  * @typedef {() => UplcData} ValueGenerator
@@ -50,6 +62,11 @@ import {
  */
 export class FuzzyTest {
 	/**
+	 * @type {number}
+	 */
+	#seed;
+
+	/**
 	 * @type {NumberGenerator} - seed generator
 	 */
 	#rand;
@@ -59,6 +76,11 @@ export class FuzzyTest {
 	#simplify;
 
 	/**
+	 * @type {NetworkParams}
+	 */
+	#dummyNetworkParams;
+
+	/**
 	 * @param {number} seed
 	 * @param {number} runsPerTest
 	 * @param {boolean} simplify - if true then also test the simplified program
@@ -66,9 +88,15 @@ export class FuzzyTest {
 	constructor(seed = 0, runsPerTest = 100, simplify = false) {
 		console.log("starting fuzzy testing  with seed", seed);
 
+		this.#seed = seed;
 		this.#rand = Crypto.rand(seed);
 		this.#runsPerTest = runsPerTest;
 		this.#simplify = simplify;
+		this.#dummyNetworkParams = new NetworkParams(rawNetworkEmulatorParams);
+	}
+
+	reset() {
+		this.#rand = Crypto.rand(this.#seed);
 	}
 
 	/**
@@ -414,12 +442,43 @@ export class FuzzyTest {
 
 			let program = Program.new(src).compile(simplify);
 
+			/**
+			 * @type {Cost}
+			 */
+			const totalCost = {
+				mem: 0n,
+				cpu: 0n
+			};
+
+			let nonErrorRuns = 0;
+
 			for (let it = 0; it < nRuns; it++) {
 				let args = argGens.map(gen => new UplcDataValue(Site.dummy(), gen()));
 			
-				let result = await program.run(args);
+				/**
+				 * @type {Cost}
+				 */
+				const cost = {
+					mem: 0n,
+					cpu: 0n
+				};
+
+				let result = await program.run(
+					args, {
+						...DEFAULT_UPLC_RTE_CALLBACKS,
+						onPrint: async (msg) => {return},
+						onIncrCost: (name, isTerm, c) => {cost.mem = cost.mem + c.mem; cost.cpu = cost.cpu + c.cpu}
+					},
+					this.#dummyNetworkParams
+				);
 
 				let obj = propTest(args, result);
+
+				if (result instanceof UplcValue) {
+					totalCost.mem += cost.mem;
+					totalCost.cpu += cost.cpu;
+					nonErrorRuns += 1;
+				}
 
 				if (typeof obj == "boolean") {
 					if (!obj) {
@@ -435,7 +494,7 @@ export class FuzzyTest {
 				}
 			}
 
-			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${program.calcSize()} bytes)`);
+			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${program.calcSize()} bytes, ${nonErrorRuns > 0 ? totalCost.mem/BigInt(nonErrorRuns): "N/A"} mem, ${nonErrorRuns > 0 ? totalCost.cpu/BigInt(nonErrorRuns): "N/A"} cpu)`);
 		}
 
 		if (!simplify && this.#simplify) {

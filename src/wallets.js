@@ -7,6 +7,10 @@ import {
     hexToBytes
 } from "./utils.js";
 
+/**
+ * @typedef {import("./utils.js").hexstring} hexstring
+ */
+
 import {
     Address,
     PubKeyHash,
@@ -14,6 +18,9 @@ import {
     Value
 } from "./helios-data.js";
 
+/**
+ * @typedef {import("./helios-data.js").bech32string} bech32string
+ */
 import {
     Signature,
     Tx,
@@ -40,11 +47,11 @@ import {
 /**
  * @typedef {{
  *     getNetworkId(): Promise<number>,
- *     getUsedAddresses(): Promise<string[]>,
- *     getUnusedAddresses(): Promise<string[]>,
- *     getUtxos(): Promise<string[]>,
- *     signTx(txHex: string, partialSign: boolean): Promise<string>,
- *     submitTx(txHex: string): Promise<string>
+ *     getUsedAddresses(): Promise<bech32string[]>,
+ *     getUnusedAddresses(): Promise<bech32string[]>,
+ *     getUtxos(): Promise<hexstring[]>,
+ *     signTx(txHex: hexstring, partialSign: boolean): Promise<hexstring>,
+ *     submitTx(txHex: hexstring): Promise<hexstring>
  * }} Cip30Handle
  */
 
@@ -170,14 +177,14 @@ export class WalletHelper {
 
     /**
      * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
-     * @type {Promise<?UTxO>}
+     * @type {Promise<null | UTxO>}
      */
     get refUtxo() {
         return this.#wallet.utxos.then(utxos => {
             if(utxos.length == 0) {
                 return null;
             } else {
-                return assertDefined(utxos[0])
+                return assertDefined(utxos[0]);
             }
         });
     }

@@ -15,6 +15,15 @@ import {
     textToBytes
 } from "./utils.js";
 
+/**
+ * @template T
+ * @typedef {import("./utils.js").ExpandAlias<T>} ExpandAlias<T>
+ */
+
+/**
+ * @typedef {import("./utils.js").hexstring} hexstring
+ */
+
 import {
     Crypto
 } from "./crypto.js";
@@ -55,6 +64,22 @@ export class HeliosData extends CborData {
 	toSchemaJson() {
 		return this._toUplcData().toSchemaJson();
 	}
+
+	/**
+	 * Defaults to cbor encoding of uplc data structure.
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return this._toUplcData().toCbor();
+	}
+
+	/**
+	 * Most HeliosData classes are builtin
+	 * @returns {boolean}
+	 */
+	static isBuiltin() {
+		return true;
+	}
 }
 
 /**
@@ -64,7 +89,12 @@ export class HeliosData extends CborData {
  *   new(...args: any[]): T
  *   fromUplcCbor: (bytes: (string | number[])) => T
  *   fromUplcData: (data: UplcData) => T
+ *   isBuiltin(): boolean
  * }} HeliosDataClass
+ */
+
+/**
+ * @typedef {number | bigint} HIntProps
  */
 
 /**
@@ -78,7 +108,7 @@ export class HInt extends HeliosData {
 
     /**
      * @package
-     * @param {number | bigint | string} rawValue
+     * @param {HIntProps} rawValue
      * @returns {bigint}
      */
     static cleanConstructorArg(rawValue) {
@@ -92,13 +122,28 @@ export class HInt extends HeliosData {
     }
 
     /**
-     * @param {number | bigint | string} rawValue
+     * @param {ExpandAlias<HIntProps>} rawValue
      */
     constructor(rawValue) {
         super();
 
         this.#value = HInt.cleanConstructorArg(rawValue);
     }
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.#value.toString();
+	}
+
+	/**
+	 * @param {HInt | HIntProps} props 
+	 * @returns {HInt}
+	 */
+	static fromProps(props) {
+		return props instanceof HInt ? props : new HInt(props);
+	}
 
     /**
      * @type {bigint}
@@ -130,7 +175,105 @@ export class HInt extends HeliosData {
     static fromUplcCbor(bytes) {
         return HInt.fromUplcData(UplcData.fromCbor(bytes));
     }
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {HInt}
+	 */
+	static fromCbor(bytes) {
+		return new HInt(CborData.decodeInteger(bytes));
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return  CborData.encodeInteger(this.value);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		return this.#value.toString();
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return this.#value == HInt.fromProps(other).#value
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {boolean}
+	 */
+	neq(other) {
+		return this.#value != HInt.fromProps(other).value;
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {boolean}
+	 */
+	ge(other) {
+		return this.#value >= HInt.fromProps(other).#value;
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {boolean}
+	 */
+	gt(other) {
+		return this.#value > HInt.fromProps(other).#value;
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {boolean}
+	 */
+	le(other) {
+		return this.#value <= HInt.fromProps(other).#value;
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {boolean}
+	 */
+	lt(other) {
+		return this.#value < HInt.fromProps(other).#value;
+	}
+
+	/**
+	 * @param {HInt| HIntProps} other 
+	 * @returns {HInt}
+	 */
+	add(other) {
+		return new HInt(this.#value + HInt.fromProps(other).#value);
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {HInt}
+	 */
+	sub(other) {
+		return new HInt(this.#value - HInt.fromProps(other).#value);
+	}
+
+	/**
+	 * @param {HInt| HIntProps} other 
+	 * @returns {HInt}
+	 */
+	mul(other) {
+		return new HInt(this.#value * HInt.fromProps(other).#value);
+	}
 }
+
+/**
+ * @typedef {number | bigint | string | Date} TimeProps
+ */
 
 /**
  * Milliseconds since 1 jan 1970
@@ -138,16 +281,18 @@ export class HInt extends HeliosData {
 export class Time extends HInt {
      /**
      * @package
-     * @param {number | bigint | string | Date} rawValue
+     * @param {TimeProps} props
      * @returns {bigint}
      */
-	static cleanConstructorArg(rawValue) {
-        if (rawValue instanceof Date) {
-            return BigInt(rawValue.getTime());
+	static cleanConstructorArg(props) {
+        if (props instanceof Date) {
+            return BigInt(props.getTime());
+		} else if (typeof props == "string") {
+			return BigInt(Date.parse(props));
         } else {
-            const value = BigInt(rawValue);
+            const value = BigInt(props);
 
-            if (value.toString() != rawValue.toString()) {
+            if (value.toString() != props.toString()) {
                 throw new Error("not a valid integer");
             } else {
                 return value;
@@ -156,11 +301,19 @@ export class Time extends HInt {
     }
 
     /**
-     * @param {number | bigint | string | Date} rawValue
+     * @param {ExpandAlias<TimeProps>} props
      */
-    constructor(rawValue) {
-        super(Time.cleanConstructorArg(rawValue));
+    constructor(props) {
+        super(Time.cleanConstructorArg(props));
     }
+
+	/**
+	 * @param {Time | TimeProps} props 
+	 * @returns {Time}
+	 */
+	static fromProps(props) {
+		return props instanceof Time ? props : new Time(props);
+	}
 
     /**
      * @param {UplcData} data
@@ -180,9 +333,20 @@ export class Time extends HInt {
 }
 
 /**
+ * @typedef {HIntProps} DurationProps
+ */
+
+/**
  * Difference between two time values in milliseconds.
  */
 export class Duration extends HInt {
+	/**
+	 * @param {Duration | DurationProps} props 
+	 */
+	static fromProps(props) {
+		return props instanceof Duration ? props : new Duration(props);
+	}
+
     /**
      * @param {UplcData} data
      * @returns {Duration}
@@ -201,6 +365,10 @@ export class Duration extends HInt {
 }
 
 /**
+ * @typedef {boolean | string} BoolProps
+ */
+
+/**
  * Helios Bool type
  */
 export class Bool extends HeliosData {
@@ -211,34 +379,45 @@ export class Bool extends HeliosData {
 
     /**
      * @package
-     * @param {boolean | string} rawValue 
+     * @param {BoolProps} props 
      * @returns {boolean}
      */
-    static cleanConstructorArg(rawValue) {
-        if (typeof rawValue == "string") {
-            if (rawValue == "false") {
+    static cleanConstructorArg(props) {
+        if (typeof props == "string") {
+            if (props == "false") {
                 return false;
-            } else if (rawValue == "true") {
+            } else if (props == "true") {
                 return true;
             } else {
                 throw new Error("not a valid string representation of a Bool");
             }
-        } else if (typeof rawValue == "boolean") {
-            return rawValue;
+        } else if (typeof props == "boolean") {
+            return props;
         } else {
             throw new Error("can't convert to boolean");
         }
     }
 
     /**
-     * @param {boolean | string} rawValue 
+     * @param {ExpandAlias<BoolProps>} props 
      */
-    constructor(rawValue) {
+    constructor(props) {
         super();
 
-        this.#value = Bool.cleanConstructorArg(rawValue);
+        this.#value = Bool.cleanConstructorArg(props);
     }
 
+	/**
+	 * @param {Bool | BoolProps} props 
+	 * @returns {Bool}
+	 */
+	static fromProps(props) {
+		return props instanceof Bool ? props : new Bool(props);
+	}
+
+	/**
+	 * @type {boolean}
+	 */
     get bool() {
         return this.#value;
     }
@@ -277,6 +456,10 @@ export class Bool extends HeliosData {
 }
 
 /**
+ * @typedef {string} HStringProps
+ */
+
+/**
  * Helios String type.
  * Can't be named 'String' because that would interfere with the javascript 'String'-type
  */
@@ -287,14 +470,25 @@ export class HString extends HeliosData {
     #value;
 
     /**
-     * @param {string} value 
+     * @param {ExpandAlias<HStringProps>} props 
      */
-    constructor(value) {
+    constructor(props) {
         super();
 
-        this.#value = value;
+        this.#value = props;
     }
 
+	/**
+	 * @param {HString | HStringProps} props
+	 * @returns {HString}
+	 */
+	static fromProps(props) {
+		return props instanceof HString ? props : new HString(props);
+	}
+
+	/**
+	 * @type {string}
+	 */
     get string() {
         return this.#value;
     }
@@ -325,6 +519,10 @@ export class HString extends HeliosData {
 }
 
 /**
+ * @typedef {hexstring | number[]} ByteArrayProps
+ */
+
+/**
  * Helios ByteArray type
  */
 export class ByteArray extends HeliosData {
@@ -335,30 +533,38 @@ export class ByteArray extends HeliosData {
 
     /**
      * @package
-     * @param {string | number[]} rawValue 
+     * @param {ByteArrayProps} props 
      */
-    static cleanConstructorArg(rawValue) {
-        if (Array.isArray(rawValue)) {
-            return rawValue;
-        } else if (typeof rawValue == "string") {
-            if (rawValue.startsWith("#")) {
-                rawValue = rawValue.slice(1);
+    static cleanConstructorArg(props) {
+        if (Array.isArray(props)) {
+            return props;
+        } else if (typeof props == "string") {
+            if (props.startsWith("#")) {
+                props = props.slice(1);
             }
 
-            return hexToBytes(rawValue);
+            return hexToBytes(props);
         } else {
             throw new Error("unexpected bytes type");
         }
     }
 
     /**
-     * @param {string | number[]} rawValue 
+     * @param {ExpandAlias<ByteArrayProps>} props 
      */
-    constructor(rawValue) {
+    constructor(props) {
         super();
 
-        this.#bytes = ByteArray.cleanConstructorArg(rawValue);
+        this.#bytes = ByteArray.cleanConstructorArg(props);
     }
+
+	/**
+	 * @param {ByteArray | ByteArrayProps} props 
+	 * @returns {ByteArray}
+	 */
+	static fromProps(props) {
+		return props instanceof ByteArray ? props : new ByteArray(props);
+	}
 
     /**
      * @type {number[]}
@@ -368,7 +574,7 @@ export class ByteArray extends HeliosData {
     }
 
     /**
-     * @type {string}
+     * @type {hexstring}
      */
     get hex() {
         return bytesToHex(this.#bytes);
@@ -381,6 +587,13 @@ export class ByteArray extends HeliosData {
     _toUplcData() {
         return new ByteArrayData(this.#bytes);
     }
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return CborData.encodeBytes(this.#bytes);
+	}
 
     /**
      * @param {UplcData} data 
@@ -397,6 +610,22 @@ export class ByteArray extends HeliosData {
     static fromUplcCbor(bytes) {
         return ByteArray.fromUplcData(UplcData.fromCbor(bytes));
     }
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {ByteArray}
+	 */
+	static fromCbor(bytes) {
+		return new ByteArray(CborData.decodeBytes(bytes));
+	}
+
+	/**
+	 * @param {ByteArray | ByteArrayProps} other 
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return eq(this.#bytes, ByteArray.fromProps(other).#bytes);
+	}
 }
 
 /**
@@ -763,6 +992,9 @@ export function Option(SomeClass) {
     return Option_;
 }
 
+/**
+ * @typedef {hexstring | number[]} HashProps
+ */
 
 /**
  * Base class of all hash-types
@@ -773,23 +1005,31 @@ export class Hash extends HeliosData {
 	#bytes;
 
 	/**
-	 * @param {string | number[]} rawValue 
+	 * @param {HashProps} props 
 	 * @returns {number[]}
 	 */
-	static cleanConstructorArg(rawValue) {
-		if (typeof rawValue == "string") {
-			return hexToBytes(rawValue);
+	static cleanConstructorArg(props) {
+		if (typeof props == "string") {
+			return hexToBytes(props);
 		} else {
-			return rawValue;
+			return props;
 		}
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {ExpandAlias<HashProps>} props 
 	 */
-	constructor(bytes) {
+	constructor(props) {
 		super();
-		this.#bytes = bytes;
+		this.#bytes = Hash.cleanConstructorArg(props);
+	}
+
+	/**
+	 * @param {Hash | HashProps} props 
+	 * @returns {Hash}
+	 */
+	static fromProps(props) {
+		return props instanceof Hash ? props : new Hash(props);
 	}
 
 	/**
@@ -800,7 +1040,7 @@ export class Hash extends HeliosData {
 	}
 
 	/**
-	 * @returns {string}
+	 * @returns {hexstring}
 	 */
 	get hex() {
 		return bytesToHex(this.#bytes);
@@ -831,7 +1071,7 @@ export class Hash extends HeliosData {
 
 	/**
 	 * Might be needed for internal use
-	 * @param {string} str 
+	 * @param {hexstring} str 
 	 * @returns {Hash}
 	 */
 	static fromHex(str) {
@@ -847,6 +1087,7 @@ export class Hash extends HeliosData {
 
 	/**
 	 * @param {Hash} other
+	 * @returns {boolean}
 	 */
 	eq(other) {
 		return eq(this.#bytes, other.#bytes);
@@ -862,15 +1103,26 @@ export class Hash extends HeliosData {
 	}
 }
 
+/**
+ * @typedef {HashProps} DatumHashProps
+ */
+
 export class DatumHash extends Hash {
 	/**
-	 * @param {string | number[]} rawValue
+	 * @param {ExpandAlias<DatumHashProps>} props
 	 */
-	constructor(rawValue) {
-		const bytes = Hash.cleanConstructorArg(rawValue);
+	constructor(props) {
+		const bytes = Hash.cleanConstructorArg(props);
 
 		assert(bytes.length == 32);
 		super(bytes);
+	}
+
+	/**
+	 * @param {DatumHash | DatumHashProps} props 
+	 */
+	static fromProps(props) {
+		return props instanceof DatumHash ? props : new DatumHash(props);
 	}
 
 	/**
@@ -906,18 +1158,30 @@ export class DatumHash extends Hash {
 	}
 }
 
+/**
+ * @typedef {hexstring | number[]} PubKeyProps
+ */
+
 export class PubKey extends HeliosData {
 	#bytes;
 
 	/**
-	 * @param {string | number[]} rawValue 
+	 * @param {ExpandAlias<PubKeyProps>} props 
 	 */
-	constructor(rawValue) {
+	constructor(props) {
 		super();
-		const bytes = (typeof rawValue == "string") ? hexToBytes(rawValue) : rawValue;
+		const bytes = (typeof props == "string") ? hexToBytes(props) : props;
 
 		assert(bytes.length == 32, `expected 32 for PubKey, got ${bytes.length}`);
 		this.#bytes = bytes;
+	}
+
+	/**
+	 * @param {PubKey | PubKeyProps} props 
+	 * @returns {PubKey}
+	 */
+	static fromProps(props) {
+		return props instanceof PubKey ? props : new PubKey(props);
 	}
 
 	/**
@@ -935,7 +1199,7 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
-	 * @type {string}
+	 * @type {hexstring}
 	 */
 	get hex() {
 		return bytesToHex(this.#bytes);
@@ -993,16 +1257,28 @@ export class PubKey extends HeliosData {
 	}
 }
 
+/**
+ * @typedef {HashProps} PubKeyHashProps
+ */
+
 export class PubKeyHash extends Hash {
 	
 	/**
-	 * @param {string | number[]} rawValue 
+	 * @param {ExpandAlias<PubKeyHashProps>} props 
 	 */
-	constructor(rawValue) {
-		const bytes = Hash.cleanConstructorArg(rawValue);
+	constructor(props) {
+		const bytes = Hash.cleanConstructorArg(props);
 
 		assert(bytes.length == 28, `expected 28 bytes for PubKeyHash, got ${bytes.length}`);
 		super(bytes);
+	}
+
+	/**
+	 * @param {PubKeyHash | PubKeyHashProps} props 
+	 * @returns {PubKeyHash}
+	 */
+	static fromProps(props) {
+		return props instanceof PubKeyHash ? props : new PubKeyHash(props);
 	}
 
 	/**
@@ -1038,9 +1314,13 @@ export class PubKeyHash extends Hash {
 	}
 }
 
+/**
+ * @typedef {HashProps} ScriptHashProps
+ */
+
 export class ScriptHash extends Hash {
 	/**
-	 * @param {string | number[]} rawValue
+	 * @param {ExpandAlias<ScriptHashProps>} rawValue
 	 */
 	constructor(rawValue) {
 		const bytes = Hash.cleanConstructorArg(rawValue);
@@ -1048,9 +1328,29 @@ export class ScriptHash extends Hash {
 		assert(bytes.length == 28, `expected 28 bytes for ScriptHash, got ${bytes.length}`);
 		super(bytes);
 	}
+
+	/**
+	 * @param {ScriptHash | ScriptHashProps} props 
+	 * @returns {ScriptHash}
+	 */
+	static fromProps(props) {
+		return props instanceof ScriptHash ? props : new ScriptHash(props);
+	}
 }
 
+/**
+ * @typedef {HashProps} MintingPolicyHashProps
+ */
+
 export class MintingPolicyHash extends ScriptHash {
+	/**
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} props 
+	 * @returns {MintingPolicyHash}
+	 */
+	static fromProps(props) {
+		return props instanceof MintingPolicyHash ? props : new MintingPolicyHash(props);
+	}
+
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {MintingPolicyHash}
@@ -1092,15 +1392,26 @@ export class MintingPolicyHash extends ScriptHash {
 	}
 }
 
+/**
+ * @typedef {HashProps} StakeKeyHashProps
+ */
+
 export class StakeKeyHash extends Hash {
 	/**
-	 * @param {number[]} rawValue
+	 * @param {ExpandAlias<StakeKeyHashProps>} props
 	 */
-	constructor(rawValue) {
-		const bytes = Hash.cleanConstructorArg(rawValue);
+	constructor(props) {
+		const bytes = Hash.cleanConstructorArg(props);
 		
 		assert(bytes.length == 28, `expected 28 bytes for StakeKeyHash, got ${bytes.length}`);
 		super(bytes);
+	}
+
+	/**
+	 * @param {StakeKeyHash | StakeKeyHashProps} props 
+	 */
+	static fromProps(props) {
+		return props instanceof StakeKeyHash ? props : new StakeKeyHash(props);
 	}
 
 	/**
@@ -1136,7 +1447,19 @@ export class StakeKeyHash extends Hash {
 	}
 }
 
+/**
+ * @typedef {HashProps} StakingValidatorHashProps
+ */
+
 export class StakingValidatorHash extends ScriptHash {
+	/**
+	 * @param {StakingValidatorHash | StakingValidatorHashProps} props 
+	 * @returns {StakingValidatorHash}
+	 */
+	static fromProps(props) {
+		return props instanceof StakingValidatorHash ? props : new StakingValidatorHash(props);
+	}
+
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {StakingValidatorHash}
@@ -1170,7 +1493,19 @@ export class StakingValidatorHash extends ScriptHash {
 	}
 }
 
+/**
+ * @typedef {HashProps} ValidatorHashProps
+ */
+
 export class ValidatorHash extends ScriptHash {
+	/**
+	 * @param {ValidatorHash | ValidatorHashProps} props 
+	 * @returns {ValidatorHash}
+	 */
+	static fromProps(props) {
+		return props instanceof ValidatorHash ? props : new ValidatorHash(props);
+	}
+
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {ValidatorHash}
@@ -1205,17 +1540,29 @@ export class ValidatorHash extends ScriptHash {
 }
 
 /**
+ * @typedef {HashProps} TxIdProps
+ */
+
+/**
  * Hash of a transaction
  */
 export class TxId extends Hash {
 	/**
-	 * @param {string | number[]} rawValue 
+	 * @param {ExpandAlias<TxIdProps>} props 
 	 */
-	constructor(rawValue) {
-        const bytes = Hash.cleanConstructorArg(rawValue);
+	constructor(props) {
+        const bytes = Hash.cleanConstructorArg(props);
 
 		assert(bytes.length == 32, `expected 32 bytes for TxId, got ${bytes.length}`);
 		super(bytes);
+	}
+
+	/**
+	 * @param {TxId | TxIdProps} props 
+	 * @returns {TxId}
+	 */
+	static fromProps(props) {
+		return props instanceof TxId ? props : new TxId(props);
 	}
 
     /**
@@ -1253,7 +1600,7 @@ export class TxId extends Hash {
     }
 
 	/**
-	 * @param {string} str 
+	 * @param {hexstring} str 
 	 * @returns {TxId}
 	 */
 	static fromHex(str) {
@@ -1271,6 +1618,16 @@ export class TxId extends Hash {
 }
 
 /**
+ * @typedef {string | [
+ * 	 TxId | ExpandAlias<TxIdProps>, 
+ *   HInt | ExpandAlias<HIntProps>
+ * ] | {
+ *   txId: TxId | ExpandAlias<TxIdProps>
+ *   utxoId: HInt | ExpandAlias<HIntProps>
+ * }} TxOutputIdProps
+ */
+
+/**
  * Id of a Utxo
  */
 export class TxOutputId extends HeliosData {
@@ -1281,50 +1638,57 @@ export class TxOutputId extends HeliosData {
     #utxoIdx;
 
     /**
-     * @param  {...any} args
-     * @returns {[any, any]}
+     * @param  {TxOutputIdProps} props
+     * @returns {[TxId | TxIdProps, HInt | HIntProps]}
      */
-    static cleanConstructorArgs(...args) {
-        if (args.length == 1) {
-            const arg = args[0];
+    static cleanConstructorArgs(props) {
+        if (typeof props == "string") {
+			const parts = props.split("#");
 
-            if (typeof arg == "string") {
-                const parts = arg.split("#");
+			assert(parts.length == 2);
 
-                assert(parts.length == 2);
-
-                return [parts[0], parts[1]];
-            } else {
-                throw new Error("unexpected single arg type");
-            }
-        } else if (args.length == 2) {
-            return [args[0], args[1]];
-        } else {
+			return [parts[0], parseInt(parts[1])];
+        } else if (Array.isArray(props) && props.length == 2) {
+            return [props[0], props[1]];
+        } else if (typeof props == "object") {
+			return [assertDefined(props.txId), assertDefined(props.utxoId)];
+		} else {
             throw new Error("unexpected number of args");
         }
     }
 
     /**
-     * @param {...any} args
+     * @param {ExpandAlias<TxOutputIdProps>} props
      */
-    constructor(...args) {
-        const [rawTxId, rawUtxoIdx] = TxOutputId.cleanConstructorArgs(...args);
-
-        const txId = (rawTxId instanceof TxId) ? rawTxId : new TxId(rawTxId);
-        const utxoIdx = (rawUtxoIdx instanceof HInt) ? rawUtxoIdx : new HInt(rawUtxoIdx);
+    constructor(props) {
+        const [rawTxId, rawUtxoIdx] = TxOutputId.cleanConstructorArgs(props);
 
         super();
 
-        this.#txId = txId;
-        this.#utxoIdx = utxoIdx;
+        this.#txId = TxId.fromProps(rawTxId);
+        this.#utxoIdx = HInt.fromProps(rawUtxoIdx);
     }
 
+	/**
+	 * @param {TxOutputId | TxOutputIdProps} props 
+	 * @returns {TxOutputId}
+	 */
+	static fromProps(props) {
+		return props instanceof TxOutputId ? props : new TxOutputId(props);
+	}
+
+	/**
+	 * @type {TxId}
+	 */
     get txId() {
         return this.#txId;
     }
 
+	/**
+	 * @type {number}
+	 */
     get utxoIdx() {
-        return this.#utxoIdx;
+        return Number(this.#utxoIdx.value);
     }
 
     /**
@@ -1339,10 +1703,10 @@ export class TxOutputId extends HeliosData {
      * @returns {TxOutputId}
      */
     static fromUplcData(data) {
-        assert(data.index == 0);
-        assert(data.fields.length == 2);
+        assert(data.index == 0, `TxOutputId.fromUplcData: expected constructor index 0, got ${data.index}`);
+        assert(data.fields.length == 2, "TxOutputId.fromUplcData: expected 2 fields");
 
-        return new TxOutputId(TxId.fromUplcData(data.fields[0]), HInt.fromUplcData(data.fields[1]));
+        return new TxOutputId([TxId.fromUplcData(data.fields[0]), HInt.fromUplcData(data.fields[1])]);
     }
 
     /**
@@ -1352,7 +1716,23 @@ export class TxOutputId extends HeliosData {
     static fromUplcCbor(bytes) {
         return TxOutputId.fromUplcData(UplcData.fromCbor(bytes));
     }
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#txId.hex}#${this.#utxoIdx.value.toString()}`;
+	}
 }
+
+/**
+ * A valid bech32 string
+ * @typedef {string & {}} bech32string
+ */
+
+/**
+ * @typedef {bech32string | hexstring | number[]} AddressProps
+ */
 
 /**
  * See CIP19 for formatting of first byte
@@ -1362,39 +1742,54 @@ export class Address extends HeliosData {
 	#bytes;
 
     /**
-	 * @param {number[] | string} rawValue
+	 * @package
+	 * @param {AddressProps} props
 	 * @returns {number[]}
 	 */
-    static cleanConstructorArg(rawValue) {
-        if (typeof rawValue == "string") {
-            if (rawValue.startsWith("addr")) {
-                return Address.fromBech32(rawValue).bytes;
+    static cleanConstructorArg(props) {
+        if (typeof props == "string") {
+            if (props.startsWith("addr")) {
+                return Address.fromBech32(props).bytes;
             } else {
-                if (rawValue.startsWith("#")) {
-                    rawValue = rawValue.slice(1);
+                if (props.startsWith("#")) {
+                    props = props.slice(1);
                 }
 
-                return hexToBytes(rawValue);
+                return hexToBytes(props);
             }
         } else {
-            return rawValue;
+            return props;
         }
     }
 
 	/**
-	 * @param {string | number[]} rawValue
+	 * @param {ExpandAlias<AddressProps>} props
 	 */
-	constructor(rawValue) {
+	constructor(props) {
 		super();
-		this.#bytes = Address.cleanConstructorArg(rawValue);
+		this.#bytes = Address.cleanConstructorArg(props);
 
         assert(this.#bytes.length == 29 || this.#bytes.length == 57, `expected 29 or 57 bytes for Address, got ${this.#bytes.length}`);
 	}
 
+	/**
+	 * @param {Address | AddressProps} props 
+	 * @returns {Address}
+	 */
+	static fromProps(props) {
+		return props instanceof Address ? props : new Address(props);
+	}
+
+	/**
+	 * @type {number[]}
+	 */
 	get bytes() {
 		return this.#bytes.slice();
 	}
 
+	/**
+	 * @returns {number[]}
+	 */
 	toCbor() {
 		return CborData.encodeBytes(this.#bytes);
 	}
@@ -1408,7 +1803,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * @param {string} str
+	 * @param {bech32string} str
 	 * @returns {Address}
 	 */
 	static fromBech32(str) {
@@ -1424,7 +1819,7 @@ export class Address extends HeliosData {
 
 	/**
 	 * Doesn't check validity
-	 * @param {string} hex
+	 * @param {hexstring} hex
 	 * @returns {Address}
 	 */
 	static fromHex(hex) {
@@ -1433,7 +1828,7 @@ export class Address extends HeliosData {
 
 	/**
 	 * Returns the raw Address bytes as a hex encoded string
-	 * @returns {string}
+	 * @returns {hexstring}
 	 */
 	toHex() {
 		return bytesToHex(this.#bytes);
@@ -1504,9 +1899,8 @@ export class Address extends HeliosData {
 		}
 	}
 
-
 	/**
-	 * @returns {string}
+	 * @returns {bech32string}
 	 */
 	toBech32() {
 		return Crypto.encodeBech32(
@@ -1666,7 +2060,7 @@ export class Address extends HeliosData {
     }
 
 	/**
-	 * @type {?PubKeyHash}
+	 * @type {null | PubKeyHash}
 	 */
 	get pubKeyHash() {
 		let type = this.#bytes[0] >> 4;
@@ -1679,7 +2073,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * @type {?ValidatorHash}
+	 * @type {null | ValidatorHash}
 	 */
 	get validatorHash() {
 		let type = this.#bytes[0] >> 4;
@@ -1692,7 +2086,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * @type {?(StakeKeyHash | StakingValidatorHash)}
+	 * @type {null | StakeKeyHash | StakingValidatorHash}
 	 */
 	get stakingHash() {
 		let type = this.#bytes[0] >> 4;
@@ -1724,6 +2118,16 @@ export class Address extends HeliosData {
 	}
 }
 
+/**
+ * @typedef {string | [
+ *   MintingPolicyHash | ExpandAlias<MintingPolicyHashProps>,
+ *   ByteArray | ExpandAlias<ByteArrayProps>
+ * ] | {
+ *   mph: MintingPolicyHash | ExpandAlias<MintingPolicyHashProps>,
+ *   tokenName: ByteArray | ExpandAlias<ByteArrayProps>
+ * }} AssetClassProps
+ */
+
 export class AssetClass extends HeliosData {
 	/**
 	 * @type {MintingPolicyHash}
@@ -1731,35 +2135,25 @@ export class AssetClass extends HeliosData {
 	#mph;
 
 	/**
-	 * @type {number[]}
+	 * @type {ByteArray}
 	 */
 	#tokenName;
 
 	/**
-	 * @param {any[]} args
-	 * @returns {[MintingPolicyHash, number[]]}
+	 * @param {AssetClassProps} props
+	 * @returns {[MintingPolicyHash | MintingPolicyHashProps, ByteArray | ByteArrayProps]}
 	 */
-	static cleanConstructorArgs(args) {
-		if (args.length == 1) {
-			const arg = args[0];	
+	static cleanConstructorArgs(props) {
+		if (typeof props == "string") {
+			const fields = props.split(".")
 
-			if (typeof arg == "string") {
-				const fields = arg.split(".")
+			assert(fields.length == 2, "expected '.' in hex encoded AssetClass");
 
-				assert(fields.length == 2, "expected '.' in hex encoded AssetClass");
-
-				return [new MintingPolicyHash(fields[0]), hexToBytes(fields[1])];
-			} else {
-				throw new Error("unexpected AssetClass arg type");
-			}
-		} else if (args.length == 2) {
-			const arg0 = args[0];
-			const arg1 = args[1];
-
-			return [
-				arg0 instanceof MintingPolicyHash ? arg0 : new MintingPolicyHash(arg0),
-				Array.isArray(arg1) ? arg1 : hexToBytes(arg1)
-			];
+			return [fields[0], hexToBytes(fields[1])];
+		} else if (Array.isArray(props) && props.length == 2) {
+			return [props[0], props[1]];
+		} else if (typeof props == "object") {
+			return [assertDefined(props.mph), assertDefined(props.tokenName)];
 		} else {
 			throw new Error("unexpected number of AssetClass args");
 		}
@@ -1767,14 +2161,36 @@ export class AssetClass extends HeliosData {
 
 	/**
 	 * 
-	 * @param {any[]} args 
+	 * @param {ExpandAlias<AssetClassProps>} props
 	 */
-	constructor(...args) {
+	constructor(props) {
 		super();
-		const [mph, tokenName] = AssetClass.cleanConstructorArgs(args);
+		const [rawMph, rawTokenName] = AssetClass.cleanConstructorArgs(props);
 
-		this.#mph = mph;
-		this.#tokenName = tokenName;
+		this.#mph = MintingPolicyHash.fromProps(rawMph);
+		this.#tokenName = ByteArray.fromProps(rawTokenName);
+	}
+
+	/**
+	 * @param {AssetClass | AssetClassProps} props 
+	 * @returns {AssetClass}
+	 */
+	static fromProps(props) {
+		return props instanceof AssetClass ? props : new AssetClass(props);
+	}
+
+	/**
+	 * @type {MintingPolicyHash}
+	 */
+	get mintingPolicyHash() {
+		return this.#mph;
+	}
+
+	/**
+	 * @type {ByteArray}
+	 */
+	get tokenName() {
+		return this.#tokenName;
 	}
 
 	/**
@@ -1784,7 +2200,7 @@ export class AssetClass extends HeliosData {
 	_toUplcData() {
 		return new ConstrData(0, [
 			this.#mph._toUplcData(),
-			new ByteArrayData(this.#tokenName)
+			this.#tokenName._toUplcData()
 		])
 	}
 
@@ -1798,9 +2214,9 @@ export class AssetClass extends HeliosData {
 		assert(data.fields.length == 2);
 
 		const mph = MintingPolicyHash.fromUplcData(data.fields[0]);
-		const tokenName = data.fields[1].bytes;
+		const tokenName = ByteArray.fromUplcData(data.fields[1]);
 
-		return new AssetClass(mph, tokenName);
+		return new AssetClass([mph, tokenName]);
 	}
 
 	/**
@@ -1809,7 +2225,7 @@ export class AssetClass extends HeliosData {
 	toCbor() {
 		return CborData.encodeConstr(0, [
 			this.#mph.toCbor(),
-			CborData.encodeBytes(this.#tokenName)
+			this.#tokenName.toCbor()
 		]);
 	}
 
@@ -1823,7 +2239,7 @@ export class AssetClass extends HeliosData {
 		let mph = null;
 
 		/**
-		 * @type {number[] | null}
+		 * @type {ByteArray | null}
 		 */
 		let tokenName = null;
 
@@ -1833,7 +2249,7 @@ export class AssetClass extends HeliosData {
 					mph = MintingPolicyHash.fromCbor(fieldBytes);
 					break;
 				case 1:
-					tokenName = CborData.decodeBytes(fieldBytes);
+					tokenName = ByteArray.fromCbor(fieldBytes);
 					break;
 				default:
 					throw new Error("unexpected field");
@@ -1845,7 +2261,7 @@ export class AssetClass extends HeliosData {
 		if (mph == null || tokenName == null) {
 			throw new Error("insufficient fields");
 		} else {
-			return new AssetClass(mph, tokenName);
+			return new AssetClass([mph, tokenName]);
 		}
 	}
 
@@ -1861,35 +2277,77 @@ export class AssetClass extends HeliosData {
 	 * @type {AssetClass}
 	 */
 	static get ADA() {
-		return new AssetClass(new MintingPolicyHash(""), "");
+		return new AssetClass(["", ""]);
 	}
 }
 
+/**
+ * @typedef {[
+ *   AssetClass | AssetClassProps,
+ *   HInt | HIntProps
+ * ][] | [
+ *   MintingPolicyHash | MintingPolicyHashProps,
+ *   [
+ *     ByteArray | ByteArrayProps,
+ *     HInt | HIntProps
+ *   ][]
+ * ][]} AssetsProps
+ */
 
 /**
  * Collection of non-lovelace assets
  */
 export class Assets extends CborData {
-	/** @type {[MintingPolicyHash, [number[], bigint][]][]} */
+	/** 
+	 * @type {[MintingPolicyHash, [ByteArray, HInt][]][]} 
+	 */
 	#assets;
 
 	/**
-	 * @param {[MintingPolicyHash | number[] | string, [number[] | string, bigint | number][]][]} assets 
+	 * Also normalizes the assets
+	 * @param {AssetsProps} props
 	 */
-	constructor(assets = []) {
+	constructor(props = []) {
 		super();
-		this.#assets = assets.map(([rawMph, tokens]) => {
-			const mph = rawMph instanceof MintingPolicyHash ? rawMph : new MintingPolicyHash(rawMph);
 
-			return [
-				mph,
-				tokens.map(([rawName, amount]) => {
-					const name = Array.isArray(rawName) ? rawName : hexToBytes(rawName);
+		this.#assets = props.map((outerPair) => {
+			if (Array.isArray(outerPair[1])) {
+				const mph = MintingPolicyHash.fromProps(outerPair[0]);
 
-					return [name, BigInt(amount)];
-				})
-			];
+				/**
+				 * @type {[MintingPolicyHash, [ByteArray, HInt][]]}
+				 */
+				const mapped = [
+					mph,
+					outerPair[1].map((innerPair) => [ByteArray.fromProps(innerPair[0]), HInt.fromProps(innerPair[1])])
+				];
+
+				return mapped;
+			} else {
+				const assetClass = AssetClass.fromProps(outerPair[0]);
+				const qty = HInt.fromProps(outerPair[1]);
+
+				/**
+				 * @type {[MintingPolicyHash, [ByteArray, HInt][]]}
+				 */
+				const mapped = [
+					assetClass.mintingPolicyHash,
+					[[assetClass.tokenName, qty]]
+				];
+
+				return mapped;
+			}
 		});
+
+		this.normalize();
+	}
+
+	/**
+	 * @param {Assets | AssetsProps} props 
+	 * @returns {Assets}
+	 */
+	static fromProps(props) {
+		return props instanceof Assets ? props : new Assets(props);
 	}
 
 	/**
@@ -1917,7 +2375,7 @@ export class Assets extends CborData {
 	/**
 	 * Returns empty if mph not found
 	 * @param {MintingPolicyHash} mph
-	 * @returns {[number[], bigint][]}
+	 * @returns {[ByteArray, HInt][]}
 	 */
 	getTokens(mph) {
 		const i = this.#assets.findIndex(entry => entry[0].eq(mph));
@@ -1937,33 +2395,39 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {MintingPolicyHash} mph
-	 * @param {number[]} tokenName 
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+	 * @param {ByteArray | ByteArrayProps} tokenName 
 	 * @returns {boolean}
 	 */
 	has(mph, tokenName) {
-		let inner = this.#assets.find(asset => mph.eq(asset[0]));
+		const mph_ = MintingPolicyHash.fromProps(mph);
+		const tokenName_ = ByteArray.fromProps(tokenName);
+
+		const inner = this.#assets.find(asset => mph_.eq(asset[0]));
 
 		if (inner !== undefined) {
-			return inner[1].findIndex(pair => eq(pair[0], tokenName)) != -1;
+			return inner[1].findIndex(pair => pair[0].eq(tokenName_)) != -1;
 		} else {
 			return false;
 		}
 	}
 
 	/**
-	 * @param {MintingPolicyHash} mph
-	 * @param {number[]} tokenName 
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+	 * @param {ByteArray | ByteArrayProps} tokenName 
 	 * @returns {bigint}
 	 */
 	get(mph, tokenName) {
-		let inner = this.#assets.find(asset => mph.eq(asset[0]));
+		const mph_ = MintingPolicyHash.fromProps(mph);
+		const tokenName_ = ByteArray.fromProps(tokenName);
+
+		const inner = this.#assets.find(asset => mph_.eq(asset[0]));
 
 		if (inner !== undefined) {
-			let token = inner[1].find(pair => eq(pair[0], tokenName));
+			const token = inner[1].find(pair => pair[0].eq(tokenName_));
 
 			if (token !== undefined) {
-				return token[1];
+				return token[1].value;
 			} else {
 				return 0n;
 			}
@@ -1977,34 +2441,82 @@ export class Assets extends CborData {
 	 */
 	removeZeroes() {
 		for (let asset of this.#assets) {
-			asset[1] = asset[1].filter(token => token[1] != 0n);
+			asset[1] = asset[1].filter(token => !token[1].eq(0n));
 		}
 
 		this.#assets = this.#assets.filter(asset => asset[1].length != 0);
 	}
 
 	/**
-	 * Mutates 'this'
-	 * @param {MintingPolicyHash} mph
-	 * @param {number[]} tokenName 
-	 * @param {bigint} quantity
+	 * Removes zeros and merges duplicates
+	 * In-place algorithm
+	 * Keeps the same order as much as possible
 	 */
-	addComponent(mph, tokenName, quantity) {
-		if (quantity == 0n) {
+	normalize() {
+		/**
+		 * @type {Map<string, Map<string, bigint>>}
+		 */
+		const assets = new Map();
+
+		for (let [mph, tokens] of this.#assets) {
+			let outerPrev = assets.get(mph.hex);
+
+			if (!outerPrev) {
+				outerPrev = new Map();
+			} 
+
+			for (let [tokenName, qty] of tokens) {
+				let innerPrev = outerPrev.get(tokenName.hex);
+
+				if (!innerPrev) {
+					innerPrev = 0n;
+				}
+
+				innerPrev += qty.value;
+
+				outerPrev.set(tokenName.hex, innerPrev);
+			}
+
+			assets.set(mph.hex, outerPrev);
+		}
+
+		const entries = Array.from(assets.entries());
+
+		this.#assets = entries.map(([rawMph, rawTokens]) => {
+			const tokens = Array.from(rawTokens.entries());
+
+			return [MintingPolicyHash.fromProps(rawMph), tokens.map(([rawTokenName, rawQty]) => {
+				return [ByteArray.fromProps(rawTokenName), HInt.fromProps(rawQty)];
+			})];
+		});
+	}
+
+	/**
+	 * Mutates 'this'
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+	 * @param {ByteArray | ByteArrayProps} tokenName 
+	 * @param {HInt | HIntProps} qty
+	 */
+	addComponent(mph, tokenName, qty) {
+		const mph_ = MintingPolicyHash.fromProps(mph);
+		const tokenName_ = ByteArray.fromProps(tokenName);
+		const qty_ = HInt.fromProps(qty);
+
+		if (qty_.eq(0n)) {
 			return;
 		}
 
-		let inner = this.#assets.find(asset => mph.eq(asset[0]));
+		const inner = this.#assets.find(asset => mph_.eq(asset[0]));
 
 		if (inner === undefined) {
-			this.#assets.push([mph, [[tokenName, quantity]]]);
+			this.#assets.push([mph_, [[tokenName_, qty_]]]);
 		} else {
-			let token = inner[1].find(pair => eq(pair[0], tokenName));
+			const token = inner[1].find(pair => pair[0].eq(tokenName_));
 
 			if (token === undefined) {
-				inner[1].push([tokenName, quantity]);
+				inner[1].push([tokenName_, qty_]);
 			} else {
-				token[1] += quantity;
+				token[1] = token[1].add(qty_);
 			}
 		}
 
@@ -2021,13 +2533,13 @@ export class Assets extends CborData {
 
 		for (let [mph, tokens] of this.#assets) {
 			for (let [tokenName, quantity] of tokens) {
-				res.addComponent(mph, tokenName, op(quantity, 0n));
+				res.addComponent(mph, tokenName, new HInt(op(quantity.value, 0n)));
 			}
 		}
 
 		for (let [mph, tokens] of other.#assets) {
 			for (let [tokenName, quantity] of tokens) {
-				res.addComponent(mph, tokenName, op(0n, quantity));
+				res.addComponent(mph, tokenName, new HInt(op(0n, quantity.value)));
 			}
 		}
 
@@ -2051,41 +2563,52 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {bigint} scalar 
+	 * @param {HInt | HIntProps} scalar 
 	 * @returns {Assets}
 	 */
 	mul(scalar) {
+		const s = HInt.fromProps(scalar);
+
 		return new Assets(this.#assets.map(([mph, tokens]) => {
-			return [mph, tokens.map(([token, qty]) => [token, qty*scalar])]
+			/**
+			 * @type {[MintingPolicyHash, [ByteArray, HInt][]]}
+			 */
+			const mapped = [mph, tokens.map(([token, qty]) => [token, qty.mul(s)])]
+
+			return mapped;
 		}))
 	}
 
 	/**
 	 * Mutates 'this'
 	 * Throws error if mph is already contained in 'this'
-	 * @param {MintingPolicyHash} mph
-	 * @param {[number[], bigint][]} tokens
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+	 * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens
 	 */
 	addTokens(mph, tokens) {
+		const mph_ = MintingPolicyHash.fromProps(mph);
+
 		for (let asset of this.#assets) {
-			if (asset[0].eq(mph)) {
-				throw new Error(`MultiAsset already contains ${bytesToHex(mph.bytes)}`);
+			if (asset[0].eq(mph_)) {
+				throw new Error(`MultiAsset already contains ${mph_.hex}`);
 			}
 		}
 
-		this.#assets.push([mph, tokens.slice()]);
+		this.#assets.push([mph_, tokens.map(([tokenName, qty]) => [ByteArray.fromProps(tokenName), HInt.fromProps(qty)])]);
 
 		// sort immediately
 		this.sort();
 	}
 
 	/**
-	 * @param {MintingPolicyHash} mph
-	 * @returns {number[][]}
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+	 * @returns {ByteArray[]}
 	 */
 	getTokenNames(mph) {
+		const mph_ = MintingPolicyHash.fromProps(mph);
+
 		for (let [otherMph, tokens] of this.#assets) {
-			if (otherMph.eq(mph)) {
+			if (otherMph.eq(mph_)) {
 				return tokens.map(([tokenName, _]) => tokenName);
 			}
 		}
@@ -2100,7 +2623,7 @@ export class Assets extends CborData {
 	eq(other) {
 		for (let asset of this.#assets) {
 			for (let token of asset[1]) {
-				if (token[1] != other.get(asset[0], token[0])) {
+				if (token[1].neq(other.get(asset[0], token[0]))) {
 					return false;
 				}
 			}
@@ -2108,7 +2631,7 @@ export class Assets extends CborData {
 
 		for (let asset of other.#assets) {
 			for (let token of asset[1]) {
-				if (token[1] != this.get(asset[0], token[0])) {
+				if (token[1].neq(this.get(asset[0], token[0]))) {
 					return false;
 				}
 			}
@@ -2129,7 +2652,7 @@ export class Assets extends CborData {
 
 		for (let asset of this.#assets) {
 			for (let token of asset[1]) {
-				if (token[1] <= other.get(asset[0], token[0])) {
+				if (token[1].le(other.get(asset[0], token[0]))) {
 					return false;
 				}
 			}
@@ -2157,7 +2680,7 @@ export class Assets extends CborData {
 
 		for (let asset of this.#assets) {
 			for (let token of asset[1]) {
-				if (token[1] < other.get(asset[0], token[0])) {
+				if (token[1].lt(other.get(asset[0], token[0]))) {
 					return false;
 				}
 			}
@@ -2180,9 +2703,9 @@ export class Assets extends CborData {
 	allPositive() {
 		for (let asset of this.#assets) {
 			for (let pair of asset[1]) {
-				if (pair[1] < 0n) {
+				if (pair[1].lt(0n)) {
 					return false;
-				} else if (pair[1] == 0n) {
+				} else if (pair[1].eq(0n)) {
 					throw new Error("unexpected");
 				}
 			}
@@ -2206,15 +2729,11 @@ export class Assets extends CborData {
 			this.#assets.map(
 				outerPair => {
 					return [outerPair[0].toCbor(), CborData.encodeMap(outerPair[1].map(
-						innerPair => {
-							return [
-								CborData.encodeBytes(innerPair[0]), CborData.encodeInteger(innerPair[1])
-							]
-						}
-					))]
+						innerPair => [innerPair[0].toCbor(), innerPair[1].toCbor()]
+					))];
 				}
 			)
-		)
+		);
 	}
 
 	/**
@@ -2228,14 +2747,14 @@ export class Assets extends CborData {
 			let mph = MintingPolicyHash.fromCbor(pairBytes);
 
 			/**
-			 * @type {[number[], bigint][]}
+			 * @type {[ByteArray, HInt][]}
 			 */
 			let innerMap = [];
 			
 			CborData.decodeMap(pairBytes, (_, innerPairBytes) => {
 				innerMap.push([
-					CborData.decodeBytes(innerPairBytes),
-					CborData.decodeInteger(innerPairBytes),
+					ByteArray.fromCbor(innerPairBytes),
+					HInt.fromCbor(innerPairBytes)
 				]);
 			});
 
@@ -2255,10 +2774,10 @@ export class Assets extends CborData {
 			let innerObj = {};
 
 			for (let [tokenName, quantity] of tokens) {
-				innerObj[bytesToHex(tokenName)] = quantity.toString();
+				innerObj[tokenName.hex] = quantity.toString();
 			}
 
-			obj[mph.dump()] = innerObj;
+			obj[mph.hex] = innerObj;
 		}
 
 		return obj;
@@ -2270,16 +2789,16 @@ export class Assets extends CborData {
 	 */
 	_toUplcData() {
 		/** @type {[UplcData, UplcData][]} */
-		let pairs = [];
+		const pairs = [];
 
 		for (let asset of this.#assets) {
 			/** @type {[UplcData, UplcData][]} */
-			let innerPairs = [];
+			const innerPairs = [];
 
 			for (let token of asset[1]) {
 				innerPairs.push([
-					new ByteArrayData(token[0]),
-					new IntData(token[1]),
+					token[0]._toUplcData(),
+					token[1]._toUplcData()
 				]);
 			}
 
@@ -2314,51 +2833,95 @@ export class Assets extends CborData {
 	}
 }
 
+/**
+ * @typedef {HInt | HIntProps | [
+ *   HInt | HIntProps,
+ *   Assets | AssetsProps
+ * ] | {
+ *   lovelace: HInt| HIntProps,
+ *   assets?:   Assets | AssetsProps
+ * }} ValueProps
+ */
+
 export class Value extends HeliosData {
-	/** @type {bigint} */
+	/** @type {HInt} */
 	#lovelace;
 
 	/** @type {Assets} */
 	#assets;
 	
 	/**
-	 * @param {bigint} lovelace 
-	 * @param {Assets} assets 
+	 * 
+	 * @param {ValueProps} props 
+	 * @param {null | Assets | AssetsProps} maybeAssets 
+	 * @returns {[HInt | HIntProps, Assets | AssetsProps]}
 	 */
-	constructor(lovelace = 0n, assets = new Assets()) {
-		super();
-		this.#lovelace = lovelace;
-		this.#assets = assets;
+	static cleanConstructorArgs(props, maybeAssets) {
+		if (Array.isArray(props)) {
+			assert(props.length == 2, "expected two entries for AssetsProps");
+
+			if (maybeAssets) {
+				throw new Error("can't combine assets arg with ValueProps that also contains assets");
+			}
+
+			return [props[0], props[1]];
+		} else if (props instanceof HInt) {
+			return [props, maybeAssets ? maybeAssets : new Assets()];
+		} else if (typeof props == "object") {
+			if (maybeAssets) {
+				throw new Error("can't combine assets arg with ValueProps that also contains assets");
+			}
+
+			return [props.lovelace, props.assets ?? new Assets()];
+		} else {
+			return [props, maybeAssets ? maybeAssets : new Assets()];
+		}
 	}
 
 	/**
-	 * @param {MintingPolicyHash} mph 
-	 * @param {number[]} tokenName 
-	 * @param {bigint} quantity 
+	 * @param {ValueProps} props 
+	 * @param {null | Assets | AssetsProps} assets 
+	 */
+	constructor(props = 0n, assets = null) {
+		super();
+
+		const [rawLovelace, rawAssets] = Value.cleanConstructorArgs(props, assets);
+
+		this.#lovelace = HInt.fromProps(rawLovelace);
+		this.#assets = Assets.fromProps(rawAssets);
+	}
+
+	/**
+	 * @param {ValueProps | Value} props 
 	 * @returns {Value}
 	 */
-	static asset(mph, tokenName, quantity) {
-		return new Value(0n, new Assets([
-			[mph, [
-				[tokenName, quantity]
-			]]
-		]));
+	static fromProps(props) {
+		if (props instanceof Value) {
+			return props;
+		} else {
+			return new Value(props);
+		}
 	}
 
 	/**
-	 * @type {bigint}
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph 
+	 * @param {ByteArray | ByteArrayProps} tokenName 
+	 * @param {HInt | HIntProps} qty 
+	 * @returns {Value}
 	 */
-	get lovelace() {
-		return this.#lovelace;
-	}
+	static asset(mph, tokenName, qty) {
+		const mph_ = MintingPolicyHash.fromProps(mph);
+		const tokenName_ = ByteArray.fromProps(tokenName);
+		const qty_ = HInt.fromProps(qty);
 
-	/**
-	 * Setter for lovelace
-	 * Note: mutation is handy when balancing transactions
-	 * @param {bigint} lovelace
-	 */
-	setLovelace(lovelace) {
-		this.#lovelace = lovelace;
+		return new Value({
+			lovelace: 0n, 
+			assets: new Assets([
+				[mph_, [
+					[tokenName_, qty_]
+				]]
+			])
+		});
 	}
 
 	/**
@@ -2369,14 +2932,30 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * @type {bigint}
+	 */
+	get lovelace() {
+		return this.#lovelace.value;
+	}
+
+	/**
+	 * Setter for lovelace
+	 * Note: mutation is handy when balancing transactions
+	 * @param {HInt | HIntProps} lovelace
+	 */
+	setLovelace(lovelace) {
+		this.#lovelace = HInt.fromProps(lovelace);
+	}
+
+	/**
 	 * @returns {number[]}
 	 */
 	toCbor() {
 		if (this.#assets.isZero()) {
-			return CborData.encodeInteger(this.#lovelace);
+			return this.#lovelace.toCbor()
 		} else {
 			return CborData.encodeTuple([
-				CborData.encodeInteger(this.#lovelace),
+				this.#lovelace.toCbor(),
 				this.#assets.toCbor()
 			]);
 		}
@@ -2393,7 +2972,7 @@ export class Value extends HeliosData {
 			CborData.decodeTuple(bytes, (i, fieldBytes) => {
 				switch(i) {
 					case 0:
-						mv.#lovelace = CborData.decodeInteger(fieldBytes);
+						mv.#lovelace = HInt.fromCbor(fieldBytes);
 						break;
 					case 1:
 						mv.#assets = Assets.fromCbor(fieldBytes);
@@ -2403,7 +2982,7 @@ export class Value extends HeliosData {
 				}
 			});
 		} else {
-			mv.#lovelace = CborData.decodeInteger(bytes);
+			mv.#lovelace = HInt.fromCbor(bytes);
 		}
 
 		return mv;
@@ -2428,7 +3007,10 @@ export class Value extends HeliosData {
 	 * @returns {Value}
 	 */
 	add(other) {
-		return new Value(this.#lovelace + other.#lovelace, this.#assets.add(other.#assets));
+		return new Value({
+			lovelace: this.#lovelace.add(other.#lovelace), 
+			assets: this.#assets.add(other.#assets)
+		});
 	}
 
 	/**
@@ -2436,15 +3018,21 @@ export class Value extends HeliosData {
 	 * @returns {Value}
 	 */
 	sub(other) {
-		return new Value(this.#lovelace - other.#lovelace, this.#assets.sub(other.#assets));
+		return new Value({
+			lovelace: this.#lovelace.sub(other.#lovelace), 
+			assets: this.#assets.sub(other.#assets)
+		});
 	}
 
 	/**
-	 * @param {bigint} scalar 
+	 * @param {HInt | HIntProps} scalar 
 	 * @returns {Value}
 	 */
 	mul(scalar) {
-		return new Value(this.#lovelace*scalar, this.#assets.mul(scalar))
+		return new Value({
+			lovelace: this.#lovelace.mul(scalar), 
+			assets: this.#assets.mul(scalar)
+		})
 	}
 
 	/**
@@ -2452,7 +3040,7 @@ export class Value extends HeliosData {
 	 * @returns {boolean}
 	 */
 	eq(other) {
-		return (this.#lovelace == other.#lovelace) && (this.#assets.eq(other.#assets));
+		return this.#lovelace.eq(other.#lovelace) && (this.#assets.eq(other.#assets));
 	}
 
 	/**
@@ -2461,7 +3049,7 @@ export class Value extends HeliosData {
 	 * @returns {boolean}
 	 */
 	gt(other) {
-		return (this.#lovelace > other.#lovelace) && (this.#assets.gt(other.#assets));
+		return this.#lovelace.gt(other.#lovelace) && (this.#assets.gt(other.#assets));
 	}
 
 	/**
@@ -2470,7 +3058,7 @@ export class Value extends HeliosData {
 	 * @returns {boolean}
 	 */
 	ge(other) {
-		return (this.#lovelace >= other.#lovelace) && (this.#assets.ge(other.#assets));
+		return this.#lovelace.ge(other.#lovelace) && (this.#assets.ge(other.#assets));
 	}
 
 	/**
@@ -2479,7 +3067,7 @@ export class Value extends HeliosData {
 	 * @returns {Value} - returns this
 	 */
 	assertAllPositive() {
-		assert(this.#lovelace >= 0n);
+		assert(this.#lovelace.ge(0n));
 
 		this.#assets.assertAllPositive();
 
@@ -2491,7 +3079,7 @@ export class Value extends HeliosData {
 	 */
 	dump() {
 		return {
-			lovelace: this.#lovelace.toString(),
+			lovelace: this.#lovelace.dump(),
 			assets: this.#assets.dump()
 		};
 	}
@@ -2504,13 +3092,13 @@ export class Value extends HeliosData {
 	_toUplcData(isInScriptContext = false) {
 		let map = this.#assets._toUplcData();
 
-		if (this.#lovelace != 0n || isInScriptContext) {
-			let inner = map.map; 
+		if (this.#lovelace.neq(0n) || isInScriptContext) {
+			const inner = map.map; 
 
 			inner.unshift([
 				new ByteArrayData([]),
 				new MapData([
-					[new ByteArrayData([]), new IntData(this.#lovelace)]
+					[new ByteArrayData([]), this.#lovelace._toUplcData()]
 				]),
 			]);
 
@@ -2539,7 +3127,7 @@ export class Value extends HeliosData {
 			if (mphBytes.length == 0) {
 				//lovelace
 				assert(innerMap.length == 1 && innerMap[0][0].bytes.length == 0); 
-				sum = sum.add(new Value(innerMap[0][1].int));
+				sum = sum.add(new Value({lovelace: innerMap[0][1].int}));
 			} else {
 				// other assets
 				let mph = new MintingPolicyHash(mphBytes);

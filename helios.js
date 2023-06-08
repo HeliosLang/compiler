@@ -8,7 +8,7 @@
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
 // Version:       0.14.0
-// Last update:   May 2023
+// Last update:   June 2023
 // License type:  BSD-3-Clause
 //
 //
@@ -104,16 +104,15 @@
 //                                           SumArgSizesCost, ArgSizeDiffCost, ArgSizeProdCost, 
 //                                           ArgSizeDiagCost
 //
-//     Section 9: Uplc built-in functions    UPLC_BUILTINS, dumpCostModels, findUplcBuiltin, 
-//                                           isUplcBuiltin
+//     Section 9: Uplc built-in functions    UPLC_BUILTINS, UPLC_MACROS_OFFSET, UPLC_MACROS, 
+//                                           dumpCostModels, findUplcBuiltin, isUplcBuiltin
 //
-//     Section 10: Uplc AST                  ScriptPurpose, getPurposeName, UplcValue, UplcType, 
-//                                           DEFAULT_UPLC_RTE_CALLBACKS, UplcRte, UplcStack, 
-//                                           UplcAnon, UplcDelayedValue, UplcInt, UplcByteArray, 
-//                                           UplcString, UplcUnit, UplcBool, UplcPair, UplcList, 
-//                                           UplcDataValue, UplcTerm, UplcVariable, UplcDelay, 
-//                                           UplcLambda, UplcCall, UplcConst, UplcForce, 
-//                                           UplcError, UplcBuiltin
+//     Section 10: Uplc AST                  UplcValue, UplcType, DEFAULT_UPLC_RTE_CALLBACKS, 
+//                                           UplcRte, UplcStack, UplcAnon, UplcDelayedValue, 
+//                                           UplcInt, UplcByteArray, UplcString, UplcUnit, 
+//                                           UplcBool, UplcPair, UplcList, UplcDataValue, 
+//                                           UplcTerm, UplcVariable, UplcDelay, UplcLambda, 
+//                                           UplcCall, UplcConst, UplcForce, UplcError, UplcBuiltin
 //
 //     Section 11: Uplc program              UPLC_VERSION_COMPONENTS, UPLC_VERSION, 
 //                                           PLUTUS_SCRIPT_VERSION, UPLC_TAG_WIDTHS, 
@@ -132,22 +131,22 @@
 //                                           IntType, RawDataType, RealType, StringType
 //
 //     Section 15: Eval builtin typeclasses  TypeClassImpl, DataTypeClassImpl, AnyTypeClass, 
-//                                           DefaultTypeClass, Parameter, ParametricFunc, 
-//                                           AppliedType, ParametricType
+//                                           DefaultTypeClass, SummableTypeClass, Parameter, 
+//                                           ParametricFunc, AppliedType, ParametricType
 //
 //     Section 16: Eval builtin functions    BuiltinFunc, AssertFunc, ErrorFunc, PrintFunc
 //
-//     Section 17: Eval container types      ListType, ListType, MapType, MapType, OptionType, 
-//                                           OptionType
+//     Section 17: Eval container types      IteratorType, ListType, ListType, MapType, MapType, 
+//                                           OptionType, OptionType
 //
 //     Section 18: Eval time types           DurationType, TimeType, TimeRangeType
 //
 //     Section 19: Eval hash types           genHashInstanceMembers, genHashTypeMembers, 
-//                                           DatumHashType, MintingPolicyHashType, PubKeyType, 
-//                                           PubKeyHashType, ScriptHashType, StakeKeyHashType, 
-//                                           StakingHashType, StakingHashStakeKeyType, 
-//                                           StakingHashValidatorType, StakingValidatorHashType, 
-//                                           ValidatorHashType
+//                                           genHashTypeProps, DatumHashType, 
+//                                           MintingPolicyHashType, PubKeyType, PubKeyHashType, 
+//                                           ScriptHashType, StakeKeyHashType, StakingHashType, 
+//                                           StakingHashStakeKeyType, StakingHashValidatorType, 
+//                                           StakingValidatorHashType, ValidatorHashType
 //
 //     Section 20: Eval money types          AssetClassType, ValueType, ValuableTypeClass
 //
@@ -157,21 +156,25 @@
 //                                           CredentialType, CredentialPubKeyType, 
 //                                           CredentialValidatorType, OutputDatumType, 
 //                                           OutputDatumHashType, OutputDatumInlineType, 
-//                                           OutputDatumNoneType, ScriptContextType, 
-//                                           ScriptPurposeType, ScriptPurposeCertifyingType, 
+//                                           OutputDatumNoneType, MacroType, ScriptCollectionType, 
+//                                           ScriptContextType, ContractContextType, WalletType, 
+//                                           NetworkType, ScriptPurposeType, 
+//                                           ScriptPurposeCertifyingType, 
 //                                           ScriptPurposeMintingType, ScriptPurposeTypeRewarding, 
 //                                           ScriptPurposeSpendingType, StakingCredentialType, 
 //                                           StakingCredentialHashType, StakingCredentialPtrType, 
 //                                           StakingPurposeType, StakingPurposeCertifyingType, 
-//                                           StakingPurposeRewardingType, TxType, TxIdType, 
-//                                           TxInputType, TxOutputType, TxOutputIdType
+//                                           StakingPurposeRewardingType, TxBuilderType, TxType, 
+//                                           TxIdType, TxInputType, TxOutputType, TxOutputIdType
 //
-//     Section 22: Scopes                    GlobalScope, Scope, TopScope, ModuleScope
+//     Section 22: Scopes                    builtinTypes, GlobalScope, Scope, TopScope, 
+//                                           ModuleScope
 //
 //     Section 23: Helios AST expressions    Expr, RefExpr, PathExpr, ValuePathExpr, ListTypeExpr, 
-//                                           MapTypeExpr, OptionTypeExpr, VoidTypeExpr, 
-//                                           FuncArgTypeExpr, FuncTypeExpr, AssignExpr, VoidExpr, 
-//                                           ChainExpr, PrimitiveLiteralExpr, LiteralDataExpr, 
+//                                           MapTypeExpr, IteratorTypeExpr, OptionTypeExpr, 
+//                                           VoidTypeExpr, FuncArgTypeExpr, FuncTypeExpr, 
+//                                           AssignExpr, VoidExpr, ChainExpr, 
+//                                           PrimitiveLiteralExpr, LiteralDataExpr, 
 //                                           StructLiteralField, StructLiteralExpr, 
 //                                           ListLiteralExpr, MapLiteralExpr, NameTypePair, 
 //                                           FuncArg, FuncLiteralExpr, ParametricExpr, UnaryExpr, 
@@ -200,9 +203,9 @@
 //                                           buildImplDefinition, buildImplMembers, buildTypeExpr, 
 //                                           buildParametricTypeExpr, buildListTypeExpr, 
 //                                           buildMapTypeExpr, buildOptionTypeExpr, 
-//                                           buildFuncTypeExpr, buildFuncArgTypeExpr, 
-//                                           buildFuncRetTypeExprs, buildTypePathExpr, 
-//                                           buildTypeRefExpr, buildValueExpr, 
+//                                           buildIteratorTypeExpr, buildFuncTypeExpr, 
+//                                           buildFuncArgTypeExpr, buildFuncRetTypeExprs, 
+//                                           buildTypePathExpr, buildTypeRefExpr, buildValueExpr, 
 //                                           buildMaybeAssignOrChainExpr, buildDestructExpr, 
 //                                           buildDestructExprs, buildAssignLhs, 
 //                                           makeBinaryExprBuilder, makeUnaryExprBuilder, 
@@ -238,8 +241,9 @@
 //     Section 30: IR Program                IRProgram, IRParametricProgram
 //
 //     Section 31: Helios program            Module, MainModule, RedeemerProgram, 
-//                                           DatumRedeemerProgram, TestingProgram, 
-//                                           SpendingProgram, MintingProgram, StakingProgram
+//                                           DatumRedeemerProgram, GenericProgram, TestingProgram, 
+//                                           SpendingProgram, MintingProgram, StakingProgram, 
+//                                           LinkingProgram
 //
 //     Section 32: Native scripts            NativeContext, NativeScript, NativeSig, NativeAll, 
 //                                           NativeAny, NativeAtLeast, NativeAfter, NativeBefore
@@ -252,15 +256,18 @@
 //
 //     Section 34: Highlighting function     SyntaxCategory, highlight
 //
-//     Section 35: Fuzzy testing framework   FuzzyTest
+//     Section 35: CoinSelection             CoinSelection
 //
-//     Section 36: CoinSelection             CoinSelection
+//     Section 36: Wallets                   Cip30Wallet, WalletHelper
 //
-//     Section 37: Wallets                   Cip30Wallet, WalletHelper
+//     Section 37: Network                   BlockfrostV0
 //
-//     Section 38: Network                   BlockfrostV0
+//     Section 38: Emulator                  rawNetworkEmulatorParams, WalletEmulator, GenesisTx, 
+//                                           RegularTx, NetworkEmulator
 //
-//     Section 39: Emulator                  WalletEmulator, GenesisTx, RegularTx, NetworkEmulator
+//     Section 39: Fuzzy testing framework   FuzzyTest
+//
+//     Section 40: Bundling specific functionsjsToUplc, uplcToJs, exportedForBundling
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -342,6 +349,30 @@ export const config = {
 ///////////////////////
 // Section 2: Utilities
 ///////////////////////
+
+/**
+ * Part of a trick to force expansion of a type alias
+ * @template T
+ * @typedef {T extends any ? {key: T} : never} WrapAlias<T>
+ */
+
+/**
+ * Part of a trick to force expansion of a type alias
+ * @template T
+ * @typedef {T extends {key: any} ? T["key"] : never} UnwrapAlias<T>
+ */
+
+/**
+ * Explicit union type-aliases is sometimes more helpful in VSCode tooltips
+ * Unalias forces an alias expansion
+ * Trick taken from https://stackoverflow.com/questions/73588194
+ * @template T
+ * @typedef {UnwrapAlias<WrapAlias<T>>} ExpandAlias<T>
+ */
+
+/**
+ * @typedef {string & {}} hexstring
+ */
 
 /**
  * Needed by transfer() methods
@@ -710,7 +741,7 @@ function byteToBitString(b, n = 8, prefix = true) {
  * Converts a hexadecimal representation of bytes into an actual list of uint8 bytes.
  * @example
  * hexToBytes("00ff34") => [0, 255, 52] 
- * @param {string} hex 
+ * @param {hexstring} hex 
  * @returns {number[]}
  */
 export function hexToBytes(hex) {
@@ -730,7 +761,7 @@ export function hexToBytes(hex) {
  * @example
  * bytesToHex([0, 255, 52]) => "00ff34"
  * @param {number[]} bytes
- * @returns {string}
+ * @returns {hexstring}
  */
 export function bytesToHex(bytes) {
 	const parts = [];
@@ -739,6 +770,9 @@ export function bytesToHex(bytes) {
 		parts.push(padZeroes(b.toString(16), 2));
 	}
 
+	/**
+	 * @type {hexstring}
+	 */
 	return parts.join('');
 }
 
@@ -942,7 +976,7 @@ class BitWriter {
 	write(bitChars) {
 		for (let c of bitChars) {
 			if (c != '0' && c != '1') {
-				throw new Error("bad bit char");
+				throw new Error("bit string contains invalid chars: " + bitChars);
 			}
 		}
 
@@ -5523,7 +5557,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
-	 * @param {string | number[]} bytes
+	 * @param {hexstring | number[]} bytes
 	 * @returns {UplcData}
 	 */
 	static fromCbor(bytes) {
@@ -5713,7 +5747,7 @@ export class ByteArrayData extends UplcData {
 	}
 
 	/**
-	 * @returns {string}
+	 * @returns {hexstring}
 	 */
 	toHex() {
 		return bytesToHex(this.#bytes);
@@ -5806,6 +5840,7 @@ export class ListData extends UplcData {
 	 */
 	constructor(items) {
 		super();
+		assert(items.every(f => f instanceof UplcData), "expected exclusively UplcData items");
 		this.#items = items;
 	}
 
@@ -6003,6 +6038,7 @@ export class ConstrData extends UplcData {
 	 */
 	constructor(index, fields) {
 		super();
+		assert(fields.every(f => f instanceof UplcData), "expected exclusively UplcData fields");
 		this.#index = index;
 		this.#fields = fields;
 	}
@@ -6125,6 +6161,22 @@ export class HeliosData extends CborData {
 	toSchemaJson() {
 		return this._toUplcData().toSchemaJson();
 	}
+
+	/**
+	 * Defaults to cbor encoding of uplc data structure.
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return this._toUplcData().toCbor();
+	}
+
+	/**
+	 * Most HeliosData classes are builtin
+	 * @returns {boolean}
+	 */
+	static isBuiltin() {
+		return true;
+	}
 }
 
 /**
@@ -6134,7 +6186,12 @@ export class HeliosData extends CborData {
  *   new(...args: any[]): T
  *   fromUplcCbor: (bytes: (string | number[])) => T
  *   fromUplcData: (data: UplcData) => T
+ *   isBuiltin(): boolean
  * }} HeliosDataClass
+ */
+
+/**
+ * @typedef {number | bigint} HIntProps
  */
 
 /**
@@ -6148,7 +6205,7 @@ export class HInt extends HeliosData {
 
     /**
      * @package
-     * @param {number | bigint | string} rawValue
+     * @param {HIntProps} rawValue
      * @returns {bigint}
      */
     static cleanConstructorArg(rawValue) {
@@ -6162,13 +6219,28 @@ export class HInt extends HeliosData {
     }
 
     /**
-     * @param {number | bigint | string} rawValue
+     * @param {ExpandAlias<HIntProps>} rawValue
      */
     constructor(rawValue) {
         super();
 
         this.#value = HInt.cleanConstructorArg(rawValue);
     }
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.#value.toString();
+	}
+
+	/**
+	 * @param {HInt | HIntProps} props 
+	 * @returns {HInt}
+	 */
+	static fromProps(props) {
+		return props instanceof HInt ? props : new HInt(props);
+	}
 
     /**
      * @type {bigint}
@@ -6200,7 +6272,105 @@ export class HInt extends HeliosData {
     static fromUplcCbor(bytes) {
         return HInt.fromUplcData(UplcData.fromCbor(bytes));
     }
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {HInt}
+	 */
+	static fromCbor(bytes) {
+		return new HInt(CborData.decodeInteger(bytes));
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return  CborData.encodeInteger(this.value);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	dump() {
+		return this.#value.toString();
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return this.#value == HInt.fromProps(other).#value
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {boolean}
+	 */
+	neq(other) {
+		return this.#value != HInt.fromProps(other).value;
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {boolean}
+	 */
+	ge(other) {
+		return this.#value >= HInt.fromProps(other).#value;
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {boolean}
+	 */
+	gt(other) {
+		return this.#value > HInt.fromProps(other).#value;
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {boolean}
+	 */
+	le(other) {
+		return this.#value <= HInt.fromProps(other).#value;
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {boolean}
+	 */
+	lt(other) {
+		return this.#value < HInt.fromProps(other).#value;
+	}
+
+	/**
+	 * @param {HInt| HIntProps} other 
+	 * @returns {HInt}
+	 */
+	add(other) {
+		return new HInt(this.#value + HInt.fromProps(other).#value);
+	}
+
+	/**
+	 * @param {HInt | HIntProps} other 
+	 * @returns {HInt}
+	 */
+	sub(other) {
+		return new HInt(this.#value - HInt.fromProps(other).#value);
+	}
+
+	/**
+	 * @param {HInt| HIntProps} other 
+	 * @returns {HInt}
+	 */
+	mul(other) {
+		return new HInt(this.#value * HInt.fromProps(other).#value);
+	}
 }
+
+/**
+ * @typedef {number | bigint | string | Date} TimeProps
+ */
 
 /**
  * Milliseconds since 1 jan 1970
@@ -6208,16 +6378,18 @@ export class HInt extends HeliosData {
 export class Time extends HInt {
      /**
      * @package
-     * @param {number | bigint | string | Date} rawValue
+     * @param {TimeProps} props
      * @returns {bigint}
      */
-	static cleanConstructorArg(rawValue) {
-        if (rawValue instanceof Date) {
-            return BigInt(rawValue.getTime());
+	static cleanConstructorArg(props) {
+        if (props instanceof Date) {
+            return BigInt(props.getTime());
+		} else if (typeof props == "string") {
+			return BigInt(Date.parse(props));
         } else {
-            const value = BigInt(rawValue);
+            const value = BigInt(props);
 
-            if (value.toString() != rawValue.toString()) {
+            if (value.toString() != props.toString()) {
                 throw new Error("not a valid integer");
             } else {
                 return value;
@@ -6226,11 +6398,19 @@ export class Time extends HInt {
     }
 
     /**
-     * @param {number | bigint | string | Date} rawValue
+     * @param {ExpandAlias<TimeProps>} props
      */
-    constructor(rawValue) {
-        super(Time.cleanConstructorArg(rawValue));
+    constructor(props) {
+        super(Time.cleanConstructorArg(props));
     }
+
+	/**
+	 * @param {Time | TimeProps} props 
+	 * @returns {Time}
+	 */
+	static fromProps(props) {
+		return props instanceof Time ? props : new Time(props);
+	}
 
     /**
      * @param {UplcData} data
@@ -6250,9 +6430,20 @@ export class Time extends HInt {
 }
 
 /**
+ * @typedef {HIntProps} DurationProps
+ */
+
+/**
  * Difference between two time values in milliseconds.
  */
 export class Duration extends HInt {
+	/**
+	 * @param {Duration | DurationProps} props 
+	 */
+	static fromProps(props) {
+		return props instanceof Duration ? props : new Duration(props);
+	}
+
     /**
      * @param {UplcData} data
      * @returns {Duration}
@@ -6271,6 +6462,10 @@ export class Duration extends HInt {
 }
 
 /**
+ * @typedef {boolean | string} BoolProps
+ */
+
+/**
  * Helios Bool type
  */
 export class Bool extends HeliosData {
@@ -6281,34 +6476,45 @@ export class Bool extends HeliosData {
 
     /**
      * @package
-     * @param {boolean | string} rawValue 
+     * @param {BoolProps} props 
      * @returns {boolean}
      */
-    static cleanConstructorArg(rawValue) {
-        if (typeof rawValue == "string") {
-            if (rawValue == "false") {
+    static cleanConstructorArg(props) {
+        if (typeof props == "string") {
+            if (props == "false") {
                 return false;
-            } else if (rawValue == "true") {
+            } else if (props == "true") {
                 return true;
             } else {
                 throw new Error("not a valid string representation of a Bool");
             }
-        } else if (typeof rawValue == "boolean") {
-            return rawValue;
+        } else if (typeof props == "boolean") {
+            return props;
         } else {
             throw new Error("can't convert to boolean");
         }
     }
 
     /**
-     * @param {boolean | string} rawValue 
+     * @param {ExpandAlias<BoolProps>} props 
      */
-    constructor(rawValue) {
+    constructor(props) {
         super();
 
-        this.#value = Bool.cleanConstructorArg(rawValue);
+        this.#value = Bool.cleanConstructorArg(props);
     }
 
+	/**
+	 * @param {Bool | BoolProps} props 
+	 * @returns {Bool}
+	 */
+	static fromProps(props) {
+		return props instanceof Bool ? props : new Bool(props);
+	}
+
+	/**
+	 * @type {boolean}
+	 */
     get bool() {
         return this.#value;
     }
@@ -6347,6 +6553,10 @@ export class Bool extends HeliosData {
 }
 
 /**
+ * @typedef {string} HStringProps
+ */
+
+/**
  * Helios String type.
  * Can't be named 'String' because that would interfere with the javascript 'String'-type
  */
@@ -6357,14 +6567,25 @@ export class HString extends HeliosData {
     #value;
 
     /**
-     * @param {string} value 
+     * @param {ExpandAlias<HStringProps>} props 
      */
-    constructor(value) {
+    constructor(props) {
         super();
 
-        this.#value = value;
+        this.#value = props;
     }
 
+	/**
+	 * @param {HString | HStringProps} props
+	 * @returns {HString}
+	 */
+	static fromProps(props) {
+		return props instanceof HString ? props : new HString(props);
+	}
+
+	/**
+	 * @type {string}
+	 */
     get string() {
         return this.#value;
     }
@@ -6395,6 +6616,10 @@ export class HString extends HeliosData {
 }
 
 /**
+ * @typedef {hexstring | number[]} ByteArrayProps
+ */
+
+/**
  * Helios ByteArray type
  */
 export class ByteArray extends HeliosData {
@@ -6405,30 +6630,38 @@ export class ByteArray extends HeliosData {
 
     /**
      * @package
-     * @param {string | number[]} rawValue 
+     * @param {ByteArrayProps} props 
      */
-    static cleanConstructorArg(rawValue) {
-        if (Array.isArray(rawValue)) {
-            return rawValue;
-        } else if (typeof rawValue == "string") {
-            if (rawValue.startsWith("#")) {
-                rawValue = rawValue.slice(1);
+    static cleanConstructorArg(props) {
+        if (Array.isArray(props)) {
+            return props;
+        } else if (typeof props == "string") {
+            if (props.startsWith("#")) {
+                props = props.slice(1);
             }
 
-            return hexToBytes(rawValue);
+            return hexToBytes(props);
         } else {
             throw new Error("unexpected bytes type");
         }
     }
 
     /**
-     * @param {string | number[]} rawValue 
+     * @param {ExpandAlias<ByteArrayProps>} props 
      */
-    constructor(rawValue) {
+    constructor(props) {
         super();
 
-        this.#bytes = ByteArray.cleanConstructorArg(rawValue);
+        this.#bytes = ByteArray.cleanConstructorArg(props);
     }
+
+	/**
+	 * @param {ByteArray | ByteArrayProps} props 
+	 * @returns {ByteArray}
+	 */
+	static fromProps(props) {
+		return props instanceof ByteArray ? props : new ByteArray(props);
+	}
 
     /**
      * @type {number[]}
@@ -6438,7 +6671,7 @@ export class ByteArray extends HeliosData {
     }
 
     /**
-     * @type {string}
+     * @type {hexstring}
      */
     get hex() {
         return bytesToHex(this.#bytes);
@@ -6451,6 +6684,13 @@ export class ByteArray extends HeliosData {
     _toUplcData() {
         return new ByteArrayData(this.#bytes);
     }
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return CborData.encodeBytes(this.#bytes);
+	}
 
     /**
      * @param {UplcData} data 
@@ -6467,6 +6707,22 @@ export class ByteArray extends HeliosData {
     static fromUplcCbor(bytes) {
         return ByteArray.fromUplcData(UplcData.fromCbor(bytes));
     }
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {ByteArray}
+	 */
+	static fromCbor(bytes) {
+		return new ByteArray(CborData.decodeBytes(bytes));
+	}
+
+	/**
+	 * @param {ByteArray | ByteArrayProps} other 
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return eq(this.#bytes, ByteArray.fromProps(other).#bytes);
+	}
 }
 
 /**
@@ -6833,6 +7089,9 @@ export function Option(SomeClass) {
     return Option_;
 }
 
+/**
+ * @typedef {hexstring | number[]} HashProps
+ */
 
 /**
  * Base class of all hash-types
@@ -6843,23 +7102,31 @@ class Hash extends HeliosData {
 	#bytes;
 
 	/**
-	 * @param {string | number[]} rawValue 
+	 * @param {HashProps} props 
 	 * @returns {number[]}
 	 */
-	static cleanConstructorArg(rawValue) {
-		if (typeof rawValue == "string") {
-			return hexToBytes(rawValue);
+	static cleanConstructorArg(props) {
+		if (typeof props == "string") {
+			return hexToBytes(props);
 		} else {
-			return rawValue;
+			return props;
 		}
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {ExpandAlias<HashProps>} props 
 	 */
-	constructor(bytes) {
+	constructor(props) {
 		super();
-		this.#bytes = bytes;
+		this.#bytes = Hash.cleanConstructorArg(props);
+	}
+
+	/**
+	 * @param {Hash | HashProps} props 
+	 * @returns {Hash}
+	 */
+	static fromProps(props) {
+		return props instanceof Hash ? props : new Hash(props);
 	}
 
 	/**
@@ -6870,7 +7137,7 @@ class Hash extends HeliosData {
 	}
 
 	/**
-	 * @returns {string}
+	 * @returns {hexstring}
 	 */
 	get hex() {
 		return bytesToHex(this.#bytes);
@@ -6901,7 +7168,7 @@ class Hash extends HeliosData {
 
 	/**
 	 * Might be needed for internal use
-	 * @param {string} str 
+	 * @param {hexstring} str 
 	 * @returns {Hash}
 	 */
 	static fromHex(str) {
@@ -6917,6 +7184,7 @@ class Hash extends HeliosData {
 
 	/**
 	 * @param {Hash} other
+	 * @returns {boolean}
 	 */
 	eq(other) {
 		return eq(this.#bytes, other.#bytes);
@@ -6932,15 +7200,26 @@ class Hash extends HeliosData {
 	}
 }
 
+/**
+ * @typedef {HashProps} DatumHashProps
+ */
+
 export class DatumHash extends Hash {
 	/**
-	 * @param {string | number[]} rawValue
+	 * @param {ExpandAlias<DatumHashProps>} props
 	 */
-	constructor(rawValue) {
-		const bytes = Hash.cleanConstructorArg(rawValue);
+	constructor(props) {
+		const bytes = Hash.cleanConstructorArg(props);
 
 		assert(bytes.length == 32);
 		super(bytes);
+	}
+
+	/**
+	 * @param {DatumHash | DatumHashProps} props 
+	 */
+	static fromProps(props) {
+		return props instanceof DatumHash ? props : new DatumHash(props);
 	}
 
 	/**
@@ -6976,18 +7255,30 @@ export class DatumHash extends Hash {
 	}
 }
 
+/**
+ * @typedef {hexstring | number[]} PubKeyProps
+ */
+
 export class PubKey extends HeliosData {
 	#bytes;
 
 	/**
-	 * @param {string | number[]} rawValue 
+	 * @param {ExpandAlias<PubKeyProps>} props 
 	 */
-	constructor(rawValue) {
+	constructor(props) {
 		super();
-		const bytes = (typeof rawValue == "string") ? hexToBytes(rawValue) : rawValue;
+		const bytes = (typeof props == "string") ? hexToBytes(props) : props;
 
 		assert(bytes.length == 32, `expected 32 for PubKey, got ${bytes.length}`);
 		this.#bytes = bytes;
+	}
+
+	/**
+	 * @param {PubKey | PubKeyProps} props 
+	 * @returns {PubKey}
+	 */
+	static fromProps(props) {
+		return props instanceof PubKey ? props : new PubKey(props);
 	}
 
 	/**
@@ -7005,7 +7296,7 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
-	 * @type {string}
+	 * @type {hexstring}
 	 */
 	get hex() {
 		return bytesToHex(this.#bytes);
@@ -7063,16 +7354,28 @@ export class PubKey extends HeliosData {
 	}
 }
 
+/**
+ * @typedef {HashProps} PubKeyHashProps
+ */
+
 export class PubKeyHash extends Hash {
 	
 	/**
-	 * @param {string | number[]} rawValue 
+	 * @param {ExpandAlias<PubKeyHashProps>} props 
 	 */
-	constructor(rawValue) {
-		const bytes = Hash.cleanConstructorArg(rawValue);
+	constructor(props) {
+		const bytes = Hash.cleanConstructorArg(props);
 
 		assert(bytes.length == 28, `expected 28 bytes for PubKeyHash, got ${bytes.length}`);
 		super(bytes);
+	}
+
+	/**
+	 * @param {PubKeyHash | PubKeyHashProps} props 
+	 * @returns {PubKeyHash}
+	 */
+	static fromProps(props) {
+		return props instanceof PubKeyHash ? props : new PubKeyHash(props);
 	}
 
 	/**
@@ -7108,9 +7411,13 @@ export class PubKeyHash extends Hash {
 	}
 }
 
+/**
+ * @typedef {HashProps} ScriptHashProps
+ */
+
 export class ScriptHash extends Hash {
 	/**
-	 * @param {string | number[]} rawValue
+	 * @param {ExpandAlias<ScriptHashProps>} rawValue
 	 */
 	constructor(rawValue) {
 		const bytes = Hash.cleanConstructorArg(rawValue);
@@ -7118,9 +7425,29 @@ export class ScriptHash extends Hash {
 		assert(bytes.length == 28, `expected 28 bytes for ScriptHash, got ${bytes.length}`);
 		super(bytes);
 	}
+
+	/**
+	 * @param {ScriptHash | ScriptHashProps} props 
+	 * @returns {ScriptHash}
+	 */
+	static fromProps(props) {
+		return props instanceof ScriptHash ? props : new ScriptHash(props);
+	}
 }
 
+/**
+ * @typedef {HashProps} MintingPolicyHashProps
+ */
+
 export class MintingPolicyHash extends ScriptHash {
+	/**
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} props 
+	 * @returns {MintingPolicyHash}
+	 */
+	static fromProps(props) {
+		return props instanceof MintingPolicyHash ? props : new MintingPolicyHash(props);
+	}
+
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {MintingPolicyHash}
@@ -7162,15 +7489,26 @@ export class MintingPolicyHash extends ScriptHash {
 	}
 }
 
+/**
+ * @typedef {HashProps} StakeKeyHashProps
+ */
+
 export class StakeKeyHash extends Hash {
 	/**
-	 * @param {number[]} rawValue
+	 * @param {ExpandAlias<StakeKeyHashProps>} props
 	 */
-	constructor(rawValue) {
-		const bytes = Hash.cleanConstructorArg(rawValue);
+	constructor(props) {
+		const bytes = Hash.cleanConstructorArg(props);
 		
 		assert(bytes.length == 28, `expected 28 bytes for StakeKeyHash, got ${bytes.length}`);
 		super(bytes);
+	}
+
+	/**
+	 * @param {StakeKeyHash | StakeKeyHashProps} props 
+	 */
+	static fromProps(props) {
+		return props instanceof StakeKeyHash ? props : new StakeKeyHash(props);
 	}
 
 	/**
@@ -7206,7 +7544,19 @@ export class StakeKeyHash extends Hash {
 	}
 }
 
+/**
+ * @typedef {HashProps} StakingValidatorHashProps
+ */
+
 export class StakingValidatorHash extends ScriptHash {
+	/**
+	 * @param {StakingValidatorHash | StakingValidatorHashProps} props 
+	 * @returns {StakingValidatorHash}
+	 */
+	static fromProps(props) {
+		return props instanceof StakingValidatorHash ? props : new StakingValidatorHash(props);
+	}
+
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {StakingValidatorHash}
@@ -7240,7 +7590,19 @@ export class StakingValidatorHash extends ScriptHash {
 	}
 }
 
+/**
+ * @typedef {HashProps} ValidatorHashProps
+ */
+
 export class ValidatorHash extends ScriptHash {
+	/**
+	 * @param {ValidatorHash | ValidatorHashProps} props 
+	 * @returns {ValidatorHash}
+	 */
+	static fromProps(props) {
+		return props instanceof ValidatorHash ? props : new ValidatorHash(props);
+	}
+
 	/**
 	 * @param {number[]} bytes 
 	 * @returns {ValidatorHash}
@@ -7275,17 +7637,29 @@ export class ValidatorHash extends ScriptHash {
 }
 
 /**
+ * @typedef {HashProps} TxIdProps
+ */
+
+/**
  * Hash of a transaction
  */
 export class TxId extends Hash {
 	/**
-	 * @param {string | number[]} rawValue 
+	 * @param {ExpandAlias<TxIdProps>} props 
 	 */
-	constructor(rawValue) {
-        const bytes = Hash.cleanConstructorArg(rawValue);
+	constructor(props) {
+        const bytes = Hash.cleanConstructorArg(props);
 
 		assert(bytes.length == 32, `expected 32 bytes for TxId, got ${bytes.length}`);
 		super(bytes);
+	}
+
+	/**
+	 * @param {TxId | TxIdProps} props 
+	 * @returns {TxId}
+	 */
+	static fromProps(props) {
+		return props instanceof TxId ? props : new TxId(props);
 	}
 
     /**
@@ -7323,7 +7697,7 @@ export class TxId extends Hash {
     }
 
 	/**
-	 * @param {string} str 
+	 * @param {hexstring} str 
 	 * @returns {TxId}
 	 */
 	static fromHex(str) {
@@ -7341,6 +7715,16 @@ export class TxId extends Hash {
 }
 
 /**
+ * @typedef {string | [
+ * 	 TxId | ExpandAlias<TxIdProps>, 
+ *   HInt | ExpandAlias<HIntProps>
+ * ] | {
+ *   txId: TxId | ExpandAlias<TxIdProps>
+ *   utxoId: HInt | ExpandAlias<HIntProps>
+ * }} TxOutputIdProps
+ */
+
+/**
  * Id of a Utxo
  */
 export class TxOutputId extends HeliosData {
@@ -7351,50 +7735,57 @@ export class TxOutputId extends HeliosData {
     #utxoIdx;
 
     /**
-     * @param  {...any} args
-     * @returns {[any, any]}
+     * @param  {TxOutputIdProps} props
+     * @returns {[TxId | TxIdProps, HInt | HIntProps]}
      */
-    static cleanConstructorArgs(...args) {
-        if (args.length == 1) {
-            const arg = args[0];
+    static cleanConstructorArgs(props) {
+        if (typeof props == "string") {
+			const parts = props.split("#");
 
-            if (typeof arg == "string") {
-                const parts = arg.split("#");
+			assert(parts.length == 2);
 
-                assert(parts.length == 2);
-
-                return [parts[0], parts[1]];
-            } else {
-                throw new Error("unexpected single arg type");
-            }
-        } else if (args.length == 2) {
-            return [args[0], args[1]];
-        } else {
+			return [parts[0], parseInt(parts[1])];
+        } else if (Array.isArray(props) && props.length == 2) {
+            return [props[0], props[1]];
+        } else if (typeof props == "object") {
+			return [assertDefined(props.txId), assertDefined(props.utxoId)];
+		} else {
             throw new Error("unexpected number of args");
         }
     }
 
     /**
-     * @param {...any} args
+     * @param {ExpandAlias<TxOutputIdProps>} props
      */
-    constructor(...args) {
-        const [rawTxId, rawUtxoIdx] = TxOutputId.cleanConstructorArgs(...args);
-
-        const txId = (rawTxId instanceof TxId) ? rawTxId : new TxId(rawTxId);
-        const utxoIdx = (rawUtxoIdx instanceof HInt) ? rawUtxoIdx : new HInt(rawUtxoIdx);
+    constructor(props) {
+        const [rawTxId, rawUtxoIdx] = TxOutputId.cleanConstructorArgs(props);
 
         super();
 
-        this.#txId = txId;
-        this.#utxoIdx = utxoIdx;
+        this.#txId = TxId.fromProps(rawTxId);
+        this.#utxoIdx = HInt.fromProps(rawUtxoIdx);
     }
 
+	/**
+	 * @param {TxOutputId | TxOutputIdProps} props 
+	 * @returns {TxOutputId}
+	 */
+	static fromProps(props) {
+		return props instanceof TxOutputId ? props : new TxOutputId(props);
+	}
+
+	/**
+	 * @type {TxId}
+	 */
     get txId() {
         return this.#txId;
     }
 
+	/**
+	 * @type {number}
+	 */
     get utxoIdx() {
-        return this.#utxoIdx;
+        return Number(this.#utxoIdx.value);
     }
 
     /**
@@ -7409,10 +7800,10 @@ export class TxOutputId extends HeliosData {
      * @returns {TxOutputId}
      */
     static fromUplcData(data) {
-        assert(data.index == 0);
-        assert(data.fields.length == 2);
+        assert(data.index == 0, `TxOutputId.fromUplcData: expected constructor index 0, got ${data.index}`);
+        assert(data.fields.length == 2, "TxOutputId.fromUplcData: expected 2 fields");
 
-        return new TxOutputId(TxId.fromUplcData(data.fields[0]), HInt.fromUplcData(data.fields[1]));
+        return new TxOutputId([TxId.fromUplcData(data.fields[0]), HInt.fromUplcData(data.fields[1])]);
     }
 
     /**
@@ -7422,7 +7813,23 @@ export class TxOutputId extends HeliosData {
     static fromUplcCbor(bytes) {
         return TxOutputId.fromUplcData(UplcData.fromCbor(bytes));
     }
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#txId.hex}#${this.#utxoIdx.value.toString()}`;
+	}
 }
+
+/**
+ * A valid bech32 string
+ * @typedef {string & {}} bech32string
+ */
+
+/**
+ * @typedef {bech32string | hexstring | number[]} AddressProps
+ */
 
 /**
  * See CIP19 for formatting of first byte
@@ -7432,39 +7839,54 @@ export class Address extends HeliosData {
 	#bytes;
 
     /**
-	 * @param {number[] | string} rawValue
+	 * @package
+	 * @param {AddressProps} props
 	 * @returns {number[]}
 	 */
-    static cleanConstructorArg(rawValue) {
-        if (typeof rawValue == "string") {
-            if (rawValue.startsWith("addr")) {
-                return Address.fromBech32(rawValue).bytes;
+    static cleanConstructorArg(props) {
+        if (typeof props == "string") {
+            if (props.startsWith("addr")) {
+                return Address.fromBech32(props).bytes;
             } else {
-                if (rawValue.startsWith("#")) {
-                    rawValue = rawValue.slice(1);
+                if (props.startsWith("#")) {
+                    props = props.slice(1);
                 }
 
-                return hexToBytes(rawValue);
+                return hexToBytes(props);
             }
         } else {
-            return rawValue;
+            return props;
         }
     }
 
 	/**
-	 * @param {string | number[]} rawValue
+	 * @param {ExpandAlias<AddressProps>} props
 	 */
-	constructor(rawValue) {
+	constructor(props) {
 		super();
-		this.#bytes = Address.cleanConstructorArg(rawValue);
+		this.#bytes = Address.cleanConstructorArg(props);
 
         assert(this.#bytes.length == 29 || this.#bytes.length == 57, `expected 29 or 57 bytes for Address, got ${this.#bytes.length}`);
 	}
 
+	/**
+	 * @param {Address | AddressProps} props 
+	 * @returns {Address}
+	 */
+	static fromProps(props) {
+		return props instanceof Address ? props : new Address(props);
+	}
+
+	/**
+	 * @type {number[]}
+	 */
 	get bytes() {
 		return this.#bytes.slice();
 	}
 
+	/**
+	 * @returns {number[]}
+	 */
 	toCbor() {
 		return CborData.encodeBytes(this.#bytes);
 	}
@@ -7478,7 +7900,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * @param {string} str
+	 * @param {bech32string} str
 	 * @returns {Address}
 	 */
 	static fromBech32(str) {
@@ -7494,7 +7916,7 @@ export class Address extends HeliosData {
 
 	/**
 	 * Doesn't check validity
-	 * @param {string} hex
+	 * @param {hexstring} hex
 	 * @returns {Address}
 	 */
 	static fromHex(hex) {
@@ -7503,7 +7925,7 @@ export class Address extends HeliosData {
 
 	/**
 	 * Returns the raw Address bytes as a hex encoded string
-	 * @returns {string}
+	 * @returns {hexstring}
 	 */
 	toHex() {
 		return bytesToHex(this.#bytes);
@@ -7574,9 +7996,8 @@ export class Address extends HeliosData {
 		}
 	}
 
-
 	/**
-	 * @returns {string}
+	 * @returns {bech32string}
 	 */
 	toBech32() {
 		return Crypto.encodeBech32(
@@ -7736,7 +8157,7 @@ export class Address extends HeliosData {
     }
 
 	/**
-	 * @type {?PubKeyHash}
+	 * @type {null | PubKeyHash}
 	 */
 	get pubKeyHash() {
 		let type = this.#bytes[0] >> 4;
@@ -7749,7 +8170,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * @type {?ValidatorHash}
+	 * @type {null | ValidatorHash}
 	 */
 	get validatorHash() {
 		let type = this.#bytes[0] >> 4;
@@ -7762,7 +8183,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * @type {?(StakeKeyHash | StakingValidatorHash)}
+	 * @type {null | StakeKeyHash | StakingValidatorHash}
 	 */
 	get stakingHash() {
 		let type = this.#bytes[0] >> 4;
@@ -7794,6 +8215,16 @@ export class Address extends HeliosData {
 	}
 }
 
+/**
+ * @typedef {string | [
+ *   MintingPolicyHash | ExpandAlias<MintingPolicyHashProps>,
+ *   ByteArray | ExpandAlias<ByteArrayProps>
+ * ] | {
+ *   mph: MintingPolicyHash | ExpandAlias<MintingPolicyHashProps>,
+ *   tokenName: ByteArray | ExpandAlias<ByteArrayProps>
+ * }} AssetClassProps
+ */
+
 export class AssetClass extends HeliosData {
 	/**
 	 * @type {MintingPolicyHash}
@@ -7801,35 +8232,25 @@ export class AssetClass extends HeliosData {
 	#mph;
 
 	/**
-	 * @type {number[]}
+	 * @type {ByteArray}
 	 */
 	#tokenName;
 
 	/**
-	 * @param {any[]} args
-	 * @returns {[MintingPolicyHash, number[]]}
+	 * @param {AssetClassProps} props
+	 * @returns {[MintingPolicyHash | MintingPolicyHashProps, ByteArray | ByteArrayProps]}
 	 */
-	static cleanConstructorArgs(args) {
-		if (args.length == 1) {
-			const arg = args[0];	
+	static cleanConstructorArgs(props) {
+		if (typeof props == "string") {
+			const fields = props.split(".")
 
-			if (typeof arg == "string") {
-				const fields = arg.split(".")
+			assert(fields.length == 2, "expected '.' in hex encoded AssetClass");
 
-				assert(fields.length == 2, "expected '.' in hex encoded AssetClass");
-
-				return [new MintingPolicyHash(fields[0]), hexToBytes(fields[1])];
-			} else {
-				throw new Error("unexpected AssetClass arg type");
-			}
-		} else if (args.length == 2) {
-			const arg0 = args[0];
-			const arg1 = args[1];
-
-			return [
-				arg0 instanceof MintingPolicyHash ? arg0 : new MintingPolicyHash(arg0),
-				Array.isArray(arg1) ? arg1 : hexToBytes(arg1)
-			];
+			return [fields[0], hexToBytes(fields[1])];
+		} else if (Array.isArray(props) && props.length == 2) {
+			return [props[0], props[1]];
+		} else if (typeof props == "object") {
+			return [assertDefined(props.mph), assertDefined(props.tokenName)];
 		} else {
 			throw new Error("unexpected number of AssetClass args");
 		}
@@ -7837,14 +8258,36 @@ export class AssetClass extends HeliosData {
 
 	/**
 	 * 
-	 * @param {any[]} args 
+	 * @param {ExpandAlias<AssetClassProps>} props
 	 */
-	constructor(...args) {
+	constructor(props) {
 		super();
-		const [mph, tokenName] = AssetClass.cleanConstructorArgs(args);
+		const [rawMph, rawTokenName] = AssetClass.cleanConstructorArgs(props);
 
-		this.#mph = mph;
-		this.#tokenName = tokenName;
+		this.#mph = MintingPolicyHash.fromProps(rawMph);
+		this.#tokenName = ByteArray.fromProps(rawTokenName);
+	}
+
+	/**
+	 * @param {AssetClass | AssetClassProps} props 
+	 * @returns {AssetClass}
+	 */
+	static fromProps(props) {
+		return props instanceof AssetClass ? props : new AssetClass(props);
+	}
+
+	/**
+	 * @type {MintingPolicyHash}
+	 */
+	get mintingPolicyHash() {
+		return this.#mph;
+	}
+
+	/**
+	 * @type {ByteArray}
+	 */
+	get tokenName() {
+		return this.#tokenName;
 	}
 
 	/**
@@ -7854,7 +8297,7 @@ export class AssetClass extends HeliosData {
 	_toUplcData() {
 		return new ConstrData(0, [
 			this.#mph._toUplcData(),
-			new ByteArrayData(this.#tokenName)
+			this.#tokenName._toUplcData()
 		])
 	}
 
@@ -7868,9 +8311,9 @@ export class AssetClass extends HeliosData {
 		assert(data.fields.length == 2);
 
 		const mph = MintingPolicyHash.fromUplcData(data.fields[0]);
-		const tokenName = data.fields[1].bytes;
+		const tokenName = ByteArray.fromUplcData(data.fields[1]);
 
-		return new AssetClass(mph, tokenName);
+		return new AssetClass([mph, tokenName]);
 	}
 
 	/**
@@ -7879,7 +8322,7 @@ export class AssetClass extends HeliosData {
 	toCbor() {
 		return CborData.encodeConstr(0, [
 			this.#mph.toCbor(),
-			CborData.encodeBytes(this.#tokenName)
+			this.#tokenName.toCbor()
 		]);
 	}
 
@@ -7893,7 +8336,7 @@ export class AssetClass extends HeliosData {
 		let mph = null;
 
 		/**
-		 * @type {number[] | null}
+		 * @type {ByteArray | null}
 		 */
 		let tokenName = null;
 
@@ -7903,7 +8346,7 @@ export class AssetClass extends HeliosData {
 					mph = MintingPolicyHash.fromCbor(fieldBytes);
 					break;
 				case 1:
-					tokenName = CborData.decodeBytes(fieldBytes);
+					tokenName = ByteArray.fromCbor(fieldBytes);
 					break;
 				default:
 					throw new Error("unexpected field");
@@ -7915,7 +8358,7 @@ export class AssetClass extends HeliosData {
 		if (mph == null || tokenName == null) {
 			throw new Error("insufficient fields");
 		} else {
-			return new AssetClass(mph, tokenName);
+			return new AssetClass([mph, tokenName]);
 		}
 	}
 
@@ -7931,35 +8374,77 @@ export class AssetClass extends HeliosData {
 	 * @type {AssetClass}
 	 */
 	static get ADA() {
-		return new AssetClass(new MintingPolicyHash(""), "");
+		return new AssetClass(["", ""]);
 	}
 }
 
+/**
+ * @typedef {[
+ *   AssetClass | AssetClassProps,
+ *   HInt | HIntProps
+ * ][] | [
+ *   MintingPolicyHash | MintingPolicyHashProps,
+ *   [
+ *     ByteArray | ByteArrayProps,
+ *     HInt | HIntProps
+ *   ][]
+ * ][]} AssetsProps
+ */
 
 /**
  * Collection of non-lovelace assets
  */
 export class Assets extends CborData {
-	/** @type {[MintingPolicyHash, [number[], bigint][]][]} */
+	/** 
+	 * @type {[MintingPolicyHash, [ByteArray, HInt][]][]} 
+	 */
 	#assets;
 
 	/**
-	 * @param {[MintingPolicyHash | number[] | string, [number[] | string, bigint | number][]][]} assets 
+	 * Also normalizes the assets
+	 * @param {AssetsProps} props
 	 */
-	constructor(assets = []) {
+	constructor(props = []) {
 		super();
-		this.#assets = assets.map(([rawMph, tokens]) => {
-			const mph = rawMph instanceof MintingPolicyHash ? rawMph : new MintingPolicyHash(rawMph);
 
-			return [
-				mph,
-				tokens.map(([rawName, amount]) => {
-					const name = Array.isArray(rawName) ? rawName : hexToBytes(rawName);
+		this.#assets = props.map((outerPair) => {
+			if (Array.isArray(outerPair[1])) {
+				const mph = MintingPolicyHash.fromProps(outerPair[0]);
 
-					return [name, BigInt(amount)];
-				})
-			];
+				/**
+				 * @type {[MintingPolicyHash, [ByteArray, HInt][]]}
+				 */
+				const mapped = [
+					mph,
+					outerPair[1].map((innerPair) => [ByteArray.fromProps(innerPair[0]), HInt.fromProps(innerPair[1])])
+				];
+
+				return mapped;
+			} else {
+				const assetClass = AssetClass.fromProps(outerPair[0]);
+				const qty = HInt.fromProps(outerPair[1]);
+
+				/**
+				 * @type {[MintingPolicyHash, [ByteArray, HInt][]]}
+				 */
+				const mapped = [
+					assetClass.mintingPolicyHash,
+					[[assetClass.tokenName, qty]]
+				];
+
+				return mapped;
+			}
 		});
+
+		this.normalize();
+	}
+
+	/**
+	 * @param {Assets | AssetsProps} props 
+	 * @returns {Assets}
+	 */
+	static fromProps(props) {
+		return props instanceof Assets ? props : new Assets(props);
 	}
 
 	/**
@@ -7987,7 +8472,7 @@ export class Assets extends CborData {
 	/**
 	 * Returns empty if mph not found
 	 * @param {MintingPolicyHash} mph
-	 * @returns {[number[], bigint][]}
+	 * @returns {[ByteArray, HInt][]}
 	 */
 	getTokens(mph) {
 		const i = this.#assets.findIndex(entry => entry[0].eq(mph));
@@ -8007,33 +8492,39 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {MintingPolicyHash} mph
-	 * @param {number[]} tokenName 
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+	 * @param {ByteArray | ByteArrayProps} tokenName 
 	 * @returns {boolean}
 	 */
 	has(mph, tokenName) {
-		let inner = this.#assets.find(asset => mph.eq(asset[0]));
+		const mph_ = MintingPolicyHash.fromProps(mph);
+		const tokenName_ = ByteArray.fromProps(tokenName);
+
+		const inner = this.#assets.find(asset => mph_.eq(asset[0]));
 
 		if (inner !== undefined) {
-			return inner[1].findIndex(pair => eq(pair[0], tokenName)) != -1;
+			return inner[1].findIndex(pair => pair[0].eq(tokenName_)) != -1;
 		} else {
 			return false;
 		}
 	}
 
 	/**
-	 * @param {MintingPolicyHash} mph
-	 * @param {number[]} tokenName 
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+	 * @param {ByteArray | ByteArrayProps} tokenName 
 	 * @returns {bigint}
 	 */
 	get(mph, tokenName) {
-		let inner = this.#assets.find(asset => mph.eq(asset[0]));
+		const mph_ = MintingPolicyHash.fromProps(mph);
+		const tokenName_ = ByteArray.fromProps(tokenName);
+
+		const inner = this.#assets.find(asset => mph_.eq(asset[0]));
 
 		if (inner !== undefined) {
-			let token = inner[1].find(pair => eq(pair[0], tokenName));
+			const token = inner[1].find(pair => pair[0].eq(tokenName_));
 
 			if (token !== undefined) {
-				return token[1];
+				return token[1].value;
 			} else {
 				return 0n;
 			}
@@ -8047,34 +8538,82 @@ export class Assets extends CborData {
 	 */
 	removeZeroes() {
 		for (let asset of this.#assets) {
-			asset[1] = asset[1].filter(token => token[1] != 0n);
+			asset[1] = asset[1].filter(token => !token[1].eq(0n));
 		}
 
 		this.#assets = this.#assets.filter(asset => asset[1].length != 0);
 	}
 
 	/**
-	 * Mutates 'this'
-	 * @param {MintingPolicyHash} mph
-	 * @param {number[]} tokenName 
-	 * @param {bigint} quantity
+	 * Removes zeros and merges duplicates
+	 * In-place algorithm
+	 * Keeps the same order as much as possible
 	 */
-	addComponent(mph, tokenName, quantity) {
-		if (quantity == 0n) {
+	normalize() {
+		/**
+		 * @type {Map<string, Map<string, bigint>>}
+		 */
+		const assets = new Map();
+
+		for (let [mph, tokens] of this.#assets) {
+			let outerPrev = assets.get(mph.hex);
+
+			if (!outerPrev) {
+				outerPrev = new Map();
+			} 
+
+			for (let [tokenName, qty] of tokens) {
+				let innerPrev = outerPrev.get(tokenName.hex);
+
+				if (!innerPrev) {
+					innerPrev = 0n;
+				}
+
+				innerPrev += qty.value;
+
+				outerPrev.set(tokenName.hex, innerPrev);
+			}
+
+			assets.set(mph.hex, outerPrev);
+		}
+
+		const entries = Array.from(assets.entries());
+
+		this.#assets = entries.map(([rawMph, rawTokens]) => {
+			const tokens = Array.from(rawTokens.entries());
+
+			return [MintingPolicyHash.fromProps(rawMph), tokens.map(([rawTokenName, rawQty]) => {
+				return [ByteArray.fromProps(rawTokenName), HInt.fromProps(rawQty)];
+			})];
+		});
+	}
+
+	/**
+	 * Mutates 'this'
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+	 * @param {ByteArray | ByteArrayProps} tokenName 
+	 * @param {HInt | HIntProps} qty
+	 */
+	addComponent(mph, tokenName, qty) {
+		const mph_ = MintingPolicyHash.fromProps(mph);
+		const tokenName_ = ByteArray.fromProps(tokenName);
+		const qty_ = HInt.fromProps(qty);
+
+		if (qty_.eq(0n)) {
 			return;
 		}
 
-		let inner = this.#assets.find(asset => mph.eq(asset[0]));
+		const inner = this.#assets.find(asset => mph_.eq(asset[0]));
 
 		if (inner === undefined) {
-			this.#assets.push([mph, [[tokenName, quantity]]]);
+			this.#assets.push([mph_, [[tokenName_, qty_]]]);
 		} else {
-			let token = inner[1].find(pair => eq(pair[0], tokenName));
+			const token = inner[1].find(pair => pair[0].eq(tokenName_));
 
 			if (token === undefined) {
-				inner[1].push([tokenName, quantity]);
+				inner[1].push([tokenName_, qty_]);
 			} else {
-				token[1] += quantity;
+				token[1] = token[1].add(qty_);
 			}
 		}
 
@@ -8091,13 +8630,13 @@ export class Assets extends CborData {
 
 		for (let [mph, tokens] of this.#assets) {
 			for (let [tokenName, quantity] of tokens) {
-				res.addComponent(mph, tokenName, op(quantity, 0n));
+				res.addComponent(mph, tokenName, new HInt(op(quantity.value, 0n)));
 			}
 		}
 
 		for (let [mph, tokens] of other.#assets) {
 			for (let [tokenName, quantity] of tokens) {
-				res.addComponent(mph, tokenName, op(0n, quantity));
+				res.addComponent(mph, tokenName, new HInt(op(0n, quantity.value)));
 			}
 		}
 
@@ -8121,41 +8660,52 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {bigint} scalar 
+	 * @param {HInt | HIntProps} scalar 
 	 * @returns {Assets}
 	 */
 	mul(scalar) {
+		const s = HInt.fromProps(scalar);
+
 		return new Assets(this.#assets.map(([mph, tokens]) => {
-			return [mph, tokens.map(([token, qty]) => [token, qty*scalar])]
+			/**
+			 * @type {[MintingPolicyHash, [ByteArray, HInt][]]}
+			 */
+			const mapped = [mph, tokens.map(([token, qty]) => [token, qty.mul(s)])]
+
+			return mapped;
 		}))
 	}
 
 	/**
 	 * Mutates 'this'
 	 * Throws error if mph is already contained in 'this'
-	 * @param {MintingPolicyHash} mph
-	 * @param {[number[], bigint][]} tokens
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+	 * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens
 	 */
 	addTokens(mph, tokens) {
+		const mph_ = MintingPolicyHash.fromProps(mph);
+
 		for (let asset of this.#assets) {
-			if (asset[0].eq(mph)) {
-				throw new Error(`MultiAsset already contains ${bytesToHex(mph.bytes)}`);
+			if (asset[0].eq(mph_)) {
+				throw new Error(`MultiAsset already contains ${mph_.hex}`);
 			}
 		}
 
-		this.#assets.push([mph, tokens.slice()]);
+		this.#assets.push([mph_, tokens.map(([tokenName, qty]) => [ByteArray.fromProps(tokenName), HInt.fromProps(qty)])]);
 
 		// sort immediately
 		this.sort();
 	}
 
 	/**
-	 * @param {MintingPolicyHash} mph
-	 * @returns {number[][]}
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
+	 * @returns {ByteArray[]}
 	 */
 	getTokenNames(mph) {
+		const mph_ = MintingPolicyHash.fromProps(mph);
+
 		for (let [otherMph, tokens] of this.#assets) {
-			if (otherMph.eq(mph)) {
+			if (otherMph.eq(mph_)) {
 				return tokens.map(([tokenName, _]) => tokenName);
 			}
 		}
@@ -8170,7 +8720,7 @@ export class Assets extends CborData {
 	eq(other) {
 		for (let asset of this.#assets) {
 			for (let token of asset[1]) {
-				if (token[1] != other.get(asset[0], token[0])) {
+				if (token[1].neq(other.get(asset[0], token[0]))) {
 					return false;
 				}
 			}
@@ -8178,7 +8728,7 @@ export class Assets extends CborData {
 
 		for (let asset of other.#assets) {
 			for (let token of asset[1]) {
-				if (token[1] != this.get(asset[0], token[0])) {
+				if (token[1].neq(this.get(asset[0], token[0]))) {
 					return false;
 				}
 			}
@@ -8199,7 +8749,7 @@ export class Assets extends CborData {
 
 		for (let asset of this.#assets) {
 			for (let token of asset[1]) {
-				if (token[1] <= other.get(asset[0], token[0])) {
+				if (token[1].le(other.get(asset[0], token[0]))) {
 					return false;
 				}
 			}
@@ -8227,7 +8777,7 @@ export class Assets extends CborData {
 
 		for (let asset of this.#assets) {
 			for (let token of asset[1]) {
-				if (token[1] < other.get(asset[0], token[0])) {
+				if (token[1].lt(other.get(asset[0], token[0]))) {
 					return false;
 				}
 			}
@@ -8250,9 +8800,9 @@ export class Assets extends CborData {
 	allPositive() {
 		for (let asset of this.#assets) {
 			for (let pair of asset[1]) {
-				if (pair[1] < 0n) {
+				if (pair[1].lt(0n)) {
 					return false;
-				} else if (pair[1] == 0n) {
+				} else if (pair[1].eq(0n)) {
 					throw new Error("unexpected");
 				}
 			}
@@ -8276,15 +8826,11 @@ export class Assets extends CborData {
 			this.#assets.map(
 				outerPair => {
 					return [outerPair[0].toCbor(), CborData.encodeMap(outerPair[1].map(
-						innerPair => {
-							return [
-								CborData.encodeBytes(innerPair[0]), CborData.encodeInteger(innerPair[1])
-							]
-						}
-					))]
+						innerPair => [innerPair[0].toCbor(), innerPair[1].toCbor()]
+					))];
 				}
 			)
-		)
+		);
 	}
 
 	/**
@@ -8298,14 +8844,14 @@ export class Assets extends CborData {
 			let mph = MintingPolicyHash.fromCbor(pairBytes);
 
 			/**
-			 * @type {[number[], bigint][]}
+			 * @type {[ByteArray, HInt][]}
 			 */
 			let innerMap = [];
 			
 			CborData.decodeMap(pairBytes, (_, innerPairBytes) => {
 				innerMap.push([
-					CborData.decodeBytes(innerPairBytes),
-					CborData.decodeInteger(innerPairBytes),
+					ByteArray.fromCbor(innerPairBytes),
+					HInt.fromCbor(innerPairBytes)
 				]);
 			});
 
@@ -8325,10 +8871,10 @@ export class Assets extends CborData {
 			let innerObj = {};
 
 			for (let [tokenName, quantity] of tokens) {
-				innerObj[bytesToHex(tokenName)] = quantity.toString();
+				innerObj[tokenName.hex] = quantity.toString();
 			}
 
-			obj[mph.dump()] = innerObj;
+			obj[mph.hex] = innerObj;
 		}
 
 		return obj;
@@ -8340,16 +8886,16 @@ export class Assets extends CborData {
 	 */
 	_toUplcData() {
 		/** @type {[UplcData, UplcData][]} */
-		let pairs = [];
+		const pairs = [];
 
 		for (let asset of this.#assets) {
 			/** @type {[UplcData, UplcData][]} */
-			let innerPairs = [];
+			const innerPairs = [];
 
 			for (let token of asset[1]) {
 				innerPairs.push([
-					new ByteArrayData(token[0]),
-					new IntData(token[1]),
+					token[0]._toUplcData(),
+					token[1]._toUplcData()
 				]);
 			}
 
@@ -8384,51 +8930,95 @@ export class Assets extends CborData {
 	}
 }
 
+/**
+ * @typedef {HInt | HIntProps | [
+ *   HInt | HIntProps,
+ *   Assets | AssetsProps
+ * ] | {
+ *   lovelace: HInt| HIntProps,
+ *   assets?:   Assets | AssetsProps
+ * }} ValueProps
+ */
+
 export class Value extends HeliosData {
-	/** @type {bigint} */
+	/** @type {HInt} */
 	#lovelace;
 
 	/** @type {Assets} */
 	#assets;
 	
 	/**
-	 * @param {bigint} lovelace 
-	 * @param {Assets} assets 
+	 * 
+	 * @param {ValueProps} props 
+	 * @param {null | Assets | AssetsProps} maybeAssets 
+	 * @returns {[HInt | HIntProps, Assets | AssetsProps]}
 	 */
-	constructor(lovelace = 0n, assets = new Assets()) {
-		super();
-		this.#lovelace = lovelace;
-		this.#assets = assets;
+	static cleanConstructorArgs(props, maybeAssets) {
+		if (Array.isArray(props)) {
+			assert(props.length == 2, "expected two entries for AssetsProps");
+
+			if (maybeAssets) {
+				throw new Error("can't combine assets arg with ValueProps that also contains assets");
+			}
+
+			return [props[0], props[1]];
+		} else if (props instanceof HInt) {
+			return [props, maybeAssets ? maybeAssets : new Assets()];
+		} else if (typeof props == "object") {
+			if (maybeAssets) {
+				throw new Error("can't combine assets arg with ValueProps that also contains assets");
+			}
+
+			return [props.lovelace, props.assets ?? new Assets()];
+		} else {
+			return [props, maybeAssets ? maybeAssets : new Assets()];
+		}
 	}
 
 	/**
-	 * @param {MintingPolicyHash} mph 
-	 * @param {number[]} tokenName 
-	 * @param {bigint} quantity 
+	 * @param {ValueProps} props 
+	 * @param {null | Assets | AssetsProps} assets 
+	 */
+	constructor(props = 0n, assets = null) {
+		super();
+
+		const [rawLovelace, rawAssets] = Value.cleanConstructorArgs(props, assets);
+
+		this.#lovelace = HInt.fromProps(rawLovelace);
+		this.#assets = Assets.fromProps(rawAssets);
+	}
+
+	/**
+	 * @param {ValueProps | Value} props 
 	 * @returns {Value}
 	 */
-	static asset(mph, tokenName, quantity) {
-		return new Value(0n, new Assets([
-			[mph, [
-				[tokenName, quantity]
-			]]
-		]));
+	static fromProps(props) {
+		if (props instanceof Value) {
+			return props;
+		} else {
+			return new Value(props);
+		}
 	}
 
 	/**
-	 * @type {bigint}
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph 
+	 * @param {ByteArray | ByteArrayProps} tokenName 
+	 * @param {HInt | HIntProps} qty 
+	 * @returns {Value}
 	 */
-	get lovelace() {
-		return this.#lovelace;
-	}
+	static asset(mph, tokenName, qty) {
+		const mph_ = MintingPolicyHash.fromProps(mph);
+		const tokenName_ = ByteArray.fromProps(tokenName);
+		const qty_ = HInt.fromProps(qty);
 
-	/**
-	 * Setter for lovelace
-	 * Note: mutation is handy when balancing transactions
-	 * @param {bigint} lovelace
-	 */
-	setLovelace(lovelace) {
-		this.#lovelace = lovelace;
+		return new Value({
+			lovelace: 0n, 
+			assets: new Assets([
+				[mph_, [
+					[tokenName_, qty_]
+				]]
+			])
+		});
 	}
 
 	/**
@@ -8439,14 +9029,30 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * @type {bigint}
+	 */
+	get lovelace() {
+		return this.#lovelace.value;
+	}
+
+	/**
+	 * Setter for lovelace
+	 * Note: mutation is handy when balancing transactions
+	 * @param {HInt | HIntProps} lovelace
+	 */
+	setLovelace(lovelace) {
+		this.#lovelace = HInt.fromProps(lovelace);
+	}
+
+	/**
 	 * @returns {number[]}
 	 */
 	toCbor() {
 		if (this.#assets.isZero()) {
-			return CborData.encodeInteger(this.#lovelace);
+			return this.#lovelace.toCbor()
 		} else {
 			return CborData.encodeTuple([
-				CborData.encodeInteger(this.#lovelace),
+				this.#lovelace.toCbor(),
 				this.#assets.toCbor()
 			]);
 		}
@@ -8463,7 +9069,7 @@ export class Value extends HeliosData {
 			CborData.decodeTuple(bytes, (i, fieldBytes) => {
 				switch(i) {
 					case 0:
-						mv.#lovelace = CborData.decodeInteger(fieldBytes);
+						mv.#lovelace = HInt.fromCbor(fieldBytes);
 						break;
 					case 1:
 						mv.#assets = Assets.fromCbor(fieldBytes);
@@ -8473,7 +9079,7 @@ export class Value extends HeliosData {
 				}
 			});
 		} else {
-			mv.#lovelace = CborData.decodeInteger(bytes);
+			mv.#lovelace = HInt.fromCbor(bytes);
 		}
 
 		return mv;
@@ -8498,7 +9104,10 @@ export class Value extends HeliosData {
 	 * @returns {Value}
 	 */
 	add(other) {
-		return new Value(this.#lovelace + other.#lovelace, this.#assets.add(other.#assets));
+		return new Value({
+			lovelace: this.#lovelace.add(other.#lovelace), 
+			assets: this.#assets.add(other.#assets)
+		});
 	}
 
 	/**
@@ -8506,15 +9115,21 @@ export class Value extends HeliosData {
 	 * @returns {Value}
 	 */
 	sub(other) {
-		return new Value(this.#lovelace - other.#lovelace, this.#assets.sub(other.#assets));
+		return new Value({
+			lovelace: this.#lovelace.sub(other.#lovelace), 
+			assets: this.#assets.sub(other.#assets)
+		});
 	}
 
 	/**
-	 * @param {bigint} scalar 
+	 * @param {HInt | HIntProps} scalar 
 	 * @returns {Value}
 	 */
 	mul(scalar) {
-		return new Value(this.#lovelace*scalar, this.#assets.mul(scalar))
+		return new Value({
+			lovelace: this.#lovelace.mul(scalar), 
+			assets: this.#assets.mul(scalar)
+		})
 	}
 
 	/**
@@ -8522,7 +9137,7 @@ export class Value extends HeliosData {
 	 * @returns {boolean}
 	 */
 	eq(other) {
-		return (this.#lovelace == other.#lovelace) && (this.#assets.eq(other.#assets));
+		return this.#lovelace.eq(other.#lovelace) && (this.#assets.eq(other.#assets));
 	}
 
 	/**
@@ -8531,7 +9146,7 @@ export class Value extends HeliosData {
 	 * @returns {boolean}
 	 */
 	gt(other) {
-		return (this.#lovelace > other.#lovelace) && (this.#assets.gt(other.#assets));
+		return this.#lovelace.gt(other.#lovelace) && (this.#assets.gt(other.#assets));
 	}
 
 	/**
@@ -8540,7 +9155,7 @@ export class Value extends HeliosData {
 	 * @returns {boolean}
 	 */
 	ge(other) {
-		return (this.#lovelace >= other.#lovelace) && (this.#assets.ge(other.#assets));
+		return this.#lovelace.ge(other.#lovelace) && (this.#assets.ge(other.#assets));
 	}
 
 	/**
@@ -8549,7 +9164,7 @@ export class Value extends HeliosData {
 	 * @returns {Value} - returns this
 	 */
 	assertAllPositive() {
-		assert(this.#lovelace >= 0n);
+		assert(this.#lovelace.ge(0n));
 
 		this.#assets.assertAllPositive();
 
@@ -8561,7 +9176,7 @@ export class Value extends HeliosData {
 	 */
 	dump() {
 		return {
-			lovelace: this.#lovelace.toString(),
+			lovelace: this.#lovelace.dump(),
 			assets: this.#assets.dump()
 		};
 	}
@@ -8574,13 +9189,13 @@ export class Value extends HeliosData {
 	_toUplcData(isInScriptContext = false) {
 		let map = this.#assets._toUplcData();
 
-		if (this.#lovelace != 0n || isInScriptContext) {
-			let inner = map.map; 
+		if (this.#lovelace.neq(0n) || isInScriptContext) {
+			const inner = map.map; 
 
 			inner.unshift([
 				new ByteArrayData([]),
 				new MapData([
-					[new ByteArrayData([]), new IntData(this.#lovelace)]
+					[new ByteArrayData([]), this.#lovelace._toUplcData()]
 				]),
 			]);
 
@@ -8609,7 +9224,7 @@ export class Value extends HeliosData {
 			if (mphBytes.length == 0) {
 				//lovelace
 				assert(innerMap.length == 1 && innerMap[0][0].bytes.length == 0); 
-				sum = sum.add(new Value(innerMap[0][1].int));
+				sum = sum.add(new Value({lovelace: innerMap[0][1].int}));
 			} else {
 				// other assets
 				let mph = new MintingPolicyHash(mphBytes);
@@ -9557,6 +10172,17 @@ const UPLC_BUILTINS = (
 	}
 )();
 
+export const UPLC_MACROS_OFFSET = UPLC_BUILTINS.length;
+
+// index to helios-specific macro mapping
+export const UPLC_MACROS = [
+	"compile",
+	"finalize",
+	"get_utxo",
+	"now",
+	"pick"
+];
+
 /**
  * Use this function to check cost-model parameters
  * @package
@@ -9604,45 +10230,8 @@ export function isUplcBuiltin(name, strict = false) {
 
 /**
  * A Helios/Uplc Program can have different purposes
- * @package
- * @type {{
- *   Testing: number,
- * 	 Minting: number,
- *   Spending: number,
- *   Staking: number,
- *   Module: number
- * }}
+ * @typedef {"testing" | "minting" | "spending" | "staking" | "linking" | "module" | "unknown"} ScriptPurpose
  */
-const ScriptPurpose = {
-	Testing: -1,
-	Minting:  0,
-	Spending: 1,
-	Staking:  2,
-	Module:   3
-};
-
-/**
- * @package
- * @param {number} id
- * @returns {string}
- */
-function getPurposeName(id) {
-	switch (id) {
-		case ScriptPurpose.Testing:
-			return "testing";
-		case ScriptPurpose.Minting:
-			return "minting";
-		case ScriptPurpose.Spending:
-			return "spending";
-		case ScriptPurpose.Staking:
-			return "staking";
-		case ScriptPurpose.Module:
-			return "module";
-		default:
-			throw new Error(`unhandled ScriptPurpose ${id}`);
-	}
-}
-
 
 /** 
  * a UplcValue is passed around by Plutus-core expressions.
@@ -9939,21 +10528,23 @@ export class UplcType {
  */
 
 /**
-* @typedef {object} UplcRTECallbacks
-* @property {(msg: string) => Promise<void>} [onPrint]
-* @property {(site: Site, rawStack: UplcRawStack) => Promise<boolean>} [onStartCall]
-* @property {(site: Site, rawStack: UplcRawStack) => Promise<void>} [onEndCall]
-* @property {(name: string, isTerm: boolean, cost: Cost) => void} [onIncrCost]
-*/
+ * @typedef {{
+ *	 onPrint: (msg: string) => Promise<void>
+ *   onStartCall: (site: Site, rawStack: UplcRawStack) => Promise<boolean>
+ *   onEndCall: (site: Site, rawStack: UplcRawStack) => Promise<void>
+ *   onIncrCost: (name: string, isTerm: boolean, cost: Cost) => void
+ *   macros?: {[name: string]: (args: UplcValue[]) => UplcValue}
+ * }} UplcRTECallbacks
+ */
 
 /**
  * @type {UplcRTECallbacks}
  */
 export const DEFAULT_UPLC_RTE_CALLBACKS = {
-	onPrint: async function (/** @type {string} */ msg) {return},
-	onStartCall: async function(/** @type {Site} */ site, /** @type {UplcRawStack} */ rawStack) {return false},
-	onEndCall: async function(/** @type {Site} */ site, /** @type {UplcRawStack} */ rawStack) {return},
-	onIncrCost: function(/** @type {string} */ name, /** @type {boolean} */ isTerm, /** @type {Cost} */ cost) {return},
+	onPrint: async (/** @type {string} */ msg) => {console.log(msg)},
+	onStartCall: async (/** @type {Site} */ site, /** @type {UplcRawStack} */ rawStack) => {return false},
+	onEndCall: async (/** @type {Site} */ site, /** @type {UplcRawStack} */ rawStack) => {return},
+	onIncrCost: (/** @type {string} */ name, /** @type {boolean} */ isTerm, /** @type {Cost} */ cost) => {return},
 }
 
 /**
@@ -9983,7 +10574,7 @@ class UplcRte {
 
 	/**
 	 * @param {UplcRTECallbacks} callbacks 
-	 * @param {?NetworkParams} networkParams
+	 * @param {null | NetworkParams} networkParams
 	 */
 	constructor(callbacks = DEFAULT_UPLC_RTE_CALLBACKS, networkParams = null) {
 		assertDefined(callbacks);
@@ -10066,6 +10657,15 @@ class UplcRte {
 
 			this.incrCost(fn.name, false, cost);
 		}
+	}
+
+	/**
+	 * @param {string} name 
+	 * @param {UplcValue[]} args 
+	 * @returns {Promise<UplcValue>}
+	 */
+	async callMacro(name, args) {
+		return assertDefined(await assertDefined(this.#callbacks.macros)[name])(args);
 	}
 
 	/**
@@ -10152,9 +10752,9 @@ class UplcStack {
 	#valueName;
 
 	/**
-	 * @param {(?UplcStack) | UplcRte} parent
-	 * @param {?UplcValue} value
-	 * @param {?string} valueName
+	 * @param {null | UplcStack | UplcRte} parent
+	 * @param {null | UplcValue} value
+	 * @param {null | string} valueName
 	 */
 	constructor(parent, value = null, valueName = null) {
 		this.#parent = parent;
@@ -10242,6 +10842,20 @@ class UplcStack {
 			} else {
 				return this.#parent.get(i);
 			}
+		}
+	}
+	
+	/**
+	 * 
+	 * @param {string} name 
+	 * @param {UplcValue[]} args 
+	 * @returns {Promise<UplcValue>}
+	 */
+	async callMacro(name, args) {
+		if (this.#parent) {
+			return await this.#parent.callMacro(name, args);
+		} else {
+			throw new Error("parent not set, can't call macro")
 		}
 	}
 
@@ -10356,8 +10970,6 @@ class UplcAnon extends UplcValue {
 			nArgs = args;
 		}
 
-		assert(nArgs >= 1);
-
 		this.#rte = rte;
 		this.#nArgs = nArgs;
 		this.#argNames = argNames;
@@ -10418,16 +11030,16 @@ class UplcAnon extends UplcValue {
 		let callSite = this.#callSite !== null ? this.#callSite : site;
 
 		// function is fully applied, collect the args and call the callback
-		if (argCount == this.#nArgs) {
+		if (argCount == this.#nArgs || (this.#nArgs == -1 && value instanceof UplcUnit)) { // second condition is used for macros
 			/** @type {UplcValue[]} */
 			let args = [];
 
 			let rawStack = rte.toList(); // use the RTE of the callsite
 
-			for (let i = this.#nArgs; i >= 1; i--) {
+			for (let i = argCount; i >= 1; i--) {
 				let argValue = subStack.get(i);
 				args.push(argValue);
-				rawStack.push([`__arg${this.#nArgs - i}`, argValue]);
+				rawStack.push([`__arg${argCount - i}`, argValue]);
 			}
 
 			// notify the RTE of the new live stack (list of pairs instead of UplcStack), and await permission to continue
@@ -10454,8 +11066,6 @@ class UplcAnon extends UplcValue {
 			}
 		} else {
 			// function isn't yet fully applied, return a new partially applied UplcAnon
-			assert(this.#nArgs > 1);
-
 			return new UplcAnon(
 				callSite,
 				subStack,
@@ -11997,7 +12607,10 @@ class UplcError extends UplcTerm {
  * @package
  */
 class UplcBuiltin extends UplcTerm {
-	/** unknown builtins stay integers */
+	/** 
+	 * Unknown builtins stay integers
+	 * @type {string | number}
+	 */
 	#name;
 
 	/**
@@ -12006,7 +12619,7 @@ class UplcBuiltin extends UplcTerm {
 	 */
 	constructor(site, name) {
 		super(site, 7);
-		this.#name = name;
+		this.#name = assertDefined(name);
 	}
 
 	/**
@@ -12044,11 +12657,25 @@ class UplcBuiltin extends UplcTerm {
 	toFlat(bitWriter) {
 		bitWriter.write('0111');
 
-		/** @type {number} */
+		/** 
+		 * @type {number} 
+		 */
 		let i;
 
 		if (typeof this.#name == "string") {
-			i = UPLC_BUILTINS.findIndex(info => info.name == this.#name);
+			if (this.#name.startsWith("macro__")) {
+				const macroName = this.#name.slice(("macro__").length);
+
+				i = UPLC_MACROS.findIndex(entry => entry == macroName);
+
+				assert(i != -1, `macro '${macroName}' not found`);
+
+				i += UPLC_MACROS_OFFSET;
+			} else {
+				i = UPLC_BUILTINS.findIndex(info => info.name == this.#name);
+
+				assert(i != -1);
+			}
 		} else {
 			i = this.#name;
 		}
@@ -12598,8 +13225,16 @@ class UplcBuiltin extends UplcTerm {
 			case "verifyEcdsaSecp256k1Signature":
 			case "verifySchnorrSecp256k1Signature":
 				throw new Error("no immediate need, so don't bother yet");
-			default:
-				throw new Error(`builtin ${this.#name} not yet implemented`);
+			default: {
+				const name = this.#name;
+				if (typeof name == "string" && name.startsWith("macro__")) {
+					return new UplcAnon(this.site, rte, -1, (callSite, _, ...args) => {
+						return rte.callMacro(name.slice(("macro__").length), args.slice(0, args.length - 1));
+					});
+				} else {
+					throw new Error(`builtin ${this.#name} not yet implemented`);
+				}
+			}
 		}
 	}
 
@@ -12617,7 +13252,7 @@ class UplcBuiltin extends UplcTerm {
 		 */
 		let v = this.evalInternal(rte);
 
-		if  (typeof this.#name === 'string') {
+		if  (typeof this.#name === 'string' && !this.#name.startsWith("macro__")) {
 			let nForce = UPLC_BUILTINS[findUplcBuiltin("__core__" + this.#name)].forceCount;
 
 			for  (let i = 0; i < nForce; i++) {
@@ -12671,7 +13306,7 @@ const UPLC_TAG_WIDTHS = {
 /**
  * TODO: purpose as enum type
  * @typedef {{
- *   purpose: null | number 
+ *   purpose: null | ScriptPurpose 
  *   callsTxTimeRange: boolean
  * }} ProgramProperties
  */
@@ -12873,7 +13508,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
-	 * @param {?UplcValue[]} args - if null the top-level term is returned as a value
+	 * @param {null | UplcValue[]} args - if null the top-level term is returned as a value
 	 * @param {UplcRTECallbacks} callbacks 
 	 * @param {?NetworkParams} networkParams
 	 * @returns {Promise<UplcValue | UserError>}
@@ -13040,7 +13675,7 @@ const UPLC_TAG_WIDTHS = {
 	 * @returns {string}
 	 */
 	serialize() {
-		let cborHex = bytesToHex(this.toCbor());
+		const cborHex = bytesToHex(this.toCbor());
 
 		return `{"type": "${this.plutusScriptVersion()}", "description": "", "cborHex": "${cborHex}"}`;
 	}
@@ -13063,7 +13698,7 @@ const UPLC_TAG_WIDTHS = {
 	get validatorHash() {
 		const purpose = this.#properties.purpose;
 
-		assert(purpose === null || purpose === ScriptPurpose.Spending);
+		assert(purpose === null || purpose === "spending");
 
 		return new ValidatorHash(this.hash());
 	}
@@ -13074,7 +13709,7 @@ const UPLC_TAG_WIDTHS = {
 	get mintingPolicyHash() {
 		const purpose = this.#properties.purpose;
 
-		assert(purpose === null || purpose === ScriptPurpose.Minting);
+		assert(purpose === null || purpose === "minting");
 
 		return new MintingPolicyHash(this.hash());
 	}
@@ -13085,7 +13720,7 @@ const UPLC_TAG_WIDTHS = {
 	get stakingValidatorHash() {
 		const purpose = this.#properties.purpose;
 
-		assert(purpose === null || purpose === ScriptPurpose.Staking);
+		assert(purpose === null || purpose === "staking");
 
 		return new StakingValidatorHash(this.hash());
 	}
@@ -13186,6 +13821,8 @@ const UPLC_TAG_WIDTHS = {
 
 		if (id >= 0 && id < all.length) {
 			return all[id].name;
+		} else if (id >= UPLC_MACROS_OFFSET && id < UPLC_MACROS_OFFSET + UPLC_MACROS.length) {
+			return `macro__${assertDefined(UPLC_MACROS[id - UPLC_MACROS_OFFSET])}`;
 		} else {
 			console.error(`Warning: builtin id ${id.toString()} out of range`);
 
@@ -14359,18 +14996,71 @@ function tokenizeIR(rawSrc, codeMap) {
  */
 
 /**
+ * @typedef {{
+ *   type:  string
+ * } | {
+ *   type:     "List"
+ *   itemType: TypeSchema
+ * } | {
+ *   type:      "Map"
+ *   keyType:   TypeSchema
+ *   valueType: TypeSchema
+ * } | {
+ *   type:     "Option"
+ *   someType: TypeSchema
+ * } | {
+ *   type:       "Struct"
+ *   fieldTypes: NamedTypeSchema[]
+ * } | {
+ *   type:         "Enum"
+ *   variantTypes: {name: string, fieldTypes: NamedTypeSchema[]}[]
+ * }} TypeSchema
+ */
+
+/**
+ * @typedef {{
+ * 	 name: string
+ * } & TypeSchema} NamedTypeSchema
+ */
+
+/**
+ * @typedef {{
+ *   name: string
+ *   typeClass: TypeClass
+ * }} ParameterI
+ */
+
+/**
+ * @typedef {Map<ParameterI, Type>} InferenceMap
+ */
+
+/**
+ * Used by the bundle cli command to generate a typescript annotations and (de)serialization code
+ * inputTypes form a type union
+ * @typedef {{
+ *   inputType:    string
+ *   outputType:   string
+ *   internalType: TypeSchema
+ * }} TypeDetails
+ */
+
+/**
  * @typedef {Named & Type & {
- *   asDataType: DataType
- *   fieldNames:  string[]
+ *   asDataType:   DataType
+ *   fieldNames:   string[]
  *   offChainType: (null | HeliosDataClass<HeliosData>)
+ *   typeDetails?: TypeDetails
+ *   jsToUplc:     (obj: any) => UplcData
+ *   uplcToJs:     (data: UplcData) => any
+ *   ready:        boolean
  * }} DataType
  */
 
 /**
  * @typedef {DataType & {
  *   asEnumMemberType: EnumMemberType
- *   constrIndex: number
- *   parentType: DataType
+ *   constrIndex:      number
+ *   parentType:       DataType
  * }} EnumMemberType
  */
 
@@ -14436,7 +15126,7 @@ function tokenizeIR(rawSrc, codeMap) {
  *   typeClasses: TypeClass[]
  *   apply(types: Type[], site?: Site): EvalEntity
  *   inferCall(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): Func
- * 	 infer(site: Site, map: Map<string, Type>): Parametric
+ * 	 infer(site: Site, map: InferenceMap): Parametric
  * }} Parametric
  */
 
@@ -14446,7 +15136,7 @@ function tokenizeIR(rawSrc, codeMap) {
  *   instanceMembers:      InstanceMembers
  *   typeMembers:          TypeMembers
  *   isBaseOf(type: Type): boolean
- *   infer(site: Site, map: Map<string, Type>, type: (null | Type)): Type
+ *   infer(site: Site, map: InferenceMap, type: null | Type): Type
  *   toTyped():            Typed
  * }} Type
  */
@@ -14464,7 +15154,7 @@ function tokenizeIR(rawSrc, codeMap) {
  *   genInstanceMembers(impl: Type):     TypeClassMembers
  *   genTypeMembers(impl: Type):         TypeClassMembers
  *   isImplementedBy(type: Type):        boolean
- *   toType(name: string, path: string): Type
+ *   toType(name: string, path: string, parameter?: null | ParameterI): Type
  * }} TypeClass
  */
 
@@ -14578,7 +15268,7 @@ class Common {
      * @returns {boolean}
      */
     static typeImplements(type, tc) {
-		if (type instanceof AllType) {
+		if (type instanceof AllType || type.asDataType?.ready === false) {
 			return true;
 		}
 
@@ -14682,6 +15372,29 @@ class Common {
 		return null;
 	}
 
+	/**
+	 * @type {boolean}
+	 */
+	get ready() {
+		return true;
+	}
+
+	/**
+	 * @param {any} obj
+	 * @returns {UplcData}
+	 */
+	jsToUplc(obj) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {UplcData} data
+	 * @returns {any}
+	 */
+	uplcToJs(data) {
+		throw new Error("not yet implemented");
+	}
+
     /**
      * @returns {string}
      */
@@ -14707,20 +15420,6 @@ class AllType extends Common {
 	}
 
 	/**
-	 * @type {HeliosDataClass<HeliosData> | null}
-	 */
-	get offChainType() {
-		return null;
-	}
-
-	/**
-	 * @type {string[]}
-	 */
-	get fieldNames() {
-		return [];
-	}
-
-	/**
 	 * @type {Named}
 	 */
 	get asNamed() {
@@ -14733,6 +15432,20 @@ class AllType extends Common {
 	get asType() {
         return this;
     }
+
+	/**
+	 * @type {HeliosDataClass<HeliosData> | null}
+	 */
+	get offChainType() {
+		return null;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get fieldNames() {
+		return [];
+	}
 
 	/**
 	 * @type {InstanceMembers}
@@ -14764,7 +15477,7 @@ class AllType extends Common {
 
 	/**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -14827,7 +15540,7 @@ class AnyType extends Common {
 
 	/**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -14891,7 +15604,7 @@ class ErrorType extends Common {
 
     /**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -14963,7 +15676,7 @@ class ArgType {
     /**
 	 * @package
 	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
+	 * @param {InferenceMap} map 
 	 * @param {null | Type} type 
 	 * @returns {ArgType}
 	 */
@@ -15165,8 +15878,8 @@ class FuncType extends Common {
     /**
 	 * @package
 	 * @param {Site} site
-	 * @param {Map<string, Type>} map 
-	 * @param {Type | null} type 
+	 * @param {InferenceMap} map 
+	 * @param {null | Type} type 
 	 * @returns {Type}
 	 */
 	infer(site, map, type) {
@@ -15190,7 +15903,7 @@ class FuncType extends Common {
     /**
 	 * @package
 	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
+	 * @param {InferenceMap} map 
 	 * @param {Type[]} argTypes 
 	 * @returns {FuncType}
 	 */
@@ -15202,7 +15915,7 @@ class FuncType extends Common {
 			)
 		}
 
-		throw site.typeError("unable to infer from args");
+		throw site.typeError(`expected ${this.argTypes.length} arg(s), got ${argTypes.length}`);
 	}
 
     /** 
@@ -15346,6 +16059,33 @@ class GenericType extends Common {
 	 */
 	#genTypeMembers;
 
+	/**
+	 * @type {null | InstanceMembers}
+	 */
+	#instanceMembers;
+
+	/**
+	 * @type {null | TypeMembers}
+	 */
+	#typeMembers;
+
+	/**
+	 * @type {null | ((self: Type) => TypeDetails)}
+	 */
+	#genTypeDetails;
+
+	#genDepth;
+
+	/**
+	 * @type {null | ((obj: any) => UplcData)}
+	 */
+	#jsToUplc;
+
+	/**
+	 * @type {null | ((data: UplcData) => any)}
+	 */
+	#uplcToJs;
+
     /**
      * @param {({
      *   name: string,
@@ -15355,9 +16095,23 @@ class GenericType extends Common {
      *   fieldNames?: string[],
      *   genInstanceMembers: (self: Type) => InstanceMembers,
      *   genTypeMembers: (self: Type) => TypeMembers
+	 *   genTypeDetails?: (self: Type) => TypeDetails,
+	 *   jsToUplc?: (obj: any) => UplcData
+	 *   uplcToJs?: (data: UplcData) => any
      * })} props
      */
-    constructor({name, path, offChainType, genOffChainType, fieldNames, genInstanceMembers, genTypeMembers}) {
+    constructor({
+		name, 
+		path, 
+		offChainType, 
+		genOffChainType, 
+		fieldNames, 
+		genInstanceMembers, 
+		genTypeMembers, 
+		genTypeDetails,
+		jsToUplc,
+		uplcToJs
+	}) {
         super();
 
         this.#name = name;
@@ -15368,54 +16122,12 @@ class GenericType extends Common {
 
 		this.#genInstanceMembers = genInstanceMembers;
 		this.#genTypeMembers = genTypeMembers;
-    }
-
-    /**
-     * @type {string[]}
-     */
-    get fieldNames() {
-        return this.#fieldNames;
-    }
-
-    /**
-     * @type {InstanceMembers}
-     */
-    get instanceMembers() {
-		return this.#genInstanceMembers(this);
-    }
-
-    /**
-     * @type {string}
-     */
-    get name() {
-        return this.#name;
-    }
-
-    /**
-     * @type {null | HeliosDataClass<T>}
-     */
-    get offChainType() {
-		if (this.#offChainType) {
-			return this.#offChainType;
-		} else if (this.#genOffChainType) {
-			return this.#genOffChainType();
-		} else {
-			return null;
-		}
-    }
-
-    /**
-     * @type {string}
-     */
-    get path() {
-        return this.#path;
-    }
-
-    /**
-     * @type {TypeMembers}
-     */
-    get typeMembers() {
-		return this.#genTypeMembers(this);
+		this.#instanceMembers = null;
+		this.#typeMembers = null;
+		this.#genTypeDetails = genTypeDetails ?? null;
+		this.#genDepth = 0;
+		this.#jsToUplc = jsToUplc ?? null;
+		this.#uplcToJs = uplcToJs ?? null;
     }
 
     /**
@@ -15440,8 +16152,84 @@ class GenericType extends Common {
     }
 
     /**
+     * @type {string[]}
+     */
+    get fieldNames() {
+        return this.#fieldNames;
+    }
+
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers() {
+		if (!this.#instanceMembers) {
+			this.#instanceMembers = this.#genInstanceMembers(this);
+		}
+
+		return this.#instanceMembers;
+    }
+
+    /**
+     * @type {string}
+     */
+    get name() {
+        return this.#name;
+    }
+
+    /**
+     * @type {null | HeliosDataClass<T>}
+     */
+    get offChainType() {
+		if (this.#offChainType) {
+			return this.#offChainType;
+		} else if (this.#genOffChainType) {
+			return this.#genOffChainType();
+		} else {
+			return null;
+		}
+    }
+
+	/**
+	 * @type {TypeDetails}
+	 */
+	get typeDetails() {
+		if (this.#genTypeDetails) {
+			return this.#genTypeDetails(this);
+		} else {
+			throw new Error(`typeDetails not available for ${this.toString()}`)
+		}
+	}
+
+    /**
+     * @type {string}
+     */
+    get path() {
+        return this.#path;
+    }
+
+	/**
+	 * @type {boolean}
+	 */
+	get ready() {
+		return this.#genDepth < 2;
+	}
+
+    /**
+     * @type {TypeMembers}
+     */
+    get typeMembers() {
+		if (!this.#typeMembers) {
+			this.#genDepth += 1;
+			this.#typeMembers = this.#genTypeMembers(this);
+			this.#genDepth -= 1;
+		}
+
+		return this.#typeMembers;
+    }
+
+    /**
      * @param {Site} site 
-     * @param {Map<string, Type>} map
+     * @param {InferenceMap} map
      */
     inferInternal(site, map) {
 		return {
@@ -15499,7 +16287,7 @@ class GenericType extends Common {
 
 	/**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -15540,6 +16328,30 @@ class GenericType extends Common {
 		}
     }
 
+	/**
+	 * @param {any} obj 
+	 * @returns {UplcData}
+	 */
+	jsToUplc(obj) {
+		if (this.#jsToUplc) {
+			return this.#jsToUplc(obj);
+		} else {
+			throw new Error(`'${this.name}' doesn't support converting from JS to Uplc`);
+		}
+	}
+
+	/**
+	 * @param {UplcData} data
+	 * @returns {any}
+	 */
+	uplcToJs(data) {
+		if (this.#uplcToJs) {
+			return this.#uplcToJs(data);
+		} else {
+			throw new Error(`'${this.name}' doesn't support converting from Uplc to JS`);
+		}
+	}
+
     /**
      * @returns {string}
      */
@@ -15577,9 +16389,25 @@ class GenericEnumMemberType extends GenericType {
      *   fieldNames?: string[],
      *   genInstanceMembers: (self: Type) => InstanceMembers,
      *   genTypeMembers?: (self: Type) => TypeMembers
+	 *   genTypeDetails?: (self: Type) => TypeDetails
+	 *   jsToUplc?: (obj: any) => UplcData
+	 *   uplcToJs?: (data: UplcData) => any
      * })} props
      */
-    constructor({name, path, constrIndex, parentType, offChainType, genOffChainType, fieldNames, genInstanceMembers, genTypeMembers}) {
+    constructor({
+		name, 
+		path, 
+		constrIndex, 
+		parentType, 
+		offChainType, 
+		genOffChainType, 
+		fieldNames, 
+		genInstanceMembers, 
+		genTypeMembers,
+		genTypeDetails,
+		jsToUplc,
+		uplcToJs
+	}) {
         super({
             name, 
             path: path ?? `${parentType.path}__${name.toLowerCase()}`, 
@@ -15587,7 +16415,10 @@ class GenericEnumMemberType extends GenericType {
             offChainType, 
             fieldNames, 
             genInstanceMembers, 
-            genTypeMembers: genTypeMembers ?? ((self) => ({}))
+            genTypeMembers: genTypeMembers ?? ((self) => ({})),
+			genTypeDetails,
+			jsToUplc,
+			uplcToJs
         });
 
         this.#constrIndex = constrIndex;
@@ -15617,7 +16448,7 @@ class GenericEnumMemberType extends GenericType {
 
 	/**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -15687,7 +16518,7 @@ class VoidType extends Common {
     /**
      * 
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -16256,6 +17087,19 @@ function genCommonEnumTypeMembers(type, parentType) {
 const BoolType = new GenericType({
     name: "Bool",
     offChainType: Bool,
+    genTypeDetails: (self) => ({
+        inputType: "boolean",
+        outputType: "boolean",
+        internalType: {
+            type: "Bool"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return new ConstrData(obj ? 1 : 0, []);
+    },
+    uplcToJs: (data) => {
+        return data.index != 0;
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         show:      new FuncType([], StringType),
@@ -16281,6 +17125,21 @@ const BoolType = new GenericType({
 const ByteArrayType = new GenericType({
     name: "ByteArray",
     offChainType: ByteArray,
+    genTypeDetails: (self) => ({
+        inputType: "number[] | string",
+        outputType: "number[]",
+        internalType: {
+            type: "ByteArray"
+        }
+    }),
+    jsToUplc: (obj) => {
+        const bytes = Array.isArray(obj) ? obj : hexToBytes(obj);
+
+        return new ByteArrayData(bytes);
+    },
+    uplcToJs: (data) => {
+        return data.bytes;
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         blake2b: new FuncType([], self),
@@ -16311,6 +17170,19 @@ const ByteArrayType = new GenericType({
 const IntType = new GenericType({
     name: "Int",
     offChainType: HInt,
+    genTypeDetails: (self) => ({
+        inputType: "number | bigint",
+        outputType: "bigint",
+        internalType: {
+            type: "Int"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return new IntData(BigInt(obj));
+    },
+    uplcToJs: (data) => {
+        return data.int;
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         abs: new FuncType([], self),
@@ -16378,6 +17250,19 @@ const RawDataType = new GenericType({
  */
 const RealType = new GenericType({
     name: "Real",
+    genTypeDetails: (self) => ({
+        inputType: "number",
+        outputType: "number",
+        internalType: {
+            type: "Real"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return new IntData(BigInt(obj*1000000))
+    },
+    uplcToJs: (data) => {
+        return Number(data.int)/1000000
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         abs: new FuncType([], self),
@@ -16421,6 +17306,19 @@ const RealType = new GenericType({
 const StringType = new GenericType({
     name: "String",
     offChainType: HString,
+    genTypeDetails: (self) => ({
+        inputType: "string",
+        outputType: "string",
+        internalType: {
+            type: "String"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return new ByteArrayData(textToBytes(obj));
+    },
+    uplcToJs: (data) => {
+        return bytesToText(data.bytes);
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         encode_utf8: new FuncType([], ByteArrayType),
@@ -16447,6 +17345,12 @@ class TypeClassImpl extends Common {
 	 * @type {string}
 	 */
 	#name;
+
+	/**
+	 * @type {null | ParameterI}
+	 */
+	#parameter;
+
 	/**
 	 * @type {InstanceMembers}
 	 */
@@ -16459,10 +17363,13 @@ class TypeClassImpl extends Common {
 
 	/**
 	 * @param {TypeClass} typeClass
+	 * @param {string} name
+	 * @param {null | ParameterI} parameter - reference to original parameter, which is more unique than name
 	 */
-	constructor(typeClass, name) {
+	constructor(typeClass, name, parameter) {
 		super();
 		this.#name = name;
+		this.#parameter = parameter;
         this.#instanceMembers = typeClass.genInstanceMembers(this);
 		this.#typeMembers = typeClass.genTypeMembers(this);
     }
@@ -16498,16 +17405,18 @@ class TypeClassImpl extends Common {
     /**
 	 * @package
 	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
+	 * @param {InferenceMap} map 
 	 * @param {null | Type} type
 	 * @returns {Type}
 	 */
 	infer(site, map, type) {
-		const prev = map.get(this.#name);
+		const p = assertDefined(this.#parameter, "unable to infer dummy TypeClass instantiation");
+
+		const prev = map.get(p);
 
 		if (!prev) {
 			if (type) {
-				map.set(this.#name, type);
+				map.set(p, type);
 
 				return type;
 			} else {
@@ -16562,12 +17471,27 @@ class DataTypeClassImpl extends TypeClassImpl {
 	 * @param {TypeClass} typeClass
 	 * @param {string} name
 	 * @param {string} path
+	 * @param {null | ParameterI} parameter
 	 */
-	constructor(typeClass, name, path) {
-		super(typeClass, name);
+	constructor(typeClass, name, path, parameter) {
+		super(typeClass, name, parameter);
 
 		this.#path = path;
     }
+
+	/**
+	 * @type {DataType}
+	 */
+	get asDataType() {
+		return this;
+	}
+
+	/**
+	 * @type {Named}
+	 */
+	get asNamed() {
+		return this;
+	}
 
 	/**
 	 * @type {string[]}
@@ -16588,20 +17512,6 @@ class DataTypeClassImpl extends TypeClassImpl {
 	 */
 	get path() {
 		return this.#path;
-	}
-
-	/**
-	 * @type {Named}
-	 */
-	get asNamed() {
-		return this;
-	}
-
-	/**
-	 * @type {DataType}
-	 */
-	get asDataType() {
-		return this;
 	}
 
 	/**
@@ -16662,10 +17572,11 @@ class AnyTypeClass extends Common {
     /**
      * @param {string} name 
 	 * @param {string} path
+	 * @param {null | ParameterI} parameter
      * @returns {Type}
      */
-    toType(name, path) {
-		return new TypeClassImpl(this, name);
+    toType(name, path, parameter = null) {
+		return new TypeClassImpl(this, name, parameter);
     }
 }
 
@@ -16713,7 +17624,7 @@ class DefaultTypeClass extends Common {
 	 * @returns {boolean}
 	 */
 	isImplementedBy(type) {
-		return Common.typeImplements(type, this) || type instanceof AllType;
+		return Common.typeImplements(type, this);
 	}
 
 	/**
@@ -16726,16 +17637,79 @@ class DefaultTypeClass extends Common {
     /**
      * @param {string} name 
 	 * @param {string} path
+	 * @param {null | ParameterI} parameter
      * @returns {DataType}
      */
-    toType(name, path) {
-        return new DataTypeClassImpl(this, name, path);
+    toType(name, path, parameter = null) {
+        return new DataTypeClassImpl(this, name, path, parameter);
     }
 }
 
 
 /**
  * @package
+ * @implements {TypeClass}
+ */
+class SummableTypeClass extends Common {
+    constructor() {
+        super();
+    }
+
+	/**
+	 * @type {TypeClass}
+	 */
+	get asTypeClass() {
+		return this;
+	}
+
+	/**
+	 * @param {Type} impl
+	 * @returns {TypeClassMembers}
+	 */
+	genTypeMembers(impl) {
+		return {
+            __add: new FuncType([impl, impl], impl),
+            __sub: new FuncType([impl, impl], impl)
+		};
+	}
+
+	/**	
+	 * @param {Type} impl
+	 * @returns {TypeClassMembers}
+	 */
+	genInstanceMembers(impl) {
+		return {};
+	}
+
+	/**
+	 * @param {Type} type 
+	 * @returns {boolean}
+	 */
+	isImplementedBy(type) {
+		return Common.typeImplements(type, this);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "Summable";
+	}
+
+    /**
+     * @param {string} name 
+	 * @param {string} path
+	 * @param {null | ParameterI} parameter
+     * @returns {DataType}
+     */
+    toType(name, path, parameter = null) {
+        return new DataTypeClassImpl(this, name, path, parameter);
+    }
+}
+
+/**
+ * @package
+ * @implements {ParameterI}
  */
 class Parameter {
 	/** 
@@ -16775,7 +17749,7 @@ class Parameter {
 	 * @type {Type}
 	 */
 	get ref() {
-		return this.#typeClass.toType(this.#name, this.#path);
+		return this.#typeClass.toType(this.#name, this.#path, this);
 	}
 
 	/**
@@ -16852,7 +17826,7 @@ class ParametricFunc extends Common {
 		}
 
 		/**
-		 * @type {Map<string, Type>}
+		 * @type {InferenceMap}
 		 */
 		const map = new Map();
 
@@ -16861,7 +17835,7 @@ class ParametricFunc extends Common {
 				throw site.typeError("typeclass match failed")
 			}
 
-			map.set(p.name, types[i]);
+			map.set(p, types[i]);
 		});
 
 		const inferred = this.#fnType.infer(site, map, null);
@@ -16886,7 +17860,7 @@ class ParametricFunc extends Common {
 	 */
 	inferCall(site, args, namedArgs = {}, paramTypes = []) {
 		/**
-		 * @type {Map<string, Type>}
+		 * @type {InferenceMap}
 		 */
 		const map = new Map();
 
@@ -16894,7 +17868,7 @@ class ParametricFunc extends Common {
 
 		// make sure that each parameter is defined in the map
 		this.#params.forEach(p => {
-			const pt = map.get(p.name);
+			const pt = map.get(p);
 
 			if (!pt) {
 				throw site.typeError(`failed to infer type of '${p.name}'  (hint: apply directly using [...])`);
@@ -16908,7 +17882,7 @@ class ParametricFunc extends Common {
 	
 	/**
 	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
+	 * @param {InferenceMap} map 
 	 * @returns {Parametric}
 	 */
 	infer(site, map) {
@@ -17012,19 +17986,19 @@ class AppliedType extends Common {
 
     /**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
     infer(site, map, type) {
         if (!type) {
-            const inferred = this.#types.map(t => t.infer(site, map, null));
+            const infered = this.#types.map(t => t.infer(site, map, null));
 
-            return new AppliedType(inferred, this.#apply, this.#apply(inferred));
+            return new AppliedType(infered, this.#apply, this.#apply(infered));
 		} else if (type instanceof AppliedType && type.#types.length == this.#types.length) {
-            const inferred = this.#types.map((t, i) => t.infer(site, map, type.#types[i]));
+            const infered = this.#types.map((t, i) => t.infer(site, map, type.#types[i]));
 
-            const res = new AppliedType(inferred, this.#apply, this.#apply(inferred));
+            const res = new AppliedType(infered, this.#apply, this.#apply(infered));
 
 			if (!res.isBaseOf(type)) {
 				throw site.typeError("unable to infer type");
@@ -17122,6 +18096,7 @@ class ParametricType extends Common {
 			}
 		});
 
+		// TODO: recursive problem, defer the implementation check
 		return new AppliedType(types, this.#apply, this.#apply(types));
     }
 
@@ -17139,7 +18114,7 @@ class ParametricType extends Common {
 
 	/**
 	 * @param {Site} site 
-	 * @param {Map<string, Type>} map 
+	 * @param {InferenceMap} map 
 	 * @returns {Parametric}
 	 */
 	infer(site, map) {
@@ -17282,6 +18257,58 @@ const PrintFunc = new BuiltinFunc({
 ///////////////////////////////////
 
 /**
+ * @param {Type[]} itemTypes
+ * @returns {Type}
+ */
+export function IteratorType$(itemTypes) {
+	// to_list and to_map can't be part of Iterator because type information is lost (eg. we can map to an iterator over functions)
+	return new GenericType({
+		name: `Iterator[${itemTypes.map(it => it.toString()).join(", ")}]`,
+		path: `__helios__iterator__${itemTypes.length}`,
+		genInstanceMembers: (self) => {
+			const members = {
+				any: new FuncType([new FuncType(itemTypes, BoolType)], BoolType),
+				drop: new FuncType([IntType], self),
+				head: new FuncType([], itemTypes),
+				filter: new FuncType([new FuncType(itemTypes, BoolType)], self),
+				find: new FuncType([new FuncType(itemTypes, BoolType)], itemTypes),
+				for_each: new FuncType([new FuncType(itemTypes, new VoidType())], new VoidType()),
+				fold: (() => {
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+					return new ParametricFunc([a], new FuncType([new FuncType([a.ref].concat(itemTypes), a.ref), a.ref], a.ref));
+				})(),
+				get: new FuncType([IntType], itemTypes),
+				get_singleton: new FuncType([], itemTypes),
+				is_empty: new FuncType([], BoolType),
+				map: (() => {
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+					return new ParametricFunc([a], new FuncType([new FuncType(itemTypes, a.ref)], IteratorType$([a.ref])));
+				})(),
+				map2: (() => {
+					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+					const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
+
+					return new ParametricFunc([a, b], new FuncType([new FuncType(itemTypes, [a.ref, b.ref])], IteratorType$([a.ref, b.ref])));
+				})(),
+				prepend: new FuncType(itemTypes, self),
+				tail: self,
+				take: new FuncType([IntType], self)
+			}
+
+			if (itemTypes.length < 10) {
+				members.zip = (() => {
+					const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+					return new ParametricFunc([a], new FuncType([ListType$(a.ref)], IteratorType$(itemTypes.concat([a.ref]))));
+				})();
+			}
+
+			return members;
+		},
+		genTypeMembers: (self) => ({})
+	});
+};
+
+/**
  * Builtin list type
  * @package
  * @type {Parametric}
@@ -17290,23 +18317,30 @@ const ListType = new ParametricType({
 	name: "[]",
 	offChainType: HList,
 	parameters: [new Parameter("ItemType", `${TTPP}0`, new DefaultTypeClass())],
-	apply: ([itemType]) => {
-		const offChainItemType = itemType.asDataType?.offChainType ?? null;
+	apply: ([itemType_]) => {
+		const itemType = assertDefined(itemType_.asDataType);
+		const offChainItemType = itemType.offChainType ?? null;
 		const offChainType = offChainItemType ? HList(offChainItemType) : null;
 
 		return new GenericType({
 			offChainType: offChainType,
 			name: `[]${itemType.toString()}`,
-			path: `__helios__list[${assertDefined(itemType.asDataType).path}]`,
+			path: `__helios__list[${itemType.path}]`,
+			genTypeDetails: (self) => ({
+				inputType: `(${assertDefined(itemType.typeDetails?.inputType)})[]`,
+				outputType: `(${assertDefined(itemType.typeDetails?.outputType)})[]`,
+				internalType: {
+					type: "List",
+					itemType: assertDefined(itemType.typeDetails?.internalType)
+				}
+			}),
 			genInstanceMembers: (self) => {
 				/**
 				 * @type {InstanceMembers}
 				 */
 				const specialMembers = {};
 
-				if (IntType.isBaseOf(itemType)) {
-					specialMembers.sum = new FuncType([], itemType);
-				} else if (RealType.isBaseOf(itemType)) {
+				if ((new SummableTypeClass()).isImplementedBy(itemType)) {
 					specialMembers.sum = new FuncType([], itemType);
 				} else if (StringType.isBaseOf(itemType)) {
 					specialMembers.join = new FuncType([
@@ -17325,6 +18359,7 @@ const ListType = new ParametricType({
 					...specialMembers,
 					all: new FuncType([new FuncType([itemType], BoolType)], BoolType),
 					any: new FuncType([new FuncType([itemType], BoolType)], BoolType),
+					append: new FuncType([itemType], self),
 					drop: new FuncType([IntType], self),
 					drop_end: new FuncType([IntType], self),
 					filter: new FuncType([new FuncType([itemType], BoolType)], self),
@@ -17334,9 +18369,19 @@ const ListType = new ParametricType({
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 						return new ParametricFunc([a], new FuncType([new FuncType([a.ref, itemType], a.ref), a.ref], a.ref));
 					})(),
+					fold2: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+						const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
+						return new ParametricFunc([a, b], new FuncType([new FuncType([a.ref, b.ref, itemType], [a.ref, b.ref]), a.ref, b.ref], [a.ref, b.ref]));
+					})(),
 					fold_lazy: (() => {
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 						return new ParametricFunc([a], new FuncType([new FuncType([itemType, new FuncType([], a.ref)], a.ref), a.ref], a.ref));
+					})(),
+					fold2_lazy: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+						const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
+						return new ParametricFunc([a, b], new FuncType([new FuncType([itemType, new FuncType([], [a.ref, b.ref])], [a.ref, b.ref]), a.ref, b.ref], [a.ref, b.ref]));
 					})(),
 					for_each: new FuncType([new FuncType([itemType], new VoidType())], new VoidType()),
 					get: new FuncType([IntType], itemType),
@@ -17353,13 +18398,19 @@ const ListType = new ParametricType({
 					tail: self,
 					take: new FuncType([IntType], self),
 					take_end: new FuncType([IntType], self),
+					to_iterator: new FuncType([], IteratorType$([itemType])),
+					zip: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+						return new ParametricFunc([a], new FuncType([ListType$(a.ref)], IteratorType$([itemType, a.ref])));
+					})()
 				}
 			},
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self),
 				__add: new FuncType([self, self], self),
 				new: new FuncType([IntType, new FuncType([IntType], itemType)], self),
-				new_const: new FuncType([IntType, itemType], self)
+				new_const: new FuncType([IntType, itemType], self),
+				from_iterator: new FuncType([IteratorType$([itemType])], self)
 			})
 		})
 	}
@@ -17385,19 +18436,31 @@ const MapType = new ParametricType({
 		new Parameter("KeyType", `${TTPP}0`, new DefaultTypeClass()), 
 		new Parameter("ValueType", `${TTPP}1`, new DefaultTypeClass())
 	],
-	apply: ([keyType, valueType]) => {
-		const offChainKeyType = keyType.asDataType?.offChainType ?? null;
-		const offChainValueType = valueType.asDataType?.offChainType ?? null;
+	apply: ([keyType_, valueType_]) => {
+		const keyType = assertDefined(keyType_.asDataType);
+		const valueType = assertDefined(valueType_.asDataType);
+		const offChainKeyType = keyType.offChainType ?? null;
+		const offChainValueType = valueType.offChainType ?? null;
 		const offChainType = offChainKeyType && offChainValueType ? HMap(offChainKeyType, offChainValueType) : null;
 
 		return new GenericType({
 			offChainType: offChainType,
 			name: `Map[${keyType.toString()}]${valueType.toString()}`,
-			path: `__helios__map[${assertDefined(keyType.asDataType).path}@${assertDefined(valueType.asDataType).path}]`,
+			path: `__helios__map[${keyType.path}@${valueType.path}]`,
+			genTypeDetails: (self) => ({
+				inputType: `[${assertDefined(keyType.typeDetails?.inputType)}, ${assertDefined(valueType.typeDetails?.inputType)}][]`,
+				outputType: `[${assertDefined(keyType.typeDetails?.outputType)}, ${assertDefined(valueType.typeDetails?.outputType)}][]`,
+				internalType: {
+					type: "Map",
+					keyType: assertDefined(keyType.typeDetails?.internalType),
+					valueType: assertDefined(valueType.typeDetails?.internalType)
+				}
+			}),
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				all: new FuncType([new FuncType([keyType, valueType], BoolType)], BoolType),
 				any: new FuncType([new FuncType([keyType, valueType], BoolType)], BoolType),
+				append: new FuncType([keyType, valueType], self),
 				delete: new FuncType([keyType], self),
 				filter: new FuncType([new FuncType([keyType, valueType], BoolType)], self),
 				find: new FuncType([new FuncType([keyType, valueType], BoolType)], [keyType, valueType]),
@@ -17432,12 +18495,14 @@ const MapType = new ParametricType({
 				set: new FuncType([keyType, valueType], self),
 				sort: new FuncType([new FuncType([keyType, valueType, keyType, valueType], BoolType)], self),
 				tail: self,
+				to_iterator: new FuncType([], IteratorType$([keyType, valueType])),
 				update: new FuncType([keyType, new FuncType([valueType], valueType)], self),
 				update_safe: new FuncType([keyType, new FuncType([valueType], valueType)], self)
 			}),
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self),
-				__add: new FuncType([self, self], self)
+				__add: new FuncType([self, self], self),
+				from_iterator: new FuncType([IteratorType$([keyType, valueType])], self)
 			})
 		})
 	}
@@ -17461,10 +18526,11 @@ const OptionType = new ParametricType({
 	name: "Option",
 	offChainType: Option,
 	parameters: [new Parameter("SomeType", `${TTPP}0`, new DefaultTypeClass())],
-	apply: ([someType]) => {
-		const someOffChainType = someType.asDataType?.offChainType ?? null;
+	apply: ([someType_]) => {
+		const someType = assertDefined(someType_.asDataType);
+		const someOffChainType = someType.offChainType ?? null;
 		const offChainType = someOffChainType ? Option(someOffChainType) : null;
-		const someTypePath = assertDefined(someType.asDataType).path;
+		const someTypePath = someType.path;
 
 		/**
 		 * @type {DataType}
@@ -17473,6 +18539,14 @@ const OptionType = new ParametricType({
 			offChainType: offChainType,
 			name: `Option[${someType.toString()}]`,
 			path: `__helios__option[${someTypePath}]`,
+			genTypeDetails: (self) => ({
+				inputType: `null | ${assertDefined(someType.typeDetails?.inputType)}`,
+				outputType: `null | ${assertDefined(someType.typeDetails?.outputType)}`,
+				internalType: {
+					type: "Option",
+					someType: assertDefined(someType.typeDetails?.internalType)
+				}
+			}),
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
 				map: (() => {
@@ -17662,10 +18736,38 @@ function genHashTypeMembers(self) {
 }
 
 /**
+ * @param {HeliosDataClass<HeliosData>} offchainType 
+ */
+function genHashTypeProps(offchainType) {
+    return {
+        genTypeDetails: (self) => ({
+            inputType: `number[] | string | helios.${offchainType.name}`,
+            outputType: `helios.${offchainType.name}`,
+            internalType: {
+                type: offchainType.name
+            }
+        }),
+        jsToUplc: (obj) => {
+            if (obj instanceof offchainType) {
+                return obj._toUplcData();
+            } else {
+                const bytes = Array.isArray(obj) ? obj : hexToBytes(obj);
+
+                return new ByteArrayData(bytes);
+            }
+        },
+        uplcToJs: (data) => {
+            return new offchainType(data.bytes);
+        }
+    }
+}
+
+/**
  * @package
  * @type {DataType}
  */
-var DatumHashType = new GenericType({
+const DatumHashType = new GenericType({
+    ...genHashTypeProps(DatumHash),
     name: "DatumHash",
     offChainType: DatumHash,
     genInstanceMembers: genHashInstanceMembers,
@@ -17676,7 +18778,8 @@ var DatumHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-var MintingPolicyHashType = new GenericType({
+const MintingPolicyHashType = new GenericType({
+    ...genHashTypeProps(MintingPolicyHash),
     name: "MintingPolicyHash",
     offChainType: MintingPolicyHash,
     genInstanceMembers: genHashInstanceMembers,
@@ -17691,7 +18794,7 @@ var MintingPolicyHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-var PubKeyType = new GenericType({
+const PubKeyType = new GenericType({
     name: "PubKey",
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -17709,7 +18812,8 @@ var PubKeyType = new GenericType({
  * @package
  * @type {DataType}
  */
-var PubKeyHashType = new GenericType({
+const PubKeyHashType = new GenericType({
+    ...genHashTypeProps(PubKeyHash),
     name: "PubKeyHash",
     offChainType: PubKeyHash,
     genInstanceMembers: genHashInstanceMembers,
@@ -17720,7 +18824,7 @@ var PubKeyHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-var ScriptHashType = new GenericType({
+const ScriptHashType = new GenericType({
     name: "ScriptHash",
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
@@ -17734,7 +18838,8 @@ var ScriptHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-var StakeKeyHashType = new GenericType({
+const StakeKeyHashType = new GenericType({
+    ...genHashTypeProps(StakeKeyHash),
     name: "StakeKeyHash",
     offChainType: StakeKeyHash,
     genInstanceMembers: genHashInstanceMembers,
@@ -17746,7 +18851,7 @@ var StakeKeyHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-var StakingHashType = new GenericType({
+const StakingHashType = new GenericType({
     name: "StakingHash",
     genInstanceMembers: genCommonInstanceMembers,
     genTypeMembers: (self) => ({
@@ -17761,7 +18866,7 @@ var StakingHashType = new GenericType({
  * @package
  * @type {EnumMemberType}
  */
-var StakingHashStakeKeyType = new GenericEnumMemberType({
+const StakingHashStakeKeyType = new GenericEnumMemberType({
     name: "StakeKey",
     constrIndex: 0,
     parentType: StakingHashType,
@@ -17778,7 +18883,7 @@ var StakingHashStakeKeyType = new GenericEnumMemberType({
  * @package
  * @type {EnumMemberType}
  */
-var StakingHashValidatorType = new GenericEnumMemberType({
+const StakingHashValidatorType = new GenericEnumMemberType({
     name: "Validator",
     constrIndex: 1,
     parentType: StakingHashType,
@@ -17795,7 +18900,8 @@ var StakingHashValidatorType = new GenericEnumMemberType({
  * @package
  * @type {DataType}
  */
-var StakingValidatorHashType = new GenericType({
+const StakingValidatorHashType = new GenericType({
+    ...genHashTypeProps(StakingValidatorHash),
     name: "StakingValidatorHash",
     offChainType: StakingValidatorHash,
     genInstanceMembers: genHashInstanceMembers,
@@ -17809,7 +18915,8 @@ var StakingValidatorHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-var ValidatorHashType = new GenericType({
+const ValidatorHashType = new GenericType({
+    ...genHashTypeProps(ValidatorHash),
     name: "ValidatorHash",
     offChainType: ValidatorHash,
     genInstanceMembers: genHashInstanceMembers,
@@ -17829,9 +18936,22 @@ var ValidatorHashType = new GenericType({
  * @package
  * @type {DataType}
  */
-var AssetClassType = new GenericType({
+const AssetClassType = new GenericType({
     name: "AssetClass",
     offChainType: AssetClass,
+    genTypeDetails: (self) => ({
+        inputType: "string | {mph: number[] | string | MintingPolicyHash, tokenName: number[] | string} | helios.AssetClass",
+        outputType: "helios.AssetClass",
+        internalType: {
+            type: "AssetClass"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return AssetClass.fromProps(obj)._toUplcData();
+    },
+    uplcToJs: (data) => {
+        return AssetClass.fromUplcData(data);
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         mph: MintingPolicyHashType,
@@ -17854,9 +18974,22 @@ var AssetClassType = new GenericType({
  * @package
  * @type {DataType}
  */
-var ValueType = new GenericType({
+const ValueType = new GenericType({
     name: "Value",
     offChainType: Value,
+    genTypeDetails: (self) => ({
+        inputType: `number | bigint | {lovelace?: number | bigint, assets: [string, number | bigint][] | [number[] | string | helios.MintingPolicyHash, [number[] | string, number | bigint][]][] | helios.Assets} | helios.Value`,
+        outputType: `helios.Value`,
+        internalType: {
+            type: "Value"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return Value.fromProps(obj)._toUplcData();
+    },
+    uplcToJs: (data) => {
+        return Value.fromUplcData(data);
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         contains: new FuncType([self], BoolType),
@@ -17943,6 +19076,19 @@ class ValuableTypeClass extends DefaultTypeClass {
 const AddressType = new GenericType({
     name: "Address",
     offChainType: Address,
+    genTypeDetails: (self) => ({
+        inputType: "string | helios.Address",
+        outputType: "helios.Address",
+        internalType: {
+            type: "Address"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return (Address.fromProps(obj))._toUplcData();
+    },
+    uplcToJs: (data) => {
+        return Address.fromUplcData(data);
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: CredentialType,
@@ -18128,6 +19274,7 @@ const CredentialValidatorType = new GenericEnumMemberType({
  */
 const OutputDatumType = new GenericType({
     name: "OutputDatum",
+    path: "__helios__outputdatum",
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         get_inline_data: new FuncType([], RawDataType)
@@ -18198,25 +19345,10 @@ const OutputDatumNoneType = new GenericEnumMemberType({
 });
 
 /**
- * Builtin ScriptContext type
+ * Base class for ScriptContext, ContractContext, ScriptCollection and other "macro"-types
  * @package
- * @implements {DataType}
  */
-class ScriptContextType extends Common {
-    /**
-     * @type {number}
-     */
-    #purpose;
-
-    /**
-     * @param {number} purpose 
-     */
-	constructor(purpose) {
-		super();
-
-        this.#purpose = assertDefined(purpose);
-	}
-
+class MacroType extends Common {
     /**
      * @type {string[]}
      */
@@ -18225,55 +19357,18 @@ class ScriptContextType extends Common {
     }
 
     /**
-     * @type {string}
+     * @type {InstanceMembers}
      */
-    get name() {
-        return "ScriptContext";
+    get instanceMembers() {
+        throw new Error("not yet implemented");
     }
 
     /**
-     * @param {number} purpose
-     * @returns {InstanceMembers}
+     * @type {string}
      */
-    static genPurposeInstanceMembers(purpose) {
-        switch (purpose) {
-            case ScriptPurpose.Minting:
-                return {
-                    get_current_minting_policy_hash: new FuncType([], MintingPolicyHashType)
-                };
-            case ScriptPurpose.Spending:
-                return {
-                    get_current_input: new FuncType([], TxInputType),
-                    get_cont_outputs: new FuncType([], ListType$(TxOutputType)),
-                    get_current_validator_hash: new FuncType([], ValidatorHashType),
-                    get_spending_purpose_output_id: new FuncType([], TxOutputIdType)
-                };
-            case ScriptPurpose.Staking:
-                return {
-                    get_staking_purpose:new FuncType([], StakingPurposeType)
-                };
-            case ScriptPurpose.Testing:
-            case -1:
-                return {
-                    ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Minting),
-                    ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Spending),
-                    ...ScriptContextType.genPurposeInstanceMembers(ScriptPurpose.Staking),
-                };
-            default:
-                throw new Error(`unhandled ScriptPurpose ${purpose}`);
-        }
+    get name() {
+        throw new Error("not yet implemented");
     }
-    /**
-	 * @type {InstanceMembers}
-	 */
-	get instanceMembers() {
-        return {
-            ...genCommonInstanceMembers(this),
-            ...ScriptContextType.genPurposeInstanceMembers(this.#purpose),
-            get_script_purpose: new FuncType([], ScriptPurposeType),
-            tx: TxType
-        };
-	}
 
     /**
      * @type {null | HeliosDataClass<HeliosData>}
@@ -18286,21 +19381,15 @@ class ScriptContextType extends Common {
      * @type {string}
      */
     get path() {
-		return "__helios__scriptcontext";
-	}
+        throw new Error("not yet implemented");
+    }
 
 	/**
 	 * @type {TypeMembers}
 	 */
 	get typeMembers() {
-        return {
-            ...genCommonTypeMembers(this),
-            new_certifying: new FuncType([TxType, DCertType], new ScriptContextType(ScriptPurpose.Staking)),
-            new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType(ScriptPurpose.Minting)),
-            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(ScriptPurpose.Staking)),
-            new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType(ScriptPurpose.Spending))
-        };
-	}
+        return {};
+    }
 
     /**
      * @type {DataType}
@@ -18325,7 +19414,7 @@ class ScriptContextType extends Common {
 
     /**
      * @param {Site} site 
-     * @param {Map<string, Type>} map 
+     * @param {InferenceMap} map 
      * @param {null | Type} type 
      * @returns {Type}
      */
@@ -18338,7 +19427,7 @@ class ScriptContextType extends Common {
      * @returns {boolean}
      */
     isBaseOf(other) {
-        return other instanceof ScriptContextType;
+        throw new Error("not yet implemented");
     }
 
     /**
@@ -18355,6 +19444,219 @@ class ScriptContextType extends Common {
         return new DataEntity(this);
     }
 }
+
+/**
+ * @package
+ * @implements {DataType}
+ */
+class ScriptCollectionType extends MacroType {
+    /**
+     * @type {{[name: string]: Type}}
+     */
+    #scripts;
+
+    /**
+     * @param {{[name: string]: Type}} scripts 
+     */
+    constructor(scripts) {
+        super();
+
+        this.#scripts = scripts;
+    }
+
+    /**
+     * @type {InstanceMembers}
+     */
+    get instanceMembers() {
+        return {
+            ...this.#scripts
+        };
+    }
+
+    /**
+     * @type {string}
+     */
+    get name() {
+        return "ScriptCollection";
+    }
+
+    /**
+     * @type {string}
+     */
+    get path() {
+        return "__helios__scriptcollection";
+    }
+
+    /**
+     * @param {Type} other 
+     * @returns {boolean}
+     */
+    isBaseOf(other) {
+        return other instanceof ScriptCollectionType;
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isEmpty() {
+        return true;
+    }
+}
+
+/**
+ * Builtin ScriptContext type
+ * @package
+ * @implements {DataType}
+ */
+class ScriptContextType extends MacroType {
+    /**
+     * @type {ScriptCollectionType}
+     */
+   #scriptCollection;
+
+    /**
+     * @param {ScriptCollectionType} scriptCollection
+     */
+	constructor(scriptCollection = new ScriptCollectionType({})) {
+		super();
+        this.#scriptCollection = scriptCollection;
+	}
+
+    /**
+     * @type {string}
+     */
+    get name() {
+        return "ScriptContext";
+    }
+
+    /**
+	 * @type {InstanceMembers}
+	 */
+	get instanceMembers() {
+        const members = {
+            ...genCommonInstanceMembers(this),
+            get_current_minting_policy_hash: new FuncType([], MintingPolicyHashType),
+            get_current_input: new FuncType([], TxInputType),
+            get_cont_outputs: new FuncType([], ListType$(TxOutputType)),
+            get_current_validator_hash: new FuncType([], ValidatorHashType),
+            get_spending_purpose_output_id: new FuncType([], TxOutputIdType),
+            get_staking_purpose:new FuncType([], StakingPurposeType),
+            get_script_purpose: new FuncType([], ScriptPurposeType),
+            tx: TxType
+        };
+
+        if (!this.#scriptCollection.isEmpty()) {
+            members["scripts"] = this.#scriptCollection;
+        }
+        
+        return members;
+	}
+
+    /**
+     * @type {string}
+     */
+    get path() {
+		return "__helios__scriptcontext";
+	}
+
+	/**
+	 * @type {TypeMembers}
+	 */
+	get typeMembers() {
+        return {
+            ...genCommonTypeMembers(this),
+            new_certifying: new FuncType([TxType, DCertType], new ScriptContextType(this.#scriptCollection)),
+            new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType(this.#scriptCollection)),
+            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(this.#scriptCollection)),
+            new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType(this.#scriptCollection))
+        };
+	}
+
+    /**
+     * @param {Type} other 
+     * @returns {boolean}
+     */
+    isBaseOf(other) {
+        return other instanceof ScriptContextType;
+    }
+}
+
+/**
+ * Builtin ScriptContext type
+ * @package
+ * @implements {DataType}
+ */
+class ContractContextType extends MacroType {
+    /**
+     * @type {ScriptCollectionType}
+     */
+    #scriptCollection;
+
+    /**
+     * @param {ScriptCollectionType} scriptCollection 
+     */
+    constructor(scriptCollection) {
+        super();
+        this.#scriptCollection = scriptCollection;
+    }
+
+    /**
+	 * @type {InstanceMembers}
+	 */
+	get instanceMembers() {
+        return {
+            agent: WalletType,
+            scripts: this.#scriptCollection,
+            network: NetworkType,
+            new_tx_builder: new FuncType([], TxBuilderType)
+        };
+	}
+
+    /**
+     * @type {string}
+     */
+    get name() {
+        return "ContractContext";
+    }
+
+    /**
+     * @type {string}
+     */
+    get path() {
+        return "__helios__contractcontext";
+    }
+
+    /**
+     * @param {Type} other 
+     * @returns {boolean}
+     */
+    isBaseOf(other) {
+        return other instanceof ContractContextType;
+    }
+}
+
+export const WalletType = new GenericType({
+    name: "Wallet",
+    genInstanceMembers: (self) => ({
+        address: AddressType,
+        hash: PubKeyHashType,
+        pick: new FuncType([ValueType], ListType$(TxInputType))
+    }),
+    genTypeMembers: (self) => ({})
+});
+
+/**
+ * Does this really need to be a class? (i.e. will it be instantiated with some properties)
+ * @package
+ */
+const NetworkType = new GenericType({
+    name: "Network",
+    genInstanceMembers: (self) => ({
+        pick: new FuncType([AddressType, ValueType], ListType$(TxInputType)),
+        get: new FuncType([TxOutputIdType], TxInputType)
+    }),
+    genTypeMembers: (self) => ({}),
+});
 
 /**
  * Builtin ScriptPurpose type (Minting| Spending| Rewarding | Certifying)
@@ -18558,6 +19860,35 @@ const StakingPurposeRewardingType = new GenericEnumMemberType({
     })
 });
 
+export const TxBuilderType = new GenericType({
+    name: "TxBuilder",
+    path: "__helios__txbuilder",
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        add_output: new FuncType([TxOutputType], self),
+        add_outputs: new FuncType([ListType$(TxOutputType)], self),
+        add_ref_input: new FuncType([TxInputType], self),
+        add_signer: new FuncType([PubKeyHashType], self),
+        finalize: new FuncType([], TxType),
+        pay: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+            return new ParametricFunc([a], new FuncType([AddressType, ValueType, a.ref], self));
+        })(),
+        mint: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+            return new ParametricFunc([a], new FuncType([ValueType, a.ref], self));
+        })(),
+        redeem: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+            return new ParametricFunc([a], new FuncType([TxInputType, a.ref], self));
+        })(),
+        spend: new FuncType([TxInputType], self),
+        spend_many: new FuncType([ListType$(TxInputType)], self)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self)
+    })
+});
 
 /**
  * Builtin Tx type
@@ -18566,6 +19897,16 @@ const StakingPurposeRewardingType = new GenericEnumMemberType({
  */
 const TxType = new GenericType({
     name: "Tx",
+    uplcToJs: (data) => {
+        return TxId.fromUplcData(data.fields[11]);
+    },
+    genTypeDetails: (self) => ({
+        inputType: "never",
+        outputType: "helios.Tx",
+        internalType: {
+            type: "Tx"
+        }
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         inputs: ListType$(TxInputType),
@@ -18712,6 +20053,19 @@ const TxOutputType = new GenericType({
  */
 const TxOutputIdType = new GenericType({
     name: "TxOutputId",
+    genTypeDetails: (self) => ({
+        inputType: "{txId: number[] | string | helios.TxId, utxoId: number | bigint} | helios.TxOutputId",
+        outputType: "helios.TxOutputId",
+        internalType: {
+            type: "TxOutputId"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return TxOutputId.fromProps(obj)._toUplcData();
+    },
+    uplcToJs: (data) => {
+        return TxOutputId.fromUplcData(data);
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         tx_id: TxIdType,
@@ -18732,6 +20086,43 @@ const TxOutputIdType = new GenericType({
 // Section 22: Scopes
 /////////////////////
 
+/**
+ * @type {{[name: string]: DataType}}
+ */
+export const builtinTypes = {
+	Address: AddressType,
+	AssetClass: AssetClassType,
+	Bool: BoolType,
+	ByteArray: ByteArrayType,
+	DCert: DCertType,
+	Credential: CredentialType,
+	DatumHash: DatumHashType,
+	Data: RawDataType,
+	Duration: DurationType,
+	Int: IntType,
+	MintingPolicyHash: MintingPolicyHashType,
+	OutputDatum: OutputDatumType,
+	PubKey: PubKeyType,
+	PubKeyHash: PubKeyHashType,
+	Real: RealType,
+	ScriptHash: ScriptHashType,
+    ScriptPurpose: ScriptPurposeType,
+    StakeKeyHash: StakeKeyHashType,
+    StakingCredential: StakingCredentialType,
+    StakingHash: StakingHashType,
+    StakingPurpose: StakingPurposeType,
+    StakingValidatorHash: StakingValidatorHashType,
+	String: StringType,
+    Time: TimeType,
+    TimeRange: TimeRangeType,
+    Tx: TxType,
+    TxId: TxIdType,
+    TxInput: TxInputType,
+    TxOutput: TxOutputType,
+    TxOutputId: TxOutputIdType,
+	ValidatorHash: ValidatorHashType,
+    Value: ValueType
+};
 
 /**
  * GlobalScope sits above the top-level scope and contains references to all the builtin Values and Types
@@ -18800,56 +20191,49 @@ class GlobalScope {
 
 	/**
 	 * Initialize the GlobalScope with all the builtins
-	 * @param {number} purpose
+	 * @param {ScriptPurpose} purpose
+	 * @param {{[name: string]: Type}} validatorTypes
 	 * @returns {GlobalScope}
 	 */
-	static new(purpose) {
+	static new(purpose, validatorTypes = {}) {
 		let scope = new GlobalScope();
 
 		// List (aka '[]'), Option, and Map types are accessed through special expressions
 
 		// fill the global scope with builtin types
-        scope.set("Address",              AddressType);
+		for (let name in builtinTypes) {
+			scope.set(name, builtinTypes[name])
+		}
+
 		scope.set("Any",         		  new AnyTypeClass());
-        scope.set("AssetClass",           AssetClassType);
-        scope.set("Bool",                 BoolType);
-        scope.set("ByteArray",            ByteArrayType);
-		scope.set("DCert",                DCertType);
-        scope.set("Credential",           CredentialType);
-        scope.set("DatumHash",            DatumHashType);
-        scope.set("Data",                 RawDataType);
-        scope.set("Duration",             DurationType);
-		scope.set("Int",                  IntType);
-        scope.set("MintingPolicyHash",    MintingPolicyHashType);
-        scope.set("OutputDatum",          OutputDatumType);
-        scope.set("PubKey",               PubKeyType);
-		scope.set("PubKeyHash",           PubKeyHashType);
-		scope.set("Real",                 RealType);
-        scope.set("ScriptContext",        new ScriptContextType(purpose));
-        scope.set("ScriptHash",           ScriptHashType);
-        scope.set("ScriptPurpose",        ScriptPurposeType);
-        scope.set("StakeKeyHash",         StakeKeyHashType);
-        scope.set("StakingCredential",    StakingCredentialType);
-        scope.set("StakingHash",          StakingHashType);
-        scope.set("StakingPurpose",       StakingPurposeType);
-        scope.set("StakingValidatorHash", StakingValidatorHashType);
-		scope.set("String",               StringType);
-        scope.set("Time",                 TimeType);
-        scope.set("TimeRange",            TimeRangeType);
-        scope.set("Tx",                   TxType);
-        scope.set("TxId",                 TxIdType);
-        scope.set("TxInput",              TxInputType);
-        scope.set("TxOutput",             TxOutputType);
-        scope.set("TxOutputId",           TxOutputIdType);
-		scope.set("ValidatorHash",        ValidatorHashType);
-        scope.set("Value",                ValueType);
 		scope.set("Valuable",             new ValuableTypeClass());
+
+		const scriptCollection = new ScriptCollectionType(validatorTypes);
+		scope.set("ScriptCollection",     scriptCollection);
+        scope.set("ScriptContext",        new ScriptContextType(scriptCollection));
 
         // builtin functions
         scope.set("assert",               AssertFunc);
 		scope.set("error",                ErrorFunc);
         scope.set("print",                PrintFunc);
-		
+
+		return scope;
+	}
+
+	/**
+	 * @param {{[name: string]: Type}} validatorTypes 
+	 * @returns {GlobalScope}
+	 */
+	static newLinking(validatorTypes) {
+		const scope = GlobalScope.new("linking");
+
+		scope.set("Network", NetworkType);
+			
+		const scriptCollection = new ScriptCollectionType(validatorTypes);
+		scope.set("ScriptCollection", scriptCollection);
+		scope.set("ContractContext",  new ContractContextType(scriptCollection));
+		scope.set("TxBuilder",        TxBuilderType);
+		scope.set("Wallet",           WalletType);
 
 		return scope;
 	}
@@ -18975,7 +20359,6 @@ class Scope extends Common {
 		for (let [key, entity] of this.#values) {
 			if (key.toString() == name.toString()) {
 				this.#used.add(key.toString());
-
 				return entity;
 			}
 		}
@@ -19522,6 +20905,53 @@ class MapTypeExpr extends Expr {
 	 */
 	toString() {
 		return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}`;
+	}
+}
+
+/**
+ * Iterator[Type1, ...] expr
+ * @package
+ */
+class IteratorTypeExpr extends Expr {
+	#itemTypeExprs;
+
+	/**
+	 * @param {Site} site
+	 * @param {Expr[]} itemTypeExprs
+	 */
+	constructor(site, itemTypeExprs) {
+		super(site);
+
+		this.#itemTypeExprs = itemTypeExprs;
+	}
+
+	/**
+	 * @param {Scope} scope
+	 * @returns {EvalEntity}
+	 */
+	evalInternal(scope) {
+		const itemTypes = this.#itemTypeExprs.map(ite => {
+			const itemType = ite.eval(scope).asType;
+
+			if (!itemType) {
+				throw ite.typeError("not a type");
+			}
+
+			return itemType;
+		});
+
+		if (itemTypes.length > 10) {
+			throw this.site.typeError("too many Iterator type args (limited to 10)");
+		}
+
+		return IteratorType$(itemTypes);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `Iterator[${this.#itemTypeExprs.map(ite => ite.toString()).join(", ")}]`;
 	}
 }
 
@@ -20762,6 +22192,20 @@ class FuncLiteralExpr extends Expr {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get nArgs() {
+		return this.#args.length;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get argNames() {
+		return this.#args.map(a => a.name.value);
+	}
+
+	/**
 	 * @type {Type[]}
 	 */
 	get argTypes() {
@@ -21495,7 +22939,7 @@ class CallExpr extends Expr {
 		this.#fnExpr = fnExpr;
 		this.#argExprs = argExprs;
 		this.#paramTypes = [];
-		this.#appliedFnVal = null; // only for inferred parametric funcions
+		this.#appliedFnVal = null; // only for infered parametric funcions
 	}
 
 	get fnExpr() {
@@ -21985,7 +23429,7 @@ class IfElseExpr extends Expr {
 	 * @param {Site} site
 	 * @param {null | Type[]} prevTypes
 	 * @param {Typed | Multi} newValue
-	 * @returns {?Type[]}
+	 * @returns {null | Type[]}
 	 */
 	static reduceBranchMultiType(site, prevTypes, newValue) {
 		if (!newValue.asMulti && newValue.asTyped && (new ErrorType()).isBaseOf(newValue.asTyped.type)) {
@@ -22020,7 +23464,7 @@ class IfElseExpr extends Expr {
 
 		/**
 		 * Supports multiple return values
-		 * @type {?Type[]}
+		 * @type {null | Type[]}
 		 */
 		let branchMultiType = null;
 
@@ -22505,7 +23949,7 @@ class SwitchCase extends Token {
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope 
 	 * @param {DataType} enumType
-	 * @returns {EvalEntity}
+	 * @returns {Multi | Typed}
 	 */
 	evalEnumMember(scope, enumType) {
 		const caseType = enumType.typeMembers[this.memberName.value]?.asEnumMemberType;
@@ -22521,7 +23965,13 @@ class SwitchCase extends Token {
 
 		this.#lhs.evalInSwitchCase(caseScope, caseType);
 
-		const bodyVal = this.#bodyExpr.eval(caseScope);
+		const bodyVal_ = this.#bodyExpr.eval(caseScope);
+
+		const bodyVal = bodyVal_.asTyped ?? bodyVal_?.asMulti;
+
+		if (!bodyVal) {
+			throw this.#bodyExpr.typeError("not typed");
+		}
 
 		caseScope.assertAllUsed();
 
@@ -22531,7 +23981,7 @@ class SwitchCase extends Token {
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope
-	 * @returns {EvalEntity}
+	 * @returns {Typed | Multi}
 	 */
 	evalDataMember(scope) {
 		/** @type {DataType} */
@@ -22566,9 +24016,15 @@ class SwitchCase extends Token {
 
 		this.#lhs.evalInSwitchCase(caseScope, memberType);
 
-		const bodyVal = this.#bodyExpr.eval(caseScope);
+		const bodyVal_ = this.#bodyExpr.eval(caseScope);
 
 		caseScope.assertAllUsed();
+
+		const bodyVal = bodyVal_.asTyped ?? bodyVal_.asMulti;
+
+		if (!bodyVal) {
+			throw this.#bodyExpr.typeError("not typed");
+		}
 
 		return bodyVal;
 	}
@@ -22634,9 +24090,14 @@ class UnconstrDataSwitchCase extends SwitchCase {
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope
-	 * @returns {EvalEntity}
+	 * @returns {Typed | Multi}
 	 */
 	evalDataMember(scope) {
+		/**
+		 * @type {null | Typed | Multi}
+		 */
+		let bodyVal = null;
+
 		if (this.#intVarName !== null || this.#lstVarName !== null) {
 			let caseScope = new Scope(scope);
 
@@ -22648,14 +24109,22 @@ class UnconstrDataSwitchCase extends SwitchCase {
 				caseScope.set(this.#lstVarName, new DataEntity(ListType$(RawDataType)));
 			}
 
-			let bodyVal = this.body.eval(caseScope);
+			const bodyVal_ = this.body.eval(caseScope);
+
+			bodyVal = bodyVal_.asTyped ?? bodyVal_.asMulti;
 
 			caseScope.assertAllUsed();
-
-			return bodyVal;
 		} else {
-			return this.body.eval(scope);
+			const bodyVal_ = this.body.eval(scope);
+
+			bodyVal = bodyVal_.asTyped ?? bodyVal_.asMulti;
 		}
+
+		if (!bodyVal) {
+			throw this.body.typeError("not typed");
+		}
+
+		return bodyVal;
 	}
 
 	/**
@@ -22698,10 +24167,18 @@ class SwitchDefault extends Token {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {EvalEntity}
+	 * @returns {Typed | Multi}
 	 */
 	eval(scope) {
-		return this.#bodyExpr.eval(scope);
+		const bodyVal_ = this.#bodyExpr.eval(scope);
+
+		const bodyVal = bodyVal_.asTyped ?? bodyVal_.asMulti;
+
+		if (!bodyVal) {
+			throw this.#bodyExpr.typeError("not typed");
+		}
+
+		return bodyVal;
 	}
 
 	/**
@@ -22729,7 +24206,7 @@ class SwitchExpr extends Expr {
 	 * @param {Site} site
 	 * @param {Expr} controlExpr - input value of the switch
 	 * @param {SwitchCase[]} cases
-	 * @param {?SwitchDefault} defaultCase
+	 * @param {null | SwitchDefault} defaultCase
 	*/
 	constructor(site, controlExpr, cases, defaultCase = null) {
 		super(site);
@@ -22796,11 +24273,7 @@ class EnumSwitchExpr extends SwitchExpr {
 		let branchMultiType = null;
 
 		for (let c of this.cases) {
-			let branchVal = c.evalEnumMember(scope, enumType).asTyped;
-
-			if (!branchVal) {
-				throw c.typeError("not typed");
-			}
+			const branchVal = c.evalEnumMember(scope, enumType);
 	
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				c.site, 
@@ -22810,11 +24283,7 @@ class EnumSwitchExpr extends SwitchExpr {
 		}
 
 		if (this.defaultCase !== null) {
-			let defaultVal = this.defaultCase.eval(scope).asTyped;
-
-			if (!defaultVal) {
-				throw this.defaultCase.typeError("not typed");
-			}
+			const defaultVal = this.defaultCase.eval(scope);
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				this.defaultCase.site,
@@ -22903,10 +24372,7 @@ class DataSwitchExpr extends SwitchExpr {
 		let branchMultiType = null;
 
 		for (let c of this.cases) {
-			let branchVal = c.evalDataMember(scope).asTyped;
-			if (!branchVal) {
-				throw c.typeError("not typed");
-			}
+			const branchVal = c.evalDataMember(scope);
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				c.site, 
@@ -22916,10 +24382,7 @@ class DataSwitchExpr extends SwitchExpr {
 		}
 
 		if (this.defaultCase !== null) {
-			let defaultVal = this.defaultCase.eval(scope).asTyped;
-			if (!defaultVal) {
-				throw this.defaultCase.typeError("not typed");
-			}
+			const defaultVal = this.defaultCase.eval(scope);
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				this.defaultCase.site, 
@@ -23445,7 +24908,11 @@ class TypeParameter {
 			throw this.#typeClassExpr?.typeError("not a typeclass");
 		}
 
-		scope.set(this.#name, typeClass.toType(this.#name.value, path));
+		const parameter = new Parameter(this.name, path, typeClass);
+
+		scope.set(this.#name, typeClass.toType(this.#name.value, path, parameter));
+
+		return parameter;
 	}
 
 	/**
@@ -23464,27 +24931,43 @@ class TypeParameter {
  * @package
  */
 class TypeParameters {
-	#parameters;
+	#parameterExprs;
 	#prefix;
 
 	/**
-	 * @param {TypeParameter[]} parameters 
+	 * @type {null | Parameter[]}
+	 */
+	#parameters;
+
+	/**
+	 * @param {TypeParameter[]} parameterExprs 
 	 * @param {boolean} isForFunc
 	 */
-	constructor(parameters, isForFunc) {
-		this.#parameters = parameters;
+	constructor(parameterExprs, isForFunc) {
+		this.#parameterExprs = parameterExprs;
 		this.#prefix = isForFunc ? FTPP : TTPP;
+		this.#parameters = null;
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	hasParameters() {
-		return this.#parameters.length > 0;
+		return this.#parameterExprs.length > 0;
+	}
+
+	/** 
+	 * @type {string[]}
+	 */
+	get parameterNames() {
+		return this.#parameterExprs.map(pe => pe.name);
 	}
 
 	/**
 	 * @returns {Parameter[]}
 	 */
 	getParameters() {
-		return this.#parameters.map((p, i) => new Parameter(p.name, `${this.#prefix}${i}`, p.typeClass));
+		return assertDefined(this.#parameters, "parameters not yet evaluated");
 	}
 
 	/**
@@ -23493,7 +24976,7 @@ class TypeParameters {
 	 * @returns {string}
 	 */
 	genTypePath(base) {
-		return `${base}[${this.#parameters.map((_, i) => `${this.#prefix}${i}`).join("@")}]`;
+		return `${base}[${this.#parameterExprs.map((_, i) => `${this.#prefix}${i}`).join("@")}]`;
 	}
 
 	/**
@@ -23513,10 +24996,10 @@ class TypeParameters {
 	 * @returns {string}
 	 */
 	toString() {
-		if (!this.hasParameters) {
+		if (!this.hasParameters()) {
 			return "";
 		} else {
-			return `[${this.#parameters.map(p => p.toString()).join(", ")}]`;
+			return `[${this.#parameterExprs.map(p => p.toString()).join(", ")}]`;
 		}
 	}
 
@@ -23527,7 +25010,13 @@ class TypeParameters {
 	evalParams(scope) {
 		const subScope = new Scope(scope);
 
-		this.#parameters.forEach((p, i) => p.eval(subScope, `${this.#prefix}${i}`));
+		this.#parameters = [];
+
+		this.#parameterExprs.forEach((pe, i) => {
+			const p = pe.eval(subScope, `${this.#prefix}${i}`);
+
+			this.#parameters?.push(p);
+		});
 
 		return subScope;
 	}
@@ -23581,14 +25070,14 @@ class TypeParameters {
 				parameters: this.getParameters(),
 				apply: (paramTypes) => {
 					/**
-					 * @type {Map<string, Type>}
+					 * @type {InferenceMap}
 					 */
 					const map = new Map();
 
 					paramTypes.forEach((pt, i) => {
-						const name = this.getParameters()[i].name;
+						const p = this.getParameters()[i];
 
-						map.set(name, pt);
+						map.set(p, pt);
 					});
 
 					const appliedType = assertDefined(type.infer(site, map, null).asDataType);
@@ -24092,27 +25581,45 @@ class StructStatement extends Statement {
 			 */
 			constructor(...args) {
 				super();
-				if (args.length != statement.#dataDef.nFields) {
-					throw new Error(`expected ${statement.#dataDef.nFields} args, got ${args.length}`);
-				}
 
 				this.#fields = [];
 
-				args.forEach((arg, i) => {
-					const fieldName = statement.#dataDef.getFieldName(i);
-					const fieldType = statement.#dataDef.getFieldType(i);
+				if (args.length == 1 && (typeof args[0] == "object") && Object.keys(args[0]).length == statement.#dataDef.nFields && Object.keys(args[0]).every(k => statement.#dataDef.hasField(new Word(Site.dummy(), k)))) {
+					statement.#dataDef.fieldNames.forEach((fieldName, i) => {
+						const arg = assertDefined(args[0][fieldName]);
 
-					if (!fieldType.offChainType) {
-						throw new Error(`offChainType for ${fieldType.name} not yet implemented`);
-					}
+						const fieldType = statement.#dataDef.getFieldType(i);
 
-					const FieldClass = fieldType.offChainType;
+						if (!fieldType.offChainType) {
+							throw new Error(`offChainType for ${fieldType.name} not yet implemented`);
+						}
 
-					const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+						const FieldClass = fieldType.offChainType;
 
-					this.#fields.push(instance);
-					this[fieldName] = instance;
-				});
+						const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+
+						this.#fields.push(instance);
+						this[fieldName] = instance;
+					});
+				} else if (args.length != statement.#dataDef.nFields) {
+					throw new Error(`expected ${statement.#dataDef.nFields} args, got ${args.length}`);
+				} else {
+					args.forEach((arg, i) => {
+						const fieldName = statement.#dataDef.getFieldName(i);
+						const fieldType = statement.#dataDef.getFieldType(i);
+
+						if (!fieldType.offChainType) {
+							throw new Error(`offChainType for ${fieldType.name} not yet implemented`);
+						}
+
+						const FieldClass = fieldType.offChainType;
+
+						const instance = arg instanceof FieldClass ? arg : new FieldClass(arg);
+
+						this.#fields.push(instance);
+						this[fieldName] = instance;
+					});
+				}
 			}
 
 			/**
@@ -24129,6 +25636,13 @@ class StructStatement extends Statement {
 			 */
 			get _structStatement() {
 				return statement;
+			}
+
+			/**
+			 * @type {HeliosData[]}
+			 */
+			get _fields() {
+				return this.#fields;
 			}
 
 			/**
@@ -24166,6 +25680,13 @@ class StructStatement extends Statement {
 				});
 
 				return new Struct(...args);
+			}
+
+			/**
+			 * @returns {boolean}
+			 */
+			static isBuiltin() {
+				return false;
 			}
 		}
 
@@ -24271,6 +25792,20 @@ class FuncStatement extends Statement {
 		return this.#parameters.genFuncPath(super.path,);
 	}
 
+	/**
+	 * @type {number}
+	 */
+	get nArgs() {
+		return this.#funcExpr.nArgs;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get argNames() {
+		return this.#funcExpr.argNames;
+	}
+	
 	/**
 	 * @type {Type[]}
 	 */
@@ -24525,6 +26060,13 @@ class EnumMember {
 			}
 
 			/**
+			 * @returns {boolean}
+			 */
+			static isBuiltin() {
+				return false;
+			}
+
+			/**
 			 * @param {string | number[]} bytes 
 			 * @returns {EnumVariant}
 			 */
@@ -24706,7 +26248,7 @@ class EnumStatement extends Statement {
 			}
 
 			/**
-			 * @param {string | number[]} bytes
+			 * @param {hexstring | number[]} bytes
 			 * @returns {HeliosData}
 			 */
 			static fromUplcCbor(bytes) {
@@ -24721,6 +26263,13 @@ class EnumStatement extends Statement {
 				const variant = assertDefined(variants[data.index], "index out of range");
 
 				return variant.fromUplcData(data);
+			}
+
+			/**
+			 * @returns {boolean}
+			 */
+			static isBuiltin() {
+				return false;
 			}
 		}
 
@@ -25086,8 +26635,8 @@ function buildProgramStatements(ts) {
 /**
  * @package
  * @param {Token[]} ts
- * @param {null | number} expectedPurpose
- * @returns {[number, Word] | null} - [purpose, name] (ScriptPurpose is an integer)
+ * @param {null | ScriptPurpose} expectedPurpose
+ * @returns {[ScriptPurpose, Word] | null} - [purpose, name] (ScriptPurpose is an integer)
  * @package
  */
 function buildScriptPurpose(ts, expectedPurpose = null) {
@@ -25111,20 +26660,22 @@ function buildScriptPurpose(ts, expectedPurpose = null) {
 	}
 
 	/**
-	 * @type {number | null}
+	 * @type {ScriptPurpose | null}
 	 */
 	let purpose = null;
 
 	if (purposeWord.isWord("spending")) {
-		purpose = ScriptPurpose.Spending;
+		purpose = "spending";
 	} else if (purposeWord.isWord("minting")) {
-		purpose = ScriptPurpose.Minting;
+		purpose = "minting";
 	} else if (purposeWord.isWord("staking")) {
-		purpose = ScriptPurpose.Staking;
+		purpose = "staking";
 	} else if (purposeWord.isWord("testing")) { // 'test' is not reserved as a keyword though
-		purpose = ScriptPurpose.Testing;
+		purpose = "testing";
+	} else if (purposeWord.isWord("linking")) {
+		purpose = "linking";
 	} else if (purposeWord.isWord("module")) {
-		purpose = ScriptPurpose.Module;
+		purpose = "module";
 	} else if (purposeWord.isKeyword()) {
 		purposeWord.syntaxError(`script purpose missing`);
 
@@ -25132,13 +26683,13 @@ function buildScriptPurpose(ts, expectedPurpose = null) {
 
 		return null;
 	} else {
-		purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking', 'minting' or 'module')`);
-		purpose = -1;
+		purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking', 'minting', 'linking' or 'module')`);
+		purpose = "unknown";
 	}
 
 	if (expectedPurpose !== null && purpose !== null) {
 		if (expectedPurpose != purpose) {
-			purposeWord.syntaxError(`expected '${getPurposeName(purpose)}' script purpose`);
+			purposeWord.syntaxError(`expected '${expectedPurpose}' script purpose`);
 		}
 	}
 
@@ -25158,8 +26709,8 @@ function buildScriptPurpose(ts, expectedPurpose = null) {
 /**
  * Also used by VSCode plugin
  * @param {Token[]} ts 
- * @param {number | null} expectedPurpose 
- * @returns {[number | null, Word | null, Statement[], number]}
+ * @param {null | ScriptPurpose} expectedPurpose 
+ * @returns {[null | ScriptPurpose, Word | null, Statement[], number]}
  */
 export function buildScript(ts, expectedPurpose = null) {
 	const first = ts[0];
@@ -25172,7 +26723,7 @@ export function buildScript(ts, expectedPurpose = null) {
 
 	const [purpose, name] = purposeName !== null ? purposeName : [null, null];
 
-	if (purpose != ScriptPurpose.Module) {
+	if (purpose != "module") {
 		mainIdx = statements.findIndex(s => s.name.value === "main");
 
 		if (mainIdx == -1) {
@@ -25191,7 +26742,7 @@ export function buildScript(ts, expectedPurpose = null) {
  * Parses Helios quickly to extract the script purpose header.
  * Returns null if header is missing or incorrectly formed (instead of throwing an error)
  * @param {string} rawSrc 
- * @returns {?[string, string]} - [purpose, name]
+ * @returns {null | [ScriptPurpose, string]} - [purpose, name]
  */
 export function extractScriptPurposeAndName(rawSrc) {
 	try {
@@ -25219,7 +26770,7 @@ export function extractScriptPurposeAndName(rawSrc) {
 		if (purposeName !== null) {
 			const [purpose, name] = purposeName;
 
-			return [getPurposeName(purpose), name.value];
+			return [purpose, name.value];
 		} else {
 			throw new Error("unexpected"); // should've been caught above by calling src.throwErrors()
 		}
@@ -25462,7 +27013,7 @@ function buildStructStatement(site, ts) {
 		selfTypeExpr = new ParametricExpr(
 			selfTypeExpr.site, 
 			selfTypeExpr,
-			parameters.getParameters().map(p => new RefExpr(new Word(selfTypeExpr.site, p.name)))
+			parameters.parameterNames.map(n => new RefExpr(new Word(selfTypeExpr.site, n)))
 		)
 	}
 
@@ -25790,7 +27341,7 @@ function buildEnumStatement(site, ts) {
 		selfTypeExpr = new ParametricExpr(
 			selfTypeExpr.site, 
 			selfTypeExpr,
-			parameters.getParameters().map(p => new RefExpr(new Word(selfTypeExpr.site, p.name)))
+			parameters.parameterNames.map(n => new RefExpr(new Word(selfTypeExpr.site, n)))
 		)
 	}
 
@@ -26106,21 +27657,23 @@ function buildTypeExpr(site, ts) {
 	}
 
 	if (ts[0].isGroup("[")) {
-		return buildListTypeExpr(ts);
+		return buildListTypeExpr(site, ts);
 	} else if (ts[0].isWord("Map")) {
-		return buildMapTypeExpr(ts);
+		return buildMapTypeExpr(site, ts);
 	} else if (ts[0].isWord("Option")) {
-		return buildOptionTypeExpr(ts);
+		return buildOptionTypeExpr(site, ts);
+	} else if (ts[0].isWord("Iterator")) {
+		return buildIteratorTypeExpr(site, ts);
 	} else if (ts.length > 1 && ts[0].isGroup("(") && ts[1].isSymbol("->")) {
-		return buildFuncTypeExpr(ts);
+		return buildFuncTypeExpr(site, ts);
 	} else if (ts.length > 2 && ts[0].isGroup("[") && ts[1].isGroup("(") && ts[2].isSymbol("->")) {
-		return buildFuncTypeExpr(ts);
+		return buildFuncTypeExpr(site, ts);
 	} else if (SymbolToken.find(ts, "::") > Group.find(ts, "[")) {
-		return buildTypePathExpr(ts);
+		return buildTypePathExpr(site, ts);
 	} else if (Group.find(ts, "[") > SymbolToken.find(ts, "::")) {
-		return buildParametricTypeExpr(ts);
+		return buildParametricTypeExpr(site, ts);
 	} else if (ts.length == 1 && ts[0].isWord()) {
-		return buildTypeRefExpr(ts);
+		return buildTypeRefExpr(site, ts);
 	} else {
 		ts[0].syntaxError("invalid type syntax");
 		return null;
@@ -26128,11 +27681,12 @@ function buildTypeExpr(site, ts) {
 }
 
 /**
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {ParametricExpr | null}
  */
-function buildParametricTypeExpr(ts) {
-	const brackets = assertDefined(ts.pop()).assertGroup("[");
+function buildParametricTypeExpr(site, ts) {
+	const brackets = assertToken(ts.pop(), site)?.assertGroup("[");
 	if (!brackets) {
 		return null;
 	}
@@ -26155,11 +27709,12 @@ function buildParametricTypeExpr(ts) {
 
 /**
  * @package
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {ListTypeExpr | null}
  */
-function buildListTypeExpr(ts) {
-	const brackets = assertDefined(ts.shift()).assertGroup("[", 0);
+function buildListTypeExpr(site, ts) {
+	const brackets = assertToken(ts.shift(), site)?.assertGroup("[", 0);
 
 	if (!brackets) {
 		return null
@@ -26176,11 +27731,12 @@ function buildListTypeExpr(ts) {
 
 /**
  * @package
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {MapTypeExpr | null}
  */
-function buildMapTypeExpr(ts) {
-	const kw = assertDefined(ts.shift()).assertWord("Map");
+function buildMapTypeExpr(site, ts) {
+	const kw = assertToken(ts.shift(), site)?.assertWord("Map");
 
 	if (!kw) {
 		return null;
@@ -26221,11 +27777,12 @@ function buildMapTypeExpr(ts) {
 
 /**
  * @package
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {Expr | null}
  */
-function buildOptionTypeExpr(ts) {
-	const kw = assertDefined(ts.shift()).assertWord("Option");
+function buildOptionTypeExpr(site, ts) {
+	const kw = assertToken(ts.shift(), site)?.assertWord("Option");
 
 	if (!kw) {
 		return null;
@@ -26268,11 +27825,51 @@ function buildOptionTypeExpr(ts) {
 
 /**
  * @package
+ * @param {Site} site
+ * @param {Token[]} ts
+ * @returns {IteratorTypeExpr | null}
+ */
+function buildIteratorTypeExpr(site, ts) {
+	const kw = assertToken(ts.shift(), site)?.assertWord("Iterator");
+
+	if (!kw) {
+		return null;
+	}
+
+	const maybeGroup = assertToken(ts.shift(), kw.site, "missing Map key-type");
+
+	if (!maybeGroup) {
+		return null;
+	}
+
+	const group = maybeGroup.assertGroup("[");
+	if (!group) {
+		return null;
+	}
+	
+	const typeArgs = reduceNull(group.fields.map(gts => {
+		return buildTypeExpr(group.site, gts);
+	}));
+
+	if (!typeArgs) {
+		return null;
+	}
+
+	if (typeArgs.length < 1) {
+		throw group.site.typeError("expected at least one type arg for Iterator[...]");
+	}
+
+	return new IteratorTypeExpr(kw.site, typeArgs);
+}
+
+/**
+ * @package
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {FuncTypeExpr | null}
  */
-function buildFuncTypeExpr(ts) {
-	const parens = assertDefined(ts.shift()).assertGroup("(");
+function buildFuncTypeExpr(site, ts) {
+	const parens = assertToken(ts.shift(), site)?.assertGroup("(");
 	if (!parens) {
 		return null;
 	}
@@ -26287,7 +27884,7 @@ function buildFuncTypeExpr(ts) {
 			return null;
 		}
 
-		const funcArgTypeExpr = buildFuncArgTypeExpr(fts);
+		const funcArgTypeExpr = buildFuncArgTypeExpr(fts[0].site, fts);
 
 		if (!funcArgTypeExpr) {
 			return null;
@@ -26322,21 +27919,27 @@ function buildFuncTypeExpr(ts) {
 		return null;
 	}
 
-	const retTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
+	const maybeRetTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
+
+	if (!maybeRetTypes) {
+		return null;
+	}
+
+	const retTypes = reduceNull(maybeRetTypes);
 
 	if (!retTypes) {
 		return null;
 	}
 
-	return new FuncTypeExpr(parens.site, argTypes, retTypes.map(t => assertDefined(t)));
+	return new FuncTypeExpr(parens.site, argTypes, retTypes);
 }
 
 /**
- * 
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {FuncArgTypeExpr | null}
  */
-function buildFuncArgTypeExpr(ts) {
+function buildFuncArgTypeExpr(site, ts) {
 	const colonPos = SymbolToken.find(ts, ":");
 
 	if (colonPos != -1 && colonPos != 1) {
@@ -26350,13 +27953,13 @@ function buildFuncArgTypeExpr(ts) {
 	let name = null;
 
 	if (colonPos != -1) {
-		name = assertDefined(ts.shift()).assertWord()?.assertNotKeyword() ?? null;
+		name = assertToken(ts.shift(), site)?.assertWord()?.assertNotKeyword() ?? null;
 
 		if (!name) {
 			return null;
 		}
 
-		const colon = assertDefined(ts.shift()).assertSymbol(":");
+		const colon = assertToken(ts.shift(), site)?.assertSymbol(":");
 
 		if (!colon) {
 			return null;
@@ -26368,11 +27971,19 @@ function buildFuncArgTypeExpr(ts) {
 		}
 	}
 
-	const next = assertDefined(ts[0]);
+	const next = assertToken(ts[0], site);
+
+	if (!next) {
+		return null;
+	}
 
 	const hasDefault = next.isSymbol("?");
 	if (hasDefault) {
-		const opt = assertDefined(ts.shift());
+		const opt = assertToken(ts.shift(), site);
+
+		if (!opt) {
+			return null;
+		}
 
 		if (ts.length == 0) {
 			opt.syntaxError("invalid type expression after '?'");
@@ -26429,10 +28040,11 @@ function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 
 /**
  * @package
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {null | PathExpr}
  */
-function buildTypePathExpr(ts) {
+function buildTypePathExpr(site, ts) {
 	const i = SymbolToken.findLast(ts, "::");
 
 	assert(i != -1);
@@ -26442,7 +28054,7 @@ function buildTypePathExpr(ts) {
 		return null;
 	}
 
-	const dcolon = assertDefined(ts.shift()).assertSymbol("::");
+	const dcolon = assertToken(ts.shift(), site)?.assertSymbol("::");
 	if (!dcolon) {
 		return null;
 	}
@@ -26457,11 +28069,12 @@ function buildTypePathExpr(ts) {
 
 /**
  * @package
+ * @param {Site} site
  * @param {Token[]} ts 
  * @returns {RefExpr | null}
  */
-function buildTypeRefExpr(ts) {
-	const name = assertDefined(ts.shift()).assertWord()?.assertNotKeyword();
+function buildTypeRefExpr(site, ts) {
+	const name = assertToken(ts.shift(), site)?.assertWord()?.assertNotKeyword();
 
 	if (!name) {
 		return null;
@@ -29663,6 +31276,458 @@ function makeRawFunctions() {
 	}`));
 
 
+	// Iterator builtins (lazy lists)
+	// many iterator methods must be generated for different number of arguments
+	for (let n = 1; n <= 10; n++) {
+		const basePath = `__helios__iterator__${n}`;
+		const head = (new Array(n)).fill("").map((_, i) => `head${i}`).join(", ");
+		const unit = (new Array(n)).fill("").map((_, i) => "()").join(", ");
+		const returnHead = n == 1 ? `${head}` : `(callback) -> {callback(${head})}`;
+
+		add(new RawFunc(`${basePath}__drop`,
+	`(self) -> {
+		(n) -> {
+			(recurse) -> {
+				recurse(recurse, self, n)
+			}(
+				(recurse, iterator, i) -> {
+					__core__ifThenElse(
+						__core__lessThanEqualsInteger(i, 0),
+						() -> {
+							iterator
+						},
+						() -> {
+							iterator(
+								(is_null, ${head}, next_iterator) -> {
+									__core__ifThenElse(
+										is_null,
+										() -> {
+											iterator
+										},
+										() -> {
+											recurse(recurse, next_iterator, __core__subtractInteger(i, 1))
+										}
+									)()
+								}
+							)
+						}
+					)()
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__is_empty`,
+	`(self) -> {
+		() -> {
+			self(
+				(is_null, ${head}, next_iterator) -> {
+					is_null
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__head`,
+	`(self) -> {
+		() -> {
+			self(
+				(is_null, ${head}, next_iterator) -> {
+					${returnHead}
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__tail`,
+	`(self) -> {
+		self(
+			(is_null, ${head}, next_iterator) -> {
+				next_iterator
+			}
+		)
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__get`,
+	`(self) -> {
+		(i) -> {
+			__core__ifThenElse(
+				__core__lessThanInteger(i, 0),
+				() -> {
+					error("negative index in iterator.get()")
+				},
+				() -> {
+					(recurse) -> {
+						recurse(recurse, self, i)
+					}(
+						(recurse, iterator, i) -> {
+							iterator(
+								(is_null, ${head}, next_iterator) -> {
+									__core__ifThenElse(
+										is_null,
+										() -> {
+											error("index out of range")
+										},
+										() -> {
+											__core__ifThenElse(
+												__core__equalsInteger(i, 0),
+												() -> {
+													${returnHead}
+												},
+												() -> {
+													recurse(recurse, next_iterator, __core__subtractInteger(i, 1))
+												}
+											)()
+										}
+									)()
+									
+								}
+							)
+						}
+					)
+				}
+			)()
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__get_singleton`,
+	`(self) -> {
+		() -> {
+			self(
+				(is_null, ${head}, next_iterator) -> {
+					__core__ifThenElse(
+						is_null,
+						() -> {
+							error("empty iterator, not a singleton")
+						},
+						() -> {
+							__core__ifThenElse(
+								${basePath}__is_empty(next_iterator)(),
+								() -> {
+									${returnHead}
+								},
+								() -> {
+									error("not a singleton iterator")
+								}
+							)()
+						}
+					)()
+				}
+			)
+		}
+	}`));
+
+		add(new RawFunc(`${basePath}__take`,
+	`(self) -> {
+		(n) -> {
+			(recurse) -> {
+				recurse(recurse, self, n)
+			}(
+				(recurse, iterator, i) -> {
+					__core__ifThenElse(
+						__core__lessThanEqualsInteger(i, 0),
+						() -> {
+							(callback) -> {
+								callback(true, ${unit}, ())
+							}
+						},
+						() -> {
+							iterator(
+								(is_null, ${head}, next_iterator) -> {
+									__core__ifThenElse(
+										is_null,
+										() -> {
+											iterator
+										},
+										() -> {
+											(callback) -> {
+												callback(false, ${head}, recurse(recurse, next_iterator, __core__subtractInteger(i, 1)))
+											}
+										}
+									)()	
+								}
+							)
+						}
+					)()
+					
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__for_each`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, iterator) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							__core__ifThenElse(
+								is_null,
+								() -> {
+									()
+								},
+								() -> {
+									__core__chooseUnit(
+										fn(${head}),
+										recurse(recurse, next_iterator)
+									)
+								}
+							)()
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__fold[${FTPP}0]`,
+	`(self) -> {
+		(fn, z0) -> {
+			(recurse) -> {
+				recurse(recurse, self, z0)
+			}(
+				(recurse, iterator, z) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							__core__ifThenElse(
+								is_null,
+								() -> {
+									z
+								},
+								() -> {
+									recurse(recurse, next_iterator, fn(z, ${head}))
+								}
+							)()
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__find`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, iterator) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							__core__ifThenElse(
+								is_null,
+								() -> {
+									error("not found")
+								},
+								() -> {
+									__core__ifThenElse(
+										fn(${head}),
+										() -> {
+											${returnHead}
+										},
+										() -> {
+											recurse(recurse, next_iterator)
+										}
+									)()
+								}
+							)()
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__any`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, iterator) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							__core__ifThenElse(
+								is_null,
+								() -> {
+									false
+								},
+								() -> {
+									__core__ifThenElse(
+										fn(${head}),
+										() -> {
+											true
+										},
+										() -> {
+											recurse(recurse, next_iterator)
+										}
+									)()
+								}
+							)()
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__prepend`,
+	`(self) -> {
+		(${head}) -> {
+			(callback) -> {
+				callback(false, ${head}, self)
+			}
+		}
+	}`
+		));
+
+		add(new RawFunc(`${basePath}__filter`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, iterator) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							(callback) -> {
+								__core__ifThenElse(
+									is_null,
+									() -> {
+										callback(true, ${unit}, ())
+									},
+									() -> {
+										__core__ifThenElse(
+											fn(${head}),
+											() -> {
+												callback(false, ${head}, recurse(recurse, next_iterator))
+											},
+											() -> {
+												recurse(recurse, next_iterator)(callback)
+											}
+										)()
+									}
+								)()
+							}
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+		add(new RawFunc(`${basePath}__map[${FTPP}0]`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, iterator) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							(callback) -> {
+								__core__ifThenElse(
+									is_null,
+									() -> {
+										callback(true, (), ())
+									},
+									() -> {
+										callback(false, fn(${head}), recurse(recurse, next_iterator))
+									}
+								)()
+							}
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+		add(new RawFunc(`${basePath}__map2[${FTPP}0@${FTPP}1]`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, iterator) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							(callback) -> {
+								__core__ifThenElse(
+									is_null,
+									() -> {
+										callback(true, (), (), ())
+									},
+									() -> {
+										fn(${head})(
+											(new_head0, new_head1) -> {
+												callback(false, new_head0, new_head1, recurse(recurse, next_iterator))
+											}
+										)
+									}
+								)()
+							}
+						}
+					)
+				}
+			)
+		}
+	}`
+		));
+		add(new RawFunc(`${basePath}__zip[${FTPP}0]`,
+	`(self) -> {
+		(lst) -> {
+			(recurse, self, lst) -> {
+				recurse(recurse, self, lst)
+			}(
+				(recurse, iterator, lst) -> {
+					iterator(
+						(is_null, ${head}, next_iterator) -> {
+							__core__ifThenElse(
+								is_null,
+								(callback) -> {
+									callback(true, ${unit}, (), ())
+								},
+								(callback) -> {
+									__core__chooseList(
+										lst,
+										() -> {
+											callback(true, ${unit}, (), ())
+										},
+										() -> {
+											callback(
+												false,
+												${head},
+												${FTPP}0__from_data(__core__headList(lst)),
+												recurse(recurse, next_iterator, __core__tailList(lst))
+											)
+										}
+									)()
+								}
+							)
+						}
+					)	
+				}
+			)
+		}
+	}`
+		));
+	}
+
+
 	// Tuple (list of data, which is used by structs which have more than 1 field)
 	addSerializeFunc("__helios__tuple");
 	addNeqFunc("__helios__tuple");
@@ -29706,6 +31771,90 @@ function makeRawFunctions() {
 	`(self) -> {
 		() -> {
 			__core__nullList(self)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__to_iterator`,
+	`(self) -> {
+		() -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, lst) -> {
+					(callback) -> {
+						__core__chooseList(
+							lst,
+							() -> {
+								callback(true, (), ())
+							},
+							() -> {
+								callback(
+									false, 
+									${TTPP}0__from_data(__core__headList(lst)),
+									recurse(recurse, __core__tailList(lst))
+								)
+							}
+						)()
+					}
+				}
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__from_iterator`,
+	`(iterator) -> {
+		(recurse) -> {
+			recurse(recurse, iterator)
+		}(
+			(recurse, iterator) -> {
+				iterator(
+					(is_null, head, next_iterator) -> {
+						__core__ifThenElse(
+							is_null,
+							() -> {
+								__core__mkNilData(())
+							},
+							() -> {
+								__core__mkCons(
+									${TTPP}0____to_data(head),
+									recurse(recurse, next_iterator)
+								)
+							}
+						)()
+					}
+				)
+			}
+		)
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__zip[${FTPP}0]`, 
+	`(self) -> {
+		(other) -> {
+			(recurse) -> {
+				recurse(recurse, self, other)
+			}(
+				(recurse, lst1, lst2) -> {
+					__core__chooseList(
+						lst1,
+						(callback) -> {
+							callback(true, (), (), ())
+						},
+						(callback) -> {
+							__core__chooseList(
+								lst2,
+								() -> {
+									callback(true, (), (), ())
+								},
+								() -> {
+									callback(
+										false,
+										${TTPP}0__from_data(__core__headList(lst1)),
+										${FTPP}0__from_data(__core__headList(lst2)),
+										recurse(recurse, __core__tailList(lst1), __core__tailList(lst2))
+									)
+								}
+							)()
+						}
+					)
+				}
+			)
 		}
 	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__get`,
@@ -29975,6 +32124,32 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
+	add(new RawFunc(`__helios__list[__helios__data]__append`,
+	`(self) -> {
+		(item) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, lst) -> {
+					__core__chooseList(
+						lst,
+						() -> {
+							__core__mkCons(item, lst)
+						},
+						() -> {
+							__core__mkCons(__core__headList(lst), recurse(recurse, __core__tailList(lst)))
+						}
+					)()
+				}
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__append`,
+	`(self) -> {
+		(item) -> {
+			__helios__list[__helios__data]__append(self)(${TTPP}0____to_data(item))
+		}
+	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__prepend`,
 	`(self) -> {
 		(item) -> {
@@ -30053,25 +32228,57 @@ function makeRawFunctions() {
 	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__fold[${FTPP}0]`,
 	`(self) -> {
-		(fn, z) -> {
+		(fn, a0) -> {
 			__helios__common__fold(
 				self, 
 				(prev, item) -> {
 					fn(prev, ${TTPP}0__from_data(item))
 				}, 
-				z
+				a0
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__fold2[${FTPP}0@${FTPP}1]`,
+	`(self) -> {
+		(fn, a0, b0) -> {
+			__helios__common__fold(
+				self,
+				(prev, item) -> {
+					prev(
+						(a, b) -> {
+							fn(a, b, ${TTPP}0__from_data(item))
+						}
+					)
+				},
+				(callback) -> {
+					callback(a0, b0)
+				}
 			)
 		}
 	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__fold_lazy[${FTPP}0]`,
 	`(self) -> {
-		(fn, z) -> {
+		(fn, a0) -> {
 			__helios__common__fold_lazy(
 				self, 
 				(item, next) -> {
 					fn(${TTPP}0__from_data(item), next)
 				},
-				z
+				a0
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__fold2_lazy[${FTPP}0@${FTPP}1]`,
+	`(self) -> {
+		(fn, a0, b0) -> {
+			__helios__common__fold_lazy(
+				self, 
+				(item, next) -> {
+					fn(${TTPP}0__from_data(item), next)
+				},
+				(callback) -> {
+					callback(a0, b0)
+				}
 			)
 		}
 	}`));
@@ -30101,7 +32308,7 @@ function makeRawFunctions() {
 
 
 	// List specials
-	add(new RawFunc("__helios__list[__helios__int]__sum",
+	add(new RawFunc(`__helios__list[${TTPP}0]__sum`,
 	`(self) -> {
 		() -> {
 			(recurse) -> {
@@ -30114,8 +32321,8 @@ function makeRawFunctions() {
 							0
 						},
 						() -> {
-							__core__addInteger(		
-								__core__unIData(__core__headList(lst)),
+							${TTPP}0____add(
+								${TTPP}0__from_data(__core__headList(lst)),
 								recurse(recurse, __core__tailList(lst))
 							)
 						}
@@ -30124,7 +32331,6 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	add(new RawFunc("__helios__list[__helios__real]__sum", "__helios__list[__helios__int]__sum"));
 	add(new RawFunc("__helios__list[__helios__string]__join",
 	`(self) -> {
 		(__useopt__separator, separator) -> {
@@ -30204,7 +32410,7 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
-	
+
 
 	// Map builtins
 	addSerializeFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
@@ -30217,6 +32423,18 @@ function makeRawFunctions() {
 	`(self) -> {
 		(key, value) -> {
 			__core__mkCons(__core__mkPairData(${TTPP}0____to_data(key), ${TTPP}1____to_data(value)), self)
+		}
+	}`));
+	add(new RawFunc(`__helios__map[__helios__data@__helios__data]__append`,
+	`(self) -> {
+		(key, value) -> {
+			__helios__list[__helios__data]__append(self)(__core__mkPairData(key, value))
+		}
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__append`,
+	`(self) -> {
+		(key, value) -> {
+			__helios__map[__helios__data@__helios__data]__append(self)(${TTPP}0____to_data(key), ${TTPP}1____to_data(value))
 		}
 	}`));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__head`,
@@ -30582,6 +32800,60 @@ function makeRawFunctions() {
 			}(${TTPP}0____to_data(key), ${TTPP}1____to_data(value))
 		}
 	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__to_iterator`,
+	`(self) -> {
+		() -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, map) -> {
+					(callback) -> {
+						__core__chooseList(
+							map,
+							() -> {
+								callback(true, (), (), ())
+							},
+							() -> {
+								(head) -> {
+									callback(
+										false, 
+										${TTPP}0__from_data(__core__fstPair(head)),
+										${TTPP}1__from_data(__core__sndPair(head)),
+										recurse(recurse, __core__tailList(map))
+									)
+								}(__core__headList(map))	
+							}
+						)()
+					}
+				}
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__from_iterator`,
+	`(iterator) -> {
+		(recurse) -> {
+			recurse(recurse, iterator)
+		}(
+			(recurse, iterator) -> {
+				iterator(
+					(is_null, head0, head1, next_iterator) -> {
+						__core__ifThenElse(
+							is_null,
+							() -> {
+								__core__mkNilPairData(())
+							},
+							() -> {
+								__core__mkCons(
+									__core__mkPairData(${TTPP}0____to_data(head0), ${TTPP}1____to_data(head1)),
+									recurse(recurse, next_iterator)
+								)
+							}
+						)()
+					}
+				)
+			}
+		)
+	}`));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__update`,
 	`(self) -> {
 		(key, fn) -> {
@@ -30881,6 +33153,48 @@ function makeRawFunctions() {
 		}
 	}`));
 
+	
+	// ContractContext builtin
+	addDataFuncs("__helios__contractcontext");
+	add(new RawFunc("__helios__contractcontext__scripts", `(self) -> {()}`));
+	add(new RawFunc("__helios__contractcontext__agent", `(self) -> {self}`));
+	add(new RawFunc("__helios__contractcontext__network", `(self) -> {()}`));
+	add(new RawFunc("__helios__contractcontext__new_tx_builder", `(self) -> {__helios__txbuilder__new_empty}`));
+
+
+	// Network builtin
+	add(new RawFunc("__helios__network__pick", 
+	`(self) -> {
+		(address, value) -> {
+			__core__macro__pick(__helios__address____to_data(address), __helios__value____to_data(value), ())
+		}
+	}`));
+	add(new RawFunc("__helios__network__get",
+	`(self) -> {
+		(id) -> {
+			__core__macro__get_utxo(__helios__txoutputid____to_data(id), ())
+		}
+	}`));
+
+
+	// Wallet builtin
+	addDataFuncs("__helios__wallet");
+	add(new RawFunc("__helios__wallet__address", `(self) -> {self}`));
+	add(new RawFunc("__helios__wallet__hash", 
+	`(self) -> {
+		__helios__credential__pubkey__hash(
+			__helios__credential__pubkey__cast(
+				__helios__address__credential(self)
+			)
+		)
+	}`));
+	add(new RawFunc("__helios__wallet__pick", 
+	`(self) -> {
+		(value) -> {
+			__core__macro__pick(self, __helios__value____to_data(value), ())
+		}
+	}`));
+
 
 	// StakingPurpose builtins
 	addDataFuncs("__helios__stakingpurpose");
@@ -31006,6 +33320,293 @@ function makeRawFunctions() {
 	}`));
 
 
+	// TxBuilder builtins
+	addDataFuncs("__helios__txbuilder");
+	add(new RawFunc(`__helios__txbuilder__new`,
+	`(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+		__core__constrData(0, __helios__common__list_12(
+			__core__listData(inputs),
+			__core__listData(ref_inputs),
+			__core__listData(outputs),
+			__core__mapData(fee),
+			__core__mapData(minted),
+			__core__listData(dcerts),
+			__core__mapData(withdrawals),
+			__helios__timerange____to_data(validity),
+			__core__listData(signatories),
+			__core__mapData(redeemers),
+			__core__mapData(datums),
+			__helios__txid__new(#00010203040506070809101112131415161718192021222324252627)
+		))
+	}`));
+	add(new RawFunc(`__helios__txbuilder__new_empty`,
+	`() -> {
+		__helios__txbuilder__new(
+			__core__mkNilData(()),
+			__core__mkNilData(()),
+			__core__mkNilData(()),
+			__core__mkNilPairData(()),
+			__core__mkNilPairData(()),
+			__core__mkNilData(()),
+			__core__mkNilPairData(()),
+			__helios__timerange__ALWAYS,
+			__core__mkNilData(()),
+			__core__mkNilPairData(()),
+			__core__mkNilPairData(())
+		)
+	}`));
+	add(new RawFunc(`__helios__txbuilder__unwrap`, 
+	`(self, callback) -> {
+		(fields) -> {
+			(inputs, fields) -> {
+				(ref_inputs, fields) -> {
+					(outputs, fields) -> {
+						(fee, fields) -> {
+							(minted, fields) -> {
+								(dcerts, fields) -> {
+									(withdrawals, fields) -> {
+										(validity, fields) -> {
+											(signatories, fields) -> {
+												(redeemers, fields) -> {
+													(datums, fields) -> {
+														callback(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums)
+													}(__core__unMapData(__core__headList(fields)), __core__tailList(fields))
+												}(__core__unMapData(__core__headList(fields)), __core__tailList(fields))
+											}(__core__unListData(__core__headList(fields)), __core__tailList(fields))
+										}(__helios__timerange__from_data(__core__headList(fields)), __core__tailList(fields))
+									}(__core__unMapData(__core__headList(fields)), __core__tailList(fields))
+								}(__core__unListData(__core__headList(fields)), __core__tailList(fields))
+							}(__core__unMapData(__core__headList(fields)), __core__tailList(fields))
+						}(__core__unMapData(__core__headList(fields)), __core__tailList(fields))
+					}(__core__unListData(__core__headList(fields)), __core__tailList(fields))
+				}(__core__unListData(__core__headList(fields)), __core__tailList(fields))
+			}(__core__unListData(__core__headList(fields)), __core__tailList(fields))
+		}(__core__sndPair(__core__unConstrData(self)))
+	}`));
+	add(new RawFunc(`__helios__txbuilder__spend`, 
+	`(self) -> {
+		(input) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					__helios__list[__helios__data]__append(inputs)(__helios__txinput____to_data(input)),
+					ref_inputs,
+					outputs, 
+					fee, 
+					minted, 
+					dcerts, 
+					withdrawals, 
+					validity, 
+					signatories, 
+					redeemers, 
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__spend_many`,
+	`(self) -> {
+		(extra_inputs) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					__helios__common__concat(inputs, extra_inputs),
+					ref_inputs,
+					outputs, 
+					fee, 
+					minted, 
+					dcerts, 
+					withdrawals, 
+					validity, 
+					signatories, 
+					redeemers, 
+					datums
+				)
+			})
+		}
+	}`))
+	add(new RawFunc(`__helios__txbuilder__redeem[${FTPP}0]`, 
+	`(self) -> {
+		(input, redeemer) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					__helios__list[__helios__data]__append(inputs)(
+						__helios__txinput____to_data(input)
+					),
+					ref_inputs, 
+					outputs, 
+					fee, 
+					minted, 
+					dcerts, 
+					withdrawals, 
+					validity, 
+					signatories,
+					__helios__map[__helios__data@__helios__data]__append(redeemers)(
+						__helios__scriptpurpose__new_spending(__helios__txinput__output_id(input)),
+						${FTPP}0____to_data(redeemer)
+					),
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__add_output`,
+	`(self) -> {
+		(output) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					inputs,
+					ref_inputs,
+					__helios__list[__helios__data]__append(outputs)(
+						__helios__txoutput____to_data(output)
+					),
+					fee,
+					minted,
+					dcerts,
+					withdrawals,
+					validity,
+					signatories,
+					redeemers,
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__add_outputs`,
+	`(self) -> {
+		(extra_outputs) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					inputs,
+					ref_inputs,
+					__helios__common__concat(outputs, extra_outputs),
+					fee,
+					minted,
+					dcerts,
+					withdrawals,
+					validity,
+					signatories,
+					redeemers,
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__pay[${FTPP}0]`,
+	`(self) -> {
+		(address, value, datum) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					inputs,
+					ref_inputs,
+					__helios__list[__helios__data]__append(outputs)(
+						__helios__txoutput____to_data(
+							__helios__txoutput__new(
+								address, 
+								value, 
+								__helios__outputdatum__new_inline[__helios__data](
+									${FTPP}0____to_data(datum)
+								)
+							)
+						)
+					),
+					fee,
+					minted,
+					dcerts,
+					withdrawals,
+					validity,
+					signatories,
+					redeemers,
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__mint[${FTPP}0]`,
+	`(self) -> {
+		(value, redeemer) -> {
+			__core__chooseUnit(
+				__helios__assert(
+					__core__equalsInteger(__helios__common__length(value), 1),
+					"expected a single mph in mint value"
+				),
+				(mph) -> {
+					__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+						__core__chooseUnit(
+							__helios__assert(
+								__helios__bool____not(
+									__helios__value__contains_policy(minted)(mph)
+								),
+								"already minted before"
+							),
+							__helios__txbuilder__new(
+								inputs,
+								ref_inputs,
+								outputs,
+								fee,
+								__helios__value____add(minted, value),
+								dcerts,
+								withdrawals,
+								validity,
+								signatories,
+								__helios__map[__helios__data@__helios__data]__append(redeemers)(
+									__helios__scriptpurpose__new_minting(mph),
+									${FTPP}0____to_data(redeemer)
+								),
+								datums
+							)
+						)
+					})
+				}(__helios__mintingpolicyhash__from_data(__core__fstPair(__core__headList(value))))
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__add_ref_input`, 
+	`(self) -> {
+		(ref_input) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					inputs,
+					__helios__list[__helios__data]__append(ref_inputs)(__helios__txinput____to_data(ref_input)),
+					outputs,
+					fee,
+					minted,
+					dcerts,
+					withdrawals,
+					validity,
+					signatories,
+					redeemers,
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__add_signer`,
+	`(self) -> {
+		(pk) -> {
+			__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+				__helios__txbuilder__new(
+					inputs,
+					ref_inputs,
+					outputs,
+					fee,
+					minted,
+					dcerts,
+					withdrawals,
+					validity,
+					__helios__list[__helios__data]__append(signatories)(__helios__pubkeyhash____to_data(pk)),
+					redeemers,
+					datums
+				)
+			})
+		}
+	}`));
+	add(new RawFunc(`__helios__txbuilder__finalize`,
+	`(self) -> {
+		() -> {
+			__core__macro__finalize(self, ())
+		}
+	}`));
+
+
 	// Tx builtins
 	addDataFuncs("__helios__tx");
 	add(new RawFunc(`__helios__tx__new[${FTPP}0@${FTPP}1]`,
@@ -31018,11 +33619,11 @@ function makeRawFunctions() {
 			__core__mapData(minted),
 			__core__listData(dcerts),
 			__core__mapData(withdrawals),
-			validity,
+			__helios__timerange____to_data(validity),
 			__core__listData(signatories),
 			__core__mapData(redeemers),
 			__core__mapData(datums),
-			__helios__txid__new(#0000000000000000000000000000000000000000000000000000000000000000)
+			__helios__txid____to_data(txId)
 		))
 	}`));
 	add(new RawFunc("__helios__tx__inputs", 
@@ -31457,9 +34058,13 @@ function makeRawFunctions() {
 	`(hash) -> {
 		__core__constrData(1, __helios__common__list_1(__helios__datumhash____to_data(hash)))
 	}`));
+	add(new RawFunc(`__helios__outputdatum__new_inline[__helios__data]`,
+	`(data) -> {
+		__core__constrData(2, __helios__common__list_1(data))
+	}`));
 	add(new RawFunc(`__helios__outputdatum__new_inline[${FTPP}0]`,
 	`(data) -> {
-		__core__constrData(2, __helios__common__list_1(${FTPP}0____to_data(data)))
+		__helios__outputdatum__new_inline[__helios__data](${FTPP}0____to_data(data))
 	}`));
 	add(new RawFunc("__helios__outputdatum__get_inline_data",
 	`(self) -> {
@@ -32582,13 +35187,14 @@ function fetchRawGenerics() {
  * Doesn't add templates
  * @package
  * @param {IR} ir 
+ * @param {null | IRDefinitions} extra
  * @returns {IRDefinitions}
  */
-function fetchRawFunctions(ir) {
+function fetchRawFunctions(ir, extra = null) {
 	// notify statistics of existence of builtin in correct order
 	if (onNotifyRawUsage !== null) {
 		for (let [name, _] of db) {
-			// don't add templates, as they will never actually be used
+			// don't add templates, as they will never actually be used (type parameters are substituted)
 			if (!IRParametricName.isTemplate(name)) {
 				onNotifyRawUsage(name, 0);
 			}
@@ -32606,7 +35212,7 @@ function fetchRawFunctions(ir) {
 
 	if (matches !== null) {
 		for (let m of matches) {
-			if (!IRParametricName.matches(m) && !map.has(m)) {
+			if (!IRParametricName.matches(m) && !map.has(m) && (!extra || !extra.has(m))) {
 				const builtin = db.get(m);
 
 				if (!builtin) {
@@ -32704,7 +35310,7 @@ class IRScope {
 	 * Returns index of a named builtin
 	 * Throws an error if builtin doesn't exist
 	 * @param {string} name 
-	 * @returns 
+	 * @returns {number}
 	 */
 	static findBuiltin(name) {
 		let i = UPLC_BUILTINS.findIndex(info => { return "__core__" + info.name == name });
@@ -34387,10 +36993,12 @@ class IRCoreCallExpr extends IRCallExpr {
 		 */
 		let term = new UplcBuiltin(site, builtinName);
 
-		let nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
- 
-		for (let i = 0; i < nForce; i++) {
-			term = new UplcForce(site, term);
+		if (!builtinName.startsWith("macro__")) {
+			const nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
+	
+			for (let i = 0; i < nForce; i++) {
+				term = new UplcForce(site, term);
+			}
 		}
  
 		return term;
@@ -35260,16 +37868,16 @@ function buildIRExpr(ts) {
 		let t = ts.shift();
 
 		if (t === undefined) {
-			throw new Error("unexpected");
+			throw new Error("unexpected: no tokens");
 		} else {
 			if (t.isGroup("(") && ts.length > 0 && ts[0].isSymbol("->")) {
-				assert(expr === null);
+				assert(expr === null, "should be preceded by expr");
 
 				ts.unshift(t);
 
 				expr = buildIRFuncExpr(ts);
 			} else if (t.isGroup("(")) {
-				let group = assertDefined(t.assertGroup());
+				let group = assertDefined(t.assertGroup(), "should be a group");
 
 				if (expr === null) {
 					if (group.fields.length == 1) {
@@ -35297,7 +37905,7 @@ function buildIRExpr(ts) {
 				}
 			} else if (t.isSymbol("-")) {
 				// only makes sense next to IntegerLiterals
-				let int = assertDefined(ts.shift());
+				let int = assertDefined(ts.shift(), "expected digit after '-'");
 				if (int instanceof IntLiteral) {
 					expr = new IRLiteralExpr(new UplcInt(int.site, int.value * (-1n)));
 				} else {
@@ -35313,12 +37921,12 @@ function buildIRExpr(ts) {
 				assert(expr === null);
 				if (t.bytes.length == 0 && ts[0] != undefined && ts[0] instanceof ByteArrayLiteral) {
 					// literal data is ##<...>
-					const next = assertDefined(ts.shift());
+					const next = assertDefined(ts.shift(), "expected hexadecimal bytestring after '##'");
 
 					if (next instanceof ByteArrayLiteral) {
 						expr = new IRLiteralExpr(new UplcDataValue(next.site, UplcData.fromCbor(next.bytes)));
 					} else {
-						throw new Error("unexpected");
+						throw new Error("unexpected token after '##'");
 					}
 				} else {
 					expr = new IRLiteralExpr(new UplcByteArray(t.site, t.bytes));
@@ -35327,25 +37935,25 @@ function buildIRExpr(ts) {
 				assert(expr === null);
 				expr = new IRLiteralExpr(new UplcString(t.site, t.value));
 			} else if (t.isWord("const")) {
-				assert(expr === null);
+				assert(expr === null, "unexpected expr before 'const'");
 
 				let maybeGroup = ts.shift();
 				if (maybeGroup === undefined) {
 					throw t.site.syntaxError("expected parens after const");
 				} else {
-					let parens = assertDefined(maybeGroup.assertGroup("(", 1));
+					let parens = assertDefined(maybeGroup.assertGroup("(", 1), "expected parens with single entry after 'const'");
 					let pts = parens.fields[0];
 
 					expr = new IRConstExpr(t.site, buildIRExpr(pts));
 				}
 			} else if (t.isWord("error")) {
-				assert(expr === null);
+				assert(expr === null, "unexpected expr before 'error'");
 
 				let maybeGroup = ts.shift();
 				if (maybeGroup === undefined) {
 					throw t.site.syntaxError("expected parens after error");
 				} else {
-					let parens = assertDefined(maybeGroup.assertGroup("(", 1));
+					let parens = assertDefined(maybeGroup.assertGroup("(", 1), "expected parens with single entry after 'error'");
 					let pts = parens.fields[0];
 
 					if (pts.length != 1) {
@@ -35359,8 +37967,13 @@ function buildIRExpr(ts) {
 					expr = new IRErrorCallExpr(t.site, msg.value);
 				}
 			} else if (t.isWord()) {
-				assert(expr === null);
-				expr = new IRNameExpr(assertDefined(t.assertWord()));
+				const w = assertDefined(t.assertWord(), "expected word");
+
+				if (expr !== null) {
+					throw new Error(`unexpected expr '${expr.toString()}' before word '${w.value}'`);
+				}
+
+				expr = new IRNameExpr(w);
 			} else {
 				throw new Error("unhandled untyped token " + t.toString());
 			}
@@ -35449,7 +38062,7 @@ class IRProgram {
 	/**
 	 * @package
 	 * @param {IR} ir 
-	 * @param {?number} purpose
+	 * @param {null | ScriptPurpose} purpose
 	 * @param {boolean} simplify
 	 * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
 	 * @param {IRScope} scope
@@ -35646,38 +38259,45 @@ class IRProgram {
 }
 
 export class IRParametricProgram {
+	/**
+	 * @type {IRProgram}
+	 */
 	#irProgram;
-	#parameters;
+
+	/**
+	 * @type {number}
+	 */
+	#nParams;
 
 	/**
 	 * @param {IRProgram} irProgram
-	 * @param {string[]} parameters
+	 * @param {number} nParams
 	 */
-	constructor(irProgram, parameters) {
+	constructor(irProgram, nParams) {
 		this.#irProgram = irProgram;
-		this.#parameters = parameters;
+		this.#nParams = nParams;
 	}
 
 	/**
 	 * @package
 	 * @param {IR} ir 
-	 * @param {?number} purpose
-	 * @param {string[]} parameters
+	 * @param {null | ScriptPurpose} purpose
+	 * @param {number} nParams
 	 * @param {boolean} simplify
 	 * @returns {IRParametricProgram}
 	 */
-	static new(ir, purpose, parameters, simplify = false) {
+	static new(ir, purpose, nParams, simplify = false) {
 		let scope = new IRScope(null, null);
 
-		parameters.forEach((p, i) => {
+		for (let i = 0; i < nParams; i++) {
 			const internalName = `__PARAM_${i}`;
 
 			scope = new IRScope(scope, new IRVariable(new Word(Site.dummy(), internalName)));
-		});
+		}
 
 		const irProgram = IRProgram.new(ir, purpose, simplify, false, scope);
 
-		return new IRParametricProgram(irProgram, parameters);
+		return new IRParametricProgram(irProgram, nParams);
 	}
 
 	/**
@@ -35686,9 +38306,9 @@ export class IRParametricProgram {
 	toUplc() {
 		let exprUplc = this.#irProgram.expr.toUplc();
 
-		this.#parameters.forEach(p => {
-			exprUplc = new UplcLambda(Site.dummy(), exprUplc, p);
-		});
+		for (let i = 0; i < this.#nParams; i++) {
+			exprUplc = new UplcLambda(Site.dummy(), exprUplc);
+		}
 
 		return new UplcProgram(exprUplc, this.#irProgram.properties);
 	}
@@ -35739,7 +38359,7 @@ class Module {
 			throw UserError.syntaxError(src, 0, 1, "empty script");
 		}
 
-		const [purpose, name, statements, mainIdx] = buildScript(ts, ScriptPurpose.Module);
+		const [purpose, name, statements, mainIdx] = buildScript(ts, "module");
 
 		src.throwErrors();
 
@@ -35875,10 +38495,24 @@ class MainModule extends Module {
  * Helios root object
  */
  export class Program {
+	/**
+	 * @type {ScriptPurpose}
+	 */
 	#purpose;
+
+	/**
+	 * @type {Module[]}
+	 */
 	#modules;
 
-	/** @type {UserTypes} */
+	/**
+	 * @type {boolean}
+	 */
+	#allowPosParams;
+
+	/** 
+	 * @type {UserTypes} 
+	 */
 	#types;
 
 	/**
@@ -35888,12 +38522,14 @@ class MainModule extends Module {
 	#parameters;
 	
 	/**
-	 * @param {number} purpose
+	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules
+	 * @param {boolean} allowPosParams
 	 */
-	constructor(purpose, modules) {
+	constructor(purpose, modules, allowPosParams) {
 		this.#purpose = purpose;
 		this.#modules = modules;
+		this.#allowPosParams = allowPosParams;
 		this.#types = {};
 		this.#parameters = {};
 	}
@@ -35902,7 +38538,7 @@ class MainModule extends Module {
 	 * @param {string} rawSrc 
 	 * @returns {[purpose, Module[]]}
 	 */
-	static parseMain(rawSrc) {
+	static parseMainInternal(rawSrc) {
 		const src = new Source(rawSrc, 0);
 
 		const ts = tokenize(src);
@@ -35965,19 +38601,18 @@ class MainModule extends Module {
 	}
 
 	/**
-	 * Creates  a new program.
 	 * @param {string} mainSrc 
-	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
-	 * @returns {Program}
+	 * @param {string[]} moduleSrcs
+	 * @returns {[null | ScriptPurpose, Module[]]}
 	 */
-	static new(mainSrc, moduleSrcs = []) {
-		let [purpose, modules] = Program.parseMain(mainSrc);
+	static parseMain(mainSrc, moduleSrcs) {
+		let [purpose, modules] = Program.parseMainInternal(mainSrc);
 
-		let site = modules[0].name.site;
+		const site = modules[0].name.site;
 
-		let imports = Program.parseImports(modules[0].name.value, moduleSrcs);
+		const imports = Program.parseImports(modules[0].name.value, moduleSrcs);
 		
-		let mainImports = modules[0].filterDependencies(imports);
+		const mainImports = modules[0].filterDependencies(imports);
 
 		/** @type {Module[]} */
 		let postImports = [];
@@ -35988,6 +38623,24 @@ class MainModule extends Module {
 
 		// create the final order of all the modules (this is the order in which statements will be added to the IR)
 		modules = mainImports.concat([modules[0]]).concat(postImports).concat(modules.slice(1));
+
+		if (purpose == "module") {
+			throw site.syntaxError("can't use module for main");
+		}
+
+		return [purpose, modules];
+	}
+
+	/**
+	 * Creates  a new program.
+	 * @param {string} mainSrc 
+	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
+	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {boolean} allowPosParams
+	 * @returns {Program}
+	 */
+	static new(mainSrc, moduleSrcs = [], validatorTypes = {}, allowPosParams = false) {
+		const [purpose, modules] = Program.parseMain(mainSrc, moduleSrcs);
 	
 		/**
 		 * @type {Program}
@@ -35995,29 +38648,48 @@ class MainModule extends Module {
 		let program;
 
 		switch (purpose) {
-			case ScriptPurpose.Testing:
+			case "testing":
 				program = new TestingProgram(modules);
 				break;
-			case ScriptPurpose.Spending:
-				program = new SpendingProgram(modules);
+			case "spending":
+				program = new SpendingProgram(modules, allowPosParams);
 				break;
-			case ScriptPurpose.Minting:
-				program = new MintingProgram(modules);
-				break
-			case ScriptPurpose.Staking:
-				program = new StakingProgram(modules);
-				break
-			case ScriptPurpose.Module:
-				throw site.syntaxError("can't use module for main");
+			case "minting":
+				program = new MintingProgram(modules, allowPosParams);
+				break;
+			case "staking":
+				program = new StakingProgram(modules, allowPosParams);
+				break;
 			default:
 				throw new Error("unhandled script purpose");
 		}
 
-		const topScope = program.evalTypes();
+		const topScope = program.evalTypes(validatorTypes);
 
 		program.fillTypes(topScope);
 
 		return program;
+	}
+
+	/**
+	 * @type {boolean}
+	 */
+	get allowPosParams() {
+		return this.#allowPosParams;
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get nPosParams() {
+		return 0;
+	}
+
+	/**
+	 * @type {Type[]}
+	 */
+	get posParams() {
+		return this.mainArgTypes.slice(0, this.nPosParams);
 	}
 
 	/** 
@@ -36052,7 +38724,7 @@ class MainModule extends Module {
 	}
 
 	/**
-	 * @type {?Module}
+	 * @type {null | Module}
 	 */
 	get postModule() {
 		let m = this.#modules[this.#modules.length - 1];
@@ -36062,6 +38734,13 @@ class MainModule extends Module {
 		} else {
 			return m;
 		}
+	}
+
+	/**
+	 * @type {ScriptPurpose}
+	 */
+	get purpose() {
+		return this.#purpose;
 	}
 
 	/**
@@ -36076,6 +38755,13 @@ class MainModule extends Module {
 	 */
 	get mainFunc() {
 		return this.mainModule.mainFunc;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get mainArgNames() {
+		return this.mainFunc.argNames;
 	}
 
 	/**
@@ -36171,9 +38857,10 @@ class MainModule extends Module {
 	}
 
 	/**
+	 * @param {{[name: string]: Type}} validatorTypes
 	 * @returns {TopScope}
 	 */
-	evalTypes() {
+	evalTypes(validatorTypes = {}) {
 		throw new Error("not yet implemeneted");
 	}
 
@@ -36276,7 +38963,7 @@ class MainModule extends Module {
 	 * @returns {UplcValue}
 	 */
 	evalConst(constStatement) {
-		const map = this.fetchDefinitions(new IR(""), [], (s, isImport) => {
+		const map = this.fetchDefinitions(new IR(""), (s, isImport) => {
 			let found = false;
 			s.loopConstStatements("", (_, cs) => {
 				if (!found) {
@@ -36404,60 +39091,16 @@ class MainModule extends Module {
 
 	/**
 	 * @package
-	 * @param {string[]} parameters
 	 * @param {(s: Statement, isImport: boolean) => boolean} endCond
 	 * @returns {IRDefinitions} 
 	 */
-	statementsToIR(parameters, endCond) {
-		// find the constStatements associated with the parameters
-		/**
-		 * @type {(ConstStatement | null)[]}
-		 */
-		const parameterStatements = new Array(parameters.length).fill(null);
-
-		if (parameters.length > 0) {
-			for (let statement of this.mainStatements) {
-				if (statement instanceof ConstStatement) {
-					const i = parameters.findIndex(p => statement.name.value == p);
-
-					if (i != -1) {
-						parameterStatements[i] = statement;
-					}
-				}
-			}
-
-			parameters.forEach((p, i) => {
-				if (parameterStatements[i] == null) {
-					throw new Error(`parameter ${p} not found (hint: must come before main)`);
-				}
-			});
-		}		
-
+	statementsToIR(endCond) {		
 		/**
 		 * @type {IRDefinitions}
 		 */
 		const map = new Map();
 
 		for (let [statement, isImport] of this.allStatements) {
-			if (parameters.length > 0 && statement instanceof ConstStatement) {
-				const i = parameterStatements.findIndex(cs => cs === statement);
-
-				if (i != -1) {
-					let ir = new IR(`__PARAM_${i}`);
-
-					ir = new IR([
-						new IR(`${statement.type.path}__from_data`),
-						new IR("("),
-						ir,
-						new IR(")")
-					]);
-
-					map.set(statement.path, ir); 
-
-					continue;
-				}
-			}
-
 			statement.toIR(map);
 
 			if (endCond(statement, isImport)) {
@@ -36648,9 +39291,9 @@ class MainModule extends Module {
 	/**
 	 * @param {IR} ir 
 	 * @param {IRDefinitions} definitions 
-	 * @returns {IRDefinitions}
+	 * @returns {Set<string>}
 	 */
-	eliminateUnused(ir, definitions) {
+	collectAllUsed(ir, definitions) {
 		/**
 		 * Set of global paths
 		 * @type {Set<string>}
@@ -36680,6 +39323,17 @@ class MainModule extends Module {
 			})
 		}
 
+		return used;
+	}
+
+	/**
+	 * @param {IR} ir 
+	 * @param {IRDefinitions} definitions 
+	 * @returns {IRDefinitions}
+	 */
+	eliminateUnused(ir, definitions) {
+		const used = this.collectAllUsed(ir, definitions);
+
 		// eliminate all definitions that are not in set
 
 		/**
@@ -36697,7 +39351,7 @@ class MainModule extends Module {
 		this.loopConstStatements((name, cs) => {
 			const path = cs.path;
 
-			if (used.has(path) && !cs.isSet()) {
+			if (used.has(path) && !definitions.has(cs.path)) {
 				throw cs.site.referenceError(`used unset const '${name}' (hint: use program.parameters['${name}'] = ...)`);
 			}
 		});
@@ -36710,12 +39364,11 @@ class MainModule extends Module {
 	 * Then applies type parameters
 	 * @package
 	 * @param {IR} ir
-	 * @param {string[]} parameters
 	 * @param {(s: Statement) => boolean} endCond
 	 * @returns {IRDefinitions}
 	 */
-	fetchDefinitions(ir, parameters, endCond) {
-		let map = this.statementsToIR(parameters, endCond);
+	fetchDefinitions(ir, endCond) {
+		let map = this.statementsToIR(endCond);
 
 		return Program.applyTypeParameters(ir, map);
 	}
@@ -36723,17 +39376,22 @@ class MainModule extends Module {
 	/**
 	 * @param {IR} ir
 	 * @param {IRDefinitions} definitions
+	 * @param {null | IRDefinitions} extra
 	 * @returns {IR}
 	 */
-	wrapInner(ir, definitions) {
+	wrapInner(ir, definitions, extra = null) {
 		ir = Program.injectMutualRecursions(ir, definitions);
 
 		definitions = this.eliminateUnused(ir, definitions);
 
 		ir = IR.wrapWithDefinitions(ir, definitions);
+		
+		if (extra) {
+			ir = IR.wrapWithDefinitions(ir, extra);
+		}
 
 		// add builtins as late as possible, to make sure we catch as many dependencies as possible
-		const builtins = fetchRawFunctions(ir);
+		const builtins = fetchRawFunctions(ir, extra);
 
 		ir = IR.wrapWithDefinitions(ir, builtins);
 
@@ -36743,29 +39401,61 @@ class MainModule extends Module {
 	/**
 	 * @package
 	 * @param {IR} ir
-	 * @param {string[]} parameters
+	 * @param {null | IRDefinitions} extra
 	 * @returns {IR}
 	 */
-	wrapEntryPoint(ir, parameters) {
-		let map = this.fetchDefinitions(ir, parameters, (s) => s.name.value == "main");
+	wrapEntryPoint(ir, extra = null) {
+		const map = this.fetchDefinitions(ir, (s) => s.name.value == "main");
 
-		return this.wrapInner(ir, map);
+		return this.wrapInner(ir, map, extra);
+	}
+
+	/**
+	 * @returns {IR}
+	 */
+	toIRInternal() {
+		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * @package
-	 * @param {string[]}  parameters
+	 * @param {null | IRDefinitions} extra
 	 * @returns {IR}
 	 */
-	toIR(parameters = []) {
-		throw new Error("not yet implemented");
+	toIR(extra = null) {
+		const ir = this.toIRInternal()
+
+		return this.wrapEntryPoint(ir, extra);
+	}
+
+	/**
+	 * Non-positional named parameters
+	 * @type {[string, Type][]}
+	 */
+	get requiredParameters() {
+		const ir = this.toIRInternal();
+		const definitions = this.fetchDefinitions(ir, (s) => s.name.value == "main");
+		const used = this.collectAllUsed(ir, definitions);
+		
+		/**
+		 * @type {[string, Type][]}
+		 */
+		const lst = [];
+
+		this.loopConstStatements((name, cs) => {
+			if (!cs.isSet() && used.has(cs.path)) {
+				lst.push([name, cs.type]);
+			}
+		});
+
+		return lst;
 	}
 
 	/**
 	 * @returns {string}
 	 */
 	prettyIR(simplify = false) {
-		const ir = this.toIR([]);
+		const ir = this.toIR();
 
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 
@@ -36777,40 +39467,38 @@ class MainModule extends Module {
 	 * @returns {UplcProgram}
 	 */
 	compile(simplify = false) {
-		const ir = this.toIR([]);
+		const ir = this.toIR();
 
-		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
-		
-		//console.log(new Source(irProgram.toString()).pretty());
-		
-		return irProgram.toUplc();
-	}
+		if (this.nPosParams > 0) {
+			const irProgram = IRParametricProgram.new(ir, this.#purpose, this.nPosParams, simplify);
 
-	/**
-	 * Compile a special Uplc
-	 * @param {string[]} parameters
-	 * @param {boolean} simplify
-	 * @returns {UplcProgram}
-	 */
-	compileParametric(parameters, simplify = false) {
-		assert(parameters.length > 0, "expected at least 1 parameter (hint: use program.compile() instead)");
-
-		const ir = this.toIR(parameters);
-
-		const irProgram = IRParametricProgram.new(ir, this.#purpose, parameters, simplify);
-
-		// TODO: UplcParametricProgram
-		return irProgram.toUplc();
+			// TODO: UplcParametricProgram
+			return irProgram.toUplc();
+		} else {
+			const irProgram = IRProgram.new(ir, this.#purpose, simplify);
+			
+			//console.log(new Source(irProgram.toString()).pretty());
+			
+			return irProgram.toUplc();
+		}
 	}
 }
 
 class RedeemerProgram extends Program {
 	/**
-	 * @param {number} purpose
+	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules 
+	 * @param {boolean} allowPosParams
 	 */
-	constructor(purpose, modules) {
-		super(purpose, modules);
+	constructor(purpose, modules, allowPosParams = false) {
+		super(purpose, modules, allowPosParams);
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get nPosParams() {
+		return this.mainFunc.nArgs - 2;
 	}
 
 	/**
@@ -36827,17 +39515,28 @@ class RedeemerProgram extends Program {
 		const argTypeNames = main.argTypeNames;
 		const argTypes = main.argTypes;
 		const retTypes = main.retTypes;
+		const nArgs = argTypes.length;
 
-		if (argTypes.length != 2) {
-			throw main.typeError("expected 2 args for main");
+		if (this.allowPosParams) {
+			if (nArgs < 2) {
+				throw main.typeError("expected at least 2 args for main");	
+			}
+		} else {
+			if (nArgs != 2) {
+				throw main.typeError("expected 2 args for main");
+			}
 		}
-
-		if (argTypeNames[0] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[0])) {
-			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[0].toString()}`);
-		}
-
-		if (argTypeNames[1] != "" && !(new ScriptContextType(-1)).isBaseOf(argTypes[1])) {
-			throw main.typeError(`illegal 3rd argument type in main, expected 'ScriptContext', got ${argTypes[1].toString()}`);
+		
+		for (let i = 0; i < nArgs; i++) {
+			if (i == nArgs - 1) {
+				if (argTypeNames[i] != "" && !(new ScriptContextType()).isBaseOf(argTypes[i])) {
+					throw main.typeError(`illegal type for arg ${nArgs} in main, expected 'ScriptContext', got ${argTypes[i].toString()}`);
+				}
+			} else {
+				if (argTypeNames[i] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[i])) {
+					throw main.typeError(`illegal ${i == nArgs - 2 ? "redeemer " : ""}argument type in main: '${argTypes[i].toString()}`);
+				}
+			}
 		}
 
 		if (retTypes.length !== 1) {
@@ -36851,42 +39550,46 @@ class RedeemerProgram extends Program {
 
 	/**
 	 * @package
-	 * @param {string[]} parameters
+	 * @param {{[name: string]: Type}} validatorTypes
+	 * @returns {TopScope}
+	 */
+	evalTypes(validatorTypes = {}) {
+		const scope = GlobalScope.new(this.purpose, validatorTypes);
+
+		return this.evalTypesInternal(scope);	
+	}
+
+	/**
+	 * @package
 	 * @returns {IR} 
 	 */
-	toIR(parameters = []) {
-		const argNames = ["redeemer", "ctx"];
+	toIRInternal() {
+		const outerArgNames = ["redeemer", "ctx"];
 
-		/** @type {IR[]} */
-		const outerArgs = [];
-
-		/** 
-		 * @type {IR[]} 
-		 */
-		const innerArgs = [];
-
+		const nArgs = this.mainFunc.nArgs;
 		const argTypeNames = this.mainFunc.argTypeNames;
+		const argTypes = this.mainArgTypes;
 
-		this.mainArgTypes.forEach((t, i) => {
-			const name = argNames[i];
+		const innerArgs = argTypes.map((t, i) => {
+			const name = (i >= (nArgs-2)) ? outerArgNames[i-(nArgs-2)] : `__PARAM_${i.toString()}`;
 
 			// empty path
 			if (argTypeNames[i] != "") {
-				innerArgs.push(new IR([
+				return new IR([
 					new IR(`${assertNonEmpty(t.path)}__from_data`),
 					new IR("("),
 					new IR(name),
 					new IR(")")
-				]));
+				]);
 			} else {
 				// unused arg, 0 is easier to optimize
-				innerArgs.push(new IR("0"));
+				return new IR("0");
 			}
-
-			outerArgs.push(new IR(name));
 		});
 
-		const ir = new IR([
+		const outerArgs = outerArgNames.map((n) => new IR(n));
+
+		let ir = new IR([
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
@@ -36896,17 +39599,32 @@ class RedeemerProgram extends Program {
 			new IR(`\n${TAB}}`),
 		]);
 
-		return this.wrapEntryPoint(ir, parameters);
+		return ir;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.purpose} ${this.name}\n${super.toString()}`;
 	}
 }
 
 class DatumRedeemerProgram extends Program {
 	/**
-	 * @param {number} purpose
+	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules
+	 * @param {boolean} allowPosParams
 	 */
-	constructor(purpose, modules) {
-		super(purpose, modules);
+	constructor(purpose, modules, allowPosParams) {
+		super(purpose, modules, allowPosParams);
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get nPosParams() {
+		return this.mainFunc.nArgs - 3;
 	}
 
 	/**
@@ -36923,21 +39641,28 @@ class DatumRedeemerProgram extends Program {
 		const argTypeNames = main.argTypeNames;
 		const argTypes = main.argTypes;
 		const retTypes = main.retTypes;
+		const nArgs = main.nArgs;
 
-		if (argTypes.length != 3) {
-			throw main.typeError("expected 3 args for main");
+		if (this.allowPosParams) {
+			if (argTypes.length < 3) {
+				throw main.typeError("expected at least 3 args for main");	
+			}
+		} else {
+			if (argTypes.length != 3) {
+				throw main.typeError("expected 3 args for main");	
+			}
 		}
 
-		if (argTypeNames[0] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[0])) {
-			throw main.typeError(`illegal datum argument type in main: '${argTypes[0].toString()}`);
-		}
-
-		if (argTypeNames[1] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[1])) {
-			throw main.typeError(`illegal redeemer argument type in main: '${argTypes[1].toString()}`);
-		}
-
-		if (argTypeNames[2] != "" && !(new ScriptContextType(-1)).isBaseOf(argTypes[2])) {
-			throw main.typeError(`illegal 3rd argument type in main, expected 'ScriptContext', got ${argTypes[2].toString()}`);
+		for (let i = 0; i < nArgs; i++) {
+			if (i == nArgs - 1) {
+				if (argTypeNames[i] != "" && !(new ScriptContextType()).isBaseOf(argTypes[i])) {
+					throw main.typeError(`illegal type for arg ${nArgs} in main: expected 'ScriptContext', got '${argTypes[i].toString()}'`);
+				}
+			} else {
+				if (argTypeNames[i] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[i])) {
+					throw main.typeError(`illegal type for arg ${i+1} in main ${i == nArgs - 2 ? "(datum) " : (i == nArgs - 3 ? "(redeemer) " : "")}: '${argTypes[i].toString()}`);
+				}
+			}
 		}
 
 		if (retTypes.length !== 1) {
@@ -36951,41 +39676,45 @@ class DatumRedeemerProgram extends Program {
 
 	/**
 	 * @package
-	 * @param {string[]} parameters
+	 * @param {{[name: string]: Type}} validatorTypes
+	 * @returns {TopScope}
+	 */
+	evalTypes(validatorTypes) {
+		const scope = GlobalScope.new(this.purpose, validatorTypes);
+
+		return this.evalTypesInternal(scope);	
+	}
+
+	/**
+	 * @package
 	 * @returns {IR}
 	 */
-	toIR(parameters = []) {
-		const argNames = ["datum", "redeemer", "ctx"];
+	toIRInternal() {
+		const outerArgNames = ["datum", "redeemer", "ctx"];
 
-		/** @type {IR[]} */
-		const outerArgs = [];
-
-		/** 
-		 * @type {IR[]} 
-		 */
-		const innerArgs = [];
-
+		const nArgs = this.mainFunc.nArgs;
 		const argTypeNames = this.mainFunc.argTypeNames;
-		this.mainArgTypes.forEach((t, i) => {
-			const name = argNames[i];
+
+		const innerArgs = this.mainArgTypes.map((t, i) => {
+			const name = (i >= (nArgs-3)) ? outerArgNames[i-(nArgs-3)] : `__PARAM_${i.toString()}`;
 
 			// empty path
 			if (argTypeNames[i] != "") {
-				innerArgs.push(new IR([
+				return new IR([
 					new IR(`${assertNonEmpty(t.path)}__from_data`),
 					new IR("("),
 					new IR(name),
 					new IR(")")
-				]));
+				]);
 			} else {
 				// unused arg, 0 is easier to optimize
-				innerArgs.push(new IR("0"));
+				return new IR("0");
 			}
-
-			outerArgs.push(new IR(name));
 		});
 
-		const ir = new IR([
+		const outerArgs = outerArgNames.map((n) => new IR(n));
+
+		return new IR([
 			new IR(`${TAB}/*entry point*/\n${TAB}(`),
 			new IR(outerArgs).join(", "),
 			new IR(`) -> {\n${TAB}${TAB}`),
@@ -36994,41 +39723,62 @@ class DatumRedeemerProgram extends Program {
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
 			new IR(`\n${TAB}}`),
 		]);
-
-		return this.wrapEntryPoint(ir, parameters);
-	}
-}
-
-class TestingProgram extends Program {
-	/**
-	 * @param {Module[]} modules 
-	 */
-	constructor(modules) {
-		super(ScriptPurpose.Testing, modules);
 	}
 
 	/**
 	 * @returns {string}
 	 */
 	toString() {
-		return `testing ${this.name}\n${super.toString()}`;
+		return `${this.purpose} ${this.name}\n${super.toString()}`;
+	}
+}
+
+class GenericProgram extends Program {
+	/**
+	 * @param {ScriptPurpose} purpose 
+	 * @param {Module[]} modules 
+	 * @param {boolean} allowPosParams
+	 */
+	constructor(purpose, modules, allowPosParams) {
+		super(purpose, modules, allowPosParams);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.purpose} ${this.name}\n${super.toString()}`;
 	}
 
 	/**
 	 * @package
+	 * @param {{[name: string]: Type}} validatorTypes
 	 * @returns {TopScope}
 	 */
-	evalTypes() {
-		const scope = GlobalScope.new(ScriptPurpose.Testing);
+	evalTypes(validatorTypes) {
+		const scope = GlobalScope.new(this.purpose, validatorTypes);
 
-		const topScope = this.evalTypesInternal(scope);
+		const topScope = super.evalTypesInternal(scope);
 
-		if (this.mainFunc.argTypes.some(at => !(new DefaultTypeClass()).isImplementedBy(at))) {
-			throw this.mainFunc.typeError("invalid entry-point argument types");
-		}
+		// check the 'main' function
 
-		if (this.mainFunc.retTypes.length != 1) {
-			throw this.mainFunc.typeError("program entry-point can only return one value");
+		const main = this.mainFunc;
+		const argTypeNames = main.argTypeNames;
+		const argTypes = main.argTypes;
+		const retTypes = main.retTypes;
+
+
+		argTypeNames.forEach((argTypeName, i) => {
+			if (argTypeName != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[i])) {
+				throw main.typeError(`illegal argument type in main: '${argTypes[i].toString()}`);
+			}
+		});
+
+		// TODO: support multiple return values
+		if (retTypes.length !== 1) {
+			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
+		} else if (!((new DefaultTypeClass()).isImplementedBy(retTypes[0]))) {
+			throw main.typeError(`illegal return type for main: '${retTypes[0].toString()}'`);
 		}
 
 		return topScope;
@@ -37036,10 +39786,9 @@ class TestingProgram extends Program {
 
 	/**
 	 * @package
-	 * @param {string[]} parameters
 	 * @returns {IR}
 	 */
-	toIR(parameters = []) {
+	toIRInternal() {
 		const argTypeNames = this.mainFunc.argTypeNames;
 
 		const innerArgs = this.mainArgTypes.map((t, i) => {
@@ -37082,79 +39831,124 @@ class TestingProgram extends Program {
 			new IR(`\n${TAB}}`),
 		]);
 
-		return this.wrapEntryPoint(ir, parameters);
+		return ir;
+	}
+}
+
+class TestingProgram extends GenericProgram {
+	/**
+	 * @param {Module[]} modules 
+	 */
+	constructor(modules) {
+		super("testing", modules, false);
 	}
 }
 
 class SpendingProgram extends DatumRedeemerProgram {
 	/**
 	 * @param {Module[]} modules
+	 * @param {boolean} allowPosParams
 	 */
-	constructor(modules) {
-		super(ScriptPurpose.Spending, modules);
-	}
-
-	toString() {
-		return `spending ${this.name}\n${super.toString()}`;
-	}
-
-	/**
-	 * @package
-	 * @returns {TopScope}
-	 */
-	evalTypes() {
-		const scope = GlobalScope.new(ScriptPurpose.Spending);
-
-		return this.evalTypesInternal(scope);	
+	constructor(modules, allowPosParams) {
+		super("spending", modules, allowPosParams);
 	}
 }
 
 class MintingProgram extends RedeemerProgram {
 	/**
 	 * @param {Module[]} modules 
+	 * @param {boolean} allowPosParams
 	 */
-	constructor(modules) {
-		super(ScriptPurpose.Minting, modules);
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `minting ${this.name}\n${super.toString()}`;
-	}
-
-	/**
-	 * @package
-	 * @returns {TopScope}
-	 */
-	evalTypes() {
-		const scope = GlobalScope.new(ScriptPurpose.Minting);
-
-		return this.evalTypesInternal(scope);	
+	constructor(modules, allowPosParams = false) {
+		super("minting", modules, allowPosParams);
 	}
 }
 
 class StakingProgram extends RedeemerProgram {
 	/**
 	 * @param {Module[]} modules 
+	 * @param {boolean} allowPosParams
 	 */
-	constructor(modules) {
-		super(ScriptPurpose.Staking, modules);
+	constructor(modules, allowPosParams = false) {
+		super("staking", modules, allowPosParams);
+	}
+}
+
+export class LinkingProgram extends GenericProgram {
+	/**
+	 * @type {Program[]}
+	 */
+	#validators;
+
+	/**
+	 * @param {Module[]} modules 
+	 * @param {Program[]} validators 
+	 */
+	constructor(modules, validators) {
+		super("linking", modules, false);
+
+		this.#validators = validators;
 	}
 
-	toString() {
-		return `staking ${this.name}\n${super.toString()}`;
+	/**
+	 * Creates  a new program.
+	 * @param {string} mainSrc 
+	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
+	 * @param {{[name: string]: Type}} validatorTypes - generators for script hashes, used by ScriptCollection
+	 * @returns {LinkingProgram}
+	 */
+	static new(mainSrc, moduleSrcs = [], validatorTypes = {}) {
+		const [purpose, modules] = Program.parseMain(mainSrc, moduleSrcs);
+
+		assert(purpose == "linking")
+
+		const program = new LinkingProgram(modules, []);
+
+		program.evalTypes(validatorTypes)
+
+		return program;
 	}
 
 	/**
 	 * @package
+	 * @param {{[name: string]: Type}} validatorTypes
 	 * @returns {TopScope}
 	 */
-	evalTypes() {
-		const scope = GlobalScope.new(ScriptPurpose.Staking);
+	evalTypes(validatorTypes = {}) {
+		const scope = GlobalScope.newLinking(validatorTypes);
 
-		return this.evalTypesInternal(scope);	
+		const topScope = super.evalTypesInternal(scope);
+		
+		const main = this.mainFunc;
+		const argTypes = main.argTypes;
+		const argTypeNames = main.argTypeNames;
+		const retTypes = main.retTypes;
+
+		if (argTypeNames.length == 0) {
+			throw main.typeError("expected at least argument 'ContractContext'");
+		}
+
+		argTypeNames.forEach((argTypeName, i) => {
+			if (i != argTypeNames.length -1 && argTypeName != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[i])) {
+				throw main.typeError(`illegal argument type in main: '${argTypes[i].toString()}`);
+			}
+		});
+
+		if (argTypeNames[argTypeNames.length-1] != "") {
+			const lastArgType = argTypes[argTypes.length-1];
+			if (!(lastArgType instanceof ContractContextType)) {
+				throw main.typeError(`expected 'ContractContext' for arg ${argTypes.length}, got '${lastArgType.toString()}'`);
+			}
+		}
+		
+		// TODO: support multiple return values
+		if (retTypes.length !== 1) {
+			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
+		} else if (!((new DefaultTypeClass()).isImplementedBy(retTypes[0]))) {
+			throw main.typeError(`illegal return type for main: '${retTypes[0].toString()}'`);
+		}
+		
+		return topScope;
 	}
 }
 
@@ -37881,6 +40675,122 @@ export class Tx extends CborData {
 		return tx;
 	}
 
+
+	/**
+	 * Used by bundler for macro finalization
+	 * @param {UplcData} data
+	 * @param {NetworkParams} networkParams
+	 * @param {Address} changeAddress
+	 * @param {UTxO[]} spareUtxos
+	 * @param {{[name: string]: UplcProgram}} scripts
+	 * @returns {Promise<Tx>}
+	 */
+	static async finalizeUplcData(data, networkParams, changeAddress, spareUtxos, scripts) {
+		const fields = data.fields;
+
+		assert(fields.length == 12);
+
+		const inputs = fields[0].list.map(d => TxInput.fromUplcData(d));
+		const refInputs = fields[1].list.map(d => TxInput.fromUplcData(d));
+		const outputs = fields[2].list.map(d => TxOutput.fromUplcData(d));
+		//txBody.#fee = Value.fromUplcData(fields[3]).lovelace.value;
+		const minted = Value.fromUplcData(fields[4]).assets;
+		//txBody.#dcerts = fields[5].list.map(d => DCert.fromUplcData(d));
+		//txBody.#withdrawals = new Map(fields[6].map.map(([key, value]) => {
+		//	return [Address.fromUplcData(key), value.int];
+		//}));
+		// validity
+		const signers = fields[8].list.map(d => PubKeyHash.fromUplcData(d));
+		const redeemers = fields[9].map.map(([key, value]) => {
+			if (key.index == 1) {
+				assert(key.fields.length == 1);
+				const outputId = TxOutputId.fromUplcData(key.fields[0]);
+				const i = inputs.findIndex(input => input.txId.eq(outputId.txId) && input.utxoIdx == outputId.utxoIdx);
+				assert(i != -1);
+				return new SpendingRedeemer(inputs[i], i, value);
+			} else if (key.index == 0) {
+				assert(key.fields.length == 1);
+				const mph = MintingPolicyHash.fromUplcData(key.fields[0]);
+				const i = minted.mintingPolicies.findIndex(m => m.eq(mph));
+				assert(i != -1);
+				return new MintingRedeemer(mph, i, value);
+			} else {
+				throw new Error("unhandled redeemer constr index");
+			}
+		});
+
+		console.log(`${inputs.length} INPUTS, ${refInputs.length} REF_INPUTS`);
+
+		// build the tx from scratch
+		const tx = new Tx();
+
+		// TODO: automatically added any available scripts
+		inputs.forEach((input, i) => {
+			const redeemer = redeemers.find(r => (r instanceof SpendingRedeemer) && r.inputIndex == i) ?? null;
+
+			if (redeemer instanceof SpendingRedeemer) {
+				tx.addInput(input.utxo, redeemer.data);
+
+				if (input.address.validatorHash) {
+					if  (input.address.validatorHash.hex in scripts) {
+						tx.attachScript(scripts[input.address.validatorHash.hex]);
+					} else {
+						throw new Error(`script for SpendingRedeemer (vh:${input.address.validatorHash.hex}) not found in ${Object.keys(scripts)}`);
+					}
+				} else {
+					throw new Error("unexpected (expected a validator address");
+				}
+			} else {
+				assert(redeemer === null);
+				tx.addInput(input.utxo);
+			}
+		});
+
+		refInputs.forEach(refInput => {
+			tx.addRefInput(new TxRefInput(refInput.txId, refInput.utxoIdx, refInput.origOutput));
+		});
+
+		// filter out spareUtxos that are already used as inputs
+		spareUtxos = spareUtxos.filter(utxo => {
+			return inputs.every(input => !input.eq(utxo)) && 
+				refInputs.every(input => !input.eq(utxo));
+		});
+
+		outputs.forEach(output => {
+			tx.addOutput(output);
+		});
+
+		minted.mintingPolicies.forEach((mph, i) => {
+			const redeemer = redeemers.find(r => (r instanceof MintingRedeemer) && r.mphIndex == i) ?? null;
+
+			if (redeemer instanceof MintingRedeemer) {
+				tx.mintTokens(mph, minted.getTokens(mph), redeemer.data);
+
+				if (mph.hex in scripts) {
+					tx.attachScript(scripts[mph.hex]);
+				} else {
+					throw new Error(`policy for mph ${mph.hex} not found in ${Object.keys(scripts)}`);
+				}
+			} else {
+				throw new Error("missing MintingRedeemer");
+			}
+		});
+
+		signers.forEach(pk => {
+			tx.addSigner(pk);
+		});
+
+		return await tx.finalize(networkParams, changeAddress, spareUtxos);
+	}
+
+	/**
+	 * @param {NetworkParams} networkParams
+	 * @returns {UplcData}
+	 */
+	toTxData(networkParams) {
+		return this.#body.toTxData(networkParams, this.witnesses.redeemers, this.witnesses.datums, this.id());
+	}
+
 	/**
 	 * @returns {Object}
 	 */
@@ -37919,28 +40829,24 @@ export class Tx extends CborData {
 
 	/**
 	 * Throws error if assets of given mph are already being minted in this transaction
-	 * @param {MintingPolicyHash} mph 
-	 * @param {[number[] | string, bigint][]} tokens - list of pairs of [tokenName, quantity], tokenName can be list of bytes or hex-string
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph 
+	 * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens - list of pairs of [tokenName, quantity], tokenName can be list of bytes or hex-string
 	 * @param {UplcDataValue | UplcData | null} redeemer
 	 * @returns {Tx}
 	 */
 	mintTokens(mph, tokens, redeemer) {
+		const mph_ = MintingPolicyHash.fromProps(mph);
+
 		assert(!this.#valid);
 
-		this.#body.addMint(mph, tokens.map(([name, amount]) => {
-			if (typeof name == "string" ) {
-				return [hexToBytes(name), amount];
-			} else {
-				return [name, amount];
-			}
-		}));
+		this.#body.addMint(mph_, tokens);
 
 		if (!redeemer) {
-			if (!this.#witnesses.isNativeScript(mph)) {
+			if (!this.#witnesses.isNativeScript(mph_)) {
 				throw new Error("no redeemer specified for minted tokens (hint: if this policy is a NativeScript, attach that script before calling tx.mintTokens())");
 			}
 		} else {
-			this.#witnesses.addMintingRedeemer(mph, UplcDataValue.unwrap(redeemer));
+			this.#witnesses.addMintingRedeemer(mph_, UplcDataValue.unwrap(redeemer));
 		}
 		
 
@@ -37949,7 +40855,7 @@ export class Tx extends CborData {
 
 	/**
 	 * @param {UTxO} input
-	 * @param {?(UplcDataValue | UplcData | HeliosData)} rawRedeemer
+	 * @param {null | UplcDataValue | UplcData | HeliosData} rawRedeemer
 	 * @returns {Tx}
 	 */
 	addInput(input, rawRedeemer = null) {
@@ -38163,9 +41069,10 @@ export class Tx extends CborData {
 		let scripts = this.#witnesses.scripts;
 
 		/**
-		 * @type {Set<string>}
+		 * @type {Set<hexstring>}
 		 */
 		const currentScripts = new Set();
+
 		scripts.forEach(script => {
 			currentScripts.add(bytesToHex(script.hash()))
 		})
@@ -38183,8 +41090,10 @@ export class Tx extends CborData {
 			wantedScripts.forEach((value, key) => {
 				if (!currentScripts.has(key)) {
 					if (value >= 0) {
+						console.error(JSON.stringify(this.dump(), null, "  "));
 						throw new Error(`missing script for input ${value}`);
 					} else if (value < 0) {
+						console.error(JSON.stringify(this.dump(), null, "  "));
 						throw new Error(`missing script for minting policy ${-value-1}`);
 					}
 				}
@@ -38300,8 +41209,8 @@ export class Tx extends CborData {
 		 * @param {TxInput[]} inputs 
 		 */
 		function addCollateralInputs(inputs) {
-			// first try using the UTxOs that already form the inputs
-			const cleanInputs = inputs.filter(utxo => utxo.value.assets.isZero()).sort((a, b) => Number(a.value.lovelace - b.value.lovelace));
+			// first try using the UTxOs that already form the inputs, but are locked at script
+			const cleanInputs = inputs.filter(utxo => (!utxo.address.validatorHash) && utxo.value.assets.isZero()).sort((a, b) => Number(a.value.lovelace - b.value.lovelace));
 
 			for (let input of cleanInputs) {
 				if (collateral > minCollateral) {
@@ -38398,7 +41307,7 @@ export class Tx extends CborData {
 		let diff = inputValue.sub(nonChangeOutputValue);
 
 		assert(diff.assets.isZero(), "unexpected unbalanced assets");
-		assert(diff.lovelace >= minLovelace);
+		assert(diff.lovelace >= minLovelace, `diff.lovelace=${diff.lovelace} ${typeof diff.lovelace} vs minLovelace=${minLovelace} ${typeof minLovelace}`);
 
 		changeOutput.setValue(diff);
 
@@ -38692,7 +41601,7 @@ class TxBody extends CborData {
 	#lastValidSlot;
 
 	/** @type {DCert[]} */
-	#certs;
+	#dcerts;
 
 	/**
 	 * Withdrawals must be sorted by address
@@ -38739,7 +41648,7 @@ class TxBody extends CborData {
 		this.#outputs = [];
 		this.#fee = 0n;
 		this.#lastValidSlot = null;
-		this.#certs = [];
+		this.#dcerts = [];
 		this.#withdrawals = new Map();
 		this.#firstValidSlot = null;
 		this.#minted = new Assets(); // starts as zero value (i.e. empty map)
@@ -38829,8 +41738,8 @@ class TxBody extends CborData {
 			object.set(3, CborData.encodeInteger(this.#lastValidSlot));
 		}
 
-		if (this.#certs.length != 0) {
-			object.set(4, CborData.encodeDefList(this.#certs));
+		if (this.#dcerts.length != 0) {
+			object.set(4, CborData.encodeDefList(this.#dcerts));
 		}
 
 		if (this.#withdrawals.size != 0) {
@@ -38884,9 +41793,9 @@ class TxBody extends CborData {
 	 * @returns {TxBody}
 	 */
 	static fromCbor(bytes) {
-		let txBody = new TxBody();
+		const txBody = new TxBody();
 
-		let done = CborData.decodeObject(bytes, (i, fieldBytes) => {
+		const done = CborData.decodeObject(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
 					CborData.decodeList(fieldBytes, (_, itemBytes) => {
@@ -38906,7 +41815,7 @@ class TxBody extends CborData {
 					break;
 				case 4:
 					CborData.decodeList(fieldBytes, (_, itemBytes) => {
-						txBody.#certs.push(DCert.fromCbor(itemBytes));
+						txBody.#dcerts.push(DCert.fromCbor(itemBytes));
 					});
 					break;
 				case 5:
@@ -39017,7 +41926,7 @@ class TxBody extends CborData {
 			(new Value(this.#fee))._toUplcData(),
 			// NOTE: all other Value instances in ScriptContext contain some lovelace, but #minted can never contain any lovelace, yet cardano-node always prepends 0 lovelace to the #minted MapData
 			(new Value(0n, this.#minted))._toUplcData(true), 
-			new ListData(this.#certs.map(cert => cert.toData())),
+			new ListData(this.#dcerts.map(cert => cert.toData())),
 			new MapData(Array.from(this.#withdrawals.entries()).map(w => [w[0].toStakingData(), new IntData(w[1])])),
 			this.toValidTimeRangeData(networkParams),
 			new ListData(this.#signers.map(rs => new ByteArrayData(rs.bytes))),
@@ -39111,8 +42020,8 @@ class TxBody extends CborData {
 
 	/**
 	 * Throws error if this.#minted already contains mph
-	 * @param {MintingPolicyHash} mph - minting policy hash
-	 * @param {[number[], bigint][]} tokens
+	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph - minting policy hash
+	 * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens
 	 */
 	addMint(mph, tokens) {
 		this.#minted.addTokens(mph, tokens);
@@ -39276,7 +42185,7 @@ class TxBody extends CborData {
 
 	/**
 	 * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset
-	 * @param {Map<string, number>} set - hashes in hex format
+	 * @param {Map<hexstring, number>} set - hashes in hex format
 	 */
 	collectScriptHashes(set) {
 		for (let i = 0; i < this.#inputs.length; i++) {
@@ -39332,7 +42241,7 @@ class TxBody extends CborData {
 	
 	/**
 	 * @param {NetworkParams} networkParams
-	 * @param {?bigint} minCollateral 
+	 * @param {null | bigint} minCollateral 
 	 */
 	checkCollateral(networkParams, minCollateral) {
 		assert(this.#collateral.length <= networkParams.maxCollateralInputs);
@@ -39459,6 +42368,20 @@ export class TxWitnesses extends CborData {
 		allScripts = allScripts.concat(this.#nativeScripts.slice());
 
 		return allScripts;
+	}
+
+	/**
+	 * @type {Redeemer[]}
+	 */
+	get redeemers() {
+		return this.#redeemers;
+	}
+
+	/**
+	 * @type {ListData}
+	 */
+	get datums() {
+		return this.#datums;
 	}
 
 	/**
@@ -39654,9 +42577,11 @@ export class TxWitnesses extends CborData {
 	attachNativeScript(script) {
 		const h = script.hash();
 
-		assert(this.#nativeScripts.every(other => !eq(h, other.hash())));
-
-		this.#nativeScripts.push(script);
+		if (this.#nativeScripts.some(other => eq(h, other.hash()))) {
+			return;
+		} else {
+			this.#nativeScripts.push(script);
+		}
 	}
 
 	/**
@@ -39667,13 +42592,22 @@ export class TxWitnesses extends CborData {
 	attachPlutusScript(program, isRef = false) {
 		const h = program.hash();
 
-		assert(this.#scripts.every(s => !eq(s.hash(), h)));
-		assert(this.#refScripts.every(s => !eq(s.hash(), h)));
-
 		if (isRef) {
-			this.#refScripts.push(program);
+			assert(this.#scripts.every(s => !eq(s.hash(), h)));
+
+			if (this.#refScripts.some(s => eq(s.hash(), h))) {
+				return;
+			} else {
+				this.#refScripts.push(program);
+			}
 		} else {
-			this.#scripts.push(program);
+			assert(this.#refScripts.every(s => !eq(s.hash(), h)));
+
+			if (this.#scripts.some(s => eq(s.hash(), h))) {
+				return;
+			} else {
+				this.#scripts.push(program);
+			}
 		}
 	}
 
@@ -39945,24 +42879,30 @@ export class TxWitnesses extends CborData {
  * @package
  */
 class TxInput extends CborData {
-	/** @type {TxId} */
+	/** 
+	 * @type {TxId} 
+	 */
 	#txId;
 
-	/** @type {bigint} */
+	/** 
+	 * @type {bigint} 
+	 */
 	#utxoIdx;
 
-	/** @type {?TxOutput} */
+	/** 
+	 * @type {null | TxOutput} 
+	 */
 	#origOutput;
 
 	/**
 	 * @param {TxId} txId 
-	 * @param {bigint} utxoIdx 
-	 * @param {?TxOutput} origOutput - used during building, not part of serialization
+	 * @param {number | bigint} utxoIdx 
+	 * @param {null | TxOutput} origOutput - used during building, not part of serialization
 	 */
 	constructor(txId, utxoIdx, origOutput = null) {
 		super();
 		this.#txId = txId;
-		this.#utxoIdx = utxoIdx;
+		this.#utxoIdx = BigInt(utxoIdx);
 		this.#origOutput = origOutput;
 	}
 	
@@ -39974,10 +42914,19 @@ class TxInput extends CborData {
 	}
 
 	/**
-	 * @type {bigint}
+	 * @type {number}
 	 */
 	get utxoIdx() {
-		return this.#utxoIdx;
+		return Number(this.#utxoIdx);
+	}
+
+	/**
+	 * 
+	 * @param {UTxO | TxInput} other 
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return other.txId.eq(this.txId) && other.utxoIdx == this.utxoIdx;
 	}
 
 	/**
@@ -40040,6 +42989,23 @@ class TxInput extends CborData {
 				this.#origOutput.toData(),
 			]);
 		}
+	}
+
+	/**
+	 * @param {UplcData} data 
+	 * @returns {TxInput}
+	 */
+	static fromUplcData(data) {
+		assert(data.index == 0);
+		const fields = data.fields;
+
+		const outputId = TxOutputId.fromUplcData(fields[0]);
+
+		return new TxInput(
+			outputId.txId,
+			outputId.utxoIdx,
+			TxOutput.fromUplcData(fields[1])
+		);
 	}
 
 	/**
@@ -40120,7 +43086,7 @@ export class UTxO {
 
 	/**
 	 * @param {TxId} txId 
-	 * @param {bigint} utxoIdx 
+	 * @param {number | bigint} utxoIdx 
 	 * @param {TxOutput} origOutput
 	 */
 	constructor(txId, utxoIdx, origOutput) {
@@ -40135,7 +43101,7 @@ export class UTxO {
 	}
 
 	/**
-	 * @type {bigint}
+	 * @type {number}
 	 */
 	get utxoIdx() {
 		return this.#input.utxoIdx;
@@ -40160,6 +43126,15 @@ export class UTxO {
 	 */
 	get origOutput() {
 		return this.#input.origOutput;
+	}
+
+	/**
+	 * 
+	 * @param {UTxO | TxInput} other 
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return other.txId.eq(this.txId) && other.utxoIdx == this.utxoIdx;
 	}
 
 	/**
@@ -40225,7 +43200,7 @@ export class UTxO {
 export class TxRefInput extends TxInput {
 	/**
 	 * @param {TxId} txId 
-	 * @param {bigint} utxoId
+	 * @param {number | bigint} utxoId
 	 * @param {TxOutput} origOutput
 	 */
 	constructor(txId, utxoId, origOutput) {
@@ -40234,23 +43209,31 @@ export class TxRefInput extends TxInput {
 }
 
 export class TxOutput extends CborData {
-	/** @type {Address} */
+	/** 
+	 * @type {Address} 
+	 */
 	#address;
 
-	/** @type {Value} */
+	/** 
+	 * @type {Value} 
+	 */
 	#value;
 
-	/** @type {?Datum} */
+	/** 
+	 * @type {null | Datum} 
+	 */
 	#datum;
 
-	/** @type {?UplcProgram} */
+	/**
+	 * @type {null | UplcProgram} 
+	 */
 	#refScript;
 
 	/**
 	 * @param {Address} address 
 	 * @param {Value} value 
-	 * @param {?Datum} datum 
-	 * @param {?UplcProgram} refScript 
+	 * @param {null | Datum} datum 
+	 * @param {null | UplcProgram} refScript 
 	 */
 	constructor(address, value, datum = null, refScript = null) {
 		assert(datum === null || datum instanceof Datum); // check this explicitely because caller might be using this constructor without proper type-checking
@@ -40364,16 +43347,24 @@ export class TxOutput extends CborData {
 	 * @returns {TxOutput}
 	 */
 	static fromCbor(bytes) {
-		/** @type {?Address} */
+		/** 
+		 * @type {null | Address} 
+		 */
 		let address = null;
 
-		/** @type {?Value} */
+		/** 
+		 * @type {null | Value} 
+		 */
 		let value = null;
 
-		/** @type {?Datum} */
+		/** 
+		 * @type {null | Datum} 
+		 */
 		let outputDatum = null;
 
-		/** @type {?UplcProgram} */
+		/** 
+		 * @type {null | UplcProgram} 
+		 */
 		let refScript = null;
 
 		if (CborData.isObject(bytes)) {
@@ -40471,6 +43462,21 @@ export class TxOutput extends CborData {
 	}
 
 	/**
+	 * @param {UplcData} data 
+	 * @returns {TxOutput}
+	 */
+	static fromUplcData(data) {
+		assert(data.index == 0);
+		assert(data.fields.length == 4);
+
+		return new TxOutput(
+			Address.fromUplcData(data.fields[0]),
+			Value.fromUplcData(data.fields[1]),
+			Datum.fromUplcData(data.fields[2])
+		);
+	}
+
+	/**
 	 * Each UTxO must contain some minimum quantity of lovelace to avoid that the blockchain is used for data storage
 	 * @param {NetworkParams} networkParams
 	 * @returns {bigint}
@@ -40515,6 +43521,14 @@ class DCert extends CborData {
 	 * @returns {DCert}
 	 */
 	static fromCbor(bytes) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @param {UplcData} data 
+	 * @returns {DCert}
+	 */
+	static fromUplcData(data) {
 		throw new Error("not yet implemented");
 	}
 
@@ -41231,10 +44245,10 @@ export class Datum extends CborData {
 	 * @returns {Datum}
 	 */
 	static fromCbor(bytes) {
-		/** @type {?number} */
+		/** @type {null | number} */
 		let type = null;
 
-		/** @type {?Datum} */
+		/** @type {null | Datum} */
 		let res = null;
 
 		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
@@ -41265,6 +44279,25 @@ export class Datum extends CborData {
 			throw new Error("unexpected");
 		} else {
 			return res;
+		}
+	}
+
+	/**
+	 * @param {UplcData} data
+	 * @returns {null | Datum}
+	 */
+	static fromUplcData(data) {
+		if (data.index == 0) {
+			assert(data.fields.length == 0);
+			return null;
+		} else if (data.index == 1) {
+			assert(data.fields.length == 1);
+			return new HashedDatum(DatumHash.fromUplcData(data.fields[0]));
+		} else if (data.index == 2) {
+			assert(data.fields.length == 1);
+			return new InlineDatum(data.fields[0]);
+		} else {
+			throw new Error("unhandled constr index");
 		}
 	}
 
@@ -41652,7 +44685,6 @@ class TxMetadata {
 }
 
 
-
 ////////////////////////////////////
 // Section 34: Highlighting function
 ////////////////////////////////////
@@ -41875,6 +44907,7 @@ export function highlight(src) {
 						case "spending":
 						case "staking":
 						case "minting":
+						case "linking":
 						case "module":
 							if (i0 == 0) {
 								type = SyntaxCategory.Keyword;
@@ -41979,8 +45012,1751 @@ export function highlight(src) {
 }
 
 
+////////////////////////////
+// Section 35: CoinSelection
+////////////////////////////
+
+/**
+ * @typedef {(utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]]} CoinSelectionAlgorithm
+ */
+
+/**
+ * Collection of coin selection algorithms
+ */
+export class CoinSelection {
+    /**
+     * @param {UTxO[]} utxos 
+     * @param {Value} amount 
+     * @param {boolean} largestFirst
+     * @returns {[UTxO[], UTxO[]]} - [picked, not picked that can be used as spares]
+     */
+    static selectExtremumFirst(utxos, amount, largestFirst) {
+        let sum = new Value();
+
+        /** @type {UTxO[]} */
+        let notSelected = utxos.slice();
+
+        /** @type {UTxO[]} */
+        const selected = [];
+
+        /**
+         * Selects smallest utxos until 'needed' is reached
+         * @param {bigint} neededQuantity
+         * @param {(utxo: UTxO) => bigint} getQuantity
+         */
+        function select(neededQuantity, getQuantity) {
+            // first sort notYetPicked in ascending order when picking smallest first,
+            // and in descending order when picking largest first
+            // sort UTxOs that contain more assets last
+            notSelected.sort((a, b) => {
+                const qa = getQuantity(a);
+                const qb = getQuantity(b);
+
+                const sign = largestFirst ? -1 : 1;
+
+                if (qa != 0n && qb == 0n) {
+                    return sign;
+                } else if (qa == 0n && qb != 0n) {
+                    return -sign;
+                } else if (qa == 0n && qb == 0n) {
+                    return 0;
+                } else {
+                    const na = a.value.assets.nTokenTypes;
+                    const nb = b.value.assets.nTokenTypes;
+
+                    if (na == nb) {
+                        return Number(qa - qb)*sign;
+                    } else if (na < nb) {
+                        return sign;
+                    } else {
+                        return -sign
+                    }
+                }
+            });
+
+            let count = 0n;
+            const remaining = [];
+
+            while (count < neededQuantity || count == 0n) { // must select at least one utxo if neededQuantity == 0n
+                const utxo = notSelected.shift();
+
+                if (utxo === undefined) {
+                    throw new Error("not enough utxos to cover amount");
+                } else {
+                    const qty = getQuantity(utxo);
+
+                    if (qty > 0n) {
+                        count += qty;
+                        selected.push(utxo);
+                        sum = sum.add(utxo.value);
+                    } else {
+                        remaining.push(utxo)
+                    }
+                }
+            }
+
+            notSelected = notSelected.concat(remaining);
+        }
+
+        /**
+         * Select UTxOs while looping through (MintingPolicyHash,TokenName) entries
+         */
+        const mphs = amount.assets.mintingPolicies;
+
+        for (const mph of mphs) {
+            const tokenNames = amount.assets.getTokenNames(mph);
+
+            for (const tokenName of tokenNames) {
+                const need = amount.assets.get(mph, tokenName);
+                const have = sum.assets.get(mph, tokenName);
+
+                if (have < need) {
+                    const diff = need - have;
+
+                    select(diff, (utxo) => utxo.value.assets.get(mph, tokenName));
+                }
+            }
+        }
+
+        // now use the same strategy for lovelace
+        const need = amount.lovelace;
+        const have = sum.lovelace;
+
+        if (have < need) {
+            const diff = need - have;
+
+            select(diff, (utxo) => utxo.value.lovelace);
+        }
+
+        assert(selected.length + notSelected.length == utxos.length, "internal error: select algorithm doesn't conserve utxos");
+
+        return [selected, notSelected];
+    }
+
+    /**
+     * @type {CoinSelectionAlgorithm}
+     */
+    static selectSmallestFirst(utxos, amount) {
+        return CoinSelection.selectExtremumFirst(utxos, amount, false);
+    }
+
+    /**
+     * @type {CoinSelectionAlgorithm}
+     */
+    static selectLargestFirst(utxos, amount) {
+        return CoinSelection.selectExtremumFirst(utxos, amount, true);
+    }
+}
+
+
+//////////////////////
+// Section 36: Wallets
+//////////////////////
+
+
+/**
+ * @typedef {{
+ *     isMainnet(): Promise<boolean>,
+ *     usedAddresses: Promise<Address[]>,
+ *     unusedAddresses: Promise<Address[]>,
+ *     utxos: Promise<UTxO[]>,
+ *     signTx(tx: Tx): Promise<Signature[]>,
+ *     submitTx(tx: Tx): Promise<TxId>
+ * }} Wallet
+ */
+
+/**
+ * @typedef {{
+ *     getNetworkId(): Promise<number>,
+ *     getUsedAddresses(): Promise<bech32string[]>,
+ *     getUnusedAddresses(): Promise<bech32string[]>,
+ *     getUtxos(): Promise<hexstring[]>,
+ *     signTx(txHex: hexstring, partialSign: boolean): Promise<hexstring>,
+ *     submitTx(txHex: hexstring): Promise<hexstring>
+ * }} Cip30Handle
+ */
+
+/**
+ * @implements {Wallet}
+ */
+export class Cip30Wallet {
+    #handle;
+
+    /**
+     * @param {Cip30Handle} handle 
+     */
+    constructor(handle) {
+        this.#handle = handle;
+    }
+
+    /**
+     * @returns {Promise<boolean>}
+     */
+    async isMainnet() {
+        return (await this.#handle.getNetworkId()) == 1;
+    }
+
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get usedAddresses() {
+        return this.#handle.getUsedAddresses().then(addresses => addresses.map(a => new Address(a)));
+    }
+
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get unusedAddresses() {
+        return this.#handle.getUnusedAddresses().then(addresses => addresses.map(a => new Address(a)));
+    }
+
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get utxos() {
+        return this.#handle.getUtxos().then(utxos => utxos.map(u => UTxO.fromCbor(hexToBytes(u))));
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<Signature[]>}
+     */
+    async signTx(tx) {
+        const res = await this.#handle.signTx(bytesToHex(tx.toCbor()), true);
+        
+        return TxWitnesses.fromCbor(hexToBytes(res)).signatures;
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        const responseText = await this.#handle.submitTx(bytesToHex(tx.toCbor()));
+
+        return new TxId(responseText);
+    }
+}
+
+export class WalletHelper {
+    #wallet;
+
+    /**
+     * @param {Wallet} wallet 
+     */
+    constructor(wallet) {
+        this.#wallet = wallet;
+    }
+
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get allAddresses() {
+        return this.#wallet.usedAddresses.then(usedAddress => this.#wallet.unusedAddresses.then(unusedAddresses => usedAddress.concat(unusedAddresses)));
+    }
+
+    /**
+     * @returns {Promise<Value>}
+     */
+    async calcBalance() {
+        let sum = new Value();
+
+        const utxos = await this.#wallet.utxos;
+
+        for (const utxo of utxos) {
+            sum = sum.add(utxo.value);
+        }
+
+        return sum;
+    }
+
+    /**
+     * @type {Promise<Address>}
+     */
+    get baseAddress() {
+        return this.allAddresses.then(addresses => assertDefined(addresses[0]));
+    }
+
+    /**
+     * @type {Promise<Address>}
+     */
+    get changeAddress() {
+        return this.#wallet.unusedAddresses.then(addresses => {
+            if (addresses.length == 0) {
+                return this.#wallet.usedAddresses.then(addresses => {
+                    if (addresses.length == 0) {
+                        throw new Error("no addresses found")
+                    } else {
+                        return addresses[addresses.length-1];
+                    }
+                })
+            } else {
+                return addresses[0];
+            }
+        });
+    }
+
+    /**
+     * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
+     * @type {Promise<null | UTxO>}
+     */
+    get refUtxo() {
+        return this.#wallet.utxos.then(utxos => {
+            if(utxos.length == 0) {
+                return null;
+            } else {
+                return assertDefined(utxos[0]);
+            }
+        });
+    }
+
+    /**
+     * @param {Value} amount 
+     * @param {(allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]} algorithm
+     * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
+     */ 
+    async pickUtxos(amount, algorithm = CoinSelection.selectSmallestFirst) {
+        return algorithm(await this.#wallet.utxos, amount);
+    }
+
+    /**
+     * Returned collateral can't contain an native assets (pure lovelace)
+     * TODO: combine UTxOs if a single UTxO isn't enough
+     * @param {bigint} amount - 2 Ada should cover most things
+     * @returns {Promise<UTxO>}
+     */
+    async pickCollateral(amount = 2000000n) {
+        const pureUtxos = (await this.#wallet.utxos).filter(utxo => utxo.value.assets.isZero());
+
+        if (pureUtxos.length == 0) {
+            throw new Error("no pure UTxOs in wallet (needed for collateral)");
+        }
+
+        const bigEnough = pureUtxos.filter(utxo => utxo.value.lovelace >= amount);
+
+        if (bigEnough.length == 0) {
+            throw new Error("no UTxO in wallet that is big enough to cover collateral");
+        }
+
+        bigEnough.sort((a,b) => Number(a.value.lovelace - b.value.lovelace));
+
+        return bigEnough[0];
+    }
+
+    /**
+     * @param {Address} addr
+     * @returns {Promise<boolean>}
+     */
+    async isOwnAddress(addr) {
+        const pkh = addr.pubKeyHash;
+
+        if (pkh === null) {
+            return false;
+        } else {
+            return this.isOwnPubKeyHash(pkh);
+        }
+    }
+
+        /**
+     * @param {PubKeyHash} pkh
+     * @returns {Promise<boolean>}
+     */
+    async isOwnPubKeyHash(pkh) {
+        const addresses = await this.allAddresses;
+
+        for (const addr of addresses) {
+            const aPkh = addr.pubKeyHash;
+
+            if (aPkh !== null && aPkh.eq(pkh)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+
+//////////////////////
+// Section 37: Network
+//////////////////////
+
+
+
+/**
+ * @typedef {{
+ *     getUtxos(address: Address): Promise<UTxO[]>
+ *     getUtxo(id: TxOutputId): Promise<UTxO>
+ *     getParameters(): Promise<NetworkParams>
+ *     submitTx(tx: Tx): Promise<TxId>
+ * }} Network
+ */
+
+/**
+ * @implements {Network}
+ */
+export class BlockfrostV0 {
+    #networkName;
+    #projectId;
+
+    /**
+     * @param {string} networkName - "preview", "preprod" or "mainnet"
+     * @param {string} projectId
+     */
+    constructor(networkName, projectId) {
+        this.#networkName = networkName;
+        this.#projectId = projectId
+    }
+
+    /**
+     * Determine the network which the wallet is connected to.
+     * @param {Wallet} wallet 
+     * @param {{
+     *     preview?: string,
+     *     preprod?: string,
+     *     mainnet?: string
+     * }} projectIds 
+     * @returns {Promise<BlockfrostV0>}
+     */
+    static async resolve(wallet, projectIds) {
+        if (await wallet.isMainnet()) {
+            return new BlockfrostV0("mainnet", assertDefined(projectIds["mainnet"]));
+        } else {
+            const helper = new WalletHelper(wallet);
+
+            const refUtxo = await helper.refUtxo;
+
+            if (refUtxo === null) {
+                throw new Error("empty wallet, can't determine which testnet you are connecting to");
+            } else {
+                const preprodProjectId = projectIds["preprod"];
+                const previewProjectId = projectIds["preview"];
+
+                if (preprodProjectId !== undefined) {
+                    const preprodNetwork = new BlockfrostV0("preprod", preprodProjectId);
+
+                    if (await preprodNetwork.hasUtxo(refUtxo)) {
+                        return preprodNetwork;
+                    }
+                } 
+                
+                if (previewProjectId !== undefined) {
+                    const previewNetwork = new BlockfrostV0("preview", previewProjectId);
+
+                    if (!(await previewNetwork.hasUtxo(refUtxo))) {
+                        throw new Error("not preview network (hint: provide project id for preprod");
+                    } else {
+                        return previewNetwork;
+                    }
+                } else {
+                    if (preprodProjectId === undefined) {
+                        throw new Error("no project ids for testnets");
+                    } else {
+                        throw new Error("no project id for preview testnet");
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @param {any} obj 
+     * @returns 
+     */
+    static parseValue(obj) {
+        let value = new Value();
+
+        for (let item of obj) {
+            let qty = BigInt(item.quantity);
+
+            if (item.unit == "lovelace") {
+                value = value.add(new Value(qty));
+            } else {
+                let policyID = item.unit.substring(0, 56);
+                let mph = MintingPolicyHash.fromHex(policyID);
+
+                let token = hexToBytes(item.unit.substring(56));
+
+                value = value.add(new Value(0n, new Assets([
+                    [mph, [
+                        [token, qty]
+                    ]]
+                ])));
+            }
+        }
+
+        return value;
+    }
+
+    /**
+     * @returns {Promise<NetworkParams>}
+     */
+    async getParameters() {
+        throw new Error("not yet implemented");
+    }
+
+    /**
+     * @param {TxOutputId} id
+     * @returns {Promise<UTxO>}
+     */
+    async getUtxo(id) {
+        throw new Error("not yet implemented");
+    }
+
+    /**
+     * Used by BlockfrostV0.resolve()
+     * @param {UTxO} utxo
+     * @returns {Promise<boolean>}
+     */
+    async hasUtxo(utxo) {
+        const txId = utxo.txId;
+
+        const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/txs/${txId.hex}/utxos`;
+
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "project_id": this.#projectId
+            }
+        });
+
+        return response.ok;
+    }
+
+    /**
+     * Returns oldest UTxOs first, newest last.
+     * TODO: pagination
+     * @param {Address} address 
+     * @returns {Promise<UTxO[]>}
+     */
+    async getUtxos(address) {
+        const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/addresses/${address.toBech32()}/utxos?order=asc`;
+
+        const response = await fetch(url, {
+            headers: {
+                "project_id": this.#projectId
+            }
+        });
+
+        /** 
+         * @type {any} 
+         */
+        let all = await response.json();
+
+        if (all?.status_code >= 300) {
+            all = []; 
+        }
+
+        return all.map(obj => {
+            return new UTxO(
+                TxId.fromHex(obj.tx_hash),
+                BigInt(obj.output_index),
+                new TxOutput(
+                    address,
+                    BlockfrostV0.parseValue(obj.amount),
+                    Datum.inline(ConstrData.fromCbor(hexToBytes(obj.inline_datum)))
+                )
+            );
+        });
+    }
+
+    /** 
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        const data = new Uint8Array(tx.toCbor());
+        const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/tx/submit`;
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "content-type": "application/cbor",
+                "project_id": this.#projectId
+            },
+            body: data
+        }).catch(e => {
+            console.error(e);
+            throw e;
+        });
+
+        const responseText = await response.text();
+
+        if (response.status != 200) {
+            throw new Error(responseText);
+        } else {
+            return new TxId(JSON.parse(responseText));  
+        }
+    }   
+}
+
+
+///////////////////////
+// Section 38: Emulator
+///////////////////////
+export const rawNetworkEmulatorParams = {
+    shelleyGenesis: {
+        activeSlotsCoeff: 0.05,
+        epochLength: 432000,
+        genDelegs: {
+            "637f2e950b0fd8f8e3e811c5fbeb19e411e7a2bf37272b84b29c1a0b": {
+                delegate: "aae9293510344ddd636364c2673e34e03e79e3eefa8dbaa70e326f7d",
+                vrf: "227116365af2ed943f1a8b5e6557bfaa34996f1578eec667a5e2b361c51e4ce7"
+            },
+            "8a4b77c4f534f8b8cc6f269e5ebb7ba77fa63a476e50e05e66d7051c": {
+                delegate: "d15422b2e8b60e500a82a8f4ceaa98b04e55a0171d1125f6c58f8758",
+                vrf: "0ada6c25d62db5e1e35d3df727635afa943b9e8a123ab83785e2281605b09ce2"
+            },
+            "b00470cd193d67aac47c373602fccd4195aad3002c169b5570de1126": {
+                delegate: "b3b539e9e7ed1b32fbf778bf2ebf0a6b9f980eac90ac86623d11881a",
+                vrf:"0ff0ce9b820376e51c03b27877cd08f8ba40318f1a9f85a3db0b60dd03f71a7a"
+            },
+            "b260ffdb6eba541fcf18601923457307647dce807851b9d19da133ab": {
+                delegate: "7c64eb868b4ef566391a321c85323f41d2b95480d7ce56ad2abcb022",
+                vrf: "7fb22abd39d550c9a022ec8104648a26240a9ff9c88b8b89a6e20d393c03098e"
+            },
+            "ced1599fd821a39593e00592e5292bdc1437ae0f7af388ef5257344a": {
+                delegate: "de7ca985023cf892f4de7f5f1d0a7181668884752d9ebb9e96c95059",
+                vrf:"c301b7fc4d1b57fb60841bcec5e3d2db89602e5285801e522fce3790987b1124"
+            },
+            "dd2a7d71a05bed11db61555ba4c658cb1ce06c8024193d064f2a66ae":{
+                delegate:"1e113c218899ee7807f4028071d0e108fc790dade9fd1a0d0b0701ee",
+                vrf:"faf2702aa4893c877c622ab22dfeaf1d0c8aab98b837fe2bf667314f0d043822"
+            },
+            "f3b9e74f7d0f24d2314ea5dfbca94b65b2059d1ff94d97436b82d5b4":{
+                delegate: "fd637b08cc379ef7b99c83b416458fcda8a01a606041779331008fb9",
+                vrf: "37f2ea7c843a688159ddc2c38a2f997ab465150164a9136dca69564714b73268"
+            }
+        },
+        initialFunds: {},
+        maxKESEvolutions: 120,
+        maxLovelaceSupply: 45000000000000000,
+        networkId: "Testnet",
+        networkMagic: 1,
+        protocolParams: {
+            a0:0.1,
+            decentralisationParam:1,
+            eMax:18,
+            extraEntropy:{
+                tag: "NeutralNonce"
+            },
+            keyDeposit:400000,
+            maxBlockBodySize:65536,
+            maxBlockHeaderSize:1100,
+            maxTxSize:16384,
+            minFeeA:44,
+            minFeeB:155381,
+            minPoolCost:0,
+            minUTxOValue:0,
+            nOpt:50,
+            poolDeposit:500000000,
+            protocolVersion:{
+                major:2,
+                minor:0
+            },
+            rho:0.00178650067,
+            tau:0.1
+        },
+        securityParam: 2160,
+        slotLength:1,
+        slotsPerKESPeriod:86400,
+        staking:{
+            pools:{},
+            stake:{}
+        },
+        systemStart:"2022-06-01T00:00:00Z",
+        updateQuorum:5
+    },
+    alonzoGenesis:{
+        lovelacePerUTxOWord:34482,
+        executionPrices:{
+            prSteps:{
+                numerator:721,
+                denominator:10000000
+            },
+            prMem:{
+                numerator:577,
+                denominator:10000
+            }
+        },
+        maxTxExUnits:{
+            exUnitsMem:10000000,
+            exUnitsSteps:10000000000
+        },
+        maxBlockExUnits:{
+            exUnitsMem:50000000,
+            exUnitsSteps:40000000000
+        },
+        maxValueSize:5000,
+        collateralPercentage:150,
+        maxCollateralInputs:3,
+        costModels:{
+            PlutusV1:{
+                "sha2_256-memory-arguments":4,
+                "equalsString-cpu-arguments-constant":1000,
+                "cekDelayCost-exBudgetMemory":100,
+                "lessThanEqualsByteString-cpu-arguments-intercept":103599,
+                "divideInteger-memory-arguments-minimum":1,
+                "appendByteString-cpu-arguments-slope":621,
+                "blake2b-cpu-arguments-slope":29175,
+                "iData-cpu-arguments":150000,
+                "encodeUtf8-cpu-arguments-slope":1000,
+                "unBData-cpu-arguments":150000,
+                "multiplyInteger-cpu-arguments-intercept":61516,
+                "cekConstCost-exBudgetMemory":100,
+                "nullList-cpu-arguments":150000,
+                "equalsString-cpu-arguments-intercept":150000,
+                "trace-cpu-arguments":150000,
+                "mkNilData-memory-arguments":32,
+                "lengthOfByteString-cpu-arguments":150000,
+                "cekBuiltinCost-exBudgetCPU":29773,
+                "bData-cpu-arguments":150000,
+                "subtractInteger-cpu-arguments-slope":0,
+                "unIData-cpu-arguments":150000,
+                "consByteString-memory-arguments-intercept":0,
+                "divideInteger-memory-arguments-slope":1,
+                "divideInteger-cpu-arguments-model-arguments-slope":118,
+                "listData-cpu-arguments":150000,
+                "headList-cpu-arguments":150000,
+                "chooseData-memory-arguments":32,
+                "equalsInteger-cpu-arguments-intercept":136542,
+                "sha3_256-cpu-arguments-slope":82363,
+                "sliceByteString-cpu-arguments-slope":5000,
+                "unMapData-cpu-arguments":150000,
+                "lessThanInteger-cpu-arguments-intercept":179690,
+                "mkCons-cpu-arguments":150000,
+                "appendString-memory-arguments-intercept":0,
+                "modInteger-cpu-arguments-model-arguments-slope":118,
+                "ifThenElse-cpu-arguments":1,
+                "mkNilPairData-cpu-arguments":150000,
+                "lessThanEqualsInteger-cpu-arguments-intercept":145276,
+                "addInteger-memory-arguments-slope":1,
+                "chooseList-memory-arguments":32,"constrData-memory-arguments":32,
+                "decodeUtf8-cpu-arguments-intercept":150000,
+                "equalsData-memory-arguments":1,
+                "subtractInteger-memory-arguments-slope":1,
+                "appendByteString-memory-arguments-intercept":0,
+                "lengthOfByteString-memory-arguments":4,
+                "headList-memory-arguments":32,
+                "listData-memory-arguments":32,
+                "consByteString-cpu-arguments-intercept":150000,
+                "unIData-memory-arguments":32,
+                "remainderInteger-memory-arguments-minimum":1,
+                "bData-memory-arguments":32,
+                "lessThanByteString-cpu-arguments-slope":248,
+                "encodeUtf8-memory-arguments-intercept":0,
+                "cekStartupCost-exBudgetCPU":100,
+                "multiplyInteger-memory-arguments-intercept":0,
+                "unListData-memory-arguments":32,
+                "remainderInteger-cpu-arguments-model-arguments-slope":118,
+                "cekVarCost-exBudgetCPU":29773,
+                "remainderInteger-memory-arguments-slope":1,
+                "cekForceCost-exBudgetCPU":29773,
+                "sha2_256-cpu-arguments-slope":29175,
+                "equalsInteger-memory-arguments":1,
+                "indexByteString-memory-arguments":1,
+                "addInteger-memory-arguments-intercept":1,
+                "chooseUnit-cpu-arguments":150000,
+                "sndPair-cpu-arguments":150000,
+                "cekLamCost-exBudgetCPU":29773,
+                "fstPair-cpu-arguments":150000,
+                "quotientInteger-memory-arguments-minimum":1,
+                "decodeUtf8-cpu-arguments-slope":1000,
+                "lessThanInteger-memory-arguments":1,
+                "lessThanEqualsInteger-cpu-arguments-slope":1366,
+                "fstPair-memory-arguments":32,
+                "modInteger-memory-arguments-intercept":0,
+                "unConstrData-cpu-arguments":150000,
+                "lessThanEqualsInteger-memory-arguments":1,
+                "chooseUnit-memory-arguments":32,
+                "sndPair-memory-arguments":32,
+                "addInteger-cpu-arguments-intercept":197209,
+                "decodeUtf8-memory-arguments-slope":8,
+                "equalsData-cpu-arguments-intercept":150000,
+                "mapData-cpu-arguments":150000,
+                "mkPairData-cpu-arguments":150000,
+                "quotientInteger-cpu-arguments-constant":148000,
+                "consByteString-memory-arguments-slope":1,
+                "cekVarCost-exBudgetMemory":100,
+                "indexByteString-cpu-arguments":150000,
+                "unListData-cpu-arguments":150000,
+                "equalsInteger-cpu-arguments-slope":1326,
+                "cekStartupCost-exBudgetMemory":100,
+                "subtractInteger-cpu-arguments-intercept":197209,
+                "divideInteger-cpu-arguments-model-arguments-intercept":425507,
+				"divideInteger-memory-arguments-intercept":0,
+				"cekForceCost-exBudgetMemory":100,
+				"blake2b-cpu-arguments-intercept":2477736,
+				"remainderInteger-cpu-arguments-constant":148000,
+				"tailList-cpu-arguments":150000,
+				"encodeUtf8-cpu-arguments-intercept":150000,
+				"equalsString-cpu-arguments-slope":1000,
+				"lessThanByteString-memory-arguments":1,
+				"multiplyInteger-cpu-arguments-slope":11218,
+				"appendByteString-cpu-arguments-intercept":396231,
+				"lessThanEqualsByteString-cpu-arguments-slope":248,
+				"modInteger-memory-arguments-slope":1,
+				"addInteger-cpu-arguments-slope":0,
+				"equalsData-cpu-arguments-slope":10000,
+				"decodeUtf8-memory-arguments-intercept":0,
+				"chooseList-cpu-arguments":150000,
+				"constrData-cpu-arguments":150000,
+				"equalsByteString-memory-arguments":1,
+				"cekApplyCost-exBudgetCPU":29773,
+				"quotientInteger-memory-arguments-slope":1,
+				"verifySignature-cpu-arguments-intercept":3345831,
+				"unMapData-memory-arguments":32,
+				"mkCons-memory-arguments":32,
+				"sliceByteString-memory-arguments-slope":1,
+				"sha3_256-memory-arguments":4,
+				"ifThenElse-memory-arguments":1,
+				"mkNilPairData-memory-arguments":32,
+				"equalsByteString-cpu-arguments-slope":247,
+				"appendString-cpu-arguments-intercept":150000,
+				"quotientInteger-cpu-arguments-model-arguments-slope":118,
+				"cekApplyCost-exBudgetMemory":100,
+				"equalsString-memory-arguments":1,
+				"multiplyInteger-memory-arguments-slope":1,
+				"cekBuiltinCost-exBudgetMemory":100,
+				"remainderInteger-memory-arguments-intercept":0,
+				"sha2_256-cpu-arguments-intercept":2477736,
+				"remainderInteger-cpu-arguments-model-arguments-intercept":425507,
+				"lessThanEqualsByteString-memory-arguments":1,
+				"tailList-memory-arguments":32,
+				"mkNilData-cpu-arguments":150000,
+				"chooseData-cpu-arguments":150000,
+				"unBData-memory-arguments":32,
+				"blake2b-memory-arguments":4,
+				"iData-memory-arguments":32,
+				"nullList-memory-arguments":32,
+				"cekDelayCost-exBudgetCPU":29773,
+				"subtractInteger-memory-arguments-intercept":1,
+				"lessThanByteString-cpu-arguments-intercept":103599,
+				"consByteString-cpu-arguments-slope":1000,
+				"appendByteString-memory-arguments-slope":1,
+				"trace-memory-arguments":32,
+				"divideInteger-cpu-arguments-constant":148000,
+				"cekConstCost-exBudgetCPU":29773,
+				"encodeUtf8-memory-arguments-slope":8,
+				"quotientInteger-cpu-arguments-model-arguments-intercept":425507,
+				"mapData-memory-arguments":32,
+				"appendString-cpu-arguments-slope":1000,
+				"modInteger-cpu-arguments-constant":148000,
+				"verifySignature-cpu-arguments-slope":1,
+				"unConstrData-memory-arguments":32,
+				"quotientInteger-memory-arguments-intercept":0,
+				"equalsByteString-cpu-arguments-constant":150000,
+				"sliceByteString-memory-arguments-intercept":0,
+				"mkPairData-memory-arguments":32,
+				"equalsByteString-cpu-arguments-intercept":112536,
+				"appendString-memory-arguments-slope":1,
+				"lessThanInteger-cpu-arguments-slope":497,
+				"modInteger-cpu-arguments-model-arguments-intercept":425507,
+				"modInteger-memory-arguments-minimum":1,
+				"sha3_256-cpu-arguments-intercept":0,
+				"verifySignature-memory-arguments":1,
+				"cekLamCost-exBudgetMemory":100,
+				"sliceByteString-cpu-arguments-intercept":150000
+			}
+		}
+	},
+	latestParams:{
+		collateralPercentage:150,
+		costModels:{
+			PlutusScriptV1:{
+				"addInteger-cpu-arguments-intercept":205665,
+				"addInteger-cpu-arguments-slope":812,
+				"addInteger-memory-arguments-intercept":1,
+				"addInteger-memory-arguments-slope":1,
+				"appendByteString-cpu-arguments-intercept":1000,
+				"appendByteString-cpu-arguments-slope":571,
+				"appendByteString-memory-arguments-intercept":0,
+				"appendByteString-memory-arguments-slope":1,
+				"appendString-cpu-arguments-intercept":1000,
+				"appendString-cpu-arguments-slope":24177,
+				"appendString-memory-arguments-intercept":4,
+				"appendString-memory-arguments-slope":1,
+				"bData-cpu-arguments":1000,
+				"bData-memory-arguments":32,
+				"blake2b_256-cpu-arguments-intercept":117366,
+				"blake2b_256-cpu-arguments-slope":10475,
+				"blake2b_256-memory-arguments":4,
+				"cekApplyCost-exBudgetCPU":23000,
+				"cekApplyCost-exBudgetMemory":100,
+				"cekBuiltinCost-exBudgetCPU":23000,
+				"cekBuiltinCost-exBudgetMemory":100,
+				"cekConstCost-exBudgetCPU":23000,
+				"cekConstCost-exBudgetMemory":100,
+				"cekDelayCost-exBudgetCPU":23000,
+				"cekDelayCost-exBudgetMemory":100,
+				"cekForceCost-exBudgetCPU":23000,
+				"cekForceCost-exBudgetMemory":100,
+				"cekLamCost-exBudgetCPU":23000,
+				"cekLamCost-exBudgetMemory":100,
+				"cekStartupCost-exBudgetCPU":100,
+				"cekStartupCost-exBudgetMemory":100,
+				"cekVarCost-exBudgetCPU":23000,
+				"cekVarCost-exBudgetMemory":100,
+				"chooseData-cpu-arguments":19537,
+				"chooseData-memory-arguments":32,
+				"chooseList-cpu-arguments":175354,
+				"chooseList-memory-arguments":32,
+				"chooseUnit-cpu-arguments":46417,
+				"chooseUnit-memory-arguments":4,
+				"consByteString-cpu-arguments-intercept":221973,
+				"consByteString-cpu-arguments-slope":511,
+				"consByteString-memory-arguments-intercept":0,
+				"consByteString-memory-arguments-slope":1,
+				"constrData-cpu-arguments":89141,
+				"constrData-memory-arguments":32,
+				"decodeUtf8-cpu-arguments-intercept":497525,
+				"decodeUtf8-cpu-arguments-slope":14068,
+				"decodeUtf8-memory-arguments-intercept":4,
+				"decodeUtf8-memory-arguments-slope":2,
+				"divideInteger-cpu-arguments-constant":196500,
+				"divideInteger-cpu-arguments-model-arguments-intercept":453240,
+				"divideInteger-cpu-arguments-model-arguments-slope":220,
+				"divideInteger-memory-arguments-intercept":0,
+				"divideInteger-memory-arguments-minimum":1,
+				"divideInteger-memory-arguments-slope":1,
+				"encodeUtf8-cpu-arguments-intercept":1000,
+				"encodeUtf8-cpu-arguments-slope":28662,
+				"encodeUtf8-memory-arguments-intercept":4,
+				"encodeUtf8-memory-arguments-slope":2,
+				"equalsByteString-cpu-arguments-constant":245000,
+				"equalsByteString-cpu-arguments-intercept":216773,
+				"equalsByteString-cpu-arguments-slope":62,
+				"equalsByteString-memory-arguments":1,
+				"equalsData-cpu-arguments-intercept":1060367,
+				"equalsData-cpu-arguments-slope":12586,
+				"equalsData-memory-arguments":1,
+				"equalsInteger-cpu-arguments-intercept":208512,
+				"equalsInteger-cpu-arguments-slope":421,
+				"equalsInteger-memory-arguments":1,
+				"equalsString-cpu-arguments-constant":187000,
+				"equalsString-cpu-arguments-intercept":1000,
+				"equalsString-cpu-arguments-slope":52998,
+				"equalsString-memory-arguments":1,
+				"fstPair-cpu-arguments":80436,
+				"fstPair-memory-arguments":32,
+				"headList-cpu-arguments":43249,
+				"headList-memory-arguments":32,
+				"iData-cpu-arguments":1000,
+				"iData-memory-arguments":32,
+				"ifThenElse-cpu-arguments":80556,
+				"ifThenElse-memory-arguments":1,
+				"indexByteString-cpu-arguments":57667,
+				"indexByteString-memory-arguments":4,
+				"lengthOfByteString-cpu-arguments":1000,
+				"lengthOfByteString-memory-arguments":10,
+				"lessThanByteString-cpu-arguments-intercept":197145,
+				"lessThanByteString-cpu-arguments-slope":156,
+				"lessThanByteString-memory-arguments":1,
+				"lessThanEqualsByteString-cpu-arguments-intercept":197145,
+				"lessThanEqualsByteString-cpu-arguments-slope":156,
+				"lessThanEqualsByteString-memory-arguments":1,
+				"lessThanEqualsInteger-cpu-arguments-intercept":204924,
+				"lessThanEqualsInteger-cpu-arguments-slope":473,
+				"lessThanEqualsInteger-memory-arguments":1,
+				"lessThanInteger-cpu-arguments-intercept":208896,
+				"lessThanInteger-cpu-arguments-slope":511,
+				"lessThanInteger-memory-arguments":1,
+				"listData-cpu-arguments":52467,
+				"listData-memory-arguments":32,
+				"mapData-cpu-arguments":64832,
+				"mapData-memory-arguments":32,
+				"mkCons-cpu-arguments":65493,
+				"mkCons-memory-arguments":32,
+				"mkNilData-cpu-arguments":22558,
+				"mkNilData-memory-arguments":32,
+				"mkNilPairData-cpu-arguments":16563,
+				"mkNilPairData-memory-arguments":32,
+				"mkPairData-cpu-arguments":76511,
+				"mkPairData-memory-arguments":32,
+				"modInteger-cpu-arguments-constant":196500,
+				"modInteger-cpu-arguments-model-arguments-intercept":453240,
+				"modInteger-cpu-arguments-model-arguments-slope":220,
+				"modInteger-memory-arguments-intercept":0,
+				"modInteger-memory-arguments-minimum":1,
+				"modInteger-memory-arguments-slope":1,
+				"multiplyInteger-cpu-arguments-intercept":69522,
+				"multiplyInteger-cpu-arguments-slope":11687,
+				"multiplyInteger-memory-arguments-intercept":0,
+				"multiplyInteger-memory-arguments-slope":1,
+				"nullList-cpu-arguments":60091,
+				"nullList-memory-arguments":32,
+				"quotientInteger-cpu-arguments-constant":196500,
+				"quotientInteger-cpu-arguments-model-arguments-intercept":453240,
+				"quotientInteger-cpu-arguments-model-arguments-slope":220,
+				"quotientInteger-memory-arguments-intercept":0,
+				"quotientInteger-memory-arguments-minimum":1,
+				"quotientInteger-memory-arguments-slope":1,
+				"remainderInteger-cpu-arguments-constant":196500,
+				"remainderInteger-cpu-arguments-model-arguments-intercept":453240,
+				"remainderInteger-cpu-arguments-model-arguments-slope":220,
+				"remainderInteger-memory-arguments-intercept":0,
+				"remainderInteger-memory-arguments-minimum":1,
+				"remainderInteger-memory-arguments-slope":1,
+				"sha2_256-cpu-arguments-intercept":806990,
+				"sha2_256-cpu-arguments-slope":30482,
+				"sha2_256-memory-arguments":4,
+				"sha3_256-cpu-arguments-intercept":1927926,
+				"sha3_256-cpu-arguments-slope":82523,
+				"sha3_256-memory-arguments":4,
+				"sliceByteString-cpu-arguments-intercept":265318,
+				"sliceByteString-cpu-arguments-slope":0,
+				"sliceByteString-memory-arguments-intercept":4,
+				"sliceByteString-memory-arguments-slope":0,
+				"sndPair-cpu-arguments":85931,
+				"sndPair-memory-arguments":32,
+				"subtractInteger-cpu-arguments-intercept":205665,
+				"subtractInteger-cpu-arguments-slope":812,
+				"subtractInteger-memory-arguments-intercept":1,
+				"subtractInteger-memory-arguments-slope":1,
+				"tailList-cpu-arguments":41182,
+				"tailList-memory-arguments":32,
+				"trace-cpu-arguments":212342,
+				"trace-memory-arguments":32,
+				"unBData-cpu-arguments":31220,
+				"unBData-memory-arguments":32,
+				"unConstrData-cpu-arguments":32696,
+				"unConstrData-memory-arguments":32,
+				"unIData-cpu-arguments":43357,
+				"unIData-memory-arguments":32,
+				"unListData-cpu-arguments":32247,
+				"unListData-memory-arguments":32,
+				"unMapData-cpu-arguments":38314,
+				"unMapData-memory-arguments":32,
+				"verifyEd25519Signature-cpu-arguments-intercept":9462713,
+				"verifyEd25519Signature-cpu-arguments-slope":1021,
+				"verifyEd25519Signature-memory-arguments":10
+			},
+			PlutusScriptV2:{
+				"addInteger-cpu-arguments-intercept":205665,
+				"addInteger-cpu-arguments-slope":812,
+				"addInteger-memory-arguments-intercept":1,
+				"addInteger-memory-arguments-slope":1,
+				"appendByteString-cpu-arguments-intercept":1000,
+				"appendByteString-cpu-arguments-slope":571,
+				"appendByteString-memory-arguments-intercept":0,
+				"appendByteString-memory-arguments-slope":1,
+				"appendString-cpu-arguments-intercept":1000,
+				"appendString-cpu-arguments-slope":24177,
+				"appendString-memory-arguments-intercept":4,
+				"appendString-memory-arguments-slope":1,
+				"bData-cpu-arguments":1000,
+				"bData-memory-arguments":32,
+				"blake2b_256-cpu-arguments-intercept":117366,
+				"blake2b_256-cpu-arguments-slope":10475,
+				"blake2b_256-memory-arguments":4,
+				"cekApplyCost-exBudgetCPU":23000,
+				"cekApplyCost-exBudgetMemory":100,
+				"cekBuiltinCost-exBudgetCPU":23000,
+				"cekBuiltinCost-exBudgetMemory":100,
+				"cekConstCost-exBudgetCPU":23000,
+				"cekConstCost-exBudgetMemory":100,
+				"cekDelayCost-exBudgetCPU":23000,
+				"cekDelayCost-exBudgetMemory":100,
+				"cekForceCost-exBudgetCPU":23000,
+				"cekForceCost-exBudgetMemory":100,
+				"cekLamCost-exBudgetCPU":23000,
+				"cekLamCost-exBudgetMemory":100,
+				"cekStartupCost-exBudgetCPU":100,
+				"cekStartupCost-exBudgetMemory":100,
+				"cekVarCost-exBudgetCPU":23000,
+				"cekVarCost-exBudgetMemory":100,
+				"chooseData-cpu-arguments":19537,
+				"chooseData-memory-arguments":32,
+				"chooseList-cpu-arguments":175354,
+				"chooseList-memory-arguments":32,
+				"chooseUnit-cpu-arguments":46417,
+				"chooseUnit-memory-arguments":4,
+				"consByteString-cpu-arguments-intercept":221973,
+				"consByteString-cpu-arguments-slope":511,
+				"consByteString-memory-arguments-intercept":0,
+				"consByteString-memory-arguments-slope":1,
+				"constrData-cpu-arguments":89141,
+				"constrData-memory-arguments":32,
+				"decodeUtf8-cpu-arguments-intercept":497525,
+				"decodeUtf8-cpu-arguments-slope":14068,
+				"decodeUtf8-memory-arguments-intercept":4,
+				"decodeUtf8-memory-arguments-slope":2,
+				"divideInteger-cpu-arguments-constant":196500,
+				"divideInteger-cpu-arguments-model-arguments-intercept":453240,
+				"divideInteger-cpu-arguments-model-arguments-slope":220,
+				"divideInteger-memory-arguments-intercept":0,
+				"divideInteger-memory-arguments-minimum":1,
+				"divideInteger-memory-arguments-slope":1,
+				"encodeUtf8-cpu-arguments-intercept":1000,
+				"encodeUtf8-cpu-arguments-slope":28662,
+				"encodeUtf8-memory-arguments-intercept":4,
+				"encodeUtf8-memory-arguments-slope":2,
+				"equalsByteString-cpu-arguments-constant":245000,
+				"equalsByteString-cpu-arguments-intercept":216773,
+				"equalsByteString-cpu-arguments-slope":62,
+				"equalsByteString-memory-arguments":1,
+				"equalsData-cpu-arguments-intercept":1060367,
+				"equalsData-cpu-arguments-slope":12586,
+				"equalsData-memory-arguments":1,
+				"equalsInteger-cpu-arguments-intercept":208512,
+				"equalsInteger-cpu-arguments-slope":421,
+				"equalsInteger-memory-arguments":1,
+				"equalsString-cpu-arguments-constant":187000,
+				"equalsString-cpu-arguments-intercept":1000,
+				"equalsString-cpu-arguments-slope":52998,
+				"equalsString-memory-arguments":1,
+				"fstPair-cpu-arguments":80436,
+				"fstPair-memory-arguments":32,
+				"headList-cpu-arguments":43249,
+				"headList-memory-arguments":32,
+				"iData-cpu-arguments":1000,
+				"iData-memory-arguments":32,
+				"ifThenElse-cpu-arguments":80556,
+				"ifThenElse-memory-arguments":1,
+				"indexByteString-cpu-arguments":57667,
+				"indexByteString-memory-arguments":4,
+				"lengthOfByteString-cpu-arguments":1000,
+				"lengthOfByteString-memory-arguments":10,
+				"lessThanByteString-cpu-arguments-intercept":197145,
+				"lessThanByteString-cpu-arguments-slope":156,
+				"lessThanByteString-memory-arguments":1,
+				"lessThanEqualsByteString-cpu-arguments-intercept":197145,
+				"lessThanEqualsByteString-cpu-arguments-slope":156,
+				"lessThanEqualsByteString-memory-arguments":1,
+				"lessThanEqualsInteger-cpu-arguments-intercept":204924,
+				"lessThanEqualsInteger-cpu-arguments-slope":473,
+				"lessThanEqualsInteger-memory-arguments":1,
+				"lessThanInteger-cpu-arguments-intercept":208896,
+				"lessThanInteger-cpu-arguments-slope":511,
+				"lessThanInteger-memory-arguments":1,
+				"listData-cpu-arguments":52467,
+				"listData-memory-arguments":32,
+				"mapData-cpu-arguments":64832,
+				"mapData-memory-arguments":32,
+				"mkCons-cpu-arguments":65493,
+				"mkCons-memory-arguments":32,
+				"mkNilData-cpu-arguments":22558,
+				"mkNilData-memory-arguments":32,
+				"mkNilPairData-cpu-arguments":16563,
+				"mkNilPairData-memory-arguments":32,
+				"mkPairData-cpu-arguments":76511,
+				"mkPairData-memory-arguments":32,
+				"modInteger-cpu-arguments-constant":196500,
+				"modInteger-cpu-arguments-model-arguments-intercept":453240,
+				"modInteger-cpu-arguments-model-arguments-slope":220,
+				"modInteger-memory-arguments-intercept":0,
+				"modInteger-memory-arguments-minimum":1,
+				"modInteger-memory-arguments-slope":1,
+				"multiplyInteger-cpu-arguments-intercept":69522,
+				"multiplyInteger-cpu-arguments-slope":11687,
+				"multiplyInteger-memory-arguments-intercept":0,
+				"multiplyInteger-memory-arguments-slope":1,
+				"nullList-cpu-arguments":60091,
+				"nullList-memory-arguments":32,
+				"quotientInteger-cpu-arguments-constant":196500,
+				"quotientInteger-cpu-arguments-model-arguments-intercept":453240,
+				"quotientInteger-cpu-arguments-model-arguments-slope":220,
+				"quotientInteger-memory-arguments-intercept":0,
+				"quotientInteger-memory-arguments-minimum":1,
+				"quotientInteger-memory-arguments-slope":1,
+				"remainderInteger-cpu-arguments-constant":196500,
+				"remainderInteger-cpu-arguments-model-arguments-intercept":453240,
+				"remainderInteger-cpu-arguments-model-arguments-slope":220,
+				"remainderInteger-memory-arguments-intercept":0,
+				"remainderInteger-memory-arguments-minimum":1,
+				"remainderInteger-memory-arguments-slope":1,
+				"serialiseData-cpu-arguments-intercept":1159724,
+				"serialiseData-cpu-arguments-slope":392670,
+				"serialiseData-memory-arguments-intercept":0,
+				"serialiseData-memory-arguments-slope":2,
+				"sha2_256-cpu-arguments-intercept":806990,
+				"sha2_256-cpu-arguments-slope":30482,
+				"sha2_256-memory-arguments":4,
+				"sha3_256-cpu-arguments-intercept":1927926,
+				"sha3_256-cpu-arguments-slope":82523,
+				"sha3_256-memory-arguments":4,
+				"sliceByteString-cpu-arguments-intercept":265318,
+				"sliceByteString-cpu-arguments-slope":0,
+				"sliceByteString-memory-arguments-intercept":4,
+				"sliceByteString-memory-arguments-slope":0,
+				"sndPair-cpu-arguments":85931,
+				"sndPair-memory-arguments":32,
+				"subtractInteger-cpu-arguments-intercept":205665,
+				"subtractInteger-cpu-arguments-slope":812,
+				"subtractInteger-memory-arguments-intercept":1,
+				"subtractInteger-memory-arguments-slope":1,
+				"tailList-cpu-arguments":41182,
+				"tailList-memory-arguments":32,
+				"trace-cpu-arguments":212342,
+				"trace-memory-arguments":32,
+				"unBData-cpu-arguments":31220,
+				"unBData-memory-arguments":32,
+				"unConstrData-cpu-arguments":32696,
+				"unConstrData-memory-arguments":32,
+				"unIData-cpu-arguments":43357,
+				"unIData-memory-arguments":32,
+				"unListData-cpu-arguments":32247,
+				"unListData-memory-arguments":32,
+				"unMapData-cpu-arguments":38314,
+				"unMapData-memory-arguments":32,
+				"verifyEcdsaSecp256k1Signature-cpu-arguments":20000000000,
+				"verifyEcdsaSecp256k1Signature-memory-arguments":20000000000,
+				"verifyEd25519Signature-cpu-arguments-intercept":9462713,
+				"verifyEd25519Signature-cpu-arguments-slope":1021,
+				"verifyEd25519Signature-memory-arguments":10,
+				"verifySchnorrSecp256k1Signature-cpu-arguments-intercept":20000000000,
+				"verifySchnorrSecp256k1Signature-cpu-arguments-slope":0,
+				"verifySchnorrSecp256k1Signature-memory-arguments":20000000000
+			}
+		},
+		executionUnitPrices:{
+			priceMemory:0.0577,
+			priceSteps:0.0000721
+		},
+		maxBlockBodySize:90112,
+		maxBlockExecutionUnits:{
+			memory:62000000,
+			steps:40000000000
+		},
+		maxBlockHeaderSize:1100,
+		maxCollateralInputs:3,
+		maxTxExecutionUnits:{
+			memory:14000000,
+			steps:10000000000
+		},
+		maxTxSize:16384,
+		maxValueSize:5000,
+		minPoolCost:340000000,
+		monetaryExpansion:0.003,
+		poolPledgeInfluence:0.3,
+		poolRetireMaxEpoch:18,
+		protocolVersion:{
+			major:7,
+			minor:0
+		},
+		stakeAddressDeposit:2000000,
+		stakePoolDeposit:500000000,
+		stakePoolTargetNum:500,
+		treasuryCut:0.2,
+		txFeeFixed:155381,
+		txFeePerByte:44,
+		utxoCostPerByte:4310
+	},
+	latestTip:{
+		epoch:29,
+		hash:"0de380c16222470e4cf4f7cce8af9a7b54d63e5aa4228520df9f2d252a0efcb5",
+		slot:11192926,
+		time:1666876126000
+	}
+};
+
+/**
+ * Single address wallet emulator.
+ * @implements {Wallet}
+ */
+export class WalletEmulator {
+    /**
+     * @type {Network}
+     */
+    #network;
+
+    /**
+     * @type {PrivateKey}
+     */
+    #privateKey;
+
+    /**
+     * @type {PubKey}
+     */
+    #pubKey;
+
+    /** 
+     * @param {Network} network
+     * @param {NumberGenerator} random - used to generate the private key
+     */
+    constructor(network, random) {
+        this.#network = network;
+        this.#privateKey = PrivateKey.random(random);
+        this.#pubKey = this.#privateKey.derivePubKey();
+
+        // TODO: staking credentials
+    }
+
+    /**
+     * @type {PrivateKey}
+     */
+    get privateKey() {
+        return this.#privateKey;
+    }
+
+    /**
+     * @type {PubKey}
+     */
+    get pubKey() {
+        return this.#pubKey;
+    }
+
+    /**
+     * @type {PubKeyHash}
+     */
+    get pubKeyHash() {
+        return this.#pubKey.hash();
+    }
+
+    /**
+     * @type {Address}
+     */
+    get address() {
+        return Address.fromPubKeyHash(this.pubKeyHash);
+    }
+
+    /**
+     * @returns {Promise<boolean>}
+     */
+    async isMainnet() {
+        return false;
+    }
+
+    /**
+     * Assumed wallet was initiated with at least 1 UTxO at the pubkeyhash address.
+     * @type {Promise<Address[]>}
+     */
+    get usedAddresses() {
+        return new Promise((resolve, _) => {
+            resolve([this.address])
+        });
+    }
+
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get unusedAddresses() {
+        return new Promise((resolve, _) => {
+            resolve([])
+        });
+    }
+
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get utxos() {
+        return new Promise((resolve, _) => {
+            resolve(this.#network.getUtxos(this.address));
+        });
+    }
+
+    /**
+     * Simply assumed the tx needs to by signed by this wallet without checking.
+     * @param {Tx} tx
+     * @returns {Promise<Signature[]>}
+     */
+    async signTx(tx) {
+        return [
+            this.#privateKey.sign(tx.bodyHash)
+        ];
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        return await this.#network.submitTx(tx);
+    }
+}
+
+/**
+ * collectUtxos removes tx inputs from the list, and appends txoutputs sent to the address to the end.
+ * @typedef {{
+ *     id(): TxId
+ *     consumes(utxo: UTxO | TxInput): boolean
+ *     collectUtxos(address: Address, utxos: UTxO[]): UTxO[]
+ *     getUtxo(id: TxOutputId): (null | UTxO)
+ *     dump(): void
+ * }} EmulatorTx
+ */
+
+/**
+ * @implements {EmulatorTx}
+ */
+class GenesisTx {
+    #id;
+    #address;
+    #lovelace;
+    #assets;
+
+    /**
+     * @param {number} id
+     * @param {Address} address 
+     * @param {bigint} lovelace
+     * @param {Assets} assets 
+     */
+    constructor(id, address, lovelace, assets) {
+        this.#id = id;
+        this.#address = address;
+        this.#lovelace = lovelace;
+        this.#assets = assets;
+    }
+
+    /**
+     * Simple incremental txId for genesis transactions.
+     * It's very unlikely that regular transactions have the same hash.
+     * @return {TxId}
+     */
+    id() {
+        let bytes = bigIntToBytes(BigInt(this.#id));
+
+        if (bytes.length < 32) {
+            bytes = (new Array(32 - bytes.length)).fill(0).concat(bytes);
+        }
+
+        return new TxId(bytes);
+    }
+
+    /**
+     * @param {UTxO | TxInput} utxo
+     * @returns {boolean}
+     */
+    consumes(utxo) {
+        return false;
+    }
+
+    /**
+     * @param {Address} address
+     * @param {UTxO[]} utxos
+     * @returns {UTxO[]}
+     */
+    collectUtxos(address, utxos) {
+        if (eq(this.#address.bytes, address.bytes)) {
+            utxos = utxos.slice();
+
+            utxos.push(new UTxO(
+                this.id(),
+                0n,
+                new TxOutput(
+                    this.#address,
+                    new Value(this.#lovelace, this.#assets)
+                )
+            ));
+
+            return utxos;
+        } else {
+            return utxos;
+        }
+    }
+
+    /**
+     * @param {TxOutputId} id 
+     * @returns {null | UTxO}
+     */
+    getUtxo(id) {
+        return null;
+    }
+
+    dump() {
+        console.log("GENESIS TX");
+        console.log(`id: ${this.#id.toString()},\naddress: ${this.#address.toBech32()},\nlovelace: ${this.#lovelace.toString()},\nassets: ${JSON.stringify(this.#assets.dump(), undefined, "    ")}`);
+    }
+}
+
+/**
+ * @implements {EmulatorTx}
+ */
+class RegularTx {
+    #tx;
+
+    /**
+     * @param {Tx} tx 
+     */
+    constructor(tx) {
+        this.#tx = tx;
+    }
+
+    /**
+     * @returns {TxId}
+     */
+    id() {
+        return this.#tx.id();
+    }
+
+    /**
+     * @param {UTxO | TxInput} utxo
+     * @returns {boolean}
+     */
+    consumes(utxo) {
+        const txInputs = this.#tx.body.inputs;
+
+        return txInputs.some(txInput => txInput.eq(utxo));
+    }
+
+    /**
+     * @param {Address} address 
+     * @param {UTxO[]} utxos 
+     * @returns {UTxO[]}
+     */
+    collectUtxos(address, utxos) {
+        utxos = utxos.filter(utxo => !this.consumes(utxo));
+
+        const txOutputs = this.#tx.body.outputs;
+
+        txOutputs.forEach((txOutput, utxoId) => {
+            if (eq(txOutput.address.bytes, address.bytes)) {
+                utxos.push(new UTxO(
+                    this.id(),
+                    BigInt(utxoId),
+                    txOutput
+                ));
+            }
+        });
+
+        return utxos;
+    }
+
+    /**
+     * @param {TxOutputId} id 
+     * @returns {null | UTxO}
+     */
+    getUtxo(id) {
+        if (!id.txId.eq(this.id())) {
+            return null;
+        }
+
+        /**
+         * @type {null | UTxO}
+         */
+        let utxo = null;
+
+        this.#tx.body.outputs.forEach((output, i) => {
+            if (i == id.utxoIdx) {
+                utxo = new UTxO(
+                    id.txId,
+                    BigInt(i),
+                    output
+                );
+            }
+        });
+
+        return utxo;
+    }
+
+    dump() {
+        console.log("REGULAR TX");
+        console.log(JSON.stringify(this.#tx.dump(), undefined, "  "));
+    }
+}
+
+/**
+ * @implements {Network}
+ */
+export class NetworkEmulator {
+    /**
+     * @type {bigint}
+     */
+    #slot;
+
+    /**
+     * @type {NumberGenerator}
+     */
+    #random;
+
+    /**
+     * @type {GenesisTx[]}
+     */
+    #genesis;
+
+    /**
+     * @type {EmulatorTx[]}
+     */
+    #mempool;
+
+    /**
+     * @type {EmulatorTx[][]}
+     */
+    #blocks;
+
+    /**
+     * @param {number} seed 
+     */
+    constructor(seed = 0) {
+        this.#slot = 0n;
+        this.#random = Crypto.mulberry32(seed);
+        this.#genesis = [];
+        this.#mempool = [];
+        this.#blocks = [];
+    }
+
+    /**
+     * Create a copy of networkParams that always has access to the current slot
+     *  (for setting the validity range automatically)
+     * @param {NetworkParams} networkParams 
+     * @returns {NetworkParams}
+     */
+    initNetworkParams(networkParams) {
+        const raw = Object.assign({}, networkParams.raw);
+
+        raw.latestTip = {
+            epoch: 0,
+            hash: "",
+            slot: 0,
+            time: (new Date()).getTime()
+        };
+
+        return new NetworkParams(
+            raw,
+            () => {
+                return this.#slot;
+            }
+        );
+    }
+
+    /**
+     * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
+     * @param {bigint} lovelace
+     * @param {Assets} assets
+     * @returns {WalletEmulator}
+     */
+    createWallet(lovelace = 0n, assets = new Assets([])) {
+        const wallet = new WalletEmulator(this, this.#random);
+
+        this.createUtxo(wallet, lovelace, assets);
+
+        return wallet;
+    }
+
+    /**
+     * Creates a UTxO using a GenesisTx.
+     * @param {WalletEmulator} wallet 
+     * @param {bigint} lovelace 
+     * @param {Assets} assets 
+     */
+    createUtxo(wallet, lovelace, assets = new Assets([])) {
+        if (lovelace != 0n || !assets.isZero()) {
+            const tx = new GenesisTx(
+                this.#genesis.length,
+                wallet.address,
+                lovelace,
+                assets
+            );
+
+            this.#genesis.push(tx);
+            this.#mempool.push(tx);
+        }
+    }
+
+    /**
+     * Mint a block with the current mempool, and advance the slot.
+     * @param {bigint} nSlots 
+     */
+    tick(nSlots) {
+        if (this.#mempool.length > 0) {
+            this.#blocks.push(this.#mempool);
+
+            this.#mempool = [];
+        }
+
+        this.#slot += nSlots;
+    }
+
+    /**
+     * @returns {Promise<NetworkParams>}
+     */
+    async getParameters() {
+        return this.initNetworkParams(new NetworkParams(rawNetworkEmulatorParams));
+    }
+
+    warnMempool() {
+        if (this.#mempool.length > 0) {
+            console.error("Warning: mempool not empty (hint: use 'network.tick()')");
+        }
+    }
+
+    /**
+     * Throws an error if the UTxO isn't found
+     * @param {TxOutputId} id 
+     * @returns {Promise<UTxO>}
+     */
+    async getUtxo(id) {
+        this.warnMempool();
+
+        for (let block of this.#blocks) {
+            for (let tx of block) {
+                const utxo = tx.getUtxo(id)
+                if (utxo) {
+                    return utxo;
+                }
+            }
+        }
+
+        throw new Error(`utxo with id ${id.toString()} doesn't exist`);
+    }
+
+    /**
+     * @param {Address} address
+     * @returns {Promise<UTxO[]>}
+     */
+    async getUtxos(address) {
+        this.warnMempool();
+
+        /**
+         * @type {UTxO[]}
+         */
+        let utxos = [];
+
+        for (let block of this.#blocks) {
+            for (let tx of block) {
+                utxos = tx.collectUtxos(address, utxos);
+            }
+        }
+
+        return utxos;
+    }
+
+    dump() {
+        console.log(`${this.#blocks.length} BLOCKS`);
+        this.#blocks.forEach((block, i) => {
+            console.log(`${block.length} TXs in BLOCK ${i}`);
+            for (let tx of block) {
+                tx.dump();
+            }
+        })
+    }
+
+    /**
+     * @param {UTxO | TxInput} utxo
+     * @returns {boolean}
+     */
+    isConsumed(utxo) {
+        return this.#blocks.some(b => {
+            return b.some(tx => {
+                return tx.consumes(utxo)
+            })
+        }) || this.#mempool.some(tx => {
+            return tx.consumes(utxo);
+        })
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        this.warnMempool();
+        
+        assert(tx.isValid(this.#slot), "tx invalid (not finalized or slot out of range)");
+
+        // make sure that none of the inputs have been consumed before
+        assert(tx.body.inputs.every(input => !this.isConsumed(input)), "input already consumed before");
+
+        this.#mempool.push(new RegularTx(tx));
+
+        return tx.id();
+    }
+}
+
+
+
 //////////////////////////////////////
-// Section 35: Fuzzy testing framework
+// Section 39: Fuzzy testing framework
 //////////////////////////////////////
 
 /**
@@ -41996,6 +46772,11 @@ export function highlight(src) {
  */
 export class FuzzyTest {
 	/**
+	 * @type {number}
+	 */
+	#seed;
+
+	/**
 	 * @type {NumberGenerator} - seed generator
 	 */
 	#rand;
@@ -42005,6 +46786,11 @@ export class FuzzyTest {
 	#simplify;
 
 	/**
+	 * @type {NetworkParams}
+	 */
+	#dummyNetworkParams;
+
+	/**
 	 * @param {number} seed
 	 * @param {number} runsPerTest
 	 * @param {boolean} simplify - if true then also test the simplified program
@@ -42012,9 +46798,15 @@ export class FuzzyTest {
 	constructor(seed = 0, runsPerTest = 100, simplify = false) {
 		console.log("starting fuzzy testing  with seed", seed);
 
+		this.#seed = seed;
 		this.#rand = Crypto.rand(seed);
 		this.#runsPerTest = runsPerTest;
 		this.#simplify = simplify;
+		this.#dummyNetworkParams = new NetworkParams(rawNetworkEmulatorParams);
+	}
+
+	reset() {
+		this.#rand = Crypto.rand(this.#seed);
 	}
 
 	/**
@@ -42360,12 +47152,43 @@ export class FuzzyTest {
 
 			let program = Program.new(src).compile(simplify);
 
+			/**
+			 * @type {Cost}
+			 */
+			const totalCost = {
+				mem: 0n,
+				cpu: 0n
+			};
+
+			let nonErrorRuns = 0;
+
 			for (let it = 0; it < nRuns; it++) {
 				let args = argGens.map(gen => new UplcDataValue(Site.dummy(), gen()));
 			
-				let result = await program.run(args);
+				/**
+				 * @type {Cost}
+				 */
+				const cost = {
+					mem: 0n,
+					cpu: 0n
+				};
+
+				let result = await program.run(
+					args, {
+						...DEFAULT_UPLC_RTE_CALLBACKS,
+						onPrint: async (msg) => {return},
+						onIncrCost: (name, isTerm, c) => {cost.mem = cost.mem + c.mem; cost.cpu = cost.cpu + c.cpu}
+					},
+					this.#dummyNetworkParams
+				);
 
 				let obj = propTest(args, result);
+
+				if (result instanceof UplcValue) {
+					totalCost.mem += cost.mem;
+					totalCost.cpu += cost.cpu;
+					nonErrorRuns += 1;
+				}
 
 				if (typeof obj == "boolean") {
 					if (!obj) {
@@ -42381,7 +47204,7 @@ export class FuzzyTest {
 				}
 			}
 
-			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${program.calcSize()} bytes)`);
+			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${program.calcSize()} bytes, ${nonErrorRuns > 0 ? totalCost.mem/BigInt(nonErrorRuns): "N/A"} mem, ${nonErrorRuns > 0 ? totalCost.cpu/BigInt(nonErrorRuns): "N/A"} cpu)`);
 		}
 
 		if (!simplify && this.#simplify) {
@@ -42446,1011 +47269,230 @@ export class FuzzyTest {
 }
 
 
-////////////////////////////
-// Section 36: CoinSelection
-////////////////////////////
+//////////////////////////////////////////
+// Section 40: Bundling specific functions
+//////////////////////////////////////////
 
 /**
- * @typedef {(utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]]} CoinSelectionAlgorithm
+ * @param {TypeSchema} schema
+ * @param {any} obj
+ * @returns {UplcData}
  */
+export function jsToUplc(schema, obj) {
+    if (schema.type == "List" && "itemType" in schema) {
+        if (!Array.isArray(obj)) {
+            throw new Error(`expected Array, got '${JSON.stringify(obj)}'`);
+        }
 
-/**
- * Collection of coin selection algorithms
- */
-export class CoinSelection {
-    /**
-     * @param {UTxO[]} utxos 
-     * @param {Value} amount 
-     * @param {boolean} largestFirst
-     * @returns {[UTxO[], UTxO[]]} - [picked, not picked that can be used as spares]
-     */
-    static selectExtremumFirst(utxos, amount, largestFirst) {
-        let sum = new Value();
+        return new ListData(obj.map(item => jsToUplc(schema.itemType, item)));
+    } else if (schema.type == "Map" && "keyType" in schema && "valueType" in schema) {
+        if (!Array.isArray(obj)) {
+            throw new Error(`expected Array, got '${JSON.stringify(obj)}'`);
+        }
 
-        /** @type {UTxO[]} */
-        let notSelected = utxos.slice();
-
-        /** @type {UTxO[]} */
-        const selected = [];
-
-        /**
-         * Selects smallest utxos until 'needed' is reached
-         * @param {bigint} neededQuantity
-         * @param {(utxo: UTxO) => bigint} getQuantity
-         */
-        function select(neededQuantity, getQuantity) {
-            // first sort notYetPicked in ascending order when picking smallest first,
-            // and in descending order when picking largest first
-            // sort UTxOs that contain more assets last
-            notSelected.sort((a, b) => {
-                const qa = getQuantity(a);
-                const qb = getQuantity(b);
-
-                const sign = largestFirst ? -1 : 1;
-
-                if (qa != 0n && qb == 0n) {
-                    return sign;
-                } else if (qa == 0n && qb != 0n) {
-                    return -sign;
-                } else if (qa == 0n && qb == 0n) {
-                    return 0;
-                } else {
-                    const na = a.value.assets.nTokenTypes;
-                    const nb = b.value.assets.nTokenTypes;
-
-                    if (na == nb) {
-                        return Number(qa - qb)*sign;
-                    } else if (na < nb) {
-                        return sign;
-                    } else {
-                        return -sign
-                    }
-                }
-            });
-
-            let count = 0n;
-            const remaining = [];
-
-            while (count < neededQuantity || count == 0n) { // must select at least one utxo if neededQuantity == 0n
-                const utxo = notSelected.shift();
-
-                if (utxo === undefined) {
-                    throw new Error("not enough utxos to cover amount");
-                } else {
-                    const qty = getQuantity(utxo);
-
-                    if (qty > 0n) {
-                        count += qty;
-                        selected.push(utxo);
-                        sum = sum.add(utxo.value);
-                    } else {
-                        remaining.push(utxo)
-                    }
-                }
+        return new MapData(obj.map(entry => {
+            if (!Array.isArray(entry)) {
+                throw new Error(`expected Array of Arrays, got '${JSON.stringify(obj)}'`);
             }
 
-            notSelected = notSelected.concat(remaining);
-        }
+            const [key, value] = entry;
 
-        /**
-         * Select UTxOs while looping through (MintingPolicyHash,TokenName) entries
-         */
-        const mphs = amount.assets.mintingPolicies;
-
-        for (const mph of mphs) {
-            const tokenNames = amount.assets.getTokenNames(mph);
-
-            for (const tokenName of tokenNames) {
-                const need = amount.assets.get(mph, tokenName);
-                const have = sum.assets.get(mph, tokenName);
-
-                if (have < need) {
-                    const diff = need - have;
-
-                    select(diff, (utxo) => utxo.value.assets.get(mph, tokenName));
-                }
+            if (!key || !value) {
+                throw new Error(`expected Array of Array[2], got '${JSON.stringify(obj)}'`);
             }
-        }
 
-        // now use the same strategy for lovelace
-        const need = amount.lovelace;
-        const have = sum.lovelace;
-
-        if (have < need) {
-            const diff = need - have;
-
-            select(diff, (utxo) => utxo.value.lovelace);
-        }
-
-        assert(selected.length + notSelected.length == utxos.length, "internal error: select algorithm doesn't conserve utxos");
-
-        return [selected, notSelected];
-    }
-
-    /**
-     * @type {CoinSelectionAlgorithm}
-     */
-    static selectSmallestFirst(utxos, amount) {
-        return CoinSelection.selectExtremumFirst(utxos, amount, false);
-    }
-
-    /**
-     * @type {CoinSelectionAlgorithm}
-     */
-    static selectLargestFirst(utxos, amount) {
-        return CoinSelection.selectExtremumFirst(utxos, amount, true);
-    }
-}
-
-
-//////////////////////
-// Section 37: Wallets
-//////////////////////
-
-
-/**
- * @typedef {{
- *     isMainnet(): Promise<boolean>,
- *     usedAddresses: Promise<Address[]>,
- *     unusedAddresses: Promise<Address[]>,
- *     utxos: Promise<UTxO[]>,
- *     signTx(tx: Tx): Promise<Signature[]>,
- *     submitTx(tx: Tx): Promise<TxId>
- * }} Wallet
- */
-
-/**
- * @typedef {{
- *     getNetworkId(): Promise<number>,
- *     getUsedAddresses(): Promise<string[]>,
- *     getUnusedAddresses(): Promise<string[]>,
- *     getUtxos(): Promise<string[]>,
- *     signTx(txHex: string, partialSign: boolean): Promise<string>,
- *     submitTx(txHex: string): Promise<string>
- * }} Cip30Handle
- */
-
-/**
- * @implements {Wallet}
- */
-export class Cip30Wallet {
-    #handle;
-
-    /**
-     * @param {Cip30Handle} handle 
-     */
-    constructor(handle) {
-        this.#handle = handle;
-    }
-
-    /**
-     * @returns {Promise<boolean>}
-     */
-    async isMainnet() {
-        return (await this.#handle.getNetworkId()) == 1;
-    }
-
-    /**
-     * @type {Promise<Address[]>}
-     */
-    get usedAddresses() {
-        return this.#handle.getUsedAddresses().then(addresses => addresses.map(a => new Address(a)));
-    }
-
-    /**
-     * @type {Promise<Address[]>}
-     */
-    get unusedAddresses() {
-        return this.#handle.getUnusedAddresses().then(addresses => addresses.map(a => new Address(a)));
-    }
-
-    /**
-     * @type {Promise<UTxO[]>}
-     */
-    get utxos() {
-        return this.#handle.getUtxos().then(utxos => utxos.map(u => UTxO.fromCbor(hexToBytes(u))));
-    }
-
-    /**
-     * @param {Tx} tx 
-     * @returns {Promise<Signature[]>}
-     */
-    async signTx(tx) {
-        const res = await this.#handle.signTx(bytesToHex(tx.toCbor()), true);
-        
-        return TxWitnesses.fromCbor(hexToBytes(res)).signatures;
-    }
-
-    /**
-     * @param {Tx} tx 
-     * @returns {Promise<TxId>}
-     */
-    async submitTx(tx) {
-        const responseText = await this.#handle.submitTx(bytesToHex(tx.toCbor()));
-
-        return new TxId(responseText);
-    }
-}
-
-export class WalletHelper {
-    #wallet;
-
-    /**
-     * @param {Wallet} wallet 
-     */
-    constructor(wallet) {
-        this.#wallet = wallet;
-    }
-
-    /**
-     * @type {Promise<Address[]>}
-     */
-    get allAddresses() {
-        return this.#wallet.usedAddresses.then(usedAddress => this.#wallet.unusedAddresses.then(unusedAddresses => usedAddress.concat(unusedAddresses)));
-    }
-
-    /**
-     * @returns {Promise<Value>}
-     */
-    async calcBalance() {
-        let sum = new Value();
-
-        const utxos = await this.#wallet.utxos;
-
-        for (const utxo of utxos) {
-            sum = sum.add(utxo.value);
-        }
-
-        return sum;
-    }
-
-    /**
-     * @type {Promise<Address>}
-     */
-    get baseAddress() {
-        return this.allAddresses.then(addresses => assertDefined(addresses[0]));
-    }
-
-    /**
-     * @type {Promise<Address>}
-     */
-    get changeAddress() {
-        return this.#wallet.unusedAddresses.then(addresses => {
-            if (addresses.length == 0) {
-                return this.#wallet.usedAddresses.then(addresses => {
-                    if (addresses.length == 0) {
-                        throw new Error("no addresses found")
-                    } else {
-                        return addresses[addresses.length-1];
-                    }
-                })
-            } else {
-                return addresses[0];
-            }
-        });
-    }
-
-    /**
-     * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
-     * @type {Promise<?UTxO>}
-     */
-    get refUtxo() {
-        return this.#wallet.utxos.then(utxos => {
-            if(utxos.length == 0) {
-                return null;
-            } else {
-                return assertDefined(utxos[0])
-            }
-        });
-    }
-
-    /**
-     * @param {Value} amount 
-     * @param {(allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]} algorithm
-     * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
-     */ 
-    async pickUtxos(amount, algorithm = CoinSelection.selectSmallestFirst) {
-        return algorithm(await this.#wallet.utxos, amount);
-    }
-
-    /**
-     * Returned collateral can't contain an native assets (pure lovelace)
-     * TODO: combine UTxOs if a single UTxO isn't enough
-     * @param {bigint} amount - 2 Ada should cover most things
-     * @returns {Promise<UTxO>}
-     */
-    async pickCollateral(amount = 2000000n) {
-        const pureUtxos = (await this.#wallet.utxos).filter(utxo => utxo.value.assets.isZero());
-
-        if (pureUtxos.length == 0) {
-            throw new Error("no pure UTxOs in wallet (needed for collateral)");
-        }
-
-        const bigEnough = pureUtxos.filter(utxo => utxo.value.lovelace >= amount);
-
-        if (bigEnough.length == 0) {
-            throw new Error("no UTxO in wallet that is big enough to cover collateral");
-        }
-
-        bigEnough.sort((a,b) => Number(a.value.lovelace - b.value.lovelace));
-
-        return bigEnough[0];
-    }
-
-    /**
-     * @param {Address} addr
-     * @returns {Promise<boolean>}
-     */
-    async isOwnAddress(addr) {
-        const pkh = addr.pubKeyHash;
-
-        if (pkh === null) {
-            return false;
+            return [
+                jsToUplc(schema.keyType, key),
+                jsToUplc(schema.valueType, value)
+            ];
+        }));
+    } else if (schema.type == "Option" && "someType" in schema) {
+        if (obj === null) {
+            return new ConstrData(1, []);
         } else {
-            return this.isOwnPubKeyHash(pkh);
+            return new ConstrData(0, [jsToUplc(schema.someType, obj)]);
         }
-    }
+    } else if (schema.type == "Struct" && "fieldTypes" in schema) {
+        const fields = schema.fieldTypes.map((fieldSchema) => {
+            const fieldName = fieldSchema.name;
+            const fieldObj = obj[fieldName];
 
-        /**
-     * @param {PubKeyHash} pkh
-     * @returns {Promise<boolean>}
-     */
-    async isOwnPubKeyHash(pkh) {
-        const addresses = await this.allAddresses;
-
-        for (const addr of addresses) {
-            const aPkh = addr.pubKeyHash;
-
-            if (aPkh !== null && aPkh.eq(pkh)) {
-                return true;
+            if (fieldObj === undefined) {
+                throw new Error(`field ${fieldName} not found in ${JSON.stringify(obj)}`);
             }
-        }
 
-        return false;
-    }
-}
+            return jsToUplc(fieldSchema, fieldObj);
+        });
 
-
-//////////////////////
-// Section 38: Network
-//////////////////////
-
-/**
- * @typedef {{
- *     getUtxos(address: Address): Promise<UTxO[]>,
- *     submitTx(tx: Tx): Promise<TxId>
- * }} Network
- */
-
-/**
- * @implements {Network}
- */
-export class BlockfrostV0 {
-    #networkName;
-    #projectId;
-
-    /**
-     * @param {string} networkName - "preview", "preprod" or "mainnet"
-     * @param {string} projectId
-     */
-    constructor(networkName, projectId) {
-        this.#networkName = networkName;
-        this.#projectId = projectId
-    }
-
-    /**
-     * Determine the network which the wallet is connected to.
-     * @param {Wallet} wallet 
-     * @param {{
-     *     preview?: string,
-     *     preprod?: string,
-     *     mainnet?: string
-     * }} projectIds 
-     * @returns {Promise<BlockfrostV0>}
-     */
-    static async resolve(wallet, projectIds) {
-        if (await wallet.isMainnet()) {
-            return new BlockfrostV0("mainnet", assertDefined(projectIds["mainnet"]));
+        if (fields.length == 1) {
+            return fields[0];
         } else {
-            const helper = new WalletHelper(wallet);
-
-            const refUtxo = await helper.refUtxo;
-
-            if (refUtxo === null) {
-                throw new Error("empty wallet, can't determine which testnet you are connecting to");
-            } else {
-                const preprodProjectId = projectIds["preprod"];
-                const previewProjectId = projectIds["preview"];
-
-                if (preprodProjectId !== undefined) {
-                    const preprodNetwork = new BlockfrostV0("preprod", preprodProjectId);
-
-                    if (await preprodNetwork.hasUtxo(refUtxo)) {
-                        return preprodNetwork;
-                    }
-                } 
-                
-                if (previewProjectId !== undefined) {
-                    const previewNetwork = new BlockfrostV0("preview", previewProjectId);
-
-                    if (!(await previewNetwork.hasUtxo(refUtxo))) {
-                        throw new Error("not preview network (hint: provide project id for preprod");
-                    } else {
-                        return previewNetwork;
-                    }
-                } else {
-                    if (preprodProjectId === undefined) {
-                        throw new Error("no project ids for testnets");
-                    } else {
-                        throw new Error("no project id for preview testnet");
-                    }
-                }
-            }
+            return new ListData(fields);
         }
-    }
+    } else if (schema.type == "Enum" && "variantTypes" in schema) {
+        const keys = Object.keys(obj);
 
-    /**
-     * @param {any} obj 
-     * @returns 
-     */
-    static parseValue(obj) {
-        let value = new Value();
-
-        for (let item of obj) {
-            let qty = BigInt(item.quantity);
-
-            if (item.unit == "lovelace") {
-                value = value.add(new Value(qty));
-            } else {
-                let policyID = item.unit.substring(0, 56);
-                let mph = MintingPolicyHash.fromHex(policyID);
-
-                let token = hexToBytes(item.unit.substring(56));
-
-                value = value.add(new Value(0n, new Assets([
-                    [mph, [
-                        [token, qty]
-                    ]]
-                ])));
-            }
+        if (keys.length != 1) {
+            throw new Error("expected a single key for enum");
         }
 
-        return value;
-    }
+        const key = keys[0];
 
-    /**
-     * Used by BlockfrostV0.resolve()
-     * @param {UTxO} utxo
-     * @returns {Promise<boolean>}
-     */
-    async hasUtxo(utxo) {
-        const txId = utxo.txId;
+        const index = schema.variantTypes.findIndex(variant => variant.name == key);
 
-        const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/txs/${txId.hex}/utxos`;
-
-        const response = await fetch(url, {
-            method: "GET",
-            headers: {
-                "project_id": this.#projectId
-            }
-        });
-
-        return response.ok;
-    }
-
-    /**
-     * Returns oldest UTxOs first, newest last.
-     * TODO: pagination
-     * @param {Address} address 
-     * @returns {Promise<UTxO[]>}
-     */
-    async getUtxos(address) {
-        const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/addresses/${address.toBech32()}/utxos?order=asc`;
-
-        const response = await fetch(url, {
-            headers: {
-                "project_id": this.#projectId
-            }
-        });
-
-        /** 
-         * @type {any} 
-         */
-        let all = await response.json();
-
-        if (all?.status_code >= 300) {
-            all = []; 
+        if (index == -1) {
+            throw new Error(`invalid variant ${key}`);
         }
 
-        return all.map(obj => {
-            return new UTxO(
-                TxId.fromHex(obj.tx_hash),
-                BigInt(obj.output_index),
-                new TxOutput(
-                    address,
-                    BlockfrostV0.parseValue(obj.amount),
-                    Datum.inline(ConstrData.fromCbor(hexToBytes(obj.inline_datum)))
-                )
-            );
-        });
-    }  
+        const fields = schema.variantTypes[index].fieldTypes.map((fieldSchema) => {
+            const fieldName = fieldSchema.name;
+            const fieldObj = obj[key][fieldName];
 
-    /** 
-     * @param {Tx} tx 
-     * @returns {Promise<TxId>}
-     */
-    async submitTx(tx) {
-        const data = new Uint8Array(tx.toCbor());
-        const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/tx/submit`;
+            if (fieldObj === undefined) {
+                throw new Error(`field ${fieldName} not found in ${JSON.stringify(obj[key])}`);
+            }
 
-        const response = await fetch(url, {
-            method: "POST",
-            headers: {
-                "content-type": "application/cbor",
-                "project_id": this.#projectId
-            },
-            body: data
-        }).catch(e => {
-            console.error(e);
-            throw e;
+            return jsToUplc(fieldSchema, fieldObj);
         });
 
-        const responseText = await response.text();
+        return new ConstrData(index, fields);
+    } else {
+        const builtinType = builtinTypes[schema.type];
 
-        if (response.status != 200) {
-            throw new Error(responseText);
+        if (!builtinType) {
+            throw new Error(`${schema.type} isn't a valid builtin type`);
+        }
+
+        return builtinType.jsToUplc(obj);
+    }
+}
+
+/**
+ * @param {TypeSchema} schema
+ * @param {UplcData} data
+ * @returns {any}
+ */
+export function uplcToJs(schema, data) {
+    if (schema.type == "List" && "itemType" in schema) {
+        return data.list.map(item => uplcToJs(schema.itemType, item));
+    } else if (schema.type == "Map" && "keyType" in schema && "valueType" in schema) {
+        return data.map.map(([key, value]) => [uplcToJs(schema.keyType, key), uplcToJs(schema.valueType, value)]);
+    } else if (schema.type == "Option" && "someType" in schema) {
+        if (data.index == 1) {
+            assert(data.fields.length == 0, "not an Option ConstrData");
+            return null;
+        } else if (data.index == 0) {
+            assert(data.fields.length == 1, "not an Option ConstrData");
+            return uplcToJs(schema.someType, data.fields[0]);
         } else {
-            return new TxId(JSON.parse(responseText));  
+            throw new Error("not an Option ConstrData");
         }
-    }   
-}
+    } else if (schema.type == "Struct" && "fieldTypes" in schema) {
+        const obj = {};
 
+        const fields = schema.fieldTypes.length == 1 ? [data] : data.list;
 
-///////////////////////
-// Section 39: Emulator
-///////////////////////
-/**
- * Single address wallet emulator.
- * @implements {Wallet}
- */
-export class WalletEmulator {
-    /**
-     * @type {Network}
-     */
-    #network;
+        fields.forEach((field, i) => {
+            const fieldType = schema.fieldTypes[i];
 
-    /**
-     * @type {PrivateKey}
-     */
-    #privateKey;
-
-    /**
-     * @type {PubKey}
-     */
-    #pubKey;
-
-    /** 
-     * @param {Network} network
-     * @param {NumberGenerator} random - used to generate the private key
-     */
-    constructor(network, random) {
-        this.#network = network;
-        this.#privateKey = PrivateKey.random(random);
-        this.#pubKey = this.#privateKey.derivePubKey();
-
-        // TODO: staking credentials
-    }
-
-    /**
-     * @type {PrivateKey}
-     */
-    get privateKey() {
-        return this.#privateKey;
-    }
-
-    /**
-     * @type {PubKey}
-     */
-    get pubKey() {
-        return this.#pubKey;
-    }
-
-    /**
-     * @type {PubKeyHash}
-     */
-    get pubKeyHash() {
-        return this.#pubKey.hash();
-    }
-
-    /**
-     * @type {Address}
-     */
-    get address() {
-        return Address.fromPubKeyHash(this.pubKeyHash);
-    }
-
-    /**
-     * @returns {Promise<boolean>}
-     */
-    async isMainnet() {
-        return false;
-    }
-
-    /**
-     * Assumed wallet was initiated with at least 1 UTxO at the pubkeyhash address.
-     * @type {Promise<Address[]>}
-     */
-    get usedAddresses() {
-        return new Promise((resolve, _) => {
-            resolve([this.address])
-        });
-    }
-
-    /**
-     * @type {Promise<Address[]>}
-     */
-    get unusedAddresses() {
-        return new Promise((resolve, _) => {
-            resolve([])
-        });
-    }
-
-    /**
-     * @type {Promise<UTxO[]>}
-     */
-    get utxos() {
-        return new Promise((resolve, _) => {
-            resolve(this.#network.getUtxos(this.address));
-        });
-    }
-
-    /**
-     * Simply assumed the tx needs to by signed by this wallet without checking.
-     * @param {Tx} tx
-     * @returns {Promise<Signature[]>}
-     */
-    async signTx(tx) {
-        return [
-            this.#privateKey.sign(tx.bodyHash)
-        ];
-    }
-
-    /**
-     * @param {Tx} tx 
-     * @returns {Promise<TxId>}
-     */
-    async submitTx(tx) {
-        return await this.#network.submitTx(tx);
-    }
-}
-
-/**
- * collectUtxos removes tx inputs from the list, and appends txoutputs sent to the address to the end.
- * @typedef {{
- *     id(): TxId,
- *     consumes(txId: TxId, utxoIdx: bigint): boolean,
- *     collectUtxos(address: Address, utxos: UTxO[]): UTxO[]
- * }} EmulatorTx
- */
-
-/**
- * @implements {EmulatorTx}
- */
-class GenesisTx {
-    #id;
-    #address;
-    #lovelace;
-    #assets;
-
-    /**
-     * @param {number} id
-     * @param {Address} address 
-     * @param {bigint} lovelace
-     * @param {Assets} assets 
-     */
-    constructor(id, address, lovelace, assets) {
-        this.#id = id;
-        this.#address = address;
-        this.#lovelace = lovelace;
-        this.#assets = assets;
-    }
-
-    /**
-     * Simple incremental txId for genesis transactions.
-     * It's very unlikely that regular transactions have the same hash.
-     * @return {TxId}
-     */
-    id() {
-        let bytes = bigIntToBytes(BigInt(this.#id));
-
-        if (bytes.length < 32) {
-            bytes = (new Array(32 - bytes.length)).fill(0).concat(bytes);
-        }
-
-        return new TxId(bytes);
-    }
-
-    /**
-     * @param {TxId} txId 
-     * @param {bigint} utxoIdx 
-     * @returns 
-     */
-    consumes(txId, utxoIdx) {
-        return false;
-    }
-
-    /**
-     * @param {Address} address
-     * @param {UTxO[]} utxos
-     * @returns {UTxO[]}
-     */
-    collectUtxos(address, utxos) {
-        if (eq(this.#address.bytes, address.bytes)) {
-            utxos = utxos.slice();
-
-            utxos.push(new UTxO(
-                this.id(),
-                0n,
-                new TxOutput(
-                    this.#address,
-                    new Value(this.#lovelace, this.#assets)
-                )
-            ));
-
-            return utxos;
-        } else {
-            return utxos;
-        }
-    }
-}
-
-/**
- * @implements {EmulatorTx}
- */
-class RegularTx {
-    #tx;
-
-    /**
-     * @param {Tx} tx 
-     */
-    constructor(tx) {
-        this.#tx = tx;
-    }
-
-    /**
-     * @returns {TxId}
-     */
-    id() {
-        return this.#tx.id();
-    }
-
-    /**
-     * @param {TxId} txId
-     * @param {bigint} utxoIdx
-     * @returns {boolean}
-     */
-    consumes(txId, utxoIdx) {
-        const txInputs = this.#tx.body.inputs;
-
-        return txInputs.some(txInput => {
-            return txInput.txId.hex == txId.hex && txInput.utxoIdx == utxoIdx;
-        });
-    }
-
-    /**
-     * @param {Address} address 
-     * @param {UTxO[]} utxos 
-     * @returns {UTxO[]}
-     */
-    collectUtxos(address, utxos) {
-        utxos = utxos.filter(utxo => !this.consumes(utxo.txId, utxo.utxoIdx));
-
-        const txOutputs = this.#tx.body.outputs;
-
-        txOutputs.forEach((txOutput, utxoId) => {
-            if (eq(txOutput.address.bytes, address.bytes)) {
-                utxos.push(new UTxO(
-                    this.id(),
-                    BigInt(utxoId),
-                    txOutput
-                ));
+            if (!fieldType) {
+                throw new Error("field out-of-range");
             }
+
+            obj[fieldType.name] = uplcToJs(fieldType, field);
         });
 
-        return utxos;
+        return obj;
+    } else if (schema.type == "Enum" && "variantTypes" in schema) {
+        const index = data.index;
+
+        const variant = schema.variantTypes[index];
+
+        if (!variant) {
+            throw new Error("constr index out-of-range");
+        }
+
+        const obj = {};
+
+        const fields = data.list;
+
+        fields.forEach((field, i) => {
+            const fieldType = variant.fieldTypes[i];
+
+            if (!fieldType) {
+                throw new Error("field out-of-range");
+            }
+
+            obj[fieldType.name] = field;
+        });
+
+        return {[variant.name]: obj};
+    } else {
+        const builtinType = builtinTypes[schema.type];
+
+        if (!builtinType) {
+            throw new Error(`${schema.type} isn't a valid builtin type`);
+        }
+
+        return builtinType.uplcToJs(data);
     }
 }
 
-/**
- * @implements {Network}
- */
-export class NetworkEmulator {
-    /**
-     * @type {bigint}
-     */
-    #slot;
-
-    /**
-     * @type {NumberGenerator}
-     */
-    #random;
-
-    /**
-     * @type {GenesisTx[]}
-     */
-    #genesis;
-
-    /**
-     * @type {EmulatorTx[]}
-     */
-    #mempool;
-
-    /**
-     * @type {EmulatorTx[][]}
-     */
-    #blocks;
-
-    /**
-     * @param {number} seed 
-     */
-    constructor(seed = 0) {
-        this.#slot = 0n;
-        this.#random = Crypto.mulberry32(seed);
-        this.#genesis = [];
-        this.#mempool = [];
-        this.#blocks = [];
-    }
-
-    /**
-     * Create a copy of networkParams that always has access to the current slot
-     *  (for setting the validity range automatically)
-     * @param {NetworkParams} networkParams 
-     * @returns {NetworkParams}
-     */
-    initNetworkParams(networkParams) {
-        return new NetworkParams(
-            networkParams.raw,
-            () => {
-                return this.#slot;
-            }
-        );
-    }
-
-    /**
-     * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
-     * @param {bigint} lovelace
-     * @param {Assets} assets
-     * @returns {WalletEmulator}
-     */
-    createWallet(lovelace = 0n, assets = new Assets([])) {
-        const wallet = new WalletEmulator(this, this.#random);
-
-        this.createUtxo(wallet, lovelace, assets);
-
-        return wallet;
-    }
-
-    /**
-     * Creates a UTxO using a GenesisTx.
-     * @param {WalletEmulator} wallet 
-     * @param {bigint} lovelace 
-     * @param {Assets} assets 
-     */
-    createUtxo(wallet, lovelace, assets = new Assets([])) {
-        if (lovelace != 0n || !assets.isZero()) {
-            const tx = new GenesisTx(
-                this.#genesis.length,
-                wallet.address,
-                lovelace,
-                assets
-            );
-
-            this.#genesis.push(tx);
-            this.#mempool.push(tx);
-        }
-    }
-
-    /**
-     * Mint a block with the current mempool, and advance the slot.
-     * @param {bigint} nSlots 
-     */
-    tick(nSlots) {
-        if (this.#mempool.length > 0) {
-            this.#blocks.push(this.#mempool);
-
-            this.#mempool = [];
-        }
-
-        this.#slot += nSlots;
-    }
-
-    /**
-     * @param {Address} address
-     * @returns {Promise<UTxO[]>}
-     */
-    async getUtxos(address) {
-        /**
-         * @type {UTxO[]}
-         */
-        let utxos = [];
-
-        for (let block of this.#blocks) {
-            for (let tx of block) {
-                utxos = tx.collectUtxos(address, utxos);
-            }
-        }
-
-        return utxos;
-    }
-
-    /**
-     * @param {TxId} txId 
-     * @param {bigint} utxoIdx 
-     * @returns {boolean}
-     */
-    isConsumed(txId, utxoIdx) {
-        return this.#blocks.some(b => {
-            return b.some(tx => {
-                return tx.consumes(txId, utxoIdx)
-            })
-        }) || this.#mempool.some(tx => {
-            return tx.consumes(txId, utxoIdx);
-        })
-    }
-
-    /**
-     * @param {Tx} tx 
-     * @returns {Promise<TxId>}
-     */
-    async submitTx(tx) {
-        assert(tx.isValid(this.#slot), "tx invalid (not finalized or slot out of range)");
-
-        // make sure that none of the inputs have been consumed before
-        assert(tx.body.inputs.every(input => !this.isConsumed(input.txId, input.utxoIdx)), "input already consumed before");
-
-        this.#mempool.push(new RegularTx(tx));
-
-        return tx.id();
-    }
-}
+export const exportedForBundling = {
+    AddressType,
+    AllType,
+    ArgType,
+    ByteArrayType,
+    FuncType,
+    IntType,
+    IR,
+    IRProgram,
+    IRParametricProgram,
+    MintingPolicyHashType,
+    RealType,
+    Site,
+    StringType,
+    TxType,
+    ValidatorHashType,
+    Word
+};
 
 /**
- * The following functions are used for some tests in ./test/, and aren't
+ * The following functions and classes are used for some tests in ./test/, and aren't
  * intended to be used by regular users of this library.
  */
 export const exportedForTesting = {
-	assert: assert,
-	assertClass: assertClass,
-	bigIntToBytes: bigIntToBytes,
-	bytesToBigInt: bytesToBigInt,
-	setRawUsageNotifier: setRawUsageNotifier,
-	setBlake2bDigestSize: setBlake2bDigestSize,
-	dumpCostModels: dumpCostModels,
-	Site: Site,
-	Source: Source,
-	Crypto: Crypto,
-	MapData: MapData,
-	UplcData: UplcData,
-	CborData: CborData,
-	ConstrData: ConstrData,
-	IntData: IntData,
-	ByteArrayData: ByteArrayData,
-	ListData: ListData,
-	UplcBool: UplcBool,
-	UplcValue: UplcValue,
-	UplcDataValue: UplcDataValue,
-	ScriptPurpose: ScriptPurpose,
-	UplcTerm: UplcTerm,
-	UplcProgram: UplcProgram,
-	UplcLambda: UplcLambda,
-	UplcCall: UplcCall,
-	UplcBuiltin: UplcBuiltin,
-	UplcVariable: UplcVariable,
-	UplcConst: UplcConst,
-	UplcInt: UplcInt,
-	IRProgram: IRProgram,
-	Tx: Tx,
-	TxInput: TxInput,
-	TxBody: TxBody,
-	REAL_PRECISION: REAL_PRECISION
+	assert,
+	assertClass,
+	assertDefined,
+	bigIntToBytes,
+	bytesToBigInt,
+	setRawUsageNotifier,
+	setBlake2bDigestSize,
+	dumpCostModels,
+	Site,
+	Source,
+	MapData,
+	UplcData,
+	CborData,
+	ConstrData,
+	IntData,
+	ByteArrayData,
+	ListData,
+	UplcBool,
+	UplcValue,
+	UplcDataValue,
+	UplcTerm,
+	UplcProgram,
+	UplcLambda,
+	UplcCall,
+	UplcBuiltin,
+	UplcVariable,
+	UplcConst,
+	UplcInt,
+	IRProgram,
+	Tx,
+	TxInput,
+	TxBody,
+	REAL_PRECISION
 };

@@ -229,6 +229,7 @@ export function highlight(src) {
 						case "spending":
 						case "staking":
 						case "minting":
+						case "linking":
 						case "module":
 							if (i0 == 0) {
 								type = SyntaxCategory.Keyword;
