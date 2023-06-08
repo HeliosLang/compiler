@@ -414,7 +414,7 @@ export function uplcToJs(schema: TypeSchema, data: UplcData): any;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.14.0";
+export const VERSION: "0.14.1";
 /**
  * Modifiable config vars
  * @type {{
@@ -2074,7 +2074,6 @@ export class AssetClass extends HeliosData {
      */
     static get ADA(): AssetClass;
     /**
-     *
      * @param {ExpandAlias<AssetClassProps>} props
      */
     constructor(props: ExpandAlias<AssetClassProps>);
@@ -2257,7 +2256,6 @@ export class Assets extends CborData {
  */
 export class Value extends HeliosData {
     /**
-     *
      * @param {ValueProps} props
      * @param {null | Assets | AssetsProps} maybeAssets
      * @returns {[HInt | HIntProps, Assets | AssetsProps]}
