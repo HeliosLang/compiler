@@ -84,7 +84,7 @@ export class HeliosData extends CborData {
 
 /**
  * @template {HeliosData} T
- * 
+ *
  * @typedef {{
  *   new(...args: any[]): T
  *   fromUplcCbor: (bytes: (string | number[])) => T
@@ -101,8 +101,8 @@ export class HeliosData extends CborData {
  * Helios Int type
  */
 export class HInt extends HeliosData {
-    /** 
-     * @type {bigint} 
+    /**
+     * @type {bigint}
      */
     #value;
 
@@ -372,8 +372,8 @@ export class Duration extends HInt {
  * Helios Bool type
  */
 export class Bool extends HeliosData {
-    /** 
-     * @type {boolean} 
+    /**
+     * @type {boolean}
      */
     #value;
 
@@ -421,7 +421,7 @@ export class Bool extends HeliosData {
     get bool() {
         return this.#value;
     }
-    
+
     /**
      * @package
      * @returns {UplcData}
@@ -430,7 +430,7 @@ export class Bool extends HeliosData {
         return new ConstrData(this.#value ? 1 : 0, []);
     }
 
-    /** 
+    /**
      * @param {UplcData} data
      * @returns {Bool}
      */
@@ -447,7 +447,7 @@ export class Bool extends HeliosData {
     }
 
     /**
-     * @param {string | number[]} bytes 
+     * @param {string | number[]} bytes
      * @returns {Bool}
      */
     static fromUplcCbor(bytes) {
@@ -502,7 +502,7 @@ export class HString extends HeliosData {
     }
 
     /**
-     * @param {UplcData} data 
+     * @param {UplcData} data
      * @returns {HString}
      */
     static fromUplcData(data) {
@@ -510,7 +510,7 @@ export class HString extends HeliosData {
     }
 
     /**
-     * @param {string | number[]} bytes 
+     * @param {string | number[]} bytes
      * @returns {HString}
      */
     static fromUplcCbor(bytes) {
@@ -596,7 +596,7 @@ export class ByteArray extends HeliosData {
 	}
 
     /**
-     * @param {UplcData} data 
+     * @param {UplcData} data
      * @returns {ByteArray}
      */
     static fromUplcData(data) {
@@ -641,13 +641,13 @@ export function HList(ItemClass) {
     const typeName = `[]${ItemClass.name}`;
 
     class HList_ extends HeliosData {
-        /** 
-         * @type {T[]} 
+        /**
+         * @type {T[]}
          */
         #items;
 
         /**
-         * @param {any[]} rawList 
+         * @param {any[]} rawList
          */
         constructor(rawList) {
             super();
@@ -672,7 +672,7 @@ export function HList(ItemClass) {
         /**
          * Overload 'instanceof' operator
          * @package
-         * @param {any} other 
+         * @param {any} other
          * @returns {boolean}
          */
         static [Symbol.hasInstance](other) {
@@ -695,7 +695,7 @@ export function HList(ItemClass) {
         }
 
         /**
-         * @param {UplcData} data 
+         * @param {UplcData} data
          * @returns {HList_}
          */
         static fromUplcData(data) {
@@ -703,7 +703,7 @@ export function HList(ItemClass) {
         }
 
         /**
-         * @param {string | number[]} bytes 
+         * @param {string | number[]} bytes
          * @returns {HList_}
          */
         static fromUplcCbor(bytes) {
@@ -722,7 +722,7 @@ export function HList(ItemClass) {
 /**
  * @template {HeliosData} TKey
  * @template {HeliosData} TValue
- * @param {HeliosDataClass<TKey>} KeyClass 
+ * @param {HeliosDataClass<TKey>} KeyClass
  * @param {HeliosDataClass<TValue>} ValueClass
  * @returns {HeliosDataClass<HMap_>}
  */
@@ -730,7 +730,7 @@ export function HMap(KeyClass, ValueClass) {
     assert(!new.target, "HMap can't be called with new");
     assert(KeyClass.prototype instanceof HeliosData);
     assert(ValueClass.prototype instanceof HeliosData);
-    
+
     const typeName = `Map[${KeyClass.name}]${ValueClass.name}`;
 
     class HMap_ extends HeliosData {
@@ -836,7 +836,7 @@ export function HMap(KeyClass, ValueClass) {
         /**
          * Overload 'instanceof' operator
          * @package
-         * @param {any} other 
+         * @param {any} other
          * @returns {boolean}
          */
         static [Symbol.hasInstance](other) {
@@ -859,7 +859,7 @@ export function HMap(KeyClass, ValueClass) {
         }
 
         /**
-         * @param {UplcData} data 
+         * @param {UplcData} data
          * @returns {HMap_}
          */
         static fromUplcData(data) {
@@ -867,7 +867,7 @@ export function HMap(KeyClass, ValueClass) {
         }
 
         /**
-         * @param {string | number[]} bytes 
+         * @param {string | number[]} bytes
          * @returns {HMap_}
          */
         static fromUplcCbor(bytes) {
@@ -902,7 +902,7 @@ export function Option(SomeClass) {
 
         /**
          * @package
-         * @param {?any} rawValue 
+         * @param {?any} rawValue
          * @returns {?T}
          */
         static cleanConstructorArg(rawValue) {
@@ -915,7 +915,7 @@ export function Option(SomeClass) {
             }
         }
 
-        /** 
+        /**
          * @param {?any} rawValue
          */
         constructor(rawValue = null) {
@@ -935,7 +935,7 @@ export function Option(SomeClass) {
         /**
          * Overload 'instanceof' operator
          * @package
-         * @param {any} other 
+         * @param {any} other
          * @returns {boolean}
          */
         static [Symbol.hasInstance](other) {
@@ -958,7 +958,7 @@ export function Option(SomeClass) {
         }
 
         /**
-         * @param {UplcData} data 
+         * @param {UplcData} data
          * @returns {Option_}
          */
         static fromUplcData(data) {
@@ -1062,7 +1062,7 @@ export class Hash extends HeliosData {
 
 	/**
 	 * Used internally for metadataHash and scriptDataHash
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {Hash}
 	 */
 	static fromCbor(bytes) {
@@ -1094,8 +1094,8 @@ export class Hash extends HeliosData {
 	}
 
 	/**
-	 * @param {Hash} a 
-	 * @param {Hash} b 
+	 * @param {Hash} a
+	 * @param {Hash} b
 	 * @returns {number}
 	 */
 	static compare(a, b) {
@@ -1134,15 +1134,15 @@ export class DatumHash extends Hash {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {DatumHash}
 	 */
 	 static fromUplcData(data) {
 		return new DatumHash(data.bytes);
 	}
-	
+
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {DatumHash}
 	 */
 	static fromUplcCbor(bytes) {
@@ -1150,7 +1150,7 @@ export class DatumHash extends Hash {
 	}
 
 	/**
-	 * @param {string} str 
+	 * @param {string} str
 	 * @returns {DatumHash}
 	 */
 	static fromHex(str) {
@@ -1206,7 +1206,7 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {PubKey}
 	 */
 	static fromUplcData(data) {
@@ -1214,7 +1214,15 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {string | number[]} bytes
+	 * @returns {PubKey}
+	 */
+	 static fromUplcCbor(bytes) {
+		return PubKey.fromUplcData(UplcData.fromCbor(bytes));
+	}
+
+	/**
+	 * @param {number[]} bytes
 	 * @returns {PubKey}
 	 */
 	static fromCbor(bytes) {
@@ -1262,7 +1270,7 @@ export class PubKey extends HeliosData {
  */
 
 export class PubKeyHash extends Hash {
-	
+
 	/**
 	 * @param {ExpandAlias<PubKeyHashProps>} props 
 	 */
@@ -1290,15 +1298,15 @@ export class PubKeyHash extends Hash {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {PubKeyHash}
 	 */
 	static fromUplcData(data) {
 		return new PubKeyHash(data.bytes);
 	}
-	
+
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {PubKeyHash}
 	 */
 	static fromUplcCbor(bytes) {
@@ -1306,7 +1314,7 @@ export class PubKeyHash extends Hash {
 	}
 
 	/**
-	 * @param {string} str 
+	 * @param {string} str
 	 * @returns {PubKeyHash}
 	 */
 	static fromHex(str) {
@@ -1360,15 +1368,15 @@ export class MintingPolicyHash extends ScriptHash {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {MintingPolicyHash}
 	 */
 	static fromUplcData(data) {
 		return new MintingPolicyHash(data.bytes);
 	}
-			
+
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {MintingPolicyHash}
 	 */
 	static fromUplcCbor(bytes) {
@@ -1376,7 +1384,7 @@ export class MintingPolicyHash extends ScriptHash {
 	}
 
 	/**
-	 * @param {string} str 
+	 * @param {string} str
 	 * @returns {MintingPolicyHash}
 	 */
 	static fromHex(str) {
@@ -1423,15 +1431,15 @@ export class StakeKeyHash extends Hash {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {StakeKeyHash}
 	 */
 	static fromUplcData(data) {
 		return new StakeKeyHash(data.bytes);
 	}
-		
+
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {StakeKeyHash}
 	 */
 	static fromUplcCbor(bytes) {
@@ -1439,7 +1447,7 @@ export class StakeKeyHash extends Hash {
 	}
 
 	/**
-	 * @param {string} str 
+	 * @param {string} str
 	 * @returns {StakeKeyHash}
 	 */
 	static fromHex(str) {
@@ -1469,15 +1477,15 @@ export class StakingValidatorHash extends ScriptHash {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {StakingValidatorHash}
 	 */
 	static fromUplcData(data) {
 		return new StakingValidatorHash(data.bytes);
 	}
-			
+
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {StakingValidatorHash}
 	 */
 	static fromUplcCbor(bytes) {
@@ -1485,7 +1493,7 @@ export class StakingValidatorHash extends ScriptHash {
 	}
 
 	/**
-	 * @param {string} str 
+	 * @param {string} str
 	 * @returns {StakingValidatorHash}
 	 */
 	static fromHex(str) {
@@ -1515,15 +1523,15 @@ export class ValidatorHash extends ScriptHash {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {ValidatorHash}
 	 */
 	static fromUplcData(data) {
 		return new ValidatorHash(data.bytes);
 	}
-		
+
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {ValidatorHash}
 	 */
 	static fromUplcCbor(bytes) {
@@ -1531,7 +1539,7 @@ export class ValidatorHash extends ScriptHash {
 	}
 
 	/**
-	 * @param {string} str 
+	 * @param {string} str
 	 * @returns {ValidatorHash}
 	 */
 	static fromHex(str) {
@@ -1573,7 +1581,7 @@ export class TxId extends Hash {
     }
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {TxId}
 	 */
 	static fromCbor(bytes) {
@@ -1592,7 +1600,7 @@ export class TxId extends Hash {
     }
 
     /**
-     * @param {string | number[]} bytes 
+     * @param {string | number[]} bytes
      * @returns {TxId}
      */
     static fromUplcCbor(bytes) {
@@ -1710,7 +1718,7 @@ export class TxOutputId extends HeliosData {
     }
 
     /**
-     * @param {string | number[]} bytes 
+     * @param {string | number[]} bytes
      * @returns {TxOutputId}
      */
     static fromUplcCbor(bytes) {
@@ -1835,8 +1843,8 @@ export class Address extends HeliosData {
 	}
 
     /**
-     * @param {PubKeyHash | ValidatorHash} hash 
-     * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash 
+     * @param {PubKeyHash | ValidatorHash} hash
+     * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
      * @param {boolean} isTestnet
      * @returns {Address}
      */
@@ -1930,7 +1938,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-     * 
+     *
      * @private
 	 * @returns {ConstrData}
 	 */
@@ -1994,14 +2002,14 @@ export class Address extends HeliosData {
 	}
 
     /**
-     * @param {UplcData} data 
+     * @param {UplcData} data
      * @param {boolean} isTestnet
      * @returns {Address}
      */
     static fromUplcData(data, isTestnet = config.IS_TESTNET) {
         assert(data.index == 0);
         assert(data.fields.length == 2);
-        
+
         const credData = data.fields[0];
         const stakData = data.fields[1];
 
@@ -2051,7 +2059,7 @@ export class Address extends HeliosData {
     }
 
     /**
-     * @param {string | number[]} bytes 
+     * @param {string | number[]} bytes
      * @param {boolean} isTestnet
      * @returns {Address}
      */
@@ -2092,7 +2100,7 @@ export class Address extends HeliosData {
 		let type = this.#bytes[0] >> 4;
 
         let bytes = this.#bytes.slice(29);
-        
+
 
         if (type == 0 || type == 1) {
             assert(bytes.length == 28);
@@ -2160,7 +2168,6 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
-	 * 
 	 * @param {ExpandAlias<AssetClassProps>} props
 	 */
 	constructor(props) {
@@ -2205,8 +2212,8 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
-	 * 
-	 * @param {UplcData} data 
+	 *
+	 * @param {UplcData} data
 	 * @returns {AssetClass}
 	 */
 	static fromUplcData(data) {
@@ -2230,7 +2237,7 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 */
 	static fromCbor(bytes) {
 		/**
@@ -2253,7 +2260,7 @@ export class AssetClass extends HeliosData {
 					break;
 				default:
 					throw new Error("unexpected field");
-			} 
+			}
 		});
 
 		assert(tag == 0);
@@ -2362,7 +2369,7 @@ export class Assets extends CborData {
 	 */
 	get nTokenTypes() {
 		let count = 0;
-		
+
 		this.#assets.forEach(([mph, tokens]) => {
 			tokens.forEach(([tokenName, _]) => {
 				count += 1
@@ -2524,8 +2531,8 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {Assets} other 
-	 * @param {(a: bigint, b: bigint) => bigint} op 
+	 * @param {Assets} other
+	 * @param {(a: bigint, b: bigint) => bigint} op
 	 * @returns {Assets}
 	 */
 	applyBinOp(other, op) {
@@ -2547,7 +2554,7 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {Assets} other 
+	 * @param {Assets} other
 	 * @returns {Assets}
 	 */
 	add(other) {
@@ -2555,7 +2562,7 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {Assets} other 
+	 * @param {Assets} other
 	 * @returns {Assets}
 	 */
 	sub(other) {
@@ -2617,7 +2624,7 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {Assets} other 
+	 * @param {Assets} other
 	 * @returns {boolean}
 	 */
 	eq(other) {
@@ -2642,7 +2649,7 @@ export class Assets extends CborData {
 
 	/**
 	 * Strict gt, if other contains assets this one doesn't contain => return false
-	 * @param {Assets} other 
+	 * @param {Assets} other
 	 * @returns {boolean}
 	 */
 	gt(other) {
@@ -2670,7 +2677,7 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {Assets} other 
+	 * @param {Assets} other
 	 * @returns {boolean}
 	 */
 	ge(other) {
@@ -2750,7 +2757,7 @@ export class Assets extends CborData {
 			 * @type {[ByteArray, HInt][]}
 			 */
 			let innerMap = [];
-			
+
 			CborData.decodeMap(pairBytes, (_, innerPairBytes) => {
 				innerMap.push([
 					ByteArray.fromCbor(innerPairBytes),
@@ -2849,9 +2856,8 @@ export class Value extends HeliosData {
 
 	/** @type {Assets} */
 	#assets;
-	
+
 	/**
-	 * 
 	 * @param {ValueProps} props 
 	 * @param {null | Assets | AssetsProps} maybeAssets 
 	 * @returns {[HInt | HIntProps, Assets | AssetsProps]}
@@ -2962,7 +2968,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {Value}
 	 */
 	static fromCbor(bytes) {
@@ -2989,7 +2995,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * @param {Value[]} values 
+	 * @param {Value[]} values
 	 * @returns {Value}
 	 */
 	static sum(values) {
@@ -3001,9 +3007,9 @@ export class Value extends HeliosData {
 
 		return s;
 	}
-	
+
 	/**
-	 * @param {Value} other 
+	 * @param {Value} other
 	 * @returns {Value}
 	 */
 	add(other) {
@@ -3014,7 +3020,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * @param {Value} other 
+	 * @param {Value} other
 	 * @returns {Value}
 	 */
 	sub(other) {
@@ -3036,7 +3042,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * @param {Value} other 
+	 * @param {Value} other
 	 * @returns {boolean}
 	 */
 	eq(other) {
@@ -3044,8 +3050,8 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Strictly greater than. Returns false if any asset is missing 
-	 * @param {Value} other 
+	 * Strictly greater than. Returns false if any asset is missing
+	 * @param {Value} other
 	 * @returns {boolean}
 	 */
 	gt(other) {
@@ -3053,8 +3059,8 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Strictly >= 
-	 * @param {Value} other 
+	 * Strictly >=
+	 * @param {Value} other
 	 * @returns {boolean}
 	 */
 	ge(other) {
@@ -3145,7 +3151,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {Value}
 	 */
 	static fromUplcCbor(bytes) {

@@ -6181,7 +6181,7 @@ export class HeliosData extends CborData {
 
 /**
  * @template {HeliosData} T
- * 
+ *
  * @typedef {{
  *   new(...args: any[]): T
  *   fromUplcCbor: (bytes: (string | number[])) => T
@@ -6198,8 +6198,8 @@ export class HeliosData extends CborData {
  * Helios Int type
  */
 export class HInt extends HeliosData {
-    /** 
-     * @type {bigint} 
+    /**
+     * @type {bigint}
      */
     #value;
 
@@ -6469,8 +6469,8 @@ export class Duration extends HInt {
  * Helios Bool type
  */
 export class Bool extends HeliosData {
-    /** 
-     * @type {boolean} 
+    /**
+     * @type {boolean}
      */
     #value;
 
@@ -6518,7 +6518,7 @@ export class Bool extends HeliosData {
     get bool() {
         return this.#value;
     }
-    
+
     /**
      * @package
      * @returns {UplcData}
@@ -6527,7 +6527,7 @@ export class Bool extends HeliosData {
         return new ConstrData(this.#value ? 1 : 0, []);
     }
 
-    /** 
+    /**
      * @param {UplcData} data
      * @returns {Bool}
      */
@@ -6544,7 +6544,7 @@ export class Bool extends HeliosData {
     }
 
     /**
-     * @param {string | number[]} bytes 
+     * @param {string | number[]} bytes
      * @returns {Bool}
      */
     static fromUplcCbor(bytes) {
@@ -6599,7 +6599,7 @@ export class HString extends HeliosData {
     }
 
     /**
-     * @param {UplcData} data 
+     * @param {UplcData} data
      * @returns {HString}
      */
     static fromUplcData(data) {
@@ -6607,7 +6607,7 @@ export class HString extends HeliosData {
     }
 
     /**
-     * @param {string | number[]} bytes 
+     * @param {string | number[]} bytes
      * @returns {HString}
      */
     static fromUplcCbor(bytes) {
@@ -6693,7 +6693,7 @@ export class ByteArray extends HeliosData {
 	}
 
     /**
-     * @param {UplcData} data 
+     * @param {UplcData} data
      * @returns {ByteArray}
      */
     static fromUplcData(data) {
@@ -6738,13 +6738,13 @@ export function HList(ItemClass) {
     const typeName = `[]${ItemClass.name}`;
 
     class HList_ extends HeliosData {
-        /** 
-         * @type {T[]} 
+        /**
+         * @type {T[]}
          */
         #items;
 
         /**
-         * @param {any[]} rawList 
+         * @param {any[]} rawList
          */
         constructor(rawList) {
             super();
@@ -6769,7 +6769,7 @@ export function HList(ItemClass) {
         /**
          * Overload 'instanceof' operator
          * @package
-         * @param {any} other 
+         * @param {any} other
          * @returns {boolean}
          */
         static [Symbol.hasInstance](other) {
@@ -6792,7 +6792,7 @@ export function HList(ItemClass) {
         }
 
         /**
-         * @param {UplcData} data 
+         * @param {UplcData} data
          * @returns {HList_}
          */
         static fromUplcData(data) {
@@ -6800,7 +6800,7 @@ export function HList(ItemClass) {
         }
 
         /**
-         * @param {string | number[]} bytes 
+         * @param {string | number[]} bytes
          * @returns {HList_}
          */
         static fromUplcCbor(bytes) {
@@ -6819,7 +6819,7 @@ export function HList(ItemClass) {
 /**
  * @template {HeliosData} TKey
  * @template {HeliosData} TValue
- * @param {HeliosDataClass<TKey>} KeyClass 
+ * @param {HeliosDataClass<TKey>} KeyClass
  * @param {HeliosDataClass<TValue>} ValueClass
  * @returns {HeliosDataClass<HMap_>}
  */
@@ -6827,7 +6827,7 @@ export function HMap(KeyClass, ValueClass) {
     assert(!new.target, "HMap can't be called with new");
     assert(KeyClass.prototype instanceof HeliosData);
     assert(ValueClass.prototype instanceof HeliosData);
-    
+
     const typeName = `Map[${KeyClass.name}]${ValueClass.name}`;
 
     class HMap_ extends HeliosData {
@@ -6933,7 +6933,7 @@ export function HMap(KeyClass, ValueClass) {
         /**
          * Overload 'instanceof' operator
          * @package
-         * @param {any} other 
+         * @param {any} other
          * @returns {boolean}
          */
         static [Symbol.hasInstance](other) {
@@ -6956,7 +6956,7 @@ export function HMap(KeyClass, ValueClass) {
         }
 
         /**
-         * @param {UplcData} data 
+         * @param {UplcData} data
          * @returns {HMap_}
          */
         static fromUplcData(data) {
@@ -6964,7 +6964,7 @@ export function HMap(KeyClass, ValueClass) {
         }
 
         /**
-         * @param {string | number[]} bytes 
+         * @param {string | number[]} bytes
          * @returns {HMap_}
          */
         static fromUplcCbor(bytes) {
@@ -6999,7 +6999,7 @@ export function Option(SomeClass) {
 
         /**
          * @package
-         * @param {?any} rawValue 
+         * @param {?any} rawValue
          * @returns {?T}
          */
         static cleanConstructorArg(rawValue) {
@@ -7012,7 +7012,7 @@ export function Option(SomeClass) {
             }
         }
 
-        /** 
+        /**
          * @param {?any} rawValue
          */
         constructor(rawValue = null) {
@@ -7032,7 +7032,7 @@ export function Option(SomeClass) {
         /**
          * Overload 'instanceof' operator
          * @package
-         * @param {any} other 
+         * @param {any} other
          * @returns {boolean}
          */
         static [Symbol.hasInstance](other) {
@@ -7055,7 +7055,7 @@ export function Option(SomeClass) {
         }
 
         /**
-         * @param {UplcData} data 
+         * @param {UplcData} data
          * @returns {Option_}
          */
         static fromUplcData(data) {
@@ -7159,7 +7159,7 @@ class Hash extends HeliosData {
 
 	/**
 	 * Used internally for metadataHash and scriptDataHash
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {Hash}
 	 */
 	static fromCbor(bytes) {
@@ -7191,8 +7191,8 @@ class Hash extends HeliosData {
 	}
 
 	/**
-	 * @param {Hash} a 
-	 * @param {Hash} b 
+	 * @param {Hash} a
+	 * @param {Hash} b
 	 * @returns {number}
 	 */
 	static compare(a, b) {
@@ -7231,15 +7231,15 @@ export class DatumHash extends Hash {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {DatumHash}
 	 */
 	 static fromUplcData(data) {
 		return new DatumHash(data.bytes);
 	}
-	
+
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {DatumHash}
 	 */
 	static fromUplcCbor(bytes) {
@@ -7247,7 +7247,7 @@ export class DatumHash extends Hash {
 	}
 
 	/**
-	 * @param {string} str 
+	 * @param {string} str
 	 * @returns {DatumHash}
 	 */
 	static fromHex(str) {
@@ -7303,7 +7303,7 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {PubKey}
 	 */
 	static fromUplcData(data) {
@@ -7311,7 +7311,15 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {string | number[]} bytes
+	 * @returns {PubKey}
+	 */
+	 static fromUplcCbor(bytes) {
+		return PubKey.fromUplcData(UplcData.fromCbor(bytes));
+	}
+
+	/**
+	 * @param {number[]} bytes
 	 * @returns {PubKey}
 	 */
 	static fromCbor(bytes) {
@@ -7359,7 +7367,7 @@ export class PubKey extends HeliosData {
  */
 
 export class PubKeyHash extends Hash {
-	
+
 	/**
 	 * @param {ExpandAlias<PubKeyHashProps>} props 
 	 */
@@ -7387,15 +7395,15 @@ export class PubKeyHash extends Hash {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {PubKeyHash}
 	 */
 	static fromUplcData(data) {
 		return new PubKeyHash(data.bytes);
 	}
-	
+
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {PubKeyHash}
 	 */
 	static fromUplcCbor(bytes) {
@@ -7403,7 +7411,7 @@ export class PubKeyHash extends Hash {
 	}
 
 	/**
-	 * @param {string} str 
+	 * @param {string} str
 	 * @returns {PubKeyHash}
 	 */
 	static fromHex(str) {
@@ -7457,15 +7465,15 @@ export class MintingPolicyHash extends ScriptHash {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {MintingPolicyHash}
 	 */
 	static fromUplcData(data) {
 		return new MintingPolicyHash(data.bytes);
 	}
-			
+
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {MintingPolicyHash}
 	 */
 	static fromUplcCbor(bytes) {
@@ -7473,7 +7481,7 @@ export class MintingPolicyHash extends ScriptHash {
 	}
 
 	/**
-	 * @param {string} str 
+	 * @param {string} str
 	 * @returns {MintingPolicyHash}
 	 */
 	static fromHex(str) {
@@ -7520,15 +7528,15 @@ export class StakeKeyHash extends Hash {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {StakeKeyHash}
 	 */
 	static fromUplcData(data) {
 		return new StakeKeyHash(data.bytes);
 	}
-		
+
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {StakeKeyHash}
 	 */
 	static fromUplcCbor(bytes) {
@@ -7536,7 +7544,7 @@ export class StakeKeyHash extends Hash {
 	}
 
 	/**
-	 * @param {string} str 
+	 * @param {string} str
 	 * @returns {StakeKeyHash}
 	 */
 	static fromHex(str) {
@@ -7566,15 +7574,15 @@ export class StakingValidatorHash extends ScriptHash {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {StakingValidatorHash}
 	 */
 	static fromUplcData(data) {
 		return new StakingValidatorHash(data.bytes);
 	}
-			
+
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {StakingValidatorHash}
 	 */
 	static fromUplcCbor(bytes) {
@@ -7582,7 +7590,7 @@ export class StakingValidatorHash extends ScriptHash {
 	}
 
 	/**
-	 * @param {string} str 
+	 * @param {string} str
 	 * @returns {StakingValidatorHash}
 	 */
 	static fromHex(str) {
@@ -7612,15 +7620,15 @@ export class ValidatorHash extends ScriptHash {
 	}
 
 	/**
-	 * @param {UplcData} data 
+	 * @param {UplcData} data
 	 * @returns {ValidatorHash}
 	 */
 	static fromUplcData(data) {
 		return new ValidatorHash(data.bytes);
 	}
-		
+
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {ValidatorHash}
 	 */
 	static fromUplcCbor(bytes) {
@@ -7628,7 +7636,7 @@ export class ValidatorHash extends ScriptHash {
 	}
 
 	/**
-	 * @param {string} str 
+	 * @param {string} str
 	 * @returns {ValidatorHash}
 	 */
 	static fromHex(str) {
@@ -7670,7 +7678,7 @@ export class TxId extends Hash {
     }
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {TxId}
 	 */
 	static fromCbor(bytes) {
@@ -7689,7 +7697,7 @@ export class TxId extends Hash {
     }
 
     /**
-     * @param {string | number[]} bytes 
+     * @param {string | number[]} bytes
      * @returns {TxId}
      */
     static fromUplcCbor(bytes) {
@@ -7807,7 +7815,7 @@ export class TxOutputId extends HeliosData {
     }
 
     /**
-     * @param {string | number[]} bytes 
+     * @param {string | number[]} bytes
      * @returns {TxOutputId}
      */
     static fromUplcCbor(bytes) {
@@ -7932,8 +7940,8 @@ export class Address extends HeliosData {
 	}
 
     /**
-     * @param {PubKeyHash | ValidatorHash} hash 
-     * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash 
+     * @param {PubKeyHash | ValidatorHash} hash
+     * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
      * @param {boolean} isTestnet
      * @returns {Address}
      */
@@ -8027,7 +8035,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-     * 
+     *
      * @private
 	 * @returns {ConstrData}
 	 */
@@ -8091,14 +8099,14 @@ export class Address extends HeliosData {
 	}
 
     /**
-     * @param {UplcData} data 
+     * @param {UplcData} data
      * @param {boolean} isTestnet
      * @returns {Address}
      */
     static fromUplcData(data, isTestnet = config.IS_TESTNET) {
         assert(data.index == 0);
         assert(data.fields.length == 2);
-        
+
         const credData = data.fields[0];
         const stakData = data.fields[1];
 
@@ -8148,7 +8156,7 @@ export class Address extends HeliosData {
     }
 
     /**
-     * @param {string | number[]} bytes 
+     * @param {string | number[]} bytes
      * @param {boolean} isTestnet
      * @returns {Address}
      */
@@ -8189,7 +8197,7 @@ export class Address extends HeliosData {
 		let type = this.#bytes[0] >> 4;
 
         let bytes = this.#bytes.slice(29);
-        
+
 
         if (type == 0 || type == 1) {
             assert(bytes.length == 28);
@@ -8257,7 +8265,6 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
-	 * 
 	 * @param {ExpandAlias<AssetClassProps>} props
 	 */
 	constructor(props) {
@@ -8302,8 +8309,8 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
-	 * 
-	 * @param {UplcData} data 
+	 *
+	 * @param {UplcData} data
 	 * @returns {AssetClass}
 	 */
 	static fromUplcData(data) {
@@ -8327,7 +8334,7 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 */
 	static fromCbor(bytes) {
 		/**
@@ -8350,7 +8357,7 @@ export class AssetClass extends HeliosData {
 					break;
 				default:
 					throw new Error("unexpected field");
-			} 
+			}
 		});
 
 		assert(tag == 0);
@@ -8459,7 +8466,7 @@ export class Assets extends CborData {
 	 */
 	get nTokenTypes() {
 		let count = 0;
-		
+
 		this.#assets.forEach(([mph, tokens]) => {
 			tokens.forEach(([tokenName, _]) => {
 				count += 1
@@ -8621,8 +8628,8 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {Assets} other 
-	 * @param {(a: bigint, b: bigint) => bigint} op 
+	 * @param {Assets} other
+	 * @param {(a: bigint, b: bigint) => bigint} op
 	 * @returns {Assets}
 	 */
 	applyBinOp(other, op) {
@@ -8644,7 +8651,7 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {Assets} other 
+	 * @param {Assets} other
 	 * @returns {Assets}
 	 */
 	add(other) {
@@ -8652,7 +8659,7 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {Assets} other 
+	 * @param {Assets} other
 	 * @returns {Assets}
 	 */
 	sub(other) {
@@ -8714,7 +8721,7 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {Assets} other 
+	 * @param {Assets} other
 	 * @returns {boolean}
 	 */
 	eq(other) {
@@ -8739,7 +8746,7 @@ export class Assets extends CborData {
 
 	/**
 	 * Strict gt, if other contains assets this one doesn't contain => return false
-	 * @param {Assets} other 
+	 * @param {Assets} other
 	 * @returns {boolean}
 	 */
 	gt(other) {
@@ -8767,7 +8774,7 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * @param {Assets} other 
+	 * @param {Assets} other
 	 * @returns {boolean}
 	 */
 	ge(other) {
@@ -8847,7 +8854,7 @@ export class Assets extends CborData {
 			 * @type {[ByteArray, HInt][]}
 			 */
 			let innerMap = [];
-			
+
 			CborData.decodeMap(pairBytes, (_, innerPairBytes) => {
 				innerMap.push([
 					ByteArray.fromCbor(innerPairBytes),
@@ -8946,9 +8953,8 @@ export class Value extends HeliosData {
 
 	/** @type {Assets} */
 	#assets;
-	
+
 	/**
-	 * 
 	 * @param {ValueProps} props 
 	 * @param {null | Assets | AssetsProps} maybeAssets 
 	 * @returns {[HInt | HIntProps, Assets | AssetsProps]}
@@ -9059,7 +9065,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * @param {number[]} bytes
 	 * @returns {Value}
 	 */
 	static fromCbor(bytes) {
@@ -9086,7 +9092,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * @param {Value[]} values 
+	 * @param {Value[]} values
 	 * @returns {Value}
 	 */
 	static sum(values) {
@@ -9098,9 +9104,9 @@ export class Value extends HeliosData {
 
 		return s;
 	}
-	
+
 	/**
-	 * @param {Value} other 
+	 * @param {Value} other
 	 * @returns {Value}
 	 */
 	add(other) {
@@ -9111,7 +9117,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * @param {Value} other 
+	 * @param {Value} other
 	 * @returns {Value}
 	 */
 	sub(other) {
@@ -9133,7 +9139,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * @param {Value} other 
+	 * @param {Value} other
 	 * @returns {boolean}
 	 */
 	eq(other) {
@@ -9141,8 +9147,8 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Strictly greater than. Returns false if any asset is missing 
-	 * @param {Value} other 
+	 * Strictly greater than. Returns false if any asset is missing
+	 * @param {Value} other
 	 * @returns {boolean}
 	 */
 	gt(other) {
@@ -9150,8 +9156,8 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Strictly >= 
-	 * @param {Value} other 
+	 * Strictly >=
+	 * @param {Value} other
 	 * @returns {boolean}
 	 */
 	ge(other) {
@@ -9242,13 +9248,14 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * @param {string | number[]} bytes 
+	 * @param {string | number[]} bytes
 	 * @returns {Value}
 	 */
 	static fromUplcCbor(bytes) {
 		return Value.fromUplcData(UplcData.fromCbor(bytes));
 	}
 }
+
 
 
 //////////////////////////////
@@ -18710,7 +18717,7 @@ var TimeRangeType = new GenericType({
 //////////////////////////////
 
 /**
- * @param {Type} self 
+ * @param {Type} self
  * @returns {InstanceMembers}
  */
 function genHashInstanceMembers(self) {
@@ -18721,7 +18728,7 @@ function genHashInstanceMembers(self) {
 }
 
 /**
- * @param {Type} self 
+ * @param {Type} self
  * @returns {TypeMembers}
  */
 function genHashTypeMembers(self) {
@@ -18796,6 +18803,7 @@ const MintingPolicyHashType = new GenericType({
  */
 const PubKeyType = new GenericType({
     name: "PubKey",
+    offChainType: PubKey,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         show: new FuncType([], StringType),
@@ -18925,6 +18933,7 @@ const ValidatorHashType = new GenericType({
         from_script_hash:  new FuncType([ScriptHashType], self)
     })
 });
+
 
 
 ///////////////////////////////
@@ -45210,6 +45219,441 @@ export class Cip30Wallet {
         return this.#handle.getUnusedAddresses().then(addresses => addresses.map(a => new Address(a)));
     }
 
+	/**
+	 * Returns a generator for options
+	 * @param {ValueGenerator} someGenerator
+	 * @param {number} noneProbability
+	 * @returns {ValueGenerator}
+	 */
+	option(someGenerator, noneProbability = 0.5) {
+		let rand = this.newRand();
+
+		return function() {
+			let x = rand();
+
+			if (x < noneProbability) {
+				return new ConstrData(1, []);
+			} else {
+				return new ConstrData(0, [someGenerator()]);
+			}
+		}
+	}
+
+	/**
+	 * Returns a generator for lists
+	 * @param {ValueGenerator} itemGenerator
+	 * @param {number} minLength
+	 * @param {number} maxLength
+	 * @returns {ValueGenerator}
+	 */
+	list(itemGenerator, minLength = 0, maxLength = 10) {
+		let rand = this.newRand();
+
+		if (minLength < 0) {
+			minLength = 0;
+		}
+
+		if (maxLength < 0) {
+			maxLength = 0;
+		}
+
+		return function() {
+			let n = Math.round(rand()*(maxLength - minLength)) + minLength;
+			if (n < 0) {
+				n = 0;
+			}
+
+			/**
+			 * @type {UplcData[]}
+			 */
+			let items = [];
+
+			for (let i = 0; i < n; i++) {
+				items.push(itemGenerator());
+			}
+
+			return new ListData(items);
+		}
+	}
+
+	/**
+	 * Returns a generator for maps
+	 * @param {ValueGenerator} keyGenerator
+	 * @param {ValueGenerator} valueGenerator
+	 * @param {number} minLength
+	 * @param {number} maxLength
+	 * @returns {ValueGenerator}
+	 */
+	map(keyGenerator, valueGenerator, minLength = 0, maxLength = 10) {
+		let rand = this.newRand();
+
+		if (minLength < 0) {
+			minLength = 0;
+		}
+
+		if (maxLength < 0) {
+			maxLength = 0;
+		}
+
+		return function() {
+			let n = Math.round(rand()*(maxLength - minLength)) + minLength;
+
+			if (n < 0) {
+				n = 0;
+			}
+
+			/**
+			 * @type {[UplcData, UplcData][]}
+			 */
+			let pairs = [];
+
+			for (let i = 0; i < n; i++) {
+				pairs.push([keyGenerator(), valueGenerator()]);
+			}
+
+			return new MapData(pairs);
+		};
+	}
+
+	/**
+	 * Returns a generator for objects
+	 * @param {...ValueGenerator} itemGenerators
+	 * @returns {ValueGenerator}
+	 */
+	object(...itemGenerators) {
+		return function() {
+			let items = itemGenerators.map(g => g());
+
+			return new ConstrData(0, items);
+		}
+	}
+
+	/**
+	 * Returns a generator for tagged constr
+	 * @param {number | NumberGenerator} tag
+	 * @param {...ValueGenerator} fieldGenerators
+	 * @returns {ValueGenerator}
+	 */
+	constr(tag, ...fieldGenerators) {
+		return function() {
+			const fields = fieldGenerators.map(g => g());
+
+			const finalTag = (typeof tag == "number") ? tag : Math.round(tag()*100);
+			
+			return new ConstrData(finalTag, fields);
+		}
+	}
+
+	/**
+	 * Run a test
+	 * @param {ValueGenerator[]} argGens
+	 * @param {string} src
+	 * @param {PropertyTest} propTest
+	 * @param {number} nRuns
+	 * @param {boolean} simplify
+	 * @returns {Promise<void>} - throws an error if any of the property tests fail
+	 */
+	async test(argGens, src, propTest, nRuns = this.#runsPerTest, simplify = false) {
+		// compilation errors here aren't caught
+
+		let purposeName = extractScriptPurposeAndName(src);
+
+		if (purposeName === null) {
+			throw new Error("failed to get script purpose and name");
+		} else {
+			let [_, testName] = purposeName;
+
+			let program = Program.new(src).compile(simplify);
+
+			for (let it = 0; it < nRuns; it++) {
+				let args = argGens.map(gen => new UplcDataValue(Site.dummy(), gen()));
+			
+				let result = await program.run(args);
+
+				let obj = propTest(args, result);
+
+				if (typeof obj == "boolean") {
+					if (!obj) {
+						throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+					}
+				} else {
+					// check for failures
+					for (let key in obj) {
+						if (!obj[key]) {
+							throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+						}
+					}
+				}
+			}
+
+			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${program.calcSize()} bytes)`);
+		}
+
+		if (!simplify && this.#simplify) {
+			await this.test(argGens, src, propTest, nRuns, true);
+		}
+	}
+
+	/**
+	 * @param {Object.<string, ValueGenerator>} paramGenerators
+	 * @param {string[]} paramArgs
+	 * @param {string} src
+	 * @param {PropertyTest} propTest
+	 * @param {number} nRuns
+	 * @param {boolean} simplify
+	 * @returns {Promise<void>}
+	 */
+	async testParams(paramGenerators, paramArgs, src, propTest, nRuns = this.#runsPerTest, simplify = false) {
+		let program = Program.new(src);
+
+		let purposeName = extractScriptPurposeAndName(src);
+
+		if (purposeName === null) {
+			throw new Error("failed to get script purpose and name");
+		} else {
+			let [_, testName] = purposeName;
+
+			for (let it = 0; it < nRuns; it++) {
+
+				for (let key in paramGenerators) {
+					program.changeParamSafe(key, paramGenerators[key]())
+				}
+
+				let args = paramArgs.map(paramArg => program.evalParam(paramArg));
+			
+				let coreProgram = Program.new(src).compile(simplify);
+
+				let result = await coreProgram.run(args);
+
+				let obj = propTest(args, result);
+
+				if (typeof obj == "boolean") {
+					if (!obj) {
+						throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+					}
+				} else {
+					// check for failures
+					for (let key in obj) {
+						if (!obj[key]) {
+							throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+						}
+					}
+				}
+			}
+
+			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""}`);
+		}
+
+		if (!simplify && this.#simplify) {
+			await this.testParams(paramGenerators, paramArgs, src, propTest, nRuns, true);
+		}
+	}
+}
+
+
+////////////////////////////
+// Section 36: CoinSelection
+////////////////////////////
+
+/**
+ * @typedef {(utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]]} CoinSelectionAlgorithm
+ */
+
+/**
+ * Collection of coin selection algorithms
+ */
+export class CoinSelection {
+    /**
+     * @param {UTxO[]} utxos 
+     * @param {Value} amount 
+     * @param {boolean} largestFirst
+     * @returns {[UTxO[], UTxO[]]} - [picked, not picked that can be used as spares]
+     */
+    static selectExtremumFirst(utxos, amount, largestFirst) {
+        let sum = new Value();
+
+        /** @type {UTxO[]} */
+        let notSelected = utxos.slice();
+
+        /** @type {UTxO[]} */
+        const selected = [];
+
+        /**
+         * Selects smallest utxos until 'needed' is reached
+         * @param {bigint} neededQuantity
+         * @param {(utxo: UTxO) => bigint} getQuantity
+         */
+        function select(neededQuantity, getQuantity) {
+            // first sort notYetPicked in ascending order when picking smallest first,
+            // and in descending order when picking largest first
+            // sort UTxOs that contain more assets last
+            notSelected.sort((a, b) => {
+                const qa = getQuantity(a);
+                const qb = getQuantity(b);
+
+                const sign = largestFirst ? -1 : 1;
+
+                if (qa != 0n && qb == 0n) {
+                    return sign;
+                } else if (qa == 0n && qb != 0n) {
+                    return -sign;
+                } else if (qa == 0n && qb == 0n) {
+                    return 0;
+                } else {
+                    const na = a.value.assets.nTokenTypes;
+                    const nb = b.value.assets.nTokenTypes;
+
+                    if (na == nb) {
+                        return Number(qa - qb)*sign;
+                    } else if (na < nb) {
+                        return sign;
+                    } else {
+                        return -sign
+                    }
+                }
+            });
+
+            let count = 0n;
+            const remaining = [];
+
+            while (count < neededQuantity || count == 0n) { // must select at least one utxo if neededQuantity == 0n
+                const utxo = notSelected.shift();
+
+                if (utxo === undefined) {
+                    throw new Error("not enough utxos to cover amount");
+                } else {
+                    const qty = getQuantity(utxo);
+
+                    if (qty > 0n) {
+                        count += qty;
+                        selected.push(utxo);
+                        sum = sum.add(utxo.value);
+                    } else {
+                        remaining.push(utxo)
+                    }
+                }
+            }
+
+            notSelected = notSelected.concat(remaining);
+        }
+
+        /**
+         * Select UTxOs while looping through (MintingPolicyHash,TokenName) entries
+         */
+        const mphs = amount.assets.mintingPolicies;
+
+        for (const mph of mphs) {
+            const tokenNames = amount.assets.getTokenNames(mph);
+
+            for (const tokenName of tokenNames) {
+                const need = amount.assets.get(mph, tokenName);
+                const have = sum.assets.get(mph, tokenName);
+
+                if (have < need) {
+                    const diff = need - have;
+
+                    select(diff, (utxo) => utxo.value.assets.get(mph, tokenName));
+                }
+            }
+        }
+
+        // now use the same strategy for lovelace
+        const need = amount.lovelace;
+        const have = sum.lovelace;
+
+        if (have < need) {
+            const diff = need - have;
+
+            select(diff, (utxo) => utxo.value.lovelace);
+        }
+
+        assert(selected.length + notSelected.length == utxos.length, "internal error: select algorithm doesn't conserve utxos");
+
+        return [selected, notSelected];
+    }
+
+    /**
+     * @type {CoinSelectionAlgorithm}
+     */
+    static selectSmallestFirst(utxos, amount) {
+        return CoinSelection.selectExtremumFirst(utxos, amount, false);
+    }
+
+    /**
+     * @type {CoinSelectionAlgorithm}
+     */
+    static selectLargestFirst(utxos, amount) {
+        return CoinSelection.selectExtremumFirst(utxos, amount, true);
+    }
+}
+
+
+//////////////////////
+// Section 37: Wallets
+//////////////////////
+
+
+/**
+ * @typedef {{
+ *     isMainnet(): Promise<boolean>,
+ *     usedAddresses: Promise<Address[]>,
+ *     unusedAddresses: Promise<Address[]>,
+ *     utxos: Promise<UTxO[]>,
+ *     collateral: Promise<UTxO[]>,
+ *     signTx(tx: Tx): Promise<Signature[]>,
+ *     submitTx(tx: Tx): Promise<TxId>
+ * }} Wallet
+ */
+
+/**
+ * @typedef {{
+ *     getNetworkId(): Promise<number>,
+ *     getUsedAddresses(): Promise<string[]>,
+ *     getUnusedAddresses(): Promise<string[]>,
+ *     getUtxos(): Promise<string[]>,
+ *     getCollateral(): Promise<string[]>,
+ *     signTx(txHex: string, partialSign: boolean): Promise<string>,
+ *     submitTx(txHex: string): Promise<string>,
+ *     experimental: {
+ *         getCollateral(): Promise<string[]>
+ *     },
+ * }} Cip30Handle
+ */
+
+/**
+ * @implements {Wallet}
+ */
+export class Cip30Wallet {
+    #handle;
+
+    /**
+     * @param {Cip30Handle} handle
+     */
+    constructor(handle) {
+        this.#handle = handle;
+    }
+
+    /**
+     * @returns {Promise<boolean>}
+     */
+    async isMainnet() {
+        return (await this.#handle.getNetworkId()) == 1;
+    }
+
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get usedAddresses() {
+        return this.#handle.getUsedAddresses().then(addresses => addresses.map(a => new Address(a)));
+    }
+
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get unusedAddresses() {
+        return this.#handle.getUnusedAddresses().then(addresses => addresses.map(a => new Address(a)));
+    }
+
     /**
      * @type {Promise<UTxO[]>}
      */
@@ -45218,17 +45662,25 @@ export class Cip30Wallet {
     }
 
     /**
-     * @param {Tx} tx 
+     * @type {Promise<UTxO[]>}
+     */
+    get collateral() {
+        const getCollateral = this.#handle.getCollateral || this.#handle.experimental.getCollateral;
+        return getCollateral().then(utxos => utxos.map(u => UTxO.fromCbor(hexToBytes(u))));
+    }
+
+    /**
+     * @param {Tx} tx
      * @returns {Promise<Signature[]>}
      */
     async signTx(tx) {
         const res = await this.#handle.signTx(bytesToHex(tx.toCbor()), true);
-        
+
         return TxWitnesses.fromCbor(hexToBytes(res)).signatures;
     }
 
     /**
-     * @param {Tx} tx 
+     * @param {Tx} tx
      * @returns {Promise<TxId>}
      */
     async submitTx(tx) {
@@ -45242,7 +45694,7 @@ export class WalletHelper {
     #wallet;
 
     /**
-     * @param {Wallet} wallet 
+     * @param {Wallet} wallet
      */
     constructor(wallet) {
         this.#wallet = wallet;
@@ -45311,10 +45763,10 @@ export class WalletHelper {
     }
 
     /**
-     * @param {Value} amount 
+     * @param {Value} amount
      * @param {(allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]} algorithm
      * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
-     */ 
+     */
     async pickUtxos(amount, algorithm = CoinSelection.selectSmallestFirst) {
         return algorithm(await this.#wallet.utxos, amount);
     }
@@ -45377,6 +45829,7 @@ export class WalletHelper {
 }
 
 
+
 //////////////////////
 // Section 37: Network
 //////////////////////
@@ -45410,12 +45863,12 @@ export class BlockfrostV0 {
 
     /**
      * Determine the network which the wallet is connected to.
-     * @param {Wallet} wallet 
+     * @param {Wallet} wallet
      * @param {{
      *     preview?: string,
      *     preprod?: string,
      *     mainnet?: string
-     * }} projectIds 
+     * }} projectIds
      * @returns {Promise<BlockfrostV0>}
      */
     static async resolve(wallet, projectIds) {
@@ -45438,8 +45891,8 @@ export class BlockfrostV0 {
                     if (await preprodNetwork.hasUtxo(refUtxo)) {
                         return preprodNetwork;
                     }
-                } 
-                
+                }
+
                 if (previewProjectId !== undefined) {
                     const previewNetwork = new BlockfrostV0("preview", previewProjectId);
 
@@ -45460,8 +45913,8 @@ export class BlockfrostV0 {
     }
 
     /**
-     * @param {any} obj 
-     * @returns 
+     * @param {any} obj
+     * @returns
      */
     static parseValue(obj) {
         let value = new Value();
@@ -45526,7 +45979,7 @@ export class BlockfrostV0 {
     /**
      * Returns oldest UTxOs first, newest last.
      * TODO: pagination
-     * @param {Address} address 
+     * @param {Address} address
      * @returns {Promise<UTxO[]>}
      */
     async getUtxos(address) {
@@ -45538,13 +45991,13 @@ export class BlockfrostV0 {
             }
         });
 
-        /** 
-         * @type {any} 
+        /**
+         * @type {any}
          */
         let all = await response.json();
 
         if (all?.status_code >= 300) {
-            all = []; 
+            all = [];
         }
 
         return all.map(obj => {
@@ -45554,14 +46007,14 @@ export class BlockfrostV0 {
                 new TxOutput(
                     address,
                     BlockfrostV0.parseValue(obj.amount),
-                    Datum.inline(ConstrData.fromCbor(hexToBytes(obj.inline_datum)))
+                    obj.inline_datum ? Datum.inline(ConstrData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
                 )
             );
         });
     }
 
-    /** 
-     * @param {Tx} tx 
+    /**
+     * @param {Tx} tx
      * @returns {Promise<TxId>}
      */
     async submitTx(tx) {
@@ -45585,10 +46038,11 @@ export class BlockfrostV0 {
         if (response.status != 200) {
             throw new Error(responseText);
         } else {
-            return new TxId(JSON.parse(responseText));  
+            return new TxId(JSON.parse(responseText));
         }
-    }   
+    }
 }
+
 
 
 ///////////////////////
@@ -46270,7 +46724,7 @@ export class WalletEmulator {
      */
     #pubKey;
 
-    /** 
+    /**
      * @param {Network} network
      * @param {NumberGenerator} random - used to generate the private key
      */
@@ -46346,6 +46800,15 @@ export class WalletEmulator {
     }
 
     /**
+     * @type {Promise<UTxO[]>}
+     */
+     get collateral() {
+        return new Promise((resolve, _) => {
+            resolve([])
+        });
+    }
+
+    /**
      * Simply assumed the tx needs to by signed by this wallet without checking.
      * @param {Tx} tx
      * @returns {Promise<Signature[]>}
@@ -46357,7 +46820,7 @@ export class WalletEmulator {
     }
 
     /**
-     * @param {Tx} tx 
+     * @param {Tx} tx
      * @returns {Promise<TxId>}
      */
     async submitTx(tx) {
@@ -46387,9 +46850,9 @@ class GenesisTx {
 
     /**
      * @param {number} id
-     * @param {Address} address 
+     * @param {Address} address
      * @param {bigint} lovelace
-     * @param {Assets} assets 
+     * @param {Assets} assets
      */
     constructor(id, address, lovelace, assets) {
         this.#id = id;
@@ -46466,7 +46929,7 @@ class RegularTx {
     #tx;
 
     /**
-     * @param {Tx} tx 
+     * @param {Tx} tx
      */
     constructor(tx) {
         this.#tx = tx;
@@ -46490,8 +46953,8 @@ class RegularTx {
     }
 
     /**
-     * @param {Address} address 
-     * @param {UTxO[]} utxos 
+     * @param {Address} address
+     * @param {UTxO[]} utxos
      * @returns {UTxO[]}
      */
     collectUtxos(address, utxos) {
@@ -46575,7 +47038,7 @@ export class NetworkEmulator {
     #blocks;
 
     /**
-     * @param {number} seed 
+     * @param {number} seed
      */
     constructor(seed = 0) {
         this.#slot = 0n;
@@ -46588,7 +47051,7 @@ export class NetworkEmulator {
     /**
      * Create a copy of networkParams that always has access to the current slot
      *  (for setting the validity range automatically)
-     * @param {NetworkParams} networkParams 
+     * @param {NetworkParams} networkParams
      * @returns {NetworkParams}
      */
     initNetworkParams(networkParams) {
@@ -46625,9 +47088,9 @@ export class NetworkEmulator {
 
     /**
      * Creates a UTxO using a GenesisTx.
-     * @param {WalletEmulator} wallet 
-     * @param {bigint} lovelace 
-     * @param {Assets} assets 
+     * @param {WalletEmulator} wallet
+     * @param {bigint} lovelace
+     * @param {Assets} assets
      */
     createUtxo(wallet, lovelace, assets = new Assets([])) {
         if (lovelace != 0n || !assets.isZero()) {
@@ -46645,7 +47108,7 @@ export class NetworkEmulator {
 
     /**
      * Mint a block with the current mempool, and advance the slot.
-     * @param {bigint} nSlots 
+     * @param {bigint} nSlots
      */
     tick(nSlots) {
         if (this.#mempool.length > 0) {
@@ -46736,7 +47199,7 @@ export class NetworkEmulator {
     }
 
     /**
-     * @param {Tx} tx 
+     * @param {Tx} tx
      * @returns {Promise<TxId>}
      */
     async submitTx(tx) {
@@ -46752,7 +47215,6 @@ export class NetworkEmulator {
         return tx.id();
     }
 }
-
 
 
 //////////////////////////////////////
