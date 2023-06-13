@@ -548,16 +548,16 @@ const UPLC_TAG_WIDTHS = {
 
 	/**
 	 * @param {number[] | string} bytes 
+	 * @param {ProgramProperties} properties
 	 * @returns {UplcProgram}
 	 */
-	static fromCbor(bytes) {
+	static fromCbor(bytes, properties = {purpose: null, callsTxTimeRange: false}) {
 		if (typeof bytes == "string") {
-			return UplcProgram.fromCbor(hexToBytes(bytes))
+			return UplcProgram.fromCbor(hexToBytes(bytes), properties)
 		} else {
-			return deserializeUplcBytes(CborData.decodeBytes(CborData.decodeBytes(bytes)));
+			return deserializeUplcBytes(CborData.decodeBytes(CborData.decodeBytes(bytes)), properties);
 		}
 	}
-
 
 	/**
 	 * Intended for transfer only
@@ -942,9 +942,10 @@ const UPLC_TAG_WIDTHS = {
 
 /**
  * @param {number[]} bytes 
+ * @param {ProgramProperties} properties
  * @returns {UplcProgram}
  */
-export function deserializeUplcBytes(bytes) {
+export function deserializeUplcBytes(bytes, properties = {purpose: null, callsTxTimeRange: false}) {
 	let reader = new UplcDeserializer(bytes);
 
 	let version = [
@@ -963,7 +964,7 @@ export function deserializeUplcBytes(bytes) {
 
 	reader.finalize();
 
-	return new UplcProgram(expr, {purpose: null, callsTxTimeRange: false}, version);
+	return new UplcProgram(expr, properties, version);
 }
 
 /**

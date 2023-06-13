@@ -3470,6 +3470,7 @@ function makeRawFunctions() {
 
 	// ScriptContext builtins
 	addDataFuncs("__helios__scriptcontext");
+	add(new RawFunc("__helios__scriptcontext__scripts", `(self) -> {self}`));
 	add(new RawFunc("__helios__scriptcontext__new_spending",
 	`(tx, output_id) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -3602,6 +3603,12 @@ function makeRawFunctions() {
 	
 	// ContractContext builtin
 	addDataFuncs("__helios__contractcontext");
+	add(new RawFunc("__helios__contractcontext__now", 
+	`(self) -> {
+		() -> {
+			__core__macro__now(())
+		}
+	}`));
 	add(new RawFunc("__helios__contractcontext__scripts", `(self) -> {()}`));
 	add(new RawFunc("__helios__contractcontext__agent", `(self) -> {self}`));
 	add(new RawFunc("__helios__contractcontext__network", `(self) -> {()}`));
@@ -5633,10 +5640,10 @@ export function fetchRawGenerics() {
  * Doesn't add templates
  * @package
  * @param {IR} ir 
- * @param {null | IRDefinitions} extra
+ * @param {null | IRDefinitions} userDefs - some userDefs might have the __helios prefix
  * @returns {IRDefinitions}
  */
-export function fetchRawFunctions(ir, extra = null) {
+export function fetchRawFunctions(ir, userDefs = null) {
 	// notify statistics of existence of builtin in correct order
 	if (onNotifyRawUsage !== null) {
 		for (let [name, _] of db) {
@@ -5658,7 +5665,7 @@ export function fetchRawFunctions(ir, extra = null) {
 
 	if (matches !== null) {
 		for (let m of matches) {
-			if (!IRParametricName.matches(m) && !map.has(m) && (!extra || !extra.has(m))) {
+			if (!IRParametricName.matches(m) && !map.has(m) && (!userDefs || !userDefs.has(m))) {
 				const builtin = db.get(m);
 
 				if (!builtin) {

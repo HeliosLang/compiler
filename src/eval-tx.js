@@ -2,10 +2,6 @@
 // Eval tx types
 
 import {
-    assertDefined
-} from "./utils.js";
-
-import {
     Site,
     FTPP
 } from "./tokens.js";
@@ -91,13 +87,14 @@ import {
 } from "./eval-containers.js";
 
 import {
-    TimeRangeType
+    TimeRangeType, TimeType
 } from "./eval-time.js";
 
 import {
     DatumHashType,
     MintingPolicyHashType,
     PubKeyHashType,
+    scriptHashType,
     ScriptHashType,
     StakingHashType,
     ValidatorHashType
@@ -485,17 +482,21 @@ export class MacroType extends Common {
 }
 
 /**
+ * @typedef {{[name: string]: ScriptHashType}} ScriptTypes
+ */
+
+/**
  * @package
  * @implements {DataType}
  */
 export class ScriptCollectionType extends MacroType {
     /**
-     * @type {{[name: string]: Type}}
+     * @type {ScriptTypes}
      */
     #scripts;
 
     /**
-     * @param {{[name: string]: Type}} scripts 
+     * @param {ScriptTypes} scripts 
      */
     constructor(scripts) {
         super();
@@ -538,7 +539,7 @@ export class ScriptCollectionType extends MacroType {
      * @returns {boolean}
      */
     isEmpty() {
-        return true;
+        return Object.keys(this.#scripts).length == 0;
     }
 }
 
@@ -644,6 +645,7 @@ export class ContractContextType extends MacroType {
 	 */
 	get instanceMembers() {
         return {
+            now: new FuncType([], TimeType),
             agent: WalletType,
             scripts: this.#scriptCollection,
             network: NetworkType,
@@ -1077,7 +1079,7 @@ export const TxOutputType = new GenericType({
         address: AddressType,
         value: ValueType,
 	    datum: OutputDatumType,
-        ref_script_hash: OptionType$(ScriptHashType)
+        ref_script_hash: OptionType$(scriptHashType)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),

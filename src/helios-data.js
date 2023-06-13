@@ -1332,8 +1332,7 @@ export class ScriptHash extends Hash {
 	 */
 	constructor(rawValue) {
 		const bytes = Hash.cleanConstructorArg(rawValue);
-
-		assert(bytes.length == 28, `expected 28 bytes for ScriptHash, got ${bytes.length}`);
+		assert(bytes.length == 28 || bytes.length == 0, `expected 0 or 28 bytes for ScriptHash, got ${bytes.length}`);
 		super(bytes);
 	}
 
@@ -1351,6 +1350,15 @@ export class ScriptHash extends Hash {
  */
 
 export class MintingPolicyHash extends ScriptHash {
+	/**
+	 * @param {ExpandAlias<MintingPolicyHashProps>} rawValue
+	 */
+	constructor(rawValue) {
+		const bytes = Hash.cleanConstructorArg(rawValue);
+		assert(bytes.length == 28 || bytes.length == 0, `expected 0 or 28 bytes for MintingPolicyHash, got ${bytes.length}`);
+		super(bytes);
+	}
+
 	/**
 	 * @param {MintingPolicyHash | MintingPolicyHashProps} props 
 	 * @returns {MintingPolicyHash}
@@ -1461,6 +1469,15 @@ export class StakeKeyHash extends Hash {
 
 export class StakingValidatorHash extends ScriptHash {
 	/**
+	 * @param {ExpandAlias<StakingValidatorHashProps>} rawValue
+	 */
+	constructor(rawValue) {
+		const bytes = Hash.cleanConstructorArg(rawValue);
+		assert(bytes.length == 28, `expected 28 bytes for StakingValidatorHash, got ${bytes.length}`);
+		super(bytes);
+	}
+
+	/**
 	 * @param {StakingValidatorHash | StakingValidatorHashProps} props 
 	 * @returns {StakingValidatorHash}
 	 */
@@ -1506,6 +1523,15 @@ export class StakingValidatorHash extends ScriptHash {
  */
 
 export class ValidatorHash extends ScriptHash {
+	/**
+	 * @param {ExpandAlias<ValidatorHashProps>} rawValue
+	 */
+	constructor(rawValue) {
+		const bytes = Hash.cleanConstructorArg(rawValue);
+		assert(bytes.length == 28, `expected 28 bytes for ValidatorHash, got ${bytes.length}`);
+		super(bytes);
+	}
+
 	/**
 	 * @param {ValidatorHash | ValidatorHashProps} props 
 	 * @returns {ValidatorHash}

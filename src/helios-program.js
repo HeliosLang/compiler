@@ -8,6 +8,7 @@ import {
 import {
     Source,
 	assert,
+	assertClass,
     assertDefined,
 	assertNonEmpty
 } from "./utils.js";
@@ -54,10 +55,6 @@ import {
     tokenize
 } from "./tokenization.js";
 
-import { 
-	Common 
-} from "./eval-common.js";
-
 /**
  * @typedef {import("./eval-common.js").DataType} DataType
  */
@@ -75,6 +72,10 @@ import {
 import { 
 	DefaultTypeClass 
 } from "./eval-parametric.js";
+
+/**
+ * @typedef {import("./eval-tx.js").ScriptTypes} ScriptTypes
+ */
 
 import { 
 	ContractContextType,
@@ -1165,22 +1166,17 @@ class MainModule extends Module {
 	/**
 	 * @param {IR} ir
 	 * @param {IRDefinitions} definitions
-	 * @param {null | IRDefinitions} extra
 	 * @returns {IR}
 	 */
-	wrapInner(ir, definitions, extra = null) {
+	wrapInner(ir, definitions) {
 		ir = Program.injectMutualRecursions(ir, definitions);
 
 		definitions = this.eliminateUnused(ir, definitions);
 
 		ir = IR.wrapWithDefinitions(ir, definitions);
-		
-		if (extra) {
-			ir = IR.wrapWithDefinitions(ir, extra);
-		}
 
 		// add builtins as late as possible, to make sure we catch as many dependencies as possible
-		const builtins = fetchRawFunctions(ir, extra);
+		const builtins = fetchRawFunctions(assertClass(ir, IR), definitions);
 
 		ir = IR.wrapWithDefinitions(ir, builtins);
 
@@ -1194,9 +1190,13 @@ class MainModule extends Module {
 	 * @returns {IR}
 	 */
 	wrapEntryPoint(ir, extra = null) {
-		const map = this.fetchDefinitions(ir, (s) => s.name.value == "main");
+		let map = this.fetchDefinitions(ir, (s) => s.name.value == "main");
 
-		return this.wrapInner(ir, map, extra);
+		if (extra) {
+			map = new Map(Array.from(extra.entries()).concat(Array.from(map.entries())));
+		}
+
+		return this.wrapInner(ir, map);
 	}
 
 	/**
@@ -1339,7 +1339,7 @@ class RedeemerProgram extends Program {
 
 	/**
 	 * @package
-	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {ScriptTypes} validatorTypes
 	 * @returns {TopScope}
 	 */
 	evalTypes(validatorTypes = {}) {
@@ -1465,11 +1465,11 @@ class DatumRedeemerProgram extends Program {
 
 	/**
 	 * @package
-	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {ScriptTypes} scriptTypes
 	 * @returns {TopScope}
 	 */
-	evalTypes(validatorTypes) {
-		const scope = GlobalScope.new(this.purpose, validatorTypes);
+	evalTypes(scriptTypes) {
+		const scope = GlobalScope.new(this.purpose, scriptTypes);
 
 		return this.evalTypesInternal(scope);	
 	}
@@ -1541,11 +1541,11 @@ class GenericProgram extends Program {
 
 	/**
 	 * @package
-	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {ScriptTypes} scriptTypes
 	 * @returns {TopScope}
 	 */
-	evalTypes(validatorTypes) {
-		const scope = GlobalScope.new(this.purpose, validatorTypes);
+	evalTypes(scriptTypes) {
+		const scope = GlobalScope.new(this.purpose, scriptTypes);
 
 		const topScope = super.evalTypesInternal(scope);
 
@@ -1683,28 +1683,28 @@ export class LinkingProgram extends GenericProgram {
 	 * Creates  a new program.
 	 * @param {string} mainSrc 
 	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
-	 * @param {{[name: string]: Type}} validatorTypes - generators for script hashes, used by ScriptCollection
+	 * @param {ScriptTypes} scriptTypes - generators for script hashes, used by ScriptCollection
 	 * @returns {LinkingProgram}
 	 */
-	static new(mainSrc, moduleSrcs = [], validatorTypes = {}) {
+	static new(mainSrc, moduleSrcs = [], scriptTypes = {}) {
 		const [purpose, modules] = Program.parseMain(mainSrc, moduleSrcs);
 
 		assert(purpose == "linking")
 
 		const program = new LinkingProgram(modules, []);
 
-		program.evalTypes(validatorTypes)
+		program.evalTypes(scriptTypes)
 
 		return program;
 	}
 
 	/**
 	 * @package
-	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {ScriptTypes} scriptTypes
 	 * @returns {TopScope}
 	 */
-	evalTypes(validatorTypes = {}) {
-		const scope = GlobalScope.newLinking(validatorTypes);
+	evalTypes(scriptTypes = {}) {
+		const scope = GlobalScope.newLinking(scriptTypes);
 
 		const topScope = super.evalTypesInternal(scope);
 		

@@ -37,6 +37,8 @@ import {
 
 import {
     MintingPolicyHashType,
+    ScriptHashType,
+    StakingValidatorHashType,
     ValidatorHashType
 } from "./eval-hashes.js";
 
@@ -231,7 +233,9 @@ export const exportedForBundling = {
     IRParametricProgram,
     MintingPolicyHashType,
     RealType,
+    ScriptHashType,
     Site,
+    StakingValidatorHashType,
     StringType,
     TxType,
     ValidatorHashType,

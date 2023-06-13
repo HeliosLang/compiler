@@ -274,8 +274,6 @@ export class Tx extends CborData {
 			}
 		});
 
-		console.log(`${inputs.length} INPUTS, ${refInputs.length} REF_INPUTS`);
-
 		// build the tx from scratch
 		const tx = new Tx();
 
@@ -1026,6 +1024,11 @@ export class Tx extends CborData {
 			);
 		}
 
+		// initially dummy for more correct body size, recalculated later
+		if (this.#witnesses.redeemers.length > 0) {
+			this.#body.setScriptDataHash(new Hash((new Array(32)).fill(0)));
+		}
+
 		// auto set the validity time range if the script call tx.time_range
 		//  and translate the time range dates to slots
 		this.finalizeValidityTimeRange(networkParams);
@@ -1175,7 +1178,7 @@ class TxBody extends CborData {
 	 */
 	#minted;
 
-	/** @type {?Hash} */
+	/** @type {null | Hash} */
 	#scriptDataHash;
 
 	/** @type {TxInput[]} */
@@ -1207,7 +1210,7 @@ class TxBody extends CborData {
 		this.#withdrawals = new Map();
 		this.#firstValidSlot = null;
 		this.#minted = new Assets(); // starts as zero value (i.e. empty map)
-		this.#scriptDataHash = new Hash((new Array(32)).fill(0)); // initially dummy for more correct body size, (re)calculated upon finalization
+		this.#scriptDataHash = null; 
 		this.#collateral = [];
 		this.#signers = [];
 		this.#collateralReturn = null;

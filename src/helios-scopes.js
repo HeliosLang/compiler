@@ -67,7 +67,7 @@ import {
 	MintingPolicyHashType,
 	PubKeyType,
 	PubKeyHashType,
-	ScriptHashType,
+	scriptHashType,
 	StakeKeyHashType,
 	StakingHashType,
 	StakingValidatorHashType,
@@ -79,6 +79,10 @@ import {
 	ValueType,
 	ValuableTypeClass
 } from "./eval-money.js";
+
+/**
+ * @typedef {import("./eval-tx.js").ScriptTypes} ScriptTypes
+ */
 
 import {
 	AddressType,
@@ -120,7 +124,7 @@ export const builtinTypes = {
 	PubKey: PubKeyType,
 	PubKeyHash: PubKeyHashType,
 	Real: RealType,
-	ScriptHash: ScriptHashType,
+	ScriptHash: scriptHashType,
     ScriptPurpose: ScriptPurposeType,
     StakeKeyHash: StakeKeyHashType,
     StakingCredential: StakingCredentialType,
@@ -207,10 +211,10 @@ export class GlobalScope {
 	/**
 	 * Initialize the GlobalScope with all the builtins
 	 * @param {ScriptPurpose} purpose
-	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {ScriptTypes} scriptTypes - types of all the scripts in a contract/ensemble
 	 * @returns {GlobalScope}
 	 */
-	static new(purpose, validatorTypes = {}) {
+	static new(purpose, scriptTypes = {}) {
 		let scope = new GlobalScope();
 
 		// List (aka '[]'), Option, and Map types are accessed through special expressions
@@ -223,7 +227,7 @@ export class GlobalScope {
 		scope.set("Any",         		  new AnyTypeClass());
 		scope.set("Valuable",             new ValuableTypeClass());
 
-		const scriptCollection = new ScriptCollectionType(validatorTypes);
+		const scriptCollection = new ScriptCollectionType(scriptTypes);
 		scope.set("ScriptCollection",     scriptCollection);
         scope.set("ScriptContext",        new ScriptContextType(scriptCollection));
 
@@ -236,15 +240,15 @@ export class GlobalScope {
 	}
 
 	/**
-	 * @param {{[name: string]: Type}} validatorTypes 
+	 * @param {ScriptTypes} scriptTypes 
 	 * @returns {GlobalScope}
 	 */
-	static newLinking(validatorTypes) {
-		const scope = GlobalScope.new("linking");
+	static newLinking(scriptTypes) {
+		const scope = GlobalScope.new("linking", scriptTypes);
 
 		scope.set("Network", NetworkType);
 			
-		const scriptCollection = new ScriptCollectionType(validatorTypes);
+		const scriptCollection = new ScriptCollectionType(scriptTypes);
 		scope.set("ScriptCollection", scriptCollection);
 		scope.set("ContractContext",  new ContractContextType(scriptCollection));
 		scope.set("TxBuilder",        TxBuilderType);

@@ -2,6 +2,7 @@
 // Eval hash types
 
 import { 
+    assert,
     hexToBytes
 } from "./utils.js";
 
@@ -120,6 +121,50 @@ function genHashTypeProps(offchainType) {
 
 /**
  * @package
+ * @implements {DataType}
+ */
+export class ScriptHashType extends GenericType {
+    /**
+     * 
+     * @param {null | string } name 
+     * @param {null | HeliosDataClass<HeliosData>} offChainType 
+     */
+    constructor(name = null, offChainType = null) {
+        if (offChainType && name) {
+            super({
+                ...genHashTypeProps(offChainType),
+                name: name,
+                offChainType: offChainType,
+                genInstanceMembers: genHashInstanceMembers,
+                genTypeMembers: (self) => ({
+                    ...genHashTypeMembers(self),
+                    from_script_hash: new FuncType([scriptHashType], self)
+                })
+            });
+        } else {
+            assert(name === null);
+
+            super({
+                name: "ScriptHash",
+                genInstanceMembers: (self) => ({
+                    ...genCommonInstanceMembers(self)
+                }),
+                genTypeMembers: (self) => ({
+                    ...genCommonTypeMembers(self)
+                })
+            });
+        }
+    }
+}
+
+/**
+ * @package
+ * @type {DataType}
+ */
+export const scriptHashType = new ScriptHashType();
+
+/**
+ * @package
  * @type {DataType}
  */
 export const DatumHashType = new GenericType({
@@ -132,18 +177,9 @@ export const DatumHashType = new GenericType({
 
 /**
  * @package
- * @type {DataType}
+ * @type {ScriptHashType}
  */
-export const MintingPolicyHashType = new GenericType({
-    ...genHashTypeProps(MintingPolicyHash),
-    name: "MintingPolicyHash",
-    offChainType: MintingPolicyHash,
-    genInstanceMembers: genHashInstanceMembers,
-    genTypeMembers: (self) => ({
-        ...genHashTypeMembers(self),
-        from_script_hash: new FuncType([ScriptHashType], self)
-    })
-});
+export const MintingPolicyHashType = new ScriptHashType("MintingPolicyHash", MintingPolicyHash);
 
 /**
  * Builtin PubKey type
@@ -175,20 +211,6 @@ export const PubKeyHashType = new GenericType({
     offChainType: PubKeyHash,
     genInstanceMembers: genHashInstanceMembers,
     genTypeMembers: genHashTypeMembers
-});
-
-/**
- * @package
- * @type {DataType}
- */
-export const ScriptHashType = new GenericType({
-    name: "ScriptHash",
-    genInstanceMembers: (self) => ({
-        ...genCommonInstanceMembers(self)
-    }),
-    genTypeMembers: (self) => ({
-        ...genCommonTypeMembers(self)
-    })
 });
 
 /**
@@ -255,30 +277,13 @@ export const StakingHashValidatorType = new GenericEnumMemberType({
 
 /**
  * @package
- * @type {DataType}
+ * @type {ScriptHashType}
+}
  */
-export const StakingValidatorHashType = new GenericType({
-    ...genHashTypeProps(StakingValidatorHash),
-    name: "StakingValidatorHash",
-    offChainType: StakingValidatorHash,
-    genInstanceMembers: genHashInstanceMembers,
-    genTypeMembers: (self) => ({
-        ...genHashTypeMembers(self),
-        from_script_hash: new FuncType([ScriptHashType], self)
-    })
-});
+export const StakingValidatorHashType = new ScriptHashType("StakingValidatorHash", StakingValidatorHash);
 
 /**
  * @package
- * @type {DataType}
+ * @type {ScriptHashType}
  */
-export const ValidatorHashType = new GenericType({
-    ...genHashTypeProps(ValidatorHash),
-    name: "ValidatorHash",
-    offChainType: ValidatorHash,
-    genInstanceMembers: genHashInstanceMembers,
-    genTypeMembers: (self) => ({
-        ...genHashTypeMembers(self),
-        from_script_hash:  new FuncType([ScriptHashType], self)
-    })
-});
+export const ValidatorHashType = new ScriptHashType("ValidatorHash", ValidatorHash);

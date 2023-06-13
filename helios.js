@@ -142,9 +142,9 @@
 //     Section 18: Eval time types           DurationType, TimeType, TimeRangeType
 //
 //     Section 19: Eval hash types           genHashInstanceMembers, genHashTypeMembers, 
-//                                           genHashTypeProps, DatumHashType, 
-//                                           MintingPolicyHashType, PubKeyType, PubKeyHashType, 
-//                                           ScriptHashType, StakeKeyHashType, StakingHashType, 
+//                                           genHashTypeProps, ScriptHashType, scriptHashType, 
+//                                           DatumHashType, MintingPolicyHashType, PubKeyType, 
+//                                           PubKeyHashType, StakeKeyHashType, StakingHashType, 
 //                                           StakingHashStakeKeyType, StakingHashValidatorType, 
 //                                           StakingValidatorHashType, ValidatorHashType
 //
@@ -7429,8 +7429,7 @@ export class ScriptHash extends Hash {
 	 */
 	constructor(rawValue) {
 		const bytes = Hash.cleanConstructorArg(rawValue);
-
-		assert(bytes.length == 28, `expected 28 bytes for ScriptHash, got ${bytes.length}`);
+		assert(bytes.length == 28 || bytes.length == 0, `expected 0 or 28 bytes for ScriptHash, got ${bytes.length}`);
 		super(bytes);
 	}
 
@@ -7448,6 +7447,15 @@ export class ScriptHash extends Hash {
  */
 
 export class MintingPolicyHash extends ScriptHash {
+	/**
+	 * @param {ExpandAlias<MintingPolicyHashProps>} rawValue
+	 */
+	constructor(rawValue) {
+		const bytes = Hash.cleanConstructorArg(rawValue);
+		assert(bytes.length == 28 || bytes.length == 0, `expected 0 or 28 bytes for MintingPolicyHash, got ${bytes.length}`);
+		super(bytes);
+	}
+
 	/**
 	 * @param {MintingPolicyHash | MintingPolicyHashProps} props 
 	 * @returns {MintingPolicyHash}
@@ -7558,6 +7566,15 @@ export class StakeKeyHash extends Hash {
 
 export class StakingValidatorHash extends ScriptHash {
 	/**
+	 * @param {ExpandAlias<StakingValidatorHashProps>} rawValue
+	 */
+	constructor(rawValue) {
+		const bytes = Hash.cleanConstructorArg(rawValue);
+		assert(bytes.length == 28, `expected 28 bytes for StakingValidatorHash, got ${bytes.length}`);
+		super(bytes);
+	}
+
+	/**
 	 * @param {StakingValidatorHash | StakingValidatorHashProps} props 
 	 * @returns {StakingValidatorHash}
 	 */
@@ -7603,6 +7620,15 @@ export class StakingValidatorHash extends ScriptHash {
  */
 
 export class ValidatorHash extends ScriptHash {
+	/**
+	 * @param {ExpandAlias<ValidatorHashProps>} rawValue
+	 */
+	constructor(rawValue) {
+		const bytes = Hash.cleanConstructorArg(rawValue);
+		assert(bytes.length == 28, `expected 28 bytes for ValidatorHash, got ${bytes.length}`);
+		super(bytes);
+	}
+
 	/**
 	 * @param {ValidatorHash | ValidatorHashProps} props 
 	 * @returns {ValidatorHash}
@@ -13734,16 +13760,16 @@ const UPLC_TAG_WIDTHS = {
 
 	/**
 	 * @param {number[] | string} bytes 
+	 * @param {ProgramProperties} properties
 	 * @returns {UplcProgram}
 	 */
-	static fromCbor(bytes) {
+	static fromCbor(bytes, properties = {purpose: null, callsTxTimeRange: false}) {
 		if (typeof bytes == "string") {
-			return UplcProgram.fromCbor(hexToBytes(bytes))
+			return UplcProgram.fromCbor(hexToBytes(bytes), properties)
 		} else {
-			return deserializeUplcBytes(CborData.decodeBytes(CborData.decodeBytes(bytes)));
+			return deserializeUplcBytes(CborData.decodeBytes(CborData.decodeBytes(bytes)), properties);
 		}
 	}
-
 
 	/**
 	 * Intended for transfer only
@@ -14128,9 +14154,10 @@ const UPLC_TAG_WIDTHS = {
 
 /**
  * @param {number[]} bytes 
+ * @param {ProgramProperties} properties
  * @returns {UplcProgram}
  */
-export function deserializeUplcBytes(bytes) {
+export function deserializeUplcBytes(bytes, properties = {purpose: null, callsTxTimeRange: false}) {
 	let reader = new UplcDeserializer(bytes);
 
 	let version = [
@@ -14149,7 +14176,7 @@ export function deserializeUplcBytes(bytes) {
 
 	reader.finalize();
 
-	return new UplcProgram(expr, {purpose: null, callsTxTimeRange: false}, version);
+	return new UplcProgram(expr, properties, version);
 }
 
 /**
@@ -18771,6 +18798,50 @@ function genHashTypeProps(offchainType) {
 
 /**
  * @package
+ * @implements {DataType}
+ */
+class ScriptHashType extends GenericType {
+    /**
+     * 
+     * @param {null | string } name 
+     * @param {null | HeliosDataClass<HeliosData>} offChainType 
+     */
+    constructor(name = null, offChainType = null) {
+        if (offChainType && name) {
+            super({
+                ...genHashTypeProps(offChainType),
+                name: name,
+                offChainType: offChainType,
+                genInstanceMembers: genHashInstanceMembers,
+                genTypeMembers: (self) => ({
+                    ...genHashTypeMembers(self),
+                    from_script_hash: new FuncType([scriptHashType], self)
+                })
+            });
+        } else {
+            assert(name === null);
+
+            super({
+                name: "ScriptHash",
+                genInstanceMembers: (self) => ({
+                    ...genCommonInstanceMembers(self)
+                }),
+                genTypeMembers: (self) => ({
+                    ...genCommonTypeMembers(self)
+                })
+            });
+        }
+    }
+}
+
+/**
+ * @package
+ * @type {DataType}
+ */
+const scriptHashType = new ScriptHashType();
+
+/**
+ * @package
  * @type {DataType}
  */
 const DatumHashType = new GenericType({
@@ -18783,18 +18854,9 @@ const DatumHashType = new GenericType({
 
 /**
  * @package
- * @type {DataType}
+ * @type {ScriptHashType}
  */
-const MintingPolicyHashType = new GenericType({
-    ...genHashTypeProps(MintingPolicyHash),
-    name: "MintingPolicyHash",
-    offChainType: MintingPolicyHash,
-    genInstanceMembers: genHashInstanceMembers,
-    genTypeMembers: (self) => ({
-        ...genHashTypeMembers(self),
-        from_script_hash: new FuncType([ScriptHashType], self)
-    })
-});
+const MintingPolicyHashType = new ScriptHashType("MintingPolicyHash", MintingPolicyHash);
 
 /**
  * Builtin PubKey type
@@ -18826,20 +18888,6 @@ const PubKeyHashType = new GenericType({
     offChainType: PubKeyHash,
     genInstanceMembers: genHashInstanceMembers,
     genTypeMembers: genHashTypeMembers
-});
-
-/**
- * @package
- * @type {DataType}
- */
-const ScriptHashType = new GenericType({
-    name: "ScriptHash",
-    genInstanceMembers: (self) => ({
-        ...genCommonInstanceMembers(self)
-    }),
-    genTypeMembers: (self) => ({
-        ...genCommonTypeMembers(self)
-    })
 });
 
 /**
@@ -18906,33 +18954,16 @@ const StakingHashValidatorType = new GenericEnumMemberType({
 
 /**
  * @package
- * @type {DataType}
+ * @type {ScriptHashType}
+}
  */
-const StakingValidatorHashType = new GenericType({
-    ...genHashTypeProps(StakingValidatorHash),
-    name: "StakingValidatorHash",
-    offChainType: StakingValidatorHash,
-    genInstanceMembers: genHashInstanceMembers,
-    genTypeMembers: (self) => ({
-        ...genHashTypeMembers(self),
-        from_script_hash: new FuncType([ScriptHashType], self)
-    })
-});
+export const StakingValidatorHashType = new ScriptHashType("StakingValidatorHash", StakingValidatorHash);
 
 /**
  * @package
- * @type {DataType}
+ * @type {ScriptHashType}
  */
-const ValidatorHashType = new GenericType({
-    ...genHashTypeProps(ValidatorHash),
-    name: "ValidatorHash",
-    offChainType: ValidatorHash,
-    genInstanceMembers: genHashInstanceMembers,
-    genTypeMembers: (self) => ({
-        ...genHashTypeMembers(self),
-        from_script_hash:  new FuncType([ScriptHashType], self)
-    })
-});
+const ValidatorHashType = new ScriptHashType("ValidatorHash", ValidatorHash);
 
 
 
@@ -19455,17 +19486,21 @@ class MacroType extends Common {
 }
 
 /**
+ * @typedef {{[name: string]: ScriptHashType}} ScriptTypes
+ */
+
+/**
  * @package
  * @implements {DataType}
  */
 class ScriptCollectionType extends MacroType {
     /**
-     * @type {{[name: string]: Type}}
+     * @type {ScriptTypes}
      */
     #scripts;
 
     /**
-     * @param {{[name: string]: Type}} scripts 
+     * @param {ScriptTypes} scripts 
      */
     constructor(scripts) {
         super();
@@ -19508,7 +19543,7 @@ class ScriptCollectionType extends MacroType {
      * @returns {boolean}
      */
     isEmpty() {
-        return true;
+        return Object.keys(this.#scripts).length == 0;
     }
 }
 
@@ -19614,6 +19649,7 @@ class ContractContextType extends MacroType {
 	 */
 	get instanceMembers() {
         return {
+            now: new FuncType([], TimeType),
             agent: WalletType,
             scripts: this.#scriptCollection,
             network: NetworkType,
@@ -20047,7 +20083,7 @@ const TxOutputType = new GenericType({
         address: AddressType,
         value: ValueType,
 	    datum: OutputDatumType,
-        ref_script_hash: OptionType$(ScriptHashType)
+        ref_script_hash: OptionType$(scriptHashType)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
@@ -20114,7 +20150,7 @@ export const builtinTypes = {
 	PubKey: PubKeyType,
 	PubKeyHash: PubKeyHashType,
 	Real: RealType,
-	ScriptHash: ScriptHashType,
+	ScriptHash: scriptHashType,
     ScriptPurpose: ScriptPurposeType,
     StakeKeyHash: StakeKeyHashType,
     StakingCredential: StakingCredentialType,
@@ -20201,10 +20237,10 @@ class GlobalScope {
 	/**
 	 * Initialize the GlobalScope with all the builtins
 	 * @param {ScriptPurpose} purpose
-	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {ScriptTypes} scriptTypes - types of all the scripts in a contract/ensemble
 	 * @returns {GlobalScope}
 	 */
-	static new(purpose, validatorTypes = {}) {
+	static new(purpose, scriptTypes = {}) {
 		let scope = new GlobalScope();
 
 		// List (aka '[]'), Option, and Map types are accessed through special expressions
@@ -20217,7 +20253,7 @@ class GlobalScope {
 		scope.set("Any",         		  new AnyTypeClass());
 		scope.set("Valuable",             new ValuableTypeClass());
 
-		const scriptCollection = new ScriptCollectionType(validatorTypes);
+		const scriptCollection = new ScriptCollectionType(scriptTypes);
 		scope.set("ScriptCollection",     scriptCollection);
         scope.set("ScriptContext",        new ScriptContextType(scriptCollection));
 
@@ -20230,15 +20266,15 @@ class GlobalScope {
 	}
 
 	/**
-	 * @param {{[name: string]: Type}} validatorTypes 
+	 * @param {ScriptTypes} scriptTypes 
 	 * @returns {GlobalScope}
 	 */
-	static newLinking(validatorTypes) {
-		const scope = GlobalScope.new("linking");
+	static newLinking(scriptTypes) {
+		const scope = GlobalScope.new("linking", scriptTypes);
 
 		scope.set("Network", NetworkType);
 			
-		const scriptCollection = new ScriptCollectionType(validatorTypes);
+		const scriptCollection = new ScriptCollectionType(scriptTypes);
 		scope.set("ScriptCollection", scriptCollection);
 		scope.set("ContractContext",  new ContractContextType(scriptCollection));
 		scope.set("TxBuilder",        TxBuilderType);
@@ -33033,6 +33069,7 @@ function makeRawFunctions() {
 
 	// ScriptContext builtins
 	addDataFuncs("__helios__scriptcontext");
+	add(new RawFunc("__helios__scriptcontext__scripts", `(self) -> {self}`));
 	add(new RawFunc("__helios__scriptcontext__new_spending",
 	`(tx, output_id) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -33165,6 +33202,12 @@ function makeRawFunctions() {
 	
 	// ContractContext builtin
 	addDataFuncs("__helios__contractcontext");
+	add(new RawFunc("__helios__contractcontext__now", 
+	`(self) -> {
+		() -> {
+			__core__macro__now(())
+		}
+	}`));
 	add(new RawFunc("__helios__contractcontext__scripts", `(self) -> {()}`));
 	add(new RawFunc("__helios__contractcontext__agent", `(self) -> {self}`));
 	add(new RawFunc("__helios__contractcontext__network", `(self) -> {()}`));
@@ -35196,10 +35239,10 @@ function fetchRawGenerics() {
  * Doesn't add templates
  * @package
  * @param {IR} ir 
- * @param {null | IRDefinitions} extra
+ * @param {null | IRDefinitions} userDefs - some userDefs might have the __helios prefix
  * @returns {IRDefinitions}
  */
-function fetchRawFunctions(ir, extra = null) {
+function fetchRawFunctions(ir, userDefs = null) {
 	// notify statistics of existence of builtin in correct order
 	if (onNotifyRawUsage !== null) {
 		for (let [name, _] of db) {
@@ -35221,7 +35264,7 @@ function fetchRawFunctions(ir, extra = null) {
 
 	if (matches !== null) {
 		for (let m of matches) {
-			if (!IRParametricName.matches(m) && !map.has(m) && (!extra || !extra.has(m))) {
+			if (!IRParametricName.matches(m) && !map.has(m) && (!userDefs || !userDefs.has(m))) {
 				const builtin = db.get(m);
 
 				if (!builtin) {
@@ -39385,22 +39428,17 @@ class MainModule extends Module {
 	/**
 	 * @param {IR} ir
 	 * @param {IRDefinitions} definitions
-	 * @param {null | IRDefinitions} extra
 	 * @returns {IR}
 	 */
-	wrapInner(ir, definitions, extra = null) {
+	wrapInner(ir, definitions) {
 		ir = Program.injectMutualRecursions(ir, definitions);
 
 		definitions = this.eliminateUnused(ir, definitions);
 
 		ir = IR.wrapWithDefinitions(ir, definitions);
-		
-		if (extra) {
-			ir = IR.wrapWithDefinitions(ir, extra);
-		}
 
 		// add builtins as late as possible, to make sure we catch as many dependencies as possible
-		const builtins = fetchRawFunctions(ir, extra);
+		const builtins = fetchRawFunctions(assertClass(ir, IR), definitions);
 
 		ir = IR.wrapWithDefinitions(ir, builtins);
 
@@ -39414,9 +39452,13 @@ class MainModule extends Module {
 	 * @returns {IR}
 	 */
 	wrapEntryPoint(ir, extra = null) {
-		const map = this.fetchDefinitions(ir, (s) => s.name.value == "main");
+		let map = this.fetchDefinitions(ir, (s) => s.name.value == "main");
 
-		return this.wrapInner(ir, map, extra);
+		if (extra) {
+			map = new Map(Array.from(extra.entries()).concat(Array.from(map.entries())));
+		}
+
+		return this.wrapInner(ir, map);
 	}
 
 	/**
@@ -39559,7 +39601,7 @@ class RedeemerProgram extends Program {
 
 	/**
 	 * @package
-	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {ScriptTypes} validatorTypes
 	 * @returns {TopScope}
 	 */
 	evalTypes(validatorTypes = {}) {
@@ -39685,11 +39727,11 @@ class DatumRedeemerProgram extends Program {
 
 	/**
 	 * @package
-	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {ScriptTypes} scriptTypes
 	 * @returns {TopScope}
 	 */
-	evalTypes(validatorTypes) {
-		const scope = GlobalScope.new(this.purpose, validatorTypes);
+	evalTypes(scriptTypes) {
+		const scope = GlobalScope.new(this.purpose, scriptTypes);
 
 		return this.evalTypesInternal(scope);	
 	}
@@ -39761,11 +39803,11 @@ class GenericProgram extends Program {
 
 	/**
 	 * @package
-	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {ScriptTypes} scriptTypes
 	 * @returns {TopScope}
 	 */
-	evalTypes(validatorTypes) {
-		const scope = GlobalScope.new(this.purpose, validatorTypes);
+	evalTypes(scriptTypes) {
+		const scope = GlobalScope.new(this.purpose, scriptTypes);
 
 		const topScope = super.evalTypesInternal(scope);
 
@@ -39903,28 +39945,28 @@ export class LinkingProgram extends GenericProgram {
 	 * Creates  a new program.
 	 * @param {string} mainSrc 
 	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
-	 * @param {{[name: string]: Type}} validatorTypes - generators for script hashes, used by ScriptCollection
+	 * @param {ScriptTypes} scriptTypes - generators for script hashes, used by ScriptCollection
 	 * @returns {LinkingProgram}
 	 */
-	static new(mainSrc, moduleSrcs = [], validatorTypes = {}) {
+	static new(mainSrc, moduleSrcs = [], scriptTypes = {}) {
 		const [purpose, modules] = Program.parseMain(mainSrc, moduleSrcs);
 
 		assert(purpose == "linking")
 
 		const program = new LinkingProgram(modules, []);
 
-		program.evalTypes(validatorTypes)
+		program.evalTypes(scriptTypes)
 
 		return program;
 	}
 
 	/**
 	 * @package
-	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {ScriptTypes} scriptTypes
 	 * @returns {TopScope}
 	 */
-	evalTypes(validatorTypes = {}) {
-		const scope = GlobalScope.newLinking(validatorTypes);
+	evalTypes(scriptTypes = {}) {
+		const scope = GlobalScope.newLinking(scriptTypes);
 
 		const topScope = super.evalTypesInternal(scope);
 		
@@ -40728,8 +40770,6 @@ export class Tx extends CborData {
 			}
 		});
 
-		console.log(`${inputs.length} INPUTS, ${refInputs.length} REF_INPUTS`);
-
 		// build the tx from scratch
 		const tx = new Tx();
 
@@ -41480,6 +41520,11 @@ export class Tx extends CborData {
 			);
 		}
 
+		// initially dummy for more correct body size, recalculated later
+		if (this.#witnesses.redeemers.length > 0) {
+			this.#body.setScriptDataHash(new Hash((new Array(32)).fill(0)));
+		}
+
 		// auto set the validity time range if the script call tx.time_range
 		//  and translate the time range dates to slots
 		this.finalizeValidityTimeRange(networkParams);
@@ -41629,7 +41674,7 @@ class TxBody extends CborData {
 	 */
 	#minted;
 
-	/** @type {?Hash} */
+	/** @type {null | Hash} */
 	#scriptDataHash;
 
 	/** @type {TxInput[]} */
@@ -41661,7 +41706,7 @@ class TxBody extends CborData {
 		this.#withdrawals = new Map();
 		this.#firstValidSlot = null;
 		this.#minted = new Assets(); // starts as zero value (i.e. empty map)
-		this.#scriptDataHash = new Hash((new Array(32)).fill(0)); // initially dummy for more correct body size, (re)calculated upon finalization
+		this.#scriptDataHash = null; 
 		this.#collateral = [];
 		this.#signers = [];
 		this.#collateralReturn = null;
@@ -47483,7 +47528,9 @@ export const exportedForBundling = {
     IRParametricProgram,
     MintingPolicyHashType,
     RealType,
+    ScriptHashType,
     Site,
+    StakingValidatorHashType,
     StringType,
     TxType,
     ValidatorHashType,

@@ -168,9 +168,10 @@ export function findUplcBuiltin(name: string): number;
 export function isUplcBuiltin(name: string, strict?: boolean): boolean;
 /**
  * @param {number[]} bytes
+ * @param {ProgramProperties} properties
  * @returns {UplcProgram}
  */
-export function deserializeUplcBytes(bytes: number[]): UplcProgram;
+export function deserializeUplcBytes(bytes: number[], properties?: ProgramProperties): UplcProgram;
 /**
  * Parses a plutus core program. Returns a UplcProgram object
  * @param {string} jsonString
@@ -3016,9 +3017,10 @@ export class UplcDataValue extends UplcValue {
 export class UplcProgram {
     /**
      * @param {number[] | string} bytes
+     * @param {ProgramProperties} properties
      * @returns {UplcProgram}
      */
-    static fromCbor(bytes: number[] | string): UplcProgram;
+    static fromCbor(bytes: number[] | string, properties?: ProgramProperties): UplcProgram;
     /**
      * Intended for transfer only
      * @param {any} expr
@@ -3332,6 +3334,12 @@ export class Tokenizer {
     nestGroups(ts: Token[]): Token[] | null;
     #private;
 }
+/**
+ * @package
+ * @type {ScriptHashType}
+}
+ */
+export const StakingValidatorHashType: ScriptHashType;
 export const WalletType: GenericType<HeliosData>;
 export const TxBuilderType: GenericType<HeliosData>;
 /**
@@ -3693,10 +3701,9 @@ export class Program {
     /**
      * @param {IR} ir
      * @param {IRDefinitions} definitions
-     * @param {null | IRDefinitions} extra
      * @returns {IR}
      */
-    wrapInner(ir: IR, definitions: IRDefinitions, extra?: null | IRDefinitions): IR;
+    wrapInner(ir: IR, definitions: IRDefinitions): IR;
     /**
      * @package
      * @param {IR} ir
@@ -3735,12 +3742,10 @@ export class LinkingProgram extends GenericProgram {
      * Creates  a new program.
      * @param {string} mainSrc
      * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
-     * @param {{[name: string]: Type}} validatorTypes - generators for script hashes, used by ScriptCollection
+     * @param {ScriptTypes} scriptTypes - generators for script hashes, used by ScriptCollection
      * @returns {LinkingProgram}
      */
-    static new(mainSrc: string, moduleSrcs?: string[], validatorTypes?: {
-        [name: string]: Type;
-    }): LinkingProgram;
+    static new(mainSrc: string, moduleSrcs?: string[], scriptTypes?: ScriptTypes): LinkingProgram;
     /**
      * @param {Module[]} modules
      * @param {Program[]} validators
@@ -3748,12 +3753,10 @@ export class LinkingProgram extends GenericProgram {
     constructor(modules: Module[], validators: Program[]);
     /**
      * @package
-     * @param {{[name: string]: Type}} validatorTypes
+     * @param {ScriptTypes} scriptTypes
      * @returns {TopScope}
      */
-    evalTypes(validatorTypes?: {
-        [name: string]: Type;
-    }): TopScope;
+    evalTypes(scriptTypes?: ScriptTypes): TopScope;
     #private;
 }
 export class NativeScript extends CborData {
@@ -5684,7 +5687,9 @@ export namespace exportedForBundling {
     export { IRParametricProgram };
     export { MintingPolicyHashType };
     export { RealType };
+    export { ScriptHashType };
     export { Site };
+    export { StakingValidatorHashType };
     export { StringType };
     export { TxType };
     export { ValidatorHashType };
@@ -6028,6 +6033,9 @@ export type ProgramProperties = {
 export type TransferableUplcProgram<TInstance> = {
     transferUplcProgram: (expr: any, properties: ProgramProperties, version: any[]) => TInstance;
     transferUplcAst: TransferUplcAst;
+};
+export type ScriptTypes = {
+    [name: string]: ScriptHashType;
 };
 export type IRLiteralRegistry = Map<IRVariable, IRLiteralExpr>;
 export type UserTypes = {
@@ -6699,6 +6707,18 @@ declare class UplcTerm {
     #private;
 }
 /**
+ * @package
+ * @implements {DataType}
+ */
+declare class ScriptHashType extends GenericType<any> implements DataType {
+    /**
+     *
+     * @param {null | string } name
+     * @param {null | HeliosDataClass<HeliosData>} offChainType
+     */
+    constructor(name?: null | string, offChainType?: null | HeliosDataClass<HeliosData>);
+}
+/**
  * Created by statements
  * @package
  * @template {HeliosData} T
@@ -7235,19 +7255,15 @@ declare class GlobalScope {
     /**
      * Initialize the GlobalScope with all the builtins
      * @param {ScriptPurpose} purpose
-     * @param {{[name: string]: Type}} validatorTypes
+     * @param {ScriptTypes} scriptTypes - types of all the scripts in a contract/ensemble
      * @returns {GlobalScope}
      */
-    static new(purpose: ScriptPurpose, validatorTypes?: {
-        [name: string]: Type;
-    }): GlobalScope;
+    static new(purpose: ScriptPurpose, scriptTypes?: ScriptTypes): GlobalScope;
     /**
-     * @param {{[name: string]: Type}} validatorTypes
+     * @param {ScriptTypes} scriptTypes
      * @returns {GlobalScope}
      */
-    static newLinking(validatorTypes: {
-        [name: string]: Type;
-    }): GlobalScope;
+    static newLinking(scriptTypes: ScriptTypes): GlobalScope;
     /**
      * Checks if scope contains a name
      * @param {Word} name
@@ -7354,12 +7370,10 @@ declare class ConstStatement extends Statement {
 declare class GenericProgram extends Program {
     /**
      * @package
-     * @param {{[name: string]: Type}} validatorTypes
+     * @param {ScriptTypes} scriptTypes
      * @returns {TopScope}
      */
-    evalTypes(validatorTypes: {
-        [name: string]: Type;
-    }): TopScope;
+    evalTypes(scriptTypes: ScriptTypes): TopScope;
 }
 /**
  * @package
@@ -7945,9 +7959,9 @@ declare class FuncType extends Common implements Type {
 declare const IntType: DataType;
 /**
  * @package
- * @type {DataType}
+ * @type {ScriptHashType}
  */
-declare const MintingPolicyHashType: DataType;
+declare const MintingPolicyHashType: ScriptHashType;
 /**
  * Builtin Real fixed point number type
  * @package
@@ -7968,9 +7982,9 @@ declare const StringType: DataType;
 declare const TxType: DataType;
 /**
  * @package
- * @type {DataType}
+ * @type {ScriptHashType}
  */
-declare const ValidatorHashType: DataType;
+declare const ValidatorHashType: ScriptHashType;
 /**
  * Part of a trick to force expansion of a type alias
  * @template T
