@@ -415,7 +415,7 @@ export function uplcToJs(schema: TypeSchema, data: UplcData): any;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.14.1";
+export const VERSION: "0.14.2";
 /**
  * Modifiable config vars
  * @type {{
@@ -5525,7 +5525,7 @@ export class NetworkEmulator implements Network {
  * @typedef {() => UplcData} ValueGenerator
  */
 /**
- * @typedef {(args: UplcValue[], res: (UplcValue | UserError)) => (boolean | Object.<string, boolean>)} PropertyTest
+ * @typedef {(args: UplcValue[], res: (UplcValue | UserError), isSimplfied?: boolean) => (boolean | Object.<string, boolean>)} PropertyTest
  */
 /**
  * Creates generators and runs script tests
@@ -6080,7 +6080,7 @@ export type EmulatorTx = {
     dump(): void;
 };
 export type ValueGenerator = () => UplcData;
-export type PropertyTest = (args: UplcValue[], res: (UplcValue | UserError)) => (boolean | {
+export type PropertyTest = (args: UplcValue[], res: (UplcValue | UserError), isSimplfied?: boolean) => (boolean | {
     [x: string]: boolean;
 });
 /**
@@ -6472,13 +6472,17 @@ declare class Hash extends HeliosData {
  */
 declare class UplcRte {
     /**
-     * @typedef {[?string, UplcValue][]} UplcRawStack
+     * @typedef {[null | string, UplcValue][]} UplcRawStack
      */
     /**
      * @param {UplcRTECallbacks} callbacks
      * @param {null | NetworkParams} networkParams
      */
     constructor(callbacks?: UplcRTECallbacks, networkParams?: null | NetworkParams);
+    /**
+     * @type {string}
+     */
+    get lastMessage(): string;
     /**
      * @param {string} name - for breakdown
      * @param {boolean} isTerm

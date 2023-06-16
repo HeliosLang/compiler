@@ -18,6 +18,7 @@ import {
  */
 
 import {
+	RuntimeError,
     Site,
     UserError
 } from "./tokens.js";
@@ -278,29 +279,38 @@ const UPLC_TAG_WIDTHS = {
 		// add the startup costs
 		rte.incrStartupCost();
 
-		let fn = await this.eval(rte);
+		try {
+			let fn = await this.eval(rte);
 
-		// program site is at pos 0, but now the call site is actually at the end 
-		let globalCallSite = new Site(this.site.src, this.site.src.length);
-		
-		/** @type {UplcValue} */
-		let result = fn;
+			// program site is at pos 0, but now the call site is actually at the end 
+			let globalCallSite = new Site(this.site.src, this.site.src.length);
+			
+			/** @type {UplcValue} */
+			let result = fn;
 
-		if (args !== null) {
-			if (args.length === 0 && fn instanceof UplcDelayedValue) {
-				result = await fn.force();
-			} else {
-				for (let arg of args) {
-					// each call also adds to the total cost
-					rte.incrCallCost();
-					rte.incrConstCost();
+			if (args !== null) {
+				if (args.length === 0 && fn instanceof UplcDelayedValue) {
+					result = await fn.force();
+				} else {
+					for (let arg of args) {
+						// each call also adds to the total cost
+						rte.incrCallCost();
+						rte.incrConstCost();
 
-					result = await result.call(rte, globalCallSite, arg);
+						result = await result.call(rte, globalCallSite, arg);
+					}
 				}
 			}
-		}
 
-		return result;
+			return result;
+		} catch (e) {
+			// add some more context to errors throw by `assert()` or `error()`
+			if (e instanceof RuntimeError && e.lastMessage == "" && rte.lastMessage != "") {
+				throw e.addMessage(rte.lastMessage);
+			} else {
+				throw e;
+			}
+		}
 	}
 
 	/**

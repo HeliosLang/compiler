@@ -680,7 +680,7 @@ function makeRawFunctions() {
 		__core__trace(
 			msg, 
 			() -> {
-				error("error thrown by user-code")
+				error("")
 			}
 		)()
 	}`));
@@ -695,7 +695,7 @@ function makeRawFunctions() {
 				__core__trace(
 					msg,
 					() -> {
-						error("assert failed")
+						error("")
 					}
 				)()
 			}
@@ -2313,23 +2313,25 @@ function makeRawFunctions() {
 	`(self) -> {
 		(index) -> {
 			(recurse) -> {
-				recurse(recurse, self, index)
+				recurse(recurse, self, 0)
 			}(
-				(recurse, self, index) -> {
+				(recurse, self, i) -> {
 					__core__chooseList(
 						self, 
-						() -> {error("index out of range")}, 
-						() -> {__core__ifThenElse(
-							__core__lessThanInteger(index, 0), 
-							() -> {error("index out of range")}, 
-							() -> {
-								__core__ifThenElse(
-									__core__equalsInteger(index, 0), 
-									() -> {__core__headList(self)}, 
-									() -> {recurse(recurse, __core__tailList(self), __core__subtractInteger(index, 1))}
-								)()
-							}
-						)()}
+						() -> {
+							error("index out of range")
+						}, 
+						() -> {
+							__core__ifThenElse(
+								__core__equalsInteger(index, i), 
+								() -> {
+									__core__headList(self)
+								}, 
+								() -> {
+									recurse(recurse, __core__tailList(self), __core__addInteger(i, 1))
+								}
+							)()
+						}
 					)()
 				}
 			)
@@ -2352,6 +2354,76 @@ function makeRawFunctions() {
 					"not a singleton list"
 				),
 				__core__headList(self)
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__set`,
+	`(self) -> {
+		(index, item) -> {
+			__helios__list[__helios__data]__set(self)(index, ${TTPP}0____to_data(item))
+		}
+	}`));
+	add(new RawFunc(`__helios__list[__helios__data]__set`,
+	`(self) -> {
+		(index, item) -> {
+			(recurse) -> {
+				recurse(recurse, self, 0)
+			}(
+				(recurse, lst, i) -> {
+					__core__chooseList(
+						lst,
+						() -> {
+							error("index out of range")
+						},
+						() -> {
+							__core__ifThenElse(
+								__core__equalsInteger(i, index),
+								() -> {
+									__core__mkCons(item, __core__tailList(lst))
+								},
+								() -> {
+									__core__mkCons(
+										__core__headList(lst),
+										recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1))
+									)
+								}
+							)()
+						}
+					)()
+				}
+			)	
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__split_at`, "__helios__list[__helios__data]__split_at"));
+	add(new RawFunc(`__helios__list[__helios__data]__split_at`, 
+	`(self) -> {
+		(index) -> {
+			(recurse) -> {
+				recurse(recurse, self, 0, (head) -> {head})
+			}(
+				(recurse, lst, i, build_head) -> {
+					__core__chooseList(
+						lst,
+						() -> {
+							error("index out of range")
+						},
+						() -> {
+							__core__ifThenElse(
+								__core__equalsInteger(i, index),
+								() -> {
+									(callback) -> {
+										callback(build_head(__core__mkNilData(())), lst)
+									}
+								},
+								() -> {
+									recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1), (h) -> {
+										build_head(__core__mkCons(__core__headList(lst), h))
+									})
+								}
+							)()
+						}
+					)()
+				}
 			)
 		}
 	}`));
@@ -2737,6 +2809,44 @@ function makeRawFunctions() {
 					${FTPP}0____to_data(fn(${TTPP}0__from_data(item)))
 				}, 
 				__core__mkNilData(())
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__map_option[${FTPP}0]`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, lst) -> {
+					__core__chooseList(
+						lst,
+						() -> {
+							lst
+						},
+						() -> {
+							(head, tail) -> {
+								(opt) -> {
+									__core__ifThenElse(
+										__core__equalsInteger(__core__fstPair(opt), 0),
+										() -> {
+											__core__mkCons(
+												__core__headList(__core__sndPair(opt)),
+												tail
+											)
+										},	
+										() -> {
+											tail
+										}
+									)()
+								}(__core__unConstrData(fn(head)))
+							}(
+								${TTPP}0__from_data(__core__headList(lst)),
+								recurse(recurse, __core__tailList(lst))
+							)
+						}
+					)()
+				}
 			)
 		}
 	}`));
@@ -3430,6 +3540,10 @@ function makeRawFunctions() {
 	add(new RawFunc(`__helios__option[${TTPP}0]__some__some`, 
 	`(self) -> {
 		${TTPP}0__from_data(__helios__common__field_0(self))
+	}`));
+	add(new RawFunc(`__helios__option__is_some`,
+	`(data) -> {
+		__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), 0)
 	}`));
 	
 

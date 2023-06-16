@@ -387,12 +387,17 @@ export class UplcRte {
 
 	/**
 	 * this.onNotifyCalls is set back to true if the endCall is called with the same rawStack as the marker.
-	 * @type {?UplcRawStack}
+	 * @type {null | UplcRawStack}
 	 */
 	#marker;
 
 	/**
-	 * @typedef {[?string, UplcValue][]} UplcRawStack
+	 * @type {string}
+	 */
+	#lastMessage;
+
+	/**
+	 * @typedef {[null | string, UplcValue][]} UplcRawStack
 	 */
 
 	/**
@@ -405,6 +410,14 @@ export class UplcRte {
 		this.#networkParams = networkParams;
 		this.#notifyCalls = true;
 		this.#marker = null;
+		this.#lastMessage = "";
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get lastMessage() {
+		return this.#lastMessage;
 	}
 
 	/**
@@ -519,6 +532,8 @@ export class UplcRte {
 		if (this.#callbacks.onPrint != undefined) {
 			await this.#callbacks.onPrint(msg);
 		}
+
+		this.#lastMessage = msg;
 	}
 
 	/**

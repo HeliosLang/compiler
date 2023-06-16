@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.14.1
+// Version:       0.14.2
 // Last update:   June 2023
 // License type:  BSD-3-Clause
 //
@@ -217,8 +217,8 @@
 //                                           buildSwitchCaseNameType, buildMultiArgSwitchCase, 
 //                                           buildSingleArgSwitchCase, buildSwitchCaseBody, 
 //                                           buildSwitchDefault, buildListLiteralExpr, 
-//                                           buildMapLiteralExpr, buildStructLiteralExpr, 
-//                                           buildStructLiteralField, 
+//                                           buildOptionSomeLiteralExpr, buildMapLiteralExpr, 
+//                                           buildStructLiteralExpr, buildStructLiteralField, 
 //                                           buildStructLiteralNamedField, 
 //                                           buildStructLiteralUnnamedField, buildValuePathExpr
 //
@@ -280,7 +280,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.14.1";
+export const VERSION = "0.14.2";
 
 /**
  * A tab used for indenting of the IR.
@@ -1606,16 +1606,43 @@ class Site {
  */
 class RuntimeError extends UserError {
 	#isIR; // last trace added
+	#msg;
+	#src;
+	#pos;
 
 	/**
 	 * @param {string} msg 
 	 * @param {Source} src 
 	 * @param {number} pos 
-	 * @param {boolean} isIR 
+	 * @param {boolean} isIR
 	 */
 	constructor(msg, src, pos, isIR) {
 		super(msg, src, pos);
 		this.#isIR = isIR;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get lastMessage() {
+		const lines = this.message.split("\n");
+		const lastLine = lines[lines.length - 1];
+
+		const parts = lastLine.split(":");
+
+		if (parts.length == 1) {
+			return "";
+		} else {
+			return parts[parts.length - 1].trim();
+		}
+	}
+
+	/**
+	 * @param {string} msg
+	 * @returns {RuntimeError}
+	 */
+	addMessage(msg) {
+		return new RuntimeError(this.message + `: ${msg}`, this.src, this.startPos, this.#isIR);
 	}
 
 	/**
@@ -10597,12 +10624,17 @@ class UplcRte {
 
 	/**
 	 * this.onNotifyCalls is set back to true if the endCall is called with the same rawStack as the marker.
-	 * @type {?UplcRawStack}
+	 * @type {null | UplcRawStack}
 	 */
 	#marker;
 
 	/**
-	 * @typedef {[?string, UplcValue][]} UplcRawStack
+	 * @type {string}
+	 */
+	#lastMessage;
+
+	/**
+	 * @typedef {[null | string, UplcValue][]} UplcRawStack
 	 */
 
 	/**
@@ -10615,6 +10647,14 @@ class UplcRte {
 		this.#networkParams = networkParams;
 		this.#notifyCalls = true;
 		this.#marker = null;
+		this.#lastMessage = "";
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get lastMessage() {
+		return this.#lastMessage;
 	}
 
 	/**
@@ -10729,6 +10769,8 @@ class UplcRte {
 		if (this.#callbacks.onPrint != undefined) {
 			await this.#callbacks.onPrint(msg);
 		}
+
+		this.#lastMessage = msg;
 	}
 
 	/**
@@ -13490,29 +13532,38 @@ const UPLC_TAG_WIDTHS = {
 		// add the startup costs
 		rte.incrStartupCost();
 
-		let fn = await this.eval(rte);
+		try {
+			let fn = await this.eval(rte);
 
-		// program site is at pos 0, but now the call site is actually at the end 
-		let globalCallSite = new Site(this.site.src, this.site.src.length);
-		
-		/** @type {UplcValue} */
-		let result = fn;
+			// program site is at pos 0, but now the call site is actually at the end 
+			let globalCallSite = new Site(this.site.src, this.site.src.length);
+			
+			/** @type {UplcValue} */
+			let result = fn;
 
-		if (args !== null) {
-			if (args.length === 0 && fn instanceof UplcDelayedValue) {
-				result = await fn.force();
-			} else {
-				for (let arg of args) {
-					// each call also adds to the total cost
-					rte.incrCallCost();
-					rte.incrConstCost();
+			if (args !== null) {
+				if (args.length === 0 && fn instanceof UplcDelayedValue) {
+					result = await fn.force();
+				} else {
+					for (let arg of args) {
+						// each call also adds to the total cost
+						rte.incrCallCost();
+						rte.incrConstCost();
 
-					result = await result.call(rte, globalCallSite, arg);
+						result = await result.call(rte, globalCallSite, arg);
+					}
 				}
 			}
-		}
 
-		return result;
+			return result;
+		} catch (e) {
+			// add some more context to errors throw by `assert()` or `error()`
+			if (e instanceof RuntimeError && e.lastMessage == "" && rte.lastMessage != "") {
+				throw e.addMessage(rte.lastMessage);
+			} else {
+				throw e;
+			}
+		}
 	}
 
 	/**
@@ -18427,8 +18478,14 @@ const ListType = new ParametricType({
 						const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
 						return new ParametricFunc([a], new FuncType([new FuncType([itemType], a.ref)], ListType$(a.ref)));
 					})(),
+					map_option: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+						return new ParametricFunc([a], new FuncType([new FuncType([itemType], OptionType$(a.ref))], ListType$(a.ref)));
+					})(),
 					prepend: new FuncType([itemType], self),
+					set: new FuncType([IntType, itemType], self),
 					sort: new FuncType([new FuncType([itemType, itemType], BoolType)], self),
+					split_at: new FuncType([IntType], [self, self]),
 					tail: self,
 					take: new FuncType([IntType], self),
 					take_end: new FuncType([IntType], self),
@@ -28654,6 +28711,8 @@ function buildChainStartValueExpr(ts) {
 			return buildListLiteralExpr(ts);
 		} else if (ts[0].isWord("Map") && ts[1].isGroup("[")) {
 			return buildMapLiteralExpr(ts); 
+		} else if (ts[0].isWord("Option") && ts[1].isGroup("[") && ts[2].isSymbol("::") && ts[3].isWord("Some")) {
+			return buildOptionSomeLiteralExpr(ts);
 		} else {
 			// could be switch or literal struct construction
 			const iBraces = Group.find(ts, "{");
@@ -29382,7 +29441,9 @@ function buildListLiteralExpr(ts) {
 		return null;
 	}
 
-	const itemTypeExpr = buildTypeExpr(site, ts.splice(0, bracesPos));
+	const itemTypeTs = ts.splice(0, bracesPos);
+
+	const itemTypeExpr = buildTypeExpr(site, itemTypeTs.slice());
 
 	if (!itemTypeExpr) {
 		return null;
@@ -29394,7 +29455,7 @@ function buildListLiteralExpr(ts) {
 		return null;
 	}
 
-	const itemExprs = reduceNull(braces.fields.map(fts => buildValueExpr(fts)));
+	const itemExprs = reduceNull(braces.fields.map(fts => buildValueExpr(fts[0]?.isGroup("{") ? itemTypeTs.concat(fts) : fts)));
 
 	if (itemExprs === null) {
 		// error will have already been thrown internally
@@ -29402,6 +29463,53 @@ function buildListLiteralExpr(ts) {
 	}
 
 	return new ListLiteralExpr(site, itemTypeExpr, itemExprs);
+}
+
+/**
+ * @package
+ * @param {Token[]} ts 
+ * @returns {StructLiteralExpr | null}
+ */
+function buildOptionSomeLiteralExpr(ts) {
+	const site = ts[0].site;
+
+	const bracesPos = Group.find(ts, "{");
+
+	if (bracesPos == -1) {
+		site.syntaxError("invalid Option[]::Some literal expression syntax");
+		return null;
+	}
+
+	const mainTypeTs = ts.splice(0, bracesPos);
+
+	const brackets = assertToken(mainTypeTs[1], site)?.assertGroup("[", 1);
+
+	if (!brackets) {
+		return null;
+	}
+
+	const someTypeTs = brackets.fields[0].slice();
+
+	const braces = assertToken(ts.shift(), site)?.assertGroup("{", 1);
+
+	if (!braces) {
+		return null;
+	}
+
+	if (braces.fields[0][0]?.isGroup("{")) {
+		const inner = new Group(
+			braces.site,
+			"{",
+			[
+				someTypeTs.concat(braces.fields[0])
+			]
+		);
+
+		return buildStructLiteralExpr(mainTypeTs.concat(inner).concat(ts));
+	} else {
+		return buildStructLiteralExpr(mainTypeTs.concat([braces]).concat(ts));
+	}
+
 }
 
 /**
@@ -29424,7 +29532,9 @@ function buildMapLiteralExpr(ts) {
 		return null;
 	}
 
-	const keyTypeExpr = buildTypeExpr(site, bracket.fields[0]);
+	const keyTypeTs = bracket.fields[0];
+
+	const keyTypeExpr = buildTypeExpr(site, keyTypeTs.slice());
 
 	if (!keyTypeExpr) {
 		return null;
@@ -29437,7 +29547,9 @@ function buildMapLiteralExpr(ts) {
 		return null;
 	}
 
-	const valueTypeExpr = buildTypeExpr(site, ts.splice(0, bracesPos));
+	const valueTypeTs = ts.splice(0, bracesPos);
+
+	const valueTypeExpr = buildTypeExpr(site, valueTypeTs.slice());
 
 	if (!valueTypeExpr) {
 		return null;
@@ -29466,9 +29578,11 @@ function buildMapLiteralExpr(ts) {
 		} else if (colonPos == fts.length - 1) {
 			fts[colonPos].syntaxError("expected expression after ':' in map literal field");
 		} else {
-			const keyExpr = buildValueExpr(fts.slice(0, colonPos));
+			const keyTs = fts.slice(0, colonPos);
+			const keyExpr = buildValueExpr(keyTs[0]?.isGroup("{") ? keyTypeTs.concat(keyTs) : keyTs);
 
-			const valueExpr = buildValueExpr(fts.slice(colonPos+1));
+			const valueTs = fts.slice(colonPos+1)
+			const valueExpr = buildValueExpr(valueTs[0]?.isGroup("{") ? valueTypeTs.concat(valueTs) : valueTs);
 
 			/**
 			 * @type {[Expr | null, Expr | null]}
@@ -30279,7 +30393,7 @@ function makeRawFunctions() {
 		__core__trace(
 			msg, 
 			() -> {
-				error("error thrown by user-code")
+				error("")
 			}
 		)()
 	}`));
@@ -30294,7 +30408,7 @@ function makeRawFunctions() {
 				__core__trace(
 					msg,
 					() -> {
-						error("assert failed")
+						error("")
 					}
 				)()
 			}
@@ -31912,23 +32026,25 @@ function makeRawFunctions() {
 	`(self) -> {
 		(index) -> {
 			(recurse) -> {
-				recurse(recurse, self, index)
+				recurse(recurse, self, 0)
 			}(
-				(recurse, self, index) -> {
+				(recurse, self, i) -> {
 					__core__chooseList(
 						self, 
-						() -> {error("index out of range")}, 
-						() -> {__core__ifThenElse(
-							__core__lessThanInteger(index, 0), 
-							() -> {error("index out of range")}, 
-							() -> {
-								__core__ifThenElse(
-									__core__equalsInteger(index, 0), 
-									() -> {__core__headList(self)}, 
-									() -> {recurse(recurse, __core__tailList(self), __core__subtractInteger(index, 1))}
-								)()
-							}
-						)()}
+						() -> {
+							error("index out of range")
+						}, 
+						() -> {
+							__core__ifThenElse(
+								__core__equalsInteger(index, i), 
+								() -> {
+									__core__headList(self)
+								}, 
+								() -> {
+									recurse(recurse, __core__tailList(self), __core__addInteger(i, 1))
+								}
+							)()
+						}
 					)()
 				}
 			)
@@ -31951,6 +32067,76 @@ function makeRawFunctions() {
 					"not a singleton list"
 				),
 				__core__headList(self)
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__set`,
+	`(self) -> {
+		(index, item) -> {
+			__helios__list[__helios__data]__set(self)(index, ${TTPP}0____to_data(item))
+		}
+	}`));
+	add(new RawFunc(`__helios__list[__helios__data]__set`,
+	`(self) -> {
+		(index, item) -> {
+			(recurse) -> {
+				recurse(recurse, self, 0)
+			}(
+				(recurse, lst, i) -> {
+					__core__chooseList(
+						lst,
+						() -> {
+							error("index out of range")
+						},
+						() -> {
+							__core__ifThenElse(
+								__core__equalsInteger(i, index),
+								() -> {
+									__core__mkCons(item, __core__tailList(lst))
+								},
+								() -> {
+									__core__mkCons(
+										__core__headList(lst),
+										recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1))
+									)
+								}
+							)()
+						}
+					)()
+				}
+			)	
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__split_at`, "__helios__list[__helios__data]__split_at"));
+	add(new RawFunc(`__helios__list[__helios__data]__split_at`, 
+	`(self) -> {
+		(index) -> {
+			(recurse) -> {
+				recurse(recurse, self, 0, (head) -> {head})
+			}(
+				(recurse, lst, i, build_head) -> {
+					__core__chooseList(
+						lst,
+						() -> {
+							error("index out of range")
+						},
+						() -> {
+							__core__ifThenElse(
+								__core__equalsInteger(i, index),
+								() -> {
+									(callback) -> {
+										callback(build_head(__core__mkNilData(())), lst)
+									}
+								},
+								() -> {
+									recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1), (h) -> {
+										build_head(__core__mkCons(__core__headList(lst), h))
+									})
+								}
+							)()
+						}
+					)()
+				}
 			)
 		}
 	}`));
@@ -32336,6 +32522,44 @@ function makeRawFunctions() {
 					${FTPP}0____to_data(fn(${TTPP}0__from_data(item)))
 				}, 
 				__core__mkNilData(())
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__map_option[${FTPP}0]`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, lst) -> {
+					__core__chooseList(
+						lst,
+						() -> {
+							lst
+						},
+						() -> {
+							(head, tail) -> {
+								(opt) -> {
+									__core__ifThenElse(
+										__core__equalsInteger(__core__fstPair(opt), 0),
+										() -> {
+											__core__mkCons(
+												__core__headList(__core__sndPair(opt)),
+												tail
+											)
+										},	
+										() -> {
+											tail
+										}
+									)()
+								}(__core__unConstrData(fn(head)))
+							}(
+								${TTPP}0__from_data(__core__headList(lst)),
+								recurse(recurse, __core__tailList(lst))
+							)
+						}
+					)()
+				}
 			)
 		}
 	}`));
@@ -33029,6 +33253,10 @@ function makeRawFunctions() {
 	add(new RawFunc(`__helios__option[${TTPP}0]__some__some`, 
 	`(self) -> {
 		${TTPP}0__from_data(__helios__common__field_0(self))
+	}`));
+	add(new RawFunc(`__helios__option__is_some`,
+	`(data) -> {
+		__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), 0)
 	}`));
 	
 
@@ -46842,7 +47070,7 @@ export class NetworkEmulator {
  */
 
 /**
- * @typedef {(args: UplcValue[], res: (UplcValue | UserError)) => (boolean | Object.<string, boolean>)} PropertyTest
+ * @typedef {(args: UplcValue[], res: (UplcValue | UserError), isSimplfied?: boolean) => (boolean | Object.<string, boolean>)} PropertyTest
  */
 
 /**
@@ -47260,7 +47488,7 @@ export class FuzzyTest {
 					this.#dummyNetworkParams
 				);
 
-				let obj = propTest(args, result);
+				let obj = propTest(args, result, simplify);
 
 				if (result instanceof UplcValue) {
 					totalCost.mem += cost.mem;
@@ -47321,7 +47549,7 @@ export class FuzzyTest {
 
 				let result = await coreProgram.run(args);
 
-				let obj = propTest(args, result);
+				let obj = propTest(args, result, simplify);
 
 				if (typeof obj == "boolean") {
 					if (!obj) {

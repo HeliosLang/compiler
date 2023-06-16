@@ -1186,6 +1186,32 @@ async function test25() {
   }`);
 }
 
+async function test26() {
+  await testTrue(`testing inferred_literal_struct
+  
+  struct Pair {
+    a: Int
+    b: Int
+
+    func is_zero(self) -> Bool {
+      self.a == 0 && self.b == 0
+    }
+  }
+
+  func main() -> Bool {
+    lst = []Pair{{0, 0}, {1, 2}, {3, 4}};
+    map = Map[Pair]Pair{{0, 0}: {1, 2}, {3, 4} : {5, 6}};
+    option = Option[Pair]::Some{{0, 0}};
+    lst_nested = [][]Pair{{{0, 0}, {1, 2}, {3, 4}}, {{0, 0}, {1, 2}, {3, 4}}};
+
+    lst.any((p: Pair) -> {p.is_zero()})
+    && map.any((k: Pair, v: Pair) -> {k.is_zero() || v.is_zero()})
+    && option.some.is_zero()
+    && lst_nested.flatten().any((p: Pair) -> {p.is_zero()})
+  }
+  `)
+}
+
 export default async function main() {
   await test0();
 
@@ -1238,6 +1264,8 @@ export default async function main() {
   await test24();
 
   await test25();
+
+  await test26();
 }
 
 runIfEntryPoint(main, "syntax.js");

@@ -217,8 +217,14 @@ export const ListType = new ParametricType({
 						const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
 						return new ParametricFunc([a], new FuncType([new FuncType([itemType], a.ref)], ListType$(a.ref)));
 					})(),
+					map_option: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+						return new ParametricFunc([a], new FuncType([new FuncType([itemType], OptionType$(a.ref))], ListType$(a.ref)));
+					})(),
 					prepend: new FuncType([itemType], self),
+					set: new FuncType([IntType, itemType], self),
 					sort: new FuncType([new FuncType([itemType, itemType], BoolType)], self),
+					split_at: new FuncType([IntType], [self, self]),
 					tail: self,
 					take: new FuncType([IntType], self),
 					take_end: new FuncType([IntType], self),

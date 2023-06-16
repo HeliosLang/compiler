@@ -54,7 +54,7 @@ import {
  */
 
 /**
- * @typedef {(args: UplcValue[], res: (UplcValue | UserError)) => (boolean | Object.<string, boolean>)} PropertyTest
+ * @typedef {(args: UplcValue[], res: (UplcValue | UserError), isSimplfied?: boolean) => (boolean | Object.<string, boolean>)} PropertyTest
  */
 
 /**
@@ -472,7 +472,7 @@ export class FuzzyTest {
 					this.#dummyNetworkParams
 				);
 
-				let obj = propTest(args, result);
+				let obj = propTest(args, result, simplify);
 
 				if (result instanceof UplcValue) {
 					totalCost.mem += cost.mem;
@@ -533,7 +533,7 @@ export class FuzzyTest {
 
 				let result = await coreProgram.run(args);
 
-				let obj = propTest(args, result);
+				let obj = propTest(args, result, simplify);
 
 				if (typeof obj == "boolean") {
 					if (!obj) {

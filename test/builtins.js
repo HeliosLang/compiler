@@ -267,7 +267,7 @@ function isError(err, info) {
         let parts = err.message.split(":");
         let n = parts.length;
         if (n < 2) {
-            return false;
+            return info == "";
         } else if (parts[n-1].trim().includes(info)) {
             return true
         } else {
@@ -1821,7 +1821,7 @@ async function testBuiltins() {
         testing list_get_singleton
         func main(a: []Int) -> Int {
             a.get_singleton()
-        }`, ([a], res) => {
+        }`, ([a], res, isSimplified) => {
             const lst = asIntList(a);
 
             if (lst.length == 1) {
@@ -1829,7 +1829,7 @@ async function testBuiltins() {
             } else if (lst.length == 0) {
                 return isError(res, "empty list");
             } else {
-                return isError(res, "assert failed");
+                return isError(res, isSimplified ? "" : "not a singleton list");
             }
         });
 
@@ -1837,27 +1837,82 @@ async function testBuiltins() {
         testing list_filter_get_singleton
         func main(a: []Int) -> Int {
             a.map((item: Int) -> {item*2}).filter((item: Int) -> {item == 0}).get_singleton()
-        }`, ([a], res) => {
+        }`, ([a], res, isSimplified) => {
             const lst = asIntList(a);
 
             if (lst.filter(i => i == 0n).length == 1) {
                 return asInt(res) == 0n;
             } else {
-                return isError(res, "not a singleton list") || isError(res, "assert failed") || isError(res, "empty list");
+                return isError(res, isSimplified ? "" : "not a singleton list") || isError(res, "empty list");
             }
+        });
+
+        await ft.test([ft.list(ft.int(0, 5), -5, 5)], `
+        testing list_filter_option
+        func main(a: []Int) -> []Int {
+            a.map_option((item: Int) -> Option[Int] {
+                if (item > 0) {
+                    Option[Int]::Some{item}
+                } else {
+                    Option[Int]::None
+                }
+            })
+        }`, ([a], res) => {
+            const resLst = asIntList(res);
+
+            return resLst.every(i => i > 0n);
         });
 
         await ft.test([ft.list(ft.int(0, 5), 0, 5)], `
         testing list_filter_get_singleton_iterator
         func main(a: []Int) -> Int {
             a.to_iterator().map((item: Int) -> {item*2}).filter((item: Int) -> {item == 0}).get_singleton()
-        }`, ([a], res) => {
+        }`, ([a], res, isSimplified) => {
             const lst = asIntList(a);
 
             if (lst.filter(i => i == 0n).length == 1) {
                 return asInt(res) == 0n;
             } else {
-                return isError(res, "not a singleton iterator") || isError(res, "assert failed") || isError(res, "empty iterator, not a singleton");
+                return isError(res, isSimplified ? "" : "not a singleton iterator") || isError(res, "empty iterator, not a singleton");
+            }
+        });
+
+        await ft.test([ft.list(ft.int()), ft.int(-10, 32), ft.int()], `
+        testing list_set
+        func main(a: []Int, b: Int, c: Int) -> []Int {
+            a.set(b, c)
+        }`, ([a, b, c], res) => {
+            const lst = asIntList(a);
+            const idx = Number(asInt(b))
+            const val = asInt(c)
+
+            if (idx < 0 || idx >= lst.length) {
+                return isError(res, "index out of range");
+            } else {
+                lst[Number(idx)] = val;
+
+                const resLst = asIntList(res);
+
+                return equalsList(resLst, lst);
+            }
+        });
+
+        await ft.test([ft.list(ft.int(), 0, 10), ft.int(-5, 15)], `
+        testing list_split_at
+        func main(a: []Int, b: Int) -> []Int {
+            (c: []Int, d: []Int) = a.split_at(b);
+
+            c + d
+        }`, ([a, b], res) => {
+            const lst = asIntList(a);
+            const idx = Number(asInt(b));
+
+            if (idx < 0 || idx >= lst.length) {
+                return isError(res, "index out of range");
+            } else {
+                const resLst = asIntList(res);
+
+                return equalsList(lst, resLst);
             }
         });
 
@@ -2051,13 +2106,13 @@ async function testBuiltins() {
                 assert(x >= 0, "neg x found")
             });
             true
-        }`, ([a], res) => {
+        }`, ([a], res, isSimplified) => {
             let la = asIntList(a);
 
             if (la.every(i => i >= 0n)) {
                 return asBool(res);
             } else {
-                return isError(res, "assert failed");
+                return isError(res, isSimplified ? "" : "neg x found");
             }
         });
 
@@ -2653,7 +2708,7 @@ async function testBuiltins() {
                 assert(key >= 0 && value >= 0, "neg key or value found")
             });
             true
-        }`, ([a], res) => {
+        }`, ([a], res, isSimplified) => {
             let failed = false;
 
             a.data.map.forEach(([k, v]) => {
@@ -2663,7 +2718,7 @@ async function testBuiltins() {
             });
 
             if (failed) {
-                return isError(res, "assert failed");
+                return isError(res, isSimplified ? "" : "neg key or value found");
             } else {
                 return asBool(res);
             }

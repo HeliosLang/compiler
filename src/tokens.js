@@ -359,16 +359,43 @@ export class Site {
  */
 export class RuntimeError extends UserError {
 	#isIR; // last trace added
+	#msg;
+	#src;
+	#pos;
 
 	/**
 	 * @param {string} msg 
 	 * @param {Source} src 
 	 * @param {number} pos 
-	 * @param {boolean} isIR 
+	 * @param {boolean} isIR
 	 */
 	constructor(msg, src, pos, isIR) {
 		super(msg, src, pos);
 		this.#isIR = isIR;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get lastMessage() {
+		const lines = this.message.split("\n");
+		const lastLine = lines[lines.length - 1];
+
+		const parts = lastLine.split(":");
+
+		if (parts.length == 1) {
+			return "";
+		} else {
+			return parts[parts.length - 1].trim();
+		}
+	}
+
+	/**
+	 * @param {string} msg
+	 * @returns {RuntimeError}
+	 */
+	addMessage(msg) {
+		return new RuntimeError(this.message + `: ${msg}`, this.src, this.startPos, this.#isIR);
 	}
 
 	/**

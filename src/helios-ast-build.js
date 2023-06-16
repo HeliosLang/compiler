@@ -2138,6 +2138,8 @@ function buildChainStartValueExpr(ts) {
 			return buildListLiteralExpr(ts);
 		} else if (ts[0].isWord("Map") && ts[1].isGroup("[")) {
 			return buildMapLiteralExpr(ts); 
+		} else if (ts[0].isWord("Option") && ts[1].isGroup("[") && ts[2].isSymbol("::") && ts[3].isWord("Some")) {
+			return buildOptionSomeLiteralExpr(ts);
 		} else {
 			// could be switch or literal struct construction
 			const iBraces = Group.find(ts, "{");
@@ -2866,7 +2868,9 @@ function buildListLiteralExpr(ts) {
 		return null;
 	}
 
-	const itemTypeExpr = buildTypeExpr(site, ts.splice(0, bracesPos));
+	const itemTypeTs = ts.splice(0, bracesPos);
+
+	const itemTypeExpr = buildTypeExpr(site, itemTypeTs.slice());
 
 	if (!itemTypeExpr) {
 		return null;
@@ -2878,7 +2882,7 @@ function buildListLiteralExpr(ts) {
 		return null;
 	}
 
-	const itemExprs = reduceNull(braces.fields.map(fts => buildValueExpr(fts)));
+	const itemExprs = reduceNull(braces.fields.map(fts => buildValueExpr(fts[0]?.isGroup("{") ? itemTypeTs.concat(fts) : fts)));
 
 	if (itemExprs === null) {
 		// error will have already been thrown internally
@@ -2886,6 +2890,53 @@ function buildListLiteralExpr(ts) {
 	}
 
 	return new ListLiteralExpr(site, itemTypeExpr, itemExprs);
+}
+
+/**
+ * @package
+ * @param {Token[]} ts 
+ * @returns {StructLiteralExpr | null}
+ */
+function buildOptionSomeLiteralExpr(ts) {
+	const site = ts[0].site;
+
+	const bracesPos = Group.find(ts, "{");
+
+	if (bracesPos == -1) {
+		site.syntaxError("invalid Option[]::Some literal expression syntax");
+		return null;
+	}
+
+	const mainTypeTs = ts.splice(0, bracesPos);
+
+	const brackets = assertToken(mainTypeTs[1], site)?.assertGroup("[", 1);
+
+	if (!brackets) {
+		return null;
+	}
+
+	const someTypeTs = brackets.fields[0].slice();
+
+	const braces = assertToken(ts.shift(), site)?.assertGroup("{", 1);
+
+	if (!braces) {
+		return null;
+	}
+
+	if (braces.fields[0][0]?.isGroup("{")) {
+		const inner = new Group(
+			braces.site,
+			"{",
+			[
+				someTypeTs.concat(braces.fields[0])
+			]
+		);
+
+		return buildStructLiteralExpr(mainTypeTs.concat(inner).concat(ts));
+	} else {
+		return buildStructLiteralExpr(mainTypeTs.concat([braces]).concat(ts));
+	}
+
 }
 
 /**
@@ -2908,7 +2959,9 @@ function buildMapLiteralExpr(ts) {
 		return null;
 	}
 
-	const keyTypeExpr = buildTypeExpr(site, bracket.fields[0]);
+	const keyTypeTs = bracket.fields[0];
+
+	const keyTypeExpr = buildTypeExpr(site, keyTypeTs.slice());
 
 	if (!keyTypeExpr) {
 		return null;
@@ -2921,7 +2974,9 @@ function buildMapLiteralExpr(ts) {
 		return null;
 	}
 
-	const valueTypeExpr = buildTypeExpr(site, ts.splice(0, bracesPos));
+	const valueTypeTs = ts.splice(0, bracesPos);
+
+	const valueTypeExpr = buildTypeExpr(site, valueTypeTs.slice());
 
 	if (!valueTypeExpr) {
 		return null;
@@ -2950,9 +3005,11 @@ function buildMapLiteralExpr(ts) {
 		} else if (colonPos == fts.length - 1) {
 			fts[colonPos].syntaxError("expected expression after ':' in map literal field");
 		} else {
-			const keyExpr = buildValueExpr(fts.slice(0, colonPos));
+			const keyTs = fts.slice(0, colonPos);
+			const keyExpr = buildValueExpr(keyTs[0]?.isGroup("{") ? keyTypeTs.concat(keyTs) : keyTs);
 
-			const valueExpr = buildValueExpr(fts.slice(colonPos+1));
+			const valueTs = fts.slice(colonPos+1)
+			const valueExpr = buildValueExpr(valueTs[0]?.isGroup("{") ? valueTypeTs.concat(valueTs) : valueTs);
 
 			/**
 			 * @type {[Expr | null, Expr | null]}
