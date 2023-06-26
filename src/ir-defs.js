@@ -1074,7 +1074,7 @@ function makeRawFunctions() {
 		}(
 			(recurse, x, pos, bytes) -> {
 				__core__ifThenElse(
-					__core__lessThanInteger(x, 10),
+					__core__equalsInteger(x, 0),
 					() -> {
 						__core__ifThenElse(
 							__core__lessThanEqualsInteger(n, pos),
@@ -1497,18 +1497,20 @@ function makeRawFunctions() {
 		() -> {
 			__helios__string____add(
 				__helios__string____add(
-					__core__ifThenElse(__core__lessThanInteger(0, self), "-", ""),
+					__core__ifThenElse(__core__lessThanInteger(self, 0), "-", ""),
 					__helios__int__show(
 						__helios__real__floor(
 							__helios__real__abs(self)()
 						)()
-					)(),
+					)()
 				),
 				__helios__string____add(
 					".",
-					__helios__int__show_padded(
-						__helios__int____mod(self, __helios__real__ONE),
-						__helios__real__PRECISION
+					__core__decodeUtf8(
+						__helios__int__show_padded(
+							__helios__int____mod(self, __helios__real__ONE),
+							__helios__real__PRECISION
+						)
 					)
 				)
 			)
@@ -2774,6 +2776,24 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__fold3[${FTPP}0@${FTPP}1@${FTPP}2]`,
+	`(self) -> {
+		(fn, a0, b0, c0) -> {
+			__helios__common__fold(
+				self,
+				(prev, item) -> {
+					prev(
+						(a, b, c) -> {
+							fn(a, b, c, ${TTPP}0__from_data(item))
+						}
+					)
+				},
+				(callback) -> {
+					callback(a0, b0, c0)
+				}
+			)
+		}
+	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__fold_lazy[${FTPP}0]`,
 	`(self) -> {
 		(fn, a0) -> {
@@ -4015,6 +4035,31 @@ function makeRawFunctions() {
 			})
 		}
 	}`));
+	add(new RawFunc(`__helios__txbuilder__redeem_many[${FTPP}0]`,
+	`(self) -> {
+		(inputs, redeemer) -> {
+			(recurse) -> {
+				recurse(recurse, inputs)
+			}(
+				(recurse, inputs) -> {
+					__core__chooseList(
+						inputs,
+						() -> {
+							self
+						},
+						() -> {
+							__helios__txbuilder__redeem[${FTPP}0](
+								recurse(recurse, __core__tailList(inputs))
+							)(
+								__core__headList(inputs),
+								redeemer
+							)
+						}
+					)()
+				}
+			)
+		}
+	}`));
 	add(new RawFunc(`__helios__txbuilder__add_output`,
 	`(self) -> {
 		(output) -> {
@@ -4093,7 +4138,7 @@ function makeRawFunctions() {
 			__core__chooseUnit(
 				__helios__assert(
 					__core__equalsInteger(__helios__common__length(value), 1),
-					"expected a single mph in mint value"
+					__helios__string____add("expected a single mph in mint value, got ", __helios__int__show(__helios__common__length(value))())
 				),
 				(mph) -> {
 					__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
@@ -5493,10 +5538,56 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
+	add(new RawFunc("__helios__value__is_zero_inner",
+	`(tokens) -> {
+		(recurse) -> {
+			recurse(recurse, tokens)
+		}(
+			(recurse, tokens) -> {
+				__core__chooseList(
+					tokens,
+					() -> {
+						true
+					},
+					() -> {
+						__helios__bool__and(
+							() -> {
+								__core__equalsInteger(__core__unIData(__core__sndPair(__core__headList(tokens))), 0)
+							},
+							() -> {
+								recurse(recurse, __core__tailList(tokens))
+							}
+						)
+					}
+				)()
+			}
+		)
+	}`));
 	add(new RawFunc("__helios__value__is_zero",
 	`(self) -> {
 		() -> {
-			__core__nullList(self)
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, map) -> {
+					__core__chooseList(
+						map,
+						() -> {
+							true
+						},
+						() -> {
+							__helios__bool__and(
+								() -> {
+									__helios__value__is_zero_inner(__core__unMapData(__core__sndPair(__core__headList(map))))
+								},
+								() -> {
+									recurse(recurse, __core__tailList(map))
+								}
+							)
+						}
+					)()
+				}
+			)
 		}
 	}`));
 	add(new RawFunc("__helios__value__get",

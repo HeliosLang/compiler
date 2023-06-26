@@ -1638,15 +1638,24 @@ function buildValueExpr(ts, prec = 0) {
 		function (ts_, prec_) {
 			return buildMaybeAssignOrChainExpr(ts_, prec_);
 		},
-		makeBinaryExprBuilder('||'), // 1: logical or operator
-		makeBinaryExprBuilder('&&'), // 2: logical and operator
-		makeBinaryExprBuilder(['==', '!=']), // 3: eq or neq
-		makeBinaryExprBuilder(['<', '<=', '>', '>=']), // 4: comparison
-		makeBinaryExprBuilder(['+', '-']), // 5: addition subtraction
-		makeBinaryExprBuilder(['*', '/', '%']), // 6: multiplication division remainder
-		makeUnaryExprBuilder(['!', '+', '-']), // 7: logical not, negate
 		/**
-		 * 8: variables or literal values chained with: (enum)member access, indexing and calling
+		 * 1: piped expression
+		 * @param {Token[]} ts_ 
+		 * @param {number} prec_ 
+		 * @returns 
+		 */
+		function (ts_, prec_) {
+			return buildPipedExpr(ts_, prec_);
+		},
+		makeBinaryExprBuilder('||'), // 2: logical or operator
+		makeBinaryExprBuilder('&&'), // 3: logical and operator
+		makeBinaryExprBuilder(['==', '!=']), // 4: eq or neq
+		makeBinaryExprBuilder(['<', '<=', '>', '>=']), // 5: comparison
+		makeBinaryExprBuilder(['+', '-']), // 6: addition subtraction
+		makeBinaryExprBuilder(['*', '/', '%']), // 7: multiplication division remainder
+		makeUnaryExprBuilder(['!', '+', '-']), // 8: logical not, negate
+		/**
+		 * 9: variables or literal values chained with: (enum)member access, indexing and calling
 		 * @param {Token[]} ts_ 
 		 * @param {number} prec_ 
 		 * @returns 
@@ -1972,6 +1981,58 @@ function buildAssignLhs(site, ts) {
 }
 
 /**
+ * @param {Token[]} ts 
+ * @param {number} prec
+ * @returns {Expr | null} 
+ */
+function buildPipedExpr(ts, prec) {
+	const iOp = SymbolToken.findLast(ts, ["|", "|."]);
+
+	if (iOp == ts.length - 1) {
+		ts[iOp].syntaxError(`invalid syntax, '${ts[iOp].toString()}' can't be used as a post-unary operator`);
+		return null;
+	} else if (iOp > 0) {
+		const a = buildValueExpr(ts.slice(0, iOp), prec);
+		
+		const op = ts[iOp].assertSymbol();
+
+		if (!a || !op) {
+			return null;
+		}
+
+		switch (op.value) {
+			case '|': {
+				const b = buildValueExpr(ts.slice(iOp + 1), prec + 1);
+
+				if (!b) {
+					return null;
+				}
+
+				return new CallExpr(op.site, b, [new CallArgExpr(a.site, null, a)]);
+			}
+			case '|.': {
+				ts = ts.slice(iOp + 1);
+
+				const name = assertToken(ts.shift(), op.site)?.assertWord()?.assertNotKeyword();
+
+				if (!name) {
+					return null;
+				}
+
+
+				const memberExpr = new MemberExpr(op.site, a, name);
+
+				return buildRemainingChainedValueExpr(memberExpr, ts, prec + 1);
+			}
+			default:
+				throw new Error("unhandled pipe operator")
+		}
+	} else {
+		return buildValueExpr(ts, prec + 1);
+	}
+}
+
+/**
  * @package
  * @param {string | string[]} symbol 
  * @returns {(ts: Token[], prec: number) => (Expr | null)}
@@ -2031,9 +2092,23 @@ function makeUnaryExprBuilder(symbol) {
  * @returns {Expr | null}
  */
 function buildChainedValueExpr(ts, prec) {
-	/** @type {Expr | null} */
-	let expr = buildChainStartValueExpr(ts);
+	/** 
+	 * @type {Expr | null} 
+	 */
+	const expr = buildChainStartValueExpr(ts);
 
+	return buildRemainingChainedValueExpr(expr, ts, prec);
+}
+
+
+/**
+ * @package
+ * @param {Expr | null} expr
+ * @param {Token[]} ts
+ * @param {number} prec
+ * @returns {Expr | null}
+ */
+function buildRemainingChainedValueExpr(expr, ts, prec) {
 	// now we can parse the rest of the chaining
 	while (ts.length > 0) {
 		if (expr === null) {

@@ -1636,9 +1636,24 @@ class TxBody extends CborData {
 
 	/**
 	 * @param {TxInput} input 
+	 * @param {boolean} checkUniqueness
 	 */
-	addRefInput(input) {
+	addRefInput(input, checkUniqueness = true) {
+		if (input.origOutput === null) {
+			throw new Error("TxInput.origOutput must be set when building transaction");
+		}
+
+		input.origOutput.value.assertAllPositive();
+
+		if (checkUniqueness) {
+			assert(this.#refInputs.every(prevInput => {
+				return  !prevInput.txId.eq(input.txId) || prevInput.utxoIdx != input.utxoIdx
+			}), "refInput already added before");
+		}
+
+		// push, then sort immediately
 		this.#refInputs.push(input);
+		this.#refInputs.sort(TxInput.comp);
 	}
 
 	/**
@@ -1843,6 +1858,16 @@ class TxBody extends CborData {
 
 				// can be less than -1 if utxoIds aren't consecutive
 				assert(TxInput.comp(prev, input) <= -1, "inputs not sorted");
+			}
+		});
+
+		// same for ref inputs
+		this.#refInputs.forEach((input, i) => {
+			if (i > 0) {
+				const prev = this.#inputs[i-1];
+
+				// can be less than -1 if utxoIds aren't consecutive
+				assert(TxInput.comp(prev, input) <= -1, "refInputs not sorted");
 			}
 		});
 
@@ -2752,6 +2777,13 @@ export class UTxO {
 		}
 
 		return sum;
+	}
+
+	/**
+	 * @returns {any}
+	 */
+	dump() {
+		return this.asTxInput.dump()
 	}
 }
 

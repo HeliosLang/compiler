@@ -632,13 +632,11 @@ export class Tokenizer {
 		}
 
 		if (c0 == '|') {
-			parseSecondChar('|');
+			parseSecondChar('|') || parseSecondChar('.');
 		} else if (c0 == '&') {
 			parseSecondChar('&');
 		} else if (c0 == '=') {
-			if (!parseSecondChar('=')) {
-				parseSecondChar('>');
-			}
+			parseSecondChar('=') || parseSecondChar('>');
 		} else if (c0 == '!' || c0 == '<' || c0 == '>') { // could be !=, ==, <= or >=
 			parseSecondChar('=');
 		} else if (c0 == ':') {
@@ -771,7 +769,12 @@ export class Tokenizer {
 
 				current = [t];
 			} else if (Group.isCloseSymbol(t)) {
-				const prev = assertDefined(current[0]?.assertSymbol());
+				const prev = current[0]?.assertSymbol();
+
+				if (!prev) {
+					return null;
+				}
+
 				if (!t.isSymbol(Group.matchSymbol(prev))) {
 					prev.syntaxError(`unmatched '${prev.value}'`);
 					t.syntaxError(`unmatched '${assertDefined(t.assertSymbol()).value}'`);

@@ -923,6 +923,10 @@ export const TxBuilderType = new GenericType({
             const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
             return new ParametricFunc([a], new FuncType([TxInputType, a.ref], self));
         })(),
+        redeem_many: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+            return new ParametricFunc([a], new FuncType([ListType$(TxInputType), a.ref], self));
+        })(),
         spend: new FuncType([TxInputType], self),
         spend_many: new FuncType([ListType$(TxInputType)], self)
     }),

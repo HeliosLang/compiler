@@ -1062,6 +1062,13 @@ export class NetworkEmulator {
             time: (new Date()).getTime()
         };
 
+        // increase the max tx size
+        raw.latestParams.maxTxSize = raw.latestParams.maxTxSize*100;
+        raw.latestParams.maxTxExecutionUnits = {
+            memory: raw.latestParams.maxTxExecutionUnits.memory*100,
+            steps: raw.latestParams.maxTxExecutionUnits.steps*100
+        };
+
         return new NetworkParams(
             raw,
             () => {
@@ -1117,7 +1124,7 @@ export class NetworkEmulator {
 
         this.#slot += nSlots;
     }
-
+    
     /**
      * @returns {Promise<NetworkParams>}
      */

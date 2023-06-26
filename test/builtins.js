@@ -1866,7 +1866,11 @@ async function testBuiltins() {
         await ft.test([ft.list(ft.int(0, 5), 0, 5)], `
         testing list_filter_get_singleton_iterator
         func main(a: []Int) -> Int {
-            a.to_iterator().map((item: Int) -> {item*2}).filter((item: Int) -> {item == 0}).get_singleton()
+            a
+                .to_iterator()
+                .map((item: Int) -> {item*2})
+                .filter((item: Int) -> {item == 0})
+                .get_singleton()
         }`, ([a], res, isSimplified) => {
             const lst = asIntList(a);
 

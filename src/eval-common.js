@@ -168,6 +168,7 @@ import {
  *   isBaseOf(type: Type): boolean
  *   infer(site: Site, map: InferenceMap, type: null | Type): Type
  *   toTyped():            Typed
+ *   isParametric():       boolean
  * }} Type
  */
 
@@ -218,6 +219,13 @@ export function applyTypes(parametric, ...types) {
  */
 export class Common {
 	constructor() {
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isParametric() {
+		return false;
 	}
 
     /**
@@ -1060,6 +1068,22 @@ export class FuncType extends Common {
 }
 
 /**
+ * @template {HeliosData} T
+ * @typedef {{
+ *   name: string,
+ *   path?: string,
+ *   offChainType?: HeliosDataClass<T> | null,
+ *   genOffChainType?: (() => HeliosDataClass<T>) | null
+ *   fieldNames?: string[],
+ *   genInstanceMembers: (self: Type) => InstanceMembers,
+ *   genTypeMembers: (self: Type) => TypeMembers
+ *   genTypeDetails?: (self: Type) => TypeDetails,
+ *   jsToUplc?: (obj: any) => UplcData
+ *   uplcToJs?: (data: UplcData) => any
+ * }} GenericTypeProps
+ */
+
+/**
  * Created by statements
  * @package
  * @template {HeliosData} T
@@ -1117,18 +1141,7 @@ export class GenericType extends Common {
 	#uplcToJs;
 
     /**
-     * @param {({
-     *   name: string,
-     *   path?: string,
-     *   offChainType?: HeliosDataClass<T> | null,
-	 *   genOffChainType?: (() => HeliosDataClass<T>) | null
-     *   fieldNames?: string[],
-     *   genInstanceMembers: (self: Type) => InstanceMembers,
-     *   genTypeMembers: (self: Type) => TypeMembers
-	 *   genTypeDetails?: (self: Type) => TypeDetails,
-	 *   jsToUplc?: (obj: any) => UplcData
-	 *   uplcToJs?: (data: UplcData) => any
-     * })} props
+     * @param {GenericTypeProps<T>} props
      */
     constructor({
 		name, 
@@ -1261,7 +1274,7 @@ export class GenericType extends Common {
      * @param {Site} site 
      * @param {InferenceMap} map
      */
-    inferInternal(site, map) {
+    applyInternal(site, map) {
 		return {
 			name: this.#name,
 			path: this.#path,
@@ -1322,11 +1335,7 @@ export class GenericType extends Common {
      * @returns {Type}
      */
 	infer(site, map, type) {
-		if (type !== null) {
-			return this;
-		} else {
-			return new GenericType(this.inferInternal(site, map));
-		}
+		return this;
 	}
 
 	/**
@@ -1397,6 +1406,25 @@ export class GenericType extends Common {
 	}
 }
 
+
+/**
+ * @template {HeliosData} T
+ * @typedef {{
+ *   name: string,
+ *   path?: string,
+ *   constrIndex: number,
+ *   parentType: DataType,
+ *   offChainType?: HeliosDataClass<T>,
+ *   genOffChainType?: () => HeliosDataClass<T>,
+ *   fieldNames?: string[],
+ *   genInstanceMembers: (self: Type) => InstanceMembers,
+ *   genTypeMembers?: (self: Type) => TypeMembers
+ *   genTypeDetails?: (self: Type) => TypeDetails
+ *   jsToUplc?: (obj: any) => UplcData
+ *   uplcToJs?: (data: UplcData) => any
+ * }} GenericEnumMemberTypeProps
+ */
+
 /**
  * Created by statements
  * @package
@@ -1409,20 +1437,7 @@ export class GenericEnumMemberType extends GenericType {
     #parentType;
 
     /**
-     * @param {({
-     *   name: string,
-     *   path?: string,
-     *   constrIndex: number,
-     *   parentType: DataType,
-     *   offChainType?: HeliosDataClass<T>,
-	 *   genOffChainType?: () => HeliosDataClass<T>,
-     *   fieldNames?: string[],
-     *   genInstanceMembers: (self: Type) => InstanceMembers,
-     *   genTypeMembers?: (self: Type) => TypeMembers
-	 *   genTypeDetails?: (self: Type) => TypeDetails
-	 *   jsToUplc?: (obj: any) => UplcData
-	 *   uplcToJs?: (data: UplcData) => any
-     * })} props
+     * @param {GenericEnumMemberTypeProps<T>} props
      */
     constructor({
 		name, 
@@ -1483,15 +1498,7 @@ export class GenericEnumMemberType extends GenericType {
      * @returns {Type}
      */
 	infer(site, map, type) {
-		if (type !== null) {
-			return this;
-		} else {
-			return new GenericEnumMemberType({
-				...this.inferInternal(site, map),
-				parentType: assertDefined(this.#parentType.infer(site, map, null).asDataType),
-				constrIndex: this.#constrIndex
-			});
-		}
+		return this;
 	}
 
 	/**
@@ -1513,6 +1520,7 @@ export class GenericEnumMemberType extends GenericType {
         return `${this.#parentType.toString()}::${this.name}`;
     }
 }
+
 
 /**
  * Type of return-value of functions that don't return anything (eg. assert, print, error)

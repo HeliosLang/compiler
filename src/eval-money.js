@@ -70,7 +70,7 @@ export const AssetClassType = new GenericType({
     name: "AssetClass",
     offChainType: AssetClass,
     genTypeDetails: (self) => ({
-        inputType: "string | {mph: number[] | string | MintingPolicyHash, tokenName: number[] | string} | helios.AssetClass",
+        inputType: "string | {mph: number[] | string | helios.MintingPolicyHash, tokenName: number[] | string} | helios.AssetClass",
         outputType: "helios.AssetClass",
         internalType: {
             type: "AssetClass"

@@ -317,6 +317,7 @@ export function tokenize(src: Source): Token[] | null;
  *   isBaseOf(type: Type): boolean
  *   infer(site: Site, map: InferenceMap, type: null | Type): Type
  *   toTyped():            Typed
+ *   isParametric():       boolean
  * }} Type
  */
 /**
@@ -4234,6 +4235,10 @@ export class UTxO {
      * @returns {number[]}
      */
     toCbor(): number[];
+    /**
+     * @returns {any}
+     */
+    dump(): any;
     #private;
 }
 export class TxRefInput extends TxInput {
@@ -5826,6 +5831,7 @@ export type DataType = EvalEntity & {
     isBaseOf(type: Type): boolean;
     infer(site: Site, map: InferenceMap, type: Type): Type;
     toTyped(): Typed;
+    isParametric(): boolean;
 } & {
     asDataType: DataType;
     fieldNames: string[];
@@ -5901,6 +5907,7 @@ export type Type = EvalEntity & {
     isBaseOf(type: Type): boolean;
     infer(site: Site, map: InferenceMap, type: null | Type): Type;
     toTyped(): Typed;
+    isParametric(): boolean;
 };
 export type Typed = EvalEntity & {
     asTyped: Typed;
@@ -6033,6 +6040,32 @@ export type ProgramProperties = {
 export type TransferableUplcProgram<TInstance> = {
     transferUplcProgram: (expr: any, properties: ProgramProperties, version: any[]) => TInstance;
     transferUplcAst: TransferUplcAst;
+};
+export type GenericTypeProps<T extends HeliosData> = {
+    name: string;
+    path?: string;
+    offChainType?: HeliosDataClass<T> | null;
+    genOffChainType?: (() => HeliosDataClass<T>) | null;
+    fieldNames?: string[];
+    genInstanceMembers: (self: Type) => InstanceMembers;
+    genTypeMembers: (self: Type) => TypeMembers;
+    genTypeDetails?: (self: Type) => TypeDetails;
+    jsToUplc?: (obj: any) => UplcData;
+    uplcToJs?: (data: UplcData) => any;
+};
+export type GenericEnumMemberTypeProps<T extends HeliosData> = {
+    name: string;
+    path?: string;
+    constrIndex: number;
+    parentType: DataType;
+    offChainType?: HeliosDataClass<T>;
+    genOffChainType?: () => HeliosDataClass<T>;
+    fieldNames?: string[];
+    genInstanceMembers: (self: Type) => InstanceMembers;
+    genTypeMembers?: (self: Type) => TypeMembers;
+    genTypeDetails?: (self: Type) => TypeDetails;
+    jsToUplc?: (obj: any) => UplcData;
+    uplcToJs?: (data: UplcData) => any;
 };
 export type ScriptTypes = {
     [name: string]: ScriptHashType;
@@ -6723,6 +6756,21 @@ declare class ScriptHashType extends GenericType<any> implements DataType {
     constructor(name?: null | string, offChainType?: null | HeliosDataClass<HeliosData>);
 }
 /**
+ * @template {HeliosData} T
+ * @typedef {{
+ *   name: string,
+ *   path?: string,
+ *   offChainType?: HeliosDataClass<T> | null,
+ *   genOffChainType?: (() => HeliosDataClass<T>) | null
+ *   fieldNames?: string[],
+ *   genInstanceMembers: (self: Type) => InstanceMembers,
+ *   genTypeMembers: (self: Type) => TypeMembers
+ *   genTypeDetails?: (self: Type) => TypeDetails,
+ *   jsToUplc?: (obj: any) => UplcData
+ *   uplcToJs?: (data: UplcData) => any
+ * }} GenericTypeProps
+ */
+/**
  * Created by statements
  * @package
  * @template {HeliosData} T
@@ -6730,31 +6778,9 @@ declare class ScriptHashType extends GenericType<any> implements DataType {
  */
 declare class GenericType<T extends HeliosData> extends Common implements DataType {
     /**
-     * @param {({
-     *   name: string,
-     *   path?: string,
-     *   offChainType?: HeliosDataClass<T> | null,
-     *   genOffChainType?: (() => HeliosDataClass<T>) | null
-     *   fieldNames?: string[],
-     *   genInstanceMembers: (self: Type) => InstanceMembers,
-     *   genTypeMembers: (self: Type) => TypeMembers
-     *   genTypeDetails?: (self: Type) => TypeDetails,
-     *   jsToUplc?: (obj: any) => UplcData
-     *   uplcToJs?: (data: UplcData) => any
-     * })} props
+     * @param {GenericTypeProps<T>} props
      */
-    constructor({ name, path, offChainType, genOffChainType, fieldNames, genInstanceMembers, genTypeMembers, genTypeDetails, jsToUplc, uplcToJs }: {
-        name: string;
-        path?: string;
-        offChainType?: HeliosDataClass<T> | null;
-        genOffChainType?: (() => HeliosDataClass<T>) | null;
-        fieldNames?: string[];
-        genInstanceMembers: (self: Type) => InstanceMembers;
-        genTypeMembers: (self: Type) => TypeMembers;
-        genTypeDetails?: (self: Type) => TypeDetails;
-        jsToUplc?: (obj: any) => UplcData;
-        uplcToJs?: (data: UplcData) => any;
-    });
+    constructor({ name, path, offChainType, genOffChainType, fieldNames, genInstanceMembers, genTypeMembers, genTypeDetails, jsToUplc, uplcToJs }: GenericTypeProps<T>);
     /**
      * @type {string[]}
      */
@@ -6787,7 +6813,7 @@ declare class GenericType<T extends HeliosData> extends Common implements DataTy
      * @param {Site} site
      * @param {InferenceMap} map
      */
-    inferInternal(site: Site, map: InferenceMap): {
+    applyInternal(site: Site, map: InferenceMap): {
         name: string;
         path: string;
         fieldNames: string[];
@@ -7528,8 +7554,9 @@ declare class TxBody extends CborData {
     removeInput(input: TxInput): void;
     /**
      * @param {TxInput} input
+     * @param {boolean} checkUniqueness
      */
-    addRefInput(input: TxInput): void;
+    addRefInput(input: TxInput, checkUniqueness?: boolean): void;
     /**
      * @param {TxOutput} output
      */
@@ -8252,6 +8279,10 @@ declare class Common {
      * @returns {boolean}
      */
     static typeImplements(type: Type, tc: TypeClass): boolean;
+    /**
+     * @returns {boolean}
+     */
+    isParametric(): boolean;
     /**
      * @type {null | DataType}
      */

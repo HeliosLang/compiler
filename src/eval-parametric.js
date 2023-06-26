@@ -11,6 +11,10 @@ import {
 } from "./tokens.js";
 
 import {
+	UplcData
+} from "./uplc-data.js";
+
+import {
 	HeliosData
 } from "./helios-data.js";
 
@@ -24,8 +28,28 @@ import {
     DataEntity,
 	FuncEntity,
     FuncType,
+	GenericType,
+	GenericEnumMemberType,
 	TypedEntity
 } from "./eval-common.js";
+
+/**
+ * @typedef {import("./eval-common.js").TypeDetails} TypeDetails
+ */
+
+/**
+ * @template {HeliosData} T
+ * @typedef {import("./eval-common.js").GenericTypeProps<T>} GenericTypeProps
+ */
+
+/**
+ * @template {HeliosData} T
+ * @typedef {import("./eval-common.js").GenericEnumMemberTypeProps<T>} GenericEnumMemberTypeProps
+ */
+
+/**
+ * @typedef {import("./eval-common.js").EnumMemberType} EnumMemberType
+ */
 
 /**
  * @typedef {import("./eval-common.js").ParameterI} ParameterI
@@ -90,6 +114,90 @@ import {
 } from "./eval-primitives.js";
 
 /**
+ * Created by statements
+ * @package
+ * @template {HeliosData} T
+ * @implements {DataType}
+ */
+export class GenericParametricType extends GenericType {
+	/**
+	 * 
+	 * @param {GenericTypeProps<T>} props 
+	 */
+	constructor(props) {
+		super(props);
+	}
+
+	/**
+     * @param {Site} site 
+     * @param {InferenceMap} map
+     * @param {null | Type} type 
+     * @returns {Type}
+     */
+	infer(site, map, type) {
+		if (type !== null) {
+			return this;
+		} else {
+			let isMaybeParametric = false;
+			map.forEach((v) => {
+				if (v.isParametric()) {
+					isMaybeParametric = true;
+				}
+			});
+
+			const props = this.applyInternal(site, map);
+
+			return isMaybeParametric ? new GenericParametricType(props) : new GenericType(props);
+		}
+	}
+}
+
+
+/**
+ * Created by statements
+ * @package
+ * @template {HeliosData} T
+ * @implements {EnumMemberType}
+ * @extends {GenericEnumMemberType<T>}
+ */
+export class GenericParametricEnumMemberType extends GenericEnumMemberType {
+	/**
+	 * 
+	 * @param {GenericEnumMemberTypeProps<T>} props 
+	 */
+	constructor(props) {
+		super(props);
+	}
+
+	/**
+     * @param {Site} site 
+     * @param {InferenceMap} map
+     * @param {null | Type} type 
+     * @returns {Type}
+     */
+	infer(site, map, type) {
+		if (type !== null) {
+			return this;
+		} else {
+			let isMaybeParametric = false;
+			map.forEach((v) => {
+				if (v.isParametric()) {
+					isMaybeParametric = true;
+				}
+			});
+
+			const props = {
+				...this.applyInternal(site, map),
+				parentType: assertDefined(this.parentType.infer(site, map, null).asDataType),
+				constrIndex: this.constrIndex
+			};
+
+			return isMaybeParametric ? new GenericParametricEnumMemberType(props) : new GenericEnumMemberType(props);
+		}
+	}
+}
+
+/**
  * @package
  * @implements {Type}
  */
@@ -126,6 +234,13 @@ export class TypeClassImpl extends Common {
         this.#instanceMembers = typeClass.genInstanceMembers(this);
 		this.#typeMembers = typeClass.genTypeMembers(this);
     }
+
+	/**
+	 * @returns {boolean}
+	 */
+	isParametric() {
+		return true;
+	}
 
     /**
 	 * @type {InstanceMembers}
@@ -716,6 +831,13 @@ class AppliedType extends Common {
         return this.#inner.typeMembers;
     }
 
+	/**
+	 * @type {TypeDetails | undefined}
+	 */
+	get typeDetails() {
+		return this.#inner.typeDetails;
+	}
+
     /**
      * @type {DataType}
      */
@@ -736,6 +858,22 @@ class AppliedType extends Common {
     get asType() {
         return this;
     }
+
+	/**
+	 * @param {any} obj 
+	 * @returns {UplcData}
+	 */
+	jsToUplc(obj) {
+		return this.#inner.jsToUplc(obj);
+	}
+
+	/**
+	 * @param {UplcData} data 
+	 * @returns {any}
+	 */
+	uplcToJs(data) {
+		return this.#inner.uplcToJs(data);
+	}
 
     /**
      * @param {Site} site 

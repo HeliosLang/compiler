@@ -45,7 +45,6 @@ import {
 import {
 	ArgType,
     DataEntity,
-	FuncEntity,
     FuncType,
 	GenericType,
 	GenericEnumMemberType,
@@ -97,6 +96,11 @@ import {
  * @typedef {import("./eval-common.js").TypeMembers} TypeMembers
  */
 
+/** 
+ * @template {HeliosData} T
+ * @typedef {import("./eval-common.js").GenericTypeProps<T>} GenericTypeProps
+ */
+
 import {
 	genCommonInstanceMembers,
 	genCommonTypeMembers,
@@ -105,6 +109,8 @@ import {
 
 import {
 	DefaultTypeClass,
+	GenericParametricType,
+	GenericParametricEnumMemberType,
 	Parameter,
 	ParametricFunc, 
 	ParametricType
@@ -1324,10 +1330,79 @@ export class StructStatement extends Statement {
 	 */
 	eval(scope) {
 		const [type, typeScope] = this.#parameters.createParametricType(scope, this.site, (typeScope) => {
-			return new GenericType({
+			const props = {
 				fieldNames: this.#dataDef.fieldNames,
 				name: this.name.value,
 				path: this.path, // includes template parameters
+				genTypeDetails: (self) => {
+					const inputTypeParts = [];
+					const outputTypeParts = [];
+					const internalTypeParts = [];
+
+					this.#dataDef.fieldNames.forEach((fn, i) => {
+						const ftd = assertDefined(this.#dataDef.getFieldType(i).typeDetails);
+						inputTypeParts.push(`${fn}: ${ftd.inputType}`);
+						outputTypeParts.push(`${fn}: ${ftd.outputType}`);
+						internalTypeParts.push({
+							...ftd.internalType,
+							name: fn
+						});
+					})
+
+					return {
+						inputType: `{${inputTypeParts.join(", ")}}`,
+						outputType: `{${outputTypeParts.join(", ")}`,
+						internalType: {
+							type: "Struct",
+							fieldTypes: internalTypeParts
+						}
+					};
+				},
+				jsToUplc: (obj) => {
+					/**
+					 * @type {UplcData[]}
+					 */
+					const fields = [];
+
+					if (Object.keys(obj).length == this.#dataDef.nFields && Object.keys(obj).every(k => this.#dataDef.hasField(new Word(Site.dummy(), k)))) {
+						this.#dataDef.fieldNames.forEach((fieldName, i) => {
+							const arg = assertDefined(obj[fieldName]);
+
+							const fieldType = this.#dataDef.getFieldType(i);
+
+							if (!fieldType.typeDetails) {
+								throw new Error(`typeDetails for ${fieldType.name} not yet implemented`);
+							}
+
+							fields.push(fieldType.jsToUplc(arg));
+						});
+					} else {
+						throw new Error(`expected ${this.#dataDef.nFields} args, got ${Object.keys(obj).length}`);
+					}
+
+					if (fields.length == 1) {
+						return fields[0];
+					} else {
+						return new ListData(fields);
+					}
+				},
+				uplcToJs: (data) => {
+					if (this.#dataDef.nFields == 1) {
+						return this.#dataDef.getFieldType(0).uplcToJs(data);
+					} else {
+						const obj = {};
+
+						const dataItems = data.list;
+
+						dataItems.forEach((di, i) => {
+							const fn = this.#dataDef.getFieldName(i);
+
+							obj[fn] = this.#dataDef.getFieldType(i).uplcToJs(di);
+						})
+
+						return obj;
+					}
+				},
 				genOffChainType: () => this.genOffChainType(),
 				genInstanceMembers: (self) => ({
 					...genCommonInstanceMembers(self),
@@ -1339,7 +1414,13 @@ export class StructStatement extends Statement {
 					...genCommonTypeMembers(self),
 					...this.#impl.genTypeMembers(typeScope)
 				})
-			});
+			};
+
+			if (this.#parameters.hasParameters()) {
+				return new GenericParametricType(props);
+			} else {
+				return new GenericType(props);
+			}
 		});
 
 		const path = this.#parameters.hasParameters() ? super.path : this.path;
@@ -1736,7 +1817,7 @@ export class EnumMember {
 		return (parent) => {
 			const path = `${parent.path}__${this.#dataDef.name.value}`; 
 
-			return new GenericEnumMemberType({
+			const props = {
 				name: this.#dataDef.name.value,
 				path: path, 
 				constrIndex: this.constrIndex,
@@ -1755,7 +1836,13 @@ export class EnumMember {
 				genTypeMembers: (self) => ({
 					...genCommonEnumTypeMembers(self, parent),
 				})
-			})
+			};
+
+			if (this.parent.hasParameters()) {
+				return new GenericParametricEnumMemberType(props);
+			} else {
+				return new GenericEnumMemberType(props);
+			}
 		};
 	}
 
@@ -1812,6 +1899,13 @@ export class EnumStatement extends Statement {
 	 */
 	get path() {
 		return this.#parameters.genTypePath(super.path);
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	hasParameters() {
+		return this.#parameters.hasParameters();
 	}
 
 	/**
@@ -1943,30 +2037,6 @@ export class EnumStatement extends Statement {
 	}
 
 	/**
-	 * @param {DataType} self 
-	 * @returns {TypeMembers}
-	 */
-	genEnumMemberShellTypes(self) {
-		/**
-		 * @type {TypeMembers}
-		 */
-		const types = {};
-
-		for (let member of this.#members) {
-			types[member.name.value] = new GenericEnumMemberType({
-				constrIndex: member.constrIndex,
-				name: member.name.value,
-				path: `${self.path}__${member.name.value}`,
-				parentType: assertDefined(self.asDataType),
-				genInstanceMembers: (self) => ({}),
-				genTypeMembers: (self) => ({})
-			});
-		}
-
-		return types
-	}
-
-	/**
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
@@ -1980,7 +2050,7 @@ export class EnumStatement extends Statement {
 				genFullMembers[m.name.value] = m.evalType(typeScope);
 			});
 
-			const type = new GenericType({
+			const props = {
 				name: this.name.value,
 				path: this.path,
 				genOffChainType: () => this.genOffChainType(),
@@ -2001,9 +2071,13 @@ export class EnumStatement extends Statement {
 
 					return typeMembers_
 				}
-			});
+			};
 
-			return type;
+			if (this.#parameters.hasParameters()) {
+				return new GenericParametricType(props)
+			} else {
+				return new GenericType(props);
+			}
 		});
 
 		// don't include type parameters in path (except empty), these are added by application statement

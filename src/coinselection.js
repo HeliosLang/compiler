@@ -78,6 +78,8 @@ export class CoinSelection {
                 const utxo = notSelected.shift();
 
                 if (utxo === undefined) {
+                    console.error(selected.map(s => JSON.stringify(s.dump(), undefined, "  ")));
+                    console.error(JSON.stringify(amount.dump(), undefined, "  "));
                     throw new Error("not enough utxos to cover amount");
                 } else {
                     const qty = getQuantity(utxo);

@@ -130,9 +130,11 @@
 //                                           genCommonEnumTypeMembers, BoolType, ByteArrayType, 
 //                                           IntType, RawDataType, RealType, StringType
 //
-//     Section 15: Eval builtin typeclasses  TypeClassImpl, DataTypeClassImpl, AnyTypeClass, 
-//                                           DefaultTypeClass, SummableTypeClass, Parameter, 
-//                                           ParametricFunc, AppliedType, ParametricType
+//     Section 15: Eval builtin typeclasses  GenericParametricType, 
+//                                           GenericParametricEnumMemberType, TypeClassImpl, 
+//                                           DataTypeClassImpl, AnyTypeClass, DefaultTypeClass, 
+//                                           SummableTypeClass, Parameter, ParametricFunc, 
+//                                           AppliedType, ParametricType
 //
 //     Section 16: Eval builtin functions    BuiltinFunc, AssertFunc, ErrorFunc, PrintFunc
 //
@@ -207,18 +209,20 @@
 //                                           buildFuncArgTypeExpr, buildFuncRetTypeExprs, 
 //                                           buildTypePathExpr, buildTypeRefExpr, buildValueExpr, 
 //                                           buildMaybeAssignOrChainExpr, buildDestructExpr, 
-//                                           buildDestructExprs, buildAssignLhs, 
+//                                           buildDestructExprs, buildAssignLhs, buildPipedExpr, 
 //                                           makeBinaryExprBuilder, makeUnaryExprBuilder, 
-//                                           buildChainedValueExpr, buildParametricValueExpr, 
-//                                           buildCallExpr, buildChainStartValueExpr, 
-//                                           buildParensExpr, buildCallArgs, buildCallArgExpr, 
-//                                           buildIfElseExpr, buildSwitchExpr, 
-//                                           buildSwitchCaseName, buildSwitchCase, 
-//                                           buildSwitchCaseNameType, buildMultiArgSwitchCase, 
-//                                           buildSingleArgSwitchCase, buildSwitchCaseBody, 
-//                                           buildSwitchDefault, buildListLiteralExpr, 
-//                                           buildOptionSomeLiteralExpr, buildMapLiteralExpr, 
-//                                           buildStructLiteralExpr, buildStructLiteralField, 
+//                                           buildChainedValueExpr, 
+//                                           buildRemainingChainedValueExpr, 
+//                                           buildParametricValueExpr, buildCallExpr, 
+//                                           buildChainStartValueExpr, buildParensExpr, 
+//                                           buildCallArgs, buildCallArgExpr, buildIfElseExpr, 
+//                                           buildSwitchExpr, buildSwitchCaseName, 
+//                                           buildSwitchCase, buildSwitchCaseNameType, 
+//                                           buildMultiArgSwitchCase, buildSingleArgSwitchCase, 
+//                                           buildSwitchCaseBody, buildSwitchDefault, 
+//                                           buildListLiteralExpr, buildOptionSomeLiteralExpr, 
+//                                           buildMapLiteralExpr, buildStructLiteralExpr, 
+//                                           buildStructLiteralField, 
 //                                           buildStructLiteralNamedField, 
 //                                           buildStructLiteralUnnamedField, buildValuePathExpr
 //
@@ -14864,13 +14868,11 @@ export class Tokenizer {
 		}
 
 		if (c0 == '|') {
-			parseSecondChar('|');
+			parseSecondChar('|') || parseSecondChar('.');
 		} else if (c0 == '&') {
 			parseSecondChar('&');
 		} else if (c0 == '=') {
-			if (!parseSecondChar('=')) {
-				parseSecondChar('>');
-			}
+			parseSecondChar('=') || parseSecondChar('>');
 		} else if (c0 == '!' || c0 == '<' || c0 == '>') { // could be !=, ==, <= or >=
 			parseSecondChar('=');
 		} else if (c0 == ':') {
@@ -15003,7 +15005,12 @@ export class Tokenizer {
 
 				current = [t];
 			} else if (Group.isCloseSymbol(t)) {
-				const prev = assertDefined(current[0]?.assertSymbol());
+				const prev = current[0]?.assertSymbol();
+
+				if (!prev) {
+					return null;
+				}
+
 				if (!t.isSymbol(Group.matchSymbol(prev))) {
 					prev.syntaxError(`unmatched '${prev.value}'`);
 					t.syntaxError(`unmatched '${assertDefined(t.assertSymbol()).value}'`);
@@ -15223,6 +15230,7 @@ function tokenizeIR(rawSrc, codeMap) {
  *   isBaseOf(type: Type): boolean
  *   infer(site: Site, map: InferenceMap, type: null | Type): Type
  *   toTyped():            Typed
+ *   isParametric():       boolean
  * }} Type
  */
 
@@ -15273,6 +15281,13 @@ export function applyTypes(parametric, ...types) {
  */
 class Common {
 	constructor() {
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isParametric() {
+		return false;
 	}
 
     /**
@@ -16115,6 +16130,22 @@ class FuncType extends Common {
 }
 
 /**
+ * @template {HeliosData} T
+ * @typedef {{
+ *   name: string,
+ *   path?: string,
+ *   offChainType?: HeliosDataClass<T> | null,
+ *   genOffChainType?: (() => HeliosDataClass<T>) | null
+ *   fieldNames?: string[],
+ *   genInstanceMembers: (self: Type) => InstanceMembers,
+ *   genTypeMembers: (self: Type) => TypeMembers
+ *   genTypeDetails?: (self: Type) => TypeDetails,
+ *   jsToUplc?: (obj: any) => UplcData
+ *   uplcToJs?: (data: UplcData) => any
+ * }} GenericTypeProps
+ */
+
+/**
  * Created by statements
  * @package
  * @template {HeliosData} T
@@ -16172,18 +16203,7 @@ class GenericType extends Common {
 	#uplcToJs;
 
     /**
-     * @param {({
-     *   name: string,
-     *   path?: string,
-     *   offChainType?: HeliosDataClass<T> | null,
-	 *   genOffChainType?: (() => HeliosDataClass<T>) | null
-     *   fieldNames?: string[],
-     *   genInstanceMembers: (self: Type) => InstanceMembers,
-     *   genTypeMembers: (self: Type) => TypeMembers
-	 *   genTypeDetails?: (self: Type) => TypeDetails,
-	 *   jsToUplc?: (obj: any) => UplcData
-	 *   uplcToJs?: (data: UplcData) => any
-     * })} props
+     * @param {GenericTypeProps<T>} props
      */
     constructor({
 		name, 
@@ -16316,7 +16336,7 @@ class GenericType extends Common {
      * @param {Site} site 
      * @param {InferenceMap} map
      */
-    inferInternal(site, map) {
+    applyInternal(site, map) {
 		return {
 			name: this.#name,
 			path: this.#path,
@@ -16377,11 +16397,7 @@ class GenericType extends Common {
      * @returns {Type}
      */
 	infer(site, map, type) {
-		if (type !== null) {
-			return this;
-		} else {
-			return new GenericType(this.inferInternal(site, map));
-		}
+		return this;
 	}
 
 	/**
@@ -16452,6 +16468,25 @@ class GenericType extends Common {
 	}
 }
 
+
+/**
+ * @template {HeliosData} T
+ * @typedef {{
+ *   name: string,
+ *   path?: string,
+ *   constrIndex: number,
+ *   parentType: DataType,
+ *   offChainType?: HeliosDataClass<T>,
+ *   genOffChainType?: () => HeliosDataClass<T>,
+ *   fieldNames?: string[],
+ *   genInstanceMembers: (self: Type) => InstanceMembers,
+ *   genTypeMembers?: (self: Type) => TypeMembers
+ *   genTypeDetails?: (self: Type) => TypeDetails
+ *   jsToUplc?: (obj: any) => UplcData
+ *   uplcToJs?: (data: UplcData) => any
+ * }} GenericEnumMemberTypeProps
+ */
+
 /**
  * Created by statements
  * @package
@@ -16464,20 +16499,7 @@ class GenericEnumMemberType extends GenericType {
     #parentType;
 
     /**
-     * @param {({
-     *   name: string,
-     *   path?: string,
-     *   constrIndex: number,
-     *   parentType: DataType,
-     *   offChainType?: HeliosDataClass<T>,
-	 *   genOffChainType?: () => HeliosDataClass<T>,
-     *   fieldNames?: string[],
-     *   genInstanceMembers: (self: Type) => InstanceMembers,
-     *   genTypeMembers?: (self: Type) => TypeMembers
-	 *   genTypeDetails?: (self: Type) => TypeDetails
-	 *   jsToUplc?: (obj: any) => UplcData
-	 *   uplcToJs?: (data: UplcData) => any
-     * })} props
+     * @param {GenericEnumMemberTypeProps<T>} props
      */
     constructor({
 		name, 
@@ -16538,15 +16560,7 @@ class GenericEnumMemberType extends GenericType {
      * @returns {Type}
      */
 	infer(site, map, type) {
-		if (type !== null) {
-			return this;
-		} else {
-			return new GenericEnumMemberType({
-				...this.inferInternal(site, map),
-				parentType: assertDefined(this.#parentType.infer(site, map, null).asDataType),
-				constrIndex: this.#constrIndex
-			});
-		}
+		return this;
 	}
 
 	/**
@@ -16568,6 +16582,7 @@ class GenericEnumMemberType extends GenericType {
         return `${this.#parentType.toString()}::${this.name}`;
     }
 }
+
 
 /**
  * Type of return-value of functions that don't return anything (eg. assert, print, error)
@@ -17422,6 +17437,90 @@ const StringType = new GenericType({
 ///////////////////////////////////////
 
 /**
+ * Created by statements
+ * @package
+ * @template {HeliosData} T
+ * @implements {DataType}
+ */
+class GenericParametricType extends GenericType {
+	/**
+	 * 
+	 * @param {GenericTypeProps<T>} props 
+	 */
+	constructor(props) {
+		super(props);
+	}
+
+	/**
+     * @param {Site} site 
+     * @param {InferenceMap} map
+     * @param {null | Type} type 
+     * @returns {Type}
+     */
+	infer(site, map, type) {
+		if (type !== null) {
+			return this;
+		} else {
+			let isMaybeParametric = false;
+			map.forEach((v) => {
+				if (v.isParametric()) {
+					isMaybeParametric = true;
+				}
+			});
+
+			const props = this.applyInternal(site, map);
+
+			return isMaybeParametric ? new GenericParametricType(props) : new GenericType(props);
+		}
+	}
+}
+
+
+/**
+ * Created by statements
+ * @package
+ * @template {HeliosData} T
+ * @implements {EnumMemberType}
+ * @extends {GenericEnumMemberType<T>}
+ */
+class GenericParametricEnumMemberType extends GenericEnumMemberType {
+	/**
+	 * 
+	 * @param {GenericEnumMemberTypeProps<T>} props 
+	 */
+	constructor(props) {
+		super(props);
+	}
+
+	/**
+     * @param {Site} site 
+     * @param {InferenceMap} map
+     * @param {null | Type} type 
+     * @returns {Type}
+     */
+	infer(site, map, type) {
+		if (type !== null) {
+			return this;
+		} else {
+			let isMaybeParametric = false;
+			map.forEach((v) => {
+				if (v.isParametric()) {
+					isMaybeParametric = true;
+				}
+			});
+
+			const props = {
+				...this.applyInternal(site, map),
+				parentType: assertDefined(this.parentType.infer(site, map, null).asDataType),
+				constrIndex: this.constrIndex
+			};
+
+			return isMaybeParametric ? new GenericParametricEnumMemberType(props) : new GenericEnumMemberType(props);
+		}
+	}
+}
+
+/**
  * @package
  * @implements {Type}
  */
@@ -17458,6 +17557,13 @@ class TypeClassImpl extends Common {
         this.#instanceMembers = typeClass.genInstanceMembers(this);
 		this.#typeMembers = typeClass.genTypeMembers(this);
     }
+
+	/**
+	 * @returns {boolean}
+	 */
+	isParametric() {
+		return true;
+	}
 
     /**
 	 * @type {InstanceMembers}
@@ -18048,6 +18154,13 @@ class AppliedType extends Common {
         return this.#inner.typeMembers;
     }
 
+	/**
+	 * @type {TypeDetails | undefined}
+	 */
+	get typeDetails() {
+		return this.#inner.typeDetails;
+	}
+
     /**
      * @type {DataType}
      */
@@ -18068,6 +18181,22 @@ class AppliedType extends Common {
     get asType() {
         return this;
     }
+
+	/**
+	 * @param {any} obj 
+	 * @returns {UplcData}
+	 */
+	jsToUplc(obj) {
+		return this.#inner.jsToUplc(obj);
+	}
+
+	/**
+	 * @param {UplcData} data 
+	 * @returns {any}
+	 */
+	uplcToJs(data) {
+		return this.#inner.uplcToJs(data);
+	}
 
     /**
      * @param {Site} site 
@@ -18346,8 +18475,7 @@ const PrintFunc = new BuiltinFunc({
  * @returns {Type}
  */
 export function IteratorType$(itemTypes) {
-	// to_list and to_map can't be part of Iterator because type information is lost (eg. we can map to an iterator over functions)
-	return new GenericType({
+	const props = {
 		name: `Iterator[${itemTypes.map(it => it.toString()).join(", ")}]`,
 		path: `__helios__iterator__${itemTypes.length}`,
 		genInstanceMembers: (self) => {
@@ -18390,7 +18518,10 @@ export function IteratorType$(itemTypes) {
 			return members;
 		},
 		genTypeMembers: (self) => ({})
-	});
+	};
+
+	// to_list and to_map can't be part of Iterator because type information is lost (eg. we can map to an iterator over functions)
+	return itemTypes.some(it => it.isParametric()) ? new GenericParametricType(props) : new GenericType(props);
 };
 
 /**
@@ -18407,7 +18538,7 @@ const ListType = new ParametricType({
 		const offChainItemType = itemType.offChainType ?? null;
 		const offChainType = offChainItemType ? HList(offChainItemType) : null;
 
-		return new GenericType({
+		const props = {
 			offChainType: offChainType,
 			name: `[]${itemType.toString()}`,
 			path: `__helios__list[${itemType.path}]`,
@@ -18419,6 +18550,16 @@ const ListType = new ParametricType({
 					itemType: assertDefined(itemType.typeDetails?.internalType)
 				}
 			}),
+			jsToUplc: (obj) => {
+				if (Array.isArray(obj)) {
+					return new ListData(obj.map(item => itemType.jsToUplc(item)));
+				} else {
+					throw new Error("expected array");	
+				}
+			},
+			uplcToJs: (data) => {
+				return data.list.map(item => itemType.uplcToJs(item));
+			},
 			genInstanceMembers: (self) => {
 				/**
 				 * @type {InstanceMembers}
@@ -18458,6 +18599,12 @@ const ListType = new ParametricType({
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 						const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
 						return new ParametricFunc([a, b], new FuncType([new FuncType([a.ref, b.ref, itemType], [a.ref, b.ref]), a.ref, b.ref], [a.ref, b.ref]));
+					})(),
+					fold3: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+						const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
+						const c = new Parameter("c", `${FTPP}0`, new AnyTypeClass());
+						return new ParametricFunc([a, b, c], new FuncType([new FuncType([a.ref, b.ref, c.ref, itemType], [a.ref, b.ref, c.ref]), a.ref, b.ref, c.ref], [a.ref, b.ref, c.ref]));
 					})(),
 					fold_lazy: (() => {
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
@@ -18503,7 +18650,9 @@ const ListType = new ParametricType({
 				new_const: new FuncType([IntType, itemType], self),
 				from_iterator: new FuncType([IteratorType$([itemType])], self)
 			})
-		})
+		};
+
+		return itemType_.isParametric() ? new GenericParametricType(props) : new GenericType(props);
 	}
 });
 
@@ -18534,7 +18683,7 @@ const MapType = new ParametricType({
 		const offChainValueType = valueType.offChainType ?? null;
 		const offChainType = offChainKeyType && offChainValueType ? HMap(offChainKeyType, offChainValueType) : null;
 
-		return new GenericType({
+		const props = {
 			offChainType: offChainType,
 			name: `Map[${keyType.toString()}]${valueType.toString()}`,
 			path: `__helios__map[${keyType.path}@${valueType.path}]`,
@@ -18595,7 +18744,9 @@ const MapType = new ParametricType({
 				__add: new FuncType([self, self], self),
 				from_iterator: new FuncType([IteratorType$([keyType, valueType])], self)
 			})
-		})
+		}
+
+		return (keyType.isParametric() || valueType.isParametric()) ? new GenericParametricType(props) : new GenericType(props);
 	}
 });
 
@@ -18624,9 +18775,16 @@ const OptionType = new ParametricType({
 		const someTypePath = someType.path;
 
 		/**
-		 * @type {DataType}
+		 * @type {null | EnumMemberType}
 		 */
-		const AppliedOptionType = new GenericType({
+		let NoneType = null;
+
+		/**
+		 * @type {null | EnumMemberType}
+		 */
+		let SomeType = null;
+
+		const appliedOptionTypeProps = {
 			offChainType: offChainType,
 			name: `Option[${someType.toString()}]`,
 			path: `__helios__option[${someTypePath}]`,
@@ -18648,19 +18806,15 @@ const OptionType = new ParametricType({
 			}),
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self),
-           		None: NoneType,
-            	Some: SomeType
+           		None: assertDefined(NoneType),
+            	Some: assertDefined(SomeType)
 			})
-		});
+		};
 
-		/**
-		 * @type {EnumMemberType}
-		 */
-		const SomeType = new GenericEnumMemberType({
+		const someTypeProps = {
 			name: "Some",
 			constrIndex: 0,
 			fieldNames: ["some"],
-			parentType: AppliedOptionType,
 			path: `__helios__option[${someTypePath}]__some`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
@@ -18669,15 +18823,11 @@ const OptionType = new ParametricType({
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self)
 			})
-		});
+		};
 
-		/**
-		 * @type {EnumMemberType}
-		 */
-		const NoneType = new GenericEnumMemberType({
+		const noneTypeProps = {
 			name: "None",
 			constrIndex: 1,
-			parentType: AppliedOptionType,
 			path: `__helios__option[${someTypePath}]__none`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self)
@@ -18685,9 +18835,37 @@ const OptionType = new ParametricType({
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self)
 			})
-		});
+		};
 
-		return AppliedOptionType;
+		if (someType.isParametric()) {
+			const AppliedOptionType = new GenericParametricType(appliedOptionTypeProps);
+
+			SomeType = new GenericParametricEnumMemberType({
+				...someTypeProps,
+				parentType: AppliedOptionType
+			});
+
+			NoneType = new GenericParametricEnumMemberType({
+				...noneTypeProps,
+				parentType: AppliedOptionType
+			});
+
+			return AppliedOptionType;
+		} else {
+			const AppliedOptionType = new GenericType(appliedOptionTypeProps);
+
+			SomeType = new GenericEnumMemberType({
+				...someTypeProps,
+				parentType: AppliedOptionType
+			});
+
+			NoneType = new GenericEnumMemberType({
+				...noneTypeProps,
+				parentType: AppliedOptionType
+			});
+
+			return AppliedOptionType;
+		}
 	}
 });
 
@@ -18748,6 +18926,19 @@ var DurationType = new GenericType({
 var TimeType = new GenericType({
     name: "Time",
     offChainType: Time,
+    genTypeDetails: (self) => ({
+        inputType: `number | bigint | string | Date`,
+        outputType: `Date`,
+        internalType: {
+            type: "Time"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return Time.fromProps(obj)._toUplcData();
+    },
+    uplcToJs: (data) => {
+        return new Date(Number(Time.fromUplcData(data).value));
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         show: new FuncType([], StringType)
@@ -19037,7 +19228,7 @@ const AssetClassType = new GenericType({
     name: "AssetClass",
     offChainType: AssetClass,
     genTypeDetails: (self) => ({
-        inputType: "string | {mph: number[] | string | MintingPolicyHash, tokenName: number[] | string} | helios.AssetClass",
+        inputType: "string | {mph: number[] | string | helios.MintingPolicyHash, tokenName: number[] | string} | helios.AssetClass",
         outputType: "helios.AssetClass",
         internalType: {
             type: "AssetClass"
@@ -19983,6 +20174,10 @@ export const TxBuilderType = new GenericType({
         redeem: (() => {
             const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
             return new ParametricFunc([a], new FuncType([TxInputType, a.ref], self));
+        })(),
+        redeem_many: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+            return new ParametricFunc([a], new FuncType([ListType$(TxInputType), a.ref], self));
         })(),
         spend: new FuncType([TxInputType], self),
         spend_many: new FuncType([ListType$(TxInputType)], self)
@@ -25810,10 +26005,79 @@ class StructStatement extends Statement {
 	 */
 	eval(scope) {
 		const [type, typeScope] = this.#parameters.createParametricType(scope, this.site, (typeScope) => {
-			return new GenericType({
+			const props = {
 				fieldNames: this.#dataDef.fieldNames,
 				name: this.name.value,
 				path: this.path, // includes template parameters
+				genTypeDetails: (self) => {
+					const inputTypeParts = [];
+					const outputTypeParts = [];
+					const internalTypeParts = [];
+
+					this.#dataDef.fieldNames.forEach((fn, i) => {
+						const ftd = assertDefined(this.#dataDef.getFieldType(i).typeDetails);
+						inputTypeParts.push(`${fn}: ${ftd.inputType}`);
+						outputTypeParts.push(`${fn}: ${ftd.outputType}`);
+						internalTypeParts.push({
+							...ftd.internalType,
+							name: fn
+						});
+					})
+
+					return {
+						inputType: `{${inputTypeParts.join(", ")}}`,
+						outputType: `{${outputTypeParts.join(", ")}`,
+						internalType: {
+							type: "Struct",
+							fieldTypes: internalTypeParts
+						}
+					};
+				},
+				jsToUplc: (obj) => {
+					/**
+					 * @type {UplcData[]}
+					 */
+					const fields = [];
+
+					if (Object.keys(obj).length == this.#dataDef.nFields && Object.keys(obj).every(k => this.#dataDef.hasField(new Word(Site.dummy(), k)))) {
+						this.#dataDef.fieldNames.forEach((fieldName, i) => {
+							const arg = assertDefined(obj[fieldName]);
+
+							const fieldType = this.#dataDef.getFieldType(i);
+
+							if (!fieldType.typeDetails) {
+								throw new Error(`typeDetails for ${fieldType.name} not yet implemented`);
+							}
+
+							fields.push(fieldType.jsToUplc(arg));
+						});
+					} else {
+						throw new Error(`expected ${this.#dataDef.nFields} args, got ${Object.keys(obj).length}`);
+					}
+
+					if (fields.length == 1) {
+						return fields[0];
+					} else {
+						return new ListData(fields);
+					}
+				},
+				uplcToJs: (data) => {
+					if (this.#dataDef.nFields == 1) {
+						return this.#dataDef.getFieldType(0).uplcToJs(data);
+					} else {
+						const obj = {};
+
+						const dataItems = data.list;
+
+						dataItems.forEach((di, i) => {
+							const fn = this.#dataDef.getFieldName(i);
+
+							obj[fn] = this.#dataDef.getFieldType(i).uplcToJs(di);
+						})
+
+						return obj;
+					}
+				},
 				genOffChainType: () => this.genOffChainType(),
 				genInstanceMembers: (self) => ({
 					...genCommonInstanceMembers(self),
@@ -25825,7 +26089,13 @@ class StructStatement extends Statement {
 					...genCommonTypeMembers(self),
 					...this.#impl.genTypeMembers(typeScope)
 				})
-			});
+			};
+
+			if (this.#parameters.hasParameters()) {
+				return new GenericParametricType(props);
+			} else {
+				return new GenericType(props);
+			}
 		});
 
 		const path = this.#parameters.hasParameters() ? super.path : this.path;
@@ -26222,7 +26492,7 @@ class EnumMember {
 		return (parent) => {
 			const path = `${parent.path}__${this.#dataDef.name.value}`; 
 
-			return new GenericEnumMemberType({
+			const props = {
 				name: this.#dataDef.name.value,
 				path: path, 
 				constrIndex: this.constrIndex,
@@ -26241,7 +26511,13 @@ class EnumMember {
 				genTypeMembers: (self) => ({
 					...genCommonEnumTypeMembers(self, parent),
 				})
-			})
+			};
+
+			if (this.parent.hasParameters()) {
+				return new GenericParametricEnumMemberType(props);
+			} else {
+				return new GenericEnumMemberType(props);
+			}
 		};
 	}
 
@@ -26298,6 +26574,13 @@ class EnumStatement extends Statement {
 	 */
 	get path() {
 		return this.#parameters.genTypePath(super.path);
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	hasParameters() {
+		return this.#parameters.hasParameters();
 	}
 
 	/**
@@ -26429,30 +26712,6 @@ class EnumStatement extends Statement {
 	}
 
 	/**
-	 * @param {DataType} self 
-	 * @returns {TypeMembers}
-	 */
-	genEnumMemberShellTypes(self) {
-		/**
-		 * @type {TypeMembers}
-		 */
-		const types = {};
-
-		for (let member of this.#members) {
-			types[member.name.value] = new GenericEnumMemberType({
-				constrIndex: member.constrIndex,
-				name: member.name.value,
-				path: `${self.path}__${member.name.value}`,
-				parentType: assertDefined(self.asDataType),
-				genInstanceMembers: (self) => ({}),
-				genTypeMembers: (self) => ({})
-			});
-		}
-
-		return types
-	}
-
-	/**
 	 * @param {Scope} scope 
 	 */
 	eval(scope) {
@@ -26466,7 +26725,7 @@ class EnumStatement extends Statement {
 				genFullMembers[m.name.value] = m.evalType(typeScope);
 			});
 
-			const type = new GenericType({
+			const props = {
 				name: this.name.value,
 				path: this.path,
 				genOffChainType: () => this.genOffChainType(),
@@ -26487,9 +26746,13 @@ class EnumStatement extends Statement {
 
 					return typeMembers_
 				}
-			});
+			};
 
-			return type;
+			if (this.#parameters.hasParameters()) {
+				return new GenericParametricType(props)
+			} else {
+				return new GenericType(props);
+			}
 		});
 
 		// don't include type parameters in path (except empty), these are added by application statement
@@ -28211,15 +28474,24 @@ function buildValueExpr(ts, prec = 0) {
 		function (ts_, prec_) {
 			return buildMaybeAssignOrChainExpr(ts_, prec_);
 		},
-		makeBinaryExprBuilder('||'), // 1: logical or operator
-		makeBinaryExprBuilder('&&'), // 2: logical and operator
-		makeBinaryExprBuilder(['==', '!=']), // 3: eq or neq
-		makeBinaryExprBuilder(['<', '<=', '>', '>=']), // 4: comparison
-		makeBinaryExprBuilder(['+', '-']), // 5: addition subtraction
-		makeBinaryExprBuilder(['*', '/', '%']), // 6: multiplication division remainder
-		makeUnaryExprBuilder(['!', '+', '-']), // 7: logical not, negate
 		/**
-		 * 8: variables or literal values chained with: (enum)member access, indexing and calling
+		 * 1: piped expression
+		 * @param {Token[]} ts_ 
+		 * @param {number} prec_ 
+		 * @returns 
+		 */
+		function (ts_, prec_) {
+			return buildPipedExpr(ts_, prec_);
+		},
+		makeBinaryExprBuilder('||'), // 2: logical or operator
+		makeBinaryExprBuilder('&&'), // 3: logical and operator
+		makeBinaryExprBuilder(['==', '!=']), // 4: eq or neq
+		makeBinaryExprBuilder(['<', '<=', '>', '>=']), // 5: comparison
+		makeBinaryExprBuilder(['+', '-']), // 6: addition subtraction
+		makeBinaryExprBuilder(['*', '/', '%']), // 7: multiplication division remainder
+		makeUnaryExprBuilder(['!', '+', '-']), // 8: logical not, negate
+		/**
+		 * 9: variables or literal values chained with: (enum)member access, indexing and calling
 		 * @param {Token[]} ts_ 
 		 * @param {number} prec_ 
 		 * @returns 
@@ -28545,6 +28817,58 @@ function buildAssignLhs(site, ts) {
 }
 
 /**
+ * @param {Token[]} ts 
+ * @param {number} prec
+ * @returns {Expr | null} 
+ */
+function buildPipedExpr(ts, prec) {
+	const iOp = SymbolToken.findLast(ts, ["|", "|."]);
+
+	if (iOp == ts.length - 1) {
+		ts[iOp].syntaxError(`invalid syntax, '${ts[iOp].toString()}' can't be used as a post-unary operator`);
+		return null;
+	} else if (iOp > 0) {
+		const a = buildValueExpr(ts.slice(0, iOp), prec);
+		
+		const op = ts[iOp].assertSymbol();
+
+		if (!a || !op) {
+			return null;
+		}
+
+		switch (op.value) {
+			case '|': {
+				const b = buildValueExpr(ts.slice(iOp + 1), prec + 1);
+
+				if (!b) {
+					return null;
+				}
+
+				return new CallExpr(op.site, b, [new CallArgExpr(a.site, null, a)]);
+			}
+			case '|.': {
+				ts = ts.slice(iOp + 1);
+
+				const name = assertToken(ts.shift(), op.site)?.assertWord()?.assertNotKeyword();
+
+				if (!name) {
+					return null;
+				}
+
+
+				const memberExpr = new MemberExpr(op.site, a, name);
+
+				return buildRemainingChainedValueExpr(memberExpr, ts, prec + 1);
+			}
+			default:
+				throw new Error("unhandled pipe operator")
+		}
+	} else {
+		return buildValueExpr(ts, prec + 1);
+	}
+}
+
+/**
  * @package
  * @param {string | string[]} symbol 
  * @returns {(ts: Token[], prec: number) => (Expr | null)}
@@ -28604,9 +28928,23 @@ function makeUnaryExprBuilder(symbol) {
  * @returns {Expr | null}
  */
 function buildChainedValueExpr(ts, prec) {
-	/** @type {Expr | null} */
-	let expr = buildChainStartValueExpr(ts);
+	/** 
+	 * @type {Expr | null} 
+	 */
+	const expr = buildChainStartValueExpr(ts);
 
+	return buildRemainingChainedValueExpr(expr, ts, prec);
+}
+
+
+/**
+ * @package
+ * @param {Expr | null} expr
+ * @param {Token[]} ts
+ * @param {number} prec
+ * @returns {Expr | null}
+ */
+function buildRemainingChainedValueExpr(expr, ts, prec) {
 	// now we can parse the rest of the chaining
 	while (ts.length > 0) {
 		if (expr === null) {
@@ -30787,7 +31125,7 @@ function makeRawFunctions() {
 		}(
 			(recurse, x, pos, bytes) -> {
 				__core__ifThenElse(
-					__core__lessThanInteger(x, 10),
+					__core__equalsInteger(x, 0),
 					() -> {
 						__core__ifThenElse(
 							__core__lessThanEqualsInteger(n, pos),
@@ -31210,18 +31548,20 @@ function makeRawFunctions() {
 		() -> {
 			__helios__string____add(
 				__helios__string____add(
-					__core__ifThenElse(__core__lessThanInteger(0, self), "-", ""),
+					__core__ifThenElse(__core__lessThanInteger(self, 0), "-", ""),
 					__helios__int__show(
 						__helios__real__floor(
 							__helios__real__abs(self)()
 						)()
-					)(),
+					)()
 				),
 				__helios__string____add(
 					".",
-					__helios__int__show_padded(
-						__helios__int____mod(self, __helios__real__ONE),
-						__helios__real__PRECISION
+					__core__decodeUtf8(
+						__helios__int__show_padded(
+							__helios__int____mod(self, __helios__real__ONE),
+							__helios__real__PRECISION
+						)
 					)
 				)
 			)
@@ -32487,6 +32827,24 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__fold3[${FTPP}0@${FTPP}1@${FTPP}2]`,
+	`(self) -> {
+		(fn, a0, b0, c0) -> {
+			__helios__common__fold(
+				self,
+				(prev, item) -> {
+					prev(
+						(a, b, c) -> {
+							fn(a, b, c, ${TTPP}0__from_data(item))
+						}
+					)
+				},
+				(callback) -> {
+					callback(a0, b0, c0)
+				}
+			)
+		}
+	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__fold_lazy[${FTPP}0]`,
 	`(self) -> {
 		(fn, a0) -> {
@@ -33728,6 +34086,31 @@ function makeRawFunctions() {
 			})
 		}
 	}`));
+	add(new RawFunc(`__helios__txbuilder__redeem_many[${FTPP}0]`,
+	`(self) -> {
+		(inputs, redeemer) -> {
+			(recurse) -> {
+				recurse(recurse, inputs)
+			}(
+				(recurse, inputs) -> {
+					__core__chooseList(
+						inputs,
+						() -> {
+							self
+						},
+						() -> {
+							__helios__txbuilder__redeem[${FTPP}0](
+								recurse(recurse, __core__tailList(inputs))
+							)(
+								__core__headList(inputs),
+								redeemer
+							)
+						}
+					)()
+				}
+			)
+		}
+	}`));
 	add(new RawFunc(`__helios__txbuilder__add_output`,
 	`(self) -> {
 		(output) -> {
@@ -33806,7 +34189,7 @@ function makeRawFunctions() {
 			__core__chooseUnit(
 				__helios__assert(
 					__core__equalsInteger(__helios__common__length(value), 1),
-					"expected a single mph in mint value"
+					__helios__string____add("expected a single mph in mint value, got ", __helios__int__show(__helios__common__length(value))())
 				),
 				(mph) -> {
 					__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
@@ -35206,10 +35589,56 @@ function makeRawFunctions() {
 			}
 		)
 	}`));
+	add(new RawFunc("__helios__value__is_zero_inner",
+	`(tokens) -> {
+		(recurse) -> {
+			recurse(recurse, tokens)
+		}(
+			(recurse, tokens) -> {
+				__core__chooseList(
+					tokens,
+					() -> {
+						true
+					},
+					() -> {
+						__helios__bool__and(
+							() -> {
+								__core__equalsInteger(__core__unIData(__core__sndPair(__core__headList(tokens))), 0)
+							},
+							() -> {
+								recurse(recurse, __core__tailList(tokens))
+							}
+						)
+					}
+				)()
+			}
+		)
+	}`));
 	add(new RawFunc("__helios__value__is_zero",
 	`(self) -> {
 		() -> {
-			__core__nullList(self)
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, map) -> {
+					__core__chooseList(
+						map,
+						() -> {
+							true
+						},
+						() -> {
+							__helios__bool__and(
+								() -> {
+									__helios__value__is_zero_inner(__core__unMapData(__core__sndPair(__core__headList(map))))
+								},
+								() -> {
+									recurse(recurse, __core__tailList(map))
+								}
+							)
+						}
+					)()
+				}
+			)
 		}
 	}`));
 	add(new RawFunc("__helios__value__get",
@@ -42360,9 +42789,24 @@ class TxBody extends CborData {
 
 	/**
 	 * @param {TxInput} input 
+	 * @param {boolean} checkUniqueness
 	 */
-	addRefInput(input) {
+	addRefInput(input, checkUniqueness = true) {
+		if (input.origOutput === null) {
+			throw new Error("TxInput.origOutput must be set when building transaction");
+		}
+
+		input.origOutput.value.assertAllPositive();
+
+		if (checkUniqueness) {
+			assert(this.#refInputs.every(prevInput => {
+				return  !prevInput.txId.eq(input.txId) || prevInput.utxoIdx != input.utxoIdx
+			}), "refInput already added before");
+		}
+
+		// push, then sort immediately
 		this.#refInputs.push(input);
+		this.#refInputs.sort(TxInput.comp);
 	}
 
 	/**
@@ -42567,6 +43011,16 @@ class TxBody extends CborData {
 
 				// can be less than -1 if utxoIds aren't consecutive
 				assert(TxInput.comp(prev, input) <= -1, "inputs not sorted");
+			}
+		});
+
+		// same for ref inputs
+		this.#refInputs.forEach((input, i) => {
+			if (i > 0) {
+				const prev = this.#inputs[i-1];
+
+				// can be less than -1 if utxoIds aren't consecutive
+				assert(TxInput.comp(prev, input) <= -1, "refInputs not sorted");
 			}
 		});
 
@@ -43476,6 +43930,13 @@ export class UTxO {
 		}
 
 		return sum;
+	}
+
+	/**
+	 * @returns {any}
+	 */
+	dump() {
+		return this.asTxInput.dump()
 	}
 }
 
@@ -45363,6 +45824,8 @@ export class CoinSelection {
                 const utxo = notSelected.shift();
 
                 if (utxo === undefined) {
+                    console.error(selected.map(s => JSON.stringify(s.dump(), undefined, "  ")));
+                    console.error(JSON.stringify(amount.dump(), undefined, "  "));
                     throw new Error("not enough utxos to cover amount");
                 } else {
                     const qty = getQuantity(utxo);
@@ -46907,6 +47370,13 @@ export class NetworkEmulator {
             time: (new Date()).getTime()
         };
 
+        // increase the max tx size
+        raw.latestParams.maxTxSize = raw.latestParams.maxTxSize*100;
+        raw.latestParams.maxTxExecutionUnits = {
+            memory: raw.latestParams.maxTxExecutionUnits.memory*100,
+            steps: raw.latestParams.maxTxExecutionUnits.steps*100
+        };
+
         return new NetworkParams(
             raw,
             () => {
@@ -46962,7 +47432,7 @@ export class NetworkEmulator {
 
         this.#slot += nSlots;
     }
-
+    
     /**
      * @returns {Promise<NetworkParams>}
      */
@@ -47587,24 +48057,24 @@ export class FuzzyTest {
 export function jsToUplc(schema, obj) {
     if (schema.type == "List" && "itemType" in schema) {
         if (!Array.isArray(obj)) {
-            throw new Error(`expected Array, got '${JSON.stringify(obj)}'`);
+            throw new Error(`expected Array, got '${obj}'`);
         }
 
         return new ListData(obj.map(item => jsToUplc(schema.itemType, item)));
     } else if (schema.type == "Map" && "keyType" in schema && "valueType" in schema) {
         if (!Array.isArray(obj)) {
-            throw new Error(`expected Array, got '${JSON.stringify(obj)}'`);
+            throw new Error(`expected Array, got '${obj}'`);
         }
 
         return new MapData(obj.map(entry => {
             if (!Array.isArray(entry)) {
-                throw new Error(`expected Array of Arrays, got '${JSON.stringify(obj)}'`);
+                throw new Error(`expected Array of Arrays, got '${obj}'`);
             }
 
             const [key, value] = entry;
 
             if (!key || !value) {
-                throw new Error(`expected Array of Array[2], got '${JSON.stringify(obj)}'`);
+                throw new Error(`expected Array of Array[2], got '${obj}'`);
             }
 
             return [
@@ -47624,7 +48094,7 @@ export function jsToUplc(schema, obj) {
             const fieldObj = obj[fieldName];
 
             if (fieldObj === undefined) {
-                throw new Error(`field ${fieldName} not found in ${JSON.stringify(obj)}`);
+                throw new Error(`field ${fieldName} not found in '${obj}'`);
             }
 
             return jsToUplc(fieldSchema, fieldObj);
@@ -47655,7 +48125,7 @@ export function jsToUplc(schema, obj) {
             const fieldObj = obj[key][fieldName];
 
             if (fieldObj === undefined) {
-                throw new Error(`field ${fieldName} not found in ${JSON.stringify(obj[key])}`);
+                throw new Error(`field ${fieldName} not found in '${obj[key]}'`);
             }
 
             return jsToUplc(fieldSchema, fieldObj);

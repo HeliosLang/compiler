@@ -64,24 +64,24 @@ import {
 export function jsToUplc(schema, obj) {
     if (schema.type == "List" && "itemType" in schema) {
         if (!Array.isArray(obj)) {
-            throw new Error(`expected Array, got '${JSON.stringify(obj)}'`);
+            throw new Error(`expected Array, got '${obj}'`);
         }
 
         return new ListData(obj.map(item => jsToUplc(schema.itemType, item)));
     } else if (schema.type == "Map" && "keyType" in schema && "valueType" in schema) {
         if (!Array.isArray(obj)) {
-            throw new Error(`expected Array, got '${JSON.stringify(obj)}'`);
+            throw new Error(`expected Array, got '${obj}'`);
         }
 
         return new MapData(obj.map(entry => {
             if (!Array.isArray(entry)) {
-                throw new Error(`expected Array of Arrays, got '${JSON.stringify(obj)}'`);
+                throw new Error(`expected Array of Arrays, got '${obj}'`);
             }
 
             const [key, value] = entry;
 
             if (!key || !value) {
-                throw new Error(`expected Array of Array[2], got '${JSON.stringify(obj)}'`);
+                throw new Error(`expected Array of Array[2], got '${obj}'`);
             }
 
             return [
@@ -101,7 +101,7 @@ export function jsToUplc(schema, obj) {
             const fieldObj = obj[fieldName];
 
             if (fieldObj === undefined) {
-                throw new Error(`field ${fieldName} not found in ${JSON.stringify(obj)}`);
+                throw new Error(`field ${fieldName} not found in '${obj}'`);
             }
 
             return jsToUplc(fieldSchema, fieldObj);
@@ -132,7 +132,7 @@ export function jsToUplc(schema, obj) {
             const fieldObj = obj[key][fieldName];
 
             if (fieldObj === undefined) {
-                throw new Error(`field ${fieldName} not found in ${JSON.stringify(obj[key])}`);
+                throw new Error(`field ${fieldName} not found in '${obj[key]}'`);
             }
 
             return jsToUplc(fieldSchema, fieldObj);

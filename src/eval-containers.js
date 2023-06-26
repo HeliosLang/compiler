@@ -12,6 +12,10 @@ import {
 	TTPP
 } from "./tokens.js";
 
+import { 
+	ListData 
+} from "./uplc-data.js";
+
 import {
 	HeliosData,
 	HMap,
@@ -73,6 +77,8 @@ import {
 
 import {
 	AnyTypeClass,
+	GenericParametricType,
+	GenericParametricEnumMemberType,
 	Parameter,
     ParametricFunc,
 	ParametricType,
@@ -80,13 +86,13 @@ import {
 	SummableTypeClass
 } from "./eval-parametric.js";
 
+
 /**
  * @param {Type[]} itemTypes
  * @returns {Type}
  */
 export function IteratorType$(itemTypes) {
-	// to_list and to_map can't be part of Iterator because type information is lost (eg. we can map to an iterator over functions)
-	return new GenericType({
+	const props = {
 		name: `Iterator[${itemTypes.map(it => it.toString()).join(", ")}]`,
 		path: `__helios__iterator__${itemTypes.length}`,
 		genInstanceMembers: (self) => {
@@ -129,7 +135,10 @@ export function IteratorType$(itemTypes) {
 			return members;
 		},
 		genTypeMembers: (self) => ({})
-	});
+	};
+
+	// to_list and to_map can't be part of Iterator because type information is lost (eg. we can map to an iterator over functions)
+	return itemTypes.some(it => it.isParametric()) ? new GenericParametricType(props) : new GenericType(props);
 };
 
 /**
@@ -146,7 +155,7 @@ export const ListType = new ParametricType({
 		const offChainItemType = itemType.offChainType ?? null;
 		const offChainType = offChainItemType ? HList(offChainItemType) : null;
 
-		return new GenericType({
+		const props = {
 			offChainType: offChainType,
 			name: `[]${itemType.toString()}`,
 			path: `__helios__list[${itemType.path}]`,
@@ -158,6 +167,16 @@ export const ListType = new ParametricType({
 					itemType: assertDefined(itemType.typeDetails?.internalType)
 				}
 			}),
+			jsToUplc: (obj) => {
+				if (Array.isArray(obj)) {
+					return new ListData(obj.map(item => itemType.jsToUplc(item)));
+				} else {
+					throw new Error("expected array");	
+				}
+			},
+			uplcToJs: (data) => {
+				return data.list.map(item => itemType.uplcToJs(item));
+			},
 			genInstanceMembers: (self) => {
 				/**
 				 * @type {InstanceMembers}
@@ -197,6 +216,12 @@ export const ListType = new ParametricType({
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 						const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
 						return new ParametricFunc([a, b], new FuncType([new FuncType([a.ref, b.ref, itemType], [a.ref, b.ref]), a.ref, b.ref], [a.ref, b.ref]));
+					})(),
+					fold3: (() => {
+						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+						const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
+						const c = new Parameter("c", `${FTPP}0`, new AnyTypeClass());
+						return new ParametricFunc([a, b, c], new FuncType([new FuncType([a.ref, b.ref, c.ref, itemType], [a.ref, b.ref, c.ref]), a.ref, b.ref, c.ref], [a.ref, b.ref, c.ref]));
 					})(),
 					fold_lazy: (() => {
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
@@ -242,7 +267,9 @@ export const ListType = new ParametricType({
 				new_const: new FuncType([IntType, itemType], self),
 				from_iterator: new FuncType([IteratorType$([itemType])], self)
 			})
-		})
+		};
+
+		return itemType_.isParametric() ? new GenericParametricType(props) : new GenericType(props);
 	}
 });
 
@@ -273,7 +300,7 @@ export const MapType = new ParametricType({
 		const offChainValueType = valueType.offChainType ?? null;
 		const offChainType = offChainKeyType && offChainValueType ? HMap(offChainKeyType, offChainValueType) : null;
 
-		return new GenericType({
+		const props = {
 			offChainType: offChainType,
 			name: `Map[${keyType.toString()}]${valueType.toString()}`,
 			path: `__helios__map[${keyType.path}@${valueType.path}]`,
@@ -334,7 +361,9 @@ export const MapType = new ParametricType({
 				__add: new FuncType([self, self], self),
 				from_iterator: new FuncType([IteratorType$([keyType, valueType])], self)
 			})
-		})
+		}
+
+		return (keyType.isParametric() || valueType.isParametric()) ? new GenericParametricType(props) : new GenericType(props);
 	}
 });
 
@@ -363,9 +392,16 @@ export const OptionType = new ParametricType({
 		const someTypePath = someType.path;
 
 		/**
-		 * @type {DataType}
+		 * @type {null | EnumMemberType}
 		 */
-		const AppliedOptionType = new GenericType({
+		let NoneType = null;
+
+		/**
+		 * @type {null | EnumMemberType}
+		 */
+		let SomeType = null;
+
+		const appliedOptionTypeProps = {
 			offChainType: offChainType,
 			name: `Option[${someType.toString()}]`,
 			path: `__helios__option[${someTypePath}]`,
@@ -387,19 +423,15 @@ export const OptionType = new ParametricType({
 			}),
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self),
-           		None: NoneType,
-            	Some: SomeType
+           		None: assertDefined(NoneType),
+            	Some: assertDefined(SomeType)
 			})
-		});
+		};
 
-		/**
-		 * @type {EnumMemberType}
-		 */
-		const SomeType = new GenericEnumMemberType({
+		const someTypeProps = {
 			name: "Some",
 			constrIndex: 0,
 			fieldNames: ["some"],
-			parentType: AppliedOptionType,
 			path: `__helios__option[${someTypePath}]__some`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self),
@@ -408,15 +440,11 @@ export const OptionType = new ParametricType({
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self)
 			})
-		});
+		};
 
-		/**
-		 * @type {EnumMemberType}
-		 */
-		const NoneType = new GenericEnumMemberType({
+		const noneTypeProps = {
 			name: "None",
 			constrIndex: 1,
-			parentType: AppliedOptionType,
 			path: `__helios__option[${someTypePath}]__none`,
 			genInstanceMembers: (self) => ({
 				...genCommonInstanceMembers(self)
@@ -424,9 +452,37 @@ export const OptionType = new ParametricType({
 			genTypeMembers: (self) => ({
 				...genCommonTypeMembers(self)
 			})
-		});
+		};
 
-		return AppliedOptionType;
+		if (someType.isParametric()) {
+			const AppliedOptionType = new GenericParametricType(appliedOptionTypeProps);
+
+			SomeType = new GenericParametricEnumMemberType({
+				...someTypeProps,
+				parentType: AppliedOptionType
+			});
+
+			NoneType = new GenericParametricEnumMemberType({
+				...noneTypeProps,
+				parentType: AppliedOptionType
+			});
+
+			return AppliedOptionType;
+		} else {
+			const AppliedOptionType = new GenericType(appliedOptionTypeProps);
+
+			SomeType = new GenericEnumMemberType({
+				...someTypeProps,
+				parentType: AppliedOptionType
+			});
+
+			NoneType = new GenericEnumMemberType({
+				...noneTypeProps,
+				parentType: AppliedOptionType
+			});
+
+			return AppliedOptionType;
+		}
 	}
 });
 

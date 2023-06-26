@@ -72,6 +72,19 @@ export var DurationType = new GenericType({
 export var TimeType = new GenericType({
     name: "Time",
     offChainType: Time,
+    genTypeDetails: (self) => ({
+        inputType: `number | bigint | string | Date`,
+        outputType: `Date`,
+        internalType: {
+            type: "Time"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return Time.fromProps(obj)._toUplcData();
+    },
+    uplcToJs: (data) => {
+        return new Date(Number(Time.fromUplcData(data).value));
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         show: new FuncType([], StringType)
