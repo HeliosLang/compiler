@@ -416,7 +416,7 @@ export function uplcToJs(schema: TypeSchema, data: UplcData): any;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.14.2";
+export const VERSION: "0.14.3";
 /**
  * Modifiable config vars
  * @type {{
@@ -3350,6 +3350,12 @@ export const builtinTypes: {
     [name: string]: DataType;
 };
 /**
+ * @type {{[name: string]: string}}
+ */
+export const BINARY_SYMBOLS_MAP: {
+    [name: string]: string;
+};
+/**
  * @typedef {Map<IRVariable, IRLiteralExpr>} IRLiteralRegistry
  */
 export class IRNameExprRegistry {
@@ -3483,9 +3489,6 @@ export class IRParametricProgram {
     #private;
 }
 /**
- * @typedef {{[name: string]: any}} UserTypes
- */
-/**
  * Helios root object
  */
 export class Program {
@@ -3512,12 +3515,12 @@ export class Program {
      * @param {string} mainSrc
      * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
      * @param {{[name: string]: Type}} validatorTypes
-     * @param {boolean} allowPosParams
+     * @param {ProgramConfig} config
      * @returns {Program}
      */
     static new(mainSrc: string, moduleSrcs?: string[], validatorTypes?: {
         [name: string]: Type;
-    }, allowPosParams?: boolean): Program;
+    }, config?: ProgramConfig): Program;
     /**
      * For top-level statements
      * @package
@@ -3536,13 +3539,13 @@ export class Program {
     /**
      * @param {ScriptPurpose} purpose
      * @param {Module[]} modules
-     * @param {boolean} allowPosParams
+     * @param {ProgramConfig} config
      */
-    constructor(purpose: ScriptPurpose, modules: Module[], allowPosParams: boolean);
+    constructor(purpose: ScriptPurpose, modules: Module[], config: ProgramConfig);
     /**
-     * @type {boolean}
+     * @type {ProgramConfig}
      */
-    get allowPosParams(): boolean;
+    get config(): ProgramConfig;
     /**
      * @type {number}
      */
@@ -3743,7 +3746,7 @@ export class LinkingProgram extends GenericProgram {
      * Creates  a new program.
      * @param {string} mainSrc
      * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
-     * @param {ScriptTypes} scriptTypes - generators for script hashes, used by ScriptCollection
+     * @param {ScriptTypes} scriptTypes - generators for script hashes, used by Scripts
      * @returns {LinkingProgram}
      */
     static new(mainSrc: string, moduleSrcs?: string[], scriptTypes?: ScriptTypes): LinkingProgram;
@@ -6074,6 +6077,10 @@ export type IRLiteralRegistry = Map<IRVariable, IRLiteralExpr>;
 export type UserTypes = {
     [name: string]: any;
 };
+export type ProgramConfig = {
+    allowPosParams: boolean;
+    invertEntryPoint: boolean;
+};
 export type CoinSelectionAlgorithm = (utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]];
 export type Wallet = {
     isMainnet(): Promise<boolean>;
@@ -7284,16 +7291,10 @@ declare class FuncStatement extends Statement {
 declare class GlobalScope {
     /**
      * Initialize the GlobalScope with all the builtins
-     * @param {ScriptPurpose} purpose
      * @param {ScriptTypes} scriptTypes - types of all the scripts in a contract/ensemble
      * @returns {GlobalScope}
      */
-    static new(purpose: ScriptPurpose, scriptTypes?: ScriptTypes): GlobalScope;
-    /**
-     * @param {ScriptTypes} scriptTypes
-     * @returns {GlobalScope}
-     */
-    static newLinking(scriptTypes: ScriptTypes): GlobalScope;
+    static new(scriptTypes?: ScriptTypes): GlobalScope;
     /**
      * Checks if scope contains a name
      * @param {Word} name
@@ -7571,8 +7572,9 @@ declare class TxBody extends CborData {
     removeOutput(output: TxOutput): void;
     /**
      * @param {PubKeyHash} hash
+     * @param {boolean} checkUniqueness
      */
-    addSigner(hash: PubKeyHash): void;
+    addSigner(hash: PubKeyHash, checkUniqueness?: boolean): void;
     /**
      * @param {TxInput} input
      */
@@ -8466,18 +8468,29 @@ declare class IRCallExpr extends IRExpr {
 declare class Scope extends Common implements EvalEntity {
     /**
      * @param {GlobalScope | Scope} parent
+     * @param {boolean} allowShadowing
      */
-    constructor(parent: GlobalScope | Scope);
+    constructor(parent: GlobalScope | Scope, allowShadowing?: boolean);
+    /**
+     * @type {boolean}
+     */
+    get allowShadowing(): boolean;
     /**
      * Used by top-scope to loop over all the statements
      */
-    get values(): [Word, EvalEntity | Scope][];
+    get values(): [Word, EvalEntity | Scope, boolean][];
     /**
      * Checks if scope contains a name
      * @param {Word} name
      * @returns {boolean}
      */
     has(name: Word): boolean;
+    /**
+     * Sets a named value. Throws an error if not unique
+     * @param {Word} name
+     * @param {EvalEntity | Scope} value
+     */
+    setInternal(name: Word, value: EvalEntity | Scope, allowShadowing?: boolean): void;
     /**
      * Sets a named value. Throws an error if not unique
      * @param {Word} name
@@ -8496,9 +8509,10 @@ declare class Scope extends Common implements EvalEntity {
     /**
      * Gets a named value from the scope. Throws an error if not found
      * @param {Word} name
+     * @param {boolean} dryRun - if false -> don't set used flag
      * @returns {EvalEntity | Scope}
      */
-    get(name: Word): EvalEntity | Scope;
+    get(name: Word, dryRun?: boolean): EvalEntity | Scope;
     /**
      * @returns {boolean}
      */

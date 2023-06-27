@@ -754,7 +754,7 @@ export class AssignExpr extends Expr {
 	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const subScope = new Scope(scope);
+		const subScope = new Scope(scope, scope.allowShadowing);
 
 		let upstreamVal = this.#upstreamExpr.eval(scope);
 
@@ -775,7 +775,7 @@ export class AssignExpr extends Expr {
 		} else if (upstreamVal.asTyped) {
 			if (this.#nameTypes[0].hasType()) {
 				this.#nameTypes[0].evalInAssignExpr(subScope, assertDefined(upstreamVal.asTyped.type.asType), 0);
-			} else if (this.#upstreamExpr.isLiteral()) {
+			} else if (this.#upstreamExpr.isLiteral() || scope.has(this.#nameTypes[0].name)) {
 				// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
 				if ((this.#upstreamExpr instanceof CallExpr &&
 					this.#upstreamExpr.fnExpr instanceof PathExpr) || 
@@ -794,7 +794,7 @@ export class AssignExpr extends Expr {
 				throw this.typeError("unable to infer type of assignment rhs");
 			}
 		} else {
-			throw this.#upstreamExpr.typeError("not an instance");
+			throw this.#upstreamExpr.typeError("rhs isn't an instance");
 		}
 
 		const downstreamVal = this.#downstreamExpr.eval(subScope);
@@ -1870,7 +1870,7 @@ export class FuncLiteralExpr extends Expr {
 		// argTypes is calculated separately again here so it includes self
 		const argTypes = this.#args.map(a => a.evalType(scope));
 
-		const subScope = new Scope(scope);
+		const subScope = new Scope(scope, true);
 
 		argTypes.forEach((a, i) => {
 			if (!this.#args[i].isIgnored()) {
@@ -2192,6 +2192,25 @@ export class UnaryExpr extends Expr {
 }
 
 /**
+ * @type {{[name: string]: string}}
+ */
+export const BINARY_SYMBOLS_MAP = {
+	"||": "__or",
+	"&&": "__and",
+	"==": "__eq",
+	"!=": "__neq",
+	"<": "__lt",
+	"<=": "__leq",
+	">": "__gt",
+	">=": "__geq",
+	"+": "__add",
+	"-": "__sub",
+	"*": "__mul",
+	"/": "__div",
+	"%": "__mod"
+}
+
+/**
  * Binary operator expression
  * @package
  */
@@ -2242,35 +2261,10 @@ export class BinaryExpr extends Expr {
 	translateOp(alt = 0) {
 		const op = this.#op.toString();
 		const site = this.#op.site;
-		let name;
 
-		if (op == "||") {
-			name = "__or";
-		} else if (op == "&&") {
-			name = "__and";
-		} else if (op == "==") {
-			name = "__eq";
-		} else if (op == "!=") {
-			name = "__neq";
-		} else if (op == "<") {
-			name = "__lt";
-		} else if (op == "<=") {
-			name = "__leq";
-		} else if (op == ">") {
-			name = "__gt";
-		} else if (op == ">=") {
-			name = "__geq";
-		} else if (op == "+") {
-			name = "__add";
-		} else if (op == "-") {
-			name = "__sub";
-		} else if (op == "*") {
-			name = "__mul";
-		} else if (op == "/") {
-			name = "__div";
-		} else if (op == "%") {
-			name = "__mod";
-		} else {
+		let name = BINARY_SYMBOLS_MAP[op];
+
+		if (!name) {
 			throw new Error("unhandled");
 		}
 
@@ -2303,12 +2297,12 @@ export class BinaryExpr extends Expr {
 	evalInternal(scope) {
 		const a = this.#a.eval(scope).asInstance;
 		if (!a) {
-			throw this.#a.typeError("not an instance");
+			throw this.#a.typeError(`lhs of ${this.#op.toString()} not an instance`);
 		} 
 
 		const b = this.#b.eval(scope).asInstance;
 		if (!b) {
-			throw this.#b.typeError("not an instance");
+			throw this.#b.typeError(`rhs of ${this.#op.toString()} not an instance`);
 		}
 
 		for (let swap of (this.isCommutative() ? [false, true] : [false])) {
@@ -2566,13 +2560,13 @@ export class CallExpr extends Expr {
 	evalInternal(scope) {
 		const fnVal = this.#fnExpr.eval(scope);
 
-		const argVals = this.#argExprs.map(ae => {
+		const argVals = this.#argExprs.map((ae, i) => {
 			const av_ = ae.eval(scope);
 			
 			const av = av_.asTyped ?? av_.asMulti;
 
 			if (!av) {
-				throw ae.typeError("not an instance");
+				throw ae.typeError(`arg ${i+1} not an instance`);
 			}
 
 			return av;
@@ -2900,7 +2894,7 @@ export class MemberExpr extends Expr {
 	evalInternal(scope) {
 		const objVal = this.#objExpr.eval(scope).asInstance;
 		if (!objVal) {
-			throw this.#objExpr.site.typeError("not an instance");
+			throw this.#objExpr.site.typeError(`lhs of '.' not an instance`);
 		}
 
 		let member = objVal.instanceMembers[this.#memberName.value];
@@ -3067,7 +3061,10 @@ export class IfElseExpr extends Expr {
 		let branchMultiType = null;
 
 		for (let b of this.#branches) {
-			const branchVal = b.evalAsTypedOrMulti(scope);
+			// don't allow shadowing
+			const branchScope = new Scope(scope, false);
+
+			const branchVal = b.evalAsTypedOrMulti(branchScope);
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				b.site, 
@@ -3559,7 +3556,7 @@ export class SwitchCase extends Token {
 
 		assert(this.#constrIndex >= 0);
 
-		const caseScope = new Scope(scope);
+		const caseScope = new Scope(scope, false);
 
 		this.#lhs.evalInSwitchCase(caseScope, caseType);
 
@@ -3610,7 +3607,7 @@ export class SwitchCase extends Token {
 				}
 		}
 
-		const caseScope = new Scope(scope);
+		const caseScope = new Scope(scope, false);
 
 		this.#lhs.evalInSwitchCase(caseScope, memberType);
 
@@ -3697,7 +3694,7 @@ export class UnconstrDataSwitchCase extends SwitchCase {
 		let bodyVal = null;
 
 		if (this.#intVarName !== null || this.#lstVarName !== null) {
-			let caseScope = new Scope(scope);
+			let caseScope = new Scope(scope, false);
 
 			if (this.#intVarName !== null) {
 				caseScope.set(this.#intVarName, new DataEntity(IntType));

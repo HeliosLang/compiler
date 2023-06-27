@@ -977,7 +977,7 @@ export class Tx extends CborData {
 
 			if (config.VALIDITY_RANGE_END_OFFSET !== null) {
 				if (currentSlot !== null) {
-					this.#validTo = currentSlot;
+					this.#validTo = currentSlot+1n;
 				} else {
 					this.#validTo = new Date(now.getTime() + 1000*config.VALIDITY_RANGE_END_OFFSET);
 				}
@@ -1464,7 +1464,7 @@ class TxBody extends CborData {
 			]),
 			new ConstrData(0, [ // UpperBound
 				this.#lastValidSlot === null ? new ConstrData(2, []) : new ConstrData(1, [new IntData(networkParams.slotToTime(this.#lastValidSlot))]), // PosInf
-				new ConstrData(1, []), // true
+				new ConstrData(0, []), // false
 			]),
 		]);
 	}
@@ -1694,9 +1694,18 @@ class TxBody extends CborData {
 
 	/**
 	 * @param {PubKeyHash} hash 
+	 * @param {boolean} checkUniqueness
 	 */
-	addSigner(hash) {
+	addSigner(hash, checkUniqueness = true) {
+		if (checkUniqueness) {
+			assert(this.#signers.every(prevSigner => {
+				return  !prevSigner.eq(hash);
+			}), "signer already added before");
+		}
+
+
 		this.#signers.push(hash);
+		this.#signers.sort(Hash.compare);
 	}
 
 	/**
@@ -1864,7 +1873,7 @@ class TxBody extends CborData {
 		// same for ref inputs
 		this.#refInputs.forEach((input, i) => {
 			if (i > 0) {
-				const prev = this.#inputs[i-1];
+				const prev = this.#refInputs[i-1];
 
 				// can be less than -1 if utxoIds aren't consecutive
 				assert(TxInput.comp(prev, input) <= -1, "refInputs not sorted");

@@ -632,7 +632,7 @@ export class Tokenizer {
 		}
 
 		if (c0 == '|') {
-			parseSecondChar('|') || parseSecondChar('.');
+			parseSecondChar('|');
 		} else if (c0 == '&') {
 			parseSecondChar('&');
 		} else if (c0 == '=') {

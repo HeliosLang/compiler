@@ -282,6 +282,21 @@ class MainModule extends Module {
  */
 
 /**
+ * @typedef {{
+ *   allowPosParams: boolean
+ *   invertEntryPoint: boolean
+ * }} ProgramConfig
+ */
+
+/**
+ * @type {ProgramConfig}
+ */
+const DEFAULT_PROGRAM_CONFIG = {
+	allowPosParams: false,
+	invertEntryPoint: false
+}
+
+/**
  * Helios root object
  */
  export class Program {
@@ -296,9 +311,9 @@ class MainModule extends Module {
 	#modules;
 
 	/**
-	 * @type {boolean}
+	 * @type {ProgramConfig}
 	 */
-	#allowPosParams;
+	#config;
 
 	/** 
 	 * @type {UserTypes} 
@@ -314,12 +329,12 @@ class MainModule extends Module {
 	/**
 	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(purpose, modules, allowPosParams) {
+	constructor(purpose, modules, config) {
 		this.#purpose = purpose;
 		this.#modules = modules;
-		this.#allowPosParams = allowPosParams;
+		this.#config = config;
 		this.#types = {};
 		this.#parameters = {};
 	}
@@ -426,10 +441,10 @@ class MainModule extends Module {
 	 * @param {string} mainSrc 
 	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
 	 * @param {{[name: string]: Type}} validatorTypes
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 * @returns {Program}
 	 */
-	static new(mainSrc, moduleSrcs = [], validatorTypes = {}, allowPosParams = false) {
+	static new(mainSrc, moduleSrcs = [], validatorTypes = {}, config = DEFAULT_PROGRAM_CONFIG) {
 		const [purpose, modules] = Program.parseMain(mainSrc, moduleSrcs);
 	
 		/**
@@ -442,13 +457,13 @@ class MainModule extends Module {
 				program = new TestingProgram(modules);
 				break;
 			case "spending":
-				program = new SpendingProgram(modules, allowPosParams);
+				program = new SpendingProgram(modules, config);
 				break;
 			case "minting":
-				program = new MintingProgram(modules, allowPosParams);
+				program = new MintingProgram(modules, config);
 				break;
 			case "staking":
-				program = new StakingProgram(modules, allowPosParams);
+				program = new StakingProgram(modules, config);
 				break;
 			default:
 				throw new Error("unhandled script purpose");
@@ -462,10 +477,10 @@ class MainModule extends Module {
 	}
 
 	/**
-	 * @type {boolean}
+	 * @type {ProgramConfig}
 	 */
-	get allowPosParams() {
-		return this.#allowPosParams;
+	get config() {
+		return this.#config;
 	}
 
 	/**
@@ -1277,17 +1292,17 @@ class RedeemerProgram extends Program {
 	/**
 	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules 
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(purpose, modules, allowPosParams = false) {
-		super(purpose, modules, allowPosParams);
+	constructor(purpose, modules, config = DEFAULT_PROGRAM_CONFIG) {
+		super(purpose, modules, config);
 	}
 
 	/**
 	 * @type {number}
 	 */
 	get nPosParams() {
-		return this.mainFunc.nArgs - 2;
+		return this.mainFunc.nArgs - (this.config.invertEntryPoint ? 0 : 2);
 	}
 
 	/**
@@ -1306,7 +1321,7 @@ class RedeemerProgram extends Program {
 		const retTypes = main.retTypes;
 		const nArgs = argTypes.length;
 
-		if (this.allowPosParams) {
+		if (this.config.allowPosParams) {
 			if (nArgs < 2) {
 				throw main.typeError("expected at least 2 args for main");	
 			}
@@ -1343,7 +1358,7 @@ class RedeemerProgram extends Program {
 	 * @returns {TopScope}
 	 */
 	evalTypes(validatorTypes = {}) {
-		const scope = GlobalScope.new(this.purpose, validatorTypes);
+		const scope = GlobalScope.new(validatorTypes);
 
 		return this.evalTypesInternal(scope);	
 	}
@@ -1353,14 +1368,15 @@ class RedeemerProgram extends Program {
 	 * @returns {IR} 
 	 */
 	toIRInternal() {
-		const outerArgNames = ["redeemer", "ctx"];
+		const outerArgNames = this.config.invertEntryPoint ? [] : ["redeemer", "ctx"];
+		const nOuterArgs = outerArgNames.length;
 
 		const nArgs = this.mainFunc.nArgs;
 		const argTypeNames = this.mainFunc.argTypeNames;
 		const argTypes = this.mainArgTypes;
 
 		const innerArgs = argTypes.map((t, i) => {
-			const name = (i >= (nArgs-2)) ? outerArgNames[i-(nArgs-2)] : `__PARAM_${i.toString()}`;
+			const name = (i >= (nArgs-nOuterArgs)) ? outerArgNames[i-(nArgs-nOuterArgs)] : `__PARAM_${i.toString()}`;
 
 			// empty path
 			if (argTypeNames[i] != "") {
@@ -1376,17 +1392,23 @@ class RedeemerProgram extends Program {
 			}
 		});
 
-		const outerArgs = outerArgNames.map((n) => new IR(n));
-
 		let ir = new IR([
-			new IR(`${TAB}/*entry point*/\n${TAB}(`),
-			new IR(outerArgs).join(", "),
-			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
+			new IR(`${TAB}${TAB}__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
-			new IR(`\n${TAB}}`),
 		]);
+
+		if (nOuterArgs > 0) {
+			const outerArgs = outerArgNames.map((n) => new IR(n));
+
+			ir = new IR([
+				new IR(`${TAB}/*entry point*/\n${TAB}(`),
+				new IR(outerArgs).join(", "),
+				new IR(`) -> {\n`),
+				ir,
+				new IR(`\n${TAB}}`)
+			])
+		}
 
 		return ir;
 	}
@@ -1403,17 +1425,17 @@ class DatumRedeemerProgram extends Program {
 	/**
 	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(purpose, modules, allowPosParams) {
-		super(purpose, modules, allowPosParams);
+	constructor(purpose, modules, config) {
+		super(purpose, modules, config);
 	}
 
 	/**
 	 * @type {number}
 	 */
 	get nPosParams() {
-		return this.mainFunc.nArgs - 3;
+		return this.mainFunc.nArgs - (this.config.invertEntryPoint ? 0 : 3);
 	}
 
 	/**
@@ -1432,7 +1454,7 @@ class DatumRedeemerProgram extends Program {
 		const retTypes = main.retTypes;
 		const nArgs = main.nArgs;
 
-		if (this.allowPosParams) {
+		if (this.config.allowPosParams) {
 			if (argTypes.length < 3) {
 				throw main.typeError("expected at least 3 args for main");	
 			}
@@ -1469,7 +1491,7 @@ class DatumRedeemerProgram extends Program {
 	 * @returns {TopScope}
 	 */
 	evalTypes(scriptTypes) {
-		const scope = GlobalScope.new(this.purpose, scriptTypes);
+		const scope = GlobalScope.new(scriptTypes);
 
 		return this.evalTypesInternal(scope);	
 	}
@@ -1479,13 +1501,14 @@ class DatumRedeemerProgram extends Program {
 	 * @returns {IR}
 	 */
 	toIRInternal() {
-		const outerArgNames = ["datum", "redeemer", "ctx"];
+		const outerArgNames = this.config.invertEntryPoint ? [] : ["datum", "redeemer", "ctx"];
+		const nOuterArgs = outerArgNames.length;
 
 		const nArgs = this.mainFunc.nArgs;
 		const argTypeNames = this.mainFunc.argTypeNames;
 
 		const innerArgs = this.mainArgTypes.map((t, i) => {
-			const name = (i >= (nArgs-3)) ? outerArgNames[i-(nArgs-3)] : `__PARAM_${i.toString()}`;
+			const name = (i >= (nArgs-nOuterArgs)) ? outerArgNames[i-(nArgs-nOuterArgs)] : `__PARAM_${i.toString()}`;
 
 			// empty path
 			if (argTypeNames[i] != "") {
@@ -1501,17 +1524,25 @@ class DatumRedeemerProgram extends Program {
 			}
 		});
 
-		const outerArgs = outerArgNames.map((n) => new IR(n));
-
-		return new IR([
-			new IR(`${TAB}/*entry point*/\n${TAB}(`),
-			new IR(outerArgs).join(", "),
-			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
+		let ir = new IR([
+			new IR(`${TAB}${TAB}__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
-			new IR(`\n${TAB}}`),
 		]);
+
+		if (nOuterArgs > 0) {
+			const outerArgs = outerArgNames.map((n) => new IR(n));
+
+			ir = new IR([
+				new IR(`${TAB}/*entry point*/\n${TAB}(`),
+				new IR(outerArgs).join(", "),
+				new IR(`) -> {\n`),
+				ir,
+				new IR(`\n${TAB}}`)
+			]);
+		}
+
+		return ir;
 	}
 
 	/**
@@ -1526,10 +1557,10 @@ class GenericProgram extends Program {
 	/**
 	 * @param {ScriptPurpose} purpose 
 	 * @param {Module[]} modules 
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(purpose, modules, allowPosParams) {
-		super(purpose, modules, allowPosParams);
+	constructor(purpose, modules, config) {
+		super(purpose, modules, config);
 	}
 
 	/**
@@ -1545,7 +1576,7 @@ class GenericProgram extends Program {
 	 * @returns {TopScope}
 	 */
 	evalTypes(scriptTypes) {
-		const scope = GlobalScope.new(this.purpose, scriptTypes);
+		const scope = GlobalScope.new(scriptTypes);
 
 		const topScope = super.evalTypesInternal(scope);
 
@@ -1629,37 +1660,37 @@ class TestingProgram extends GenericProgram {
 	 * @param {Module[]} modules 
 	 */
 	constructor(modules) {
-		super("testing", modules, false);
+		super("testing", modules, DEFAULT_PROGRAM_CONFIG);
 	}
 }
 
 class SpendingProgram extends DatumRedeemerProgram {
 	/**
 	 * @param {Module[]} modules
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(modules, allowPosParams) {
-		super("spending", modules, allowPosParams);
+	constructor(modules, config) {
+		super("spending", modules, config);
 	}
 }
 
 class MintingProgram extends RedeemerProgram {
 	/**
 	 * @param {Module[]} modules 
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(modules, allowPosParams = false) {
-		super("minting", modules, allowPosParams);
+	constructor(modules, config = DEFAULT_PROGRAM_CONFIG) {
+		super("minting", modules, config);
 	}
 }
 
 class StakingProgram extends RedeemerProgram {
 	/**
 	 * @param {Module[]} modules 
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(modules, allowPosParams = false) {
-		super("staking", modules, allowPosParams);
+	constructor(modules, config = DEFAULT_PROGRAM_CONFIG) {
+		super("staking", modules, config);
 	}
 }
 
@@ -1674,7 +1705,7 @@ export class LinkingProgram extends GenericProgram {
 	 * @param {Program[]} validators 
 	 */
 	constructor(modules, validators) {
-		super("linking", modules, false);
+		super("linking", modules, DEFAULT_PROGRAM_CONFIG);
 
 		this.#validators = validators;
 	}
@@ -1683,7 +1714,7 @@ export class LinkingProgram extends GenericProgram {
 	 * Creates  a new program.
 	 * @param {string} mainSrc 
 	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
-	 * @param {ScriptTypes} scriptTypes - generators for script hashes, used by ScriptCollection
+	 * @param {ScriptTypes} scriptTypes - generators for script hashes, used by Scripts
 	 * @returns {LinkingProgram}
 	 */
 	static new(mainSrc, moduleSrcs = [], scriptTypes = {}) {
@@ -1704,7 +1735,7 @@ export class LinkingProgram extends GenericProgram {
 	 * @returns {TopScope}
 	 */
 	evalTypes(scriptTypes = {}) {
-		const scope = GlobalScope.newLinking(scriptTypes);
+		const scope = GlobalScope.new(scriptTypes);
 
 		const topScope = super.evalTypesInternal(scope);
 		

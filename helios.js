@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.14.2
+// Version:       0.14.3
 // Last update:   June 2023
 // License type:  BSD-3-Clause
 //
@@ -158,7 +158,7 @@
 //                                           CredentialType, CredentialPubKeyType, 
 //                                           CredentialValidatorType, OutputDatumType, 
 //                                           OutputDatumHashType, OutputDatumInlineType, 
-//                                           OutputDatumNoneType, MacroType, ScriptCollectionType, 
+//                                           OutputDatumNoneType, MacroType, ScriptsType, 
 //                                           ScriptContextType, ContractContextType, WalletType, 
 //                                           NetworkType, ScriptPurposeType, 
 //                                           ScriptPurposeCertifyingType, 
@@ -180,10 +180,11 @@
 //                                           StructLiteralField, StructLiteralExpr, 
 //                                           ListLiteralExpr, MapLiteralExpr, NameTypePair, 
 //                                           FuncArg, FuncLiteralExpr, ParametricExpr, UnaryExpr, 
-//                                           BinaryExpr, ParensExpr, CallArgExpr, CallExpr, 
-//                                           MemberExpr, IfElseExpr, DestructExpr, SwitchCase, 
-//                                           UnconstrDataSwitchCase, SwitchDefault, SwitchExpr, 
-//                                           EnumSwitchExpr, DataSwitchExpr
+//                                           BINARY_SYMBOLS_MAP, BinaryExpr, ParensExpr, 
+//                                           CallArgExpr, CallExpr, MemberExpr, IfElseExpr, 
+//                                           DestructExpr, SwitchCase, UnconstrDataSwitchCase, 
+//                                           SwitchDefault, SwitchExpr, EnumSwitchExpr, 
+//                                           DataSwitchExpr
 //
 //     Section 24: Helios AST statements     Statement, ImportFromStatement, 
 //                                           ImportModuleStatement, ConstStatement, TypeParameter, 
@@ -244,10 +245,10 @@
 //
 //     Section 30: IR Program                IRProgram, IRParametricProgram
 //
-//     Section 31: Helios program            Module, MainModule, RedeemerProgram, 
-//                                           DatumRedeemerProgram, GenericProgram, TestingProgram, 
-//                                           SpendingProgram, MintingProgram, StakingProgram, 
-//                                           LinkingProgram
+//     Section 31: Helios program            Module, MainModule, DEFAULT_PROGRAM_CONFIG, 
+//                                           RedeemerProgram, DatumRedeemerProgram, 
+//                                           GenericProgram, TestingProgram, SpendingProgram, 
+//                                           MintingProgram, StakingProgram, LinkingProgram
 //
 //     Section 32: Native scripts            NativeContext, NativeScript, NativeSig, NativeAll, 
 //                                           NativeAny, NativeAtLeast, NativeAfter, NativeBefore
@@ -284,7 +285,7 @@
 /**
  * Version of the Helios library.
  */
-export const VERSION = "0.14.2";
+export const VERSION = "0.14.3";
 
 /**
  * A tab used for indenting of the IR.
@@ -14868,7 +14869,7 @@ export class Tokenizer {
 		}
 
 		if (c0 == '|') {
-			parseSecondChar('|') || parseSecondChar('.');
+			parseSecondChar('|');
 		} else if (c0 == '&') {
 			parseSecondChar('&');
 		} else if (c0 == '=') {
@@ -18470,6 +18471,7 @@ const PrintFunc = new BuiltinFunc({
 // Section 17: Eval container types
 ///////////////////////////////////
 
+
 /**
  * @param {Type[]} itemTypes
  * @returns {Type}
@@ -19633,7 +19635,7 @@ const OutputDatumNoneType = new GenericEnumMemberType({
 });
 
 /**
- * Base class for ScriptContext, ContractContext, ScriptCollection and other "macro"-types
+ * Base class for ScriptContext, ContractContext, Scripts and other "macro"-types
  * @package
  */
 class MacroType extends Common {
@@ -19741,9 +19743,9 @@ class MacroType extends Common {
  * @package
  * @implements {DataType}
  */
-class ScriptCollectionType extends MacroType {
+class ScriptsType extends MacroType {
     /**
-     * @type {ScriptTypes}
+     * @type {{[name: string]: Typed}}
      */
     #scripts;
 
@@ -19753,13 +19755,24 @@ class ScriptCollectionType extends MacroType {
     constructor(scripts) {
         super();
 
-        this.#scripts = scripts;
+        this.#scripts = {};
+        
+        for (let k in scripts) {
+            this.#scripts[k] = scripts[k].toTyped();
+        }
     }
 
     /**
      * @type {InstanceMembers}
      */
-    get instanceMembers() {
+     get instanceMembers() {
+        return {};
+    }
+
+    /**
+     * @type {TypeMembers}
+     */
+    get typeMembers() {
         return {
             ...this.#scripts
         };
@@ -19769,14 +19782,14 @@ class ScriptCollectionType extends MacroType {
      * @type {string}
      */
     get name() {
-        return "ScriptCollection";
+        return "Scripts";
     }
 
     /**
      * @type {string}
      */
     get path() {
-        return "__helios__scriptcollection";
+        return "__helios__scripts";
     }
 
     /**
@@ -19784,7 +19797,7 @@ class ScriptCollectionType extends MacroType {
      * @returns {boolean}
      */
     isBaseOf(other) {
-        return other instanceof ScriptCollectionType;
+        return other instanceof ScriptsType;
     }
 
     /**
@@ -19801,17 +19814,8 @@ class ScriptCollectionType extends MacroType {
  * @implements {DataType}
  */
 class ScriptContextType extends MacroType {
-    /**
-     * @type {ScriptCollectionType}
-     */
-   #scriptCollection;
-
-    /**
-     * @param {ScriptCollectionType} scriptCollection
-     */
-	constructor(scriptCollection = new ScriptCollectionType({})) {
+	constructor() {
 		super();
-        this.#scriptCollection = scriptCollection;
 	}
 
     /**
@@ -19836,10 +19840,6 @@ class ScriptContextType extends MacroType {
             get_script_purpose: new FuncType([], ScriptPurposeType),
             tx: TxType
         };
-
-        if (!this.#scriptCollection.isEmpty()) {
-            members["scripts"] = this.#scriptCollection;
-        }
         
         return members;
 	}
@@ -19857,10 +19857,10 @@ class ScriptContextType extends MacroType {
 	get typeMembers() {
         return {
             ...genCommonTypeMembers(this),
-            new_certifying: new FuncType([TxType, DCertType], new ScriptContextType(this.#scriptCollection)),
-            new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType(this.#scriptCollection)),
-            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(this.#scriptCollection)),
-            new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType(this.#scriptCollection))
+            new_certifying: new FuncType([TxType, DCertType], new ScriptContextType()),
+            new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType()),
+            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType()),
+            new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType())
         };
 	}
 
@@ -19879,17 +19879,8 @@ class ScriptContextType extends MacroType {
  * @implements {DataType}
  */
 class ContractContextType extends MacroType {
-    /**
-     * @type {ScriptCollectionType}
-     */
-    #scriptCollection;
-
-    /**
-     * @param {ScriptCollectionType} scriptCollection 
-     */
-    constructor(scriptCollection) {
+    constructor() {
         super();
-        this.#scriptCollection = scriptCollection;
     }
 
     /**
@@ -19899,7 +19890,6 @@ class ContractContextType extends MacroType {
         return {
             now: new FuncType([], TimeType),
             agent: WalletType,
-            scripts: this.#scriptCollection,
             network: NetworkType,
             new_tx_builder: new FuncType([], TxBuilderType)
         };
@@ -20488,11 +20478,10 @@ class GlobalScope {
 
 	/**
 	 * Initialize the GlobalScope with all the builtins
-	 * @param {ScriptPurpose} purpose
 	 * @param {ScriptTypes} scriptTypes - types of all the scripts in a contract/ensemble
 	 * @returns {GlobalScope}
 	 */
-	static new(purpose, scriptTypes = {}) {
+	static new(scriptTypes = {}) {
 		let scope = new GlobalScope();
 
 		// List (aka '[]'), Option, and Map types are accessed through special expressions
@@ -20505,32 +20494,20 @@ class GlobalScope {
 		scope.set("Any",         		  new AnyTypeClass());
 		scope.set("Valuable",             new ValuableTypeClass());
 
-		const scriptCollection = new ScriptCollectionType(scriptTypes);
-		scope.set("ScriptCollection",     scriptCollection);
-        scope.set("ScriptContext",        new ScriptContextType(scriptCollection));
+		if (Object.keys(scriptTypes).length > 0) {
+			scope.set("Scripts",     new ScriptsType(scriptTypes));
+		}
+
+        scope.set("ScriptContext",    new ScriptContextType());
+		scope.set("ContractContext",  new ContractContextType());
+		scope.set("TxBuilder",        TxBuilderType);
+		scope.set("Wallet",           WalletType);
+		scope.set("Network",          NetworkType);
 
         // builtin functions
         scope.set("assert",               AssertFunc);
 		scope.set("error",                ErrorFunc);
         scope.set("print",                PrintFunc);
-
-		return scope;
-	}
-
-	/**
-	 * @param {ScriptTypes} scriptTypes 
-	 * @returns {GlobalScope}
-	 */
-	static newLinking(scriptTypes) {
-		const scope = GlobalScope.new("linking", scriptTypes);
-
-		scope.set("Network", NetworkType);
-			
-		const scriptCollection = new ScriptCollectionType(scriptTypes);
-		scope.set("ScriptCollection", scriptCollection);
-		scope.set("ContractContext",  new ContractContextType(scriptCollection));
-		scope.set("TxBuilder",        TxBuilderType);
-		scope.set("Wallet",           WalletType);
 
 		return scope;
 	}
@@ -20558,23 +20535,31 @@ class Scope extends Common {
 
 	/** 
 	 * TopScope can elverage the #values to store ModuleScopes
-	 * @type {[Word, (EvalEntity | Scope)][]} 
+	 * @type {[Word, (EvalEntity | Scope), boolean][]} 
 	 */
 	#values;
 
 	/**
-	 * @type {Set<string>}
+	 * @type {boolean}
 	 */
-	#used;
+	#allowShadowing;
 
 	/**
 	 * @param {GlobalScope | Scope} parent 
+	 * @param {boolean} allowShadowing
 	 */
-	constructor(parent) {
+	constructor(parent, allowShadowing = false) {
 		super()
 		this.#parent = parent;
 		this.#values = []; // list of pairs
-		this.#used = new Set();
+		this.#allowShadowing = allowShadowing;
+	}
+
+	/**
+	 * @type {boolean}
+	 */
+	get allowShadowing() {
+		return this.#allowShadowing;
 	}
 
 	/**
@@ -20608,16 +20593,33 @@ class Scope extends Common {
 	 * @param {Word} name 
 	 * @param {EvalEntity | Scope} value 
 	 */
-	set(name, value) {
+	setInternal(name, value, allowShadowing = false) {
 		if (value instanceof Scope) {
 			assert(name.value.startsWith("__scope__"));
 		}
 
 		if (this.has(name)) {
-			throw name.syntaxError(`'${name.toString()}' already defined`);
+			const prevEntity = this.get(name, true);
+
+			if (allowShadowing && value.asTyped && !(prevEntity instanceof Scope) && prevEntity.asTyped) {
+				if (!(prevEntity.asTyped.type.isBaseOf(value.asTyped.type) && value.asTyped.type.isBaseOf(prevEntity.asTyped.type))) {
+					throw name.syntaxError(`'${name.toString()}' already defined`);
+				}
+			} else {
+				throw name.syntaxError(`'${name.toString()}' already defined`);
+			}
 		}
 
-		this.#values.push([name, value]);
+		this.#values.push([name, value, false]);
+	}
+
+	/**
+	 * Sets a named value. Throws an error if not unique
+	 * @param {Word} name 
+	 * @param {EvalEntity | Scope} value 
+	 */
+	set(name, value) {
+		this.setInternal(name, value, this.#allowShadowing);
 	}
 
 	/**
@@ -20646,22 +20648,27 @@ class Scope extends Common {
 	/**
 	 * Gets a named value from the scope. Throws an error if not found
 	 * @param {Word} name 
+	 * @param {boolean} dryRun - if false -> don't set used flag
 	 * @returns {EvalEntity | Scope}
 	 */
-	get(name) {
+	get(name, dryRun = false) {
 		if (!(name instanceof Word)) {
 			name = Word.new(name);
 		}
 
-		for (let [key, entity] of this.#values) {
+		for (let i = this.#values.length - 1; i >= 0; i--) {
+			const [key, entity, _] = this.#values[i];
+
 			if (key.toString() == name.toString()) {
-				this.#used.add(key.toString());
+				if (!dryRun) {
+					this.#values[i][2] = true;
+				}
 				return entity;
 			}
 		}
 
 		if (this.#parent !== null) {
-			return this.#parent.get(name);
+			return this.#parent.get(name, dryRun);
 		} else {
 			throw name.referenceError(`'${name.toString()}' undefined`);
 		}
@@ -20682,8 +20689,8 @@ class Scope extends Common {
 	 */
 	assertAllUsed(onlyIfStrict = true) {
 		if (!onlyIfStrict || this.isStrict()) {
-			for (let [name, entity] of this.#values) {
-				if (!(entity instanceof Scope) && !this.#used.has(name.toString())) {
+			for (let [name, entity, used] of this.#values) {
+				if (!(entity instanceof Scope) && !used) {
 					throw name.referenceError(`'${name.toString()}' unused`);
 				}
 			}
@@ -20695,9 +20702,9 @@ class Scope extends Common {
 	 * @returns {boolean}
 	 */
 	isUsed(name) {
-		for (let [checkName, entity] of this.#values) {
+		for (let [checkName, entity, used] of this.#values) {
 			if (name.value == checkName.value && !(entity instanceof Scope)) {
-				return this.#used.has(name.toString());
+				return used;
 			}
 		}
 
@@ -20757,11 +20764,7 @@ class TopScope extends Scope {
 	 * @param {EvalEntity | Scope} value 
 	 */
 	set(name, value) {
-		if (value instanceof Scope) {
-			assert(name.value.startsWith("__scope__"));
-		}
-
-		super.set(name, value);
+		super.setInternal(name, value, false);
 	}
 
 	/**
@@ -21453,7 +21456,7 @@ class AssignExpr extends Expr {
 	 * @returns {EvalEntity}
 	 */
 	evalInternal(scope) {
-		const subScope = new Scope(scope);
+		const subScope = new Scope(scope, scope.allowShadowing);
 
 		let upstreamVal = this.#upstreamExpr.eval(scope);
 
@@ -21474,7 +21477,7 @@ class AssignExpr extends Expr {
 		} else if (upstreamVal.asTyped) {
 			if (this.#nameTypes[0].hasType()) {
 				this.#nameTypes[0].evalInAssignExpr(subScope, assertDefined(upstreamVal.asTyped.type.asType), 0);
-			} else if (this.#upstreamExpr.isLiteral()) {
+			} else if (this.#upstreamExpr.isLiteral() || scope.has(this.#nameTypes[0].name)) {
 				// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
 				if ((this.#upstreamExpr instanceof CallExpr &&
 					this.#upstreamExpr.fnExpr instanceof PathExpr) || 
@@ -21493,7 +21496,7 @@ class AssignExpr extends Expr {
 				throw this.typeError("unable to infer type of assignment rhs");
 			}
 		} else {
-			throw this.#upstreamExpr.typeError("not an instance");
+			throw this.#upstreamExpr.typeError("rhs isn't an instance");
 		}
 
 		const downstreamVal = this.#downstreamExpr.eval(subScope);
@@ -22569,7 +22572,7 @@ class FuncLiteralExpr extends Expr {
 		// argTypes is calculated separately again here so it includes self
 		const argTypes = this.#args.map(a => a.evalType(scope));
 
-		const subScope = new Scope(scope);
+		const subScope = new Scope(scope, true);
 
 		argTypes.forEach((a, i) => {
 			if (!this.#args[i].isIgnored()) {
@@ -22891,6 +22894,25 @@ class UnaryExpr extends Expr {
 }
 
 /**
+ * @type {{[name: string]: string}}
+ */
+export const BINARY_SYMBOLS_MAP = {
+	"||": "__or",
+	"&&": "__and",
+	"==": "__eq",
+	"!=": "__neq",
+	"<": "__lt",
+	"<=": "__leq",
+	">": "__gt",
+	">=": "__geq",
+	"+": "__add",
+	"-": "__sub",
+	"*": "__mul",
+	"/": "__div",
+	"%": "__mod"
+}
+
+/**
  * Binary operator expression
  * @package
  */
@@ -22941,35 +22963,10 @@ class BinaryExpr extends Expr {
 	translateOp(alt = 0) {
 		const op = this.#op.toString();
 		const site = this.#op.site;
-		let name;
 
-		if (op == "||") {
-			name = "__or";
-		} else if (op == "&&") {
-			name = "__and";
-		} else if (op == "==") {
-			name = "__eq";
-		} else if (op == "!=") {
-			name = "__neq";
-		} else if (op == "<") {
-			name = "__lt";
-		} else if (op == "<=") {
-			name = "__leq";
-		} else if (op == ">") {
-			name = "__gt";
-		} else if (op == ">=") {
-			name = "__geq";
-		} else if (op == "+") {
-			name = "__add";
-		} else if (op == "-") {
-			name = "__sub";
-		} else if (op == "*") {
-			name = "__mul";
-		} else if (op == "/") {
-			name = "__div";
-		} else if (op == "%") {
-			name = "__mod";
-		} else {
+		let name = BINARY_SYMBOLS_MAP[op];
+
+		if (!name) {
 			throw new Error("unhandled");
 		}
 
@@ -23002,12 +22999,12 @@ class BinaryExpr extends Expr {
 	evalInternal(scope) {
 		const a = this.#a.eval(scope).asInstance;
 		if (!a) {
-			throw this.#a.typeError("not an instance");
+			throw this.#a.typeError(`lhs of ${this.#op.toString()} not an instance`);
 		} 
 
 		const b = this.#b.eval(scope).asInstance;
 		if (!b) {
-			throw this.#b.typeError("not an instance");
+			throw this.#b.typeError(`rhs of ${this.#op.toString()} not an instance`);
 		}
 
 		for (let swap of (this.isCommutative() ? [false, true] : [false])) {
@@ -23265,13 +23262,13 @@ class CallExpr extends Expr {
 	evalInternal(scope) {
 		const fnVal = this.#fnExpr.eval(scope);
 
-		const argVals = this.#argExprs.map(ae => {
+		const argVals = this.#argExprs.map((ae, i) => {
 			const av_ = ae.eval(scope);
 			
 			const av = av_.asTyped ?? av_.asMulti;
 
 			if (!av) {
-				throw ae.typeError("not an instance");
+				throw ae.typeError(`arg ${i+1} not an instance`);
 			}
 
 			return av;
@@ -23599,7 +23596,7 @@ class MemberExpr extends Expr {
 	evalInternal(scope) {
 		const objVal = this.#objExpr.eval(scope).asInstance;
 		if (!objVal) {
-			throw this.#objExpr.site.typeError("not an instance");
+			throw this.#objExpr.site.typeError(`lhs of '.' not an instance`);
 		}
 
 		let member = objVal.instanceMembers[this.#memberName.value];
@@ -23766,7 +23763,10 @@ class IfElseExpr extends Expr {
 		let branchMultiType = null;
 
 		for (let b of this.#branches) {
-			const branchVal = b.evalAsTypedOrMulti(scope);
+			// don't allow shadowing
+			const branchScope = new Scope(scope, false);
+
+			const branchVal = b.evalAsTypedOrMulti(branchScope);
 
 			branchMultiType = IfElseExpr.reduceBranchMultiType(
 				b.site, 
@@ -24258,7 +24258,7 @@ class SwitchCase extends Token {
 
 		assert(this.#constrIndex >= 0);
 
-		const caseScope = new Scope(scope);
+		const caseScope = new Scope(scope, false);
 
 		this.#lhs.evalInSwitchCase(caseScope, caseType);
 
@@ -24309,7 +24309,7 @@ class SwitchCase extends Token {
 				}
 		}
 
-		const caseScope = new Scope(scope);
+		const caseScope = new Scope(scope, false);
 
 		this.#lhs.evalInSwitchCase(caseScope, memberType);
 
@@ -24396,7 +24396,7 @@ class UnconstrDataSwitchCase extends SwitchCase {
 		let bodyVal = null;
 
 		if (this.#intVarName !== null || this.#lstVarName !== null) {
-			let caseScope = new Scope(scope);
+			let caseScope = new Scope(scope, false);
 
 			if (this.#intVarName !== null) {
 				caseScope.set(this.#intVarName, new DataEntity(IntType));
@@ -28822,46 +28822,59 @@ function buildAssignLhs(site, ts) {
  * @returns {Expr | null} 
  */
 function buildPipedExpr(ts, prec) {
-	const iOp = SymbolToken.findLast(ts, ["|", "|."]);
+	const iOp = SymbolToken.findLast(ts, ["|"]);
 
 	if (iOp == ts.length - 1) {
 		ts[iOp].syntaxError(`invalid syntax, '${ts[iOp].toString()}' can't be used as a post-unary operator`);
 		return null;
+	} else if (iOp == 0) {
+		ts[iOp].syntaxError(`invalid syntax, '${ts[iOp].toString()}' can't be used as a pre-unary operator`);
+		return null;
 	} else if (iOp > 0) {
-		const a = buildValueExpr(ts.slice(0, iOp), prec);
-		
-		const op = ts[iOp].assertSymbol();
+		if (ts[iOp+1].isSymbol()) {
+			const next = assertDefined(ts[iOp+1].assertSymbol());
 
-		if (!a || !op) {
-			return null;
-		}
-
-		switch (op.value) {
-			case '|': {
-				const b = buildValueExpr(ts.slice(iOp + 1), prec + 1);
-
-				if (!b) {
-					return null;
-				}
-
-				return new CallExpr(op.site, b, [new CallArgExpr(a.site, null, a)]);
+			if (!(next.value == "." || next.value in BINARY_SYMBOLS_MAP)) {
+				next.syntaxError("invalid pipe syntax");
+				return null;
 			}
-			case '|.': {
-				ts = ts.slice(iOp + 1);
 
-				const name = assertToken(ts.shift(), op.site)?.assertWord()?.assertNotKeyword();
+			const innerTs= ts.splice(0, iOp);
+			
+			const op = ts.shift()?.assertSymbol("|");
 
-				if (!name) {
-					return null;
-				}
-
-
-				const memberExpr = new MemberExpr(op.site, a, name);
-
-				return buildRemainingChainedValueExpr(memberExpr, ts, prec + 1);
+			if (!op) {
+				return null;
 			}
-			default:
-				throw new Error("unhandled pipe operator")
+
+			/**
+			 * @type {Token[]}
+			 */
+			let newTs = [
+				new Group(op.site, "(", [
+					innerTs
+				])
+			];
+			
+			newTs = newTs.concat(ts);
+
+			return buildValueExpr(newTs, prec + 1);
+		} else {
+			const op = ts[iOp].assertSymbol();
+			
+			const a = buildValueExpr(ts.slice(0, iOp), prec);
+			
+			if (!a || !op) {
+				return null;
+			}
+
+			const b = buildValueExpr(ts.slice(iOp + 1), prec + 1);
+
+			if (!b) {
+				return null;
+			}
+
+			return new CallExpr(op.site, b, [new CallArgExpr(a.site, null, a)]);
 		}
 	} else {
 		return buildValueExpr(ts, prec + 1);
@@ -33655,7 +33668,6 @@ function makeRawFunctions() {
 
 	// ScriptContext builtins
 	addDataFuncs("__helios__scriptcontext");
-	add(new RawFunc("__helios__scriptcontext__scripts", `(self) -> {self}`));
 	add(new RawFunc("__helios__scriptcontext__new_spending",
 	`(tx, output_id) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -33794,7 +33806,6 @@ function makeRawFunctions() {
 			__core__macro__now(())
 		}
 	}`));
-	add(new RawFunc("__helios__contractcontext__scripts", `(self) -> {()}`));
 	add(new RawFunc("__helios__contractcontext__agent", `(self) -> {self}`));
 	add(new RawFunc("__helios__contractcontext__network", `(self) -> {()}`));
 	add(new RawFunc("__helios__contractcontext__new_tx_builder", `(self) -> {__helios__txbuilder__new_empty}`));
@@ -39201,6 +39212,21 @@ class MainModule extends Module {
  */
 
 /**
+ * @typedef {{
+ *   allowPosParams: boolean
+ *   invertEntryPoint: boolean
+ * }} ProgramConfig
+ */
+
+/**
+ * @type {ProgramConfig}
+ */
+const DEFAULT_PROGRAM_CONFIG = {
+	allowPosParams: false,
+	invertEntryPoint: false
+}
+
+/**
  * Helios root object
  */
  export class Program {
@@ -39215,9 +39241,9 @@ class MainModule extends Module {
 	#modules;
 
 	/**
-	 * @type {boolean}
+	 * @type {ProgramConfig}
 	 */
-	#allowPosParams;
+	#config;
 
 	/** 
 	 * @type {UserTypes} 
@@ -39233,12 +39259,12 @@ class MainModule extends Module {
 	/**
 	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(purpose, modules, allowPosParams) {
+	constructor(purpose, modules, config) {
 		this.#purpose = purpose;
 		this.#modules = modules;
-		this.#allowPosParams = allowPosParams;
+		this.#config = config;
 		this.#types = {};
 		this.#parameters = {};
 	}
@@ -39345,10 +39371,10 @@ class MainModule extends Module {
 	 * @param {string} mainSrc 
 	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
 	 * @param {{[name: string]: Type}} validatorTypes
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 * @returns {Program}
 	 */
-	static new(mainSrc, moduleSrcs = [], validatorTypes = {}, allowPosParams = false) {
+	static new(mainSrc, moduleSrcs = [], validatorTypes = {}, config = DEFAULT_PROGRAM_CONFIG) {
 		const [purpose, modules] = Program.parseMain(mainSrc, moduleSrcs);
 	
 		/**
@@ -39361,13 +39387,13 @@ class MainModule extends Module {
 				program = new TestingProgram(modules);
 				break;
 			case "spending":
-				program = new SpendingProgram(modules, allowPosParams);
+				program = new SpendingProgram(modules, config);
 				break;
 			case "minting":
-				program = new MintingProgram(modules, allowPosParams);
+				program = new MintingProgram(modules, config);
 				break;
 			case "staking":
-				program = new StakingProgram(modules, allowPosParams);
+				program = new StakingProgram(modules, config);
 				break;
 			default:
 				throw new Error("unhandled script purpose");
@@ -39381,10 +39407,10 @@ class MainModule extends Module {
 	}
 
 	/**
-	 * @type {boolean}
+	 * @type {ProgramConfig}
 	 */
-	get allowPosParams() {
-		return this.#allowPosParams;
+	get config() {
+		return this.#config;
 	}
 
 	/**
@@ -40196,17 +40222,17 @@ class RedeemerProgram extends Program {
 	/**
 	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules 
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(purpose, modules, allowPosParams = false) {
-		super(purpose, modules, allowPosParams);
+	constructor(purpose, modules, config = DEFAULT_PROGRAM_CONFIG) {
+		super(purpose, modules, config);
 	}
 
 	/**
 	 * @type {number}
 	 */
 	get nPosParams() {
-		return this.mainFunc.nArgs - 2;
+		return this.mainFunc.nArgs - (this.config.invertEntryPoint ? 0 : 2);
 	}
 
 	/**
@@ -40225,7 +40251,7 @@ class RedeemerProgram extends Program {
 		const retTypes = main.retTypes;
 		const nArgs = argTypes.length;
 
-		if (this.allowPosParams) {
+		if (this.config.allowPosParams) {
 			if (nArgs < 2) {
 				throw main.typeError("expected at least 2 args for main");	
 			}
@@ -40262,7 +40288,7 @@ class RedeemerProgram extends Program {
 	 * @returns {TopScope}
 	 */
 	evalTypes(validatorTypes = {}) {
-		const scope = GlobalScope.new(this.purpose, validatorTypes);
+		const scope = GlobalScope.new(validatorTypes);
 
 		return this.evalTypesInternal(scope);	
 	}
@@ -40272,14 +40298,15 @@ class RedeemerProgram extends Program {
 	 * @returns {IR} 
 	 */
 	toIRInternal() {
-		const outerArgNames = ["redeemer", "ctx"];
+		const outerArgNames = this.config.invertEntryPoint ? [] : ["redeemer", "ctx"];
+		const nOuterArgs = outerArgNames.length;
 
 		const nArgs = this.mainFunc.nArgs;
 		const argTypeNames = this.mainFunc.argTypeNames;
 		const argTypes = this.mainArgTypes;
 
 		const innerArgs = argTypes.map((t, i) => {
-			const name = (i >= (nArgs-2)) ? outerArgNames[i-(nArgs-2)] : `__PARAM_${i.toString()}`;
+			const name = (i >= (nArgs-nOuterArgs)) ? outerArgNames[i-(nArgs-nOuterArgs)] : `__PARAM_${i.toString()}`;
 
 			// empty path
 			if (argTypeNames[i] != "") {
@@ -40295,17 +40322,23 @@ class RedeemerProgram extends Program {
 			}
 		});
 
-		const outerArgs = outerArgNames.map((n) => new IR(n));
-
 		let ir = new IR([
-			new IR(`${TAB}/*entry point*/\n${TAB}(`),
-			new IR(outerArgs).join(", "),
-			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
+			new IR(`${TAB}${TAB}__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
-			new IR(`\n${TAB}}`),
 		]);
+
+		if (nOuterArgs > 0) {
+			const outerArgs = outerArgNames.map((n) => new IR(n));
+
+			ir = new IR([
+				new IR(`${TAB}/*entry point*/\n${TAB}(`),
+				new IR(outerArgs).join(", "),
+				new IR(`) -> {\n`),
+				ir,
+				new IR(`\n${TAB}}`)
+			])
+		}
 
 		return ir;
 	}
@@ -40322,17 +40355,17 @@ class DatumRedeemerProgram extends Program {
 	/**
 	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(purpose, modules, allowPosParams) {
-		super(purpose, modules, allowPosParams);
+	constructor(purpose, modules, config) {
+		super(purpose, modules, config);
 	}
 
 	/**
 	 * @type {number}
 	 */
 	get nPosParams() {
-		return this.mainFunc.nArgs - 3;
+		return this.mainFunc.nArgs - (this.config.invertEntryPoint ? 0 : 3);
 	}
 
 	/**
@@ -40351,7 +40384,7 @@ class DatumRedeemerProgram extends Program {
 		const retTypes = main.retTypes;
 		const nArgs = main.nArgs;
 
-		if (this.allowPosParams) {
+		if (this.config.allowPosParams) {
 			if (argTypes.length < 3) {
 				throw main.typeError("expected at least 3 args for main");	
 			}
@@ -40388,7 +40421,7 @@ class DatumRedeemerProgram extends Program {
 	 * @returns {TopScope}
 	 */
 	evalTypes(scriptTypes) {
-		const scope = GlobalScope.new(this.purpose, scriptTypes);
+		const scope = GlobalScope.new(scriptTypes);
 
 		return this.evalTypesInternal(scope);	
 	}
@@ -40398,13 +40431,14 @@ class DatumRedeemerProgram extends Program {
 	 * @returns {IR}
 	 */
 	toIRInternal() {
-		const outerArgNames = ["datum", "redeemer", "ctx"];
+		const outerArgNames = this.config.invertEntryPoint ? [] : ["datum", "redeemer", "ctx"];
+		const nOuterArgs = outerArgNames.length;
 
 		const nArgs = this.mainFunc.nArgs;
 		const argTypeNames = this.mainFunc.argTypeNames;
 
 		const innerArgs = this.mainArgTypes.map((t, i) => {
-			const name = (i >= (nArgs-3)) ? outerArgNames[i-(nArgs-3)] : `__PARAM_${i.toString()}`;
+			const name = (i >= (nArgs-nOuterArgs)) ? outerArgNames[i-(nArgs-nOuterArgs)] : `__PARAM_${i.toString()}`;
 
 			// empty path
 			if (argTypeNames[i] != "") {
@@ -40420,17 +40454,25 @@ class DatumRedeemerProgram extends Program {
 			}
 		});
 
-		const outerArgs = outerArgNames.map((n) => new IR(n));
-
-		return new IR([
-			new IR(`${TAB}/*entry point*/\n${TAB}(`),
-			new IR(outerArgs).join(", "),
-			new IR(`) -> {\n${TAB}${TAB}`),
-			new IR(`__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
+		let ir = new IR([
+			new IR(`${TAB}${TAB}__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
 			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
-			new IR(`\n${TAB}}`),
 		]);
+
+		if (nOuterArgs > 0) {
+			const outerArgs = outerArgNames.map((n) => new IR(n));
+
+			ir = new IR([
+				new IR(`${TAB}/*entry point*/\n${TAB}(`),
+				new IR(outerArgs).join(", "),
+				new IR(`) -> {\n`),
+				ir,
+				new IR(`\n${TAB}}`)
+			]);
+		}
+
+		return ir;
 	}
 
 	/**
@@ -40445,10 +40487,10 @@ class GenericProgram extends Program {
 	/**
 	 * @param {ScriptPurpose} purpose 
 	 * @param {Module[]} modules 
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(purpose, modules, allowPosParams) {
-		super(purpose, modules, allowPosParams);
+	constructor(purpose, modules, config) {
+		super(purpose, modules, config);
 	}
 
 	/**
@@ -40464,7 +40506,7 @@ class GenericProgram extends Program {
 	 * @returns {TopScope}
 	 */
 	evalTypes(scriptTypes) {
-		const scope = GlobalScope.new(this.purpose, scriptTypes);
+		const scope = GlobalScope.new(scriptTypes);
 
 		const topScope = super.evalTypesInternal(scope);
 
@@ -40548,37 +40590,37 @@ class TestingProgram extends GenericProgram {
 	 * @param {Module[]} modules 
 	 */
 	constructor(modules) {
-		super("testing", modules, false);
+		super("testing", modules, DEFAULT_PROGRAM_CONFIG);
 	}
 }
 
 class SpendingProgram extends DatumRedeemerProgram {
 	/**
 	 * @param {Module[]} modules
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(modules, allowPosParams) {
-		super("spending", modules, allowPosParams);
+	constructor(modules, config) {
+		super("spending", modules, config);
 	}
 }
 
 class MintingProgram extends RedeemerProgram {
 	/**
 	 * @param {Module[]} modules 
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(modules, allowPosParams = false) {
-		super("minting", modules, allowPosParams);
+	constructor(modules, config = DEFAULT_PROGRAM_CONFIG) {
+		super("minting", modules, config);
 	}
 }
 
 class StakingProgram extends RedeemerProgram {
 	/**
 	 * @param {Module[]} modules 
-	 * @param {boolean} allowPosParams
+	 * @param {ProgramConfig} config
 	 */
-	constructor(modules, allowPosParams = false) {
-		super("staking", modules, allowPosParams);
+	constructor(modules, config = DEFAULT_PROGRAM_CONFIG) {
+		super("staking", modules, config);
 	}
 }
 
@@ -40593,7 +40635,7 @@ export class LinkingProgram extends GenericProgram {
 	 * @param {Program[]} validators 
 	 */
 	constructor(modules, validators) {
-		super("linking", modules, false);
+		super("linking", modules, DEFAULT_PROGRAM_CONFIG);
 
 		this.#validators = validators;
 	}
@@ -40602,7 +40644,7 @@ export class LinkingProgram extends GenericProgram {
 	 * Creates  a new program.
 	 * @param {string} mainSrc 
 	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
-	 * @param {ScriptTypes} scriptTypes - generators for script hashes, used by ScriptCollection
+	 * @param {ScriptTypes} scriptTypes - generators for script hashes, used by Scripts
 	 * @returns {LinkingProgram}
 	 */
 	static new(mainSrc, moduleSrcs = [], scriptTypes = {}) {
@@ -40623,7 +40665,7 @@ export class LinkingProgram extends GenericProgram {
 	 * @returns {TopScope}
 	 */
 	evalTypes(scriptTypes = {}) {
-		const scope = GlobalScope.newLinking(scriptTypes);
+		const scope = GlobalScope.new(scriptTypes);
 
 		const topScope = super.evalTypesInternal(scope);
 		
@@ -42130,7 +42172,7 @@ export class Tx extends CborData {
 
 			if (config.VALIDITY_RANGE_END_OFFSET !== null) {
 				if (currentSlot !== null) {
-					this.#validTo = currentSlot;
+					this.#validTo = currentSlot+1n;
 				} else {
 					this.#validTo = new Date(now.getTime() + 1000*config.VALIDITY_RANGE_END_OFFSET);
 				}
@@ -42617,7 +42659,7 @@ class TxBody extends CborData {
 			]),
 			new ConstrData(0, [ // UpperBound
 				this.#lastValidSlot === null ? new ConstrData(2, []) : new ConstrData(1, [new IntData(networkParams.slotToTime(this.#lastValidSlot))]), // PosInf
-				new ConstrData(1, []), // true
+				new ConstrData(0, []), // false
 			]),
 		]);
 	}
@@ -42847,9 +42889,18 @@ class TxBody extends CborData {
 
 	/**
 	 * @param {PubKeyHash} hash 
+	 * @param {boolean} checkUniqueness
 	 */
-	addSigner(hash) {
+	addSigner(hash, checkUniqueness = true) {
+		if (checkUniqueness) {
+			assert(this.#signers.every(prevSigner => {
+				return  !prevSigner.eq(hash);
+			}), "signer already added before");
+		}
+
+
 		this.#signers.push(hash);
+		this.#signers.sort(Hash.compare);
 	}
 
 	/**
@@ -43017,7 +43068,7 @@ class TxBody extends CborData {
 		// same for ref inputs
 		this.#refInputs.forEach((input, i) => {
 			if (i > 0) {
-				const prev = this.#inputs[i-1];
+				const prev = this.#refInputs[i-1];
 
 				// can be less than -1 if utxoIds aren't consecutive
 				assert(TxInput.comp(prev, input) <= -1, "refInputs not sorted");

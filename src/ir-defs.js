@@ -3604,7 +3604,6 @@ function makeRawFunctions() {
 
 	// ScriptContext builtins
 	addDataFuncs("__helios__scriptcontext");
-	add(new RawFunc("__helios__scriptcontext__scripts", `(self) -> {self}`));
 	add(new RawFunc("__helios__scriptcontext__new_spending",
 	`(tx, output_id) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -3743,7 +3742,6 @@ function makeRawFunctions() {
 			__core__macro__now(())
 		}
 	}`));
-	add(new RawFunc("__helios__contractcontext__scripts", `(self) -> {()}`));
 	add(new RawFunc("__helios__contractcontext__agent", `(self) -> {self}`));
 	add(new RawFunc("__helios__contractcontext__network", `(self) -> {()}`));
 	add(new RawFunc("__helios__contractcontext__new_tx_builder", `(self) -> {__helios__txbuilder__new_empty}`));

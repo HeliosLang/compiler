@@ -91,7 +91,7 @@ import {
 	DCertType,
 	NetworkType,
 	OutputDatumType,
-	ScriptCollectionType,
+	ScriptsType,
 	ScriptContextType,
 	ScriptPurposeType,
 	StakingCredentialType,
@@ -210,11 +210,10 @@ export class GlobalScope {
 
 	/**
 	 * Initialize the GlobalScope with all the builtins
-	 * @param {ScriptPurpose} purpose
 	 * @param {ScriptTypes} scriptTypes - types of all the scripts in a contract/ensemble
 	 * @returns {GlobalScope}
 	 */
-	static new(purpose, scriptTypes = {}) {
+	static new(scriptTypes = {}) {
 		let scope = new GlobalScope();
 
 		// List (aka '[]'), Option, and Map types are accessed through special expressions
@@ -227,32 +226,20 @@ export class GlobalScope {
 		scope.set("Any",         		  new AnyTypeClass());
 		scope.set("Valuable",             new ValuableTypeClass());
 
-		const scriptCollection = new ScriptCollectionType(scriptTypes);
-		scope.set("ScriptCollection",     scriptCollection);
-        scope.set("ScriptContext",        new ScriptContextType(scriptCollection));
+		if (Object.keys(scriptTypes).length > 0) {
+			scope.set("Scripts",     new ScriptsType(scriptTypes));
+		}
+
+        scope.set("ScriptContext",    new ScriptContextType());
+		scope.set("ContractContext",  new ContractContextType());
+		scope.set("TxBuilder",        TxBuilderType);
+		scope.set("Wallet",           WalletType);
+		scope.set("Network",          NetworkType);
 
         // builtin functions
         scope.set("assert",               AssertFunc);
 		scope.set("error",                ErrorFunc);
         scope.set("print",                PrintFunc);
-
-		return scope;
-	}
-
-	/**
-	 * @param {ScriptTypes} scriptTypes 
-	 * @returns {GlobalScope}
-	 */
-	static newLinking(scriptTypes) {
-		const scope = GlobalScope.new("linking", scriptTypes);
-
-		scope.set("Network", NetworkType);
-			
-		const scriptCollection = new ScriptCollectionType(scriptTypes);
-		scope.set("ScriptCollection", scriptCollection);
-		scope.set("ContractContext",  new ContractContextType(scriptCollection));
-		scope.set("TxBuilder",        TxBuilderType);
-		scope.set("Wallet",           WalletType);
 
 		return scope;
 	}
@@ -280,23 +267,31 @@ export class Scope extends Common {
 
 	/** 
 	 * TopScope can elverage the #values to store ModuleScopes
-	 * @type {[Word, (EvalEntity | Scope)][]} 
+	 * @type {[Word, (EvalEntity | Scope), boolean][]} 
 	 */
 	#values;
 
 	/**
-	 * @type {Set<string>}
+	 * @type {boolean}
 	 */
-	#used;
+	#allowShadowing;
 
 	/**
 	 * @param {GlobalScope | Scope} parent 
+	 * @param {boolean} allowShadowing
 	 */
-	constructor(parent) {
+	constructor(parent, allowShadowing = false) {
 		super()
 		this.#parent = parent;
 		this.#values = []; // list of pairs
-		this.#used = new Set();
+		this.#allowShadowing = allowShadowing;
+	}
+
+	/**
+	 * @type {boolean}
+	 */
+	get allowShadowing() {
+		return this.#allowShadowing;
 	}
 
 	/**
@@ -330,16 +325,33 @@ export class Scope extends Common {
 	 * @param {Word} name 
 	 * @param {EvalEntity | Scope} value 
 	 */
-	set(name, value) {
+	setInternal(name, value, allowShadowing = false) {
 		if (value instanceof Scope) {
 			assert(name.value.startsWith("__scope__"));
 		}
 
 		if (this.has(name)) {
-			throw name.syntaxError(`'${name.toString()}' already defined`);
+			const prevEntity = this.get(name, true);
+
+			if (allowShadowing && value.asTyped && !(prevEntity instanceof Scope) && prevEntity.asTyped) {
+				if (!(prevEntity.asTyped.type.isBaseOf(value.asTyped.type) && value.asTyped.type.isBaseOf(prevEntity.asTyped.type))) {
+					throw name.syntaxError(`'${name.toString()}' already defined`);
+				}
+			} else {
+				throw name.syntaxError(`'${name.toString()}' already defined`);
+			}
 		}
 
-		this.#values.push([name, value]);
+		this.#values.push([name, value, false]);
+	}
+
+	/**
+	 * Sets a named value. Throws an error if not unique
+	 * @param {Word} name 
+	 * @param {EvalEntity | Scope} value 
+	 */
+	set(name, value) {
+		this.setInternal(name, value, this.#allowShadowing);
 	}
 
 	/**
@@ -368,22 +380,27 @@ export class Scope extends Common {
 	/**
 	 * Gets a named value from the scope. Throws an error if not found
 	 * @param {Word} name 
+	 * @param {boolean} dryRun - if false -> don't set used flag
 	 * @returns {EvalEntity | Scope}
 	 */
-	get(name) {
+	get(name, dryRun = false) {
 		if (!(name instanceof Word)) {
 			name = Word.new(name);
 		}
 
-		for (let [key, entity] of this.#values) {
+		for (let i = this.#values.length - 1; i >= 0; i--) {
+			const [key, entity, _] = this.#values[i];
+
 			if (key.toString() == name.toString()) {
-				this.#used.add(key.toString());
+				if (!dryRun) {
+					this.#values[i][2] = true;
+				}
 				return entity;
 			}
 		}
 
 		if (this.#parent !== null) {
-			return this.#parent.get(name);
+			return this.#parent.get(name, dryRun);
 		} else {
 			throw name.referenceError(`'${name.toString()}' undefined`);
 		}
@@ -404,8 +421,8 @@ export class Scope extends Common {
 	 */
 	assertAllUsed(onlyIfStrict = true) {
 		if (!onlyIfStrict || this.isStrict()) {
-			for (let [name, entity] of this.#values) {
-				if (!(entity instanceof Scope) && !this.#used.has(name.toString())) {
+			for (let [name, entity, used] of this.#values) {
+				if (!(entity instanceof Scope) && !used) {
 					throw name.referenceError(`'${name.toString()}' unused`);
 				}
 			}
@@ -417,9 +434,9 @@ export class Scope extends Common {
 	 * @returns {boolean}
 	 */
 	isUsed(name) {
-		for (let [checkName, entity] of this.#values) {
+		for (let [checkName, entity, used] of this.#values) {
 			if (name.value == checkName.value && !(entity instanceof Scope)) {
-				return this.#used.has(name.toString());
+				return used;
 			}
 		}
 
@@ -479,11 +496,7 @@ export class TopScope extends Scope {
 	 * @param {EvalEntity | Scope} value 
 	 */
 	set(name, value) {
-		if (value instanceof Scope) {
-			assert(name.value.startsWith("__scope__"));
-		}
-
-		super.set(name, value);
+		super.setInternal(name, value, false);
 	}
 
 	/**

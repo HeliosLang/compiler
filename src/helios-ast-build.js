@@ -67,7 +67,8 @@ import {
 	ValuePathExpr,
     VoidExpr,
     VoidTypeExpr,
-	ParametricExpr
+	ParametricExpr,
+	BINARY_SYMBOLS_MAP
 } from "./helios-ast-expressions.js";
 
 import {
@@ -1986,46 +1987,59 @@ function buildAssignLhs(site, ts) {
  * @returns {Expr | null} 
  */
 function buildPipedExpr(ts, prec) {
-	const iOp = SymbolToken.findLast(ts, ["|", "|."]);
+	const iOp = SymbolToken.findLast(ts, ["|"]);
 
 	if (iOp == ts.length - 1) {
 		ts[iOp].syntaxError(`invalid syntax, '${ts[iOp].toString()}' can't be used as a post-unary operator`);
 		return null;
+	} else if (iOp == 0) {
+		ts[iOp].syntaxError(`invalid syntax, '${ts[iOp].toString()}' can't be used as a pre-unary operator`);
+		return null;
 	} else if (iOp > 0) {
-		const a = buildValueExpr(ts.slice(0, iOp), prec);
-		
-		const op = ts[iOp].assertSymbol();
+		if (ts[iOp+1].isSymbol()) {
+			const next = assertDefined(ts[iOp+1].assertSymbol());
 
-		if (!a || !op) {
-			return null;
-		}
-
-		switch (op.value) {
-			case '|': {
-				const b = buildValueExpr(ts.slice(iOp + 1), prec + 1);
-
-				if (!b) {
-					return null;
-				}
-
-				return new CallExpr(op.site, b, [new CallArgExpr(a.site, null, a)]);
+			if (!(next.value == "." || next.value in BINARY_SYMBOLS_MAP)) {
+				next.syntaxError("invalid pipe syntax");
+				return null;
 			}
-			case '|.': {
-				ts = ts.slice(iOp + 1);
 
-				const name = assertToken(ts.shift(), op.site)?.assertWord()?.assertNotKeyword();
+			const innerTs= ts.splice(0, iOp);
+			
+			const op = ts.shift()?.assertSymbol("|");
 
-				if (!name) {
-					return null;
-				}
-
-
-				const memberExpr = new MemberExpr(op.site, a, name);
-
-				return buildRemainingChainedValueExpr(memberExpr, ts, prec + 1);
+			if (!op) {
+				return null;
 			}
-			default:
-				throw new Error("unhandled pipe operator")
+
+			/**
+			 * @type {Token[]}
+			 */
+			let newTs = [
+				new Group(op.site, "(", [
+					innerTs
+				])
+			];
+			
+			newTs = newTs.concat(ts);
+
+			return buildValueExpr(newTs, prec + 1);
+		} else {
+			const op = ts[iOp].assertSymbol();
+			
+			const a = buildValueExpr(ts.slice(0, iOp), prec);
+			
+			if (!a || !op) {
+				return null;
+			}
+
+			const b = buildValueExpr(ts.slice(iOp + 1), prec + 1);
+
+			if (!b) {
+				return null;
+			}
+
+			return new CallExpr(op.site, b, [new CallArgExpr(a.site, null, a)]);
 		}
 	} else {
 		return buildValueExpr(ts, prec + 1);

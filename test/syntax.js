@@ -618,7 +618,10 @@ async function test16() {
     ctx.tx.is_signed_by(OWNER) && BOOL
   }`;
 
-  const program = helios.Program.new(src, [], {}, true);
+  const program = helios.Program.new(src, [], {}, {
+    allowPosParams: true,
+    invertEntryPoint: false
+  });
 
   program.compile(true);
 }
@@ -1212,6 +1215,29 @@ async function test26() {
   `)
 }
 
+async function test27() {
+  await testTrue(`testing limited_shadowing
+  
+  func main() -> Bool {
+    a = 10;
+    a = a + 10;
+    a == 20
+  }`)
+
+  await testError(`testing limited_shadowing_wrong_scope
+  
+  func main() -> Bool {
+    a = 10;
+
+    if (true) {
+      a = a + 10;
+      a
+    } else {
+      a
+    }
+  }`, "already defined")
+}
+
 export default async function main() {
   await test0();
 
@@ -1266,6 +1292,8 @@ export default async function main() {
   await test25();
 
   await test26();
+
+  await test27();
 }
 
 runIfEntryPoint(main, "syntax.js");

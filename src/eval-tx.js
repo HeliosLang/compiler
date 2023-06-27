@@ -381,7 +381,7 @@ const OutputDatumNoneType = new GenericEnumMemberType({
 });
 
 /**
- * Base class for ScriptContext, ContractContext, ScriptCollection and other "macro"-types
+ * Base class for ScriptContext, ContractContext, Scripts and other "macro"-types
  * @package
  */
 export class MacroType extends Common {
@@ -489,9 +489,9 @@ export class MacroType extends Common {
  * @package
  * @implements {DataType}
  */
-export class ScriptCollectionType extends MacroType {
+export class ScriptsType extends MacroType {
     /**
-     * @type {ScriptTypes}
+     * @type {{[name: string]: Typed}}
      */
     #scripts;
 
@@ -501,13 +501,24 @@ export class ScriptCollectionType extends MacroType {
     constructor(scripts) {
         super();
 
-        this.#scripts = scripts;
+        this.#scripts = {};
+        
+        for (let k in scripts) {
+            this.#scripts[k] = scripts[k].toTyped();
+        }
     }
 
     /**
      * @type {InstanceMembers}
      */
-    get instanceMembers() {
+     get instanceMembers() {
+        return {};
+    }
+
+    /**
+     * @type {TypeMembers}
+     */
+    get typeMembers() {
         return {
             ...this.#scripts
         };
@@ -517,14 +528,14 @@ export class ScriptCollectionType extends MacroType {
      * @type {string}
      */
     get name() {
-        return "ScriptCollection";
+        return "Scripts";
     }
 
     /**
      * @type {string}
      */
     get path() {
-        return "__helios__scriptcollection";
+        return "__helios__scripts";
     }
 
     /**
@@ -532,7 +543,7 @@ export class ScriptCollectionType extends MacroType {
      * @returns {boolean}
      */
     isBaseOf(other) {
-        return other instanceof ScriptCollectionType;
+        return other instanceof ScriptsType;
     }
 
     /**
@@ -549,17 +560,8 @@ export class ScriptCollectionType extends MacroType {
  * @implements {DataType}
  */
 export class ScriptContextType extends MacroType {
-    /**
-     * @type {ScriptCollectionType}
-     */
-   #scriptCollection;
-
-    /**
-     * @param {ScriptCollectionType} scriptCollection
-     */
-	constructor(scriptCollection = new ScriptCollectionType({})) {
+	constructor() {
 		super();
-        this.#scriptCollection = scriptCollection;
 	}
 
     /**
@@ -584,10 +586,6 @@ export class ScriptContextType extends MacroType {
             get_script_purpose: new FuncType([], ScriptPurposeType),
             tx: TxType
         };
-
-        if (!this.#scriptCollection.isEmpty()) {
-            members["scripts"] = this.#scriptCollection;
-        }
         
         return members;
 	}
@@ -605,10 +603,10 @@ export class ScriptContextType extends MacroType {
 	get typeMembers() {
         return {
             ...genCommonTypeMembers(this),
-            new_certifying: new FuncType([TxType, DCertType], new ScriptContextType(this.#scriptCollection)),
-            new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType(this.#scriptCollection)),
-            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType(this.#scriptCollection)),
-            new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType(this.#scriptCollection))
+            new_certifying: new FuncType([TxType, DCertType], new ScriptContextType()),
+            new_minting: new FuncType([TxType, MintingPolicyHashType], new ScriptContextType()),
+            new_rewarding: new FuncType([TxType, StakingCredentialType], new ScriptContextType()),
+            new_spending: new FuncType([TxType, TxOutputIdType], new ScriptContextType())
         };
 	}
 
@@ -627,17 +625,8 @@ export class ScriptContextType extends MacroType {
  * @implements {DataType}
  */
 export class ContractContextType extends MacroType {
-    /**
-     * @type {ScriptCollectionType}
-     */
-    #scriptCollection;
-
-    /**
-     * @param {ScriptCollectionType} scriptCollection 
-     */
-    constructor(scriptCollection) {
+    constructor() {
         super();
-        this.#scriptCollection = scriptCollection;
     }
 
     /**
@@ -647,7 +636,6 @@ export class ContractContextType extends MacroType {
         return {
             now: new FuncType([], TimeType),
             agent: WalletType,
-            scripts: this.#scriptCollection,
             network: NetworkType,
             new_tx_builder: new FuncType([], TxBuilderType)
         };
