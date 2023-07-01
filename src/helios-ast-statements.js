@@ -43,13 +43,14 @@ import {
  */
 
 import {
+	AllType,
 	ArgType,
     DataEntity,
     FuncType,
 	GenericType,
 	GenericEnumMemberType,
 	ModuleNamespace,
-	NamedEntity
+	NamedEntity,
 } from "./eval-common.js";
 
 /**
@@ -233,15 +234,20 @@ export class ImportFromStatement extends Statement {
 
 	/**
 	 * @param {ModuleScope} scope
-	 * @returns {EvalEntity}
+	 * @returns {null | EvalEntity}
 	 */
 	evalInternal(scope) {
-		let importedScope = scope.getScope(this.#moduleName);
+		const importedScope = scope.getScope(this.#moduleName);
 
-		let importedEntity = importedScope.get(this.#origName);
+		if (!importedScope) {
+			return null;
+		}
+
+		const importedEntity = importedScope.get(this.#origName);
 
 		if (importedEntity instanceof Scope) {
-			throw this.#origName.typeError(`can't import a module from a module`);
+			this.#origName.typeError(`can't import a module from a module`);
+			return null;
 		} else {
 			return importedEntity;
 		}
@@ -253,7 +259,9 @@ export class ImportFromStatement extends Statement {
 	eval(scope) {
 		const v = this.evalInternal(scope);
 
-		scope.set(this.name, v);
+		if (v) {
+			scope.set(this.name, v);
+		}
 	}
 
 	/**
@@ -300,10 +308,14 @@ export class ImportModuleStatement extends Statement {
 
 	/**
 	 * @param {ModuleScope} scope
-	 * @returns {EvalEntity}
+	 * @returns {null | EvalEntity}
 	 */
 	evalInternal(scope) {
-		let importedScope = scope.getScope(this.name);
+		const importedScope = scope.getScope(this.name);
+
+		if (!importedScope) {
+			return null;
+		}
 		
 		/**
 		 * @type {NamespaceMembers}
@@ -325,7 +337,9 @@ export class ImportModuleStatement extends Statement {
 	eval(scope) {
 		let v = this.evalInternal(scope);
 
-		scope.set(this.name, v);
+		if (v) {
+			scope.set(this.name, v);
+		}
 	}
 
 	/**
@@ -413,7 +427,7 @@ export class ConstStatement extends Statement {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {DataType}
+	 * @returns {null | DataType}
 	 */
 	evalType(scope) {
 		return this.#typeExpr.evalAsDataType(scope);
@@ -421,16 +435,25 @@ export class ConstStatement extends Statement {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {EvalEntity}
+	 * @returns {null | EvalEntity}
 	 */
 	evalInternal(scope) {
 		const type = this.#typeExpr.evalAsDataType(scope);
 
+		if (!type) {
+			return null;
+		}
+
 		if (this.#valueExpr) {
 			const value = this.#valueExpr.evalAsTyped(scope);
 
+			if (!value) {
+				return null;
+			}
+
 			if (!type.isBaseOf(value.type)) {
-				throw this.#valueExpr.typeError("wrong type");
+				this.#valueExpr.typeError("wrong type");
+				return null;
 			}
 		}
 
@@ -442,7 +465,13 @@ export class ConstStatement extends Statement {
 	 * @param {TopScope} scope 
 	 */
 	eval(scope) {
-		scope.set(this.name, new NamedEntity(this.name.value, this.path, this.evalInternal(scope)));
+		const data = this.evalInternal(scope);
+
+		if (!data) {
+			scope.set(this.name, new NamedEntity(this.name.value, this.path, new DataEntity(new AllType())));
+		} else {
+			scope.set(this.name, new NamedEntity(this.name.value, this.path, data));
+		}
 	}
 
 	/**
@@ -523,11 +552,26 @@ export class TypeParameter {
 	/**
 	 * @param {Scope} scope 
 	 * @param {string} path
+	 * @returns {null | Parameter}
 	 */
 	eval(scope, path) {
-		const typeClass = this.#typeClassExpr ? this.#typeClassExpr.eval(scope).asTypeClass : new DefaultTypeClass();
-		if (!typeClass ) {
-			throw this.#typeClassExpr?.typeError("not a typeclass");
+		/**
+		 * @type {TypeClass}
+		 */
+		let typeClass = new DefaultTypeClass();
+
+		if (this.#typeClassExpr) {
+			const typeClass_ = this.#typeClassExpr.eval(scope);
+			if (!typeClass_) {
+				return null;
+			}
+
+			if (!typeClass_.asTypeClass) {
+				this.#typeClassExpr?.typeError("not a typeclass");
+				return null;
+			} else {
+				typeClass = typeClass_.asTypeClass;
+			}
 		}
 
 		const parameter = new Parameter(this.name, path, typeClass);
@@ -637,7 +681,9 @@ export class TypeParameters {
 		this.#parameterExprs.forEach((pe, i) => {
 			const p = pe.eval(subScope, `${this.#prefix}${i}`);
 
-			this.#parameters?.push(p);
+			if (p) {
+				this.#parameters?.push(p);
+			}
 		});
 
 		return subScope;
@@ -645,13 +691,17 @@ export class TypeParameters {
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {(scope: Scope) => FuncType} evalConcrete
-	 * @returns {ParametricFunc | FuncType}
+	 * @param {(scope: Scope) => (null | FuncType)} evalConcrete
+	 * @returns {null | ParametricFunc | FuncType}
 	 */
 	evalParametricFuncType(scope, evalConcrete, impl = null) {
 		const typeScope = this.evalParams(scope);
 
 		const type = evalConcrete(typeScope);
+
+		if (!type) {
+			return null;
+		}
 
 		typeScope.assertAllUsed();
 
@@ -660,11 +710,15 @@ export class TypeParameters {
 
 	/**
 	 * @param {Scope} scope 
-	 * @param {(scope: Scope) => FuncType} evalConcrete 
-	 * @returns {EvalEntity}
+	 * @param {(scope: Scope) => (null | FuncType)} evalConcrete 
+	 * @returns {null | EvalEntity}
 	 */
 	evalParametricFunc(scope, evalConcrete) {
 		const type = this.evalParametricFuncType(scope, evalConcrete);
+
+		if (!type) {
+			return null;
+		}
 
 		if (type.asType) {
 			return type.asType.toTyped();
@@ -746,18 +800,23 @@ export class DataField extends NameTypePair {
 	/**
 	 * Evaluates the type, used by FuncLiteralExpr and DataDefinition
 	 * @param {Scope} scope 
-	 * @returns {DataType}
+	 * @returns {null | DataType}
 	 */
 	eval(scope) {
 		if (this.typeExpr === null) {
-			throw new Error("typeExpr not set");
+			throw new Error("typeExpr not set in " + this.site.src.raw.split("\n")[0]);
 		} else {
 			const t = this.typeExpr.eval(scope);
+
+			if (!t) {
+				return null;
+			}
 
 			if (t.asDataType) {
 				return t.asDataType;
 			} else {
-				throw this.typeExpr.typeError(`'${t.toString()}' isn't a valid data field type`);
+				this.typeExpr.typeError(`'${t.toString()}' isn't a valid data field type`);
+				return null;
 			}
 		}
 	}
@@ -872,7 +931,11 @@ export class DataDefinition {
 		const fields = {};
 
 		for (let f of this.#fields) {
-			fields[f.name.value]= f.eval(scope);
+			const f_ = f.eval(scope);
+
+			if (f_) {
+				fields[f.name.value] = f_;
+			}
 		}
 
 		return fields;
@@ -1351,7 +1414,7 @@ export class StructStatement extends Statement {
 
 					return {
 						inputType: `{${inputTypeParts.join(", ")}}`,
-						outputType: `{${outputTypeParts.join(", ")}`,
+						outputType: `{${outputTypeParts.join(", ")}}`,
 						internalType: {
 							type: "Struct",
 							fieldTypes: internalTypeParts
@@ -1534,11 +1597,15 @@ export class FuncStatement extends Statement {
 	/**
 	 * Evaluates a function and returns a func value
 	 * @param {Scope} scope 
-	 * @returns {EvalEntity}
+	 * @returns {null | EvalEntity}
 	 */
 	evalInternal(scope) {
 		const typed = this.#parameters.evalParametricFunc(scope, (subScope) => {
 			const type = this.#funcExpr.evalType(subScope);
+
+			if (!type) {
+				return null;
+			}
 
 			const implScope = new Scope(subScope);
 
@@ -1558,7 +1625,7 @@ export class FuncStatement extends Statement {
 	 * Evaluates type of a funtion.
 	 * Separate from evalInternal so we can use this function recursively inside evalInternal
 	 * @param {Scope} scope 
-	 * @returns {ParametricFunc | FuncType}
+	 * @returns {null | ParametricFunc | FuncType}
 	 */
 	evalType(scope) {
 		return this.#parameters.evalParametricFuncType(scope, (subScope) => {
@@ -1572,9 +1639,11 @@ export class FuncStatement extends Statement {
 	eval(scope) {
 		const typed = this.evalInternal(scope);
 
-		assert(!typed.asType);
+		if (typed) {
+			assert(!typed.asType);
 
-		scope.set(this.name, new NamedEntity(this.name.value, super.path, typed));
+			scope.set(this.name, new NamedEntity(this.name.value, super.path, typed));
+		}
 	}
 
 	/**
@@ -2180,9 +2249,16 @@ export class ImplDefinition {
 
 		for (let s of this.#statements) {
 			if (s instanceof ConstStatement) {
-				typeMembers[s.name.value] = s.evalType(scope).toTyped();
+				const s_ = s.evalType(scope);
+				if (s_) {
+					typeMembers[s.name.value] = s_.toTyped();
+				}
 			} else if (!FuncStatement.isMethod(s)) {
-				typeMembers[s.name.value] = s.evalType(scope);
+				const s_ = s.evalType(scope);
+
+				if (s_) {
+					typeMembers[s.name.value] = s_;
+				}
 			}
 		}
 
@@ -2202,7 +2278,11 @@ export class ImplDefinition {
 
 		for (let s of this.#statements) {
 			if (FuncStatement.isMethod(s)) {
-				instanceMembers[s.name.value] = s.evalType(scope);
+				const s_ = s.evalType(scope);
+
+				if (s_) {
+					instanceMembers[s.name.value] = s_;
+				}
 			}
 		}
 

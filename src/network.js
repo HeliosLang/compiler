@@ -7,7 +7,7 @@ import {
 } from "./utils.js";
 
 import {
-    ConstrData
+    UplcData
 } from "./uplc-data.js";
 
 import {
@@ -149,7 +149,10 @@ export class BlockfrostV0 {
      * @returns {Promise<NetworkParams>}
      */
     async getParameters() {
-        throw new Error("not yet implemented");
+        const response = await fetch(`https://d1t0d7c2nekuk0.cloudfront.net/${this.#networkName}.json`);
+
+        // TODO: build networkParams from blockfrost endpoints instead (see lambda function)
+        return new NetworkParams(await response.json());
     }
 
     /**
@@ -157,7 +160,28 @@ export class BlockfrostV0 {
      * @returns {Promise<UTxO>}
      */
     async getUtxo(id) {
-        throw new Error("not yet implemented");
+        const txId = id.txId;
+
+        const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/txs/${txId.hex}/utxos`;
+
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "project_id": this.#projectId
+            }
+        });
+
+        const obj = (await response.json()).outputs[id.utxoIdx];
+
+        return new UTxO(
+            txId,
+            id.utxoIdx,
+            new TxOutput(
+                Address.fromBech32(obj.address),
+                BlockfrostV0.parseValue(obj.amount),
+                obj.inline_datum ? Datum.inline(UplcData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
+            )
+        );
     }
 
     /**
@@ -204,17 +228,22 @@ export class BlockfrostV0 {
             all = [];
         }
 
-        return all.map(obj => {
-            return new UTxO(
-                TxId.fromHex(obj.tx_hash),
-                BigInt(obj.output_index),
-                new TxOutput(
-                    address,
-                    BlockfrostV0.parseValue(obj.amount),
-                    obj.inline_datum ? Datum.inline(ConstrData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
-                )
-            );
-        });
+        try {
+            return all.map(obj => {
+                return new UTxO(
+                    TxId.fromHex(obj.tx_hash),
+                    BigInt(obj.output_index),
+                    new TxOutput(
+                        address,
+                        BlockfrostV0.parseValue(obj.amount),
+                        obj.inline_datum ? Datum.inline(UplcData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
+                    )
+                );
+            });
+        } catch (e) {
+            console.error("unable to parse blockfrost utxo format:", all);
+            throw e;
+        }
     }
 
     /**

@@ -2673,7 +2673,7 @@ export class TxInput extends CborData {
 /**
  * UTxO wraps TxInput
  */
-export class UTxO {
+export class UTxO extends CborData {
 	#input;
 
 	/**
@@ -2682,6 +2682,7 @@ export class UTxO {
 	 * @param {TxOutput} origOutput
 	 */
 	constructor(txId, utxoIdx, origOutput) {
+		super();
 		this.#input = new TxInput(txId, utxoIdx, origOutput);
 	}
 
@@ -2731,14 +2732,16 @@ export class UTxO {
 
 	/**
 	 * Deserializes UTxO format used by wallet connector
-	 * @param {number[]} bytes
+	 * @param {string | number[]} rawBytes
 	 * @returns {UTxO}
 	 */
-	static fromCbor(bytes) {
-		/** @type {?TxInput} */
+	static fromCbor(rawBytes) {
+		const bytes = Array.isArray(rawBytes) ? rawBytes : hexToBytes(rawBytes);
+
+		/** @type {null | TxInput} */
 		let maybeTxInput = null;
 
-		/** @type {?TxOutput} */
+		/** @type {null | TxOutput} */
 		let origOutput = null;
 
 		CborData.decodeTuple(bytes, (i, fieldBytes) => {

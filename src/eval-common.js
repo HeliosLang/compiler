@@ -115,7 +115,8 @@ import {
 /**
  * @typedef {Typed & {
  *   asFunc: Func
- *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}): (Typed | Multi)
+ * 	 funcType: FuncType
+ *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}): (null | Typed | Multi)
  * }} Func
  */
 
@@ -548,11 +549,33 @@ export class AllType extends Common {
 
 /**
  * @package
- * @implements {Type}
+ * @implements {DataType}
  */
 export class AnyType extends Common {
 	constructor() {
 		super();
+	}
+
+	get fieldNames() {
+		return []
+	}
+
+	get offChainType() {
+		return null;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get name() {
+		return "Any";
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get path() {
+		return "";
 	}
 
 	/**
@@ -561,6 +584,20 @@ export class AnyType extends Common {
 	get asType() {
         return this;
     }
+
+	/**
+	 * @type {Named}
+	 */
+	get asNamed() {
+		return this;
+	}
+
+	/**
+	 * @type {DataType}
+	 */
+	get asDataType() {
+		return this;
+	}
 
 	/**
 	 * @type {InstanceMembers}
@@ -869,26 +906,30 @@ export class FuncType extends Common {
 	 * @param {Site} site 
 	 * @param {Typed[]} posArgs
 	 * @param {{[name: string]: Typed}} namedArgs
-	 * @returns {Type[]}
+	 * @returns {null | Type[]}
 	 */
 	checkCall(site, posArgs, namedArgs = {}) {
 		if (posArgs.length < this.nNonOptArgs) {
 			// check if each nonOptArg is covered by the named args
 			for (let i = 0; i < this.nNonOptArgs; i++) {
 				if (!this.#argTypes[i].isNamed()) {
-					throw site.typeError(`expected at least ${this.#argTypes.filter(at => !at.isNamed()).length} positional arg(s), got ${posArgs.length} positional arg(s)`);
+					site.typeError(`expected at least ${this.#argTypes.filter(at => !at.isNamed()).length} positional arg(s), got ${posArgs.length} positional arg(s)`);
+					return null;
 				} else if (!(this.#argTypes[i].name in namedArgs)) {
-					throw site.typeError(`expected at least ${this.nNonOptArgs} arg(s), missing '${this.#argTypes[i].name}'`);
+					site.typeError(`expected at least ${this.nNonOptArgs} arg(s), missing '${this.#argTypes[i].name}'`);
+					return null;
 				}
 			}
 
 		} else if (posArgs.length > this.#argTypes.length) {
-			throw site.typeError(`expected at most ${this.#argTypes.length} arg(s), got ${posArgs.length} arg(s)`);
+			site.typeError(`expected at most ${this.#argTypes.length} arg(s), got ${posArgs.length} arg(s)`);
+			return null;
 		}
 
 		for (let i = 0; i < posArgs.length; i++) {
 			if (!Common.instanceOf(posArgs[i], this.#argTypes[i].type)) {
-				throw site.typeError(`expected '${this.#argTypes[i].type.toString()}' for arg ${i + 1}, got '${posArgs[i].type.toString()}'`);
+				site.typeError(`expected '${this.#argTypes[i].type.toString()}' for arg ${i + 1}, got '${posArgs[i].type.toString()}'`);
+				return null;
 			}
 		}
 
@@ -896,17 +937,20 @@ export class FuncType extends Common {
 			const i = this.#argTypes.findIndex(at => at.name == key);
 
 			if (i == -1) {
-				throw site.typeError(`arg named ${key} not found in function type ${this.toString()}`);
+				site.typeError(`arg named ${key} not found in function type ${this.toString()}`);
+				continue;
 			}
 
 			if (i < posArgs.length) {
-				throw site.typeError(`named arg '${key}' already covered by positional arg ${i+1}`);
+				site.typeError(`named arg '${key}' already covered by positional arg ${i+1}`);
+				continue;
 			}
 
 			const thisArg = this.#argTypes[i];
 
 			if (!Common.instanceOf(namedArgs[key], thisArg.type)) {
-				throw site.typeError(`expected '${thisArg.type.toString()}' for arg '${key}', got '${namedArgs[key].toString()}`);
+				site.typeError(`expected '${thisArg.type.toString()}' for arg '${key}', got '${namedArgs[key].toString()}`);
+				continue;
 			}
 		}
 
@@ -1831,9 +1875,6 @@ export class FuncEntity extends Common {
 	 */
 	#type;
 
-	#name;
-	#path;
-
 	/**
 	 * @param {FuncType} type
 	 */
@@ -1878,10 +1919,16 @@ export class FuncEntity extends Common {
 	 * @param {Site} site 
 	 * @param {Typed[]} args 
 	 * @param {{[name: string]: Typed}} namedArgs
-	 * @returns {Typed | Multi}
+	 * @returns {null | Typed | Multi}
 	 */
 	call(site, args, namedArgs = {}) {
-		return Common.toTyped(this.#type.checkCall(site, args, namedArgs));
+		const types = this.#type.checkCall(site, args, namedArgs);
+
+		if (types === null) {
+			return null;
+		} else {
+			return Common.toTyped(types);
+		}
 	}
 
 	/**

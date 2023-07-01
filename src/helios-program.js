@@ -131,7 +131,7 @@ class Module {
 
 	/**
 	 * @param {string} rawSrc
-	 * @param {?number} fileIndex - a unique optional index passed in from outside that makes it possible to associate a UserError with a specific file
+	 * @param {null | number} fileIndex - a unique optional index passed in from outside that makes it possible to associate a UserError with a specific file
 	 * @returns {Module}
 	 */
 	static new(rawSrc, fileIndex = null) {
@@ -158,6 +158,10 @@ class Module {
 		} else {
 			throw new Error("unexpected"); // should've been caught by calling src.throwErrors() above
 		}
+	}
+
+	throwErrors() {
+		this.#name.site.src.throwErrors();
 	}
 
 	/**
@@ -339,6 +343,10 @@ const DEFAULT_PROGRAM_CONFIG = {
 		this.#parameters = {};
 	}
 
+	throwErrors() {
+		this.#modules.forEach(m => m.throwErrors());
+	}
+
 	/**
 	 * @param {string} rawSrc 
 	 * @returns {[purpose, Module[]]}
@@ -470,6 +478,8 @@ const DEFAULT_PROGRAM_CONFIG = {
 		}
 
 		const topScope = program.evalTypes(validatorTypes);
+
+		program.throwErrors();
 
 		program.fillTypes(topScope);
 
@@ -1323,30 +1333,32 @@ class RedeemerProgram extends Program {
 
 		if (this.config.allowPosParams) {
 			if (nArgs < 2) {
-				throw main.typeError("expected at least 2 args for main");	
+				main.typeError("expected at least 2 args for main");
+				return topScope;
 			}
 		} else {
 			if (nArgs != 2) {
-				throw main.typeError("expected 2 args for main");
+				main.typeError("expected 2 args for main");
+				return topScope;
 			}
 		}
 		
 		for (let i = 0; i < nArgs; i++) {
 			if (i == nArgs - 1) {
 				if (argTypeNames[i] != "" && !(new ScriptContextType()).isBaseOf(argTypes[i])) {
-					throw main.typeError(`illegal type for arg ${nArgs} in main, expected 'ScriptContext', got ${argTypes[i].toString()}`);
+					main.typeError(`illegal type for arg ${nArgs} in main, expected 'ScriptContext', got ${argTypes[i].toString()}`);
 				}
 			} else {
 				if (argTypeNames[i] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[i])) {
-					throw main.typeError(`illegal ${i == nArgs - 2 ? "redeemer " : ""}argument type in main: '${argTypes[i].toString()}`);
+					main.typeError(`illegal ${i == nArgs - 2 ? "redeemer " : ""}argument type in main: '${argTypes[i].toString()}`);
 				}
 			}
 		}
 
 		if (retTypes.length !== 1) {
-			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
+			main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
 		} else if (!(BoolType.isBaseOf(retTypes[0]))) {
-			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retTypes[0].toString()}'`);
+			main.typeError(`illegal return type for main, expected 'Bool', got '${retTypes[0].toString()}'`);
 		}
 
 		return topScope;
@@ -1456,30 +1468,32 @@ class DatumRedeemerProgram extends Program {
 
 		if (this.config.allowPosParams) {
 			if (argTypes.length < 3) {
-				throw main.typeError("expected at least 3 args for main");	
+				main.typeError("expected at least 3 args for main");	
+				return topScope;
 			}
 		} else {
 			if (argTypes.length != 3) {
-				throw main.typeError("expected 3 args for main");	
+				main.typeError("expected 3 args for main");	
+				return topScope;
 			}
 		}
 
 		for (let i = 0; i < nArgs; i++) {
 			if (i == nArgs - 1) {
 				if (argTypeNames[i] != "" && !(new ScriptContextType()).isBaseOf(argTypes[i])) {
-					throw main.typeError(`illegal type for arg ${nArgs} in main: expected 'ScriptContext', got '${argTypes[i].toString()}'`);
+					main.typeError(`illegal type for arg ${nArgs} in main: expected 'ScriptContext', got '${argTypes[i].toString()}'`);
 				}
 			} else {
 				if (argTypeNames[i] != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[i])) {
-					throw main.typeError(`illegal type for arg ${i+1} in main ${i == nArgs - 2 ? "(datum) " : (i == nArgs - 3 ? "(redeemer) " : "")}: '${argTypes[i].toString()}`);
+					main.typeError(`illegal type for arg ${i+1} in main ${i == nArgs - 2 ? "(datum) " : (i == nArgs - 3 ? "(redeemer) " : "")}: '${argTypes[i].toString()}`);
 				}
 			}
 		}
 
 		if (retTypes.length !== 1) {
-			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
+			main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
 		} else if (!(BoolType.isBaseOf(retTypes[0]))) {
-			throw main.typeError(`illegal return type for main, expected 'Bool', got '${retTypes[0].toString()}'`);
+			main.typeError(`illegal return type for main, expected 'Bool', got '${retTypes[0].toString()}'`);
 		}
 
 		return topScope;
@@ -1590,15 +1604,15 @@ class GenericProgram extends Program {
 
 		argTypeNames.forEach((argTypeName, i) => {
 			if (argTypeName != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[i])) {
-				throw main.typeError(`illegal argument type in main: '${argTypes[i].toString()}`);
+				main.typeError(`illegal argument type in main: '${argTypes[i].toString()}`);
 			}
 		});
 
 		// TODO: support multiple return values
 		if (retTypes.length !== 1) {
-			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
+			main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
 		} else if (!((new DefaultTypeClass()).isImplementedBy(retTypes[0]))) {
-			throw main.typeError(`illegal return type for main: '${retTypes[0].toString()}'`);
+			main.typeError(`illegal return type for main: '${retTypes[0].toString()}'`);
 		}
 
 		return topScope;
@@ -1726,6 +1740,8 @@ export class LinkingProgram extends GenericProgram {
 
 		program.evalTypes(scriptTypes)
 
+		program.throwErrors();
+
 		return program;
 	}
 
@@ -1745,27 +1761,28 @@ export class LinkingProgram extends GenericProgram {
 		const retTypes = main.retTypes;
 
 		if (argTypeNames.length == 0) {
-			throw main.typeError("expected at least argument 'ContractContext'");
+			main.typeError("expected at least argument 'ContractContext'");
+			return topScope;
 		}
 
 		argTypeNames.forEach((argTypeName, i) => {
 			if (i != argTypeNames.length -1 && argTypeName != "" && !(new DefaultTypeClass()).isImplementedBy(argTypes[i])) {
-				throw main.typeError(`illegal argument type in main: '${argTypes[i].toString()}`);
+				main.typeError(`illegal argument type in main: '${argTypes[i].toString()}`);
 			}
 		});
 
 		if (argTypeNames[argTypeNames.length-1] != "") {
 			const lastArgType = argTypes[argTypes.length-1];
 			if (!(lastArgType instanceof ContractContextType)) {
-				throw main.typeError(`expected 'ContractContext' for arg ${argTypes.length}, got '${lastArgType.toString()}'`);
+				main.typeError(`expected 'ContractContext' for arg ${argTypes.length}, got '${lastArgType.toString()}'`);
 			}
 		}
 		
 		// TODO: support multiple return values
 		if (retTypes.length !== 1) {
-			throw main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
+			main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
 		} else if (!((new DefaultTypeClass()).isImplementedBy(retTypes[0]))) {
-			throw main.typeError(`illegal return type for main: '${retTypes[0].toString()}'`);
+			main.typeError(`illegal return type for main: '${retTypes[0].toString()}'`);
 		}
 		
 		return topScope;

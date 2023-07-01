@@ -189,7 +189,7 @@ export class GlobalScope {
 	 * Gets a named value from the scope.
 	 * Throws an error if not found.
 	 * @param {Word} name 
-	 * @returns {EvalEntity}
+	 * @returns {null | EvalEntity}
 	 */
 	get(name) {
 		for (let pair of this.#values) {
@@ -198,7 +198,8 @@ export class GlobalScope {
 			}
 		}
 
-		throw name.referenceError(`'${name.toString()}' undefined`);
+		name.referenceError(`'${name.toString()}' undefined`);
+		return null;
 	}
 
 	/**
@@ -333,12 +334,12 @@ export class Scope extends Common {
 		if (this.has(name)) {
 			const prevEntity = this.get(name, true);
 
-			if (allowShadowing && value.asTyped && !(prevEntity instanceof Scope) && prevEntity.asTyped) {
+			if (allowShadowing && value.asTyped && prevEntity && !(prevEntity instanceof Scope) && prevEntity.asTyped) {
 				if (!(prevEntity.asTyped.type.isBaseOf(value.asTyped.type) && value.asTyped.type.isBaseOf(prevEntity.asTyped.type))) {
 					throw name.syntaxError(`'${name.toString()}' already defined`);
 				}
 			} else {
-				throw name.syntaxError(`'${name.toString()}' already defined`);
+				name.syntaxError(`'${name.toString()}' already defined`);
 			}
 		}
 
@@ -363,7 +364,7 @@ export class Scope extends Common {
 
 	/**
 	 * @param {Word} name 
-	 * @returns {Scope}
+	 * @returns {null | Scope}
 	 */
 	getScope(name) {
 		assert(!name.value.startsWith("__scope__"));
@@ -372,8 +373,12 @@ export class Scope extends Common {
 
 		if (entity instanceof Scope) {
 			return entity;
+		} else if (!entity) {
+			name.typeError(`expected Scope`);
+			return null;
 		} else {
-			throw name.typeError(`expected Scope, got ${entity.toString()}`);
+			name.typeError(`expected Scope, got ${entity.toString()}`);
+			return null;
 		}
 	}
 
@@ -381,7 +386,7 @@ export class Scope extends Common {
 	 * Gets a named value from the scope. Throws an error if not found
 	 * @param {Word} name 
 	 * @param {boolean} dryRun - if false -> don't set used flag
-	 * @returns {EvalEntity | Scope}
+	 * @returns {null | EvalEntity | Scope}
 	 */
 	get(name, dryRun = false) {
 		if (!(name instanceof Word)) {
@@ -402,7 +407,8 @@ export class Scope extends Common {
 		if (this.#parent !== null) {
 			return this.#parent.get(name, dryRun);
 		} else {
-			throw name.referenceError(`'${name.toString()}' undefined`);
+			name.referenceError(`'${name.toString()}' undefined`);
+			return null;
 		}
 	}
 
@@ -423,7 +429,7 @@ export class Scope extends Common {
 		if (!onlyIfStrict || this.isStrict()) {
 			for (let [name, entity, used] of this.#values) {
 				if (!(entity instanceof Scope) && !used) {
-					throw name.referenceError(`'${name.toString()}' unused`);
+					name.referenceError(`'${name.toString()}' unused`);
 				}
 			}
 		}

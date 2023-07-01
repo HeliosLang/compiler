@@ -6,6 +6,7 @@ import {
     assertDefined,
     bigIntToBytes,
     bytesToBigInt,
+	bytesToHex,
     bytesToText,
     idiv,
     textToBytes
@@ -28,6 +29,13 @@ export class CborData {
 	 */
 	toCbor() {
 		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toCborHex() {
+		return bytesToHex(this.toCbor())
 	}
 
 	/**

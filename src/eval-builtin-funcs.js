@@ -89,6 +89,13 @@ export class BuiltinFunc extends Common {
 	}
 
 	/**
+	 * @type {FuncType}
+	 */
+	get funcType() {
+		return this.#type;
+	}
+
+	/**
 	 * @type {Func}
 	 */
 	get asFunc() {
@@ -113,10 +120,16 @@ export class BuiltinFunc extends Common {
 	 * @param {Site} site 
 	 * @param {Typed[]} args 
 	 * @param {{[name: string]: Typed}} namedArgs
-	 * @returns {Typed | Multi}
+	 * @returns {null | Typed | Multi}
 	 */
 	call(site, args, namedArgs = {}) {
-		return Common.toTyped(this.#type.checkCall(site, args, namedArgs));
+		const res = this.#type.checkCall(site, args, namedArgs);
+
+		if (!res) {
+			return null
+		} else {
+			return Common.toTyped(res);
+		}
 	}
 
 	/**

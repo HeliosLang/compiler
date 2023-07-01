@@ -81,6 +81,10 @@ export function HList<T extends HeliosData>(ItemClass: HeliosDataClass<T>): Heli
      * @returns {number[]}
      */
     toCbor(): number[];
+    /**
+     * @returns {string}
+     */
+    toCborHex(): string;
 }>;
 /**
  * @template {HeliosData} TKey
@@ -117,6 +121,10 @@ export function HMap<TKey extends HeliosData, TValue extends HeliosData>(KeyClas
      * @returns {number[]}
      */
     toCbor(): number[];
+    /**
+     * @returns {string}
+     */
+    toCborHex(): string;
 }>;
 /**
  * @template {HeliosData} T
@@ -151,6 +159,10 @@ export function Option<T extends HeliosData>(SomeClass: HeliosDataClass<T>): Hel
      * @returns {number[]}
      */
     toCbor(): number[];
+    /**
+     * @returns {string}
+     */
+    toCborHex(): string;
 }>;
 /**
  * Returns index of a named builtin
@@ -270,7 +282,8 @@ export function tokenize(src: Source): Token[] | null;
 /**
  * @typedef {Typed & {
  *   asFunc: Func
- *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}): (Typed | Multi)
+ * 	 funcType: FuncType
+ *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}): (null | Typed | Multi)
  * }} Func
  */
 /**
@@ -416,7 +429,7 @@ export function uplcToJs(schema: TypeSchema, data: UplcData): any;
 /**
  * Version of the Helios library.
  */
-export const VERSION: "0.14.3";
+export const VERSION: "0.14.4";
 /**
  * Modifiable config vars
  * @type {{
@@ -1194,6 +1207,10 @@ export class CborData {
      * @returns {number[]}
      */
     toCbor(): number[];
+    /**
+     * @returns {string}
+     */
+    toCborHex(): string;
 }
 /**
  * Base class for Plutus-core data classes (not the same as Plutus-core value classes!)
@@ -3542,6 +3559,7 @@ export class Program {
      * @param {ProgramConfig} config
      */
     constructor(purpose: ScriptPurpose, modules: Module[], config: ProgramConfig);
+    throwErrors(): void;
     /**
      * @type {ProgramConfig}
      */
@@ -4190,13 +4208,13 @@ export class TxWitnesses extends CborData {
 /**
  * UTxO wraps TxInput
  */
-export class UTxO {
+export class UTxO extends CborData {
     /**
      * Deserializes UTxO format used by wallet connector
-     * @param {number[]} bytes
+     * @param {string | number[]} rawBytes
      * @returns {UTxO}
      */
-    static fromCbor(bytes: number[]): UTxO;
+    static fromCbor(rawBytes: string | number[]): UTxO;
     /**
      * @param {UTxO[]} utxos
      * @returns {Value}
@@ -4234,10 +4252,6 @@ export class UTxO {
      * @returns {boolean}
      */
     eq(other: UTxO | TxInput): boolean;
-    /**
-     * @returns {number[]}
-     */
-    toCbor(): number[];
     /**
      * @returns {any}
      */
@@ -4661,10 +4675,62 @@ export class WalletHelper {
      */
     isOwnAddress(addr: Address): Promise<boolean>;
     /**
- * @param {PubKeyHash} pkh
- * @returns {Promise<boolean>}
- */
+     * @param {PubKeyHash} pkh
+     * @returns {Promise<boolean>}
+     */
     isOwnPubKeyHash(pkh: PubKeyHash): Promise<boolean>;
+    /**
+     * @returns {Promise<any>}
+     */
+    toJson(): Promise<any>;
+    #private;
+}
+/**
+ * @implements {Wallet}
+ */
+export class RemoteWallet implements Wallet {
+    /**
+     * @param {string | Object} obj
+     * @returns {RemoteWallet}
+     */
+    static fromJson(obj: string | any): RemoteWallet;
+    /**
+     * @param {boolean} isMainnet
+     * @param {Address[]} usedAddresses
+     * @param {Address[]} unusedAddresses
+     * @param {UTxO[]} utxos
+     */
+    constructor(isMainnet: boolean, usedAddresses: Address[], unusedAddresses: Address[], utxos: UTxO[]);
+    /**
+     * @returns {Promise<boolean>}
+     */
+    isMainnet(): Promise<boolean>;
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get usedAddresses(): Promise<Address[]>;
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get unusedAddresses(): Promise<Address[]>;
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get utxos(): Promise<UTxO[]>;
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get collateral(): Promise<UTxO[]>;
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<Signature[]>}
+     */
+    signTx(tx: Tx): Promise<Signature[]>;
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<TxId>}
+     */
+    submitTx(tx: Tx): Promise<TxId>;
     #private;
 }
 /**
@@ -5871,9 +5937,10 @@ export type Func = EvalEntity & {
     type: Type;
 } & {
     asFunc: Func;
+    funcType: FuncType;
     call(site: Site, args: Typed[], namedArgs?: {
         [name: string]: Typed;
-    }): (Typed | Multi);
+    }): (null | Typed | Multi);
 };
 export type Instance = Typed & {
     asInstance: Instance;
@@ -7177,15 +7244,16 @@ declare class IRProgram {
 declare class Module {
     /**
      * @param {string} rawSrc
-     * @param {?number} fileIndex - a unique optional index passed in from outside that makes it possible to associate a UserError with a specific file
+     * @param {null | number} fileIndex - a unique optional index passed in from outside that makes it possible to associate a UserError with a specific file
      * @returns {Module}
      */
-    static new(rawSrc: string, fileIndex?: number | null): Module;
+    static new(rawSrc: string, fileIndex?: null | number): Module;
     /**
      * @param {Word} name
      * @param {Statement[]} statements
      */
     constructor(name: Word, statements: Statement[]);
+    throwErrors(): void;
     /**
      * @type {Word}
      */
@@ -7267,16 +7335,16 @@ declare class FuncStatement extends Statement {
     /**
      * Evaluates a function and returns a func value
      * @param {Scope} scope
-     * @returns {EvalEntity}
+     * @returns {null | EvalEntity}
      */
-    evalInternal(scope: Scope): EvalEntity;
+    evalInternal(scope: Scope): null | EvalEntity;
     /**
      * Evaluates type of a funtion.
      * Separate from evalInternal so we can use this function recursively inside evalInternal
      * @param {Scope} scope
-     * @returns {ParametricFunc | FuncType}
+     * @returns {null | ParametricFunc | FuncType}
      */
-    evalType(scope: Scope): ParametricFunc | FuncType;
+    evalType(scope: Scope): null | ParametricFunc | FuncType;
     /**
      * Returns IR of function
      * @returns {IR}
@@ -7312,9 +7380,9 @@ declare class GlobalScope {
      * Gets a named value from the scope.
      * Throws an error if not found.
      * @param {Word} name
-     * @returns {EvalEntity}
+     * @returns {null | EvalEntity}
      */
-    get(name: Word): EvalEntity;
+    get(name: Word): null | EvalEntity;
     /**
      * @returns {boolean}
      */
@@ -7379,14 +7447,14 @@ declare class ConstStatement extends Statement {
     changeValueSafe(data: UplcData): void;
     /**
      * @param {Scope} scope
-     * @returns {DataType}
+     * @returns {null | DataType}
      */
-    evalType(scope: Scope): DataType;
+    evalType(scope: Scope): null | DataType;
     /**
      * @param {Scope} scope
-     * @returns {EvalEntity}
+     * @returns {null | EvalEntity}
      */
-    evalInternal(scope: Scope): EvalEntity;
+    evalInternal(scope: Scope): null | EvalEntity;
     /**
      * Evaluates rhs and adds to scope
      * @param {TopScope} scope
@@ -7925,11 +7993,11 @@ declare class FuncType extends Common implements Type {
      * @param {Site} site
      * @param {Typed[]} posArgs
      * @param {{[name: string]: Typed}} namedArgs
-     * @returns {Type[]}
+     * @returns {null | Type[]}
      */
     checkCall(site: Site, posArgs: Typed[], namedArgs?: {
         [name: string]: Typed;
-    }): Type[];
+    }): null | Type[];
     /**
      * @package
      * @param {Site} site
@@ -8503,16 +8571,16 @@ declare class Scope extends Common implements EvalEntity {
     remove(name: Word): void;
     /**
      * @param {Word} name
-     * @returns {Scope}
+     * @returns {null | Scope}
      */
-    getScope(name: Word): Scope;
+    getScope(name: Word): null | Scope;
     /**
      * Gets a named value from the scope. Throws an error if not found
      * @param {Word} name
      * @param {boolean} dryRun - if false -> don't set used flag
-     * @returns {EvalEntity | Scope}
+     * @returns {null | EvalEntity | Scope}
      */
-    get(name: Word, dryRun?: boolean): EvalEntity | Scope;
+    get(name: Word, dryRun?: boolean): null | EvalEntity | Scope;
     /**
      * @returns {boolean}
      */
@@ -8628,16 +8696,16 @@ declare class TypeParameters {
     evalParams(scope: Scope): Scope;
     /**
      * @param {Scope} scope
-     * @param {(scope: Scope) => FuncType} evalConcrete
-     * @returns {ParametricFunc | FuncType}
+     * @param {(scope: Scope) => (null | FuncType)} evalConcrete
+     * @returns {null | ParametricFunc | FuncType}
      */
-    evalParametricFuncType(scope: Scope, evalConcrete: (scope: Scope) => FuncType, impl?: any): ParametricFunc | FuncType;
+    evalParametricFuncType(scope: Scope, evalConcrete: (scope: Scope) => (null | FuncType), impl?: any): null | ParametricFunc | FuncType;
     /**
      * @param {Scope} scope
-     * @param {(scope: Scope) => FuncType} evalConcrete
-     * @returns {EvalEntity}
+     * @param {(scope: Scope) => (null | FuncType)} evalConcrete
+     * @returns {null | EvalEntity}
      */
-    evalParametricFunc(scope: Scope, evalConcrete: (scope: Scope) => FuncType): EvalEntity;
+    evalParametricFunc(scope: Scope, evalConcrete: (scope: Scope) => (null | FuncType)): null | EvalEntity;
     /**
      * @param {Scope} scope
      * @param {Site} site
@@ -8681,9 +8749,9 @@ declare class FuncLiteralExpr extends Expr {
     get retTypes(): Type[];
     /**
      * @param {Scope} scope
-     * @returns {FuncType}
+     * @returns {null | FuncType}
      */
-    evalType(scope: Scope): FuncType;
+    evalType(scope: Scope): null | FuncType;
     isMethod(): boolean;
     /**
      * @returns {IR}
@@ -8718,34 +8786,34 @@ declare class Expr extends Token {
     get cache(): EvalEntity;
     /**
      * @param {Scope} scope
-     * @returns {EvalEntity}
+     * @returns {null | EvalEntity}
      */
-    evalInternal(scope: Scope): EvalEntity;
+    evalInternal(scope: Scope): null | EvalEntity;
     /**
      * @param {Scope} scope
-     * @returns {EvalEntity}
+     * @returns {null | EvalEntity}
      */
-    eval(scope: Scope): EvalEntity;
+    eval(scope: Scope): null | EvalEntity;
     /**
      * @param {Scope} scope
-     * @returns {DataType}
+     * @returns {null | DataType}
      */
-    evalAsDataType(scope: Scope): DataType;
+    evalAsDataType(scope: Scope): null | DataType;
     /**
      * @param {Scope} scope
-     * @returns {Type}
+     * @returns {null | Type}
      */
-    evalAsType(scope: Scope): Type;
+    evalAsType(scope: Scope): null | Type;
     /**
      * @param {Scope} scope
-     * @returns {Typed}
+     * @returns {null | Typed}
      */
-    evalAsTyped(scope: Scope): Typed;
+    evalAsTyped(scope: Scope): null | Typed;
     /**
      * @param {Scope} scope
-     * @returns {Typed | Multi}
+     * @returns {null | Typed | Multi}
      */
-    evalAsTypedOrMulti(scope: Scope): Typed | Multi;
+    evalAsTypedOrMulti(scope: Scope): null | Typed | Multi;
     /**
      * @param {string} indent
      * @returns {IR}
@@ -8885,8 +8953,9 @@ declare class TypeParameter {
     /**
      * @param {Scope} scope
      * @param {string} path
+     * @returns {null | Parameter}
      */
-    eval(scope: Scope, path: string): Parameter;
+    eval(scope: Scope, path: string): null | Parameter;
     /**
      * @returns {string}
      */
@@ -8917,9 +8986,9 @@ declare class FuncArg extends NameTypePair {
     evalDefault(scope: Scope): void;
     /**
      * @param {Scope} scope
-     * @returns {ArgType}
+     * @returns {null | ArgType}
      */
-    evalArgType(scope: Scope): ArgType;
+    evalArgType(scope: Scope): null | ArgType;
     /**
      * (argName) -> {
      *   <bodyIR>
@@ -8983,9 +9052,9 @@ declare class NameTypePair {
     /**
      * Evaluates the type, used by FuncLiteralExpr and DataDefinition
      * @param {Scope} scope
-     * @returns {Type}
+     * @returns {null | Type}
      */
-    evalType(scope: Scope): Type;
+    evalType(scope: Scope): null | Type;
     /**
      * @returns {IR}
      */

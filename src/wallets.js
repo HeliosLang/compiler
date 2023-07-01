@@ -249,7 +249,7 @@ export class WalletHelper {
         }
     }
 
-        /**
+    /**
      * @param {PubKeyHash} pkh
      * @returns {Promise<boolean>}
      */
@@ -265,5 +265,108 @@ export class WalletHelper {
         }
 
         return false;
+    }
+
+    /**
+     * @returns {Promise<any>}
+     */
+    async toJson() {
+        return {
+            isMainnet: (await this.#wallet.isMainnet()),
+            usedAddresses: (await this.#wallet.usedAddresses).map(a => a.toBech32()),
+            unusedAddresses: (await this.#wallet.unusedAddresses).map(a => a.toBech32()),
+            utxos: (await this.#wallet.utxos).map(u => u.toCborHex())
+        };
+    }
+}
+
+/**
+ * @implements {Wallet}
+ */
+export class RemoteWallet {
+    #isMainnet;
+    #usedAddresses;
+    #unusedAddresses;
+    #utxos;
+
+    /**
+     * @param {boolean} isMainnet
+     * @param {Address[]} usedAddresses 
+     * @param {Address[]} unusedAddresses 
+     * @param {UTxO[]} utxos 
+     */
+    constructor(isMainnet, usedAddresses, unusedAddresses, utxos) {
+        this.#isMainnet = isMainnet;
+        this.#usedAddresses = usedAddresses;
+        this.#unusedAddresses = unusedAddresses;
+        this.#utxos = utxos;
+    }
+
+    /**
+     * @param {string | Object} obj 
+     * @returns {RemoteWallet}
+     */
+    static fromJson(obj) {
+        if (typeof obj == "string") {
+            return RemoteWallet.fromJson(JSON.parse(obj));
+        } else {
+            return new RemoteWallet(
+                obj.isMainnet,
+                obj.usedAddresses.map(a => Address.fromBech32(a)),
+                obj.unusedAddresses.map(a => Address.fromBech32(a)),
+                obj.utxos.map(u => UTxO.fromCbor(u))
+            )
+        }
+    }
+
+    /**
+     * @returns {Promise<boolean>}
+     */
+    async isMainnet() {
+        return this.#isMainnet;
+    }
+
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get usedAddresses() {
+        return new Promise((resolve, _) => resolve(this.#usedAddresses));
+    }
+    
+    /**
+     * @type {Promise<Address[]>}
+     */
+    get unusedAddresses() {
+        return new Promise((resolve, _) => resolve(this.#unusedAddresses));
+    }
+
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get utxos() {
+        return new Promise((resolve, _) => resolve(this.#utxos));
+    }
+
+    /**
+     * @type {Promise<UTxO[]>}
+     */
+    get collateral() {
+        return new Promise((resolve, _) => resolve([]));
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<Signature[]>}
+     */
+    async signTx(tx) {
+        throw new Error("a RemoteWallet can't sign a transaction");
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        throw new Error("a RemoteWallet can't submit a transaction");
     }
 }
