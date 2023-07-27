@@ -2,7 +2,7 @@
 //@ts-check
 
 import * as helios from "../helios.js";
-import { assert, runIfEntryPoint } from "./util.js";
+import { assert, runIfEntryPoint } from "../utils/util.js";
 const helios_ = helios.exportedForTesting;
 
 function asBool(value) {
@@ -33,17 +33,13 @@ function asBool(value) {
  * @param {string} info 
  * @returns {boolean}
  */
-function isError(err, info) {
-  if (err instanceof helios.UserError) {
-      let parts = err.message.split(":");
-      let n = parts.length;
-      if (n < 2) {
-          return false;
-      } else if (parts[n-1].trim().includes(info)) {
-          return true
-      } else {
-          return false;
-      }
+function isError(err, info, simplified = false) {
+  if (err instanceof helios.RuntimeError || err instanceof helios.UserError) {
+    if (simplified) {
+      return true;
+    } else {
+      return err.message.includes(info);
+    }
   } else {
       throw new Error(`expected UserError, got ${err.toString()}`);
   }
@@ -75,9 +71,9 @@ async function testError(src, expectedError, simplify = false) {
 
       let result = await program.run([]);
 
-      helios_.assert(isError(result, expectedError), `test ${name} failed (${result.toString()})`);
+      helios_.assert(isError(result, expectedError, simplify), `test ${name} failed (${result.toString()})`);
   } catch (e) {
-      helios_.assert(isError(e,  expectedError), `test ${name} failed (${e.message})`);
+      helios_.assert(isError(e,  expectedError, simplify), `test ${name} failed (${e.message})`);
   }
 
   console.log(`test ${name} succeeded${simplify ? " (simplified)" : ""}`);
@@ -189,9 +185,9 @@ async function test2() {
     console.log(program.prettyIR(false));
     
     program.parameters = {
-      DISBURSEMENTS: new (helios.HMap(helios.PubKeyHash, helios.HInt))([
-        [new helios.PubKeyHash("01020304050607080910111213141516171819202122232425262728"), new helios.HInt(100)]
-      ])
+      DISBURSEMENTS: [
+		  [new helios.PubKeyHash("01020304050607080910111213141516171819202122232425262728"), 100]
+	  ]
     };
 
     console.log(program.evalParam("DISBURSEMENTS").toString());
@@ -414,8 +410,8 @@ async function test11() {
 
   const uplcProgram = program.compile();
 
-  const arg0 = new helios.UplcDataValue(helios_.Site.dummy(), (new helios.HInt(2))._toUplcData());
-  const arg1 = new helios.UplcDataValue(helios_.Site.dummy(), (new helios.HInt(1))._toUplcData());
+  const arg0 = new helios.UplcDataValue(helios_.Site.dummy(), (new helios.IntData(2n)));
+  const arg1 = new helios.UplcDataValue(helios_.Site.dummy(), (new helios.IntData(1n)));
 
   let res = await uplcProgram.run([arg0, arg1]);
 
@@ -485,111 +481,6 @@ async function test13() {
   messages.forEach(m => console.log(m));
 
   console.log(res.toString());
-}
-
-async function test14() {
-  console.log("TEST 14");
-
-  const srcHelpers = `module helpers
-  
-  struct SOME_STRUCT {
-    a: Int
-
-    const SOME_PARAM: Int = 0
-  }
-
-  func is_tx_authorized_by(tx: Tx, _) -> Bool {
-    tx.is_signed_by(PubKeyHash::new(#))
-  }`;
-
-  const src = `minting sample_migrate_token_policy
-
-  import { is_tx_authorized_by } from helpers
-
-  struct MyStruct {
-  	a: Int
-	  b: Int
-  }
-
-  enum MyEnum {
-    One
-    Two
-    Three{
-      a: Int
-      b: Int
-    }
-  }
-
-  const CRED: Credential = Credential::new_pubkey(
-    PubKeyHash::new(#1234567890123456789012345678)
-  )
-
-  const VALUE: Value = Value::lovelace(100)
-
-  func main(_, ctx: ScriptContext) -> Bool {
-    tx: Tx = ctx.tx;
-
-    assert( 1== 1, "error");
-
-    test_option: Option[Int] = Option[Int]::Some{1};
-
-    test: Int = test_option.switch {
-      None => error("invalid int"),
-      _ => {
-        assert(1 == 1, "error");
-        1
-      }
-    };
-
-    assert(test == 1, "wrong option");
-
-    is_tx_authorized_by(tx, CRED)
-  }`;
-
-  const program = helios.Program.new(src, [srcHelpers]);
-
-  console.log(program.types);
-
-  const {MyStruct, MyEnum} = program.types;
-
-  const {HInt, HString, HList, HMap, Value} = helios;
-
-  const myInt = new HInt(10);
-
-  console.log(myInt.value);
-
-  console.log(myInt.toSchemaJson());
-
-  console.log(myInt._toUplcData().toString());
-
-  console.log((HInt.fromUplcCbor([10])).value);
-
-  console.log(HInt.name);
-
-  console.log ((new HString("ajshdj")).toSchemaJson());
-
-  const list = new (HList(HString))(["a", "b"]);
-
-  console.log(list.toSchemaJson());
-
-  const map = new (HMap(HString, HInt))(["a", "b"], [1, 2]);
-
-  console.log(map.toSchemaJson(), map instanceof (HMap(HString, HInt)));
-
-  const myStruct = new MyStruct(1, 2);
-
-  console.log(myStruct.toSchemaJson());
-
-  console.log(program.parameters.VALUE.toSchemaJson());
-
-  program.parameters = {VALUE: new Value(200n), ["helpers::SOME_STRUCT::SOME_PARAM"]: 2};
-  program.parameters["helpers::SOME_STRUCT::SOME_PARAM"] = 10
-
-  console.log("Schemas of test14", program.parameters.VALUE.toSchemaJson(), program.parameters["helpers::SOME_STRUCT::SOME_PARAM"].toSchemaJson());
-
-  const myEnum = new MyEnum.Three(1, 2);
-
-  console.log(myEnum.toSchemaJson(), myEnum instanceof MyEnum);
 }
 
 async function test15() {
@@ -1266,8 +1157,6 @@ export default async function main() {
   await test12();
 
   await test13();
-
-  await test14();
 
   await test15();
 

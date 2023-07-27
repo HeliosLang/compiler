@@ -48,7 +48,7 @@ import {
  * Build an Intermediate Representation expression
  * @param {Token[]} ts 
  * @returns {IRExpr}
- * @package
+ * @internal
  */
 export function buildIRExpr(ts) {
 	/** @type {?IRExpr} */
@@ -143,18 +143,9 @@ export function buildIRExpr(ts) {
 				if (maybeGroup === undefined) {
 					throw t.site.syntaxError("expected parens after error");
 				} else {
-					let parens = assertDefined(maybeGroup.assertGroup("(", 1), "expected parens with single entry after 'error'");
-					let pts = parens.fields[0];
-
-					if (pts.length != 1) {
-						throw parens.syntaxError("error call expects a single literal string msg arg");
-					}
-
-					let msg = pts[0];
-					if (!(msg instanceof StringLiteral)) {
-						throw msg.syntaxError("error call expects literal string msg arg");
-					}
-					expr = new IRErrorCallExpr(t.site, msg.value);
+					assertDefined(maybeGroup.assertGroup("(", 0), "expected empty parens after 'error'");
+					
+					expr = new IRErrorCallExpr(t.site, "");
 				}
 			} else if (t.isWord()) {
 				const w = assertDefined(t.assertWord(), "expected word");

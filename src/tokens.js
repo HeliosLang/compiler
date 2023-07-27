@@ -19,7 +19,7 @@ import {
 
 /**
  * Each Token/Expression/Statement has a Site, which encapsulates a position in a Source
- * @package
+ * @internal
  */
 export class Site {
 	#src;
@@ -35,7 +35,8 @@ export class Site {
 	/**
 	 * @param {Source} src 
 	 * @param {number} startPos
-	 * @param {number} endPos 
+	 * @param {number} endPos
+	 * @param {Site | null} codeMapSite
 	 */
 	constructor(src, startPos, endPos = startPos + 1, codeMapSite = null) {
 		this.#src = src;
@@ -59,7 +60,7 @@ export class Site {
 	}
 
 	static dummy() {
-		return new Site(new Source(""), 0);
+		return new Site(new Source("", ""), 0);
 	}
 
 	get src() {
@@ -83,7 +84,7 @@ export class Site {
 	 * @returns {Site}
 	 */
 	merge(other) {
-		return new Site(this.#src, this.#startPos, other.#endPos);
+		return new Site(this.#src, this.#startPos, other.#endPos, this.#codeMapSite ?? other.#codeMapSite);
 	}
 
 	/**
@@ -135,20 +136,6 @@ export class Site {
 	}
 
 	/**
-	 * Returns a RuntimeError
-	 * @param {string} info
-	 * @returns {UserError}
-	 */
-	runtimeError(info = "") {
-		if (this.#codeMapSite !== null) {
-			let site = this.#codeMapSite;
-			return RuntimeError.newRuntimeError(site.#src, site.#startPos, false, info);
-		} else {
-			return RuntimeError.newRuntimeError(this.#src, this.#startPos, true, info);
-		}
-	}
-
-	/**
 	 * Calculates the column,line position in 'this.#src'
 	 * @returns {[number, number, number, number]} - [startLine, startCol, endLine, endCol]
 	 */
@@ -158,6 +145,15 @@ export class Site {
 		const [endLine, endCol] = this.#src.posToLineAndCol(this.#endPos);
 
 		return [startLine, startCol, endLine, endCol];
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		const [startLine, startCol] = this.#src.posToLineAndCol(this.#startPos);
+
+		return `${this.src.name}:${startLine+1}:${startCol+1}`;
 	}
 }
 
@@ -177,6 +173,7 @@ export class Site {
 	#context; // additional context
 
 	/**
+	 * @internal
 	 * @param {string} msg
 	 * @param {Source} src 
 	 * @param {number} startPos 
@@ -191,6 +188,7 @@ export class Site {
 	}
 
 	/**
+	 * @internal
 	 * @param {string} type
 	 * @param {Source} src 
 	 * @param {number} startPos 
@@ -209,6 +207,7 @@ export class Site {
 	}
 
 	/**
+	 * @internal
 	 * @type {Source}
 	 */
 	get src() {
@@ -216,6 +215,7 @@ export class Site {
 	}
 
 	/**
+	 * @internal
 	 * @type {Object}
 	 */
 	get context() {
@@ -224,6 +224,7 @@ export class Site {
 
 	/**
 	 * Constructs a SyntaxError
+	 * @internal
 	 * @param {Source} src 
 	 * @param {number} startPos 
 	 * @param {number} endPos
@@ -240,6 +241,7 @@ export class Site {
 
 	/**
 	 * Constructs a TypeError
+	 * @internal
 	 * @param {Source} src 
 	 * @param {number} startPos 
 	 * @param {number} endPos
@@ -264,6 +266,7 @@ export class Site {
 
 	/**
 	 * Constructs a ReferenceError (i.e. name undefined, or name unused)
+	 * @internal
 	 * @param {Source} src 
 	 * @param {number} startPos 
 	 * @param {number} endPos
@@ -286,11 +289,15 @@ export class Site {
 		return (e instanceof UserError) && e.message.startsWith("ReferenceError");
 	}
 
+	/**
+	 * @internal
+	 */
 	get data() {
 		throw new Error("is error");
 	}
 
 	/**
+	 * @internal
 	 * @type {number}
 	 */
 	get startPos() {
@@ -299,6 +306,7 @@ export class Site {
 
 	/**
 	 * Calculates column/line position in 'this.src'.
+	 * @internal
 	 * @returns {[number, number, number, number]} - [startLine, startCol, endLine, endCol]
 	 */
 	getFilePos() {
@@ -311,6 +319,7 @@ export class Site {
 	/**
 	 * Dumps the error without throwing.
 	 * If 'verbose == true' the Source is also pretty printed with line-numbers.
+	 * @internal
 	 * @param {boolean} verbose 
 	 */
 	dump(verbose = false) {
@@ -351,121 +360,32 @@ export class Site {
 }
 
 /**
- * @typedef {(error: UserError) => void} Throw
+ * Used for errors thrown during Uplc evaluation
  */
-
-/**
- * @package
- */
-export class RuntimeError extends UserError {
-	#isIR; // last trace added
-	#msg;
-	#src;
-	#pos;
-
+export class RuntimeError extends Error {
 	/**
-	 * @param {string} msg 
-	 * @param {Source} src 
-	 * @param {number} pos 
-	 * @param {boolean} isIR
+	 * @type {Object}
 	 */
-	constructor(msg, src, pos, isIR) {
-		super(msg, src, pos);
-		this.#isIR = isIR;
-	}
+	#context; // additional context
 
 	/**
-	 * @type {string}
-	 */
-	get lastMessage() {
-		const lines = this.message.split("\n");
-		const lastLine = lines[lines.length - 1];
-
-		const parts = lastLine.split(":");
-
-		if (parts.length == 1) {
-			return "";
-		} else {
-			return parts[parts.length - 1].trim();
-		}
-	}
-
-	/**
+	 * @internal
 	 * @param {string} msg
-	 * @returns {RuntimeError}
 	 */
-	addMessage(msg) {
-		return new RuntimeError(this.message + `: ${msg}`, this.src, this.startPos, this.#isIR);
+	constructor(msg) {
+		super(msg);
+
+		this.#context = {};
 	}
 
-	/**
-	 * @param {Source} src 
-	 * @param {number} pos 
-	 * @param {boolean} isIR
-	 * @param {string} info
-	 * @returns {RuntimeError}
-	 */
-	static newRuntimeError(src, pos, isIR, info = "") {
-		let line = src.posToLine(pos);
-
-		let msg = `RuntimeError on line ${line + 1}${isIR ? " of IR" : ""}`;
-		if (info != "") {
-			msg += `: ${info}`;
-		}
-
-		return new RuntimeError(msg, src, pos, isIR);
-	}
-
-	/**
-	 * @param {Source} src 
-	 * @param {number} pos 
-	 * @param {boolean} isIR 
-	 * @param {string} info 
-	 * @returns {RuntimeError}
-	 */
-	addTrace(src, pos, isIR, info = "") {
-		if (isIR && !this.#isIR) {
-			return this;
-		}
-
-		let line = src.posToLine(pos);
-
-		let msg = `Trace${info == "" ? ":" : ","} line ${line + 1}`;
-		if (isIR) {
-			msg += " of IR";
-		} 
-
-		let word = src.getWord(pos);
-		if (word !== null && word !== "print") {
-			msg += ` in '${word}'`;
-		}
-
-		if (info != "") {
-			msg += `: ${info}`;
-		}
-
-		
-		msg += "\n" + this.message;
-
-		return new RuntimeError(msg, this.src, this.startPos, isIR);
-	}
-	
-	/**
-	 * @param {Site} site 
-	 * @param {string} info 
-	 * @returns {RuntimeError}
-	 */
-	addTraceSite(site, info = "") {
-		if (site.codeMapSite === null) {
-			return this.addTrace(site.src, site.startPos, true, info);
-		} else {
-			return this.addTrace(site.codeMapSite.src, site.codeMapSite.startPos, false, info);
-		}
+	get context() {
+		return this.#context;
 	}
 }
 
 /**
  * Token is the base class of all Expressions and Statements
+ * @internal
  */
 export class Token {
 	#site;
@@ -606,7 +526,7 @@ export class Token {
 }
 
 /**
- * @package
+ * @internal
  * @param {undefined | null | Token} t
  * @param {Site} site
  * @param {string} msg
@@ -623,7 +543,7 @@ export function assertToken(t, site, msg = "expected token") {
 
 /**
  * A Word token represents a token that matches /[A-Za-z_][A-Za-z_0-9]/
- * @package
+ * @internal
  */
 export class Word extends Token {
 	#value;
@@ -747,7 +667,7 @@ export class Word extends Token {
 
 /**
  * Symbol token represent anything non alphanumeric
- * @package
+ * @internal
  */
 export class SymbolToken extends Token {
 	#value;
@@ -831,7 +751,7 @@ export class SymbolToken extends Token {
 
 /**
  * Group token can '(...)', '[...]' or '{...}' and can contain comma separated fields.
- * @package
+ * @internal
  */
 export class Group extends Token {
 	#type;
@@ -971,7 +891,7 @@ export class Group extends Token {
 
 /**
  * Base class of literal tokens
- * @package
+ * @internal
  */
 export class PrimitiveLiteral extends Token {
 	/**
@@ -991,7 +911,7 @@ export class PrimitiveLiteral extends Token {
 
 /**
  * Signed int literal token
- * @package
+ * @internal
  */
 export class IntLiteral extends PrimitiveLiteral {
 	#value;
@@ -1019,7 +939,7 @@ export class IntLiteral extends PrimitiveLiteral {
 
 /**
  * Fixed point number literal token
- * @package
+ * @internal
  */
 export class RealLiteral extends PrimitiveLiteral {
 	#value;
@@ -1047,7 +967,7 @@ export class RealLiteral extends PrimitiveLiteral {
 
 /**
  * Bool literal token
- * @package
+ * @internal
  */
 export class BoolLiteral extends PrimitiveLiteral {
 	#value;
@@ -1075,7 +995,7 @@ export class BoolLiteral extends PrimitiveLiteral {
 
 /**
  * ByteArray literal token
- * @package
+ * @internal
  */
 export class ByteArrayLiteral extends PrimitiveLiteral {
 	#bytes;
@@ -1100,7 +1020,7 @@ export class ByteArrayLiteral extends PrimitiveLiteral {
 
 /**
  * String literal token (utf8)
- * @package
+ * @internal
  */
 export class StringLiteral extends PrimitiveLiteral {
 	#value;
@@ -1124,19 +1044,19 @@ export class StringLiteral extends PrimitiveLiteral {
 }
 
 /**
- * @package
+ * @internal
  * @typedef {[number, Site][]} CodeMap
  */
 
 /**
- * @package
+ * @internal
  * @typedef {Map<string, IR>} IRDefinitions
  */
 
 /**
  * The IR class combines a string of intermediate representation sourcecode with an optional site.
  * The site is used for mapping IR code to the original source code.
- * @package
+ * @internal
  */
  export class IR {
 	#content;
@@ -1153,7 +1073,7 @@ export class StringLiteral extends PrimitiveLiteral {
 	}
 
     /**
-     * @package
+     * @internal
      * @type {string | IR[]}
      */
 	get content() {
@@ -1161,7 +1081,7 @@ export class StringLiteral extends PrimitiveLiteral {
 	}
 
     /**
-     * @package
+     * @internal
      * @type {?Site}
      */
 	get site() {
@@ -1181,7 +1101,7 @@ export class StringLiteral extends PrimitiveLiteral {
 
 	/**
 	 * Returns a list containing IR instances that themselves only contain strings
-     * @package
+     * @internal
 	 * @returns {IR[]}
 	 */
 	flatten() {
@@ -1203,7 +1123,7 @@ export class StringLiteral extends PrimitiveLiteral {
 
 	/**
 	 * Intersperse nested IR content with a separator
-     * @package
+     * @internal
 	 * @param {string} sep
 	 * @returns {IR}
 	 */
@@ -1234,7 +1154,7 @@ export class StringLiteral extends PrimitiveLiteral {
 	}
 
     /**
-     * @package
+     * @internal
 	 * @returns {[string, CodeMap]}
 	 */
 	generateSource() {
@@ -1277,7 +1197,7 @@ export class StringLiteral extends PrimitiveLiteral {
 	pretty() {
 		const [src, _] = this.generateSource();
 
-		return (new Source(src)).pretty();
+		return (new Source(src, "")).pretty();
 	}
 
 	/**
@@ -1326,7 +1246,7 @@ export class StringLiteral extends PrimitiveLiteral {
 
 	/**
 	 * Wraps 'inner' IR source with some definitions (used for top-level statements and for builtins)
-     * @package
+     * @internal
 	 * @param {IR} inner 
 	 * @param {IRDefinitions} definitions - name -> definition
 	 * @returns {IR}
@@ -1353,27 +1273,27 @@ export class StringLiteral extends PrimitiveLiteral {
 }
 
 /**
- * @package
+ * @internal
  */
 export const RE_IR_PARAMETRIC_NAME = /[a-zA-Z_][a-zA-Z_0-9]*[[][a-zA-Z_0-9@[\]]*/g;
 
 
 /**
  * Type type parameter prefix
- * @package
+ * @internal
  */
 export const TTPP = "__T";
 
 /**
  * Func type parameter prefix
- * @package
+ * @internal
  */
 export const FTPP = "__F";
 
 const RE_TEMPLATE_NAME = new RegExp(`\\b(${TTPP}|${FTPP})[0-9]*\\b`);
 
 /**
- * @package
+ * @internal
  */
 export class IRParametricName {
 	/**

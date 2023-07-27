@@ -2,7 +2,7 @@
 //@ts-check
 
 import * as helios from "../helios.js";
-import { runIfEntryPoint } from "./util.js";
+import { runIfEntryPoint } from "../utils/util.js";
 
 const helios_ = helios.exportedForTesting;
 

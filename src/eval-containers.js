@@ -88,6 +88,7 @@ import {
 
 
 /**
+ * @internal
  * @param {Type[]} itemTypes
  * @returns {Type}
  */
@@ -143,7 +144,7 @@ export function IteratorType$(itemTypes) {
 
 /**
  * Builtin list type
- * @package
+ * @internal
  * @type {Parametric}
  */
 export const ListType = new ParametricType({
@@ -274,6 +275,7 @@ export const ListType = new ParametricType({
 });
 
 /**
+ * @internal
  * @param {Type} itemType 
  * @returns {DataType}
  */
@@ -283,7 +285,7 @@ export function ListType$(itemType) {
 
 /**
  * Builtin map type (in reality list of key-value pairs)
- * @package
+ * @internal
  * @type {Parametric}
  */
 export const MapType = new ParametricType({
@@ -368,6 +370,7 @@ export const MapType = new ParametricType({
 });
 
 /**
+ * @internal
  * @param {Type} keyType 
  * @param {Type} valueType
  * @returns {DataType}
@@ -378,7 +381,7 @@ export function MapType$(keyType, valueType) {
 
 /**
  * Builtin option type
- * @package
+ * @internal
  * @type {Parametric}
  */
 export const OptionType = new ParametricType({
@@ -487,6 +490,7 @@ export const OptionType = new ParametricType({
 });
 
 /**
+ * @internal
  * @param {Type} someType 
  * @returns {DataType}
  */

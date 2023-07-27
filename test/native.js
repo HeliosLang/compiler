@@ -2,7 +2,7 @@
 //@ts-check
 
 import * as helios from "../helios.js";
-import { assert, runIfEntryPoint } from "./util.js";
+import { assert, runIfEntryPoint } from "../utils/util.js";
 
 function checkSerialization(testName, obj, cborHex) {
     try {

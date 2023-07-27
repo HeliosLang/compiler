@@ -2,7 +2,7 @@
 //@ts-check
 import fs from "fs";
 import * as helios from "../helios.js";
-import { correctDir, runIfEntryPoint } from "./util.js";
+import { correctDir, runIfEntryPoint } from "../utils/util.js";
 
 correctDir();
 

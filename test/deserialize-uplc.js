@@ -2,7 +2,7 @@
 //@ts-check
 import * as helios from "../helios.js";
 import { assertEq } from "../src/utils.js";
-import { runIfEntryPoint } from "./util.js";
+import { runIfEntryPoint } from "../utils/util.js";
 
 // CONST_1. Equivalent to text envelope of following bytes: [0b00001011, 0b00010110, 0b00100001, 0b01001000, 0b00000101, 0b10000001]
 const CONST_1         = "47460b1621480581" 

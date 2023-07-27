@@ -16,11 +16,6 @@ import {
 } from "./utils.js";
 
 /**
- * @template T
- * @typedef {import("./utils.js").ExpandAlias<T>} ExpandAlias<T>
- */
-
-/**
  * @typedef {import("./utils.js").hexstring} hexstring
  */
 
@@ -43,6 +38,7 @@ import {
 
 /**
  * Base-type of all data-types that exist both on- and off-chain, and map directly to Helios instances.
+ * @internal
  */
 export class HeliosData extends CborData {
 	constructor() {
@@ -51,7 +47,7 @@ export class HeliosData extends CborData {
 
     /**
      * Name begins with underscore so it can never conflict with structure field names.
-     * @package
+     * @internal
      * @returns {UplcData}
      */
 	_toUplcData() {
@@ -83,8 +79,9 @@ export class HeliosData extends CborData {
 }
 
 /**
+ * Deprecated
+ * @internal
  * @template {HeliosData} T
- *
  * @typedef {{
  *   new(...args: any[]): T
  *   fromUplcCbor: (bytes: (string | number[])) => T
@@ -94,11 +91,13 @@ export class HeliosData extends CborData {
  */
 
 /**
+ * @internal
  * @typedef {number | bigint} HIntProps
  */
 
 /**
  * Helios Int type
+ * @internal
  */
 export class HInt extends HeliosData {
     /**
@@ -107,7 +106,7 @@ export class HInt extends HeliosData {
     #value;
 
     /**
-     * @package
+     * @internal
      * @param {HIntProps} rawValue
      * @returns {bigint}
      */
@@ -122,7 +121,7 @@ export class HInt extends HeliosData {
     }
 
     /**
-     * @param {ExpandAlias<HIntProps>} rawValue
+     * @param {HIntProps} rawValue
      */
     constructor(rawValue) {
         super();
@@ -153,7 +152,7 @@ export class HInt extends HeliosData {
     }
 
     /**
-     * @package
+     * @internal
      * @returns {UplcData}
      */
     _toUplcData() {
@@ -272,15 +271,17 @@ export class HInt extends HeliosData {
 }
 
 /**
+ * @internal
  * @typedef {number | bigint | string | Date} TimeProps
  */
 
 /**
  * Milliseconds since 1 jan 1970
+ * @internal
  */
 export class Time extends HInt {
      /**
-     * @package
+     * @internal
      * @param {TimeProps} props
      * @returns {bigint}
      */
@@ -301,7 +302,7 @@ export class Time extends HInt {
     }
 
     /**
-     * @param {ExpandAlias<TimeProps>} props
+     * @param {TimeProps} props
      */
     constructor(props) {
         super(Time.cleanConstructorArg(props));
@@ -333,11 +334,13 @@ export class Time extends HInt {
 }
 
 /**
+ * @internal
  * @typedef {HIntProps} DurationProps
  */
 
 /**
  * Difference between two time values in milliseconds.
+ * @internal
  */
 export class Duration extends HInt {
 	/**
@@ -365,11 +368,13 @@ export class Duration extends HInt {
 }
 
 /**
+ * @internal
  * @typedef {boolean | string} BoolProps
  */
 
 /**
  * Helios Bool type
+ * @internal
  */
 export class Bool extends HeliosData {
     /**
@@ -378,7 +383,7 @@ export class Bool extends HeliosData {
     #value;
 
     /**
-     * @package
+     * @internal
      * @param {BoolProps} props 
      * @returns {boolean}
      */
@@ -399,7 +404,7 @@ export class Bool extends HeliosData {
     }
 
     /**
-     * @param {ExpandAlias<BoolProps>} props 
+     * @param {BoolProps} props 
      */
     constructor(props) {
         super();
@@ -423,7 +428,7 @@ export class Bool extends HeliosData {
     }
 
     /**
-     * @package
+     * @internal
      * @returns {UplcData}
      */
     _toUplcData() {
@@ -456,12 +461,14 @@ export class Bool extends HeliosData {
 }
 
 /**
+ * @internal
  * @typedef {string} HStringProps
  */
 
 /**
  * Helios String type.
  * Can't be named 'String' because that would interfere with the javascript 'String'-type
+ * @internal
  */
 export class HString extends HeliosData {
     /**
@@ -470,7 +477,7 @@ export class HString extends HeliosData {
     #value;
 
     /**
-     * @param {ExpandAlias<HStringProps>} props 
+     * @param {HStringProps} props 
      */
     constructor(props) {
         super();
@@ -494,7 +501,7 @@ export class HString extends HeliosData {
     }
 
     /**
-     * @package
+     * @internal
      * @returns {UplcData}
      */
     _toUplcData() {
@@ -519,11 +526,13 @@ export class HString extends HeliosData {
 }
 
 /**
+ * @internal
  * @typedef {hexstring | number[]} ByteArrayProps
  */
 
 /**
  * Helios ByteArray type
+ * @internal
  */
 export class ByteArray extends HeliosData {
     /**
@@ -532,7 +541,7 @@ export class ByteArray extends HeliosData {
     #bytes;
 
     /**
-     * @package
+     * @internal
      * @param {ByteArrayProps} props 
      */
     static cleanConstructorArg(props) {
@@ -550,7 +559,7 @@ export class ByteArray extends HeliosData {
     }
 
     /**
-     * @param {ExpandAlias<ByteArrayProps>} props 
+     * @param {ByteArrayProps} props 
      */
     constructor(props) {
         super();
@@ -581,7 +590,7 @@ export class ByteArray extends HeliosData {
     }
 
     /**
-     * @package
+     * @internal
      * @returns {UplcData}
      */
     _toUplcData() {
@@ -630,6 +639,7 @@ export class ByteArray extends HeliosData {
 
 /**
  * Dynamically constructs a new List class, depending on the item type.
+ * @internal
  * @template {HeliosData} T
  * @param {HeliosDataClass<T>} ItemClass
  * @returns {HeliosDataClass<HList_>}
@@ -662,7 +672,7 @@ export function HList(ItemClass) {
         }
 
         /**
-         * @package
+         * @internal
          * @type {string}
          */
         get _listTypeName() {
@@ -671,7 +681,7 @@ export function HList(ItemClass) {
 
         /**
          * Overload 'instanceof' operator
-         * @package
+         * @internal
          * @param {any} other
          * @returns {boolean}
          */
@@ -687,7 +697,7 @@ export function HList(ItemClass) {
         }
 
         /**
-         * @package
+         * @internal
          * @returns {UplcData}
          */
         _toUplcData() {
@@ -720,6 +730,7 @@ export function HList(ItemClass) {
 }
 
 /**
+ * @internal
  * @template {HeliosData} TKey
  * @template {HeliosData} TValue
  * @param {HeliosDataClass<TKey>} KeyClass
@@ -740,7 +751,7 @@ export function HMap(KeyClass, ValueClass) {
         #pairs;
 
         /**
-         * @package
+         * @internal
          * @param {...any} args
          * @returns {[any, any][]}
          */
@@ -826,7 +837,7 @@ export function HMap(KeyClass, ValueClass) {
         }
 
         /**
-         * @package
+         * @internal
          * @type {string}
          */
         get _mapTypeName() {
@@ -835,7 +846,7 @@ export function HMap(KeyClass, ValueClass) {
 
         /**
          * Overload 'instanceof' operator
-         * @package
+         * @internal
          * @param {any} other
          * @returns {boolean}
          */
@@ -851,7 +862,7 @@ export function HMap(KeyClass, ValueClass) {
         }
 
         /**
-         * @package
+         * @internal
          * @returns {UplcData}
          */
         _toUplcData() {
@@ -884,6 +895,7 @@ export function HMap(KeyClass, ValueClass) {
 }
 
 /**
+ * @internal
  * @template {HeliosData} T
  * @param {HeliosDataClass<T>} SomeClass
  * @returns {HeliosDataClass<Option_>}
@@ -901,7 +913,7 @@ export function Option(SomeClass) {
         #value;
 
         /**
-         * @package
+         * @internal
          * @param {?any} rawValue
          * @returns {?T}
          */
@@ -925,7 +937,7 @@ export function Option(SomeClass) {
         }
 
         /**
-         * @package
+         * @internal
          * @type {string}
          */
         get _optionTypeName() {
@@ -934,7 +946,7 @@ export function Option(SomeClass) {
 
         /**
          * Overload 'instanceof' operator
-         * @package
+         * @internal
          * @param {any} other
          * @returns {boolean}
          */
@@ -950,7 +962,7 @@ export function Option(SomeClass) {
         }
 
         /**
-         * @package
+         * @internal
          * @returns {UplcData}
          */
         _toUplcData() {
@@ -993,12 +1005,13 @@ export function Option(SomeClass) {
 }
 
 /**
+ * @internal
  * @typedef {hexstring | number[]} HashProps
  */
 
 /**
  * Base class of all hash-types
- * @package
+ * @internal
  */
 export class Hash extends HeliosData {
 	/** @type {number[]} */
@@ -1017,7 +1030,7 @@ export class Hash extends HeliosData {
 	}
 
 	/**
-	 * @param {ExpandAlias<HashProps>} props 
+	 * @param {HashProps} props 
 	 */
 	constructor(props) {
 		super();
@@ -1109,7 +1122,7 @@ export class Hash extends HeliosData {
 
 export class DatumHash extends Hash {
 	/**
-	 * @param {ExpandAlias<DatumHashProps>} props
+	 * @param {DatumHashProps} props
 	 */
 	constructor(props) {
 		const bytes = Hash.cleanConstructorArg(props);
@@ -1166,7 +1179,7 @@ export class PubKey extends HeliosData {
 	#bytes;
 
 	/**
-	 * @param {ExpandAlias<PubKeyProps>} props 
+	 * @param {PubKeyProps} props 
 	 */
 	constructor(props) {
 		super();
@@ -1206,6 +1219,20 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
+	 * @type {PubKeyHash}
+	 */
+	get pubKeyHash() {
+		return new PubKeyHash(this.hash());
+	}
+
+	/**
+	 * @type {StakeKeyHash}
+	 */
+	get stakeKeyHash() {
+		return new StakeKeyHash(this.hash());
+	}
+
+	/**
 	 * @param {UplcData} data
 	 * @returns {PubKey}
 	 */
@@ -1217,7 +1244,7 @@ export class PubKey extends HeliosData {
 	 * @param {string | number[]} bytes
 	 * @returns {PubKey}
 	 */
-	 static fromUplcCbor(bytes) {
+	static fromUplcCbor(bytes) {
 		return PubKey.fromUplcData(UplcData.fromCbor(bytes));
 	}
 
@@ -1251,10 +1278,10 @@ export class PubKey extends HeliosData {
     }
 
 	/**
-	 * @returns {PubKeyHash}
+	 * @returns {number[]}
 	 */
 	hash() {
-		return new PubKeyHash(Crypto.blake2b(this.#bytes, 28));
+		return Crypto.blake2b(this.#bytes, 28);
 	}
 
 	/**
@@ -1272,7 +1299,7 @@ export class PubKey extends HeliosData {
 export class PubKeyHash extends Hash {
 
 	/**
-	 * @param {ExpandAlias<PubKeyHashProps>} props 
+	 * @param {PubKeyHashProps} props 
 	 */
 	constructor(props) {
 		const bytes = Hash.cleanConstructorArg(props);
@@ -1323,12 +1350,16 @@ export class PubKeyHash extends Hash {
 }
 
 /**
+ * @internal
  * @typedef {HashProps} ScriptHashProps
  */
 
+/**
+ * @internal
+ */
 export class ScriptHash extends Hash {
 	/**
-	 * @param {ExpandAlias<ScriptHashProps>} rawValue
+	 * @param {ScriptHashProps} rawValue
 	 */
 	constructor(rawValue) {
 		const bytes = Hash.cleanConstructorArg(rawValue);
@@ -1351,7 +1382,7 @@ export class ScriptHash extends Hash {
 
 export class MintingPolicyHash extends ScriptHash {
 	/**
-	 * @param {ExpandAlias<MintingPolicyHashProps>} rawValue
+	 * @param {MintingPolicyHashProps} rawValue
 	 */
 	constructor(rawValue) {
 		const bytes = Hash.cleanConstructorArg(rawValue);
@@ -1414,7 +1445,7 @@ export class MintingPolicyHash extends ScriptHash {
 
 export class StakeKeyHash extends Hash {
 	/**
-	 * @param {ExpandAlias<StakeKeyHashProps>} props
+	 * @param {StakeKeyHashProps} props
 	 */
 	constructor(props) {
 		const bytes = Hash.cleanConstructorArg(props);
@@ -1469,7 +1500,7 @@ export class StakeKeyHash extends Hash {
 
 export class StakingValidatorHash extends ScriptHash {
 	/**
-	 * @param {ExpandAlias<StakingValidatorHashProps>} rawValue
+	 * @param {StakingValidatorHashProps} rawValue
 	 */
 	constructor(rawValue) {
 		const bytes = Hash.cleanConstructorArg(rawValue);
@@ -1524,7 +1555,7 @@ export class StakingValidatorHash extends ScriptHash {
 
 export class ValidatorHash extends ScriptHash {
 	/**
-	 * @param {ExpandAlias<ValidatorHashProps>} rawValue
+	 * @param {ValidatorHashProps} rawValue
 	 */
 	constructor(rawValue) {
 		const bytes = Hash.cleanConstructorArg(rawValue);
@@ -1582,7 +1613,7 @@ export class ValidatorHash extends ScriptHash {
  */
 export class TxId extends Hash {
 	/**
-	 * @param {ExpandAlias<TxIdProps>} props 
+	 * @param {TxIdProps} props 
 	 */
 	constructor(props) {
         const bytes = Hash.cleanConstructorArg(props);
@@ -1653,11 +1684,11 @@ export class TxId extends Hash {
 
 /**
  * @typedef {string | [
- * 	 TxId | ExpandAlias<TxIdProps>, 
- *   HInt | ExpandAlias<HIntProps>
+ * 	 TxId | TxIdProps, 
+ *   HInt | HIntProps
  * ] | {
- *   txId: TxId | ExpandAlias<TxIdProps>
- *   utxoId: HInt | ExpandAlias<HIntProps>
+ *   txId: TxId | TxIdProps
+ *   utxoId: HInt | HIntProps
  * }} TxOutputIdProps
  */
 
@@ -1692,7 +1723,7 @@ export class TxOutputId extends HeliosData {
     }
 
     /**
-     * @param {ExpandAlias<TxOutputIdProps>} props
+     * @param {TxOutputIdProps} props
      */
     constructor(props) {
         const [rawTxId, rawUtxoIdx] = TxOutputId.cleanConstructorArgs(props);
@@ -1769,14 +1800,17 @@ export class TxOutputId extends HeliosData {
  */
 
 /**
- * See CIP19 for formatting of first byte
+ * Wrapper for Cardano address bytes. An `Address` consists of three parts internally:
+ *   * Header (1 byte, see [CIP 19](https://cips.cardano.org/cips/cip19/))
+ *   * Witness hash (28 bytes that represent the `PubKeyHash` or `ValidatorHash`)
+ *   * Optional staking credential (0 or 28 bytes)
  */
 export class Address extends HeliosData {
 	/** @type {number[]} */
 	#bytes;
 
     /**
-	 * @package
+	 * @internal
 	 * @param {AddressProps} props
 	 * @returns {number[]}
 	 */
@@ -1797,11 +1831,11 @@ export class Address extends HeliosData {
     }
 
 	/**
-	 * @param {ExpandAlias<AddressProps>} props
+	 * @param {number[] | string} bytesOrBech32String
 	 */
-	constructor(props) {
+	constructor(bytesOrBech32String) {
 		super();
-		this.#bytes = Address.cleanConstructorArg(props);
+		this.#bytes = Address.cleanConstructorArg(bytesOrBech32String);
 
         assert(this.#bytes.length == 29 || this.#bytes.length == 57, `expected 29 or 57 bytes for Address, got ${this.#bytes.length}`);
 	}
@@ -2154,11 +2188,11 @@ export class Address extends HeliosData {
 
 /**
  * @typedef {string | [
- *   MintingPolicyHash | ExpandAlias<MintingPolicyHashProps>,
- *   ByteArray | ExpandAlias<ByteArrayProps>
+ *   MintingPolicyHash | MintingPolicyHashProps,
+ *   ByteArray | ByteArrayProps
  * ] | {
- *   mph: MintingPolicyHash | ExpandAlias<MintingPolicyHashProps>,
- *   tokenName: ByteArray | ExpandAlias<ByteArrayProps>
+ *   mph: MintingPolicyHash | MintingPolicyHashProps,
+ *   tokenName: ByteArray | ByteArrayProps
  * }} AssetClassProps
  */
 
@@ -2194,7 +2228,7 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
-	 * @param {ExpandAlias<AssetClassProps>} props
+	 * @param {AssetClassProps} props
 	 */
 	constructor(props) {
 		super();
@@ -3158,7 +3192,7 @@ export class Value extends HeliosData {
 
 			if (mphBytes.length == 0) {
 				//lovelace
-				assert(innerMap.length == 1 && innerMap[0][0].bytes.length == 0); 
+				assert(innerMap.length == 1 && innerMap[0][0].bytes.length == 0, `bad ada token map`); 
 				sum = sum.add(new Value({lovelace: innerMap[0][1].int}));
 			} else {
 				// other assets

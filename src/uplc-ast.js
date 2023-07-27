@@ -80,7 +80,7 @@ export class UplcValue {
 
 	/**
 	 * Return a copy of the UplcValue at a different Site.
-     * @package
+     * @internal
 	 * @param {Site} newSite 
 	 * @returns {UplcValue}
 	 */
@@ -89,7 +89,7 @@ export class UplcValue {
 	}
 
     /**
-     * @package
+     * @internal
      * @type {Site}
      */
 	get site() {
@@ -97,7 +97,7 @@ export class UplcValue {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @type {number}
 	 */
 	get length() {
@@ -106,7 +106,7 @@ export class UplcValue {
 
 	/**
 	 * Size in words (8 bytes, 64 bits) occupied in target node
-     * @package
+     * @internal
 	 * @type {number}
 	 */
 	get memSize() {
@@ -115,7 +115,7 @@ export class UplcValue {
 
 	/**
 	 * Throws an error because most values can't be called (overridden by UplcAnon)
-     * @package
+     * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @param {Site} site 
 	 * @param {UplcValue} value
@@ -126,12 +126,19 @@ export class UplcValue {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
 	async eval(rte) {
 		return this;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isAny() {
+		return false;
 	}
 
 	/**
@@ -221,7 +228,7 @@ export class UplcValue {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @returns {Promise<UplcValue>}
 	 */
 	force() {
@@ -229,7 +236,7 @@ export class UplcValue {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @returns {UplcUnit}
 	 */
 	assertUnit() {
@@ -244,7 +251,7 @@ export class UplcValue {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @returns {string}
 	 */
 	typeBits() {
@@ -253,7 +260,7 @@ export class UplcValue {
 
 	/**
 	 * Encodes value without type header
-     * @package
+     * @internal
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValueInternal(bitWriter) {
@@ -263,7 +270,7 @@ export class UplcValue {
 	/**
 	 * Encodes value with plutus flat encoding.
 	 * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
-     * @package
+     * @internal
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValue(bitWriter) {
@@ -273,6 +280,9 @@ export class UplcValue {
 	}
 }
 
+/**
+ * Represents the typeBits of a UPLC primitive.
+ */
 export class UplcType {
 	#typeBits;
 
@@ -346,17 +356,18 @@ export class UplcType {
 }
 
 /**
- * @package
- * @typedef {[?string, UplcValue][]} UplcRawStack
+ * @internal
+ * @typedef {[null | string, UplcValue][]} UplcRawStack
  */
 
 /**
+ * @internal
  * @typedef {{
  *	 onPrint: (msg: string) => Promise<void>
  *   onStartCall: (site: Site, rawStack: UplcRawStack) => Promise<boolean>
  *   onEndCall: (site: Site, rawStack: UplcRawStack) => Promise<void>
  *   onIncrCost: (name: string, isTerm: boolean, cost: Cost) => void
- *   macros?: {[name: string]: (args: UplcValue[]) => UplcValue}
+ *   macros?: {[name: string]: (rte: UplcRte, args: UplcValue[]) => Promise<UplcValue>}
  * }} UplcRTECallbacks
  */
 
@@ -372,7 +383,7 @@ export const DEFAULT_UPLC_RTE_CALLBACKS = {
 
 /**
  * Plutus-core Runtime Environment is used for controlling the programming evaluation (eg. by a debugger)
- * @package
+ * @internal
  */
 export class UplcRte {
 	#callbacks;
@@ -392,14 +403,27 @@ export class UplcRte {
 	#marker;
 
 	/**
-	 * @type {string}
+	 * @type {string[]}
 	 */
-	#lastMessage;
+	#messages;
 
 	/**
-	 * @typedef {[null | string, UplcValue][]} UplcRawStack
+	 * @type {string | RuntimeError}
 	 */
+	#error;
 
+	// cache the costs for quicker lookup
+	#startupCost;
+	#variableCost;
+	#lambdaCost;
+	#delayCost;
+	#callCost;
+	#constCost;
+	#forceCost;
+	#builtinCost;
+
+
+	
 	/**
 	 * @param {UplcRTECallbacks} callbacks 
 	 * @param {null | NetworkParams} networkParams
@@ -410,14 +434,54 @@ export class UplcRte {
 		this.#networkParams = networkParams;
 		this.#notifyCalls = true;
 		this.#marker = null;
-		this.#lastMessage = "";
+		this.#messages = [];
+		this.#error = "";
+
+		this.#startupCost = networkParams?.plutusCoreStartupCost ?? {mem: 0n, cpu: 0n};
+		this.#variableCost = networkParams?.plutusCoreVariableCost ?? {mem: 0n, cpu: 0n};
+		this.#lambdaCost = networkParams?.plutusCoreLambdaCost ?? {mem: 0n, cpu: 0n};
+		this.#delayCost = networkParams?.plutusCoreDelayCost ?? {mem: 0n, cpu: 0n};
+		this.#callCost = networkParams?.plutusCoreCallCost ?? {mem: 0n, cpu: 0n};
+		this.#constCost = networkParams?.plutusCoreConstCost ?? {mem: 0n, cpu: 0n};
+		this.#forceCost = networkParams?.plutusCoreForceCost ?? {mem: 0n, cpu: 0n};
+		this.#builtinCost = networkParams?.plutusCoreBuiltinCost ?? {mem: 0n, cpu: 0n};
 	}
 
 	/**
-	 * @type {string}
+	 * @type {string[]}
 	 */
-	get lastMessage() {
-		return this.#lastMessage;
+	get messages() {
+		return this.#messages;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	popLastMessage() {
+		return this.#messages.pop() ?? "";
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	hasError() {
+		return this.#error != "";
+	}
+
+	/**
+	 * @returns {string | RuntimeError}
+	 */
+	getError() {
+		return this.#error;
+	}
+
+	/**
+	 * @param {string | RuntimeError} err 
+	 * @returns {UplcValue}
+	 */
+	error(err) {
+		this.#error = err;
+		return new UplcAny(Site.dummy());
 	}
 
 	/**
@@ -437,49 +501,49 @@ export class UplcRte {
 
 	incrStartupCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost("startup", true, this.#networkParams.plutusCoreStartupCost);
+			this.incrCost("startup", true, this.#startupCost);
 		}
 	}
 
 	incrVariableCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost("variable", true, this.#networkParams.plutusCoreVariableCost);
+			this.incrCost("variable", true, this.#variableCost);
 		}
 	}
 
 	incrLambdaCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost("lambda", true, this.#networkParams.plutusCoreLambdaCost);
+			this.incrCost("lambda", true, this.#lambdaCost);
 		}
 	}
 
 	incrDelayCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost("delay", true, this.#networkParams.plutusCoreDelayCost);
+			this.incrCost("delay", true, this.#delayCost);
 		}
 	}
 
 	incrCallCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost("call", true, this.#networkParams.plutusCoreCallCost);
+			this.incrCost("call", true, this.#callCost);
 		}
 	}
 
 	incrConstCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost("const", true, this.#networkParams.plutusCoreConstCost);
+			this.incrCost("const", true, this.#constCost);
 		}
 	}
 
 	incrForceCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost("force", true, this.#networkParams.plutusCoreForceCost);
+			this.incrCost("force", true, this.#forceCost);
 		}
 	}
 
 	incrBuiltinCost() {
 		if (this.#networkParams !== null) {
-			this.incrCost("builtin", true, this.#networkParams.plutusCoreBuiltinCost);
+			this.incrCost("builtin", true, this.#builtinCost);
 		}
 	}
 
@@ -500,8 +564,21 @@ export class UplcRte {
 	 * @param {UplcValue[]} args 
 	 * @returns {Promise<UplcValue>}
 	 */
-	async callMacro(name, args) {
-		return assertDefined(await assertDefined(this.#callbacks.macros)[name])(args);
+	callMacro(name, args) {
+		const macros = this.#callbacks.macros;
+
+		if (!macros) {
+			// use RuntimeError so that IR evalConstants method can fail safely when optimizing
+			throw new RuntimeError("macros not avaiable");
+		}
+
+		const macro = macros[name];
+
+		if (!macro) {
+			throw new Error(`macro ${name} not found`);
+		}
+
+		return macro(this, args);
 	}
 
 	/**
@@ -525,15 +602,19 @@ export class UplcRte {
 
 	/**
 	 * Calls the print callback (or does nothing if print callback isn't defined)
-	 * @param {string} msg 
+	 * @param {string | string[]} rawMsg 
 	 * @returns {Promise<void>}
 	 */
-	async print(msg) {
+	async print(rawMsg) {
+		const lines = Array.isArray(rawMsg) ? rawMsg : [rawMsg];
+
 		if (this.#callbacks.onPrint != undefined) {
-			await this.#callbacks.onPrint(msg);
+			for (let l of lines) {
+				this.#callbacks.onPrint(l);
+			}
 		}
 
-		this.#lastMessage = msg;
+		this.#messages = this.#messages.concat(lines);
 	}
 
 	/**
@@ -736,7 +817,7 @@ class UplcStack {
 	 * @param {UplcRawStack} rawStack
 	 * @param {UplcValue} result
 	 * @returns {Promise<void>}
-	*/
+	 */
 	async endCall(site, rawStack, result) {
 		if (this.#parent !== null) {
 			await this.#parent.endCall(site, rawStack, result);
@@ -745,7 +826,7 @@ class UplcStack {
 
 	/** 
 	 * @returns {UplcRawStack}
-	*/
+	 */
 	toList() {
 		let lst = this.#parent !== null ? this.#parent.toList() : [];
 		if (this.#value !== null) {
@@ -756,21 +837,140 @@ class UplcStack {
 }
 
 /**
+ * Allows doing a dummy eval of a UplcProgram in order to determine some non-changing properties (eg. the address fetched via the network in a LinkingProgram)
+ * @internal
+ */
+export class UplcAny extends UplcValue {
+	/**
+	 * @param {Site} site 
+	 */
+	constructor(site) {
+		super(site);
+	}
+
+	/**
+	 * Should never be part of the uplc ast
+	 * @param {TransferUplcAst} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		throw new Error("not expected to be part of Uplc ast");
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get memSize() {
+		return 1;
+	}
+
+	/**
+	 * @param {Site} newSite 
+	 * @returns {UplcAny}
+	 */
+	copy(newSite) {
+		return new UplcAny(
+			newSite
+		);
+	}
+
+	/**
+	 * @param {UplcRte | UplcStack} rte 
+	 * @param {Site} site 
+	 * @param {UplcValue} value 
+	 * @returns {Promise<UplcValue>}
+	 */
+	async call(rte, site, value) {
+		return new UplcAny(site);
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isAny() {
+		return true;
+	}
+
+	/**
+	 * @type {UplcValue}
+	 */
+	get first() {
+		return this;
+	}
+
+	/**
+	 * @type {UplcValue}
+	 */
+	get second() {
+		return this;
+	}
+
+	/**
+     * @internal
+	 * @returns {Promise<UplcValue>}
+	 */
+	force() {
+		return new Promise((resolve, _) => resolve(this));
+	}
+
+	/**
+     * @internal
+	 * @returns {UplcUnit}
+	 */
+	assertUnit() {
+		return new UplcUnit(this.site);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return "Any";
+	}
+}
+
+/**
+ * @internal
+ * @typedef {(callSite: Site, subStack: UplcStack, ...args: UplcValue[]) => (UplcValue | Promise<UplcValue>)} UplcAnonCallback
+ */
+
+/**
+ * @internal
+ * @typedef {{
+ *   rte: UplcRte | UplcStack
+ *   nArgs?: number
+ *   argNames?: string[]
+ *   argCount?: number
+ *   fn: UplcAnonCallback
+ *   callSite?: Site
+ *   allowAnyArgs?: boolean
+ * }} UplcAnonProps
+ */
+
+/**
  * Anonymous Plutus-core function.
  * Returns a new UplcAnon whenever it is called/applied (args are 'accumulated'), except final application, when the function itself is evaluated.
- * @package
+ * @internal
  */
 export class UplcAnon extends UplcValue {
 	/**
-	 * @typedef {(callSite: Site, subStack: UplcStack, ...args: UplcValue[]) => (UplcValue | Promise<UplcValue>)} UplcAnonCallback
+	 * @type {UplcRte | UplcStack}
 	 */
-
 	#rte;
+
+	/**
+	 * @type {number}
+	 */
 	#nArgs;
+
+	/**
+	 * @type {string[] | null}
+	 */
 	#argNames;
 
 	/**
 	 * Increment every time function a new argument is applied.
+	 * @type {number}
 	 */
 	#argCount;
 
@@ -779,41 +979,46 @@ export class UplcAnon extends UplcValue {
 	 * @type {UplcAnonCallback}
 	 */
 	#fn;
+
+	/**
+	 * @type {Site | null}
+	 */
 	#callSite;
+
+	/**
+	 * @type {boolean}
+	 */
+	#allowAnyArgs;
 
 	/**
 	 * 
 	 * @param {Site} site 
-	 * @param {UplcRte | UplcStack} rte 
-	 * @param {string[] | number} args - args can be list of argNames (for debugging), or the number of args
-	 * @param {UplcAnonCallback} fn 
-	 * @param {number} argCount 
-	 * @param {?Site} callSite 
+	 * @param {UplcAnonProps} props
 	 */
-	constructor(site, rte, args, fn, argCount = 0, callSite = null) {
+	constructor(site, props) {
 		super(site);
-		assert(typeof argCount == "number");
 
-		let nArgs = 0;
-		/** @type {?string[]} */
-		let argNames = null;
-		if ((typeof args != 'number')) {
-			if (args instanceof Array) {
-				nArgs = args.length;
-				argNames = args;
-			} else {
-				throw new Error("not an Array");
+		this.#argCount = props.argCount === undefined ? 0 : props.argCount;
+		assert(typeof this.#argCount == "number");
+
+		if (props.argNames !== undefined) {
+			this.#argNames = props.argNames
+			this.#nArgs = props.argNames.length
+
+			if (props.nArgs !== undefined) {
+				assert(props.nArgs == props.argNames.length);
 			}
+		} else if (props.nArgs !== undefined) {
+			this.#nArgs = props.nArgs;
+			this.#argNames = null;
 		} else {
-			nArgs = args;
+			throw new Error("either nArgs or argNames must be set")
 		}
 
-		this.#rte = rte;
-		this.#nArgs = nArgs;
-		this.#argNames = argNames;
-		this.#argCount = argCount;
-		this.#fn = fn;
-		this.#callSite = callSite;
+		this.#rte = props.rte;
+		this.#fn = props.fn;
+		this.#callSite = props.callSite ?? null;
+		this.#allowAnyArgs = props.allowAnyArgs !== undefined ? props.allowAnyArgs : false;
 	}
 
 	/**
@@ -825,6 +1030,9 @@ export class UplcAnon extends UplcValue {
 		throw new Error("not expected to be part of uplc ast");
 	}
 
+	/**
+	 * @type {number}
+	 */
 	get memSize() {
 		return 1;
 	}
@@ -835,12 +1043,15 @@ export class UplcAnon extends UplcValue {
 	 */
 	copy(newSite) {
 		return new UplcAnon(
-			newSite,
-			this.#rte,
-			this.#argNames !== null ? this.#argNames : this.#nArgs,
-			this.#fn,
-			this.#argCount,
-			this.#callSite,
+			newSite, {
+				rte: this.#rte,
+				argNames: this.#argNames !== null ? this.#argNames : undefined,
+				fn: this.#fn,
+				nArgs: this.#nArgs,
+				argCount: this.#argCount,
+				callSite: this.#callSite ?? undefined,
+				allowAnyArgs: this.#allowAnyArgs
+			}
 		);
 	}
 
@@ -851,7 +1062,11 @@ export class UplcAnon extends UplcValue {
 	 * @returns {UplcValue | Promise<UplcValue>}
 	 */
 	callSync(callSite, subStack, args) {
-		return this.#fn(callSite, subStack, ...args);
+		if (!this.#allowAnyArgs && args.some(a => a.isAny())) {
+			return new UplcAny(callSite);
+		} else {
+			return assertDefined(this.#fn(callSite, subStack, ...args));
+		}
 	}
 
 	/**
@@ -883,34 +1098,29 @@ export class UplcAnon extends UplcValue {
 			// notify the RTE of the new live stack (list of pairs instead of UplcStack), and await permission to continue
 			await this.#rte.startCall(callSite, rawStack);
 
-			try {
-				let result = this.callSync(callSite, subStack, args);
+			let result = this.callSync(callSite, subStack, args);
 
-				if (result instanceof Promise) {
-					result = await result;
-				}
-	
-				// the same rawStack object can be used as a marker for 'Step-Over' in the debugger
-				await this.#rte.endCall(callSite, rawStack, result);
-	
-				return result.copy(callSite);
-			} catch(e) {
-				// TODO: better trace
-				if (e instanceof RuntimeError) {
-					e = e.addTraceSite(callSite);
-				}
-
-				throw e;
+			if (result instanceof Promise) {
+				result = await result;
 			}
+
+			// the same rawStack object can be used as a marker for 'Step-Over' in the debugger
+			await this.#rte.endCall(callSite, rawStack, result);
+
+			return result.copy(callSite);
 		} else {
 			// function isn't yet fully applied, return a new partially applied UplcAnon
 			return new UplcAnon(
 				callSite,
-				subStack,
-				this.#argNames !== null ? this.#argNames : this.#nArgs,
-				this.#fn,
-				argCount,
-				callSite,
+				{
+					rte: subStack,
+					argNames: this.#argNames !== null ? this.#argNames : undefined,
+					nArgs: this.#nArgs,
+					fn: this.#fn,
+					argCount: argCount,
+					callSite: callSite,
+					allowAnyArgs: this.#allowAnyArgs
+				}
 			);
 		}
 	}
@@ -941,7 +1151,7 @@ export class UplcAnon extends UplcValue {
 }
 
 /**
- * @package
+ * @internal
  */
 export class UplcDelayedValue extends UplcValue {
 	#evaluator;
@@ -1016,8 +1226,17 @@ export class UplcDelayedValue extends UplcValue {
  * Plutus-core Integer class
  */
 export class UplcInt extends UplcValue {
-	#value;
-	#signed;
+	/**
+	 * @readonly
+	 * @type {bigint}
+	 */
+	value;
+
+	/**
+	 * @readonly
+	 * @type {boolean}
+	 */
+	signed;
 
 	/**
 	 * @param {Site} site
@@ -1027,8 +1246,8 @@ export class UplcInt extends UplcValue {
 	constructor(site, value, signed = true) {
 		super(site);
 		assert(typeof value == 'bigint', "not a bigint");
-		this.#value = value;
-		this.#signed = signed;
+		this.value = value;
+		this.signed = signed;
 	}
 
 	/**
@@ -1052,13 +1271,9 @@ export class UplcInt extends UplcValue {
 	transfer(other) {
 		return other.transferUplcInt(
 			this.site.transfer(other),
-			this.#value,
-			this.#signed
+			this.value,
+			this.signed
 		);
-	}
-
-	get signed() {
-		return this.#signed;
 	}
 
 	/**
@@ -1075,7 +1290,7 @@ export class UplcInt extends UplcValue {
 	 * @type {number}
 	 */
 	get memSize() {
-        return IntData.memSizeInternal(this.#value);
+        return IntData.memSizeInternal(this.value);
 	}
 
 	/**
@@ -1083,14 +1298,14 @@ export class UplcInt extends UplcValue {
 	 * @returns {UplcInt}
 	 */
 	copy(newSite) {
-		return new UplcInt(newSite, this.#value, this.#signed);
+		return new UplcInt(newSite, this.value, this.signed);
 	}
 
 	/**
 	 * @type {bigint}
 	 */
 	get int() {
-		return this.#value;
+		return this.value;
 	}
 
 	/**
@@ -1147,11 +1362,11 @@ export class UplcInt extends UplcValue {
 	 * @returns {UplcInt}
 	 */
 	toUnsigned() {
-		if (this.#signed) {
-			if (this.#value < 0n) {
-				return new UplcInt(this.site, -this.#value*2n - 1n, false);
+		if (this.signed) {
+			if (this.value < 0n) {
+				return new UplcInt(this.site, -this.value*2n - 1n, false);
 			} else {
-				return new UplcInt(this.site, this.#value * 2n, false);
+				return new UplcInt(this.site, this.value * 2n, false);
 			}
 		} else {
 			return this;
@@ -1165,13 +1380,13 @@ export class UplcInt extends UplcValue {
 	 * @returns {UplcInt}
 	*/
 	toSigned() {
-		if (this.#signed) {
+		if (this.signed) {
 			return this;
 		} else {
-			if (this.#value % 2n == 0n) {
-				return new UplcInt(this.site, this.#value / 2n, true);
+			if (this.value % 2n == 0n) {
+				return new UplcInt(this.site, this.value / 2n, true);
 			} else {
-				return new UplcInt(this.site, -(this.#value + 1n) / 2n, true);
+				return new UplcInt(this.site, -(this.value + 1n) / 2n, true);
 			}
 		}
 	}
@@ -1180,7 +1395,7 @@ export class UplcInt extends UplcValue {
 	 * @returns {string}
 	 */
 	toString() {
-		return this.#value.toString();
+		return this.value.toString();
 	}
 
 	/**
@@ -1188,7 +1403,7 @@ export class UplcInt extends UplcValue {
 	 */
 	toFlatInternal(bitWriter) {
 		let zigzag = this.toUnsigned();
-		let bitString = padZeroes(zigzag.#value.toString(2), 7);
+		let bitString = padZeroes(zigzag.value.toString(2), 7);
 
 		// split every 7th
 		let parts = [];
@@ -1216,7 +1431,7 @@ export class UplcInt extends UplcValue {
 	 * @param {BitWriter} bitWriter 
 	 */
 	toFlatUnsigned(bitWriter) {
-		assert(!this.#signed);
+		assert(!this.signed);
 
 		this.toFlatInternal(bitWriter);
 	}
@@ -1232,7 +1447,7 @@ export class UplcInt extends UplcValue {
 	 * @param {BitWriter} bitWriter 
 	 */
 	toFlatValueInternal(bitWriter) {
-		assert(this.#signed);
+		assert(this.signed);
 
 		this.toFlatInternal(bitWriter);
 	}
@@ -1988,7 +2203,7 @@ export class UplcDataValue extends UplcValue {
 
 /**
  * Base class of Plutus-core terms
- * @package
+ * @internal
  */
 export class UplcTerm {
 	#site;
@@ -2002,6 +2217,13 @@ export class UplcTerm {
 		assert(site != undefined && site instanceof Site);
 		this.#site = site;
 		this.#type = type;
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get type() {
+		return this.#type;
 	}
 
 	/**
@@ -2035,22 +2257,27 @@ export class UplcTerm {
 	async eval(rte) {
 		throw new Error("not yet implemented");
 	}
-
+	
 	/**
 	 * Writes bits of flat encoded Plutus-core terms to bitWriter. Doesn't return anything.
 	 * @param {BitWriter} bitWriter 
+	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
-	toFlat(bitWriter) {
+	toFlat(bitWriter, codeMapFileIndices = null) {
 		throw new Error("not yet implemented");
 	}
 }
 
 /**
  * Plutus-core variable ref term (index is a Debruijn index)
- * @package
+ * @internal
  */
 export class UplcVariable extends UplcTerm {
-	#index;
+	/**
+	 * @readonly
+	 * @type {UplcInt}
+	 */
+	index;
 
 	/**
 	 * @param {Site} site 
@@ -2058,7 +2285,7 @@ export class UplcVariable extends UplcTerm {
 	 */
 	constructor(site, index) {
 		super(site, 0);
-		this.#index = index;
+		this.index = index;
 	}
 
 	/**
@@ -2067,7 +2294,7 @@ export class UplcVariable extends UplcTerm {
 	transfer(other) {
 		return other.transferUplcVariable(
 			this.site.transfer(other),
-			this.#index.transfer(other)
+			this.index.transfer(other)
 		);
 	}
 
@@ -2075,15 +2302,16 @@ export class UplcVariable extends UplcTerm {
 	 * @returns {string}
 	 */
 	toString() {
-		return `x${this.#index.toString()}`;
+		return `x${this.index.toString()}`;
 	}
 
 	/**
 	 * @param {BitWriter} bitWriter 
+	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
-	toFlat(bitWriter) {
+	toFlat(bitWriter, codeMapFileIndices = null) {
 		bitWriter.write('0000');
-		this.#index.toFlatUnsigned(bitWriter);
+		this.index.toFlatUnsigned(bitWriter);
 	}
 
 	/**
@@ -2094,16 +2322,35 @@ export class UplcVariable extends UplcTerm {
 		// add costs before get the value
 		rte.incrVariableCost();
 
-		return rte.get(Number(this.#index.int));
+		return rte.get(Number(this.index.int));
+	}
+
+	/**
+	 * @param {UplcRte} rte
+	 * @param {UplcFrame[]} stack
+	 * @param {ComputingState} state
+	 * @returns {CekState}
+	 */
+	computeCek(rte, stack, state) {
+		rte.incrVariableCost();
+        const i = Number(this.index.value);
+
+		const v = state.env.values[state.env.values.length - i];
+
+        return {reducing: v};
 	}
 }
 
 /**
  * Plutus-core delay term.
- * @package
+ * @internal
  */
 export class UplcDelay extends UplcTerm {
-	#expr;
+	/**
+	 * @readonly
+	 * @type {UplcTerm}
+	 */
+	expr;
 
 	/**
 	 * @param {Site} site 
@@ -2111,7 +2358,7 @@ export class UplcDelay extends UplcTerm {
 	 */
 	constructor(site, expr) {
 		super(site, 1);
-		this.#expr = expr;
+		this.expr = expr;
 	}
 
 	/**
@@ -2121,7 +2368,7 @@ export class UplcDelay extends UplcTerm {
 	transfer(other) {
 		return other.transferUplcDelay(
 			this.site.transfer(other),
-			this.#expr.transfer(other)
+			this.expr.transfer(other)
 		);
 	}
 
@@ -2129,15 +2376,16 @@ export class UplcDelay extends UplcTerm {
 	 * @returns {string} 
 	 */
 	toString() {
-		return `(delay ${this.#expr.toString()})`;
+		return `(delay ${this.expr.toString()})`;
 	}
 
 	/**
 	 * @param {BitWriter} bitWriter 
+	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
-	toFlat(bitWriter) {
+	toFlat(bitWriter, codeMapFileIndices = null) {
 		bitWriter.write('0001');
-		this.#expr.toFlat(bitWriter);
+		this.expr.toFlat(bitWriter, codeMapFileIndices);
 	}
 
 	/**
@@ -2147,26 +2395,42 @@ export class UplcDelay extends UplcTerm {
 	async eval(rte) {
 		rte.incrDelayCost();
 
-		return new UplcDelayedValue(this.site, () =>  this.#expr.eval(rte));
+		return new UplcDelayedValue(this.site, () =>  this.expr.eval(rte));
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack
+	 * @param {ComputingState} state 
+	 * @returns {CekState}
+	 */
+	computeCek(rte, stack, state) {
+		rte.incrDelayCost();
+		return {reducing: new UplcDelayWithEnv(this, state.env)};
 	}
 }
 
 /**
  * Plutus-core lambda term
- * @package
+ * @internal
  */
 export class UplcLambda extends UplcTerm {
-	#rhs;
+	/**
+	 * @readonly
+	 * @type {UplcTerm}
+	 */
+	expr;
+
 	#argName;
 
 	/**
 	 * @param {Site} site
-	 * @param {UplcTerm} rhs
+	 * @param {UplcTerm} expr
 	 * @param {null | string} argName
 	 */
-	constructor(site, rhs, argName = null) {
+	constructor(site, expr, argName = null) {
 		super(site, 2);
-		this.#rhs = rhs;
+		this.expr = expr;
 		this.#argName = argName;
 	}
 
@@ -2177,7 +2441,7 @@ export class UplcLambda extends UplcTerm {
 	transfer(other) {
 		return other.transferUplcLambda(
 			this.site.transfer(other),
-			this.#rhs.transfer(other),
+			this.expr.transfer(other),
 			this.#argName
 		);
 	}
@@ -2187,15 +2451,16 @@ export class UplcLambda extends UplcTerm {
 	 * @returns {string}
 	 */
 	toString() {
-		return `(\u039b${this.#argName !== null ? " " + this.#argName + " ->" : ""} ${this.#rhs.toString()})`;
+		return `(\u039b${this.#argName !== null ? " " + this.#argName + " ->" : ""} ${this.expr.toString()})`;
 	}
 
 	/**
 	 * @param {BitWriter} bitWriter 
+	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
-	toFlat(bitWriter) {
+	toFlat(bitWriter, codeMapFileIndices = null) {
 		bitWriter.write('0010');
-		this.#rhs.toFlat(bitWriter);
+		this.expr.toFlat(bitWriter, codeMapFileIndices);
 	}
 
 	/**
@@ -2205,29 +2470,62 @@ export class UplcLambda extends UplcTerm {
 	async eval(rte) {
 		rte.incrLambdaCost();
 
-		return new UplcAnon(this.site, rte, this.#argName !== null ? [this.#argName] : 1, (callSite, subStack) => {
-			return this.#rhs.eval(subStack);
+		return new UplcAnon(this.site, {
+			rte: rte, 
+			argNames: this.#argName !== null ? [this.#argName] : undefined, 
+			nArgs: 1,
+			fn: (callSite, subStack) => {
+				return this.expr.eval(subStack);
+			},
+			allowAnyArgs: true
 		});
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack
+	 * @param {ComputingState} state 
+	 * @returns {CekState}
+	 */
+	computeCek(rte, stack, state) {
+		rte.incrLambdaCost();
+		return {reducing: new UplcLambdaWithEnv(this, state.env)};
 	}
 }
 
 /**
  * Plutus-core function application term (i.e. function call)
- * @package
+ * @internal
  */
 export class UplcCall extends UplcTerm {
-	#a;
-	#b;
+	/**
+	 * @readonly
+	 * @type {UplcTerm}
+	 */
+	fn;
+
+	/**
+	 * @readonly
+	 * @type {UplcTerm}
+	 */
+	arg;
 
 	/**
 	 * @param {Site} site
-	 * @param {UplcTerm} a
-	 * @param {UplcTerm} b
+	 * @param {UplcTerm} fn
+	 * @param {UplcTerm} arg
 	 */
-	constructor(site, a, b) {
+	constructor(site, fn, arg) {
 		super(site, 3);
-		this.#a = a;
-		this.#b = b;
+		this.fn = fn;
+		this.arg = arg;
+	}
+
+	/**
+	 * @type {Site}
+	 */
+	get callSite() {
+		return this.site;
 	}
 
 	/**
@@ -2237,8 +2535,8 @@ export class UplcCall extends UplcTerm {
 	transfer(other) {
 		return other.transferUplcCall(
 			this.site.transfer(other),
-			this.#a.transfer(other),
-			this.#b.transfer(other)
+			this.fn.transfer(other),
+			this.arg.transfer(other)
 		);
 	}
 
@@ -2246,16 +2544,26 @@ export class UplcCall extends UplcTerm {
 	 * @returns {string}
 	 */
 	toString() {
-		return `[${this.#a.toString()} ${this.#b.toString()}]`;
+		return `[${this.fn.toString()} ${this.arg.toString()}]`;
 	}
 
 	/**
 	 * @param {BitWriter} bitWriter 
+	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
-	toFlat(bitWriter) {
-		bitWriter.write('0011');
-		this.#a.toFlat(bitWriter);
-		this.#b.toFlat(bitWriter);
+	toFlat(bitWriter, codeMapFileIndices = null) {
+		if (codeMapFileIndices && this.site.codeMapSite) {
+			bitWriter.write('1011');
+			
+			const site = this.site.codeMapSite;
+			(new UplcInt(site, BigInt(assertDefined(codeMapFileIndices.get(site.src.name))), false)).toFlatUnsigned(bitWriter);
+			(new UplcInt(site, BigInt(site.startPos), false)).toFlatUnsigned(bitWriter);
+		} else {
+			bitWriter.write('0011');
+		}
+
+		this.fn.toFlat(bitWriter, codeMapFileIndices);
+		this.arg.toFlat(bitWriter, codeMapFileIndices);
 	}
 
 	/**
@@ -2265,19 +2573,36 @@ export class UplcCall extends UplcTerm {
 	async eval(rte) {
 		rte.incrCallCost();
 
-		let fn = await this.#a.eval(rte);
-		let arg = await this.#b.eval(rte);
+		let fn = await this.fn.eval(rte);
+		let arg = await this.arg.eval(rte);
 
 		return await fn.call(rte, this.site, arg);
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ComputingState} state 
+	 * @returns {CekState}
+	 */
+	computeCek(rte, stack, state) {
+		rte.incrCallCost();
+
+        stack.push(new PreCallFrame(this, state.env));
+        return {computing: this.fn, env: state.env};
 	}
 }
 
 /**
  * Plutus-core const term (i.e. a literal in conventional sense)
- * @package
+ * @internal
  */
 export class UplcConst extends UplcTerm {
-	#value;
+	/**
+	 * @readonly
+	 * @type {UplcValue}
+	 */
+	value;
 
 	/**
 	 * @param {UplcValue} value 
@@ -2285,7 +2610,7 @@ export class UplcConst extends UplcTerm {
 	constructor(value) {
 		super(value.site, 4);
 
-		this.#value = value;
+		this.value = value;
 
 		if (value instanceof UplcInt) {
 			assert(value.signed);
@@ -2298,30 +2623,24 @@ export class UplcConst extends UplcTerm {
 	 */
 	transfer(other) {
 		return other.transferUplcConst(
-			this.#value.transfer(other)
+			this.value.transfer(other)
 		);
-	}
-
-	/**
-	 * @type {UplcValue}
-	 */
-	get value() {
-		return this.#value;
 	}
 
 	/**
 	 * @returns {string}
 	 */
 	toString() {
-		return this.#value.toString();
+		return this.value.toString();
 	}
 
 	/**
 	 * @param {BitWriter} bitWriter 
+	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
-	toFlat(bitWriter) {
+	toFlat(bitWriter, codeMapFileIndices = null) {
 		bitWriter.write('0100');
-		this.#value.toFlatValue(bitWriter);
+		this.value.toFlatValue(bitWriter);
 	}
 
 	/**
@@ -2331,16 +2650,58 @@ export class UplcConst extends UplcTerm {
 	async eval(rte) {
 		rte.incrConstCost();
 
-		return await this.#value.eval(rte);
+		return await this.value.eval(rte);
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack
+	 * @param {ComputingState} state 
+	 * @returns {CekState}
+	 */
+	computeCek(rte, stack, state) {
+		rte.incrConstCost();
+        return {reducing: this};
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {PreCallFrame} frame 
+	 * @returns {CekState}
+	 */
+	reducePreCallFrame(rte, stack, frame) {
+		if (this.value.isAny()) {
+			return {reducing: this};
+		} else {
+			throw new Error("UplcCall term expects UplcLambdaWithEnv or UplcBuiltin for first arg");
+		}
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ForceFrame} frame 
+	 * @returns {CekState}
+	 */
+	reduceForceFrame(rte, stack, frame) {
+		if (this.value.isAny()) {
+			return {reducing: this};
+		} else {
+			throw new Error(`unexpected ${this.toString()} term in force`);
+		}
 	}
 }
 
 /**
  * Plutus-core force term
- * @package
+ * @internal
  */
 export class UplcForce extends UplcTerm {
-	#expr;
+	/**
+	 * @readonly
+	 */
+	expr;
 
 	/**
 	 * @param {Site} site
@@ -2348,7 +2709,7 @@ export class UplcForce extends UplcTerm {
 	 */
 	constructor(site, expr) {
 		super(site, 5);
-		this.#expr = expr;
+		this.expr = expr;
 	}
 
 	/**
@@ -2358,7 +2719,7 @@ export class UplcForce extends UplcTerm {
 	transfer(other) {
 		return other.transferUplcForce(
 			this.site.transfer(other),
-			this.#expr.transfer(other)
+			this.expr.transfer(other)
 		);
 	}
 
@@ -2366,15 +2727,25 @@ export class UplcForce extends UplcTerm {
 	 * @returns {string}
 	 */
 	toString() {
-		return `(force ${this.#expr.toString()})`;
+		return `(force ${this.expr.toString()})`;
 	}
 
 	/**
 	 * @param {BitWriter} bitWriter 
+	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
-	toFlat(bitWriter) {
-		bitWriter.write('0101');
-		this.#expr.toFlat(bitWriter);
+	toFlat(bitWriter, codeMapFileIndices = null) {
+		if (codeMapFileIndices && this.site.codeMapSite) {
+			bitWriter.write('1101');
+			
+			const site = this.site.codeMapSite;
+			(new UplcInt(site, BigInt(assertDefined(codeMapFileIndices.get(site.src.name))), false)).toFlatUnsigned(bitWriter);
+			(new UplcInt(site, BigInt(site.startPos), false)).toFlatUnsigned(bitWriter);
+		} else {
+			bitWriter.write('0101');
+		}
+		
+		this.expr.toFlat(bitWriter, codeMapFileIndices);
 	}
 
 	/**
@@ -2384,13 +2755,25 @@ export class UplcForce extends UplcTerm {
 	async eval(rte) {
 		rte.incrForceCost();
 
-		return await (await this.#expr.eval(rte)).force();
+		return await (await this.expr.eval(rte)).force();
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ComputingState} state 
+	 * @returns {CekState}
+	 */
+	computeCek(rte, stack, state) {
+		rte.incrForceCost();
+		stack.push(new ForceFrame(this, state.env));
+       	return {computing: this.expr, env: state.env};
 	}
 }
 
 /**
  * Plutus-core error term
- * @package
+ * @internal
  */
 export class UplcError extends UplcTerm {
 	/** 'msg' is only used for debuggin and doesn't actually appear in the final program */
@@ -2425,8 +2808,9 @@ export class UplcError extends UplcTerm {
 
 	/**
 	 * @param {BitWriter} bitWriter 
+	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
-	toFlat(bitWriter) {
+	toFlat(bitWriter, codeMapFileIndices = null) {
 		bitWriter.write('0110');
 	}
 
@@ -2436,13 +2820,23 @@ export class UplcError extends UplcTerm {
 	 * @returns {Promise<UplcValue>}
 	 */
 	async eval(rte) {
-		throw this.site.runtimeError(this.#msg);
+		throw new RuntimeError(this.#msg);
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ComputingState} state 
+	 * @returns {CekState}
+	 */
+	computeCek(rte, stack, state) {
+		return {error: "", env: state.env};
 	}
 }
 
 /**
  * Plutus-core builtin function ref term
- * @package
+ * @internal
  */
 export class UplcBuiltin extends UplcTerm {
 	/** 
@@ -2452,12 +2846,35 @@ export class UplcBuiltin extends UplcTerm {
 	#name;
 
 	/**
+	 * @type {number}
+	 */
+	#forceCount;
+
+	/**
+	 * @type {number}
+	 */
+	#nArgs;
+
+	/**
 	 * @param {Site} site 
 	 * @param {string | number} name 
 	 */
 	constructor(site, name) {
 		super(site, 7);
 		this.#name = assertDefined(name);
+		this.#forceCount = (typeof this.#name === "string" && !this.#name.startsWith("macro__")) ? UPLC_BUILTINS[findUplcBuiltin("__core__" + this.#name)].forceCount : 0;
+		
+		if (this.isMacro()) {
+			this.#nArgs = -1;
+		} else if (typeof this.#name == "string") {
+			const i =  UPLC_BUILTINS.findIndex(info => info.name == this.#name);
+
+			assert(i != -1);
+
+			this.#nArgs = UPLC_BUILTINS[i].nArgs;
+		} else {
+			throw new Error("unknown number of arguments");
+		}
 	}
 
 	/**
@@ -2479,6 +2896,43 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @type {number} 
+	 */
+	get nArgs() {
+		return this.#nArgs;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	allowAny() {
+		if (typeof this.#name == "string") {
+			if (this.#name.startsWith("macro__")) {
+				return true;
+			} else {
+				let i = UPLC_BUILTINS.findIndex(info => info.name == this.#name);
+
+				assert(i != -1);
+
+				return UPLC_BUILTINS[i].allowAny;
+			}
+		} else {
+			return true;
+		}
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	isMacro() {
+		if (typeof this.#name == "string") {
+			return this.#name.startsWith("macro__");
+		} else {
+			return false;
+		}
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
@@ -2491,8 +2945,9 @@ export class UplcBuiltin extends UplcTerm {
 
 	/**
 	 * @param {BitWriter} bitWriter 
+	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
-	toFlat(bitWriter) {
+	toFlat(bitWriter, codeMapFileIndices = null) {
 		bitWriter.write('0111');
 
 		/** 
@@ -2565,332 +3020,282 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
-	 * @param {UplcRte | UplcStack} rte
-	 * @returns {UplcAnon}
+	 * @param {UplcRte} rte
+	 * @param {UplcFrame[]} stack
+	 * @param {ComputingState} state
+	 * @returns {CekState}
 	 */
-	evalInternal(rte = new UplcRte()) {
-		if (typeof this.#name == "number") {
-			throw new Error("can't evaluate unknown Plutus-core builtin");
+	computeCek(rte, stack, state) {
+		rte.incrBuiltinCost();
+        return {reducing: new AppliedUplcBuiltin(this)};
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {Site} site
+	 * @param {UplcValue[]} args
+	 * @returns {Promise<UplcValue>}
+	 */
+	evalMacro(rte, site, args) {
+		assert(this.isMacro());
+		if (typeof this.#name == "string") {
+			// don't include the last Unit
+			return rte.callMacro(this.#name.slice(("macro__").length), args);
+		} else {
+			throw new Error("unexpected");
 		}
+	}
 
-		switch (this.#name) {
-			case "addInteger":
-				// returning a lambda is assumed to be free
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					// but calling a lambda has a cost associated
-					rte.calcAndIncrCost(this, a, b);
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {Site} site
+	 * @param {UplcValue[]} args
+	 * @returns {UplcValue | Promise<UplcValue>}
+	 */
+	evalBuiltin(rte, site, args) {
+		rte.calcAndIncrCost(this, ...args);
 
-					return new UplcInt(callSite, a.int + b.int);
-				});
-			case "subtractInteger":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
+		/**
+		 * @type {{[name: string]: (...args: UplcValue[]) => (UplcValue | Promise<UplcValue>)}}
+		 */
+		const callbacks = {
+			addInteger: (a, b) => {
+				return new UplcInt(site, a.int + b.int);
+			},
+			subtractInteger: (a, b) => {
+				return new UplcInt(site, a.int - b.int);
+			},
+			divideInteger: (a, b) => {
+				if (b.int === 0n) {
+					return rte.error("division by zero");
+				} else {
+					return new UplcInt(site, a.int / b.int);
+				}
+			},
+			multiplyInteger: (a, b) => {
+				return new UplcInt(site, a.int * b.int);
+			},
+			quotientInteger: (a, b) => {
+				if (b.int === 0n) {
+					return rte.error("division by zero");
+				} else {
+					return new UplcInt(site, a.int/b.int + (b.int < 0n ? 1n : 0n));
+				}
+			},
+			modInteger: (a, b) => {
+				if (b.int === 0n) {
+					return rte.error("division by zero");
+				} else {
+					return new UplcInt(site, a.int % b.int);
+				}
+			},
+			remainderInteger: (a, b) => {
+				if (b.int == 0n) {
+					return rte.error("division by zero");
+				} else {
+					return new UplcInt(site, a.int - (a.int/b.int + (b.int < 0n ? 1n : 0n))*b.int);
+				}
+			},
+			equalsInteger: (a, b) => {
+				return new UplcBool(site, a.int == b.int);
+			},
+			lessThanInteger: (a, b) => {
+				return new UplcBool(site, a.int < b.int);
+			},
+			lessThanEqualsInteger: (a, b) => {
+				return new UplcBool(site, a.int <= b.int);
+			},
+			appendByteString: (a, b) => {
+				return new UplcByteArray(site, a.bytes.concat(b.bytes));	
+			},
+			consByteString: (a, b) => {
+				let bytes = b.bytes;
+				bytes.unshift(Number(a.int % 256n));
+				return new UplcByteArray(site, bytes);
+			},
+			sliceByteString: (a, b, c) => {
+				let start = Number(a.int);
+				let n = Number(b.int);
+				let bytes = c.bytes;
+				if (start < 0) {
+					start = 0;
+				}
 
-					return new UplcInt(callSite, a.int - b.int);
-				});
-			case "multiplyInteger":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
+				if (start + n > bytes.length) {
+					n = bytes.length - start;
+				}
 
-					return new UplcInt(callSite, a.int * b.int);
-				});
-			case "divideInteger":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
+				if (n < 0) {
+					n = 0;
+				}
 
-					if (b.int === 0n) {
-						throw callSite.runtimeError("division by zero");
-					} else {
-						return new UplcInt(callSite, a.int / b.int);
-					}
-				});
-			case "modInteger":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
+				let sub = bytes.slice(start, start + n);
 
-					if (b.int === 0n) {
-						throw callSite.runtimeError("division by zero");
-					} else {
-						return new UplcInt(callSite, a.int % b.int);
-					}
-				});
-			case "equalsInteger":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
+				return new UplcByteArray(site, sub);	
+			},
+			lengthOfByteString: (a) => {
+				return new UplcInt(site, BigInt(a.bytes.length));
+			},
+			indexByteString: (a, b) => {
+				let bytes = a.bytes;
+				let i = b.int;
+				if (i < 0 || i >= bytes.length) {
+					throw new Error("index out of range");
+				}
 
-					return new UplcBool(callSite, a.int == b.int);
-				});
-			case "lessThanInteger":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
+				return new UplcInt(site, BigInt(bytes[Number(i)]));
+			},
+			equalsByteString: (a, b) => {
+				return new UplcBool(site, ByteArrayData.comp(a.bytes, b.bytes) == 0);
+			},
+			lessThanByteString: (a, b) => {
+				return new UplcBool(site, ByteArrayData.comp(a.bytes, b.bytes) == -1);
+			},
+			lessThanEqualsByteString: (a, b) => {
+				return new UplcBool(site, ByteArrayData.comp(a.bytes, b.bytes) <= 0);
+			},
+			appendString: (a, b) => {
+				return new UplcString(site, a.string + b.string);
+			},
+			equalsString: (a, b) => {
+				return new UplcBool(site, a.string == b.string);
+			},
+			encodeUtf8: (a) => {
+				return new UplcByteArray(site, textToBytes(a.string));
+			},
+			decodeUtf8: (a) => {
+				try {
+					return new UplcString(site, bytesToText(a.bytes));
+				} catch(_) {
+					return rte.error("invalid utf-8");
+				}
+			},
+			sha2_256: (a) => {
+				return new UplcByteArray(site, Crypto.sha2_256(a.bytes))
+			},
+			sha3_256: (a) => {
+				return new UplcByteArray(site, Crypto.sha3(a.bytes))
+			},
+			blake2b_256: (a) => {
+				return new UplcByteArray(site, Crypto.blake2b(a.bytes)); 
+			},
+			verifyEd25519Signature: (key, msg, signature) => {
+				rte.calcAndIncrCost(this, key, msg, signature);
 
-					return new UplcBool(callSite, a.int < b.int);
-				});
-			case "lessThanEqualsInteger":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
+				let keyBytes = key.bytes;
+				if (keyBytes.length != 32) {
+					return rte.error(`expected key of length 32 for verifyEd25519Signature, got key of length ${keyBytes.length}`);
+				}
 
-					return new UplcBool(callSite, a.int <= b.int);
-				});
-			case "appendByteString":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
+				let msgBytes = msg.bytes;
+				
+				let signatureBytes = signature.bytes;
+				if (signatureBytes.length != 64) {
+					return rte.error(`expected signature of length 64 for verifyEd25519Signature, got signature of length ${signatureBytes.length}`);
+				}
 
-					return new UplcByteArray(callSite, a.bytes.concat(b.bytes));
-				});
-			case "consByteString":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
+				let ok = Crypto.Ed25519.verify(signatureBytes, msgBytes, keyBytes);
 
-					let bytes = b.bytes;
-					bytes.unshift(Number(a.int % 256n));
-					return new UplcByteArray(callSite, bytes);
-				});
-			case "sliceByteString":
-				return new UplcAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
-					rte.calcAndIncrCost(this, a, b, c);
+				return new UplcBool(site, ok);
+			},
+			ifThenElse: (a, b, c) => {
+				if (a.isAny()) {
+					return new UplcAny(site);
+				} else {
+					return a.bool ? b : c;
+				}
+			},
+			chooseUnit: (a, b) => {
+				a.assertUnit();
 
-					let start = Number(a.int);
-					let n = Number(b.int);
-					let bytes = c.bytes;
-					if (start < 0) {
-						start = 0;
-					}
-
-					if (start + n > bytes.length) {
-						n = bytes.length - start;
-					}
-
-					if (n < 0) {
-						n = 0;
-					}
-
-					let sub = bytes.slice(start, start + n);
-
-					return new UplcByteArray(callSite, sub);
-				});
-			case "lengthOfByteString":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
-
-					return new UplcInt(callSite, BigInt(a.bytes.length));
-				});
-			case "indexByteString":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
-
-					let bytes = a.bytes;
-					let i = b.int;
-					if (i < 0 || i >= bytes.length) {
-						throw new Error("index out of range");
-					}
-
-					return new UplcInt(callSite, BigInt(bytes[Number(i)]));
-				});
-			case "equalsByteString":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
-
-					return new UplcBool(callSite, ByteArrayData.comp(a.bytes, b.bytes) == 0);
-				});
-			case "lessThanByteString":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
-
-					return new UplcBool(callSite, ByteArrayData.comp(a.bytes, b.bytes) == -1);
-				});
-			case "lessThanEqualsByteString":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
-
-					return new UplcBool(callSite, ByteArrayData.comp(a.bytes, b.bytes) <= 0);
-				});
-			case "appendString":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
-
-					return new UplcString(callSite, a.string + b.string);
-				});
-			case "equalsString":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
-
-					return new UplcBool(callSite, a.string == b.string);
-				});
-			case "encodeUtf8":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
-
-					return new UplcByteArray(callSite, textToBytes(a.string));
-				});
-			case "decodeUtf8":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
-
-					try {
-						return new UplcString(callSite, bytesToText(a.bytes));
-					} catch(_) {
-						throw callSite.runtimeError("invalid utf-8");
-					}
-				});
-			case "sha2_256":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
-
-					return new UplcByteArray(callSite, Crypto.sha2_256(a.bytes))
-				});
-			case "sha3_256":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
-
-					return new UplcByteArray(callSite, Crypto.sha3(a.bytes))
-				});
-			case "blake2b_256":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
-
-					return new UplcByteArray(callSite, Crypto.blake2b(a.bytes)); 
-				});
-			case "verifyEd25519Signature":
-				return new UplcAnon(this.site, rte, 3, (callSite, _, key, msg, signature) => {
-					rte.calcAndIncrCost(this, key, msg, signature);
-
-					let keyBytes = key.bytes;
-					if (keyBytes.length != 32) {
-						throw callSite.runtimeError(`expected key of length 32 for verifyEd25519Signature, got key of length ${keyBytes.length}`);
-					}
-
-					let msgBytes = msg.bytes;
-					
-					let signatureBytes = signature.bytes;
-					if (signatureBytes.length != 64) {
-						throw callSite.runtimeError(`expected signature of length 64 for verifyEd25519Signature, got signature of length ${signatureBytes.length}`);
-					}
-
-					let ok = Crypto.Ed25519.verify(signatureBytes, msgBytes, keyBytes);
-
-					return new UplcBool(callSite, ok);
-				});
-			case "ifThenElse":
-				return new UplcAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
-					rte.calcAndIncrCost(this, a, b, c);
-
-					return a.bool ? b.copy(callSite) : c.copy(callSite);
-				});
-			case "chooseUnit":
-				// what is the point of this function?
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
-
-					a.assertUnit();
-
-					return b.copy(callSite);
-				});
-			case "trace":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
-
-					return rte.print(a.string).then(() => {
-						return b.copy(callSite);
+				return b;
+			},
+			trace: (a, b) => {
+				if (a.isAny()) {
+					return b;
+				} else {
+					return rte.print(a.string.split("\n").map(l => `INFO  (${site.toString()}) ${l}`)).then(() => {
+						return b;
 					});
-				});
-			case "fstPair":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
-
-					if (a.isPair()) {
-						return a.first.copy(callSite);
+				}
+			},
+			fstPair: (a) => {
+				if (a.isPair()) {
+					return a.first;
+				} else {
+					throw site.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
+				}
+			},
+			sndPair: (a) => {
+				if (a.isPair()) {
+					return a.second;
+				} else {
+					throw site.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
+				}
+			},
+			chooseList: (a, b, c) => {
+				if (a.isAny()) {
+					return new UplcAny(site);
+				} else if (a.isList()) {
+					if (a.length == 0) {
+						return b;
 					} else {
-						throw callSite.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
+						return c;
 					}
-				});
-			case "sndPair":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
-
-					if (a.isPair()) {
-						return a.second.copy(callSite);
-					} else {
-						throw callSite.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
+				} else {
+					throw site.typeError(`expected list or map first arg, got '${a.toString()}'`);
+				}
+			},
+			mkCons: (a, b) => {
+				if (b.isList()) {
+					if (!b.itemType.isSameType(a)) {
+						throw site.typeError(`wrong type for 2nd arg of mkCons, expected ${a.toString()}, got ${b.toString()}`);
 					}
-				});
-			case "chooseList":
-				return new UplcAnon(this.site, rte, 3, (callSite, _, a, b, c) => {
-					rte.calcAndIncrCost(this, a, b, c);
 
-					if (a.isList()) {
-						if (a.length == 0) {
-							return b.copy(callSite);
-						} else {
-							return c.copy(callSite);
-						}
-					} else {
-						throw callSite.typeError(`expected list or map first arg, got '${a.toString()}'`);
+					let lst = b.list;
+					lst.unshift(a);
+
+					return new UplcList(site, b.itemType, lst);
+				} else {
+					throw site.typeError(`expected list or map for second arg, got '${b.toString()}'`);
+				}
+			},
+			headList: (a) => {
+				if (a.isList()) {
+					const lst = a.list;
+					if (lst.length == 0) {
+						return rte.error("empty list");
 					}
-				});
-			case "mkCons":
-				// only allow data items in list
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
 
-					if (b.isList()) {
-						if (!b.itemType.isSameType(a)) {
-							throw callSite.typeError(`wrong type for 2nd arg of mkCons, expected ${a.toString()}, got ${b.toString()}`);
-						}
-
-						let lst = b.list;
-						lst.unshift(a);
-
-						return new UplcList(callSite, b.itemType, lst);
-					} else {
-						throw callSite.typeError(`expected list or map for second arg, got '${b.toString()}'`);
+					return lst[0];
+				} else {
+					throw site.typeError(`__core__head expects list or map, got '${a.toString()}'`);
+				}
+			},
+			tailList: (a) => {
+				if (a.isList()) {
+					let lst = a.list;
+					if (lst.length == 0) {
+						return rte.error("empty list");
 					}
-				});
-			case "headList":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
 
-					if (a.isList()) {
-						const lst = a.list;
-						if (lst.length == 0) {
-							throw callSite.runtimeError("empty list");
-						}
-
-						return lst[0].copy(callSite);
-					} else {
-						throw callSite.typeError(`__core__head expects list or map, got '${a.toString()}'`);
-					}
-				});
-			case "tailList":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
-
-					if (a.isList()) {
-						let lst = a.list;
-						if (lst.length == 0) {
-							throw callSite.runtimeError("empty list");
-						}
-
-						return new UplcList(callSite, a.itemType, lst.slice(1));
-					} else {
-						throw callSite.typeError(`__core__tail expects list or map, got '${a.toString()}'`);
-					}
-				});
-			case "nullList":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
-
-					if (a.isList()) {
-						return new UplcBool(callSite, a.list.length == 0);
-					} else {
-						throw callSite.typeError(`__core__nullList expects list or map, got '${a.toString()}'`);
-					}
-				});
-			case "chooseData":
-				return new UplcAnon(this.site, rte, 6, (callSite, _, a, b, c, d, e, f) => {
-					rte.calcAndIncrCost(this, a, b, c, d, e, f);
-
-					let data = a.data;
+					return new UplcList(site, a.itemType, lst.slice(1));
+				} else {
+					throw site.typeError(`__core__tail expects list or map, got '${a.toString()}'`);
+				}
+			},
+			nullList: (a) => {
+				if (a.isList()) {
+					return new UplcBool(site, a.list.length == 0);
+				} else {
+					throw site.typeError(`__core__nullList expects list or map, got '${a.toString()}'`);
+				}
+			},
+			chooseData: (a, b, c, d, e, f) => {
+				if (a.isAny()) {
+					return new UplcAny(site);
+				} else {
+					const data = a.data;
 
 					if (data instanceof ConstrData) {
 						return b;
@@ -2905,160 +3310,860 @@ export class UplcBuiltin extends UplcTerm {
 					} else {
 						throw new Error("unexpected");
 					}
+				}
+			},
+			constrData: (a, b) => {
+				const i = a.int;
+				assert(i >= 0);
+
+				const lst = b.list;
+
+				return new UplcDataValue(site, new ConstrData(Number(i), lst.map(item => item.data)));
+			},
+			mapData: (a) => {
+				return new UplcDataValue(site, new MapData(a.list.map(pair => {
+					return [pair.first.data, pair.second.data];
+				})));
+			},
+			listData: (a) => {
+				return new UplcDataValue(site, new ListData(a.list.map(item => item.data)));
+			},
+			iData: (a) => {
+				return new UplcDataValue(site, new IntData(a.int));
+			},
+			bData: (a) => {
+				return new UplcDataValue(site, new ByteArrayData(a.bytes));
+			},
+			unConstrData: (a) => {
+				if (!a.isData()) {
+					throw site.typeError(`expected data for arg of unConstrData, got ${a.toString()}`);
+				}
+
+				let data = a.data;
+				if (!(data instanceof ConstrData)) {
+					return rte.error(`unexpected unConstrData argument '${data.toString()}'`);
+				} else {
+					return new UplcPair(site, new UplcInt(site, BigInt(data.index)), new UplcList(site, UplcType.newDataType(), data.fields.map(f => new UplcDataValue(site, f))));
+				}
+			},
+			unMapData: (a) => {
+				if (!a.isData()) {
+					throw site.typeError(`expected data for arg of unMapData, got ${a.toString()}`);
+				}
+
+				let data = a.data;
+				if (!(data instanceof MapData)) {
+					return rte.error(`unexpected unMapData argument '${data.toString()}'`);
+				} else {
+					return new UplcList(site, UplcType.newDataPairType(), data.map.map(([fst, snd]) => new UplcPair(site, new UplcDataValue(site, fst), new UplcDataValue(site, snd))));
+				}
+			},
+			unListData: (a) => {
+				if (!a.isData()) {
+					throw site.typeError(`expected data for arg of unListData, got ${a.toString()}`);
+				}
+
+				let data = a.data;
+				if (!(data instanceof ListData)) {
+					return rte.error(`unexpected unListData argument '${data.toString()}'`);
+				} else {
+					return new UplcList(site, UplcType.newDataType(), data.list.map(item => new UplcDataValue(site, item)));
+				}
+			},
+			unIData: (a) => {
+				if (!a.isData()) {
+					throw site.typeError(`expected data for arg of unIData, got ${a.toString()}`);
+				}
+
+				let data = a.data;
+				if (!(data instanceof IntData)) {
+					return rte.error(`unexpected unIData argument '${data.toString()}'`);
+				} else {
+					return new UplcInt(site, data.value);
+				}
+			},
+			unBData: (a) => {
+				if (!a.isData()) {
+					throw site.typeError(`expected data for arg of unBData, got ${a.toString()}`);
+				}
+
+				let data = a.data;
+				if (!(data instanceof ByteArrayData)) {
+					return rte.error(`unexpected unBData argument '${data.toString()}'`);
+				} else {
+					return new UplcByteArray(site, data.bytes);
+				}
+			},
+			equalsData: (a, b) => {
+				if (!a.isData()) {
+					throw site.typeError(`expected data for 1st arg of equalsData, got ${a.toString()}`);
+				}
+
+				if (!b.isData()) {
+					throw site.typeError(`expected data for 2nd arg of equalsData, got ${b.toString()}`);
+				}
+
+				return new UplcBool(site, a.data.isSame(b.data));
+			},
+			mkPairData: (a, b) => {
+				return new UplcPair(site, new UplcDataValue(site, a.data), new UplcDataValue(site, b.data));
+			},
+			mkNilData: (a) => {
+				a.assertUnit();
+				return new UplcList(site, UplcType.newDataType(), []);
+			},
+			mkNilPairData: (a) => {
+				a.assertUnit();
+
+				return new UplcList(site, UplcType.newDataPairType(), []);
+			},
+			serialiseData: (a) => {
+				return new UplcByteArray(site, a.data.toCbor());
+			},
+			verifyEcdsaSecp256k1Signature: (a, b, c) => {
+				throw new Error("no immediate need, so don't bother yet");
+			},
+			verifySchnorrSecp256k1Signature: (a, b, c) => {
+				throw new Error("no immediate need, so don't bother yet");
+			}
+		};
+			
+		return assertDefined(callbacks[this.#name], `UplcBuiltin ${this.#name} not yet implemented`)(...args);
+	}
+
+	/**
+	 * @param {UplcRte | UplcStack} rte
+	 * @returns {UplcAnon}
+	 */
+	evalInternal(rte = new UplcRte()) {
+		if (typeof this.#name == "number") {
+			throw new Error("can't evaluate unknown Plutus-core builtin");
+		}
+
+		switch (this.#name) {
+			case "addInteger":
+				// returning a lambda is assumed to be free
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						// but calling a lambda has a cost associated
+						rte.calcAndIncrCost(this, a, b);
+
+						return new UplcInt(callSite, a.int + b.int);
+					}
+				});
+			case "subtractInteger":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						return new UplcInt(callSite, a.int - b.int);
+					}
+				});
+			case "multiplyInteger":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						return new UplcInt(callSite, a.int * b.int);
+					}
+				});
+			case "divideInteger":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						if (b.int === 0n) {
+							throw new RuntimeError("division by zero");
+						} else {
+							return new UplcInt(callSite, a.int / b.int);
+						}
+					}
+				});
+			case "quotientInteger":
+				return new UplcAnon(this.site, {
+					rte: rte,
+					nArgs: 2,
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+						if (b.int === 0n) {
+							throw new RuntimeError("division by zero");
+						} else {
+							return new UplcInt(callSite, a.int/b.int + (b.int < 0n ? 1n : 0n));
+						}
+					}
+				});
+			case "modInteger":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						if (b.int === 0n) {
+							throw new RuntimeError("division by zero");
+						} else {
+							return new UplcInt(callSite, a.int % b.int);
+						}
+					}
+				});
+			case "remainderInteger":
+				return new UplcAnon(this.site, {
+					rte: rte,
+					nArgs: 2,
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						if (b.int == 0n) {
+							throw new RuntimeError("division by zero");
+						} else {
+							return new UplcInt(callSite, a.int - (a.int/b.int + (b.int < 0n ? 1n : 0n))*b.int);
+						}
+					}
+				});
+			case "equalsInteger":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						return new UplcBool(callSite, a.int == b.int);
+					}
+				});
+			case "lessThanInteger":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						return new UplcBool(callSite, a.int < b.int);
+					}
+				});
+			case "lessThanEqualsInteger":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						return new UplcBool(callSite, a.int <= b.int);
+					}
+				});
+			case "appendByteString":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						return new UplcByteArray(callSite, a.bytes.concat(b.bytes));
+					}
+				});
+			case "consByteString":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+						
+						let bytes = b.bytes;
+						bytes.unshift(Number(a.int % 256n));
+						return new UplcByteArray(callSite, bytes);
+					}
+				});
+			case "sliceByteString":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 3, 
+					fn: (callSite, _, a, b, c) => {
+						rte.calcAndIncrCost(this, a, b, c);
+
+						let start = Number(a.int);
+						let n = Number(b.int);
+						let bytes = c.bytes;
+						if (start < 0) {
+							start = 0;
+						}
+
+						if (start + n > bytes.length) {
+							n = bytes.length - start;
+						}
+
+						if (n < 0) {
+							n = 0;
+						}
+
+						let sub = bytes.slice(start, start + n);
+
+						return new UplcByteArray(callSite, sub);		
+					}
+				});
+			case "lengthOfByteString":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
+
+						return new UplcInt(callSite, BigInt(a.bytes.length));
+					}
+				});
+			case "indexByteString":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						let bytes = a.bytes;
+						let i = b.int;
+						if (i < 0 || i >= bytes.length) {
+							throw new Error("index out of range");
+						}
+
+						return new UplcInt(callSite, BigInt(bytes[Number(i)]));
+					}
+				});
+			case "equalsByteString":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						return new UplcBool(callSite, ByteArrayData.comp(a.bytes, b.bytes) == 0);
+					}
+				});
+			case "lessThanByteString":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						return new UplcBool(callSite, ByteArrayData.comp(a.bytes, b.bytes) == -1);
+					}
+				});
+			case "lessThanEqualsByteString":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						return new UplcBool(callSite, ByteArrayData.comp(a.bytes, b.bytes) <= 0);
+					}
+				});
+			case "appendString":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						return new UplcString(callSite, a.string + b.string);
+					}
+				});
+			case "equalsString":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						return new UplcBool(callSite, a.string == b.string);
+					}
+				});
+			case "encodeUtf8":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
+
+						return new UplcByteArray(callSite, textToBytes(a.string));
+					}
+				});
+			case "decodeUtf8":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
+
+						try {
+							return new UplcString(callSite, bytesToText(a.bytes));
+						} catch(_) {
+							throw new RuntimeError("invalid utf-8");
+						}
+					}
+				});
+			case "sha2_256":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
+
+						return new UplcByteArray(callSite, Crypto.sha2_256(a.bytes))
+					}
+				});
+			case "sha3_256":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
+
+						return new UplcByteArray(callSite, Crypto.sha3(a.bytes))
+					}
+				});
+			case "blake2b_256":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
+
+						return new UplcByteArray(callSite, Crypto.blake2b(a.bytes)); 
+					}
+				});
+			case "verifyEd25519Signature":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 3, 
+					fn: (callSite, _, key, msg, signature) => {
+						rte.calcAndIncrCost(this, key, msg, signature);
+
+						let keyBytes = key.bytes;
+						if (keyBytes.length != 32) {
+							throw new RuntimeError(`expected key of length 32 for verifyEd25519Signature, got key of length ${keyBytes.length}`);
+						}
+
+						let msgBytes = msg.bytes;
+						
+						let signatureBytes = signature.bytes;
+						if (signatureBytes.length != 64) {
+							throw new RuntimeError(`expected signature of length 64 for verifyEd25519Signature, got signature of length ${signatureBytes.length}`);
+						}
+
+						let ok = Crypto.Ed25519.verify(signatureBytes, msgBytes, keyBytes);
+
+						return new UplcBool(callSite, ok);
+					}
+				});
+			case "ifThenElse":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 3, 
+					fn: (callSite, _, a, b, c) => {
+						rte.calcAndIncrCost(this, a, b, c);
+
+						return a.bool ? b.copy(callSite) : c.copy(callSite);
+					}
+				});
+			case "chooseUnit":
+				// what is the point of this function?
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2,
+					allowAnyArgs: true,
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						a.assertUnit();
+
+						return b.copy(callSite);
+					}
+				});
+			case "trace":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					allowAnyArgs: true,
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						if (a.isAny()) {
+							return b.copy(callSite);
+						} else {
+							return rte.print(a.string).then(() => {
+								return b.copy(callSite);
+							});
+						}
+					}
+				});
+			case "fstPair":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
+
+						if (a.isPair()) {
+							return a.first.copy(callSite);
+						} else {
+							throw callSite.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
+						}
+					}
+				});
+			case "sndPair":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
+
+						if (a.isPair()) {
+							return a.second.copy(callSite);
+						} else {
+							throw callSite.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
+						}
+					}
+				});
+			case "chooseList":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 3, 
+					fn: (callSite, _, a, b, c) => {
+						rte.calcAndIncrCost(this, a, b, c);
+
+						if (a.isList()) {
+							if (a.length == 0) {
+								return b.copy(callSite);
+							} else {
+								return c.copy(callSite);
+							}
+						} else {
+							throw callSite.typeError(`expected list or map first arg, got '${a.toString()}'`);
+						}
+					}
+				});
+			case "mkCons":
+				// only allow data items in list
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
+
+						if (b.isList()) {
+							if (!b.itemType.isSameType(a)) {
+								throw callSite.typeError(`wrong type for 2nd arg of mkCons, expected ${a.toString()}, got ${b.toString()}`);
+							}
+
+							let lst = b.list;
+							lst.unshift(a);
+
+							return new UplcList(callSite, b.itemType, lst);
+						} else {
+							throw callSite.typeError(`expected list or map for second arg, got '${b.toString()}'`);
+						}
+					}
+				});
+			case "headList":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
+
+						if (a.isList()) {
+							const lst = a.list;
+							if (lst.length == 0) {
+								throw new RuntimeError("empty list");
+							}
+
+							return lst[0].copy(callSite);
+						} else {
+							throw callSite.typeError(`__core__head expects list or map, got '${a.toString()}'`);
+						}
+					}
+				});
+			case "tailList":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
+
+						if (a.isList()) {
+							let lst = a.list;
+							if (lst.length == 0) {
+								throw new RuntimeError("empty list");
+							}
+
+							return new UplcList(callSite, a.itemType, lst.slice(1));
+						} else {
+							throw callSite.typeError(`__core__tail expects list or map, got '${a.toString()}'`);
+						}
+					}
+				});
+			case "nullList":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
+
+						if (a.isList()) {
+							return new UplcBool(callSite, a.list.length == 0);
+						} else {
+							throw callSite.typeError(`__core__nullList expects list or map, got '${a.toString()}'`);
+						}
+					}
+				});
+			case "chooseData":
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 6,
+					allowAnyArgs: true,
+					fn: (callSite, _, a, b, c, d, e, f) => {
+						rte.calcAndIncrCost(this, a, b, c, d, e, f);
+
+						if (a.isAny()) {
+							return new UplcAny(callSite);
+						} else {
+							const data = a.data;
+
+							if (data instanceof ConstrData) {
+								return b;
+							} else if (data instanceof MapData) {
+								return c;
+							} else if (data instanceof ListData) {
+								return d;
+							} else if (data instanceof IntData) {
+								return e;
+							} else if (data instanceof ByteArrayData) {
+								return f;
+							} else {
+								throw new Error("unexpected");
+							}
+						}
+					}
 				});
 			case "constrData":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
 
-					const i = a.int;
-					assert(i >= 0);
+						const i = a.int;
+						assert(i >= 0);
 
-					const lst = b.list;
+						const lst = b.list;
 
-					return new UplcDataValue(callSite, new ConstrData(Number(i), lst.map(item => item.data)));
+						return new UplcDataValue(callSite, new ConstrData(Number(i), lst.map(item => item.data)));
+					}
 				});
 			case "mapData":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
 
-					return new UplcDataValue(callSite, new MapData(a.list.map(pair => {
-						return [pair.first.data, pair.second.data];
-					})));
+						return new UplcDataValue(callSite, new MapData(a.list.map(pair => {
+							return [pair.first.data, pair.second.data];
+						})));
+					}	
 				});
 			case "listData":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
 
-					return new UplcDataValue(callSite, new ListData(a.list.map(item => item.data)));
+						return new UplcDataValue(callSite, new ListData(a.list.map(item => item.data)));
+					}
 				});
 			case "iData":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
-					
-					return new UplcDataValue(callSite, new IntData(a.int));
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
+						
+						return new UplcDataValue(callSite, new IntData(a.int));
+					}
 				});
 			case "bData":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
 
-					return new UplcDataValue(callSite, new ByteArrayData(a.bytes));
+						return new UplcDataValue(callSite, new ByteArrayData(a.bytes));
+					}
 				});
 			case "unConstrData":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
 
-					if (!a.isData()) {
-						throw callSite.typeError(`expected data for arg of unConstrData, got ${a.toString()}`);
-					}
+						if (!a.isData()) {
+							throw callSite.typeError(`expected data for arg of unConstrData, got ${a.toString()}`);
+						}
 
-					let data = a.data;
-					if (!(data instanceof ConstrData)) {
-						throw callSite.runtimeError(`unexpected unConstrData argument '${data.toString()}'`);
-					} else {
-						return new UplcPair(callSite, new UplcInt(callSite, BigInt(data.index)), new UplcList(callSite, UplcType.newDataType(), data.fields.map(f => new UplcDataValue(callSite, f))));
+						let data = a.data;
+						if (!(data instanceof ConstrData)) {
+							throw new RuntimeError(`unexpected unConstrData argument '${data.toString()}'`);
+						} else {
+							return new UplcPair(callSite, new UplcInt(callSite, BigInt(data.index)), new UplcList(callSite, UplcType.newDataType(), data.fields.map(f => new UplcDataValue(callSite, f))));
+						}
 					}
 				});
 			case "unMapData":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
 
-					if (!a.isData()) {
-						throw callSite.typeError(`expected data for arg of unMapData, got ${a.toString()}`);
-					}
+						if (!a.isData()) {
+							throw callSite.typeError(`expected data for arg of unMapData, got ${a.toString()}`);
+						}
 
-					let data = a.data;
-					if (!(data instanceof MapData)) {
-						throw callSite.runtimeError(`unexpected unMapData argument '${data.toString()}'`);
-					} else {
-						return new UplcList(callSite, UplcType.newDataPairType(), data.map.map(([fst, snd]) => new UplcPair(callSite, new UplcDataValue(callSite, fst), new UplcDataValue(callSite, snd))));
+						let data = a.data;
+						if (!(data instanceof MapData)) {
+							throw new RuntimeError(`unexpected unMapData argument '${data.toString()}'`);
+						} else {
+							return new UplcList(callSite, UplcType.newDataPairType(), data.map.map(([fst, snd]) => new UplcPair(callSite, new UplcDataValue(callSite, fst), new UplcDataValue(callSite, snd))));
+						}
 					}
 				});
 			case "unListData":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
 
-					if (!a.isData()) {
-						throw callSite.typeError(`expected data for arg of unListData, got ${a.toString()}`);
-					}
+						if (!a.isData()) {
+							throw callSite.typeError(`expected data for arg of unListData, got ${a.toString()}`);
+						}
 
-					let data = a.data;
-					if (!(data instanceof ListData)) {
-						throw callSite.runtimeError(`unexpected unListData argument '${data.toString()}'`);
-					} else {
-						return new UplcList(callSite, UplcType.newDataType(), data.list.map(item => new UplcDataValue(callSite, item)));
+						let data = a.data;
+						if (!(data instanceof ListData)) {
+							throw new RuntimeError(`unexpected unListData argument '${data.toString()}'`);
+						} else {
+							return new UplcList(callSite, UplcType.newDataType(), data.list.map(item => new UplcDataValue(callSite, item)));
+						}
 					}
 				});
 			case "unIData":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
 
-					if (!a.isData()) {
-						throw callSite.typeError(`expected data for arg of unIData, got ${a.toString()}`);
-					}
+						if (!a.isData()) {
+							throw callSite.typeError(`expected data for arg of unIData, got ${a.toString()}`);
+						}
 
-					let data = a.data;
-					if (!(data instanceof IntData)) {
-						throw callSite.runtimeError(`unexpected unIData argument '${data.toString()}'`);
-					} else {
-						return new UplcInt(callSite, data.value);
+						let data = a.data;
+						if (!(data instanceof IntData)) {
+							throw new RuntimeError(`unexpected unIData argument '${data.toString()}'`);
+						} else {
+							return new UplcInt(callSite, data.value);
+						}
 					}
 				});
 			case "unBData":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
 
-					if (!a.isData()) {
-						throw callSite.typeError(`expected data for arg of unBData, got ${a.toString()}`);
-					}
+						if (!a.isData()) {
+							throw callSite.typeError(`expected data for arg of unBData, got ${a.toString()}`);
+						}
 
-					let data = a.data;
-					if (!(data instanceof ByteArrayData)) {
-						throw callSite.runtimeError(`unexpected unBData argument '${data.toString()}'`);
-					} else {
-						return new UplcByteArray(callSite, data.bytes);
+						let data = a.data;
+						if (!(data instanceof ByteArrayData)) {
+							throw new RuntimeError(`unexpected unBData argument '${data.toString()}'`);
+						} else {
+							return new UplcByteArray(callSite, data.bytes);
+						}
 					}
 				});
 			case "equalsData":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
 
-					if (!a.isData()) {
-						throw callSite.typeError(`expected data for 1st arg of equalsData, got ${a.toString()}`);
+						if (!a.isData()) {
+							throw callSite.typeError(`expected data for 1st arg of equalsData, got ${a.toString()}`);
+						}
+
+						if (!b.isData()) {
+							throw callSite.typeError(`expected data for 2nd arg of equalsData, got ${b.toString()}`);
+						}
+
+						return new UplcBool(callSite, a.data.isSame(b.data));
 					}
-
-					if (!b.isData()) {
-						throw callSite.typeError(`expected data for 2nd arg of equalsData, got ${b.toString()}`);
-					}
-
-					return new UplcBool(callSite, a.data.isSame(b.data));
 				});
 			case "mkPairData":
-				return new UplcAnon(this.site, rte, 2, (callSite, _, a, b) => {
-					rte.calcAndIncrCost(this, a, b);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 2, 
+					fn: (callSite, _, a, b) => {
+						rte.calcAndIncrCost(this, a, b);
 
-					return new UplcPair(callSite, new UplcDataValue(callSite, a.data), new UplcDataValue(callSite, b.data));
+						return new UplcPair(callSite, new UplcDataValue(callSite, a.data), new UplcDataValue(callSite, b.data));
+					}
 				});
 			case "mkNilData":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
 
-					a.assertUnit();
+						a.assertUnit();
 
-					return new UplcList(callSite, UplcType.newDataType(), []);
+						return new UplcList(callSite, UplcType.newDataType(), []);
+					}
 				});
 			case "mkNilPairData":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
 
-					a.assertUnit();
+						a.assertUnit();
 
-					return new UplcList(callSite, UplcType.newDataPairType(), []);
+						return new UplcList(callSite, UplcType.newDataPairType(), []);
+					}
 				});
 			case "serialiseData":
-				return new UplcAnon(this.site, rte, 1, (callSite, _, a) => {
-					rte.calcAndIncrCost(this, a);
+				return new UplcAnon(this.site, {
+					rte: rte, 
+					nArgs: 1, 
+					fn: (callSite, _, a) => {
+						rte.calcAndIncrCost(this, a);
 
-					return new UplcByteArray(callSite, a.data.toCbor());
+						return new UplcByteArray(callSite, a.data.toCbor());
+					}
 				});
 			case "verifyEcdsaSecp256k1Signature":
 			case "verifySchnorrSecp256k1Signature":
@@ -3066,14 +4171,26 @@ export class UplcBuiltin extends UplcTerm {
 			default: {
 				const name = this.#name;
 				if (typeof name == "string" && name.startsWith("macro__")) {
-					return new UplcAnon(this.site, rte, -1, (callSite, _, ...args) => {
-						return rte.callMacro(name.slice(("macro__").length), args.slice(0, args.length - 1));
+					return new UplcAnon(this.site, {
+						rte: rte, 
+						nArgs: -1, 
+						allowAnyArgs: true,
+						fn: (callSite, _, ...args) => {
+							return rte.callMacro(name.slice(("macro__").length), args.slice(0, args.length - 1));
+						}
 					});
 				} else {
 					throw new Error(`builtin ${this.#name} not yet implemented`);
 				}
 			}
 		}
+	}
+
+	/**
+	 * @type {number}
+	 */
+	get forceCount() {
+		return this.#forceCount;
 	}
 
 	/**
@@ -3101,5 +4218,648 @@ export class UplcBuiltin extends UplcTerm {
 		}
  
 		return v;
+	}
+}
+
+/**
+ * @internal
+ */
+export class UplcFrame {
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ReducingState} state 
+	 * @returns {Promise<CekState>}
+	 */
+	async reduceCek(rte, stack, state) {
+		throw new Error("not yet implemented");
+	}
+
+	/**
+	 * @type {Site}
+	 */
+	get site() {
+		throw new Error("not yet implemented");
+	}
+}
+
+/**
+ * @internal
+ */
+export class ForceFrame extends UplcFrame {
+    /**
+     * @readonly
+     * @type {UplcForce}
+     */
+    term;
+
+	/**
+	 * @readonly
+	 * @type {CekEnv}
+	 */
+	env;
+
+    /**
+     * @param {UplcForce} term
+	 * @param {CekEnv} env
+     */
+    constructor(term, env) {
+        super();
+        this.term = term;
+		this.env = env;
+    }
+
+	get site() {
+		return this.term.site;
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ReducingState} state 
+	 * @returns {Promise<CekState>}
+	 */
+	async reduceCek(rte, stack, state) {
+		const term = state.reducing;
+
+		return await term.reduceForceFrame(rte, stack, this);
+	}
+}
+
+/**
+ * @internal
+ */
+export class PreCallFrame extends UplcFrame {
+    /**
+     * @readonly
+     * @type {UplcCall}
+     */
+    term;
+
+    /**
+     * @readonly
+     * @type {CekEnv}
+     */
+    env;
+
+    /**
+     * @param {UplcCall} term
+     * @param {CekEnv} env
+     */
+    constructor(term, env) {
+        super();
+        this.term = term;
+        this.env = env;
+    }
+
+	/**
+	 * @type {Site}
+	 */
+	get site() {
+		return this.term.site;
+	}
+
+	/**
+	 * 
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ReducingState} state 
+	 * @returns {Promise<CekState>}
+	 */
+	async reduceCek(rte, stack, state) {
+		const term = state.reducing;
+
+		return term.reducePreCallFrame(rte, stack, this);
+	}
+}
+
+/**
+ * @internal
+ */
+export class CallFrame extends UplcFrame {
+    /**
+     * @readonly
+     * @type {UplcCall}
+     */
+    term;
+
+    /**
+     * @readonly
+     * @type {UplcLambdaWithEnv | AppliedUplcBuiltin}
+     */
+    fn;
+
+	/**
+	 * @readonly
+	 * @type {CekEnv}
+	 */
+	env;
+
+    /**
+     * @param {UplcCall} term
+     * @param {UplcLambdaWithEnv | AppliedUplcBuiltin} fn
+	 * @param {CekEnv} env
+     */
+    constructor(term, fn, env) {
+        super();
+        this.term = term;
+        this.fn = fn;
+		this.env = env;
+    }
+
+	/**
+	 * @type {Site}
+	 */
+	get site() {
+		return this.term.site;
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ReducingState} state 
+	 * @returns {Promise<CekState>}
+	 */
+	async reduceCek(rte, stack, state) {
+		return this.fn.reduceCallFrame(rte, stack, state, this);
+	}
+}
+
+/**
+ * @template {UplcTerm} T
+ */
+class UplcTermWithEnv {
+    /**
+    * @readonly
+    * @type {T}
+    */
+    term;
+
+    /**
+     * @readonly
+     * @type {CekEnv}
+     */
+    env;
+
+    /**
+     * @param {T} term 
+     * @param {CekEnv} env 
+     */
+    constructor(term, env) {
+        this.term = term;
+        this.env = env;
+    }
+
+	/**
+	 * @type {Site}
+	 */
+	get site() {
+		return this.term.site;
+	}
+
+    toString() {
+        return `(WithEnv ${this.term.toString()})`;
+    }
+}
+
+/**
+ * @extends {UplcTermWithEnv<UplcLambda>}
+ */
+class UplcLambdaWithEnv extends UplcTermWithEnv {
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {PreCallFrame} frame 
+	 * @returns {Promise<CekState>}
+	 */
+	async reducePreCallFrame(rte, stack, frame) {
+		stack.push(new CallFrame(frame.term, this, frame.env));
+		return {computing: frame.term.arg, env: frame.env};
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ForceFrame} frame 
+	 * @returns {Promise<CekState>}
+	 */
+	async reduceForceFrame(rte, stack, frame) {
+		throw new Error("expected force after delay");
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ReducingState} state 
+	 * @param {CallFrame} frame 
+	 * @returns {Promise<CekState>}
+	 */
+	async reduceCallFrame(rte, stack, state, frame) {
+		return {
+			computing: this.term.expr, 
+			env: {
+				values: this.env.values.concat([state.reducing]),
+				callSites: frame.env.callSites.concat([frame.term.callSite])
+			}
+		};
+	}
+}
+
+/**
+ * @extends {UplcTermWithEnv<UplcDelay>}
+ */
+class UplcDelayWithEnv extends UplcTermWithEnv {
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {PreCallFrame} frame 
+	 * @returns {CekState}
+	 */
+	reducePreCallFrame(rte, stack, frame) {
+		throw new Error("UplcCall term expects UplcLambdaWithEnv or UplcBuiltin for first arg");
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ForceFrame} frame 
+	 * @returns {CekState}
+	 */
+	reduceForceFrame(rte, stack, frame) {
+		return {
+			computing: this.term.expr, 
+			env: {
+				values: this.env.values,
+				callSites: frame.env.callSites.concat([frame.term.site])
+			}
+		};
+	}
+}
+
+class UplcAnonValue extends UplcValue {
+    /**
+     * @readonly
+     * @type {AppliedUplcBuiltin | UplcLambdaWithEnv | UplcDelayWithEnv}
+     */
+    term;
+
+    /**
+     * @param {Site} site
+     * @param {AppliedUplcBuiltin | UplcLambdaWithEnv | UplcDelayWithEnv} term 
+     */
+    constructor(site, term) {
+        super(site);
+        this.term = term;
+    }
+
+    /**
+     * @type {number}
+     */
+    get memSize() {
+        return 0;
+    }
+}
+
+class AppliedUplcBuiltin {
+    /**
+     * @readonly
+     * @type {UplcBuiltin}
+     */
+    term;
+
+    /**
+     * @readonly
+     * @type {number}
+     */
+    forceCount;
+
+    /**
+     * @readonly
+     * @type {CekValue[]}
+     */
+    args;
+
+    /**
+     * @param {UplcBuiltin} term
+     * @param {number} forceCount
+     * @param {CekValue[]} args
+     */
+    constructor(term, forceCount = 0, args = []) {
+        this.term = term;
+        this.forceCount = forceCount;
+        this.args = args;
+    }
+
+	/**
+	 * @type {Site}
+	 */
+	get site() {
+		return this.term.site;
+	}
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return `(AppliedBuiltin ${this.forceCount} [${this.args.map(a => a.toString()).join(", ")}] ${this.term.toString()})`;
+    }
+
+    /**
+     * @returns {AppliedUplcBuiltin}
+     */
+    force() {
+        assert(this.forceCount < this.term.forceCount);
+
+        return new AppliedUplcBuiltin(this.term, this.forceCount + 1, this.args);
+    }
+
+    /**
+     * @param {CekValue} arg 
+     * @returns {AppliedUplcBuiltin}
+     */
+    apply(arg) {
+        assert(this.term.nArgs == -1 || this.args.length < this.term.nArgs);
+
+        return new AppliedUplcBuiltin(this.term, this.forceCount, this.args.concat([arg]));
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isFullForced() {
+        return this.forceCount == this.term.forceCount;
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isFullyApplied() {
+        if (this.term.isMacro()) {
+            if (this.args.length == 0) {
+                return false;
+            } else {
+                const last = this.args[this.args.length - 1];
+
+                if (last instanceof UplcConst && last.value instanceof UplcUnit) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        } else {
+            return this.args.length == this.term.nArgs;
+        }
+    }
+
+    /**
+     * @param {UplcRte} rte
+     * @param {Site[]} sites
+     * @returns {Promise<CekValue>}
+     */
+    async evalCek(rte, sites) {
+		let site = sites[sites.length - 1];
+
+        const args = this.args.map(a => {
+            if (a instanceof UplcConst) {
+                return a.value;
+            } else {
+                return new UplcAnonValue(Site.dummy(), a);
+            }
+        });
+
+		/**
+		 * @type {UplcValue}
+		 */
+		let res;
+
+		if (this.term.isMacro()) {
+			// don't include the last unit
+			assertDefined(args.pop()).assertUnit();
+			res = await this.term.evalMacro(rte, site, args);
+		} else {
+			if (!this.term.allowAny() && args.some(a => a.isAny())) {
+				res = new UplcAny(site);
+			} else if (this.term.name == "trace") {
+				if (!site.codeMapSite) {
+					for (let i = sites.length - 1; i >= 0; i--) {
+						const s = sites[i];
+						if (s.codeMapSite) {
+							site = s.codeMapSite;
+							break;
+						}
+					}
+				} else {
+					site = site.codeMapSite;
+				}
+				
+				res = await this.term.evalBuiltin(rte, site, args);
+			} else {
+				res = await this.term.evalBuiltin(rte, site, args);
+			}
+		}
+
+		if (res instanceof UplcAnonValue) {
+			return res.term;
+		} else {
+			return new UplcConst(res);
+		}
+    }
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {PreCallFrame} frame 
+	 * @returns {Promise<CekState>}
+	 */
+	async reducePreCallFrame(rte, stack, frame) {
+		stack.push(new CallFrame(frame.term, this, frame.env));
+		return {computing: frame.term.arg, env: frame.env};
+	}
+
+	/**
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ForceFrame} frame 
+	 * @returns {Promise<CekState>}
+	 */
+	async reduceForceFrame(rte, stack, frame) {
+		if (!this.isFullForced()) {
+			return {reducing: this.force()};
+		} else {
+			throw new Error(`can't apply force to ${this.term.name}`);
+		}
+	}
+
+	/**
+	 * 
+	 * @param {UplcRte} rte 
+	 * @param {UplcFrame[]} stack 
+	 * @param {ReducingState} state 
+	 * @param {CallFrame} frame 
+	 * @returns {Promise<CekState>}
+	 */
+	async reduceCallFrame(rte, stack, state, frame) {
+		if (!this.isFullForced()) {
+			throw new Error("must be fully forced before call");
+		} else if (!this.isFullyApplied()) {
+			const fn = this.apply(state.reducing);
+
+			if (fn.isFullyApplied()) {
+				const callSites = frame.env.callSites.concat([frame.term.callSite]);
+
+				const res = await fn.evalCek(rte, callSites);
+
+				if (rte.hasError()) {
+					return {
+						error: rte.getError(), 
+						env: {
+							values: frame.env.values,
+							callSites: callSites
+						}
+					};
+				} else {
+					return {reducing: res};
+				}
+			} else {
+				return {reducing: fn};
+			}
+		} else {
+			throw new Error("already fully applied");
+		}
+	}
+}
+
+/**
+ * @internal
+ * @typedef {UplcConst | AppliedUplcBuiltin | UplcLambdaWithEnv | UplcDelayWithEnv} CekValue
+ */
+
+/**
+ * @internal
+ * @typedef {{
+ * 	 values: CekValue[],
+ *   callSites: Site[]
+ * }} CekEnv
+ */
+
+/**
+ * @internal
+ * @typedef {{computing: UplcTerm, env: CekEnv}} ComputingState
+ */
+
+/**
+ * @internal
+ * @typedef {{reducing: CekValue}} ReducingState
+ */
+
+/**
+ * @internal
+ * @typedef {{error: string | RuntimeError, env: CekEnv}} ErrorState
+ */
+
+/**
+ * @internal
+ * @typedef {ComputingState | ReducingState | ErrorState} CekState
+ */
+
+/**
+ * @param {UplcRte} rte
+ * @param {UplcTerm} start
+ * @param {null | UplcValue[]} args
+ * @returns {Promise<UplcValue>}
+ */
+export async function evalCek(rte, start, args = null) {
+    if (args !== null) {
+        if (args.length == 0) {
+            start = new UplcForce(start.site, start);
+        } else {
+            for (let arg of args) {
+                start = new UplcCall(start.site, start, new UplcConst(arg));
+            }
+        }
+    }
+
+    /**
+     * @type {UplcFrame[]}
+     */
+    const stack = [];
+
+    /**
+     * @type {CekState}
+     */
+    let state = {computing: start, env: {values: [], callSites: []}};
+
+    // add the startup costs
+    rte.incrStartupCost();
+
+	while (true) {
+		if ("computing" in state) {
+			const term = state.computing;
+
+			state = term.computeCek(rte, stack, state);
+		} else if ("reducing" in state) {
+			const f = stack.pop();
+
+			const term = state.reducing;
+
+			if (!f) {
+				if (term instanceof UplcConst) {
+					return term.value;
+				} else {
+					throw new Error("final UplcTerm in CEK isn't a UplcConst but a " + term.toString());
+				}
+			} else {
+				state = await f.reduceCek(rte, stack, state);
+			}
+		} else if ("error" in state) {
+			/**
+			 * @type {string[]}
+			 */
+			let lines = rte.messages.slice();
+
+			let err = state.error;
+
+			const summary = "thrown during UPLC evaluation";
+
+			if (typeof err == "string") {
+				let msg = err;
+
+				if (msg == "" && lines.length > 0) {
+					msg = assertDefined(lines.pop()).split(")").slice(1).join(")").trim();
+				}
+
+				/**
+				 * @type {boolean}
+				 */
+				let codeMapSiteFound = false;
+
+				for (let i = state.env.callSites.length - 1; i >= 0; i--) {
+					const s = state.env.callSites[i];
+
+					if (s.codeMapSite) {
+						if (!codeMapSiteFound) {
+							lines.push(`ERROR (${s.codeMapSite.toString()}) ${msg}`);
+							codeMapSiteFound = true;
+						} else {
+							lines.push(`TRACE (${s.codeMapSite.toString()})`);
+						}
+					}
+				}
+
+				if (!codeMapSiteFound) {
+					lines.push(`ERROR ${msg}`);
+				}
+
+				
+			} else {
+				lines = lines.concat(err.message.split("\n").filter(l => l != summary));
+			}
+
+			lines.unshift(summary);
+
+			throw new RuntimeError(lines.join("\n"));
+		} else {
+			throw new Error("unhandled CEK state");
+		}
 	}
 }

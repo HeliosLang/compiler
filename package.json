@@ -1,16 +1,16 @@
 {
   "name": "@hyperionbt/helios",
   "type": "module",
-  "version": "0.14.4",
+  "version": "0.15.0",
   "description": "Helios is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Helios is a non-Haskell alternative to Plutus. With this library you can compile Helios scripts and build Cardano transactions, all you need to build 100% client-side dApps for Cardano.",
   "main": "helios.js",
   "types": "helios.d.ts",
   "sideEffects": false,
   "scripts": {
-    "prebuild": "node ./src/index.js && npm install && npx tsc",
+    "prebuild": "node ./src/index.js && npm install && npx tsc --outFile ./helios-internal.d.ts && node ./utils/strip-internal.js",
     "test": "node ./test/index.js",
     "build": "npm test",
-    "pub": "node ./test/check-version.js && aws s3 cp ./helios.js s3://helios-library/$(node ./test/latest-version.js)/ && npm publish ."
+    "pub": "node ./scripts/check-version.js && aws s3 cp ./helios.js s3://helios-library/$(node ./scripts/latest-version.js)/ && npm publish ."
   },
   "repository": {
     "type": "git",

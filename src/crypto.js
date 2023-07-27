@@ -10,14 +10,15 @@ import {
     BitWriter,
     assert,
     bigIntToBytes,
-    bytesToBigInt,
+    bigIntToLe32Bytes,
     imod8,
+    leBytesToBigInt,
     padZeroes
 } from "./utils.js";
 
 /**
  * Size of default Blake2b digest
- * @package
+ * @internal
  */
 var BLAKE2B_DIGEST_SIZE = 32; // bytes
 
@@ -26,7 +27,7 @@ var BLAKE2B_DIGEST_SIZE = 32; // bytes
  *  (because the nodejs crypto module only supports 
  *   blake2b-512 and not blake2b-256, and we want to avoid non-standard dependencies in the 
  *   test-suite)
- * @package
+ * @internal
  * @param {number} s - 32 or 64
  */
 export function setBlake2bDigestSize(s) {
@@ -35,7 +36,7 @@ export function setBlake2bDigestSize(s) {
  
 /**
  * Make sure resulting number fits in uint32
- * @package
+ * @internal
  * @param {number} x
  */
 function imod32(x) {
@@ -44,7 +45,7 @@ function imod32(x) {
 
 /**
  * 32 bit number rotation
- * @package
+ * @internal
  * @param {number} x - originally uint32
  * @param {number} n
  * @returns {number} - originally uint32
@@ -55,7 +56,7 @@ function irotr(x, n) {
 
 /**
  * Positive modulo operator
- * @package
+ * @internal
  * @param {bigint} x 
  * @param {bigint} n 
  * @returns {bigint}
@@ -71,8 +72,24 @@ function posMod(x, n) {
 }
 
 /**
+ * @internal
+ * @param {NumberGenerator} random 
+ * @param {number} n 
+ * @returns {number[]}
+ */
+export function randomBytes(random, n) {
+	const key = [];
+
+	for (let i = 0; i < n; i++) {
+		key.push(Math.floor(random()*256)%256);
+	}
+
+    return key;
+}
+
+/**
  * UInt64 number (represented by 2 UInt32 numbers)
- * @package
+ * @internal
  */
 class UInt64 {
 	#high;
@@ -88,7 +105,7 @@ class UInt64 {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @returns {UInt64}
 	 */
 	static zero() {
@@ -96,7 +113,7 @@ class UInt64 {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @param {number[]} bytes - 8 uint8 numbers
 	 * @param {boolean} littleEndian
 	 * @returns {UInt64}
@@ -120,7 +137,7 @@ class UInt64 {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @param {string} str 
 	 * @returns {UInt64}
 	 */
@@ -132,7 +149,7 @@ class UInt64 {
 	}
 
     /**
-     * @package
+     * @internal
      * @type {number}
      */
 	get high() {
@@ -140,7 +157,7 @@ class UInt64 {
 	}
 
     /**
-     * @package
+     * @internal
      * @type {number}
      */
 	get low() {
@@ -149,7 +166,7 @@ class UInt64 {
 
 	/**
 	 * Returns [low[0], low[1], low[2], low[3], high[0], high[1], high[2], high[3]] if littleEndian==true
-     * @package
+     * @internal
 	 * @param {boolean} littleEndian
 	 * @returns {number[]}
 	 */
@@ -173,7 +190,7 @@ class UInt64 {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @param {UInt64} other 
 	 * @returns {boolean}
 	 */
@@ -182,7 +199,7 @@ class UInt64 {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @returns {UInt64} 
 	 */
 	not() {
@@ -190,7 +207,7 @@ class UInt64 {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @param {UInt64} other
 	 * @returns {UInt64}
 	 */
@@ -199,7 +216,7 @@ class UInt64 {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @param {UInt64} other 
 	 * @returns {UInt64}
 	 */
@@ -208,7 +225,7 @@ class UInt64 {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @param {UInt64} other 
 	 * @returns {UInt64}
 	 */
@@ -225,7 +242,7 @@ class UInt64 {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @param {number} n 
 	 * @returns {UInt64}
 	 */
@@ -243,7 +260,7 @@ class UInt64 {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @param {number} n
 	 * @returns {UInt64}
 	 */
@@ -267,7 +284,7 @@ class UInt64 {
 export class Crypto {
 	/**
 	 * Returns a simple random number generator
-     * @package
+     * @internal
 	 * @param {number} seed
 	 * @returns {NumberGenerator} - a random number generator
 	 */
@@ -285,7 +302,7 @@ export class Crypto {
 
 	/**
 	 * Alias for rand generator of choice
-     * @package
+     * @internal
 	 * @param {number} seed
 	 * @returns {NumberGenerator} - the random number generator function
 	 */
@@ -323,7 +340,6 @@ export class Crypto {
 	 * Crypto.encodeBase32(textToBytes("fooba")) => "mzxw6ytb"
 	 * @example
 	 * Crypto.encodeBase32(textToBytes("foobar")) => "mzxw6ytboi"
-     * @package
 	 * @param {number[]} bytes - uint8 numbers
 	 * @param {string} alphabet - list of chars
 	 * @return {string}
@@ -333,8 +349,7 @@ export class Crypto {
 	}
 
 	/**
-	 * Internal method
-     * @package
+     * @internal
 	 * @param {number[]} bytes 
 	 * @returns {number[]} - list of numbers between 0 and 32
 	 */
@@ -364,7 +379,6 @@ export class Crypto {
 	 * bytesToText(Crypto.decodeBase32("mzxw6ytb")) => "fooba"
 	 * @example
 	 * bytesToText(Crypto.decodeBase32("mzxw6ytboi")) => "foobar"
-     * @package
 	 * @param {string} encoded
 	 * @param {string} alphabet
 	 * @return {number[]}
@@ -399,9 +413,8 @@ export class Crypto {
 	}
 
 	/**
-	 * Expand human readable prefix of the bech32 encoding so it can be used in the checkSum
-	 * Internal method.
-     * @package
+	 * Expand human readable prefix of the bech32 encoding so it can be used in the checkSum.
+     * @internal
 	 * @param {string} hrp
 	 * @returns {number[]}
 	 */
@@ -422,8 +435,7 @@ export class Crypto {
 
 	/**
 	 * Used as part of the bech32 checksum.
-	 * Internal method.
-     * @package
+     * @internal
 	 * @param {number[]} bytes 
 	 * @returns {number}
 	 */
@@ -446,9 +458,8 @@ export class Crypto {
 	}
 
 	/**
-	 * Generate the bech32 checksum
-	 * Internal method
-     * @package
+	 * Generate the bech32 checksum.
+     * @internal
 	 * @param {string} hrp 
 	 * @param {number[]} data - numbers between 0 and 32
 	 * @returns {number[]} - 6 numbers between 0 and 32
@@ -472,7 +483,6 @@ export class Crypto {
 	 * Crypto.encodeBech32("foo", textToBytes("foobar")) => "foo1vehk7cnpwgry9h96"
 	 * @example
 	 * Crypto.encodeBech32("addr_test", hexToBytes("70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539")) => "addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld"
-     * @package
 	 * @param {string} hrp 
 	 * @param {number[]} data - uint8 0 - 256
 	 * @returns {string}
@@ -492,7 +502,6 @@ export class Crypto {
 	 * Throws an error if checksum is invalid.
 	 * @example
 	 * bytesToHex(Crypto.decodeBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld")[1]) => "70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539"
-     * @package
 	 * @param {string} addr 
 	 * @returns {[string, number[]]}
 	 */
@@ -530,7 +539,6 @@ export class Crypto {
 	 * Crypto.verifyBech32("?1ezyfcl") => true
 	 * @example
 	 * Crypto.verifyBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld") => true
-     * @package
 	 * @param {string} addr
 	 * @returns {boolean}
 	 */
@@ -576,7 +584,6 @@ export class Crypto {
 	 * bytesToHex(Crypto.sha2_256([0x61, 0x62, 0x63])) => "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 	 * @example
 	 * Crypto.sha2_256(textToBytes("Hello, World!")) => [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
-     * @package
 	 * @param {number[]} bytes - list of uint8 numbers
 	 * @returns {number[]} - list of uint8 numbers
 	 */
@@ -759,7 +766,6 @@ export class Crypto {
 	 * bytesToHex(Crypto.sha2_512(textToBytes("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"))) => "204a8fc6dda82f0a0ced7beb8e08a41657c16ef468b228a8279be331a703c33596fd15c13b1b07f9aa1d3bea57789ca031ad85c7a71dd70354ec631238ca3445"
 	 * @example
 	 * bytesToHex(Crypto.sha2_512(textToBytes("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstuu"))) => "23565d109ac0e2aa9fb162385178895058b28489a6bc31cb55491ed83956851ab1d4bbd46440586f5c9c4b69c9c280118cbc55c71495d258cc27cc6bb25ee720"
-     * @package
 	 * @param {number[]} bytes - list of uint8 numbers
 	 * @returns {number[]} - list of uint8 numbers
 	 */
@@ -966,7 +972,6 @@ export class Crypto {
 	 * bytesToHex(Crypto.sha3((new Array(134)).fill(3))) => "8e6575663dfb75a88f94a32c5b363c410278b65020734560d968aadd6896a621"
 	 * @example
 	 * bytesToHex(Crypto.sha3((new Array(137)).fill(4))) => "f10b39c3e455006aa42120b9751faa0f35c821211c9d086beb28bf3c4134c6c6"
-     * @package
 	 * @param {number[]} bytes - list of uint8 numbers
 	 * @returns {number[]} - list of uint8 numbers
 	 */
@@ -1156,7 +1161,6 @@ export class Crypto {
 	 * bytesToHex(Crypto.blake2b([0, 1])) => "01cf79da4945c370c68b265ef70641aaa65eaa8f5953e3900d97724c2c5aa095"
 	 * @example
 	 * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
-     * @package
 	 * @param {number[]} bytes 
 	 * @param {number} digestSize - at most 64
 	 * @returns {number[]}
@@ -1324,6 +1328,114 @@ export class Crypto {
 	}
 
 	/**
+	 * Don't use this directly, use hmacSha2_256 or hmacSha2_512 instead
+	 * @internal
+	 * @param {(x: number[]) => number[]} algorithm 
+	 * @param {number} b - blockSize of algorithm
+	 * @param {number[]} key 
+	 * @param {number[]} message 
+	 * @returns {number[]}
+	 */
+	static hmac(algorithm, b, key, message) {
+		if (key.length > b) {
+			key = algorithm(key);
+		} else {
+			key = key.slice();
+		}
+
+		while (key.length < b) {
+			key.push(0x00);
+		}
+
+		const iPadded = key.map(k => (k ^ 0x36));
+		const oPadded = key.map(k => (k ^ 0x5c));
+
+		return algorithm(oPadded.concat(algorithm(iPadded.concat(message))));
+	}
+
+	/**
+	 * @example
+	 * bytesToHex(Crypto.hmacSha2_256(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) => "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+	 * @param {number[]} key 
+	 * @param {number[]} message 
+	 * @returns {number[]}
+	 */
+	static hmacSha2_256(key, message) {
+		return Crypto.hmac((x) => Crypto.sha2_256(x), 64, key, message);
+	}
+
+	/**
+	 * @example
+	 * bytesToHex(Crypto.hmacSha2_512(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) => "b42af09057bac1e2d41708e48a902e09b5ff7f12ab428a4fe86653c73dd248fb82f948a549f7b791a5b41915ee4d1ec3935357e4e2317250d0372afa2ebeeb3a"
+	 * @param {number[]} key 
+	 * @param {number[]} message 
+	 * @returns {number[]}
+	 */
+	static hmacSha2_512(key, message) {
+		return Crypto.hmac((x) => Crypto.sha2_512(x), 128, key, message);
+	}
+
+	/**
+	 * @example
+     * bytesToHex(Crypto.pbkdf2(Crypto.hmacSha2_256, textToBytes("password"), textToBytes("salt"), 1, 20)) => "120fb6cffcf8b32c43e7225256c4f837a86548c9"
+	 * @example
+     * bytesToHex(Crypto.pbkdf2(Crypto.hmacSha2_512, textToBytes("password"), textToBytes("salt"), 2, 20)) => "e1d9c16aa681708a45f5c7c4e215ceb66e011a2e"
+	 * @param {(key: number[], msg: number[]) => number[]} prf 
+	 * @param {number[]} password 
+	 * @param {number[]} salt 
+	 * @param {number} iters
+	 * @param {number} dkLength 
+	 * @returns {number[]}
+	 */
+	static pbkdf2(prf, password, salt, iters, dkLength) {
+		/**
+		 * @param {number[]} a 
+		 * @param {number[]} b 
+		 * @returns {number[]}
+		 */
+		const xor = (a, b) => {
+			const c = new Array(a.length);
+
+			for (let i = 0; i < a.length; i++) {
+				c[i] = a[i] ^ b[i];
+			}
+
+			return c;
+		}
+
+		/**
+		 * @type {number[]}
+		 */
+		let dk = [];
+
+		let i = 1n;
+		while (dk.length < dkLength) {
+			const bi = bigIntToBytes(i);
+			while (bi.length < 4) {
+				bi.unshift(0);
+			}
+
+			let U = prf(password, salt.slice().concat(bi));
+			let T = U;
+
+			for (let j = 1; j < iters; j++) {
+				U = prf(password, U);
+				T = xor(T, U);
+			}
+
+			dk = dk.concat(T);
+
+			i += 1n;
+		}
+
+		if (dk.length > dkLength) {
+			dk = dk.slice(0, dkLength);
+		}
+
+		return dk;
+	}
+
+	/**
 	 * Crypto.Ed25519 exports the following functions:
 	 *  * Crypto.Ed25519.derivePublicKey(privateKey)
 	 *  * Crypto.Ed25519.sign(message, privateKey)
@@ -1331,7 +1443,6 @@ export class Crypto {
 	 * 
 	 * Ported from: https://ed25519.cr.yp.to/python/ed25519.py
 	 * ExtendedPoint implementation from: https://github.com/paulmillr/noble-ed25519
-     * @package
 	 */
 	static get Ed25519() {
 		/**
@@ -1434,13 +1545,7 @@ export class Crypto {
 		 * @returns {number[]}
 		 */
 		function encodeInt(y) {
-			const bytes = bigIntToBytes(y).reverse();
-			
-			while (bytes.length < 32) {
-				bytes.push(0);
-			}
-
-			return bytes;
+			return bigIntToLe32Bytes(y);
 		}
 
 		/**
@@ -1448,7 +1553,7 @@ export class Crypto {
 		 * @returns {bigint}
 		 */
 		function decodeInt(s) {
-			return bytesToBigInt(s.reverse());
+			return leBytesToBigInt(s);
 		}
 
 		/**
@@ -1761,44 +1866,69 @@ export class Crypto {
 		}
 
 		/**
-		 * Couldn't think of a proper name for this function
 		 * @param {number[]} h 
 		 * @returns {bigint}
 		 */
-		function calca(h) {
-			const a = 28948022309329048855892746252171976963317496166410141009864396001978282409984n; // ipow2(253)
-
+		function clamp(h) {
 			const bytes = h.slice(0, 32);
-			bytes[0] = bytes[0] & 0b11111000;
-			bytes[31] = bytes[31] & 0b00111111;
 
-			const x = bytesToBigInt(bytes.reverse());
-			return a + x;
+			bytes[0]  &= 0b11111000;
+			bytes[31] &= 0b00111111;
+			bytes[31] |= 0b01000000;
+
+			return decodeInt(bytes);
 		}
 
 		/**
 		 * @param {number[]} m 
 		 * @returns {bigint}
 		 */
-		function ihash(m) {
+		function nonce(m) {
 			const h = Crypto.sha2_512(m);
 
 			return decodeInt(h);
 		}
 
-		const PointImpl = ExtendedPoint
+		const PointImpl = ExtendedPoint;
 
 		return {
 			/**
-			 * @param {number[]} privateKey 
+			 * @param {number[]} extendedKey
 			 * @returns {number[]}
 			 */
-			derivePublicKey: function(privateKey) {
-				const privateKeyHash = Crypto.sha2_512(privateKey);
-				const a = calca(privateKeyHash);
+			deriveBip32PublicKey: function(extendedKey) {
+				const a = clamp(extendedKey);
 				const A = PointImpl.BASE.mul(a);
 
 				return A.encode();
+			},
+
+			/**
+			 * @param {number[]} privateKey
+			 * @returns {number[]}
+			 */
+			derivePublicKey: function(privateKey) {
+				return Crypto.Ed25519.deriveBip32PublicKey(Crypto.sha2_512(privateKey));
+			},
+
+			/**
+			 * @param {number[]} message 
+			 * @param {number[]} extendedKey 
+			 * @returns {number[]}
+			 */
+			signBip32: function(message, extendedKey) {
+				const a = clamp(extendedKey);
+
+				// for convenience calculate publicKey here:
+				const publicKey = PointImpl.BASE.mul(a).encode();
+
+				const r = nonce(extendedKey.slice(32, 64).concat(message));
+				const R = PointImpl.BASE.mul(r);
+				const Rencoded = R.encode();
+				const ih = nonce(Rencoded.concat(publicKey).concat(message));
+				const S = posMod(r + ih*a, CURVE_ORDER);
+
+				return Rencoded.concat(encodeInt(S));
 			},
 
 			/**
@@ -1807,19 +1937,7 @@ export class Crypto {
 			 * @returns {number[]}
 			 */
 			sign: function(message, privateKey) {
-				const privateKeyHash = Crypto.sha2_512(privateKey);
-				const a = calca(privateKeyHash);
-
-				// for convenience calculate publicKey here:
-				const publicKey = PointImpl.BASE.mul(a).encode();
-
-				const r = ihash(privateKeyHash.slice(32, 64).concat(message));
-				const R = PointImpl.BASE.mul(r);
-				const Rencoded = R.encode();
-				const ih = ihash(Rencoded.concat(publicKey).concat(message));
-				const S = posMod(r + ih*a, CURVE_ORDER);
-
-				return Rencoded.concat(encodeInt(S));
+				return Crypto.Ed25519.signBip32(message, Crypto.sha2_512(privateKey));
 			},
 
 			/**
@@ -1840,7 +1958,7 @@ export class Crypto {
 				const R = PointImpl.decode(signature.slice(0, 32));
 				const A = PointImpl.decode(publicKey);
 				const S = decodeInt(signature.slice(32, 64));
-				const h = ihash(signature.slice(0, 32).concat(publicKey).concat(message));
+				const h = nonce(signature.slice(0, 32).concat(publicKey).concat(message));
 
 				const left = PointImpl.BASE.mul(S);
 				const right = R.add(A.mul(h));
@@ -1850,3 +1968,34 @@ export class Crypto {
 		}
 	}
 }
+
+/**
+ * Standard English Bip39 dictionary consisting of 2048 words allowing wallet root keys to be formed by a phrase of 12, 15, 18, 21 or 24 of these words.
+ */
+export const BIP39_DICT_EN = [
+	"abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse", "access", "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act", "action", "actor", "actress", "actual", "adapt", "add", "addict", "address", "adjust", "admit", "adult", "advance", "advice", "aerobic", "affair", "afford", "afraid", "again", "age", "agent", "agree", "ahead", "aim", "air", "airport", "aisle", "alarm", "album", "alcohol", "alert", "alien", "all", "alley", "allow", "almost", "alone", "alpha", "already", "also", "alter", "always", "amateur", "amazing", "among", "amount", "amused", "analyst", "anchor", "ancient", "anger", "angle", "angry", "animal", "ankle", "announce", "annual", "another", "answer", "antenna", "antique", "anxiety", "any", "apart", "apology", "appear", "apple", "approve", "april", "arch", "arctic", "area", "arena", "argue", "arm", "armed", "armor", "army", "around", "arrange", "arrest", "arrive", "arrow", "art", "artefact", "artist", "artwork", "ask", "aspect", "assault", "asset", "assist", "assume", "asthma", "athlete", "atom", "attack", "attend", "attitude", "attract", "auction", "audit", "august", "aunt", "author", "auto", "autumn", "average", "avocado", "avoid", "awake", "aware", "away", "awesome", "awful", "awkward", "axis",
+	"baby", "bachelor", "bacon", "badge", "bag", "balance", "balcony", "ball", "bamboo", "banana", "banner", "bar", "barely", "bargain", "barrel", "base", "basic", "basket", "battle", "beach", "bean", "beauty", "because", "become", "beef", "before", "begin", "behave", "behind", "believe", "below", "belt", "bench", "benefit", "best", "betray", "better", "between", "beyond", "bicycle", "bid", "bike", "bind", "biology", "bird", "birth", "bitter", "black", "blade", "blame", "blanket", "blast", "bleak", "bless", "blind", "blood", "blossom", "blouse", "blue", "blur", "blush", "board", "boat", "body", "boil", "bomb", "bone", "bonus", "book", "boost", "border", "boring", "borrow", "boss", "bottom", "bounce", "box", "boy", "bracket", "brain", "brand", "brass", "brave", "bread", "breeze", "brick", "bridge", "brief", "bright", "bring", "brisk", "broccoli", "broken", "bronze", "broom", "brother", "brown", "brush", "bubble", "buddy", "budget", "buffalo", "build", "bulb", "bulk", "bullet", "bundle", "bunker", "burden", "burger", "burst", "bus", "business", "busy", "butter", "buyer", "buzz", 
+	"cabbage", "cabin", "cable", "cactus", "cage", "cake", "call", "calm", "camera", "camp", "can", "canal", "cancel", "candy", "cannon", "canoe", "canvas", "canyon", "capable", "capital", "captain", "car", "carbon", "card", "cargo", "carpet", "carry", "cart", "case", "cash", "casino", "castle", "casual", "cat", "catalog", "catch", "category", "cattle", "caught", "cause", "caution", "cave", "ceiling", "celery", "cement", "census", "century", "cereal", "certain", "chair", "chalk", "champion", "change", "chaos", "chapter", "charge", "chase", "chat", "cheap", "check", "cheese", "chef", "cherry", "chest", "chicken", "chief", "child", "chimney", "choice", "choose", "chronic", "chuckle", "chunk", "churn", "cigar", "cinnamon", "circle", "citizen", "city", "civil", "claim", "clap", "clarify", "claw", "clay", "clean", "clerk", "clever", "click", "client", "cliff", "climb", "clinic", "clip", "clock", "clog", "close", "cloth", "cloud", "clown", "club", "clump", "cluster", "clutch", "coach", "coast", "coconut", "code", "coffee", "coil", "coin", "collect", "color", "column", "combine", "come", "comfort", "comic", "common", "company", "concert", "conduct", "confirm", "congress", "connect", "consider", "control", "convince", "cook", "cool", "copper", "copy", "coral", "core", "corn", "correct", "cost", "cotton", "couch", "country", "couple", "course", "cousin", "cover", "coyote", "crack", "cradle", "craft", "cram", "crane", "crash", "crater", "crawl", "crazy", "cream", "credit", "creek", "crew", "cricket", "crime", "crisp", "critic", "crop", "cross", "crouch", "crowd", "crucial", "cruel", "cruise", "crumble", "crunch", "crush", "cry", "crystal", "cube", "culture", "cup", "cupboard", "curious", "current", "curtain", "curve", "cushion", "custom", "cute", "cycle",
+	"dad", "damage", "damp", "dance", "danger", "daring", "dash", "daughter", "dawn", "day", "deal", "debate", "debris", "decade", "december", "decide", "decline", "decorate", "decrease", "deer", "defense", "define", "defy", "degree", "delay", "deliver", "demand", "demise", "denial", "dentist", "deny", "depart", "depend", "deposit", "depth", "deputy", "derive", "describe", "desert", "design", "desk", "despair", "destroy", "detail", "detect", "develop", "device", "devote", "diagram", "dial", "diamond", "diary", "dice", "diesel", "diet", "differ", "digital", "dignity", "dilemma", "dinner", "dinosaur", "direct", "dirt", "disagree", "discover", "disease", "dish", "dismiss", "disorder", "display", "distance", "divert", "divide", "divorce", "dizzy", "doctor", "document", "dog", "doll", "dolphin", "domain", "donate", "donkey", "donor", "door", "dose", "double", "dove", "draft", "dragon", "drama", "drastic", "draw", "dream", "dress", "drift", "drill", "drink", "drip", "drive", "drop", "drum", "dry", "duck", "dumb", "dune", "during", "dust", "dutch", "duty", "dwarf", "dynamic",
+	"eager", "eagle", "early", "earn", "earth", "easily", "east", "easy", "echo", "ecology", "economy", "edge", "edit", "educate", "effort", "egg", "eight", "either", "elbow", "elder", "electric", "elegant", "element", "elephant", "elevator", "elite", "else", "embark", "embody", "embrace", "emerge", "emotion", "employ", "empower", "empty", "enable", "enact", "end", "endless", "endorse", "enemy", "energy", "enforce", "engage", "engine", "enhance", "enjoy", "enlist", "enough", "enrich", "enroll", "ensure", "enter", "entire", "entry", "envelope", "episode", "equal", "equip", "era", "erase", "erode", "erosion", "error", "erupt", "escape", "essay", "essence", "estate", "eternal", "ethics", "evidence", "evil", "evoke", "evolve", "exact", "example", "excess", "exchange", "excite", "exclude", "excuse", "execute", "exercise", "exhaust", "exhibit", "exile", "exist", "exit", "exotic", "expand", "expect", "expire", "explain", "expose", "express", "extend", "extra", "eye", "eyebrow",
+	"fabric", "face", "faculty", "fade", "faint", "faith", "fall", "false", "fame", "family", "famous", "fan", "fancy", "fantasy", "farm", "fashion", "fat", "fatal", "father", "fatigue", "fault", "favorite", "feature", "february", "federal", "fee", "feed", "feel", "female", "fence", "festival", "fetch", "fever", "few", "fiber", "fiction", "field", "figure", "file", "film", "filter", "final", "find", "fine", "finger", "finish", "fire", "firm", "first", "fiscal", "fish", "fit", "fitness", "fix", "flag", "flame", "flash", "flat", "flavor", "flee", "flight", "flip", "float", "flock", "floor", "flower", "fluid", "flush", "fly", "foam", "focus", "fog", "foil", "fold", "follow", "food", "foot", "force", "forest", "forget", "fork", "fortune", "forum", "forward", "fossil", "foster", "found", "fox", "fragile", "frame", "frequent", "fresh", "friend", "fringe", "frog", "front", "frost", "frown", "frozen", "fruit", "fuel", "fun", "funny", "furnace", "fury", "future", 
+	"gadget", "gain", "galaxy", "gallery", "game", "gap", "garage", "garbage", "garden", "garlic", "garment", "gas", "gasp", "gate", "gather", "gauge", "gaze", "general", "genius", "genre", "gentle", "genuine", "gesture", "ghost", "giant", "gift", "giggle", "ginger", "giraffe", "girl", "give", "glad", "glance", "glare", "glass", "glide", "glimpse", "globe", "gloom", "glory", "glove", "glow", "glue", "goat", "goddess", "gold", "good", "goose", "gorilla", "gospel", "gossip", "govern", "gown", "grab", "grace", "grain", "grant", "grape", "grass", "gravity", "great", "green", "grid", "grief", "grit", "grocery", "group", "grow", "grunt", "guard", "guess", "guide", "guilt", "guitar", "gun", "gym", 
+	"habit", "hair", "half", "hammer", "hamster", "hand", "happy", "harbor", "hard", "harsh", "harvest", "hat", "have", "hawk", "hazard", "head", "health", "heart", "heavy", "hedgehog", "height", "hello", "helmet", "help", "hen", "hero", "hidden", "high", "hill", "hint", "hip", "hire", "history", "hobby", "hockey", "hold", "hole", "holiday", "hollow", "home", "honey", "hood", "hope", "horn", "horror", "horse", "hospital", "host", "hotel", "hour", "hover", "hub", "huge", "human", "humble", "humor", "hundred", "hungry", "hunt", "hurdle", "hurry", "hurt", "husband", "hybrid", 
+	"ice", "icon", "idea", "identify", "idle", "ignore", "ill", "illegal", "illness", "image", "imitate", "immense", "immune", "impact", "impose", "improve", "impulse", "inch", "include", "income", "increase", "index", "indicate", "indoor", "industry", "infant", "inflict", "inform", "inhale", "inherit", "initial", "inject", "injury", "inmate", "inner", "innocent", "input", "inquiry", "insane", "insect", "inside", "inspire", "install", "intact", "interest", "into", "invest", "invite", "involve", "iron", "island", "isolate", "issue", "item", "ivory", 
+	"jacket", "jaguar", "jar", "jazz", "jealous", "jeans", "jelly", "jewel", "job", "join", "joke", "journey", "joy", "judge", "juice", "jump", "jungle", "junior", "junk", "just", 
+	"kangaroo", "keen", "keep", "ketchup", "key", "kick", "kid", "kidney", "kind", "kingdom", "kiss", "kit", "kitchen", "kite", "kitten", "kiwi", "knee", "knife", "knock", "know", 
+	"lab", "label", "labor", "ladder", "lady", "lake", "lamp", "language", "laptop", "large", "later", "latin", "laugh", "laundry", "lava", "law", "lawn", "lawsuit", "layer", "lazy", "leader", "leaf", "learn", "leave", "lecture", "left", "leg", "legal", "legend", "leisure", "lemon", "lend", "length", "lens", "leopard", "lesson", "letter", "level", "liar", "liberty", "library", "license", "life", "lift", "light", "like", "limb", "limit", "link", "lion", "liquid", "list", "little", "live", "lizard", "load", "loan", "lobster", "local", "lock", "logic", "lonely", "long", "loop", "lottery", "loud", "lounge", "love", "loyal", "lucky", "luggage", "lumber", "lunar", "lunch", "luxury", "lyrics",
+	"machine", "mad", "magic", "magnet", "maid", "mail", "main", "major", "make", "mammal", "man", "manage", "mandate", "mango", "mansion", "manual", "maple", "marble", "march", "margin", "marine", "market", "marriage", "mask", "mass", "master", "match", "material", "math", "matrix", "matter", "maximum", "maze", "meadow", "mean", "measure", "meat", "mechanic", "medal", "media", "melody", "melt", "member", "memory", "mention", "menu", "mercy", "merge", "merit", "merry", "mesh", "message", "metal", "method", "middle", "midnight", "milk", "million", "mimic", "mind", "minimum", "minor", "minute", "miracle", "mirror", "misery", "miss", "mistake", "mix", "mixed", "mixture", "mobile", "model", "modify", "mom", "moment", "monitor", "monkey", "monster", "month", "moon", "moral", "more", "morning", "mosquito", "mother", "motion", "motor", "mountain", "mouse", "move", "movie", "much", "muffin", "mule", "multiply", "muscle", "museum", "mushroom", "music", "must", "mutual", "myself", "mystery", "myth", 
+	"naive", "name", "napkin", "narrow", "nasty", "nation", "nature", "near", "neck", "need", "negative", "neglect", "neither", "nephew", "nerve", "nest", "net", "network", "neutral", "never", "news", "next", "nice", "night", "noble", "noise", "nominee", "noodle", "normal", "north", "nose", "notable", "note", "nothing", "notice", "novel", "now", "nuclear", "number", "nurse", "nut", 
+	"oak", "obey", "object", "oblige", "obscure", "observe", "obtain", "obvious", "occur", "ocean", "october", "odor", "off", "offer", "office", "often", "oil", "okay", "old", "olive", "olympic", "omit", "once", "one", "onion", "online", "only", "open", "opera", "opinion", "oppose", "option", "orange", "orbit", "orchard", "order", "ordinary", "organ", "orient", "original", "orphan", "ostrich", "other", "outdoor", "outer", "output", "outside", "oval", "oven", "over", "own", "owner", "oxygen", "oyster", "ozone",
+	"pact", "paddle", "page", "pair", "palace", "palm", "panda", "panel", "panic", "panther", "paper", "parade", "parent", "park", "parrot", "party", "pass", "patch", "path", "patient", "patrol", "pattern", "pause", "pave", "payment", "peace", "peanut", "pear", "peasant", "pelican", "pen", "penalty", "pencil", "people", "pepper", "perfect", "permit", "person", "pet", "phone", "photo", "phrase", "physical", "piano", "picnic", "picture", "piece", "pig", "pigeon", "pill", "pilot", "pink", "pioneer", "pipe", "pistol", "pitch", "pizza", "place", "planet", "plastic", "plate", "play", "please", "pledge", "pluck", "plug", "plunge", "poem", "poet", "point", "polar", "pole", "police", "pond", "pony", "pool", "popular", "portion", "position", "possible", "post", "potato", "pottery", "poverty", "powder", "power", "practice", "praise", "predict", "prefer", "prepare", "present", "pretty", "prevent", "price", "pride", "primary", "print", "priority", "prison", "private", "prize", "problem", "process", "produce", "profit", "program", "project", "promote", "proof", "property", "prosper", "protect", "proud", "provide", "public", "pudding", "pull", "pulp", "pulse", "pumpkin", "punch", "pupil", "puppy", "purchase", "purity", "purpose", "purse", "push", "put", "puzzle", "pyramid",
+	"quality", "quantum", "quarter", "question", "quick", "quit", "quiz", "quote", 
+	"rabbit", "raccoon", "race", "rack", "radar", "radio", "rail", "rain", "raise", "rally", "ramp", "ranch", "random", "range", "rapid", "rare", "rate", "rather", "raven", "raw", "razor", "ready", "real", "reason", "rebel", "rebuild", "recall", "receive", "recipe", "record", "recycle", "reduce", "reflect", "reform", "refuse", "region", "regret", "regular", "reject", "relax", "release", "relief", "rely", "remain", "remember", "remind", "remove", "render", "renew", "rent", "reopen", "repair", "repeat", "replace", "report", "require", "rescue", "resemble", "resist", "resource", "response", "result", "retire", "retreat", "return", "reunion", "reveal", "review", "reward", "rhythm", "rib", "ribbon", "rice", "rich", "ride", "ridge", "rifle", "right", "rigid", "ring", "riot", "ripple", "risk", "ritual", "rival", "river", "road", "roast", "robot", "robust", "rocket", "romance", "roof", "rookie", "room", "rose", "rotate", "rough", "round", "route", "royal", "rubber", "rude", "rug", "rule", "run", "runway", "rural",
+	"sad", "saddle", "sadness", "safe", "sail", "salad", "salmon", "salon", "salt", "salute", "same", "sample", "sand", "satisfy", "satoshi", "sauce", "sausage", "save", "say", "scale", "scan", "scare", "scatter", "scene", "scheme", "school", "science", "scissors", "scorpion", "scout", "scrap", "screen", "script", "scrub", "sea", "search", "season", "seat", "second", "secret", "section", "security", "seed", "seek", "segment", "select", "sell", "seminar", "senior", "sense", "sentence", "series", "service", "session", "settle", "setup", "seven", "shadow", "shaft", "shallow", "share", "shed", "shell", "sheriff", "shield", "shift", "shine", "ship", "shiver", "shock", "shoe", "shoot", "shop", "short", "shoulder", "shove", "shrimp", "shrug", "shuffle", "shy", "sibling", "sick", "side", "siege", "sight", "sign", "silent", "silk", "silly", "silver", "similar", "simple", "since", "sing", "siren", "sister", "situate", "six", "size", "skate", "sketch", "ski", "skill", "skin", "skirt", "skull", "slab", "slam", "sleep", "slender", "slice", "slide", "slight", "slim", "slogan", "slot", "slow", "slush", "small", "smart", "smile", "smoke", "smooth", "snack", "snake", "snap", "sniff", "snow", "soap", "soccer", "social", "sock", "soda", "soft", "solar", "soldier", "solid", "solution", "solve", "someone", "song", "soon", "sorry", "sort", "soul", "sound", "soup", "source", "south", "space", "spare", "spatial", "spawn", "speak", "special", "speed", "spell", "spend", "sphere", "spice", "spider", "spike", "spin", "spirit", "split", "spoil", "sponsor", "spoon", "sport", "spot", "spray", "spread", "spring", "spy", "square", "squeeze", "squirrel", "stable", "stadium", "staff", "stage", "stairs", "stamp", "stand", "start", "state", "stay", "steak", "steel", "stem", "step", "stereo", "stick", "still", "sting", "stock", "stomach", "stone", "stool", "story", "stove", "strategy", "street", "strike", "strong", "struggle", "student", "stuff", "stumble", "style", "subject", "submit", "subway", "success", "such", "sudden", "suffer", "sugar", "suggest", "suit", "summer", "sun", "sunny", "sunset", "super", "supply", "supreme", "sure", "surface", "surge", "surprise", "surround", "survey", "suspect", "sustain", "swallow", "swamp", "swap", "swarm", "swear", "sweet", "swift", "swim", "swing", "switch", "sword", "symbol", "symptom", "syrup", "system", 
+	"table", "tackle", "tag", "tail", "talent", "talk", "tank", "tape", "target", "task", "taste", "tattoo", "taxi", "teach", "team", "tell", "ten", "tenant", "tennis", "tent", "term", "test", "text", "thank", "that", "theme", "then", "theory", "there", "they", "thing", "this", "thought", "three", "thrive", "throw", "thumb", "thunder", "ticket", "tide", "tiger", "tilt", "timber", "time", "tiny", "tip", "tired", "tissue", "title", "toast", "tobacco", "today", "toddler", "toe", "together", "toilet", "token", "tomato", "tomorrow", "tone", "tongue", "tonight", "tool", "tooth", "top", "topic", "topple", "torch", "tornado", "tortoise", "toss", "total", "tourist", "toward", "tower", "town", "toy", "track", "trade", "traffic", "tragic", "train", "transfer", "trap", "trash", "travel", "tray", "treat", "tree", "trend", "trial", "tribe", "trick", "trigger", "trim", "trip", "trophy", "trouble", "truck", "true", "truly", "trumpet", "trust", "truth", "try", "tube", "tuition", "tumble", "tuna", "tunnel", "turkey", "turn", "turtle", "twelve", "twenty", "twice", "twin", "twist", "two", "type", "typical",
+	"ugly", "umbrella", "unable", "unaware", "uncle", "uncover", "under", "undo", "unfair", "unfold", "unhappy", "uniform", "unique", "unit", "universe", "unknown", "unlock", "until", "unusual", "unveil", "update", "upgrade", "uphold", "upon", "upper", "upset", "urban", "urge", "usage", "use", "used", "useful", "useless", "usual", "utility",
+	"vacant", "vacuum", "vague", "valid", "valley", "valve", "van", "vanish", "vapor", "various", "vast", "vault", "vehicle", "velvet", "vendor", "venture", "venue", "verb", "verify", "version", "very", "vessel", "veteran", "viable", "vibrant", "vicious", "victory", "video", "view", "village", "vintage", "violin", "virtual", "virus", "visa", "visit", "visual", "vital", "vivid", "vocal", "voice", "void", "volcano", "volume", "vote", "voyage", 
+	"wage", "wagon", "wait", "walk", "wall", "walnut", "want", "warfare", "warm", "warrior", "wash", "wasp", "waste", "water", "wave", "way", "wealth", "weapon", "wear", "weasel", "weather", "web", "wedding", "weekend", "weird", "welcome", "west", "wet", "whale", "what", "wheat", "wheel", "when", "where", "whip", "whisper", "wide", "width", "wife", "wild", "will", "win", "window", "wine", "wing", "wink", "winner", "winter", "wire", "wisdom", "wise", "wish", "witness", "wolf", "woman", "wonder", "wood", "wool", "word", "work", "world", "worry", "worth", "wrap", "wreck", "wrestle", "wrist", "write", "wrong",
+	"yard", "year", "yellow", "you", "young", "youth", 
+	"zebra", "zero", "zone", "zoo"
+]

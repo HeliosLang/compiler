@@ -115,7 +115,7 @@ import {
 
 /**
  * Created by statements
- * @package
+ * @internal
  * @template {HeliosData} T
  * @implements {DataType}
  */
@@ -155,7 +155,7 @@ export class GenericParametricType extends GenericType {
 
 /**
  * Created by statements
- * @package
+ * @internal
  * @template {HeliosData} T
  * @implements {EnumMemberType}
  * @extends {GenericEnumMemberType<T>}
@@ -198,7 +198,7 @@ export class GenericParametricEnumMemberType extends GenericEnumMemberType {
 }
 
 /**
- * @package
+ * @internal
  * @implements {Type}
  */
 export class TypeClassImpl extends Common {
@@ -271,7 +271,7 @@ export class TypeClassImpl extends Common {
     }
 
     /**
-	 * @package
+	 * @internal
 	 * @param {Site} site 
 	 * @param {InferenceMap} map 
 	 * @param {null | Type} type
@@ -326,7 +326,7 @@ export class TypeClassImpl extends Common {
 }
 
 /**
- * @package
+ * @internal
  * @implements {DataType}
  */
 export class DataTypeClassImpl extends TypeClassImpl {
@@ -391,7 +391,7 @@ export class DataTypeClassImpl extends TypeClassImpl {
 }
 
 /**
- * @package
+ * @internal
  * @implements {TypeClass}
  */
 export class AnyTypeClass extends Common {
@@ -449,7 +449,7 @@ export class AnyTypeClass extends Common {
 }
 
 /**
- * @package
+ * @internal
  * @implements {TypeClass}
  */
 export class DefaultTypeClass extends Common {
@@ -515,7 +515,7 @@ export class DefaultTypeClass extends Common {
 
 
 /**
- * @package
+ * @internal
  * @implements {TypeClass}
  */
 export class SummableTypeClass extends Common {
@@ -576,7 +576,7 @@ export class SummableTypeClass extends Common {
 }
 
 /**
- * @package
+ * @internal
  * @implements {ParameterI}
  */
 export class Parameter {
@@ -643,7 +643,7 @@ export class Parameter {
 /**
  * Only func instances can be parametrics instances,
  *  there are no other kinds of parametric instances
- * @package
+ * @internal
  * @implements {Parametric}
  */
 export class ParametricFunc extends Common {
@@ -768,7 +768,7 @@ export class ParametricFunc extends Common {
 }
 
 /**
- * @package
+ * @internal
  * @implements {DataType}
  */
 class AppliedType extends Common {
@@ -925,7 +925,7 @@ class AppliedType extends Common {
 }
 
 /**
- * @package
+ * @internal
  * @implements {Parametric}
  */
 export class ParametricType extends Common {

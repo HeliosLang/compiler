@@ -80,7 +80,7 @@ export function highlight(src) {
 						data[j++] = SyntaxCategory.Symbol;
 					}
 				} else if (c == "[" || c == "]" || c == "{" || c == "}" || c == "(" || c == ")") {
-					let s = new SymbolToken(new Site(new Source(src), i), c);
+					let s = new SymbolToken(new Site(new Source(src, ""), i), c);
 
 					if (Group.isOpenSymbol(s)) {
 						groupStack.push(s);

@@ -247,7 +247,7 @@ function makeRawFunctions() {
 		if (!config.DEBUG) {
 			return unData(dataExpr, iConstr, iField);
 		} else {
-			return unData(dataExpr, iConstr, iField, `__helios__common__verbose_error(__core__appendString("bad constr for ${constrName}, want ${iConstr.toString()} but got ", __helios__int__show(__core__fstPair(pair))()))`)
+			return unData(dataExpr, iConstr, iField, `__helios__error(__core__appendString("bad constr for ${constrName}, want ${iConstr.toString()} but got ", __helios__int__show(__core__fstPair(pair))()))`)
 		}
 	}
 
@@ -275,16 +275,12 @@ function makeRawFunctions() {
 
 
 	// Common builtins
-	add(new RawFunc("__helios__common__verbose_error",
-	`(msg) -> {
-		__core__trace(msg, () -> {error("")})()
-	}`));
 	add(new RawFunc("__helios__common__assert_constr_index",
 	`(data, i) -> {
 		__core__ifThenElse(
 			__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), i),
 			() -> {data},
-			() -> {error("unexpected constructor index")}
+			() -> {__helios__error("unexpected constructor index")}
 		)()
 	}`));
 	add(new RawFunc("__helios__common__identity",
@@ -395,7 +391,7 @@ function makeRawFunctions() {
 			(recurse, self, fn) -> {
 				__core__chooseList(
 					self, 
-					() -> {error("not found")}, 
+					() -> {__helios__error("not found")}, 
 					() -> {
 						__core__ifThenElse(
 							fn(__core__headList(self)), 
@@ -680,7 +676,7 @@ function makeRawFunctions() {
 		__core__trace(
 			msg, 
 			() -> {
-				error("")
+				error()
 			}
 		)()
 	}`));
@@ -695,7 +691,7 @@ function makeRawFunctions() {
 				__core__trace(
 					msg,
 					() -> {
-						error("")
+						error()
 					}
 				)()
 			}
@@ -851,7 +847,7 @@ function makeRawFunctions() {
 			__core__ifThenElse(
 				__core__lessThanInteger(self, 0),
 				() -> {
-					error("expected positive int")
+					__helios__error("expected positive int")
 				},
 				() -> {
 					__core__ifThenElse(
@@ -931,7 +927,7 @@ function makeRawFunctions() {
 				__core__ifThenElse(
 					__core__lessThanInteger(self, 0),
 					() -> {
-						error("expected positive number")
+						__helios__error("expected positive number")
 					},
 					() -> {
 						(recurse) -> {
@@ -971,7 +967,7 @@ function makeRawFunctions() {
 			__core__ifThenElse(
 				__core__equalsInteger(digit, 0xff),
 				() -> {
-					error("invalid base58 character")
+					__helios__error("invalid base58 character")
 				},
 				() -> {
 					digit
@@ -1115,12 +1111,12 @@ function makeRawFunctions() {
 						__core__subtractInteger(digit, 48)
 					},
 					() -> {
-						error("not a digit")
+						__helios__error("not a digit")
 					}
 				)()
 			},
 			() -> {
-				error("not a digit")
+				__helios__error("not a digit")
 			}
 		)()
 	}`));
@@ -1138,7 +1134,7 @@ function makeRawFunctions() {
 									0
 								},
 								() -> {
-									error("zero padded integer can't be parsed")
+									__helios__error("zero padded integer can't be parsed")
 								}
 							)()
 						},
@@ -1149,7 +1145,7 @@ function makeRawFunctions() {
 									__core__ifThenElse(
 										__core__equalsInteger(__core__indexByteString(bytes, 1), 48),
 										() -> {
-											error("-0 not allowed")
+											__helios__error("-0 not allowed")
 										},
 										() -> {
 											__core__multiplyInteger(
@@ -1248,7 +1244,7 @@ function makeRawFunctions() {
 			__core__ifThenElse(
 				__core__lessThanInteger(self, 0),
 				() -> {
-					error("can't convert negative number to big endian bytearray")
+					__helios__error("can't convert negative number to big endian bytearray")
 				},
 				() -> {
 					(recurse) -> {
@@ -1282,7 +1278,7 @@ function makeRawFunctions() {
 			__core__ifThenElse(
 				__core__lessThanInteger(self, 0),
 				() -> {
-					error("can't convert negative number to big endian bytearray")
+					__helios__error("can't convert negative number to big endian bytearray")
 				},
 				() -> {
 					(recurse) -> {
@@ -1323,7 +1319,7 @@ function makeRawFunctions() {
 								0
 							},
 							() -> {
-								error("negative number in sqrt")
+								__helios__error("negative number in sqrt")
 							}
 						)()
 					}
@@ -1806,7 +1802,7 @@ function makeRawFunctions() {
 			__core__ifThenElse(
 				__core__lessThanInteger(i, 0),
 				() -> {
-					error("negative index in iterator.get()")
+					__helios__error("negative index in iterator.get()")
 				},
 				() -> {
 					(recurse) -> {
@@ -1818,7 +1814,7 @@ function makeRawFunctions() {
 									__core__ifThenElse(
 										is_null,
 										() -> {
-											error("index out of range")
+											__helios__error("index out of range")
 										},
 										() -> {
 											__core__ifThenElse(
@@ -1851,7 +1847,7 @@ function makeRawFunctions() {
 					__core__ifThenElse(
 						is_null,
 						() -> {
-							error("empty iterator, not a singleton")
+							__helios__error("empty iterator, not a singleton")
 						},
 						() -> {
 							__core__ifThenElse(
@@ -1860,7 +1856,7 @@ function makeRawFunctions() {
 									${returnHead}
 								},
 								() -> {
-									error("not a singleton iterator")
+									__helios__error("not a singleton iterator")
 								}
 							)()
 						}
@@ -1976,7 +1972,7 @@ function makeRawFunctions() {
 							__core__ifThenElse(
 								is_null,
 								() -> {
-									error("not found")
+									__helios__error("not found")
 								},
 								() -> {
 									__core__ifThenElse(
@@ -2221,6 +2217,32 @@ function makeRawFunctions() {
 			__core__nullList(self)
 		}
 	}`));
+	add(new RawFunc(`__helios__list[__helios__data]__to_iterator`,
+	`(self) -> {
+		() -> {
+			(recurse) -> {
+				recurse(recurse, self)
+			}(
+				(recurse, lst) -> {
+					(callback) -> {
+						__core__chooseList(
+							lst,
+							() -> {
+								callback(true, (), ())
+							},
+							() -> {
+								callback(
+									false, 
+									__core__headList(lst),
+									recurse(recurse, __core__tailList(lst))
+								)
+							}
+						)()
+					}
+				}
+			)
+		}
+	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__to_iterator`,
 	`(self) -> {
 		() -> {
@@ -2321,7 +2343,7 @@ function makeRawFunctions() {
 					__core__chooseList(
 						self, 
 						() -> {
-							error("index out of range")
+							__helios__error("index out of range")
 						}, 
 						() -> {
 							__core__ifThenElse(
@@ -2375,7 +2397,7 @@ function makeRawFunctions() {
 					__core__chooseList(
 						lst,
 						() -> {
-							error("index out of range")
+							__helios__error("index out of range")
 						},
 						() -> {
 							__core__ifThenElse(
@@ -2407,7 +2429,7 @@ function makeRawFunctions() {
 					__core__chooseList(
 						lst,
 						() -> {
-							error("index out of range")
+							__helios__error("index out of range")
 						},
 						() -> {
 							__core__ifThenElse(
@@ -2437,7 +2459,7 @@ function makeRawFunctions() {
 				__core__ifThenElse(
 					__core__lessThanInteger(n, 0),
 					() -> {
-						error("negative n in drop")
+						__helios__error("negative n in drop")
 					},
 					() -> {
 						recurse(recurse, self, n)
@@ -2470,7 +2492,7 @@ function makeRawFunctions() {
 				__core__ifThenElse(
 					__core__lessThanInteger(n, 0),
 					() -> {
-						error("negative n in drop_end")
+						__helios__error("negative n in drop_end")
 					},
 					() -> {
 						recurse(recurse, self)(
@@ -2478,7 +2500,7 @@ function makeRawFunctions() {
 								__core__ifThenElse(
 									__core__lessThanInteger(count, n),
 									() -> {
-										error("list too short")
+										__helios__error("list too short")
 									},
 									() -> {
 										result
@@ -2536,7 +2558,7 @@ function makeRawFunctions() {
 				__core__ifThenElse(
 					__core__lessThanInteger(n, 0),
 					() -> {
-						error("negative n in take")
+						__helios__error("negative n in take")
 					},
 					() -> {
 						recurse(recurse, self, n)
@@ -2572,7 +2594,7 @@ function makeRawFunctions() {
 				__core__ifThenElse(
 					__core__lessThanInteger(n, 0),
 					() -> {
-						error("negative n in take_end")
+						__helios__error("negative n in take_end")
 					},
 					() -> {
 						recurse(recurse, self)(
@@ -2580,7 +2602,7 @@ function makeRawFunctions() {
 								__core__ifThenElse(
 									__core__lessThanInteger(count, n),
 									() -> {
-										error("list too short")
+										__helios__error("list too short")
 									},
 									() -> {
 										result
@@ -2685,7 +2707,7 @@ function makeRawFunctions() {
 				(recurse, lst) -> {
 					__core__chooseList(
 						lst, 
-						() -> {error("not found")}, 
+						() -> {__helios__error("not found")}, 
 						() -> {
 							(item) -> {
 								__core__ifThenElse(
@@ -3049,7 +3071,7 @@ function makeRawFunctions() {
 				self, 
 				${TTPP}0____to_data(key), 
 				(x) -> {${TTPP}1__from_data(x)}, 
-				() -> {error("key not found")}
+				() -> {__helios__error("key not found")}
 			)
 		}
 	}`));
@@ -3138,7 +3160,7 @@ function makeRawFunctions() {
 				(recurse, self) -> {
 					__core__chooseList(
 						self, 
-						() -> {error("not found")}, 
+						() -> {__helios__error("not found")}, 
 						() -> {
 							(head) -> {
 								(key, value) -> {
@@ -3175,7 +3197,7 @@ function makeRawFunctions() {
 						self, 
 						() -> {
 							(callback) -> {
-								callback(() -> {error("not found")}, false)
+								callback(() -> {__helios__error("not found")}, false)
 							}
 						}, 
 						() -> {
@@ -3216,7 +3238,7 @@ function makeRawFunctions() {
 				(recurse, map) -> {
 					__core__chooseList(
 						map, 
-						() -> {error("not found")}, 
+						() -> {__helios__error("not found")}, 
 						() -> {
 							(item) -> {
 								__core__ifThenElse(
@@ -3252,7 +3274,7 @@ function makeRawFunctions() {
 				(recurse, map) -> {
 					__core__chooseList(
 						map, 
-						() -> {error("not found")}, 
+						() -> {__helios__error("not found")}, 
 						() -> {
 							(item) -> {
 								__core__ifThenElse(
@@ -3441,7 +3463,7 @@ function makeRawFunctions() {
 						__core__chooseList(
 							map,
 							() -> {
-								error("key not found")
+								__helios__error("key not found")
 							},
 							() -> {
 								(pair) -> {
@@ -3649,7 +3671,7 @@ function makeRawFunctions() {
 					(recurse, lst) -> {
 						__core__chooseList(
 							lst, 
-							() -> {error("not found")}, 
+							() -> {__helios__error("not found")}, 
 							() -> {
 								(item) -> {
 									__core__ifThenElse(
@@ -3760,23 +3782,33 @@ function makeRawFunctions() {
 			__core__macro__get_utxo(__helios__txoutputid____to_data(id), ())
 		}
 	}`));
+	add(new RawFunc("__helios__network__utxos_at",
+	`(self) -> {
+		(addr) -> {
+			__helios__list[__helios__data]__to_iterator(
+				__core__macro__utxos_at(__helios__address____to_data(addr), ())
+			)()
+		}
+	}`))
 
 
 	// Wallet builtin
 	addDataFuncs("__helios__wallet");
-	add(new RawFunc("__helios__wallet__address", `(self) -> {self}`));
+	add(new RawFunc("__helios__wallet__address", `(self) -> {__helios__common__field_1(self)}`));
 	add(new RawFunc("__helios__wallet__hash", 
 	`(self) -> {
 		__helios__credential__pubkey__hash(
 			__helios__credential__pubkey__cast(
-				__helios__address__credential(self)
+				__helios__address__credential(
+					__helios__common__field_0(self)
+				)
 			)
 		)
 	}`));
 	add(new RawFunc("__helios__wallet__pick", 
 	`(self) -> {
 		(value) -> {
-			__core__macro__pick(self, __helios__value____to_data(value), ())
+			__core__macro__pick(__helios__common__field_0(self), __helios__value____to_data(value), ())
 		}
 	}`));
 
@@ -4305,7 +4337,7 @@ function makeRawFunctions() {
 								__helios__tx__datums(self), 
 								__core__headList(__core__sndPair(output)),
 								__helios__common__identity,
-								() -> {error("datumhash not found")}
+								() -> {__helios__error("datumhash not found")}
 							)
 						},
 						() -> {
@@ -4314,7 +4346,7 @@ function makeRawFunctions() {
 								() -> {
 									__core__headList(__core__sndPair(output))
 								},
-								() -> {error("output doesn't have a datum")}
+								() -> {__helios__error("output doesn't have a datum")}
 							)()
 						}
 					)()
@@ -4687,7 +4719,7 @@ function makeRawFunctions() {
 							__core__headList(fields)
 						},
 						() -> {
-							error("not an inline datum")
+							__helios__error("not an inline datum")
 						}
 					)()
 				}(__core__fstPair(pair), __core__sndPair(pair))
@@ -5591,17 +5623,27 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__value__get",
 	`(self) -> {
 		(assetClass) -> {
-			(mintingPolicyHash, tokenName) -> {
+			(mph, tokenName) -> {
 				(outer, inner) -> {
 					outer(outer, inner, self)
 				}(
 					(outer, inner, map) -> {
 						__core__chooseList(
 							map, 
-							() -> {error("policy not found")}, 
+							() -> {
+								__helios__error(
+									__helios__string____add(
+										__helios__string____add(
+											"policy ", 
+											__helios__mintingpolicyhash__show(__core__unBData(mph))()
+										),
+										" not found"
+									)
+								)
+							},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mintingPolicyHash), 
+									__core__equalsData(__core__fstPair(__core__headList(map)), mph), 
 									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList(map))))}, 
 									() -> {outer(outer, inner, __core__tailList(map))}
 								)()
@@ -5610,7 +5652,7 @@ function makeRawFunctions() {
 					}, (inner, map) -> {
 						__core__chooseList(
 							map, 
-							() -> {error("tokenName not found")}, 
+							() -> {__helios__error("tokenName not found")}, 
 							() -> {
 								__core__ifThenElse(
 									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
@@ -5695,7 +5737,7 @@ function makeRawFunctions() {
 					(recurse, map) -> {
 						__core__chooseList(
 							map,
-							() -> {error("policy not found")},
+							() -> {__helios__error("policy not found")},
 							() -> {
 								__core__ifThenElse(
 									__core__equalsData(__core__fstPair(__core__headList(map)), mph),
@@ -5820,7 +5862,7 @@ const db = makeRawFunctions();
 
 /**
  * Load all raw generics so all possible implementations can be generated correctly during type parameter injection phase
- * @package
+ * @internal
  * @returns {IRDefinitions}
  */
 export function fetchRawGenerics() {
@@ -5841,7 +5883,7 @@ export function fetchRawGenerics() {
 
 /**
  * Doesn't add templates
- * @package
+ * @internal
  * @param {IR} ir 
  * @param {null | IRDefinitions} userDefs - some userDefs might have the __helios prefix
  * @returns {IRDefinitions}
@@ -5884,7 +5926,7 @@ export function fetchRawFunctions(ir, userDefs = null) {
 }
 
 /**
- * @package
+ * @internal
  * @param {IR} ir 
  * @returns {IR}
  */

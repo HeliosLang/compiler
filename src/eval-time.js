@@ -30,7 +30,7 @@ import {
 
 /**
  * Builtin Duration type
- * @package
+ * @internal
  * @type {DataType}
  */
 export var DurationType = new GenericType({
@@ -79,7 +79,7 @@ export var DurationType = new GenericType({
 
 /**
  * Builtin Time type. Opaque alias of Int representing milliseconds since 1970
- * @package
+ * @internal
  * @type {DataType}
  */
 export var TimeType = new GenericType({
@@ -117,7 +117,7 @@ export var TimeType = new GenericType({
 
 /**
  * Builtin TimeRange type
- * @package
+ * @internal
  * @type {DataType}
  */
 export var TimeRangeType = new GenericType({

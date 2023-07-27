@@ -2,7 +2,7 @@
 //@ts-check
 
 import * as helios from "../helios.js";
-import { assert, runIfEntryPoint } from "./util.js";
+import { assert, runIfEntryPoint } from "../utils/util.js";
 
 const helios_ = helios.exportedForTesting;
 
@@ -80,12 +80,29 @@ async function addressInDatum() {
     assert(addrFromUplcData.toBech32() == a.toBech32());
 }
 
+async function bip32AndBip39Test() {
+	const phrase = ["void", "nerve", "immense", "crucial", "ride", "fuel", "fiction", "mind", "dust", "ensure", "critic", "smoke", "ugly", "sphere", "build", "receive", "cactus", "gold", "hen", "mesh", "peanut", "fiction", "industry", "hazard"];
+
+	const root = helios.RootPrivateKey.fromPhrase(phrase);
+
+	const pubKeyHash = root.deriveSpendingKey().derivePubKey().pubKeyHash;
+
+	const stakeKeyHash = root.deriveStakingKey().derivePubKey().stakeKeyHash;
+
+	const addr = helios.Address.fromBech32("addr1qxut5hcdy9dff5qlsdj4krjs2u77fmn3s56tdwuttje8m00ypyzw6a9pgzkm3ru6uh8h03z0ffh0j2u9kne092rxzclqn3wv80");
+
+	assert(addr.pubKeyHash.eq(pubKeyHash));
+	assert(addr.stakingHash.eq(stakeKeyHash));
+}
+
 export default async function main() {
 	await scriptAddress();
 
 	await nonTestnetAddress();
 
 	await addressInDatum();
+
+	await bip32AndBip39Test();
 }
 
 runIfEntryPoint(main, "addresses.js");

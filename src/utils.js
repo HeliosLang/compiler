@@ -4,62 +4,43 @@
 import { TAB } from "./config.js";
 
 /**
- * Part of a trick to force expansion of a type alias
- * @template T
- * @typedef {T extends any ? {key: T} : never} WrapAlias<T>
- */
-
-/**
- * Part of a trick to force expansion of a type alias
- * @template T
- * @typedef {T extends {key: any} ? T["key"] : never} UnwrapAlias<T>
- */
-
-/**
- * Explicit union type-aliases is sometimes more helpful in VSCode tooltips
- * Unalias forces an alias expansion
- * Trick taken from https://stackoverflow.com/questions/73588194
- * @template T
- * @typedef {UnwrapAlias<WrapAlias<T>>} ExpandAlias<T>
- */
-
-/**
  * @typedef {string & {}} hexstring
  */
 
 /**
  * Needed by transfer() methods
+ * @internal
  * @typedef {{
-*   transferByteArrayData: (bytes: number[]) => any,
-*   transferConstrData: (index: number, fields: any[]) => any,
-*   transferIntData: (value: bigint) => any,
-*   transferListData: (items: any[]) => any,
-*   transferMapData: (pairs: [any, any][]) => any,
-* 	transferSite: (src: any, startPos: number, endPos: number, codeMapSite: null | any) => any,
-*   transferSource: (raw: string, fileIndex: null | number) => any,
-*   transferUplcBool: (site: any, value: boolean) => any,
-*   transferUplcBuiltin: (site: any, name: string | number) => any,
-*   transferUplcByteArray: (site: any, bytes: number[]) => any,
-*   transferUplcCall: (site: any, a: any, b: any) => any,
-*   transferUplcConst: (value: any) => any,
-*   transferUplcDataValue: (site: any, data: any) => any,
-*   transferUplcDelay: (site: any, expr: any) => any,
-*   transferUplcError: (site: any, msg: string) => any,
-*   transferUplcForce: (site: any, expr: any) => any,
-*   transferUplcInt: (site: any, value: bigint, signed: boolean) => any,
-*   transferUplcLambda: (site: any, rhs: any, name: null | string) => any,
-*   transferUplcList: (site: any, itemType: any, items: any[]) => any,
-*   transferUplcPair: (site: any, first: any, second: any) => any,
-*   transferUplcString: (site: any, value: string) => any,
-*   transferUplcType: (typeBits: string) => any,
-*   transferUplcUnit: (site: any) => any,
-*   transferUplcVariable: (site: any, index: any) => any
-* }} TransferUplcAst
-*/
+ *   transferByteArrayData: (bytes: number[]) => any,
+ *   transferConstrData: (index: number, fields: any[]) => any,
+ *   transferIntData: (value: bigint) => any,
+ *   transferListData: (items: any[]) => any,
+ *   transferMapData: (pairs: [any, any][]) => any,
+ *   transferSite: (src: any, startPos: number, endPos: number, codeMapSite: null | any) => any,
+ *   transferSource: (raw: string, name: string) => any,
+ *   transferUplcBool: (site: any, value: boolean) => any,
+ *   transferUplcBuiltin: (site: any, name: string | number) => any,
+ *   transferUplcByteArray: (site: any, bytes: number[]) => any,
+ *   transferUplcCall: (site: any, a: any, b: any) => any,
+ *   transferUplcConst: (value: any) => any,
+ *   transferUplcDataValue: (site: any, data: any) => any,
+ *   transferUplcDelay: (site: any, expr: any) => any,
+ *   transferUplcError: (site: any, msg: string) => any,
+ *   transferUplcForce: (site: any, expr: any) => any,
+ *   transferUplcInt: (site: any, value: bigint, signed: boolean) => any,
+ *   transferUplcLambda: (site: any, rhs: any, name: null | string) => any,
+ *   transferUplcList: (site: any, itemType: any, items: any[]) => any,
+ *   transferUplcPair: (site: any, first: any, second: any) => any,
+ *   transferUplcString: (site: any, value: string) => any,
+ *   transferUplcType: (typeBits: string) => any,
+ *   transferUplcUnit: (site: any) => any,
+ *   transferUplcVariable: (site: any, index: any) => any
+ * }} TransferUplcAst
+ */
 
 /**
  * Throws an error if 'cond' is false.
- * @package
+ * @internal
  * @param {boolean} cond 
  * @param {string} msg 
  */
@@ -71,7 +52,7 @@ export function assert(cond, msg = "unexpected") {
 
 /**
  * Throws an error if 'obj' is undefined. Returns 'obj' itself (for chained application).
- * @package
+ * @internal
  * @template T
  * @param {T | undefined | null} obj 
  * @param {string} msg 
@@ -86,7 +67,7 @@ export function assertDefined(obj, msg = "unexpected undefined value") {
 }
 
 /**
- * @package
+ * @internal
  * @template Tin, Tout
  * @param {Tin} obj
  * @param {{new(...any): Tout}} C
@@ -101,7 +82,7 @@ export function assertClass(obj, C, msg = "unexpected class") {
 }
 
 /**
- * @package
+ * @internal
  * @param {string} str 
  * @param {string} msg 
  * @returns {string}
@@ -115,7 +96,7 @@ export function assertNonEmpty(str, msg = "empty string") {
 }
 
 /**
- * @package
+ * @internal
  * @param {any} obj 
  * @param {string} msg 
  * @returns {number}
@@ -131,7 +112,7 @@ export function assertNumber(obj, msg = "expected a number") {
 }
 
 /**
- * @package
+ * @internal
  * @template T
  * @param {(T | null)[]} lst
  * @returns {null | (T[])}
@@ -160,6 +141,7 @@ export function reduceNull(lst) {
 }
 
 /**
+ * @internal
  * @template Ta
  * @template Tb
  * @param {[Ta | null, Tb | null][]} pairs
@@ -190,7 +172,7 @@ export function reduceNullPairs(pairs) {
 
 /**
  * Compares two objects (deep recursive comparison)
- * @package
+ * @internal
  * @template T
  * @param {T} a 
  * @param {T} b 
@@ -220,14 +202,14 @@ export function eq(a, b) {
 
 		return true;
 	} else {
-		throw new Error("eq not yet implemented for these types");
+		throw new Error(`eq not yet implemented for these types: ${typeof a} and ${typeof b}`);
 	}
 }
 
 /**
  * Throws an error if two object aren't equal (deep comparison).
  * Used by unit tests that are autogenerated from JSDoc inline examples.
- * @package
+ * @internal
  * @template T
  * @param {T} a
  * @param {T} b
@@ -235,8 +217,9 @@ export function eq(a, b) {
  */
 export function assertEq(a, b, msg) {
 	if (!eq(a, b)) {
-		console.log(a);
-		console.log(b);
+		console.log("lhs:", a);
+		console.log("rhs:", b);
+		console.log("...")
 		throw new Error(msg);
 	}
 }
@@ -245,7 +228,7 @@ export function assertEq(a, b, msg) {
  * Divides two integers. Assumes a and b are whole numbers. Rounds down the result.
  * @example
  * idiv(355, 113) => 3
- * @package
+ * @internal
  * @param {number} a
  * @param {number} b 
  */
@@ -256,7 +239,7 @@ export function idiv(a, b) {
 
 /**
  * 2 to the power 'p' for bigint.
- * @package
+ * @internal
  * @param {bigint} p
  * @returns {bigint}
  */
@@ -271,7 +254,7 @@ export function ipow2(p) {
  
  * @example
  * imask(0b11111111, 1, 4) => 0b0111 // (i.e. 7)
- * @package
+ * @internal
  * @param {number} b 
  * @param {number} i0 
  * @param {number} i1 
@@ -296,7 +279,7 @@ export function imask(b, i0, i1) {
 
 /**
  * Make sure resulting number fits in uint8
- * @package
+ * @internal
  * @param {number} x
  */
 export function imod8(x) {
@@ -306,7 +289,7 @@ export function imod8(x) {
 /**
  * Converts an unbounded integer into a list of uint8 numbers (big endian)
  * Used by the CBOR encoding of data structures, and by Ed25519
- * @package
+ * @internal
  * @param {bigint} x
  * @returns {number[]}
  */
@@ -332,7 +315,7 @@ export function bigIntToBytes(x) {
 /**
  * Converts a list of uint8 numbers into an unbounded int (big endian)
  * Used by the CBOR decoding of data structures.
- * @package
+ * @internal
  * @param {number[]} b
  * @return {bigint}
  */
@@ -350,10 +333,36 @@ export function bytesToBigInt(b) {
 }
 
 /**
+ * Little Endian 32 bytes
+ * @internal
+ * @param {number[]} b 
+ * @returns {bigint}
+ */
+export function leBytesToBigInt(b) {
+	return bytesToBigInt(b.slice().reverse());
+}
+
+/**
+ * Little Endian 32 bytes
+ * @internal
+ * @param {bigint} x 
+ * @returns {number[]}
+ */
+export function bigIntToLe32Bytes(x) {
+	const bytes = bigIntToBytes(x).reverse();
+			
+	while (bytes.length < 32) {
+		bytes.push(0);
+	}
+
+	return bytes;
+}
+
+/**
  * Prepends zeroes to a bit-string so that 'result.length == n'.
  * @example
  * padZeroes("1111", 8) => "00001111"
- * @package
+ * @internal
  * @param {string} bits
  * @param {number} n 
  * @returns {string}
@@ -374,7 +383,7 @@ export function padZeroes(bits, n) {
  * The result is padded with leading zeroes to become 'n' chars long ('2 + n' chars long if you count the "0b" prefix). 
  * @example
  * byteToBitString(7) => "0b00000111"
- * @package
+ * @internal
  * @param {number} b 
  * @param {number} n
  * @param {boolean} prefix
@@ -403,6 +412,10 @@ export function hexToBytes(hex) {
 	const bytes = [];
 
 	for (let i = 0; i < hex.length; i += 2) {
+		const b = parseInt(hex.slice(i, i + 2), 16);
+
+		assert(!Number.isNaN(b), `invalid hexstring "${hex}"`);
+		
 		bytes.push(parseInt(hex.slice(i, i + 2), 16));
 	}
 
@@ -456,7 +469,7 @@ export function bytesToText(bytes) {
  * This is used to create a prettier IR (which is built-up from many template js strings in this file, which might contain tabs depending on the editor used)
  * @example
  * replaceTabs("\t\t\t") => [TAB, TAB, TAB].join("")
- * @package
+ * @internal
  * @param {string} str 
  * @returns {string}
  */
@@ -466,7 +479,7 @@ export function replaceTabs(str) {
 
 /**
  * Read non-byte aligned numbers
- * @package
+ * @internal
  */
 export class BitReader {
     /**
@@ -495,7 +508,7 @@ export class BitReader {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @returns {boolean}
 	 */
 	eof() {
@@ -504,7 +517,7 @@ export class BitReader {
 
 	/**
 	 * Reads a number of bits (<= 8) and returns the result as an unsigned number
-     * @package
+     * @internal
 	 * @param {number} n - number of bits to read
 	 * @returns {number}
 	 */
@@ -547,7 +560,7 @@ export class BitReader {
 
 	/**
 	 * Moves position to next byte boundary
-     * @package
+     * @internal
 	 * @param {boolean} force - if true then move to next byte boundary if already at byte boundary
 	 */
 	moveToByteBoundary(force = false) {
@@ -562,7 +575,7 @@ export class BitReader {
 
 	/**
 	 * Reads 8 bits
-     * @package
+     * @internal
 	 * @returns {number}
 	 */
 	readByte() {
@@ -572,7 +585,7 @@ export class BitReader {
 	/**
 	 * Dumps remaining bits we #pos isn't yet at end.
 	 * This is intended for debugging use.
-     * @package
+     * @internal
 	 */
 	dumpRemainingBits() {
 		if (!this.eof()) {
@@ -593,7 +606,7 @@ export class BitReader {
 /**
  * BitWriter turns a string of '0's and '1's into a list of bytes.
  * Finalization pads the bits using '0*1' if not yet aligned with the byte boundary.
- * @package
+ * @internal
  */
 export class BitWriter {
 	/**
@@ -614,7 +627,7 @@ export class BitWriter {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {number}
 	 */
 	get length() {
@@ -623,7 +636,7 @@ export class BitWriter {
 
 	/**
 	 * Write a string of '0's and '1's to the BitWriter.
-     * @package
+     * @internal
 	 * @param {string} bitChars
 	 */
 	write(bitChars) {
@@ -638,7 +651,7 @@ export class BitWriter {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @param {number} byte
 	 */
 	writeByte(byte) {
@@ -648,7 +661,7 @@ export class BitWriter {
 	/**
 	 * Add padding to the BitWriter in order to align with the byte boundary.
 	 * If 'force == true' then 8 bits are added if the BitWriter is already aligned.
-     * @package
+     * @internal
 	 * @param {boolean} force 
 	 */
 	padToByteBoundary(force = false) {
@@ -670,8 +683,47 @@ export class BitWriter {
 	}
 
 	/**
+	 * Pop n bits of the end
+	 * @param {number} n 
+	 * @returns {string}
+	 */
+	pop(n) {
+		assert(n <= this.#n, `too many bits to pop, only have ${this.#n} bits, but want ${n}`);
+		const n0 = n;
+
+		/**
+		 * @type {string[]}
+		 */
+		const parts = [];
+
+		while (n > 0) {
+			const last = assertDefined(this.#parts.pop());
+
+			if (last.length == 0) {
+				continue;
+			}
+
+			if (last.length <= n) {
+				parts.unshift(last);
+				n -= last.length;
+			} else {
+				parts.unshift(last.slice(last.length - n));
+				this.#parts.push(last.slice(0, last.length - n));
+				n = 0;
+			}
+		}
+
+		this.#n -= n0;
+
+		const bits = parts.join('');
+		assert(bits.length == n0);
+
+		return bits;
+	}
+
+	/**
 	 * Pads the BitWriter to align with the byte boundary and returns the resulting bytes.
-     * @package
+     * @internal
 	 * @param {boolean} force - force padding (will add one byte if already aligned)
 	 * @returns {number[]}
 	 */
@@ -701,19 +753,20 @@ export class BitWriter {
 /**
  * A Source instance wraps a string so we can use it cheaply as a reference inside a Site.
  * Also used by VSCode plugin
+ * @internal
  */
 export class Source {
 	#raw;
-	#fileIndex;
+	#name;
 	#errors; // errors are collected into this object
 
 	/**
 	 * @param {string} raw 
-	 * @param {null | number} fileIndex
+	 * @param {string} name
 	 */
-	constructor(raw, fileIndex = null) {
+	constructor(raw, name) {
 		this.#raw = assertDefined(raw);
-		this.#fileIndex = fileIndex;
+		this.#name = name;
 		this.#errors = [];
 	}
 
@@ -725,12 +778,12 @@ export class Source {
 		// errors don't need to be transfered
 		return other.transferSource(
 			this.#raw,
-			this.#fileIndex	
+			this.#name	
 		)
 	}
 
     /**
-     * @package
+     * @internal
      * @type {string}
      */
 	get raw() {
@@ -738,11 +791,11 @@ export class Source {
 	}
 
     /**
-     * @package
-     * @type {?number}
+     * @internal
+     * @type {string}
      */
-	get fileIndex() {
-		return this.#fileIndex;
+	get name() {
+		return this.#name;
 	}
 
 	/**
@@ -761,7 +814,7 @@ export class Source {
 	/**
 	 * Get char from the underlying string.
 	 * Should work fine utf-8 runes.
-     * @package
+     * @internal
 	 * @param {number} pos
 	 * @returns {string}
 	 */
@@ -771,7 +824,7 @@ export class Source {
 	
 	/**
 	 * Returns word under pos
-     * @package
+     * @internal
 	 * @param {number} pos 
 	 * @returns {?string}
 	 */
@@ -806,7 +859,7 @@ export class Source {
 	}
 
     /**
-     * @package
+     * @internal
      * @type {number}
      */
 	get length() {
@@ -815,7 +868,7 @@ export class Source {
 
 	/**
 	 * Calculates the line number of the line where the given character is located (0-based).
-     * @package
+     * @internal
 	 * @param {number} pos 
 	 * @returns {number}
 	 */
@@ -832,7 +885,7 @@ export class Source {
 
 	/**
 	 * Calculates the column and line number where the given character is located (0-based).
-     * @package
+     * @internal
 	 * @param {number} pos
 	 * @returns {[number, number]}
 	 */
@@ -857,7 +910,7 @@ export class Source {
 	 * The line-numbers are at least two digits.
 	 * @example
 	 * (new Source("hello\nworld")).pretty() => "01  hello\n02  world"
-     * @package
+     * @internal
 	 * @returns {string}
 	 */
 	pretty() {
@@ -895,7 +948,7 @@ export function hl(a, ...b) {
 
 /**
  * Display a warning message that a certain feature will be deprecated at some point in the future.
- * @package
+ * @internal
  * @param {string} feature
  * @param {string} futureVersion
  * @param {string} alternative

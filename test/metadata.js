@@ -14,7 +14,7 @@ import {
   Value,
 } from "../helios.js";
 import fs from "fs";
-import { correctDir, runIfEntryPoint } from "./util.js";
+import { correctDir, runIfEntryPoint } from "../utils/util.js";
 
 correctDir();
 

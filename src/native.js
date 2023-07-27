@@ -21,7 +21,7 @@ import {
 } from "./helios-data.js";
 
 /**
- * @package
+ * @internal
  */
 export class NativeContext {
     #firstValidSlot;
@@ -78,6 +78,11 @@ export class NativeContext {
     }
 }
 
+/**
+ * NativeScript allows creating basic multi-signature and time-based validators.
+ * 
+ * This is a legacy technology, but can be cheaper than using Plutus.
+ */
 export class NativeScript extends CborData {
     #type;
 

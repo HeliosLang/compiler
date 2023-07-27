@@ -52,8 +52,6 @@ const FILES = [
 
 const RE_TS_CHECK = /^\/\/@ts-check\s*\n/m;
 
-const RE_EXPORT = /^(\s*\*\s*@package\s*\n(\s*\*.*\n)*\s*\*\/\s*\n\s*)(export\s)/gm;
-
 const RE_IMPORT = /^\s*import\s*\{[\s\S]*\}\s*from\s*"\.\/.*.js";.*\n/gm;
 
 const RE_IMPORT_TYPES = /^\s*\*\s*@typedef\s*\{import\("\.\/.*.js"\).*\n/gm;
@@ -61,8 +59,6 @@ const RE_IMPORT_TYPES = /^\s*\*\s*@typedef\s*\{import\("\.\/.*.js"\).*\n/gm;
 const RE_EMPTY_JSDOC = /^\s*\/\*\*\s*\n\s*\*\/\s*\n/gm;
 
 const RE_SECTION_TITLE = /^\/\/\s*(.*)\n/im;
-
-const RE_SECTION_TITLE_ALL = /^(\/\/\s*.*\n)/m;
 
 const RE_TOP_LEVEL_DEFS = /^(export\s*)?(var|let|const|function|class)\s*([a-zA-Z_0-9]*)\b/gm;
 
@@ -250,9 +246,6 @@ function buildIndex(id, src) {
 function processFile(fname, id, src, version) {
 	// remove @ts-check comment
 	src = src.replace(RE_TS_CHECK, "");
-
-	// remove 'export' keywords from statements that have '@package' in the jsdoc comment above
-	src = src.replace(RE_EXPORT, "$1");
 
 	// remove lines contained import {...} from "./[0-9][0-9].*.js"
 	src = src.replace(RE_IMPORT, "");

@@ -120,7 +120,7 @@ function genHashTypeProps(offchainType) {
 }
 
 /**
- * @package
+ * @internal
  * @implements {DataType}
  */
 export class ScriptHashType extends GenericType {
@@ -158,13 +158,13 @@ export class ScriptHashType extends GenericType {
 }
 
 /**
- * @package
+ * @internal
  * @type {DataType}
  */
 export const scriptHashType = new ScriptHashType();
 
 /**
- * @package
+ * @internal
  * @type {DataType}
  */
 export const DatumHashType = new GenericType({
@@ -176,14 +176,14 @@ export const DatumHashType = new GenericType({
 });
 
 /**
- * @package
+ * @internal
  * @type {ScriptHashType}
  */
 export const MintingPolicyHashType = new ScriptHashType("MintingPolicyHash", MintingPolicyHash);
 
 /**
  * Builtin PubKey type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const PubKeyType = new GenericType({
@@ -202,7 +202,7 @@ export const PubKeyType = new GenericType({
 
 /**
  * Builtin PubKeyHash type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const PubKeyHashType = new GenericType({
@@ -214,7 +214,7 @@ export const PubKeyHashType = new GenericType({
 });
 
 /**
- * @package
+ * @internal
  * @type {DataType}
  */
 export const StakeKeyHashType = new GenericType({
@@ -227,7 +227,7 @@ export const StakeKeyHashType = new GenericType({
 
 /**
  * Builtin StakingHash type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const StakingHashType = new GenericType({
@@ -242,7 +242,7 @@ export const StakingHashType = new GenericType({
 });
 
 /**
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 export const StakingHashStakeKeyType = new GenericEnumMemberType({
@@ -259,7 +259,7 @@ export const StakingHashStakeKeyType = new GenericEnumMemberType({
 });
 
 /**
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 export const StakingHashValidatorType = new GenericEnumMemberType({
@@ -276,14 +276,13 @@ export const StakingHashValidatorType = new GenericEnumMemberType({
 });
 
 /**
- * @package
+ * @internal
  * @type {ScriptHashType}
-}
  */
 export const StakingValidatorHashType = new ScriptHashType("StakingValidatorHash", StakingValidatorHash);
 
 /**
- * @package
+ * @internal
  * @type {ScriptHashType}
  */
 export const ValidatorHashType = new ScriptHashType("ValidatorHash", ValidatorHash);

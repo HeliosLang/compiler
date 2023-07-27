@@ -315,9 +315,9 @@ export class CborData {
 	}
 
 	/**
-	* @param {number[]} bytes
-	* @returns {string}
-	*/
+	 * @param {number[]} bytes
+	 * @returns {string}
+	 */
 	static decodeUtf8Internal(bytes) {
 		assert(bytes.shift() === 120);
 
@@ -327,9 +327,9 @@ export class CborData {
 	}
 
 	/**
-	* @param {number[]} bytes
-	* @returns {string}
-	*/
+	 * @param {number[]} bytes
+	 * @returns {string}
+	 */
 	static decodeUtf8(bytes) {
 		assert(bytes.length > 0);
 

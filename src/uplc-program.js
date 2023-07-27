@@ -67,6 +67,10 @@ import {
  * @typedef {import("./uplc-ast.js").UplcRTECallbacks} UplcRTECallbacks
  */
 
+/**
+ * @typedef {import("./uplc-ast.js").UplcValueTerm} UplcValueTerm
+ */
+
 import {
     DEFAULT_UPLC_RTE_CALLBACKS,
     UplcAnon,
@@ -90,30 +94,32 @@ import {
 	UplcType,
     UplcUnit,
     UplcValue,
-    UplcVariable
+    UplcVariable,
+	evalCek
 } from "./uplc-ast.js";
+import { config } from "./config.js";
 
 /**
  * This library uses version "1.0.0" of Plutus-core
- * @package
+ * @internal
  */
 const UPLC_VERSION_COMPONENTS = [1n, 0n, 0n];
 
  /**
   * i.e. "1.0.0"
-  * @package
+  * @internal
   * @type {string}
   */
 const UPLC_VERSION = UPLC_VERSION_COMPONENTS.map(c => c.toString()).join(".");
 
 /**
  * This library uses V2 of the Plutus Ledger API, and is no longer compatible with V1
- * @package
+ * @internal
  */
 const PLUTUS_SCRIPT_VERSION = "PlutusScriptV2";
 
 /**
- * @package
+ * @internal
  * @type {Object.<string, number>}
  */
 const UPLC_TAG_WIDTHS = {
@@ -130,17 +136,40 @@ const UPLC_TAG_WIDTHS = {
  * @typedef {{
  *   purpose: null | ScriptPurpose 
  *   callsTxTimeRange: boolean
+ *   name?: string
  * }} ProgramProperties
  */
 
 /**
  * The constructor returns 'any' because it is an instance of TransferableUplcProgram, and the instance methods don't need to be defined here
+ * @internal
  * @template TInstance
  * @typedef {{
  *   transferUplcProgram: (expr: any, properties: ProgramProperties, version: any[]) => TInstance,
  *   transferUplcAst: TransferUplcAst
  * }} TransferableUplcProgram
  */
+
+/**
+ * @typedef {{
+*   mem: bigint, 
+*   cpu: bigint,
+*   size?: number,
+*   builtins?: {[name: string]: Cost},
+*   terms?: {[name: string]: Cost},
+*   result?: RuntimeError | UplcValue,
+*   messages?: string[]
+* }} Profile
+*
+*
+* mem:  in 8 byte words (i.e. 1 mem unit is 64 bits)
+* cpu:  in reference cpu microseconds
+* size: in bytes
+* builtins: breakdown per builtin
+* terms: breakdown per termtype
+* result: result of evaluation
+* messages: printed messages (can be helpful when debugging)
+*/
 
 /**
  * Plutus-core program class
@@ -246,14 +275,22 @@ const UPLC_TAG_WIDTHS = {
 	/**
 	 * Flat encodes the entire Plutus-core program.
 	 * Note that final padding isn't added now but is handled by bitWriter upon finalization.
-	 * @param {BitWriter} bitWriter 
+	 * @param {BitWriter} bitWriter
 	 */
 	toFlat(bitWriter) {
+		this.toFlatWithMapping(bitWriter, null);
+	}
+
+	/**
+	 * @param {BitWriter} bitWriter
+	 * @param {null | Map<string, number>} codeMapFileIndices
+	 */
+	toFlatWithMapping(bitWriter, codeMapFileIndices) {
 		for (let v of this.#version) {
 			v.toFlatUnsigned(bitWriter);
 		}
 
-		this.#expr.toFlat(bitWriter);
+		this.#expr.toFlat(bitWriter, codeMapFileIndices);
 	}
 
 	/**
@@ -266,20 +303,22 @@ const UPLC_TAG_WIDTHS = {
 
 	/**
 	 * Evaluates the term contained in UplcProgram (assuming it is a lambda term)
-	 * @param {?UplcValue[]} args
+	 * @param {null | UplcValue[]} args
 	 * @param {UplcRTECallbacks} callbacks
-	 * @param {?NetworkParams} networkParams
+	 * @param {null | NetworkParams} networkParams
 	 * @returns {Promise<UplcValue>}
 	 */
 	async runInternal(args, callbacks = DEFAULT_UPLC_RTE_CALLBACKS, networkParams = null) {
 		assertDefined(callbacks);
 
 		let rte = new UplcRte(callbacks, networkParams);
+		
+		if (config.EXPERIMENTAL_CEK) {
+			return await evalCek(rte, this.#expr, args);
+		} else {
+			// add the startup costs
+			rte.incrStartupCost();
 
-		// add the startup costs
-		rte.incrStartupCost();
-
-		try {
 			let fn = await this.eval(rte);
 
 			// program site is at pos 0, but now the call site is actually at the end 
@@ -303,13 +342,6 @@ const UPLC_TAG_WIDTHS = {
 			}
 
 			return result;
-		} catch (e) {
-			// add some more context to errors throw by `assert()` or `error()`
-			if (e instanceof RuntimeError && e.lastMessage == "" && rte.lastMessage != "") {
-				throw e.addMessage(rte.lastMessage);
-			} else {
-				throw e;
-			}
 		}
 	}
 
@@ -341,14 +373,14 @@ const UPLC_TAG_WIDTHS = {
 	/**
 	 * @param {null | UplcValue[]} args - if null the top-level term is returned as a value
 	 * @param {UplcRTECallbacks} callbacks 
-	 * @param {?NetworkParams} networkParams
-	 * @returns {Promise<UplcValue | UserError>}
+	 * @param {null | NetworkParams} networkParams
+	 * @returns {Promise<UplcValue | RuntimeError>}
 	 */
 	async run(args, callbacks = DEFAULT_UPLC_RTE_CALLBACKS, networkParams = null) {
 		try {
 			return await this.runInternal(args, callbacks, networkParams);
 		} catch (e) {
-			if (!(e instanceof UserError)) {
+			if (!(e instanceof RuntimeError)) {
 				throw e;
 			} else {
 				return e;
@@ -357,8 +389,8 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
-	 * @param {?UplcValue[]} args
-	 * @returns {Promise<[(UplcValue | UserError), string[]]>}
+	 * @param {null | UplcValue[]} args
+	 * @returns {Promise<[(UplcValue | RuntimeError), string[]]>}
 	 */
 	async runWithPrint(args) {
 		/**
@@ -376,25 +408,6 @@ const UPLC_TAG_WIDTHS = {
 
 		return [res, messages];
 	}
-
-	/**
-	 * @typedef {{
-	 *   mem: bigint, 
-	 *   cpu: bigint,
-	 *   size: number,
-	 *   builtins: {[name: string]: Cost},
-	 *   terms: {[name: string]: Cost},
-	 *   result: UserError | UplcValue,
-	 *   messages: string[]
-	 * }} Profile
-	 * mem:  in 8 byte words (i.e. 1 mem unit is 64 bits)
-	 * cpu:  in reference cpu microseconds
-	 * size: in bytes
-	 * builtins: breakdown per builtin
-	 * terms: breakdown per termtype
-	 * result: result of evaluation
-	 * messages: printed messages (can be helpful when debugging)
-	 */
 
 	/**
 	 * @param {UplcValue[]} args
@@ -502,6 +515,18 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * @internal
+	 * @param {Map<string, number>} codeMapFileIndices 
+	 */
+	toCborWithMapping(codeMapFileIndices) {
+		let bitWriter = new BitWriter();
+
+		this.toFlatWithMapping(bitWriter, codeMapFileIndices);
+
+		return CborData.encodeBytes(CborData.encodeBytes(bitWriter.finalize()));
+	}
+
+	/**
 	 * Returns Plutus-core script in JSON format (as string, not as object!)
 	 * @returns {string}
 	 */
@@ -556,17 +581,69 @@ const UPLC_TAG_WIDTHS = {
 		return new StakingValidatorHash(this.hash());
 	}
 
+
+	/**
+	 * @internal
+	 * @param {number[] | string} bytes 
+	 * @param {ProgramProperties} properties
+	 * @param {Source[]} files
+	 * @returns {UplcProgram}
+	 */
+	static fromCborWithMapping(bytes, files, properties = {purpose: null, callsTxTimeRange: false}) {
+		if (typeof bytes == "string") {
+			return UplcProgram.fromCborWithMapping(hexToBytes(bytes), files, properties)
+		} else {
+			bytes = CborData.decodeBytes(CborData.decodeBytes(bytes));
+
+			return UplcProgram.fromFlatWithMapping(bytes, files, properties);
+		}
+	}
+
 	/**
 	 * @param {number[] | string} bytes 
 	 * @param {ProgramProperties} properties
 	 * @returns {UplcProgram}
 	 */
-	static fromCbor(bytes, properties = {purpose: null, callsTxTimeRange: false}) {
-		if (typeof bytes == "string") {
-			return UplcProgram.fromCbor(hexToBytes(bytes), properties)
-		} else {
-			return deserializeUplcBytes(CborData.decodeBytes(CborData.decodeBytes(bytes)), properties);
+   	static fromCbor(bytes, properties = {purpose: null, callsTxTimeRange: false}) {
+		return UplcProgram.fromCborWithMapping(bytes, [], properties);
+	}
+
+	/**
+	 * @param {number[]} bytes 
+	 * @param {ProgramProperties} properties
+	 * @returns {UplcProgram}
+	 */
+	static fromFlat(bytes, properties = {purpose: null, callsTxTimeRange: false}) {
+		return UplcProgram.fromFlatWithMapping(bytes, [], properties);
+	}
+
+	/**
+	 * @internal
+	 * @param {number[]} bytes 
+	 * @param {ProgramProperties} properties
+	 * @param {Source[]} files
+	 * @returns {UplcProgram}
+	 */
+	static fromFlatWithMapping(bytes, files, properties = {purpose: null, callsTxTimeRange: false}) {
+		const reader = new UplcDeserializer(bytes, files);
+
+		const version = [
+			reader.readInteger(),
+			reader.readInteger(),
+			reader.readInteger(),
+		];
+
+		const versionKey = version.map(v => v.toString()).join(".");
+
+		if (versionKey != UPLC_VERSION) {
+			console.error(`Warning: Plutus-core script doesn't match version of Helios (expected ${UPLC_VERSION}, got ${versionKey})`);
 		}
+
+		const expr = reader.readTerm();
+
+		reader.finalize();
+
+		return new UplcProgram(expr, properties, version);
 	}
 
 	/**
@@ -597,7 +674,7 @@ const UPLC_TAG_WIDTHS = {
 			transferListData:      (items) => new ListData(items),
 			transferMapData:       (pairs) => new MapData(pairs),
 			transferSite:          (src, startPos, endPos, codeMapSite = null) => new Site(src, startPos, endPos, codeMapSite),
-			transferSource:        (raw, fileIndex) => new Source(raw, fileIndex),
+			transferSource:        (raw, file) => new Source(raw, file?.toString() ?? "<>"), // in older versions of Helios the file arg had type (null | number)
 			transferUplcBool:      (site, value) => new UplcBool(site, value),
 			transferUplcBuiltin:   (site, name) => new UplcBuiltin(site, name),
 			transferUplcByteArray: (site, bytes) => new UplcByteArray(site, bytes),
@@ -623,12 +700,20 @@ const UPLC_TAG_WIDTHS = {
  * Plutus-core deserializer creates a Plutus-core form an array of bytes
  */
  class UplcDeserializer extends BitReader {
-	
+	/**
+	 * @readonly
+	 * @type {Source[]}
+	 */
+	#files;
+
 	/**
 	 * @param {number[]} bytes 
+	 * @param {Source[]} files - for serialized codeMapping
 	 */
-	constructor(bytes) {
+	constructor(bytes, files = []) {
 		super(bytes);
+
+		this.#files = files;
 	}
 
 	/**
@@ -704,6 +789,10 @@ const UPLC_TAG_WIDTHS = {
 				return new UplcError(Site.dummy());
 			case 7:
 				return this.readBuiltin();
+			case 11:
+				return this.readCallWithSite();
+			case 13:
+				return this.readForceWithSite();
 			default:
 				throw new Error("term tag " + tag.toString() + " unhandled");
 		}
@@ -836,6 +925,29 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Reads a function application term with a callSite (needed for bundler)
+	 * @internal
+	 * @returns {UplcCall}
+	 */
+	readCallWithSite() {
+		let [fileIndex, pos] = [
+			Number(this.readInteger().value),
+			Number(this.readInteger().value)
+		];
+
+		const src = assertDefined(this.#files[fileIndex], "serialized UplcProgram contains codeMapping symbols, requires list of original sources");
+
+		let site = new Site(src, pos);
+		// also add self as codeMapSite
+		site = new Site(src, pos, undefined, site);
+
+		let a = this.readTerm();
+		let b = this.readTerm();
+
+		return new UplcCall(site, a, b);
+	}
+
+	/**
 	 * Reads a single constant
 	 * @returns {UplcConst}
 	 */
@@ -930,6 +1042,27 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * @internal
+	 * @returns {UplcForce}
+	 */
+	readForceWithSite() {
+		let [fileIndex, pos] = [
+			Number(this.readInteger().value),
+			Number(this.readInteger().value)
+		];
+		
+		const src = assertDefined(this.#files[fileIndex], "serialized UplcProgram contains codeMapping symbols, requires list of original sources");
+
+		let site = new Site(src, pos);
+		// also add self as codeMapSite
+		site = new Site(src, pos, undefined, site);
+
+		let expr = this.readTerm();
+
+		return new UplcForce(site, expr);
+	}
+
+	/**
 	 * Reads a builtin function ref term
 	 * @returns {UplcBuiltin}
 	 */
@@ -956,25 +1089,7 @@ const UPLC_TAG_WIDTHS = {
  * @returns {UplcProgram}
  */
 export function deserializeUplcBytes(bytes, properties = {purpose: null, callsTxTimeRange: false}) {
-	let reader = new UplcDeserializer(bytes);
-
-	let version = [
-		reader.readInteger(),
-		reader.readInteger(),
-		reader.readInteger(),
-	];
-
-	let versionKey = version.map(v => v.toString()).join(".");
-
-	if (versionKey != UPLC_VERSION) {
-		console.error(`Warning: Plutus-core script doesn't match version of Helios (expected ${UPLC_VERSION}, got ${versionKey})`);
-	}
-
-	let expr = reader.readTerm();
-
-	reader.finalize();
-
-	return new UplcProgram(expr, properties, version);
+	return UplcProgram.fromFlat(bytes, properties);
 }
 
 /**
@@ -986,12 +1101,12 @@ export function deserializeUplc(jsonString) {
 	let obj = JSON.parse(jsonString);
 
 	if (!("cborHex" in obj)) {
-		throw UserError.syntaxError(new Source(jsonString), 0, 1, "cborHex field not in json")
+		throw UserError.syntaxError(new Source(jsonString, "<json>"), 0, 1, "cborHex field not in json")
 	}
 
 	let cborHex = obj.cborHex;
 	if (typeof cborHex !== "string") {
-		let src = new Source(jsonString);
+		let src = new Source(jsonString, "<json>");
 		let re = /cborHex/;
 		let cborHexMatch = jsonString.match(re);
 		if (cborHexMatch === null) {

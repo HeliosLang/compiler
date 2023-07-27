@@ -2,6 +2,10 @@
 // Eval tx types
 
 import {
+    assertDefined
+} from "./utils.js";
+
+import {
     Site,
     FTPP
 } from "./tokens.js";
@@ -81,6 +85,7 @@ import {
 } from "./eval-parametric.js";
 
 import {
+    IteratorType$,
     ListType$,
     MapType$,
     OptionType$
@@ -106,7 +111,7 @@ import {
 
 /**
  * Buitin Address type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const AddressType = new GenericType({
@@ -138,7 +143,7 @@ export const AddressType = new GenericType({
 });
 
 /**
- * @package
+ * @internal
  * @type {DataType}
  */
 export const DCertType = new GenericType({
@@ -162,7 +167,7 @@ export const DCertType = new GenericType({
 });
 
 /**
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const DCertDelegateType = new GenericEnumMemberType({
@@ -180,7 +185,7 @@ const DCertDelegateType = new GenericEnumMemberType({
 });
 
 /**
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const DCertDeregisterType = new GenericEnumMemberType({
@@ -197,7 +202,7 @@ const DCertDeregisterType = new GenericEnumMemberType({
 });
 
 /**
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const DCertRegisterType = new GenericEnumMemberType({
@@ -214,7 +219,7 @@ const DCertRegisterType = new GenericEnumMemberType({
 });
 
 /**
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const DCertRegisterPoolType = new GenericEnumMemberType({
@@ -232,7 +237,7 @@ const DCertRegisterPoolType = new GenericEnumMemberType({
 });
 
 /**
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const DCertRetirePoolType = new GenericEnumMemberType({
@@ -252,7 +257,7 @@ const DCertRetirePoolType = new GenericEnumMemberType({
 
 /**
  * Builtin Credential type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const CredentialType = new GenericType({
@@ -305,7 +310,7 @@ const CredentialValidatorType = new GenericEnumMemberType({
 });
 
 /**
- * @package
+ * @internal
  * @type {DataType}
  */
 export const OutputDatumType = new GenericType({
@@ -331,7 +336,7 @@ export const OutputDatumType = new GenericType({
 });
 
 /**
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const OutputDatumHashType = new GenericEnumMemberType({
@@ -348,7 +353,7 @@ const OutputDatumHashType = new GenericEnumMemberType({
 });
 
 /**
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const OutputDatumInlineType = new GenericEnumMemberType({
@@ -365,7 +370,7 @@ const OutputDatumInlineType = new GenericEnumMemberType({
 });
 
 /**
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const OutputDatumNoneType = new GenericEnumMemberType({
@@ -382,7 +387,7 @@ const OutputDatumNoneType = new GenericEnumMemberType({
 
 /**
  * Base class for ScriptContext, ContractContext, Scripts and other "macro"-types
- * @package
+ * @internal
  */
 export class MacroType extends Common {
     /**
@@ -482,11 +487,12 @@ export class MacroType extends Common {
 }
 
 /**
+ * @internal
  * @typedef {{[name: string]: ScriptHashType}} ScriptTypes
  */
 
 /**
- * @package
+ * @internal
  * @implements {DataType}
  */
 export class ScriptsType extends MacroType {
@@ -556,7 +562,7 @@ export class ScriptsType extends MacroType {
 
 /**
  * Builtin ScriptContext type
- * @package
+ * @internal
  * @implements {DataType}
  */
 export class ScriptContextType extends MacroType {
@@ -621,7 +627,7 @@ export class ScriptContextType extends MacroType {
 
 /**
  * Builtin ScriptContext type
- * @package
+ * @internal
  * @implements {DataType}
  */
 export class ContractContextType extends MacroType {
@@ -664,6 +670,9 @@ export class ContractContextType extends MacroType {
     }
 }
 
+/**
+ * @internal
+ */
 export const WalletType = new GenericType({
     name: "Wallet",
     genInstanceMembers: (self) => ({
@@ -676,20 +685,21 @@ export const WalletType = new GenericType({
 
 /**
  * Does this really need to be a class? (i.e. will it be instantiated with some properties)
- * @package
+ * @internal
  */
 export const NetworkType = new GenericType({
     name: "Network",
     genInstanceMembers: (self) => ({
         pick: new FuncType([AddressType, ValueType], ListType$(TxInputType)),
-        get: new FuncType([TxOutputIdType], TxInputType)
+        get: new FuncType([TxOutputIdType], TxInputType),
+        utxos_at: new FuncType([AddressType], IteratorType$([TxInputType]))
     }),
     genTypeMembers: (self) => ({}),
 });
 
 /**
  * Builtin ScriptPurpose type (Minting| Spending| Rewarding | Certifying)
- * @package
+ * @internal
  * @type {DataType}
  */
 export const ScriptPurposeType = new GenericType({
@@ -712,7 +722,7 @@ export const ScriptPurposeType = new GenericType({
 
 /**
  * Builtin ScriptPurpose::Certifying
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const ScriptPurposeCertifyingType = new GenericEnumMemberType({
@@ -730,7 +740,7 @@ const ScriptPurposeCertifyingType = new GenericEnumMemberType({
 
 /**
  * Builtin ScriptPurpose::Minting
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const ScriptPurposeMintingType = new GenericEnumMemberType({
@@ -748,7 +758,7 @@ const ScriptPurposeMintingType = new GenericEnumMemberType({
 
 /**
  * Builtin ScriptPurpose::Rewarding
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const ScriptPurposeTypeRewarding = new GenericEnumMemberType({
@@ -766,7 +776,7 @@ const ScriptPurposeTypeRewarding = new GenericEnumMemberType({
 
 /**
  * Builtin ScriptPurpose::Spending
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const ScriptPurposeSpendingType = new GenericEnumMemberType({
@@ -784,7 +794,7 @@ const ScriptPurposeSpendingType = new GenericEnumMemberType({
 
 /**
  * Builtin StakingCredential type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const StakingCredentialType = new GenericType({
@@ -803,7 +813,7 @@ export const StakingCredentialType = new GenericType({
 
 /**
  * Builtin StakingCredential::Hash
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const StakingCredentialHashType = new GenericEnumMemberType({
@@ -821,7 +831,7 @@ const StakingCredentialHashType = new GenericEnumMemberType({
 
 /**
  * Builtin StakingCredential::Ptr
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const StakingCredentialPtrType = new GenericEnumMemberType({
@@ -838,7 +848,7 @@ const StakingCredentialPtrType = new GenericEnumMemberType({
 
 /**
  * Builtin StakingPurpose type (Rewarding or Certifying)
- * @package
+ * @internal
  * @type {DataType}
  */
 export const StakingPurposeType = new GenericType({
@@ -855,7 +865,7 @@ export const StakingPurposeType = new GenericType({
 
 /**
  * Builtin ScriptPurpose::Minting
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const StakingPurposeCertifyingType = new GenericEnumMemberType({
@@ -873,7 +883,7 @@ const StakingPurposeCertifyingType = new GenericEnumMemberType({
 
 /**
  * Builtin ScriptPurpose::Minting
- * @package
+ * @internal
  * @type {EnumMemberType}
  */
 const StakingPurposeRewardingType = new GenericEnumMemberType({
@@ -889,6 +899,9 @@ const StakingPurposeRewardingType = new GenericEnumMemberType({
     })
 });
 
+/**
+ * @internal
+ */
 export const TxBuilderType = new GenericType({
     name: "TxBuilder",
     path: "__helios__txbuilder",
@@ -925,16 +938,19 @@ export const TxBuilderType = new GenericType({
 
 /**
  * Builtin Tx type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const TxType = new GenericType({
     name: "Tx",
+    jsToUplc: (obj, networkParams) => {
+        return obj.toTxData(assertDefined(networkParams));
+    },
     uplcToJs: (data) => {
         return TxId.fromUplcData(data.fields[11]);
     },
     genTypeDetails: (self) => ({
-        inputType: "never",
+        inputType: "helios.Tx",
         outputType: "helios.Tx",
         internalType: {
             type: "Tx"
@@ -1017,12 +1033,25 @@ export const TxType = new GenericType({
 
 /**
  * Builtin TxId type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const TxIdType = new GenericType({
     name: "TxId",
     offChainType: TxId,
+    genTypeDetails: (self) => ({
+        inputType: `number[] | string | helios.TxId`,
+        outputType: `helios.TxId`,
+        internalType: {
+            type: "TxId"
+        }
+    }),
+    jsToUplc: (obj) => {
+        return TxId.fromProps(obj)._toUplcData();
+    },
+    uplcToJs: (data) => {
+        return TxId.fromUplcData(data);
+    },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         show: new FuncType([], StringType)
@@ -1040,7 +1069,7 @@ export const TxIdType = new GenericType({
 
 /**
  * Builtin TxInput type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const TxInputType = new GenericType({
@@ -1061,7 +1090,7 @@ export const TxInputType = new GenericType({
 
 /**
  * Builtin TxOutput type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const TxOutputType = new GenericType({
@@ -1081,7 +1110,7 @@ export const TxOutputType = new GenericType({
 
 /**
  * Builtin TxOutputId type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const TxOutputIdType = new GenericType({

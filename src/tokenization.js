@@ -31,6 +31,9 @@ import {
 	assertToken
 } from "./tokens.js";
 
+/**
+ * @internal
+ */
 export class Tokenizer {
 	#src;
 	#pos;
@@ -669,13 +672,13 @@ export class Tokenizer {
 		let curField = [];
 		let fields = [];
 
-		/** @type {?SymbolToken} */
+		/** @type {null | SymbolToken} */
 		let firstComma = null;
 
-		/** @type {?SymbolToken} */
+		/** @type {null | SymbolToken} */
 		let lastComma = null;
 
-		/** @type {?Site} */
+		/** @type {null | Site} */
 		let endSite = null;
 
 		while (stack.length > 0 && ts.length > 0) {
@@ -798,7 +801,7 @@ export class Tokenizer {
 
 		if (stack.length > 0) {
 			const t = assertDefined(stack[stack.length - 1][0]?.assertSymbol());
-			t.syntaxError(`unmacthed '${t.value}'`);
+			t.syntaxError(`unmatched '${t.value}'`);
 		}
 		
 		return current;
@@ -808,6 +811,7 @@ export class Tokenizer {
 /**
  * Tokenizes a string (wrapped in Source)
  * Also used by VSCode plugin
+ * @internal
  * @param {Source} src 
  * @returns {Token[] | null}
  */
@@ -819,13 +823,13 @@ export function tokenize(src) {
 
 /**
  * Tokenizes an IR string with a codemap to the original source
- * @package
+ * @internal
  * @param {string} rawSrc 
  * @param {CodeMap} codeMap 
  * @returns {Token[]}
  */
 export function tokenizeIR(rawSrc, codeMap) {
-	let src = new Source(rawSrc);
+	let src = new Source(rawSrc, "<ir>");
 
 	// the Tokenizer for Helios can simply be reused for the IR
 	let tokenizer = new Tokenizer(src, codeMap, true);

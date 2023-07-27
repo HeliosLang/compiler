@@ -3,7 +3,7 @@
 
 import {
     Site,
-    UserError
+    RuntimeError
 } from "./tokens.js";
 
 /**
@@ -54,7 +54,7 @@ import {
  */
 
 /**
- * @typedef {(args: UplcValue[], res: (UplcValue | UserError), isSimplfied?: boolean) => (boolean | Object.<string, boolean>)} PropertyTest
+ * @typedef {(args: UplcValue[], res: (UplcValue | RuntimeError), isSimplfied?: boolean) => (boolean | Object.<string, boolean>)} PropertyTest
  */
 
 /**

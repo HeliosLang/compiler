@@ -9,10 +9,6 @@ import {
 	reduceNullPairs
 } from "./utils.js";
 
-/**
- * @typedef {import("./tokens.js").Throw} Throw
- */
-
 import {
     Group,
     Site,
@@ -100,7 +96,9 @@ const AUTOMATIC_METHODS = [
 let importPathTranslator = null
 
 /**
- * Used by VSCode plugin
+ * Used by VSCode plugin and CLI
+ * The sources can't be modified directly because that messes up the codemapping
+ * @internal
  * @param {(path: StringLiteral) => (string | null)} fn 
  */
 export function setImportPathTranslator(fn) {
@@ -108,7 +106,7 @@ export function setImportPathTranslator(fn) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts
  * @returns {Statement[]}
  */
@@ -163,11 +161,11 @@ export function buildProgramStatements(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts
  * @param {null | ScriptPurpose} expectedPurpose
  * @returns {[ScriptPurpose, Word] | null} - [purpose, name] (ScriptPurpose is an integer)
- * @package
+ * @internal
  */
 export function buildScriptPurpose(ts, expectedPurpose = null) {
 	// need at least 2 tokens for the script purpose
@@ -238,6 +236,7 @@ export function buildScriptPurpose(ts, expectedPurpose = null) {
 
 /**
  * Also used by VSCode plugin
+ * @internal
  * @param {Token[]} ts 
  * @param {null | ScriptPurpose} expectedPurpose 
  * @returns {[null | ScriptPurpose, Word | null, Statement[], number]}
@@ -276,7 +275,7 @@ export function buildScript(ts, expectedPurpose = null) {
  */
 export function extractScriptPurposeAndName(rawSrc) {
 	try {
-		let src = new Source(rawSrc);
+		let src = new Source(rawSrc, "");
 
 		let tokenizer = new Tokenizer(src);
 
@@ -314,7 +313,7 @@ export function extractScriptPurposeAndName(rawSrc) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site 
  * @param {Token[]} ts 
  * @returns {ConstStatement | null}
@@ -480,7 +479,7 @@ function buildTypeParameters(ts, isForFunc) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts
  * @returns {[Token[], Token[]]}
  */
@@ -496,7 +495,7 @@ function splitDataImpl(ts) {
 
 
 /**
- * @package
+ * @internal
  * @param {Site} site 
  * @param {Token[]} ts 
  * @returns {StructStatement | null}
@@ -557,7 +556,7 @@ function buildStructStatement(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @returns {DataField[]}
  */
@@ -632,7 +631,7 @@ function buildDataFields(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site 
  * @param {Token[]} ts 
  * @param {null | Expr} methodOf - methodOf !== null then first arg can be named 'self'
@@ -662,7 +661,7 @@ function buildFuncStatement(site, ts, methodOf = null) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @param {null | Expr} methodOf - methodOf !== null then first arg can be named 'self'
  * @param {boolean} allowInferredRetType
@@ -709,11 +708,11 @@ function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false)
 		return null;
 	}
 
-	return new FuncLiteralExpr(site, args, retTypeExprs, bodyExpr);
+	return new FuncLiteralExpr(arrow.site, args, retTypeExprs, bodyExpr);
 }
 
 /**
- * @package
+ * @internal
  * @param {Group} parens 
  * @param {null | Expr} methodOf - methodOf !== nul then first arg can be named 'self'
  * @returns {FuncArg[]}
@@ -824,7 +823,7 @@ function buildFuncArgs(parens, methodOf = null) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site 
  * @param {Token[]} ts 
  * @returns {EnumStatement | null}
@@ -885,7 +884,7 @@ function buildEnumStatement(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site 
  * @param {Token[]} ts 
  * @returns {(ImportFromStatement | ImportModuleStatement | null)[] | null}
@@ -1038,7 +1037,7 @@ function buildImportFromStatements(site, maybeBraces, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @returns {EnumMember | null}
  */
@@ -1063,7 +1062,7 @@ function buildEnumMember(ts) {
 }
 
 /** 
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @param {Expr} selfTypeExpr - reference to parent type
  * @param {Word[]} fieldNames - to check if impl statements have a unique name
@@ -1134,7 +1133,7 @@ function buildImplDefinition(ts, selfTypeExpr, fieldNames, endSite) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @param {Expr} methodOf
  * @returns {(ConstStatement | FuncStatement)[]}
@@ -1175,7 +1174,7 @@ function buildImplMembers(ts, methodOf) {
 
 /**
  * TODO: chain like value
- * @package
+ * @internal
  * @param {Site} site
  * @param {Token[]} ts 
  * @returns {Expr | null}
@@ -1238,7 +1237,7 @@ function buildParametricTypeExpr(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site
  * @param {Token[]} ts 
  * @returns {ListTypeExpr | null}
@@ -1260,7 +1259,7 @@ function buildListTypeExpr(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site
  * @param {Token[]} ts 
  * @returns {MapTypeExpr | null}
@@ -1306,7 +1305,7 @@ function buildMapTypeExpr(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site
  * @param {Token[]} ts 
  * @returns {Expr | null}
@@ -1354,7 +1353,7 @@ function buildOptionTypeExpr(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site
  * @param {Token[]} ts
  * @returns {IteratorTypeExpr | null}
@@ -1393,7 +1392,7 @@ function buildIteratorTypeExpr(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site
  * @param {Token[]} ts 
  * @returns {FuncTypeExpr | null}
@@ -1530,7 +1529,7 @@ function buildFuncArgTypeExpr(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site 
  * @param {Token[]} ts 
  * @param {boolean} allowInferredRetType
@@ -1569,7 +1568,7 @@ function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site
  * @param {Token[]} ts 
  * @returns {null | PathExpr}
@@ -1598,7 +1597,7 @@ function buildTypePathExpr(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site
  * @param {Token[]} ts 
  * @returns {RefExpr | null}
@@ -1619,7 +1618,7 @@ function buildTypeRefExpr(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @param {number} prec 
  * @returns {Expr | null}
@@ -1670,7 +1669,7 @@ function buildValueExpr(ts, prec = 0) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts
  * @param {number} prec
  * @returns {Expr | null}
@@ -1762,7 +1761,7 @@ function buildMaybeAssignOrChainExpr(ts, prec) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site
  * @param {Token[]} ts 
  * @param {boolean} isSwitchCase
@@ -1898,7 +1897,7 @@ function buildDestructExprs(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site 
  * @param {Token[]} ts 
  * @returns {null | DestructExpr[]}
@@ -2047,7 +2046,7 @@ function buildPipedExpr(ts, prec) {
 }
 
 /**
- * @package
+ * @internal
  * @param {string | string[]} symbol 
  * @returns {(ts: Token[], prec: number) => (Expr | null)}
  */
@@ -2077,7 +2076,7 @@ function makeBinaryExprBuilder(symbol) {
 }
 
 /**
- * @package
+ * @internal
  * @param {string | string[]} symbol 
  * @returns {(ts: Token[], prec: number) => (Expr | null)}
  */
@@ -2100,7 +2099,7 @@ function makeUnaryExprBuilder(symbol) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @param {number} prec 
  * @returns {Expr | null}
@@ -2116,7 +2115,7 @@ function buildChainedValueExpr(ts, prec) {
 
 
 /**
- * @package
+ * @internal
  * @param {Expr | null} expr
  * @param {Token[]} ts
  * @param {number} prec
@@ -2206,7 +2205,7 @@ function buildCallExpr(site, fnExpr, parens) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @returns {Expr | null}
  */
@@ -2269,7 +2268,7 @@ function buildChainStartValueExpr(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts
  * @returns {Expr | null}
  */
@@ -2309,7 +2308,7 @@ function buildParensExpr(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Group} parens 
  * @returns {CallArgExpr[] | null}
  */
@@ -2386,7 +2385,7 @@ function buildCallArgExpr(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @returns {IfElseExpr | null}
  */
@@ -2491,7 +2490,7 @@ function buildIfElseExpr(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Expr} controlExpr
  * @param {Token[]} ts 
  * @returns {Expr | null} - EnumSwitchExpr or DataSwitchExpr
@@ -2585,7 +2584,7 @@ function buildSwitchExpr(controlExpr, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site
  * @param {Token[]} ts
  * @param {boolean} isAfterColon
@@ -2678,7 +2677,7 @@ function buildSwitchCaseName(site, ts, isAfterColon) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @returns {SwitchCase | null}
  */
@@ -2703,7 +2702,7 @@ function buildSwitchCase(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @returns {null | [?Word, Word]} - varName is optional
  */
@@ -2753,7 +2752,7 @@ function buildSwitchCaseNameType(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} tsLeft
  * @param {Token[]} ts
  * @returns {SwitchCase | null}
@@ -2804,7 +2803,7 @@ function buildMultiArgSwitchCase(tsLeft, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} tsLeft 
  * @param {Token[]} ts 
  * @returns {SwitchCase | null}
@@ -2844,7 +2843,7 @@ function buildSingleArgSwitchCase(tsLeft, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site 
  * @param {Token[]} ts 
  * @returns {Expr | null}
@@ -2877,7 +2876,7 @@ function buildSwitchCaseBody(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @returns {SwitchDefault | null}
  */
@@ -2937,7 +2936,7 @@ function buildSwitchDefault(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @returns {ListLiteralExpr | null}
  */
@@ -2982,7 +2981,7 @@ function buildListLiteralExpr(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @returns {StructLiteralExpr | null}
  */
@@ -3029,7 +3028,7 @@ function buildOptionSomeLiteralExpr(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts
  * @returns {MapLiteralExpr | null}
  */
@@ -3117,7 +3116,7 @@ function buildMapLiteralExpr(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @returns {StructLiteralExpr | null}
  */
@@ -3160,7 +3159,7 @@ function buildStructLiteralExpr(ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site - site of the braces
  * @param {Token[]} ts
  * @returns {StructLiteralField | null}
@@ -3174,7 +3173,7 @@ function buildStructLiteralField(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site
  * @param {Token[]} ts
  * @returns {StructLiteralField | null}
@@ -3206,7 +3205,7 @@ function buildStructLiteralNamedField(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Site} site
  * @param {Token[]} ts
  * @returns {StructLiteralField | null}
@@ -3222,7 +3221,7 @@ function buildStructLiteralUnnamedField(site, ts) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Token[]} ts 
  * @returns {Expr | null}
  */

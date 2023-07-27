@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 //@ts-check
 import * as helios from "../helios.js";
-import { runIfEntryPoint } from "./util.js";
+import { runIfEntryPoint } from "../utils/util.js";
 
 async function test1() {
     const moduleSrc = `

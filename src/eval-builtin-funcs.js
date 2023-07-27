@@ -39,7 +39,7 @@ import {
 
 /**
  * Used by print, error, and assert
- * @package
+ * @internal
  * @implements {Func}
  * @implements {Named}
  */
@@ -142,7 +142,7 @@ export class BuiltinFunc extends Common {
 
 /**
  * Special builtin function that throws an error if condition is false and returns Void
- * @package
+ * @internal
  */
 export const AssertFunc = new BuiltinFunc({
     name: "assert",
@@ -151,7 +151,7 @@ export const AssertFunc = new BuiltinFunc({
 
 /**
  * Special builtin function that throws an error and returns ErrorInstance (special case of Void)
- * @package
+ * @internal
  */
 export const ErrorFunc = new BuiltinFunc({
 	name: "error",
@@ -160,7 +160,7 @@ export const ErrorFunc = new BuiltinFunc({
 
 /**
  * Special builtin function that prints a message and returns void
- * @package
+ * @internal
  */
 export const PrintFunc = new BuiltinFunc({
 	name: "print",

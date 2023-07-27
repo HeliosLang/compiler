@@ -42,7 +42,7 @@ import {
  */
 
 /**
- * @package
+ * @internal
  * @param {Type} type
  * @returns {InstanceMembers}
  */
@@ -53,7 +53,7 @@ export function genCommonInstanceMembers(type) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Type} type
  * @returns {TypeMembers}
  */
@@ -67,7 +67,7 @@ export function genCommonTypeMembers(type) {
 }
 
 /**
- * @package
+ * @internal
  * @param {Type} type
  * @param {Type} parentType
  * @returns {TypeMembers}
@@ -84,7 +84,7 @@ export function genCommonEnumTypeMembers(type, parentType) {
 
 /**
  * Builtin bool type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const BoolType = new GenericType({
@@ -122,7 +122,7 @@ export const BoolType = new GenericType({
 
 /**
  * Builtin bytearray type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const ByteArrayType = new GenericType({
@@ -167,7 +167,7 @@ export const ByteArrayType = new GenericType({
 });
 
 /**
- * @package
+ * @internal
  * @type {DataType}
  */
 export const IntType = new GenericType({
@@ -232,7 +232,7 @@ export const IntType = new GenericType({
 /**
  * Type of external data that must be cast/type-checked before using
  * Not named 'Data' in Js because it's too generic
- * @package
+ * @internal
  * @type {DataType}
  */
 export const RawDataType = new GenericType({
@@ -248,7 +248,7 @@ export const RawDataType = new GenericType({
 
 /**
  * Builtin Real fixed point number type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const RealType = new GenericType({
@@ -303,7 +303,7 @@ export const RealType = new GenericType({
 
 /**
  * Builtin string type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const StringType = new GenericType({

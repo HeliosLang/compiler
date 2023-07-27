@@ -17,6 +17,7 @@ import {
     IR,
     IRParametricName,
     RE_IR_PARAMETRIC_NAME,
+	Site,
     UserError,
     Word
 } from "./tokens.js";
@@ -97,7 +98,7 @@ import {
 } from "./helios-ast-statements.js";
 
 import {
-	buildScript
+	buildScript, extractScriptPurposeAndName
 } from "./helios-ast-build.js";
 
 import {
@@ -131,11 +132,16 @@ class Module {
 
 	/**
 	 * @param {string} rawSrc
-	 * @param {null | number} fileIndex - a unique optional index passed in from outside that makes it possible to associate a UserError with a specific file
 	 * @returns {Module}
 	 */
-	static new(rawSrc, fileIndex = null) {
-		const src = new Source(rawSrc, fileIndex);
+	static new(rawSrc) {
+		let rawName = "";
+		const purposeName = extractScriptPurposeAndName(rawSrc);
+		if (purposeName) {
+			rawName = purposeName[1];
+		}
+
+		const src = new Source(rawSrc, rawName);
 
 		const ts = tokenize(src);
 
@@ -352,7 +358,13 @@ const DEFAULT_PROGRAM_CONFIG = {
 	 * @returns {[purpose, Module[]]}
 	 */
 	static parseMainInternal(rawSrc) {
-		const src = new Source(rawSrc, 0);
+		let rawName = "";
+		const purposeName = extractScriptPurposeAndName(rawSrc);
+		if (purposeName) {
+			rawName = purposeName[1];
+		}
+
+		const src = new Source(rawSrc, rawName);
 
 		const ts = tokenize(src);
 
@@ -393,7 +405,9 @@ const DEFAULT_PROGRAM_CONFIG = {
 	 * @returns {Module[]}
 	 */
 	static parseImports(mainName, moduleSrcs = []) {
-		let imports = moduleSrcs.map((src, i) => Module.new(src, i+1));
+		let imports = moduleSrcs.map(src => {
+			return Module.new(src);
+		});
 
 		/**
 		 * @type {Set<string>}
@@ -473,6 +487,9 @@ const DEFAULT_PROGRAM_CONFIG = {
 			case "staking":
 				program = new StakingProgram(modules, config);
 				break;
+			case "linking":
+				program = new LinkingProgram(modules);
+				break;
 			default:
 				throw new Error("unhandled script purpose");
 		}
@@ -481,7 +498,9 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 		program.throwErrors();
 
-		program.fillTypes(topScope);
+		if (purpose != "linking") {
+			program.fillTypes(topScope);
+		}
 
 		return program;
 	}
@@ -570,6 +589,13 @@ const DEFAULT_PROGRAM_CONFIG = {
 	 */
 	get mainFunc() {
 		return this.mainModule.mainFunc;
+	}
+
+	/**
+	 * @type {Site}
+	 */
+	get mainRetExprSite() {
+		return this.mainFunc.retSite;
 	}
 
 	/**
@@ -731,7 +757,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 	/**
 	 * Change the literal value of a const statements  
-	 * @package
+	 * @internal
 	 * @param {string} name
 	 * @param {UplcData} data
 	 */
@@ -905,7 +931,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @param {(s: Statement, isImport: boolean) => boolean} endCond
 	 * @returns {IRDefinitions} 
 	 */
@@ -928,7 +954,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 	/**
 	 * For top-level statements
-	 * @package
+	 * @internal
 	 * @param {IR} mainIR
 	 * @param {IRDefinitions} map
 	 * @returns {IR}
@@ -1177,7 +1203,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	/**
 	 * Loops over all statements, until endCond == true (includes the matches statement)
 	 * Then applies type parameters
-	 * @package
+	 * @internal
 	 * @param {IR} ir
 	 * @param {(s: Statement) => boolean} endCond
 	 * @returns {IRDefinitions}
@@ -1209,7 +1235,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @param {IR} ir
 	 * @param {null | IRDefinitions} extra
 	 * @returns {IR}
@@ -1232,7 +1258,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @param {null | IRDefinitions} extra
 	 * @returns {IR}
 	 */
@@ -1273,7 +1299,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 
-		return new Source(irProgram.toString()).pretty();
+		return new Source(irProgram.toString(), this.name).pretty();
 	}
 
 	/**
@@ -1316,7 +1342,7 @@ class RedeemerProgram extends Program {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @param {GlobalScope} scope
 	 * @returns {TopScope}
 	 */
@@ -1365,7 +1391,7 @@ class RedeemerProgram extends Program {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @param {ScriptTypes} validatorTypes
 	 * @returns {TopScope}
 	 */
@@ -1376,7 +1402,7 @@ class RedeemerProgram extends Program {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @returns {IR} 
 	 */
 	toIRInternal() {
@@ -1405,9 +1431,13 @@ class RedeemerProgram extends Program {
 		});
 
 		let ir = new IR([
-			new IR(`${TAB}${TAB}__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
+			new IR(`${TAB}${TAB}__core__ifThenElse`),
+			new IR("(", this.mainRetExprSite),
+			new IR(`\n${TAB}${TAB}${TAB}${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
-			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
+			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__helios__error("validation returned false")}\n${TAB}${TAB})`),
+			new IR("(", this.mainRetExprSite),
+			new IR(")")
 		]);
 
 		if (nOuterArgs > 0) {
@@ -1451,7 +1481,7 @@ class DatumRedeemerProgram extends Program {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @param {GlobalScope} scope 
 	 * @returns {TopScope}
 	 */
@@ -1500,7 +1530,7 @@ class DatumRedeemerProgram extends Program {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @param {ScriptTypes} scriptTypes
 	 * @returns {TopScope}
 	 */
@@ -1511,7 +1541,7 @@ class DatumRedeemerProgram extends Program {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIRInternal() {
@@ -1539,9 +1569,13 @@ class DatumRedeemerProgram extends Program {
 		});
 
 		let ir = new IR([
-			new IR(`${TAB}${TAB}__core__ifThenElse(\n${TAB}${TAB}${TAB}${this.mainPath}(`),
+			new IR(`${TAB}${TAB}__core__ifThenElse`),
+			new IR("(", this.mainRetExprSite),
+			new IR(`\n${TAB}${TAB}${TAB}${this.mainPath}(`),
 			new IR(innerArgs).join(", "),
-			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {error("transaction rejected")}\n${TAB}${TAB})()`),
+			new IR(`),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__helios__error("validation returned false")}\n${TAB}${TAB})`),
+			new IR("(", this.mainRetExprSite),
+			new IR(")")
 		]);
 
 		if (nOuterArgs > 0) {
@@ -1585,7 +1619,7 @@ class GenericProgram extends Program {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @param {ScriptTypes} scriptTypes
 	 * @returns {TopScope}
 	 */
@@ -1619,7 +1653,7 @@ class GenericProgram extends Program {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIRInternal() {
@@ -1708,45 +1742,16 @@ class StakingProgram extends RedeemerProgram {
 	}
 }
 
-export class LinkingProgram extends GenericProgram {
-	/**
-	 * @type {Program[]}
-	 */
-	#validators;
-
+class LinkingProgram extends GenericProgram {
 	/**
 	 * @param {Module[]} modules 
-	 * @param {Program[]} validators 
 	 */
-	constructor(modules, validators) {
+	constructor(modules) {
 		super("linking", modules, DEFAULT_PROGRAM_CONFIG);
-
-		this.#validators = validators;
 	}
 
 	/**
-	 * Creates  a new program.
-	 * @param {string} mainSrc 
-	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
-	 * @param {ScriptTypes} scriptTypes - generators for script hashes, used by Scripts
-	 * @returns {LinkingProgram}
-	 */
-	static new(mainSrc, moduleSrcs = [], scriptTypes = {}) {
-		const [purpose, modules] = Program.parseMain(mainSrc, moduleSrcs);
-
-		assert(purpose == "linking")
-
-		const program = new LinkingProgram(modules, []);
-
-		program.evalTypes(scriptTypes)
-
-		program.throwErrors();
-
-		return program;
-	}
-
-	/**
-	 * @package
+	 * @internal
 	 * @param {ScriptTypes} scriptTypes
 	 * @returns {TopScope}
 	 */

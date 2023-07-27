@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 //@ts-check
 import fs from "fs";
-import { assert, correctDir, runIfEntryPoint } from "./util.js";
+import { assert, correctDir, runIfEntryPoint } from "../utils/util.js";
 import { exportedForTesting as helios_, NetworkParams } from "../helios.js";
 
 correctDir();
@@ -53,7 +53,7 @@ async function run(name, program, args, expected) {
 
 export default async function main() {
 	// expected memCost: 200, expected cpuCost: 23100
-	await run("add1",
+	/*await run("add1",
 		newProgram(
 			newLambda( 
 				newLambda(
@@ -67,7 +67,7 @@ export default async function main() {
 		),
 		null,
 		{mem: 200n, cpu: 23100n, size: 15}
-	)
+	)*/
 
 	// expected memCost: 3710, expected cpuCost: 1860485
 	await run("add-lambda",

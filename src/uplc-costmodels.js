@@ -57,7 +57,7 @@ export class NetworkParams {
 	}
 
     /**
-     * @package
+     * @internal
      * @type {Object}
      */
 	get costModel() {
@@ -65,7 +65,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @param {string} key 
 	 * @returns {number}
 	 */
@@ -74,7 +74,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @param {string} name 
 	 * @returns {Cost}
 	 */
@@ -89,7 +89,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {Cost}
 	 */
 	get plutusCoreStartupCost() {
@@ -97,7 +97,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {Cost}
 	 */
 	get plutusCoreVariableCost() {
@@ -105,7 +105,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {Cost}
 	 */
 	get plutusCoreLambdaCost() {
@@ -113,7 +113,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {Cost}
 	 */
 	get plutusCoreDelayCost() {
@@ -121,7 +121,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {Cost}
 	 */
 	get plutusCoreCallCost() {
@@ -129,7 +129,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {Cost}
 	 */
 	get plutusCoreConstCost() {
@@ -137,7 +137,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {Cost}
 	 */
 	get plutusCoreForceCost() {
@@ -145,7 +145,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {Cost}
 	 */
 	get plutusCoreBuiltinCost() {
@@ -153,7 +153,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {[number, number]} - a + b*size
 	 */
 	get txFeeParams() {
@@ -164,7 +164,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {[number, number]} - [memFee, cpuFee]
 	 */
 	get exFeeParams() {
@@ -175,7 +175,7 @@ export class NetworkParams {
 	}
 	
 	/**
-     * @package
+     * @internal
 	 * @type {number[]}
 	 */
 	get sortedCostParams() {
@@ -188,7 +188,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {number}
 	 */
 	get lovelacePerUTXOByte() {
@@ -196,7 +196,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {number}
 	 */
 	get minCollateralPct() {
@@ -204,7 +204,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {number}
 	 */
 	get maxCollateralInputs() {
@@ -212,7 +212,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {[number, number]} - [mem, cpu]
 	 */
 	get maxTxExecutionBudget() {
@@ -223,7 +223,7 @@ export class NetworkParams {
 	}
 
 	/**
-     * @package
+     * @internal
 	 * @type {number}
 	 */
 	get maxTxSize() {
@@ -231,7 +231,7 @@ export class NetworkParams {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @type {bigint}
 	 */
 	get maxTxFee() {
@@ -244,7 +244,7 @@ export class NetworkParams {
 
 	/**
 	 * Use the latest slot in networkParameters to determine time.
-     * @package
+     * @internal
 	 * @param {bigint} slot
 	 * @returns {bigint}
 	 */
@@ -261,7 +261,7 @@ export class NetworkParams {
 
 	/**
 	 * Use the latest slot in network parameters to determine slot.
-     * @package
+     * @internal
 	 * @param {bigint} time - milliseconds since 1970
 	 * @returns {bigint}
 	 */
@@ -280,7 +280,7 @@ export class NetworkParams {
 /**
  * Each builtin has an associated CostModel.
  * The CostModel calculates the execution cost of a builtin, depending on the byte-size of the inputs.
- * @package
+ * @internal
  */
 export class CostModel {
 	constructor() {
@@ -313,7 +313,7 @@ export class CostModel {
 
 /**
  * A simple constant cost, independent of arg size.
- * @package
+ * @internal
  */
 export class ConstCost extends CostModel {
 	#constant;
@@ -355,7 +355,7 @@ export class ConstCost extends CostModel {
 
 /**
  * cost = a + b*size(arg)
- * @package
+ * @internal
  */
 export class LinearCost extends CostModel {
 	#a;
@@ -402,7 +402,7 @@ export class LinearCost extends CostModel {
 
 /**
  * cost = a + b*size(args[i])
- * @package
+ * @internal
  */
 export class ArgSizeCost extends LinearCost {
 	#i;
@@ -430,7 +430,7 @@ export class ArgSizeCost extends LinearCost {
 
 /**
  * cost = a + b*size(arg0)
- * @package
+ * @internal
  */
 export class Arg0SizeCost extends ArgSizeCost {
 	/**
@@ -455,7 +455,7 @@ export class Arg0SizeCost extends ArgSizeCost {
 
 /**
  * cost = a + b*size(arg1)
- * @package
+ * @internal
  */
 export class Arg1SizeCost extends ArgSizeCost {
 	/**
@@ -480,7 +480,7 @@ export class Arg1SizeCost extends ArgSizeCost {
 
 /**
  * cost = a + b*size(arg2)
- * @package
+ * @internal
  */
 export class Arg2SizeCost extends ArgSizeCost {
 	/**
@@ -505,7 +505,7 @@ export class Arg2SizeCost extends ArgSizeCost {
 
 /**
  * cost = a + b*min(args)
- * @package
+ * @internal
  */
 export class MinArgSizeCost extends LinearCost {
 	/**
@@ -537,7 +537,7 @@ export class MinArgSizeCost extends LinearCost {
 
 /**
  * cost = a + b*max(args)
- * @package
+ * @internal
  */
 export class MaxArgSizeCost extends LinearCost {
 	/**
@@ -570,7 +570,7 @@ export class MaxArgSizeCost extends LinearCost {
 
 /**
  * cost = a + b*sum(sizes(args))
- * @package
+ * @internal
  */
 export class SumArgSizesCost extends LinearCost {
 	/**
@@ -610,7 +610,7 @@ export class SumArgSizesCost extends LinearCost {
 /**
  * cost = a + b*max(size(arg0)-size(arg1), min)
  * (only for Uplc functions with two arguments) 
- * @package
+ * @internal
  */
 export class ArgSizeDiffCost extends LinearCost {
 	#min;
@@ -658,7 +658,7 @@ export class ArgSizeDiffCost extends LinearCost {
 /**
  * cost = (size(arg0) > size(arg1)) ? constant : a + b*size(arg0)*size(arg1)
  * (only for Uplc functions with two arguments)
- * @package
+ * @internal
  */
 export class ArgSizeProdCost extends LinearCost {
 	#constant;
@@ -712,7 +712,7 @@ export class ArgSizeProdCost extends LinearCost {
 /**
  * cost = (size(arg0) != size(arg1)) ? constant : a + b*size(arg0)
  * (only for Uplc functions with two arguments)
- * @package
+ * @internal
  */
 export class ArgSizeDiagCost extends LinearCost {
 	#constant;
@@ -761,6 +761,7 @@ export class ArgSizeDiagCost extends LinearCost {
 }
 
 /**
+ * @internal
  * @typedef CostModelClass
  * @property {(params: NetworkParams, baseName: string) => CostModel} fromParams
  */

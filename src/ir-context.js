@@ -21,7 +21,7 @@ import {
 /**
  * Scope for IR names.
  * Works like a stack of named values from which a Debruijn index can be derived
- * @package
+ * @internal
  */
 export class IRScope {
 	#parent;
@@ -99,12 +99,26 @@ const ALWAYS_INLINEABLE = [
 	"__helios__int____neg",
 	"__helios__common__fields",
 	"__helios__common__fields_after_0",
-	"__helios__common__field_0"
+	"__helios__common__field_0",
+	"__helios__common__field_1",
+	"__helios__bool__trace",
+	"__helios__bool__and",
+	"__helios__print",
+	"__helios__assert",
+	"__helios__error",
+	"__helios__assetclass__new",
+	"__helios__common__assert_constr_index",
+	"__helios__real__floor",
+	"__helios__real__ceil",
+	"__helios__real____div",
+	"__helios__real____mul",
+	"__helios__int__to_real",
+	"__helios__int____geq"
 ];
 
 /**
  * IR class that represents function arguments
- * @package
+ * @internal
  */
 export class IRVariable extends Token {
 	#name;
@@ -149,7 +163,7 @@ export class IRVariable extends Token {
 }
 
 /**
- * @package
+ * @internal
  */
 export class IRValue {
 	constructor() {
@@ -164,7 +178,7 @@ export class IRValue {
 	}
 
 	/**
-	 * @type {UplcValue}
+	 * @type {null | UplcValue}
 	 */
 	get value() {
 		throw new Error("not a literal value");
@@ -172,7 +186,7 @@ export class IRValue {
 }
 
 /**
- * @package
+ * @internal
  */
 export class IRFuncValue extends IRValue {
 	#callback;
@@ -195,7 +209,7 @@ export class IRFuncValue extends IRValue {
 }
 
 /**
- * @package
+ * @internal
  */
 export class IRLiteralValue extends IRValue {
 	#value;
@@ -217,7 +231,7 @@ export class IRLiteralValue extends IRValue {
 }
 
 /**
- * @package
+ * @internal
  */
 export class IRDeferredValue extends IRValue {
     #deferred;
@@ -237,7 +251,7 @@ export class IRDeferredValue extends IRValue {
     }
     /**
      * @param {IRValue[]} args 
-     * @returns {?IRValue}
+     * @returns {null | IRValue}
      */
     call(args) {
         if (this.#cache === undefined) {
@@ -252,15 +266,15 @@ export class IRDeferredValue extends IRValue {
     }
 
     /**
-     * @type {UplcValue}
+     * @type {null | UplcValue}
      */
     get value() {
         if (this.#cache === undefined) {
             this.#cache = this.#deferred();
         }
         
-        if (this.#cache != null) {
-            return this.#cache.value;
+        if (this.#cache !== undefined) {
+            return this.#cache?.value ?? null;
         } else {
             throw new Error("not a value");
         }
@@ -269,7 +283,7 @@ export class IRDeferredValue extends IRValue {
 }
 
 /**
- * @package
+ * @internal
  */
 export class IRCallStack {
 	#throwRTErrors;

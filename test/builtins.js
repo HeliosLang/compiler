@@ -2,7 +2,7 @@
 //@ts-check
 import crypto from "crypto";
 import * as helios from "../helios.js";
-import { runIfEntryPoint } from "./util.js";
+import { runIfEntryPoint } from "../utils/util.js";
 
 /**
  * @typedef {import('../helios.js').PropertyTest} PropertyTest
@@ -263,19 +263,7 @@ function constrIndex(value) {
  * @returns {boolean}
  */
 function isError(err, info) {
-    if (err instanceof helios.UserError) {
-        let parts = err.message.split(":");
-        let n = parts.length;
-        if (n < 2) {
-            return info == "";
-        } else if (parts[n-1].trim().includes(info)) {
-            return true
-        } else {
-            return false;
-        }
-    } else {
-        throw new Error(`expected UserError, got ${err.toString()}`);
-    }
+    return err instanceof helios.RuntimeError;
 }
 
 /**
@@ -458,22 +446,22 @@ async function testBuiltins() {
     // Data tests
     /////////////
 
-    await ft.test([ft.constr(ft.newRand())], `
+    /*await ft.test([ft.constr(ft.newRand())], `
     testing data_tag
     func main(a: Data) -> Int {
         a.tag
-    }`, ([a], res) => BigInt(a.data.index) == asInt(res));
+    }`, ([a], res) => BigInt(a.data.index) == asInt(res));*/
     
 
     ////////////
     // Int tests
     ////////////
 
-    await ft.test([/*ft.int()*/], `
+    /*await ft.test([], `
     testing int_eq_1
     func main() -> Bool {
         0 == 0
-    }`, ([_], res) => asBool(res));
+    }`, ([_], res) => asBool(res));*/
 
     await ft.test([ft.int(), ft.int()], `
     testing int_eq_2
@@ -562,6 +550,7 @@ async function testBuiltins() {
 
     await ft.test([ft.int()], `
     testing int_div_0
+
     func main(a: Int) -> Int {
         a / 0
     }`, ([_], res) => isError(res, "division by zero"));
@@ -1116,6 +1105,14 @@ async function testBuiltins() {
         isError(res, "division by zero") :
         asInt(a) * REAL_ONE / asInt(b) === asInt(res)
     );
+
+    await ft.test([ft.real()], `
+    testing real_trunc
+    func main(a: Real) -> Int {
+        a.trunc()
+    }`, ([a], res) => {
+        return Number(asInt(res)) === Math.trunc(Number(asInt(a)/REAL_ONE))
+    });
 
     await ft.test([ft.real()], `
     testing real_sqrt

@@ -26,7 +26,7 @@ import {
 
 /**
  * Min memory used by a UplcData value during validation
- * @package
+ * @internal
  * @type {number}
  */
 const UPLC_DATA_NODE_MEM_SIZE = 4;

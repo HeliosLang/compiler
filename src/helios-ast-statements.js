@@ -97,6 +97,10 @@ import {
  * @typedef {import("./eval-common.js").TypeMembers} TypeMembers
  */
 
+/**
+ * @typedef {import("./eval-common.js").NamedTypeSchema} NamedTypeSchema
+ */
+
 /** 
  * @template {HeliosData} T
  * @typedef {import("./eval-common.js").GenericTypeProps<T>} GenericTypeProps
@@ -136,7 +140,7 @@ import {
 /**
  * Base class for all statements
  * Doesn't return a value upon calling eval(scope)
- * @package
+ * @internal
  */
 export class Statement extends Token {
 	#name;
@@ -207,7 +211,7 @@ export class Statement extends Token {
 
 /**
  * Each field in `import {...} from <ModuleName>` is given a separate ImportFromStatement
- * @package
+ * @internal
  */
 export class ImportFromStatement extends Statement {
 	#origName;
@@ -282,7 +286,7 @@ export class ImportFromStatement extends Statement {
 
 /**
  * `import <ModuleName>`
- * @package
+ * @internal
  */
 export class ImportModuleStatement extends Statement {
 	/**
@@ -360,7 +364,7 @@ export class ImportModuleStatement extends Statement {
 
 /**
  * Const value statement
- * @package
+ * @internal
  */
 export class ConstStatement extends Statement {
 	/**
@@ -516,7 +520,7 @@ export class ConstStatement extends Statement {
 
 
 /**
- * @package
+ * @internal
  */
 export class TypeParameter {
 	#name;
@@ -594,7 +598,7 @@ export class TypeParameter {
 }
 
 /**
- * @package
+ * @internal
  */
 export class TypeParameters {
 	#parameterExprs;
@@ -778,7 +782,7 @@ export class TypeParameters {
 
 /**
  * Single field in struct or enum member
- * @package
+ * @internal
  */
 export class DataField extends NameTypePair {
 	/**
@@ -824,7 +828,7 @@ export class DataField extends NameTypePair {
 
 /**
  * Base class for struct and enum member
- * @package
+ * @internal
  */
 export class DataDefinition {
 	#site;
@@ -1015,6 +1019,76 @@ export class DataDefinition {
 	}
 
 	/**
+	 * @returns {[string, string, NamedTypeSchema[]]}
+	 */
+	genTypeDetails() {
+		const inputTypeParts = [];
+		const outputTypeParts = [];
+		const internalTypeParts = [];
+
+		this.fieldNames.forEach((fn, i) => {
+			const ftd = assertDefined(this.getFieldType(i).typeDetails);
+			inputTypeParts.push(`${fn}: ${ftd.inputType}`);
+			outputTypeParts.push(`${fn}: ${ftd.outputType}`);
+			internalTypeParts.push({
+				...ftd.internalType,
+				name: fn
+			});
+		})
+
+		return [
+			`{${inputTypeParts.join(", ")}}`,
+			`{${outputTypeParts.join(", ")}}`,
+			internalTypeParts	
+		];
+	}
+
+	/**
+	 * @param {any} obj
+	 * @return {UplcData[]}
+	 */
+	jsFieldsToUplc(obj) {
+		/**
+					 * @type {UplcData[]}
+					 */
+		const fields = [];
+
+		if (Object.keys(obj).length == this.nFields && Object.keys(obj).every(k => this.hasField(new Word(Site.dummy(), k)))) {
+			this.fieldNames.forEach((fieldName, i) => {
+				const arg = assertDefined(obj[fieldName]);
+
+				const fieldType = this.getFieldType(i);
+
+				if (!fieldType.typeDetails) {
+					throw new Error(`typeDetails for ${fieldType.name} not yet implemented`);
+				}
+
+				fields.push(fieldType.jsToUplc(arg));
+			});
+		} else {
+			throw new Error(`expected ${this.nFields} args, got ${Object.keys(obj).length}`);
+		}
+
+		return fields;
+	}
+
+	/**
+	 * @param {UplcData[]} fields 
+	 * @returns {any}
+	 */
+	uplcFieldsToJs(fields) {
+		const obj = {};
+
+		fields.forEach((f, i) => {
+			const fn = this.getFieldName(i);
+
+			obj[fn] = this.getFieldType(i).uplcToJs(f);
+		})
+
+		return obj;
+	}
+
+	/**
 	 * @param {string} path
 	 * @param {IRDefinitions} map 
 	 * @param {number} constrIndex
@@ -1079,7 +1153,7 @@ export class DataDefinition {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @param {string} path
 	 * @param {IRDefinitions} map 
 	 * @param {string[]} getterNames
@@ -1213,7 +1287,7 @@ export class DataDefinition {
 
 /**
  * Struct statement
- * @package
+ * @internal
  */
 export class StructStatement extends Statement {
 	#parameters;
@@ -1398,26 +1472,14 @@ export class StructStatement extends Statement {
 				name: this.name.value,
 				path: this.path, // includes template parameters
 				genTypeDetails: (self) => {
-					const inputTypeParts = [];
-					const outputTypeParts = [];
-					const internalTypeParts = [];
-
-					this.#dataDef.fieldNames.forEach((fn, i) => {
-						const ftd = assertDefined(this.#dataDef.getFieldType(i).typeDetails);
-						inputTypeParts.push(`${fn}: ${ftd.inputType}`);
-						outputTypeParts.push(`${fn}: ${ftd.outputType}`);
-						internalTypeParts.push({
-							...ftd.internalType,
-							name: fn
-						});
-					})
+					const [inputType, outputType, internalTypeFields] = this.#dataDef.genTypeDetails();
 
 					return {
-						inputType: `{${inputTypeParts.join(", ")}}`,
-						outputType: `{${outputTypeParts.join(", ")}}`,
+						inputType: inputType,
+						outputType: outputType,
 						internalType: {
 							type: "Struct",
-							fieldTypes: internalTypeParts
+							fieldTypes: internalTypeFields
 						}
 					};
 				},
@@ -1425,23 +1487,7 @@ export class StructStatement extends Statement {
 					/**
 					 * @type {UplcData[]}
 					 */
-					const fields = [];
-
-					if (Object.keys(obj).length == this.#dataDef.nFields && Object.keys(obj).every(k => this.#dataDef.hasField(new Word(Site.dummy(), k)))) {
-						this.#dataDef.fieldNames.forEach((fieldName, i) => {
-							const arg = assertDefined(obj[fieldName]);
-
-							const fieldType = this.#dataDef.getFieldType(i);
-
-							if (!fieldType.typeDetails) {
-								throw new Error(`typeDetails for ${fieldType.name} not yet implemented`);
-							}
-
-							fields.push(fieldType.jsToUplc(arg));
-						});
-					} else {
-						throw new Error(`expected ${this.#dataDef.nFields} args, got ${Object.keys(obj).length}`);
-					}
+					const fields = this.#dataDef.jsFieldsToUplc(obj);
 
 					if (fields.length == 1) {
 						return fields[0];
@@ -1453,17 +1499,7 @@ export class StructStatement extends Statement {
 					if (this.#dataDef.nFields == 1) {
 						return this.#dataDef.getFieldType(0).uplcToJs(data);
 					} else {
-						const obj = {};
-
-						const dataItems = data.list;
-
-						dataItems.forEach((di, i) => {
-							const fn = this.#dataDef.getFieldName(i);
-
-							obj[fn] = this.#dataDef.getFieldType(i).uplcToJs(di);
-						})
-
-						return obj;
+						return this.#dataDef.uplcFieldsToJs(data.list);
 					}
 				},
 				genOffChainType: () => this.genOffChainType(),
@@ -1527,7 +1563,7 @@ export class StructStatement extends Statement {
 /**
  * Function statement
  * (basically just a named FuncLiteralExpr)
- * @package
+ * @internal
  */
 export class FuncStatement extends Statement {
 	#parameters;
@@ -1585,6 +1621,13 @@ export class FuncStatement extends Statement {
 	 */
 	get retTypes() {
 		return this.#funcExpr.retTypes;
+	}
+
+	/**
+	 * @type {Site}
+	 */
+	get retSite() {
+		return this.#funcExpr.retExpr.site;
 	}
 
 	/**
@@ -1684,13 +1727,13 @@ export class FuncStatement extends Statement {
 
 /**
  * EnumMember defintion is similar to a struct definition
- * @package
+ * @internal
  */
 export class EnumMember {
 	/** @type {null | EnumStatement} */
 	#parent;
 
-	/** @type {?number} */
+	/** @type {null | number} */
 	#constrIndex;
 
 	#dataDef;
@@ -1868,6 +1911,13 @@ export class EnumMember {
 	}
 
 	/**
+	 * @type {DataDefinition}
+	 */
+	get dataDefinition() {
+		return this.#dataDef;
+	}
+
+	/**
 	 * @param {Scope} scope 
 	 */
 	evalDataFields(scope) {
@@ -1938,7 +1988,7 @@ export class EnumMember {
 
 /**
  * Enum statement, containing at least one member
- * @package
+ * @internal
  */
 export class EnumStatement extends Statement {
 	#parameters;
@@ -1987,7 +2037,7 @@ export class EnumStatement extends Statement {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @returns {HeliosDataClass<HeliosData>}
 	 */
 	genOffChainType() {
@@ -2122,6 +2172,57 @@ export class EnumStatement extends Statement {
 			const props = {
 				name: this.name.value,
 				path: this.path,
+				genTypeDetails: (self) => {
+					const inputEnumTypeParts = [];
+					const outputEnumTypeParts = [];
+					const internalEnumTypeParts = [];
+
+					this.#members.forEach(member => {
+						const [inputType, outputType, internalTypeFields] = member.dataDefinition.genTypeDetails();
+						
+						inputEnumTypeParts.push(`{type: "${member.name.value}", data: ${inputType}}`);
+						outputEnumTypeParts.push(`{type: "${member.name.value}", data: ${outputType}}`);
+						internalEnumTypeParts.push({name: member.name.value, fieldTypes: internalTypeFields});
+					});
+
+					return {
+						inputType: inputEnumTypeParts.join(" | "),
+						outputType: outputEnumTypeParts.join(" | "),
+						internalType: {
+							type: "Enum",
+							variantTypes: internalEnumTypeParts
+						}
+					};
+				},
+				jsToUplc: (obj) => {
+					const memberName = assertDefined(obj.type);
+
+					const i = this.#members.findIndex(m => m.name.value == memberName);
+
+					if (i == -1) {
+						throw new Error(`invalid ${memberName} of ${this.name.value}`);
+					}
+
+					const member = this.#members[i];
+
+					const fields = member.dataDefinition.jsFieldsToUplc(assertDefined(obj.data));
+
+					return new ConstrData(i, fields);
+				},
+				uplcToJs: (data) => {
+					const i = data.index;
+
+					if (i < 0 || i >= this.#members.length) {
+						throw new Error(`enum variant index ${i} out of range`);
+					}
+
+					const member = this.#members[i];
+
+					return {
+						type: member.name.value,
+						data: member.dataDefinition.uplcFieldsToJs(data.fields)
+					};
+				},
 				genOffChainType: () => this.genOffChainType(),
 				genInstanceMembers: (self) => ({
 					...genCommonInstanceMembers(self),
@@ -2199,7 +2300,7 @@ export class EnumStatement extends Statement {
 
 /**
  * Impl statements, which add functions and constants to registry of user types (Struct, Enum Member and Enums)
- * @package
+ * @internal
  */
 export class ImplDefinition {
 	#selfTypeExpr;

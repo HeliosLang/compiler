@@ -30,7 +30,7 @@ import {
 } from "./uplc-costmodels.js";
 
 import {
-    PrivateKey,
+    Bip32PrivateKey,
     Signature,
     Tx,
     TxInput,
@@ -46,6 +46,10 @@ import {
  * @typedef {import("./network.js").Network} Network
  */
 
+/**
+ * Raw network parameters used by Emulator
+ * @internal
+ */
 export const rawNetworkEmulatorParams = {
     shelleyGenesis: {
         activeSlotsCoeff: 0.05,
@@ -713,7 +717,7 @@ export class WalletEmulator {
     #network;
 
     /**
-     * @type {PrivateKey}
+     * @type {Bip32PrivateKey}
      */
     #privateKey;
 
@@ -728,14 +732,14 @@ export class WalletEmulator {
      */
     constructor(network, random) {
         this.#network = network;
-        this.#privateKey = PrivateKey.random(random);
+        this.#privateKey = Bip32PrivateKey.random(random);
         this.#pubKey = this.#privateKey.derivePubKey();
 
         // TODO: staking credentials
     }
 
     /**
-     * @type {PrivateKey}
+     * @type {Bip32PrivateKey}
      */
     get privateKey() {
         return this.#privateKey;
@@ -752,7 +756,7 @@ export class WalletEmulator {
      * @type {PubKeyHash}
      */
     get pubKeyHash() {
-        return this.#pubKey.hash();
+        return this.#pubKey.pubKeyHash;
     }
 
     /**
@@ -828,6 +832,7 @@ export class WalletEmulator {
 
 /**
  * collectUtxos removes tx inputs from the list, and appends txoutputs sent to the address to the end.
+ * @internal
  * @typedef {{
  *     id(): TxId
  *     consumes(utxo: UTxO | TxInput): boolean
@@ -1059,15 +1064,15 @@ export class NetworkEmulator {
             epoch: 0,
             hash: "",
             slot: 0,
-            time: (new Date()).getTime()
+            time: 0
         };
 
         // increase the max tx size
-        raw.latestParams.maxTxSize = raw.latestParams.maxTxSize*100;
+        /*raw.latestParams.maxTxSize = raw.latestParams.maxTxSize*100;
         raw.latestParams.maxTxExecutionUnits = {
             memory: raw.latestParams.maxTxExecutionUnits.memory*100,
             steps: raw.latestParams.maxTxExecutionUnits.steps*100
-        };
+        };*/
 
         return new NetworkParams(
             raw,

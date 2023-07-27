@@ -156,6 +156,20 @@ export class BlockfrostV0 {
     }
 
     /**
+     * @returns {Promise<any>}
+     */
+    async getLatestEpoch() {
+        const response = await fetch(`https://cardano-preview.blockfrost.io/api/v0/epochs/latest`, {
+            method: "GET",
+            headers: {
+                "project_id": this.#projectId
+            }
+        });
+
+        return (await response.json());
+    }
+
+    /**
      * @param {TxOutputId} id
      * @returns {Promise<UTxO>}
      */

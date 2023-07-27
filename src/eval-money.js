@@ -63,7 +63,7 @@ import {
 
 /**
  * Builtin AssetClass type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const AssetClassType = new GenericType({
@@ -101,7 +101,7 @@ export const AssetClassType = new GenericType({
 
 /**
  * Builtin money Value type
- * @package
+ * @internal
  * @type {DataType}
  */
 export const ValueType = new GenericType({
@@ -160,7 +160,7 @@ export const ValueType = new GenericType({
 });
 
 /**
- * @package
+ * @internal
  * @implements {TypeClass}
  */
 export class ValuableTypeClass extends DefaultTypeClass {

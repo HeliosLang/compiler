@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { correctDir } from "./util.js";
+import { correctDir } from "../utils/util.js";
 
 correctDir();
 

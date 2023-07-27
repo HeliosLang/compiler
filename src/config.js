@@ -4,14 +4,14 @@
 /**
  * A tab used for indenting of the IR.
  * 2 spaces.
- * @package
+ * @internal
  * @type {string}
  */
 export const TAB = "  ";
 
 /**
  * A Real in Helios is a fixed point number with REAL_PRECISION precision
- * @package
+ * @internal
  * @type {number}
  */
 export const REAL_PRECISION = 6;
@@ -19,13 +19,15 @@ export const REAL_PRECISION = 6;
 /**
  * Modifiable config vars
  * @type {{
- *   DEBUG: boolean,
- *   STRICT_BABBAGE: boolean,
- *   IS_TESTNET: boolean,
- *   N_DUMMY_INPUTS: number,
- *   AUTO_SET_VALIDITY_RANGE: boolean,
- *   VALIDITY_RANGE_START_OFFSET: number | null,
+ *   DEBUG: boolean
+ *   STRICT_BABBAGE: boolean
+ *   IS_TESTNET: boolean
+ *   N_DUMMY_INPUTS: number
+ *   AUTO_SET_VALIDITY_RANGE: boolean
+ *   VALIDITY_RANGE_START_OFFSET: number | null
  *   VALIDITY_RANGE_END_OFFSET: number | null
+ *   EXPERIMENTAL_CEK: boolean
+ *   IGNORE_UNEVALUATED_CONSTANTS: boolean
  * }}
  */
 export const config = {
@@ -60,5 +62,16 @@ export const config = {
      */
     AUTO_SET_VALIDITY_RANGE: false,
     VALIDITY_RANGE_START_OFFSET: 60, // seconds
-    VALIDITY_RANGE_END_OFFSET: 300 // seconds
+    VALIDITY_RANGE_END_OFFSET: 300, // seconds
+
+    /**
+     * Faster UPLC evaluation with better error messages
+     */
+    EXPERIMENTAL_CEK: false,
+    
+    /**
+     * If true: ignore const statements that can't be evaluated.
+     * Used by bundler so that the global Scripts type can be used in constants
+     */
+    IGNORE_UNEVALUATED_CONSTANTS: false
 }

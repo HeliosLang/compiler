@@ -3,7 +3,7 @@
 
 import fs from "fs";
 import * as helios from "../helios.js";
-import { assert, correctDir, runIfEntryPoint } from "./util.js";
+import { assert, correctDir, runIfEntryPoint } from "../utils/util.js";
 
 correctDir();
 
@@ -137,7 +137,7 @@ async function test2() {
 	const DATUM: Datum = Datum{10}
 	`
 
-	await profile(src, ["DATUM"]);
+	await profile(src, ["DATUM", "DATUM", "DATUM"]);
 }
 
 async function test3() {

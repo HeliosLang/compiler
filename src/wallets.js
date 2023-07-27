@@ -130,6 +130,9 @@ export class Cip30Wallet {
     }
 }
 
+/**
+ * Wraps an instance implementing the Wallet interface in order to provide additional functionality.
+ */
 export class WalletHelper {
     #wallet;
 

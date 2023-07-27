@@ -106,6 +106,7 @@ import {
 } from "./eval-tx.js";
 
 /**
+ * @internal
  * @type {{[name: string]: DataType}}
  */
 export const builtinTypes = {
@@ -145,7 +146,7 @@ export const builtinTypes = {
 
 /**
  * GlobalScope sits above the top-level scope and contains references to all the builtin Values and Types
- * @package
+ * @internal
  */
 export class GlobalScope {
 	/**
@@ -259,7 +260,7 @@ export class GlobalScope {
 
 /**
  * User scope
- * @package
+ * @internal
  * @implements {EvalEntity}
  */
 export class Scope extends Common {
@@ -472,7 +473,7 @@ export class Scope extends Common {
 
 /**
  * TopScope is a special scope that can contain UserTypes
- * @package
+ * @internal
  */
 export class TopScope extends Scope {
 	#strict;
@@ -537,7 +538,7 @@ export class TopScope extends Scope {
 }
 
 /**
- * @package
+ * @internal
  */
 export class ModuleScope extends Scope {
 }

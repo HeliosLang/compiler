@@ -2,7 +2,7 @@
 //@ts-check
 
 import * as helios from "../helios.js";
-import { runIfEntryPoint } from "./util.js";
+import { runIfEntryPoint } from "../utils/util.js";
 
 const DUMMY_PKH = "00112233445566778899001122334455667788990011223344556677"
 async function test1() {

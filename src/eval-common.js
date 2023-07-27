@@ -20,12 +20,18 @@ import {
 	HeliosData
 } from "./helios-data.js";
 
+import { 
+	NetworkParams
+} from "./uplc-costmodels.js";
+
+
 /**
  * @template {HeliosData} T
  * @typedef {import("./helios-data.js").HeliosDataClass<T>} HeliosDataClass
  */
 
 /**
+ * @internal
  * @typedef {{
  *   type:  string
  * } | {
@@ -48,12 +54,14 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {{
  * 	 name: string
  * } & TypeSchema} NamedTypeSchema
  */
 
 /**
+ * @internal
  * @typedef {{
  *   name: string
  *   typeClass: TypeClass
@@ -61,12 +69,14 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {Map<ParameterI, Type>} InferenceMap
  */
 
 /**
  * Used by the bundle cli command to generate a typescript annotations and (de)serialization code
  * inputTypes form a type union
+ * @internal
  * @typedef {{
  *   inputType:    string
  *   outputType:   string
@@ -75,18 +85,20 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {Named & Type & {
  *   asDataType:   DataType
  *   fieldNames:   string[]
  *   offChainType: (null | HeliosDataClass<HeliosData>)
  *   typeDetails?: TypeDetails
- *   jsToUplc:     (obj: any) => UplcData
+ *   jsToUplc:     (obj: any, params?: NetworkParams) => UplcData
  *   uplcToJs:     (data: UplcData) => any
  *   ready:        boolean
  * }} DataType
  */
 
 /**
+ * @internal
  * @typedef {DataType & {
  *   asEnumMemberType: EnumMemberType
  *   constrIndex:      number
@@ -96,6 +108,7 @@ import {
 
 /**
  * EvalEntities assert themselves
+ * @internal
  * @typedef {{
  *   asDataType:       (null | DataType)
  *   asEnumMemberType: (null | EnumMemberType)
@@ -113,6 +126,7 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {Typed & {
  *   asFunc: Func
  * 	 funcType: FuncType
@@ -121,6 +135,7 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {Typed & {
  *   asInstance:      Instance
  *   fieldNames:      string[]
@@ -129,6 +144,7 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {EvalEntity & {
  *	 asMulti: Multi
  *   values:  Typed[]
@@ -136,6 +152,7 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {EvalEntity & {
  *   asNamed: Named
  *   name:    string
@@ -144,6 +161,7 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {EvalEntity & {
  *   asNamespace: Namespace
  *   namespaceMembers: NamespaceMembers
@@ -151,6 +169,7 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {EvalEntity & {
  *   asParametric: Parametric
  *   offChainType: (null | ((...any) => HeliosDataClass<HeliosData>))
@@ -162,6 +181,7 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {EvalEntity & {
  *   asType:               Type
  *   instanceMembers:      InstanceMembers
@@ -174,6 +194,7 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {EvalEntity & {
  *   asTyped: Typed
  *   type: Type
@@ -181,6 +202,7 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {EvalEntity & {
  *   asTypeClass:                        TypeClass
  *   genInstanceMembers(impl: Type):     TypeClassMembers
@@ -191,22 +213,27 @@ import {
  */
 
 /**
+ * @internal
  * @typedef {{[name: string]: (Parametric | Type)}} InstanceMembers
  */
 
 /**
+ * @internal
  * @typedef {{[name: string]: EvalEntity}} NamespaceMembers
  */
 
 /**
+ * @internal
  * @typedef {{[name: string]: (Parametric | Type | Typed)}} TypeMembers
  */
 
 /**
+ * @internal
  * @typedef {{[name: string]: Type}} TypeClassMembers
  */
 
 /**
+ * @internal
  * @param {Parametric} parametric
  * @param {Type[]} types
  * @returns {DataType}
@@ -216,7 +243,7 @@ export function applyTypes(parametric, ...types) {
 }
 
 /**
- * @package
+ * @internal
  */
 export class Common {
 	constructor() {
@@ -443,7 +470,7 @@ export class Common {
 }
 
 /**
- * @package
+ * @internal
  * @implements {DataType}
  */
 export class AllType extends Common {
@@ -548,7 +575,7 @@ export class AllType extends Common {
 }
 
 /**
- * @package
+ * @internal
  * @implements {DataType}
  */
 export class AnyType extends Common {
@@ -648,7 +675,7 @@ export class AnyType extends Common {
 
 /**
  * Type of special case of no-return value where execution can't continue.
- * @package
+ * @internal
  * @implements {Type}
  */
 export class ErrorType extends Common {
@@ -711,7 +738,7 @@ export class ErrorType extends Common {
 }
 
 /**
- * @package
+ * @internal
  */
 export class ArgType {
 	#name;
@@ -749,7 +776,7 @@ export class ArgType {
 	}
 
     /**
-	 * @package
+	 * @internal
 	 * @param {Site} site 
 	 * @param {InferenceMap} map 
 	 * @param {null | Type} type 
@@ -813,7 +840,7 @@ export class ArgType {
 
 /**
  * Function type with arg types and a return type
- * @package
+ * @internal
  * @implements {Type}
  */
 export class FuncType extends Common {
@@ -958,7 +985,7 @@ export class FuncType extends Common {
 	}
 
     /**
-	 * @package
+	 * @internal
 	 * @param {Site} site
 	 * @param {InferenceMap} map 
 	 * @param {null | Type} type 
@@ -983,7 +1010,7 @@ export class FuncType extends Common {
 	}
 
     /**
-	 * @package
+	 * @internal
 	 * @param {Site} site 
 	 * @param {InferenceMap} map 
 	 * @param {Type[]} argTypes 
@@ -1112,6 +1139,7 @@ export class FuncType extends Common {
 }
 
 /**
+ * @internal
  * @template {HeliosData} T
  * @typedef {{
  *   name: string,
@@ -1129,7 +1157,7 @@ export class FuncType extends Common {
 
 /**
  * Created by statements
- * @package
+ * @internal
  * @template {HeliosData} T
  * @implements {DataType}
  */
@@ -1175,7 +1203,7 @@ export class GenericType extends Common {
 	#genDepth;
 
 	/**
-	 * @type {null | ((obj: any) => UplcData)}
+	 * @type {null | ((obj: any, networkParams?: NetworkParams) => UplcData)}
 	 */
 	#jsToUplc;
 
@@ -1413,11 +1441,12 @@ export class GenericType extends Common {
 
 	/**
 	 * @param {any} obj 
+	 * @param {undefined | NetworkParams} networkParams
 	 * @returns {UplcData}
 	 */
-	jsToUplc(obj) {
+	jsToUplc(obj, networkParams = undefined) {
 		if (this.#jsToUplc) {
-			return this.#jsToUplc(obj);
+			return this.#jsToUplc(obj, networkParams);
 		} else {
 			throw new Error(`'${this.name}' doesn't support converting from JS to Uplc`);
 		}
@@ -1452,6 +1481,7 @@ export class GenericType extends Common {
 
 
 /**
+ * @internal
  * @template {HeliosData} T
  * @typedef {{
  *   name: string,
@@ -1471,7 +1501,7 @@ export class GenericType extends Common {
 
 /**
  * Created by statements
- * @package
+ * @internal
  * @template {HeliosData} T
  * @implements {EnumMemberType}
  * @extends {GenericType<T>}
@@ -1568,7 +1598,7 @@ export class GenericEnumMemberType extends GenericType {
 
 /**
  * Type of return-value of functions that don't return anything (eg. assert, print, error)
- * @package
+ * @internal
  * @implements {Type}
  */
 export class VoidType extends Common {
@@ -1634,7 +1664,7 @@ export class VoidType extends Common {
 
 /**
  * A regular non-Func Instance. DataValues can always be compared, serialized, used in containers.
- * @package
+ * @internal
  * @implements {Instance}
  */
 export class DataEntity extends Common {
@@ -1695,7 +1725,7 @@ export class DataEntity extends Common {
 /**
  * Returned by an error()
  * Special case of no-return-value that indicates that execution can't proceed.
- * @package
+ * @internal
  */
 export class ErrorEntity extends Common {
 	constructor() {
@@ -1746,7 +1776,7 @@ export class ErrorEntity extends Common {
 }
 
 /**
- * @package
+ * @internal
  * @implements {Named}
  */
 export class NamedEntity {
@@ -1866,7 +1896,7 @@ export class NamedEntity {
 
 /**
  * A callable Instance.
- * @package
+ * @internal
  * @implements {Func}
  */
 export class FuncEntity extends Common {
@@ -1942,7 +1972,7 @@ export class FuncEntity extends Common {
 
 /**
  * Wraps multiple return values
- * @package
+ * @internal
  * @implements {Multi}
  */
 export class MultiEntity extends Common {
@@ -2003,7 +2033,7 @@ export class MultiEntity extends Common {
 }
 
 /**
- * @package
+ * @internal
  * @implements {Typed}
  */
 export class TypedEntity extends Common {
@@ -2038,7 +2068,7 @@ export class TypedEntity extends Common {
 
 /**
  * Returned by functions that don't return anything (eg. assert, error, print)
- * @package
+ * @internal
  * @implements {Instance}
  */
 export class VoidEntity extends Common {
@@ -2090,7 +2120,7 @@ export class VoidEntity extends Common {
 }
 
 /**
- * @package
+ * @internal
  * @implements {Namespace}
  */
 export class ModuleNamespace extends Common {

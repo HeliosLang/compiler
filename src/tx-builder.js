@@ -8,9 +8,14 @@ import {
 import {
     assert,
     assertDefined,
+    bigIntToBytes,
+	bigIntToLe32Bytes,
+	leBytesToBigInt,
+    BitWriter,
     bytesToHex,
     eq,
-    hexToBytes
+    hexToBytes,
+	padZeroes
 } from "./utils.js";
 
 /**
@@ -18,12 +23,15 @@ import {
  */
 
 import {
+	RuntimeError,
     Site,
     UserError
 } from "./tokens.js";
 
 import {
-    Crypto
+	BIP39_DICT_EN,
+    Crypto,
+	randomBytes
 } from "./crypto.js";
 
 /**
@@ -89,6 +97,10 @@ import {
     UplcDataValue
 } from "./uplc-ast.js";
 
+/**
+ * @typedef {import("./uplc-program.js").Profile} Profile
+ */
+
 import {
     UplcProgram
 } from "./uplc-program.js";
@@ -115,7 +127,7 @@ export class Tx extends CborData {
 	#valid;
 
 	/** 
-	 * @type {?TxMetadata} 
+	 * @type {null | TxMetadata} 
 	 */
 	#metadata;
 
@@ -230,7 +242,6 @@ export class Tx extends CborData {
 		return tx;
 	}
 
-
 	/**
 	 * Used by bundler for macro finalization
 	 * @param {UplcData} data
@@ -286,7 +297,9 @@ export class Tx extends CborData {
 
 				if (input.address.validatorHash) {
 					if  (input.address.validatorHash.hex in scripts) {
-						tx.attachScript(scripts[input.address.validatorHash.hex]);
+						const uplcProgram = scripts[input.address.validatorHash.hex];
+
+						tx.attachScript(uplcProgram);
 					} else {
 						throw new Error(`script for SpendingRedeemer (vh:${input.address.validatorHash.hex}) not found in ${Object.keys(scripts)}`);
 					}
@@ -320,7 +333,9 @@ export class Tx extends CborData {
 				tx.mintTokens(mph, minted.getTokens(mph), redeemer.data);
 
 				if (mph.hex in scripts) {
-					tx.attachScript(scripts[mph.hex]);
+					const uplcProgram = scripts[mph.hex];
+
+					tx.attachScript(uplcProgram);
 				} else {
 					throw new Error(`policy for mph ${mph.hex} not found in ${Object.keys(scripts)}`);
 				}
@@ -818,6 +833,7 @@ export class Tx extends CborData {
 	 * @param {NetworkParams} networkParams 
 	 * @param {Address} changeAddress
 	 * @param {UTxO[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
+	 * @returns {TxOutput} - changeOutput so the fee can be mutated furthers
 	 */
 	balanceLovelace(networkParams, changeAddress, spareUtxos) {
 		// don't include the changeOutput in this value
@@ -832,7 +848,9 @@ export class Tx extends CborData {
 		
 		const minLovelace = changeOutput.value.lovelace;
 
-		let fee = this.setFee(networkParams, this.estimateFee(networkParams));
+		let fee = networkParams.maxTxFee;
+
+		this.#body.setFee(fee);
 		
 		let inputValue = this.#body.sumInputAndMintedValue();
 
@@ -866,39 +884,37 @@ export class Tx extends CborData {
 
 		// we can mutate the lovelace value of 'changeOutput' until we have a balanced transaction with precisely the right fee
 
-		let oldFee = fee;
-		fee = this.estimateFee(networkParams);
+		return changeOutput;
+	}
 
-		while (fee != oldFee) {
-			this.#body.setFee(fee);
+	/**
+	 * @param {NetworkParams} networkParams
+	 * @param {TxOutput} changeOutput 
+	 */
+	correctChangeOutput(networkParams, changeOutput) {
+		const origFee = this.#body.fee;
 
-			let diffFee = fee - oldFee;
+		const fee = this.setFee(networkParams, this.estimateFee(networkParams));
+		
+		const diff = origFee - fee;
 
-			// use some more spareUtxos
-			while (diffFee  > (changeOutput.value.lovelace - minLovelace)) {
-				let spare = spareUtxos.pop();
+		const changeLovelace = changeOutput.value.lovelace + diff;
 
-				if (spare === undefined) {
-					throw new Error("not enough clean inputs to cover fees");
-				} else {
-					this.#body.addInput(spare.asTxInput);
+		changeOutput.value.setLovelace(changeLovelace);
+	}
 
-					inputValue = inputValue.add(spare.value);
+	checkBalanced() {
+		let v = new Value(0n);
 
-					diff = diff.add(spare.value);
+		v = this.#body.inputs.reduce((prev, inp) => inp.value.add(prev), v);
+		v = v.sub(new Value(this.#body.fee));
+		v = v.add(new Value(0, this.#body.minted));
+		v = this.#body.outputs.reduce((prev, out) => {
+			return prev.sub(out.value)
+		}, v);
 
-					changeOutput.setValue(diff);
-				}
-			}
-
-			changeOutput.value.setLovelace(changeOutput.value.lovelace - diffFee);
-
-			// changeOutput.value.lovelace should still be >= minLovelace at this point
-
-			oldFee = fee;
-
-			fee = this.estimateFee(networkParams);
-		}
+		assert(v.lovelace == 0n, `tx not balanced, net lovelace not zero (${v.lovelace})`);
+		assert(v.assets.isZero(), "tx not balanced, net assets not zero");
 	}
 
 	/**
@@ -956,7 +972,7 @@ export class Tx extends CborData {
 	 * @param {NetworkParams} networkParams 
 	 */
 	checkFee(networkParams) {
-		assert(this.estimateFee(networkParams) <= this.#body.fee, "fee too small");
+		assert(this.estimateFee(networkParams) <= this.#body.fee, `fee too small (${this.#body.fee} < ${this.estimateFee(networkParams)})`);
 	}
 
 	/**
@@ -964,23 +980,15 @@ export class Tx extends CborData {
 	 */
 	finalizeValidityTimeRange(networkParams) {
 		if (this.#witnesses.anyScriptCallsTxTimeRange() && this.#validFrom === null && this.#validTo === null) {
-			const now = new Date();
 			const currentSlot = networkParams.liveSlot;
+			const now = currentSlot !== null ? new Date(Number(networkParams.slotToTime(currentSlot))) : new Date();
 
 			if (config.VALIDITY_RANGE_START_OFFSET !== null) {
-				if (currentSlot !== null) {
-					this.#validFrom = currentSlot;
-				} else {
-					this.#validFrom = new Date(now.getTime() - 1000*config.VALIDITY_RANGE_START_OFFSET);
-				}
+				this.#validFrom = new Date(now.getTime() - 1000*config.VALIDITY_RANGE_START_OFFSET);
 			}
 
 			if (config.VALIDITY_RANGE_END_OFFSET !== null) {
-				if (currentSlot !== null) {
-					this.#validTo = currentSlot+1n;
-				} else {
-					this.#validTo = new Date(now.getTime() + 1000*config.VALIDITY_RANGE_END_OFFSET);
-				}
+				this.#validTo = new Date(now.getTime() + 1000*config.VALIDITY_RANGE_END_OFFSET);
 			}
 
 			if (!config.AUTO_SET_VALIDITY_RANGE) {
@@ -1047,14 +1055,17 @@ export class Tx extends CborData {
 		// make sure that each output contains the necessary minimum amount of lovelace	
 		this.#body.correctOutputs(networkParams);
 
+		// balance the lovelace using maxTxFee as the fee
+		const changeOutput = this.balanceLovelace(networkParams, changeAddress, spareUtxos.slice());
+
 		// the scripts executed at this point will not see the correct txHash nor the correct fee
 		await this.executeRedeemers(networkParams, changeAddress);
 
 		// balance collateral (if collateral wasn't already set manually)
 		this.balanceCollateral(networkParams, changeAddress, spareUtxos.slice());
 
-		// balance the lovelace
-		this.balanceLovelace(networkParams, changeAddress, spareUtxos.slice());
+		// correct the changeOutput now the exact fee is known
+		this.correctChangeOutput(networkParams, changeOutput);
 
 		// run updateRedeemerIndices again because new inputs may have been added and sorted
 		this.#witnesses.updateRedeemerIndices(this.#body);
@@ -1075,9 +1086,18 @@ export class Tx extends CborData {
 
 		this.checkFee(networkParams);
 
+		this.checkBalanced();
+
 		this.#valid = true;
 
 		return this;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get profileReport() {
+		return this.#witnesses.profileReport;
 	}
 
 	/**
@@ -1911,6 +1931,9 @@ class TxBody extends CborData {
 	}
 }
 
+/**
+ * TxWitnesses represents the non-hashed part of transaction. TxWitnesses contains the signatures, the datums, the redeemers, and the scripts, associated with a given transaction.
+ */
 export class TxWitnesses extends CborData {
 	/** @type {Signature[]} */
 	#signatures;
@@ -2113,7 +2136,10 @@ export class TxWitnesses extends CborData {
 	 * @param {Signature} signature 
 	 */
 	addSignature(signature) {
-		this.#signatures.push(signature);
+		// only add unique signautres
+		if (this.#signatures.every(s => !s.isDummy() && !s.pubKeyHash.eq(signature.pubKeyHash))) {
+			this.#signatures.push(signature);
+		}
 	}
 
 	/**
@@ -2259,7 +2285,7 @@ export class TxWitnesses extends CborData {
 	 * @param {TxBody} body
 	 * @param {Redeemer} redeemer 
 	 * @param {UplcData} scriptContext
-	 * @returns {Promise<Cost>} 
+	 * @returns {Promise<Profile>} 
 	 */
 	async executeRedeemer(networkParams, body, redeemer, scriptContext) {
 		if (redeemer instanceof SpendingRedeemer) {
@@ -2279,6 +2305,10 @@ export class TxWitnesses extends CborData {
 				} else {
 					const script = this.getUplcProgram(validatorHash);
 
+					if (script.properties.name) {
+						redeemer.setProgramName(script.properties.name);
+					}
+
 					const args = [
 						new UplcDataValue(Site.dummy(), datumData), 
 						new UplcDataValue(Site.dummy(), redeemer.data), 
@@ -2287,15 +2317,18 @@ export class TxWitnesses extends CborData {
 
 					const profile = await script.profile(args, networkParams);
 
-					profile.messages.forEach(m => console.log(m));
+					profile.messages?.forEach(m => console.log(m));
 
-					if (profile.result instanceof UserError) {	
+					if (profile.result instanceof UserError || profile.result instanceof RuntimeError) {	
+						if (script.properties.name) {
+							profile.result.context["name"] = script.properties.name;
+						}
 						profile.result.context["Datum"] = bytesToHex(datumData.toCbor());
 						profile.result.context["Redeemer"] = bytesToHex(redeemer.data.toCbor());
 						profile.result.context["ScriptContext"] = bytesToHex(scriptContext.toCbor());
 						throw profile.result;
 					} else {
-						return {mem: profile.mem, cpu: profile.cpu};
+						return profile;
 					}
 				}
 			}
@@ -2304,6 +2337,10 @@ export class TxWitnesses extends CborData {
 
 			const script = this.getUplcProgram(mph);
 
+			if (script.properties.name) {
+				redeemer.setProgramName(script.properties.name);
+			}
+
 			const args = [
 				new UplcDataValue(Site.dummy(), redeemer.data),
 				new UplcDataValue(Site.dummy(), scriptContext),
@@ -2311,14 +2348,17 @@ export class TxWitnesses extends CborData {
 
 			const profile = await script.profile(args, networkParams);
 
-			profile.messages.forEach(m => console.log(m));
+			profile.messages?.forEach(m => console.log(m));
 
-			if (profile.result instanceof UserError) {
+			if (profile.result instanceof UserError || profile.result instanceof RuntimeError) {
+				if (script.properties.name) {
+					profile.result.context["name"] = script.properties.name;
+				}
 				profile.result.context["Redeemer"] = bytesToHex(redeemer.data.toCbor());
 				profile.result.context["ScriptContext"] = bytesToHex(scriptContext.toCbor());
 				throw profile.result;
 			} else {
-				return {mem: profile.mem, cpu: profile.cpu};
+				return profile;
 			}
 		} else {
 			throw new Error("unhandled redeemer type");
@@ -2409,7 +2449,7 @@ export class TxWitnesses extends CborData {
 
 			const cost = await this.executeRedeemer(networkParams, body, redeemer, scriptContext);
 
-			redeemer.setCost(cost);
+			redeemer.setProfile(cost);
 		}
 
 		body.removeInput(dummyInput1);
@@ -2435,9 +2475,9 @@ export class TxWitnesses extends CborData {
 			const cost = await this.executeRedeemer(networkParams, body, redeemer, scriptContext);
 
 			if (redeemer.memCost < cost.mem) {
-				throw new Error("internal finalization error, redeemer mem budget too low");
+				throw new Error(`internal finalization error, redeemer mem budget too low (${redeemer.memCost} < ${cost.mem})`);
 			} else if (redeemer.cpuCost < cost.cpu) {
-				throw new Error("internal finalization error, redeemer cpu budget too low");
+				throw new Error(`internal finalization error, redeemer cpu budget too low (${redeemer.cpuCost} < ${cost.cpu})`);
 			}
 		}
 	}
@@ -2457,18 +2497,65 @@ export class TxWitnesses extends CborData {
 
 		let [maxMem, maxCpu] = networkParams.maxTxExecutionBudget;
 
-		if (totalMem >= BigInt(maxMem)) {
-			throw new Error("execution budget exceeded for mem");
+		if (totalMem > BigInt(maxMem)) {
+			throw new Error(`execution budget exceeded for mem (${totalMem.toString()} > ${maxMem.toString()})\n${this.profileReport.split("\n").map(l => "  " + l).join("\n")}`);
 		}
 
-		if (totalCpu >= BigInt(maxCpu)) {
-			throw new Error("execution budget exceeded for cpu");
+		if (totalCpu > BigInt(maxCpu)) {
+			throw new Error(`execution budget exceeded for cpu (${totalCpu.toString()} > ${maxCpu.toString()})\n${this.profileReport.split("\n").map(l => "  " + l).join("\n")}`);
 		}
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get profileReport() {
+		/**
+		 * @type {string[]}
+		 */
+		let report = [];
+
+		for (let redeemer of this.#redeemers) {
+			let header = "";
+
+			if (redeemer instanceof SpendingRedeemer) {
+				header = `SpendingRedeemer ${redeemer.inputIndex.toString()}`;
+			} else if (redeemer instanceof MintingRedeemer) {
+				header = `MintingRedeemer ${redeemer.mphIndex.toString()}`;
+			} else {
+				throw new Error("unhandled Redeemer type");
+			}
+
+			header += `${redeemer.programName ? ` (${redeemer.programName})` : ""}: mem=${redeemer.memCost.toString()}, cpu=${redeemer.cpuCost.toString()}`;
+
+			report.push(header);
+
+			if (redeemer.profile.builtins) {
+				report.push(`  builtins`);
+
+				for (let k in redeemer.profile.builtins) {
+					const c = redeemer.profile.builtins[k];
+					report.push(`    ${k}: mem=${c.mem}, cpu=${c.cpu}`);
+				}
+			}
+
+			if (redeemer.profile.terms) {
+				report.push(`  terms`);
+
+				for (let k in redeemer.profile.terms) {
+					const c = redeemer.profile.terms[k];
+
+					report.push(`    ${k}: mem=${c.mem}, cpu=${c.cpu}`);
+				}
+			}
+		}
+
+		return report.join("\n");
 	}
 }
 
 /**
- * @package
+ * @internal
  */
 export class TxInput extends CborData {
 	/** 
@@ -2799,6 +2886,9 @@ export class UTxO extends CborData {
 	}
 }
 
+/**
+ * Distinct TxInput intended as ref input only.
+ */
 export class TxRefInput extends TxInput {
 	/**
 	 * @param {TxId} txId 
@@ -2810,6 +2900,9 @@ export class TxRefInput extends TxInput {
 	}
 }
 
+/**
+ * TxOutput
+ */
 export class TxOutput extends CborData {
 	/** 
 	 * @type {Address} 
@@ -3297,6 +3390,11 @@ export class StakeAddress {
 	}
 }
 
+/**
+ * Represents a Ed25519 signature.
+ * 
+ * Also contains a reference to the PubKey that did the signing.
+ */
 export class Signature extends CborData {
 	/**
 	 * @type {PubKey} 
@@ -3317,6 +3415,13 @@ export class Signature extends CborData {
 	}
 
 	/**
+	 * @type {number[]}
+	 */
+	get bytes() {
+		return this.#signature;
+	}
+
+	/**
 	 * @type {PubKey}
 	 */
 	get pubKey() {
@@ -3327,7 +3432,7 @@ export class Signature extends CborData {
 	 * @type {PubKeyHash}
 	 */
 	get pubKeyHash() {
-		return this.pubKey.hash();
+		return this.#pubKey.pubKeyHash;
 	}
 
 	/**
@@ -3417,7 +3522,17 @@ export class Signature extends CborData {
 	}
 }
 
-export class PrivateKey extends HeliosData {
+/**
+ * @typedef {{
+ *   derivePubKey(): PubKey
+ *   sign(msg: number[]): Signature
+ * }} PrivateKey
+ */
+
+/**
+ * @implements {PrivateKey}
+ */
+export class Ed25519PrivateKey extends HeliosData {
 	/**
 	 * @type {number[]}
 	 */
@@ -3442,16 +3557,10 @@ export class PrivateKey extends HeliosData {
      * Generate a private key from a random number generator.
 	 * This is not cryptographically secure, only use this for testing purpose
      * @param {NumberGenerator} random 
-     * @returns {PrivateKey} - Ed25519 private key is 32 bytes long
+     * @returns {Ed25519PrivateKey} - Ed25519 private key is 32 bytes long
      */
 	static random(random) {
-		const key = [];
-
-        for (let i = 0; i < 32; i++) {
-            key.push(Math.floor(random()*256)%256);
-        }
-
-        return new PrivateKey(key);
+		return new Ed25519PrivateKey(randomBytes(random, 32));
 	}
 
 	/**
@@ -3469,10 +3578,11 @@ export class PrivateKey extends HeliosData {
 	}
 
 	/**
-	 * @returns {PrivateKey}
+	 * NOT the Ed25519-Bip32 hierarchial extension algorithm (see ExtendedPrivateKey below)
+	 * @returns {Ed25519PrivateKey}
 	 */
 	extend() {
-		return new PrivateKey(Crypto.sha2_512(this.#bytes));
+		return new Ed25519PrivateKey(Crypto.sha2_512(this.#bytes));
 	}
 
 	/**
@@ -3489,14 +3599,412 @@ export class PrivateKey extends HeliosData {
 	}
 
 	/**
-	 * @param {number[] | string} message 
+	 * @param {number[]} message 
 	 * @returns {Signature}
 	 */
 	sign(message) {
 		return new Signature(
 			this.derivePubKey(),
-			Crypto.Ed25519.sign(Array.isArray(message) ? message : hexToBytes(message), this.#bytes)
+			Crypto.Ed25519.sign(message, this.#bytes)
 		);
+	}
+}
+
+/**
+ * Used during Bip32PrivateKey derivation, to create a new Bip32PrivateKey instance with a non-publicly deriveable PubKey.
+ */
+export const BIP32_HARDEN = 0x80000000;
+
+/**
+ * Ed25519-Bip32 extendable PrivateKey (ss)
+ * @implements {PrivateKey}
+ */
+export class Bip32PrivateKey {
+	/**
+	 * 96 bytes
+	 * @type {number[]}
+	 */
+	#bytes;
+
+	/**
+	 * @type {PubKey | null}
+	 */
+	#pubKey;
+
+	/**
+	 * @param {number[]} bytes
+	 */
+	constructor(bytes) {
+		assert(bytes.length == 96);
+		this.#bytes = bytes;
+		this.#pubKey = null;
+	}
+
+	/**
+	 * @type {number[]}
+	 */
+	get bytes() {
+		return this.#bytes.slice();
+	}
+
+	/**
+	 * @private
+	 * @type {number[]}
+	 */
+	get k() {
+		return this.#bytes.slice(0, 64);
+	}
+
+	/**
+	 * @private
+	 * @type {number[]}
+	 */
+	get kl() {
+		return this.#bytes.slice(0, 32);
+	}
+
+	/**
+	 * @private
+	 * @type {number[]}
+	 */
+	get kr() {
+		return this.#bytes.slice(32, 64);
+	}
+
+	/**
+	 * @private
+	 * @type {number[]}
+	 */
+	get c() {
+		return this.#bytes.slice(64, 96);
+	}
+
+	/**
+     * Generate a bip32private key from a random number generator.
+	 * This is not cryptographically secure, only use this for testing purpose
+     * @param {NumberGenerator} random 
+     * @returns {Bip32PrivateKey}
+     */
+	static random(random) {
+		return new Bip32PrivateKey(randomBytes(random, 96));
+	}
+
+	/**
+	 * @param {number[]} entropy
+	 * @param {boolean} force
+	 */
+	static fromBip39Entropy(entropy, force = true) {
+		const bytes = Crypto.pbkdf2(Crypto.hmacSha2_512, [], entropy, 4096, 96);
+
+		const kl = bytes.slice(0, 32);
+		const kr = bytes.slice(32, 64);
+
+		if (!force) {
+			assert((kl[31] & 0b00100000) == 0, "invalid root secret");
+		}
+
+		kl[0]  &= 0b11111000;
+		kl[31] &= 0b00011111;
+		kl[31] |= 0b01000000;
+
+		const c = bytes.slice(64, 96);
+
+		return new Bip32PrivateKey(kl.concat(kr).concat(c));
+	}
+
+	/**
+	 * @private
+	 * @param {number} i - child index
+	 */
+	calcChildZ(i) {
+		const ib = bigIntToBytes(BigInt(i)).reverse();
+		while (ib.length < 4) {
+			ib.push(0);
+		}
+
+		assert(ib.length == 4, "child index too big");
+			
+		if (i < BIP32_HARDEN) {
+			const A = this.derivePubKey().bytes;
+			
+			return Crypto.hmacSha2_512(this.c, [0x02].concat(A).concat(ib));
+		} else {
+			return Crypto.hmacSha2_512(this.c, [0x00].concat(this.k).concat(ib));
+		}
+	}
+
+	/**
+	 * @private
+	 * @param {number} i 
+	 */
+	calcChildC(i) {
+		const ib = bigIntToBytes(BigInt(i)).reverse();
+		while (ib.length < 4) {
+			ib.push(0);
+		}
+
+		assert(ib.length == 4, "child index too big");
+			
+		if (i < BIP32_HARDEN) {
+			const A = this.derivePubKey().bytes;
+			
+			return Crypto.hmacSha2_512(this.c, [0x03].concat(A).concat(ib));
+		} else {
+			return Crypto.hmacSha2_512(this.c, [0x01].concat(this.k).concat(ib));
+		}
+	}
+
+	/**
+	 * @param {number} i
+	 * @returns {Bip32PrivateKey}
+	 */
+	derive(i) {
+		const Z = this.calcChildZ(i);
+
+		const kl = bigIntToLe32Bytes(8n*leBytesToBigInt(Z.slice(0, 28)) + leBytesToBigInt(this.kl)).slice(0, 32);
+		const kr = bigIntToLe32Bytes(leBytesToBigInt(Z.slice(32, 64)) + (leBytesToBigInt(this.kr)%115792089237316195423570985008687907853269984665640564039457584007913129639936n)).slice(0, 32);
+
+		const c = this.calcChildC(i).slice(32, 64);
+
+		// TODO: discard child key whose public key is the identity point
+		return new Bip32PrivateKey(kl.concat(kr).concat(c));
+	}
+
+	/**
+	 * @param {number[]} path 
+	 * @returns {Bip32PrivateKey}
+	 */
+	derivePath(path) {
+		/**
+		 * @type {Bip32PrivateKey}
+		 */
+		let pk = this;
+
+		path.forEach(i => {
+			pk = pk.derive(i);
+		});
+
+		return pk;
+	}
+
+	/**
+	 * @returns {PubKey}
+	 */ 
+	derivePubKey() {
+		if (this.#pubKey) {
+			return this.#pubKey;
+		} else {
+			this.#pubKey = new PubKey(Crypto.Ed25519.deriveBip32PublicKey(this.k));
+
+			return this.#pubKey;
+		}
+	}
+
+	/**
+	 * @example
+	 * (new Bip32PrivateKey([0x60, 0xd3, 0x99, 0xda, 0x83, 0xef, 0x80, 0xd8, 0xd4, 0xf8, 0xd2, 0x23, 0x23, 0x9e, 0xfd, 0xc2, 0xb8, 0xfe, 0xf3, 0x87, 0xe1, 0xb5, 0x21, 0x91, 0x37, 0xff, 0xb4, 0xe8, 0xfb, 0xde, 0xa1, 0x5a, 0xdc, 0x93, 0x66, 0xb7, 0xd0, 0x03, 0xaf, 0x37, 0xc1, 0x13, 0x96, 0xde, 0x9a, 0x83, 0x73, 0x4e, 0x30, 0xe0, 0x5e, 0x85, 0x1e, 0xfa, 0x32, 0x74, 0x5c, 0x9c, 0xd7, 0xb4, 0x27, 0x12, 0xc8, 0x90, 0x60, 0x87, 0x63, 0x77, 0x0e, 0xdd, 0xf7, 0x72, 0x48, 0xab, 0x65, 0x29, 0x84, 0xb2, 0x1b, 0x84, 0x97, 0x60, 0xd1, 0xda, 0x74, 0xa6, 0xf5, 0xbd, 0x63, 0x3c, 0xe4, 0x1a, 0xdc, 0xee, 0xf0, 0x7a])).sign(textToBytes("Hello World")).bytes => [0x90, 0x19, 0x4d, 0x57, 0xcd, 0xe4, 0xfd, 0xad, 0xd0, 0x1e, 0xb7, 0xcf, 0x16, 0x17, 0x80, 0xc2, 0x77, 0xe1, 0x29, 0xfc, 0x71, 0x35, 0xb9, 0x77, 0x79, 0xa3, 0x26, 0x88, 0x37, 0xe4, 0xcd, 0x2e, 0x94, 0x44, 0xb9, 0xbb, 0x91, 0xc0, 0xe8, 0x4d, 0x23, 0xbb, 0xa8, 0x70, 0xdf, 0x3c, 0x4b, 0xda, 0x91, 0xa1, 0x10, 0xef, 0x73, 0x56, 0x38, 0xfa, 0x7a, 0x34, 0xea, 0x20, 0x46, 0xd4, 0xbe, 0x04]
+	 * @param {number[]} message 
+	 * @returns {Signature}
+	 */
+	sign(message) {
+		return new Signature(
+			this.derivePubKey(),
+			Crypto.Ed25519.signBip32(message, this.k)
+		);
+	}
+}
+
+/**
+ * @implements {PrivateKey}
+ */
+export class RootPrivateKey {
+	#entropy;
+	#key;
+
+	/**
+	 * @param {number[]} entropy 
+	 */
+	constructor(entropy) {
+		assert(entropy.length == 16 || entropy.length == 20 || entropy.length == 24 || entropy.length == 28 || entropy.length == 32, `expected 16, 20, 24, 28 or 32 bytes for the root entropy, got ${entropy.length}`);
+		
+		this.#entropy = entropy;
+		this.#key = Bip32PrivateKey.fromBip39Entropy(entropy);
+	}
+
+	/**
+	 * @param {string[]} phrase 
+	 * @param {string[]} dict 
+	 * @returns {boolean}
+	 */
+	static isValidPhrase(phrase, dict = BIP39_DICT_EN) {
+		if (phrase.length != 12 && phrase.length != 15 && phrase.length != 18 && phrase.length != 21 && phrase.length != 24) {
+			return false;
+		} else {
+			return phrase.every(w => dict.findIndex(dw => dw == w) != -1);
+		}
+	}
+
+	/**
+	 * @param {string[]} phrase 
+	 * @param {string[]} dict 
+	 * @returns {RootPrivateKey}
+	 */
+	static fromPhrase(phrase, dict = BIP39_DICT_EN) {
+		assert(phrase.length == 12 || phrase.length == 15 || phrase.length == 18 || phrase.length == 21 || phrase.length == 24, `expected phrase with 12, 15, 18, 21 or 24 words, got ${phrase.length} words`);
+
+		const bw = new BitWriter();
+
+		phrase.forEach(w => {
+			const i = dict.findIndex(dw => dw == w);
+			assert(i != -1, `invalid phrase, ${w} not found in dict`);
+
+			bw.write(padZeroes(i.toString(2), 11));
+		});
+
+		const nChecksumBits = phrase.length/3;
+		assert(nChecksumBits%1.0 == 0.0, "bad nChecksumBits");
+		assert(nChecksumBits >= 4.0 && nChecksumBits <= 8.0, "too many or too few nChecksumBits");
+
+		const checksum = bw.pop(nChecksumBits);
+
+		const bytes = bw.finalize(false);
+
+		assert(padZeroes(Crypto.sha2_256(bytes)[0].toString(2).slice(0, nChecksumBits), nChecksumBits) == checksum, "invalid checksum");
+
+		return new RootPrivateKey(bytes);
+	}
+
+	/**
+	 * @type {number[]}
+	 */
+	get bytes() {
+		return this.#key.bytes;
+	}
+
+	/**
+	 * @type {number[]}
+	 */
+	get entropy() {
+		return this.#entropy;
+	}
+
+	/**
+	 * @param {string[]} dict 
+	 * @returns {string[]}
+	 */
+	toPhrase(dict = BIP39_DICT_EN) {
+		const nChecksumBits = this.#entropy.length/4;
+		const checksum = padZeroes(Crypto.sha2_256(this.#entropy)[0].toString(2).slice(0, nChecksumBits), nChecksumBits);
+
+		/**
+		 * @type {string[]}
+		 */
+		const parts = [];
+
+		this.#entropy.forEach(b => {
+			parts.push(padZeroes(b.toString(2), 8));
+		});
+
+		parts.push(checksum);
+
+		let bits = parts.join('');
+
+		assert(bits.length%11 == 0.0);
+
+		/**
+		 * @type {string[]}
+		 */
+		const words = [];
+
+		while (bits.length > 0) {
+			const part = bits.slice(0, 11);
+			assert(part.length == 11, "didn't slice of exactly 11 bits");
+
+			const i = parseInt(part, 2);
+
+			words.push(assertDefined(dict[i], `dict entry ${i} not found`));
+
+			bits = bits.slice(11);
+		}
+
+		assert(RootPrivateKey.isValidPhrase(words, dict), "internal error: invalid phrase");
+
+		return words;
+	}
+
+	/**
+	 * @param {number} i - childIndex
+	 * @returns {Bip32PrivateKey}
+	 */
+	derive(i) {
+		return this.#key.derive(i);
+	}
+
+	/**
+	 * @param {number[]} path 
+	 * @returns {Bip32PrivateKey}
+	 */
+	derivePath(path) {
+		return this.#key.derivePath(path);
+	}
+
+	/**
+	 * @param {number} accountIndex
+	 * @returns {Bip32PrivateKey}
+	 */
+	deriveSpendingRootKey(accountIndex = 0) {
+		return this.derivePath([
+			1852 + BIP32_HARDEN,
+			1815 + BIP32_HARDEN,
+			accountIndex + BIP32_HARDEN,
+			0
+		]);
+	}
+
+	/**
+	 * @param {number} accountIndex
+	 * @returns {Bip32PrivateKey}
+	 */
+	deriveStakingRootKey(accountIndex) {
+		return this.derivePath([
+			1852 + BIP32_HARDEN,
+			1815 + BIP32_HARDEN,
+			accountIndex + BIP32_HARDEN,
+			2
+		]);
+	}
+
+	/**
+	 * @param {number} accountIndex
+	 * @param {number} i
+	 * @returns {Bip32PrivateKey}
+	 */
+	deriveSpendingKey(accountIndex = 0, i = 0) {
+		return this.deriveSpendingRootKey(accountIndex).derive(i);
+	}
+
+	/**
+	 * @param {number} accountIndex
+	 * @param {number} i
+	 * @returns {Bip32PrivateKey}
+	 */
+	deriveStakingKey(accountIndex = 0, i = 0) {
+		return this.deriveStakingRootKey(accountIndex).derive(i);
+	}
+
+	/**
+	 * @returns {PubKey}
+	 */ 
+	derivePubKey() {
+		return this.#key.derivePubKey();
+	}
+
+	/**
+	 * @param {number[]} message 
+	 * @returns {Signature}
+	 */
+	sign(message) {
+		return this.#key.sign(message);
 	}
 }
 
@@ -3504,17 +4012,23 @@ class Redeemer extends CborData {
 	/** @type {UplcData} */
 	#data;
 
-	/** @type {Cost} */
-	#exUnits;
+	/** @type {Profile} */
+	#profile;
+
+	/**
+	 * @type {null | string}
+	 */
+	#programName;
 
 	/**
 	 * @param {UplcData} data 
-	 * @param {Cost} exUnits 
+	 * @param {Profile} profile 
 	 */
-	constructor(data, exUnits = {mem: 0n, cpu: 0n}) {
+	constructor(data, profile = {mem: 0n, cpu: 0n}) {
 		super();
 		this.#data = data;
-		this.#exUnits = exUnits;
+		this.#profile = profile;
+		this.#programName = null;
 	}
 
 	/**
@@ -3528,14 +4042,28 @@ class Redeemer extends CborData {
 	 * @type {bigint}
 	 */
 	get memCost() {
-		return this.#exUnits.mem;
+		return this.#profile.mem;
 	}
 
 	/**
 	 * @type {bigint}
 	 */
 	get cpuCost() {
-		return this.#exUnits.cpu;
+		return this.#profile.cpu;
+	}
+
+	/**
+	 * @param {string} name 
+	 */
+	setProgramName(name) {
+		this.#programName = name;
+	}
+
+	/**
+	 * @type {null | string}
+	 */
+	get programName() {
+		return this.#programName;
 	}
 
 	/**
@@ -3554,8 +4082,8 @@ class Redeemer extends CborData {
 			CborData.encodeInteger(BigInt(index)),
 			this.#data.toCbor(),
 			CborData.encodeTuple([
-				CborData.encodeInteger(this.#exUnits.mem),
-				CborData.encodeInteger(this.#exUnits.cpu),
+				CborData.encodeInteger(this.#profile.mem),
+				CborData.encodeInteger(this.#profile.cpu),
 			]),
 		]);
 	}
@@ -3565,16 +4093,16 @@ class Redeemer extends CborData {
 	 * @returns {Redeemer}
 	 */
 	static fromCbor(bytes) {
-		/** @type {?number} */
+		/** @type {null | number} */
 		let type = null;
 
-		/** @type {?number} */
+		/** @type {null | number} */
 		let index = null;
 
-		/** @type {?UplcData} */
+		/** @type {null | UplcData} */
 		let data = null;
 
-		/** @type {?Cost} */
+		/** @type {null | Cost} */
 		let cost = null;
 
 		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
@@ -3589,10 +4117,10 @@ class Redeemer extends CborData {
 					data = UplcData.fromCbor(fieldBytes);
 					break;
 				case 3: 
-					/** @type {?bigint} */
+					/** @type {null | bigint} */
 					let mem = null;
 
-					/** @type {?bigint} */
+					/** @type {null | bigint} */
 					let cpu = null;
 
 					let m = CborData.decodeTuple(fieldBytes, (j, subFieldBytes) => {
@@ -3645,8 +4173,8 @@ class Redeemer extends CborData {
 		return {
 			data: this.#data.toString(),
 			exUnits: {
-				mem: this.#exUnits.mem.toString(),
-				cpu: this.#exUnits.cpu.toString(),
+				mem: this.#profile.mem.toString(),
+				cpu: this.#profile.cpu.toString(),
 			},
 		}
 	}
@@ -3674,10 +4202,17 @@ class Redeemer extends CborData {
 	}
 
 	/**
-	 * @param {Cost} cost 
+	 * @param {Profile} profile
 	 */
-	setCost(cost) {
-		this.#exUnits = cost;
+	setProfile(profile) {
+		this.#profile = profile;
+	}
+
+	/**
+	 * @type {Profile}
+	 */
+	get profile() {
+		return this.#profile;
 	}
 
 	/**
@@ -3689,7 +4224,7 @@ class Redeemer extends CborData {
 		
 		let [memFee, cpuFee] = networkParams.exFeeParams;
 
-		return BigInt(Math.ceil(Number(this.#exUnits.mem)*memFee + Number(this.#exUnits.cpu)*cpuFee));
+		return BigInt(Math.ceil(Number(this.#profile.mem)*memFee + Number(this.#profile.cpu)*cpuFee));
 	}
 }
 
@@ -3698,7 +4233,7 @@ class SpendingRedeemer extends Redeemer {
 	#inputIndex;
 
 	/**
-	 * @param {?TxInput} input
+	 * @param {null | TxInput} input
 	 * @param {number} inputIndex
 	 * @param {UplcData} data 
 	 * @param {Cost} exUnits 
@@ -3905,7 +4440,7 @@ export class Datum extends CborData {
 
 	/**
 	 * @param {UplcDataValue | UplcData | HeliosData} data
-	 * @returns {HashedDatum}
+	 * @returns {Datum}
 	 */
 	static hashed(data) {
 		if (data instanceof HeliosData) {
@@ -3917,7 +4452,7 @@ export class Datum extends CborData {
 
 	/**
 	 * @param {UplcDataValue | UplcData | HeliosData} data
-	 * @returns {InlineDatum}
+	 * @returns {Datum}
 	 */
 	static inline(data) {
 		if (data instanceof HeliosData) {
@@ -3978,12 +4513,12 @@ export class HashedDatum extends Datum {
 	/** @type {DatumHash} */
 	#hash;
 
-	/** @type {?UplcData} */
+	/** @type {null | UplcData} */
 	#origData;
 
 	/**
 	 * @param {DatumHash} hash 
-	 * @param {?UplcData} origData
+	 * @param {null | UplcData} origData
 	 */
 	constructor(hash, origData = null) {
 		super();

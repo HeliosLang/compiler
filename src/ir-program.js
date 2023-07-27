@@ -70,7 +70,7 @@ import {
 
 /**
  * Wrapper for IRFuncExpr, IRCallExpr or IRLiteralExpr
- * @package
+ * @internal
  */
 export class IRProgram {
 	#expr;
@@ -98,7 +98,7 @@ export class IRProgram {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @param {IR} ir 
 	 * @param {null | ScriptPurpose} purpose
 	 * @param {boolean} simplify
@@ -108,7 +108,7 @@ export class IRProgram {
 	 */
 	static new(ir, purpose, simplify = false, throwSimplifyRTErrors = false, scope = new IRScope(null, null)) {
 		let [irSrc, codeMap] = ir.generateSource();
-
+		
 		const callsTxTimeRange = irSrc.match(/\b__helios__tx__time_range\b/) !== null;
 
 		let irTokens = tokenizeIR(irSrc, codeMap);
@@ -118,7 +118,7 @@ export class IRProgram {
 		try {
 			expr.resolveNames(scope);
 		} catch (e) {
-			console.log((new Source(irSrc)).pretty());
+			console.log((new Source(irSrc, "")).pretty());
 
 			throw e;
 		}
@@ -218,7 +218,7 @@ export class IRProgram {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @type {IRFuncExpr | IRCallExpr | IRLiteralExpr}
 	 */
 	get expr() {
@@ -226,7 +226,7 @@ export class IRProgram {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @type {ProgramProperties}
 	 */
 	get properties() {
@@ -234,7 +234,7 @@ export class IRProgram {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @type {Site}
 	 */
 	get site() {
@@ -296,6 +296,9 @@ export class IRProgram {
 	}
 }
 
+/**
+ * @internal
+ */
 export class IRParametricProgram {
 	/**
 	 * @type {IRProgram}
@@ -317,7 +320,7 @@ export class IRParametricProgram {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @param {IR} ir 
 	 * @param {null | ScriptPurpose} purpose
 	 * @param {number} nParams
@@ -336,6 +339,13 @@ export class IRParametricProgram {
 		const irProgram = IRProgram.new(ir, purpose, simplify, false, scope);
 
 		return new IRParametricProgram(irProgram, nParams);
+	}
+
+	/**
+	 * @type {IRProgram}
+	 */
+	get program() {
+		return this.#irProgram;
 	}
 
 	/**

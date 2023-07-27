@@ -3,7 +3,7 @@
 import fs from "fs";
 import crypto from "crypto";
 import * as helios from "../helios.js";
-import { correctDir, runIfEntryPoint } from "./util.js";
+import { correctDir, runIfEntryPoint } from "../utils/util.js";
 
 correctDir();
 

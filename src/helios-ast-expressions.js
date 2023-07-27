@@ -111,7 +111,7 @@ import {
 
 /**
  * Base class of every Type and Instance expression.
- * @package
+ * @internal
  */
 export class Expr extends Token {
 	/**@type {null | EvalEntity} */
@@ -270,7 +270,7 @@ export class Expr extends Token {
 
 /**
  * Simple reference class (i.e. using a Word)
- * @package
+ * @internal
  */
 export class RefExpr extends Expr {
 	#name;
@@ -313,7 +313,7 @@ export class RefExpr extends Expr {
 
 /**
  * Name::Member expression
- * @package
+ * @internal
  */
 export class PathExpr extends Expr {
 	#baseExpr;
@@ -399,7 +399,7 @@ export class PathExpr extends Expr {
 
 /**
  * Name::Member expression which can instantiate zero field structs and enum members
- * @package
+ * @internal
  */
 export class ValuePathExpr extends PathExpr {
 
@@ -457,7 +457,7 @@ export class ValuePathExpr extends PathExpr {
 
 /**
  * []ItemType
- * @package
+ * @internal
  */
 export class ListTypeExpr extends Expr {
 	#itemTypeExpr;
@@ -502,7 +502,7 @@ export class ListTypeExpr extends Expr {
 
 /**
  * Map[KeyType]ValueType expression
- * @package
+ * @internal
  */
 export class MapTypeExpr extends Expr {
 	#keyTypeExpr;
@@ -559,7 +559,7 @@ export class MapTypeExpr extends Expr {
 
 /**
  * Iterator[Type1, ...] expr
- * @package
+ * @internal
  */
 export class IteratorTypeExpr extends Expr {
 	#itemTypeExprs;
@@ -619,7 +619,7 @@ export class IteratorTypeExpr extends Expr {
 
 /**
  * Option[SomeType] expression
- * @package
+ * @internal
  */
 export class OptionTypeExpr extends Expr {
 	#someTypeExpr;
@@ -657,7 +657,7 @@ export class OptionTypeExpr extends Expr {
 
 /**
  * '()' which can only be used as return type of func
- * @package
+ * @internal
  */
 export class VoidTypeExpr extends Expr {
 	/**
@@ -684,7 +684,7 @@ export class VoidTypeExpr extends Expr {
 }
 
 /**
- * @package
+ * @internal
  */
 export class FuncArgTypeExpr extends Token {
 	#name;
@@ -752,7 +752,7 @@ export class FuncArgTypeExpr extends Token {
 
 /**
  * (ArgType1, ...) -> RetType expression
- * @package
+ * @internal
  */
 export class FuncTypeExpr extends Expr {
 	#argTypeExprs;
@@ -820,13 +820,82 @@ export class FuncTypeExpr extends Expr {
 }
 
 /**
- * '... = ... ; ...' expression
- * @package
+ * expr(...); ...
+ * @internal
  */
-export class AssignExpr extends Expr {
+export class ChainExpr extends Expr {
+	/**
+	 * @readonly
+	 * @type {Expr}
+	 */
+	upstreamExpr;
+
+	/**
+	 * @readonly
+	 * @type {Expr}
+	 */
+	downstreamExpr;
+
+	/**
+	 * @param {Site} site 
+	 * @param {Expr} upstreamExpr 
+	 * @param {Expr} downstreamExpr 
+	 */
+	constructor(site, upstreamExpr, downstreamExpr) {
+		super(site);
+		this.upstreamExpr = upstreamExpr;
+		this.downstreamExpr = downstreamExpr;
+	}
+
+	toString() {
+		return `${this.upstreamExpr.toString()}; ${this.downstreamExpr.toString()}`;
+	}
+
+	/**
+	 * @param {Scope} scope
+	 * @returns {null | EvalEntity}
+	 */
+	evalInternal(scope) {
+		const upstreamVal_ = this.upstreamExpr.eval(scope);
+
+		if (upstreamVal_) {
+			const upstreamVal = upstreamVal_.asTyped;
+
+			if (!upstreamVal) {
+				this.upstreamExpr.typeError("upstream isn't typed");
+			} else {
+				if ((new ErrorType()).isBaseOf(upstreamVal.type)) {
+					this.downstreamExpr.typeError("unreachable code (upstream always throws error)");
+				} else if (!((new VoidType()).isBaseOf(upstreamVal.type))) {
+					this.upstreamExpr.typeError("unexpected return value (hint: use '='");
+				}
+			}
+		}
+
+		return this.downstreamExpr.eval(scope);
+	}
+
+	/**
+	 * @param {string} indent 
+	 * @returns {IR}
+	 */
+	toIR(indent = "") {
+		return new IR([
+			new IR("__core__chooseUnit(", this.site),
+			this.upstreamExpr.toIR(indent),
+			new IR(", "),
+			this.downstreamExpr.toIR(indent),
+			new IR(")")
+		]);
+	}
+}
+
+/**
+ * '... = ... ; ...' expression
+ * @internal
+ */
+export class AssignExpr extends ChainExpr {
 	#nameTypes;
-	#upstreamExpr;
-	#downstreamExpr;
 
 	/**
 	 * @param {Site} site 
@@ -835,11 +904,9 @@ export class AssignExpr extends Expr {
 	 * @param {Expr} downstreamExpr 
 	 */
 	constructor(site, nameTypes, upstreamExpr, downstreamExpr) {
-		super(site);
+		super(site, assertDefined(upstreamExpr), assertDefined(downstreamExpr));
 		assert(nameTypes.length > 0);
 		this.#nameTypes = nameTypes;
-		this.#upstreamExpr = assertDefined(upstreamExpr);
-		this.#downstreamExpr = assertDefined(downstreamExpr);
 	}
 
 	/**
@@ -849,7 +916,7 @@ export class AssignExpr extends Expr {
 	evalInternal(scope) {
 		const subScope = new Scope(scope, scope.allowShadowing);
 
-		let upstreamVal = this.#upstreamExpr.eval(scope);
+		let upstreamVal = this.upstreamExpr.eval(scope);
 
 		if (this.#nameTypes.length > 1) {
 			if (upstreamVal && !upstreamVal.asMulti) {
@@ -872,12 +939,12 @@ export class AssignExpr extends Expr {
 		} else if (upstreamVal && upstreamVal.asTyped) {
 			if (this.#nameTypes[0].hasType()) {
 				this.#nameTypes[0].evalInAssignExpr(subScope, assertDefined(upstreamVal.asTyped.type.asType), 0);
-			} else if (this.#upstreamExpr.isLiteral() || scope.has(this.#nameTypes[0].name)) {
+			} else if (this.upstreamExpr.isLiteral() || scope.has(this.#nameTypes[0].name)) {
 				// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
-				if ((this.#upstreamExpr instanceof CallExpr &&
-					this.#upstreamExpr.fnExpr instanceof PathExpr) || 
-					(this.#upstreamExpr instanceof PathExpr && 
-					!this.#upstreamExpr.isLiteral())) 
+				if ((this.upstreamExpr instanceof CallExpr &&
+					this.upstreamExpr.fnExpr instanceof PathExpr) || 
+					(this.upstreamExpr instanceof PathExpr && 
+					!this.upstreamExpr.isLiteral())) 
 				{
 					const upstreamType = upstreamVal.asTyped.type;
 
@@ -893,11 +960,11 @@ export class AssignExpr extends Expr {
 		} else if (this.#nameTypes[0].hasType()) {
 			this.#nameTypes[0].evalInAssignExpr(subScope, null, 0);
 		} else {
-			this.#upstreamExpr.typeError("rhs isn't an instance");
+			this.upstreamExpr.typeError("rhs isn't an instance");
 			subScope.set(this.#nameTypes[0].name, new DataEntity(new AnyType()));
 		}
 		
-		const downstreamVal = this.#downstreamExpr.eval(subScope);
+		const downstreamVal = this.downstreamExpr.eval(subScope);
 
 		subScope.assertAllUsed();
 
@@ -911,11 +978,11 @@ export class AssignExpr extends Expr {
 	 */
 	toIR(indent = "") {
 		if (this.#nameTypes.length === 1) {
-			let inner = this.#downstreamExpr.toIR(indent + TAB);
+			let inner = this.downstreamExpr.toIR(indent + TAB);
 
 			inner = this.#nameTypes[0].wrapDestructIR(indent, inner, 0);
 
-			let upstream = this.#upstreamExpr.toIR(indent);
+			let upstream = this.upstreamExpr.toIR(indent);
 
 			// enum member run-time error IR
 			if (this.#nameTypes[0].hasType()) {
@@ -941,7 +1008,7 @@ export class AssignExpr extends Expr {
 				new IR(")")
 			]);
 		} else {
-			let inner = this.#downstreamExpr.toIR(indent + TAB + TAB);
+			let inner = this.downstreamExpr.toIR(indent + TAB + TAB);
 
 			for (let i = this.#nameTypes.length - 1; i >= 0; i--) {
 				// internally generates enum-member error IR
@@ -949,7 +1016,7 @@ export class AssignExpr extends Expr {
 			}
 
 			const ir = new IR([
-				this.#upstreamExpr.toIR(indent),
+				this.upstreamExpr.toIR(indent),
 				new IR(`(\n${indent + TAB}(`), new IR(this.#nameTypes.map((nt, i) => nt.toNameIR(i))).join(", "), new IR(") ->", this.site), new IR(` {\n${indent}${TAB}${TAB}`),
 				inner,
 				new IR(`\n${indent + TAB}}\n${indent})`)
@@ -963,20 +1030,20 @@ export class AssignExpr extends Expr {
 	 * @returns {string}
 	 */
 	toString() {
-		let downstreamStr = this.#downstreamExpr.toString();
+		let downstreamStr = this.downstreamExpr.toString();
 		assert(downstreamStr != undefined);
 
 		if (this.#nameTypes.length === 1) {
-			return `${this.#nameTypes.toString()} = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
+			return `${this.#nameTypes.toString()} = ${this.upstreamExpr.toString()}; ${downstreamStr}`;
 		} else {
-			return `(${this.#nameTypes.map(nt => nt.toString()).join(", ")}) = ${this.#upstreamExpr.toString()}; ${downstreamStr}`;
+			return `(${this.#nameTypes.map(nt => nt.toString()).join(", ")}) = ${this.upstreamExpr.toString()}; ${downstreamStr}`;
 		}
 	}
 }
 
 /**
  * Helios equivalent of unit
- * @package
+ * @internal
  */
 export class VoidExpr extends Expr {
 	/**
@@ -1011,70 +1078,8 @@ export class VoidExpr extends Expr {
 }
 
 /**
- * expr(...); ...
- * @package
- */
-export class ChainExpr extends Expr {
-	#upstreamExpr;
-	#downstreamExpr;
-
-	/**
-	 * @param {Site} site 
-	 * @param {Expr} upstreamExpr 
-	 * @param {Expr} downstreamExpr 
-	 */
-	constructor(site, upstreamExpr, downstreamExpr) {
-		super(site);
-		this.#upstreamExpr = upstreamExpr;
-		this.#downstreamExpr = downstreamExpr;
-	}
-
-	toString() {
-		return `${this.#upstreamExpr.toString()}; ${this.#downstreamExpr.toString()}`;
-	}
-
-	/**
-	 * @param {Scope} scope
-	 * @returns {null | EvalEntity}
-	 */
-	evalInternal(scope) {
-		const upstreamVal_ = this.#upstreamExpr.eval(scope);
-
-		if (upstreamVal_) {
-			const upstreamVal = upstreamVal_.asTyped;
-
-			if (!upstreamVal) {
-				this.#upstreamExpr.typeError("upstream isn't typed");
-			} else {
-				if ((new ErrorType()).isBaseOf(upstreamVal.type)) {
-					this.#downstreamExpr.typeError("unreachable code (upstream always throws error)");
-				} else if (!((new VoidType()).isBaseOf(upstreamVal.type))) {
-					this.#upstreamExpr.typeError("unexpected return value (hint: use '='");
-				}
-			}
-		}
-
-		return this.#downstreamExpr.eval(scope);
-	}
-
-	/**
-	 * @param {string} indent 
-	 * @returns {IR}
-	 */
-	toIR(indent = "") {
-		return new IR([
-			new IR("__core__chooseUnit(", this.site),
-			this.#upstreamExpr.toIR(indent),
-			new IR(", "),
-			this.#downstreamExpr.toIR(indent),
-			new IR(")")
-		]);
-	}
-}
-
-/**
  * Literal expression class (wraps literal tokens)
- * @package
+ * @internal
  */
 export class PrimitiveLiteralExpr extends Expr {
 	#primitive;
@@ -1140,7 +1145,7 @@ export class PrimitiveLiteralExpr extends Expr {
 
 /**
  * Literal UplcData which is the result of parameter substitutions.
- * @package
+ * @internal
  */
 export class LiteralDataExpr extends Expr {
 	#type;
@@ -1158,7 +1163,7 @@ export class LiteralDataExpr extends Expr {
 	}
 
 	/**
-	 * @package
+	 * @internal
 	 * @type {DataType}
 	 */
 	get type() {
@@ -1205,7 +1210,7 @@ export class LiteralDataExpr extends Expr {
 
 /**
  * Struct field (part of a literal struct constructor)
- * @package
+ * @internal
  */
 export class StructLiteralField {
 	#name;
@@ -1276,7 +1281,7 @@ export class StructLiteralField {
 
 /**
  * Struct literal constructor
- * @package
+ * @internal
  */
 export class StructLiteralExpr extends Expr {
 	#typeExpr;
@@ -1443,7 +1448,7 @@ export class StructLiteralExpr extends Expr {
 
 /**
  * []{...} expression
- * @package
+ * @internal
  */
 export class ListLiteralExpr extends Expr {
 	#itemTypeExpr;
@@ -1554,7 +1559,7 @@ export class ListLiteralExpr extends Expr {
 
 /**
  * Map[...]...{... : ...} expression
- * @package
+ * @internal
  */
 export class MapLiteralExpr extends Expr {
 	#keyTypeExpr;
@@ -1711,7 +1716,7 @@ export class MapLiteralExpr extends Expr {
 
 /**
  * NameTypePair is base class of FuncArg and DataField (differs from StructLiteralField) 
- * @package
+ * @internal
  */
 export class NameTypePair {
 	#name;
@@ -1834,7 +1839,7 @@ export class NameTypePair {
 
 /**
  * Function argument class
- * @package
+ * @internal
  */
 export class FuncArg extends NameTypePair {
 	#defaultValueExpr;
@@ -1958,7 +1963,7 @@ export class FuncArg extends NameTypePair {
 
 /**
  * (..) -> RetTypeExpr {...} expression
- * @package
+ * @internal
  */
 export class FuncLiteralExpr extends Expr {
 	#args;
@@ -2004,6 +2009,19 @@ export class FuncLiteralExpr extends Expr {
 	 */
 	get argTypeNames() {
 		return this.#args.map(a => a.typeName)
+	}
+
+	/**
+	 * @type {Expr}
+	 */
+	get retExpr() {
+		let expr = this.#bodyExpr;
+
+		while (expr instanceof ChainExpr) {
+			expr = expr.downstreamExpr;
+		}
+
+		return expr;
 	}
 
 	/**
@@ -2232,7 +2250,7 @@ export class FuncLiteralExpr extends Expr {
 
 /**
  * value[...] expression
- * @package
+ * @internal
  */
 export class ParametricExpr extends Expr {
 	#baseExpr;
@@ -2325,7 +2343,7 @@ export class ParametricExpr extends Expr {
 /**
  * Unary operator expression
  * Note: there are no post-unary operators, only pre
- * @package
+ * @internal
  */
 export class UnaryExpr extends Expr {
 	#op;
@@ -2412,6 +2430,7 @@ export class UnaryExpr extends Expr {
 }
 
 /**
+ * @internal
  * @type {{[name: string]: string}}
  */
 export const BINARY_SYMBOLS_MAP = {
@@ -2432,7 +2451,7 @@ export const BINARY_SYMBOLS_MAP = {
 
 /**
  * Binary operator expression
- * @package
+ * @internal
  */
 export class BinaryExpr extends Expr {
 	#op;
@@ -2580,7 +2599,7 @@ export class BinaryExpr extends Expr {
 			]);
 		} else {
 			return new IR([
-				new IR(`${path}__${op}`, this.site), new IR("("),
+				new IR(`${path}__${op}`, this.site), new IR("(", this.site),
 				this.first.toIR(indent),
 				new IR(", "),
 				this.second.toIR(indent),
@@ -2592,7 +2611,7 @@ export class BinaryExpr extends Expr {
 
 /**
  * Parentheses expression
- * @package
+ * @internal
  */
 export class ParensExpr extends Expr {
 	#exprs;
@@ -2667,7 +2686,7 @@ export class ParensExpr extends Expr {
 }
 
 /**
- * @package
+ * @internal
  */
 export class CallArgExpr extends Token {
 	#name;
@@ -2741,7 +2760,7 @@ export class CallArgExpr extends Token {
 
 /**
  * ...(...) expression
- * @package
+ * @internal
  */
 export class CallExpr extends Expr {
 	#fnExpr;
@@ -2973,6 +2992,7 @@ export class CallExpr extends Expr {
 		 */
 		const [positional, namedOptional] = this.expandArgs();
 
+		// some multiValued args (always positional)
 		if (positional.some(e => (!e.isLiteral()) && (e.cache?.asMulti))) {
 			// count the number of final args
 			let n = 0;
@@ -3087,7 +3107,7 @@ export class CallExpr extends Expr {
 			}
 
 			return ir;
-		} else {
+		} else /* no multivalued args */ {
 			if (positional.length + namedOptional.length > fn.nArgs) {
 				namedOptional.splice(0, positional.length + namedOptional.length - fn.nArgs);
 			}
@@ -3107,9 +3127,9 @@ export class CallExpr extends Expr {
 
 			return new IR([
 				fnIR,
-				new IR("("),
+				new IR("(", this.site),
 				(new IR(args)).join(", "),
-				new IR(")", this.site)
+				new IR(")")
 			]);
 		}
 	}
@@ -3117,7 +3137,7 @@ export class CallExpr extends Expr {
 
 /**
  *  ... . ... expression
- * @package
+ * @internal
  */
 export class MemberExpr extends Expr {
 	#objExpr;
@@ -3210,7 +3230,7 @@ export class MemberExpr extends Expr {
 
 /**
  * if-then-else expression 
- * @package
+ * @internal
  */
 export class IfElseExpr extends Expr {
 	#conditions;
@@ -3381,7 +3401,7 @@ export class IfElseExpr extends Expr {
 
 /**
  * DestructExpr is for the lhs-side of assignments and for switch cases
- * @package
+ * @internal
  */
 export class DestructExpr {
 	/**
@@ -3762,7 +3782,7 @@ export class DestructExpr {
 
 /**
  * Switch case for a switch expression
- * @package
+ * @internal
  */
 export class SwitchCase extends Token {
 	#lhs;
@@ -3952,7 +3972,7 @@ export class SwitchCase extends Token {
 }
 
 /**
- * @package
+ * @internal
  */
 export class UnconstrDataSwitchCase extends SwitchCase {
 	#intVarName;
@@ -4057,7 +4077,7 @@ export class UnconstrDataSwitchCase extends SwitchCase {
 
 /**
  * Default switch case
- * @package
+ * @internal
  */
 export class SwitchDefault extends Token {
 	#bodyExpr;
@@ -4156,7 +4176,7 @@ class SwitchExpr extends Expr {
 
 /**
  * Switch expression for Enum, with SwitchCases and SwitchDefault as children
- * @package
+ * @internal
  */
 export class EnumSwitchExpr extends SwitchExpr {
 	/**
@@ -4268,7 +4288,7 @@ export class EnumSwitchExpr extends SwitchExpr {
 
 /**
  * Switch expression for Data
- * @package
+ * @internal
  */
 export class DataSwitchExpr extends SwitchExpr {
 	/**

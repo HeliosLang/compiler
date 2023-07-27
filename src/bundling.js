@@ -18,6 +18,10 @@ import {
     UplcData
 } from "./uplc-data.js";
 
+import { 
+    NetworkParams
+} from "./uplc-costmodels.js";
+
 /**
  * @typedef {import("./eval-common.js").TypeSchema} TypeSchema
  */
@@ -42,6 +46,8 @@ import {
     ValidatorHashType
 } from "./eval-hashes.js";
 
+
+
 import {
     AddressType,
     TxType
@@ -56,12 +62,16 @@ import {
     IRParametricProgram
 } from "./ir-program.js";
 
+
+
 /**
+ * @internal
  * @param {TypeSchema} schema
  * @param {any} obj
+ * @param {undefined | NetworkParams} networkParams
  * @returns {UplcData}
  */
-export function jsToUplc(schema, obj) {
+export function jsToUplc(schema, obj, networkParams = undefined) {
     if (schema.type == "List" && "itemType" in schema) {
         if (!Array.isArray(obj)) {
             throw new Error(`expected Array, got '${obj}'`);
@@ -146,11 +156,12 @@ export function jsToUplc(schema, obj) {
             throw new Error(`${schema.type} isn't a valid builtin type`);
         }
 
-        return builtinType.jsToUplc(obj);
+        return builtinType.jsToUplc(obj, networkParams);
     }
 }
 
 /**
+ * @internal
  * @param {TypeSchema} schema
  * @param {UplcData} data
  * @returns {any}
@@ -197,7 +208,7 @@ export function uplcToJs(schema, data) {
 
         const obj = {};
 
-        const fields = data.list;
+        const fields = data.fields;
 
         fields.forEach((field, i) => {
             const fieldType = variant.fieldTypes[i];
@@ -206,7 +217,7 @@ export function uplcToJs(schema, data) {
                 throw new Error("field out-of-range");
             }
 
-            obj[fieldType.name] = field;
+            obj[fieldType.name] = uplcToJs(fieldType, field);
         });
 
         return {[variant.name]: obj};
@@ -222,6 +233,8 @@ export function uplcToJs(schema, data) {
 }
 
 export const exportedForBundling = {
+    jsToUplc,
+    uplcToJs,
     AddressType,
     AllType,
     ArgType,
