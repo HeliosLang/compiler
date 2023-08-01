@@ -1,25 +1,33 @@
-#!/usr/bin/env node
 //@ts-check
-import fs from "fs";
-import { assert, correctDir, runIfEntryPoint } from "../utils/util.js";
-import { exportedForTesting as helios_, NetworkParams } from "../helios.js";
+import fs from "fs"
 
-correctDir();
+import {
+	NetworkParams,
+	Site,
+	UplcBuiltin,
+	UplcCall,
+	UplcConst,
+	UplcInt,
+	UplcProgram,
+	UplcLambda,
+	UplcVariable,
+	assert
+} from "helios"
 
 const networkParams = new NetworkParams(JSON.parse(fs.readFileSync("./network-parameters-preview.json").toString()));
 
-let site = helios_.Site.dummy();
+let site = Site.dummy();
 
 function newProgram(term) {
-	return new helios_.UplcProgram(term);
+	return new UplcProgram(term);
 }
 
 function newLambda(term) {
-	return new helios_.UplcLambda(site, term);
+	return new UplcLambda(site, term);
 }
 
 function newCall(fn, arg) {
-	return new helios_.UplcCall(site, fn, arg);
+	return new UplcCall(site, fn, arg);
 }
 
 function newCall2(fn, a, b) {
@@ -27,15 +35,15 @@ function newCall2(fn, a, b) {
 }
 
 function newBuiltin(name) {
-	return new helios_.UplcBuiltin(site, name);
+	return new UplcBuiltin(site, name);
 }
 
 function newVariable(i) {
-	return new helios_.UplcVariable(site, new helios_.UplcInt(site, BigInt(i), false));
+	return new UplcVariable(site, new UplcInt(site, BigInt(i), false));
 }
 
 function newInt(x) {
-	return new helios_.UplcConst(new helios_.UplcInt(site, x));
+	return new UplcConst(new UplcInt(site, x));
 }
 
 async function run(name, program, args, expected) {
@@ -107,5 +115,3 @@ export default async function main() {
 		{mem: 3710n, cpu: 1860485n, size: 32}
 	)
 }
-
-runIfEntryPoint(main, "exbudget.js");

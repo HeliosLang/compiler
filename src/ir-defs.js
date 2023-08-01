@@ -31,9 +31,10 @@ var onNotifyRawUsage = null;
 
 /**
  * Set the statistics collector (used by the test-suite)
+ * @internal
  * @param {(name: string, count: number) => void} callback 
  */
-function setRawUsageNotifier(callback) {
+export function setRawUsageNotifier(callback) {
 	onNotifyRawUsage = callback;
 }
 
@@ -1580,6 +1581,34 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
+	add(new RawFunc("__helios__bool__trace_if_false",
+	`(self) -> {
+		(msg) -> {
+			__core__ifThenElse(
+				self,
+				() -> {
+					self
+				},
+				() -> {
+					__core__trace(msg, self)
+				}
+			)()
+		}
+	}`));
+	add(new RawFunc("__helios__bool__trace_if_true",
+	`(self) -> {
+		(msg) -> {
+			__core__ifThenElse(
+				self,
+				() -> {
+					__core__trace(msg, self)
+				},
+				() -> {
+					self
+				}
+			)()
+		}
+	}`));
 
 
 	// String builtins
@@ -2714,6 +2743,30 @@ function makeRawFunctions() {
 									fn(item), 
 									() -> {item}, 
 									() -> {recurse(recurse, __core__tailList(lst))}
+								)()
+							}(${TTPP}0__from_data(__core__headList(lst)))
+						}
+					)()
+				}
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__find_index`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self, 0)
+			}(
+				(recurse, lst, i) -> {
+					__core__chooseList(
+						lst,
+						() -> {-1},
+						() -> {
+							(item) -> {
+								__core__ifThenElse(
+									fn(item),
+									() -> {i},
+									() -> {recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1))}
 								)()
 							}(${TTPP}0__from_data(__core__headList(lst)))
 						}
@@ -4162,6 +4215,44 @@ function makeRawFunctions() {
 			})
 		}
 	}`));
+	add(new RawFunc(`__helios__txbuilder__pay_if_true[${FTPP}0]`,
+	`(self) -> {
+		(cond, address, value, datum) -> {
+			__core__ifThenElse(
+				cond,
+				() -> {
+					__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+						__helios__txbuilder__new(
+							inputs,
+							ref_inputs,
+							__helios__list[__helios__data]__append(outputs)(
+								__helios__txoutput____to_data(
+									__helios__txoutput__new(
+										address, 
+										value, 
+										__helios__outputdatum__new_inline[__helios__data](
+											${FTPP}0____to_data(datum)
+										)
+									)
+								)
+							),
+							fee,
+							minted,
+							dcerts,
+							withdrawals,
+							validity,
+							signatories,
+							redeemers,
+							datums
+						)
+					})
+				},
+				() -> {
+					self
+				}
+			)()
+		}
+	}`));
 	add(new RawFunc(`__helios__txbuilder__mint[${FTPP}0]`,
 	`(self) -> {
 		(value, redeemer) -> {
@@ -4796,6 +4887,18 @@ function makeRawFunctions() {
 	`(tx_id, idx) -> {
 		__core__constrData(0, __helios__common__list_2(tx_id, __helios__int____to_data(idx)))
 	}`));
+	add(new RawFunc("__helios__txoutputid__show",
+	`(self) -> {
+		() -> {
+			__helios__string____add(
+				__helios__txid__show(__helios__txoutputid__tx_id(self))(),
+				__helios__string____add(
+					"#",
+					__helios__int__show(__helios__txoutputid__index(self))()
+				)
+			)
+		}
+	}`));
 
 
 	// Address
@@ -5203,6 +5306,86 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__assetclass__token_name", 
 	`(self) -> {
 		__helios__bytearray__from_data(__helios__common__field_1(self))
+	}`));
+	add(new RawFunc("__helios__assetclass____lt",
+	`(a, b) -> {
+		(mpha, mphb) -> {
+			__core__ifThenElse(
+				__helios__bytearray____eq(mpha, mphb),
+				() -> {
+					__helios__bytearray____lt(
+						__helios__assetclass__token_name(a),
+						__helios__assetclass__token_name(b)
+					)
+				},
+				() -> {
+					__helios__bytearray____lt(mpha, mphb)
+				}
+			)()
+		}(__helios__assetclass__mph(a), __helios__assetclass__mph(b))
+	}`));
+	add(new RawFunc("__helios__assetclass____leq",
+	`(a, b) -> {
+		(mpha, mphb) -> {
+			__core__ifThenElse(
+				__helios__bytearray____eq(mpha, mphb),
+				() -> {
+					__helios__bytearray____leq(
+						__helios__assetclass__token_name(a),
+						__helios__assetclass__token_name(b)
+					)
+				},
+				() -> {
+					__helios__bytearray____lt(mpha, mphb)
+				}
+			)()
+		}(__helios__assetclass__mph(a), __helios__assetclass__mph(b))
+	}`));
+	add(new RawFunc("__helios__assetclass____gt",
+	`(a, b) -> {
+		(mpha, mphb) -> {
+			__core__ifThenElse(
+				__helios__bytearray____eq(mpha, mphb),
+				() -> {
+					__helios__bytearray____gt(
+						__helios__assetclass__token_name(a),
+						__helios__assetclass__token_name(b)
+					)
+				},
+				() -> {
+					__helios__bytearray____gt(mpha, mphb)
+				}
+			)()
+		}(__helios__assetclass__mph(a), __helios__assetclass__mph(b))
+	}`));
+	add(new RawFunc("__helios__assetclass____geq",
+	`(a, b) -> {
+		(mpha, mphb) -> {
+			__core__ifThenElse(
+				__helios__bytearray____eq(mpha, mphb),
+				() -> {
+					__helios__bytearray____geq(
+						__helios__assetclass__token_name(a),
+						__helios__assetclass__token_name(b)
+					)
+				},
+				() -> {
+					__helios__bytearray____gt(mpha, mphb)
+				}
+			)()
+		}(__helios__assetclass__mph(a), __helios__assetclass__mph(b))
+	}`));
+	add(new RawFunc("__helios__assetclass__show",
+	`(self) -> {
+		() -> {
+			__helios__string____add(
+				__helios__mintingpolicyhash__show(__helios__assetclass__mph(self))(),
+				__helios__string____add(
+					".",
+					__helios__bytearray__show(__helios__assetclass__token_name(self))()
+				)
+			)
+		}
 	}`));
 
 

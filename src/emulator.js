@@ -34,8 +34,7 @@ import {
     Signature,
     Tx,
     TxInput,
-    TxOutput,
-    UTxO
+    TxOutput
 } from "./tx-builder.js";
 
 /**
@@ -793,7 +792,7 @@ export class WalletEmulator {
     }
 
     /**
-     * @type {Promise<UTxO[]>}
+     * @type {Promise<TxInput[]>}
      */
     get utxos() {
         return new Promise((resolve, _) => {
@@ -802,7 +801,7 @@ export class WalletEmulator {
     }
 
     /**
-     * @type {Promise<UTxO[]>}
+     * @type {Promise<TxInput[]>}
      */
      get collateral() {
         return new Promise((resolve, _) => {
@@ -835,9 +834,9 @@ export class WalletEmulator {
  * @internal
  * @typedef {{
  *     id(): TxId
- *     consumes(utxo: UTxO | TxInput): boolean
- *     collectUtxos(address: Address, utxos: UTxO[]): UTxO[]
- *     getUtxo(id: TxOutputId): (null | UTxO)
+ *     consumes(utxo: TxInput): boolean
+ *     collectUtxos(address: Address, utxos: TxInput[]): TxInput[]
+ *     getUtxo(id: TxOutputId): (null | TxInput)
  *     dump(): void
  * }} EmulatorTx
  */
@@ -880,7 +879,7 @@ class GenesisTx {
     }
 
     /**
-     * @param {UTxO | TxInput} utxo
+     * @param {TxInput} utxo
      * @returns {boolean}
      */
     consumes(utxo) {
@@ -889,16 +888,15 @@ class GenesisTx {
 
     /**
      * @param {Address} address
-     * @param {UTxO[]} utxos
-     * @returns {UTxO[]}
+     * @param {TxInput[]} utxos
+     * @returns {TxInput[]}
      */
     collectUtxos(address, utxos) {
         if (eq(this.#address.bytes, address.bytes)) {
             utxos = utxos.slice();
 
-            utxos.push(new UTxO(
-                this.id(),
-                0n,
+            utxos.push(new TxInput(
+                new TxOutputId({txId: this.id(), utxoId: 0}),
                 new TxOutput(
                     this.#address,
                     new Value(this.#lovelace, this.#assets)
@@ -913,10 +911,20 @@ class GenesisTx {
 
     /**
      * @param {TxOutputId} id 
-     * @returns {null | UTxO}
+     * @returns {null | TxInput}
      */
     getUtxo(id) {
-        return null;
+        if (!(this.id().eq(id.txId) && id.utxoIdx == 0)) {
+            return null;
+        }
+
+        return new TxInput(
+            new TxOutputId({txId: this.id(), utxoId: 0}),
+            new TxOutput(
+                this.#address,
+                new Value(this.#lovelace, this.#assets)
+            )
+        );
     }
 
     dump() {
@@ -946,7 +954,7 @@ class RegularTx {
     }
 
     /**
-     * @param {UTxO | TxInput} utxo
+     * @param {TxInput} utxo
      * @returns {boolean}
      */
     consumes(utxo) {
@@ -957,8 +965,8 @@ class RegularTx {
 
     /**
      * @param {Address} address
-     * @param {UTxO[]} utxos
-     * @returns {UTxO[]}
+     * @param {TxInput[]} utxos
+     * @returns {TxInput[]}
      */
     collectUtxos(address, utxos) {
         utxos = utxos.filter(utxo => !this.consumes(utxo));
@@ -967,9 +975,8 @@ class RegularTx {
 
         txOutputs.forEach((txOutput, utxoId) => {
             if (eq(txOutput.address.bytes, address.bytes)) {
-                utxos.push(new UTxO(
-                    this.id(),
-                    BigInt(utxoId),
+                utxos.push(new TxInput(
+                    new TxOutputId({txId: this.id(), utxoId: utxoId}),
                     txOutput
                 ));
             }
@@ -980,7 +987,7 @@ class RegularTx {
 
     /**
      * @param {TxOutputId} id 
-     * @returns {null | UTxO}
+     * @returns {null | TxInput}
      */
     getUtxo(id) {
         if (!id.txId.eq(this.id())) {
@@ -988,15 +995,14 @@ class RegularTx {
         }
 
         /**
-         * @type {null | UTxO}
+         * @type {null | TxInput}
          */
         let utxo = null;
 
         this.#tx.body.outputs.forEach((output, i) => {
             if (i == id.utxoIdx) {
-                utxo = new UTxO(
-                    id.txId,
-                    BigInt(i),
+                utxo = new TxInput(
+                    id,
                     output
                 );
             }
@@ -1146,7 +1152,7 @@ export class NetworkEmulator {
     /**
      * Throws an error if the UTxO isn't found
      * @param {TxOutputId} id 
-     * @returns {Promise<UTxO>}
+     * @returns {Promise<TxInput>}
      */
     async getUtxo(id) {
         this.warnMempool();
@@ -1165,13 +1171,13 @@ export class NetworkEmulator {
 
     /**
      * @param {Address} address
-     * @returns {Promise<UTxO[]>}
+     * @returns {Promise<TxInput[]>}
      */
     async getUtxos(address) {
         this.warnMempool();
 
         /**
-         * @type {UTxO[]}
+         * @type {TxInput[]}
          */
         let utxos = [];
 
@@ -1195,7 +1201,7 @@ export class NetworkEmulator {
     }
 
     /**
-     * @param {UTxO | TxInput} utxo
+     * @param {TxInput} utxo
      * @returns {boolean}
      */
     isConsumed(utxo) {

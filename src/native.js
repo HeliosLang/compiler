@@ -308,6 +308,7 @@ export class NativeScript extends CborData {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context 
      * @returns {boolean}
      */
@@ -376,6 +377,7 @@ class NativeSig extends NativeScript {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context 
      * @returns {boolean}
      */
@@ -417,6 +419,7 @@ class NativeAll extends NativeScript {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context 
      * @returns {boolean}
      */
@@ -458,6 +461,7 @@ class NativeAny extends NativeScript {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context
      * @returns {boolean}
      */
@@ -504,6 +508,7 @@ class NativeAtLeast extends NativeScript {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context
      * @returns {boolean}
      */
@@ -552,6 +557,7 @@ class NativeAfter extends NativeScript {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context
      * @returns {boolean}
      */
@@ -598,6 +604,7 @@ class NativeBefore extends NativeScript {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context
      * @returns {boolean}
      */

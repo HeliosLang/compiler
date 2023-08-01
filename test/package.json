@@ -1,0 +1,7 @@
+{
+  "name": "helios-test",
+  "type": "module",
+  "dependencies": {
+    "helios": "file:.."
+  }
+}

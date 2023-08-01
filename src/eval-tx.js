@@ -124,10 +124,10 @@ export const AddressType = new GenericType({
             type: "Address"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return (Address.fromProps(obj))._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return Address.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({
@@ -916,6 +916,10 @@ export const TxBuilderType = new GenericType({
             const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
             return new ParametricFunc([a], new FuncType([AddressType, ValueType, a.ref], self));
         })(),
+        pay_if_true: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+            return new ParametricFunc([a], new FuncType([BoolType, AddressType, ValueType, a.ref], self)); 
+        })(),
         mint: (() => {
             const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
             return new ParametricFunc([a], new FuncType([ValueType, a.ref], self));
@@ -943,11 +947,13 @@ export const TxBuilderType = new GenericType({
  */
 export const TxType = new GenericType({
     name: "Tx",
-    jsToUplc: (obj, networkParams) => {
-        return obj.toTxData(assertDefined(networkParams));
+    jsToUplc: async (obj, helpers) => {
+        return helpers["Tx"](obj)
+        //return obj.toTxData(assertDefined(networkParams));
     },
-    uplcToJs: (data) => {
-        return TxId.fromUplcData(data.fields[11]);
+    uplcToJs: async (data, helpers) => {
+        return helpers["Tx"](data);
+        //return TxId.fromUplcData(data.fields[11]);
     },
     genTypeDetails: (self) => ({
         inputType: "helios.Tx",
@@ -1046,10 +1052,10 @@ export const TxIdType = new GenericType({
             type: "TxId"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return TxId.fromProps(obj)._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return TxId.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({
@@ -1122,16 +1128,17 @@ export const TxOutputIdType = new GenericType({
             type: "TxOutputId"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return TxOutputId.fromProps(obj)._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return TxOutputId.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         tx_id: TxIdType,
-        index: IntType
+        index: IntType,
+        show: new FuncType([], StringType)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),

@@ -97,17 +97,19 @@ export const BoolType = new GenericType({
             type: "Bool"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return new ConstrData(obj ? 1 : 0, []);
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return data.index != 0;
     },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         show:      new FuncType([], StringType),
         to_int:    new FuncType([], IntType),
-        trace:     new FuncType([StringType], self)
+        trace:     new FuncType([StringType], self),
+        trace_if_false: new FuncType([StringType], self),
+        trace_if_true: new FuncType([StringType], self)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
@@ -135,12 +137,12 @@ export const ByteArrayType = new GenericType({
             type: "ByteArray"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         const bytes = Array.isArray(obj) ? obj : hexToBytes(obj);
 
         return new ByteArrayData(bytes);
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return data.bytes;
     },
     genInstanceMembers: (self) => ({
@@ -180,10 +182,10 @@ export const IntType = new GenericType({
             type: "Int"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return new IntData(BigInt(obj));
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return data.int;
     },
     genInstanceMembers: (self) => ({
@@ -260,10 +262,10 @@ export const RealType = new GenericType({
             type: "Real"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return new IntData(BigInt(obj*1000000))
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return Number(data.int)/1000000
     },
     genInstanceMembers: (self) => ({
@@ -316,10 +318,10 @@ export const StringType = new GenericType({
             type: "String"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return new ByteArrayData(textToBytes(obj));
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return bytesToText(data.bytes);
     },
     genInstanceMembers: (self) => ({

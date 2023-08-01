@@ -76,16 +76,17 @@ export const AssetClassType = new GenericType({
             type: "AssetClass"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return AssetClass.fromProps(obj)._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return AssetClass.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         mph: MintingPolicyHashType,
-        token_name: ByteArrayType
+        token_name: ByteArrayType,
+        show: new FuncType([], StringType)
     }),
     genTypeMembers: (self) => {
         const selfInstance = new DataEntity(assertDefined(self.asDataType));
@@ -93,7 +94,11 @@ export const AssetClassType = new GenericType({
         return {
             ...genCommonTypeMembers(self),
             ADA: selfInstance,
-            new: new FuncType([MintingPolicyHashType, ByteArrayType], self)
+            new: new FuncType([MintingPolicyHashType, ByteArrayType], self),
+            __geq: new FuncType([self, self], BoolType),
+            __gt: new FuncType([self, self], BoolType),
+            __leq: new FuncType([self, self], BoolType),
+            __lt: new FuncType([self, self], BoolType)
         }
     }
 });
@@ -114,10 +119,10 @@ export const ValueType = new GenericType({
             type: "Value"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return Value.fromProps(obj)._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return Value.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({

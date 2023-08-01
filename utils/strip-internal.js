@@ -3,7 +3,7 @@
 // strip statements containing @internal in the preceding comment block
 
 import { readFileSync, writeFileSync } from "fs"
-import { correctDir } from "./util.js"
+import { assert, correctDir } from "./util.js"
 
 const ORIG_FILE = "../helios.js"
 const INPUT_FILE = "../helios-internal.d.ts"
@@ -22,15 +22,18 @@ function extractTypedefName(src) {
 	}
 }
 
-function extractExportedName(src) {
-	const re = /^\s*export\s*[a-z]+\s*([a-zA-Z][a-zA-Z0-9_]*)/m
-
-	const m = src.match(re)
-
+function extractExportedName(line) {
+	let m = line.match(/^\s*export\s+async\s+[a-z]+\s*([a-zA-Z][a-zA-Z0-9_]*)/m)
 	if (m) {
 		return m[1]
 	} else {
-		return null
+		m = line.match(/^\s*export\s*[a-z]+\s*([a-zA-Z][a-zA-Z0-9_]*)/m	)
+		
+		if (m) {
+			return m[1]
+		} else {
+			return null
+		}
 	}
 }
 
@@ -76,23 +79,93 @@ function findInternalNames(src) {
 	return internalNames
 }
 
+/**
+ * 
+ * @param {string} line 
+ */
+function countBraces(line) {
+	let count = 0
+
+	for (let i = 0; i < line.length; i++) {
+		const c = line.charAt(i)
+
+		if (c == '{') {
+			count += 1
+		} else if (c == '}') {
+			count -= 1
+		}
+	}
+
+	return count
+}
+
 function hideInternalNames(src, internalNames) {
 	const lines = src.split("\n")
+	const keep = (new Array(lines.length)).fill(true)
 	
+	let insideInternalName = false
+	let docletStart = -1
+	let isInternalDoclet = false
+	let braceCount = 0
+	let declStart = -1
+
 	lines.forEach((line, i) => {
-		const m = line.match(/^\s*export\s*([a-z]+)\s*([a-zA-Z][a-zA-Z0-9_]*)/m)
+		if (docletStart == -1) {
+			if (line.startsWith(`${TAB}/**`)) {
+				docletStart = i
+			} else if (!insideInternalName) {
+				let m = line.match(/^\s*export\s*([a-z]+)\s+([a-zA-Z][a-zA-Z0-9_]*)/m)
 
-		if (m) {
-			const kind = m[1]
-			const name = m[2]
+				if (m) {
+					const name = m[2]
+		
+					if (internalNames.has(name)) {
+						insideInternalName = true
+						declStart = i
+						braceCount = countBraces(line)
+					}
+				} else {
+					m = line.match(/^\s*(const|function|class)\s+([a-zA-Z][a-zA-Z0-9_]*)/m)
 
-			if (internalNames.has(name)) {
-				lines[i] = line.replace(/(\s*)(export\s*)/, "$1")
+					if (m) {
+						const name = m[2]
+
+						insideInternalName = true
+						declStart = i
+						braceCount = countBraces(line)
+					}
+				}
+			}
+
+			if (insideInternalName && (braceCount == 0 || (line.startsWith(`${TAB}}`) && (braceCount + countBraces(line)) == 0))) {
+				let start = declStart
+				const end = i
+
+				for (let j = start; j <= end; j++) {
+					keep[j] = false
+				}
+
+				declStart = -1
+				braceCount = 0
+				insideInternalName = false
+			}
+		} else {
+			if (line.trim().startsWith("* @internal")) {
+				isInternalDoclet = true
+			} else if (line.trim().startsWith("*/")) {
+				if (isInternalDoclet) {
+					for (let j = docletStart; j <= i; j++) {
+						keep[j] = false
+					}
+				}
+
+				isInternalDoclet = false
+				docletStart = -1
 			}
 		}
 	})
 
-	return lines.join("\n")
+	return lines.filter((l, i) => keep[i]).join("\n")
 }
 
 function hideInternalMethods(src) {
@@ -125,8 +198,15 @@ function hideInternalMethods(src) {
 					isInternal = true
 				} else if (line.trim().startsWith("*/")) {
 					if (isInternal && lines[i+1].match(/\s*[a-zA-Z_]/)) {
+						let end = i+1
+
+						let count = countBraces(lines[end])
+						while (count != 0) {
+							end++
+							count += countBraces(lines[end])
+						}
 					
-						for (let j = docletStart; j <= i+1; j++) {
+						for (let j = docletStart; j <= end; j++) {
 							keep[j] = false
 						}
 

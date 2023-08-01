@@ -7,9 +7,10 @@
   "types": "helios.d.ts",
   "sideEffects": false,
   "scripts": {
-    "prebuild": "node ./src/index.js && npm install && npx tsc --outFile ./helios-internal.d.ts && node ./utils/strip-internal.js",
+    "prebuild": "node ./src/index.js && npx tsc --outFile ./helios-internal.d.ts && node ./utils/strip-internal.js && npx tsc --noEmit --target es2020 ./helios.d.ts",
+    "build": "npm install && npm test",
+    "pretest": "cd ./test && npm install",
     "test": "node ./test/index.js",
-    "build": "npm test",
     "pub": "node ./scripts/check-version.js && aws s3 cp ./helios.js s3://helios-library/$(node ./scripts/latest-version.js)/ && npm publish ."
   },
   "repository": {

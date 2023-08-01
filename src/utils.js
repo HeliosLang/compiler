@@ -9,7 +9,6 @@ import { TAB } from "./config.js";
 
 /**
  * Needed by transfer() methods
- * @internal
  * @typedef {{
  *   transferByteArrayData: (bytes: number[]) => any,
  *   transferConstrData: (index: number, fields: any[]) => any,
@@ -753,7 +752,6 @@ export class BitWriter {
 /**
  * A Source instance wraps a string so we can use it cheaply as a reference inside a Site.
  * Also used by VSCode plugin
- * @internal
  */
 export class Source {
 	#raw;

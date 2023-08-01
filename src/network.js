@@ -27,7 +27,7 @@ import {
     Datum,
     Tx,
     TxOutput,
-    UTxO
+    TxInput
 } from "./tx-builder.js";
 
 /**
@@ -39,11 +39,10 @@ import {
 } from "./wallets.js";
 
 
-
 /**
  * @typedef {{
- *     getUtxos(address: Address): Promise<UTxO[]>
- *     getUtxo(id: TxOutputId): Promise<UTxO>
+ *     getUtxos(address: Address): Promise<TxInput[]>
+ *     getUtxo(id: TxOutputId): Promise<TxInput>
  *     getParameters(): Promise<NetworkParams>
  *     submitTx(tx: Tx): Promise<TxId>
  * }} Network
@@ -171,7 +170,7 @@ export class BlockfrostV0 {
 
     /**
      * @param {TxOutputId} id
-     * @returns {Promise<UTxO>}
+     * @returns {Promise<TxInput>}
      */
     async getUtxo(id) {
         const txId = id.txId;
@@ -187,9 +186,8 @@ export class BlockfrostV0 {
 
         const obj = (await response.json()).outputs[id.utxoIdx];
 
-        return new UTxO(
-            txId,
-            id.utxoIdx,
+        return new TxInput(
+            id,
             new TxOutput(
                 Address.fromBech32(obj.address),
                 BlockfrostV0.parseValue(obj.amount),
@@ -200,11 +198,11 @@ export class BlockfrostV0 {
 
     /**
      * Used by BlockfrostV0.resolve()
-     * @param {UTxO} utxo
+     * @param {TxInput} utxo
      * @returns {Promise<boolean>}
      */
     async hasUtxo(utxo) {
-        const txId = utxo.txId;
+        const txId = utxo.outputId.txId;
 
         const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/txs/${txId.hex}/utxos`;
 
@@ -222,41 +220,52 @@ export class BlockfrostV0 {
      * Returns oldest UTxOs first, newest last.
      * TODO: pagination
      * @param {Address} address
-     * @returns {Promise<UTxO[]>}
+     * @returns {Promise<TxInput[]>}
      */
     async getUtxos(address) {
         const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/addresses/${address.toBech32()}/utxos?order=asc`;
 
-        const response = await fetch(url, {
-            headers: {
-                "project_id": this.#projectId
-            }
-        });
-
-        /**
-         * @type {any}
-         */
-        let all = await response.json();
-
-        if (all?.status_code >= 300) {
-            all = [];
-        }
-
         try {
-            return all.map(obj => {
-                return new UTxO(
-                    TxId.fromHex(obj.tx_hash),
-                    BigInt(obj.output_index),
-                    new TxOutput(
-                        address,
-                        BlockfrostV0.parseValue(obj.amount),
-                        obj.inline_datum ? Datum.inline(UplcData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
-                    )
-                );
+            const response = await fetch(url, {
+                headers: {
+                    "project_id": this.#projectId
+                }
             });
+
+            if (response.status == 404) {
+                return []; 
+            }
+
+            /**
+             * @type {any}
+             */
+            let all = await response.json();
+
+            if (all?.status_code >= 300) {
+                all = [];
+            }
+
+            try {
+                return all.map(obj => {
+                    return new TxInput(
+                        new TxOutputId({txId: TxId.fromHex(obj.tx_hash), utxoId: BigInt(obj.output_index)}),
+                        new TxOutput(
+                            address,
+                            BlockfrostV0.parseValue(obj.amount),
+                            obj.inline_datum ? Datum.inline(UplcData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
+                        )
+                    );
+                });
+            } catch (e) {
+                console.error("unable to parse blockfrost utxo format:", all);
+                throw e;
+            }
         } catch (e) {
-            console.error("unable to parse blockfrost utxo format:", all);
-            throw e;
+            if (e.message.includes("The requested component has not been found")) {
+                return []
+            } else {
+                throw e
+            }
         }
     }
 

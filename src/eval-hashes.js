@@ -104,7 +104,7 @@ function genHashTypeProps(offchainType) {
                 type: offchainType.name
             }
         }),
-        jsToUplc: (obj) => {
+        jsToUplc: async (obj, helpers) => {
             if (obj instanceof offchainType) {
                 return obj._toUplcData();
             } else {
@@ -113,7 +113,7 @@ function genHashTypeProps(offchainType) {
                 return new ByteArrayData(bytes);
             }
         },
-        uplcToJs: (data) => {
+        uplcToJs: async (data, helpers) => {
             return new offchainType(data.bytes);
         }
     }

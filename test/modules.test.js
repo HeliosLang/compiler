@@ -1,7 +1,9 @@
-#!/usr/bin/env node
 //@ts-check
-import * as helios from "../helios.js";
-import { runIfEntryPoint } from "../utils/util.js";
+import {
+    Program,
+    UplcProgram,
+    UserError
+} from "helios"
 
 async function test1() {
     const moduleSrc = `
@@ -22,13 +24,13 @@ async function test1() {
     const QTY: Int = 10
     `;
 
-    let program = helios.Program.new(mainSrc, [moduleSrc]);
+    let program = Program.new(mainSrc, [moduleSrc]);
 
     console.log(program.prettyIR());
     console.log(program.prettyIR(true));
 
     // also test the transfer() function
-    let uplcProgram = program.compile(false).transfer(helios.UplcProgram);
+    let uplcProgram = program.compile(false).transfer(UplcProgram);
     let result = await uplcProgram.run([]);
 
     console.log(result.toString());
@@ -60,13 +62,13 @@ async function test2() {
     }
     `;
 
-    let program = helios.Program.new(main, [module1, module2]);
+    let program = Program.new(main, [module1, module2]);
 
     console.log(program.prettyIR());
     console.log(program.prettyIR(true));
 
     // also test transfer() function
-    let uplcProgram = program.compile(false).transfer(helios.UplcProgram);
+    let uplcProgram = program.compile(false).transfer(UplcProgram);
     let result = await uplcProgram.run([]);
 
     console.log(result.toString());
@@ -91,7 +93,7 @@ async function test3() {
         d.a == d.b
     }`;
 
-    let program = helios.Program.new(main, [moduleSrc]);
+    let program = Program.new(main, [moduleSrc]);
 
     console.log(program.prettyIR());
 }
@@ -119,9 +121,9 @@ async function test4() {
     }`;
 
     try {
-        helios.Program.new(main, [module1, module2]);
+        Program.new(main, [module1, module2]);
     } catch (e) {
-        if (e instanceof helios.UserError) {
+        if (e instanceof UserError) {
             if (e.message.split(":")[1].trim() == "circular import detected") {
                 return;
             }
@@ -150,7 +152,7 @@ async function test5() {
     const VH: ValidatorHash = vh
     `;
 
-    let program = helios.Program.new(mainSrc, [moduleSrc]);
+    let program = Program.new(mainSrc, [moduleSrc]);
 
     console.log(program.evalParam("VH").toString())
 }
@@ -181,13 +183,13 @@ async function test6() {
 
     console.log("Testing namespace import");
 
-    let program = helios.Program.new(main, [module1, module2]);
+    let program = Program.new(main, [module1, module2]);
 
     console.log(program.prettyIR());
     console.log(program.prettyIR(true));
 
     // also test the transfer() function
-    let uplcProgram = program.compile(false).transfer(helios.UplcProgram);
+    let uplcProgram = program.compile(false).transfer(UplcProgram);
     let result = await uplcProgram.run([]);
 
     console.log(result.toString());
@@ -206,5 +208,3 @@ export default async function main() {
 
     await test6();
 }
-
-runIfEntryPoint(main, "modules.js");

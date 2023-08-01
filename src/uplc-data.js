@@ -114,6 +114,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIR() {

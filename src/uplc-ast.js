@@ -356,19 +356,23 @@ export class UplcType {
 }
 
 /**
- * @internal
  * @typedef {[null | string, UplcValue][]} UplcRawStack
  */
 
 /**
- * @internal
  * @typedef {{
  *	 onPrint: (msg: string) => Promise<void>
  *   onStartCall: (site: Site, rawStack: UplcRawStack) => Promise<boolean>
  *   onEndCall: (site: Site, rawStack: UplcRawStack) => Promise<void>
  *   onIncrCost: (name: string, isTerm: boolean, cost: Cost) => void
- *   macros?: {[name: string]: (rte: UplcRte, args: UplcValue[]) => Promise<UplcValue>}
  * }} UplcRTECallbacks
+ */
+
+/**
+ * @internal
+ * @typedef {UplcRTECallbacks & {
+ *   macros?: {[name: string]: (rte: UplcRte, args: UplcValue[]) => Promise<UplcValue>}
+ * }} UplcRTECallbacksInternal
  */
 
 /**
@@ -425,7 +429,7 @@ export class UplcRte {
 
 	
 	/**
-	 * @param {UplcRTECallbacks} callbacks 
+	 * @param {UplcRTECallbacksInternal} callbacks 
 	 * @param {null | NetworkParams} networkParams
 	 */
 	constructor(callbacks = DEFAULT_UPLC_RTE_CALLBACKS, networkParams = null) {
@@ -1399,6 +1403,7 @@ export class UplcInt extends UplcValue {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatInternal(bitWriter) {
@@ -1428,6 +1433,7 @@ export class UplcInt extends UplcValue {
 	 * Encodes unsigned integer with plutus flat encoding.
 	 * Throws error if signed.
 	 * Used by encoding plutus core program version and debruijn indices.
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 */
 	toFlatUnsigned(bitWriter) {
@@ -1444,6 +1450,7 @@ export class UplcInt extends UplcValue {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 */
 	toFlatValueInternal(bitWriter) {
@@ -1475,6 +1482,7 @@ export class UplcByteArray extends UplcValue {
 
 	/**
 	 * Construct a UplcByteArray without requiring a Site
+	 * @internal
 	 * @param {number[]} bytes 
 	 * @returns {UplcByteArray}
 	 */
@@ -1484,9 +1492,10 @@ export class UplcByteArray extends UplcValue {
 
 	/**
 	 * Creates new UplcByteArray wrapped in UplcConst so it can be used as a term.
+	 * @internal
 	 * @param {Site} site 
 	 * @param {number[]} bytes 
-	 * @returns 
+	 * @returns {UplcConst}
 	 */
 	static newTerm(site, bytes) {
 		return new UplcConst(new UplcByteArray(site, bytes));
@@ -1511,6 +1520,7 @@ export class UplcByteArray extends UplcValue {
 	}
 
 	/**
+	 * @internal
 	 * @param {Site} newSite 
 	 * @returns {UplcByteArray}
 	 */
@@ -1534,6 +1544,7 @@ export class UplcByteArray extends UplcValue {
 	}
 
 	/**
+	 * @internal
 	 * @returns {string}
 	 */
 	typeBits() {
@@ -1541,6 +1552,7 @@ export class UplcByteArray extends UplcValue {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValueInternal(bitWriter) {
@@ -1551,6 +1563,7 @@ export class UplcByteArray extends UplcValue {
 	 * Write a list of bytes to the bitWriter using flat encoding.
 	 * Used by UplcString, UplcByteArray and UplcDataValue
 	 * Equivalent to E_B* function in Plutus-core docs
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {number[]} bytes 
 	 */
@@ -2203,7 +2216,6 @@ export class UplcDataValue extends UplcValue {
 
 /**
  * Base class of Plutus-core terms
- * @internal
  */
 export class UplcTerm {
 	#site;
@@ -2251,6 +2263,7 @@ export class UplcTerm {
 
 	/**
 	 * Calculates a value, and also increments the cost
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -2260,6 +2273,7 @@ export class UplcTerm {
 	
 	/**
 	 * Writes bits of flat encoded Plutus-core terms to bitWriter. Doesn't return anything.
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -2270,7 +2284,6 @@ export class UplcTerm {
 
 /**
  * Plutus-core variable ref term (index is a Debruijn index)
- * @internal
  */
 export class UplcVariable extends UplcTerm {
 	/**
@@ -2306,6 +2319,7 @@ export class UplcVariable extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -2315,6 +2329,7 @@ export class UplcVariable extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -2326,6 +2341,7 @@ export class UplcVariable extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte
 	 * @param {UplcFrame[]} stack
 	 * @param {ComputingState} state
@@ -2343,7 +2359,6 @@ export class UplcVariable extends UplcTerm {
 
 /**
  * Plutus-core delay term.
- * @internal
  */
 export class UplcDelay extends UplcTerm {
 	/**
@@ -2380,6 +2395,7 @@ export class UplcDelay extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -2389,6 +2405,7 @@ export class UplcDelay extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -2399,6 +2416,7 @@ export class UplcDelay extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack
 	 * @param {ComputingState} state 
@@ -2412,7 +2430,6 @@ export class UplcDelay extends UplcTerm {
 
 /**
  * Plutus-core lambda term
- * @internal
  */
 export class UplcLambda extends UplcTerm {
 	/**
@@ -2455,6 +2472,7 @@ export class UplcLambda extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -2464,6 +2482,7 @@ export class UplcLambda extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -2482,6 +2501,7 @@ export class UplcLambda extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack
 	 * @param {ComputingState} state 
@@ -2495,7 +2515,6 @@ export class UplcLambda extends UplcTerm {
 
 /**
  * Plutus-core function application term (i.e. function call)
- * @internal
  */
 export class UplcCall extends UplcTerm {
 	/**
@@ -2522,6 +2541,7 @@ export class UplcCall extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @type {Site}
 	 */
 	get callSite() {
@@ -2548,6 +2568,7 @@ export class UplcCall extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -2567,6 +2588,7 @@ export class UplcCall extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns 
 	 */
@@ -2580,6 +2602,7 @@ export class UplcCall extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {ComputingState} state 
@@ -2595,7 +2618,6 @@ export class UplcCall extends UplcTerm {
 
 /**
  * Plutus-core const term (i.e. a literal in conventional sense)
- * @internal
  */
 export class UplcConst extends UplcTerm {
 	/**
@@ -2635,6 +2657,7 @@ export class UplcConst extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -2644,6 +2667,7 @@ export class UplcConst extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcStack | UplcRte} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -2654,6 +2678,7 @@ export class UplcConst extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack
 	 * @param {ComputingState} state 
@@ -2665,6 +2690,7 @@ export class UplcConst extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {PreCallFrame} frame 
@@ -2679,6 +2705,7 @@ export class UplcConst extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {ForceFrame} frame 
@@ -2695,7 +2722,6 @@ export class UplcConst extends UplcTerm {
 
 /**
  * Plutus-core force term
- * @internal
  */
 export class UplcForce extends UplcTerm {
 	/**
@@ -2731,6 +2757,7 @@ export class UplcForce extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -2749,6 +2776,7 @@ export class UplcForce extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -2759,6 +2787,7 @@ export class UplcForce extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {ComputingState} state 
@@ -2773,7 +2802,6 @@ export class UplcForce extends UplcTerm {
 
 /**
  * Plutus-core error term
- * @internal
  */
 export class UplcError extends UplcTerm {
 	/** 'msg' is only used for debuggin and doesn't actually appear in the final program */
@@ -2807,6 +2835,7 @@ export class UplcError extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -2816,6 +2845,7 @@ export class UplcError extends UplcTerm {
 
 	/**
 	 * Throws a RuntimeError when evaluated.
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -2824,6 +2854,7 @@ export class UplcError extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {ComputingState} state 
@@ -2836,7 +2867,6 @@ export class UplcError extends UplcTerm {
 
 /**
  * Plutus-core builtin function ref term
- * @internal
  */
 export class UplcBuiltin extends UplcTerm {
 	/** 
@@ -2903,6 +2933,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @returns {boolean}
 	 */
 	allowAny() {
@@ -2922,6 +2953,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @returns {boolean}
 	 */
 	isMacro() {
@@ -2944,6 +2976,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -2979,6 +3012,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} params
 	 * @param  {...UplcValue} args
 	 * @returns {Cost}
@@ -2997,6 +3031,7 @@ export class UplcBuiltin extends UplcTerm {
 
 	/**
 	 * Used by IRCoreCallExpr
+	 * @internal
 	 * @param {Word} name
 	 * @param {UplcValue[]} args
 	 * @returns {UplcValue}
@@ -3020,6 +3055,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte
 	 * @param {UplcFrame[]} stack
 	 * @param {ComputingState} state
@@ -3031,6 +3067,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {Site} site
 	 * @param {UplcValue[]} args
@@ -3047,6 +3084,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {Site} site
 	 * @param {UplcValue[]} args
@@ -3432,6 +3470,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte
 	 * @returns {UplcAnon}
 	 */
@@ -4187,6 +4226,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @type {number}
 	 */
 	get forceCount() {
@@ -4196,6 +4236,7 @@ export class UplcBuiltin extends UplcTerm {
 	/**
 	 * Returns appropriate callback wrapped with UplcAnon depending on builtin name.
 	 * Emulates every Plutus-core that Helios exposes to the user.
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -4386,6 +4427,7 @@ export class CallFrame extends UplcFrame {
 }
 
 /**
+ * @internal
  * @template {UplcTerm} T
  */
 class UplcTermWithEnv {
@@ -4423,6 +4465,7 @@ class UplcTermWithEnv {
 }
 
 /**
+ * @internal
  * @extends {UplcTermWithEnv<UplcLambda>}
  */
 class UplcLambdaWithEnv extends UplcTermWithEnv {
@@ -4466,6 +4509,7 @@ class UplcLambdaWithEnv extends UplcTermWithEnv {
 }
 
 /**
+ * @internal
  * @extends {UplcTermWithEnv<UplcDelay>}
  */
 class UplcDelayWithEnv extends UplcTermWithEnv {
@@ -4496,6 +4540,9 @@ class UplcDelayWithEnv extends UplcTermWithEnv {
 	}
 }
 
+/**
+ * @internal
+ */
 class UplcAnonValue extends UplcValue {
     /**
      * @readonly
@@ -4518,8 +4565,18 @@ class UplcAnonValue extends UplcValue {
     get memSize() {
         return 0;
     }
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.term.toString();
+	}
 }
 
+/**
+ * @internal
+ */
 class AppliedUplcBuiltin {
     /**
      * @readonly
@@ -4612,6 +4669,7 @@ class AppliedUplcBuiltin {
     }
 
     /**
+	 * @internal
      * @param {UplcRte} rte
      * @param {Site[]} sites
      * @returns {Promise<CekValue>}
@@ -4763,6 +4821,7 @@ class AppliedUplcBuiltin {
  */
 
 /**
+ * @internal
  * @param {UplcRte} rte
  * @param {UplcTerm} start
  * @param {null | UplcValue[]} args

@@ -1,17 +1,5 @@
-#!/usr/bin/env node
 //@ts-check
-import fs from "fs";
-import crypto from "crypto";
-import * as helios from "../helios.js";
-import { correctDir, runIfEntryPoint } from "../utils/util.js";
-
-correctDir();
-
-/**
- * @typedef {import('../helios.js').PropertyTest} PropertyTest
- */
-
-const helios_ = helios.exportedForTesting;
+import fs from "fs"
 
 ///////////////////////////////////////////////////////////
 // Inline unit tests 
@@ -57,5 +45,3 @@ export default async function main() {
         console.log("  " + test);
     }
 }
-
-runIfEntryPoint(main, "inline.js");

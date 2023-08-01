@@ -38,7 +38,7 @@ import {
 
 /**
  * Base-type of all data-types that exist both on- and off-chain, and map directly to Helios instances.
- * @internal
+ * @deprecated
  */
 export class HeliosData extends CborData {
 	constructor() {
@@ -91,13 +91,13 @@ export class HeliosData extends CborData {
  */
 
 /**
- * @internal
+ * @deprecated
  * @typedef {number | bigint} HIntProps
  */
 
 /**
  * Helios Int type
- * @internal
+ * @deprecated
  */
 export class HInt extends HeliosData {
     /**
@@ -526,13 +526,13 @@ export class HString extends HeliosData {
 }
 
 /**
- * @internal
+ * @deprecated
  * @typedef {hexstring | number[]} ByteArrayProps
  */
 
 /**
  * Helios ByteArray type
- * @internal
+ * @deprecated
  */
 export class ByteArray extends HeliosData {
     /**
@@ -1005,19 +1005,21 @@ export function Option(SomeClass) {
 }
 
 /**
- * @internal
  * @typedef {hexstring | number[]} HashProps
  */
 
 /**
  * Base class of all hash-types
- * @internal
  */
 export class Hash extends HeliosData {
-	/** @type {number[]} */
-	#bytes;
+	/** 
+	 * @readonly
+	 * @type {number[]} 
+	 */
+	bytes;
 
 	/**
+	 * @internal
 	 * @param {HashProps} props 
 	 * @returns {number[]}
 	 */
@@ -1034,7 +1036,7 @@ export class Hash extends HeliosData {
 	 */
 	constructor(props) {
 		super();
-		this.#bytes = Hash.cleanConstructorArg(props);
+		this.bytes = Hash.cleanConstructorArg(props);
 	}
 
 	/**
@@ -1046,31 +1048,24 @@ export class Hash extends HeliosData {
 	}
 
 	/**
-	 * @returns {number[]}
-	 */
-	get bytes() {
-		return this.#bytes;
-	}
-
-	/**
 	 * @returns {hexstring}
 	 */
 	get hex() {
-		return bytesToHex(this.#bytes);
+		return bytesToHex(this.bytes);
 	}
 
 	/**
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.#bytes);
+		return CborData.encodeBytes(this.bytes);
 	}
 
     /**
      * @returns {UplcData}
      */
     _toUplcData() {
-        return new ByteArrayData(this.#bytes);
+        return new ByteArrayData(this.bytes);
     }
 
 	/**
@@ -1092,10 +1087,11 @@ export class Hash extends HeliosData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {string}
 	 */
 	dump() {
-		return bytesToHex(this.#bytes);
+		return bytesToHex(this.bytes);
 	}
 
 	/**
@@ -1103,7 +1099,7 @@ export class Hash extends HeliosData {
 	 * @returns {boolean}
 	 */
 	eq(other) {
-		return eq(this.#bytes, other.#bytes);
+		return eq(this.bytes, other.bytes);
 	}
 
 	/**
@@ -1112,7 +1108,7 @@ export class Hash extends HeliosData {
 	 * @returns {number}
 	 */
 	static compare(a, b) {
-		return ByteArrayData.comp(a.#bytes, b.#bytes);
+		return ByteArrayData.comp(a.bytes, b.bytes);
 	}
 }
 
@@ -1355,7 +1351,7 @@ export class PubKeyHash extends Hash {
  */
 
 /**
- * @internal
+ * Base class of MintingPolicyHash, ValidatorHash and StakingValidatorHash
  */
 export class ScriptHash extends Hash {
 	/**
@@ -1708,11 +1704,14 @@ export class TxOutputId extends HeliosData {
      */
     static cleanConstructorArgs(props) {
         if (typeof props == "string") {
-			const parts = props.split("#");
+			const parts = props.trim().split("#");
 
 			assert(parts.length == 2);
+			const utxoIdx = parseInt(parts[1]);
 
-			return [parts[0], parseInt(parts[1])];
+			assert(utxoIdx.toString() == parts[1]);
+
+			return [parts[0], utxoIdx];
         } else if (Array.isArray(props) && props.length == 2) {
             return [props[0], props[1]];
         } else if (typeof props == "object") {
@@ -1756,8 +1755,16 @@ export class TxOutputId extends HeliosData {
         return Number(this.#utxoIdx.value);
     }
 
+	/**
+	 * @param {TxOutputId} other
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return this.#txId.eq(other.#txId) && this.#utxoIdx.value == other.#utxoIdx.value;
+	}
+
     /**
-     * @returns {UplcData}
+     * @returns {ConstrData}
      */
     _toUplcData() {
         return new ConstrData(0, [this.#txId._toUplcData(), this.#utxoIdx._toUplcData()])
@@ -1783,10 +1790,69 @@ export class TxOutputId extends HeliosData {
     }
 
 	/**
+	 * @param {string | number[]} rawBytes 
+	 * @returns {TxOutputId}
+	 */
+	static fromCbor(rawBytes) {
+		const bytes = Array.isArray(rawBytes) ? rawBytes : hexToBytes(rawBytes);
+
+		/** @type {null | TxId} */
+		let txId = null;
+
+		/** @type {null | bigint} */
+		let utxoIdx = null;
+
+		CborData.decodeTuple(bytes, (i, fieldBytes) => {
+			switch(i) {
+				case 0:
+					txId = TxId.fromCbor(fieldBytes);
+					break;
+				case 1:
+					utxoIdx = CborData.decodeInteger(fieldBytes);
+					break;
+				default:
+					throw new Error("unrecognized field");
+			}
+		});
+
+		if (txId === null || utxoIdx === null) {
+			throw new Error("unexpected");
+		} else {
+			return new TxOutputId({txId: txId, utxoId: utxoIdx});
+		}
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return CborData.encodeTuple([
+			this.#txId.toCbor(),
+			CborData.encodeInteger(this.#utxoIdx.value)
+		]);
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
 		return `${this.#txId.hex}#${this.#utxoIdx.value.toString()}`;
+	}
+
+	/**
+	 * 
+	 * @param {TxOutputId} a 
+	 * @param {TxOutputId} b 
+	 * @returns {number}
+	 */
+	static comp(a, b) {
+		let res = ByteArrayData.comp(a.#txId.bytes, b.#txId.bytes);
+
+		if (res == 0) {
+			return Number(a.#utxoIdx.value - b.#utxoIdx.value);
+		} else {
+			return res;
+		}
 	}
 }
 
@@ -2287,6 +2353,22 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
+	 * Cip14 fingerprint
+	 * This involves a hash, so you can't use a fingerprint to calculate the underlying policy/tokenName.
+	 * @returns {string}
+	 */
+	toFingerprint() {
+		return Crypto.encodeBech32("asset", Crypto.blake2b(this.#mph.bytes.concat(this.#tokenName.bytes), 20));
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#mph.hex}.${bytesToHex(this.#tokenName.bytes)}`;
+	}
+
+	/**
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -2661,7 +2743,15 @@ export class Assets extends CborData {
 			}
 		}
 
-		this.#assets.push([mph_, tokens.map(([tokenName, qty]) => [ByteArray.fromProps(tokenName), HInt.fromProps(qty)])]);
+		/**
+		 * @type {[ByteArray, HInt][]}
+		 */
+		const tokens_ = tokens.map(([tokenName, qty]) => [ByteArray.fromProps(tokenName), HInt.fromProps(qty)]);
+		tokens_.sort((a, b) => {
+			return ByteArrayData.comp(a[0].bytes, b[0].bytes)
+		});
+
+		this.#assets.push([mph_, tokens_]);
 
 		// sort immediately
 		this.sort();

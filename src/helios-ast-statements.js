@@ -106,6 +106,15 @@ import {
  * @typedef {import("./eval-common.js").GenericTypeProps<T>} GenericTypeProps
  */
 
+/**
+ * @typedef {import("./eval-common.js").JsToUplcHelpers} JsToUplcHelpers
+ */
+
+/**
+ * @typedef {import("./eval-common.js").UplcToJsHelpers} UplcToJsHelpers
+ */
+
+
 import {
 	genCommonInstanceMembers,
 	genCommonTypeMembers,
@@ -1045,12 +1054,13 @@ export class DataDefinition {
 
 	/**
 	 * @param {any} obj
-	 * @return {UplcData[]}
+	 * @param {JsToUplcHelpers} helpers
+	 * @return {Promise<UplcData[]>}
 	 */
-	jsFieldsToUplc(obj) {
+	async jsFieldsToUplc(obj, helpers) {
 		/**
-					 * @type {UplcData[]}
-					 */
+		 * @type {Promise<UplcData>[]}
+		 */
 		const fields = [];
 
 		if (Object.keys(obj).length == this.nFields && Object.keys(obj).every(k => this.hasField(new Word(Site.dummy(), k)))) {
@@ -1063,27 +1073,30 @@ export class DataDefinition {
 					throw new Error(`typeDetails for ${fieldType.name} not yet implemented`);
 				}
 
-				fields.push(fieldType.jsToUplc(arg));
+				fields.push(fieldType.jsToUplc(arg, helpers));
 			});
 		} else {
 			throw new Error(`expected ${this.nFields} args, got ${Object.keys(obj).length}`);
 		}
 
-		return fields;
+		return Promise.all(fields);
 	}
 
 	/**
 	 * @param {UplcData[]} fields 
-	 * @returns {any}
+	 * @param {UplcToJsHelpers} helpers
+	 * @returns {Promise<any>}
 	 */
-	uplcFieldsToJs(fields) {
+	async uplcFieldsToJs(fields, helpers) {
 		const obj = {};
 
-		fields.forEach((f, i) => {
+		for (let i = 0; i < fields.length; i++) {
+			const f = fields[i];
+
 			const fn = this.getFieldName(i);
 
-			obj[fn] = this.getFieldType(i).uplcToJs(f);
-		})
+			obj[fn] = await this.getFieldType(i).uplcToJs(f, helpers);
+		};
 
 		return obj;
 	}
@@ -1483,11 +1496,11 @@ export class StructStatement extends Statement {
 						}
 					};
 				},
-				jsToUplc: (obj) => {
+				jsToUplc: async (obj, helpers) => {
 					/**
 					 * @type {UplcData[]}
 					 */
-					const fields = this.#dataDef.jsFieldsToUplc(obj);
+					const fields = await this.#dataDef.jsFieldsToUplc(obj, helpers);
 
 					if (fields.length == 1) {
 						return fields[0];
@@ -1495,11 +1508,11 @@ export class StructStatement extends Statement {
 						return new ListData(fields);
 					}
 				},
-				uplcToJs: (data) => {
+				uplcToJs: async (data, helpers) => {
 					if (this.#dataDef.nFields == 1) {
-						return this.#dataDef.getFieldType(0).uplcToJs(data);
+						return this.#dataDef.getFieldType(0).uplcToJs(data, helpers);
 					} else {
-						return this.#dataDef.uplcFieldsToJs(data.list);
+						return this.#dataDef.uplcFieldsToJs(data.list, helpers);
 					}
 				},
 				genOffChainType: () => this.genOffChainType(),
@@ -2180,8 +2193,8 @@ export class EnumStatement extends Statement {
 					this.#members.forEach(member => {
 						const [inputType, outputType, internalTypeFields] = member.dataDefinition.genTypeDetails();
 						
-						inputEnumTypeParts.push(`{type: "${member.name.value}", data: ${inputType}}`);
-						outputEnumTypeParts.push(`{type: "${member.name.value}", data: ${outputType}}`);
+						inputEnumTypeParts.push(`{"${member.name.value}": ${inputType}}`);
+						outputEnumTypeParts.push(`{"${member.name.value}": ${outputType}}`);
 						internalEnumTypeParts.push({name: member.name.value, fieldTypes: internalTypeFields});
 					});
 
@@ -2194,8 +2207,8 @@ export class EnumStatement extends Statement {
 						}
 					};
 				},
-				jsToUplc: (obj) => {
-					const memberName = assertDefined(obj.type);
+				jsToUplc: async (obj, helpers) => {
+					const memberName = assertDefined(Object.keys(obj)[0]);
 
 					const i = this.#members.findIndex(m => m.name.value == memberName);
 
@@ -2205,11 +2218,11 @@ export class EnumStatement extends Statement {
 
 					const member = this.#members[i];
 
-					const fields = member.dataDefinition.jsFieldsToUplc(assertDefined(obj.data));
+					const fields = await member.dataDefinition.jsFieldsToUplc(assertDefined(obj[memberName]), helpers);
 
 					return new ConstrData(i, fields);
 				},
-				uplcToJs: (data) => {
+				uplcToJs: async (data, helpers) => {
 					const i = data.index;
 
 					if (i < 0 || i >= this.#members.length) {
@@ -2219,8 +2232,7 @@ export class EnumStatement extends Statement {
 					const member = this.#members[i];
 
 					return {
-						type: member.name.value,
-						data: member.dataDefinition.uplcFieldsToJs(data.fields)
+						[member.name.value]: await member.dataDefinition.uplcFieldsToJs(data.fields, helpers)
 					};
 				},
 				genOffChainType: () => this.genOffChainType(),

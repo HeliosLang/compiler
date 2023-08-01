@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 //@ts-check
 import {
   Address,
@@ -10,13 +9,11 @@ import {
   NetworkParams,
   Tx,
   TxOutput,
-  UTxO,
+  TxInput,
   Value,
-} from "../helios.js";
-import fs from "fs";
-import { correctDir, runIfEntryPoint } from "../utils/util.js";
+} from "helios"
 
-correctDir();
+import fs from "fs"
 
 export default async function main() {
 	const address = Address.fromBech32(
@@ -52,9 +49,9 @@ export default async function main() {
 	  "828258205c7002ae246c77ee02586d800dd0545069c595cff2af056e74985d3c887122080182583900d006eb7783e8c93160b2bab287bc8a6f069e9e690cd82bc0b52a8c31730d805b6a2cf67998f0fcd070ce0b6e85957fd758cf0ae348d265eb1b000000024d42012d",
 	];
 
-	const txIn1 = UTxO.fromCbor(hexToBytes(walletUTXOs[0]));
+	const txIn1 = TxInput.fromFullCbor(hexToBytes(walletUTXOs[0]));
 
-	const txIn2 = UTxO.fromCbor(hexToBytes(walletUTXOs[1]));
+	const txIn2 = TxInput.fromFullCbor(hexToBytes(walletUTXOs[1]));
 
 	// @ts-ignore
 	tx.addInputs([txIn1, txIn2]);
@@ -96,5 +93,3 @@ export default async function main() {
 
 	console.log(tx2.dump());
 }
-
-runIfEntryPoint(main, "metadata.js");

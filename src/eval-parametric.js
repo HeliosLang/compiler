@@ -107,6 +107,15 @@ import {
  * @typedef {import("./eval-common.js").TypeClassMembers} TypeClassMembers
  */
 
+/**
+ * @typedef {import("./eval-common.js").JsToUplcHelpers} JsToUplcHelpers
+ */
+
+/**
+ * @typedef {import("./eval-common.js").UplcToJsHelpers} UplcToJsHelpers
+ */
+
+
 import {
     BoolType,
     ByteArrayType,
@@ -861,18 +870,20 @@ class AppliedType extends Common {
 
 	/**
 	 * @param {any} obj 
-	 * @returns {UplcData}
+	 * @param {JsToUplcHelpers} helpers
+	 * @returns {Promise<UplcData>}
 	 */
-	jsToUplc(obj) {
-		return this.#inner.jsToUplc(obj);
+	jsToUplc(obj, helpers) {
+		return this.#inner.jsToUplc(obj, helpers);
 	}
 
 	/**
 	 * @param {UplcData} data 
-	 * @returns {any}
+	 * @param {UplcToJsHelpers} helpers
+	 * @returns {any | Promise<any>}
 	 */
-	uplcToJs(data) {
-		return this.#inner.uplcToJs(data);
+	uplcToJs(data, helpers) {
+		return this.#inner.uplcToJs(data, helpers);
 	}
 
     /**

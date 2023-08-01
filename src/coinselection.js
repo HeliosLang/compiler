@@ -10,11 +10,11 @@ import {
 } from "./helios-data.js";
 
 import {
-    UTxO
+    TxInput
 } from "./tx-builder.js";
 
 /**
- * @typedef {(utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]]} CoinSelectionAlgorithm
+ * @typedef {(utxos: TxInput[], amount: Value) => [TxInput[], TxInput[]]} CoinSelectionAlgorithm
  */
 
 /**
@@ -22,24 +22,24 @@ import {
  */
 export class CoinSelection {
     /**
-     * @param {UTxO[]} utxos 
+     * @param {TxInput[]} utxos 
      * @param {Value} amount 
      * @param {boolean} largestFirst
-     * @returns {[UTxO[], UTxO[]]} - [picked, not picked that can be used as spares]
+     * @returns {[TxInput[], TxInput[]]} - [picked, not picked that can be used as spares]
      */
     static selectExtremumFirst(utxos, amount, largestFirst) {
         let sum = new Value();
 
-        /** @type {UTxO[]} */
+        /** @type {TxInput[]} */
         let notSelected = utxos.slice();
 
-        /** @type {UTxO[]} */
+        /** @type {TxInput[]} */
         const selected = [];
 
         /**
          * Selects smallest utxos until 'needed' is reached
          * @param {bigint} neededQuantity
-         * @param {(utxo: UTxO) => bigint} getQuantity
+         * @param {(utxo: TxInput) => bigint} getQuantity
          */
         function select(neededQuantity, getQuantity) {
             // first sort notYetPicked in ascending order when picking smallest first,

@@ -5,6 +5,8 @@
         "allowJs": true,
         "declaration": true,
         "emitDeclarationOnly": true,
-        "declarationMap": false
-    }
+        "declarationMap": false,
+		"skipLibCheck": true
+    },
+	"exclude": ["node_modules"]
 }

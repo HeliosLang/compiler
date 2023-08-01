@@ -8,7 +8,7 @@
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
 // Version:       0.15.0
-// Last update:   July 2023
+// Last update:   August 2023
 // License type:  BSD-3-Clause
 //
 //
@@ -278,7 +278,7 @@
 //
 //     Section 39: Fuzzy testing framework   FuzzyTest
 //
-//     Section 40: Bundling specific functionsjsToUplc, uplcToJs, exportedForBundling
+//     Section 40: Bundling specific functionsjsToUplc, uplcToJs
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -380,7 +380,6 @@ export const config = {
 
 /**
  * Needed by transfer() methods
- * @internal
  * @typedef {{
  *   transferByteArrayData: (bytes: number[]) => any,
  *   transferConstrData: (index: number, fields: any[]) => any,
@@ -1124,7 +1123,6 @@ export class BitWriter {
 /**
  * A Source instance wraps a string so we can use it cheaply as a reference inside a Site.
  * Also used by VSCode plugin
- * @internal
  */
 export class Source {
 	#raw;
@@ -1343,7 +1341,6 @@ ${alternative}`;
 ////////////////////
 /**
  * Each Token/Expression/Statement has a Site, which encapsulates a position in a Source
- * @internal
  */
 export class Site {
 	#src;
@@ -5723,6 +5720,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIR() {
@@ -6320,7 +6318,7 @@ export class ConstrData extends UplcData {
 
 /**
  * Base-type of all data-types that exist both on- and off-chain, and map directly to Helios instances.
- * @internal
+ * @deprecated
  */
 export class HeliosData extends CborData {
 	constructor() {
@@ -6373,13 +6371,13 @@ export class HeliosData extends CborData {
  */
 
 /**
- * @internal
+ * @deprecated
  * @typedef {number | bigint} HIntProps
  */
 
 /**
  * Helios Int type
- * @internal
+ * @deprecated
  */
 export class HInt extends HeliosData {
     /**
@@ -6808,13 +6806,13 @@ export class HString extends HeliosData {
 }
 
 /**
- * @internal
+ * @deprecated
  * @typedef {hexstring | number[]} ByteArrayProps
  */
 
 /**
  * Helios ByteArray type
- * @internal
+ * @deprecated
  */
 export class ByteArray extends HeliosData {
     /**
@@ -7287,19 +7285,21 @@ export function Option(SomeClass) {
 }
 
 /**
- * @internal
  * @typedef {hexstring | number[]} HashProps
  */
 
 /**
  * Base class of all hash-types
- * @internal
  */
 export class Hash extends HeliosData {
-	/** @type {number[]} */
-	#bytes;
+	/** 
+	 * @readonly
+	 * @type {number[]} 
+	 */
+	bytes;
 
 	/**
+	 * @internal
 	 * @param {HashProps} props 
 	 * @returns {number[]}
 	 */
@@ -7316,7 +7316,7 @@ export class Hash extends HeliosData {
 	 */
 	constructor(props) {
 		super();
-		this.#bytes = Hash.cleanConstructorArg(props);
+		this.bytes = Hash.cleanConstructorArg(props);
 	}
 
 	/**
@@ -7328,31 +7328,24 @@ export class Hash extends HeliosData {
 	}
 
 	/**
-	 * @returns {number[]}
-	 */
-	get bytes() {
-		return this.#bytes;
-	}
-
-	/**
 	 * @returns {hexstring}
 	 */
 	get hex() {
-		return bytesToHex(this.#bytes);
+		return bytesToHex(this.bytes);
 	}
 
 	/**
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.#bytes);
+		return CborData.encodeBytes(this.bytes);
 	}
 
     /**
      * @returns {UplcData}
      */
     _toUplcData() {
-        return new ByteArrayData(this.#bytes);
+        return new ByteArrayData(this.bytes);
     }
 
 	/**
@@ -7374,10 +7367,11 @@ export class Hash extends HeliosData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {string}
 	 */
 	dump() {
-		return bytesToHex(this.#bytes);
+		return bytesToHex(this.bytes);
 	}
 
 	/**
@@ -7385,7 +7379,7 @@ export class Hash extends HeliosData {
 	 * @returns {boolean}
 	 */
 	eq(other) {
-		return eq(this.#bytes, other.#bytes);
+		return eq(this.bytes, other.bytes);
 	}
 
 	/**
@@ -7394,7 +7388,7 @@ export class Hash extends HeliosData {
 	 * @returns {number}
 	 */
 	static compare(a, b) {
-		return ByteArrayData.comp(a.#bytes, b.#bytes);
+		return ByteArrayData.comp(a.bytes, b.bytes);
 	}
 }
 
@@ -7637,7 +7631,7 @@ export class PubKeyHash extends Hash {
  */
 
 /**
- * @internal
+ * Base class of MintingPolicyHash, ValidatorHash and StakingValidatorHash
  */
 export class ScriptHash extends Hash {
 	/**
@@ -7990,11 +7984,14 @@ export class TxOutputId extends HeliosData {
      */
     static cleanConstructorArgs(props) {
         if (typeof props == "string") {
-			const parts = props.split("#");
+			const parts = props.trim().split("#");
 
 			assert(parts.length == 2);
+			const utxoIdx = parseInt(parts[1]);
 
-			return [parts[0], parseInt(parts[1])];
+			assert(utxoIdx.toString() == parts[1]);
+
+			return [parts[0], utxoIdx];
         } else if (Array.isArray(props) && props.length == 2) {
             return [props[0], props[1]];
         } else if (typeof props == "object") {
@@ -8038,8 +8035,16 @@ export class TxOutputId extends HeliosData {
         return Number(this.#utxoIdx.value);
     }
 
+	/**
+	 * @param {TxOutputId} other
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return this.#txId.eq(other.#txId) && this.#utxoIdx.value == other.#utxoIdx.value;
+	}
+
     /**
-     * @returns {UplcData}
+     * @returns {ConstrData}
      */
     _toUplcData() {
         return new ConstrData(0, [this.#txId._toUplcData(), this.#utxoIdx._toUplcData()])
@@ -8065,10 +8070,69 @@ export class TxOutputId extends HeliosData {
     }
 
 	/**
+	 * @param {string | number[]} rawBytes 
+	 * @returns {TxOutputId}
+	 */
+	static fromCbor(rawBytes) {
+		const bytes = Array.isArray(rawBytes) ? rawBytes : hexToBytes(rawBytes);
+
+		/** @type {null | TxId} */
+		let txId = null;
+
+		/** @type {null | bigint} */
+		let utxoIdx = null;
+
+		CborData.decodeTuple(bytes, (i, fieldBytes) => {
+			switch(i) {
+				case 0:
+					txId = TxId.fromCbor(fieldBytes);
+					break;
+				case 1:
+					utxoIdx = CborData.decodeInteger(fieldBytes);
+					break;
+				default:
+					throw new Error("unrecognized field");
+			}
+		});
+
+		if (txId === null || utxoIdx === null) {
+			throw new Error("unexpected");
+		} else {
+			return new TxOutputId({txId: txId, utxoId: utxoIdx});
+		}
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toCbor() {
+		return CborData.encodeTuple([
+			this.#txId.toCbor(),
+			CborData.encodeInteger(this.#utxoIdx.value)
+		]);
+	}
+
+	/**
 	 * @returns {string}
 	 */
 	toString() {
 		return `${this.#txId.hex}#${this.#utxoIdx.value.toString()}`;
+	}
+
+	/**
+	 * 
+	 * @param {TxOutputId} a 
+	 * @param {TxOutputId} b 
+	 * @returns {number}
+	 */
+	static comp(a, b) {
+		let res = ByteArrayData.comp(a.#txId.bytes, b.#txId.bytes);
+
+		if (res == 0) {
+			return Number(a.#utxoIdx.value - b.#utxoIdx.value);
+		} else {
+			return res;
+		}
 	}
 }
 
@@ -8569,6 +8633,22 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
+	 * Cip14 fingerprint
+	 * This involves a hash, so you can't use a fingerprint to calculate the underlying policy/tokenName.
+	 * @returns {string}
+	 */
+	toFingerprint() {
+		return Crypto.encodeBech32("asset", Crypto.blake2b(this.#mph.bytes.concat(this.#tokenName.bytes), 20));
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `${this.#mph.hex}.${bytesToHex(this.#tokenName.bytes)}`;
+	}
+
+	/**
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -8943,7 +9023,15 @@ export class Assets extends CborData {
 			}
 		}
 
-		this.#assets.push([mph_, tokens.map(([tokenName, qty]) => [ByteArray.fromProps(tokenName), HInt.fromProps(qty)])]);
+		/**
+		 * @type {[ByteArray, HInt][]}
+		 */
+		const tokens_ = tokens.map(([tokenName, qty]) => [ByteArray.fromProps(tokenName), HInt.fromProps(qty)]);
+		tokens_.sort((a, b) => {
+			return ByteArrayData.comp(a[0].bytes, b[0].bytes)
+		});
+
+		this.#assets.push([mph_, tokens_]);
 
 		// sort immediately
 		this.sort();
@@ -10811,19 +10899,23 @@ export class UplcType {
 }
 
 /**
- * @internal
  * @typedef {[null | string, UplcValue][]} UplcRawStack
  */
 
 /**
- * @internal
  * @typedef {{
  *	 onPrint: (msg: string) => Promise<void>
  *   onStartCall: (site: Site, rawStack: UplcRawStack) => Promise<boolean>
  *   onEndCall: (site: Site, rawStack: UplcRawStack) => Promise<void>
  *   onIncrCost: (name: string, isTerm: boolean, cost: Cost) => void
- *   macros?: {[name: string]: (rte: UplcRte, args: UplcValue[]) => Promise<UplcValue>}
  * }} UplcRTECallbacks
+ */
+
+/**
+ * @internal
+ * @typedef {UplcRTECallbacks & {
+ *   macros?: {[name: string]: (rte: UplcRte, args: UplcValue[]) => Promise<UplcValue>}
+ * }} UplcRTECallbacksInternal
  */
 
 /**
@@ -10880,7 +10972,7 @@ export class UplcRte {
 
 	
 	/**
-	 * @param {UplcRTECallbacks} callbacks 
+	 * @param {UplcRTECallbacksInternal} callbacks 
 	 * @param {null | NetworkParams} networkParams
 	 */
 	constructor(callbacks = DEFAULT_UPLC_RTE_CALLBACKS, networkParams = null) {
@@ -11854,6 +11946,7 @@ export class UplcInt extends UplcValue {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatInternal(bitWriter) {
@@ -11883,6 +11976,7 @@ export class UplcInt extends UplcValue {
 	 * Encodes unsigned integer with plutus flat encoding.
 	 * Throws error if signed.
 	 * Used by encoding plutus core program version and debruijn indices.
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 */
 	toFlatUnsigned(bitWriter) {
@@ -11899,6 +11993,7 @@ export class UplcInt extends UplcValue {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 */
 	toFlatValueInternal(bitWriter) {
@@ -11930,6 +12025,7 @@ export class UplcByteArray extends UplcValue {
 
 	/**
 	 * Construct a UplcByteArray without requiring a Site
+	 * @internal
 	 * @param {number[]} bytes 
 	 * @returns {UplcByteArray}
 	 */
@@ -11939,9 +12035,10 @@ export class UplcByteArray extends UplcValue {
 
 	/**
 	 * Creates new UplcByteArray wrapped in UplcConst so it can be used as a term.
+	 * @internal
 	 * @param {Site} site 
 	 * @param {number[]} bytes 
-	 * @returns 
+	 * @returns {UplcConst}
 	 */
 	static newTerm(site, bytes) {
 		return new UplcConst(new UplcByteArray(site, bytes));
@@ -11966,6 +12063,7 @@ export class UplcByteArray extends UplcValue {
 	}
 
 	/**
+	 * @internal
 	 * @param {Site} newSite 
 	 * @returns {UplcByteArray}
 	 */
@@ -11989,6 +12087,7 @@ export class UplcByteArray extends UplcValue {
 	}
 
 	/**
+	 * @internal
 	 * @returns {string}
 	 */
 	typeBits() {
@@ -11996,6 +12095,7 @@ export class UplcByteArray extends UplcValue {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValueInternal(bitWriter) {
@@ -12006,6 +12106,7 @@ export class UplcByteArray extends UplcValue {
 	 * Write a list of bytes to the bitWriter using flat encoding.
 	 * Used by UplcString, UplcByteArray and UplcDataValue
 	 * Equivalent to E_B* function in Plutus-core docs
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {number[]} bytes 
 	 */
@@ -12658,7 +12759,6 @@ export class UplcDataValue extends UplcValue {
 
 /**
  * Base class of Plutus-core terms
- * @internal
  */
 export class UplcTerm {
 	#site;
@@ -12706,6 +12806,7 @@ export class UplcTerm {
 
 	/**
 	 * Calculates a value, and also increments the cost
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -12715,6 +12816,7 @@ export class UplcTerm {
 	
 	/**
 	 * Writes bits of flat encoded Plutus-core terms to bitWriter. Doesn't return anything.
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -12725,7 +12827,6 @@ export class UplcTerm {
 
 /**
  * Plutus-core variable ref term (index is a Debruijn index)
- * @internal
  */
 export class UplcVariable extends UplcTerm {
 	/**
@@ -12761,6 +12862,7 @@ export class UplcVariable extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -12770,6 +12872,7 @@ export class UplcVariable extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -12781,6 +12884,7 @@ export class UplcVariable extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte
 	 * @param {UplcFrame[]} stack
 	 * @param {ComputingState} state
@@ -12798,7 +12902,6 @@ export class UplcVariable extends UplcTerm {
 
 /**
  * Plutus-core delay term.
- * @internal
  */
 export class UplcDelay extends UplcTerm {
 	/**
@@ -12835,6 +12938,7 @@ export class UplcDelay extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -12844,6 +12948,7 @@ export class UplcDelay extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -12854,6 +12959,7 @@ export class UplcDelay extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack
 	 * @param {ComputingState} state 
@@ -12867,7 +12973,6 @@ export class UplcDelay extends UplcTerm {
 
 /**
  * Plutus-core lambda term
- * @internal
  */
 export class UplcLambda extends UplcTerm {
 	/**
@@ -12910,6 +13015,7 @@ export class UplcLambda extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -12919,6 +13025,7 @@ export class UplcLambda extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -12937,6 +13044,7 @@ export class UplcLambda extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack
 	 * @param {ComputingState} state 
@@ -12950,7 +13058,6 @@ export class UplcLambda extends UplcTerm {
 
 /**
  * Plutus-core function application term (i.e. function call)
- * @internal
  */
 export class UplcCall extends UplcTerm {
 	/**
@@ -12977,6 +13084,7 @@ export class UplcCall extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @type {Site}
 	 */
 	get callSite() {
@@ -13003,6 +13111,7 @@ export class UplcCall extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -13022,6 +13131,7 @@ export class UplcCall extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns 
 	 */
@@ -13035,6 +13145,7 @@ export class UplcCall extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {ComputingState} state 
@@ -13050,7 +13161,6 @@ export class UplcCall extends UplcTerm {
 
 /**
  * Plutus-core const term (i.e. a literal in conventional sense)
- * @internal
  */
 export class UplcConst extends UplcTerm {
 	/**
@@ -13090,6 +13200,7 @@ export class UplcConst extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -13099,6 +13210,7 @@ export class UplcConst extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcStack | UplcRte} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -13109,6 +13221,7 @@ export class UplcConst extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack
 	 * @param {ComputingState} state 
@@ -13120,6 +13233,7 @@ export class UplcConst extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {PreCallFrame} frame 
@@ -13134,6 +13248,7 @@ export class UplcConst extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {ForceFrame} frame 
@@ -13150,7 +13265,6 @@ export class UplcConst extends UplcTerm {
 
 /**
  * Plutus-core force term
- * @internal
  */
 export class UplcForce extends UplcTerm {
 	/**
@@ -13186,6 +13300,7 @@ export class UplcForce extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -13204,6 +13319,7 @@ export class UplcForce extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -13214,6 +13330,7 @@ export class UplcForce extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {ComputingState} state 
@@ -13228,7 +13345,6 @@ export class UplcForce extends UplcTerm {
 
 /**
  * Plutus-core error term
- * @internal
  */
 export class UplcError extends UplcTerm {
 	/** 'msg' is only used for debuggin and doesn't actually appear in the final program */
@@ -13262,6 +13378,7 @@ export class UplcError extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -13271,6 +13388,7 @@ export class UplcError extends UplcTerm {
 
 	/**
 	 * Throws a RuntimeError when evaluated.
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -13279,6 +13397,7 @@ export class UplcError extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {ComputingState} state 
@@ -13291,7 +13410,6 @@ export class UplcError extends UplcTerm {
 
 /**
  * Plutus-core builtin function ref term
- * @internal
  */
 export class UplcBuiltin extends UplcTerm {
 	/** 
@@ -13358,6 +13476,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @returns {boolean}
 	 */
 	allowAny() {
@@ -13377,6 +13496,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @returns {boolean}
 	 */
 	isMacro() {
@@ -13399,6 +13519,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -13434,6 +13555,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} params
 	 * @param  {...UplcValue} args
 	 * @returns {Cost}
@@ -13452,6 +13574,7 @@ export class UplcBuiltin extends UplcTerm {
 
 	/**
 	 * Used by IRCoreCallExpr
+	 * @internal
 	 * @param {Word} name
 	 * @param {UplcValue[]} args
 	 * @returns {UplcValue}
@@ -13475,6 +13598,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte
 	 * @param {UplcFrame[]} stack
 	 * @param {ComputingState} state
@@ -13486,6 +13610,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {Site} site
 	 * @param {UplcValue[]} args
@@ -13502,6 +13627,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {Site} site
 	 * @param {UplcValue[]} args
@@ -13887,6 +14013,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte
 	 * @returns {UplcAnon}
 	 */
@@ -14642,6 +14769,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
+	 * @internal
 	 * @type {number}
 	 */
 	get forceCount() {
@@ -14651,6 +14779,7 @@ export class UplcBuiltin extends UplcTerm {
 	/**
 	 * Returns appropriate callback wrapped with UplcAnon depending on builtin name.
 	 * Emulates every Plutus-core that Helios exposes to the user.
+	 * @internal
 	 * @param {UplcRte | UplcStack} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -14841,6 +14970,7 @@ export class CallFrame extends UplcFrame {
 }
 
 /**
+ * @internal
  * @template {UplcTerm} T
  */
 class UplcTermWithEnv {
@@ -14878,6 +15008,7 @@ class UplcTermWithEnv {
 }
 
 /**
+ * @internal
  * @extends {UplcTermWithEnv<UplcLambda>}
  */
 class UplcLambdaWithEnv extends UplcTermWithEnv {
@@ -14921,6 +15052,7 @@ class UplcLambdaWithEnv extends UplcTermWithEnv {
 }
 
 /**
+ * @internal
  * @extends {UplcTermWithEnv<UplcDelay>}
  */
 class UplcDelayWithEnv extends UplcTermWithEnv {
@@ -14951,6 +15083,9 @@ class UplcDelayWithEnv extends UplcTermWithEnv {
 	}
 }
 
+/**
+ * @internal
+ */
 class UplcAnonValue extends UplcValue {
     /**
      * @readonly
@@ -14973,8 +15108,18 @@ class UplcAnonValue extends UplcValue {
     get memSize() {
         return 0;
     }
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return this.term.toString();
+	}
 }
 
+/**
+ * @internal
+ */
 class AppliedUplcBuiltin {
     /**
      * @readonly
@@ -15067,6 +15212,7 @@ class AppliedUplcBuiltin {
     }
 
     /**
+	 * @internal
      * @param {UplcRte} rte
      * @param {Site[]} sites
      * @returns {Promise<CekValue>}
@@ -15218,6 +15364,7 @@ class AppliedUplcBuiltin {
  */
 
 /**
+ * @internal
  * @param {UplcRte} rte
  * @param {UplcTerm} start
  * @param {null | UplcValue[]} args
@@ -15324,6 +15471,7 @@ export async function evalCek(rte, start, args = null) {
 // Section 11: Uplc program
 ///////////////////////////
 
+
 /**
  * This library uses version "1.0.0" of Plutus-core
  * @internal
@@ -15367,7 +15515,6 @@ const UPLC_TAG_WIDTHS = {
 
 /**
  * The constructor returns 'any' because it is an instance of TransferableUplcProgram, and the instance methods don't need to be defined here
- * @internal
  * @template TInstance
  * @typedef {{
  *   transferUplcProgram: (expr: any, properties: ProgramProperties, version: any[]) => TInstance,
@@ -15500,6 +15647,7 @@ const UPLC_TAG_WIDTHS = {
 	/**
 	 * Flat encodes the entire Plutus-core program.
 	 * Note that final padding isn't added now but is handled by bitWriter upon finalization.
+	 * @internal
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlat(bitWriter) {
@@ -15507,6 +15655,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -15519,6 +15668,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -15528,8 +15678,9 @@ const UPLC_TAG_WIDTHS = {
 
 	/**
 	 * Evaluates the term contained in UplcProgram (assuming it is a lambda term)
+	 * @internal
 	 * @param {null | UplcValue[]} args
-	 * @param {UplcRTECallbacks} callbacks
+	 * @param {UplcRTECallbacksInternal} callbacks
 	 * @param {null | NetworkParams} networkParams
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -17232,13 +17383,33 @@ export function tokenizeIR(rawSrc, codeMap) {
 
 /**
  * @internal
+ * @typedef {{[name: string]: (obj: any) => Promise<UplcData>}} JsToUplcHelpers
+ */
+
+/**
+ * @internal
+ * @typedef {{[name: string]: (data: UplcData) => Promise<any>}} UplcToJsHelpers
+ */
+
+/**
+ * @internal
+ * @typedef {(obj: any, helpers: JsToUplcHelpers) => Promise<UplcData>} JsToUplcConverter
+ */
+
+/**
+ * @internal
+ * @typedef {(data: UplcData, helpers: UplcToJsHelpers) => Promise<any>} UplcToJsConverter
+ */
+
+/**
+ * @internal
  * @typedef {Named & Type & {
  *   asDataType:   DataType
  *   fieldNames:   string[]
  *   offChainType: (null | HeliosDataClass<HeliosData>)
  *   typeDetails?: TypeDetails
- *   jsToUplc:     (obj: any, params?: NetworkParams) => UplcData
- *   uplcToJs:     (data: UplcData) => any
+ *   jsToUplc:     JsToUplcConverter
+ *   uplcToJs:     UplcToJsConverter
  *   ready:        boolean
  * }} DataType
  */
@@ -17593,17 +17764,19 @@ export class Common {
 
 	/**
 	 * @param {any} obj
-	 * @returns {UplcData}
+	 * @param {JsToUplcHelpers} helpers
+	 * @returns {Promise<UplcData>}
 	 */
-	jsToUplc(obj) {
+	jsToUplc(obj, helpers) {
 		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * @param {UplcData} data
-	 * @returns {any}
+	 * @param {UplcToJsHelpers} helpers
+	 * @returns {Promise<any>}
 	 */
-	uplcToJs(data) {
+	uplcToJs(data, helpers) {
 		throw new Error("not yet implemented");
 	}
 
@@ -18296,8 +18469,8 @@ export class FuncType extends Common {
  *   genInstanceMembers: (self: Type) => InstanceMembers,
  *   genTypeMembers: (self: Type) => TypeMembers
  *   genTypeDetails?: (self: Type) => TypeDetails,
- *   jsToUplc?: (obj: any) => UplcData
- *   uplcToJs?: (data: UplcData) => any
+ *   jsToUplc?: JsToUplcConverter
+ *   uplcToJs?: UplcToJsConverter
  * }} GenericTypeProps
  */
 
@@ -18349,12 +18522,12 @@ export class GenericType extends Common {
 	#genDepth;
 
 	/**
-	 * @type {null | ((obj: any, networkParams?: NetworkParams) => UplcData)}
+	 * @type {null | JsToUplcConverter}
 	 */
 	#jsToUplc;
 
 	/**
-	 * @type {null | ((data: UplcData) => any)}
+	 * @type {null | UplcToJsConverter}
 	 */
 	#uplcToJs;
 
@@ -18587,12 +18760,12 @@ export class GenericType extends Common {
 
 	/**
 	 * @param {any} obj 
-	 * @param {undefined | NetworkParams} networkParams
-	 * @returns {UplcData}
+	 * @param {JsToUplcHelpers} helpers
+	 * @returns {Promise<UplcData>}
 	 */
-	jsToUplc(obj, networkParams = undefined) {
+	jsToUplc(obj, helpers) {
 		if (this.#jsToUplc) {
-			return this.#jsToUplc(obj, networkParams);
+			return this.#jsToUplc(obj, helpers);
 		} else {
 			throw new Error(`'${this.name}' doesn't support converting from JS to Uplc`);
 		}
@@ -18600,11 +18773,12 @@ export class GenericType extends Common {
 
 	/**
 	 * @param {UplcData} data
-	 * @returns {any}
+	 * @param {UplcToJsHelpers} helpers
+	 * @returns {Promise<any>}
 	 */
-	uplcToJs(data) {
+	uplcToJs(data, helpers) {
 		if (this.#uplcToJs) {
-			return this.#uplcToJs(data);
+			return this.#uplcToJs(data, helpers);
 		} else {
 			throw new Error(`'${this.name}' doesn't support converting from Uplc to JS`);
 		}
@@ -18640,8 +18814,8 @@ export class GenericType extends Common {
  *   genInstanceMembers: (self: Type) => InstanceMembers,
  *   genTypeMembers?: (self: Type) => TypeMembers
  *   genTypeDetails?: (self: Type) => TypeDetails
- *   jsToUplc?: (obj: any) => UplcData
- *   uplcToJs?: (data: UplcData) => any
+ *   jsToUplc?: JsToUplcConverter
+ *   uplcToJs?: UplcToJsConverter
  * }} GenericEnumMemberTypeProps
  */
 
@@ -19355,17 +19529,19 @@ export const BoolType = new GenericType({
             type: "Bool"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return new ConstrData(obj ? 1 : 0, []);
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return data.index != 0;
     },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         show:      new FuncType([], StringType),
         to_int:    new FuncType([], IntType),
-        trace:     new FuncType([StringType], self)
+        trace:     new FuncType([StringType], self),
+        trace_if_false: new FuncType([StringType], self),
+        trace_if_true: new FuncType([StringType], self)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
@@ -19393,12 +19569,12 @@ export const ByteArrayType = new GenericType({
             type: "ByteArray"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         const bytes = Array.isArray(obj) ? obj : hexToBytes(obj);
 
         return new ByteArrayData(bytes);
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return data.bytes;
     },
     genInstanceMembers: (self) => ({
@@ -19438,10 +19614,10 @@ export const IntType = new GenericType({
             type: "Int"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return new IntData(BigInt(obj));
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return data.int;
     },
     genInstanceMembers: (self) => ({
@@ -19518,10 +19694,10 @@ export const RealType = new GenericType({
             type: "Real"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return new IntData(BigInt(obj*1000000))
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return Number(data.int)/1000000
     },
     genInstanceMembers: (self) => ({
@@ -19574,10 +19750,10 @@ export const StringType = new GenericType({
             type: "String"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return new ByteArrayData(textToBytes(obj));
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return bytesToText(data.bytes);
     },
     genInstanceMembers: (self) => ({
@@ -20345,18 +20521,20 @@ class AppliedType extends Common {
 
 	/**
 	 * @param {any} obj 
-	 * @returns {UplcData}
+	 * @param {JsToUplcHelpers} helpers
+	 * @returns {Promise<UplcData>}
 	 */
-	jsToUplc(obj) {
-		return this.#inner.jsToUplc(obj);
+	jsToUplc(obj, helpers) {
+		return this.#inner.jsToUplc(obj, helpers);
 	}
 
 	/**
 	 * @param {UplcData} data 
-	 * @returns {any}
+	 * @param {UplcToJsHelpers} helpers
+	 * @returns {any | Promise<any>}
 	 */
-	uplcToJs(data) {
-		return this.#inner.uplcToJs(data);
+	uplcToJs(data, helpers) {
+		return this.#inner.uplcToJs(data, helpers);
 	}
 
     /**
@@ -20726,15 +20904,15 @@ export const ListType = new ParametricType({
 					itemType: assertDefined(itemType.typeDetails?.internalType)
 				}
 			}),
-			jsToUplc: (obj) => {
+			jsToUplc: async (obj, helpers) => {
 				if (Array.isArray(obj)) {
-					return new ListData(obj.map(item => itemType.jsToUplc(item)));
+					return new ListData(await Promise.all(obj.map(item => itemType.jsToUplc(item, helpers))));
 				} else {
 					throw new Error("expected array");	
 				}
 			},
-			uplcToJs: (data) => {
-				return data.list.map(item => itemType.uplcToJs(item));
+			uplcToJs: async (data, helpers) => {
+				return await Promise.all(data.list.map(item => itemType.uplcToJs(item, helpers)));
 			},
 			genInstanceMembers: (self) => {
 				/**
@@ -20766,6 +20944,7 @@ export const ListType = new ParametricType({
 					drop_end: new FuncType([IntType], self),
 					filter: new FuncType([new FuncType([itemType], BoolType)], self),
 					find: new FuncType([new FuncType([itemType], BoolType)], itemType),
+					find_index: new FuncType([new FuncType([itemType], BoolType)], IntType),
 					find_safe: new FuncType([new FuncType([itemType], BoolType)], OptionType$(itemType)),
 					fold: (() => {
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
@@ -21076,10 +21255,10 @@ export var DurationType = new GenericType({
             type: "Duration"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return Duration.fromProps(obj)._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return Number(Duration.fromUplcData(data).value);
     },
     genInstanceMembers: (self) => ({
@@ -21125,10 +21304,10 @@ export var TimeType = new GenericType({
             type: "Time"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return Time.fromProps(obj)._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return new Date(Number(Time.fromUplcData(data).value));
     },
     genInstanceMembers: (self) => ({
@@ -21221,7 +21400,7 @@ function genHashTypeProps(offchainType) {
                 type: offchainType.name
             }
         }),
-        jsToUplc: (obj) => {
+        jsToUplc: async (obj, helpers) => {
             if (obj instanceof offchainType) {
                 return obj._toUplcData();
             } else {
@@ -21230,7 +21409,7 @@ function genHashTypeProps(offchainType) {
                 return new ByteArrayData(bytes);
             }
         },
-        uplcToJs: (data) => {
+        uplcToJs: async (data, helpers) => {
             return new offchainType(data.bytes);
         }
     }
@@ -21425,16 +21604,17 @@ export const AssetClassType = new GenericType({
             type: "AssetClass"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return AssetClass.fromProps(obj)._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return AssetClass.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         mph: MintingPolicyHashType,
-        token_name: ByteArrayType
+        token_name: ByteArrayType,
+        show: new FuncType([], StringType)
     }),
     genTypeMembers: (self) => {
         const selfInstance = new DataEntity(assertDefined(self.asDataType));
@@ -21442,7 +21622,11 @@ export const AssetClassType = new GenericType({
         return {
             ...genCommonTypeMembers(self),
             ADA: selfInstance,
-            new: new FuncType([MintingPolicyHashType, ByteArrayType], self)
+            new: new FuncType([MintingPolicyHashType, ByteArrayType], self),
+            __geq: new FuncType([self, self], BoolType),
+            __gt: new FuncType([self, self], BoolType),
+            __leq: new FuncType([self, self], BoolType),
+            __lt: new FuncType([self, self], BoolType)
         }
     }
 });
@@ -21463,10 +21647,10 @@ export const ValueType = new GenericType({
             type: "Value"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return Value.fromProps(obj)._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return Value.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({
@@ -21562,10 +21746,10 @@ export const AddressType = new GenericType({
             type: "Address"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return (Address.fromProps(obj))._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return Address.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({
@@ -22354,6 +22538,10 @@ export const TxBuilderType = new GenericType({
             const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
             return new ParametricFunc([a], new FuncType([AddressType, ValueType, a.ref], self));
         })(),
+        pay_if_true: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
+            return new ParametricFunc([a], new FuncType([BoolType, AddressType, ValueType, a.ref], self)); 
+        })(),
         mint: (() => {
             const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
             return new ParametricFunc([a], new FuncType([ValueType, a.ref], self));
@@ -22381,11 +22569,13 @@ export const TxBuilderType = new GenericType({
  */
 export const TxType = new GenericType({
     name: "Tx",
-    jsToUplc: (obj, networkParams) => {
-        return obj.toTxData(assertDefined(networkParams));
+    jsToUplc: async (obj, helpers) => {
+        return helpers["Tx"](obj)
+        //return obj.toTxData(assertDefined(networkParams));
     },
-    uplcToJs: (data) => {
-        return TxId.fromUplcData(data.fields[11]);
+    uplcToJs: async (data, helpers) => {
+        return helpers["Tx"](data);
+        //return TxId.fromUplcData(data.fields[11]);
     },
     genTypeDetails: (self) => ({
         inputType: "helios.Tx",
@@ -22484,10 +22674,10 @@ export const TxIdType = new GenericType({
             type: "TxId"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return TxId.fromProps(obj)._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return TxId.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({
@@ -22560,16 +22750,17 @@ export const TxOutputIdType = new GenericType({
             type: "TxOutputId"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return TxOutputId.fromProps(obj)._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return TxOutputId.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         tx_id: TxIdType,
-        index: IntType
+        index: IntType,
+        show: new FuncType([], StringType)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
@@ -28300,12 +28491,13 @@ export class DataDefinition {
 
 	/**
 	 * @param {any} obj
-	 * @return {UplcData[]}
+	 * @param {JsToUplcHelpers} helpers
+	 * @return {Promise<UplcData[]>}
 	 */
-	jsFieldsToUplc(obj) {
+	async jsFieldsToUplc(obj, helpers) {
 		/**
-					 * @type {UplcData[]}
-					 */
+		 * @type {Promise<UplcData>[]}
+		 */
 		const fields = [];
 
 		if (Object.keys(obj).length == this.nFields && Object.keys(obj).every(k => this.hasField(new Word(Site.dummy(), k)))) {
@@ -28318,27 +28510,30 @@ export class DataDefinition {
 					throw new Error(`typeDetails for ${fieldType.name} not yet implemented`);
 				}
 
-				fields.push(fieldType.jsToUplc(arg));
+				fields.push(fieldType.jsToUplc(arg, helpers));
 			});
 		} else {
 			throw new Error(`expected ${this.nFields} args, got ${Object.keys(obj).length}`);
 		}
 
-		return fields;
+		return Promise.all(fields);
 	}
 
 	/**
 	 * @param {UplcData[]} fields 
-	 * @returns {any}
+	 * @param {UplcToJsHelpers} helpers
+	 * @returns {Promise<any>}
 	 */
-	uplcFieldsToJs(fields) {
+	async uplcFieldsToJs(fields, helpers) {
 		const obj = {};
 
-		fields.forEach((f, i) => {
+		for (let i = 0; i < fields.length; i++) {
+			const f = fields[i];
+
 			const fn = this.getFieldName(i);
 
-			obj[fn] = this.getFieldType(i).uplcToJs(f);
-		})
+			obj[fn] = await this.getFieldType(i).uplcToJs(f, helpers);
+		};
 
 		return obj;
 	}
@@ -28738,11 +28933,11 @@ export class StructStatement extends Statement {
 						}
 					};
 				},
-				jsToUplc: (obj) => {
+				jsToUplc: async (obj, helpers) => {
 					/**
 					 * @type {UplcData[]}
 					 */
-					const fields = this.#dataDef.jsFieldsToUplc(obj);
+					const fields = await this.#dataDef.jsFieldsToUplc(obj, helpers);
 
 					if (fields.length == 1) {
 						return fields[0];
@@ -28750,11 +28945,11 @@ export class StructStatement extends Statement {
 						return new ListData(fields);
 					}
 				},
-				uplcToJs: (data) => {
+				uplcToJs: async (data, helpers) => {
 					if (this.#dataDef.nFields == 1) {
-						return this.#dataDef.getFieldType(0).uplcToJs(data);
+						return this.#dataDef.getFieldType(0).uplcToJs(data, helpers);
 					} else {
-						return this.#dataDef.uplcFieldsToJs(data.list);
+						return this.#dataDef.uplcFieldsToJs(data.list, helpers);
 					}
 				},
 				genOffChainType: () => this.genOffChainType(),
@@ -29435,8 +29630,8 @@ export class EnumStatement extends Statement {
 					this.#members.forEach(member => {
 						const [inputType, outputType, internalTypeFields] = member.dataDefinition.genTypeDetails();
 						
-						inputEnumTypeParts.push(`{type: "${member.name.value}", data: ${inputType}}`);
-						outputEnumTypeParts.push(`{type: "${member.name.value}", data: ${outputType}}`);
+						inputEnumTypeParts.push(`{"${member.name.value}": ${inputType}}`);
+						outputEnumTypeParts.push(`{"${member.name.value}": ${outputType}}`);
 						internalEnumTypeParts.push({name: member.name.value, fieldTypes: internalTypeFields});
 					});
 
@@ -29449,8 +29644,8 @@ export class EnumStatement extends Statement {
 						}
 					};
 				},
-				jsToUplc: (obj) => {
-					const memberName = assertDefined(obj.type);
+				jsToUplc: async (obj, helpers) => {
+					const memberName = assertDefined(Object.keys(obj)[0]);
 
 					const i = this.#members.findIndex(m => m.name.value == memberName);
 
@@ -29460,11 +29655,11 @@ export class EnumStatement extends Statement {
 
 					const member = this.#members[i];
 
-					const fields = member.dataDefinition.jsFieldsToUplc(assertDefined(obj.data));
+					const fields = await member.dataDefinition.jsFieldsToUplc(assertDefined(obj[memberName]), helpers);
 
 					return new ConstrData(i, fields);
 				},
-				uplcToJs: (data) => {
+				uplcToJs: async (data, helpers) => {
 					const i = data.index;
 
 					if (i < 0 || i >= this.#members.length) {
@@ -29474,8 +29669,7 @@ export class EnumStatement extends Statement {
 					const member = this.#members[i];
 
 					return {
-						type: member.name.value,
-						data: member.dataDefinition.uplcFieldsToJs(data.fields)
+						[member.name.value]: await member.dataDefinition.uplcFieldsToJs(data.fields, helpers)
 					};
 				},
 				genOffChainType: () => this.genOffChainType(),
@@ -32859,9 +33053,10 @@ var onNotifyRawUsage = null;
 
 /**
  * Set the statistics collector (used by the test-suite)
+ * @internal
  * @param {(name: string, count: number) => void} callback 
  */
-function setRawUsageNotifier(callback) {
+export function setRawUsageNotifier(callback) {
 	onNotifyRawUsage = callback;
 }
 
@@ -34408,6 +34603,34 @@ function makeRawFunctions() {
 			)
 		}
 	}`));
+	add(new RawFunc("__helios__bool__trace_if_false",
+	`(self) -> {
+		(msg) -> {
+			__core__ifThenElse(
+				self,
+				() -> {
+					self
+				},
+				() -> {
+					__core__trace(msg, self)
+				}
+			)()
+		}
+	}`));
+	add(new RawFunc("__helios__bool__trace_if_true",
+	`(self) -> {
+		(msg) -> {
+			__core__ifThenElse(
+				self,
+				() -> {
+					__core__trace(msg, self)
+				},
+				() -> {
+					self
+				}
+			)()
+		}
+	}`));
 
 
 	// String builtins
@@ -35542,6 +35765,30 @@ function makeRawFunctions() {
 									fn(item), 
 									() -> {item}, 
 									() -> {recurse(recurse, __core__tailList(lst))}
+								)()
+							}(${TTPP}0__from_data(__core__headList(lst)))
+						}
+					)()
+				}
+			)
+		}
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__find_index`,
+	`(self) -> {
+		(fn) -> {
+			(recurse) -> {
+				recurse(recurse, self, 0)
+			}(
+				(recurse, lst, i) -> {
+					__core__chooseList(
+						lst,
+						() -> {-1},
+						() -> {
+							(item) -> {
+								__core__ifThenElse(
+									fn(item),
+									() -> {i},
+									() -> {recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1))}
 								)()
 							}(${TTPP}0__from_data(__core__headList(lst)))
 						}
@@ -36990,6 +37237,44 @@ function makeRawFunctions() {
 			})
 		}
 	}`));
+	add(new RawFunc(`__helios__txbuilder__pay_if_true[${FTPP}0]`,
+	`(self) -> {
+		(cond, address, value, datum) -> {
+			__core__ifThenElse(
+				cond,
+				() -> {
+					__helios__txbuilder__unwrap(self, (inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums) -> {
+						__helios__txbuilder__new(
+							inputs,
+							ref_inputs,
+							__helios__list[__helios__data]__append(outputs)(
+								__helios__txoutput____to_data(
+									__helios__txoutput__new(
+										address, 
+										value, 
+										__helios__outputdatum__new_inline[__helios__data](
+											${FTPP}0____to_data(datum)
+										)
+									)
+								)
+							),
+							fee,
+							minted,
+							dcerts,
+							withdrawals,
+							validity,
+							signatories,
+							redeemers,
+							datums
+						)
+					})
+				},
+				() -> {
+					self
+				}
+			)()
+		}
+	}`));
 	add(new RawFunc(`__helios__txbuilder__mint[${FTPP}0]`,
 	`(self) -> {
 		(value, redeemer) -> {
@@ -37624,6 +37909,18 @@ function makeRawFunctions() {
 	`(tx_id, idx) -> {
 		__core__constrData(0, __helios__common__list_2(tx_id, __helios__int____to_data(idx)))
 	}`));
+	add(new RawFunc("__helios__txoutputid__show",
+	`(self) -> {
+		() -> {
+			__helios__string____add(
+				__helios__txid__show(__helios__txoutputid__tx_id(self))(),
+				__helios__string____add(
+					"#",
+					__helios__int__show(__helios__txoutputid__index(self))()
+				)
+			)
+		}
+	}`));
 
 
 	// Address
@@ -38031,6 +38328,86 @@ function makeRawFunctions() {
 	add(new RawFunc("__helios__assetclass__token_name", 
 	`(self) -> {
 		__helios__bytearray__from_data(__helios__common__field_1(self))
+	}`));
+	add(new RawFunc("__helios__assetclass____lt",
+	`(a, b) -> {
+		(mpha, mphb) -> {
+			__core__ifThenElse(
+				__helios__bytearray____eq(mpha, mphb),
+				() -> {
+					__helios__bytearray____lt(
+						__helios__assetclass__token_name(a),
+						__helios__assetclass__token_name(b)
+					)
+				},
+				() -> {
+					__helios__bytearray____lt(mpha, mphb)
+				}
+			)()
+		}(__helios__assetclass__mph(a), __helios__assetclass__mph(b))
+	}`));
+	add(new RawFunc("__helios__assetclass____leq",
+	`(a, b) -> {
+		(mpha, mphb) -> {
+			__core__ifThenElse(
+				__helios__bytearray____eq(mpha, mphb),
+				() -> {
+					__helios__bytearray____leq(
+						__helios__assetclass__token_name(a),
+						__helios__assetclass__token_name(b)
+					)
+				},
+				() -> {
+					__helios__bytearray____lt(mpha, mphb)
+				}
+			)()
+		}(__helios__assetclass__mph(a), __helios__assetclass__mph(b))
+	}`));
+	add(new RawFunc("__helios__assetclass____gt",
+	`(a, b) -> {
+		(mpha, mphb) -> {
+			__core__ifThenElse(
+				__helios__bytearray____eq(mpha, mphb),
+				() -> {
+					__helios__bytearray____gt(
+						__helios__assetclass__token_name(a),
+						__helios__assetclass__token_name(b)
+					)
+				},
+				() -> {
+					__helios__bytearray____gt(mpha, mphb)
+				}
+			)()
+		}(__helios__assetclass__mph(a), __helios__assetclass__mph(b))
+	}`));
+	add(new RawFunc("__helios__assetclass____geq",
+	`(a, b) -> {
+		(mpha, mphb) -> {
+			__core__ifThenElse(
+				__helios__bytearray____eq(mpha, mphb),
+				() -> {
+					__helios__bytearray____geq(
+						__helios__assetclass__token_name(a),
+						__helios__assetclass__token_name(b)
+					)
+				},
+				() -> {
+					__helios__bytearray____gt(mpha, mphb)
+				}
+			)()
+		}(__helios__assetclass__mph(a), __helios__assetclass__mph(b))
+	}`));
+	add(new RawFunc("__helios__assetclass__show",
+	`(self) -> {
+		() -> {
+			__helios__string____add(
+				__helios__mintingpolicyhash__show(__helios__assetclass__mph(self))(),
+				__helios__string____add(
+					".",
+					__helios__bytearray__show(__helios__assetclass__token_name(self))()
+				)
+			)
+		}
 	}`));
 
 
@@ -42106,6 +42483,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	#parameters;
 	
 	/**
+	 * @internal
 	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules
 	 * @param {ProgramConfig} config
@@ -42118,11 +42496,15 @@ const DEFAULT_PROGRAM_CONFIG = {
 		this.#parameters = {};
 	}
 
+	/**
+	 * @internal
+	 */
 	throwErrors() {
 		this.#modules.forEach(m => m.throwErrors());
 	}
 
 	/**
+	 * @internal
 	 * @param {string} rawSrc 
 	 * @returns {[purpose, Module[]]}
 	 */
@@ -42168,7 +42550,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
-	 * 
+	 * @internal
 	 * @param {string} mainName 
 	 * @param {string[]} moduleSrcs
 	 * @returns {Module[]}
@@ -42197,6 +42579,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {string} mainSrc 
 	 * @param {string[]} moduleSrcs
 	 * @returns {[null | ScriptPurpose, Module[]]}
@@ -42231,11 +42614,23 @@ const DEFAULT_PROGRAM_CONFIG = {
 	 * Creates  a new program.
 	 * @param {string} mainSrc 
 	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
-	 * @param {{[name: string]: Type}} validatorTypes
 	 * @param {ProgramConfig} config
 	 * @returns {Program}
 	 */
 	static new(mainSrc, moduleSrcs = [], validatorTypes = {}, config = DEFAULT_PROGRAM_CONFIG) {
+		return Program.newInternal(mainSrc, moduleSrcs, {}, config);
+	}
+
+	/**
+	 * Creates  a new program.
+	 * @internal
+	 * @param {string} mainSrc 
+	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
+	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {ProgramConfig} config
+	 * @returns {Program}
+	 */
+	static newInternal(mainSrc, moduleSrcs = [], validatorTypes = {}, config = DEFAULT_PROGRAM_CONFIG) {
 		const [purpose, modules] = Program.parseMain(mainSrc, moduleSrcs);
 	
 		/**
@@ -42282,6 +42677,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {number}
 	 */
 	get nPosParams() {
@@ -42289,6 +42685,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {Type[]}
 	 */
 	get posParams() {
@@ -42296,6 +42693,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/** 
+	 * @internal
 	 * @type {Module[]} 
 	 */
 	get mainImportedModules() {
@@ -42314,6 +42712,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {MainModule}
 	 */
 	get mainModule() {
@@ -42327,6 +42726,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {null | Module}
 	 */
 	get postModule() {
@@ -42354,6 +42754,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {FuncStatement}
 	 */
 	get mainFunc() {
@@ -42361,6 +42762,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {Site}
 	 */
 	get mainRetExprSite() {
@@ -42368,6 +42770,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {string[]}
 	 */
 	get mainArgNames() {
@@ -42375,6 +42778,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {DataType[]}
 	 */
 	get mainArgTypes() {
@@ -42382,6 +42786,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {string}
 	 */
 	get mainPath() {
@@ -42389,6 +42794,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {Statement[]}
 	 */
 	get mainStatements() {
@@ -42397,6 +42803,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 	/**
 	 * Needed to list the paramTypes, and to call changeParam
+	 * @internal
 	 * @type {Statement[]}
 	 */
 	get mainAndPostStatements() {
@@ -42410,6 +42817,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {[Statement, boolean][]} - boolean value marks if statement is import or not
 	 */
 	get allStatements() {
@@ -42438,6 +42846,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {GlobalScope} globalScope
 	 * @returns {TopScope}
 	 */
@@ -42467,11 +42876,12 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {{[name: string]: Type}} validatorTypes
 	 * @returns {TopScope}
 	 */
 	evalTypes(validatorTypes = {}) {
-		throw new Error("not yet implemeneted");
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -42483,6 +42893,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 	/**
 	 * Fill #types with convenient javascript equivalents of Int, ByteArray etc.
+	 * @internal
 	 * @param {TopScope} topScope
 	 */
 	fillTypes(topScope) {
@@ -42496,6 +42907,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {(name: string, cs: ConstStatement) => void} callback 
 	 */
 	loopConstStatements(callback) {
@@ -42509,6 +42921,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {{[name: string]: DataType}}
 	 */
 	get paramTypes() {
@@ -42548,6 +42961,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {string} name 
 	 * @returns {ConstStatement | null}
 	 */
@@ -42569,6 +42983,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {ConstStatement} constStatement
 	 * @returns {UplcValue}
 	 */
@@ -42813,6 +43228,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 	/**
 	 * Also merges builtins and map
+	 * @internal
 	 * @param {IR} mainIR
 	 * @param {IRDefinitions} map 
 	 * @returns {IRDefinitions}
@@ -42899,6 +43315,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {IR} ir 
 	 * @param {IRDefinitions} definitions 
 	 * @returns {Set<string>}
@@ -42937,6 +43354,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {IR} ir 
 	 * @param {IRDefinitions} definitions 
 	 * @returns {IRDefinitions}
@@ -42984,6 +43402,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {IR} ir
 	 * @param {IRDefinitions} definitions
 	 * @returns {IR}
@@ -43020,6 +43439,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIRInternal() {
@@ -43039,6 +43459,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 	/**
 	 * Non-positional named parameters
+	 * @internal
 	 * @type {[string, Type][]}
 	 */
 	get requiredParameters() {
@@ -43511,6 +43932,9 @@ class StakingProgram extends RedeemerProgram {
 	}
 }
 
+/**
+ * @internal
+ */
 class LinkingProgram extends GenericProgram {
 	/**
 	 * @param {Module[]} modules 
@@ -43856,6 +44280,7 @@ export class NativeScript extends CborData {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context 
      * @returns {boolean}
      */
@@ -43924,6 +44349,7 @@ class NativeSig extends NativeScript {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context 
      * @returns {boolean}
      */
@@ -43965,6 +44391,7 @@ class NativeAll extends NativeScript {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context 
      * @returns {boolean}
      */
@@ -44006,6 +44433,7 @@ class NativeAny extends NativeScript {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context
      * @returns {boolean}
      */
@@ -44052,6 +44480,7 @@ class NativeAtLeast extends NativeScript {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context
      * @returns {boolean}
      */
@@ -44100,6 +44529,7 @@ class NativeAfter extends NativeScript {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context
      * @returns {boolean}
      */
@@ -44146,6 +44576,7 @@ class NativeBefore extends NativeScript {
     }
 
     /**
+     * @internal
      * @param {NativeContext} context
      * @returns {boolean}
      */
@@ -44296,7 +44727,7 @@ export class Tx extends CborData {
 	 * @param {UplcData} data
 	 * @param {NetworkParams} networkParams
 	 * @param {Address} changeAddress
-	 * @param {UTxO[]} spareUtxos
+	 * @param {TxInput[]} spareUtxos
 	 * @param {{[name: string]: UplcProgram}} scripts
 	 * @returns {Promise<Tx>}
 	 */
@@ -44342,7 +44773,7 @@ export class Tx extends CborData {
 			const redeemer = redeemers.find(r => (r instanceof SpendingRedeemer) && r.inputIndex == i) ?? null;
 
 			if (redeemer instanceof SpendingRedeemer) {
-				tx.addInput(input.utxo, redeemer.data);
+				tx.addInput(input, redeemer.data);
 
 				if (input.address.validatorHash) {
 					if  (input.address.validatorHash.hex in scripts) {
@@ -44350,19 +44781,19 @@ export class Tx extends CborData {
 
 						tx.attachScript(uplcProgram);
 					} else {
-						throw new Error(`script for SpendingRedeemer (vh:${input.address.validatorHash.hex}) not found in ${Object.keys(scripts)}`);
+						throw new Error(`script for SpendingRedeemer (vh:${input.address.validatorHash.hex}) not found in [${Object.keys(scripts).join(", ")}]`);
 					}
 				} else {
 					throw new Error("unexpected (expected a validator address");
 				}
 			} else {
 				assert(redeemer === null);
-				tx.addInput(input.utxo);
+				tx.addInput(input);
 			}
 		});
 
 		refInputs.forEach(refInput => {
-			tx.addRefInput(new TxRefInput(refInput.txId, refInput.utxoIdx, refInput.origOutput));
+			tx.addRefInput(refInput);
 		});
 
 		// filter out spareUtxos that are already used as inputs
@@ -44406,6 +44837,15 @@ export class Tx extends CborData {
 	 */
 	toTxData(networkParams) {
 		return this.#body.toTxData(networkParams, this.witnesses.redeemers, this.witnesses.datums, this.id());
+	}
+
+	/**
+	 * A serialized tx throws away input information
+	 * This must be refetched from the network if the tx needs to be analyzed
+	 * @param {(id: TxOutputId) => Promise<TxOutput>} fn
+	 */
+	async completeInputData(fn) {
+		await this.#body.completeInputData(fn)
 	}
 
 	/**
@@ -44471,7 +44911,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {UTxO} input
+	 * @param {TxInput} input
 	 * @param {null | UplcDataValue | UplcData | HeliosData} rawRedeemer
 	 * @returns {Tx}
 	 */
@@ -44481,14 +44921,14 @@ export class Tx extends CborData {
 		if (input.origOutput === null) {
 			throw new Error("TxInput.origOutput must be set when building transaction");
 		} else {
-			void this.#body.addInput(input.asTxInput);
+			void this.#body.addInput(input);
 
 			if (rawRedeemer !== null) {
 				assert(input.origOutput.address.validatorHash !== null, "input isn't locked by a script");
 
 				const redeemer = rawRedeemer instanceof HeliosData ? rawRedeemer._toUplcData() : UplcDataValue.unwrap(rawRedeemer);
 
-				this.#witnesses.addSpendingRedeemer(input.asTxInput, redeemer);
+				this.#witnesses.addSpendingRedeemer(input, redeemer);
 
 				if (input.origOutput.datum === null) {
 					throw new Error("expected non-null datum");
@@ -44517,7 +44957,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {UTxO[]} inputs
+	 * @param {TxInput[]} inputs
 	 * @param {?(UplcDataValue | UplcData | HeliosData)} redeemer
 	 * @returns {Tx}
 	 */
@@ -44530,8 +44970,8 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {TxRefInput} input
-	 * @param {?UplcProgram} refScript
+	 * @param {TxInput} input
+	 * @param {null | UplcProgram} refScript
 	 * @returns {Tx}
 	 */
 	addRefInput(input, refScript = null) {
@@ -44547,7 +44987,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {TxRefInput[]} inputs
+	 * @param {TxInput[]} inputs
 	 * @returns {Tx}
 	 */
 	addRefInputs(inputs) {
@@ -44616,13 +45056,13 @@ export class Tx extends CborData {
 	/**
 	 * Usually adding only one collateral input is enough
 	 * Must be less than the limit in networkParams (eg. 3), or else an error is thrown during finalization
-	 * @param {UTxO} input 
+	 * @param {TxInput} input 
 	 * @returns {Tx}
 	 */
 	addCollateral(input) {
 		assert(!this.#valid);
 
-		this.#body.addCollateral(input.asTxInput);
+		this.#body.addCollateral(input);
 
 		return this;
 	}
@@ -44726,6 +45166,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {Address} changeAddress
 	 * @returns {Promise<void>}
@@ -44735,6 +45176,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @returns {Promise<void>}
 	 */
@@ -44743,6 +45185,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {Address} changeAddress 
 	 */
 	balanceAssets(changeAddress) {
@@ -44765,9 +45208,10 @@ export class Tx extends CborData {
 
 	/**
 	 * Calculate the base fee which will be multiplied by the required min collateral percentage 
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {Address} changeAddress 
-	 * @param {UTxO[]} spareUtxos 
+	 * @param {TxInput[]} spareUtxos 
 	 */
 	estimateCollateralBaseFee(networkParams, changeAddress, spareUtxos) {
 		assert(config.N_DUMMY_INPUTS == 1 || config.N_DUMMY_INPUTS == 2, "expected N_DUMMY_INPUTs == 1 or N_DUMMY_INPUTS == 2");
@@ -44777,7 +45221,7 @@ export class Tx extends CborData {
 		dummyOutput.correctLovelace(networkParams);
 
 		// some dummy UTxOs on to be able to correctly calculate the collateral (assuming it uses full body fee)
-		const dummyCollateral = spareUtxos.map(spare => spare.asTxInput).concat(this.#body.inputs).slice(0, 3);
+		const dummyCollateral = spareUtxos.map(spare => spare).concat(this.#body.inputs).slice(0, 3);
 		dummyCollateral.forEach(input => {
 			this.#body.collateral.push(input);
 		});
@@ -44802,9 +45246,10 @@ export class Tx extends CborData {
 	}
 	
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @param {Address} changeAddress
-	 * @param {UTxO[]} spareUtxos
+	 * @param {TxInput[]} spareUtxos
 	 */
 	balanceCollateral(networkParams, changeAddress, spareUtxos) {
 		// don't do this step if collateral was already added explicitly
@@ -44845,7 +45290,7 @@ export class Tx extends CborData {
 		
 		addCollateralInputs(this.#body.inputs.slice());
 
-		addCollateralInputs(spareUtxos.map(utxo => utxo.asTxInput));
+		addCollateralInputs(spareUtxos.map(utxo => utxo));
 
 		// create the collateral return output if there is enough lovelace
 		const changeOutput = new TxOutput(changeAddress, new Value(0n));
@@ -44881,7 +45326,7 @@ export class Tx extends CborData {
 	 * Shouldn't be used directly
 	 * @param {NetworkParams} networkParams 
 	 * @param {Address} changeAddress
-	 * @param {UTxO[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
+	 * @param {TxInput[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
 	 * @returns {TxOutput} - changeOutput so the fee can be mutated furthers
 	 */
 	balanceLovelace(networkParams, changeAddress, spareUtxos) {
@@ -44917,7 +45362,7 @@ export class Tx extends CborData {
 			if (spare === undefined) {
 				throw new Error("transaction doesn't have enough inputs to cover the outputs + fees + minLovelace");
 			} else {
-				this.#body.addInput(spare.asTxInput);
+				this.#body.addInput(spare);
 
 				inputValue = inputValue.add(spare.value);
 			}
@@ -45068,7 +45513,7 @@ export class Tx extends CborData {
 	 * Note: this is an async function so that a debugger can optionally be attached in the future
 	 * @param {NetworkParams} networkParams
 	 * @param {Address}       changeAddress
-	 * @param {UTxO[]}        spareUtxos - might be used during balancing if there currently aren't enough inputs
+	 * @param {TxInput[]}        spareUtxos - might be used during balancing if there currently aren't enough inputs
 	 * @returns {Promise<Tx>}
 	 */
 	async finalize(networkParams, changeAddress, spareUtxos = []) {
@@ -45210,7 +45655,7 @@ export class Tx extends CborData {
 /**
  * inputs, minted assets, and withdrawals need to be sorted in order to form a valid transaction
  */
-class TxBody extends CborData {
+export class TxBody extends CborData {
 	/**
 	 * Inputs must be sorted before submitting (first by TxId, then by utxoIndex)
 	 * Spending redeemers must point to the sorted inputs
@@ -45536,6 +45981,48 @@ class TxBody extends CborData {
 				new ConstrData(0, []), // false
 			]),
 		]);
+	}
+
+	/**
+	 * A serialized tx throws away input information
+	 * This must be refetched from the network if the tx needs to be analyzed
+	 * @param {(id: TxOutputId) => Promise<TxOutput>} fn
+	 */
+	async completeInputData(fn) {
+		const indices = [];
+		const ids = [];
+
+		for (let i = 0; i < this.#inputs.length; i++) {
+			const input = this.#inputs[i];
+
+			if (!input.hasOrigOutput()) {
+				indices.push(i);
+				ids.push(new TxOutputId({txId: input.txId, utxoId: input.utxoIdx}));
+			}
+		}
+
+		const offset = this.#inputs.length;
+
+		for (let i = 0; i < this.#refInputs.length; i++) {
+			const refInput = this.#refInputs[i];
+
+			if (!refInput.hasOrigOutput()) {
+				indices.push(offset + i);
+				ids.push(new TxOutputId({txId: refInput.txId, utxoId: refInput.utxoIdx}));
+			}
+		}
+
+		const outputs = await Promise.all(ids.map(id => fn(id)));
+
+		outputs.forEach((output, j) => {
+			const i = indices[j];
+
+			if (i < offset) {
+				this.#inputs[i].setOrigOutput(output)
+			} else {
+				this.#refInputs[i-offset].setOrigOutput(output)
+			}
+		});
 	}
 
 	/**
@@ -45993,6 +46480,11 @@ export class TxWitnesses extends CborData {
 	/** @type {Redeemer[]} */
 	#redeemers;
 
+	/**
+	 * @type {number[][]}
+	 */
+	#v1Scripts;
+
 	/** @type {UplcProgram[]} */
 	#scripts;
 
@@ -46007,6 +46499,7 @@ export class TxWitnesses extends CborData {
 		this.#signatures = [];
 		this.#datums = new ListData([]);
 		this.#redeemers = [];
+		this.#v1Scripts = []; // for backward compatibility with some wallets
 		this.#scripts = []; // always plutus v2
 		this.#refScripts = [];
 		this.#nativeScripts = [];
@@ -46080,6 +46573,10 @@ export class TxWitnesses extends CborData {
 			object.set(1, CborData.encodeDefList(this.#nativeScripts));
 		}
 
+		if (this.#v1Scripts.length > 0) {
+			object.set(3, CborData.encodeDefList(this.#v1Scripts));
+		}
+
 		if (this.#datums.list.length > 0) {
 			object.set(4, this.#datums.toCbor());
 		}
@@ -46120,8 +46617,12 @@ export class TxWitnesses extends CborData {
 					});
 					break;
 				case 2:
-				case 3:
 					throw new Error(`unhandled TxWitnesses field ${i}`);
+				case 3:
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+						txWitnesses.#v1Scripts.push(itemBytes);
+					});
+					break;
 				case 4:
 					txWitnesses.#datums = ListData.fromCbor(fieldBytes);
 					break;
@@ -46294,6 +46795,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {TxBody} body
 	 */
 	updateRedeemerIndices(body) {
@@ -46303,6 +46805,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @returns {Hash | null} - returns null if there are no redeemers
 	 */
@@ -46329,7 +46832,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
-	 * 
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body
 	 * @param {Redeemer} redeemer 
@@ -46416,6 +46919,7 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * Executes the redeemers in order to calculate the necessary ex units
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body - needed in order to create correct ScriptContexts
 	 * @param {Address} changeAddress - needed for dummy input and dummy output
@@ -46428,6 +46932,7 @@ export class TxWitnesses extends CborData {
 	}
 	
 	/**
+	 * @internal
 	 * @param {TxBody} body
 	 */
 	executeNativeScripts(body) {
@@ -46442,6 +46947,7 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * Executes the redeemers in order to calculate the necessary ex units
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body - needed in order to create correct ScriptContexts
 	 * @param {Address} changeAddress - needed for dummy input and dummy output
@@ -46460,8 +46966,7 @@ export class TxWitnesses extends CborData {
 
 		// 1000 ADA should be enough as a dummy input/output
 		const dummyInput1 = new TxInput(
-			TxId.dummy(0),
-			0n,
+			new TxOutputId({txId: TxId.dummy(0), utxoId: 0}),
 			new TxOutput(
 				changeAddress,
 				new Value(fee + 1000_000_000n)
@@ -46469,8 +46974,7 @@ export class TxWitnesses extends CborData {
 		);
 		
 		const dummyInput2 = new TxInput(
-			TxId.dummy(255),
-			999n,
+			new TxOutputId({txId: TxId.dummy(255), utxoId: 999}),
 			new TxOutput(
 				changeAddress,
 				new Value(1000_000_000n)
@@ -46512,6 +47016,7 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * Reruns all the redeemers to make sure the ex budgets are still correct (can change due to outputs added during rebalancing)
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body 
 	 */
@@ -46533,6 +47038,7 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * Throws error if execution budget is exceeded
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 */
 	checkExecutionBudgetLimits(networkParams) {
@@ -46604,78 +47110,80 @@ export class TxWitnesses extends CborData {
 }
 
 /**
- * @internal
+ * TxInput base-type
  */
 export class TxInput extends CborData {
 	/** 
-	 * @type {TxId} 
+	 * @readonly
+	 * @type {TxOutputId} 
 	 */
-	#txId;
-
-	/** 
-	 * @type {bigint} 
-	 */
-	#utxoIdx;
+	outputId;
 
 	/** 
 	 * @type {null | TxOutput} 
 	 */
-	#origOutput;
+	#output;
 
 	/**
-	 * @param {TxId} txId 
-	 * @param {number | bigint} utxoIdx 
-	 * @param {null | TxOutput} origOutput - used during building, not part of serialization
+	 * @param {TxOutputId} outputId 
+	 * @param {null | TxOutput} output - used during building, not part of serialization
 	 */
-	constructor(txId, utxoIdx, origOutput = null) {
+	constructor(outputId, output = null) {
 		super();
-		this.#txId = txId;
-		this.#utxoIdx = BigInt(utxoIdx);
-		this.#origOutput = origOutput;
+		this.outputId = outputId;
+		this.#output = output;
 	}
 	
 	/**
+	 * @deprecated
 	 * @type {TxId}
 	 */
 	get txId() {
-		return this.#txId;
+		return this.outputId.txId;
 	}
 
 	/**
+	 * @deprecated
 	 * @type {number}
 	 */
 	get utxoIdx() {
-		return Number(this.#utxoIdx);
+		return Number(this.outputId.utxoIdx);
 	}
 
 	/**
 	 * 
-	 * @param {UTxO | TxInput} other 
+	 * @param {TxInput} other 
 	 * @returns {boolean}
 	 */
 	eq(other) {
-		return other.txId.eq(this.txId) && other.utxoIdx == this.utxoIdx;
+		return other.outputId.eq(this.outputId);
 	}
 
 	/**
+	 * @internal
+	 * @returns {boolean}
+	 */
+	hasOrigOutput() {
+		return this.#output !== null;
+	}
+
+	/**
+	 * @internal
+	 * @param {TxOutput} output 
+	 */
+	setOrigOutput(output) {
+		this.#output = output;
+	}
+
+	/**
+	 * @deprecated
 	 * @type {TxOutput}
 	 */
 	get origOutput() {
-		if (this.#origOutput === null) {
+		if (this.#output === null) {
 			throw new Error("origOutput not set");
 		} else {
-			return this.#origOutput;
-		}
-	}
-
-	/**
-	 * @type {UTxO}
-	 */
-	get utxo() {
-		if (this.#origOutput === null) {
-			throw new Error("origOutput not set");
-		} else {
-			return new UTxO(this.#txId, this.#utxoIdx, this.#origOutput);
+			return this.#output;
 		}
 	}
 
@@ -46684,7 +47192,7 @@ export class TxInput extends CborData {
 	 * @type {Value}
 	 */
 	get value() {
-		return this.origOutput.value;
+		return assertDefined(this.#output).value;
 	}
 
 	/**
@@ -46692,29 +47200,26 @@ export class TxInput extends CborData {
 	 * @type {Address}
 	 */
 	get address() {
-		return this.origOutput.address;
+		return assertDefined(this.#output).address;
 	}
 
 	/**
 	 * @returns {ConstrData}
 	 */
 	toOutputIdData() {
-		return new ConstrData(0, [
-			new ConstrData(0, [new ByteArrayData(this.#txId.bytes)]),
-			new IntData(this.#utxoIdx),
-		]);
+		return this.outputId._toUplcData();
 	}
 
 	/**
 	 * @returns {ConstrData}
 	 */
 	toData() {
-		if (this.#origOutput === null) {
+		if (this.#output === null) {
 			throw new Error("expected to be non-null");
 		} else {
 			return new ConstrData(0, [
 				this.toOutputIdData(),
-				this.#origOutput.toData(),
+				this.#output.toData(),
 			]);
 		}
 	}
@@ -46730,8 +47235,7 @@ export class TxInput extends CborData {
 		const outputId = TxOutputId.fromUplcData(fields[0]);
 
 		return new TxInput(
-			outputId.txId,
-			outputId.utxoIdx,
+			outputId,
 			TxOutput.fromUplcData(fields[1])
 		);
 	}
@@ -46740,41 +47244,64 @@ export class TxInput extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
+		//return CborData.encodeTuple([
+		return this.outputId.toCbor();//,
+		//	this.origOutput.toCbor()
+		//]);
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toFullCbor() {
 		return CborData.encodeTuple([
-			this.#txId.toCbor(),
-			CborData.encodeInteger(this.#utxoIdx),
+			this.outputId.toCbor(),
+			this.origOutput.toCbor()
 		]);
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * Deserializes TxOutput format used by wallet connector
+	 * @param {string | number[]} rawBytes
 	 * @returns {TxInput}
 	 */
-	static fromCbor(bytes) {
-		/** @type {?TxId} */
-		let txId = null;
+	static fromFullCbor(rawBytes) {
+		const bytes = Array.isArray(rawBytes) ? rawBytes : hexToBytes(rawBytes);
 
-		/** @type {?bigint} */
-		let utxoIdx = null;
+		/** @type {null | TxOutputId} */
+		let outputId = null;
+
+		/** @type {null | TxOutput} */
+		let output = null;
 
 		CborData.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					txId = TxId.fromCbor(fieldBytes);
+					outputId = TxOutputId.fromCbor(fieldBytes);
 					break;
 				case 1:
-					utxoIdx = CborData.decodeInteger(fieldBytes);
+					output = TxOutput.fromCbor(fieldBytes);
 					break;
 				default:
 					throw new Error("unrecognized field");
 			}
 		});
 
-		if (txId === null || utxoIdx === null) {
-			throw new Error("unexpected");
+		if (outputId !== null && output !== null) {
+			return new TxInput(outputId, output);
 		} else {
-			return new TxInput(txId, utxoIdx);
+			throw new Error("unexpected");
 		}
+	}
+
+	/**
+	 * @param {string | number[]} rawBytes 
+	 * @returns {TxInput}
+	 */
+	static fromCbor(rawBytes) {
+		const outputId = TxOutputId.fromCbor(rawBytes);
+
+		return new TxInput(outputId, null);
 	}
 
 	/**
@@ -46785,169 +47312,45 @@ export class TxInput extends CborData {
 	 * @returns {number}
 	 */
 	static comp(a, b) {
-		let res = ByteArrayData.comp(a.#txId.bytes, b.#txId.bytes);
-
-		if (res == 0) {
-			return Number(a.#utxoIdx - b.#utxoIdx);
-		} else {
-			return res;
-		}
+		return TxOutputId.comp(a.outputId, b.outputId);
 	} 
 
 	/**
-	 * @returns {Object}
-	 */
-	dump() {
-		return {
-			txId: this.#txId.dump(),
-			utxoIdx: this.#utxoIdx.toString(),
-			origOutput: this.#origOutput !== null ? this.#origOutput.dump() : null,
-		};
-	}
-}
-
-/**
- * UTxO wraps TxInput
- */
-export class UTxO extends CborData {
-	#input;
-
-	/**
-	 * @param {TxId} txId 
-	 * @param {number | bigint} utxoIdx 
-	 * @param {TxOutput} origOutput
-	 */
-	constructor(txId, utxoIdx, origOutput) {
-		super();
-		this.#input = new TxInput(txId, utxoIdx, origOutput);
-	}
-
-	/**
-	 * @type {TxId}
-	 */
-	get txId() {
-		return this.#input.txId;
-	}
-
-	/**
-	 * @type {number}
-	 */
-	get utxoIdx() {
-		return this.#input.utxoIdx;
-	}
-
-	/**
-	 * @type {TxInput}
-	 */
-	get asTxInput() {
-		return this.#input;
-	}
-
-	/**
-	 * @type {Value}
-	 */
-	get value() {
-		return this.#input.value;
-	}
-
-	/**
-	 * @type {TxOutput}
-	 */
-	get origOutput() {
-		return this.#input.origOutput;
-	}
-
-	/**
-	 * 
-	 * @param {UTxO | TxInput} other 
-	 * @returns {boolean}
-	 */
-	eq(other) {
-		return other.txId.eq(this.txId) && other.utxoIdx == this.utxoIdx;
-	}
-
-	/**
-	 * Deserializes UTxO format used by wallet connector
-	 * @param {string | number[]} rawBytes
-	 * @returns {UTxO}
-	 */
-	static fromCbor(rawBytes) {
-		const bytes = Array.isArray(rawBytes) ? rawBytes : hexToBytes(rawBytes);
-
-		/** @type {null | TxInput} */
-		let maybeTxInput = null;
-
-		/** @type {null | TxOutput} */
-		let origOutput = null;
-
-		CborData.decodeTuple(bytes, (i, fieldBytes) => {
-			switch(i) {
-				case 0:
-					maybeTxInput = TxInput.fromCbor(fieldBytes);
-					break;
-				case 1:
-					origOutput = TxOutput.fromCbor(fieldBytes);
-					break;
-				default:
-					throw new Error("unrecognized field");
-			}
-		});
-
-		if (maybeTxInput !== null && origOutput !== null) {
-            /** @type {TxInput} */
-            const txInput = maybeTxInput;
-            
-			return new UTxO(txInput.txId, txInput.utxoIdx, origOutput);
-		} else {
-			throw new Error("unexpected");
-		}
-	}
-
-	/**
-	 * @returns {number[]}
-	 */
-	toCbor() {
-		return CborData.encodeTuple([
-			this.#input.toCbor(),
-			this.#input.origOutput.toCbor()
-		]);
-	}
-
-	/**
-	 * @param {UTxO[]} utxos
+	 * @param {TxInput[]} inputs
 	 * @returns {Value}
 	 */
-	static sumValue(utxos) {
+	static sumValue(inputs) {
 		let sum = new Value();
 
-		for (let utxo of utxos) {
-			sum = sum.add(utxo.value);
+		for (let input of inputs) {
+			sum = sum.add(input.value);
 		}
 
 		return sum;
 	}
 
 	/**
-	 * @returns {any}
+	 * @returns {Object}
 	 */
 	dump() {
-		return this.asTxInput.dump()
+		return {
+			outputId: this.outputId.toString(),
+			output: this.#output !== null ? this.#output.dump() : null
+		};
 	}
 }
 
 /**
- * Distinct TxInput intended as ref input only.
+ * Use TxInput instead
+ * @deprecated
  */
-export class TxRefInput extends TxInput {
-	/**
-	 * @param {TxId} txId 
-	 * @param {number | bigint} utxoId
-	 * @param {TxOutput} origOutput
-	 */
-	constructor(txId, utxoId, origOutput) {
-		super(txId, utxoId, origOutput);
-	}
-}
+const UTxO = TxInput;
+
+/**
+ * User TxInput instead
+ * @deprecated
+ */
+const TxRefInput = TxInput;
 
 /**
  * TxOutput
@@ -48057,7 +48460,10 @@ export class RootPrivateKey {
 	}
 }
 
-class Redeemer extends CborData {
+/**
+ * Base-type of SpendingRedeemer and MintingRedeemer
+ */
+export class Redeemer extends CborData {
 	/** @type {UplcData} */
 	#data;
 
@@ -48277,7 +48683,7 @@ class Redeemer extends CborData {
 	}
 }
 
-class SpendingRedeemer extends Redeemer {
+export class SpendingRedeemer extends Redeemer {
 	#input;
 	#inputIndex;
 
@@ -48347,7 +48753,7 @@ class SpendingRedeemer extends Redeemer {
 	}
 }
 
-class MintingRedeemer extends Redeemer {
+export class MintingRedeemer extends Redeemer {
 	#mph;
 	#mphIndex;
 
@@ -49203,7 +49609,7 @@ export function highlight(src) {
 ////////////////////////////
 
 /**
- * @typedef {(utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]]} CoinSelectionAlgorithm
+ * @typedef {(utxos: TxInput[], amount: Value) => [TxInput[], TxInput[]]} CoinSelectionAlgorithm
  */
 
 /**
@@ -49211,24 +49617,24 @@ export function highlight(src) {
  */
 export class CoinSelection {
     /**
-     * @param {UTxO[]} utxos 
+     * @param {TxInput[]} utxos 
      * @param {Value} amount 
      * @param {boolean} largestFirst
-     * @returns {[UTxO[], UTxO[]]} - [picked, not picked that can be used as spares]
+     * @returns {[TxInput[], TxInput[]]} - [picked, not picked that can be used as spares]
      */
     static selectExtremumFirst(utxos, amount, largestFirst) {
         let sum = new Value();
 
-        /** @type {UTxO[]} */
+        /** @type {TxInput[]} */
         let notSelected = utxos.slice();
 
-        /** @type {UTxO[]} */
+        /** @type {TxInput[]} */
         const selected = [];
 
         /**
          * Selects smallest utxos until 'needed' is reached
          * @param {bigint} neededQuantity
-         * @param {(utxo: UTxO) => bigint} getQuantity
+         * @param {(utxo: TxInput) => bigint} getQuantity
          */
         function select(neededQuantity, getQuantity) {
             // first sort notYetPicked in ascending order when picking smallest first,
@@ -49347,8 +49753,8 @@ export class CoinSelection {
  *     isMainnet(): Promise<boolean>,
  *     usedAddresses: Promise<Address[]>,
  *     unusedAddresses: Promise<Address[]>,
- *     utxos: Promise<UTxO[]>,
- *     collateral: Promise<UTxO[]>,
+ *     utxos: Promise<TxInput[]>,
+ *     collateral: Promise<TxInput[]>,
  *     signTx(tx: Tx): Promise<Signature[]>,
  *     submitTx(tx: Tx): Promise<TxId>
  * }} Wallet
@@ -49404,18 +49810,18 @@ export class Cip30Wallet {
     }
 
     /**
-     * @type {Promise<UTxO[]>}
+     * @type {Promise<TxInput[]>}
      */
     get utxos() {
-        return this.#handle.getUtxos().then(utxos => utxos.map(u => UTxO.fromCbor(hexToBytes(u))));
+        return this.#handle.getUtxos().then(utxos => utxos.map(u => TxInput.fromFullCbor(hexToBytes(u))));
     }
 
     /**
-     * @type {Promise<UTxO[]>}
+     * @type {Promise<TxInput[]>}
      */
     get collateral() {
         const getCollateral = this.#handle.getCollateral || this.#handle.experimental.getCollateral;
-        return getCollateral().then(utxos => utxos.map(u => UTxO.fromCbor(hexToBytes(u))));
+        return getCollateral().then(utxos => utxos.map(u => TxInput.fromFullCbor(hexToBytes(u))));
     }
 
     /**
@@ -49444,12 +49850,15 @@ export class Cip30Wallet {
  */
 export class WalletHelper {
     #wallet;
+    #getUtxosFallback;
 
     /**
      * @param {Wallet} wallet
+     * @param {undefined | ((addr: Address[]) => Promise<TxInput[]>)} getUtxosFallback
      */
-    constructor(wallet) {
+    constructor(wallet, getUtxosFallback = undefined) {
         this.#wallet = wallet;
+        this.#getUtxosFallback = getUtxosFallback;
     }
 
     /**
@@ -49465,7 +49874,7 @@ export class WalletHelper {
     async calcBalance() {
         let sum = new Value();
 
-        const utxos = await this.#wallet.utxos;
+        const utxos = await this.getUtxos();
 
         for (const utxo of utxos) {
             sum = sum.add(utxo.value);
@@ -49502,10 +49911,10 @@ export class WalletHelper {
 
     /**
      * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
-     * @type {Promise<null | UTxO>}
+     * @type {Promise<null | TxInput>}
      */
     get refUtxo() {
-        return this.#wallet.utxos.then(utxos => {
+        return this.getUtxos().then(utxos => {
             if(utxos.length == 0) {
                 return null;
             } else {
@@ -49515,22 +49924,36 @@ export class WalletHelper {
     }
 
     /**
+     * @returns {Promise<TxInput[]>}
+     */
+    async getUtxos() {
+        try {
+            return await this.#wallet.utxos;
+        } catch (e) {
+            if (this.#getUtxosFallback && e.message.includes("unknown error in getUtxos")) {
+                return this.#getUtxosFallback(await this.#wallet.usedAddresses);
+            } else {
+                throw e
+            }
+        }
+    }
+    /**
      * @param {Value} amount
-     * @param {(allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]} algorithm
-     * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
+     * @param {CoinSelectionAlgorithm} algorithm
+     * @returns {Promise<[TxInput[], TxInput[]]>} - [picked, not picked that can be used as spares]
      */
     async pickUtxos(amount, algorithm = CoinSelection.selectSmallestFirst) {
-        return algorithm(await this.#wallet.utxos, amount);
+        return algorithm(await this.getUtxos(), amount);
     }
 
     /**
      * Returned collateral can't contain an native assets (pure lovelace)
      * TODO: combine UTxOs if a single UTxO isn't enough
      * @param {bigint} amount - 2 Ada should cover most things
-     * @returns {Promise<UTxO>}
+     * @returns {Promise<TxInput>}
      */
     async pickCollateral(amount = 2000000n) {
-        const pureUtxos = (await this.#wallet.utxos).filter(utxo => utxo.value.assets.isZero());
+        const pureUtxos = (await this.getUtxos()).filter(utxo => utxo.value.assets.isZero());
 
         if (pureUtxos.length == 0) {
             throw new Error("no pure UTxOs in wallet (needed for collateral)");
@@ -49580,14 +50003,19 @@ export class WalletHelper {
     }
 
     /**
+     * @param {undefined | ((addrs: Address[]) => Promise<TxInput[]>)} utxosFallback
      * @returns {Promise<any>}
      */
-    async toJson() {
+    async toJson(utxosFallback = undefined) {
+        const isMainnet = (await this.#wallet).isMainnet();
+        const usedAddresses = (await this.#wallet.usedAddresses);
+        const unusedAddresses = (await this.#wallet.unusedAddresses);
+
         return {
-            isMainnet: (await this.#wallet.isMainnet()),
-            usedAddresses: (await this.#wallet.usedAddresses).map(a => a.toBech32()),
-            unusedAddresses: (await this.#wallet.unusedAddresses).map(a => a.toBech32()),
-            utxos: (await this.#wallet.utxos).map(u => u.toCborHex())
+            isMainnet: isMainnet,
+            usedAddresses: usedAddresses.map(a => a.toBech32()),
+            unusedAddresses: unusedAddresses.map(a => a.toBech32()),
+            utxos: (await this.getUtxos()).map(u => bytesToHex(u.toFullCbor()))
         };
     }
 }
@@ -49605,7 +50033,7 @@ export class RemoteWallet {
      * @param {boolean} isMainnet
      * @param {Address[]} usedAddresses 
      * @param {Address[]} unusedAddresses 
-     * @param {UTxO[]} utxos 
+     * @param {TxInput[]} utxos 
      */
     constructor(isMainnet, usedAddresses, unusedAddresses, utxos) {
         this.#isMainnet = isMainnet;
@@ -49626,7 +50054,7 @@ export class RemoteWallet {
                 obj.isMainnet,
                 obj.usedAddresses.map(a => Address.fromBech32(a)),
                 obj.unusedAddresses.map(a => Address.fromBech32(a)),
-                obj.utxos.map(u => UTxO.fromCbor(u))
+                obj.utxos.map(u => TxInput.fromFullCbor(u))
             )
         }
     }
@@ -49653,14 +50081,14 @@ export class RemoteWallet {
     }
 
     /**
-     * @type {Promise<UTxO[]>}
+     * @type {Promise<TxInput[]>}
      */
     get utxos() {
         return new Promise((resolve, _) => resolve(this.#utxos));
     }
 
     /**
-     * @type {Promise<UTxO[]>}
+     * @type {Promise<TxInput[]>}
      */
     get collateral() {
         return new Promise((resolve, _) => resolve([]));
@@ -49690,11 +50118,10 @@ export class RemoteWallet {
 //////////////////////
 
 
-
 /**
  * @typedef {{
- *     getUtxos(address: Address): Promise<UTxO[]>
- *     getUtxo(id: TxOutputId): Promise<UTxO>
+ *     getUtxos(address: Address): Promise<TxInput[]>
+ *     getUtxo(id: TxOutputId): Promise<TxInput>
  *     getParameters(): Promise<NetworkParams>
  *     submitTx(tx: Tx): Promise<TxId>
  * }} Network
@@ -49822,7 +50249,7 @@ export class BlockfrostV0 {
 
     /**
      * @param {TxOutputId} id
-     * @returns {Promise<UTxO>}
+     * @returns {Promise<TxInput>}
      */
     async getUtxo(id) {
         const txId = id.txId;
@@ -49838,9 +50265,8 @@ export class BlockfrostV0 {
 
         const obj = (await response.json()).outputs[id.utxoIdx];
 
-        return new UTxO(
-            txId,
-            id.utxoIdx,
+        return new TxInput(
+            id,
             new TxOutput(
                 Address.fromBech32(obj.address),
                 BlockfrostV0.parseValue(obj.amount),
@@ -49851,11 +50277,11 @@ export class BlockfrostV0 {
 
     /**
      * Used by BlockfrostV0.resolve()
-     * @param {UTxO} utxo
+     * @param {TxInput} utxo
      * @returns {Promise<boolean>}
      */
     async hasUtxo(utxo) {
-        const txId = utxo.txId;
+        const txId = utxo.outputId.txId;
 
         const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/txs/${txId.hex}/utxos`;
 
@@ -49873,41 +50299,52 @@ export class BlockfrostV0 {
      * Returns oldest UTxOs first, newest last.
      * TODO: pagination
      * @param {Address} address
-     * @returns {Promise<UTxO[]>}
+     * @returns {Promise<TxInput[]>}
      */
     async getUtxos(address) {
         const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/addresses/${address.toBech32()}/utxos?order=asc`;
 
-        const response = await fetch(url, {
-            headers: {
-                "project_id": this.#projectId
-            }
-        });
-
-        /**
-         * @type {any}
-         */
-        let all = await response.json();
-
-        if (all?.status_code >= 300) {
-            all = [];
-        }
-
         try {
-            return all.map(obj => {
-                return new UTxO(
-                    TxId.fromHex(obj.tx_hash),
-                    BigInt(obj.output_index),
-                    new TxOutput(
-                        address,
-                        BlockfrostV0.parseValue(obj.amount),
-                        obj.inline_datum ? Datum.inline(UplcData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
-                    )
-                );
+            const response = await fetch(url, {
+                headers: {
+                    "project_id": this.#projectId
+                }
             });
+
+            if (response.status == 404) {
+                return []; 
+            }
+
+            /**
+             * @type {any}
+             */
+            let all = await response.json();
+
+            if (all?.status_code >= 300) {
+                all = [];
+            }
+
+            try {
+                return all.map(obj => {
+                    return new TxInput(
+                        new TxOutputId({txId: TxId.fromHex(obj.tx_hash), utxoId: BigInt(obj.output_index)}),
+                        new TxOutput(
+                            address,
+                            BlockfrostV0.parseValue(obj.amount),
+                            obj.inline_datum ? Datum.inline(UplcData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
+                        )
+                    );
+                });
+            } catch (e) {
+                console.error("unable to parse blockfrost utxo format:", all);
+                throw e;
+            }
         } catch (e) {
-            console.error("unable to parse blockfrost utxo format:", all);
-            throw e;
+            if (e.message.includes("The requested component has not been found")) {
+                return []
+            } else {
+                throw e
+            }
         }
     }
 
@@ -50693,7 +51130,7 @@ export class WalletEmulator {
     }
 
     /**
-     * @type {Promise<UTxO[]>}
+     * @type {Promise<TxInput[]>}
      */
     get utxos() {
         return new Promise((resolve, _) => {
@@ -50702,7 +51139,7 @@ export class WalletEmulator {
     }
 
     /**
-     * @type {Promise<UTxO[]>}
+     * @type {Promise<TxInput[]>}
      */
      get collateral() {
         return new Promise((resolve, _) => {
@@ -50735,9 +51172,9 @@ export class WalletEmulator {
  * @internal
  * @typedef {{
  *     id(): TxId
- *     consumes(utxo: UTxO | TxInput): boolean
- *     collectUtxos(address: Address, utxos: UTxO[]): UTxO[]
- *     getUtxo(id: TxOutputId): (null | UTxO)
+ *     consumes(utxo: TxInput): boolean
+ *     collectUtxos(address: Address, utxos: TxInput[]): TxInput[]
+ *     getUtxo(id: TxOutputId): (null | TxInput)
  *     dump(): void
  * }} EmulatorTx
  */
@@ -50780,7 +51217,7 @@ class GenesisTx {
     }
 
     /**
-     * @param {UTxO | TxInput} utxo
+     * @param {TxInput} utxo
      * @returns {boolean}
      */
     consumes(utxo) {
@@ -50789,16 +51226,15 @@ class GenesisTx {
 
     /**
      * @param {Address} address
-     * @param {UTxO[]} utxos
-     * @returns {UTxO[]}
+     * @param {TxInput[]} utxos
+     * @returns {TxInput[]}
      */
     collectUtxos(address, utxos) {
         if (eq(this.#address.bytes, address.bytes)) {
             utxos = utxos.slice();
 
-            utxos.push(new UTxO(
-                this.id(),
-                0n,
+            utxos.push(new TxInput(
+                new TxOutputId({txId: this.id(), utxoId: 0}),
                 new TxOutput(
                     this.#address,
                     new Value(this.#lovelace, this.#assets)
@@ -50813,10 +51249,20 @@ class GenesisTx {
 
     /**
      * @param {TxOutputId} id 
-     * @returns {null | UTxO}
+     * @returns {null | TxInput}
      */
     getUtxo(id) {
-        return null;
+        if (!(this.id().eq(id.txId) && id.utxoIdx == 0)) {
+            return null;
+        }
+
+        return new TxInput(
+            new TxOutputId({txId: this.id(), utxoId: 0}),
+            new TxOutput(
+                this.#address,
+                new Value(this.#lovelace, this.#assets)
+            )
+        );
     }
 
     dump() {
@@ -50846,7 +51292,7 @@ class RegularTx {
     }
 
     /**
-     * @param {UTxO | TxInput} utxo
+     * @param {TxInput} utxo
      * @returns {boolean}
      */
     consumes(utxo) {
@@ -50857,8 +51303,8 @@ class RegularTx {
 
     /**
      * @param {Address} address
-     * @param {UTxO[]} utxos
-     * @returns {UTxO[]}
+     * @param {TxInput[]} utxos
+     * @returns {TxInput[]}
      */
     collectUtxos(address, utxos) {
         utxos = utxos.filter(utxo => !this.consumes(utxo));
@@ -50867,9 +51313,8 @@ class RegularTx {
 
         txOutputs.forEach((txOutput, utxoId) => {
             if (eq(txOutput.address.bytes, address.bytes)) {
-                utxos.push(new UTxO(
-                    this.id(),
-                    BigInt(utxoId),
+                utxos.push(new TxInput(
+                    new TxOutputId({txId: this.id(), utxoId: utxoId}),
                     txOutput
                 ));
             }
@@ -50880,7 +51325,7 @@ class RegularTx {
 
     /**
      * @param {TxOutputId} id 
-     * @returns {null | UTxO}
+     * @returns {null | TxInput}
      */
     getUtxo(id) {
         if (!id.txId.eq(this.id())) {
@@ -50888,15 +51333,14 @@ class RegularTx {
         }
 
         /**
-         * @type {null | UTxO}
+         * @type {null | TxInput}
          */
         let utxo = null;
 
         this.#tx.body.outputs.forEach((output, i) => {
             if (i == id.utxoIdx) {
-                utxo = new UTxO(
-                    id.txId,
-                    BigInt(i),
+                utxo = new TxInput(
+                    id,
                     output
                 );
             }
@@ -51046,7 +51490,7 @@ export class NetworkEmulator {
     /**
      * Throws an error if the UTxO isn't found
      * @param {TxOutputId} id 
-     * @returns {Promise<UTxO>}
+     * @returns {Promise<TxInput>}
      */
     async getUtxo(id) {
         this.warnMempool();
@@ -51065,13 +51509,13 @@ export class NetworkEmulator {
 
     /**
      * @param {Address} address
-     * @returns {Promise<UTxO[]>}
+     * @returns {Promise<TxInput[]>}
      */
     async getUtxos(address) {
         this.warnMempool();
 
         /**
-         * @type {UTxO[]}
+         * @type {TxInput[]}
          */
         let utxos = [];
 
@@ -51095,7 +51539,7 @@ export class NetworkEmulator {
     }
 
     /**
-     * @param {UTxO | TxInput} utxo
+     * @param {TxInput} utxo
      * @returns {boolean}
      */
     isConsumed(utxo) {
@@ -51647,27 +52091,31 @@ export class FuzzyTest {
 //////////////////////////////////////////
 
 
-
 /**
  * @internal
  * @param {TypeSchema} schema
  * @param {any} obj
- * @param {undefined | NetworkParams} networkParams
- * @returns {UplcData}
+ * @param {JsToUplcHelpers} helpers
+ * @returns {Promise<UplcData>}
  */
-export function jsToUplc(schema, obj, networkParams = undefined) {
+export async function jsToUplcInternal(schema, obj, helpers) {
     if (schema.type == "List" && "itemType" in schema) {
         if (!Array.isArray(obj)) {
             throw new Error(`expected Array, got '${obj}'`);
         }
 
-        return new ListData(obj.map(item => jsToUplc(schema.itemType, item)));
+        const items = obj.map(item => jsToUplcInternal(schema.itemType, item, helpers))
+
+        return new ListData(await Promise.all(items));
     } else if (schema.type == "Map" && "keyType" in schema && "valueType" in schema) {
         if (!Array.isArray(obj)) {
             throw new Error(`expected Array, got '${obj}'`);
         }
 
-        return new MapData(obj.map(entry => {
+        /**
+         * @type {[Promise<UplcData>, Promise<UplcData>][]}
+         */
+        const pairs = obj.map(entry => {
             if (!Array.isArray(entry)) {
                 throw new Error(`expected Array of Arrays, got '${obj}'`);
             }
@@ -51679,15 +52127,20 @@ export function jsToUplc(schema, obj, networkParams = undefined) {
             }
 
             return [
-                jsToUplc(schema.keyType, key),
-                jsToUplc(schema.valueType, value)
+                jsToUplcInternal(schema.keyType, key, helpers),
+                jsToUplcInternal(schema.valueType, value, helpers)
             ];
-        }));
+        });
+
+        const keys = await Promise.all(pairs.map(p => p[0]));
+        const values = await Promise.all(pairs.map(p => p[1]));
+
+        return new MapData(keys.map((k, i) => [k, values[i]]));
     } else if (schema.type == "Option" && "someType" in schema) {
         if (obj === null) {
             return new ConstrData(1, []);
         } else {
-            return new ConstrData(0, [jsToUplc(schema.someType, obj)]);
+            return new ConstrData(0, [await jsToUplcInternal(schema.someType, obj, helpers)]);
         }
     } else if (schema.type == "Struct" && "fieldTypes" in schema) {
         const fields = schema.fieldTypes.map((fieldSchema) => {
@@ -51698,13 +52151,13 @@ export function jsToUplc(schema, obj, networkParams = undefined) {
                 throw new Error(`field ${fieldName} not found in '${obj}'`);
             }
 
-            return jsToUplc(fieldSchema, fieldObj);
+            return jsToUplcInternal(fieldSchema, fieldObj, helpers);
         });
 
         if (fields.length == 1) {
             return fields[0];
         } else {
-            return new ListData(fields);
+            return new ListData(await Promise.all(fields));
         }
     } else if (schema.type == "Enum" && "variantTypes" in schema) {
         const keys = Object.keys(obj);
@@ -51729,10 +52182,10 @@ export function jsToUplc(schema, obj, networkParams = undefined) {
                 throw new Error(`field ${fieldName} not found in '${obj[key]}'`);
             }
 
-            return jsToUplc(fieldSchema, fieldObj);
+            return jsToUplcInternal(fieldSchema, fieldObj, helpers);
         });
 
-        return new ConstrData(index, fields);
+        return new ConstrData(index, await Promise.all(fields));
     } else {
         const builtinType = builtinTypes[schema.type];
 
@@ -51740,28 +52193,48 @@ export function jsToUplc(schema, obj, networkParams = undefined) {
             throw new Error(`${schema.type} isn't a valid builtin type`);
         }
 
-        return builtinType.jsToUplc(obj, networkParams);
+        return builtinType.jsToUplc(obj, helpers);
     }
 }
 
 /**
  * @internal
  * @param {TypeSchema} schema
- * @param {UplcData} data
- * @returns {any}
+ * @param {any} obj
+ * @param {JsToUplcHelpers} helpers
+ * @returns {Promise<UplcData>}
  */
-export function uplcToJs(schema, data) {
+export function jsToUplc(schema, obj, helpers) {
+    return jsToUplcInternal(schema, obj, helpers);
+}
+
+/**
+ * @internal
+ * @param {TypeSchema} schema
+ * @param {UplcData} data
+ * @param {UplcToJsHelpers} helpers
+ * @returns {Promise<any>}
+ */
+async function uplcToJsInternal(schema, data, helpers) {
     if (schema.type == "List" && "itemType" in schema) {
-        return data.list.map(item => uplcToJs(schema.itemType, item));
+        return await Promise.all(data.list.map(item => uplcToJsInternal(schema.itemType, item, helpers)));
     } else if (schema.type == "Map" && "keyType" in schema && "valueType" in schema) {
-        return data.map.map(([key, value]) => [uplcToJs(schema.keyType, key), uplcToJs(schema.valueType, value)]);
+        /**
+         * @type {[Promise<any>, Promise<any>][]}
+         */
+        const pairs = data.map.map(([key, value]) => [uplcToJsInternal(schema.keyType, key, helpers), uplcToJsInternal(schema.valueType, value, helpers)]);
+
+        const keys = await Promise.all(pairs.map(p => p[0]));
+        const values = await Promise.all(pairs.map(p => p[1]));
+
+        return keys.map((k, i) => [k, values[i]]);
     } else if (schema.type == "Option" && "someType" in schema) {
         if (data.index == 1) {
             assert(data.fields.length == 0, "not an Option ConstrData");
             return null;
         } else if (data.index == 0) {
             assert(data.fields.length == 1, "not an Option ConstrData");
-            return uplcToJs(schema.someType, data.fields[0]);
+            return uplcToJsInternal(schema.someType, data.fields[0], helpers);
         } else {
             throw new Error("not an Option ConstrData");
         }
@@ -51770,15 +52243,17 @@ export function uplcToJs(schema, data) {
 
         const fields = schema.fieldTypes.length == 1 ? [data] : data.list;
 
-        fields.forEach((field, i) => {
+        for (let i = 0; i < fields.length; i++) {
+            const field = fields[i];
+
             const fieldType = schema.fieldTypes[i];
 
             if (!fieldType) {
                 throw new Error("field out-of-range");
             }
 
-            obj[fieldType.name] = uplcToJs(fieldType, field);
-        });
+            obj[fieldType.name] = await uplcToJsInternal(fieldType, field, helpers);
+        }
 
         return obj;
     } else if (schema.type == "Enum" && "variantTypes" in schema) {
@@ -51794,15 +52269,17 @@ export function uplcToJs(schema, data) {
 
         const fields = data.fields;
 
-        fields.forEach((field, i) => {
+        for (let i = 0; i< fields.length; i++) {
+            const field = fields[i];
+
             const fieldType = variant.fieldTypes[i];
 
             if (!fieldType) {
                 throw new Error("field out-of-range");
             }
 
-            obj[fieldType.name] = uplcToJs(fieldType, field);
-        });
+            obj[fieldType.name] = await uplcToJsInternal(fieldType, field, helpers);
+        }
 
         return {[variant.name]: obj};
     } else {
@@ -51812,69 +52289,17 @@ export function uplcToJs(schema, data) {
             throw new Error(`${schema.type} isn't a valid builtin type`);
         }
 
-        return builtinType.uplcToJs(data);
+        return builtinType.uplcToJs(data, helpers);
     }
 }
 
-export const exportedForBundling = {
-    jsToUplc,
-    uplcToJs,
-    AddressType,
-    AllType,
-    ArgType,
-    ByteArrayType,
-    FuncType,
-    IntType,
-    IR,
-    IRProgram,
-    IRParametricProgram,
-    MintingPolicyHashType,
-    RealType,
-    ScriptHashType,
-    Site,
-    StakingValidatorHashType,
-    StringType,
-    TxType,
-    ValidatorHashType,
-    Word
-};
-
 /**
- * The following functions and classes are used for some tests in ./test/, and aren't
- * intended to be used by regular users of this library.
+ * @internal
+ * @param {TypeSchema} schema
+ * @param {UplcData} data
+ * @param {UplcToJsHelpers} helpers
+ * @returns {Promise<any>}
  */
-export const exportedForTesting = {
-	assert,
-	assertClass,
-	assertDefined,
-	bigIntToBytes,
-	bytesToBigInt,
-	setRawUsageNotifier,
-	setBlake2bDigestSize,
-	dumpCostModels,
-	Site,
-	Source,
-	MapData,
-	UplcData,
-	CborData,
-	ConstrData,
-	IntData,
-	ByteArrayData,
-	ListData,
-	UplcBool,
-	UplcValue,
-	UplcDataValue,
-	UplcTerm,
-	UplcProgram,
-	UplcLambda,
-	UplcCall,
-	UplcBuiltin,
-	UplcVariable,
-	UplcConst,
-	UplcInt,
-	IRProgram,
-	Tx,
-	TxInput,
-	TxBody,
-	REAL_PRECISION
-};
+export function uplcToJs(schema, data, helpers) {
+    return uplcToJsInternal(schema, data, helpers);
+}

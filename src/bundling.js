@@ -5,12 +5,6 @@ import {
     assert
 } from "./utils.js";
 
-import {
-    IR,
-    Site,
-    Word
-} from "./tokens.js";
-
 import { 
     ConstrData,
     ListData, 
@@ -18,72 +12,48 @@ import {
     UplcData
 } from "./uplc-data.js";
 
-import { 
-    NetworkParams
-} from "./uplc-costmodels.js";
-
 /**
  * @typedef {import("./eval-common.js").TypeSchema} TypeSchema
  */
 
-import {
-    AllType,
-    ArgType,
-    FuncType
-} from "./eval-common.js";
+/**
+ * @typedef {import("./eval-common.js").JsToUplcHelpers} JsToUplcHelpers
+ */
 
-import {
-    ByteArrayType,
-    IntType,
-    RealType,
-    StringType
-} from "./eval-primitives.js";
-
-import {
-    MintingPolicyHashType,
-    ScriptHashType,
-    StakingValidatorHashType,
-    ValidatorHashType
-} from "./eval-hashes.js";
-
-
-
-import {
-    AddressType,
-    TxType
-} from "./eval-tx.js";
+/**
+ * @typedef {import("./eval-common.js").UplcToJsHelpers} UplcToJsHelpers
+ */
 
 import { 
     builtinTypes
 } from "./helios-scopes.js";
-
-import {
-    IRProgram,
-    IRParametricProgram
-} from "./ir-program.js";
-
 
 
 /**
  * @internal
  * @param {TypeSchema} schema
  * @param {any} obj
- * @param {undefined | NetworkParams} networkParams
- * @returns {UplcData}
+ * @param {JsToUplcHelpers} helpers
+ * @returns {Promise<UplcData>}
  */
-export function jsToUplc(schema, obj, networkParams = undefined) {
+export async function jsToUplcInternal(schema, obj, helpers) {
     if (schema.type == "List" && "itemType" in schema) {
         if (!Array.isArray(obj)) {
             throw new Error(`expected Array, got '${obj}'`);
         }
 
-        return new ListData(obj.map(item => jsToUplc(schema.itemType, item)));
+        const items = obj.map(item => jsToUplcInternal(schema.itemType, item, helpers))
+
+        return new ListData(await Promise.all(items));
     } else if (schema.type == "Map" && "keyType" in schema && "valueType" in schema) {
         if (!Array.isArray(obj)) {
             throw new Error(`expected Array, got '${obj}'`);
         }
 
-        return new MapData(obj.map(entry => {
+        /**
+         * @type {[Promise<UplcData>, Promise<UplcData>][]}
+         */
+        const pairs = obj.map(entry => {
             if (!Array.isArray(entry)) {
                 throw new Error(`expected Array of Arrays, got '${obj}'`);
             }
@@ -95,15 +65,20 @@ export function jsToUplc(schema, obj, networkParams = undefined) {
             }
 
             return [
-                jsToUplc(schema.keyType, key),
-                jsToUplc(schema.valueType, value)
+                jsToUplcInternal(schema.keyType, key, helpers),
+                jsToUplcInternal(schema.valueType, value, helpers)
             ];
-        }));
+        });
+
+        const keys = await Promise.all(pairs.map(p => p[0]));
+        const values = await Promise.all(pairs.map(p => p[1]));
+
+        return new MapData(keys.map((k, i) => [k, values[i]]));
     } else if (schema.type == "Option" && "someType" in schema) {
         if (obj === null) {
             return new ConstrData(1, []);
         } else {
-            return new ConstrData(0, [jsToUplc(schema.someType, obj)]);
+            return new ConstrData(0, [await jsToUplcInternal(schema.someType, obj, helpers)]);
         }
     } else if (schema.type == "Struct" && "fieldTypes" in schema) {
         const fields = schema.fieldTypes.map((fieldSchema) => {
@@ -114,13 +89,13 @@ export function jsToUplc(schema, obj, networkParams = undefined) {
                 throw new Error(`field ${fieldName} not found in '${obj}'`);
             }
 
-            return jsToUplc(fieldSchema, fieldObj);
+            return jsToUplcInternal(fieldSchema, fieldObj, helpers);
         });
 
         if (fields.length == 1) {
             return fields[0];
         } else {
-            return new ListData(fields);
+            return new ListData(await Promise.all(fields));
         }
     } else if (schema.type == "Enum" && "variantTypes" in schema) {
         const keys = Object.keys(obj);
@@ -145,10 +120,10 @@ export function jsToUplc(schema, obj, networkParams = undefined) {
                 throw new Error(`field ${fieldName} not found in '${obj[key]}'`);
             }
 
-            return jsToUplc(fieldSchema, fieldObj);
+            return jsToUplcInternal(fieldSchema, fieldObj, helpers);
         });
 
-        return new ConstrData(index, fields);
+        return new ConstrData(index, await Promise.all(fields));
     } else {
         const builtinType = builtinTypes[schema.type];
 
@@ -156,28 +131,48 @@ export function jsToUplc(schema, obj, networkParams = undefined) {
             throw new Error(`${schema.type} isn't a valid builtin type`);
         }
 
-        return builtinType.jsToUplc(obj, networkParams);
+        return builtinType.jsToUplc(obj, helpers);
     }
 }
 
 /**
  * @internal
  * @param {TypeSchema} schema
- * @param {UplcData} data
- * @returns {any}
+ * @param {any} obj
+ * @param {JsToUplcHelpers} helpers
+ * @returns {Promise<UplcData>}
  */
-export function uplcToJs(schema, data) {
+export function jsToUplc(schema, obj, helpers) {
+    return jsToUplcInternal(schema, obj, helpers);
+}
+
+/**
+ * @internal
+ * @param {TypeSchema} schema
+ * @param {UplcData} data
+ * @param {UplcToJsHelpers} helpers
+ * @returns {Promise<any>}
+ */
+async function uplcToJsInternal(schema, data, helpers) {
     if (schema.type == "List" && "itemType" in schema) {
-        return data.list.map(item => uplcToJs(schema.itemType, item));
+        return await Promise.all(data.list.map(item => uplcToJsInternal(schema.itemType, item, helpers)));
     } else if (schema.type == "Map" && "keyType" in schema && "valueType" in schema) {
-        return data.map.map(([key, value]) => [uplcToJs(schema.keyType, key), uplcToJs(schema.valueType, value)]);
+        /**
+         * @type {[Promise<any>, Promise<any>][]}
+         */
+        const pairs = data.map.map(([key, value]) => [uplcToJsInternal(schema.keyType, key, helpers), uplcToJsInternal(schema.valueType, value, helpers)]);
+
+        const keys = await Promise.all(pairs.map(p => p[0]));
+        const values = await Promise.all(pairs.map(p => p[1]));
+
+        return keys.map((k, i) => [k, values[i]]);
     } else if (schema.type == "Option" && "someType" in schema) {
         if (data.index == 1) {
             assert(data.fields.length == 0, "not an Option ConstrData");
             return null;
         } else if (data.index == 0) {
             assert(data.fields.length == 1, "not an Option ConstrData");
-            return uplcToJs(schema.someType, data.fields[0]);
+            return uplcToJsInternal(schema.someType, data.fields[0], helpers);
         } else {
             throw new Error("not an Option ConstrData");
         }
@@ -186,15 +181,17 @@ export function uplcToJs(schema, data) {
 
         const fields = schema.fieldTypes.length == 1 ? [data] : data.list;
 
-        fields.forEach((field, i) => {
+        for (let i = 0; i < fields.length; i++) {
+            const field = fields[i];
+
             const fieldType = schema.fieldTypes[i];
 
             if (!fieldType) {
                 throw new Error("field out-of-range");
             }
 
-            obj[fieldType.name] = uplcToJs(fieldType, field);
-        });
+            obj[fieldType.name] = await uplcToJsInternal(fieldType, field, helpers);
+        }
 
         return obj;
     } else if (schema.type == "Enum" && "variantTypes" in schema) {
@@ -210,15 +207,17 @@ export function uplcToJs(schema, data) {
 
         const fields = data.fields;
 
-        fields.forEach((field, i) => {
+        for (let i = 0; i< fields.length; i++) {
+            const field = fields[i];
+
             const fieldType = variant.fieldTypes[i];
 
             if (!fieldType) {
                 throw new Error("field out-of-range");
             }
 
-            obj[fieldType.name] = uplcToJs(fieldType, field);
-        });
+            obj[fieldType.name] = await uplcToJsInternal(fieldType, field, helpers);
+        }
 
         return {[variant.name]: obj};
     } else {
@@ -228,29 +227,17 @@ export function uplcToJs(schema, data) {
             throw new Error(`${schema.type} isn't a valid builtin type`);
         }
 
-        return builtinType.uplcToJs(data);
+        return builtinType.uplcToJs(data, helpers);
     }
 }
 
-export const exportedForBundling = {
-    jsToUplc,
-    uplcToJs,
-    AddressType,
-    AllType,
-    ArgType,
-    ByteArrayType,
-    FuncType,
-    IntType,
-    IR,
-    IRProgram,
-    IRParametricProgram,
-    MintingPolicyHashType,
-    RealType,
-    ScriptHashType,
-    Site,
-    StakingValidatorHashType,
-    StringType,
-    TxType,
-    ValidatorHashType,
-    Word
-};
+/**
+ * @internal
+ * @param {TypeSchema} schema
+ * @param {UplcData} data
+ * @param {UplcToJsHelpers} helpers
+ * @returns {Promise<any>}
+ */
+export function uplcToJs(schema, data, helpers) {
+    return uplcToJsInternal(schema, data, helpers);
+}

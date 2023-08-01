@@ -168,15 +168,15 @@ export const ListType = new ParametricType({
 					itemType: assertDefined(itemType.typeDetails?.internalType)
 				}
 			}),
-			jsToUplc: (obj) => {
+			jsToUplc: async (obj, helpers) => {
 				if (Array.isArray(obj)) {
-					return new ListData(obj.map(item => itemType.jsToUplc(item)));
+					return new ListData(await Promise.all(obj.map(item => itemType.jsToUplc(item, helpers))));
 				} else {
 					throw new Error("expected array");	
 				}
 			},
-			uplcToJs: (data) => {
-				return data.list.map(item => itemType.uplcToJs(item));
+			uplcToJs: async (data, helpers) => {
+				return await Promise.all(data.list.map(item => itemType.uplcToJs(item, helpers)));
 			},
 			genInstanceMembers: (self) => {
 				/**
@@ -208,6 +208,7 @@ export const ListType = new ParametricType({
 					drop_end: new FuncType([IntType], self),
 					filter: new FuncType([new FuncType([itemType], BoolType)], self),
 					find: new FuncType([new FuncType([itemType], BoolType)], itemType),
+					find_index: new FuncType([new FuncType([itemType], BoolType)], IntType),
 					find_safe: new FuncType([new FuncType([itemType], BoolType)], OptionType$(itemType)),
 					fold: (() => {
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());

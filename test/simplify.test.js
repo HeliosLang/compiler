@@ -1,48 +1,55 @@
-#!/usr/bin/env node
 //@ts-check
 
-import fs from "fs";
-import * as helios from "../helios.js";
-import { assert, correctDir, runIfEntryPoint } from "../utils/util.js";
+import fs from "fs"
 
-correctDir();
+import { 
+	IRProgram,
+	NetworkParams,
+	Program,
+	Source,
+	UplcProgram,
+	assert
+} from "helios"
 
-const helios_ = helios.exportedForTesting;
-
-const networkParams = new helios.NetworkParams(JSON.parse(fs.readFileSync("./network-parameters-preview.json").toString()));
+const networkParams = new NetworkParams(JSON.parse(fs.readFileSync("./network-parameters-preview.json").toString()));
 
 function simplify(src, expectedSize = null) {
-    let program = helios.Program.new(src);
+    let program = Program.new(src);
 
     let ir = program.toIR();
 
-    let irProgram0 = helios_.IRProgram.new(ir, {purpose: "testing", callsTxTimeRange: false});
-    let irProgram1 = helios_.IRProgram.new(ir, {purpose: "testing", callsTxTimeRange: false}, true);
+    let irProgram0 = IRProgram.new(ir, "testing", false);
+    let irProgram1 = IRProgram.new(ir, "testing", true);
 
 	console.log(`ORIG (${irProgram0.calcSize()} bytes):`);
-	console.log(new helios_.Source(irProgram0.toString()).pretty());
+	console.log(new Source(irProgram0.toString(), "").pretty());
 
 	let size = irProgram1.calcSize();
 	console.log(`\nSIMPLIFIED (${size} bytes):`);
-	console.log(new helios_.Source(irProgram1.toString()).pretty(), "\n\n");
+	console.log(new Source(irProgram1.toString(), "").pretty(), "\n\n");
 
 	if (expectedSize !== null) {
 		assert(size === expectedSize, `unexpected size, expected ${expectedSize} but got ${size}`)
 	}
 }
 
+/**
+ * @param {string} src 
+ * @param {string[]} argNames 
+ * @param {any | null} expected 
+ */
 async function profile(src, argNames, expected = null) {
-    let program = helios.Program.new(src);
+    let program = Program.new(src);
 
     let args = argNames.map(name => program.evalParam(name));
 
-    let irProgram1 = helios_.IRProgram.new(program.toIR(), {purpose: "testing", callsTxTimeRange: false}, true);
+    let irProgram1 = IRProgram.new(program.toIR(), "testing", true);
 	let size = irProgram1.calcSize();
     console.log(`\nSIMPLIFIED (${size} bytes):`);
-	console.log(new helios_.Source(irProgram1.toString()).pretty(), "\n\n");
+	console.log(new Source(irProgram1.toString(), "").pretty(), "\n\n");
 
 	// also test the transfer() function
-	let profileResult = await program.compile(true).transfer(helios.UplcProgram).profile(args, networkParams);
+	let profileResult = await program.compile(true).transfer(UplcProgram).profile(args, networkParams);
     console.log(profileResult);
 
 	if (expected !== null) {
@@ -171,5 +178,3 @@ export default async function main() {
 		Datum{a}.b
 	}`);
 }
-
-runIfEntryPoint(main, "simplify.js");

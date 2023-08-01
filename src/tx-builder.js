@@ -247,7 +247,7 @@ export class Tx extends CborData {
 	 * @param {UplcData} data
 	 * @param {NetworkParams} networkParams
 	 * @param {Address} changeAddress
-	 * @param {UTxO[]} spareUtxos
+	 * @param {TxInput[]} spareUtxos
 	 * @param {{[name: string]: UplcProgram}} scripts
 	 * @returns {Promise<Tx>}
 	 */
@@ -293,7 +293,7 @@ export class Tx extends CborData {
 			const redeemer = redeemers.find(r => (r instanceof SpendingRedeemer) && r.inputIndex == i) ?? null;
 
 			if (redeemer instanceof SpendingRedeemer) {
-				tx.addInput(input.utxo, redeemer.data);
+				tx.addInput(input, redeemer.data);
 
 				if (input.address.validatorHash) {
 					if  (input.address.validatorHash.hex in scripts) {
@@ -301,19 +301,19 @@ export class Tx extends CborData {
 
 						tx.attachScript(uplcProgram);
 					} else {
-						throw new Error(`script for SpendingRedeemer (vh:${input.address.validatorHash.hex}) not found in ${Object.keys(scripts)}`);
+						throw new Error(`script for SpendingRedeemer (vh:${input.address.validatorHash.hex}) not found in [${Object.keys(scripts).join(", ")}]`);
 					}
 				} else {
 					throw new Error("unexpected (expected a validator address");
 				}
 			} else {
 				assert(redeemer === null);
-				tx.addInput(input.utxo);
+				tx.addInput(input);
 			}
 		});
 
 		refInputs.forEach(refInput => {
-			tx.addRefInput(new TxRefInput(refInput.txId, refInput.utxoIdx, refInput.origOutput));
+			tx.addRefInput(refInput);
 		});
 
 		// filter out spareUtxos that are already used as inputs
@@ -357,6 +357,15 @@ export class Tx extends CborData {
 	 */
 	toTxData(networkParams) {
 		return this.#body.toTxData(networkParams, this.witnesses.redeemers, this.witnesses.datums, this.id());
+	}
+
+	/**
+	 * A serialized tx throws away input information
+	 * This must be refetched from the network if the tx needs to be analyzed
+	 * @param {(id: TxOutputId) => Promise<TxOutput>} fn
+	 */
+	async completeInputData(fn) {
+		await this.#body.completeInputData(fn)
 	}
 
 	/**
@@ -422,7 +431,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {UTxO} input
+	 * @param {TxInput} input
 	 * @param {null | UplcDataValue | UplcData | HeliosData} rawRedeemer
 	 * @returns {Tx}
 	 */
@@ -432,14 +441,14 @@ export class Tx extends CborData {
 		if (input.origOutput === null) {
 			throw new Error("TxInput.origOutput must be set when building transaction");
 		} else {
-			void this.#body.addInput(input.asTxInput);
+			void this.#body.addInput(input);
 
 			if (rawRedeemer !== null) {
 				assert(input.origOutput.address.validatorHash !== null, "input isn't locked by a script");
 
 				const redeemer = rawRedeemer instanceof HeliosData ? rawRedeemer._toUplcData() : UplcDataValue.unwrap(rawRedeemer);
 
-				this.#witnesses.addSpendingRedeemer(input.asTxInput, redeemer);
+				this.#witnesses.addSpendingRedeemer(input, redeemer);
 
 				if (input.origOutput.datum === null) {
 					throw new Error("expected non-null datum");
@@ -468,7 +477,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {UTxO[]} inputs
+	 * @param {TxInput[]} inputs
 	 * @param {?(UplcDataValue | UplcData | HeliosData)} redeemer
 	 * @returns {Tx}
 	 */
@@ -481,8 +490,8 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {TxRefInput} input
-	 * @param {?UplcProgram} refScript
+	 * @param {TxInput} input
+	 * @param {null | UplcProgram} refScript
 	 * @returns {Tx}
 	 */
 	addRefInput(input, refScript = null) {
@@ -498,7 +507,7 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * @param {TxRefInput[]} inputs
+	 * @param {TxInput[]} inputs
 	 * @returns {Tx}
 	 */
 	addRefInputs(inputs) {
@@ -567,13 +576,13 @@ export class Tx extends CborData {
 	/**
 	 * Usually adding only one collateral input is enough
 	 * Must be less than the limit in networkParams (eg. 3), or else an error is thrown during finalization
-	 * @param {UTxO} input 
+	 * @param {TxInput} input 
 	 * @returns {Tx}
 	 */
 	addCollateral(input) {
 		assert(!this.#valid);
 
-		this.#body.addCollateral(input.asTxInput);
+		this.#body.addCollateral(input);
 
 		return this;
 	}
@@ -677,6 +686,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {Address} changeAddress
 	 * @returns {Promise<void>}
@@ -686,6 +696,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @returns {Promise<void>}
 	 */
@@ -694,6 +705,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {Address} changeAddress 
 	 */
 	balanceAssets(changeAddress) {
@@ -716,9 +728,10 @@ export class Tx extends CborData {
 
 	/**
 	 * Calculate the base fee which will be multiplied by the required min collateral percentage 
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {Address} changeAddress 
-	 * @param {UTxO[]} spareUtxos 
+	 * @param {TxInput[]} spareUtxos 
 	 */
 	estimateCollateralBaseFee(networkParams, changeAddress, spareUtxos) {
 		assert(config.N_DUMMY_INPUTS == 1 || config.N_DUMMY_INPUTS == 2, "expected N_DUMMY_INPUTs == 1 or N_DUMMY_INPUTS == 2");
@@ -728,7 +741,7 @@ export class Tx extends CborData {
 		dummyOutput.correctLovelace(networkParams);
 
 		// some dummy UTxOs on to be able to correctly calculate the collateral (assuming it uses full body fee)
-		const dummyCollateral = spareUtxos.map(spare => spare.asTxInput).concat(this.#body.inputs).slice(0, 3);
+		const dummyCollateral = spareUtxos.map(spare => spare).concat(this.#body.inputs).slice(0, 3);
 		dummyCollateral.forEach(input => {
 			this.#body.collateral.push(input);
 		});
@@ -753,9 +766,10 @@ export class Tx extends CborData {
 	}
 	
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @param {Address} changeAddress
-	 * @param {UTxO[]} spareUtxos
+	 * @param {TxInput[]} spareUtxos
 	 */
 	balanceCollateral(networkParams, changeAddress, spareUtxos) {
 		// don't do this step if collateral was already added explicitly
@@ -796,7 +810,7 @@ export class Tx extends CborData {
 		
 		addCollateralInputs(this.#body.inputs.slice());
 
-		addCollateralInputs(spareUtxos.map(utxo => utxo.asTxInput));
+		addCollateralInputs(spareUtxos.map(utxo => utxo));
 
 		// create the collateral return output if there is enough lovelace
 		const changeOutput = new TxOutput(changeAddress, new Value(0n));
@@ -832,7 +846,7 @@ export class Tx extends CborData {
 	 * Shouldn't be used directly
 	 * @param {NetworkParams} networkParams 
 	 * @param {Address} changeAddress
-	 * @param {UTxO[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
+	 * @param {TxInput[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
 	 * @returns {TxOutput} - changeOutput so the fee can be mutated furthers
 	 */
 	balanceLovelace(networkParams, changeAddress, spareUtxos) {
@@ -868,7 +882,7 @@ export class Tx extends CborData {
 			if (spare === undefined) {
 				throw new Error("transaction doesn't have enough inputs to cover the outputs + fees + minLovelace");
 			} else {
-				this.#body.addInput(spare.asTxInput);
+				this.#body.addInput(spare);
 
 				inputValue = inputValue.add(spare.value);
 			}
@@ -1019,7 +1033,7 @@ export class Tx extends CborData {
 	 * Note: this is an async function so that a debugger can optionally be attached in the future
 	 * @param {NetworkParams} networkParams
 	 * @param {Address}       changeAddress
-	 * @param {UTxO[]}        spareUtxos - might be used during balancing if there currently aren't enough inputs
+	 * @param {TxInput[]}        spareUtxos - might be used during balancing if there currently aren't enough inputs
 	 * @returns {Promise<Tx>}
 	 */
 	async finalize(networkParams, changeAddress, spareUtxos = []) {
@@ -1161,7 +1175,7 @@ export class Tx extends CborData {
 /**
  * inputs, minted assets, and withdrawals need to be sorted in order to form a valid transaction
  */
-class TxBody extends CborData {
+export class TxBody extends CborData {
 	/**
 	 * Inputs must be sorted before submitting (first by TxId, then by utxoIndex)
 	 * Spending redeemers must point to the sorted inputs
@@ -1487,6 +1501,48 @@ class TxBody extends CborData {
 				new ConstrData(0, []), // false
 			]),
 		]);
+	}
+
+	/**
+	 * A serialized tx throws away input information
+	 * This must be refetched from the network if the tx needs to be analyzed
+	 * @param {(id: TxOutputId) => Promise<TxOutput>} fn
+	 */
+	async completeInputData(fn) {
+		const indices = [];
+		const ids = [];
+
+		for (let i = 0; i < this.#inputs.length; i++) {
+			const input = this.#inputs[i];
+
+			if (!input.hasOrigOutput()) {
+				indices.push(i);
+				ids.push(new TxOutputId({txId: input.txId, utxoId: input.utxoIdx}));
+			}
+		}
+
+		const offset = this.#inputs.length;
+
+		for (let i = 0; i < this.#refInputs.length; i++) {
+			const refInput = this.#refInputs[i];
+
+			if (!refInput.hasOrigOutput()) {
+				indices.push(offset + i);
+				ids.push(new TxOutputId({txId: refInput.txId, utxoId: refInput.utxoIdx}));
+			}
+		}
+
+		const outputs = await Promise.all(ids.map(id => fn(id)));
+
+		outputs.forEach((output, j) => {
+			const i = indices[j];
+
+			if (i < offset) {
+				this.#inputs[i].setOrigOutput(output)
+			} else {
+				this.#refInputs[i-offset].setOrigOutput(output)
+			}
+		});
 	}
 
 	/**
@@ -1944,6 +2000,11 @@ export class TxWitnesses extends CborData {
 	/** @type {Redeemer[]} */
 	#redeemers;
 
+	/**
+	 * @type {number[][]}
+	 */
+	#v1Scripts;
+
 	/** @type {UplcProgram[]} */
 	#scripts;
 
@@ -1958,6 +2019,7 @@ export class TxWitnesses extends CborData {
 		this.#signatures = [];
 		this.#datums = new ListData([]);
 		this.#redeemers = [];
+		this.#v1Scripts = []; // for backward compatibility with some wallets
 		this.#scripts = []; // always plutus v2
 		this.#refScripts = [];
 		this.#nativeScripts = [];
@@ -2031,6 +2093,10 @@ export class TxWitnesses extends CborData {
 			object.set(1, CborData.encodeDefList(this.#nativeScripts));
 		}
 
+		if (this.#v1Scripts.length > 0) {
+			object.set(3, CborData.encodeDefList(this.#v1Scripts));
+		}
+
 		if (this.#datums.list.length > 0) {
 			object.set(4, this.#datums.toCbor());
 		}
@@ -2071,8 +2137,12 @@ export class TxWitnesses extends CborData {
 					});
 					break;
 				case 2:
-				case 3:
 					throw new Error(`unhandled TxWitnesses field ${i}`);
+				case 3:
+					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+						txWitnesses.#v1Scripts.push(itemBytes);
+					});
+					break;
 				case 4:
 					txWitnesses.#datums = ListData.fromCbor(fieldBytes);
 					break;
@@ -2245,6 +2315,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {TxBody} body
 	 */
 	updateRedeemerIndices(body) {
@@ -2254,6 +2325,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @returns {Hash | null} - returns null if there are no redeemers
 	 */
@@ -2280,7 +2352,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
-	 * 
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body
 	 * @param {Redeemer} redeemer 
@@ -2367,6 +2439,7 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * Executes the redeemers in order to calculate the necessary ex units
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body - needed in order to create correct ScriptContexts
 	 * @param {Address} changeAddress - needed for dummy input and dummy output
@@ -2379,6 +2452,7 @@ export class TxWitnesses extends CborData {
 	}
 	
 	/**
+	 * @internal
 	 * @param {TxBody} body
 	 */
 	executeNativeScripts(body) {
@@ -2393,6 +2467,7 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * Executes the redeemers in order to calculate the necessary ex units
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body - needed in order to create correct ScriptContexts
 	 * @param {Address} changeAddress - needed for dummy input and dummy output
@@ -2411,8 +2486,7 @@ export class TxWitnesses extends CborData {
 
 		// 1000 ADA should be enough as a dummy input/output
 		const dummyInput1 = new TxInput(
-			TxId.dummy(0),
-			0n,
+			new TxOutputId({txId: TxId.dummy(0), utxoId: 0}),
 			new TxOutput(
 				changeAddress,
 				new Value(fee + 1000_000_000n)
@@ -2420,8 +2494,7 @@ export class TxWitnesses extends CborData {
 		);
 		
 		const dummyInput2 = new TxInput(
-			TxId.dummy(255),
-			999n,
+			new TxOutputId({txId: TxId.dummy(255), utxoId: 999}),
 			new TxOutput(
 				changeAddress,
 				new Value(1000_000_000n)
@@ -2463,6 +2536,7 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * Reruns all the redeemers to make sure the ex budgets are still correct (can change due to outputs added during rebalancing)
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {TxBody} body 
 	 */
@@ -2484,6 +2558,7 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * Throws error if execution budget is exceeded
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 */
 	checkExecutionBudgetLimits(networkParams) {
@@ -2555,78 +2630,80 @@ export class TxWitnesses extends CborData {
 }
 
 /**
- * @internal
+ * TxInput base-type
  */
 export class TxInput extends CborData {
 	/** 
-	 * @type {TxId} 
+	 * @readonly
+	 * @type {TxOutputId} 
 	 */
-	#txId;
-
-	/** 
-	 * @type {bigint} 
-	 */
-	#utxoIdx;
+	outputId;
 
 	/** 
 	 * @type {null | TxOutput} 
 	 */
-	#origOutput;
+	#output;
 
 	/**
-	 * @param {TxId} txId 
-	 * @param {number | bigint} utxoIdx 
-	 * @param {null | TxOutput} origOutput - used during building, not part of serialization
+	 * @param {TxOutputId} outputId 
+	 * @param {null | TxOutput} output - used during building, not part of serialization
 	 */
-	constructor(txId, utxoIdx, origOutput = null) {
+	constructor(outputId, output = null) {
 		super();
-		this.#txId = txId;
-		this.#utxoIdx = BigInt(utxoIdx);
-		this.#origOutput = origOutput;
+		this.outputId = outputId;
+		this.#output = output;
 	}
 	
 	/**
+	 * @deprecated
 	 * @type {TxId}
 	 */
 	get txId() {
-		return this.#txId;
+		return this.outputId.txId;
 	}
 
 	/**
+	 * @deprecated
 	 * @type {number}
 	 */
 	get utxoIdx() {
-		return Number(this.#utxoIdx);
+		return Number(this.outputId.utxoIdx);
 	}
 
 	/**
 	 * 
-	 * @param {UTxO | TxInput} other 
+	 * @param {TxInput} other 
 	 * @returns {boolean}
 	 */
 	eq(other) {
-		return other.txId.eq(this.txId) && other.utxoIdx == this.utxoIdx;
+		return other.outputId.eq(this.outputId);
 	}
 
 	/**
+	 * @internal
+	 * @returns {boolean}
+	 */
+	hasOrigOutput() {
+		return this.#output !== null;
+	}
+
+	/**
+	 * @internal
+	 * @param {TxOutput} output 
+	 */
+	setOrigOutput(output) {
+		this.#output = output;
+	}
+
+	/**
+	 * @deprecated
 	 * @type {TxOutput}
 	 */
 	get origOutput() {
-		if (this.#origOutput === null) {
+		if (this.#output === null) {
 			throw new Error("origOutput not set");
 		} else {
-			return this.#origOutput;
-		}
-	}
-
-	/**
-	 * @type {UTxO}
-	 */
-	get utxo() {
-		if (this.#origOutput === null) {
-			throw new Error("origOutput not set");
-		} else {
-			return new UTxO(this.#txId, this.#utxoIdx, this.#origOutput);
+			return this.#output;
 		}
 	}
 
@@ -2635,7 +2712,7 @@ export class TxInput extends CborData {
 	 * @type {Value}
 	 */
 	get value() {
-		return this.origOutput.value;
+		return assertDefined(this.#output).value;
 	}
 
 	/**
@@ -2643,29 +2720,26 @@ export class TxInput extends CborData {
 	 * @type {Address}
 	 */
 	get address() {
-		return this.origOutput.address;
+		return assertDefined(this.#output).address;
 	}
 
 	/**
 	 * @returns {ConstrData}
 	 */
 	toOutputIdData() {
-		return new ConstrData(0, [
-			new ConstrData(0, [new ByteArrayData(this.#txId.bytes)]),
-			new IntData(this.#utxoIdx),
-		]);
+		return this.outputId._toUplcData();
 	}
 
 	/**
 	 * @returns {ConstrData}
 	 */
 	toData() {
-		if (this.#origOutput === null) {
+		if (this.#output === null) {
 			throw new Error("expected to be non-null");
 		} else {
 			return new ConstrData(0, [
 				this.toOutputIdData(),
-				this.#origOutput.toData(),
+				this.#output.toData(),
 			]);
 		}
 	}
@@ -2681,8 +2755,7 @@ export class TxInput extends CborData {
 		const outputId = TxOutputId.fromUplcData(fields[0]);
 
 		return new TxInput(
-			outputId.txId,
-			outputId.utxoIdx,
+			outputId,
 			TxOutput.fromUplcData(fields[1])
 		);
 	}
@@ -2691,41 +2764,64 @@ export class TxInput extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
+		//return CborData.encodeTuple([
+		return this.outputId.toCbor();//,
+		//	this.origOutput.toCbor()
+		//]);
+	}
+
+	/**
+	 * @returns {number[]}
+	 */
+	toFullCbor() {
 		return CborData.encodeTuple([
-			this.#txId.toCbor(),
-			CborData.encodeInteger(this.#utxoIdx),
+			this.outputId.toCbor(),
+			this.origOutput.toCbor()
 		]);
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * Deserializes TxOutput format used by wallet connector
+	 * @param {string | number[]} rawBytes
 	 * @returns {TxInput}
 	 */
-	static fromCbor(bytes) {
-		/** @type {?TxId} */
-		let txId = null;
+	static fromFullCbor(rawBytes) {
+		const bytes = Array.isArray(rawBytes) ? rawBytes : hexToBytes(rawBytes);
 
-		/** @type {?bigint} */
-		let utxoIdx = null;
+		/** @type {null | TxOutputId} */
+		let outputId = null;
+
+		/** @type {null | TxOutput} */
+		let output = null;
 
 		CborData.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					txId = TxId.fromCbor(fieldBytes);
+					outputId = TxOutputId.fromCbor(fieldBytes);
 					break;
 				case 1:
-					utxoIdx = CborData.decodeInteger(fieldBytes);
+					output = TxOutput.fromCbor(fieldBytes);
 					break;
 				default:
 					throw new Error("unrecognized field");
 			}
 		});
 
-		if (txId === null || utxoIdx === null) {
-			throw new Error("unexpected");
+		if (outputId !== null && output !== null) {
+			return new TxInput(outputId, output);
 		} else {
-			return new TxInput(txId, utxoIdx);
+			throw new Error("unexpected");
 		}
+	}
+
+	/**
+	 * @param {string | number[]} rawBytes 
+	 * @returns {TxInput}
+	 */
+	static fromCbor(rawBytes) {
+		const outputId = TxOutputId.fromCbor(rawBytes);
+
+		return new TxInput(outputId, null);
 	}
 
 	/**
@@ -2736,169 +2832,45 @@ export class TxInput extends CborData {
 	 * @returns {number}
 	 */
 	static comp(a, b) {
-		let res = ByteArrayData.comp(a.#txId.bytes, b.#txId.bytes);
-
-		if (res == 0) {
-			return Number(a.#utxoIdx - b.#utxoIdx);
-		} else {
-			return res;
-		}
+		return TxOutputId.comp(a.outputId, b.outputId);
 	} 
 
 	/**
-	 * @returns {Object}
-	 */
-	dump() {
-		return {
-			txId: this.#txId.dump(),
-			utxoIdx: this.#utxoIdx.toString(),
-			origOutput: this.#origOutput !== null ? this.#origOutput.dump() : null,
-		};
-	}
-}
-
-/**
- * UTxO wraps TxInput
- */
-export class UTxO extends CborData {
-	#input;
-
-	/**
-	 * @param {TxId} txId 
-	 * @param {number | bigint} utxoIdx 
-	 * @param {TxOutput} origOutput
-	 */
-	constructor(txId, utxoIdx, origOutput) {
-		super();
-		this.#input = new TxInput(txId, utxoIdx, origOutput);
-	}
-
-	/**
-	 * @type {TxId}
-	 */
-	get txId() {
-		return this.#input.txId;
-	}
-
-	/**
-	 * @type {number}
-	 */
-	get utxoIdx() {
-		return this.#input.utxoIdx;
-	}
-
-	/**
-	 * @type {TxInput}
-	 */
-	get asTxInput() {
-		return this.#input;
-	}
-
-	/**
-	 * @type {Value}
-	 */
-	get value() {
-		return this.#input.value;
-	}
-
-	/**
-	 * @type {TxOutput}
-	 */
-	get origOutput() {
-		return this.#input.origOutput;
-	}
-
-	/**
-	 * 
-	 * @param {UTxO | TxInput} other 
-	 * @returns {boolean}
-	 */
-	eq(other) {
-		return other.txId.eq(this.txId) && other.utxoIdx == this.utxoIdx;
-	}
-
-	/**
-	 * Deserializes UTxO format used by wallet connector
-	 * @param {string | number[]} rawBytes
-	 * @returns {UTxO}
-	 */
-	static fromCbor(rawBytes) {
-		const bytes = Array.isArray(rawBytes) ? rawBytes : hexToBytes(rawBytes);
-
-		/** @type {null | TxInput} */
-		let maybeTxInput = null;
-
-		/** @type {null | TxOutput} */
-		let origOutput = null;
-
-		CborData.decodeTuple(bytes, (i, fieldBytes) => {
-			switch(i) {
-				case 0:
-					maybeTxInput = TxInput.fromCbor(fieldBytes);
-					break;
-				case 1:
-					origOutput = TxOutput.fromCbor(fieldBytes);
-					break;
-				default:
-					throw new Error("unrecognized field");
-			}
-		});
-
-		if (maybeTxInput !== null && origOutput !== null) {
-            /** @type {TxInput} */
-            const txInput = maybeTxInput;
-            
-			return new UTxO(txInput.txId, txInput.utxoIdx, origOutput);
-		} else {
-			throw new Error("unexpected");
-		}
-	}
-
-	/**
-	 * @returns {number[]}
-	 */
-	toCbor() {
-		return CborData.encodeTuple([
-			this.#input.toCbor(),
-			this.#input.origOutput.toCbor()
-		]);
-	}
-
-	/**
-	 * @param {UTxO[]} utxos
+	 * @param {TxInput[]} inputs
 	 * @returns {Value}
 	 */
-	static sumValue(utxos) {
+	static sumValue(inputs) {
 		let sum = new Value();
 
-		for (let utxo of utxos) {
-			sum = sum.add(utxo.value);
+		for (let input of inputs) {
+			sum = sum.add(input.value);
 		}
 
 		return sum;
 	}
 
 	/**
-	 * @returns {any}
+	 * @returns {Object}
 	 */
 	dump() {
-		return this.asTxInput.dump()
+		return {
+			outputId: this.outputId.toString(),
+			output: this.#output !== null ? this.#output.dump() : null
+		};
 	}
 }
 
 /**
- * Distinct TxInput intended as ref input only.
+ * Use TxInput instead
+ * @deprecated
  */
-export class TxRefInput extends TxInput {
-	/**
-	 * @param {TxId} txId 
-	 * @param {number | bigint} utxoId
-	 * @param {TxOutput} origOutput
-	 */
-	constructor(txId, utxoId, origOutput) {
-		super(txId, utxoId, origOutput);
-	}
-}
+const UTxO = TxInput;
+
+/**
+ * User TxInput instead
+ * @deprecated
+ */
+const TxRefInput = TxInput;
 
 /**
  * TxOutput
@@ -4008,7 +3980,10 @@ export class RootPrivateKey {
 	}
 }
 
-class Redeemer extends CborData {
+/**
+ * Base-type of SpendingRedeemer and MintingRedeemer
+ */
+export class Redeemer extends CborData {
 	/** @type {UplcData} */
 	#data;
 
@@ -4228,7 +4203,7 @@ class Redeemer extends CborData {
 	}
 }
 
-class SpendingRedeemer extends Redeemer {
+export class SpendingRedeemer extends Redeemer {
 	#input;
 	#inputIndex;
 
@@ -4298,7 +4273,7 @@ class SpendingRedeemer extends Redeemer {
 	}
 }
 
-class MintingRedeemer extends Redeemer {
+export class MintingRedeemer extends Redeemer {
 	#mph;
 	#mphIndex;
 

@@ -1,12 +1,12 @@
-#!/usr/bin/env node
 //@ts-check
 
-import * as helios from "../helios.js";
-import { runIfEntryPoint } from "../utils/util.js";
+import { 
+    Crypto, 
+    bytesToHex,
+    hexToBytes
+} from "helios"
 
-const helios_ = helios.exportedForTesting;
-
-const Ed25519 = helios.Crypto.Ed25519;
+const Ed25519 = Crypto.Ed25519;
 
 const N_TESTS = 100;
 
@@ -1047,14 +1047,14 @@ export default async function main() {
 
         let fields = line.split(":");
 
-        let privateKey = helios.hexToBytes(fields[0].slice(0, 64));
-        let expectedPublicKey = helios.hexToBytes(fields[1]);
-        let message = helios.hexToBytes(fields[2]);
-        let expectedSignature = helios.hexToBytes(fields[3].slice(0, 128));
+        let privateKey = hexToBytes(fields[0].slice(0, 64));
+        let expectedPublicKey = hexToBytes(fields[1]);
+        let message = hexToBytes(fields[2]);
+        let expectedSignature = hexToBytes(fields[3].slice(0, 128));
 
         let derivedPublicKey = Ed25519.derivePublicKey(privateKey);
-        if (helios.bytesToHex(derivedPublicKey) != helios.bytesToHex(expectedPublicKey)) {
-            console.log(`${helios.bytesToHex(derivedPublicKey)}\nvs\n${expectedPublicKey}`);
+        if (bytesToHex(derivedPublicKey) != bytesToHex(expectedPublicKey)) {
+            console.log(`${bytesToHex(derivedPublicKey)}\nvs\n${expectedPublicKey}`);
             throw new Error("public key doesn't match");
         }
 
@@ -1063,8 +1063,8 @@ export default async function main() {
         }
 
         let calculatedSignature = Ed25519.sign(message, privateKey);
-        if (helios.bytesToHex(calculatedSignature) != helios.bytesToHex(expectedSignature)) {
-            console.log(`${helios.bytesToHex(calculatedSignature)}(${calculatedSignature.length})\nvs\n${helios.bytesToHex(expectedSignature)}(${expectedSignature.length})`)
+        if (bytesToHex(calculatedSignature) != bytesToHex(expectedSignature)) {
+            console.log(`${bytesToHex(calculatedSignature)}(${calculatedSignature.length})\nvs\n${bytesToHex(expectedSignature)}(${expectedSignature.length})`)
             throw new Error("signature doesn't match");
         }
 
@@ -1077,5 +1077,3 @@ export default async function main() {
 		}
     }
 }
-
-runIfEntryPoint(main, "ed25519.js");

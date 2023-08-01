@@ -19,7 +19,6 @@ import {
 
 /**
  * Each Token/Expression/Statement has a Site, which encapsulates a position in a Source
- * @internal
  */
 export class Site {
 	#src;

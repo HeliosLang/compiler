@@ -1,8 +1,9 @@
-#!/usr/bin/env node
 //@ts-check
-import * as helios from "../helios.js";
+import {
+	deserializeUplc
+} from "helios"
+
 import { assertEq } from "../src/utils.js";
-import { runIfEntryPoint } from "../utils/util.js";
 
 // CONST_1. Equivalent to text envelope of following bytes: [0b00001011, 0b00010110, 0b00100001, 0b01001000, 0b00000101, 0b10000001]
 const CONST_1         = "47460b1621480581" 
@@ -28,7 +29,7 @@ const NESTED_CONTAINER = "4e4d0100004bd6f7b42f5a205c8261"
 function testCbor(name, cborHex) {
 	console.log("Deserializing program " + name + "...");
 
-	let program = helios.deserializeUplc(`{"type": "PlutusScriptV2", "cborHex": "${cborHex}"}`);
+	let program = deserializeUplc(`{"type": "PlutusScriptV2", "cborHex": "${cborHex}"}`);
 
 	console.log(program.toString() + "\n");
 
@@ -77,5 +78,3 @@ export default async function main() {
 
 	testCbor("Nested Container", NESTED_CONTAINER);
 }
-
-runIfEntryPoint(main, "deserialize-uplc.js");

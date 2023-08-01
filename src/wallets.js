@@ -25,8 +25,12 @@ import {
     Signature,
     Tx,
     TxWitnesses,
-    UTxO
+    TxInput
 } from "./tx-builder.js";
+
+/**
+ * @typedef {import("./coinselection.js").CoinSelectionAlgorithm} CoinSelectionAlgorithm
+ */
 
 import {
     CoinSelection
@@ -38,8 +42,8 @@ import {
  *     isMainnet(): Promise<boolean>,
  *     usedAddresses: Promise<Address[]>,
  *     unusedAddresses: Promise<Address[]>,
- *     utxos: Promise<UTxO[]>,
- *     collateral: Promise<UTxO[]>,
+ *     utxos: Promise<TxInput[]>,
+ *     collateral: Promise<TxInput[]>,
  *     signTx(tx: Tx): Promise<Signature[]>,
  *     submitTx(tx: Tx): Promise<TxId>
  * }} Wallet
@@ -95,18 +99,18 @@ export class Cip30Wallet {
     }
 
     /**
-     * @type {Promise<UTxO[]>}
+     * @type {Promise<TxInput[]>}
      */
     get utxos() {
-        return this.#handle.getUtxos().then(utxos => utxos.map(u => UTxO.fromCbor(hexToBytes(u))));
+        return this.#handle.getUtxos().then(utxos => utxos.map(u => TxInput.fromFullCbor(hexToBytes(u))));
     }
 
     /**
-     * @type {Promise<UTxO[]>}
+     * @type {Promise<TxInput[]>}
      */
     get collateral() {
         const getCollateral = this.#handle.getCollateral || this.#handle.experimental.getCollateral;
-        return getCollateral().then(utxos => utxos.map(u => UTxO.fromCbor(hexToBytes(u))));
+        return getCollateral().then(utxos => utxos.map(u => TxInput.fromFullCbor(hexToBytes(u))));
     }
 
     /**
@@ -135,12 +139,15 @@ export class Cip30Wallet {
  */
 export class WalletHelper {
     #wallet;
+    #getUtxosFallback;
 
     /**
      * @param {Wallet} wallet
+     * @param {undefined | ((addr: Address[]) => Promise<TxInput[]>)} getUtxosFallback
      */
-    constructor(wallet) {
+    constructor(wallet, getUtxosFallback = undefined) {
         this.#wallet = wallet;
+        this.#getUtxosFallback = getUtxosFallback;
     }
 
     /**
@@ -156,7 +163,7 @@ export class WalletHelper {
     async calcBalance() {
         let sum = new Value();
 
-        const utxos = await this.#wallet.utxos;
+        const utxos = await this.getUtxos();
 
         for (const utxo of utxos) {
             sum = sum.add(utxo.value);
@@ -193,10 +200,10 @@ export class WalletHelper {
 
     /**
      * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
-     * @type {Promise<null | UTxO>}
+     * @type {Promise<null | TxInput>}
      */
     get refUtxo() {
-        return this.#wallet.utxos.then(utxos => {
+        return this.getUtxos().then(utxos => {
             if(utxos.length == 0) {
                 return null;
             } else {
@@ -206,22 +213,36 @@ export class WalletHelper {
     }
 
     /**
+     * @returns {Promise<TxInput[]>}
+     */
+    async getUtxos() {
+        try {
+            return await this.#wallet.utxos;
+        } catch (e) {
+            if (this.#getUtxosFallback && e.message.includes("unknown error in getUtxos")) {
+                return this.#getUtxosFallback(await this.#wallet.usedAddresses);
+            } else {
+                throw e
+            }
+        }
+    }
+    /**
      * @param {Value} amount
-     * @param {(allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]} algorithm
-     * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
+     * @param {CoinSelectionAlgorithm} algorithm
+     * @returns {Promise<[TxInput[], TxInput[]]>} - [picked, not picked that can be used as spares]
      */
     async pickUtxos(amount, algorithm = CoinSelection.selectSmallestFirst) {
-        return algorithm(await this.#wallet.utxos, amount);
+        return algorithm(await this.getUtxos(), amount);
     }
 
     /**
      * Returned collateral can't contain an native assets (pure lovelace)
      * TODO: combine UTxOs if a single UTxO isn't enough
      * @param {bigint} amount - 2 Ada should cover most things
-     * @returns {Promise<UTxO>}
+     * @returns {Promise<TxInput>}
      */
     async pickCollateral(amount = 2000000n) {
-        const pureUtxos = (await this.#wallet.utxos).filter(utxo => utxo.value.assets.isZero());
+        const pureUtxos = (await this.getUtxos()).filter(utxo => utxo.value.assets.isZero());
 
         if (pureUtxos.length == 0) {
             throw new Error("no pure UTxOs in wallet (needed for collateral)");
@@ -271,14 +292,19 @@ export class WalletHelper {
     }
 
     /**
+     * @param {undefined | ((addrs: Address[]) => Promise<TxInput[]>)} utxosFallback
      * @returns {Promise<any>}
      */
-    async toJson() {
+    async toJson(utxosFallback = undefined) {
+        const isMainnet = (await this.#wallet).isMainnet();
+        const usedAddresses = (await this.#wallet.usedAddresses);
+        const unusedAddresses = (await this.#wallet.unusedAddresses);
+
         return {
-            isMainnet: (await this.#wallet.isMainnet()),
-            usedAddresses: (await this.#wallet.usedAddresses).map(a => a.toBech32()),
-            unusedAddresses: (await this.#wallet.unusedAddresses).map(a => a.toBech32()),
-            utxos: (await this.#wallet.utxos).map(u => u.toCborHex())
+            isMainnet: isMainnet,
+            usedAddresses: usedAddresses.map(a => a.toBech32()),
+            unusedAddresses: unusedAddresses.map(a => a.toBech32()),
+            utxos: (await this.getUtxos()).map(u => bytesToHex(u.toFullCbor()))
         };
     }
 }
@@ -296,7 +322,7 @@ export class RemoteWallet {
      * @param {boolean} isMainnet
      * @param {Address[]} usedAddresses 
      * @param {Address[]} unusedAddresses 
-     * @param {UTxO[]} utxos 
+     * @param {TxInput[]} utxos 
      */
     constructor(isMainnet, usedAddresses, unusedAddresses, utxos) {
         this.#isMainnet = isMainnet;
@@ -317,7 +343,7 @@ export class RemoteWallet {
                 obj.isMainnet,
                 obj.usedAddresses.map(a => Address.fromBech32(a)),
                 obj.unusedAddresses.map(a => Address.fromBech32(a)),
-                obj.utxos.map(u => UTxO.fromCbor(u))
+                obj.utxos.map(u => TxInput.fromFullCbor(u))
             )
         }
     }
@@ -344,14 +370,14 @@ export class RemoteWallet {
     }
 
     /**
-     * @type {Promise<UTxO[]>}
+     * @type {Promise<TxInput[]>}
      */
     get utxos() {
         return new Promise((resolve, _) => resolve(this.#utxos));
     }
 
     /**
-     * @type {Promise<UTxO[]>}
+     * @type {Promise<TxInput[]>}
      */
     get collateral() {
         return new Promise((resolve, _) => resolve([]));

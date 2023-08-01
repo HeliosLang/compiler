@@ -20,6 +20,9 @@ import {
 	HeliosData
 } from "./helios-data.js";
 
+/**
+ * @typedef {import("./uplc-costmodels.js")}
+ */
 import { 
 	NetworkParams
 } from "./uplc-costmodels.js";
@@ -86,13 +89,33 @@ import {
 
 /**
  * @internal
+ * @typedef {{[name: string]: (obj: any) => Promise<UplcData>}} JsToUplcHelpers
+ */
+
+/**
+ * @internal
+ * @typedef {{[name: string]: (data: UplcData) => Promise<any>}} UplcToJsHelpers
+ */
+
+/**
+ * @internal
+ * @typedef {(obj: any, helpers: JsToUplcHelpers) => Promise<UplcData>} JsToUplcConverter
+ */
+
+/**
+ * @internal
+ * @typedef {(data: UplcData, helpers: UplcToJsHelpers) => Promise<any>} UplcToJsConverter
+ */
+
+/**
+ * @internal
  * @typedef {Named & Type & {
  *   asDataType:   DataType
  *   fieldNames:   string[]
  *   offChainType: (null | HeliosDataClass<HeliosData>)
  *   typeDetails?: TypeDetails
- *   jsToUplc:     (obj: any, params?: NetworkParams) => UplcData
- *   uplcToJs:     (data: UplcData) => any
+ *   jsToUplc:     JsToUplcConverter
+ *   uplcToJs:     UplcToJsConverter
  *   ready:        boolean
  * }} DataType
  */
@@ -447,17 +470,19 @@ export class Common {
 
 	/**
 	 * @param {any} obj
-	 * @returns {UplcData}
+	 * @param {JsToUplcHelpers} helpers
+	 * @returns {Promise<UplcData>}
 	 */
-	jsToUplc(obj) {
+	jsToUplc(obj, helpers) {
 		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * @param {UplcData} data
-	 * @returns {any}
+	 * @param {UplcToJsHelpers} helpers
+	 * @returns {Promise<any>}
 	 */
-	uplcToJs(data) {
+	uplcToJs(data, helpers) {
 		throw new Error("not yet implemented");
 	}
 
@@ -1150,8 +1175,8 @@ export class FuncType extends Common {
  *   genInstanceMembers: (self: Type) => InstanceMembers,
  *   genTypeMembers: (self: Type) => TypeMembers
  *   genTypeDetails?: (self: Type) => TypeDetails,
- *   jsToUplc?: (obj: any) => UplcData
- *   uplcToJs?: (data: UplcData) => any
+ *   jsToUplc?: JsToUplcConverter
+ *   uplcToJs?: UplcToJsConverter
  * }} GenericTypeProps
  */
 
@@ -1203,12 +1228,12 @@ export class GenericType extends Common {
 	#genDepth;
 
 	/**
-	 * @type {null | ((obj: any, networkParams?: NetworkParams) => UplcData)}
+	 * @type {null | JsToUplcConverter}
 	 */
 	#jsToUplc;
 
 	/**
-	 * @type {null | ((data: UplcData) => any)}
+	 * @type {null | UplcToJsConverter}
 	 */
 	#uplcToJs;
 
@@ -1441,12 +1466,12 @@ export class GenericType extends Common {
 
 	/**
 	 * @param {any} obj 
-	 * @param {undefined | NetworkParams} networkParams
-	 * @returns {UplcData}
+	 * @param {JsToUplcHelpers} helpers
+	 * @returns {Promise<UplcData>}
 	 */
-	jsToUplc(obj, networkParams = undefined) {
+	jsToUplc(obj, helpers) {
 		if (this.#jsToUplc) {
-			return this.#jsToUplc(obj, networkParams);
+			return this.#jsToUplc(obj, helpers);
 		} else {
 			throw new Error(`'${this.name}' doesn't support converting from JS to Uplc`);
 		}
@@ -1454,11 +1479,12 @@ export class GenericType extends Common {
 
 	/**
 	 * @param {UplcData} data
-	 * @returns {any}
+	 * @param {UplcToJsHelpers} helpers
+	 * @returns {Promise<any>}
 	 */
-	uplcToJs(data) {
+	uplcToJs(data, helpers) {
 		if (this.#uplcToJs) {
-			return this.#uplcToJs(data);
+			return this.#uplcToJs(data, helpers);
 		} else {
 			throw new Error(`'${this.name}' doesn't support converting from Uplc to JS`);
 		}
@@ -1494,8 +1520,8 @@ export class GenericType extends Common {
  *   genInstanceMembers: (self: Type) => InstanceMembers,
  *   genTypeMembers?: (self: Type) => TypeMembers
  *   genTypeDetails?: (self: Type) => TypeDetails
- *   jsToUplc?: (obj: any) => UplcData
- *   uplcToJs?: (data: UplcData) => any
+ *   jsToUplc?: JsToUplcConverter
+ *   uplcToJs?: UplcToJsConverter
  * }} GenericEnumMemberTypeProps
  */
 

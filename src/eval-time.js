@@ -43,10 +43,10 @@ export var DurationType = new GenericType({
             type: "Duration"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return Duration.fromProps(obj)._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return Number(Duration.fromUplcData(data).value);
     },
     genInstanceMembers: (self) => ({
@@ -92,10 +92,10 @@ export var TimeType = new GenericType({
             type: "Time"
         }
     }),
-    jsToUplc: (obj) => {
+    jsToUplc: async (obj, helpers) => {
         return Time.fromProps(obj)._toUplcData();
     },
-    uplcToJs: (data) => {
+    uplcToJs: async (data, helpers) => {
         return new Date(Number(Time.fromUplcData(data).value));
     },
     genInstanceMembers: (self) => ({

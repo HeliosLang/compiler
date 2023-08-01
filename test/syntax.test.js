@@ -1,14 +1,28 @@
-#!/usr/bin/env node
 //@ts-check
 
-import * as helios from "../helios.js";
-import { assert, runIfEntryPoint } from "../utils/util.js";
-const helios_ = helios.exportedForTesting;
+import {
+  ConstrData,
+  IntData,
+  Program,
+  PubKeyHash,
+  RuntimeError,
+  Site,
+  UplcBool,
+  UplcDataValue,
+  UplcProgram,
+  UplcValue,
+  UserError,
+  assert,
+  assertClass,
+  assertDefined,
+  bytesToText,
+  extractScriptPurposeAndName,
+} from "helios"
 
 function asBool(value) {
-  if (value instanceof helios_.UplcBool) {
+  if (value instanceof UplcBool) {
       return value.bool;
-  } else if (value instanceof helios_.ConstrData) {
+  } else if (value instanceof ConstrData) {
       if (value.fields.length == 0) {
           if (value.index == 0) {
               return false;
@@ -20,7 +34,7 @@ function asBool(value) {
       } else {
           throw new Error(`expected ConstrData with 0 fields (Bool)`);
       }
-  } else if (value instanceof helios_.UplcDataValue) {
+  } else if (value instanceof UplcDataValue) {
       return asBool(value.data);
   }
 
@@ -34,7 +48,7 @@ function asBool(value) {
  * @returns {boolean}
  */
 function isError(err, info, simplified = false) {
-  if (err instanceof helios.RuntimeError || err instanceof helios.UserError) {
+  if (err instanceof RuntimeError || err instanceof UserError) {
     if (simplified) {
       return true;
     } else {
@@ -47,13 +61,13 @@ function isError(err, info, simplified = false) {
 
 async function testTrue(src, simplify = false) {
   // also test the transfer() function
-  let program = helios.Program.new(src).compile(simplify).transfer(helios.UplcProgram);
+  let program = Program.new(src).compile(simplify).transfer(UplcProgram);
 
   let result = await program.run([]);
 
-  const [_, name] = helios.extractScriptPurposeAndName(src) ?? ["", ""];
+  const [_, name] = extractScriptPurposeAndName(src) ?? ["", ""];
 
-  helios_.assert(asBool(result), `test ${name} failed`);
+  assert(asBool(result), `test ${name} failed`);
 
   console.log(`test ${name} succeeded${simplify ? " (simplified)" : ""}`);
 
@@ -63,17 +77,17 @@ async function testTrue(src, simplify = false) {
 }
 
 async function testError(src, expectedError, simplify = false) {
-  const [_, name] = helios.extractScriptPurposeAndName(src) ?? ["", ""];
+  const [_, name] = extractScriptPurposeAndName(src) ?? ["", ""];
 
   try {
       // also test the transfer() function
-      let program = helios.Program.new(src).compile(simplify).transfer(helios.UplcProgram);
+      let program = Program.new(src).compile(simplify).transfer(UplcProgram);
 
       let result = await program.run([]);
 
-      helios_.assert(isError(result, expectedError, simplify), `test ${name} failed (${result.toString()})`);
+      assert(isError(result, expectedError, simplify), `test ${name} failed (${result.toString()})`);
   } catch (e) {
-      helios_.assert(isError(e,  expectedError, simplify), `test ${name} failed (${e.message})`);
+      assert(isError(e,  expectedError, simplify), `test ${name} failed (${e.message})`);
   }
 
   console.log(`test ${name} succeeded${simplify ? " (simplified)" : ""}`);
@@ -104,7 +118,7 @@ async function test0() {
       deserialize[Bool](d).trace("hello")
     }`;
 
-    const program = helios.Program.new(src);
+    const program = Program.new(src);
 
     console.log(program.prettyIR(true));
 }
@@ -135,7 +149,7 @@ async function test1() {
         shareholders.length == 1
     }`;
 
-    const program = helios.Program.new(src);
+    const program = Program.new(src);
 
     
 }
@@ -180,13 +194,13 @@ async function test2() {
       tradeOwner : PubKeyHash::new(OWNER_BYTES)
     }`;
 
-    let program = helios.Program.new(src);
+    let program = Program.new(src);
 
     console.log(program.prettyIR(false));
     
     program.parameters = {
       DISBURSEMENTS: [
-		  [new helios.PubKeyHash("01020304050607080910111213141516171819202122232425262728"), 100]
+		  [new PubKeyHash("01020304050607080910111213141516171819202122232425262728"), 100]
 	  ]
     };
 
@@ -214,10 +228,10 @@ async function test3() {
   `
 
   // also test the transfer() function
-  const program = helios.Program.new(src);
+  const program = Program.new(src);
   program.parameters.MY_TEXT = "asdasd";
 
-  const uplcProgram = program.compile().transfer(helios.UplcProgram);
+  const uplcProgram = program.compile().transfer(UplcProgram);
 
   console.log((await uplcProgram.run([])).toString());
 }
@@ -238,12 +252,12 @@ async function test4() {
   }
   `;
 
-  let program = helios.Program.new(src);
+  let program = Program.new(src);
 
   console.log(program.prettyIR());
 
   // also test the transfer function
-  let uplcProgram = program.compile().transfer(helios.UplcProgram);
+  let uplcProgram = program.compile().transfer(UplcProgram);
 
   console.log((await uplcProgram.runWithPrint([])).toString());
 }
@@ -265,10 +279,10 @@ async function test5() {
     true
   }`;
 
-  let program = helios.Program.new(src);
+  let program = Program.new(src);
 
   // also test the transfer function
-  let uplcProgram = program.compile().transfer(helios.UplcProgram);
+  let uplcProgram = program.compile().transfer(UplcProgram);
   console.log((await uplcProgram.runWithPrint([])).toString());
   console.log(program.evalParam("r").toString());
 }
@@ -291,7 +305,7 @@ async function test6() {
      true
   }`;
 
-  const program = helios.Program.new(src);
+  const program = Program.new(src);
 
   console.log(program.paramTypes);
 
@@ -316,7 +330,7 @@ async function test7() {
      true
   }`;
 
-  const program = helios.Program.new(src);
+  const program = Program.new(src);
 
   console.log(program.paramTypes);
 
@@ -352,7 +366,7 @@ async function test8() {
   const DATA: MyEnum::Three = MyEnum::Three
   `;
 
-  const program = helios.Program.new(src);
+  const program = Program.new(src);
 
   const data = program.evalParam("DATA");
 
@@ -360,7 +374,7 @@ async function test8() {
 
   let res = await program.compile(true).run([data]);
 
-  console.log(helios.bytesToText(helios_.assertDefined(res.data.bytes)));
+  console.log(bytesToText(assertDefined(assertClass(res, UplcValue).data.bytes)));
 }
 
 async function test9() {
@@ -374,7 +388,7 @@ async function test9() {
   }
   `;
 
-  helios.Program.new(src);
+  Program.new(src);
 }
 
 async function test10() {
@@ -386,9 +400,7 @@ async function test10() {
 			&& ctx.tx.redeemers.length == 1
 	}`;
 
-	helios.Program.new(src).compile();
-
-  
+	Program.new(src).compile();
 }
 
 async function test11() {
@@ -403,15 +415,15 @@ async function test11() {
     (c: Int, _) = swap(swap(a, b, b), b); c
   }`;
 
-  const program = helios.Program.new(src);
+  const program = Program.new(src);
 
   console.log(program.prettyIR(false));
   console.log(program.prettyIR(true));
 
   const uplcProgram = program.compile();
 
-  const arg0 = new helios.UplcDataValue(helios_.Site.dummy(), (new helios.IntData(2n)));
-  const arg1 = new helios.UplcDataValue(helios_.Site.dummy(), (new helios.IntData(1n)));
+  const arg0 = new UplcDataValue(Site.dummy(), (new IntData(2n)));
+  const arg1 = new UplcDataValue(Site.dummy(), (new IntData(1n)));
 
   let res = await uplcProgram.run([arg0, arg1]);
 
@@ -441,7 +453,7 @@ async function test12() {
   const DATA: MyEnum::Three = MyEnum::Three{10}
   `;
 
-  const program = helios.Program.new(src);
+  const program = Program.new(src);
 
   const data = program.evalParam("DATA");
 
@@ -449,7 +461,7 @@ async function test12() {
 
   let res = await program.compile(true).run([data]);
 
-  console.log(helios.bytesToText(helios_.assertDefined(res.data).bytes));
+  console.log(bytesToText(assertDefined(assertClass(res, UplcValue).data).bytes));
 }
 
 async function test13() {
@@ -472,7 +484,7 @@ async function test13() {
     false
   }`;
 
-  let program = helios.Program.new(src);
+  let program = Program.new(src);
 
   console.log(program.prettyIR(false));
 
@@ -496,7 +508,7 @@ async function test15() {
   }
   `;
 
-  helios.Program.new(src);
+  Program.new(src);
 }
 
 async function test16() {
@@ -509,7 +521,7 @@ async function test16() {
     ctx.tx.is_signed_by(OWNER) && BOOL
   }`;
 
-  const program = helios.Program.new(src, [], {}, {
+  const program = Program.new(src, [], {}, {
     allowPosParams: true,
     invertEntryPoint: false
   });
@@ -532,7 +544,7 @@ async function test17() {
   }
   `;
 
-  helios.Program.new(mintingSrc);
+  Program.new(mintingSrc);
 
   const spendingSrc = `
   spending redeemer_only
@@ -546,7 +558,7 @@ async function test17() {
   }
   `;
 
-  helios.Program.new(spendingSrc);
+  Program.new(spendingSrc);
 }
 
 // recursive type test
@@ -578,7 +590,7 @@ async function test18() {
 
   for (const simplify of [true, false]) {
     console.log(simplify)
-    const program = helios.Program.new(src).compile(simplify);
+    const program = Program.new(src).compile(simplify);
 
     const [result, messages] = await program.runWithPrint([]);
 
@@ -606,7 +618,7 @@ async function test19() {
   `
 
   for (const simplify of [true, false]) {
-    const program = helios.Program.new(src).compile(simplify);
+    const program = Program.new(src).compile(simplify);
 
     const result = await program.run([]);
 
@@ -620,7 +632,7 @@ async function test20() {
   // no newlines
   const src = `testing no_newlines func main()->Bool{true}//`
 
-  helios.Program.new(src).compile(true)
+  Program.new(src).compile(true)
 }
 
 async function test21() {
@@ -642,7 +654,7 @@ async function test21() {
   `
 
   try {
-    helios.Program.new(src)
+    Program.new(src)
   } catch (e) {
     assert(e.message.includes("expected struct type before braces"))
   }
@@ -665,7 +677,7 @@ async function test22() {
   }
   `
 
-  console.log(helios.Program.new(src).prettyIR(false))
+  console.log(Program.new(src).prettyIR(false))
 }
 
 async function test23() {
@@ -1184,5 +1196,3 @@ export default async function main() {
 
   await test27();
 }
-
-runIfEntryPoint(main, "syntax.js");

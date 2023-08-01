@@ -337,6 +337,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	#parameters;
 	
 	/**
+	 * @internal
 	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules
 	 * @param {ProgramConfig} config
@@ -349,11 +350,15 @@ const DEFAULT_PROGRAM_CONFIG = {
 		this.#parameters = {};
 	}
 
+	/**
+	 * @internal
+	 */
 	throwErrors() {
 		this.#modules.forEach(m => m.throwErrors());
 	}
 
 	/**
+	 * @internal
 	 * @param {string} rawSrc 
 	 * @returns {[purpose, Module[]]}
 	 */
@@ -399,7 +404,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
-	 * 
+	 * @internal
 	 * @param {string} mainName 
 	 * @param {string[]} moduleSrcs
 	 * @returns {Module[]}
@@ -428,6 +433,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {string} mainSrc 
 	 * @param {string[]} moduleSrcs
 	 * @returns {[null | ScriptPurpose, Module[]]}
@@ -462,11 +468,23 @@ const DEFAULT_PROGRAM_CONFIG = {
 	 * Creates  a new program.
 	 * @param {string} mainSrc 
 	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
-	 * @param {{[name: string]: Type}} validatorTypes
 	 * @param {ProgramConfig} config
 	 * @returns {Program}
 	 */
 	static new(mainSrc, moduleSrcs = [], validatorTypes = {}, config = DEFAULT_PROGRAM_CONFIG) {
+		return Program.newInternal(mainSrc, moduleSrcs, {}, config);
+	}
+
+	/**
+	 * Creates  a new program.
+	 * @internal
+	 * @param {string} mainSrc 
+	 * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
+	 * @param {{[name: string]: Type}} validatorTypes
+	 * @param {ProgramConfig} config
+	 * @returns {Program}
+	 */
+	static newInternal(mainSrc, moduleSrcs = [], validatorTypes = {}, config = DEFAULT_PROGRAM_CONFIG) {
 		const [purpose, modules] = Program.parseMain(mainSrc, moduleSrcs);
 	
 		/**
@@ -513,6 +531,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {number}
 	 */
 	get nPosParams() {
@@ -520,6 +539,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {Type[]}
 	 */
 	get posParams() {
@@ -527,6 +547,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/** 
+	 * @internal
 	 * @type {Module[]} 
 	 */
 	get mainImportedModules() {
@@ -545,6 +566,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {MainModule}
 	 */
 	get mainModule() {
@@ -558,6 +580,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {null | Module}
 	 */
 	get postModule() {
@@ -585,6 +608,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {FuncStatement}
 	 */
 	get mainFunc() {
@@ -592,6 +616,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {Site}
 	 */
 	get mainRetExprSite() {
@@ -599,6 +624,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {string[]}
 	 */
 	get mainArgNames() {
@@ -606,6 +632,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {DataType[]}
 	 */
 	get mainArgTypes() {
@@ -613,6 +640,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {string}
 	 */
 	get mainPath() {
@@ -620,6 +648,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {Statement[]}
 	 */
 	get mainStatements() {
@@ -628,6 +657,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 	/**
 	 * Needed to list the paramTypes, and to call changeParam
+	 * @internal
 	 * @type {Statement[]}
 	 */
 	get mainAndPostStatements() {
@@ -641,6 +671,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {[Statement, boolean][]} - boolean value marks if statement is import or not
 	 */
 	get allStatements() {
@@ -669,6 +700,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {GlobalScope} globalScope
 	 * @returns {TopScope}
 	 */
@@ -698,11 +730,12 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {{[name: string]: Type}} validatorTypes
 	 * @returns {TopScope}
 	 */
 	evalTypes(validatorTypes = {}) {
-		throw new Error("not yet implemeneted");
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -714,6 +747,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 	/**
 	 * Fill #types with convenient javascript equivalents of Int, ByteArray etc.
+	 * @internal
 	 * @param {TopScope} topScope
 	 */
 	fillTypes(topScope) {
@@ -727,6 +761,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {(name: string, cs: ConstStatement) => void} callback 
 	 */
 	loopConstStatements(callback) {
@@ -740,6 +775,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @type {{[name: string]: DataType}}
 	 */
 	get paramTypes() {
@@ -779,6 +815,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {string} name 
 	 * @returns {ConstStatement | null}
 	 */
@@ -800,6 +837,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {ConstStatement} constStatement
 	 * @returns {UplcValue}
 	 */
@@ -1044,6 +1082,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 	/**
 	 * Also merges builtins and map
+	 * @internal
 	 * @param {IR} mainIR
 	 * @param {IRDefinitions} map 
 	 * @returns {IRDefinitions}
@@ -1130,6 +1169,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {IR} ir 
 	 * @param {IRDefinitions} definitions 
 	 * @returns {Set<string>}
@@ -1168,6 +1208,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {IR} ir 
 	 * @param {IRDefinitions} definitions 
 	 * @returns {IRDefinitions}
@@ -1215,6 +1256,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @param {IR} ir
 	 * @param {IRDefinitions} definitions
 	 * @returns {IR}
@@ -1251,6 +1293,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIRInternal() {
@@ -1270,6 +1313,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 	/**
 	 * Non-positional named parameters
+	 * @internal
 	 * @type {[string, Type][]}
 	 */
 	get requiredParameters() {
@@ -1742,6 +1786,9 @@ class StakingProgram extends RedeemerProgram {
 	}
 }
 
+/**
+ * @internal
+ */
 class LinkingProgram extends GenericProgram {
 	/**
 	 * @param {Module[]} modules 

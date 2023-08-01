@@ -1,13 +1,19 @@
-#!/usr/bin/env node
 //@ts-check
-import * as helios from "../helios.js";
-import { runIfEntryPoint } from "../utils/util.js";
 
-helios.config.EXPERIMENTAL_CEK = true;
+import {
+    Program,
+    RuntimeError,
+    UplcProgram,
+    UserError,
+    config,
+    extractScriptPurposeAndName
+} from "helios"
+
+config.EXPERIMENTAL_CEK = true;
 
 export default async function main() {
     async function runTestScriptWithArgs(src, argNames, expectedResult, expectedMessages) {
-        let purposeName = helios.extractScriptPurposeAndName(src);
+        let purposeName = extractScriptPurposeAndName(src);
 
         if (purposeName == null) {
             throw new Error("invalid header");
@@ -32,12 +38,12 @@ export default async function main() {
         }
 
         try {
-            let program = helios.Program.new(src);
+            let program = Program.new(src);
 
             let args = argNames.map(n => program.evalParam(n));
 
             // test the transfer() function as well
-            let [result, messages] = await program.compile(false).transfer(helios.UplcProgram).runWithPrint(args);
+            let [result, messages] = await program.compile(false).transfer(UplcProgram).runWithPrint(args);
         
             if (expectedMessages.length > 0 && !expectedMessages.every(em => messages.some(m => m.includes(em)))) {
                 throw new Error(`didn't find expected message ${expectedMessages} in ${messages}`);
@@ -50,7 +56,7 @@ export default async function main() {
             // also try the simplified version (don't check for the message though because all trace calls will've been eliminated)
 
             // test the transfer() function as well
-            [result, messages] = await program.compile(true).transfer(helios.UplcProgram).runWithPrint(args);
+            [result, messages] = await program.compile(true).transfer(UplcProgram).runWithPrint(args);
 
             if (messages.length != 0) {
                 throw new Error("unexpected messages");
@@ -58,7 +64,7 @@ export default async function main() {
 
             checkResult(result, true);
         } catch(e) {
-            if (!(e instanceof helios.RuntimeError || e instanceof helios.UserError)) {
+            if (!(e instanceof RuntimeError || e instanceof UserError)) {
                 throw e
             } else {
                 checkResult(e);
@@ -624,5 +630,3 @@ export default async function main() {
         TxOutputId::new(TxId::new(#0123456789012345678901234567890123456789012345678901234567891234), 0)
     )`, ["good_datum", "update_nft_redeemer_good", "ctx_good_default"], "data(1{})", []);
 }
-
-runIfEntryPoint(main, "example-scripts.js");

@@ -4,7 +4,6 @@ declare module "helios" {
      */
     /**
      * Needed by transfer() methods
-     * @internal
      * @typedef {{
      *   transferByteArrayData: (bytes: number[]) => any,
      *   transferConstrData: (index: number, fields: any[]) => any,
@@ -447,6 +446,7 @@ declare module "helios" {
      * @typedef {ComputingState | ReducingState | ErrorState} CekState
      */
     /**
+     * @internal
      * @param {UplcRte} rte
      * @param {UplcTerm} start
      * @param {null | UplcValue[]} args
@@ -535,13 +535,29 @@ declare module "helios" {
      */
     /**
      * @internal
+     * @typedef {{[name: string]: (obj: any) => Promise<UplcData>}} JsToUplcHelpers
+     */
+    /**
+     * @internal
+     * @typedef {{[name: string]: (data: UplcData) => Promise<any>}} UplcToJsHelpers
+     */
+    /**
+     * @internal
+     * @typedef {(obj: any, helpers: JsToUplcHelpers) => Promise<UplcData>} JsToUplcConverter
+     */
+    /**
+     * @internal
+     * @typedef {(data: UplcData, helpers: UplcToJsHelpers) => Promise<any>} UplcToJsConverter
+     */
+    /**
+     * @internal
      * @typedef {Named & Type & {
      *   asDataType:   DataType
      *   fieldNames:   string[]
      *   offChainType: (null | HeliosDataClass<HeliosData>)
      *   typeDetails?: TypeDetails
-     *   jsToUplc:     (obj: any, params?: NetworkParams) => UplcData
-     *   uplcToJs:     (data: UplcData) => any
+     *   jsToUplc:     JsToUplcConverter
+     *   uplcToJs:     UplcToJsConverter
      *   ready:        boolean
      * }} DataType
      */
@@ -753,6 +769,12 @@ declare module "helios" {
      */
     export function extractScriptPurposeAndName(rawSrc: string): null | [ScriptPurpose, string];
     /**
+     * Set the statistics collector (used by the test-suite)
+     * @internal
+     * @param {(name: string, count: number) => void} callback
+     */
+    export function setRawUsageNotifier(callback: (name: string, count: number) => void): void;
+    /**
      * Load all raw generics so all possible implementations can be generated correctly during type parameter injection phase
      * @internal
      * @returns {IRDefinitions}
@@ -791,17 +813,26 @@ declare module "helios" {
      * @internal
      * @param {TypeSchema} schema
      * @param {any} obj
-     * @param {undefined | NetworkParams} networkParams
-     * @returns {UplcData}
+     * @param {JsToUplcHelpers} helpers
+     * @returns {Promise<UplcData>}
      */
-    export function jsToUplc(schema: TypeSchema, obj: any, networkParams?: undefined | NetworkParams): UplcData;
+    export function jsToUplcInternal(schema: TypeSchema, obj: any, helpers: JsToUplcHelpers): Promise<UplcData>;
+    /**
+     * @internal
+     * @param {TypeSchema} schema
+     * @param {any} obj
+     * @param {JsToUplcHelpers} helpers
+     * @returns {Promise<UplcData>}
+     */
+    export function jsToUplc(schema: TypeSchema, obj: any, helpers: JsToUplcHelpers): Promise<UplcData>;
     /**
      * @internal
      * @param {TypeSchema} schema
      * @param {UplcData} data
-     * @returns {any}
+     * @param {UplcToJsHelpers} helpers
+     * @returns {Promise<any>}
      */
-    export function uplcToJs(schema: TypeSchema, data: UplcData): any;
+    export function uplcToJs(schema: TypeSchema, data: UplcData, helpers: UplcToJsHelpers): Promise<any>;
     /**
      * Version of the Helios library.
      */
@@ -937,7 +968,6 @@ declare module "helios" {
     /**
      * A Source instance wraps a string so we can use it cheaply as a reference inside a Site.
      * Also used by VSCode plugin
-     * @internal
      */
     export class Source {
         /**
@@ -1012,7 +1042,6 @@ declare module "helios" {
     }
     /**
      * Each Token/Expression/Statement has a Site, which encapsulates a position in a Source
-     * @internal
      */
     export class Site {
         static dummy(): Site;
@@ -2235,6 +2264,7 @@ declare module "helios" {
          */
         get map(): [UplcData, UplcData][];
         /**
+         * @internal
          * @returns {IR}
          */
         toIR(): IR;
@@ -2357,7 +2387,7 @@ declare module "helios" {
     }
     /**
      * Base-type of all data-types that exist both on- and off-chain, and map directly to Helios instances.
-     * @internal
+     * @deprecated
      */
     export class HeliosData extends CborData {
         /**
@@ -2388,12 +2418,12 @@ declare module "helios" {
      * }} HeliosDataClass
      */
     /**
-     * @internal
+     * @deprecated
      * @typedef {number | bigint} HIntProps
      */
     /**
      * Helios Int type
-     * @internal
+     * @deprecated
      */
     export class HInt extends HeliosData {
         /**
@@ -2592,12 +2622,12 @@ declare module "helios" {
         #private;
     }
     /**
-     * @internal
+     * @deprecated
      * @typedef {hexstring | number[]} ByteArrayProps
      */
     /**
      * Helios ByteArray type
-     * @internal
+     * @deprecated
      */
     export class ByteArray extends HeliosData {
         /**
@@ -2645,15 +2675,14 @@ declare module "helios" {
         #private;
     }
     /**
-     * @internal
      * @typedef {hexstring | number[]} HashProps
      */
     /**
      * Base class of all hash-types
-     * @internal
      */
     export class Hash extends HeliosData {
         /**
+         * @internal
          * @param {HashProps} props
          * @returns {number[]}
          */
@@ -2686,14 +2715,16 @@ declare module "helios" {
          */
         constructor(props: HashProps);
         /**
-         * @returns {number[]}
+         * @readonly
+         * @type {number[]}
          */
-        get bytes(): number[];
+        readonly bytes: number[];
         /**
          * @returns {hexstring}
          */
         get hex(): hexstring;
         /**
+         * @internal
          * @returns {string}
          */
         dump(): string;
@@ -2702,7 +2733,6 @@ declare module "helios" {
          * @returns {boolean}
          */
         eq(other: Hash): boolean;
-        #private;
     }
     /**
      * @typedef {HashProps} DatumHashProps
@@ -2811,7 +2841,7 @@ declare module "helios" {
      * @typedef {HashProps} ScriptHashProps
      */
     /**
-     * @internal
+     * Base class of MintingPolicyHash, ValidatorHash and StakingValidatorHash
      */
     export class ScriptHash extends Hash {
     }
@@ -2968,6 +2998,18 @@ declare module "helios" {
          */
         static fromUplcCbor(bytes: string | number[]): TxOutputId;
         /**
+         * @param {string | number[]} rawBytes
+         * @returns {TxOutputId}
+         */
+        static fromCbor(rawBytes: string | number[]): TxOutputId;
+        /**
+         *
+         * @param {TxOutputId} a
+         * @param {TxOutputId} b
+         * @returns {number}
+         */
+        static comp(a: TxOutputId, b: TxOutputId): number;
+        /**
          * @param {TxOutputIdProps} props
          */
         constructor(props: TxOutputIdProps);
@@ -2979,6 +3021,15 @@ declare module "helios" {
          * @type {number}
          */
         get utxoIdx(): number;
+        /**
+         * @param {TxOutputId} other
+         * @returns {boolean}
+         */
+        eq(other: TxOutputId): boolean;
+        /**
+         * @returns {ConstrData}
+         */
+        _toUplcData(): ConstrData;
         #private;
     }
     /**
@@ -3171,6 +3222,12 @@ declare module "helios" {
          * @returns {ConstrData}
          */
         _toUplcData(): ConstrData;
+        /**
+         * Cip14 fingerprint
+         * This involves a hash, so you can't use a fingerprint to calculate the underlying policy/tokenName.
+         * @returns {string}
+         */
+        toFingerprint(): string;
         #private;
     }
     /**
@@ -4055,18 +4112,21 @@ declare module "helios" {
         #private;
     }
     /**
-     * @internal
      * @typedef {[null | string, UplcValue][]} UplcRawStack
      */
     /**
-     * @internal
      * @typedef {{
      *	 onPrint: (msg: string) => Promise<void>
      *   onStartCall: (site: Site, rawStack: UplcRawStack) => Promise<boolean>
      *   onEndCall: (site: Site, rawStack: UplcRawStack) => Promise<void>
      *   onIncrCost: (name: string, isTerm: boolean, cost: Cost) => void
-     *   macros?: {[name: string]: (rte: UplcRte, args: UplcValue[]) => Promise<UplcValue>}
      * }} UplcRTECallbacks
+     */
+    /**
+     * @internal
+     * @typedef {UplcRTECallbacks & {
+     *   macros?: {[name: string]: (rte: UplcRte, args: UplcValue[]) => Promise<UplcValue>}
+     * }} UplcRTECallbacksInternal
      */
     /**
      * @type {UplcRTECallbacks}
@@ -4078,10 +4138,10 @@ declare module "helios" {
      */
     export class UplcRte {
         /**
-         * @param {UplcRTECallbacks} callbacks
+         * @param {UplcRTECallbacksInternal} callbacks
          * @param {null | NetworkParams} networkParams
          */
-        constructor(callbacks?: UplcRTECallbacks, networkParams?: null | NetworkParams);
+        constructor(callbacks?: UplcRTECallbacksInternal, networkParams?: null | NetworkParams);
         /**
          * @type {string[]}
          */
@@ -4308,6 +4368,7 @@ declare module "helios" {
         */
         toSigned(): UplcInt;
         /**
+         * @internal
          * @param {BitWriter} bitWriter
          */
         toFlatInternal(bitWriter: BitWriter): void;
@@ -4315,6 +4376,7 @@ declare module "helios" {
          * Encodes unsigned integer with plutus flat encoding.
          * Throws error if signed.
          * Used by encoding plutus core program version and debruijn indices.
+         * @internal
          * @param {BitWriter} bitWriter
          */
         toFlatUnsigned(bitWriter: BitWriter): void;
@@ -4326,21 +4388,24 @@ declare module "helios" {
     export class UplcByteArray extends UplcValue {
         /**
          * Construct a UplcByteArray without requiring a Site
+         * @internal
          * @param {number[]} bytes
          * @returns {UplcByteArray}
          */
         static new(bytes: number[]): UplcByteArray;
         /**
          * Creates new UplcByteArray wrapped in UplcConst so it can be used as a term.
+         * @internal
          * @param {Site} site
          * @param {number[]} bytes
-         * @returns
+         * @returns {UplcConst}
          */
         static newTerm(site: Site, bytes: number[]): UplcConst;
         /**
          * Write a list of bytes to the bitWriter using flat encoding.
          * Used by UplcString, UplcByteArray and UplcDataValue
          * Equivalent to E_B* function in Plutus-core docs
+         * @internal
          * @param {BitWriter} bitWriter
          * @param {number[]} bytes
          */
@@ -4351,6 +4416,7 @@ declare module "helios" {
          */
         constructor(site: Site, bytes: number[]);
         /**
+         * @internal
          * @param {Site} newSite
          * @returns {UplcByteArray}
          */
@@ -4527,7 +4593,6 @@ declare module "helios" {
     }
     /**
      * Base class of Plutus-core terms
-     * @internal
      */
     export class UplcTerm {
         /**
@@ -4555,12 +4620,14 @@ declare module "helios" {
         toString(): string;
         /**
          * Calculates a value, and also increments the cost
+         * @internal
          * @param {UplcRte | UplcStack} rte
          * @returns {Promise<UplcValue>}
          */
         eval(rte: UplcRte | UplcStack): Promise<UplcValue>;
         /**
          * Writes bits of flat encoded Plutus-core terms to bitWriter. Doesn't return anything.
+         * @internal
          * @param {BitWriter} bitWriter
          * @param {null | Map<string, number>} codeMapFileIndices
          */
@@ -4569,7 +4636,6 @@ declare module "helios" {
     }
     /**
      * Plutus-core variable ref term (index is a Debruijn index)
-     * @internal
      */
     export class UplcVariable extends UplcTerm {
         /**
@@ -4583,6 +4649,7 @@ declare module "helios" {
          */
         readonly index: UplcInt;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {UplcFrame[]} stack
          * @param {ComputingState} state
@@ -4592,7 +4659,6 @@ declare module "helios" {
     }
     /**
      * Plutus-core delay term.
-     * @internal
      */
     export class UplcDelay extends UplcTerm {
         /**
@@ -4606,6 +4672,7 @@ declare module "helios" {
          */
         readonly expr: UplcTerm;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {UplcFrame[]} stack
          * @param {ComputingState} state
@@ -4615,7 +4682,6 @@ declare module "helios" {
     }
     /**
      * Plutus-core lambda term
-     * @internal
      */
     export class UplcLambda extends UplcTerm {
         /**
@@ -4630,6 +4696,7 @@ declare module "helios" {
          */
         readonly expr: UplcTerm;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {UplcFrame[]} stack
          * @param {ComputingState} state
@@ -4640,7 +4707,6 @@ declare module "helios" {
     }
     /**
      * Plutus-core function application term (i.e. function call)
-     * @internal
      */
     export class UplcCall extends UplcTerm {
         /**
@@ -4660,10 +4726,12 @@ declare module "helios" {
          */
         readonly arg: UplcTerm;
         /**
+         * @internal
          * @type {Site}
          */
         get callSite(): Site;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {UplcFrame[]} stack
          * @param {ComputingState} state
@@ -4673,7 +4741,6 @@ declare module "helios" {
     }
     /**
      * Plutus-core const term (i.e. a literal in conventional sense)
-     * @internal
      */
     export class UplcConst extends UplcTerm {
         /**
@@ -4686,6 +4753,7 @@ declare module "helios" {
          */
         readonly value: UplcValue;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {UplcFrame[]} stack
          * @param {ComputingState} state
@@ -4693,6 +4761,7 @@ declare module "helios" {
          */
         computeCek(rte: UplcRte, stack: UplcFrame[], state: ComputingState): CekState;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {UplcFrame[]} stack
          * @param {PreCallFrame} frame
@@ -4700,6 +4769,7 @@ declare module "helios" {
          */
         reducePreCallFrame(rte: UplcRte, stack: UplcFrame[], frame: PreCallFrame): CekState;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {UplcFrame[]} stack
          * @param {ForceFrame} frame
@@ -4709,7 +4779,6 @@ declare module "helios" {
     }
     /**
      * Plutus-core force term
-     * @internal
      */
     export class UplcForce extends UplcTerm {
         /**
@@ -4722,6 +4791,7 @@ declare module "helios" {
          */
         readonly expr: UplcTerm;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {UplcFrame[]} stack
          * @param {ComputingState} state
@@ -4731,7 +4801,6 @@ declare module "helios" {
     }
     /**
      * Plutus-core error term
-     * @internal
      */
     export class UplcError extends UplcTerm {
         /**
@@ -4740,6 +4809,7 @@ declare module "helios" {
          */
         constructor(site: Site, msg?: string);
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {UplcFrame[]} stack
          * @param {ComputingState} state
@@ -4750,11 +4820,11 @@ declare module "helios" {
     }
     /**
      * Plutus-core builtin function ref term
-     * @internal
      */
     export class UplcBuiltin extends UplcTerm {
         /**
          * Used by IRCoreCallExpr
+         * @internal
          * @param {Word} name
          * @param {UplcValue[]} args
          * @returns {UplcValue}
@@ -4774,20 +4844,24 @@ declare module "helios" {
          */
         get nArgs(): number;
         /**
+         * @internal
          * @returns {boolean}
          */
         allowAny(): boolean;
         /**
+         * @internal
          * @returns {boolean}
          */
         isMacro(): boolean;
         /**
+         * @internal
          * @param {NetworkParams} params
          * @param  {...UplcValue} args
          * @returns {Cost}
          */
         calcCost(params: NetworkParams, ...args: UplcValue[]): Cost;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {UplcFrame[]} stack
          * @param {ComputingState} state
@@ -4795,6 +4869,7 @@ declare module "helios" {
          */
         computeCek(rte: UplcRte, stack: UplcFrame[], state: ComputingState): CekState;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {Site} site
          * @param {UplcValue[]} args
@@ -4802,6 +4877,7 @@ declare module "helios" {
          */
         evalMacro(rte: UplcRte, site: Site, args: UplcValue[]): Promise<UplcValue>;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {Site} site
          * @param {UplcValue[]} args
@@ -4809,11 +4885,13 @@ declare module "helios" {
          */
         evalBuiltin(rte: UplcRte, site: Site, args: UplcValue[]): UplcValue | Promise<UplcValue>;
         /**
+         * @internal
          * @param {UplcRte | UplcStack} rte
          * @returns {UplcAnon}
          */
         evalInternal(rte?: UplcRte | UplcStack): UplcAnon;
         /**
+         * @internal
          * @type {number}
          */
         get forceCount(): number;
@@ -4911,7 +4989,6 @@ declare module "helios" {
      */
     /**
      * The constructor returns 'any' because it is an instance of TransferableUplcProgram, and the instance methods don't need to be defined here
-     * @internal
      * @template TInstance
      * @typedef {{
      *   transferUplcProgram: (expr: any, properties: ProgramProperties, version: any[]) => TInstance,
@@ -5032,27 +5109,31 @@ declare module "helios" {
         /**
          * Flat encodes the entire Plutus-core program.
          * Note that final padding isn't added now but is handled by bitWriter upon finalization.
+         * @internal
          * @param {BitWriter} bitWriter
          */
         toFlat(bitWriter: BitWriter): void;
         /**
+         * @internal
          * @param {BitWriter} bitWriter
          * @param {null | Map<string, number>} codeMapFileIndices
          */
         toFlatWithMapping(bitWriter: BitWriter, codeMapFileIndices: null | Map<string, number>): void;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @returns {Promise<UplcValue>}
          */
         eval(rte: UplcRte): Promise<UplcValue>;
         /**
          * Evaluates the term contained in UplcProgram (assuming it is a lambda term)
+         * @internal
          * @param {null | UplcValue[]} args
-         * @param {UplcRTECallbacks} callbacks
+         * @param {UplcRTECallbacksInternal} callbacks
          * @param {null | NetworkParams} networkParams
          * @returns {Promise<UplcValue>}
          */
-        runInternal(args: null | UplcValue[], callbacks?: UplcRTECallbacks, networkParams?: null | NetworkParams): Promise<UplcValue>;
+        runInternal(args: null | UplcValue[], callbacks?: UplcRTECallbacksInternal, networkParams?: null | NetworkParams): Promise<UplcValue>;
         /**
          * Wrap the top-level term with consecutive UplcCall terms
          * No checks are performed whether this makes sense or not, so beware
@@ -5363,14 +5444,16 @@ declare module "helios" {
         get ready(): boolean;
         /**
          * @param {any} obj
-         * @returns {UplcData}
+         * @param {JsToUplcHelpers} helpers
+         * @returns {Promise<UplcData>}
          */
-        jsToUplc(obj: any): UplcData;
+        jsToUplc(obj: any, helpers: JsToUplcHelpers): Promise<UplcData>;
         /**
          * @param {UplcData} data
-         * @returns {any}
+         * @param {UplcToJsHelpers} helpers
+         * @returns {Promise<any>}
          */
-        uplcToJs(data: UplcData): any;
+        uplcToJs(data: UplcData, helpers: UplcToJsHelpers): Promise<any>;
         /**
          * @returns {string}
          */
@@ -5656,8 +5739,8 @@ declare module "helios" {
      *   genInstanceMembers: (self: Type) => InstanceMembers,
      *   genTypeMembers: (self: Type) => TypeMembers
      *   genTypeDetails?: (self: Type) => TypeDetails,
-     *   jsToUplc?: (obj: any) => UplcData
-     *   uplcToJs?: (data: UplcData) => any
+     *   jsToUplc?: JsToUplcConverter
+     *   uplcToJs?: UplcToJsConverter
      * }} GenericTypeProps
      */
     /**
@@ -5729,12 +5812,6 @@ declare module "helios" {
          */
         isBaseOf(other: Type): boolean;
         /**
-         * @param {any} obj
-         * @param {undefined | NetworkParams} networkParams
-         * @returns {UplcData}
-         */
-        jsToUplc(obj: any, networkParams?: undefined | NetworkParams): UplcData;
-        /**
          * @returns {Typed}
          */
         toTyped(): Typed;
@@ -5754,8 +5831,8 @@ declare module "helios" {
      *   genInstanceMembers: (self: Type) => InstanceMembers,
      *   genTypeMembers?: (self: Type) => TypeMembers
      *   genTypeDetails?: (self: Type) => TypeDetails
-     *   jsToUplc?: (obj: any) => UplcData
-     *   uplcToJs?: (data: UplcData) => any
+     *   jsToUplc?: JsToUplcConverter
+     *   uplcToJs?: UplcToJsConverter
      * }} GenericEnumMemberTypeProps
      */
     /**
@@ -8130,14 +8207,16 @@ declare module "helios" {
         genTypeDetails(): [string, string, NamedTypeSchema[]];
         /**
          * @param {any} obj
-         * @return {UplcData[]}
+         * @param {JsToUplcHelpers} helpers
+         * @return {Promise<UplcData[]>}
          */
-        jsFieldsToUplc(obj: any): UplcData[];
+        jsFieldsToUplc(obj: any, helpers: JsToUplcHelpers): Promise<UplcData[]>;
         /**
          * @param {UplcData[]} fields
-         * @returns {any}
+         * @param {UplcToJsHelpers} helpers
+         * @returns {Promise<any>}
          */
-        uplcFieldsToJs(fields: UplcData[]): any;
+        uplcFieldsToJs(fields: UplcData[], helpers: UplcToJsHelpers): Promise<any>;
         /**
          * @param {string} path
          * @param {IRDefinitions} map
@@ -9084,18 +9163,20 @@ declare module "helios" {
      */
     export class Program {
         /**
+         * @internal
          * @param {string} rawSrc
          * @returns {[purpose, Module[]]}
          */
         static parseMainInternal(rawSrc: string): [ScriptPurpose, Module[]];
         /**
-         *
+         * @internal
          * @param {string} mainName
          * @param {string[]} moduleSrcs
          * @returns {Module[]}
          */
         static parseImports(mainName: string, moduleSrcs?: string[]): Module[];
         /**
+         * @internal
          * @param {string} mainSrc
          * @param {string[]} moduleSrcs
          * @returns {[null | ScriptPurpose, Module[]]}
@@ -9105,11 +9186,20 @@ declare module "helios" {
          * Creates  a new program.
          * @param {string} mainSrc
          * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
+         * @param {ProgramConfig} config
+         * @returns {Program}
+         */
+        static new(mainSrc: string, moduleSrcs?: string[], validatorTypes?: {}, config?: ProgramConfig): Program;
+        /**
+         * Creates  a new program.
+         * @internal
+         * @param {string} mainSrc
+         * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
          * @param {{[name: string]: Type}} validatorTypes
          * @param {ProgramConfig} config
          * @returns {Program}
          */
-        static new(mainSrc: string, moduleSrcs?: string[], validatorTypes?: {
+        static newInternal(mainSrc: string, moduleSrcs?: string[], validatorTypes?: {
             [name: string]: Type;
         }, config?: ProgramConfig): Program;
         /**
@@ -9122,39 +9212,49 @@ declare module "helios" {
         static injectMutualRecursions(mainIR: IR, map: IRDefinitions): IR;
         /**
          * Also merges builtins and map
+         * @internal
          * @param {IR} mainIR
          * @param {IRDefinitions} map
          * @returns {IRDefinitions}
          */
         static applyTypeParameters(mainIR: IR, map: IRDefinitions): IRDefinitions;
         /**
+         * @internal
          * @param {ScriptPurpose} purpose
          * @param {Module[]} modules
          * @param {ProgramConfig} config
          */
         constructor(purpose: ScriptPurpose, modules: Module[], config: ProgramConfig);
+        /**
+         * @internal
+         */
         throwErrors(): void;
         /**
          * @type {ProgramConfig}
          */
         get config(): ProgramConfig;
         /**
+         * @internal
          * @type {number}
          */
         get nPosParams(): number;
         /**
+         * @internal
          * @type {Type[]}
          */
         get posParams(): Type[];
         /**
+         * @internal
          * @type {Module[]}
          */
         get mainImportedModules(): Module[];
         /**
+         * @internal
          * @type {MainModule}
          */
         get mainModule(): MainModule;
         /**
+         * @internal
          * @type {null | Module}
          */
         get postModule(): Module;
@@ -9167,35 +9267,43 @@ declare module "helios" {
          */
         get name(): string;
         /**
+         * @internal
          * @type {FuncStatement}
          */
         get mainFunc(): FuncStatement;
         /**
+         * @internal
          * @type {Site}
          */
         get mainRetExprSite(): Site;
         /**
+         * @internal
          * @type {string[]}
          */
         get mainArgNames(): string[];
         /**
+         * @internal
          * @type {DataType[]}
          */
         get mainArgTypes(): DataType[];
         /**
+         * @internal
          * @type {string}
          */
         get mainPath(): string;
         /**
+         * @internal
          * @type {Statement[]}
          */
         get mainStatements(): Statement[];
         /**
          * Needed to list the paramTypes, and to call changeParam
+         * @internal
          * @type {Statement[]}
          */
         get mainAndPostStatements(): Statement[];
         /**
+         * @internal
          * @type {[Statement, boolean][]} - boolean value marks if statement is import or not
          */
         get allStatements(): [Statement, boolean][];
@@ -9204,11 +9312,13 @@ declare module "helios" {
          */
         toString(): string;
         /**
+         * @internal
          * @param {GlobalScope} globalScope
          * @returns {TopScope}
          */
         evalTypesInternal(globalScope: GlobalScope): TopScope;
         /**
+         * @internal
          * @param {{[name: string]: Type}} validatorTypes
          * @returns {TopScope}
          */
@@ -9221,14 +9331,17 @@ declare module "helios" {
         get types(): UserTypes;
         /**
          * Fill #types with convenient javascript equivalents of Int, ByteArray etc.
+         * @internal
          * @param {TopScope} topScope
          */
         fillTypes(topScope: TopScope): void;
         /**
+         * @internal
          * @param {(name: string, cs: ConstStatement) => void} callback
          */
         loopConstStatements(callback: (name: string, cs: ConstStatement) => void): void;
         /**
+         * @internal
          * @type {{[name: string]: DataType}}
          */
         get paramTypes(): {
@@ -9242,11 +9355,13 @@ declare module "helios" {
          */
         changeParamSafe(name: string, data: UplcData): void;
         /**
+         * @internal
          * @param {string} name
          * @returns {ConstStatement | null}
          */
         findConstStatement(name: string): ConstStatement | null;
         /**
+         * @internal
          * @param {ConstStatement} constStatement
          * @returns {UplcValue}
          */
@@ -9278,12 +9393,14 @@ declare module "helios" {
          */
         statementsToIR(endCond: (s: Statement, isImport: boolean) => boolean): IRDefinitions;
         /**
+         * @internal
          * @param {IR} ir
          * @param {IRDefinitions} definitions
          * @returns {Set<string>}
          */
         collectAllUsed(ir: IR, definitions: IRDefinitions): Set<string>;
         /**
+         * @internal
          * @param {IR} ir
          * @param {IRDefinitions} definitions
          * @returns {IRDefinitions}
@@ -9299,6 +9416,7 @@ declare module "helios" {
          */
         fetchDefinitions(ir: IR, endCond: (s: Statement) => boolean): IRDefinitions;
         /**
+         * @internal
          * @param {IR} ir
          * @param {IRDefinitions} definitions
          * @returns {IR}
@@ -9312,6 +9430,7 @@ declare module "helios" {
          */
         wrapEntryPoint(ir: IR, extra?: null | IRDefinitions): IR;
         /**
+         * @internal
          * @returns {IR}
          */
         toIRInternal(): IR;
@@ -9323,6 +9442,7 @@ declare module "helios" {
         toIR(extra?: null | IRDefinitions): IR;
         /**
          * Non-positional named parameters
+         * @internal
          * @type {[string, Type][]}
          */
         get requiredParameters(): [string, Type][];
@@ -9397,6 +9517,7 @@ declare module "helios" {
          */
         toJson(): any;
         /**
+         * @internal
          * @param {NativeContext} context
          * @returns {boolean}
          */
@@ -9428,11 +9549,11 @@ declare module "helios" {
          * @param {UplcData} data
          * @param {NetworkParams} networkParams
          * @param {Address} changeAddress
-         * @param {UTxO[]} spareUtxos
+         * @param {TxInput[]} spareUtxos
          * @param {{[name: string]: UplcProgram}} scripts
          * @returns {Promise<Tx>}
          */
-        static finalizeUplcData(data: UplcData, networkParams: NetworkParams, changeAddress: Address, spareUtxos: UTxO[], scripts: {
+        static finalizeUplcData(data: UplcData, networkParams: NetworkParams, changeAddress: Address, spareUtxos: TxInput[], scripts: {
             [name: string]: UplcProgram;
         }): Promise<Tx>;
         /**
@@ -9459,6 +9580,12 @@ declare module "helios" {
          */
         toTxData(networkParams: NetworkParams): UplcData;
         /**
+         * A serialized tx throws away input information
+         * This must be refetched from the network if the tx needs to be analyzed
+         * @param {(id: TxOutputId) => Promise<TxOutput>} fn
+         */
+        completeInputData(fn: (id: TxOutputId) => Promise<TxOutput>): Promise<void>;
+        /**
          * @returns {Object}
          */
         dump(): any;
@@ -9481,28 +9608,28 @@ declare module "helios" {
          */
         mintTokens(mph: MintingPolicyHash | MintingPolicyHashProps, tokens: [ByteArray | ByteArrayProps, HInt | HIntProps][], redeemer: UplcDataValue | UplcData | null): Tx;
         /**
-         * @param {UTxO} input
+         * @param {TxInput} input
          * @param {null | UplcDataValue | UplcData | HeliosData} rawRedeemer
          * @returns {Tx}
          */
-        addInput(input: UTxO, rawRedeemer?: null | UplcDataValue | UplcData | HeliosData): Tx;
+        addInput(input: TxInput, rawRedeemer?: null | UplcDataValue | UplcData | HeliosData): Tx;
         /**
-         * @param {UTxO[]} inputs
+         * @param {TxInput[]} inputs
          * @param {?(UplcDataValue | UplcData | HeliosData)} redeemer
          * @returns {Tx}
          */
-        addInputs(inputs: UTxO[], redeemer?: (UplcDataValue | UplcData | HeliosData) | null): Tx;
+        addInputs(inputs: TxInput[], redeemer?: (UplcDataValue | UplcData | HeliosData) | null): Tx;
         /**
-         * @param {TxRefInput} input
-         * @param {?UplcProgram} refScript
+         * @param {TxInput} input
+         * @param {null | UplcProgram} refScript
          * @returns {Tx}
          */
-        addRefInput(input: TxRefInput, refScript?: UplcProgram | null): Tx;
+        addRefInput(input: TxInput, refScript?: null | UplcProgram): Tx;
         /**
-         * @param {TxRefInput[]} inputs
+         * @param {TxInput[]} inputs
          * @returns {Tx}
          */
-        addRefInputs(inputs: TxRefInput[]): Tx;
+        addRefInputs(inputs: TxInput[]): Tx;
         /**
          * @param {TxOutput} output
          * @returns {Tx}
@@ -9528,10 +9655,10 @@ declare module "helios" {
         /**
          * Usually adding only one collateral input is enough
          * Must be less than the limit in networkParams (eg. 3), or else an error is thrown during finalization
-         * @param {UTxO} input
+         * @param {TxInput} input
          * @returns {Tx}
          */
-        addCollateral(input: UTxO): Tx;
+        addCollateral(input: TxInput): Tx;
         /**
          * Calculates tx fee (including script execution)
          * Shouldn't be used directly
@@ -9553,33 +9680,38 @@ declare module "helios" {
          */
         checkScripts(): void;
         /**
+         * @internal
          * @param {NetworkParams} networkParams
          * @param {Address} changeAddress
          * @returns {Promise<void>}
          */
         executeRedeemers(networkParams: NetworkParams, changeAddress: Address): Promise<void>;
         /**
+         * @internal
          * @param {NetworkParams} networkParams
          * @returns {Promise<void>}
          */
         checkExecutionBudgets(networkParams: NetworkParams): Promise<void>;
         /**
+         * @internal
          * @param {Address} changeAddress
          */
         balanceAssets(changeAddress: Address): void;
         /**
          * Calculate the base fee which will be multiplied by the required min collateral percentage
+         * @internal
          * @param {NetworkParams} networkParams
          * @param {Address} changeAddress
-         * @param {UTxO[]} spareUtxos
+         * @param {TxInput[]} spareUtxos
          */
-        estimateCollateralBaseFee(networkParams: NetworkParams, changeAddress: Address, spareUtxos: UTxO[]): bigint;
+        estimateCollateralBaseFee(networkParams: NetworkParams, changeAddress: Address, spareUtxos: TxInput[]): bigint;
         /**
+         * @internal
          * @param {NetworkParams} networkParams
          * @param {Address} changeAddress
-         * @param {UTxO[]} spareUtxos
+         * @param {TxInput[]} spareUtxos
          */
-        balanceCollateral(networkParams: NetworkParams, changeAddress: Address, spareUtxos: UTxO[]): void;
+        balanceCollateral(networkParams: NetworkParams, changeAddress: Address, spareUtxos: TxInput[]): void;
         /**
          * Calculates fee and balances transaction by sending an output back to changeAddress
          * First assumes that change output isn't needed, and if that assumption doesn't result in a balanced transaction the change output is created.
@@ -9588,10 +9720,10 @@ declare module "helios" {
          * Shouldn't be used directly
          * @param {NetworkParams} networkParams
          * @param {Address} changeAddress
-         * @param {UTxO[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
+         * @param {TxInput[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
          * @returns {TxOutput} - changeOutput so the fee can be mutated furthers
          */
-        balanceLovelace(networkParams: NetworkParams, changeAddress: Address, spareUtxos: UTxO[]): TxOutput;
+        balanceLovelace(networkParams: NetworkParams, changeAddress: Address, spareUtxos: TxInput[]): TxOutput;
         /**
          * @param {NetworkParams} networkParams
          * @param {TxOutput} changeOutput
@@ -9635,10 +9767,10 @@ declare module "helios" {
          * Note: this is an async function so that a debugger can optionally be attached in the future
          * @param {NetworkParams} networkParams
          * @param {Address}       changeAddress
-         * @param {UTxO[]}        spareUtxos - might be used during balancing if there currently aren't enough inputs
+         * @param {TxInput[]}        spareUtxos - might be used during balancing if there currently aren't enough inputs
          * @returns {Promise<Tx>}
          */
-        finalize(networkParams: NetworkParams, changeAddress: Address, spareUtxos?: UTxO[]): Promise<Tx>;
+        finalize(networkParams: NetworkParams, changeAddress: Address, spareUtxos?: TxInput[]): Promise<Tx>;
         /**
          * @type {string}
          */
@@ -9669,6 +9801,204 @@ declare module "helios" {
          * @returns {TxId}
          */
         id(): TxId;
+        #private;
+    }
+    /**
+     * inputs, minted assets, and withdrawals need to be sorted in order to form a valid transaction
+     */
+    export class TxBody extends CborData {
+        /**
+         * @param {number[]} bytes
+         * @returns {TxBody}
+         */
+        static fromCbor(bytes: number[]): TxBody;
+        /**
+         * @type {TxInput[]}
+         */
+        get inputs(): TxInput[];
+        /**
+         * @type {TxOutput[]}
+         */
+        get outputs(): TxOutput[];
+        get fee(): bigint;
+        /**
+         * @param {bigint} fee
+         */
+        setFee(fee: bigint): void;
+        /**
+         * @type {Assets}
+         */
+        get minted(): Assets;
+        /**
+         * @type {TxInput[]}
+         */
+        get collateral(): TxInput[];
+        /**
+         * @type {bigint | null}
+         */
+        get firstValidSlot(): bigint;
+        /**
+         * @type {bigint | null}
+         */
+        get lastValidSlot(): bigint;
+        /**
+         * @type {PubKeyHash[]}
+         */
+        get signers(): PubKeyHash[];
+        /**
+         * @returns {Object}
+         */
+        dump(): any;
+        /**
+         * For now simply returns minus infinity to plus infinity (WiP)
+         * @param {NetworkParams} networkParams
+         * @returns {ConstrData}
+         */
+        toValidTimeRangeData(networkParams: NetworkParams): ConstrData;
+        /**
+         * A serialized tx throws away input information
+         * This must be refetched from the network if the tx needs to be analyzed
+         * @param {(id: TxOutputId) => Promise<TxOutput>} fn
+         */
+        completeInputData(fn: (id: TxOutputId) => Promise<TxOutput>): Promise<void>;
+        /**
+         * @param {NetworkParams} networkParams
+         * @param {Redeemer[]} redeemers
+         * @param {ListData} datums
+         * @param {TxId} txId
+         * @returns {ConstrData}
+         */
+        toTxData(networkParams: NetworkParams, redeemers: Redeemer[], datums: ListData, txId: TxId): ConstrData;
+        /**
+         * @param {NetworkParams} networkParams
+         * @param {Redeemer[]} redeemers
+         * @param {ListData} datums
+         * @param {number} redeemerIdx
+         * @returns {UplcData}
+         */
+        toScriptContextData(networkParams: NetworkParams, redeemers: Redeemer[], datums: ListData, redeemerIdx: number): UplcData;
+        /**
+         * @returns {Value}
+         */
+        sumInputValue(): Value;
+        /**
+         * Throws error if any part of the sum is negative (i.e. more is burned than input)
+         * @returns {Value}
+         */
+        sumInputAndMintedValue(): Value;
+        /**
+         * @returns {Assets}
+         */
+        sumInputAndMintedAssets(): Assets;
+        /**
+         * @returns {Value}
+         */
+        sumOutputValue(): Value;
+        /**
+         * @returns {Assets}
+         */
+        sumOutputAssets(): Assets;
+        /**
+         * @param {bigint} slot
+         */
+        validFrom(slot: bigint): void;
+        /**
+         * @param {bigint} slot
+         */
+        validTo(slot: bigint): void;
+        /**
+         * Throws error if this.#minted already contains mph
+         * @param {MintingPolicyHash | MintingPolicyHashProps} mph - minting policy hash
+         * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens
+         */
+        addMint(mph: MintingPolicyHash | MintingPolicyHashProps, tokens: [ByteArray | ByteArrayProps, HInt | HIntProps][]): void;
+        /**
+         * @param {TxInput} input
+         * @param {boolean} checkUniqueness
+         */
+        addInput(input: TxInput, checkUniqueness?: boolean): void;
+        /**
+         * Used to remove dummy inputs
+         * Dummy inputs are needed to be able to correctly estimate fees
+         * Throws an error if input doesn't exist in list of inputs
+         * Internal use only!
+         * @param {TxInput} input
+         */
+        removeInput(input: TxInput): void;
+        /**
+         * @param {TxInput} input
+         * @param {boolean} checkUniqueness
+         */
+        addRefInput(input: TxInput, checkUniqueness?: boolean): void;
+        /**
+         * @param {TxOutput} output
+         */
+        addOutput(output: TxOutput): void;
+        /**
+         * Used to remove dummy outputs
+         * Dummy outputs are needed to be able to correctly estimate fees
+         * Throws an error if the output doesn't exist in list of outputs
+         * Internal use only!
+         * @param {TxOutput} output
+         */
+        removeOutput(output: TxOutput): void;
+        /**
+         * @param {PubKeyHash} hash
+         * @param {boolean} checkUniqueness
+         */
+        addSigner(hash: PubKeyHash, checkUniqueness?: boolean): void;
+        /**
+         * @param {TxInput} input
+         */
+        addCollateral(input: TxInput): void;
+        /**
+         * @param {Hash | null} scriptDataHash
+         */
+        setScriptDataHash(scriptDataHash: Hash | null): void;
+        /**
+         * @param {Hash} metadataHash
+         */
+        setMetadataHash(metadataHash: Hash): void;
+        /**
+         * @param {TxOutput | null} output
+         */
+        setCollateralReturn(output: TxOutput | null): void;
+        /**
+         * Calculates the number of dummy signatures needed to get precisely the right tx size
+         * @returns {number}
+         */
+        countUniqueSigners(): number;
+        /**
+         * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset
+         * @param {Map<hexstring, number>} set - hashes in hex format
+         */
+        collectScriptHashes(set: Map<hexstring, number>): void;
+        /**
+         * Makes sure each output contains the necessary min lovelace
+         * @param {NetworkParams} networkParams
+         */
+        correctOutputs(networkParams: NetworkParams): void;
+        /**
+         * Checks that each output contains enough lovelace
+         * @param {NetworkParams} networkParams
+         */
+        checkOutputs(networkParams: NetworkParams): void;
+        /**
+         * @param {NetworkParams} networkParams
+         * @param {null | bigint} minCollateral
+         */
+        checkCollateral(networkParams: NetworkParams, minCollateral: null | bigint): void;
+        /**
+         * Makes sore inputs, withdrawals, and minted assets are in correct order
+         * Mutates
+         */
+        sort(): void;
+        /**
+         * Used by (indirectly) by emulator to check if slot range is valid.
+         * Note: firstValidSlot == lastValidSlot is allowed
+         * @param {bigint} slot
+         */
+        isValid(slot: bigint): boolean;
         #private;
     }
     /**
@@ -9761,16 +10091,18 @@ declare module "helios" {
          */
         getUplcProgram(scriptHash: Hash): UplcProgram;
         /**
+         * @internal
          * @param {TxBody} body
          */
         updateRedeemerIndices(body: TxBody): void;
         /**
+         * @internal
          * @param {NetworkParams} networkParams
          * @returns {Hash | null} - returns null if there are no redeemers
          */
         calcScriptDataHash(networkParams: NetworkParams): Hash | null;
         /**
-         *
+         * @internal
          * @param {NetworkParams} networkParams
          * @param {TxBody} body
          * @param {Redeemer} redeemer
@@ -9780,6 +10112,7 @@ declare module "helios" {
         executeRedeemer(networkParams: NetworkParams, body: TxBody, redeemer: Redeemer, scriptContext: UplcData): Promise<Profile>;
         /**
          * Executes the redeemers in order to calculate the necessary ex units
+         * @internal
          * @param {NetworkParams} networkParams
          * @param {TxBody} body - needed in order to create correct ScriptContexts
          * @param {Address} changeAddress - needed for dummy input and dummy output
@@ -9787,11 +10120,13 @@ declare module "helios" {
          */
         executeScripts(networkParams: NetworkParams, body: TxBody, changeAddress: Address): Promise<void>;
         /**
+         * @internal
          * @param {TxBody} body
          */
         executeNativeScripts(body: TxBody): void;
         /**
          * Executes the redeemers in order to calculate the necessary ex units
+         * @internal
          * @param {NetworkParams} networkParams
          * @param {TxBody} body - needed in order to create correct ScriptContexts
          * @param {Address} changeAddress - needed for dummy input and dummy output
@@ -9800,12 +10135,14 @@ declare module "helios" {
         executeRedeemers(networkParams: NetworkParams, body: TxBody, changeAddress: Address): Promise<void>;
         /**
          * Reruns all the redeemers to make sure the ex budgets are still correct (can change due to outputs added during rebalancing)
+         * @internal
          * @param {NetworkParams} networkParams
          * @param {TxBody} body
          */
         checkExecutionBudgets(networkParams: NetworkParams, body: TxBody): Promise<void>;
         /**
          * Throws error if execution budget is exceeded
+         * @internal
          * @param {NetworkParams} networkParams
          */
         checkExecutionBudgetLimits(networkParams: NetworkParams): void;
@@ -9816,7 +10153,7 @@ declare module "helios" {
         #private;
     }
     /**
-     * @internal
+     * TxInput base-type
      */
     export class TxInput extends CborData {
         /**
@@ -9825,10 +10162,16 @@ declare module "helios" {
          */
         static fromUplcData(data: UplcData): TxInput;
         /**
-         * @param {number[]} bytes
+         * Deserializes TxOutput format used by wallet connector
+         * @param {string | number[]} rawBytes
          * @returns {TxInput}
          */
-        static fromCbor(bytes: number[]): TxInput;
+        static fromFullCbor(rawBytes: string | number[]): TxInput;
+        /**
+         * @param {string | number[]} rawBytes
+         * @returns {TxInput}
+         */
+        static fromCbor(rawBytes: string | number[]): TxInput;
         /**
          * Tx inputs must be ordered.
          * The following function can be used directly by a js array sort
@@ -9838,33 +10181,51 @@ declare module "helios" {
          */
         static comp(a: TxInput, b: TxInput): number;
         /**
-         * @param {TxId} txId
-         * @param {number | bigint} utxoIdx
-         * @param {null | TxOutput} origOutput - used during building, not part of serialization
+         * @param {TxInput[]} inputs
+         * @returns {Value}
          */
-        constructor(txId: TxId, utxoIdx: number | bigint, origOutput?: null | TxOutput);
+        static sumValue(inputs: TxInput[]): Value;
         /**
+         * @param {TxOutputId} outputId
+         * @param {null | TxOutput} output - used during building, not part of serialization
+         */
+        constructor(outputId: TxOutputId, output?: null | TxOutput);
+        /**
+         * @readonly
+         * @type {TxOutputId}
+         */
+        readonly outputId: TxOutputId;
+        /**
+         * @deprecated
          * @type {TxId}
          */
         get txId(): TxId;
         /**
+         * @deprecated
          * @type {number}
          */
         get utxoIdx(): number;
         /**
          *
-         * @param {UTxO | TxInput} other
+         * @param {TxInput} other
          * @returns {boolean}
          */
-        eq(other: UTxO | TxInput): boolean;
+        eq(other: TxInput): boolean;
         /**
+         * @internal
+         * @returns {boolean}
+         */
+        hasOrigOutput(): boolean;
+        /**
+         * @internal
+         * @param {TxOutput} output
+         */
+        setOrigOutput(output: TxOutput): void;
+        /**
+         * @deprecated
          * @type {TxOutput}
          */
         get origOutput(): TxOutput;
-        /**
-         * @type {UTxO}
-         */
-        get utxo(): UTxO;
         /**
          * Shortcut
          * @type {Value}
@@ -9884,74 +10245,14 @@ declare module "helios" {
          */
         toData(): ConstrData;
         /**
+         * @returns {number[]}
+         */
+        toFullCbor(): number[];
+        /**
          * @returns {Object}
          */
         dump(): any;
         #private;
-    }
-    /**
-     * UTxO wraps TxInput
-     */
-    export class UTxO extends CborData {
-        /**
-         * Deserializes UTxO format used by wallet connector
-         * @param {string | number[]} rawBytes
-         * @returns {UTxO}
-         */
-        static fromCbor(rawBytes: string | number[]): UTxO;
-        /**
-         * @param {UTxO[]} utxos
-         * @returns {Value}
-         */
-        static sumValue(utxos: UTxO[]): Value;
-        /**
-         * @param {TxId} txId
-         * @param {number | bigint} utxoIdx
-         * @param {TxOutput} origOutput
-         */
-        constructor(txId: TxId, utxoIdx: number | bigint, origOutput: TxOutput);
-        /**
-         * @type {TxId}
-         */
-        get txId(): TxId;
-        /**
-         * @type {number}
-         */
-        get utxoIdx(): number;
-        /**
-         * @type {TxInput}
-         */
-        get asTxInput(): TxInput;
-        /**
-         * @type {Value}
-         */
-        get value(): Value;
-        /**
-         * @type {TxOutput}
-         */
-        get origOutput(): TxOutput;
-        /**
-         *
-         * @param {UTxO | TxInput} other
-         * @returns {boolean}
-         */
-        eq(other: UTxO | TxInput): boolean;
-        /**
-         * @returns {any}
-         */
-        dump(): any;
-        #private;
-    }
-    /**
-     * Distinct TxInput intended as ref input only.
-     */
-    export class TxRefInput extends TxInput {
-        /**
-         * @param {TxId} txId
-         * @param {number | bigint} utxoId
-         * @param {TxOutput} origOutput
-         */
-        constructor(txId: TxId, utxoId: number | bigint, origOutput: TxOutput);
     }
     /**
      * TxOutput
@@ -10349,6 +10650,111 @@ declare module "helios" {
         #private;
     }
     /**
+     * Base-type of SpendingRedeemer and MintingRedeemer
+     */
+    export class Redeemer extends CborData {
+        /**
+         * @param {number[]} bytes
+         * @returns {Redeemer}
+         */
+        static fromCbor(bytes: number[]): Redeemer;
+        /**
+         * @param {UplcData} data
+         * @param {Profile} profile
+         */
+        constructor(data: UplcData, profile?: Profile);
+        /**
+         * @type {UplcData}
+         */
+        get data(): UplcData;
+        /**
+         * @type {bigint}
+         */
+        get memCost(): bigint;
+        /**
+         * @type {bigint}
+         */
+        get cpuCost(): bigint;
+        /**
+         * @param {string} name
+         */
+        setProgramName(name: string): void;
+        /**
+         * @type {null | string}
+         */
+        get programName(): string;
+        /**
+         * type:
+         *   0 -> spending
+         *   1 -> minting
+         *   2 -> certifying
+         *   3 -> rewarding
+         * @param {number} type
+         * @param {number} index
+         * @returns {number[]}
+         */
+        toCborInternal(type: number, index: number): number[];
+        /**
+         * @returns {Object}
+         */
+        dumpInternal(): any;
+        /**
+         * @returns {Object}
+         */
+        dump(): any;
+        /**
+         * @param {TxBody} body
+         * @returns {ConstrData}
+         */
+        toScriptPurposeData(body: TxBody): ConstrData;
+        /**
+         * @param {TxBody} body
+         */
+        updateIndex(body: TxBody): void;
+        /**
+         * @param {Profile} profile
+         */
+        setProfile(profile: Profile): void;
+        /**
+         * @type {Profile}
+         */
+        get profile(): Profile;
+        /**
+         * @param {NetworkParams} networkParams
+         * @returns {bigint}
+         */
+        estimateFee(networkParams: NetworkParams): bigint;
+        #private;
+    }
+    export class SpendingRedeemer extends Redeemer {
+        /**
+         * @param {null | TxInput} input
+         * @param {number} inputIndex
+         * @param {UplcData} data
+         * @param {Cost} exUnits
+         */
+        constructor(input: null | TxInput, inputIndex: number, data: UplcData, exUnits?: Cost);
+        /**
+         * @type {number}
+         */
+        get inputIndex(): number;
+        #private;
+    }
+    export class MintingRedeemer extends Redeemer {
+        /**
+         * @param {?MintingPolicyHash} mph
+         * @param {number} mphIndex
+         * @param {UplcData} data
+         * @param {Cost} exUnits
+         */
+        constructor(mph: MintingPolicyHash | null, mphIndex: number, data: UplcData, exUnits?: Cost);
+        /**
+         * @type {number}
+         */
+        get mphIndex(): number;
+        #private;
+    }
+    /**
      * Inside helios this type is named OutputDatum in order to distinguish it from the user defined Datum,
      * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
      */
@@ -10416,29 +10822,29 @@ declare module "helios" {
         #private;
     }
     /**
-     * @typedef {(utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]]} CoinSelectionAlgorithm
+     * @typedef {(utxos: TxInput[], amount: Value) => [TxInput[], TxInput[]]} CoinSelectionAlgorithm
      */
     /**
      * Collection of coin selection algorithms
      */
     export class CoinSelection {
         /**
-         * @param {UTxO[]} utxos
+         * @param {TxInput[]} utxos
          * @param {Value} amount
          * @param {boolean} largestFirst
-         * @returns {[UTxO[], UTxO[]]} - [picked, not picked that can be used as spares]
+         * @returns {[TxInput[], TxInput[]]} - [picked, not picked that can be used as spares]
          */
-        static selectExtremumFirst(utxos: UTxO[], amount: Value, largestFirst: boolean): [UTxO[], UTxO[]];
-        static selectSmallestFirst(utxos: UTxO[], amount: Value): [UTxO[], UTxO[]];
-        static selectLargestFirst(utxos: UTxO[], amount: Value): [UTxO[], UTxO[]];
+        static selectExtremumFirst(utxos: TxInput[], amount: Value, largestFirst: boolean): [TxInput[], TxInput[]];
+        static selectSmallestFirst(utxos: TxInput[], amount: Value): [TxInput[], TxInput[]];
+        static selectLargestFirst(utxos: TxInput[], amount: Value): [TxInput[], TxInput[]];
     }
     /**
      * @typedef {{
      *     isMainnet(): Promise<boolean>,
      *     usedAddresses: Promise<Address[]>,
      *     unusedAddresses: Promise<Address[]>,
-     *     utxos: Promise<UTxO[]>,
-     *     collateral: Promise<UTxO[]>,
+     *     utxos: Promise<TxInput[]>,
+     *     collateral: Promise<TxInput[]>,
      *     signTx(tx: Tx): Promise<Signature[]>,
      *     submitTx(tx: Tx): Promise<TxId>
      * }} Wallet
@@ -10478,13 +10884,13 @@ declare module "helios" {
          */
         get unusedAddresses(): Promise<Address[]>;
         /**
-         * @type {Promise<UTxO[]>}
+         * @type {Promise<TxInput[]>}
          */
-        get utxos(): Promise<UTxO[]>;
+        get utxos(): Promise<TxInput[]>;
         /**
-         * @type {Promise<UTxO[]>}
+         * @type {Promise<TxInput[]>}
          */
-        get collateral(): Promise<UTxO[]>;
+        get collateral(): Promise<TxInput[]>;
         /**
          * @param {Tx} tx
          * @returns {Promise<Signature[]>}
@@ -10503,8 +10909,9 @@ declare module "helios" {
     export class WalletHelper {
         /**
          * @param {Wallet} wallet
+         * @param {undefined | ((addr: Address[]) => Promise<TxInput[]>)} getUtxosFallback
          */
-        constructor(wallet: Wallet);
+        constructor(wallet: Wallet, getUtxosFallback?: (addr: Address[]) => Promise<TxInput[]>);
         /**
          * @type {Promise<Address[]>}
          */
@@ -10523,22 +10930,26 @@ declare module "helios" {
         get changeAddress(): Promise<Address>;
         /**
          * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
-         * @type {Promise<null | UTxO>}
+         * @type {Promise<null | TxInput>}
          */
-        get refUtxo(): Promise<UTxO>;
+        get refUtxo(): Promise<TxInput>;
+        /**
+         * @returns {Promise<TxInput[]>}
+         */
+        getUtxos(): Promise<TxInput[]>;
         /**
          * @param {Value} amount
-         * @param {(allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]} algorithm
-         * @returns {Promise<[UTxO[], UTxO[]]>} - [picked, not picked that can be used as spares]
+         * @param {CoinSelectionAlgorithm} algorithm
+         * @returns {Promise<[TxInput[], TxInput[]]>} - [picked, not picked that can be used as spares]
          */
-        pickUtxos(amount: Value, algorithm?: (allUtxos: UTxO[], anount: Value) => [UTxO[], UTxO[]]): Promise<[UTxO[], UTxO[]]>;
+        pickUtxos(amount: Value, algorithm?: CoinSelectionAlgorithm): Promise<[TxInput[], TxInput[]]>;
         /**
          * Returned collateral can't contain an native assets (pure lovelace)
          * TODO: combine UTxOs if a single UTxO isn't enough
          * @param {bigint} amount - 2 Ada should cover most things
-         * @returns {Promise<UTxO>}
+         * @returns {Promise<TxInput>}
          */
-        pickCollateral(amount?: bigint): Promise<UTxO>;
+        pickCollateral(amount?: bigint): Promise<TxInput>;
         /**
          * @param {Address} addr
          * @returns {Promise<boolean>}
@@ -10550,9 +10961,10 @@ declare module "helios" {
          */
         isOwnPubKeyHash(pkh: PubKeyHash): Promise<boolean>;
         /**
+         * @param {undefined | ((addrs: Address[]) => Promise<TxInput[]>)} utxosFallback
          * @returns {Promise<any>}
          */
-        toJson(): Promise<any>;
+        toJson(utxosFallback?: (addrs: Address[]) => Promise<TxInput[]>): Promise<any>;
         #private;
     }
     /**
@@ -10568,9 +10980,9 @@ declare module "helios" {
          * @param {boolean} isMainnet
          * @param {Address[]} usedAddresses
          * @param {Address[]} unusedAddresses
-         * @param {UTxO[]} utxos
+         * @param {TxInput[]} utxos
          */
-        constructor(isMainnet: boolean, usedAddresses: Address[], unusedAddresses: Address[], utxos: UTxO[]);
+        constructor(isMainnet: boolean, usedAddresses: Address[], unusedAddresses: Address[], utxos: TxInput[]);
         /**
          * @returns {Promise<boolean>}
          */
@@ -10584,13 +10996,13 @@ declare module "helios" {
          */
         get unusedAddresses(): Promise<Address[]>;
         /**
-         * @type {Promise<UTxO[]>}
+         * @type {Promise<TxInput[]>}
          */
-        get utxos(): Promise<UTxO[]>;
+        get utxos(): Promise<TxInput[]>;
         /**
-         * @type {Promise<UTxO[]>}
+         * @type {Promise<TxInput[]>}
          */
-        get collateral(): Promise<UTxO[]>;
+        get collateral(): Promise<TxInput[]>;
         /**
          * @param {Tx} tx
          * @returns {Promise<Signature[]>}
@@ -10605,8 +11017,8 @@ declare module "helios" {
     }
     /**
      * @typedef {{
-     *     getUtxos(address: Address): Promise<UTxO[]>
-     *     getUtxo(id: TxOutputId): Promise<UTxO>
+     *     getUtxos(address: Address): Promise<TxInput[]>
+     *     getUtxo(id: TxOutputId): Promise<TxInput>
      *     getParameters(): Promise<NetworkParams>
      *     submitTx(tx: Tx): Promise<TxId>
      * }} Network
@@ -10650,22 +11062,22 @@ declare module "helios" {
         getLatestEpoch(): Promise<any>;
         /**
          * @param {TxOutputId} id
-         * @returns {Promise<UTxO>}
+         * @returns {Promise<TxInput>}
          */
-        getUtxo(id: TxOutputId): Promise<UTxO>;
+        getUtxo(id: TxOutputId): Promise<TxInput>;
         /**
          * Used by BlockfrostV0.resolve()
-         * @param {UTxO} utxo
+         * @param {TxInput} utxo
          * @returns {Promise<boolean>}
          */
-        hasUtxo(utxo: UTxO): Promise<boolean>;
+        hasUtxo(utxo: TxInput): Promise<boolean>;
         /**
          * Returns oldest UTxOs first, newest last.
          * TODO: pagination
          * @param {Address} address
-         * @returns {Promise<UTxO[]>}
+         * @returns {Promise<TxInput[]>}
          */
-        getUtxos(address: Address): Promise<UTxO[]>;
+        getUtxos(address: Address): Promise<TxInput[]>;
         /**
          * @param {Tx} tx
          * @returns {Promise<TxId>}
@@ -11386,13 +11798,13 @@ declare module "helios" {
          */
         get unusedAddresses(): Promise<Address[]>;
         /**
-         * @type {Promise<UTxO[]>}
+         * @type {Promise<TxInput[]>}
          */
-        get utxos(): Promise<UTxO[]>;
+        get utxos(): Promise<TxInput[]>;
         /**
-         * @type {Promise<UTxO[]>}
+         * @type {Promise<TxInput[]>}
          */
-        get collateral(): Promise<UTxO[]>;
+        get collateral(): Promise<TxInput[]>;
         /**
          * Simply assumed the tx needs to by signed by this wallet without checking.
          * @param {Tx} tx
@@ -11448,20 +11860,20 @@ declare module "helios" {
         /**
          * Throws an error if the UTxO isn't found
          * @param {TxOutputId} id
-         * @returns {Promise<UTxO>}
+         * @returns {Promise<TxInput>}
          */
-        getUtxo(id: TxOutputId): Promise<UTxO>;
+        getUtxo(id: TxOutputId): Promise<TxInput>;
         /**
          * @param {Address} address
-         * @returns {Promise<UTxO[]>}
+         * @returns {Promise<TxInput[]>}
          */
-        getUtxos(address: Address): Promise<UTxO[]>;
+        getUtxos(address: Address): Promise<TxInput[]>;
         dump(): void;
         /**
-         * @param {UTxO | TxInput} utxo
+         * @param {TxInput} utxo
          * @returns {boolean}
          */
-        isConsumed(utxo: UTxO | TxInput): boolean;
+        isConsumed(utxo: TxInput): boolean;
         /**
          * @param {Tx} tx
          * @returns {Promise<TxId>}
@@ -11623,63 +12035,6 @@ declare module "helios" {
         }, paramArgs: string[], src: string, propTest: PropertyTest, nRuns?: number, simplify?: boolean): Promise<void>;
         #private;
     }
-    export namespace exportedForBundling {
-        export { jsToUplc };
-        export { uplcToJs };
-        export { AddressType };
-        export { AllType };
-        export { ArgType };
-        export { ByteArrayType };
-        export { FuncType };
-        export { IntType };
-        export { IR };
-        export { IRProgram };
-        export { IRParametricProgram };
-        export { MintingPolicyHashType };
-        export { RealType };
-        export { ScriptHashType };
-        export { Site };
-        export { StakingValidatorHashType };
-        export { StringType };
-        export { TxType };
-        export { ValidatorHashType };
-        export { Word };
-    }
-    export namespace exportedForTesting {
-        export { assert };
-        export { assertClass };
-        export { assertDefined };
-        export { bigIntToBytes };
-        export { bytesToBigInt };
-        export { setRawUsageNotifier };
-        export { setBlake2bDigestSize };
-        export { dumpCostModels };
-        export { Site };
-        export { Source };
-        export { MapData };
-        export { UplcData };
-        export { CborData };
-        export { ConstrData };
-        export { IntData };
-        export { ByteArrayData };
-        export { ListData };
-        export { UplcBool };
-        export { UplcValue };
-        export { UplcDataValue };
-        export { UplcTerm };
-        export { UplcProgram };
-        export { UplcLambda };
-        export { UplcCall };
-        export { UplcBuiltin };
-        export { UplcVariable };
-        export { UplcConst };
-        export { UplcInt };
-        export { IRProgram };
-        export { Tx };
-        export { TxInput };
-        export { TxBody };
-        export { REAL_PRECISION };
-    }
     export type hexstring = string & {};
     /**
      * Needed by transfer() methods
@@ -11766,25 +12121,21 @@ declare module "helios" {
         outputType: string;
         internalType: TypeSchema;
     };
-    export type DataType = EvalEntity & {
-        asNamed: Named;
-        name: string;
-        path: string;
-    } & {
-        asType: Type;
-        instanceMembers: InstanceMembers;
-        typeMembers: TypeMembers;
-        isBaseOf(type: Type): boolean;
-        infer(site: Site, map: InferenceMap, type: Type): Type;
-        toTyped(): Typed;
-        isParametric(): boolean;
-    } & {
+    export type JsToUplcHelpers = {
+        [name: string]: (obj: any) => Promise<UplcData>;
+    };
+    export type UplcToJsHelpers = {
+        [name: string]: (data: UplcData) => Promise<any>;
+    };
+    export type JsToUplcConverter = (obj: any, helpers: JsToUplcHelpers) => Promise<UplcData>;
+    export type UplcToJsConverter = (data: UplcData, helpers: UplcToJsHelpers) => Promise<any>;
+    export type DataType = Named & Type & {
         asDataType: DataType;
         fieldNames: string[];
         offChainType: (null | HeliosDataClass<HeliosData>);
         typeDetails?: TypeDetails;
-        jsToUplc: (obj: any, params?: NetworkParams) => UplcData;
-        uplcToJs: (data: UplcData) => any;
+        jsToUplc: JsToUplcConverter;
+        uplcToJs: UplcToJsConverter;
         ready: boolean;
     };
     export type EnumMemberType = DataType & {
@@ -11972,6 +12323,8 @@ declare module "helios" {
         onStartCall: (site: Site, rawStack: UplcRawStack) => Promise<boolean>;
         onEndCall: (site: Site, rawStack: UplcRawStack) => Promise<void>;
         onIncrCost: (name: string, isTerm: boolean, cost: Cost) => void;
+    };
+    export type UplcRTECallbacksInternal = UplcRTECallbacks & {
         macros?: {
             [name: string]: (rte: UplcRte, args: UplcValue[]) => Promise<UplcValue>;
         };
@@ -12032,8 +12385,8 @@ declare module "helios" {
         genInstanceMembers: (self: Type) => InstanceMembers;
         genTypeMembers: (self: Type) => TypeMembers;
         genTypeDetails?: (self: Type) => TypeDetails;
-        jsToUplc?: (obj: any) => UplcData;
-        uplcToJs?: (data: UplcData) => any;
+        jsToUplc?: JsToUplcConverter;
+        uplcToJs?: UplcToJsConverter;
     };
     export type GenericEnumMemberTypeProps<T extends HeliosData> = {
         name: string;
@@ -12046,8 +12399,8 @@ declare module "helios" {
         genInstanceMembers: (self: Type) => InstanceMembers;
         genTypeMembers?: (self: Type) => TypeMembers;
         genTypeDetails?: (self: Type) => TypeDetails;
-        jsToUplc?: (obj: any) => UplcData;
-        uplcToJs?: (data: UplcData) => any;
+        jsToUplc?: JsToUplcConverter;
+        uplcToJs?: UplcToJsConverter;
     };
     export type ScriptTypes = {
         [name: string]: ScriptHashType;
@@ -12064,13 +12417,13 @@ declare module "helios" {
         derivePubKey(): PubKey;
         sign(msg: number[]): Signature;
     };
-    export type CoinSelectionAlgorithm = (utxos: UTxO[], amount: Value) => [UTxO[], UTxO[]];
+    export type CoinSelectionAlgorithm = (utxos: TxInput[], amount: Value) => [TxInput[], TxInput[]];
     export type Wallet = {
         isMainnet(): Promise<boolean>;
         usedAddresses: Promise<Address[]>;
         unusedAddresses: Promise<Address[]>;
-        utxos: Promise<UTxO[]>;
-        collateral: Promise<UTxO[]>;
+        utxos: Promise<TxInput[]>;
+        collateral: Promise<TxInput[]>;
         signTx(tx: Tx): Promise<Signature[]>;
         submitTx(tx: Tx): Promise<TxId>;
     };
@@ -12087,8 +12440,8 @@ declare module "helios" {
         };
     };
     export type Network = {
-        getUtxos(address: Address): Promise<UTxO[]>;
-        getUtxo(id: TxOutputId): Promise<UTxO>;
+        getUtxos(address: Address): Promise<TxInput[]>;
+        getUtxo(id: TxOutputId): Promise<TxInput>;
         getParameters(): Promise<NetworkParams>;
         submitTx(tx: Tx): Promise<TxId>;
     };
@@ -12097,9 +12450,9 @@ declare module "helios" {
      */
     export type EmulatorTx = {
         id(): TxId;
-        consumes(utxo: UTxO | TxInput): boolean;
-        collectUtxos(address: Address, utxos: UTxO[]): UTxO[];
-        getUtxo(id: TxOutputId): (null | UTxO);
+        consumes(utxo: TxInput): boolean;
+        collectUtxos(address: Address, utxos: TxInput[]): TxInput[];
+        getUtxo(id: TxOutputId): (null | TxInput);
         dump(): void;
     };
     export type ValueGenerator = () => UplcData;
@@ -12178,6 +12531,7 @@ declare module "helios" {
         #private;
     }
     /**
+     * @internal
      * @extends {UplcTermWithEnv<UplcLambda>}
      */
     class UplcLambdaWithEnv extends UplcTermWithEnv<UplcLambda> {
@@ -12209,6 +12563,9 @@ declare module "helios" {
          */
         reduceCallFrame(rte: UplcRte, stack: UplcFrame[], state: ReducingState, frame: CallFrame): Promise<CekState>;
     }
+    /**
+     * @internal
+     */
     class AppliedUplcBuiltin {
         /**
          * @param {UplcBuiltin} term
@@ -12257,6 +12614,7 @@ declare module "helios" {
          */
         isFullyApplied(): boolean;
         /**
+         * @internal
          * @param {UplcRte} rte
          * @param {Site[]} sites
          * @returns {Promise<CekValue>}
@@ -12362,277 +12720,7 @@ declare module "helios" {
         get mainFunc(): FuncStatement;
     }
     /**
-     * inputs, minted assets, and withdrawals need to be sorted in order to form a valid transaction
-     */
-    class TxBody extends CborData {
-        /**
-         * @param {number[]} bytes
-         * @returns {TxBody}
-         */
-        static fromCbor(bytes: number[]): TxBody;
-        /**
-         * @type {TxInput[]}
-         */
-        get inputs(): TxInput[];
-        /**
-         * @type {TxOutput[]}
-         */
-        get outputs(): TxOutput[];
-        get fee(): bigint;
-        /**
-         * @param {bigint} fee
-         */
-        setFee(fee: bigint): void;
-        /**
-         * @type {Assets}
-         */
-        get minted(): Assets;
-        /**
-         * @type {TxInput[]}
-         */
-        get collateral(): TxInput[];
-        /**
-         * @type {bigint | null}
-         */
-        get firstValidSlot(): bigint;
-        /**
-         * @type {bigint | null}
-         */
-        get lastValidSlot(): bigint;
-        /**
-         * @type {PubKeyHash[]}
-         */
-        get signers(): PubKeyHash[];
-        /**
-         * @returns {Object}
-         */
-        dump(): any;
-        /**
-         * For now simply returns minus infinity to plus infinity (WiP)
-         * @param {NetworkParams} networkParams
-         * @returns {ConstrData}
-         */
-        toValidTimeRangeData(networkParams: NetworkParams): ConstrData;
-        /**
-         * @param {NetworkParams} networkParams
-         * @param {Redeemer[]} redeemers
-         * @param {ListData} datums
-         * @param {TxId} txId
-         * @returns {ConstrData}
-         */
-        toTxData(networkParams: NetworkParams, redeemers: Redeemer[], datums: ListData, txId: TxId): ConstrData;
-        /**
-         * @param {NetworkParams} networkParams
-         * @param {Redeemer[]} redeemers
-         * @param {ListData} datums
-         * @param {number} redeemerIdx
-         * @returns {UplcData}
-         */
-        toScriptContextData(networkParams: NetworkParams, redeemers: Redeemer[], datums: ListData, redeemerIdx: number): UplcData;
-        /**
-         * @returns {Value}
-         */
-        sumInputValue(): Value;
-        /**
-         * Throws error if any part of the sum is negative (i.e. more is burned than input)
-         * @returns {Value}
-         */
-        sumInputAndMintedValue(): Value;
-        /**
-         * @returns {Assets}
-         */
-        sumInputAndMintedAssets(): Assets;
-        /**
-         * @returns {Value}
-         */
-        sumOutputValue(): Value;
-        /**
-         * @returns {Assets}
-         */
-        sumOutputAssets(): Assets;
-        /**
-         * @param {bigint} slot
-         */
-        validFrom(slot: bigint): void;
-        /**
-         * @param {bigint} slot
-         */
-        validTo(slot: bigint): void;
-        /**
-         * Throws error if this.#minted already contains mph
-         * @param {MintingPolicyHash | MintingPolicyHashProps} mph - minting policy hash
-         * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens
-         */
-        addMint(mph: MintingPolicyHash | MintingPolicyHashProps, tokens: [ByteArray | ByteArrayProps, HInt | HIntProps][]): void;
-        /**
-         * @param {TxInput} input
-         * @param {boolean} checkUniqueness
-         */
-        addInput(input: TxInput, checkUniqueness?: boolean): void;
-        /**
-         * Used to remove dummy inputs
-         * Dummy inputs are needed to be able to correctly estimate fees
-         * Throws an error if input doesn't exist in list of inputs
-         * Internal use only!
-         * @param {TxInput} input
-         */
-        removeInput(input: TxInput): void;
-        /**
-         * @param {TxInput} input
-         * @param {boolean} checkUniqueness
-         */
-        addRefInput(input: TxInput, checkUniqueness?: boolean): void;
-        /**
-         * @param {TxOutput} output
-         */
-        addOutput(output: TxOutput): void;
-        /**
-         * Used to remove dummy outputs
-         * Dummy outputs are needed to be able to correctly estimate fees
-         * Throws an error if the output doesn't exist in list of outputs
-         * Internal use only!
-         * @param {TxOutput} output
-         */
-        removeOutput(output: TxOutput): void;
-        /**
-         * @param {PubKeyHash} hash
-         * @param {boolean} checkUniqueness
-         */
-        addSigner(hash: PubKeyHash, checkUniqueness?: boolean): void;
-        /**
-         * @param {TxInput} input
-         */
-        addCollateral(input: TxInput): void;
-        /**
-         * @param {Hash | null} scriptDataHash
-         */
-        setScriptDataHash(scriptDataHash: Hash | null): void;
-        /**
-         * @param {Hash} metadataHash
-         */
-        setMetadataHash(metadataHash: Hash): void;
-        /**
-         * @param {TxOutput | null} output
-         */
-        setCollateralReturn(output: TxOutput | null): void;
-        /**
-         * Calculates the number of dummy signatures needed to get precisely the right tx size
-         * @returns {number}
-         */
-        countUniqueSigners(): number;
-        /**
-         * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset
-         * @param {Map<hexstring, number>} set - hashes in hex format
-         */
-        collectScriptHashes(set: Map<hexstring, number>): void;
-        /**
-         * Makes sure each output contains the necessary min lovelace
-         * @param {NetworkParams} networkParams
-         */
-        correctOutputs(networkParams: NetworkParams): void;
-        /**
-         * Checks that each output contains enough lovelace
-         * @param {NetworkParams} networkParams
-         */
-        checkOutputs(networkParams: NetworkParams): void;
-        /**
-         * @param {NetworkParams} networkParams
-         * @param {null | bigint} minCollateral
-         */
-        checkCollateral(networkParams: NetworkParams, minCollateral: null | bigint): void;
-        /**
-         * Makes sore inputs, withdrawals, and minted assets are in correct order
-         * Mutates
-         */
-        sort(): void;
-        /**
-         * Used by (indirectly) by emulator to check if slot range is valid.
-         * Note: firstValidSlot == lastValidSlot is allowed
-         * @param {bigint} slot
-         */
-        isValid(slot: bigint): boolean;
-        #private;
-    }
-    class Redeemer extends CborData {
-        /**
-         * @param {number[]} bytes
-         * @returns {Redeemer}
-         */
-        static fromCbor(bytes: number[]): Redeemer;
-        /**
-         * @param {UplcData} data
-         * @param {Profile} profile
-         */
-        constructor(data: UplcData, profile?: Profile);
-        /**
-         * @type {UplcData}
-         */
-        get data(): UplcData;
-        /**
-         * @type {bigint}
-         */
-        get memCost(): bigint;
-        /**
-         * @type {bigint}
-         */
-        get cpuCost(): bigint;
-        /**
-         * @param {string} name
-         */
-        setProgramName(name: string): void;
-        /**
-         * @type {null | string}
-         */
-        get programName(): string;
-        /**
-         * type:
-         *   0 -> spending
-         *   1 -> minting
-         *   2 -> certifying
-         *   3 -> rewarding
-         * @param {number} type
-         * @param {number} index
-         * @returns {number[]}
-         */
-        toCborInternal(type: number, index: number): number[];
-        /**
-         * @returns {Object}
-         */
-        dumpInternal(): any;
-        /**
-         * @returns {Object}
-         */
-        dump(): any;
-        /**
-         * @param {TxBody} body
-         * @returns {ConstrData}
-         */
-        toScriptPurposeData(body: TxBody): ConstrData;
-        /**
-         * @param {TxBody} body
-         */
-        updateIndex(body: TxBody): void;
-        /**
-         * @param {Profile} profile
-         */
-        setProfile(profile: Profile): void;
-        /**
-         * @type {Profile}
-         */
-        get profile(): Profile;
-        /**
-         * @param {NetworkParams} networkParams
-         * @returns {bigint}
-         */
-        estimateFee(networkParams: NetworkParams): bigint;
-        #private;
-    }
-    /**
-     * Set the statistics collector (used by the test-suite)
-     * @param {(name: string, count: number) => void} callback
-     */
-    function setRawUsageNotifier(callback: (name: string, count: number) => void): void;
-    /**
+     * @internal
      * @extends {UplcTermWithEnv<UplcDelay>}
      */
     class UplcDelayWithEnv extends UplcTermWithEnv<UplcDelay> {
@@ -12657,6 +12745,7 @@ declare module "helios" {
         reduceForceFrame(rte: UplcRte, stack: UplcFrame[], frame: ForceFrame): CekState;
     }
     /**
+     * @internal
      * @template {UplcTerm} T
      */
     class UplcTermWithEnv<T extends UplcTerm> {

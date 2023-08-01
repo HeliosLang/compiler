@@ -1,16 +1,25 @@
-#!/usr/bin/env node
 //@ts-check
 
-import fs from "fs";
-import * as helios from "../helios.js";
-import { assert, correctDir, runIfEntryPoint } from "../utils/util.js";
+import fs from "fs"
 
-correctDir();
+import {
+	NetworkParams,
+	Program,
+	UplcProgram,
+	UserError,
+	assert
+} from "helios"
 
-const networkParams = new helios.NetworkParams(JSON.parse(fs.readFileSync("./network-parameters-preview.json").toString()));
+const networkParams = new NetworkParams(JSON.parse(fs.readFileSync("./network-parameters-preview.json").toString()));
 
+/**
+ * 
+ * @param {string} src 
+ * @param {string[]} argNames 
+ * @param {null | any} expected 
+ */
 async function profile(src, argNames, expected = null) {
-    let program = helios.Program.new(src);
+    let program = Program.new(src);
 
     let args = argNames.map(name => program.evalParam(name));
 
@@ -19,9 +28,9 @@ async function profile(src, argNames, expected = null) {
 	console.log("IR: ", program.prettyIR(true));
 	
 	// also test the transfer() function
-	let profileResult = await program.compile(true).transfer(helios.UplcProgram).profile(args, networkParams);
+	let profileResult = await program.compile(true).transfer(UplcProgram).profile(args, networkParams);
 
-	if (profileResult.result instanceof helios.UserError) {
+	if (profileResult.result instanceof UserError) {
 		throw profileResult.result;
 	}
 	
@@ -272,5 +281,3 @@ export default async function main() {
 
 	// exbudget/size used to be: {mem: 51795n, cpu: 31933326n, size: 367} (when get_policy().all_values(...) was being used). TODO: become that good again
 }
-
-runIfEntryPoint(main, "profile.js");

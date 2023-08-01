@@ -1,22 +1,40 @@
-#!/usr/bin/env node
-//@ts-check
-import crypto from "crypto";
-import * as helios from "../helios.js";
-import { runIfEntryPoint } from "../utils/util.js";
+// @ts-check
+
+import crypto from "node:crypto"
+
+import { 
+    REAL_PRECISION,
+    ByteArrayData,
+    ConstrData,
+    FuzzyTest,
+    IntData,
+    ListData,
+    MapData,
+    RuntimeError,
+    UplcBool,
+    UplcData,
+    UplcDataValue,
+    UserError,
+    UplcValue,
+    assertClass,
+    bytesToBigInt,
+    bytesToHex,
+    bytesToText,
+    setBlake2bDigestSize,
+    setRawUsageNotifier
+} from "helios"
 
 /**
- * @typedef {import('../helios.js').PropertyTest} PropertyTest
+ * @typedef {import("helios").PropertyTest} PropertyTest
  */
 
-const helios_ = helios.exportedForTesting;
-
-const REAL_ONE = BigInt(Math.pow(10, helios_.REAL_PRECISION));
+const REAL_ONE = BigInt(Math.pow(10, REAL_PRECISION));
 
 // helper functions for script property tests
 function asBool(value) {
-    if (value instanceof helios_.UplcBool) {
+    if (value instanceof UplcBool) {
         return value.bool;
-    } else if (value instanceof helios_.ConstrData) {
+    } else if (value instanceof ConstrData) {
         if (value.fields.length == 0) {
             if (value.index == 0) {
                 return false;
@@ -28,7 +46,7 @@ function asBool(value) {
         } else {
             throw new Error(`expected ConstrData with 0 fields (Bool)`);
         }
-    } else if (value instanceof helios_.UplcDataValue) {
+    } else if (value instanceof UplcDataValue) {
         return asBool(value.data);
     } else {
         throw value;
@@ -38,11 +56,11 @@ function asBool(value) {
 }
 
 function asInt(value) {
-    if (value instanceof helios_.IntData) {
+    if (value instanceof IntData) {
         return value.value;
-    } else if (value instanceof helios_.UplcDataValue) {
+    } else if (value instanceof UplcDataValue) {
         let data = value.data;
-        if (data instanceof helios_.IntData) {
+        if (data instanceof IntData) {
             return data.value;
         }
     }
@@ -55,11 +73,11 @@ function asReal(value) {
 }
 
 function asBytes(value) {
-    if (value instanceof helios_.ByteArrayData) {
+    if (value instanceof ByteArrayData) {
         return value.bytes;
-    } else if (value instanceof helios_.UplcDataValue) {
+    } else if (value instanceof UplcDataValue) {
         let data = value.data;
-        if (data instanceof helios_.ByteArrayData) {
+        if (data instanceof ByteArrayData) {
             return data.bytes;
         }
     }
@@ -73,21 +91,21 @@ function equalsList(a, b) {
 }
 
 function decodeCbor(bs) {
-    return helios_.UplcData.fromCbor(bs);
+    return UplcData.fromCbor(bs);
 }
 
 function isValidString(value) {
-    if (value instanceof helios_.ByteArrayData) {
+    if (value instanceof ByteArrayData) {
         try {
-            void helios.bytesToText(value.bytes);
+            void bytesToText(value.bytes);
 
             return true;
         } catch(_) {
             return false;
         }
-    } else if (value instanceof helios_.UplcDataValue) {
+    } else if (value instanceof UplcDataValue) {
         let data = value.data;
-        if (data instanceof helios_.ByteArrayData) {
+        if (data instanceof ByteArrayData) {
             return isValidString(data);
         }
     }
@@ -100,12 +118,12 @@ function isValidString(value) {
  * @returns {string}
  */
 function asString(value) {
-    if (value instanceof helios_.ByteArrayData) {
-        return helios.bytesToText(value.bytes);
-    } else if (value instanceof helios_.UplcDataValue) {
+    if (value instanceof ByteArrayData) {
+        return bytesToText(value.bytes);
+    } else if (value instanceof UplcDataValue) {
         let data = value.data;
-        if (data instanceof helios_.ByteArrayData) {
-            return helios.bytesToText(data.bytes);
+        if (data instanceof ByteArrayData) {
+            return bytesToText(data.bytes);
         }
     }
 
@@ -118,11 +136,11 @@ function asString(value) {
  * @returns {bigint[]}
  */
 function asIntList(value) {
-    if (value instanceof helios_.ListData) {
+    if (value instanceof ListData) {
         let items = [];
 
         for (let item of value.list) {
-            if (item instanceof helios_.IntData) {
+            if (item instanceof IntData) {
                 items.push(item.value);
             } else {
                 throw new Error(`expected ListData of IntData, got ${value.toString()}`);
@@ -130,7 +148,7 @@ function asIntList(value) {
         }
 
         return items;
-    } else if (value instanceof helios_.UplcDataValue) {
+    } else if (value instanceof UplcDataValue) {
         let data = value.data;
         
         return asIntList(data);
@@ -145,7 +163,7 @@ function asIntList(value) {
  * @returns {bigint[][]}
  */
 function asNestedIntList(value) {
-    if (value instanceof helios_.ListData) {
+    if (value instanceof ListData) {
         let items = [];
 
         for (let item of value.list) {
@@ -153,7 +171,7 @@ function asNestedIntList(value) {
         }
 
         return items;
-    } else if (value instanceof helios_.UplcDataValue) {
+    } else if (value instanceof UplcDataValue) {
         let data = value.data;
         
         return asNestedIntList(data);
@@ -168,7 +186,7 @@ function asNestedIntList(value) {
  * @returns {string[]}
  */
 function asStringList(value) {
-    if (value instanceof helios_.ListData) {
+    if (value instanceof ListData) {
         let items = [];
 
         for (let item of value.list) {
@@ -176,7 +194,7 @@ function asStringList(value) {
         }
 
         return items;
-    } else if (value instanceof helios_.UplcDataValue) {
+    } else if (value instanceof UplcDataValue) {
         let data = value.data;
         
         return asStringList(data);
@@ -190,7 +208,7 @@ function asStringList(value) {
  * @returns {number[][]}
  */
 function asBytesList(value) {
-    if (value instanceof helios_.ListData) {
+    if (value instanceof ListData) {
         let items = [];
 
         for (let item of value.list) {
@@ -198,7 +216,7 @@ function asBytesList(value) {
         }
 
         return items;
-    } else if (value instanceof helios_.UplcDataValue) {
+    } else if (value instanceof UplcDataValue) {
         let data = value.data;
         
         return asBytesList(data);
@@ -208,11 +226,11 @@ function asBytesList(value) {
 }
 
 function asBoolList(value) {
-    if (value instanceof helios_.ListData) {
+    if (value instanceof ListData) {
         let items = [];
 
         for (let item of value.list) {
-            if (item instanceof helios_.ConstrData && item.fields.length == 0 && (item.index == 0 || item.index == 1)) {
+            if (item instanceof ConstrData && item.fields.length == 0 && (item.index == 0 || item.index == 1)) {
                 items.push(item.index == 1);
             } else {
                 throw new Error(`expected ListData of bool-like ConstrData, got ${value.toString()}`);
@@ -220,9 +238,9 @@ function asBoolList(value) {
         }
 
         return items;
-    } else if (value instanceof helios_.UplcDataValue) {
+    } else if (value instanceof UplcDataValue) {
         let data = value.data;
-        if (data instanceof helios_.ListData) {
+        if (data instanceof ListData) {
            return asBoolList(data);
         }
     }
@@ -231,11 +249,11 @@ function asBoolList(value) {
 }
 
 function asData(value) {
-    if (value instanceof helios_.UplcData) {
+    if (value instanceof UplcData) {
         return value;
-    } else if (value instanceof helios_.UplcDataValue) {
+    } else if (value instanceof UplcDataValue) {
         return value.data;
-    } else if (value instanceof helios.UserError) {
+    } else if (value instanceof UserError) {
         throw value;
     } else {
         throw new Error("expected UplcDataValue or UplcData");
@@ -243,11 +261,11 @@ function asData(value) {
 }
 
 function constrIndex(value) {
-    if (value instanceof helios_.ConstrData) {
+    if (value instanceof ConstrData) {
         return value.index;
-    } else if (value instanceof helios_.UplcDataValue) {
+    } else if (value instanceof UplcDataValue) {
         let data = value.data;
-        if (data instanceof helios_.ConstrData) {
+        if (data instanceof ConstrData) {
             return data.index;
         }
     }
@@ -263,7 +281,7 @@ function constrIndex(value) {
  * @returns {boolean}
  */
 function isError(err, info) {
-    return err instanceof helios.RuntimeError;
+    return err instanceof RuntimeError;
 }
 
 /**
@@ -439,7 +457,7 @@ const certifyingScriptContextParam = `
 
 
 async function testBuiltins() {
-    const ft = new helios.FuzzyTest(/*Math.random()*/42, 100, true);
+    const ft = new FuzzyTest(/*Math.random()*/42, 100, true);
 
 
     /////////////
@@ -857,7 +875,7 @@ async function testBuiltins() {
     }`, ([a], res) => {
         const bs = asBytes(res);
         
-        return helios_.bytesToBigInt(bs.reverse()) === asInt(a);
+        return bytesToBigInt(bs.reverse()) === asInt(a);
     });
 
     await ft.test([ft.int(0)], `
@@ -867,7 +885,7 @@ async function testBuiltins() {
     }`, ([a], res) => {
         const bs = asBytes(res);
 
-        return helios_.bytesToBigInt(bs) == asInt(a);
+        return bytesToBigInt(bs) == asInt(a);
     });
 
     await ft.test([ft.int(0)], `
@@ -1598,7 +1616,7 @@ async function testBuiltins() {
         });
 
         // the crypto library only supports blake2b512 (and not blake2b256), so temporarily set digest size to 64 bytes for testing
-        helios_.setBlake2bDigestSize(64);
+        setBlake2bDigestSize(64);
 
         await ft.test([ft.bytes(0, 10)], `
         testing bytearray_blake2b
@@ -1624,7 +1642,7 @@ async function testBuiltins() {
             return equalsList(Array.from(hasher.digest()), asBytes(res));
         });
 
-        helios_.setBlake2bDigestSize(32);
+        setBlake2bDigestSize(32);
 
         await ft.test([ft.bytes()], `
         testing bytearray_show
@@ -2418,7 +2436,7 @@ async function testBuiltins() {
         testing map_add
         func main(a: Map[Int]Int, b: Map[Int]Int) -> Map[Int]Int {
             a + b
-        }`, ([a, b], res) => asData(res).isSame(new helios_.MapData(a.data.map.concat(b.data.map))));
+        }`, ([a, b], res) => asData(res).isSame(new MapData(a.data.map.concat(b.data.map))));
 
         await ft.test([ft.map(ft.int(), ft.int(), 0, 10), ft.int(), ft.int()], `
         testing map_prepend
@@ -2426,8 +2444,8 @@ async function testBuiltins() {
             a.prepend(k, v)
         }`, ([a, k, v], res) => {
             let expected = a.data.map;
-            expected.unshift([new helios.IntData(asInt(k)), new helios.IntData(asInt(v))]);
-            return asData(res).isSame(new helios_.MapData(expected));
+            expected.unshift([new IntData(asInt(k)), new IntData(asInt(v))]);
+            return asData(res).isSame(new MapData(expected));
         });
 
         await ft.test([ft.map(ft.int(), ft.int())], `
@@ -3074,9 +3092,9 @@ async function testBuiltins() {
         a.map((x: Int) -> {x*2})
     }`, ([a], res) => {
         if (a.data.index == 1) {
-            return helios_.assertClass(res, helios.UplcValue).data.index == 1;
+            return assertClass(res, UplcValue).data.index == 1;
         } else {
-            return asInt(helios_.assertClass(res, helios.UplcValue).data.fields[0]) == 2n*asInt(a.data.fields[0])
+            return asInt(assertClass(res, UplcValue).data.fields[0]) == 2n*asInt(a.data.fields[0])
         }
     });
 
@@ -3086,9 +3104,9 @@ async function testBuiltins() {
         a.map((x: Int) -> {x > 0})
     }`, ([a], res) => {
         if (a.data.index == 1) {
-            return helios_.assertClass(res, helios.UplcValue).data.index == 1;
+            return assertClass(res, UplcValue).data.index == 1;
         } else {
-            return asBool(helios_.assertClass(res, helios.UplcValue).data.fields[0]) == (asInt(a.data.fields[0]) > 0n)
+            return asBool(assertClass(res, UplcValue).data.fields[0]) == (asInt(a.data.fields[0]) > 0n)
         }
     });
 
@@ -3229,7 +3247,7 @@ async function testBuiltins() {
     func main(a: ByteArray, b: ByteArray) -> ByteArray {
         AssetClass::new(MintingPolicyHash::new(a), b).serialize()
     }`, ([a, b], res) => {
-        let ref = new helios_.ConstrData(0, [new helios_.ByteArrayData(asBytes(a)), new helios_.ByteArrayData(asBytes(b))]);
+        let ref = new ConstrData(0, [new ByteArrayData(asBytes(a)), new ByteArrayData(asBytes(b))]);
         return decodeCbor(asBytes(res)).isSame(ref);
     });
 
@@ -3442,7 +3460,7 @@ async function testBuiltins() {
             v: Value = Value::new(AssetClass::new(MintingPolicyHash::new(#1234), #1234), a) + Value::lovelace(a*2);
             v.get_assets()
         }`, ([a], res) => {
-            if (res instanceof helios.UplcValue) {
+            if (res instanceof UplcValue) {
                 return res.data.map.length == 1 && res.data.map[0][1].map[0][1].int == asInt(a);
             } else {
                 return false;
@@ -3471,11 +3489,11 @@ async function testBuiltins() {
             sum.show()
         }`, ([mph1, mph2, tn_a, qty_a, tn_b, qty_b], res) => {
             const expected = [
-                `${helios.bytesToHex(asBytes(mph1))}.${helios.bytesToHex(asBytes(tn_a))}: ${asInt(qty_a)}`,
-                `${helios.bytesToHex(asBytes(mph2))}.${helios.bytesToHex(asBytes(tn_b))}: ${asInt(qty_b)}`
+                `${bytesToHex(asBytes(mph1))}.${bytesToHex(asBytes(tn_a))}: ${asInt(qty_a)}`,
+                `${bytesToHex(asBytes(mph2))}.${bytesToHex(asBytes(tn_b))}: ${asInt(qty_b)}`
             ].join("\n");
             
-            const got = helios.bytesToText(asBytes(res));
+            const got = bytesToText(asBytes(res));
 
             return got.trim() == expected.trim();
         }, 5);
@@ -3503,12 +3521,12 @@ async function testBuiltins() {
         func main(qty: Int, mph: ByteArray, name: ByteArray) -> ByteArray {
             Value::new(AssetClass::new(MintingPolicyHash::new(mph), name), qty).serialize()
         }`, ([qty, mph, name], res) => {
-            let ref = new helios_.MapData([
+            let ref = new MapData([
                 [
-                    new helios_.ByteArrayData(asBytes(mph)),
-                    new helios_.MapData([[
-                        new helios_.ByteArrayData(asBytes(name)),
-                        new helios_.IntData(asInt(qty)),
+                    new ByteArrayData(asBytes(mph)),
+                    new MapData([[
+                        new ByteArrayData(asBytes(name)),
+                        new IntData(asInt(qty)),
                     ]])
                 ]
             ]);
@@ -4190,7 +4208,7 @@ async function testBuiltins() {
     func main(bs: ByteArray) -> String {
         TxId::new(bs).show()
     }`, ([a], res) => {
-        return helios.bytesToHex(asBytes(a)) === asString(res);
+        return bytesToHex(asBytes(a)) === asString(res);
     });
     await ft.testParams({"QTY": ft.int()}, ["CURRENT_TX_ID"], `
     testing txid_from_data
@@ -5256,7 +5274,7 @@ async function testBuiltins() {
 export default async function main() {
     let stats = new Map();
 
-    helios_.setRawUsageNotifier(function (name, n) {
+    setRawUsageNotifier(function (name, n) {
         if (!stats.has(name)) {
             stats.set(name, 0);
         }
@@ -5274,5 +5292,3 @@ export default async function main() {
         console.log(n, name);
     }
 }
-
-runIfEntryPoint(main, "builtins.js");

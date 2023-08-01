@@ -135,50 +135,6 @@ function buildVersionConst(version) {
 export const VERSION = "${version}";`;
 }
 
-function buildFooter() {
-	return `
-/**
- * The following functions and classes are used for some tests in ./test/, and aren't
- * intended to be used by regular users of this library.
- */
-export const exportedForTesting = {
-	assert,
-	assertClass,
-	assertDefined,
-	bigIntToBytes,
-	bytesToBigInt,
-	setRawUsageNotifier,
-	setBlake2bDigestSize,
-	dumpCostModels,
-	Site,
-	Source,
-	MapData,
-	UplcData,
-	CborData,
-	ConstrData,
-	IntData,
-	ByteArrayData,
-	ListData,
-	UplcBool,
-	UplcValue,
-	UplcDataValue,
-	UplcTerm,
-	UplcProgram,
-	UplcLambda,
-	UplcCall,
-	UplcBuiltin,
-	UplcVariable,
-	UplcConst,
-	UplcInt,
-	IRProgram,
-	Tx,
-	TxInput,
-	TxBody,
-	REAL_PRECISION
-};`
-}
-
-
 class IndexWriter {
 	#col;
 	#parts;
@@ -281,6 +237,7 @@ function processFile(fname, id, src, version) {
 
 		return [index, src];
 	} catch (e) {
+		console.error(e);
 		throw new Error("unable to build index for " + fname);
 	}
 
@@ -329,8 +286,6 @@ function main() {
 		srcParts.push(part);
 	});
 
-	const footer = buildFooter();
-
 	const all = [
 		header, 
 		indexParts.join("\n//\n"), 
@@ -338,8 +293,7 @@ function main() {
 		new Array(WIDTH).fill("/").join(""), 
 		new Array(WIDTH).fill("/").join(""), 
 		"\n",
-		srcParts.join("\n\n\n"),
-		footer
+		srcParts.join("\n\n\n")
 	].join("\n");
 
 	fs.writeFileSync("../helios.js", all);

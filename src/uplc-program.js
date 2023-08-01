@@ -1,6 +1,10 @@
 //@ts-check
 // Uplc program
 
+import { 
+	config
+} from "./config.js";
+
 import {
     BitReader,
     BitWriter,
@@ -64,11 +68,11 @@ import {
  */
 
 /**
- * @typedef {import("./uplc-ast.js").UplcRTECallbacks} UplcRTECallbacks
+ * @typedef {import("./uplc-ast.js").UplcRTECallbacksInternal} UplcRTECallbacksInternal
  */
 
 /**
- * @typedef {import("./uplc-ast.js").UplcValueTerm} UplcValueTerm
+ * @typedef {import("./uplc-ast.js").UplcRTECallbacks} UplcRTECallbacks
  */
 
 import {
@@ -97,7 +101,7 @@ import {
     UplcVariable,
 	evalCek
 } from "./uplc-ast.js";
-import { config } from "./config.js";
+
 
 /**
  * This library uses version "1.0.0" of Plutus-core
@@ -142,7 +146,6 @@ const UPLC_TAG_WIDTHS = {
 
 /**
  * The constructor returns 'any' because it is an instance of TransferableUplcProgram, and the instance methods don't need to be defined here
- * @internal
  * @template TInstance
  * @typedef {{
  *   transferUplcProgram: (expr: any, properties: ProgramProperties, version: any[]) => TInstance,
@@ -275,6 +278,7 @@ const UPLC_TAG_WIDTHS = {
 	/**
 	 * Flat encodes the entire Plutus-core program.
 	 * Note that final padding isn't added now but is handled by bitWriter upon finalization.
+	 * @internal
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlat(bitWriter) {
@@ -282,6 +286,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * @internal
 	 * @param {BitWriter} bitWriter
 	 * @param {null | Map<string, number>} codeMapFileIndices
 	 */
@@ -294,6 +299,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcRte} rte 
 	 * @returns {Promise<UplcValue>}
 	 */
@@ -303,8 +309,9 @@ const UPLC_TAG_WIDTHS = {
 
 	/**
 	 * Evaluates the term contained in UplcProgram (assuming it is a lambda term)
+	 * @internal
 	 * @param {null | UplcValue[]} args
-	 * @param {UplcRTECallbacks} callbacks
+	 * @param {UplcRTECallbacksInternal} callbacks
 	 * @param {null | NetworkParams} networkParams
 	 * @returns {Promise<UplcValue>}
 	 */
