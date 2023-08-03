@@ -4,7 +4,7 @@ import fs from "fs"
 import { 
 	Address,
 	Assets,
-	CborData,
+	Cbor,
 	Datum as OutputDatum,
 	IntData,
 	MintingPolicyHash,
@@ -211,7 +211,7 @@ async function testInlineDatum() {
 
 	console.log(bytesToHex(inlineDatum.toCbor()));
 	
-	console.log(bytesToHex(CborData.encodeHead(6, 24n)));
+	console.log(bytesToHex(Cbor.encodeHead(6, 24n)));
 
 	let tx = Tx.fromCbor(unsignedBytes);
 

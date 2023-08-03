@@ -727,11 +727,11 @@ export class WalletEmulator {
 
     /**
      * @param {Network} network
-     * @param {NumberGenerator} random - used to generate the private key
+     * @param {Bip32PrivateKey} privateKey
      */
-    constructor(network, random) {
+    constructor(network, privateKey) {
         this.#network = network;
-        this.#privateKey = Bip32PrivateKey.random(random);
+        this.#privateKey = privateKey;
         this.#pubKey = this.#privateKey.derivePubKey();
 
         // TODO: staking credentials
@@ -1095,7 +1095,7 @@ export class NetworkEmulator {
      * @returns {WalletEmulator}
      */
     createWallet(lovelace = 0n, assets = new Assets([])) {
-        const wallet = new WalletEmulator(this, this.#random);
+        const wallet = new WalletEmulator(this, Bip32PrivateKey.random(this.#random));
 
         this.createUtxo(wallet, lovelace, assets);
 

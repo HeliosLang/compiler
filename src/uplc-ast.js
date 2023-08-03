@@ -24,7 +24,8 @@ import {
 } from "./tokens.js";
 
 import {
-    Crypto
+    Crypto,
+	Ed25519
 } from "./crypto.js";
 
 /**
@@ -3232,7 +3233,7 @@ export class UplcBuiltin extends UplcTerm {
 					return rte.error(`expected signature of length 64 for verifyEd25519Signature, got signature of length ${signatureBytes.length}`);
 				}
 
-				let ok = Crypto.Ed25519.verify(signatureBytes, msgBytes, keyBytes);
+				let ok = Ed25519.verify(signatureBytes, msgBytes, keyBytes);
 
 				return new UplcBool(site, ok);
 			},
@@ -3795,7 +3796,7 @@ export class UplcBuiltin extends UplcTerm {
 							throw new RuntimeError(`expected signature of length 64 for verifyEd25519Signature, got signature of length ${signatureBytes.length}`);
 						}
 
-						let ok = Crypto.Ed25519.verify(signatureBytes, msgBytes, keyBytes);
+						let ok = Ed25519.verify(signatureBytes, msgBytes, keyBytes);
 
 						return new UplcBool(callSite, ok);
 					}

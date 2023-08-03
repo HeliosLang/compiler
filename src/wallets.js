@@ -7,10 +7,6 @@ import {
     hexToBytes
 } from "./utils.js";
 
-/**
- * @typedef {import("./utils.js").hexstring} hexstring
- */
-
 import {
     Address,
     PubKeyHash,
@@ -18,9 +14,6 @@ import {
     Value
 } from "./helios-data.js";
 
-/**
- * @typedef {import("./helios-data.js").bech32string} bech32string
- */
 import {
     Signature,
     Tx,
@@ -36,18 +29,18 @@ import {
     CoinSelection
 } from "./coinselection.js";
 
-
 /**
- * @typedef {{
- *     isMainnet(): Promise<boolean>,
- *     usedAddresses: Promise<Address[]>,
- *     unusedAddresses: Promise<Address[]>,
- *     utxos: Promise<TxInput[]>,
- *     collateral: Promise<TxInput[]>,
- *     signTx(tx: Tx): Promise<Signature[]>,
- *     submitTx(tx: Tx): Promise<TxId>
- * }} Wallet
- */
+ * An interface type for a wallet that manages a user's UTxOs and addresses.
+ * @interface
+ * @typedef {object} Wallet
+*  @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
+*  @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
+*  @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
+*  @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
+*  @property {Promise<TxInput[]>} collateral
+*  @property {(tx: Tx) => Promise<Signature[]>} signTx Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
+*  @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
+*/
 
 /**
  * @typedef {{

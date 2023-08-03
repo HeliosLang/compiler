@@ -2,11 +2,10 @@
 
 import { 
     Crypto, 
+    Ed25519,
     bytesToHex,
     hexToBytes
 } from "helios"
-
-const Ed25519 = Crypto.Ed25519;
 
 const N_TESTS = 100;
 

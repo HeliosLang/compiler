@@ -10,9 +10,6 @@ import {
 	assertDefined
 } from "./utils.js";
 
-/**
- * @typedef {import("./utils.js").hexstring} hexstring
- */
 import {
     IR,
     Site,
@@ -2090,7 +2087,7 @@ export class EnumStatement extends Statement {
 			}
 
 			/**
-			 * @param {hexstring | number[]} bytes
+			 * @param {number[] | string} bytes Array of bytes, or hexadecimal representation.
 			 * @returns {HeliosData}
 			 */
 			static fromUplcCbor(bytes) {

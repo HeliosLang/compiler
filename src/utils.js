@@ -4,10 +4,6 @@
 import { TAB } from "./config.js";
 
 /**
- * @typedef {string & {}} hexstring
- */
-
-/**
  * Needed by transfer() methods
  * @typedef {{
  *   transferByteArrayData: (bytes: number[]) => any,
@@ -402,7 +398,7 @@ export function byteToBitString(b, n = 8, prefix = true) {
  * Converts a hexadecimal representation of bytes into an actual list of uint8 bytes.
  * @example
  * hexToBytes("00ff34") => [0, 255, 52] 
- * @param {hexstring} hex 
+ * @param {string} hex 
  * @returns {number[]}
  */
 export function hexToBytes(hex) {
@@ -426,7 +422,7 @@ export function hexToBytes(hex) {
  * @example
  * bytesToHex([0, 255, 52]) => "00ff34"
  * @param {number[]} bytes
- * @returns {hexstring}
+ * @returns {string}
  */
 export function bytesToHex(bytes) {
 	const parts = [];
@@ -435,9 +431,6 @@ export function bytesToHex(bytes) {
 		parts.push(padZeroes(b.toString(16), 2));
 	}
 
-	/**
-	 * @type {hexstring}
-	 */
 	return parts.join('');
 }
 

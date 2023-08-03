@@ -18,10 +18,6 @@ import {
 	padZeroes
 } from "./utils.js";
 
-/**
- * @typedef {import("./utils.js").hexstring} hexstring
- */
-
 import {
 	RuntimeError,
     Site,
@@ -31,6 +27,7 @@ import {
 import {
 	BIP39_DICT_EN,
     Crypto,
+	Ed25519,
 	randomBytes
 } from "./crypto.js";
 
@@ -39,7 +36,8 @@ import {
  */
 
 import {
-    CborData
+    CborData,
+	Cbor
 } from "./cbor.js";
 
 import {
@@ -110,6 +108,9 @@ import {
 	NativeScript
 } from "./native.js";
 
+/**
+ * A new Tx instance can be used as a builder.
+ */
 export class Tx extends CborData {
 	/**
 	 * @type {TxBody}
@@ -165,7 +166,7 @@ export class Tx extends CborData {
 	 * @type {number[]}
 	 */
 	get bodyHash() {
-		return Crypto.blake2b(this.#body.toCbor());
+		return this.#body.hash();
 	}
 
 	/**
@@ -192,11 +193,11 @@ export class Tx extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeTuple([
+		return Cbor.encodeTuple([
 			this.#body.toCbor(),
 			this.#witnesses.toCbor(),
-			CborData.encodeBool(this.#valid),
-			this.#metadata === null ? CborData.encodeNull() : this.#metadata.toCbor(),
+			Cbor.encodeBool(this.#valid),
+			this.#metadata === null ? Cbor.encodeNull() : this.#metadata.toCbor(),
 		]);
 	}
 
@@ -211,7 +212,7 @@ export class Tx extends CborData {
 
 		let tx = new Tx();
 
-		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		let n = Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
 					tx.#body = TxBody.fromCbor(fieldBytes);
@@ -220,11 +221,11 @@ export class Tx extends CborData {
 					tx.#witnesses = TxWitnesses.fromCbor(fieldBytes);
 					break;
 				case 2:
-					tx.#valid = CborData.decodeBool(fieldBytes);
+					tx.#valid = Cbor.decodeBool(fieldBytes);
 					break;
 				case 3:
-					if (CborData.isNull(fieldBytes)) {
-						CborData.decodeNull(fieldBytes);
+					if (Cbor.isNull(fieldBytes)) {
+						Cbor.decodeNull(fieldBytes);
 
 						tx.#metadata = null;
 					} else {
@@ -365,7 +366,7 @@ export class Tx extends CborData {
 	 * @param {(id: TxOutputId) => Promise<TxOutput>} fn
 	 */
 	async completeInputData(fn) {
-		await this.#body.completeInputData(fn)
+		await this.#body.completeInputData(fn, this.#witnesses);
 	}
 
 	/**
@@ -528,6 +529,10 @@ export class Tx extends CborData {
 		// min lovelace is checked during build, because 
 		this.#body.addOutput(output);
 
+		if (output.refScript) {
+			this.#witnesses.attachRefScript(output.refScript);
+		}
+
 		return this;
 	}
 
@@ -646,7 +651,7 @@ export class Tx extends CborData {
 		let scripts = this.#witnesses.scripts;
 
 		/**
-		 * @type {Set<hexstring>}
+		 * @type {Set<string>}
 		 */
 		const currentScripts = new Set();
 
@@ -1267,11 +1272,15 @@ export class TxBody extends CborData {
 		return this.#outputs;
 	}
 
+	/**
+	 * @type {bigint}
+	 */
 	get fee() {
 		return this.#fee;
 	}
 
 	/**
+	 * @internal
 	 * @param {bigint} fee
 	 */
 	setFee(fee) {
@@ -1322,16 +1331,16 @@ export class TxBody extends CborData {
 		 */
 		let object = new Map();
 
-		object.set(0, CborData.encodeDefList(this.#inputs));
-		object.set(1, CborData.encodeDefList(this.#outputs));
-		object.set(2, CborData.encodeInteger(this.#fee));
+		object.set(0, Cbor.encodeDefList(this.#inputs));
+		object.set(1, Cbor.encodeDefList(this.#outputs));
+		object.set(2, Cbor.encodeInteger(this.#fee));
 		
 		if (this.#lastValidSlot !== null) {
-			object.set(3, CborData.encodeInteger(this.#lastValidSlot));
+			object.set(3, Cbor.encodeInteger(this.#lastValidSlot));
 		}
 
 		if (this.#dcerts.length != 0) {
-			object.set(4, CborData.encodeDefList(this.#dcerts));
+			object.set(4, Cbor.encodeDefList(this.#dcerts));
 		}
 
 		if (this.#withdrawals.size != 0) {
@@ -1343,7 +1352,7 @@ export class TxBody extends CborData {
 		}
 
 		if (this.#firstValidSlot !== null) {
-			object.set(8, CborData.encodeInteger(this.#firstValidSlot));
+			object.set(8, Cbor.encodeInteger(this.#firstValidSlot));
 		}
 
 		if (!this.#minted.isZero()) {
@@ -1355,29 +1364,29 @@ export class TxBody extends CborData {
 		}
 
 		if (this.#collateral.length != 0) {
-			object.set(13, CborData.encodeDefList(this.#collateral));
+			object.set(13, Cbor.encodeDefList(this.#collateral));
 		}
 
 		if (this.#signers.length != 0) {
-			object.set(14, CborData.encodeDefList(this.#signers));
+			object.set(14, Cbor.encodeDefList(this.#signers));
 		}
 
-		// what is NetworkId used for?
-		//object.set(15, CborData.encodeInteger(2n));
+		// what is NetworkId used for, seems a bit useless?
+		// object.set(15, Cbor.encodeInteger(2n));
 
 		if (this.#collateralReturn !== null) {
 			object.set(16, this.#collateralReturn.toCbor());
 		}
 
 		if (this.#totalCollateral > 0n) {
-			object.set(17, CborData.encodeInteger(this.#totalCollateral));
+			object.set(17, Cbor.encodeInteger(this.#totalCollateral));
 		}
 
 		if (this.#refInputs.length != 0) {
-			object.set(18, CborData.encodeDefList(this.#refInputs));
+			object.set(18, Cbor.encodeDefList(this.#refInputs));
 		}
 
-		return CborData.encodeObject(object);
+		return Cbor.encodeObject(object);
 	}
 
 	/**
@@ -1387,26 +1396,26 @@ export class TxBody extends CborData {
 	static fromCbor(bytes) {
 		const txBody = new TxBody();
 
-		const done = CborData.decodeObject(bytes, (i, fieldBytes) => {
+		const done = Cbor.decodeObject(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#inputs.push(TxInput.fromCbor(itemBytes));
 					});
 					break;
 				case 1:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#outputs.push(TxOutput.fromCbor(itemBytes));
 					})
 					break;
 				case 2:
-					txBody.#fee = CborData.decodeInteger(fieldBytes);
+					txBody.#fee = Cbor.decodeInteger(fieldBytes);
 					break;
 				case 3:
-					txBody.#lastValidSlot = CborData.decodeInteger(fieldBytes);
+					txBody.#lastValidSlot = Cbor.decodeInteger(fieldBytes);
 					break;
 				case 4:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#dcerts.push(DCert.fromCbor(itemBytes));
 					});
 					break;
@@ -1418,7 +1427,7 @@ export class TxBody extends CborData {
 					txBody.#metadataHash = Hash.fromCbor(fieldBytes);
 					break;
 				case 8:
-					txBody.#firstValidSlot = CborData.decodeInteger(fieldBytes);
+					txBody.#firstValidSlot = Cbor.decodeInteger(fieldBytes);
 					break;
 				case 9:
 					txBody.#minted = Assets.fromCbor(fieldBytes);
@@ -1431,26 +1440,27 @@ export class TxBody extends CborData {
 				case 12:
 					throw new Error("unhandled field");
 				case 13:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#collateral.push(TxInput.fromCbor(itemBytes));
 					});
 					break;
 				case 14:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#signers.push(PubKeyHash.fromCbor(itemBytes));
 					});
 					break;
 				case 15:
-					assert(CborData.decodeInteger(fieldBytes) == 2n);
+					// ignore the network Id
+					void Cbor.decodeInteger(fieldBytes);
 					break;
 				case 16:
 					txBody.#collateralReturn = TxOutput.fromCbor(fieldBytes);
 					break;
 				case 17:
-					txBody.#totalCollateral = CborData.decodeInteger(fieldBytes);
+					txBody.#totalCollateral = Cbor.decodeInteger(fieldBytes);
 					break;
 				case 18:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					Cbor.decodeList(fieldBytes, itemBytes => {
 						txBody.#refInputs.push(TxInput.fromCbor(fieldBytes));
 					});
 					break;
@@ -1487,6 +1497,7 @@ export class TxBody extends CborData {
 
 	/**
 	 * For now simply returns minus infinity to plus infinity (WiP)
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @returns {ConstrData}
 	 */
@@ -1498,7 +1509,7 @@ export class TxBody extends CborData {
 			]),
 			new ConstrData(0, [ // UpperBound
 				this.#lastValidSlot === null ? new ConstrData(2, []) : new ConstrData(1, [new IntData(networkParams.slotToTime(this.#lastValidSlot))]), // PosInf
-				new ConstrData(0, []), // false
+				new ConstrData(this.#lastValidSlot === null ? 1 : 0, []), // false if slot is set, true if slot isn't set
 			]),
 		]);
 	}
@@ -1506,9 +1517,11 @@ export class TxBody extends CborData {
 	/**
 	 * A serialized tx throws away input information
 	 * This must be refetched from the network if the tx needs to be analyzed
+	 * @internal
 	 * @param {(id: TxOutputId) => Promise<TxOutput>} fn
+	 * @param {TxWitnesses} witnesses
 	 */
-	async completeInputData(fn) {
+	async completeInputData(fn, witnesses) {
 		const indices = [];
 		const ids = [];
 
@@ -1537,6 +1550,10 @@ export class TxBody extends CborData {
 		outputs.forEach((output, j) => {
 			const i = indices[j];
 
+			if (output.refScript) {
+				witnesses.attachRefScript(output.refScript)
+			}
+			
 			if (i < offset) {
 				this.#inputs[i].setOrigOutput(output)
 			} else {
@@ -1546,6 +1563,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @param {Redeemer[]} redeemers
 	 * @param {ListData} datums 
@@ -1574,16 +1592,18 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {Redeemer[]} redeemers
 	 * @param {ListData} datums
 	 * @param {number} redeemerIdx
+	 * @param {TxId} txId
 	 * @returns {UplcData}
 	 */
-	toScriptContextData(networkParams, redeemers, datums, redeemerIdx) {		
+	toScriptContextData(networkParams, redeemers, datums, redeemerIdx, txId = TxId.dummy()) {		
 		return new ConstrData(0, [
 			// tx (we can't know the txId right now, because we don't know the execution costs yet, but a dummy txId should be fine)
-			this.toTxData(networkParams, redeemers, datums, TxId.dummy()),
+			this.toTxData(networkParams, redeemers, datums, txId),
 			redeemers[redeemerIdx].toScriptPurposeData(this),
 		]);
 	}
@@ -1639,6 +1659,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {bigint} slot
 	 */
 	validFrom(slot) {
@@ -1646,6 +1667,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {bigint} slot
 	 */
 	validTo(slot) {
@@ -1654,6 +1676,7 @@ export class TxBody extends CborData {
 
 	/**
 	 * Throws error if this.#minted already contains mph
+	 * @internal
 	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph - minting policy hash
 	 * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens
 	 */
@@ -1662,6 +1685,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {TxInput} input 
 	 * @param {boolean} checkUniqueness
 	 */
@@ -1687,7 +1711,7 @@ export class TxBody extends CborData {
 	 * Used to remove dummy inputs
 	 * Dummy inputs are needed to be able to correctly estimate fees
 	 * Throws an error if input doesn't exist in list of inputs
-	 * Internal use only!
+	 * @internal
 	 * @param {TxInput} input
 	 */
 	removeInput(input) {
@@ -1711,6 +1735,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {TxInput} input 
 	 * @param {boolean} checkUniqueness
 	 */
@@ -1733,6 +1758,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {TxOutput} output
 	 */
 	addOutput(output) {
@@ -1745,7 +1771,7 @@ export class TxBody extends CborData {
 	 * Used to remove dummy outputs
 	 * Dummy outputs are needed to be able to correctly estimate fees
 	 * Throws an error if the output doesn't exist in list of outputs
-	 * Internal use only!
+	 * @internal
 	 * @param {TxOutput} output 
 	 */
 	removeOutput(output) {
@@ -1769,6 +1795,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {PubKeyHash} hash 
 	 * @param {boolean} checkUniqueness
 	 */
@@ -1785,6 +1812,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {TxInput} input 
 	 */
 	addCollateral(input) {
@@ -1792,6 +1820,7 @@ export class TxBody extends CborData {
 	}
 	
 	/**
+	 * @internal
 	 * @param {Hash | null} scriptDataHash
 	 */
 	setScriptDataHash(scriptDataHash) {
@@ -1799,6 +1828,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {Hash} metadataHash
 	 */
 	setMetadataHash(metadataHash) {
@@ -1806,6 +1836,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {TxOutput | null} output 
 	 */
 	setCollateralReturn(output) {
@@ -1813,7 +1844,8 @@ export class TxBody extends CborData {
 	}
 
 	/**
-	 * Calculates the number of dummy signatures needed to get precisely the right tx size
+	 * Calculates the number of dummy signatures needed to get precisely the right tx size.
+	 * @internal
 	 * @returns {number}
 	 */
 	countUniqueSigners() {
@@ -1842,8 +1874,9 @@ export class TxBody extends CborData {
 	}
 
 	/**
-	 * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset
-	 * @param {Map<hexstring, number>} set - hashes in hex format
+	 * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset.
+	 * @internal
+	 * @param {Map<string, number>} set - hashes in hex format
 	 */
 	collectScriptHashes(set) {
 		for (let i = 0; i < this.#inputs.length; i++) {
@@ -1876,7 +1909,8 @@ export class TxBody extends CborData {
 	}
 
 	/**
-	 * Makes sure each output contains the necessary min lovelace
+	 * Makes sure each output contains the necessary min lovelace.
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 */
 	correctOutputs(networkParams) {
@@ -1887,6 +1921,7 @@ export class TxBody extends CborData {
 
 	/**
 	 * Checks that each output contains enough lovelace
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 */
 	checkOutputs(networkParams) {
@@ -1898,6 +1933,7 @@ export class TxBody extends CborData {
 	}
 	
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @param {null | bigint} minCollateral 
 	 */
@@ -1934,6 +1970,7 @@ export class TxBody extends CborData {
 	/**
 	 * Makes sore inputs, withdrawals, and minted assets are in correct order
 	 * Mutates
+	 * @internal
 	 */
 	sort() {
 		// inputs should've been added in sorted manner, so this is just a check
@@ -1968,6 +2005,7 @@ export class TxBody extends CborData {
 	/**
 	 * Used by (indirectly) by emulator to check if slot range is valid.
 	 * Note: firstValidSlot == lastValidSlot is allowed
+	 * @internal
 	 * @param {bigint} slot
 	 */
 	isValid(slot) {
@@ -1984,6 +2022,14 @@ export class TxBody extends CborData {
 		}
 
 		return true;
+	}
+
+	/**
+	 * @internal
+	 * @returns {number[]}
+	 */
+	hash() {
+		return Crypto.blake2b(this.toCbor());
 	}
 }
 
@@ -2070,6 +2116,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {boolean}
 	 */
 	anyScriptCallsTxTimeRange() {
@@ -2086,15 +2133,15 @@ export class TxWitnesses extends CborData {
 		let object = new Map();
 
 		if (this.#signatures.length > 0) {
-			object.set(0, CborData.encodeDefList(this.#signatures));
+			object.set(0, Cbor.encodeDefList(this.#signatures));
 		}
 		
 		if (this.#nativeScripts.length > 0) {
-			object.set(1, CborData.encodeDefList(this.#nativeScripts));
+			object.set(1, Cbor.encodeDefList(this.#nativeScripts));
 		}
 
 		if (this.#v1Scripts.length > 0) {
-			object.set(3, CborData.encodeDefList(this.#v1Scripts));
+			object.set(3, Cbor.encodeDefList(this.#v1Scripts));
 		}
 
 		if (this.#datums.list.length > 0) {
@@ -2102,7 +2149,7 @@ export class TxWitnesses extends CborData {
 		}
 
 		if (this.#redeemers.length > 0) {
-			object.set(5, CborData.encodeDefList(this.#redeemers));
+			object.set(5, Cbor.encodeDefList(this.#redeemers));
 		}
 
 		if (this.#scripts.length > 0) {
@@ -2111,10 +2158,10 @@ export class TxWitnesses extends CborData {
 			 */
 			let scriptBytes = this.#scripts.map(s => s.toCbor());
 
-			object.set(6, CborData.encodeDefList(scriptBytes));
+			object.set(6, Cbor.encodeDefList(scriptBytes));
 		}
 
-		return CborData.encodeObject(object);
+		return Cbor.encodeObject(object);
 	}
 
 	/**
@@ -2124,22 +2171,22 @@ export class TxWitnesses extends CborData {
 	static fromCbor(bytes) {
 		let txWitnesses = new TxWitnesses();
 
-		CborData.decodeObject(bytes, (i, fieldBytes) => {
+		Cbor.decodeObject(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#signatures.push(Signature.fromCbor(itemBytes));
 					});
 					break;
 				case 1:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#nativeScripts.push(NativeScript.fromCbor(itemBytes));
 					});
 					break;
 				case 2:
 					throw new Error(`unhandled TxWitnesses field ${i}`);
 				case 3:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#v1Scripts.push(itemBytes);
 					});
 					break;
@@ -2147,12 +2194,12 @@ export class TxWitnesses extends CborData {
 					txWitnesses.#datums = ListData.fromCbor(fieldBytes);
 					break;
 				case 5:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#redeemers.push(Redeemer.fromCbor(itemBytes));
 					});
 					break;
 				case 6:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#scripts.push(UplcProgram.fromCbor(itemBytes));
 					});
 					break;
@@ -2166,6 +2213,7 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * Throws error if signatures are incorrect
+	 * @internal
 	 * @param {number[]} bodyBytes 
 	 */
 	verifySignatures(bodyBytes) {
@@ -2189,6 +2237,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @returns {bigint}
 	 */
@@ -2203,6 +2252,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {Signature} signature 
 	 */
 	addSignature(signature) {
@@ -2213,6 +2263,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {number} n
 	 */
 	addDummySignatures(n) {
@@ -2221,12 +2272,16 @@ export class TxWitnesses extends CborData {
 		}
 	}
 
+	/**
+	 * @internal
+	 */
 	removeDummySignatures() {
 		this.#signatures = this.#signatures.filter(pkw => !pkw.isDummy());
 	}
 
 	/**
 	 * Index is calculated later
+	 * @internal
 	 * @param {TxInput} input
 	 * @param {UplcData} redeemerData 
 	 */
@@ -2235,6 +2290,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {MintingPolicyHash} mph
 	 * @param {UplcData} redeemerData
 	 */
@@ -2243,6 +2299,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcData} data 
 	 */
 	addDatumData(data) {
@@ -2260,6 +2317,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NativeScript} script 
 	 */
 	attachNativeScript(script) {
@@ -2273,7 +2331,20 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
-	 * Throws error if script was already added before
+	 * @internal
+	 * @param {UplcProgram} script 
+	 */
+	attachRefScript(script) {
+		if (this.#refScripts.some(s => eq(s.hash(), script.hash()))) {
+			return;
+		}
+
+		this.#refScripts.push(script);
+	}
+
+	/**
+	 * Throws error if script was already added before.
+	 * @internal
 	 * @param {UplcProgram} program 
 	 * @param {boolean} isRef
 	 */
@@ -2300,7 +2371,8 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
-	 * Retrieves either a regular script or a reference script
+	 * Retrieves either a regular script or a reference script.
+	 * @internal
 	 * @param {Hash} scriptHash - can be ValidatorHash or MintingPolicyHash
 	 * @returns {UplcProgram}
 	 */
@@ -2331,7 +2403,7 @@ export class TxWitnesses extends CborData {
 	 */
 	calcScriptDataHash(networkParams) {
 		if (this.#redeemers.length > 0) {
-			let bytes = CborData.encodeDefList(this.#redeemers);
+			let bytes = Cbor.encodeDefList(this.#redeemers);
 
 			if (this.#datums.list.length > 0) {
 				bytes = bytes.concat(this.#datums.toCbor());
@@ -2340,9 +2412,9 @@ export class TxWitnesses extends CborData {
 			// language view encodings?
 			let sortedCostParams = networkParams.sortedCostParams;
 
-			bytes = bytes.concat(CborData.encodeMap([[
-				CborData.encodeInteger(1n), 
-				CborData.encodeDefList(sortedCostParams.map(cp => CborData.encodeInteger(BigInt(cp)))),
+			bytes = bytes.concat(Cbor.encodeMap([[
+				Cbor.encodeInteger(1n), 
+				Cbor.encodeDefList(sortedCostParams.map(cp => Cbor.encodeInteger(BigInt(cp)))),
 			]]));
 
 			return new Hash(Crypto.blake2b(bytes));
@@ -2541,10 +2613,13 @@ export class TxWitnesses extends CborData {
 	 * @param {TxBody} body 
 	 */
 	async checkExecutionBudgets(networkParams, body) {
+		// when check the tx is assumed to be finalized, so we can use the actual txId
+		const txId = new TxId(body.hash());
+
 		for (let i = 0; i < this.#redeemers.length; i++) {
 			const redeemer = this.#redeemers[i];
-
-			const scriptContext = body.toScriptContextData(networkParams, this.#redeemers, this.#datums, i);
+			
+			const scriptContext = body.toScriptContextData(networkParams, this.#redeemers, this.#datums, i, txId);
 
 			const cost = await this.executeRedeemer(networkParams, body, redeemer, scriptContext);
 
@@ -2582,6 +2657,8 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * Compiles a report of each redeemer execution.
+	 * Only works after the tx has been finalized.
 	 * @type {string}
 	 */
 	get profileReport() {
@@ -2724,6 +2801,7 @@ export class TxInput extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {ConstrData}
 	 */
 	toOutputIdData() {
@@ -2731,6 +2809,7 @@ export class TxInput extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {ConstrData}
 	 */
 	toData() {
@@ -2745,6 +2824,7 @@ export class TxInput extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcData} data 
 	 * @returns {TxInput}
 	 */
@@ -2764,7 +2844,7 @@ export class TxInput extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		//return CborData.encodeTuple([
+		//return Cbor.encodeTuple([
 		return this.outputId.toCbor();//,
 		//	this.origOutput.toCbor()
 		//]);
@@ -2774,7 +2854,7 @@ export class TxInput extends CborData {
 	 * @returns {number[]}
 	 */
 	toFullCbor() {
-		return CborData.encodeTuple([
+		return Cbor.encodeTuple([
 			this.outputId.toCbor(),
 			this.origOutput.toCbor()
 		]);
@@ -2794,7 +2874,7 @@ export class TxInput extends CborData {
 		/** @type {null | TxOutput} */
 		let output = null;
 
-		CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
 					outputId = TxOutputId.fromCbor(fieldBytes);
@@ -2827,6 +2907,7 @@ export class TxInput extends CborData {
 	/**
 	 * Tx inputs must be ordered. 
 	 * The following function can be used directly by a js array sort
+	 * @internal
 	 * @param {TxInput} a
 	 * @param {TxInput} b
 	 * @returns {number}
@@ -2864,13 +2945,13 @@ export class TxInput extends CborData {
  * Use TxInput instead
  * @deprecated
  */
-const UTxO = TxInput;
+export const UTxO = TxInput;
 
 /**
  * User TxInput instead
  * @deprecated
  */
-const TxRefInput = TxInput;
+export const TxRefInput = TxInput;
 
 /**
  * TxOutput
@@ -2911,6 +2992,9 @@ export class TxOutput extends CborData {
 		this.#refScript = refScript;
 	}
 
+	/**
+	 * @type {Address}
+	 */
 	get address() {
 		return this.#address;
 	}
@@ -2923,6 +3007,9 @@ export class TxOutput extends CborData {
 		this.#address = addr;
 	}
 
+	/**
+	 * @type {Value}
+	 */
 	get value() {
 		return this.#value;
 	}
@@ -2935,6 +3022,9 @@ export class TxOutput extends CborData {
 		this.#value = val;
 	}
 
+	/**
+	 * @type {null | Datum}
+	 */
 	get datum() {
 		return this.#datum;
 	}
@@ -2964,6 +3054,13 @@ export class TxOutput extends CborData {
 	}
 
 	/**
+	 * @type {null | UplcProgram}
+	 */
+	get refScript() {
+		return this.#refScript;
+	}
+
+	/**
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -2984,7 +3081,7 @@ export class TxOutput extends CborData {
 				}
 			}
 
-			return CborData.encodeTuple(fields);
+			return Cbor.encodeTuple(fields);
 		} else {
 			/** @type {Map<number, number[]>} */
 			let object = new Map();
@@ -2997,15 +3094,15 @@ export class TxOutput extends CborData {
 			}
 
 			if (this.#refScript !== null) {
-				object.set(3, CborData.encodeTag(24n).concat(CborData.encodeBytes(
-					CborData.encodeTuple([
-						CborData.encodeInteger(BigInt(this.#refScript.versionTag())),
+				object.set(3, Cbor.encodeTag(24n).concat(Cbor.encodeBytes(
+					Cbor.encodeTuple([
+						Cbor.encodeInteger(BigInt(this.#refScript.versionTag())),
 						this.#refScript.toCbor()
 					])
 				)));
 			}
 
-			return CborData.encodeObject(object);
+			return Cbor.encodeObject(object);
 		}
 	}
 
@@ -3034,8 +3131,8 @@ export class TxOutput extends CborData {
 		 */
 		let refScript = null;
 
-		if (CborData.isObject(bytes)) {
-			CborData.decodeObject(bytes, (i, fieldBytes) => {
+		if (Cbor.isObject(bytes)) {
+			Cbor.decodeObject(bytes, (i, fieldBytes) => {
 				switch(i) { 
 					case 0:
 						address = Address.fromCbor(fieldBytes);
@@ -3047,11 +3144,11 @@ export class TxOutput extends CborData {
 						outputDatum = Datum.fromCbor(fieldBytes);
 						break;
 					case 3:
-						assert(CborData.decodeTag(fieldBytes) == 24n);
+						assert(Cbor.decodeTag(fieldBytes) == 24n);
 
-						let tupleBytes = CborData.decodeBytes(fieldBytes);
+						let tupleBytes = Cbor.decodeBytes(fieldBytes);
 
-						CborData.decodeTuple(tupleBytes, (tupleIdx, innerTupleBytes) => {
+						Cbor.decodeTuple(tupleBytes, (tupleIdx, innerTupleBytes) => {
 							assert(refScript === null);
 
 							switch(tupleIdx) {
@@ -3071,9 +3168,9 @@ export class TxOutput extends CborData {
 						throw new Error("unrecognized field");
 				}
 			});
-		} else if (CborData.isTuple(bytes)) {
+		} else if (Cbor.isTuple(bytes)) {
 			// this is the pre-vasil format, which is still sometimes returned by wallet connector functions
-			CborData.decodeTuple(bytes, (i, fieldBytes) => {
+			Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 				switch(i) { 
 					case 0:
 						address = Address.fromCbor(fieldBytes);
@@ -3124,7 +3221,7 @@ export class TxOutput extends CborData {
 			this.#address._toUplcData(),
 			this.#value._toUplcData(),
 			datum,
-			new ConstrData(1, []), // TODO: how to include the ref script
+			this.#refScript ? new ConstrData(0, [new ByteArrayData(this.#refScript.hash())]) : new ConstrData(1, [])
 		]);
 	}
 
@@ -3144,7 +3241,7 @@ export class TxOutput extends CborData {
 	}
 
 	/**
-	 * Each UTxO must contain some minimum quantity of lovelace to avoid that the blockchain is used for data storage
+	 * Each UTxO must contain some minimum quantity of lovelace to avoid that the blockchain is used for data storage.
 	 * @param {NetworkParams} networkParams
 	 * @returns {bigint}
 	 */
@@ -3158,7 +3255,7 @@ export class TxOutput extends CborData {
 
 	/**
 	 * Mutates. Makes sure the output contains at least the minimum quantity of lovelace.
-	 * Other parts of the output can optionally also be mutated
+	 * Other parts of the output can optionally also be mutated.
 	 * @param {NetworkParams} networkParams 
 	 * @param {?((output: TxOutput) => void)} updater
 	 */
@@ -3257,7 +3354,7 @@ export class StakeAddress {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.#bytes);
+		return Cbor.encodeBytes(this.#bytes);
 	}
 
 	/**
@@ -3265,7 +3362,7 @@ export class StakeAddress {
 	 * @returns {StakeAddress}
 	 */
 	static fromCbor(bytes) {
-		return new StakeAddress(CborData.decodeBytes(bytes));
+		return new StakeAddress(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -3298,6 +3395,13 @@ export class StakeAddress {
 	 */
 	toHex() {
 		return bytesToHex(this.#bytes);
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get hex() {
+		return this.toHex()
 	}
 
 	/**
@@ -3425,9 +3529,9 @@ export class Signature extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeTuple([
+		return Cbor.encodeTuple([
 			this.#pubKey.toCbor(),
-			CborData.encodeBytes(this.#signature),
+			Cbor.encodeBytes(this.#signature),
 		]);
 	}
 
@@ -3442,13 +3546,13 @@ export class Signature extends CborData {
 		/** @type {null | number[]} */
 		let signature = null;
 
-		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		let n = Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
 					pubKey = PubKey.fromCbor(fieldBytes);
 					break;
 				case 1:
-					signature = CborData.decodeBytes(fieldBytes);
+					signature = Cbor.decodeBytes(fieldBytes);
 					break;
 				default:
 					throw new Error("unrecognized field");
@@ -3486,7 +3590,7 @@ export class Signature extends CborData {
 			if (this.#pubKey === null) {
 				throw new Error("pubKey can't be null");
 			} else {
-				if (!Crypto.Ed25519.verify(this.#signature, msg, this.#pubKey.bytes)) {
+				if (!Ed25519.verify(this.#signature, msg, this.#pubKey.bytes)) {
 					throw new Error("incorrect signature");
 				}
 			}
@@ -3495,10 +3599,10 @@ export class Signature extends CborData {
 }
 
 /**
- * @typedef {{
- *   derivePubKey(): PubKey
- *   sign(msg: number[]): Signature
- * }} PrivateKey
+ * @interface
+ * @typedef {object} PrivateKey
+ * @property {() => PubKey} derivePubKey Generates the corresponding public key.
+ * @property {(msg: number[]) => Signature} sign Signs a byte-array payload, returning the signature.
  */
 
 /**
@@ -3564,7 +3668,7 @@ export class Ed25519PrivateKey extends HeliosData {
 		if (this.#pubKey) {
 			return this.#pubKey;
 		} else {
-			this.#pubKey = new PubKey(Crypto.Ed25519.derivePublicKey(this.#bytes));
+			this.#pubKey = new PubKey(Ed25519.derivePublicKey(this.#bytes));
 			
 			return this.#pubKey;
 		}
@@ -3577,7 +3681,7 @@ export class Ed25519PrivateKey extends HeliosData {
 	sign(message) {
 		return new Signature(
 			this.derivePubKey(),
-			Crypto.Ed25519.sign(message, this.#bytes)
+			Ed25519.sign(message, this.#bytes)
 		);
 	}
 }
@@ -3652,12 +3756,12 @@ export class Bip32PrivateKey {
 	}
 
 	/**
-     * Generate a bip32private key from a random number generator.
+     * Generate a Bip32PrivateKey from a random number generator.
 	 * This is not cryptographically secure, only use this for testing purpose
      * @param {NumberGenerator} random 
      * @returns {Bip32PrivateKey}
      */
-	static random(random) {
+	static random(random = Crypto.rand(Math.random())) {
 		return new Bip32PrivateKey(randomBytes(random, 96));
 	}
 
@@ -3766,7 +3870,7 @@ export class Bip32PrivateKey {
 		if (this.#pubKey) {
 			return this.#pubKey;
 		} else {
-			this.#pubKey = new PubKey(Crypto.Ed25519.deriveBip32PublicKey(this.k));
+			this.#pubKey = new PubKey(Ed25519.deriveBip32PublicKey(this.k));
 
 			return this.#pubKey;
 		}
@@ -3781,7 +3885,7 @@ export class Bip32PrivateKey {
 	sign(message) {
 		return new Signature(
 			this.derivePubKey(),
-			Crypto.Ed25519.signBip32(message, this.k)
+			Ed25519.signBip32(message, this.k)
 		);
 	}
 }
@@ -4052,13 +4156,13 @@ export class Redeemer extends CborData {
 	 * @returns {number[]}
 	 */
 	toCborInternal(type, index) {
-		return CborData.encodeTuple([
-			CborData.encodeInteger(BigInt(type)),
-			CborData.encodeInteger(BigInt(index)),
+		return Cbor.encodeTuple([
+			Cbor.encodeInteger(BigInt(type)),
+			Cbor.encodeInteger(BigInt(index)),
 			this.#data.toCbor(),
-			CborData.encodeTuple([
-				CborData.encodeInteger(this.#profile.mem),
-				CborData.encodeInteger(this.#profile.cpu),
+			Cbor.encodeTuple([
+				Cbor.encodeInteger(this.#profile.mem),
+				Cbor.encodeInteger(this.#profile.cpu),
 			]),
 		]);
 	}
@@ -4080,13 +4184,13 @@ export class Redeemer extends CborData {
 		/** @type {null | Cost} */
 		let cost = null;
 
-		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		let n = Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					type = Number(CborData.decodeInteger(fieldBytes));
+					type = Number(Cbor.decodeInteger(fieldBytes));
 					break;
 				case 1:
-					index = Number(CborData.decodeInteger(fieldBytes));
+					index = Number(Cbor.decodeInteger(fieldBytes));
 					break;
 				case 2:
 					data = UplcData.fromCbor(fieldBytes);
@@ -4098,13 +4202,13 @@ export class Redeemer extends CborData {
 					/** @type {null | bigint} */
 					let cpu = null;
 
-					let m = CborData.decodeTuple(fieldBytes, (j, subFieldBytes) => {
+					let m = Cbor.decodeTuple(fieldBytes, (j, subFieldBytes) => {
 						switch (j) {
 							case 0:
-								mem = CborData.decodeInteger(subFieldBytes);
+								mem = Cbor.decodeInteger(subFieldBytes);
 								break;
 							case 1:
-								cpu = CborData.decodeInteger(subFieldBytes);
+								cpu = Cbor.decodeInteger(subFieldBytes);
 								break;
 							default:
 								throw new Error("unrecognized field");
@@ -4363,18 +4467,18 @@ export class Datum extends CborData {
 		/** @type {null | Datum} */
 		let res = null;
 
-		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		let n = Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					type = Number(CborData.decodeInteger(fieldBytes));
+					type = Number(Cbor.decodeInteger(fieldBytes));
 					break;
 				case 1:
 					if (type == 0) {
 						res = new HashedDatum(DatumHash.fromCbor(fieldBytes));
 					} else if (type == 1) {
-						assert(CborData.decodeTag(fieldBytes) == 24n);
+						assert(Cbor.decodeTag(fieldBytes) == 24n);
 
-						let dataBytes = CborData.decodeBytes(fieldBytes);
+						let dataBytes = Cbor.decodeBytes(fieldBytes);
 						let data = UplcData.fromCbor(dataBytes);
 
 						res = new InlineDatum(data);
@@ -4545,8 +4649,8 @@ export class HashedDatum extends Datum {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeTuple([
-			CborData.encodeInteger(0n),
+		return Cbor.encodeTuple([
+			Cbor.encodeInteger(0n),
 			this.#hash.toCbor(),
 		]);
 	}
@@ -4627,9 +4731,9 @@ class InlineDatum extends Datum {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeTuple([
-			CborData.encodeInteger(1n),
-			CborData.encodeTag(24n).concat(CborData.encodeBytes(this.#data.toCbor()))
+		return Cbor.encodeTuple([
+			Cbor.encodeInteger(1n),
+			Cbor.encodeTag(24n).concat(Cbor.encodeBytes(this.#data.toCbor()))
 		]);
 	}
 
@@ -4656,18 +4760,18 @@ class InlineDatum extends Datum {
  */
 function encodeMetadata(metadata) {
 	if (typeof metadata === 'string') {
-		return CborData.encodeUtf8(metadata, true);
+		return Cbor.encodeUtf8(metadata, true);
 	} else if (typeof metadata === 'number') {
 		assert(metadata % 1.0 == 0.0);
 
-		return CborData.encodeInteger(BigInt(metadata));
+		return Cbor.encodeInteger(BigInt(metadata));
 	} else if (Array.isArray(metadata)) {
-		return CborData.encodeDefList(metadata.map(item => encodeMetadata(item)));
+		return Cbor.encodeDefList(metadata.map(item => encodeMetadata(item)));
 	} else if (metadata instanceof Object && "map" in metadata && Object.keys(metadata).length == 1) {
 		let pairs = metadata["map"];
 
 		if (Array.isArray(pairs)) {
-			return CborData.encodeMap(pairs.map(pair => {
+			return Cbor.encodeMap(pairs.map(pair => {
 				if (Array.isArray(pair) && pair.length == 2) {
 					return [
 						encodeMetadata(pair[0]),
@@ -4691,26 +4795,26 @@ function encodeMetadata(metadata) {
  * @returns {Metadata}
  */
 function decodeMetadata(bytes) {
-	if (CborData.isUtf8(bytes)) {
-		return CborData.decodeUtf8(bytes);
-	} else if (CborData.isList(bytes)) {
+	if (Cbor.isUtf8(bytes)) {
+		return Cbor.decodeUtf8(bytes);
+	} else if (Cbor.isList(bytes)) {
 		/**
 		 * @type {Metadata[]}
 		 */
 		let items = [];
 
-		CborData.decodeList(bytes, (_, itemBytes) => {
+		Cbor.decodeList(bytes, (_, itemBytes) => {
 			items.push(decodeMetadata(itemBytes));
 		});
 
 		return items;
-	} else if (CborData.isMap(bytes)) {
+	} else if (Cbor.isMap(bytes)) {
 		/**
 		 * @type {[Metadata, Metadata][]}
 		 */
 		let pairs = [];
 
-		CborData.decodeMap(bytes, (_, pairBytes) => {
+		Cbor.decodeMap(bytes, (_, pairBytes) => {
 			pairs.push([
 				decodeMetadata(pairBytes),
 				decodeMetadata(pairBytes)
@@ -4719,7 +4823,7 @@ function decodeMetadata(bytes) {
 
 		return {"map": pairs};
 	} else {
-		return Number(CborData.decodeInteger(bytes));
+		return Number(Cbor.decodeInteger(bytes));
 	}
 }
 
@@ -4770,11 +4874,11 @@ class TxMetadata {
 		 * @type {[number[], number[]][]}
 		 */
 		const pairs = this.keys.map(key => [
-			CborData.encodeInteger(BigInt(key)),
+			Cbor.encodeInteger(BigInt(key)),
 			encodeMetadata(this.#metadata[key])
 		]);
 		
-		return CborData.encodeMap(pairs);
+		return Cbor.encodeMap(pairs);
 	}
 
 	/**
@@ -4785,9 +4889,9 @@ class TxMetadata {
 	static fromCbor(data) {
 		const txMetadata = new TxMetadata();
 
-		CborData.decodeMap(data, (_, pairBytes) => {
+		Cbor.decodeMap(data, (_, pairBytes) => {
 			txMetadata.add(
-				Number(CborData.decodeInteger(pairBytes)), 
+				Number(Cbor.decodeInteger(pairBytes)), 
 				decodeMetadata(pairBytes)
 			);
 		});

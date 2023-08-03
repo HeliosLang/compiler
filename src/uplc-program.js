@@ -32,7 +32,7 @@ import {
 } from "./crypto.js";
 
 import {
-    CborData
+    Cbor
 } from "./cbor.js";
 
 import {
@@ -518,7 +518,7 @@ const UPLC_TAG_WIDTHS = {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(CborData.encodeBytes(this.serializeBytes()));
+		return Cbor.encodeBytes(Cbor.encodeBytes(this.serializeBytes()));
 	}
 
 	/**
@@ -530,7 +530,7 @@ const UPLC_TAG_WIDTHS = {
 
 		this.toFlatWithMapping(bitWriter, codeMapFileIndices);
 
-		return CborData.encodeBytes(CborData.encodeBytes(bitWriter.finalize()));
+		return Cbor.encodeBytes(Cbor.encodeBytes(bitWriter.finalize()));
 	}
 
 	/**
@@ -547,7 +547,7 @@ const UPLC_TAG_WIDTHS = {
 	 * @returns {number[]} - 28 byte hash
 	 */
 	hash() {
-		let innerBytes = CborData.encodeBytes(this.serializeBytes());
+		let innerBytes = Cbor.encodeBytes(this.serializeBytes());
 
 		innerBytes.unshift(this.versionTag());
 
@@ -600,7 +600,13 @@ const UPLC_TAG_WIDTHS = {
 		if (typeof bytes == "string") {
 			return UplcProgram.fromCborWithMapping(hexToBytes(bytes), files, properties)
 		} else {
-			bytes = CborData.decodeBytes(CborData.decodeBytes(bytes));
+			if (Cbor.isBytes(bytes)) {
+				bytes = Cbor.decodeBytes(bytes);
+			}
+
+			if (Cbor.isBytes(bytes)) {
+				bytes = Cbor.decodeBytes(bytes);
+			}
 
 			return UplcProgram.fromFlatWithMapping(bytes, files, properties);
 		}

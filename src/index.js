@@ -130,7 +130,7 @@ function buildHeader(version, licenseType, licenseBody) {
 function buildVersionConst(version) {
 	return `
 /**
- * Version of the Helios library.
+ * Current version of the Helios library.
  */
 export const VERSION = "${version}";`;
 }

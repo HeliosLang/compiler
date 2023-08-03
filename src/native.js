@@ -11,7 +11,8 @@ import {
 } from "./crypto.js";
 
 import {
-    CborData
+    CborData,
+    Cbor
 } from "./cbor.js"
 
 import { 
@@ -98,7 +99,7 @@ export class NativeScript extends CborData {
      * @returns {number[]}
      */
     typeToCbor() {
-        return CborData.encodeInteger(BigInt(this.#type));
+        return Cbor.encodeInteger(BigInt(this.#type));
     }
 
     /**
@@ -124,9 +125,9 @@ export class NativeScript extends CborData {
          */
         let script = null;
 
-        CborData.decodeTuple(bytes, (i, fieldBytes) => {
+        Cbor.decodeTuple(bytes, (i, fieldBytes) => {
             if (i == 0) {
-                type = Number(CborData.decodeInteger(fieldBytes))
+                type = Number(Cbor.decodeInteger(fieldBytes))
             } else {
                 switch(type) {
                     case 0:
@@ -144,7 +145,7 @@ export class NativeScript extends CborData {
                              */
                             const children = [];
 
-                            CborData.decodeList(fieldBytes, (_, listBytes) => {
+                            Cbor.decodeList(fieldBytes, (_, listBytes) => {
                                 children.push(NativeScript.fromCbor(listBytes))
                             });
 
@@ -163,7 +164,7 @@ export class NativeScript extends CborData {
                         break;
                     case 3:
                         if (i == 1) {
-                            nOrSlot = CborData.decodeInteger(fieldBytes);
+                            nOrSlot = Cbor.decodeInteger(fieldBytes);
                         } else {
                             assert(i == 2);
 
@@ -172,7 +173,7 @@ export class NativeScript extends CborData {
                              */
                             const children = [];
 
-                            CborData.decodeList(fieldBytes, (_, listBytes) => {
+                            Cbor.decodeList(fieldBytes, (_, listBytes) => {
                                 children.push(NativeScript.fromCbor(listBytes))
                             });
 
@@ -184,7 +185,7 @@ export class NativeScript extends CborData {
                     case 5:
                         assert(i == 1);
 
-                        nOrSlot = CborData.decodeInteger(fieldBytes);
+                        nOrSlot = Cbor.decodeInteger(fieldBytes);
 
                         switch(type) {
                             case 4:
@@ -360,7 +361,7 @@ class NativeSig extends NativeScript {
      * @returns {number[]}
      */
     toCbor() {
-        return CborData.encodeTuple([
+        return Cbor.encodeTuple([
             this.typeToCbor(),
             this.#pkh.toCbor()
         ]);
@@ -402,9 +403,9 @@ class NativeAll extends NativeScript {
      * @returns {number[]}
      */
     toCbor() {
-        return CborData.encodeTuple([
+        return Cbor.encodeTuple([
             this.typeToCbor(),
-            CborData.encodeDefList(this.#scripts)
+            Cbor.encodeDefList(this.#scripts)
         ]);
     }
 
@@ -444,9 +445,9 @@ class NativeAny extends NativeScript {
      * @returns {number[]}
      */
     toCbor() {
-        return CborData.encodeTuple([
+        return Cbor.encodeTuple([
             this.typeToCbor(),
-            CborData.encodeDefList(this.#scripts)
+            Cbor.encodeDefList(this.#scripts)
         ]);
     }
 
@@ -489,10 +490,10 @@ class NativeAtLeast extends NativeScript {
      * @returns {number[]}
      */
     toCbor() {
-        return CborData.encodeTuple([
+        return Cbor.encodeTuple([
             this.typeToCbor(),
-            CborData.encodeInteger(BigInt(this.#required)),
-            CborData.encodeDefList(this.#scripts)
+            Cbor.encodeInteger(BigInt(this.#required)),
+            Cbor.encodeDefList(this.#scripts)
         ]);
     }
 
@@ -534,9 +535,9 @@ class NativeAfter extends NativeScript {
      * @returns {number[]}
      */
     toCbor() {
-        return CborData.encodeTuple([
+        return Cbor.encodeTuple([
             this.typeToCbor(),
-            CborData.encodeInteger(this.#slot)
+            Cbor.encodeInteger(this.#slot)
         ])
     }
 
@@ -581,9 +582,9 @@ class NativeBefore extends NativeScript {
      * @returns {number[]}
      */
     toCbor() {
-        return CborData.encodeTuple([
+        return Cbor.encodeTuple([
             this.typeToCbor(),
-            CborData.encodeInteger(this.#slot)
+            Cbor.encodeInteger(this.#slot)
         ])
     }
 

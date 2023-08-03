@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.15.0
+// Version:       0.15.1
 // Last update:   August 2023
 // License type:  BSD-3-Clause
 //
@@ -85,10 +85,17 @@
 //                                           RE_TEMPLATE_NAME, IRParametricName
 //
 //     Section 4: Cryptography functions     BLAKE2B_DIGEST_SIZE, setBlake2bDigestSize, imod32, 
-//                                           irotr, posMod, randomBytes, UInt64, Crypto, 
-//                                           BIP39_DICT_EN
+//                                           irotr, posMod, randomBytes, UInt64, 
+//                                           encodeBase32Bytes, expandBech32HumanReadablePart, 
+//                                           calcBech32Checksum, calcBech32Polymod, hmac, 
+//                                           DEFAULT_BASE32_ALPHABET, BECH32_BASE32_ALPHABET, 
+//                                           Crypto, ED25519_Q, ED25519_Q38, ED25519_CURVE_ORDER, 
+//                                           ED25519_D, ED25519_I, expMod, curveMod, curveInvert, 
+//                                           recoverX, encodeCurveInt, decodeCurveInt, getBit, 
+//                                           AffinePoint, ExtendedPoint, clamp, nonce, 
+//                                           CurvePointImpl, Ed25519, BIP39_DICT_EN
 //
-//     Section 5: Cbor encoder/decoder       CborData
+//     Section 5: Cbor encoder/decoder       CborData, Cbor
 //
 //     Section 6: Uplc data types            UPLC_DATA_NODE_MEM_SIZE, UplcData, IntData, 
 //                                           ByteArrayData, ListData, MapData, ConstrData
@@ -289,9 +296,9 @@
 ////////////////////
 
 /**
- * Version of the Helios library.
+ * Current version of the Helios library.
  */
-export const VERSION = "0.15.0";
+export const VERSION = "0.15.1";
 
 /**
  * A tab used for indenting of the IR.
@@ -309,63 +316,93 @@ export const TAB = "  ";
 export const REAL_PRECISION = 6;
 
 /**
- * Modifiable config vars
- * @type {{
- *   DEBUG: boolean
- *   STRICT_BABBAGE: boolean
- *   IS_TESTNET: boolean
- *   N_DUMMY_INPUTS: number
- *   AUTO_SET_VALIDITY_RANGE: boolean
- *   VALIDITY_RANGE_START_OFFSET: number | null
- *   VALIDITY_RANGE_END_OFFSET: number | null
- *   EXPERIMENTAL_CEK: boolean
- *   IGNORE_UNEVALUATED_CONSTANTS: boolean
- * }}
+ * Mutable global config variables.
+ * @namespace
  */
 export const config = {
     /**
-     * Global debug flag. Not currently used for anything though.
+     * Global debug flag. Currently unused.
+     * 
+     * Default: `false`.
+     * @type {boolean}
      */
     DEBUG: false,
 
     /**
-     * Set this to true if you want to experiment with transactions serialized using the strict babbage cddl format
+     * If true, `TxOutput` is serialized using strictly the Babagge cddl format (slightly more verbose).
+     * 
+     * Default: `false`.
+     * @type {boolean}
      */
     STRICT_BABBAGE: false,
 
+
     /**
-     * Set to false if using the library for mainnet (impacts Addresses)
+     * If true, `Address` instances are assumed to be for a Testnet when constructing from hashes or raw bytes, otherwise for mainnet.
+     * 
+     * Defaults: `true`.
+     * @type {boolean}
      */
     IS_TESTNET: true,
 
     /**
      * Calculating the execution budget during tx building requires knowing all the inputs beforehand,
-     *   which is very difficult because balancing is done after the budget is calculated.
+     * which is very difficult because balancing is done after the budget is calculated.
      * Instead we use at least 1 dummy input, which should act as a representative balancing input.
      * For increased robustness we use 2 dummy inputs, one with Txid 0 and other with TxId ffff...,
-     *   because eg. there are case where the TxId is being printed, and a Txid of ffff... would overestimate the fee
-     * This value must be '1' or '2'
+     * because eg. there are cases where the TxId is being printed,
+     * and a Txid of ffff... would overestimate the fee for that.
+     * This value must be '1' or '2'.
+     * 
+     * Default: 2.
+     * @deprecated
+     * @type {number}
      */
     N_DUMMY_INPUTS: 2,
 
     /**
-     * The validatity time range can be set automatically if a call to tx.time_range is detected.
-     * Helios defines some reasonable defaults.
+     * The validity time range can be set automatically if a call to tx.time_range in a Helios script is detected.
+     * If `false` the validity range is still set automatically if not set manually but a warning is printed.
+     * 
+     * Default: `false`.
+     * @type {boolean}
      */
     AUTO_SET_VALIDITY_RANGE: false,
-    VALIDITY_RANGE_START_OFFSET: 60, // seconds
-    VALIDITY_RANGE_END_OFFSET: 300, // seconds
+
 
     /**
-     * Faster UPLC evaluation with better error messages
+     * Lower offset wrt. the current system time when setting the validity range automatically.
+     * 
+     * Defaut: 60 seconds.
+     * @type {number} seconds
+     */
+    VALIDITY_RANGE_START_OFFSET: 60,
+
+    /**
+     * Upper offset wrt. the current system time when setting the validity range automatically.
+     * 
+     * Default: 300 seconds.
+     * @type {number} seconds
+     */
+    VALIDITY_RANGE_END_OFFSET: 300,
+
+
+    /**
+     * Evaluate UPLC program using the CEK algorithm instead of the recursive algorithm.
+     * The CEK algorithm is more complex but is more efficient and creates a much better stack trace when errors are thrown.
+     * 
+     * Default: `false`.
+     * @type {boolean}
      */
     EXPERIMENTAL_CEK: false,
-    
+
     /**
-     * If true: ignore const statements that can't be evaluated.
-     * Used by bundler so that the global Scripts type can be used in constants
+     * Ignore constants that can't be evaluated during compile-time.
+     * 
+     * Default: `false`.
+     * @type {boolean}
      */
-    IGNORE_UNEVALUATED_CONSTANTS: false
+    IGNORE_UNEVALUATED_CONSTANTS: false,
 }
 
 
@@ -373,10 +410,6 @@ export const config = {
 ///////////////////////
 // Section 2: Utilities
 ///////////////////////
-
-/**
- * @typedef {string & {}} hexstring
- */
 
 /**
  * Needed by transfer() methods
@@ -773,7 +806,7 @@ export function byteToBitString(b, n = 8, prefix = true) {
  * Converts a hexadecimal representation of bytes into an actual list of uint8 bytes.
  * @example
  * hexToBytes("00ff34") => [0, 255, 52] 
- * @param {hexstring} hex 
+ * @param {string} hex 
  * @returns {number[]}
  */
 export function hexToBytes(hex) {
@@ -797,7 +830,7 @@ export function hexToBytes(hex) {
  * @example
  * bytesToHex([0, 255, 52]) => "00ff34"
  * @param {number[]} bytes
- * @returns {hexstring}
+ * @returns {string}
  */
 export function bytesToHex(bytes) {
 	const parts = [];
@@ -806,9 +839,6 @@ export function bytesToHex(bytes) {
 		parts.push(padZeroes(b.toString(16), 2));
 	}
 
-	/**
-	 * @type {hexstring}
-	 */
 	return parts.join('');
 }
 
@@ -2914,14 +2944,14 @@ var BLAKE2B_DIGEST_SIZE = 32; // bytes
 export function setBlake2bDigestSize(s) {
     BLAKE2B_DIGEST_SIZE = s;
 }
- 
+
 /**
  * Make sure resulting number fits in uint32
  * @internal
  * @param {number} x
  */
 function imod32(x) {
-	return x >>> 0;
+    return x >>> 0;
 }
 
 /**
@@ -2932,7 +2962,7 @@ function imod32(x) {
  * @returns {number} - originally uint32
  */
 function irotr(x, n) {
-	return imod32((x >>> n) | (x << (32 - n)));
+    return imod32((x >>> n) | (x << (32 - n)));
 }
 
 /**
@@ -2943,13 +2973,13 @@ function irotr(x, n) {
  * @returns {bigint}
  */
 function posMod(x, n) {
-	const res = x % n;
+    const res = x % n;
 
-	if (res < 0n) {
-		return res + n;
-	} else {
-		return res;
-	}
+    if (res < 0n) {
+        return res + n;
+    } else {
+        return res;
+    }
 }
 
 /**
@@ -2959,11 +2989,11 @@ function posMod(x, n) {
  * @returns {number[]}
  */
 export function randomBytes(random, n) {
-	const key = [];
+    const key = [];
 
-	for (let i = 0; i < n; i++) {
-		key.push(Math.floor(random()*256)%256);
-	}
+    for (let i = 0; i < n; i++) {
+        key.push(Math.floor(random() * 256) % 256);
+    }
 
     return key;
 }
@@ -2973,1913 +3003,1910 @@ export function randomBytes(random, n) {
  * @internal
  */
 class UInt64 {
-	#high;
-	#low;
+    #high;
+    #low;
 
-	/**
-	 * @param {number} high  - uint32 number
-	 * @param {number} low - uint32 number
-	 */
-	constructor(high, low) {		
-		this.#high = imod32(high);
-		this.#low = imod32(low);
-	}
+    /**
+     * @param {number} high  - uint32 number
+     * @param {number} low - uint32 number
+     */
+    constructor(high, low) {
+        this.#high = imod32(high);
+        this.#low = imod32(low);
+    }
 
-	/**
+    /**
      * @internal
-	 * @returns {UInt64}
-	 */
-	static zero() {
-		return new UInt64(0, 0);
-	}
+     * @returns {UInt64}
+     */
+    static zero() {
+        return new UInt64(0, 0);
+    }
 
-	/**
+    /**
      * @internal
-	 * @param {number[]} bytes - 8 uint8 numbers
-	 * @param {boolean} littleEndian
-	 * @returns {UInt64}
-	 */
-	static fromBytes(bytes, littleEndian = true) {
-		/** @type {number} */
-		let low;
+     * @param {number[]} bytes - 8 uint8 numbers
+     * @param {boolean} littleEndian
+     * @returns {UInt64}
+     */
+    static fromBytes(bytes, littleEndian = true) {
+        /** @type {number} */
+        let low;
 
-		/** @type {number} */
-		let high;
+        /** @type {number} */
+        let high;
 
-		if (littleEndian) {
-			low  = (bytes[0] << 0) | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24);
-			high = (bytes[4] << 0) | (bytes[5] << 8) | (bytes[6] << 16) | (bytes[7] << 24);
-		} else {
-			high = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | (bytes[3] << 0);
-			low  = (bytes[4] << 24) | (bytes[5] << 16) | (bytes[6] << 8) | (bytes[7] << 0);
-		}
+        if (littleEndian) {
+            low = (bytes[0] << 0) | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24);
+            high = (bytes[4] << 0) | (bytes[5] << 8) | (bytes[6] << 16) | (bytes[7] << 24);
+        } else {
+            high = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | (bytes[3] << 0);
+            low = (bytes[4] << 24) | (bytes[5] << 16) | (bytes[6] << 8) | (bytes[7] << 0);
+        }
 
-		return new UInt64(imod32(high), imod32(low));
-	}
+        return new UInt64(imod32(high), imod32(low));
+    }
 
-	/**
+    /**
      * @internal
-	 * @param {string} str 
-	 * @returns {UInt64}
-	 */
-	static fromString(str) {
-		const high = parseInt(str.slice(0,  8), 16);
-		const low  = parseInt(str.slice(8, 16), 16);
+     * @param {string} str 
+     * @returns {UInt64}
+     */
+    static fromString(str) {
+        const high = parseInt(str.slice(0, 8), 16);
+        const low = parseInt(str.slice(8, 16), 16);
 
-		return new UInt64(high, low);
-	}
+        return new UInt64(high, low);
+    }
 
     /**
      * @internal
      * @type {number}
      */
-	get high() {
-		return this.#high;
-	}
+    get high() {
+        return this.#high;
+    }
 
     /**
      * @internal
      * @type {number}
      */
-	get low() {
-		return this.#low;
-	}
+    get low() {
+        return this.#low;
+    }
 
-	/**
-	 * Returns [low[0], low[1], low[2], low[3], high[0], high[1], high[2], high[3]] if littleEndian==true
+    /**
+     * Returns [low[0], low[1], low[2], low[3], high[0], high[1], high[2], high[3]] if littleEndian==true
      * @internal
-	 * @param {boolean} littleEndian
-	 * @returns {number[]}
-	 */
-	toBytes(littleEndian = true) {
-		const res = [
-			(0x000000ff & this.#low),
-			(0x0000ff00 & this.#low) >>> 8,
-			(0x00ff0000 & this.#low) >>> 16,
-			(0xff000000 & this.#low) >>> 24,
-			(0x000000ff & this.#high),
-			(0x0000ff00 & this.#high) >>> 8,
-			(0x00ff0000 & this.#high) >>> 16,
-			(0xff000000 & this.#high) >>> 24,
-		];
+     * @param {boolean} littleEndian
+     * @returns {number[]}
+     */
+    toBytes(littleEndian = true) {
+        const res = [
+            (0x000000ff & this.#low),
+            (0x0000ff00 & this.#low) >>> 8,
+            (0x00ff0000 & this.#low) >>> 16,
+            (0xff000000 & this.#low) >>> 24,
+            (0x000000ff & this.#high),
+            (0x0000ff00 & this.#high) >>> 8,
+            (0x00ff0000 & this.#high) >>> 16,
+            (0xff000000 & this.#high) >>> 24,
+        ];
 
-		if (!littleEndian) {
-			res.reverse(); 
-		} 
-		
-		return res;
-	}
+        if (!littleEndian) {
+            res.reverse();
+        }
 
-	/**
+        return res;
+    }
+
+    /**
      * @internal
-	 * @param {UInt64} other 
-	 * @returns {boolean}
-	 */
-	eq(other) {
-		return (this.#high == other.#high) && (this.#low == other.#low);
-	}
+     * @param {UInt64} other 
+     * @returns {boolean}
+     */
+    eq(other) {
+        return (this.#high == other.#high) && (this.#low == other.#low);
+    }
 
-	/**
+    /**
      * @internal
-	 * @returns {UInt64} 
-	 */
-	not() {
-		return new UInt64(~this.#high, ~this.#low);
-	}
+     * @returns {UInt64} 
+     */
+    not() {
+        return new UInt64(~this.#high, ~this.#low);
+    }
 
-	/**
+    /**
      * @internal
-	 * @param {UInt64} other
-	 * @returns {UInt64}
-	 */
-	and(other) {
-		return new UInt64(this.#high & other.#high, this.#low & other.#low);
-	}
+     * @param {UInt64} other
+     * @returns {UInt64}
+     */
+    and(other) {
+        return new UInt64(this.#high & other.#high, this.#low & other.#low);
+    }
 
-	/**
+    /**
      * @internal
-	 * @param {UInt64} other 
-	 * @returns {UInt64}
-	 */
-	xor(other) {
-		return new UInt64(this.#high ^ other.#high, this.#low ^ other.#low);
-	}
+     * @param {UInt64} other 
+     * @returns {UInt64}
+     */
+    xor(other) {
+        return new UInt64(this.#high ^ other.#high, this.#low ^ other.#low);
+    }
 
-	/**
+    /**
      * @internal
-	 * @param {UInt64} other 
-	 * @returns {UInt64}
-	 */
-	add(other) {
-		const low = this.#low + other.#low;
+     * @param {UInt64} other 
+     * @returns {UInt64}
+     */
+    add(other) {
+        const low = this.#low + other.#low;
 
-		let high = this.#high + other.#high;
+        let high = this.#high + other.#high;
 
-		if (low >= 0x100000000) {
-			high += 1;
-		}
+        if (low >= 0x100000000) {
+            high += 1;
+        }
 
-		return new UInt64(high, low);
-	}
+        return new UInt64(high, low);
+    }
 
-	/**
+    /**
      * @internal
-	 * @param {number} n 
-	 * @returns {UInt64}
-	 */
-	rotr(n) {
-		if (n == 32) {
-			return new UInt64(this.#low, this.#high);
-		} else if (n > 32) {
-			return (new UInt64(this.#low, this.#high)).rotr(n - 32);
-		} else {
-			return new UInt64(
-				imod32((this.#high >>> n) | (this.#low  << (32 - n))), 
-				imod32((this.#low  >>> n) | (this.#high << (32 - n)))
-			);
-		}
-	}
+     * @param {number} n 
+     * @returns {UInt64}
+     */
+    rotr(n) {
+        if (n == 32) {
+            return new UInt64(this.#low, this.#high);
+        } else if (n > 32) {
+            return (new UInt64(this.#low, this.#high)).rotr(n - 32);
+        } else {
+            return new UInt64(
+                imod32((this.#high >>> n) | (this.#low << (32 - n))),
+                imod32((this.#low >>> n) | (this.#high << (32 - n)))
+            );
+        }
+    }
 
-	/**
+    /**
      * @internal
-	 * @param {number} n
-	 * @returns {UInt64}
-	 */
-	shiftr(n) {
-		if (n >= 32) {
-			return new UInt64(0, this.#high >>> n - 32);
-		} else {
-			return new UInt64(this.#high >>> n, (this.#low >>> n) | (this.#high << (32 - n)));
-		}
-	}	
+     * @param {number} n
+     * @returns {UInt64}
+     */
+    shiftr(n) {
+        if (n >= 32) {
+            return new UInt64(0, this.#high >>> n - 32);
+        } else {
+            return new UInt64(this.#high >>> n, (this.#low >>> n) | (this.#high << (32 - n)));
+        }
+    }
 }
 
 /**
- * A collection of cryptography primitives are included here in order to avoid external dependencies
- *     mulberry32: random number generator
- *     base32 encoding and decoding
- *     bech32 encoding, checking, and decoding
- *     sha2_256, sha2_512, sha3 and blake2b hashing
- *     ed25519 pubkey generation, signing, and signature verification (NOTE: the current implementation is simple but slow)
+ * @internal
+ * @param {number[]} bytes 
+ * @returns {number[]} - list of numbers between 0 and 32
  */
-export class Crypto {
-	/**
-	 * Returns a simple random number generator
-     * @internal
-	 * @param {number} seed
-	 * @returns {NumberGenerator} - a random number generator
-	 */
-	static mulberry32(seed) {
-		/**
-		 * @type {NumberGenerator}
-		 */
-		return function() {
-			let t = seed += 0x6D2B79F5;
-			t = Math.imul(t ^ t >>> 15, t | 1);
-			t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-			return ((t ^ t >>> 14) >>> 0) / 4294967296;
-		}
-	}
-
-	/**
-	 * Alias for rand generator of choice
-     * @internal
-	 * @param {number} seed
-	 * @returns {NumberGenerator} - the random number generator function
-	 */
-	static rand(seed) {
-		return this.mulberry32(seed);
-	}
-
-	/**
-	 * Rfc 4648 base32 alphabet
-	 * @type {string}
-	 */
-	static get DEFAULT_BASE32_ALPHABET() {
-		return "abcdefghijklmnopqrstuvwxyz234567";
-	}
-
-	/**
-	 * Bech32 base32 alphabet
-	 * @type {string}
-	 */
-	static get BECH32_BASE32_ALPHABET() {
-		return "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
-	}
-	
-	/**
-	 * Encode bytes in special base32.
-	 * @example
-	 * Crypto.encodeBase32(textToBytes("f")) => "my"
-	 * @example
-	 * Crypto.encodeBase32(textToBytes("fo")) => "mzxq"
-	 * @example
-	 * Crypto.encodeBase32(textToBytes("foo")) => "mzxw6"
-	 * @example
-	 * Crypto.encodeBase32(textToBytes("foob")) => "mzxw6yq"
-	 * @example
-	 * Crypto.encodeBase32(textToBytes("fooba")) => "mzxw6ytb"
-	 * @example
-	 * Crypto.encodeBase32(textToBytes("foobar")) => "mzxw6ytboi"
-	 * @param {number[]} bytes - uint8 numbers
-	 * @param {string} alphabet - list of chars
-	 * @return {string}
-	 */
-	static encodeBase32(bytes, alphabet = Crypto.DEFAULT_BASE32_ALPHABET) {
-		return Crypto.encodeBase32Bytes(bytes).map(c => alphabet[c]).join("");
-	}
-
-	/**
-     * @internal
-	 * @param {number[]} bytes 
-	 * @returns {number[]} - list of numbers between 0 and 32
-	 */
-	static encodeBase32Bytes(bytes)  {
-		const result = [];
-
-		const reader = new BitReader(bytes, false);
-
-		while (!reader.eof()) {
-			result.push(reader.readBits(5));
-		}
-
-		return result;
-	}
-
-	/**
-	 * Decode base32 string into bytes.
-	 * @example
-	 * bytesToText(Crypto.decodeBase32("my")) => "f"
-	 * @example
-	 * bytesToText(Crypto.decodeBase32("mzxq")) => "fo"
-	 * @example
-	 * bytesToText(Crypto.decodeBase32("mzxw6")) => "foo"
-	 * @example
-	 * bytesToText(Crypto.decodeBase32("mzxw6yq")) => "foob"
-	 * @example
-	 * bytesToText(Crypto.decodeBase32("mzxw6ytb")) => "fooba"
-	 * @example
-	 * bytesToText(Crypto.decodeBase32("mzxw6ytboi")) => "foobar"
-	 * @param {string} encoded
-	 * @param {string} alphabet
-	 * @return {number[]}
-	 */
-	static decodeBase32(encoded, alphabet = Crypto.DEFAULT_BASE32_ALPHABET) {
-		const writer = new BitWriter();
-
-		const n = encoded.length;
-
-		for (let i = 0; i < n; i++) {
-			const c = encoded[i];
-			const code = alphabet.indexOf(c.toLowerCase());
-
-			if (i == n - 1) {
-				// last, make sure we align to byte
-
-				const nCut = n*5 - 8*Math.floor(n*5/8);
-
-				const bits = padZeroes(code.toString(2), 5)
-
-				writer.write(bits.slice(0, 5 - nCut));
-			} else {
-				const bits = padZeroes(code.toString(2), 5);
-
-				writer.write(bits);
-			}
-		}
-
-		const result = writer.finalize(false);
-
-		return result;
-	}
-
-	/**
-	 * Expand human readable prefix of the bech32 encoding so it can be used in the checkSum.
-     * @internal
-	 * @param {string} hrp
-	 * @returns {number[]}
-	 */
-	static expandBech32HumanReadablePart(hrp) {
-		const bytes = [];
-		for (let c of hrp) {
-			bytes.push(c.charCodeAt(0) >> 5);
-		}
-
-		bytes.push(0);
-
-		for (let c of hrp) {
-			bytes.push(c.charCodeAt(0) & 31);
-		}
-
-		return bytes;
-	}
-
-	/**
-	 * Used as part of the bech32 checksum.
-     * @internal
-	 * @param {number[]} bytes 
-	 * @returns {number}
-	 */
-	static calcBech32Polymod(bytes) {
-		const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
-
-		let chk = 1;
-		for (let b of bytes) {
-			const c = (chk >> 25);
-			chk = (chk & 0x1fffffff) << 5 ^ b;
-
-			for (let i = 0; i < 5; i++) {
-				if (((c >> i) & 1) != 0) {
-					chk ^= GEN[i];
-				}
-			}
-		}
-
-		return chk;
-	}
-
-	/**
-	 * Generate the bech32 checksum.
-     * @internal
-	 * @param {string} hrp 
-	 * @param {number[]} data - numbers between 0 and 32
-	 * @returns {number[]} - 6 numbers between 0 and 32
-	 */
-	static calcBech32Checksum(hrp, data) {
-		const bytes = Crypto.expandBech32HumanReadablePart(hrp).concat(data);
-
-		const chk = Crypto.calcBech32Polymod(bytes.concat([0,0,0,0,0,0])) ^ 1;
-
-		const chkSum = [];
-		for (let i = 0; i < 6; i++) {
-			chkSum.push((chk >> 5 * (5 - i)) & 31);
-		}
-
-		return chkSum;
-	}
-
-	/**
-	 * Creates a bech32 checksummed string (used to represent Cardano addresses)
-	 * @example
-	 * Crypto.encodeBech32("foo", textToBytes("foobar")) => "foo1vehk7cnpwgry9h96"
-	 * @example
-	 * Crypto.encodeBech32("addr_test", hexToBytes("70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539")) => "addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld"
-	 * @param {string} hrp 
-	 * @param {number[]} data - uint8 0 - 256
-	 * @returns {string}
-	 */
-	static encodeBech32(hrp, data) {
-		assert(hrp.length > 0, "human-readable-part must have non-zero length");
-
-		data = Crypto.encodeBase32Bytes(data);
-
-		const chkSum = Crypto.calcBech32Checksum(hrp, data);
-
-		return hrp + "1" + data.concat(chkSum).map(i => Crypto.BECH32_BASE32_ALPHABET[i]).join("");
-	}
-
-	/**
-	 * Decomposes a bech32 checksummed string (i.e. Cardano address), and returns the human readable part and the original bytes
-	 * Throws an error if checksum is invalid.
-	 * @example
-	 * bytesToHex(Crypto.decodeBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld")[1]) => "70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539"
-	 * @param {string} addr 
-	 * @returns {[string, number[]]}
-	 */
-	static decodeBech32(addr) {
-		assert(Crypto.verifyBech32(addr), "invalid bech32 addr");
-
-		const i = addr.indexOf("1");
-
-		assert(i != -1);
-
-		const hrp = addr.slice(0, i);
-
-		addr = addr.slice(i+1);
-
-		const data = Crypto.decodeBase32(addr.slice(0, addr.length - 6), Crypto.BECH32_BASE32_ALPHABET);
-
-		return [hrp, data];
-	}
-
-	/**
-	 * Verify a bech32 checksum
-	 * @example
-	 * Crypto.verifyBech32("foo1vehk7cnpwgry9h96") => true
-	 * @example
-	 * Crypto.verifyBech32("foo1vehk7cnpwgry9h97") => false
-	 * @example
-	 * Crypto.verifyBech32("a12uel5l") => true
-	 * @example
-	 * Crypto.verifyBech32("mm1crxm3i") => false
-	 * @example
-	 * Crypto.verifyBech32("A1G7SGD8") => false
-	 * @example
-	 * Crypto.verifyBech32("abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw") => true
-	 * @example
-	 * Crypto.verifyBech32("?1ezyfcl") => true
-	 * @example
-	 * Crypto.verifyBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld") => true
-	 * @param {string} addr
-	 * @returns {boolean}
-	 */
-	static verifyBech32(addr) {
-		const data =[];
-
-		const i = addr.indexOf("1");
-        
-		if (i == -1 || i == 0) {
-			return false;
-		}
-
-		const hrp = addr.slice(0, i);
-
-		addr = addr.slice(i + 1);
-
-		for (let c of addr) {
-			const j = Crypto.BECH32_BASE32_ALPHABET.indexOf(c);
-			if (j == -1) {
-				return false;
-			}
-
-			data.push(j);
-		}
-
-		const chkSumA = data.slice(data.length - 6);
-
-		const chkSumB = Crypto.calcBech32Checksum(hrp, data.slice(0, data.length - 6));
-
-		for (let j = 0; j < 6; j++) {
-			if (chkSumA[j] != chkSumB[j]) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	/**
-	 * Calculates sha2-256 (32bytes) hash of a list of uint8 numbers.
-	 * Result is also a list of uint8 number.
-	 * @example 
-	 * bytesToHex(Crypto.sha2_256([0x61, 0x62, 0x63])) => "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-	 * @example
-	 * Crypto.sha2_256(textToBytes("Hello, World!")) => [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
-	 * @param {number[]} bytes - list of uint8 numbers
-	 * @returns {number[]} - list of uint8 numbers
-	 */
-	static sha2_256(bytes) {
-		/**
-		 * Pad a bytearray so its size is a multiple of 64 (512 bits).
-		 * Internal method.
-		 * @param {number[]} src - list of uint8 numbers
-		 * @returns {number[]}
-		 */
-		function pad(src) {
-			const nBits = src.length*8;
-
-			let dst = src.slice();
-
-			dst.push(0x80);
-
-			if ((dst.length + 8)%64 != 0) {
-				let nZeroes = (64 - dst.length%64) - 8;
-				if (nZeroes < 0) {
-					nZeroes += 64;
-				}
-
-				for (let i = 0; i < nZeroes; i++) {
-					dst.push(0);
-				}
-			}
-
-			assert((dst.length + 8)%64 == 0, "bad padding");
-
-			const lengthPadding = bigIntToBytes(BigInt(nBits));
-
-			assert(lengthPadding.length <= 8, "input data too big");
-
-			while (lengthPadding.length < 8) {
-				lengthPadding.unshift(0)
-			}
-
-			dst = dst.concat(lengthPadding);
-			
-			return dst;
-		}
-
-		/**
-		 * @type {number[]} - 64 uint32 numbers
-		 */
-		const k = [
-			0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
-			0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-			0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-			0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-			0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
-			0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-			0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-			0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-			0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-			0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-			0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
-			0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-			0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
-			0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-			0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-			0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
-		];
-
-		/**
-		 * Initial hash (updated during compression phase)
-		 * @type {number[]} - 8 uint32 number
-		 */
-		const hash = [
-			0x6a09e667, 
-			0xbb67ae85, 
-			0x3c6ef372, 
-			0xa54ff53a, 
-			0x510e527f, 
-			0x9b05688c, 
-			0x1f83d9ab, 
-			0x5be0cd19,
-		];
-	
-		/**
-		 * @param {number} x
-		 * @returns {number}
-		 */
-		function sigma0(x) {
-			return irotr(x, 7) ^ irotr(x, 18) ^ (x >>> 3);
-		}
-
-		/**
-		 * @param {number} x
-		 * @returns {number}
-		 */
-		function sigma1(x) {
-			return irotr(x, 17) ^ irotr(x, 19) ^ (x >>> 10);
-		}
-
-		bytes = pad(bytes);
-
-		// break message in successive 64 byte chunks
-		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += 64) {
-			const chunk = bytes.slice(chunkStart, chunkStart + 64);
-
-			const w = (new Array(64)).fill(0); // array of 32 bit numbers!
-
-			// copy chunk into first 16 positions of w
-			for (let i = 0; i < 16; i++) {
-				w[i] = (chunk[i*4 + 0] << 24) |
-					   (chunk[i*4 + 1] << 16) |
-					   (chunk[i*4 + 2] <<  8) |
-					   (chunk[i*4 + 3]);
-			}
-
-			// extends the first 16 positions into the remaining 48 positions
-			for (let i = 16; i < 64; i++) {
-				w[i] = imod32(w[i-16] + sigma0(w[i-15]) + w[i-7] + sigma1(w[i-2]));
-			}
-
-			// intialize working variables to current hash value
-			let a = hash[0];
-			let b = hash[1];
-			let c = hash[2];
-			let d = hash[3];
-			let e = hash[4];
-			let f = hash[5];
-			let g = hash[6];
-			let h = hash[7];
-
-			// compression function main loop
-			for (let i = 0; i < 64; i++) {
-				const S1 = irotr(e, 6) ^ irotr(e, 11) ^ irotr(e, 25);
-				const ch = (e & f) ^ ((~e) & g);
-				const temp1 = imod32(h + S1 + ch + k[i] + w[i]);
-				const S0 = irotr(a, 2) ^ irotr(a, 13) ^ irotr(a, 22);
-				const maj = (a & b) ^ (a & c) ^ (b & c);
-				const temp2 = imod32(S0 + maj);
-
-				h = g;
-				g = f;
-				f = e;
-				e = imod32(d + temp1);
-				d = c;
-				c = b;
-				b = a;
-				a = imod32(temp1 + temp2);
-			}
-
-			// update the hash
-			hash[0] = imod32(hash[0] + a);
-			hash[1] = imod32(hash[1] + b);
-			hash[2] = imod32(hash[2] + c);
-			hash[3] = imod32(hash[3] + d);
-			hash[4] = imod32(hash[4] + e);
-			hash[5] = imod32(hash[5] + f);
-			hash[6] = imod32(hash[6] + g);
-			hash[7] = imod32(hash[7] + h);
-		}
-
-		// produce the final digest of uint8 numbers
-		const result = [];
-		for (let i = 0; i < 8; i++) {
-			const item = hash[i];
-
-			result.push(imod8(item >> 24));
-			result.push(imod8(item >> 16));
-			result.push(imod8(item >>  8));
-			result.push(imod8(item >>  0));
-		}
-	
-		return result;
-	}
-
-	/**
-	 * Calculates sha2-512 (64bytes) hash of a list of uint8 numbers.
-	 * Result is also a list of uint8 number.
-	 * @example 
-	 * bytesToHex(Crypto.sha2_512([0x61, 0x62, 0x63])) => "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
-	 * @example 
-	 * bytesToHex(Crypto.sha2_512([])) => "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
-	 * @example
-	 * bytesToHex(Crypto.sha2_512(textToBytes("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"))) => "204a8fc6dda82f0a0ced7beb8e08a41657c16ef468b228a8279be331a703c33596fd15c13b1b07f9aa1d3bea57789ca031ad85c7a71dd70354ec631238ca3445"
-	 * @example
-	 * bytesToHex(Crypto.sha2_512(textToBytes("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstuu"))) => "23565d109ac0e2aa9fb162385178895058b28489a6bc31cb55491ed83956851ab1d4bbd46440586f5c9c4b69c9c280118cbc55c71495d258cc27cc6bb25ee720"
-	 * @param {number[]} bytes - list of uint8 numbers
-	 * @returns {number[]} - list of uint8 numbers
-	 */
-	static sha2_512(bytes) {
-		/**
-		 * Pad a bytearray so its size is a multiple of 128 (1024 bits).
-		 * Internal method.
-		 * @param {number[]} src - list of uint8 numbers
-		 * @returns {number[]}
-		 */
-		function pad(src) {
-			const nBits = src.length*8;
-
-			let dst = src.slice();
-
-			dst.push(0x80);
-
-			if ((dst.length + 16)%128 != 0) {
-				let nZeroes = (128 - dst.length%128) - 16;
-				if (nZeroes < 0) {
-					nZeroes += 128;
-				}
-
-				for (let i = 0; i < nZeroes; i++) {
-					dst.push(0);
-				}
-			}
-
-			assert((dst.length + 16)%128 == 0, "bad padding");
-
-			// assume nBits fits in 32 bits
-			const lengthPadding = bigIntToBytes(BigInt(nBits));
-
-			assert(lengthPadding.length <= 16, "input data too big");
-
-			while (lengthPadding.length < 16) {
-				lengthPadding.unshift(0);
-			}
-
-			dst = dst.concat(lengthPadding);
-
-			assert(dst.length%128 == 0, "bad length padding");
-			
-			return dst;
-		}
-
-		/**
-		 * @type {UInt64[]} - 80 uint64 numbers
-		 */
-		const k = [
-			new UInt64(0x428a2f98, 0xd728ae22), new UInt64(0x71374491, 0x23ef65cd), 
-			new UInt64(0xb5c0fbcf, 0xec4d3b2f), new UInt64(0xe9b5dba5, 0x8189dbbc),
-			new UInt64(0x3956c25b, 0xf348b538), new UInt64(0x59f111f1, 0xb605d019), 
-			new UInt64(0x923f82a4, 0xaf194f9b), new UInt64(0xab1c5ed5, 0xda6d8118),
-			new UInt64(0xd807aa98, 0xa3030242), new UInt64(0x12835b01, 0x45706fbe), 
-			new UInt64(0x243185be, 0x4ee4b28c), new UInt64(0x550c7dc3, 0xd5ffb4e2),
-			new UInt64(0x72be5d74, 0xf27b896f), new UInt64(0x80deb1fe, 0x3b1696b1), 
-			new UInt64(0x9bdc06a7, 0x25c71235), new UInt64(0xc19bf174, 0xcf692694),
-			new UInt64(0xe49b69c1, 0x9ef14ad2), new UInt64(0xefbe4786, 0x384f25e3), 
-			new UInt64(0x0fc19dc6, 0x8b8cd5b5), new UInt64(0x240ca1cc, 0x77ac9c65),
-			new UInt64(0x2de92c6f, 0x592b0275), new UInt64(0x4a7484aa, 0x6ea6e483), 
-			new UInt64(0x5cb0a9dc, 0xbd41fbd4), new UInt64(0x76f988da, 0x831153b5),
-			new UInt64(0x983e5152, 0xee66dfab), new UInt64(0xa831c66d, 0x2db43210), 
-			new UInt64(0xb00327c8, 0x98fb213f), new UInt64(0xbf597fc7, 0xbeef0ee4),
-			new UInt64(0xc6e00bf3, 0x3da88fc2), new UInt64(0xd5a79147, 0x930aa725), 
-			new UInt64(0x06ca6351, 0xe003826f), new UInt64(0x14292967, 0x0a0e6e70),
-			new UInt64(0x27b70a85, 0x46d22ffc), new UInt64(0x2e1b2138, 0x5c26c926), 
-			new UInt64(0x4d2c6dfc, 0x5ac42aed), new UInt64(0x53380d13, 0x9d95b3df),
-			new UInt64(0x650a7354, 0x8baf63de), new UInt64(0x766a0abb, 0x3c77b2a8), 
-			new UInt64(0x81c2c92e, 0x47edaee6), new UInt64(0x92722c85, 0x1482353b),
-			new UInt64(0xa2bfe8a1, 0x4cf10364), new UInt64(0xa81a664b, 0xbc423001), 
-			new UInt64(0xc24b8b70, 0xd0f89791), new UInt64(0xc76c51a3, 0x0654be30),
-			new UInt64(0xd192e819, 0xd6ef5218), new UInt64(0xd6990624, 0x5565a910), 
-			new UInt64(0xf40e3585, 0x5771202a), new UInt64(0x106aa070, 0x32bbd1b8),
-			new UInt64(0x19a4c116, 0xb8d2d0c8), new UInt64(0x1e376c08, 0x5141ab53), 
-			new UInt64(0x2748774c, 0xdf8eeb99), new UInt64(0x34b0bcb5, 0xe19b48a8),
-			new UInt64(0x391c0cb3, 0xc5c95a63), new UInt64(0x4ed8aa4a, 0xe3418acb), 
-			new UInt64(0x5b9cca4f, 0x7763e373), new UInt64(0x682e6ff3, 0xd6b2b8a3),
-			new UInt64(0x748f82ee, 0x5defb2fc), new UInt64(0x78a5636f, 0x43172f60), 
-			new UInt64(0x84c87814, 0xa1f0ab72), new UInt64(0x8cc70208, 0x1a6439ec),
-			new UInt64(0x90befffa, 0x23631e28), new UInt64(0xa4506ceb, 0xde82bde9), 
-			new UInt64(0xbef9a3f7, 0xb2c67915), new UInt64(0xc67178f2, 0xe372532b),
-			new UInt64(0xca273ece, 0xea26619c), new UInt64(0xd186b8c7, 0x21c0c207), 
-			new UInt64(0xeada7dd6, 0xcde0eb1e), new UInt64(0xf57d4f7f, 0xee6ed178),
-			new UInt64(0x06f067aa, 0x72176fba), new UInt64(0x0a637dc5, 0xa2c898a6), 
-			new UInt64(0x113f9804, 0xbef90dae), new UInt64(0x1b710b35, 0x131c471b),
-			new UInt64(0x28db77f5, 0x23047d84), new UInt64(0x32caab7b, 0x40c72493), 
-			new UInt64(0x3c9ebe0a, 0x15c9bebc), new UInt64(0x431d67c4, 0x9c100d4c),
-			new UInt64(0x4cc5d4be, 0xcb3e42b6), new UInt64(0x597f299c, 0xfc657e2a), 
-			new UInt64(0x5fcb6fab, 0x3ad6faec), new UInt64(0x6c44198c, 0x4a475817),
-		];
-
-		/**
-		 * Initial hash (updated during compression phase)
-		 * @type {UInt64[]} - 8 uint64 numbers
-		 */
-		const hash = [
-			new UInt64(0x6a09e667, 0xf3bcc908),
-			new UInt64(0xbb67ae85, 0x84caa73b),
-			new UInt64(0x3c6ef372, 0xfe94f82b),
-			new UInt64(0xa54ff53a, 0x5f1d36f1),
-			new UInt64(0x510e527f, 0xade682d1),
-			new UInt64(0x9b05688c, 0x2b3e6c1f),
-			new UInt64(0x1f83d9ab, 0xfb41bd6b),
-			new UInt64(0x5be0cd19, 0x137e2179),
-		];
-	
-		/**
-		 * @param {UInt64} x
-		 * @returns {UInt64} 
-		 */
-		function sigma0(x) {
-			return x.rotr(1).xor(x.rotr(8)).xor(x.shiftr(7));
-		}
-
-		/**
-		 * @param {UInt64} x
-		 * @returns {UInt64}
-		 */
-		function sigma1(x) {
-			return x.rotr(19).xor(x.rotr(61)).xor(x.shiftr(6));
-		}
-
-		bytes = pad(bytes);
-
-		// break message in successive 64 byte chunks
-		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += 128) {
-			const chunk = bytes.slice(chunkStart, chunkStart + 128);
-
-			const w = (new Array(80)).fill(UInt64.zero()); // array of 32 bit numbers!
-
-			// copy chunk into first 16 hi/lo positions of w (i.e. into first 32 uint32 positions)
-			for (let i = 0; i < 16; i++) {
-				w[i] = UInt64.fromBytes(chunk.slice(i*8, i*8 + 8), false);
-			}
-
-			// extends the first 16 positions into the remaining 80 positions
-			for (let i = 16; i < 80; i++) {
-				w[i] = sigma1(w[i-2]).add(w[i-7]).add(sigma0(w[i-15])).add(w[i-16]);
-			}
-
-			// intialize working variables to current hash value
-			let a = hash[0];
-			let b = hash[1];
-			let c = hash[2];
-			let d = hash[3];
-			let e = hash[4];
-			let f = hash[5];
-			let g = hash[6];
-			let h = hash[7];
-
-			// compression function main loop
-			for (let i = 0; i < 80; i++) {
-				const S1 = e.rotr(14).xor(e.rotr(18)).xor(e.rotr(41));
-				const ch = e.and(f).xor(e.not().and(g));
-				const temp1 = h.add(S1).add(ch).add(k[i]).add(w[i]);
-				const S0 = a.rotr(28).xor(a.rotr(34)).xor(a.rotr(39));
-				const maj = a.and(b).xor(a.and(c)).xor(b.and(c));
-				const temp2 = S0.add(maj);
-
-				h = g;
-				g = f;
-				f = e;
-				e = d.add(temp1);
-				d = c;
-				c = b;
-				b = a;
-				a = temp1.add(temp2);
-			}
-
-			// update the hash
-			hash[0] = hash[0].add(a);
-			hash[1] = hash[1].add(b);
-			hash[2] = hash[2].add(c);
-			hash[3] = hash[3].add(d);
-			hash[4] = hash[4].add(e);
-			hash[5] = hash[5].add(f);
-			hash[6] = hash[6].add(g);
-			hash[7] = hash[7].add(h);
-		}
-
-		// produce the final digest of uint8 numbers
-		let result = [];
-		for (let i = 0; i < 8; i++) {
-			const item = hash[i];
-
-			result = result.concat(item.toBytes(false));
-		}
-	
-		return result;
-	}
-
-	/**
-	 * Calculates sha3-256 (32bytes) hash of a list of uint8 numbers.
-	 * Result is also a list of uint8 number.
-	 * Sha3 only bit-wise operations, so 64-bit operations can easily be replicated using 2 32-bit operations instead
-	 * @example
-	 * bytesToHex(Crypto.sha3(textToBytes("abc"))) => "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
-	 * @example
-	 * bytesToHex(Crypto.sha3((new Array(136)).fill(1))) => "b36dc2167c4d9dda1a58b87046c8d76a6359afe3612c4de8a38857e09117b2db"
-	 * @example
-	 * bytesToHex(Crypto.sha3((new Array(135)).fill(2))) => "5bdf5d815d29a9d7161c66520efc17c2edd7898f2b99a029e8d2e4ff153407f4"
-	 * @example
-	 * bytesToHex(Crypto.sha3((new Array(134)).fill(3))) => "8e6575663dfb75a88f94a32c5b363c410278b65020734560d968aadd6896a621"
-	 * @example
-	 * bytesToHex(Crypto.sha3((new Array(137)).fill(4))) => "f10b39c3e455006aa42120b9751faa0f35c821211c9d086beb28bf3c4134c6c6"
-	 * @param {number[]} bytes - list of uint8 numbers
-	 * @returns {number[]} - list of uint8 numbers
-	 */
-	static sha3(bytes) {
-		/**
-		 * @type {number} - state width (1600 bits, )
-		 */
-		const WIDTH = 200;
-
-		/**
-		 * @type {number} - rate (1088 bits, 136 bytes)
-		 */
-		const RATE = 136;
-
-		/**
-		 * @type {number} - capacity
-		 */
-		const CAP = WIDTH - RATE;
-
-		/**
-		 * Apply 1000...1 padding until size is multiple of r.
-		 * If already multiple of r then add a whole block of padding.
-		 * @param {number[]} src - list of uint8 numbers
-		 * @returns {number[]} - list of uint8 numbers
-		 */
-		function pad(src) {
-			const dst = src.slice();
-
-			/** @type {number} */
-			let nZeroes = RATE - 2 - (dst.length%RATE);
-			if (nZeroes < -1) {
-				nZeroes += RATE - 2;
-			}
-
-			if (nZeroes == -1) {
-				dst.push(0x86);
-			} else {
-				dst.push(0x06);
-
-				for (let i = 0; i < nZeroes; i++) {
-					dst.push(0);
-				}
-
-				dst.push(0x80);
-			}
-
-			assert(dst.length%RATE == 0);
-			
-			return dst;
-		}
-
-		/**
-		 * 24 numbers used in the sha3 permute function
-		 * @type {number[]}
-		 */
-		const OFFSETS = [6, 12, 18, 24, 3, 9, 10, 16, 22, 1, 7, 13, 19, 20, 4, 5, 11, 17, 23, 2, 8, 14, 15, 21];
-
-		/**
-		 * 24 numbers used in the sha3 permute function
-		 * @type {number[]}
-		 */
-		const SHIFTS = [-12, -11, 21, 14, 28, 20, 3, -13, -29, 1, 6, 25, 8, 18, 27, -4, 10, 15, -24, -30, -23, -7, -9, 2];
-
-		/**
-		 * Round constants used in the sha3 permute function
-		 * @type {UInt64[]} 
-		 */
-		const RC = [
-			new UInt64(0x00000000, 0x00000001) , 
-			new UInt64(0x00000000, 0x00008082) , 
-			new UInt64(0x80000000, 0x0000808a) ,
-			new UInt64(0x80000000, 0x80008000) ,
-			new UInt64(0x00000000, 0x0000808b) ,
-			new UInt64(0x00000000, 0x80000001) ,
-			new UInt64(0x80000000, 0x80008081) ,
-			new UInt64(0x80000000, 0x00008009) ,
-			new UInt64(0x00000000, 0x0000008a) ,
-			new UInt64(0x00000000, 0x00000088) ,
-			new UInt64(0x00000000, 0x80008009) ,
-			new UInt64(0x00000000, 0x8000000a) ,
-			new UInt64(0x00000000, 0x8000808b) ,
-			new UInt64(0x80000000, 0x0000008b) ,
-			new UInt64(0x80000000, 0x00008089) ,
-			new UInt64(0x80000000, 0x00008003) ,
-			new UInt64(0x80000000, 0x00008002) ,
-			new UInt64(0x80000000, 0x00000080) ,
-			new UInt64(0x00000000, 0x0000800a) ,
-			new UInt64(0x80000000, 0x8000000a) ,
-			new UInt64(0x80000000, 0x80008081) ,
-			new UInt64(0x80000000, 0x00008080) ,
-			new UInt64(0x00000000, 0x80000001) ,
-			new UInt64(0x80000000, 0x80008008) ,
-		];
-		
-		/**
-		 * @param {UInt64[]} s 
-		 */
-		function permute(s) {	
-			/**
-			 * @type {UInt64[]}
-			 */		
-			const c = new Array(5);
-
-			/**
-			 * @type {UInt64[]}
-			 */
-			const b = new Array(25);
-			
-			for (let round = 0; round < 24; round++) {
-				for (let i = 0; i < 5; i++) {
-					c[i] = s[i].xor(s[i+5]).xor(s[i+10]).xor(s[i+15]).xor(s[i+20]);
-				}
-
-				for (let i = 0; i < 5; i++) {
-					const i1 = (i+1)%5;
-					const i2 = (i+4)%5;
-
-					const tmp = c[i2].xor(c[i1].rotr(63));
-
-					for (let j = 0; j < 5; j++) {
-						s[i+5*j] = s[i+5*j].xor(tmp);
-					}
-				}				
-
-				b[0] = s[0];
-
-				for(let i = 1; i < 25; i++) {
-					const offset = OFFSETS[i-1];
-
-					const left = Math.abs(SHIFTS[i-1]);
-					const right = 32 - left;
-
-					if (SHIFTS[i-1] < 0) {
-						b[i] = s[offset].rotr(right);
-					} else {
-						b[i] = s[offset].rotr(right + 32);
-					}
-				}
-
-				for (let i = 0; i < 5; i++) {
-					for (let j = 0; j < 5; j++) {
-						s[i*5+j] = b[i*5+j].xor(b[i*5 + (j+1)%5].not().and(b[i*5 + (j+2)%5]))
-					}
-				}
-
-				s[0] = s[0].xor(RC[round]);
-			}
-		}
-
-		bytes = pad(bytes);
-
-		// initialize the state
-		/**
-		 * @type {UInt64[]}
-		 */
-		const state = (new Array(WIDTH/8)).fill(UInt64.zero());
-
-		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += RATE) {
-			// extend the chunk to become length WIDTH
-			const chunk = bytes.slice(chunkStart, chunkStart + RATE).concat((new Array(CAP)).fill(0));
-
-			// element-wise xor with 'state'
-			for (let i = 0; i < WIDTH; i += 8) {
-				state[i/8] = state[i/8].xor(UInt64.fromBytes(chunk.slice(i, i+8)));
-
-				// beware: a uint32 is stored as little endian, but a pair of uint32s that form a uin64 are stored in big endian format!
-			}
-
-			// apply block permutations
-			permute(state);
-		}
-
-		/** @type {number[]} */
-		let hash = [];
-		for (let i = 0; i < 4; i++) {
-			hash = hash.concat(state[i].toBytes());
-		}
-
-		return hash;
-	}
-
-	/**
-	 * Calculates blake2b hash of a list of uint8 numbers (variable digest size).
-	 * Result is also a list of uint8 number.
-	 * Blake2b is a 64bit algorithm, so we need to be careful when replicating 64-bit operations with 2 32-bit numbers (low-word overflow must spill into high-word, and shifts must go over low/high boundary)
-	 * @example                                        
-	 * bytesToHex(Crypto.blake2b([0, 1])) => "01cf79da4945c370c68b265ef70641aaa65eaa8f5953e3900d97724c2c5aa095"
-	 * @example
-	 * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
-	 * @param {number[]} bytes 
-	 * @param {number} digestSize - at most 64
-	 * @returns {number[]}
-	 */
-	static blake2b(bytes, digestSize = BLAKE2B_DIGEST_SIZE) {
-		/**
-		 * 128 bytes (16*8 byte words)
-		 * @type {number}
-		 */
-		const WIDTH = 128;
-
-		/**
-		 * Initialization vector
-		 */
-		const IV = [
-			new UInt64(0x6a09e667, 0xf3bcc908), 
-			new UInt64(0xbb67ae85, 0x84caa73b),
-			new UInt64(0x3c6ef372, 0xfe94f82b), 
-			new UInt64(0xa54ff53a, 0x5f1d36f1),
-			new UInt64(0x510e527f, 0xade682d1),
-			new UInt64(0x9b05688c, 0x2b3e6c1f),
-			new UInt64(0x1f83d9ab, 0xfb41bd6b), 
-			new UInt64(0x5be0cd19, 0x137e2179), 
-		];
-
-		const SIGMA = [
-			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-			[14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
-			[11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4],
-			[7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8],
-			[9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13],
-			[2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9],
-			[12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11],
-			[13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10],
-			[6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5],
-			[10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
-		];
-
-		/**
-		 * @param {number[]} src - list of uint8 bytes
-		 * @returns {number[]} - list of uint8 bytes
-		 */
-		function pad(src) {
-			const dst = src.slice();
-
-			const nZeroes = dst.length == 0 ? WIDTH : (WIDTH - dst.length%WIDTH)%WIDTH;
-
-			// just padding with zeroes, the actual message length is used during compression stage of final block in order to uniquely hash messages of different lengths
-			for (let i = 0; i < nZeroes; i++) {
-				dst.push(0);
-			}
-			
-			return dst;
-		}
-
-		/**
-		 * @param {UInt64[]} v
-		 * @param {UInt64[]} chunk
-		 * @param {number} a - index
-		 * @param {number} b - index
-		 * @param {number} c - index
-		 * @param {number} d - index
-		 * @param {number} i - index in chunk for low word 1
-		 * @param {number} j - index in chunk for low word 2
-		 */
-		function mix(v, chunk, a, b, c, d, i, j) {
-			const x = chunk[i];
-			const y = chunk[j];
-
-			v[a] = v[a].add(v[b]).add(x);
-			v[d] = v[d].xor(v[a]).rotr(32);
-			v[c] = v[c].add(v[d]);
-			v[b] = v[b].xor(v[c]).rotr(24);
-			v[a] = v[a].add(v[b]).add(y);
-			v[d] = v[d].xor(v[a]).rotr(16);
-			v[c] = v[c].add(v[d]);
-			v[b] = v[b].xor(v[c]).rotr(63);
-		}
-
-		/**
-		 * @param {UInt64[]} h - state vector
-		 * @param {UInt64[]} chunk
-		 * @param {number} t - chunkEnd (expected to fit in uint32)
-		 * @param {boolean} last
-		 */
-		function compress(h, chunk, t, last) {
-			// work vectors
-			const v = h.slice().concat(IV.slice());
-
-			v[12] = v[12].xor(new UInt64(0, imod32(t))); // v[12].high unmodified
-			// v[13] unmodified
-
-			if (last) {
-				v[14] = v[14].xor(new UInt64(0xffffffff, 0xffffffff));
-			}
-
-			for (let round = 0; round < 12; round++) {
-				const s = SIGMA[round%10];
-
-				for (let i = 0; i < 4; i++) {
-					mix(v, chunk, i, i+4, i+8, i+12, s[i*2], s[i*2+1]);
-				}
-				
-				for (let i = 0; i < 4; i++) {
-					mix(v, chunk, i, (i+1)%4 + 4, (i+2)%4 + 8, (i+3)%4 + 12, s[8+i*2], s[8 + i*2 + 1]);
-				}
-			}
-
-			for (let i = 0; i < 8; i++) {
-				h[i] = h[i].xor(v[i].xor(v[i+8]));
-			}		
-		}
- 
-		const nBytes = bytes.length;
-
-		bytes = pad(bytes);
-
-		// init hash vector
-		const h = IV.slice();
-		
-
-		// setup the param block
-		const paramBlock = new Uint8Array(64);
-		paramBlock[0] = digestSize; // n output  bytes
-		paramBlock[1] = 0; // key-length (always zero in our case) 
-		paramBlock[2] = 1; // fanout
-		paramBlock[3] = 1; // depth
-
-		//mix in the parameter block
-		const paramBlockView = new DataView(paramBlock.buffer);
-		for (let i = 0; i < 8; i++) {
-			h[i] = h[i].xor(new UInt64(
-				paramBlockView.getUint32(i*8+4, true),
-				paramBlockView.getUint32(i*8, true),
-			));
-		}
-		
-		// loop all chunks
-		for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += WIDTH) {
-			const chunkEnd = chunkStart + WIDTH; // exclusive
-			const chunk = bytes.slice(chunkStart, chunkStart + WIDTH);
-
-			const chunk64 = new Array(WIDTH/8);
-			for (let i = 0; i < WIDTH; i += 8) {
-				chunk64[i/8] = UInt64.fromBytes(chunk.slice(i, i+8));
-			}
-			
-			if (chunkStart == bytes.length - WIDTH) {
-				// last block
-				compress(h, chunk64, nBytes, true);
-			} else {
-				compress(h, chunk64, chunkEnd, false);
-			}
-		}
-
-		// extract lowest BLAKE2B_DIGEST_SIZE bytes from h
-
-		/** @type {number[]} */
-		let hash = [];
-		for (let i = 0; i < digestSize/8; i++) {
-			hash = hash.concat(h[i].toBytes());
-		}
-
-		return hash.slice(0, digestSize);
-	}
-
-	/**
-	 * Don't use this directly, use hmacSha2_256 or hmacSha2_512 instead
-	 * @internal
-	 * @param {(x: number[]) => number[]} algorithm 
-	 * @param {number} b - blockSize of algorithm
-	 * @param {number[]} key 
-	 * @param {number[]} message 
-	 * @returns {number[]}
-	 */
-	static hmac(algorithm, b, key, message) {
-		if (key.length > b) {
-			key = algorithm(key);
-		} else {
-			key = key.slice();
-		}
-
-		while (key.length < b) {
-			key.push(0x00);
-		}
-
-		const iPadded = key.map(k => (k ^ 0x36));
-		const oPadded = key.map(k => (k ^ 0x5c));
-
-		return algorithm(oPadded.concat(algorithm(iPadded.concat(message))));
-	}
-
-	/**
-	 * @example
-	 * bytesToHex(Crypto.hmacSha2_256(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) => "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
-	 * @param {number[]} key 
-	 * @param {number[]} message 
-	 * @returns {number[]}
-	 */
-	static hmacSha2_256(key, message) {
-		return Crypto.hmac((x) => Crypto.sha2_256(x), 64, key, message);
-	}
-
-	/**
-	 * @example
-	 * bytesToHex(Crypto.hmacSha2_512(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) => "b42af09057bac1e2d41708e48a902e09b5ff7f12ab428a4fe86653c73dd248fb82f948a549f7b791a5b41915ee4d1ec3935357e4e2317250d0372afa2ebeeb3a"
-	 * @param {number[]} key 
-	 * @param {number[]} message 
-	 * @returns {number[]}
-	 */
-	static hmacSha2_512(key, message) {
-		return Crypto.hmac((x) => Crypto.sha2_512(x), 128, key, message);
-	}
-
-	/**
-	 * @example
+function encodeBase32Bytes(bytes) {
+    const result = [];
+
+    const reader = new BitReader(bytes, false);
+
+    while (!reader.eof()) {
+        result.push(reader.readBits(5));
+    }
+
+    return result;
+}
+
+/**
+ * Expand human readable prefix of the bech32 encoding so it can be used in the checkSum.
+ * @internal
+ * @param {string} hrp
+ * @returns {number[]}
+ */
+function expandBech32HumanReadablePart(hrp) {
+    const bytes = [];
+    for (let c of hrp) {
+        bytes.push(c.charCodeAt(0) >> 5);
+    }
+
+    bytes.push(0);
+
+    for (let c of hrp) {
+        bytes.push(c.charCodeAt(0) & 31);
+    }
+
+    return bytes;
+}
+
+/**
+ * Generate the bech32 checksum.
+ * @internal
+ * @param {string} hrp 
+ * @param {number[]} data - numbers between 0 and 32
+ * @returns {number[]} - 6 numbers between 0 and 32
+ */
+function calcBech32Checksum(hrp, data) {
+    const bytes = expandBech32HumanReadablePart(hrp).concat(data);
+
+    const chk = calcBech32Polymod(bytes.concat([0, 0, 0, 0, 0, 0])) ^ 1;
+
+    const chkSum = [];
+    for (let i = 0; i < 6; i++) {
+        chkSum.push((chk >> 5 * (5 - i)) & 31);
+    }
+
+    return chkSum;
+}
+
+
+/**
+ * Used as part of the bech32 checksum.
+ * @internal
+ * @param {number[]} bytes 
+ * @returns {number}
+ */
+function calcBech32Polymod(bytes) {
+    const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+
+    let chk = 1;
+    for (let b of bytes) {
+        const c = (chk >> 25);
+        chk = (chk & 0x1fffffff) << 5 ^ b;
+
+        for (let i = 0; i < 5; i++) {
+            if (((c >> i) & 1) != 0) {
+                chk ^= GEN[i];
+            }
+        }
+    }
+
+    return chk;
+}
+
+/**
+ * Don't use this directly, use Crypto.hmacSha2_256 or Crypto.hmacSha2_512 instead
+ * @internal
+ * @param {(x: number[]) => number[]} algorithm 
+ * @param {number} b - blockSize of algorithm
+ * @param {number[]} key 
+ * @param {number[]} message 
+ * @returns {number[]}
+ */
+function hmac(algorithm, b, key, message) {
+    if (key.length > b) {
+        key = algorithm(key);
+    } else {
+        key = key.slice();
+    }
+
+    while (key.length < b) {
+        key.push(0x00);
+    }
+
+    const iPadded = key.map(k => (k ^ 0x36));
+    const oPadded = key.map(k => (k ^ 0x5c));
+
+    return algorithm(oPadded.concat(algorithm(iPadded.concat(message))));
+}
+
+/**
+ * Rfc 4648 base32 alphabet
+ * @type {string}
+ */
+const DEFAULT_BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
+
+/**
+ * Bech32 base32 alphabet
+ * @type {string}
+ */
+const BECH32_BASE32_ALPHABET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+/**
+ * A collection of cryptography primitives are included here in order to avoid external dependencies
+ * mulberry32: random number generator
+ * base32 encoding and decoding
+ * bech32 encoding, checking, and decoding
+ * sha2_256, sha2_512, sha3 and blake2b hashing
+ * @namespace
+ */
+export const Crypto = {
+    /**
+     * Returns a simple random number generator.
+     * @param {number} seed
+     * @returns {NumberGenerator} - a random number generator
+     */
+    mulberry32: (seed) => {
+        /**
+         * @type {NumberGenerator}
+         */
+        return function () {
+            let t = seed += 0x6D2B79F5;
+            t = Math.imul(t ^ t >>> 15, t | 1);
+            t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+            return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        }
+    },
+
+    /**
+     * Alias for rand generator of choice.
+     * @param {number} seed
+     * @returns {NumberGenerator} - the random number generator function
+     */
+    rand: (seed) => {
+        return Crypto.mulberry32(seed);
+    },
+
+    /**
+     * Encode bytes in special base32.
+     * @example
+     * Crypto.encodeBase32(textToBytes("f")) => "my"
+     * @example
+     * Crypto.encodeBase32(textToBytes("fo")) => "mzxq"
+     * @example
+     * Crypto.encodeBase32(textToBytes("foo")) => "mzxw6"
+     * @example
+     * Crypto.encodeBase32(textToBytes("foob")) => "mzxw6yq"
+     * @example
+     * Crypto.encodeBase32(textToBytes("fooba")) => "mzxw6ytb"
+     * @example
+     * Crypto.encodeBase32(textToBytes("foobar")) => "mzxw6ytboi"
+     * @param {number[]} bytes - uint8 numbers
+     * @param {string} alphabet - list of chars
+     * @return {string}
+     */
+    encodeBase32: (bytes, alphabet = DEFAULT_BASE32_ALPHABET) => {
+        return encodeBase32Bytes(bytes).map(c => alphabet[c]).join("");
+    },
+
+    /**
+     * Decode base32 string into bytes.
+     * @example
+     * bytesToText(Crypto.decodeBase32("my")) => "f"
+     * @example
+     * bytesToText(Crypto.decodeBase32("mzxq")) => "fo"
+     * @example
+     * bytesToText(Crypto.decodeBase32("mzxw6")) => "foo"
+     * @example
+     * bytesToText(Crypto.decodeBase32("mzxw6yq")) => "foob"
+     * @example
+     * bytesToText(Crypto.decodeBase32("mzxw6ytb")) => "fooba"
+     * @example
+     * bytesToText(Crypto.decodeBase32("mzxw6ytboi")) => "foobar"
+     * @param {string} encoded
+     * @param {string} alphabet
+     * @return {number[]}
+     */
+    decodeBase32: (encoded, alphabet = DEFAULT_BASE32_ALPHABET) => {
+        const writer = new BitWriter();
+
+        const n = encoded.length;
+
+        for (let i = 0; i < n; i++) {
+            const c = encoded[i];
+            const code = alphabet.indexOf(c.toLowerCase());
+
+            if (i == n - 1) {
+                // last, make sure we align to byte
+
+                const nCut = n * 5 - 8 * Math.floor(n * 5 / 8);
+
+                const bits = padZeroes(code.toString(2), 5)
+
+                writer.write(bits.slice(0, 5 - nCut));
+            } else {
+                const bits = padZeroes(code.toString(2), 5);
+
+                writer.write(bits);
+            }
+        }
+
+        const result = writer.finalize(false);
+
+        return result;
+    },
+
+    /**
+     * Creates a bech32 checksummed string (used to represent Cardano addresses)
+     * @example
+     * Crypto.encodeBech32("foo", textToBytes("foobar")) => "foo1vehk7cnpwgry9h96"
+     * @example
+     * Crypto.encodeBech32("addr_test", hexToBytes("70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539")) => "addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld"
+     * @param {string} hrp 
+     * @param {number[]} data - uint8 0 - 256
+     * @returns {string}
+     */
+    encodeBech32: (hrp, data) => {
+        assert(hrp.length > 0, "human-readable-part must have non-zero length");
+
+        data = encodeBase32Bytes(data);
+
+        const chkSum = calcBech32Checksum(hrp, data);
+
+        return hrp + "1" + data.concat(chkSum).map(i => BECH32_BASE32_ALPHABET[i]).join("");
+    },
+
+    /**
+     * Decomposes a bech32 checksummed string (i.e. Cardano address), and returns the human readable part and the original bytes
+     * Throws an error if checksum is invalid.
+     * @example
+     * bytesToHex(Crypto.decodeBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld")[1]) => "70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539"
+     * @param {string} addr 
+     * @returns {[string, number[]]}
+     */
+    decodeBech32: (addr) => {
+        assert(Crypto.verifyBech32(addr), "invalid bech32 addr");
+
+        const i = addr.indexOf("1");
+
+        assert(i != -1);
+
+        const hrp = addr.slice(0, i);
+
+        addr = addr.slice(i + 1);
+
+        const data = Crypto.decodeBase32(addr.slice(0, addr.length - 6), BECH32_BASE32_ALPHABET);
+
+        return [hrp, data];
+    },
+
+    /**
+     * Verify a bech32 checksum
+     * @example
+     * Crypto.verifyBech32("foo1vehk7cnpwgry9h96") => true
+     * @example
+     * Crypto.verifyBech32("foo1vehk7cnpwgry9h97") => false
+     * @example
+     * Crypto.verifyBech32("a12uel5l") => true
+     * @example
+     * Crypto.verifyBech32("mm1crxm3i") => false
+     * @example
+     * Crypto.verifyBech32("A1G7SGD8") => false
+     * @example
+     * Crypto.verifyBech32("abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw") => true
+     * @example
+     * Crypto.verifyBech32("?1ezyfcl") => true
+     * @example
+     * Crypto.verifyBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld") => true
+     * @param {string} addr
+     * @returns {boolean}
+     */
+    verifyBech32: (addr) => {
+        const data = [];
+
+        const i = addr.indexOf("1");
+
+        if (i == -1 || i == 0) {
+            return false;
+        }
+
+        const hrp = addr.slice(0, i);
+
+        addr = addr.slice(i + 1);
+
+        for (let c of addr) {
+            const j = BECH32_BASE32_ALPHABET.indexOf(c);
+            if (j == -1) {
+                return false;
+            }
+
+            data.push(j);
+        }
+
+        const chkSumA = data.slice(data.length - 6);
+
+        const chkSumB = calcBech32Checksum(hrp, data.slice(0, data.length - 6));
+
+        for (let j = 0; j < 6; j++) {
+            if (chkSumA[j] != chkSumB[j]) {
+                return false;
+            }
+        }
+
+        return true;
+    },
+
+    /**
+     * Calculates sha2-256 (32bytes) hash of a list of uint8 numbers.
+     * Result is also a list of uint8 number.
+     * @example 
+     * bytesToHex(Crypto.sha2_256([0x61, 0x62, 0x63])) => "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+     * @example
+     * Crypto.sha2_256(textToBytes("Hello, World!")) => [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
+     * @param {number[]} bytes - list of uint8 numbers
+     * @returns {number[]} - list of uint8 numbers
+     */
+    sha2_256: (bytes) => {
+        /**
+         * Pad a bytearray so its size is a multiple of 64 (512 bits).
+         * Internal method.
+         * @param {number[]} src - list of uint8 numbers
+         * @returns {number[]}
+         */
+        function pad(src) {
+            const nBits = src.length * 8;
+
+            let dst = src.slice();
+
+            dst.push(0x80);
+
+            if ((dst.length + 8) % 64 != 0) {
+                let nZeroes = (64 - dst.length % 64) - 8;
+                if (nZeroes < 0) {
+                    nZeroes += 64;
+                }
+
+                for (let i = 0; i < nZeroes; i++) {
+                    dst.push(0);
+                }
+            }
+
+            assert((dst.length + 8) % 64 == 0, "bad padding");
+
+            const lengthPadding = bigIntToBytes(BigInt(nBits));
+
+            assert(lengthPadding.length <= 8, "input data too big");
+
+            while (lengthPadding.length < 8) {
+                lengthPadding.unshift(0)
+            }
+
+            dst = dst.concat(lengthPadding);
+
+            return dst;
+        }
+
+        /**
+         * @type {number[]} - 64 uint32 numbers
+         */
+        const k = [
+            0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+            0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+            0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+            0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+            0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+            0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+            0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+            0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+            0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+            0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+            0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+            0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+            0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+            0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+            0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+            0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+        ];
+
+        /**
+         * Initial hash (updated during compression phase)
+         * @type {number[]} - 8 uint32 number
+         */
+        const hash = [
+            0x6a09e667,
+            0xbb67ae85,
+            0x3c6ef372,
+            0xa54ff53a,
+            0x510e527f,
+            0x9b05688c,
+            0x1f83d9ab,
+            0x5be0cd19,
+        ];
+
+        /**
+         * @param {number} x
+         * @returns {number}
+         */
+        function sigma0(x) {
+            return irotr(x, 7) ^ irotr(x, 18) ^ (x >>> 3);
+        }
+
+        /**
+         * @param {number} x
+         * @returns {number}
+         */
+        function sigma1(x) {
+            return irotr(x, 17) ^ irotr(x, 19) ^ (x >>> 10);
+        }
+
+        bytes = pad(bytes);
+
+        // break message in successive 64 byte chunks
+        for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += 64) {
+            const chunk = bytes.slice(chunkStart, chunkStart + 64);
+
+            const w = (new Array(64)).fill(0); // array of 32 bit numbers!
+
+            // copy chunk into first 16 positions of w
+            for (let i = 0; i < 16; i++) {
+                w[i] = (chunk[i * 4 + 0] << 24) |
+                    (chunk[i * 4 + 1] << 16) |
+                    (chunk[i * 4 + 2] << 8) |
+                    (chunk[i * 4 + 3]);
+            }
+
+            // extends the first 16 positions into the remaining 48 positions
+            for (let i = 16; i < 64; i++) {
+                w[i] = imod32(w[i - 16] + sigma0(w[i - 15]) + w[i - 7] + sigma1(w[i - 2]));
+            }
+
+            // intialize working variables to current hash value
+            let a = hash[0];
+            let b = hash[1];
+            let c = hash[2];
+            let d = hash[3];
+            let e = hash[4];
+            let f = hash[5];
+            let g = hash[6];
+            let h = hash[7];
+
+            // compression function main loop
+            for (let i = 0; i < 64; i++) {
+                const S1 = irotr(e, 6) ^ irotr(e, 11) ^ irotr(e, 25);
+                const ch = (e & f) ^ ((~e) & g);
+                const temp1 = imod32(h + S1 + ch + k[i] + w[i]);
+                const S0 = irotr(a, 2) ^ irotr(a, 13) ^ irotr(a, 22);
+                const maj = (a & b) ^ (a & c) ^ (b & c);
+                const temp2 = imod32(S0 + maj);
+
+                h = g;
+                g = f;
+                f = e;
+                e = imod32(d + temp1);
+                d = c;
+                c = b;
+                b = a;
+                a = imod32(temp1 + temp2);
+            }
+
+            // update the hash
+            hash[0] = imod32(hash[0] + a);
+            hash[1] = imod32(hash[1] + b);
+            hash[2] = imod32(hash[2] + c);
+            hash[3] = imod32(hash[3] + d);
+            hash[4] = imod32(hash[4] + e);
+            hash[5] = imod32(hash[5] + f);
+            hash[6] = imod32(hash[6] + g);
+            hash[7] = imod32(hash[7] + h);
+        }
+
+        // produce the final digest of uint8 numbers
+        const result = [];
+        for (let i = 0; i < 8; i++) {
+            const item = hash[i];
+
+            result.push(imod8(item >> 24));
+            result.push(imod8(item >> 16));
+            result.push(imod8(item >> 8));
+            result.push(imod8(item >> 0));
+        }
+
+        return result;
+    },
+
+    /**
+     * Calculates sha2-512 (64bytes) hash of a list of uint8 numbers.
+     * Result is also a list of uint8 number.
+     * @example 
+     * bytesToHex(Crypto.sha2_512([0x61, 0x62, 0x63])) => "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
+     * @example 
+     * bytesToHex(Crypto.sha2_512([])) => "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+     * @example
+     * bytesToHex(Crypto.sha2_512(textToBytes("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"))) => "204a8fc6dda82f0a0ced7beb8e08a41657c16ef468b228a8279be331a703c33596fd15c13b1b07f9aa1d3bea57789ca031ad85c7a71dd70354ec631238ca3445"
+     * @example
+     * bytesToHex(Crypto.sha2_512(textToBytes("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstuu"))) => "23565d109ac0e2aa9fb162385178895058b28489a6bc31cb55491ed83956851ab1d4bbd46440586f5c9c4b69c9c280118cbc55c71495d258cc27cc6bb25ee720"
+     * @param {number[]} bytes - list of uint8 numbers
+     * @returns {number[]} - list of uint8 numbers
+     */
+    sha2_512: (bytes) => {
+        /**
+         * Pad a bytearray so its size is a multiple of 128 (1024 bits).
+         * Internal method.
+         * @param {number[]} src - list of uint8 numbers
+         * @returns {number[]}
+         */
+        function pad(src) {
+            const nBits = src.length * 8;
+
+            let dst = src.slice();
+
+            dst.push(0x80);
+
+            if ((dst.length + 16) % 128 != 0) {
+                let nZeroes = (128 - dst.length % 128) - 16;
+                if (nZeroes < 0) {
+                    nZeroes += 128;
+                }
+
+                for (let i = 0; i < nZeroes; i++) {
+                    dst.push(0);
+                }
+            }
+
+            assert((dst.length + 16) % 128 == 0, "bad padding");
+
+            // assume nBits fits in 32 bits
+            const lengthPadding = bigIntToBytes(BigInt(nBits));
+
+            assert(lengthPadding.length <= 16, "input data too big");
+
+            while (lengthPadding.length < 16) {
+                lengthPadding.unshift(0);
+            }
+
+            dst = dst.concat(lengthPadding);
+
+            assert(dst.length % 128 == 0, "bad length padding");
+
+            return dst;
+        }
+
+        /**
+         * @type {UInt64[]} - 80 uint64 numbers
+         */
+        const k = [
+            new UInt64(0x428a2f98, 0xd728ae22), new UInt64(0x71374491, 0x23ef65cd),
+            new UInt64(0xb5c0fbcf, 0xec4d3b2f), new UInt64(0xe9b5dba5, 0x8189dbbc),
+            new UInt64(0x3956c25b, 0xf348b538), new UInt64(0x59f111f1, 0xb605d019),
+            new UInt64(0x923f82a4, 0xaf194f9b), new UInt64(0xab1c5ed5, 0xda6d8118),
+            new UInt64(0xd807aa98, 0xa3030242), new UInt64(0x12835b01, 0x45706fbe),
+            new UInt64(0x243185be, 0x4ee4b28c), new UInt64(0x550c7dc3, 0xd5ffb4e2),
+            new UInt64(0x72be5d74, 0xf27b896f), new UInt64(0x80deb1fe, 0x3b1696b1),
+            new UInt64(0x9bdc06a7, 0x25c71235), new UInt64(0xc19bf174, 0xcf692694),
+            new UInt64(0xe49b69c1, 0x9ef14ad2), new UInt64(0xefbe4786, 0x384f25e3),
+            new UInt64(0x0fc19dc6, 0x8b8cd5b5), new UInt64(0x240ca1cc, 0x77ac9c65),
+            new UInt64(0x2de92c6f, 0x592b0275), new UInt64(0x4a7484aa, 0x6ea6e483),
+            new UInt64(0x5cb0a9dc, 0xbd41fbd4), new UInt64(0x76f988da, 0x831153b5),
+            new UInt64(0x983e5152, 0xee66dfab), new UInt64(0xa831c66d, 0x2db43210),
+            new UInt64(0xb00327c8, 0x98fb213f), new UInt64(0xbf597fc7, 0xbeef0ee4),
+            new UInt64(0xc6e00bf3, 0x3da88fc2), new UInt64(0xd5a79147, 0x930aa725),
+            new UInt64(0x06ca6351, 0xe003826f), new UInt64(0x14292967, 0x0a0e6e70),
+            new UInt64(0x27b70a85, 0x46d22ffc), new UInt64(0x2e1b2138, 0x5c26c926),
+            new UInt64(0x4d2c6dfc, 0x5ac42aed), new UInt64(0x53380d13, 0x9d95b3df),
+            new UInt64(0x650a7354, 0x8baf63de), new UInt64(0x766a0abb, 0x3c77b2a8),
+            new UInt64(0x81c2c92e, 0x47edaee6), new UInt64(0x92722c85, 0x1482353b),
+            new UInt64(0xa2bfe8a1, 0x4cf10364), new UInt64(0xa81a664b, 0xbc423001),
+            new UInt64(0xc24b8b70, 0xd0f89791), new UInt64(0xc76c51a3, 0x0654be30),
+            new UInt64(0xd192e819, 0xd6ef5218), new UInt64(0xd6990624, 0x5565a910),
+            new UInt64(0xf40e3585, 0x5771202a), new UInt64(0x106aa070, 0x32bbd1b8),
+            new UInt64(0x19a4c116, 0xb8d2d0c8), new UInt64(0x1e376c08, 0x5141ab53),
+            new UInt64(0x2748774c, 0xdf8eeb99), new UInt64(0x34b0bcb5, 0xe19b48a8),
+            new UInt64(0x391c0cb3, 0xc5c95a63), new UInt64(0x4ed8aa4a, 0xe3418acb),
+            new UInt64(0x5b9cca4f, 0x7763e373), new UInt64(0x682e6ff3, 0xd6b2b8a3),
+            new UInt64(0x748f82ee, 0x5defb2fc), new UInt64(0x78a5636f, 0x43172f60),
+            new UInt64(0x84c87814, 0xa1f0ab72), new UInt64(0x8cc70208, 0x1a6439ec),
+            new UInt64(0x90befffa, 0x23631e28), new UInt64(0xa4506ceb, 0xde82bde9),
+            new UInt64(0xbef9a3f7, 0xb2c67915), new UInt64(0xc67178f2, 0xe372532b),
+            new UInt64(0xca273ece, 0xea26619c), new UInt64(0xd186b8c7, 0x21c0c207),
+            new UInt64(0xeada7dd6, 0xcde0eb1e), new UInt64(0xf57d4f7f, 0xee6ed178),
+            new UInt64(0x06f067aa, 0x72176fba), new UInt64(0x0a637dc5, 0xa2c898a6),
+            new UInt64(0x113f9804, 0xbef90dae), new UInt64(0x1b710b35, 0x131c471b),
+            new UInt64(0x28db77f5, 0x23047d84), new UInt64(0x32caab7b, 0x40c72493),
+            new UInt64(0x3c9ebe0a, 0x15c9bebc), new UInt64(0x431d67c4, 0x9c100d4c),
+            new UInt64(0x4cc5d4be, 0xcb3e42b6), new UInt64(0x597f299c, 0xfc657e2a),
+            new UInt64(0x5fcb6fab, 0x3ad6faec), new UInt64(0x6c44198c, 0x4a475817),
+        ];
+
+        /**
+         * Initial hash (updated during compression phase)
+         * @type {UInt64[]} - 8 uint64 numbers
+         */
+        const hash = [
+            new UInt64(0x6a09e667, 0xf3bcc908),
+            new UInt64(0xbb67ae85, 0x84caa73b),
+            new UInt64(0x3c6ef372, 0xfe94f82b),
+            new UInt64(0xa54ff53a, 0x5f1d36f1),
+            new UInt64(0x510e527f, 0xade682d1),
+            new UInt64(0x9b05688c, 0x2b3e6c1f),
+            new UInt64(0x1f83d9ab, 0xfb41bd6b),
+            new UInt64(0x5be0cd19, 0x137e2179),
+        ];
+
+        /**
+         * @param {UInt64} x
+         * @returns {UInt64} 
+         */
+        function sigma0(x) {
+            return x.rotr(1).xor(x.rotr(8)).xor(x.shiftr(7));
+        }
+
+        /**
+         * @param {UInt64} x
+         * @returns {UInt64}
+         */
+        function sigma1(x) {
+            return x.rotr(19).xor(x.rotr(61)).xor(x.shiftr(6));
+        }
+
+        bytes = pad(bytes);
+
+        // break message in successive 64 byte chunks
+        for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += 128) {
+            const chunk = bytes.slice(chunkStart, chunkStart + 128);
+
+            const w = (new Array(80)).fill(UInt64.zero()); // array of 32 bit numbers!
+
+            // copy chunk into first 16 hi/lo positions of w (i.e. into first 32 uint32 positions)
+            for (let i = 0; i < 16; i++) {
+                w[i] = UInt64.fromBytes(chunk.slice(i * 8, i * 8 + 8), false);
+            }
+
+            // extends the first 16 positions into the remaining 80 positions
+            for (let i = 16; i < 80; i++) {
+                w[i] = sigma1(w[i - 2]).add(w[i - 7]).add(sigma0(w[i - 15])).add(w[i - 16]);
+            }
+
+            // intialize working variables to current hash value
+            let a = hash[0];
+            let b = hash[1];
+            let c = hash[2];
+            let d = hash[3];
+            let e = hash[4];
+            let f = hash[5];
+            let g = hash[6];
+            let h = hash[7];
+
+            // compression function main loop
+            for (let i = 0; i < 80; i++) {
+                const S1 = e.rotr(14).xor(e.rotr(18)).xor(e.rotr(41));
+                const ch = e.and(f).xor(e.not().and(g));
+                const temp1 = h.add(S1).add(ch).add(k[i]).add(w[i]);
+                const S0 = a.rotr(28).xor(a.rotr(34)).xor(a.rotr(39));
+                const maj = a.and(b).xor(a.and(c)).xor(b.and(c));
+                const temp2 = S0.add(maj);
+
+                h = g;
+                g = f;
+                f = e;
+                e = d.add(temp1);
+                d = c;
+                c = b;
+                b = a;
+                a = temp1.add(temp2);
+            }
+
+            // update the hash
+            hash[0] = hash[0].add(a);
+            hash[1] = hash[1].add(b);
+            hash[2] = hash[2].add(c);
+            hash[3] = hash[3].add(d);
+            hash[4] = hash[4].add(e);
+            hash[5] = hash[5].add(f);
+            hash[6] = hash[6].add(g);
+            hash[7] = hash[7].add(h);
+        }
+
+        // produce the final digest of uint8 numbers
+        let result = [];
+        for (let i = 0; i < 8; i++) {
+            const item = hash[i];
+
+            result = result.concat(item.toBytes(false));
+        }
+
+        return result;
+    },
+
+    /**
+     * Calculates sha3-256 (32bytes) hash of a list of uint8 numbers.
+     * Result is also a list of uint8 number.
+     * Sha3 only bit-wise operations, so 64-bit operations can easily be replicated using 2 32-bit operations instead
+     * @example
+     * bytesToHex(Crypto.sha3(textToBytes("abc"))) => "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
+     * @example
+     * bytesToHex(Crypto.sha3((new Array(136)).fill(1))) => "b36dc2167c4d9dda1a58b87046c8d76a6359afe3612c4de8a38857e09117b2db"
+     * @example
+     * bytesToHex(Crypto.sha3((new Array(135)).fill(2))) => "5bdf5d815d29a9d7161c66520efc17c2edd7898f2b99a029e8d2e4ff153407f4"
+     * @example
+     * bytesToHex(Crypto.sha3((new Array(134)).fill(3))) => "8e6575663dfb75a88f94a32c5b363c410278b65020734560d968aadd6896a621"
+     * @example
+     * bytesToHex(Crypto.sha3((new Array(137)).fill(4))) => "f10b39c3e455006aa42120b9751faa0f35c821211c9d086beb28bf3c4134c6c6"
+     * @param {number[]} bytes - list of uint8 numbers
+     * @returns {number[]} - list of uint8 numbers
+     */
+    sha3: (bytes) => {
+        /**
+         * @type {number} - state width (1600 bits, )
+         */
+        const WIDTH = 200;
+
+        /**
+         * @type {number} - rate (1088 bits, 136 bytes)
+         */
+        const RATE = 136;
+
+        /**
+         * @type {number} - capacity
+         */
+        const CAP = WIDTH - RATE;
+
+        /**
+         * Apply 1000...1 padding until size is multiple of r.
+         * If already multiple of r then add a whole block of padding.
+         * @param {number[]} src - list of uint8 numbers
+         * @returns {number[]} - list of uint8 numbers
+         */
+        function pad(src) {
+            const dst = src.slice();
+
+            /** @type {number} */
+            let nZeroes = RATE - 2 - (dst.length % RATE);
+            if (nZeroes < -1) {
+                nZeroes += RATE - 2;
+            }
+
+            if (nZeroes == -1) {
+                dst.push(0x86);
+            } else {
+                dst.push(0x06);
+
+                for (let i = 0; i < nZeroes; i++) {
+                    dst.push(0);
+                }
+
+                dst.push(0x80);
+            }
+
+            assert(dst.length % RATE == 0);
+
+            return dst;
+        }
+
+        /**
+         * 24 numbers used in the sha3 permute function
+         * @type {number[]}
+         */
+        const OFFSETS = [6, 12, 18, 24, 3, 9, 10, 16, 22, 1, 7, 13, 19, 20, 4, 5, 11, 17, 23, 2, 8, 14, 15, 21];
+
+        /**
+         * 24 numbers used in the sha3 permute function
+         * @type {number[]}
+         */
+        const SHIFTS = [-12, -11, 21, 14, 28, 20, 3, -13, -29, 1, 6, 25, 8, 18, 27, -4, 10, 15, -24, -30, -23, -7, -9, 2];
+
+        /**
+         * Round constants used in the sha3 permute function
+         * @type {UInt64[]} 
+         */
+        const RC = [
+            new UInt64(0x00000000, 0x00000001),
+            new UInt64(0x00000000, 0x00008082),
+            new UInt64(0x80000000, 0x0000808a),
+            new UInt64(0x80000000, 0x80008000),
+            new UInt64(0x00000000, 0x0000808b),
+            new UInt64(0x00000000, 0x80000001),
+            new UInt64(0x80000000, 0x80008081),
+            new UInt64(0x80000000, 0x00008009),
+            new UInt64(0x00000000, 0x0000008a),
+            new UInt64(0x00000000, 0x00000088),
+            new UInt64(0x00000000, 0x80008009),
+            new UInt64(0x00000000, 0x8000000a),
+            new UInt64(0x00000000, 0x8000808b),
+            new UInt64(0x80000000, 0x0000008b),
+            new UInt64(0x80000000, 0x00008089),
+            new UInt64(0x80000000, 0x00008003),
+            new UInt64(0x80000000, 0x00008002),
+            new UInt64(0x80000000, 0x00000080),
+            new UInt64(0x00000000, 0x0000800a),
+            new UInt64(0x80000000, 0x8000000a),
+            new UInt64(0x80000000, 0x80008081),
+            new UInt64(0x80000000, 0x00008080),
+            new UInt64(0x00000000, 0x80000001),
+            new UInt64(0x80000000, 0x80008008),
+        ];
+
+        /**
+         * @param {UInt64[]} s 
+         */
+        function permute(s) {
+            /**
+             * @type {UInt64[]}
+             */
+            const c = new Array(5);
+
+            /**
+             * @type {UInt64[]}
+             */
+            const b = new Array(25);
+
+            for (let round = 0; round < 24; round++) {
+                for (let i = 0; i < 5; i++) {
+                    c[i] = s[i].xor(s[i + 5]).xor(s[i + 10]).xor(s[i + 15]).xor(s[i + 20]);
+                }
+
+                for (let i = 0; i < 5; i++) {
+                    const i1 = (i + 1) % 5;
+                    const i2 = (i + 4) % 5;
+
+                    const tmp = c[i2].xor(c[i1].rotr(63));
+
+                    for (let j = 0; j < 5; j++) {
+                        s[i + 5 * j] = s[i + 5 * j].xor(tmp);
+                    }
+                }
+
+                b[0] = s[0];
+
+                for (let i = 1; i < 25; i++) {
+                    const offset = OFFSETS[i - 1];
+
+                    const left = Math.abs(SHIFTS[i - 1]);
+                    const right = 32 - left;
+
+                    if (SHIFTS[i - 1] < 0) {
+                        b[i] = s[offset].rotr(right);
+                    } else {
+                        b[i] = s[offset].rotr(right + 32);
+                    }
+                }
+
+                for (let i = 0; i < 5; i++) {
+                    for (let j = 0; j < 5; j++) {
+                        s[i * 5 + j] = b[i * 5 + j].xor(b[i * 5 + (j + 1) % 5].not().and(b[i * 5 + (j + 2) % 5]))
+                    }
+                }
+
+                s[0] = s[0].xor(RC[round]);
+            }
+        }
+
+        bytes = pad(bytes);
+
+        // initialize the state
+        /**
+         * @type {UInt64[]}
+         */
+        const state = (new Array(WIDTH / 8)).fill(UInt64.zero());
+
+        for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += RATE) {
+            // extend the chunk to become length WIDTH
+            const chunk = bytes.slice(chunkStart, chunkStart + RATE).concat((new Array(CAP)).fill(0));
+
+            // element-wise xor with 'state'
+            for (let i = 0; i < WIDTH; i += 8) {
+                state[i / 8] = state[i / 8].xor(UInt64.fromBytes(chunk.slice(i, i + 8)));
+
+                // beware: a uint32 is stored as little endian, but a pair of uint32s that form a uin64 are stored in big endian format!
+            }
+
+            // apply block permutations
+            permute(state);
+        }
+
+        /** @type {number[]} */
+        let hash = [];
+        for (let i = 0; i < 4; i++) {
+            hash = hash.concat(state[i].toBytes());
+        }
+
+        return hash;
+    },
+
+    /**
+     * Calculates blake2b hash of a list of uint8 numbers (variable digest size).
+     * Result is also a list of uint8 number.
+     * Blake2b is a 64bit algorithm, so we need to be careful when replicating 64-bit operations with 2 32-bit numbers (low-word overflow must spill into high-word, and shifts must go over low/high boundary)
+     * @example                                        
+     * bytesToHex(Crypto.blake2b([0, 1])) => "01cf79da4945c370c68b265ef70641aaa65eaa8f5953e3900d97724c2c5aa095"
+     * @example
+     * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
+     * @param {number[]} bytes 
+     * @param {number} digestSize - at most 64
+     * @returns {number[]}
+     */
+    blake2b: (bytes, digestSize = BLAKE2B_DIGEST_SIZE) => {
+        /**
+         * 128 bytes (16*8 byte words)
+         * @type {number}
+         */
+        const WIDTH = 128;
+
+        /**
+         * Initialization vector
+         */
+        const IV = [
+            new UInt64(0x6a09e667, 0xf3bcc908),
+            new UInt64(0xbb67ae85, 0x84caa73b),
+            new UInt64(0x3c6ef372, 0xfe94f82b),
+            new UInt64(0xa54ff53a, 0x5f1d36f1),
+            new UInt64(0x510e527f, 0xade682d1),
+            new UInt64(0x9b05688c, 0x2b3e6c1f),
+            new UInt64(0x1f83d9ab, 0xfb41bd6b),
+            new UInt64(0x5be0cd19, 0x137e2179),
+        ];
+
+        const SIGMA = [
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            [14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
+            [11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4],
+            [7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8],
+            [9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13],
+            [2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9],
+            [12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11],
+            [13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10],
+            [6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5],
+            [10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
+        ];
+
+        /**
+         * @param {number[]} src - list of uint8 bytes
+         * @returns {number[]} - list of uint8 bytes
+         */
+        function pad(src) {
+            const dst = src.slice();
+
+            const nZeroes = dst.length == 0 ? WIDTH : (WIDTH - dst.length % WIDTH) % WIDTH;
+
+            // just padding with zeroes, the actual message length is used during compression stage of final block in order to uniquely hash messages of different lengths
+            for (let i = 0; i < nZeroes; i++) {
+                dst.push(0);
+            }
+
+            return dst;
+        }
+
+        /**
+         * @param {UInt64[]} v
+         * @param {UInt64[]} chunk
+         * @param {number} a - index
+         * @param {number} b - index
+         * @param {number} c - index
+         * @param {number} d - index
+         * @param {number} i - index in chunk for low word 1
+         * @param {number} j - index in chunk for low word 2
+         */
+        function mix(v, chunk, a, b, c, d, i, j) {
+            const x = chunk[i];
+            const y = chunk[j];
+
+            v[a] = v[a].add(v[b]).add(x);
+            v[d] = v[d].xor(v[a]).rotr(32);
+            v[c] = v[c].add(v[d]);
+            v[b] = v[b].xor(v[c]).rotr(24);
+            v[a] = v[a].add(v[b]).add(y);
+            v[d] = v[d].xor(v[a]).rotr(16);
+            v[c] = v[c].add(v[d]);
+            v[b] = v[b].xor(v[c]).rotr(63);
+        }
+
+        /**
+         * @param {UInt64[]} h - state vector
+         * @param {UInt64[]} chunk
+         * @param {number} t - chunkEnd (expected to fit in uint32)
+         * @param {boolean} last
+         */
+        function compress(h, chunk, t, last) {
+            // work vectors
+            const v = h.slice().concat(IV.slice());
+
+            v[12] = v[12].xor(new UInt64(0, imod32(t))); // v[12].high unmodified
+            // v[13] unmodified
+
+            if (last) {
+                v[14] = v[14].xor(new UInt64(0xffffffff, 0xffffffff));
+            }
+
+            for (let round = 0; round < 12; round++) {
+                const s = SIGMA[round % 10];
+
+                for (let i = 0; i < 4; i++) {
+                    mix(v, chunk, i, i + 4, i + 8, i + 12, s[i * 2], s[i * 2 + 1]);
+                }
+
+                for (let i = 0; i < 4; i++) {
+                    mix(v, chunk, i, (i + 1) % 4 + 4, (i + 2) % 4 + 8, (i + 3) % 4 + 12, s[8 + i * 2], s[8 + i * 2 + 1]);
+                }
+            }
+
+            for (let i = 0; i < 8; i++) {
+                h[i] = h[i].xor(v[i].xor(v[i + 8]));
+            }
+        }
+
+        const nBytes = bytes.length;
+
+        bytes = pad(bytes);
+
+        // init hash vector
+        const h = IV.slice();
+
+
+        // setup the param block
+        const paramBlock = new Uint8Array(64);
+        paramBlock[0] = digestSize; // n output  bytes
+        paramBlock[1] = 0; // key-length (always zero in our case) 
+        paramBlock[2] = 1; // fanout
+        paramBlock[3] = 1; // depth
+
+        //mix in the parameter block
+        const paramBlockView = new DataView(paramBlock.buffer);
+        for (let i = 0; i < 8; i++) {
+            h[i] = h[i].xor(new UInt64(
+                paramBlockView.getUint32(i * 8 + 4, true),
+                paramBlockView.getUint32(i * 8, true),
+            ));
+        }
+
+        // loop all chunks
+        for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += WIDTH) {
+            const chunkEnd = chunkStart + WIDTH; // exclusive
+            const chunk = bytes.slice(chunkStart, chunkStart + WIDTH);
+
+            const chunk64 = new Array(WIDTH / 8);
+            for (let i = 0; i < WIDTH; i += 8) {
+                chunk64[i / 8] = UInt64.fromBytes(chunk.slice(i, i + 8));
+            }
+
+            if (chunkStart == bytes.length - WIDTH) {
+                // last block
+                compress(h, chunk64, nBytes, true);
+            } else {
+                compress(h, chunk64, chunkEnd, false);
+            }
+        }
+
+        // extract lowest BLAKE2B_DIGEST_SIZE bytes from h
+
+        /** @type {number[]} */
+        let hash = [];
+        for (let i = 0; i < digestSize / 8; i++) {
+            hash = hash.concat(h[i].toBytes());
+        }
+
+        return hash.slice(0, digestSize);
+    },
+
+    /**
+     * @example
+     * bytesToHex(Crypto.hmacSha2_256(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) => "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+     * @param {number[]} key 
+     * @param {number[]} message 
+     * @returns {number[]}
+     */
+    hmacSha2_256: (key, message) => {
+        return hmac((x) => Crypto.sha2_256(x), 64, key, message);
+    },
+
+    /**
+     * @example
+     * bytesToHex(Crypto.hmacSha2_512(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) => "b42af09057bac1e2d41708e48a902e09b5ff7f12ab428a4fe86653c73dd248fb82f948a549f7b791a5b41915ee4d1ec3935357e4e2317250d0372afa2ebeeb3a"
+     * @param {number[]} key 
+     * @param {number[]} message 
+     * @returns {number[]}
+     */
+    hmacSha2_512: (key, message) => {
+        return hmac((x) => Crypto.sha2_512(x), 128, key, message);
+    },
+
+    /**
+     * @example
      * bytesToHex(Crypto.pbkdf2(Crypto.hmacSha2_256, textToBytes("password"), textToBytes("salt"), 1, 20)) => "120fb6cffcf8b32c43e7225256c4f837a86548c9"
-	 * @example
+     * @example
      * bytesToHex(Crypto.pbkdf2(Crypto.hmacSha2_512, textToBytes("password"), textToBytes("salt"), 2, 20)) => "e1d9c16aa681708a45f5c7c4e215ceb66e011a2e"
-	 * @param {(key: number[], msg: number[]) => number[]} prf 
-	 * @param {number[]} password 
-	 * @param {number[]} salt 
-	 * @param {number} iters
-	 * @param {number} dkLength 
-	 * @returns {number[]}
-	 */
-	static pbkdf2(prf, password, salt, iters, dkLength) {
-		/**
-		 * @param {number[]} a 
-		 * @param {number[]} b 
-		 * @returns {number[]}
-		 */
-		const xor = (a, b) => {
-			const c = new Array(a.length);
-
-			for (let i = 0; i < a.length; i++) {
-				c[i] = a[i] ^ b[i];
-			}
-
-			return c;
-		}
-
-		/**
-		 * @type {number[]}
-		 */
-		let dk = [];
-
-		let i = 1n;
-		while (dk.length < dkLength) {
-			const bi = bigIntToBytes(i);
-			while (bi.length < 4) {
-				bi.unshift(0);
-			}
-
-			let U = prf(password, salt.slice().concat(bi));
-			let T = U;
-
-			for (let j = 1; j < iters; j++) {
-				U = prf(password, U);
-				T = xor(T, U);
-			}
-
-			dk = dk.concat(T);
-
-			i += 1n;
-		}
-
-		if (dk.length > dkLength) {
-			dk = dk.slice(0, dkLength);
-		}
-
-		return dk;
-	}
-
-	/**
-	 * Crypto.Ed25519 exports the following functions:
-	 *  * Crypto.Ed25519.derivePublicKey(privateKey)
-	 *  * Crypto.Ed25519.sign(message, privateKey)
-	 *  * Crypto.Ed25519.verify(message, signature, publicKey)
-	 * 
-	 * Ported from: https://ed25519.cr.yp.to/python/ed25519.py
-	 * ExtendedPoint implementation from: https://github.com/paulmillr/noble-ed25519
-	 */
-	static get Ed25519() {
-		/**
-		 * @template {Point<T>} T
-		 * @typedef {{
-		 *   add(other: T): T
-		 *   mul(scalar: bigint): T
-		 *   equals(other: T): boolean
-		 *   encode(): number[]
-		 * }} Point
-		 */
-
-		const Q = 57896044618658097711785492504343953926634992332820282019728792003956564819949n; // ipowi(255n) - 19n
-		const Q38 = 7237005577332262213973186563042994240829374041602535252466099000494570602494n; // (Q + 3n)/8n
-		const CURVE_ORDER = 7237005577332262213973186563042994240857116359379907606001950938285454250989n; // ipow2(252n) + 27742317777372353535851937790883648493n;
-		const D = -4513249062541557337682894930092624173785641285191125241628941591882900924598840740n; // -121665n * invert(121666n);
-		const I = 19681161376707505956807079304988542015446066515923890162744021073123829784752n; // expMod(2n, (Q - 1n)/4n, Q);
-	
-		/**
-		 * @param {bigint} b 
-		 * @param {bigint} e 
-		 * @param {bigint} m 
-		 * @returns {bigint}
-		 */
-		function expMod(b, e, m) {
-			if (e == 0n) {
-				return 1n;
-			} else {
-				let t = expMod(b, e/2n, m);
-				t = (t*t) % m;
-
-				if ((e % 2n) != 0n) {
-					t = posMod(t*b, m)
-				}
-
-				return t;
-			}
-		}
-
-		/**
-		 * @param {bigint} x 
-		 * @returns {bigint}
-		 */
-		function curveMod(x) {
-			return posMod(x, Q)
-		}
-
-		/**
-		 * @param {bigint} n 
-		 * @returns {bigint}
-		 */
-		function invert(n) {
-			let a = curveMod(n);
-			let b = Q;
-
-			let x = 0n;
-			let y = 1n;
-			let u = 1n;
-			let v = 0n;
-
-			while (a !== 0n) {
-				const q = b / a;
-				const r = b % a;
-				const m = x - u*q;
-				const n = y - v*q;
-				b = a;
-				a = r;
-				x = u;
-				y = v;
-				u = m;
-				v = n;
-			}
-
-			return curveMod(x);
-		}
-
-		/**
-		 * @param {bigint} y 
-		 * @returns {bigint}
-		 */
-		function recoverX(y) {
-			const yy = y*y;
-			const xx = (yy - 1n) * invert(D*yy + 1n);
-			let x = expMod(xx, Q38, Q);
-
-			if (((x*x - xx) % Q) != 0n) {
-				x = (x*I) % Q;
-			}
-
-			if ((x%2n) != 0n) {
-				x = Q - x;
-			}
-
-			return x;
-		}
-
-		/**
-		 * Curve point 'multiplication'
-		 * @param {bigint} y 
-		 * @returns {number[]}
-		 */
-		function encodeInt(y) {
-			return bigIntToLe32Bytes(y);
-		}
-
-		/**
-		 * @param {number[]} s 
-		 * @returns {bigint}
-		 */
-		function decodeInt(s) {
-			return leBytesToBigInt(s);
-		}
-
-		/**
-		 * @param {number[]} bytes 
-		 * @param {number} i - bit index
-		 * @returns {number} - 0 or 1
-		 */
-		function getBit(bytes, i) {
-			return (bytes[Math.floor(i/8)] >> i%8) & 1
-		}
-
-		/**
-		 * @implements {Point<AffinePoint>}
-		 */
-		class AffinePoint {
-			#x;
-			#y;
-
-			/**
-			 * @param {bigint} x 
-			 * @param {bigint} y 
-			 */
-			constructor(x, y) {
-				this.#x = x;
-				this.#y = y;
-			}
-
-			/**
-			 * @type {AffinePoint}
-			 */
-			static get BASE() {
-				return new AffinePoint(
-					15112221349535400772501151409588531511454012693041857206046113283949847762202n, // recoverX(B[1]) % Q
-					46316835694926478169428394003475163141307993866256225615783033603165251855960n  // (4n*invert(5n)) % Q
-				);
-			}
-			
-			/**
-			 * @type {AffinePoint}
-			 */
-			static get ZERO() {
-				return new AffinePoint(0n, 1n);
-			}
-
-			/**
-			 * @param {number[]} bytes 
-			 * @returns {AffinePoint}
-			 */
-			static decode(bytes) {
-				assert(bytes.length == 32);
-
-				const tmp = bytes.slice();
-				tmp[31] = tmp[31] & 0b01111111;
-	
-				const y = decodeInt(tmp);
-	
-				let x = recoverX(y);
-				if (Number(x & 1n) != getBit(bytes, 255)) {
-					x = Q - x;
-				}
-	
-				const point = new AffinePoint(x, y);
-	
-				assert(point.isOnCurve(), "point isn't on curve");
-	
-				return point;
-			}
-
-			/**
-			 * @type {bigint}
-			 */
-			get x() {
-				return this.#x;
-			}
-
-			/**
-			 * @type {bigint}
-			 */
-			get y() {
-				return this.#y;
-			}
-
-			/** 
-			 * Curve point 'addition'
-		     * Note: the invert call in this calculation is very slow (prefer ExtendedPoint for speed)
-			 * @param {AffinePoint} other 
-			 * @returns {AffinePoint}
-			 */
-			add(other) {
-				const x1 = this.#x;
-				const y1 = this.#y;
-				const x2 = other.#x;
-				const y2 = other.#y;
-				const dxxyy = D*x1*x2*y1*y2;
-				const x3 = (x1*y2+x2*y1) * invert(1n+dxxyy);
-				const y3 = (y1*y2+x1*x2) * invert(1n-dxxyy);
-
-				return new AffinePoint(
-					curveMod(x3), 
-					curveMod(y3)
-				);
-			}
-
-			/**
-			 * @param {AffinePoint} other 
-			 * @returns {boolean}
-			 */
-			equals(other) {
-				return this.x == other.x && this.y == other.y;
-			}
-
-			/**
-			 * @returns {boolean}
-			 */
-		 	isOnCurve() {
-				const x = this.#x;
-				const y = this.#y;
-				const xx = x*x;
-				const yy = y*y;
-				return (-xx + yy - 1n - D*xx*yy) % Q == 0n;
-			}
-
-			/**
-			 * @param {bigint} s 
-			 * @returns {AffinePoint}
-			 */
-			mul(s) {
-				if (s == 0n) {
-					return AffinePoint.ZERO;
-				} else {
-					let sum = this.mul(s/2n);
-
-					sum = sum.add(sum);
-
-					if ((s % 2n) != 0n) {
-						sum = sum.add(this);
-					}
-	
-					return sum;
-				}
-			}
-
-			/**
-			 * @returns {number[]}
-			 */
-			encode() {
-				const bytes = encodeInt(this.#y);
-	
-				// last bit is determined by x
-	
-				bytes[31] = (bytes[31] & 0b011111111) | (Number(this.#x & 1n) * 0b10000000);
-	
-				return bytes;
-			}
-		}
-
-		/**
-		 * Extended point implementation take from @noble/ed25519
-		 * @implements {Point<ExtendedPoint>}
-		 */
-		class ExtendedPoint {
-			#x;
-			#y;
-			#z;
-			#t;
-
-			/**
-			 * @param {bigint} x 
-			 * @param {bigint} y 
-			 * @param {bigint} z 
-			 * @param {bigint} t 
-			 */
-			constructor(x, y, z, t) {
-				this.#x = x;
-				this.#y = y;
-				this.#z = z;
-				this.#t = t;
-			}
-
-			/**
-			 * @type {ExtendedPoint}
-			 */
-			static get BASE() {
-				return new ExtendedPoint(
-					AffinePoint.BASE.x,
-					AffinePoint.BASE.y,
-					1n,
-					curveMod(AffinePoint.BASE.x*AffinePoint.BASE.y)
-				)
-			}
-
-			/**
-			 * @type {ExtendedPoint}
-			 */
-			static get ZERO() {
-				return new ExtendedPoint(0n, 1n, 1n, 0n);
-			}
-
-			/**
-			 * @param {number[]} bytes 
-			 * @returns {ExtendedPoint}
-			 */
-			static decode(bytes) {
-				return ExtendedPoint.fromAffine(AffinePoint.decode(bytes));
-			}
-
-			/**
-			 * @param {AffinePoint} affine 
-			 * @returns {ExtendedPoint}
-			 */
-			static fromAffine(affine) {
-				return new ExtendedPoint(affine.x, affine.y, 1n, curveMod(affine.x*affine.y));
-			}
-
-			/**
-			 * @param {ExtendedPoint} other 
-			 * @returns {ExtendedPoint}
-			 */
-			add(other) {
-				const x1 = this.#x;
-				const y1 = this.#y;
-				const z1 = this.#z;
-				const t1 = this.#t;
-
-				const x2 = other.#x;
-				const y2 = other.#y;
-				const z2 = other.#z;
-				const t2 = other.#t;
-
-				const a = curveMod(x1*x2);
-				const b = curveMod(y1*y2);
-				const c = curveMod(D*t1*t2);
-				const d = curveMod(z1*z2);
-				const e = curveMod((x1 + y1)*(x2 + y2) - a - b);
-				const f = curveMod(d - c);
-				const g = curveMod(d + c);
-				const h = curveMod(a + b);
-				const x3 = curveMod(e*f);
-				const y3 = curveMod(g*h);
-				const z3 = curveMod(f*g);
-				const t3 = curveMod(e*h);
-				
-				return new ExtendedPoint(x3, y3, z3, t3);
-			}
-
-			/**
-			 * @returns {number[]}
-			 */
-			encode() {
-				return this.toAffine().encode()
-			}
-
-			/**
-			 * @param {ExtendedPoint} other 
-			 * @returns {boolean}
-			 */
-			equals(other) {
-				return (curveMod(this.#x*other.#z) == curveMod(other.#x*this.#z)) && (curveMod(this.#y*other.#z) == curveMod(other.#y*this.#z));
-			}
-
-			/**
-			 * @returns {boolean}
-			 */
-			isBase() {
-				return this.equals(ExtendedPoint.BASE);
-			}
-
-			/**
-			 * @returns {boolean}
-			 */
-			isZero() {
-				return this.equals(ExtendedPoint.ZERO);
-			}
-
-			/**
-			 * @param {bigint} s 
-			 * @returns {ExtendedPoint}
-			 */
-			mul(s) {
-				if (s == 0n) {
-					return ExtendedPoint.ZERO;
-				} else {
-					let sum = this.mul(s/2n);
-
-					sum = sum.add(sum);
-
-					if ((s % 2n) != 0n) {
-						sum = sum.add(this);
-					}
-	
-					return sum;
-				}
-			}
-
-			/**
-			 * @returns {AffinePoint}
-			 */
-			toAffine() {
-				if (this.isZero()) {
-					return AffinePoint.ZERO;
-				} else {
-					const zInverse = invert(this.#z);
-
-					return new AffinePoint(
-						curveMod(this.#x*zInverse),
-						curveMod(this.#y*zInverse)
-					);
-				}
-			}
-		}
-
-		/**
-		 * @param {number[]} h 
-		 * @returns {bigint}
-		 */
-		function clamp(h) {
-			const bytes = h.slice(0, 32);
-
-			bytes[0]  &= 0b11111000;
-			bytes[31] &= 0b00111111;
-			bytes[31] |= 0b01000000;
-
-			return decodeInt(bytes);
-		}
-
-		/**
-		 * @param {number[]} m 
-		 * @returns {bigint}
-		 */
-		function nonce(m) {
-			const h = Crypto.sha2_512(m);
-
-			return decodeInt(h);
-		}
-
-		const PointImpl = ExtendedPoint;
-
-		return {
-			/**
-			 * @param {number[]} extendedKey
-			 * @returns {number[]}
-			 */
-			deriveBip32PublicKey: function(extendedKey) {
-				const a = clamp(extendedKey);
-				const A = PointImpl.BASE.mul(a);
-
-				return A.encode();
-			},
-
-			/**
-			 * @param {number[]} privateKey
-			 * @returns {number[]}
-			 */
-			derivePublicKey: function(privateKey) {
-				return Crypto.Ed25519.deriveBip32PublicKey(Crypto.sha2_512(privateKey));
-			},
-
-			/**
-			 * @param {number[]} message 
-			 * @param {number[]} extendedKey 
-			 * @returns {number[]}
-			 */
-			signBip32: function(message, extendedKey) {
-				const a = clamp(extendedKey);
-
-				// for convenience calculate publicKey here:
-				const publicKey = PointImpl.BASE.mul(a).encode();
-
-				const r = nonce(extendedKey.slice(32, 64).concat(message));
-				const R = PointImpl.BASE.mul(r);
-				const Rencoded = R.encode();
-				const ih = nonce(Rencoded.concat(publicKey).concat(message));
-				const S = posMod(r + ih*a, CURVE_ORDER);
-
-				return Rencoded.concat(encodeInt(S));
-			},
-
-			/**
-			 * @param {number[]} message 
-			 * @param {number[]} privateKey 
-			 * @returns {number[]}
-			 */
-			sign: function(message, privateKey) {
-				return Crypto.Ed25519.signBip32(message, Crypto.sha2_512(privateKey));
-			},
-
-			/**
-			 * @param {number[]} signature 
-			 * @param {number[]} message 
-			 * @param {number[]} publicKey 
-			 * @returns {boolean}
-			 */
-			verify: function(signature, message, publicKey) {
-				if (signature.length != 64) {
-					throw new Error(`unexpected signature length ${signature.length}`);
-				}
-	
-				if (publicKey.length != 32) {
-					throw new Error(`unexpected publickey length ${publicKey.length}`);
-				}
-
-				const R = PointImpl.decode(signature.slice(0, 32));
-				const A = PointImpl.decode(publicKey);
-				const S = decodeInt(signature.slice(32, 64));
-				const h = nonce(signature.slice(0, 32).concat(publicKey).concat(message));
-
-				const left = PointImpl.BASE.mul(S);
-				const right = R.add(A.mul(h));
-
-				return left.equals(right);
-			}
-		}
-	}
+     * @param {(key: number[], msg: number[]) => number[]} prf 
+     * @param {number[]} password 
+     * @param {number[]} salt 
+     * @param {number} iters
+     * @param {number} dkLength 
+     * @returns {number[]}
+     */
+    pbkdf2: (prf, password, salt, iters, dkLength) => {
+        /**
+         * @param {number[]} a 
+         * @param {number[]} b 
+         * @returns {number[]}
+         */
+        const xor = (a, b) => {
+            const c = new Array(a.length);
+
+            for (let i = 0; i < a.length; i++) {
+                c[i] = a[i] ^ b[i];
+            }
+
+            return c;
+        }
+
+        /**
+         * @type {number[]}
+         */
+        let dk = [];
+
+        let i = 1n;
+        while (dk.length < dkLength) {
+            const bi = bigIntToBytes(i);
+            while (bi.length < 4) {
+                bi.unshift(0);
+            }
+
+            let U = prf(password, salt.slice().concat(bi));
+            let T = U;
+
+            for (let j = 1; j < iters; j++) {
+                U = prf(password, U);
+                T = xor(T, U);
+            }
+
+            dk = dk.concat(T);
+
+            i += 1n;
+        }
+
+        if (dk.length > dkLength) {
+            dk = dk.slice(0, dkLength);
+        }
+
+        return dk;
+    }
+}
+
+
+/**
+ * @template {CurvePoint<T>} T
+ * @typedef {{
+ *   add(other: T): T
+ *   mul(scalar: bigint): T
+ *   equals(other: T): boolean
+ *   encode(): number[]
+ * }} CurvePoint
+ */
+
+const ED25519_Q = 57896044618658097711785492504343953926634992332820282019728792003956564819949n; // ipowi(255n) - 19n
+const ED25519_Q38 = 7237005577332262213973186563042994240829374041602535252466099000494570602494n; // (Q + 3n)/8n
+const ED25519_CURVE_ORDER = 7237005577332262213973186563042994240857116359379907606001950938285454250989n; // ipow2(252n) + 27742317777372353535851937790883648493n;
+const ED25519_D = -4513249062541557337682894930092624173785641285191125241628941591882900924598840740n; // -121665n * invert(121666n);
+const ED25519_I = 19681161376707505956807079304988542015446066515923890162744021073123829784752n; // expMod(2n, (Q - 1n)/4n, Q);
+
+/**
+* @param {bigint} b 
+* @param {bigint} e 
+* @param {bigint} m 
+* @returns {bigint}
+*/
+function expMod(b, e, m) {
+    if (e == 0n) {
+        return 1n;
+    } else {
+        let t = expMod(b, e / 2n, m);
+        t = (t * t) % m;
+
+        if ((e % 2n) != 0n) {
+            t = posMod(t * b, m)
+        }
+
+        return t;
+    }
+}
+
+/**
+* @param {bigint} x 
+* @returns {bigint}
+*/
+function curveMod(x) {
+    return posMod(x, ED25519_Q)
+}
+
+/**
+* @param {bigint} n 
+* @returns {bigint}
+*/
+function curveInvert(n) {
+    let a = curveMod(n);
+    let b = ED25519_Q;
+
+    let x = 0n;
+    let y = 1n;
+    let u = 1n;
+    let v = 0n;
+
+    while (a !== 0n) {
+        const q = b / a;
+        const r = b % a;
+        const m = x - u * q;
+        const n = y - v * q;
+        b = a;
+        a = r;
+        x = u;
+        y = v;
+        u = m;
+        v = n;
+    }
+
+    return curveMod(x);
+}
+
+/**
+* @param {bigint} y 
+* @returns {bigint}
+*/
+function recoverX(y) {
+    const yy = y * y;
+    const xx = (yy - 1n) * curveInvert(ED25519_D * yy + 1n);
+    let x = expMod(xx, ED25519_Q38, ED25519_Q);
+
+    if (((x * x - xx) % ED25519_Q) != 0n) {
+        x = (x * ED25519_I) % ED25519_Q;
+    }
+
+    if ((x % 2n) != 0n) {
+        x = ED25519_Q - x;
+    }
+
+    return x;
+}
+
+/**
+* Curve point 'multiplication'
+* @param {bigint} y 
+* @returns {number[]}
+*/
+function encodeCurveInt(y) {
+    return bigIntToLe32Bytes(y);
+}
+
+/**
+* @param {number[]} s 
+* @returns {bigint}
+*/
+function decodeCurveInt(s) {
+    return leBytesToBigInt(s);
+}
+
+/**
+* @param {number[]} bytes 
+* @param {number} i - bit index
+* @returns {number} - 0 or 1
+*/
+function getBit(bytes, i) {
+    return (bytes[Math.floor(i / 8)] >> i % 8) & 1
+}
+
+/**
+ * @internal
+ * @implements {CurvePoint<AffinePoint>}
+ */
+class AffinePoint {
+    #x;
+    #y;
+
+    /**
+     * @param {bigint} x 
+     * @param {bigint} y 
+     */
+    constructor(x, y) {
+        this.#x = x;
+        this.#y = y;
+    }
+
+    /**
+     * @type {AffinePoint}
+     */
+    static get BASE() {
+        return new AffinePoint(
+            15112221349535400772501151409588531511454012693041857206046113283949847762202n, // recoverX(B[1]) % Q
+            46316835694926478169428394003475163141307993866256225615783033603165251855960n  // (4n*invert(5n)) % Q
+        );
+    }
+
+    /**
+     * @type {AffinePoint}
+     */
+    static get ZERO() {
+        return new AffinePoint(0n, 1n);
+    }
+
+    /**
+     * @param {number[]} bytes 
+     * @returns {AffinePoint}
+     */
+    static decode(bytes) {
+        assert(bytes.length == 32);
+
+        const tmp = bytes.slice();
+        tmp[31] = tmp[31] & 0b01111111;
+
+        const y = decodeCurveInt(tmp);
+
+        let x = recoverX(y);
+        if (Number(x & 1n) != getBit(bytes, 255)) {
+            x = ED25519_Q - x;
+        }
+
+        const point = new AffinePoint(x, y);
+
+        assert(point.isOnCurve(), "point isn't on curve");
+
+        return point;
+    }
+
+    /**
+     * @type {bigint}
+     */
+    get x() {
+        return this.#x;
+    }
+
+    /**
+     * @type {bigint}
+     */
+    get y() {
+        return this.#y;
+    }
+
+    /** 
+     * Curve point 'addition'
+     * Note: the invert call in this calculation is very slow (prefer ExtendedPoint for speed)
+     * @param {AffinePoint} other 
+     * @returns {AffinePoint}
+     */
+    add(other) {
+        const x1 = this.#x;
+        const y1 = this.#y;
+        const x2 = other.#x;
+        const y2 = other.#y;
+        const dxxyy = ED25519_D * x1 * x2 * y1 * y2;
+        const x3 = (x1 * y2 + x2 * y1) * curveInvert(1n + dxxyy);
+        const y3 = (y1 * y2 + x1 * x2) * curveInvert(1n - dxxyy);
+
+        return new AffinePoint(
+            curveMod(x3),
+            curveMod(y3)
+        );
+    }
+
+    /**
+     * @param {AffinePoint} other 
+     * @returns {boolean}
+     */
+    equals(other) {
+        return this.x == other.x && this.y == other.y;
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isOnCurve() {
+        const x = this.#x;
+        const y = this.#y;
+        const xx = x * x;
+        const yy = y * y;
+        return (-xx + yy - 1n - ED25519_D * xx * yy) % ED25519_Q == 0n;
+    }
+
+    /**
+     * @param {bigint} s 
+     * @returns {AffinePoint}
+     */
+    mul(s) {
+        if (s == 0n) {
+            return AffinePoint.ZERO;
+        } else {
+            let sum = this.mul(s / 2n);
+
+            sum = sum.add(sum);
+
+            if ((s % 2n) != 0n) {
+                sum = sum.add(this);
+            }
+
+            return sum;
+        }
+    }
+
+    /**
+     * @returns {number[]}
+     */
+    encode() {
+        const bytes = encodeCurveInt(this.#y);
+
+        // last bit is determined by x
+
+        bytes[31] = (bytes[31] & 0b011111111) | (Number(this.#x & 1n) * 0b10000000);
+
+        return bytes;
+    }
+}
+
+/**
+ * Extended point implementation take from @noble/ed25519
+ * @internal
+ * @implements {CurvePoint<ExtendedPoint>}
+ */
+class ExtendedPoint {
+    #x;
+    #y;
+    #z;
+    #t;
+
+    /**
+     * @param {bigint} x 
+     * @param {bigint} y 
+     * @param {bigint} z 
+     * @param {bigint} t 
+     */
+    constructor(x, y, z, t) {
+        this.#x = x;
+        this.#y = y;
+        this.#z = z;
+        this.#t = t;
+    }
+
+    /**
+     * @type {ExtendedPoint}
+     */
+    static get BASE() {
+        return new ExtendedPoint(
+            AffinePoint.BASE.x,
+            AffinePoint.BASE.y,
+            1n,
+            curveMod(AffinePoint.BASE.x * AffinePoint.BASE.y)
+        )
+    }
+
+    /**
+     * @type {ExtendedPoint}
+     */
+    static get ZERO() {
+        return new ExtendedPoint(0n, 1n, 1n, 0n);
+    }
+
+    /**
+     * @param {number[]} bytes 
+     * @returns {ExtendedPoint}
+     */
+    static decode(bytes) {
+        return ExtendedPoint.fromAffine(AffinePoint.decode(bytes));
+    }
+
+    /**
+     * @param {AffinePoint} affine 
+     * @returns {ExtendedPoint}
+     */
+    static fromAffine(affine) {
+        return new ExtendedPoint(affine.x, affine.y, 1n, curveMod(affine.x * affine.y));
+    }
+
+    /**
+     * @param {ExtendedPoint} other 
+     * @returns {ExtendedPoint}
+     */
+    add(other) {
+        const x1 = this.#x;
+        const y1 = this.#y;
+        const z1 = this.#z;
+        const t1 = this.#t;
+
+        const x2 = other.#x;
+        const y2 = other.#y;
+        const z2 = other.#z;
+        const t2 = other.#t;
+
+        const a = curveMod(x1 * x2);
+        const b = curveMod(y1 * y2);
+        const c = curveMod(ED25519_D * t1 * t2);
+        const d = curveMod(z1 * z2);
+        const e = curveMod((x1 + y1) * (x2 + y2) - a - b);
+        const f = curveMod(d - c);
+        const g = curveMod(d + c);
+        const h = curveMod(a + b);
+        const x3 = curveMod(e * f);
+        const y3 = curveMod(g * h);
+        const z3 = curveMod(f * g);
+        const t3 = curveMod(e * h);
+
+        return new ExtendedPoint(x3, y3, z3, t3);
+    }
+
+    /**
+     * @returns {number[]}
+     */
+    encode() {
+        return this.toAffine().encode()
+    }
+
+    /**
+     * @param {ExtendedPoint} other 
+     * @returns {boolean}
+     */
+    equals(other) {
+        return (curveMod(this.#x * other.#z) == curveMod(other.#x * this.#z)) && (curveMod(this.#y * other.#z) == curveMod(other.#y * this.#z));
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isBase() {
+        return this.equals(ExtendedPoint.BASE);
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isZero() {
+        return this.equals(ExtendedPoint.ZERO);
+    }
+
+    /**
+     * @param {bigint} s 
+     * @returns {ExtendedPoint}
+     */
+    mul(s) {
+        if (s == 0n) {
+            return ExtendedPoint.ZERO;
+        } else {
+            let sum = this.mul(s / 2n);
+
+            sum = sum.add(sum);
+
+            if ((s % 2n) != 0n) {
+                sum = sum.add(this);
+            }
+
+            return sum;
+        }
+    }
+
+    /**
+     * @returns {AffinePoint}
+     */
+    toAffine() {
+        if (this.isZero()) {
+            return AffinePoint.ZERO;
+        } else {
+            const zInverse = curveInvert(this.#z);
+
+            return new AffinePoint(
+                curveMod(this.#x * zInverse),
+                curveMod(this.#y * zInverse)
+            );
+        }
+    }
+}
+
+/**
+ * @internal
+ * @param {number[]} h 
+ * @returns {bigint}
+ */
+function clamp(h) {
+    const bytes = h.slice(0, 32);
+
+    bytes[0] &= 0b11111000;
+    bytes[31] &= 0b00111111;
+    bytes[31] |= 0b01000000;
+
+    return decodeCurveInt(bytes);
+}
+
+/**
+ * @internal
+ * @param {number[]} m 
+ * @returns {bigint}
+ */
+function nonce(m) {
+    const h = Crypto.sha2_512(m);
+
+    return decodeCurveInt(h);
+}
+
+/**
+ * @internal
+ */
+const CurvePointImpl = ExtendedPoint;
+
+/**
+ * Ported from: [https://ed25519.cr.yp.to/python/ed25519.py](https://ed25519.cr.yp.to/python/ed25519.py).
+ * 
+ * ExtendedPoint implementation taken from: [https://github.com/paulmillr/noble-ed25519](https://github.com/paulmillr/noble-ed25519).
+ * @namespace
+ */
+export const Ed25519 = {
+    /**
+     * @param {number[]} extendedKey
+     * @returns {number[]}
+     */
+    deriveBip32PublicKey: (extendedKey) => {
+        const a = clamp(extendedKey);
+        const A = CurvePointImpl.BASE.mul(a);
+
+        return A.encode();
+    },
+
+    /**
+     * @param {number[]} privateKey
+     * @returns {number[]}
+     */
+    derivePublicKey: (privateKey) => {
+        return Ed25519.deriveBip32PublicKey(Crypto.sha2_512(privateKey));
+    },
+
+    /**
+     * @param {number[]} message 
+     * @param {number[]} extendedKey 
+     * @returns {number[]}
+     */
+    signBip32: (message, extendedKey) => {
+        const a = clamp(extendedKey);
+
+        // for convenience calculate publicKey here:
+        const publicKey = CurvePointImpl.BASE.mul(a).encode();
+
+        const r = nonce(extendedKey.slice(32, 64).concat(message));
+        const R = CurvePointImpl.BASE.mul(r);
+        const Rencoded = R.encode();
+        const ih = nonce(Rencoded.concat(publicKey).concat(message));
+        const S = posMod(r + ih * a, ED25519_CURVE_ORDER);
+
+        return Rencoded.concat(encodeCurveInt(S));
+    },
+
+    /**
+     * @param {number[]} message 
+     * @param {number[]} privateKey 
+     * @returns {number[]}
+     */
+    sign: (message, privateKey) => {
+        return Ed25519.signBip32(message, Crypto.sha2_512(privateKey));
+    },
+
+    /**
+     * @param {number[]} signature 
+     * @param {number[]} message 
+     * @param {number[]} publicKey 
+     * @returns {boolean}
+     */
+    verify: (signature, message, publicKey) => {
+        if (signature.length != 64) {
+            throw new Error(`unexpected signature length ${signature.length}`);
+        }
+
+        if (publicKey.length != 32) {
+            throw new Error(`unexpected publickey length ${publicKey.length}`);
+        }
+
+        const R = CurvePointImpl.decode(signature.slice(0, 32));
+        const A = CurvePointImpl.decode(publicKey);
+        const S = decodeCurveInt(signature.slice(32, 64));
+        const h = nonce(signature.slice(0, 32).concat(publicKey).concat(message));
+
+        const left = CurvePointImpl.BASE.mul(S);
+        const right = R.add(A.mul(h));
+
+        return left.equals(right);
+    }
 }
 
 /**
  * Standard English Bip39 dictionary consisting of 2048 words allowing wallet root keys to be formed by a phrase of 12, 15, 18, 21 or 24 of these words.
  */
 export const BIP39_DICT_EN = [
-	"abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse", "access", "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act", "action", "actor", "actress", "actual", "adapt", "add", "addict", "address", "adjust", "admit", "adult", "advance", "advice", "aerobic", "affair", "afford", "afraid", "again", "age", "agent", "agree", "ahead", "aim", "air", "airport", "aisle", "alarm", "album", "alcohol", "alert", "alien", "all", "alley", "allow", "almost", "alone", "alpha", "already", "also", "alter", "always", "amateur", "amazing", "among", "amount", "amused", "analyst", "anchor", "ancient", "anger", "angle", "angry", "animal", "ankle", "announce", "annual", "another", "answer", "antenna", "antique", "anxiety", "any", "apart", "apology", "appear", "apple", "approve", "april", "arch", "arctic", "area", "arena", "argue", "arm", "armed", "armor", "army", "around", "arrange", "arrest", "arrive", "arrow", "art", "artefact", "artist", "artwork", "ask", "aspect", "assault", "asset", "assist", "assume", "asthma", "athlete", "atom", "attack", "attend", "attitude", "attract", "auction", "audit", "august", "aunt", "author", "auto", "autumn", "average", "avocado", "avoid", "awake", "aware", "away", "awesome", "awful", "awkward", "axis",
-	"baby", "bachelor", "bacon", "badge", "bag", "balance", "balcony", "ball", "bamboo", "banana", "banner", "bar", "barely", "bargain", "barrel", "base", "basic", "basket", "battle", "beach", "bean", "beauty", "because", "become", "beef", "before", "begin", "behave", "behind", "believe", "below", "belt", "bench", "benefit", "best", "betray", "better", "between", "beyond", "bicycle", "bid", "bike", "bind", "biology", "bird", "birth", "bitter", "black", "blade", "blame", "blanket", "blast", "bleak", "bless", "blind", "blood", "blossom", "blouse", "blue", "blur", "blush", "board", "boat", "body", "boil", "bomb", "bone", "bonus", "book", "boost", "border", "boring", "borrow", "boss", "bottom", "bounce", "box", "boy", "bracket", "brain", "brand", "brass", "brave", "bread", "breeze", "brick", "bridge", "brief", "bright", "bring", "brisk", "broccoli", "broken", "bronze", "broom", "brother", "brown", "brush", "bubble", "buddy", "budget", "buffalo", "build", "bulb", "bulk", "bullet", "bundle", "bunker", "burden", "burger", "burst", "bus", "business", "busy", "butter", "buyer", "buzz", 
-	"cabbage", "cabin", "cable", "cactus", "cage", "cake", "call", "calm", "camera", "camp", "can", "canal", "cancel", "candy", "cannon", "canoe", "canvas", "canyon", "capable", "capital", "captain", "car", "carbon", "card", "cargo", "carpet", "carry", "cart", "case", "cash", "casino", "castle", "casual", "cat", "catalog", "catch", "category", "cattle", "caught", "cause", "caution", "cave", "ceiling", "celery", "cement", "census", "century", "cereal", "certain", "chair", "chalk", "champion", "change", "chaos", "chapter", "charge", "chase", "chat", "cheap", "check", "cheese", "chef", "cherry", "chest", "chicken", "chief", "child", "chimney", "choice", "choose", "chronic", "chuckle", "chunk", "churn", "cigar", "cinnamon", "circle", "citizen", "city", "civil", "claim", "clap", "clarify", "claw", "clay", "clean", "clerk", "clever", "click", "client", "cliff", "climb", "clinic", "clip", "clock", "clog", "close", "cloth", "cloud", "clown", "club", "clump", "cluster", "clutch", "coach", "coast", "coconut", "code", "coffee", "coil", "coin", "collect", "color", "column", "combine", "come", "comfort", "comic", "common", "company", "concert", "conduct", "confirm", "congress", "connect", "consider", "control", "convince", "cook", "cool", "copper", "copy", "coral", "core", "corn", "correct", "cost", "cotton", "couch", "country", "couple", "course", "cousin", "cover", "coyote", "crack", "cradle", "craft", "cram", "crane", "crash", "crater", "crawl", "crazy", "cream", "credit", "creek", "crew", "cricket", "crime", "crisp", "critic", "crop", "cross", "crouch", "crowd", "crucial", "cruel", "cruise", "crumble", "crunch", "crush", "cry", "crystal", "cube", "culture", "cup", "cupboard", "curious", "current", "curtain", "curve", "cushion", "custom", "cute", "cycle",
-	"dad", "damage", "damp", "dance", "danger", "daring", "dash", "daughter", "dawn", "day", "deal", "debate", "debris", "decade", "december", "decide", "decline", "decorate", "decrease", "deer", "defense", "define", "defy", "degree", "delay", "deliver", "demand", "demise", "denial", "dentist", "deny", "depart", "depend", "deposit", "depth", "deputy", "derive", "describe", "desert", "design", "desk", "despair", "destroy", "detail", "detect", "develop", "device", "devote", "diagram", "dial", "diamond", "diary", "dice", "diesel", "diet", "differ", "digital", "dignity", "dilemma", "dinner", "dinosaur", "direct", "dirt", "disagree", "discover", "disease", "dish", "dismiss", "disorder", "display", "distance", "divert", "divide", "divorce", "dizzy", "doctor", "document", "dog", "doll", "dolphin", "domain", "donate", "donkey", "donor", "door", "dose", "double", "dove", "draft", "dragon", "drama", "drastic", "draw", "dream", "dress", "drift", "drill", "drink", "drip", "drive", "drop", "drum", "dry", "duck", "dumb", "dune", "during", "dust", "dutch", "duty", "dwarf", "dynamic",
-	"eager", "eagle", "early", "earn", "earth", "easily", "east", "easy", "echo", "ecology", "economy", "edge", "edit", "educate", "effort", "egg", "eight", "either", "elbow", "elder", "electric", "elegant", "element", "elephant", "elevator", "elite", "else", "embark", "embody", "embrace", "emerge", "emotion", "employ", "empower", "empty", "enable", "enact", "end", "endless", "endorse", "enemy", "energy", "enforce", "engage", "engine", "enhance", "enjoy", "enlist", "enough", "enrich", "enroll", "ensure", "enter", "entire", "entry", "envelope", "episode", "equal", "equip", "era", "erase", "erode", "erosion", "error", "erupt", "escape", "essay", "essence", "estate", "eternal", "ethics", "evidence", "evil", "evoke", "evolve", "exact", "example", "excess", "exchange", "excite", "exclude", "excuse", "execute", "exercise", "exhaust", "exhibit", "exile", "exist", "exit", "exotic", "expand", "expect", "expire", "explain", "expose", "express", "extend", "extra", "eye", "eyebrow",
-	"fabric", "face", "faculty", "fade", "faint", "faith", "fall", "false", "fame", "family", "famous", "fan", "fancy", "fantasy", "farm", "fashion", "fat", "fatal", "father", "fatigue", "fault", "favorite", "feature", "february", "federal", "fee", "feed", "feel", "female", "fence", "festival", "fetch", "fever", "few", "fiber", "fiction", "field", "figure", "file", "film", "filter", "final", "find", "fine", "finger", "finish", "fire", "firm", "first", "fiscal", "fish", "fit", "fitness", "fix", "flag", "flame", "flash", "flat", "flavor", "flee", "flight", "flip", "float", "flock", "floor", "flower", "fluid", "flush", "fly", "foam", "focus", "fog", "foil", "fold", "follow", "food", "foot", "force", "forest", "forget", "fork", "fortune", "forum", "forward", "fossil", "foster", "found", "fox", "fragile", "frame", "frequent", "fresh", "friend", "fringe", "frog", "front", "frost", "frown", "frozen", "fruit", "fuel", "fun", "funny", "furnace", "fury", "future", 
-	"gadget", "gain", "galaxy", "gallery", "game", "gap", "garage", "garbage", "garden", "garlic", "garment", "gas", "gasp", "gate", "gather", "gauge", "gaze", "general", "genius", "genre", "gentle", "genuine", "gesture", "ghost", "giant", "gift", "giggle", "ginger", "giraffe", "girl", "give", "glad", "glance", "glare", "glass", "glide", "glimpse", "globe", "gloom", "glory", "glove", "glow", "glue", "goat", "goddess", "gold", "good", "goose", "gorilla", "gospel", "gossip", "govern", "gown", "grab", "grace", "grain", "grant", "grape", "grass", "gravity", "great", "green", "grid", "grief", "grit", "grocery", "group", "grow", "grunt", "guard", "guess", "guide", "guilt", "guitar", "gun", "gym", 
-	"habit", "hair", "half", "hammer", "hamster", "hand", "happy", "harbor", "hard", "harsh", "harvest", "hat", "have", "hawk", "hazard", "head", "health", "heart", "heavy", "hedgehog", "height", "hello", "helmet", "help", "hen", "hero", "hidden", "high", "hill", "hint", "hip", "hire", "history", "hobby", "hockey", "hold", "hole", "holiday", "hollow", "home", "honey", "hood", "hope", "horn", "horror", "horse", "hospital", "host", "hotel", "hour", "hover", "hub", "huge", "human", "humble", "humor", "hundred", "hungry", "hunt", "hurdle", "hurry", "hurt", "husband", "hybrid", 
-	"ice", "icon", "idea", "identify", "idle", "ignore", "ill", "illegal", "illness", "image", "imitate", "immense", "immune", "impact", "impose", "improve", "impulse", "inch", "include", "income", "increase", "index", "indicate", "indoor", "industry", "infant", "inflict", "inform", "inhale", "inherit", "initial", "inject", "injury", "inmate", "inner", "innocent", "input", "inquiry", "insane", "insect", "inside", "inspire", "install", "intact", "interest", "into", "invest", "invite", "involve", "iron", "island", "isolate", "issue", "item", "ivory", 
-	"jacket", "jaguar", "jar", "jazz", "jealous", "jeans", "jelly", "jewel", "job", "join", "joke", "journey", "joy", "judge", "juice", "jump", "jungle", "junior", "junk", "just", 
-	"kangaroo", "keen", "keep", "ketchup", "key", "kick", "kid", "kidney", "kind", "kingdom", "kiss", "kit", "kitchen", "kite", "kitten", "kiwi", "knee", "knife", "knock", "know", 
-	"lab", "label", "labor", "ladder", "lady", "lake", "lamp", "language", "laptop", "large", "later", "latin", "laugh", "laundry", "lava", "law", "lawn", "lawsuit", "layer", "lazy", "leader", "leaf", "learn", "leave", "lecture", "left", "leg", "legal", "legend", "leisure", "lemon", "lend", "length", "lens", "leopard", "lesson", "letter", "level", "liar", "liberty", "library", "license", "life", "lift", "light", "like", "limb", "limit", "link", "lion", "liquid", "list", "little", "live", "lizard", "load", "loan", "lobster", "local", "lock", "logic", "lonely", "long", "loop", "lottery", "loud", "lounge", "love", "loyal", "lucky", "luggage", "lumber", "lunar", "lunch", "luxury", "lyrics",
-	"machine", "mad", "magic", "magnet", "maid", "mail", "main", "major", "make", "mammal", "man", "manage", "mandate", "mango", "mansion", "manual", "maple", "marble", "march", "margin", "marine", "market", "marriage", "mask", "mass", "master", "match", "material", "math", "matrix", "matter", "maximum", "maze", "meadow", "mean", "measure", "meat", "mechanic", "medal", "media", "melody", "melt", "member", "memory", "mention", "menu", "mercy", "merge", "merit", "merry", "mesh", "message", "metal", "method", "middle", "midnight", "milk", "million", "mimic", "mind", "minimum", "minor", "minute", "miracle", "mirror", "misery", "miss", "mistake", "mix", "mixed", "mixture", "mobile", "model", "modify", "mom", "moment", "monitor", "monkey", "monster", "month", "moon", "moral", "more", "morning", "mosquito", "mother", "motion", "motor", "mountain", "mouse", "move", "movie", "much", "muffin", "mule", "multiply", "muscle", "museum", "mushroom", "music", "must", "mutual", "myself", "mystery", "myth", 
-	"naive", "name", "napkin", "narrow", "nasty", "nation", "nature", "near", "neck", "need", "negative", "neglect", "neither", "nephew", "nerve", "nest", "net", "network", "neutral", "never", "news", "next", "nice", "night", "noble", "noise", "nominee", "noodle", "normal", "north", "nose", "notable", "note", "nothing", "notice", "novel", "now", "nuclear", "number", "nurse", "nut", 
-	"oak", "obey", "object", "oblige", "obscure", "observe", "obtain", "obvious", "occur", "ocean", "october", "odor", "off", "offer", "office", "often", "oil", "okay", "old", "olive", "olympic", "omit", "once", "one", "onion", "online", "only", "open", "opera", "opinion", "oppose", "option", "orange", "orbit", "orchard", "order", "ordinary", "organ", "orient", "original", "orphan", "ostrich", "other", "outdoor", "outer", "output", "outside", "oval", "oven", "over", "own", "owner", "oxygen", "oyster", "ozone",
-	"pact", "paddle", "page", "pair", "palace", "palm", "panda", "panel", "panic", "panther", "paper", "parade", "parent", "park", "parrot", "party", "pass", "patch", "path", "patient", "patrol", "pattern", "pause", "pave", "payment", "peace", "peanut", "pear", "peasant", "pelican", "pen", "penalty", "pencil", "people", "pepper", "perfect", "permit", "person", "pet", "phone", "photo", "phrase", "physical", "piano", "picnic", "picture", "piece", "pig", "pigeon", "pill", "pilot", "pink", "pioneer", "pipe", "pistol", "pitch", "pizza", "place", "planet", "plastic", "plate", "play", "please", "pledge", "pluck", "plug", "plunge", "poem", "poet", "point", "polar", "pole", "police", "pond", "pony", "pool", "popular", "portion", "position", "possible", "post", "potato", "pottery", "poverty", "powder", "power", "practice", "praise", "predict", "prefer", "prepare", "present", "pretty", "prevent", "price", "pride", "primary", "print", "priority", "prison", "private", "prize", "problem", "process", "produce", "profit", "program", "project", "promote", "proof", "property", "prosper", "protect", "proud", "provide", "public", "pudding", "pull", "pulp", "pulse", "pumpkin", "punch", "pupil", "puppy", "purchase", "purity", "purpose", "purse", "push", "put", "puzzle", "pyramid",
-	"quality", "quantum", "quarter", "question", "quick", "quit", "quiz", "quote", 
-	"rabbit", "raccoon", "race", "rack", "radar", "radio", "rail", "rain", "raise", "rally", "ramp", "ranch", "random", "range", "rapid", "rare", "rate", "rather", "raven", "raw", "razor", "ready", "real", "reason", "rebel", "rebuild", "recall", "receive", "recipe", "record", "recycle", "reduce", "reflect", "reform", "refuse", "region", "regret", "regular", "reject", "relax", "release", "relief", "rely", "remain", "remember", "remind", "remove", "render", "renew", "rent", "reopen", "repair", "repeat", "replace", "report", "require", "rescue", "resemble", "resist", "resource", "response", "result", "retire", "retreat", "return", "reunion", "reveal", "review", "reward", "rhythm", "rib", "ribbon", "rice", "rich", "ride", "ridge", "rifle", "right", "rigid", "ring", "riot", "ripple", "risk", "ritual", "rival", "river", "road", "roast", "robot", "robust", "rocket", "romance", "roof", "rookie", "room", "rose", "rotate", "rough", "round", "route", "royal", "rubber", "rude", "rug", "rule", "run", "runway", "rural",
-	"sad", "saddle", "sadness", "safe", "sail", "salad", "salmon", "salon", "salt", "salute", "same", "sample", "sand", "satisfy", "satoshi", "sauce", "sausage", "save", "say", "scale", "scan", "scare", "scatter", "scene", "scheme", "school", "science", "scissors", "scorpion", "scout", "scrap", "screen", "script", "scrub", "sea", "search", "season", "seat", "second", "secret", "section", "security", "seed", "seek", "segment", "select", "sell", "seminar", "senior", "sense", "sentence", "series", "service", "session", "settle", "setup", "seven", "shadow", "shaft", "shallow", "share", "shed", "shell", "sheriff", "shield", "shift", "shine", "ship", "shiver", "shock", "shoe", "shoot", "shop", "short", "shoulder", "shove", "shrimp", "shrug", "shuffle", "shy", "sibling", "sick", "side", "siege", "sight", "sign", "silent", "silk", "silly", "silver", "similar", "simple", "since", "sing", "siren", "sister", "situate", "six", "size", "skate", "sketch", "ski", "skill", "skin", "skirt", "skull", "slab", "slam", "sleep", "slender", "slice", "slide", "slight", "slim", "slogan", "slot", "slow", "slush", "small", "smart", "smile", "smoke", "smooth", "snack", "snake", "snap", "sniff", "snow", "soap", "soccer", "social", "sock", "soda", "soft", "solar", "soldier", "solid", "solution", "solve", "someone", "song", "soon", "sorry", "sort", "soul", "sound", "soup", "source", "south", "space", "spare", "spatial", "spawn", "speak", "special", "speed", "spell", "spend", "sphere", "spice", "spider", "spike", "spin", "spirit", "split", "spoil", "sponsor", "spoon", "sport", "spot", "spray", "spread", "spring", "spy", "square", "squeeze", "squirrel", "stable", "stadium", "staff", "stage", "stairs", "stamp", "stand", "start", "state", "stay", "steak", "steel", "stem", "step", "stereo", "stick", "still", "sting", "stock", "stomach", "stone", "stool", "story", "stove", "strategy", "street", "strike", "strong", "struggle", "student", "stuff", "stumble", "style", "subject", "submit", "subway", "success", "such", "sudden", "suffer", "sugar", "suggest", "suit", "summer", "sun", "sunny", "sunset", "super", "supply", "supreme", "sure", "surface", "surge", "surprise", "surround", "survey", "suspect", "sustain", "swallow", "swamp", "swap", "swarm", "swear", "sweet", "swift", "swim", "swing", "switch", "sword", "symbol", "symptom", "syrup", "system", 
-	"table", "tackle", "tag", "tail", "talent", "talk", "tank", "tape", "target", "task", "taste", "tattoo", "taxi", "teach", "team", "tell", "ten", "tenant", "tennis", "tent", "term", "test", "text", "thank", "that", "theme", "then", "theory", "there", "they", "thing", "this", "thought", "three", "thrive", "throw", "thumb", "thunder", "ticket", "tide", "tiger", "tilt", "timber", "time", "tiny", "tip", "tired", "tissue", "title", "toast", "tobacco", "today", "toddler", "toe", "together", "toilet", "token", "tomato", "tomorrow", "tone", "tongue", "tonight", "tool", "tooth", "top", "topic", "topple", "torch", "tornado", "tortoise", "toss", "total", "tourist", "toward", "tower", "town", "toy", "track", "trade", "traffic", "tragic", "train", "transfer", "trap", "trash", "travel", "tray", "treat", "tree", "trend", "trial", "tribe", "trick", "trigger", "trim", "trip", "trophy", "trouble", "truck", "true", "truly", "trumpet", "trust", "truth", "try", "tube", "tuition", "tumble", "tuna", "tunnel", "turkey", "turn", "turtle", "twelve", "twenty", "twice", "twin", "twist", "two", "type", "typical",
-	"ugly", "umbrella", "unable", "unaware", "uncle", "uncover", "under", "undo", "unfair", "unfold", "unhappy", "uniform", "unique", "unit", "universe", "unknown", "unlock", "until", "unusual", "unveil", "update", "upgrade", "uphold", "upon", "upper", "upset", "urban", "urge", "usage", "use", "used", "useful", "useless", "usual", "utility",
-	"vacant", "vacuum", "vague", "valid", "valley", "valve", "van", "vanish", "vapor", "various", "vast", "vault", "vehicle", "velvet", "vendor", "venture", "venue", "verb", "verify", "version", "very", "vessel", "veteran", "viable", "vibrant", "vicious", "victory", "video", "view", "village", "vintage", "violin", "virtual", "virus", "visa", "visit", "visual", "vital", "vivid", "vocal", "voice", "void", "volcano", "volume", "vote", "voyage", 
-	"wage", "wagon", "wait", "walk", "wall", "walnut", "want", "warfare", "warm", "warrior", "wash", "wasp", "waste", "water", "wave", "way", "wealth", "weapon", "wear", "weasel", "weather", "web", "wedding", "weekend", "weird", "welcome", "west", "wet", "whale", "what", "wheat", "wheel", "when", "where", "whip", "whisper", "wide", "width", "wife", "wild", "will", "win", "window", "wine", "wing", "wink", "winner", "winter", "wire", "wisdom", "wise", "wish", "witness", "wolf", "woman", "wonder", "wood", "wool", "word", "work", "world", "worry", "worth", "wrap", "wreck", "wrestle", "wrist", "write", "wrong",
-	"yard", "year", "yellow", "you", "young", "youth", 
-	"zebra", "zero", "zone", "zoo"
-]
+    "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse", "access", "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act", "action", "actor", "actress", "actual", "adapt", "add", "addict", "address", "adjust", "admit", "adult", "advance", "advice", "aerobic", "affair", "afford", "afraid", "again", "age", "agent", "agree", "ahead", "aim", "air", "airport", "aisle", "alarm", "album", "alcohol", "alert", "alien", "all", "alley", "allow", "almost", "alone", "alpha", "already", "also", "alter", "always", "amateur", "amazing", "among", "amount", "amused", "analyst", "anchor", "ancient", "anger", "angle", "angry", "animal", "ankle", "announce", "annual", "another", "answer", "antenna", "antique", "anxiety", "any", "apart", "apology", "appear", "apple", "approve", "april", "arch", "arctic", "area", "arena", "argue", "arm", "armed", "armor", "army", "around", "arrange", "arrest", "arrive", "arrow", "art", "artefact", "artist", "artwork", "ask", "aspect", "assault", "asset", "assist", "assume", "asthma", "athlete", "atom", "attack", "attend", "attitude", "attract", "auction", "audit", "august", "aunt", "author", "auto", "autumn", "average", "avocado", "avoid", "awake", "aware", "away", "awesome", "awful", "awkward", "axis",
+    "baby", "bachelor", "bacon", "badge", "bag", "balance", "balcony", "ball", "bamboo", "banana", "banner", "bar", "barely", "bargain", "barrel", "base", "basic", "basket", "battle", "beach", "bean", "beauty", "because", "become", "beef", "before", "begin", "behave", "behind", "believe", "below", "belt", "bench", "benefit", "best", "betray", "better", "between", "beyond", "bicycle", "bid", "bike", "bind", "biology", "bird", "birth", "bitter", "black", "blade", "blame", "blanket", "blast", "bleak", "bless", "blind", "blood", "blossom", "blouse", "blue", "blur", "blush", "board", "boat", "body", "boil", "bomb", "bone", "bonus", "book", "boost", "border", "boring", "borrow", "boss", "bottom", "bounce", "box", "boy", "bracket", "brain", "brand", "brass", "brave", "bread", "breeze", "brick", "bridge", "brief", "bright", "bring", "brisk", "broccoli", "broken", "bronze", "broom", "brother", "brown", "brush", "bubble", "buddy", "budget", "buffalo", "build", "bulb", "bulk", "bullet", "bundle", "bunker", "burden", "burger", "burst", "bus", "business", "busy", "butter", "buyer", "buzz",
+    "cabbage", "cabin", "cable", "cactus", "cage", "cake", "call", "calm", "camera", "camp", "can", "canal", "cancel", "candy", "cannon", "canoe", "canvas", "canyon", "capable", "capital", "captain", "car", "carbon", "card", "cargo", "carpet", "carry", "cart", "case", "cash", "casino", "castle", "casual", "cat", "catalog", "catch", "category", "cattle", "caught", "cause", "caution", "cave", "ceiling", "celery", "cement", "census", "century", "cereal", "certain", "chair", "chalk", "champion", "change", "chaos", "chapter", "charge", "chase", "chat", "cheap", "check", "cheese", "chef", "cherry", "chest", "chicken", "chief", "child", "chimney", "choice", "choose", "chronic", "chuckle", "chunk", "churn", "cigar", "cinnamon", "circle", "citizen", "city", "civil", "claim", "clap", "clarify", "claw", "clay", "clean", "clerk", "clever", "click", "client", "cliff", "climb", "clinic", "clip", "clock", "clog", "close", "cloth", "cloud", "clown", "club", "clump", "cluster", "clutch", "coach", "coast", "coconut", "code", "coffee", "coil", "coin", "collect", "color", "column", "combine", "come", "comfort", "comic", "common", "company", "concert", "conduct", "confirm", "congress", "connect", "consider", "control", "convince", "cook", "cool", "copper", "copy", "coral", "core", "corn", "correct", "cost", "cotton", "couch", "country", "couple", "course", "cousin", "cover", "coyote", "crack", "cradle", "craft", "cram", "crane", "crash", "crater", "crawl", "crazy", "cream", "credit", "creek", "crew", "cricket", "crime", "crisp", "critic", "crop", "cross", "crouch", "crowd", "crucial", "cruel", "cruise", "crumble", "crunch", "crush", "cry", "crystal", "cube", "culture", "cup", "cupboard", "curious", "current", "curtain", "curve", "cushion", "custom", "cute", "cycle",
+    "dad", "damage", "damp", "dance", "danger", "daring", "dash", "daughter", "dawn", "day", "deal", "debate", "debris", "decade", "december", "decide", "decline", "decorate", "decrease", "deer", "defense", "define", "defy", "degree", "delay", "deliver", "demand", "demise", "denial", "dentist", "deny", "depart", "depend", "deposit", "depth", "deputy", "derive", "describe", "desert", "design", "desk", "despair", "destroy", "detail", "detect", "develop", "device", "devote", "diagram", "dial", "diamond", "diary", "dice", "diesel", "diet", "differ", "digital", "dignity", "dilemma", "dinner", "dinosaur", "direct", "dirt", "disagree", "discover", "disease", "dish", "dismiss", "disorder", "display", "distance", "divert", "divide", "divorce", "dizzy", "doctor", "document", "dog", "doll", "dolphin", "domain", "donate", "donkey", "donor", "door", "dose", "double", "dove", "draft", "dragon", "drama", "drastic", "draw", "dream", "dress", "drift", "drill", "drink", "drip", "drive", "drop", "drum", "dry", "duck", "dumb", "dune", "during", "dust", "dutch", "duty", "dwarf", "dynamic",
+    "eager", "eagle", "early", "earn", "earth", "easily", "east", "easy", "echo", "ecology", "economy", "edge", "edit", "educate", "effort", "egg", "eight", "either", "elbow", "elder", "electric", "elegant", "element", "elephant", "elevator", "elite", "else", "embark", "embody", "embrace", "emerge", "emotion", "employ", "empower", "empty", "enable", "enact", "end", "endless", "endorse", "enemy", "energy", "enforce", "engage", "engine", "enhance", "enjoy", "enlist", "enough", "enrich", "enroll", "ensure", "enter", "entire", "entry", "envelope", "episode", "equal", "equip", "era", "erase", "erode", "erosion", "error", "erupt", "escape", "essay", "essence", "estate", "eternal", "ethics", "evidence", "evil", "evoke", "evolve", "exact", "example", "excess", "exchange", "excite", "exclude", "excuse", "execute", "exercise", "exhaust", "exhibit", "exile", "exist", "exit", "exotic", "expand", "expect", "expire", "explain", "expose", "express", "extend", "extra", "eye", "eyebrow",
+    "fabric", "face", "faculty", "fade", "faint", "faith", "fall", "false", "fame", "family", "famous", "fan", "fancy", "fantasy", "farm", "fashion", "fat", "fatal", "father", "fatigue", "fault", "favorite", "feature", "february", "federal", "fee", "feed", "feel", "female", "fence", "festival", "fetch", "fever", "few", "fiber", "fiction", "field", "figure", "file", "film", "filter", "final", "find", "fine", "finger", "finish", "fire", "firm", "first", "fiscal", "fish", "fit", "fitness", "fix", "flag", "flame", "flash", "flat", "flavor", "flee", "flight", "flip", "float", "flock", "floor", "flower", "fluid", "flush", "fly", "foam", "focus", "fog", "foil", "fold", "follow", "food", "foot", "force", "forest", "forget", "fork", "fortune", "forum", "forward", "fossil", "foster", "found", "fox", "fragile", "frame", "frequent", "fresh", "friend", "fringe", "frog", "front", "frost", "frown", "frozen", "fruit", "fuel", "fun", "funny", "furnace", "fury", "future",
+    "gadget", "gain", "galaxy", "gallery", "game", "gap", "garage", "garbage", "garden", "garlic", "garment", "gas", "gasp", "gate", "gather", "gauge", "gaze", "general", "genius", "genre", "gentle", "genuine", "gesture", "ghost", "giant", "gift", "giggle", "ginger", "giraffe", "girl", "give", "glad", "glance", "glare", "glass", "glide", "glimpse", "globe", "gloom", "glory", "glove", "glow", "glue", "goat", "goddess", "gold", "good", "goose", "gorilla", "gospel", "gossip", "govern", "gown", "grab", "grace", "grain", "grant", "grape", "grass", "gravity", "great", "green", "grid", "grief", "grit", "grocery", "group", "grow", "grunt", "guard", "guess", "guide", "guilt", "guitar", "gun", "gym",
+    "habit", "hair", "half", "hammer", "hamster", "hand", "happy", "harbor", "hard", "harsh", "harvest", "hat", "have", "hawk", "hazard", "head", "health", "heart", "heavy", "hedgehog", "height", "hello", "helmet", "help", "hen", "hero", "hidden", "high", "hill", "hint", "hip", "hire", "history", "hobby", "hockey", "hold", "hole", "holiday", "hollow", "home", "honey", "hood", "hope", "horn", "horror", "horse", "hospital", "host", "hotel", "hour", "hover", "hub", "huge", "human", "humble", "humor", "hundred", "hungry", "hunt", "hurdle", "hurry", "hurt", "husband", "hybrid",
+    "ice", "icon", "idea", "identify", "idle", "ignore", "ill", "illegal", "illness", "image", "imitate", "immense", "immune", "impact", "impose", "improve", "impulse", "inch", "include", "income", "increase", "index", "indicate", "indoor", "industry", "infant", "inflict", "inform", "inhale", "inherit", "initial", "inject", "injury", "inmate", "inner", "innocent", "input", "inquiry", "insane", "insect", "inside", "inspire", "install", "intact", "interest", "into", "invest", "invite", "involve", "iron", "island", "isolate", "issue", "item", "ivory",
+    "jacket", "jaguar", "jar", "jazz", "jealous", "jeans", "jelly", "jewel", "job", "join", "joke", "journey", "joy", "judge", "juice", "jump", "jungle", "junior", "junk", "just",
+    "kangaroo", "keen", "keep", "ketchup", "key", "kick", "kid", "kidney", "kind", "kingdom", "kiss", "kit", "kitchen", "kite", "kitten", "kiwi", "knee", "knife", "knock", "know",
+    "lab", "label", "labor", "ladder", "lady", "lake", "lamp", "language", "laptop", "large", "later", "latin", "laugh", "laundry", "lava", "law", "lawn", "lawsuit", "layer", "lazy", "leader", "leaf", "learn", "leave", "lecture", "left", "leg", "legal", "legend", "leisure", "lemon", "lend", "length", "lens", "leopard", "lesson", "letter", "level", "liar", "liberty", "library", "license", "life", "lift", "light", "like", "limb", "limit", "link", "lion", "liquid", "list", "little", "live", "lizard", "load", "loan", "lobster", "local", "lock", "logic", "lonely", "long", "loop", "lottery", "loud", "lounge", "love", "loyal", "lucky", "luggage", "lumber", "lunar", "lunch", "luxury", "lyrics",
+    "machine", "mad", "magic", "magnet", "maid", "mail", "main", "major", "make", "mammal", "man", "manage", "mandate", "mango", "mansion", "manual", "maple", "marble", "march", "margin", "marine", "market", "marriage", "mask", "mass", "master", "match", "material", "math", "matrix", "matter", "maximum", "maze", "meadow", "mean", "measure", "meat", "mechanic", "medal", "media", "melody", "melt", "member", "memory", "mention", "menu", "mercy", "merge", "merit", "merry", "mesh", "message", "metal", "method", "middle", "midnight", "milk", "million", "mimic", "mind", "minimum", "minor", "minute", "miracle", "mirror", "misery", "miss", "mistake", "mix", "mixed", "mixture", "mobile", "model", "modify", "mom", "moment", "monitor", "monkey", "monster", "month", "moon", "moral", "more", "morning", "mosquito", "mother", "motion", "motor", "mountain", "mouse", "move", "movie", "much", "muffin", "mule", "multiply", "muscle", "museum", "mushroom", "music", "must", "mutual", "myself", "mystery", "myth",
+    "naive", "name", "napkin", "narrow", "nasty", "nation", "nature", "near", "neck", "need", "negative", "neglect", "neither", "nephew", "nerve", "nest", "net", "network", "neutral", "never", "news", "next", "nice", "night", "noble", "noise", "nominee", "noodle", "normal", "north", "nose", "notable", "note", "nothing", "notice", "novel", "now", "nuclear", "number", "nurse", "nut",
+    "oak", "obey", "object", "oblige", "obscure", "observe", "obtain", "obvious", "occur", "ocean", "october", "odor", "off", "offer", "office", "often", "oil", "okay", "old", "olive", "olympic", "omit", "once", "one", "onion", "online", "only", "open", "opera", "opinion", "oppose", "option", "orange", "orbit", "orchard", "order", "ordinary", "organ", "orient", "original", "orphan", "ostrich", "other", "outdoor", "outer", "output", "outside", "oval", "oven", "over", "own", "owner", "oxygen", "oyster", "ozone",
+    "pact", "paddle", "page", "pair", "palace", "palm", "panda", "panel", "panic", "panther", "paper", "parade", "parent", "park", "parrot", "party", "pass", "patch", "path", "patient", "patrol", "pattern", "pause", "pave", "payment", "peace", "peanut", "pear", "peasant", "pelican", "pen", "penalty", "pencil", "people", "pepper", "perfect", "permit", "person", "pet", "phone", "photo", "phrase", "physical", "piano", "picnic", "picture", "piece", "pig", "pigeon", "pill", "pilot", "pink", "pioneer", "pipe", "pistol", "pitch", "pizza", "place", "planet", "plastic", "plate", "play", "please", "pledge", "pluck", "plug", "plunge", "poem", "poet", "point", "polar", "pole", "police", "pond", "pony", "pool", "popular", "portion", "position", "possible", "post", "potato", "pottery", "poverty", "powder", "power", "practice", "praise", "predict", "prefer", "prepare", "present", "pretty", "prevent", "price", "pride", "primary", "print", "priority", "prison", "private", "prize", "problem", "process", "produce", "profit", "program", "project", "promote", "proof", "property", "prosper", "protect", "proud", "provide", "public", "pudding", "pull", "pulp", "pulse", "pumpkin", "punch", "pupil", "puppy", "purchase", "purity", "purpose", "purse", "push", "put", "puzzle", "pyramid",
+    "quality", "quantum", "quarter", "question", "quick", "quit", "quiz", "quote",
+    "rabbit", "raccoon", "race", "rack", "radar", "radio", "rail", "rain", "raise", "rally", "ramp", "ranch", "random", "range", "rapid", "rare", "rate", "rather", "raven", "raw", "razor", "ready", "real", "reason", "rebel", "rebuild", "recall", "receive", "recipe", "record", "recycle", "reduce", "reflect", "reform", "refuse", "region", "regret", "regular", "reject", "relax", "release", "relief", "rely", "remain", "remember", "remind", "remove", "render", "renew", "rent", "reopen", "repair", "repeat", "replace", "report", "require", "rescue", "resemble", "resist", "resource", "response", "result", "retire", "retreat", "return", "reunion", "reveal", "review", "reward", "rhythm", "rib", "ribbon", "rice", "rich", "ride", "ridge", "rifle", "right", "rigid", "ring", "riot", "ripple", "risk", "ritual", "rival", "river", "road", "roast", "robot", "robust", "rocket", "romance", "roof", "rookie", "room", "rose", "rotate", "rough", "round", "route", "royal", "rubber", "rude", "rug", "rule", "run", "runway", "rural",
+    "sad", "saddle", "sadness", "safe", "sail", "salad", "salmon", "salon", "salt", "salute", "same", "sample", "sand", "satisfy", "satoshi", "sauce", "sausage", "save", "say", "scale", "scan", "scare", "scatter", "scene", "scheme", "school", "science", "scissors", "scorpion", "scout", "scrap", "screen", "script", "scrub", "sea", "search", "season", "seat", "second", "secret", "section", "security", "seed", "seek", "segment", "select", "sell", "seminar", "senior", "sense", "sentence", "series", "service", "session", "settle", "setup", "seven", "shadow", "shaft", "shallow", "share", "shed", "shell", "sheriff", "shield", "shift", "shine", "ship", "shiver", "shock", "shoe", "shoot", "shop", "short", "shoulder", "shove", "shrimp", "shrug", "shuffle", "shy", "sibling", "sick", "side", "siege", "sight", "sign", "silent", "silk", "silly", "silver", "similar", "simple", "since", "sing", "siren", "sister", "situate", "six", "size", "skate", "sketch", "ski", "skill", "skin", "skirt", "skull", "slab", "slam", "sleep", "slender", "slice", "slide", "slight", "slim", "slogan", "slot", "slow", "slush", "small", "smart", "smile", "smoke", "smooth", "snack", "snake", "snap", "sniff", "snow", "soap", "soccer", "social", "sock", "soda", "soft", "solar", "soldier", "solid", "solution", "solve", "someone", "song", "soon", "sorry", "sort", "soul", "sound", "soup", "source", "south", "space", "spare", "spatial", "spawn", "speak", "special", "speed", "spell", "spend", "sphere", "spice", "spider", "spike", "spin", "spirit", "split", "spoil", "sponsor", "spoon", "sport", "spot", "spray", "spread", "spring", "spy", "square", "squeeze", "squirrel", "stable", "stadium", "staff", "stage", "stairs", "stamp", "stand", "start", "state", "stay", "steak", "steel", "stem", "step", "stereo", "stick", "still", "sting", "stock", "stomach", "stone", "stool", "story", "stove", "strategy", "street", "strike", "strong", "struggle", "student", "stuff", "stumble", "style", "subject", "submit", "subway", "success", "such", "sudden", "suffer", "sugar", "suggest", "suit", "summer", "sun", "sunny", "sunset", "super", "supply", "supreme", "sure", "surface", "surge", "surprise", "surround", "survey", "suspect", "sustain", "swallow", "swamp", "swap", "swarm", "swear", "sweet", "swift", "swim", "swing", "switch", "sword", "symbol", "symptom", "syrup", "system",
+    "table", "tackle", "tag", "tail", "talent", "talk", "tank", "tape", "target", "task", "taste", "tattoo", "taxi", "teach", "team", "tell", "ten", "tenant", "tennis", "tent", "term", "test", "text", "thank", "that", "theme", "then", "theory", "there", "they", "thing", "this", "thought", "three", "thrive", "throw", "thumb", "thunder", "ticket", "tide", "tiger", "tilt", "timber", "time", "tiny", "tip", "tired", "tissue", "title", "toast", "tobacco", "today", "toddler", "toe", "together", "toilet", "token", "tomato", "tomorrow", "tone", "tongue", "tonight", "tool", "tooth", "top", "topic", "topple", "torch", "tornado", "tortoise", "toss", "total", "tourist", "toward", "tower", "town", "toy", "track", "trade", "traffic", "tragic", "train", "transfer", "trap", "trash", "travel", "tray", "treat", "tree", "trend", "trial", "tribe", "trick", "trigger", "trim", "trip", "trophy", "trouble", "truck", "true", "truly", "trumpet", "trust", "truth", "try", "tube", "tuition", "tumble", "tuna", "tunnel", "turkey", "turn", "turtle", "twelve", "twenty", "twice", "twin", "twist", "two", "type", "typical",
+    "ugly", "umbrella", "unable", "unaware", "uncle", "uncover", "under", "undo", "unfair", "unfold", "unhappy", "uniform", "unique", "unit", "universe", "unknown", "unlock", "until", "unusual", "unveil", "update", "upgrade", "uphold", "upon", "upper", "upset", "urban", "urge", "usage", "use", "used", "useful", "useless", "usual", "utility",
+    "vacant", "vacuum", "vague", "valid", "valley", "valve", "van", "vanish", "vapor", "various", "vast", "vault", "vehicle", "velvet", "vendor", "venture", "venue", "verb", "verify", "version", "very", "vessel", "veteran", "viable", "vibrant", "vicious", "victory", "video", "view", "village", "vintage", "violin", "virtual", "virus", "visa", "visit", "visual", "vital", "vivid", "vocal", "voice", "void", "volcano", "volume", "vote", "voyage",
+    "wage", "wagon", "wait", "walk", "wall", "walnut", "want", "warfare", "warm", "warrior", "wash", "wasp", "waste", "water", "wave", "way", "wealth", "weapon", "wear", "weasel", "weather", "web", "wedding", "weekend", "weird", "welcome", "west", "wet", "whale", "what", "wheat", "wheel", "when", "where", "whip", "whisper", "wide", "width", "wife", "wild", "will", "win", "window", "wine", "wing", "wink", "winner", "winter", "wire", "wisdom", "wise", "wish", "witness", "wolf", "woman", "wonder", "wood", "wool", "word", "work", "world", "worry", "worth", "wrap", "wreck", "wrestle", "wrist", "write", "wrong",
+    "yard", "year", "yellow", "you", "young", "youth",
+    "zebra", "zero", "zone", "zoo"
+];
 
 
 
@@ -4893,7 +4920,7 @@ export const BIP39_DICT_EN = [
 
 /**
  * Base class of any Cbor serializable data class
- * Also contains helper methods for (de)serializing data to/from Cbor
+ * Also 
  */
 export class CborData {
 	constructor() {
@@ -4912,13 +4939,19 @@ export class CborData {
 	toCborHex() {
 		return bytesToHex(this.toCbor())
 	}
+}
 
+/**
+ * Helper methods for (de)serializing data to/from Cbor.
+ * @namespace
+ */
+export const Cbor = {
 	/**
 	 * @param {number} m - major type
 	 * @param {bigint} n - size parameter
 	 * @returns {number[]} - uint8 bytes
 	 */
-	static encodeHead(m, n) {
+	encodeHead: (m, n) => {
 		if (n <= 23n) {
 			return [32*m + Number(n)];
 		} else if (n >= 24n && n <= 255n) {
@@ -4926,14 +4959,14 @@ export class CborData {
 		} else if (n >= 256n && n <= 256n*256n - 1n) {
 			return [32*m + 25, Number((n/256n)%256n), Number(n%256n)];
 		} else if (n >= 256n*256n && n <= 256n*256n*256n*256n - 1n) {
-			let e4 = bigIntToBytes(n);
+			const e4 = bigIntToBytes(n);
 
 			while (e4.length < 4) {
 				e4.unshift(0);
 			}
 			return [32*m + 26].concat(e4);
 		} else if (n >= 256n*256n*256n*256n && n <= 256n*256n*256n*256n*256n*256n*256n*256n - 1n) {
-			let e8 = bigIntToBytes(n);
+			const e8 = bigIntToBytes(n);
 
 			while(e8.length < 8) {
 				e8.unshift(0);
@@ -4942,18 +4975,18 @@ export class CborData {
 		} else {
 			throw new Error("n out of range");
 		}
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes - mutated to contain the rest
 	 * @returns {[number, bigint]} - [majorType, n]
 	 */
-	static decodeHead(bytes) {
+	decodeHead: (bytes) => {
 		if (bytes.length == 0) {
 			throw new Error("empty cbor head");
 		}
 
-		let first = assertDefined(bytes.shift());
+		const first = assertDefined(bytes.shift());
 
 		if (first%32 <= 23) {
 			return [idiv(first, 32), BigInt(first%32)];
@@ -4968,73 +5001,73 @@ export class CborData {
 		} else {
 			throw new Error("bad header");
 		}
-	}
+	},
 
 	/**
 	 * @param {number} m
 	 * @returns {number[]}
 	 */
-	static encodeIndefHead(m) {
+	encodeIndefHead: (m) => {
 		return [32*m + 31];
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes - cbor bytes
 	 * @returns {number} - majorType
 	 */
-	static decodeIndefHead(bytes) {
-		let first = assertDefined(bytes.shift());
+	decodeIndefHead: (bytes) => {
+		const first = assertDefined(bytes.shift());
 
-		let m = idiv(first - 31, 32);
+		const m = idiv(first - 31, 32);
 
 		return m;
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
-	static isNull(bytes) {
+	isNull: (bytes) => {
 		return bytes[0] == 246;
-	}
+	},
 
 	/**
 	 * @returns {number[]}
 	 */
-	static encodeNull() {
+	encodeNull: () => {
 		return [246];
-	}
+	},
 
 	/**
 	 * Throws error if not null
 	 * @param {number[]} bytes
 	 */
-	static decodeNull(bytes) {
-		let b = assertDefined(bytes.shift());
+	decodeNull: (bytes) => {
+		const b = assertDefined(bytes.shift());
 
 		if (b != 246) {
 			throw new Error("not null");
 		}
-	}
+	},
 
 	/**
 	 * @param {boolean} b
 	 * @returns {number[]}
 	 */
-	static encodeBool(b) {
+	encodeBool: (b) => {
 		if (b) {
 			return [245];
 		} else {
 			return [244];
 		}
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
-	static decodeBool(bytes) {
-		let b = assertDefined(bytes.shift());
+	decodeBool: (bytes) => {
+		const b = assertDefined(bytes.shift());
 
 		if (b == 245) {
 			return true;
@@ -5043,74 +5076,82 @@ export class CborData {
 		} else {
 			throw new Error("unexpected non-boolean cbor object");
 		}
-	}
+	},
+
+	/**
+	 * @param {number[]} bytes 
+	 * @returns {boolean}
+	 */
+	isBytes: (bytes) => {
+		return Cbor.isDefBytes(bytes) || Cbor.isIndefBytes(bytes);
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
-	static isDefBytes(bytes) {
+	isDefBytes: (bytes) => {
 		if (bytes.length == 0) {
 			throw new Error("empty cbor bytes");
 		}
 
-		let [m, _] = CborData.decodeHead(bytes.slice(0, 9));
+		const [m, _] = Cbor.decodeHead(bytes.slice(0, 9));
 
 		return m == 2;
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
-	static isIndefBytes(bytes) {
+	isIndefBytes: (bytes) => {
 		if (bytes.length == 0) {
 			throw new Error("empty cbor bytes");
 		}
 
 		return 2*32 + 31 == bytes[0];
-	}
+	},
 
 	/**
 	 * @example
-	 * bytesToHex(CborData.encodeBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
+	 * bytesToHex(Cbor.encodeBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
 	 * @param {number[]} bytes
 	 * @param {boolean} splitInChunks
 	 * @returns {number[]} - cbor bytes
 	 */
-	static encodeBytes(bytes, splitInChunks = false) {
+	encodeBytes: (bytes, splitInChunks = false) => {
 		bytes = bytes.slice();
 
 		if (bytes.length <= 64 || !splitInChunks) {
-			let head = CborData.encodeHead(2, BigInt(bytes.length));
+			const head = Cbor.encodeHead(2, BigInt(bytes.length));
 			return head.concat(bytes);
 		} else {
-			let res = CborData.encodeIndefHead(2);
+			let res = Cbor.encodeIndefHead(2);
 
 			while (bytes.length > 0) {
-				let chunk = bytes.splice(0, 64);
+				const chunk = bytes.splice(0, 64);
 
-				res = res.concat(CborData.encodeHead(2, BigInt(chunk.length))).concat(chunk);
+				res = res.concat(Cbor.encodeHead(2, BigInt(chunk.length))).concat(chunk);
 			}
 
 			res.push(255);
 
 			return res;
 		}
-	}
+	},
 
 	/**
 	 * Decodes both an indef array of bytes, and a bytearray of specified length
 	 * @example
-	 * bytesToHex(CborData.decodeBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
+	 * bytesToHex(Cbor.decodeBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
 	 * @param {number[]} bytes - cborbytes, mutated to form remaining
 	 * @returns {number[]} - byteArray
 	 */
-	static decodeBytes(bytes) {
+	decodeBytes: (bytes) => {
 		// check header type
 		assert(bytes.length > 0);
 
-		if (CborData.isIndefBytes(bytes)) {
+		if (Cbor.isIndefBytes(bytes)) {
 			// multiple chunks
 			void bytes.shift();
 
@@ -5120,7 +5161,7 @@ export class CborData {
 			let res = [];
 
 			while(bytes[0] != 255) {
-				let [_, n] = CborData.decodeHead(bytes);
+				const [_, n] = Cbor.decodeHead(bytes);
 				if (n > 64n) {
 					throw new Error("bytearray chunk too large");
 				}
@@ -5132,23 +5173,21 @@ export class CborData {
 
 			return res;
 		} else {
-			let [_, n] = CborData.decodeHead(bytes);
+			const [_, n] = Cbor.decodeHead(bytes);
 
 			return bytes.splice(0, Number(n));
 		}
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
-	static isUtf8(bytes) {
-		if (bytes.length == 0) {
-			throw new Error("empty cbor bytes");
-		}
+	isUtf8: (bytes) => {
+		const [m, _] = Cbor.decodeHead(bytes.slice());
 
-		return bytes[0] === 120;
-	}
+		return m == 3;
+	},
 
 	/**
 	 * Encodes a Utf8 string into Cbor bytes.
@@ -5158,7 +5197,7 @@ export class CborData {
 	 * @param {boolean} split
 	 * @returns {number[]}
 	 */
-	static encodeUtf8(str, split = false) {
+	encodeUtf8: (str, split = false) => {
 		const bytes = textToBytes(str);
 
 		if (split && bytes.length > 64) {
@@ -5179,70 +5218,71 @@ export class CborData {
 						maxChunkLength--;
 					}
 				}
-				chunks.push([120, chunk.length].concat(chunk));
+				chunks.push(Cbor.encodeHead(3, BigInt(chunk.length)).concat(chunk));
 				i += chunk.length;
 			}
 
-			return CborData.encodeDefList(chunks);
+			return Cbor.encodeDefList(chunks);
 		} else {
-			return [120, bytes.length].concat(bytes);
+			return Cbor.encodeHead(3, BigInt(bytes.length)).concat(bytes);
 		}
-	}
+	},
+
+	/**
+	 * @internal
+	 * @param {number[]} bytes
+	 * @returns {string}
+	 */
+	decodeUtf8Internal: (bytes) => {
+		const [m, n] = Cbor.decodeHead(bytes);
+
+		assert(m === 3);
+
+		return bytesToText(bytes.splice(0, Number(n)));
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {string}
 	 */
-	static decodeUtf8Internal(bytes) {
-		assert(bytes.shift() === 120);
-
-		const length = bytes.shift();
-
-		return bytesToText(bytes.splice(0, length));
-	}
-
-	/**
-	 * @param {number[]} bytes
-	 * @returns {string}
-	 */
-	static decodeUtf8(bytes) {
+	decodeUtf8: (bytes) => {
 		assert(bytes.length > 0);
 
-		if (CborData.isDefList(bytes)) {
+		if (Cbor.isDefList(bytes)) {
 			let result = "";
 
-			CborData.decodeList(bytes, (_, itemBytes) => {
-				result += CborData.decodeUtf8Internal(itemBytes);
+			Cbor.decodeList(bytes, (_, itemBytes) => {
+				result += Cbor.decodeUtf8Internal(itemBytes);
 			});
 
 			return result;
 		} else {
-			return CborData.decodeUtf8Internal(bytes);
+			return Cbor.decodeUtf8Internal(bytes);
 		}
-	}
+	},
 
 	/**
 	 * @param {bigint} n
 	 * @returns {number[]} - cbor bytes
 	 */
-	static encodeInteger(n) {
+	encodeInteger: (n) => {
 		if (n >= 0n && n <= (2n << 63n) - 1n) {
-			return CborData.encodeHead(0, n);
+			return Cbor.encodeHead(0, n);
 		} else if (n >= (2n << 63n)) {
-			return CborData.encodeHead(6, 2n).concat(CborData.encodeBytes(bigIntToBytes(n)));
+			return Cbor.encodeHead(6, 2n).concat(Cbor.encodeBytes(bigIntToBytes(n)));
 		} else if (n <= -1n && n >= -(2n << 63n)) {
-			return CborData.encodeHead(1, -n - 1n);
+			return Cbor.encodeHead(1, -n - 1n);
 		} else {
-			return CborData.encodeHead(6, 3n).concat(CborData.encodeBytes(bigIntToBytes(-n - 1n)));
+			return Cbor.encodeHead(6, 3n).concat(Cbor.encodeBytes(bigIntToBytes(-n - 1n)));
 		}
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {bigint}
 	 */
-	static decodeInteger(bytes) {
-		let [m, n] = CborData.decodeHead(bytes);
+	decodeInteger: (bytes) => {
+		const [m, n] = Cbor.decodeHead(bytes);
 
 		if (m == 0) {
 			return n;
@@ -5250,11 +5290,11 @@ export class CborData {
 			return -n - 1n;
 		} else if (m == 6) {
 			if (n == 2n) {
-				let b = CborData.decodeBytes(bytes);
+				const b = Cbor.decodeBytes(bytes);
 
 				return bytesToBigInt(b);
 			} else if (n == 3n) {
-				let b = CborData.decodeBytes(bytes);
+				const b = Cbor.decodeBytes(bytes);
 
 				return -bytesToBigInt(b) - 1n;
 			} else {
@@ -5263,32 +5303,32 @@ export class CborData {
 		} else {
 			throw new Error(`unexpected tag m:${m}`);
 		}
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
-	static isIndefList(bytes) {
+	isIndefList: (bytes) => {
 		if (bytes.length == 0) {
 			throw new Error("empty cbor bytes");
 		}
 
 		return 4*32 + 31 == bytes[0];
-	}
+	},
 
 	/**
 	 * @returns {number[]}
 	 */
-	static encodeIndefListStart() {
-		return CborData.encodeIndefHead(4);
-	}
+	encodeIndefListStart: () => {
+		return Cbor.encodeIndefHead(4);
+	},
 
 	/**
 	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
-	static encodeListInternal(list) {
+	encodeListInternal: (list) => {
 		/**
 		 * @type {number[]}
 		 */
@@ -5302,78 +5342,79 @@ export class CborData {
 		}
 
 		return res;
-	}
+	},
 
 	/**
+	 * @internal
 	 * @returns {number[]}
 	 */
-	static encodeIndefListEnd() {
+	encodeIndefListEnd: () => {
 		return [255];
-	}
+	},
 
 	/**
 	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
-	static encodeList(list) {
+	encodeList: (list) => {
 		// This follows the serialization format that the Haskell input-output-hk/plutus UPLC evaluator
 		// https://github.com/well-typed/cborg/blob/4bdc818a1f0b35f38bc118a87944630043b58384/serialise/src/Codec/Serialise/Class.hs#L181
-		return list.length ? CborData.encodeIndefList(list) : CborData.encodeDefList(list);
-	}
+		return list.length ? Cbor.encodeIndefList(list) : Cbor.encodeDefList(list);
+	},
 
 	/**
 	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
-	static encodeIndefList(list) {
-		return CborData.encodeIndefListStart().concat(CborData.encodeListInternal(list)).concat(CborData.encodeIndefListEnd());
-	}
+	encodeIndefList: (list) => {
+		return Cbor.encodeIndefListStart().concat(Cbor.encodeListInternal(list)).concat(Cbor.encodeIndefListEnd());
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
-	static isDefList(bytes) {
+	isDefList: (bytes) => {
 		try {
-			let [m, _] = CborData.decodeHead(bytes.slice(0, 9));
+			const [m, _] = Cbor.decodeHead(bytes.slice(0, 9));
 			return m == 4;
 		} catch (error) {
 			if (error.message.includes("bad header")) return false;
 			throw error;
 		}
-	}
+	},
 
 	/**
 	 * @param {bigint} n
 	 * @returns {number[]}
 	 */
-	static encodeDefListStart(n) {
-		return CborData.encodeHead(4, n);
-	}
+	encodeDefListStart: (n) => {
+		return Cbor.encodeHead(4, n);
+	},
 
 	/**
 	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
-	static encodeDefList(list) {
-		return CborData.encodeDefListStart(BigInt(list.length)).concat(CborData.encodeListInternal(list));
-	}
+	encodeDefList: (list) => {
+		return Cbor.encodeDefListStart(BigInt(list.length)).concat(Cbor.encodeListInternal(list));
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
-	static isList(bytes) {
-		return CborData.isIndefList(bytes) || CborData.isDefList(bytes);
-	}
+	isList: (bytes) => {
+		return Cbor.isIndefList(bytes) || Cbor.isDefList(bytes);
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @param {Decoder} itemDecoder
 	 */
-	static decodeList(bytes, itemDecoder) {
-		if (CborData.isIndefList(bytes)) {
-			assert(CborData.decodeIndefHead(bytes) == 4);
+	decodeList: (bytes, itemDecoder) => {
+		if (Cbor.isIndefList(bytes)) {
+			assert(Cbor.decodeIndefHead(bytes) == 4);
 
 			let i = 0;
 			while(bytes[0] != 255) {
@@ -5383,7 +5424,7 @@ export class CborData {
 
 			assert(bytes.shift() == 255);
 		} else {
-			let [m, n] = CborData.decodeHead(bytes);
+			const [m, n] = Cbor.decodeHead(bytes);
 
 			assert(m == 4);
 
@@ -5391,64 +5432,64 @@ export class CborData {
 				itemDecoder(i, bytes);
 			}
 		}
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
-	static isTuple(bytes) {
-		return CborData.isIndefList(bytes) || CborData.isDefList(bytes);
-	}
+	isTuple: (bytes) => {
+		return Cbor.isIndefList(bytes) || Cbor.isDefList(bytes);
+	},
 
 	/**
 	 * @param {number[][]} tuple
 	 * @returns {number[]}
 	 */
-	static encodeTuple(tuple) {
-		return CborData.encodeDefList(tuple);
-	}
-
+	encodeTuple: (tuple) => {
+		return Cbor.encodeDefList(tuple);
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @param {Decoder} tupleDecoder
 	 * @returns {number} - returns the size of the tuple
 	 */
-	static decodeTuple(bytes, tupleDecoder) {
+	decodeTuple: (bytes, tupleDecoder) => {
 		let count = 0;
 
-		CborData.decodeList(bytes, (_, itemBytes) => {
+		Cbor.decodeList(bytes, (_, itemBytes) => {
 			tupleDecoder(count, itemBytes);
 			count++;
 		});
 
 		return count;
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
-	static isMap(bytes) {
-		let [m, _] = CborData.decodeHead(bytes.slice(0, 9));
+	isMap: (bytes) => {
+		const [m, _] = Cbor.decodeHead(bytes.slice(0, 9));
 
 		return m == 5;
-	}
+	},
 
 	/**
+	 * @internal
 	 * @param {[CborData | number[], CborData | number[]][]} pairList
 	 * @returns {number[]}
 	 */
-	static encodeMapInternal(pairList) {
+	encodeMapInternal: (pairList) => {
 		/**
 		 * @type {number[]}
 		 */
 		let res = [];
 
 		for (let pair of pairList) {
-			let key = pair[0];
-			let value = pair[1];
+			const key = pair[0];
+			const value = pair[1];
 
 			if (key instanceof CborData) {
 				res = res.concat(key.toCbor());
@@ -5464,61 +5505,61 @@ export class CborData {
 		}
 
 		return res;
-	}
+	},
 
 	/**
 	 * A decode map method doesn't exist because it specific for the requested type
 	 * @param {[CborData | number[], CborData | number[]][]} pairList
 	 * @returns {number[]}
 	 */
-	static encodeMap(pairList) {
-		return CborData.encodeHead(5, BigInt(pairList.length)).concat(CborData.encodeMapInternal(pairList));
-	}
+	encodeMap: (pairList) => {
+		return Cbor.encodeHead(5, BigInt(pairList.length)).concat(Cbor.encodeMapInternal(pairList));
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @param {Decoder} pairDecoder
 	 */
-	static decodeMap(bytes, pairDecoder) {
-		let [m, n] = CborData.decodeHead(bytes);
+	decodeMap: (bytes, pairDecoder) => {
+		const [m, n] = Cbor.decodeHead(bytes);
 
 		assert(m == 5);
 
 		for (let i = 0; i < n; i++) {
 			pairDecoder(i, bytes);
 		}
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
-	static isObject(bytes) {
-		return CborData.isMap(bytes);
-	}
+	isObject: (bytes) => {
+		return Cbor.isMap(bytes);
+	},
 
 	/**
 	 * @param {Map<number, CborData | number[]>} object
 	 * @returns {number[]}
 	 */
-	static encodeObject(object) {
-		return CborData.encodeMap(Array.from(object.entries()).map(pair => [
-			CborData.encodeInteger(BigInt(pair[0])),
+	encodeObject: (object) => {
+		return Cbor.encodeMap(Array.from(object.entries()).map(pair => [
+			Cbor.encodeInteger(BigInt(pair[0])),
 			pair[1]
 		]));
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @param {Decoder} fieldDecoder
 	 * @returns {Set<number>}
 	 */
-	static decodeObject(bytes, fieldDecoder) {
+	decodeObject: (bytes, fieldDecoder) => {
 		/** @type {Set<number>} */
-		let done = new Set();
+		const done = new Set();
 
-		CborData.decodeMap(bytes, (_, pairBytes) => {
-			let i = Number(CborData.decodeInteger(pairBytes));
+		Cbor.decodeMap(bytes, (_, pairBytes) => {
+			let i = Number(Cbor.decodeInteger(pairBytes));
 
 			fieldDecoder(i, pairBytes);
 
@@ -5526,88 +5567,88 @@ export class CborData {
 		});
 
 		return done;
-	}
+	},
 
 	/**
 	 * Unrelated to constructor
 	 * @param {bigint} tag
 	 * @returns {number[]}
 	 */
-	static encodeTag(tag) {
-		return CborData.encodeHead(6, tag);
-	}
+	encodeTag: (tag) => {
+		return Cbor.encodeHead(6, tag);
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {bigint}
 	 */
-	static decodeTag(bytes) {
-		let [m, n] = CborData.decodeHead(bytes);
+	decodeTag: (bytes) => {
+		const [m, n] = Cbor.decodeHead(bytes);
 
 		assert(m == 6);
 
 		return n;
-	}
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
-	static isConstr(bytes) {
+	isConstr: (bytes) => {
 		if (bytes.length == 0) {
 			throw new Error("empty cbor bytes");
 		}
 
-		let [m, _] = CborData.decodeHead(bytes.slice(0, 9));
+		const [m, _] = Cbor.decodeHead(bytes.slice(0, 9));
 
 		return m == 6;
-	}
+	},
 
 	/**
 	 * Encode a constructor tag of a ConstrData type
 	 * @param {number} tag
 	 * @returns {number[]}
 	 */
-	static encodeConstrTag(tag) {
+	encodeConstrTag: (tag) => {
 		if (tag >= 0 && tag <= 6) {
-			return CborData.encodeHead(6, 121n + BigInt(tag));
+			return Cbor.encodeHead(6, 121n + BigInt(tag));
 		} else if (tag >= 7 && tag <= 127) {
-			return CborData.encodeHead(6, 1280n + BigInt(tag - 7));
+			return Cbor.encodeHead(6, 1280n + BigInt(tag - 7));
 		} else {
-			return CborData.encodeHead(6, 102n).concat(CborData.encodeHead(4, 2n)).concat(CborData.encodeInteger(BigInt(tag)));
+			return Cbor.encodeHead(6, 102n).concat(Cbor.encodeHead(4, 2n)).concat(Cbor.encodeInteger(BigInt(tag)));
 		}
-	}
+	},
 
 	/**
 	 * @param {number} tag
 	 * @param {CborData[] | number[][]} fields
 	 * @returns {number[]}
 	 */
-	static encodeConstr(tag, fields) {
-		return CborData.encodeConstrTag(tag).concat(CborData.encodeList(fields));
-	}
+	encodeConstr: (tag, fields) => {
+		return Cbor.encodeConstrTag(tag).concat(Cbor.encodeList(fields));
+	},
 
 	/**
 	 * @param {number[]} bytes
 	 * @returns {number}
 	 */
-	static decodeConstrTag(bytes) {
+	decodeConstrTag: (bytes) => {
 		// constr
-		let [m, n] = CborData.decodeHead(bytes);
+		const [m, n] = Cbor.decodeHead(bytes);
 
 		assert(m == 6);
 
 		if (n < 127n) {
 			return Number(n - 121n);
 		} else if (n == 102n) {
-			let [mCheck, nCheck] = CborData.decodeHead(bytes);
+			const [mCheck, nCheck] = Cbor.decodeHead(bytes);
 			assert(mCheck == 4 && nCheck == 2n);
 
-			return Number(CborData.decodeInteger(bytes));
+			return Number(Cbor.decodeInteger(bytes));
 		} else {
 			return Number(n - 1280n + 7n);
 		}
-	}
+	},
 
 	/**
 	 * Returns the tag
@@ -5615,10 +5656,10 @@ export class CborData {
 	 * @param {Decoder} fieldDecoder
 	 * @returns {number}
 	 */
-	static decodeConstr(bytes, fieldDecoder) {
-		let tag = CborData.decodeConstrTag(bytes);
+	decodeConstr: (bytes, fieldDecoder) => {
+		const tag = Cbor.decodeConstrTag(bytes);
 
-		CborData.decodeList(bytes, fieldDecoder);
+		Cbor.decodeList(bytes, fieldDecoder);
 
 		return tag;
 	}
@@ -5735,23 +5776,23 @@ export class UplcData extends CborData {
 	}
 
 	/**
-	 * @param {hexstring | number[]} bytes
+	 * @param {number[] | string} bytes
 	 * @returns {UplcData}
 	 */
 	static fromCbor(bytes) {
 		if (typeof bytes == "string") {
 			return UplcData.fromCbor(hexToBytes(bytes));
 		} else {
-			if (CborData.isList(bytes)) {
+			if (Cbor.isList(bytes)) {
 				return ListData.fromCbor(bytes);
-			} else if (CborData.isIndefBytes(bytes)) {
+			} else if (Cbor.isIndefBytes(bytes)) {
 				return ByteArrayData.fromCbor(bytes);
 			} else {
-				if (CborData.isDefBytes(bytes)) {
+				if (Cbor.isDefBytes(bytes)) {
 					return ByteArrayData.fromCbor(bytes);
-				} else if (CborData.isMap(bytes)) {
+				} else if (Cbor.isMap(bytes)) {
 					return MapData.fromCbor(bytes);
-				} else if (CborData.isConstr(bytes)) {
+				} else if (Cbor.isConstr(bytes)) {
 					return ConstrData.fromCbor(bytes);
 				} else {
 					// int, must come last
@@ -5848,7 +5889,7 @@ export class IntData extends UplcData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeInteger(this.#value);
+		return Cbor.encodeInteger(this.#value);
 	}
 
 	/**
@@ -5856,7 +5897,7 @@ export class IntData extends UplcData {
 	 * @returns {IntData}
 	 */
 	static fromCbor(bytes) {
-		return new IntData(CborData.decodeInteger(bytes));
+		return new IntData(Cbor.decodeInteger(bytes));
 	}
 }
 
@@ -5925,10 +5966,17 @@ export class ByteArrayData extends UplcData {
 	}
 
 	/**
-	 * @returns {hexstring}
+	 * @returns {string}
 	 */
 	toHex() {
 		return bytesToHex(this.#bytes);
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get hex() {
+		return this.toHex();
 	}
 
 	/**
@@ -5957,7 +6005,7 @@ export class ByteArrayData extends UplcData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.#bytes, true);
+		return Cbor.encodeBytes(this.#bytes, true);
 	}
 
 	/**
@@ -5965,7 +6013,7 @@ export class ByteArrayData extends UplcData {
 	 * @returns {ByteArrayData}
 	 */
 	static fromCbor(bytes) {
-		return new ByteArrayData(CborData.decodeBytes(bytes));
+		return new ByteArrayData(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -6081,7 +6129,7 @@ export class ListData extends UplcData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeList(this.#items);
+		return Cbor.encodeList(this.#items);
 	}
 
 	/**
@@ -6094,7 +6142,7 @@ export class ListData extends UplcData {
 		 */
 		let list = [];
 
-		CborData.decodeList(bytes, (_, itemBytes) => {
+		Cbor.decodeList(bytes, (_, itemBytes) => {
 			list.push(UplcData.fromCbor(itemBytes));
 		});
 
@@ -6182,7 +6230,7 @@ export class MapData extends UplcData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeMap(this.#pairs);
+		return Cbor.encodeMap(this.#pairs);
 	}
 
 	/**
@@ -6195,7 +6243,7 @@ export class MapData extends UplcData {
 		 */
 		let pairs = [];
 
-		CborData.decodeMap(bytes, (_, pairBytes) => {
+		Cbor.decodeMap(bytes, (_, pairBytes) => {
 			pairs.push([UplcData.fromCbor(pairBytes), UplcData.fromCbor(pairBytes)]);
 		});
 
@@ -6290,7 +6338,7 @@ export class ConstrData extends UplcData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeConstr(this.#index, this.#fields);
+		return Cbor.encodeConstr(this.#index, this.#fields);
 	}
 
 	/**
@@ -6303,7 +6351,7 @@ export class ConstrData extends UplcData {
 		 */
 		let fields = [];
 
-		let tag = CborData.decodeConstr(bytes, (_, fieldBytes) => {
+		let tag = Cbor.decodeConstr(bytes, (_, fieldBytes) => {
 			fields.push(UplcData.fromCbor(fieldBytes));
 		});
 
@@ -6460,14 +6508,14 @@ export class HInt extends HeliosData {
 	 * @returns {HInt}
 	 */
 	static fromCbor(bytes) {
-		return new HInt(CborData.decodeInteger(bytes));
+		return new HInt(Cbor.decodeInteger(bytes));
 	}
 
 	/**
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return  CborData.encodeInteger(this.value);
+		return  Cbor.encodeInteger(this.value);
 	}
 
 	/**
@@ -6807,7 +6855,7 @@ export class HString extends HeliosData {
 
 /**
  * @deprecated
- * @typedef {hexstring | number[]} ByteArrayProps
+ * @typedef {number[] | string} ByteArrayProps
  */
 
 /**
@@ -6863,7 +6911,8 @@ export class ByteArray extends HeliosData {
     }
 
     /**
-     * @type {hexstring}
+	 * Hexadecimal representation.
+     * @type {string}
      */
     get hex() {
         return bytesToHex(this.#bytes);
@@ -6881,7 +6930,7 @@ export class ByteArray extends HeliosData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.#bytes);
+		return Cbor.encodeBytes(this.#bytes);
 	}
 
     /**
@@ -6905,7 +6954,7 @@ export class ByteArray extends HeliosData {
 	 * @returns {ByteArray}
 	 */
 	static fromCbor(bytes) {
-		return new ByteArray(CborData.decodeBytes(bytes));
+		return new ByteArray(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -7285,7 +7334,7 @@ export function Option(SomeClass) {
 }
 
 /**
- * @typedef {hexstring | number[]} HashProps
+ * @typedef {number[] | string} HashProps
  */
 
 /**
@@ -7328,7 +7377,8 @@ export class Hash extends HeliosData {
 	}
 
 	/**
-	 * @returns {hexstring}
+	 * Hexadecimal representation.
+	 * @returns {string}
 	 */
 	get hex() {
 		return bytesToHex(this.bytes);
@@ -7338,7 +7388,7 @@ export class Hash extends HeliosData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.bytes);
+		return Cbor.encodeBytes(this.bytes);
 	}
 
     /**
@@ -7354,12 +7404,12 @@ export class Hash extends HeliosData {
 	 * @returns {Hash}
 	 */
 	static fromCbor(bytes) {
-		return new Hash(CborData.decodeBytes(bytes));
+		return new Hash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
 	 * Might be needed for internal use
-	 * @param {hexstring} str 
+	 * @param {string} str 
 	 * @returns {Hash}
 	 */
 	static fromHex(str) {
@@ -7419,7 +7469,7 @@ export class DatumHash extends Hash {
 	 * @returns {DatumHash}
 	 */
 	static fromCbor(bytes) {
-		return new DatumHash(CborData.decodeBytes(bytes));
+		return new DatumHash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -7448,7 +7498,7 @@ export class DatumHash extends Hash {
 }
 
 /**
- * @typedef {hexstring | number[]} PubKeyProps
+ * @typedef {number[] | string} PubKeyProps
  */
 
 export class PubKey extends HeliosData {
@@ -7488,7 +7538,8 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
-	 * @type {hexstring}
+	 * Hexadecimal representation.
+	 * @type {string}
 	 */
 	get hex() {
 		return bytesToHex(this.#bytes);
@@ -7529,7 +7580,7 @@ export class PubKey extends HeliosData {
 	 * @returns {PubKey}
 	 */
 	static fromCbor(bytes) {
-		return new PubKey(CborData.decodeBytes(bytes));
+		return new PubKey(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -7543,7 +7594,7 @@ export class PubKey extends HeliosData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.#bytes);
+		return Cbor.encodeBytes(this.#bytes);
 	}
 
 	/**
@@ -7597,7 +7648,7 @@ export class PubKeyHash extends Hash {
 	 * @returns {PubKeyHash}
 	 */
 	static fromCbor(bytes) {
-		return new PubKeyHash(CborData.decodeBytes(bytes));
+		return new PubKeyHash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -7679,7 +7730,7 @@ export class MintingPolicyHash extends ScriptHash {
 	 * @returns {MintingPolicyHash}
 	 */
 	static fromCbor(bytes) {
-		return new MintingPolicyHash(CborData.decodeBytes(bytes));
+		return new MintingPolicyHash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -7742,7 +7793,7 @@ export class StakeKeyHash extends Hash {
 	 * @returns {StakeKeyHash}
 	 */
 	static fromCbor(bytes) {
-		return new StakeKeyHash(CborData.decodeBytes(bytes));
+		return new StakeKeyHash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -7797,7 +7848,7 @@ export class StakingValidatorHash extends ScriptHash {
 	 * @returns {StakingValidatorHash}
 	 */
 	static fromCbor(bytes) {
-		return new StakingValidatorHash(CborData.decodeBytes(bytes));
+		return new StakingValidatorHash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -7852,7 +7903,7 @@ export class ValidatorHash extends ScriptHash {
 	 * @returns {ValidatorHash}
 	 */
 	static fromCbor(bytes) {
-		return new ValidatorHash(CborData.decodeBytes(bytes));
+		return new ValidatorHash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -7918,7 +7969,7 @@ export class TxId extends Hash {
 	 * @returns {TxId}
 	 */
 	static fromCbor(bytes) {
-		return new TxId(CborData.decodeBytes(bytes));
+		return new TxId(Cbor.decodeBytes(bytes));
 	}
 
     /**
@@ -7941,7 +7992,7 @@ export class TxId extends Hash {
     }
 
 	/**
-	 * @param {hexstring} str 
+	 * @param {string} str 
 	 * @returns {TxId}
 	 */
 	static fromHex(str) {
@@ -8082,13 +8133,13 @@ export class TxOutputId extends HeliosData {
 		/** @type {null | bigint} */
 		let utxoIdx = null;
 
-		CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
 					txId = TxId.fromCbor(fieldBytes);
 					break;
 				case 1:
-					utxoIdx = CborData.decodeInteger(fieldBytes);
+					utxoIdx = Cbor.decodeInteger(fieldBytes);
 					break;
 				default:
 					throw new Error("unrecognized field");
@@ -8106,9 +8157,9 @@ export class TxOutputId extends HeliosData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeTuple([
+		return Cbor.encodeTuple([
 			this.#txId.toCbor(),
-			CborData.encodeInteger(this.#utxoIdx.value)
+			Cbor.encodeInteger(this.#utxoIdx.value)
 		]);
 	}
 
@@ -8137,12 +8188,8 @@ export class TxOutputId extends HeliosData {
 }
 
 /**
- * A valid bech32 string
- * @typedef {string & {}} bech32string
- */
-
-/**
- * @typedef {bech32string | hexstring | number[]} AddressProps
+ * An array of bytes, a Bech32 encoded address, or the hexadecimal representation of the underlying bytes.
+ * @typedef {number[] | string} AddressProps
  */
 
 /**
@@ -8205,7 +8252,7 @@ export class Address extends HeliosData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.#bytes);
+		return Cbor.encodeBytes(this.#bytes);
 	}
 
 	/**
@@ -8213,11 +8260,11 @@ export class Address extends HeliosData {
 	 * @returns {Address}
 	 */
 	static fromCbor(bytes) {
-		return new Address(CborData.decodeBytes(bytes));
+		return new Address(Cbor.decodeBytes(bytes));
 	}
 
 	/**
-	 * @param {bech32string} str
+	 * @param {string} str
 	 * @returns {Address}
 	 */
 	static fromBech32(str) {
@@ -8233,7 +8280,7 @@ export class Address extends HeliosData {
 
 	/**
 	 * Doesn't check validity
-	 * @param {hexstring} hex
+	 * @param {string} hex
 	 * @returns {Address}
 	 */
 	static fromHex(hex) {
@@ -8242,10 +8289,17 @@ export class Address extends HeliosData {
 
 	/**
 	 * Returns the raw Address bytes as a hex encoded string
-	 * @returns {hexstring}
+	 * @returns {string}
 	 */
 	toHex() {
 		return bytesToHex(this.#bytes);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	get hex() {
+		return this.toHex();
 	}
 
     /**
@@ -8314,7 +8368,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * @returns {bech32string}
+	 * @returns {string}
 	 */
 	toBech32() {
 		return Crypto.encodeBech32(
@@ -8652,7 +8706,7 @@ export class AssetClass extends HeliosData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeConstr(0, [
+		return Cbor.encodeConstr(0, [
 			this.#mph.toCbor(),
 			this.#tokenName.toCbor()
 		]);
@@ -8672,7 +8726,7 @@ export class AssetClass extends HeliosData {
 		 */
 		let tokenName = null;
 
-		const tag = CborData.decodeConstr(bytes, (i, fieldBytes) => {
+		const tag = Cbor.decodeConstr(bytes, (i, fieldBytes) => {
 			switch (i) {
 				case 0:
 					mph = MintingPolicyHash.fromCbor(fieldBytes);
@@ -9162,10 +9216,10 @@ export class Assets extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeMap(
+		return Cbor.encodeMap(
 			this.#assets.map(
 				outerPair => {
-					return [outerPair[0].toCbor(), CborData.encodeMap(outerPair[1].map(
+					return [outerPair[0].toCbor(), Cbor.encodeMap(outerPair[1].map(
 						innerPair => [innerPair[0].toCbor(), innerPair[1].toCbor()]
 					))];
 				}
@@ -9180,7 +9234,7 @@ export class Assets extends CborData {
 	static fromCbor(bytes) {
 		let ms = new Assets();
 
-		CborData.decodeMap(bytes, (_, pairBytes) => {
+		Cbor.decodeMap(bytes, (_, pairBytes) => {
 			let mph = MintingPolicyHash.fromCbor(pairBytes);
 
 			/**
@@ -9188,7 +9242,7 @@ export class Assets extends CborData {
 			 */
 			let innerMap = [];
 
-			CborData.decodeMap(pairBytes, (_, innerPairBytes) => {
+			Cbor.decodeMap(pairBytes, (_, innerPairBytes) => {
 				innerMap.push([
 					ByteArray.fromCbor(innerPairBytes),
 					HInt.fromCbor(innerPairBytes)
@@ -9390,7 +9444,7 @@ export class Value extends HeliosData {
 		if (this.#assets.isZero()) {
 			return this.#lovelace.toCbor()
 		} else {
-			return CborData.encodeTuple([
+			return Cbor.encodeTuple([
 				this.#lovelace.toCbor(),
 				this.#assets.toCbor()
 			]);
@@ -9404,8 +9458,8 @@ export class Value extends HeliosData {
 	static fromCbor(bytes) {
 		let mv = new Value();
 
-		if (CborData.isTuple(bytes)) {
-			CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		if (Cbor.isTuple(bytes)) {
+			Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 				switch(i) {
 					case 0:
 						mv.#lovelace = HInt.fromCbor(fieldBytes);
@@ -13775,7 +13829,7 @@ export class UplcBuiltin extends UplcTerm {
 					return rte.error(`expected signature of length 64 for verifyEd25519Signature, got signature of length ${signatureBytes.length}`);
 				}
 
-				let ok = Crypto.Ed25519.verify(signatureBytes, msgBytes, keyBytes);
+				let ok = Ed25519.verify(signatureBytes, msgBytes, keyBytes);
 
 				return new UplcBool(site, ok);
 			},
@@ -14338,7 +14392,7 @@ export class UplcBuiltin extends UplcTerm {
 							throw new RuntimeError(`expected signature of length 64 for verifyEd25519Signature, got signature of length ${signatureBytes.length}`);
 						}
 
-						let ok = Crypto.Ed25519.verify(signatureBytes, msgBytes, keyBytes);
+						let ok = Ed25519.verify(signatureBytes, msgBytes, keyBytes);
 
 						return new UplcBool(callSite, ok);
 					}
@@ -15887,7 +15941,7 @@ const UPLC_TAG_WIDTHS = {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(CborData.encodeBytes(this.serializeBytes()));
+		return Cbor.encodeBytes(Cbor.encodeBytes(this.serializeBytes()));
 	}
 
 	/**
@@ -15899,7 +15953,7 @@ const UPLC_TAG_WIDTHS = {
 
 		this.toFlatWithMapping(bitWriter, codeMapFileIndices);
 
-		return CborData.encodeBytes(CborData.encodeBytes(bitWriter.finalize()));
+		return Cbor.encodeBytes(Cbor.encodeBytes(bitWriter.finalize()));
 	}
 
 	/**
@@ -15916,7 +15970,7 @@ const UPLC_TAG_WIDTHS = {
 	 * @returns {number[]} - 28 byte hash
 	 */
 	hash() {
-		let innerBytes = CborData.encodeBytes(this.serializeBytes());
+		let innerBytes = Cbor.encodeBytes(this.serializeBytes());
 
 		innerBytes.unshift(this.versionTag());
 
@@ -15969,7 +16023,13 @@ const UPLC_TAG_WIDTHS = {
 		if (typeof bytes == "string") {
 			return UplcProgram.fromCborWithMapping(hexToBytes(bytes), files, properties)
 		} else {
-			bytes = CborData.decodeBytes(CborData.decodeBytes(bytes));
+			if (Cbor.isBytes(bytes)) {
+				bytes = Cbor.decodeBytes(bytes);
+			}
+
+			if (Cbor.isBytes(bytes)) {
+				bytes = Cbor.decodeBytes(bytes);
+			}
 
 			return UplcProgram.fromFlatWithMapping(bytes, files, properties);
 		}
@@ -29527,7 +29587,7 @@ export class EnumStatement extends Statement {
 			}
 
 			/**
-			 * @param {hexstring | number[]} bytes
+			 * @param {number[] | string} bytes Array of bytes, or hexadecimal representation.
 			 * @returns {HeliosData}
 			 */
 			static fromUplcCbor(bytes) {
@@ -44070,7 +44130,7 @@ export class NativeScript extends CborData {
      * @returns {number[]}
      */
     typeToCbor() {
-        return CborData.encodeInteger(BigInt(this.#type));
+        return Cbor.encodeInteger(BigInt(this.#type));
     }
 
     /**
@@ -44096,9 +44156,9 @@ export class NativeScript extends CborData {
          */
         let script = null;
 
-        CborData.decodeTuple(bytes, (i, fieldBytes) => {
+        Cbor.decodeTuple(bytes, (i, fieldBytes) => {
             if (i == 0) {
-                type = Number(CborData.decodeInteger(fieldBytes))
+                type = Number(Cbor.decodeInteger(fieldBytes))
             } else {
                 switch(type) {
                     case 0:
@@ -44116,7 +44176,7 @@ export class NativeScript extends CborData {
                              */
                             const children = [];
 
-                            CborData.decodeList(fieldBytes, (_, listBytes) => {
+                            Cbor.decodeList(fieldBytes, (_, listBytes) => {
                                 children.push(NativeScript.fromCbor(listBytes))
                             });
 
@@ -44135,7 +44195,7 @@ export class NativeScript extends CborData {
                         break;
                     case 3:
                         if (i == 1) {
-                            nOrSlot = CborData.decodeInteger(fieldBytes);
+                            nOrSlot = Cbor.decodeInteger(fieldBytes);
                         } else {
                             assert(i == 2);
 
@@ -44144,7 +44204,7 @@ export class NativeScript extends CborData {
                              */
                             const children = [];
 
-                            CborData.decodeList(fieldBytes, (_, listBytes) => {
+                            Cbor.decodeList(fieldBytes, (_, listBytes) => {
                                 children.push(NativeScript.fromCbor(listBytes))
                             });
 
@@ -44156,7 +44216,7 @@ export class NativeScript extends CborData {
                     case 5:
                         assert(i == 1);
 
-                        nOrSlot = CborData.decodeInteger(fieldBytes);
+                        nOrSlot = Cbor.decodeInteger(fieldBytes);
 
                         switch(type) {
                             case 4:
@@ -44332,7 +44392,7 @@ class NativeSig extends NativeScript {
      * @returns {number[]}
      */
     toCbor() {
-        return CborData.encodeTuple([
+        return Cbor.encodeTuple([
             this.typeToCbor(),
             this.#pkh.toCbor()
         ]);
@@ -44374,9 +44434,9 @@ class NativeAll extends NativeScript {
      * @returns {number[]}
      */
     toCbor() {
-        return CborData.encodeTuple([
+        return Cbor.encodeTuple([
             this.typeToCbor(),
-            CborData.encodeDefList(this.#scripts)
+            Cbor.encodeDefList(this.#scripts)
         ]);
     }
 
@@ -44416,9 +44476,9 @@ class NativeAny extends NativeScript {
      * @returns {number[]}
      */
     toCbor() {
-        return CborData.encodeTuple([
+        return Cbor.encodeTuple([
             this.typeToCbor(),
-            CborData.encodeDefList(this.#scripts)
+            Cbor.encodeDefList(this.#scripts)
         ]);
     }
 
@@ -44461,10 +44521,10 @@ class NativeAtLeast extends NativeScript {
      * @returns {number[]}
      */
     toCbor() {
-        return CborData.encodeTuple([
+        return Cbor.encodeTuple([
             this.typeToCbor(),
-            CborData.encodeInteger(BigInt(this.#required)),
-            CborData.encodeDefList(this.#scripts)
+            Cbor.encodeInteger(BigInt(this.#required)),
+            Cbor.encodeDefList(this.#scripts)
         ]);
     }
 
@@ -44506,9 +44566,9 @@ class NativeAfter extends NativeScript {
      * @returns {number[]}
      */
     toCbor() {
-        return CborData.encodeTuple([
+        return Cbor.encodeTuple([
             this.typeToCbor(),
-            CborData.encodeInteger(this.#slot)
+            Cbor.encodeInteger(this.#slot)
         ])
     }
 
@@ -44553,9 +44613,9 @@ class NativeBefore extends NativeScript {
      * @returns {number[]}
      */
     toCbor() {
-        return CborData.encodeTuple([
+        return Cbor.encodeTuple([
             this.typeToCbor(),
-            CborData.encodeInteger(this.#slot)
+            Cbor.encodeInteger(this.#slot)
         ])
     }
 
@@ -44590,6 +44650,9 @@ class NativeBefore extends NativeScript {
 // Section 33: Tx types
 ///////////////////////
 
+/**
+ * A new Tx instance can be used as a builder.
+ */
 export class Tx extends CborData {
 	/**
 	 * @type {TxBody}
@@ -44645,7 +44708,7 @@ export class Tx extends CborData {
 	 * @type {number[]}
 	 */
 	get bodyHash() {
-		return Crypto.blake2b(this.#body.toCbor());
+		return this.#body.hash();
 	}
 
 	/**
@@ -44672,11 +44735,11 @@ export class Tx extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeTuple([
+		return Cbor.encodeTuple([
 			this.#body.toCbor(),
 			this.#witnesses.toCbor(),
-			CborData.encodeBool(this.#valid),
-			this.#metadata === null ? CborData.encodeNull() : this.#metadata.toCbor(),
+			Cbor.encodeBool(this.#valid),
+			this.#metadata === null ? Cbor.encodeNull() : this.#metadata.toCbor(),
 		]);
 	}
 
@@ -44691,7 +44754,7 @@ export class Tx extends CborData {
 
 		let tx = new Tx();
 
-		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		let n = Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
 					tx.#body = TxBody.fromCbor(fieldBytes);
@@ -44700,11 +44763,11 @@ export class Tx extends CborData {
 					tx.#witnesses = TxWitnesses.fromCbor(fieldBytes);
 					break;
 				case 2:
-					tx.#valid = CborData.decodeBool(fieldBytes);
+					tx.#valid = Cbor.decodeBool(fieldBytes);
 					break;
 				case 3:
-					if (CborData.isNull(fieldBytes)) {
-						CborData.decodeNull(fieldBytes);
+					if (Cbor.isNull(fieldBytes)) {
+						Cbor.decodeNull(fieldBytes);
 
 						tx.#metadata = null;
 					} else {
@@ -44845,7 +44908,7 @@ export class Tx extends CborData {
 	 * @param {(id: TxOutputId) => Promise<TxOutput>} fn
 	 */
 	async completeInputData(fn) {
-		await this.#body.completeInputData(fn)
+		await this.#body.completeInputData(fn, this.#witnesses);
 	}
 
 	/**
@@ -45008,6 +45071,10 @@ export class Tx extends CborData {
 		// min lovelace is checked during build, because 
 		this.#body.addOutput(output);
 
+		if (output.refScript) {
+			this.#witnesses.attachRefScript(output.refScript);
+		}
+
 		return this;
 	}
 
@@ -45126,7 +45193,7 @@ export class Tx extends CborData {
 		let scripts = this.#witnesses.scripts;
 
 		/**
-		 * @type {Set<hexstring>}
+		 * @type {Set<string>}
 		 */
 		const currentScripts = new Set();
 
@@ -45747,11 +45814,15 @@ export class TxBody extends CborData {
 		return this.#outputs;
 	}
 
+	/**
+	 * @type {bigint}
+	 */
 	get fee() {
 		return this.#fee;
 	}
 
 	/**
+	 * @internal
 	 * @param {bigint} fee
 	 */
 	setFee(fee) {
@@ -45802,16 +45873,16 @@ export class TxBody extends CborData {
 		 */
 		let object = new Map();
 
-		object.set(0, CborData.encodeDefList(this.#inputs));
-		object.set(1, CborData.encodeDefList(this.#outputs));
-		object.set(2, CborData.encodeInteger(this.#fee));
+		object.set(0, Cbor.encodeDefList(this.#inputs));
+		object.set(1, Cbor.encodeDefList(this.#outputs));
+		object.set(2, Cbor.encodeInteger(this.#fee));
 		
 		if (this.#lastValidSlot !== null) {
-			object.set(3, CborData.encodeInteger(this.#lastValidSlot));
+			object.set(3, Cbor.encodeInteger(this.#lastValidSlot));
 		}
 
 		if (this.#dcerts.length != 0) {
-			object.set(4, CborData.encodeDefList(this.#dcerts));
+			object.set(4, Cbor.encodeDefList(this.#dcerts));
 		}
 
 		if (this.#withdrawals.size != 0) {
@@ -45823,7 +45894,7 @@ export class TxBody extends CborData {
 		}
 
 		if (this.#firstValidSlot !== null) {
-			object.set(8, CborData.encodeInteger(this.#firstValidSlot));
+			object.set(8, Cbor.encodeInteger(this.#firstValidSlot));
 		}
 
 		if (!this.#minted.isZero()) {
@@ -45835,29 +45906,29 @@ export class TxBody extends CborData {
 		}
 
 		if (this.#collateral.length != 0) {
-			object.set(13, CborData.encodeDefList(this.#collateral));
+			object.set(13, Cbor.encodeDefList(this.#collateral));
 		}
 
 		if (this.#signers.length != 0) {
-			object.set(14, CborData.encodeDefList(this.#signers));
+			object.set(14, Cbor.encodeDefList(this.#signers));
 		}
 
-		// what is NetworkId used for?
-		//object.set(15, CborData.encodeInteger(2n));
+		// what is NetworkId used for, seems a bit useless?
+		// object.set(15, Cbor.encodeInteger(2n));
 
 		if (this.#collateralReturn !== null) {
 			object.set(16, this.#collateralReturn.toCbor());
 		}
 
 		if (this.#totalCollateral > 0n) {
-			object.set(17, CborData.encodeInteger(this.#totalCollateral));
+			object.set(17, Cbor.encodeInteger(this.#totalCollateral));
 		}
 
 		if (this.#refInputs.length != 0) {
-			object.set(18, CborData.encodeDefList(this.#refInputs));
+			object.set(18, Cbor.encodeDefList(this.#refInputs));
 		}
 
-		return CborData.encodeObject(object);
+		return Cbor.encodeObject(object);
 	}
 
 	/**
@@ -45867,26 +45938,26 @@ export class TxBody extends CborData {
 	static fromCbor(bytes) {
 		const txBody = new TxBody();
 
-		const done = CborData.decodeObject(bytes, (i, fieldBytes) => {
+		const done = Cbor.decodeObject(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#inputs.push(TxInput.fromCbor(itemBytes));
 					});
 					break;
 				case 1:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#outputs.push(TxOutput.fromCbor(itemBytes));
 					})
 					break;
 				case 2:
-					txBody.#fee = CborData.decodeInteger(fieldBytes);
+					txBody.#fee = Cbor.decodeInteger(fieldBytes);
 					break;
 				case 3:
-					txBody.#lastValidSlot = CborData.decodeInteger(fieldBytes);
+					txBody.#lastValidSlot = Cbor.decodeInteger(fieldBytes);
 					break;
 				case 4:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#dcerts.push(DCert.fromCbor(itemBytes));
 					});
 					break;
@@ -45898,7 +45969,7 @@ export class TxBody extends CborData {
 					txBody.#metadataHash = Hash.fromCbor(fieldBytes);
 					break;
 				case 8:
-					txBody.#firstValidSlot = CborData.decodeInteger(fieldBytes);
+					txBody.#firstValidSlot = Cbor.decodeInteger(fieldBytes);
 					break;
 				case 9:
 					txBody.#minted = Assets.fromCbor(fieldBytes);
@@ -45911,26 +45982,27 @@ export class TxBody extends CborData {
 				case 12:
 					throw new Error("unhandled field");
 				case 13:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#collateral.push(TxInput.fromCbor(itemBytes));
 					});
 					break;
 				case 14:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txBody.#signers.push(PubKeyHash.fromCbor(itemBytes));
 					});
 					break;
 				case 15:
-					assert(CborData.decodeInteger(fieldBytes) == 2n);
+					// ignore the network Id
+					void Cbor.decodeInteger(fieldBytes);
 					break;
 				case 16:
 					txBody.#collateralReturn = TxOutput.fromCbor(fieldBytes);
 					break;
 				case 17:
-					txBody.#totalCollateral = CborData.decodeInteger(fieldBytes);
+					txBody.#totalCollateral = Cbor.decodeInteger(fieldBytes);
 					break;
 				case 18:
-					CborData.decodeList(fieldBytes, itemBytes => {
+					Cbor.decodeList(fieldBytes, itemBytes => {
 						txBody.#refInputs.push(TxInput.fromCbor(fieldBytes));
 					});
 					break;
@@ -45967,6 +46039,7 @@ export class TxBody extends CborData {
 
 	/**
 	 * For now simply returns minus infinity to plus infinity (WiP)
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @returns {ConstrData}
 	 */
@@ -45978,7 +46051,7 @@ export class TxBody extends CborData {
 			]),
 			new ConstrData(0, [ // UpperBound
 				this.#lastValidSlot === null ? new ConstrData(2, []) : new ConstrData(1, [new IntData(networkParams.slotToTime(this.#lastValidSlot))]), // PosInf
-				new ConstrData(0, []), // false
+				new ConstrData(this.#lastValidSlot === null ? 1 : 0, []), // false if slot is set, true if slot isn't set
 			]),
 		]);
 	}
@@ -45986,9 +46059,11 @@ export class TxBody extends CborData {
 	/**
 	 * A serialized tx throws away input information
 	 * This must be refetched from the network if the tx needs to be analyzed
+	 * @internal
 	 * @param {(id: TxOutputId) => Promise<TxOutput>} fn
+	 * @param {TxWitnesses} witnesses
 	 */
-	async completeInputData(fn) {
+	async completeInputData(fn, witnesses) {
 		const indices = [];
 		const ids = [];
 
@@ -46017,6 +46092,10 @@ export class TxBody extends CborData {
 		outputs.forEach((output, j) => {
 			const i = indices[j];
 
+			if (output.refScript) {
+				witnesses.attachRefScript(output.refScript)
+			}
+			
 			if (i < offset) {
 				this.#inputs[i].setOrigOutput(output)
 			} else {
@@ -46026,6 +46105,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @param {Redeemer[]} redeemers
 	 * @param {ListData} datums 
@@ -46054,16 +46134,18 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {Redeemer[]} redeemers
 	 * @param {ListData} datums
 	 * @param {number} redeemerIdx
+	 * @param {TxId} txId
 	 * @returns {UplcData}
 	 */
-	toScriptContextData(networkParams, redeemers, datums, redeemerIdx) {		
+	toScriptContextData(networkParams, redeemers, datums, redeemerIdx, txId = TxId.dummy()) {		
 		return new ConstrData(0, [
 			// tx (we can't know the txId right now, because we don't know the execution costs yet, but a dummy txId should be fine)
-			this.toTxData(networkParams, redeemers, datums, TxId.dummy()),
+			this.toTxData(networkParams, redeemers, datums, txId),
 			redeemers[redeemerIdx].toScriptPurposeData(this),
 		]);
 	}
@@ -46119,6 +46201,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {bigint} slot
 	 */
 	validFrom(slot) {
@@ -46126,6 +46209,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {bigint} slot
 	 */
 	validTo(slot) {
@@ -46134,6 +46218,7 @@ export class TxBody extends CborData {
 
 	/**
 	 * Throws error if this.#minted already contains mph
+	 * @internal
 	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph - minting policy hash
 	 * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens
 	 */
@@ -46142,6 +46227,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {TxInput} input 
 	 * @param {boolean} checkUniqueness
 	 */
@@ -46167,7 +46253,7 @@ export class TxBody extends CborData {
 	 * Used to remove dummy inputs
 	 * Dummy inputs are needed to be able to correctly estimate fees
 	 * Throws an error if input doesn't exist in list of inputs
-	 * Internal use only!
+	 * @internal
 	 * @param {TxInput} input
 	 */
 	removeInput(input) {
@@ -46191,6 +46277,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {TxInput} input 
 	 * @param {boolean} checkUniqueness
 	 */
@@ -46213,6 +46300,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {TxOutput} output
 	 */
 	addOutput(output) {
@@ -46225,7 +46313,7 @@ export class TxBody extends CborData {
 	 * Used to remove dummy outputs
 	 * Dummy outputs are needed to be able to correctly estimate fees
 	 * Throws an error if the output doesn't exist in list of outputs
-	 * Internal use only!
+	 * @internal
 	 * @param {TxOutput} output 
 	 */
 	removeOutput(output) {
@@ -46249,6 +46337,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {PubKeyHash} hash 
 	 * @param {boolean} checkUniqueness
 	 */
@@ -46265,6 +46354,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {TxInput} input 
 	 */
 	addCollateral(input) {
@@ -46272,6 +46362,7 @@ export class TxBody extends CborData {
 	}
 	
 	/**
+	 * @internal
 	 * @param {Hash | null} scriptDataHash
 	 */
 	setScriptDataHash(scriptDataHash) {
@@ -46279,6 +46370,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {Hash} metadataHash
 	 */
 	setMetadataHash(metadataHash) {
@@ -46286,6 +46378,7 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {TxOutput | null} output 
 	 */
 	setCollateralReturn(output) {
@@ -46293,7 +46386,8 @@ export class TxBody extends CborData {
 	}
 
 	/**
-	 * Calculates the number of dummy signatures needed to get precisely the right tx size
+	 * Calculates the number of dummy signatures needed to get precisely the right tx size.
+	 * @internal
 	 * @returns {number}
 	 */
 	countUniqueSigners() {
@@ -46322,8 +46416,9 @@ export class TxBody extends CborData {
 	}
 
 	/**
-	 * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset
-	 * @param {Map<hexstring, number>} set - hashes in hex format
+	 * Script hashes are found in addresses of TxInputs and hashes of the minted MultiAsset.
+	 * @internal
+	 * @param {Map<string, number>} set - hashes in hex format
 	 */
 	collectScriptHashes(set) {
 		for (let i = 0; i < this.#inputs.length; i++) {
@@ -46356,7 +46451,8 @@ export class TxBody extends CborData {
 	}
 
 	/**
-	 * Makes sure each output contains the necessary min lovelace
+	 * Makes sure each output contains the necessary min lovelace.
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 */
 	correctOutputs(networkParams) {
@@ -46367,6 +46463,7 @@ export class TxBody extends CborData {
 
 	/**
 	 * Checks that each output contains enough lovelace
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 */
 	checkOutputs(networkParams) {
@@ -46378,6 +46475,7 @@ export class TxBody extends CborData {
 	}
 	
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @param {null | bigint} minCollateral 
 	 */
@@ -46414,6 +46512,7 @@ export class TxBody extends CborData {
 	/**
 	 * Makes sore inputs, withdrawals, and minted assets are in correct order
 	 * Mutates
+	 * @internal
 	 */
 	sort() {
 		// inputs should've been added in sorted manner, so this is just a check
@@ -46448,6 +46547,7 @@ export class TxBody extends CborData {
 	/**
 	 * Used by (indirectly) by emulator to check if slot range is valid.
 	 * Note: firstValidSlot == lastValidSlot is allowed
+	 * @internal
 	 * @param {bigint} slot
 	 */
 	isValid(slot) {
@@ -46464,6 +46564,14 @@ export class TxBody extends CborData {
 		}
 
 		return true;
+	}
+
+	/**
+	 * @internal
+	 * @returns {number[]}
+	 */
+	hash() {
+		return Crypto.blake2b(this.toCbor());
 	}
 }
 
@@ -46550,6 +46658,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {boolean}
 	 */
 	anyScriptCallsTxTimeRange() {
@@ -46566,15 +46675,15 @@ export class TxWitnesses extends CborData {
 		let object = new Map();
 
 		if (this.#signatures.length > 0) {
-			object.set(0, CborData.encodeDefList(this.#signatures));
+			object.set(0, Cbor.encodeDefList(this.#signatures));
 		}
 		
 		if (this.#nativeScripts.length > 0) {
-			object.set(1, CborData.encodeDefList(this.#nativeScripts));
+			object.set(1, Cbor.encodeDefList(this.#nativeScripts));
 		}
 
 		if (this.#v1Scripts.length > 0) {
-			object.set(3, CborData.encodeDefList(this.#v1Scripts));
+			object.set(3, Cbor.encodeDefList(this.#v1Scripts));
 		}
 
 		if (this.#datums.list.length > 0) {
@@ -46582,7 +46691,7 @@ export class TxWitnesses extends CborData {
 		}
 
 		if (this.#redeemers.length > 0) {
-			object.set(5, CborData.encodeDefList(this.#redeemers));
+			object.set(5, Cbor.encodeDefList(this.#redeemers));
 		}
 
 		if (this.#scripts.length > 0) {
@@ -46591,10 +46700,10 @@ export class TxWitnesses extends CborData {
 			 */
 			let scriptBytes = this.#scripts.map(s => s.toCbor());
 
-			object.set(6, CborData.encodeDefList(scriptBytes));
+			object.set(6, Cbor.encodeDefList(scriptBytes));
 		}
 
-		return CborData.encodeObject(object);
+		return Cbor.encodeObject(object);
 	}
 
 	/**
@@ -46604,22 +46713,22 @@ export class TxWitnesses extends CborData {
 	static fromCbor(bytes) {
 		let txWitnesses = new TxWitnesses();
 
-		CborData.decodeObject(bytes, (i, fieldBytes) => {
+		Cbor.decodeObject(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#signatures.push(Signature.fromCbor(itemBytes));
 					});
 					break;
 				case 1:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#nativeScripts.push(NativeScript.fromCbor(itemBytes));
 					});
 					break;
 				case 2:
 					throw new Error(`unhandled TxWitnesses field ${i}`);
 				case 3:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#v1Scripts.push(itemBytes);
 					});
 					break;
@@ -46627,12 +46736,12 @@ export class TxWitnesses extends CborData {
 					txWitnesses.#datums = ListData.fromCbor(fieldBytes);
 					break;
 				case 5:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#redeemers.push(Redeemer.fromCbor(itemBytes));
 					});
 					break;
 				case 6:
-					CborData.decodeList(fieldBytes, (_, itemBytes) => {
+					Cbor.decodeList(fieldBytes, (_, itemBytes) => {
 						txWitnesses.#scripts.push(UplcProgram.fromCbor(itemBytes));
 					});
 					break;
@@ -46646,6 +46755,7 @@ export class TxWitnesses extends CborData {
 
 	/**
 	 * Throws error if signatures are incorrect
+	 * @internal
 	 * @param {number[]} bodyBytes 
 	 */
 	verifySignatures(bodyBytes) {
@@ -46669,6 +46779,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @returns {bigint}
 	 */
@@ -46683,6 +46794,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {Signature} signature 
 	 */
 	addSignature(signature) {
@@ -46693,6 +46805,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {number} n
 	 */
 	addDummySignatures(n) {
@@ -46701,12 +46814,16 @@ export class TxWitnesses extends CborData {
 		}
 	}
 
+	/**
+	 * @internal
+	 */
 	removeDummySignatures() {
 		this.#signatures = this.#signatures.filter(pkw => !pkw.isDummy());
 	}
 
 	/**
 	 * Index is calculated later
+	 * @internal
 	 * @param {TxInput} input
 	 * @param {UplcData} redeemerData 
 	 */
@@ -46715,6 +46832,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {MintingPolicyHash} mph
 	 * @param {UplcData} redeemerData
 	 */
@@ -46723,6 +46841,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcData} data 
 	 */
 	addDatumData(data) {
@@ -46740,6 +46859,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NativeScript} script 
 	 */
 	attachNativeScript(script) {
@@ -46753,7 +46873,20 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
-	 * Throws error if script was already added before
+	 * @internal
+	 * @param {UplcProgram} script 
+	 */
+	attachRefScript(script) {
+		if (this.#refScripts.some(s => eq(s.hash(), script.hash()))) {
+			return;
+		}
+
+		this.#refScripts.push(script);
+	}
+
+	/**
+	 * Throws error if script was already added before.
+	 * @internal
 	 * @param {UplcProgram} program 
 	 * @param {boolean} isRef
 	 */
@@ -46780,7 +46913,8 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
-	 * Retrieves either a regular script or a reference script
+	 * Retrieves either a regular script or a reference script.
+	 * @internal
 	 * @param {Hash} scriptHash - can be ValidatorHash or MintingPolicyHash
 	 * @returns {UplcProgram}
 	 */
@@ -46811,7 +46945,7 @@ export class TxWitnesses extends CborData {
 	 */
 	calcScriptDataHash(networkParams) {
 		if (this.#redeemers.length > 0) {
-			let bytes = CborData.encodeDefList(this.#redeemers);
+			let bytes = Cbor.encodeDefList(this.#redeemers);
 
 			if (this.#datums.list.length > 0) {
 				bytes = bytes.concat(this.#datums.toCbor());
@@ -46820,9 +46954,9 @@ export class TxWitnesses extends CborData {
 			// language view encodings?
 			let sortedCostParams = networkParams.sortedCostParams;
 
-			bytes = bytes.concat(CborData.encodeMap([[
-				CborData.encodeInteger(1n), 
-				CborData.encodeDefList(sortedCostParams.map(cp => CborData.encodeInteger(BigInt(cp)))),
+			bytes = bytes.concat(Cbor.encodeMap([[
+				Cbor.encodeInteger(1n), 
+				Cbor.encodeDefList(sortedCostParams.map(cp => Cbor.encodeInteger(BigInt(cp)))),
 			]]));
 
 			return new Hash(Crypto.blake2b(bytes));
@@ -47021,10 +47155,13 @@ export class TxWitnesses extends CborData {
 	 * @param {TxBody} body 
 	 */
 	async checkExecutionBudgets(networkParams, body) {
+		// when check the tx is assumed to be finalized, so we can use the actual txId
+		const txId = new TxId(body.hash());
+
 		for (let i = 0; i < this.#redeemers.length; i++) {
 			const redeemer = this.#redeemers[i];
-
-			const scriptContext = body.toScriptContextData(networkParams, this.#redeemers, this.#datums, i);
+			
+			const scriptContext = body.toScriptContextData(networkParams, this.#redeemers, this.#datums, i, txId);
 
 			const cost = await this.executeRedeemer(networkParams, body, redeemer, scriptContext);
 
@@ -47062,6 +47199,8 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * Compiles a report of each redeemer execution.
+	 * Only works after the tx has been finalized.
 	 * @type {string}
 	 */
 	get profileReport() {
@@ -47204,6 +47343,7 @@ export class TxInput extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {ConstrData}
 	 */
 	toOutputIdData() {
@@ -47211,6 +47351,7 @@ export class TxInput extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {ConstrData}
 	 */
 	toData() {
@@ -47225,6 +47366,7 @@ export class TxInput extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {UplcData} data 
 	 * @returns {TxInput}
 	 */
@@ -47244,7 +47386,7 @@ export class TxInput extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		//return CborData.encodeTuple([
+		//return Cbor.encodeTuple([
 		return this.outputId.toCbor();//,
 		//	this.origOutput.toCbor()
 		//]);
@@ -47254,7 +47396,7 @@ export class TxInput extends CborData {
 	 * @returns {number[]}
 	 */
 	toFullCbor() {
-		return CborData.encodeTuple([
+		return Cbor.encodeTuple([
 			this.outputId.toCbor(),
 			this.origOutput.toCbor()
 		]);
@@ -47274,7 +47416,7 @@ export class TxInput extends CborData {
 		/** @type {null | TxOutput} */
 		let output = null;
 
-		CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
 					outputId = TxOutputId.fromCbor(fieldBytes);
@@ -47307,6 +47449,7 @@ export class TxInput extends CborData {
 	/**
 	 * Tx inputs must be ordered. 
 	 * The following function can be used directly by a js array sort
+	 * @internal
 	 * @param {TxInput} a
 	 * @param {TxInput} b
 	 * @returns {number}
@@ -47344,13 +47487,13 @@ export class TxInput extends CborData {
  * Use TxInput instead
  * @deprecated
  */
-const UTxO = TxInput;
+export const UTxO = TxInput;
 
 /**
  * User TxInput instead
  * @deprecated
  */
-const TxRefInput = TxInput;
+export const TxRefInput = TxInput;
 
 /**
  * TxOutput
@@ -47391,6 +47534,9 @@ export class TxOutput extends CborData {
 		this.#refScript = refScript;
 	}
 
+	/**
+	 * @type {Address}
+	 */
 	get address() {
 		return this.#address;
 	}
@@ -47403,6 +47549,9 @@ export class TxOutput extends CborData {
 		this.#address = addr;
 	}
 
+	/**
+	 * @type {Value}
+	 */
 	get value() {
 		return this.#value;
 	}
@@ -47415,6 +47564,9 @@ export class TxOutput extends CborData {
 		this.#value = val;
 	}
 
+	/**
+	 * @type {null | Datum}
+	 */
 	get datum() {
 		return this.#datum;
 	}
@@ -47444,6 +47596,13 @@ export class TxOutput extends CborData {
 	}
 
 	/**
+	 * @type {null | UplcProgram}
+	 */
+	get refScript() {
+		return this.#refScript;
+	}
+
+	/**
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -47464,7 +47623,7 @@ export class TxOutput extends CborData {
 				}
 			}
 
-			return CborData.encodeTuple(fields);
+			return Cbor.encodeTuple(fields);
 		} else {
 			/** @type {Map<number, number[]>} */
 			let object = new Map();
@@ -47477,15 +47636,15 @@ export class TxOutput extends CborData {
 			}
 
 			if (this.#refScript !== null) {
-				object.set(3, CborData.encodeTag(24n).concat(CborData.encodeBytes(
-					CborData.encodeTuple([
-						CborData.encodeInteger(BigInt(this.#refScript.versionTag())),
+				object.set(3, Cbor.encodeTag(24n).concat(Cbor.encodeBytes(
+					Cbor.encodeTuple([
+						Cbor.encodeInteger(BigInt(this.#refScript.versionTag())),
 						this.#refScript.toCbor()
 					])
 				)));
 			}
 
-			return CborData.encodeObject(object);
+			return Cbor.encodeObject(object);
 		}
 	}
 
@@ -47514,8 +47673,8 @@ export class TxOutput extends CborData {
 		 */
 		let refScript = null;
 
-		if (CborData.isObject(bytes)) {
-			CborData.decodeObject(bytes, (i, fieldBytes) => {
+		if (Cbor.isObject(bytes)) {
+			Cbor.decodeObject(bytes, (i, fieldBytes) => {
 				switch(i) { 
 					case 0:
 						address = Address.fromCbor(fieldBytes);
@@ -47527,11 +47686,11 @@ export class TxOutput extends CborData {
 						outputDatum = Datum.fromCbor(fieldBytes);
 						break;
 					case 3:
-						assert(CborData.decodeTag(fieldBytes) == 24n);
+						assert(Cbor.decodeTag(fieldBytes) == 24n);
 
-						let tupleBytes = CborData.decodeBytes(fieldBytes);
+						let tupleBytes = Cbor.decodeBytes(fieldBytes);
 
-						CborData.decodeTuple(tupleBytes, (tupleIdx, innerTupleBytes) => {
+						Cbor.decodeTuple(tupleBytes, (tupleIdx, innerTupleBytes) => {
 							assert(refScript === null);
 
 							switch(tupleIdx) {
@@ -47551,9 +47710,9 @@ export class TxOutput extends CborData {
 						throw new Error("unrecognized field");
 				}
 			});
-		} else if (CborData.isTuple(bytes)) {
+		} else if (Cbor.isTuple(bytes)) {
 			// this is the pre-vasil format, which is still sometimes returned by wallet connector functions
-			CborData.decodeTuple(bytes, (i, fieldBytes) => {
+			Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 				switch(i) { 
 					case 0:
 						address = Address.fromCbor(fieldBytes);
@@ -47604,7 +47763,7 @@ export class TxOutput extends CborData {
 			this.#address._toUplcData(),
 			this.#value._toUplcData(),
 			datum,
-			new ConstrData(1, []), // TODO: how to include the ref script
+			this.#refScript ? new ConstrData(0, [new ByteArrayData(this.#refScript.hash())]) : new ConstrData(1, [])
 		]);
 	}
 
@@ -47624,7 +47783,7 @@ export class TxOutput extends CborData {
 	}
 
 	/**
-	 * Each UTxO must contain some minimum quantity of lovelace to avoid that the blockchain is used for data storage
+	 * Each UTxO must contain some minimum quantity of lovelace to avoid that the blockchain is used for data storage.
 	 * @param {NetworkParams} networkParams
 	 * @returns {bigint}
 	 */
@@ -47638,7 +47797,7 @@ export class TxOutput extends CborData {
 
 	/**
 	 * Mutates. Makes sure the output contains at least the minimum quantity of lovelace.
-	 * Other parts of the output can optionally also be mutated
+	 * Other parts of the output can optionally also be mutated.
 	 * @param {NetworkParams} networkParams 
 	 * @param {?((output: TxOutput) => void)} updater
 	 */
@@ -47737,7 +47896,7 @@ export class StakeAddress {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.#bytes);
+		return Cbor.encodeBytes(this.#bytes);
 	}
 
 	/**
@@ -47745,7 +47904,7 @@ export class StakeAddress {
 	 * @returns {StakeAddress}
 	 */
 	static fromCbor(bytes) {
-		return new StakeAddress(CborData.decodeBytes(bytes));
+		return new StakeAddress(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -47778,6 +47937,13 @@ export class StakeAddress {
 	 */
 	toHex() {
 		return bytesToHex(this.#bytes);
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get hex() {
+		return this.toHex()
 	}
 
 	/**
@@ -47905,9 +48071,9 @@ export class Signature extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeTuple([
+		return Cbor.encodeTuple([
 			this.#pubKey.toCbor(),
-			CborData.encodeBytes(this.#signature),
+			Cbor.encodeBytes(this.#signature),
 		]);
 	}
 
@@ -47922,13 +48088,13 @@ export class Signature extends CborData {
 		/** @type {null | number[]} */
 		let signature = null;
 
-		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		let n = Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
 					pubKey = PubKey.fromCbor(fieldBytes);
 					break;
 				case 1:
-					signature = CborData.decodeBytes(fieldBytes);
+					signature = Cbor.decodeBytes(fieldBytes);
 					break;
 				default:
 					throw new Error("unrecognized field");
@@ -47966,7 +48132,7 @@ export class Signature extends CborData {
 			if (this.#pubKey === null) {
 				throw new Error("pubKey can't be null");
 			} else {
-				if (!Crypto.Ed25519.verify(this.#signature, msg, this.#pubKey.bytes)) {
+				if (!Ed25519.verify(this.#signature, msg, this.#pubKey.bytes)) {
 					throw new Error("incorrect signature");
 				}
 			}
@@ -47975,10 +48141,10 @@ export class Signature extends CborData {
 }
 
 /**
- * @typedef {{
- *   derivePubKey(): PubKey
- *   sign(msg: number[]): Signature
- * }} PrivateKey
+ * @interface
+ * @typedef {object} PrivateKey
+ * @property {() => PubKey} derivePubKey Generates the corresponding public key.
+ * @property {(msg: number[]) => Signature} sign Signs a byte-array payload, returning the signature.
  */
 
 /**
@@ -48044,7 +48210,7 @@ export class Ed25519PrivateKey extends HeliosData {
 		if (this.#pubKey) {
 			return this.#pubKey;
 		} else {
-			this.#pubKey = new PubKey(Crypto.Ed25519.derivePublicKey(this.#bytes));
+			this.#pubKey = new PubKey(Ed25519.derivePublicKey(this.#bytes));
 			
 			return this.#pubKey;
 		}
@@ -48057,7 +48223,7 @@ export class Ed25519PrivateKey extends HeliosData {
 	sign(message) {
 		return new Signature(
 			this.derivePubKey(),
-			Crypto.Ed25519.sign(message, this.#bytes)
+			Ed25519.sign(message, this.#bytes)
 		);
 	}
 }
@@ -48132,12 +48298,12 @@ export class Bip32PrivateKey {
 	}
 
 	/**
-     * Generate a bip32private key from a random number generator.
+     * Generate a Bip32PrivateKey from a random number generator.
 	 * This is not cryptographically secure, only use this for testing purpose
      * @param {NumberGenerator} random 
      * @returns {Bip32PrivateKey}
      */
-	static random(random) {
+	static random(random = Crypto.rand(Math.random())) {
 		return new Bip32PrivateKey(randomBytes(random, 96));
 	}
 
@@ -48246,7 +48412,7 @@ export class Bip32PrivateKey {
 		if (this.#pubKey) {
 			return this.#pubKey;
 		} else {
-			this.#pubKey = new PubKey(Crypto.Ed25519.deriveBip32PublicKey(this.k));
+			this.#pubKey = new PubKey(Ed25519.deriveBip32PublicKey(this.k));
 
 			return this.#pubKey;
 		}
@@ -48261,7 +48427,7 @@ export class Bip32PrivateKey {
 	sign(message) {
 		return new Signature(
 			this.derivePubKey(),
-			Crypto.Ed25519.signBip32(message, this.k)
+			Ed25519.signBip32(message, this.k)
 		);
 	}
 }
@@ -48532,13 +48698,13 @@ export class Redeemer extends CborData {
 	 * @returns {number[]}
 	 */
 	toCborInternal(type, index) {
-		return CborData.encodeTuple([
-			CborData.encodeInteger(BigInt(type)),
-			CborData.encodeInteger(BigInt(index)),
+		return Cbor.encodeTuple([
+			Cbor.encodeInteger(BigInt(type)),
+			Cbor.encodeInteger(BigInt(index)),
 			this.#data.toCbor(),
-			CborData.encodeTuple([
-				CborData.encodeInteger(this.#profile.mem),
-				CborData.encodeInteger(this.#profile.cpu),
+			Cbor.encodeTuple([
+				Cbor.encodeInteger(this.#profile.mem),
+				Cbor.encodeInteger(this.#profile.cpu),
 			]),
 		]);
 	}
@@ -48560,13 +48726,13 @@ export class Redeemer extends CborData {
 		/** @type {null | Cost} */
 		let cost = null;
 
-		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		let n = Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					type = Number(CborData.decodeInteger(fieldBytes));
+					type = Number(Cbor.decodeInteger(fieldBytes));
 					break;
 				case 1:
-					index = Number(CborData.decodeInteger(fieldBytes));
+					index = Number(Cbor.decodeInteger(fieldBytes));
 					break;
 				case 2:
 					data = UplcData.fromCbor(fieldBytes);
@@ -48578,13 +48744,13 @@ export class Redeemer extends CborData {
 					/** @type {null | bigint} */
 					let cpu = null;
 
-					let m = CborData.decodeTuple(fieldBytes, (j, subFieldBytes) => {
+					let m = Cbor.decodeTuple(fieldBytes, (j, subFieldBytes) => {
 						switch (j) {
 							case 0:
-								mem = CborData.decodeInteger(subFieldBytes);
+								mem = Cbor.decodeInteger(subFieldBytes);
 								break;
 							case 1:
-								cpu = CborData.decodeInteger(subFieldBytes);
+								cpu = Cbor.decodeInteger(subFieldBytes);
 								break;
 							default:
 								throw new Error("unrecognized field");
@@ -48843,18 +49009,18 @@ export class Datum extends CborData {
 		/** @type {null | Datum} */
 		let res = null;
 
-		let n = CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		let n = Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
-					type = Number(CborData.decodeInteger(fieldBytes));
+					type = Number(Cbor.decodeInteger(fieldBytes));
 					break;
 				case 1:
 					if (type == 0) {
 						res = new HashedDatum(DatumHash.fromCbor(fieldBytes));
 					} else if (type == 1) {
-						assert(CborData.decodeTag(fieldBytes) == 24n);
+						assert(Cbor.decodeTag(fieldBytes) == 24n);
 
-						let dataBytes = CborData.decodeBytes(fieldBytes);
+						let dataBytes = Cbor.decodeBytes(fieldBytes);
 						let data = UplcData.fromCbor(dataBytes);
 
 						res = new InlineDatum(data);
@@ -49025,8 +49191,8 @@ export class HashedDatum extends Datum {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeTuple([
-			CborData.encodeInteger(0n),
+		return Cbor.encodeTuple([
+			Cbor.encodeInteger(0n),
 			this.#hash.toCbor(),
 		]);
 	}
@@ -49107,9 +49273,9 @@ class InlineDatum extends Datum {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeTuple([
-			CborData.encodeInteger(1n),
-			CborData.encodeTag(24n).concat(CborData.encodeBytes(this.#data.toCbor()))
+		return Cbor.encodeTuple([
+			Cbor.encodeInteger(1n),
+			Cbor.encodeTag(24n).concat(Cbor.encodeBytes(this.#data.toCbor()))
 		]);
 	}
 
@@ -49136,18 +49302,18 @@ class InlineDatum extends Datum {
  */
 function encodeMetadata(metadata) {
 	if (typeof metadata === 'string') {
-		return CborData.encodeUtf8(metadata, true);
+		return Cbor.encodeUtf8(metadata, true);
 	} else if (typeof metadata === 'number') {
 		assert(metadata % 1.0 == 0.0);
 
-		return CborData.encodeInteger(BigInt(metadata));
+		return Cbor.encodeInteger(BigInt(metadata));
 	} else if (Array.isArray(metadata)) {
-		return CborData.encodeDefList(metadata.map(item => encodeMetadata(item)));
+		return Cbor.encodeDefList(metadata.map(item => encodeMetadata(item)));
 	} else if (metadata instanceof Object && "map" in metadata && Object.keys(metadata).length == 1) {
 		let pairs = metadata["map"];
 
 		if (Array.isArray(pairs)) {
-			return CborData.encodeMap(pairs.map(pair => {
+			return Cbor.encodeMap(pairs.map(pair => {
 				if (Array.isArray(pair) && pair.length == 2) {
 					return [
 						encodeMetadata(pair[0]),
@@ -49171,26 +49337,26 @@ function encodeMetadata(metadata) {
  * @returns {Metadata}
  */
 function decodeMetadata(bytes) {
-	if (CborData.isUtf8(bytes)) {
-		return CborData.decodeUtf8(bytes);
-	} else if (CborData.isList(bytes)) {
+	if (Cbor.isUtf8(bytes)) {
+		return Cbor.decodeUtf8(bytes);
+	} else if (Cbor.isList(bytes)) {
 		/**
 		 * @type {Metadata[]}
 		 */
 		let items = [];
 
-		CborData.decodeList(bytes, (_, itemBytes) => {
+		Cbor.decodeList(bytes, (_, itemBytes) => {
 			items.push(decodeMetadata(itemBytes));
 		});
 
 		return items;
-	} else if (CborData.isMap(bytes)) {
+	} else if (Cbor.isMap(bytes)) {
 		/**
 		 * @type {[Metadata, Metadata][]}
 		 */
 		let pairs = [];
 
-		CborData.decodeMap(bytes, (_, pairBytes) => {
+		Cbor.decodeMap(bytes, (_, pairBytes) => {
 			pairs.push([
 				decodeMetadata(pairBytes),
 				decodeMetadata(pairBytes)
@@ -49199,7 +49365,7 @@ function decodeMetadata(bytes) {
 
 		return {"map": pairs};
 	} else {
-		return Number(CborData.decodeInteger(bytes));
+		return Number(Cbor.decodeInteger(bytes));
 	}
 }
 
@@ -49250,11 +49416,11 @@ class TxMetadata {
 		 * @type {[number[], number[]][]}
 		 */
 		const pairs = this.keys.map(key => [
-			CborData.encodeInteger(BigInt(key)),
+			Cbor.encodeInteger(BigInt(key)),
 			encodeMetadata(this.#metadata[key])
 		]);
 		
-		return CborData.encodeMap(pairs);
+		return Cbor.encodeMap(pairs);
 	}
 
 	/**
@@ -49265,9 +49431,9 @@ class TxMetadata {
 	static fromCbor(data) {
 		const txMetadata = new TxMetadata();
 
-		CborData.decodeMap(data, (_, pairBytes) => {
+		Cbor.decodeMap(data, (_, pairBytes) => {
 			txMetadata.add(
-				Number(CborData.decodeInteger(pairBytes)), 
+				Number(Cbor.decodeInteger(pairBytes)), 
 				decodeMetadata(pairBytes)
 			);
 		});
@@ -49747,18 +49913,18 @@ export class CoinSelection {
 // Section 36: Wallets
 //////////////////////
 
-
 /**
- * @typedef {{
- *     isMainnet(): Promise<boolean>,
- *     usedAddresses: Promise<Address[]>,
- *     unusedAddresses: Promise<Address[]>,
- *     utxos: Promise<TxInput[]>,
- *     collateral: Promise<TxInput[]>,
- *     signTx(tx: Tx): Promise<Signature[]>,
- *     submitTx(tx: Tx): Promise<TxId>
- * }} Wallet
- */
+ * An interface type for a wallet that manages a user's UTxOs and addresses.
+ * @interface
+ * @typedef {object} Wallet
+*  @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
+*  @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
+*  @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
+*  @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
+*  @property {Promise<TxInput[]>} collateral
+*  @property {(tx: Tx) => Promise<Signature[]>} signTx Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
+*  @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
+*/
 
 /**
  * @typedef {{
@@ -50119,12 +50285,13 @@ export class RemoteWallet {
 
 
 /**
- * @typedef {{
- *     getUtxos(address: Address): Promise<TxInput[]>
- *     getUtxo(id: TxOutputId): Promise<TxInput>
- *     getParameters(): Promise<NetworkParams>
- *     submitTx(tx: Tx): Promise<TxId>
- * }} Network
+ * Blockchain query interface.
+ * @interface
+ * @typedef {object} Network
+ * @property {(address: Address) => Promise<TxInput[]>} getUtxos Returns a complete list of UTxOs at a given address.
+ * @property {(id: TxOutputId) => Promise<TxInput>} getUtxo Returns a single TxInput (that might already have been spent).
+ * @property {() => Promise<NetworkParams>} getParameters Returns the latest network parameters.
+ * @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
  */
 
 /**
@@ -50195,8 +50362,8 @@ export class BlockfrostV0 {
     }
 
     /**
-     * @param {any} obj
-     * @returns
+     * @param {{unit: string, quantity: string}[]} obj
+     * @returns {Value}
      */
     static parseValue(obj) {
         let value = new Value();
@@ -50265,14 +50432,10 @@ export class BlockfrostV0 {
 
         const obj = (await response.json()).outputs[id.utxoIdx];
 
-        return new TxInput(
-            id,
-            new TxOutput(
-                Address.fromBech32(obj.address),
-                BlockfrostV0.parseValue(obj.amount),
-                obj.inline_datum ? Datum.inline(UplcData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
-            )
-        );
+        obj["tx_hash"] = txId.hex;
+        obj["output_index"] = Number(id.utxoIdx);
+
+        return await this.restoreTxInput(obj);
     }
 
     /**
@@ -50293,6 +50456,50 @@ export class BlockfrostV0 {
         });
 
         return response.ok;
+    }
+
+    /**
+     * @internal
+     * @param {{
+     *   address: string
+     *   tx_hash: string
+     *   output_index: number
+     *   amount: {unit: string, quantity: string}[]
+     *   inline_datum: null | string
+     *   data_hash: null | string
+     *   collateral: boolean
+     *   reference_script_hash: null | string
+     * }} obj 
+     */
+    async restoreTxInput(obj) {
+        /**
+         * @type {null | UplcProgram}
+         */
+        let refScript = null;
+        if (obj.reference_script_hash !== null) {
+            const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/scripts/${obj.reference_script_hash}/cbor`;
+
+            const response = await fetch(url, {
+                method: "GET",
+                headers: {
+                    "project_id": this.#projectId
+                }
+            });
+
+            const cbor = (await response.json()).cbor;
+
+            refScript = UplcProgram.fromCbor(cbor);
+        }
+
+        return new TxInput(
+            new TxOutputId({txId: TxId.fromHex(obj.tx_hash), utxoId: BigInt(obj.output_index)}),
+            new TxOutput(
+                Address.fromBech32(obj.address),
+                BlockfrostV0.parseValue(obj.amount),
+                obj.inline_datum ? Datum.inline(UplcData.fromCbor(hexToBytes(obj.inline_datum))) : null,
+                refScript
+            )
+        );
     }
 
     /**
@@ -50325,16 +50532,9 @@ export class BlockfrostV0 {
             }
 
             try {
-                return all.map(obj => {
-                    return new TxInput(
-                        new TxOutputId({txId: TxId.fromHex(obj.tx_hash), utxoId: BigInt(obj.output_index)}),
-                        new TxOutput(
-                            address,
-                            BlockfrostV0.parseValue(obj.amount),
-                            obj.inline_datum ? Datum.inline(UplcData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
-                        )
-                    );
-                });
+                return await Promise.all(all.map(obj => {
+                    return this.restoreTxInput(obj);
+                }));
             } catch (e) {
                 console.error("unable to parse blockfrost utxo format:", all);
                 throw e;
@@ -51065,11 +51265,11 @@ export class WalletEmulator {
 
     /**
      * @param {Network} network
-     * @param {NumberGenerator} random - used to generate the private key
+     * @param {Bip32PrivateKey} privateKey
      */
-    constructor(network, random) {
+    constructor(network, privateKey) {
         this.#network = network;
-        this.#privateKey = Bip32PrivateKey.random(random);
+        this.#privateKey = privateKey;
         this.#pubKey = this.#privateKey.derivePubKey();
 
         // TODO: staking credentials
@@ -51433,7 +51633,7 @@ export class NetworkEmulator {
      * @returns {WalletEmulator}
      */
     createWallet(lovelace = 0n, assets = new Assets([])) {
-        const wallet = new WalletEmulator(this, this.#random);
+        const wallet = new WalletEmulator(this, Bip32PrivateKey.random(this.#random));
 
         this.createUtxo(wallet, lovelace, assets);
 

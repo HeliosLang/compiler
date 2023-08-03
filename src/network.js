@@ -37,15 +37,17 @@ import {
 import {
     WalletHelper
 } from "./wallets.js";
+import { UplcProgram } from "./uplc-program.js";
 
 
 /**
- * @typedef {{
- *     getUtxos(address: Address): Promise<TxInput[]>
- *     getUtxo(id: TxOutputId): Promise<TxInput>
- *     getParameters(): Promise<NetworkParams>
- *     submitTx(tx: Tx): Promise<TxId>
- * }} Network
+ * Blockchain query interface.
+ * @interface
+ * @typedef {object} Network
+ * @property {(address: Address) => Promise<TxInput[]>} getUtxos Returns a complete list of UTxOs at a given address.
+ * @property {(id: TxOutputId) => Promise<TxInput>} getUtxo Returns a single TxInput (that might already have been spent).
+ * @property {() => Promise<NetworkParams>} getParameters Returns the latest network parameters.
+ * @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
  */
 
 /**
@@ -116,8 +118,8 @@ export class BlockfrostV0 {
     }
 
     /**
-     * @param {any} obj
-     * @returns
+     * @param {{unit: string, quantity: string}[]} obj
+     * @returns {Value}
      */
     static parseValue(obj) {
         let value = new Value();
@@ -186,14 +188,10 @@ export class BlockfrostV0 {
 
         const obj = (await response.json()).outputs[id.utxoIdx];
 
-        return new TxInput(
-            id,
-            new TxOutput(
-                Address.fromBech32(obj.address),
-                BlockfrostV0.parseValue(obj.amount),
-                obj.inline_datum ? Datum.inline(UplcData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
-            )
-        );
+        obj["tx_hash"] = txId.hex;
+        obj["output_index"] = Number(id.utxoIdx);
+
+        return await this.restoreTxInput(obj);
     }
 
     /**
@@ -214,6 +212,50 @@ export class BlockfrostV0 {
         });
 
         return response.ok;
+    }
+
+    /**
+     * @internal
+     * @param {{
+     *   address: string
+     *   tx_hash: string
+     *   output_index: number
+     *   amount: {unit: string, quantity: string}[]
+     *   inline_datum: null | string
+     *   data_hash: null | string
+     *   collateral: boolean
+     *   reference_script_hash: null | string
+     * }} obj 
+     */
+    async restoreTxInput(obj) {
+        /**
+         * @type {null | UplcProgram}
+         */
+        let refScript = null;
+        if (obj.reference_script_hash !== null) {
+            const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/scripts/${obj.reference_script_hash}/cbor`;
+
+            const response = await fetch(url, {
+                method: "GET",
+                headers: {
+                    "project_id": this.#projectId
+                }
+            });
+
+            const cbor = (await response.json()).cbor;
+
+            refScript = UplcProgram.fromCbor(cbor);
+        }
+
+        return new TxInput(
+            new TxOutputId({txId: TxId.fromHex(obj.tx_hash), utxoId: BigInt(obj.output_index)}),
+            new TxOutput(
+                Address.fromBech32(obj.address),
+                BlockfrostV0.parseValue(obj.amount),
+                obj.inline_datum ? Datum.inline(UplcData.fromCbor(hexToBytes(obj.inline_datum))) : null,
+                refScript
+            )
+        );
     }
 
     /**
@@ -246,16 +288,9 @@ export class BlockfrostV0 {
             }
 
             try {
-                return all.map(obj => {
-                    return new TxInput(
-                        new TxOutputId({txId: TxId.fromHex(obj.tx_hash), utxoId: BigInt(obj.output_index)}),
-                        new TxOutput(
-                            address,
-                            BlockfrostV0.parseValue(obj.amount),
-                            obj.inline_datum ? Datum.inline(UplcData.fromCbor(hexToBytes(obj.inline_datum))) : undefined
-                        )
-                    );
-                });
+                return await Promise.all(all.map(obj => {
+                    return this.restoreTxInput(obj);
+                }));
             } catch (e) {
                 console.error("unable to parse blockfrost utxo format:", all);
                 throw e;

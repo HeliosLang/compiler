@@ -15,16 +15,13 @@ import {
     textToBytes
 } from "./utils.js";
 
-/**
- * @typedef {import("./utils.js").hexstring} hexstring
- */
-
 import {
     Crypto
 } from "./crypto.js";
 
 import {
-    CborData
+    CborData,
+	Cbor
 } from "./cbor.js";
 
 import {
@@ -180,14 +177,14 @@ export class HInt extends HeliosData {
 	 * @returns {HInt}
 	 */
 	static fromCbor(bytes) {
-		return new HInt(CborData.decodeInteger(bytes));
+		return new HInt(Cbor.decodeInteger(bytes));
 	}
 
 	/**
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return  CborData.encodeInteger(this.value);
+		return  Cbor.encodeInteger(this.value);
 	}
 
 	/**
@@ -527,7 +524,7 @@ export class HString extends HeliosData {
 
 /**
  * @deprecated
- * @typedef {hexstring | number[]} ByteArrayProps
+ * @typedef {number[] | string} ByteArrayProps
  */
 
 /**
@@ -583,7 +580,8 @@ export class ByteArray extends HeliosData {
     }
 
     /**
-     * @type {hexstring}
+	 * Hexadecimal representation.
+     * @type {string}
      */
     get hex() {
         return bytesToHex(this.#bytes);
@@ -601,7 +599,7 @@ export class ByteArray extends HeliosData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.#bytes);
+		return Cbor.encodeBytes(this.#bytes);
 	}
 
     /**
@@ -625,7 +623,7 @@ export class ByteArray extends HeliosData {
 	 * @returns {ByteArray}
 	 */
 	static fromCbor(bytes) {
-		return new ByteArray(CborData.decodeBytes(bytes));
+		return new ByteArray(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -1005,7 +1003,7 @@ export function Option(SomeClass) {
 }
 
 /**
- * @typedef {hexstring | number[]} HashProps
+ * @typedef {number[] | string} HashProps
  */
 
 /**
@@ -1048,7 +1046,8 @@ export class Hash extends HeliosData {
 	}
 
 	/**
-	 * @returns {hexstring}
+	 * Hexadecimal representation.
+	 * @returns {string}
 	 */
 	get hex() {
 		return bytesToHex(this.bytes);
@@ -1058,7 +1057,7 @@ export class Hash extends HeliosData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.bytes);
+		return Cbor.encodeBytes(this.bytes);
 	}
 
     /**
@@ -1074,12 +1073,12 @@ export class Hash extends HeliosData {
 	 * @returns {Hash}
 	 */
 	static fromCbor(bytes) {
-		return new Hash(CborData.decodeBytes(bytes));
+		return new Hash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
 	 * Might be needed for internal use
-	 * @param {hexstring} str 
+	 * @param {string} str 
 	 * @returns {Hash}
 	 */
 	static fromHex(str) {
@@ -1139,7 +1138,7 @@ export class DatumHash extends Hash {
 	 * @returns {DatumHash}
 	 */
 	static fromCbor(bytes) {
-		return new DatumHash(CborData.decodeBytes(bytes));
+		return new DatumHash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -1168,7 +1167,7 @@ export class DatumHash extends Hash {
 }
 
 /**
- * @typedef {hexstring | number[]} PubKeyProps
+ * @typedef {number[] | string} PubKeyProps
  */
 
 export class PubKey extends HeliosData {
@@ -1208,7 +1207,8 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
-	 * @type {hexstring}
+	 * Hexadecimal representation.
+	 * @type {string}
 	 */
 	get hex() {
 		return bytesToHex(this.#bytes);
@@ -1249,7 +1249,7 @@ export class PubKey extends HeliosData {
 	 * @returns {PubKey}
 	 */
 	static fromCbor(bytes) {
-		return new PubKey(CborData.decodeBytes(bytes));
+		return new PubKey(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -1263,7 +1263,7 @@ export class PubKey extends HeliosData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.#bytes);
+		return Cbor.encodeBytes(this.#bytes);
 	}
 
 	/**
@@ -1317,7 +1317,7 @@ export class PubKeyHash extends Hash {
 	 * @returns {PubKeyHash}
 	 */
 	static fromCbor(bytes) {
-		return new PubKeyHash(CborData.decodeBytes(bytes));
+		return new PubKeyHash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -1399,7 +1399,7 @@ export class MintingPolicyHash extends ScriptHash {
 	 * @returns {MintingPolicyHash}
 	 */
 	static fromCbor(bytes) {
-		return new MintingPolicyHash(CborData.decodeBytes(bytes));
+		return new MintingPolicyHash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -1462,7 +1462,7 @@ export class StakeKeyHash extends Hash {
 	 * @returns {StakeKeyHash}
 	 */
 	static fromCbor(bytes) {
-		return new StakeKeyHash(CborData.decodeBytes(bytes));
+		return new StakeKeyHash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -1517,7 +1517,7 @@ export class StakingValidatorHash extends ScriptHash {
 	 * @returns {StakingValidatorHash}
 	 */
 	static fromCbor(bytes) {
-		return new StakingValidatorHash(CborData.decodeBytes(bytes));
+		return new StakingValidatorHash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -1572,7 +1572,7 @@ export class ValidatorHash extends ScriptHash {
 	 * @returns {ValidatorHash}
 	 */
 	static fromCbor(bytes) {
-		return new ValidatorHash(CborData.decodeBytes(bytes));
+		return new ValidatorHash(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -1638,7 +1638,7 @@ export class TxId extends Hash {
 	 * @returns {TxId}
 	 */
 	static fromCbor(bytes) {
-		return new TxId(CborData.decodeBytes(bytes));
+		return new TxId(Cbor.decodeBytes(bytes));
 	}
 
     /**
@@ -1661,7 +1661,7 @@ export class TxId extends Hash {
     }
 
 	/**
-	 * @param {hexstring} str 
+	 * @param {string} str 
 	 * @returns {TxId}
 	 */
 	static fromHex(str) {
@@ -1802,13 +1802,13 @@ export class TxOutputId extends HeliosData {
 		/** @type {null | bigint} */
 		let utxoIdx = null;
 
-		CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 			switch(i) {
 				case 0:
 					txId = TxId.fromCbor(fieldBytes);
 					break;
 				case 1:
-					utxoIdx = CborData.decodeInteger(fieldBytes);
+					utxoIdx = Cbor.decodeInteger(fieldBytes);
 					break;
 				default:
 					throw new Error("unrecognized field");
@@ -1826,9 +1826,9 @@ export class TxOutputId extends HeliosData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeTuple([
+		return Cbor.encodeTuple([
 			this.#txId.toCbor(),
-			CborData.encodeInteger(this.#utxoIdx.value)
+			Cbor.encodeInteger(this.#utxoIdx.value)
 		]);
 	}
 
@@ -1857,12 +1857,8 @@ export class TxOutputId extends HeliosData {
 }
 
 /**
- * A valid bech32 string
- * @typedef {string & {}} bech32string
- */
-
-/**
- * @typedef {bech32string | hexstring | number[]} AddressProps
+ * An array of bytes, a Bech32 encoded address, or the hexadecimal representation of the underlying bytes.
+ * @typedef {number[] | string} AddressProps
  */
 
 /**
@@ -1925,7 +1921,7 @@ export class Address extends HeliosData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.#bytes);
+		return Cbor.encodeBytes(this.#bytes);
 	}
 
 	/**
@@ -1933,11 +1929,11 @@ export class Address extends HeliosData {
 	 * @returns {Address}
 	 */
 	static fromCbor(bytes) {
-		return new Address(CborData.decodeBytes(bytes));
+		return new Address(Cbor.decodeBytes(bytes));
 	}
 
 	/**
-	 * @param {bech32string} str
+	 * @param {string} str
 	 * @returns {Address}
 	 */
 	static fromBech32(str) {
@@ -1953,7 +1949,7 @@ export class Address extends HeliosData {
 
 	/**
 	 * Doesn't check validity
-	 * @param {hexstring} hex
+	 * @param {string} hex
 	 * @returns {Address}
 	 */
 	static fromHex(hex) {
@@ -1962,10 +1958,17 @@ export class Address extends HeliosData {
 
 	/**
 	 * Returns the raw Address bytes as a hex encoded string
-	 * @returns {hexstring}
+	 * @returns {string}
 	 */
 	toHex() {
 		return bytesToHex(this.#bytes);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	get hex() {
+		return this.toHex();
 	}
 
     /**
@@ -2034,7 +2037,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * @returns {bech32string}
+	 * @returns {string}
 	 */
 	toBech32() {
 		return Crypto.encodeBech32(
@@ -2372,7 +2375,7 @@ export class AssetClass extends HeliosData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeConstr(0, [
+		return Cbor.encodeConstr(0, [
 			this.#mph.toCbor(),
 			this.#tokenName.toCbor()
 		]);
@@ -2392,7 +2395,7 @@ export class AssetClass extends HeliosData {
 		 */
 		let tokenName = null;
 
-		const tag = CborData.decodeConstr(bytes, (i, fieldBytes) => {
+		const tag = Cbor.decodeConstr(bytes, (i, fieldBytes) => {
 			switch (i) {
 				case 0:
 					mph = MintingPolicyHash.fromCbor(fieldBytes);
@@ -2882,10 +2885,10 @@ export class Assets extends CborData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeMap(
+		return Cbor.encodeMap(
 			this.#assets.map(
 				outerPair => {
-					return [outerPair[0].toCbor(), CborData.encodeMap(outerPair[1].map(
+					return [outerPair[0].toCbor(), Cbor.encodeMap(outerPair[1].map(
 						innerPair => [innerPair[0].toCbor(), innerPair[1].toCbor()]
 					))];
 				}
@@ -2900,7 +2903,7 @@ export class Assets extends CborData {
 	static fromCbor(bytes) {
 		let ms = new Assets();
 
-		CborData.decodeMap(bytes, (_, pairBytes) => {
+		Cbor.decodeMap(bytes, (_, pairBytes) => {
 			let mph = MintingPolicyHash.fromCbor(pairBytes);
 
 			/**
@@ -2908,7 +2911,7 @@ export class Assets extends CborData {
 			 */
 			let innerMap = [];
 
-			CborData.decodeMap(pairBytes, (_, innerPairBytes) => {
+			Cbor.decodeMap(pairBytes, (_, innerPairBytes) => {
 				innerMap.push([
 					ByteArray.fromCbor(innerPairBytes),
 					HInt.fromCbor(innerPairBytes)
@@ -3110,7 +3113,7 @@ export class Value extends HeliosData {
 		if (this.#assets.isZero()) {
 			return this.#lovelace.toCbor()
 		} else {
-			return CborData.encodeTuple([
+			return Cbor.encodeTuple([
 				this.#lovelace.toCbor(),
 				this.#assets.toCbor()
 			]);
@@ -3124,8 +3127,8 @@ export class Value extends HeliosData {
 	static fromCbor(bytes) {
 		let mv = new Value();
 
-		if (CborData.isTuple(bytes)) {
-			CborData.decodeTuple(bytes, (i, fieldBytes) => {
+		if (Cbor.isTuple(bytes)) {
+			Cbor.decodeTuple(bytes, (i, fieldBytes) => {
 				switch(i) {
 					case 0:
 						mv.#lovelace = HInt.fromCbor(fieldBytes);

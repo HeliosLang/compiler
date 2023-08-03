@@ -9,10 +9,6 @@ import {
 } from "./utils.js";
 
 /**
- * @typedef {import("./utils.js").hexstring} hexstring
- */
-
-/**
  * @typedef {import("./utils.js").TransferUplcAst} TransferUplcAst
  */
 
@@ -21,7 +17,8 @@ import {
 } from "./tokens.js";
 
 import {
-    CborData
+    CborData,
+	Cbor
 } from "./cbor.js";
 
 /**
@@ -129,23 +126,23 @@ export class UplcData extends CborData {
 	}
 
 	/**
-	 * @param {hexstring | number[]} bytes
+	 * @param {number[] | string} bytes
 	 * @returns {UplcData}
 	 */
 	static fromCbor(bytes) {
 		if (typeof bytes == "string") {
 			return UplcData.fromCbor(hexToBytes(bytes));
 		} else {
-			if (CborData.isList(bytes)) {
+			if (Cbor.isList(bytes)) {
 				return ListData.fromCbor(bytes);
-			} else if (CborData.isIndefBytes(bytes)) {
+			} else if (Cbor.isIndefBytes(bytes)) {
 				return ByteArrayData.fromCbor(bytes);
 			} else {
-				if (CborData.isDefBytes(bytes)) {
+				if (Cbor.isDefBytes(bytes)) {
 					return ByteArrayData.fromCbor(bytes);
-				} else if (CborData.isMap(bytes)) {
+				} else if (Cbor.isMap(bytes)) {
 					return MapData.fromCbor(bytes);
-				} else if (CborData.isConstr(bytes)) {
+				} else if (Cbor.isConstr(bytes)) {
 					return ConstrData.fromCbor(bytes);
 				} else {
 					// int, must come last
@@ -242,7 +239,7 @@ export class IntData extends UplcData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeInteger(this.#value);
+		return Cbor.encodeInteger(this.#value);
 	}
 
 	/**
@@ -250,7 +247,7 @@ export class IntData extends UplcData {
 	 * @returns {IntData}
 	 */
 	static fromCbor(bytes) {
-		return new IntData(CborData.decodeInteger(bytes));
+		return new IntData(Cbor.decodeInteger(bytes));
 	}
 }
 
@@ -319,10 +316,17 @@ export class ByteArrayData extends UplcData {
 	}
 
 	/**
-	 * @returns {hexstring}
+	 * @returns {string}
 	 */
 	toHex() {
 		return bytesToHex(this.#bytes);
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get hex() {
+		return this.toHex();
 	}
 
 	/**
@@ -351,7 +355,7 @@ export class ByteArrayData extends UplcData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeBytes(this.#bytes, true);
+		return Cbor.encodeBytes(this.#bytes, true);
 	}
 
 	/**
@@ -359,7 +363,7 @@ export class ByteArrayData extends UplcData {
 	 * @returns {ByteArrayData}
 	 */
 	static fromCbor(bytes) {
-		return new ByteArrayData(CborData.decodeBytes(bytes));
+		return new ByteArrayData(Cbor.decodeBytes(bytes));
 	}
 
 	/**
@@ -475,7 +479,7 @@ export class ListData extends UplcData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeList(this.#items);
+		return Cbor.encodeList(this.#items);
 	}
 
 	/**
@@ -488,7 +492,7 @@ export class ListData extends UplcData {
 		 */
 		let list = [];
 
-		CborData.decodeList(bytes, (_, itemBytes) => {
+		Cbor.decodeList(bytes, (_, itemBytes) => {
 			list.push(UplcData.fromCbor(itemBytes));
 		});
 
@@ -576,7 +580,7 @@ export class MapData extends UplcData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeMap(this.#pairs);
+		return Cbor.encodeMap(this.#pairs);
 	}
 
 	/**
@@ -589,7 +593,7 @@ export class MapData extends UplcData {
 		 */
 		let pairs = [];
 
-		CborData.decodeMap(bytes, (_, pairBytes) => {
+		Cbor.decodeMap(bytes, (_, pairBytes) => {
 			pairs.push([UplcData.fromCbor(pairBytes), UplcData.fromCbor(pairBytes)]);
 		});
 
@@ -684,7 +688,7 @@ export class ConstrData extends UplcData {
 	 * @returns {number[]}
 	 */
 	toCbor() {
-		return CborData.encodeConstr(this.#index, this.#fields);
+		return Cbor.encodeConstr(this.#index, this.#fields);
 	}
 
 	/**
@@ -697,7 +701,7 @@ export class ConstrData extends UplcData {
 		 */
 		let fields = [];
 
-		let tag = CborData.decodeConstr(bytes, (_, fieldBytes) => {
+		let tag = Cbor.decodeConstr(bytes, (_, fieldBytes) => {
 			fields.push(UplcData.fromCbor(fieldBytes));
 		});
 
