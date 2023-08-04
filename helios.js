@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.15.1
+// Version:       0.15.2
 // Last update:   August 2023
 // License type:  BSD-3-Clause
 //
@@ -298,7 +298,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.15.1";
+export const VERSION = "0.15.2";
 
 /**
  * A tab used for indenting of the IR.
@@ -316,10 +316,30 @@ export const TAB = "  ";
 export const REAL_PRECISION = 6;
 
 /**
- * Mutable global config variables.
+ * Mutable global config properties.
  * @namespace
  */
 export const config = {
+    /**
+     * Modify the config properties
+     * @param {{
+     *   DEBUG?: boolean
+     *   STRICT_BABBAGE?: boolean
+     *   IS_TESTNET?: boolean
+     *   N_DUMMY_INPUTS?: number
+     *   AUTO_SET_VALIDITY_RANGE?: boolean
+     *   VALIDITY_RANGE_START_OFFSET?: number
+     *   VALIDITY_RANGE_END_OFFSET?: number
+     *   EXPERIMENTAL_CEK?: boolean
+     *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
+     * }} props 
+     */
+    set: (props) => {
+        Object.keys(props).forEach(k => {
+            config[k] = props[k];
+        });
+    },
+
     /**
      * Global debug flag. Currently unused.
      * 

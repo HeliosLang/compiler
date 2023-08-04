@@ -401,22 +401,24 @@ function injectNamespaceDoclets(src, doclets) {
 			}
 		} else {
 			if (braceCount == 1 && l.trim().startsWith("const") || l.trim().startsWith("function")) {
-
 				
 				const m = l.match(/^\s*const\s*([a-zA-Z_][a-zA-Z_0-9]*)\s*:/m)
 				if (m) {
 					const memberName = m[1]
 
 					if (namespaceName in doclets && memberName in doclets[namespaceName]) {
+						braceCount += countBraces(l)
 						return doclets[namespaceName][memberName] + "\n" + l
 					}
 				} else {
+					
 					const m = l.match(/^\s*function\s*([a-zA-Z_][a-zA-Z_0-9]*)\s*\(/m)
 
 					if (m) {
 						const memberName = m[1]
 
 						if (namespaceName in doclets && memberName in doclets[namespaceName]) {
+							braceCount += countBraces(l)
 							return doclets[namespaceName][memberName] + "\n" + l
 						}
 					}

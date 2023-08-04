@@ -833,7 +833,7 @@ declare module "helios" {
     /**
      * Current version of the Helios library.
      */
-    export const VERSION: "0.15.1";
+    export const VERSION: "0.15.2";
     /**
      * A tab used for indenting of the IR.
      * 2 spaces.
@@ -848,6 +848,17 @@ declare module "helios" {
      */
     export const REAL_PRECISION: number;
     export namespace config {
+        function set(props: {
+            DEBUG?: boolean;
+            STRICT_BABBAGE?: boolean;
+            IS_TESTNET?: boolean;
+            N_DUMMY_INPUTS?: number;
+            AUTO_SET_VALIDITY_RANGE?: boolean;
+            VALIDITY_RANGE_START_OFFSET?: number;
+            VALIDITY_RANGE_END_OFFSET?: number;
+            EXPERIMENTAL_CEK?: boolean;
+            IGNORE_UNEVALUATED_CONSTANTS?: boolean;
+        }): void;
         const DEBUG: boolean;
         const STRICT_BABBAGE: boolean;
         const IS_TESTNET: boolean;

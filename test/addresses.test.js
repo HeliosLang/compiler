@@ -45,7 +45,7 @@ async function scriptAddress() {
 }
 
 async function nonTestnetAddress() {
-	config.IS_TESTNET = false;
+	config.set({IS_TESTNET: false});
 
 	const addr = Address.fromHashes(new PubKeyHash("01020304050607080910111213141516171819202122232425262728"))
 
@@ -53,7 +53,7 @@ async function nonTestnetAddress() {
 
 	assert(addr.toBech32().startsWith("addr1"));
 
-	config.IS_TESTNET = true;
+	config.set({IS_TESTNET: true});
 }
 
 async function addressInDatum() {
