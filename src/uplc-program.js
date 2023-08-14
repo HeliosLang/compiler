@@ -175,7 +175,7 @@ const UPLC_TAG_WIDTHS = {
 */
 
 /**
- * Plutus-core program class
+ * Result of `program.compile()`. Contains the Untyped Plutus-Core AST, along with a code-mapping to the original source.
  */
  export class UplcProgram {
 	#version;
@@ -223,6 +223,9 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Transfers a `UplcProgram` from an old version of Helios to a new version of Helios, keeping the script hash the same.
+	 * 
+	 * The main benefit for calling this method instead of serializing/deserializing is that the code mapping is maintained.
 	 * @template TInstance
 	 * @param {TransferableUplcProgram<TInstance>} other
 	 * @returns {TInstance}
@@ -353,9 +356,11 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
-	 * Wrap the top-level term with consecutive UplcCall terms
-	 * No checks are performed whether this makes sense or not, so beware
-	 * Throws an error if you are trying to apply an  with anon func.
+	 * Wrap the top-level term with consecutive UplcCall (not exported) terms.
+	 * 
+	 * Returns a new UplcProgram instance, leaving the original untouched.
+	 * 
+	 * Throws an error if you are trying to apply with an anon func.
 	 * @param {(UplcValue | HeliosData)[]} args
 	 * @returns {UplcProgram} - a new UplcProgram instance
 	 */
@@ -396,6 +401,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Run a `UplcProgram`. The printed messages are part of the return value.
 	 * @param {null | UplcValue[]} args
 	 * @returns {Promise<[(UplcValue | RuntimeError), string[]]>}
 	 */
@@ -417,9 +423,10 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Runs and profiles a `UplcProgram`. Needs the `NetworkParams` in order to calculate the execution budget.
 	 * @param {UplcValue[]} args
 	 * @param {NetworkParams} networkParams
-	 * @returns {Promise<Profile>}
+	 * @returns {Promise<Profile>} The returned profile contains a breakdown of the execution cost per Uplc term type and per Uplc builtin function type.
 	 */
 	async profile(args, networkParams) {
 		let callbacks = Object.assign({}, DEFAULT_UPLC_RTE_CALLBACKS);
@@ -514,7 +521,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
-	 * Returns the Cbor encoding of a script (flat bytes wrapped twice in Cbor bytearray)
+	 * Returns the Cbor encoding of a script (flat bytes wrapped twice in Cbor bytearray).
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -534,7 +541,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
-	 * Returns Plutus-core script in JSON format (as string, not as object!)
+	 * Returns the JSON representation of the serialized program (needed by cardano-cli).
 	 * @returns {string}
 	 */
 	serialize() {
@@ -556,6 +563,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Returns the `ValidatorHash` of the script. Throws an error if this isn't a spending validator script.
 	 * @type {ValidatorHash}
 	 */
 	get validatorHash() {
@@ -567,6 +575,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Returns the `MintingPolicyHash` of the script. Throws an error if this isn't a minting policy.
 	 * @type {MintingPolicyHash}
 	 */
 	get mintingPolicyHash() {
@@ -578,6 +587,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Returns the `StakingValidatorHash` of the script. Throws an error if this isn't a staking validator script.
 	 * @type {StakingValidatorHash}
 	 */
 	get stakingValidatorHash() {
@@ -1097,6 +1107,7 @@ const UPLC_TAG_WIDTHS = {
 }
 
 /**
+ * Deserializes a flat encoded `UplcProgram`.
  * @param {number[]} bytes 
  * @param {ProgramProperties} properties
  * @returns {UplcProgram}
@@ -1106,26 +1117,27 @@ export function deserializeUplcBytes(bytes, properties = {purpose: null, callsTx
 }
 
 /**
- * Parses a plutus core program. Returns a UplcProgram object
- * @param {string} jsonString 
+ * Parses a plutus core program. Returns a `UplcProgram` instance.
+ * @param {string | {cborHex: string}} json a raw JSON string or a parsed JSON object
  * @returns {UplcProgram}
  */
-export function deserializeUplc(jsonString) {
-	let obj = JSON.parse(jsonString);
+export function deserializeUplc(json) {
+	const obj = typeof json == "string" ? JSON.parse(json) : json;
 
 	if (!("cborHex" in obj)) {
-		throw UserError.syntaxError(new Source(jsonString, "<json>"), 0, 1, "cborHex field not in json")
+		throw UserError.syntaxError(new Source(typeof json == "string" ? json : JSON.stringify(json, undefined, 4), "<json>"), 0, 1, "cborHex field not in json")
 	}
 
 	let cborHex = obj.cborHex;
 	if (typeof cborHex !== "string") {
-		let src = new Source(jsonString, "<json>");
-		let re = /cborHex/;
-		let cborHexMatch = jsonString.match(re);
+		const raw = typeof json == "string" ? json : JSON.stringify(json, undefined, 4);
+		const src = new Source(raw, "<json>");
+		const re = /cborHex/;
+		const cborHexMatch = raw.match(re);
 		if (cborHexMatch === null) {
 			throw UserError.syntaxError(src, 0, 1, "'cborHex' key not found");
 		} else {
-			const pos = jsonString.search(re)
+			const pos = raw.search(re)
 			throw UserError.syntaxError(src, pos, pos+1, "cborHex not a string");
 		}
 	}

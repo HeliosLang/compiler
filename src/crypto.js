@@ -394,18 +394,18 @@ const DEFAULT_BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
  */
 const BECH32_BASE32_ALPHABET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 /**
- * A collection of cryptography primitives are included here in order to avoid external dependencies
- * mulberry32: random number generator
- * base32 encoding and decoding
- * bech32 encoding, checking, and decoding
- * sha2_256, sha2_512, sha3 and blake2b hashing
+ * The Helios `Crypto` namespace contains a collection of cryptography primitives.
+ * 
+ * These functions have been implemented as part of the Helios library in order to avoid external dependencies
+ * (there still isn't a standardized Javascript [Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto) that provides all the needed functionality).
  * @namespace
  */
 export const Crypto = {
     /**
-     * Returns a simple random number generator.
+     * A simple pseudo-random number generator for use in tests that requires some randomness but need to be deterministic
+     * (i.e. each test run gives the same result).
      * @param {number} seed
-     * @returns {NumberGenerator} - a random number generator
+     * @returns {NumberGenerator} The returned function returns a new random number between 0 and 1 upon each call.
      */
     mulberry32: (seed) => {
         /**
@@ -420,30 +420,30 @@ export const Crypto = {
     },
 
     /**
-     * Alias for rand generator of choice.
+     * Alias for `mulberry32`.
      * @param {number} seed
-     * @returns {NumberGenerator} - the random number generator function
+     * @returns {NumberGenerator} The returned function returns a new random number between 0 and 1 upon each call.
      */
     rand: (seed) => {
         return Crypto.mulberry32(seed);
     },
 
     /**
-     * Encode bytes in special base32.
+     * Encodes bytes in using Base32.
      * @example
-     * Crypto.encodeBase32(textToBytes("f")) => "my"
+     * Crypto.encodeBase32(textToBytes("f")) == "my"
      * @example
-     * Crypto.encodeBase32(textToBytes("fo")) => "mzxq"
+     * Crypto.encodeBase32(textToBytes("fo")) == "mzxq"
      * @example
-     * Crypto.encodeBase32(textToBytes("foo")) => "mzxw6"
+     * Crypto.encodeBase32(textToBytes("foo")) == "mzxw6"
      * @example
-     * Crypto.encodeBase32(textToBytes("foob")) => "mzxw6yq"
+     * Crypto.encodeBase32(textToBytes("foob")) == "mzxw6yq"
      * @example
-     * Crypto.encodeBase32(textToBytes("fooba")) => "mzxw6ytb"
+     * Crypto.encodeBase32(textToBytes("fooba")) == "mzxw6ytb"
      * @example
-     * Crypto.encodeBase32(textToBytes("foobar")) => "mzxw6ytboi"
-     * @param {number[]} bytes - uint8 numbers
-     * @param {string} alphabet - list of chars
+     * Crypto.encodeBase32(textToBytes("foobar")) == "mzxw6ytboi"
+     * @param {number[]} bytes list of uint8 numbers
+     * @param {string} alphabet list of chars, defaults to "abcdefghijklmnopqrstuvwxyz234567"
      * @return {string}
      */
     encodeBase32: (bytes, alphabet = DEFAULT_BASE32_ALPHABET) => {
@@ -451,21 +451,21 @@ export const Crypto = {
     },
 
     /**
-     * Decode base32 string into bytes.
+     * Decodes a Base32 string into bytes.
      * @example
-     * bytesToText(Crypto.decodeBase32("my")) => "f"
+     * bytesToText(Crypto.decodeBase32("my")) == "f"
      * @example
-     * bytesToText(Crypto.decodeBase32("mzxq")) => "fo"
+     * bytesToText(Crypto.decodeBase32("mzxq")) == "fo"
      * @example
-     * bytesToText(Crypto.decodeBase32("mzxw6")) => "foo"
+     * bytesToText(Crypto.decodeBase32("mzxw6")) == "foo"
      * @example
-     * bytesToText(Crypto.decodeBase32("mzxw6yq")) => "foob"
+     * bytesToText(Crypto.decodeBase32("mzxw6yq")) == "foob"
      * @example
-     * bytesToText(Crypto.decodeBase32("mzxw6ytb")) => "fooba"
+     * bytesToText(Crypto.decodeBase32("mzxw6ytb")) == "fooba"
      * @example
-     * bytesToText(Crypto.decodeBase32("mzxw6ytboi")) => "foobar"
-     * @param {string} encoded
-     * @param {string} alphabet
+     * bytesToText(Crypto.decodeBase32("mzxw6ytboi")) == "foobar"
+     * @param {string} encoded 
+     * @param {string} alphabet list of chars, defaults to "abcdefghijklmnopqrstuvwxyz234567"
      * @return {number[]}
      */
     decodeBase32: (encoded, alphabet = DEFAULT_BASE32_ALPHABET) => {
@@ -498,13 +498,13 @@ export const Crypto = {
     },
 
     /**
-     * Creates a bech32 checksummed string (used to represent Cardano addresses)
+     * Creates a Bech32 checksummed string (eg. used to represent Cardano addresses).
      * @example
-     * Crypto.encodeBech32("foo", textToBytes("foobar")) => "foo1vehk7cnpwgry9h96"
+     * Crypto.encodeBech32("foo", textToBytes("foobar")) == "foo1vehk7cnpwgry9h96"
      * @example
-     * Crypto.encodeBech32("addr_test", hexToBytes("70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539")) => "addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld"
-     * @param {string} hrp 
-     * @param {number[]} data - uint8 0 - 256
+     * Crypto.encodeBech32("addr_test", hexToBytes("70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539")) == "addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld"
+     * @param {string} hrp  human-readable part (eg. "addr")
+     * @param {number[]} data a list of uint8 bytes
      * @returns {string}
      */
     encodeBech32: (hrp, data) => {
@@ -518,12 +518,12 @@ export const Crypto = {
     },
 
     /**
-     * Decomposes a bech32 checksummed string (i.e. Cardano address), and returns the human readable part and the original bytes
+     * Decomposes a Bech32 checksummed string (eg. a Cardano address), and returns the human readable part and the original bytes
      * Throws an error if checksum is invalid.
      * @example
-     * bytesToHex(Crypto.decodeBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld")[1]) => "70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539"
+     * bytesToHex(Crypto.decodeBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld")[1]) == "70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539"
      * @param {string} addr 
-     * @returns {[string, number[]]}
+     * @returns {[string, number[]]} First part is the human-readable part, second part is a list containing the underlying bytes.
      */
     decodeBech32: (addr) => {
         assert(Crypto.verifyBech32(addr), "invalid bech32 addr");
@@ -542,40 +542,40 @@ export const Crypto = {
     },
 
     /**
-     * Verify a bech32 checksum
+     * Verifies a Bech32 checksum.
      * @example
-     * Crypto.verifyBech32("foo1vehk7cnpwgry9h96") => true
+     * Crypto.verifyBech32("foo1vehk7cnpwgry9h96") == true
      * @example
-     * Crypto.verifyBech32("foo1vehk7cnpwgry9h97") => false
+     * Crypto.verifyBech32("foo1vehk7cnpwgry9h97") == false
      * @example
-     * Crypto.verifyBech32("a12uel5l") => true
+     * Crypto.verifyBech32("a12uel5l") == true
      * @example
-     * Crypto.verifyBech32("mm1crxm3i") => false
+     * Crypto.verifyBech32("mm1crxm3i") == false
      * @example
-     * Crypto.verifyBech32("A1G7SGD8") => false
+     * Crypto.verifyBech32("A1G7SGD8") == false
      * @example
-     * Crypto.verifyBech32("abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw") => true
+     * Crypto.verifyBech32("abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw") == true
      * @example
-     * Crypto.verifyBech32("?1ezyfcl") => true
+     * Crypto.verifyBech32("?1ezyfcl") == true
      * @example
-     * Crypto.verifyBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld") => true
-     * @param {string} addr
+     * Crypto.verifyBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld") == true
+     * @param {string} encoded
      * @returns {boolean}
      */
-    verifyBech32: (addr) => {
+    verifyBech32: (encoded) => {
         const data = [];
 
-        const i = addr.indexOf("1");
+        const i = encoded.indexOf("1");
 
         if (i == -1 || i == 0) {
             return false;
         }
 
-        const hrp = addr.slice(0, i);
+        const hrp = encoded.slice(0, i);
 
-        addr = addr.slice(i + 1);
+        encoded = encoded.slice(i + 1);
 
-        for (let c of addr) {
+        for (let c of encoded) {
             const j = BECH32_BASE32_ALPHABET.indexOf(c);
             if (j == -1) {
                 return false;
@@ -598,14 +598,14 @@ export const Crypto = {
     },
 
     /**
-     * Calculates sha2-256 (32bytes) hash of a list of uint8 numbers.
-     * Result is also a list of uint8 number.
+     * Calculates sha2-256 (32bytes) hash of a list of bytes.
+     * Result is also a list of bytes.
      * @example 
-     * bytesToHex(Crypto.sha2_256([0x61, 0x62, 0x63])) => "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+     * bytesToHex(Crypto.sha2_256([0x61, 0x62, 0x63])) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
      * @example
-     * Crypto.sha2_256(textToBytes("Hello, World!")) => [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
-     * @param {number[]} bytes - list of uint8 numbers
-     * @returns {number[]} - list of uint8 numbers
+     * Crypto.sha2_256(textToBytes("Hello, World!")) == [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
+     * @param {number[]} bytes List of uint8 numbers
+     * @returns {number[]} List of uint8 numbers.
      */
     sha2_256: (bytes) => {
         /**
@@ -779,15 +779,15 @@ export const Crypto = {
      * Calculates sha2-512 (64bytes) hash of a list of uint8 numbers.
      * Result is also a list of uint8 number.
      * @example 
-     * bytesToHex(Crypto.sha2_512([0x61, 0x62, 0x63])) => "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
+     * bytesToHex(Crypto.sha2_512([0x61, 0x62, 0x63])) == "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
      * @example 
-     * bytesToHex(Crypto.sha2_512([])) => "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+     * bytesToHex(Crypto.sha2_512([])) == "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
      * @example
-     * bytesToHex(Crypto.sha2_512(textToBytes("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"))) => "204a8fc6dda82f0a0ced7beb8e08a41657c16ef468b228a8279be331a703c33596fd15c13b1b07f9aa1d3bea57789ca031ad85c7a71dd70354ec631238ca3445"
+     * bytesToHex(Crypto.sha2_512(textToBytes("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"))) == "204a8fc6dda82f0a0ced7beb8e08a41657c16ef468b228a8279be331a703c33596fd15c13b1b07f9aa1d3bea57789ca031ad85c7a71dd70354ec631238ca3445"
      * @example
-     * bytesToHex(Crypto.sha2_512(textToBytes("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstuu"))) => "23565d109ac0e2aa9fb162385178895058b28489a6bc31cb55491ed83956851ab1d4bbd46440586f5c9c4b69c9c280118cbc55c71495d258cc27cc6bb25ee720"
-     * @param {number[]} bytes - list of uint8 numbers
-     * @returns {number[]} - list of uint8 numbers
+     * bytesToHex(Crypto.sha2_512(textToBytes("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstuu"))) == "23565d109ac0e2aa9fb162385178895058b28489a6bc31cb55491ed83956851ab1d4bbd46440586f5c9c4b69c9c280118cbc55c71495d258cc27cc6bb25ee720"
+     * @param {number[]} bytes List of uint8 numbers
+     * @returns {number[]} List of uint8 numbers.
      */
     sha2_512: (bytes) => {
         /**
@@ -981,21 +981,24 @@ export const Crypto = {
     /**
      * Calculates sha3-256 (32bytes) hash of a list of uint8 numbers.
      * Result is also a list of uint8 number.
-     * Sha3 only bit-wise operations, so 64-bit operations can easily be replicated using 2 32-bit operations instead
      * @example
-     * bytesToHex(Crypto.sha3(textToBytes("abc"))) => "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
+     * bytesToHex(Crypto.sha3(textToBytes("abc"))) == "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
      * @example
-     * bytesToHex(Crypto.sha3((new Array(136)).fill(1))) => "b36dc2167c4d9dda1a58b87046c8d76a6359afe3612c4de8a38857e09117b2db"
+     * bytesToHex(Crypto.sha3((new Array(136)).fill(1))) == "b36dc2167c4d9dda1a58b87046c8d76a6359afe3612c4de8a38857e09117b2db"
      * @example
-     * bytesToHex(Crypto.sha3((new Array(135)).fill(2))) => "5bdf5d815d29a9d7161c66520efc17c2edd7898f2b99a029e8d2e4ff153407f4"
+     * bytesToHex(Crypto.sha3((new Array(135)).fill(2))) == "5bdf5d815d29a9d7161c66520efc17c2edd7898f2b99a029e8d2e4ff153407f4"
      * @example
-     * bytesToHex(Crypto.sha3((new Array(134)).fill(3))) => "8e6575663dfb75a88f94a32c5b363c410278b65020734560d968aadd6896a621"
+     * bytesToHex(Crypto.sha3((new Array(134)).fill(3))) == "8e6575663dfb75a88f94a32c5b363c410278b65020734560d968aadd6896a621"
      * @example
-     * bytesToHex(Crypto.sha3((new Array(137)).fill(4))) => "f10b39c3e455006aa42120b9751faa0f35c821211c9d086beb28bf3c4134c6c6"
-     * @param {number[]} bytes - list of uint8 numbers
-     * @returns {number[]} - list of uint8 numbers
+     * bytesToHex(Crypto.sha3((new Array(137)).fill(4))) == "f10b39c3e455006aa42120b9751faa0f35c821211c9d086beb28bf3c4134c6c6"
+     * @param {number[]} bytes List of uint8 numbers
+     * @returns {number[]} List of uint8 numbers.
      */
     sha3: (bytes) => {
+        /**
+         * Sha3 uses only bit-wise operations, so 64-bit operations can easily be replicated using 2 32-bit operations instead.
+         */
+
         /**
          * @type {number} - state width (1600 bits, )
          */
@@ -1175,17 +1178,21 @@ export const Crypto = {
 
     /**
      * Calculates blake2b hash of a list of uint8 numbers (variable digest size).
-     * Result is also a list of uint8 number.
-     * Blake2b is a 64bit algorithm, so we need to be careful when replicating 64-bit operations with 2 32-bit numbers (low-word overflow must spill into high-word, and shifts must go over low/high boundary)
+     * Result is also a list of uint8 numbers.
      * @example                                        
-     * bytesToHex(Crypto.blake2b([0, 1])) => "01cf79da4945c370c68b265ef70641aaa65eaa8f5953e3900d97724c2c5aa095"
+     * bytesToHex(Crypto.blake2b([0, 1])) == "01cf79da4945c370c68b265ef70641aaa65eaa8f5953e3900d97724c2c5aa095"
      * @example
-     * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
+     * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) == "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
      * @param {number[]} bytes 
-     * @param {number} digestSize - at most 64
-     * @returns {number[]}
+     * @param {number} digestSize Defaults to 32. Can't be greater than 64.
+     * @returns {number[]} List of uint8 numbers.
      */
     blake2b: (bytes, digestSize = BLAKE2B_DIGEST_SIZE) => {
+        /**
+         * Blake2b is a 64bit algorithm, so we need to be careful when replicating 64-bit operations with 2 32-bit numbers
+         * (low-word overflow must spill into high-word, and shifts must go over low/high boundary).
+         */
+
         /**
          * 128 bytes (16*8 byte words)
          * @type {number}
@@ -1348,8 +1355,9 @@ export const Crypto = {
     },
 
     /**
+     * Hmac using sha2-256.
      * @example
-     * bytesToHex(Crypto.hmacSha2_256(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) => "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+     * bytesToHex(Crypto.hmacSha2_256(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) == "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
      * @param {number[]} key 
      * @param {number[]} message 
      * @returns {number[]}
@@ -1359,8 +1367,9 @@ export const Crypto = {
     },
 
     /**
+     * Hmac using sha2-512.
      * @example
-     * bytesToHex(Crypto.hmacSha2_512(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) => "b42af09057bac1e2d41708e48a902e09b5ff7f12ab428a4fe86653c73dd248fb82f948a549f7b791a5b41915ee4d1ec3935357e4e2317250d0372afa2ebeeb3a"
+     * bytesToHex(Crypto.hmacSha2_512(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) == "b42af09057bac1e2d41708e48a902e09b5ff7f12ab428a4fe86653c73dd248fb82f948a549f7b791a5b41915ee4d1ec3935357e4e2317250d0372afa2ebeeb3a"
      * @param {number[]} key 
      * @param {number[]} message 
      * @returns {number[]}
@@ -1370,10 +1379,11 @@ export const Crypto = {
     },
 
     /**
+     * Password-Based Key Derivation Function 2.
      * @example
-     * bytesToHex(Crypto.pbkdf2(Crypto.hmacSha2_256, textToBytes("password"), textToBytes("salt"), 1, 20)) => "120fb6cffcf8b32c43e7225256c4f837a86548c9"
+     * bytesToHex(Crypto.pbkdf2(Crypto.hmacSha2_256, textToBytes("password"), textToBytes("salt"), 1, 20)) == "120fb6cffcf8b32c43e7225256c4f837a86548c9"
      * @example
-     * bytesToHex(Crypto.pbkdf2(Crypto.hmacSha2_512, textToBytes("password"), textToBytes("salt"), 2, 20)) => "e1d9c16aa681708a45f5c7c4e215ceb66e011a2e"
+     * bytesToHex(Crypto.pbkdf2(Crypto.hmacSha2_512, textToBytes("password"), textToBytes("salt"), 2, 20)) == "e1d9c16aa681708a45f5c7c4e215ceb66e011a2e"
      * @param {(key: number[], msg: number[]) => number[]} prf 
      * @param {number[]} password 
      * @param {number[]} salt 
@@ -1885,6 +1895,8 @@ function nonce(m) {
 const CurvePointImpl = ExtendedPoint;
 
 /**
+ * The elliptic curve signature algorithm used by Cardano wallets.
+ * 
  * Ported from: [https://ed25519.cr.yp.to/python/ed25519.py](https://ed25519.cr.yp.to/python/ed25519.py).
  * 
  * ExtendedPoint implementation taken from: [https://github.com/paulmillr/noble-ed25519](https://github.com/paulmillr/noble-ed25519).
@@ -1892,8 +1904,9 @@ const CurvePointImpl = ExtendedPoint;
  */
 export const Ed25519 = {
     /**
+     * Similar to `Ed25519.derivePublicKey`, but doesn't hash the input key.
      * @param {number[]} extendedKey
-     * @returns {number[]}
+     * @returns {number[]} 32 byte public key.
      */
     deriveBip32PublicKey: (extendedKey) => {
         const a = clamp(extendedKey);
@@ -1903,17 +1916,21 @@ export const Ed25519 = {
     },
 
     /**
+     * Derive a public key from a private key.
+     * The private key can be any number of bytes (it's hashed internally).
+     * The returned public key is 32 bytes long.
      * @param {number[]} privateKey
-     * @returns {number[]}
+     * @returns {number[]} 32 byte public key.
      */
     derivePublicKey: (privateKey) => {
         return Ed25519.deriveBip32PublicKey(Crypto.sha2_512(privateKey));
     },
 
     /**
+     * Like `Ed25519.sign`, but doesn't hash the input key.
      * @param {number[]} message 
      * @param {number[]} extendedKey 
-     * @returns {number[]}
+     * @returns {number[]} 64 byte signature.
      */
     signBip32: (message, extendedKey) => {
         const a = clamp(extendedKey);
@@ -1931,15 +1948,17 @@ export const Ed25519 = {
     },
 
     /**
+     * Creates a 64 byte signature.
      * @param {number[]} message 
      * @param {number[]} privateKey 
-     * @returns {number[]}
+     * @returns {number[]} 64 byte signature.
      */
     sign: (message, privateKey) => {
         return Ed25519.signBip32(message, Crypto.sha2_512(privateKey));
     },
 
     /**
+     * Returns `true` if the signature is correct.
      * @param {number[]} signature 
      * @param {number[]} message 
      * @param {number[]} publicKey 

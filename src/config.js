@@ -94,10 +94,10 @@ export const config = {
     /**
      * Lower offset wrt. the current system time when setting the validity range automatically.
      * 
-     * Defaut: 60 seconds.
+     * Defaut: 90 seconds.
      * @type {number} seconds
      */
-    VALIDITY_RANGE_START_OFFSET: 60,
+    VALIDITY_RANGE_START_OFFSET: 90,
 
     /**
      * Upper offset wrt. the current system time when setting the validity range automatically.

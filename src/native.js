@@ -80,8 +80,10 @@ export class NativeContext {
 }
 
 /**
- * NativeScript allows creating basic multi-signature and time-based validators.
+ * Helios supports Cardano [native scripts](https://cips.cardano.org/cips/cip29/). 
+ * See `Tx.attachScript()` for how `NativeScript` can be used when building a transaction.
  * 
+ * NativeScript allows creating basic multi-signature and time-based validators.
  * This is a legacy technology, but can be cheaper than using Plutus.
  */
 export class NativeScript extends CborData {
@@ -318,6 +320,9 @@ export class NativeScript extends CborData {
     }
 
     /**
+     * Calculates the blake2b-224 (28 bytes) hash of the NativeScript.
+     * 
+     * **Note**: a 0 byte is prepended before to the serialized CBOR representation, before calculating the hash.
      * @returns {number[]}
      */
     hash() {
@@ -330,7 +335,7 @@ export class NativeScript extends CborData {
     }
 
     /**
-     * A NativeScript can be used both as a Validator and as a MintingPolicy
+     * A `NativeScript` can be used both as a Validator and as a MintingPolicy
      * @type {ValidatorHash}
      */
     get validatorHash() {
@@ -338,7 +343,7 @@ export class NativeScript extends CborData {
     }
 
     /**
-     * A NativeScript can be used both as a Validator and as a MintingPolicy
+     * A `NativeScript` can be used both as a Validator and as a MintingPolicy
      * @type {MintingPolicyHash}
      */
     get mintingPolicyHash() {

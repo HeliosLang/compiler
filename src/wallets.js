@@ -43,6 +43,29 @@ import {
 */
 
 /**
+ * Convenience type for browser plugin wallets supporting the CIP 30 dApp connector standard (eg. Eternl, Nami, ...).
+ * 
+ * This is useful in typescript projects to avoid type errors when accessing the handles in `window.cardano`.
+ * 
+ * ```ts
+ * // refer to this file in the 'typeRoots' list in tsconfig.json
+ *
+ * type Cip30SimpleHandle = {
+ *   name: string,
+ *   icon: string,
+ *   enable(): Promise<helios.Cip30Handle>,
+ *   isEnabled(): boolean
+ * }
+ *
+ * declare global {
+ *   interface Window {
+ *     cardano: {
+ *       [walletName: string]: Cip30SimpleHandle
+ *     };
+ *   }
+ * }
+ * ```
+ * 
  * @typedef {{
  *     getNetworkId(): Promise<number>,
  *     getUsedAddresses(): Promise<string[]>,
@@ -58,12 +81,19 @@ import {
  */
 
 /**
+ * Implementation of `Wallet` that lets you connect to a browser plugin wallet.
  * @implements {Wallet}
  */
 export class Cip30Wallet {
     #handle;
 
     /**
+     * Constructs Cip30Wallet using the Cip30Handle which is available in the browser window.cardano context.
+     * 
+     * ```ts
+     * const handle: helios.Cip30Handle = await window.cardano.eternl.enable()
+     * const wallet = new helios.Cip30Wallet(handle)
+     * ```
      * @param {Cip30Handle} handle
      */
     constructor(handle) {
@@ -71,6 +101,7 @@ export class Cip30Wallet {
     }
 
     /**
+     * Returns `true` if the wallet is connected to the mainnet.
      * @returns {Promise<boolean>}
      */
     async isMainnet() {
@@ -78,6 +109,7 @@ export class Cip30Wallet {
     }
 
     /**
+     * Gets a list of addresses which contain(ed) UTxOs.
      * @type {Promise<Address[]>}
      */
     get usedAddresses() {
@@ -85,6 +117,7 @@ export class Cip30Wallet {
     }
 
     /**
+     * Gets a list of unique unused addresses which can be used to UTxOs to.
      * @type {Promise<Address[]>}
      */
     get unusedAddresses() {
@@ -92,6 +125,7 @@ export class Cip30Wallet {
     }
 
     /**
+     * Gets the complete list of UTxOs (as `TxInput` instances) sitting at the addresses owned by the wallet.
      * @type {Promise<TxInput[]>}
      */
     get utxos() {
@@ -107,6 +141,7 @@ export class Cip30Wallet {
     }
 
     /**
+     * Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
      * @param {Tx} tx
      * @returns {Promise<Signature[]>}
      */
@@ -117,6 +152,7 @@ export class Cip30Wallet {
     }
 
     /**
+     * Submits a transaction to the blockchain.
      * @param {Tx} tx
      * @returns {Promise<TxId>}
      */
@@ -128,7 +164,7 @@ export class Cip30Wallet {
 }
 
 /**
- * Wraps an instance implementing the Wallet interface in order to provide additional functionality.
+ * High-level helper class for instances that implement the `Wallet` interface.
  */
 export class WalletHelper {
     #wallet;
@@ -144,6 +180,7 @@ export class WalletHelper {
     }
 
     /**
+     * Concatenation of `usedAddresses` and `unusedAddresses`.
      * @type {Promise<Address[]>}
      */
     get allAddresses() {
@@ -166,6 +203,7 @@ export class WalletHelper {
     }
 
     /**
+     * First `Address` in `allAddresses`.
      * @type {Promise<Address>}
      */
     get baseAddress() {
@@ -173,6 +211,7 @@ export class WalletHelper {
     }
 
     /**
+     * First `Address` in `unusedAddresses` (falls back to last `Address` in `usedAddresses` if not defined).
      * @type {Promise<Address>}
      */
     get changeAddress() {
@@ -192,7 +231,7 @@ export class WalletHelper {
     }
 
     /**
-     * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
+     * First UTxO in `utxos`. Can be used to distinguish between preview and preprod networks.
      * @type {Promise<null | TxInput>}
      */
     get refUtxo() {
@@ -212,25 +251,27 @@ export class WalletHelper {
         try {
             return await this.#wallet.utxos;
         } catch (e) {
-            if (this.#getUtxosFallback && e.message.includes("unknown error in getUtxos")) {
+            if (this.#getUtxosFallback) {
+                console.error(e, "falling back to regular network");
                 return this.#getUtxosFallback(await this.#wallet.usedAddresses);
             } else {
-                throw e
+                console.error("fallback not set");
+                throw e;
             }
         }
     }
     /**
+     * Pick a number of UTxOs needed to cover a given Value. The default coin selection strategy is to pick the smallest first.
      * @param {Value} amount
      * @param {CoinSelectionAlgorithm} algorithm
-     * @returns {Promise<[TxInput[], TxInput[]]>} - [picked, not picked that can be used as spares]
+     * @returns {Promise<[TxInput[], TxInput[]]>} The first list contains the selected UTxOs, the second list contains the remaining UTxOs.
      */
     async pickUtxos(amount, algorithm = CoinSelection.selectSmallestFirst) {
         return algorithm(await this.getUtxos(), amount);
     }
 
     /**
-     * Returned collateral can't contain an native assets (pure lovelace)
-     * TODO: combine UTxOs if a single UTxO isn't enough
+     * Picks a single UTxO intended as collateral.
      * @param {bigint} amount - 2 Ada should cover most things
      * @returns {Promise<TxInput>}
      */
@@ -253,6 +294,7 @@ export class WalletHelper {
     }
 
     /**
+     * Returns `true` if the `PubKeyHash` in the given `Address` is controlled by the wallet.
      * @param {Address} addr
      * @returns {Promise<boolean>}
      */
@@ -267,6 +309,7 @@ export class WalletHelper {
     }
 
     /**
+     * Returns `true` if the given `PubKeyHash` is controlled by the wallet.
      * @param {PubKeyHash} pkh
      * @returns {Promise<boolean>}
      */
@@ -285,11 +328,10 @@ export class WalletHelper {
     }
 
     /**
-     * @param {undefined | ((addrs: Address[]) => Promise<TxInput[]>)} utxosFallback
      * @returns {Promise<any>}
      */
-    async toJson(utxosFallback = undefined) {
-        const isMainnet = (await this.#wallet).isMainnet();
+    async toJson() {
+        const isMainnet = (await this.#wallet.isMainnet());
         const usedAddresses = (await this.#wallet.usedAddresses);
         const unusedAddresses = (await this.#wallet.unusedAddresses);
 

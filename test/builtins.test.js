@@ -1545,10 +1545,16 @@ async function testBuiltins() {
         func main(byte: Int, b: ByteArray) -> ByteArray {
             b.prepend(byte)
         }`, ([a, b], res) => {
-            const bi = asBytes(b);
-            bi.unshift(Number(asInt(a) % 256n));
+			const ai = asInt(a);
 
-            return equalsList(bi, asBytes(res));
+			if (ai < 0n || ai >= 256n) {
+				return isError(res);
+			} else {
+				const bi = asBytes(b);
+				bi.unshift(Number(ai));
+
+				return equalsList(bi, asBytes(res));
+			}
         });
 
         await ft.test([ft.utf8Bytes()], `

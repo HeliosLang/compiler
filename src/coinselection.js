@@ -14,20 +14,23 @@ import {
 } from "./tx-builder.js";
 
 /**
+ * Returns two lists. The first list contains the selected UTxOs, the second list contains the remaining UTxOs.
  * @typedef {(utxos: TxInput[], amount: Value) => [TxInput[], TxInput[]]} CoinSelectionAlgorithm
  */
 
 /**
- * Collection of coin selection algorithms
+ * Collection of common [coin selection algorithms](https://cips.cardano.org/cips/cip2/).
+ * @namespace
  */
-export class CoinSelection {
+export const CoinSelection = {
     /**
+     * @internal
      * @param {TxInput[]} utxos 
      * @param {Value} amount 
      * @param {boolean} largestFirst
      * @returns {[TxInput[], TxInput[]]} - [picked, not picked that can be used as spares]
      */
-    static selectExtremumFirst(utxos, amount, largestFirst) {
+    selectExtremumFirst: (utxos, amount, largestFirst) => {
         let sum = new Value();
 
         /** @type {TxInput[]} */
@@ -89,7 +92,7 @@ export class CoinSelection {
                         selected.push(utxo);
                         sum = sum.add(utxo.value);
                     } else {
-                        remaining.push(utxo)
+                        remaining.push(utxo);
                     }
                 }
             }
@@ -130,19 +133,22 @@ export class CoinSelection {
         assert(selected.length + notSelected.length == utxos.length, "internal error: select algorithm doesn't conserve utxos");
 
         return [selected, notSelected];
-    }
+    },
 
     /**
+     * Selects UTxOs from a list by iterating through the tokens in the given `Value` and picking the UTxOs containing the smallest corresponding amount first.
+     * This method can be used to eliminate dust UTxOs from a wallet.
      * @type {CoinSelectionAlgorithm}
      */
-    static selectSmallestFirst(utxos, amount) {
+    selectSmallestFirst: (utxos, amount) => {
         return CoinSelection.selectExtremumFirst(utxos, amount, false);
-    }
+    },
 
     /**
+     * * Selects UTxOs from a list by iterating through the tokens in the given `Value` and picking the UTxOs containing the largest corresponding amount first.
      * @type {CoinSelectionAlgorithm}
      */
-    static selectLargestFirst(utxos, amount) {
+    selectLargestFirst: (utxos, amount) => {
         return CoinSelection.selectExtremumFirst(utxos, amount, true);
     }
 }

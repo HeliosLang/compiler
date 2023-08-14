@@ -33,9 +33,13 @@ export default async function main() {
     }
 
     heliosSrc = "'use strict';\n" + heliosSrc + "\n" + tests.map(t => {
-        let parts = t.split("=>");
+        let parts = t.split("==");
 
-        return `assertEq(${parts[0].trim()}, ${parts[1].trim()}, 'unit test ${t} failed')`
+        const rhs = parts[parts.length-1].trim()
+
+        const lhs = parts.slice(0, parts.length-1).join("==").trim()
+
+        return `assertEq(${lhs}, ${rhs}, 'unit test ${t} failed')`
     }).join(";\n") + ";";
 
     eval(heliosSrc);

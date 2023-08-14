@@ -315,7 +315,7 @@ export class Common {
 	/**
 	 * Compares two types. Throws an error if neither is a Type.
 	 * @example
-	 * Common.typesEq(IntType, IntType) => true
+	 * Common.typesEq(IntType, IntType) == true
 	 * @param {Type} a 
 	 * @param {Type} b 
 	 * @returns {boolean}

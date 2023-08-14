@@ -18,7 +18,17 @@ import {
  */
 
 /**
- * NetworkParams contains all protocol parameters. These are needed to do correct, up-to-date, cost calculations.
+ * Wrapper for the raw JSON containing all the current network parameters.
+ * 
+ * NetworkParams is needed to be able to calculate script budgets and perform transaction building checks.
+ * 
+ * The raw JSON can be downloaded from the following CDN locations:
+ * 
+ *  - Preview: [https://d1t0d7c2nekuk0.cloudfront.net/preview.json](https://d1t0d7c2nekuk0.cloudfront.net/preview.json)
+ *  - Preprod: [https://d1t0d7c2nekuk0.cloudfront.net/preprod.json](https://d1t0d7c2nekuk0.cloudfront.net/preprod.json)
+ *  - Mainnet: [https://d1t0d7c2nekuk0.cloudfront.net/mainnet.json](https://d1t0d7c2nekuk0.cloudfront.net/mainnet.json)
+ * 
+ * These JSONs are updated every 15 minutes.
  */
 export class NetworkParams {
 	#raw;
@@ -243,8 +253,7 @@ export class NetworkParams {
 	}
 
 	/**
-	 * Use the latest slot in networkParameters to determine time.
-     * @internal
+	 * Calculates the time (in milliseconds in 01/01/1970) associated with a given slot number.
 	 * @param {bigint} slot
 	 * @returns {bigint}
 	 */
@@ -260,9 +269,8 @@ export class NetworkParams {
 	}
 
 	/**
-	 * Use the latest slot in network parameters to determine slot.
-     * @internal
-	 * @param {bigint} time - milliseconds since 1970
+	 * Calculates the slot number associated with a given time. Time is specified as milliseconds since 01/01/1970.
+	 * @param {bigint} time Milliseconds since 1970
 	 * @returns {bigint}
 	 */
 	timeToSlot(time) {

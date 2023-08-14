@@ -62,6 +62,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @type {number[]}
 	 */
 	get bytes() {
@@ -69,6 +70,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @type {bigint}
 	 */
 	get int() {
@@ -76,6 +78,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @type {number}
 	 */
 	get index() {
@@ -83,6 +86,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @type {UplcData[]}
 	 */
 	get fields() {
@@ -90,6 +94,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @type {UplcData[]}
 	 */
 	get list() {
@@ -97,6 +102,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @type {[UplcData, UplcData][]}
 	 */
 	get map() {
@@ -154,7 +160,7 @@ export class UplcData extends CborData {
 }
 
 /**
- * Plutus-core int data class
+ * Represents an unbounded integer (bigint).
  */
 export class IntData extends UplcData {
 	#value;
@@ -183,7 +189,7 @@ export class IntData extends UplcData {
 	}
 
 	/**
-	 * Alias getter
+	 * Alias for `IntData.value`.
 	 * @type {bigint}
 	 */
 	get int() {
@@ -192,6 +198,7 @@ export class IntData extends UplcData {
 
     /**
      * Calculate the mem size of a integer (without the DATA_NODE overhead)
+	 * @internal
      * @param {bigint} value
      * @returns {number}
      */
@@ -221,6 +228,7 @@ export class IntData extends UplcData {
 
 	/**
 	 * Returns integer literal wrapped with integer data function call.
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIR() {
@@ -338,6 +346,7 @@ export class ByteArrayData extends UplcData {
 
 	/**
 	 * Returns bytearray literal wrapped with bytearray data function as IR.
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIR() {
@@ -368,8 +377,9 @@ export class ByteArrayData extends UplcData {
 
 	/**
 	 * Bytearray comparison, which can be used for sorting bytearrays
+	 * @internal
 	 * @example
-	 * ByteArrayData.comp(hexToBytes("0101010101010101010101010101010101010101010101010101010101010101"), hexToBytes("0202020202020202020202020202020202020202020202020202020202020202")) => -1
+	 * ByteArrayData.comp(hexToBytes("0101010101010101010101010101010101010101010101010101010101010101"), hexToBytes("0202020202020202020202020202020202020202020202020202020202020202")) == -1
 	 * @param {number[]} a
 	 * @param {number[]} b
 	 * @returns {number} - 0 -> equals, 1 -> gt, -1 -> lt
@@ -406,7 +416,7 @@ export class ByteArrayData extends UplcData {
 }
 
 /**
- * Plutus-core list data class
+ * Represents a list of other `UplcData` instances.
  */
 export class ListData extends UplcData {
 	#items;
@@ -457,6 +467,7 @@ export class ListData extends UplcData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIR() {
@@ -501,7 +512,7 @@ export class ListData extends UplcData {
 }
 
 /**
- * Plutus-core map data class
+ * Represents a list of pairs of other `UplcData` instances.
  */
 export class MapData extends UplcData {
 	#pairs;
@@ -554,6 +565,7 @@ export class MapData extends UplcData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIR() {
@@ -602,7 +614,7 @@ export class MapData extends UplcData {
 }
 
 /**
- * Plutus-core constructed data class
+ * Represents a tag index and a list of `UplcData` fields.
  */
 export class ConstrData extends UplcData {
 	#index;

@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.15.2
+// Version:       0.15.3
 // Last update:   August 2023
 // License type:  BSD-3-Clause
 //
@@ -281,7 +281,8 @@
 //     Section 37: Network                   BlockfrostV0
 //
 //     Section 38: Emulator                  rawNetworkEmulatorParams, WalletEmulator, GenesisTx, 
-//                                           RegularTx, NetworkEmulator
+//                                           RegularTx, NetworkEmulator, TxChainWallet, TxChain, 
+//                                           NetworkSlice
 //
 //     Section 39: Fuzzy testing framework   FuzzyTest
 //
@@ -298,7 +299,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.15.2";
+export const VERSION = "0.15.3";
 
 /**
  * A tab used for indenting of the IR.
@@ -393,10 +394,10 @@ export const config = {
     /**
      * Lower offset wrt. the current system time when setting the validity range automatically.
      * 
-     * Defaut: 60 seconds.
+     * Defaut: 90 seconds.
      * @type {number} seconds
      */
-    VALIDITY_RANGE_START_OFFSET: 60,
+    VALIDITY_RANGE_START_OFFSET: 90,
 
     /**
      * Upper offset wrt. the current system time when setting the validity range automatically.
@@ -650,7 +651,7 @@ export function assertEq(a, b, msg) {
 /**
  * Divides two integers. Assumes a and b are whole numbers. Rounds down the result.
  * @example
- * idiv(355, 113) => 3
+ * idiv(355, 113) == 3
  * @internal
  * @param {number} a
  * @param {number} b 
@@ -676,7 +677,7 @@ export function ipow2(p) {
  * The return value is also an 8 bit integer, shift right by 'i1'.
  
  * @example
- * imask(0b11111111, 1, 4) => 0b0111 // (i.e. 7)
+ * imask(0b11111111, 1, 4) == 0b0111 // (i.e. 7)
  * @internal
  * @param {number} b 
  * @param {number} i0 
@@ -784,7 +785,7 @@ export function bigIntToLe32Bytes(x) {
 /**
  * Prepends zeroes to a bit-string so that 'result.length == n'.
  * @example
- * padZeroes("1111", 8) => "00001111"
+ * padZeroes("1111", 8) == "00001111"
  * @internal
  * @param {string} bits
  * @param {number} n 
@@ -805,7 +806,7 @@ export function padZeroes(bits, n) {
  * Converts a 8 bit integer number into a bit string with an optional "0b" prefix.
  * The result is padded with leading zeroes to become 'n' chars long ('2 + n' chars long if you count the "0b" prefix). 
  * @example
- * byteToBitString(7) => "0b00000111"
+ * byteToBitString(7) == "0b00000111"
  * @internal
  * @param {number} b 
  * @param {number} n
@@ -823,9 +824,9 @@ export function byteToBitString(b, n = 8, prefix = true) {
 }
 
 /**
- * Converts a hexadecimal representation of bytes into an actual list of uint8 bytes.
+ * Converts a hexadecimal string into a list of bytes.
  * @example
- * hexToBytes("00ff34") => [0, 255, 52] 
+ * hexToBytes("00ff34") == [0, 255, 52] 
  * @param {string} hex 
  * @returns {number[]}
  */
@@ -848,7 +849,7 @@ export function hexToBytes(hex) {
 /**
  * Converts a list of uint8 bytes into its hexadecimal string representation.
  * @example
- * bytesToHex([0, 255, 52]) => "00ff34"
+ * bytesToHex([0, 255, 52]) == "00ff34"
  * @param {number[]} bytes
  * @returns {string}
  */
@@ -865,7 +866,7 @@ export function bytesToHex(bytes) {
 /**
  * Encodes a string into a list of uint8 bytes using UTF-8 encoding.
  * @example
- * textToBytes("hello world") => [104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]
+ * textToBytes("hello world") == [104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]
  * @param {string} str 
  * @returns {number[]}
  */
@@ -876,7 +877,7 @@ export function textToBytes(str) {
 /**
  * Decodes a list of uint8 bytes into a string using UTF-8 encoding.
  * @example
- * bytesToText([104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]) => "hello world"
+ * bytesToText([104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]) == "hello world"
  * @param {number[]} bytes 
  * @returns {string}
  */
@@ -888,7 +889,7 @@ export function bytesToText(bytes) {
  * Replaces the tab characters of a string with spaces.
  * This is used to create a prettier IR (which is built-up from many template js strings in this file, which might contain tabs depending on the editor used)
  * @example
- * replaceTabs("\t\t\t") => [TAB, TAB, TAB].join("")
+ * replaceTabs("\t\t\t") == [TAB, TAB, TAB].join("")
  * @internal
  * @param {string} str 
  * @returns {string}
@@ -1328,7 +1329,7 @@ export class Source {
 	 * Creates a more human-readable version of the source by prepending the line-numbers to each line.
 	 * The line-numbers are at least two digits.
 	 * @example
-	 * (new Source("hello\nworld")).pretty() => "01  hello\n02  world"
+	 * (new Source("hello\nworld")).pretty() == "01  hello\n02  world"
      * @internal
 	 * @returns {string}
 	 */
@@ -1347,10 +1348,10 @@ export class Source {
 }
 
 /**
- * A tag function for a helios source.
- * Is just a marker so IDE support can work on literal helios sources inside javascript/typescript files.
+ * Template string tag function that doesn't do anything and just returns the template string as a string.
+ * Can be used as a marker of Helios sources so that syntax highlighting can work inside JS/TS files.
  * @example
- * hl`hello ${"world"}!` => "hello world!"
+ * hl`hello ${"world"}!` == "hello world!"
  * @param {string[]} a 
  * @param  {...any} b 
  * @returns {string}
@@ -1530,8 +1531,7 @@ export class Site {
 
 
 /**
- * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
- * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
+ * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error).
  */
  export class UserError extends Error {
 	#src;
@@ -1586,7 +1586,7 @@ export class Site {
 	}
 
 	/**
-	 * @internal
+	 * Filled with CBOR hex representations of Datum, Redeemer and ScriptContext by validation scripts throwing errors during `tx.finalize()`; and Redeemer and ScriptContext by minting scripts throwing errors.
 	 * @type {Object}
 	 */
 	get context() {
@@ -2222,7 +2222,7 @@ export class Group extends Token {
 	 * Returns the corresponding closing bracket, parenthesis or brace.
 	 * Throws an error if not a group symbol.
 	 * @example
-	 * Group.matchSymbol("(") => ")"
+	 * Group.matchSymbol("(") == ")"
 	 * @param {string | SymbolToken} t
 	 * @returns {string}
 	 */
@@ -2774,11 +2774,11 @@ export class IRParametricName {
 
 	/**
 	 * @example
- 	 * IRParametricName.matches("__helios__map[__T0@__T1]__fold[__F2@__F3]") => true
+ 	 * IRParametricName.matches("__helios__map[__T0@__T1]__fold[__F2@__F3]") == true
 	 * @example
-	 * IRParametricName.matches("__helios__int") => false
+	 * IRParametricName.matches("__helios__int") == false
 	 * @example
-	 * IRParametricName.matches("__helios__option[__T0]__none__new") => true
+	 * IRParametricName.matches("__helios__option[__T0]__none__new") == true
 	 * @param {string} str 
 	 * @returns {boolean}
 	 */
@@ -2796,11 +2796,11 @@ export class IRParametricName {
 
 	/**
 	 * @example
-	 * IRParametricName.parse("__helios__map[__T0@__T1]__fold[__F0@__F1]").toString() => "__helios__map[__T0@__T1]__fold[__F0@__F1]"
+	 * IRParametricName.parse("__helios__map[__T0@__T1]__fold[__F0@__F1]").toString() == "__helios__map[__T0@__T1]__fold[__F0@__F1]"
 	 * @example
-	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__F0@__F1]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__F0@__F1]"
+	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__F0@__F1]").toString() == "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__F0@__F1]"
 	 * @example
-	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]"
+	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]").toString() == "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]"
 	 * @param {string} str 
 	 * @param {boolean} preferType
 	 * @returns {IRParametricName}
@@ -3325,18 +3325,18 @@ const DEFAULT_BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
  */
 const BECH32_BASE32_ALPHABET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 /**
- * A collection of cryptography primitives are included here in order to avoid external dependencies
- * mulberry32: random number generator
- * base32 encoding and decoding
- * bech32 encoding, checking, and decoding
- * sha2_256, sha2_512, sha3 and blake2b hashing
+ * The Helios `Crypto` namespace contains a collection of cryptography primitives.
+ * 
+ * These functions have been implemented as part of the Helios library in order to avoid external dependencies
+ * (there still isn't a standardized Javascript [Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto) that provides all the needed functionality).
  * @namespace
  */
 export const Crypto = {
     /**
-     * Returns a simple random number generator.
+     * A simple pseudo-random number generator for use in tests that requires some randomness but need to be deterministic
+     * (i.e. each test run gives the same result).
      * @param {number} seed
-     * @returns {NumberGenerator} - a random number generator
+     * @returns {NumberGenerator} The returned function returns a new random number between 0 and 1 upon each call.
      */
     mulberry32: (seed) => {
         /**
@@ -3351,30 +3351,30 @@ export const Crypto = {
     },
 
     /**
-     * Alias for rand generator of choice.
+     * Alias for `mulberry32`.
      * @param {number} seed
-     * @returns {NumberGenerator} - the random number generator function
+     * @returns {NumberGenerator} The returned function returns a new random number between 0 and 1 upon each call.
      */
     rand: (seed) => {
         return Crypto.mulberry32(seed);
     },
 
     /**
-     * Encode bytes in special base32.
+     * Encodes bytes in using Base32.
      * @example
-     * Crypto.encodeBase32(textToBytes("f")) => "my"
+     * Crypto.encodeBase32(textToBytes("f")) == "my"
      * @example
-     * Crypto.encodeBase32(textToBytes("fo")) => "mzxq"
+     * Crypto.encodeBase32(textToBytes("fo")) == "mzxq"
      * @example
-     * Crypto.encodeBase32(textToBytes("foo")) => "mzxw6"
+     * Crypto.encodeBase32(textToBytes("foo")) == "mzxw6"
      * @example
-     * Crypto.encodeBase32(textToBytes("foob")) => "mzxw6yq"
+     * Crypto.encodeBase32(textToBytes("foob")) == "mzxw6yq"
      * @example
-     * Crypto.encodeBase32(textToBytes("fooba")) => "mzxw6ytb"
+     * Crypto.encodeBase32(textToBytes("fooba")) == "mzxw6ytb"
      * @example
-     * Crypto.encodeBase32(textToBytes("foobar")) => "mzxw6ytboi"
-     * @param {number[]} bytes - uint8 numbers
-     * @param {string} alphabet - list of chars
+     * Crypto.encodeBase32(textToBytes("foobar")) == "mzxw6ytboi"
+     * @param {number[]} bytes list of uint8 numbers
+     * @param {string} alphabet list of chars, defaults to "abcdefghijklmnopqrstuvwxyz234567"
      * @return {string}
      */
     encodeBase32: (bytes, alphabet = DEFAULT_BASE32_ALPHABET) => {
@@ -3382,21 +3382,21 @@ export const Crypto = {
     },
 
     /**
-     * Decode base32 string into bytes.
+     * Decodes a Base32 string into bytes.
      * @example
-     * bytesToText(Crypto.decodeBase32("my")) => "f"
+     * bytesToText(Crypto.decodeBase32("my")) == "f"
      * @example
-     * bytesToText(Crypto.decodeBase32("mzxq")) => "fo"
+     * bytesToText(Crypto.decodeBase32("mzxq")) == "fo"
      * @example
-     * bytesToText(Crypto.decodeBase32("mzxw6")) => "foo"
+     * bytesToText(Crypto.decodeBase32("mzxw6")) == "foo"
      * @example
-     * bytesToText(Crypto.decodeBase32("mzxw6yq")) => "foob"
+     * bytesToText(Crypto.decodeBase32("mzxw6yq")) == "foob"
      * @example
-     * bytesToText(Crypto.decodeBase32("mzxw6ytb")) => "fooba"
+     * bytesToText(Crypto.decodeBase32("mzxw6ytb")) == "fooba"
      * @example
-     * bytesToText(Crypto.decodeBase32("mzxw6ytboi")) => "foobar"
-     * @param {string} encoded
-     * @param {string} alphabet
+     * bytesToText(Crypto.decodeBase32("mzxw6ytboi")) == "foobar"
+     * @param {string} encoded 
+     * @param {string} alphabet list of chars, defaults to "abcdefghijklmnopqrstuvwxyz234567"
      * @return {number[]}
      */
     decodeBase32: (encoded, alphabet = DEFAULT_BASE32_ALPHABET) => {
@@ -3429,13 +3429,13 @@ export const Crypto = {
     },
 
     /**
-     * Creates a bech32 checksummed string (used to represent Cardano addresses)
+     * Creates a Bech32 checksummed string (eg. used to represent Cardano addresses).
      * @example
-     * Crypto.encodeBech32("foo", textToBytes("foobar")) => "foo1vehk7cnpwgry9h96"
+     * Crypto.encodeBech32("foo", textToBytes("foobar")) == "foo1vehk7cnpwgry9h96"
      * @example
-     * Crypto.encodeBech32("addr_test", hexToBytes("70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539")) => "addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld"
-     * @param {string} hrp 
-     * @param {number[]} data - uint8 0 - 256
+     * Crypto.encodeBech32("addr_test", hexToBytes("70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539")) == "addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld"
+     * @param {string} hrp  human-readable part (eg. "addr")
+     * @param {number[]} data a list of uint8 bytes
      * @returns {string}
      */
     encodeBech32: (hrp, data) => {
@@ -3449,12 +3449,12 @@ export const Crypto = {
     },
 
     /**
-     * Decomposes a bech32 checksummed string (i.e. Cardano address), and returns the human readable part and the original bytes
+     * Decomposes a Bech32 checksummed string (eg. a Cardano address), and returns the human readable part and the original bytes
      * Throws an error if checksum is invalid.
      * @example
-     * bytesToHex(Crypto.decodeBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld")[1]) => "70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539"
+     * bytesToHex(Crypto.decodeBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld")[1]) == "70a9508f015cfbcffc3d88ac4c1c934b5b82d2bb281d464672f6c49539"
      * @param {string} addr 
-     * @returns {[string, number[]]}
+     * @returns {[string, number[]]} First part is the human-readable part, second part is a list containing the underlying bytes.
      */
     decodeBech32: (addr) => {
         assert(Crypto.verifyBech32(addr), "invalid bech32 addr");
@@ -3473,40 +3473,40 @@ export const Crypto = {
     },
 
     /**
-     * Verify a bech32 checksum
+     * Verifies a Bech32 checksum.
      * @example
-     * Crypto.verifyBech32("foo1vehk7cnpwgry9h96") => true
+     * Crypto.verifyBech32("foo1vehk7cnpwgry9h96") == true
      * @example
-     * Crypto.verifyBech32("foo1vehk7cnpwgry9h97") => false
+     * Crypto.verifyBech32("foo1vehk7cnpwgry9h97") == false
      * @example
-     * Crypto.verifyBech32("a12uel5l") => true
+     * Crypto.verifyBech32("a12uel5l") == true
      * @example
-     * Crypto.verifyBech32("mm1crxm3i") => false
+     * Crypto.verifyBech32("mm1crxm3i") == false
      * @example
-     * Crypto.verifyBech32("A1G7SGD8") => false
+     * Crypto.verifyBech32("A1G7SGD8") == false
      * @example
-     * Crypto.verifyBech32("abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw") => true
+     * Crypto.verifyBech32("abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw") == true
      * @example
-     * Crypto.verifyBech32("?1ezyfcl") => true
+     * Crypto.verifyBech32("?1ezyfcl") == true
      * @example
-     * Crypto.verifyBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld") => true
-     * @param {string} addr
+     * Crypto.verifyBech32("addr_test1wz54prcptnaullpa3zkyc8ynfddc954m9qw5v3nj7mzf2wggs2uld") == true
+     * @param {string} encoded
      * @returns {boolean}
      */
-    verifyBech32: (addr) => {
+    verifyBech32: (encoded) => {
         const data = [];
 
-        const i = addr.indexOf("1");
+        const i = encoded.indexOf("1");
 
         if (i == -1 || i == 0) {
             return false;
         }
 
-        const hrp = addr.slice(0, i);
+        const hrp = encoded.slice(0, i);
 
-        addr = addr.slice(i + 1);
+        encoded = encoded.slice(i + 1);
 
-        for (let c of addr) {
+        for (let c of encoded) {
             const j = BECH32_BASE32_ALPHABET.indexOf(c);
             if (j == -1) {
                 return false;
@@ -3529,14 +3529,14 @@ export const Crypto = {
     },
 
     /**
-     * Calculates sha2-256 (32bytes) hash of a list of uint8 numbers.
-     * Result is also a list of uint8 number.
+     * Calculates sha2-256 (32bytes) hash of a list of bytes.
+     * Result is also a list of bytes.
      * @example 
-     * bytesToHex(Crypto.sha2_256([0x61, 0x62, 0x63])) => "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+     * bytesToHex(Crypto.sha2_256([0x61, 0x62, 0x63])) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
      * @example
-     * Crypto.sha2_256(textToBytes("Hello, World!")) => [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
-     * @param {number[]} bytes - list of uint8 numbers
-     * @returns {number[]} - list of uint8 numbers
+     * Crypto.sha2_256(textToBytes("Hello, World!")) == [223, 253, 96, 33, 187, 43, 213, 176, 175, 103, 98, 144, 128, 158, 195, 165, 49, 145, 221, 129, 199, 247, 10, 75, 40, 104, 138, 54, 33, 130, 152, 111]
+     * @param {number[]} bytes List of uint8 numbers
+     * @returns {number[]} List of uint8 numbers.
      */
     sha2_256: (bytes) => {
         /**
@@ -3710,15 +3710,15 @@ export const Crypto = {
      * Calculates sha2-512 (64bytes) hash of a list of uint8 numbers.
      * Result is also a list of uint8 number.
      * @example 
-     * bytesToHex(Crypto.sha2_512([0x61, 0x62, 0x63])) => "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
+     * bytesToHex(Crypto.sha2_512([0x61, 0x62, 0x63])) == "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
      * @example 
-     * bytesToHex(Crypto.sha2_512([])) => "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+     * bytesToHex(Crypto.sha2_512([])) == "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
      * @example
-     * bytesToHex(Crypto.sha2_512(textToBytes("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"))) => "204a8fc6dda82f0a0ced7beb8e08a41657c16ef468b228a8279be331a703c33596fd15c13b1b07f9aa1d3bea57789ca031ad85c7a71dd70354ec631238ca3445"
+     * bytesToHex(Crypto.sha2_512(textToBytes("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"))) == "204a8fc6dda82f0a0ced7beb8e08a41657c16ef468b228a8279be331a703c33596fd15c13b1b07f9aa1d3bea57789ca031ad85c7a71dd70354ec631238ca3445"
      * @example
-     * bytesToHex(Crypto.sha2_512(textToBytes("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstuu"))) => "23565d109ac0e2aa9fb162385178895058b28489a6bc31cb55491ed83956851ab1d4bbd46440586f5c9c4b69c9c280118cbc55c71495d258cc27cc6bb25ee720"
-     * @param {number[]} bytes - list of uint8 numbers
-     * @returns {number[]} - list of uint8 numbers
+     * bytesToHex(Crypto.sha2_512(textToBytes("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstuu"))) == "23565d109ac0e2aa9fb162385178895058b28489a6bc31cb55491ed83956851ab1d4bbd46440586f5c9c4b69c9c280118cbc55c71495d258cc27cc6bb25ee720"
+     * @param {number[]} bytes List of uint8 numbers
+     * @returns {number[]} List of uint8 numbers.
      */
     sha2_512: (bytes) => {
         /**
@@ -3912,21 +3912,24 @@ export const Crypto = {
     /**
      * Calculates sha3-256 (32bytes) hash of a list of uint8 numbers.
      * Result is also a list of uint8 number.
-     * Sha3 only bit-wise operations, so 64-bit operations can easily be replicated using 2 32-bit operations instead
      * @example
-     * bytesToHex(Crypto.sha3(textToBytes("abc"))) => "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
+     * bytesToHex(Crypto.sha3(textToBytes("abc"))) == "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
      * @example
-     * bytesToHex(Crypto.sha3((new Array(136)).fill(1))) => "b36dc2167c4d9dda1a58b87046c8d76a6359afe3612c4de8a38857e09117b2db"
+     * bytesToHex(Crypto.sha3((new Array(136)).fill(1))) == "b36dc2167c4d9dda1a58b87046c8d76a6359afe3612c4de8a38857e09117b2db"
      * @example
-     * bytesToHex(Crypto.sha3((new Array(135)).fill(2))) => "5bdf5d815d29a9d7161c66520efc17c2edd7898f2b99a029e8d2e4ff153407f4"
+     * bytesToHex(Crypto.sha3((new Array(135)).fill(2))) == "5bdf5d815d29a9d7161c66520efc17c2edd7898f2b99a029e8d2e4ff153407f4"
      * @example
-     * bytesToHex(Crypto.sha3((new Array(134)).fill(3))) => "8e6575663dfb75a88f94a32c5b363c410278b65020734560d968aadd6896a621"
+     * bytesToHex(Crypto.sha3((new Array(134)).fill(3))) == "8e6575663dfb75a88f94a32c5b363c410278b65020734560d968aadd6896a621"
      * @example
-     * bytesToHex(Crypto.sha3((new Array(137)).fill(4))) => "f10b39c3e455006aa42120b9751faa0f35c821211c9d086beb28bf3c4134c6c6"
-     * @param {number[]} bytes - list of uint8 numbers
-     * @returns {number[]} - list of uint8 numbers
+     * bytesToHex(Crypto.sha3((new Array(137)).fill(4))) == "f10b39c3e455006aa42120b9751faa0f35c821211c9d086beb28bf3c4134c6c6"
+     * @param {number[]} bytes List of uint8 numbers
+     * @returns {number[]} List of uint8 numbers.
      */
     sha3: (bytes) => {
+        /**
+         * Sha3 uses only bit-wise operations, so 64-bit operations can easily be replicated using 2 32-bit operations instead.
+         */
+
         /**
          * @type {number} - state width (1600 bits, )
          */
@@ -4106,17 +4109,21 @@ export const Crypto = {
 
     /**
      * Calculates blake2b hash of a list of uint8 numbers (variable digest size).
-     * Result is also a list of uint8 number.
-     * Blake2b is a 64bit algorithm, so we need to be careful when replicating 64-bit operations with 2 32-bit numbers (low-word overflow must spill into high-word, and shifts must go over low/high boundary)
+     * Result is also a list of uint8 numbers.
      * @example                                        
-     * bytesToHex(Crypto.blake2b([0, 1])) => "01cf79da4945c370c68b265ef70641aaa65eaa8f5953e3900d97724c2c5aa095"
+     * bytesToHex(Crypto.blake2b([0, 1])) == "01cf79da4945c370c68b265ef70641aaa65eaa8f5953e3900d97724c2c5aa095"
      * @example
-     * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) => "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
+     * bytesToHex(Crypto.blake2b(textToBytes("abc"), 64)) == "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
      * @param {number[]} bytes 
-     * @param {number} digestSize - at most 64
-     * @returns {number[]}
+     * @param {number} digestSize Defaults to 32. Can't be greater than 64.
+     * @returns {number[]} List of uint8 numbers.
      */
     blake2b: (bytes, digestSize = BLAKE2B_DIGEST_SIZE) => {
+        /**
+         * Blake2b is a 64bit algorithm, so we need to be careful when replicating 64-bit operations with 2 32-bit numbers
+         * (low-word overflow must spill into high-word, and shifts must go over low/high boundary).
+         */
+
         /**
          * 128 bytes (16*8 byte words)
          * @type {number}
@@ -4279,8 +4286,9 @@ export const Crypto = {
     },
 
     /**
+     * Hmac using sha2-256.
      * @example
-     * bytesToHex(Crypto.hmacSha2_256(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) => "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+     * bytesToHex(Crypto.hmacSha2_256(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) == "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
      * @param {number[]} key 
      * @param {number[]} message 
      * @returns {number[]}
@@ -4290,8 +4298,9 @@ export const Crypto = {
     },
 
     /**
+     * Hmac using sha2-512.
      * @example
-     * bytesToHex(Crypto.hmacSha2_512(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) => "b42af09057bac1e2d41708e48a902e09b5ff7f12ab428a4fe86653c73dd248fb82f948a549f7b791a5b41915ee4d1ec3935357e4e2317250d0372afa2ebeeb3a"
+     * bytesToHex(Crypto.hmacSha2_512(textToBytes("key"), textToBytes("The quick brown fox jumps over the lazy dog"))) == "b42af09057bac1e2d41708e48a902e09b5ff7f12ab428a4fe86653c73dd248fb82f948a549f7b791a5b41915ee4d1ec3935357e4e2317250d0372afa2ebeeb3a"
      * @param {number[]} key 
      * @param {number[]} message 
      * @returns {number[]}
@@ -4301,10 +4310,11 @@ export const Crypto = {
     },
 
     /**
+     * Password-Based Key Derivation Function 2.
      * @example
-     * bytesToHex(Crypto.pbkdf2(Crypto.hmacSha2_256, textToBytes("password"), textToBytes("salt"), 1, 20)) => "120fb6cffcf8b32c43e7225256c4f837a86548c9"
+     * bytesToHex(Crypto.pbkdf2(Crypto.hmacSha2_256, textToBytes("password"), textToBytes("salt"), 1, 20)) == "120fb6cffcf8b32c43e7225256c4f837a86548c9"
      * @example
-     * bytesToHex(Crypto.pbkdf2(Crypto.hmacSha2_512, textToBytes("password"), textToBytes("salt"), 2, 20)) => "e1d9c16aa681708a45f5c7c4e215ceb66e011a2e"
+     * bytesToHex(Crypto.pbkdf2(Crypto.hmacSha2_512, textToBytes("password"), textToBytes("salt"), 2, 20)) == "e1d9c16aa681708a45f5c7c4e215ceb66e011a2e"
      * @param {(key: number[], msg: number[]) => number[]} prf 
      * @param {number[]} password 
      * @param {number[]} salt 
@@ -4816,6 +4826,8 @@ function nonce(m) {
 const CurvePointImpl = ExtendedPoint;
 
 /**
+ * The elliptic curve signature algorithm used by Cardano wallets.
+ * 
  * Ported from: [https://ed25519.cr.yp.to/python/ed25519.py](https://ed25519.cr.yp.to/python/ed25519.py).
  * 
  * ExtendedPoint implementation taken from: [https://github.com/paulmillr/noble-ed25519](https://github.com/paulmillr/noble-ed25519).
@@ -4823,8 +4835,9 @@ const CurvePointImpl = ExtendedPoint;
  */
 export const Ed25519 = {
     /**
+     * Similar to `Ed25519.derivePublicKey`, but doesn't hash the input key.
      * @param {number[]} extendedKey
-     * @returns {number[]}
+     * @returns {number[]} 32 byte public key.
      */
     deriveBip32PublicKey: (extendedKey) => {
         const a = clamp(extendedKey);
@@ -4834,17 +4847,21 @@ export const Ed25519 = {
     },
 
     /**
+     * Derive a public key from a private key.
+     * The private key can be any number of bytes (it's hashed internally).
+     * The returned public key is 32 bytes long.
      * @param {number[]} privateKey
-     * @returns {number[]}
+     * @returns {number[]} 32 byte public key.
      */
     derivePublicKey: (privateKey) => {
         return Ed25519.deriveBip32PublicKey(Crypto.sha2_512(privateKey));
     },
 
     /**
+     * Like `Ed25519.sign`, but doesn't hash the input key.
      * @param {number[]} message 
      * @param {number[]} extendedKey 
-     * @returns {number[]}
+     * @returns {number[]} 64 byte signature.
      */
     signBip32: (message, extendedKey) => {
         const a = clamp(extendedKey);
@@ -4862,15 +4879,17 @@ export const Ed25519 = {
     },
 
     /**
+     * Creates a 64 byte signature.
      * @param {number[]} message 
      * @param {number[]} privateKey 
-     * @returns {number[]}
+     * @returns {number[]} 64 byte signature.
      */
     sign: (message, privateKey) => {
         return Ed25519.signBip32(message, Crypto.sha2_512(privateKey));
     },
 
     /**
+     * Returns `true` if the signature is correct.
      * @param {number[]} signature 
      * @param {number[]} message 
      * @param {number[]} publicKey 
@@ -4963,6 +4982,8 @@ export class CborData {
 
 /**
  * Helper methods for (de)serializing data to/from Cbor.
+ * 
+ * **Note**: Each decoding method mutates the input `bytes` by shifting it to the following CBOR element.
  * @namespace
  */
 export const Cbor = {
@@ -5052,6 +5073,7 @@ export const Cbor = {
 	},
 
 	/**
+	 * Encode `null` into its CBOR representation.
 	 * @returns {number[]}
 	 */
 	encodeNull: () => {
@@ -5059,7 +5081,8 @@ export const Cbor = {
 	},
 
 	/**
-	 * Throws error if not null
+	 * Checks if next element in `bytes` is a `null`.
+	 * Throws an error if it isn't. 
 	 * @param {number[]} bytes
 	 */
 	decodeNull: (bytes) => {
@@ -5071,6 +5094,7 @@ export const Cbor = {
 	},
 
 	/**
+	 * Encodes a `boolean` into its CBOR representation.
 	 * @param {boolean} b
 	 * @returns {number[]}
 	 */
@@ -5083,6 +5107,8 @@ export const Cbor = {
 	},
 
 	/**
+	 * Decodes a CBOR encoded `boolean`.
+	 * Throws an error if the next element in bytes isn't a `boolean`.
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
@@ -5133,16 +5159,17 @@ export const Cbor = {
 	},
 
 	/**
+	 * Wraps a list of bytes using CBOR. Optionally splits the bytes into chunks.
 	 * @example
-	 * bytesToHex(Cbor.encodeBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
+	 * bytesToHex(Cbor.encodeBytes(hexToBytes("4d01000033222220051200120011"))) == "4e4d01000033222220051200120011"
 	 * @param {number[]} bytes
-	 * @param {boolean} splitInChunks
+	 * @param {boolean} splitIntoChunks
 	 * @returns {number[]} - cbor bytes
 	 */
-	encodeBytes: (bytes, splitInChunks = false) => {
+	encodeBytes: (bytes, splitIntoChunks = false) => {
 		bytes = bytes.slice();
 
-		if (bytes.length <= 64 || !splitInChunks) {
+		if (bytes.length <= 64 || !splitIntoChunks) {
 			const head = Cbor.encodeHead(2, BigInt(bytes.length));
 			return head.concat(bytes);
 		} else {
@@ -5161,9 +5188,9 @@ export const Cbor = {
 	},
 
 	/**
-	 * Decodes both an indef array of bytes, and a bytearray of specified length
+	 * Unwraps a CBOR encoded list of bytes. 
 	 * @example
-	 * bytesToHex(Cbor.decodeBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
+	 * bytesToHex(Cbor.decodeBytes(hexToBytes("4e4d01000033222220051200120011"))) == "4d01000033222220051200120011"
 	 * @param {number[]} bytes - cborbytes, mutated to form remaining
 	 * @returns {number[]} - byteArray
 	 */
@@ -5282,8 +5309,9 @@ export const Cbor = {
 	},
 
 	/**
+	 * Encodes a bigint integer using CBOR.
 	 * @param {bigint} n
-	 * @returns {number[]} - cbor bytes
+	 * @returns {number[]}
 	 */
 	encodeInteger: (n) => {
 		if (n >= 0n && n <= (2n << 63n) - 1n) {
@@ -5298,6 +5326,7 @@ export const Cbor = {
 	},
 
 	/**
+	 * Decodes a CBOR encoded bigint integer.
 	 * @param {number[]} bytes
 	 * @returns {bigint}
 	 */
@@ -5338,6 +5367,7 @@ export const Cbor = {
 	},
 
 	/**
+	 * @internal
 	 * @returns {number[]}
 	 */
 	encodeIndefListStart: () => {
@@ -5345,6 +5375,7 @@ export const Cbor = {
 	},
 
 	/**
+	 * @internal
 	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
@@ -5373,17 +5404,18 @@ export const Cbor = {
 	},
 
 	/**
+	 * This follows the serialization format that the Haskell input-output-hk/plutus UPLC evaluator (i.e. empty lists use `encodeDefList`, non-empty lists use `encodeIndefList`).
+	 * See [well-typed/cborg/serialise/src/Codec/Serialise/Class.hs](https://github.com/well-typed/cborg/blob/4bdc818a1f0b35f38bc118a87944630043b58384/serialise/src/Codec/Serialise/Class.hs#L181).
 	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
 	encodeList: (list) => {
-		// This follows the serialization format that the Haskell input-output-hk/plutus UPLC evaluator
-		// https://github.com/well-typed/cborg/blob/4bdc818a1f0b35f38bc118a87944630043b58384/serialise/src/Codec/Serialise/Class.hs#L181
 		return list.length ? Cbor.encodeIndefList(list) : Cbor.encodeDefList(list);
 	},
 
 	/**
-	 * @param {CborData[] | number[][]} list
+	 * Encodes a list of CBOR encodeable items using CBOR indefinite length encoding.
+	 * @param {CborData[] | number[][]} list Each item is either already serialized, or a CborData instance with a toCbor() method.
 	 * @returns {number[]}
 	 */
 	encodeIndefList: (list) => {
@@ -5413,7 +5445,9 @@ export const Cbor = {
 	},
 
 	/**
-	 * @param {CborData[] | number[][]} list
+	 * Encodes a list of CBOR encodeable items using CBOR definite length encoding
+	 * (i.e. header bytes of the element represent the length of the list).
+	 * @param {CborData[] | number[][]} list Each item is either already serialized, or a CborData instance with a toCbor() method.
 	 * @returns {number[]}
 	 */
 	encodeDefList: (list) => {
@@ -5429,6 +5463,8 @@ export const Cbor = {
 	},
 
 	/**
+	 * Decodes a CBOR encoded list.
+	 * A decoder function is called with the bytes of every contained item (nothing is returning directly).
 	 * @param {number[]} bytes
 	 * @param {Decoder} itemDecoder
 	 */
@@ -5528,8 +5564,8 @@ export const Cbor = {
 	},
 
 	/**
-	 * A decode map method doesn't exist because it specific for the requested type
-	 * @param {[CborData | number[], CborData | number[]][]} pairList
+	 * Encodes a list of key-value pairs.
+	 * @param {[CborData | number[], CborData | number[]][]} pairList  Each key and each value is either a CborData instance with a toCbor method defined, or an already encoded list of CBOR bytes.
 	 * @returns {number[]}
 	 */
 	encodeMap: (pairList) => {
@@ -5537,6 +5573,11 @@ export const Cbor = {
 	},
 
 	/**
+	 * Decodes a CBOR encoded map.
+	 * Calls a decoder function for each key-value pair (nothing is returned directly).
+	 * 
+	 * The decoder function is responsible for separating the key from the value,
+	 * which are simply stored as consecutive CBOR elements.
 	 * @param {number[]} bytes
 	 * @param {Decoder} pairDecoder
 	 */
@@ -5559,7 +5600,8 @@ export const Cbor = {
 	},
 
 	/**
-	 * @param {Map<number, CborData | number[]>} object
+	 * Encodes an object with optional fields.
+	 * @param {Map<number, CborData | number[]>} object A `Map` with integer keys representing the field indices.
 	 * @returns {number[]}
 	 */
 	encodeObject: (object) => {
@@ -5570,6 +5612,7 @@ export const Cbor = {
 	},
 
 	/**
+	 * Decodes a CBOR encoded object. For each field a decoder is called which takes the field index and the field bytes as arguments.
 	 * @param {number[]} bytes
 	 * @param {Decoder} fieldDecoder
 	 * @returns {Set<number>}
@@ -5732,6 +5775,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @type {number[]}
 	 */
 	get bytes() {
@@ -5739,6 +5783,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @type {bigint}
 	 */
 	get int() {
@@ -5746,6 +5791,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @type {number}
 	 */
 	get index() {
@@ -5753,6 +5799,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @type {UplcData[]}
 	 */
 	get fields() {
@@ -5760,6 +5807,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @type {UplcData[]}
 	 */
 	get list() {
@@ -5767,6 +5815,7 @@ export class UplcData extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @type {[UplcData, UplcData][]}
 	 */
 	get map() {
@@ -5824,7 +5873,7 @@ export class UplcData extends CborData {
 }
 
 /**
- * Plutus-core int data class
+ * Represents an unbounded integer (bigint).
  */
 export class IntData extends UplcData {
 	#value;
@@ -5853,7 +5902,7 @@ export class IntData extends UplcData {
 	}
 
 	/**
-	 * Alias getter
+	 * Alias for `IntData.value`.
 	 * @type {bigint}
 	 */
 	get int() {
@@ -5862,6 +5911,7 @@ export class IntData extends UplcData {
 
     /**
      * Calculate the mem size of a integer (without the DATA_NODE overhead)
+	 * @internal
      * @param {bigint} value
      * @returns {number}
      */
@@ -5891,6 +5941,7 @@ export class IntData extends UplcData {
 
 	/**
 	 * Returns integer literal wrapped with integer data function call.
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIR() {
@@ -6008,6 +6059,7 @@ export class ByteArrayData extends UplcData {
 
 	/**
 	 * Returns bytearray literal wrapped with bytearray data function as IR.
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIR() {
@@ -6038,8 +6090,9 @@ export class ByteArrayData extends UplcData {
 
 	/**
 	 * Bytearray comparison, which can be used for sorting bytearrays
+	 * @internal
 	 * @example
-	 * ByteArrayData.comp(hexToBytes("0101010101010101010101010101010101010101010101010101010101010101"), hexToBytes("0202020202020202020202020202020202020202020202020202020202020202")) => -1
+	 * ByteArrayData.comp(hexToBytes("0101010101010101010101010101010101010101010101010101010101010101"), hexToBytes("0202020202020202020202020202020202020202020202020202020202020202")) == -1
 	 * @param {number[]} a
 	 * @param {number[]} b
 	 * @returns {number} - 0 -> equals, 1 -> gt, -1 -> lt
@@ -6076,7 +6129,7 @@ export class ByteArrayData extends UplcData {
 }
 
 /**
- * Plutus-core list data class
+ * Represents a list of other `UplcData` instances.
  */
 export class ListData extends UplcData {
 	#items;
@@ -6127,6 +6180,7 @@ export class ListData extends UplcData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIR() {
@@ -6171,7 +6225,7 @@ export class ListData extends UplcData {
 }
 
 /**
- * Plutus-core map data class
+ * Represents a list of pairs of other `UplcData` instances.
  */
 export class MapData extends UplcData {
 	#pairs;
@@ -6224,6 +6278,7 @@ export class MapData extends UplcData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {IR}
 	 */
 	toIR() {
@@ -6272,7 +6327,7 @@ export class MapData extends UplcData {
 }
 
 /**
- * Plutus-core constructed data class
+ * Represents a tag index and a list of `UplcData` fields.
  */
 export class ConstrData extends UplcData {
 	#index;
@@ -6418,7 +6473,8 @@ export class HeliosData extends CborData {
 	}
 
 	/**
-	 * Most HeliosData classes are builtin
+	 * Most HeliosData classes are builtins.
+	 * @internal
 	 * @returns {boolean}
 	 */
 	static isBuiltin() {
@@ -7466,6 +7522,9 @@ export class Hash extends HeliosData {
  * @typedef {HashProps} DatumHashProps
  */
 
+/**
+ * Represents a blake2b-256 hash of datum data.
+ */
 export class DatumHash extends Hash {
 	/**
 	 * @param {DatumHashProps} props
@@ -7656,6 +7715,15 @@ export class PubKeyHash extends Hash {
 	}
 
 	/**
+	 * @returns {PubKeyHash}
+	 */
+	static dummy() {
+		const bytes = new Array(28).fill(0);
+
+		return new PubKeyHash(bytes);
+	}
+
+	/**
 	 * @param {PubKeyHash | PubKeyHashProps} props 
 	 * @returns {PubKeyHash}
 	 */
@@ -7727,6 +7795,11 @@ export class ScriptHash extends Hash {
  * @typedef {HashProps} MintingPolicyHashProps
  */
 
+/**
+ * Represents a blake2b-224 hash of a minting policy script
+ * 
+ * **Note**: to calculate this hash the script is first encoded as a CBOR byte-array and then prepended by a script version byte.
+ */
 export class MintingPolicyHash extends ScriptHash {
 	/**
 	 * @param {MintingPolicyHashProps} rawValue
@@ -7790,6 +7863,11 @@ export class MintingPolicyHash extends ScriptHash {
  * @typedef {HashProps} StakeKeyHashProps
  */
 
+/**
+ * Represents a blake2b-224 hash of staking key.
+ * 
+ * A `StakeKeyHash` can be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
+ */
 export class StakeKeyHash extends Hash {
 	/**
 	 * @param {StakeKeyHashProps} props
@@ -7845,6 +7923,11 @@ export class StakeKeyHash extends Hash {
  * @typedef {HashProps} StakingValidatorHashProps
  */
 
+/**
+ * Represents a blake2b-224 hash of a staking script.
+ * 
+ * **Note**: before hashing, the staking script is first encoded as a CBOR byte-array and then prepended by a script version byte.
+ */
 export class StakingValidatorHash extends ScriptHash {
 	/**
 	 * @param {StakingValidatorHashProps} rawValue
@@ -7900,6 +7983,9 @@ export class StakingValidatorHash extends ScriptHash {
  * @typedef {HashProps} ValidatorHashProps
  */
 
+/**
+ * Represents a blake2b-224 hash of a spending validator script (first encoded as a CBOR byte-array and prepended by a script version byte).
+ */
 export class ValidatorHash extends ScriptHash {
 	/**
 	 * @param {ValidatorHashProps} rawValue
@@ -7956,7 +8042,9 @@ export class ValidatorHash extends ScriptHash {
  */
 
 /**
- * Hash of a transaction
+ * Represents the hash of a transaction.
+ * 
+ * This is also used to identify an UTxO (along with the index of the UTxO in the list of UTxOs created by the transaction).
  */
 export class TxId extends Hash {
 	/**
@@ -8083,6 +8171,16 @@ export class TxOutputId extends HeliosData {
         this.#txId = TxId.fromProps(rawTxId);
         this.#utxoIdx = HInt.fromProps(rawUtxoIdx);
     }
+
+	/**
+	 * @returns {TxOutputId}
+	 */
+	static dummy() {
+		return new TxOutputId({
+			txId: TxId.dummy(),
+			utxoId: 0
+		});
+	}
 
 	/**
 	 * @param {TxOutputId | TxOutputIdProps} props 
@@ -8262,6 +8360,14 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Returns a dummy address (based on a PubKeyHash with all null bytes)
+	 * @returns {Address}
+	 */
+	static dummy() {
+		return Address.fromPubKeyHash(PubKeyHash.dummy())
+	}
+
+	/**
 	 * @type {number[]}
 	 */
 	get bytes() {
@@ -8269,6 +8375,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Converts an `Address` into its CBOR representation.
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -8276,6 +8383,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Deserializes bytes into an `Address`.
 	 * @param {number[]} bytes
 	 * @returns {Address}
 	 */
@@ -8284,6 +8392,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Converts a Bech32 string into an `Address`.
 	 * @param {string} str
 	 * @returns {Address}
 	 */
@@ -8299,7 +8408,8 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * Doesn't check validity
+	 * Constructs an `Address` using a hexadecimal string representation of the address bytes.
+	 * Doesn't check validity.
 	 * @param {string} hex
 	 * @returns {Address}
 	 */
@@ -8308,7 +8418,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * Returns the raw Address bytes as a hex encoded string
+	 * Converts a `Address` into its hexadecimal representation.
 	 * @returns {string}
 	 */
 	toHex() {
@@ -8316,16 +8426,32 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Converts a `Address` into its hexadecimal representation.
 	 * @returns {string}
 	 */
 	get hex() {
 		return this.toHex();
 	}
 
-    /**
+	 /**
+	 * Constructs an Address using either a `PubKeyHash` (i.e. simple payment address)
+	 * or `ValidatorHash` (i.e. script address),
+	 * without a staking hash.
      * @param {PubKeyHash | ValidatorHash} hash
-     * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
-     * @param {boolean} isTestnet
+     * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
+     * @returns {Address}
+     */
+	static fromHash(hash, isTestnet = config.IS_TESTNET) {
+		return Address.fromHashes(hash, null, isTestnet);
+	}
+
+    /**
+	 * Constructs an Address using either a `PubKeyHash` (i.e. simple payment address)
+	 * or `ValidatorHash` (i.e. script address),
+	 * in combination with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+     * @param {PubKeyHash | ValidatorHash} hash
+     * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
      * @returns {Address}
      */
     static fromHashes(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
@@ -8339,10 +8465,11 @@ export class Address extends HeliosData {
     }
 
 	/**
-	 * Simple payment address without a staking part
+	 * Simple payment address with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+	 * @internal
 	 * @param {PubKeyHash} hash
-	 * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
-     * @param {boolean} isTestnet
+	 * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
 	 * @returns {Address}
 	 */
 	static fromPubKeyHash(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
@@ -8363,11 +8490,11 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * Simple script address without a staking part
-	 * Only relevant for validator scripts
+	 * Simple script address with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+	 * @internal
 	 * @param {ValidatorHash} hash
-	 * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
-     * @param {boolean} isTestnet
+	 * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
 	 * @returns {Address}
 	 */
 	static fromValidatorHash(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
@@ -8388,6 +8515,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Converts an `Address` into its Bech32 representation.
 	 * @returns {string}
 	 */
 	toBech32() {
@@ -8408,6 +8536,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Returns `true` if the given `Address` is a testnet address.
 	 * @param {Address} address
 	 * @returns {boolean}
 	 */
@@ -8418,8 +8547,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-     *
-     * @private
+     * @internal
 	 * @returns {ConstrData}
 	 */
 	toCredentialData() {
@@ -8439,6 +8567,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {ConstrData}
 	 */
 	toStakingData() {
@@ -8539,6 +8668,7 @@ export class Address extends HeliosData {
     }
 
     /**
+	 * @internal
      * @param {string | number[]} bytes
      * @param {boolean} isTestnet
      * @returns {Address}
@@ -8548,6 +8678,7 @@ export class Address extends HeliosData {
     }
 
 	/**
+	 * Returns the underlying `PubKeyHash` of a simple payment address, or `null` for a script address.
 	 * @type {null | PubKeyHash}
 	 */
 	get pubKeyHash() {
@@ -8561,6 +8692,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Returns the underlying `ValidatorHash` of a script address, or `null` for a regular payment address.
 	 * @type {null | ValidatorHash}
 	 */
 	get validatorHash() {
@@ -8574,6 +8706,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
 	 * @type {null | StakeKeyHash | StakingValidatorHash}
 	 */
 	get stakingHash() {
@@ -8596,7 +8729,8 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * Used to sort txbody withdrawals
+	 * Used to sort txbody withdrawals.
+	 * @internal
 	 * @param {Address} a
 	 * @param {Address} b
 	 * @return {number}
@@ -8616,6 +8750,9 @@ export class Address extends HeliosData {
  * }} AssetClassProps
  */
 
+/**
+ * Represents a `MintingPolicyHash` combined with a token name.
+ */
 export class AssetClass extends HeliosData {
 	/**
 	 * @type {MintingPolicyHash}
@@ -8628,6 +8765,7 @@ export class AssetClass extends HeliosData {
 	#tokenName;
 
 	/**
+	 * @internal
 	 * @param {AssetClassProps} props
 	 * @returns {[MintingPolicyHash | MintingPolicyHashProps, ByteArray | ByteArrayProps]}
 	 */
@@ -8648,6 +8786,9 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
+	 * Intelligently converts arguments. 
+	 * 
+	 * The format for single argument string is "<hex-encoded-mph>.<hex-encoded-token-name>".
 	 * @param {AssetClassProps} props
 	 */
 	constructor(props) {
@@ -8723,6 +8864,7 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
+	 * Converts an `AssetClass` instance into its CBOR representation.
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -8733,7 +8875,9 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
+	 * Deserializes bytes into an `AssetClass`.
 	 * @param {number[]} bytes
+	 * @returns {AssetClass}
 	 */
 	static fromCbor(bytes) {
 		/**
@@ -8798,7 +8942,7 @@ export class AssetClass extends HeliosData {
  */
 
 /**
- * Collection of non-lovelace assets
+ * Represents a list of non-Ada tokens. 
  */
 export class Assets extends CborData {
 	/** 
@@ -8807,8 +8951,8 @@ export class Assets extends CborData {
 	#assets;
 
 	/**
-	 * Also normalizes the assets
-	 * @param {AssetsProps} props
+	 * **Note**: the assets are normalized by removing entries with 0 tokens, and merging all entries with the same MintingPolicyHash and token name.
+	 * @param {AssetsProps} props Either a list of `AssetClass`/quantity pairs, or a list of `MintingPolicyHash`/`tokens` pairs (where each `tokens` entry is a bytearray/quantity pair).
 	 */
 	constructor(props = []) {
 		super();
@@ -8854,6 +8998,7 @@ export class Assets extends CborData {
 	}
 
 	/**
+	 * Returns a list of all the minting policies.
 	 * @type {MintingPolicyHash[]}
 	 */
 	get mintingPolicies() {
@@ -8951,9 +9096,9 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * Removes zeros and merges duplicates
-	 * In-place algorithm
-	 * Keeps the same order as much as possible
+	 * Removes zeros and merges duplicates.
+	 * In-place algorithm.
+	 * Keeps the same order as much as possible.
 	 */
 	normalize() {
 		/**
@@ -8995,7 +9140,7 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * Mutates 'this'
+	 * Mutates 'this'.
 	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
 	 * @param {ByteArray | ByteArrayProps} tokenName 
 	 * @param {HInt | HIntProps} qty
@@ -9027,6 +9172,7 @@ export class Assets extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {Assets} other
 	 * @param {(a: bigint, b: bigint) => bigint} op
 	 * @returns {Assets}
@@ -9083,8 +9229,8 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * Mutates 'this'
-	 * Throws error if mph is already contained in 'this'
+	 * Mutates 'this'.
+	 * Throws error if mph is already contained in 'this'.
 	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
 	 * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens
 	 */
@@ -9354,6 +9500,9 @@ export class Assets extends CborData {
  * }} ValueProps
  */
 
+/**
+ * Represents a collection of tokens.
+ */
 export class Value extends HeliosData {
 	/** @type {HInt} */
 	#lovelace;
@@ -9435,6 +9584,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * Gets the `Assets` contained in the `Value`.
 	 * @type {Assets}
 	 */
 	get assets() {
@@ -9442,6 +9592,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * Gets the lovelace quantity contained in the `Value`.
 	 * @type {bigint}
 	 */
 	get lovelace() {
@@ -9449,8 +9600,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Setter for lovelace
-	 * Note: mutation is handy when balancing transactions
+	 * Mutates the quantity of lovelace in a `Value`.
 	 * @param {HInt | HIntProps} lovelace
 	 */
 	setLovelace(lovelace) {
@@ -9513,6 +9663,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * Adds two `Value` instances together. Returns a new `Value` instance.
 	 * @param {Value} other
 	 * @returns {Value}
 	 */
@@ -9524,6 +9675,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * Substracts one `Value` instance from another. Returns a new `Value` instance.
 	 * @param {Value} other
 	 * @returns {Value}
 	 */
@@ -9535,6 +9687,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * Multiplies a `Value` by a whole number.
 	 * @param {HInt | HIntProps} scalar 
 	 * @returns {Value}
 	 */
@@ -9546,6 +9699,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * Checks if two `Value` instances are equal (`Assets` need to be in the same order).
 	 * @param {Value} other
 	 * @returns {boolean}
 	 */
@@ -9554,7 +9708,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Strictly greater than. Returns false if any asset is missing
+	 * Checks if a `Value` instance is strictly greater than another `Value` instance. Returns false if any asset is missing.
 	 * @param {Value} other
 	 * @returns {boolean}
 	 */
@@ -9563,7 +9717,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Strictly >=
+	 * Checks if a `Value` instance is strictly greater or equal to another `Value` instance. Returns false if any asset is missing.
 	 * @param {Value} other
 	 * @returns {boolean}
 	 */
@@ -9572,8 +9726,9 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Throws an error if any contained quantity is negative
-	 * Used when building transactions because transactions can't contain negative values
+	 * Throws an error if any of the `Value` entries is negative.
+	 * 
+	 * Used when building transactions because transactions can't contain negative values.
 	 * @returns {Value} - returns this
 	 */
 	assertAllPositive() {
@@ -9620,7 +9775,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Useful when deserializing inline datums
+	 * Converts a `UplcData` instance into a `Value`. Throws an error if it isn't in the right format.
 	 * @param {UplcData} data
 	 * @returns {Value}
 	 */
@@ -9680,7 +9835,17 @@ export class Value extends HeliosData {
  */
 
 /**
- * NetworkParams contains all protocol parameters. These are needed to do correct, up-to-date, cost calculations.
+ * Wrapper for the raw JSON containing all the current network parameters.
+ * 
+ * NetworkParams is needed to be able to calculate script budgets and perform transaction building checks.
+ * 
+ * The raw JSON can be downloaded from the following CDN locations:
+ * 
+ *  - Preview: [https://d1t0d7c2nekuk0.cloudfront.net/preview.json](https://d1t0d7c2nekuk0.cloudfront.net/preview.json)
+ *  - Preprod: [https://d1t0d7c2nekuk0.cloudfront.net/preprod.json](https://d1t0d7c2nekuk0.cloudfront.net/preprod.json)
+ *  - Mainnet: [https://d1t0d7c2nekuk0.cloudfront.net/mainnet.json](https://d1t0d7c2nekuk0.cloudfront.net/mainnet.json)
+ * 
+ * These JSONs are updated every 15 minutes.
  */
 export class NetworkParams {
 	#raw;
@@ -9905,8 +10070,7 @@ export class NetworkParams {
 	}
 
 	/**
-	 * Use the latest slot in networkParameters to determine time.
-     * @internal
+	 * Calculates the time (in milliseconds in 01/01/1970) associated with a given slot number.
 	 * @param {bigint} slot
 	 * @returns {bigint}
 	 */
@@ -9922,9 +10086,8 @@ export class NetworkParams {
 	}
 
 	/**
-	 * Use the latest slot in network parameters to determine slot.
-     * @internal
-	 * @param {bigint} time - milliseconds since 1970
+	 * Calculates the slot number associated with a given time. Time is specified as milliseconds since 01/01/1970.
+	 * @param {bigint} time Milliseconds since 1970
 	 * @returns {bigint}
 	 */
 	timeToSlot(time) {
@@ -10993,6 +11156,7 @@ export class UplcType {
  */
 
 /**
+ * Configures the Uplc evaluator to print messages to `console`.
  * @type {UplcRTECallbacks}
  */
 export const DEFAULT_UPLC_RTE_CALLBACKS = {
@@ -11844,7 +12008,7 @@ export class UplcDelayedValue extends UplcValue {
 }
 
 /**
- * Plutus-core Integer class
+ * Primitive equivalent of `IntData`.
  */
 export class UplcInt extends UplcValue {
 	/**
@@ -11971,15 +12135,15 @@ export class UplcInt extends UplcValue {
 	/**
 	 * Applies zigzag encoding
 	 * @example
-	 * (new UplcInt(Site.dummy(), -1n, true)).toUnsigned().int => 1n
+	 * (new UplcInt(Site.dummy(), -1n, true)).toUnsigned().int == 1n
 	 * @example
-	 * (new UplcInt(Site.dummy(), -1n, true)).toUnsigned().toSigned().int => -1n
+	 * (new UplcInt(Site.dummy(), -1n, true)).toUnsigned().toSigned().int == -1n
 	 * @example
-	 * (new UplcInt(Site.dummy(), -2n, true)).toUnsigned().toSigned().int => -2n
+	 * (new UplcInt(Site.dummy(), -2n, true)).toUnsigned().toSigned().int == -2n
 	 * @example
-	 * (new UplcInt(Site.dummy(), -3n, true)).toUnsigned().toSigned().int => -3n
+	 * (new UplcInt(Site.dummy(), -3n, true)).toUnsigned().toSigned().int == -3n
 	 * @example
-	 * (new UplcInt(Site.dummy(), -4n, true)).toUnsigned().toSigned().int => -4n
+	 * (new UplcInt(Site.dummy(), -4n, true)).toUnsigned().toSigned().int == -4n
 	 * @returns {UplcInt}
 	 */
 	toUnsigned() {
@@ -11997,7 +12161,7 @@ export class UplcInt extends UplcValue {
 	/** 
 	 * Unapplies zigzag encoding 
 	 * @example
-	 * (new UplcInt(Site.dummy(), 1n, false)).toSigned().int => -1n
+	 * (new UplcInt(Site.dummy(), 1n, false)).toSigned().int == -1n
 	 * @returns {UplcInt}
 	*/
 	toSigned() {
@@ -12078,8 +12242,7 @@ export class UplcInt extends UplcValue {
 }
 
 /**
- * Plutus-core ByteArray value class
- * Wraps a regular list of uint8 numbers (so not Uint8Array)
+ * Primitive equivalent of `ByteArrayData`.
  */
 export class UplcByteArray extends UplcValue {
 	#bytes;
@@ -12183,9 +12346,12 @@ export class UplcByteArray extends UplcValue {
 	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {number[]} bytes 
+	 * @param {boolean} pad
 	 */
-	static writeBytes(bitWriter, bytes) {
-		bitWriter.padToByteBoundary(true);
+	static writeBytes(bitWriter, bytes, pad = true) {
+		if (pad) {
+			bitWriter.padToByteBoundary(true);
+		}
 
 		// the rest of this function is equivalent to E_C* function in Plutus-core docs
 		let n = bytes.length;
@@ -12210,12 +12376,14 @@ export class UplcByteArray extends UplcValue {
 			pos += nChunk;
 		}
 
-		bitWriter.write('00000000');
+		if (pad) {
+			bitWriter.write('00000000');
+		}
 	}
 }
 
 /**
- * Plutus-core string value class
+ * Primitive string value.
  */
 export class UplcString extends UplcValue {
 	#value;
@@ -12306,7 +12474,7 @@ export class UplcString extends UplcValue {
 }
 
 /**
- * Plutus-core unit value class
+ * Primitive unit value.
  */
 export class UplcUnit extends UplcValue {
 	/**
@@ -12384,7 +12552,7 @@ export class UplcUnit extends UplcValue {
 }
 
 /**
- * Plutus-core boolean value class
+ * JS/TS equivalent of the Helios language `Bool` type.
  */
 export class UplcBool extends UplcValue {
 	#value;
@@ -12484,8 +12652,7 @@ export class UplcBool extends UplcValue {
 }
 
 /**
- * Plutus-core pair value class
- * Can contain any other value type.
+ * Primitive pair value.
  */
 export class UplcPair extends UplcValue {
 	#first;
@@ -12742,7 +12909,7 @@ export class UplcList extends UplcValue {
 }
 
 /**
- * Wrapper for UplcData.
+ *  Child type of `UplcValue` that wraps a `UplcData` instance.
  */
 export class UplcDataValue extends UplcValue {
 	#data;
@@ -13765,28 +13932,27 @@ export class UplcBuiltin extends UplcTerm {
 			},
 			consByteString: (a, b) => {
 				let bytes = b.bytes;
-				bytes.unshift(Number(a.int % 256n));
+
+				const byte = Number(a.int)
+
+				if (byte < 0 || byte >= 256) {
+					return rte.error("byte out of range");
+				}
+
+				bytes.unshift(byte);
+				
 				return new UplcByteArray(site, bytes);
 			},
 			sliceByteString: (a, b, c) => {
-				let start = Number(a.int);
-				let n = Number(b.int);
-				let bytes = c.bytes;
-				if (start < 0) {
-					start = 0;
+				const bytes = c.bytes;
+				let start = Math.max(Number(a.int), 0);
+				let end = Math.min(Number(a.int) + Number(b.int) - 1, bytes.length - 1);
+				
+				if (end < start) {
+					return new UplcByteArray(site, []);
+				} else {
+					return new UplcByteArray(site, bytes.slice(start, end + 1));
 				}
-
-				if (start + n > bytes.length) {
-					n = bytes.length - start;
-				}
-
-				if (n < 0) {
-					n = 0;
-				}
-
-				let sub = bytes.slice(start, start + n);
-
-				return new UplcByteArray(site, sub);	
 			},
 			lengthOfByteString: (a) => {
 				return new UplcInt(site, BigInt(a.bytes.length));
@@ -14232,7 +14398,14 @@ export class UplcBuiltin extends UplcTerm {
 						rte.calcAndIncrCost(this, a, b);
 						
 						let bytes = b.bytes;
-						bytes.unshift(Number(a.int % 256n));
+
+						const byte = Number(a.int)
+
+						if (byte < 0 || byte >= 256) {
+							throw new RuntimeError("byte out of range");
+						}
+
+						bytes.unshift(byte);
 						return new UplcByteArray(callSite, bytes);
 					}
 				});
@@ -15180,7 +15353,7 @@ class UplcAnonValue extends UplcValue {
      * @type {number}
      */
     get memSize() {
-        return 0;
+        return 1;
     }
 
 	/**
@@ -15618,7 +15791,7 @@ const UPLC_TAG_WIDTHS = {
 */
 
 /**
- * Plutus-core program class
+ * Result of `program.compile()`. Contains the Untyped Plutus-Core AST, along with a code-mapping to the original source.
  */
  export class UplcProgram {
 	#version;
@@ -15666,6 +15839,9 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Transfers a `UplcProgram` from an old version of Helios to a new version of Helios, keeping the script hash the same.
+	 * 
+	 * The main benefit for calling this method instead of serializing/deserializing is that the code mapping is maintained.
 	 * @template TInstance
 	 * @param {TransferableUplcProgram<TInstance>} other
 	 * @returns {TInstance}
@@ -15796,9 +15972,11 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
-	 * Wrap the top-level term with consecutive UplcCall terms
-	 * No checks are performed whether this makes sense or not, so beware
-	 * Throws an error if you are trying to apply an  with anon func.
+	 * Wrap the top-level term with consecutive UplcCall (not exported) terms.
+	 * 
+	 * Returns a new UplcProgram instance, leaving the original untouched.
+	 * 
+	 * Throws an error if you are trying to apply with an anon func.
 	 * @param {(UplcValue | HeliosData)[]} args
 	 * @returns {UplcProgram} - a new UplcProgram instance
 	 */
@@ -15839,6 +16017,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Run a `UplcProgram`. The printed messages are part of the return value.
 	 * @param {null | UplcValue[]} args
 	 * @returns {Promise<[(UplcValue | RuntimeError), string[]]>}
 	 */
@@ -15860,9 +16039,10 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Runs and profiles a `UplcProgram`. Needs the `NetworkParams` in order to calculate the execution budget.
 	 * @param {UplcValue[]} args
 	 * @param {NetworkParams} networkParams
-	 * @returns {Promise<Profile>}
+	 * @returns {Promise<Profile>} The returned profile contains a breakdown of the execution cost per Uplc term type and per Uplc builtin function type.
 	 */
 	async profile(args, networkParams) {
 		let callbacks = Object.assign({}, DEFAULT_UPLC_RTE_CALLBACKS);
@@ -15957,7 +16137,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
-	 * Returns the Cbor encoding of a script (flat bytes wrapped twice in Cbor bytearray)
+	 * Returns the Cbor encoding of a script (flat bytes wrapped twice in Cbor bytearray).
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -15977,7 +16157,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
-	 * Returns Plutus-core script in JSON format (as string, not as object!)
+	 * Returns the JSON representation of the serialized program (needed by cardano-cli).
 	 * @returns {string}
 	 */
 	serialize() {
@@ -15999,6 +16179,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Returns the `ValidatorHash` of the script. Throws an error if this isn't a spending validator script.
 	 * @type {ValidatorHash}
 	 */
 	get validatorHash() {
@@ -16010,6 +16191,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Returns the `MintingPolicyHash` of the script. Throws an error if this isn't a minting policy.
 	 * @type {MintingPolicyHash}
 	 */
 	get mintingPolicyHash() {
@@ -16021,6 +16203,7 @@ const UPLC_TAG_WIDTHS = {
 	}
 
 	/**
+	 * Returns the `StakingValidatorHash` of the script. Throws an error if this isn't a staking validator script.
 	 * @type {StakingValidatorHash}
 	 */
 	get stakingValidatorHash() {
@@ -16540,6 +16723,7 @@ const UPLC_TAG_WIDTHS = {
 }
 
 /**
+ * Deserializes a flat encoded `UplcProgram`.
  * @param {number[]} bytes 
  * @param {ProgramProperties} properties
  * @returns {UplcProgram}
@@ -16549,26 +16733,27 @@ export function deserializeUplcBytes(bytes, properties = {purpose: null, callsTx
 }
 
 /**
- * Parses a plutus core program. Returns a UplcProgram object
- * @param {string} jsonString 
+ * Parses a plutus core program. Returns a `UplcProgram` instance.
+ * @param {string | {cborHex: string}} json a raw JSON string or a parsed JSON object
  * @returns {UplcProgram}
  */
-export function deserializeUplc(jsonString) {
-	let obj = JSON.parse(jsonString);
+export function deserializeUplc(json) {
+	const obj = typeof json == "string" ? JSON.parse(json) : json;
 
 	if (!("cborHex" in obj)) {
-		throw UserError.syntaxError(new Source(jsonString, "<json>"), 0, 1, "cborHex field not in json")
+		throw UserError.syntaxError(new Source(typeof json == "string" ? json : JSON.stringify(json, undefined, 4), "<json>"), 0, 1, "cborHex field not in json")
 	}
 
 	let cborHex = obj.cborHex;
 	if (typeof cborHex !== "string") {
-		let src = new Source(jsonString, "<json>");
-		let re = /cborHex/;
-		let cborHexMatch = jsonString.match(re);
+		const raw = typeof json == "string" ? json : JSON.stringify(json, undefined, 4);
+		const src = new Source(raw, "<json>");
+		const re = /cborHex/;
+		const cborHexMatch = raw.match(re);
 		if (cborHexMatch === null) {
 			throw UserError.syntaxError(src, 0, 1, "'cborHex' key not found");
 		} else {
-			const pos = jsonString.search(re)
+			const pos = raw.search(re)
 			throw UserError.syntaxError(src, pos, pos+1, "cborHex not a string");
 		}
 	}
@@ -17689,7 +17874,7 @@ export class Common {
 	/**
 	 * Compares two types. Throws an error if neither is a Type.
 	 * @example
-	 * Common.typesEq(IntType, IntType) => true
+	 * Common.typesEq(IntType, IntType) == true
 	 * @param {Type} a 
 	 * @param {Type} b 
 	 * @returns {boolean}
@@ -30142,10 +30327,9 @@ export function buildScript(ts, expectedPurpose = null) {
 }
 
 /**
- * Parses Helios quickly to extract the script purpose header.
- * Returns null if header is missing or incorrectly formed (instead of throwing an error)
+ * Quickly extract the script purpose header of a script source, by parsing only the minimally necessary characters.
  * @param {string} rawSrc 
- * @returns {null | [ScriptPurpose, string]} - [purpose, name]
+ * @returns {null | [ScriptPurpose, string]} Returns `null` if the script header is missing or syntactically incorrect. The first string returned is the script purpose, the second value returned is the script name.
  */
 export function extractScriptPurposeAndName(rawSrc) {
 	try {
@@ -34368,7 +34552,7 @@ function makeRawFunctions() {
 										)
 									}
 								)()
-							}(__core__consByteString(self, bytes))
+							}(__core__consByteString(__core__modInteger(self, 256), bytes))
 						}
 					)
 				}
@@ -34381,14 +34565,15 @@ function makeRawFunctions() {
 			__core__ifThenElse(
 				__core__lessThanInteger(self, 0),
 				() -> {
-					__helios__error("can't convert negative number to big endian bytearray")
+					__helios__error("can't convert negative number to little endian bytearray")
 				},
 				() -> {
 					(recurse) -> {
 						recurse(recurse, self)
 					}(
 						(recurse, self) -> {
-							__core__consByteString(self,
+							__core__consByteString(
+								__core__modInteger(self, 256),
 								__core__ifThenElse(
 									__core__lessThanInteger(self, 256),
 									() -> {
@@ -44131,8 +44316,10 @@ export class NativeContext {
 }
 
 /**
- * NativeScript allows creating basic multi-signature and time-based validators.
+ * Helios supports Cardano [native scripts](https://cips.cardano.org/cips/cip29/). 
+ * See `Tx.attachScript()` for how `NativeScript` can be used when building a transaction.
  * 
+ * NativeScript allows creating basic multi-signature and time-based validators.
  * This is a legacy technology, but can be cheaper than using Plutus.
  */
 export class NativeScript extends CborData {
@@ -44369,6 +44556,9 @@ export class NativeScript extends CborData {
     }
 
     /**
+     * Calculates the blake2b-224 (28 bytes) hash of the NativeScript.
+     * 
+     * **Note**: a 0 byte is prepended before to the serialized CBOR representation, before calculating the hash.
      * @returns {number[]}
      */
     hash() {
@@ -44381,7 +44571,7 @@ export class NativeScript extends CborData {
     }
 
     /**
-     * A NativeScript can be used both as a Validator and as a MintingPolicy
+     * A `NativeScript` can be used both as a Validator and as a MintingPolicy
      * @type {ValidatorHash}
      */
     get validatorHash() {
@@ -44389,7 +44579,7 @@ export class NativeScript extends CborData {
     }
 
     /**
-     * A NativeScript can be used both as a Validator and as a MintingPolicy
+     * A `NativeScript` can be used both as a Validator and as a MintingPolicy
      * @type {MintingPolicyHash}
      */
     get mintingPolicyHash() {
@@ -44671,7 +44861,7 @@ class NativeBefore extends NativeScript {
 ///////////////////////
 
 /**
- * A new Tx instance can be used as a builder.
+ * Represents a Cardano transaction. Can also be used as a transaction builder.
  */
 export class Tx extends CborData {
 	/**
@@ -44707,6 +44897,9 @@ export class Tx extends CborData {
 	 */
 	#validFrom;
 
+	/**
+	 * Init a new transaction builder.
+	 */
 	constructor() {
 		super();
 		this.#body = new TxBody();
@@ -44752,6 +44945,7 @@ export class Tx extends CborData {
 	}
 
 	/** 
+	 * Serialize a transaction.
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -44764,6 +44958,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Deserialize a CBOR encoded Cardano transaction (input is either an array of bytes, or a hex string).
 	 * @param {number[] | string} raw
 	 * @returns {Tx}
 	 */
@@ -44811,7 +45006,7 @@ export class Tx extends CborData {
 	 * @param {NetworkParams} networkParams
 	 * @param {Address} changeAddress
 	 * @param {TxInput[]} spareUtxos
-	 * @param {{[name: string]: UplcProgram}} scripts
+	 * @param {{[name: string]: (UplcProgram | (() => UplcProgram))}} scripts UplcPrograms can be lazy
 	 * @returns {Promise<Tx>}
 	 */
 	static async finalizeUplcData(data, networkParams, changeAddress, spareUtxos, scripts) {
@@ -44862,7 +45057,11 @@ export class Tx extends CborData {
 					if  (input.address.validatorHash.hex in scripts) {
 						const uplcProgram = scripts[input.address.validatorHash.hex];
 
-						tx.attachScript(uplcProgram);
+						if (uplcProgram instanceof UplcProgram) {
+							tx.attachScript(uplcProgram);
+						} else {
+							tx.attachScript(uplcProgram());
+						}
 					} else {
 						throw new Error(`script for SpendingRedeemer (vh:${input.address.validatorHash.hex}) not found in [${Object.keys(scripts).join(", ")}]`);
 					}
@@ -44898,7 +45097,11 @@ export class Tx extends CborData {
 				if (mph.hex in scripts) {
 					const uplcProgram = scripts[mph.hex];
 
-					tx.attachScript(uplcProgram);
+					if (uplcProgram instanceof UplcProgram) {
+						tx.attachScript(uplcProgram);
+					} else {
+						tx.attachScript(uplcProgram());
+					}
 				} else {
 					throw new Error(`policy for mph ${mph.hex} not found in ${Object.keys(scripts)}`);
 				}
@@ -44944,6 +45147,13 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Set the start of the valid time range by specifying either a Date or a slot.
+	 * 
+	 * Mutates the transaction.
+	 * Only available during building the transaction. 
+	 * Returns the transaction instance so build methods can be chained.
+	 * 
+	 * > **Note**: since Helios v0.13.29 this is set automatically if any of the Helios validator scripts call `tx.time_range`.
 	 * @param {bigint | Date } slotOrTime
 	 * @returns {Tx}
 	 */
@@ -44956,6 +45166,13 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Set the end of the valid time range by specifying either a Date or a slot. 
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building. 
+	 * Returns the transaction instance so build methods can be chained.
+	 * 
+	 * > **Note**: since Helios v0.13.29 this is set automatically if any of the Helios validator scripts call `tx.time_range`.
 	 * @param {bigint | Date } slotOrTime
 	 * @returns {Tx}
 	 */
@@ -44968,7 +45185,15 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Throws error if assets of given mph are already being minted in this transaction
+	 * Mint a list of tokens associated with a given `MintingPolicyHash`.
+	 * Throws an error if the given `MintingPolicyHash` was already used in a previous call to `mintTokens()`.
+	 * The token names can either by a list of bytes or a hexadecimal string.
+	 * 
+	 * Mutates the transaction. 
+	 * Only available during transaction building the transaction.
+	 * Returns the transaction instance so build methods can be chained.
+	 * 
+	 * Also throws an error if the redeemer is `null`, and the minting policy isn't a known `NativeScript`.
 	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph 
 	 * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens - list of pairs of [tokenName, quantity], tokenName can be list of bytes or hex-string
 	 * @param {UplcDataValue | UplcData | null} redeemer
@@ -44994,6 +45219,12 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add a UTxO instance as an input to the transaction being built.
+	 * Throws an error if the UTxO is locked at a script address but a redeemer isn't specified (unless the script is a known `NativeScript`).
+	 * 
+	 * Mutates the transaction. 
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {TxInput} input
 	 * @param {null | UplcDataValue | UplcData | HeliosData} rawRedeemer
 	 * @returns {Tx}
@@ -45040,6 +45271,11 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add multiple UTxO instances as inputs to the transaction being built. 
+	 * Throws an error if the UTxOs are locked at a script address but a redeemer isn't specified (unless the script is a known `NativeScript`).
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building. Returns the transaction instance so build methods can be chained.
 	 * @param {TxInput[]} inputs
 	 * @param {?(UplcDataValue | UplcData | HeliosData)} redeemer
 	 * @returns {Tx}
@@ -45053,6 +45289,12 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add a `TxInput` instance as a reference input to the transaction being built.
+	 * Any associated reference script, as a `UplcProgram` instance, must also be included in the transaction at this point (so the that the execution budget can be calculated correctly).
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {TxInput} input
 	 * @param {null | UplcProgram} refScript
 	 * @returns {Tx}
@@ -45070,6 +45312,11 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add multiple `TxInput` instances as reference inputs to the transaction being built.
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {TxInput[]} inputs
 	 * @returns {Tx}
 	 */
@@ -45082,6 +45329,11 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add a `TxOutput` instance to the transaction being built.
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {TxOutput} output 
 	 * @returns {Tx}
 	 */
@@ -45099,6 +45351,11 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add multiple `TxOutput` instances at once.
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {TxOutput[]} outputs 
 	 * @returns {Tx}
 	 */
@@ -45111,6 +45368,12 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add a signatory `PubKeyHash` to the transaction being built.
+	 * The added entry becomes available in the `tx.signatories` field in the Helios script.
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {PubKeyHash} hash
 	 * @returns {Tx}
 	 */
@@ -45123,8 +45386,19 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Unused scripts are detected during finalize(), in which case an error is thrown
-	 * Throws error if script was already added before
+	 * Attaches a script witness to the transaction being built.
+	 * The script witness can be either a `UplcProgram` or a legacy `NativeScript`.
+	 * A `UplcProgram` instance can be created by compiling a Helios `Program`.
+	 * A legacy `NativeScript` instance can be created by deserializing its original CBOR representation.
+	 * 
+	 * Throws an error if script has already been added.
+	 * Throws an error if the script isn't used upon finalization.
+	 * 
+	 * Mutates the transaction. 
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
+	 * 
+	 * > **Note**: a `NativeScript` must be attached before associated inputs are added or tokens are minted.
 	 * @param {UplcProgram | NativeScript} program
 	 * @returns {Tx}
 	 */
@@ -45141,8 +45415,14 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Usually adding only one collateral input is enough
-	 * Must be less than the limit in networkParams (eg. 3), or else an error is thrown during finalization
+	 * Add a UTxO instance as collateral to the transaction being built.
+	 * Usually adding only one collateral input is enough.
+	 * The number of collateral inputs must be greater than 0 if script witnesses are used in the transaction,
+	 * and must be less than the limit defined in the `NetworkParams`.
+	 * 
+	 * Mutates the transaction. 
+	 * Only available during transaction building. 
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {TxInput} input 
 	 * @returns {Tx}
 	 */
@@ -45157,6 +45437,7 @@ export class Tx extends CborData {
 	/**
 	 * Calculates tx fee (including script execution)
 	 * Shouldn't be used directly
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @returns {bigint}
 	 */
@@ -45187,6 +45468,7 @@ export class Tx extends CborData {
 	/**
 	 * Iterates until fee is exact
 	 * Shouldn't be used directly
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @param {bigint} fee
 	 * @returns {bigint}
@@ -45208,6 +45490,7 @@ export class Tx extends CborData {
 	/**
 	 * Checks that all necessary scripts are included, and that all included scripts are used
 	 * Shouldn't be used directly
+	 * @internal
 	 */
 	checkScripts() {
 		let scripts = this.#witnesses.scripts;
@@ -45411,6 +45694,7 @@ export class Tx extends CborData {
 	 * Iteratively increments the fee because the fee increase the tx size which in turn increases the fee (always converges within two steps though).
 	 * Throws error if transaction can't be balanced.
 	 * Shouldn't be used directly
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {Address} changeAddress
 	 * @param {TxInput[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
@@ -45469,6 +45753,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @param {TxOutput} changeOutput 
 	 */
@@ -45484,6 +45769,9 @@ export class Tx extends CborData {
 		changeOutput.value.setLovelace(changeLovelace);
 	}
 
+	/**
+	 * @internal
+	 */
 	checkBalanced() {
 		let v = new Value(0n);
 
@@ -45500,6 +45788,7 @@ export class Tx extends CborData {
 
 	/**
 	 * Shouldn't be used directly
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 */
 	syncScriptDataHash(networkParams) {
@@ -45509,6 +45798,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {boolean}
 	 */
 	isSmart() {
@@ -45519,6 +45809,7 @@ export class Tx extends CborData {
 	 * Throws an error if there isn't enough collateral
 	 * Also throws an error if the script doesn't require collateral, but collateral was actually included
 	 * Shouldn't be used directly
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 */
 	checkCollateral(networkParams) {
@@ -45538,6 +45829,7 @@ export class Tx extends CborData {
 	/**
 	 * Throws error if tx is too big
 	 * Shouldn't be used directly
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 */
 	checkSize(networkParams) {
@@ -45550,6 +45842,7 @@ export class Tx extends CborData {
 
 	/**
 	 * Final check that fee is big enough
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 */
 	checkFee(networkParams) {
@@ -45557,6 +45850,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 */
 	finalizeValidityTimeRange(networkParams) {
@@ -45595,9 +45889,12 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Assumes transaction hasn't yet been signed by anyone (i.e. witnesses.signatures is empty)
-	 * Mutates 'this'
-	 * Note: this is an async function so that a debugger can optionally be attached in the future
+	 * Executes all the attached scripts with appropriate redeemers and calculates execution budgets.
+	 * Balances the transaction, and optionally uses some spare UTxOs if the current inputs don't contain enough lovelace to cover the fees and min output deposits.
+	 * 
+	 * Inputs, minted assets, and withdrawals are sorted.
+	 * 
+	 * Sets the validatity range automatically if a call to `tx.time_range` is detected in any of the attached Helios scripts.
 	 * @param {NetworkParams} networkParams
 	 * @param {Address}       changeAddress
 	 * @param {TxInput[]}        spareUtxos - might be used during balancing if there currently aren't enough inputs
@@ -45682,10 +45979,10 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Throws an error if verify==true and signature is invalid 
-	 * Adding many signatures might be a bit slow
+	 * Adds a signature created by a wallet. Only available after the transaction has been finalized.
+	 * Optionally verifies that the signature is correct.
 	 * @param {Signature} signature 
-	 * @param {boolean} verify
+	 * @param {boolean} verify Defaults to `true`
 	 * @returns {Tx}
 	 */
 	addSignature(signature, verify = true) {
@@ -45701,8 +45998,8 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Throws an error if verify==true and any of the signatures is invalid
-	 * Adding many signatures might be a bit slow
+	 * Adds multiple signatures at once. Only available after the transaction has been finalized.
+	 * Optionally verifies each signature is correct.
 	 * @param {Signature[]} signatures 
 	 * @param {boolean} verify 
 	 * @returns {Tx}
@@ -45716,6 +46013,10 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add metadata to a transaction.
+	 * Metadata can be used to store data on-chain,
+	 * but can't be consumed by validator scripts.
+	 * Metadata can for example be used for [CIP 25](https://cips.cardano.org/cips/cip25/). 
 	 * @param {number} tag
 	 * @param {Metadata} data
 	 * @returns {Tx}
@@ -46596,7 +46897,7 @@ export class TxBody extends CborData {
 }
 
 /**
- * TxWitnesses represents the non-hashed part of transaction. TxWitnesses contains the signatures, the datums, the redeemers, and the scripts, associated with a given transaction.
+ * Represents the pubkey signatures, and datums/redeemers/scripts that are witnessing a transaction.
  */
 export class TxWitnesses extends CborData {
 	/** @type {Signature[]} */
@@ -46634,6 +46935,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * Gets the list of `Signature` instances contained in this witness set.
 	 * @type {Signature[]}
 	 */
 	get signatures() {
@@ -47335,15 +47637,23 @@ export class TxInput extends CborData {
 	}
 
 	/**
-	 * @deprecated
+	 * 
 	 * @type {TxOutput}
 	 */
-	get origOutput() {
+	get output() {
 		if (this.#output === null) {
-			throw new Error("origOutput not set");
+			throw new Error("underlying output data not set");
 		} else {
 			return this.#output;
 		}
+	}
+
+	/**
+	 * Backward compatible alias for `TxInput.output`
+	 * @type {TxOutput}
+	 */
+	get origOutput() {
+		return this.output
 	}
 
 	/**
@@ -47507,16 +47817,16 @@ export class TxInput extends CborData {
  * Use TxInput instead
  * @deprecated
  */
-export const UTxO = TxInput;
+export class UTxO extends TxInput {}
 
 /**
- * User TxInput instead
+ * Use TxInput instead
  * @deprecated
  */
-export const TxRefInput = TxInput;
+export class TxRefInput extends TxInput {}
 
 /**
- * TxOutput
+ * Represents a transaction output that is used when building a transaction.
  */
 export class TxOutput extends CborData {
 	/** 
@@ -47540,6 +47850,7 @@ export class TxOutput extends CborData {
 	#refScript;
 
 	/**
+	 * Constructs a `TxOutput` instance using an `Address`, a `Value`, an optional `Datum`, and optional `UplcProgram` reference script.
 	 * @param {Address} address 
 	 * @param {Value} value 
 	 * @param {null | Datum} datum 
@@ -47555,6 +47866,7 @@ export class TxOutput extends CborData {
 	}
 
 	/**
+	 * Get the `Address` to which the `TxOutput` will be sent.
 	 * @type {Address}
 	 */
 	get address() {
@@ -47570,6 +47882,7 @@ export class TxOutput extends CborData {
 	}
 
 	/**
+	 * Get the `Value` contained in the `TxOutput`.
 	 * @type {Value}
 	 */
 	get value() {
@@ -47585,6 +47898,7 @@ export class TxOutput extends CborData {
 	}
 
 	/**
+	 * Get the optional `Datum` associated with the `TxOutput`.
 	 * @type {null | Datum}
 	 */
 	get datum() {
@@ -47816,10 +48130,12 @@ export class TxOutput extends CborData {
 	}
 
 	/**
-	 * Mutates. Makes sure the output contains at least the minimum quantity of lovelace.
-	 * Other parts of the output can optionally also be mutated.
+	 * Makes sure the `TxOutput` contains the minimum quantity of lovelace.
+	 * The network requires this to avoid the creation of unusable dust UTxOs.
+	 * 
+	 * Optionally an update function can be specified that allows mutating the datum of the `TxOutput` to account for an increase of the lovelace quantity contained in the value.
 	 * @param {NetworkParams} networkParams 
-	 * @param {?((output: TxOutput) => void)} updater
+	 * @param {null | ((output: TxOutput) => void)} updater
 	 */
 	correctLovelace(networkParams, updater = null) {
 		let minLovelace = this.calcMinLovelace(networkParams);
@@ -47867,7 +48183,11 @@ class DCert extends CborData {
 }
 
 /**
- * Convenience address that is used to query all assets controlled by a given StakeHash (can be scriptHash or regular stakeHash)
+ * Wrapper for Cardano stake address bytes. An StakeAddress consists of two parts internally:
+ *   - Header (1 byte, see CIP 8)
+ *   - Staking witness hash (28 bytes that represent the `StakeKeyHash` or `StakingValidatorHash`)
+ * 
+ * Stake addresses are used to query the assets held by given staking credentials.
  */
 export class StakeAddress {
 	#bytes;
@@ -47889,6 +48209,7 @@ export class StakeAddress {
 	}
 
 	/**
+	 * Returns `true` if the given `StakeAddress` is a testnet address.
 	 * @param {StakeAddress} sa
 	 * @returns {boolean}
 	 */
@@ -47897,8 +48218,8 @@ export class StakeAddress {
 	}
 
 	/**
-	 * Convert regular Address into StakeAddress.
-	 * Throws an error if the given Address doesn't have a staking part.
+	 * Convert a regular `Address` into a `StakeAddress`. 
+	 * Throws an error if the Address doesn't have a staking credential.
 	 * @param {Address} addr 
 	 * @returns {StakeAddress}
 	 */
@@ -47913,6 +48234,7 @@ export class StakeAddress {
 	}
 
 	/**
+	 * Converts a `StakeAddress` into its CBOR representation.
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -47928,6 +48250,7 @@ export class StakeAddress {
 	}
 
 	/**
+	 * Converts a `StakeAddress` into its Bech32 representation.
 	 * @returns {string}
 	 */
 	toBech32() {
@@ -47952,7 +48275,7 @@ export class StakeAddress {
 	}
 
 	/**
-	 * Returns the raw StakeAddress bytes as a hex encoded string
+	 * Converts a `StakeAddress` into its hexadecimal representation.
 	 * @returns {string}
 	 */
 	toHex() {
@@ -47960,6 +48283,7 @@ export class StakeAddress {
 	}
 
 	/**
+	 * Converts a `StakeAddress` into its hexadecimal representation.
 	 * @type {string}
 	 */
 	get hex() {
@@ -47977,6 +48301,7 @@ export class StakeAddress {
 
 	/**
 	 * Address with only staking part (regular StakeKeyHash)
+	 * @internal
 	 * @param {boolean} isTestnet
 	 * @param {StakeKeyHash} hash
 	 * @returns {StakeAddress}
@@ -47989,6 +48314,7 @@ export class StakeAddress {
 
 	/**
 	 * Address with only staking part (script StakingValidatorHash)
+	 * @internal
 	 * @param {boolean} isTestnet
 	 * @param {StakingValidatorHash} hash
 	 * @returns {StakeAddress}
@@ -48000,6 +48326,7 @@ export class StakeAddress {
 	}
 
 	/**
+	 * Converts a `StakeKeyHash` or `StakingValidatorHash` into `StakeAddress`.
 	 * @param {boolean} isTestnet
 	 * @param {StakeKeyHash | StakingValidatorHash} hash
 	 * @returns {StakeAddress}
@@ -48013,6 +48340,7 @@ export class StakeAddress {
 	}
 
 	/**
+	 * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`.
 	 * @returns {StakeKeyHash | StakingValidatorHash}
 	 */
 	get stakingHash() {
@@ -48249,12 +48577,12 @@ export class Ed25519PrivateKey extends HeliosData {
 }
 
 /**
- * Used during Bip32PrivateKey derivation, to create a new Bip32PrivateKey instance with a non-publicly deriveable PubKey.
+ * Used during `Bip32PrivateKey` derivation, to create a new `Bip32PrivateKey` instance with a non-publicly deriveable `PubKey`.
  */
 export const BIP32_HARDEN = 0x80000000;
 
 /**
- * Ed25519-Bip32 extendable PrivateKey (ss)
+ * Ed25519-Bip32 extendable `PrivateKey`.
  * @implements {PrivateKey}
  */
 export class Bip32PrivateKey {
@@ -48440,7 +48768,7 @@ export class Bip32PrivateKey {
 
 	/**
 	 * @example
-	 * (new Bip32PrivateKey([0x60, 0xd3, 0x99, 0xda, 0x83, 0xef, 0x80, 0xd8, 0xd4, 0xf8, 0xd2, 0x23, 0x23, 0x9e, 0xfd, 0xc2, 0xb8, 0xfe, 0xf3, 0x87, 0xe1, 0xb5, 0x21, 0x91, 0x37, 0xff, 0xb4, 0xe8, 0xfb, 0xde, 0xa1, 0x5a, 0xdc, 0x93, 0x66, 0xb7, 0xd0, 0x03, 0xaf, 0x37, 0xc1, 0x13, 0x96, 0xde, 0x9a, 0x83, 0x73, 0x4e, 0x30, 0xe0, 0x5e, 0x85, 0x1e, 0xfa, 0x32, 0x74, 0x5c, 0x9c, 0xd7, 0xb4, 0x27, 0x12, 0xc8, 0x90, 0x60, 0x87, 0x63, 0x77, 0x0e, 0xdd, 0xf7, 0x72, 0x48, 0xab, 0x65, 0x29, 0x84, 0xb2, 0x1b, 0x84, 0x97, 0x60, 0xd1, 0xda, 0x74, 0xa6, 0xf5, 0xbd, 0x63, 0x3c, 0xe4, 0x1a, 0xdc, 0xee, 0xf0, 0x7a])).sign(textToBytes("Hello World")).bytes => [0x90, 0x19, 0x4d, 0x57, 0xcd, 0xe4, 0xfd, 0xad, 0xd0, 0x1e, 0xb7, 0xcf, 0x16, 0x17, 0x80, 0xc2, 0x77, 0xe1, 0x29, 0xfc, 0x71, 0x35, 0xb9, 0x77, 0x79, 0xa3, 0x26, 0x88, 0x37, 0xe4, 0xcd, 0x2e, 0x94, 0x44, 0xb9, 0xbb, 0x91, 0xc0, 0xe8, 0x4d, 0x23, 0xbb, 0xa8, 0x70, 0xdf, 0x3c, 0x4b, 0xda, 0x91, 0xa1, 0x10, 0xef, 0x73, 0x56, 0x38, 0xfa, 0x7a, 0x34, 0xea, 0x20, 0x46, 0xd4, 0xbe, 0x04]
+	 * (new Bip32PrivateKey([0x60, 0xd3, 0x99, 0xda, 0x83, 0xef, 0x80, 0xd8, 0xd4, 0xf8, 0xd2, 0x23, 0x23, 0x9e, 0xfd, 0xc2, 0xb8, 0xfe, 0xf3, 0x87, 0xe1, 0xb5, 0x21, 0x91, 0x37, 0xff, 0xb4, 0xe8, 0xfb, 0xde, 0xa1, 0x5a, 0xdc, 0x93, 0x66, 0xb7, 0xd0, 0x03, 0xaf, 0x37, 0xc1, 0x13, 0x96, 0xde, 0x9a, 0x83, 0x73, 0x4e, 0x30, 0xe0, 0x5e, 0x85, 0x1e, 0xfa, 0x32, 0x74, 0x5c, 0x9c, 0xd7, 0xb4, 0x27, 0x12, 0xc8, 0x90, 0x60, 0x87, 0x63, 0x77, 0x0e, 0xdd, 0xf7, 0x72, 0x48, 0xab, 0x65, 0x29, 0x84, 0xb2, 0x1b, 0x84, 0x97, 0x60, 0xd1, 0xda, 0x74, 0xa6, 0xf5, 0xbd, 0x63, 0x3c, 0xe4, 0x1a, 0xdc, 0xee, 0xf0, 0x7a])).sign(textToBytes("Hello World")).bytes == [0x90, 0x19, 0x4d, 0x57, 0xcd, 0xe4, 0xfd, 0xad, 0xd0, 0x1e, 0xb7, 0xcf, 0x16, 0x17, 0x80, 0xc2, 0x77, 0xe1, 0x29, 0xfc, 0x71, 0x35, 0xb9, 0x77, 0x79, 0xa3, 0x26, 0x88, 0x37, 0xe4, 0xcd, 0x2e, 0x94, 0x44, 0xb9, 0xbb, 0x91, 0xc0, 0xe8, 0x4d, 0x23, 0xbb, 0xa8, 0x70, 0xdf, 0x3c, 0x4b, 0xda, 0x91, 0xa1, 0x10, 0xef, 0x73, 0x56, 0x38, 0xfa, 0x7a, 0x34, 0xea, 0x20, 0x46, 0xd4, 0xbe, 0x04]
 	 * @param {number[]} message 
 	 * @returns {Signature}
 	 */
@@ -49010,8 +49338,10 @@ export class MintingRedeemer extends Redeemer {
 }
 
 /**
- * Inside helios this type is named OutputDatum in order to distinguish it from the user defined Datum,
- * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
+ * Represents either an inline datum, or a hashed datum.
+ * 
+ * Inside the Helios language this type is named `OutputDatum` in order to distinguish it from user defined Datums,
+ * But outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum.
  */
 export class Datum extends CborData {
 	constructor() {
@@ -49080,6 +49410,7 @@ export class Datum extends CborData {
 	}
 
 	/**
+	 * Constructs a `HashedDatum`. The input data is hashed internally.
 	 * @param {UplcDataValue | UplcData | HeliosData} data
 	 * @returns {Datum}
 	 */
@@ -49218,6 +49549,7 @@ export class HashedDatum extends Datum {
 	}
 
 	/**
+	 * Constructs a `HashedDatum`. The input data is hashed internally.
 	 * @param {UplcData} data 
 	 * @returns {HashedDatum}
 	 */
@@ -49481,9 +49813,9 @@ const SyntaxCategory = {
 };
 
 /**
- * Applies syntax highlighting by returning a list of char categories.
- * Not part of Tokeizer because it needs to be very fast and can't throw errors.
- * Doesn't depend on any other functions so it can easily be ported to other languages.
+ * Returns Uint8Array with the same length as the number of chars in the script.
+ * Each resulting byte respresents a different syntax category.
+ * This approach should be faster than a RegExp based a approach.
  * @param {string} src
  * @returns {Uint8Array}
  */
@@ -49795,20 +50127,23 @@ export function highlight(src) {
 ////////////////////////////
 
 /**
+ * Returns two lists. The first list contains the selected UTxOs, the second list contains the remaining UTxOs.
  * @typedef {(utxos: TxInput[], amount: Value) => [TxInput[], TxInput[]]} CoinSelectionAlgorithm
  */
 
 /**
- * Collection of coin selection algorithms
+ * Collection of common [coin selection algorithms](https://cips.cardano.org/cips/cip2/).
+ * @namespace
  */
-export class CoinSelection {
+export const CoinSelection = {
     /**
+     * @internal
      * @param {TxInput[]} utxos 
      * @param {Value} amount 
      * @param {boolean} largestFirst
      * @returns {[TxInput[], TxInput[]]} - [picked, not picked that can be used as spares]
      */
-    static selectExtremumFirst(utxos, amount, largestFirst) {
+    selectExtremumFirst: (utxos, amount, largestFirst) => {
         let sum = new Value();
 
         /** @type {TxInput[]} */
@@ -49870,7 +50205,7 @@ export class CoinSelection {
                         selected.push(utxo);
                         sum = sum.add(utxo.value);
                     } else {
-                        remaining.push(utxo)
+                        remaining.push(utxo);
                     }
                 }
             }
@@ -49911,19 +50246,22 @@ export class CoinSelection {
         assert(selected.length + notSelected.length == utxos.length, "internal error: select algorithm doesn't conserve utxos");
 
         return [selected, notSelected];
-    }
+    },
 
     /**
+     * Selects UTxOs from a list by iterating through the tokens in the given `Value` and picking the UTxOs containing the smallest corresponding amount first.
+     * This method can be used to eliminate dust UTxOs from a wallet.
      * @type {CoinSelectionAlgorithm}
      */
-    static selectSmallestFirst(utxos, amount) {
+    selectSmallestFirst: (utxos, amount) => {
         return CoinSelection.selectExtremumFirst(utxos, amount, false);
-    }
+    },
 
     /**
+     * * Selects UTxOs from a list by iterating through the tokens in the given `Value` and picking the UTxOs containing the largest corresponding amount first.
      * @type {CoinSelectionAlgorithm}
      */
-    static selectLargestFirst(utxos, amount) {
+    selectLargestFirst: (utxos, amount) => {
         return CoinSelection.selectExtremumFirst(utxos, amount, true);
     }
 }
@@ -49947,6 +50285,29 @@ export class CoinSelection {
 */
 
 /**
+ * Convenience type for browser plugin wallets supporting the CIP 30 dApp connector standard (eg. Eternl, Nami, ...).
+ * 
+ * This is useful in typescript projects to avoid type errors when accessing the handles in `window.cardano`.
+ * 
+ * ```ts
+ * // refer to this file in the 'typeRoots' list in tsconfig.json
+ *
+ * type Cip30SimpleHandle = {
+ *   name: string,
+ *   icon: string,
+ *   enable(): Promise<helios.Cip30Handle>,
+ *   isEnabled(): boolean
+ * }
+ *
+ * declare global {
+ *   interface Window {
+ *     cardano: {
+ *       [walletName: string]: Cip30SimpleHandle
+ *     };
+ *   }
+ * }
+ * ```
+ * 
  * @typedef {{
  *     getNetworkId(): Promise<number>,
  *     getUsedAddresses(): Promise<string[]>,
@@ -49962,12 +50323,19 @@ export class CoinSelection {
  */
 
 /**
+ * Implementation of `Wallet` that lets you connect to a browser plugin wallet.
  * @implements {Wallet}
  */
 export class Cip30Wallet {
     #handle;
 
     /**
+     * Constructs Cip30Wallet using the Cip30Handle which is available in the browser window.cardano context.
+     * 
+     * ```ts
+     * const handle: helios.Cip30Handle = await window.cardano.eternl.enable()
+     * const wallet = new helios.Cip30Wallet(handle)
+     * ```
      * @param {Cip30Handle} handle
      */
     constructor(handle) {
@@ -49975,6 +50343,7 @@ export class Cip30Wallet {
     }
 
     /**
+     * Returns `true` if the wallet is connected to the mainnet.
      * @returns {Promise<boolean>}
      */
     async isMainnet() {
@@ -49982,6 +50351,7 @@ export class Cip30Wallet {
     }
 
     /**
+     * Gets a list of addresses which contain(ed) UTxOs.
      * @type {Promise<Address[]>}
      */
     get usedAddresses() {
@@ -49989,6 +50359,7 @@ export class Cip30Wallet {
     }
 
     /**
+     * Gets a list of unique unused addresses which can be used to UTxOs to.
      * @type {Promise<Address[]>}
      */
     get unusedAddresses() {
@@ -49996,6 +50367,7 @@ export class Cip30Wallet {
     }
 
     /**
+     * Gets the complete list of UTxOs (as `TxInput` instances) sitting at the addresses owned by the wallet.
      * @type {Promise<TxInput[]>}
      */
     get utxos() {
@@ -50011,6 +50383,7 @@ export class Cip30Wallet {
     }
 
     /**
+     * Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
      * @param {Tx} tx
      * @returns {Promise<Signature[]>}
      */
@@ -50021,6 +50394,7 @@ export class Cip30Wallet {
     }
 
     /**
+     * Submits a transaction to the blockchain.
      * @param {Tx} tx
      * @returns {Promise<TxId>}
      */
@@ -50032,7 +50406,7 @@ export class Cip30Wallet {
 }
 
 /**
- * Wraps an instance implementing the Wallet interface in order to provide additional functionality.
+ * High-level helper class for instances that implement the `Wallet` interface.
  */
 export class WalletHelper {
     #wallet;
@@ -50048,6 +50422,7 @@ export class WalletHelper {
     }
 
     /**
+     * Concatenation of `usedAddresses` and `unusedAddresses`.
      * @type {Promise<Address[]>}
      */
     get allAddresses() {
@@ -50070,6 +50445,7 @@ export class WalletHelper {
     }
 
     /**
+     * First `Address` in `allAddresses`.
      * @type {Promise<Address>}
      */
     get baseAddress() {
@@ -50077,6 +50453,7 @@ export class WalletHelper {
     }
 
     /**
+     * First `Address` in `unusedAddresses` (falls back to last `Address` in `usedAddresses` if not defined).
      * @type {Promise<Address>}
      */
     get changeAddress() {
@@ -50096,7 +50473,7 @@ export class WalletHelper {
     }
 
     /**
-     * Returns the first UTxO, so the caller can check precisely which network the user is connected to (eg. preview or preprod)
+     * First UTxO in `utxos`. Can be used to distinguish between preview and preprod networks.
      * @type {Promise<null | TxInput>}
      */
     get refUtxo() {
@@ -50116,25 +50493,27 @@ export class WalletHelper {
         try {
             return await this.#wallet.utxos;
         } catch (e) {
-            if (this.#getUtxosFallback && e.message.includes("unknown error in getUtxos")) {
+            if (this.#getUtxosFallback) {
+                console.error(e, "falling back to regular network");
                 return this.#getUtxosFallback(await this.#wallet.usedAddresses);
             } else {
-                throw e
+                console.error("fallback not set");
+                throw e;
             }
         }
     }
     /**
+     * Pick a number of UTxOs needed to cover a given Value. The default coin selection strategy is to pick the smallest first.
      * @param {Value} amount
      * @param {CoinSelectionAlgorithm} algorithm
-     * @returns {Promise<[TxInput[], TxInput[]]>} - [picked, not picked that can be used as spares]
+     * @returns {Promise<[TxInput[], TxInput[]]>} The first list contains the selected UTxOs, the second list contains the remaining UTxOs.
      */
     async pickUtxos(amount, algorithm = CoinSelection.selectSmallestFirst) {
         return algorithm(await this.getUtxos(), amount);
     }
 
     /**
-     * Returned collateral can't contain an native assets (pure lovelace)
-     * TODO: combine UTxOs if a single UTxO isn't enough
+     * Picks a single UTxO intended as collateral.
      * @param {bigint} amount - 2 Ada should cover most things
      * @returns {Promise<TxInput>}
      */
@@ -50157,6 +50536,7 @@ export class WalletHelper {
     }
 
     /**
+     * Returns `true` if the `PubKeyHash` in the given `Address` is controlled by the wallet.
      * @param {Address} addr
      * @returns {Promise<boolean>}
      */
@@ -50171,6 +50551,7 @@ export class WalletHelper {
     }
 
     /**
+     * Returns `true` if the given `PubKeyHash` is controlled by the wallet.
      * @param {PubKeyHash} pkh
      * @returns {Promise<boolean>}
      */
@@ -50189,11 +50570,10 @@ export class WalletHelper {
     }
 
     /**
-     * @param {undefined | ((addrs: Address[]) => Promise<TxInput[]>)} utxosFallback
      * @returns {Promise<any>}
      */
-    async toJson(utxosFallback = undefined) {
-        const isMainnet = (await this.#wallet).isMainnet();
+    async toJson() {
+        const isMainnet = (await this.#wallet.isMainnet());
         const usedAddresses = (await this.#wallet.usedAddresses);
         const unusedAddresses = (await this.#wallet.unusedAddresses);
 
@@ -50315,6 +50695,7 @@ export class RemoteWallet {
  */
 
 /**
+ * Blockfrost specific implementation of `Network`.
  * @implements {Network}
  */
 export class BlockfrostV0 {
@@ -50322,7 +50703,8 @@ export class BlockfrostV0 {
     #projectId;
 
     /**
-     * @param {string} networkName - "preview", "preprod" or "mainnet"
+     * Constructs a BlockfrostV0 using the network name (preview, preprod or mainnet) and your Blockfrost `project_id`.
+     * @param {"preview" | "preprod" | "mainnet"} networkName
      * @param {string} projectId
      */
     constructor(networkName, projectId) {
@@ -50331,7 +50713,9 @@ export class BlockfrostV0 {
     }
 
     /**
-     * Determine the network which the wallet is connected to.
+     * Connects to the same network a given `Wallet` is connected to (preview, preprod or mainnet).
+     * 
+     * Throws an error if a Blockfrost project_id is missing for that specific network.
      * @param {Wallet} wallet
      * @param {{
      *     preview?: string,
@@ -50382,6 +50766,7 @@ export class BlockfrostV0 {
     }
 
     /**
+     * @internal
      * @param {{unit: string, quantity: string}[]} obj
      * @returns {Value}
      */
@@ -50523,12 +50908,16 @@ export class BlockfrostV0 {
     }
 
     /**
+     * Gets a complete list of UTxOs at a given `Address`.
      * Returns oldest UTxOs first, newest last.
-     * TODO: pagination
      * @param {Address} address
      * @returns {Promise<TxInput[]>}
      */
     async getUtxos(address) {
+        /**
+         * TODO: pagination
+         */
+
         const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/addresses/${address.toBech32()}/utxos?order=asc`;
 
         try {
@@ -50569,6 +50958,7 @@ export class BlockfrostV0 {
     }
 
     /**
+     * Submits a transaction to the blockchain.
      * @param {Tx} tx
      * @returns {Promise<TxId>}
      */
@@ -50595,6 +50985,22 @@ export class BlockfrostV0 {
         } else {
             return new TxId(JSON.parse(responseText));
         }
+    }
+
+    /**
+     * Allows inspecting the live Blockfrost mempool.
+     */
+    async dumpMempool() {
+        const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/mempool`;
+
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "project_id": this.#projectId
+            }
+        });
+
+        console.log(await response.text());
     }
 }
 
@@ -51264,7 +51670,9 @@ export const rawNetworkEmulatorParams = {
 };
 
 /**
- * Single address wallet emulator.
+ * An emulated `Wallet`, created by calling `emulator.createWallet()`.
+ * 
+ * This wallet only has a single private/public key, which isn't rotated. Staking is not yet supported.
  * @implements {Wallet}
  */
 export class WalletEmulator {
@@ -51576,6 +51984,9 @@ class RegularTx {
 }
 
 /**
+ * A simple emulated Network.
+ * This can be used to do integration tests of whole dApps.
+ * Staking is not yet supported.
  * @implements {Network}
  */
 export class NetworkEmulator {
@@ -51605,6 +52016,8 @@ export class NetworkEmulator {
     #blocks;
 
     /**
+     * Instantiates a NetworkEmulator at slot 0.
+     * An optional seed number can be specified, from which all emulated randomness is derived.
      * @param {number} seed
      */
     constructor(seed = 0) {
@@ -51616,8 +52029,15 @@ export class NetworkEmulator {
     }
 
     /**
-     * Create a copy of networkParams that always has access to the current slot
-     *  (for setting the validity range automatically)
+     * @type {bigint}
+     */
+    get currentSlot() {
+        return this.#slot;
+    }
+
+    /**
+     * Creates a new `NetworkParams` instance that has access to current slot 
+     * (so that the `Tx` validity range can be set automatically during `Tx.finalize()`).
      * @param {NetworkParams} networkParams
      * @returns {NetworkParams}
      */
@@ -51631,13 +52051,6 @@ export class NetworkEmulator {
             time: 0
         };
 
-        // increase the max tx size
-        /*raw.latestParams.maxTxSize = raw.latestParams.maxTxSize*100;
-        raw.latestParams.maxTxExecutionUnits = {
-            memory: raw.latestParams.maxTxExecutionUnits.memory*100,
-            steps: raw.latestParams.maxTxExecutionUnits.steps*100
-        };*/
-
         return new NetworkParams(
             raw,
             () => {
@@ -51647,7 +52060,8 @@ export class NetworkEmulator {
     }
 
     /**
-     * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
+     * Creates a new WalletEmulator and populates it with a given lovelace quantity and assets.
+     * Special genesis transactions are added to the emulated chain in order to create these assets.
      * @param {bigint} lovelace
      * @param {Assets} assets
      * @returns {WalletEmulator}
@@ -51681,10 +52095,12 @@ export class NetworkEmulator {
     }
 
     /**
-     * Mint a block with the current mempool, and advance the slot.
+     * Mint a block with the current mempool, and advance the slot by a number of slots.
      * @param {bigint} nSlots
      */
     tick(nSlots) {
+        assert(nSlots > 0, `nSlots must be > 0, got ${nSlots.toString()}`);
+
         if (this.#mempool.length > 0) {
             this.#blocks.push(this.#mempool);
 
@@ -51790,6 +52206,316 @@ export class NetworkEmulator {
     }
 }
 
+/**
+ * @internal
+ * @implements {Wallet}
+ */
+class TxChainWallet {
+    #base;
+    #chain;
+    
+    /**
+     * 
+     * @param {Wallet} base 
+     * @param {TxChain} chain 
+     */
+    constructor(base, chain) {
+        this.#base = base;
+        this.#chain = chain;
+    }
+
+    /**
+     * @returns {Promise<boolean>}
+     */
+    async isMainnet() {
+        return this.#base.isMainnet()
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<Signature[]>}
+     */
+    async signTx(tx) {
+        return this.#base.signTx(tx)
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        return this.#chain.submitTx(tx)
+    }
+
+    get unusedAddresses() {
+        return this.#base.unusedAddresses;
+    }
+
+    get usedAddresses() {
+        return this.#base.usedAddresses;
+    }
+
+    /**
+     * @internal
+     * @param {TxInput[]} utxos 
+     * @returns {Promise<TxInput[]>}
+     */
+    async filterUtxos(utxos) {
+        const ua = await this.usedAddresses;
+        const una = await this.unusedAddresses;
+
+        const addrs = ua.concat(una);
+
+        return await this.#chain.getUtxosInternal(utxos, addrs);
+    }
+
+    /**
+     * @type {Promise<TxInput[]>}
+     */
+    get collateral() {
+        return new Promise((resolve, reject) => {
+            this.#base.collateral.then(utxos => {
+                this.filterUtxos(utxos).then(utxos => {
+                    resolve(utxos);
+                });
+            });
+        });
+    }
+
+    /**
+     * @type {Promise<TxInput[]>}
+     */
+    get utxos() {
+        return new Promise((resolve, reject) => {
+            this.#base.utxos.then(utxos => {
+                this.filterUtxos(utxos).then(utxos => {
+                    resolve(utxos);
+                });
+            });
+        });
+    }
+}
+
+/**
+ * Helper that 
+ * @implements {Network}
+ */
+export class TxChain {
+    #network;
+
+    /**
+     * @type {RegularTx[]}
+     */
+    #txs;
+
+    /**
+     * @param {Network} network 
+     */
+    constructor(network) {
+        this.#network = network;
+        this.#txs = [];
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        const id = await this.#network.submitTx(tx);
+
+        this.#txs.push(new RegularTx(tx));
+
+        return id;
+    }
+
+    /**
+     * @returns {Promise<NetworkParams>}
+     */
+    async getParameters() {
+        return this.#network.getParameters()
+    }
+
+    /**
+     * @param {TxOutputId} id 
+     * @returns {Promise<TxInput>}
+     */
+    async getUtxo(id) {
+        for (let i = 0; i < this.#txs.length; i++) {
+            const txInput = this.#txs[i].getUtxo(id);
+
+            if (txInput) {
+                return txInput;
+            }
+        }
+
+        return this.#network.getUtxo(id);
+    }
+
+    /**
+     * @param {TxInput[]} utxos
+     * @param {Address[]} addrs
+     * @returns {Promise<TxInput[]>}
+     */
+    async getUtxosInternal(utxos, addrs) {
+        for (let tx of this.#txs) {
+            addrs.forEach(addr => {
+                utxos = tx.collectUtxos(addr, utxos);
+            });
+        }
+
+        return utxos;
+    }
+    /**
+     * @param {Address} addr
+     * @returns {Promise<TxInput[]>}
+     */
+    async getUtxos(addr) {
+        let utxos = await this.#network.getUtxos(addr);
+
+        return this.getUtxosInternal(utxos, [addr])
+    }
+
+    /**
+     * @param {Wallet} baseWallet 
+     * @returns {Wallet}
+     */
+    asWallet(baseWallet) {
+        return new TxChainWallet(baseWallet, this);
+    }
+}
+
+/**
+ * @typedef {{
+ *   [address: string]: TxInput[]
+ * }} NetworkSliceUTxOs
+ */
+
+/**
+ * @implements {Network}
+ */
+export class NetworkSlice {
+    #params;
+    #utxos;
+
+    /**
+     * @param {NetworkParams} params
+     * @param {NetworkSliceUTxOs} utxos 
+     */
+    constructor(params, utxos) {
+        this.#params = params;
+        this.#utxos = utxos;
+    }
+
+    /**
+     * @param {Network} network
+     * @param {Address[]} addresses
+     * @returns {Promise<NetworkSlice>}
+     */
+    static async init(network, addresses) {
+        /**
+         * @type {[Promise<NetworkParams>, ...Promise<TxInput[]>[]]}
+         */
+        const promises = [
+            network.getParameters(),
+            ...addresses.map(a => network.getUtxos(a))
+        ];
+
+        const resolved = await Promise.all(promises);
+
+        const [params, ...utxos] = resolved;
+
+        /**
+         * @type {NetworkSliceUTxOs}
+         */
+        const obj = {};
+
+        addresses.forEach((a, i) => {
+            obj[a.toBech32()] = utxos[i];
+        });
+
+        return new NetworkSlice(params, obj);
+    }
+
+    /**
+     * @returns {any}
+     */
+    toJson() {
+        const obj = {};
+
+        for (let a in this.#utxos) {
+            obj[a] = this.#utxos[a].map(utxo => bytesToHex(utxo.toFullCbor()));
+        }
+
+        return {
+            params: this.#params.raw,
+            utxos: obj
+        };
+    }
+
+    /**
+     * @param {any} obj 
+     * @returns {NetworkSlice}
+     */
+    static fromJson(obj) {
+        const params = new NetworkParams(obj.params);
+
+        /**
+         * @type {NetworkSliceUTxOs}
+         */
+        const utxos = {};
+
+        for (let a in obj.utxos) {
+            utxos[a] = obj.utxos[a].map(utxo => TxInput.fromFullCbor(utxo));
+        }
+
+        return new NetworkSlice(params, utxos);
+    }
+
+    /**
+     * @returns {Promise<NetworkParams>}
+     */
+    async getParameters() {
+        return this.#params;
+    }
+
+    /**
+     * @param {TxOutputId} id 
+     * @returns {Promise<TxInput>}
+     */
+    async getUtxo(id) {
+        for (let utxos of Object.values(this.#utxos)) {
+            for (let utxo of utxos) {
+                if (utxo.outputId.eq(id)) {
+                    return utxo;
+                }
+            }
+        }
+
+        throw new Error(`utxo ${id.toString()} not found`);
+    }
+
+    /**
+     * @param {Address} addr 
+     * @returns {Promise<TxInput[]>}
+     */
+    async getUtxos(addr) {
+        const key = addr.toBech32();
+
+        if (key in this.#utxos) {
+            return this.#utxos[key];
+        } else {
+            return [];
+        }
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        throw new Error("can't submit tx through network slice");
+    }
+}
 
 
 //////////////////////////////////////
@@ -51805,7 +52531,7 @@ export class NetworkEmulator {
  */
 
 /**
- * Creates generators and runs script tests
+ * Helper class for performing fuzzy property-based tests of Helios scripts.
  */
 export class FuzzyTest {
 	/**
@@ -51828,9 +52554,10 @@ export class FuzzyTest {
 	#dummyNetworkParams;
 
 	/**
+	 * The simplify argument specifies whether optimized versions of the Helios sources should also be tested.
 	 * @param {number} seed
 	 * @param {number} runsPerTest
-	 * @param {boolean} simplify - if true then also test the simplified program
+	 * @param {boolean} simplify If true then also test the simplified program
 	 */
 	constructor(seed = 0, runsPerTest = 100, simplify = false) {
 		console.log("starting fuzzy testing  with seed", seed);
@@ -51897,7 +52624,7 @@ export class FuzzyTest {
 	}
 
 	/**
-	 * Returns a generator for strings containing any utf-8 character
+	 * Returns a generator for strings containing any utf-8 character.
 	 * @param {number} minLength
 	 * @param {number} maxLength
 	 * @returns {ValueGenerator}
@@ -51921,7 +52648,7 @@ export class FuzzyTest {
 	}
 
 	/** 
-	 * Returns a generator for strings with ascii characters from 32 (space) to 126 (tilde)
+	 * Returns a generator for strings with ascii characters from 32 (space) to 126 (tilde).
 	 * @param {number} minLength
 	 * @param {number} maxLength
 	 * @returns {ValueGenerator}
@@ -52169,7 +52896,11 @@ export class FuzzyTest {
 	}
 
 	/**
-	 * Run a test
+	 * Perform a fuzzy/property-based test-run of a Helios source. One value generator must be specified per argument of main.
+	 * 
+	 * Throws an error if the propTest fails. 
+	 * 
+	 * The propTest can simply return a boolean, or can return an object with boolean values, and if any of these booleans is false the propTest fails (the keys can be used to provide extra information).
 	 * @param {ValueGenerator[]} argGens
 	 * @param {string} src
 	 * @param {PropertyTest} propTest

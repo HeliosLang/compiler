@@ -1266,7 +1266,7 @@ function makeRawFunctions() {
 										)
 									}
 								)()
-							}(__core__consByteString(self, bytes))
+							}(__core__consByteString(__core__modInteger(self, 256), bytes))
 						}
 					)
 				}
@@ -1279,14 +1279,15 @@ function makeRawFunctions() {
 			__core__ifThenElse(
 				__core__lessThanInteger(self, 0),
 				() -> {
-					__helios__error("can't convert negative number to big endian bytearray")
+					__helios__error("can't convert negative number to little endian bytearray")
 				},
 				() -> {
 					(recurse) -> {
 						recurse(recurse, self)
 					}(
 						(recurse, self) -> {
-							__core__consByteString(self,
+							__core__consByteString(
+								__core__modInteger(self, 256),
 								__core__ifThenElse(
 									__core__lessThanInteger(self, 256),
 									() -> {

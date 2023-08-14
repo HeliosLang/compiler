@@ -41,6 +41,8 @@ export class CborData {
 
 /**
  * Helper methods for (de)serializing data to/from Cbor.
+ * 
+ * **Note**: Each decoding method mutates the input `bytes` by shifting it to the following CBOR element.
  * @namespace
  */
 export const Cbor = {
@@ -130,6 +132,7 @@ export const Cbor = {
 	},
 
 	/**
+	 * Encode `null` into its CBOR representation.
 	 * @returns {number[]}
 	 */
 	encodeNull: () => {
@@ -137,7 +140,8 @@ export const Cbor = {
 	},
 
 	/**
-	 * Throws error if not null
+	 * Checks if next element in `bytes` is a `null`.
+	 * Throws an error if it isn't. 
 	 * @param {number[]} bytes
 	 */
 	decodeNull: (bytes) => {
@@ -149,6 +153,7 @@ export const Cbor = {
 	},
 
 	/**
+	 * Encodes a `boolean` into its CBOR representation.
 	 * @param {boolean} b
 	 * @returns {number[]}
 	 */
@@ -161,6 +166,8 @@ export const Cbor = {
 	},
 
 	/**
+	 * Decodes a CBOR encoded `boolean`.
+	 * Throws an error if the next element in bytes isn't a `boolean`.
 	 * @param {number[]} bytes
 	 * @returns {boolean}
 	 */
@@ -211,16 +218,17 @@ export const Cbor = {
 	},
 
 	/**
+	 * Wraps a list of bytes using CBOR. Optionally splits the bytes into chunks.
 	 * @example
-	 * bytesToHex(Cbor.encodeBytes(hexToBytes("4d01000033222220051200120011"))) => "4e4d01000033222220051200120011"
+	 * bytesToHex(Cbor.encodeBytes(hexToBytes("4d01000033222220051200120011"))) == "4e4d01000033222220051200120011"
 	 * @param {number[]} bytes
-	 * @param {boolean} splitInChunks
+	 * @param {boolean} splitIntoChunks
 	 * @returns {number[]} - cbor bytes
 	 */
-	encodeBytes: (bytes, splitInChunks = false) => {
+	encodeBytes: (bytes, splitIntoChunks = false) => {
 		bytes = bytes.slice();
 
-		if (bytes.length <= 64 || !splitInChunks) {
+		if (bytes.length <= 64 || !splitIntoChunks) {
 			const head = Cbor.encodeHead(2, BigInt(bytes.length));
 			return head.concat(bytes);
 		} else {
@@ -239,9 +247,9 @@ export const Cbor = {
 	},
 
 	/**
-	 * Decodes both an indef array of bytes, and a bytearray of specified length
+	 * Unwraps a CBOR encoded list of bytes. 
 	 * @example
-	 * bytesToHex(Cbor.decodeBytes(hexToBytes("4e4d01000033222220051200120011"))) => "4d01000033222220051200120011"
+	 * bytesToHex(Cbor.decodeBytes(hexToBytes("4e4d01000033222220051200120011"))) == "4d01000033222220051200120011"
 	 * @param {number[]} bytes - cborbytes, mutated to form remaining
 	 * @returns {number[]} - byteArray
 	 */
@@ -360,8 +368,9 @@ export const Cbor = {
 	},
 
 	/**
+	 * Encodes a bigint integer using CBOR.
 	 * @param {bigint} n
-	 * @returns {number[]} - cbor bytes
+	 * @returns {number[]}
 	 */
 	encodeInteger: (n) => {
 		if (n >= 0n && n <= (2n << 63n) - 1n) {
@@ -376,6 +385,7 @@ export const Cbor = {
 	},
 
 	/**
+	 * Decodes a CBOR encoded bigint integer.
 	 * @param {number[]} bytes
 	 * @returns {bigint}
 	 */
@@ -416,6 +426,7 @@ export const Cbor = {
 	},
 
 	/**
+	 * @internal
 	 * @returns {number[]}
 	 */
 	encodeIndefListStart: () => {
@@ -423,6 +434,7 @@ export const Cbor = {
 	},
 
 	/**
+	 * @internal
 	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
@@ -451,17 +463,18 @@ export const Cbor = {
 	},
 
 	/**
+	 * This follows the serialization format that the Haskell input-output-hk/plutus UPLC evaluator (i.e. empty lists use `encodeDefList`, non-empty lists use `encodeIndefList`).
+	 * See [well-typed/cborg/serialise/src/Codec/Serialise/Class.hs](https://github.com/well-typed/cborg/blob/4bdc818a1f0b35f38bc118a87944630043b58384/serialise/src/Codec/Serialise/Class.hs#L181).
 	 * @param {CborData[] | number[][]} list
 	 * @returns {number[]}
 	 */
 	encodeList: (list) => {
-		// This follows the serialization format that the Haskell input-output-hk/plutus UPLC evaluator
-		// https://github.com/well-typed/cborg/blob/4bdc818a1f0b35f38bc118a87944630043b58384/serialise/src/Codec/Serialise/Class.hs#L181
 		return list.length ? Cbor.encodeIndefList(list) : Cbor.encodeDefList(list);
 	},
 
 	/**
-	 * @param {CborData[] | number[][]} list
+	 * Encodes a list of CBOR encodeable items using CBOR indefinite length encoding.
+	 * @param {CborData[] | number[][]} list Each item is either already serialized, or a CborData instance with a toCbor() method.
 	 * @returns {number[]}
 	 */
 	encodeIndefList: (list) => {
@@ -491,7 +504,9 @@ export const Cbor = {
 	},
 
 	/**
-	 * @param {CborData[] | number[][]} list
+	 * Encodes a list of CBOR encodeable items using CBOR definite length encoding
+	 * (i.e. header bytes of the element represent the length of the list).
+	 * @param {CborData[] | number[][]} list Each item is either already serialized, or a CborData instance with a toCbor() method.
 	 * @returns {number[]}
 	 */
 	encodeDefList: (list) => {
@@ -507,6 +522,8 @@ export const Cbor = {
 	},
 
 	/**
+	 * Decodes a CBOR encoded list.
+	 * A decoder function is called with the bytes of every contained item (nothing is returning directly).
 	 * @param {number[]} bytes
 	 * @param {Decoder} itemDecoder
 	 */
@@ -606,8 +623,8 @@ export const Cbor = {
 	},
 
 	/**
-	 * A decode map method doesn't exist because it specific for the requested type
-	 * @param {[CborData | number[], CborData | number[]][]} pairList
+	 * Encodes a list of key-value pairs.
+	 * @param {[CborData | number[], CborData | number[]][]} pairList  Each key and each value is either a CborData instance with a toCbor method defined, or an already encoded list of CBOR bytes.
 	 * @returns {number[]}
 	 */
 	encodeMap: (pairList) => {
@@ -615,6 +632,11 @@ export const Cbor = {
 	},
 
 	/**
+	 * Decodes a CBOR encoded map.
+	 * Calls a decoder function for each key-value pair (nothing is returned directly).
+	 * 
+	 * The decoder function is responsible for separating the key from the value,
+	 * which are simply stored as consecutive CBOR elements.
 	 * @param {number[]} bytes
 	 * @param {Decoder} pairDecoder
 	 */
@@ -637,7 +659,8 @@ export const Cbor = {
 	},
 
 	/**
-	 * @param {Map<number, CborData | number[]>} object
+	 * Encodes an object with optional fields.
+	 * @param {Map<number, CborData | number[]>} object A `Map` with integer keys representing the field indices.
 	 * @returns {number[]}
 	 */
 	encodeObject: (object) => {
@@ -648,6 +671,7 @@ export const Cbor = {
 	},
 
 	/**
+	 * Decodes a CBOR encoded object. For each field a decoder is called which takes the field index and the field bytes as arguments.
 	 * @param {number[]} bytes
 	 * @param {Decoder} fieldDecoder
 	 * @returns {Set<number>}

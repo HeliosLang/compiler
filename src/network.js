@@ -23,6 +23,10 @@ import {
     NetworkParams
 } from "./uplc-costmodels.js";
 
+import { 
+    UplcProgram
+} from "./uplc-program.js";
+
 import {
     Datum,
     Tx,
@@ -37,7 +41,6 @@ import {
 import {
     WalletHelper
 } from "./wallets.js";
-import { UplcProgram } from "./uplc-program.js";
 
 
 /**
@@ -51,6 +54,7 @@ import { UplcProgram } from "./uplc-program.js";
  */
 
 /**
+ * Blockfrost specific implementation of `Network`.
  * @implements {Network}
  */
 export class BlockfrostV0 {
@@ -58,7 +62,8 @@ export class BlockfrostV0 {
     #projectId;
 
     /**
-     * @param {string} networkName - "preview", "preprod" or "mainnet"
+     * Constructs a BlockfrostV0 using the network name (preview, preprod or mainnet) and your Blockfrost `project_id`.
+     * @param {"preview" | "preprod" | "mainnet"} networkName
      * @param {string} projectId
      */
     constructor(networkName, projectId) {
@@ -67,7 +72,9 @@ export class BlockfrostV0 {
     }
 
     /**
-     * Determine the network which the wallet is connected to.
+     * Connects to the same network a given `Wallet` is connected to (preview, preprod or mainnet).
+     * 
+     * Throws an error if a Blockfrost project_id is missing for that specific network.
      * @param {Wallet} wallet
      * @param {{
      *     preview?: string,
@@ -118,6 +125,7 @@ export class BlockfrostV0 {
     }
 
     /**
+     * @internal
      * @param {{unit: string, quantity: string}[]} obj
      * @returns {Value}
      */
@@ -259,12 +267,16 @@ export class BlockfrostV0 {
     }
 
     /**
+     * Gets a complete list of UTxOs at a given `Address`.
      * Returns oldest UTxOs first, newest last.
-     * TODO: pagination
      * @param {Address} address
      * @returns {Promise<TxInput[]>}
      */
     async getUtxos(address) {
+        /**
+         * TODO: pagination
+         */
+
         const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/addresses/${address.toBech32()}/utxos?order=asc`;
 
         try {
@@ -305,6 +317,7 @@ export class BlockfrostV0 {
     }
 
     /**
+     * Submits a transaction to the blockchain.
      * @param {Tx} tx
      * @returns {Promise<TxId>}
      */
@@ -331,5 +344,21 @@ export class BlockfrostV0 {
         } else {
             return new TxId(JSON.parse(responseText));
         }
+    }
+
+    /**
+     * Allows inspecting the live Blockfrost mempool.
+     */
+    async dumpMempool() {
+        const url = `https://cardano-${this.#networkName}.blockfrost.io/api/v0/mempool`;
+
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "project_id": this.#projectId
+            }
+        });
+
+        console.log(await response.text());
     }
 }

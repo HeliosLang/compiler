@@ -25,9 +25,9 @@ const SyntaxCategory = {
 };
 
 /**
- * Applies syntax highlighting by returning a list of char categories.
- * Not part of Tokeizer because it needs to be very fast and can't throw errors.
- * Doesn't depend on any other functions so it can easily be ported to other languages.
+ * Returns Uint8Array with the same length as the number of chars in the script.
+ * Each resulting byte respresents a different syntax category.
+ * This approach should be faster than a RegExp based a approach.
  * @param {string} src
  * @returns {Uint8Array}
  */

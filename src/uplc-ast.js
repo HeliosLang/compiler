@@ -377,6 +377,7 @@ export class UplcType {
  */
 
 /**
+ * Configures the Uplc evaluator to print messages to `console`.
  * @type {UplcRTECallbacks}
  */
 export const DEFAULT_UPLC_RTE_CALLBACKS = {
@@ -1228,7 +1229,7 @@ export class UplcDelayedValue extends UplcValue {
 }
 
 /**
- * Plutus-core Integer class
+ * Primitive equivalent of `IntData`.
  */
 export class UplcInt extends UplcValue {
 	/**
@@ -1355,15 +1356,15 @@ export class UplcInt extends UplcValue {
 	/**
 	 * Applies zigzag encoding
 	 * @example
-	 * (new UplcInt(Site.dummy(), -1n, true)).toUnsigned().int => 1n
+	 * (new UplcInt(Site.dummy(), -1n, true)).toUnsigned().int == 1n
 	 * @example
-	 * (new UplcInt(Site.dummy(), -1n, true)).toUnsigned().toSigned().int => -1n
+	 * (new UplcInt(Site.dummy(), -1n, true)).toUnsigned().toSigned().int == -1n
 	 * @example
-	 * (new UplcInt(Site.dummy(), -2n, true)).toUnsigned().toSigned().int => -2n
+	 * (new UplcInt(Site.dummy(), -2n, true)).toUnsigned().toSigned().int == -2n
 	 * @example
-	 * (new UplcInt(Site.dummy(), -3n, true)).toUnsigned().toSigned().int => -3n
+	 * (new UplcInt(Site.dummy(), -3n, true)).toUnsigned().toSigned().int == -3n
 	 * @example
-	 * (new UplcInt(Site.dummy(), -4n, true)).toUnsigned().toSigned().int => -4n
+	 * (new UplcInt(Site.dummy(), -4n, true)).toUnsigned().toSigned().int == -4n
 	 * @returns {UplcInt}
 	 */
 	toUnsigned() {
@@ -1381,7 +1382,7 @@ export class UplcInt extends UplcValue {
 	/** 
 	 * Unapplies zigzag encoding 
 	 * @example
-	 * (new UplcInt(Site.dummy(), 1n, false)).toSigned().int => -1n
+	 * (new UplcInt(Site.dummy(), 1n, false)).toSigned().int == -1n
 	 * @returns {UplcInt}
 	*/
 	toSigned() {
@@ -1462,8 +1463,7 @@ export class UplcInt extends UplcValue {
 }
 
 /**
- * Plutus-core ByteArray value class
- * Wraps a regular list of uint8 numbers (so not Uint8Array)
+ * Primitive equivalent of `ByteArrayData`.
  */
 export class UplcByteArray extends UplcValue {
 	#bytes;
@@ -1567,9 +1567,12 @@ export class UplcByteArray extends UplcValue {
 	 * @internal
 	 * @param {BitWriter} bitWriter 
 	 * @param {number[]} bytes 
+	 * @param {boolean} pad
 	 */
-	static writeBytes(bitWriter, bytes) {
-		bitWriter.padToByteBoundary(true);
+	static writeBytes(bitWriter, bytes, pad = true) {
+		if (pad) {
+			bitWriter.padToByteBoundary(true);
+		}
 
 		// the rest of this function is equivalent to E_C* function in Plutus-core docs
 		let n = bytes.length;
@@ -1594,12 +1597,14 @@ export class UplcByteArray extends UplcValue {
 			pos += nChunk;
 		}
 
-		bitWriter.write('00000000');
+		if (pad) {
+			bitWriter.write('00000000');
+		}
 	}
 }
 
 /**
- * Plutus-core string value class
+ * Primitive string value.
  */
 export class UplcString extends UplcValue {
 	#value;
@@ -1690,7 +1695,7 @@ export class UplcString extends UplcValue {
 }
 
 /**
- * Plutus-core unit value class
+ * Primitive unit value.
  */
 export class UplcUnit extends UplcValue {
 	/**
@@ -1768,7 +1773,7 @@ export class UplcUnit extends UplcValue {
 }
 
 /**
- * Plutus-core boolean value class
+ * JS/TS equivalent of the Helios language `Bool` type.
  */
 export class UplcBool extends UplcValue {
 	#value;
@@ -1868,8 +1873,7 @@ export class UplcBool extends UplcValue {
 }
 
 /**
- * Plutus-core pair value class
- * Can contain any other value type.
+ * Primitive pair value.
  */
 export class UplcPair extends UplcValue {
 	#first;
@@ -2126,7 +2130,7 @@ export class UplcList extends UplcValue {
 }
 
 /**
- * Wrapper for UplcData.
+ *  Child type of `UplcValue` that wraps a `UplcData` instance.
  */
 export class UplcDataValue extends UplcValue {
 	#data;
@@ -3149,28 +3153,27 @@ export class UplcBuiltin extends UplcTerm {
 			},
 			consByteString: (a, b) => {
 				let bytes = b.bytes;
-				bytes.unshift(Number(a.int % 256n));
+
+				const byte = Number(a.int)
+
+				if (byte < 0 || byte >= 256) {
+					return rte.error("byte out of range");
+				}
+
+				bytes.unshift(byte);
+				
 				return new UplcByteArray(site, bytes);
 			},
 			sliceByteString: (a, b, c) => {
-				let start = Number(a.int);
-				let n = Number(b.int);
-				let bytes = c.bytes;
-				if (start < 0) {
-					start = 0;
+				const bytes = c.bytes;
+				let start = Math.max(Number(a.int), 0);
+				let end = Math.min(Number(a.int) + Number(b.int) - 1, bytes.length - 1);
+				
+				if (end < start) {
+					return new UplcByteArray(site, []);
+				} else {
+					return new UplcByteArray(site, bytes.slice(start, end + 1));
 				}
-
-				if (start + n > bytes.length) {
-					n = bytes.length - start;
-				}
-
-				if (n < 0) {
-					n = 0;
-				}
-
-				let sub = bytes.slice(start, start + n);
-
-				return new UplcByteArray(site, sub);	
 			},
 			lengthOfByteString: (a) => {
 				return new UplcInt(site, BigInt(a.bytes.length));
@@ -3616,7 +3619,14 @@ export class UplcBuiltin extends UplcTerm {
 						rte.calcAndIncrCost(this, a, b);
 						
 						let bytes = b.bytes;
-						bytes.unshift(Number(a.int % 256n));
+
+						const byte = Number(a.int)
+
+						if (byte < 0 || byte >= 256) {
+							throw new RuntimeError("byte out of range");
+						}
+
+						bytes.unshift(byte);
 						return new UplcByteArray(callSite, bytes);
 					}
 				});
@@ -4564,7 +4574,7 @@ class UplcAnonValue extends UplcValue {
      * @type {number}
      */
     get memSize() {
-        return 0;
+        return 1;
     }
 
 	/**

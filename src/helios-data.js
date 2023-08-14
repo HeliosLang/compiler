@@ -67,7 +67,8 @@ export class HeliosData extends CborData {
 	}
 
 	/**
-	 * Most HeliosData classes are builtin
+	 * Most HeliosData classes are builtins.
+	 * @internal
 	 * @returns {boolean}
 	 */
 	static isBuiltin() {
@@ -1115,6 +1116,9 @@ export class Hash extends HeliosData {
  * @typedef {HashProps} DatumHashProps
  */
 
+/**
+ * Represents a blake2b-256 hash of datum data.
+ */
 export class DatumHash extends Hash {
 	/**
 	 * @param {DatumHashProps} props
@@ -1305,6 +1309,15 @@ export class PubKeyHash extends Hash {
 	}
 
 	/**
+	 * @returns {PubKeyHash}
+	 */
+	static dummy() {
+		const bytes = new Array(28).fill(0);
+
+		return new PubKeyHash(bytes);
+	}
+
+	/**
 	 * @param {PubKeyHash | PubKeyHashProps} props 
 	 * @returns {PubKeyHash}
 	 */
@@ -1376,6 +1389,11 @@ export class ScriptHash extends Hash {
  * @typedef {HashProps} MintingPolicyHashProps
  */
 
+/**
+ * Represents a blake2b-224 hash of a minting policy script
+ * 
+ * **Note**: to calculate this hash the script is first encoded as a CBOR byte-array and then prepended by a script version byte.
+ */
 export class MintingPolicyHash extends ScriptHash {
 	/**
 	 * @param {MintingPolicyHashProps} rawValue
@@ -1439,6 +1457,11 @@ export class MintingPolicyHash extends ScriptHash {
  * @typedef {HashProps} StakeKeyHashProps
  */
 
+/**
+ * Represents a blake2b-224 hash of staking key.
+ * 
+ * A `StakeKeyHash` can be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
+ */
 export class StakeKeyHash extends Hash {
 	/**
 	 * @param {StakeKeyHashProps} props
@@ -1494,6 +1517,11 @@ export class StakeKeyHash extends Hash {
  * @typedef {HashProps} StakingValidatorHashProps
  */
 
+/**
+ * Represents a blake2b-224 hash of a staking script.
+ * 
+ * **Note**: before hashing, the staking script is first encoded as a CBOR byte-array and then prepended by a script version byte.
+ */
 export class StakingValidatorHash extends ScriptHash {
 	/**
 	 * @param {StakingValidatorHashProps} rawValue
@@ -1549,6 +1577,9 @@ export class StakingValidatorHash extends ScriptHash {
  * @typedef {HashProps} ValidatorHashProps
  */
 
+/**
+ * Represents a blake2b-224 hash of a spending validator script (first encoded as a CBOR byte-array and prepended by a script version byte).
+ */
 export class ValidatorHash extends ScriptHash {
 	/**
 	 * @param {ValidatorHashProps} rawValue
@@ -1605,7 +1636,9 @@ export class ValidatorHash extends ScriptHash {
  */
 
 /**
- * Hash of a transaction
+ * Represents the hash of a transaction.
+ * 
+ * This is also used to identify an UTxO (along with the index of the UTxO in the list of UTxOs created by the transaction).
  */
 export class TxId extends Hash {
 	/**
@@ -1732,6 +1765,16 @@ export class TxOutputId extends HeliosData {
         this.#txId = TxId.fromProps(rawTxId);
         this.#utxoIdx = HInt.fromProps(rawUtxoIdx);
     }
+
+	/**
+	 * @returns {TxOutputId}
+	 */
+	static dummy() {
+		return new TxOutputId({
+			txId: TxId.dummy(),
+			utxoId: 0
+		});
+	}
 
 	/**
 	 * @param {TxOutputId | TxOutputIdProps} props 
@@ -1911,6 +1954,14 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Returns a dummy address (based on a PubKeyHash with all null bytes)
+	 * @returns {Address}
+	 */
+	static dummy() {
+		return Address.fromPubKeyHash(PubKeyHash.dummy())
+	}
+
+	/**
 	 * @type {number[]}
 	 */
 	get bytes() {
@@ -1918,6 +1969,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Converts an `Address` into its CBOR representation.
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -1925,6 +1977,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Deserializes bytes into an `Address`.
 	 * @param {number[]} bytes
 	 * @returns {Address}
 	 */
@@ -1933,6 +1986,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Converts a Bech32 string into an `Address`.
 	 * @param {string} str
 	 * @returns {Address}
 	 */
@@ -1948,7 +2002,8 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * Doesn't check validity
+	 * Constructs an `Address` using a hexadecimal string representation of the address bytes.
+	 * Doesn't check validity.
 	 * @param {string} hex
 	 * @returns {Address}
 	 */
@@ -1957,7 +2012,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * Returns the raw Address bytes as a hex encoded string
+	 * Converts a `Address` into its hexadecimal representation.
 	 * @returns {string}
 	 */
 	toHex() {
@@ -1965,16 +2020,32 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Converts a `Address` into its hexadecimal representation.
 	 * @returns {string}
 	 */
 	get hex() {
 		return this.toHex();
 	}
 
-    /**
+	 /**
+	 * Constructs an Address using either a `PubKeyHash` (i.e. simple payment address)
+	 * or `ValidatorHash` (i.e. script address),
+	 * without a staking hash.
      * @param {PubKeyHash | ValidatorHash} hash
-     * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
-     * @param {boolean} isTestnet
+     * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
+     * @returns {Address}
+     */
+	static fromHash(hash, isTestnet = config.IS_TESTNET) {
+		return Address.fromHashes(hash, null, isTestnet);
+	}
+
+    /**
+	 * Constructs an Address using either a `PubKeyHash` (i.e. simple payment address)
+	 * or `ValidatorHash` (i.e. script address),
+	 * in combination with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+     * @param {PubKeyHash | ValidatorHash} hash
+     * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
      * @returns {Address}
      */
     static fromHashes(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
@@ -1988,10 +2059,11 @@ export class Address extends HeliosData {
     }
 
 	/**
-	 * Simple payment address without a staking part
+	 * Simple payment address with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+	 * @internal
 	 * @param {PubKeyHash} hash
-	 * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
-     * @param {boolean} isTestnet
+	 * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
 	 * @returns {Address}
 	 */
 	static fromPubKeyHash(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
@@ -2012,11 +2084,11 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * Simple script address without a staking part
-	 * Only relevant for validator scripts
+	 * Simple script address with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+	 * @internal
 	 * @param {ValidatorHash} hash
-	 * @param {?(StakeKeyHash | StakingValidatorHash)} stakingHash
-     * @param {boolean} isTestnet
+	 * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
 	 * @returns {Address}
 	 */
 	static fromValidatorHash(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
@@ -2037,6 +2109,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Converts an `Address` into its Bech32 representation.
 	 * @returns {string}
 	 */
 	toBech32() {
@@ -2057,6 +2130,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Returns `true` if the given `Address` is a testnet address.
 	 * @param {Address} address
 	 * @returns {boolean}
 	 */
@@ -2067,8 +2141,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
-     *
-     * @private
+     * @internal
 	 * @returns {ConstrData}
 	 */
 	toCredentialData() {
@@ -2088,6 +2161,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {ConstrData}
 	 */
 	toStakingData() {
@@ -2188,6 +2262,7 @@ export class Address extends HeliosData {
     }
 
     /**
+	 * @internal
      * @param {string | number[]} bytes
      * @param {boolean} isTestnet
      * @returns {Address}
@@ -2197,6 +2272,7 @@ export class Address extends HeliosData {
     }
 
 	/**
+	 * Returns the underlying `PubKeyHash` of a simple payment address, or `null` for a script address.
 	 * @type {null | PubKeyHash}
 	 */
 	get pubKeyHash() {
@@ -2210,6 +2286,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Returns the underlying `ValidatorHash` of a script address, or `null` for a regular payment address.
 	 * @type {null | ValidatorHash}
 	 */
 	get validatorHash() {
@@ -2223,6 +2300,7 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
 	 * @type {null | StakeKeyHash | StakingValidatorHash}
 	 */
 	get stakingHash() {
@@ -2245,7 +2323,8 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * Used to sort txbody withdrawals
+	 * Used to sort txbody withdrawals.
+	 * @internal
 	 * @param {Address} a
 	 * @param {Address} b
 	 * @return {number}
@@ -2265,6 +2344,9 @@ export class Address extends HeliosData {
  * }} AssetClassProps
  */
 
+/**
+ * Represents a `MintingPolicyHash` combined with a token name.
+ */
 export class AssetClass extends HeliosData {
 	/**
 	 * @type {MintingPolicyHash}
@@ -2277,6 +2359,7 @@ export class AssetClass extends HeliosData {
 	#tokenName;
 
 	/**
+	 * @internal
 	 * @param {AssetClassProps} props
 	 * @returns {[MintingPolicyHash | MintingPolicyHashProps, ByteArray | ByteArrayProps]}
 	 */
@@ -2297,6 +2380,9 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
+	 * Intelligently converts arguments. 
+	 * 
+	 * The format for single argument string is "<hex-encoded-mph>.<hex-encoded-token-name>".
 	 * @param {AssetClassProps} props
 	 */
 	constructor(props) {
@@ -2372,6 +2458,7 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
+	 * Converts an `AssetClass` instance into its CBOR representation.
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -2382,7 +2469,9 @@ export class AssetClass extends HeliosData {
 	}
 
 	/**
+	 * Deserializes bytes into an `AssetClass`.
 	 * @param {number[]} bytes
+	 * @returns {AssetClass}
 	 */
 	static fromCbor(bytes) {
 		/**
@@ -2447,7 +2536,7 @@ export class AssetClass extends HeliosData {
  */
 
 /**
- * Collection of non-lovelace assets
+ * Represents a list of non-Ada tokens. 
  */
 export class Assets extends CborData {
 	/** 
@@ -2456,8 +2545,8 @@ export class Assets extends CborData {
 	#assets;
 
 	/**
-	 * Also normalizes the assets
-	 * @param {AssetsProps} props
+	 * **Note**: the assets are normalized by removing entries with 0 tokens, and merging all entries with the same MintingPolicyHash and token name.
+	 * @param {AssetsProps} props Either a list of `AssetClass`/quantity pairs, or a list of `MintingPolicyHash`/`tokens` pairs (where each `tokens` entry is a bytearray/quantity pair).
 	 */
 	constructor(props = []) {
 		super();
@@ -2503,6 +2592,7 @@ export class Assets extends CborData {
 	}
 
 	/**
+	 * Returns a list of all the minting policies.
 	 * @type {MintingPolicyHash[]}
 	 */
 	get mintingPolicies() {
@@ -2600,9 +2690,9 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * Removes zeros and merges duplicates
-	 * In-place algorithm
-	 * Keeps the same order as much as possible
+	 * Removes zeros and merges duplicates.
+	 * In-place algorithm.
+	 * Keeps the same order as much as possible.
 	 */
 	normalize() {
 		/**
@@ -2644,7 +2734,7 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * Mutates 'this'
+	 * Mutates 'this'.
 	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
 	 * @param {ByteArray | ByteArrayProps} tokenName 
 	 * @param {HInt | HIntProps} qty
@@ -2676,6 +2766,7 @@ export class Assets extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {Assets} other
 	 * @param {(a: bigint, b: bigint) => bigint} op
 	 * @returns {Assets}
@@ -2732,8 +2823,8 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * Mutates 'this'
-	 * Throws error if mph is already contained in 'this'
+	 * Mutates 'this'.
+	 * Throws error if mph is already contained in 'this'.
 	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph
 	 * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens
 	 */
@@ -3003,6 +3094,9 @@ export class Assets extends CborData {
  * }} ValueProps
  */
 
+/**
+ * Represents a collection of tokens.
+ */
 export class Value extends HeliosData {
 	/** @type {HInt} */
 	#lovelace;
@@ -3084,6 +3178,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * Gets the `Assets` contained in the `Value`.
 	 * @type {Assets}
 	 */
 	get assets() {
@@ -3091,6 +3186,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * Gets the lovelace quantity contained in the `Value`.
 	 * @type {bigint}
 	 */
 	get lovelace() {
@@ -3098,8 +3194,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Setter for lovelace
-	 * Note: mutation is handy when balancing transactions
+	 * Mutates the quantity of lovelace in a `Value`.
 	 * @param {HInt | HIntProps} lovelace
 	 */
 	setLovelace(lovelace) {
@@ -3162,6 +3257,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * Adds two `Value` instances together. Returns a new `Value` instance.
 	 * @param {Value} other
 	 * @returns {Value}
 	 */
@@ -3173,6 +3269,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * Substracts one `Value` instance from another. Returns a new `Value` instance.
 	 * @param {Value} other
 	 * @returns {Value}
 	 */
@@ -3184,6 +3281,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * Multiplies a `Value` by a whole number.
 	 * @param {HInt | HIntProps} scalar 
 	 * @returns {Value}
 	 */
@@ -3195,6 +3293,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
+	 * Checks if two `Value` instances are equal (`Assets` need to be in the same order).
 	 * @param {Value} other
 	 * @returns {boolean}
 	 */
@@ -3203,7 +3302,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Strictly greater than. Returns false if any asset is missing
+	 * Checks if a `Value` instance is strictly greater than another `Value` instance. Returns false if any asset is missing.
 	 * @param {Value} other
 	 * @returns {boolean}
 	 */
@@ -3212,7 +3311,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Strictly >=
+	 * Checks if a `Value` instance is strictly greater or equal to another `Value` instance. Returns false if any asset is missing.
 	 * @param {Value} other
 	 * @returns {boolean}
 	 */
@@ -3221,8 +3320,9 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Throws an error if any contained quantity is negative
-	 * Used when building transactions because transactions can't contain negative values
+	 * Throws an error if any of the `Value` entries is negative.
+	 * 
+	 * Used when building transactions because transactions can't contain negative values.
 	 * @returns {Value} - returns this
 	 */
 	assertAllPositive() {
@@ -3269,7 +3369,7 @@ export class Value extends HeliosData {
 	}
 
 	/**
-	 * Useful when deserializing inline datums
+	 * Converts a `UplcData` instance into a `Value`. Throws an error if it isn't in the right format.
 	 * @param {UplcData} data
 	 * @returns {Value}
 	 */

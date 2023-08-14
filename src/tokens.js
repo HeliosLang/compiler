@@ -158,8 +158,7 @@ export class Site {
 
 
 /**
- * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error),
- * or when the user of Helios throws an explicit error inside a script (eg. division by zero).
+ * UserErrors are generated when the user of Helios makes a mistake (eg. a syntax error).
  */
  export class UserError extends Error {
 	#src;
@@ -214,7 +213,7 @@ export class Site {
 	}
 
 	/**
-	 * @internal
+	 * Filled with CBOR hex representations of Datum, Redeemer and ScriptContext by validation scripts throwing errors during `tx.finalize()`; and Redeemer and ScriptContext by minting scripts throwing errors.
 	 * @type {Object}
 	 */
 	get context() {
@@ -850,7 +849,7 @@ export class Group extends Token {
 	 * Returns the corresponding closing bracket, parenthesis or brace.
 	 * Throws an error if not a group symbol.
 	 * @example
-	 * Group.matchSymbol("(") => ")"
+	 * Group.matchSymbol("(") == ")"
 	 * @param {string | SymbolToken} t
 	 * @returns {string}
 	 */
@@ -1402,11 +1401,11 @@ export class IRParametricName {
 
 	/**
 	 * @example
- 	 * IRParametricName.matches("__helios__map[__T0@__T1]__fold[__F2@__F3]") => true
+ 	 * IRParametricName.matches("__helios__map[__T0@__T1]__fold[__F2@__F3]") == true
 	 * @example
-	 * IRParametricName.matches("__helios__int") => false
+	 * IRParametricName.matches("__helios__int") == false
 	 * @example
-	 * IRParametricName.matches("__helios__option[__T0]__none__new") => true
+	 * IRParametricName.matches("__helios__option[__T0]__none__new") == true
 	 * @param {string} str 
 	 * @returns {boolean}
 	 */
@@ -1424,11 +1423,11 @@ export class IRParametricName {
 
 	/**
 	 * @example
-	 * IRParametricName.parse("__helios__map[__T0@__T1]__fold[__F0@__F1]").toString() => "__helios__map[__T0@__T1]__fold[__F0@__F1]"
+	 * IRParametricName.parse("__helios__map[__T0@__T1]__fold[__F0@__F1]").toString() == "__helios__map[__T0@__T1]__fold[__F0@__F1]"
 	 * @example
-	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__F0@__F1]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__F0@__F1]"
+	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__F0@__F1]").toString() == "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__int]]__fold[__F0@__F1]"
 	 * @example
-	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]").toString() => "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]"
+	 * IRParametricName.parse("__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]").toString() == "__helios__map[__helios__bytearray@__helios__map[__helios__bytearray@__helios__list[__T0]]]__fold[__F0@__F1]"
 	 * @param {string} str 
 	 * @param {boolean} preferType
 	 * @returns {IRParametricName}

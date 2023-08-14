@@ -222,7 +222,7 @@ export function assertEq(a, b, msg) {
 /**
  * Divides two integers. Assumes a and b are whole numbers. Rounds down the result.
  * @example
- * idiv(355, 113) => 3
+ * idiv(355, 113) == 3
  * @internal
  * @param {number} a
  * @param {number} b 
@@ -248,7 +248,7 @@ export function ipow2(p) {
  * The return value is also an 8 bit integer, shift right by 'i1'.
  
  * @example
- * imask(0b11111111, 1, 4) => 0b0111 // (i.e. 7)
+ * imask(0b11111111, 1, 4) == 0b0111 // (i.e. 7)
  * @internal
  * @param {number} b 
  * @param {number} i0 
@@ -356,7 +356,7 @@ export function bigIntToLe32Bytes(x) {
 /**
  * Prepends zeroes to a bit-string so that 'result.length == n'.
  * @example
- * padZeroes("1111", 8) => "00001111"
+ * padZeroes("1111", 8) == "00001111"
  * @internal
  * @param {string} bits
  * @param {number} n 
@@ -377,7 +377,7 @@ export function padZeroes(bits, n) {
  * Converts a 8 bit integer number into a bit string with an optional "0b" prefix.
  * The result is padded with leading zeroes to become 'n' chars long ('2 + n' chars long if you count the "0b" prefix). 
  * @example
- * byteToBitString(7) => "0b00000111"
+ * byteToBitString(7) == "0b00000111"
  * @internal
  * @param {number} b 
  * @param {number} n
@@ -395,9 +395,9 @@ export function byteToBitString(b, n = 8, prefix = true) {
 }
 
 /**
- * Converts a hexadecimal representation of bytes into an actual list of uint8 bytes.
+ * Converts a hexadecimal string into a list of bytes.
  * @example
- * hexToBytes("00ff34") => [0, 255, 52] 
+ * hexToBytes("00ff34") == [0, 255, 52] 
  * @param {string} hex 
  * @returns {number[]}
  */
@@ -420,7 +420,7 @@ export function hexToBytes(hex) {
 /**
  * Converts a list of uint8 bytes into its hexadecimal string representation.
  * @example
- * bytesToHex([0, 255, 52]) => "00ff34"
+ * bytesToHex([0, 255, 52]) == "00ff34"
  * @param {number[]} bytes
  * @returns {string}
  */
@@ -437,7 +437,7 @@ export function bytesToHex(bytes) {
 /**
  * Encodes a string into a list of uint8 bytes using UTF-8 encoding.
  * @example
- * textToBytes("hello world") => [104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]
+ * textToBytes("hello world") == [104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]
  * @param {string} str 
  * @returns {number[]}
  */
@@ -448,7 +448,7 @@ export function textToBytes(str) {
 /**
  * Decodes a list of uint8 bytes into a string using UTF-8 encoding.
  * @example
- * bytesToText([104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]) => "hello world"
+ * bytesToText([104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]) == "hello world"
  * @param {number[]} bytes 
  * @returns {string}
  */
@@ -460,7 +460,7 @@ export function bytesToText(bytes) {
  * Replaces the tab characters of a string with spaces.
  * This is used to create a prettier IR (which is built-up from many template js strings in this file, which might contain tabs depending on the editor used)
  * @example
- * replaceTabs("\t\t\t") => [TAB, TAB, TAB].join("")
+ * replaceTabs("\t\t\t") == [TAB, TAB, TAB].join("")
  * @internal
  * @param {string} str 
  * @returns {string}
@@ -900,7 +900,7 @@ export class Source {
 	 * Creates a more human-readable version of the source by prepending the line-numbers to each line.
 	 * The line-numbers are at least two digits.
 	 * @example
-	 * (new Source("hello\nworld")).pretty() => "01  hello\n02  world"
+	 * (new Source("hello\nworld")).pretty() == "01  hello\n02  world"
      * @internal
 	 * @returns {string}
 	 */
@@ -919,10 +919,10 @@ export class Source {
 }
 
 /**
- * A tag function for a helios source.
- * Is just a marker so IDE support can work on literal helios sources inside javascript/typescript files.
+ * Template string tag function that doesn't do anything and just returns the template string as a string.
+ * Can be used as a marker of Helios sources so that syntax highlighting can work inside JS/TS files.
  * @example
- * hl`hello ${"world"}!` => "hello world!"
+ * hl`hello ${"world"}!` == "hello world!"
  * @param {string[]} a 
  * @param  {...any} b 
  * @returns {string}

@@ -268,10 +268,9 @@ export function buildScript(ts, expectedPurpose = null) {
 }
 
 /**
- * Parses Helios quickly to extract the script purpose header.
- * Returns null if header is missing or incorrectly formed (instead of throwing an error)
+ * Quickly extract the script purpose header of a script source, by parsing only the minimally necessary characters.
  * @param {string} rawSrc 
- * @returns {null | [ScriptPurpose, string]} - [purpose, name]
+ * @returns {null | [ScriptPurpose, string]} Returns `null` if the script header is missing or syntactically incorrect. The first string returned is the script purpose, the second value returned is the script name.
  */
 export function extractScriptPurposeAndName(rawSrc) {
 	try {

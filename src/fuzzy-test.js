@@ -58,7 +58,7 @@ import {
  */
 
 /**
- * Creates generators and runs script tests
+ * Helper class for performing fuzzy property-based tests of Helios scripts.
  */
 export class FuzzyTest {
 	/**
@@ -81,9 +81,10 @@ export class FuzzyTest {
 	#dummyNetworkParams;
 
 	/**
+	 * The simplify argument specifies whether optimized versions of the Helios sources should also be tested.
 	 * @param {number} seed
 	 * @param {number} runsPerTest
-	 * @param {boolean} simplify - if true then also test the simplified program
+	 * @param {boolean} simplify If true then also test the simplified program
 	 */
 	constructor(seed = 0, runsPerTest = 100, simplify = false) {
 		console.log("starting fuzzy testing  with seed", seed);
@@ -150,7 +151,7 @@ export class FuzzyTest {
 	}
 
 	/**
-	 * Returns a generator for strings containing any utf-8 character
+	 * Returns a generator for strings containing any utf-8 character.
 	 * @param {number} minLength
 	 * @param {number} maxLength
 	 * @returns {ValueGenerator}
@@ -174,7 +175,7 @@ export class FuzzyTest {
 	}
 
 	/** 
-	 * Returns a generator for strings with ascii characters from 32 (space) to 126 (tilde)
+	 * Returns a generator for strings with ascii characters from 32 (space) to 126 (tilde).
 	 * @param {number} minLength
 	 * @param {number} maxLength
 	 * @returns {ValueGenerator}
@@ -422,7 +423,11 @@ export class FuzzyTest {
 	}
 
 	/**
-	 * Run a test
+	 * Perform a fuzzy/property-based test-run of a Helios source. One value generator must be specified per argument of main.
+	 * 
+	 * Throws an error if the propTest fails. 
+	 * 
+	 * The propTest can simply return a boolean, or can return an object with boolean values, and if any of these booleans is false the propTest fails (the keys can be used to provide extra information).
 	 * @param {ValueGenerator[]} argGens
 	 * @param {string} src
 	 * @param {PropertyTest} propTest

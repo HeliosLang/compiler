@@ -111,4 +111,6 @@ export default async function main() {
 	await addressInDatum();
 
 	await bip32AndBip39Test();
+
+	console.log(Address.fromPubKeyHash(new PubKeyHash("a3527f67e636f3200fef95378e2ef12e86f1a6366cc87734945d46d2")).toBech32())
 }

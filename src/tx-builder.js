@@ -109,7 +109,7 @@ import {
 } from "./native.js";
 
 /**
- * A new Tx instance can be used as a builder.
+ * Represents a Cardano transaction. Can also be used as a transaction builder.
  */
 export class Tx extends CborData {
 	/**
@@ -145,6 +145,9 @@ export class Tx extends CborData {
 	 */
 	#validFrom;
 
+	/**
+	 * Init a new transaction builder.
+	 */
 	constructor() {
 		super();
 		this.#body = new TxBody();
@@ -190,6 +193,7 @@ export class Tx extends CborData {
 	}
 
 	/** 
+	 * Serialize a transaction.
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -202,6 +206,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Deserialize a CBOR encoded Cardano transaction (input is either an array of bytes, or a hex string).
 	 * @param {number[] | string} raw
 	 * @returns {Tx}
 	 */
@@ -249,7 +254,7 @@ export class Tx extends CborData {
 	 * @param {NetworkParams} networkParams
 	 * @param {Address} changeAddress
 	 * @param {TxInput[]} spareUtxos
-	 * @param {{[name: string]: UplcProgram}} scripts
+	 * @param {{[name: string]: (UplcProgram | (() => UplcProgram))}} scripts UplcPrograms can be lazy
 	 * @returns {Promise<Tx>}
 	 */
 	static async finalizeUplcData(data, networkParams, changeAddress, spareUtxos, scripts) {
@@ -300,7 +305,11 @@ export class Tx extends CborData {
 					if  (input.address.validatorHash.hex in scripts) {
 						const uplcProgram = scripts[input.address.validatorHash.hex];
 
-						tx.attachScript(uplcProgram);
+						if (uplcProgram instanceof UplcProgram) {
+							tx.attachScript(uplcProgram);
+						} else {
+							tx.attachScript(uplcProgram());
+						}
 					} else {
 						throw new Error(`script for SpendingRedeemer (vh:${input.address.validatorHash.hex}) not found in [${Object.keys(scripts).join(", ")}]`);
 					}
@@ -336,7 +345,11 @@ export class Tx extends CborData {
 				if (mph.hex in scripts) {
 					const uplcProgram = scripts[mph.hex];
 
-					tx.attachScript(uplcProgram);
+					if (uplcProgram instanceof UplcProgram) {
+						tx.attachScript(uplcProgram);
+					} else {
+						tx.attachScript(uplcProgram());
+					}
 				} else {
 					throw new Error(`policy for mph ${mph.hex} not found in ${Object.keys(scripts)}`);
 				}
@@ -382,6 +395,13 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Set the start of the valid time range by specifying either a Date or a slot.
+	 * 
+	 * Mutates the transaction.
+	 * Only available during building the transaction. 
+	 * Returns the transaction instance so build methods can be chained.
+	 * 
+	 * > **Note**: since Helios v0.13.29 this is set automatically if any of the Helios validator scripts call `tx.time_range`.
 	 * @param {bigint | Date } slotOrTime
 	 * @returns {Tx}
 	 */
@@ -394,6 +414,13 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Set the end of the valid time range by specifying either a Date or a slot. 
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building. 
+	 * Returns the transaction instance so build methods can be chained.
+	 * 
+	 * > **Note**: since Helios v0.13.29 this is set automatically if any of the Helios validator scripts call `tx.time_range`.
 	 * @param {bigint | Date } slotOrTime
 	 * @returns {Tx}
 	 */
@@ -406,7 +433,15 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Throws error if assets of given mph are already being minted in this transaction
+	 * Mint a list of tokens associated with a given `MintingPolicyHash`.
+	 * Throws an error if the given `MintingPolicyHash` was already used in a previous call to `mintTokens()`.
+	 * The token names can either by a list of bytes or a hexadecimal string.
+	 * 
+	 * Mutates the transaction. 
+	 * Only available during transaction building the transaction.
+	 * Returns the transaction instance so build methods can be chained.
+	 * 
+	 * Also throws an error if the redeemer is `null`, and the minting policy isn't a known `NativeScript`.
 	 * @param {MintingPolicyHash | MintingPolicyHashProps} mph 
 	 * @param {[ByteArray | ByteArrayProps, HInt | HIntProps][]} tokens - list of pairs of [tokenName, quantity], tokenName can be list of bytes or hex-string
 	 * @param {UplcDataValue | UplcData | null} redeemer
@@ -432,6 +467,12 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add a UTxO instance as an input to the transaction being built.
+	 * Throws an error if the UTxO is locked at a script address but a redeemer isn't specified (unless the script is a known `NativeScript`).
+	 * 
+	 * Mutates the transaction. 
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {TxInput} input
 	 * @param {null | UplcDataValue | UplcData | HeliosData} rawRedeemer
 	 * @returns {Tx}
@@ -478,6 +519,11 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add multiple UTxO instances as inputs to the transaction being built. 
+	 * Throws an error if the UTxOs are locked at a script address but a redeemer isn't specified (unless the script is a known `NativeScript`).
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building. Returns the transaction instance so build methods can be chained.
 	 * @param {TxInput[]} inputs
 	 * @param {?(UplcDataValue | UplcData | HeliosData)} redeemer
 	 * @returns {Tx}
@@ -491,6 +537,12 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add a `TxInput` instance as a reference input to the transaction being built.
+	 * Any associated reference script, as a `UplcProgram` instance, must also be included in the transaction at this point (so the that the execution budget can be calculated correctly).
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {TxInput} input
 	 * @param {null | UplcProgram} refScript
 	 * @returns {Tx}
@@ -508,6 +560,11 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add multiple `TxInput` instances as reference inputs to the transaction being built.
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {TxInput[]} inputs
 	 * @returns {Tx}
 	 */
@@ -520,6 +577,11 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add a `TxOutput` instance to the transaction being built.
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {TxOutput} output 
 	 * @returns {Tx}
 	 */
@@ -537,6 +599,11 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add multiple `TxOutput` instances at once.
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {TxOutput[]} outputs 
 	 * @returns {Tx}
 	 */
@@ -549,6 +616,12 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add a signatory `PubKeyHash` to the transaction being built.
+	 * The added entry becomes available in the `tx.signatories` field in the Helios script.
+	 * 
+	 * Mutates the transaction.
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {PubKeyHash} hash
 	 * @returns {Tx}
 	 */
@@ -561,8 +634,19 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Unused scripts are detected during finalize(), in which case an error is thrown
-	 * Throws error if script was already added before
+	 * Attaches a script witness to the transaction being built.
+	 * The script witness can be either a `UplcProgram` or a legacy `NativeScript`.
+	 * A `UplcProgram` instance can be created by compiling a Helios `Program`.
+	 * A legacy `NativeScript` instance can be created by deserializing its original CBOR representation.
+	 * 
+	 * Throws an error if script has already been added.
+	 * Throws an error if the script isn't used upon finalization.
+	 * 
+	 * Mutates the transaction. 
+	 * Only available during transaction building.
+	 * Returns the transaction instance so build methods can be chained.
+	 * 
+	 * > **Note**: a `NativeScript` must be attached before associated inputs are added or tokens are minted.
 	 * @param {UplcProgram | NativeScript} program
 	 * @returns {Tx}
 	 */
@@ -579,8 +663,14 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Usually adding only one collateral input is enough
-	 * Must be less than the limit in networkParams (eg. 3), or else an error is thrown during finalization
+	 * Add a UTxO instance as collateral to the transaction being built.
+	 * Usually adding only one collateral input is enough.
+	 * The number of collateral inputs must be greater than 0 if script witnesses are used in the transaction,
+	 * and must be less than the limit defined in the `NetworkParams`.
+	 * 
+	 * Mutates the transaction. 
+	 * Only available during transaction building. 
+	 * Returns the transaction instance so build methods can be chained.
 	 * @param {TxInput} input 
 	 * @returns {Tx}
 	 */
@@ -595,6 +685,7 @@ export class Tx extends CborData {
 	/**
 	 * Calculates tx fee (including script execution)
 	 * Shouldn't be used directly
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @returns {bigint}
 	 */
@@ -625,6 +716,7 @@ export class Tx extends CborData {
 	/**
 	 * Iterates until fee is exact
 	 * Shouldn't be used directly
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @param {bigint} fee
 	 * @returns {bigint}
@@ -646,6 +738,7 @@ export class Tx extends CborData {
 	/**
 	 * Checks that all necessary scripts are included, and that all included scripts are used
 	 * Shouldn't be used directly
+	 * @internal
 	 */
 	checkScripts() {
 		let scripts = this.#witnesses.scripts;
@@ -849,6 +942,7 @@ export class Tx extends CborData {
 	 * Iteratively increments the fee because the fee increase the tx size which in turn increases the fee (always converges within two steps though).
 	 * Throws error if transaction can't be balanced.
 	 * Shouldn't be used directly
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 * @param {Address} changeAddress
 	 * @param {TxInput[]} spareUtxos - used when there are yet enough inputs to cover everything (eg. due to min output lovelace requirements, or fees)
@@ -907,6 +1001,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 * @param {TxOutput} changeOutput 
 	 */
@@ -922,6 +1017,9 @@ export class Tx extends CborData {
 		changeOutput.value.setLovelace(changeLovelace);
 	}
 
+	/**
+	 * @internal
+	 */
 	checkBalanced() {
 		let v = new Value(0n);
 
@@ -938,6 +1036,7 @@ export class Tx extends CborData {
 
 	/**
 	 * Shouldn't be used directly
+	 * @internal
 	 * @param {NetworkParams} networkParams
 	 */
 	syncScriptDataHash(networkParams) {
@@ -947,6 +1046,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @returns {boolean}
 	 */
 	isSmart() {
@@ -957,6 +1057,7 @@ export class Tx extends CborData {
 	 * Throws an error if there isn't enough collateral
 	 * Also throws an error if the script doesn't require collateral, but collateral was actually included
 	 * Shouldn't be used directly
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 */
 	checkCollateral(networkParams) {
@@ -976,6 +1077,7 @@ export class Tx extends CborData {
 	/**
 	 * Throws error if tx is too big
 	 * Shouldn't be used directly
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 */
 	checkSize(networkParams) {
@@ -988,6 +1090,7 @@ export class Tx extends CborData {
 
 	/**
 	 * Final check that fee is big enough
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 */
 	checkFee(networkParams) {
@@ -995,6 +1098,7 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @internal
 	 * @param {NetworkParams} networkParams 
 	 */
 	finalizeValidityTimeRange(networkParams) {
@@ -1033,9 +1137,12 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Assumes transaction hasn't yet been signed by anyone (i.e. witnesses.signatures is empty)
-	 * Mutates 'this'
-	 * Note: this is an async function so that a debugger can optionally be attached in the future
+	 * Executes all the attached scripts with appropriate redeemers and calculates execution budgets.
+	 * Balances the transaction, and optionally uses some spare UTxOs if the current inputs don't contain enough lovelace to cover the fees and min output deposits.
+	 * 
+	 * Inputs, minted assets, and withdrawals are sorted.
+	 * 
+	 * Sets the validatity range automatically if a call to `tx.time_range` is detected in any of the attached Helios scripts.
 	 * @param {NetworkParams} networkParams
 	 * @param {Address}       changeAddress
 	 * @param {TxInput[]}        spareUtxos - might be used during balancing if there currently aren't enough inputs
@@ -1120,10 +1227,10 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Throws an error if verify==true and signature is invalid 
-	 * Adding many signatures might be a bit slow
+	 * Adds a signature created by a wallet. Only available after the transaction has been finalized.
+	 * Optionally verifies that the signature is correct.
 	 * @param {Signature} signature 
-	 * @param {boolean} verify
+	 * @param {boolean} verify Defaults to `true`
 	 * @returns {Tx}
 	 */
 	addSignature(signature, verify = true) {
@@ -1139,8 +1246,8 @@ export class Tx extends CborData {
 	}
 
 	/**
-	 * Throws an error if verify==true and any of the signatures is invalid
-	 * Adding many signatures might be a bit slow
+	 * Adds multiple signatures at once. Only available after the transaction has been finalized.
+	 * Optionally verifies each signature is correct.
 	 * @param {Signature[]} signatures 
 	 * @param {boolean} verify 
 	 * @returns {Tx}
@@ -1154,6 +1261,10 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * Add metadata to a transaction.
+	 * Metadata can be used to store data on-chain,
+	 * but can't be consumed by validator scripts.
+	 * Metadata can for example be used for [CIP 25](https://cips.cardano.org/cips/cip25/). 
 	 * @param {number} tag
 	 * @param {Metadata} data
 	 * @returns {Tx}
@@ -2034,7 +2145,7 @@ export class TxBody extends CborData {
 }
 
 /**
- * TxWitnesses represents the non-hashed part of transaction. TxWitnesses contains the signatures, the datums, the redeemers, and the scripts, associated with a given transaction.
+ * Represents the pubkey signatures, and datums/redeemers/scripts that are witnessing a transaction.
  */
 export class TxWitnesses extends CborData {
 	/** @type {Signature[]} */
@@ -2072,6 +2183,7 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * Gets the list of `Signature` instances contained in this witness set.
 	 * @type {Signature[]}
 	 */
 	get signatures() {
@@ -2773,15 +2885,23 @@ export class TxInput extends CborData {
 	}
 
 	/**
-	 * @deprecated
+	 * 
 	 * @type {TxOutput}
 	 */
-	get origOutput() {
+	get output() {
 		if (this.#output === null) {
-			throw new Error("origOutput not set");
+			throw new Error("underlying output data not set");
 		} else {
 			return this.#output;
 		}
+	}
+
+	/**
+	 * Backward compatible alias for `TxInput.output`
+	 * @type {TxOutput}
+	 */
+	get origOutput() {
+		return this.output
 	}
 
 	/**
@@ -2945,16 +3065,16 @@ export class TxInput extends CborData {
  * Use TxInput instead
  * @deprecated
  */
-export const UTxO = TxInput;
+export class UTxO extends TxInput {}
 
 /**
- * User TxInput instead
+ * Use TxInput instead
  * @deprecated
  */
-export const TxRefInput = TxInput;
+export class TxRefInput extends TxInput {}
 
 /**
- * TxOutput
+ * Represents a transaction output that is used when building a transaction.
  */
 export class TxOutput extends CborData {
 	/** 
@@ -2978,6 +3098,7 @@ export class TxOutput extends CborData {
 	#refScript;
 
 	/**
+	 * Constructs a `TxOutput` instance using an `Address`, a `Value`, an optional `Datum`, and optional `UplcProgram` reference script.
 	 * @param {Address} address 
 	 * @param {Value} value 
 	 * @param {null | Datum} datum 
@@ -2993,6 +3114,7 @@ export class TxOutput extends CborData {
 	}
 
 	/**
+	 * Get the `Address` to which the `TxOutput` will be sent.
 	 * @type {Address}
 	 */
 	get address() {
@@ -3008,6 +3130,7 @@ export class TxOutput extends CborData {
 	}
 
 	/**
+	 * Get the `Value` contained in the `TxOutput`.
 	 * @type {Value}
 	 */
 	get value() {
@@ -3023,6 +3146,7 @@ export class TxOutput extends CborData {
 	}
 
 	/**
+	 * Get the optional `Datum` associated with the `TxOutput`.
 	 * @type {null | Datum}
 	 */
 	get datum() {
@@ -3254,10 +3378,12 @@ export class TxOutput extends CborData {
 	}
 
 	/**
-	 * Mutates. Makes sure the output contains at least the minimum quantity of lovelace.
-	 * Other parts of the output can optionally also be mutated.
+	 * Makes sure the `TxOutput` contains the minimum quantity of lovelace.
+	 * The network requires this to avoid the creation of unusable dust UTxOs.
+	 * 
+	 * Optionally an update function can be specified that allows mutating the datum of the `TxOutput` to account for an increase of the lovelace quantity contained in the value.
 	 * @param {NetworkParams} networkParams 
-	 * @param {?((output: TxOutput) => void)} updater
+	 * @param {null | ((output: TxOutput) => void)} updater
 	 */
 	correctLovelace(networkParams, updater = null) {
 		let minLovelace = this.calcMinLovelace(networkParams);
@@ -3305,7 +3431,11 @@ class DCert extends CborData {
 }
 
 /**
- * Convenience address that is used to query all assets controlled by a given StakeHash (can be scriptHash or regular stakeHash)
+ * Wrapper for Cardano stake address bytes. An StakeAddress consists of two parts internally:
+ *   - Header (1 byte, see CIP 8)
+ *   - Staking witness hash (28 bytes that represent the `StakeKeyHash` or `StakingValidatorHash`)
+ * 
+ * Stake addresses are used to query the assets held by given staking credentials.
  */
 export class StakeAddress {
 	#bytes;
@@ -3327,6 +3457,7 @@ export class StakeAddress {
 	}
 
 	/**
+	 * Returns `true` if the given `StakeAddress` is a testnet address.
 	 * @param {StakeAddress} sa
 	 * @returns {boolean}
 	 */
@@ -3335,8 +3466,8 @@ export class StakeAddress {
 	}
 
 	/**
-	 * Convert regular Address into StakeAddress.
-	 * Throws an error if the given Address doesn't have a staking part.
+	 * Convert a regular `Address` into a `StakeAddress`. 
+	 * Throws an error if the Address doesn't have a staking credential.
 	 * @param {Address} addr 
 	 * @returns {StakeAddress}
 	 */
@@ -3351,6 +3482,7 @@ export class StakeAddress {
 	}
 
 	/**
+	 * Converts a `StakeAddress` into its CBOR representation.
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -3366,6 +3498,7 @@ export class StakeAddress {
 	}
 
 	/**
+	 * Converts a `StakeAddress` into its Bech32 representation.
 	 * @returns {string}
 	 */
 	toBech32() {
@@ -3390,7 +3523,7 @@ export class StakeAddress {
 	}
 
 	/**
-	 * Returns the raw StakeAddress bytes as a hex encoded string
+	 * Converts a `StakeAddress` into its hexadecimal representation.
 	 * @returns {string}
 	 */
 	toHex() {
@@ -3398,6 +3531,7 @@ export class StakeAddress {
 	}
 
 	/**
+	 * Converts a `StakeAddress` into its hexadecimal representation.
 	 * @type {string}
 	 */
 	get hex() {
@@ -3415,6 +3549,7 @@ export class StakeAddress {
 
 	/**
 	 * Address with only staking part (regular StakeKeyHash)
+	 * @internal
 	 * @param {boolean} isTestnet
 	 * @param {StakeKeyHash} hash
 	 * @returns {StakeAddress}
@@ -3427,6 +3562,7 @@ export class StakeAddress {
 
 	/**
 	 * Address with only staking part (script StakingValidatorHash)
+	 * @internal
 	 * @param {boolean} isTestnet
 	 * @param {StakingValidatorHash} hash
 	 * @returns {StakeAddress}
@@ -3438,6 +3574,7 @@ export class StakeAddress {
 	}
 
 	/**
+	 * Converts a `StakeKeyHash` or `StakingValidatorHash` into `StakeAddress`.
 	 * @param {boolean} isTestnet
 	 * @param {StakeKeyHash | StakingValidatorHash} hash
 	 * @returns {StakeAddress}
@@ -3451,6 +3588,7 @@ export class StakeAddress {
 	}
 
 	/**
+	 * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`.
 	 * @returns {StakeKeyHash | StakingValidatorHash}
 	 */
 	get stakingHash() {
@@ -3687,12 +3825,12 @@ export class Ed25519PrivateKey extends HeliosData {
 }
 
 /**
- * Used during Bip32PrivateKey derivation, to create a new Bip32PrivateKey instance with a non-publicly deriveable PubKey.
+ * Used during `Bip32PrivateKey` derivation, to create a new `Bip32PrivateKey` instance with a non-publicly deriveable `PubKey`.
  */
 export const BIP32_HARDEN = 0x80000000;
 
 /**
- * Ed25519-Bip32 extendable PrivateKey (ss)
+ * Ed25519-Bip32 extendable `PrivateKey`.
  * @implements {PrivateKey}
  */
 export class Bip32PrivateKey {
@@ -3878,7 +4016,7 @@ export class Bip32PrivateKey {
 
 	/**
 	 * @example
-	 * (new Bip32PrivateKey([0x60, 0xd3, 0x99, 0xda, 0x83, 0xef, 0x80, 0xd8, 0xd4, 0xf8, 0xd2, 0x23, 0x23, 0x9e, 0xfd, 0xc2, 0xb8, 0xfe, 0xf3, 0x87, 0xe1, 0xb5, 0x21, 0x91, 0x37, 0xff, 0xb4, 0xe8, 0xfb, 0xde, 0xa1, 0x5a, 0xdc, 0x93, 0x66, 0xb7, 0xd0, 0x03, 0xaf, 0x37, 0xc1, 0x13, 0x96, 0xde, 0x9a, 0x83, 0x73, 0x4e, 0x30, 0xe0, 0x5e, 0x85, 0x1e, 0xfa, 0x32, 0x74, 0x5c, 0x9c, 0xd7, 0xb4, 0x27, 0x12, 0xc8, 0x90, 0x60, 0x87, 0x63, 0x77, 0x0e, 0xdd, 0xf7, 0x72, 0x48, 0xab, 0x65, 0x29, 0x84, 0xb2, 0x1b, 0x84, 0x97, 0x60, 0xd1, 0xda, 0x74, 0xa6, 0xf5, 0xbd, 0x63, 0x3c, 0xe4, 0x1a, 0xdc, 0xee, 0xf0, 0x7a])).sign(textToBytes("Hello World")).bytes => [0x90, 0x19, 0x4d, 0x57, 0xcd, 0xe4, 0xfd, 0xad, 0xd0, 0x1e, 0xb7, 0xcf, 0x16, 0x17, 0x80, 0xc2, 0x77, 0xe1, 0x29, 0xfc, 0x71, 0x35, 0xb9, 0x77, 0x79, 0xa3, 0x26, 0x88, 0x37, 0xe4, 0xcd, 0x2e, 0x94, 0x44, 0xb9, 0xbb, 0x91, 0xc0, 0xe8, 0x4d, 0x23, 0xbb, 0xa8, 0x70, 0xdf, 0x3c, 0x4b, 0xda, 0x91, 0xa1, 0x10, 0xef, 0x73, 0x56, 0x38, 0xfa, 0x7a, 0x34, 0xea, 0x20, 0x46, 0xd4, 0xbe, 0x04]
+	 * (new Bip32PrivateKey([0x60, 0xd3, 0x99, 0xda, 0x83, 0xef, 0x80, 0xd8, 0xd4, 0xf8, 0xd2, 0x23, 0x23, 0x9e, 0xfd, 0xc2, 0xb8, 0xfe, 0xf3, 0x87, 0xe1, 0xb5, 0x21, 0x91, 0x37, 0xff, 0xb4, 0xe8, 0xfb, 0xde, 0xa1, 0x5a, 0xdc, 0x93, 0x66, 0xb7, 0xd0, 0x03, 0xaf, 0x37, 0xc1, 0x13, 0x96, 0xde, 0x9a, 0x83, 0x73, 0x4e, 0x30, 0xe0, 0x5e, 0x85, 0x1e, 0xfa, 0x32, 0x74, 0x5c, 0x9c, 0xd7, 0xb4, 0x27, 0x12, 0xc8, 0x90, 0x60, 0x87, 0x63, 0x77, 0x0e, 0xdd, 0xf7, 0x72, 0x48, 0xab, 0x65, 0x29, 0x84, 0xb2, 0x1b, 0x84, 0x97, 0x60, 0xd1, 0xda, 0x74, 0xa6, 0xf5, 0xbd, 0x63, 0x3c, 0xe4, 0x1a, 0xdc, 0xee, 0xf0, 0x7a])).sign(textToBytes("Hello World")).bytes == [0x90, 0x19, 0x4d, 0x57, 0xcd, 0xe4, 0xfd, 0xad, 0xd0, 0x1e, 0xb7, 0xcf, 0x16, 0x17, 0x80, 0xc2, 0x77, 0xe1, 0x29, 0xfc, 0x71, 0x35, 0xb9, 0x77, 0x79, 0xa3, 0x26, 0x88, 0x37, 0xe4, 0xcd, 0x2e, 0x94, 0x44, 0xb9, 0xbb, 0x91, 0xc0, 0xe8, 0x4d, 0x23, 0xbb, 0xa8, 0x70, 0xdf, 0x3c, 0x4b, 0xda, 0x91, 0xa1, 0x10, 0xef, 0x73, 0x56, 0x38, 0xfa, 0x7a, 0x34, 0xea, 0x20, 0x46, 0xd4, 0xbe, 0x04]
 	 * @param {number[]} message 
 	 * @returns {Signature}
 	 */
@@ -4448,8 +4586,10 @@ export class MintingRedeemer extends Redeemer {
 }
 
 /**
- * Inside helios this type is named OutputDatum in order to distinguish it from the user defined Datum,
- * but outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum
+ * Represents either an inline datum, or a hashed datum.
+ * 
+ * Inside the Helios language this type is named `OutputDatum` in order to distinguish it from user defined Datums,
+ * But outside helios scripts there isn't much sense to keep using the name 'OutputDatum' instead of Datum.
  */
 export class Datum extends CborData {
 	constructor() {
@@ -4518,6 +4658,7 @@ export class Datum extends CborData {
 	}
 
 	/**
+	 * Constructs a `HashedDatum`. The input data is hashed internally.
 	 * @param {UplcDataValue | UplcData | HeliosData} data
 	 * @returns {Datum}
 	 */
@@ -4656,6 +4797,7 @@ export class HashedDatum extends Datum {
 	}
 
 	/**
+	 * Constructs a `HashedDatum`. The input data is hashed internally.
 	 * @param {UplcData} data 
 	 * @returns {HashedDatum}
 	 */

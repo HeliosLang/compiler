@@ -3,6 +3,7 @@
 
 import {
     assert,
+    bytesToHex,
     bigIntToBytes,
     eq
 } from "./utils.js";
@@ -706,7 +707,9 @@ export const rawNetworkEmulatorParams = {
 };
 
 /**
- * Single address wallet emulator.
+ * An emulated `Wallet`, created by calling `emulator.createWallet()`.
+ * 
+ * This wallet only has a single private/public key, which isn't rotated. Staking is not yet supported.
  * @implements {Wallet}
  */
 export class WalletEmulator {
@@ -1018,6 +1021,9 @@ class RegularTx {
 }
 
 /**
+ * A simple emulated Network.
+ * This can be used to do integration tests of whole dApps.
+ * Staking is not yet supported.
  * @implements {Network}
  */
 export class NetworkEmulator {
@@ -1047,6 +1053,8 @@ export class NetworkEmulator {
     #blocks;
 
     /**
+     * Instantiates a NetworkEmulator at slot 0.
+     * An optional seed number can be specified, from which all emulated randomness is derived.
      * @param {number} seed
      */
     constructor(seed = 0) {
@@ -1058,8 +1066,15 @@ export class NetworkEmulator {
     }
 
     /**
-     * Create a copy of networkParams that always has access to the current slot
-     *  (for setting the validity range automatically)
+     * @type {bigint}
+     */
+    get currentSlot() {
+        return this.#slot;
+    }
+
+    /**
+     * Creates a new `NetworkParams` instance that has access to current slot 
+     * (so that the `Tx` validity range can be set automatically during `Tx.finalize()`).
      * @param {NetworkParams} networkParams
      * @returns {NetworkParams}
      */
@@ -1073,13 +1088,6 @@ export class NetworkEmulator {
             time: 0
         };
 
-        // increase the max tx size
-        /*raw.latestParams.maxTxSize = raw.latestParams.maxTxSize*100;
-        raw.latestParams.maxTxExecutionUnits = {
-            memory: raw.latestParams.maxTxExecutionUnits.memory*100,
-            steps: raw.latestParams.maxTxExecutionUnits.steps*100
-        };*/
-
         return new NetworkParams(
             raw,
             () => {
@@ -1089,7 +1097,8 @@ export class NetworkEmulator {
     }
 
     /**
-     * Creates a WalletEmulator and adds a block with a single fake unbalanced Tx
+     * Creates a new WalletEmulator and populates it with a given lovelace quantity and assets.
+     * Special genesis transactions are added to the emulated chain in order to create these assets.
      * @param {bigint} lovelace
      * @param {Assets} assets
      * @returns {WalletEmulator}
@@ -1123,10 +1132,12 @@ export class NetworkEmulator {
     }
 
     /**
-     * Mint a block with the current mempool, and advance the slot.
+     * Mint a block with the current mempool, and advance the slot by a number of slots.
      * @param {bigint} nSlots
      */
     tick(nSlots) {
+        assert(nSlots > 0, `nSlots must be > 0, got ${nSlots.toString()}`);
+
         if (this.#mempool.length > 0) {
             this.#blocks.push(this.#mempool);
 
@@ -1229,5 +1240,316 @@ export class NetworkEmulator {
         this.#mempool.push(new RegularTx(tx));
 
         return tx.id();
+    }
+}
+
+/**
+ * @internal
+ * @implements {Wallet}
+ */
+class TxChainWallet {
+    #base;
+    #chain;
+    
+    /**
+     * 
+     * @param {Wallet} base 
+     * @param {TxChain} chain 
+     */
+    constructor(base, chain) {
+        this.#base = base;
+        this.#chain = chain;
+    }
+
+    /**
+     * @returns {Promise<boolean>}
+     */
+    async isMainnet() {
+        return this.#base.isMainnet()
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<Signature[]>}
+     */
+    async signTx(tx) {
+        return this.#base.signTx(tx)
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        return this.#chain.submitTx(tx)
+    }
+
+    get unusedAddresses() {
+        return this.#base.unusedAddresses;
+    }
+
+    get usedAddresses() {
+        return this.#base.usedAddresses;
+    }
+
+    /**
+     * @internal
+     * @param {TxInput[]} utxos 
+     * @returns {Promise<TxInput[]>}
+     */
+    async filterUtxos(utxos) {
+        const ua = await this.usedAddresses;
+        const una = await this.unusedAddresses;
+
+        const addrs = ua.concat(una);
+
+        return await this.#chain.getUtxosInternal(utxos, addrs);
+    }
+
+    /**
+     * @type {Promise<TxInput[]>}
+     */
+    get collateral() {
+        return new Promise((resolve, reject) => {
+            this.#base.collateral.then(utxos => {
+                this.filterUtxos(utxos).then(utxos => {
+                    resolve(utxos);
+                });
+            });
+        });
+    }
+
+    /**
+     * @type {Promise<TxInput[]>}
+     */
+    get utxos() {
+        return new Promise((resolve, reject) => {
+            this.#base.utxos.then(utxos => {
+                this.filterUtxos(utxos).then(utxos => {
+                    resolve(utxos);
+                });
+            });
+        });
+    }
+}
+
+/**
+ * Helper that 
+ * @implements {Network}
+ */
+export class TxChain {
+    #network;
+
+    /**
+     * @type {RegularTx[]}
+     */
+    #txs;
+
+    /**
+     * @param {Network} network 
+     */
+    constructor(network) {
+        this.#network = network;
+        this.#txs = [];
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        const id = await this.#network.submitTx(tx);
+
+        this.#txs.push(new RegularTx(tx));
+
+        return id;
+    }
+
+    /**
+     * @returns {Promise<NetworkParams>}
+     */
+    async getParameters() {
+        return this.#network.getParameters()
+    }
+
+    /**
+     * @param {TxOutputId} id 
+     * @returns {Promise<TxInput>}
+     */
+    async getUtxo(id) {
+        for (let i = 0; i < this.#txs.length; i++) {
+            const txInput = this.#txs[i].getUtxo(id);
+
+            if (txInput) {
+                return txInput;
+            }
+        }
+
+        return this.#network.getUtxo(id);
+    }
+
+    /**
+     * @param {TxInput[]} utxos
+     * @param {Address[]} addrs
+     * @returns {Promise<TxInput[]>}
+     */
+    async getUtxosInternal(utxos, addrs) {
+        for (let tx of this.#txs) {
+            addrs.forEach(addr => {
+                utxos = tx.collectUtxos(addr, utxos);
+            });
+        }
+
+        return utxos;
+    }
+    /**
+     * @param {Address} addr
+     * @returns {Promise<TxInput[]>}
+     */
+    async getUtxos(addr) {
+        let utxos = await this.#network.getUtxos(addr);
+
+        return this.getUtxosInternal(utxos, [addr])
+    }
+
+    /**
+     * @param {Wallet} baseWallet 
+     * @returns {Wallet}
+     */
+    asWallet(baseWallet) {
+        return new TxChainWallet(baseWallet, this);
+    }
+}
+
+/**
+ * @typedef {{
+ *   [address: string]: TxInput[]
+ * }} NetworkSliceUTxOs
+ */
+
+/**
+ * @implements {Network}
+ */
+export class NetworkSlice {
+    #params;
+    #utxos;
+
+    /**
+     * @param {NetworkParams} params
+     * @param {NetworkSliceUTxOs} utxos 
+     */
+    constructor(params, utxos) {
+        this.#params = params;
+        this.#utxos = utxos;
+    }
+
+    /**
+     * @param {Network} network
+     * @param {Address[]} addresses
+     * @returns {Promise<NetworkSlice>}
+     */
+    static async init(network, addresses) {
+        /**
+         * @type {[Promise<NetworkParams>, ...Promise<TxInput[]>[]]}
+         */
+        const promises = [
+            network.getParameters(),
+            ...addresses.map(a => network.getUtxos(a))
+        ];
+
+        const resolved = await Promise.all(promises);
+
+        const [params, ...utxos] = resolved;
+
+        /**
+         * @type {NetworkSliceUTxOs}
+         */
+        const obj = {};
+
+        addresses.forEach((a, i) => {
+            obj[a.toBech32()] = utxos[i];
+        });
+
+        return new NetworkSlice(params, obj);
+    }
+
+    /**
+     * @returns {any}
+     */
+    toJson() {
+        const obj = {};
+
+        for (let a in this.#utxos) {
+            obj[a] = this.#utxos[a].map(utxo => bytesToHex(utxo.toFullCbor()));
+        }
+
+        return {
+            params: this.#params.raw,
+            utxos: obj
+        };
+    }
+
+    /**
+     * @param {any} obj 
+     * @returns {NetworkSlice}
+     */
+    static fromJson(obj) {
+        const params = new NetworkParams(obj.params);
+
+        /**
+         * @type {NetworkSliceUTxOs}
+         */
+        const utxos = {};
+
+        for (let a in obj.utxos) {
+            utxos[a] = obj.utxos[a].map(utxo => TxInput.fromFullCbor(utxo));
+        }
+
+        return new NetworkSlice(params, utxos);
+    }
+
+    /**
+     * @returns {Promise<NetworkParams>}
+     */
+    async getParameters() {
+        return this.#params;
+    }
+
+    /**
+     * @param {TxOutputId} id 
+     * @returns {Promise<TxInput>}
+     */
+    async getUtxo(id) {
+        for (let utxos of Object.values(this.#utxos)) {
+            for (let utxo of utxos) {
+                if (utxo.outputId.eq(id)) {
+                    return utxo;
+                }
+            }
+        }
+
+        throw new Error(`utxo ${id.toString()} not found`);
+    }
+
+    /**
+     * @param {Address} addr 
+     * @returns {Promise<TxInput[]>}
+     */
+    async getUtxos(addr) {
+        const key = addr.toBech32();
+
+        if (key in this.#utxos) {
+            return this.#utxos[key];
+        } else {
+            return [];
+        }
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        throw new Error("can't submit tx through network slice");
     }
 }
