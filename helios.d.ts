@@ -2903,6 +2903,10 @@ export class TxBody extends CborData {
      */
     get inputs(): TxInput[];
     /**
+     * @type {TxInput[]}
+     */
+    get refInputs(): TxInput[];
+    /**
      * @type {TxOutput[]}
      */
     get outputs(): TxOutput[];
